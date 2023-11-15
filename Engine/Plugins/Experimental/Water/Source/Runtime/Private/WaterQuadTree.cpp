@@ -451,14 +451,12 @@ bool FWaterQuadTree::FNode::QueryBoundsAtLocation(const FNodeData& InNodeData, c
 	return ChildCount == 0;
 }
 
-void FWaterQuadTree::InitTree(const FBox2D& InBounds, float InTileSize, FIntPoint InExtentInTiles, bool bInIsGPUQuadTree)
+void FWaterQuadTree::InitTree(const FBox2D& InBounds, float InTileSize, FIntPoint InExtentInTiles)
 {
 	ensure(InBounds.GetArea() > 0.0f);
 	ensure(InTileSize > 0.0f);
 	ensure(InExtentInTiles.X > 0);
 	ensure(InExtentInTiles.Y > 0);
-
-	bIsGPUQuadTree = bInIsGPUQuadTree;
 
 	FarMeshData.Clear();
 
@@ -474,19 +472,11 @@ void FWaterQuadTree::InitTree(const FBox2D& InBounds, float InTileSize, FIntPoin
 
 	TileRegion = InBounds;
 
-	WaterBodyRasterInfos.Reset();
 	BreadthFirstOrder.Reset();
 
 	// Allocate theoretical max, shrink later in Lock()
 	// This is so that the node array doesn't move in memory while inserting
-	if (!bIsGPUQuadTree)
-	{
-		NodeData.Nodes.Empty((float)(FMath::Square(RootDim) * 4) / 3.0f);
-	}
-	else
-	{
-		NodeData.Nodes.Empty(1);
-	}
+	NodeData.Nodes.Empty((float)(FMath::Square(RootDim) * 4) / 3.0f);
 
 	// Add defaulted water body render data to slot 0. This is the "null" render data, pointed to by all newly created nodes. Has lowest priority so it will always be overwritten
 	NodeData.WaterBodyRenderData.Empty(1);
@@ -645,14 +635,12 @@ void FWaterQuadTree::Unlock(bool bPruneRedundantNodes)
 void FWaterQuadTree::AddWaterTilesInsideBounds(const FBox& InBounds, uint32 InWaterBodyIndex)
 {
 	check(!bIsReadOnly);
-	check(!bIsGPUQuadTree);
 	NodeData.Nodes[0].AddNodes(NodeData, FBox(FVector(TileRegion.Min, 0.0f), FVector(TileRegion.Max, 0.0f)),  InBounds, InWaterBodyIndex, TreeDepth, 0);
 }
 
 void FWaterQuadTree::AddOcean(const TArray<FVector2D>& InPoly, const FBox& InOceanBounds, uint32 InWaterBodyIndex)
 {
 	check(!bIsReadOnly);
-	check(!bIsGPUQuadTree);
 	const FBox2D OceanBounds(FVector2D(InOceanBounds.Min), FVector2D(InOceanBounds.Max));
 	AddOceanRecursive(InPoly, OceanBounds, FVector2D(InOceanBounds.Min.Z, InOceanBounds.Max.Z), true, TreeDepth * 2, InWaterBodyIndex);
 }
@@ -660,7 +648,6 @@ void FWaterQuadTree::AddOcean(const TArray<FVector2D>& InPoly, const FBox& InOce
 void FWaterQuadTree::AddLake(const TArray<FVector2D>& InPoly, const FBox& InLakeBounds, uint32 InWaterBodyIndex)
 {
 	check(!bIsReadOnly);
-	check(!bIsGPUQuadTree);
 	const FBox2D LakeBounds(FVector2D(NodeData.Nodes[0].Bounds.Min), FVector2D(NodeData.Nodes[0].Bounds.Max));
 	AddLakeRecursive(InPoly, LakeBounds, FVector2D(InLakeBounds.Min.Z, InLakeBounds.Max.Z), true, TreeDepth * 2, InWaterBodyIndex);
 }
@@ -756,10 +743,7 @@ void FWaterQuadTree::BuildWaterTileInstanceData(const FTraversalDesc& InTraversa
 	TRACE_CPUPROFILER_EVENT_SCOPE(BuildWaterTileInstanceData);
 	check(bIsReadOnly);
 
-	if (!bIsGPUQuadTree)
-	{
-		NodeData.Nodes[0].SelectLOD(NodeData, TreeDepth, InTraversalDesc, Output);
-	}
+	NodeData.Nodes[0].SelectLOD(NodeData, TreeDepth, InTraversalDesc, Output);
 
 	// Append Far Mesh tiles
 	if (FarMeshData.InstanceData.Num() > 0 && FarMeshData.MaterialIndex != INDEX_NONE)

@@ -28,13 +28,6 @@ struct FWaterBodyRenderData
 	/** World Z position of the waterbody, this is where the tiles for this water body will be rendered*/
 	double SurfaceBaseHeight = 0.0;
 
-	/** Z bounds of the water body */
-	double BoundsMinZ = DBL_MAX;
-	double BoundsMaxZ = -DBL_MAX;
-
-	/** Maximum Z displacement due to waves */
-	float MaxWaveHeight = 0.0f;
-
 	/** Render priority. If two water bodies overlap, this will decide which water body is used for a tile */
 	int16 Priority = TNumericLimits<int16>::Min();
 
@@ -71,15 +64,6 @@ struct FWaterBodyRenderData
 #endif // WITH_WATER_SELECTION_SUPPORT
 				; 
 	}
-};
-
-struct FWaterBodyQuadTreeRasterInfo
-{
-	FTransform LocalToWorld = FTransform::Identity;
-	const class FStaticMeshRenderData* RenderData = nullptr;
-	uint32 WaterBodyRenderDataIndex = INDEX_NONE;
-	uint8 Priority = 0;
-	bool bIsRiver = false;
 };
 
 struct FWaterQuadTree 
@@ -141,7 +125,7 @@ struct FWaterQuadTree
 	 *	Initialize the tree. This will unlock the tree for node insertion using AddWaterTilesInsideBounds(...). 
 	 *	Tree must be locked before traversal, see Lock(). 
 	 */
-	void InitTree(const FBox2D& InBounds, float InTileSize, FIntPoint InExtentInTiles, bool bInIsGPUQuadTree);
+	void InitTree(const FBox2D& InBounds, float InTileSize, FIntPoint InExtentInTiles);
 
 	/** Unlock to make it read-only. This will optionally prune the node array to remove redundant nodes, nodes that can be implicitly traversed */
 	void Unlock(bool bPruneRedundantNodes);
@@ -163,8 +147,6 @@ struct FWaterQuadTree
 
 	/** Add water body render data to this tree. Returns the index in the array. Use this index to add tiles with this water body to the tree, see AddWaterTilesInsideBounds(..) */
 	uint32 AddWaterBodyRenderData(const FWaterBodyRenderData& InWaterBodyRenderData) { return NodeData.WaterBodyRenderData.Add(InWaterBodyRenderData); }
-
-	void AddWaterBodyRasterInfo(const FWaterBodyQuadTreeRasterInfo& InWaterBodyRasterInfo) { WaterBodyRasterInfos.Add(InWaterBodyRasterInfo); }
 
 	/** Get bounds of the root node if there is one, otherwise some default box */
 	FBox GetBounds() const { return NodeData.Nodes.Num() > 0 ? NodeData.Nodes[0].Bounds : FBox(-FVector::OneVector, FVector::OneVector); }
@@ -201,19 +183,11 @@ struct FWaterQuadTree
 
 	const TArray<FMaterialRenderProxy*>& GetWaterMaterials() const { return WaterMaterials; }
 
-	const TArray<FWaterBodyQuadTreeRasterInfo>& GetWaterBodyRasterInfos() const { return WaterBodyRasterInfos; }
-
-	const TArray<FWaterBodyRenderData>& GetWaterBodyRenderData() const { return NodeData.WaterBodyRenderData; }
-
-	FIntPoint GetResolution() const { return ExtentInTiles * 2; }
-
-	bool IsGPUQuadTree() const { return bIsGPUQuadTree; }
-
 	/** Calculate the world distance to a LOD */
 	static float GetLODDistance(int32 InLODLevel, float InLODScale) { return FMath::Pow(2.0f, (float)(InLODLevel + 1)) * InLODScale; }
 
 	/** Total memory dynamically allocated by this object */
-	uint32 GetAllocatedSize() const { return NodeData.GetAllocatedSize() + WaterMaterials.GetAllocatedSize() + WaterBodyRasterInfos.GetAllocatedSize() + BreadthFirstOrder.GetAllocatedSize() + FarMeshData.GetAllocatedSize(); }
+	uint32 GetAllocatedSize() const { return NodeData.GetAllocatedSize() + WaterMaterials.GetAllocatedSize() + BreadthFirstOrder.GetAllocatedSize() + FarMeshData.GetAllocatedSize(); }
 
 #if WITH_WATER_SELECTION_SUPPORT
 	/** Obtain all possible hit proxies (proxies of all the water bodies) */
@@ -317,9 +291,8 @@ private:
 	} NodeData;
 
 	TArray<FMaterialRenderProxy*> WaterMaterials;
-	TArray<FWaterBodyQuadTreeRasterInfo> WaterBodyRasterInfos;
-	
-/** Node indices ordered by breadth first ordering */
+
+	/** Node indices ordered by breadth first ordering */
 	TArray<int32> BreadthFirstOrder;
 
 	/** Contains everything needed to render the far mesh. This data lives outside the quadtree structure itself */
@@ -358,6 +331,4 @@ private:
 
 	/** If true, the tree may not change */
 	bool bIsReadOnly = true;
-
-	bool bIsGPUQuadTree = false;
 };

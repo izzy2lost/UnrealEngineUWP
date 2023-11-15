@@ -1124,11 +1124,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 	}
 
-	for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
-	{
-		ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder);
-	}
-
 	if (bRendererOutputFinalSceneColor)
 	{
 		if (bDeferredShading)

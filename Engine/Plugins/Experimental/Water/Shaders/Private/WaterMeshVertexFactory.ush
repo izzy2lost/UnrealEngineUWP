@@ -2,23 +2,6 @@
 
 #include "/Engine/Private/VertexFactoryCommon.ush"
 
-#ifndef WATER_MESH_DRAW_INDIRECT
-#define WATER_MESH_DRAW_INDIRECT 0
-#endif
-
-#if WATER_MESH_DRAW_INDIRECT
-
-Buffer<uint> InstanceDataOffsetsBuffer;
-Buffer<float4> InstanceData0Buffer;
-Buffer<float4> InstanceData1Buffer;
-#if WITH_WATER_SELECTION_SUPPORT_VF
-Buffer<float4> InstanceData2Buffer;
-#endif
-
-uint DrawBucketIndex;
-
-#endif
-
 struct FVertexFactoryInterpolantsVSToPS
 {
 #if NUM_TEX_COORD_INTERPOLATORS
@@ -43,15 +26,11 @@ struct FVertexFactoryInput
 {
 	float4	Position	: ATTRIBUTE0;
 
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	uint InstanceId : SV_InstanceID;
-#else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9; 
 #if HIT_PROXY_SHADER || WITH_WATER_SELECTION_SUPPORT_VF
 	float4 InstanceData2 : ATTRIBUTE10; // Store an HitProxyID per instance
 #endif
-#endif // WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
 
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(13)
 	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
@@ -64,12 +43,8 @@ struct FPositionOnlyVertexFactoryInput
 {
 	float4	Position	: ATTRIBUTE0;
 
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	uint InstanceId : SV_InstanceID;
-#else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9; 
-#endif // WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
 
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(1)
 	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
@@ -83,12 +58,8 @@ struct FPositionAndNormalOnlyVertexFactoryInput
 	float4	Position	: ATTRIBUTE0;
 	float4	Normal		: ATTRIBUTE2;
 
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	uint InstanceId : SV_InstanceID;
-#else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9; 
-#endif // WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
 
 	VF_GPUSCENE_DECLARE_INPUT_BLOCK(1)
 	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
@@ -238,14 +209,8 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	FVertexFactoryIntermediates Intermediates;
 
 	// Get the packed instance data
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	const uint InstanceDataIndex = InstanceDataOffsetsBuffer.Load(DrawBucketIndex) + Input.InstanceId;
-	float4 Data0 = InstanceData0Buffer.Load(InstanceDataIndex);
-	float4 Data1 = InstanceData1Buffer.Load(InstanceDataIndex);
-#else
 	float4 Data0 = Input.InstanceData0;
 	float4 Data1 = Input.InstanceData1;
-#endif // WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
 
 	const float3 Translation = Data0.xyz;
 	Intermediates.WaveParamIndex = asuint(Data0.w);
@@ -289,11 +254,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	}
 
 #if WITH_WATER_SELECTION_SUPPORT_VF
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	float SelectedValue = InstanceData2Buffer.Load(InstanceDataIndex).w;
-#else
 	float SelectedValue = Input.InstanceData2.w;
-#endif
 	float IsVisible = WaterVF.bRenderSelected * SelectedValue + WaterVF.bRenderUnselected * (1-SelectedValue);
 	Intermediates.MorphedTranslatedWorldPos *= IsVisible;
 #endif // WITH_WATER_SELECTION_SUPPORT_VF
@@ -307,12 +268,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 float4 VertexFactoryGetInstanceHitProxyId(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
 #if WITH_WATER_SELECTION_SUPPORT_VF
-#if WATER_MESH_DRAW_INDIRECT && !RAYHITGROUPSHADER && !COMPUTESHADER
-	const uint InstanceDataIndex = InstanceDataOffsetsBuffer.Load(DrawBucketIndex) + Input.InstanceId;
-	return float4(InstanceData2Buffer.Load(InstanceDataIndex).rgb, 0);
-#else
 	return float4(Input.InstanceData2.rgb, 0);
-#endif
 #else // WITH_WATER_SELECTION_SUPPORT_VF
 	return 0;
 #endif // !WITH_WATER_SELECTION_SUPPORT_VF

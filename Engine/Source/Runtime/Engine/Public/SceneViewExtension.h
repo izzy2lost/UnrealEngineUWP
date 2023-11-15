@@ -156,11 +156,6 @@ public:
 	virtual void PreInitViews_RenderThread(FRDGBuilder& GraphBuilder) {}
 
 	/**
-	 * Called on render thread right before Base Pass rendering.
-	 */
-	virtual void PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder) {}
-
-	/**
 	 * Called right after Base Pass rendering finished when using the deferred renderer.
 	 */
 	virtual void PostRenderBasePassDeferred_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView, const FRenderTargetBindingSlots& RenderTargets, TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures) {}

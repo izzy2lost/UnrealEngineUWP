@@ -13,8 +13,8 @@
 
 // ----------------------------------------------------------------------------------
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, int32 InNumQuadsPerSide, float InLODScale)
+template <bool bWithWaterSelectionSupport>
+TWaterVertexFactory<bWithWaterSelectionSupport>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, int32 InNumQuadsPerSide, float InLODScale)
 	: FVertexFactory(InFeatureLevel)
 	, NumQuadsPerSide(InNumQuadsPerSide)
 	, LODScale(InLODScale)
@@ -23,15 +23,15 @@ TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::TWaterVertexFac
 	IndexBuffer = new FWaterMeshIndexBuffer(NumQuadsPerSide);
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::~TWaterVertexFactory()
+template <bool bWithWaterSelectionSupport>
+TWaterVertexFactory<bWithWaterSelectionSupport>::~TWaterVertexFactory()
 {
 	delete VertexBuffer;
 	delete IndexBuffer;
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::InitRHI(FRHICommandListBase& RHICmdList)
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	Super::InitRHI(RHICmdList);
 
@@ -70,13 +70,10 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::InitRHI(FR
 	Elements.Add(VertexPositionElement);
 
 	// Adds all streams
-	if constexpr (NumAdditionalVertexStreams > 0)
+	for (int32 StreamIdx = 0; StreamIdx < NumAdditionalVertexStreams; ++StreamIdx)
 	{
-		for (int32 StreamIdx = 0; StreamIdx < NumAdditionalVertexStreams; ++StreamIdx)
-		{
-			FVertexElement InstanceElement(Streams.Add(InstanceDataVertexStream), 0, VET_Float4, 8 + StreamIdx, InstanceDataVertexStream.Stride, true);
-			Elements.Add(InstanceElement);
-		}
+		FVertexElement InstanceElement(Streams.Add(InstanceDataVertexStream), 0, VET_Float4, 8 + StreamIdx, InstanceDataVertexStream.Stride, true);
+		Elements.Add(InstanceElement);
 	}
 
 #if 0
@@ -96,8 +93,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::InitRHI(FR
 	InitDeclaration(Elements);
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ReleaseRHI()
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::ReleaseRHI()
 {
 	for (auto& UniformBuffer : UniformBuffers)
 	{
@@ -117,8 +114,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ReleaseRHI
 	Super::ReleaseRHI();
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::SetupUniformDataForGroup(EWaterMeshRenderGroupType InRenderGroupType)
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::SetupUniformDataForGroup(EWaterMeshRenderGroupType InRenderGroupType)
 {
 	FWaterVertexFactoryParameters UniformParams;
 	UniformParams.NumQuadsPerTileSide = NumQuadsPerSide;
@@ -134,8 +131,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::SetupUnifo
 	UniformBuffers[(int32)InRenderGroupType] = FWaterVertexFactoryBufferRef::CreateUniformBufferImmediate(UniformParams, UniformBuffer_MultiFrame);
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-bool TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
+template <bool bWithWaterSelectionSupport>
+bool TWaterVertexFactory<bWithWaterSelectionSupport>::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	const bool bIsCompatibleWithWater = ((Parameters.MaterialParameters.MaterialDomain == MD_Surface) && Parameters.MaterialParameters.bIsUsedWithWater) || Parameters.MaterialParameters.bIsSpecialEngineMaterial;
 	if (bIsCompatibleWithWater)
@@ -146,8 +143,8 @@ bool TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ShouldComp
 	return false;
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("WATER_MESH_FACTORY"), 1);
 #if 0
@@ -165,16 +162,12 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ModifyComp
 		OutEnvironment.SetDefine(TEXT("USE_VERTEXFACTORY_HITPROXY_ID"), TEXT("1"));
 		OutEnvironment.SetDefine(TEXT("WITH_WATER_SELECTION_SUPPORT_VF"), TEXT("1"));
 	}
-	if (bIndirectDraws)
-	{
-		OutEnvironment.SetDefine(TEXT("WATER_MESH_DRAW_INDIRECT"), TEXT("1"));
-	}
 
 	OutEnvironment.SetDefine(TEXT("RAY_TRACING_DYNAMIC_MESH_IN_LOCAL_SPACE"), TEXT("1"));
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ValidateCompiledResult(const FVertexFactoryType* Type, EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutErrors)
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::ValidateCompiledResult(const FVertexFactoryType* Type, EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutErrors)
 {
 #if 0
 	if (Type->SupportsPrimitiveIdStream()
@@ -186,18 +179,15 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ValidateCo
 #endif
 }
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
-void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
+template <bool bWithWaterSelectionSupport>
+void TWaterVertexFactory<bWithWaterSelectionSupport>::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
 {
 	// Add position stream
 	Elements.Add(FVertexElement(0, 0, VET_Float4, 0, sizeof(FVector4f), false));
 
 	// Add all the additional streams
-	if constexpr (NumAdditionalVertexStreams > 0)
+	for (int32 StreamIdx = 0; StreamIdx < NumAdditionalVertexStreams; ++StreamIdx)
 	{
-		for (int32 StreamIdx = 0; StreamIdx < NumAdditionalVertexStreams; ++StreamIdx)
-		{
-			Elements.Add(FVertexElement(1 + StreamIdx, 0, VET_Float4, 8 + StreamIdx, sizeof(FVector4f), true));
-		}
+		Elements.Add(FVertexElement(1 + StreamIdx, 0, VET_Float4, 8 + StreamIdx, sizeof(FVector4f), true));
 	}
 }

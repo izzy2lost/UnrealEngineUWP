@@ -164,17 +164,16 @@ enum class EWaterMeshRenderGroupType : uint8
 #endif // WITH_WATER_SELECTION_SUPPORT
 };
 
-template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+template <bool bWithWaterSelectionSupport>
 class TWaterVertexFactory : public FVertexFactory
 {
-	DECLARE_VERTEX_FACTORY_TYPE(FWaterVertexFactoryType);
+	DECLARE_VERTEX_FACTORY_TYPE(TWaterVertexFactory<bWithWaterSelectionSupport>);
 
 public:
 	using Super = FVertexFactory;
-	using FWaterVertexFactoryType = TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>;
 
 	static constexpr int32 NumRenderGroups = bWithWaterSelectionSupport ? 3 : 1; // Must match EWaterMeshRenderGroupType
-	static constexpr int32 NumAdditionalVertexStreams = bIndirectDraws ? 0 : TWaterInstanceDataBuffers<bWithWaterSelectionSupport>::NumBuffers;
+	static constexpr int32 NumAdditionalVertexStreams = TWaterInstanceDataBuffers<bWithWaterSelectionSupport>::NumBuffers;
 
 	TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, int32 InNumQuadsPerSide,	float InLODScale);
 	~TWaterVertexFactory();
@@ -216,7 +215,7 @@ private:
 	const float LODScale = 0.0f;
 };
 
-extern const FVertexFactoryType* GetWaterVertexFactoryType(bool bWithWaterSelectionSupport, bool bIndirectDraws);
+extern const FVertexFactoryType* GetWaterVertexFactoryType(bool bWithWaterSelectionSupport);
 
 
 /**
@@ -239,11 +238,6 @@ struct TWaterMeshUserData
 #if RHI_RAYTRACING	
 	FUniformBufferRHIRef WaterVertexFactoryRaytracingVFUniformBuffer = nullptr;
 #endif
-
-	FRHIShaderResourceView* IndirectInstanceDataOffsets = nullptr;
-	FRHIShaderResourceView* IndirectInstanceData0 = nullptr;
-	FRHIShaderResourceView* IndirectInstanceData1 = nullptr;
-	FRHIShaderResourceView* IndirectInstanceData2 = nullptr;
 };
 
 /**
@@ -273,7 +267,7 @@ struct TWaterMeshUserDataBuffers
 		return UserData[(int32)InRenderGroupType].Get();
 	}
 
-	TStaticArray<TUniquePtr<WaterMeshUserDataType>, TWaterVertexFactory<bWithWaterSelectionSupport, /*bIndirectDraws = */ false>::NumRenderGroups> UserData;
+	TStaticArray<TUniquePtr<WaterMeshUserDataType>, TWaterVertexFactory<bWithWaterSelectionSupport>::NumRenderGroups> UserData;
 };
 
 #include "WaterVertexFactory.inl"
