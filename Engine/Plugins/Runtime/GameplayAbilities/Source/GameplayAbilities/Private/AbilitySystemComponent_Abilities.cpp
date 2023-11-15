@@ -406,7 +406,14 @@ void UAbilitySystemComponent::SetRemoveAbilityOnEnd(FGameplayAbilitySpecHandle A
 
 void UAbilitySystemComponent::ClearAllAbilities()
 {
-	check(AbilityScopeLockCount == 0);	// We should never be calling this from a scoped lock situation.
+	// If this is called inside an ability scope lock, postpone the workload until end of scope.
+	// This was introduced for abilities that trigger their owning actor's destruction on ability
+	// activation.
+	if (AbilityScopeLockCount > 0)
+	{
+		bAbilityPendingClearAll = true;
+		return;
+	}
 
 	if (!IsOwnerActorAuthoritative())
 	{
@@ -439,6 +446,7 @@ void UAbilitySystemComponent::ClearAllAbilities()
 	ActivatableAbilities.MarkArrayDirty();
 
 	CheckForClearedAbilities();
+	bAbilityPendingClearAll = false;
 }
 
 void UAbilitySystemComponent::ClearAllAbilitiesWithInputID(int32 InputID /*= 0*/)
@@ -797,26 +805,45 @@ void UAbilitySystemComponent::IncrementAbilityListLock()
 }
 void UAbilitySystemComponent::DecrementAbilityListLock()
 {
-	if (--AbilityScopeLockCount == 0 &&
-		(AbilityPendingAdds.Num() > 0 || AbilityPendingRemoves.Num() > 0))
+	if (--AbilityScopeLockCount == 0)
 	{
-		FAbilityListLockActiveChange ActiveChange(*this, AbilityPendingAdds, AbilityPendingRemoves);
-
-		for (FGameplayAbilitySpec& Spec : ActiveChange.Adds)
+		if (bAbilityPendingClearAll)
 		{
-			if (Spec.bActivateOnce)
+			ClearAllAbilities();
+
+			// When there are pending adds but also a pending clear-all, prioritize clear-all since ClearAllAbilities() based on an assumption 
+			// that the clear-all is likely end-of-life cleanup. There may be cases where someone intentionally calls ClearAllAbilities() and 
+			// then GiveAbility() within one ability scope lock like an ability that removes all abilities and grants an ability. In the future 
+			// we could support this by keeping a chronological list of pending add/remove/clear-all actions and executing them in order.
+			if (AbilityPendingAdds.Num() > 0)
 			{
-				GiveAbilityAndActivateOnce(Spec, Spec.GameplayEventData.Get());
+				ABILITY_LOG(Warning, TEXT("GiveAbility and ClearAllAbilities were both called within an ability scope lock. Prioritizing clear all abilities by ignoring pending adds."));
+				AbilityPendingAdds.Reset();
 			}
-			else
-			{
-				GiveAbility(Spec);
-			}
+
+			// Pending removes are no longer relevant since all abilities have been removed
+			AbilityPendingRemoves.Reset();
 		}
-
-		for (FGameplayAbilitySpecHandle& Handle : ActiveChange.Removes)
+		else if (AbilityPendingAdds.Num() > 0 || AbilityPendingRemoves.Num() > 0)
 		{
-			ClearAbility(Handle);
+			FAbilityListLockActiveChange ActiveChange(*this, AbilityPendingAdds, AbilityPendingRemoves);
+
+			for (FGameplayAbilitySpec& Spec : ActiveChange.Adds)
+			{
+				if (Spec.bActivateOnce)
+				{
+					GiveAbilityAndActivateOnce(Spec, Spec.GameplayEventData.Get());
+				}
+				else
+				{
+					GiveAbility(Spec);
+				}
+			}
+
+			for (FGameplayAbilitySpecHandle& Handle : ActiveChange.Removes)
+			{
+				ClearAbility(Handle);
+			}
 		}
 	}
 }

@@ -63,6 +63,9 @@ UAbilitySystemComponent::UAbilitySystemComponent(const FObjectInitializer& Objec
 	bSuppressGameplayCues = false;
 	bPendingMontageRep = false;
 	AffectedAnimInstanceTag = NAME_None; 
+
+	AbilityScopeLockCount = 0;
+	bAbilityPendingClearAll = false;
 	AbilityLastActivatedTime = 0.f;
 
 	ReplicationMode = EGameplayEffectReplicationMode::Full;

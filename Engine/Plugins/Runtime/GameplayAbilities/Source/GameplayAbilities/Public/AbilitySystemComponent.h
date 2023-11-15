@@ -1693,9 +1693,14 @@ protected:
 	/** Creates a new instance of an ability, storing it in the spec */
 	virtual UGameplayAbility* CreateNewInstanceOfAbility(FGameplayAbilitySpec& Spec, const UGameplayAbility* Ability);
 
+	/** Indicates how many levels of ABILITY_SCOPE_LOCK() we are in. The ability list may not be modified while AbilityScopeLockCount > 0. */
 	int32 AbilityScopeLockCount;
+	/** Abilities that will be removed when exiting the current ability scope lock. */
 	TArray<FGameplayAbilitySpecHandle, TInlineAllocator<2> > AbilityPendingRemoves;
+	/** Abilities that will be added when exiting the current ability scope lock. */
 	TArray<FGameplayAbilitySpec, TInlineAllocator<2> > AbilityPendingAdds;
+	/** Whether all abilities should be removed when exiting the current ability scope lock. Will be prioritized over pending adds. */
+	bool bAbilityPendingClearAll;
 
 	/** Local World time of the last ability activation. This is used for AFK/idle detection */
 	float AbilityLastActivatedTime;
