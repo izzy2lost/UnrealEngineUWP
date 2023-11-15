@@ -41,7 +41,7 @@ class UMaterialExpressionTextureBase : public UMaterialExpression
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
 	ENGINE_API virtual FString GetDescription() const override;
-
+	ENGINE_API virtual bool MatchesSearchQuery(const TCHAR* SearchQuery) override;
 	ENGINE_API virtual FText GetPreviewOverlayText() const override;
 #endif
 	//~ End UMaterialExpression Interface

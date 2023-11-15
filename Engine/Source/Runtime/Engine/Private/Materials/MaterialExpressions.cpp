@@ -2473,6 +2473,16 @@ FString UMaterialExpressionTextureBase::GetDescription() const
 	return Result;
 }
 
+bool UMaterialExpressionTextureBase::MatchesSearchQuery(const TCHAR* SearchQuery)
+{
+	if (Texture != nullptr && Texture->GetName().Contains(SearchQuery))
+	{
+		return true;
+	}
+
+	return Super::MatchesSearchQuery(SearchQuery);
+}
+
 FText UMaterialExpressionTextureBase::GetPreviewOverlayText() const
 {
 	if (IsVirtualSamplerType(SamplerType))
@@ -2913,16 +2923,6 @@ void UMaterialExpressionTextureSample::GetConnectorToolTip(int32 InputIndex, int
 void UMaterialExpressionTextureSample::GetCaption(TArray<FString>& OutCaptions) const
 {
 	OutCaptions.Add(TEXT("Texture Sample"));
-}
-
-bool UMaterialExpressionTextureSample::MatchesSearchQuery( const TCHAR* SearchQuery )
-{
-	if( Texture!=nullptr && Texture->GetName().Contains(SearchQuery) )
-	{
-		return true;
-	}
-
-	return Super::MatchesSearchQuery(SearchQuery);
 }
 
 // this define is only used for the following function
@@ -4068,17 +4068,6 @@ void UMaterialExpressionTextureObject::GetCaption(TArray<FString>& OutCaptions) 
 {
 	OutCaptions.Add(TEXT("Texture Object")); 
 }
-
-bool UMaterialExpressionTextureObject::MatchesSearchQuery(const TCHAR* SearchQuery)
-{
-	if (Texture != nullptr && Texture->GetName().Contains(SearchQuery))
-	{
-		return true;
-	}
-
-	return Super::MatchesSearchQuery(SearchQuery);
-}
-
 
 int32 UMaterialExpressionTextureObject::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
