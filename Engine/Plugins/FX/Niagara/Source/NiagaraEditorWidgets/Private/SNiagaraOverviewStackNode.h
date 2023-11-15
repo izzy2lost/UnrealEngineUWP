@@ -71,7 +71,13 @@ private:
 	{
 		return bIsHoveringThumbnail;
 	}
-	
+
+	FText GetSpawnCountScaleText() const;
+	FText GetSpawnCountScaleTooltip() const;
+	EVisibility GetSpawnCountScaleTextVisibility() const;
+	ECheckBoxState IsScalabilityModeActive() const;
+	void OnScalabilityModeStateChanged(ECheckBoxState CheckBoxState);
+
 	FReply OnCycleThroughIssues();
 	FReply OpenParentEmitter();
 	FText OpenParentEmitterTooltip() const;
