@@ -94,7 +94,7 @@ void ShadowMaskSpatialPassCS(
 				ShadowMask = UnpackShadowMask(ShadowMaskTileAtlas[SampleShadowMaskTileAtlasCoord]);
 			}
 
-			SharedShadowMask[SharedShadowMaskX][SharedShadowMaskY] = PackShadowMask(ShadowMask);
+			SharedShadowMask[SharedShadowMaskX][SharedShadowMaskY] = PackShadowMask(ShadowMask, /*Dither*/ 0.5f);
 			SharedSceneDepth[SharedShadowMaskX][SharedShadowMaskY] = DownsampledSceneDepth[SampleShadowMaskScreenCoord];
 		}
 	}
@@ -195,7 +195,7 @@ void ShadowMaskSpatialPassCS(
 		GroupMemoryBarrierWithGroupSync();
 
 		// Update shared shadow mask tile with filtered results
-		SharedShadowMask[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER] = PackShadowMask(ShadowMask);
+		SharedShadowMask[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER] = PackShadowMask(ShadowMask, /*Dither*/ 0.5f);
 
 		if (ShadowMask.IsValid() && ShadowMask.Factor > 0.0f)
 		{

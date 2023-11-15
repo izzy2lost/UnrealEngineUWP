@@ -153,12 +153,12 @@ FShadowMask InitShadowMask()
 	return ShadowMask;
 }
 
-uint PackShadowMask(FShadowMask ShadowMask)
+// Dither assumed to be random variable in [0;1]
+uint PackShadowMask(FShadowMask ShadowMask, float Dither)
 {
-	// #sdl_todo: dither factor and variance?
 	uint PackedShadowMask = 0;
-	PackedShadowMask |= clamp(uint(ShadowMask.Factor * 0x3FF + 0.5f), 0u, 0x3FFu); // 10 bits
-	PackedShadowMask |= clamp(uint(ShadowMask.FactorSq * 0x3FF + 0.5f), 0, 0x3FFu) << 10; // 10 bits
+	PackedShadowMask |= clamp(uint(ShadowMask.Factor * 0x3FF + Dither), 0u, 0x3FFu); // 10 bits
+	PackedShadowMask |= clamp(uint(ShadowMask.FactorSq * 0x3FF + Dither), 0, 0x3FFu) << 10; // 10 bits
 	PackedShadowMask |= min(ShadowMask.Age, MAX_SHADOW_MASK_AGE) << 20;
 	PackedShadowMask |= min(ShadowMask.HistoryLength, MAX_SHADOW_MASK_HISTORY_LENGTH) << 23;
 	return PackedShadowMask;

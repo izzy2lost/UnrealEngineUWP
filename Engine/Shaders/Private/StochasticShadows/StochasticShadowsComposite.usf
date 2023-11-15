@@ -99,7 +99,7 @@ void CompositeShadowMaskTracesCS(
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == 0;
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == 1;
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.1, 0.3));
 
 	if (bDebug)
@@ -172,7 +172,7 @@ void CompositeShadowMaskTracesCS(
 		}
 		#endif
 
-		// Interpolate from the neighbourghood if we didn't trace this pixel
+		// Interpolate from the neighborhood if we didn't trace this pixel
 		if (SampleAccumulator.SampleWeightSum > 0 && CenterSampleAccumulator.SampleWeightSum == 0.0f)
 		{
 			ShadowMask.Factor = SampleAccumulator.SampleSum / SampleAccumulator.SampleWeightSum;
@@ -220,19 +220,15 @@ void CompositeShadowMaskTracesCS(
 							Print(Context, ClampMin);
 							Print(Context, ClampMax);
 							Newline(Context);
-							Print(Context, TEXT("HistoryShadowFactor: "));
-							Newline(Context);
+							Print(Context, TEXT("HistoryShadowFactor:        "));
 							Print(Context, HistoryShadowFactor);
 							Newline(Context);
+							Print(Context, TEXT("HistoryShadowFactorClamped: "));
 							Print(Context, clamp(HistoryShadowFactor, ClampMin, ClampMax));
 						}
 						#endif
 
 						float ClampedHistoryShadowFactor = clamp(HistoryShadowFactor, ClampMin, ClampMax);
-						float DistanceToClamped = abs(ClampedHistoryShadowFactor - HistoryShadowFactor);
-
-						// Speedup accumulation if new samples don't fit history
-						Accumulator.MaxHistoryLength *= saturate(1.0f - 2.0f * DistanceToClamped);
 						HistoryShadowFactor = ClampedHistoryShadowFactor;
 					}
 
@@ -267,7 +263,8 @@ void CompositeShadowMaskTracesCS(
 		}
 		#endif
 
+		float Dither = InterleavedGradientNoise(ShadowMaskScreenCoord, StochasticShadowsStateFrameIndex);
 		uint2 ShadowMaskTileAtlasCoord = GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
-		RWShadowMaskTileAtlas[ShadowMaskTileAtlasCoord] = PackShadowMask(ShadowMask);
+		RWShadowMaskTileAtlas[ShadowMaskTileAtlasCoord] = PackShadowMask(ShadowMask, Dither);
 	}
 }
