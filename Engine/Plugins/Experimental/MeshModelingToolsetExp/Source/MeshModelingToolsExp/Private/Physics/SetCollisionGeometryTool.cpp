@@ -314,6 +314,11 @@ void USetCollisionGeometryTool::Setup()
 	Settings->WatchProperty(Settings->HullTolerance, [this](float) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->SweepAxis, [this](EProjectedHullAxis) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->LevelSetResolution, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bShowTargetMesh, [this](bool bNewValue) 
+	{
+		UE::ToolTarget::SetSourceObjectVisible(Targets.Last(), bNewValue);
+	});
+	UE::ToolTarget::SetSourceObjectVisible(Targets.Last(), Settings->bShowTargetMesh);
 
 	if (InitialSourceMeshes.Num() == 1)
 	{
@@ -475,6 +480,10 @@ void USetCollisionGeometryTool::OnShutdown(EToolShutdownType ShutdownType)
 		{
 			UE::ToolTarget::ShowSourceObject(Targets[k]);
 		}
+	}
+	if (!Settings->bShowTargetMesh)
+	{
+		UE::ToolTarget::ShowSourceObject(Targets.Last());
 	}
 
 	if (Compute)

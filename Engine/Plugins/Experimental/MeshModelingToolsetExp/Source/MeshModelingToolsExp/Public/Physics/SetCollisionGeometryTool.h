@@ -206,6 +206,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = OutputOptions)
 	ECollisionGeometryMode SetCollisionType = ECollisionGeometryMode::SimpleAndComplex;
 
+	/** Show/Hide target mesh */
+	UPROPERTY(EditAnywhere, Category = TargetVisualization)
+	bool bShowTargetMesh = true;
+
 	// Set by the tool to tell the settings object whether the tool is using multiple inputs.
 	UPROPERTY()
 	bool bUsingMultipleInputs = false;
