@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NavMesh/NavTestRenderingComponent.h"
-#include "Engine/Engine.h"
-#include "Engine/Canvas.h"
-#include "SceneManagement.h"
-#include "Materials/MaterialRenderProxy.h"
 #include "NavigationTestingActor.h"
 #include "NavMesh/RecastNavMesh.h"
+
+#if UE_ENABLE_DEBUG_DRAWING
+#include "Engine/Canvas.h"
+#include "Engine/Engine.h"
+#include "SceneManagement.h"
+#include "Materials/MaterialRenderProxy.h"
 #include "Debug/DebugDrawService.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavTestRenderingComponent)
@@ -191,6 +193,7 @@ void FNavTestSceneProxy::GatherPathStep()
 	BestNodeId = FSetElementId();
 
 #if WITH_EDITORONLY_DATA && WITH_RECAST
+	// DebugSteps are only available for: WITH_EDITORONLY_DATA && WITH_RECAST
 	if (NavTestActor && NavTestActor->DebugSteps.Num() && NavTestActor->ShowStepIndex >= 0)
 	{
 		const int32 ShowIdx = FMath::Min(NavTestActor->ShowStepIndex, NavTestActor->DebugSteps.Num() - 1);
@@ -294,7 +297,7 @@ void FNavTestSceneProxy::GatherPathStep()
 			BestPathId = MyDebugNode.ParentId;
 		}
 	}
-#endif
+#endif // WITH_EDITORONLY_DATA && WITH_RECAST
 }
 
 FPrimitiveViewRelevance FNavTestSceneProxy::GetViewRelevance(const FSceneView* View) const
@@ -323,7 +326,6 @@ uint32 FNavTestSceneProxy::GetAllocatedSizeInternal() const
 
 }
 
-#if WITH_RECAST && WITH_EDITOR
 void FNavTestDebugDrawDelegateHelper::SetupFromProxy(const FNavTestSceneProxy* InSceneProxy)
 {
 	PathPoints.Reset();
@@ -349,7 +351,6 @@ void FNavTestDebugDrawDelegateHelper::DrawDebugLabels(UCanvas* Canvas, APlayerCo
 	Canvas->SetDrawColor(FColor::White);
 	const FSceneView* View = Canvas->SceneView;
 
-#if WITH_EDITORONLY_DATA && WITH_RECAST
 	if (NodeDebug.Num())
 	{
 		const UFont* RenderFont = GEngine->GetSmallFont();
@@ -378,7 +379,6 @@ void FNavTestDebugDrawDelegateHelper::DrawDebugLabels(UCanvas* Canvas, APlayerCo
 	}
 	else
 	{
-#endif
 		for (int32 PointIndex = 0; PointIndex < PathPoints.Num(); ++PointIndex)
 		{
 			if (FNavTestSceneProxy::LocationInView(PathPoints[PointIndex], View))
@@ -389,25 +389,17 @@ void FNavTestDebugDrawDelegateHelper::DrawDebugLabels(UCanvas* Canvas, APlayerCo
 
 			}
 		}
-
-#if WITH_EDITORONLY_DATA && WITH_RECAST
 	}
-#endif
+
 	Canvas->SetDrawColor(OldDrawColor);
 }
-#endif //WITH_RECAST && WITH_EDITOR
-
-UNavTestRenderingComponent::UNavTestRenderingComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
-{
-}
+#endif // UE_ENABLE_DEBUG_DRAWING
 
 #if UE_ENABLE_DEBUG_DRAWING
-  FDebugRenderSceneProxy* UNavTestRenderingComponent::CreateDebugSceneProxy()
+FDebugRenderSceneProxy* UNavTestRenderingComponent::CreateDebugSceneProxy()
 {
 	FNavTestSceneProxy* NewSceneProxy = new FNavTestSceneProxy(this);
-#if WITH_RECAST && WITH_EDITOR
 	NavTestDebugDrawDelegateHelper.SetupFromProxy(NewSceneProxy);
-#endif
 	return NewSceneProxy;
 }
 #endif
@@ -429,6 +421,7 @@ FBoxSphereBounds UNavTestRenderingComponent::CalcBounds(const FTransform& LocalT
 			}
 		}
 #if WITH_EDITORONLY_DATA && WITH_RECAST
+		// DebugSteps are only available for: WITH_EDITORONLY_DATA && WITH_RECAST
 		if (TestActor->DebugSteps.Num() && TestActor->ShowStepIndex >= 0)
 		{
 			const int32 ShowIdx = FMath::Min(TestActor->ShowStepIndex, TestActor->DebugSteps.Num() - 1);
@@ -442,7 +435,7 @@ FBoxSphereBounds UNavTestRenderingComponent::CalcBounds(const FTransform& LocalT
 				}
 			}
 		}
-#endif
+#endif // WITH_EDITORONLY_DATA && WITH_RECAST
 	}
 
 	return FBoxSphereBounds(BoundingBox);
