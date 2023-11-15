@@ -138,10 +138,7 @@ public:
 	 * Returns true if this job is using graph-style configuration, else false.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
-	bool IsUsingGraphConfiguration() const
-	{
-		return GraphPreset.IsValid() || GraphConfig != nullptr;
-	}
+	bool IsUsingGraphConfiguration() const;
 
 	/**
 	 * Gets the graph-style preset that this job is using. If the job is not using a graph-style preset, returns nullptr.

@@ -14,6 +14,7 @@
 #include "MoviePipelineQueueSubsystem.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphAssetToolkit.h"
+#include "Graph/MovieGraphConfigFactory.h"
 
 // Slate Includes
 #include "Widgets/SBoxPanel.h"
@@ -370,7 +371,19 @@ void SMoviePipelineQueuePanel::OnEditJobConfigRequested(TWeakObjectPtr<UMoviePip
 	UMovieGraphConfig* GraphToEdit = nullptr;
 	if (InShot.IsValid() && InShot->IsUsingGraphConfiguration())
 	{
-		GraphToEdit = (InShot->GetGraphPreset() != nullptr) ? InShot->GetGraphPreset() : InShot->GetGraphConfig();
+		GraphToEdit = InShot->GetGraphPreset();
+
+		// If the graph preset is not valid, create a new graph
+		if (!GraphToEdit)
+		{
+			GraphToEdit = GenerateNewShotSubgraph(InJob.Get(), InShot.Get());
+
+			// Don't do anything if the user canceled out of the graph creation process, or there was an error creating the graph
+			if (!GraphToEdit)
+			{
+				return;
+			}
+		}
 	}
 	else if (InJob.IsValid() && InJob->IsUsingGraphConfiguration())
 	{
@@ -379,8 +392,7 @@ void SMoviePipelineQueuePanel::OnEditJobConfigRequested(TWeakObjectPtr<UMoviePip
 
 	if (GraphToEdit)
 	{
-		const TSharedRef<FMovieGraphAssetToolkit> MovieGraphEditor(new FMovieGraphAssetToolkit());
-		MovieGraphEditor->InitMovieGraphAssetToolkit(EToolkitMode::Standalone, TSharedPtr<IToolkitHost>(), GraphToEdit);
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(GraphToEdit);
 
 		return;
 	}
@@ -791,6 +803,30 @@ FString SMoviePipelineQueuePanel::GetQueueOriginName() const
 	}
 
 	return FString();
+}
+
+UMovieGraphConfig* SMoviePipelineQueuePanel::GenerateNewShotSubgraph(const UMoviePipelineExecutorJob* InJob, UMoviePipelineExecutorShot* InShot) const
+{
+	UMovieGraphConfigFactory* GraphFactory = NewObject<UMovieGraphConfigFactory>();
+	GraphFactory->InitialSubgraphAsset = InJob->GetGraphPreset();
+			
+	// Make the new graph via save dialog
+	const FAssetToolsModule& AssetToolsModule = FAssetToolsModule::GetModule();
+	UObject* NewAsset = AssetToolsModule.Get().CreateAssetWithDialog(GraphFactory->GetSupportedClass(), GraphFactory);
+
+	// Don't ensure here because a "cancel" in the dialog can cause the returned asset to be null
+	if (UMovieGraphConfig* NewGraph = Cast<UMovieGraphConfig>(NewAsset))
+	{
+		// Save out the new graph and assign it to the shot
+		constexpr bool bOnlyDirty = false;
+		UEditorLoadingAndSavingUtils::SavePackages({ NewGraph->GetPackage() }, bOnlyDirty);
+		
+		InShot->SetGraphPreset(NewGraph);
+		
+		return NewGraph;
+	}
+
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE // SMoviePipelineQueuePanel

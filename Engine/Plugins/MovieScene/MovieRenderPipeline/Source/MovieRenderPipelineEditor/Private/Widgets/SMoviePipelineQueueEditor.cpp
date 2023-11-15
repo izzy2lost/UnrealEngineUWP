@@ -926,7 +926,12 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 		{
 			if (Shot->IsUsingGraphConfiguration())
 			{
-				return LOCTEXT("QueueEditorDefaultShotGraph_Text", "Default Graph");
+				if (const UMovieGraphConfig* GraphConfig = Shot->GetGraphPreset())
+				{
+					return FText::FromString(GraphConfig->GetName());
+				}
+				
+				return LOCTEXT("QueueEditorMakeNewShotSubgraph", "Make Subgraph");
 			}
 			
 			// If the shot has a preset origin (ie, its config is based off a preset w/o any modifications), use its

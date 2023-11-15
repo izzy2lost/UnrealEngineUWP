@@ -527,9 +527,10 @@ public:
 	/**
 	 * Callback for when a node is visited. The node is the node being visited, and the pin is the pin which the node
 	 * was accessed by (eg, if visiting downstream nodes, the pin will be the input pin that connects to the node that
-	 * the traversal started from, or the node that was previously visited).
+	 * the traversal started from, or the node that was previously visited). Return true to continue traversal, or false
+	 * to stop traversal.
 	 */
-	DECLARE_DELEGATE_TwoParams(FVisitNodesCallback, UMovieGraphNode*, const UMovieGraphPin*);
+	DECLARE_DELEGATE_RetVal_TwoParams(bool, FVisitNodesCallback, UMovieGraphNode*, const UMovieGraphPin*);
 
 	//~ UObject interface
 	virtual void PostLoad() override;
@@ -621,11 +622,17 @@ public:
 	 */
 	void VisitDownstreamNodes(UMovieGraphNode* FromNode, const FVisitNodesCallback& VisitCallback) const;
 
-	/** Determines the name(s) of the branches downstream from FromNode, starting at FromPin. */
-	TArray<FString> GetDownstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin) const;
+	/**
+	 * Determines the name(s) of the branches downstream from FromNode, starting at FromPin. Optionally, subgraph nodes can halt graph traversal
+	 * if bStopAtSubgraph is set to true.
+	 */
+	TArray<FString> GetDownstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin, const bool bStopAtSubgraph = false) const;
 
-	/** Determines the name(s) of the branches upstream from FromNode, starting at FromPin. */
-	TArray<FString> GetUpstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin) const;
+	/**
+	 * Determines the name(s) of the branches upstream from FromNode, starting at FromPin. Optionally, subgraph nodes can halt graph traversal
+	 * if bStopAtSubgraph is set to true.
+	 */
+	TArray<FString> GetUpstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin, const bool bStopAtSubgraph = false) const;
 
 	/** Get all subgraphs that this graph contains, recursively (ie, subgraphs of subgraphs are included, etc). */
 	void GetAllContainedSubgraphs(TSet<UMovieGraphConfig*>& OutSubgraphs) const;

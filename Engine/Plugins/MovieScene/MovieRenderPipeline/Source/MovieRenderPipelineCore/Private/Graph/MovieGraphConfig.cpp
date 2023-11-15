@@ -286,7 +286,7 @@ UMovieGraphConfig::UMovieGraphConfig()
 
 		// Offset the default output node so it doesn't overlap the default input node
 #if WITH_EDITOR
-		constexpr int32 OutputNodeOffset = 300;
+		constexpr int32 OutputNodeOffset = 900;
 		OutputNode->SetNodePosX(OutputNodeOffset);
 #endif
 	}
@@ -944,45 +944,69 @@ void UMovieGraphConfig::VisitDownstreamNodes(UMovieGraphNode* FromNode, const FV
 	VisitDownstreamNodes_Recursive(FromNode, VisitCallback, VisitedNodes);
 }
 
-TArray<FString> UMovieGraphConfig::GetDownstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin) const
+TArray<FString> UMovieGraphConfig::GetDownstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin, const bool bStopAtSubgraph) const
 {
 	TArray<FString> BranchNames;
 
 	// FromNode itself might be the Outputs node, so check before visiting the downstream nodes
 	if (FromNode->IsA<UMovieGraphOutputNode>() && FromPin)
 	{
-		BranchNames.Add(FromPin->Properties.Label.ToString());
+		BranchNames.AddUnique(FromPin->Properties.Label.ToString());
 	}
 
 	VisitDownstreamNodes(FromNode, FVisitNodesCallback::CreateLambda(
-		[&BranchNames](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
+		[&BranchNames, bStopAtSubgraph](const UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
 		{
+			if (VisitedNode->IsA<UMovieGraphSubgraphNode>() && VisitedPin)
+			{
+				BranchNames.AddUnique(VisitedPin->Properties.Label.ToString());
+
+				if (bStopAtSubgraph)
+				{
+					return false;	// Stop traversing nodes
+				}
+			}
+			
 			if (VisitedNode->IsA<UMovieGraphOutputNode>() && VisitedPin)
 			{
-				BranchNames.Add(VisitedPin->Properties.Label.ToString());
+				BranchNames.AddUnique(VisitedPin->Properties.Label.ToString());
 			}
+
+			return true;
 		}));
 
 	return BranchNames;
 }
 
-TArray<FString> UMovieGraphConfig::GetUpstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin) const
+TArray<FString> UMovieGraphConfig::GetUpstreamBranchNames(UMovieGraphNode* FromNode, const UMovieGraphPin* FromPin, const bool bStopAtSubgraph) const
 {
 	TArray<FString> BranchNames;
 
 	// FromNode itself might be the Inputs node, so check before visiting the upstream nodes
 	if (FromNode->IsA<UMovieGraphInputNode>() && FromPin)
 	{
-		BranchNames.Add(FromPin->Properties.Label.ToString());
+		BranchNames.AddUnique(FromPin->Properties.Label.ToString());
 	}
 
 	VisitUpstreamNodes(FromNode, FVisitNodesCallback::CreateLambda(
-		[&BranchNames](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
+		[&BranchNames, bStopAtSubgraph](const UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
 		{
+			if (VisitedNode->IsA<UMovieGraphSubgraphNode>() && VisitedPin)
+			{
+				BranchNames.AddUnique(VisitedPin->Properties.Label.ToString());
+
+				if (bStopAtSubgraph)
+				{
+					return false;	// Stop traversing nodes
+				}
+			}
+			
 			if (VisitedNode->IsA<UMovieGraphInputNode>() && VisitedPin)
 			{
-				BranchNames.Add(VisitedPin->Properties.Label.ToString());
+				BranchNames.AddUnique(VisitedPin->Properties.Label.ToString());
 			}
+
+			return true;
 		}));
 
 	return BranchNames;
@@ -1365,8 +1389,16 @@ void UMovieGraphConfig::VisitUpstreamNodes_Recursive(UMovieGraphNode* FromNode,	
 		{
 			if (ConnectedPin->Properties.bIsBranch)
 			{
-				VisitCallback.ExecuteIfBound(ConnectedPin->Node, ConnectedPin);
-				VisitUpstreamNodes_Recursive(ConnectedPin->Node, VisitCallback, VisitedNodes);
+				bool bContinueVisiting = true;
+				if (VisitCallback.IsBound())
+				{
+					bContinueVisiting = VisitCallback.Execute(ConnectedPin->Node, ConnectedPin);
+				}
+
+				if (bContinueVisiting)
+				{
+					VisitUpstreamNodes_Recursive(ConnectedPin->Node, VisitCallback, VisitedNodes);
+				}
 			}
 		}
 	}
@@ -1393,8 +1425,16 @@ void UMovieGraphConfig::VisitDownstreamNodes_Recursive(UMovieGraphNode* FromNode
 		{
 			if (ConnectedPin->Properties.bIsBranch)
 			{
-				VisitCallback.ExecuteIfBound(ConnectedPin->Node, ConnectedPin);
-				VisitDownstreamNodes_Recursive(ConnectedPin->Node, VisitCallback, VisitedNodes);
+				bool bContinueVisiting = true;
+				if (VisitCallback.IsBound())
+				{
+					bContinueVisiting = VisitCallback.Execute(ConnectedPin->Node, ConnectedPin);
+				}
+
+				if (bContinueVisiting)
+				{
+					VisitDownstreamNodes_Recursive(ConnectedPin->Node, VisitCallback, VisitedNodes);
+				}
 			}
 		}
 	}

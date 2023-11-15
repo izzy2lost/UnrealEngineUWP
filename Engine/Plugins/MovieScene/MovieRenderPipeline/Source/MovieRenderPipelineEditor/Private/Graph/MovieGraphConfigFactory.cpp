@@ -3,6 +3,7 @@
 #include "Graph/MovieGraphConfigFactory.h"
 
 #include "Graph/MovieGraphConfig.h"
+#include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "HAL/IConsoleManager.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "MovieRenderPipelineSettings.h"
@@ -18,6 +19,14 @@ UMovieGraphConfigFactory::UMovieGraphConfigFactory()
 
 UObject* UMovieGraphConfigFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
+	// If requesting a graph w/ a subgraph, skip the normal graph creation which looks for an existing graph asset to use as a template
+	if (InitialSubgraphAsset)
+	{
+		UMovieGraphConfig* NewGraph = NewObject<UMovieGraphConfig>(InParent, Class, Name, Flags);
+		AddSubgraphNodeToGraph(NewGraph);
+		return NewGraph;
+	}
+	
 	const UMovieRenderPipelineProjectSettings* ProjectSettings = GetDefault<UMovieRenderPipelineProjectSettings>();
 	const TSoftObjectPtr<UMovieGraphConfig> ProjectDefaultGraph = ProjectSettings->DefaultGraph;
 
@@ -47,4 +56,51 @@ bool UMovieGraphConfigFactory::ShouldShowInNewMenu() const
 {
 	IConsoleVariable* RenderGraphCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("MoviePipeline.EnableRenderGraph"));
 	return RenderGraphCVar && RenderGraphCVar->GetBool();
+}
+
+void UMovieGraphConfigFactory::AddSubgraphNodeToGraph(UMovieGraphConfig* InTargetGraph) const
+{
+	auto ExposeSubgraphInputOutputOnTargetGraph = [InTargetGraph](
+		const UMovieGraphInterfaceBase* InSubgraphInputOrOutput, const bool bIsInput, UMovieGraphSubgraphNode* InSubgraphNode)
+	{
+		// Add a new member to the target graph if this is not the Globals pin (which already exists)
+		if (InSubgraphInputOrOutput->GetMemberName() != UMovieGraphNode::GlobalsPinName)
+		{
+			UMovieGraphInterfaceBase* NewMember = bIsInput
+				? static_cast<UMovieGraphInterfaceBase*>(InTargetGraph->AddInput())
+				: static_cast<UMovieGraphInterfaceBase*>(InTargetGraph->AddOutput());
+			NewMember->SetMemberName(InSubgraphInputOrOutput->GetMemberName());
+		}
+		
+		UMovieGraphNode* FromNode = bIsInput ? InTargetGraph->GetInputNode() : InSubgraphNode;
+		UMovieGraphNode* ToNode = bIsInput ? InSubgraphNode : InTargetGraph->GetOutputNode();
+		const FName FromPinLabel = *InSubgraphInputOrOutput->GetMemberName();
+		const FName ToPinLabel = *InSubgraphInputOrOutput->GetMemberName();
+
+		// Connect up the new member to the subgraph node
+		InTargetGraph->AddLabeledEdge(FromNode, FromPinLabel, ToNode, ToPinLabel);
+	};
+	
+	UMovieGraphSubgraphNode* NewSubgraphNode = InTargetGraph->ConstructRuntimeNode<UMovieGraphSubgraphNode>();
+	NewSubgraphNode->SetSubGraphAsset(InitialSubgraphAsset);
+
+	// Roughly center the subgraph node between the Inputs and Outputs nodes.
+	const int32 InputNodePosX = InTargetGraph->GetInputNode()->GetNodePosX();
+	const int32 OutputNodePosX = InTargetGraph->GetOutputNode()->GetNodePosX();
+	NewSubgraphNode->SetNodePosX(InputNodePosX + ((OutputNodePosX - InputNodePosX) / 2.f));
+	NewSubgraphNode->SetNodePosY(InTargetGraph->GetInputNode()->GetNodePosY());
+
+	// Expose the subgraph's inputs on the target graph and connect
+	for (const UMovieGraphInput* SubgraphInput : InitialSubgraphAsset->GetInputs())
+	{
+		constexpr bool bIsInput = true;
+		ExposeSubgraphInputOutputOnTargetGraph(SubgraphInput, bIsInput, NewSubgraphNode);
+	}
+
+	// Expose the subgraph's outputs on the target graph and connect
+	for (const UMovieGraphOutput* SubgraphOutput : InitialSubgraphAsset->GetOutputs())
+	{
+		constexpr bool bIsInput = false;
+		ExposeSubgraphInputOutputOnTargetGraph(SubgraphOutput, bIsInput, NewSubgraphNode);
+	}
 }

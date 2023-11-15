@@ -327,6 +327,13 @@ void UMoviePipelineExecutorShot::SetShotOverridePresetOrigin(UMoviePipelineShotC
 	}
 }
 
+bool UMoviePipelineExecutorShot::IsUsingGraphConfiguration() const
+{
+	const UMoviePipelineExecutorJob* PrimaryJob = GetTypedOuter<UMoviePipelineExecutorJob>();
+	
+	return GraphPreset.IsValid() || (PrimaryJob && PrimaryJob->IsUsingGraphConfiguration());
+}
+
 void UMoviePipelineExecutorShot::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	Super::PreSave(ObjectSaveContext);

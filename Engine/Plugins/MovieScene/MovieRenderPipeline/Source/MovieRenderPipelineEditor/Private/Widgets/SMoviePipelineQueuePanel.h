@@ -64,6 +64,12 @@ private:
 	UMoviePipelineQueue* GetQueueOrigin() const;
 	FString GetQueueOriginName() const;
 
+	/**
+	 * Generates and returns a new shot subgraph based on the given job and shot. Returns nullptr if there was an issue creating the graph. If the
+	 * graph was successfully created, it will be assigned to the shot.
+	 */
+	class UMovieGraphConfig* GenerateNewShotSubgraph(const UMoviePipelineExecutorJob* InJob, UMoviePipelineExecutorShot* InShot) const;
+
 private:
 	/** Allocates a transient preset so that the user can use the pipeline without saving it to an asset first. */
 	//UMoviePipelineConfigBase* AllocateTransientPreset();

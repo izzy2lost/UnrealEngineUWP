@@ -6,6 +6,7 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "Graph/MovieGraphNode.h"
 #include "Graph/MovieGraphEdge.h"
+#include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Graph/MovieGraphConfig.h"
 
@@ -236,6 +237,9 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 	check(ToNode && FromNode);
 	const UMovieGraphConfig* GraphConfig = ToNode->GetGraph();
 
+	const bool ToNodeIsSubgraph = ToNode->IsA<UMovieGraphSubgraphNode>();
+	const bool FromNodeIsSubgraph = FromNode->IsA<UMovieGraphSubgraphNode>();
+
 	// Test High-Level Node Restrictions
 	const EMovieGraphBranchRestriction FromNodeRestriction = FromNode->GetBranchRestriction();
 	const EMovieGraphBranchRestriction ToNodeRestriction = ToNode->GetBranchRestriction();
@@ -249,34 +253,90 @@ bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin,
 
 	// Get all upstream/downstream nodes that occur on the connection -- these are the nodes that need to be checked for branch restrictions.
 	// FromNode/ToNode themselves also needs to be part of the validation checks.
+	//
+	// If the FromNode is a subgraph, there's no need to visit upstream nodes. The subgraph node will enforce branch restrictions, since it
+	// effectively represents an Inputs node. The same logic applies to the ToNode behaving like an Outputs node.
 	TArray<UMovieGraphNode*> NodesToCheck = {FromNode, ToNode};
-	GraphConfig->VisitUpstreamNodes(FromNode, UMovieGraphConfig::FVisitNodesCallback::CreateLambda(
-		[&NodesToCheck](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
-		{
-			NodesToCheck.Add(VisitedNode);
-		}));
+	if (!FromNodeIsSubgraph)
+	{
+		GraphConfig->VisitUpstreamNodes(FromNode, UMovieGraphConfig::FVisitNodesCallback::CreateLambda(
+			[&NodesToCheck](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
+			{
+				if (VisitedNode->IsA<UMovieGraphSubgraphNode>())
+				{
+					return false;	// Don't visit more upstream nodes
+				}
+			
+				NodesToCheck.Add(VisitedNode);
+				return true;
+			}));
+	}
 
-	GraphConfig->VisitDownstreamNodes(ToNode, UMovieGraphConfig::FVisitNodesCallback::CreateLambda(
-		[&NodesToCheck](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
-		{
-			NodesToCheck.Add(VisitedNode);
-		}));
+	if (!ToNodeIsSubgraph)
+	{
+		GraphConfig->VisitDownstreamNodes(ToNode, UMovieGraphConfig::FVisitNodesCallback::CreateLambda(
+			[&NodesToCheck](UMovieGraphNode* VisitedNode, const UMovieGraphPin* VisitedPin)
+			{
+				if (VisitedNode->IsA<UMovieGraphSubgraphNode>())
+				{
+					return false;	// Don't visit more downstream nodes
+				}
+				
+				NodesToCheck.Add(VisitedNode);
+				return true;
+			}));
+	}
 
-	// Determine which branch(es) are connected to this node up/downstream.
-	const TArray<FString> DownstreamBranchNames = GraphConfig->GetDownstreamBranchNames(ToNode, InputPin);
-	const TArray<FString> UpstreamBranchNames = GraphConfig->GetUpstreamBranchNames(FromNode, OutputPin);
-	const bool bGlobalsIsDownstream = DownstreamBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
-	const bool bGlobalsIsUpstream = UpstreamBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
+	const FName InputName = InputPin->Properties.Label;
+	const FName OutputName = OutputPin->Properties.Label;
+	const bool bInputIsGlobals = (InputName == UMovieGraphNode::GlobalsPinName);
+	const bool bOutputIsGlobals = (OutputName == UMovieGraphNode::GlobalsPinName);
+	constexpr bool bStopAtSubgraph = true;
+
+	// Determine which branch(es) are connected to this node up/downstream. If the To/From node is a subgraph, skip trying to traverse the graph past
+	// the subgraph, because for the purposes of determining connection validity, the subgraph's input/output pin is enough.
+	const TArray<FString> DownstreamBranchNames = ToNodeIsSubgraph
+		? TArray{InputName.ToString()}
+		: GraphConfig->GetDownstreamBranchNames(ToNode, InputPin, bStopAtSubgraph);
+	
+	const TArray<FString> UpstreamBranchNames = FromNodeIsSubgraph
+		? TArray{OutputName.ToString()}
+		: GraphConfig->GetUpstreamBranchNames(FromNode, OutputPin, bStopAtSubgraph);
+	
+	const bool bGlobalsIsDownstream = bInputIsGlobals || DownstreamBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
+	const bool bGlobalsIsUpstream = bOutputIsGlobals || UpstreamBranchNames.Contains(UMovieGraphNode::GlobalsPinNameString);
 	const bool bDownstreamBranchExistsAndIsntOnlyGlobals =
 		!DownstreamBranchNames.IsEmpty() && ((DownstreamBranchNames.Num() != 1) || (DownstreamBranchNames[0] != UMovieGraphNode::GlobalsPinNameString));
 	const bool bUpstreamBranchExistsAndIsntOnlyGlobals =
 		!UpstreamBranchNames.IsEmpty() && ((UpstreamBranchNames.Num() != 1) || (UpstreamBranchNames[0] != UMovieGraphNode::GlobalsPinNameString));
 
-	// Globals branches can only be connected to Globals branches
-	if ((bGlobalsIsDownstream && bUpstreamBranchExistsAndIsntOnlyGlobals) || (bGlobalsIsUpstream && bDownstreamBranchExistsAndIsntOnlyGlobals))
+	// Subgraph nodes are a special case -- they can be connected to both Globals and render layer branches at the same time
+	if (ToNodeIsSubgraph || FromNodeIsSubgraph)
 	{
-		OutError = NSLOCTEXT("MovieGraph", "GlobalsBranchMismatchError", "Globals branches can only be connected to other Globals branches.");
-		return false;
+		// Only allow Globals -> Globals connections
+		if ((ToNodeIsSubgraph && bInputIsGlobals && !bGlobalsIsUpstream) ||
+			(FromNodeIsSubgraph && bOutputIsGlobals && !bGlobalsIsDownstream))
+		{
+			OutError = NSLOCTEXT("MovieGraph", "SubgraphGlobalsBranchMismatchError", "A subgraph Globals branch can only be connected to another Globals branch.");
+			return false;
+		}
+
+		// Only allow non-Globals -> non-Globals connections
+		if ((ToNodeIsSubgraph && !bInputIsGlobals && bGlobalsIsUpstream) ||
+			(FromNodeIsSubgraph && !bOutputIsGlobals && bGlobalsIsDownstream))
+		{
+			OutError = NSLOCTEXT("MovieGraph", "SubgraphNonGlobalsBranchMismatchError", "A subgraph non-Globals branch can not be connected to the Globals branch.");
+			return false;
+		}
+	}
+	else
+	{
+		// Globals branches can only be connected to Globals branches
+		if ((bGlobalsIsDownstream && bUpstreamBranchExistsAndIsntOnlyGlobals) || (bGlobalsIsUpstream && bDownstreamBranchExistsAndIsntOnlyGlobals))
+		{
+			OutError = NSLOCTEXT("MovieGraph", "GlobalsBranchMismatchError", "Globals branches can only be connected to other Globals branches.");
+			return false;
+		}
 	}
 
 	// Error out if any of the nodes that are part of the connection cannot be connected to the upstream/downstream branches.

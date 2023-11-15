@@ -161,6 +161,7 @@ FText UMovieGraphSubgraphNode::GetMenuCategory() const
 void UMovieGraphSubgraphNode::SetSubGraphAsset(const TSoftObjectPtr<UMovieGraphConfig>& InSubgraphAsset)
 {
 	SubgraphAsset = InSubgraphAsset;
+	UpdatePins();
 }
 
 UMovieGraphConfig* UMovieGraphSubgraphNode::GetSubgraphAsset() const
