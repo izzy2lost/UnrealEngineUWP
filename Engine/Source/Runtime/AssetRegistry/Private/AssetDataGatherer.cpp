@@ -78,6 +78,86 @@ static FAutoConsoleVariableRef CVarIgnoreEmptyDirectories(
 	bIgnoreEmptyDirectories,
 	TEXT("If true, completely empty leaf directories are ignored by the asset registry while scanning"));
 
+void LexFromString(EFeatureEnabledReadWrite& OutValue, FStringView Text)
+{
+	Text.TrimStartAndEndInline();
+
+	if (Text.Equals(TEXTVIEW("NeverWriteNeverRead"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("Never"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::NeverWriteNeverRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("NeverWriteDefaultRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::NeverWriteDefaultRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("NeverWriteAlwaysRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::NeverWriteAlwaysRead;
+		return;
+	}
+
+	if (Text.Equals(TEXTVIEW("DefaultWriteNeverRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::DefaultWriteNeverRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("DefaultWriteDefaultRead"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("Default"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::DefaultWriteDefaultRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("DefaultWriteAlwaysRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::DefaultWriteAlwaysRead;
+		return;
+	}
+
+	if (Text.Equals(TEXTVIEW("AlwaysWriteNeverRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::AlwaysWriteNeverRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("AlwaysWriteDefaultRead"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("AlwaysWrite"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::AlwaysWriteDefaultRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("AlwaysWriteAlwaysRead"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::AlwaysWriteAlwaysRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("false"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("f"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("off"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("0"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::NeverWriteNeverRead;
+		return;
+	}
+	if (Text.Equals(TEXTVIEW("true"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("t"), ESearchCase::IgnoreCase) ||
+		Text.Equals(TEXTVIEW("on"), ESearchCase::IgnoreCase))
+	{
+		OutValue = EFeatureEnabledReadWrite::DefaultWriteDefaultRead;
+		return;
+	}
+	uint32 IntValue = 0;
+	LexFromString(IntValue, Text);
+	if (IntValue != 0)
+	{
+		OutValue = EFeatureEnabledReadWrite::DefaultWriteDefaultRead;
+		return;
+	}
+	OutValue = EFeatureEnabledReadWrite::Invalid;
+	return;
+}
+
 void FPreloadSettings::Initialize()
 {
 	if (bInitialized)
@@ -94,41 +174,80 @@ void FPreloadSettings::Initialize()
 	bool bNoAssetRegistryCache = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCache"));
 	bool bNoAssetRegistryDiscoveryCache = bNoAssetRegistryCache || FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryDiscoveryCache"));
 	bool bNoAssetRegistryCacheRead = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCacheRead"));
-	bool bNoAssetRegistryCacheWrite = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCacheWrite"));
 	uint32 MultiprocessId = UE::GetMultiprocessId();
 	bool bMultiprocess = MultiprocessId > 0 || FParse::Param(FCommandLine::Get(), TEXT("multiprocess"));
+	bool bNoAssetRegistryCacheWrite = FParse::Param(FCommandLine::Get(), TEXT("NoAssetRegistryCacheWrite")) || bMultiprocess;
 	bGatherCacheReadEnabled = !bNoAssetRegistryCache && !bNoAssetRegistryCacheRead;
-	bGatherCacheWriteEnabled = !bNoAssetRegistryCache && !bNoAssetRegistryCacheWrite && !bMultiprocess;
-	bool bPlatformSupportsDiscoveryCache = FPlatformFileManager::Get().GetPlatformFile().FileJournalIsAvailable();
+	bGatherCacheWriteEnabled = !bNoAssetRegistryCache && !bNoAssetRegistryCacheWrite;
+	bool bPlatformSupportsDiscoveryCacheInvalidation = FPlatformFileManager::Get().GetPlatformFile().FileJournalIsAvailable();
 
 	bool bSkipInvalidate = FParse::Param(FCommandLine::Get(), TEXT("AssetRegistryCacheSkipInvalidate"));
-	FString AssetRegistryDiscoveryCacheStr;
+	EFeatureEnabledReadWrite DiscoverySetting = EFeatureEnabledReadWrite::Invalid;
+	FString AssetRegistryDiscoveryCacheStr = TEXT("Default");
 	GConfig->GetString(TEXT("AssetRegistry"), TEXT("AssetRegistryDiscoveryCache"),
 		AssetRegistryDiscoveryCacheStr, GEngineIni);
 	FParse::Value(FCommandLine::Get(), TEXT("AssetRegistryDiscoveryCache="), AssetRegistryDiscoveryCacheStr);
-
-	bNoAssetRegistryDiscoveryCache |= AssetRegistryDiscoveryCacheStr == TEXT("Never") || AssetRegistryDiscoveryCacheStr == TEXT("false")
-		|| AssetRegistryDiscoveryCacheStr == TEXT("0");
-
-	bDiscoveryCacheReadEnabled = (bPlatformSupportsDiscoveryCache || bSkipInvalidate) && !bNoAssetRegistryDiscoveryCache
-		&& !bNoAssetRegistryCacheRead;
-
-	if (bNoAssetRegistryDiscoveryCache || bNoAssetRegistryCacheWrite || bMultiprocess)
+	LexFromString(DiscoverySetting, AssetRegistryDiscoveryCacheStr);
+	if (DiscoverySetting == EFeatureEnabledReadWrite::Invalid)
 	{
+		UE_LOG(LogAssetRegistry, Error,
+			TEXT("Invalid text \"%s\" for Engine.ini:[AssetRegistry]:AssetRegistryDiscoveryCache. Expected \"Never\", \"Default\", or \"AlwaysWrite\"."),
+			*AssetRegistryDiscoveryCacheStr);
+		DiscoverySetting = EFeatureEnabledReadWrite::DefaultWriteDefaultRead;
+	}
+	if (bNoAssetRegistryDiscoveryCache)
+	{
+		DiscoverySetting = EFeatureEnabledReadWrite::NeverWriteNeverRead;
+	}
+	if (bNoAssetRegistryCacheRead)
+	{
+		DiscoverySetting = (DiscoverySetting & ~EFeatureEnabledReadWrite::ReadMask) | EFeatureEnabledReadWrite::NeverRead;
+	}
+	if (bNoAssetRegistryCacheWrite)
+	{
+		DiscoverySetting = (DiscoverySetting & ~EFeatureEnabledReadWrite::WriteMask) | EFeatureEnabledReadWrite::NeverWrite;
+	}
+	if (bSkipInvalidate || MultiprocessId != 0)
+	{
+		if ((DiscoverySetting & EFeatureEnabledReadWrite::WriteMask) == EFeatureEnabledReadWrite::DefaultWrite)
+		{
+			DiscoverySetting = (DiscoverySetting & ~EFeatureEnabledReadWrite::WriteMask) | EFeatureEnabledReadWrite::AlwaysWrite;
+		}
+		if ((DiscoverySetting & EFeatureEnabledReadWrite::ReadMask) == EFeatureEnabledReadWrite::DefaultRead)
+		{
+			DiscoverySetting = (DiscoverySetting & ~EFeatureEnabledReadWrite::ReadMask) | EFeatureEnabledReadWrite::AlwaysRead;
+		}
+	}
+	else if (!bPlatformSupportsDiscoveryCacheInvalidation)
+	{
+		// Precalculate Default -> Never if we already know the platform doesn't support it
+		if ((DiscoverySetting & EFeatureEnabledReadWrite::WriteMask) == EFeatureEnabledReadWrite::DefaultWrite)
+		{
+			DiscoverySetting = (DiscoverySetting& ~EFeatureEnabledReadWrite::WriteMask) | EFeatureEnabledReadWrite::NeverWrite;
+		}
+		if ((DiscoverySetting & EFeatureEnabledReadWrite::ReadMask) == EFeatureEnabledReadWrite::DefaultRead)
+		{
+			DiscoverySetting = (DiscoverySetting& ~EFeatureEnabledReadWrite::ReadMask) | EFeatureEnabledReadWrite::NeverRead;
+		}
+	}
+	bDiscoveryCacheReadEnabled = (DiscoverySetting & EFeatureEnabledReadWrite::ReadMask) != EFeatureEnabledReadWrite::NeverRead;
+	bDiscoveryCacheInvalidateEnabled = (DiscoverySetting & EFeatureEnabledReadWrite::ReadMask) != EFeatureEnabledReadWrite::AlwaysRead;
+	switch (DiscoverySetting & EFeatureEnabledReadWrite::WriteMask)
+	{
+	case EFeatureEnabledReadWrite::NeverWrite:
 		DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
-	}
-	else if ((AssetRegistryDiscoveryCacheStr.IsEmpty() || AssetRegistryDiscoveryCacheStr == TEXT("Default"))
-		&& !bSkipInvalidate)
-	{
-		// Precalculate IfPlatformSupported -> Never if we already know the platform doesn't support it
-		DiscoveryCacheWriteEnabled = bPlatformSupportsDiscoveryCache ?
-			EFeatureEnabled::IfPlatformSupported : EFeatureEnabled::Never;
-	}
-	else
-	{
+		break;
+	case EFeatureEnabledReadWrite::DefaultWrite:
+		DiscoveryCacheWriteEnabled = EFeatureEnabled::IfPlatformSupported;
+		break;
+	case EFeatureEnabledReadWrite::AlwaysWrite:
 		DiscoveryCacheWriteEnabled = EFeatureEnabled::Always;
+		break;
+	default:
+		checkNoEntry();
+		DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
+		break;
 	}
-	bDiscoveryCacheInvalidateEnabled = !bSkipInvalidate && MultiprocessId == 0;
 
 	bool bAsyncEnabled = FPlatformProcess::SupportsMultithreading() && FTaskGraphInterface::IsRunning();
 

@@ -23,6 +23,31 @@ enum class EFeatureEnabled : uint8
 	Always
 };
 
+enum class EFeatureEnabledReadWrite : uint32
+{
+	NeverRead		= 0x00,
+	DefaultRead		= 0x01,
+	AlwaysRead		= 0x02,
+	ReadMask		= 0x0f,
+	NeverWrite		= 0x00,
+	DefaultWrite	= 0x10,
+	AlwaysWrite		= 0x20,
+	WriteMask		= 0xf0,
+	Invalid			= 0xffffffff,
+	NeverWriteNeverRead		= NeverWrite   | NeverRead,   // aka Never
+	NeverWriteDefaultRead	= NeverWrite   | DefaultRead,
+	NeverWriteAlwaysRead	= NeverWrite   | AlwaysRead,
+	DefaultWriteNeverRead	= DefaultWrite | NeverRead,   
+	DefaultWriteDefaultRead = DefaultWrite | DefaultRead, // aka Default
+	DefaultWriteAlwaysRead	= DefaultWrite | AlwaysRead,
+	AlwaysWriteNeverRead	= AlwaysWrite  | NeverRead,
+	AlwaysWriteDefaultRead	= AlwaysWrite  | DefaultRead, // aka AlwaysWrite
+	// NOT given the nickname "Always", because skipping invalidation is not what users would expect from "Always"
+	AlwaysWriteAlwaysRead	= AlwaysWrite  | AlwaysRead,
+};
+ENUM_CLASS_FLAGS(EFeatureEnabledReadWrite);
+void LexFromString(EFeatureEnabledReadWrite& OutValue, FStringView Text);
+
 /** Data about a file in a cached directory used by FAssetDataDiscoveryCache to avoid the IO cost of rescanning. */
 struct FCachedDirScanFile
 {

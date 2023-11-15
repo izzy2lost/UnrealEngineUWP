@@ -56,15 +56,24 @@
 
 FString FWindowsPlatformFile::FileJournalGetVolumeName(FStringView Path)
 {
-	FString FullPath = FPaths::ConvertRelativePathToFull(FString(Path));
-	FStringView VolumeName;
-	FStringView Remainder;
-	FPathViews::SplitVolumeSpecifier(FullPath, VolumeName, Remainder);
-	if (VolumeName.EndsWith(TEXT(":")))
+	FString FullPath;
+	if (FPathViews::IsDriveSpecifierWithoutRoot(Path))
 	{
-		return FString(VolumeName);
+		// Already a drive specifier, and ConvertRelativePathToFull does not handle a rootless drivespecifier
+		return FString(Path);
 	}
-	return FString(); // Volume names of the form \\volumename are not supported by USNJournal
+	else
+	{
+		FullPath = FPaths::ConvertRelativePathToFull(FString(Path));
+		FStringView VolumeName;
+		FStringView Remainder;
+		FPathViews::SplitVolumeSpecifier(FullPath, VolumeName, Remainder);
+		if (VolumeName.EndsWith(TEXT(":")))
+		{
+			return FString(VolumeName);
+		}
+		return FString(); // Volume names of the form \\volumename are not supported by USNJournal
+	}
 }
 
 #if UE_WINDOWS_PLATFORM_FILEJOURNAL_ENABLED 
@@ -519,7 +528,7 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 		static_assert(sizeof(uint64) >= sizeof(USN), "We are storing USNs as uint64");
 		OutNextJournalEntry = static_cast<uint64>(NextJournalUSN);
 
-		// Keep going until we reach the end, which we detect by  Journal did not have enough results to fill the buffer
+		// Keep going until we reach the end, which we detect by Journal did not have enough results to fill the buffer
 		if (RecordBytesEnd <= ReadBuffer + ReadBufferSize / 2)
 		{
 			break;
@@ -646,19 +655,27 @@ EFileJournalResult CreateJournalWindowsHandle(const TCHAR* VolumeOrPath, HANDLE&
 	OutVolumeName.Reset();
 
 	TStringBuilder<256> AbsPath;
-	FPathViews::ToAbsolutePath(VolumeOrPath, AbsPath);
 	FStringView VolumeName;
-	FStringView Remainder;
-	FPathViews::SplitVolumeSpecifier(AbsPath, VolumeName, Remainder);
-	if (!VolumeName.EndsWith(':'))
+	if (FPathViews::IsDriveSpecifierWithoutRoot(VolumeOrPath))
 	{
-		if (OutError)
+		// Already a drive specifier, and ToAbsolutePath does not handle a rootless drivespecifier
+		VolumeName = VolumeOrPath;
+	}
+	else
+	{
+		FPathViews::ToAbsolutePath(VolumeOrPath, AbsPath);
+		FStringView Remainder;
+		FPathViews::SplitVolumeSpecifier(AbsPath, VolumeName, Remainder);
+		if (!VolumeName.EndsWith(':'))
 		{
-			*OutError = FString::Printf(
-				TEXT("Invalid drive name in path '%s'. FileJournal is only supported for drives assigned to a drive letter (e.g. C:, D:)."),
-				*AbsPath);
+			if (OutError)
+			{
+				*OutError = FString::Printf(
+					TEXT("Invalid drive name in path '%s'. FileJournal is only supported for drives assigned to a drive letter (e.g. C:, D:)."),
+					*AbsPath);
+			}
+			return EFileJournalResult::InvalidVolumeName;
 		}
-		return EFileJournalResult::InvalidVolumeName;
 	}
 	OutVolumeName << VolumeName;
 
