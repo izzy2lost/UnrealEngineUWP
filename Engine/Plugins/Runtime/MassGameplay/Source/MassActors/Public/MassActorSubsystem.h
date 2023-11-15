@@ -13,6 +13,7 @@
 struct FMassEntityHandle;
 class AActor;
 struct FMassEntityManager;
+class UMassActorSubsystem;
 
 USTRUCT()
 struct MASSACTORS_API FMassGuidFragment : public FObjectWrapperFragment
@@ -45,8 +46,12 @@ struct MASSACTORS_API FMassActorFragment : public FObjectWrapperFragment
 	 */
 	void SetAndUpdateHandleMap(const FMassEntityHandle MassAgent, AActor* InActor, const bool bInIsOwnedByMass);
 
-	/** Resets the actor pointed by this fragment, will also keep the map back in MassActorSubsystem up to date */
-	void ResetAndUpdateHandleMap();
+	/** 
+	 * Resets the actor pointed by this fragment, will also keep the map back in UMassActorSubsystem up to date 
+	 * @param CachedActorSubsystem if provided will be used directly, otherwise an instance of UMassActorSubsystem will 
+	 *	be deduced from Actor's world (at additional runtime cost)
+	 */
+	void ResetAndUpdateHandleMap(UMassActorSubsystem* CachedActorSubsystem = nullptr);
 
 	/**
 	 * Set the actor associated to a mass agent, will NOT keep map back in MassActorSubsystem up to date.

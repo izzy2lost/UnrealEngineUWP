@@ -271,21 +271,24 @@ void UMassAgentComponent::ClearEntityHandle()
 
 void UMassAgentComponent::ClearEntityHandleInternal()
 {
-	if (const UMassAgentSubsystem* AgentSubsystem = UWorld::GetSubsystem<UMassAgentSubsystem>(GetWorld()))
+	if (UWorld* World = GetWorld())
 	{
-		AgentSubsystem->NotifyMassAgentComponentEntityDetaching(*this);
-	}
+		if (const UMassAgentSubsystem* AgentSubsystem = World->GetSubsystem<UMassAgentSubsystem>())
+		{
+			AgentSubsystem->NotifyMassAgentComponentEntityDetaching(*this);
+		}
 
-	// Sync up with mass
-	if (const UMassEntitySubsystem* EntitySubsystem = UWorld::GetSubsystem<UMassEntitySubsystem>(GetWorld()))
-	{
 		if (IsNetSimulating())
 		{
-			const FMassEntityView EntityView(EntitySubsystem->GetEntityManager(), AgentHandle);
-			if (FMassActorFragment* ActorInfo = EntityView.GetFragmentDataPtr<FMassActorFragment>())
+			// Sync up with mass
+			if (const UMassEntitySubsystem* EntitySubsystem = World->GetSubsystem<UMassEntitySubsystem>())
 			{
-				checkf(!ActorInfo->IsValid() || ActorInfo->Get() == GetOwner(), TEXT("Expecting actor pointer to be the Component\'s owner"));
-				ActorInfo->ResetAndUpdateHandleMap();
+				const FMassEntityView EntityView(EntitySubsystem->GetEntityManager(), AgentHandle);
+				if (FMassActorFragment* ActorInfo = EntityView.GetFragmentDataPtr<FMassActorFragment>())
+				{
+					checkf(!ActorInfo->IsValid() || ActorInfo->Get() == GetOwner(), TEXT("Expecting actor pointer to be the Component\'s owner"));
+					ActorInfo->ResetAndUpdateHandleMap(World->GetSubsystem<UMassActorSubsystem>());
+				}
 			}
 		}
 	}
