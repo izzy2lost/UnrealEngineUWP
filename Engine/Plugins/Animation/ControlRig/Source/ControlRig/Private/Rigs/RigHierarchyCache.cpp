@@ -112,13 +112,16 @@ const FRigElementKey* FRigElementKeyRedirector::FindReverse(const FRigElementKey
 
 void FRigElementKeyRedirector::Add(const FRigElementKey& InSource, const FRigElementKey& InTarget, const URigHierarchy* InHierarchy)
 {
-	if(!InSource.IsValid() || !InTarget.IsValid() || InSource == InTarget)
+	if(!InSource.IsValid() || InSource == InTarget)
 	{
 		return;
 	}
 
-	InternalKeyToExternalKey.Add(InSource, FCachedRigElement(InTarget, InHierarchy, true));
-	ExternalKeys.Add(InTarget);
+	if (InTarget.IsValid())
+	{
+		InternalKeyToExternalKey.Add(InSource, FCachedRigElement(InTarget, InHierarchy, true));
+	}
+	ExternalKeys.Add(InSource, InTarget);
 	Hash = HashCombine(Hash, HashCombine(GetTypeHash(InSource), GetTypeHash(InTarget)));
 }
 

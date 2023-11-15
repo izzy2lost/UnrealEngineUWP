@@ -12,18 +12,18 @@ struct CONTROLRIG_API FModuleInstanceHandle
 public:
 
 	FModuleInstanceHandle()
-		: Rig(nullptr)
+		: ModularRig(nullptr)
 		, Path()
 	{}
 
-	FModuleInstanceHandle(UModularRig* InRig, const FString& InPath);
-	FModuleInstanceHandle(UModularRig* InRig, const FRigModuleInstance* InElement);
+	FModuleInstanceHandle(UModularRig* InModularRig, const FString& InPath);
+	FModuleInstanceHandle(UModularRig* InModularRig, const FRigModuleInstance* InElement);
 
 	bool IsValid() const { return Get() != nullptr; }
 	operator bool() const { return IsValid(); }
 	
-	const UModularRig* GetRig() const { return Rig.Get(); }
-	UModularRig* GetHierarchy() { return Rig.Get(); }
+	const UModularRig* GetModularRig() const { return ModularRig.Get(); }
+	UModularRig* GetHierarchy() { return ModularRig.Get(); }
 	const FString& GetPath() const { return Path; }
 
 	const FRigModuleInstance* Get() const;
@@ -31,7 +31,7 @@ public:
 
 private:
 
-	TWeakObjectPtr<UModularRig> Rig;
+	TWeakObjectPtr<UModularRig> ModularRig;
 	FString Path;
 };
 

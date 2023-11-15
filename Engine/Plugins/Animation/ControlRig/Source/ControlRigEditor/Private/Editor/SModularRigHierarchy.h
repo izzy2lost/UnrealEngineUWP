@@ -149,6 +149,9 @@ private:
 	void OnRequestDetailsInspection(const FString& InKey);
 	void ClearDetailPanel() const;
 
+	void HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint);
+	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
+	
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);
 

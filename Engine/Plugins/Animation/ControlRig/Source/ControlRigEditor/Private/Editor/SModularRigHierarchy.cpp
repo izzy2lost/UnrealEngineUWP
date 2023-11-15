@@ -108,7 +108,8 @@ void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FContr
 
 	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SModularRigHierarchy::HandleRefreshEditorFromBlueprint);
 	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SModularRigHierarchy::HandleSetObjectBeingDebugged);
-	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigHierarchy::HandleRefreshEditorFromBlueprint);
+	ControlRigBlueprint->OnModularRigPreCompiled().AddRaw(this, &SModularRigHierarchy::HandlePreCompileModularRigs);
+	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigHierarchy::HandlePostCompileModularRigs);
 
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
@@ -184,6 +185,8 @@ void SModularRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlu
 	{
 		InBlueprint->OnRefreshEditor().RemoveAll(this);
 		InBlueprint->OnSetObjectBeingDebugged().RemoveAll(this);
+		BP->OnModularRigPreCompiled().RemoveAll(this);
+		BP->OnModularRigCompiled().RemoveAll(this);
 	}
 	
 	ControlRigEditor.Reset();
@@ -245,6 +248,27 @@ TArray<FString> SModularRigHierarchy::GetSelectedKeys() const
 	}
 
 	return SelectedKeys;
+}
+
+
+void SModularRigHierarchy::HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint)
+{
+	ClearDetailPanel();
+}
+
+void SModularRigHierarchy::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
+{
+	RefreshTreeView();
+	if (ControlRigEditor.IsValid())
+	{
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedElements;
+		Algo::Transform(ControlRigEditor.Pin()->ModulesSelected, SelectedElements, [this](const FString& Path)
+		{
+			return TreeView->FindElement(Path);
+		});
+		TreeView->SetSelection(SelectedElements);
+		ControlRigEditor.Pin()->RefreshDetailView();
+	}
 }
 
 void SModularRigHierarchy::HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint)
@@ -330,13 +354,6 @@ void SModularRigHierarchy::CreateContextMenu()
 						FNewToolMenuDelegate::CreateLambda([Commands, RigHierarchyPanel](UToolMenu* InSubMenu)
 						{
 							FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None);
-							FString SelectedKey;
-							TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = RigHierarchyPanel->TreeView->GetSelectedItems();
-							if (SelectedItems.Num() > 0)
-							{
-								SelectedKey = SelectedItems[0]->Key;
-							}
-							
 							DefaultSection.AddMenuEntry(Commands.AddModuleItem);
 						})
 					);

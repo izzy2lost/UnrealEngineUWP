@@ -149,6 +149,10 @@ FControlRigEditor::~FControlRigEditor()
 		}
 
 		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
+		if (RigBlueprint->IsModularRig())
+		{
+			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(this);
+		}
 	}
 
 	if (PersonaToolkit.IsValid())
@@ -313,6 +317,10 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		}
 
 		ControlRigBlueprint->OnRigTypeChanged().AddSP(this, &FControlRigEditor::HandleRigTypeChanged);
+		if (ControlRigBlueprint->IsModularRig())
+		{
+			ControlRigBlueprint->GetModularRigController()->OnModified().AddSP(this, &FControlRigEditor::HandleModularRigModified);
+		}
 	}
 
 	CreateRigHierarchyToGraphDragAndDropMenu();
@@ -1096,11 +1104,41 @@ void FControlRigEditor::SetDetailViewForRigElements(const TArray<FRigElementKey>
 	SetDetailObjects(Objects);
 }
 
+void FControlRigEditor::SetDetailObjects(const TArray<UObject*>& InObjects)
+{
+	bool bAnyModule = false;
+	for (const UObject* Object : InObjects)
+	{
+		if (const URigVMDetailsViewWrapperObject* WrapperObject = Cast<URigVMDetailsViewWrapperObject>(Object))
+		{
+			if (const UScriptStruct* WrappedStruct = WrapperObject->GetWrappedStruct())
+			{
+				if (WrappedStruct->IsChildOf(FRigModuleInstance::StaticStruct()))
+				{
+					bAnyModule = true;
+				}
+			}
+		}
+	}
+	
+	if (!bAnyModule)
+	{
+		ModulesSelected.Reset();
+	}
+	
+	IControlRigEditor::SetDetailObjects(InObjects);
+}
+
 void FControlRigEditor::RefreshDetailView()
 {
 	if(DetailViewShowsAnyRigElement())
 	{
 		SetDetailViewForRigElements();
+		return;
+	}
+	else if(!ModulesSelected.IsEmpty())
+	{
+		SetDetailViewForRigModules();
 		return;
 	}
 
@@ -1137,7 +1175,12 @@ bool FControlRigEditor::DetailViewShowsRigElement(FRigElementKey InKey) const
 	return false;
 }
 
-void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString>& InKeys)
+void FControlRigEditor::SetDetailViewForRigModules()
+{
+	SetDetailViewForRigModules(ModulesSelected);
+}
+
+void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString> InKeys)
 {
 	if(IsDetailsPanelRefreshSuspended())
 	{
@@ -1148,6 +1191,13 @@ void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString>& InKeys
 
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
 	UModularRig* RigBeingDebugged = Cast<UModularRig>(RigBlueprint->GetDebuggedControlRig());
+
+	if (!RigBeingDebugged)
+	{
+		return;
+	}
+
+	ModulesSelected = InKeys;
 	TArray<UObject*> Objects;
 
 	for(const FString& Key : InKeys)
@@ -1166,6 +1216,12 @@ void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString>& InKeys
 	}
 	
 	SetDetailObjects(Objects);
+
+	if (Objects.IsEmpty())
+	{
+		// In case the modules selected are still not available, lets set them again
+		ModulesSelected = InKeys;
+	}
 }
 
 bool FControlRigEditor::DetailViewShowsAnyRigModule() const
@@ -3508,6 +3564,42 @@ void FControlRigEditor::HandleRigTypeChanged(UControlRigBlueprint* InBlueprint)
 	// todo: reapply the preview mesh and react to it accordingly.
 
 	Compile();
+}
+
+void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule)
+{
+	switch(InNotification)
+	{
+		case EModularRigNotification::ModuleAdded:
+		{
+			ModulesSelected = {InModule->GetPath()};
+			break;
+		}
+		case EModularRigNotification::ModuleRemoved:
+		{
+			if (DetailViewShowsAnyRigModule())
+			{
+				ClearDetailObject();
+			}
+			break;
+		}
+		case EModularRigNotification::ModuleReparented:
+		case EModularRigNotification::ModuleRenamed:
+		{
+			FString OldPath;
+			if (InNotification == EModularRigNotification::ModuleRenamed)
+			{
+				OldPath = FString::Printf(TEXT("%s:%s"), *InModule->ParentPath, *InModule->PreviousName.ToString());
+			}
+			else
+			{
+				OldPath = FString::Printf(TEXT("%s:%s"), *InModule->PreviousParentPath, *InModule->Name.ToString());
+			}
+			ModulesSelected.Remove(OldPath);
+			ModulesSelected.Add(InModule->GetPath());
+			break;
+		}
+	}
 }
 
 void FControlRigEditor::SynchronizeViewportBoneSelection()

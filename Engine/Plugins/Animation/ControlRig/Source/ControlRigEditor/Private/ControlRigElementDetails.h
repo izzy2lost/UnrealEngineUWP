@@ -30,6 +30,67 @@
 
 class IPropertyHandle;
 
+namespace FRigElementKeyDetailsDefs
+{
+	// Active foreground pin alpha
+	static const float ActivePinForegroundAlpha = 1.f;
+	// InActive foreground pin alpha
+	static const float InactivePinForegroundAlpha = 0.15f;
+	// Active background pin alpha
+	static const float ActivePinBackgroundAlpha = 0.8f;
+	// InActive background pin alpha
+	static const float InactivePinBackgroundAlpha = 0.4f;
+};
+
+class SRigElementKeyWidget : public SCompoundWidget
+{
+public:
+
+	DECLARE_DELEGATE_RetVal(FText, FGetElementNameAsText);
+	DECLARE_DELEGATE_RetVal(ERigElementType, FGetElementType);
+	DECLARE_DELEGATE_RetVal(bool, FIsEnabled);
+	DECLARE_DELEGATE_OneParam(FOnElementTypeChanged, ERigElementType);
+	
+	SLATE_BEGIN_ARGS(SRigElementKeyWidget)
+	{
+	}
+	SLATE_ARGUMENT(UControlRigBlueprint*, Blueprint)
+	SLATE_ARGUMENT(FSlateColor, ActiveBackgroundColor)
+	SLATE_ARGUMENT(FSlateColor, InactiveBackgroundColor)
+	SLATE_ARGUMENT(FSlateColor, ActiveForegroundColor)
+	SLATE_ARGUMENT(FSlateColor, InactiveForegroundColor)
+	SLATE_EVENT(SSearchableComboBox::FOnSelectionChanged, OnElementNameChanged)
+	SLATE_EVENT(FOnClicked, OnGetSelectedClicked)
+	SLATE_EVENT(FOnClicked, OnSelectInHierarchyClicked)
+	SLATE_EVENT(FGetElementNameAsText, OnGetElementNameAsText)
+	SLATE_EVENT(FGetElementType, OnGetElementType)
+	SLATE_EVENT(FOnElementTypeChanged, OnElementTypeChanged)
+	SLATE_EVENT(FIsEnabled, IsEnabled);
+	
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InNameHandle, TSharedPtr<IPropertyHandle> InTypeHandle);
+	void Construct(const FArguments& InArgs);
+
+	void UpdateElementNameList();
+
+private:
+	TSharedPtr<IPropertyHandle> NameHandle;
+	TSharedPtr<IPropertyHandle> TypeHandle;
+
+	/** Helper buttons. */
+	TSharedPtr<SButton> UseSelectedButton;
+	TSharedPtr<SButton> SelectElementButton;
+
+	FGetElementType OnGetElementType;
+	FOnElementTypeChanged OnElementTypeChanged;
+	SSearchableComboBox::FOnSelectionChanged OnElementNameChanged;
+
+	UControlRigBlueprint* BlueprintBeingCustomized;
+	TArray<TSharedPtr<FString>> ElementNameList;
+	TSharedPtr<SSearchableComboBox> SearchableComboBox;
+};
+
 class FRigElementKeyDetails : public IPropertyTypeCustomization
 {
 public:
@@ -48,9 +109,7 @@ protected:
 	ERigElementType GetElementType() const;
 	FString GetElementName() const;
 	void SetElementName(FString InName);
-	void UpdateElementNameList();
 	void OnElementNameChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo);
-	TSharedRef<SWidget> OnGetElementNameWidget(TSharedPtr<FString> InItem);
 	FText GetElementNameAsText() const;
 
 	/** Helper buttons. */
@@ -69,9 +128,8 @@ protected:
 	
 	TSharedPtr<IPropertyHandle> TypeHandle;
 	TSharedPtr<IPropertyHandle> NameHandle;
-	TArray<TSharedPtr<FString>> ElementNameList;
 	UControlRigBlueprint* BlueprintBeingCustomized;
-	TSharedPtr<SSearchableComboBox> SearchableComboBox;
+	TSharedPtr<SRigElementKeyWidget> RigElementKeyWidget;
 };
 
 UENUM()

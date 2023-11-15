@@ -8,6 +8,7 @@
 #include "ControlRig.h"
 #include "ModularRig.h"
 #include "ControlRigBlueprint.h"
+#include "ControlRigElementDetails.h"
 #include "Editor/ControlRigWrapperObject.h"
 #include "Styling/SlateTypes.h"
 #include "IPropertyUtilities.h"
@@ -41,6 +42,7 @@ public:
 	FString GetModulePath() const;
 	FText GetName() const;
 	FText GetRigClassPath() const;
+	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;
 	TArray<FRigVMExternalVariable> GetConfigValues() const;
 
@@ -74,19 +76,19 @@ public:
 		bool IsValid() const { return Module.IsValid(); }
 		operator bool() const { return IsValid(); }
 
-		UModularRig* GetRig() const { return (UModularRig*)Module.GetRig(); }
+		UModularRig* GetModularRig() const { return (UModularRig*)Module.GetModularRig(); }
 		UModularRig* GetDefaultRig() const
 		{
 			if(DefaultModule.IsValid())
 			{
-				return (UModularRig*)DefaultModule.GetRig();
+				return (UModularRig*)DefaultModule.GetModularRig();
 			}
-			return GetRig();
+			return GetModularRig();
 		}
 
 		UControlRigBlueprint* GetBlueprint() const
 		{
-			if(const UModularRig* ControlRig = GetRig()->GetTypedOuter<UModularRig>())
+			if(const UModularRig* ControlRig = GetModularRig())
 			{
 				return Cast<UControlRigBlueprint>(ControlRig->GetClass()->ClassGeneratedBy);
 			}
@@ -118,7 +120,16 @@ public:
 
 	virtual void RegisterSectionMappings(FPropertyEditorModule& PropertyEditorModule, UClass* InClass);
 
+	void OnElementNameChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo, FRigElementKey Connector);
+	void OnElementTypeChanged(ERigElementType InElementType, FRigElementKey Connector);
+	FText GetElementNameAsText(FRigElementKey Connector) const;
+	FReply OnGetSelectedClicked(FRigElementKey Connector);
+	FReply OnSelectInHierarchyClicked(FRigElementKey Connector);
+	ERigElementType GetElementType(FRigElementKey Connector) const;
+
 protected:
 
 	TArray<FPerModuleInfo> PerModuleInfos;
+	TSharedPtr<SRigElementKeyWidget> RigElementKeyWidget;
+	TMap<FRigElementKey, FRigElementKey> Connections;
 };

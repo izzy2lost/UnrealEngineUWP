@@ -17,32 +17,32 @@ const FString UModularRig::NamespaceSeparator = TEXT(":");
 // FModuleInstanceHandle
 ////////////////////////////////////////////////////////////////////////////////
 
-FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InRig, const FString& InPath)
-: Rig(InRig)
+FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InModularRig, const FString& InPath)
+: ModularRig(InModularRig)
 , Path(InPath)
 {
 }
 
-FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InRig, const FRigModuleInstance* InModule)
-: Rig(InRig)
+FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InModularRig, const FRigModuleInstance* InModule)
+: ModularRig(InModularRig)
 , Path(InModule->GetPath())
 {
 }
 
 const FRigModuleInstance* FModuleInstanceHandle::Get() const
 {
-	if(Rig.IsValid())
+	if(ModularRig.IsValid())
 	{
-		return Rig->FindModule(Path);
+		return ModularRig->FindModule(Path);
 	}
 	return nullptr;
 }
 
 FRigModuleInstance* FModuleInstanceHandle::Get()
 {
-	if(Rig.IsValid())
+	if(ModularRig.IsValid())
 	{
-		return Rig->FindModule(Path);
+		return ModularRig->FindModule(Path);
 	}
 	return nullptr;
 }

@@ -1572,6 +1572,7 @@ static void BuildModularRig(UModularRig* Rig, const FModularRigModel& Model)
 
 void UControlRigBlueprint::RecompileModularRig()
 {
+	OnModularRigPreCompiled().Broadcast(this);
 	if (UClass* MyControlRigClass = GeneratedClass)
 	{
 		if (UModularRig* DefaultObject = Cast<UModularRig>(MyControlRigClass->GetDefaultObject(false)))

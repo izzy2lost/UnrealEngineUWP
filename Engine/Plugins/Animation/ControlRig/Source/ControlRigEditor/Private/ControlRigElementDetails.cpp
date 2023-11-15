@@ -61,18 +61,6 @@ struct FRigElementTransformWidgetSettings
 TMap<uint32, FRigElementTransformWidgetSettings> FRigElementTransformWidgetSettings::sSettings;
 
 
-namespace FRigElementKeyDetailsDefs
-{
-	// Active foreground pin alpha
-	static const float ActivePinForegroundAlpha = 1.f;
-	// InActive foreground pin alpha
-	static const float InactivePinForegroundAlpha = 0.15f;
-	// Active background pin alpha
-	static const float ActivePinBackgroundAlpha = 0.8f;
-	// InActive background pin alpha
-	static const float InactivePinBackgroundAlpha = 0.4f;
-};
-
 void RigElementKeyDetails_GetCustomizedInfo(TSharedRef<IPropertyHandle> InStructPropertyHandle, UControlRigBlueprint*& OutBlueprint)
 {
 	TArray<UObject*> Objects;
@@ -157,6 +145,168 @@ UControlRigBlueprint* RigElementDetails_GetBlueprintFromHierarchy(URigHierarchy*
 	return Blueprint;
 }
 
+void SRigElementKeyWidget::Construct(const FArguments& InArgs, TSharedPtr<IPropertyHandle> InNameHandle, TSharedPtr<IPropertyHandle> InTypeHandle)
+{
+	NameHandle = InNameHandle;
+	TypeHandle = InTypeHandle;
+	Construct(InArgs);
+}
+
+void SRigElementKeyWidget::Construct(const FArguments& InArgs)
+{
+	BlueprintBeingCustomized = InArgs._Blueprint;
+	OnGetElementType = InArgs._OnGetElementType;
+	OnElementNameChanged = InArgs._OnElementNameChanged;
+	OnElementTypeChanged = InArgs._OnElementTypeChanged;
+	
+	UpdateElementNameList();
+	
+	ChildSlot
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			TypeHandle.IsValid() ?
+				TypeHandle->CreatePropertyValueWidget()
+					:
+				SNew(SEnumComboBox, StaticEnum<ERigElementType>())
+				.CurrentValue_Lambda([this]()
+				{
+					if (OnGetElementType.IsBound())
+					{
+						return (int32)OnGetElementType.Execute();
+					}
+					return (int32)ERigElementType::None;
+				})
+				.OnEnumSelectionChanged_Lambda([this](int32 InEnumValue, ESelectInfo::Type SelectInfo)
+				{
+					ERigElementType EnumValue = static_cast<ERigElementType>(InEnumValue);
+					OnElementTypeChanged.ExecuteIfBound(EnumValue);
+					UpdateElementNameList();
+					SearchableComboBox->ClearSelection();
+					OnElementNameChanged.ExecuteIfBound(nullptr, ESelectInfo::Direct);
+				})
+		]
+
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(4.f, 0.f, 0.f, 0.f)
+		[
+			SAssignNew(SearchableComboBox, SSearchableComboBox)
+			.OptionsSource(&ElementNameList)
+			.OnSelectionChanged(InArgs._OnElementNameChanged)
+			.OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
+			{
+				return SNew(STextBlock)
+				.Text(FText::FromString(InItem.IsValid() ? *InItem : FString()))
+				.Font(IDetailLayoutBuilder::GetDetailFont());
+			})
+			.Content()
+			[
+				SNew(STextBlock)
+				.Text_Lambda([InArgs]()
+				{
+					if (InArgs._OnGetElementNameAsText.IsBound())
+					{
+						return InArgs._OnGetElementNameAsText.Execute();
+					}
+					return FText();
+				})
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
+		]
+		// Use button
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(1,0)
+		.VAlign(VAlign_Center)
+		[
+			SAssignNew(UseSelectedButton, SButton)
+			.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+			.ButtonColorAndOpacity_Lambda([this, InArgs]() { return UseSelectedButton.IsValid() && UseSelectedButton->IsHovered() ? InArgs._ActiveBackgroundColor : InArgs._InactiveBackgroundColor; })
+			.OnClicked(InArgs._OnGetSelectedClicked)
+			.ContentPadding(1.f)
+			.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "ObjectGraphPin_Use_Tooltip", "Use item selected"))
+			[
+				SNew(SImage)
+				.ColorAndOpacity_Lambda( [this, InArgs]() { return UseSelectedButton.IsValid() && UseSelectedButton->IsHovered() ? InArgs._ActiveForegroundColor : InArgs._InactiveForegroundColor; })
+				.Image(FAppStyle::GetBrush("Icons.CircleArrowLeft"))
+			]
+		]
+		// Select in hierarchy button
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(1,0)
+		.VAlign(VAlign_Center)
+		[
+			SAssignNew(SelectElementButton, SButton)
+			.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+			.ButtonColorAndOpacity_Lambda([this, InArgs]() { return SelectElementButton.IsValid() && SelectElementButton->IsHovered() ? InArgs._ActiveBackgroundColor : InArgs._InactiveBackgroundColor; })
+			.OnClicked(InArgs._OnSelectInHierarchyClicked)
+			.ContentPadding(0)
+			.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "ObjectGraphPin_Browse_Tooltip", "Select in hierarchy"))
+			[
+				SNew(SImage)
+				.ColorAndOpacity_Lambda( [this, InArgs]() { return SelectElementButton.IsValid() && SelectElementButton->IsHovered() ? InArgs._ActiveForegroundColor : InArgs._InactiveForegroundColor; })
+				.Image(FAppStyle::GetBrush("Icons.Search"))
+			]
+		]
+	];
+
+	if (TypeHandle)
+	{
+		TypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda(
+			[this, InArgs]()
+			{
+				int32 EnumValue;
+				TypeHandle->GetValue(EnumValue);
+				OnElementTypeChanged.ExecuteIfBound(static_cast<ERigElementType>(EnumValue));
+				UpdateElementNameList();
+				SearchableComboBox->ClearSelection();
+				OnElementNameChanged.ExecuteIfBound(nullptr, ESelectInfo::Direct);
+			}
+		));
+	}
+}
+
+void SRigElementKeyWidget::UpdateElementNameList()
+{
+	ElementNameList.Reset();
+
+	if (BlueprintBeingCustomized)
+	{
+		for (UEdGraph* Graph : BlueprintBeingCustomized->UbergraphPages)
+		{
+			if (UControlRigGraph* RigGraph = Cast<UControlRigGraph>(Graph))
+			{
+				
+				const TArray<TSharedPtr<FRigVMStringWithTag>>* NameList = nullptr;
+				if (OnGetElementType.IsBound())
+				{
+					NameList = RigGraph->GetElementNameList(OnGetElementType.Execute());
+				}
+
+				ElementNameList.Reset();
+				if (NameList)
+				{
+					ElementNameList.Reserve(NameList->Num());
+					for(const TSharedPtr<FRigVMStringWithTag>& Name : *NameList)
+					{
+						ElementNameList.Add(MakeShared<FString>(Name->GetString()));
+					}
+				}
+				
+				if(SearchableComboBox.IsValid())
+				{
+					SearchableComboBox->RefreshOptions();
+				}
+				return;
+			}
+		}
+	}
+}
+
 void FRigElementKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	BlueprintBeingCustomized = nullptr;
@@ -198,16 +348,6 @@ void FRigElementKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStruct
 		TypeHandle = InStructPropertyHandle->GetChildHandle(TEXT("Type"));
 		NameHandle = InStructPropertyHandle->GetChildHandle(TEXT("Name"));
 
-		TypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda(
-			[this]()
-			{
-				this->UpdateElementNameList();
-				SetElementName(FString());
-			}
-		));
-
-		UpdateElementNameList();
-
 		HeaderRow
 		.NameContent()
 		[
@@ -216,66 +356,19 @@ void FRigElementKeyDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStruct
 		.ValueContent()
 		.MinDesiredWidth(250.f)
 		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				TypeHandle->CreatePropertyValueWidget()
-			]
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(4.f, 0.f, 0.f, 0.f)
-			[
-				SAssignNew(SearchableComboBox, SSearchableComboBox)
-				.OptionsSource(&ElementNameList)
-				.OnSelectionChanged(this, &FRigElementKeyDetails::OnElementNameChanged)
-				.OnGenerateWidget(this, &FRigElementKeyDetails::OnGetElementNameWidget)
-				.IsEnabled(!NameHandle->IsEditConst())
-				.Content()
-				[
-					SNew(STextBlock)
-					.Text(this, &FRigElementKeyDetails::GetElementNameAsText)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-				]
-			]
-			// Use button
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(1,0)
-			.VAlign(VAlign_Center)
-			[
-				SAssignNew(UseSelectedButton, SButton)
-				.ButtonStyle( FAppStyle::Get(), "NoBorder" )
-				.ButtonColorAndOpacity_Lambda([this]() { return OnGetWidgetBackground(UseSelectedButton); })
-				.OnClicked(this, &FRigElementKeyDetails::OnGetSelectedClicked)
-				.ContentPadding(1.f)
-				.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "ObjectGraphPin_Use_Tooltip", "Use item selected"))
-				[
-					SNew(SImage)
-					.ColorAndOpacity_Lambda( [this]() { return OnGetWidgetForeground(UseSelectedButton); })
-					.Image(FAppStyle::GetBrush("Icons.CircleArrowLeft"))
-				]
-			]
-			// Select in hierarchy button
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(1,0)
-			.VAlign(VAlign_Center)
-			[
-				SAssignNew(SelectElementButton, SButton)
-				.ButtonStyle( FAppStyle::Get(), "NoBorder" )
-				.ButtonColorAndOpacity_Lambda([this]() { return OnGetWidgetBackground(SelectElementButton); })
-				.OnClicked(this, &FRigElementKeyDetails::OnSelectInHierarchyClicked)
-				.ContentPadding(0)
-				.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "ObjectGraphPin_Browse_Tooltip", "Select in hierarchy"))
-				[
-					SNew(SImage)
-					.ColorAndOpacity_Lambda( [this]() { return OnGetWidgetForeground(SelectElementButton); })
-					.Image(FAppStyle::GetBrush("Icons.Search"))
-				]
-			]			
+			SAssignNew(RigElementKeyWidget, SRigElementKeyWidget, NameHandle, TypeHandle)
+			.Blueprint(BlueprintBeingCustomized)
+			.IsEnabled_Lambda([this](){ return !NameHandle->IsEditConst(); })
+			.ActiveBackgroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::ActivePinBackgroundAlpha)))
+			.ActiveForegroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::ActivePinForegroundAlpha)))
+			.InactiveBackgroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::InactivePinBackgroundAlpha)))
+			.InactiveForegroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::InactivePinForegroundAlpha)))
+			.OnElementNameChanged(this, &FRigElementKeyDetails::OnElementNameChanged)
+			.OnGetSelectedClicked(this, &FRigElementKeyDetails::OnGetSelectedClicked)
+			//.OnGetElementNameWidget(this, &FRigElementKeyDetails::OnGetElementNameWidget)
+			.OnSelectInHierarchyClicked(this, &FRigElementKeyDetails::OnSelectInHierarchyClicked)
+			.OnGetElementNameAsText_Raw(this, &FRigElementKeyDetails::GetElementNameAsText)
+			.OnGetElementType(this, &FRigElementKeyDetails::GetElementType)
 		];
 	}
 }
@@ -380,41 +473,6 @@ void FRigElementKeyDetails::SetElementName(FString InName)
 	}
 }
 
-void FRigElementKeyDetails::UpdateElementNameList()
-{
-	if (!TypeHandle.IsValid())
-	{
-		return;
-	}
-
-	ElementNameList.Reset();
-
-	if (BlueprintBeingCustomized)
-	{
-		for (UEdGraph* Graph : BlueprintBeingCustomized->UbergraphPages)
-		{
-			if (UControlRigGraph* RigGraph = Cast<UControlRigGraph>(Graph))
-			{
-				const TArray<TSharedPtr<FRigVMStringWithTag>>* NameList =
-					RigGraph->GetElementNameList(GetElementType());
-
-				ElementNameList.Reset();
-				ElementNameList.Reserve(NameList->Num());
-				for(const TSharedPtr<FRigVMStringWithTag>& Name : *NameList)
-				{
-					ElementNameList.Add(MakeShared<FString>(Name->GetString()));
-				}
-				
-				if(SearchableComboBox.IsValid())
-				{
-					SearchableComboBox->RefreshOptions();
-				}
-				return;
-			}
-		}
-	}
-}
-
 void FRigElementKeyDetails::OnElementNameChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo)
 {
 	if (InItem.IsValid())
@@ -425,13 +483,6 @@ void FRigElementKeyDetails::OnElementNameChanged(TSharedPtr<FString> InItem, ESe
 	{
 		SetElementName(FString());
 	}
-}
-
-TSharedRef<SWidget> FRigElementKeyDetails::OnGetElementNameWidget(TSharedPtr<FString> InItem)
-{
-	return SNew(STextBlock)
-		.Text(FText::FromString(InItem.IsValid() ? *InItem : FString()))
-		.Font(IDetailLayoutBuilder::GetDetailFont());
 }
 
 FText FRigElementKeyDetails::GetElementNameAsText() const

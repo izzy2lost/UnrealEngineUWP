@@ -119,7 +119,10 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 
 		FPerModuleInfo Info;
 		Info.WrapperObject = WrapperObject;
-		Info.Module = Cast<UModularRig>(WrapperObject->GetSubject())->GetHandle(Path);
+		if (UModularRig* Subject = Cast<UModularRig>(WrapperObject->GetSubject()))
+		{
+			Info.Module = Subject->GetHandle(Path);
+		}
 
 		if(!Info.Module.IsValid())
 		{
@@ -177,15 +180,21 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	IDetailCategoryBuilder& ConnectionsCategory = DetailBuilder.EditCategory(TEXT("Connections"), LOCTEXT("Connections", "Connections"));
 
 	{
+		TArray<FRigModuleConnector> Connectors = GetConnectors();
 		FRigElementKeyRedirector Redirector = GetConnections();
-		for(TPair<FRigElementKey, FCachedRigElement>& Connection : Redirector.InternalKeyToExternalKey)
+		for(FRigModuleConnector& Connector : Connectors)
 		{
-			if (!Connection.Key.IsTypeOf(ERigElementType::Connector))
+			const FText Label = FText::FromString(Connector.Name);
+			FRigElementKey ConnectorKey(*Connector.Name, ERigElementType::Connector);
+			const FRigElementKey* TargetKey = Redirector.FindExternalKey(ConnectorKey);
+			if (TargetKey)
 			{
-				continue;
+				Connections.Add(ConnectorKey, *TargetKey);
 			}
-			const FText Label = FText::FromName(Connection.Key.Name);
-			const FRigElementKey& Target = Connection.Value.GetKey();
+			else
+			{
+				Connections.Add(ConnectorKey, FRigElementKey());
+			}
 			ConnectionsCategory.AddCustomRow(Label)
 				.NameContent()
 				[
@@ -196,10 +205,19 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				]
 				.ValueContent()
 				[
-					SNew(STextBlock)
-					.Text(FText::FromName(Target.Name))
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.IsEnabled(true)
+					SAssignNew(RigElementKeyWidget, SRigElementKeyWidget)
+					.Blueprint(PerModuleInfos[0].GetBlueprint())
+					.IsEnabled_Lambda([this](){ return true; })
+					.ActiveBackgroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::ActivePinBackgroundAlpha)))
+					.ActiveForegroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::ActivePinForegroundAlpha)))
+					.InactiveBackgroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::InactivePinBackgroundAlpha)))
+					.InactiveForegroundColor(FSlateColor(FLinearColor(1.f, 1.f, 1.f, FRigElementKeyDetailsDefs::InactivePinForegroundAlpha)))
+					.OnElementNameChanged(this, &FRigModuleInstanceDetails::OnElementNameChanged, ConnectorKey)
+					.OnGetSelectedClicked(this, &FRigModuleInstanceDetails::OnGetSelectedClicked, ConnectorKey)
+					.OnSelectInHierarchyClicked(this, &FRigModuleInstanceDetails::OnSelectInHierarchyClicked, ConnectorKey)
+					.OnGetElementNameAsText_Raw(this, &FRigModuleInstanceDetails::GetElementNameAsText, ConnectorKey)
+					.OnGetElementType(this, &FRigModuleInstanceDetails::GetElementType, ConnectorKey)
+					.OnElementTypeChanged(this, &FRigModuleInstanceDetails::OnElementTypeChanged, ConnectorKey)
 				];
 		}
 	}
@@ -317,6 +335,27 @@ FText FRigModuleInstanceDetails::GetRigClassPath() const
 	return FText();
 }
 
+TArray<FRigModuleConnector> FRigModuleInstanceDetails::GetConnectors() const
+{
+	if(PerModuleInfos.Num() > 1)
+	{
+		return TArray<FRigModuleConnector>();
+	}
+
+	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
+	{
+		if (TSoftObjectPtr<UControlRig> Rig = Module->Rig)
+		{
+			if (Rig.IsValid())
+			{
+				return Rig->GetRigModuleSettings().ExposedConnectors;
+			}
+		}
+	}
+
+	return TArray<FRigModuleConnector>();
+}
+
 FRigElementKeyRedirector FRigModuleInstanceDetails::GetConnections() const
 {
 	if(PerModuleInfos.Num() > 1)
@@ -367,7 +406,7 @@ void FRigModuleInstanceDetails::OnConfigValueChanged(const FName InVariableName)
 		if (Rig.IsValid())
 		{
 			FString ValueStr = Rig->GetVariableAsString(InVariableName);
-			if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(PerModuleInfos[0].GetRig()))
+			if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(PerModuleInfos[0].GetModularRig()))
 			{
 				UModularRigController* Controller = Blueprint->GetModularRigController();
 				Controller->SetConfigValueInModule(ModuleInstance->GetPath(), InVariableName, ValueStr);
@@ -416,6 +455,96 @@ void FRigModuleInstanceDetails::RegisterSectionMappings(FPropertyEditorModule& P
 {
 	TSharedRef<FPropertySection> MetadataSection = PropertyEditorModule.FindOrCreateSection(InClass->GetFName(), "Metadata", LOCTEXT("Metadata", "Metadata"));
 	MetadataSection->AddCategory("Metadata");
+}
+
+void FRigModuleInstanceDetails::OnElementNameChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo, FRigElementKey Connector)
+{
+	for (FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(Info.GetModularRig()))
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			FRigElementKey Key;
+			FRigElementKey* TargetKey = Connections.Find(Connector);
+			if (TargetKey)
+			{
+				if (InItem)
+				{
+					TargetKey->Name = **InItem;
+				}
+
+				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+				Controller->ConnectModuleToElement(NamespacedConnector, *TargetKey);
+			}
+		}
+	}
+}
+
+void FRigModuleInstanceDetails::OnElementTypeChanged(ERigElementType InElementType, FRigElementKey Connector)
+{
+	for (FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(Info.GetModularRig()))
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			FRigElementKey Key;
+			FRigElementKey* TargetKey = Connections.Find(Connector);
+			if (TargetKey)
+			{
+				TargetKey->Type = InElementType;
+
+				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+				Controller->ConnectModuleToElement(NamespacedConnector, *TargetKey);
+			}
+		}
+	}
+}
+
+FText FRigModuleInstanceDetails::GetElementNameAsText(FRigElementKey Connector) const
+{
+	if (const FRigElementKey* TargetKey = Connections.Find(Connector))
+	{
+		return FText::FromName(TargetKey->Name);
+	}
+	return FText();
+}
+
+FReply FRigModuleInstanceDetails::OnGetSelectedClicked(FRigElementKey Connector)
+{
+	if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(PerModuleInfos[0].GetModularRig()))
+	{
+		const TArray<FRigElementKey>& Selected = Blueprint->Hierarchy->GetSelectedKeys();
+		if (Selected.Num() > 0)
+		{
+			FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *PerModuleInfos[0].GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+			Blueprint->GetModularRigController()->ConnectModuleToElement(NamespacedConnector, Selected[0]);
+		}
+	}
+	return FReply::Handled();
+}
+
+FReply FRigModuleInstanceDetails::OnSelectInHierarchyClicked(FRigElementKey Connector)
+{
+	if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(PerModuleInfos[0].GetModularRig()))
+	{
+		if (FRigElementKey* Target = Connections.Find(Connector))
+		{
+			if (Target->IsValid())
+			{
+				Blueprint->GetHierarchyController()->SetSelection({*Target});
+			}
+		}
+	}
+	return FReply::Handled();
+}
+
+ERigElementType FRigModuleInstanceDetails::GetElementType(FRigElementKey Connector) const
+{
+	if (const FRigElementKey* TargetKey = Connections.Find(Connector))
+	{
+		return TargetKey->Type;
+	}
+	return ERigElementType::None;
 }
 
 

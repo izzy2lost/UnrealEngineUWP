@@ -168,8 +168,8 @@ public:
 	FRigElementKeyRedirector(const FRigElementKeyRedirector& InOther, const URigHierarchy* InHierarchy);
 
 	bool Contains(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Contains(InKey); }
-	bool ContainsExternalKey(const FRigElementKey& InKey) const { return ExternalKeys.Contains(InKey); }
 	const FCachedRigElement* Find(const FRigElementKey& InKey) const { return InternalKeyToExternalKey.Find(InKey); }
+	const FRigElementKey* FindExternalKey(const FRigElementKey& InKey) const { return ExternalKeys.Find(InKey); }
 	FCachedRigElement* Find(const FRigElementKey& InKey) { return InternalKeyToExternalKey.Find(InKey); }
 	const FRigElementKey* FindReverse(const FRigElementKey& InKey) const;
 	uint32 GetHash() const { return Hash; }
@@ -179,7 +179,7 @@ private:
 	void Add(const FRigElementKey& InSource, const FRigElementKey& InTarget, const URigHierarchy* InHierarchy);
 
 	TMap<FRigElementKey, FCachedRigElement> InternalKeyToExternalKey;
-	TSet<FRigElementKey> ExternalKeys;
+	TMap<FRigElementKey, FRigElementKey> ExternalKeys;
 	uint32 Hash;
 
 	friend class URigHierarchy;

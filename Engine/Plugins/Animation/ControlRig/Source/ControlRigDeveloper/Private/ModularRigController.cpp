@@ -149,12 +149,6 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 		return false;
 	}
 
-	if (!Blueprint->Hierarchy->Contains(InTargetKey))
-	{
-		UE_LOG(LogControlRig, Error, TEXT("Could not find target %s"), *InTargetKey.ToString());
-		return false;
-	}
-
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)

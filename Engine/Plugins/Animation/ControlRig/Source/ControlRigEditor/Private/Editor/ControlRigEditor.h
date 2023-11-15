@@ -22,6 +22,7 @@
 #include "RigVMModel/RigVMController.h"
 #include "Editor/RigVMDetailsViewWrapperObject.h"
 #include "ControlRigTestData.h"
+#include "ModularRigController.h"
 #include "RigVMHost.h"
 #include "Units/RigUnit.h"
 
@@ -127,11 +128,13 @@ public:
 	bool DetailViewShowsAnyRigElement() const;
 	bool DetailViewShowsRigElement(FRigElementKey InKey) const;
 
-	//void SetDetailViewForRigModules();
-	void SetDetailViewForRigModules(const TArray<FString>& InKeys);
+	void SetDetailViewForRigModules();
+	void SetDetailViewForRigModules(const TArray<FString> InKeys);
 	bool DetailViewShowsAnyRigModule() const;
 	bool DetailViewShowsRigModule(FString InKey) const;
+	TArray<FString> ModulesSelected;
 
+	virtual void SetDetailObjects(const TArray<UObject*>& InObjects) override;
 	virtual void RefreshDetailView() override;
 
 	void CreatePersonaToolKitIfRequired();
@@ -153,6 +156,8 @@ public:
 	void OnHierarchyModified_AnyThread(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 	void HandleRigTypeChanged(UControlRigBlueprint* InBlueprint);
+
+	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 
 	const FName RigHierarchyToGraphDragAndDropMenuName = TEXT("ControlRigEditor.RigHierarchyToGraphDragAndDropMenu");
 	void CreateRigHierarchyToGraphDragAndDropMenu() const;
