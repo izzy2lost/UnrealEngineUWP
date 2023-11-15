@@ -1271,7 +1271,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 						{
 #if WITH_EDITORONLY_DATA
 							// If we are in the middle of a transaction it isn't entirely unexpected that an AttachParent/AttachChildren pairing is wrong
-							if (!ensure(GIsTransacting))
+							if (!ensureAlwaysMsgf(GIsTransacting, TEXT("Component '%s' has '%s' in its AttachChildren array, however, '%s' believes it is attached to '%s'"), *GetFullName(), *Child->GetFullName(), *Child->GetFullName(), *Child->GetAttachParent()->GetFullName()))
 #endif
 							{
 								// We've gotten in to a bad state where the Child's AttachParent doesn't jive with the AttachChildren array
