@@ -273,34 +273,6 @@ bool FPCGAttributePropertySelector::IsBasicAttribute() const
 	return Selection == EPCGAttributePropertySelection::Attribute && ExtraNames.IsEmpty();
 }
 
-FPCGAttributePropertySelector FPCGAttributePropertySelector::CreateAttributeSelector(const FName AttributeName)
-{
-	FPCGAttributePropertySelector Selector;
-	Selector.SetAttributeName(AttributeName);
-	return Selector;
-}
-
-FPCGAttributePropertySelector FPCGAttributePropertySelector::CreatePointPropertySelector(EPCGPointProperties PointProperty)
-{
-	FPCGAttributePropertySelector Selector;
-	Selector.SetPointProperty(PointProperty);
-	return Selector;
-}
-
-FPCGAttributePropertySelector FPCGAttributePropertySelector::CreateExtraPropertySelector(EPCGExtraProperties ExtraProperty)
-{
-	FPCGAttributePropertySelector Selector;
-	Selector.SetExtraProperty(ExtraProperty);
-	return Selector;
-}
-
-FPCGAttributePropertySelector FPCGAttributePropertySelector::CreateSelectorFromString(const FString& String)
-{
-	FPCGAttributePropertySelector Selector;
-	Selector.Update(String);
-	return Selector;
-}
-
 ///////////////////////////////////////////////////////////////////////
 
 FPCGAttributePropertyInputSelector::FPCGAttributePropertyInputSelector()

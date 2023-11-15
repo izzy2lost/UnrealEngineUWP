@@ -77,16 +77,48 @@ public:
 	template <typename T>
 	static T CreateFromOtherSelector(const FPCGAttributePropertySelector& InOther)
 	{
+		static_assert(std::is_base_of_v<FPCGAttributePropertySelector, T>, "The type must be of base class 'FPCGAttributePropertySelector'");
 		T OutSelector;
 		OutSelector.ImportFromOtherSelector(InOther);
 		return OutSelector;
 	}
 
-	// Convenience static constructors
-	static FPCGAttributePropertySelector CreateAttributeSelector(const FName AttributeName);
-	static FPCGAttributePropertySelector CreatePointPropertySelector(EPCGPointProperties PointProperty);
-	static FPCGAttributePropertySelector CreateExtraPropertySelector(EPCGExtraProperties ExtraProperty);
-	static FPCGAttributePropertySelector CreateSelectorFromString(const FString& String);
+	// Convenience templated static constructors
+	template <typename T = FPCGAttributePropertySelector>
+	static T CreateAttributeSelector(const FName AttributeName)
+	{
+		static_assert(std::is_base_of_v<FPCGAttributePropertySelector, T>, "The type must be of base class 'FPCGAttributePropertySelector'");
+		T Selector;
+		Selector.SetAttributeName(AttributeName);
+		return Selector;
+	}
+
+	template <typename T = FPCGAttributePropertySelector>
+	static T CreatePointPropertySelector(EPCGPointProperties PointProperty)
+	{
+		static_assert(std::is_base_of_v<FPCGAttributePropertySelector, T>, "The type must be of base class 'FPCGAttributePropertySelector'");
+		T Selector;
+		Selector.SetPointProperty(PointProperty);
+		return Selector;
+	}
+
+	template <typename T = FPCGAttributePropertySelector>
+	static T CreateExtraPropertySelector(EPCGExtraProperties ExtraProperty)
+	{
+		static_assert(std::is_base_of_v<FPCGAttributePropertySelector, T>, "The type must be of base class 'FPCGAttributePropertySelector'");
+		T Selector;
+		Selector.SetExtraProperty(ExtraProperty);
+		return Selector;
+	}
+
+	template <typename T = FPCGAttributePropertySelector>
+	static T CreateSelectorFromString(const FString& String)
+	{
+		static_assert(std::is_base_of_v<FPCGAttributePropertySelector, T>, "The type must be of base class 'FPCGAttributePropertySelector'");
+		T Selector;
+		Selector.Update(String);
+		return Selector;
+	}
 
 	void ImportFromOtherSelector(const FPCGAttributePropertySelector& InOther);
 

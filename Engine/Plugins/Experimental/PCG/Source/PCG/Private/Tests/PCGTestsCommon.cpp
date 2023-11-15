@@ -90,6 +90,12 @@ namespace PCGTestsCommon
 		InputData.TaggedData.Empty();
 		OutputData.TaggedData.Empty();
 		Settings = InSettings;
+
+		if (Settings)
+		{
+			InputData.TaggedData.Emplace_GetRef().Data = Settings;
+			InputData.TaggedData.Last().Pin = FName(TEXT("Settings"));
+		}
 	}
 
 	TUniquePtr<FPCGContext> InitializeTestContext(IPCGElement* InElement, const FPCGDataCollection& InputData, UPCGComponent* InSourceComponent, const UPCGNode* InNode)
