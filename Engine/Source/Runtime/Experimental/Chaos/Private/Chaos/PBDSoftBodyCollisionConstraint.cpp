@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Chaos/PBDSoftBodyCollisionConstraint.h"
+#include "Chaos/WeightedLatticeImplicitObject.h"
 #include "ChaosStats.h"
 #include "HAL/IConsoleManager.h"
 #include "Chaos/Framework/Parallel.h"
@@ -15,7 +16,6 @@
 #include "Chaos/Sphere.h"
 #include "Chaos/TaperedCapsule.h"
 #include "Chaos/TaperedCylinder.h"
-#include "Chaos/WeightedLatticeImplicitObject.h"
 #include "Chaos/Levelset.h"
 #endif
 
