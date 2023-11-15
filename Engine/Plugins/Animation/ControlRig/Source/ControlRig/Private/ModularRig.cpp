@@ -141,8 +141,32 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 				// Make sure the hierarchy has the correct element redirector from this module rig
 				FRigHierarchyRedirectorGuard ElementRedirectorGuard(Rig);
 
+				FRigVMExtendedExecuteContext& RigExtendedExecuteContext= Rig->GetRigVMExtendedExecuteContext();
+
 				// Make sure the hierarchy has the correct execute context with the rig module namespace
-				FRigHierarchyExecuteContextBracket ExecuteContextBracket(Hierarchy, &Rig->GetRigVMExtendedExecuteContext());
+				FRigHierarchyExecuteContextBracket ExecuteContextBracket(Hierarchy, &RigExtendedExecuteContext);
+
+				// Make sure the module's rig has the corrct user data
+				// The rig will combine the user data of the
+				// - skeleton
+				// - skeletalmesh
+				// - SkeletalMeshComponent
+				// - default control rig module
+				// - outer modular rig
+				// - external variables
+				{
+					FControlRigExecuteContext& RigPublicContext = RigExtendedExecuteContext.GetPublicDataSafe<FControlRigExecuteContext>();
+					RigPublicContext.AssetUserData.Reset();
+					if(const TArray<UAssetUserData*>* ControlRigUserDataArray = Rig->GetAssetUserDataArray())
+					{
+					   for(const UAssetUserData* ControlRigUserData : *ControlRigUserDataArray)
+					   {
+						   RigPublicContext.AssetUserData.Add(ControlRigUserData);
+					   }
+					}
+					RigPublicContext.AssetUserData.Remove(nullptr);
+				}
+				
 				
 				Rig->Execute_Internal(InEventName);
 			}

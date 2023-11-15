@@ -2875,6 +2875,18 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 		}
 	}
 
+	// Propagate the outer rig user data into the child modules
+	if (UControlRig* OuterCR = GetTypedOuter<UControlRig>())
+	{
+		if(const TArray<UAssetUserData*>* OuterUserDataArray = OuterCR->GetAssetUserDataArray())
+		{
+			for(UAssetUserData* OuterUserData : *OuterUserDataArray)
+			{
+				CombinedAssetUserData.Add(OuterUserData);
+			}
+		}
+	}
+	
 	if(OuterSceneComponent.IsValid())
 	{
 		if(const USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(OuterSceneComponent))
