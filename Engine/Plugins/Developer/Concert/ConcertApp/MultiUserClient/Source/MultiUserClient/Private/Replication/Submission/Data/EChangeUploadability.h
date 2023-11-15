@@ -19,7 +19,7 @@ namespace UE::MultiUserClient
 		NotImplemented
 	};
 
-	bool CanEverSubmit(EChangeUploadability Uploadability)
+	inline bool CanEverSubmit(EChangeUploadability Uploadability)
 	{
 		return Uploadability != EChangeUploadability::NotImplemented;
 	}
