@@ -278,7 +278,8 @@ class FVoxelMarkValidPageIndex_PrepareCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
-		SHADER_PARAMETER(uint32, MaxClusterCount)
+		SHADER_PARAMETER(uint32, ClusterOffset)
+		SHADER_PARAMETER(uint32, ClusterCount)
 		SHADER_PARAMETER(uint32, MacroGroupId)
 		SHADER_PARAMETER(uint32, bUseMacroGroupBoundCPU)
 		SHADER_PARAMETER(FVector3f, MacroGroupBoundCPU_TranslatedWorldMinAABB)
@@ -672,14 +673,15 @@ static void AddAllocateVoxelPagesPass(
 				// * Or use its clusters AABBs (for dynamic groom)
 				// * Or use its CPU AABB (for CLOD)
 				// Even if the bGroupAABBValid is invalid, it has been reset to invalid AABB, so the code below won't mark any page as used.
-				const bool bUseClusterAABB = HairGroupData->GetClusterAABBValid() && bIsGPUDriven;
+				const bool bUseClusterAABB = TransientResources.IsClusterAABBValid(HairGroupData->Instance->RegisteredIndex) && bIsGPUDriven;
 				
 				FVoxelMarkValidPageIndex_PrepareCS::FParameters* Parameters = GraphBuilder.AllocParameters<FVoxelMarkValidPageIndex_PrepareCS::FParameters>();
 				Parameters->InstanceRegisteredIndex						= HairGroupData->Instance->RegisteredIndex;
-				Parameters->MaxClusterCount								= HairGroupData->GetClusterCount();
+				Parameters->ClusterOffset								= TransientResources.GetClusterOffset(HairGroupData->Instance->RegisteredIndex);
+				Parameters->ClusterCount 								= TransientResources.GetClusterCount(HairGroupData->Instance->RegisteredIndex);
 				Parameters->MacroGroupId								= MacroGroup.MacroGroupId;
 				Parameters->GroupAABBsBuffer							= TransientResources.GroupAABBSRV;
-				Parameters->ClusterAABBsBuffer							= RegisterAsSRV(GraphBuilder, HairGroupData->GetClusterAABBBuffer());
+				Parameters->ClusterAABBsBuffer							= TransientResources.ClusterAABBSRV;
 				Parameters->MacroGroupVoxelAlignedAABBBuffer			= GraphBuilder.CreateSRV(MacroGroupResources.MacroGroupVoxelAlignedAABBsBuffer, PF_R32_SINT);
 				Parameters->PageIndexResolutionAndOffsetBuffer			= PageIndexResolutionAndOffsetBufferSRV;
 				Parameters->bUseMacroGroupBoundCPU						= bIsGPUDriven ? 0 : 1;
@@ -689,7 +691,7 @@ static void AddAllocateVoxelPagesPass(
 
 				FIntVector DispatchCount = bUseClusterAABB ?
 					FIntVector(
-						FMath::DivideAndRoundUp(Parameters->MaxClusterCount, FVoxelMarkValidPageIndex_PrepareCS::GetGroupSize(true)), 
+						FMath::DivideAndRoundUp(Parameters->ClusterCount, FVoxelMarkValidPageIndex_PrepareCS::GetGroupSize(true)), 
 						1, 
 						1) :
 					FIntVector(

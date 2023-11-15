@@ -100,12 +100,11 @@ FHairTransientResources* AllocateHairTransientResourcse(FRDGBuilder& GraphBuilde
 		Out->bIsGroupAABBValid.Init(false, InstanceCount);
 
 		// Change this into a structure buffer
-		Out->GroupAABBBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 6 * InstanceCount), TEXT("Hair.TransientResources.GroupAABB"));
-		Out->GroupAABBUAV = GraphBuilder.CreateUAV(Out->GroupAABBBuffer, PF_R32_SINT);
+		Out->GroupAABBBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 6 * InstanceCount), TEXT("Hair.Transient.GroupAABB"));
 		Out->GroupAABBSRV = GraphBuilder.CreateSRV(Out->GroupAABBBuffer, PF_R32_SINT);
 
-		Out->IndirectDispatchArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(InstanceCount), TEXT("Hair.TransientResources.IndirectDispatchArgs"));
-		Out->IndirectDispatchArgsUAV = GraphBuilder.CreateUAV(Out->IndirectDispatchArgsBuffer);
+		// *4u* elements for storing DispatchCount.xyz and .w which contains the original number of items
+		Out->IndirectDispatchArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(4u * InstanceCount), TEXT("Hair.Transient.IndirectDispatchArgs"));
 		Out->IndirectDispatchArgsSRV = GraphBuilder.CreateSRV(Out->IndirectDispatchArgsBuffer);
 	}
 	return Out;

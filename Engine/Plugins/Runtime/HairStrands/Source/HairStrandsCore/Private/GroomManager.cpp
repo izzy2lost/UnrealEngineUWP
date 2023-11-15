@@ -80,10 +80,12 @@ void AddHairClusterAABBPass(
 	FHairGroupInstance* Instance,
 	FRDGBufferSRVRef RenderDeformedOffsetBuffer,
 	FHairStrandClusterData::FHairGroup* ClusterData,
-	FRDGHairStrandsCullingData& ClusterAABBData,
+	const uint32 ClusterOffset,
+	const uint32 CluesterCount,
 	FRDGBufferSRVRef RenderPositionBufferSRV,
 	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer,
-	FRDGBufferUAVRef GroupAABBUAV);
+	FRDGBufferUAVRef ClusterAABBUAV,
+	FRDGBufferUAVRef GroupAABBBUAV);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -684,6 +686,7 @@ static void RunHairStrandsInterpolation_Strands(
 	const TArray<const FSceneView*>& Views, 
 	const FSceneView* View,
 	const uint32 ViewUniqueID,
+	const uint32 TotalRegisteredInstanceCount,
 	const FHairStrandsInstances& Instances,
 	const FShaderPrintData* ShaderPrintData,
 	FHairTransientResources& TransientResources,
@@ -878,13 +881,14 @@ static void RunHairStrandsInterpolation_Strands(
 			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeHairStrandsClustersCulling);
 			RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsClusterCulling);
 
+			FRDGBufferUAVRef IndirectDispatchArgsUAVWithSkipBarrier = GraphBuilder.CreateUAV(TransientResources.IndirectDispatchArgsBuffer, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			AddClusterCullingPass(
 				GraphBuilder,
 				ShaderMap,
 				Views[0],
 				ShaderPrintData,
 				ClusterDatas,
-				TransientResources.IndirectDispatchArgsUAV);
+				IndirectDispatchArgsUAVWithSkipBarrier);
 
 			AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
 		}
@@ -990,17 +994,31 @@ static void RunHairStrandsInterpolation_Strands(
 
 
 	// Clear cluster AABBs (used optionally  for voxel allocation & for culling)
-	for (FInstanceData& InstanceData : InstanceDatas)
 	{
-		InstanceData.CullingData = ImportCullingData(GraphBuilder, InstanceData.Instance->HairGroupPublicData);
-		AddClearClusterAABBPass(
-			GraphBuilder,
-			ShaderMap,
-			InstanceData.bNeedDeformation ? EHairAABBUpdateType::UpdateClusterAABB : EHairAABBUpdateType::UpdateGroupAABB,
-			InstanceData.RegisteredIndex,
-			InstanceData.CullingData.ClusterCount,
-			InstanceData.CullingData.ClusterAABBBuffer,
-			TransientResources.GroupAABBUAV);
+		uint32 TotalClusterAABBCount = 0;
+		TransientResources.ClusterAABBOffetAndCounts.Init(FUintVector2::ZeroValue, TotalRegisteredInstanceCount); // Use TotalRegisteredInstanceCount because this buffer is indexed by RegisteredIndex
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			if (InstanceData.bNeedDeformation)
+			{
+				TransientResources.ClusterAABBOffetAndCounts[InstanceData.RegisteredIndex].X = TotalClusterAABBCount;
+				TransientResources.ClusterAABBOffetAndCounts[InstanceData.RegisteredIndex].Y = InstanceData.Instance->HairGroupPublicData->ClusterCount;
+				TotalClusterAABBCount += InstanceData.Instance->HairGroupPublicData->ClusterCount;
+			}
+		}
+		TotalClusterAABBCount = FMath::Max(TotalClusterAABBCount, 1u);
+		TransientResources.ClusterAABBBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 6u * TotalClusterAABBCount), TEXT("Hair.Transient.ClusterAABBs"));
+		TransientResources.ClusterAABBSRV = GraphBuilder.CreateSRV(TransientResources.ClusterAABBBuffer, PF_R32_SINT);
+
+		FRDGBufferUAVRef ClusterAABBUAVSkipBarrier = GraphBuilder.CreateUAV(TransientResources.ClusterAABBBuffer, PF_R32_SINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGBufferUAVRef GroupAABBUAVSkipBarrier = GraphBuilder.CreateUAV(TransientResources.GroupAABBBuffer, PF_R32_SINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		AddClearAABBPass(GraphBuilder, ShaderMap, TotalClusterAABBCount, ClusterAABBUAVSkipBarrier);
+		AddClearAABBPass(GraphBuilder, ShaderMap, TotalRegisteredInstanceCount, GroupAABBUAVSkipBarrier);
+
+		for (FInstanceData& InstanceData : InstanceDatas)
+		{
+			InstanceData.CullingData = ImportCullingData(GraphBuilder, InstanceData.Instance->HairGroupPublicData);
+		}
 	}
 
 	{
@@ -1195,6 +1213,7 @@ static void RunHairStrandsInterpolation_Strands(
 	// 3. Compute cluster AABBs (used for LODing and voxelization)
 	{
 		FRDGBufferUAVRef GroupAABUAVSkipBarrier = GraphBuilder.CreateUAV(TransientResources.GroupAABBBuffer, PF_R32_SINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		FRDGBufferUAVRef ClusterAABBUAVSkipBarrier = GraphBuilder.CreateUAV(TransientResources.ClusterAABBBuffer, PF_R32_SINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 		const FVector& TranslatedWorldOffset = View->ViewMatrices.GetPreViewTranslation();
 		for (FInstanceData& InstanceData : InstanceDatas)
@@ -1215,8 +1234,6 @@ static void RunHairStrandsInterpolation_Strands(
 				}
 			}
 				
-			InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(false);
-				
 			if (bNeedGPUAABB)
 			{
 				FRDGImportedBuffer Strands_CulledVertexCount = Register(GraphBuilder, InstanceData.Instance->HairGroupPublicData->GetDrawIndirectRasterComputeBuffer(), ERDGImportedBufferFlags::CreateSRV);
@@ -1230,12 +1247,12 @@ static void RunHairStrandsInterpolation_Strands(
 					InstanceData.Instance,
 					InstanceData.RDGResources.PositionOffsetSRV,
 					HairGroupCluster,
-					InstanceData.CullingData,
+					TransientResources.GetClusterOffset(InstanceData.Instance->RegisteredIndex),
+					TransientResources.GetClusterCount(InstanceData.Instance->RegisteredIndex),
 					InstanceData.RDGResources.PositionSRV,
 					Strands_CulledVertexCount.SRV,
+					ClusterAABBUAVSkipBarrier,
 					GroupAABUAVSkipBarrier);
-				
-				InstanceData.Instance->HairGroupPublicData->SetClusterAABBValid(UpdateType == EHairAABBUpdateType::UpdateClusterAABB);
 	
 				TransientResources.bIsGroupAABBValid[InstanceData.RegisteredIndex] = true;
 			}
@@ -2158,6 +2175,7 @@ void ProcessHairStrandsBookmark(
 			Parameters.AllViews,
 			Parameters.View,
 			Parameters.ViewUniqueID,
+			Parameters.Instances->Num(),
 			*Instances,
 			Parameters.ShaderPrintData,
 			*Parameters.TransientResources,

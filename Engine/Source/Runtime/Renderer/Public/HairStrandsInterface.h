@@ -220,7 +220,6 @@ public:
 	FRDGExternalBuffer& GetDrawIndirectRasterComputeBuffer() { return Culling->DrawIndirectRasterComputeBuffer; }
 	const FRDGExternalBuffer& GetDrawIndirectRasterComputeBuffer() const { return Culling->DrawIndirectRasterComputeBuffer; }
 	FRDGExternalBuffer& GetDrawIndirectBuffer() { return Culling->DrawIndirectBuffer; }
-	FRDGExternalBuffer& GetClusterAABBBuffer() { return Culling->ClusterAABBBuffer; }
 
 	const FRDGExternalBuffer& GetCulledCurveBuffer() const { return Culling->CulledCurveBuffer; }
 	const FRDGExternalBuffer& GetCulledVertexIdBuffer() const { return Culling->CulledVertexIdBuffer; }
@@ -232,9 +231,6 @@ public:
 
 	bool GetCullingResultAvailable() const { return Culling->bCullingResultAvailable; }
 	void SetCullingResultAvailable(bool b) { Culling->bCullingResultAvailable = b; }
-	
-	void SetClusterAABBValid(bool In) { Culling->bClusterAABBValid = In;  }
-	bool GetClusterAABBValid() const  { return Culling->bClusterAABBValid;  }
 
 	void SupportVoxelization(bool InVoxelize) { bSupportVoxelization = InVoxelize; }
 	bool DoesSupportVoxelization() const { return bSupportVoxelization; }
@@ -290,9 +286,6 @@ public:
 
 	void SetLODVisibility(bool bVisible) { bLODVisibility = bVisible; }
 	bool GetLODVisibility() const { return bLODVisibility; }
-
-	uint32 GetClusterCount() const { return ClusterCount;  }
-	float GetClusterScale() const { return ClusterScale;  }
 
 	// Return the number of active point/curve for strand geometry
 	RENDERER_API uint32 GetActiveStrandsPointCount() const;
@@ -359,10 +352,6 @@ public:
 		FRDGExternalBuffer DrawIndirectBuffer;
 		FRDGExternalBuffer DrawIndirectRasterComputeBuffer;
 
-		/* Hair Cluster & Hair Group bounding box buffer */
-		FRDGExternalBuffer ClusterAABBBuffer;
-		bool bClusterAABBValid = false;
-
 		/* Culling & LODing results for a hair group */ // Better to be transient?
 		FRDGExternalBuffer CulledCurveBuffer;
 		FRDGExternalBuffer CulledVertexIdBuffer;
@@ -425,15 +414,23 @@ public:
 // Resources are indexed by hair instance's registered index
 struct FHairTransientResources
 {
+	FORCEINLINE uint32 GetClusterOffset(uint32 InRegisterIndex) const { check(ClusterAABBOffetAndCounts.IsValidIndex(InRegisterIndex)); return ClusterAABBOffetAndCounts[InRegisterIndex].X; }
+	FORCEINLINE uint32 GetClusterCount(uint32 InRegisterIndex)  const { check(ClusterAABBOffetAndCounts.IsValidIndex(InRegisterIndex)); return ClusterAABBOffetAndCounts[InRegisterIndex].Y; }
+	FORCEINLINE bool IsClusterAABBValid(uint32 InRegisterIndex) const { return GetClusterCount(InRegisterIndex) > 0; }
+
+	// Group AABB
+	TBitArray<> bIsGroupAABBValid;
 	FRDGBufferRef    GroupAABBBuffer = nullptr;
-	FRDGBufferUAVRef GroupAABBUAV = nullptr;
 	FRDGBufferSRVRef GroupAABBSRV = nullptr;
 
-	FRDGBufferRef    IndirectDispatchArgsBuffer = nullptr;
-	FRDGBufferUAVRef IndirectDispatchArgsUAV = nullptr;
-	FRDGBufferSRVRef IndirectDispatchArgsSRV = nullptr;
+	// Cluster AABB
+	TArray<FUintVector2> ClusterAABBOffetAndCounts;
+	FRDGBufferRef    ClusterAABBBuffer = nullptr;
+	FRDGBufferSRVRef ClusterAABBSRV = nullptr;
 
-	TBitArray<> bIsGroupAABBValid;
+	// Indirect dispatch args
+	FRDGBufferRef    IndirectDispatchArgsBuffer = nullptr;
+	FRDGBufferSRVRef IndirectDispatchArgsSRV = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

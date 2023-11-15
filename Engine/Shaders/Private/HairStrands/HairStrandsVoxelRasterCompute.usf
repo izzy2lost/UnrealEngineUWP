@@ -160,7 +160,8 @@ void AllocatePageIndex(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 #if SHADER_MARKVALID_PREPARE
 uint 			InstanceRegisteredIndex;
-uint			MaxClusterCount;
+uint			ClusterOffset;
+uint			ClusterCount;
 uint			MacroGroupId;
 uint			bUseMacroGroupBoundCPU;
 float3			MacroGroupBoundCPU_TranslatedWorldMinAABB;
@@ -181,10 +182,12 @@ RWBuffer<uint>	OutValidPageIndexBuffer;
 void MarkValid_PrepareCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint ClusterIndex = DispatchThreadId.x;
-	if (ClusterIndex >= MaxClusterCount)
+	if (ClusterIndex >= ClusterCount)
+	{
 		return;
+	}
 
-	const uint BaseClusterIndex = 6 * ClusterIndex;
+	const uint BaseClusterIndex = 6 * (ClusterOffset + ClusterIndex);
 
 	FHairAABB ClusterBound;
 	ClusterBound.Min.x = float(ClusterAABBsBuffer[BaseClusterIndex + 0]);

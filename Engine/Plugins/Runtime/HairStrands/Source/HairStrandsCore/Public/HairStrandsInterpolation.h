@@ -97,9 +97,6 @@ struct FRDGHairStrandsCullingData
 	FRDGImportedBuffer HairStrandsVF_CullingIndirectBuffer;
 	FRDGImportedBuffer HairStrandsVF_CullingIndexBuffer;
 	FRDGImportedBuffer HairStrandsVF_CullingRadiusScaleBuffer;
-
-	uint32 ClusterCount = 0;
-	FRDGImportedBuffer ClusterAABBBuffer;
 };
 
 FRDGHairStrandsCullingData ImportCullingData(FRDGBuilder& GraphBuilder, FHairGroupPublicData* In);
@@ -110,14 +107,11 @@ enum class EHairAABBUpdateType
 	UpdateGroupAABB
 };
 
-void AddClearClusterAABBPass(
+void AddClearAABBPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const EHairAABBUpdateType UpdateType,
-	uint32 InstanceRegisteredIndex,
-	uint32 ClusterCount,
-	FRDGImportedBuffer& OutClusterAABBBuffer,
-	FRDGBufferUAVRef& OutGroupAABBUAV);
+	uint32 AABBCount,
+	FRDGBufferUAVRef& OutAABBUAV);
 
 void AddHairStrandsInterpolationPass(
 	FRDGBuilder& GraphBuilder,

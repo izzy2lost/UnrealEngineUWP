@@ -34,38 +34,20 @@ uint3 ComputeDispatchGroupCount2D(uint GroupCount)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// Clear clusters AABB
-#ifdef SHADER_CLEARCLUSTERAABB
-
-uint InstanceRegisteredIndex;
-uint ClusterCount;
-uint bClearClusterAABBs;
-
-RWBuffer<int> OutClusterAABBBuffer; // Cluster data packed as {uint3 AABBMin, uint3 AABBMax}
-RWBuffer<int> OutGroupAABBBuffer; 	// Group data packed as {uint3 AABBMin, uint3 AABBMax}
+/// Clear group/cluster AABBs
+#ifdef SHADER_CLEARAABB
+uint AABBCount;
+RWBuffer<int> OutAABBBuffer;
 
 [numthreads(64, 1, 1)]
-void MainClearClusterAABBCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+void MainClearAABBCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
-	// Clear 'clusters' AABB
-	if (bClearClusterAABBs > 0 && DispatchThreadId.x < ClusterCount*6)
+	if (DispatchThreadId.x < AABBCount*6)
 	{
 		const int ClusterId = DispatchThreadId.x / 6;
 		const bool bIsMin = (DispatchThreadId.x - ClusterId * 6) < 3 ? 1 : 0;
-		const int Value = bIsMin ? 2147483647 : -2147483648;
-		checkBufferAccessSlow(OutClusterAABBBuffer, DispatchThreadId.x);
-		OutClusterAABBBuffer[DispatchThreadId.x] = Value;
-	}
-
-	// Clear 'group' AABB
-	if (DispatchThreadId.x == 0)
-	{
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 0] =  2147483647;
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 1] =  2147483647;
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 2] =  2147483647;
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 3] = -2147483647;
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 4] = -2147483647;
-		OutGroupAABBBuffer[InstanceRegisteredIndex*6 + 5] = -2147483647;
+		checkBufferAccessSlow(OutAABBBuffer, DispatchThreadId.x);
+		OutAABBBuffer[DispatchThreadId.x] = bIsMin ? 2147483647 : -2147483648;
 	}
 }
 
@@ -456,6 +438,7 @@ void Main(uint DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gro
 
 uint InstanceRegisteredIndex;
 uint CurveCount;
+uint ClusterOffset;
 uint ClusterCount;
 float ClusterScale;
 float3 CPUBoundMin;
@@ -585,7 +568,7 @@ groupshared float3 OutHairPositionOffset;
 	// Write out hair cluster AABB
 	if (ThreadIndex == 0)
 	{
-		const uint ClusterIdx6 = ClusterIndex * 6;
+		const uint ClusterIdx6 = (ClusterOffset + ClusterIndex) * 6;
 		OutClusterAABBBuffer[ClusterIdx6 + 0] = SharedClusterAABBMin[0].x;
 		OutClusterAABBBuffer[ClusterIdx6 + 1] = SharedClusterAABBMin[0].y;
 		OutClusterAABBBuffer[ClusterIdx6 + 2] = SharedClusterAABBMin[0].z;

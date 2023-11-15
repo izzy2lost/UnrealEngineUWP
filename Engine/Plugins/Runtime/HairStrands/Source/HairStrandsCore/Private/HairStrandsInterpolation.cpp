@@ -455,9 +455,6 @@ FRDGHairStrandsCullingData ImportCullingData(FRDGBuilder& GraphBuilder, FHairGro
 		Out.HairStrandsVF_CullingRadiusScaleBuffer	= Register(GraphBuilder, In->GetCulledVertexRadiusScaleBuffer(), ERDGImportedBufferFlags::CreateViews);
 	}
 
-	Out.ClusterCount		= In->GetClusterCount();
-	Out.ClusterAABBBuffer	= Register(GraphBuilder, In->GetClusterAABBBuffer(), ERDGImportedBufferFlags::CreateViews);
-
 	return Out;
 }
 
@@ -798,6 +795,7 @@ class FHairClusterAABBCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
 		SHADER_PARAMETER(float, LODIndex)
 		SHADER_PARAMETER(float, ClusterScale)
+		SHADER_PARAMETER(uint32, ClusterOffset)
 		SHADER_PARAMETER(uint32, ClusterCount)
 		SHADER_PARAMETER(uint32, CurveCount)
 		SHADER_PARAMETER(FVector3f, CPUBoundMin)
@@ -834,9 +832,11 @@ void AddHairClusterAABBPass(
 	FHairGroupInstance* Instance,
 	FRDGBufferSRVRef RenderDeformedOffsetBuffer,
 	FHairStrandClusterData::FHairGroup* ClusterData,
-	FRDGHairStrandsCullingData& ClusterAABBData,
+	const uint32 ClusterOffset,
+	const uint32 ClusterCount,
 	FRDGBufferSRVRef RenderPositionBufferSRV,
 	FRDGBufferSRVRef& DrawIndirectRasterComputeBuffer,
+	FRDGBufferUAVRef ClusterAABBUAV,
 	FRDGBufferUAVRef GroupAABBBUAV)
 {
 	// Clusters AABB are only update if the groom is deformed.
@@ -844,7 +844,6 @@ void AddHairClusterAABBPass(
 	FTransform InRenLocalToTranslatedWorld = Instance->LocalToWorld;
 	InRenLocalToTranslatedWorld.AddToTranslation(TranslatedWorldOffset);
 	const FBoxSphereBounds TransformedBounds = Bounds.TransformBy(InRenLocalToTranslatedWorld);
-	Instance->HairGroupPublicData->SetClusterAABBValid(UpdateType == EHairAABBUpdateType::UpdateClusterAABB);
 
 	FHairClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairClusterAABBCS::FParameters>();
 	Parameters->InstanceRegisteredIndex = Instance->RegisteredIndex;
@@ -855,11 +854,12 @@ void AddHairClusterAABBPass(
 	Parameters->RenderDeformedPositionBuffer = RenderPositionBufferSRV;
 	Parameters->RenderDeformedOffsetBuffer = RenderDeformedOffsetBuffer;
 	Parameters->CurveCount = ActiveCurveCount;
-	Parameters->ClusterCount = ClusterData ? ClusterData->ClusterCount : 1;
+	Parameters->ClusterOffset = ClusterData ? ClusterOffset : 0;
+	Parameters->ClusterCount = ClusterData ? ClusterCount : 1;
 	Parameters->ClusterScale = ClusterData ? ClusterData->ClusterScale : 1.f;
 	Parameters->RenCurveBuffer = RegisterAsSRV(GraphBuilder, Instance->Strands.RestResource->CurveBuffer);
 	Parameters->RenPointLODBuffer = ClusterData ? RegisterAsSRV(GraphBuilder, *ClusterData->PointLODBuffer) : nullptr;
-	Parameters->OutClusterAABBBuffer = ClusterAABBData.ClusterAABBBuffer.UAV;
+	Parameters->OutClusterAABBBuffer = ClusterAABBUAV;
 	Parameters->OutGroupAABBBuffer = GroupAABBBUAV;
 
 	if (ShaderPrintData)
@@ -890,8 +890,6 @@ void AddHairClusterAABBPass(
 			Parameters,
 			FIntVector(1,1,1));
 	}
-
-	GraphBuilder.SetBufferAccessFinal(ClusterAABBData.ClusterAABBBuffer.Buffer, ERHIAccess::SRVMask);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1242,17 +1240,14 @@ void AddGenerateRaytracingGeometryPass(
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FClearClusterAABBCS : public FGlobalShader
+class FClearAABBCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FClearClusterAABBCS);
-	SHADER_USE_PARAMETER_STRUCT(FClearClusterAABBCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FClearAABBCS);
+	SHADER_USE_PARAMETER_STRUCT(FClearAABBCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutClusterAABBBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutGroupAABBBuffer)
-		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
-		SHADER_PARAMETER(uint32, ClusterCount)
-		SHADER_PARAMETER(uint32, bClearClusterAABBs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutAABBBuffer)
+		SHADER_PARAMETER(uint32, AABBCount)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -1260,45 +1255,31 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_CLEARCLUSTERAABB"), 1);
+		OutEnvironment.SetDefine(TEXT("SHADER_CLEARAABB"), 1);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FClearClusterAABBCS, "/Engine/Private/HairStrands/HairStrandsClusterCulling.usf", "MainClearClusterAABBCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FClearAABBCS, "/Engine/Private/HairStrands/HairStrandsClusterCulling.usf", "MainClearAABBCS", SF_Compute);
 
-void AddClearClusterAABBPass(
+void AddClearAABBPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const EHairAABBUpdateType UpdateType,
-	uint32 InstanceRegisteredIndex,
-	uint32 ClusterCount,
-	FRDGImportedBuffer& OutClusterAABBBuffer,
-	FRDGBufferUAVRef& OutGroupAABBUAV)
+	uint32 AABBCount,
+	FRDGBufferUAVRef& OutAABBUAV)
 {
-	check(OutClusterAABBBuffer.Buffer);
+	check(OutAABBUAV);
 
-	FClearClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FClearClusterAABBCS::FParameters>();
-	Parameters->InstanceRegisteredIndex = InstanceRegisteredIndex;
-	Parameters->ClusterCount = ClusterCount;
-	Parameters->bClearClusterAABBs = UpdateType == EHairAABBUpdateType::UpdateClusterAABB ? 1 : 0;
-	Parameters->OutClusterAABBBuffer = OutClusterAABBBuffer.UAV;
-	Parameters->OutGroupAABBBuffer = OutGroupAABBUAV;
+	FClearAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FClearAABBCS::FParameters>();
+	Parameters->AABBCount = AABBCount;
+	Parameters->OutAABBBuffer = OutAABBUAV;
 
-	TShaderMapRef<FClearClusterAABBCS> ComputeShader(ShaderMap);
-
-	const FIntVector DispatchCount = 
-		UpdateType == EHairAABBUpdateType::UpdateClusterAABB ? 
-		FIntVector(FMath::DivideAndRoundUp(ClusterCount * 6u, 64u), 1, 1) :
-		FIntVector(1,1,1);
-
+	TShaderMapRef<FClearAABBCS> ComputeShader(ShaderMap);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("HairStrands::ClearClusterAABB(%s)", UpdateType == EHairAABBUpdateType::UpdateClusterAABB ? TEXT("Cluster,Group") : TEXT("Group Only")),
+		RDG_EVENT_NAME("HairStrands::ClearAABBs"),
 		ComputeShader,
 		Parameters,
-		DispatchCount);
-
-	GraphBuilder.SetBufferAccessFinal(OutClusterAABBBuffer.Buffer, ERHIAccess::SRVMask);
+		FIntVector(FMath::DivideAndRoundUp(AABBCount * 6u, 64u), 1, 1));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

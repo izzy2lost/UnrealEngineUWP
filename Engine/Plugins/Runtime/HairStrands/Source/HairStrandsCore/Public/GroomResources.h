@@ -369,7 +369,6 @@ struct FHairStrandsCullingResource : public FHairCommonResource
 		uint32 Total = 0;
 		Total += GetBufferTotalNumBytes(Resources.DrawIndirectBuffer);
 		Total += GetBufferTotalNumBytes(Resources.DrawIndirectRasterComputeBuffer);
-		Total += GetBufferTotalNumBytes(Resources.ClusterAABBBuffer);
 		Total += GetBufferTotalNumBytes(Resources.CulledCurveBuffer);
 		Total += GetBufferTotalNumBytes(Resources.CulledVertexIdBuffer);
 		Total += GetBufferTotalNumBytes(Resources.CulledVertexRadiusScaleBuffer);

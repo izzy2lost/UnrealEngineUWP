@@ -408,9 +408,10 @@ class FDrawDebugClusterAABBCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters,)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
-		SHADER_PARAMETER_SRV(Buffer, ClusterAABBBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, ClusterAABBBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, GroupAABBBuffer)
 		SHADER_PARAMETER(uint32, InstanceRegisteredIndex)
+		SHADER_PARAMETER(uint32, ClusterOffset)
 		SHADER_PARAMETER(uint32, ClusterCount)
 		SHADER_PARAMETER(uint32, PointCount)
 		SHADER_PARAMETER(uint32, CurveCount)
@@ -463,12 +464,13 @@ void AddDrawDebugClusterPass(
 		FDrawDebugClusterAABBCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDrawDebugClusterAABBCS::FParameters>();
 		Parameters->InstanceRegisteredIndex = HairGroupClusters.InstanceRegisteredIndex;
 		Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
-		Parameters->ClusterCount = HairGroupClusters.ClusterCount;
+		Parameters->ClusterOffset = TransientResources.GetClusterOffset(HairGroupClusters.InstanceRegisteredIndex);
+		Parameters->ClusterCount  = TransientResources.GetClusterCount(HairGroupClusters.InstanceRegisteredIndex);
 		Parameters->PointCount = HairGroupClusters.HairGroupPublicPtr->GetActiveStrandsPointCount();
 		Parameters->CurveCount = HairGroupClusters.HairGroupPublicPtr->GetActiveStrandsCurveCount();
 		Parameters->HairGroupId = DataIndex++;
 		Parameters->bDrawAABB = ViewMode == EGroomViewMode::ClusterAABB ? 1 : 0;
-		Parameters->ClusterAABBBuffer = HairGroupClusters.ClusterAABBBuffer->SRV;
+		Parameters->ClusterAABBBuffer = TransientResources.ClusterAABBSRV;
 		Parameters->GroupAABBBuffer = TransientResources.GroupAABBSRV;
 		ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintParameters);
 
