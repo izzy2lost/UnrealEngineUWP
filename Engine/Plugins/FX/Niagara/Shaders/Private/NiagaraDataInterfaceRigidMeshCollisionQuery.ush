@@ -272,6 +272,56 @@ void GetElementPoint_{ParameterName}(in float3 WorldPosition, in float DeltaTime
 	}
 }
 
+// Given a world space position (WorldPosition) and an element index compute the static mesh closest point using distance fields (position,velocity)
+void GetElementPointMeshDistanceFieldNoNormal_{ParameterName}(in float3 WorldPosition, in float DeltaTime, in float TimeFraction, in float MaxDistance, in int ElementIndex, out float OutClosestDistance, out float3 OutClosestVelocity)
+{
+	OutClosestVelocity = float3(0,0,0);
+	OutClosestDistance = 0.0;
+
+	if (ElementIndex >= 0)
+	{
+		const uint ElementIndexUint = uint(ElementIndex);
+		const float3 LocalPosition = GetLocalPosition_{ParameterName}(WorldPosition,ElementIndex,TimeFraction);
+
+		float MinDistance = MAX_DISTANCE;
+		int OutputIndex = -1;
+		float3 CollisionPosition = float3(0,0,0);
+		float3 CollisionNormal = float3(0,0,0);
+
+		if ( ElementIndexUint >= {ParameterName}_ElementOffsets[SPHERE_INDEX] && ElementIndexUint < {ParameterName}_ElementOffsets[SPHERE_INDEX+1] )
+		{
+			GetSphereProjection_{ParameterName}(LocalPosition, float3(0,0,0), {ParameterName}_ElementExtentBuffer[ElementIndex].x, ElementIndex,
+					CollisionPosition, CollisionNormal, OutputIndex, MinDistance);
+		}
+		else if ( ElementIndexUint >= {ParameterName}_ElementOffsets[CAPSULE_INDEX] && ElementIndexUint < {ParameterName}_ElementOffsets[CAPSULE_INDEX+1] )
+		{
+			GetCapsuleProjection_{ParameterName}(LocalPosition, {ParameterName}_ElementExtentBuffer[ElementIndex].xy, ElementIndex,
+					CollisionPosition, CollisionNormal, OutputIndex, MinDistance);
+		}
+		else if ( ElementIndexUint >= {ParameterName}_ElementOffsets[BOX_INDEX] && ElementIndexUint < {ParameterName}_ElementOffsets[BOX_INDEX+1] )
+		{
+			GetBoxProjection_{ParameterName}(LocalPosition, {ParameterName}_ElementExtentBuffer[ElementIndex].xyz, ElementIndex,
+					CollisionPosition, CollisionNormal, OutputIndex, MinDistance);
+		}
+
+		if (ElementIndex != -1)
+		{
+			uint DFIndex = {ParameterName}_DFIndexBuffer[ElementIndex];
+
+			if (DFIndex >= 0 && DFIndex < NumSceneObjects)
+			{
+				MaxDistance = max(.001, MaxDistance);
+				const FLWCVector3 LWCWorldPosition = MakeLWCVector3({ParameterName}_SystemLWCTile, WorldPosition);
+				OutClosestDistance = DistanceToNearestSurfaceForObject(DFIndex, LWCWorldPosition, MaxDistance);			
+			}
+
+			const float3 PreviousPosition = mul(GetPreviousTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;
+			const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;
+			OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;		
+		}
+	}
+}
+
 // Given a world space position (WorldPosition) and an element index compute the static mesh closest distance
 void GetElementDistance_{ParameterName}(in float3 WorldPosition, in float TimeFraction, in int ElementIndex, out float OutClosestDistance)
 {	
