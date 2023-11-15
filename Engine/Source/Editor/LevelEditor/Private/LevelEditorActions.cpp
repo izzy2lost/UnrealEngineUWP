@@ -3959,9 +3959,14 @@ void FLevelEditorCommands::RegisterCommands()
 				// if the shader platform isn't compiled in, we don't have a friendly name available, so use ugly name
 				FriendlyNameBuilder.AppendLine(FText::FromName(Item.PreviewShaderPlatformName));
 			}
+			else if (!Item.OptionalFriendlyNameOverride.IsEmpty())
+			{
+				FriendlyNameBuilder.AppendLine(Item.OptionalFriendlyNameOverride);
+			}
 			else
 			{
 				FriendlyNameBuilder.AppendLine(FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform));
+				FPlatformMisc::LowLevelOutputDebugStringf(TEXT("MENU friendly name %s\n"), *FriendlyNameBuilder.ToText().ToString());
 			}
 			if (FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview) == GMaxRHIShaderPlatform)
 			{
@@ -3972,7 +3977,7 @@ void FLevelEditorCommands::RegisterCommands()
 		PreviewPlatformOverrides.Add(
 			FUICommandInfoDecl(
 				this->AsShared(),
-				FName(*FString::Printf(TEXT("PreviewPlatformOverrides_%s_%s"), *Item.PlatformName.ToString(), *Item.ShaderFormat.ToString())),
+				FName(*FString::Printf(TEXT("PreviewPlatformOverrides_%s_%s_%s"), *Item.PlatformName.ToString(), *Item.ShaderFormat.ToString(), *Item.DeviceProfileName.ToString())),
 				FriendlyNameBuilder.ToText(),
 				Item.MenuTooltip)
 			.UserInterfaceType(EUserInterfaceActionType::Check)

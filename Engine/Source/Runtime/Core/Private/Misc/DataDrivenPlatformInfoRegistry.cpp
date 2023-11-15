@@ -286,13 +286,34 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 				Item.ActiveIconName = *GetSectionString(Section.Value, FName("ActiveIconName"));
 				Item.InactiveIconPath = GetSectionString(Section.Value, FName("InactiveIconPath"));
 				Item.InactiveIconName = *GetSectionString(Section.Value, FName("InactiveIconName"));
-				Item.DeviceProfileName = *GetSectionString(Section.Value, FName("DeviceProfileName"));
 				Item.ShaderPlatformToPreview = *GetSectionString(Section.Value, FName("ShaderPlatform"));
 				checkf(Item.ShaderPlatformToPreview != NAME_None, TEXT("DataDrivenPlatformInfo section [PreviewPlatform %s] must specify a ShaderPlatform"), *SectionName);
-				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("FriendlyName")), Item.OptionalFriendlyNameOverride);
 				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("MenuTooltip")), Item.MenuTooltip);
 				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("IconText")), Item.IconText);
-				PreviewPlatformMenuItems.Add(Item);
+
+
+				FString AllDeviceProfiles = GetSectionString(Section.Value, FName("DeviceProfileName"));
+				FString AllFriendlyName = GetSectionString(Section.Value, FName("FriendlyName"));
+				TArray<FString> DeviceProfileNames, FriendlyNames;
+				AllDeviceProfiles.ParseIntoArray(DeviceProfileNames, TEXT(","));
+				AllFriendlyName.ParseIntoArray(FriendlyNames, TEXT(","));
+
+				for (int DPIndex = 0; DPIndex < DeviceProfileNames.Num(); DPIndex++)
+				{
+					Item.DeviceProfileName = *DeviceProfileNames[DPIndex].TrimStartAndEnd();
+					if (DPIndex < FriendlyNames.Num())
+					{
+						Item.OptionalFriendlyNameOverride = FText::FromString(FriendlyNames[DPIndex].TrimStartAndEnd());
+					}
+					else if (DeviceProfileNames.Num() > 1)
+					{
+						Item.OptionalFriendlyNameOverride = FText::FromString(Item.DeviceProfileName.ToString());
+					}
+					
+					FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Adding friendly name %s\n"), *Item.OptionalFriendlyNameOverride.ToString());
+					
+					PreviewPlatformMenuItems.Add(Item);
+				}
 			}
 		}
 	}
