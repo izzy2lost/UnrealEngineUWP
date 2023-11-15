@@ -57,7 +57,7 @@ public:
 		return !(*this == Other);
 	}
 
-	FAVResult Parse(TSharedRef<FAVInstance> const& Instance, FVideoPacket const& Packet, TArray<FParsedPicture>& OutPictures);
+	FAVResult Parse(TSharedRef<FAVInstance> const& Instance, FVideoPacket const& Packet, TArray<FParsedPicture>& OutPictures) { return EAVResult::Error; }
 
 private:
 	int RefPicIdx[16];
