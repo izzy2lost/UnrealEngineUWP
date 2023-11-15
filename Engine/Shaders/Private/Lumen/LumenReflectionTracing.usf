@@ -797,15 +797,26 @@ void TraceVoxels(FReflectionTracingCoord ReflectionTracingCoord, float TraceHitD
 
 		if (MaxTraceDistanceForDistantScreenTrace > 0)
 		{
-			DistantScreenTrace(
-				ReflectionTracingCoord.Coord + 0.5f,
-				HZBUvFactorAndInvFactor,
-				TranslatedDistantRayOrigin,
-				RayData.Direction,
-				MaxTraceDistanceForDistantScreenTrace,
-				SceneDepth,
-				bHit,
-				TraceResult.Lighting);
+			float4 StartRayClip = mul(float4(TranslatedDistantRayOrigin, 1.0), View.TranslatedWorldToClip);
+
+			// If we start tracing from outside the screen (from a position on the screen) then we know we will never hit any valueable screen information.
+			// So we skip the tracing if the start position is clipped outside of the view frustum.
+			if (StartRayClip.w >= 0.0 && all(-StartRayClip.ww <= StartRayClip.xy) && all(StartRayClip.xy <= StartRayClip.ww))
+			{
+				// Update SceneDepth according to the new start position moved to the edge of the clipmap. This is important for the SSR HZB tracing to be correct.
+				float StartRayDeviceZ = StartRayClip.z / StartRayClip.w;
+				float DistantTracingSceneDepth = ConvertFromDeviceZ(StartRayDeviceZ);
+
+				DistantScreenTrace(
+					ReflectionTracingCoord.Coord + 0.5f,
+					HZBUvFactorAndInvFactor,
+					TranslatedDistantRayOrigin,
+					RayData.Direction,
+					MaxTraceDistanceForDistantScreenTrace,
+					DistantTracingSceneDepth,
+					bHit,
+					TraceResult.Lighting);
+			}
 		}
 	}
 #endif
