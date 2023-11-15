@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Modules/ModuleManager.h"
-
 #include "Misc/App.h"
+#include "Misc/CoreDelegates.h"
 #include "RHI.h"
+
 #include "VT.h"
 #include "AVUtility.h"
 

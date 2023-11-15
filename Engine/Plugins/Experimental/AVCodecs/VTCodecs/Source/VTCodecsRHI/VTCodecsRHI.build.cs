@@ -12,10 +12,11 @@ public class VTCodecsRHI : ModuleRules
         DefaultBuildSettings = BuildSettingsVersion.V2;
         
         PrivateDependencyModuleNames.AddRange(new string[] {
+            "Core",
             "Engine",
             "AVCodecsCore",
-            "VTCodecs",
-            "RHI"
+            "RHI",
+            "VTCodecs"
         });
 
         PublicDependencyModuleNames.AddRange(new string[] {
