@@ -368,7 +368,8 @@ namespace UsdLevelSequenceHelperImpl
 			// of the playback range, which we do here
 			ControlRigSectionStartFrame -= UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange());
 
-			ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkeletalMeshComp, bReduceKeys, Tolerance, ControlRigSectionStartFrame);
+			ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkeletalMeshComp, bReduceKeys, Tolerance, ControlRigSectionStartFrame,
+				EMovieSceneKeyInterpolation::SmartAuto);
 
 			// Disable Skeletal Animation Tracks
 			if (SkelTrack)

@@ -1089,8 +1089,9 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 				{
 					if (ParamSection)
 					{
+						EMovieSceneKeyInterpolation DefaultInterpolation = WeakSequencer.Pin()->GetKeyInterpolation();
 						ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, bKeyReduce,
-							KeyReduceTolerance);
+							KeyReduceTolerance, FFrameNumber(0), DefaultInterpolation);
 					}
 					WeakSequencer.Pin()->EmptySelection();
 					WeakSequencer.Pin()->SelectSection(ParamSection);
