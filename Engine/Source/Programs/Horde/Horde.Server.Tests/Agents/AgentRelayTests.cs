@@ -89,8 +89,9 @@ public class AgentRelayTests : TestSetup
 			await task;
 		}, TimeSpan.FromSeconds(5));
 		
-		Assert.AreEqual(1, responses.Count);
-		Assert.AreEqual(1, responses[0].PortMappings.Count);
+		Assert.AreEqual(2, responses.Count);
+		Assert.AreEqual(0, responses[0].PortMappings.Count); // Immediately get served current state, which is no port mappings
+		Assert.AreEqual(1, responses[1].PortMappings.Count); // Long poll returns due to AddPortMappingAsync call, now contains one port mapping
 	}
 	
 	[TestMethod]
@@ -110,10 +111,13 @@ public class AgentRelayTests : TestSetup
 		List<GetPortMappingsResponse> responses1 = await task1;
 		List<GetPortMappingsResponse> responses2 = await task2;
 		
-		Assert.AreEqual(1, responses1.Count);
-		Assert.AreEqual(1, responses1[0].PortMappings.Count);
-		Assert.AreEqual(1, responses2.Count);
-		Assert.AreEqual(1, responses2[0].PortMappings.Count);
+		Assert.AreEqual(2, responses1.Count);
+		Assert.AreEqual(0, responses1[0].PortMappings.Count);
+		Assert.AreEqual(1, responses1[1].PortMappings.Count);
+		
+		Assert.AreEqual(2, responses2.Count);
+		Assert.AreEqual(0, responses2[0].PortMappings.Count);
+		Assert.AreEqual(1, responses2[1].PortMappings.Count);
 	}
 	
 	[TestMethod]

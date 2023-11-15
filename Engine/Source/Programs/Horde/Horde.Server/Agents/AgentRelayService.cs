@@ -347,13 +347,20 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		try
 		{
 			await UpdateAgentHeartbeatAsync(request.ClusterId, request.AgentId, request.IpAddresses);
+			
+			// Send current state then long-poll for updates
+			List<PortMapping> portMappings = await GetPortMappingsAsync(request.ClusterId);
+			GetPortMappingsResponse response = new();
+			response.PortMappings.AddRange(portMappings);
+			await responseStream.WriteAsync(response);
+			
 			Task<List<PortMapping>> mappingUpdatedTask = _onPortMappingUpdated.Task;
 			Task result = await Task.WhenAny(mappingUpdatedTask, Task.Delay(_longPollTimeout, context.CancellationToken));
 			if (result == mappingUpdatedTask)
 			{
-				GetPortMappingsResponse response = new();
-				response.PortMappings.AddRange(await mappingUpdatedTask);
-				await responseStream.WriteAsync(response);
+				GetPortMappingsResponse additionalResponse = new();
+				additionalResponse.PortMappings.AddRange(await mappingUpdatedTask);
+				await responseStream.WriteAsync(additionalResponse);
 			}
 		}
 		catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
