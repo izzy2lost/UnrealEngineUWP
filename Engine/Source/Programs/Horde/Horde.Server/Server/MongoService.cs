@@ -367,8 +367,11 @@ namespace Horde.Server.Server
 			{
 				GenerateConsoleCtrlEvent(CtrlCEvent, _mongoProcess.Id);
 
-				_mongoOutputTask?.Wait();
-				_mongoOutputTask = null;
+				if (_mongoOutputTask != null)
+				{
+					await _mongoOutputTask;
+					_mongoOutputTask = null;
+				}
 
 				_mongoProcess.WaitForExit();
 				_mongoProcess.Dispose();
