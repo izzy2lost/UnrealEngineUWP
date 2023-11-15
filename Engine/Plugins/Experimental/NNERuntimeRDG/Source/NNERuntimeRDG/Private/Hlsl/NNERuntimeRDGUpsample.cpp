@@ -147,7 +147,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterUpsampleOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Upsample"), CreateUpsampleOperator, ValidateUpsampleOperator);
+		Registry.OpAdd({{TEXT("Upsample"), TEXT("Onnx")}}, CreateUpsampleOperator, ValidateUpsampleOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

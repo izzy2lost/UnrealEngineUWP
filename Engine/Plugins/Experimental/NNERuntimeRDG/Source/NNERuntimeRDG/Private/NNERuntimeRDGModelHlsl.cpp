@@ -13,13 +13,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 namespace ModelUtils
 {
 
-FOperatorHlsl* OpCreate(const FString& OpName, TConstArrayView<NNE::FTensorDesc> InputTensorDescs, TConstArrayView<NNE::FTensorDesc> OutputTensorDescs, const NNE::FAttributeMap& AttributeMap)
+FOperatorHlsl* OpCreate(const FOperatorDesc& OpDesc, TConstArrayView<NNE::FTensorDesc> InputTensorDescs, TConstArrayView<NNE::FTensorDesc> OutputTensorDescs, const NNE::FAttributeMap& AttributeMap)
 {
-	FOperatorRegistryHlsl::OperatorCreateFunc CreateFn = FOperatorRegistryHlsl::Get()->OpFind(OpName);
+	FOperatorRegistryHlsl::OperatorCreateFunc CreateFn = FOperatorRegistryHlsl::Get()->OpFind(OpDesc);
 
 	if (!CreateFn)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl MLOperatorRegistry failed to find operator:%s"), *OpName);
+		UE_LOG(LogNNE, Warning, TEXT("Hlsl MLOperatorRegistry failed to find operator: %s"), *OpDesc.GetFullName());
 		return nullptr;
 	}
 
@@ -27,7 +27,7 @@ FOperatorHlsl* OpCreate(const FString& OpName, TConstArrayView<NNE::FTensorDesc>
 
 	if (!Op->Initialize(InputTensorDescs, OutputTensorDescs, AttributeMap))
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Hlsl runtime: Error initializing operator:%s"), *OpName);
+		UE_LOG(LogNNE, Warning, TEXT("Hlsl runtime: Error initializing operator: %s"), *OpDesc.GetFullName());
 		delete Op;
 		return nullptr;
 	}
@@ -123,7 +123,7 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData)
 	// Loop over all operators in the model and create them
 	for (int32 Idx = 0; Idx < Format.Operators.Num(); ++Idx)
 	{
-		const FString TypeName = Format.Operators[Idx].TypeName;
+		const FOperatorDesc OperatorDesc {{Format.Operators[Idx].TypeName, Format.Operators[Idx].DomainName}, Format.Operators[Idx].Version};
 		Inputs.Reset();
 		Outputs.Reset();
 		InputsAsWeights.Reset();
@@ -145,11 +145,11 @@ bool FModelInstance::Init(TConstArrayView<uint8> ModelData)
 			AttributeMap.SetAttribute(Desc.Name, Desc.Value);
 		}
 
-		FOperatorHlsl* Op = ModelUtils::OpCreate(TypeName, Inputs, Outputs, AttributeMap);
+		FOperatorHlsl* Op = ModelUtils::OpCreate(OperatorDesc, Inputs, Outputs, AttributeMap);
 
 		if (!Op) //Op.Shader.IsNull())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Failed to create operator:%s"), *TypeName);
+			UE_LOG(LogNNE, Warning, TEXT("Failed to create operator:%s"), *OperatorDesc.GetFullName());
 
 			//Note: Need to cleanup operators
 			return false;

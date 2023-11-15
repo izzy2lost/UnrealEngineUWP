@@ -97,7 +97,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterShapeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Shape"), CreateShapeOperator, ValidateShapeOperator);
+		Registry.OpAdd({{TEXT("Shape"), TEXT("Onnx")}}, CreateShapeOperator, ValidateShapeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

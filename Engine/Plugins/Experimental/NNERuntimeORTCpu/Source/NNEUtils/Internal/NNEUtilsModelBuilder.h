@@ -63,7 +63,7 @@ public:
 	virtual bool AddOutput(HTensor OutTensor) = 0;
 
 	/** Add operator */
-	virtual HOperator AddOperator(const FString& Type, const FString& Name = TEXT("")) = 0;
+	virtual HOperator AddOperator(const FString& TypeName, const FString& Domain, TOptional<uint32> Version = FNullOpt(0), const FString& Name = TEXT("")) = 0;
 
 	/** Add operator input */
 	virtual bool AddOperatorInput(HOperator Op, HTensor Tensor) = 0;
@@ -80,6 +80,8 @@ static constexpr int64 OnnxIrVersion = 7;
 
 /** Default ONNX operator set version */
 static constexpr int64 OnnxOpsetVersion = 15;
+
+static constexpr TCHAR OnnxDomainName[] = TEXT("Onnx");
 
 /**
  * Create an instance of ONNX model builder that creates ONNX models in memory

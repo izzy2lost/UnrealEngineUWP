@@ -192,7 +192,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterGatherOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Gather"), CreateGatherOperator, ValidateGatherOperator);
+		Registry.OpAdd({{TEXT("Gather"), TEXT("Onnx")}}, CreateGatherOperator, ValidateGatherOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

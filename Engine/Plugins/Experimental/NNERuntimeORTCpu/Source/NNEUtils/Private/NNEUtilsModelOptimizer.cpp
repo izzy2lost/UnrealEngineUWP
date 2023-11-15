@@ -566,7 +566,7 @@ private:
 						Data, DataSize
 					);
 
-				auto Op = Builder->AddOperator(TEXT("Identity"));
+				auto Op = Builder->AddOperator(TEXT("Identity"), OnnxDomainName, (uint32) GraphInfo.opsetVersion);
 				Builder->AddOperatorInput(Op, TensorInitializer);
 				Builder->AddOperatorOutput(Op, Tensor);
 			}
@@ -578,7 +578,7 @@ private:
 			Ort::GraphNode		Node = Graph->GetNode(Idx);
 			Ort::GraphNodeInfo	NodeInfo = Graph->GetNodeInfo(Node);
 
-			auto Op = Builder->AddOperator(NodeInfo.opName);
+			auto Op = Builder->AddOperator(NodeInfo.opName, OnnxDomainName, (uint32) GraphInfo.opsetVersion);
 
 			for (int InIdx = 0; InIdx < NodeInfo.attributeCount; ++InIdx)
 			{

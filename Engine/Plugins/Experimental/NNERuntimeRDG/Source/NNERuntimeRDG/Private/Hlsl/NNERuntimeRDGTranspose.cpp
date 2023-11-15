@@ -153,7 +153,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterTransposeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Transpose"), CreateTransposeOperator, ValidateTransposeOperator);
+		Registry.OpAdd({{TEXT("Transpose"), TEXT("Onnx")}}, CreateTransposeOperator, ValidateTransposeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

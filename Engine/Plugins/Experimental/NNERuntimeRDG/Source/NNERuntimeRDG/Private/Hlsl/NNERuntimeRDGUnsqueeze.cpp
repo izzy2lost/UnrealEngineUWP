@@ -125,7 +125,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterUnsqueezeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Unsqueeze"), CreateUnsqueezeOperator, ValidateUnsqueezeOperator);
+		Registry.OpAdd({{TEXT("Unsqueeze"), TEXT("Onnx")}}, CreateUnsqueezeOperator, ValidateUnsqueezeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

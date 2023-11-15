@@ -221,7 +221,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterSliceOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Slice"), CreateSliceOperator, ValidateSliceOperator);
+		Registry.OpAdd({{TEXT("Slice"), TEXT("Onnx")}}, CreateSliceOperator, ValidateSliceOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

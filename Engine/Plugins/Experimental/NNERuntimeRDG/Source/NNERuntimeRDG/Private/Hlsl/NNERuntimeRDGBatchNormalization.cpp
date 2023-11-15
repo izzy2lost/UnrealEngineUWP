@@ -154,7 +154,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterBatchNormalizationOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("BatchNormalization"), CreateBatchNormalizationOperator, ValidateBatchNormalizationOperator);
+		Registry.OpAdd({{TEXT("BatchNormalization"), TEXT("Onnx")}}, CreateBatchNormalizationOperator, ValidateBatchNormalizationOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

@@ -120,8 +120,51 @@ private:
 	TArray<FEntry> OptionalAttributes;
 };
 
+typedef uint32 TOperatorVersionType;
+
+struct FOperatorDescUnversioned
+{
+	FString OpName;
+	FString DomainName;
+
+	bool operator==(FOperatorDescUnversioned const& Other) const
+	{
+		return OpName == Other.OpName && DomainName == Other.DomainName;
+	}
+};
+
+FORCEINLINE uint32 GetTypeHash(const FOperatorDescUnversioned& OpDescUnversioned)
+{
+	uint32 Hash = GetTypeHash(OpDescUnversioned.OpName) ^ GetTypeHash(OpDescUnversioned.DomainName);
+	return Hash;
+}
+
+struct FOperatorDesc : public FOperatorDescUnversioned
+{
+	TOptional<TOperatorVersionType> Version; // Unset means no versioning for the operator
+
+	// Return the full name	in the format <DomainName>:<OpName>(:<Version>)
+	FString GetFullName() const
+	{
+		return FString::Printf(TEXT("%s:%s"), *DomainName, *OpName) 
+			+ (Version.IsSet() ? *FString::Printf(TEXT(":%d"), *Version) : TEXT(""));
+	}
+};
+
 /**
  * Registry for RDG ML operators
+ * 
+ * Operators can be registered either as versioned or unversioned (FOperatorDesc::Version unset).
+ * The same operator (op and domain name pair) can be registered for different versions, but there can only be 
+ * one unversioned registration (and no versioned registration in such case).
+ * 
+ * When finding a registration via OpFind() and OpFindValidation()
+ * 		- in case there's an unversioned registration of an operator: 
+ * 		  any input OpDesc with the same (OpName, DomainName) pair will match the registration,
+ * 		- in case there are versioned registrations of an operator: 
+ * 		  the registration with same (OpName, DomainName) pair and highest version (but <= than input OpDesc.Version) 
+ * 		  will match the input OpDesc.
+ * 
  */
 template<class TOperatorType>
 class TOperatorRegistryRDG
@@ -138,49 +181,89 @@ public:
 		return &Inst;
 	}
 
-	OperatorValidateFunc OpFindValidation(const FString& Name)
+	OperatorValidateFunc OpFindValidation(const FOperatorDesc& OpDesc)
 	{
-		OperatorValidateFunc* Fn = OperatorValidations.Find(Name);
-
-		if (!Fn)
+		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
+		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator:%s is not registered"), *Name);
+			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
-		return *Fn;
+		return OperatorFunctions->ValidateFunc;
 	}
 
-	OperatorCreateFunc OpFind(const FString& Name)
+	OperatorCreateFunc OpFind(const FOperatorDesc& OpDesc)
 	{
-		OperatorCreateFunc* Fn = Operators.Find(Name);
-
-		if (!Fn)
+		const FOperatorFunctions* OperatorFunctions = OpFindFunctions(OpDesc);
+		if(OperatorFunctions == nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator:%s is not registered"), *Name);
+			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
 			return nullptr;
 		}
 
-		return *Fn;
+		return OperatorFunctions->CreateFunc;
 	}
 
-	bool OpAdd(const FString& Name, OperatorCreateFunc Func, OperatorValidateFunc ValidateFunc = AlwaysValidValidationFunction)
+	bool OpAdd(const FOperatorDesc& OpDesc, OperatorCreateFunc CreateFunc, OperatorValidateFunc ValidateFunc = AlwaysValidValidationFunction)
 	{
-		if (Operators.Find(Name) != nullptr)
+		TOperatorVersionToFunctionsMap* VersionToFunctions = Operators.Find(OpDesc);
+		if (VersionToFunctions != nullptr)
 		{
-			UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator is already registered:%s"), *Name);
-			return false;
+			const FOperatorFunctions* OperatorFunctions = VersionToFunctions->Find(OpDesc.Version);
+			if(OperatorFunctions != nullptr)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator is already registered: %s"), *OpDesc.GetFullName());
+				return false;
+			}
+			else if(!OpDesc.Version.IsSet() || VersionToFunctions->Find(TOptional<TOperatorVersionType>()) != nullptr)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator %s is unversioned, can't register a version of it"), *FOperatorDesc{{OpDesc}}.GetFullName());
+				return false;
+			}
+			VersionToFunctions->Add(OpDesc.Version, FOperatorFunctions{CreateFunc, ValidateFunc});
 		}
-
-		Operators.Add(Name, Func);
-		OperatorValidations.Add(Name, ValidateFunc);
+		else
+		{
+			Operators.Add(OpDesc, TOperatorVersionToFunctionsMap { 
+					{ OpDesc.Version, {CreateFunc, ValidateFunc} } 
+				});
+		}
+		
 		return true;
 	}
 
 private:
 
-	TMap<FString, OperatorCreateFunc> Operators;
-	TMap<FString, OperatorValidateFunc> OperatorValidations;
+	struct FOperatorFunctions
+	{
+		OperatorCreateFunc 		CreateFunc;
+		OperatorValidateFunc 	ValidateFunc;
+	};
+
+	const FOperatorFunctions* OpFindFunctions(const FOperatorDesc& OpDesc) const
+	{
+		const TOperatorVersionToFunctionsMap* VersionToFunctions = Operators.Find(OpDesc);
+		if (VersionToFunctions != nullptr)
+		{
+			if(VersionToFunctions->Contains(OpDesc.Version))
+			{
+				return &(*VersionToFunctions)[OpDesc.Version];
+			}
+			if(VersionToFunctions->Contains(TOptional<TOperatorVersionType>()))
+			{
+				return &(*VersionToFunctions)[TOptional<TOperatorVersionType>()];
+			}
+		}
+
+		UE_LOG(LogNNE, Warning, TEXT("RDG MLOperator: %s is not registered"), *OpDesc.GetFullName());
+		return nullptr;
+	}
+
+
+	typedef TMap<TOptional<TOperatorVersionType>, FOperatorFunctions> TOperatorVersionToFunctionsMap;
+
+	TMap<FOperatorDescUnversioned, TOperatorVersionToFunctionsMap> Operators;
 };
 
 /**
@@ -231,7 +314,7 @@ public:
 
 			const FString& OpType = Format.Operators[Idx].TypeName;
 			
-			typename TOperatorRegistryRDG<TOperatorType>::OperatorValidateFunc ValidationFn = Registry->OpFindValidation(OpType);
+			typename TOperatorRegistryRDG<TOperatorType>::OperatorValidateFunc ValidationFn = Registry->OpFindValidation({{OpType, Format.Operators[Idx].DomainName}, Format.Operators[Idx].Version});
 
 			if (!ValidationFn)
 			{

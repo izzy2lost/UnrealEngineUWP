@@ -101,7 +101,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterDropoutOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Dropout"), CreateDropoutOperator, ValidateDropoutOperator);
+		Registry.OpAdd({{TEXT("Dropout"), TEXT("Onnx")}}, CreateDropoutOperator, ValidateDropoutOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

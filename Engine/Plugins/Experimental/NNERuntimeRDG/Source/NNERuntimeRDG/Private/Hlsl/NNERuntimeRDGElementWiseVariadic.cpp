@@ -211,7 +211,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterElementWiseVariadicOperators(FOperatorRegistryHlsl& Registry)
 	{
-#define OP(Name) Registry.OpAdd(TEXT(#Name), CreateElementWiseVariadicOperator<NNE::Internal::EElementWiseVariadicOperatorType::Name>)
+#define OP(Name) Registry.OpAdd({{TEXT(#Name), TEXT("Onnx")}}, CreateElementWiseVariadicOperator<NNE::Internal::EElementWiseVariadicOperatorType::Name>)
 		OP(Max);
 		OP(Min);
 		OP(Mean);

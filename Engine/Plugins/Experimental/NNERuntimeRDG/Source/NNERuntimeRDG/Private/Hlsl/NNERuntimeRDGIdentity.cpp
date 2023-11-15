@@ -97,7 +97,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterIdentityOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd(TEXT("Identity"), CreateIdentityOperator, ValidateIdentityOperator);
+		Registry.OpAdd({{TEXT("Identity"), TEXT("Onnx")}}, CreateIdentityOperator, ValidateIdentityOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

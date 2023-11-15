@@ -53,11 +53,13 @@ public:
 	virtual FHTensor AddTensor(const FString& Name, ENNETensorDataType DataType, TArrayView<const int32> Shape, const void* Data = nullptr, uint64 DataSize = 0) = 0;
 	virtual bool AddInput(FHTensor InTensor) = 0;
 	virtual bool AddOutput(FHTensor OutTensor) = 0;
-	virtual FHOperator AddOperator(const FString& Type, const FString& Name = TEXT("")) = 0;
+	virtual FHOperator AddOperator(const FString& Type, const FString& Domain, TOptional<uint32> Version = FNullOpt{0}, const FString& Name = TEXT("")) = 0;
 	virtual bool AddOperatorInput(FHOperator Op, FHTensor Tensor) = 0;
 	virtual bool AddOperatorAttribute(FHOperator Op, const FString& Name, const FNNEAttributeValue& Value) = 0;
 	virtual bool AddOperatorOutput(FHOperator Op, FHTensor Tensor) = 0;
 };
+
+static constexpr TCHAR OnnxDomainName[] = TEXT("Onnx");
 
 } // UE::NNEUtilities::Internal
 
