@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Agent.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -49,7 +47,7 @@ namespace Horde.Agent.Leases
 				DirectoryInfo directoryInfo = _logDir.ToDirectoryInfo();
 				if (directoryInfo.Exists)
 				{
-					DateTime cleanTimeUtc = DateTime.UtcNow - MaxAge;
+					DateTime cleanTimeUtc = DateTime.UtcNow - maxAge;
 					foreach (FileInfo fileInfo in _logDir.ToDirectoryInfo().EnumerateFiles())
 					{
 						if (fileInfo.LastWriteTimeUtc < cleanTimeUtc)
