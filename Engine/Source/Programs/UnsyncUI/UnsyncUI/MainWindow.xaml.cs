@@ -50,6 +50,15 @@ namespace UnsyncUI
 		}
 	}
 
+	public class AutoScrollTextBox : TextBox
+	{
+		protected override void OnTextChanged(TextChangedEventArgs e)
+		{
+			base.OnTextChanged(e);
+			ScrollToEnd();
+		}
+	}
+
 	public sealed class MainTabTemplateSelector : DataTemplateSelector
 	{
 		public DataTemplate ProjectTemplate { get; set; }
@@ -159,6 +168,23 @@ namespace UnsyncUI
 			}
 		}
 
+		private bool logExpanded = true;
+		public bool LogExpanded
+		{
+			get => logExpanded;
+			set => SetProperty(ref logExpanded, value);
+		}
+
+		public string ApplicationLog
+		{
+			get => App.Current.ApplicationLog;
+		}
+
+		public void OnLogUpdated()
+		{
+			OnPropertyChanged("ApplicationLog");
+		}
+
 		private bool showHelp = true;
 		public bool ShowHelp
 		{
@@ -177,7 +203,7 @@ namespace UnsyncUI
 			}
 		}
 
-		public bool ShouldShowLoginInfo { get => App.Current.EnableExperimentalFeatures; }
+		public bool ShouldShowLoginInfo { get => App.Current.EnableUserAuthentication; }
 
 		public string LoggedInUser
 		{
@@ -211,7 +237,7 @@ namespace UnsyncUI
 			catch (Exception ex)
 			{
 				// TODO: add global status/log window
-				Debug.WriteLine($"Login failed with exception: {ex}");
+				App.Current.LogError($"Login failed with exception: {ex}");
 			}
 		}
 
@@ -281,7 +307,7 @@ namespace UnsyncUI
 				}
 			}
 
-			if (Config.EnableExperimentalFeatures
+			if (Config.EnableUserAuthentication
 				&& App.Current.UserConfig.LogInOnStartup)
 			{
 				LogIn();

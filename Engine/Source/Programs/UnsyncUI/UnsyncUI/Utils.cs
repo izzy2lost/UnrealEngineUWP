@@ -93,6 +93,8 @@ namespace UnsyncUI
 
         public static Task<IEnumerable<string>> EnumerateDirectoriesAsync(string path, CancellationToken token)
         {
+			App.Current.LogMessage($"Enumerating: {path}");
+
 			var tcs = new TaskCompletionSource<IEnumerable<string>>();
             Task.Run(() =>
 			{
@@ -105,14 +107,7 @@ namespace UnsyncUI
 					mutex.Wait(token);
 					try
 					{
-						var timer = new Stopwatch();
-						timer.Start();
-
 						var dirs = Directory.EnumerateDirectories(path, "*", enumOptions).ToList();
-
-						timer.Stop();
-						Debug.WriteLine($"Time: {timer.Elapsed.TotalSeconds:0.000} s - {path}");
-
 						tcs.TrySetResult(dirs);
 					}
 					catch (Exception ex)
@@ -148,7 +143,7 @@ namespace UnsyncUI
 						var dirs = Directory.EnumerateFiles(path).ToList();
 
 						timer.Stop();
-						Debug.WriteLine($"Time: {timer.Elapsed.TotalSeconds:0.000} s - {path}");
+						App.Current.LogMessage($"Time: {timer.Elapsed.TotalSeconds:0.000} s - {path}");
 
 						tcs.TrySetResult(dirs);
 					}
@@ -288,6 +283,9 @@ namespace UnsyncUI
 
 		public async IAsyncEnumerable<string> RunAsync([EnumeratorCancellation] CancellationToken cancelToken, bool ReadStdErr = true)
 		{
+			string processFileName = Path.GetFileName(proc.StartInfo.FileName);
+			App.Current.LogMessage($"Running: {processFileName} {proc.StartInfo.Arguments}");
+
 			try
 			{
 				using (var cancel = cancelToken.Register(() =>
@@ -312,17 +310,17 @@ namespace UnsyncUI
 						{
 							int bytesRead = await stream.ReadAsync(mem);
 							if (bytesRead == 0)
+							{
 								break;
+							}
 
 							if (ShouldPost)
 							{
 								// @todo: this won't handle UTF-8 encoding if a char is split across the read boundary.
-								pipe.Post(Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead)));
+								string decodedString = Encoding.UTF8.GetString(mem.Span.Slice(0, bytesRead));
+								pipe.Post(decodedString);
 							}
-							
 						}
-
-						pipe.Complete();
 					}
 
 					var stdoutTask = ReadStream(proc.StandardOutput.BaseStream, true);
@@ -336,7 +334,8 @@ namespace UnsyncUI
 
 					while (await pipe.OutputAvailableAsync())
 					{
-						yield return pipe.Receive();
+						string receivedString = pipe.Receive();
+						yield return receivedString;
 					}
 
 					await completionTask;
@@ -346,6 +345,8 @@ namespace UnsyncUI
 			{
 				ExitCode = proc.ExitCode;
 				proc.Dispose();
+
+				App.Current.LogDebug($"Finished: {processFileName} with exit code {ExitCode}");
 
 				cancelToken.ThrowIfCancellationRequested();
 			}

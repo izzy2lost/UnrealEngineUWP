@@ -168,8 +168,6 @@ namespace UnsyncUI
 			{
 				String argsStr = query + $" --proxy {Config.proxyAddress}";
 
-				Debug.WriteLine($"Running: unsync.exe {argsStr}");
-
 				var proc = new AsyncProcess(Config.unsyncPath, argsStr);
 				var responseJson = "";
 				// TODO: read stderr stream and somehow report status/errors
@@ -187,7 +185,7 @@ namespace UnsyncUI
 					}
 					catch (Exception ex)
 					{
-						Debug.WriteLine("Exception while parsing unsync query JSON: " + ex.Message);
+						App.Current.LogError("Exception while parsing unsync query JSON: " + ex.Message);
 					}
 				}
 			}

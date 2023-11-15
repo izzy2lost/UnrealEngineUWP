@@ -2,9 +2,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
+using System.Xml.Linq;
 
 namespace UnsyncUI
 {
@@ -21,6 +24,34 @@ namespace UnsyncUI
 		public string DefaultSearchTerms { get; private set; } = "";
 
 		internal bool EnableExperimentalFeatures = false;
+		internal bool EnableUserAuthentication = true;
+
+		internal string ApplicationLog { get; private set; } = "";
+
+		internal void LogError(string message)
+		{
+			LogMessage("ERROR: " + message);
+		}
+
+		internal void LogMessage(string message)
+		{
+			LogDebug(message);
+
+			Dispatcher.InvokeAsync(delegate
+			{
+				ApplicationLog += message + "\n";
+				var model = MainWindow.DataContext as MainWindowModel;
+				if (model != null)
+				{
+					model.OnLogUpdated();
+				}
+			});
+		}
+
+		internal void LogDebug(string message)
+		{
+			Debug.WriteLine(message);
+		}
 
 		protected override void OnStartup(StartupEventArgs e)
 		{
@@ -99,6 +130,7 @@ namespace UnsyncUI
 			{
 				Config.UnsyncPath = UnsyncPath;
 				Config.EnableExperimentalFeatures = EnableExperimentalFeatures;
+				Config.EnableUserAuthentication = EnableUserAuthentication;
 			}
 
 			base.OnStartup(e);

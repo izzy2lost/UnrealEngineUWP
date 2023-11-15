@@ -369,7 +369,8 @@ namespace UnsyncUI
 				{
 					args.Add($"--proxy \"{Proxy}\"");
 
-					if (App.Current.Config.EnableExperimentalFeatures)
+					if (App.Current.Config.EnableUserAuthentication
+						&& App.Current.Config.loggedInUser != null)
 					{
 						args.Add("--login");
 					}
@@ -400,7 +401,7 @@ namespace UnsyncUI
 					argsStr = AdditionalArgs.Substring(1);
 				}
 
-				Debug.WriteLine($"Running unsync with args {argsStr}");
+				App.Current.LogMessage($"Running unsync with args {argsStr}");
 
 				var unsyncPath = App.Current.Config.UnsyncPath;
 				proc = new AsyncProcess(unsyncPath, argsStr);

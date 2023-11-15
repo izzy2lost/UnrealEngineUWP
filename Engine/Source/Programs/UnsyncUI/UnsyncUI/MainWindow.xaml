@@ -72,27 +72,29 @@
 
 	</Window.Resources>
 	<Grid Margin="4">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="auto" />
-			<RowDefinition Height="auto" />
-			<RowDefinition Height="*" />
-		</Grid.RowDefinitions>
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="476"/>
 			<ColumnDefinition Width="8"/>
 			<ColumnDefinition Width="*"/>
 		</Grid.ColumnDefinitions>
 
-		<GroupBox Grid.Row="0" Header="Proxy">
-			<Grid>
-				<Grid.RowDefinitions>
-					<RowDefinition Height="auto" />
-					<RowDefinition Height="auto" />
-				</Grid.RowDefinitions>
-				<ComboBox Grid.Row="0" ItemsSource="{Binding Config.Proxies}" SelectedItem="{Binding SelectedProxy}">
-					<ComboBox.ItemTemplate>
-						<DataTemplate>
-							<TextBlock>
+		<!--Left panel-->
+		<Grid Grid.Row="0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="auto" />
+				<RowDefinition Height="auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+			<GroupBox Grid.Row="0" Header="Proxy">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="auto" />
+						<RowDefinition Height="auto" />
+					</Grid.RowDefinitions>
+					<ComboBox Grid.Row="0" ItemsSource="{Binding Config.Proxies}" SelectedItem="{Binding SelectedProxy}">
+						<ComboBox.ItemTemplate>
+							<DataTemplate>
+								<TextBlock>
 									<Run Text="{Binding Name}" />
 									<TextBlock Visibility="{Binding Path, Converter={StaticResource VisConv_Collapsed}}">
 										<Run Text=" ("/>
@@ -100,10 +102,10 @@
 										<Run Text=")"/>
 									</TextBlock>
 							</TextBlock>
-						</DataTemplate>
-					</ComboBox.ItemTemplate>
-				</ComboBox>
-				<TextBlock Grid.Row="1" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
+							</DataTemplate>
+						</ComboBox.ItemTemplate>
+					</ComboBox>
+					<TextBlock Grid.Row="1" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
 					<Run Text="User:"/>
 					<!--Logged in-->
 					<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed}}">
@@ -116,107 +118,146 @@
 						<Hyperlink FontWeight="Bold" Command="{Binding OnLogInClicked}">Log in</Hyperlink>
 					</TextBlock>
 				</TextBlock>
-			</Grid>
-		</GroupBox>
+				</Grid>
+			</GroupBox>
 
-		<GroupBox Grid.Row="1" Header="Additional arguments">
-			<Grid>
-				<TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding AdditionalArgs}" />
-			</Grid>
-		</GroupBox>
+			<GroupBox Grid.Row="1" Header="Additional arguments">
+				<Grid>
+					<TextBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding AdditionalArgs}" />
+				</Grid>
+			</GroupBox>
 
-		<GroupBox Grid.Row="2" Header="Projects">
-			<Grid>
-				<Grid.RowDefinitions>
-					<RowDefinition Height="auto"/>
-					<RowDefinition Height="*"/>
-				</Grid.RowDefinitions>
-				<TabControl Grid.Row ="1" ItemsSource="{Binding Tabs}" SelectedIndex="0" ContentTemplateSelector="{Binding Source={StaticResource mainTabSelector}}" SelectedItem="{Binding SelectedTab}">
-					<TabControl.ItemTemplate>
-						<DataTemplate>
-							<TextBlock Text="{Binding Name}"/>
-						</DataTemplate>
-					</TabControl.ItemTemplate>
-				</TabControl>
-			</Grid>
-		</GroupBox>
+			<GroupBox Grid.Row="2" Header="Projects">
+				<Grid>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="auto"/>
+						<RowDefinition Height="*"/>
+					</Grid.RowDefinitions>
+					<TabControl Grid.Row ="1" ItemsSource="{Binding Tabs}" SelectedIndex="0" ContentTemplateSelector="{Binding Source={StaticResource mainTabSelector}}" SelectedItem="{Binding SelectedTab}">
+						<TabControl.ItemTemplate>
+							<DataTemplate>
+								<TextBlock Text="{Binding Name}"/>
+							</DataTemplate>
+						</TabControl.ItemTemplate>
+					</TabControl>
+				</Grid>
+			</GroupBox>
+
+		</Grid>
 
 		<GridSplitter Grid.Column="1" Grid.RowSpan="3" HorizontalAlignment="Stretch" Foreground="Transparent" Background="Transparent" />
 
-		<TextBlock Grid.Row="0" Grid.Column="2" Grid.RowSpan="3" TextAlignment="Center" VerticalAlignment="Center">
-			<TextBlock.Visibility>
-				<MultiBinding Converter="{StaticResource VisConv_All_Collapsed}">
-					<Binding Path="QueuedJobs.Count" Converter="{StaticResource NotConv}" />
-					<Binding Path="ActiveJob" Converter="{StaticResource NotConv}" />
-					<Binding Path="CompletedJobs.Count" Converter="{StaticResource NotConv}" />
-				</MultiBinding>
-			</TextBlock.Visibility>
-			<Run Text="To get started, search for builds in the left pane,"/>
-			<LineBreak/>
-			<Run Text="select one or more platforms and a destination folder, and click Start Sync."/>
-		</TextBlock>
-
-		<Grid Grid.Row="0" Grid.Column="2" Grid.RowSpan="3">
-			<Grid.Resources>
-				<GridLength x:Key="glStar">*</GridLength>
-				<GridLength x:Key="glAuto">auto</GridLength>
-				<local:ObjectConverter x:Key="rdHeightConv" TrueValue="{StaticResource glStar}" FalseValue="{StaticResource glAuto}"/>
-				<local:ObjectConverter x:Key="rdMinHeightConv" TrueValue="60" FalseValue="0"/>
-			</Grid.Resources>
+		<!--Right panel-->
+		<Grid Grid.Row="0" Grid.Column="2" >
 			<Grid.RowDefinitions>
-				<RowDefinition Height="auto"/>
-				<RowDefinition Height="{Binding ActiveJob, Converter={StaticResource rdHeightConv}}" MinHeight="{Binding ActiveJob, Converter={StaticResource rdMinHeightConv}}"/>
-				<RowDefinition Height="auto"/>
+				<RowDefinition Height="*"/>
+				<RowDefinition Height="4"/>
+				<RowDefinition Height="100"/>
 			</Grid.RowDefinitions>
+			<!-- Sync job logs -->
+			<Grid Grid.Row="0">
+				<!-- Help text -->
+				<TextBlock Grid.Row="0" Grid.Column="2" Grid.RowSpan="3" TextAlignment="Center" VerticalAlignment="Center">
+					<TextBlock.Visibility>
+						<MultiBinding Converter="{StaticResource VisConv_All_Collapsed}">
+							<Binding Path="QueuedJobs.Count" Converter="{StaticResource NotConv}" />
+							<Binding Path="ActiveJob" Converter="{StaticResource NotConv}" />
+							<Binding Path="CompletedJobs.Count" Converter="{StaticResource NotConv}" />
+						</MultiBinding>
+					</TextBlock.Visibility>
+					<Run Text="To get started, search for builds in the left pane,"/>
+					<LineBreak/>
+					<Run Text="select one or more platforms and a destination folder, and click Start Sync."/>
+				</TextBlock>
+				<!-- Job logs -->
+				<Grid Grid.Row="0" Grid.Column="2" Grid.RowSpan="3">
+					<Grid.Resources>
+						<GridLength x:Key="glStar">*</GridLength>
+						<GridLength x:Key="glAuto">auto</GridLength>
+						<local:ObjectConverter x:Key="rdHeightConv" TrueValue="{StaticResource glStar}" FalseValue="{StaticResource glAuto}"/>
+						<local:ObjectConverter x:Key="rdMinHeightConv" TrueValue="60" FalseValue="0"/>
+					</Grid.Resources>
+					<Grid.RowDefinitions>
+						<RowDefinition Height="auto"/>
+						<RowDefinition Height="{Binding ActiveJob, Converter={StaticResource rdHeightConv}}" MinHeight="{Binding ActiveJob, Converter={StaticResource rdMinHeightConv}}"/>
+						<RowDefinition Height="auto"/>
+					</Grid.RowDefinitions>
 
-			<!-- Queued Jobs Pane -->
-			<GroupBox Grid.Row="0" Visibility="{Binding QueuedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
-				<GroupBox.Header>
-					<TextBlock VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <Run Text="{Binding QueuedJobs.Count, Mode=OneWay}" />
-                            <Run Text="Queued Job(s)" />
-                            <TextBlock>
-                                <Run Text=" - " />
-                                <Hyperlink Command="{Binding OnClearQueueClicked}">Cancel All</Hyperlink>
-                            </TextBlock>
-                        </TextBlock>
-				</GroupBox.Header>
-				<ItemsControl ItemsSource="{Binding QueuedJobs}">
-					<ItemsControl.ItemTemplate>
-						<ItemContainerTemplate>
-							<local:JobControl/>
-						</ItemContainerTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
-			</GroupBox>
+					<!-- Queued Jobs Pane -->
+					<GroupBox Grid.Row="0" Visibility="{Binding QueuedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
+						<GroupBox.Header>
+							<TextBlock VerticalAlignment="Center" HorizontalAlignment="Center">
+									<Run Text="{Binding QueuedJobs.Count, Mode=OneWay}" />
+									<Run Text="Queued Job(s)" />
+									<TextBlock>
+										<Run Text=" - " />
+										<Hyperlink Command="{Binding OnClearQueueClicked}">Cancel All</Hyperlink>
+									</TextBlock>
+								</TextBlock>
+						</GroupBox.Header>
+						<ItemsControl ItemsSource="{Binding QueuedJobs}">
+							<ItemsControl.ItemTemplate>
+								<ItemContainerTemplate>
+									<local:JobControl/>
+								</ItemContainerTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</GroupBox>
 
-			<!-- Active Job Pane -->
-			<GroupBox Grid.Row="1" Visibility="{Binding ActiveJob, Converter={StaticResource VisConv_Collapsed}}" Header="Active Job">
-				<local:JobControl DataContext="{Binding ActiveJob}"/>
-			</GroupBox>
+					<!-- Active Job Pane -->
+					<GroupBox Grid.Row="1" Visibility="{Binding ActiveJob, Converter={StaticResource VisConv_Collapsed}}" Header="Active Job">
+						<local:JobControl DataContext="{Binding ActiveJob}"/>
+					</GroupBox>
 
-			<!-- Completed Jobs Pane -->
-			<GroupBox Grid.Row="2"  Visibility="{Binding CompletedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
-				<GroupBox.Header>
-					<TextBlock VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <Run Text="{Binding CompletedJobs.Count, Mode=OneWay}" />
-                        <Run Text="Completed Job(s)" />
-                        <TextBlock Visibility="{Binding CompletedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
-                            <Run Text=" - " />
-                            <Hyperlink Command="{Binding OnClearCompletedClicked}">Clear All</Hyperlink>
-                        </TextBlock>
-                    </TextBlock>
-				</GroupBox.Header>
+					<!-- Completed Jobs Pane -->
+					<GroupBox Grid.Row="2"  Visibility="{Binding CompletedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
+						<GroupBox.Header>
+							<TextBlock VerticalAlignment="Center" HorizontalAlignment="Center">
+								<Run Text="{Binding CompletedJobs.Count, Mode=OneWay}" />
+								<Run Text="Completed Job(s)" />
+								<TextBlock Visibility="{Binding CompletedJobs.Count, Converter={StaticResource VisConv_Collapsed}}">
+									<Run Text=" - " />
+									<Hyperlink Command="{Binding OnClearCompletedClicked}">Clear All</Hyperlink>
+								</TextBlock>
+							</TextBlock>
+						</GroupBox.Header>
 
-				<ItemsControl ItemsSource="{Binding CompletedJobs}">
-					<ItemsControl.ItemTemplate>
-						<ItemContainerTemplate>
-							<local:JobControl/>
-						</ItemContainerTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
-			</GroupBox>
+						<ItemsControl ItemsSource="{Binding CompletedJobs}">
+							<ItemsControl.ItemTemplate>
+								<ItemContainerTemplate>
+									<local:JobControl/>
+								</ItemContainerTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</GroupBox>
+				</Grid>
+			</Grid>
+			<GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" />
+			<!-- Main app log -->
+			<Grid Grid.Row="2">
+				<GroupBox>
+					<GroupBox.Header>
+						<WrapPanel>
+							<!--
+								TODO: expandable log window
+								<Expander VerticalAlignment="Center" Name="ApplicationLogExpander" IsExpanded="{Binding LogExpanded}" />
+							-->
+							<TextBlock VerticalAlignment="Center"><Run Text="Application Log"/></TextBlock>
+						</WrapPanel>
+					</GroupBox.Header>
+					<local:AutoScrollTextBox 
+						Text="{Binding ApplicationLog, Mode=OneWay}" 
+						IsReadOnly="True"
+						IsReadOnlyCaretVisible="True"
+						VerticalScrollBarVisibility="Visible"
+						HorizontalScrollBarVisibility="Auto"
+						TextWrapping="Wrap"
+						>
+					</local:AutoScrollTextBox>
+				</GroupBox>
+			</Grid>
 		</Grid>
+
 	</Grid>
 
 </Window>

@@ -460,14 +460,14 @@ namespace UnsyncUI
 				}
 				else
 				{
-					Debug.WriteLine($"Search took {timer.Elapsed.TotalSeconds} seconds.");
+					App.Current.LogMessage($"Search took {timer.Elapsed.TotalSeconds} seconds.");
 				}
 			}
 			catch (OperationCanceledException)
 			{ }
 			catch (Exception ex)
 			{
-				Debug.WriteLine($"Directory enumeration failed with exception: {ex}");
+				App.Current.LogMessage($"Directory enumeration failed with exception: {ex}");
 				StatusString = ex.Message;
 			}
 			finally

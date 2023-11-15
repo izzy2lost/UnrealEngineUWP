@@ -224,6 +224,8 @@ namespace UnsyncUI
 
 		public bool EnableExperimentalFeatures { get; set; } = false;
 
+		public bool EnableUserAuthentication { get; set; } = true;
+
 		internal string loggedInUser;
 
 		public Config(string filename)
@@ -365,7 +367,7 @@ namespace UnsyncUI
 
 		private bool CanUseUnsyncDirectoryEnumerator()
 		{
-			return EnableExperimentalFeatures
+			return EnableUserAuthentication
 				&& RootProxy != null
 				&& UnsyncPath != null
 				&& loggedInUser != null;
