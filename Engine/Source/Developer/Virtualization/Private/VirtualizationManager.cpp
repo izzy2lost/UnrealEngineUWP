@@ -91,6 +91,38 @@ private:
 	FCriticalSection* SyncObject;
 };
 
+/**
+ * Utility to disable 'GIsRunningUnattendedScript' for a given scope.
+ * We only change 'GIsRunningUnattendedScript' if called on the GameThread as the
+ * value is not thread safe and is generally only changed on that thread.
+ * 
+ * We need this so that we can try to force a modal dialog to be shown during
+ * the editor if a payload fails to pull as our only other option is to
+ * terminate the process.
+ */
+struct FDisableUnattendedScriptGlobal
+{
+	FDisableUnattendedScriptGlobal()
+	{
+		if (IsInGameThread())
+		{
+			bOriginalValue = GIsRunningUnattendedScript;
+			GIsRunningUnattendedScript = false;
+		}
+	}
+
+	~FDisableUnattendedScriptGlobal()
+	{
+		if (IsInGameThread())
+		{
+			GIsRunningUnattendedScript = bOriginalValue;
+		}
+	}
+
+private:
+	bool bOriginalValue = false;
+};
+
 /** 
  * Utility class to help manage pull requests. When created it will remove invalid and duplicate requests so
  * that backends do not need to worry about them.
@@ -2031,6 +2063,7 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 
 			const FText Message = MsgBuilder.ToText();
 
+			FDisableUnattendedScriptGlobal DisableScope;
 			Result = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::No, Message, Title);
 		}
 		else
