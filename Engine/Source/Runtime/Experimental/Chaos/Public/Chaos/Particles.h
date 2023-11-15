@@ -96,7 +96,7 @@ namespace Chaos
 
 		void Resize(const int32 Num)
 		{
-			AddParticles(Num - Size());
+			ResizeHelper(Num);
 			IncrementDirtyValidation();
 		}
 
@@ -131,6 +131,11 @@ namespace Chaos
 		}
 
 		const TArrayCollectionArray<TVector<T, d>>& XArray() const
+		{
+			return MX;
+		}
+
+		TArrayCollectionArray<TVector<T, d>>& XArray()
 		{
 			return MX;
 		}

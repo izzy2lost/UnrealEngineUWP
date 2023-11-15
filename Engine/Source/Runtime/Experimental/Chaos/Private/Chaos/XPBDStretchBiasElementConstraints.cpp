@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/XPBDStretchBiasElementConstraints.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Chaos/GraphColoring.h"
 #include "Chaos/Framework/Parallel.h"
 #include "Chaos/TriangleMesh.h"
@@ -30,6 +31,73 @@ namespace Chaos::Softs {
 
 // @todo(chaos): the parallel threshold (or decision to run parallel) should probably be owned by the solver and passed to the constraint container
 static int32 Chaos_XPBDStretchBias_ParallelConstraintCount = 100;
+
+
+ FXPBDStretchBiasElementConstraints::FXPBDStretchBiasElementConstraints(const FSolverParticlesRange& InParticles,
+	const FTriangleMesh& TriangleMesh,
+	const TArray<TVec3<FVec2f>>& FaceVertexUVs,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+	const FCollectionPropertyConstFacade& PropertyCollection,
+	bool bTrimKinematicConstraints)
+	: ParticleOffset(0)
+	, ParticleCount(InParticles.GetRangeSize())
+	, StiffnessWarp(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchStiffnessWarp(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoStretchStiffnessWarpString(PropertyCollection, XPBDAnisoStretchStiffnessWarpName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, StiffnessWeft(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchStiffnessWeft(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoStretchStiffnessWeftString(PropertyCollection, XPBDAnisoStretchStiffnessWeftName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, StiffnessBias(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchStiffnessBias(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoStretchStiffnessBiasString(PropertyCollection, XPBDAnisoStretchStiffnessBiasName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, DampingRatio(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchDamping(PropertyCollection, MinDamping)).ClampAxes(MinDamping, MaxDamping),
+		WeightMaps.FindRef(GetXPBDAnisoStretchDampingString(PropertyCollection, XPBDAnisoStretchDampingName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount)
+	, WarpScale(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchWarpScale(PropertyCollection, DefaultWarpWeftScale)).ClampAxes(MinWarpWeftScale, MaxWarpWeftScale),
+		WeightMaps.FindRef(GetXPBDAnisoStretchWarpScaleString(PropertyCollection, XPBDAnisoStretchWarpScaleName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount)
+	, WeftScale(
+		FSolverVec2(GetWeightedFloatXPBDAnisoStretchWeftScale(PropertyCollection, DefaultWarpWeftScale)).ClampAxes(MinWarpWeftScale, MaxWarpWeftScale),
+		WeightMaps.FindRef(GetXPBDAnisoStretchWeftScaleString(PropertyCollection, XPBDAnisoStretchWeftScaleName.ToString())),
+		TConstArrayView<TVec3<int32>>(Constraints),
+		ParticleOffset,
+		ParticleCount)
+	, XPBDAnisoStretchUse3dRestLengthsIndex(PropertyCollection)
+	, XPBDAnisoStretchStiffnessWarpIndex(PropertyCollection)
+	, XPBDAnisoStretchStiffnessWeftIndex(PropertyCollection)
+	, XPBDAnisoStretchStiffnessBiasIndex(PropertyCollection)
+	, XPBDAnisoStretchDampingIndex(PropertyCollection)
+	, XPBDAnisoStretchWarpScaleIndex(PropertyCollection)
+	, XPBDAnisoStretchWeftScaleIndex(PropertyCollection)
+{
+	Lambdas.Init(FSolverVec3(0.), Constraints.Num());
+	InitConstraintsAndRestData(InParticles, TriangleMesh, FaceVertexUVs, GetXPBDAnisoStretchUse3dRestLengths(PropertyCollection, bDefaultUse3dRestLengths), bTrimKinematicConstraints);
+	InitColor(InParticles);
+}
 
 FXPBDStretchBiasElementConstraints::FXPBDStretchBiasElementConstraints(const FSolverParticles& InParticles,
 	int32 InParticleOffset,
@@ -178,7 +246,8 @@ FXPBDStretchBiasElementConstraints::FXPBDStretchBiasElementConstraints(const FSo
 	InitColor(InParticles);
 }
 
-void FXPBDStretchBiasElementConstraints::InitConstraintsAndRestData(const FSolverParticles& InParticles, const FTriangleMesh& TriangleMesh,
+template<typename SolverParticlesOrRange>
+void FXPBDStretchBiasElementConstraints::InitConstraintsAndRestData(const SolverParticlesOrRange& InParticles, const FTriangleMesh& TriangleMesh,
 	const TArray<TVec3<FSolverVec2>>& FaceVertexUVs, const bool bUse3dRestLengths, const bool bTrimKinematicConstraints)
 {
 	const TArray<TVec3<int32>>& Elements = TriangleMesh.GetElements();
@@ -269,7 +338,8 @@ void FXPBDStretchBiasElementConstraints::InitConstraintsAndRestData(const FSolve
 	}
 }
 
-void FXPBDStretchBiasElementConstraints::InitColor(const FSolverParticles& InParticles)
+template<typename SolverParticlesOrRange>
+void FXPBDStretchBiasElementConstraints::InitColor(const SolverParticlesOrRange& InParticles)
 {
 	ConstraintsPerColorStartIndex.Reset();
 
@@ -278,7 +348,7 @@ void FXPBDStretchBiasElementConstraints::InitColor(const FSolverParticles& InPar
 	if (Constraints.Num() > Chaos_XPBDStretchBias_ParallelConstraintCount)
 #endif
 	{
-		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoring(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
+		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoringParticlesOrRange(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
 
 		// Reorder constraints based on color so each array in ConstraintsPerColor contains contiguous elements.
 		TArray<TVec3<int32>> ReorderedConstraints;
@@ -455,7 +525,8 @@ void FXPBDStretchBiasElementConstraints::SetProperties(
 	}
 }
 
-void FXPBDStretchBiasElementConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+template<typename SolverParticlesOrRange>
+void FXPBDStretchBiasElementConstraints::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FXPBDStretchBiasElementConstraints_Apply);
 	SCOPE_CYCLE_COUNTER(STAT_XPBD_StretchBias);
@@ -496,7 +567,7 @@ void FXPBDStretchBiasElementConstraints::Apply(FSolverParticles& Particles, cons
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDStretchBiasConstraintsWithDamping(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector*)&Constraints.GetData()[ColorStart],
 							(ispc::FVector3f*)&RestStretchLengths.GetData()[ColorStart],
 							(ispc::FVector4f*)&DeltaUVInverse.GetData()[ColorStart],
@@ -563,7 +634,7 @@ void FXPBDStretchBiasElementConstraints::Apply(FSolverParticles& Particles, cons
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDStretchBiasConstraintsWithDampingAndMaps(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector*)&Constraints.GetData()[ColorStart],
 							(ispc::FVector3f*)&RestStretchLengths.GetData()[ColorStart],
 							(ispc::FVector4f*)&DeltaUVInverse.GetData()[ColorStart],
@@ -679,6 +750,8 @@ void FXPBDStretchBiasElementConstraints::Apply(FSolverParticles& Particles, cons
 		}
 	}
 }
+template CHAOS_API void FXPBDStretchBiasElementConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FXPBDStretchBiasElementConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 void FXPBDStretchBiasElementConstraints::CalculateUVStretch(const int32 ConstraintIndex, const FSolverVec3& P0, const FSolverVec3& P1, const FSolverVec3& P2, FSolverVec3& DXDu, FSolverVec3& DXDv) const
 {
@@ -706,8 +779,8 @@ static FSolverReal CalcDLambda(const FSolverReal StiffnessValue, const FSolverRe
 	return (C - Alpha * Lambda + DampingTerm) / Denom;
 }
 
-
-void FXPBDStretchBiasElementConstraints::ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValue, const FSolverReal DampingRatioValue, const FSolverReal WarpScaleValue, const FSolverReal WeftScaleValue) const
+template<typename SolverParticlesOrRange>
+void FXPBDStretchBiasElementConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValue, const FSolverReal DampingRatioValue, const FSolverReal WarpScaleValue, const FSolverReal WeftScaleValue) const
 {
 	const TVec3<int32>& Constraint = Constraints[ConstraintIndex];
 	const int32 i0 = Constraint[0];

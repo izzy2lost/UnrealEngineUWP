@@ -1668,19 +1668,7 @@ void FClothConstraints::SetAnimDriveConstraints(const TConstArrayView<FRealSingl
 			AnimDriveStiffnessMultipliers,
 			AnimDriveDampingMultipliers);
 	}
-	else
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		// Deprecated behavior until old Initialize can be removed
-		AnimDriveConstraints = MakeShareable( new Softs::FPBDAnimDriveConstraint(
-			ParticleOffset,
-			NumParticles,
-			*AnimationPositions,
-			*OldAnimationPositions_Deprecated,
-			AnimDriveStiffnessMultipliers,
-			AnimDriveDampingMultipliers));
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
+
 	++NumConstraintInits;  // Uses init to update the property tables
 	++NumConstraintRules;
 }

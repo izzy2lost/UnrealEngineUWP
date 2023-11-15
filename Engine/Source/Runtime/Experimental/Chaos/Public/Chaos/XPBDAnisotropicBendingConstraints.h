@@ -29,6 +29,13 @@ public:
 		return IsXPBDAnisoBendingStiffnessWarpEnabled(PropertyCollection, false);
 	}
 
+	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticlesRange& InParticles,
+		const FTriangleMesh& TriangleMesh,
+		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false);
+
 	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
@@ -62,7 +69,8 @@ public:
 
 	virtual ~FXPBDAnisotropicBendingConstraints() override {}
 
-	void Init(const FSolverParticles& InParticles)
+	template<typename SolverParticlesOrRange>
+	void Init(const SolverParticlesOrRange& InParticles)
 	{ 
 		Lambdas.Reset();
 		Lambdas.AddZeroed(Constraints.Num());
@@ -91,7 +99,8 @@ public:
 		DampingRatio.ApplyValues();
 	}
 
-	CHAOS_API void Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const;
 
 	const TArray<int32>& GetConstraintsPerColorStartIndex() const { return ConstraintsPerColorStartIndex; }
 	const TArray<FSolverVec3>& GetWarpWeftBiasBaseMultipliers() const { return WarpWeftBiasBaseMultipliers; }
@@ -117,11 +126,13 @@ public:
 
 
 private:
-	CHAOS_API void InitColor(const FSolverParticles& InParticles);
-	CHAOS_API void ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues, 
+	template<typename SolverParticlesOrRange>
+	void InitColor(const SolverParticlesOrRange& InParticles);
+	template<typename SolverParticlesOrRange>
+	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues,
 		const FSolverVec3& ExpBucklingStiffnessValues, const FSolverReal DampingRatioValue) const;
 
-	CHAOS_API TArray<FSolverVec3> GenerateWarpWeftBiasBaseMultipliers(const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions, const FTriangleMesh& TriangleMesh) const;
+	TArray<FSolverVec3> GenerateWarpWeftBiasBaseMultipliers(const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions, const FTriangleMesh& TriangleMesh) const;
 
 	TConstArrayView<FRealSingle> GetRestAngleMapFromCollection(
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,

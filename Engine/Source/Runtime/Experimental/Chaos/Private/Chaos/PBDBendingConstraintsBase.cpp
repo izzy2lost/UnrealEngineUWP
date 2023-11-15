@@ -5,8 +5,9 @@ namespace Chaos::Softs
 {
 	namespace Private
 	{
+		template<typename SolverParticlesOrRange>
 		void Calculate3DRestAngles(
-			const FSolverParticles& InParticles,
+			const SolverParticlesOrRange& InParticles,
 			const TArray<TVec4<int32>>& Constraints,
 			TArray<FSolverReal>& RestAngles)
 		{
@@ -21,8 +22,9 @@ namespace Chaos::Softs
 			}
 		}
 
+		template<typename SolverParticlesOrRange>
 		void CalculateFlatnessRestAngles(
-			const FSolverParticles& InParticles,
+			const SolverParticlesOrRange& InParticles,
 			int32 InParticleOffset,
 			int32 InParticleCount,
 			const TConstArrayView<FRealSingle>& RestAngleMap,
@@ -95,8 +97,9 @@ namespace Chaos::Softs
 		}
 	}
 
+	template<typename SolverParticlesOrRange>
 	void FPBDBendingConstraintsBase::CalculateRestAngles(
-		const FSolverParticles& InParticles,
+		const SolverParticlesOrRange& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
 		const TConstArrayView<FRealSingle>& RestAngleMap,
@@ -116,4 +119,19 @@ namespace Chaos::Softs
 			Private::CalculateExplicitRestAngles(InParticleOffset, InParticleCount, RestAngleMap, RestAngleValue, Constraints, RestAngles);
 		}
 	}
+
+	template CHAOS_API void FPBDBendingConstraintsBase::CalculateRestAngles(
+		const FSolverParticles& InParticles,
+		int32 InParticleOffset,
+		int32 InParticleCount,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType);
+	template CHAOS_API void FPBDBendingConstraintsBase::CalculateRestAngles(
+		const FSolverParticlesRange& InParticles,
+		int32 InParticleOffset,
+		int32 InParticleCount,
+		const TConstArrayView<FRealSingle>& RestAngleMap,
+		const FSolverVec2& RestAngleValue,
+		ERestAngleConstructionType RestAngleConstructionType);
 }  // End namespace Chaos::Softs

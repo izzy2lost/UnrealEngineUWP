@@ -23,14 +23,15 @@ namespace Chaos::Softs {
 int32 Chaos_Bending_ParallelConstraintCount = 100;
 FAutoConsoleVariableRef CVarChaosBendingParallelConstraintCount(TEXT("p.Chaos.Bending.ParallelConstraintCount"), Chaos_Bending_ParallelConstraintCount, TEXT("If we have more constraints than this, use parallel-for in Apply."));
 
-void FPBDBendingConstraints::InitColor(const FSolverParticles& InParticles)
+template<typename SolverParticlesOrRange>
+void FPBDBendingConstraints::InitColor(const SolverParticlesOrRange& InParticles)
 {
 	// In dev builds we always color so we can tune the system without restarting. See Apply()
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
 	if (Constraints.Num() > Chaos_Bending_ParallelConstraintCount)
 #endif
 	{
-		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoring(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
+		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoringParticlesOrRange(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
 
 		// Reorder constraints based on color so each array in ConstraintsPerColor contains contiguous elements.
 		TArray<TVec4<int32>> ReorderedConstraints; 
@@ -67,6 +68,8 @@ void FPBDBendingConstraints::InitColor(const FSolverParticles& InParticles)
 		BucklingStiffness.ReorderIndices(OrigToReorderedIndices);
 	}
 }
+template CHAOS_API void FPBDBendingConstraints::InitColor(const FSolverParticles& InParticles);
+template CHAOS_API void FPBDBendingConstraints::InitColor(const FSolverParticlesRange& InParticles);
 
 void FPBDBendingConstraints::SetProperties(
 	const FCollectionPropertyConstFacade& PropertyCollection,
@@ -114,7 +117,8 @@ void FPBDBendingConstraints::SetProperties(
 	}
 }
 
-void FPBDBendingConstraints::ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue) const
+template<typename SolverParticlesOrRange>
+void FPBDBendingConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue) const
 {
 
 	const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
@@ -130,7 +134,8 @@ void FPBDBendingConstraints::ApplyHelper(FSolverParticles& Particles, const FSol
 	Particles.P(i4) -= S * Particles.InvM(i4) * Grads[3];
 }
 
-void FPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+template<typename SolverParticlesOrRange>
+void FPBDBendingConstraints::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPBDBendingConstraints_Apply);
 	SCOPE_CYCLE_COUNTER(STAT_PBD_Bending);
@@ -244,5 +249,7 @@ void FPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverRea
 		}
 	}
 }
+template CHAOS_API void FPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FPBDBendingConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 }  // End namespace Chaos::Softs

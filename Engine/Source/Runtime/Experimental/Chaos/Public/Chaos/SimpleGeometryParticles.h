@@ -48,6 +48,9 @@ namespace Chaos
 
 		FORCEINLINE const TRotation<T, d>& R(const int32 Index) const { return MR[Index]; }
 		FORCEINLINE TRotation<T, d>& R(const int32 Index) { return MR[Index]; }
+		const TArrayCollectionArray<TRotation<T, d>>& GetR() const { return MR; }
+		TArrayCollectionArray<TRotation<T, d>>& GetR() { return MR; }
+
 		FORCEINLINE const FImplicitObjectPtr& GetGeometry(const int32 Index) const { return MGeometry[Index]; }
 		void SetGeometry(const int32 Index, const FImplicitObjectPtr& InGeometry)
 		{

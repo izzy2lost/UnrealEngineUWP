@@ -190,9 +190,11 @@ public:
 		}
 	}
 
-	CHAOS_API void Init(const FSolverParticles& Particles, const FSolverReal MinProximityQueryRadius = (FSolverReal)0.);
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius = (FSolverReal)0.);
 
-	CHAOS_API void PostStepInit(const FSolverParticles& Particles);
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void PostStepInit(const SolverParticlesOrRange& Particles);
 
 	void SetGlobalIntersectionAnalysis(bool bInGlobalIntersectionAnalysis) { bGlobalIntersectionAnalysis = bInGlobalIntersectionAnalysis; }
 	void SetContourMinimization(bool bInContourMinimization) { bContourMinimization = bInContourMinimization; }

@@ -5,12 +5,31 @@
 #include "Chaos/TriangleCollisionPoint.h"
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 
 #if !COMPILE_WITHOUT_UNREAL_SUPPORT
 #include "Chaos/Framework/Parallel.h"
 #include <atomic>
 
 namespace Chaos::Softs {
+
+static TConstArrayView<FSolverVec3> GetConstArrayView(const FSolverParticles& Particles, int32 Offset, int32 NumParticles, const TArray<FSolverVec3>* const Data)
+{
+	if (Data)
+	{
+		return TConstArrayView<FSolverVec3>(Data->GetData(), NumParticles + Offset);
+	}
+	return TConstArrayView<FSolverVec3>();
+}
+
+static TConstArrayView<FSolverVec3> GetConstArrayView(const FSolverParticlesRange& Particles, int32 Offset, int32 NumParticles, const TArray<FSolverVec3>* const Data)
+{
+	if (Data)
+	{
+		return Particles.GetConstArrayView(*Data);
+	}
+	return TConstArrayView<FSolverVec3>();
+}
 
 FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	const int32 InOffset,
@@ -53,8 +72,8 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles)
 	return Init(Particles, BVH, static_cast<TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>>(EmptyGIAColors), EmptyGIAColors);
 }
 
-template<typename SpatialAccelerator>
-void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles, const SpatialAccelerator& Spatial, 
+template<typename SpatialAccelerator, typename SolverParticlesOrRange>
+void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial,
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors)
 {
 	if (!Elements.Num())
@@ -78,8 +97,10 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles,
 
 		const FSolverReal HeightSq = FMath::Square(Thickness + Thickness);
 
+		const TConstArrayView<FSolverVec3> ReferencePositionsView = GetConstArrayView(Particles, Offset, NumParticles, ReferencePositions);
+
 		PhysicsParallelFor(NumParticles,
-			[this, &Spatial, &Particles, &ConstraintIndex, HeightSq, MaxConnectionsPerPoint, &VertexGIAColors, &TriangleGIAColors](int32 i)
+			[this, &Spatial, &Particles, &ConstraintIndex, HeightSq, MaxConnectionsPerPoint, &VertexGIAColors, &TriangleGIAColors, &ReferencePositionsView](int32 i)
 			{
 				const int32 Index = i + Offset;
 				constexpr FSolverReal ExtraThicknessMult = 1.5f;
@@ -139,12 +160,12 @@ void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles,
 					for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
 					{
 						const TVector<int32, 3>& Elem = Elements[CollisionPoint.Indices[1]];
-						if (ReferencePositions)
+						if (ReferencePositionsView.Num())
 						{
-							const FSolverVec3& RefP = (*ReferencePositions)[Index];
-							const FSolverVec3& RefP0 = (*ReferencePositions)[Elem[0]];
-							const FSolverVec3& RefP1 = (*ReferencePositions)[Elem[1]];
-							const FSolverVec3& RefP2 = (*ReferencePositions)[Elem[2]];
+							const FSolverVec3& RefP = ReferencePositionsView[Index];
+							const FSolverVec3& RefP0 = ReferencePositionsView[Elem[0]];
+							const FSolverVec3& RefP1 = ReferencePositionsView[Elem[1]];
+							const FSolverVec3& RefP2 = ReferencePositionsView[Elem[2]];
 							const FSolverVec3 RefDiff = RefP - CollisionPoint.Bary[1] * RefP0 - CollisionPoint.Bary[2] * RefP1 - CollisionPoint.Bary[3] * RefP2;
 							if (RefDiff.SizeSquared() < HeightSq)
 							{
@@ -188,8 +209,13 @@ template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticles& Particles, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial, 
 	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticlesRange& Particles, const FTriangleMesh::TBVHType<FSolverReal>& Spatial,
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TSpatialHashType<FSolverReal>>(const FSolverParticlesRange& Particles, const FTriangleMesh::TSpatialHashType<FSolverReal>& Spatial,
+	const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
-FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const FSolverParticles& Particles, const int32 i) const
+template<typename SolverParticlesOrRange>
+FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const SolverParticlesOrRange& Particles, const int32 i) const
 {
 	const TVec4<int32>& Constraint = Constraints[i];
 	const int32 i1 = Constraint[0];
@@ -247,6 +273,8 @@ FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const FSolverParticles&
 		return RepulsionDelta;
 	}
 }
+template CHAOS_API FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const FSolverParticles& Particles, const int32 i) const;
+template CHAOS_API FSolverVec3 FPBDCollisionSpringConstraintsBase::GetDelta(const FSolverParticlesRange& Particles, const int32 i) const;
 
 }  // End namespace Chaos::Softs
 

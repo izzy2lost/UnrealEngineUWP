@@ -3,6 +3,7 @@
 
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
@@ -34,12 +35,34 @@ public:
 		, LiftIndex(PropertyCollection)
 		, FluidDensityIndex(PropertyCollection)
 		, PressureIndex(PropertyCollection)
+		, WindVelocityIndex(PropertyCollection)
 	{
 		SetProperties(
 			FSolverVec2(GetWeightedFloatDrag(PropertyCollection, (FSolverReal)0.)),  // If these properties don't exist, set their values to 0, not to DefaultCoefficients!
 			FSolverVec2(GetWeightedFloatLift(PropertyCollection, (FSolverReal)0.)),
 			FSolverReal(GetFluidDensity(PropertyCollection, (FSolverReal)0.)),
 			FSolverVec2(GetWeightedFloatPressure(PropertyCollection, (FSolverReal)0.)));
+	}
+
+	FVelocityAndPressureField(
+		const FTriangleMesh* TriangleMesh,
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
+		FSolverReal WorldScale)
+		: DragIndex(PropertyCollection)
+		, LiftIndex(PropertyCollection)
+		, FluidDensityIndex(PropertyCollection)
+		, PressureIndex(PropertyCollection)
+		, WindVelocityIndex(PropertyCollection)
+	{
+		SetGeometry(TriangleMesh);
+		SetProperties(
+			FSolverVec2(GetWeightedFloatDrag(PropertyCollection, 0.f)),  // If these properties don't exist, set their values to 0, not to DefaultCoefficients!
+			FSolverVec2(GetWeightedFloatLift(PropertyCollection, 0.f)),
+			(FSolverReal)GetFluidDensity(PropertyCollection, 0.f),
+			FSolverVec2(GetWeightedFloatPressure(PropertyCollection, 0.f)),  // These getters also initialize the property indices, so keep before SetMultipliers
+			WorldScale);
+		SetMultipliers(PropertyCollection, Weightmaps);
 	}
 
 	// Construct an uninitialized field. Mesh, properties, and velocity will have to be set for this field to be valid.
@@ -50,15 +73,18 @@ public:
 		, LiftIndex(ForceInit)
 		, FluidDensityIndex(ForceInit)
 		, PressureIndex(ForceInit)
+		, WindVelocityIndex(ForceInit)
 	{
 		SetProperties(FSolverVec2(0.), FSolverVec2(0.), (FSolverReal)0., FSolverVec2(0.));
 	}
 
 	~FVelocityAndPressureField() {}
 
-	CHAOS_API void UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/);
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void UpdateForces(const SolverParticlesOrRange& InParticles, const FSolverReal /*Dt*/);
 
-	inline void Apply(FSolverParticles& InParticles, const FSolverReal Dt, const int32 Index) const
+	template<typename SolverParticlesOrRange>
+	inline void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt, const int32 Index) const
 	{
 		checkSlow(Index >= Offset && Index < Offset + NumParticles);  // The index should always match the original triangle mesh range
 
@@ -69,11 +95,32 @@ public:
 		}
 	}
 
+	inline void Apply(FSolverParticlesRange& InParticles, const FSolverReal Dt) const
+	{
+		for (int32 Index = 0; Index < InParticles.GetRangeSize(); ++Index)
+		{
+			const TArray<int32>& ElementIndices = PointToTriangleMap[Index];
+			for (const int32 ElementIndex : ElementIndices)
+			{
+				InParticles.Acceleration(Index) += InParticles.InvM(Index) * Forces[ElementIndex];
+			}
+		}
+	}
+
+	// This version will not load WindVelocity from the config. Call SetVelocity to set it explicitly.
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
 		FSolverReal WorldScale,
 		bool bEnableAerodynamics);
+
+	// This version will load WindVelocity from the config
+	CHAOS_API void SetPropertiesAndWind(
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		const TMap<FString, TConstArrayView<FRealSingle>>& Weightmaps,
+		FSolverReal WorldScale,
+		bool bEnableAerodynamics,
+		const FSolverVec3& SolverWind);
 
 	UE_DEPRECATED(5.3, "Use SetProperties(const FCollectionPropertyConstFacade&, const TMap<FString, TConstArrayView<FRealSingle>>&, FSolverReal, bool) instead.")
 	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection, FSolverReal WorldScale)
@@ -126,7 +173,8 @@ private:
 		const TConstArrayView<FRealSingle>& LiftMultipliers,
 		const TConstArrayView<FRealSingle>& PressureMultipliers);
 
-	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp)
+	template<typename SolverParticlesOrRange>
+	void UpdateField(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp)
 	{
 		const TVec3<int32>& Element = Elements[ElementIndex];
 
@@ -152,7 +200,8 @@ private:
 			(Cl - Cd) * VDotN * V - Cl * VSquare * N) - DoubleArea * (FSolverReal)0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
 	}
 
-	void UpdateField(const FSolverParticles& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
+	template<typename SolverParticlesOrRange>
+	void UpdateField(const SolverParticlesOrRange& InParticles, int32 ElementIndex, const FSolverVec3& InVelocity, const FSolverReal Cd, const FSolverReal Cl, const FSolverReal Cp, const FSolverReal MaxVelocitySquared)
 	{
 		checkSlow(MaxVelocitySquared > (FSolverReal)0);
 
@@ -208,6 +257,7 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Lift, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(FluidDensity, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(Pressure, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(WindVelocity, FVector3f);
 };
 
 using FVelocityField UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.") = FVelocityAndPressureField;

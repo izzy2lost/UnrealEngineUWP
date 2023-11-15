@@ -28,9 +28,13 @@ class FSolverCollisionParticles : public TSimpleGeometryParticles<FSolverReal, 3
 
 	const FSolverVec3& V(const int32 Index) const { return MV[Index]; }
 	FSolverVec3& V(const int32 Index) { return MV[Index]; }
+	const TArrayCollectionArray<FSolverVec3>& GetV() const { return MV; }
+	TArrayCollectionArray<FSolverVec3>& GetV() { return MV; }
 
 	const FSolverVec3& W(const int32 Index) const { return MW[Index]; }
 	FSolverVec3& W(const int32 Index) { return MW[Index]; }
+	const TArrayCollectionArray<FSolverVec3>& GetW() const { return MW; }
+	TArrayCollectionArray<FSolverVec3>& GetW() { return MW; }
 
 	virtual void Serialize(FChaosArchive& Ar) override
 	{

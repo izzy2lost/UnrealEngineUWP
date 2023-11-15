@@ -30,6 +30,42 @@ public:
 		return IsXPBDBendingElementStiffnessEnabled(PropertyCollection, false);
 	}
 
+	FXPBDBendingConstraints(const FSolverParticlesRange& InParticles,
+		TArray<TVec4<int32>>&& InConstraints,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
+		: Base(
+			InParticles,
+			MoveTemp(InConstraints),
+			WeightMaps.FindRef(GetXPBDBendingElementStiffnessString(PropertyCollection, XPBDBendingElementStiffnessName.ToString())),
+			WeightMaps.FindRef(GetXPBDBucklingStiffnessString(PropertyCollection, XPBDBucklingStiffnessName.ToString())),
+			GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
+			FSolverVec2(GetWeightedFloatXPBDBendingElementStiffness(PropertyCollection, MaxStiffness)),
+			(FSolverReal)GetXPBDBucklingRatio(PropertyCollection, 0.f),
+			FSolverVec2(GetWeightedFloatXPBDBucklingStiffness(PropertyCollection, MaxStiffness)),
+			GetRestAngleValueFromCollection(PropertyCollection),
+			(ERestAngleConstructionType)GetXPBDRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
+			bTrimKinematicConstraints,
+			MaxStiffness)
+		, DampingRatio(
+			FSolverVec2(GetWeightedFloatXPBDBendingElementDamping(PropertyCollection, MinDamping)).ClampAxes(MinDamping, MaxDamping),
+			WeightMaps.FindRef(GetXPBDBendingElementDampingString(PropertyCollection, XPBDBendingElementDampingName.ToString())),
+			TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+			ParticleOffset,
+			ParticleCount)
+		, XPBDBendingElementStiffnessIndex(PropertyCollection)
+		, XPBDBendingElementDampingIndex(PropertyCollection)
+		, XPBDBucklingRatioIndex(PropertyCollection)
+		, XPBDBucklingStiffnessIndex(PropertyCollection)
+		, XPBDFlatnessRatioIndex(PropertyCollection)
+		, XPBDRestAngleIndex(PropertyCollection)
+		, XPBDRestAngleTypeIndex(PropertyCollection)
+	{
+		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		InitColor(InParticles);
+	}
+
 	FXPBDBendingConstraints(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
@@ -190,7 +226,8 @@ public:
 
 	virtual ~FXPBDBendingConstraints() override {}
 
-	void Init(const FSolverParticles& InParticles)
+	template<typename SolverParticlesOrRange>
+	void Init(const SolverParticlesOrRange& InParticles)
 	{ 
 		Lambdas.Reset();
 		Lambdas.AddZeroed(Constraints.Num());
@@ -223,7 +260,8 @@ public:
 		DampingRatio.ApplyValues();
 	}
 
-	CHAOS_API void Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const;
 
 	const TArray<int32>& GetConstraintsPerColorStartIndex() const { return ConstraintsPerColorStartIndex; }
 
@@ -248,8 +286,10 @@ public:
 
 	CHAOS_API FSolverReal ComputeTotalEnergy(const FSolverParticles& InParticles, const FSolverReal ExplicitStiffness = -1.f);
 private:
-	CHAOS_API void InitColor(const FSolverParticles& InParticles);
-	CHAOS_API void ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue, const FSolverReal DampingRatioValue) const;
+	template<typename SolverParticlesOrRange>
+	CHAOS_API void InitColor(const SolverParticlesOrRange& InParticles);
+	template<typename SolverParticlesOrRange>
+	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue, const FSolverReal DampingRatioValue) const;
 
 	TConstArrayView<FRealSingle> GetRestAngleMapFromCollection(
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,

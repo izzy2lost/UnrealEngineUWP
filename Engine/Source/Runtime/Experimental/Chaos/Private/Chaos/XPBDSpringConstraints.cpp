@@ -30,14 +30,15 @@ static int32 Chaos_XPBDSpring_ParallelConstraintCount = 100;
 FAutoConsoleVariableRef CVarChaosXPBDSpringParallelConstraintCount(TEXT("p.Chaos.XPBDSpring.ParallelConstraintCount"), Chaos_XPBDSpring_ParallelConstraintCount, TEXT("If we have more constraints than this, use parallel-for in Apply."));
 #endif
 
-void FXPBDSpringConstraints::InitColor(const FSolverParticles& Particles)
+template<typename SolverParticlesOrRange>
+void FXPBDSpringConstraints::InitColor(const SolverParticlesOrRange& Particles)
 {
 	// In dev builds we always color so we can tune the system without restarting. See Apply()
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
 	if (Constraints.Num() > Chaos_XPBDSpring_ParallelConstraintCount)
 #endif
 	{
-		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoring(Constraints, Particles, ParticleOffset, ParticleOffset + ParticleCount);
+		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoringParticlesOrRange(Constraints, Particles, ParticleOffset, ParticleOffset + ParticleCount);
 		
 		// Reorder constraints based on color so each array in ConstraintsPerColor contains contiguous elements.
 		TArray<TVec2<int32>> ReorderedConstraints;
@@ -71,8 +72,11 @@ void FXPBDSpringConstraints::InitColor(const FSolverParticles& Particles)
 		DampingRatio.ReorderIndices(OrigToReorderedIndices);
 	}
 }
+template CHAOS_API void FXPBDSpringConstraints::InitColor(const FSolverParticles& Particles);
+template CHAOS_API void FXPBDSpringConstraints::InitColor(const FSolverParticlesRange& Particles);
 
-void FXPBDSpringConstraints::ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal DampingRatioValue) const
+template<typename SolverParticlesOrRange>
+void FXPBDSpringConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal DampingRatioValue) const
 {
 	const TVec2<int32>& Constraint = Constraints[ConstraintIndex];
 	const int32 i1 = Constraint[0];
@@ -88,7 +92,8 @@ void FXPBDSpringConstraints::ApplyHelper(FSolverParticles& Particles, const FSol
 	}
 }
 
-void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+template<typename SolverParticlesOrRange>
+void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FXPBDSpringConstraints_Apply);
 	SCOPE_CYCLE_COUNTER(STAT_XPBD_Spring);
@@ -119,7 +124,7 @@ void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverRea
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDSpringConstraintsWithDamping(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector2*)&Constraints.GetData()[ColorStart],
 							&Dists.GetData()[ColorStart],
 							&Lambdas.GetData()[ColorStart],
@@ -174,7 +179,7 @@ void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverRea
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDSpringConstraintsWithDampingAndWeightMaps(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector2*)&Constraints.GetData()[ColorStart],
 							&Dists.GetData()[ColorStart],
 							&Lambdas.GetData()[ColorStart],
@@ -256,6 +261,8 @@ void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverRea
 		}
 	}
 }
+template CHAOS_API void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FXPBDSpringConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 void FXPBDEdgeSpringConstraints::SetProperties(
 	const FCollectionPropertyConstFacade& PropertyCollection,

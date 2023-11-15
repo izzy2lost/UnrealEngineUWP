@@ -23,14 +23,15 @@ namespace Chaos::Softs {
 int32 Chaos_XPBDBending_ParallelConstraintCount = 100;
 FAutoConsoleVariableRef CVarChaosXPBDBendingParallelConstraintCount(TEXT("p.Chaos.XPBDBending.ParallelConstraintCount"), Chaos_XPBDBending_ParallelConstraintCount, TEXT("If we have more constraints than this, use parallel-for in Apply."));
 
-void FXPBDBendingConstraints::InitColor(const FSolverParticles& InParticles)
+template<typename SolverParticlesOrRange>
+void FXPBDBendingConstraints::InitColor(const SolverParticlesOrRange& InParticles)
 {
 	// In dev builds we always color so we can tune the system without restarting. See Apply()
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
 	if (Constraints.Num() > Chaos_XPBDBending_ParallelConstraintCount)
 #endif
 	{
-		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoring(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
+		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoringParticlesOrRange(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
 
 		// Reorder constraints based on color so each array in ConstraintsPerColor contains contiguous elements.
 		TArray<TVec4<int32>> ReorderedConstraints; 
@@ -67,6 +68,8 @@ void FXPBDBendingConstraints::InitColor(const FSolverParticles& InParticles)
 		BucklingStiffness.ReorderIndices(OrigToReorderedIndices);
 	}
 }
+template CHAOS_API void FXPBDBendingConstraints::InitColor(const FSolverParticles& InParticles);
+template CHAOS_API void FXPBDBendingConstraints::InitColor(const FSolverParticlesRange& InParticles);
 
 void FXPBDBendingConstraints::SetProperties(
 	const FCollectionPropertyConstFacade& PropertyCollection,
@@ -138,7 +141,8 @@ void FXPBDBendingConstraints::SetProperties(
 	}
 }
 
-void FXPBDBendingConstraints::ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal BucklingValue, const FSolverReal DampingRatioValue) const
+template<typename SolverParticlesOrRange>
+void FXPBDBendingConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal BucklingValue, const FSolverReal DampingRatioValue) const
 {
 	const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
 	const int32 i1 = Constraint[0];
@@ -179,7 +183,8 @@ void FXPBDBendingConstraints::ApplyHelper(FSolverParticles& Particles, const FSo
 	Lambda += DLambda;
 }
 
-void FXPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+template<typename SolverParticlesOrRange>
+void FXPBDBendingConstraints::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FXPBDBendingConstraints_Apply);
 	SCOPE_CYCLE_COUNTER(STAT_XPBD_Bending);
@@ -213,7 +218,7 @@ void FXPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverRe
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDBendingConstraintsWithDamping(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector4*)&Constraints.GetData()[ColorStart],
 							&RestAngles.GetData()[ColorStart],
 							&IsBuckled.GetData()[ColorStart],
@@ -274,7 +279,7 @@ void FXPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverRe
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDBendingConstraintsWithDampingAndMaps(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector4*)&Constraints.GetData()[ColorStart],
 							&RestAngles.GetData()[ColorStart],
 							&IsBuckled.GetData()[ColorStart],
@@ -370,6 +375,8 @@ void FXPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverRe
 		}
 	}
 }
+template CHAOS_API void FXPBDBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FXPBDBendingConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 FSolverReal FXPBDBendingConstraints::ComputeTotalEnergy(const FSolverParticles& InParticles, const FSolverReal ExplicitStiffness)
 {

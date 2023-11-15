@@ -40,10 +40,11 @@ public:
 	UE_DEPRECATED(5.0, "Use Init(Particles, Spatial, GIAColors) instead.")
 	CHAOS_API void Init(const FSolverParticles& Particles);
 
-	template<typename SpatialAccelerator>
-	void Init(const FSolverParticles& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
+	template<typename SpatialAccelerator, typename SolverParticlesOrRange>
+	void Init(const SolverParticlesOrRange& Particles, const SpatialAccelerator& Spatial, const TConstArrayView<FPBDTriangleMeshCollisions::FGIAColor>& VertexGIAColors, const TArray<FPBDTriangleMeshCollisions::FGIAColor>& TriangleGIAColors);
 
-	CHAOS_API FSolverVec3 GetDelta(const FSolverParticles& InParticles, const int32 i) const;
+	template<typename SolverParticlesOrRange>
+	CHAOS_API FSolverVec3 GetDelta(const SolverParticlesOrRange& InParticles, const int32 i) const;
 
 	const TArray<TVec4<int32>>& GetConstraints() const { return Constraints;  }
 	const TArray<FSolverVec3>& GetBarys() const { return Barys; }

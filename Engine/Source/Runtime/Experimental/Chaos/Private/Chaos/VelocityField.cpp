@@ -81,6 +81,18 @@ void FVelocityAndPressureField::SetProperties(
 	QuarterRho = bEnableAerodynamics ? Rho * OneQuarter : (FSolverReal)0.;
 }
 
+void FVelocityAndPressureField::SetPropertiesAndWind(
+	const FCollectionPropertyConstFacade& PropertyCollection,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+	FSolverReal WorldScale,
+	bool bEnableAerodynamics,
+	const FSolverVec3& SolverWind)
+{
+	SetProperties(PropertyCollection, WeightMaps, WorldScale, bEnableAerodynamics);
+	const FSolverVec3 WindVelocity = WindVelocityIndex != INDEX_NONE ? WorldScale * FSolverVec3(GetWindVelocity(PropertyCollection)) : FSolverVec3(0.f);
+	SetVelocity(WindVelocity + SolverWind);
+}
+
 void FVelocityAndPressureField::SetProperties(
 	const FSolverVec2& Drag,
 	const FSolverVec2& Lift,
@@ -203,7 +215,8 @@ void FVelocityAndPressureField::SetMultipliers(
 	}
 }
 
-void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/)
+template<typename SolverParticlesOrRange>
+void FVelocityAndPressureField::UpdateForces(const SolverParticlesOrRange& InParticles, const FSolverReal /*Dt*/)
 {
 	const FSolverReal MaxVelocitySquared = (Private::VelocityFieldMaxVelocity > 0.f) ? FMath::Square((FSolverReal)Private::VelocityFieldMaxVelocity) : TNumericLimits<FSolverReal>::Max();
 
@@ -334,5 +347,7 @@ void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles
 		}
 	}
 }
+template CHAOS_API void FVelocityAndPressureField::UpdateForces(const FSolverParticles& InParticles, const FSolverReal /*Dt*/);
+template CHAOS_API void FVelocityAndPressureField::UpdateForces(const FSolverParticlesRange& InParticles, const FSolverReal /*Dt*/);
 
 }  // End namespace Chaos::Softs

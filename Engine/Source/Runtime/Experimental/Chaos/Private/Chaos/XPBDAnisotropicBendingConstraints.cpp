@@ -22,6 +22,84 @@ namespace Chaos::Softs {
 // @todo(chaos): the parallel threshold (or decision to run parallel) should probably be owned by the solver and passed to the constraint container
 extern int32 Chaos_XPBDBending_ParallelConstraintCount;
 
+FXPBDAnisotropicBendingConstraints::FXPBDAnisotropicBendingConstraints(const FSolverParticlesRange& InParticles,
+	const FTriangleMesh& TriangleMesh,
+	const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
+	const FCollectionPropertyConstFacade& PropertyCollection,
+	bool bTrimKinematicConstraints)
+	: Base(
+		InParticles,
+		TriangleMesh.GetUniqueAdjacentElements(),
+		WeightMaps.FindRef(GetXPBDAnisoBendingStiffnessWarpString(PropertyCollection, XPBDAnisoBendingStiffnessWarpName.ToString())),
+		WeightMaps.FindRef(GetXPBDAnisoBucklingStiffnessWarpString(PropertyCollection, XPBDAnisoBucklingStiffnessWarpName.ToString())),
+		GetRestAngleMapFromCollection(WeightMaps, PropertyCollection),
+		FSolverVec2(GetWeightedFloatXPBDAnisoBendingStiffnessWarp(PropertyCollection, MaxStiffness)),
+		(FSolverReal)GetXPBDAnisoBucklingRatio(PropertyCollection, 0.f),
+		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingStiffnessWarp(PropertyCollection, MaxStiffness)),
+		GetRestAngleValueFromCollection(PropertyCollection),
+		(ERestAngleConstructionType)GetXPBDAnisoRestAngleType(PropertyCollection, (int32)ERestAngleConstructionType::Use3DRestAngles),
+		bTrimKinematicConstraints,
+		MaxStiffness)
+	, StiffnessWeft(
+		FSolverVec2(GetWeightedFloatXPBDAnisoBendingStiffnessWeft(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoBendingStiffnessWeftString(PropertyCollection, XPBDAnisoBendingStiffnessWeftName.ToString())),
+		TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, StiffnessBias(
+		FSolverVec2(GetWeightedFloatXPBDAnisoBendingStiffnessBias(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoBendingStiffnessBiasString(PropertyCollection, XPBDAnisoBendingStiffnessBiasName.ToString())),
+		TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, BucklingStiffnessWeft(
+		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingStiffnessWeft(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoBucklingStiffnessWeftString(PropertyCollection, XPBDAnisoBucklingStiffnessWeftName.ToString())),
+		TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, BucklingStiffnessBias(
+		FSolverVec2(GetWeightedFloatXPBDAnisoBucklingStiffnessBias(PropertyCollection, MaxStiffness)),
+		WeightMaps.FindRef(GetXPBDAnisoBucklingStiffnessBiasString(PropertyCollection, XPBDAnisoBucklingStiffnessBiasName.ToString())),
+		TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+		ParticleOffset,
+		ParticleCount,
+		FPBDStiffness::DefaultTableSize,
+		FPBDStiffness::DefaultParameterFitBase,
+		MaxStiffness)
+	, DampingRatio(
+		FSolverVec2(GetWeightedFloatXPBDAnisoBendingDamping(PropertyCollection, MinDamping)).ClampAxes(MinDamping, MaxDamping),
+		WeightMaps.FindRef(GetXPBDAnisoBendingDampingString(PropertyCollection, XPBDAnisoBendingDampingName.ToString())),
+		TConstArrayView<TVec2<int32>>(ConstraintSharedEdges),
+		ParticleOffset,
+		ParticleCount)
+	, WarpWeftBiasBaseMultipliers(GenerateWarpWeftBiasBaseMultipliers(FaceVertexPatternPositions, TriangleMesh))
+	, XPBDAnisoBendingStiffnessWarpIndex(PropertyCollection)
+	, XPBDAnisoBendingStiffnessWeftIndex(PropertyCollection)
+	, XPBDAnisoBendingStiffnessBiasIndex(PropertyCollection)
+	, XPBDAnisoBendingDampingIndex(PropertyCollection)
+	, XPBDAnisoBucklingRatioIndex(PropertyCollection)
+	, XPBDAnisoBucklingStiffnessWarpIndex(PropertyCollection)
+	, XPBDAnisoBucklingStiffnessWeftIndex(PropertyCollection)
+	, XPBDAnisoBucklingStiffnessBiasIndex(PropertyCollection)
+	, XPBDAnisoFlatnessRatioIndex(PropertyCollection)
+	, XPBDAnisoRestAngleIndex(PropertyCollection)
+	, XPBDAnisoRestAngleTypeIndex(PropertyCollection)
+{
+	Lambdas.Init((FSolverReal)0., Constraints.Num());
+	InitColor(InParticles);
+}
+
 FXPBDAnisotropicBendingConstraints::FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
 	int32 InParticleOffset,
 	int32 InParticleCount,
@@ -252,14 +330,15 @@ TArray<FSolverVec3> FXPBDAnisotropicBendingConstraints::GenerateWarpWeftBiasBase
 	return WarpWeftBaseMultiplierResult;
 }
 
-void FXPBDAnisotropicBendingConstraints::InitColor(const FSolverParticles& InParticles)
+template<typename SolverParticlesOrRange>
+void FXPBDAnisotropicBendingConstraints::InitColor(const SolverParticlesOrRange& InParticles)
 {
 	// In dev builds we always color so we can tune the system without restarting. See Apply()
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
 	if (Constraints.Num() > Chaos_XPBDBending_ParallelConstraintCount)
 #endif
 	{
-		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoring(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
+		const TArray<TArray<int32>> ConstraintsPerColor = FGraphColoring::ComputeGraphColoringParticlesOrRange(Constraints, InParticles, ParticleOffset, ParticleOffset + ParticleCount);
 
 		// Reorder constraints based on color so each array in ConstraintsPerColor contains contiguous elements.
 		TArray<TVec4<int32>> ReorderedConstraints; 
@@ -460,7 +539,8 @@ void FXPBDAnisotropicBendingConstraints::SetProperties(
 	}
 }
 
-void FXPBDAnisotropicBendingConstraints::ApplyHelper(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues, 
+template<typename SolverParticlesOrRange>
+void FXPBDAnisotropicBendingConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues,
 	const FSolverVec3& ExpBucklingStiffnessValues, const FSolverReal DampingRatioValue) const
 {
 	const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
@@ -505,7 +585,8 @@ void FXPBDAnisotropicBendingConstraints::ApplyHelper(FSolverParticles& Particles
 	Lambda += DLambda;
 }
 
-void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+template<typename SolverParticlesOrRange>
+void FXPBDAnisotropicBendingConstraints::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FXPBDAnisotropicBendingConstraints_Apply);
 	SCOPE_CYCLE_COUNTER(STAT_XPBD_AnisoBending);
@@ -545,7 +626,7 @@ void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, cons
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDAnisotropicBendingConstraintsWithDamping(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector4*)&Constraints.GetData()[ColorStart],
 							&RestAngles.GetData()[ColorStart],
 							&IsBuckled.GetData()[ColorStart],
@@ -608,7 +689,7 @@ void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, cons
 						const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
 						ispc::ApplyXPBDAnisotropicBendingConstraintsWithDampingAndMaps(
 							(ispc::FVector4f*)Particles.GetPAndInvM().GetData(),
-							(const ispc::FVector3f*)Particles.X().GetData(),
+							(const ispc::FVector3f*)Particles.XArray().GetData(),
 							(ispc::FIntVector4*)&Constraints.GetData()[ColorStart],
 							&RestAngles.GetData()[ColorStart],
 							&IsBuckled.GetData()[ColorStart],
@@ -752,6 +833,8 @@ void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, cons
 		}
 	}
 }
+template CHAOS_API void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FXPBDAnisotropicBendingConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 void FXPBDAnisotropicBendingConstraints::ComputeGradTheta(const FSolverVec3& X0, const FSolverVec3& X1, const FSolverVec3& X2, const FSolverVec3& X3, const int32 Index, FSolverVec3& dThetadx, FSolverReal& Theta) 
 {

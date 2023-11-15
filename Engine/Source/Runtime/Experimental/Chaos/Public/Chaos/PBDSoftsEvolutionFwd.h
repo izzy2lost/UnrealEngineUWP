@@ -8,6 +8,8 @@ namespace UE::Math
 	template<typename T> struct TTransform;
 }
 
+class FPerSolverFieldSystem;
+
 namespace Chaos
 {
 	// Chaos types
@@ -39,10 +41,13 @@ namespace Chaos
 		using FSolverTransform3 = UE::Math::TTransform<FSolverReal>;
 		using FSolverAABB3 = TAABB<FSolverReal, 3>;
 		class FSolverParticles;
+		class FSolverParticlesRange;
+		class FSolverCollisionParticlesRange;
 		struct FPAndInvM;
 
 		// Softs solver class
 		class FPBDEvolution;
+		class FEvolution;
 
 		// Softs solver constraint classes
 		class FPBDSpringConstraints;
@@ -70,9 +75,11 @@ namespace Chaos
 		class FPBDTriangleMeshIntersections;
 		class FPBDTriangleMeshCollisions;
 		class FPBDSelfCollisionSphereConstraints;
+		class FPBDSoftBodyCollisionConstraint;
 
 		// Softs solver forces
 		class FVelocityAndPressureField;
 		using FVelocityField UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.") = FVelocityAndPressureField;
+		class FExternalForces;
 	}  // End namespace Softs
 }  // End namespace Chaos

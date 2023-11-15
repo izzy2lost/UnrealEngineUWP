@@ -87,7 +87,8 @@ public:
 		}
 	}
 
-	void Apply(FSolverParticles& Particles, const FSolverReal Dt, const int32 ConstraintIndex) const
+	template<typename SolverParticlesOrRange>
+	void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex) const
 	{
 		const int32 i = ConstraintIndex;
 		const TVector<int32, 4>& Constraint = Constraints[i];
@@ -114,7 +115,8 @@ public:
 		}
 	}
 
-	void Apply(FSolverParticles& InParticles, const FSolverReal Dt) const
+	template<typename SolverParticlesOrRange>
+	void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const
 	{
 		for (int32 i = 0; i < Constraints.Num(); ++i)
 		{

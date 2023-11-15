@@ -45,7 +45,8 @@ namespace Chaos::Softs {
 	{
 	}
 
-	void FPBDSelfCollisionSphereConstraintsBase::Init(const FSolverParticles& Particles)
+	template<typename SolverParticlesOrRange>
+	void FPBDSelfCollisionSphereConstraintsBase::Init(const SolverParticlesOrRange& Particles)
 	{
 		Constraints.Reset();
 
@@ -81,8 +82,10 @@ namespace Chaos::Softs {
 		constexpr int32 CellRadius = 1; // We set the cell size of the spatial hash such that we only need to look 1 cell away to find proximities.
 		constexpr int32 MaxNumExpectedConnectionsPerParticle = 3;
 		const int32 MaxNumExpectedConnections = MaxNumExpectedConnectionsPerParticle * Entries.Num();
+
+		const TConstArrayView<FSolverVec3> ReferencePositionsView = ReferencePositions ? Particles.GetConstArrayView(*ReferencePositions) : TConstArrayView<FSolverVec3>();
 		Constraints = SpatialHash.FindAllSelfProximities(CellRadius, MaxNumExpectedConnections,
-			[this, &Particles, DiamSq](const int32 i1, const int32 i2)
+			[this, &Particles, DiamSq, &ReferencePositionsView](const int32 i1, const int32 i2)
 		{
 			const FSolverReal CombinedMass = Particles.InvM(i1) + Particles.InvM(i2);
 			if (CombinedMass < (FSolverReal)1e-7)
@@ -91,7 +94,7 @@ namespace Chaos::Softs {
 			}
 			if (ReferencePositions)
 			{
-				if (FSolverVec3::DistSquared((*ReferencePositions)[i1], (*ReferencePositions)[i2]) < DiamSq)
+				if (FSolverVec3::DistSquared(ReferencePositionsView[i1], ReferencePositionsView[i2]) < DiamSq)
 				{
 					return false;
 				}
@@ -100,8 +103,11 @@ namespace Chaos::Softs {
 		}
 		);
 	}
+	template CHAOS_API void FPBDSelfCollisionSphereConstraintsBase::Init(const FSolverParticles& Particles);
+	template CHAOS_API void FPBDSelfCollisionSphereConstraintsBase::Init(const FSolverParticlesRange& Particles);
 
-	void FPBDSelfCollisionSphereConstraintsBase::Apply(FSolverParticles& Particles, const FSolverReal Dt) const
+	template<typename SolverParticlesOrRange>
+	void FPBDSelfCollisionSphereConstraintsBase::Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const
 	{
 		const FSolverReal Diameter = 2.f * Radius;
 		const FSolverReal DiamSq = FMath::Square(Diameter);
@@ -132,6 +138,8 @@ namespace Chaos::Softs {
 			}
 		}
 	}
+	template CHAOS_API void FPBDSelfCollisionSphereConstraintsBase::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+	template CHAOS_API void FPBDSelfCollisionSphereConstraintsBase::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 	void FPBDSelfCollisionSphereConstraints::SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,

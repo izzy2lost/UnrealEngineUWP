@@ -6,6 +6,7 @@
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
 #include "Chaos/PBDStiffness.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Containers/Array.h"
 
 namespace Chaos::Softs
@@ -14,6 +15,34 @@ namespace Chaos::Softs
 class FPBDAxialSpringConstraintsBase
 {
 public:
+
+	FPBDAxialSpringConstraintsBase(
+		const FSolverParticlesRange& Particles,
+		const TArray<TVec3<int32>>& InConstraints,
+		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
+		const FSolverVec2& InStiffness,
+		bool bTrimKinematicConstraints,
+		FSolverReal MaxStiffness = FPBDStiffness::DefaultPBDMaxStiffness)
+		: Constraints(TrimConstraints(InConstraints,
+			[&Particles, bTrimKinematicConstraints](int32 Index0, int32 Index1, int32 Index2)
+			{
+				return bTrimKinematicConstraints && Particles.InvM(Index0) == (FSolverReal)0. && Particles.InvM(Index1) == (FSolverReal)0. && Particles.InvM(Index2) == (FSolverReal)0.;
+			}))
+		, ParticleOffset(0)
+		, ParticleCount(Particles.GetRangeSize())
+		, Stiffness(
+			InStiffness,
+			StiffnessMultipliers,
+			TConstArrayView<TVec3<int32>>(Constraints),
+			ParticleOffset,
+			ParticleCount,
+			FPBDStiffness::DefaultTableSize,
+			FPBDStiffness::DefaultParameterFitBase,
+			MaxStiffness)
+	{
+		Init(Particles);
+	}
+
 	FPBDAxialSpringConstraintsBase(
 		const FSolverParticles& Particles,
 		int32 InParticleOffset,
@@ -50,7 +79,8 @@ public:
 	void ApplyProperties(const FSolverReal Dt, const int32 NumIterations) { Stiffness.ApplyPBDValues(Dt, NumIterations); }
 
 protected:
-	inline FSolverVec3 GetDelta(const FSolverParticles& Particles, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue) const
+	template<typename SolverParticlesOrRange>
+	inline FSolverVec3 GetDelta(const SolverParticlesOrRange& Particles, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue) const
 	{
 		const TVec3<int32>& Constraint = Constraints[ConstraintIndex];
 		const int32 i1 = Constraint[0];
@@ -79,7 +109,8 @@ protected:
 	}
 
 private:
-	FSolverReal FindBary(const FSolverParticles& Particles, const int32 i1, const int32 i2, const int32 i3)
+	template<typename SolverParticlesOrRange>
+	FSolverReal FindBary(const SolverParticlesOrRange& Particles, const int32 i1, const int32 i2, const int32 i3)
 	{
 		const FSolverVec3& P1 = Particles.X(i1);
 		const FSolverVec3& P2 = Particles.X(i2);
@@ -117,7 +148,8 @@ private:
 		return TrimmedConstraints.Array();
 	}
 
-	void Init(const FSolverParticles& Particles)
+	template<typename SolverParticlesOrRange>
+	void Init(const SolverParticlesOrRange& Particles)
 	{
 		Barys.Reset(Constraints.Num());
 		Dists.Reset(Constraints.Num());

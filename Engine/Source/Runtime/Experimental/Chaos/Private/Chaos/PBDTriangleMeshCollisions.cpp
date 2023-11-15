@@ -2,6 +2,7 @@
 #include "Chaos/PBDTriangleMeshCollisions.h"
 #include "Chaos/Plane.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Chaos/Triangle.h"
 #include "Chaos/TriangleCollisionPoint.h"
 #include "Chaos/TriangleMesh.h"
@@ -22,8 +23,8 @@ struct FEdgeFaceIntersection
 };
 
 // Returned array has NOT been shrunk
-template<typename SpatialAccelerator>
-static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const SpatialAccelerator& Spatial, const FSolverParticles& Particles, TArray<FEdgeFaceIntersection>& Intersections)
+template<typename SpatialAccelerator, typename SolverParticlesOrRange>
+static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const SpatialAccelerator& Spatial, const SolverParticlesOrRange& Particles, TArray<FEdgeFaceIntersection>& Intersections)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_IntersectionQuery);
 
@@ -1120,7 +1121,8 @@ namespace GIA
 // Calculating gradient direction to minimize contour length.
 namespace ContourMinimization
 {
-	static void BuildLocalContourMinimizationIntersection(const FEdgeFaceIntersection& EdgeFaceIntersection, const FTriangleMesh& TriangleMesh, const FSegmentMesh& SegmentMesh, const FSolverParticles& Particles, FPBDTriangleMeshCollisions::FContourMinimizationIntersection& ContourIntersection)
+	template<typename SolverParticlesOrRange>
+	static void BuildLocalContourMinimizationIntersection(const FEdgeFaceIntersection& EdgeFaceIntersection, const FTriangleMesh& TriangleMesh, const FSegmentMesh& SegmentMesh, const SolverParticlesOrRange& Particles, FPBDTriangleMeshCollisions::FContourMinimizationIntersection& ContourIntersection)
 	{
 		ContourIntersection.EdgeVertices = SegmentMesh.GetElements()[EdgeFaceIntersection.EdgeIndex];
 		ContourIntersection.FaceVertices = TriangleMesh.GetElements()[EdgeFaceIntersection.FaceIndex];
@@ -1183,7 +1185,8 @@ namespace ContourMinimization
 		ContourIntersection.GlobalGradientVector = ContourIntersection.LocalGradientVector;
 	}
 
-	static void BuildLocalContourMinimizationIntersections(const FTriangleMesh& TriangleMesh, const FSolverParticles& Particles, const TArray<FEdgeFaceIntersection>& Intersections, TArray<FPBDTriangleMeshCollisions::FContourMinimizationIntersection>& ContourMinimizationIntersections)
+	template<typename SolverParticlesOrRange>
+	static void BuildLocalContourMinimizationIntersections(const FTriangleMesh& TriangleMesh, const SolverParticlesOrRange& Particles, const TArray<FEdgeFaceIntersection>& Intersections, TArray<FPBDTriangleMeshCollisions::FContourMinimizationIntersection>& ContourMinimizationIntersections)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildLocalContourMinimizationIntersections);
 		const FSegmentMesh& SegmentMesh = TriangleMesh.GetSegmentMesh();
@@ -1199,7 +1202,8 @@ namespace ContourMinimization
 		);
 	}
 
-	static void BuildGlobalContourMinimizationIntersections(const FTriangleMesh& TriangleMesh, const FSolverParticles& Particles, const TArray<GIA::FIntersectionContourPair>& IntersectionContours, TArray<FPBDTriangleMeshCollisions::FContourMinimizationIntersection>& ContourMinimizationIntersections)
+	template<typename SolverParticlesOrRange>
+	static void BuildGlobalContourMinimizationIntersections(const FTriangleMesh& TriangleMesh, const SolverParticlesOrRange& Particles, const TArray<GIA::FIntersectionContourPair>& IntersectionContours, TArray<FPBDTriangleMeshCollisions::FContourMinimizationIntersection>& ContourMinimizationIntersections)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildGlobalContourMinimizationIntersections);
 		const FSegmentMesh& SegmentMesh = TriangleMesh.GetSegmentMesh();
@@ -1270,7 +1274,8 @@ struct FPBDTriangleMeshCollisions::FScratchBuffers
 	}
 };
 
-void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const FSolverReal MinProximityQueryRadius)
+template<typename SolverParticlesOrRange>
+void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius)
 {
 	if (TriangleMesh.GetNumElements() == 0)
 	{
@@ -1331,8 +1336,11 @@ void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const F
 		}
 	}
 }
+template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticles& Particles, const FSolverReal MinProximityQueryRadius);
+template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticlesRange& Particles, const FSolverReal MinProximityQueryRadius);
 
-void FPBDTriangleMeshCollisions::PostStepInit(const FSolverParticles& Particles)
+template<typename SolverParticlesOrRange>
+void FPBDTriangleMeshCollisions::PostStepInit(const SolverParticlesOrRange& Particles)
 {
 	if (TriangleMesh.GetNumElements() == 0)
 	{
@@ -1372,4 +1380,6 @@ void FPBDTriangleMeshCollisions::PostStepInit(const FSolverParticles& Particles)
 		}
 	}
 }
+template CHAOS_API void FPBDTriangleMeshCollisions::PostStepInit(const FSolverParticles& Particles);
+template CHAOS_API void FPBDTriangleMeshCollisions::PostStepInit(const FSolverParticlesRange& Particles);
 }  // End namespace Chaos::Softs

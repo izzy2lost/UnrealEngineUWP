@@ -63,6 +63,10 @@ class FPBDEvolution : public TArrayCollection
 	const FSolverParticles& Particles() const { return MParticles; }
 	FSolverParticles& Particles() { return MParticles; }
 	const TPBDActiveView<FSolverParticles>& ParticlesActiveView() { return MParticlesActiveView; }
+	// These versions just help share code with Softs::FEvolution which follows UE naming standards.
+	const FSolverParticles& GetParticles() const { return MParticles; }
+	FSolverParticles& GetParticles() { return MParticles; }
+
 
 	const TArray<uint32>& ParticleGroupIds() const { return MParticleGroupIds; }
 

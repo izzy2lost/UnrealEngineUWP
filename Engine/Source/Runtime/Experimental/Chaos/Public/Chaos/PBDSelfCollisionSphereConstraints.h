@@ -6,6 +6,7 @@
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 #include "Containers/Set.h"
 
 namespace Chaos::Softs
@@ -23,9 +24,11 @@ namespace Chaos::Softs
 
 		virtual ~FPBDSelfCollisionSphereConstraintsBase() {}
 
-		CHAOS_API void Init(const FSolverParticles& Particles);
+		template<typename SolverParticlesOrRange>
+		CHAOS_API void Init(const SolverParticlesOrRange& Particles);
 
-		CHAOS_API void Apply(FSolverParticles& InParticles, const FSolverReal Dt) const;
+		template<typename SolverParticlesOrRange>
+		CHAOS_API void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const;
 
 		const TArray<TVec2<int32>>& GetConstraints() const { return Constraints; }
 		const TSet<int32>* GetVertexSet() const { return VertexSetNoOffset; }
