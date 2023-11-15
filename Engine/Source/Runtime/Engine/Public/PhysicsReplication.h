@@ -99,6 +99,7 @@ struct FReplicatedPhysicsTargetAsync
 		, AverageReceiveInterval(5.f)
 		, PrevServerFrame(INDEX_NONE)
 		, bWaiting(false)
+		, AccumulatedSleepSeconds(0.0f)
 	{ }
 
 	/** The target state replicated by server */
@@ -136,6 +137,9 @@ struct FReplicatedPhysicsTargetAsync
 
 	/** If this target is waiting for up-to-date data? */
 	bool bWaiting;
+
+	/** Accumulated seconds asleep */
+	float AccumulatedSleepSeconds;
 };
 
 class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
