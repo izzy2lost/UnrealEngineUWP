@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
+
 #if PLATFORM_VISIONOS
 #include "RHIFwd.h"
 #import <CompositorServices/CompositorServices.h>
