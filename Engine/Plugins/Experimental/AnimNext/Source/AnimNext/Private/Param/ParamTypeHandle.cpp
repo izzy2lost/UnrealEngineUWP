@@ -394,7 +394,7 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 			Handle.SetParameterType(EParamType::AnimNextGraphReferencePose);
 		}
 	}
-	else if(InProperty->IsA<FObjectProperty>() || InProperty->IsA<FObjectPtrProperty>())
+	else if(InProperty->IsA<FObjectProperty>())
 	{
 		const UClass* Class = CastField<FObjectPropertyBase>(InProperty)->PropertyClass;
 		if (Class == UObject::StaticClass())
@@ -423,7 +423,7 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 		else if (InProperty->IsA<FObjectPropertyBase>())
 		{
 			UClass* Class = CastField<FObjectPropertyBase>(InProperty)->PropertyClass;
-			if (InProperty->IsA<FObjectProperty>() || InProperty->IsA<FObjectPtrProperty>())
+			if (InProperty->IsA<FObjectProperty>())
 			{
 				Handle.SetParameterType(EParamType::Custom);
 				Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Object, FAnimNextParamType::EContainerType::None, Class));
@@ -496,7 +496,7 @@ FParamTypeHandle FParamTypeHandle::FromProperty(const FProperty* InProperty)
 			else if (InnerProperty->IsA<FObjectPropertyBase>())
 			{
 				UClass* Class = CastField<FObjectPropertyBase>(InnerProperty)->PropertyClass;
-				if (InnerProperty->IsA<FObjectProperty>() || InnerProperty->IsA<FObjectPtrProperty>())
+				if (InnerProperty->IsA<FObjectProperty>())
 				{
 					Handle.SetParameterType(EParamType::Custom);
 					Handle.SetCustomTypeIndex(GetOrAllocateCustomTypeIndex(FAnimNextParamType::EValueType::Object, FAnimNextParamType::EContainerType::Array, Class));

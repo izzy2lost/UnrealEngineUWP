@@ -18,7 +18,7 @@ namespace EpicGames.UHT.Types
 	public class UhtObjectPtrProperty : UhtObjectProperty
 	{
 		/// <inheritdoc/>
-		public override string EngineClassName => "ObjectPtrProperty";
+		public override string EngineClassName => "ObjectProperty";
 
 		/// <inheritdoc/>
 		protected override string CppTypeText => "ObjectPtr";
@@ -38,7 +38,7 @@ namespace EpicGames.UHT.Types
 		public UhtObjectPtrProperty(UhtPropertySettings propertySettings, UhtClass classObj, EPropertyFlags extraFlags = EPropertyFlags.None)
 			: base(propertySettings, classObj)
 		{
-			PropertyFlags |= extraFlags | EPropertyFlags.UObjectWrapper;
+			PropertyFlags |= extraFlags | EPropertyFlags.TObjectPtr | EPropertyFlags.UObjectWrapper;
 			PropertyCaps |= UhtPropertyCaps.PassCppArgsByRef;
 		}
 
@@ -76,13 +76,13 @@ namespace EpicGames.UHT.Types
 		/// <inheritdoc/>
 		public override StringBuilder AppendMemberDecl(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, int tabs)
 		{
-			return AppendMemberDecl(builder, context, name, nameSuffix, tabs, "FObjectPtrPropertyParams");
+			return AppendMemberDecl(builder, context, name, nameSuffix, tabs, "FObjectPropertyParams");
 		}
 
 		/// <inheritdoc/>
 		public override StringBuilder AppendMemberDef(StringBuilder builder, IUhtPropertyMemberContext context, string name, string nameSuffix, string? offset, int tabs)
 		{
-			AppendMemberDefStart(builder, context, name, nameSuffix, offset, tabs, "FObjectPtrPropertyParams", "UECodeGen_Private::EPropertyGenFlags::Object | UECodeGen_Private::EPropertyGenFlags::ObjectPtr");
+			AppendMemberDefStart(builder, context, name, nameSuffix, offset, tabs, "FObjectPropertyParams", "UECodeGen_Private::EPropertyGenFlags::Object | UECodeGen_Private::EPropertyGenFlags::ObjectPtr");
 			AppendMemberDefRef(builder, context, Class, false);
 			AppendMemberDefEnd(builder, context, name, nameSuffix);
 			return builder;

@@ -1037,13 +1037,11 @@ FField* FField::CreateFromUField(UField* InField)
 	}
 	else if (UFieldClass == UObjectProperty::StaticClass())
 	{
+		FObjectProperty* ObjectProperty = new FObjectProperty(InField);
+		NewField = ObjectProperty;
 		if (FLinkerLoad::IsImportLazyLoadEnabled())
 		{
-			NewField = new FObjectPtrProperty(InField);
-		}
-		else
-		{
-			NewField = new FObjectProperty(InField);
+			ObjectProperty->SetPropertyFlags(CPF_TObjectPtrWrapper);
 		}
 	}
 	else if (UFieldClass == UWeakObjectProperty::StaticClass())

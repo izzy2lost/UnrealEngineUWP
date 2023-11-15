@@ -424,7 +424,7 @@ bool FPCGAttributePropertyMultipleDepthTest::RunTest(const FString& Parameters)
 	TestStruct.DepthStruct.FloatValue = 0.324f;
 	TestStruct.DepthStruct.Depth2Struct.IntValue = 5;
 
-	const FObjectPtrProperty* ObjectProperty = CastField<FObjectPtrProperty>(FPCGAttributeExtractorTestStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStruct, Object)));
+	const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(FPCGAttributeExtractorTestStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStruct, Object)));
 	const FProperty* DepthStructProperty = FPCGAttributeExtractorTestStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStruct, DepthStruct));
 	const FProperty* Depth2StructProperty = FPCGAttributeExtractorTestStructDepth1::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FPCGAttributeExtractorTestStructDepth1, Depth2Struct));
 

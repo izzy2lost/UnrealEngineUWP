@@ -96,7 +96,7 @@ enum EPropertyExportCPPFlags
 	CPPF_ArgumentOrReturnValue		=	0x00000002,
 	/** Indicates thet we are exporting this property's CPP text for C++ definition of a function. */
 	CPPF_Implementation				=	0x00000004,
-	/** Indicates thet we are exporting this property's CPP text with an custom type name */
+	/** Indicates that we are exporting this property's CPP text with an custom type name */
 	CPPF_CustomTypeName				=	0x00000008,
 	/** No 'const' keyword */
 	CPPF_NoConst					=	0x00000010,
@@ -106,6 +106,8 @@ enum EPropertyExportCPPFlags
 	CPPF_NoStaticArray				=	0x00000040,
 	/** Blueprint compiler generated C++ code */
 	CPPF_BlueprintCppBackend		=	0x00000080,
+	/** Indicates to not use TObjectPtr but use USomething* instead */
+	CPPF_NoTObjectPtr				=	0x00000100,
 };
 
 namespace EExportedDeclaration
@@ -2887,6 +2889,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual bool AllowCrossLevel() const override;
 private:
 	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
+	virtual void CopyValuesInternal(void* Dest, void const* Src, int32 Count) const override;
 public:
 	virtual void CopySingleValueToScriptVM( void* Dest, void const* Src ) const override;
 	virtual void CopySingleValueFromScriptVM( void* Dest, void const* Src ) const override;
@@ -2894,6 +2897,7 @@ public:
 	virtual void CopyCompleteValueFromScriptVM( void* Dest, void const* Src ) const override;
 	virtual void CopyCompleteValueToScriptVM_InContainer( void* OutValue, void const* InContainer ) const override;
 	virtual void CopyCompleteValueFromScriptVM_InContainer( void* OutContainer, void const* InValue ) const override;
+	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
 	// End of FProperty interface
 
 	// FObjectPropertyBase interface
@@ -2926,61 +2930,7 @@ public:
 	}
 };
 
-//
-// Describes a reference variable to another object which may be nil.
-//
-class COREUOBJECT_API FObjectPtrProperty : public FObjectProperty
-{
-	DECLARE_FIELD(FObjectPtrProperty, FObjectProperty, CASTCLASS_FObjectPtrProperty)
-
-	using Super::Super;
-
-#if WITH_EDITORONLY_DATA
-	explicit FObjectPtrProperty(UField* InField)
-		: FObjectProperty(InField)
-	{
-	}
-#endif // WITH_EDITORONLY_DATA
-
-	// UHT interface
-	virtual FString GetCPPMacroType( FString& ExtendedTypeText ) const  override;
-	virtual FString GetCPPType( FString* ExtendedTypeText, uint32 CPPExportFlags ) const override;
-	// End of UHT interface
-
-	// FProperty interface
-	virtual bool SameType(const FProperty* Other) const override;
-	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
-	virtual void SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const override;
-	virtual void CopySingleValueToScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopySingleValueFromScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueToScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueFromScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueToScriptVM_InContainer( void* OutValue, void const* InContainer ) const override;
-	virtual void CopyCompleteValueFromScriptVM_InContainer( void* OutContainer, void const* InValue ) const override;
-	// End of FProperty interface
-
-	// Helper method for sharing code with FClassPtrProperty even though one doesn't inherit from the other
-	static void StaticSerializeItem(const FObjectPropertyBase* ObjectProperty, FStructuredArchive::FSlot Slot, void* Value, void const* Defaults);
-
-	/// @brief Get the property value as FObjectPtr
-	/// @param PropertyValueAddress address of the property
-	/// @return reference to the FObjectPtr value
-	FObjectPtr& GetObjectPropertyValueAsPtr(const void* PropertyValueAddress) const;
-
-	// FObjectProperty interface
-	virtual TObjectPtr<UObject> GetObjectPtrPropertyValue(const void* PropertyValueAddress) const override;
-	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
-	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
-	virtual void SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const override;
-	virtual void SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex = 0) const override;
-	virtual bool AllowObjectTypeReinterpretationTo(const FObjectPropertyBase* Other) const override;
-
-
-private:
-	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
-public:
-	// End of FObjectProperty interface
-};
+using FObjectPtrProperty UE_DEPRECATED(5.4, "FObjectPtrProperty is deprecated using FObjectProperty instead.")  = FObjectProperty;
 
 //
 // Describes a reference variable to another object which may be nil, and may turn nil at any point
@@ -3291,50 +3241,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 };
 
-//
-// Describes a reference variable to another object which may be nil.
-//
-class COREUOBJECT_API FClassPtrProperty : public FClassProperty
-{
-	DECLARE_FIELD(FClassPtrProperty, FClassProperty, CASTCLASS_FClassPtrProperty)
-
-	using Super::Super;
-
-#if WITH_EDITORONLY_DATA
-	explicit FClassPtrProperty(UField* InField)
-		: FClassProperty(InField)
-	{
-	}
-#endif // WITH_EDITORONLY_DATA
-
-	// UHT interface
-	virtual FString GetCPPMacroType( FString& ExtendedTypeText ) const  override;
-	virtual FString GetCPPType( FString* ExtendedTypeText, uint32 CPPExportFlags ) const override;
-	// End of UHT interface
-
-	// FProperty interface
-	virtual bool SameType(const FProperty* Other) const override;
-	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
-	virtual void SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const override;
-	virtual void CopySingleValueToScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopySingleValueFromScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueToScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueFromScriptVM( void* Dest, void const* Src ) const override;
-	virtual void CopyCompleteValueToScriptVM_InContainer( void* OutValue, void const* InContainer ) const override;
-	virtual void CopyCompleteValueFromScriptVM_InContainer( void* OutContainer, void const* InValue ) const override;
-	// End of FProperty interface
-
-	// FObjectProperty interface
-	virtual UObject* GetObjectPropertyValue(const void* PropertyValueAddress) const override;
-	virtual UObject* GetObjectPropertyValue_InContainer(const void* ContainerAddress, int32 ArrayIndex = 0) const override;
-	virtual void SetObjectPropertyValue(void* PropertyValueAddress, UObject* Value) const override;
-	virtual void SetObjectPropertyValue_InContainer(void* ContainerAddress, UObject* Value, int32 ArrayIndex = 0) const override;
-private:
-	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
-public:
-	// End of FObjectProperty interface
-};
-
+using FClassPtrProperty UE_DEPRECATED(5.4, "FClassPtrProperty is deprecated use FClassProperty instead.") = FClassProperty;
 /*-----------------------------------------------------------------------------
 	FSoftClassProperty.
 -----------------------------------------------------------------------------*/

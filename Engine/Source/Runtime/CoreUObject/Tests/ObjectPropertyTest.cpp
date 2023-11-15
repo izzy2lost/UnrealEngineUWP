@@ -150,17 +150,24 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::CheckValidAddressNonNullable")
 class FMockArchive : public FArchive
 {
 public:
-	TFunction<void(FObjectPtr& Value)> OnFObjectPtr;
-	virtual FArchive& operator<<(FObjectPtr& Value)
+	
+	FObjectPtr ObjectPtrValue;
+	virtual FArchive& operator<<(FObjectPtr& Value) override
 	{
-		if (OnFObjectPtr)
-			OnFObjectPtr(Value);
+		Value = ObjectPtrValue;
+		return *this;
+	}
+
+	UObject* ObjectValue;
+	virtual FArchive& operator<<(UObject*& Value) override
+	{
+		Value = ObjectValue;
 		return *this;
 	}
 };
 
 template<typename T>
-static void TestSerializeItem(FName ObjectName)
+static void TestSerializeItem(FName ObjectName, TFunctionRef<void(FMockArchive&, UObject*)> SetArchiveValue)
 {
 	UClass* Class = T::StaticClass();
 	FObjectProperty* Property = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtr")));
@@ -192,15 +199,13 @@ static void TestSerializeItem(FName ObjectName)
 	{
 		//verify that if the property is null no reads are triggered
 		FMockArchive MockArchive;
-		MockArchive.OnFObjectPtr = [&](FObjectPtr& Value)
-		{
-			Value = PlaceHolderExport;
-		};
+		SetArchiveValue(MockArchive, PlaceHolderExport);
+		
 
 		FBinaryArchiveFormatter Formatter(MockArchive);
 		FStructuredArchive Ar(Formatter);
 		FStructuredArchiveSlot Slot = Ar.Open();
-		FObjectPtrProperty::StaticSerializeItem(Property, Slot, &Obj->ObjectPtr, nullptr);
+		Property->SerializeItem(Slot, &Obj->ObjectPtr, nullptr);
 		CHECK(ResolveCount == 0);
 		CHECK(*reinterpret_cast<ULinkerPlaceholderExportObject**>(&Obj->ObjectPtr) == PlaceHolderExport);
 
@@ -208,16 +213,12 @@ static void TestSerializeItem(FName ObjectName)
 	{
 		//verify that if the property is not null no reads are triggered
 		FMockArchive MockArchive;
-		MockArchive.OnFObjectPtr = [&](FObjectPtr& Value)
-		{
-			Value = PlaceHolderClass;
-		};
-
+		SetArchiveValue(MockArchive, PlaceHolderClass);
 		FBinaryArchiveFormatter Formatter(MockArchive);
 		FStructuredArchive Ar(Formatter);
 		FStructuredArchiveSlot Slot = Ar.Open();
 		Obj->ObjectPtr = Other;
-		FObjectPtrProperty::StaticSerializeItem(Property, Slot, &Obj->ObjectPtr, nullptr);
+		Property->SerializeItem(Slot, &Obj->ObjectPtr, nullptr);
 		CHECK(ResolveCount == 0);
 		CHECK(*reinterpret_cast<ULinkerPlaceholderClass**>(&Obj->ObjectPtr) == PlaceHolderClass);
 	}
@@ -225,12 +226,18 @@ static void TestSerializeItem(FName ObjectName)
 
 TEST_CASE("UE::CoreUObject::FObjectPtrProperty::StaticSerializeItem")
 {
-	TestSerializeItem<UObjectPtrTestClassWithRef>(TEXT("Object1"));
+	TestSerializeItem<UObjectPtrTestClassWithRef>(TEXT("Object1"), [](FMockArchive& Ar, UObject* Value)
+		{
+			Ar.ObjectPtrValue = Value;
+		});
 }
 
 TEST_CASE("UE::CoreUObject::FObjectProperty::StaticSerializeItem")
 {
-	TestSerializeItem<UObjectWithRawProperty>(TEXT("Object2"));
+	TestSerializeItem<UObjectWithRawProperty>(TEXT("Object2"), [](FMockArchive& Ar, UObject* Value)
+		{
+			Ar.ObjectValue = Value;
+		});
 }
 
 
@@ -384,7 +391,7 @@ TEST_CASE("UE::CoreUObject::FObjectProperty::ParseObjectPropertyValue")
 #endif
 
 
-TEST_CASE("UE::FObjectPtrProperty::Identical")
+TEST_CASE("UE::FObjectProperty::Identical::ObjectPtr")
 {
 	int ResolveCount = 0;
 #if UE_WITH_OBJECT_HANDLE_TRACKING
@@ -440,5 +447,104 @@ TEST_CASE("UE::FObjectPtrProperty::Identical")
 	CHECK(ResolveCount == 2);
 #endif
 	
+}
+
+TEST_CASE("UE::FObjectProperty::Identical::Object")
+{
+	UClass* Class = UObjectWithRawProperty::StaticClass();
+	FObjectProperty* Property = CastField<FObjectProperty>(Class->FindPropertyByName(TEXT("ObjectPtr")));
+	REQUIRE(Property != nullptr);
+
+	UPackage* TestPackage = NewObject<UPackage>(nullptr, TEXT("Test/TestPackageName"), RF_Transient);
+	TestPackage->AddToRoot();
+	UPackage* TestPackage2 = NewObject<UPackage>(nullptr, TEXT("Test/TestPackageName2"), RF_Transient);
+	TestPackage2->AddToRoot();
+	ON_SCOPE_EXIT
+	{
+		TestPackage->RemoveFromRoot();
+		TestPackage2->RemoveFromRoot();
+	};
+	TObjectPtr<UObject> ObjWithRef = NewObject<UObjectWithRawProperty>(TestPackage, TEXT("UObjectWithRawProperty"));
+	TObjectPtr<UObject> Obj1 = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("UObjectPtrTestClass"));
+	TObjectPtr<UObject> Obj2 = NewObject<UObjectPtrTestClass>(TestPackage2, TEXT("UObjectPtrTestClass"));
+
+	CHECK(Property->Identical(&Obj1, &Obj1, 0u));
+	CHECK(!Property->Identical(&Obj1, nullptr, 0u));
+	CHECK(!Property->Identical(nullptr, &Obj1, 0u));
+	CHECK(!Property->Identical(&ObjWithRef, &Obj2, 0u));
+	CHECK(!Property->Identical(&ObjWithRef, &Obj2, 0u));
+	CHECK(!Property->Identical(&Obj1, &ObjWithRef, PPF_DeepComparison));
+
+	CHECK(Property->Identical(&Obj1, &Obj2, PPF_DeepComparison));
+}
+
+TEST_CASE("UE::FObjectProperty::CopySingleValue")
+{
+	FObjectProperty* RawProperty = CastField<FObjectProperty>(UObjectWithRawProperty::StaticClass()->FindPropertyByName(TEXT("ObjectPtr")));
+	REQUIRE(RawProperty != nullptr);
+
+	FObjectProperty* PtrProperty = CastField<FObjectProperty>(UObjectPtrTestClassWithRef::StaticClass()->FindPropertyByName(TEXT("ObjectPtr")));
+	REQUIRE(PtrProperty != nullptr);
+
+	UPackage* TestPackage = NewObject<UPackage>(nullptr, TEXT("Test/CopySingleValue"), RF_Transient);
+	TestPackage->AddToRoot();
+	UPackage* TestPackage2 = NewObject<UPackage>(nullptr, TEXT("Test/CopySingleValue2"), RF_Transient);
+	TestPackage2->AddToRoot();
+	ON_SCOPE_EXIT
+	{
+		TestPackage->RemoveFromRoot();
+		TestPackage2->RemoveFromRoot();
+	};
+	TObjectPtr<UObject> ObjWithRawRef = NewObject<UObjectWithRawProperty>(TestPackage, TEXT("UObjectWithRawProperty"));
+	TObjectPtr<UObject> ObjWithPtrRef = NewObject<UObjectPtrTestClassWithRef>(TestPackage, TEXT("UObjectWithPtrProperty"));
+	UObject* Obj1 = NewObject<UObjectPtrTestClass>(TestPackage, TEXT("UObjectPtrTestClass"));
+	UObject* Obj2 = NewObject<UObjectPtrTestClass>(TestPackage2, TEXT("UObjectPtrTestClass2"));
+	UObject* RawPtr = Obj1;
+	TObjectPtr<UObject> PtrObj2 = Obj2;
+
+#if UE_WITH_OBJECT_HANDLE_TRACKING
+	FObjectHandle Handle = MakeUnresolvedHandle(Obj2);
+	PtrObj2 = TObjectPtr<UObject>(FObjectPtr(Handle) );
+#endif
+	//copy an unresolved TObjectPtr to an UObject* pointer. this should resolve the pointer
+	RawProperty->CopySingleValue(&RawPtr, &PtrObj2);
+	CHECK(RawPtr == Obj2);
+
+	PtrObj2 = nullptr;
+	//copy an UObject* to a TObjectPtr
+	PtrProperty->CopySingleValue(&PtrObj2, &RawPtr);
+	CHECK(PtrObj2 == RawPtr);
+
+	CHECK(RawProperty->GetClass() == PtrProperty->GetClass());
+
+}
+
+
+TEST_CASE("UE::FObjectProperty::GetCPPType")
+{
+	FObjectProperty* RawProperty = CastField<FObjectProperty>(UObjectWithRawProperty::StaticClass()->FindPropertyByName(TEXT("ObjectPtr")));
+	REQUIRE(RawProperty != nullptr);
+
+	FObjectProperty* PtrProperty = CastField<FObjectProperty>(UObjectPtrTestClassWithRef::StaticClass()->FindPropertyByName(TEXT("ObjectPtr")));
+	REQUIRE(PtrProperty != nullptr);
+
+	FString RawType = RawProperty->GetCPPType(nullptr, 0u);
+	CHECK(RawType == TEXT("UObjectPtrTestClass*"));
+
+	RawType = RawProperty->GetCPPType(nullptr, EPropertyExportCPPFlags::CPPF_NoTObjectPtr);
+	CHECK(RawType == TEXT("UObjectPtrTestClass*"));
+
+	FString PtrType = PtrProperty->GetCPPType(nullptr, 0u);
+	CHECK(PtrType == TEXT("TObjectPtr<UObjectPtrTestClass>"));
+
+	PtrType = PtrProperty->GetCPPType(nullptr, EPropertyExportCPPFlags::CPPF_NoTObjectPtr);
+	CHECK(PtrType == TEXT("UObjectPtrTestClass*")); 
+}
+
+TEST_CASE("UE::FObjectProperty::ArrayProperty")
+{
+
+	FArrayProperty* PtrProperty = CastField<FArrayProperty>(UObjectPtrTestClassWithRef::StaticClass()->FindPropertyByName(TEXT("ArrayObjPtr")));
+	REQUIRE(PtrProperty != nullptr);
 }
 #endif

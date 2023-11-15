@@ -23,6 +23,10 @@ FObjectProperty::FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private:
 FString FObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerNativeTypeName)  const
 {
 	ensure(!InnerNativeTypeName.IsEmpty());
+	if (HasAnyPropertyFlags(CPF_TObjectPtr) && !(CPPExportFlags & CPPF_NoTObjectPtr))
+	{
+		return FString::Printf(TEXT("TObjectPtr<%s>"), *InnerNativeTypeName);
+	}
 	return FString::Printf(TEXT("%s*"), *InnerNativeTypeName);
 }
 
@@ -33,6 +37,11 @@ FString FObjectProperty::GetCPPTypeForwardDeclaration() const
 
 FString FObjectProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 {
+	if (HasAnyPropertyFlags(CPF_TObjectPtr))
+	{
+		ExtendedTypeText = FString::Printf(TEXT("TObjectPtr<%s%s>"), PropertyClass->GetPrefixCPP(), *PropertyClass->GetName());
+		return TEXT("OBJECTPTR");
+	}
 	ExtendedTypeText = FString::Printf(TEXT("%s%s"), PropertyClass->GetPrefixCPP(), *PropertyClass->GetName());
 	return TEXT("OBJECT");
 }
@@ -91,6 +100,47 @@ EConvertFromTypeResult FObjectProperty::ConvertFromType(const FPropertyTag& Tag,
 
 	return EConvertFromTypeResult::UseSerializeItem;
 }
+bool FObjectProperty::Identical(const void* A, const void* B, uint32 PortFlags) const
+{
+	// We never return Identical when duplicating for PIE because we want to be sure to serialize everything. An example is the LevelScriptActor being serialized against its CDO,
+	// which contains actor references. We want to serialize those references so they are fixed up.
+	if ((PortFlags & PPF_DuplicateForPIE) != 0)
+	{
+		return false;
+	}
+
+	TObjectPtr<UObject> ObjectA = A ? GetPropertyValue(A) : nullptr;
+	TObjectPtr<UObject> ObjectB = B ? GetPropertyValue(B) : nullptr;
+
+	if (ObjectA == ObjectB)
+	{
+		return true;
+	}
+
+	if (!ObjectA || !ObjectB)
+	{
+		return false;
+	}
+
+	// If a deep comparison is required, resolve the object handles and run the deep comparison logic
+	// If a deep comparison is not required, avoid resolving the object handles because resolving declares
+	// a cook dependency.
+	if ((PortFlags & (PPF_DeepCompareInstances | PPF_DeepComparison)) != 0)
+	{
+		bool bPerformDeepComparison = true;
+		if ((PortFlags & PPF_DeepCompareDSOsOnly) != 0)
+		{
+			UClass* ClassA = ObjectA.GetClass();
+			UObject* DSO = ClassA ? ClassA->GetDefaultSubobjectByName(ObjectA.GetFName()) : nullptr;
+			bPerformDeepComparison = DSO != nullptr;
+		}
+		if (bPerformDeepComparison && ObjectA.GetClass() == ObjectB.GetClass() && ObjectA.GetFName() == ObjectB.GetFName())
+		{
+			return FObjectPropertyBase::StaticIdentical(ObjectA.Get(), ObjectB.Get(), PortFlags);
+		}
+	}
+	return false;
+}
 
 bool FObjectProperty::AllowCrossLevel() const
 {
@@ -100,33 +150,88 @@ bool FObjectProperty::AllowCrossLevel() const
 void FObjectProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
 {
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
-
+	TObjectPtr<UObject>* ObjectPtr = GetPropertyValuePtr(Value);
 	if (UnderlyingArchive.IsObjectReferenceCollector())
 	{
-		// Serialize in place
-		TObjectPtr<UObject>* ObjectPtr = GetPropertyValuePtr(Value);
-		Slot << (*ObjectPtr);
-
+		TObjectPtr<UObject> CurrentValue = *ObjectPtr;
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+		if (HasAnyPropertyFlags(CPF_TObjectPtr))
+		{
+			FObjectPtr* Ptr = (FObjectPtr*)ObjectPtr;
+			Slot << *Ptr;
+		}
+		else
+#endif
+		{
+			// Serialize in place
+			Slot << (*ObjectPtr);
+		}
 #if !(UE_BUILD_TEST || UE_BUILD_SHIPPING) 
 		if (!UnderlyingArchive.IsSaving())
 		{
-			CheckValidObject(ObjectPtr, *ObjectPtr);
+			CheckValidObject(Value, CurrentValue);
 		}
 #endif
 	}
 	else
 	{
-		TObjectPtr<UObject> ObjectValuePtr = GetObjectPtrPropertyValue(Value);
-		check(ObjectValuePtr.IsResolved());
-		UObject* ObjectValue = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(ObjectValuePtr.GetHandle());
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+		if (HasAnyPropertyFlags(CPF_TObjectPtr))
+		{
+			FObjectHandle OriginalHandle = ObjectPtr->GetHandle();
+			Slot << *ObjectPtr;
 
-		Slot << ObjectValue;
+			FObjectHandle CurrentHandle = ObjectPtr->GetHandle();
+			if ((OriginalHandle != CurrentHandle) && IsObjectHandleResolved(CurrentHandle))
+			{
+#if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
+				if (ObjectPtr->IsA<ULinkerPlaceholderExportObject>())
+				{
+					//resolve the handle with no read to avoid trigger a handle read. 
+					ULinkerPlaceholderExportObject* PlaceholderVal = static_cast<ULinkerPlaceholderExportObject*>(UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(CurrentHandle));
+					PlaceholderVal->AddReferencingPropertyValue(this, Value);
+				}
+				else if (ObjectPtr->IsA<ULinkerPlaceholderClass>())
+				{
+					//resolve the handle with no read to avoid trigger a handle read. 
+					ULinkerPlaceholderClass* PlaceholderClass = static_cast<ULinkerPlaceholderClass*>(UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(CurrentHandle));
+					PlaceholderClass->AddReferencingPropertyValue(this, Value);
+				}
+				// NOTE: we don't remove this from CurrentValue if it is a 
+				//       ULinkerPlaceholderExportObject; this is because this property 
+				//       could be an array inner, and another member of that array (also 
+				//       referenced through this property)... if this becomes a problem,
+				//       then we could inc/decrement a ref count per referencing property 
+				//
+				// @TODO: if this becomes problematic (because ObjectValue doesn't match 
+				//        this property's PropertyClass), then we could spawn another
+				//        placeholder object (of PropertyClass's type), or use null; but
+				//        we'd have to modify ULinkerPlaceholderExportObject::ReplaceReferencingObjectValues()
+				//        to accommodate this (as it depends on finding itself as the set value)
+#endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 
-		TObjectPtr<UObject> CurrentValuePtr = GetObjectPtrPropertyValue(Value);
-		check(CurrentValuePtr.IsResolved());
-		UObject* CurrentValue = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(CurrentValuePtr.GetHandle());
+				TObjectPtr<UObject> CurrentValue(*ObjectPtr);
+				CheckValidObject(Value, CurrentValue);
+			}
+		}
+		else
+#endif
+		{
+			TObjectPtr<UObject> ObjectValuePtr = GetObjectPtrPropertyValue(Value);
+			if (!ObjectValuePtr.IsResolved())
+			{
+				printf("");
+			}
+			check(ObjectValuePtr.IsResolved());
+			UObject* ObjectValue = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(ObjectValuePtr.GetHandle());
 
-		PostSerializeObjectItem(UnderlyingArchive, Value, CurrentValue, ObjectValue, EObjectPropertyOptions::None);
+			Slot << ObjectValue;
+
+			TObjectPtr<UObject> CurrentValuePtr = GetObjectPtrPropertyValue(Value);
+			check(CurrentValuePtr.IsResolved());
+			UObject* CurrentValue = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(CurrentValuePtr.GetHandle());
+			PostSerializeObjectItem(UnderlyingArchive, Value, CurrentValue, ObjectValue, EObjectPropertyOptions::None);
+		}
 	}
 }
 
@@ -298,4 +403,25 @@ void FObjectProperty::CopyCompleteValueToScriptVM_InContainer(void* OutValue, vo
 void FObjectProperty::CopyCompleteValueFromScriptVM_InContainer(void* OutContainer, void const* InValue) const
 {
 	SetWrappedUObjectPtrValues<FObjectPtr>(OutContainer, EPropertyMemoryAccess::InContainer, (UObject**)InValue, 0, ArrayDim);
+}
+
+void FObjectProperty::CopyValuesInternal(void* Dest, void const* Src, int32 Count) const
+{
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	if (HasAllPropertyFlags(CPF_TObjectPtr))
+	{
+		for (int32 Index = 0; Index < Count; Index++)
+		{
+			GetPropertyValuePtr(Dest)[Index] = GetPropertyValuePtr(Src)[Index];
+		}
+	}
+	else
+#endif	
+	{
+		for (int32 Index = 0; Index < Count; Index++)
+		{
+			GetPropertyValuePtr(Dest)[Index] = GetPropertyValuePtr(Src)[Index].Get();
+		}
+	}
+	
 }

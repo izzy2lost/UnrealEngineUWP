@@ -388,8 +388,6 @@ namespace EpicGames.Core
 		FMulticastInlineDelegateProperty = 0x0004000000000000,
 		FMulticastSparseDelegateProperty = 0x0008000000000000,
 		FFieldPathProperty = 0x0010000000000000,
-		FObjectPtrProperty = 0x0020000000000000,
-		FClassPtrProperty = 0x0040000000000000,
 		FLargeWorldCoordinatesRealProperty = 0x0080000000000000,
 		FOptionalProperty = 0x0100000000000000,
 		FVerseValueProperty = 0x0200000000000000,
@@ -1197,6 +1195,16 @@ namespace EpicGames.Core
 		SkipSerialization = 0x0080000000000000,
 
 		/// <summary>
+		/// Property is a TObjectPtr<T> instead of a USomething*. Need to differentiate between TObjectclassOf and TObjectPtr
+		/// </summary>
+		TObjectPtr = 0x0100000000000000,
+
+		/// <summary>
+		/// TObjectPtr properties are both wrapped and TObjectPtr
+		/// </summary>
+		TObjectPtrWrapper = TObjectPtr | UObjectWrapper,
+
+		/// <summary>
 		/// All Native Access Specifier flags
 		/// </summary>
 		NativeAccessSpecifiers = NativeAccessSpecifierPublic | NativeAccessSpecifierProtected | NativeAccessSpecifierPrivate,
@@ -1209,7 +1217,7 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Flags that are propagated to properties inside array container
 		/// </summary>
-		PropagateToArrayInner =	ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper,
+		PropagateToArrayInner =	ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | TObjectPtr,
 
 		/// <summary>
 		/// Flags that are propagated to properties inside optional container
@@ -1219,17 +1227,17 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Flags that are propagated to value properties inside map container
 		/// </summary>
-		PropagateToMapValue = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | Edit,
+		PropagateToMapValue = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | TObjectPtr | Edit,
 
 		/// <summary>
 		/// Flags that are propagated to key properties inside map container
 		/// </summary>
-		PropagateToMapKey = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | Edit,
+		PropagateToMapKey = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | TObjectPtr | Edit,
 
 		/// <summary>
 		/// Flags that are propagated to properties inside set container
 		/// </summary>
-		PropagateToSetElement = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | Edit,
+		PropagateToSetElement = ExportObject | PersistentInstance | InstancedReference | ContainsInstancedReference | Config | EditConst | Deprecated | EditorOnly | AutoWeak | UObjectWrapper | TObjectPtr | Edit,
 
 		/// <summary>
 		/// The flags that should never be set on interface properties

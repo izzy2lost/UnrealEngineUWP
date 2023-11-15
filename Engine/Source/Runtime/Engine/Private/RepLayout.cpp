@@ -947,19 +947,9 @@ static uint32 GetRepLayoutCmdCompatibleChecksum(
 	uint32 CompatibleChecksum = FCrc::StrCrc32(*Property->GetName().ToLower(), InChecksum);	
 	
 	// Evolve by property type
-	const FObjectPtrProperty* const ObjectPtrProperty = CastField<const FObjectPtrProperty>(Property);
+	const FObjectProperty* const ObjectPtrProperty = CastField<const FObjectProperty>(Property);
 
-	FString CPPType;
-	if (ObjectPtrProperty)
-	{
-		// To remain compatible with TObjectPtr, use the underlying pointer type in the checksum since the net-serialized data is compatible.
-		CPPType = ObjectPtrProperty->FObjectProperty::GetCPPType(nullptr, 0).ToLower();
-	}
-	else
-	{
-		CPPType = Property->GetCPPType(nullptr, 0).ToLower();
-	}
-
+	FString CPPType = Property->GetCPPType(nullptr, EPropertyExportCPPFlags::CPPF_NoTObjectPtr).ToLower();
 	CompatibleChecksum = FCrc::StrCrc32(*CPPType, CompatibleChecksum);
 	
 	// Evolve by StaticArrayIndex (to make all unrolled static array elements unique)

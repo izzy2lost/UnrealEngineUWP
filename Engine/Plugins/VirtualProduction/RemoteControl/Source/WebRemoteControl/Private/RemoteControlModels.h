@@ -149,7 +149,7 @@ struct FRCPropertyDescription
 		//Write the type name
 		Type = ValueProperty->GetCPPType();
 
-		if (const FObjectProperty* ObjectProperty = CastField<FObjectPtrProperty>(ValueProperty))
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(ValueProperty))
 		{
 			if (UClass* Class = ObjectProperty->PropertyClass)
 			{

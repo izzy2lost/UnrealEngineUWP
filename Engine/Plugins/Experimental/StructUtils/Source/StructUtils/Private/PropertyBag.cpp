@@ -163,10 +163,6 @@ namespace UE::StructUtils::Private
 
 			return EPropertyBagPropertyType::Object;
 		}
-		if (CastField<FObjectPtrProperty>(InSourceProperty))
-		{
-			return EPropertyBagPropertyType::Object;
-		}
 		if (CastField<FSoftObjectProperty>(InSourceProperty))
 		{
 			if (CastField<FSoftClassProperty>(InSourceProperty))
@@ -210,10 +206,6 @@ namespace UE::StructUtils::Private
 				return ClassProperty->PropertyClass;
 			}
 
-			return ObjectProperty->PropertyClass;
-		}
-		if (const FObjectPtrProperty* ObjectProperty = CastField<FObjectPtrProperty>(InSourceProperty))
-		{
 			return ObjectProperty->PropertyClass;
 		}
 		if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(InSourceProperty))
@@ -405,13 +397,13 @@ namespace UE::StructUtils::Private
 		case EPropertyBagPropertyType::Object:
 			if (const UClass* Class = Cast<UClass>(Desc.ValueTypeObject))
 			{
-				FObjectPtrProperty* Prop = new FObjectPtrProperty(PropertyScope, Desc.Name, RF_Public);
+				FObjectProperty* Prop = new FObjectProperty(PropertyScope, Desc.Name, RF_Public);
 				if (Class->HasAnyClassFlags(CLASS_DefaultToInstanced))
 				{
 					Prop->SetPropertyFlags(CPF_InstancedReference);
 				}
 				Prop->SetPropertyClass(const_cast<UClass*>(Class));
-				Prop->SetPropertyFlags(CPF_HasGetValueTypeHash);
+				Prop->SetPropertyFlags(CPF_HasGetValueTypeHash | CPF_TObjectPtr);
 				return Prop;
 			}
 			break;

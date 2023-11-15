@@ -1254,13 +1254,15 @@ FProperty* FKismetCompilerUtilities::CreatePrimitiveProperty(FFieldVariant Prope
 				{
 					NewPropertyObj = new FWeakObjectProperty(PropertyScope, ValidatedPropertyName, ObjectFlags);
 				}
-				else if (FLinkerLoad::IsImportLazyLoadEnabled())
-				{
-					NewPropertyObj = new FObjectPtrProperty(PropertyScope, ValidatedPropertyName, ObjectFlags);
-				}
 				else
 				{
 					NewPropertyObj = new FObjectProperty(PropertyScope, ValidatedPropertyName, ObjectFlags);
+					// If lazy load is enabled make the object property a TObjectPtr property
+					// to allow for unresolved UObjects
+					if (FLinkerLoad::IsImportLazyLoadEnabled())
+					{
+						NewPropertyObj->SetPropertyFlags(CPF_TObjectPtrWrapper);
+					}
 				}
 
 				// Is the property a reference to something that should default to instanced?

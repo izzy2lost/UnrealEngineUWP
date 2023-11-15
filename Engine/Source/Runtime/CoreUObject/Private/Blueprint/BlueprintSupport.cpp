@@ -226,16 +226,13 @@ void FBlueprintSupport::RepairDeferredDependenciesInObject(UObject* Object)
 	for (TPropertyValueIterator<const FObjectProperty> It(Object->GetClass(), Object); It; ++It)
 	{
 		const FObjectProperty* Property = It.Key();
-		void* PropertyValue = (void*)It.Value();
-		if (Property->IsA<FObjectPtrProperty>())
+		const TObjectPtr<UObject>& PropertyValue = Property->GetPropertyValue(It.Value());
+		if (!PropertyValue.IsResolved())
 		{
-			FObjectPtr* PropertyValueAsObjectPtr = ((FObjectPtr*)PropertyValue);
-			if (!PropertyValueAsObjectPtr->IsResolved())
-			{
-				continue;
-			}
+			continue;
 		}
-		UObject* PropertyValueAsObj = *((UObject**)PropertyValue);
+
+		UObject* PropertyValueAsObj = PropertyValue.Get();
 
 		FLinkerPlaceholderBase* Placeholder = nullptr;
 

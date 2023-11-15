@@ -527,9 +527,9 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 			// if the object is a FObjectPtr it might not be resolved
 			// if unresolved there is no need to resolve it as IsObjectValidForGather would return false anyways
 			const UObject* InnerObject = nullptr;
-			if (auto ObjectPropertyPtr = CastField<FObjectPtrProperty>(ObjectProperty))
+			if (auto ObjectPropertyPtr = CastField<FObjectProperty>(ObjectProperty))
 			{
-				const FObjectPtr& ObjectPtr = ObjectPropertyPtr->GetObjectPropertyValueAsPtr(ElementValueAddress);
+				const TObjectPtr<UObject>& ObjectPtr = ObjectPropertyPtr->GetPropertyValue(ElementValueAddress);
 				if (ObjectPtr.IsResolved())
 				{
 					InnerObject = ObjectPtr.Get();

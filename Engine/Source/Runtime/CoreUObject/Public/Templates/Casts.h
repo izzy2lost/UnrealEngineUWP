@@ -432,7 +432,6 @@ DECLARE_CAST_BY_FLAG(UClass)							\
 DECLARE_CAST_BY_FLAG(FProperty)							\
 DECLARE_CAST_BY_FLAG(FObjectPropertyBase)				\
 DECLARE_CAST_BY_FLAG(FObjectProperty)					\
-DECLARE_CAST_BY_FLAG(FObjectPtrProperty)				\
 DECLARE_CAST_BY_FLAG(FWeakObjectProperty)				\
 DECLARE_CAST_BY_FLAG(FLazyObjectProperty)				\
 DECLARE_CAST_BY_FLAG(FSoftObjectProperty)				\

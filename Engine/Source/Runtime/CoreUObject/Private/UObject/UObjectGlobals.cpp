@@ -4758,8 +4758,7 @@ static constexpr EClassCastFlags WeakCastFlags =			CASTCLASS_FWeakObjectProperty
 															CASTCLASS_FDelegateProperty |
 															CASTCLASS_FMulticastDelegateProperty;
 
-static constexpr EClassCastFlags ObjectCastFlags =			CASTCLASS_FObjectProperty |
-															CASTCLASS_FObjectPtrProperty;
+static constexpr EClassCastFlags ObjectCastFlags =			CASTCLASS_FObjectProperty;
 
 static constexpr EClassCastFlags OtherStrongCastFlags =		CASTCLASS_FInterfaceProperty |
 															CASTCLASS_FFieldPathProperty;
@@ -4846,11 +4845,13 @@ void CollectArrayReferences(FReferenceCollector& Collector, FArrayProperty& Prop
 		{
 			if (bIsReferenceArray)
 			{
-				if (UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && EnumHasAnyFlags(InnerCastFlags, CASTCLASS_FObjectPtrProperty))
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+				if (InnerProperty.HasAnyPropertyFlags(CPF_TObjectPtr))
 				{
 					Collector.AddReferencedObjects(*reinterpret_cast<TArray<TObjectPtr<UObject>>*>(Instance), Referencer, &Property);
 				}
 				else
+#endif
 				{
 					FReferenceCollector::AROPrivate::AddReferencedObjects(Collector, *reinterpret_cast<TArray<UObject*>*>(Instance), Referencer, &Property);
 				}
@@ -5842,13 +5843,10 @@ namespace UECodeGen_Private
 
 			case EPropertyGenFlags::Object:
 			{
+				NewProp = NewFProperty<FObjectProperty, FObjectPropertyParams>(Outer, *PropBase);
 				if (EnumHasAllFlags(PropBase->Flags, EPropertyGenFlags::ObjectPtr))
 				{
-					NewProp = NewFProperty<FObjectPtrProperty, FObjectPtrPropertyParams>(Outer, *PropBase);
-				}
-				else
-				{
-					NewProp = NewFProperty<FObjectProperty, FObjectPropertyParams>(Outer, *PropBase);
+					NewProp->SetPropertyFlags(CPF_TObjectPtrWrapper);
 				}
 			}
 			break;
@@ -5873,13 +5871,10 @@ namespace UECodeGen_Private
 
 			case EPropertyGenFlags::Class:
 			{
+				NewProp = NewFProperty<FClassProperty, FClassPropertyParams>(Outer, *PropBase);
 				if (EnumHasAllFlags(PropBase->Flags, EPropertyGenFlags::ObjectPtr))
 				{
-					NewProp = NewFProperty<FClassPtrProperty, FClassPtrPropertyParams>(Outer, *PropBase);
-				}
-				else
-				{
-					NewProp = NewFProperty<FClassProperty, FClassPropertyParams>(Outer, *PropBase);
+					NewProp->SetPropertyFlags(CPF_TObjectPtrWrapper);
 				}
 			}
 			break;

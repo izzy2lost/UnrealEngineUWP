@@ -373,8 +373,6 @@ enum EClassCastFlags : uint64
 	CASTCLASS_FMulticastInlineDelegateProperty	= 0x0004000000000000,
 	CASTCLASS_FMulticastSparseDelegateProperty	= 0x0008000000000000,
 	CASTCLASS_FFieldPathProperty			= 0x0010000000000000,
-	CASTCLASS_FObjectPtrProperty			= 0x0020000000000000,
-	CASTCLASS_FClassPtrProperty				= 0x0040000000000000,
 	CASTCLASS_FLargeWorldCoordinatesRealProperty = 0x0080000000000000,
 	CASTCLASS_FOptionalProperty				= 0x0100000000000000,
 	CASTCLASS_FVerseValueProperty			= 0x0200000000000000,
@@ -453,6 +451,7 @@ enum EPropertyFlags : uint64
 	CPF_NativeAccessSpecifierProtected	= 0x0020000000000000,	///< Protected native access specifier
 	CPF_NativeAccessSpecifierPrivate	= 0x0040000000000000,	///< Private native access specifier
 	CPF_SkipSerialization				= 0x0080000000000000,	///< Property shouldn't be serialized, can still be exported to text
+	CPF_TObjectPtr						= 0x0100000000000000,	///< Property is a TObjectPtr<T> instead of a USomething*. Need to differentiate between TObjectclassOf and TObjectPtr
 };
 
 /** All Native Access Specifier flags */
@@ -477,6 +476,7 @@ enum EPropertyFlags : uint64
 /** All the properties that should never be loaded or saved */
 #define CPF_ComputedFlags			(CPF_IsPlainOldData | CPF_NoDestructor | CPF_ZeroConstructor | CPF_HasGetValueTypeHash)
 
+#define CPF_TObjectPtrWrapper 		(CPF_UObjectWrapper | CPF_TObjectPtr)
 /** Mask of all property flags */
 #define CPF_AllFlags				((EPropertyFlags)0xFFFFFFFFFFFFFFFF)
 

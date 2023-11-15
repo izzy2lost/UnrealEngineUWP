@@ -171,22 +171,6 @@ bool ArePropertiesCompatible(const FProperty* InSrcProp, const FProperty* InDest
 		return true;
 	}
 
-	// Compare the classes as these must be an *exact* match as the access is low-level and without property coercion
-	// HOWEVER:
-	// Object properties can either be an ObjectProperty, or an ObjectPtrProperty
-	// We allow coercion between these two types
-	if (InSrcProp->GetClass() != InDestProp->GetClass())
-	{
-		const bool bSrcIsObject = CastField<FObjectProperty>(InSrcProp) || CastField<FObjectPtrProperty>(InSrcProp);
-		const bool bDestIsObject = CastField<FObjectProperty>(InDestProp) || CastField<FObjectPtrProperty>(InDestProp);
-		if (bSrcIsObject && bDestIsObject)
-		{
-			return true;
-		}
-
-		return false;
-	}
-
 	// Containers also need to check their inner types
 	if (const FArrayProperty* SrcArrayProp = CastField<FArrayProperty>(InSrcProp))
 	{
@@ -274,18 +258,6 @@ bool CopySinglePropertyValue(const FProperty* InSrcProp, const void* InSrcValue,
 		return true;
 	}
 
-	// If the source is an ObjectPtr and the destination is an Object, handle the copy in a custom way to ensure we always resolve
-	// the source before copying it to the destination.
-	if (const FObjectPtrProperty* SrcObjectPtrProp = CastField<FObjectPtrProperty>(InSrcProp))
-	{
-		if (const FObjectProperty* DestObjectProp = CastField<FObjectProperty>(InDestProp))
-		{
-			UObject* SrcObject = SrcObjectPtrProp->GetObjectPropertyValue(InSrcValue);
-			DestObjectProp->SetObjectPropertyValue(InDestValue, SrcObject);
-			return true;
-		}
-	}
-	
 	if (IsRealNumberConversion(InSrcProp, InDestProp))
 	{
 		ConvertRealNumber(InSrcProp, InSrcValue, InDestProp, InDestValue, 1);
@@ -372,24 +344,6 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 			DestBoolProp->SetPropertyValue(DestElemValue, bBoolValue);
 		}
 		return true;
-	}
-
-	// If the source is an ObjectPtr and the destination is an Object, handle the copy in a custom way to ensure we always resolve
-	// the source before copying it to the destination.
-	if (const FObjectPtrProperty* SrcObjectPtrProp = CastField<FObjectPtrProperty>(InSrcProp))
-	{
-		if (const FObjectProperty* DestObjectProp = CastField<FObjectProperty>(InDestProp))
-		{
-			for (int32 Idx = 0; Idx < InSrcProp->ArrayDim; ++Idx)
-			{
-				const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-				void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
-
-				UObject* SrcObject = SrcObjectPtrProp->GetObjectPropertyValue(SrcElemValue);
-				DestObjectProp->SetObjectPropertyValue(DestElemValue, SrcObject);
-			}
-			return true;
-		}
 	}
 	
 	if (IsRealNumberConversion(InSrcProp, InDestProp))
