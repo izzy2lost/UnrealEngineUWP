@@ -8,6 +8,7 @@
 #include "Tasks/TaskConcurrencyLimiter.h"
 #include "HAL/Thread.h"
 #include "Async/ParallelFor.h"
+#include "Async/ManualResetEvent.h"
 #include "Tests/TestHarnessAdapter.h"
 #include "Containers/UnrealString.h"
 
@@ -936,43 +937,41 @@ namespace UE { namespace TasksTests
 		}
 
 		UE_BENCHMARK(5, DependenciesPerfTest<150, 150>);
-
 	}
 
 	// blocks all workers (except reserve workers) until given event is triggered. Returns blocking tasks.
-	TArray<LowLevelTasks::FTask> BlockWorkers(FTaskEvent& ResumeEvent)
+	TArray<LowLevelTasks::FTask> BlockWorkers(FTaskEvent& ResumeEvent, uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers())
 	{
-		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
-
-		uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
+		TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers);
 
 		TArray<LowLevelTasks::FTask> WorkerBlockers; // tasks that block worker threads
 		WorkerBlockers.Reserve(NumWorkers);
 
-		std::atomic<uint32> NumWorkersNotBlocked{ NumWorkers };
+		std::atomic<uint32>   NumWorkersBlocked{ 0 };
+		UE::FManualResetEvent AllWorkersBlocked;
 
 		for (int i = 0; i != NumWorkers; ++i)
 		{
 			WorkerBlockers.Emplace();
 			LowLevelTasks::FTask& Task = WorkerBlockers.Last();
 			Task.Init(TEXT("WorkerBlocker"),
-				[&NumWorkersNotBlocked, &ResumeEvent]
+				[&NumWorkersBlocked, &NumWorkers, &ResumeEvent, &AllWorkersBlocked]
 				{
 					checkf(LowLevelTasks::FScheduler::Get().IsWorkerThread(), TEXT("No reserve workers are expected to get blocked"));
-					--NumWorkersNotBlocked;
+					if (++NumWorkersBlocked == NumWorkers)
+					{
+						AllWorkersBlocked.Notify();
+					}
+					TRACE_CPUPROFILER_EVENT_SCOPE(BlockWorkers_Blocked);
 					ResumeEvent.Wait();
 				},
 				LowLevelTasks::ETaskFlags::AllowNothing
 			);
-			LowLevelTasks::FScheduler::Get().TryLaunchAffinity(Task, i);
+			LowLevelTasks::FScheduler::Get().TryLaunch(Task);
 		}
 
-		UE::FTimeout Timeout{ FTimespan::FromSeconds(1) };
-		while (NumWorkersNotBlocked != 0)
-		{
-			check(!Timeout);
-			FPlatformProcess::Sleep(0.001f);
-		}
+		TRACE_CPUPROFILER_EVENT_SCOPE(WaitingUntilAllWorkersBlocked);
+		check(AllWorkersBlocked.WaitFor(UE::FMonotonicTimeSpan::FromSeconds(1)));
 
 		return WorkerBlockers;
 	}
@@ -1006,6 +1005,8 @@ namespace UE { namespace TasksTests
 
 	TEST_CASE_NAMED(FTasksDeepRetractionTest, "System::Core::Tasks::DeepRetraction", "[.][ApplicationContextMask][EngineFilter]")
 	{
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+
 		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
 		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent);
 
@@ -1634,6 +1635,36 @@ namespace UE { namespace TasksTests
 	{
 		UE_BENCHMARK(5, TaskConcurrencyLimiter_WaitingStressTest<10'000>);
 	}
+
+	void BenchmarkBlockUnblockWorkers(uint32 NumWorkers)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(BenchmarkBlockUnblockWorkers);
+
+		for (int Index = 0; Index < 1000; ++Index)
+		{
+			FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
+			TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
+
+			ResumeEvent.Trigger();
+			LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+		}
+	}
+
+	TEST_CASE_NAMED(FTasksBenchmarkBlockUnblockWorkers, "System::Core::Async::Tasks::BenchmarkBlockUnblockWorkers", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+
+		uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
+
+		for (uint32 Index = 1; Index <= NumWorkers; Index *= 2)
+		{
+			FString Name = FString::Printf(TEXT("BenchmarkBlockUnblockWorkers(%u)"), Index);
+
+			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*Name);
+			Benchmark<5>(*Name, [&Index]() { BenchmarkBlockUnblockWorkers(Index); });
+		}
+	}
+
 }}
 
 #endif // WITH_TESTS
