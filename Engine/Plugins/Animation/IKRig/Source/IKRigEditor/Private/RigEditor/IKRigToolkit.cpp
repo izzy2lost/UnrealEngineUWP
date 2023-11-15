@@ -18,7 +18,6 @@
 
 #include "Rig/IKRigDefinition.h"
 #include "IPersonaViewport.h"
-#include "PersonaPreviewSceneDescription.h"
 #include "RigEditor/IKRigAnimInstance.h"
 #include "RigEditor/IKRigCommands.h"
 #include "RigEditor/IKRigEditMode.h"
