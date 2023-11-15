@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "GenericPropertySelectionModel.h"
+#include "GenericReplicationStreamModel.h"
 
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Data/ObjectReplicationMap.h"
@@ -10,33 +10,11 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	FGenericPropertySelectionModel::FGenericPropertySelectionModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute)
+	FGenericReplicationStreamModel::FGenericReplicationStreamModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute)
 		: ReplicationMapAttribute(MoveTemp(ReplicationMapAttribute))
 	{}
-	
-	uint32 FGenericPropertySelectionModel::GetNumReplicatedObjects() const
-	{
-		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		return ensure(ReplicationMap)
-			? ReplicationMap->ReplicatedObjects.Num()
-			: 0;
-	}
 
-	uint32 FGenericPropertySelectionModel::GetNumProperties(const FSoftObjectPath& Object) const
-	{
-		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		const FReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		return AssignedProperties
-			? AssignedProperties->PropertySelection.ReplicatedProperties.Num()
-			: 0;
-	}
-
-	FSoftClassPath FGenericPropertySelectionModel::GetObjectClass(const FSoftObjectPath& Object) const
+	FSoftClassPath FGenericReplicationStreamModel::GetObjectClass(const FSoftObjectPath& Object) const
 	{
 		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -50,14 +28,14 @@ namespace UE::ConcertClientSharedSlate
 			: FSoftClassPath{};
 	}
 
-	bool FGenericPropertySelectionModel::ContainsObjects(const TSet<FSoftObjectPath>& Objects) const
+	bool FGenericReplicationStreamModel::ContainsObjects(const TSet<FSoftObjectPath>& Objects) const
 	{
 		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		return ensure(ReplicationMap)
 			&& Algo::AllOf(Objects, [this, ReplicationMap](const FSoftObjectPath& ObjectPath){ return ReplicationMap->ReplicatedObjects.Contains(ObjectPath); });
 	}
 
-	bool FGenericPropertySelectionModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
+	bool FGenericReplicationStreamModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
 	{
 		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -70,7 +48,7 @@ namespace UE::ConcertClientSharedSlate
 			&& Algo::AllOf(Properties, [ObjectInfo](const FConcertPropertyChain& Property){ return ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property); });
 	}
 
-	bool FGenericPropertySelectionModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
+	bool FGenericReplicationStreamModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
 		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -89,7 +67,7 @@ namespace UE::ConcertClientSharedSlate
 		return !ReplicationMap->ReplicatedObjects.IsEmpty();
 	}
 
-	bool FGenericPropertySelectionModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Parent)> Delegate) const
+	bool FGenericReplicationStreamModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Parent)> Delegate) const
 	{
 		const FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -113,7 +91,7 @@ namespace UE::ConcertClientSharedSlate
 		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 
-	void FGenericPropertySelectionModel::AddObjects(TConstArrayView<UObject*> Objects)
+	void FGenericReplicationStreamModel::AddObjects(TConstArrayView<UObject*> Objects)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap) || Objects.IsEmpty())
@@ -155,7 +133,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FGenericPropertySelectionModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
+	void FGenericReplicationStreamModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap) || Objects.IsEmpty())
@@ -192,7 +170,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FGenericPropertySelectionModel::AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
+	void FGenericReplicationStreamModel::AddProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))
@@ -237,7 +215,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void FGenericPropertySelectionModel::RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
+	void FGenericReplicationStreamModel::RemoveProperties(const FSoftObjectPath& Object, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		FObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
 		if (!ensure(ReplicationMap))

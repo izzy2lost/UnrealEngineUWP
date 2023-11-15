@@ -9,7 +9,7 @@
 
 namespace UE::MultiUserClient
 {
-	void SClientToolbar::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
+	void SClientToolbar::Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache)
 	{
 		ChildSlot
 		[
@@ -33,9 +33,15 @@ namespace UE::MultiUserClient
 			.VAlign(VAlign_Center)
 			.Padding(0.f, 0.f, 5.f, 0.f)
 			[
-				SNew(SReplicationStatus, InObjectModel, InAuthorityCache)
+				SAssignNew(ReplicationStatus, SReplicationStatus, InAuthorityCache)
 				.DisplayedClients(InArgs._DisplayedClients)
+				.ForEachReplicatedObject(InArgs._ForEachReplicatedObject)
 			]
 		];
+	}
+
+	void SClientToolbar::RefreshStatusText()
+	{
+		ReplicationStatus->RefreshStatusText();
 	}
 }

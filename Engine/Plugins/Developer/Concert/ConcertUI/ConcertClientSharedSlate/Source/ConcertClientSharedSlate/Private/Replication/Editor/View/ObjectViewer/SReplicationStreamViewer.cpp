@@ -30,10 +30,7 @@ namespace UE::ConcertClientSharedSlate
 			CreateContentWidget(InArgs)
 		];
 
-		RefreshObjectData();
-		RefreshSubobjectData();
-		RefreshPropertyData();
-
+		Refresh();
 		PropertyArea->SetExpanded(true);
 	}
 
@@ -61,10 +58,9 @@ namespace UE::ConcertClientSharedSlate
 
 	void SReplicationStreamViewer::RefreshObjectData()
 	{
-		const int32 NumElements = PropertiesModel->GetNumReplicatedObjects();
 		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
 		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
-		AllObjectRowData.Empty(NumElements);
+		AllObjectRowData.Empty();
 
 		// Try to re-use old instances by using the old PathToObjectDataCache. This is also done so the expansion states restore correctly in the tree view.
 		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> NewPathToObjectDataCache;

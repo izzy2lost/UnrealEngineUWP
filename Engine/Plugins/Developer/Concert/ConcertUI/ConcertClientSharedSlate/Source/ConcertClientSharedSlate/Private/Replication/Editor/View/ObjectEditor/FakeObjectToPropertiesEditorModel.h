@@ -46,8 +46,6 @@ namespace UE::ConcertClientSharedSlate
 
 		//~ Begin IReplicationStreamModel Interface
 		// Technically these functions should be also be wrapped but the SObjectToPropertyView does not use them so let's not for now.
-		virtual uint32 GetNumReplicatedObjects() const override { return RealModel->GetNumReplicatedObjects(); }
-		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override { return RealModel->GetNumProperties(Object); }
 		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override { return RealModel->ContainsObjects(Objects); }
 		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { return RealModel->ContainsProperties(Object, Properties); }
 		

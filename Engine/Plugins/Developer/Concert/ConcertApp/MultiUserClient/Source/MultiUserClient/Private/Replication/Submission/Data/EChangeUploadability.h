@@ -18,4 +18,9 @@ namespace UE::MultiUserClient
 		// TODO DP UE-198088: Remove once remote changing is implemented
 		NotImplemented
 	};
+
+	bool CanEverSubmit(EChangeUploadability Uploadability)
+	{
+		return Uploadability != EChangeUploadability::NotImplemented;
+	}
 }

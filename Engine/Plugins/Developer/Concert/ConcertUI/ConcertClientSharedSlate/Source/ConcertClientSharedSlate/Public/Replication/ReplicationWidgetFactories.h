@@ -5,6 +5,7 @@
 #include "Editor/View/PredefinedReplicationColumns.h"
 #include "ReplicationWidgetDelegates.h"
 
+#include "Delegates/Delegate.h"
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
 
@@ -16,7 +17,10 @@ struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate
 {
+	class IEditableMultiReplicationStreamModel;
 	class IEditableReplicationStreamModel;
+	class IMultiReplicationStreamEditor;
+	
 	class IReplicationStreamModel;
 	class IObjectSelectionSourceModel;
 	class IReplicationStreamEditor;
@@ -57,25 +61,9 @@ namespace UE::ConcertClientSharedSlate
 		FCreateSubobjectViewParams Params
 		);
 
-	/** Params for creating an IReplicationStreamEditor */
-	struct FCreateEditorParams
+	/** Params for creating a IReplicationStreamViewer. */
+	struct FCreateViewerParams
 	{
-		/**
-		 * The model that the editor is displaying.
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IEditableReplicationStreamModel> DataModel;
-		/**
-		 * Determines the objects that can be added to the object list. 
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
-		/**
-		 * Determines the properties that can be added to the property list.
-		 * @note The view will keep a strong reference to this.
-		 */
-		TSharedRef<IPropertySelectionSourceModel> PropertySource;
-
 		/**
 		 * Optional. This is inserted between the root object outliner and property view.
 		 * It e.g. displays the components of the actor selected in the root object view.
@@ -106,7 +94,30 @@ namespace UE::ConcertClientSharedSlate
 		TAlwaysValidWidget LeftOfObjectSearchBar;
 		/** Optional widget to add to the left of the property list search bar. */
 		TAlwaysValidWidget LeftOfPropertySearchBar;
+	};
 
+	// TODO DP 5.5: Create factory function that uses FCreateViewerParams and creates an IReplicationStreamViewer
+
+	/** Params for creating an IReplicationStreamEditor */
+	struct FCreateEditorParams
+	{
+		/**
+		 * The model that the editor is displaying.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IEditableReplicationStreamModel> DataModel;
+		
+		/**
+		 * Determines the objects that can be added to the object list. 
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
+		/**
+		 * Determines the properties that can be added to the property list.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+		
 		/** Optional. Determines whether all UI for changing the model should be disabled. */
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
@@ -114,6 +125,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Optional settings for auto adding common properties and objects. */
 		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
+
+		/** Base params for customizing the viewing part of the editor */
+		FCreateViewerParams ViewerParams;
 	};
 
 	/**
@@ -134,7 +148,7 @@ namespace UE::ConcertClientSharedSlate
 	 *		- Similar to details panel
 	 *		- Shows properties of the selected root object and / or subobjects.
 	 */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateEditor(FCreateEditorParams Params);
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams Params);
 
 	/**
 	 * Creates a default IReplicationStreamEditor.
@@ -142,11 +156,61 @@ namespace UE::ConcertClientSharedSlate
 	 * This editor adds a checkbox to the start of every property row.
 	 * - Checking adds the property to the selected objects' property mappings.
 	 * - Unchecking removes the property to the selected objects' property mappings
-	 *
-	 * This requires a subobject view. If you do not pass it in, the default view, which looks like the SSubobjectEditor,
-	 * is created.
 	 * 
 	 * @see CreateViewer for a description of the UI layout.
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateDefaultStreamEditor(FCreateEditorParams Params);
+
+	enum class EMultiStreamEditorFlags
+	{
+		None = 0,
+		
+		/** The passed in stream models transact and so should the implementation of the underlying editor. */
+		Transactional = 1 << 0
+	};
+	ENUM_CLASS_FLAGS(EMultiStreamEditorFlags)
+	
+	/** Params for creating an IMultiReplicationStreamEditor */
+	struct FCreateMultiStreamEditorParams
+	{
+		/**
+		 * The source of underlying streams that should be edited.
+		 * Must NOT contain ConsolidationDataModel (this is check()-ed).
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IEditableMultiReplicationStreamModel> MultiStreamModel;
+		
+		/**
+		 * Determines the objects that can be added to the object list. 
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
+		/**
+		 * Determines the properties that can be added to the property list.
+		 * @note The view will keep a strong reference to this.
+		 */
+		TSharedRef<IPropertySelectionSourceModel> PropertySource;
+
+		/** These flags modify the behaviour */
+		EMultiStreamEditorFlags Flags = EMultiStreamEditorFlags::Transactional;
+		
+		/** Optional settings for auto adding common properties and objects. */
+		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
+		
+		/** Base params for customizing the viewing part of the editor */
+		FCreateViewerParams ViewerParams;
+	};
+
+	/**
+	 * Creates an editor that displays multiple streams in a single widget.
+	 * 
+	 * This editor consolidates all replicated objects into a single UI and display all properties in the class.
+	 * You are supposed to inject custom columns into the property section for assigning specific properties
+	 * to the streams in the IEditableReplicationStreamModel.
+	 *
+	 * The add & remove functionality of this editor adds to a
+	 *
+	 * @note This editor does NOT create any UI for changing the assigned properties. You are supposed to inject column widgets to the property rows for this.
+	 */
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams Params);
 }

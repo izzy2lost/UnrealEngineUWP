@@ -4,7 +4,7 @@
 
 #include "MultiUserReplicationSettings.h"
 #include "Replication/Client/ReplicationClient.h"
-#include "Replication/Editor/Model/IReplicationStreamModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
@@ -37,7 +37,6 @@ namespace UE::MultiUserClient
 		FReplicationClient* ReplicationClient = GetReplicationClientAttribute.Get();
 		check(ReplicationClient);
 		
-		ConcertClientSharedSlate::IReplicationStreamModel& PropertyModel = *ReplicationClient->GetClientEditModel();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
 		ChildSlot
 		[
@@ -48,9 +47,10 @@ namespace UE::MultiUserClient
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SNew(SClientToolbar, PropertyModel, AuthorityCache)
+				SNew(SClientToolbar, AuthorityCache)
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
 				.DisplayedClients(TSet{ ReplicationClient->GetEndpointId() })
+				.ForEachReplicatedObject(this, &SReplicationClientView::EnumerateReplicatedObjects)
 			]
 
 			// Editor
@@ -62,7 +62,7 @@ namespace UE::MultiUserClient
 		];
 		
 		// Refresh UI if streams change externally, e.g. a remote client changed what they sent
-		ReplicationClient->OnModelExternallyChanged().AddSP(this, &SReplicationClientView::OnModelChanged);
+		ReplicationClient->OnModelChanged().AddSP(this, &SReplicationClientView::OnModelChanged);
 
 		CVarReplicationClientViewMode->OnChangedDelegate().AddSP(this, &SReplicationClientView::OnConsoleVariableChanged);
 	}
@@ -94,9 +94,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	TSharedRef<SWidget> SReplicationClientView::CreateThreeSectionedContent(
-		FReplicationClient& InReplicationClient
-		)
+	TSharedRef<SWidget> SReplicationClientView::CreateThreeSectionedContent(FReplicationClient& InReplicationClient)
 	{
 		using namespace ConcertClientSharedSlate;
 		IReplicationStreamModel& PropertyModel = *InReplicationClient.GetClientEditModel();
@@ -124,32 +122,32 @@ namespace UE::MultiUserClient
 			.DataModel = InReplicationClient.GetClientEditModel(),
 			.ObjectSource = MakeShared<FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
-			.SubobjectView = CreateUnrealEditorSubobjectView(SubobjectViewParams),
-			.AdditionalObjectColumns =
-			{
-				SingleClientColumns::ToggleTopLevelAuthority(PropertyModel, AuthorityTracker, SubmissionWorkflow),
-				SingleClientColumns::OwnerOfTopLevelObject(ConcertClient.ToSharedRef(), AuthorityCache, PropertyModel)
-			},
-			.AdditionalPropertyColumns =
-			{
-				SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
-				SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
-			},
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return SubmissionWorkflow.GetUploadability() != EChangeUploadability::NotImplemented; }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
-			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute)
+			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute),
+			.ViewerParams =
+			{
+				.SubobjectView = CreateUnrealEditorSubobjectView(SubobjectViewParams),
+				.AdditionalObjectColumns =
+				{
+					SingleClientColumns::ToggleTopLevelAuthority(PropertyModel, AuthorityTracker, SubmissionWorkflow),
+					SingleClientColumns::OwnerOfTopLevelObject(ConcertClient.ToSharedRef(), AuthorityCache, PropertyModel)
+				},
+				.AdditionalPropertyColumns =
+				{
+					SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
+					SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
+				}
+			}
 		};
 
 		EditorView_ThreeSectioned = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
 		return EditorView_ThreeSectioned.ToSharedRef();
 	}
 
-	TSharedRef<SWidget> SReplicationClientView::CreateTwoSectionedContent(
-		FReplicationClient& InReplicationClient
-		)
+	TSharedRef<SWidget> SReplicationClientView::CreateTwoSectionedContent(FReplicationClient& InReplicationClient)
 	{
 		using namespace ConcertClientSharedSlate;
-		IReplicationStreamModel& PropertyModel = *InReplicationClient.GetClientEditModel();
 		FAuthorityChangeTracker& AuthorityTracker = InReplicationClient.GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = InReplicationClient.GetSubmissionWorkflow();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
@@ -165,22 +163,25 @@ namespace UE::MultiUserClient
 			.DataModel = InReplicationClient.GetClientEditModel(),
 			.ObjectSource = MakeShared<FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
-			.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
-			.AdditionalObjectColumns =
-			{
-				// TODO DP: When we decide which UI version to choose, remove subobject from these function names.
-				SingleClientColumns::ToggleSubobjectAuthority(AuthorityTracker, SubmissionWorkflow),
-				SingleClientColumns::ConflictWarningForSubobject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),
-				SingleClientColumns::OwnerOfSubobject(ConcertClient.ToSharedRef(), AuthorityCache)
-			},
-			.AdditionalPropertyColumns =
-			{
-				SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
-				SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
-			},
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return SubmissionWorkflow.GetUploadability() != EChangeUploadability::NotImplemented; }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
-			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute)
+			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute),
+			.ViewerParams =
+			{
+				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
+				.AdditionalObjectColumns =
+				{
+					// TODO DP: When we decide which UI version to choose, remove subobject from these function names.
+					SingleClientColumns::ToggleSubobjectAuthority(AuthorityTracker, SubmissionWorkflow),
+					SingleClientColumns::ConflictWarningForSubobject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),
+					SingleClientColumns::OwnerOfSubobject(ConcertClient.ToSharedRef(), AuthorityCache)
+				},
+				.AdditionalPropertyColumns =
+				{
+					SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
+					SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
+				},
+			}
 		};
 
 		EditorView_TwoSectioned = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
@@ -203,6 +204,18 @@ namespace UE::MultiUserClient
 	void SReplicationClientView::OnConsoleVariableChanged(IConsoleVariable* ConsoleVariable)
 	{
 		RebuildContent();
+	}
+
+	void SReplicationClientView::EnumerateReplicatedObjects(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const
+	{
+		const FReplicationClient* ReplicationClient = GetReplicationClientAttribute.Get();
+		check(ReplicationClient);
+		
+		ReplicationClient->GetClientEditModel()->ForEachReplicatedObject([&Consumer](const FSoftObjectPath& Object)
+		{
+			Consumer(Object);
+			return EBreakBehavior::Continue;
+		});
 	}
 }
 

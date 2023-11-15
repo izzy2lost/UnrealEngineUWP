@@ -1,0 +1,44 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Replication/Editor/View/PredefinedReplicationColumns.h"
+
+#include "Delegates/Delegate.h"
+#include "Misc/EnumClassFlags.h"
+
+class IConcertClient;
+
+namespace UE::MultiUserClient
+{
+	class FReplicationClientManager;
+}
+
+namespace UE::ConcertClientSharedSlate
+{
+	class IReplicationStreamModel;
+	class IMultiReplicationStreamEditor;
+	class IReplicationStreamViewer;
+}
+
+namespace UE::MultiUserClient::MultiStreamColumns
+{
+	const extern FName AssignPropertyColumnId;
+
+	/**
+	 * Creates a property column which assigns the property to the stream selected in the combo box.
+	 * 
+	 * @param MultiStreamEditor Used to determine the selected objects.
+	 * @param ConcertClient Used to look up client names
+	 * @param ClientManager Used to map streams back to client display info
+	 * @param ColumnsSortPriority The order relative to the other columns
+	 * 
+	 * @return A column that spawns a combo box for assigning properties
+	 */
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn AssignPropertyColumn(
+		TAttribute<TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
+		TSharedRef<IConcertClient> ConcertClient,
+		FReplicationClientManager& ClientManager,
+		const int32 ColumnsSortPriority = 30 /* @see EReplicationPropertyColumnOrder */
+		);
+}

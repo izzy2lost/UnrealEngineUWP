@@ -19,7 +19,6 @@ namespace UE::MultiUserClient
 		//~ Begin ISubmissionWorkflow Interface
 		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() override;
 		virtual EChangeUploadability GetUploadability() const override;
-		virtual EChangeRevertability GetRevertability() const override;
 		//~ End ISubmissionWorkflow Interface
 	};
 }

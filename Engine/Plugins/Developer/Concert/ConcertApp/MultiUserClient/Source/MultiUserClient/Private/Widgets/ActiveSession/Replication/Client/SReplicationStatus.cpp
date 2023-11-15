@@ -45,12 +45,14 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	void SReplicationStatus::Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache)
+	void SReplicationStatus::Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache)
 	{
-		ObjectModel = &InObjectModel;
 		AuthorityCache = &InAuthorityCache;
+		
 		DisplayedClientsAttribute = InArgs._DisplayedClients;
 		check(DisplayedClientsAttribute.IsBound() || DisplayedClientsAttribute.IsSet());
+		ForEachReplicatedObjectDelegate = InArgs._ForEachReplicatedObject;
+		check(ForEachReplicatedObjectDelegate.IsBound());
 
 		AuthorityCache->OnCacheChanged().AddSP(this, &SReplicationStatus::OnAuthorityCacheChanged);
 		ChildSlot
@@ -96,7 +98,7 @@ namespace UE::MultiUserClient
 
 		TSet<FSoftObjectPath> ReplicatedActors;
 		TSet<FSoftObjectPath> ReplicatedObjects;
-		ObjectModel->ForEachReplicatedObject([this, &DisplayedClients, &ReplicatedActors, &ReplicatedObjects](const FSoftObjectPath& Path)
+		ForEachReplicatedObjectDelegate.Execute([this, &DisplayedClients, &ReplicatedActors, &ReplicatedObjects](const FSoftObjectPath& Path)
 		{
 			const bool bIsReplicated = Algo::AnyOf(AuthorityCache->GetClientsWithAuthorityOverObject(Path), [&DisplayedClients](const FGuid& ClientId)
 			{

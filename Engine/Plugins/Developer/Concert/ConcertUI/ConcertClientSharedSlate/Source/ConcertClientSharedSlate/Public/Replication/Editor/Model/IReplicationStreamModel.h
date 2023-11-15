@@ -13,14 +13,9 @@ namespace UE::ConcertClientSharedSlate
 	 * Abstracts the concept of mapping objects to properties. This is a read-only interface.
 	 * @see IEditableReplicationStreamModel 
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API IReplicationStreamModel : public TSharedFromThis<IReplicationStreamModel>
+	class IReplicationStreamModel : public TSharedFromThis<IReplicationStreamModel>
 	{
 	public:
-
-		/** @return The number of replicated objects */
-		virtual uint32 GetNumReplicatedObjects() const = 0;
-		/** @return The number of properties assigned to this object */
-		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const = 0;
 
 		/** @return Gets the class of the replication object */
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const = 0;
@@ -42,6 +37,18 @@ namespace UE::ConcertClientSharedSlate
 		 * @param Delegate The callback
 		 */
 		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const = 0;
+
+		/** @return Gets all replicated objects */
+		TSet<FSoftObjectPath> GetReplicatedObjects() const
+		{
+			TSet<FSoftObjectPath> Result;
+			ForEachReplicatedObject([&Result](const FSoftObjectPath& ObjectPath)
+			{
+				Result.Add(ObjectPath);
+				return EBreakBehavior::Continue;
+			});
+			return Result;
+		}
 		
 		/**
 		 * Iterates all the direct child properties of a given property in the mapping.
@@ -64,6 +71,30 @@ namespace UE::ConcertClientSharedSlate
 					: EBreakBehavior::Continue;
 			});
 			return bFoundAtLeastOne;
+		}
+
+		/** @return Whether the given SearchedProperty is assigned to ObjectPath. */
+		bool HasProperty(const FSoftObjectPath& ObjectPath, const FConcertPropertyChain& SearchedProperty) const
+		{
+			bool bFound = false;
+			ForEachProperty(ObjectPath, [&SearchedProperty, &bFound](const FConcertPropertyChain& Property)
+			{
+				bFound = SearchedProperty == Property;
+				return bFound ? EBreakBehavior::Break : EBreakBehavior::Continue;
+			});
+			return bFound;
+		}
+
+		/** @return Whether there is at least one property assigned to ObjectPath. */
+		bool HasAnyPropertyAssigned(const FSoftObjectPath& ObjectPath) const
+		{
+			bool bFound = false;
+			ForEachProperty(ObjectPath, [&bFound](const FConcertPropertyChain& Property)
+			{
+				bFound = true;
+				return EBreakBehavior::Break;
+			});
+			return bFound;
 		}
 
 		/** Util for getting properties as array */

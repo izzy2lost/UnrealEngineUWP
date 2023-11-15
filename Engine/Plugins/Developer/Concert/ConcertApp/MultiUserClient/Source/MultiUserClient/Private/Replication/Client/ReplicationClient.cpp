@@ -8,6 +8,8 @@
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 
+#include "Misc/CoreDelegates.h"
+
 namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
@@ -37,13 +39,19 @@ namespace UE::MultiUserClient
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
-		
-		LocalClientStreamDiffer.OnChangesReverted_GameThread().AddLambda([this]()
-		{
-			OnModelExternallyChangedDelegate.Broadcast();
-		});
 
 		SubmissionWorkflow->OnAuthorityRequestCompleted().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
+		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
+	}
+
+	FReplicationClient::~FReplicationClient()
+	{
+		FCoreDelegates::OnEndFrame.RemoveAll(this);
+	}
+
+	bool FReplicationClient::AllowsEditing() const
+	{
+		return CanEverSubmit(SubmissionWorkflow->GetUploadability()); 
 	}
 
 	void FReplicationClient::OnObjectsChanged(
@@ -52,25 +60,58 @@ namespace UE::MultiUserClient
 		ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
 		)
 	{
+		DeferOnModelChanged(AddedObjects);
+	}
+
+	void FReplicationClient::OnPropertiesChanged()
+	{
+		DeferOnModelChanged();
+	}
+
+	void FReplicationClient::DeferOnModelChanged(TConstArrayView<UObject*> AddedObjects)
+	{
+		if (!DeferredOnModelChangedData)
+		{
+			DeferredOnModelChangedData.Emplace();
+			FCoreDelegates::OnEndFrame.AddRaw(this, &FReplicationClient::ProcessOnModelChanged);
+		}
+
+		Algo::Transform(AddedObjects, DeferredOnModelChangedData->AccumulatedAddedObjects, [](UObject* Object)
+		{
+			return Object;
+		});
+	}
+
+	void FReplicationClient::ProcessOnModelChanged()
+	{
+		check(DeferredOnModelChangedData);
+		const FDeferredOnModelChangedData ChangeData = MoveTemp(*DeferredOnModelChangedData);
+		DeferredOnModelChangedData.Reset();
+		FCoreDelegates::OnEndFrame.RemoveAll(this);
+		
 		// Could improve performance by just considering what actually changed instead of doing a full rebuild
 		// This must be done before SetAuthorityIfAllowed because it uses the cache for checking whether the object has properties assigned
 		LocalClientStreamDiffer.RefreshChangesCache();
 		
 		// Better UX for user: automatically take authority for newly added objects (but only if it is allowed and causes no conflicts)
 		TArray<FSoftObjectPath> ObjectPaths;
-		Algo::Transform(AddedObjects, ObjectPaths, [](const UObject* Object){ return FSoftObjectPath(Object); });
+		Algo::TransformIf(ChangeData.AccumulatedAddedObjects, ObjectPaths, 
+			[](const TWeakObjectPtr<UObject>& Object)
+			{
+				// The object might have been made invalid last frame.
+				return Object.IsValid();
+			},
+			[](const TWeakObjectPtr<UObject>& Object)
+			{
+				return FSoftObjectPath(Object.Get()) ;
+			});
 		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);
 
-		// Refresh because authority changes may no longer be valid after modifying the stream
+		// Refresh because local authority changes may no longer be valid after modifying the stream
 		LocalAuthorityDiffer.RefreshChanges();
-	}
 
-	void FReplicationClient::OnPropertiesChanged()
-	{
-		// Could improve performance by just considering what actually changed instead of doing a full rebuild
-		LocalClientStreamDiffer.RefreshChangesCache();
-		// Refresh because authority changes may no longer be valid after modifying the stream
-		LocalAuthorityDiffer.RefreshChanges();
+		// Finally, let everybody else know.
+		OnModelChangedDelegate.Broadcast();
 	}
 
 	void FReplicationClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)

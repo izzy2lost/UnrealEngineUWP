@@ -2,19 +2,19 @@
 
 #pragma once
 
-#include "GenericPropertySelectionModel.h"
+#include "GenericReplicationStreamModel.h"
 #include "EditorUndoClient.h"
 
 namespace UE::ConcertClientSharedSlate
 {
 	/** Special case of FGenericPropertySelectionModel where the edited FObjectReplicationMap lives in an UObject that is RF_Transactional. */
-	class FTransactionalPropertySelectionModel
-		: public FGenericPropertySelectionModel
+	class FTransactionalReplicationStreamModel
+		: public FGenericReplicationStreamModel
 		, public FSelfRegisteringEditorUndoClient
 	{
 	public:
 
-		FTransactionalPropertySelectionModel(
+		FTransactionalReplicationStreamModel(
 			UObject& OwningObject,
 			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 			);

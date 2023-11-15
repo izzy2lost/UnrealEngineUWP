@@ -36,7 +36,6 @@ namespace UE::MultiUserClient
 		GetStreamSynchronizer().OnServerStateChanged().AddLambda([this]()
 		{
 			GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
-			OnModelExternallyChanged().Broadcast();
 		});
 	}
 }

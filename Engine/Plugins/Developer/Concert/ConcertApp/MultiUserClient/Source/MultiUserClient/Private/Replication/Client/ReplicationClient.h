@@ -43,6 +43,7 @@ namespace UE::MultiUserClient
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 			TFunctionRef<FMakeSubmissionWorkflow> MakeSubmissionWorkflowFunc
 			);
+		~FReplicationClient();
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
 		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> GetClientEditModel() const { return LocalClientEditModel; }
@@ -58,19 +59,21 @@ namespace UE::MultiUserClient
 		const ISubmissionWorkflow& GetSubmissionWorkflow() const { return *SubmissionWorkflow; }
 		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
 
+		/** @return The endpoint ID of this client in the Concert session. */
 		const FGuid& GetEndpointId() const { return EndpointId; }
+		/** @return Whether it is allowed to edit the stream and authority for this client. */
+		bool AllowsEditing() const;
+		
+		bool operator==(const FReplicationClient& Client) const { return GetEndpointId() == Client.GetEndpointId(); }
 
-		/**
-		 * Called when the data underlying the model has changed externally. Since the change was not caused by the model,
-		 * its events, like IEditableReplicationStreamModel::OnObjectsChanged, were not called.
-		 * 
-		 * Subscribers are intended to call IReplicationStreamEditor::Refresh() in response.
-		 * 
-		 * Examples: Remote client changed their stream, remote client joined with streams,
-		 * or the local client reverted a change that was rejected by the server.
-		 */
 		DECLARE_MULTICAST_DELEGATE(FOnModelExternallyChanged);
-		FOnModelExternallyChanged& OnModelExternallyChanged() { return OnModelExternallyChangedDelegate; }
+		/**
+		 * Broadcast when the data underlying the model has changed for any reason:
+		 * - Edited directly by client
+		 * - Changed by transaction
+		 * - Server state changed
+		 */
+		FOnModelExternallyChanged& OnModelChanged() { return OnModelChangedDelegate; }
 		
 	private:
 
@@ -106,12 +109,29 @@ namespace UE::MultiUserClient
 		/** Automatically submits changes as they are made by the user. */
 		FAutoSubmissionPolicy AutoSubmissionPolicy;
 
-		/** Called when the data underlying the model has changed (and the UI needs to be refreshed). */
-		FOnModelExternallyChanged OnModelExternallyChangedDelegate;
+		/**
+		 * Broadcast when the data underlying the model has changed for any reason:
+		 * - Edited directly by client
+		 * - Changed by transaction
+		 * - Server state changed
+		 */
+		FOnModelExternallyChanged OnModelChangedDelegate;
+
+		struct FDeferredOnModelChangedData
+		{
+			TSet<TWeakObjectPtr<UObject>> AccumulatedAddedObjects;
+		};
+		TOptional<FDeferredOnModelChangedData> DeferredOnModelChangedData;
 
 		// Respond to model changing
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
 		void OnPropertiesChanged();
+
+		/** Defers rebuilding operations, such as refreshing state and calling OnModelChanged, in case there are multiple changes in the same frame. */
+		void DeferOnModelChanged() { DeferOnModelChanged({}); }
+		void DeferOnModelChanged(TConstArrayView<UObject*> AddedObjects);
+		/** Processes all changes that have happened to the stream this frame. */
+		void ProcessOnModelChanged();
 		
 		/** Removes authority if request fails */
 		void OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response);

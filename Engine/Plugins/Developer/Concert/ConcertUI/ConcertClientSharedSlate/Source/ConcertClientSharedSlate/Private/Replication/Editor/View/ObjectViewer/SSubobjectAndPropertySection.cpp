@@ -95,7 +95,7 @@ namespace UE::ConcertClientSharedSlate
 		// Try to re-use old instances by using the old ChainToPropertyDataCache. This is also done so the expansion states restore correctly in the tree view.
 		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> NewChainToPropertyDataCache;
 		
-		PropertyRowData.Empty(PropertiesModel->GetNumProperties(SelectedObjects[0]));
+		PropertyRowData.Empty();
 		for (const FConcertPropertyChain& PropertyChain : SharedProperties)
 		{
 			const TSharedPtr<FReplicatedPropertyData>* ExistingItem = ChainToPropertyDataCache.Find(PropertyChain);

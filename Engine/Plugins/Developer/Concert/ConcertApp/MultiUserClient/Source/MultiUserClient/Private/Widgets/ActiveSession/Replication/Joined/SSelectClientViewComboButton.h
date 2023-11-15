@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "EClientViewType.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -18,8 +19,9 @@ namespace UE::MultiUserClient
 	class SSelectClientViewComboButton : public SCompoundWidget
 	{
 	public:
-
+		
 		DECLARE_DELEGATE_OneParam(FSelectClient, const FGuid&);
+		DECLARE_DELEGATE(FSelectAllClients);
 		
 		SLATE_BEGIN_ARGS(SSelectClientViewComboButton)
 		{}
@@ -28,11 +30,15 @@ namespace UE::MultiUserClient
 		
 			/** Remote clients that can be selected from in the order that they should be displayed. */
 			SLATE_ATTRIBUTE(TArray<FGuid>, SelectableClients)
-			/** The client that is currently selected */
+			/** The client that is currently selected. Only valid if EButtonContent == LocalClient or RemoteClient. */
 			SLATE_ATTRIBUTE(FGuid, CurrentSelection)
+			/** Determines what is being displayed in the main view right now. */
+			SLATE_ATTRIBUTE(EClientViewType, CurrentDisplayMode)
 
 			/** Called when a client is selected */
 			SLATE_EVENT(FSelectClient, OnSelectClient)
+			/** Called when all clients are supposed to be displayed */
+			SLATE_EVENT(FSelectAllClients, OnSelectAllClients)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs);
@@ -46,19 +52,19 @@ namespace UE::MultiUserClient
 		TAttribute<TArray<FGuid>> ClientsAttribute;
 		/** The current client selection */
 		TAttribute<FGuid> CurrentSelection;
+		/** Determines what is being displayed in the main view right now. */
+		TAttribute<EClientViewType> CurrentDisplayMode;
 		
 		/** Called when a client is selected */
 		FSelectClient OnSelectClientDelegate;
+		/** Called when all clients are supposed to be displayed */
+		FSelectAllClients OnSelectAllClients;
 
-		enum class EButtonContent 
-		{
-			LocalClient = 0,
-			RemoteClient = 1
-		};
 		/** Content for the button */
 		TSharedPtr<SWidgetSwitcher> ButtonContent;
 		
 		TSharedRef<SWidget> MakeMenuContent();
+		TSharedRef<SWidget> MakeAllClientsDisplayWidget() const;
 		
 		int32 GetActiveWidgetIndex() const;
 		FGuid GetSelectedClientEndpointId() const;

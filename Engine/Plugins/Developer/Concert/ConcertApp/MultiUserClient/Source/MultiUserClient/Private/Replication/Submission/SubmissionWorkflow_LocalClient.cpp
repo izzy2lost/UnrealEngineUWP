@@ -36,19 +36,6 @@ namespace UE::MultiUserClient
 		return bHasChanges ? EChangeUploadability::Ready : EChangeUploadability::NoChanges;
 	}
 
-	EChangeRevertability FSubmissionWorkflow_LocalClient::GetRevertability() const
-	{
-		if (GetUploadability() == EChangeUploadability::InProgress)
-		{
-			return EChangeRevertability::UploadInProgress;
-		}
-
-		const bool bStreamHasChanges = StreamChangeTracker.HasChanges();
-		const bool bAuthorityHasChanges = AuthorityChangeTracker.HasChanges();
-		const bool bHasChanges = bStreamHasChanges || bAuthorityHasChanges;
-		return bHasChanges ? EChangeRevertability::Revertable : EChangeRevertability::NoChanges;
-	}
-
 	TSharedPtr<ISubmissionOperation> FSubmissionWorkflow_LocalClient::SubmitChanges()
 	{
 		using namespace ConcertSyncClient::Replication;

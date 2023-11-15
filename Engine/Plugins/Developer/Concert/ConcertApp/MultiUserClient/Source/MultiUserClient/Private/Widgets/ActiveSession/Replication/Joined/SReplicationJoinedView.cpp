@@ -5,6 +5,7 @@
 #include "IConcertSyncClient.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "SSelectClientViewComboButton.h"
+#include "Widgets/ActiveSession/Replication/Client/Multi/SAllClientsView.h"
 #include "Widgets/ActiveSession/Replication/Client/Single/SReplicationClientView.h"
 
 #include "Replication/Client/RemoteReplicationClient.h"
@@ -29,6 +30,15 @@ namespace UE::MultiUserClient
 		ChildSlot
 		[
 			SAssignNew(ClientViewSwitcher, SWidgetSwitcher)
+			// These must be aligned with EClientViewType
+			+SWidgetSwitcher::Slot()
+			[
+				SNew(SAllClientsView, InClient->GetConcertClient(), *ReplicationManager->GetClientManager())
+				.ViewSelectionArea()
+				[
+					MakeClientSelectionArea()
+				]
+			]
 			+SWidgetSwitcher::Slot()
 			[
 				SNew(SReplicationClientView, InClient->GetConcertClient(), *ReplicationManager->GetClientManager())
@@ -70,11 +80,17 @@ namespace UE::MultiUserClient
 			OldClientWidgets.Add(Widget);
 			ClientViewSwitcher->RemoveSlot(Widget);
 		}
-		checkf(OldClientWidgets.Num() >= 1, TEXT("Was supposed to contain local client widget"));
+		checkf(OldClientWidgets.Num() >= 2, TEXT("Was supposed to contain all clients and local client widgets"));
 
+		// All clients
 		ClientViewSwitcher->AddSlot()
 			[
 				OldClientWidgets[0]
+			];
+		// Local client
+		ClientViewSwitcher->AddSlot()
+			[
+				OldClientWidgets[1]
 			];
 		RebuildClientViewSwitcherChildren(OldClientWidgets);
 
@@ -82,7 +98,7 @@ namespace UE::MultiUserClient
 		const bool bDisplayedClientWasRemoved = RemoteClientToWidgetSwitcherIndex.Contains(DisplayedClientId); 
 		if (bDisplayedClientWasRemoved)
 		{
-			// Will show the local client
+			// Will show all clients
 			ClientViewSwitcher->SetActiveWidgetIndex(0);
 		}
 		
@@ -182,12 +198,25 @@ namespace UE::MultiUserClient
 					? *RemoteClient
 					: Client->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId();
 			})
+			.CurrentDisplayMode_Lambda([this]()
+			{
+				switch(ClientViewSwitcher->GetActiveWidgetIndex())
+				{
+				case 0: return EClientViewType::AllClients;
+				case 1: return EClientViewType::LocalClient;
+				default: return EClientViewType::RemoteClient;
+				}
+			})
 			.OnSelectClient_Lambda([this](const FGuid& InClientId)
 			{
 				const int32* RemoteClientIndex = RemoteClientToWidgetSwitcherIndex.Find(InClientId);
 				// If it's not a remote client, it's the local client
-				const int32 ActiveWidgetIndex = RemoteClientIndex ? *RemoteClientIndex : 0;
+				const int32 ActiveWidgetIndex = RemoteClientIndex ? *RemoteClientIndex : 1;
 				ClientViewSwitcher->SetActiveWidgetIndex(ActiveWidgetIndex);
+			})
+			.OnSelectAllClients_Lambda([this]()
+			{
+				ClientViewSwitcher->SetActiveWidgetIndex(0);
 			})
 		;
 	}

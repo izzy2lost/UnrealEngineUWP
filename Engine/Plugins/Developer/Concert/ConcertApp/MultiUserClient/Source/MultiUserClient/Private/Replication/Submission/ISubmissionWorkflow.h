@@ -43,10 +43,6 @@ namespace UE::MultiUserClient
 		/** @return Detailed information about whether Submit can be called */
 		virtual EChangeUploadability GetUploadability() const = 0;
 		bool CanSubmit() const { return GetUploadability() == EChangeUploadability::Ready; }
-
-		/** @return Detailed information about whether Revert can be called */
-		virtual EChangeRevertability GetRevertability() const = 0;
-		bool CanRevert() const { return GetRevertability() == EChangeRevertability::Revertable; }
 		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnStreamRequestCompleted, const FSubmitStreamChangesResponse&);
 		/**

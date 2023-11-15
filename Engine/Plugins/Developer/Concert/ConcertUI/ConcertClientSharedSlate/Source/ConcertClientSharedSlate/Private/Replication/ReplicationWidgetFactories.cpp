@@ -2,8 +2,9 @@
 
 #include "Replication/ReplicationWidgetFactories.h"
 
-#include "Editor/Model/TransactionalPropertySelectionModel.h"
+#include "Editor/Model/TransactionalReplicationStreamModel.h"
 #include "Editor/Model/Subobject/ComponentHierarchySubobjectModel.h"
+#include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Editor/View/SubobjectView/SSubobjectView.h"
@@ -21,17 +22,17 @@ namespace UE::ConcertClientSharedSlate
 		return MakeShared<FComponentHierarchySubobjectModel>();
 	}
 	
-	TSharedRef<IReplicationStreamEditor> CreateEditor(FCreateEditorParams Params)
+	TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams Params)
 	{
 		return SNew(SBaseReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
-			.AdditionalObjectColumns(Params.AdditionalObjectColumns)
-			.AdditionalPropertyColumns(Params.AdditionalPropertyColumns)
-			.SubobjectView(Params.SubobjectView)
-			.SubobjectModel(Params.SubobjectModel)
-			.OnExtendObjectsContextMenu(Params.OnExtendObjectsContextMenu)
-			.SortPropertyRowPredicate(Params.SortPropertyRowPredicate)
-			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
-			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ]
+			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
+			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
+			.SubobjectView(Params.ViewerParams.SubobjectView)
+			.SubobjectModel(Params.ViewerParams.SubobjectModel)
+			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
+			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)
+			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
+			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
 			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText)
 			.ReplicationSettings(Params.ReplicationSettingsAttribute);
@@ -40,14 +41,14 @@ namespace UE::ConcertClientSharedSlate
 	TSharedRef<IReplicationStreamEditor> CreateDefaultStreamEditor(FCreateEditorParams Params)
 	{
 		return SNew(SDefaultReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
-			.AdditionalObjectColumns(Params.AdditionalObjectColumns)
-			.AdditionalPropertyColumns(Params.AdditionalPropertyColumns)
-			.SubobjectView(Params.SubobjectView)
-			.SubobjectModel(Params.SubobjectModel)
-			.OnExtendObjectsContextMenu(Params.OnExtendObjectsContextMenu)
-			.SortPropertyRowPredicate(Params.SortPropertyRowPredicate)
-			.LeftOfObjectSearchBar() [ Params.LeftOfObjectSearchBar.Widget ]
-			.LeftOfPropertySearchBar() [ Params.LeftOfPropertySearchBar.Widget ]
+			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
+			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
+			.SubobjectView(Params.ViewerParams.SubobjectView)
+			.SubobjectModel(Params.ViewerParams.SubobjectModel)
+			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
+			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)
+			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
+			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
 			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText)
 			.ReplicationSettings(Params.ReplicationSettingsAttribute);
@@ -58,10 +59,15 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
 		)
 	{
-		return MakeShared<FTransactionalPropertySelectionModel>(
+		return MakeShared<FTransactionalReplicationStreamModel>(
 			OwnerObject,
 			MoveTemp(ReplicationMapAttribute)
 			);
+	}
+
+	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams Params)
+	{
+		return SNew(SMultiReplicationStreamEditor, MoveTemp(Params));
 	}
 }
 

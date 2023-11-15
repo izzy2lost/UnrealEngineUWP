@@ -16,6 +16,8 @@ namespace UE::MultiUserClient
 {
 	class FGlobalAuthorityCache;
 
+	DECLARE_DELEGATE_OneParam(FForEachReplicatedObject, TFunctionRef<void(const FSoftObjectPath&)> Consumer);
+	
 	/**
 	 * Displays a text "Replicating x Objects for y Actors".
 	 *
@@ -31,20 +33,26 @@ namespace UE::MultiUserClient
 		{}
 			/** The clients to show statistics for */
 			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
+
+			/** Delegate which enumerates every replicated object. */
+			SLATE_EVENT(FForEachReplicatedObject, ForEachReplicatedObject)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
+		void Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache);
 		virtual ~SReplicationStatus() override;
+
+		/** Updates the status text after an external update has occured. */
+		void RefreshStatusText();
 
 	private:
 
-		/** Used to look up registered objects and subobjects. */
-		const ConcertClientSharedSlate::IReplicationStreamModel* ObjectModel;
 		/** Used to get authority state of objects and informs us when authority changes. */
-		FGlobalAuthorityCache* AuthorityCache;
+		FGlobalAuthorityCache* AuthorityCache = nullptr;
 
 		/** The clients to show statistics for */
 		TAttribute<TSet<FGuid>> DisplayedClientsAttribute;
+		/** Delegate which enumerates every replicated object. */
+		FForEachReplicatedObject ForEachReplicatedObjectDelegate;
 
 		/** Updated when authority changes. Displays subobjects in bold. */
 		TSharedPtr<STextBlock> ObjectsText;
@@ -52,7 +60,6 @@ namespace UE::MultiUserClient
 		TSharedPtr<STextBlock> ActorsText;
 
 		void OnAuthorityCacheChanged(const FGuid& ClientId) { RefreshStatusText(); }
-		void RefreshStatusText();
 	};
 }
 

@@ -7,23 +7,19 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 struct FConcertReplicationEditorSettings;
-class FTransactionObjectEvent;
 struct FObjectReplicationMap;
-struct FTransactionContext;
 
 namespace UE::ConcertClientSharedSlate
 {
 	/** Implements logic for editing a FObjectReplicationMap contained in an UObject. */
-	class FGenericPropertySelectionModel
+	class FGenericReplicationStreamModel
 		: public IEditableReplicationStreamModel
 	{
 	public:
 		
-		FGenericPropertySelectionModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute);
+		FGenericReplicationStreamModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute);
 		
 		//~ Begin IReplicationStreamModel Interface
-		virtual uint32 GetNumReplicatedObjects() const override;
-		virtual uint32 GetNumProperties(const FSoftObjectPath& Object) const override;
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
 		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override;
 		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override;

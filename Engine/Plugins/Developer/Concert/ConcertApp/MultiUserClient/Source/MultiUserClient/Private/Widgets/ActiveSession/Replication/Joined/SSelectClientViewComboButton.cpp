@@ -11,6 +11,8 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 
+#define LOCTEXT_NAMESPACE "SSelectClientViewComboButton"
+
 namespace UE::MultiUserClient
 {
 	void SSelectClientViewComboButton::Construct(const FArguments& InArgs)
@@ -18,7 +20,11 @@ namespace UE::MultiUserClient
 		Client = InArgs._Client;
 		ClientsAttribute = InArgs._SelectableClients;
 		CurrentSelection = InArgs._CurrentSelection;
+		CurrentDisplayMode = InArgs._CurrentDisplayMode;
+		
 		OnSelectClientDelegate = InArgs._OnSelectClient;
+		OnSelectAllClients = InArgs._OnSelectAllClients;
+		check(OnSelectClientDelegate.IsBound() && OnSelectAllClients.IsBound());
 		
 		ChildSlot
 		[
@@ -29,6 +35,10 @@ namespace UE::MultiUserClient
 				SAssignNew(ButtonContent, SWidgetSwitcher)
 				.WidgetIndex(this, &SSelectClientViewComboButton::GetActiveWidgetIndex)
 
+				+SWidgetSwitcher::Slot()
+				[
+					MakeAllClientsDisplayWidget()
+				]
 				+SWidgetSwitcher::Slot()
 				[
 					SNew(ConcertClientSharedSlate::SLocalClientName, Client.ToSharedRef())
@@ -46,12 +56,23 @@ namespace UE::MultiUserClient
 	{
 		FMenuBuilder MenuBuilder(true, nullptr);
 
+		MenuBuilder.AddMenuEntry(FUIAction(
+			FExecuteAction::CreateLambda([this](){ OnSelectAllClients.Execute(); }),
+				FCanExecuteAction::CreateLambda([this](){ return GetActiveWidgetIndex() != static_cast<int32>(EClientViewType::AllClients); })
+			),
+			MakeAllClientsDisplayWidget()
+			);
+
 		for (const FGuid& ClientId : ClientsAttribute.Get())
 		{
 			const bool bIsLocalClient = ClientId == Client->GetCurrentSession()->GetSessionClientEndpointId();
 			FUIAction UIAction(
 				FExecuteAction::CreateLambda([this, ClientId](){ OnSelectClientDelegate.Execute(ClientId); }),
-				FCanExecuteAction::CreateLambda([this, ClientId](){ return CurrentSelection.Get() != ClientId; })
+				FCanExecuteAction::CreateLambda([this, ClientId]()
+				{
+					return GetActiveWidgetIndex() == static_cast<int32>(EClientViewType::AllClients)
+						|| CurrentSelection.Get() != ClientId;
+				})
 				);
 			
 			if (bIsLocalClient)
@@ -67,11 +88,19 @@ namespace UE::MultiUserClient
 		return MenuBuilder.MakeWidget();
 	}
 
+	TSharedRef<SWidget> SSelectClientViewComboButton::MakeAllClientsDisplayWidget() const
+	{
+		return SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("AllClients", "All Clients"))
+			];
+	}
+
 	int32 SSelectClientViewComboButton::GetActiveWidgetIndex() const
 	{
-		return CurrentSelection.Get() == Client->GetCurrentSession()->GetSessionClientEndpointId()
-			? static_cast<int32>(EButtonContent::LocalClient)
-			: static_cast<uint32>(EButtonContent::RemoteClient);
+		return static_cast<int32>(CurrentDisplayMode.Get());
 	}
 
 	FGuid SSelectClientViewComboButton::GetSelectedClientEndpointId() const
@@ -79,3 +108,5 @@ namespace UE::MultiUserClient
 		return CurrentSelection.Get();
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

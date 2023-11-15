@@ -64,6 +64,31 @@ namespace UE::MultiUserClient
 		return Client ? Client->Get() : nullptr;
 	}
 
+	void FReplicationClientManager::ForEachClient(TFunctionRef<EBreakBehavior(const FReplicationClient&)> ProcessClient) const
+	{
+		if (ProcessClient(GetLocalClient()) == EBreakBehavior::Break)
+		{
+			return;
+		}
+		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : GetRemoteClients())
+		{
+			if (ProcessClient(*RemoteClient) == EBreakBehavior::Break)
+			{
+				return;
+			}
+		}
+	}
+
+	void FReplicationClientManager::ForEachClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient)
+	{
+		const FReplicationClientManager* ConstThis = this;
+		ConstThis->ForEachClient([&ProcessClient](const FReplicationClient& Client)
+		{
+			// const_cast safe here because remote clients are never const and GetLocalClient() is not const here since this overload is non-const
+			return ProcessClient(const_cast<FReplicationClient&>(Client));
+		});
+	}
+
 	void FReplicationClientManager::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(SessionContent);

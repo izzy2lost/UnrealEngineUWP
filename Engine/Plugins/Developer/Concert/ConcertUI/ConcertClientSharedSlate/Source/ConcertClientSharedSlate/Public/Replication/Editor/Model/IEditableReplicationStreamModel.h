@@ -16,8 +16,14 @@ namespace UE::ConcertClientSharedSlate
 {
 	enum class EReplicatedObjectChangeReason : uint8
 	{
+		/** A function call on the model changed the data. */
 		ChangedDirectly,
-		Transacted
+		
+		/**
+		 * An external change, such as transaction, changed the data out from under us.
+		 * The AddedObjects and RemovedObjects fields are empty because we don't know exactly what changed, if anything.
+		 */
+		ExternalChange
 	};
 	
 	/**
@@ -26,7 +32,7 @@ namespace UE::ConcertClientSharedSlate
 	 * Models may not always be writable. When editing a UAsset, it will be writable. However, if we join a multi-user
 	 * session we do not want to edit the objects nor properties - only read.
 	 */
-	class CONCERTCLIENTSHAREDSLATE_API IEditableReplicationStreamModel : public IReplicationStreamModel
+	class IEditableReplicationStreamModel : public IReplicationStreamModel
 	{
 	public:
 

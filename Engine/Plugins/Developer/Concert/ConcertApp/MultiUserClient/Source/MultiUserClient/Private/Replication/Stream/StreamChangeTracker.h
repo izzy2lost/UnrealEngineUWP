@@ -63,9 +63,6 @@ namespace UE::MultiUserClient
 		 */
 		void RefreshChangesCache();
 		const FStreamChangelist& GetCachedDeltaChange() const { return CachedDeltaChange; }
-		
-		/** Reverts the external stream StreamWithInProgressChangesAttribute to be the version registered on the server. */
-		void RevertCachedChanges();
 
 		/** @return Whether there are any changes that that can be submitted to the server (excludes those with warnings). */
 		bool HasChanges() const;
@@ -84,10 +81,6 @@ namespace UE::MultiUserClient
 		};
 		/** @return Whether this object's local configuration differs from the server version. */
 		EObjectChangeType GetObjectChanges(const FSoftObjectPath& Object) const;
-
-		/** Called when RevertCachedChanges is called. The UI should be refreshed. */
-		DECLARE_MULTICAST_DELEGATE(FOnChangesReverted);
-		FOnChangesReverted& OnChangesReverted_GameThread() { return OnChangesRevertedDelegate; }
 		
 	private:
 
@@ -108,8 +101,6 @@ namespace UE::MultiUserClient
 		
 		/** Called when StreamWithInProgressChangesAttribute is about to be modified. */
 		FOnModifyReplicationMap OnModifyReplicationMapDelegate;
-		/** Called when StreamWithInProgressChangesAttribute was modified by this FLocalClientStreamDiffer. */
-		FOnChangesReverted OnChangesRevertedDelegate;
 
 		FStreamChangelist DiffChanges() const
 		{

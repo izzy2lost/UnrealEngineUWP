@@ -34,22 +34,6 @@ namespace UE::MultiUserClient
 		CachedDeltaChange = DiffChanges();
 	}
 
-	void FStreamChangeTracker::RevertCachedChanges()
-	{
-		if (HasChanges())
-		{
-			FScopedTransaction Transaction(LOCTEXT("RevertCachedChanges", "Revert replication changes"));
-			OnModifyReplicationMapDelegate.ExecuteIfBound();
-			
-			*StreamWithInProgressChangesAttribute.Get() = StreamSynchronizer.GetServerState();
-			CachedDeltaChange = {};
-
-			check(IsInGameThread());
-			OnChangesRevertedDelegate.Broadcast();
-			RefreshChangesCache();
-		}
-	}
-
 	bool FStreamChangeTracker::HasChanges() const
 	{
 		return !CachedDeltaChange.ObjectsToPut.IsEmpty() || !CachedDeltaChange.ObjectsToRemove.IsEmpty();

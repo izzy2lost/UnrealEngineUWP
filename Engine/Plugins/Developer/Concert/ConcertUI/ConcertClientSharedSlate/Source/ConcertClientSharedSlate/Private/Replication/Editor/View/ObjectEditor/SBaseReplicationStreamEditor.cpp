@@ -84,9 +84,7 @@ namespace UE::ConcertClientSharedSlate
 
 	void SBaseReplicationStreamEditor::Refresh()
 	{
-		ReplicationViewer->RefreshObjectData();
-		ReplicationViewer->RefreshSubobjectData();
-		ReplicationViewer->RefreshPropertyData();
+		ReplicationViewer->Refresh();
 	}
 
 	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetSelectedTopLevelObjects() const
@@ -227,7 +225,6 @@ namespace UE::ConcertClientSharedSlate
 			return EBreakBehavior::Continue;
 		});
 		
-		checkf(ObjectAndChildren.Num() >= ObjectsToDelete.Num(), TEXT("Above algorithm is broken."));
 		EditablePropertiesModel->RemoveObjects(ObjectAndChildren);
 
 		// Viewer has an internal cache of the selected object. Setting the displayed object to the cached one is a no-op.

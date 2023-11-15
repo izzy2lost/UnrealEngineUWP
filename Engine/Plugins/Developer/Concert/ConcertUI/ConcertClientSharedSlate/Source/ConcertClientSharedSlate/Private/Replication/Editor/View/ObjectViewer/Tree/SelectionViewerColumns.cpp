@@ -259,7 +259,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 					Model.RemoveProperties(Path, Properties);
 					// If this does not resolve it is not too bad if the subobject is not removed...
 					UObject* Object = Path.ResolveObject();
-					const bool bNeedsToRemoveNonRoot = Object && !Object->IsA<AActor>() && Model.GetNumProperties(Path) == 0;
+					const bool bNeedsToRemoveNonRoot = Object && !Object->IsA<AActor>() && !Model.ContainsObjects({Path});
 					if (bNeedsToRemoveNonRoot)
 					{
 						Model.RemoveObjects({ Path });

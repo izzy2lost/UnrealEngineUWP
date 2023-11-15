@@ -77,6 +77,10 @@ namespace UE::MultiUserClient
 			return const_cast<FReplicationClient*>(ConstThis->FindClient(EndpointId));
 		}
 
+		/** Iterates through every client */
+		void ForEachClient(TFunctionRef<EBreakBehavior(const FReplicationClient&)> ProcessClient) const;
+		/** Iterates through every client */
+		void ForEachClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient);
 		
 		DECLARE_MULTICAST_DELEGATE(FRemoteClientsChanged);
 		/** Called when RemoteClients changes. Called after OnPostRemoteClientAdded. */

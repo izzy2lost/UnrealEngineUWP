@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "SReplicationStatus.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -15,6 +17,7 @@ namespace UE::MultiUserClient
 	class FGlobalAuthorityCache;
 	class FStreamChangeTracker;
 	class ISubmissionWorkflow;
+	class SReplicationStatus;
 
 	/**
 	 * Contains a bunch of actions that can be performed on client view.
@@ -30,9 +33,20 @@ namespace UE::MultiUserClient
 		
 			/** The clients to show statistics for */
 			SLATE_ATTRIBUTE(TSet<FGuid>, DisplayedClients)
+		
+			/** Delegate which enumerates every replicated object. */
+			SLATE_EVENT(FForEachReplicatedObject, ForEachReplicatedObject)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, const ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel, FGlobalAuthorityCache& InAuthorityCache);
+		void Construct(const FArguments& InArgs, FGlobalAuthorityCache& InAuthorityCache);
+
+		/** Updates the status text of how many objects are being replicated. */
+		void RefreshStatusText();
+		
+	private:
+
+		/** Displays how many objects are being replicated */
+		TSharedPtr<SReplicationStatus> ReplicationStatus;
 	};
 }
 

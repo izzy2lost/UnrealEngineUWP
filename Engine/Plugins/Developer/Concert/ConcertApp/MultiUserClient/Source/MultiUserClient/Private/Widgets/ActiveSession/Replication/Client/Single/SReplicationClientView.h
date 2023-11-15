@@ -61,6 +61,9 @@ namespace UE::MultiUserClient
 		void OnModelChanged() const;
 		
 		void OnConsoleVariableChanged(IConsoleVariable* ConsoleVariable);
+
+		/** Lists all objects being replicated */
+		void EnumerateReplicatedObjects(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;
 	};
 }
 
