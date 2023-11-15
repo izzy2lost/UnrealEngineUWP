@@ -92,18 +92,18 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 {
 	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
 	{
-		UObject* NewInstanceObject = Iter->Value;
-
-		TypedElementRowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
-		if (!Database->IsRowAvailable(NewObjectRow))
-		{
-			NewObjectRow = DataStorageCompatibility->AddCompatibleObjectExplicit(NewInstanceObject);
-		}
-		
 		const void* PreDeleteObject = Iter->Key;
-		const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject);
-		if (MementoRowPtr != nullptr)
+		if (const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject))
 		{
+			UObject* NewInstanceObject = Iter->Value;
+			TypedElementRowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
+			// Do the addition only if there's a recorded memento. Having a memento implies the object was previously registered and there's
+			// still an interest in it. Any other objects can therefore be ignored.
+			if (!Database->IsRowAvailable(NewObjectRow))
+			{
+				NewObjectRow = DataStorageCompatibility->AddCompatibleObjectExplicit(NewInstanceObject);
+			}
+
 			// Kick off re-instantiation of NewObjectRow from the Memento
 			TypedElementRowHandle Memento = *MementoRowPtr;
 			if (ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})), TEXT("Cannot reinstantiate from a non memento row")))
