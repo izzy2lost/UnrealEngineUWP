@@ -9,6 +9,7 @@
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMNativeAllocationGuard.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
@@ -35,9 +36,8 @@ void VMap::Add(FAllocationContext Context, VValue Key, VValue Value)
 	TWriteBarrier<VValue> NewKey(Context, Key);
 	TWriteBarrier<VValue> NewValue(Context, Value);
 
-	const size_t PreviousAllocatedSize = GetAllocatedSize();
+	TNativeAllocationGuard NativeAllocationGuard(this);
 	InternalMap.Add(NewKey, NewValue);
-	FHeap::ReportAllocatedNativeBytes((GetAllocatedSize() - PreviousAllocatedSize));
 }
 
 VValue VMap::Find(const VValue Key)
@@ -77,6 +77,8 @@ void VMap::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.Visit(MapIt.Key());
 		Visitor.Visit(MapIt.Value());
 	}
+
+	Visitor.ReportNativeBytes(GetAllocatedSize());
 }
 
 bool VMap::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)

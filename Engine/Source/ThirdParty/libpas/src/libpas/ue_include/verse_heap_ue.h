@@ -13,6 +13,7 @@ extern "C" {
 
 typedef struct pas_heap pas_heap;
 typedef struct verse_heap_object_set verse_heap_object_set;
+typedef struct verse_heap_page_header verse_heap_page_header;
 
 PAS_API extern verse_heap_object_set verse_heap_all_objects;
 
@@ -78,6 +79,8 @@ PAS_API uintptr_t verse_heap_find_allocated_object_start(uintptr_t inner_ptr);
 PAS_API size_t verse_heap_get_allocation_size(uintptr_t inner_ptr);
 
 PAS_API bool verse_heap_owns_address(uintptr_t ptr);
+
+PAS_API verse_heap_page_header* verse_heap_get_page_header(uintptr_t inner_ptr);
 
 #ifdef __cplusplus
 }

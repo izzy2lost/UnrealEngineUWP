@@ -41,6 +41,8 @@ UE::FMutex FHeap::GlobalRootMutex;
 TNeverDestroyed<TArray<FGlobalHeapRoot*>> FHeap::GlobalRoots;
 UE::FMutex FHeap::GlobalCensusRootMutex;
 TNeverDestroyed<TArray<FGlobalHeapCensusRoot*>> FHeap::GlobalCensusRoots;
+UE::FMutex FHeap::WeakKeyMapsMutex;
+TNeverDestroyed<TArray<FHeapPageHeader*>> FHeap::WeakKeyMapsByHeader;
 UE::FMutex FHeap::Mutex;
 UE::FConditionVariable FHeap::ConditionVariable;
 uint64 FHeap::RequestedCycleVersion;
@@ -49,9 +51,9 @@ uint64 FHeap::CompletedCycleVersion;
 bool FHeap::bIsCollecting;
 bool FHeap::bIsMarking;
 EWeakBarrierState FHeap::WeakBarrierState = EWeakBarrierState::Inactive;
-size_t FHeap::LiveBytesAtStart;
+size_t FHeap::LiveCellBytesAtStart;
 std::atomic<size_t> FHeap::LiveNativeBytes;
-std::atomic<size_t> FHeap::SweptNativeBytes;
+std::atomic<size_t> FHeap::MarkedNativeBytes;
 TNeverDestroyed<FMarkStack> FHeap::MarkStack;
 unsigned FHeap::NumThreadsToScanStackManually;
 bool FHeap::bIsExternallyControlled;
@@ -87,7 +89,7 @@ void FHeap::Initialize()
 		verse_heap_live_bytes_trigger_callback = LiveBytesTriggerCallback;
 
 		LiveNativeBytes = 0;
-		SweptNativeBytes = 0;
+		MarkedNativeBytes = 0;
 
 		verse_heap_did_become_ready_for_allocation();
 		bIsInitialized = true;
@@ -279,9 +281,12 @@ void FHeap::BeginCollection(FIOContext Context)
 		TargetContext.StopAllocators();
 	});
 
-	LiveBytesAtStart = verse_heap_live_bytes + LiveNativeBytes;
+	LiveCellBytesAtStart = verse_heap_live_bytes;
+	MarkedNativeBytes = 0;
 
-	UE_LOG(LogVerseGC, Verbose, TEXT("Starting with live bytes %zu"), LiveBytesAtStart);
+	size_t CurrentLiveNativeBytes = LiveNativeBytes;
+
+	UE_LOG(LogVerseGC, Verbose, TEXT("Starting with live cell bytes %zu, native bytes %zu, total bytes %zu"), LiveCellBytesAtStart, CurrentLiveNativeBytes, LiveCellBytesAtStart + CurrentLiveNativeBytes);
 }
 
 void FHeap::MarkRoots(FIOContext Context)
@@ -509,6 +514,30 @@ void FHeap::ConductCensus(FIOContext Context)
 	V_DIE_UNLESS(bIsTerminated);
 	V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead);
 
+	// This part could have been factored out into a global census root, except I anticipate we're likely to do special
+	// crazy optimizations for weak keys (like parallelizing this loop).
+	//
+	// We need to do this at some point after marking but before sweeping, ideally before destructors, so that means
+	// doing it at some point during census. It's OK for this loop to happen after the rest of census though. In common
+	// cases, we should expect this loop to be very fast because there aren't that many things in it.
+	{
+		TArray<FHeapPageHeader*> MyWeakKeyMapsByHeader;
+		{
+			TUniqueLock Lock(WeakKeyMapsMutex);
+			MyWeakKeyMapsByHeader.Append(MoveTemp(*WeakKeyMapsByHeader));
+		}
+		MyWeakKeyMapsByHeader.RemoveAll([](FHeapPageHeader* Header) -> bool {
+			FWeakKeyMapGuard Guard(Header);
+			return Guard.ConductCensus();
+		});
+		if (!MyWeakKeyMapsByHeader.IsEmpty())
+		{
+			TUniqueLock Lock(WeakKeyMapsMutex);
+			MyWeakKeyMapsByHeader.Append(*WeakKeyMapsByHeader);
+			*WeakKeyMapsByHeader = MoveTemp(MyWeakKeyMapsByHeader);
+		}
+	}
+
 	{
 		TUniqueLock Lock(GlobalCensusRootMutex);
 		for (FGlobalHeapCensusRoot* Root : *GlobalCensusRoots)
@@ -583,11 +612,22 @@ void FHeap::EndCollection(FIOContext Context)
 	V_DIE_UNLESS(verse_heap_live_bytes_trigger_threshold == SIZE_MAX);
 	CompletedCycleVersion++;
 
-	size_t SweptBytes = verse_heap_swept_bytes + SweptNativeBytes.exchange(0);
-	size_t SurvivingBytes = LiveBytesAtStart - SweptBytes;
+	// NOTE: It's super tempting to try to debug MarkedNativeBytes by adding some kind of assertion here. But it's not possible to assert
+	// anything about it.
+	//
+	// For example, you might think that MarkedNativeBytes <= LiveNativeBytesAtStart, but you'd be wrong, since it's possible for native data
+	// structures to grow in size between the start of collection and when they are marked.
+	//
+	// Native data structures can also shrink, so that rules out a bunch of other assertions you might think of.
+
+	size_t SweptBytes = verse_heap_swept_bytes;
+	size_t SurvivingCellBytes = LiveCellBytesAtStart - SweptBytes;
+	size_t SurvivingBytes = SurvivingCellBytes + MarkedNativeBytes;
 	size_t LiveBytes = verse_heap_live_bytes + LiveNativeBytes;
 
+	V_DIE_UNLESS((intptr_t)SurvivingCellBytes >= 0);
 	V_DIE_UNLESS((intptr_t)SurvivingBytes >= 0);
+
 	if (CompletedCycleVersion == RequestedCycleVersion)
 	{
 		size_t NewTrigger = static_cast<size_t>(static_cast<double>(SurvivingBytes) * 1.5);
@@ -598,24 +638,24 @@ void FHeap::EndCollection(FIOContext Context)
 			RequestedCycleVersion++;
 			UE_LOG(
 				LogVerseGC, Verbose,
-				TEXT("Swept bytes %zu, survived %zu, new live %zu, beginning another GC immediately (due to new trigger %zu)"),
-				SweptBytes, SurvivingBytes, LiveBytes, NewTrigger);
+				TEXT("Swept bytes %zu, kept native %zu, survived %zu, new live %zu, beginning another GC immediately (due to new trigger %zu)"),
+				SweptBytes, MarkedNativeBytes.load(), SurvivingBytes, LiveBytes, NewTrigger);
 		}
 		else
 		{
 			verse_heap_live_bytes_trigger_threshold = NewTrigger;
 			UE_LOG(
 				LogVerseGC, Verbose,
-				TEXT("Swept bytes %zu, survived %zu, new live %zu, new trigger %zu"),
-				SweptBytes, SurvivingBytes, LiveBytes, verse_heap_live_bytes_trigger_threshold);
+				TEXT("Swept bytes %zu, kept native %zu, survived %zu, new live %zu, new trigger %zu"),
+				SweptBytes, MarkedNativeBytes.load(), SurvivingBytes, LiveBytes, verse_heap_live_bytes_trigger_threshold);
 		}
 	}
 	else
 	{
 		UE_LOG(
 			LogVerseGC, Verbose,
-			TEXT("Swept bytes %zu, survived %zu, new live %zu, beginning another GC immediately (per pending request)"),
-			SweptBytes, SurvivingBytes, LiveBytes);
+			TEXT("Swept bytes %zu, kept native %zu, survived %zu, new live %zu, beginning another GC immediately (per pending request)"),
+			SweptBytes, MarkedNativeBytes.load(), SurvivingBytes, LiveBytes);
 	}
 	CheckCycleTriggerInvariants();
 	bIsCollecting = false;

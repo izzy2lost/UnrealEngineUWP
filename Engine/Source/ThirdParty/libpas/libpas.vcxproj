@@ -397,6 +397,7 @@
     <ClInclude Include="src\libpas\ue_include\verse_heap_iterate_filter_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_mark_bits_page_commit_controller_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_object_set_ue.h" />
+    <ClInclude Include="src\libpas\ue_include\verse_heap_page_header_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_heap_ue.h" />
     <ClInclude Include="src\libpas\ue_include\verse_local_allocator_ue.h" />
     <ClInclude Include="src\libpas\verse_heap.h" />

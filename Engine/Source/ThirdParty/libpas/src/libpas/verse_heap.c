@@ -677,8 +677,10 @@ static PAS_ALWAYS_INLINE void sweep_segregated_exclusive_view_with_config(sweep_
     if (!sweep_handle_header(verse_heap_page_header_for_segregated_page(page)))
         return;
 
-    if (!page->emptiness.num_non_empty_words_or_live_bytes)
+    if (!page->emptiness.num_non_empty_words_or_live_bytes) {
+		PAS_ASSERT(!verse_heap_page_header_for_segregated_page(page)->client_data);
         return;
+	}
 
     if (config.kind == pas_segregated_page_config_kind_verse_small_segregated) {
         sweep_segregated_exclusive_view_impl_small(my_sweep_data, view, page, page_boundary);
@@ -889,6 +891,9 @@ static void sweep_large(sweep_data* data)
 
     filter_large_entries(
         &verse_heap_all_objects, sweep_large_filter_and_deallocate_callback, data);
+
+	if (!verse_heap_all_objects.num_large_entries)
+		PAS_ASSERT(!verse_heap_large_objects_header.client_data);
 }
 
 void verse_heap_sweep_range(size_t begin, size_t end)
@@ -1010,6 +1015,11 @@ bool verse_heap_owns_address(uintptr_t ptr)
 bool verse_heap_object_is_allocated(void* ptr)
 {
 	return verse_heap_find_allocated_object_start((uintptr_t)ptr) == (uintptr_t)ptr;
+}
+
+verse_heap_page_header* verse_heap_get_page_header(uintptr_t inner_ptr)
+{
+	return verse_heap_get_page_header_inline(inner_ptr);
 }
 
 #endif /* PAS_ENABLE_VERSE */

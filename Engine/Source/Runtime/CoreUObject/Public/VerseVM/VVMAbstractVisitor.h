@@ -107,6 +107,9 @@ struct FAbstractVisitor
 		Visit(Values, Values + Count);
 	}
 
+	virtual bool IsMarked(const void* Ptr) { return true; }
+	virtual void ReportNativeBytes(size_t Bytes) {}
+
 protected:
 	FAbstractVisitor() = default;
 

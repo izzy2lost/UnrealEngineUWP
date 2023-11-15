@@ -11,6 +11,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/TypeCompatibleBytes.h"
+#include "VVMLog.h"
 #include "verse_heap_config_ue.h"
 #include <atomic>
 #include <cstddef>
@@ -31,6 +32,7 @@ class FHeapIterationSet;
 struct FCollectionCycleRequest;
 struct FGlobalHeapRoot;
 struct FGlobalHeapCensusRoot;
+struct FHeapPageHeader;
 struct FIOContext;
 struct FMarkStack;
 class FSubspace;
@@ -148,22 +150,23 @@ public:
 		return BitCast<VEmergentType*>(BitCast<uint8*>(FHeap::EmergentTypeBase) + static_cast<size_t>(Offset) * FHeap::EmergentAlignment);
 	}
 
-	static void ReportAllocatedNativeBytes(size_t Bytes)
+	static void ReportAllocatedNativeBytes(ptrdiff_t Bytes)
 	{
-		if (Bytes == 0)
+		if (Bytes)
 		{
-			return;
+			LiveNativeBytes += static_cast<size_t>(Bytes);
+			V_DIE_IF(static_cast<ptrdiff_t>(LiveNativeBytes) < 0);
 		}
-		LiveNativeBytes += Bytes;
 	}
 
 	static void ReportDeallocatedNativeBytes(size_t Bytes)
 	{
-		LiveNativeBytes -= Bytes;
-		SweptNativeBytes += Bytes;
+		size_t AllocatedBytes = static_cast<size_t>(-static_cast<ptrdiff_t>(Bytes));
+		V_DIE_IF(AllocatedBytes == Bytes);
+		ReportAllocatedNativeBytes(AllocatedBytes);
 	}
 
-	static size_t QueryNativeLiveMemory()
+	static size_t GetLiveNativeBytes()
 	{
 		return LiveNativeBytes;
 	}
@@ -270,6 +273,8 @@ private:
 	friend struct FContextImpl; // Usually, FContextImpl just uses FHeap API, but sometimes it's not practical.
 	friend struct FGlobalHeapRoot;
 	friend struct FGlobalHeapCensusRoot;
+	friend struct FMarkStack;
+	friend struct FWeakKeyMapGuard;
 
 	FHeap() = delete;
 
@@ -310,6 +315,12 @@ private:
 
 	static bool IsGCTerminationPendingExternalSignalImpl();
 
+	static void ReportMarkedNativeBytes(size_t Bytes)
+	{
+		MarkedNativeBytes += Bytes;
+		V_DIE_IF(static_cast<ptrdiff_t>(MarkedNativeBytes) < 0);
+	}
+
 	static bool bWithoutThreading;
 
 	static FThread* CollectorThread;
@@ -318,6 +329,9 @@ private:
 	static TNeverDestroyed<TArray<FGlobalHeapRoot*>> GlobalRoots;
 	static UE::FMutex GlobalCensusRootMutex;
 	static TNeverDestroyed<TArray<FGlobalHeapCensusRoot*>> GlobalCensusRoots;
+
+	static UE::FMutex WeakKeyMapsMutex;
+	static TNeverDestroyed<TArray<FHeapPageHeader*>> WeakKeyMapsByHeader;
 
 	// Controls all of the fields below.
 	static UE::FMutex Mutex;
@@ -342,9 +356,9 @@ private:
 	COREUOBJECT_API static bool bIsMarking;
 	COREUOBJECT_API static EWeakBarrierState WeakBarrierState;
 
-	static size_t LiveBytesAtStart;
+	static size_t LiveCellBytesAtStart;
 
-	static std::atomic<size_t> SweptNativeBytes;
+	static std::atomic<size_t> MarkedNativeBytes;
 	static std::atomic<size_t> LiveNativeBytes;
 
 	static TNeverDestroyed<FMarkStack> MarkStack; // Must hold Mutex to access safely.

@@ -349,6 +349,14 @@ static PAS_ALWAYS_INLINE void pas_segregated_page_note_full_emptiness(pas_segreg
     static const bool verbose = false;
     
     if (pas_segregated_page_config_is_verse(page_config)) {
+		/* If the page became empty and we hadn't cleared the client data then something is wrong. It's up to
+		   the GC to clear client datas from pages with no marked objects after marking and before sweeping.
+		
+		   The way that this usually happens is that the client data is a map from object to stuff, and the GC
+		   will prune the map based on liveness before sweep. If the map is empty, it gets deleted. asserts
+		   that it must get deleted. */
+		PAS_ASSERT(!verse_heap_page_header_for_segregated_page(page)->client_data);
+		
         /* GC needs to know that this page might now get scavenged, so that we don't attempt to do live
            object lookups in it.
 

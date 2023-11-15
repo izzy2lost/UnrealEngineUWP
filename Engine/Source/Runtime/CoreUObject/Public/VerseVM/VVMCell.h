@@ -25,12 +25,16 @@ struct VEmergentType;
 
 struct VCell
 {
+	// If set in GCData, means that this object has an object in the libpas verse_heap client_data for the verse_heap_page_header
+	// corresponding to this object. This just means that during marking, we want to process that data structure.
+	static constexpr uint8 GCDataIsWeakKeyBit = 1;
+
 	DECLARE_BASE_VCPPCLASSINFO(COREUOBJECT_API);
 
 	/// The header word of a VCell is the offset of an emergent type and 4 extra bytes
 	// (one reserved for GC)
 	uint32 EmergentTypeOffset;
-	uint8 GCData{0};
+	std::atomic<uint8> GCData{0};
 	// The first two bits of this are used by FExternalMutexes in VCell subclasses.
 	std::atomic<uint8> Mutex{0};
 	union
@@ -158,6 +162,19 @@ public:
 	CastType* DynamicCast() const;
 
 	COREUOBJECT_API FString DebugName() const;
+
+	// Inform the GC that this cell is now a key in the following weak map and it keeps the given value alive.
+	// For sound concurrent GC handling of weak maps, both the map and the key must know about the mapping.
+	// Hence, every cell in the VVM has the secret ability to become a weak key. This costs just one bit per
+	// object if unused. It costs horrors and nightmares if used (but at least the terror is O(1)ish).
+	void AddWeakMapping(VCell* Map, VCell* Value);
+	void RemoveWeakMapping(VCell* Map);
+
+	// This function is a test-only function because it has a very limited kind of meaning. Requesting the size (or
+	// checking the emptiness) of a weap map (including a "transposed" weak map, like the weak key map) gives a kind
+	// of upper bound: it means that the map has at most this many entries. But we cannot tell you which of those
+	// entries are real. When you query them, you are likely to find fewer entries.
+	bool HasWeakMappings();
 };
 
 static_assert(sizeof(VCell) <= 8);

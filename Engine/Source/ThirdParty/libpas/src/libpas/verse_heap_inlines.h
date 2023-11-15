@@ -234,6 +234,28 @@ static PAS_ALWAYS_INLINE pas_object_kind verse_heap_get_object_kind(uintptr_t in
     return pas_medium_segregated_object_kind;
 }
 
+static PAS_ALWAYS_INLINE verse_heap_page_header* verse_heap_get_page_header_inline(uintptr_t inner_ptr)
+{
+    verse_heap_chunk_map_entry chunk_map_entry;
+	pas_segregated_page* page;
+
+    chunk_map_entry = verse_heap_get_chunk_map_entry(inner_ptr);
+
+	PAS_TESTING_ASSERT(!verse_heap_chunk_map_entry_is_empty(chunk_map_entry));
+
+    if (PAS_LIKELY(verse_heap_chunk_map_entry_is_small_segregated(chunk_map_entry)))
+        page = pas_segregated_page_for_address_and_page_config(inner_ptr, VERSE_HEAP_CONFIG.small_segregated_config);
+    else {
+		if (verse_heap_chunk_map_entry_is_large(chunk_map_entry))
+			return &verse_heap_large_objects_header;
+
+        PAS_ASSERT(verse_heap_chunk_map_entry_is_medium_segregated(chunk_map_entry));
+        page = pas_segregated_page_for_address_and_page_config(inner_ptr, VERSE_HEAP_CONFIG.medium_segregated_config);
+    }
+
+	return verse_heap_page_header_for_segregated_page(page);
+}
+
 PAS_END_EXTERN_C;
 
 #endif /* PAS_ENABLE_VERSE */

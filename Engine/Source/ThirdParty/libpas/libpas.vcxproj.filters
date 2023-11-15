@@ -1191,6 +1191,9 @@
     <ClInclude Include="src\libpas\verse_heap_mark_bits_page_commit_controller.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\libpas\ue_include\verse_heap_page_header_ue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\libpas\bmalloc_heap.c">

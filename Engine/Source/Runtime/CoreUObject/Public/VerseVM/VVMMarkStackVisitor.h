@@ -23,6 +23,11 @@ struct FMarkStackVisitor
 	{
 	}
 
+	bool IsMarked(const void* Ptr)
+	{
+		return FHeap::IsMarked(Ptr);
+	}
+
 	void VisitNonNull(const VCell* InCell)
 	{
 		MarkStack.MarkNonNull(InCell);
@@ -91,6 +96,11 @@ struct FMarkStackVisitor
 	FORCEINLINE void Visit(T* Values, uint32 Count)
 	{
 		Visit(Values, Values + Count);
+	}
+
+	void ReportNativeBytes(size_t Bytes)
+	{
+		MarkStack.ReportNativeBytes(Bytes);
 	}
 
 private:

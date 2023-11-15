@@ -11,6 +11,7 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
+#include "VerseVM/VVMWeakKeyMapGuard.h"
 
 namespace Verse
 {
@@ -78,6 +79,18 @@ template <typename TVisitor>
 void VCell::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.VisitEmergentType(GetEmergentType());
+	if ((GCData.load(std::memory_order_relaxed) & GCDataIsWeakKeyBit))
+	{
+		FWeakKeyMapGuard Guard(FHeapPageHeader::Get(this));
+		if (FWeakKeyMap* Map = Guard.TryGet())
+		{
+			Map->Visit(this, Visitor);
+		}
+		else
+		{
+			GCData &= ~GCDataIsWeakKeyBit;
+		}
+	}
 }
 
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);

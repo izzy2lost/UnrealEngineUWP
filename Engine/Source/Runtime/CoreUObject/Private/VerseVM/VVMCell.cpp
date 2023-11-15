@@ -8,6 +8,7 @@
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMWeakKeyMapGuard.h"
 #include <type_traits>
 
 namespace Verse
@@ -69,6 +70,38 @@ uint32 VCell::GetTypeHashImpl()
 	V_DIE("VCell subtype without `GetTypeHashImpl` override called! Either this type should have an override "
 		  "if hashable OR a non-hashable type is being hashed which is an error.");
 	return 0;
+}
+
+void VCell::AddWeakMapping(VCell* Map, VCell* Value)
+{
+	FWeakKeyMapGuard Guard(FHeapPageHeader::Get(this));
+	FWeakKeyMap* KeyMap = Guard.Get();
+	KeyMap->Add(this, Map, Value);
+	GCData |= GCDataIsWeakKeyBit;
+}
+
+void VCell::RemoveWeakMapping(VCell* Map)
+{
+	FWeakKeyMapGuard Guard(FHeapPageHeader::Get(this));
+	if (FWeakKeyMap* KeyMap = Guard.TryGet())
+	{
+		KeyMap->Remove(this, Map);
+	}
+}
+
+bool VCell::HasWeakMappings()
+{
+	// If we cared about performance of this function, we'd introduce some fast path thing where we quickly check the contents of client_data.
+	// But we don't care, since this is a test-only function!
+	FWeakKeyMapGuard Guard(FHeapPageHeader::Get(this));
+	if (FWeakKeyMap* KeyMap = Guard.TryGet())
+	{
+		return KeyMap->HasEntriesForKey(this);
+	}
+	else
+	{
+		return false;
+	}
 }
 
 } // namespace Verse

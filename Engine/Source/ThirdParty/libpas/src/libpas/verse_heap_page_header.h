@@ -3,7 +3,8 @@
 #ifndef VERSE_HEAP_PAGE_HEADER_H
 #define VERSE_HEAP_PAGE_HEADER_H
 
-#include "pas_utils.h"
+#include "pas_lock.h"
+#include "ue_include/verse_heap_page_header_ue.h"
 
 #if PAS_ENABLE_VERSE
 
@@ -19,6 +20,8 @@ struct PAS_ALIGNED(PAS_PAIR_SIZE) verse_heap_page_header {
 	unsigned* stashed_alloc_bits;
     bool may_have_set_mark_bits_for_dead_objects;
 	bool is_stashing_alloc_bits;
+	void* client_data;
+	pas_lock client_data_lock;
 };
 
 #define VERSE_HEAP_PAGE_HEADER_INITIALIZER ((verse_heap_page_header){ \
@@ -26,6 +29,8 @@ struct PAS_ALIGNED(PAS_PAIR_SIZE) verse_heap_page_header {
 		.stashed_alloc_bits = NULL, \
         .may_have_set_mark_bits_for_dead_objects = false, \
 		.is_stashing_alloc_bits = false, \
+		.client_data = NULL, \
+		.client_data_lock = PAS_LOCK_INITIALIZER \
     })
 
 PAS_API void verse_heap_page_header_construct(verse_heap_page_header* header);

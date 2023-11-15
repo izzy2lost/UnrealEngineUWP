@@ -104,6 +104,11 @@ struct FMarkStack
 		Stack.Append(MoveTemp(Other.Stack));
 	}
 
+	void ReportNativeBytes(size_t Bytes)
+	{
+		FHeap::ReportMarkedNativeBytes(Bytes);
+	}
+
 private:
 	template <std::memory_order MemoryOrder>
 	void MarkSlowImpl(const VCell* Cell);
