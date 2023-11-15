@@ -45,6 +45,7 @@
 #include "Widgets/IToolTip.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/STextComboBox.h"
 
 class IPropertyHandle;
 class SWidget;
@@ -61,6 +62,26 @@ static TAutoConsoleVariable<int32> CVarShowCompressWeightMapsOption(
 
 FLandscapeProxyUIDetails::FLandscapeProxyUIDetails()
 {
+	// Position Precision options are copied from StaticMeshEditorTools.cpp 
+	auto PositionPrecisionValueToDisplayString = [](int32 Value)
+	{
+		if(Value <= 0)
+		{
+			return FString::Printf(TEXT("%dcm"), 1 << (-Value));
+		}
+		else
+		{
+			const float fValue = static_cast<float>(FMath::Exp2((double)-Value));
+			return FString::Printf(TEXT("1/%dcm (%.3gcm)"), 1 << Value, fValue);
+		}
+	};
+	
+	for (int32 i = MinNanitePrecision; i <= MaxNanitePrecision; i++)
+	{
+		TSharedPtr<FString> Option = MakeShared<FString>(PositionPrecisionValueToDisplayString(i));
+		
+		PositionPrecisionOptions.Add(Option);
+	}
 }
 
 TSharedRef<IDetailCustomization> FLandscapeProxyUIDetails::MakeInstance()
@@ -100,6 +121,8 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 			}
 		}
 	}
+
+	ALandscapeStreamingProxy* LandscapeStreamingProxy = EditingStreamingProxies.IsEmpty() ? nullptr : EditingStreamingProxies[0].Get();
 
 	// Hide World Partition specific properties in non WP levels
 	const bool bShouldDisplayWorldPartitionProperties = Algo::AnyOf(EditingProxies, [](const TWeakObjectPtr<ALandscapeProxy> InProxy)
@@ -255,6 +278,63 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 				})
 			];
 		}
+		
+		TSharedRef<IPropertyHandle> NanitePositionPrecisionHandle = DetailBuilder.GetProperty(TEXT("NanitePositionPrecision"));
+		IDetailPropertyRow* DetailRow = DetailBuilder.EditDefaultProperty(NanitePositionPrecisionHandle);
+
+		// todo don.boogert : this is the handling of disabling of inherited properties on Landscape Proxies. 
+		// todo don.boogert : be able to handle override & inherited properties which also have custom UI.
+		if (LandscapeStreamingProxy->IsPropertyInherited(NanitePositionPrecisionHandle->GetProperty()))
+		{
+			if (LandscapeStreamingProxy != nullptr)
+			{
+				if (DetailRow != nullptr)
+				{
+					// Extend the tool tip to indicate this property is inherited
+					FText ToolTipText = NanitePositionPrecisionHandle->GetToolTipText();
+					DetailRow->ToolTip(FText::Format(NSLOCTEXT("Landscape", "InheritedProperty", "{0} This property is inherited from the parent Landscape proxy."), ToolTipText));
+			
+					// Disable the property editing
+					DetailRow->IsEnabled(false);
+				}
+			}
+		}
+		
+		auto GetPositionPrecision = [MinNanitePrecision = this->MinNanitePrecision, &PositionOptions = this->PositionPrecisionOptions, LandscapeActor]()
+		{
+			return PositionOptions[LandscapeActor->GetNanitePositionPrecision() - MinNanitePrecision] ;
+		};
+
+		auto SetPositionPrecision = [NanitePositionPrecisionHandle, MinNanitePrecision = this->MinNanitePrecision, &PositionOptions = this->PositionPrecisionOptions, LandscapeActor](TSharedPtr<FString> NewValue, ESelectInfo::Type SelectInfo)
+		{
+			if (!LandscapeActor.IsValid())
+			{
+				return;
+			}
+					
+			if (const int32 Index = PositionOptions.Find(NewValue); Index != INDEX_NONE)
+			{
+				NanitePositionPrecisionHandle->SetValue(Index + MinNanitePrecision);
+			}
+		};
+		
+		DetailRow->CustomWidget()
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(LOCTEXT("LandscapeNanitePositionPrecision", "Nanite Position Precision"))
+			.ToolTipText(LOCTEXT("LandscapeNanitePositionPrecisionTooltip", "Precision of Nanite vertex positions in World Space."))
+		]
+		.ValueContent()
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextComboBox)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.OptionsSource(&PositionPrecisionOptions)
+			.InitiallySelectedItem(GetPositionPrecision())
+			.OnSelectionChanged_Lambda(SetPositionPrecision)
+		];
 	}
 
 	// Add Nanite buttons :
@@ -343,8 +423,6 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 			]
 		];
 	}
-
-	ALandscapeStreamingProxy* LandscapeStreamingProxy = EditingStreamingProxies.IsEmpty() ? nullptr : EditingStreamingProxies[0].Get();
 
 	if (LandscapeStreamingProxy != nullptr)
 	{

@@ -198,6 +198,9 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 			NaniteSettings.FallbackPercentTriangles = 0.01f; // Keep effectively no fallback mesh triangles
 			NaniteSettings.FallbackRelativeError = 1.0f;
 
+			const FVector3d Scale = AsyncBuildData->LandscapeWeakRef->GetTransform().GetScale3D();
+			NaniteSettings.PositionPrecision = FMath::Log2(Scale.GetAbsMax() ) + AsyncBuildData->LandscapeWeakRef->GetNanitePositionPrecision();
+
 			int32 LOD = AsyncBuildData->LOD;
 			
 			ALandscapeProxy::FRawMeshExportParams ExportParams;
