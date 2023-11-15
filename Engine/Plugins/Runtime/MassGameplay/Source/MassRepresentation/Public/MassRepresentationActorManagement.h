@@ -33,7 +33,7 @@ public:
 	/**
 	 * Returns an actor of the template type and setup fragments values from it
 	 * @param RepresentationSubsystem to use to get or spawn the actor
-	 * @param EntitySubsystem associated to the mass agent
+	 * @param EntityManager associated to the mass agent
 	 * @param MassAgent is the handle to the associated mass agent
 	 * @param ActorInfo is the fragment where we are going to store the actor pointer
 	 * @param Transform is the spatial information about where to spawn the actor
@@ -42,7 +42,7 @@ public:
 	 * @param Priority of this spawn request in comparison with the others, lower value means higher priority
 	 * @return the actor spawned
 	 */
-	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntitySubsystem
+	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntityManager
 		, const FMassEntityHandle MassAgent, const FTransform& Transform, const int16 TemplateActorIndex
 		, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const;
 
@@ -86,7 +86,7 @@ public:
 	 * Static methods to Release an actor or cancel its spawning (calls ReleaseAnyActorOrCancelAnySpawning)
 	 * WARNING: This method will destroy the associated actor in any and by the same fact might also move the entity into a new archetype.
 	 *          So any reference to fragment might become invalid.
-	 * @param EntitySubsystem to use to retrieve the mass agent fragments
+	 * @param EntityManager to use to retrieve the mass agent fragments
 	 * @param MassAgent is the handle to the associated mass agent
 	 * @return True if actor was release or spawning request was canceled
 	 */
@@ -107,7 +107,7 @@ public:
 		, FMassActorFragment& ActorInfo, FMassRepresentationFragment& Representation, UMassActorSubsystem* ActorSubsystem = nullptr);
 
 	UE_DEPRECATED(5.4, "This flavor of GetOrSpawnActor has been deprecated due to a defunct parameter, OutActorInfo, that was never being used.")
-	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntitySubsystem
+	virtual AActor* GetOrSpawnActor(UMassRepresentationSubsystem& RepresentationSubsystem, FMassEntityManager& EntityManager
 		, const FMassEntityHandle MassAgent, FMassActorFragment&/* OutActorInfo*/, const FTransform& Transform, const int16 TemplateActorIndex
 		, FMassActorSpawnRequestHandle& InOutSpawnRequestHandle, const float Priority) const final;
 
