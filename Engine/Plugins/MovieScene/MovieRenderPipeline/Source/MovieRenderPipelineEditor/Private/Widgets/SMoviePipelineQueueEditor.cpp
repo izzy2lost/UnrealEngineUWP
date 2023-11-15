@@ -344,12 +344,10 @@ public:
 	FText GetOutputLabel() const
 	{
 		UMoviePipelineExecutorJob* Job = WeakJob.Get();
-		if (Job && Job->GetConfiguration())
+		FString OutputDir;
+		if (UMoviePipelineEditorBlueprintLibrary::GetDisplayOutputPathFromJob(Job, OutputDir))
 		{
-			UMoviePipelineOutputSetting* OutputSetting = Job->GetConfiguration()->FindSetting<UMoviePipelineOutputSetting>();
-			check(OutputSetting);
-
-			return FText::FromString(OutputSetting->OutputDirectory.Path);
+			return FText::FromString(OutputDir);
 		}
 
 		return LOCTEXT("MissingConfigOutput_Label", "[No Config Set]");
@@ -357,16 +355,18 @@ public:
 
 	void BrowseToOutputFolder()
 	{
-		UMoviePipelineExecutorJob* Job = WeakJob.Get();
-		if (Job && Job->GetConfiguration())
+		if (UMoviePipelineExecutorJob* Job = WeakJob.Get())
 		{
-			FString ResolvedOutputDir = UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(Job);
+			const FString ResolvedOutputDir = UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(Job);
 
-			// Attempt to make the directory. The user can see the output folder before they render so the folder
-			// may not have been created yet and the ExploreFolder call will fail.
-			IFileManager::Get().MakeDirectory(*ResolvedOutputDir, true);
+			if (!ResolvedOutputDir.IsEmpty())
+			{
+				// Attempt to make the directory. The user can see the output folder before they render so the folder
+				// may not have been created yet and the ExploreFolder call will fail.
+				IFileManager::Get().MakeDirectory(*ResolvedOutputDir, true);
 
-			FPlatformProcess::ExploreFolder(*ResolvedOutputDir);
+				FPlatformProcess::ExploreFolder(*ResolvedOutputDir);
+			}
 		}
 	}
 
@@ -641,6 +641,7 @@ TSharedRef<SWidget> SQueueJobListRow::GenerateWidgetForColumn(const FName& Colum
 			[
 				SNew(SHyperlink)
 					.Text(Item.Get(), &FMoviePipelineQueueJobTreeItem::GetOutputLabel)
+					.ToolTipText(Item.Get(), &FMoviePipelineQueueJobTreeItem::GetOutputLabel)
 					.OnNavigate(Item.Get(), &FMoviePipelineQueueJobTreeItem::BrowseToOutputFolder)
 			];
 

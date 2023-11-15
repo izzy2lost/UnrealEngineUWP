@@ -9,6 +9,7 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
+#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
@@ -1006,6 +1007,77 @@ void UMovieGraphConfig::GetAllContainedSubgraphs(TSet<UMovieGraphConfig*>& OutSu
 				OutSubgraphs.Add(SubgraphConfig);
 				SubgraphConfig->GetAllContainedSubgraphs(OutSubgraphs);
 			}
+		}
+	}
+}
+
+void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory) const
+{
+	// If there's no Node, no upstream pin or no downstream pin for whatever reason,
+	// there is no way to continue so we early out
+	if (!InNode) { return; }
+
+	// Only globals can connect to globals linearly, so we only need to look at the first connected input
+	// The only exception being subgraph nodes which will need to be separately evaluated
+	const UMovieGraphPin* DownstreamGlobalsPin = InNode->GetFirstConnectedInputPin();
+	if (!DownstreamGlobalsPin) { return; }
+
+	const UMovieGraphPin* UpstreamGlobalsPin = DownstreamGlobalsPin->GetFirstConnectedPin();
+	if (!UpstreamGlobalsPin) { return; }
+
+	UMovieGraphNode* ConnectedNode = UpstreamGlobalsPin->Node;
+
+	// Overrides can be set within Subgraphs
+	if (const UMovieGraphSubgraphNode* SubgraphNode = Cast<UMovieGraphSubgraphNode>(ConnectedNode))
+	{
+		const UMovieGraphConfig* SubgraphConfig = SubgraphNode->GetSubgraphAsset();
+		if (SubgraphConfig && OutOutputDirectory.IsEmpty())
+		{
+			const UMovieGraphPin* SubgraphGlobalsPin =
+				SubgraphConfig->GetOutputNode()->GetInputPin(UMovieGraphNode::GlobalsPinName);
+
+			if (SubgraphGlobalsPin && SubgraphGlobalsPin->IsConnected())
+			{
+				SubgraphConfig->RecurseUpGlobalsBranchToFindOutputDirectory(SubgraphGlobalsPin->Node, OutOutputDirectory);
+			}
+		}
+	}
+	else if (const UMovieGraphOutputSettingNode* SettingsNode = Cast<UMovieGraphOutputSettingNode>(InNode))
+	{
+		if (OutOutputDirectory.IsEmpty() && SettingsNode->bOverride_OutputDirectory)
+		{
+			OutOutputDirectory = SettingsNode->OutputDirectory.Path;
+		}
+	}
+
+	// Keep looking upstream if we haven't found any overrides
+	if (OutOutputDirectory.IsEmpty())
+	{
+		RecurseUpGlobalsBranchToFindOutputDirectory(UpstreamGlobalsPin->Node, OutOutputDirectory);
+	}
+};
+
+void UMovieGraphConfig::GetOutputDirectory(FString& OutOutputDirectory) const
+{
+	check (OutputNode);
+
+	// Clear out input strings
+	OutOutputDirectory = FString();
+
+	// We only traverse up the globals branch in order to find the output directory and file name format
+	const UMovieGraphPin* GlobalsPin = OutputNode->GetInputPin(UMovieGraphNode::GlobalsPinName);
+
+	if (GlobalsPin && GlobalsPin->IsConnected())
+	{
+		RecurseUpGlobalsBranchToFindOutputDirectory(OutputNode, OutOutputDirectory);
+
+		if (OutOutputDirectory.IsEmpty())
+		{
+			// If we didn't find any overrides, use the CDO values
+			UMovieGraphOutputSettingNode* CDO = Cast<UMovieGraphOutputSettingNode>(UMovieGraphOutputSettingNode::StaticClass()->ClassDefaultObject);
+			check(CDO);
+			
+			OutOutputDirectory = CDO->OutputDirectory.Path;
 		}
 	}
 }

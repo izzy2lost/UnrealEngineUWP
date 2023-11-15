@@ -20,6 +20,7 @@
 #include "SequencerUtilities.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineOutputSetting.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MoviePipelineEditorBlueprintLibrary)
 
@@ -214,36 +215,76 @@ void UMoviePipelineEditorBlueprintLibrary::EnsureJobHasDefaultSettings(UMoviePip
 	}
 }
 
-FString UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(UMoviePipelineExecutorJob* InJob)
+bool UMoviePipelineEditorBlueprintLibrary::GetDisplayOutputPathFromJob(UMoviePipelineExecutorJob* InJob, FString& OutOutputPath)
 {
-	UMoviePipelineOutputSetting* OutputSetting = InJob->GetConfiguration()->FindSetting<UMoviePipelineOutputSetting>();
-	check(OutputSetting);
-
-	// Set up as many parameters as we can to try and resolve most of the string.
-	FString FormatString = OutputSetting->OutputDirectory.Path / OutputSetting->FileNameFormat;
-
-	// If they've set up any folders within the filename portion of it, let's be nice and resolve that.
-	FPaths::NormalizeFilename(FormatString);
-	int32 LastSlashIndex;
-	if (FormatString.FindLastChar(TEXT('/'), LastSlashIndex))
+	if (ensureMsgf(InJob, TEXT("%hs: Could not get format string because provided UMoviePipelineExecutorJob was invalid."), __FUNCTION__))
 	{
-		FormatString.LeftInline(LastSlashIndex + 1);
+		if (InJob->IsUsingGraphConfiguration())
+		{
+			if (InJob->GetGraphPreset())
+			{
+				FString OutputDirectory;
+				InJob->GetGraphPreset()->GetOutputDirectory(OutputDirectory);
+				OutOutputPath = OutputDirectory;
+				return true;
+			}
+		}
+
+		if (InJob->GetConfiguration())
+		{
+			const UMoviePipelineOutputSetting* OutputSetting = InJob->GetConfiguration()->FindSetting<UMoviePipelineOutputSetting>();
+			check(OutputSetting);
+
+			OutOutputPath = OutputSetting->OutputDirectory.Path;
+			return true;
+		}
 	}
 
-	// By having it swap {camera_name} and {shot_name} with an unresolvable tag, it will
-	// stay in the resolved path and can be removed using the code below.
-	static const FString DummyTag = TEXT("{dontresolvethis}");
-	const bool bGetNextVersion = false;
-	FMoviePipelineFilenameResolveParams Params;
-	Params.Job = InJob;
-	Params.ShotNameOverride = DummyTag;
-	Params.CameraNameOverride = DummyTag;
-	Params.InitializationTime = FDateTime::UtcNow();
-	Params.InitializationVersion = UMoviePipelineBlueprintLibrary::ResolveVersionNumber(Params, bGetNextVersion);
+	return false;
+}
+
+FString UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(UMoviePipelineExecutorJob* InJob)
+{
+	// Set up as many parameters as we can to try and resolve most of the string.
+	FString FormatString;
+	GetDisplayOutputPathFromJob(InJob, FormatString);
 
 	FString OutResolvedPath;
-	FMoviePipelineFormatArgs Dummy;
-	UMoviePipelineBlueprintLibrary::ResolveFilenameFormatArguments(FormatString, Params, OutResolvedPath, Dummy);
+
+	FPaths::NormalizeFilename(FormatString);
+
+	if (InJob->IsUsingGraphConfiguration() && InJob->GetGraphPreset())
+	{
+		const bool bGetNextVersion = false;
+		FMovieGraphFilenameResolveParams Params;
+		Params.Job = InJob;
+		Params.InitializationTime = FDateTime::UtcNow();
+		Params.Version = UMovieGraphBlueprintLibrary::ResolveVersionNumber(Params, bGetNextVersion);
+		Params.RenderDataIdentifier.RootBranchName = UMovieGraphNode::GlobalsPinName;
+		
+		FMovieGraphTraversalContext TraversalContext;
+		TraversalContext.Job = InJob;
+		Params.EvaluatedConfig = InJob->GetGraphPreset()->CreateFlattenedGraph(TraversalContext);
+
+		FMovieGraphResolveArgs Dummy;
+		OutResolvedPath = UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FormatString, Params, Dummy);
+	}
+	else
+	{
+		// By having it swap {camera_name} and {shot_name} with an unresolvable tag, it will
+		// stay in the resolved path and can be removed using the code below.
+		static const FString DummyTag = TEXT("{dontresolvethis}");
+		const bool bGetNextVersion = false;
+		FMoviePipelineFilenameResolveParams Params;
+		Params.Job = InJob;
+		Params.ShotNameOverride = DummyTag;
+		Params.CameraNameOverride = DummyTag;
+		Params.InitializationTime = FDateTime::UtcNow();
+		Params.InitializationVersion = UMoviePipelineBlueprintLibrary::ResolveVersionNumber(Params, bGetNextVersion);
+
+		FMoviePipelineFormatArgs Dummy;
+		UMoviePipelineBlueprintLibrary::ResolveFilenameFormatArguments(FormatString, Params, OutResolvedPath, Dummy);
+	}
 
 	// Drop the .{ext} resolving always puts on.
 	OutResolvedPath.LeftChopInline(6);
@@ -261,7 +302,7 @@ FString UMoviePipelineEditorBlueprintLibrary::ResolveOutputDirectoryFromJob(UMov
 		// Just as a last bit of saftey, we'll trim anything between the { and the preceeding /. This is
 		// in case they did something like Render_{Date}, we wouldn't want to make a folder named Render_.
 		// We search backwards from where we found the first { brace, so that will get us the last usable slash.
-		LastSlashIndex = OutResolvedPath.Find(TEXT("/"), ESearchCase::IgnoreCase, ESearchDir::FromEnd, FormatStringToken);
+		int32 LastSlashIndex = OutResolvedPath.Find(TEXT("/"), ESearchCase::IgnoreCase, ESearchDir::FromEnd, FormatStringToken);
 		if (LastSlashIndex != INDEX_NONE)
 		{
 			OutResolvedPath.LeftInline(LastSlashIndex + 1);

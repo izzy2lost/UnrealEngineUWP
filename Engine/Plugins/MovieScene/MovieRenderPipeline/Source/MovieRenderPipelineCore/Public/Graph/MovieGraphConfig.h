@@ -630,7 +630,17 @@ public:
 	/** Get all subgraphs that this graph contains, recursively (ie, subgraphs of subgraphs are included, etc). */
 	void GetAllContainedSubgraphs(TSet<UMovieGraphConfig*>& OutSubgraphs) const;
 
+	/**
+	 * Walks the graph backward recursively from the output node searching for a UMovieGraphOutputSettings node. Traverses subgraphs as well.
+	 * If a node is not found with an override set, value is taken from the CDO of UMovieGraphOutputSettings.
+	 */
+	void GetOutputDirectory(FString& OutOutputDirectory) const;
+
 protected:
+
+	/** Look for the output directory in the UMovieGraphOutputSettings nodes found upstream of InNode. */
+	void RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory) const;
+	
 	/** Copies properties in FromNode that are marked for override into ToNode, but only if ToNode doesn't already override that value. */
 	void CopyOverriddenProperties(UMovieGraphNode* FromNode, UMovieGraphNode* ToNode, const FMovieGraphTraversalContext* InContext);
 	
