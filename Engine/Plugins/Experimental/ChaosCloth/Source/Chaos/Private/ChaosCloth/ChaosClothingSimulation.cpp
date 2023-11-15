@@ -466,7 +466,7 @@ bool FClothingSimulation::ShouldSimulate() const
 {
 	for (const TUniquePtr<FClothingSimulationCloth>& Cloth : Cloths)
 	{
-		if (Cloth->GetLODIndex(Solver.Get()) != INDEX_NONE && Cloth->GetOffset(Solver.Get()) != INDEX_NONE)
+		if (Cloth->GetLODIndex(Solver.Get()) != INDEX_NONE && Cloth->GetParticleRangeId(Solver.Get()) != INDEX_NONE)
 		{
 			return true;
 		}
@@ -646,7 +646,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Solver->Update(FSolverReal(0.));  // Update for LOD switching, but do not simulate
 		}
 
-		if (Cloth->GetOffset(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
+		if (Cloth->GetParticleRangeId(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
 		{
 			OutData.Remove(AssetIndex);  // Ensures that the cloth vertex factory won't run unnecessarily
 			continue;  // No valid LOD, there's nothing to write out

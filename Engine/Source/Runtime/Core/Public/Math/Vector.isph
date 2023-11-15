@@ -819,6 +819,18 @@ inline FVector4f operator+(const FVector4f &A, const FVector4f &B)
 	return Result;
 }
 
+inline FVector4f operator+(const FVector4f &A, const uniform FVector4f &B)
+{
+	FVector4f Result;
+
+	for(uniform int i = 0; i < 4; i++)
+	{
+		Result.V[i] = A.V[i] + B.V[i];
+	}
+
+	return Result;
+}
+
 inline uniform FVector4d operator+(const uniform FVector4d &A, const uniform FVector4d &B)
 {
 	varying double S0, S1, Result;
@@ -920,6 +932,18 @@ inline FVector4d operator*(const FVector4d &A, const FVector4d &B)
 }
 
 inline FVector4f operator*(const FVector4f &A, const FVector4f &B)
+{
+	FVector4f Result;
+
+	for(uniform int i = 0; i < 4; i++)
+	{
+		Result.V[i] = A.V[i] * B.V[i];
+	}
+
+	return Result;
+}
+
+inline FVector4f operator*(const uniform FVector4f &A, const FVector4f &B)
 {
 	FVector4f Result;
 
@@ -2437,6 +2461,11 @@ inline FVector4 VectorAdd(const FVector4 &A, const uniform FVector4 &B)
 	return A + B;
 }
 
+inline FVector4f VectorAdd(const FVector4f &A, const uniform FVector4f &B)
+{
+	return A + B;
+}
+
 inline uniform FVector4d VectorAdd(const uniform FVector4d &A, const uniform FVector4d &B)
 {
 	return A + B;
@@ -2493,6 +2522,11 @@ inline FVector4 VectorMultiply(const FVector4 &A, const uniform FVector4 &B)
 }
 
 inline FVector4 VectorMultiply(const uniform FVector4 &A, const FVector4 &B)
+{
+	return A * B;
+}
+
+inline FVector4f VectorMultiply(const uniform FVector4f &A, const FVector4f &B)
 {
 	return A * B;
 }
@@ -2576,6 +2610,18 @@ inline FVector4 VectorMultiplyAdd(const FVector4& A, const uniform FVector4 &B, 
 inline FVector4 VectorMultiplyAdd(const uniform FVector4& A, const FVector4 &B, const FVector4 &C)
 {
 	FVector4 Result;
+
+	Result.V[0] = A.V[0] * B.V[0] + C.V[0];
+	Result.V[1] = A.V[1] * B.V[1] + C.V[1];
+	Result.V[2] = A.V[2] * B.V[2] + C.V[2];
+	Result.V[3] = A.V[3] * B.V[3] + C.V[3];
+
+	return Result;
+}
+
+inline FVector4f VectorMultiplyAdd(const uniform FVector4f& A, const FVector4f &B, const FVector4f &C)
+{
+	FVector4f Result;
 
 	Result.V[0] = A.V[0] * B.V[0] + C.V[0];
 	Result.V[1] = A.V[1] * B.V[1] + C.V[1];
@@ -3333,6 +3379,16 @@ inline FVector4d VectorCross(const FVector4d& Vec1, const FVector4d& Vec2)
 }
 
 inline FVector4f VectorCross(const FVector4f& Vec1, const FVector4f& Vec2)
+{
+	FVector4f Tmp0 = VectorSwizzle(Vec2, 1,2,0,3);
+	FVector4f Tmp1 = VectorSwizzle(Vec1, 1,2,0,3);
+	Tmp0 = Tmp0 * Vec1;
+	Tmp1 = Tmp1 * Vec2;
+	FVector4f Tmp2 = Tmp0 - Tmp1;
+	return VectorSwizzle(Tmp2, 1,2,0,3);
+}
+
+inline FVector4f VectorCross(const uniform FVector4f& Vec1, const FVector4f& Vec2)
 {
 	FVector4f Tmp0 = VectorSwizzle(Vec2, 1,2,0,3);
 	FVector4f Tmp1 = VectorSwizzle(Vec1, 1,2,0,3);

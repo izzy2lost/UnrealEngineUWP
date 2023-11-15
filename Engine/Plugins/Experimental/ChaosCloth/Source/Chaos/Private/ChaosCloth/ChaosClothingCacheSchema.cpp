@@ -12,11 +12,11 @@ namespace Chaos
 
 void FClothingCacheSchema::RecordPostSolve(const FClothingSimulationSolver& ClothSolver, FPendingFrameWrite& OutFrame, FReal InTime)
 {
-	const int32 NumParticles = ClothSolver.GetNumParticles();
+	const int32 NumParticles = ClothSolver.GetNumActiveParticles();
 	if (NumParticles > 0)
 	{
-		const Softs::FSolverVec3* ParticleXs = ClothSolver.GetParticleXs(0);
-		const Softs::FSolverVec3* ParticleVs = ClothSolver.GetParticleVs(0);
+		const Softs::FSolverVec3* const ParticleXs = ClothSolver.GetParticleXs(0);
+		const Softs::FSolverVec3* const ParticleVs = ClothSolver.GetParticleVs(0);
 
 		TArray<float> PendingVX, PendingVY, PendingVZ, PendingPX, PendingPY, PendingPZ;
 		TArray<int32>& PendingID = OutFrame.PendingChannelsIndices;
@@ -37,16 +37,16 @@ void FClothingCacheSchema::RecordPostSolve(const FClothingSimulationSolver& Clot
 			const FName ReferenceTransformNameAndIndex(ReferenceTransformsName, Cloth->GetGroupId());
 			OutFrame.PendingNamedTransformData.Add(ReferenceTransformNameAndIndex, ReferenceSpaceTransform);
 
-			const int32 ClothOffset = Cloth->GetOffset(&ClothSolver);
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(&ClothSolver);
 			const int32 NumClothParticles = Cloth->GetNumParticles(&ClothSolver);
-			check(ClothOffset + NumClothParticles <= NumParticles);
-			for (int32 ParticleIndex = ClothOffset; ParticleIndex < ClothOffset + NumClothParticles; ++ParticleIndex)
+			const int32 GlobalOffset = ClothSolver.GetGlobalParticleOffset(ParticleRangeId);
+			for (int32 ParticleIndex = GlobalOffset; ParticleIndex < GlobalOffset + NumClothParticles; ++ParticleIndex)
 			{
 				const Softs::FSolverVec3& ParticleV = ParticleVs[ParticleIndex];
 				const Softs::FSolverVec3& ParticleX = ParticleXs[ParticleIndex];
 
 				// Adding the vertices relative position to the particle write datas
-				PendingID.Add(ParticleIndex);
+				PendingID.Add(ParticleIndex + GlobalOffset);
 				PendingVX.Add(ParticleV.X);
 				PendingVY.Add(ParticleV.Y);
 				PendingVZ.Add(ParticleV.Z);
@@ -89,8 +89,8 @@ void FClothingCacheSchema::PlaybackPreSolve(UChaosCache& InCache, FReal InTime, 
 	if (PendingVX && PendingVY && PendingVZ && PendingPX && PendingPY && PendingPZ && NumCachedParticles)
 	{
 		// Directly set the result of the cache into the solver particles
-		Softs::FSolverVec3* ParticleXs = ClothSolver.GetParticleXs(0);
-		Softs::FSolverVec3* ParticleVs = ClothSolver.GetParticleVs(0);
+		Softs::FSolverVec3* const ParticleXs = ClothSolver.GetParticleXs(0);
+		Softs::FSolverVec3* const ParticleVs = ClothSolver.GetParticleVs(0);
 		const int32 NumParticles = ClothSolver.GetNumParticles();
 		for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
 		{
@@ -132,11 +132,13 @@ void FClothingCacheSchema::PlaybackPreSolve(UChaosCache& InCache, FReal InTime, 
 					const FTransform& CachedTransform = NamedTransform.Value;
 					if (!CurrentTransform.Equals(CachedTransform))
 					{
+						const int32 ParticleRangeId = Cloth->GetParticleRangeId(&ClothSolver);
+						const int32 GlobalOffset = ClothSolver.GetGlobalParticleOffset(ParticleRangeId);
+
 						const FTransform RelativeTransform = CurrentTransform.GetRelativeTransform(CachedTransform);
-						const int32 ClothOffset = Cloth->GetOffset(&ClothSolver);
 						const int32 NumClothParticles = Cloth->GetNumParticles(&ClothSolver);
-						check(ClothOffset + NumClothParticles <= NumParticles);
-						for (int32 ParticleIndex = ClothOffset; ParticleIndex < ClothOffset + NumClothParticles; ++ParticleIndex)
+						check(GlobalOffset + NumClothParticles <= NumParticles);
+						for (int32 ParticleIndex = GlobalOffset; ParticleIndex < GlobalOffset + NumClothParticles; ++ParticleIndex)
 						{
 							Softs::FSolverVec3& ParticleX = ParticleXs[ParticleIndex];
 							ParticleX = Softs::FSolverVec3(RelativeTransform.TransformPosition(FVec3(ParticleX + LocalSpaceLocation)) - LocalSpaceLocation);

@@ -88,13 +88,26 @@ namespace UE::Chaos::ClothAsset
 	FClothSimulationProxy::FClothSimulationProxy(const UChaosClothComponent& InClothComponent)
 		: ClothComponent(InClothComponent)
 		, ClothSimulationContext(MakeUnique<FClothSimulationContext>())
-		, Solver(MakeUnique<::Chaos::FClothingSimulationSolver>())
-		, Visualization(MakeUnique<::Chaos::FClothVisualization>(Solver.Get()))
+		, Solver(nullptr)
+		, Visualization(nullptr)
 		, MaxDeltaTime(UPhysicsSettings::Get()->MaxPhysicsDeltaTime)
 	{
 		using namespace ::Chaos;
 
 		check(IsInGameThread());
+
+		// Create solver config simulation thread object first. Need to know which solver type we're creating.
+		const int32 SolverConfigIndex = Configs.Emplace(MakeUnique<FClothingSimulationConfig>(ClothComponent.GetPropertyCollections()));  // TODO: Use a separate solver config for outfits
+
+		// Create a solver which can handle force-based solving if any of the LODs require it.
+		bool bForceBasedSolver = false;
+		Configs[SolverConfigIndex]->ForAllProperties([&bForceBasedSolver](Softs::FCollectionPropertyFacade& Property)
+		{
+			bForceBasedSolver = bForceBasedSolver || Property.GetValue<bool>(TEXT("EnableForceBasedSolver"), false);
+		});
+
+		Solver = MakeUnique<::Chaos::FClothingSimulationSolver>(bForceBasedSolver, Configs[SolverConfigIndex].Get());
+		Visualization = MakeUnique<::Chaos::FClothVisualization>(Solver.Get());
 
 		// Need a valid context to initialize the mesh
 		constexpr bool bIsInitialization = true;
@@ -152,10 +165,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		NumCloths = 1;
 		NumKinematicParticles = Cloths[ClothIndex]->GetNumActiveKinematicParticles();
 		NumDynamicParticles = Cloths[ClothIndex]->GetNumActiveDynamicParticles();
-
-		// Create solver config simulation thread object
-		const int32 SolverConfigIndex = Configs.Emplace(MakeUnique<FClothingSimulationConfig>(ClothComponent.GetPropertyCollections()));  // TODO: Use a separate solver config for outfits
-		Solver->SetConfig(Configs[SolverConfigIndex].Get());
 
 		// Set start pose (update the context, then the solver without advancing the simulation)
 		ClothSimulationContext->Fill(ClothComponent, NoAdvanceDt, MaxDeltaTime);
@@ -348,7 +357,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				Solver->Update(Softs::FSolverReal(0.));  // Update for LOD switching, but do not simulate
 			}
 
-			if (Cloth->GetOffset(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
 			{
 				CurrentSimulationData.Remove(AssetIndex);  // Ensures that the cloth vertex factory won't run unnecessarily
 				continue;  // No valid LOD, there's nothing to write out

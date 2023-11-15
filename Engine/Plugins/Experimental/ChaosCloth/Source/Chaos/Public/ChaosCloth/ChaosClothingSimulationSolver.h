@@ -31,13 +31,15 @@ namespace Chaos
 	class FClothingSimulationSolver final : public FPhysicsSolverEvents
 	{
 	public:
-		CHAOSCLOTH_API FClothingSimulationSolver();
+		CHAOSCLOTH_API FClothingSimulationSolver(bool bForceBasedSolver = false, FClothingSimulationConfig* InConfig = nullptr);
 		CHAOSCLOTH_API ~FClothingSimulationSolver();
 		
 		FClothingSimulationSolver(const FClothingSimulationSolver&) = delete;
 		FClothingSimulationSolver(FClothingSimulationSolver&&) = delete;
 		FClothingSimulationSolver& operator=(const FClothingSimulationSolver&) = delete;
 		FClothingSimulationSolver& operator=(FClothingSimulationSolver&&) = delete;
+
+		bool IsForceBasedSolver() const { return !!Evolution; }
 
 		// ---- Animatable property setters ----
 		CHAOSCLOTH_API void SetLocalSpaceLocation(const FVec3& InLocalSpaceLocation, bool bReset = false);
@@ -112,17 +114,18 @@ namespace Chaos
 
 		// ---- Cloth interface ----
 		CHAOSCLOTH_API int32 AddParticles(int32 NumParticles, uint32 GroupId);
-		CHAOSCLOTH_API void EnableParticles(int32 Offset, bool bEnable);
+		CHAOSCLOTH_API void EnableParticles(int32 ParticleRangeId, bool bEnable);
 
-		CHAOSCLOTH_API void ResetStartPose(int32 Offset, int32 NumParticles);
+		CHAOSCLOTH_API void ResetStartPose(int32 ParticleRangeId, int32 NumParticles);
 
 		// Get the current solver time
 		FSolverReal GetTime() const { return Time; }
-		CHAOSCLOTH_API void SetParticleMassUniform(int32 Offset, FRealSingle UniformMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
-		CHAOSCLOTH_API void SetParticleMassFromTotalMass(int32 Offset, FRealSingle TotalMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
-		CHAOSCLOTH_API void SetParticleMassFromDensity(int32 Offset, FRealSingle Density, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		CHAOSCLOTH_API void SetParticleMassUniform(int32 ParticleRangeId, FRealSingle UniformMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		CHAOSCLOTH_API void SetParticleMassFromTotalMass(int32 ParticleRangeId, FRealSingle TotalMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		CHAOSCLOTH_API void SetParticleMassFromDensity(int32 ParticleRangeId, FRealSingle Density, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
 
 		// Set the amount of velocity allowed to filter from the given change in reference space transform, including local simulation space.
+		// NOTE: Force-based solver does not apply FictitiousAngularScale here. It's applied directly via the PropertyCollection.
 		CHAOSCLOTH_API void SetReferenceVelocityScale(uint32 GroupId,
 			const FRigidTransform3& OldReferenceSpaceTransform,
 			const FRigidTransform3& ReferenceSpaceTransform,
@@ -130,7 +133,7 @@ namespace Chaos
 			FRealSingle AngularVelocityScale,
 			FRealSingle FictitiousAngularScale);
 
-		// Set general cloth simulation properties.
+		/** PBDSolver version */
 		CHAOSCLOTH_API void SetProperties(
 			uint32 GroupId,
 			FRealSingle DampingCoefficient,
@@ -138,6 +141,10 @@ namespace Chaos
 			FRealSingle CollisionThickness,
 			FRealSingle FrictionCoefficient);
 
+		/** Force based solver version */
+		CHAOSCLOTH_API void SetProperties(int32 ParticleRangeId, const Softs::FCollectionPropertyConstFacade& PropertyCollection);
+
+		/** Begin PBD-solver only property methods (these properties are controlled directly via PropertyCollection in force-based solver) */
 		// Set whether to use continuous collision detection.
 		CHAOSCLOTH_API void SetUseCCD(uint32 GroupId, bool bUseCCD);
 
@@ -180,72 +187,154 @@ namespace Chaos
 
 		// Add external forces to the particles
 		CHAOSCLOTH_API void AddExternalForces(uint32 GroupId, bool bUseLegacyWind);
+		/** End PBD-only based property methods */
 
 		const TArray<Softs::FSolverVec3>& GetOldAnimationPositions() const { return OldAnimationPositions; }
-		const Softs::FSolverVec3* GetOldAnimationPositions(int32 Offset) const { return OldAnimationPositions.GetData() + Offset; }
-		Softs::FSolverVec3* GetOldAnimationPositions(int32 Offset) { return OldAnimationPositions.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetAnimationPositions() const { return AnimationPositions; }
-		const Softs::FSolverVec3* GetAnimationPositions(int32 Offset) const { return AnimationPositions.GetData() + Offset; }
-		Softs::FSolverVec3* GetAnimationPositions(int32 Offset) { return AnimationPositions.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetInterpolatedAnimationPositions() const { return InterpolatedAnimationPositions; }
-		const Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 Offset) const { return InterpolatedAnimationPositions.GetData() + Offset; }
-		Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 Offset) { return InterpolatedAnimationPositions.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetOldAnimationNormals() const { return OldAnimationNormals; }
-		const Softs::FSolverVec3* GetOldAnimationNormals(int32 Offset) const { return OldAnimationNormals.GetData() + Offset; }
-		Softs::FSolverVec3* GetOldAnimationNormals(int32 Offset) { return OldAnimationNormals.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetAnimationNormals() const { return AnimationNormals; }
-		const Softs::FSolverVec3* GetAnimationNormals(int32 Offset) const { return AnimationNormals.GetData() + Offset; }
-		Softs::FSolverVec3* GetAnimationNormals(int32 Offset) { return AnimationNormals.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetInterpolatedAnimationNormals() const { return InterpolatedAnimationNormals; }
-		const Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 Offset) const { return InterpolatedAnimationNormals.GetData() + Offset; }
-		Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 Offset) { return InterpolatedAnimationNormals.GetData() + Offset; }
 		const TArray<Softs::FSolverVec3>& GetNormals() const { return Normals; }
-		const Softs::FSolverVec3* GetNormals(int32 Offset) const { return Normals.GetData() + Offset; }
-		Softs::FSolverVec3* GetNormals(int32 Offset) { return Normals.GetData() + Offset; }
-		const TArray<FSolverVec3>& GetAnimationVelocities() const { return AnimationVelocities; }
-		const Softs::FSolverVec3* GetAnimationVelocities(int32 Offset) const { return AnimationVelocities.GetData() + Offset; }
-		Softs::FSolverVec3* GetAnimationVelocities(int32 Offset) { return AnimationVelocities.GetData() + Offset; }
+		const TArray<Softs::FSolverVec3>& GetAnimationVelocities() const { return AnimationVelocities; }
+
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetOldAnimationPositionsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetOldAnimationPositionsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetAnimationPositionsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetAnimationPositionsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetInterpolatedAnimationPositionsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetInterpolatedAnimationPositionsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetOldAnimationNormalsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetOldAnimationNormalsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetAnimationNormalsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetAnimationNormalsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetInterpolatedAnimationNormalsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetInterpolatedAnimationNormalsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetNormalsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetNormalsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetAnimationVelocitiesView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetAnimationVelocitiesView(int32 ParticleRangeId);
+
+		const Softs::FSolverVec3* GetOldAnimationPositions(int32 ParticleRangeId) const { return GetOldAnimationPositionsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetOldAnimationPositions(int32 ParticleRangeId) { return GetOldAnimationPositionsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetAnimationPositions(int32 ParticleRangeId) const { return GetAnimationPositionsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetAnimationPositions(int32 ParticleRangeId) { return GetAnimationPositionsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 ParticleRangeId) const { return GetInterpolatedAnimationPositionsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetInterpolatedAnimationPositions(int32 ParticleRangeId) { return GetInterpolatedAnimationPositionsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetOldAnimationNormals(int32 ParticleRangeId) const { return GetOldAnimationNormalsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetOldAnimationNormals(int32 ParticleRangeId) { return GetOldAnimationNormalsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetAnimationNormals(int32 ParticleRangeId) const { return GetAnimationNormalsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetAnimationNormals(int32 ParticleRangeId) { return GetAnimationNormalsView(ParticleRangeId).GetData();
+		}
+		const Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 ParticleRangeId) const { return GetInterpolatedAnimationNormalsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetInterpolatedAnimationNormals(int32 ParticleRangeId) { return GetInterpolatedAnimationNormalsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetNormals(int32 ParticleRangeId) const { return GetNormalsView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetNormals(int32 ParticleRangeId) { return GetNormalsView(ParticleRangeId).GetData(); }
+		const Softs::FSolverVec3* GetAnimationVelocities(int32 ParticleRangeId) const { return GetAnimationVelocitiesView(ParticleRangeId).GetData(); }
+		Softs::FSolverVec3* GetAnimationVelocities(int32 ParticleRangeId) { return GetAnimationVelocitiesView(ParticleRangeId).GetData(); }
 
 		CHAOSCLOTH_API const TArray<Softs::FPAndInvM>& GetParticlePandInvMs() const;
-		CHAOSCLOTH_API const Softs::FPAndInvM* GetParticlePandInvMs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FPAndInvM* GetParticlePandInvMs(int32 Offset);		
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetParticleXs() const;
-		CHAOSCLOTH_API const Softs::FSolverVec3* GetParticleXs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FSolverVec3* GetParticleXs(int32 Offset);
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetParticleVs() const;
-		CHAOSCLOTH_API const Softs::FSolverVec3* GetParticleVs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FSolverVec3* GetParticleVs(int32 Offset);
 		CHAOSCLOTH_API const TArray<Softs::FSolverReal>& GetParticleInvMasses() const;
-		CHAOSCLOTH_API const Softs::FSolverReal* GetParticleInvMasses(int32 Offset) const;
-		const FClothConstraints& GetClothConstraints(int32 Offset) const { return *ClothsConstraints.FindChecked(Offset); }
-		FClothConstraints& GetClothConstraints(int32 Offset) { return *ClothsConstraints.FindChecked(Offset); }
+
+		CHAOSCLOTH_API TConstArrayView<Softs::FPAndInvM> GetParticlePandInvMsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FPAndInvM> GetParticlePandInvMsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetParticleXsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetParticleXsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetParticleVsView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetParticleVsView(int32 ParticleRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverReal> GetParticleInvMassesView(int32 ParticleRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverReal> GetParticleInvMassesView(int32 ParticleRangeId);
+
+		const Softs::FPAndInvM* GetParticlePandInvMs(int32 ParticleRangeId) const 
+		{
+			return GetParticlePandInvMsView(ParticleRangeId).GetData();
+		}
+		Softs::FPAndInvM* GetParticlePandInvMs(int32 ParticleRangeId)
+		{
+			return GetParticlePandInvMsView(ParticleRangeId).GetData();
+		}
+		const Softs::FSolverVec3* GetParticleXs(int32 ParticleRangeId) const
+		{
+			return GetParticleXsView(ParticleRangeId).GetData();
+		}
+		Softs::FSolverVec3* GetParticleXs(int32 ParticleRangeId)
+		{
+			return GetParticleXsView(ParticleRangeId).GetData();
+		}
+		const Softs::FSolverVec3* GetParticleVs(int32 ParticleRangeId) const
+		{
+			return GetParticleVsView(ParticleRangeId).GetData();
+		}
+		Softs::FSolverVec3* GetParticleVs(int32 ParticleRangeId)
+		{
+			return GetParticleVsView(ParticleRangeId).GetData();
+		}
+		const Softs::FSolverReal* GetParticleInvMasses(int32 ParticleRangeId) const
+		{
+			return GetParticleInvMassesView(ParticleRangeId).GetData();
+		}
+
+		const FClothConstraints& GetClothConstraints(int32 ParticleRangeId) const { return *ClothsConstraints.FindChecked(ParticleRangeId); }
+		FClothConstraints& GetClothConstraints(int32 ParticleRangeId) { return *ClothsConstraints.FindChecked(ParticleRangeId); }
 		CHAOSCLOTH_API uint32 GetNumParticles() const;
+		CHAOSCLOTH_API int32 GetNumActiveParticles() const;
+		CHAOSCLOTH_API int32 GetGlobalParticleOffset(int32 ParticleRangeId) const;
 		// ---- End of the Cloth interface ----
 
 		// ---- Collider interface ----
-		CHAOSCLOTH_API int32 AddCollisionParticles(int32 NumCollisionParticles, uint32 GroupId, int32 RecycledOffset = 0);
-		CHAOSCLOTH_API void EnableCollisionParticles(int32 Offset, bool bEnable);
+		CHAOSCLOTH_API int32 AddCollisionParticles(int32 NumCollisionParticles, uint32 GroupId, int32 RecycledCollisionRangeId = 0);
+		CHAOSCLOTH_API void EnableCollisionParticles(int32 CollisionRangeId, bool bEnable);
 
-		CHAOSCLOTH_API void ResetCollisionStartPose(int32 Offset, int32 NumCollisionParticles);
+		CHAOSCLOTH_API void ResetCollisionStartPose(int32 CollisionRangeId, int32 NumCollisionParticles);
 
-		const int32* GetCollisionBoneIndices(int32 Offset) const { return CollisionBoneIndices.GetData() + Offset; }
-		int32* GetCollisionBoneIndices(int32 Offset) { return CollisionBoneIndices.GetData() + Offset; }
-		const Softs::FSolverRigidTransform3* GetCollisionBaseTransforms(int32 Offset) const { return CollisionBaseTransforms.GetData() + Offset; }
-		Softs::FSolverRigidTransform3* GetCollisionBaseTransforms(int32 Offset) { return CollisionBaseTransforms.GetData() + Offset; }
-		const Softs::FSolverRigidTransform3* GetOldCollisionTransforms(int32 Offset) const { return OldCollisionTransforms.GetData() + Offset; }
-		Softs::FSolverRigidTransform3* GetOldCollisionTransforms(int32 Offset) { return OldCollisionTransforms.GetData() + Offset; }
-		const Softs::FSolverRigidTransform3* GetCollisionTransforms(int32 Offset) const { return CollisionTransforms.GetData() + Offset; }
-		Softs::FSolverRigidTransform3* GetCollisionTransforms(int32 Offset) { return CollisionTransforms.GetData() + Offset; }
-		CHAOSCLOTH_API const Softs::FSolverVec3* GetCollisionParticleXs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FSolverVec3* GetCollisionParticleXs(int32 Offset);
-		CHAOSCLOTH_API const Softs::FSolverRotation3* GetCollisionParticleRs(int32 Offset) const;
-		CHAOSCLOTH_API Softs::FSolverRotation3* GetCollisionParticleRs(int32 Offset);
-		CHAOSCLOTH_API void SetCollisionGeometry(int32 Offset, int32 Index, FImplicitObjectPtr&& Geometry);
-		CHAOSCLOTH_API const FImplicitObjectPtr* GetCollisionGeometry(int32 Offset) const;
-		CHAOSCLOTH_API const bool* GetCollisionStatus(int32 Offset) const;
+		CHAOSCLOTH_API TConstArrayView<int32> GetCollisionBoneIndicesView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<int32> GetCollisionBoneIndicesView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRigidTransform3> GetCollisionBaseTransformsView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverRigidTransform3> GetCollisionBaseTransformsView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRigidTransform3> GetOldCollisionTransformsView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverRigidTransform3> GetOldCollisionTransformsView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRigidTransform3> GetCollisionTransformsView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverRigidTransform3> GetCollisionTransformsView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverVec3> GetCollisionParticleXsView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverVec3> GetCollisionParticleXsView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRotation3> GetCollisionParticleRsView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverRotation3> GetCollisionParticleRsView(int32 CollisionRangeId);
+		CHAOSCLOTH_API TConstArrayView<FImplicitObjectPtr> GetCollisionGeometryView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TConstArrayView<bool> GetCollisionStatusView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TConstArrayView<Softs::FSolverRigidTransform3> GetLastSubframeCollisionTransformsCCDView(int32 CollisionRangeId) const;
+		CHAOSCLOTH_API TArrayView<Softs::FSolverRigidTransform3> GetLastSubframeCollisionTransformsCCDView(int32 CollisionRangeId);
+
+		CHAOSCLOTH_API void SetCollisionGeometry(int32 CollisionRangeId, int32 Index, FImplicitObjectPtr&& Geometry);
+
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetCollisionContacts() const;
 		CHAOSCLOTH_API const TArray<Softs::FSolverVec3>& GetCollisionNormals() const;
 		CHAOSCLOTH_API const TArray<Softs::FSolverReal>& GetCollisionPhis() const;
+
+		const int32* GetCollisionBoneIndices(int32 CollisionRangeId) const { return GetCollisionBoneIndicesView(CollisionRangeId).GetData(); }
+		int32* GetCollisionBoneIndices(int32 CollisionRangeId) { return GetCollisionBoneIndicesView(CollisionRangeId).GetData(); }
+		const Softs::FSolverRigidTransform3* GetCollisionBaseTransforms(int32 CollisionRangeId) const { return GetCollisionBaseTransformsView(CollisionRangeId).GetData(); }
+		Softs::FSolverRigidTransform3* GetCollisionBaseTransforms(int32 CollisionRangeId) { return GetCollisionBaseTransformsView(CollisionRangeId).GetData(); }
+		const Softs::FSolverRigidTransform3* GetOldCollisionTransforms(int32 CollisionRangeId) const { return GetOldCollisionTransformsView(CollisionRangeId).GetData(); }
+		Softs::FSolverRigidTransform3* GetOldCollisionTransforms(int32 CollisionRangeId) { return GetOldCollisionTransformsView(CollisionRangeId).GetData(); }
+		const Softs::FSolverRigidTransform3* GetCollisionTransforms(int32 CollisionRangeId) const { return GetCollisionTransformsView(CollisionRangeId).GetData(); }
+		Softs::FSolverRigidTransform3* GetCollisionTransforms(int32 CollisionRangeId) { return GetCollisionTransformsView(CollisionRangeId).GetData(); }
+		const Softs::FSolverVec3* GetCollisionParticleXs(int32 CollisionRangeId) const { return GetCollisionParticleXsView(CollisionRangeId).GetData(); }
+		Softs::FSolverVec3* GetCollisionParticleXs(int32 CollisionRangeId) { return GetCollisionParticleXsView(CollisionRangeId).GetData(); }
+		const Softs::FSolverRotation3* GetCollisionParticleRs(int32 CollisionRangeId) const { return GetCollisionParticleRsView(CollisionRangeId).GetData(); }
+		Softs::FSolverRotation3* GetCollisionParticleRs(int32 CollisionRangeId) { return GetCollisionParticleRsView(CollisionRangeId).GetData(); }
+		const FImplicitObjectPtr* GetCollisionGeometry(int32 CollisionRangeId) const { return GetCollisionGeometryView(CollisionRangeId).GetData(); }
+		const bool* GetCollisionStatus(int32 CollisionRangeId) const { return GetCollisionStatusView(CollisionRangeId).GetData(); }
+		const Softs::FSolverRigidTransform3* GetLastSubframeCollisionTransformsCCD(int32 CollisionRangeId) const 
+		{
+			return GetLastSubframeCollisionTransformsCCDView(CollisionRangeId).GetData();
+		}
+		Softs::FSolverRigidTransform3* GetLastSubframeCollisionTransformsCCD(int32 CollisionRangeId)
+		{
+			return GetLastSubframeCollisionTransformsCCDView(CollisionRangeId).GetData();
+		}
+
 		// ---- End of the Collider interface ----
 
 		UE_DEPRECATED(5.4, "Use SetCollisionGeometry instead.")
@@ -260,19 +349,34 @@ namespace Chaos
 		// ---- End of the Field interface ----
 
 	private:
+		void Reset();
+
+		/** Begin Force-only methods */
+		void ParticleMassClampAndKinematicStateUpdate(Softs::FSolverParticlesRange& Particles, Softs::FSolverReal MinPerParticleMass, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		Softs::FSolverReal SetParticleMassPerArea(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh);
+		void ParticleMassUpdateDensity(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh, Softs::FSolverReal Density);
+		/** End Force-only methods */
+
+		/** Begin PBD-only methods */
 		CHAOSCLOTH_API void ResetParticles();
 		CHAOSCLOTH_API void ResetCollisionParticles(int32 InCollisionParticlesOffset = 0);
-		CHAOSCLOTH_API void ApplyPreSimulationTransforms();
-		CHAOSCLOTH_API void PreSubstep(const Softs::FSolverReal InterpolationAlpha);
+		CHAOSCLOTH_API void ParticleMassClampAndKinematicStateUpdate(int32 Offset, int32 Size, Softs::FSolverReal MinPerParticleMass, const TFunctionRef<bool(int32)>& KinematicPredicate);
 		CHAOSCLOTH_API Softs::FSolverReal SetParticleMassPerArea(int32 Offset, int32 Size, const FTriangleMesh& Mesh);
 		CHAOSCLOTH_API void ParticleMassUpdateDensity(const FTriangleMesh& Mesh, Softs::FSolverReal Density);
-		CHAOSCLOTH_API void ParticleMassClampAndKinematicStateUpdate(int32 Offset, int32 Size, Softs::FSolverReal MinPerParticleMass, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		/** End PBD - only methods */
+
+		CHAOSCLOTH_API void ApplyPreSimulationTransforms();
+		CHAOSCLOTH_API void PreSubstep(const Softs::FSolverReal InterpolationAlpha);
 
 		// Update the solver field forces/velocities at the particles location
 		CHAOSCLOTH_API void UpdateSolverField();
 
 	private:
-		TUniquePtr<Softs::FPBDEvolution> Evolution;
+
+		// Exactly one of these should be non-null
+		TUniquePtr<Softs::FEvolution> Evolution;
+		TUniquePtr<Softs::FPBDEvolution> PBDEvolution;
+
 
 		// Object arrays
 		TArray<FClothingSimulationCloth*> Cloths;
@@ -302,6 +406,8 @@ namespace Chaos
 		TArrayCollectionArray<Softs::FSolverRigidTransform3> CollisionBaseTransforms;
 		TArrayCollectionArray<Softs::FSolverRigidTransform3> OldCollisionTransforms;
 		TArrayCollectionArray<Softs::FSolverRigidTransform3> CollisionTransforms;
+		TArrayCollectionArray<Softs::FSolverRigidTransform3> LastSubframeCollisionTransformsCCD;
+		TArrayCollectionArray<bool> Collided;
 
 		// Cloth constraints
 		TMap<int32, TUniquePtr<FClothConstraints>> ClothsConstraints;
@@ -316,7 +422,12 @@ namespace Chaos
 		FSolverReal Time;
 		FSolverReal DeltaTime;
 
-		// Solver colliders offset
+		// FEvolution-only
+		TArray<FSolverVec3> CollisionContacts;
+		TArray<FSolverVec3> CollisionNormals;
+		TArray<FSolverReal> CollisionPhis;
+
+		// Solver colliders offset (PBD Evolution-only)
 		int32 CollisionParticlesOffset;  // Collision particle offset on the first solver/non cloth collider
 		int32 CollisionParticlesSize;  // Number of solver only colliders
 

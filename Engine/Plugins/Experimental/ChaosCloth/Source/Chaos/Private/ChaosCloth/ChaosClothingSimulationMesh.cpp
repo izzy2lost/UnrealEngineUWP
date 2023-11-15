@@ -480,8 +480,8 @@ void FClothingSimulationMesh::Update(
 	FClothingSimulationSolver* Solver,
 	int32 PrevLODIndex,
 	int32 LODIndex,
-	int32 PrevOffset,
-	int32 Offset)
+	int32 PrevParticleRangeId,
+	int32 ParticleRangeId)
 {
 	check(Solver);
 
@@ -493,8 +493,8 @@ void FClothingSimulationMesh::Update(
 
 	// Skin current LOD positions
 	const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
-	FSolverVec3* const OutPositions = Solver->GetAnimationPositions(Offset);
-	FSolverVec3* const OutNormals = Solver->GetAnimationNormals(Offset);
+	FSolverVec3* const OutPositions = Solver->GetAnimationPositions(ParticleRangeId);
+	FSolverVec3* const OutNormals = Solver->GetAnimationNormals(ParticleRangeId);
 	
 	SkinPhysicsMesh(LODIndex, LocalSpaceLocation, OutPositions, OutNormals);
 
@@ -502,9 +502,9 @@ void FClothingSimulationMesh::Update(
 	if (LODIndex != PrevLODIndex)
 	{
 		// TODO: Using the more accurate skinning method here would require double buffering the context at the skeletal mesh level
-		const FSolverVec3* const SrcWrapNormals = Solver->GetAnimationNormals(PrevOffset);  // No need to keep an old normals array around, since the LOD has just changed
-		const FSolverVec3* const SrcWrapPositions = Solver->GetOldAnimationPositions(PrevOffset);
-		FSolverVec3* const OutOldPositions = Solver->GetOldAnimationPositions(Offset);
+		const FSolverVec3* const SrcWrapNormals = Solver->GetAnimationNormals(PrevParticleRangeId);  // No need to keep an old normals array around, since the LOD has just changed
+		const FSolverVec3* const SrcWrapPositions = Solver->GetOldAnimationPositions(PrevParticleRangeId);
+		FSolverVec3* const OutOldPositions = Solver->GetOldAnimationPositions(ParticleRangeId);
 
 		const bool bValidWrap = WrapDeformLOD(PrevLODIndex, LODIndex, SrcWrapNormals, SrcWrapPositions, OutOldPositions);
 	

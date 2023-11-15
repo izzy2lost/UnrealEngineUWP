@@ -120,11 +120,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
@@ -184,11 +186,12 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			const int32 Offset = Solver->GetGlobalParticleOffset(ParticleRangeId);
 
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
@@ -218,11 +221,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 
 			const TArray<TVec3<int32>>& Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
@@ -270,12 +275,10 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
 			{
 				continue;
 			}
-
 
 			const TConstArrayView<FRealSingle>& MaxDistances = Cloth->GetWeightMapByProperty(Solver, TEXT("MaxDistance"));
 			if (!MaxDistances.Num())
@@ -311,12 +314,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
-
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<FRealSingle>& WeightMap = Cloth->GetWeightMapByName(Solver, Name);
@@ -677,7 +681,8 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		static const FLinearColor Color = FLinearColor(FColor::Purple).Desaturate(0.5);
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			if (Cloth->GetOffset(Solver) == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
@@ -697,7 +702,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		// Draw gravity
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			if (Cloth->GetOffset(Solver) == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
 			{
 				continue;
 			}
@@ -724,12 +729,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
-
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 			const TConstArrayView<Softs::FSolverReal> InvMasses = Cloth->GetParticleInvMasses(Solver);
@@ -767,11 +773,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
@@ -831,11 +839,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			// Elements are local indexed for force based solver
+			const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 
 			const TConstArrayView<TVec3<int32>> Elements = Cloth->GetTriangleMesh(Solver).GetElements();
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetAnimationPositions(Solver);
@@ -871,8 +881,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
 			{
 				continue;
 			}
@@ -906,8 +915,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
 			{
 				continue;
 			}
@@ -940,8 +948,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
 			{
 				continue;
 			}
@@ -1160,13 +1167,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			if (const Softs::FPBDSphericalBackstopConstraint* const BackstopConstraint = ClothConstraints.GetBackstopConstraints().Get())
 			{
 				const bool bUseLegacyBackstop = BackstopConstraint->UseLegacyBackstop();
@@ -1220,13 +1227,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			if (const Softs::FPBDSphericalBackstopConstraint* const BackstopConstraint = ClothConstraints.GetBackstopConstraints().Get())
 			{
 				const bool bUseLegacyBackstop = BackstopConstraint->UseLegacyBackstop();
@@ -1267,8 +1274,8 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
@@ -1317,13 +1324,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			if (const Softs::FPBDAnimDriveConstraint* const AnimDriveConstraint = ClothConstraints.GetAnimDriveConstraints().Get())
 			{
 				const TConstArrayView<FRealSingle>& AnimDriveStiffnessMultipliers = Cloth->GetWeightMapByProperty(Solver, TEXT("AnimDriveStiffness"));
@@ -1592,16 +1599,17 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			// Draw constraints
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
-			const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+			// Constraints are locally indexed for force based solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
 
 			if (const Softs::FPBDEdgeSpringConstraints* const EdgeConstraints = ClothConstraints.GetEdgeSpringConstraints().Get())
 			{
@@ -1701,16 +1709,18 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			// Draw constraints
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
-			const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+
+			// Constraints are locally indexed for force based solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
 
 			if (const Softs::FPBDBendingSpringConstraints* const BendingConstraints = ClothConstraints.GetBendingSpringConstraints().Get())
 			{
@@ -1811,14 +1821,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			// Draw constraints
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 			const TConstArrayView<Softs::FSolverVec3> Positions = Cloth->GetParticlePositions(Solver);
 
 			if (const Softs::FPBDLongRangeConstraints* const LongRangeConstraints = ClothConstraints.GetLongRangeConstraints().Get())
@@ -1876,18 +1885,35 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			const Softs::FVelocityAndPressureField& VelocityField = Solver->GetWindVelocityAndPressureField(Cloth->GetGroupId());
+			const Softs::FVelocityAndPressureField* VelocityField = nullptr;
+			if (Solver->IsForceBasedSolver())
+			{
+				const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+				VelocityField = ClothConstraints.GetVelocityAndPressureField().Get();
+				if (!VelocityField)
+				{
+					continue;
+				}
+			}
+			else
+			{
+				VelocityField = &Solver->GetWindVelocityAndPressureField(Cloth->GetGroupId());
+			}
 
-			const TConstArrayView<TVec3<int32>>& Elements = VelocityField.GetElements();
-			const TConstArrayView<Softs::FSolverVec3> Forces = VelocityField.GetForces();
-			const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
-			const TArray<Softs::FSolverReal>& InvMasses = Solver->GetParticleInvMasses();
+			// Constraints are locally indexed for force based solver
+			const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+				: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+			const TConstArrayView<Softs::FSolverReal> InvMasses = Solver->IsForceBasedSolver() ? Solver->GetParticleInvMassesView(ParticleRangeId)
+				: TConstArrayView<Softs::FSolverReal>(Solver->GetParticleInvMasses());
+
+			const TConstArrayView<TVec3<int32>>& Elements = VelocityField->GetElements();
+			const TConstArrayView<Softs::FSolverVec3> Forces = VelocityField->GetForces();
 			check(InvMasses.Num() == Positions.Num());
 
 			for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ++ElementIndex)
@@ -1922,7 +1948,8 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		// Draw reference spaces
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			if (Cloth->GetOffset(Solver) == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
@@ -1942,18 +1969,20 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			// Draw constraints
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
 			if (const Softs::FPBDCollisionSpringConstraints* const SelfCollisionConstraints = ClothConstraints.GetSelfCollisionConstraints().Get())
 			{
-				const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+				// Constraints are locally indexed for force based solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 				const TArray<TVec4<int32>>& Constraints = SelfCollisionConstraints->GetConstraints();
 				const TArray<Softs::FSolverVec3>& Barys = SelfCollisionConstraints->GetBarys();
 				const FReal Thickness = (FReal)SelfCollisionConstraints->GetThickness();
@@ -1992,7 +2021,10 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 			if (const Softs::FPBDSelfCollisionSphereConstraints* const SelfCollisionSphereConstraints =
 				ClothConstraints.GetSelfCollisionSphereConstraints().Get())
 			{
-				const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+				// Constraints are locally indexed for force based solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
 				const TArray<TVec2<int32>>& Constraints = SelfCollisionSphereConstraints->GetConstraints();
 				for (int32 Index = 0; Index < Constraints.Num(); ++Index)
 				{
@@ -2028,13 +2060,13 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			const int32 Offset = Cloth->GetOffset(Solver);
-			if (Offset == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
 
-			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(Offset);
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
 			static const FLinearColor Red(1.f, 0.f, 0.f);
 			static const FLinearColor White(1.f, 1.f, 1.f);
@@ -2047,7 +2079,12 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 
 			if (const Softs::FPBDTriangleMeshCollisions* const SelfCollisionInit = ClothConstraints.GetSelfCollisionInit().Get())
 			{
-				const TArray<Softs::FSolverVec3>& Positions = Solver->GetParticleXs();
+				// Constraints are locally indexed for force based solver
+				const TConstArrayView<Softs::FSolverVec3> Positions = Solver->IsForceBasedSolver() ? Solver->GetParticleXsView(ParticleRangeId)
+					: TConstArrayView<Softs::FSolverVec3>(Solver->GetParticleXs());
+
+				const int32 Offset = Solver->IsForceBasedSolver() ? 0 : ParticleRangeId;
+
 				const FTriangleMesh& TriangleMesh = Cloth->GetTriangleMesh(Solver);
 
 				// Draw contours

@@ -51,7 +51,7 @@ namespace UE::Chaos::ClothAsset::Private
 		return Checksum;
 	}
 
-	bool PropertyKeysMatch(const TArray<TSharedRef<FManagedArrayCollection>>& Collections0, const TArray<TSharedRef<FManagedArrayCollection>>& Collections1)
+	bool PropertyKeysAndSolverTypesMatch(const TArray<TSharedRef<FManagedArrayCollection>>& Collections0, const TArray<TSharedRef<FManagedArrayCollection>>& Collections1)
 	{
 		if (Collections0.Num() != Collections1.Num())
 		{
@@ -67,10 +67,14 @@ namespace UE::Chaos::ClothAsset::Private
 			}
 			for (int32 PropertyIndex = 0; PropertyIndex < Property0.Num(); ++PropertyIndex)
 			{
-if (Property0.GetKey(PropertyIndex) != Property1.GetKey(PropertyIndex))
-{
-	return false;
-}
+				if (Property0.GetKey(PropertyIndex) != Property1.GetKey(PropertyIndex))
+				{
+					return false;
+				}
+			}
+			if (Property0.GetValue<bool>(TEXT("EnableForceBasedSolver"), false) != Property1.GetValue<bool>(TEXT("EnableForceBasedSolver"), false))
+			{
+				return false;
 			}
 		}
 		return true;
@@ -97,7 +101,7 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 		ClothColllectionChecksum = Private::CalculateClothChecksum(InClothCollections);
 		bClothCollectionChecksumValid = InClothCollections.Num() > 0;
 
-		if (bPreviousChecksumsValid && PreviousChecksum == ClothColllectionChecksum && Private::PropertyKeysMatch(InClothCollections, ClothCollections))
+		if (bPreviousChecksumsValid && PreviousChecksum == ClothColllectionChecksum && Private::PropertyKeysAndSolverTypesMatch(InClothCollections, ClothCollections))
 		{
 			// Cloth and property keys match. Just update property values.
 			check(InClothCollections.Num() == ClothCollections.Num());

@@ -170,8 +170,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CHAOSCLOTH_API TVec3<FRealSingle> GetGravity(const FClothingSimulationSolver* Solver) const;
 		// Return the current bounding box based on a given solver, not thread safe, call must be done right after the solver update.
 		CHAOSCLOTH_API FAABB3 CalculateBoundingBox(const FClothingSimulationSolver* Solver) const;
-		// Return the current LOD offset in the solver's particle array, or INDEX_NONE if no LOD is currently selected.
-		CHAOSCLOTH_API int32 GetOffset(const FClothingSimulationSolver* Solver) const;
+		// Return the current LOD ParticleRangeId, or INDEX_NONE if no LOD is currently selected.
+		CHAOSCLOTH_API int32 GetParticleRangeId(const FClothingSimulationSolver* Solver) const;
+		UE_DEPRECATED(5.4, "Offset has been renamed ParticleRangeId to reflect that it is no longer an offset.")
+		int32 GetOffset(const FClothingSimulationSolver* Solver) const { return GetParticleRangeId(Solver); }
 		// Return the current LOD num particles, or 0 if no LOD is currently selected.
 		CHAOSCLOTH_API int32 GetNumParticles(const FClothingSimulationSolver* Solver) const;
 		// Return the current LOD mesh.
@@ -203,7 +205,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	private:
 		CHAOSCLOTH_API int32 GetNumParticles(int32 InLODIndex) const;
-		CHAOSCLOTH_API int32 GetOffset(const FClothingSimulationSolver* Solver, int32 InLODIndex) const;
+		CHAOSCLOTH_API int32 GetParticleRangeId(const FClothingSimulationSolver* Solver, int32 InLODIndex) const;
 
 	private:
 		struct FLODData;

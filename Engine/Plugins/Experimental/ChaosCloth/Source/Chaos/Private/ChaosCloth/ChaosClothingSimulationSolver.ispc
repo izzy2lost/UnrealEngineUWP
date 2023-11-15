@@ -49,6 +49,91 @@ export void ApplyPreSimulationTransforms(uniform FVector4f ParticlesPandInvM[],
 	}
 }
 
+export void ApplyPreSimulationTransform(uniform FVector4f ParticlesPandInvM[],
+										uniform FVector3f ParticlesV[],
+										uniform FVector3f ParticlesX[],
+										uniform FVector3f OldAnimationPositions[],
+										uniform FVector3f AnimationVelocities[],
+										const uniform float InvM[],
+										const uniform FVector3f AnimationPositions[],
+										const uniform FTransform3f& GroupSpaceTransform,
+										const uniform FVector3f &DeltaLocalSpaceLocation,
+										const uniform float DeltaTime,
+										const uniform int32 NumParticles)
+{
+	foreach(i = 0 ... NumParticles)
+	{
+		const uniform int32 Index = extract(i, 0);
+
+		const varying FVector3f ParticleX = VectorLoad(&ParticlesX[Index]);
+		const varying FVector3f PX = TransformPosition(GroupSpaceTransform, ParticleX) - DeltaLocalSpaceLocation;
+
+		VectorStore(&ParticlesPandInvM[Index], SetVector4(PX, InvM[i]));
+		VectorStore(&ParticlesX[Index], PX);
+
+		const varying FVector3f ParticleV = VectorLoad(&ParticlesV[Index]);
+		const varying FVector3f V = TransformVector(GroupSpaceTransform, ParticleV);
+		VectorStore(&ParticlesV[Index], V);
+
+		const varying FVector3f OldAnimationPosition = VectorLoad(&OldAnimationPositions[Index]);
+		const varying FVector3f AP = TransformPosition(GroupSpaceTransform, OldAnimationPosition) - DeltaLocalSpaceLocation;
+
+		VectorStore(&OldAnimationPositions[Index], AP);
+
+		const varying FVector3f AnimationPosition = VectorLoad(&AnimationPositions[Index]);
+		const varying FVector3f AV = (AnimationPosition - AP) / DeltaTime;
+
+		VectorStore(&AnimationVelocities[Index], AV);
+	}
+}
+
+export void ApplyPreSimulationTransformAndClampVelocity(uniform FVector4f ParticlesPandInvM[],
+										uniform FVector3f ParticlesV[],
+										uniform FVector3f ParticlesX[],
+										uniform FVector3f OldAnimationPositions[],
+										uniform FVector3f AnimationVelocities[],
+										const uniform float InvM[],
+										const uniform FVector3f AnimationPositions[],
+										const uniform FTransform3f& GroupSpaceTransform,
+										const uniform FVector3f &DeltaLocalSpaceLocation,
+										const uniform float DeltaTime,
+										const uniform int32 NumParticles,
+										const uniform float MaxVelocitySquared)
+{
+	foreach(i = 0 ... NumParticles)
+	{
+		const uniform int32 Index = extract(i, 0);
+
+		const varying FVector3f ParticleX = VectorLoad(&ParticlesX[Index]);
+		const varying FVector3f PX = TransformPosition(GroupSpaceTransform, ParticleX) - DeltaLocalSpaceLocation;
+
+		VectorStore(&ParticlesPandInvM[Index], SetVector4(PX, InvM[i]));
+		VectorStore(&ParticlesX[Index], PX);
+
+		const varying FVector3f ParticleV = VectorLoad(&ParticlesV[Index]);
+		varying FVector3f V = TransformVector(GroupSpaceTransform, ParticleV);
+
+		const varying FVector3f OldAnimationPosition = VectorLoad(&OldAnimationPositions[Index]);
+		const varying FVector3f AP = TransformPosition(GroupSpaceTransform, OldAnimationPosition) - DeltaLocalSpaceLocation;
+
+		VectorStore(&OldAnimationPositions[Index], AP);
+
+		const varying FVector3f AnimationPosition = VectorLoad(&AnimationPositions[Index]);
+		const varying FVector3f AV = (AnimationPosition - AP) / DeltaTime;
+
+		VectorStore(&AnimationVelocities[Index], AV);
+
+		const varying FVector3f RelVelocity = V - AV;
+		const varying float RelVelocitySquared = VectorSizeSquared(RelVelocity);
+		if (RelVelocitySquared > MaxVelocitySquared)
+		{
+			V = AV + RelVelocity * sqrt(MaxVelocitySquared/RelVelocitySquared);
+		}
+
+		VectorStore(&ParticlesV[Index], V);
+	}
+}
+
 export void ApplyPreSimulationTransformsAndClampVelocity(uniform FVector4f ParticlesPandInvM[],
 										uniform FVector3f ParticlesV[],
 										uniform FVector3f ParticlesX[],
