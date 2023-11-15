@@ -26,7 +26,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.107.2";
+        private static string VersionString = "4.108.0";
 
         public static string Get() { return VersionString; }
     };
@@ -111,6 +111,7 @@ namespace PerfReportTool
 			"  -csvToSvgSequential : Run CsvToSvg sequentially\n" +
 			"Deprecated performance args:\n" +
 			"  -csvToSvgProcesses : Use separate processes for csvToSVG instead of threads (slower)\n" +
+            "  -embedGraphCommandline : if -csvToSvgProcesses is specified, embeds the commandline for debugging purposes\n" +
 			"  -noBatchedGraphs : disable batched/multithreaded graph generation (use with -csvToSvgProcesses. Default is enabled)\n" +
 			"\n" +
 			"Options to truncate or filter source data:\n" +
@@ -1661,13 +1662,13 @@ namespace PerfReportTool
 				" -maxy " + maxy.ToString() +
 				" -uniqueID Graph_" + graphIndex.ToString() +
 				" -lineDecimalPlaces " + lineDecimalPlaces.ToString() +
-				" -nocommandlineEmbed " +
-
+				( GetBoolArg("embedGraphCommandline") ? "" : " -nocommandlineEmbed") +
 				((statMultiplier != 1.0) ? " -statMultiplier " + statMultiplier.ToString("0.0000000000000000000000") : "") +
 				(hideEventNames ? " -hideeventNames 1" : "") +
 				((minx > 0) ? (" -minx " + minx.ToString()) : "") +
 				((maxx != Int32.MaxValue) ? (" -maxx " + maxx.ToString()) : "") +
 				OptionalHelper.GetDoubleSetting(graphSettings.miny, " -miny ") +
+				OptionalHelper.GetDoubleSetting(graphSettings.maxAutoMaxY, " -maxAutoMaxY ") +
 				OptionalHelper.GetDoubleSetting(graphSettings.threshold, " -threshold ") +
 				OptionalHelper.GetDoubleSetting(graphSettings.averageThreshold, " -averageThreshold ") +
 				OptionalHelper.GetDoubleSetting(minFilterStatValueSetting, " -minFilterStatValue ") +
@@ -1814,6 +1815,10 @@ namespace PerfReportTool
 			}
 			graphParams.maxY = GetFloatArg("maxy", (float)graphSettings.maxy.value);
 
+			if (graphSettings.maxAutoMaxY.isSet)
+			{
+				graphParams.maxAutoMaxY = (float)graphSettings.maxAutoMaxY.value;
+			}
 			if (graphSettings.threshold.isSet)
 			{
 				graphParams.threshold = (float)graphSettings.threshold.value;

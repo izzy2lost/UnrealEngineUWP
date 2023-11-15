@@ -176,6 +176,7 @@ namespace PerfReportTool
 			thickness = new OptionalDouble(element, "thickness");
 			miny = new OptionalDouble(element, "miny");
 			maxy = new OptionalDouble(element, "maxy");
+			maxAutoMaxY = new OptionalDouble(element, "maxAutoMaxY");
 			threshold = new OptionalDouble(element, "threshold");
 			averageThreshold = new OptionalDouble(element, "averageThreshold");
 			minFilterStatValue = new OptionalDouble(element, "minFilterStatValue");
@@ -209,6 +210,7 @@ namespace PerfReportTool
 			thickness.InheritFrom(baseSettings.thickness);
 			miny.InheritFrom(baseSettings.miny);
 			maxy.InheritFrom(baseSettings.maxy);
+			maxAutoMaxY.InheritFrom(baseSettings.maxAutoMaxY);
 			threshold.InheritFrom(baseSettings.threshold);
 			averageThreshold.InheritFrom(baseSettings.averageThreshold);
 			minFilterStatValue.InheritFrom(baseSettings.minFilterStatValue);
@@ -239,6 +241,7 @@ namespace PerfReportTool
 		public OptionalDouble thickness;
 		public OptionalDouble miny;
 		public OptionalDouble maxy;
+		public OptionalDouble maxAutoMaxY;
 		public OptionalDouble threshold;
 		public OptionalDouble averageThreshold;
 		public OptionalDouble minFilterStatValue;
