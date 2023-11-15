@@ -109,6 +109,7 @@ private: // ----------------------------------------------------
 
 	IConsoleThreadPropagation* ThreadPropagationCallback;
 	
+	FCriticalSection CachedPlatformsAndDeviceProfilesLock;
 	TSet<FName> CachedPlatformsAndDeviceProfiles;
 
 	// if true the next call to CallAllConsoleVariableSinks() we will call all registered sinks

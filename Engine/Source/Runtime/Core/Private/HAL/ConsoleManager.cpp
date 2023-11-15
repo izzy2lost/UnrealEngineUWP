@@ -2938,6 +2938,8 @@ void FConsoleManager::LoadAllPlatformCVars(FName PlatformName, const FString& De
 {
 	FName PlatformKey = MakePlatformKey(PlatformName, DeviceProfileName);
 	
+	// protect the cached CVar info from two threads trying to get a platform CVar at once, and both attempting to load all of the cvars at the same time
+	FScopeLock Lock(&CachedPlatformsAndDeviceProfilesLock);
 	if (CachedPlatformsAndDeviceProfiles.Contains(PlatformKey))
 	{
 		return;
@@ -2995,6 +2997,10 @@ void FConsoleManager::PreviewPlatformCVars(FName PlatformName, const FString& De
 void FConsoleManager::ClearAllPlatformCVars(FName PlatformName, const FString& DeviceProfileName)
 {
 	FName PlatformKey = MakePlatformKey(PlatformName, DeviceProfileName);
+
+	// protect the cached CVar info from two threads trying to get a platform CVar at once, and both attempting to load all of the cvars at the same time
+	FScopeLock Lock(&CachedPlatformsAndDeviceProfilesLock);
+	
 	if (!CachedPlatformsAndDeviceProfiles.Contains(PlatformKey))
 	{
 		return;
