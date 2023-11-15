@@ -125,6 +125,7 @@
 #include "Materials/MaterialExpressionNeuralPostProcessNode.h"
 #include "Materials/MaterialExpressionObjectBounds.h"
 #include "Materials/MaterialExpressionObjectLocalBounds.h"
+#include "Materials/MaterialExpressionBounds.h"
 #include "Materials/MaterialExpressionObjectOrientation.h"
 #include "Materials/MaterialExpressionObjectPositionWS.h"
 #include "Materials/MaterialExpressionObjectRadius.h"
@@ -4218,6 +4219,97 @@ bool UMaterialExpressionObjectBounds::GenerateHLSLExpression(FMaterialHLSLGenera
 	const FStringView Code(TEXT("float3(GetPrimitiveData(Parameters).ObjectBoundsX, GetPrimitiveData(Parameters).ObjectBoundsY, GetPrimitiveData(Parameters).ObjectBoundsZ)"));
 	OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3, Code);
 	return true;
+}
+
+bool UMaterialExpressionBounds::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+	using namespace UE::Shader;
+
+	const UMaterial* TargetMaterial = Generator.GetTargetMaterial();
+	if (TargetMaterial)
+	{
+		if (TargetMaterial->MaterialDomain == MD_DeferredDecal)
+		{
+			return Generator.Error(TEXT("Expression not available in the deferred decal material domain."));
+		}
+		else if (TargetMaterial->MaterialDomain != MD_Surface && TargetMaterial->MaterialDomain != MD_Volume)
+		{
+			return Generator.Error(TEXT("The material expression 'ObjectLocalBounds' is only supported in the 'Surface' or 'Volume' material domain."));
+		}
+	}
+
+	if (Type == MEILB_ObjectLocal)
+	{
+		switch (OutputIndex)
+		{
+		case 0: // Half extents
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("((GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin) / 2.0f)"));
+			return true;
+		case 1: // Full extents
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("(GetPrimitiveData(Parameters).LocalObjectBoundsMax - GetPrimitiveData(Parameters).LocalObjectBoundsMin)"));
+			return true;
+		case 2: // Min point
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMin"));
+			return true;
+		case 3: // Max point
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMax"));
+			return true;
+		default:
+			break;
+		}
+	}
+	else if (Type == MEILB_InstanceLocal)
+	{
+		switch (OutputIndex)
+		{
+		case 0: // Half extents
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+			return true;
+		case 1: // Full extents
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsExtent * 2.0f)"));
+			return true;
+		case 2: // Min point
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter - GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+			return true;
+		case 3: // Max point
+			OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(EValueType::Float3,
+				TEXT("(GetPrimitiveData(Parameters).InstanceLocalBoundsCenter + GetPrimitiveData(Parameters).InstanceLocalBoundsExtent)"));
+			return true;
+		default:
+			break;
+		}
+	}
+	else if (Type == MEILB_PreSkinnedLocal)
+	{
+		FTree& Tree = Generator.GetTree();
+		switch (OutputIndex)
+		{
+		case 0: // Half extents
+			OutExpression = Tree.NewMul(Tree.NewSub(Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMax), Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMin)), Tree.NewConstant(0.5f));
+			return true;
+		case 1: // Full extents
+			OutExpression = Tree.NewSub(Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMax), Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMin));
+			return true;
+		case 2: // Min point
+			OutExpression = Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMin);
+			return true;
+		case 3: // Max point
+			OutExpression = Generator.NewExternalInput(Material::EExternalInput::PreSkinnedLocalBoundsMax);
+			return true;
+		default:
+			break;
+		}
+	}
+	checkNoEntry();
+	return false;
 }
 
 bool UMaterialExpressionObjectLocalBounds::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
