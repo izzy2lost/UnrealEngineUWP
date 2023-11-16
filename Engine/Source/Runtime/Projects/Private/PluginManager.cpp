@@ -1610,23 +1610,35 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		}
 
 #if IS_PROGRAM
+		auto EnableProgramPlugin = [this, &ConfiguredPluginNames, &EnabledPlugins](const TCHAR* ConfigEntry, bool bOptionalPlugin) mutable
 		{
-			// Programs can also define the list of enabled plugins in ini
-			SCOPED_BOOT_TIMING("AddProgramEnabledPlugins");
-
 			TArray<FString> ProgramPluginNames;
-			GConfig->GetArray(TEXT("Plugins"), TEXT("ProgramEnabledPlugins"), ProgramPluginNames, GEngineIni);
+			GConfig->GetArray(TEXT("Plugins"), ConfigEntry, ProgramPluginNames, GEngineIni);
 
 			for (const FString& PluginName : ProgramPluginNames)
 			{
 				if (!ConfiguredPluginNames.Contains(PluginName))
 				{
-					if (!ConfigureEnabledPluginForCurrentTarget(FPluginReferenceDescriptor(PluginName, true), EnabledPlugins))
+					FPluginReferenceDescriptor PluginReference(PluginName, true);
+					PluginReference.bOptional = bOptionalPlugin;
+					if (!ConfigureEnabledPluginForCurrentTarget(PluginReference, EnabledPlugins))
 					{
 						return false;
 					}
 					ConfiguredPluginNames.Add(PluginName);
 				}
+			}
+
+			return true;
+		};
+
+		{
+			// Programs can also define the list of enabled plugins in ini
+			SCOPED_BOOT_TIMING("AddProgramEnabledPlugins");
+
+			if (!EnableProgramPlugin(TEXT("ProgramEnabledPlugins"), false) || !EnableProgramPlugin(TEXT("ProgramOptionalPlugins"), true))
+			{
+				return false;
 			}
 		}
 #endif
