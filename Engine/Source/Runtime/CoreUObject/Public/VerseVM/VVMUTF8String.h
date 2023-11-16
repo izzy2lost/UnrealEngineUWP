@@ -83,7 +83,7 @@ struct VUTF8String : VHeapValue
 	static VUTF8String& New(FAllocationContext Context, const SizeType NumUTF8CHARs)
 	{
 		const size_t NumBytes = AllocationSize(NumUTF8CHARs);
-		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, NumUTF8CHARs);
+		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), NumUTF8CHARs);
 	}
 
 	/**
@@ -93,7 +93,7 @@ struct VUTF8String : VHeapValue
 	static VUTF8String& New(FAllocationContext Context, FUtf8StringView String)
 	{
 		const size_t NumBytes = AllocationSize(String.Len());
-		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, String);
+		return *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), String);
 	}
 
 	/**
@@ -103,7 +103,7 @@ struct VUTF8String : VHeapValue
 	{
 		const SizeType NumUTF8CHARs = Left.Num() + Right.Num();
 		const size_t NumBytes = AllocationSize(NumUTF8CHARs);
-		VUTF8String& NewString = *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, NumUTF8CHARs);
+		VUTF8String& NewString = *new (Context.AllocateFastCell(NumBytes)) VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), NumUTF8CHARs);
 		checkSlow(NewString.Data() && Left.Data() && Right.Data());
 		memcpy(NewString.Data(), Left.Data(), Left.Num());
 		memcpy(NewString.Data() + Left.Num(), Right.Data(), Right.Num());
@@ -149,14 +149,14 @@ private:
 		return DataOffset() + ((NumUTF8CHARs + 1) * sizeof(UTF8CHAR)); // Additional space for null terminator.
 	}
 
-	VUTF8String(FAllocationContext Context, const SizeType InNumUTF8CHARs)
-		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
+	VUTF8String(FAllocationContext Context, const VEmergentType* EmergentType, const SizeType InNumUTF8CHARs)
+		: VHeapValue(Context, EmergentType)
 		, NumUTF8CHARs(InNumUTF8CHARs)
 	{
 	}
 
-	VUTF8String(FAllocationContext Context, FUtf8StringView String)
-		: VUTF8String(Context, String.Len())
+	VUTF8String(FAllocationContext Context, const VEmergentType* EmergentType, FUtf8StringView String)
+		: VUTF8String(Context, EmergentType, String.Len())
 	{
 		if (String.Len())
 		{
@@ -204,7 +204,7 @@ private:
 	}
 
 	VUniqueString(FAllocationContext Context, FUtf8StringView String)
-		: VUTF8String(Context, String)
+		: VUTF8String(Context, &GlobalTrivialEmergentType.Get(Context), String)
 	{
 	}
 
