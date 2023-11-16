@@ -193,6 +193,8 @@ private:
 	bool IsControlOrNullSelected(bool bIncludeProcedural) const;
 	bool IsProceduralElementSelected() const;
 	bool IsNonProceduralElementSelected() const;
+	bool CanAddElement(const ERigElementType ElementType) const;
+	bool CanAddAnimationChannel() const;
 
 	URigHierarchy* GetHierarchy() const;
 	URigHierarchy* GetDefaultHierarchy() const;

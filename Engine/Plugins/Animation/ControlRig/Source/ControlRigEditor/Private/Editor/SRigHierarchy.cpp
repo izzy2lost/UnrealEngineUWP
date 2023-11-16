@@ -316,27 +316,27 @@ void SRigHierarchy::BindCommands()
 
 	CommandList->MapAction(Commands.AddBoneItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Bone, false),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Bone));
 
 	CommandList->MapAction(Commands.AddControlItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Control, false),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Control));
 
 	CommandList->MapAction(Commands.AddAnimationChannelItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Control, true),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsControlSelected, false));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddAnimationChannel));
 
 	CommandList->MapAction(Commands.AddNullItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Null, false),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Null));
 
 	CommandList->MapAction(Commands.AddConnectorItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Connector, false),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Connector));
 
 	CommandList->MapAction(Commands.AddSocketItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Socket, false),
-		FCanExecuteAction::CreateSP(this, &SRigHierarchy::IsNonProceduralElementSelected));
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Socket));
 
 	CommandList->MapAction(Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleDuplicateItem),
@@ -1779,6 +1779,11 @@ bool SRigHierarchy::IsControlOrNullSelected(bool bIncludeProcedural) const
 bool SRigHierarchy::IsProceduralElementSelected() const
 {
 	TArray<FRigElementKey> SelectedKeys = GetSelectedKeys();
+	if (SelectedKeys.IsEmpty())
+	{
+		return false;
+	}
+	
 	for (const FRigElementKey& SelectedKey : SelectedKeys)
 	{
 		if(!GetHierarchy()->IsProcedural(SelectedKey))
@@ -1792,6 +1797,11 @@ bool SRigHierarchy::IsProceduralElementSelected() const
 bool SRigHierarchy::IsNonProceduralElementSelected() const
 {
 	TArray<FRigElementKey> SelectedKeys = GetSelectedKeys();
+	if (SelectedKeys.IsEmpty())
+	{
+		return false;
+	}
+	
 	for (const FRigElementKey& SelectedKey : SelectedKeys)
 	{
 		if(GetHierarchy()->IsProcedural(SelectedKey))
@@ -1800,6 +1810,32 @@ bool SRigHierarchy::IsNonProceduralElementSelected() const
 		}
 	}
 	return true;
+}
+
+bool SRigHierarchy::CanAddElement(const ERigElementType ElementType) const
+{
+	if (IsProceduralElementSelected())
+	{
+		return false;
+	}
+
+	// Always allow connectors 
+	if (ElementType == ERigElementType::Connector)
+	{
+		return true;
+	}
+	
+	return !ControlRigBlueprint->IsControlRigModule();
+}
+
+bool SRigHierarchy::CanAddAnimationChannel() const
+{
+	if (!IsControlSelected(false))
+	{
+		return false;
+	}
+
+	return !ControlRigBlueprint->IsControlRigModule();
 }
 
 void SRigHierarchy::HandleDeleteItem()
@@ -2041,7 +2077,22 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 /** Check whether we can deleting the selected item(s) */
 bool SRigHierarchy::CanDuplicateItem() const
 {
-	return IsMultiSelected(false);
+	if (!IsMultiSelected(false))
+	{
+		return false;
+	}
+
+	if (ControlRigBlueprint->IsControlRigModule())
+	{
+		bool bAnyNonConnector = GetSelectedKeys().ContainsByPredicate([](const FRigElementKey& Key)
+		{
+			return Key.Type != ERigElementType::Connector;
+		});
+		
+		return !bAnyNonConnector;
+	}
+
+	return true;
 }
 
 /** Duplicate Item */
@@ -2247,7 +2298,8 @@ void SRigHierarchy::HandlePasteItems()
 		URigHierarchyController* Controller = Hierarchy->GetController(true);
 		check(Controller);
 
-		Controller->ImportFromText(Content, false, true, true, true);
+		ERigElementType AllowedTypes = ControlRigBlueprint->IsControlRigModule() ? ERigElementType::Connector : ERigElementType::All;
+		Controller->ImportFromText(Content, AllowedTypes, false, true, true, true);
 	}
 
 	//ControlRigBlueprint->PropagateHierarchyFromBPToInstances();
@@ -2515,8 +2567,16 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			}
 			case ERigElementType::Socket:
 			{
-				// You cannot parent anything under a socket
-				return InvalidDropZone;
+				// Only connectors can be parented under a socket
+				if (RigDragDropOp->IsDraggingSingleConnector())
+				{
+					ReturnDropZone = DropZone;
+				}
+				else
+				{
+					return InvalidDropZone;
+				}
+				break;
 			}
 			default:
 			{

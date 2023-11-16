@@ -402,6 +402,14 @@ public:
 		bool bSetupUndo = false,
 		bool bPrintPythonCommands = false);
 
+	TArray<FRigElementKey> ImportFromText(
+		FString InContent,
+		ERigElementType InAllowedTypes,
+		bool bReplaceExistingElements = false,
+		bool bSelectNewElements = true,
+		bool bSetupUndo = false,
+		bool bPrintPythonCommands = false);
+
 	/**
 	* Imports the content of a RigHierachyContainer (the hierarchy v1 pre 5.0)
 	* This is used for backwards compatbility only during load and does not support undo.

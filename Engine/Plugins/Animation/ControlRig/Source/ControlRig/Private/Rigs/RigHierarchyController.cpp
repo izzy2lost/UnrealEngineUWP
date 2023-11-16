@@ -1195,6 +1195,11 @@ public:
 
 TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent, bool bReplaceExistingElements, bool bSelectNewElements, bool bSetupUndo, bool bPrintPythonCommands)
 {
+	return ImportFromText(InContent, ERigElementType::All, bReplaceExistingElements, bSelectNewElements, bSetupUndo, bPrintPythonCommands);
+}
+
+TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent, ERigElementType InAllowedTypes, bool bReplaceExistingElements, bool bSelectNewElements, bool bSetupUndo, bool bPrintPythonCommands)
+{
 	TArray<FRigElementKey> PastedKeys;
 	if(!IsValid())
 	{
@@ -1214,6 +1219,23 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 		// check if this is a copy & paste buffer from pre-5.0
 		if(Data.Contents.Num() > 0)
 		{
+			const int32 OriginalNumElements = Data.Elements.Num();
+			for (int32 i=0; i<Data.Types.Num(); )
+			{
+				if (((uint8)InAllowedTypes & (uint8)Data.Types[i]) == 0)
+				{
+					Data.Contents.RemoveAt(i);
+					Data.Types.RemoveAt(i);
+					Data.LocalTransforms.RemoveAt(i);
+					Data.GlobalTransforms.RemoveAt(i);
+					continue;
+				}
+				++i;
+			}
+			if (OriginalNumElements > Data.Types.Num())
+			{
+				ReportAndNotifyErrorf(TEXT("Some elements were not allowed to be pasted."));
+			}
 			FRigHierarchyContainer OldHierarchy;
 			if(OldHierarchy.ImportFromText(Data).Num() > 0)
 			{
@@ -1224,11 +1246,21 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 		return PastedKeys;
 	}
 
+	const int32 OriginalNumElements = Data.Elements.Num();
+	Data.Elements = Data.Elements.FilterByPredicate([InAllowedTypes](const FRigHierarchyCopyPasteContentPerElement& Element)
+	{
+		return ((uint8)InAllowedTypes & (uint8)Element.Key.Type) != 0;
+	});
+	if (OriginalNumElements > Data.Elements.Num())
+	{
+		ReportAndNotifyErrorf(TEXT("Some elements were not allowed to be pasted."));
+	}
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if(bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Bone", "Add Bone"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Elements", "Add Elements"));
 		Hierarchy->Modify();
 	}
 #endif
