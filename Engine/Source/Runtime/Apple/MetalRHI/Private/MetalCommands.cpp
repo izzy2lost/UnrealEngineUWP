@@ -43,17 +43,17 @@ public:
 };
 static TGlobalResource<FVector4VertexDeclaration> FVector4VertexDeclaration;
 
-mtlpp::PrimitiveType TranslatePrimitiveType(uint32 PrimitiveType)
+MTL::PrimitiveType TranslatePrimitiveType(uint32 PrimitiveType)
 {
 	switch (PrimitiveType)
 	{
-		case PT_TriangleList:	return mtlpp::PrimitiveType::Triangle;
-		case PT_TriangleStrip:	return mtlpp::PrimitiveType::TriangleStrip;
-		case PT_LineList:		return mtlpp::PrimitiveType::Line;
-		case PT_PointList:		return mtlpp::PrimitiveType::Point;
+		case PT_TriangleList:	return MTL::PrimitiveTypeTriangle;
+		case PT_TriangleStrip:	return MTL::PrimitiveTypeTriangleStrip;
+		case PT_LineList:		return MTL::PrimitiveTypeLine;
+		case PT_PointList:		return MTL::PrimitiveTypePoint;
 		default:
 			METAL_FATAL_ERROR(TEXT("Unsupported primitive type %d"), (int32)PrimitiveType);
-			return mtlpp::PrimitiveType::Triangle;
+			return MTL::PrimitiveTypeTriangle;
 	}
 }
 
@@ -75,17 +75,17 @@ static FORCEINLINE EMetalShaderStages GetShaderStage(FRHIGraphicsShader* ShaderR
 
 void FMetalRHICommandContext::RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBufferRHI,uint32 Offset)
 {
-	@autoreleasepool {
-		FMetalRHIBuffer* VertexBuffer = ResourceCast(VertexBufferRHI);
-		
-		FMetalBuffer TheBuffer = nil;
-		if(VertexBuffer && !VertexBuffer->Data)
-		{
-			TheBuffer = VertexBuffer->GetCurrentBuffer();
-		}
-		
-		Context->GetCurrentState().SetVertexStream(StreamIndex, VertexBuffer ? &TheBuffer : nil, VertexBuffer ? VertexBuffer->Data : nil, Offset, VertexBuffer ? VertexBuffer->GetSize() : 0);
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;;
+    
+    FMetalRHIBuffer* VertexBuffer = ResourceCast(VertexBufferRHI);
+    
+    FMetalBufferPtr TheBuffer = nullptr;
+    if(VertexBuffer && !VertexBuffer->Data)
+    {
+        TheBuffer = VertexBuffer->GetCurrentBuffer();
+    }
+    
+    Context->GetCurrentState().SetVertexStream(StreamIndex, VertexBuffer ? TheBuffer : nullptr, VertexBuffer ? VertexBuffer->Data : nullptr, Offset, VertexBuffer ? VertexBuffer->GetSize() : 0);
 }
 
 template <typename TRHIShader>
@@ -99,31 +99,33 @@ void FMetalRHICommandContext::ApplyStaticUniformBuffers(TRHIShader* Shader)
 
 void FMetalRHICommandContext::RHISetComputePipelineState(FRHIComputePipelineState* ComputePipelineState)
 {
-	@autoreleasepool {
-	FMetalComputePipelineState* ComputePipeline = ResourceCast(ComputePipelineState);
+    MTL_SCOPED_AUTORELEASE_POOL;
+	
+    FMetalComputePipelineState* ComputePipeline = ResourceCast(ComputePipelineState);
 	
 	// cache this for Dispatch
 	// sets this compute shader pipeline as the current (this resets all state, so we need to set all resources after calling this)
 	Context->GetCurrentState().SetComputeShader(ComputePipeline->GetComputeShader());
 
 	ApplyStaticUniformBuffers(ComputePipeline->GetComputeShader());
-	}
+    
 }
 
 void FMetalRHICommandContext::RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	ThreadGroupCountX = FMath::Max(ThreadGroupCountX, 1u);
 	ThreadGroupCountY = FMath::Max(ThreadGroupCountY, 1u);
 	ThreadGroupCountZ = FMath::Max(ThreadGroupCountZ, 1u);
 	
 	Context->Dispatch(ThreadGroupCountX, ThreadGroupCountY, ThreadGroupCountZ);
-	}
 }
 
 void FMetalRHICommandContext::RHIDispatchIndirectComputeShader(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
 	{
 		FMetalRHIBuffer* VertexBuffer = ResourceCast(ArgumentBufferRHI);
@@ -134,13 +136,13 @@ void FMetalRHICommandContext::RHIDispatchIndirectComputeShader(FRHIBuffer* Argum
 	{
 		NOT_SUPPORTED("RHIDispatchIndirectComputeShader");
 	}
-	}
 }
 
 void FMetalRHICommandContext::RHISetViewport(float MinX, float MinY,float MinZ, float MaxX, float MaxY,float MaxZ)
 {
-	@autoreleasepool {
-	mtlpp::Viewport Viewport;
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+	MTL::Viewport Viewport;
 	Viewport.originX = MinX;
 	Viewport.originY = MinY;
 	Viewport.width = MaxX - MinX;
@@ -149,15 +151,15 @@ void FMetalRHICommandContext::RHISetViewport(float MinX, float MinY,float MinZ, 
 	Viewport.zfar = MaxZ;
 	
 	Context->GetCurrentState().SetViewport(Viewport);
-	}
 }
 
 void FMetalRHICommandContext::RHISetStereoViewport(float LeftMinX, float RightMinX, float LeftMinY, float RightMinY, float MinZ, float LeftMaxX, float RightMaxX, float LeftMaxY, float RightMaxY, float MaxZ)
 {
 	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesMultipleViewports))
 	{
-		@autoreleasepool {
-		mtlpp::Viewport Viewport[2];
+        MTL_SCOPED_AUTORELEASE_POOL;
+        
+		MTL::Viewport Viewport[2];
 		
 		Viewport[0].originX = LeftMinX;
 		Viewport[0].originY = LeftMinY;
@@ -174,7 +176,6 @@ void FMetalRHICommandContext::RHISetStereoViewport(float LeftMinX, float RightMi
 		Viewport[1].zfar = MaxZ;
 		
 		Context->GetCurrentState().SetViewports(Viewport, 2);
-		}
 	}
 	else
 	{
@@ -189,8 +190,9 @@ void FMetalRHICommandContext::RHISetMultipleViewports(uint32 Count, const FViewp
 
 void FMetalRHICommandContext::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,uint32 MaxX,uint32 MaxY)
 {
-	@autoreleasepool {
-	mtlpp::ScissorRect Scissor;
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+	MTL::ScissorRect Scissor;
 	Scissor.x = MinX;
 	Scissor.y = MinY;
 	Scissor.width = MaxX - MinX;
@@ -199,7 +201,7 @@ void FMetalRHICommandContext::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 
 	// metal doesn't support 0 sized scissor rect
 	if (bEnable == false || Scissor.width == 0 || Scissor.height == 0)
 	{
-		mtlpp::Viewport const& Viewport = Context->GetCurrentState().GetViewport(0);
+		MTL::Viewport const& Viewport = Context->GetCurrentState().GetViewport(0);
 		CGSize FBSize = Context->GetCurrentState().GetFrameBufferSize();
 		
 		Scissor.x = Viewport.originX;
@@ -208,28 +210,27 @@ void FMetalRHICommandContext::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 
 		Scissor.height = (Viewport.originY + Viewport.height <= FBSize.height) ? Viewport.height : FBSize.height - Viewport.originY;
 	}
 	Context->GetCurrentState().SetScissorRect(bEnable, Scissor);
-	}
 }
 
 void FMetalRHICommandContext::RHISetGraphicsPipelineState(FRHIGraphicsPipelineState* GraphicsState, uint32 StencilRef, bool bApplyAdditionalState)
 {
-	@autoreleasepool {
-		FMetalGraphicsPipelineState* PipelineState = ResourceCast(GraphicsState);
-		if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelResetOnBind && Context->GetCurrentState().GetGraphicsPSO() != PipelineState)
-		{
-			Context->GetCurrentRenderPass().GetCurrentCommandEncoder().ResetLive();
-		}
-		Context->GetCurrentState().SetGraphicsPipelineState(PipelineState);
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+    FMetalGraphicsPipelineState* PipelineState = ResourceCast(GraphicsState);
+    if (SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelResetOnBind && Context->GetCurrentState().GetGraphicsPSO() != PipelineState)
+    {
+        Context->GetCurrentRenderPass().GetCurrentCommandEncoder().ResetLive();
+    }
+    Context->GetCurrentState().SetGraphicsPipelineState(PipelineState);
 
-		RHISetStencilRef(StencilRef);
-		RHISetBlendFactor(FLinearColor(1.0f, 1.0f, 1.0f));
+    RHISetStencilRef(StencilRef);
+    RHISetBlendFactor(FLinearColor(1.0f, 1.0f, 1.0f));
 
-		if (bApplyAdditionalState)
-		{
-			ApplyStaticUniformBuffers(PipelineState->VertexShader.GetReference());
-			ApplyStaticUniformBuffers(PipelineState->PixelShader.GetReference());
-		}
-	}
+    if (bApplyAdditionalState)
+    {
+        ApplyStaticUniformBuffers(PipelineState->VertexShader.GetReference());
+        ApplyStaticUniformBuffers(PipelineState->PixelShader.GetReference());
+    }
 }
 
 void FMetalRHICommandContext::RHISetStaticUniformBuffers(const FUniformBufferStaticBindings& InUniformBuffers)
@@ -244,126 +245,124 @@ void FMetalRHICommandContext::RHISetStaticUniformBuffers(const FUniformBufferSta
 
 void FMetalRHICommandContext::RHISetUAVParameter(FRHIPixelShader* PixelShaderRHI, uint32 UAVIndex, FRHIUnorderedAccessView* UAVRHI)
 {
-	@autoreleasepool {
-		FMetalUnorderedAccessView* UAV = ResourceCast(UAVRHI);
-		Context->GetCurrentState().SetShaderUnorderedAccessView(EMetalShaderStages::Pixel, UAVIndex, UAV);
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+	FMetalUnorderedAccessView* UAV = ResourceCast(UAVRHI);
+	Context->GetCurrentState().SetShaderUnorderedAccessView(EMetalShaderStages::Pixel, UAVIndex, UAV);
 }
 
 void FMetalRHICommandContext::RHISetUAVParameter(FRHIComputeShader* ComputeShaderRHI, uint32 UAVIndex, FRHIUnorderedAccessView* UAVRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalUnorderedAccessView* UAV = ResourceCast(UAVRHI);
 	Context->GetCurrentState().SetShaderUnorderedAccessView(EMetalShaderStages::Compute, UAVIndex, UAV);
-	}
 }
 
 void FMetalRHICommandContext::RHISetUAVParameter(FRHIComputeShader* ComputeShaderRHI,uint32 UAVIndex, FRHIUnorderedAccessView* UAVRHI, uint32 InitialCount)
 {
-	@autoreleasepool {
-		FMetalUnorderedAccessView* UAV = ResourceCast(UAVRHI);
-		Context->GetCurrentState().SetShaderUnorderedAccessView(EMetalShaderStages::Compute, UAVIndex, UAV);
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+	FMetalUnorderedAccessView* UAV = ResourceCast(UAVRHI);
+    Context->GetCurrentState().SetShaderUnorderedAccessView(EMetalShaderStages::Compute, UAVIndex, UAV);
 }
 
 
 void FMetalRHICommandContext::RHISetShaderTexture(FRHIGraphicsShader* ShaderRHI, uint32 TextureIndex, FRHITexture* NewTextureRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(NewTextureRHI);
 	EMetalShaderStages Stage = GetShaderStage(ShaderRHI);
 	if (Surface != nullptr)
 	{
         if (Surface->Texture || !(Surface->GetDesc().Flags & TexCreate_Presentable))
         {
-            Context->GetCurrentState().SetShaderTexture(Stage, Surface->Texture, TextureIndex, (mtlpp::ResourceUsage)(mtlpp::ResourceUsage::Read|mtlpp::ResourceUsage::Sample));
+            Context->GetCurrentState().SetShaderTexture(Stage, Surface->Texture.get(), TextureIndex, (MTL::ResourceUsage)(MTL::ResourceUsageRead|MTL::ResourceUsageSample));
         }
         else
         {
-            FMetalTexture Tex = Surface->GetCurrentTexture();
-            Context->GetCurrentState().SetShaderTexture(Stage, Tex, TextureIndex, (mtlpp::ResourceUsage)(mtlpp::ResourceUsage::Read|mtlpp::ResourceUsage::Sample));
+            MTLTexturePtr Tex = Surface->GetCurrentTexture();
+            Context->GetCurrentState().SetShaderTexture(Stage, Tex.get(), TextureIndex, (MTL::ResourceUsage)(MTL::ResourceUsageRead|MTL::ResourceUsageSample));
         }
 	}
 	else
 	{
-		Context->GetCurrentState().SetShaderTexture(Stage, nil, TextureIndex, mtlpp::ResourceUsage(0));
-	}
+		Context->GetCurrentState().SetShaderTexture(Stage, nullptr, TextureIndex, MTL::ResourceUsage(0));
 	}
 }
 
 void FMetalRHICommandContext::RHISetShaderTexture(FRHIComputeShader* ComputeShader, uint32 TextureIndex, FRHITexture* NewTextureRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalSurface* Surface = GetMetalSurfaceFromRHITexture(NewTextureRHI);
 	if (Surface != nullptr)
     {
         if (Surface->Texture || !(Surface->GetDesc().Flags & TexCreate_Presentable))
         {
-            Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, Surface->Texture, TextureIndex, (mtlpp::ResourceUsage)(mtlpp::ResourceUsage::Read|mtlpp::ResourceUsage::Sample));
+            Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, Surface->Texture.get(), TextureIndex, (MTL::ResourceUsage)(MTL::ResourceUsageRead|MTL::ResourceUsageSample));
         }
         else
         {
-            FMetalTexture Tex = Surface->GetCurrentTexture();
-            Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, Tex, TextureIndex, (mtlpp::ResourceUsage)(mtlpp::ResourceUsage::Read|mtlpp::ResourceUsage::Sample));
+            MTLTexturePtr Tex = Surface->GetCurrentTexture();
+            Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, Tex.get(), TextureIndex, (MTL::ResourceUsage)(MTL::ResourceUsageRead|MTL::ResourceUsageSample));
         }
 	}
 	else
 	{
-		Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, nil, TextureIndex, mtlpp::ResourceUsage(0));
-	}
+		Context->GetCurrentState().SetShaderTexture(EMetalShaderStages::Compute, nullptr, TextureIndex, MTL::ResourceUsage(0));
 	}
 }
 
 
 void FMetalRHICommandContext::RHISetShaderResourceViewParameter(FRHIGraphicsShader* ShaderRHI, uint32 TextureIndex, FRHIShaderResourceView* SRVRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalShaderResourceView* SRV = ResourceCast(SRVRHI);
 	EMetalShaderStages Stage = GetShaderStage(ShaderRHI);
 	Context->GetCurrentState().SetShaderResourceView(Stage, TextureIndex, SRV);
-	}
 }
 
 void FMetalRHICommandContext::RHISetShaderResourceViewParameter(FRHIComputeShader* ComputeShaderRHI, uint32 TextureIndex, FRHIShaderResourceView* SRVRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalShaderResourceView* SRV = ResourceCast(SRVRHI);
 	Context->GetCurrentState().SetShaderResourceView(EMetalShaderStages::Compute, TextureIndex, SRV);
-	}
 }
 
 
 void FMetalRHICommandContext::RHISetShaderSampler(FRHIGraphicsShader* ShaderRHI, uint32 SamplerIndex, FRHISamplerState* NewStateRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalSamplerState* NewState = ResourceCast(NewStateRHI);
 	EMetalShaderStages Stage = GetShaderStage(ShaderRHI);
 	Context->GetCurrentState().SetShaderSamplerState(Stage, NewState, SamplerIndex);
-	}
 }
 
 void FMetalRHICommandContext::RHISetShaderSampler(FRHIComputeShader* ComputeShader, uint32 SamplerIndex, FRHISamplerState* NewStateRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalSamplerState* NewState = ResourceCast(NewStateRHI);
-
 	Context->GetCurrentState().SetShaderSamplerState(EMetalShaderStages::Compute, NewState, SamplerIndex);
-	}
 }
 
 void FMetalRHICommandContext::RHISetShaderParameter(FRHIGraphicsShader* ShaderRHI, uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	EMetalShaderStages Stage = GetShaderStage(ShaderRHI);
 	Context->GetCurrentState().GetShaderParameters(Stage).Set(BufferIndex, BaseIndex, NumBytes, NewValue);
-	}
 }
 
 void FMetalRHICommandContext::RHISetShaderParameter(FRHIComputeShader* ComputeShaderRHI,uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
 	Context->GetCurrentState().GetShaderParameters(EMetalShaderStages::Compute).Set(BufferIndex, BaseIndex, NumBytes, NewValue);
-	}
 }
 
 void FMetalRHICommandContext::RHISetShaderParameters(FRHIGraphicsShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters)
@@ -403,7 +402,8 @@ void FMetalRHICommandContext::RHISetBlendFactor(const FLinearColor& BlendFactor)
 void FMetalRHICommandContext::SetRenderTargets(uint32 NumSimultaneousRenderTargets, const FRHIRenderTargetView* NewRenderTargets,
 	const FRHIDepthRenderTargetView* NewDepthStencilTargetRHI)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	FMetalContext* Manager = Context;
 	FRHIDepthRenderTargetView DepthView;
 	if (NewDepthStencilTargetRHI)
@@ -417,12 +417,11 @@ void FMetalRHICommandContext::SetRenderTargets(uint32 NumSimultaneousRenderTarge
 
 	FRHISetRenderTargetsInfo Info(NumSimultaneousRenderTargets, NewRenderTargets, DepthView);
 	SetRenderTargetsAndClear(Info);
-	}
 }
 
 void FMetalRHICommandContext::SetRenderTargetsAndClear(const FRHISetRenderTargetsInfo& RenderTargetsInfo)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
 		
 	FRHIRenderPassInfo PassInfo;
 	bool bHasTarget = (RenderTargetsInfo.DepthStencilRenderTarget.Texture != nullptr);
@@ -461,24 +460,22 @@ void FMetalRHICommandContext::SetRenderTargetsAndClear(const FRHISetRenderTarget
 			const FRHIRenderTargetView& RenderTargetView = RenderTargetsInfo.ColorRenderTarget[0];
 			FMetalSurface* RenderTarget = GetMetalSurfaceFromRHITexture(RenderTargetView.Texture);
 
-			uint32 Width = FMath::Max((uint32)(RenderTarget->Texture.GetWidth() >> RenderTargetView.MipIndex), (uint32)1);
-			uint32 Height = FMath::Max((uint32)(RenderTarget->Texture.GetHeight() >> RenderTargetView.MipIndex), (uint32)1);
+			uint32 Width = FMath::Max((uint32)(RenderTarget->Texture->width() >> RenderTargetView.MipIndex), (uint32)1);
+			uint32 Height = FMath::Max((uint32)(RenderTarget->Texture->height() >> RenderTargetView.MipIndex), (uint32)1);
 
 			RHISetViewport(0, 0, 0.0f, Width, Height, 1.0f);
 		}
-	}
 	}
 }
 
 
 void FMetalRHICommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
 		
 	uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
-	
-		
 	//checkf(NumInstances == 1, TEXT("Currently only 1 instance is supported"));
 	
 	NumInstances = FMath::Max(NumInstances,1u);
@@ -490,34 +487,34 @@ void FMetalRHICommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 Nu
 	uint32 VertexCount = GetVertexCountForPrimitiveCount(NumPrimitives,PrimitiveType);
 	
 	Context->DrawPrimitive(PrimitiveType, BaseVertexIndex, NumPrimitives, NumInstances);
-	}
 }
 
 void FMetalRHICommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	@autoreleasepool {
-        if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
-        {
-            SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
-            uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
-            
-            
-            RHI_DRAW_CALL_STATS(PrimitiveType,1);
-            FMetalRHIBuffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
-            
-            Context->DrawPrimitiveIndirect(PrimitiveType, ArgumentBuffer, ArgumentOffset);
-        }
-        else
-        {
-            NOT_SUPPORTED("RHIDrawPrimitiveIndirect");
-        }
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+    if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
+    {
+        SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
+        uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+        
+        
+        RHI_DRAW_CALL_STATS(PrimitiveType,1);
+        FMetalRHIBuffer* ArgumentBuffer = ResourceCast(ArgumentBufferRHI);
+        
+        Context->DrawPrimitiveIndirect(PrimitiveType, ArgumentBuffer, ArgumentOffset);
+    }
+    else
+    {
+        NOT_SUPPORTED("RHIDrawPrimitiveIndirect");
+    }
 }
 
 void FMetalRHICommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI, int32 BaseVertexIndex, uint32 FirstInstance,
 	uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
 	//checkf(NumInstances == 1, TEXT("Currently only 1 instance is supported"));
 	checkf(GRHISupportsBaseVertexIndex || BaseVertexIndex == 0, TEXT("BaseVertexIndex must be 0, see GRHISupportsBaseVertexIndex"));
@@ -529,12 +526,12 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI
 
 	FMetalRHIBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
 	Context->DrawIndexedPrimitive(IndexBuffer->GetCurrentBuffer(), IndexBuffer->GetStride(), IndexBuffer->GetIndexType(), PrimitiveType, BaseVertexIndex, FirstInstance, NumVertices, StartIndex, NumPrimitives, NumInstances);
-	}
 }
 
 void FMetalRHICommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentsBufferRHI, int32 DrawArgumentsIndex, uint32 /*NumInstances*/)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
@@ -552,12 +549,12 @@ void FMetalRHICommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI,
 	{
 		NOT_SUPPORTED("RHIDrawIndexedIndirect");
 	}
-	}
 }
 
 void FMetalRHICommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexBufferRHI, FRHIBuffer* ArgumentBufferRHI, uint32 ArgumentOffset)
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
 	if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
@@ -575,7 +572,6 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexB
 	{
 		NOT_SUPPORTED("RHIDrawIndexedPrimitiveIndirect");
 	}
-	}
 }
 
 void FMetalRHICommandContext::RHIClearMRT(bool bClearColor,int32 NumClearColors,const FLinearColor* ClearColorArray,bool bClearDepth,float Depth,bool bClearStencil,uint32 Stencil)
@@ -590,9 +586,8 @@ void FMetalRHICommandContext::RHISetDepthBounds(float MinDepth, float MaxDepth)
 
 void FMetalRHICommandContext::RHISubmitCommandsHint()
 {
-	@autoreleasepool {
+    MTL_SCOPED_AUTORELEASE_POOL;
     Context->SubmitCommandsHint();
-	}
 }
 
 void FMetalRHICommandContext::RHIDiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask)

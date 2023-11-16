@@ -246,13 +246,13 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
             }
 
             // NOTE (belchy06): GetBytes assumes the raw texture has been created with with TexCreate_CPUReadback
-            mtlpp::Texture* RawTexture = Resource->GetRaw();
-            uint32_t Width = RawTexture->GetWidth();
-            uint32_t Height = RawTexture->GetHeight();
+            MTL::Texture* RawTexture = Resource->GetRaw();
+            uint32_t Width = RawTexture->width();
+            uint32_t Height = RawTexture->height();
             TArray<uint8> PixelBytes;
             PixelBytes.SetNumZeroed(4 * Width * Height);
 
-            Resource->GetRaw()->GetBytes(PixelBytes.GetData(), 4 * Width, mtlpp::Region(0, 0, Width, Height), 0);
+            Resource->GetRaw()->getBytes(PixelBytes.GetData(), 4 * Width, MTL::Region(0, 0, Width, Height), 0);
             FMemory::BigBlockMemcpy(reinterpret_cast<uint8*>(CVPixelBufferGetBaseAddressOfPlane(PixelBuffer, 0)), PixelBytes.GetData(), PixelBytes.Num());
             CVPixelBufferUnlockBaseAddress(PixelBuffer, 0);
             

@@ -41,6 +41,6 @@ public class VTCodecs : ModuleRules
             "VideoToolbox"
         });
 
-        AddEngineThirdPartyPrivateStaticDependencies(Target, "MTLPP");
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
     }
 }

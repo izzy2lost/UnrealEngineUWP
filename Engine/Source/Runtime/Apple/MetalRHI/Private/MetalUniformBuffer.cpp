@@ -15,7 +15,6 @@ FMetalSuballocatedUniformBuffer::FMetalSuballocatedUniformBuffer(const void *Con
     : FRHIUniformBuffer(Layout)
     , LastFrameUpdated(0)
     , Offset(0)
-    , Backing(nil)
     , Shadow(FMemory::Malloc(GetSize()))
 #if METAL_UNIFORM_BUFFER_VALIDATION
     , Validation(InValidation)
@@ -55,7 +54,7 @@ void FMetalSuballocatedUniformBuffer::PushToGPUBacking(const void* Contents)
     // copy contents into backing
     Backing = Entry.Backing;
     Offset = Entry.Offset;
-    uint8* ConstantSpace = reinterpret_cast<uint8*>([Backing contents]) + Entry.Offset;
+    uint8* ConstantSpace = reinterpret_cast<uint8*>(Backing->contents()) + Entry.Offset;
     FMemory::Memcpy(ConstantSpace, Contents, GetSize());
     LastFrameUpdated = DeviceContext.GetFrameNumberRHIThread();
 }

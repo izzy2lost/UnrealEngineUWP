@@ -13,7 +13,7 @@
 #endif
 #include "HAL/PlatformFramePacer.h"
 THIRD_PARTY_INCLUDES_START
-#include "mtlpp.hpp"
+#include "MetalInclude.h"
 THIRD_PARTY_INCLUDES_END
 
 #if PLATFORM_VISIONOS
@@ -49,9 +49,9 @@ public:
 	void Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
 	
 	TRefCountPtr<FMetalSurface> GetBackBuffer(EMetalViewportAccessFlag Accessor) const;
-	id<CAMetalDrawable> GetDrawable(EMetalViewportAccessFlag Accessor);
-	FMetalTexture GetDrawableTexture(EMetalViewportAccessFlag Accessor);
-	ns::AutoReleased<FMetalTexture> GetCurrentTexture(EMetalViewportAccessFlag Accessor);
+	CA::MetalDrawable* GetDrawable(EMetalViewportAccessFlag Accessor);
+	MTL::Texture* GetDrawableTexture(EMetalViewportAccessFlag Accessor);
+	MTL::Texture* GetCurrentTexture(EMetalViewportAccessFlag Accessor);
 	void ReleaseDrawable(void);
 
 	// supports pulling the raw MTLTexture
@@ -90,11 +90,11 @@ private:
 	cp_frame_t SwiftLayerFrame = nullptr;
 #endif
 	
-	id<CAMetalDrawable> Drawable;
+	CA::MetalDrawable* Drawable;
 	TRefCountPtr<FMetalSurface> BackBuffer[2];
 	mutable FCriticalSection Mutex;
 	
-	ns::AutoReleased<FMetalTexture> DrawableTextures[2];
+    MTL::Texture* DrawableTextures[2];
 	
 	uint32 DisplayID;
 	FMetalViewportPresentHandler Block;

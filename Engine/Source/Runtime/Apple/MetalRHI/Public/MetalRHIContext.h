@@ -11,7 +11,7 @@
 #include "BoundShaderStateHistory.h"
 
 class FMetalDeviceContext;
-struct FMetalCommandBufferFence;
+class FMetalCommandBufferFence;
 
 #if PLATFORM_VISIONOS
 namespace MetalRHIVisionOS

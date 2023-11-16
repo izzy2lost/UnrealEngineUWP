@@ -1463,10 +1463,6 @@ FGPUDriverInfo FMacPlatformMisc::GetGPUDriverInfo(const FString& DeviceDescripti
 			{
 				Info.ProviderName = TEXT("Intel");
 			}
-			else if (Info.IsNVIDIA())
-			{
-				Info.ProviderName = TEXT("Nvidia");
-			}
 			else
 			{
 				Info.ProviderName = TEXT("Apple");

@@ -7,38 +7,38 @@
 REGISTER_TYPEID(FVideoContextMetal);
 REGISTER_TYPEID(FVideoResourceMetal);
 
-static TAVResult<EVideoFormat> ConvertFormat(mtlpp::PixelFormat Format)
+static TAVResult<EVideoFormat> ConvertFormat(MTL::PixelFormat Format)
 {
 	switch (Format)
 	{
-	case mtlpp::PixelFormat::BGRA8Unorm:
-    case mtlpp::PixelFormat::BGRA8Unorm_sRGB:
+    case MTL::PixelFormatBGRA8Unorm:
+    case MTL::PixelFormatBGRA8Unorm_sRGB:
 		return EVideoFormat::BGRA;
-	case mtlpp::PixelFormat::RGB10A2Unorm:
+	case MTL::PixelFormatRGB10A2Unorm:
 		return EVideoFormat::ABGR10;
-	case mtlpp::PixelFormat::R8Unorm:
-	case mtlpp::PixelFormat::R8Uint:
-		return EVideoFormat::R8;	
+	case MTL::PixelFormatR8Unorm:
+	case MTL::PixelFormatR8Uint:
+		return EVideoFormat::R8;
 	default:
-		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("mtlpp::PixelFormat format %d is not supported"), Format), TEXT("Metal"));
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("MTL::PixelFormat format %d is not supported"), Format), TEXT("Metal"));
 	}
 }
 
-FVideoContextMetal::FVideoContextMetal(mtlpp::Device const& Device)
+FVideoContextMetal::FVideoContextMetal(MTL::Device* Device)
 	: Device(Device)
 {
 }
 
-FVideoDescriptor FVideoResourceMetal::GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, mtlpp::Texture* Raw)
+FVideoDescriptor FVideoResourceMetal::GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw)
 {
-    uint32_t Width = Raw->GetWidth();
-    uint32_t Height = Raw->GetHeight();
-    TAVResult<EVideoFormat> ConvertedFormat = ConvertFormat(Raw->GetPixelFormat());
+    uint32_t Width = Raw->width();
+    uint32_t Height = Raw->height();
+    TAVResult<EVideoFormat> ConvertedFormat = ConvertFormat(Raw->pixelFormat());
     
 	return FVideoDescriptor(ConvertedFormat, Width, Height);
 }
 
-FVideoResourceMetal::FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, mtlpp::Texture* Raw, FAVLayout const& Layout)
+FVideoResourceMetal::FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw, FAVLayout const& Layout)
 	: TVideoResource(Device, Layout, GetDescriptorFrom(Device, Raw))
 	, Raw(Raw)
 {

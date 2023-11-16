@@ -67,6 +67,7 @@ namespace UnrealBuildTool.Rules
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
 			{
 				PrivateDependencyModuleNames.Add("MetalRHI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
 				PublicIncludePaths.Add("$(ModuleDir)/Public/Apple");
 			}
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))

@@ -338,11 +338,26 @@ void UE_STRING_CLASS::Shrink()
 /** Convert string to Objective-C NSString */
 NSString* UE_STRING_CLASS::GetNSString() const
 {
-#if PLATFORM_TCHAR_IS_4_BYTES
-    return [[[NSString alloc] initWithBytes:Data.GetData() length:Len() * sizeof(ElementType) encoding:NSUTF32LittleEndianStringEncoding] autorelease];
-#else
-    return [[[NSString alloc] initWithBytes:Data.GetData() length:Len() * sizeof(ElementType) encoding:NSUTF16LittleEndianStringEncoding] autorelease];
+    NSString* OutString = (NSString*)GetCFString();
+    [OutString autorelease];
+    
+    return OutString;
+}
 #endif
+
+#if PLATFORM_APPLE
+/** Convert string to bridgeable CFString */
+CFStringRef UE_STRING_CLASS::GetCFString() const
+{
+    CFStringRef OutString;
+    
+#if PLATFORM_TCHAR_IS_4_BYTES
+    OutString = CFStringCreateWithBytes(kCFAllocatorDefault, (UInt8*)Data.GetData(), Len() * sizeof(ElementType), kCFStringEncodingUTF32LE, false);
+#else
+    OutString = CFStringCreateWithBytes(kCFAllocatorDefault, (UInt8*)Data.GetData(), Len() * sizeof(ElementType), kCFStringEncodingUTF16LE, false);
+#endif
+    
+    return OutString;
 }
 #endif
 

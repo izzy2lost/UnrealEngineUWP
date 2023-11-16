@@ -299,10 +299,10 @@ FAVResult TVideoDecoderVT<TResource>::ReceiveFrame(TResolvableVideoResource<TRes
 
             void* PixelPtr = CVPixelBufferGetBaseAddress(Frame->ImageBuffer);
 
-            mtlpp::Texture* RawTexture = InOutResource->GetRaw();
+            MTL::Texture* RawTexture = InOutResource->GetRaw();
 
             // Do copy into the VideoResource
-            InOutResource->GetRaw()->Replace(mtlpp::Region(0, 0, Width, Height), 0, PixelPtr, Width * 4);
+            InOutResource->GetRaw()->replaceRegion(MTL::Region(0, 0, Width, Height), 0, PixelPtr, Width * 4);
 
             CVPixelBufferUnlockBaseAddress(Frame->ImageBuffer, kCVPixelBufferLock_ReadOnly);
 

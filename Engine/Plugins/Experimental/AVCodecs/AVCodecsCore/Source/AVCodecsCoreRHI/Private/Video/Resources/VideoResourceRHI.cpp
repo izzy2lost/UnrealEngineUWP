@@ -560,7 +560,7 @@ DLLEXPORT FAVResult FAVExtension::TransformResource(TSharedPtr<FVideoResourceMet
 		{		
 			OutResource = MakeShared<FVideoResourceMetal>(
 				InResource->GetDevice(),
-				static_cast<mtlpp::Texture*>(InResource->GetRaw().Texture->GetNativeResource()),
+				static_cast<MTL::Texture*>(InResource->GetRaw().Texture->GetNativeResource()),
 				InResource->GetLayout());
 
 			return OutResource->Validate();

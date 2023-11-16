@@ -88,7 +88,7 @@ public:
                 case ERHIInterfaceType::Metal:
                     FAVDevice::GetHardwareDevice()->SetContext<FVideoContextMetal>(
                         MakeShared<FVideoContextMetal>(
-                            *static_cast<mtlpp::Device*>(GDynamicRHI->RHIGetNativeDevice())));
+                            static_cast<MTL::Device*>(GDynamicRHI->RHIGetNativeDevice())));
                     break;
 #endif
 				default:

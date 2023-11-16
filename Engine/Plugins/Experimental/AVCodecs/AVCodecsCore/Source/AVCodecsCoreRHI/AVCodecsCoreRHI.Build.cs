@@ -58,7 +58,7 @@ public class AVCodecsCoreRHI : ModuleRules
         	    "VideoToolbox"
         	});
 	
-        	AddEngineThirdPartyPrivateStaticDependencies(Target, "MTLPP");	
+        	AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");	
 		}
 	}
 }

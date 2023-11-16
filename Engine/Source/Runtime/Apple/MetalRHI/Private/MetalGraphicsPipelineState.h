@@ -13,7 +13,7 @@ class FMetalGraphicsPipelineState : public FRHIGraphicsPipelineState
 public:
 	virtual ~FMetalGraphicsPipelineState();
 
-	FMetalShaderPipeline* GetPipeline();
+	FMetalShaderPipelinePtr GetPipeline();
 
 	/** Cached vertex structure */
 	TRefCountPtr<FMetalVertexDeclaration> VertexDeclaration;
@@ -49,5 +49,5 @@ private:
 	// Needed to runtime refine shaders currently.
 	FGraphicsPipelineStateInitializer Initializer;
 
-	FMetalShaderPipeline* PipelineState;
+	FMetalShaderPipelinePtr PipelineState;
 };

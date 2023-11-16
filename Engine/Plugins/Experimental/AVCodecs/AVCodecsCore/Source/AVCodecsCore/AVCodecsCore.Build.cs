@@ -77,7 +77,7 @@ public class AVCodecsCore : ModuleRules
             });
    
             PublicWeakFrameworks.Add("Metal");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "MTLPP");
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
 			
 			PublicDefinitions.Add("AVCODECS_USE_METAL=1");
 		}

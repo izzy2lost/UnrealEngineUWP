@@ -35,20 +35,19 @@ void FMetalDynamicRHI::RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, F
 template<EMetalShaderStages Stage, typename RHIShaderType>
 static void SetUniformBufferInternal(FMetalContext* Context, RHIShaderType* ShaderRHI, uint32 BufferIndex, FRHIUniformBuffer* UBRHI)
 {
-    @autoreleasepool
-    {
-        auto Shader = ResourceCast(ShaderRHI);
-        Context->GetCurrentState().BindUniformBuffer(Stage, BufferIndex, UBRHI);
+    MTL_SCOPED_AUTORELEASE_POOL;
+
+    auto Shader = ResourceCast(ShaderRHI);
+    Context->GetCurrentState().BindUniformBuffer(Stage, BufferIndex, UBRHI);
         
-        auto& Bindings = Shader->Bindings;
-        if((Bindings.ConstantBuffers) & (1 << BufferIndex))
-        {
-            FMetalUniformBuffer* UB = ResourceCast(UBRHI);
-            UB->PrepareToBind();
-            
-            FMetalBuffer Buf(UB->Backing, ns::Ownership::AutoRelease);
-            Context->GetCurrentState().SetShaderBuffer(Stage, Buf, nil, UB->Offset, UB->GetSize(), BufferIndex, mtlpp::ResourceUsage::Read);
-        }
+    auto& Bindings = Shader->Bindings;
+    if((Bindings.ConstantBuffers) & (1 << BufferIndex))
+    {
+        FMetalUniformBuffer* UB = ResourceCast(UBRHI);
+        UB->PrepareToBind();
+        
+        FMetalBufferPtr Buf = FMetalBufferPtr(new FMetalBuffer(UB->Backing));
+        Context->GetCurrentState().SetShaderBuffer(Stage, Buf, nullptr, UB->Offset, UB->GetSize(), BufferIndex, MTL::ResourceUsageRead);
     }
 }
 

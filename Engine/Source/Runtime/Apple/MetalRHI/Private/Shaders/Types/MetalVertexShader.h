@@ -16,7 +16,7 @@ class FMetalVertexShader : public TMetalBaseShader<FRHIVertexShader, SF_Vertex>
 {
 public:
 	FMetalVertexShader(TArrayView<const uint8> InCode);
-	FMetalVertexShader(TArrayView<const uint8> InCode, mtlpp::Library InLibrary);
+	FMetalVertexShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
-	mtlpp::Function GetFunction();
+	MTLFunctionPtr GetFunction();
 };

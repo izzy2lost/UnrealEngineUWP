@@ -18,8 +18,12 @@
 #include "Containers/Array.h"
 #endif
 
+THIRD_PARTY_INCLUDES_START
+#include "MetalInclude.h"
+THIRD_PARTY_INCLUDES_END
+
 #if WITH_ENGINE
-extern void SafeReleaseMetalObject(id Object);
+extern void SafeReleaseMetalObject(NS::Object* Object);
 #endif
 
 // ------------------------------------------------------------------------------------------------------
@@ -39,7 +43,7 @@ FElectraMediaTexConvApple::~FElectraMediaTexConvApple()
 	if (MetalTextureCache)
 	{
 		CVMetalTextureCacheRef TextureCacheCopy = MetalTextureCache;
-		SafeReleaseMetalObject((id)TextureCacheCopy);
+		SafeReleaseMetalObject((__bridge NS::Object*)TextureCacheCopy);
 	}
 #endif
 }
@@ -169,7 +173,7 @@ void FElectraMediaTexConvApple::ConvertTexture(FTexture2DRHIRef & InDstTexture, 
 	{
 		if (!MetalTextureCache)
 		{
-			id<MTLDevice> Device = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+            id<MTLDevice> Device = (__bridge id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
 			check(Device);
 
 			CVReturn Return = CVMetalTextureCacheCreate(kCFAllocatorDefault, nullptr, Device, nullptr, &MetalTextureCache);

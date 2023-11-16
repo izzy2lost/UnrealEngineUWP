@@ -10,7 +10,7 @@
 #include "Video/VideoResource.h"
 
 THIRD_PARTY_INCLUDES_START
-#include "mtlpp.hpp"
+#include "MetalInclude.h"
 THIRD_PARTY_INCLUDES_END
 
 
@@ -21,23 +21,23 @@ THIRD_PARTY_INCLUDES_END
 class AVCODECSCORE_API FVideoContextMetal : public FAVContext
 {
 public:
-	mtlpp::Device Device;
+	MTL::Device* Device;
 
-	FVideoContextMetal(mtlpp::Device const& Device);
+	FVideoContextMetal(MTL::Device* Device);
 };
 
 
 class AVCODECSCORE_API FVideoResourceMetal : public TVideoResource<FVideoContextMetal>
 {
 private:
-	mtlpp::Texture* Raw;
+	MTL::Texture* Raw;
 
 public:
-	static FVideoDescriptor GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, mtlpp::Texture* Raw);
+	static FVideoDescriptor GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw);
 
-	FORCEINLINE mtlpp::Texture* GetRaw() const { return Raw; }
+	FORCEINLINE MTL::Texture* GetRaw() const { return Raw; }
 
-	FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, mtlpp::Texture* Raw, FAVLayout const& Layout);
+	FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw, FAVLayout const& Layout);
 
 	virtual FAVResult Validate() const override;
 };

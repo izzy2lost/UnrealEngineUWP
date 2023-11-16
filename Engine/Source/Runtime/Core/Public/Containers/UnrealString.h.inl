@@ -33,6 +33,7 @@ typedef TArray< PREPROCESSOR_JOIN(UE_STRING_CLASS, FormatArg)> PREPROCESSOR_JOIN
 UE_STRING_CHARTYPE*       GetData(UE_STRING_CLASS&);
 const UE_STRING_CHARTYPE* GetData(const UE_STRING_CLASS&);
 int32                     GetNum(const UE_STRING_CLASS& String);
+
 /**
  * A dynamically sizeable string.
  * @see https://docs.unrealengine.com/latest/INT/Programming/UnrealArchitecture/StringHandling/FString/
@@ -159,31 +160,40 @@ public:
 	}
 
 public:
-#if defined(__OBJC__) && UE_STRING_CHARTYPE_IS_TCHAR
-	/** Convert Objective-C NSString* to string class */
-	FORCEINLINE UE_STRING_CLASS(const NSString* In)
-	{
-		if (In && [In length] > 0)
-		{
-			// Convert the NSString data into the native TCHAR format for UE4
-			// This returns a buffer of bytes, but they can be safely cast to a buffer of TCHARs
+
+#if PLATFORM_APPLE && UE_STRING_CHARTYPE_IS_TCHAR
+    FORCEINLINE UE_STRING_CLASS(const CFStringRef In)
+    {
+        uint32_t StringLength = In ? CFStringGetLength(In) : 0;
+        
+        if (StringLength > 0)
+        {
+            // Convert the NSString data into the native TCHAR format for UE4
+            // This returns a buffer of bytes, but they can be safely cast to a buffer of TCHARs
 #if PLATFORM_TCHAR_IS_4_BYTES
-			const CFStringEncoding Encoding = kCFStringEncodingUTF32LE;
+            const CFStringEncoding Encoding = kCFStringEncodingUTF32LE;
 #else
-			const CFStringEncoding Encoding = kCFStringEncodingUTF16LE;
+            const CFStringEncoding Encoding = kCFStringEncodingUTF16LE;
 #endif
 
-			CFRange Range = CFRangeMake(0, CFStringGetLength((__bridge CFStringRef)In));
-			CFIndex BytesNeeded;
-			if (CFStringGetBytes((__bridge CFStringRef)In, Range, Encoding, '?', false, NULL, 0, &BytesNeeded) > 0)
-			{
-				const size_t Length = BytesNeeded / sizeof(TCHAR);
-				Data.Reserve(Length + 1);
-				Data.AddUninitialized(Length + 1);
-				CFStringGetBytes((__bridge CFStringRef)In, Range, Encoding, '?', false, (uint8*)Data.GetData(), Length * sizeof(TCHAR) + 1, NULL);
-				Data[Length] = 0;
-			}
-		}
+            CFRange Range = CFRangeMake(0, StringLength);
+            CFIndex BytesNeeded;
+            if (CFStringGetBytes(In, Range, Encoding, '?', false, NULL, 0, &BytesNeeded) > 0)
+            {
+                const size_t Length = BytesNeeded / sizeof(TCHAR);
+                Data.Reserve(Length + 1);
+                Data.AddUninitialized(Length + 1);
+                CFStringGetBytes(In, Range, Encoding, '?', false, (uint8*)Data.GetData(), Length * sizeof(TCHAR) + 1, NULL);
+                Data[Length] = 0;
+            }
+        }
+    }
+#endif
+    
+#if defined(__OBJC__) && UE_STRING_CHARTYPE_IS_TCHAR
+	/** Convert Objective-C NSString* to string class */
+	FORCEINLINE UE_STRING_CLASS(const NSString* In) : UE_STRING_CLASS((__bridge CFStringRef)In)
+	{
 	}
 #endif
 
@@ -348,12 +358,16 @@ public:
 		return Data;
 	}
 
+#if PLATFORM_APPLE
+    /** Convert the string to C bridgable CFString */
+    CORE_API CFStringRef GetCFString() const;
+#endif
+        
 #ifdef __OBJC__
 	/** Convert the string to Objective-C NSString */
     CORE_API NSString* GetNSString() const;
 #endif
-
-	/** 
+	/**
 	 * Appends a character range without null-terminators in it
 	 *
 	 * @param Str can be null if Count is 0. Can be unterminated, Str[Count] isn't read.

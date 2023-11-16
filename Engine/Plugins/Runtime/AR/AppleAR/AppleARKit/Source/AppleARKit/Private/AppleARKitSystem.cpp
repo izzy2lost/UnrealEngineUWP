@@ -1650,7 +1650,7 @@ bool FAppleARKitSystem::Run(UARSessionConfig* SessionConfig)
 		// Create MetalTextureCache
 		if (IsMetalPlatform(GMaxRHIShaderPlatform))
 		{
-			id<MTLDevice> Device = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+			MTL::Device* Device = (MTL::Device*)GDynamicRHI->RHIGetNativeDevice();
 			check(Device);
 
 			CVReturn Return = CVMetalTextureCacheCreate(nullptr, nullptr, Device, nullptr, &MetalTextureCache);

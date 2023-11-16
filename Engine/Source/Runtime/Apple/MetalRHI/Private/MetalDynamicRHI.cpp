@@ -22,19 +22,19 @@
 
 FVertexDeclarationRHIRef FMetalDynamicRHI::RHICreateVertexDeclaration(const FVertexDeclarationElementList& Elements)
 {
-	@autoreleasepool {
-		uint32 Key = FCrc::MemCrc32(Elements.GetData(), Elements.Num() * sizeof(FVertexElement));
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+    uint32 Key = FCrc::MemCrc32(Elements.GetData(), Elements.Num() * sizeof(FVertexElement));
 
-		// look up an existing declaration
-		FVertexDeclarationRHIRef* VertexDeclarationRefPtr = VertexDeclarationCache.Find(Key);
-		if (VertexDeclarationRefPtr == NULL)
-		{
-			// create and add to the cache if it doesn't exist.
-			VertexDeclarationRefPtr = &VertexDeclarationCache.Add(Key, new FMetalVertexDeclaration(Elements));
-		}
+    // look up an existing declaration
+    FVertexDeclarationRHIRef* VertexDeclarationRefPtr = VertexDeclarationCache.Find(Key);
+    if (VertexDeclarationRefPtr == NULL)
+    {
+        // create and add to the cache if it doesn't exist.
+        VertexDeclarationRefPtr = &VertexDeclarationCache.Add(Key, new FMetalVertexDeclaration(Elements));
+    }
 
-		return *VertexDeclarationRefPtr;
-	} // autoreleasepool
+    return *VertexDeclarationRefPtr;
 }
 
 
@@ -45,35 +45,34 @@ FVertexDeclarationRHIRef FMetalDynamicRHI::RHICreateVertexDeclaration(const FVer
 
 FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer)
 {
-	@autoreleasepool {
-		FMetalGraphicsPipelineState* State = new FMetalGraphicsPipelineState(Initializer);
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+    FMetalGraphicsPipelineState* State = new FMetalGraphicsPipelineState(Initializer);
 
-		if(!State->Compile())
-		{
-			// Compilation failures are propagated up to the caller.
-			State->Delete();
-			return nullptr;
-		}
+    if(!State->Compile())
+    {
+        // Compilation failures are propagated up to the caller.
+        State->Delete();
+        return nullptr;
+    }
 
-		State->VertexDeclaration = ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI);
-		State->VertexShader = ResourceCast(Initializer.BoundShaderState.VertexShaderRHI);
-		State->PixelShader = ResourceCast(Initializer.BoundShaderState.PixelShaderRHI);
+    State->VertexDeclaration = ResourceCast(Initializer.BoundShaderState.VertexDeclarationRHI);
+    State->VertexShader = ResourceCast(Initializer.BoundShaderState.VertexShaderRHI);
+    State->PixelShader = ResourceCast(Initializer.BoundShaderState.PixelShaderRHI);
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-		State->GeometryShader = ResourceCast(Initializer.BoundShaderState.GetGeometryShader());
+    State->GeometryShader = ResourceCast(Initializer.BoundShaderState.GetGeometryShader());
 #endif // PLATFORM_SUPPORTS_GEOMETRY_SHADERS
 
-		State->DepthStencilState = ResourceCast(Initializer.DepthStencilState);
-		State->RasterizerState = ResourceCast(Initializer.RasterizerState);
+    State->DepthStencilState = ResourceCast(Initializer.DepthStencilState);
+    State->RasterizerState = ResourceCast(Initializer.RasterizerState);
 
-		return State;
-	} // autoreleasepool
+    return State;
 }
 
 TRefCountPtr<FRHIComputePipelineState> FMetalDynamicRHI::RHICreateComputePipelineState(FRHIComputeShader* ComputeShader)
 {
-	@autoreleasepool {
-		return new FMetalComputePipelineState(ResourceCast(ComputeShader));
-	} // autoreleasepool
+    MTL_SCOPED_AUTORELEASE_POOL;
+    return new FMetalComputePipelineState(ResourceCast(ComputeShader));
 }
 
 
@@ -125,17 +124,17 @@ void FMetalDynamicRHI::RHIReleaseTransition(FRHITransition* Transition)
 
 FRenderQueryRHIRef FMetalDynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
 {
-	@autoreleasepool {
-		FRenderQueryRHIRef Query = new FMetalRHIRenderQuery(QueryType);
-		return Query;
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+    FRenderQueryRHIRef Query = new FMetalRHIRenderQuery(QueryType);
+	return Query;
 }
 
 bool FMetalDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64& OutNumPixels, bool bWait, uint32 GPUIndex)
 {
-	@autoreleasepool {
-		check(IsInRenderingThread());
-		FMetalRHIRenderQuery* Query = ResourceCast(QueryRHI);
-		return Query->GetResult(OutNumPixels, bWait, GPUIndex);
-	}
+    MTL_SCOPED_AUTORELEASE_POOL;
+    
+	check(IsInRenderingThread());
+	FMetalRHIRenderQuery* Query = ResourceCast(QueryRHI);
+	return Query->GetResult(OutNumPixels, bWait, GPUIndex);
 }

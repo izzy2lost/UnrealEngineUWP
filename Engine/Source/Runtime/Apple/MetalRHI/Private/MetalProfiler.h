@@ -91,8 +91,8 @@ public:
 	
 	virtual void StopTiming() override;
 	
-	mtlpp::CommandBufferHandler Start(void);
-	mtlpp::CommandBufferHandler Stop(void);
+    FMetalCommandBufferCompletionHandler Start(void);
+    FMetalCommandBufferCompletionHandler Stop(void);
 
 	bool Wait() const { return bRoot && bFullProfiling; }
 	bool IsRoot() const { return bRoot; }
@@ -192,8 +192,8 @@ struct IMetalStatsScope
 	
 	virtual ~IMetalStatsScope();
 	
-	virtual void Start(mtlpp::CommandBuffer const& Buffer) = 0;
-	virtual void End(mtlpp::CommandBuffer const& Buffer) = 0;
+	virtual void Start(MTLCommandBufferPtr& CommandBuffer) = 0;
+	virtual void End(MTLCommandBufferPtr& CommandBuffer) = 0;
 	
 	FString GetJSONRepresentation(uint32 PID);
 };
@@ -206,8 +206,8 @@ struct FMetalCPUStats : public IMetalStatsScope
 	void Start(void);
 	void End(void);
 	
-	virtual void Start(mtlpp::CommandBuffer const& Buffer) final override;
-	virtual void End(mtlpp::CommandBuffer const& Buffer) final override;
+	virtual void Start(MTLCommandBufferPtr& CommandBuffer) final override;
+	virtual void End(MTLCommandBufferPtr& CommandBuffer) final override;
 };
 
 struct FMetalDisplayStats : public IMetalStatsScope
@@ -215,8 +215,8 @@ struct FMetalDisplayStats : public IMetalStatsScope
 	FMetalDisplayStats(uint32 DisplayID, double OutputSeconds, double Duration);
 	virtual ~FMetalDisplayStats();
 	
-	virtual void Start(mtlpp::CommandBuffer const& Buffer) final override;
-	virtual void End(mtlpp::CommandBuffer const& Buffer) final override;
+	virtual void Start(MTLCommandBufferPtr& CommandBuffer) final override;
+	virtual void End(MTLCommandBufferPtr& CommandBuffer) final override;
 };
 
 enum EMTLFenceType
@@ -227,13 +227,13 @@ enum EMTLFenceType
 
 struct FMetalCommandBufferStats : public IMetalStatsScope
 {
-	FMetalCommandBufferStats(mtlpp::CommandBuffer const& Buffer, uint64 GPUThreadIndex);
+	FMetalCommandBufferStats(MTLCommandBufferPtr CommandBuffer, uint64 GPUThreadIndex);
 	virtual ~FMetalCommandBufferStats();
 	
-	virtual void Start(mtlpp::CommandBuffer const& Buffer) final override;
-	virtual void End(mtlpp::CommandBuffer const& Buffer) final override;
+	virtual void Start(MTLCommandBufferPtr& CommandBuffer) final override;
+	virtual void End(MTLCommandBufferPtr& CommandBuffer) final override;
 
-	ns::AutoReleased<mtlpp::CommandBuffer> CmdBuffer;
+	MTLCommandBufferPtr CmdBuffer;
 };
 
 /**
@@ -290,7 +290,7 @@ struct FMetalGPUProfiler : public FGPUProfiler
 	// These functions MUST be called from within Metal scheduled/completion handlers
 	// since they depend on libdispatch to enforce ordering.
 	static void RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBufferTimings, FMetalCommandBufferTiming& LastPresentBufferTiming);
-	static void RecordPresent(const mtlpp::CommandBuffer& Buffer);
+	static void RecordPresent(MTL::CommandBuffer* CommandBuffer);
 	// END WARNING
 	
 	FMetalGPUTiming TimingSupport;
@@ -324,7 +324,7 @@ public:
 	void EncodeDispatch(FMetalCommandBufferStats* CmdBufStats, char const* DrawCall);
 	
 	FMetalCPUStats* AddCPUStat(FString const& Name);
-	FMetalCommandBufferStats* AllocateCommandBuffer(mtlpp::CommandBuffer const& Buffer, uint64 GPUThreadIndex);
+	FMetalCommandBufferStats* AllocateCommandBuffer(MTLCommandBufferPtr CommandBuffer, uint64 GPUThreadIndex);
 	void AddCommandBuffer(FMetalCommandBufferStats* CommandBuffer);
 	virtual void PushEvent(const TCHAR* Name, FColor Color) final override;
 	virtual void PopEvent() final override;
