@@ -296,6 +296,11 @@ void FGenericPlatformMallocCrash::SetAsGMalloc()
 	CrashedThreadId = FPlatformTLS::GetCurrentThreadId();
 }
 
+bool FGenericPlatformMallocCrash::IsActive() const
+{
+	return GMalloc == this;
+}
+
 void* FGenericPlatformMallocCrash::Malloc( SIZE_T Size, uint32 Alignment )
 {
 	const uint32 Size32 = (uint32)Size;
@@ -639,6 +644,11 @@ void FGenericStackBasedMallocCrash::SetAsGMalloc()
 		*GFixedMallocLocationPtr = nullptr; // this disables any fast-path inline allocators
 	}
 	GMalloc = this;
+}
+
+bool FGenericStackBasedMallocCrash::IsActive() const
+{
+	return GMalloc == this;
 }
 
 void* FGenericStackBasedMallocCrash::Malloc(SIZE_T Size, uint32 Alignment)
