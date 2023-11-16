@@ -118,7 +118,6 @@ void TraceHairVoxels(
 			CommonDesc,
 			NodeDesc,
 			VirtualVoxel.PageIndexBuffer,
-			VirtualVoxel.PageIndexOccupancyBuffer,
 			VirtualVoxel.PageTexture,
 			TraversalSettings);
 

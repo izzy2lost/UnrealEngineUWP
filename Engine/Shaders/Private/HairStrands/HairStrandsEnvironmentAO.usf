@@ -100,7 +100,6 @@ float TraceAO(float3 TranslatedWorldPosition, float3 WorldNormal, float2 SvPosit
 			CommonDesc,
 			NodeDesc,
 			VirtualVoxel.PageIndexBuffer,
-			VirtualVoxel.PageIndexOccupancyBuffer,
 			VirtualVoxel.PageTexture,
 			TraversalSettings);
 

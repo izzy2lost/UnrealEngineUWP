@@ -11,7 +11,6 @@
 
 #if SHADER_VOXEL_DEBUG
 
-#define VOXEL_TRAVERSAL_DEBUG_PAGEOCCUPANCY 0
 #define VOXEL_TRAVERSAL_DEBUG 0
 #define VOXEL_TRAVERSAL_FORCE_MIP_ENABLE 1
 #if PERMUTATION_TRAVERSAL == 1
@@ -38,12 +37,6 @@ uint GetVoxelPageIndex(uint3 InPageIndexCoord, uint3 InPageIndexResolution, uint
 {
 	const uint LinearPageIndexCoord = CoordToIndex(InPageIndexCoord, InPageIndexResolution, InLinearPageIndexOffset);
 	return VirtualVoxel.PageIndexBuffer.Load(LinearPageIndexCoord);
-}
-
-uint2 GetVoxelPageIndexOccupancy(uint3 InPageIndexCoord, uint3 InPageIndexResolution, uint InLinearPageIndexOffset)
-{
-	const uint LinearPageIndexCoord = CoordToIndex(InPageIndexCoord, InPageIndexResolution, InLinearPageIndexOffset);
-	return VirtualVoxel.PageIndexOccupancyBuffer.Load(LinearPageIndexCoord);
 }
 
 FFontColor GetOccupancyColor(float In)
@@ -308,17 +301,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				const int3 PageIndexCoord = PositionToCoord(HitP, NodeDesc.TranslatedWorldMinAABB, NodeDesc.TranslatedWorldMaxAABB, NodeDesc.PageIndexResolution);
 				const uint PageIndex = GetVoxelPageIndex(PageIndexCoord, NodeDesc.PageIndexResolution, NodeDesc.PageIndexOffset);
 
-				bool bHasValidData = true;
-				if (bDrawPage == 2)
-				{
-					const uint2 PageIndexOccuancy = GetVoxelPageIndexOccupancy(PageIndexCoord, NodeDesc.PageIndexResolution, NodeDesc.PageIndexOffset);
-					const int3 VoxelCoord = PositionToCoord(HitP, NodeDesc.TranslatedWorldMinAABB, NodeDesc.TranslatedWorldMaxAABB, NodeDesc.VirtualResolution);
-					const int3 VoxelBasePageCoord = PageIndexCoord * VirtualVoxel.PageResolution;
-					const int3 VoxelRelativeCoord = VoxelCoord - VoxelBasePageCoord;
-					bHasValidData = DoesVoxelContainData(PageIndexOccuancy, VoxelRelativeCoord);
-				}
-
-				if (PageIndex != INVALID_VOXEL_PAGE_INDEX && bHasValidData)
+				if (PageIndex != INVALID_VOXEL_PAGE_INDEX)
 				{
 					const uint3 PageCoord = IndexToCoord(PageIndex, VirtualVoxel.PageCountResolution);
 
@@ -368,7 +351,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				CommonDesc,
 				NodeDesc,
 				VirtualVoxel.PageIndexBuffer,
-				VirtualVoxel.PageIndexOccupancyBuffer,
 				VirtualVoxel.PageTexture,
 				TraversalSettings);
 

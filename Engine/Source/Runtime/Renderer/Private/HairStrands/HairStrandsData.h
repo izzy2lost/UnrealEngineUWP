@@ -197,7 +197,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsVoxelCommonParameters, )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, AllocatedPageCountBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, PageIndexBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint2>, PageIndexOccupancyBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, PageIndexCoordBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedVirtualVoxelNodeDesc>, NodeDescBuffer) // Packed into 2 x uint4
 
@@ -217,7 +216,6 @@ struct FHairStrandsVoxelResources
 	TRDGUniformBufferRef<FVirtualVoxelParameters> UniformBuffer;
 	FRDGTextureRef PageTexture = nullptr;
 	FRDGBufferRef PageIndexBuffer = nullptr;
-	FRDGBufferRef PageIndexOccupancyBuffer = nullptr;
 	FRDGBufferRef NodeDescBuffer = nullptr;
 	FRDGBufferRef PageIndexCoordBuffer = nullptr;
 	FRDGBufferRef IndirectArgsBuffer = nullptr;

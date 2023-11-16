@@ -1024,7 +1024,6 @@ void MainVS(
 	OutPosition = mul(float4(TranslatedWorldPosition, 1), TranslatedWorldToClipMatrix);
 }
 
-#define VOXEL_TRAVERSAL_DEBUG_PAGEOCCUPANCY 0
 //#define VOXEL_TRAVERSAL_TYPE VOXEL_TRAVERSAL_LINEAR_MIPMAP
 #define VOXEL_TRAVERSAL_TYPE VOXEL_TRAVERSAL_LINEAR
 #include "HairStrandsVoxelPageTraversal.ush"
@@ -1073,7 +1072,6 @@ void MainPS(
 		CommonDesc,
 		NodeDesc,
 		VirtualVoxel.PageIndexBuffer,
-		VirtualVoxel.PageIndexOccupancyBuffer,
 		VirtualVoxel.PageTexture,
 		TraversalSettings);
 	bool bIsValid = TraversalResult.HairCount > 0;
