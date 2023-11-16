@@ -3088,7 +3088,8 @@ FBinningData FRenderer::AddPass_Rasterize(
 			(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE) ||
 			(RasterEntry.BinIndex == (NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_SPLINE));
 
-		check(RasterBinIndex == RasterEntry.BinIndex);
+		// TODO: Sort the pipelines by RasterEntry.BinIndex so we don't need this second counter
+		//check(RasterBinIndex == RasterEntry.BinIndex);
 
 		// Fixed function bins are always visible
 		if (!bFixedFunctionBin)
