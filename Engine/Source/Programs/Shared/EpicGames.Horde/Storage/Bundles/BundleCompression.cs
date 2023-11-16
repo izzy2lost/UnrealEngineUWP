@@ -125,8 +125,14 @@ namespace EpicGames.Horde.Storage.Bundles
 					input.CopyTo(output);
 					break;
 				case BundleCompressionFormat.LZ4:
-					LZ4Codec.Decode(input.Span, output.Span);
-					break;
+					{
+						int length = LZ4Codec.Decode(input.Span, output.Span);
+						if (length != output.Length)
+						{
+							throw new InvalidDataException($"Decoded data is shorter than expected (expected {output.Length} bytes, got {length} bytes)");
+						}
+						break;
+					}
 				case BundleCompressionFormat.Gzip:
 					{
 						using ReadOnlyMemoryStream inputStream = new ReadOnlyMemoryStream(input);

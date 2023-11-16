@@ -206,7 +206,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			span = span[1..];
 
 			IMemoryOwner<byte> owner = allocator.Alloc(decodedLength);
-			BundleData.Decompress(format, data.Slice(data.Length - span.Length), owner.Memory);
+			BundleData.Decompress(format, data.Slice(data.Length - span.Length), owner.Memory.Slice(0, decodedLength));
 
 			Packet packet = new Packet(owner.Memory);
 			return RefCountedHandle.Create(packet, owner);

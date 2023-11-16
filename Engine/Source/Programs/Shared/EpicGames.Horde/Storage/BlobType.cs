@@ -43,6 +43,6 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public override readonly string ToString() => $"{Guid}#{Version}";
+		public override readonly string ToString() => $"{Guid},{Version}";
 	}
 }
