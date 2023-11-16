@@ -243,7 +243,7 @@ void FAppleARKitVideoOverlay::UpdateOcclusionTextures(const FAppleARKitFrame& Fr
 		if (OcclusionType == EARKitOcclusionType::PersonSegmentation && NativeFrame &&
 			(NativeFrame.segmentationBuffer || NativeFrame.estimatedDepthData))
 		{
-			MTL::Device* Device = (MTL::Device*)GDynamicRHI->RHIGetNativeDevice();
+            id<MTLDevice> Device = (__bridge id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
 			check(Device);
 
 			if (!MatteGenerator)

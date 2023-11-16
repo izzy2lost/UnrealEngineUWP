@@ -1653,7 +1653,7 @@ bool FAppleARKitSystem::Run(UARSessionConfig* SessionConfig)
 			MTL::Device* Device = (MTL::Device*)GDynamicRHI->RHIGetNativeDevice();
 			check(Device);
 
-			CVReturn Return = CVMetalTextureCacheCreate(nullptr, nullptr, Device, nullptr, &MetalTextureCache);
+			CVReturn Return = CVMetalTextureCacheCreate(nullptr, nullptr, (__bridge id<MTLDevice>)Device, nullptr, &MetalTextureCache);
 			check(Return == kCVReturnSuccess);
 			check(MetalTextureCache);
 
