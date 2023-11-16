@@ -11,6 +11,7 @@
 #include "PhysicsEngine/SphereElem.h"
 #include "PhysicsEngine/SphylElem.h"
 #include "PhysicsEngine/TaperedCapsuleElem.h"
+#include "Async/Mutex.h"
 #include "AggregateGeom.generated.h"
 
 class FMaterialRenderProxy;
@@ -42,15 +43,13 @@ struct FKAggregateGeom
 	UPROPERTY(EditAnywhere, editfixedsize, Category = "Aggregate Geometry", meta = (DisplayName = "(Experimental) Skinned Level Sets"), Experimental)
 	TArray<FKSkinnedLevelSetElem> SkinnedLevelSetElems;
 
-	class FKConvexGeomRenderInfo* RenderInfo;
-
 	FKAggregateGeom()
-		: RenderInfo(NULL)
+		: RenderInfoPtr(nullptr)
 	{
 	}
 
 	FKAggregateGeom(const FKAggregateGeom& Other)
-		: RenderInfo(nullptr)
+		: RenderInfoPtr(nullptr)
 	{
 		CloneAgg(Other);
 	}
@@ -293,4 +292,8 @@ private:
 			});
 		return FoundIndex;
 	}
+
+	// NOTE: RenderInfo is generated concurrently and lazily (hence being mutable)
+	mutable std::atomic<class FKConvexGeomRenderInfo*> RenderInfoPtr;
+	mutable UE::FMutex RenderInfoLock;
 };

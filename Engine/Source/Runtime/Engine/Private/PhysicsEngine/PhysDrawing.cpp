@@ -20,6 +20,7 @@
 #include "Chaos/Levelset.h"
 #include "Chaos/UniformGrid.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
+#include "Misc/ScopeLock.h"
 
 static const int32 DrawCollisionSides = 32;
 static const int32 DrawConeLimitSides = 40;
@@ -1096,33 +1097,40 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 		if(bDrawSolid)
 		{
 			// Cache collision vertex/index buffer
+			auto RenderInfo = RenderInfoPtr.load(std::memory_order_relaxed);
 			if(!RenderInfo)
 			{
-				//@todo - parallel rendering, remove const cast
-				FKAggregateGeom& ThisGeom = const_cast<FKAggregateGeom&>(*this);
-				ThisGeom.RenderInfo = new FKConvexGeomRenderInfo();
-				ThisGeom.RenderInfo->VertexBuffers = new FStaticMeshVertexBuffers();
-				ThisGeom.RenderInfo->IndexBuffer = new FDynamicMeshIndexBuffer32();
+				UE::TScopeLock Lock(RenderInfoLock);
 
-				TArray<FDynamicMeshVertex> OutVerts;
-				for(int32 i=0; i<ConvexElems.Num(); i++)
+				// After obtaining the lock, we might now have render info, in which case skip re-creating the data
+				RenderInfo = RenderInfoPtr.load(std::memory_order_acquire);
+				if (!RenderInfo)
 				{
-					// Get vertices/triangles from this hull.
-					ConvexElems[i].AddCachedSolidConvexGeom(OutVerts, ThisGeom.RenderInfo->IndexBuffer->Indices, FColor::White);
-				}
+					RenderInfo = new FKConvexGeomRenderInfo();
+					RenderInfo->VertexBuffers = new FStaticMeshVertexBuffers();
+					RenderInfo->IndexBuffer = new FDynamicMeshIndexBuffer32();
 
-				// Only continue if we actually got some valid geometry
-				// Will crash if we try to init buffers with no data
-				if(ThisGeom.RenderInfo->VertexBuffers
-					&& ThisGeom.RenderInfo->IndexBuffer
-					&& OutVerts.Num() > 0
-					&& ThisGeom.RenderInfo->IndexBuffer->Indices.Num() > 0)
-				{
-					ThisGeom.RenderInfo->IndexBuffer->InitResource(RHICmdList);
+					TArray<FDynamicMeshVertex> OutVerts;
+					for(int32 i=0; i<ConvexElems.Num(); i++)
+					{
+						// Get vertices/triangles from this hull.
+						ConvexElems[i].AddCachedSolidConvexGeom(OutVerts, RenderInfo->IndexBuffer->Indices, FColor::White);
+					}
 
-					ThisGeom.RenderInfo->CollisionVertexFactory = new FLocalVertexFactory(Collector.GetFeatureLevel(), "FKAggregateGeom");
-					ThisGeom.RenderInfo->VertexBuffers->InitFromDynamicVertex(RHICmdList, ThisGeom.RenderInfo->CollisionVertexFactory, OutVerts);
+					// Only continue if we actually got some valid geometry
+					// Will crash if we try to init buffers with no data
+					if(RenderInfo->VertexBuffers
+						&& RenderInfo->IndexBuffer
+						&& OutVerts.Num() > 0
+						&& RenderInfo->IndexBuffer->Indices.Num() > 0)
+					{
+						RenderInfo->IndexBuffer->InitResource(RHICmdList);
 
+						RenderInfo->CollisionVertexFactory = new FLocalVertexFactory(Collector.GetFeatureLevel(), "FKAggregateGeom");
+						RenderInfo->VertexBuffers->InitFromDynamicVertex(RHICmdList, RenderInfo->CollisionVertexFactory, OutVerts);
+					}
+
+					RenderInfoPtr.store(RenderInfo, std::memory_order_release);
 				}
 			}
 
@@ -1214,10 +1222,11 @@ void FKAggregateGeom::GetAggGeom(const FTransform& Transform, const FColor Color
 	}
 }
 
-/** Release the RenderInfo (if its there) and safely clean up any resources. Not thread safe, but can be called from any thread (conditionally safe). */
+/** Release the RenderInfo (if its there) and safely clean up any resources. Can be called from any thread. */
 void FKAggregateGeom::FreeRenderInfo()
 {
 	// See if we have rendering resources to free
+	auto RenderInfo = RenderInfoPtr.exchange(nullptr, std::memory_order_acq_rel);
 	if (RenderInfo)
 	{
 		// Should always have these if RenderInfo exists
@@ -1251,9 +1260,6 @@ void FKAggregateGeom::FreeRenderInfo()
 				delete RenderInfoToRelease;
 			}
 		);
-
-		// Reset the pointer as it's been given to the render thread
-		RenderInfo = nullptr;
 	}
 }
 
