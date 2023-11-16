@@ -21,6 +21,14 @@ enum class EPCGCopyPointsInheritanceMode : uint8
 };
 
 UENUM()
+enum class EPCGCopyPointsTagInheritanceMode : uint8
+{
+	Both,
+	Source,
+	Target,
+};
+
+UENUM()
 enum class EPCGCopyPointsMetadataInheritanceMode : uint8
 {
 	SourceFirst UMETA(Tooltip = "Points will inherit from source metadata and apply only unique attributes from target."),
@@ -70,6 +78,10 @@ public:
 	/** The method used to determine output data attributes */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGCopyPointsMetadataInheritanceMode AttributeInheritance = EPCGCopyPointsMetadataInheritanceMode::SourceFirst;
+
+	/** The method used to determine the output data tags */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGCopyPointsTagInheritanceMode TagInheritance = EPCGCopyPointsTagInheritanceMode::Both;
 };
 
 class FPCGCopyPointsElement : public IPCGElement

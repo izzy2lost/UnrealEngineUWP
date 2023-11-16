@@ -16,6 +16,14 @@ enum class EPCGProjectionColorBlendMode : uint8
 	Multiply
 };
 
+UENUM()
+enum class EPCGProjectionTagMergeMode : uint8
+{
+	Source,
+	Target,
+	Both
+};
+
 /** Parameters that control projection behaviour. */
 USTRUCT(BlueprintType)
 struct PCG_API FPCGProjectionParams
@@ -71,6 +79,10 @@ struct PCG_API FPCGProjectionParams
 	/** Operation to use to combine attributes that reside on both source and target data. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Apply Data")
 	EPCGMetadataOp AttributeMergeOperation = EPCGMetadataOp::TargetValue;
+
+	/** Controls whether the data tags are taken from the source, the target or both. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Apply Data")
+	EPCGProjectionTagMergeMode TagMergeOperation = EPCGProjectionTagMergeMode::Source;
 
 	// TODO [DEPRECATED_IN_5_4]: Remove the 'rule of five' needed above upon deprecation
 #if WITH_EDITORONLY_DATA

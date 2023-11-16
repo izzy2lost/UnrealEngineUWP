@@ -93,7 +93,15 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 
 		FPCGTaggedData& ProjectionTaggedData = Outputs.Emplace_GetRef(Source);
 		ProjectionTaggedData.Data = ProjectionData;
-		ProjectionTaggedData.Tags.Append(Targets[0].Tags);
+
+		if (ProjectionParams.TagMergeOperation == EPCGProjectionTagMergeMode::Target)
+		{
+			ProjectionTaggedData.Tags = Targets[0].Tags;
+		}
+		else if(ProjectionParams.TagMergeOperation == EPCGProjectionTagMergeMode::Both)
+		{
+			ProjectionTaggedData.Tags.Append(Targets[0].Tags);
+		}
 	}
 
 	return true;

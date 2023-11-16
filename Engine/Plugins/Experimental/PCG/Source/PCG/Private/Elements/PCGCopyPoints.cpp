@@ -93,7 +93,14 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 			Output.Data = OutPointData;
 
 			// Make sure that output contains both collection of tags from source and target
-			Output.Tags.Append(Target.Tags);
+			if (Settings->TagInheritance == EPCGCopyPointsTagInheritanceMode::Target)
+			{
+				Output.Tags = Target.Tags;
+			}
+			else if (Settings->TagInheritance == EPCGCopyPointsTagInheritanceMode::Both)
+			{
+				Output.Tags.Append(Target.Tags);
+			}
 
 			// RootMetadata will be parent to the ouptut metadata, while NonRootMetadata will carry attributes from the input not selected for inheritance
 			// Note that this is a preference, as we can and should pick more efficiently in the trivial cases
