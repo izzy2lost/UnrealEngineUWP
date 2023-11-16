@@ -13,6 +13,7 @@
 #include "UObject/ObjectSaveContext.h"
 #include "WorldPartition/LevelInstance/LevelInstanceActorDesc.h"
 #include "LevelInstance/LevelInstanceEditorPivotActor.h"
+#include "Misc/MessageDialog.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "LevelInstanceActor"
@@ -309,7 +310,13 @@ bool ALevelInstance::GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& So
 
 bool ALevelInstance::OpenAssetEditor()
 {
-	return CanEnterEdit() ? EnterEdit() : false;
+	FText Reason;
+	if (!CanEnterEdit(&Reason))
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, Reason);
+		return false;
+	}
+	return EnterEdit();
 }
 
 bool ALevelInstance::EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const

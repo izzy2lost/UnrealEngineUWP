@@ -24,7 +24,7 @@ public:
 protected:
 #if WITH_EDITORONLY_DATA
 	/** Level LevelInstance */
-	UPROPERTY(EditAnywhere, Category = Level, meta = (NoCreate, DisplayName="Level"))
+	UPROPERTY(EditAnywhere, Category = Level, Meta = (NoCreate, DisplayName="Level"))
 	TSoftObjectPtr<UWorld> WorldAsset;
 #endif
 	UPROPERTY(VisibleAnywhere, Category = Default)
@@ -41,7 +41,7 @@ protected:
 
 public:
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = Level, AdvancedDisplay, Meta = (DisplayName="Level Behavior"))
 	ELevelInstanceRuntimeBehavior DesiredRuntimeBehavior;
 #endif
 

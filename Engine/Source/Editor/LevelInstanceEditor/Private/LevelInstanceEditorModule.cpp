@@ -941,8 +941,11 @@ void FLevelInstanceEditorModule::ExtendContextMenu()
 			}
 		}), FToolMenuInsert(NAME_None, EToolMenuInsertType::Default));
 	}
-	
+}
+
+bool FLevelInstanceEditorModule::IsEditInPlaceStreamingEnabled() const
+{
+	return GetDefault<ULevelInstanceEditorSettings>()->bIsEditInPlaceStreamingEnabled;
 }
 
 #undef LOCTEXT_NAMESPACE
-

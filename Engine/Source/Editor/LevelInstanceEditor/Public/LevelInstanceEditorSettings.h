@@ -27,6 +27,9 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="World Partition", meta = (ToolTip="Create World Partition Level Instances with Streaming Enabled/Disabled by default"))
 	bool bEnableStreaming;
+
+	UPROPERTY(config, EditAnywhere, Category="World Partition", meta = (ToolTip="Allow Editing Level Instances with Streaming Enabled"))
+	bool bIsEditInPlaceStreamingEnabled;
 };
 
 UCLASS(config = EditorPerProjectUserSettings, meta = (DisplayName = "Level Instance"))
