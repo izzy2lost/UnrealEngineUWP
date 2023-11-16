@@ -1199,6 +1199,9 @@ class FVirtualVoxelGenerateMipCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FVirtualVoxelGenerateMipCS);
 	SHADER_USE_PARAMETER_STRUCT(FVirtualVoxelGenerateMipCS, FGlobalShader);
+	
+	class FAggregate : SHADER_PERMUTATION_BOOL("PERMUTATION_MIP_AGGREGATE");
+	using FPermutationDomain = TShaderPermutationDomain<FAggregate>;	
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -1207,10 +1210,16 @@ class FVirtualVoxelGenerateMipCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, PageResolution)
 		SHADER_PARAMETER(uint32, SourceMip)
 		SHADER_PARAMETER(uint32, TargetMip)
+		SHADER_PARAMETER(uint32, bPatchEmptyPage)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, PageToPageIndexBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutPageIndexBuffer)
 
 		RDG_BUFFER_ACCESS(IndirectDispatchArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture3D, InDensityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, OutDensityTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, OutDensityTexture2)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, OutDensityTexture1)
 
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1249,43 +1258,8 @@ public:
 	}
 };
 
-class FVirtualVoxelPatchPageIndexWithMipDataCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FVirtualVoxelPatchPageIndexWithMipDataCS);
-	SHADER_USE_PARAMETER_STRUCT(FVirtualVoxelPatchPageIndexWithMipDataCS, FGlobalShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(FIntVector, PageCountResolution)
-		SHADER_PARAMETER(uint32, PageResolution)
-		SHADER_PARAMETER(uint32, bUpdatePageIndex)
-		SHADER_PARAMETER(uint32, MipIt)
-
-		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, DensityTexture)
-		RDG_BUFFER_ACCESS(IndirectDispatchArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, PageIndexGlobalCounter)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, PageToPageIndexBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutPageIndexBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint2>, OutPageIndexOccupancyBuffer)
-
-	END_SHADER_PARAMETER_STRUCT()
-
-public:
-	static FIntVector GetGroupSize() { return GHairVoxel_GroupSize_NumVoxelPerPage_1_NumAllocatedPage; }
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("SHADER_UPDATE_PAGEINDEX"), 1);
-		OutEnvironment.SetDefine(TEXT("GROUP_SIZE_X"), GetGroupSize().X);
-		OutEnvironment.SetDefine(TEXT("GROUP_SIZE_Y"), GetGroupSize().Y);
-		OutEnvironment.SetDefine(TEXT("GROUP_SIZE_Z"), GetGroupSize().Z);
-	}
-};
-
-
 IMPLEMENT_GLOBAL_SHADER(FVirtualVoxelGenerateMipCS, "/Engine/Private/HairStrands/HairStrandsVoxelRasterCompute.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FVirtualVoxelIndirectArgMipCS, "/Engine/Private/HairStrands/HairStrandsVoxelRasterCompute.usf", "MainCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(FVirtualVoxelPatchPageIndexWithMipDataCS, "/Engine/Private/HairStrands/HairStrandsVoxelRasterCompute.usf", "MainCS", SF_Compute);
 
 
 static void AddVirtualVoxelGenerateMipPass(
@@ -1323,8 +1297,15 @@ static void AddVirtualVoxelGenerateMipPass(
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("HairStrands::BuildVoxelMipIndirectArgs"), ComputeShader, Parameters, FIntVector(1, 1, 1));
 	}
 
+	// Patch the page index buffer with page whose voxels are empty after the voxelization is done
+	const bool bAMDPC = IsPCPlatform(View.GetShaderPlatform()) && IsRHIDeviceAMD();
+	const bool bPatchEmptyPage = GHairVirtualVoxelInvalidEmptyPageIndex > 0 && !bAMDPC;
+	FRDGBufferSRVRef PageToPageIndexBufferSRV = GraphBuilder.CreateSRV(InPageToPageIndexBuffer, PF_R32_UINT);
+	FRDGBufferUAVRef PageIndexBufferUAV = GraphBuilder.CreateUAV(VoxelResources.PageIndexBuffer, PF_R32_UINT);
+
 	// Generate MIP level (in one go for all allocated pages)
-	for (uint32 MipIt = 0; MipIt < MipCount - 1; ++MipIt)
+	const uint32 LastMipMinus3 = MipCount - 3;
+	for (uint32 MipIt = 0; MipIt < LastMipMinus3; ++MipIt)
 	{
 		const uint32 SourceMipIndex = MipIt;
 		const uint32 TargetMipIndex = MipIt + 1;
@@ -1338,45 +1319,25 @@ static void AddVirtualVoxelGenerateMipPass(
 		Parameters->TargetMip = TargetMipIndex;
 		Parameters->AllocatedPageCountBuffer = VoxelResources.Parameters.Common.AllocatedPageCountBuffer;
 		Parameters->IndirectDispatchArgs = MipIndirectArgsBuffers[MipIt];
+		Parameters->bPatchEmptyPage = bPatchEmptyPage;
 
-		TShaderMapRef<FVirtualVoxelGenerateMipCS> ComputeShader(View.ShaderMap);
+		const uint32 TargetPageResolution = Parameters->PageResolution >> TargetMipIndex;
+		const bool bAggregate = TargetPageResolution <= 4;
+		if (bAggregate)
+		{
+			Parameters->PageToPageIndexBuffer = PageToPageIndexBufferSRV;
+			Parameters->OutPageIndexBuffer = PageIndexBufferUAV;
+
+			Parameters->OutDensityTexture2 = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(VoxelResources.PageTexture, MipCount-2));
+			Parameters->OutDensityTexture1 = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(VoxelResources.PageTexture, MipCount-1));
+		}
+
+		FVirtualVoxelGenerateMipCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FVirtualVoxelGenerateMipCS::FAggregate>(bAggregate);
+		TShaderMapRef<FVirtualVoxelGenerateMipCS> ComputeShader(View.ShaderMap, PermutationVector);
 		ClearUnusedGraphResources(ComputeShader, Parameters);
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("HairStrands::ComputeVoxelMip"),
-			Parameters,
-			ERDGPassFlags::Compute,
-			[Parameters, ComputeShader](FRHICommandList& RHICmdList)
-		{
-			FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *Parameters, Parameters->IndirectDispatchArgs->GetIndirectRHICallBuffer(), 0);
-		});
-	}
-
-	// Patch the page index buffer with page whose voxels are empty after the voxelization is done
-	FRDGBufferSRVRef PageToPageIndexBufferSRV = GraphBuilder.CreateSRV(InPageToPageIndexBuffer, PF_R32_UINT);
-	FRDGBufferUAVRef PageIndexBufferUAV = GraphBuilder.CreateUAV(VoxelResources.PageIndexBuffer, PF_R32_UINT);
-	FRDGBufferUAVRef PageIndexOccupancyBufferUAV = GraphBuilder.CreateUAV(VoxelResources.PageIndexOccupancyBuffer, PF_R32G32_UINT);
-	
-	// Note: Do not clear empty page on AMD hardware as there are some issue precision or dispatch issue (to be refined)
-	const bool bAMDPC = IsPCPlatform(View.GetShaderPlatform()) && IsRHIDeviceAMD();
-	const bool bPatchEmptyPage = GHairVirtualVoxelInvalidEmptyPageIndex > 0 && !bAMDPC;
-	if (bPatchEmptyPage)
-	{
-		const uint32 LastMipIt = MipCount - 1;
-		FVirtualVoxelPatchPageIndexWithMipDataCS::FParameters* Parameters = GraphBuilder.AllocParameters<FVirtualVoxelPatchPageIndexWithMipDataCS::FParameters>();
-		Parameters->MipIt = LastMipIt;
-		Parameters->PageIndexGlobalCounter = GraphBuilder.CreateSRV(VoxelResources.PageIndexGlobalCounter, PF_R32_UINT);
-		Parameters->PageResolution = VoxelResources.Parameters.Common.PageResolution;
-		Parameters->PageCountResolution = VoxelResources.Parameters.Common.PageCountResolution;
-		Parameters->DensityTexture = VoxelResources.PageTexture;
-		Parameters->PageToPageIndexBuffer = PageToPageIndexBufferSRV;
-		Parameters->OutPageIndexBuffer = PageIndexBufferUAV;
-		Parameters->OutPageIndexOccupancyBuffer = PageIndexOccupancyBufferUAV;
-		Parameters->IndirectDispatchArgs = MipIndirectArgsBuffers[LastMipIt-1];
-
-		TShaderMapRef<FVirtualVoxelPatchPageIndexWithMipDataCS> ComputeShader(View.ShaderMap);
-		ClearUnusedGraphResources(ComputeShader, Parameters);
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("HairStrands::PatchPageIndexWithMip"),
 			Parameters,
 			ERDGPassFlags::Compute,
 			[Parameters, ComputeShader](FRHICommandList& RHICmdList)

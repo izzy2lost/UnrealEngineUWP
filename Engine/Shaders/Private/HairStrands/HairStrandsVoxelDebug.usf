@@ -262,7 +262,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		bool  bForceMipLevel = AddCheckbox(WidgetContext, TEXT("Force MIP"), false, FontWhite); Newline(WidgetContext);
 		if (bForceMipLevel)
 		{
-			ForcedMipLevel = 8u * AddSlider(WidgetContext, TEXT("MIP"), 0, FontWhite); Newline(WidgetContext);
+			ForcedMipLevel = 8u * AddSlider(WidgetContext, TEXT("MIP"), 0, FontWhite); 
+			ForcedMipLevel = clamp(ForcedMipLevel, 0, VirtualVoxel.PageResolutionLog2);
+			Print(WidgetContext, ForcedMipLevel, FontWhite, 1, 1);
+			Print(WidgetContext, TEXT("/"), FontWhite);
+			Print(WidgetContext, VirtualVoxel.PageResolutionLog2, FontWhite, 1, 1);
+			Newline(WidgetContext);
 		}
 	}
 
