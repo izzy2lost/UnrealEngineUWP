@@ -41,6 +41,7 @@ namespace Lumen
 	constexpr uint32 SubAllocationResLevel = 7; // log2(PHYSICAL_PAGE_SIZE)
 	constexpr uint32 NumResLevels = MaxResLevel - MinResLevel + 1;
 	constexpr uint32 CardTileSize = 8;
+	constexpr uint32 NumDistanceBuckets = 16;
 
 	constexpr float MaxTraceDistance = 0.5f * UE_OLD_WORLD_MAX;
 
@@ -134,6 +135,8 @@ namespace Lumen
 	float GetNearFieldMaxTraceDistanceDitherScale(bool bUseFarField);
 	float GetNearFieldSceneRadius(const FViewInfo& View, bool bUseFarField);
 	FVector GetFarFieldReferencePos();
+
+	uint32 GetMeshCardDistanceBin(float Distance);
 
 	float GetHeightfieldReceiverBias();
 	void Shutdown();

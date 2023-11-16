@@ -156,3 +156,10 @@ bool Lumen::UseGlobalSDFObjectGrid(const FSceneViewFamily& ViewFamily)
 
 	return true;
 }
+
+uint32 Lumen::GetMeshCardDistanceBin(float Distance)
+{
+	uint32 OffsetDistance = FMath::Max(1, (int32)(Distance - 1000));
+	uint32 Bin = FMath::Min(FMath::FloorLog2(OffsetDistance), Lumen::NumDistanceBuckets - 1);
+	return Bin;
+}

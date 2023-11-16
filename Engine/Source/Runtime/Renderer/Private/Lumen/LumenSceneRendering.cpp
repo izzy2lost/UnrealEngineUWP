@@ -457,9 +457,12 @@ public:
 	// Output
 	TArray<FSurfaceCacheRequest> SurfaceCacheRequests;
 	TArray<int32> CardsToHide;
+	int32 Histogram[Lumen::NumDistanceBuckets] { 0 };
 
 	void AnyThreadTask()
 	{
+		QUICK_SCOPE_CYCLE_COUNTER(LumenSurfaceCacheUpdateMeshCardsTask)
+
 		const int32 LastLumenMeshCardsIndex = FMath::Min(FirstMeshCardsIndex + NumMeshCardsPerPacket, LumenMeshCards.Num());
 
 		for (int32 MeshCardsIndex = FirstMeshCardsIndex; MeshCardsIndex < LastLumenMeshCardsIndex; ++MeshCardsIndex)
@@ -522,6 +525,9 @@ public:
 						Request.LocalPageIndex = UINT16_MAX;
 						Request.Distance = Distance;
 						SurfaceCacheRequests.Add(Request);
+
+						const int32 DistanceBin = Lumen::GetMeshCardDistanceBin(Distance);
+						Histogram[DistanceBin]++;
 
 						ensure(Request.IsLockedMip());
 					}
@@ -1105,6 +1111,12 @@ void UpdateSurfaceCacheMeshCards(
 
 	const int32 NumMeshCardsPerTask = FMath::Max(GLumenSceneMeshCardsPerTask, 1);
 	const int32 NumTasks = FMath::DivideAndRoundUp(LumenSceneData.MeshCards.Num(), NumMeshCardsPerTask);
+	if (NumTasks == 0)
+	{
+		return;
+	}
+
+	int32 RequestHistogram[Lumen::NumDistanceBuckets] { 0 };
 
 	TArray<FLumenSurfaceCacheUpdateMeshCardsTask, SceneRenderingAllocator> Tasks;
 	Tasks.Reserve(NumTasks);
@@ -1137,19 +1149,15 @@ void UpdateSurfaceCacheMeshCards(
 		const FLumenSurfaceCacheUpdateMeshCardsTask& Task = Tasks[TaskIndex];
 		TotalSurfaceCacheRequests += Task.SurfaceCacheRequests.Num();
 	}
-	SurfaceCacheRequests.Reserve(TotalSurfaceCacheRequests);
 
 	for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
 	{
 		const FLumenSurfaceCacheUpdateMeshCardsTask& Task = Tasks[TaskIndex];
 		LumenSceneData.NumLockedCardsToUpdate += Task.SurfaceCacheRequests.Num();
 
-		// Append requests to the global array
+		for (int32 i = 0; i < Lumen::NumDistanceBuckets; ++i)
 		{
-			for (int32 RequestIndex = 0; RequestIndex < Task.SurfaceCacheRequests.Num(); ++RequestIndex)
-			{
-				SurfaceCacheRequests.Add(Task.SurfaceCacheRequests[RequestIndex]);
-			}
+			RequestHistogram[i] += Task.Histogram[i];
 		}
 
 		for (int32 CardIndex : Task.CardsToHide)
@@ -1164,21 +1172,63 @@ void UpdateSurfaceCacheMeshCards(
 		}
 	}
 
-	LumenSceneData.UpdateSurfaceCacheFeedback(LumenFeedbackData, LumenSceneCameraOrigins, SurfaceCacheRequests, ViewFamily);
+	LumenSceneData.UpdateSurfaceCacheFeedback(LumenFeedbackData, LumenSceneCameraOrigins, Tasks[0].SurfaceCacheRequests, ViewFamily, RequestHistogram);
 
-	if (SurfaceCacheRequests.Num() > 0)
+	int32 SurfaceCacheRequestsCount = 0;
+	int32 LastBucketRequestCount = 0;
+	int32 LastBucketIndex = 0;
+	for (; LastBucketIndex < Lumen::NumDistanceBuckets; ++LastBucketIndex)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(SortRequests);
+		SurfaceCacheRequestsCount += RequestHistogram[LastBucketIndex];
 
-		struct FSortBySmallerDistance
+		if (SurfaceCacheRequestsCount >= GetMaxLumenSceneCardCapturesPerFrame())
 		{
-			FORCEINLINE bool operator()(const FSurfaceCacheRequest& A, const FSurfaceCacheRequest& B) const
-			{
-				return A.Distance < B.Distance;
-			}
-		};
+			LastBucketRequestCount = GLumenSceneCardCapturesPerFrame - (SurfaceCacheRequestsCount - RequestHistogram[LastBucketIndex]);
+			SurfaceCacheRequestsCount = GLumenSceneCardCapturesPerFrame;
+			break;
+		}
+	}
 
-		SurfaceCacheRequests.Sort(FSortBySmallerDistance());
+	if (SurfaceCacheRequestsCount == 0)
+	{
+		return;
+	}
+
+	SurfaceCacheRequests.Reserve(SurfaceCacheRequestsCount);
+	for (int32 TaskIndex = 0; TaskIndex < Tasks.Num(); ++TaskIndex)
+	{
+		const FLumenSurfaceCacheUpdateMeshCardsTask& Task = Tasks[TaskIndex];
+
+		for (int32 RequestIndex = 0; RequestIndex < Task.SurfaceCacheRequests.Num(); ++RequestIndex)
+		{
+			const FSurfaceCacheRequest& Request = Task.SurfaceCacheRequests[RequestIndex];
+			const int32 BucketIndex = Lumen::GetMeshCardDistanceBin(Request.Distance);
+			if (BucketIndex > LastBucketIndex)
+			{
+				continue;
+			}
+
+			if (BucketIndex == LastBucketIndex)
+			{
+				if (LastBucketRequestCount == 0)
+				{
+					continue;
+				}
+
+				--LastBucketRequestCount;
+			}
+
+			SurfaceCacheRequests.Add(Request);
+			if (--SurfaceCacheRequestsCount == 0)
+			{
+				break;
+			}
+		}
+
+		if (SurfaceCacheRequestsCount == 0)
+		{
+			break;
+		}
 	}
 }
 

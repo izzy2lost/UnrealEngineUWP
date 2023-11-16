@@ -767,7 +767,7 @@ public:
 		uint32 NumElements = 0;
 	};
 
-	void UpdateSurfaceCacheFeedback(FFeedbackData Data, const TArray<FVector, TInlineAllocator<2>>& LumenSceneCameraOrigins, TArray<FSurfaceCacheRequest, SceneRenderingAllocator>& MeshCardsUpdate, const FViewFamilyInfo& ViewFamily);
+	void UpdateSurfaceCacheFeedback(FFeedbackData Data, const TArray<FVector, TInlineAllocator<2>>& LumenSceneCameraOrigins, TArray<FSurfaceCacheRequest>& MeshCardsUpdate, const FViewFamilyInfo& ViewFamily, int32 RequestHistogram[Lumen::NumDistanceBuckets]);
 
 	void ProcessLumenSurfaceCacheRequests(
 		const FViewInfo& MainView,
