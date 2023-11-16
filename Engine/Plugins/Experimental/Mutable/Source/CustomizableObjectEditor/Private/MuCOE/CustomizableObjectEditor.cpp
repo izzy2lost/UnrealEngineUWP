@@ -1225,6 +1225,9 @@ void FCustomizableObjectEditor::ShowGizmoLight(ULightComponent& InSelectedLight)
 void FCustomizableObjectEditor::HideGizmoLight()
 {
 	CustomSettings->SetSelectedLight(nullptr);
+
+	Viewport->HideGizmoLight();
+
 	CustomizableObjectEditorAdvancedPreviewSettings->Refresh();
 }
 
