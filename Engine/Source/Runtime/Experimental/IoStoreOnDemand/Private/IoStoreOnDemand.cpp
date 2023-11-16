@@ -917,14 +917,6 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 		}
 	}
 
-	if (Params.AccessKey.IsEmpty() &&
-		Params.SecretKey.IsEmpty() &&
-		Params.CredentialsFile.IsEmpty() &&
-		Params.CredentialsFileKeyName.IsEmpty())
-	{
-		return FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid credentials"));
-	}
-	
 	if (!Params.AccessKey.IsEmpty() && Params.SecretKey.IsEmpty())
 	{
 		return FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid secret key"));
