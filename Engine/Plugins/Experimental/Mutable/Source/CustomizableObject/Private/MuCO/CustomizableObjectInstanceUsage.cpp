@@ -156,7 +156,14 @@ void UCustomizableObjectInstanceUsage::AttachTo(USkeletalMeshComponent* Skeletal
 	}
 	else
 	{
-		UsedSkeletalMeshComponent = SkeletalMeshComponent;
+		if (IsValid(SkeletalMeshComponent))
+		{
+			UsedSkeletalMeshComponent = SkeletalMeshComponent;
+		}
+		else
+		{
+			UsedSkeletalMeshComponent = nullptr;
+		}
 
 		// To mimic the behavior of UCustomizableSkeletalComponent::OnAttachmentChanged()
 		SetPendingSetSkeletalMesh(true);
@@ -170,10 +177,12 @@ USkeletalMeshComponent* UCustomizableObjectInstanceUsage::GetAttachParent() cons
 	{
 		return Cast<USkeletalMeshComponent>(CustomizableSkeletalComponent->GetAttachParent());
 	}
-	else
+	else if(UsedSkeletalMeshComponent.IsValid())
 	{
-		return UsedSkeletalMeshComponent;
+		return UsedSkeletalMeshComponent.Get();
 	}
+
+	return nullptr;
 }
 
 
@@ -580,7 +589,7 @@ bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
 	{
 		return CustomizableSkeletalComponent->IsNetMode(InNetMode);
 	}
-	else if(UsedSkeletalMeshComponent)
+	else if(UsedSkeletalMeshComponent.IsValid())
 	{
 		return UsedSkeletalMeshComponent->IsNetMode(InNetMode);
 	}

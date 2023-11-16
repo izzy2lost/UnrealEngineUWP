@@ -89,7 +89,7 @@ private:
 
 	// If no CustomizableSkeletalComponent is associated, this SkeletalComponent will be used
 	UPROPERTY()
-	TObjectPtr<USkeletalMeshComponent> UsedSkeletalMeshComponent;
+	TWeakObjectPtr<USkeletalMeshComponent> UsedSkeletalMeshComponent;
 
 	// If no CustomizableSkeletalComponent is associated, this Instance will be used
 	UPROPERTY()
