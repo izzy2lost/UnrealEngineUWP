@@ -486,14 +486,8 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 				const uint BlockShift = (BlockThreadIndex * 4);
 				uint BlockMask = QuadMask << BlockShift;
 
-			#if PLATFORM_GPU_ARCH == PLATFORM_GPU_ARCH_UNKNOWN
-				// TODO: Workaround for Intel ARC
-				BlockMask |= WaveReadLaneAt(BlockMask, WaveGetLaneIndex() ^ 1u); 
-				BlockMask |= WaveReadLaneAt(BlockMask, WaveGetLaneIndex() ^ 2u);
-			#else
 				BlockMask |= QuadReadAcrossX(BlockMask);
 				BlockMask |= QuadReadAcrossY(BlockMask);
-			#endif
 
 				const uint ShiftedBlockMask = BlockMask >> BlockShift;
 				
@@ -663,7 +657,7 @@ uint2 LinearToSwizzled(uint LinearIndex)
 #if BINNING_TECHNIQUE == 1
 
 // Binning at 32x32 macro tile granularity
-[numthreads(32, 32, 1)]
+[numthreads(1024, 1, 1)]
 void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
 {
 	const uint2 MacroTileDim = uint2(32u, 32u);
@@ -691,7 +685,7 @@ void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_Grou
 
 #else
 
-[numthreads(8, 8, 1)]
+[numthreads(64, 1, 1)]
 void ShadingBinBuildCS(uint ThreadIndex : SV_GroupIndex, uint2 GroupId : SV_GroupID)
 {
 	uint2 Coord = GroupId.xy * 8u;
