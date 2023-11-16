@@ -88,7 +88,7 @@ namespace Horde.Server.Ddc
 						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
 						refNode.References.Add((referencedBlob.Hash, alias!.Target));
 					}
-					refNodeRef = await writer.WriteNodeAsync(refNode);
+					refNodeRef = await writer.WriteNodeAsync(refNode, cancellationToken);
 				}
 
 				await storageClient.WriteRefTargetAsync(refName, refNodeRef, cancellationToken: cancellationToken);

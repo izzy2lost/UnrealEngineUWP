@@ -378,7 +378,7 @@ namespace Horde.Server.Perforce
 					await root.UpdateAsync(rootUpdate, writer, cancellationToken);
 					syncNode.Contents = await writer.WriteHashedNodeAsync(root, cancellationToken);
 					NodeRef<SyncNode> syncNodeRef = await writer.WriteNodeAsync(syncNode, cancellationToken);
-					await writer.FlushAsync();
+					await writer.FlushAsync(cancellationToken);
 					await store.WriteRefTargetAsync(incRefName, syncNodeRef, cancellationToken: cancellationToken);
 					rootUpdate.Clear();
 
