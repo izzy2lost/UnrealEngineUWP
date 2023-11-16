@@ -105,40 +105,6 @@ public:
 	virtual bool Delete(UPackage* Package) const =0;
 	virtual bool Save(UPackage* Package) const =0;
 };
-
-struct ENGINE_API FDirtyActor
-{
-	FDirtyActor()
-		: ActorPtr(nullptr)
-	{}
-
-	FDirtyActor(AActor* InActor)
-		: ActorPtr(InActor)
-	{}
-
-	FDirtyActor(const FWorldPartitionReference& InWorldPartitionRef, AActor* InActor)
-		: WorldPartitionRef(InWorldPartitionRef)
-		, ActorPtr(InActor)
-	{}
-
-	TOptional<FWorldPartitionReference> WorldPartitionRef;
-	TWeakObjectPtr<AActor> ActorPtr; // TWeakObjectPtr is for undo support.
-
-	bool operator==(const FDirtyActor& InDirtyActor) const
-	{
-		return WorldPartitionRef == InDirtyActor.WorldPartitionRef && ActorPtr == InDirtyActor.ActorPtr;
-	}
-
-	friend uint32 GetTypeHash(const FDirtyActor& InDirtyActor)
-	{
-		uint32 Hash = GetTypeHash(InDirtyActor.ActorPtr);
-		if (InDirtyActor.WorldPartitionRef.IsSet())
-		{
-			Hash = HashCombine(Hash, GetTypeHash(InDirtyActor.WorldPartitionRef.GetValue()));
-		}
-		return Hash;
-	}
-};
 #endif
 
 UCLASS(AutoExpandCategories=(WorldPartition), MinimalAPI)
@@ -393,7 +359,7 @@ public:
 
 	bool IsHLODsInEditorAllowed() const { return bAllowShowingHLODsInEditor; }
 
-	const TMap<FGuid, FDirtyActor>& GetDirtyActors() const { return DirtyActors; }
+	const TMap<FWorldPartitionReference, AActor*>& GetDirtyActors() const { return ObjectPtrDecay(DirtyActors); }
 #endif
 
 public:
@@ -521,7 +487,7 @@ private:
 
 	TArray<FWorldPartitionReference> LoadedSubobjects;
 
-	TMap<FGuid, FDirtyActor> DirtyActors;
+	TMap<FWorldPartitionReference, TObjectPtr<AActor>> DirtyActors;
 
 	TSet<FString> GeneratedStreamingPackageNames;
 
