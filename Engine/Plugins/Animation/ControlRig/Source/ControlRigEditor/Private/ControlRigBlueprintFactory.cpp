@@ -30,9 +30,6 @@
 
 #define LOCTEXT_NAMESPACE "ControlRigBlueprintFactory"
 
-static TAutoConsoleVariable<bool> CVarControlRigEnableModularRigs(TEXT("ControlRig.Test.EnableModularRigs"), false, TEXT("When true we will allow the creation of modular rigs."));
-
-
 /** Dialog to configure creation properties */
 class SControlRigBlueprintCreateDialog : public SCompoundWidget
 {
@@ -274,7 +271,7 @@ UControlRigBlueprintFactory::UControlRigBlueprintFactory()
 
 bool UControlRigBlueprintFactory::ConfigureProperties()
 {
-	if (CVarControlRigEnableModularRigs->GetBool())
+	if (CVarControlRigHierarchyEnableModules.GetValueOnAnyThread())
 	{
 		TSharedRef<SControlRigBlueprintCreateDialog> Dialog = SNew(SControlRigBlueprintCreateDialog);
 		return Dialog->ConfigureProperties(this);

@@ -241,9 +241,12 @@ TArray<FString> SModularRigHierarchy::GetSelectedKeys() const
 	TArray<FString> SelectedKeys;
 	for (const TSharedPtr<FModularRigTreeElement>& SelectedItem : SelectedItems)
 	{
-		if(!SelectedItem->Key.IsEmpty())
+		if (SelectedItem.IsValid())
 		{
-			SelectedKeys.AddUnique(SelectedItem->Key);
+			if(!SelectedItem->Key.IsEmpty())
+			{
+				SelectedKeys.AddUnique(SelectedItem->Key);
+			}
 		}
 	}
 
