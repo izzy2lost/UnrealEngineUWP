@@ -168,7 +168,10 @@ public:
 	/** Remove given asset from all open editors */
 	UNREALED_API void RemoveAssetFromAllEditors(UObject* Asset);
 
-	/** Event called when CloseAllEditorsForAsset/RemoveAssetFromAllEditors is called */
+	/** Event called specifically when an external system requests an asset editor to be closed (e.g by calling CloseAllAssetEditors())
+	 *  If you want an event that is called anytime an asset is removed from an editor (which may or may not close the editor) - use
+	 *  OnAssetClosedInEditor()
+	 */
 	DECLARE_EVENT_TwoParams(UAssetEditorSubsystem, FAssetEditorRequestCloseEvent, UObject*, EAssetEditorCloseReason);
 	virtual FAssetEditorRequestCloseEvent& OnAssetEditorRequestClose() { return AssetEditorRequestCloseEvent; }
 
@@ -192,6 +195,10 @@ public:
 
 	/** Notify the asset editor manager that an asset editor is done editing an asset */
 	UNREALED_API void NotifyAssetClosed(UObject* Asset, IAssetEditorInstance* Instance);
+
+	/** Called when an editor is done editing an asset */
+	DECLARE_EVENT_TwoParams(UAssetEditorSubsystem, FOnAssetClosedInEditorEvent, UObject*, IAssetEditorInstance*);
+	virtual FOnAssetClosedInEditorEvent& OnAssetClosedInEditor() { return AssetClosedInEditorEvent; }
 
 	/** Notify the asset editor manager that an asset was closed */
 	UNREALED_API void NotifyEditorClosed(IAssetEditorInstance* Instance);
@@ -434,6 +441,9 @@ private:
 
 	/** Called when editor is opening and before widgets are constructed */
 	FOnAssetsOpenedInEditorEvent EditorOpeningPreWidgetsEvent;
+
+	/** Called when an editor is done editing an asset */
+	FOnAssetClosedInEditorEvent AssetClosedInEditorEvent;
 
 	/** Multicast delegate executed when an asset editor is requested to be opened */
 	FAssetEditorRequestOpenEvent AssetEditorRequestOpenEvent;

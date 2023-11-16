@@ -410,6 +410,8 @@ void UAssetEditorSubsystem::NotifyAssetsOpened(const TArray< UObject* >& Assets,
 
 void UAssetEditorSubsystem::NotifyAssetClosed(UObject* Asset, IAssetEditorInstance* InInstance)
 {
+	AssetClosedInEditorEvent.Broadcast(Asset, InInstance);
+
 	OpenedEditors.RemoveSingle(InInstance, Asset);
 	OpenedAssets.RemoveSingle(Asset, InInstance);
 
@@ -424,6 +426,10 @@ void UAssetEditorSubsystem::NotifyEditorClosed(IAssetEditorInstance* InInstance)
 	OpenedEditors.MultiFind(InInstance, /*out*/ Assets);
 	for (int32 AssetIndex = 0; AssetIndex < Assets.Num(); ++AssetIndex)
 	{
+		if(UObject* Asset = Assets[AssetIndex].ObjectPtr.Get())
+		{
+			AssetClosedInEditorEvent.Broadcast(Asset, InInstance);
+		}
 		OpenedAssets.Remove(Assets[AssetIndex], InInstance);
 	}
 
