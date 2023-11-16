@@ -712,41 +712,11 @@ void FAnimNode_DeadBlending::Update_AnyThread(const FAnimationUpdateContext& Con
 	{
 		Deactivate();
 	}
+
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
 
-	const int32 NodeId = Context.GetCurrentNodeId();
-	const FAnimInstanceProxy& Proxy = *Context.AnimInstanceProxy;
-
-	// Allow nodes further towards the leaves to inertialize using this node
-	UE::Anim::TScopedGraphMessage<UE::Anim::FDeadBlendingRequester> Inertialization(Context, Context, this);
-
-	// Handle skipped updates for cached poses by forwarding to inertialization nodes in those residual stacks
-	UE::Anim::TScopedGraphMessage<UE::Anim::FCachedPoseSkippedUpdateHandler> CachedPoseSkippedUpdate(Context, [this, NodeId, &Proxy](TArrayView<const UE::Anim::FMessageStack> InSkippedUpdates)
-	{
-		// If we have a pending request forward the request to other Inertialization nodes
-		// that were skipped due to pose caching.
-		if (RequestQueue.Num() > 0)
-		{
-			// Cached poses have their Update function called once even though there may be multiple UseCachedPose nodes for the same pose.
-			// Because of this, there may be Inertialization ancestors of the UseCachedPose nodes that missed out on requests.
-			// So here we forward 'this' node's requests to the ancestors of those skipped UseCachedPose nodes.
-			// Note that in some cases, we may be forwarding the requests back to this same node.  Those duplicate requests will ultimately
-			// be ignored by the 'AddUnique' in the body of FAnimNode_DeadBlending::RequestInertialization.
-			for (const UE::Anim::FMessageStack& Stack : InSkippedUpdates)
-			{
-				Stack.ForEachMessage<UE::Anim::IInertializationRequester>([this, NodeId, &Proxy](UE::Anim::IInertializationRequester& InMessage)
-				{
-					for (const FInertializationRequest& Request : RequestQueue)
-					{
-						InMessage.RequestInertialization(Request);
-					}
-					InMessage.AddDebugRecord(Proxy, NodeId);
-
-					return UE::Anim::FMessageStack::EEnumerate::Stop;
-				});
-			}
-		}
-	});
+	// Catch the inertialization request message and call the node's RequestInertialization function with the request
+	UE::Anim::TScopedGraphMessage<UE::Anim::FDeadBlendingRequester> InertializationMessage(Context, Context, this);
 
 	Source.Update(Context);
 

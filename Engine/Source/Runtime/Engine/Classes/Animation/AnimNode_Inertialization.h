@@ -421,6 +421,15 @@ private:
 	UPROPERTY(EditAnywhere, Category = Blending)
 	bool bResetOnBecomingRelevant = false;
 
+	/**
+	* When enabled this option will forward inertialization requests through any downstream UseCachedPose nodes which 
+	* have had their update skipped (e.g. because they have already been updated in another location). This can be
+	* useful in the case where the same cached pose is used in multiple places, and having an inertialization request 
+	* that goes with it caught in only one of those places would create popping.
+	*/
+	UPROPERTY(EditAnywhere, Category = Requests)
+	bool bForwardRequestsThroughSkippedCachedPoseNodes = true;
+
 public: // FAnimNode_Inertialization
 
 	ENGINE_API FAnimNode_Inertialization();

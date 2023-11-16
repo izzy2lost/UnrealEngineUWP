@@ -212,41 +212,45 @@ void FAnimNode_Inertialization::Update_AnyThread(const FAnimationUpdateContext& 
 	{
 		Deactivate();
 	}
+
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
 
-	const int32 NodeId = Context.GetCurrentNodeId();
-	const FAnimInstanceProxy& Proxy = *Context.AnimInstanceProxy;
+	// Catch the inertialization request message and call the node's RequestInertialization function with the request
+	UE::Anim::TScopedGraphMessage<UE::Anim::FInertializationRequester> InertializationMessage(Context, Context, this);
 
-	// Allow nodes further towards the leaves to inertialize using this node
-	UE::Anim::TScopedGraphMessage<UE::Anim::FInertializationRequester> Inertialization(Context, Context, this);
-
-	// Handle skipped updates for cached poses by forwarding to inertialization nodes in those residual stacks
-	UE::Anim::TScopedGraphMessage<UE::Anim::FCachedPoseSkippedUpdateHandler> CachedPoseSkippedUpdate(Context, [this, NodeId, &Proxy](TArrayView<const UE::Anim::FMessageStack> InSkippedUpdates)
+	if (bForwardRequestsThroughSkippedCachedPoseNodes)
 	{
-		// If we have a pending request forward the request to other Inertialization nodes
-		// that were skipped due to pose caching.
-		if(RequestQueue.Num() > 0)
-		{
-			// Cached poses have their Update function called once even though there may be multiple UseCachedPose nodes for the same pose.
-			// Because of this, there may be Inertialization ancestors of the UseCachedPose nodes that missed out on requests.
-			// So here we forward 'this' node's requests to the ancestors of those skipped UseCachedPose nodes.
-			// Note that in some cases, we may be forwarding the requests back to this same node.  Those duplicate requests will ultimately
-			// be ignored by the 'AddUnique' in the body of FAnimNode_Inertialization::RequestInertialization.
-			for (const UE::Anim::FMessageStack& Stack : InSkippedUpdates)
-			{
-				Stack.ForEachMessage<UE::Anim::IInertializationRequester>([this, NodeId, &Proxy](UE::Anim::IInertializationRequester& InMessage)
-				{
-					for (const FInertializationRequest& Request : RequestQueue)
-					{
-						InMessage.RequestInertialization(Request);
-					}
- 					InMessage.AddDebugRecord(Proxy, NodeId);
+		const int32 NodeId = Context.GetCurrentNodeId();
+		const FAnimInstanceProxy& Proxy = *Context.AnimInstanceProxy;
 
-					return UE::Anim::FMessageStack::EEnumerate::Stop;
-				});
+		// Handle skipped updates for cached poses by forwarding to inertialization nodes in those residual stacks
+		UE::Anim::TScopedGraphMessage<UE::Anim::FCachedPoseSkippedUpdateHandler> CachedPoseSkippedUpdate(Context, [this, NodeId, &Proxy](TArrayView<const UE::Anim::FMessageStack> InSkippedUpdates)
+		{
+			// If we have a pending request forward the request to other Inertialization nodes
+			// that were skipped due to pose caching.
+			if (RequestQueue.Num() > 0)
+			{
+				// Cached poses have their Update function called once even though there may be multiple UseCachedPose nodes for the same pose.
+				// Because of this, there may be Inertialization ancestors of the UseCachedPose nodes that missed out on requests.
+				// So here we forward 'this' node's requests to the ancestors of those skipped UseCachedPose nodes.
+				// Note that in some cases, we may be forwarding the requests back to this same node.  Those duplicate requests will ultimately
+				// be ignored by the 'AddUnique' in the body of FAnimNode_Inertialization::RequestInertialization.
+				for (const UE::Anim::FMessageStack& Stack : InSkippedUpdates)
+				{
+					Stack.ForEachMessage<UE::Anim::IInertializationRequester>([this, NodeId, &Proxy](UE::Anim::IInertializationRequester& InMessage)
+					{
+						for (const FInertializationRequest& Request : RequestQueue)
+						{
+							InMessage.RequestInertialization(Request);
+						}
+						InMessage.AddDebugRecord(Proxy, NodeId);
+
+						return UE::Anim::FMessageStack::EEnumerate::Stop;
+					});
+				}
 			}
-		}
-	});
+		});
+	}
 
 	Source.Update(Context);
 
