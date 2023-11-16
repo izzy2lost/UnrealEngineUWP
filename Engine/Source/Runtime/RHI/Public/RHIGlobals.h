@@ -630,6 +630,9 @@ struct FRHIGlobals
 
 	/** True if the RHI needs shader unbinds (SetShaderUnbinds). RHIs that don't need them can avoid creating extra commands. */
 	bool NeedsShaderUnbinds = false;
+
+	/** True if the RHI supports shaders with barycentrics */
+	bool SupportsBarycentricsSemantic = false;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;

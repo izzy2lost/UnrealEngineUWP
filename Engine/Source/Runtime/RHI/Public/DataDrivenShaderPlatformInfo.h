@@ -118,9 +118,12 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsShaderPipelines : 1;
 	uint32 bSupportsUniformBufferObjects : 1;
 	uint32 bRequiresBindfulUtilityShaders : 1;
+	uint32 MaxSamplers : 8;
+	uint32 SupportsBarycentricsIntrinsics : 1;
+	uint32 SupportsBarycentricsSemantic : int32(ERHIFeatureSupport::NumBits);
+
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
-	uint32 MaxSamplers : 8;
 
 	FGenericDataDrivenShaderPlatformInfo()
 	{
@@ -764,6 +767,18 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].MaxSamplers;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsBarycentricsIntrinsics(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].SupportsBarycentricsIntrinsics;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const ERHIFeatureSupport GetSupportsBarycentricsSemantic(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return ERHIFeatureSupport(Infos[Platform].SupportsBarycentricsSemantic);
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)

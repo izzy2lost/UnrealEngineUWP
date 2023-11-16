@@ -292,6 +292,8 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsUniformBufferObjects);
 	GET_SECTION_BOOL_HELPER(bRequiresBindfulUtilityShaders);
 	GET_SECTION_INT_HELPER(MaxSamplers);
+	GET_SECTION_BOOL_HELPER(SupportsBarycentricsIntrinsics);
+	GET_SECTION_SUPPORT_HELPER(SupportsBarycentricsSemantic);
 #undef GET_SECTION_BOOL_HELPER
 #undef GET_SECTION_INT_HELPER
 #undef GET_SECTION_SUPPORT_HELPER

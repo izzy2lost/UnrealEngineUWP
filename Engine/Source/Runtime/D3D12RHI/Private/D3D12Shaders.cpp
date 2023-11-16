@@ -86,6 +86,11 @@ static bool ValidateShaderIsUsable(FD3D12ShaderData* InShader, EShaderFrequency 
 	{
 		return false;
 	}
+
+	if (EnumHasAnyFlags(InShader->Features, EShaderCodeFeatures::BarycentricsSemantic) && !GRHIGlobals.SupportsBarycentricsSemantic)
+	{
+		return false;
+	}
 #endif
 
 	return true;

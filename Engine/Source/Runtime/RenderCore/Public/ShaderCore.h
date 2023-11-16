@@ -723,6 +723,7 @@ enum class EShaderCodeFeatures : uint16
 	BindlessResources       = 1 << 5,
 	BindlessSamplers        = 1 << 6,
 	StencilRef              = 1 << 7,
+	BarycentricsSemantic    = 1 << 8,
 };
 ENUM_CLASS_FLAGS(EShaderCodeFeatures);
 
