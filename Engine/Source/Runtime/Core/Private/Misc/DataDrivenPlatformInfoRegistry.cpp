@@ -309,9 +309,7 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 					{
 						Item.OptionalFriendlyNameOverride = FText::FromString(Item.DeviceProfileName.ToString());
 					}
-					
-					FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Adding friendly name %s\n"), *Item.OptionalFriendlyNameOverride.ToString());
-					
+									
 					PreviewPlatformMenuItems.Add(Item);
 				}
 			}
