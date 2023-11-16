@@ -3,10 +3,16 @@
 #include "RayTracingGeometry.h"
 #include "RHICommandList.h"
 #include "HAL/IConsoleManager.h"
-#include "RayTracingGeometryManager.h"
+#include "RayTracingGeometryManagerInterface.h"
 #include "RenderUtils.h"
 #include "RHIResourceUpdates.h"
 #include "RHITextureReference.h" // IWYU pragma: keep
+
+#if RHI_RAYTRACING
+
+IRayTracingGeometryManager* GRayTracingGeometryManager = nullptr;
+
+#endif
 
 static TAutoConsoleVariable<int32> CVarDebugForceRuntimeBLAS(
 	TEXT("r.Raytracing.DebugForceRuntimeBLAS"),
@@ -83,7 +89,7 @@ void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTA
 
 	if (GetRequiresBuild())
 	{
-		RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+		RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 		SetRequiresBuild(false);
 	}
 }
@@ -202,7 +208,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 			{
 				if (RayTracingGeometryRHI)
 				{
-					RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+					RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 				}
 				SetRequiresBuild(false);
 			}
@@ -215,7 +221,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 		{
 			if (RayTracingGeometryRHI && RayTracingGeometryRHI->IsCompressed())
 			{
-				RayTracingBuildRequestIndex = GRayTracingGeometryManager.RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+				RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
 			}
 
 			SetRequiresBuild(false);
@@ -284,7 +290,7 @@ void FRayTracingGeometry::RemoveBuildRequest()
 {
 	if (HasPendingBuildRequest())
 	{
-		GRayTracingGeometryManager.RemoveBuildRequest(RayTracingBuildRequestIndex);
+		GRayTracingGeometryManager->RemoveBuildRequest(RayTracingBuildRequestIndex);
 		RayTracingBuildRequestIndex = INDEX_NONE;
 	}
 }
@@ -297,7 +303,7 @@ void FRayTracingGeometry::InitResource(FRHICommandListBase& RHICmdList)
 
 	if (RayTracingGeometryHandle == INDEX_NONE)
 	{
-		RayTracingGeometryHandle = GRayTracingGeometryManager.RegisterRayTracingGeometry(this);
+		RayTracingGeometryHandle = GRayTracingGeometryManager->RegisterRayTracingGeometry(this);
 	}
 }
 
@@ -307,7 +313,7 @@ void FRayTracingGeometry::ReleaseResource()
 
 	if (RayTracingGeometryHandle != INDEX_NONE)
 	{
-		GRayTracingGeometryManager.ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle);
+		GRayTracingGeometryManager->ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle);
 		RayTracingGeometryHandle = INDEX_NONE;
 	}
 
@@ -321,7 +327,7 @@ void FRayTracingGeometry::ReleaseResource()
 void FRayTracingGeometry::BoostBuildPriority(float InBoostValue) const
 {
 	check(HasPendingBuildRequest());
-	GRayTracingGeometryManager.BoostPriority(RayTracingBuildRequestIndex, InBoostValue);
+	GRayTracingGeometryManager->BoostPriority(RayTracingBuildRequestIndex, InBoostValue);
 }
 
 #endif // RHI_RAYTRACING

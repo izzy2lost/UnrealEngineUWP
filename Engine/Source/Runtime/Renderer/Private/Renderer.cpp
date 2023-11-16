@@ -45,6 +45,7 @@
 #include "PrimitiveSceneShaderData.h"
 #include "MeshDrawCommandStats.h"
 #include "LocalFogVolumeRendering.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "PathTracing.h"
 
 DEFINE_LOG_CATEGORY(LogRenderer);
@@ -70,6 +71,10 @@ void FRendererModule::StartupModule()
 #endif
 
 	GScreenSpaceDenoiser = IScreenSpaceDenoiser::GetDefaultDenoiser();
+
+#if RHI_RAYTRACING
+	GRayTracingGeometryManager = new FRayTracingGeometryManager();
+#endif
 
 	FRendererOnScreenNotification::Get();
 	FVirtualTextureSystem::Initialize();
@@ -108,6 +113,11 @@ void FRendererModule::ShutdownModule()
 
 	FVirtualTextureSystem::Shutdown();
 	FRendererOnScreenNotification::TearDown();
+
+#if RHI_RAYTRACING
+	delete GRayTracingGeometryManager;
+	GRayTracingGeometryManager = nullptr;
+#endif
 
 	// Free up the memory of the default denoiser. Responsibility of the plugin to free up theirs.
 	delete IScreenSpaceDenoiser::GetDefaultDenoiser();

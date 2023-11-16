@@ -66,7 +66,7 @@
 #include "Substrate/Substrate.h"
 #include "Lumen/Lumen.h"
 #include "Experimental/Containers/SherwoodHashTable.h"
-#include "RayTracingGeometryManager.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -2014,7 +2014,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	{
 		// This needs to happen even when ray tracing is not enabled
 		// - importers might batch BVH creation requests that need to be resolved in any case
-		GRayTracingGeometryManager.ProcessBuildRequests(GraphBuilder.RHICmdList);
+		GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
 		// - Nanite ray tracing instances are already pointing at the new BLASes and RayTracingDataOffsets in GPUScene have been updated
 		Nanite::GRayTracingManager.ProcessBuildRequests(GraphBuilder);
 		return false;
@@ -2033,7 +2033,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 		RayTracingSkinnedGeometryUpdateQueue->Commit(GraphBuilder);
 	}
 
-	GRayTracingGeometryManager.ProcessBuildRequests(GraphBuilder.RHICmdList);
+	GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
 
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
@@ -2042,7 +2042,7 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	if (RayTracingScene.GeometriesToBuild.Num() > 0)
 	{
 		// Force update all the collected geometries (use stack allocator?)
-		GRayTracingGeometryManager.ForceBuildIfPending(GraphBuilder.RHICmdList, RayTracingScene.GeometriesToBuild);
+		GRayTracingGeometryManager->ForceBuildIfPending(GraphBuilder.RHICmdList, RayTracingScene.GeometriesToBuild);
 	}
 
 	FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
@@ -2783,7 +2783,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Initialize ray tracing flags, in case they weren't initialized in the CreateSceneRenderers code path
 		InitializeRayTracingFlags_RenderThread();
 
-		GRayTracingGeometryManager.Tick(GraphBuilder.RHICmdList, bHasRayTracingEnableChanged);
+		GRayTracingGeometryManager->Tick(GraphBuilder.RHICmdList, bHasRayTracingEnableChanged);
 
 		if ((GetRayTracingMode() == ERayTracingMode::Dynamic) && bHasRayTracingEnableChanged)
 		{

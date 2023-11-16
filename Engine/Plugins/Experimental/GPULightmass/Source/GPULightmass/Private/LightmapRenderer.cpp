@@ -22,7 +22,7 @@
 #include "LightmapDenoising.h"
 #include "EngineModule.h"
 #include "PostProcess/PostProcessing.h"
-#include "RayTracingGeometryManager.h"
+#include "RayTracingGeometryManagerInterface.h"
 #include "RayTracingInstanceBufferUtil.h"
 #include "ScreenPass.h"
 #include "RayTracingDynamicGeometryCollection.h"
@@ -813,7 +813,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 #if RHI_RAYTRACING
 	// Force build all the open build requests
 	bool bBuildAll = true;
-	GRayTracingGeometryManager.ProcessBuildRequests(RHICmdList, bBuildAll);
+	GRayTracingGeometryManager->ProcessBuildRequests(RHICmdList, bBuildAll);
 #endif // RHI_RAYTRACING
 
 	if (CachedRayTracingScene.IsValid())

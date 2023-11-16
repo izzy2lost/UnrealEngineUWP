@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RayTracingGeometryManager.h"
+#include "Rendering/RayTracingGeometryManager.h"
 
 #include "RHIResources.h"
 #include "RHICommandList.h"
@@ -29,7 +29,11 @@ static FAutoConsoleVariableRef CVarRayTracingPendingBuildPriorityBoostPerFrame(
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Ray tracing pending builds"), STAT_RayTracingPendingBuilds, STATGROUP_SceneRendering);
 DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Ray tracing pending build primitives"), STAT_RayTracingPendingBuildPrimitives, STATGROUP_SceneRendering);
 
-FRayTracingGeometryManager GRayTracingGeometryManager;
+FRayTracingGeometryManager::~FRayTracingGeometryManager()
+{
+	check(GeometryBuildRequests.IsEmpty());
+	check(RegisteredGeometries.IsEmpty());
+}
 
 static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBuildPriority)
 {
