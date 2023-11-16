@@ -31,6 +31,15 @@ namespace EpicGames.Horde.Compute.Clients
 
 			/// <inheritdoc/>
 			public RemoteComputeSocket Socket => _source.Current;
+			
+			/// <inheritdoc/>
+			public string Ip => "127.0.0.1";
+			
+			/// <inheritdoc/>
+			public ConnectionMode ConnectionMode => ConnectionMode.Direct;
+			
+			/// <inheritdoc/>
+			public IReadOnlyDictionary<string, ConnectionMetadataPort> Ports => new Dictionary<string, ConnectionMetadataPort>();
 
 			public LeaseImpl(IAsyncEnumerator<RemoteComputeSocket> source) => _source = source;
 

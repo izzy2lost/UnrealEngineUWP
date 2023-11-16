@@ -21,6 +21,9 @@ namespace EpicGames.Horde.Compute.Clients
 			public IReadOnlyList<string> Properties { get; } = new List<string>();
 			public IReadOnlyDictionary<string, int> AssignedResources => new Dictionary<string, int>();
 			public RemoteComputeSocket Socket => _socket;
+			public string Ip => "127.0.0.1";
+			public ConnectionMode ConnectionMode => ConnectionMode.Direct;
+			public IReadOnlyDictionary<string, ConnectionMetadataPort> Ports => new Dictionary<string, ConnectionMetadataPort>();
 
 			readonly RemoteComputeSocket _socket;
 
