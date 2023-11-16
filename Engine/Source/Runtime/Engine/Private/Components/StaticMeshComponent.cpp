@@ -2495,35 +2495,35 @@ void UStaticMeshComponent::SetEvaluateWorldPositionOffsetInRayTracing(bool NewVa
 
 void UStaticMeshComponent::SetEvaluateWorldPositionOffset(bool NewValue)
 {
-	// Skip when this doesn't have a valid static mesh or a valid scene
-	if (!GetStaticMesh() || GetScene() == nullptr || SceneProxy == nullptr)
-	{
-		return;
-	}
-
 	if (bEvaluateWorldPositionOffset != NewValue)
 	{
 		// Update game thread data
 		bEvaluateWorldPositionOffset = NewValue;
-		// Update render thread data
-		SceneProxy->SetEvaluateWorldPositionOffset_GameThread(NewValue);
+
+		// make sure this has a valid static mesh and a valid scene
+		if (GetStaticMesh() && GetScene() && SceneProxy)
+		{
+			// Update render thread data
+			SceneProxy->SetEvaluateWorldPositionOffset_GameThread(NewValue);
+		}
 	}
 }
 
 void UStaticMeshComponent::SetWorldPositionOffsetDisableDistance(int32 NewValue)
 {
-	// Skip when this doesn't have a valid static mesh or a valid scene
-	if (!GetStaticMesh() || GetScene() == nullptr || SceneProxy == nullptr)
-	{
-		return;
-	}
+	
 
 	if (WorldPositionOffsetDisableDistance != NewValue)
 	{
 		// Update game thread data
 		WorldPositionOffsetDisableDistance = NewValue;
-		// Update render thread data
-		SceneProxy->SetWorldPositionOffsetDisableDistance_GameThread(NewValue);
+
+		// make sure this has a valid static mesh and a valid scene
+		if (GetStaticMesh() && GetScene() && SceneProxy)
+		{
+			// Update render thread data
+			SceneProxy->SetWorldPositionOffsetDisableDistance_GameThread(NewValue);
+		}
 	}
 }
 

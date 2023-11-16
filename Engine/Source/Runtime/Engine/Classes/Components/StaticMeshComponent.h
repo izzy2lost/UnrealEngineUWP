@@ -400,9 +400,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|LOD")
 	ENGINE_API void SetWorldPositionOffsetDisableDistance(int32 NewValue);
 
-	/** Get the initial value of bEvaluateWorldPositionOffset. This is the value when BeginPlay() was last called. */
+	/** Get the initial value of bEvaluateWorldPositionOffset. This is the value when BeginPlay() was last called, or if UpdateInitialEvaluateWorldPositionOffset is called. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering|LOD")
 	bool GetInitialEvaluateWorldPositionOffset() { return bInitialEvaluateWorldPositionOffset; }
+
+	/** This manually updates the initial value of bEvaluateWorldPositionOffset to be the current value.
+	 *	This is useful if the default value of bEvaluateWorldPositionOffset is changed after constructing
+	 *	the component. */
+	UFUNCTION(BlueprintCallable, Category = "Rendering|LOD")
+	void UpdateInitialEvaluateWorldPositionOffset() { bInitialEvaluateWorldPositionOffset = bEvaluateWorldPositionOffset; }
 
 	/** 
 	 * Get Local bounds
