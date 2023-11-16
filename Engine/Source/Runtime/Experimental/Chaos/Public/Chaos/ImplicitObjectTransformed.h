@@ -347,7 +347,14 @@ public:
 protected:
 	virtual int32 CountObjectsInHierarchyImpl() const override final
 	{
+		// Include self
 		return 1 + MObject->CountObjectsInHierarchy();
+	}
+
+	virtual int32 CountLeafObjectsInHierarchyImpl() const override final
+	{
+		// Do not include self
+		return MObject->CountLeafObjectsInHierarchyImpl();
 	}
 
 	virtual void VisitOverlappingLeafObjectsImpl(

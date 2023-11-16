@@ -233,6 +233,7 @@ protected:
 	}
 
 	CHAOS_API virtual int32 CountObjectsInHierarchyImpl() const override final;
+	CHAOS_API virtual int32 CountLeafObjectsInHierarchyImpl() const override final;
 
 	CHAOS_API virtual void VisitOverlappingLeafObjectsImpl(
 		const FAABB3& LocalBounds,

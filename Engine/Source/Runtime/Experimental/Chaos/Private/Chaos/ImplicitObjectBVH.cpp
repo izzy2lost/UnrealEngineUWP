@@ -8,6 +8,8 @@ namespace Chaos
 	namespace CVars
 	{
 		extern FRealSingle ChaosUnionBVHSplitBias;
+
+		extern bool bChaosImplicitBVHOptimizedCountLeafObjects;
 	}
 
 	namespace Private
@@ -42,16 +44,26 @@ namespace Chaos
 		int32 FImplicitBVH::CountLeafObjects(const TArrayView<const Chaos::FImplicitObjectPtr>& InRootObjects)
 		{
 			// Count the objects in the hierarchy
-			// @todo(chaos): provide a visitor that does not check bounds
 			int32 NumObjects = 0;
-			for (const Chaos::FImplicitObjectPtr& RootObject : InRootObjects)
+			if (CVars::bChaosImplicitBVHOptimizedCountLeafObjects)
 			{
-				RootObject->VisitLeafObjects(
-					[&NumObjects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
-					{ 
-						++NumObjects;
-					});
+				for (const Chaos::FImplicitObjectPtr& RootObject : InRootObjects)
+				{
+					NumObjects += RootObject->CountLeafObjectsInHierarchy();
+				}
 			}
+			else
+			{
+				for (const Chaos::FImplicitObjectPtr& RootObject : InRootObjects)
+				{
+					RootObject->VisitLeafObjects(
+						[&NumObjects](const FImplicitObject* Object, const FRigidTransform3& ParentTransform, const int32 RootObjectIndex, const int32 ObjectIndex, const int32 LeafObjectIndex)
+						{ 
+							++NumObjects;
+						});
+				}
+			}
+
 			return NumObjects;
 		}
 		

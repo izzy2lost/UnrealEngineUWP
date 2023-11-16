@@ -457,6 +457,11 @@ public:
 		return CountObjectsInHierarchyImpl();
 	}
 
+	int32 CountLeafObjectsInHierarchy() const
+	{
+		return CountLeafObjectsInHierarchyImpl();
+	}
+
 	/**
 	* Visit all the leaf objects in the hierarchy that overlap the specified local-space bounds.
 	* NOTE: Templated decorators like Instanced and Scaled cound as leafs, but object decorators like Transformed do not.
@@ -508,6 +513,10 @@ public:
 //protected:
 	// This should not be public, but it needs to be callable by derived classes on another instance
 	virtual int32 CountObjectsInHierarchyImpl() const
+	{
+		return 1;
+	}
+	virtual int32 CountLeafObjectsInHierarchyImpl() const
 	{
 		return 1;
 	}

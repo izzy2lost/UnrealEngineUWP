@@ -32,6 +32,12 @@ namespace Chaos
 		// a random child. See FImplicitBVH::Partition.
 		FRealSingle ChaosUnionBVHSplitBias = 0.1f;
 		FAutoConsoleVariableRef CVarChaosUnionBVHSplitBias(TEXT("p.Chaos.Collision.UnionBVH.SplitBias"), ChaosUnionBVHSplitBias, TEXT(""));
+
+		// Use the new FImplicitObject::CountLeafObjectsInHierarchy to count leaf objects
+		// @todo: remove this when tested
+		bool bChaosImplicitBVHOptimizedCountLeafObjects = true;
+		FAutoConsoleVariableRef CVarChaosImplicitBVHOptimizedCountLeafObjects(TEXT("p.Chaos.Collision.UnionBVH.UseOptimizedCountLeafObjects"), bChaosImplicitBVHOptimizedCountLeafObjects, TEXT(""));
+
 	}
 
 inline FAABB3 CalculateObjectsBounds(const TArrayView<FImplicitObjectPtr>& Objects)
@@ -76,7 +82,7 @@ FImplicitObjectUnion::FImplicitObjectUnion(TArray<Chaos::FImplicitObjectPtr>&& O
 	ensure(MObjects.Num());
 
 	MLocalBoundingBox = CalculateObjectsBounds(MakeArrayView(MObjects));
-	SetNumLeafObjects(CountObjectsInHierarchy());
+	SetNumLeafObjects(Private::FImplicitBVH::CountLeafObjects(MakeArrayView(GetObjects())));
 }
 
 FImplicitObjectUnion::FImplicitObjectUnion(FImplicitObjectUnion&& Other)
@@ -220,6 +226,20 @@ int32 FImplicitObjectUnion::CountObjectsInHierarchyImpl() const
 	for (const Chaos::FImplicitObjectPtr& Object : GetObjects())
 	{
 		 NumObjects += Object->CountObjectsInHierarchy();
+	}
+
+	return NumObjects;
+}
+
+int32 FImplicitObjectUnion::CountLeafObjectsInHierarchyImpl() const
+{
+	// Do not count Self
+	int32 NumObjects = 0;
+
+	// Children
+	for (const Chaos::FImplicitObjectPtr& Object : GetObjects())
+	{
+		NumObjects += Object->CountLeafObjectsInHierarchyImpl();
 	}
 
 	return NumObjects;
