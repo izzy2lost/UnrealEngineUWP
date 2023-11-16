@@ -181,22 +181,30 @@ void FDataflowEditorCommands::EvaluateTerminalNode(Dataflow::FContext& Context, 
 				{
 					if (Node->GetTimestamp() >= OutLastNodeTimestamp)
 					{
-						Context.Evaluate(Node, nullptr);
-						OutLastNodeTimestamp = Context.GetTimestamp();
-
 						if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 						{
 							if (InAsset)
 							{
-								TerminalNode->SetAssetValue(InAsset, Context);
+								TerminalNode->SetAssetValue(InAsset, Context);  // Must set asset value before call to Evaluate
 							}
 						}
+
+						Context.Evaluate(Node, nullptr);
+						OutLastNodeTimestamp = Context.GetTimestamp();
 					}
 				}
 				else // Output != nullptr
 				{
 					if (!Context.HasData(Output->CacheKey(), Context.GetTimestamp()))
 					{
+						if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
+						{
+							if (InAsset)
+							{
+								TerminalNode->SetAssetValue(InAsset, Context);  // Must set asset value before call to Evaluate
+							}
+						}
+
 						Context.Evaluate(Node, Output);
 					}
 				}
