@@ -13,9 +13,8 @@ struct FSlateBrush;
 
 #define LOCTEXT_NAMESPACE "ViewportToolBar"
 
-void SViewportToolBar::Construct( const FArguments& InArgs )
+void SViewportToolBar::Construct(const FArguments& InArgs)
 {
-	bIsHovered = false;
 }
 
 TWeakPtr<SMenuAnchor> SViewportToolBar::GetOpenMenu() const
