@@ -161,8 +161,7 @@
 #include "Misc/ScopedSlowTask.h"
 
 #include "NiagaraActions.h"
-
-#include "NiagaraDataChannel.h"
+#include "Customizations/SimCache/FNiagaraDataChannelSimCacheVisualizer.h"
 
 #include "Engine/AssetManager.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyCommands.h"
@@ -1424,6 +1423,9 @@ void FNiagaraEditorModule::StartupModule()
 	MessageManager->RegisterMessageTopic(FNiagaraMessageTopics::CompilerTopicName);
 	MessageManager->RegisterMessageTopic(FNiagaraMessageTopics::ObjectTopicName);
 
+	// Register sim cache visualizers
+	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceDataChannelWrite::StaticClass(), MakeShared<FNiagaraDataChannelSimCacheVisualizer>());
+
 #if NIAGARA_PERF_BASELINES
 	UNiagaraEffectType::OnGeneratePerfBaselines().BindRaw(this, &FNiagaraEditorModule::GeneratePerfBaselines);
 #endif
@@ -1718,6 +1720,28 @@ void FNiagaraEditorModule::UnregisterWidgetProvider(TSharedRef<INiagaraEditorWid
 TSharedRef<INiagaraEditorWidgetProvider> FNiagaraEditorModule::GetWidgetProvider() const
 {
 	return WidgetProvider.ToSharedRef();
+}
+
+void FNiagaraEditorModule::RegisterDataInterfaceCacheVisualizer(UClass* DataInterfaceClass, TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> InCacheVisualizer)
+{
+	DataInterfaceVisualizers.FindOrAdd(DataInterfaceClass).AddUnique(InCacheVisualizer);
+}
+
+void FNiagaraEditorModule::UnregisterDataInterfaceCacheVisualizer(UClass* DataInterfaceClass, TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> InCacheVisualizer)
+{
+	if (TArray<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>>* CacheVisualizers = DataInterfaceVisualizers.Find(DataInterfaceClass))
+	{
+		CacheVisualizers->Remove(InCacheVisualizer);
+	}
+}
+
+TArrayView<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>> FNiagaraEditorModule::FindDataInterfaceCacheVisualizer(UClass* DataInterfaceClass)
+{
+	if (TArray<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>>* CacheVisualizers = DataInterfaceVisualizers.Find(DataInterfaceClass))
+	{
+		return *CacheVisualizers;
+	}
+	return TArrayView<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>>();
 }
 
 TSharedRef<FNiagaraScriptMergeManager> FNiagaraEditorModule::GetScriptMergeManager() const

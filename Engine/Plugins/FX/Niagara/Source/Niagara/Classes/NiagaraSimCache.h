@@ -442,6 +442,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
 	NIAGARA_API TArray<FName> GetEmitterNames() const;
 
+	/** Returns a list of data interfaces we have captured in the SimCache. */
+	NIAGARA_API TArray<FNiagaraVariableBase> GetStoredDataInterfaces() const;
+	
+	/** Returns the actual data we have captured in the SimCache for the given data interface. */
+	NIAGARA_API UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
+
 	/**
 	Get number of active instances for the emitter at the given frame.
 	An EmitterIndex or INDEX_NONE will return information about the system instance.

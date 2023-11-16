@@ -19,6 +19,8 @@ class UNiagaraSimCacheCustomStorageInterface : public UInterface
 /**
 The current API for storing data inside a simulation cache.
 This is highly experimental and the API will change as we split editor / runtime data storage.
+
+See INiagaraDataInterfaceSimCacheVisualizer to implement a custom visualizer widget for the stored data.
 */
 class INiagaraSimCacheCustomStorageInterface
 {

@@ -1731,7 +1731,6 @@ struct FNiagaraVariable : public FNiagaraVariableBase
 	template<typename T>
 	void SetValue(const T& Data)
 	{
-		static_assert(!TIsUECoreVariant<T, double>::Value, "Double core variant, please use SetDoubleValue.");
 		check(sizeof(T) == TypeDefHandle->GetSize());
 		AllocateData();
 		FMemory::Memcpy(VarData.GetData(), &Data, VarData.Num());
@@ -1740,7 +1739,6 @@ struct FNiagaraVariable : public FNiagaraVariableBase
 	template<typename T>
 	T GetValue() const
 	{
-		static_assert(!TIsUECoreVariant<T, double>::Value, "Double core variant, please use GetDoubleValue.");
 		check(sizeof(T) == TypeDefHandle->GetSize());
 		check(IsDataAllocated());
 		T Value;

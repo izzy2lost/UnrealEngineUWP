@@ -12,6 +12,7 @@
 #include "NiagaraPerfBaseline.h"
 #include "NiagaraDebuggerCommon.h"
 #include "NiagaraRendererProperties.h"
+#include "Customizations/NiagaraDataInterfaceSimCacheVisualizer.h"
 #include "NiagaraEditorModule.generated.h"
 
 class IAssetTools;
@@ -78,7 +79,7 @@ struct FReservedParameter
 
 public:
 	FReservedParameter()
-		: Parameter(FNiagaraVariable())
+		: Parameter(FNiagaraVariableBase())
 		, ReservingDefinitionsAsset(nullptr)
 	{};
 
@@ -182,6 +183,11 @@ public:
 	NIAGARAEDITOR_API void UnregisterWidgetProvider(TSharedRef<INiagaraEditorWidgetProvider> InWidgetProvider);
 
 	TSharedRef<INiagaraEditorWidgetProvider> GetWidgetProvider() const;
+
+	
+	NIAGARAEDITOR_API void RegisterDataInterfaceCacheVisualizer(UClass* DataInterfaceClass, TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> InCacheVisualizer);
+	NIAGARAEDITOR_API void UnregisterDataInterfaceCacheVisualizer(UClass* DataInterfaceClass, TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> InCacheVisualizer);
+	TArrayView<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>> FindDataInterfaceCacheVisualizer(UClass* DataInterfaceClass);
 
 	TSharedRef<FNiagaraScriptMergeManager> GetScriptMergeManager() const;
 
@@ -415,6 +421,8 @@ private:
 	TObjectPtr<USequencerSettings> SequencerSettings;
 
 	TSharedPtr<INiagaraEditorWidgetProvider> WidgetProvider;
+
+	TMap<TObjectKey<UClass>, TArray<TSharedRef<INiagaraDataInterfaceSimCacheVisualizer>>> DataInterfaceVisualizers;
 
 	TSharedPtr<FNiagaraScriptMergeManager> ScriptMergeManager;
 

@@ -819,7 +819,7 @@ void FNiagaraEditorStyle::InitSimCacheEditor()
 		.SetInactiveBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive))
 		.SetInactiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive)));
 
-	Set("NiagaraEditor.SimCache.EmitterItem", FTableRowStyle()
+	FTableRowStyle EmitterStyle = FTableRowStyle()
 		.SetEvenRowBackgroundBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SystemBackground))
 		.SetEvenRowBackgroundHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive))
 		.SetOddRowBackgroundBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SystemBackground))
@@ -828,7 +828,8 @@ void FNiagaraEditorStyle::InitSimCacheEditor()
 		.SetActiveBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor))
 		.SetActiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor))
 		.SetInactiveBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive))
-		.SetInactiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive)));
+		.SetInactiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive));
+	Set("NiagaraEditor.SimCache.EmitterItem", EmitterStyle);
 
 	Set("NiagaraEditor.SimCache.ComponentItem", FTableRowStyle()
 		.SetEvenRowBackgroundBrush(FSlateNoResource())
@@ -840,6 +841,9 @@ void FNiagaraEditorStyle::InitSimCacheEditor()
 		.SetActiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor))
 		.SetInactiveBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive))
 		.SetInactiveHoveredBrush(CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, SelectionColor_Inactive)));
+
+	FTableRowStyle DataInterfaceStyle = EmitterStyle;
+	Set("NiagaraEditor.SimCache.DataInterfaceItem", DataInterfaceStyle);
 
 	const FLinearColor NormalColor(0.15, 0.15, 0.15, 1);
 

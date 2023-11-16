@@ -72,7 +72,7 @@ struct FNDIDataChannelWriteSimCacheFrame
 	bool bVisibleToGPUSims = false;
 };
 
-UCLASS()
+UCLASS(MinimalAPI)
 class UNDIDataChannelWriteSimCacheData : public UObject
 {
 	GENERATED_BODY()
@@ -81,6 +81,9 @@ public:
 
 	UPROPERTY()
 	TArray<FNDIDataChannelWriteSimCacheFrame> FrameData;
+
+	UPROPERTY()
+	FSoftObjectPath DataChannelReference;
 };
 
 

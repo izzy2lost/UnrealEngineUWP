@@ -857,6 +857,22 @@ TArray<FName> UNiagaraSimCache::GetEmitterNames() const
 	return EmitterNames;
 }
 
+TArray<FNiagaraVariableBase> UNiagaraSimCache::GetStoredDataInterfaces() const
+{
+	TArray<FNiagaraVariableBase> DataInterfaces;
+	DataInterfaceStorage.GenerateKeyArray(DataInterfaces);
+	return DataInterfaces;
+}
+
+UObject* UNiagaraSimCache::GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const
+{
+	if (const TObjectPtr<UObject>* StoredObject = DataInterfaceStorage.Find(DataInterface))
+	{
+		return StoredObject->Get();
+	}
+	return nullptr;
+}
+
 int UNiagaraSimCache::GetEmitterNumInstances(int32 EmitterIndex, int32 FrameIndex) const
 {
 	if ( CacheFrames.IsValidIndex(FrameIndex) )
