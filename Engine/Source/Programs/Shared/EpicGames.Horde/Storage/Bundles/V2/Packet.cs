@@ -47,6 +47,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	[DebuggerTypeProxy(typeof(Packet.DebugProxy))]
 	public sealed class Packet
 	{
+		/// <summary>
+		/// Type for packet blobs
+		/// </summary>
+		public static BlobType BlobType { get; } = new BlobType(Guid.Parse("{CD9A04EF-CAC1-47D3-A605-2A498130E651}"), 1);
+
 		class DebugProxy
 		{
 			public BlobType[] Types { get; }
@@ -68,6 +73,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="data">Data for the packet</param>
 		public Packet(ReadOnlyMemory<byte> data) => _data = data;
+
+		/// <summary>
+		/// Accessor for the underlying packet data
+		/// </summary>
+		public ReadOnlyMemory<byte> Data => _data;
 
 		/// <summary>
 		/// Length of this packet

@@ -14,11 +14,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	public class PacketHandle : IBlobHandle
 	{
-		/// <summary>
-		/// Type for packet blobs
-		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType(Guid.Parse("{CD9A04EF-CAC1-47D3-A605-2A498130E651}"), 1);
-
 		static readonly Utf8String s_fragmentPrefix = new Utf8String("pkt=");
 
 		readonly IStorageClient _storageClient;
@@ -98,9 +93,18 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
 		{
-			throw new NotImplementedException();
+			try
+			{
+				using IRefCountedHandle<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
+				return packetReaderHandle.Target.Read();
+			}
+			catch (Exception ex)
+			{
+				BlobLocator locator = this.GetLocator();
+				throw new StorageException($"Unable to read {locator}: {ex.Message}", ex);
+			}
 		}
 
 		/// <summary>

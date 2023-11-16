@@ -15,8 +15,13 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		readonly IBlobHandle _bundleHandle;
 		readonly PacketHandle _packetHandle;
 		readonly Packet _decodedPacket;
-		readonly IRefCountedHandle? _memoryOwner;
+		readonly IRefCountedHandle _memoryOwner;
 		readonly IBlobHandle?[] _cachedImportHandles;
+
+		/// <summary>
+		/// Accessor for the underlying packet data
+		/// </summary>
+		public Packet Packet => _decodedPacket;
 
 		/// <summary>
 		/// Constructor
@@ -27,7 +32,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <param name="packetHandle"></param>
 		/// <param name="decodedPacket">Data for the packet</param>
 		/// <param name="memoryOwner">Owner for the packet data</param>
-		public PacketReader(IStorageClient storageClient, BundleCache cache, IBlobHandle bundleHandle, PacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle? memoryOwner)
+		public PacketReader(IStorageClient storageClient, BundleCache cache, IBlobHandle bundleHandle, PacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
 		{
 			_storageClient = storageClient;
 			_cache = cache;
@@ -40,6 +45,19 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		/// <inheritdoc/>
 		public void Dispose() => _memoryOwner?.Dispose();
+
+		/// <summary>
+		/// Reads this packet in its entirety
+		/// </summary>
+		public BlobData Read()
+		{
+			IBlobHandle[] imports = new IBlobHandle[_decodedPacket.GetImportCount()];
+			for (int idx = 0; idx < imports.Length; idx++)
+			{
+				imports[idx] = GetImportHandle(idx);
+			}
+			return new BlobDataWithOwner(Packet.BlobType, _decodedPacket.Data, imports, _memoryOwner.AddRef());
+		}
 
 		/// <summary>
 		/// Reads an export from this packet
