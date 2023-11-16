@@ -101,7 +101,7 @@ namespace UE::AnimNext
 		}
 
 		// Returns the bound graph instance
-		const FAnimNextGraphInstance& GetGraphInstance() const
+		FAnimNextGraphInstance& GetGraphInstance() const
 		{
 			return ExecutionContext.GetGraphInstance();
 		}

@@ -89,7 +89,7 @@ namespace UE::AnimNext
 		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const { return GraphInstance->GetComponentIterator(); }
 
 		// Returns the bound graph instance
-		const FAnimNextGraphInstance& GetGraphInstance() const { return *GraphInstance; }
+		FAnimNextGraphInstance& GetGraphInstance() const { return *GraphInstance; }
 
 	private:
 		// No copy or move

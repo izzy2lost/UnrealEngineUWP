@@ -86,6 +86,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Check to see if this instance data matches the provided graph
 	bool UsesGraph(const UAnimNextGraph* InGraph) const;
 
+	// Adds strong/hard object references during GC
+	void AddStructReferencedObjects(class FReferenceCollector& Collector);
+
 	// Returns a typed graph instance component, creating it lazily the first time it is queried
 	template<class ComponentType>
 	ComponentType& GetComponent();
@@ -124,6 +127,15 @@ private:
 
 	friend UAnimNextGraph;					// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
+};
+
+template<>
+struct TStructOpsTypeTraits<FAnimNextGraphInstance> : public TStructOpsTypeTraitsBase2<FAnimNextGraphInstance>
+{
+	enum
+	{
+		WithAddStructReferencedObjects = true,
+	};
 };
 
 // A user-created graph of logic used to supply data
@@ -258,7 +270,7 @@ ComponentType* FAnimNextGraphInstance::TryGetComponent()
 	const FName ComponentName = ComponentType::StaticComponentName();
 	const int32 ComponentNameHash = GetTypeHash(ComponentName);
 
-	return *static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
+	return static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
 }
 
 template<class ComponentType>
@@ -267,5 +279,5 @@ const ComponentType* FAnimNextGraphInstance::TryGetComponent() const
 	const FName ComponentName = ComponentType::StaticComponentName();
 	const int32 ComponentNameHash = GetTypeHash(ComponentName);
 
-	return *static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
+	return static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
 }

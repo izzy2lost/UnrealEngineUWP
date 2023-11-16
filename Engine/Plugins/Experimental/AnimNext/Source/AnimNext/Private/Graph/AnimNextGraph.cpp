@@ -10,6 +10,7 @@
 #include "DecoratorBase/DecoratorReader.h"
 #include "DecoratorBase/ExecutionContext.h"
 #include "Graph/AnimNext_LODPose.h"
+#include "Graph/GC_GraphInstanceComponent.h"
 #include "Serialization/MemoryReader.h"
 #include "AnimNextStats.h"
 
@@ -165,6 +166,14 @@ const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
 bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
 {
 	return Graph == InGraph;
+}
+
+void FAnimNextGraphInstance::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	if (const UE::AnimNext::FGCGraphInstanceComponent* Component = TryGetComponent<UE::AnimNext::FGCGraphInstanceComponent>())
+	{
+		Component->AddReferencedObjects(Collector);
+	}
 }
 
 UE::AnimNext::FGraphInstanceComponent* FAnimNextGraphInstance::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
