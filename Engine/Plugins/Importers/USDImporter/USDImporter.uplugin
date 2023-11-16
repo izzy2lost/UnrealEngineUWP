@@ -21,7 +21,7 @@
 		{
 			"Name": "UnrealUSDWrapper",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PreDefault"
 		},
 		{
 			"Name": "USDUtilities",
