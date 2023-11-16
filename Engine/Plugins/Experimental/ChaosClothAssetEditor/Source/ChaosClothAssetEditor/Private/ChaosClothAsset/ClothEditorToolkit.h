@@ -117,7 +117,9 @@ private:
 	void InvalidateViews();
 
 	// Dataflow
-	void EvaluateNode(FDataflowNode* Node, FDataflowOutput* Out);
+	UE_DEPRECATED(5.4, "Use EvaluateNode(FDataflowNode*, bool) instead.")
+	void EvaluateNode(FDataflowNode* Node, FDataflowOutput* Out) { EvaluateNode(Node); }
+	void EvaluateNode(FDataflowNode* Node, bool bForceOperation = true);
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget();
 	void ReinitializeGraphEditorWidget();
 	TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
@@ -151,7 +153,6 @@ private:
 
 	// Dataflow
 	UDataflow* Dataflow = nullptr;
-	FString DataflowTerminalPath = "";
 	TSharedPtr<Dataflow::FEngineContext> DataflowContext;
 	Dataflow::FTimestamp LastDataflowNodeTimestamp = Dataflow::FTimestamp::Invalid;
 	FDelegateHandle OnNodeInvalidatedDelegateHandle;

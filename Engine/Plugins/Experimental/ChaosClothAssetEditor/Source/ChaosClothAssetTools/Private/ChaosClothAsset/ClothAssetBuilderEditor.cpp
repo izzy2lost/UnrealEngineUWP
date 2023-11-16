@@ -6,6 +6,7 @@
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Utils/ClothingMeshUtils.h"
@@ -14,6 +15,8 @@
 #include "PointWeightMap.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothAssetBuilderEditor)
+
+#define LOCTEXT_NAMESPACE "ClothAssetBuilderEditor"
 
 void UClothAssetBuilderEditor::BuildLod(FSkeletalMeshLODModel& LODModel, const UChaosClothAsset& ClothAsset, int32 LodIndex) const
 {
@@ -75,6 +78,9 @@ void UClothAssetBuilderEditor::BuildLod(FSkeletalMeshLODModel& LODModel, const U
 	// Populate this LOD's sections and the LOD index buffer
 	const int32 NumSections = ClothFacade.GetNumRenderPatterns();  // Cloth Render Patterns == Skeletal Mesh Sections
 	LODModel.Sections.SetNum(NumSections);
+
+	FScopedSlowTask SlowTask((float)ClothFacade.GetNumRenderFaces(), LOCTEXT("ClothAssetBuildLOD", "Building Cloth Asset LOD sections..."));
+	SlowTask.MakeDialogDelayed(1.f);
 
 	int32 BaseIndex = 0;
 	for(int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
@@ -306,6 +312,8 @@ void UClothAssetBuilderEditor::BuildLod(FSkeletalMeshLODModel& LODModel, const U
 
 		// Copy to user section data, otherwise the section data set above would get lost when the user section gets synced
 		FSkelMeshSourceSectionUserData::GetSourceSectionUserData(LODModel.UserSectionsData, Section);
+
+		SlowTask.EnterProgressFrame(NumFaces);
 	}
 
 
@@ -318,3 +326,5 @@ void UClothAssetBuilderEditor::BuildLod(FSkeletalMeshLODModel& LODModel, const U
 	// Compute the required bones for this model.
 	USkeletalMesh::CalculateRequiredBones(LODModel, ClothAsset.RefSkeleton, nullptr);
 }
+
+#undef LOCTEXT_NAMESPACE
