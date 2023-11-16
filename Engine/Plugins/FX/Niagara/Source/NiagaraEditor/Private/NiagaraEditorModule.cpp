@@ -2079,7 +2079,7 @@ void FNiagaraEditorModule::AddReferencedObjects(FReferenceCollector& Collector)
 
 void FNiagaraEditorModule::OnPreGarbageCollection()
 {
-	if (IsRunningCommandlet())
+	if (IsRunningCommandlet() && !IsEngineExitRequested())
 	{
 		// For commandlets like GenerateDistillFileSetsCommandlet, they just load the package and do some hierarchy navigation within it 
 		// tracking sub-assets, then they garbage collect. Since nothing is holding onto the system at the root level, it will be summarily
