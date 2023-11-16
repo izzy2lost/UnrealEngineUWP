@@ -3466,6 +3466,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// End early occlusion queries
 
+		for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
+		{
+			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder);
+		}
+
 		BeginAsyncDistanceFieldShadowProjections(GraphBuilder, SceneTextures, InitViewTaskDatas.DynamicShadows);
 
 		// Run local fog volume culling before base pass and after HZB generation tyo benefit from more culling.
