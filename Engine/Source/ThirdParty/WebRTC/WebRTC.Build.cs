@@ -99,7 +99,7 @@ public class WebRTC : ModuleRules
 				string LibraryPath = Path.Combine(WebRtcSdkPath, "Lib", PlatformSubdir, Target.Architecture.LinuxName, ConfigPath);
 				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "libwebrtc.a"));
 			}
-			else if (Target.Platform == UnrealTargetPlatform.Mac)
+			else if (Target.Platform == UnrealTargetPlatform.Mac && bShouldUse5414WebRTC)
             {
 				// NOTE: We can't use Target.Platform.IsInGroup(UnrealPlatformGroup.Apple) because that includes tvOS and iOS which we don't support
                 PublicDefinitions.Add("WEBRTC_MAC=1");
