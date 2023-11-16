@@ -1084,8 +1084,6 @@ void URigVMBlueprint::PostLoad()
 	// in which case we have to refresh the model
 	FRigVMRegistry::Get().OnRigVMRegistryChanged().RemoveAll(this);
 	FRigVMRegistry::Get().OnRigVMRegistryChanged().AddUObject(this, &URigVMBlueprint::OnRigVMRegistryChanged);
-	
-	UEdGraphPin::ResolveAllPinReferences();
 }
 
 #if WITH_EDITORONLY_DATA
