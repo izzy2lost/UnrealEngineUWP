@@ -422,7 +422,7 @@ bool FPCGAttributeSelectElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+	FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[0]);
 	Output.Data = OutputParamData;
 	Output.Pin = PCGAttributeSelectConstants::OutputAttributeLabel;
 
@@ -436,7 +436,7 @@ bool FPCGAttributeSelectElement::ExecuteInternal(FPCGContext* Context) const
 		OutputPointData->InitializeFromData(PointData);
 		OutputPointData->GetMutablePoints().Add(PointData->GetPoint(OutputIndex));
 
-		FPCGTaggedData& PointOutput = Outputs.Emplace_GetRef();
+		FPCGTaggedData& PointOutput = Outputs.Add_GetRef(Inputs[0]);
 		PointOutput.Data = OutputPointData;
 		PointOutput.Pin = PCGAttributeSelectConstants::OutputPointLabel;
 	}

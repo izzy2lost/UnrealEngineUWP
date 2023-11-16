@@ -175,10 +175,10 @@ bool FPCGAttributeTransferElement::ExecuteInternal(FPCGContext* Context) const
 	UPCGSpatialData* OutputData = TargetData->DuplicateData();
 	check(OutputData->Metadata);
 
-	auto AppendOutputData = [Context, OutputData]()
+	auto AppendOutputData = [Context, OutputData, &TargetInputs]()
 	{
 		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-		FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+		FPCGTaggedData& Output = Outputs.Add_GetRef(TargetInputs[0]);
 		Output.Data = OutputData;
 	};
 

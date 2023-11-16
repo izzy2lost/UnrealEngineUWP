@@ -76,9 +76,8 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			if (PartitionData)
 			{
-				FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+				FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 				Output.Data = PartitionData;
-				Output.Tags = Input.Tags;
 			}
 		}
 	}

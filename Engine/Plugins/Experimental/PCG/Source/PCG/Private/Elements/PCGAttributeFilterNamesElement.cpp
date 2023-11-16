@@ -172,7 +172,7 @@ bool FPCGAttributeFilterNamesElement::ExecuteInternal(FPCGContext* Context) cons
 		}
 
 		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-		FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+		FPCGTaggedData& Output = Outputs.Add_GetRef(InputTaggedData);
 		Output.Data = OutputData;
 	}
 

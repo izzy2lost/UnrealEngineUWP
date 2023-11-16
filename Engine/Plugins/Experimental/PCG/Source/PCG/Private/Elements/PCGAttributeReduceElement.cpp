@@ -302,7 +302,7 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (ensure(OutputParams) && (Outputs.IsEmpty() || !Settings->bMergeOutputAttributes))
 		{
-			FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+			FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[i]);
 			Output.Data = OutputParams;
 		}
 	}

@@ -120,7 +120,7 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 		OutputPointData->InitializeFromData(PointData);
 		OutputPointData->GetMutablePoints().Add(Point);
 
-		FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+		FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[0]);
 		Output.Data = OutputPointData;
 		Output.Pin = PCGAttributeGetFromPointIndexConstants::OutputPointLabel;
 	}
@@ -164,7 +164,7 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 
 		if (PCGMetadataAttribute::CallbackWithRightType(Accessor->GetUnderlyingType(), ExtractAttribute))
 		{
-			FPCGTaggedData& Output = Outputs.Emplace_GetRef();
+			FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[0]);
 			Output.Data = OutputParamData;
 			Output.Pin = PCGAttributeGetFromPointIndexConstants::OutputAttributeLabel;
 		}
