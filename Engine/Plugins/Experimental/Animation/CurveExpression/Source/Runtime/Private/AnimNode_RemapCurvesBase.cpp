@@ -104,7 +104,12 @@ const TMap<FName, CurveExpression::Evaluator::FExpressionObject>& FAnimNode_Rema
 	case ERemapCurvesExpressionSource::DataAsset:
 		if (CurveExpressionsDataAsset)
 		{
-			return CurveExpressionsDataAsset->GetCompiledExpressionMap();
+			CachedAssetExpressionData = CurveExpressionsDataAsset->GetCompiledExpressionData();
+			
+			if (CachedAssetExpressionData)
+			{
+				return CachedAssetExpressionData->ExpressionMap;
+			}
 		}
 	}
 
@@ -126,7 +131,12 @@ const TArray<FName>& FAnimNode_RemapCurvesBase::GetCompiledExpressionConstants()
 	case ERemapCurvesExpressionSource::DataAsset:
 		if (CurveExpressionsDataAsset)
 		{
-			return CurveExpressionsDataAsset->GetCompiledExpressionConstants();
+			CachedAssetExpressionData = CurveExpressionsDataAsset->GetCompiledExpressionData();
+			
+			if (CachedAssetExpressionData)
+			{
+				return CachedAssetExpressionData->NamedConstants;
+			}
 		}
 	}
 
