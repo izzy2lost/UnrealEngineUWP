@@ -550,6 +550,12 @@ void FConfigContext::AddStaticLayersToHierarchy(TArray<FString>* GatheredLayerFi
 		Layers = GPluginLayers;
 		NumLayers = UE_ARRAY_COUNT(GPluginLayers);
 	}
+	// let the context override the layers if needed
+	if (OverrideLayers.Num() > 0)
+	{
+		Layers = OverrideLayers.GetData();
+		NumLayers = OverrideLayers.Num();
+	}
 
 	// go over all the config layers
 	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)

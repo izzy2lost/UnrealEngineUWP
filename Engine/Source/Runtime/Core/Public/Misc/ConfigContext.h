@@ -193,6 +193,9 @@ public:
 	FString ProjectNoRedistDir;
 	TMap<FString, FPerPlatformDirs> PerPlatformDirs;
 
+	// allow a custom set of layers
+	TArray<FConfigLayer> OverrideLayers;
+	
 	bool bUseHierarchyCache = false;
 	bool bAllowGeneratedIniWhenCooked = false;
 	bool bForceReload = false;
