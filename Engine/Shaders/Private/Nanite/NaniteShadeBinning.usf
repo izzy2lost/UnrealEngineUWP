@@ -247,8 +247,8 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	);
 
 	const uint WaveLaneIndex = WaveGetLaneIndex();
-	const uint BlockThreadIndex = ThreadIndex & 3u;
-	const uint BlockFirstThread = ThreadIndex & 28u;
+	const uint BlockThreadIndex = WaveLaneIndex & 3u;
+	const uint BlockFirstThread = WaveLaneIndex & 28u;
 
 #if VARIABLE_SHADING_RATE
 	uint PixelShadingRate = ShadingRateImage[QuadTLCoord.xy >> ShadingRateTileSizeBits] & 0xFu;
@@ -485,8 +485,15 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 				// Assemble Quad masks into a 2x2 quad (4x4 pixel) mask
 				const uint BlockShift = (BlockThreadIndex * 4);
 				uint BlockMask = QuadMask << BlockShift;
+
+			#if PLATFORM_GPU_ARCH == PLATFORM_GPU_ARCH_UNKNOWN
+				// TODO: Workaround for Intel ARC
+				BlockMask |= WaveReadLaneAt(BlockMask, WaveGetLaneIndex() ^ 1u); 
+				BlockMask |= WaveReadLaneAt(BlockMask, WaveGetLaneIndex() ^ 2u);
+			#else
 				BlockMask |= QuadReadAcrossX(BlockMask);
 				BlockMask |= QuadReadAcrossY(BlockMask);
+			#endif
 
 				const uint ShiftedBlockMask = BlockMask >> BlockShift;
 				
