@@ -20,7 +20,7 @@
  *
  * This type is 16 bytes.
  */
-USTRUCT(BlueprintType, Category=GameFramework)
+USTRUCT(BlueprintType, Category=GameFramework, meta=(HasNativeMake="/Script/Engine.UniversalObjectLocatorScriptingExtensions.MakeUniversalObjectLocator"))
 struct FUniversalObjectLocator
 {
 	GENERATED_BODY()
