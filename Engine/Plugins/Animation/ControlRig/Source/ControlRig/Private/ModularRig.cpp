@@ -137,6 +137,11 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 			if (Module->Rig.IsValid())
 			{
 				UControlRig* Rig = Module->Rig.Get();
+
+				if (!Rig->SupportsEvent(InEventName))
+				{
+					return true;
+				}
 				
 				// Make sure the hierarchy has the correct element redirector from this module rig
 				FRigHierarchyRedirectorGuard ElementRedirectorGuard(Rig);

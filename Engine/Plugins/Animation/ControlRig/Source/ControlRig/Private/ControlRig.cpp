@@ -631,6 +631,12 @@ bool UControlRig::Execute(const FName& InEventName)
 		return false;
 	}
 
+	// Only top-level rigs should execute this function.
+	// Rig modules/nested rigs should run through Execute_Internal
+	ensureMsgf(GetTypedOuter<UControlRig>() == nullptr, TEXT("UControlRig::Execute running from a nested rig in %s"), *GetPackage()->GetPathName());
+	ensureMsgf(InEventName != FRigUnit_PreBeginExecution::EventName &&
+						InEventName != FRigUnit_PostBeginExecution::EventName, TEXT("Requested execution of invalid event %s on top level rig in %s"), *InEventName.ToString(), *GetPackage()->GetPathName());
+
 	bool bJustRanInit = false;
 	if(bRequiresInitExecution)
 	{
@@ -1016,9 +1022,16 @@ bool UControlRig::Execute(const FName& InEventName)
 				FControlRigBracketScope BracketScope(PreForwardsSolveBracket);
 				PreForwardsSolveEvent.Broadcast(this, FRigUnit_BeginExecution::EventName);
 			}
+
+			Execute_Internal(FRigUnit_PreBeginExecution::EventName);
 		}
 
 		bSuccess = Execute_Internal(InEventName);
+
+		if (bIsForwardSolve)
+		{
+			Execute_Internal(FRigUnit_PostBeginExecution::EventName);
+		}
 
 #if WITH_EDITOR
 		if (bEnableAnimAttributeTrace && ExternalAnimAttributeContainer != nullptr)
