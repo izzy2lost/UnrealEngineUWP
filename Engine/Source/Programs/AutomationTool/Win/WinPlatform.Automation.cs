@@ -748,6 +748,33 @@ public class Win64Platform : Platform
 	}
 
 	/// <summary>
+	/// Build a database of source code files in the current Perforce workspace.
+	/// By relying on the standard layout for UE projects i.e. the fact that source code is in Source directories,
+	/// we may very significantly reduce the about of data sent to us from the server.
+	/// </summary>
+	/// <param name="Pattern">Perforce pattern path to query e.g. //UE/Branch/.../Source/...</param>
+	/// <returns></returns>
+	protected static Dictionary<string, P4HaveRecord> BuildSourceDatabase(string Pattern)
+	{
+		List<P4HaveRecord> Files = null;
+
+		P4Connection DefaultConnection = new P4Connection(User: null, Client: null, ServerAndPort: null);
+
+		try
+		{
+			Files = DefaultConnection.HaveFiles(Pattern);
+		}
+		catch (P4Exception e)
+		{
+			Logger.LogError("Failed to fetch source code information from Perforce for '{Pattern}' ({Message}).", Pattern, e.Message);
+
+			return null;
+		}
+
+		return Files.ToDictionary(file => file.ClientFile, file => file, StringComparer.InvariantCultureIgnoreCase);
+	}
+
+	/// <summary>
 	/// 
 	/// </summary>
 	/// <param name="PdbFiles"></param>
@@ -759,6 +786,15 @@ public class Win64Platform : Platform
 	{
 		Logger.LogInformation("Adding source control information to PDB files...");
 
+		string DepotFilter = ".../Source/...";
+
+		Dictionary<string, P4HaveRecord> SourceDatabase = BuildSourceDatabase(DepotFilter);
+
+		if (SourceDatabase == null)
+		{
+			throw new AutomationException($"Failed to query the source code information for '{DepotFilter}'.");
+		}
+
 		// Get the PDBSTR.EXE path, using the latest SDK version we can find.
 		FileReference PdbStrExe = GetPdbStrExe();
 
@@ -769,21 +805,36 @@ public class Win64Platform : Platform
 		// Generate the SRCSRV.INI file
 		using (StreamWriter Writer = new StreamWriter(SrcSrvIni.FullName))
 		{
+			int MissingFilesCount = 0;
+
 			Writer.WriteLine("SRCSRV: ini------------------------------------------------");
 			Writer.WriteLine("VERSION=1");
 			Writer.WriteLine("VERCTRL=Perforce");
 			Writer.WriteLine("SRCSRV: variables------------------------------------------");
 			Writer.WriteLine("SRCSRVTRG=%sdtrg%");
 			Writer.WriteLine("SRCSRVCMD=%sdcmd%");
-			Writer.WriteLine("SDCMD=p4.exe print -o %srcsrvtrg% \"{0}/%var2%@{1}\"", Branch.TrimEnd('/'), Change);
-			Writer.WriteLine("SDTRG=%targ%\\{0}\\{1}\\%fnbksl%(%var2%)", Branch.Replace('/', '+'), Change);
+			Writer.WriteLine("SDCMD=p4.exe print -o %srcsrvtrg% \"//%var2%#%var3%\"");
+			Writer.WriteLine("SDTRG=%targ%\\%fnbksl%(%var2%)#%var3%");
 			Writer.WriteLine("SRCSRV: source files ---------------------------------------");
 			foreach (FileReference SourceFile in SourceFiles)
 			{
-				string RelativeSourceFile = SourceFile.MakeRelativeTo(Unreal.RootDirectory);
-				Writer.WriteLine("{0}*{1}", SourceFile.FullName, RelativeSourceFile.Replace('\\', '/'));
+				P4HaveRecord SourceInfo;
+
+				if (SourceDatabase.TryGetValue(SourceFile.FullName, out SourceInfo))
+				{
+					Writer.WriteLine("{0}*{1}*{2}", SourceFile.FullName, SourceInfo.DepotFile.Replace("//", ""), SourceInfo.Revision);
+				}
+				else
+				{
+					++MissingFilesCount;
+				}
 			}
 			Writer.WriteLine("SRCSRV: end------------------------------------------------");
+
+			if (MissingFilesCount > 0)
+			{
+				Logger.LogInformation("Skipped {MissingFilesCount} files (out of {SourceFileCount}) for which source control files couldn't be located.", MissingFilesCount, SourceFiles.Count());
+			}
 		}
 
 		// Execute PDBSTR on the PDB files in parallel.
