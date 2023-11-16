@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "ConsolidatedMultiStreamModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
+#include "Replication/Editor/View/IReplicationStreamEditor.h"
 
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
@@ -17,7 +19,6 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::ConcertClientSharedSlate
 {
-	class FAggregateReadOnlyStreamModel;
 	struct FCreateMultiStreamEditorParams;
 
 	/**
@@ -39,7 +40,8 @@ namespace UE::ConcertClientSharedSlate
 		void Construct(const FArguments& InArgs, FCreateMultiStreamEditorParams Params);
 
 		virtual IReplicationStreamEditor& GetEditorBase() const override { return *EditorView; }
-		virtual IEditableMultiReplicationStreamModel& GetModel() const override { return *MultiStreamModel; }
+		virtual IEditableMultiReplicationStreamModel& GetMultiStreamModel() const override { return *MultiStreamModel; }
+		virtual IReplicationStreamModel& GetConsolidatedModel() const override { return *ConsolidatedModel; }
 
 	private:
 
@@ -51,6 +53,5 @@ namespace UE::ConcertClientSharedSlate
 
 		/** The main view, which is displaying ConsolidatedModel. */
 		TSharedPtr<IReplicationStreamEditor> EditorView;
-		
 	};
 }

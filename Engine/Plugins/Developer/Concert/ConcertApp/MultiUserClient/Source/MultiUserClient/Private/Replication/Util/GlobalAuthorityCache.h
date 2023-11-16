@@ -35,6 +35,9 @@ namespace UE::MultiUserClient
 		FGlobalAuthorityCache(FReplicationClientManager& InClientManager);
 		/** Called when the local client has been created and it is safe to register client events with FReplicationClientManager. */
 		void RegisterEvents();
+		
+		/** Iterates every client that Object in its stream. */
+		void ForEachClientWithObjectInStream(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
 
 		/** Iterates every client that has authority over Object. */
 		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
@@ -83,6 +86,8 @@ namespace UE::MultiUserClient
 		
 		/** Maps objects that are owned to the clients that own them */
 		TMap<FSoftObjectPath, TSet<FGuid>> OwnedObjectsToClients;
+		/** Maps objects that are owned to the clients that own them */
+		TMap<FSoftObjectPath, TSet<FGuid>> RegisteredObjectsToClients;
 		
 		/** Called when the cache changes for a specific client. */
 		FOnCacheChanged OnCacheChangedDelegate;

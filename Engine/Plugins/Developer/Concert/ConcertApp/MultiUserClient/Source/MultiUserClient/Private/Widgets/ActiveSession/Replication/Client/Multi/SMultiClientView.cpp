@@ -61,6 +61,11 @@ namespace UE::MultiUserClient
 		   {
 			   return StreamEditor;
 		   });
+		TAttribute<IReplicationStreamModel*> ConsolidatedStreamModelAttribute =
+		   TAttribute<IReplicationStreamModel*>::CreateLambda([this]()
+		   {
+			   return &StreamEditor->GetConsolidatedModel();
+		   });
 		
 		FCreateMultiStreamEditorParams Params
 		{
@@ -71,7 +76,8 @@ namespace UE::MultiUserClient
 			.ViewerParams =
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
-				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager) }
+				.AdditionalObjectColumns = { MultiStreamColumns::ReplicationToggle(InConcertClient, MoveTemp(ConsolidatedStreamModelAttribute), InClientManager) },
+				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MoveTemp(MultiStreamEditorAttribute), InConcertClient, InClientManager) }
 			}
 		};
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params));

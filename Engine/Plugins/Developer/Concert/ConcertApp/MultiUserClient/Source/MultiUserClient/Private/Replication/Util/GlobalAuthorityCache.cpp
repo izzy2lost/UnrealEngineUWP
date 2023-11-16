@@ -20,6 +20,23 @@ namespace UE::MultiUserClient
 		ClientManager.OnPreRemoteClientRemoved().AddRaw(this, &FGlobalAuthorityCache::OnPreRemoteClientRemoved);
 	}
 
+	void FGlobalAuthorityCache::ForEachClientWithObjectInStream(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
+	{
+		const TSet<FGuid>* Clients = RegisteredObjectsToClients.Find(Object);
+		if (!Clients)
+		{
+			return;
+		}
+
+		for (const FGuid& ClientId : *Clients)
+		{
+			if (Callback(ClientId) == EBreakBehavior::Break)
+			{
+				break;
+			}
+		}
+	}
+
 	void FGlobalAuthorityCache::ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
 	{
 		const TSet<FGuid>* Clients = OwnedObjectsToClients.Find(Object);
@@ -156,6 +173,7 @@ namespace UE::MultiUserClient
 		for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& StreamContents : ClientObjectMap.ReplicatedObjects)
 		{
 			const FSoftObjectPath& Object = StreamContents.Key;
+			RegisteredObjectsToClients.FindOrAdd(Object).Add(ClientId);
 			if (ClientAuthority.HasAuthorityOver(Object))
 			{
 				OwnedObjectsToClients.FindOrAdd(Object).Add(ClientId);
@@ -166,6 +184,15 @@ namespace UE::MultiUserClient
 	void FGlobalAuthorityCache::RemoveClient(const FGuid& ClientId)
 	{
 		for (auto It = OwnedObjectsToClients.CreateIterator(); It; ++It)
+		{
+			It->Value.Remove(ClientId);
+			if (It->Value.IsEmpty())
+			{
+				It.RemoveCurrent();
+			}
+		}
+
+		for (auto It = RegisteredObjectsToClients.CreateIterator(); It; ++It)
 		{
 			It->Value.Remove(ClientId);
 			if (It->Value.IsEmpty())

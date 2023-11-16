@@ -132,6 +132,18 @@ namespace UE::ConcertClientSharedSlate
 					: EBreakBehavior::Continue;
 			});
 		}
+
+		/** @return Gets the subobjects as an array */
+		TArray<FSoftObjectPath> GetSubobjects(const FSoftObjectPath& Parent) const
+		{
+			TArray<FSoftObjectPath> Subobjects;
+			ForEachSubobject(Parent, [&Subobjects](const FSoftObjectPath& Child)
+			{
+				Subobjects.Add(Child);
+				return EBreakBehavior::Continue;
+			});
+			return Subobjects;
+		}
 		
 		virtual ~IReplicationStreamModel() = default;
 	};

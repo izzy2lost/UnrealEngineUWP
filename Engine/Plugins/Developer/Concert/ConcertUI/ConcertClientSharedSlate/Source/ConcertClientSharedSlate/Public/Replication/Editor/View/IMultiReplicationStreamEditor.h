@@ -17,10 +17,13 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 
-		/** @return The widget drawing the consolidate model. */
+		/** @return The widget drawing the consolidated model. */
 		virtual IReplicationStreamEditor& GetEditorBase() const = 0;
 
-		/** @return The underlying model */
-		virtual IEditableMultiReplicationStreamModel& GetModel() const = 0;
+		/** @return The source of the sub-streams */
+		virtual IEditableMultiReplicationStreamModel& GetMultiStreamModel() const = 0;
+
+		/** @return Gets a model that combines all streams into one. */
+		virtual IReplicationStreamModel& GetConsolidatedModel() const = 0;
 	};
 }

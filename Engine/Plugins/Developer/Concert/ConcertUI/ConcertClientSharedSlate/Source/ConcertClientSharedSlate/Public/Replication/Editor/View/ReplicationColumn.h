@@ -90,7 +90,7 @@ namespace UE::ConcertClientSharedSlate
 					})
 					.PopulateSearchItems_Lambda([TransformOperation, PopulateSearchString](const TOtherColumnType& InOtherRowData, TArray<FString>& InOutSearchStrings)
 					{
-						if (ensure(PopulateSearchString.IsBound()))
+						if (PopulateSearchString.IsBound())
 						{
 							PopulateSearchString.Execute(TransformOperation(InOtherRowData), InOutSearchStrings);
 						}

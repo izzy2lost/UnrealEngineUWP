@@ -23,8 +23,33 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient::MultiStreamColumns
 {
+	const extern FName ReplicationToggleColumnId;
 	const extern FName AssignPropertyColumnId;
+	
+	/* @see EReplicationPropertyColumnOrder */
+	enum class EColumnSortOrder
+	{
+		ReplicationToggle = 0,
+		AssignPropertyColumn = 30
+	};
 
+	/**
+	 * Toggles replication for all clients assigned to the object (and optionally all children).
+	 * 
+	 * @param ConcertClient Used to look up client names
+	 * @param ClientManager Used to access all clients for toggling authority
+	 * @param ConsolidatedStreamModelAttribute Used to get child objects
+	 * @param ColumnsSortPriority The order relative to the other columns
+	 * 
+	 * @return A checkbox for controlling the authority of the object in the row
+	 */
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
+		TSharedRef<IConcertClient> ConcertClient,
+		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
+		FReplicationClientManager& ClientManager,
+		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReplicationToggle)
+		);
+	
 	/**
 	 * Creates a property column which assigns the property to the stream selected in the combo box.
 	 * 
@@ -39,6 +64,6 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		TAttribute<TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
 		FReplicationClientManager& ClientManager,
-		const int32 ColumnsSortPriority = 30 /* @see EReplicationPropertyColumnOrder */
+		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::AssignPropertyColumn)
 		);
 }
