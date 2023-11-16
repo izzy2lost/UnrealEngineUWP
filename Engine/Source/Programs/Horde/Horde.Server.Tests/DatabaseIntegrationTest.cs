@@ -137,7 +137,7 @@ namespace Horde.Server.Tests
 				if (s_redisConnectionString == null)
 				{
 					int port = GetRedisPortInternal();
-					s_redisConnectionString = $"localhost:{port},allowAdmin=true";
+					s_redisConnectionString = $"127.0.0.1:{port},allowAdmin=true";
 					s_redisDbNum = RedisDbNum;
 				}
 

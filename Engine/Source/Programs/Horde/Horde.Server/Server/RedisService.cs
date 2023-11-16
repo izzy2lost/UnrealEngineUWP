@@ -57,11 +57,11 @@ namespace Horde.Server.Server
 			{
 				if (IsRunningOnDefaultPort())
 				{
-					connectionString = $"localhost:{RedisPort}";
+					connectionString = $"127.0.0.1:{RedisPort}";
 				}
 				else if (TryStartRedisProcess())
 				{
-					connectionString = $"localhost:{_redisProcess!.Port}";
+					connectionString = $"127.0.0.1:{_redisProcess!.Port}";
 				}
 				else
 				{
