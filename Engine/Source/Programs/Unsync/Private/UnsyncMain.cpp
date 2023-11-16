@@ -101,6 +101,8 @@ InnerMain(int Argc, char** Argv)
 	bool					 bQuickLogin		 = false;
 	bool					 bForceRefreshAuth	 = false;
 	bool					 bNoSocketTimeout	 = false;
+	bool					 bNoOutputFiles  	 = false;
+	bool					 bNoOutputRevisions  = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -182,14 +184,19 @@ InnerMain(int Argc, char** Argv)
 
 	CLI::App* SubUnpack = nullptr;
 	{
-		SubUnpack =
-			Cli.add_subcommand("unpack",
-							   "EXPERIMENTAL: Sync directory based on package snapshot");
+		SubUnpack = Cli.add_subcommand("unpack", "EXPERIMENTAL: Sync directory based on package snapshot");
 
 		SubUnpack->add_option("Output", OutputFilenameUtf8, "Output directory path")->required();
 
 		SubUnpack->add_option("--store", StorePathUtf8, "Pack storage path")->required();
 		SubUnpack->add_option("--snapshot", SnapshotNameUtf8, "Directory snapshot ID")->required();
+		SubUnpack->add_option("--p4havefile", P4HavePathUtf8, "Write revision control data in `p4 have` format into this file");
+		SubUnpack->add_flag("--no-revisions", bNoOutputRevisions, "Skip writing revision control data to <output>/.unsync/revisions.txt");
+		SubUnpack->add_flag("--no-files",
+							bNoOutputFiles,
+							"Skip actually unpacking the snapshot files, but attempt to reconstruct and verify the manifest. "
+							"Can be used in combination with --p4havefile option to only extract the `p4 have` list.");
+
 
 		SubCommands.push_back(SubUnpack);
 	}
@@ -815,9 +822,12 @@ InnerMain(int Argc, char** Argv)
 	{
 		FCmdUnpackOptions UnpackOptions;
 
-		UnpackOptions.OutputPath   = OutputFilename;
-		UnpackOptions.SnapshotName = SnapshotNameUtf8;
-		UnpackOptions.StorePath	   = NormalizeFilenameUtf8(StorePathUtf8);
+		UnpackOptions.OutputPath	   = OutputFilename;
+		UnpackOptions.SnapshotName	   = SnapshotNameUtf8;
+		UnpackOptions.P4HaveOutputPath = NormalizeFilenameUtf8(P4HavePathUtf8);
+		UnpackOptions.StorePath		   = NormalizeFilenameUtf8(StorePathUtf8);
+		UnpackOptions.bOutputFiles	   = !bNoOutputFiles;
+		UnpackOptions.bOutputRevisions = !bNoOutputRevisions;
 
 		return CmdUnpack(UnpackOptions);
 	}

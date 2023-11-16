@@ -21,9 +21,14 @@ int32 CmdPack(const FCmdPackOptions& Options);
 
 struct FCmdUnpackOptions
 {
-	FPath			  OutputPath;
-	FPath			  StorePath;
-	std::string		  SnapshotName;
+	FPath		OutputPath;
+	FPath		P4HaveOutputPath;  // extract embedded p4 have data into the specified file
+	FPath		StorePath;
+	std::string SnapshotName;
+	bool		bOutputFiles	 = true;  // set to false to skip unpack process for files (useful for extracting metadata)
+	bool		bOutputRevisions = true;  // write [output]/.unsync/revisions.txt if manifest contains revision control data
+
+	// bool			  bRunP4Sync = false; // TODO: run batches of `p4 sync -k` as files get finalized
 };
 
 int32 CmdUnpack(const FCmdUnpackOptions& Options);
