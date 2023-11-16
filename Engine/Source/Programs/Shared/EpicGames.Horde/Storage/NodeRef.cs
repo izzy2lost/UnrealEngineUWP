@@ -362,6 +362,19 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Writes a node to the given ref
+		/// </summary>
+		/// <param name="storageClient"></param>
+		/// <param name="refName">Name of the ref to write</param>
+		/// <param name="node"></param>
+		/// <param name="refOptions"></param>
+		/// <param name="cancellationToken"></param>
+		public static async ValueTask WriteRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, HashedNodeRef<TNode> node, RefOptions? refOptions = null, CancellationToken cancellationToken = default) where TNode : Node
+		{
+			await storageClient.WriteRefTargetAsync(refName, node.Handle, refOptions, cancellationToken);
+		}
+
+		/// <summary>
 		/// Flushes all the current nodes to storage
 		/// </summary>
 		/// <param name="writer"></param>
