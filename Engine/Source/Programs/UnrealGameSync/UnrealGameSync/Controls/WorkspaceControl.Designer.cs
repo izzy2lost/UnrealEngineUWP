@@ -114,6 +114,7 @@ namespace UnrealGameSync
 			this.MoreToolsContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
 			this.MoreActionsContextMenu_CustomToolSeparator = new System.Windows.Forms.ToolStripSeparator();
 			this.MoreToolsContextMenu_CleanWorkspace = new System.Windows.Forms.ToolStripMenuItem();
+			this.MoreToolsContextMenu_UpdateTools = new System.Windows.Forms.ToolStripMenuItem();
 			this.SyncContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
 			this.toolStripSeparator8 = new System.Windows.Forms.ToolStripSeparator();
 			this.SyncContexMenu_EnterChangelist = new System.Windows.Forms.ToolStripMenuItem();
@@ -971,6 +972,7 @@ namespace UnrealGameSync
 			// 
 			this.MoreToolsContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
 			this.MoreActionsContextMenu_CustomToolSeparator,
+			this.MoreToolsContextMenu_UpdateTools,
 			this.MoreToolsContextMenu_CleanWorkspace});
 			this.MoreToolsContextMenu.Name = "MoreActionsContextMenu";
 			this.MoreToolsContextMenu.Size = new System.Drawing.Size(175, 32);
@@ -986,6 +988,13 @@ namespace UnrealGameSync
 			this.MoreToolsContextMenu_CleanWorkspace.Size = new System.Drawing.Size(174, 22);
 			this.MoreToolsContextMenu_CleanWorkspace.Text = "Clean Workspace...";
 			this.MoreToolsContextMenu_CleanWorkspace.Click += new System.EventHandler(this.MoreToolsContextMenu_CleanWorkspace_Click);
+			// 
+			// MoreToolsContextMenu_UpdateTools
+			// 
+			this.MoreToolsContextMenu_UpdateTools.Name = "MoreToolsContextMenu_UpdateTools";
+			this.MoreToolsContextMenu_UpdateTools.Size = new System.Drawing.Size(174, 22);
+			this.MoreToolsContextMenu_UpdateTools.Text = "Check for Tools Updates";
+			this.MoreToolsContextMenu_UpdateTools.Click += new System.EventHandler(this.MoreToolsContextMenu_UpdateTools_Click);
 			// 
 			// SyncContextMenu
 			// 
@@ -1382,6 +1391,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ToolStripMenuItem BuildListContextMenu_SyncContentOnly;
 		private System.Windows.Forms.ContextMenuStrip MoreToolsContextMenu;
 		private System.Windows.Forms.ToolStripMenuItem MoreToolsContextMenu_CleanWorkspace;
+		private System.Windows.Forms.ToolStripMenuItem MoreToolsContextMenu_UpdateTools;
 		private System.Windows.Forms.ToolStripSeparator MoreActionsContextMenu_CustomToolSeparator;
 		private System.Windows.Forms.ToolStripSeparator toolStripSeparator3;
 		private System.Windows.Forms.ToolStripSeparator toolStripSeparator5;

@@ -5471,6 +5471,12 @@ namespace UnrealGameSync
 			}
 		}
 
+		private void MoreToolsContextMenu_UpdateTools_Click(object sender, EventArgs e)
+		{
+			_logger.LogInformation("Checking for tools updates...");
+			_owner.ToolUpdateMonitor.UpdateNow();
+		}
+
 		private void UpdateBuildSteps()
 		{
 			_hasBuildSteps = false;
