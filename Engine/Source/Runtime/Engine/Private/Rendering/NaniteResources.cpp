@@ -514,8 +514,8 @@ HHitProxy* FSceneProxyBase::CreateHitProxies(IPrimitiveComponent* ComponentInter
 		HitProxyIds[HitProxyId] = OutHitProxies[HitProxyId]->Id;
 	}
 
-	// We don't want a default hit proxy, or to output any hit proxies (avoid 2x registration).
-	return nullptr;
+	// Create a default hit proxy, but don't add it to our internal list (needed for proper collision mesh selection)
+	return FPrimitiveSceneProxy::CreateHitProxies(ComponentInterface, OutHitProxies);
 }
 #endif
 
