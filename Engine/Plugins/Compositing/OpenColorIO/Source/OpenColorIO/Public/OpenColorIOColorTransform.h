@@ -91,9 +91,19 @@ public:
 	/**
 	 * Get the transform processor.
 	 *
+	 * @param OutProcessor Processor wrapper for the current transform.
 	 * @return True if the processor was created and is valid.
 	 */
 	bool GetTransformProcessor(FOpenColorIOWrapperProcessor& OutProcessor) const;
+
+	/**
+	 * Get the transform processor.
+	 *
+	 * @param InLocalContext Context key-value string pairs.
+	 * @param OutProcessor Processor wrapper for the current transform, with a specified context.
+	 * @return True if the processor was created and is valid.
+	 */
+	bool GetTransformProcessor(const TMap<FString, FString>& InLocalContext, FOpenColorIOWrapperProcessor& OutProcessor) const;
 
 	/** Apply the color transform in-place to the specified color. */
 	bool TransformColor(FLinearColor& InOutColor) const;

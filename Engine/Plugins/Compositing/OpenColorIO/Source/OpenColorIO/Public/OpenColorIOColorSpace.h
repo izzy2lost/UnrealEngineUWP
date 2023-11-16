@@ -225,7 +225,7 @@ public:
 	 *  Since display look are applied on viewports, this will 
 	 * dictate whether it's applied or not to it
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ColorSpace)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ColorSpace, DisplayName = "Enable OCIO")
 	bool bIsEnabled = false;
 	
 	/** Conversion to apply when this display is enabled */

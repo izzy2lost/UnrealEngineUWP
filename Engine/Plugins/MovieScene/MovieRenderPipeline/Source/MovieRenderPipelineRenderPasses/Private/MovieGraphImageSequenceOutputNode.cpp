@@ -45,7 +45,7 @@ namespace UE::MovieGraph::Private
 	 *
 	 * @return The pixel preprocessor if successful, nullptr otherwise.
 	*/
-	static FPixelPreProcessor CreateOpenColorIOPixelPreProcessor(const FOpenColorIOColorConversionSettings& InConversionSettings)
+	static FPixelPreProcessor CreateOpenColorIOPixelPreProcessor(const FOpenColorIOColorConversionSettings& InConversionSettings, const TMap<FString, FString>& InContext)
 	{
 		const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationSource = InConversionSettings.ConfigurationSource;
 		if (IsValid(ConfigurationSource))
@@ -53,8 +53,9 @@ namespace UE::MovieGraph::Private
 			TObjectPtr<const UOpenColorIOColorTransform> ColorTransform = ConfigurationSource->FindTransform(InConversionSettings);
 			if (IsValid(ColorTransform))
 			{
+				//TODO: We need further processing of the context values to support dynamic tokens such as {shot_name}.
 				FOpenColorIOWrapperProcessor Processor;
-				if (ColorTransform->GetTransformProcessor(Processor))
+				if (ColorTransform->GetTransformProcessor(InContext, Processor))
 				{
 					return FOpenColorIOPixelPreProcessor(MoveTemp(Processor));
 				}
@@ -272,7 +273,10 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 #if WITH_EDITOR
 		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 		{
-			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(ParentNode->OCIOConfiguration.ColorConfiguration);
+			FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
+				ParentNode->OCIOConfiguration.ColorConfiguration,
+				ParentNode->OCIOContext
+			);
 			if (OCIOPixelPreProcessor)
 			{
 				TileImageTask->PixelPreProcessors.Emplace(MoveTemp(OCIOPixelPreProcessor));
@@ -375,7 +379,10 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 #if WITH_EDITOR
 	if (InParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 	{
-		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(InParentNode->OCIOConfiguration.ColorConfiguration);
+		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
+			InParentNode->OCIOConfiguration.ColorConfiguration,
+			InParentNode->OCIOContext
+		);
 		if (OCIOPixelPreProcessor)
 		{
 			InOutImageTask.PixelPreprocessors.FindOrAdd(InLayerIndex).Emplace(MoveTemp(OCIOPixelPreProcessor));

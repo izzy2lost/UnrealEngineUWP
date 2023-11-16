@@ -37,6 +37,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOConfiguration : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_OCIOContext : 1;
+
 	/**
 	* OCIO configuration/transform settings.
 	*
@@ -44,8 +47,14 @@ public:
 	* 1) This feature only works in editor-mode, since the OpenColorIO library is currently unavailable in game builds.
 	* 2) Users are now responsible for setting the renderer output space to Final Color (HDR) in Linear Working Color Space (SCS_FinalColorHDR).
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Color", DisplayName="OpenColorIO Configuration", meta = (EditCondition = "bOverride_OCIOConfiguration"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OCIO", DisplayName="OCIO Configuration", meta = (EditCondition = "bOverride_OCIOConfiguration"))
 	FOpenColorIODisplayConfiguration OCIOConfiguration;
+
+	/**
+	* OCIO context of key-value string pairs, typically used to apply shot-specific looks (such as a CDL color correction, or a 1D grade LUT).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OCIO", DisplayName = "OCIO Context", meta = (EditCondition = "bOverride_OCIOContext"))
+	TMap<FString, FString> OCIOContext;
 #endif
 
 protected:
