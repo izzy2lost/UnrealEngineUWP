@@ -335,18 +335,36 @@ void UPCGGraph::PostLoad()
 
 bool UPCGGraph::IsEditorOnly() const
 {
+	TSet<const UPCGGraph*> VisitedGraphs;
+	return IsEditorOnly_Internal(VisitedGraphs);
+}
+
+bool UPCGGraph::IsEditorOnly_Internal(TSet<const UPCGGraph*>& VisitedGraphs) const
+{
 	bool bIsCurrentlyEditorOnly = (Super::IsEditorOnly() || bIsEditorOnly);
+	
+	check(!VisitedGraphs.Contains(this));
+	VisitedGraphs.Add(this);
 
 	if (!bIsCurrentlyEditorOnly)
 	{
 		// Check for any subgraphs...
-		ForEachNode([&bIsCurrentlyEditorOnly](UPCGNode* Node)
+		ForEachNode([&bIsCurrentlyEditorOnly, &VisitedGraphs](UPCGNode* Node)
 		{
+			// Early out if we already know this is going to be editor only
+			if (bIsCurrentlyEditorOnly)
+			{
+				return;
+			}
+
 			if (UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
 			{
-				if (SubgraphNode->GetSubgraph())
+				if (const UPCGGraph* Subgraph = SubgraphNode->GetSubgraph())
 				{
-					bIsCurrentlyEditorOnly |= SubgraphNode->GetSubgraph()->IsEditorOnly();
+					if (!VisitedGraphs.Contains(Subgraph))
+					{
+						bIsCurrentlyEditorOnly |= Subgraph->IsEditorOnly_Internal(VisitedGraphs);
+					}
 				}
 			}
 		});
