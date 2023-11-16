@@ -443,10 +443,10 @@ void ClusteredShadingPixelShader(
 	
 #if !VISUALIZE_LIGHT_CULLING
 	CompositedLighting *= View.PreExposure;
+#endif
 #if SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
 	OutOpaqueRoughRefractionSceneColor = OpaqueRoughRefractionSceneColor * View.PreExposure;
 	OutSubSurfaceSceneColor = SubSurfaceSceneColor * View.PreExposure;
-#endif
 #endif
 	OutColor = CompositedLighting;
 }
