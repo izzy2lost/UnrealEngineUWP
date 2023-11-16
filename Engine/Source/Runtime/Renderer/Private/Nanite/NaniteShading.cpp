@@ -123,7 +123,6 @@ static FAutoConsoleVariableRef CVarNaniteShadeBinningMode(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Heavily work in progress / experimental - do not use!
 static int32 GNaniteSoftwareVRS = 1;
 static FAutoConsoleVariableRef CVarNaniteSoftwareVRS(
 	TEXT("r.Nanite.SoftwareVRS"),
@@ -144,7 +143,9 @@ static uint32 GetShadingRateTileSizeBits()
 {
 	uint32 TileSizeBits = 0;
 
-	if (GNaniteSoftwareVRS != 0)
+	// Temporarily disable this on Intel until the shader is fixed to
+	// correctly handle a wave size of 16.
+	if (GNaniteSoftwareVRS != 0 && !IsRHIDeviceIntel() && GVRSImageManager.IsVRSEnabledForFrame() /* HW or SW VRS enabled? */)
 	{
 		bool bUseSoftwareImage = GVRSImageManager.IsSoftwareVRSEnabledForFrame();
 		if (!bUseSoftwareImage)
@@ -515,6 +516,7 @@ uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, b
 	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
 	Flags.bDisplacement = TessellationEnabled() && Material.MaterialUsesDisplacement_RenderThread();
 	Flags.bNoDerivativeOps = bNoDerivativeOps;
+	Flags.bTwoSided = Material.IsTwoSided();
 	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
 	return ((BoundTargetMask & 0xFFu) << 24u) | (PackedFlags & 0x00FFFFFFu);
 }
@@ -1862,14 +1864,13 @@ void CollectShadingPSOInitializers(
 
 FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh)
 {
-	FNaniteRasterPipeline Ret;
-	Ret.RasterMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
-	Ret.bIsTwoSided = bIsTwoSided;
-	Ret.bSplineMesh = bSplineMesh;
-	Ret.bPerPixelEval = false;
-	Ret.bWPODisableDistance = false;
-
-	return Ret;
+	FNaniteRasterPipeline Pipeline;
+	Pipeline.RasterMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
+	Pipeline.bIsTwoSided = bIsTwoSided;
+	Pipeline.bSplineMesh = bSplineMesh;
+	Pipeline.bPerPixelEval = false;
+	Pipeline.bWPODisableDistance = false;
+	return Pipeline;
 }
 
 FNaniteRasterPipelines::FNaniteRasterPipelines()
@@ -1877,13 +1878,53 @@ FNaniteRasterPipelines::FNaniteRasterPipelines()
 	PipelineBins.Reserve(256);
 	PerPixelEvalPipelineBins.Reserve(256);
 	PipelineMap.Reserve(256);
+
+	AllocateFixedFunctionBins();
 }
 
 FNaniteRasterPipelines::~FNaniteRasterPipelines()
 {
+	ReleaseFixedFunctionBins();
+
 	PipelineBins.Reset();
 	PerPixelEvalPipelineBins.Reset();
 	PipelineMap.Empty();
+}
+
+void FNaniteRasterPipelines::AllocateFixedFunctionBins()
+{
+	check(FixedFunctionBins.Num() == 0);
+
+	FNaniteRasterPipeline Pipeline00 = FNaniteRasterPipeline::GetFixedFunctionPipeline(false /* Two Sided */, false /* Spline */);
+	FNaniteRasterBin Bin00 = Register(Pipeline00);
+	check(Bin00.BinIndex == NANITE_FIXED_FUNCTION_BIN);
+
+	FNaniteRasterPipeline Pipeline01 = FNaniteRasterPipeline::GetFixedFunctionPipeline(true /* Two Sided */, false /* Spline */);
+	FNaniteRasterBin Bin01 = Register(Pipeline01);
+	check(Bin01.BinIndex == NANITE_FIXED_FUNCTION_BIN_TWOSIDED);
+
+	FNaniteRasterPipeline Pipeline10 = FNaniteRasterPipeline::GetFixedFunctionPipeline(false /* Two Sided */, true /* Spline */);
+	FNaniteRasterBin Bin10 = Register(Pipeline10);
+	check(Bin10.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE);
+
+	FNaniteRasterPipeline Pipeline11 = FNaniteRasterPipeline::GetFixedFunctionPipeline(true /* Two Sided */, true /* Spline */);
+	FNaniteRasterBin Bin11 = Register(Pipeline11);
+	check(Bin11.BinIndex == (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_TWOSIDED));
+
+	FixedFunctionBins.Emplace(Bin00);
+	FixedFunctionBins.Emplace(Bin01);
+	FixedFunctionBins.Emplace(Bin10);
+	FixedFunctionBins.Emplace(Bin11);
+}
+
+void FNaniteRasterPipelines::ReleaseFixedFunctionBins()
+{
+	for (const FNaniteRasterBin& FixedFunctionBin : FixedFunctionBins)
+	{
+		Unregister(FixedFunctionBin);
+	}
+
+	FixedFunctionBins.Reset();
 }
 
 uint16 FNaniteRasterPipelines::AllocateBin(bool bPerPixelEval)

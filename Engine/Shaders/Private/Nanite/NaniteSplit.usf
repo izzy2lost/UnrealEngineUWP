@@ -115,11 +115,6 @@ uint FSplitTask::Run()
 
 	const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
 
-#if ACCURATE_DISPLACEMENT_BOUNDS
-	const bool bSecondaryBin = !bWPOEnabled; // use secondary bin where applicable when WPO disabled
-	const uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, Patch.TriIndex, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryBin, MaterialSlotTable);
-#endif
-
 	uint3 VertIndexes = DecodeTriangleIndices( Cluster, Patch.TriIndex );
 
 	const uint MaxTexCoords = 0; // UVs are unused here
@@ -130,9 +125,6 @@ uint FSplitTask::Run()
 #if DISABLE_DISPLACEMENT_BOUNDS
 	const float DisplacementMin = 0.0f;
 	const float DisplacementMax = 0.0f;
-#elif ACCURATE_DISPLACEMENT_BOUNDS
-	const float DisplacementMin = RasterBinMeta[RasterBin].MinMaterialDisplacement;
-	const float DisplacementMax = RasterBinMeta[RasterBin].MaxMaterialDisplacement;
 #else
 	const float DisplacementMin = PrimitiveData.MinMaterialDisplacement;
 	const float DisplacementMax = PrimitiveData.MaxMaterialDisplacement;
@@ -239,7 +231,8 @@ uint FSplitTask::Run()
 			RWVisiblePatches.Store4( WriteOffset * 16, Encoded );
 
 		#if 0
-			uint RasterBin = GetMaterialRasterBin( Cluster, InstanceData.PrimitiveId, Patch.TriIndex, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, /* secondary bin */ false, MaterialSlotTable );
+			uint RasterBin = GetMaterialRasterBin( Cluster, InstanceData.PrimitiveId, Patch.TriIndex, RegularMaterialRasterBinCount, /* secondary bin */ false, MaterialSlotTable );
+			RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 			// Scalarize atomics
 			while( true )

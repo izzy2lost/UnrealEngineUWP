@@ -209,10 +209,10 @@ class FNanitePickingCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, MaxVisibleClusters)
 		SHADER_PARAMETER(uint32, RenderFlags)
 		SHADER_PARAMETER(uint32, RegularMaterialRasterBinCount)
-		SHADER_PARAMETER(uint32, FixedFunctionBin)
 		SHADER_PARAMETER(FIntPoint, PickingPixelPos)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, VisibleClustersSWHW)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
@@ -377,13 +377,13 @@ static FRDGBufferRef PerformPicking(
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
 		PassParameters->View = View.GetShaderParameters();
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 		PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		PassParameters->VisualizeConfig = GetVisualizeConfig(NANITE_VISUALIZE_PICKING, /* bCompositeScene = */ false, GNaniteVisualizeEdgeDetect != 0);
 		PassParameters->PageConstants = Data.PageConstants;
 		PassParameters->MaxVisibleClusters = Data.MaxVisibleClusters;
 		PassParameters->RenderFlags = Data.RenderFlags;
 		PassParameters->RegularMaterialRasterBinCount = RasterPipelines.GetRegularBinCount();
-		PassParameters->FixedFunctionBin = Data.FixedFunctionBin;
 		PassParameters->PickingPixelPos = FIntPoint((int32)VisualizationData.GetPickingMousePos().X, (int32)VisualizationData.GetPickingMousePos().Y);
 		PassParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV(Data.VisibleClustersSWHW);
 		PassParameters->VisBuffer64 = Data.VisBuffer64;
@@ -767,7 +767,6 @@ void AddVisualizationPasses(
 						PassParameters->MaxVisibleClusters = Data.MaxVisibleClusters;
 						PassParameters->RenderFlags = Data.RenderFlags;
 						PassParameters->RegularMaterialRasterBinCount = RasterPipelines.GetRegularBinCount();
-						PassParameters->FixedFunctionBin = Data.FixedFunctionBin;
 						PassParameters->PickingPixelPos = FIntPoint((int32)VisualizationData.GetPickingMousePos().X, (int32)VisualizationData.GetPickingMousePos().Y);
 						PassParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV(VisibleClustersSWHW);
 						PassParameters->VisBuffer64 = VisBuffer64;

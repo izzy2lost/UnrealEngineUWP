@@ -33,8 +33,6 @@
 #define VIRTUAL_TEXTURE_TARGET 0
 #endif
 
-uint FixedFunctionBin;
-
 RWStructuredBuffer<FNaniteRasterBinMeta> OutRasterBinMeta;
 
 FNaniteMaterialFlags GetRasterBinMaterialFlags(uint BinIndex)
@@ -61,6 +59,26 @@ void SetRasterBinOffset(uint BinIndex, uint BinOffset)
 uint GetRasterBinOffset(uint BinIndex)
 {
 	return OutRasterBinMeta[BinIndex].ClusterOffset;
+}
+
+uint GetRemappedRasterBinFromIndex(
+	uint InRelativeMaterialIndex,
+	uint InPrimitiveIndex,
+	uint InRegularRasterBinCount,
+	uint InRenderFlags,
+	bool bSecondaryRasterBin,
+	ByteAddressBuffer InMaterialSlotTable)
+{
+	uint RasterBin = GetMaterialRasterBinFromIndex(
+		InRelativeMaterialIndex,
+		InPrimitiveIndex,
+		InRegularRasterBinCount,
+		bSecondaryRasterBin,
+		InMaterialSlotTable
+	);
+
+	const FNaniteMaterialFlags MaterialFlags = GetRasterBinMaterialFlags(RasterBin);
+	return RemapRasterBin(RasterBin, InRenderFlags, MaterialFlags);
 }
 
 #if RASTER_BIN_RESERVE
@@ -319,7 +337,15 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 		FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster.InstanceId, false );
 		FCluster Cluster = GetCluster( VisibleCluster.PageIndex, VisibleCluster.ClusterIndex );
 
-		uint RasterBin = GetMaterialRasterBin( Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, /* secondary bin */ false, MaterialSlotTable );
+		const uint RasterBin = GetRemappedRasterBinFromIndex(
+			GetRelativeMaterialIndex(Cluster, TriIndex),
+			InstanceData.PrimitiveId,
+			RegularMaterialRasterBinCount,
+			RenderFlags,
+			/* Secondary Bin */ false,
+			MaterialSlotTable
+		);
+
 		uint IndexInBin = 0;
 
 		// Scalarize atomics
@@ -383,10 +409,6 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 		const bool bWPOEnabled				= (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
 		const bool bSecondaryBin			= !bWPOEnabled; // use secondary bin where applicable when WPO disabled
 
-		// TODO: Embed fast path material uint in FVisibleCluster
-		// TODO: Upload uniform with default material bin index, directly allocate/store indirections into 0th range
-		// TODO: Optimize and/or separate out slow path into another dispatch? (possibly with groupshared bin tracking to avoid searching)
-
 		BRANCH
 		if (IsMaterialFastPath(Cluster))
 		{
@@ -410,19 +432,19 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 
 			// The 0th material range is always non-zero length
 			{
-				RasterBin0 = GetMaterialRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryBin, MaterialSlotTable);
+				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
 			}
 
 			BRANCH
 			if (Cluster.Material1Length > 0u)
 			{
-				RasterBin1 = GetMaterialRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryBin, MaterialSlotTable);
+				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
 			}
 
 			BRANCH
 			if (Material2Length > 0)
 			{
-				RasterBin2 = GetMaterialRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryBin, MaterialSlotTable);
+				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
 			}
 
 			if (RasterBin0 == RasterBin1 && RasterBin0 == RasterBin2)
@@ -491,7 +513,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 				uint MaterialIndex;
 				DecodeMaterialRange(EncodedRange, TriStart, TriLength, MaterialIndex);
 
-				const uint RasterBinN = GetMaterialRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryBin, MaterialSlotTable);
+				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
 
 				const uint BatchCount = BitStreamReader_Read_RO(ClusterPageData, BatchCountStreamState, 4, 4);
 

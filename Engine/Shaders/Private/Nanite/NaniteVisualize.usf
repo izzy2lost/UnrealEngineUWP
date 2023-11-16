@@ -37,7 +37,6 @@ int4					VisualizeConfig;
 int4					VisualizeScales;
 uint					RegularMaterialRasterBinCount;
 int2					PickingPixelPos;
-uint					FixedFunctionBin;
 
 RWStructuredBuffer<FNanitePickingFeedback> FeedbackBuffer;
 
@@ -178,6 +177,9 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		UnpackDbgPixel(DbgPixel, DebugDepthInt, DebugValueMax);
 		uint DebugValueAdd = DbgBuffer32[PixelPos];
 
+		const uint PackedMaterialFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
+		FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedMaterialFlags);
+
 		FVisibleCluster VisibleCluster				= GetVisibleCluster(VisibleClusterIndex);
 		FInstanceSceneData InstanceData				= GetInstanceSceneData(VisibleCluster, false);
 		FInstanceDynamicData InstanceDynamicData	= CalculateInstanceDynamicData(NaniteView, InstanceData);
@@ -264,7 +266,8 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_BINS)
 		{
 			const bool bSecondaryRasterBin = !bWPOEnabled;
-			const uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryRasterBin, MaterialSlotTable);
+			uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin, MaterialSlotTable);
+			RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 			Result = IntToColor(RasterBin);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_BINS)
@@ -295,8 +298,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 		#if 0
 			// For testing
-			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
-			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
 			if (MaterialFlags.bPixelDiscard)
 			{
 				Result = float3(0.0f, 0.8f, 0.0f);
@@ -388,9 +389,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 	#endif
 		else if (VisualizeMode == NANITE_VISUALIZE_NO_DERIVATIVE_OPS)
 		{
-			const uint PackedFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
-			FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedFlags);
-
 			const uint ModeValue = select(MaterialFlags.bNoDerivativeOps, 2, 1);
 			Result = (IntToColor(ModeValue) * 0.75 + 0.25) * (IntToColor(TriIndex).x * 0.5 + 0.5);
 		}
@@ -556,14 +554,20 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		UnpackDbgPixel(DbgPixel, DebugDepthInt, DebugValueMax);
 		uint DebugValueAdd = DbgBuffer32[PickingPos];
 
+		const uint PackedMaterialFlags = ShadingBinData.Load<FNaniteShadingBinMeta>(UnpackedMask.ShadingBin * NANITE_SHADING_BIN_META_BYTES).MaterialFlags;
+		FNaniteMaterialFlags MaterialFlags = UnpackNaniteMaterialFlags(PackedMaterialFlags);
+
 		FVisibleCluster VisibleCluster				= GetVisibleCluster(VisibleClusterIndex);
 		FInstanceSceneData InstanceData				= GetInstanceSceneData(VisibleCluster, false);
 		FInstanceDynamicData InstanceDynamicData	= CalculateInstanceDynamicData(NaniteView, InstanceData);
 		FPrimitiveSceneData PrimitiveData			= GetPrimitiveData(InstanceData.PrimitiveId);
 		FCluster Cluster							= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
-		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;		
+		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
 		const bool bSecondaryRasterBin = !bWPOEnabled;
+
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin, MaterialSlotTable);
+		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		FeedbackResults.PrimitiveId			= InstanceData.PrimitiveId;
 		FeedbackResults.InstanceId			= VisibleCluster.InstanceId;
@@ -574,7 +578,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.TriangleIndex		= TriIndex;
 		FeedbackResults.DepthInt			= DepthInt;
 		FeedbackResults.RasterMode			= DebugValueMax;
-		FeedbackResults.RasterBin			= GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, RenderFlags, FixedFunctionBin, bSecondaryRasterBin, MaterialSlotTable);
+		FeedbackResults.RasterBin			= RasterBin;
 		FeedbackResults.ShadingBin			= GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
 		FeedbackResults.LegacyShadingId		= GetMaterialLegacyShadingId(Cluster, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
 		FeedbackResults.MaterialDepthId		= GetMaterialDepthId(FeedbackResults.LegacyShadingId, MaterialDepthTable);
@@ -592,11 +596,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		const float4x4 LocalToTranslatedWorld = LWCMultiplyTranslation(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
 
 		const float3 WPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bWPOEnabled);
-	#if ACCURATE_DISPLACEMENT_BOUNDS
-		const float AbsMaxMaterialDisplacement = GetAbsMaxMaterialDisplacement(RasterBinMeta, FeedbackResults.RasterBin);
-	#else
 		const float AbsMaxMaterialDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData);
-	#endif
 
 		// If WPO and/or material displacement is enabled, the cluster bounds will have been dilated to account for max displacement
 		float3 ClusterBoxBoundsCenter = Cluster.BoxBoundsCenter;

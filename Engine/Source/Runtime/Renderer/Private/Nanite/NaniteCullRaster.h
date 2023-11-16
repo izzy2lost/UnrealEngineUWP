@@ -86,7 +86,6 @@ struct FRasterResults
 	uint32			MaxVisibleClusters;
 	uint32			MaxNodes;
 	uint32			RenderFlags;
-	uint32			FixedFunctionBin;
 
 	FRDGBufferRef	ViewsBuffer			= nullptr;
 	FRDGBufferRef	VisibleClustersSWHW	= nullptr;

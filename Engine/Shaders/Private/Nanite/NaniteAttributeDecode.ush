@@ -247,37 +247,41 @@ uint GetMaterialShadingBinFromIndex(
 	return MaterialSlot.ShadingBin;
 }
 
+uint RemapRasterBin(uint InBinIndex, uint InRenderFlags, FNaniteMaterialFlags MaterialFlags)
+{
+	uint RemappedBin = InBinIndex;
+
+	if ((InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0)
+	{
+		RemappedBin  = NANITE_FIXED_FUNCTION_BIN;
+		RemappedBin |= select(MaterialFlags.bTwoSided, NANITE_FIXED_FUNCTION_BIN_TWOSIDED, 0x0u);
+		RemappedBin |= select(MaterialFlags.bSplineMesh, NANITE_FIXED_FUNCTION_BIN_SPLINE, 0x0u);
+	}
+
+	return RemappedBin;
+}
+
 uint GetMaterialRasterBinFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
 	uint InRegularRasterBinCount,
-	uint InRenderFlags,
-	uint InFixedFunctionBin,
 	bool bSecondaryRasterBin,
 	ByteAddressBuffer InMaterialSlotTable)
 {
-	BRANCH
-	if ((InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0)
-	{
-		return InFixedFunctionBin;
-	}
-	else
-	{
-		FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InPrimitiveIndex, InRelativeMaterialIndex, InMaterialSlotTable);
-		uint RasterBin = MaterialSlot.RasterBin;
+	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InPrimitiveIndex, InRelativeMaterialIndex, InMaterialSlotTable);
+	uint RasterBin = MaterialSlot.RasterBin;
 	
-		if (bSecondaryRasterBin && MaterialSlot.SecondaryRasterBin != 0xFFFFu)
-		{
-			RasterBin = MaterialSlot.SecondaryRasterBin;
-		}
-
-		if (RasterBin >= InRegularRasterBinCount)
-		{
-			RasterBin = 0xFFFFu - RasterBin + InRegularRasterBinCount;
-		}
-
-		return RasterBin;
+	if (bSecondaryRasterBin && MaterialSlot.SecondaryRasterBin != 0xFFFFu)
+	{
+		RasterBin = MaterialSlot.SecondaryRasterBin;
 	}
+
+	if (RasterBin >= InRegularRasterBinCount)
+	{
+		RasterBin = 0xFFFFu - RasterBin + InRegularRasterBinCount;
+	}
+
+	return RasterBin;
 }
 
 uint GetMaterialLegacyShadingId(
@@ -305,25 +309,13 @@ uint GetMaterialRasterBin(
 	uint InPrimitiveIndex,
 	uint InTriIndex,
 	uint InRegularSlotCount,
-	uint InRenderFlags,
-	uint InFixedFunctionBin,
 	bool bSecondaryBin,
 	ByteAddressBuffer InMaterialSlotTable)
 {
-	uint RelativeMaterialIndex = 0;
-
-	BRANCH
-	if ((InRenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) == 0)
-	{
-		RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
-	}
-
 	return GetMaterialRasterBinFromIndex(
-		RelativeMaterialIndex,
+		GetRelativeMaterialIndex(InCluster, InTriIndex),
 		InPrimitiveIndex,
 		InRegularSlotCount,
-		InRenderFlags,
-		InFixedFunctionBin,
 		bSecondaryBin,
 		InMaterialSlotTable
 	);

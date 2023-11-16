@@ -201,7 +201,6 @@ struct FVisualizeResult
 struct FBinningData
 {
 	uint32 BinCount = 0;
-	uint32 FixedFunctionBin = 0;
 
 	FRDGBufferRef DataBuffer = nullptr;
 	FRDGBufferRef MetaBuffer = nullptr;
@@ -708,6 +707,9 @@ public:
 	FNaniteRasterPipelines();
 	~FNaniteRasterPipelines();
 
+	void AllocateFixedFunctionBins();
+	void ReleaseFixedFunctionBins();
+
 	uint16 AllocateBin(bool bPerPixelEval);
 	void ReleaseBin(uint16 BinIndex);
 
@@ -743,6 +745,8 @@ private:
 	TArray<uint32> CustomPassRefCounts;
 	TArray<uint32> PerPixelEvalCustomPassRefCounts;
 	FNaniteRasterPipelineMap PipelineMap;
+
+	TArray<FNaniteRasterBin, TInlineAllocator<4u>> FixedFunctionBins;
 };
 
 /// TODO: Work in progress / experimental

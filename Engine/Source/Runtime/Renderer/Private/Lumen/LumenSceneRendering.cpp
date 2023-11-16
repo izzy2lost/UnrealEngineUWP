@@ -2257,7 +2257,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 						});
 
 						NaniteRenderer->DrawGeometry(
-							Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
+							Scene->NaniteRasterPipelines[ENaniteMeshPass::LumenCardCapture],
 							RasterResults.VisibilityResults,
 							*NaniteViews,
 							NaniteInstanceDraws

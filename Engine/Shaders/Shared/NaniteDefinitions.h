@@ -188,13 +188,19 @@
 #define NANITE_MATERIAL_FLAG_PIXEL_DISCARD					0x4
 #define NANITE_MATERIAL_FLAG_DISPLACEMENT					0x8
 #define NANITE_MATERIAL_FLAG_SPLINE_MESH					0x10
-#define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x20
+#define NANITE_MATERIAL_FLAG_TWO_SIDED						0x20
+#define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x40
 
 #define NANITE_TRANSCODE_PASS_INDEPENDENT					0
 #define NANITE_TRANSCODE_PASS_PARENT_DEPENDENT				1
 
 #define NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS			(NANITE_MATERIAL_FLAG_WORLD_POSITION_OFFSET | NANITE_MATERIAL_FLAG_DISPLACEMENT)
 #define NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS			(NANITE_MATERIAL_FLAG_PIXEL_DEPTH_OFFSET | NANITE_MATERIAL_FLAG_PIXEL_DISCARD)
+
+// Fixed Function Bin IDs
+#define NANITE_FIXED_FUNCTION_BIN							0x0
+#define NANITE_FIXED_FUNCTION_BIN_TWOSIDED					0x1
+#define NANITE_FIXED_FUNCTION_BIN_SPLINE					0x2
 
 // Only available with the DEBUG_FLAGS permutation active.
 // Default value (no debug) is 0
@@ -279,6 +285,7 @@ struct FNaniteMaterialFlags
 	bool bPixelDiscard;
 	bool bDisplacement;
 	bool bSplineMesh;
+	bool bTwoSided;
 	bool bNoDerivativeOps;
 
 	bool bVertexProgrammable;
@@ -293,6 +300,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 	MaterialFlags.bPixelDiscard = (Packed & NANITE_MATERIAL_FLAG_PIXEL_DISCARD) != 0u;
 	MaterialFlags.bDisplacement = (Packed & NANITE_MATERIAL_FLAG_DISPLACEMENT) != 0u;
 	MaterialFlags.bSplineMesh = (Packed & NANITE_MATERIAL_FLAG_SPLINE_MESH) != 0u;
+	MaterialFlags.bTwoSided = (Packed & NANITE_MATERIAL_FLAG_TWO_SIDED) != 0u;
 	MaterialFlags.bNoDerivativeOps = (Packed & NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS) != 0u;
 	MaterialFlags.bVertexProgrammable = (Packed & NANITE_MATERIAL_VERTEX_PROGRAMMABLE_FLAGS) != 0u;
 	MaterialFlags.bPixelProgrammable = (Packed & NANITE_MATERIAL_PIXEL_PROGRAMMABLE_FLAGS) != 0u;
@@ -341,6 +349,11 @@ INLINE_ATTR UINT_TYPE PackNaniteMaterialBitFlags(FNaniteMaterialFlags Flags)
 	if (Flags.bSplineMesh)
 	{
 		MaterialBitFlags |= NANITE_MATERIAL_FLAG_SPLINE_MESH;
+	}
+
+	if (Flags.bTwoSided)
+	{
+		MaterialBitFlags |= NANITE_MATERIAL_FLAG_TWO_SIDED;
 	}
 
 	if (Flags.bNoDerivativeOps)

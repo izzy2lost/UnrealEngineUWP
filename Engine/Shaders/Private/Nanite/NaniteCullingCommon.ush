@@ -21,10 +21,6 @@
 #define DISABLE_DISPLACEMENT_BOUNDS 0
 #endif
 
-#ifndef ACCURATE_DISPLACEMENT_BOUNDS
-#define ACCURATE_DISPLACEMENT_BOUNDS 0
-#endif
-
 float GetAbsMaxMaterialDisplacement(StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta, uint RasterBin)
 {
 #if DISABLE_DISPLACEMENT_BOUNDS
