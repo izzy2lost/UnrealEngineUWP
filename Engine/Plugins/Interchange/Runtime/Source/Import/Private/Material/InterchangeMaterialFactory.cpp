@@ -1115,12 +1115,13 @@ void UInterchangeMaterialFactory::SetupObject_GameThread(const FSetupObjectParam
 			{
 				if (TextureParameterValue.ParameterValue)
 				{
-					UTexture* DefaultTexture;
-					ImportedMaterial->GetTextureParameterDefaultValue(TextureParameterValue.ParameterInfo.Name, DefaultTexture);
-
-					if (UTexture* ConvertedTexture = UE::Interchange::MaterialFactory::Internal::GetVirtualTextureStreamingMatchedTexture(DefaultTexture->VirtualTextureStreaming, TextureParameterValue.ParameterValue))
+					UTexture* DefaultTexture = nullptr;
+					if (ImportedMaterial->GetTextureParameterDefaultValue(TextureParameterValue.ParameterInfo.Name, DefaultTexture))
 					{
-						TextureParameterValue.ParameterValue = ConvertedTexture;
+						if (UTexture* ConvertedTexture = UE::Interchange::MaterialFactory::Internal::GetVirtualTextureStreamingMatchedTexture(DefaultTexture->VirtualTextureStreaming, TextureParameterValue.ParameterValue))
+						{
+							TextureParameterValue.ParameterValue = ConvertedTexture;
+						}
 					}
 				}
 			}
