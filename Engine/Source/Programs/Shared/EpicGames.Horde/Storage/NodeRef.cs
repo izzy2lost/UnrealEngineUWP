@@ -356,7 +356,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="node"></param>
 		/// <param name="refOptions"></param>
 		/// <param name="cancellationToken"></param>
-		public static async ValueTask WriteRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, HashedNodeRef<TNode> node, RefOptions? refOptions = null, CancellationToken cancellationToken = default) where TNode : Node
+		public static async ValueTask WriteRefTargetAsync<TNode>(this IStorageClient storageClient, RefName refName, NodeRef<TNode> node, RefOptions? refOptions = null, CancellationToken cancellationToken = default) where TNode : Node
 		{
 			await storageClient.WriteRefTargetAsync(refName, node.Handle, refOptions, cancellationToken);
 		}

@@ -76,15 +76,22 @@ namespace Horde.Server.Ddc
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{
 				// TODO: We resolved all these blobs above... Need to just have GetReferencedBlobs just return the appropriate handles directly.
-				DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
-				refNode.References.Add((blobHash.Hash, blobHandle));
-				foreach (BlobId referencedBlob in referencedBlobs)
+				RefName refName = GetRefName(bucket, key);
+
+				NodeRef<DdcRefNode> refNodeRef;
+				await using (IStorageWriter writer = storageClient.CreateWriter(refName))
 				{
-					BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
-					refNode.References.Add((referencedBlob.Hash, alias!.Target));
+					DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
+					refNode.References.Add((blobHash.Hash, blobHandle));
+					foreach (BlobId referencedBlob in referencedBlobs)
+					{
+						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
+						refNode.References.Add((referencedBlob.Hash, alias!.Target));
+					}
+					refNodeRef = await writer.WriteNodeAsync(refNode);
 				}
 
-				await storageClient.WriteRefAsync(GetRefName(bucket, key), refNode, cancellationToken: cancellationToken);
+				await storageClient.WriteRefTargetAsync(refName, refNodeRef, cancellationToken: cancellationToken);
 			}
 
 			return (missingReferences, missingBlobs);

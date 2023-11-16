@@ -521,6 +521,8 @@ namespace Horde.Agent.Execution
 					Stopwatch timer = Stopwatch.StartNew();
 
 					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
+
+					NodeRef<DirectoryNode> rootNodeRef;
 					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, refName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
@@ -530,8 +532,9 @@ namespace Horde.Agent.Execution
 						DirectoryNode rootNode = new DirectoryNode();
 						rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));
 
-						await storage.WriteRefAsync(refName, rootNode, refOptions: new RefOptions(), cancellationToken: cancellationToken);
+						rootNodeRef = await treeWriter.WriteNodeAsync(rootNode, cancellationToken);
 					}
+					await storage.WriteRefTargetAsync(refName, rootNodeRef.Handle, new RefOptions(), cancellationToken);
 
 					logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 
@@ -862,20 +865,23 @@ namespace Horde.Agent.Execution
 				Logger.LogInformation("Created artifact {ArtifactId} with ref {RefName} in ns {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 
 				using IStorageClient storage = StorageFactory.CreateClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
-				await using IStorageWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger);
 
-				try
+				NodeRef<DirectoryNode> rootRef;
+				await using (IStorageWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
 				{
-					DirectoryNode dir = new DirectoryNode();
-					await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
-
-					await storage.WriteRefAsync(new RefName(artifact.RefName), dir, cancellationToken: cancellationToken);
+					try
+					{
+						DirectoryNode dir = new DirectoryNode();
+						await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
+						rootRef = await writer.WriteNodeAsync(dir, cancellationToken);
+					}
+					catch (Exception ex)
+					{
+						Logger.LogInformation(ex, "Error uploading files for artifact {ArtifactId}", artifact.Id);
+						throw;
+					}
 				}
-				catch (Exception ex)
-				{
-					Logger.LogInformation(ex, "Error uploading files for artifact {ArtifactId}", artifact.Id);
-					throw;
-				}
+				await storage.WriteRefTargetAsync(new RefName(artifact.RefName), rootRef.Handle, cancellationToken: cancellationToken);
 
 				Logger.LogInformation("Uploaded artifact {ArtifactId}", artifact.Id);
 			}
@@ -1051,44 +1057,48 @@ namespace Horde.Agent.Execution
 				Stopwatch timer = Stopwatch.StartNew();
 				RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, step.Name);
 
-				await using IStorageWriter treeWriter = CreateStorageWriter(storage, refName, logger);
-
-				DirectoryNode outputNode = new DirectoryNode();
-
-				// Create all the output blocks
-				foreach (KeyValuePair<string, HashSet<FileReference>> pair in outputStorageBlockToFiles)
+				NodeRef<DirectoryNode> outputNodeRef;
+				await using (IStorageWriter treeWriter = CreateStorageWriter(storage, refName, logger))
 				{
-					TempStorageBlockRef outputBlock = new TempStorageBlockRef(step.Name, pair.Key);
-					foreach (FileReference file in pair.Value)
-					{
-						fileToStorageBlock.Add(file, outputBlock);
-					}
-					if (pair.Value.Any(x => referencedOutputFiles.Contains(x)))
-					{
-						outputNode.AddDirectory(await TempStorage.ArchiveBlockAsync(manifestDir, step.Name, pair.Key, workspaceDir, pair.Value.ToArray(), treeWriter, logger, cancellationToken));
-					}
-				}
+					DirectoryNode outputNode = new DirectoryNode();
 
-				// Create all the output tags
-				foreach (string outputName in step.OutputNames)
-				{
-					HashSet<FileReference> files = tagNameToFileSet[outputName];
-
-					HashSet<TempStorageBlockRef> storageBlocks = new HashSet<TempStorageBlockRef>();
-					foreach (FileReference file in files)
+					// Create all the output blocks
+					foreach (KeyValuePair<string, HashSet<FileReference>> pair in outputStorageBlockToFiles)
 					{
-						TempStorageBlockRef? storageBlock;
-						if (fileToStorageBlock.TryGetValue(file, out storageBlock))
+						TempStorageBlockRef outputBlock = new TempStorageBlockRef(step.Name, pair.Key);
+						foreach (FileReference file in pair.Value)
 						{
-							storageBlocks.Add(storageBlock);
+							fileToStorageBlock.Add(file, outputBlock);
+						}
+						if (pair.Value.Any(x => referencedOutputFiles.Contains(x)))
+						{
+							outputNode.AddDirectory(await TempStorage.ArchiveBlockAsync(manifestDir, step.Name, pair.Key, workspaceDir, pair.Value.ToArray(), treeWriter, logger, cancellationToken));
 						}
 					}
 
-					outputNode.AddFile(await TempStorage.ArchiveTagAsync(manifestDir, step.Name, outputName, workspaceDir, files, storageBlocks.ToArray(), treeWriter, logger, cancellationToken));
+					// Create all the output tags
+					foreach (string outputName in step.OutputNames)
+					{
+						HashSet<FileReference> files = tagNameToFileSet[outputName];
+
+						HashSet<TempStorageBlockRef> storageBlocks = new HashSet<TempStorageBlockRef>();
+						foreach (FileReference file in files)
+						{
+							TempStorageBlockRef? storageBlock;
+							if (fileToStorageBlock.TryGetValue(file, out storageBlock))
+							{
+								storageBlocks.Add(storageBlock);
+							}
+						}
+
+						outputNode.AddFile(await TempStorage.ArchiveTagAsync(manifestDir, step.Name, outputName, workspaceDir, files, storageBlocks.ToArray(), treeWriter, logger, cancellationToken));
+					}
+
+					outputNodeRef = await treeWriter.WriteNodeAsync(outputNode, cancellationToken);
 				}
 
 				// Write the final node
-				await storage.WriteRefAsync(refName, outputNode, refOptions: new RefOptions(), cancellationToken: cancellationToken);
+				await storage.WriteRefTargetAsync(refName, outputNodeRef.Handle, new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 
 				// Create the artifact

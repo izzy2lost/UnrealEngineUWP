@@ -495,9 +495,11 @@ namespace UnrealBuildTool.Artifacts
 					// Save the artifact action file
 					await using IStorageWriter writer = _store!.CreateWriter();
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
+					NodeRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteNodeAsync(node);
+					await writer.FlushAsync();
 
 					// Save the collection
-					IBlobHandle _ = await _store.WriteRefAsync(refName, node, cancellationToken: cancellationToken);
+					await _store.WriteRefTargetAsync(refName, nodeRef.Handle, cancellationToken: cancellationToken);
 				}, cancellationToken));
 			}
 			return tasks;

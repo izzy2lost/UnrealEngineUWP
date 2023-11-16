@@ -62,12 +62,14 @@ namespace Horde.Server.Commands.Install
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
+					NodeRef<DirectoryNode> dirNodeRef;
 					await using (IStorageWriter writer = client.CreateWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();
 						await dirNode.CopyFromDirectoryAsync(looseAgentDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
-						await client.WriteRefAsync(refName, dirNode);
+						dirNodeRef = await writer.WriteNodeAsync(dirNode);
 					}
+					await client.WriteRefAsync(refName, dirNodeRef.Handle);
 				}
 			}
 
@@ -79,12 +81,14 @@ namespace Horde.Server.Commands.Install
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(installerBundleDir, bundleCache, logger))
 				{
+					NodeRef<DirectoryNode> dirNodeRef;
 					await using (IStorageWriter writer = client.CreateWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();
 						await dirNode.CopyFromDirectoryAsync(looseAgentInstallerDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
-						await client.WriteRefAsync(refName, dirNode);
+						dirNodeRef = await writer.WriteNodeAsync(dirNode);
 					}
+					await client.WriteRefTargetAsync(refName, dirNodeRef);
 				}
 			}
 

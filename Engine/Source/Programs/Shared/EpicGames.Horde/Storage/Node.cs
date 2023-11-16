@@ -256,24 +256,6 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// Writes a node to storage
-		/// </summary>
-		/// <param name="store">Store instance to write to</param>
-		/// <param name="name">Name of the ref containing this node</param>
-		/// <param name="node">Node to be written</param>
-		/// <param name="refOptions">Options for the ref</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Location of node targetted by the ref</returns>
-		public static async Task<IBlobHandle> WriteRefAsync(this IStorageClient store, RefName name, Node node, RefOptions? refOptions = null, CancellationToken cancellationToken = default)
-		{
-			await using IStorageWriter writer = store.CreateWriter(name);
-			HashedNodeRef<Node> nodeRef = await writer.WriteHashedNodeAsync(node, cancellationToken);
-			await writer.FlushAsync();
-			await store.WriteRefTargetAsync(name, nodeRef.Handle, refOptions, cancellationToken);
-			return nodeRef.Handle;
-		}
-
-		/// <summary>
 		/// Reads data for a ref from the store, along with the node's contents.
 		/// </summary>
 		/// <param name="store">Store instance to write to</param>

@@ -291,7 +291,7 @@ namespace EpicGames.Horde.Tests
 						next.AddDirectory(new DirectoryEntry($"node{idx}", 0, rootRef));
 						rootRef = await writer.WriteHashedNodeAsync(next);
 					}
-					await _storage.WriteRefTargetAsync(refName, rootRef);
+					await _storage.WriteRefTargetAsync(refName, rootRef.Handle);
 				}
 
 				Assert.AreEqual(1, _memoryStore.Refs.Count);

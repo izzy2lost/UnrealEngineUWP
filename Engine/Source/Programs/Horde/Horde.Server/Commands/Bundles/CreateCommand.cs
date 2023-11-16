@@ -56,12 +56,14 @@ namespace Horde.Server.Commands.Bundles
 
 		async Task ExecuteInternalAsync(IStorageClient storageClient, ILogger logger)
 		{
-			await using IStorageWriter writer = storageClient.CreateWriter(RefName);
-
-			DirectoryNode node = new DirectoryNode(DirectoryFlags.None);
-			await node.CopyFromDirectoryAsync(InputDir.ToDirectoryInfo(), new ChunkingOptions(), writer, new CopyStatsLogger(logger), CancellationToken.None);
-
-			await storageClient.WriteRefAsync(RefName, node);
+			NodeRef<DirectoryNode> nodeRef;
+			await using (IStorageWriter writer = storageClient.CreateWriter(RefName))
+			{
+				DirectoryNode node = new DirectoryNode(DirectoryFlags.None);
+				await node.CopyFromDirectoryAsync(InputDir.ToDirectoryInfo(), new ChunkingOptions(), writer, new CopyStatsLogger(logger), CancellationToken.None);
+				nodeRef = await writer.WriteNodeAsync(node);
+			}
+			await storageClient.WriteRefTargetAsync(RefName, nodeRef);
 		}
 	}
 }
