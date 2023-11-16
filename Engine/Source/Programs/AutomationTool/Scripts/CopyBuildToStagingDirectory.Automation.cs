@@ -3626,6 +3626,57 @@ namespace AutomationScripts
 				RunIoStore(Params, SC, IoStoreCommandsFileName, FinalOrderFiles, AdditionalArgs);
 			}
 
+			if (!string.IsNullOrWhiteSpace(Params.Upload))
+			{
+				StringBuilder UploadArgs = new StringBuilder();
+				if (Params.Upload.ToLower() == "localzen")
+				{
+					string ServiceUrl = "http://127.0.0.1:8558";
+					if (!string.IsNullOrWhiteSpace(Params.NoZenAutoLaunch))
+					{
+						ServiceUrl = Params.NoZenAutoLaunch.Trim();
+						if (!ServiceUrl.StartsWith("http://"))
+						{
+							int Sep = ServiceUrl.LastIndexOf(':');
+							if (Sep < 0)
+							{
+								ServiceUrl = "http://" + ServiceUrl + ":8558";
+							}
+							else
+							{
+								ServiceUrl = "http://" + ServiceUrl;
+							}
+						}
+					}
+
+					string PakPath = CombinePaths(SC.StageDirectory.FullName, SC.ShortProjectName, "Content", "Paks");
+					string CloudDir = CombinePaths(SC.StageDirectory.FullName, "Cloud");
+					string ConfigFilePath = CombinePaths(CloudDir, "IoStoreOnDemand.ini");
+
+					UploadArgs.Append(string.Format("-Upload={0}", PakPath));
+					UploadArgs.Append(string.Format(" -ServiceUrl={0}/obj/bucket", ServiceUrl));
+					UploadArgs.Append(" -Bucket=" + SC.ShortProjectName.ToLower());
+					UploadArgs.Append(" -ConfigFilePath=\"" + ConfigFilePath + "\"");
+					UploadArgs.Append(" -TargetPlatform=" + SC.StageTargetPlatform.PlatformType.ToString());
+					UploadArgs.Append(" -KeepContainerFiles");
+					UploadArgs.Append(" -KeepPakFiles");
+					UploadArgs.Append(" -BuildVersion=0");
+					UploadArgs.Append(" -WriteTocToDisk");
+					UploadArgs.Append(Params.AdditionalPakOptions);
+				}
+				else
+				{
+					UploadArgs.Append(Params.Upload);
+				}
+
+				if (UploadArgs.Length > 0)
+				{
+					string PakArgs = UploadArgs.ToString();
+					Logger.LogInformation("Running UnrealPak with arguments: {CommandletParams}", PakArgs);
+					RunAndLog(CmdEnv, GetUnrealPakLocation().FullName, PakArgs, Options: ERunOptions.Default | ERunOptions.UTF8Output);
+				}
+			}
+
 			// Do any additional processing on the command output
 			for (int Idx = 0; Idx < PakParamsList.Count; Idx++)
 			{

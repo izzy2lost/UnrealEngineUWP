@@ -444,6 +444,7 @@ namespace AutomationTool
 			this.TraceFile = InParams.TraceFile;
 			this.SessionLabel = InParams.SessionLabel;
 			this.ProjectDescriptor = InParams.ProjectDescriptor;
+			this.Upload = InParams.Upload;
 		}
 
 		/// <summary>
@@ -612,8 +613,9 @@ namespace AutomationTool
 			string TraceFile = null,
 			string SessionLabel = null,
 			ParamList<string> InMapsToRebuildLightMaps = null,
-            ParamList<string> InMapsToRebuildHLOD = null,
-            ParamList<string> TitleID = null
+			ParamList<string> InMapsToRebuildHLOD = null,
+			ParamList<string> TitleID = null,
+			string Upload = null
 			)
 		{
 			//
@@ -801,6 +803,10 @@ namespace AutomationTool
 			this.Compressed = GetParamValueIfNotSpecified(Command, Compressed, this.Compressed, "compressed");
 			this.ForceUncompressed = GetParamValueIfNotSpecified(Command, ForceUncompressed, this.ForceUncompressed, "ForceUncompressed");
 			this.AdditionalPakOptions = ParseParamValueIfNotSpecified(Command, AdditionalPakOptions, "AdditionalPakOptions");
+			if (!string.IsNullOrEmpty(this.NoZenAutoLaunch))
+			{
+				this.AdditionalPakOptions += string.Format(" -NoZenAutoLaunch={0}", this.NoZenAutoLaunch);
+			}
 			this.AdditionalIoStoreOptions = ParseParamValueIfNotSpecified(Command, AdditionalIoStoreOptions, "AdditionalIoStoreOptions");
 			this.ForceOodleDllVersion = ParseParamValueIfNotSpecified(Command, ForceOodleDllVersion, "ForceOodleDllVersion");
 			this.IterativeCooking = GetParamValueIfNotSpecified(Command, IterativeCooking, this.IterativeCooking, new string[] { "iterativecooking", "iterate" });
@@ -1037,7 +1043,9 @@ namespace AutomationTool
 				this.SessionLabel += "=" + SessionLabel;	
 			}
 
-				if (ClientConfigsToBuild == null)
+			this.Upload = Command.ParseParamValue("upload");
+
+			if (ClientConfigsToBuild == null)
 			{
 				if (Command != null)
 				{
@@ -2329,6 +2337,9 @@ namespace AutomationTool
 
 		[Help("sessionlabel", "A label to pass to analytics")]
 		public string SessionLabel { get; set; }
+
+		[Help("upload", "Arguments for uploading on demand content")]
+		public string Upload { get; set; }
 
 		private List<SingleTargetProperties> DetectedTargets;
 		private Dictionary<UnrealTargetPlatform, ConfigHierarchy> LoadedEngineConfigs;
