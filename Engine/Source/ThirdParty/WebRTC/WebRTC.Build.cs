@@ -20,7 +20,7 @@ public class WebRTC : ModuleRules
 	protected virtual bool bShouldUse5414WebRTC
 	{
 		get =>
-			false;
+			true;
 	}
 
 	public WebRTC(ReadOnlyTargetRules Target) : base(Target)
