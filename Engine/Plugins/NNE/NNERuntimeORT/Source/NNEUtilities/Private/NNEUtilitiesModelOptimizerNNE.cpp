@@ -221,6 +221,13 @@ namespace ModelOptimizerNNEHelper
 		// Add tensors for graph inputs
 		for (const onnx::ValueInfoProto& Input : Graph.input())
 		{
+			// ONNX GraphProto sometime return initializers as input,
+			// we skip them here as we only want user providable inputs as NNE inputs
+			if (GetInitializerFromGraphProto(Graph, Input.name())  != nullptr)
+			{
+				continue;
+			}
+
 			ENNETensorDataType DataType;
 			TArray<int32> Shape;
 			GetTensorInfoFromONNXValueInfo(Input, Shape, DataType);
