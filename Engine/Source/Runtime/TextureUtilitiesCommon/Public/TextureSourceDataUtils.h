@@ -4,6 +4,7 @@
 
 #if WITH_EDITOR
 #include "CoreTypes.h"
+#include "Engine/TextureDefines.h"
 
 class UTexture;
 class ITargetPlatform;
@@ -16,7 +17,12 @@ namespace UE::TextureUtilitiesCommon::Experimental
 	TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSizeInGame, const ITargetPlatform* TargetPlatform);
 
 	//Note: This function does trigger the post edit change after modifying the source texture
-	TEXTUREUTILITIESCOMMON_API bool DownsizeTexureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform);
+	TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform);
+	
+	// ChangeTextureSourceFormat calls Pre/Post edit change
+	//	beware that changing format may change the interpretation of the SRGB bool in Texture
+	// ChangeTextureSourceFormat supports mips and blocks (udim) but not layers
+	TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETextureSourceFormat NewFormat);
 }
 
 #endif // WITH_EDITOR

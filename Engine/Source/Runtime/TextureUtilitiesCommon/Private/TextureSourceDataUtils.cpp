@@ -16,13 +16,15 @@ namespace Private
 {
 
 	// resize so that the largest dimension is <= MaxSize
-	bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
+	static bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
 		// We want to reduce the asset size so ignore the imported mip(s)
 		const int32 MipIndex = 0;
 		FImage SourceMip0;
 		if (!Texture->Source.GetMipImage(SourceMip0, MipIndex))
 		{
+			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture GetMipImage failed [%s]"),
+				*Texture->GetFullName());
 			return false;
 		}
 
@@ -32,7 +34,8 @@ namespace Private
 		bool MadeChanges;
 		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
 		{
-			// a critical error
+			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture DownsizeImageUsingTextureSettings failed [%s]"),
+				*Texture->GetFullName());
 			return false;
 		}
 		if ( ! MadeChanges )
@@ -63,8 +66,29 @@ namespace Private
 
 		return true;
 	}
+	
+	// concatenate all the image payloads into one bulkdata, eg. for mips or blocks
+	static UE::Serialization::FEditorBulkData::FSharedBufferWithID MakeSharedBufferForImageDatas(const TArray<FImage> & InImages)
+	{
+		int64 SizeNeededInBytes = 0;
+		for (const FImage& Im : InImages)
+		{
+			check( Im.RawData.Num() == Im.GetImageSizeBytes() );
+			SizeNeededInBytes += Im.RawData.Num(); 
+		}
+		FUniqueBuffer WriteImageBuffer = FUniqueBuffer::Alloc(SizeNeededInBytes);
 
-	bool ResizeTexture2DBlocked(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
+		uint8* CurrentAddress = static_cast<uint8*>(WriteImageBuffer.GetData());
+		for (const FImage& Im : InImages)
+		{
+			FMemory::Memcpy(CurrentAddress, Im.RawData.GetData(), Im.RawData.Num());
+			CurrentAddress += Im.RawData.Num();
+		}
+
+		return WriteImageBuffer.MoveToShared();
+	}
+
+	static bool ResizeTexture2DBlocked(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
 		// note: does not support layers
 
@@ -83,7 +107,7 @@ namespace Private
 		}
 		*/
 
-		TArray<FTextureSourceBlock > ResizedSourceBlocks;
+		TArray<FTextureSourceBlock> ResizedSourceBlocks;
 		ResizedSourceBlocks.Reserve(Texture->Source.GetNumBlocks());
 	
 		TArray<FImage> ResizedBlocks;
@@ -99,6 +123,8 @@ namespace Private
 			const int32 LayerIndex = 0;
 			if (!Texture->Source.GetMipImage(SourceMip0, BlockIndex, LayerIndex, MipIndex))
 			{
+				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2DBlocked: Texture GetMipImage failed [%s]"),
+					*Texture->GetFullName());
 				return false;
 			}
 
@@ -109,6 +135,8 @@ namespace Private
 			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
 			{
 				// critical error
+				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2DBlocked: Texture DownsizeImageUsingTextureSettings failed [%s]"),
+					*Texture->GetFullName());
 				return false;
 			}
 			MadeAnyChanges = MadeAnyChanges || MadeChanges;
@@ -132,26 +160,12 @@ namespace Private
 		// Protect the code from an async build of the texture
 		Texture->PreEditChange(nullptr);
 
-		int64 SizeNeededInBytes = 0;
-		for (const FImage& Block : ResizedBlocks)
-		{
-			SizeNeededInBytes += Block.RawData.Num(); // Block.GetImageSizeBytes()
-		}
-		FUniqueBuffer WriteImageBuffer = FUniqueBuffer::Alloc(SizeNeededInBytes);
-
-		uint8* CurrentAddress = static_cast<uint8*>(WriteImageBuffer.GetData());
-		for (FImage& Block : ResizedBlocks)
-		{
-			FMemory::Memcpy(CurrentAddress, static_cast<uint8*>(Block.RawData.GetData()), Block.RawData.Num());
-			CurrentAddress += Block.RawData.Num();
-		}
-
-		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = WriteImageBuffer.MoveToShared();
+		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferForImageDatas(ResizedBlocks);
 
 		const ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
 		int32 NumLayers = 1;
 		Texture->Source.InitBlocked(
-			&SourceFormat,
+			&SourceFormat, // array of formats per layer
 			ResizedSourceBlocks.GetData(),
 			NumLayers,
 			ResizedSourceBlocks.Num(),
@@ -166,7 +180,7 @@ namespace Private
 }
 
 
-bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const ITargetPlatform* TargetPlatform)
+TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const ITargetPlatform* TargetPlatform)
 {
 	check( Texture->Source.IsValid() );
 
@@ -229,7 +243,7 @@ bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const 
 	return false;
 }
 
-bool DownsizeTexureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform)
+TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform)
 {
 	if ( ! Texture->Source.IsValid() )
 	{
@@ -263,7 +277,7 @@ bool DownsizeTexureSourceDataNearRenderingSize(UTexture* Texture, const ITargetP
 		if ( BeforeSizeX != AfterSizeX ||
 			 BeforeSizeY != AfterSizeY )
 		{
-			UE_LOG(LogTexture,Warning,TEXT("DownsizeTexureSourceDataNearRenderingSize failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
+			UE_LOG(LogTexture,Warning,TEXT("DownsizeTextureSourceDataNearRenderingSize failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
 				BeforeSizeX,BeforeSizeY,
 				AfterSizeX,AfterSizeY,
 				*Texture->GetFullName());
@@ -276,6 +290,115 @@ bool DownsizeTexureSourceDataNearRenderingSize(UTexture* Texture, const ITargetP
 	//	that's okay but not great
 
 	return false;
+}
+
+
+TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETextureSourceFormat NewFormat)
+{
+	if ( ! Texture->Source.IsValid() )
+	{
+		return false;
+	}
+
+	// we only support 1 layer currently
+	if (Texture->Source.GetNumLayers() != 1)
+	{
+		return false;
+	}
+	
+	ETextureSourceFormat OldFormat = Texture->Source.GetFormat(0);
+	if ( OldFormat == NewFormat )
+	{
+		return false;
+	}
+
+	ERawImageFormat::Type NewRIF = FImageCoreUtils::ConvertToRawImageFormat(NewFormat);
+	EGammaSpace NewGamma = ( Texture->SRGB && ERawImageFormat::GetFormatNeedsGammaSpace(NewRIF) ) ? EGammaSpace::sRGB : EGammaSpace::Linear;
+
+	if ( Texture->Source.GetNumBlocks() == 1 && Texture->Source.GetNumMips() == 1 )
+	{
+		const int32 MipIndex = 0;
+		FImage SourceMip;
+		if (!Texture->Source.GetMipImage(SourceMip, MipIndex))
+		{
+			UE_LOG(LogTexture,Error,TEXT("ChangeTextureSourceFormat: Texture GetMipImage failed [%s]"),
+				*Texture->GetFullName());
+			return false;
+		}
+
+		FImage NewMip;
+		SourceMip.CopyTo(NewMip,NewRIF,NewGamma);
+		
+		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferFromArray(MoveTemp(NewMip.RawData));
+		
+		Texture->PreEditChange(nullptr);
+
+		const int32 NumMips = 1;
+		Texture->Source.Init(NewMip.SizeX,NewMip.SizeY,NewMip.NumSlices
+			, NumMips
+			, NewFormat
+			, MoveTemp(ResizedImageBufferWithID));
+	}
+	else
+	{
+		// all blocks of a UDIM have the same format; Layers do not
+		int32 NumLayers = 1;
+		int32 LayerIndex = 0;
+
+		int32 NumBlocks = Texture->Source.GetNumBlocks();
+		check( NumBlocks >= 1 );
+
+		TArray<FTextureSourceBlock> NewBlocks;
+		NewBlocks.Reserve(NumBlocks);
+	
+		TArray<FImage> NewImages;
+		NewImages.Reserve(NumBlocks*16); // *16 for mips
+
+		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+		{
+			FTextureSourceBlock Block;
+			Texture->Source.GetBlock(BlockIndex,Block);
+
+			// NewBlocks has sizes, they don't change
+			NewBlocks.Add(Block);
+
+			for(int32 MipIndex=0; MipIndex < Block.NumMips;MipIndex++)
+			{
+				FImage SourceMip;
+				if ( ! Texture->Source.GetMipImage(SourceMip, BlockIndex, LayerIndex, MipIndex) )
+				{
+					UE_LOG(LogTexture,Error,TEXT("ChangeTextureSourceFormat: Texture GetMipImage failed [%s]"),
+						*Texture->GetFullName());
+
+					return false;
+				}
+				
+				FImage & NewMip = NewImages.AddDefaulted_GetRef();
+
+				SourceMip.CopyTo(NewMip,NewRIF,NewGamma);
+			}
+		}
+
+		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = Private::MakeSharedBufferForImageDatas(NewImages);
+		
+		Texture->PreEditChange(nullptr);
+
+		Texture->Source.InitBlocked(
+			&NewFormat, // array of formats per layer
+			NewBlocks.GetData(),
+			NumLayers,
+			NewBlocks.Num(),
+			MoveTemp(ResizedImageBufferWithID)
+		);
+	}
+
+	// if gamma was Pow22 it is now sRGB
+	Texture->bUseLegacyGamma = false;
+	Texture->PostEditChange();
+
+	check( Texture->Source.GetGammaSpace(0) == NewGamma );
+
+	return true;
 }
 
 } // End namespace UE::TextureUtilitiesCommon::Experimental

@@ -60,7 +60,15 @@ namespace MenuExtension_Texture
 	{
 		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
 		{
-			UE::TextureAssetActions::ResizeTextureSource_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
+			UE::TextureAssetActions::TextureSource_Resize_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
+		}
+	}
+	
+	static void Execute8bitTextureSource(const FToolMenuContext& InContext)
+	{
+		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+		{
+			UE::TextureAssetActions::TextureSource_ConvertTo8bit_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
 		}
 	}
 
@@ -133,11 +141,19 @@ namespace MenuExtension_Texture
 						}
 						
 						{
-							const TAttribute<FText> Label = LOCTEXT("Texture_ResizeSource", "Resize Texture Source");
+							const TAttribute<FText> Label = LOCTEXT("Texture_ResizeSource", "Texture Source Reduce Size");
 							const TAttribute<FText> ToolTip = LOCTEXT("Texture_ResizeSourceTooltip", "Reduce texture asset size by shrinking the texture source dimensions.");
 							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
 							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteResizeTextureSource);
 							InSection.AddMenuEntry("Texture_ResizeSource", Label, ToolTip, Icon, UIAction);
+						}
+												
+						{
+							const TAttribute<FText> Label = LOCTEXT("Texture_ConvertTo8bit", "Texture Source Convert To 8 bit or minimum bit depth");
+							const TAttribute<FText> ToolTip = LOCTEXT("Texture_ConvertTo8bitTooltip", "Reduce texture asset size by converting 16/32 bit source data to 8 bit or minimum compatible bit depth.");
+							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&Execute8bitTextureSource);
+							InSection.AddMenuEntry("Texture_ConvertTo8bit", Label, ToolTip, Icon, UIAction);
 						}
 					}
 				}));

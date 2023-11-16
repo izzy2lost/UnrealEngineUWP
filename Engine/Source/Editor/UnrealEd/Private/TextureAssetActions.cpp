@@ -33,11 +33,24 @@
 
 #define LOCTEXT_NAMESPACE "TextureAssetActions"
 
-struct FTextureAssetActionStatus
+namespace
 {
-	bool Enabled = true;
-	bool UnderSized = false;
-	bool WrongType = false;
+
+enum class ETextureAction
+{
+	Invalid = 0,
+	Resize,
+	ConvertTo8bit
+};
+
+enum class EAssetActionStatus
+{
+	Enabled = 0,
+	UnderSized,
+	WrongType,
+	HasLayers,
+	Already8bit,
+	DontChangeJPEG
 };
 
 /**
@@ -54,7 +67,7 @@ public:
 		Confirm = 1,		// Yes/Ok/Etc, normal usage would continue with action
 	};
 
-	STextureActionDlg(const TArray<UTexture*>& Textures);
+	STextureActionDlg(const TArray<UTexture*>& Textures, ETextureAction Act);
 
 	/**  Shows the dialog box and waits for the user to respond. */
 	EResult ShowModal();
@@ -77,7 +90,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	void Init(const TArray<UTexture *> &Textures);
+	void Init(const TArray<UTexture *> &Textures, ETextureAction Act);
 
 	STextureActionDlg::EResult GetUserResponse() const;
 
@@ -89,7 +102,7 @@ private:
 	/**
 	* Creates a single line showing an asset and it's status related to VT conversion
 	*/
-	TSharedRef<SWidget> CreateAssetLine(int index, const FAssetData &Asset, const FTextureAssetActionStatus &Status);
+	TSharedRef<SWidget> CreateAssetLine(int index, const FAssetData &Asset, const EAssetActionStatus Status);
 
 	FReply OnButtonClick(STextureActionDlg::EResult ButtonID);
 
@@ -112,6 +125,20 @@ private:
 	EVisibility GetErrorMessageVisibility() const;
 
 	EVisibility GetThresholdVisibility() const;
+	
+	EVisibility GetNMK16Visibility() const
+	{
+		return ( Action == ETextureAction::ConvertTo8bit ) ? EVisibility::Visible : EVisibility::Hidden;
+	}
+	ECheckBoxState HandleNMK16CheckBoxIsChecked() const
+	{
+		return bNormalMapsKeep16bits ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	void HandleNMK16CheckBoxCheckedStateChanged(ECheckBoxState InNewState)
+	{
+		bNormalMapsKeep16bits = ( InNewState == ECheckBoxState::Checked );
+		UpdateList();
+	}
 
 	FText GetIntroMessage() const;
 
@@ -121,7 +148,7 @@ private:
 
 	FText IntroMessage;
 	FText ErrorMessage;
-	STextureActionDlg::EResult	 UserResponse;
+	STextureActionDlg::EResult	 UserResponse = STextureActionDlg::EResult::Cancel;
 
 	TSharedPtr<SVerticalBox>	 AssetListContainer;
 	//TSharedPtr<STextBlock>		 MessageTextBlock;
@@ -135,34 +162,53 @@ private:
 	struct TextureListEntry
 	{
 		UTexture * Texture;
-		bool Enabled;
+		bool IsEnabled;
 	};
 
 	TArray<TextureListEntry> TextureList;
-	TArray<FAssetData> AssetList;
-	TArray<FTextureAssetActionStatus> AssetStatus;
 
-	int ThresholdValue;
-	bool bThresholdVisible;
+	int ThresholdValue = 0;
+	bool bThresholdVisible = true;
+
+	bool bNormalMapsKeep16bits = true;
 
 	TArray<TSharedPtr<int32>> TextureSizes;
+
+	ETextureAction Action = ETextureAction::Invalid;
 };
 
 
-void STextureAssetList::Construct(const FArguments& InArgs)
+static FText TAA_DialogTitle(ETextureAction Act)
 {
-	IntroMessage = LOCTEXT("TAA_Intro", "Reduce size of Texture Source to compact uassets.  Resizing is done using mip filter.  LODBias is adjusted but platform built size may change.");
+	switch(Act)
+	{
+	case ETextureAction::Resize: return LOCTEXT("TAA_Title_Resize", "Texture Asset : Resize Source");
+	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Title_Convert", "Texture Asset : Convert To 8 bit or minimum viable bit depth");
+	default: check(0); return FText();
+	}
+}
 
+static FText TAA_Intro(ETextureAction Act)
+{
+	switch(Act)
+	{
+	case ETextureAction::Resize: return LOCTEXT("TAA_Intro_Resize", "Reduce size of Texture Source to compact uassets.  Resizing is done using mip filter.  LODBias is adjusted but platform built size may change.");
+	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Intro_Convert", "Convert Texture Source to 8 bit, Normals to 8 or 16, HDR to 16F.  Output built texture may change.  Make sure CompressionSetting and SRGB are set correctly first!");
+	default: check(0); return FText();
+	}
+}
+
+void STextureAssetList::Construct(const FArguments& InArgs)
+{	
 	UserResponse = STextureActionDlg::Cancel;
 	ParentWindow = InArgs._ParentWindow.Get();
 	static FName ErrorIcon = "MessageLog.Error";
-
 
 	for (int i = 0; i < 16; i++)
 	{
 		TextureSizes.Add(MakeShareable(new int32(1 << i)));
 	}
-	ThresholdValue = *TextureSizes[10];
+	ThresholdValue = *TextureSizes[10]; // 1024
 
 	this->ChildSlot[
 		SNew(SVerticalBox)
@@ -227,6 +273,7 @@ void STextureAssetList::Construct(const FArguments& InArgs)
 			.Padding(8.0f, 4.0f, 8.0f, 4.0f)
 			[
 				SNew(SHorizontalBox)
+				.Visibility(this, &STextureAssetList::GetThresholdVisibility)
 				+SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -248,6 +295,31 @@ void STextureAssetList::Construct(const FArguments& InArgs)
 						SNew(STextBlock)
 						.Text(this, &STextureAssetList::GetThresholdText)
 					]
+				]
+			]
+		+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Left)
+			.Padding(8.0f, 4.0f, 8.0f, 4.0f)
+			[
+				SNew(SHorizontalBox)
+				.Visibility(this, &STextureAssetList::GetNMK16Visibility)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("TAA_NormalMapsKeep16bits", "Normal Maps keep 16 bits: "))
+					.AutoWrapText(true)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(4.0f, 0.0f, 2.0f, 0.0f)
+				.VAlign(VAlign_Center)
+				.AutoWidth()
+				[
+					SNew(SCheckBox)
+					.IsChecked(this, &STextureAssetList::HandleNMK16CheckBoxIsChecked)
+					.OnCheckStateChanged(this, &STextureAssetList::HandleNMK16CheckBoxCheckedStateChanged)
 				]
 			]
 		// Separator
@@ -289,15 +361,22 @@ void STextureAssetList::Construct(const FArguments& InArgs)
 
 	// will be done by Init :
 	//UpdateList();
+
 }
 
-void STextureAssetList::Init(const TArray<UTexture *> &Textures)
+void STextureAssetList::Init(const TArray<UTexture *> &Textures, ETextureAction InAction)
 {
+	Action = InAction;
+	
+	bThresholdVisible = (Action == ETextureAction::Resize );
+
+	IntroMessage = TAA_Intro(Action);
+
 	TextureList.SetNum(Textures.Num());
 	for(int i=0;i<Textures.Num();i++)
 	{
 		TextureList[i].Texture = Textures[i];
-		TextureList[i].Enabled = true;
+		TextureList[i].IsEnabled = true;
 	}
 
 	UpdateList();
@@ -308,26 +387,46 @@ STextureActionDlg::EResult STextureAssetList::GetUserResponse() const
 	return UserResponse;
 }
 
-TSharedRef<SWidget> STextureAssetList::CreateAssetLine(int index, const FAssetData &Asset, const FTextureAssetActionStatus &Status)
+static FText AssetActionStatus_Text(EAssetActionStatus Status)
 {
-	//const bool bEngineAsset = Asset.PackagePath.ToString().StartsWith(TEXT("/Engine/")); // use FPackageName::SplitPackageNameRoot
+	switch(Status)
+	{
+	case EAssetActionStatus::Enabled: return FText();
+	case EAssetActionStatus::WrongType: return LOCTEXT("TAAStatus_WrongType", "The texture is not a supported type.");
+	case EAssetActionStatus::UnderSized: return LOCTEXT("TAAStatus_UnderSized", "The texture was under the threshold size.");
+	case EAssetActionStatus::HasLayers: return LOCTEXT("TAAStatus_HasLayers", "Textures with more than 1 layer not supported.");
+	case EAssetActionStatus::Already8bit: return LOCTEXT("TAAStatus_Already8", "Texture format is already minimum bit depth.");
+	case EAssetActionStatus::DontChangeJPEG: return LOCTEXT("TAAStatus_JPEG", "Texture source is JPEG compressed, will not change."); 
+	default:
+		check(0);
+		return FText();
+	}	
+}
 
+TSharedRef<SWidget> STextureAssetList::CreateAssetLine(int index, const FAssetData &Asset, const EAssetActionStatus Status)
+{
 	FName SeverityIcon = NAME_None;
-	FText DetailedInfoText;
+	FText DetailedInfoText = AssetActionStatus_Text(Status);
 
-	if (Status.WrongType)
+	bool IsEnabled = Status == EAssetActionStatus::Enabled;
+
+	if ( ! IsEnabled )
 	{
-		SeverityIcon = "MessageLog.Error";
-		DetailedInfoText = LOCTEXT("TAA_WrongType", "The texture is not a supported type.");
+		if ( Status == EAssetActionStatus::UnderSized ||
+			Status == EAssetActionStatus::Already8bit )
+		{
+			SeverityIcon = "MessageLog.Note";
+		}
+		else
+		{
+			SeverityIcon = "MessageLog.Error";
+		}
 	}
-	else if (Status.UnderSized)
-	{
-		SeverityIcon = "MessageLog.Note";
-		DetailedInfoText = LOCTEXT("TAA_UnderSized", "The texture was under the threshold size.");
-	}
+
 	/*
+	//const bool bEngineAsset = Asset.PackagePath.ToString().StartsWith(TEXT("/Engine/")); // use FPackageName::SplitPackageNameRoot
 	// ConvertToVT does this, currently we do not
-	else if (bEngineAsset) // @@??
+	else if (bEngineAsset) // ??
 	{
 		SeverityIcon = "MessageLog.Note";
 		DetailedInfoText = LOCTEXT("TAA_EngineAsset", "The texture is an engine asset, a copy will be created in the current project.");
@@ -407,7 +506,7 @@ TSharedRef<SWidget> STextureAssetList::CreateAssetLine(int index, const FAssetDa
 					[
 						SNew(STextBlock)
 						.Text(FText::FromString(Asset.GetObjectPathString()))
-						.ColorAndOpacity( Status.Enabled ? FSlateColor::UseForeground() : FSlateColor::UseSubduedForeground())
+						.ColorAndOpacity( IsEnabled ? FSlateColor::UseForeground() : FSlateColor::UseSubduedForeground())
 					] // change color for enabled/not
 				]
 			]
@@ -482,6 +581,154 @@ static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 	Texture->PostEditChange();
 }
 
+static ETextureSourceFormat GetReducedTextureSourceFormat(TextureCompressionSettings TC,ETextureSourceFormat InTSF,bool NormalMapsKeep16bits)
+{
+	if ( InTSF == TSF_BGRE8 )
+	{
+		// don't change BGRE
+		return InTSF;
+	}
+
+	bool Out8bit = false;
+	bool OutBC45 = false;
+	bool OutHDR = false;
+	bool OutSingleChannel = false;
+
+	switch(TC)
+	{
+	case TC_Grayscale				: //"Grayscale (G8/16, RGB8 sRGB)"),
+	case TC_Displacementmap			: //"Displacementmap (G8/16)"),
+		// Gray and Displacement pass through G16 ; note they do not do that for RGBA16 (see GetDefaultTextureFormatName)
+		if ( InTSF == TSF_G16 ) return InTSF;
+		// otherwise we will convert to G8
+	case TC_DistanceFieldFont		: //"DistanceFieldFont (G8)"),
+		Out8bit = true;
+		OutSingleChannel = true;
+		break;
+
+	case TC_Default					: //"Default (DXT1/5, BC1/3 on DX11)"),
+	case TC_Masks					: //"Masks (no sRGB)"),
+	case TC_VectorDisplacementmap	: //"VectorDisplacementmap (RGBA8)"),
+	case TC_EditorIcon				: //"UserInterface2D (RGBA)"),
+	case TC_BC7						: //"BC7 (DX11, optional A)"),
+	case TC_LQ				        : // "Low Quality (BGR565/BGR555A1)", ToolTip = "BGR565/BGR555A1, fallback to DXT1/DXT5 on Mac platform"),
+		Out8bit = true;
+		break;
+
+	case TC_Normalmap				: //"Normalmap (DXT5, BC5 on DX11)"),
+		OutBC45 = true;
+		break;
+
+	case TC_Alpha					: //"Alpha (no sRGB, BC4 on DX11)"),
+		OutBC45 = true;
+		OutSingleChannel = true;
+		break;
+		
+	case TC_HDR						: //"HDR (RGBA16F, no sRGB)"),
+	case TC_HDR_Compressed			: //"HDR Compressed (RGB, BC6H, DX11)"),
+		OutHDR = true;
+		break;
+
+	case TC_HalfFloat				: //"Half Float (R16F)"),
+	case TC_SingleFloat				: //"Single Float (R32F)"),
+		OutHDR = true;
+		OutSingleChannel = true;
+		break;
+
+	case TC_EncodedReflectionCapture: 
+	case TC_HDR_F32					: //"HDR High Precision (RGBA32F)"),
+		// don't change :
+		return InTSF;
+
+	default:
+		check(0);
+		return InTSF;
+	}
+
+	if ( OutBC45 && ! NormalMapsKeep16bits )
+	{
+		// if NormalMaps don't keep 16 bit sources, then just treat them like 8 bit :
+		Out8bit = true;
+	}
+
+	ETextureSourceFormat OutTSF = InTSF;
+
+	if ( Out8bit )
+	{
+		OutTSF = ( OutSingleChannel ) ? TSF_G8 : TSF_BGRA8;		
+	}
+	else if ( OutBC45 )
+	{
+		check( NormalMapsKeep16bits );
+
+		// just choose a 16 bit output format, even if source was 8 bit
+		//	we will only convert if bytes per pixel goes down
+		OutTSF = ( OutSingleChannel ) ? TSF_G16 : TSF_RGBA16;		
+
+		if ( OutSingleChannel && InTSF == TSF_BGRA8 )
+		{
+			// don't do BGRA8 -> G16 , use G8 instead
+			OutTSF = TSF_G8;
+		}
+	}
+	else
+	{
+		check(OutHDR);
+		check( TC != TC_HDR_F32 ); // already handled
+
+		if ( TC == TC_SingleFloat &&
+			(InTSF == TSF_RGBA32F || InTSF == TSF_R32F) )
+		{
+			// 32 bit output, 32 bit input, keep it 32 bit
+			OutTSF = TSF_R32F;
+		}
+		else
+		{
+			OutTSF = ( OutSingleChannel ) ? TSF_R16F : TSF_RGBA16F;	
+		}
+	}
+
+	int64 InBPP  = FTextureSource::GetBytesPerPixel(InTSF);
+	int64 OutBPP = FTextureSource::GetBytesPerPixel(OutTSF);
+
+	if ( InBPP <= OutBPP )
+	{
+		// if bytes per pixel didn't go down, don't change
+		return InTSF;
+	}
+	else
+	{
+		// reducing
+		return OutTSF;
+	}
+}
+
+static void DoConvertTo8bitTextureSource(UTexture * Texture,bool NormalMapsKeep16bits)
+{
+	if ( Texture->Source.GetNumLayers() > 1 )
+	{
+		check(0);
+		return;
+	}
+
+	ETextureSourceFormat InTSF = Texture->Source.GetFormat();
+	ETextureSourceFormat OutTSF = GetReducedTextureSourceFormat(Texture->CompressionSettings,InTSF,NormalMapsKeep16bits);
+	if ( InTSF == OutTSF )
+	{
+		return;
+	}
+	
+	UE_LOG(LogTexture, Display, TEXT("Texture (%s) changing format from %s to %s, TC = %s"), 
+		*Texture->GetName() ,
+		*StaticEnum<ETextureSourceFormat>()->GetDisplayNameTextByValue(InTSF).ToString(),
+		*StaticEnum<ETextureSourceFormat>()->GetDisplayNameTextByValue(OutTSF).ToString(),
+		*StaticEnum<TextureCompressionSettings>()->GetDisplayNameTextByValue(Texture->CompressionSettings).ToString()
+		);
+
+	// calls Pre/PostEditChange :
+	UE::TextureUtilitiesCommon::Experimental::ChangeTextureSourceFormat(Texture,OutTSF);	
+}
+
 void STextureAssetList::DoAction()
 {
 	int NumEnabled = 0;
@@ -489,9 +736,9 @@ void STextureAssetList::DoAction()
 	{
 		UTexture * Texture = Entry.Texture;
 
-		UE_LOG(LogTexture, Display, TEXT("Texture (%s) Enabled=%d"), *Texture->GetName() , (int)Entry.Enabled);
+		UE_LOG(LogTexture, Display, TEXT("Texture (%s) Enabled=%d"), *Texture->GetName() , (int)Entry.IsEnabled);
 
-		if ( Entry.Enabled )
+		if ( Entry.IsEnabled )
 		{
 			NumEnabled ++;	
 		}
@@ -502,69 +749,98 @@ void STextureAssetList::DoAction()
 		return;
 	}
 
-	FScopedSlowTask Progress(NumEnabled, LOCTEXT("ResizingTextures", "Resizing Textures ..."));
+	FScopedSlowTask Progress(NumEnabled, LOCTEXT("TAA_Progress", "Applying action to TextureSources ..."));
 	Progress.MakeDialog(/*ShowCancelButton*/true);
 
 	for (TextureListEntry & Entry : TextureList)
 	{
-		if ( ! Entry.Enabled ) continue;
+		if ( ! Entry.IsEnabled ) continue;
 
 		UTexture * Texture = Entry.Texture;
 
-		UE_LOG(LogTexture, Display, TEXT("Texture (%s) Resizing to <= %d"), *Texture->GetName() , ThresholdValue);
-				
 		Progress.EnterProgressFrame(1.f);
 		if (Progress.ShouldCancel())
 		{
 			break;
 		}
 
-		DoResizeTextureSource(Texture,ThresholdValue);
+		switch(Action)
+		{
+		case ETextureAction::Resize:
+			UE_LOG(LogTexture, Display, TEXT("Texture (%s) Resizing to <= %d"), *Texture->GetName() , ThresholdValue);
+			DoResizeTextureSource(Texture,ThresholdValue);
+			break;
+		case ETextureAction::ConvertTo8bit:
+			UE_LOG(LogTexture, Display, TEXT("Texture (%s) ConvertTo8bit"), *Texture->GetName());
+			DoConvertTo8bitTextureSource(Texture,bNormalMapsKeep16bits);
+			break;
+		default:
+			check(0);
+			break;
+		}
 	}
 }
 
 void STextureAssetList::UpdateList()
 {
-	AssetList.Empty();
-	AssetStatus.Empty();
-
-	// filter select textures to see if they should be acted on
-	for (TextureListEntry & Entry : TextureList)
-	{
-		UTexture * Texture = Entry.Texture;
-
-		AssetList.Add(Texture);
-		FTextureAssetActionStatus* Status = new(AssetStatus) FTextureAssetActionStatus();
-		
-		Entry.Enabled = true;
-
-		ETextureClass Class = Texture->GetTextureClass();
-		if ( Class != ETextureClass::TwoD && Class != ETextureClass::Cube ) //  Array ?
-		{
-			Status->WrongType = true;
-			Entry.Enabled = false;
-		}
-		
-		FIntPoint SourceSize = Texture->Source.GetLogicalSize();
-		int MaxSize = FMath::Max(SourceSize.X,SourceSize.Y);
-		if ( MaxSize <= ThresholdValue )
-		{
-			Entry.Enabled = false;
-			Status->UnderSized = true;
-		}
-
-		Status->Enabled = Entry.Enabled;
-	}
-
-	check(AssetList.Num() == AssetStatus.Num());
 	AssetListContainer->ClearChildren();
 
-	for (int Id = 0; Id < AssetList.Num(); Id++)
+	// filter select textures to see if they should be acted on
+	for (int Index=0;Index<TextureList.Num();Index++)
 	{
+		TextureListEntry & Entry = TextureList[Index];
+		UTexture * Texture = Entry.Texture;
+
+		FAssetData AssetData(Texture);
+		EAssetActionStatus Status = EAssetActionStatus::Enabled; 
+
+		if ( Texture->Source.GetNumLayers() != 1 ) // only 1 layer textures
+		{
+			Status = EAssetActionStatus::HasLayers;
+		}
+		else if( Action == ETextureAction::Resize )
+		{
+			ETextureClass Class = Texture->GetTextureClass();
+			if ( Class != ETextureClass::TwoD && Class != ETextureClass::Cube ) //  Array ?
+			{
+				Status = EAssetActionStatus::WrongType;
+			}
+			else
+			{
+				// note: this does not match the logic in TextureSourceDataUtils
+				//	(@@FIXME) (eg. udim)
+				FIntPoint SourceSize = Texture->Source.GetLogicalSize();
+				int MaxSize = FMath::Max(SourceSize.X,SourceSize.Y);
+				if ( MaxSize <= ThresholdValue )
+				{
+					Status = EAssetActionStatus::UnderSized;
+				}
+			}
+		}
+		else if ( Action == ETextureAction::ConvertTo8bit )
+		{
+			ETextureSourceFormat InTSF = Texture->Source.GetFormat();
+			ETextureSourceFormat OutTSF = GetReducedTextureSourceFormat(Texture->CompressionSettings,InTSF,bNormalMapsKeep16bits);
+			if ( InTSF == OutTSF )
+			{
+				Status = EAssetActionStatus::Already8bit;
+			}
+			else if ( Texture->Source.GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_JPEG )
+			{
+				Status = EAssetActionStatus::DontChangeJPEG;
+			}
+		}
+		else
+		{
+			check(0);
+		}
+
+		Entry.IsEnabled = ( Status == EAssetActionStatus::Enabled );
+
 		AssetListContainer->AddSlot()
 			.AutoHeight()
 			[
-				CreateAssetLine(Id, AssetList[Id], AssetStatus[Id])
+				CreateAssetLine(Index, AssetData, Status)
 			];
 	}
 
@@ -652,7 +928,7 @@ EVisibility STextureAssetList::GetErrorMessageVisibility() const
 
 EVisibility STextureAssetList::GetThresholdVisibility() const
 {
-	return (bThresholdVisible) ? EVisibility::Collapsed : EVisibility::Visible;
+	return (bThresholdVisible) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText STextureAssetList::GetIntroMessage() const
@@ -665,12 +941,12 @@ FText STextureAssetList::GetErrorMessage() const
 	return ErrorMessage;
 }
 
-STextureActionDlg::STextureActionDlg(const TArray<UTexture *> &Textures)
+STextureActionDlg::STextureActionDlg(const TArray<UTexture *> &Textures, ETextureAction Act)
 {
 	if (FSlateApplication::IsInitialized())
 	{
 		DialogWindow = SNew(SWindow)
-			.Title(LOCTEXT("TAA_Title", "Texture Asset : Resize Source"))
+			.Title(TAA_DialogTitle(Act))
 			.SupportsMinimize(false).SupportsMaximize(false)
 			.ClientSize(FVector2D(500, 500));
 
@@ -684,7 +960,7 @@ STextureActionDlg::STextureActionDlg(const TArray<UTexture *> &Textures)
 			];
 
 		// Init will do UpdateList :
-		DialogWidget->Init(Textures);
+		DialogWidget->Init(Textures,Act);
 		DialogWindow->SetContent(DialogWrapper.ToSharedRef());
 	}
 }
@@ -698,10 +974,17 @@ STextureActionDlg::EResult STextureActionDlg::ShowModal()
 	return UserResponse;
 }
 
+}; // namespace
 
-void UE::TextureAssetActions::ResizeTextureSource_WithDialog(const TArray<UTexture*> & InTextures)
+void UE::TextureAssetActions::TextureSource_Resize_WithDialog(const TArray<UTexture*> & InTextures)
 {
-	STextureActionDlg Dlg(InTextures);
+	STextureActionDlg Dlg(InTextures,ETextureAction::Resize);
+	Dlg.ShowModal();
+}
+
+void UE::TextureAssetActions::TextureSource_ConvertTo8bit_WithDialog(const TArray<UTexture*> & InTextures)
+{
+	STextureActionDlg Dlg(InTextures,ETextureAction::ConvertTo8bit);
 	Dlg.ShowModal();
 }
 
