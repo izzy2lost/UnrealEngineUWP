@@ -85,8 +85,7 @@ void FPCGActorSingleOverride::Initialize(const FPCGAttributePropertySelector& In
 		return;
 	}
 
-	// TODO: Replace with something less restrictive (e.g. allow Double -> Float conversion).
-	if (!PCG::Private::IsBroadcastable(ActorOverrideInputAccessor->GetUnderlyingType(), ActorOverrideOutputAccessor->GetUnderlyingType()))
+	if (!PCG::Private::IsBroadcastableOrConstructible(ActorOverrideInputAccessor->GetUnderlyingType(), ActorOverrideOutputAccessor->GetUnderlyingType()))
 	{
 		PCGLog::LogWarningOnGraph(
 			FText::Format(LOCTEXT("TypesIncompatible", "ActorOverride cannot set input '{0}' to output '{1}'. Cannot convert type '{2}' to type '{3}'. Will be skipped."),

@@ -50,6 +50,24 @@ enum class EPCGMetadataTypes : uint8
 	MACRO(FSoftObjectPath) \
 	MACRO(FSoftClassPath)
 
+// Need a duplicated macro for a template list, because Foo<A,B,> is syntax error. It needs Foo<A,B>
+#define PCG_FOREACH_SUPPORTEDTYPES_WITH_COMMA(MACRO) \
+	MACRO(int32),           \
+	MACRO(int64),           \
+	MACRO(float),           \
+	MACRO(double),          \
+	MACRO(FVector2D),       \
+	MACRO(FVector),         \
+	MACRO(FVector4),        \
+	MACRO(FQuat),           \
+	MACRO(FTransform),      \
+	MACRO(FString),         \
+	MACRO(bool),            \
+	MACRO(FRotator),        \
+	MACRO(FName),           \
+	MACRO(FSoftObjectPath), \
+	MACRO(FSoftClassPath)
+
 namespace PCG
 {
 	namespace Private
@@ -153,10 +171,11 @@ namespace PCG
 
 		// Wrapper around a standard 2-dimensional CArray that is constexpr, to know if a type is broadcastable to another.
 		// First index is the original type, second index is the wanted type. Returns true if we can broadcast first type into second type.
-		struct UBroadcastableTypes
+		struct FBroadcastableTypes
 		{
-			constexpr UBroadcastableTypes() : Values{{false}}
+			constexpr FBroadcastableTypes() : Values{ {false} }
 			{
+				// All types are broadcastable to themselves.
 				for (uint8 i = 0; i < (uint8)EPCGMetadataTypes::Count; ++i)
 				{
 					Values[i][i] = true;
@@ -220,7 +239,52 @@ namespace PCG
 			bool Values[(uint8)EPCGMetadataTypes::Count][(uint8)EPCGMetadataTypes::Count];
 		};
 
-		inline static constexpr UBroadcastableTypes BroadcastableTypes{};
+		// Wrapper around a standard 2-dimensional CArray that is constexpr, to know if a type is constructible from another.
+		// First index is the wanted type, second index is the original type. Returns true if we can construct first type from second type.
+		struct FConstructibleTypes
+		{
+		private:
+			// Empty struct that will hold all our types.
+			template <typename... T>
+			struct TypeHolder {};
+
+			// Use the macro to have AllTypes that is the Dummy struct templated with all our types.
+#define PCG_ALL_TYPES(T) T
+			using AllTypes = TypeHolder<PCG_FOREACH_SUPPORTEDTYPES_WITH_COMMA(PCG_ALL_TYPES)>;
+#undef PCG_ALL_TYPES
+
+			// Unroll AllTypes twice, to have all combinations of types <T, U>
+			template <typename FirstType> constexpr void UnrollSecond(TypeHolder<> InTypeHolder) {}
+
+			template <typename FirstType, typename SecondType, typename... SecondTypes>
+			constexpr void UnrollSecond(TypeHolder<SecondType, SecondTypes...> InTypeHolder)
+			{
+				Values[MetadataTypes<FirstType>::Id][MetadataTypes<SecondType>::Id] = std::is_constructible_v<FirstType, SecondType>;
+				UnrollSecond<FirstType>(TypeHolder<SecondTypes...>{});
+			}
+
+			template <typename InputType, typename... InputTypes>
+			constexpr void UnrollFirst(TypeHolder<InputType, InputTypes...> InTypeHolder)
+			{
+				UnrollSecond<InputType>(AllTypes{});
+				UnrollFirst(TypeHolder<InputTypes...>{});
+			}
+
+			constexpr void UnrollFirst(TypeHolder<> InTypeHolder) {}
+
+		public:
+			constexpr FConstructibleTypes() : Values{ {false} }
+			{
+				UnrollFirst(AllTypes{});
+			}
+
+			constexpr const bool* operator[](int i) const { return Values[i]; }
+
+			bool Values[(uint8)EPCGMetadataTypes::Count][(uint8)EPCGMetadataTypes::Count];
+		};
+
+		inline static constexpr FBroadcastableTypes BroadcastableTypes{};
+		inline static constexpr FConstructibleTypes ConstructibleTypes{};
 
 		constexpr inline bool IsBroadcastable(uint16 FirstType, uint16 SecondType)
 		{
@@ -237,6 +301,25 @@ namespace PCG
 		constexpr inline bool IsBroadcastable()
 		{
 			return IsBroadcastable(MetadataTypes<FirstType>::Id, MetadataTypes<SecondType>::Id);
+		}
+
+		constexpr inline bool IsConstructible(uint16 FirstType, uint16 SecondType)
+		{
+			// Unknown types can't be checked for constructible.
+			if (FirstType >= static_cast<uint16>(EPCGMetadataTypes::Count) || SecondType >= static_cast<uint16>(EPCGMetadataTypes::Count))
+			{
+				return false;
+			}
+
+			return ConstructibleTypes[FirstType][SecondType];
+		}
+
+		// Convenience function for accessor operation, to know if a Get will succeed with AllowBroadcast and AllowConstructible
+		// where the SecondType is the target type, and FirstType is the accessor type.
+		// ie. Accessor is an int, Accessor->Get<float>(...). First type is int, second type is float.
+		constexpr inline bool IsBroadcastableOrConstructible(uint16 FirstType, uint16 SecondType)
+		{
+			return IsBroadcastable(FirstType, SecondType) || IsConstructible(SecondType, FirstType);
 		}
 
 		/**
@@ -989,3 +1072,6 @@ namespace PCG
 		}
 	}
 }
+
+// Undef this one since we don't use it outside this file. But the other is used outside so keep it defined.
+#undef PCG_FOREACH_SUPPORTEDTYPES_WITH_COMMA

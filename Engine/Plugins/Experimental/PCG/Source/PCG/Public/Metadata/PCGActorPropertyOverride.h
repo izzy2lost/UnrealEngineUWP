@@ -89,7 +89,7 @@ private:
 		}
 
 		Type Value{};
-		if (ActorOverrideInputAccessor->Get<Type>(Value, InputKeyIndex, *InputKeys.Get(), EPCGAttributeAccessorFlags::AllowBroadcast))
+		if (ActorOverrideInputAccessor->Get<Type>(Value, InputKeyIndex, *InputKeys.Get(), EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
 		{
 			if (ActorOverrideOutputAccessor->Set<Type>(Value, OutputKey))
 			{

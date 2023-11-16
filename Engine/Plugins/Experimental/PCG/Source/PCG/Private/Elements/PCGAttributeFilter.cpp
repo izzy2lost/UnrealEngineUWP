@@ -197,23 +197,20 @@ namespace PCGAttributeFilterHelpers
 		// And also validate that types are comparable/constructible. Do it all at once for a single dispatch.
 		bool bCanCompare = true;
 		bool bCanSearchString = true;
-		bool bIsConstructible = true;
-		PCGMetadataAttribute::CallbackWithRightType(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType(), [&bCanCompare, &bCanSearchString, &bIsConstructible, TargetType](auto ThresholdValue)
+		PCGMetadataAttribute::CallbackWithRightType(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType(), [&bCanCompare, &bCanSearchString, TargetType](auto ThresholdValue)
 		{
 			bCanCompare = PCG::Private::MetadataTraits<decltype(ThresholdValue)>::CanCompare;
 			bCanSearchString = PCG::Private::MetadataTraits<decltype(ThresholdValue)>::CanSearchString;
-			bIsConstructible = PCGMetadataAttribute::CallbackWithRightType(TargetType, [](auto TargetValue) { return std::is_constructible_v<decltype(TargetValue),decltype(ThresholdValue)>;});
 		});
 
 		// Comparison between threshold and target data needs to be of the same type. So we have to make sure that we can
 		// request target type from threshold type. ie. We need to make sure we can broadcast threshold type to target type, or construct a target type from a threshold type.
 		// For example: if target is double but threshold is int32, we can broadcast int32 to double, to compare a double with a double.
-		if (!PCG::Private::IsBroadcastable(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType(), TargetType) && !bIsConstructible)
+		if (!PCG::Private::IsBroadcastableOrConstructible(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType(), TargetType))
 		{
-			UEnum* PCGDataTypeEnum = StaticEnum<EPCGMetadataTypes>();
-			FText ThresholdTypeName = FText::FromString(PCGDataTypeEnum ? PCGDataTypeEnum->GetNameStringByValue(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType()) : FString(TEXT("Unknown")));
-			FText InputTypeName = FText::FromString(PCGDataTypeEnum ? PCGDataTypeEnum->GetNameStringByValue(TargetType) : FString(TEXT("Unknown")));
-			PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("TypeConversionFailed", "Cannot use threshold type '{0}' on input target type '{1}'"),
+			const FText InputTypeName = PCG::Private::GetTypeNameText(TargetType);
+			const FText ThresholdTypeName = PCG::Private::GetTypeNameText(InOutThresholdInfo.ThresholdAccessor->GetUnderlyingType());
+			PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("TypeConversionFailed", "Cannot convert threshold type '{0}' to input target type '{1}'"),
 				ThresholdTypeName,
 				InputTypeName));
 			return false;
@@ -221,13 +218,15 @@ namespace PCGAttributeFilterHelpers
 
 		if (bCheckCompare && !bCanCompare)
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("TypeComparisonFailed", "Cannot compare target type"));
+			const FText InputTypeName = PCG::Private::GetTypeNameText(TargetType);
+			PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("TypeComparisonFailed", "Cannot compare target type '{0}'"), InputTypeName));
 			return false;
 		}
 
 		if (bCheckStringSearch && !bCanSearchString)
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("TypeStringSearchFailed", "Cannot perform string operations on target type"));
+			const FText InputTypeName = PCG::Private::GetTypeNameText(TargetType);
+			PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("TypeStringSearchFailed", "Cannot perform string operations on target type '{0}'"), InputTypeName));
 			return false;
 		}
 
