@@ -6,8 +6,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkHub, Log, All);
 
-#define LOCTEXT_NAMESPACE "LiveLinkHub"
-
 int32 RunLiveLinkHub(const TCHAR* CommandLine)
 {
 	FTaskTagScope Scope(ETaskTag::EGameThread);

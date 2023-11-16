@@ -71,8 +71,8 @@
 		{
 			"Name": "LiveLinkSequencer",
 			"Type": "UncookedOnly",
-			"LoadingPhase": "Default",
-			"ProgramDenyList": [ "LiveLinkHub" ]
+			"ProgramAllowList": [ "LiveLinkHub" ],
+			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "LiveLinkMultiUser",

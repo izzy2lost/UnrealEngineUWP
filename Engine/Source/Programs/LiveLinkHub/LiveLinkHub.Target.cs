@@ -21,12 +21,24 @@ public class LiveLinkHubTarget : TargetRules
 		AdditionalPlugins.Add("StructUtils");
 		AdditionalPlugins.Add("UdpMessaging");
 		AdditionalPlugins.Add("QuicMessaging");
+		AdditionalPlugins.Add("PropertyAccessEditor");
+		AdditionalPlugins.Add("PythonScriptPlugin");
+
+		OptionalPlugins.AddRange(new string[]
+		{
+			"AppleARKitFaceSupport",
+			//"LiveLinkViconDataStream",
+			"MocopiLiveLink",
+			"OptitrackLiveLink"
+		});
 
 		bCompileAgainstCoreUObject = true;
 		bCompileAgainstEngine = true;
 		bCompileAgainstEditor = true;
 		bBuildWithEditorOnlyData = true;
 		bIncludePluginsForTargetPlatforms = false;
+		bLegalToDistributeBinary = true;
+
 		bUsesSlate = true;
 
 		bCompileWithPluginSupport = true;
