@@ -2482,18 +2482,21 @@ bool UnrealToUsd::ConvertSceneComponent( const pxr::UsdStageRefPtr& Stage, const
 		return false;
 	}
 
-	FTransform RelativeTransform = SceneComponent->GetRelativeTransform();
-
 	// If we're attached to a socket our RelativeTransform will be relative to the socket, instead of the parent
-	// component space. Here we get the socket transform itself and concatenate it, forcing RelativeTransform to
-	// be relative to the parent component space again.
+	// component space. If we were to use GetRelativeTransform directly, we're in charge of managing the socket
+	// transform too (and any other N obscure features we don't know about/don't exist yet). If we fetch directly
+	// the component-to-world transform however, the component will do that on its own (as that is the transform
+	// that is actually used to show it on the level), so we don't have to worry about it!
+	FTransform RelativeTransform;
 	if (USceneComponent* Parent = SceneComponent->GetAttachParent())
 	{
-		if (FName SocketName = SceneComponent->GetAttachSocketName(); SocketName != NAME_None)
-		{
-			FTransform SocketTransform = Parent->GetSocketTransform(SocketName, RTS_Component);
-			RelativeTransform = RelativeTransform * SocketTransform;
-		}
+		Parent->ConditionalUpdateComponentToWorld();
+		Parent->UpdateChildTransforms();
+		RelativeTransform = SceneComponent->GetComponentTransform().GetRelativeTransform(Parent->GetComponentTransform());
+	}
+	else
+	{
+		RelativeTransform = SceneComponent->GetRelativeTransform();
 	}
 
 	// Compensate different orientation for light or camera components:
@@ -3296,20 +3299,23 @@ bool UnrealToUsd::CreateComponentPropertyBaker( UE::FUsdPrim& Prim, const UScene
 			{
 				FScopedUsdAllocs Allocs;
 
-				FTransform RelativeTransform = Component.GetRelativeTransform();
-
 				// If we're attached to a socket our RelativeTransform will be relative to the socket, instead of the parent
-				// component space. Here we get the socket transform itself and concatenate it, forcing RelativeTransform to
-				// be relative to the parent component space again.
+				// component space. If we were to use GetRelativeTransform directly, we're in charge of managing the socket
+				// transform too (and any other N obscure features we don't know about/don't exist yet). If we fetch directly
+				// the component-to-world transform however, the component will do that on its own (as that is the transform
+				// that is actually used to show it on the level), so we don't have to worry about it!
 				// It may seem wasteful to do this inside the baker function, but you can place "Attach tracks" on the
 				// Sequencer that may make the attach socket change every frame, so we do need this
+				FTransform RelativeTransform;
 				if (USceneComponent* Parent = Component.GetAttachParent())
 				{
-					if (FName SocketName = Component.GetAttachSocketName(); SocketName != NAME_None)
-					{
-						FTransform SocketTransform = Parent->GetSocketTransform(SocketName, RTS_Component);
-						RelativeTransform = RelativeTransform * SocketTransform;
-					}
+					Parent->ConditionalUpdateComponentToWorld();
+					Parent->UpdateChildTransforms();
+					RelativeTransform = Component.GetComponentTransform().GetRelativeTransform(Parent->GetComponentTransform());
+				}
+				else
+				{
+					RelativeTransform = Component.GetRelativeTransform();
 				}
 
 				FTransform FinalUETransform = AdditionalRotation * RelativeTransform;
@@ -3496,6 +3502,7 @@ bool UnrealToUsd::CreateComponentPropertyBaker( UE::FUsdPrim& Prim, const UScene
 	{
 		OutBaker.BakerType = BakerType;
 		OutBaker.BakerFunction = BakerFunction;
+		OutBaker.ComponentPath = Component.GetPathName();
 		return true;
 	}
 
@@ -3587,6 +3594,7 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsd
 	pxr::VtVec3hArray Scales;
 	pxr::VtArray< float > BlendShapeWeights;
 
+	OutBaker.ComponentPath = Component.GetPathName();
 	OutBaker.BakerType = EBakingType::Skeletal;
 	OutBaker.BakerFunction =
 		[&Component, StageInfo, Translations, Rotations, Scales, BlendShapeWeights, TranslationsAttr, RotationsAttr, ScalesAttr, BlendShapeWeightsAttr, NumBones, NumMorphTargets]
@@ -3608,6 +3616,13 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsd
 			Component.FinalizeBoneTransform();
 			Component.MarkRenderTransformDirty();
 			Component.MarkRenderDynamicDataDirty();
+
+			// I'm not entirely sure why this is needed but FFbxExporter::ExportAnimTrack and FFbxExporter::ExportLevelSequenceBaked3DTransformTrack
+			// do this so for safety maybe we should as well?
+			if (AActor* Owner = Component.GetOwner())
+			{
+				Owner->Tick(0.0f);
+			}
 
 			const TArray< FTransform >& LocalBoneTransforms = Component.GetBoneSpaceTransforms();
 			for ( int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex )

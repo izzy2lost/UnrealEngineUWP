@@ -229,11 +229,13 @@ namespace UnrealToUsd
 		Bounds = 32,
 	};
 	ENUM_CLASS_FLAGS( EBakingType );
+	const static inline int32 NumBakingTypes = 6;
 
 	// Contains a lambda function responsible for baking a USceneComponent on the level into a prim on an FUsdStage
 	struct USDUTILITIES_API FComponentBaker
 	{
 		EBakingType BakerType;
+		FString ComponentPath;  // Used for sorting, to ensure we evaluate parents and skeletal stuff before children and attached stuff
 		TFunction<void( double UsdTimeCode )> BakerFunction;
 	};
 

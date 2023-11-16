@@ -406,7 +406,7 @@ namespace UE
 			struct FCombinedComponentBakers
 			{
 				UnrealToUsd::EBakingType CombinedBakingType = UnrealToUsd::EBakingType::None;
-				TArray<TFunction<void( double )>> Bakers;
+				TArray<UnrealToUsd::FComponentBaker> Bakers;
 			};
 
 			class FLevelSequenceExportContext
@@ -965,6 +965,7 @@ namespace UE
 						continue;
 					}
 
+					bool bHasTransformBaker = false;
 					if ( const FMovieSceneBinding* Binding = MovieScene->FindBinding( Guid ) )
 					{
 						for ( const UMovieSceneTrack* Track : Binding->GetTracks() )
@@ -1011,9 +1012,34 @@ namespace UE
 							FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd( BoundComponent );
 							if ( Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags( ExistingBakers.CombinedBakingType, Baker.BakerType ) )
 							{
-								ExistingBakers.Bakers.Add( Baker.BakerFunction );
+								ExistingBakers.Bakers.Add(Baker);
 								ExistingBakers.CombinedBakingType |= Baker.BakerType;
 							}
+
+							if (Baker.BakerType == UnrealToUsd::EBakingType::Transform)
+							{
+								bHasTransformBaker = true;
+							}
+						}
+					}
+
+					// If our component is attached to a specific socket of its parent, make sure its transform is baked.
+					// This because if this parent has any AnimSequence animating it, BoundComponent's world transform may change
+					// without it ever having an animated transform, and we don't have any form of rigging/socket attachment on USD that
+					// would cause the parent prim's skeletal animation to also affect its child prims.
+					// Ideally we'd actually search through the tracks to know for sure whether our parent has a SkeletalAnimation section,
+					// but it's probably safer to just do this in case it is hidden behind N subsequences or some obscure feature
+					if (!bHasTransformBaker && BoundComponent->GetAttachSocketName() != NAME_None)
+					{
+						UnrealToUsd::FComponentBaker Baker;
+						const FString PropertyPath = TEXT("Transform");
+						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
+
+						FCombinedComponentBakers& ExistingBakers = InOutComponentBakers.FindOrAdd(BoundComponent);
+						if (Baker.BakerType != UnrealToUsd::EBakingType::None && !EnumHasAnyFlags(ExistingBakers.CombinedBakingType, Baker.BakerType))
+						{
+							ExistingBakers.Bakers.Add(Baker);
+							ExistingBakers.CombinedBakingType |= Baker.BakerType;
 						}
 					}
 				}
@@ -1099,6 +1125,45 @@ namespace UE
 				static constexpr bool bSorted = true;
 				const TArray<TWeakObjectPtr<UTickableConstraint>> AllConstraints = Controller.GetAllConstraints(bSorted);
 
+				// Collect and sort the bakers: We need all skeletal animations evaluated first, as we need to manually force
+				// the component to update and attached components will only get the correct values if they are evaluated
+				// after that
+				TArray<UnrealToUsd::FComponentBaker> SortedBakers;
+				SortedBakers.Reserve(ComponentBakers.Num() * UnrealToUsd::NumBakingTypes);
+				for (const TPair<USceneComponent*, FCombinedComponentBakers>& Pair : ComponentBakers)
+				{
+					for (const UnrealToUsd::FComponentBaker& Baker : Pair.Value.Bakers)
+					{
+						if (Baker.BakerFunction)
+						{
+							SortedBakers.Add(Baker);
+						}
+					}
+				}
+				SortedBakers.Sort(
+					[](const UnrealToUsd::FComponentBaker& LHS, const UnrealToUsd::FComponentBaker& RHS) -> bool
+					{
+						if (LHS.BakerType != RHS.BakerType)
+						{
+							if (LHS.BakerType == UnrealToUsd::EBakingType::Skeletal)
+							{
+								// We want all skeletal bakers first so that the joints are updated before we refresh transforms attached
+								// to joints and sockets
+								return true;
+							}
+							else if (RHS.BakerType == UnrealToUsd::EBakingType::Skeletal)
+							{
+								return false;
+							}
+						}
+
+						// Parents should go first (so that if we have two nested skeletal mesh components attached to each other, we refresh the
+						// parent first). To be honest this is likely not necessary as child joint transforms shouldn't depend on parent joint
+						// transforms, but we should enforce some consistent ordering anyway so might as well use this
+						return LHS.ComponentPath < RHS.ComponentPath;
+					}
+				);
+
 				for ( FFrameTime EvalTime = StartFrame; EvalTime <= EndFrame; EvalTime += Interval )
 				{
 					Context.Sequencer->SetLocalTimeDirectly( EvalTime );
@@ -1114,17 +1179,11 @@ namespace UE
 					}
 
 					FFrameTime KeyTime = FFrameRate::Snap( EvalTime, Resolution, DisplayRate ).FloorToFrame();
-					double UsdTimeCode = FFrameRate::TransformTime( KeyTime, Resolution, StageFrameRate ).AsDecimal();
+					double UsdTimeCode = FFrameRate::TransformTime(KeyTime, Resolution, StageFrameRate).AsDecimal();
 
-					for ( const TPair<USceneComponent*, FCombinedComponentBakers>& Pair : ComponentBakers )
+					for (const UnrealToUsd::FComponentBaker& Baker : SortedBakers)
 					{
-						for ( const TFunction<void( double )>& Lambda : Pair.Value.Bakers )
-						{
-							if ( Lambda )
-							{
-								Lambda( UsdTimeCode );
-							}
-						}
+						Baker.BakerFunction(UsdTimeCode);
 					}
 				}
 
