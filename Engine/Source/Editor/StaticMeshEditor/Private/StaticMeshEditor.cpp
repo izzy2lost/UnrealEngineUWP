@@ -1076,6 +1076,8 @@ bool FStaticMeshEditor::IsPrimValid(const FPrimData& InPrimData) const
 			return AggGeom->SphylElems.IsValidIndex(InPrimData.PrimIndex);
 		case EAggCollisionShape::Convex:
 			return AggGeom->ConvexElems.IsValidIndex(InPrimData.PrimIndex);
+		case EAggCollisionShape::LevelSet:
+			return AggGeom->LevelSetElems.IsValidIndex(InPrimData.PrimIndex);
 		}
 	}
 	return false;
@@ -1174,6 +1176,12 @@ void FStaticMeshEditor::DuplicateSelectedPrims(const FVector* InOffset)
 				{
 					const FKConvexElem ConvexElem = AggGeom->ConvexElems[PrimData.PrimIndex];
 					PrimData.PrimIndex = AggGeom->ConvexElems.Add(ConvexElem);
+				}
+				break;
+			case EAggCollisionShape::LevelSet:
+				{
+					const FKLevelSetElem LevelSetElem = AggGeom->LevelSetElems[PrimData.PrimIndex];
+					PrimData.PrimIndex = AggGeom->LevelSetElems.Add(LevelSetElem);
 				}
 				break;
 			}
@@ -1379,6 +1387,14 @@ void FStaticMeshEditor::ScaleSelectedPrims(const FVector& InScale)
 		case EAggCollisionShape::Convex:
 			AggGeom->ConvexElems[PrimData.PrimIndex].ScaleElem(ModifiedScale, MinPrimSize);
 			break;
+		case EAggCollisionShape::LevelSet:
+			{
+				// Apply scaling to the centered transform; note that MinPrimSize has no effect for level sets (nor convex hulls)
+				FTransform ScaledTransform = AggGeom->LevelSetElems[PrimData.PrimIndex].GetCenteredTransform();
+				ScaledTransform.SetScale3D(ScaledTransform.GetScale3D() + ModifiedScale);
+				AggGeom->LevelSetElems[PrimData.PrimIndex].SetCenteredTransform(ScaledTransform);
+				break;
+			}
 		}
 
 		StaticMesh->bCustomizedCollision = true;	//mark the static mesh for collision customization
@@ -1412,6 +1428,9 @@ bool FStaticMeshEditor::CalcSelectedPrimsAABB(FBox &OutBox) const
 			break;
 		case EAggCollisionShape::Convex:
 			OutBox += AggGeom->ConvexElems[PrimData.PrimIndex].CalcAABB(FTransform::Identity, FVector(1.f));
+			break;
+		case EAggCollisionShape::LevelSet:
+			OutBox += AggGeom->LevelSetElems[PrimData.PrimIndex].CalcAABB(FTransform::Identity, FVector(1.f));
 			break;
 		}
 	}
@@ -1451,6 +1470,9 @@ bool FStaticMeshEditor::GetLastSelectedPrimTransform(FTransform& OutTransform) c
 		case EAggCollisionShape::Convex:
 			OutTransform = AggGeom->ConvexElems[PrimData.PrimIndex].GetTransform();
 			break;
+		case EAggCollisionShape::LevelSet:
+			OutTransform = AggGeom->LevelSetElems[PrimData.PrimIndex].GetCenteredTransform();
+			break;
 		}
 	}
 	return HasSelectedPrims();
@@ -1473,6 +1495,8 @@ FTransform FStaticMeshEditor::GetPrimTransform(const FPrimData& InPrimData) cons
 		return AggGeom->SphylElems[InPrimData.PrimIndex].GetTransform();
 	case EAggCollisionShape::Convex:
 		return AggGeom->ConvexElems[InPrimData.PrimIndex].GetTransform();
+	case EAggCollisionShape::LevelSet:
+		return AggGeom->LevelSetElems[InPrimData.PrimIndex].GetCenteredTransform();
 	}
 	return FTransform::Identity;
 }
@@ -1497,6 +1521,9 @@ void FStaticMeshEditor::SetPrimTransform(const FPrimData& InPrimData, const FTra
 		break;
 	case EAggCollisionShape::Convex:
 		AggGeom->ConvexElems[InPrimData.PrimIndex].SetTransform(InPrimTransform);
+		break;
+	case EAggCollisionShape::LevelSet:
+		AggGeom->LevelSetElems[InPrimData.PrimIndex].SetCenteredTransform(InPrimTransform);
 		break;
 	}
 
@@ -1587,6 +1614,26 @@ bool FStaticMeshEditor::OverlapsExistingPrim(const FPrimData& InPrimData) const
 				const FKConvexElem& ConvexElem = AggGeom->ConvexElems[i];
 				const FTransform ElemTM = ConvexElem.GetTransform();
 				if( InElemTM.Equals(ElemTM) )
+				{
+					return true;
+				}
+			}
+		}
+		break;
+	case EAggCollisionShape::LevelSet:
+		{
+			const FKLevelSetElem InLevelSetElem = AggGeom->LevelSetElems[InPrimData.PrimIndex];
+			const FTransform InElemTM = InLevelSetElem.GetTransform();
+			for (int32 i = 0; i < AggGeom->LevelSetElems.Num(); ++i)
+			{
+				if (i == InPrimData.PrimIndex)
+				{
+					continue;
+				}
+
+				const FKLevelSetElem& LevelSetElem = AggGeom->LevelSetElems[i];
+				const FTransform ElemTM = LevelSetElem.GetTransform();
+				if (InElemTM.Equals(ElemTM))
 				{
 					return true;
 				}
@@ -2385,6 +2432,9 @@ void FStaticMeshEditor::DeleteSelectedPrims()
 				break;
 			case EAggCollisionShape::Convex:
 				AggGeom->ConvexElems.RemoveAt(PrimData.PrimIndex);
+				break;
+			case EAggCollisionShape::LevelSet:
+				AggGeom->LevelSetElems.RemoveAt(PrimData.PrimIndex);
 				break;
 			}
 		}
