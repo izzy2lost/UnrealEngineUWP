@@ -325,6 +325,12 @@ nginx:
   ## Control the number of worker connections used for nginx
   workerConnections: 1024
 
+  ## Number of connections to keep alive between nginx and Jupiter
+  keepAliveConnections: 512
+
+  ## The length of the nginx backlog, bump this if you increase `net.core.somaxconn` beyond 4096
+  backlog: 4096
+
   ## Liveness and readiness probes, defaults to corresponding endpoints
   ##
   livenessProbe:

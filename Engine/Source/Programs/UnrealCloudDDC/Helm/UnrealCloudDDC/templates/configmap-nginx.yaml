@@ -29,12 +29,12 @@ data:
       upstream jupiter_backend {
         zone upstreams 64K;
         server {{ if .Values.nginx.useDomainSockets -}} unix:/nginx/jupiter-http.sock {{- else -}} localhost:80 {{- end }} max_fails=1 fail_timeout=2s;
-        keepalive 64;
+        keepalive {{ .Values.nginx.keepAliveConnections }};
       }
 
       # http 1.1 public port
       server {
-        listen 81 backlog=4096;
+        listen 81 backlog={{ .Values.nginx.backlog }};
         server_name public_http1;
 
         proxy_buffering off;
@@ -78,7 +78,7 @@ data:
 
       # http 1.1 corp port
       server {
-        listen 8009 backlog=4096;
+        listen 8009 backlog={{ .Values.nginx.backlog }};
         server_name corp_http1;
         
         proxy_buffering off;
@@ -122,7 +122,7 @@ data:
 
       # public http2 port
       server {
-        listen 8091 backlog=4096 http2;
+        listen 8091 backlog={{ .Values.nginx.backlog }} http2;
         server_name public_http2;
 
         proxy_buffering off;
@@ -166,7 +166,7 @@ data:
 
       # corp port http2
       server {
-        listen 8092 backlog=4096 http2;
+        listen 8092 backlog={{ .Values.nginx.backlog }} http2;
         server_name corp_http2;
 
         proxy_buffering off;
