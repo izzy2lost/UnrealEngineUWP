@@ -953,6 +953,7 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 
 		// Add all the names of the named slot widgets to the slot names structure.
 		{
+			TArray<FName> NamedSlotsWithContentInSameTree;
 		#if WITH_EDITOR
 			BPGClass->NamedSlotsWithID.Reset();
 		#endif
@@ -974,6 +975,13 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 						{
 							BPGClass->InstanceNamedSlots.Add(Widget->GetFName());
 						}
+
+						// A namedslot whose content is in the same blueprint class is treated as a regular panel widget.
+						// We need to keep track of these to later remove them from the available namedslots list.
+						if (NamedSlot->GetChildrenCount() > 0)
+						{
+							NamedSlotsWithContentInSameTree.Add(NamedSlot->GetFName());
+						}
 					}
 				});
 				
@@ -988,6 +996,12 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 				// If we find content for this slot, remove it from the available set.
 				BPGClass->AvailableNamedSlots.Remove(SlotName);
 			});
+
+			// Remove any named slots with content in the same widget tree from the available slots.
+			for (const FName& NamedSlotWithContent : NamedSlotsWithContentInSameTree)
+			{
+				BPGClass->AvailableNamedSlots.Remove(NamedSlotWithContent);
+			}
 
 			// Remove any available subclass named slots that are marked as instance named slot.
 			for (const FName& InstanceNamedSlot : BPGClass->InstanceNamedSlots)
