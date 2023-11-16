@@ -59,6 +59,7 @@ namespace UE::PixelStreaming
 		static std::vector<webrtc::SdpVideoFormat> SupportedFormats;
 
 		EPixelStreamingCodec SelectedCodec = UE::PixelStreaming::Settings::GetSelectedCodec();
+#if PLATFORM_WINDOWS || PLATFORM_LINUX
 		if ((SelectedCodec == EPixelStreamingCodec::H264 || SelectedCodec == EPixelStreamingCodec::H265) && IsRHIDeviceNVIDIA())
 		{
 			// NOTE (william.belcher): This check will return false if all the encoding sessions are in use, even if the user intends
@@ -97,6 +98,7 @@ namespace UE::PixelStreaming
 				CodecMap.Remove(EPixelStreamingCodec::H265);
 			}
 		}
+#endif // PLATFORM_WINDOWS || PLATFORM_LINUX
 
 		// If we are not negotiating codecs simply return just the one codec that is selected in UE
 		if (!Settings::CVarPixelStreamingWebRTCNegotiateCodecs.GetValueOnAnyThread())

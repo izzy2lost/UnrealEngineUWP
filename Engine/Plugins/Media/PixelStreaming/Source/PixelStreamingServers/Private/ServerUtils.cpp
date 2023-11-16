@@ -36,6 +36,9 @@ namespace UE::PixelStreamingServers::Utils
 #elif PLATFORM_LINUX
 			Args = FString::Printf(TEXT(" -- \"%s\" %s --nosudo"), *ExecutableAbsPath, *Args);
 			ExecutableAbsPath = TEXT("/usr/bin/bash");
+#elif PLATFORM_MAC
+            Args = FString::Printf(TEXT(" -- \"%s\" %s --nosudo"), *ExecutableAbsPath, *Args);
+            ExecutableAbsPath = TEXT("/bin/zsh");
 #else
 			UE_LOG(LogPixelStreamingServers, Error, TEXT("Unsupported platform for Pixel Streaming."));
 			return TSharedPtr<FMonitoredProcess>();
@@ -144,7 +147,7 @@ namespace UE::PixelStreamingServers::Utils
 		OutAbsPath = OutAbsPath / ServerDirectoryName / TEXT("platform_scripts");
 #if PLATFORM_WINDOWS
 		OutAbsPath = OutAbsPath / TEXT("cmd") / TEXT("run_local.bat");
-#elif PLATFORM_LINUX
+#elif PLATFORM_LINUX || PLATFORM_MAC
 		OutAbsPath = OutAbsPath / TEXT("bash") / TEXT("run_local.sh");
 #else
 		UE_LOG(LogPixelStreamingServers, Error, TEXT("Unsupported platform for Pixel Streaming scripts."));
@@ -180,7 +183,7 @@ namespace UE::PixelStreamingServers::Utils
 
 #if PLATFORM_WINDOWS
 		OutScriptPath = OutScriptPath / TEXT("get_ps_servers.bat");
-#elif PLATFORM_LINUX
+#elif PLATFORM_LINUX || PLATFORM_MAC
 		OutScriptPath = OutScriptPath / TEXT("get_ps_servers.sh");
 #else
 		UE_LOG(LogPixelStreamingServers, Error, TEXT("Unsupported platform for Pixel Streaming scripts."));

@@ -19,49 +19,49 @@
 			"Name": "PixelStreaming",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ ]
 		},
 		{
 			"Name": "PixelStreamingServers",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ ]
 		},
 		{
             "Name": "PixelStreamingEditor",
             "Type": "Editor",
             "LoadingPhase": "PreDefault",
-            "PlatformAllowList": [ "Win64", "Linux" ],
+            "PlatformAllowList": [ "Win64", "Linux", "Mac" ],
             "TargetDenyList": [ "Server" ]
 		},
 		{
 			"Name": "PixelStreamingBlueprint",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ "Server" ]
 		},
 		{
 			"Name": "PixelStreamingBlueprintEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ "Server" ]
 		},
 		{
 			"Name": "PixelStreamingHMD",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ "Server" ]
 		},
 		{
 			"Name": "PixelStreamingInput",
 			"Type": "Runtime",
 			"LoadingPhase": "PreDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ "Server" ]
 		}
 	],
@@ -73,7 +73,7 @@
 		{
 			"Name": "WmfMedia",
 			"Enabled": true,
-			"PlatformDenyList": [ "Linux" ]
+			"PlatformAllowList": [ "Win64" ]
 		},
 		{
 			"Name": "AVCodecsCore",
@@ -81,12 +81,18 @@
 		},
 		{
 			"Name": "NVCodecs",
-			"Enabled": true
+			"Enabled": true,
+            "PlatformAllowList": [ "Win64", "Linux" ]
 		},
 		{
 			"Name": "AMFCodecs",
 			"Enabled": true,
-			"PlatformDenyList": [ "Linux" ]
+			"PlatformAllowList": [ "Win64" ]
+		},
+        {
+			"Name": "VTCodecs",
+			"Enabled": true,
+			"PlatformAllowList": [ "Mac" ]
 		},
 		{
 			"Name": "WebSocketNetworking",
