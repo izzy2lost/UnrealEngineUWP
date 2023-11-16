@@ -15,6 +15,7 @@
 #include "LandscapeProxy.h"
 #include "StaticMeshCompiler.h"
 #include "TextureCompiler.h"
+#include "Algo/AnyOf.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
@@ -418,11 +419,6 @@ void FPCGActorAndComponentMapping::UnregisterPCGComponent(UPCGComponent* InCompo
 #endif // WITH_EDITOR
 	}
 
-	if (InComponent->GetOwner() && !InComponent->GetOwner()->IsA<APCGPartitionActor>())
-	{
-		PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
-	}
-
 	UnregisterPartitionedPCGComponent(InComponent);
 	UnregisterNonPartitionedPCGComponent(InComponent);
 
@@ -435,6 +431,8 @@ void FPCGActorAndComponentMapping::UnregisterPCGComponent(UPCGComponent* InCompo
 
 void FPCGActorAndComponentMapping::UnregisterPartitionedPCGComponent(UPCGComponent* InComponent)
 {
+	PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
+
 	if (!PartitionedOctree.RemoveComponent(InComponent) || InComponent->IsManagedByRuntimeGenSystem())
 	{
 		return;
@@ -462,6 +460,8 @@ void FPCGActorAndComponentMapping::UnregisterPartitionedPCGComponent(UPCGCompone
 
 void FPCGActorAndComponentMapping::UnregisterNonPartitionedPCGComponent(UPCGComponent* InComponent)
 {
+	PCGSubsystem->OnOriginalComponentUnregistered(InComponent);
+
 	NonPartitionedOctree.RemoveComponent(InComponent);
 }
 
@@ -924,7 +924,7 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 		{
 			if (!Actor->HasActorRegisteredAllComponents() && !bDisableDelayedActorRegistering)
 			{
-				DelayedAddedActors.Emplace({ Actor, false, 0 });
+				DelayedAddedActors.Emplace(Actor, { false, 0 });
 				continue;
 			}
 
@@ -1138,12 +1138,12 @@ void FPCGActorAndComponentMapping::AddDelayedActors()
 		return;
 	}
 
-	TSet<TTuple<TObjectKey<AActor>, bool, int>> StillDelayedActors;
+	TMap<TObjectKey<AActor>, TTuple<bool, int>> StillDelayedActors;
 	const bool bDisableDelayedActorRegistering = PCGActorAndComponentMapping::CVarDisableDelayedActorRegistering.GetValueOnAnyThread();
 
-	for (TTuple<TObjectKey<AActor>, bool, int>& ActorPtrAndShouldDirty : DelayedAddedActors)
+	for (const TPair<TObjectKey<AActor>, TTuple<bool, int>>& ActorPtrAndShouldDirty : DelayedAddedActors)
 	{
-		AActor* Actor = ActorPtrAndShouldDirty.Get<0>().ResolveObjectPtr();
+		AActor* Actor = ActorPtrAndShouldDirty.Key.ResolveObjectPtr();
 		if (!Actor)
 		{
 			continue;
@@ -1156,7 +1156,7 @@ void FPCGActorAndComponentMapping::AddDelayedActors()
 		else
 		{
 			// Implementation note: since the delayed actors list is built from top-level actors (e.g. directly in the level) then depth here is 0.
-			OnActorAdded_Internal(Actor, ActorPtrAndShouldDirty.Get<1>(), ActorPtrAndShouldDirty.Get<2>());
+			OnActorAdded_Internal(Actor, ActorPtrAndShouldDirty.Value.Get<0>(), ActorPtrAndShouldDirty.Value.Get<1>(), /*bForceAddDelayedActor=*/true);
 		}
 	}
 
@@ -1204,18 +1204,27 @@ void FPCGActorAndComponentMapping::OnActorAdded(AActor* InActor)
 #endif // WITH_EDITOR
 
 	// Implementation note: since this is called only for actors directly in the current level, the depth here is 0.
-	OnActorAdded_Internal(InActor, true, LevelInstanceDepth);
+	// Another implementation note: We delay adding because OnActorAdded fires before an actor's properties are set,
+	// so the actor is not ready for processing until the next tick.
+	DelayedAddedActors.Emplace(InActor, { true, LevelInstanceDepth });
 }
 
-void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth)
+void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth, bool bForceAddDelayedActor)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorAdded);
 	check(InActor && !InActor->IsA<APCGWorldActor>() && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
 
+	// A delayed actor should only be added from AddDelayedActors(), because that guarantees the new actor has waited at
+	// least one tick for its properties to be popualated.
+	if (!bForceAddDelayedActor && DelayedAddedActors.Contains(InActor))
+	{
+		return;
+	}
+
 	// If the subsystem is not initialized, wait for it to be, and store all the actors to check
 	if (!PCGSubsystem->IsInitialized())
 	{
-		DelayedAddedActors.Emplace({ InActor, bShouldDirty, LevelInstanceDepth });
+		DelayedAddedActors.Emplace(InActor, { bShouldDirty, LevelInstanceDepth });
 		return;
 	}
 
@@ -1245,7 +1254,7 @@ void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool b
 		}
 		else
 		{
-			DelayedAddedActors.Emplace({ InActor, bShouldDirty, LevelInstanceDepth });
+			DelayedAddedActors.Emplace(InActor, { bShouldDirty, LevelInstanceDepth });
 			return;
 		}
 	}
@@ -1580,6 +1589,12 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 			{
 				if (AActor* ActorToChange = TrackedActor.Key.ResolveObjectPtr())
 				{
+					// Ignore property changes on delayed actors. All their properties are still being set.
+					if (DelayedAddedActors.Contains(ActorToChange))
+					{
+						return;
+					}
+
 					OnActorChanged(ActorToChange, /*bInHasMoved=*/ false, /*InOriginatingChangeObject=*/ InObject);
 					UpdateActorDependencies(ActorToChange);
 				}
@@ -1600,6 +1615,12 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 		return;
 	}
 #endif
+
+	// Ignore property changes on delayed actors. All their properties are still being set.
+	if (DelayedAddedActors.Contains(Actor))
+	{
+		return;
+	}
 
 	// Check if we are not tracking it or is a tag change.
 	bool bShouldChange = true;

@@ -138,7 +138,7 @@ private:
 
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
-	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
+	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth, bool bForceAddDelayedActor = false);
 	void OnActorDeleted(AActor* InActor);
 	void OnActorUnloaded(AActor& InActor);
 	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
@@ -222,7 +222,7 @@ private:
 	mutable FRWLock TrackedComponentsLock;
 
 	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them and their instance level depth so we can add them in next tick.
-	TSet<TTuple<TObjectKey<AActor>, bool, int>> DelayedAddedActors;
+	TMap<TObjectKey<AActor>, TTuple<bool, int>> DelayedAddedActors;
 
 	/** Keep a mapping between tracked actors and their dependencies. */
 	TMap<TObjectKey<AActor>, TSet<TObjectPtr<UObject>>> TrackedActorsToDependenciesMap;

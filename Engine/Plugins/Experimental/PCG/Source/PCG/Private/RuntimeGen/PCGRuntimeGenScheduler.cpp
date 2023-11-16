@@ -700,14 +700,12 @@ void FPCGRuntimeGenScheduler::OnOriginalComponentRegistered(UPCGComponent* InOri
 
 void FPCGRuntimeGenScheduler::OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent)
 {
-	check(ActorAndComponentMapping);
-
-	// Safety checks.
 	if (!InOriginalComponent || Cast<APCGPartitionActor>(InOriginalComponent->GetOwner()))
 	{
-		ensure(false);
 		return;
 	}
+
+	check(ActorAndComponentMapping);
 
 	// When an original/non-partitioned component is unregistered, we need to dirty the state.
 	bAnyRuntimeGenComponentsExistDirty = true;

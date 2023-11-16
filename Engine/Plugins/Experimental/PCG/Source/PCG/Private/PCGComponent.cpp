@@ -1527,6 +1527,14 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		return;
 	}
 
+	const FName MemberName = PropertyChangedEvent.MemberProperty->GetFName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GenerationRadii))
+	{
+		// RuntimeGen will automatically pick up any changes to generation radii, we don't need to do any work here.
+		return;
+	}
+
 	// Important note: all property changes already go through the OnObjectPropertyChanged, and will be dirtied here.
 	// So where only a Refresh is needed, it goes through the "capture all" else case.
 	if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, bIsComponentPartitioned))
