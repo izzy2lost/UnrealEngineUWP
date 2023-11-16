@@ -501,6 +501,36 @@ AActor* UViewport::Spawn(TSubclassOf<AActor> ActorClass)
 	return NULL;
 }
 
+void UViewport::SetEnableAdvancedFeatures(bool InEnableAdvancedFeatures)
+{
+	ShowFlags.DisableAdvancedFeatures();
+	if (ViewportWidget.IsValid())
+	{
+		check(ViewportWidget->ViewportClient.IsValid());
+		if (InEnableAdvancedFeatures)
+		{
+			ShowFlags.EnableAdvancedFeatures();
+			ViewportWidget->ViewportClient->SetEngineShowFlags(ShowFlags);
+		}
+		else
+		{
+			ShowFlags.DisableAdvancedFeatures();
+			ViewportWidget->ViewportClient->SetEngineShowFlags(ShowFlags);
+		}
+
+	}
+}
+
+void UViewport::SetLightIntensity(float InLightIntensity)
+{
+	ViewportWidget->PreviewScene.SetLightBrightness(InLightIntensity);
+}
+
+void UViewport::SetSkyIntensity(float InLightIntensity)
+{
+	ViewportWidget->PreviewScene.SetSkyBrightness(InLightIntensity);
+}
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 const FLinearColor& UViewport::GetBackgroundColor() const
 {

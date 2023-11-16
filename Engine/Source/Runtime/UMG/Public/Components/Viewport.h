@@ -257,6 +257,15 @@ class UViewport : public UContentWidget
 
 	UMG_API const FLinearColor& GetBackgroundColor() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Viewport")
+	UMG_API void SetEnableAdvancedFeatures(bool InEnableAdvancedFeatures);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewport")
+	UMG_API void SetLightIntensity(float LightIntensity);
+
+	UFUNCTION(BlueprintCallable, Category = "Viewport")
+	UMG_API void SetSkyIntensity(float LightIntensity);
+
 	// UWidget interface
 	UMG_API virtual void SynchronizeProperties() override;
 	// End of UWidget interface
