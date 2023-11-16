@@ -27,6 +27,8 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Templates/AlignmentTemplates.h"
 #include "ShaderCore.h"
+#include "CachedGeometry.h"
+#include "SkeletalRenderPublic.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraDataInterfaceSkeletalMesh)
 
@@ -111,6 +113,10 @@ namespace NDISkelMeshLocal
 		SHADER_PARAMETER(FVector3f,				PreSkinnedLocalBoundsCenter)
 		SHADER_PARAMETER(FVector3f,				PreSkinnedLocalBoundsExtents)
 		SHADER_PARAMETER(uint32,				EnabledFeatures)
+
+		SHADER_PARAMETER_SRV(Buffer<float>,		DeformedCurrPositionBuffer)
+		SHADER_PARAMETER_SRV(Buffer<float>,		DeformedPrevPositionBuffer)
+		SHADER_PARAMETER_SRV(Buffer<float4>,	DeformedTangentBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	int32 GetProbAliasDWORDSize(int32 TriangleCount)
@@ -790,11 +796,12 @@ FSkeletalMeshGpuSpawnStaticBuffers::~FSkeletalMeshGpuSpawnStaticBuffers()
 	//ValidSections.Empty();
 }
 
-void FSkeletalMeshGpuSpawnStaticBuffers::Initialise(FNDISkeletalMesh_InstanceData* InstData, const FSkeletalMeshLODRenderData& SkeletalMeshLODRenderData, const FSkeletalMeshSamplingLODBuiltData* MeshSamplingLODBuiltData, FNiagaraSystemInstance* SystemInstance)
+void FSkeletalMeshGpuSpawnStaticBuffers::Initialise(FNDISkeletalMesh_InstanceData* InstData, int32 InLODIndex, const FSkeletalMeshLODRenderData& SkeletalMeshLODRenderData, const FSkeletalMeshSamplingLODBuiltData* MeshSamplingLODBuiltData, FNiagaraSystemInstance* SystemInstance)
 {
 	SkeletalMeshSamplingLODBuiltData = nullptr;
 	bUseGpuUniformlyDistributedSampling = false;
 
+	LODIndex = InLODIndex;
 	LODRenderData = nullptr;
 	TriangleCount = 0;
 	VertexCount = 0;
@@ -807,6 +814,8 @@ void FSkeletalMeshGpuSpawnStaticBuffers::Initialise(FNDISkeletalMesh_InstanceDat
 
 	if (InstData)
 	{
+		SceneComponent = InstData->SceneComponent;
+
 		SkeletalMeshSamplingLODBuiltData = MeshSamplingLODBuiltData;
 		bUseGpuUniformlyDistributedSampling = InstData->bIsGpuUniformlyDistributedSampling;
 
@@ -1370,6 +1379,7 @@ void FNiagaraDataInterfaceProxySkeletalMesh::ConsumePerInstanceDataFromGameThrea
 	FNiagaraDataInterfaceProxySkeletalMeshData& Data = SystemInstancesToData.FindOrAdd(Instance);
 
 	Data.bIsGpuUniformlyDistributedSampling = SourceData->bIsGpuUniformlyDistributedSampling;
+	Data.bReadDeformedGeometry = SourceData->bReadDeformedGeometry;
 	Data.bUnlimitedBoneInfluences = SourceData->bUnlimitedBoneInfluences;
 	Data.DeltaSeconds = SourceData->DeltaSeconds;
 	Data.DynamicBuffer = SourceData->DynamicBuffer;
@@ -1402,6 +1412,7 @@ void UNiagaraDataInterfaceSkeletalMesh::ProvidePerInstanceDataForRenderThread(vo
 	FNDISkeletalMesh_InstanceData* SourceData = static_cast<FNDISkeletalMesh_InstanceData*>(PerInstanceData);
 
 	Data->bIsGpuUniformlyDistributedSampling = SourceData->bIsGpuUniformlyDistributedSampling;
+	Data->bReadDeformedGeometry = SourceData->bReadDeformedGeometry;
 	Data->bUnlimitedBoneInfluences = SourceData->bUnlimitedBoneInfluences;
 	Data->DeltaSeconds = SourceData->DeltaSeconds;
 	Data->DynamicBuffer = SourceData->MeshGpuSpawnDynamicBuffers;
@@ -1598,6 +1609,7 @@ bool FNDISkeletalMesh_InstanceData::Init(UNiagaraDataInterfaceSkeletalMesh* Inte
 	DeltaSeconds = SystemInstance->GetWorld()->GetDeltaSeconds();
 	ChangeId = Interface->ChangeId;
 	bIsGpuUniformlyDistributedSampling = false;
+	bReadDeformedGeometry = Interface->bReadDeformedGeometry && GetDefault<UNiagaraSettings>()->NDISkelMesh_SupportReadingDeformedGeometry;
 	bUnlimitedBoneInfluences = false;
 	MeshBoneWeightStrideBytes = 0;
 	MeshBoneIndexSizeBytes = 0;
@@ -2026,7 +2038,7 @@ bool FNDISkeletalMesh_InstanceData::Init(UNiagaraDataInterfaceSkeletalMesh* Inte
 			bIsGpuUniformlyDistributedSampling &= MeshSamplingBuiltData != nullptr;
 
 			MeshGpuSpawnStaticBuffers = new FSkeletalMeshGpuSpawnStaticBuffers();
-			MeshGpuSpawnStaticBuffers->Initialise(this, *CachedLODData, MeshSamplingBuiltData, SystemInstance);
+			MeshGpuSpawnStaticBuffers->Initialise(this, CachedLODIdx, *CachedLODData, MeshSamplingBuiltData, SystemInstance);
 			BeginInitResource(MeshGpuSpawnStaticBuffers);
 
 			MeshGpuSpawnDynamicBuffers = new FSkeletalMeshGpuDynamicBufferProxy();
@@ -2394,6 +2406,7 @@ bool UNiagaraDataInterfaceSkeletalMesh::CopyToInternal(UNiagaraDataInterface* De
 	OtherTyped->bExcludeBone = bExcludeBone;
 	OtherTyped->ExcludeBoneName = ExcludeBoneName;
 	OtherTyped->bRequireCurrentFrameData = bRequireCurrentFrameData;
+	OtherTyped->bReadDeformedGeometry = bReadDeformedGeometry;
 	OtherTyped->UvSetIndex = UvSetIndex;
 #if WITH_EDITORONLY_DATA
 	OtherTyped->PreviewMesh = PreviewMesh;
@@ -2428,7 +2441,8 @@ bool UNiagaraDataInterfaceSkeletalMesh::Equals(const UNiagaraDataInterface* Othe
 		OtherTyped->bExcludeBone == bExcludeBone &&
 		OtherTyped->ExcludeBoneName == ExcludeBoneName &&
 		OtherTyped->UvSetIndex == UvSetIndex &&
-		OtherTyped->bRequireCurrentFrameData == bRequireCurrentFrameData;
+		OtherTyped->bRequireCurrentFrameData == bRequireCurrentFrameData &&
+		OtherTyped->bReadDeformedGeometry == bReadDeformedGeometry;
 }
 
 bool UNiagaraDataInterfaceSkeletalMesh::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
@@ -2802,6 +2816,7 @@ void UNiagaraDataInterfaceSkeletalMesh::ModifyCompilationEnvironment(EShaderPlat
 {
 	Super::ModifyCompilationEnvironment(ShaderPlatform, OutEnvironment);
 
+	OutEnvironment.SetDefine(TEXT("DISKELMESH_ALLOW_DEFORMED"), int(GetDefault<UNiagaraSettings>()->NDISkelMesh_SupportReadingDeformedGeometry));
 	OutEnvironment.SetDefine(TEXT("DISKELMESH_ALLOW_16BIT"), int(GetDefault<UNiagaraSettings>()->NDISkelMesh_Support16BitIndexWeight));
 	OutEnvironment.SetDefine(TEXT("DISKELMESH_BONE_INFLUENCES"), int(GetDefault<UNiagaraSettings>()->NDISkelMesh_GpuMaxInfluences));
 	OutEnvironment.SetDefine(TEXT("DISKELMESH_PROBALIAS_FORMAT"), int(GetDefault<UNiagaraSettings>()->NDISkelMesh_GpuUniformSamplingFormat));
@@ -3231,10 +3246,42 @@ void UNiagaraDataInterfaceSkeletalMesh::SetShaderParameters(const FNiagaraDataIn
 		ShaderParameters->MeshSkinWeightLookupBuffer = FNiagaraRenderer::GetSrvOrDefaultUInt(InstanceData->MeshSkinWeightLookupBuffer->GetSRV());
 
 		uint32 EnabledFeaturesBits = 0;
-		EnabledFeaturesBits |= StaticBuffers->IsUseGpuUniformlyDistributedSampling() ? 1 : 0;
-		EnabledFeaturesBits |= StaticBuffers->IsSamplingRegionsAllAreaWeighted() ? 2 : 0;
-		EnabledFeaturesBits |= InstanceData->bUnlimitedBoneInfluences ? 4 : 0;
-		EnabledFeaturesBits |= StaticBuffers->HasMeshColors() ? 8 : 0;
+		EnabledFeaturesBits |= StaticBuffers->IsUseGpuUniformlyDistributedSampling() ? 0x01 : 0;
+		EnabledFeaturesBits |= StaticBuffers->IsSamplingRegionsAllAreaWeighted() ? 0x02 : 0;
+		EnabledFeaturesBits |= InstanceData->bUnlimitedBoneInfluences ? 0x04 : 0;
+		EnabledFeaturesBits |= StaticBuffers->HasMeshColors() ? 0x08 : 0;
+
+		// If we are allowed to read from the skin cache then find the information
+		ShaderParameters->DeformedCurrPositionBuffer = FNiagaraRenderer::GetDummyFloatBuffer();
+		ShaderParameters->DeformedPrevPositionBuffer = FNiagaraRenderer::GetDummyFloatBuffer();
+		ShaderParameters->DeformedTangentBuffer = FNiagaraRenderer::GetDummyFloat4Buffer();
+
+		if (InstanceData->bReadDeformedGeometry)
+		{
+			USkeletalMeshComponent* SkelComp = Cast<USkeletalMeshComponent>(StaticBuffers->GetSceneComponent());
+			FSkeletalMeshObject* SkelMeshObject = SkelComp ? SkelComp->MeshObject : nullptr;
+			if (SkelMeshObject)
+			{
+				FCachedGeometry CacheGeometry;
+				bool bCacheValid = SkelMeshObject->GetCachedGeometry(CacheGeometry);
+				bCacheValid &= CacheGeometry.Sections.Num() > 0;
+				bCacheValid &= StaticBuffers->GetLODIndex() == CacheGeometry.LODIndex;
+				if (bCacheValid)
+				{
+					if (CacheGeometry.Sections[0].PositionBuffer && (CacheGeometry.Sections[0].PositionBuffer != ShaderParameters->MeshVertexBuffer))
+					{
+						ShaderParameters->DeformedCurrPositionBuffer = CacheGeometry.Sections[0].PositionBuffer;
+						ShaderParameters->DeformedPrevPositionBuffer = CacheGeometry.Sections[0].PreviousPositionBuffer ? CacheGeometry.Sections[0].PreviousPositionBuffer : CacheGeometry.Sections[0].PositionBuffer;
+						EnabledFeaturesBits |= 0x10;
+					}
+					if (CacheGeometry.Sections[0].TangentBuffer && (CacheGeometry.Sections[0].TangentBuffer != ShaderParameters->MeshTangentBuffer))
+					{
+						ShaderParameters->DeformedTangentBuffer = CacheGeometry.Sections[0].TangentBuffer;
+						EnabledFeaturesBits |= 0x20;
+					}
+				}
+			}
+		}
 
 		FSkeletalMeshGpuDynamicBufferProxy* DynamicBuffers = InstanceData->DynamicBuffer;
 		check(DynamicBuffers);

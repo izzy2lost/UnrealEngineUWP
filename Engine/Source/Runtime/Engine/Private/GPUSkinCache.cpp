@@ -2254,6 +2254,17 @@ FRWBuffer* FGPUSkinCache::GetPreviousPositionBuffer(FGPUSkinCacheEntry const* En
 	return nullptr;
 }
 
+FRWBuffer* FGPUSkinCache::GetTangentBuffer(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex)
+{
+	if (Entry)
+	{
+		FGPUSkinCacheEntry::FSectionDispatchData const& DispatchData = Entry->GetDispatchData()[SectionIndex];
+		FSkinCacheRWBuffer* SkinCacheRWBuffer = DispatchData.TangentBuffer;
+		return SkinCacheRWBuffer != nullptr ? &SkinCacheRWBuffer->Buffer : nullptr;
+	}
+	return nullptr;
+}
+
 uint32 FGPUSkinCache::GetUpdatedFrame(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex)
 {
 	return Entry != nullptr ? Entry->GetDispatchData()[SectionIndex].UpdatedFrameNumber : 0;

@@ -407,6 +407,7 @@ public:
 	FGPUSkinCacheEntry const* GetSkinCacheEntry(uint32 ComponentId) const;
 	static FRWBuffer* GetPositionBuffer(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex);
 	static FRWBuffer* GetPreviousPositionBuffer(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex);
+	static FRWBuffer* GetTangentBuffer(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex);
 	static uint32 GetUpdatedFrame(FGPUSkinCacheEntry const* Entry, uint32 SectionIndex);
 
 	// Deprecated function. Can remove include of CachedGeometry.h when this is removed.

@@ -225,6 +225,15 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = LightRenderer)
 	float DefaultLightInverseExposureBlend = 0.0f;
 
+	/* 
+	When enabled we will read deformed geometry if available, i.e. data from the deformed graph / skin cache
+	When disable we will only read from the default vertex data which does not include morph targets, skin, etc.
+	Changing this setting requires restarting the editor.
+	Note: Enabling this does add additional branches to the skel mesh data reading.
+	*/
+	UPROPERTY(config, EditAnywhere, Category = SkeletalMeshDI, meta = (DisplayName = "Support Reading Deformed Geometry", ConfigRestartRequired = true))
+	bool NDISkelMesh_SupportReadingDeformedGeometry = true;
+
 	UPROPERTY(config, EditAnywhere, Category = SkeletalMeshDI, meta = (DisplayName = "Support 16 bit index & weights", ToolTip = "Enabled support for 16 bit bone index & bone weight, optional to reduce shader complexity.  Changing this setting requires restarting the editor.", ConfigRestartRequired = true))
 	bool NDISkelMesh_Support16BitIndexWeight = true;
 

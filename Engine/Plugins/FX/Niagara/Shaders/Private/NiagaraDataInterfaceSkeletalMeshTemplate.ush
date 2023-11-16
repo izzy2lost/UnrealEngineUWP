@@ -50,13 +50,23 @@ float			{ParameterName}_InstanceInvDeltaTime;
 float3			{ParameterName}_PreSkinnedLocalBoundsCenter;
 float3			{ParameterName}_PreSkinnedLocalBoundsExtents;
 uint			{ParameterName}_EnabledFeatures;
+#if DISKELMESH_ALLOW_DEFORMED
+Buffer<float>	{ParameterName}_DeformedCurrPositionBuffer;
+Buffer<float>	{ParameterName}_DeformedPrevPositionBuffer;
+Buffer<float4>	{ParameterName}_DeformedTangentBuffer;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Flags test
-bool UniformTriangleSamplingEnable_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x1) == 1; }
-bool UniformSamplingRegionEnabled_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x2) == 2; }
-bool UnlimitedBoneInfluences_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x4) == 4; }
-bool HasMeshColors_{ParameterName}() { return ({ParameterName}_EnabledFeatures & 0x8) == 8; }
+bool UniformTriangleSamplingEnable_{ParameterName}()	{ return ({ParameterName}_EnabledFeatures & 0x01) == 0x01; }
+bool UniformSamplingRegionEnabled_{ParameterName}()		{ return ({ParameterName}_EnabledFeatures & 0x02) == 0x02; }
+bool UnlimitedBoneInfluences_{ParameterName}()			{ return ({ParameterName}_EnabledFeatures & 0x04) == 0x04; }
+bool HasMeshColors_{ParameterName}()					{ return ({ParameterName}_EnabledFeatures & 0x08) == 0x08; }
+
+#if DISKELMESH_ALLOW_DEFORMED
+bool UseDeformedPositions_{ParameterName}()				{ return ({ParameterName}_EnabledFeatures & 0x10) == 0x10; }
+bool UseDeformedTangents_{ParameterName}()				{ return ({ParameterName}_EnabledFeatures & 0x20) == 0x20; }
+#endif
 
 void GetIndexWeight_{ParameterName}(int BoneIndexOffset, int BoneWeightOffset, int Layer, out int4 BlendIndices, out float4 BlendWeights)
 {
@@ -198,14 +208,44 @@ FDISkelMeshSkinnedVertex GetSkinnedVertex_{ParameterName}(uint VertexIndex)
 
 	VertexIndex = clamp(VertexIndex, 0, {ParameterName}_MeshVertexCount - 1);
 
-	//-TODO: Use a R32G32B32 format
-	float3 CurrPosition = float3({ParameterName}_MeshVertexBuffer[VertexIndex * 3], {ParameterName}_MeshVertexBuffer[VertexIndex * 3 + 1], {ParameterName}_MeshVertexBuffer[VertexIndex * 3 + 2]);
-	float3 PrevPosition = CurrPosition;
+	// Read Positions For Skinning
+	bool bNeedsSkinPositions = true;
+	float3 CurrPosition = 0;
+	float3 PrevPosition = 0;
+#if DISKELMESH_ALLOW_DEFORMED
+	if (UseDeformedPositions_{ParameterName}())
+	{
+		bNeedsSkinPositions = false;
+		CurrPosition = float3({ParameterName}_DeformedCurrPositionBuffer[VertexIndex * 3], {ParameterName}_DeformedCurrPositionBuffer[VertexIndex * 3 + 1], {ParameterName}_DeformedCurrPositionBuffer[VertexIndex * 3 + 2]);
+		PrevPosition = float3({ParameterName}_DeformedPrevPositionBuffer[VertexIndex * 3], {ParameterName}_DeformedPrevPositionBuffer[VertexIndex * 3 + 1], {ParameterName}_DeformedPrevPositionBuffer[VertexIndex * 3 + 2]);
+	}
+	else
+#endif
+	{
+		CurrPosition = float3({ParameterName}_MeshVertexBuffer[VertexIndex * 3], {ParameterName}_MeshVertexBuffer[VertexIndex * 3 + 1], {ParameterName}_MeshVertexBuffer[VertexIndex * 3 + 2]);
+		PrevPosition = CurrPosition;
+	}
 
-	float3 TangentX = TangentBias({ParameterName}_MeshTangentBuffer[VertexIndex * 2    ].xyz);
-	float4 TangentZ = TangentBias({ParameterName}_MeshTangentBuffer[VertexIndex * 2 + 1].xyzw);
-	
-	if ( {ParameterName}_MeshNumWeights > 0 )
+	// Read Tangents For Skinning
+	bool bNeedsSkinTangents = true;
+	float3 TangentX = 0;
+	float4 TangentZ = 0;
+#if DISKELMESH_ALLOW_DEFORMED
+	if (UseDeformedTangents_{ParameterName}())
+	{
+		bNeedsSkinTangents = false;
+		TangentX = TangentBias({ParameterName}_DeformedTangentBuffer[VertexIndex * 2    ].xyz);
+		TangentZ = TangentBias({ParameterName}_DeformedTangentBuffer[VertexIndex * 2 + 1].xyzw);
+	}
+	else
+#endif
+	{
+		TangentX = TangentBias({ParameterName}_MeshTangentBuffer[VertexIndex * 2    ].xyz);
+		TangentZ = TangentBias({ParameterName}_MeshTangentBuffer[VertexIndex * 2 + 1].xyzw);
+	}
+
+	// Perform skinning if needed
+	if ( {ParameterName}_MeshNumWeights > 0 && (bNeedsSkinPositions || bNeedsSkinTangents))
 	{
 		float3x4 PrevBoneMatrix;
 		float3x4 CurrBoneMatrix;
@@ -268,12 +308,19 @@ FDISkelMeshSkinnedVertex GetSkinnedVertex_{ParameterName}(uint VertexIndex)
 			}
 #endif
 		}
-		CurrPosition = mul(CurrBoneMatrix, float4(CurrPosition, 1.0f)).xyz;
-		PrevPosition = mul(PrevBoneMatrix, float4(PrevPosition, 1.0f)).xyz;
 
-		// Not using InverseTranspose of matrices so assuming uniform scaling only (same as SkinCache)
-		TangentX.xyz = mul(CurrBoneMatrix, float4(TangentX.xyz, 0.0f)).xyz;
-		TangentZ.xyz = mul(CurrBoneMatrix, float4(TangentZ.xyz, 0.0f)).xyz;
+		if ( bNeedsSkinPositions )
+		{
+			CurrPosition = mul(CurrBoneMatrix, float4(CurrPosition, 1.0f)).xyz;
+			PrevPosition = mul(PrevBoneMatrix, float4(PrevPosition, 1.0f)).xyz;
+		}
+
+		if ( bNeedsSkinTangents )
+		{
+			// Not using InverseTranspose of matrices so assuming uniform scaling only (same as SkinCache)
+			TangentX.xyz = mul(CurrBoneMatrix, float4(TangentX.xyz, 0.0f)).xyz;
+			TangentZ.xyz = mul(CurrBoneMatrix, float4(TangentZ.xyz, 0.0f)).xyz;
+		}
 	}
 
 	float3 TangentY = cross(TangentZ.xyz, TangentX.xyz) * TangentZ.w;

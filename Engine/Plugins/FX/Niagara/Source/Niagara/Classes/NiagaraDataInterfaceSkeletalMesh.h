@@ -392,15 +392,18 @@ protected:
 class FSkeletalMeshGpuSpawnStaticBuffers : public FRenderResource
 {
 public:
-
 	virtual ~FSkeletalMeshGpuSpawnStaticBuffers() override;
 
-	FORCEINLINE_DEBUGGABLE void Initialise(struct FNDISkeletalMesh_InstanceData* InstData, const FSkeletalMeshLODRenderData& SkeletalMeshLODRenderData,const FSkeletalMeshSamplingLODBuiltData* SkeletalMeshSamplingLODBuiltData, FNiagaraSystemInstance* SystemInstance);
+	FORCEINLINE_DEBUGGABLE void Initialise(struct FNDISkeletalMesh_InstanceData* InstData, int32 InLODIndex, const FSkeletalMeshLODRenderData& SkeletalMeshLODRenderData, const FSkeletalMeshSamplingLODBuiltData* SkeletalMeshSamplingLODBuiltData, FNiagaraSystemInstance* SystemInstance);
 
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
 
 	virtual FString GetFriendlyName() const override { return TEXT("FSkeletalMeshGpuSpawnStaticBuffers"); }
+
+	USceneComponent* GetSceneComponent() const { return SceneComponent.Get(); }
+
+	int32 GetLODIndex() const { return LODIndex; };
 
 	FRHIShaderResourceView* GetBufferTriangleUniformSamplerProbAliasSRV() const { return BufferTriangleUniformSamplerProbAliasSRV; }
 	FRHIShaderResourceView* GetBufferTriangleMatricesOffsetSRV() const { return BufferTriangleMatricesOffsetSRV; }
@@ -436,6 +439,8 @@ public:
 	int32 GetFilteredSocketBoneOffset() const { return FilteredSocketBoneOffset; }
 
 protected:
+	TWeakObjectPtr<USceneComponent> SceneComponent = nullptr;
+
 	FBufferRHIRef BufferTriangleUniformSamplerProbAliasRHI = nullptr;
 	FShaderResourceViewRHIRef BufferTriangleUniformSamplerProbAliasSRV = nullptr;
 	FBufferRHIRef BufferTriangleMatricesOffsetRHI = nullptr;
@@ -478,6 +483,7 @@ protected:
 	uint32 NumWeights = 0;
 
 	// Cached data for resource creation on RenderThread
+	int32 LODIndex = INDEX_NONE;
 	const FSkeletalMeshLODRenderData* LODRenderData = nullptr;
 	const FSkeletalMeshSamplingLODBuiltData* SkeletalMeshSamplingLODBuiltData = nullptr;
 	uint32 TriangleCount = 0;
@@ -626,6 +632,8 @@ struct FNDISkeletalMesh_InstanceData
 	/** True if the mesh we're using allows area weighted sampling on GPU. */
 	uint32 bIsGpuUniformlyDistributedSampling : 1;
 
+	uint32 bReadDeformedGeometry : 1 = true;
+
 	/** True if the mesh we're using is to be rendered in unlimited bone influences mode. */
 	uint32 bUnlimitedBoneInfluences : 1;
 	const FSkinWeightDataVertexBuffer* MeshSkinWeightBuffer;
@@ -758,6 +766,13 @@ public:
 	reduces overhead and allows the game thread to run faster, but comes at a tradeoff if the dependencies might leave gaps or other visual artifacts.*/
 	UPROPERTY(EditAnywhere, Category = "Performance")
 	bool bRequireCurrentFrameData = true;
+
+	/**
+	Overrides the project setting and allows you to opt out of reading from deformed geometry.
+	These is not performance gain from doing this, the branches will still exist in the generated code.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Performance")
+	bool bReadDeformedGeometry = true;
 
 	/** Cached change id off of the data interface.*/
 	uint32 ChangeId;
@@ -1073,7 +1088,7 @@ struct FNiagaraDISkeletalMeshPassedDataToRT
 	const FSkeletalMeshConnectivityProxy* ConnectivityBuffer = nullptr;
 
 	bool bIsGpuUniformlyDistributedSampling = false;
-
+	bool bReadDeformedGeometry = false;
 	bool bUnlimitedBoneInfluences = false;
 	uint32 MeshBoneWeightStrideBytes = 0;
 	uint32 MeshBoneIndexSizeBytes = 0;
