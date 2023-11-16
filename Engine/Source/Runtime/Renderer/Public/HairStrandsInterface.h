@@ -166,6 +166,7 @@ RENDERER_API FRDGBufferUAVRef   RegisterAsUAV(FRDGBuilder& GraphBuilder, const F
 RENDERER_API void AddTransitionPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	EShaderPlatform InPlatform,
 	const TArray<FRDGBufferSRVRef>& Transitions);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

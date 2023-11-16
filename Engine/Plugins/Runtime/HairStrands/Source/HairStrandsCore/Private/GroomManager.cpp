@@ -890,7 +890,7 @@ static void RunHairStrandsInterpolation_Strands(
 				ClusterDatas,
 				IndirectDispatchArgsUAVWithSkipBarrier);
 
-			AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
+			AddTransitionPass(GraphBuilder, ShaderMap, View->GetShaderPlatform(), Transitions);
 		}
 	}
 
@@ -912,7 +912,7 @@ static void RunHairStrandsInterpolation_Strands(
 				Transitions.Add(RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.DeformedRootResource->LODs[InstanceData.MeshLODIndex].GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current)));
 			}
 		}
-		AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
+		AddTransitionPass(GraphBuilder, ShaderMap, View->GetShaderPlatform(), Transitions);
 	}
 
 	// Update position offset 
@@ -983,7 +983,7 @@ static void RunHairStrandsInterpolation_Strands(
 			}
 		}
 
-		AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
+		AddTransitionPass(GraphBuilder, ShaderMap, View->GetShaderPlatform(), Transitions);
 	}
 
 
@@ -1063,7 +1063,7 @@ static void RunHairStrandsInterpolation_Strands(
 			}
 		}
 
-		AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
+		AddTransitionPass(GraphBuilder, ShaderMap, View->GetShaderPlatform(), Transitions);
 	}
 
 	// Previous Position

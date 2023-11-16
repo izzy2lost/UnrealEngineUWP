@@ -1427,7 +1427,7 @@ void VoxelizeHairStrands(
 
 		}
 	}
-	AddTransitionPass(GraphBuilder, View.ShaderMap, Transitions);
+	AddTransitionPass(GraphBuilder, View.ShaderMap, View.GetShaderPlatform(), Transitions);
 
 	FRDGBufferRef PageToPageIndexBuffer = nullptr;
 	FHairStrandsViewStateData* HairStrandsViewStateData = View.ViewState ? &View.ViewState->HairStrandsViewStateData : nullptr;

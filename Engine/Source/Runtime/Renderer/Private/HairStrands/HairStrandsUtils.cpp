@@ -367,9 +367,13 @@ private:
 		END_SHADER_PARAMETER_STRUCT()
 
 public:
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	static bool IsSupported(EShaderPlatform InPlatform)
 	{
-		return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform);
+		return IsHairStrandsSupported(EHairStrandsShaderType::Strands, InPlatform);
+	}
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsSupported(Parameters.Platform);
 	}
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -383,10 +387,11 @@ IMPLEMENT_GLOBAL_SHADER(FHairResourceTransitionPass, "/Engine/Private/HairStrand
 void AddTransitionPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	EShaderPlatform InPlatform,
 	const TArray<FRDGBufferSRVRef>& Transitions)
 {
 	const uint32 ResourceCount = Transitions.Num();
-	if (ResourceCount == 0)
+	if (ResourceCount == 0 || !FHairResourceTransitionPass::IsSupported(InPlatform))
 	{
 		return;
 	}
