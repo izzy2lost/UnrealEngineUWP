@@ -307,9 +307,8 @@ namespace UnrealBuildTool
 			}
 		}
 
-		protected override void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
+		protected void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
 		{
-			base.GetLinkArguments_Global(LinkEnvironment, Arguments);
 			Arguments.Add(FormatArchitectureArg(LinkEnvironment.Architectures));
 
 			DirectoryReference SDKPath = Settings.GetSDKPath(LinkEnvironment.Architecture);
