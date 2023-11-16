@@ -22,6 +22,7 @@
 #include "Misc/Attribute.h"
 #include "Misc/CString.h"
 #include "ObjectEditorUtils.h"
+#include "Settings/BlueprintEditorProjectSettings.h"
 #include "SWarningOrErrorBox.h"
 #include "ScopedTransaction.h"
 #include "SlotBase.h"
@@ -87,6 +88,8 @@ void FObjectDetails::AddCallInEditorMethods(IDetailLayoutBuilder& DetailBuilder)
 	// metadata tag for defining sort order of function buttons within a Category
 	static const FName NAME_DisplayPriority("DisplayPriority");
 
+	const bool bDisallowEditorUtilityBlueprintFunctions = GetDefault<UBlueprintEditorProjectSettings>()->bDisallowEditorUtilityBlueprintFunctionsInDetailsView;
+
 	// Get all of the functions we need to display (done ahead of time so we can sort them)
 	TArray<UFunction*, TInlineAllocator<8>> CallInEditorFunctions;
 	for (TFieldIterator<UFunction> FunctionIter(DetailBuilder.GetBaseClass(), EFieldIteratorFlags::IncludeSuper); FunctionIter; ++FunctionIter)
@@ -95,22 +98,26 @@ void FObjectDetails::AddCallInEditorMethods(IDetailLayoutBuilder& DetailBuilder)
 
 		if (TestFunction->GetBoolMetaData(FBlueprintMetadata::MD_CallInEditor) && (TestFunction->ParmsSize == 0))
 		{
+			bool bAllowFunction = true;
 			if (UClass* TestFunctionOwnerClass = TestFunction->GetOwnerClass())
 			{
 				if (UBlueprint* Blueprint = Cast<UBlueprint>(TestFunctionOwnerClass->ClassGeneratedBy))
 				{
 					if (FBlueprintEditorUtils::IsEditorUtilityBlueprint(Blueprint))
 					{
-						// Skip Blutilities as these are handled by FEditorUtilityInstanceDetails
-						continue;
+						// Skip Blutilities if disabled via project settings
+						bAllowFunction = !bDisallowEditorUtilityBlueprintFunctions;
 					}
 				}
 			}
 
-			const FName FunctionName = TestFunction->GetFName();
-			if (!CallInEditorFunctions.FindByPredicate([&FunctionName](const UFunction* Func) { return Func->GetFName() == FunctionName; }))
+			if (bAllowFunction)
 			{
-				CallInEditorFunctions.Add(*FunctionIter);
+				const FName FunctionName = TestFunction->GetFName();
+				if (!CallInEditorFunctions.FindByPredicate([&FunctionName](const UFunction* Func) { return Func->GetFName() == FunctionName; }))
+				{
+					CallInEditorFunctions.Add(*FunctionIter);
+				}
 			}
 		}
 	}
