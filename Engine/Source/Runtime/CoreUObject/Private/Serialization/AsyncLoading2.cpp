@@ -5339,6 +5339,7 @@ void FAsyncPackage2::StartLoading(FAsyncLoadingThreadState2& ThreadState, FIoBat
 EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FAsyncLoadingThreadState2& ThreadState)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ProcessLinkerLoadPackageSummary);
+	SCOPED_LOADTIMER_ASSET_TEXT(*LinkerLoadState->Linker->GetDebugName());
 
 #if ALT2_ENABLE_NEW_ARCHIVE_FOR_LINKERLOAD
 	FLinkerLoad::ELinkerStatus LinkerResult = FLinkerLoad::LINKER_Failed;
@@ -5349,6 +5350,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FA
 		LinkerResult = LinkerLoadState->Linker->ProcessPackageSummary(nullptr);
 	}
 #else
+	TRACE_LOADTIME_PROCESS_SUMMARY_SCOPE(this);
 	FLinkerLoad::ELinkerStatus LinkerResult = LinkerLoadState->Linker->Tick(/* RemainingTimeLimit */ 0.0, /* bUseTimeLimit */ false, /* bUseFullTimeLimit */ false, nullptr);
 #endif
 	check(LinkerResult != FLinkerLoad::LINKER_TimedOut); // TODO: Add support for timeouts here
@@ -5703,6 +5705,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecutePostLoadLinkerLoadPackageEx
 {
 	if (!bLoadHasFailed)
 	{
+		SCOPED_LOADTIMER(PostLoadObjectsTime);
 		TRACE_LOADTIME_POSTLOAD_SCOPE;
 
 		FAsyncLoadingTickScope2 InAsyncLoadingTick(AsyncLoadingThread);
@@ -5720,8 +5723,6 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecutePostLoadLinkerLoadPackageEx
 		// End async loading, simulates EndLoad
 		ON_SCOPE_EXIT { ThreadObjLoaded.Reset(); EndAsyncLoad(); };
 
-		SCOPED_LOADTIMER(PostLoadObjectsTime);
-
 		FUObjectThreadContext& ThreadContext = FUObjectThreadContext::Get();
 		TGuardValue<bool> GuardIsRoutingPostLoad(ThreadContext.IsRoutingPostLoad, true);
 
@@ -5738,6 +5739,9 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecutePostLoadLinkerLoadPackageEx
 			{
 				if (Object->HasAnyFlags(RF_NeedPostLoad) && CanPostLoadOnAsyncLoadingThread(Object) && Object->IsReadyForAsyncPostLoad())
 				{
+#if WITH_EDITOR
+					SCOPED_LOADTIMER_ASSET_TEXT(*Object->GetPathName());
+#endif
 					ThreadContext.CurrentlyPostLoadedObjectByALT = Object;
 					Object->ConditionalPostLoad();
 					ThreadContext.CurrentlyPostLoadedObjectByALT = nullptr;
@@ -5764,6 +5768,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecutePostLoadLinkerLoadPackageEx
 
 EEventLoadNodeExecutionResult FAsyncPackage2::ExecuteDeferredPostLoadLinkerLoadPackageExports(FAsyncLoadingThreadState2& ThreadState)
 {
+	SCOPED_LOADTIMER(PostLoadDeferredObjectsTime);
 	TRACE_LOADTIME_POSTLOAD_SCOPE;
 
 	FAsyncLoadingTickScope2 InAsyncLoadingTick(AsyncLoadingThread);
@@ -5792,7 +5797,9 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ExecuteDeferredPostLoadLinkerLoadP
 				--LinkerLoadState->PostLoadExportIndex;
 				return EEventLoadNodeExecutionResult::Timeout;
 			}
-
+#if WITH_EDITOR
+			SCOPED_LOADTIMER_ASSET_TEXT(*Object->GetPathName());
+#endif
 			Object->ConditionalPostLoad();
 		}
 
@@ -7174,6 +7181,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 		Package->BeginAsyncLoad();
 
 		SCOPED_LOADTIMER(PostLoadObjectsTime);
+		TRACE_LOADTIME_POSTLOAD_SCOPE;
 
 		FUObjectThreadContext& ThreadContext = FUObjectThreadContext::Get();
 		TGuardValue<bool> GuardIsRoutingPostLoad(ThreadContext.IsRoutingPostLoad, true);
@@ -7200,7 +7208,6 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 		const FAsyncPackageHeaderData* HeaderData = &Package->HeaderData;
 #endif
 
-		TRACE_LOADTIME_POSTLOAD_SCOPE;
 		while (Package->ExportBundleEntryIndex < HeaderData->ExportBundleEntriesCopyForPostLoad.Num())
 		{
 			const FExportBundleEntry& BundleEntry = HeaderData->ExportBundleEntriesCopyForPostLoad[Package->ExportBundleEntryIndex];
@@ -7231,6 +7238,9 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_PostLoadExportBundle(FAsyncL
 					check(Object->IsReadyForAsyncPostLoad());
 					if (!bIsMultithreaded || (bAsyncPostLoadEnabled && CanPostLoadOnAsyncLoadingThread(Object)))
 					{
+#if WITH_EDITOR
+						SCOPED_LOADTIMER_ASSET_TEXT(*Object->GetPathName());
+#endif
 						ThreadContext.CurrentlyPostLoadedObjectByALT = Object;
 						Object->ConditionalPostLoad();
 						ThreadContext.CurrentlyPostLoadedObjectByALT = nullptr;
@@ -7302,6 +7312,9 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 	}
 	else
 	{
+		SCOPED_LOADTIMER(PostLoadDeferredObjectsTime);
+		TRACE_LOADTIME_POSTLOAD_SCOPE;
+
 		FAsyncLoadingTickScope2 InAsyncLoadingTick(Package->AsyncLoadingThread);
 
 #if WITH_EDITOR
@@ -7322,7 +7335,6 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 		const FAsyncPackageHeaderData* HeaderData = &Package->HeaderData;
 #endif
 
-		TRACE_LOADTIME_POSTLOAD_SCOPE;
 		while (Package->ExportBundleEntryIndex < HeaderData->ExportBundleEntriesCopyForPostLoad.Num())
 		{
 			const FExportBundleEntry& BundleEntry = HeaderData->ExportBundleEntriesCopyForPostLoad[Package->ExportBundleEntryIndex];
@@ -7347,6 +7359,9 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 					check(!Object->HasAnyFlags(RF_NeedLoad));
 					if (Object->HasAnyFlags(RF_NeedPostLoad))
 					{
+#if WITH_EDITOR
+						SCOPED_LOADTIMER_ASSET_TEXT(*Object->GetPathName());
+#endif
 						PackageScope.ThreadContext.CurrentlyPostLoadedObjectByALT = Object;
 						{
 							FScopeCycleCounterUObject ConstructorScope(Object, GET_STATID(STAT_FAsyncPackage_PostLoadObjectsGameThread));

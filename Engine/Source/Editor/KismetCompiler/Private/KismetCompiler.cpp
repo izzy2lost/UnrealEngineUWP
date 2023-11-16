@@ -576,7 +576,6 @@ FKismetCompilerContext::~FKismetCompilerContext()
 
 UEdGraphSchema_K2* FKismetCompilerContext::CreateSchema()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(WILD_FKismetCompilerContext::CreateSchema);
 	return NewObject<UEdGraphSchema_K2>();
 }
 
@@ -796,7 +795,7 @@ void FKismetCompilerContext::SaveSubObjectsFromCleanAndSanitizeClass(FSubobjectC
 
 void FKismetCompilerContext::PostCreateSchema()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(WILD_FKismetCompilerContext::PostCreateSchema);
+	TRACE_CPUPROFILER_EVENT_SCOPE(PostCreateSchema);
 	NodeHandlers.Add(UEdGraphNode_Comment::StaticClass(), new FNodeHandlingFunctor(*this));
 
 	TArray<UClass*> ClassesOfUK2Node;
@@ -4590,7 +4589,7 @@ void FKismetCompilerContext::ValidateFunctionGraphNames()
 // Creates a copy of the graph to allow further transformations to occur
 void FKismetCompilerContext::CreateFunctionList()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(WILD_FKismetCompilerContext::CreateFunctionList);
+	TRACE_CPUPROFILER_EVENT_SCOPE(CreateFunctionList);
 	{
 		BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_GenerateFunctionGraphs);
 

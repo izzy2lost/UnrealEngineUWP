@@ -35,6 +35,7 @@
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "Serialization/ArchiveHasReferences.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
+#include "ProfilingDebugging/LoadTimeTracker.h"
 #include "TickableEditorObject.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/MetaData.h"
@@ -263,11 +264,11 @@ void FBlueprintCompilationManagerImpl::QueueForCompilation(const FBPCompileReque
 
 void FBlueprintCompilationManagerImpl::CompileSynchronouslyImpl(const FBPCompileRequestInternal& Request)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(CompileSynchronouslyImpl);
+
 #if WITH_EDITOR
 	FScopeLock ScopeLock(&Lock);
 #endif
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-
 	Request.UserData.BPToCompile->bQueuedForCompilation = true;
 
 	const bool bIsRegeneratingOnLoad		= (Request.UserData.CompileOptions & EBlueprintCompileOptions::IsRegeneratingOnLoad				) != EBlueprintCompileOptions::None;
@@ -338,7 +339,7 @@ void FBlueprintCompilationManagerImpl::CompileSynchronouslyImpl(const FBPCompile
 
 	if ( GEditor && !bRegenerateSkeletonOnly)
 	{
-		DECLARE_SCOPE_HIERARCHICAL_COUNTER(BroadcastBlueprintReinstanced)
+		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastBlueprintReinstanced)
 
 		// Make sure clients know they're being reinstanced as part of blueprint compilation. After this point
 		// compilation is completely done:
@@ -350,15 +351,13 @@ void FBlueprintCompilationManagerImpl::CompileSynchronouslyImpl(const FBPCompile
 
 	if(!bSkipGarbageCollection)
 	{
-		DECLARE_SCOPE_HIERARCHICAL_COUNTER(CollectGarbage)
-
 		TGuardValue<bool> GuardTemplateNameFlag(GIsGCingAfterBlueprintCompile, true);
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
 
 	if (!bRegenerateSkeletonOnly)
 	{
-		DECLARE_SCOPE_HIERARCHICAL_COUNTER(BroadcastChanged)
+		TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastChanged);
 
 		for(UBlueprint* BP : SkeletonCompiledBlueprints)
 		{
@@ -372,7 +371,7 @@ void FBlueprintCompilationManagerImpl::CompileSynchronouslyImpl(const FBPCompile
 
 	if (!bBatchCompile && !bRegenerateSkeletonOnly)
 	{
-		DECLARE_SCOPE_HIERARCHICAL_COUNTER(BroadCastCompiled)
+		TRACE_CPUPROFILER_EVENT_SCOPE(BroadCastCompiled);
 
 		for(UBlueprint* BP : SkeletonCompiledBlueprints)
 		{
@@ -605,8 +604,7 @@ namespace UE::Kismet::BlueprintCompilationManager::Private
 
 void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressBroadcastCompiled, TArray<UBlueprint*>* BlueprintsCompiled, TArray<UBlueprint*>* BlueprintsCompiledOrSkeletonCompiled, FUObjectSerializeContext* InLoadContext, TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates /* = nullptr*/)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FBlueprintCompilationManager::FlushCompilationQueue);
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
+	TRACE_CPUPROFILER_EVENT_SCOPE(FlushCompilationQueueImpl);
 
 #if WITH_EDITOR
 	FScopeLock ScopeLock(&Lock);
@@ -1027,8 +1025,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 					}
 					else
 					{
-						TRACE_CPUPROFILER_EVENT_SCOPE(MoveSkelCDOAside_OLD);
-
+						// Old code path
 						MoveSkelCDOAside(OldSkeletonClass, NewSkeletonToOldSkeleton);
 					}
 				}
@@ -1048,7 +1045,8 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 		
 				if(CompilerData.ShouldRegenerateSkeleton())
 				{
-					DECLARE_SCOPE_HIERARCHICAL_COUNTER(RecompileSkeleton)
+					TRACE_CPUPROFILER_EVENT_SCOPE(RecompileSkeleton);
+					SCOPED_LOADTIMER_ASSET_TEXT(*BP->GetPathName());
 
 					if(BlueprintsCompiledOrSkeletonCompiled)
 					{
@@ -1089,7 +1087,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				}
 				else
 				{
-					DECLARE_SCOPE_HIERARCHICAL_COUNTER(RelinkSkeleton)
+					TRACE_CPUPROFILER_EVENT_SCOPE(RelinkSkeleton);
 
 					// Just relink, note that UProperties that reference *other* types may be stale until
 					// we fixup below:
@@ -1103,7 +1101,6 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 					BP->bHasBeenRegenerated = true;
 					if (BP->GeneratedClass)
 					{
-						DECLARE_SCOPE_HIERARCHICAL_COUNTER(ClearFunctionMapsCaches)
 						BP->GeneratedClass->ClearFunctionMapsCaches();
 					}
 				}
@@ -1113,7 +1110,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 			// that may have been created as part of skeleton generation:
 			for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 			{
-				DECLARE_SCOPE_HIERARCHICAL_COUNTER(FixUpDelegateParameters)
+				TRACE_CPUPROFILER_EVENT_SCOPE(FixUpDelegateParameters);
 
 				UBlueprint* BP = CompilerData.BP;
 				TArray<FSkeletonFixupData>& ParamsToFix = CompilerData.SkeletonFixupData;
@@ -1206,7 +1203,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 		// Detect any variable-based properties that are not in the old generated class, save them for after reinstancing. This can occur 
 		//    when a new variable is introduced in an ancestor class, and we'll need to use its default as our generated class's initial value.
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(DetectNewDefaultVariables)
+			TRACE_CPUPROFILER_EVENT_SCOPE(DetectNewDefaultVariables);
 
 			for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 			{
@@ -1242,9 +1239,9 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				continue;
 			}
 
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(ReconstructNodes)
-
 			UBlueprint* BP = CompilerData.BP;
+			TRACE_CPUPROFILER_EVENT_SCOPE(ReconstructNodes);
+			SCOPED_LOADTIMER_ASSET_TEXT(*BP->GetPathName());
 			UE_TRACK_REFERENCING_PACKAGE_SCOPED(BP, PackageAccessTrackingOps::NAME_CookerBuildObject);
 
 			ConformToParentAndInterfaces(BP);
@@ -1313,6 +1310,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 		// compiled will be parented to REINST versions of the class, so type checks (IsA, etc) involving those types
 		// will be incoherent!
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ReinstanceQueued);
 			for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 			{
 				// we including skeleton only compilation jobs for reinstancing because we need UpdateCustomPropertyListForPostConstruction
@@ -1322,8 +1320,6 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				{
 					continue;
 				}
-
-				DECLARE_SCOPE_HIERARCHICAL_COUNTER(ReinstanceQueuedBlueprint)
 
 				// no need to reinstance skeleton or relink jobs that are not in a hierarchy that has had reinstancing initiated:
 				bool bRequiresReinstance = CompilerData.ShouldInitiateReinstancing();
@@ -1352,6 +1348,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				}
 
 				UBlueprint* BP = CompilerData.BP;
+				SCOPED_LOADTIMER_ASSET_TEXT(*BP->GetPathName());
 
 				if(BP->GeneratedClass)
 				{
@@ -1407,7 +1404,8 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 			UBlueprint* BP = CompilerData.BP;
 			if(CompilerData.ShouldCompileClassLayout())
 			{
-				DECLARE_SCOPE_HIERARCHICAL_COUNTER(CompileClassLayout)
+				TRACE_CPUPROFILER_EVENT_SCOPE(CompileClassLayout);
+				SCOPED_LOADTIMER_ASSET_TEXT(*BP->GetPathName());
 
 				ensure( BP->GeneratedClass == nullptr ||
 						BP->GeneratedClass->ClassDefaultObject == nullptr || 
@@ -1494,7 +1492,8 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 			}
 			else
 			{
-				DECLARE_SCOPE_HIERARCHICAL_COUNTER(CompileClassFunctions)
+				TRACE_CPUPROFILER_EVENT_SCOPE(CompileClassFunctions);
+				SCOPED_LOADTIMER_ASSET_TEXT(*BP->GetPathName());
 
 				// default value propagation occurs below:
 				if(BPGC)
@@ -1579,7 +1578,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 	// STAGE XIV: Now we can finish the first stage of the reinstancing operation, moving old classes to new classes:
 	{
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(MoveOldClassesToNewClasses)
+			TRACE_CPUPROFILER_EVENT_SCOPE(MoveOldClassesToNewClasses);
 
 			TArray<FReinstancingJob> Reinstancers;
 			// Set up reinstancing jobs - we need a reference to the compiler in order to honor 
@@ -1602,7 +1601,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 
 		// Set default values on any newly-introduced variables (from ancestor BPs)
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(SetNewDefaultVariables)
+			TRACE_CPUPROFILER_EVENT_SCOPE(SetNewDefaultVariables);
 
 			for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 			{
@@ -1629,10 +1628,11 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 		// STAGE XV: POST CDO COMPILED
 		for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(PostCDOCompiled)
+			TRACE_CPUPROFILER_EVENT_SCOPE(PostCDOCompiled);
 
 			if (CompilerData.Compiler.IsValid())
 			{
+				SCOPED_LOADTIMER_ASSET_TEXT(*CompilerData.BP->GetPathName());
 				UObject::FPostCDOCompiledContext PostCDOCompiledContext;
 				PostCDOCompiledContext.bIsRegeneratingOnLoad = CompilerData.BP->bIsRegeneratingOnLoad;
 				PostCDOCompiledContext.bIsSkeletonOnly = CompilerData.IsSkeletonOnly();
@@ -1644,7 +1644,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 		// STAGE XVI: CLEAR TEMPORARY FLAGS
 		for (FCompilerData& CompilerData : CurrentlyCompilingBPs)
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(ClearTemporaryFlags)
+			TRACE_CPUPROFILER_EVENT_SCOPE(ClearTemporaryFlags);
 
 			UBlueprint* BP = CompilerData.BP;
 
@@ -1790,7 +1790,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 
 		if (!bSuppressBroadcastCompiled)
 		{
-			DECLARE_SCOPE_HIERARCHICAL_COUNTER(BroadcastBlueprintCompiled)
+			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastBlueprintCompiled);
 
 			if(GEditor)
 			{
@@ -1811,7 +1811,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 	}
 
 	{
-		DECLARE_SCOPE_HIERARCHICAL_COUNTER(UEdGraphPin::Purge)
+		TRACE_CPUPROFILER_EVENT_SCOPE(UEdGraphPin::Purge);
 		UEdGraphPin::Purge();
 	}
 
@@ -1825,7 +1825,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 
 void FBlueprintCompilationManagerImpl::FixupDelegateProperties(const TArray<FCompilerData>& InCurrentlyCompilingBPs)
 {
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC();
+	TRACE_CPUPROFILER_EVENT_SCOPE(FixupDelegateProperties);
 
 	if (InCurrentlyCompilingBPs.Num() <= 1)
 	{
@@ -1877,7 +1877,7 @@ void FBlueprintCompilationManagerImpl::FixupDelegateProperties(const TArray<FCom
 
 void FBlueprintCompilationManagerImpl::ProcessExtensions(const TArray<FCompilerData>& InCurrentlyCompilingBPs)
 {
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
+	TRACE_CPUPROFILER_EVENT_SCOPE(ProcessExtensions);
 
 	if(CompilerExtensions.Num() == 0)
 	{
@@ -1930,7 +1930,7 @@ void FBlueprintCompilationManagerImpl::ProcessExtensions(const TArray<FCompilerD
 
 void FBlueprintCompilationManagerImpl::FlushReinstancingQueueImpl(bool bFindAndReplaceCDOReferences, TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates /* = nullptr*/)
 {
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
+	TRACE_CPUPROFILER_EVENT_SCOPE(FlushReinstancingQueueImpl);
 
 #if WITH_EDITOR
 	FScopeLock ScopeLock(&Lock);
@@ -2069,6 +2069,7 @@ void FBlueprintCompilationManagerImpl::VerifyNoQueuedRequests(const TArray<FComp
 void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, UClass*>& OldToNewClasses, EReparentClassOptions Options)
 {
 	const bool bReplaceReferencesToOldClasses = (Options & EReparentClassOptions::ReplaceReferencesToOldClasses) != EReparentClassOptions::None;
+	TRACE_CPUPROFILER_EVENT_SCOPE(ReparentHierarchies);
 
 	// something has decided to replace instances of a class. We need to update all the children of those types:
 	TArray< UClass* > ClassesOrdered;
@@ -2519,6 +2520,8 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
 		if(OldClass)
 		{
+			SCOPED_LOADTIMER_ASSET_TEXT(*WriteToString<256>(TEXT("Reinstancing "), *GetPathNameSafe(ReinstancingJob.OldToNew.Value)));
+
 			UClass* NewClass = ReinstancingJob.OldToNew.Value;
 			if (NewClass && 
 				OldClass->ClassDefaultObject && 
@@ -2628,6 +2631,8 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
 		if(OldClass)
 		{
+			SCOPED_LOADTIMER_ASSET_TEXT(*WriteToString<256>(TEXT("FinishReinstancing "), *GetPathNameSafe(ReinstancingJob.OldToNew.Value)));
+
 			TArray<UObject*> OldInstances;
 			GetObjectsOfClass( OldClass, OldInstances, false );
 
