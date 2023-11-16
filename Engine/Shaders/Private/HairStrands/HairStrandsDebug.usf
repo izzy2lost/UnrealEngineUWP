@@ -2901,10 +2901,10 @@ void MainDrawDebugAABBCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		{
 			if (HairGroupId == 0)
 			{
-				Print(Context, TEXT("Group Clusters Curves Points"), FontYellow);
+				Print(Context, TEXT("Reg.Idx Clusters Curves Points"), FontYellow);
 				Newline(Context);
 			}
-			Print(Context, HairGroupId, FontOrange, 6, 0);
+			Print(Context, InstanceRegisteredIndex, FontOrange, 8, 0);
 			Print(Context, ClusterCount, FontValue, 9, 0);
 			PrintLargeNumber(Context, CurveCount, FontValue);
 			Print(Context, TEXT(" "), FontYellow);

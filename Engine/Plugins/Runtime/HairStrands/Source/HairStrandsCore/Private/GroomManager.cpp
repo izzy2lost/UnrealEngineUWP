@@ -892,12 +892,6 @@ static void RunHairStrandsInterpolation_Strands(
 
 			AddTransitionPass(GraphBuilder, ShaderMap, Transitions);
 		}
-
-		// Run cluster debug view here (instead of GroomDebug.h/.cpp, as we need to have the (transient) cluster data 
-		if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)
-		{
-			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, TransientResources, ShaderPrintData, ViewMode, ClusterDatas);
-		}
 	}
 
 	// Update dynamic mesh triangles
@@ -1256,6 +1250,12 @@ static void RunHairStrandsInterpolation_Strands(
 	
 				TransientResources.bIsGroupAABBValid[InstanceData.RegisteredIndex] = true;
 			}
+		}
+
+		// Run cluster debug view here (instead of GroomDebug.h/.cpp, as we need to have the (transient) cluster data 
+		if (ViewMode == EGroomViewMode::Cluster || ViewMode == EGroomViewMode::ClusterAABB)
+		{
+			AddDrawDebugClusterPass(GraphBuilder, *View, ShaderMap, TransientResources, ShaderPrintData, ViewMode, ClusterDatas);
 		}
 	}
 
