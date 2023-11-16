@@ -447,7 +447,7 @@ void UIKRetargetBatchOperation::ConvertAnimation(
 				FRawAnimSequenceTrack& BoneTrack = BoneTracks[TargetBoneIndex];
 				
 				BoneTrack.PosKeys[FrameIndex] = FVector3f(LocalPose.GetLocation());
-				BoneTrack.RotKeys[FrameIndex] = FQuat4f(LocalPose.GetRotation());
+				BoneTrack.RotKeys[FrameIndex] = FQuat4f(LocalPose.GetRotation().GetNormalized());
 				BoneTrack.ScaleKeys[FrameIndex] = FVector3f(LocalPose.GetScale3D());
 			}
 			
