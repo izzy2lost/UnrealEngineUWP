@@ -128,7 +128,8 @@ TShaderType* CreateStandardShader(TArrayView<const uint8> InCode)
 
 	if (!InitShaderCommon(ShaderCode, Offset, Shader))
 	{
-		delete Shader;
+		Shader->AddRef();
+		Shader->Release();
 		return nullptr;
 	}
 

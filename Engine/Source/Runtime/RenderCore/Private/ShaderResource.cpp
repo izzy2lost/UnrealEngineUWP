@@ -657,7 +657,7 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	}
 	if (UNLIKELY(RHIShader == nullptr))
 	{
-		UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_InlineCode::InitRHI is unable to create a shader (frequency %d)"), static_cast<int32>(Frequency));
+		UE_LOG(LogShaders, Fatal, TEXT("FShaderMapResource_InlineCode::InitRHI is unable to create a shader: frequency=%d, hash=%s."), static_cast<int32>(Frequency), *ShaderHash.ToString());
 		// unreachable
 		return nullptr;
 	}
