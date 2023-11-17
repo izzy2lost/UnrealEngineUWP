@@ -99,6 +99,7 @@ struct FDirtyClusterUnionParticleData
 	FUniqueIdx ParticleIdx;
 	FRigidTransform3 ChildToParent;
 	IPhysicsProxyBase* Proxy = nullptr;
+	void* CachedOwner = nullptr;
 	int32 BoneId = INDEX_NONE;
 };
 

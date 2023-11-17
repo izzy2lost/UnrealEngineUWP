@@ -417,6 +417,7 @@ namespace Chaos
 			ConvertedData.ParticleIdx = InData.ParticleIdx;
 			ConvertedData.ChildToParent = InData.ChildToParent;
 			ConvertedData.Proxy = InData.Proxy;
+			ConvertedData.CachedOwner = InData.CachedOwner;
 			ConvertedData.BoneId = InData.BoneId;
 			SyncedData_External.ChildParticles.Add(ConvertedData);
 		}
@@ -576,6 +577,7 @@ namespace Chaos
 						Data.ChildToParent = FRigidTransform3::Identity;
 					}
 					Data.Proxy = Proxy;
+					Data.CachedOwner = reinterpret_cast<void*>(Proxy->GetOwner());
 					
 					if (Proxy->GetType() == EPhysicsProxyType::GeometryCollectionType)
 					{
@@ -624,6 +626,9 @@ namespace Chaos
 			FDirtyClusterUnionParticleData ConvertedData;
 			ConvertedData.ParticleIdx = Data.ParticleIdx;
 			ConvertedData.ChildToParent = Data.ChildToParent;
+			ConvertedData.Proxy = Data.Proxy;
+			ConvertedData.CachedOwner = Data.CachedOwner;
+			ConvertedData.BoneId = Data.BoneId;
 			BufferData.ChildParticles.Add(ConvertedData);
 		}
 	}

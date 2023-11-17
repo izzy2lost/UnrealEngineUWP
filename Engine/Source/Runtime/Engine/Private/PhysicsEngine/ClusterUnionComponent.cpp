@@ -954,7 +954,8 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 		for (const Chaos::FClusterUnionChildData& ChildData : FullData.ChildParticles)
 		{
 			// Using the scene's proxy to component mapping let's us detect a component physics state was destroyed.
-			if (UPrimitiveComponent* Component = Scene->GetOwningComponent<UPrimitiveComponent>(ChildData.Proxy))
+			UPrimitiveComponent* Component = Scene->GetOwningComponent<UPrimitiveComponent>(ChildData.Proxy);
+			if (Component && reinterpret_cast<void*>(Component) == ChildData.CachedOwner)
 			{
 				FMappedComponentKey WrappedComponentKey(Component);
 				int32 PrevMappedDataNum = MappedData.Num();

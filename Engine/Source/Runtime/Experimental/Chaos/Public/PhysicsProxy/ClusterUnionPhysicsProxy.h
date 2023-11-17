@@ -22,6 +22,7 @@ namespace Chaos
 		FUniqueIdx ParticleIdx;
 		FTransform ChildToParent;
 		IPhysicsProxyBase* Proxy = nullptr;
+		void* CachedOwner = nullptr;
 		int32 BoneId = INDEX_NONE;
 	};
 
