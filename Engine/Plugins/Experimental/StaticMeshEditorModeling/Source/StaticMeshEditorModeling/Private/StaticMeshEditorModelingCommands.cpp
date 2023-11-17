@@ -7,7 +7,7 @@
 #define LOCTEXT_NAMESPACE "StaticMeshEditorModelingCommands"
 
 FStaticMeshEditorModelingCommands::FStaticMeshEditorModelingCommands()
-	: TCommands<FStaticMeshEditorModelingCommands>(TEXT("MeshModelingTools"), NSLOCTEXT("Contexts", "MeshModelingTools", "Mesh Modeling"), NAME_None, FAppStyle::GetAppStyleSetName())
+	: TCommands<FStaticMeshEditorModelingCommands>(TEXT("MeshModelingTools"), NSLOCTEXT("Contexts", "MeshModelingTools", "Static Mesh Editor - Modeling Tools"), NAME_None, FAppStyle::GetAppStyleSetName())
 {}
 
 void FStaticMeshEditorModelingCommands::RegisterCommands()
