@@ -698,14 +698,23 @@ void DiffUtils::CompareUnrelatedSCS(const UBlueprint* Old, const TArray< FSCSRes
 {
 	const auto FindEntry = [](TArray< FSCSResolvedIdentifier > const& InArray, const FSCSIdentifier* Value) -> const FSCSResolvedIdentifier*
 	{
+		const FSCSResolvedIdentifier* BestMatch = nullptr;
+
 		for (const auto& Node : InArray)
 		{
 			if (Node.Identifier.Name == Value->Name)
 			{
-				return &Node;
+				if (Node.Identifier.TreeLocation == Value->TreeLocation)
+				{
+					return &Node;
+				}
+				else if (BestMatch == nullptr)
+				{
+					BestMatch = &Node;
+				}
 			}
 		}
-		return nullptr;
+		return BestMatch;
 	};
 
 	for (const auto& OldNode : OldHierarchy)
