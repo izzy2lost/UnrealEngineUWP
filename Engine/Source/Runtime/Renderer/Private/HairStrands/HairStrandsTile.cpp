@@ -46,6 +46,17 @@ FHairStrandsTilePassVS::FParameters GetHairStrandsTileParameters(const FViewInfo
 	return Out;
 }
 
+static ERHIFeatureSupport HairSupportsWaveOps(EShaderPlatform Platform)
+{
+	// D3D11 / SM5 or preview do not support, or work well with, wave-ops by default (or SM5 preview has issues with wave intrinsics too), that fixes classification and black/wrong tiling.
+	if (Platform == SP_PCD3D_SM5 || FDataDrivenShaderPlatformInfo::GetIsPreviewPlatform(Platform))
+	{
+		return ERHIFeatureSupport::Unsupported;
+	}
+
+	return FDataDrivenShaderPlatformInfo::GetSupportsWaveOperations(Platform);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Generate indirect draw and indirect dispatch buffers
 
@@ -116,12 +127,13 @@ class FHairStrandsTileGenerationPassCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FHairStrandsTileGenerationPassCS);
 	SHADER_USE_PARAMETER_STRUCT(FHairStrandsTileGenerationPassCS, FGlobalShader);
 
-	using FPermutationDomain = TShaderPermutationDomain<>;
+	class FInputType : SHADER_PERMUTATION_INT("PERMUTATION_INPUT_TYPE", 2);
+	class FWaveOps : SHADER_PERMUTATION_BOOL("PERMUTATION_WAVEOPS");
+	using FPermutationDomain = TShaderPermutationDomain<FInputType, FWaveOps>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(FIntPoint, BufferResolution)
-		SHADER_PARAMETER(uint32, bUintTexture)
 		SHADER_PARAMETER(uint32, bForceOutputAllTiles)
 		SHADER_PARAMETER(float, TransmittanceThreshold)
 		SHADER_PARAMETER(uint32, IntCoverageThreshold)
@@ -137,6 +149,11 @@ class FHairStrandsTileGenerationPassCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FWaveOps>() && HairSupportsWaveOps(Parameters.Platform) == ERHIFeatureSupport::Unsupported)
+		{
+			return false;
+		}
 		return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform);
 	}
 
@@ -144,6 +161,12 @@ class FHairStrandsTileGenerationPassCS : public FGlobalShader
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_TILE_GENERATION"), 1);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FWaveOps>())
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		}
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FHairStrandsTileGenerationPassCS, "/Engine/Private/HairStrands/HairStrandsVisibilityTile.usf", "TileMainCS", SF_Compute);
@@ -159,6 +182,7 @@ static FHairStrandsTiles AddHairStrandsGenerateTilesPass_Internal(
 {
 	const bool bHasValidInput = InputTexture != nullptr;
 	const bool bUintTexture   = InputTexture && InputTexture->Desc.Format == PF_R32_UINT;
+	const bool bWaveOps       = GRHISupportsWaveOperations&& GRHIMaximumWaveSize >= 64 && HairSupportsWaveOps(View.GetShaderPlatform()) != ERHIFeatureSupport::Unsupported;
 
 	FHairStrandsTiles Out;
 
@@ -181,12 +205,15 @@ static FHairStrandsTiles AddHairStrandsGenerateTilesPass_Internal(
 	FRDGBufferUAVRef TileCountUAV = GraphBuilder.CreateUAV(Out.TileCountBuffer, PF_R32_UINT);
 	AddClearUAVPass(GraphBuilder, TileCountUAV, 0u);
 
-	TShaderMapRef<FHairStrandsTileGenerationPassCS> ComputeShader(View.ShaderMap);
+	FHairStrandsTileGenerationPassCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FHairStrandsTileGenerationPassCS::FInputType>(bUintTexture ? 1u : 0u);
+	PermutationVector.Set<FHairStrandsTileGenerationPassCS::FWaveOps>(bWaveOps);
+
+	TShaderMapRef<FHairStrandsTileGenerationPassCS> ComputeShader(View.ShaderMap, PermutationVector);
 	FHairStrandsTileGenerationPassCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairStrandsTileGenerationPassCS::FParameters>();
 	PassParameters->ViewUniformBuffer		= View.ViewUniformBuffer;
 	PassParameters->BufferResolution		= View.ViewRect.Size();
 	PassParameters->bForceOutputAllTiles	= bHasValidInput ? 0 : 1;
-	PassParameters->bUintTexture			= bUintTexture ? 1u : 0u;
 	PassParameters->TransmittanceThreshold	= 1.f - GetHairStrandsFullCoverageThreshold();	
 	PassParameters->IntCoverageThreshold 	= GetHairStrandsIntCoverageThreshold();
 	PassParameters->InputFloatTexture		= GSystemTextures.GetBlackDummy(GraphBuilder);
