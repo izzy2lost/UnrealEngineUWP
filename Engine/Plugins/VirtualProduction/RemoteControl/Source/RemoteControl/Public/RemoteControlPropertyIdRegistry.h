@@ -100,7 +100,7 @@ private:
 
 	/** Holds the type to be created. */
 	UPROPERTY()
-	UClass* ClassToCreate;
+	UClass* ClassToCreate = nullptr;
 };
 
 template<> struct TStructOpsTypeTraits<FRCPropertyIdWrapper> : public TStructOpsTypeTraitsBase2<FRCPropertyIdWrapper>
