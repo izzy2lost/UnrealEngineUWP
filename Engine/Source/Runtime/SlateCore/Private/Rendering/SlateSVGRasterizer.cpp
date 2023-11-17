@@ -3,13 +3,7 @@
 #include "Rendering/SlateSVGRasterizer.h"
 
 THIRD_PARTY_INCLUDES_START
-// These are required for nanosvg
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#define NANOSVG_IMPLEMENTATION	
 #include "ThirdParty/nanosvg/src/nanosvg.h"
-#define NANOSVGRAST_IMPLEMENTATION
 #include "ThirdParty/nanosvg/src/nanosvgrast.h"
 THIRD_PARTY_INCLUDES_END
 
