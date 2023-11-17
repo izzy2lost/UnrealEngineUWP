@@ -2750,6 +2750,13 @@ const UPropertyBag* UPropertyBag::GetOrCreateFromDescs(const TConstArrayView<FPr
 		}
 	}
 
+	// @hack:
+	// This method is called to prevent non-editor builds to not crash on IsChildOf().
+	// The issues is that the UScriptStruct(const FObjectInitializer& ObjectInitializer) ctor (which is macro/UHT generated)
+	// does not call ReinitializeBaseChainArray(), when the code is compiled with USTRUCT_ISCHILDOF_STRUCTARRAY.
+	// Calling SetSuperStruct() forces the ReinitializeBaseChainArray() to be called.
+	NewBag->SetSuperStruct(nullptr);
+	
 	NewBag->Bind();
 	NewBag->StaticLink(/*RelinkExistingProperties*/true);
 
