@@ -2,18 +2,19 @@
 
 #include "SPCGEditorGraphLogView.h"
 
-#include "Framework/Views/TableViewMetadata.h"
 #include "PCGComponent.h"
+#include "PCGGraph.h"
+#include "PCGSubgraph.h"
+#include "Graph/PCGStackContext.h"
+
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
 #include "PCGEditorGraphNode.h"
-#include "PCGGraph.h"
-#include "PCGSubgraph.h"
 
-#include "Widgets/Layout/SScrollBox.h"
-
+#include "Framework/Views/TableViewMetadata.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/SListView.h"
 
 #define LOCTEXT_NAMESPACE "SPCGEditorGraphLogView"
@@ -107,7 +108,7 @@ SPCGEditorGraphLogView::~SPCGEditorGraphLogView()
 {
 	if (PCGEditorPtr.IsValid())
 	{
-		PCGEditorPtr.Pin()->OnInspectedComponentChangedDelegate.RemoveAll(this);
+		PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.RemoveAll(this);
 	}
 }
 
@@ -121,7 +122,7 @@ void SPCGEditorGraphLogView::Construct(const FArguments& InArgs, TSharedPtr<FPCG
 		PCGEditorGraph = PCGEditor->GetPCGEditorGraph();
 		PCGComponent = PCGEditor->GetPCGComponentBeingInspected();
 
-		PCGEditor->OnInspectedComponentChangedDelegate.AddSP(this, &SPCGEditorGraphLogView::OnDebugObjectChanged);
+		PCGEditor->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphLogView::OnDebugStackChanged);
 	}
 
 	ListViewHeader = CreateHeaderRowWidget();
@@ -396,14 +397,14 @@ void SPCGEditorGraphLogView::CreateAndAddItem(const UPCGEditorGraphNode* InPCGEd
 	}
 }
 
-void SPCGEditorGraphLogView::OnDebugObjectChanged(UPCGComponent* InPCGComponent)
+void SPCGEditorGraphLogView::OnDebugStackChanged(const FPCGStack& InPCGStack)
 {
 	if (PCGComponent.IsValid())
 	{
 		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
 	}
 
-	PCGComponent = InPCGComponent;
+	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
 
 	if (PCGComponent.IsValid())
 	{

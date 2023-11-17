@@ -278,7 +278,9 @@ void FPCGContext::LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMess
 
 	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(SourceComponent->GetWorld()))
 	{
-		Subsystem->GetNodeVisualLogsMutable().Log(Node, SourceComponent, InVerbosity, InMessage);
+		FPCGStack StackWithNode = *Stack;
+		StackWithNode.PushFrame(Node);
+		Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, InVerbosity, InMessage);
 	}
 }
 
@@ -289,9 +291,11 @@ bool FPCGContext::HasVisualLogs() const
 		return false;
 	}
 
-	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(SourceComponent->GetWorld()))
+	if (const UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(SourceComponent->GetWorld()))
 	{
-		return Subsystem->GetNodeVisualLogs().HasLogs(Node, SourceComponent.Get());
+		FPCGStack StackWithNode = *Stack;
+		StackWithNode.PushFrame(Node);
+		return Subsystem->GetNodeVisualLogs().HasLogs(StackWithNode);
 	}
 
 	return false;

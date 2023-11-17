@@ -2,11 +2,13 @@
 
 #include "Graph/PCGStackContext.h"
 
+#include "PCGComponent.h"
 #include "PCGGraph.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 
+#include "Algo/Find.h"
 #include "Containers/UnrealString.h"
 #include "Misc/StringBuilder.h"
 
@@ -58,7 +60,11 @@ bool FPCGStack::CreateStackFramePath(FString& OutString, const UPCGNode* InNode,
 				return false;
 			}
 
-			if (Object->IsA<UPCGGraph>())
+			if (Object->IsA<UPCGComponent>())
+			{
+				StringBuilder << TEXT("COMPONENT:") << Object->GetFullName();
+			}
+			else if (Object->IsA<UPCGGraph>())
 			{
 				StringBuilder << TEXT("GRAPH:") << Object->GetFullName();
 			}
@@ -101,10 +107,72 @@ uint32 FPCGStack::GetNumGraphLevels() const
 	uint32 GraphCount = 0;
 	for (const FPCGStackFrame& Frame : StackFrames)
 	{
-		GraphCount += Frame.Object->IsA<UPCGGraph>() ? 1 : 0;
+		GraphCount += (Frame.Object.IsValid() && Frame.Object->IsA<UPCGGraph>()) ? 1 : 0;
 	}
 
 	return GraphCount;
+}
+
+bool FPCGStack::BeginsWith(const FPCGStack& Other) const
+{
+	if (Other.GetStackFrames().Num() > GetStackFrames().Num())
+	{
+		return false;
+	}
+
+	for (int32 StackIndex = 0; StackIndex < Other.GetStackFrames().Num(); ++StackIndex)
+	{
+		if (Other.GetStackFrames()[StackIndex] != GetStackFrames()[StackIndex])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+const UPCGComponent* FPCGStack::GetRootComponent() const
+{
+	return StackFrames.IsEmpty() ? nullptr : Cast<const UPCGComponent>(StackFrames[0].Object.Get());
+}
+
+const UPCGGraph* FPCGStack::GetRootGraph() const
+{
+	for (int StackIndex = 0; StackIndex < GetStackFrames().Num(); ++StackIndex)
+	{
+		if (const UPCGGraph* Graph = Cast<const UPCGGraph>(StackFrames[StackIndex].Object.Get()))
+		{
+			return Graph;
+		}
+	}
+
+	return nullptr;
+}
+
+const UPCGGraph* FPCGStack::GetGraphForCurrentFrame() const
+{
+	for (int StackIndex = GetStackFrames().Num() - 1; StackIndex >= 0; --StackIndex)
+	{
+		if (const UPCGGraph* Graph = Cast<const UPCGGraph>(StackFrames[StackIndex].Object.Get()))
+		{
+			return Graph;
+		}
+	}
+
+	return nullptr;
+}
+
+const UPCGNode* FPCGStack::GetCurrentFrameNode() const
+{
+	return StackFrames.IsEmpty() ? nullptr : Cast<const UPCGNode>(StackFrames.Last().Object.Get());
+}
+
+bool FPCGStack::HasObject(const UObject* InObject) const
+{
+	return !!Algo::FindByPredicate(StackFrames, [InObject](const FPCGStackFrame& Frame)
+	{
+		return Frame.Object == InObject;
+	});
 }
 
 bool FPCGStack::operator==(const FPCGStack& Other) const
@@ -126,25 +194,13 @@ bool FPCGStack::operator==(const FPCGStack& Other) const
 	return true;
 }
 
-uint32 GetTypeHash(const FPCGStack& In)
-{
-	uint32 Hash = 0;
-
-	for (const FPCGStackFrame& Frame : In.StackFrames)
-	{
-		Hash = HashCombine(Hash, GetTypeHash(Frame));
-	}
-
-	return Hash;
-}
-
 int32 FPCGStackContext::PushFrame(const UObject* InFrameObject)
 {
 	if (CurrentStackIndex == INDEX_NONE)
 	{
 		// Create first stack using the given frame.
 		FPCGStack& Stack = Stacks.Emplace_GetRef();
-		Stack.PushFrame(FPCGStackFrame(InFrameObject));
+		Stack.PushFrame(InFrameObject);
 		CurrentStackIndex = 0;
 	}
 	else
@@ -224,54 +280,4 @@ void FPCGStackContext::PrependParentStack(const FPCGStack* InParentStack)
 	{
 		Stack.StackFrames.Insert(InParentStack->StackFrames, 0);
 	}
-}
-
-FPCGStackContext FPCGStackContext::CreateStackContextFromGraph(const UPCGGraph* InPCGGraph)
-{
-	FPCGStackContext StackContext;
-
-	auto ParseGraphRecursive = [](const UPCGGraph* InPCGGraph, FPCGStackContext& InStackContext, TArray<const UPCGGraph*>& VisitedGraphStack, auto RecursiveCallback)
-	{
-		if (!InPCGGraph)
-		{
-			return;
-		}
-
-		InStackContext.PushFrame(InPCGGraph);
-
-		for (const UPCGNode* PCGNode : InPCGGraph->GetNodes())
-		{
-			if (PCGNode)
-			{
-				// TODO: GetSettings() has no execution context and therefore cannot recurse on dynamically chosen subgraphs
-				if (const UPCGBaseSubgraphSettings* SubgraphSettings = Cast<UPCGBaseSubgraphSettings>(PCGNode->GetSettings()))
-				{
-					if (const UPCGGraph* PCGSubgraph = SubgraphSettings->GetSubgraph())
-					{
-						// Skip graphs we have already visited to avoid cycles
-						// TODO: This prevents recursive subgraphs
-						if (!VisitedGraphStack.Contains(PCGSubgraph))
-						{
-							InStackContext.PushFrame(PCGNode);
-							VisitedGraphStack.Push(PCGSubgraph);
-
-							FPCGStackContext SubgraphStackContext;
-							RecursiveCallback(PCGSubgraph, SubgraphStackContext, VisitedGraphStack, RecursiveCallback);
-							InStackContext.AppendStacks(SubgraphStackContext);
-
-							VisitedGraphStack.Pop();
-							InStackContext.PopFrame();
-						}
-					}
-				}
-			}
-		}
-	};
-
-	TArray<const UPCGGraph*> VisitedGraphStack;
-	VisitedGraphStack.Push(InPCGGraph);
-
-	ParseGraphRecursive(InPCGGraph, StackContext, VisitedGraphStack, ParseGraphRecursive);
-
-	return StackContext;
 }

@@ -2,12 +2,14 @@
 
 #include "SPCGEditorGraphProfilingView.h"
 
-#include "Framework/Views/TableViewMetadata.h"
 #include "PCGComponent.h"
+#include "Graph/PCGStackContext.h"
+
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
 #include "PCGEditorGraphNode.h"
 
+#include "Framework/Views/TableViewMetadata.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -116,7 +118,7 @@ SPCGEditorGraphProfilingView::~SPCGEditorGraphProfilingView()
 {
 	if (PCGEditorPtr.IsValid())
 	{
-		PCGEditorPtr.Pin()->OnInspectedComponentChangedDelegate.RemoveAll(this);
+		PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.RemoveAll(this);
 	}
 }
 
@@ -130,7 +132,7 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 		PCGEditorGraph = PCGEditor->GetPCGEditorGraph();
 		PCGComponent = PCGEditor->GetPCGComponentBeingInspected();
 
-		PCGEditor->OnInspectedComponentChangedDelegate.AddSP(this, &SPCGEditorGraphProfilingView::OnDebugObjectChanged);
+		PCGEditor->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphProfilingView::OnDebugStackChanged);
 	}
 
 	SortingColumn = PCGEditorGraphProfilingView::NAME_TotalExecutionTime;
@@ -484,14 +486,14 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 	return FReply::Handled();
 }
 
-void SPCGEditorGraphProfilingView::OnDebugObjectChanged(UPCGComponent* InPCGComponent)
+void SPCGEditorGraphProfilingView::OnDebugStackChanged(const FPCGStack& InPCGStack)
 {
 	if (PCGComponent.IsValid())
 	{
 		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
 	}
 
-	PCGComponent = InPCGComponent;
+	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
 
 	if (PCGComponent.IsValid())
 	{

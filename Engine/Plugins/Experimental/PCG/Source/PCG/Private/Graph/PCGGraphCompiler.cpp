@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PCGGraphCompiler.h"
+#include "Graph/PCGGraphCompiler.h"
 
 #include "PCGEdge.h"
 #include "PCGGraph.h"
@@ -287,21 +287,17 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetPrecompiledTasks(const UPCGGraph* In
 		// Top graphs are optimized per grid size.
 		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
 		ExistingTasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
+
+		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = TopGraphToStackContextMap.Find(InGraph);
+		const FPCGStackContext* ExistingStackContext = GridSizeToStackContext ? GridSizeToStackContext->Find(GenerationGridSize) : nullptr;
+		OutStackContext = ExistingStackContext ? *ExistingStackContext : FPCGStackContext();
+
+		// Should either find both, or find neither.
+		ensure(!ExistingTasks == !ExistingStackContext);
 	}
 	else
 	{
 		ExistingTasks = GraphToTaskMap.Find(InGraph);
-	}
-
-	const FPCGStackContext* StackContext = (bIsTopGraph ? TopGraphToStackContext : GraphToStackContext).Find(InGraph);
-	if (StackContext)
-	{
-		OutStackContext = *StackContext;
-	}
-	else
-	{
-		// If we failed to get a context, output a dummy blank one.
-		OutStackContext = FPCGStackContext();
 	}
 
 	return ExistingTasks ? *ExistingTasks : TArray<FPCGGraphTask>();
@@ -589,6 +585,46 @@ void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, boo
 	}
 }
 
+void FPCGGraphCompiler::PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTasks, FPCGStackContext& InOutStackContext)
+{
+	// Build set of stack IDs used by tasks. Using array as set is likely small.
+	TArray<int32> ActiveStackIDs;
+	for (FPCGGraphTask& Task : InCompiledTasks)
+	{
+		ActiveStackIDs.AddUnique(Task.StackIndex);
+	}
+
+	if (ActiveStackIDs.Num() < InOutStackContext.GetNumStacks())
+	{
+		// Prepare cumulative counts for stack ID remapping.
+		TArray<int> RemovedCounts;
+		RemovedCounts.SetNumZeroed(InOutStackContext.GetNumStacks());
+
+		// Remove any stacks that are inactive.
+		TArray<FPCGStack>& Stacks = InOutStackContext.GetStacksMutable();
+		for (int StackIndex = Stacks.Num() - 1; StackIndex >= 0; --StackIndex)
+		{
+			if (!ActiveStackIDs.Contains(StackIndex))
+			{
+				Stacks.RemoveAt(StackIndex);
+				RemovedCounts[StackIndex] = 1;
+			}
+		}
+
+		// Accumulate removed counts.
+		for (int Index = 1; Index < RemovedCounts.Num(); ++Index)
+		{
+			RemovedCounts[Index] += RemovedCounts[Index - 1];
+		}
+
+		// Remap stack IDs.
+		for (FPCGGraphTask& Task : InCompiledTasks)
+		{
+			Task.StackIndex -= RemovedCounts[Task.StackIndex];
+		}
+	}
+}
+
 TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph)
 {
 	TArray<FPCGGraphTask> CompiledTasks;
@@ -602,10 +638,17 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, ui
 		FReadScopeLock Lock(GraphToTaskMapLock);
 		const TMap<uint32, TArray<FPCGGraphTask>>* GridSizeToCompiledGraph = TopGraphToTaskMap.Find(InGraph);
 		const TArray<FPCGGraphTask>* Tasks = GridSizeToCompiledGraph ? GridSizeToCompiledGraph->Find(GenerationGridSize) : nullptr;
-		if (Tasks)
+
+		const TMap<uint32, FPCGStackContext>* GridSizeToStackContext = TopGraphToStackContextMap.Find(InGraph);
+		const FPCGStackContext* StackContext = GridSizeToStackContext ? GridSizeToStackContext->Find(GenerationGridSize) : nullptr;
+
+		// Should have either found both or neither.
+		ensure(!Tasks == !StackContext);
+
+		if (Tasks && StackContext)
 		{
 			CompiledTasks = *Tasks;
-			OutStackContext = TopGraphToStackContext[InGraph];
+			OutStackContext = *StackContext;
 		}
 	}
 	else
@@ -694,6 +737,10 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		});
 	}
 
+	// Post culling - remove any stacks that are no longer part of execution. Besides being tidy this also helps
+	// debug tools discern which stacks were executed or not.
+	PostCullStackCleanup(CompiledTasks, StackContext);
+
 	const int TaskNum = CompiledTasks.Num();
 	const FPCGTaskId PreExecuteTaskId = FPCGTaskId(TaskNum);
 	const FPCGTaskId PostExecuteTaskId = PreExecuteTaskId + 1;
@@ -748,7 +795,12 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	if (!TasksPerGenerationGrid.Contains(GenerationGridSize))
 	{
 		TasksPerGenerationGrid.Add(GenerationGridSize, MoveTemp(CompiledTasks));
-		TopGraphToStackContext.Add(InGraph, StackContext);
+	}
+
+	TMap<uint32, FPCGStackContext>& StackContextPerGenerationGrid = TopGraphToStackContextMap.FindOrAdd(InGraph);
+	if (!StackContextPerGenerationGrid.Contains(GenerationGridSize))
+	{
+		StackContextPerGenerationGrid.Add(GenerationGridSize, MoveTemp(StackContext));
 	}
 	GraphToTaskMapLock.WriteUnlock();
 }
@@ -759,7 +811,7 @@ void FPCGGraphCompiler::ClearCache()
 	GraphToTaskMap.Reset();
 	GraphToStackContext.Reset();
 	TopGraphToTaskMap.Reset();
-	TopGraphToStackContext.Reset();
+	TopGraphToStackContextMap.Reset();
 }
 
 #if WITH_EDITOR
@@ -781,7 +833,9 @@ void FPCGGraphCompiler::RemoveFromCacheRecursive(UPCGGraph* InGraph)
 {
 	GraphToTaskMapLock.WriteLock();
 	GraphToTaskMap.Remove(InGraph);
+	GraphToStackContext.Remove(InGraph);
 	TopGraphToTaskMap.Remove(InGraph);
+	TopGraphToStackContextMap.Remove(InGraph);
 	GraphToTaskMapLock.WriteUnlock();
 
 	GraphDependenciesLock.Lock();

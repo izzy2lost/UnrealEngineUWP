@@ -428,6 +428,36 @@ void UPCGSubsystem::OnOriginalComponentUnregistered(UPCGComponent* InComponent)
 	}
 }
 
+#if WITH_EDITOR
+void UPCGSubsystem::OnScheduleGraph(const FPCGStackContext& StackContext)
+{
+	// Always clear any possibly related warnings/errors on schedule.
+	for (const FPCGStack& Stack : StackContext.GetStacks())
+	{
+		GetNodeVisualLogsMutable().ClearLogs(Stack);
+	}
+
+	// Flush out all stacks that begin from the component / top graph as the existing dynamic
+	// stacks may not be occur during the next execution.
+	if (const FPCGStack* BaseStack = StackContext.GetStack(0))
+	{
+		if (BaseStack->IsCurrentFrameInRootGraph())
+		{
+			ClearExecutedStacks(*BaseStack);
+		}
+	}
+
+	// Record executed stacks.
+	{
+		FWriteScopeLock Lock(ExecutedStacksLock);
+		for (const FPCGStack& ExecutedStack : StackContext.GetStacks())
+		{
+			ExecutedStacks.AddUnique(ExecutedStack);
+		}
+	}
+}
+#endif
+
 UPCGLandscapeCache* UPCGSubsystem::GetLandscapeCache()
 {
 	APCGWorldActor* LandscapeCacheOwner = GetPCGWorldActor();
@@ -1444,7 +1474,7 @@ void UPCGSubsystem::ClearLandscapeCache()
 	}
 }
 
-const FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler() const
+FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler() const
 {
 	if (GraphExecutor)
 	{
@@ -1454,9 +1484,52 @@ const FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler() const
 	return nullptr;
 }
 
+bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext) const
+{
+	if (InComponent && InComponent->GetGraph())
+	{
+		GetGraphCompiler()->GetCompiledTasks(InComponent->GetGraph(), InComponent->GetGenerationGridSize(), OutStackContext);
+		return true;
+	}
+
+	return false;
+}
+
 uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
 {
 	return GraphExecutor ? GraphExecutor->GetGraphCacheEntryCount(InElement) : 0;
+}
+
+TArray<FPCGStack> UPCGSubsystem::GetExecutedStacks(const UPCGComponent* InComponent, const UPCGGraph* InSubgraph)
+{
+	FReadScopeLock Lock(ExecutedStacksLock);
+
+	TArray<FPCGStack> MatchingStacks;
+
+	for (const FPCGStack& Stack : ExecutedStacks)
+	{
+		if (Stack.GetRootComponent() == InComponent && Stack.GetGraphForCurrentFrame() == InSubgraph)
+		{
+			MatchingStacks.Add(Stack);
+		}
+	}
+
+	return MatchingStacks;
+}
+
+void UPCGSubsystem::ClearExecutedStacks(FPCGStack BeginningWithStack)
+{
+	FWriteScopeLock Lock(ExecutedStacksLock);
+
+	for (int StackIndex = ExecutedStacks.Num() - 1; StackIndex >= 0; --StackIndex)
+	{
+		// Clear any dynamic stack that starts with the given base stack, we don't know what stacks will
+		// execute so clean out everything.
+		if (ExecutedStacks[StackIndex].BeginsWith(BeginningWithStack))
+		{
+			ExecutedStacks.RemoveAtSwap(StackIndex);
+		}
+	}
 }
 
 #endif // WITH_EDITOR

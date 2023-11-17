@@ -11,187 +11,216 @@
 
 #if WITH_EDITOR
 
-void FPCGNodeVisualLogs::Log(TWeakObjectPtr<const UPCGNode> InNode, TWeakObjectPtr<UPCGComponent> InComponent, ELogVerbosity::Type InVerbosity, const FText& InMessage)
+void FPCGNodeVisualLogs::Log(const FPCGStack& InPCGStack, ELogVerbosity::Type InVerbosity, const FText& InMessage)
 {
-	// InNode can be null, in case of unit tests.
-	if (!InNode.Get() || !ensure(InComponent.Get()))
-	{
-		return;
-	}
-
 	bool bAdded = false;
 
 	{
 		FWriteScopeLock ScopedWriteLock(LogsLock);
 
-		FPCGPerNodeVisualLogs* NodeLogs = NodeToLogs.Find(InNode);
-		if (!NodeLogs)
-		{
-			NodeLogs = &NodeToLogs.Add(InNode);
-		}
+		FPCGPerNodeVisualLogs& NodeLogs = StackToLogs.FindOrAdd(InPCGStack);
 
 		constexpr int32 MaxLogged = 1024;
-		if (NodeToLogs.Num() < MaxLogged)
+		if (StackToLogs.Num() < MaxLogged)
 		{
-			NodeLogs->Emplace(InMessage, InVerbosity, InComponent);
+			NodeLogs.Emplace(InMessage, InVerbosity);
 
 			bAdded = true;
 		}
 	}
 
 	// Broadcast outside of write scope lock
-	if (bAdded && IsInGameThread())
+	if (bAdded && IsInGameThread() && !InPCGStack.GetStackFrames().IsEmpty())
 	{
-		InNode->OnNodeChangedDelegate.Broadcast(const_cast<UPCGNode*>(InNode.Get()), EPCGChangeType::Cosmetic);
-	}
-}
-
-bool FPCGNodeVisualLogs::HasLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent) const
-{
-	FReadScopeLock ScopedReadLock(LogsLock);
-
-	if (!ensure(InNode.Get()))
-	{
-		return false;
-	}
-
-	const FPCGPerNodeVisualLogs* NodeLogs = NodeToLogs.Find(InNode);
-	if (!NodeLogs)
-	{
-		return false;
-	}
-
-	if (!InComponent)
-	{
-		return !NodeLogs->IsEmpty();
-	}
-	else
-	{
-		return !!Algo::FindByPredicate(*NodeLogs, [InComponent](const FPCGNodeLogEntry& Log)
+		for (const FPCGStackFrame& Frame : InPCGStack.GetStackFrames())
 		{
-			return Log.Component == InComponent;
-		});
+			if (const UPCGNode* Node = Cast<const UPCGNode>(Frame.Object.Get()))
+			{
+				Node->OnNodeChangedDelegate.Broadcast(const_cast<UPCGNode*>(Node), EPCGChangeType::Cosmetic);
+			}
+		}
 	}
 }
 
-bool FPCGNodeVisualLogs::HasLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent, ELogVerbosity::Type InVerbosity) const
+bool FPCGNodeVisualLogs::HasLogs(const FPCGStack& InPCGStack) const
 {
 	FReadScopeLock ScopedReadLock(LogsLock);
 
-	if (!ensure(InNode.Get()))
+	for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
 	{
-		return false;
+		if (Entry.Key.BeginsWith(InPCGStack) && !Entry.Value.IsEmpty())
+		{
+			return true;
+		}
 	}
 
-	const FPCGPerNodeVisualLogs* NodeLogs = NodeToLogs.Find(InNode);
-	if (!NodeLogs)
-	{
-		return false;
-	}
-
-	return !!Algo::FindByPredicate(*NodeLogs, [InVerbosity, InComponent](const FPCGNodeLogEntry& Log)
-	{
-		return Log.Verbosity == InVerbosity && (!InComponent || Log.Component == InComponent);
-	});
+	return false;
 }
 
-FText FPCGNodeVisualLogs::GetLogsSummaryText(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent) const
+bool FPCGNodeVisualLogs::HasLogs(const FPCGStack& InPCGStack, ELogVerbosity::Type& OutMinVerbosity) const
+{
+	OutMinVerbosity = ELogVerbosity::All;
+	
+	FReadScopeLock ScopedReadLock(LogsLock);
+
+	for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
+	{
+		if (Entry.Key.BeginsWith(InPCGStack))
+		{
+			for (const FPCGNodeLogEntry& Log : Entry.Value)
+			{
+				OutMinVerbosity = FMath::Min(OutMinVerbosity, Log.Verbosity);
+			}
+		}
+	}
+
+	return OutMinVerbosity != ELogVerbosity::All;
+}
+
+bool FPCGNodeVisualLogs::HasLogsOfVerbosity(const FPCGStack& InPCGStack, ELogVerbosity::Type InVerbosity) const
 {
 	FReadScopeLock ScopedReadLock(LogsLock);
 
-	if (!ensure(InNode.Get()))
+	for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
 	{
-		return FText::GetEmpty();
+		if (Entry.Key.BeginsWith(InPCGStack))
+		{
+			if (Algo::FindByPredicate(Entry.Value, [InVerbosity](const FPCGNodeLogEntry& Log) { return Log.Verbosity == InVerbosity; }))
+			{
+				return true;
+			}
+		}
 	}
 
-	const FPCGPerNodeVisualLogs* NodeLogsPtr = NodeToLogs.Find(InNode);
-	if (!NodeLogsPtr)
-	{
-		return FText::GetEmpty();
-	}
-	const FPCGPerNodeVisualLogs& NodeLogs = *NodeLogsPtr;
+	return false;
+}
+
+FText FPCGNodeVisualLogs::GetLogsSummaryText(const UPCGNode* InNode, ELogVerbosity::Type& OutMinimumVerbosity) const
+{
+	FReadScopeLock ScopedReadLock(LogsLock);
 
 	// Compose user friendly summary of first N errors
+	FText Summary = FText::GetEmpty();
+	OutMinimumVerbosity = ELogVerbosity::All;
+
+	int LogCounter = 0;
+
+	for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
+	{
+		const FPCGStack& Stack = Entry.Key;
+
+		if (Stack.HasObject(InNode))
+		{
+			const FPCGPerNodeVisualLogs& NodeLogs = Entry.Value;
+
+			for (int LogIndex = 0; LogIndex < NodeLogs.Num() && LogCounter < MaxLogsInSummary; ++LogIndex)
+			{
+				++LogCounter;
+
+				const UPCGComponent* Component = Stack.GetRootComponent();
+				FText ActorName = (Component && Component->GetOwner()) ? FText::FromString(Component->GetOwner()->GetActorLabel()) : FText::FromString(TEXT("MissingComponent"));
+				
+				OutMinimumVerbosity = FMath::Min(OutMinimumVerbosity, NodeLogs[LogIndex].Verbosity);
+				const FText VerbosityText = NodeLogs[LogIndex].Verbosity == ELogVerbosity::Warning ? FText::FromString(TEXT("Warning")) : FText::FromString(TEXT("Error"));
+
+				if (LogCounter > 1)
+				{
+					Summary = FText::Format(FText::FromString(TEXT("{0}\n")), Summary);
+				}
+
+				Summary = FText::Format(LOCTEXT("NodeTooltipLogWithActor", "{0}[{1}] {2}: {3}"), Summary, ActorName, VerbosityText, NodeLogs[LogIndex].Message);
+			}
+		}
+
+		if (LogCounter >= MaxLogsInSummary)
+		{
+			Summary = FText::Format(FText::FromString(TEXT("{0}\n...")), Summary);
+			break;
+		}
+	}
+
+	return Summary;
+}
+
+FText FPCGNodeVisualLogs::GetLogsSummaryText(const FPCGStack& InBaseStack) const
+{
+	FReadScopeLock ScopedReadLock(LogsLock);
+
 	FText ResultText = FText::GetEmpty();
+
 	int32 LogCounter = 0;
 
-	for (int32 i = 0; i < NodeLogs.Num(); ++i)
+	for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
 	{
-		if (InComponent && NodeLogs[i].Component != InComponent)
+		if (LogCounter >= MaxLogsInSummary)
+		{
+			ResultText = FText::Format(FText::FromString(TEXT("{0}\n...")), ResultText);
+			break;
+		}
+
+		if (!Entry.Key.BeginsWith(InBaseStack))
 		{
 			continue;
 		}
 
-		++LogCounter;
+		const FPCGPerNodeVisualLogs& NodeLogs = Entry.Value;
 
-		if (LogCounter > 1)
+		for (int32 i = 0; i < NodeLogs.Num(); ++i)
 		{
-			// New lines after each log
-			ResultText = FText::Format(FText::FromString(TEXT("{0}\n")), ResultText);
-		}
+			++LogCounter;
 
-		const FText MessageVerbosity = NodeLogs[i].Verbosity == ELogVerbosity::Warning ? FText::FromString(TEXT("Warning")) : FText::FromString(TEXT("Error"));
+			if (LogCounter > 1)
+			{
+				ResultText = FText::Format(FText::FromString(TEXT("{0}\n")), ResultText);
+			}
 
-		if (!InComponent)
-		{
-			FText ActorName = (NodeLogs[i].Component.Get() && NodeLogs[i].Component->GetOwner()) ? FText::FromName(NodeLogs[i].Component->GetOwner()->GetFName()) : FText::FromString(TEXT("MissingComponent"));
-			ResultText = FText::Format(LOCTEXT("NodeTooltipLogWithActor", "{0}{1}/{2}: [{3}] {4}: {5}"), ResultText, i + 1, NodeLogs.Num(), ActorName, MessageVerbosity, NodeLogs[i].Message);
-		}
-		else
-		{
-			ResultText = FText::Format(LOCTEXT("NodeTooltipLog", "{0}{1}/{2} {3}: {4}"), ResultText, i + 1, NodeLogs.Num(), MessageVerbosity, NodeLogs[i].Message);
-		}
+			const FText MessageVerbosity = NodeLogs[i].Verbosity == ELogVerbosity::Warning ? FText::FromString(TEXT("Warning")) : FText::FromString(TEXT("Error"));
+			ResultText = FText::Format(LOCTEXT("NodeTooltipLog", "{0}{1}: {2}"), ResultText, /*i + 1, NodeLogs.Num(),*/ MessageVerbosity, NodeLogs[i].Message);
 
-		constexpr int32 MaxLogs = 8;
-		if (LogCounter >= MaxLogs)
-		{
-			ResultText = FText::Format(FText::FromString(TEXT("{0}\n...")), ResultText);
-			break;
+			if (LogCounter >= MaxLogsInSummary)
+			{
+				break;
+			}
 		}
 	}
 
 	return ResultText;
 }
 
-void FPCGNodeVisualLogs::ClearLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent)
+void FPCGNodeVisualLogs::ClearLogs(const FPCGStack& InPCGStack)
 {
-	if (!ensure(InNode.Get()) || !ensure(InComponent))
-	{
-		return;
-	}
+	TSet<const UPCGNode*> TouchedNodes;
 
-	FPCGPerNodeVisualLogs* NodeLogs = nullptr;
-	{
-		FReadScopeLock ScopedReadLock(LogsLock);
-		NodeLogs = NodeToLogs.Find(InNode);
-
-		if (!NodeLogs || NodeLogs->IsEmpty())
-		{
-			// No logs, nothing to do
-			return;
-		}
-	}
-
-	bool bAnyRemoved = false;
 	{
 		FWriteScopeLock ScopedWriteLock(LogsLock);
 
-		check(NodeLogs);
-		for (int32 i = NodeLogs->Num() - 1; i >= 0; --i)
+		TArray<FPCGStack> StacksToRemove;
+		for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
 		{
-			// Remove entry if it matches the given component, or if the component is no longer valid
-			if (!(*NodeLogs)[i].Component.IsValid() || (*NodeLogs)[i].Component == InComponent)
+			if (Entry.Key.BeginsWith(InPCGStack))
 			{
-				NodeLogs->RemoveAtSwap(i);
-				bAnyRemoved = true;
+				StacksToRemove.Add(Entry.Key);
+
+				for (const FPCGStackFrame& Frame : Entry.Key.GetStackFrames())
+				{
+					if (const UPCGNode* Node = Cast<const UPCGNode>(Frame.Object.Get()))
+					{
+						TouchedNodes.Add(Node);
+					}
+				}
 			}
+		}
+
+		for (const FPCGStack& StackToRemove : StacksToRemove)
+		{
+			StackToLogs.Remove(StackToRemove);
 		}
 	}
 
 	// Broadcast change notification outside of write scope lock
-	if (bAnyRemoved)
+	for (const UPCGNode* TouchedNode : TouchedNodes)
 	{
-		InNode->OnNodeChangedDelegate.Broadcast(const_cast<UPCGNode*>(InNode.Get()), EPCGChangeType::Cosmetic);
+		TouchedNode->OnNodeChangedDelegate.Broadcast(const_cast<UPCGNode*>(TouchedNode), EPCGChangeType::Cosmetic);
 	}
 }
 

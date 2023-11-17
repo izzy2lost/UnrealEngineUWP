@@ -58,12 +58,16 @@ private:
 	/** Culls tasks based on a given lambda. Never culls the first (input) task in the array. */
 	static void CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask);
 
+	/** Remove any stack frames that are not used by any task. */
+	static void PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTasks, FPCGStackContext& InOutStackContext);
+
 	mutable FRWLock GraphToTaskMapLock;
 	TMap<UPCGGraph*, TArray<FPCGGraphTask>> GraphToTaskMap;
 	TMap<UPCGGraph*, FPCGStackContext> GraphToStackContext;
+
 	// Top graphs are optimized for execution grid and store one set of compiled tasks per grid size.
 	TMap<UPCGGraph*, TMap<uint32, TArray<FPCGGraphTask>>> TopGraphToTaskMap;
-	TMap<UPCGGraph*, FPCGStackContext> TopGraphToStackContext;
+	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
 
 #if WITH_EDITOR
 	void RemoveFromCache(UPCGGraph* InGraph);

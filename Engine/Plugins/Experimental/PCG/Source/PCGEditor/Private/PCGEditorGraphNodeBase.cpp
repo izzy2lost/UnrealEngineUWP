@@ -320,44 +320,63 @@ void UPCGEditorGraphNodeBase::OnNodeChanged(UPCGNode* InNode, EPCGChangeType Cha
 
 EPCGChangeType UPCGEditorGraphNodeBase::UpdateErrorsAndWarnings()
 {
-	EPCGChangeType ChangeType = EPCGChangeType::None;
-
-	// Pull current errors/warnings state from PCG subsystem.
-	if (const UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance())
+	const UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
+	if (!PCGNode || !Subsystem)
 	{
-		const UPCGComponent* ComponentBeingDebugged = nullptr;
-		{
-			const UPCGEditorGraph* EditorGraph = CastChecked<UPCGEditorGraph>(GetGraph());
-			const FPCGEditor* Editor = (EditorGraph && EditorGraph->GetEditor().IsValid()) ? EditorGraph->GetEditor().Pin().Get() : nullptr;
-			ComponentBeingDebugged = Editor ? Editor->GetPCGComponentBeingInspected() : nullptr;
-		}
+		return EPCGChangeType::None;
+	}
+	
+	const FPCGStack* InspectedStack = nullptr;
+	{
+		const UPCGEditorGraph* EditorGraph = CastChecked<UPCGEditorGraph>(GetGraph());
+		const FPCGEditor* Editor = (EditorGraph && EditorGraph->GetEditor().IsValid()) ? EditorGraph->GetEditor().Pin().Get() : nullptr;
+		InspectedStack = Editor ? Editor->GetStackBeingInspected() : nullptr;
+	}
 
-		const bool bOldHasCompilerMessage = bHasCompilerMessage;
-		const int32 OldErrorType = ErrorType;
-		const FString OldErrorMsg = ErrorMsg;
-
-		bHasCompilerMessage = Subsystem->GetNodeVisualLogs().HasLogs(PCGNode, ComponentBeingDebugged);
+	const bool bOldHasCompilerMessage = bHasCompilerMessage;
+	const int32 OldErrorType = ErrorType;
+	const FString OldErrorMsg = ErrorMsg;
+		
+	if (InspectedStack)
+	{
+		// Get errors/warnings for the inspected stack.
+		FPCGStack StackWithNode = *InspectedStack;
+		StackWithNode.PushFrame(PCGNode);
+		bHasCompilerMessage = Subsystem->GetNodeVisualLogs().HasLogs(StackWithNode);
 
 		if (bHasCompilerMessage)
 		{
-			const bool bHasErrors = Subsystem->GetNodeVisualLogs().HasLogs(PCGNode, ComponentBeingDebugged, ELogVerbosity::Error);
-			ErrorType = bHasErrors ? EMessageSeverity::Error : EMessageSeverity::Warning;
+			ErrorMsg = Subsystem->GetNodeVisualLogs().GetLogsSummaryText(StackWithNode).ToString();
 
-			ErrorMsg = Subsystem->GetNodeVisualLogs().GetLogsSummaryText(PCGNode, ComponentBeingDebugged).ToString();
+			const bool bHasErrors = Subsystem->GetNodeVisualLogs().HasLogsOfVerbosity(StackWithNode, ELogVerbosity::Error);
+			ErrorType = bHasErrors ? EMessageSeverity::Error : EMessageSeverity::Warning;
 		}
 		else
 		{
 			ErrorMsg.Empty();
 			ErrorType = 0;
 		}
+	}
+	else
+	{
+		// Collect all errors/warnings for this node.
+		ELogVerbosity::Type MinimumVerbosity;
+		ErrorMsg = Subsystem->GetNodeVisualLogs().GetLogsSummaryText(PCGNode.Get(), MinimumVerbosity).ToString();
 
-		if ((bHasCompilerMessage != bOldHasCompilerMessage) || (ErrorType != OldErrorType) || (ErrorMsg != OldErrorMsg))
+		bHasCompilerMessage = !ErrorMsg.IsEmpty();
+
+		if (bHasCompilerMessage)
 		{
-			ChangeType = EPCGChangeType::Cosmetic;
+			ErrorType = MinimumVerbosity < ELogVerbosity::Warning ? EMessageSeverity::Error : EMessageSeverity::Warning;
+		}
+		else
+		{
+			ErrorType = 0;
 		}
 	}
 
-	return ChangeType;
+	const bool bStateChanged = (bHasCompilerMessage != bOldHasCompilerMessage) || (ErrorType != OldErrorType) || (ErrorMsg != OldErrorMsg);
+	return bStateChanged ? EPCGChangeType::Cosmetic : EPCGChangeType::None;
 }
 
 EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack& InStackBeingInspected)
@@ -375,7 +394,7 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponen
 
 	// Disable grid size visualization if higen is disabled, or if we're not inspecting a specific grid, or if we're
 	// inspecting a subgraph since subgraphs execute at the invoked grid level.
-	if (!HiGenEnabled || (InspectingGridSize == PCGHiGenGrid::UninitializedGridSize()) || !InStackBeingInspected.IsTopLevelGraph())
+	if (!HiGenEnabled || (InspectingGridSize == PCGHiGenGrid::UninitializedGridSize()) || !InStackBeingInspected.IsCurrentFrameInRootGraph())
 	{
 		if (IsDisplayAsDisabledForced())
 		{

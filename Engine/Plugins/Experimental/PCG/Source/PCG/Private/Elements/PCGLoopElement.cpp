@@ -268,10 +268,6 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			StackFrames.Emplace(Context->Node);
 			StackFrames.Emplace(EntryIndex);
 
-#if WITH_EDITOR
-			Subgraph->OnGraphDynamicallyExecutedDelegate.Broadcast(Subgraph, Context->SourceComponent, InvocationStack);
-#endif
-
 			TArray<FPCGTaskId> Dependencies = {};
 			if (PreviousTaskId != InvalidPCGTaskId && bIsFeedbackLoop)
 			{

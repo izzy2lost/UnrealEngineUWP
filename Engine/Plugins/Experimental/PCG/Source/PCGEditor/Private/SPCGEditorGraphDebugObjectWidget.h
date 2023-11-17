@@ -33,7 +33,6 @@ private:
 	FPCGStack PCGStack;
 };
 
-
 class SPCGEditorGraphDebugObjectWidget: public SCompoundWidget
 {
 public:
@@ -46,11 +45,13 @@ public:
 
 	void OnLevelActorDeleted(const AActor* InActor);
 
-	void AddDynamicStack(const TWeakObjectPtr<UPCGComponent> InComponent, const FPCGStack& InvocationStack);
+	void SetDebugObjectSelection(const FPCGStack& FullStack);
 
 private:
 	void OnComboBoxOpening();
+
 	void OnSelectionChanged(TSharedPtr<FPCGEditorGraphDebugObjectInstance> NewSelection, ESelectInfo::Type SelectInfo) const;
+
 	TSharedRef<SWidget> OnGenerateWidget(TSharedPtr<FPCGEditorGraphDebugObjectInstance> InDebugObjectInstance) const;
 
 	UPCGGraph* GetPCGGraph() const;
@@ -62,6 +63,8 @@ private:
 	void SetDebugObjectFromSelection_OnClicked();
 	bool IsSetDebugObjectFromSelectionButtonEnabled() const;
 
+	void OnDebugObjectChanged(UPCGComponent* InPCGComponent, const FPCGStack& InPCGStack);
+
 	bool ForEachStackInSelection(const TFunctionRef<bool(const FPCGStack&, UPCGComponent*)>& InOperation) const;
 	
 	/** Pointer back to the PCG editor that owns us */
@@ -70,5 +73,6 @@ private:
 	TArray<TSharedPtr<FPCGEditorGraphDebugObjectInstance>> DebugObjects;
 	TSharedPtr<SComboBox<TSharedPtr<FPCGEditorGraphDebugObjectInstance>>> DebugObjectsComboBox;
 
-	TMap<const TWeakObjectPtr<UPCGComponent>, TArray<FPCGStack>> DynamicInvocationStacks;
+	/** Set true to avoid broadcasting debug object change notifications when setting the object from code. */
+	bool bDisableDebugObjectChangeNotification = false;
 };

@@ -3,11 +3,12 @@
 #include "SPCGEditorGraphDebugObjectTree.h"
 
 #include "PCGComponent.h"
+#include "PCGGraph.h"
+#include "PCGSubsystem.h"
+#include "Elements/PCGLoopElement.h"
+
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
-#include "PCGEditorModule.h"
-#include "PCGGraph.h"
-#include "Elements/PCGLoopElement.h"
 
 #include "PropertyCustomizationHelpers.h"
 #include "Selection.h"
@@ -42,7 +43,17 @@ void FPCGEditorGraphDebugObjectItem::SortChildren(bool bIsAscending, bool bIsRec
 {
 	Children.Sort([bIsAscending](const FPCGEditorGraphDebugObjectItemPtr& InLHS, const FPCGEditorGraphDebugObjectItemPtr& InRHS)
 	{
-		return (InLHS->GetLabel() < InRHS->GetLabel()) == bIsAscending;
+		// Support for sorting by loop index.
+		const int32 IndexLHS = InLHS->GetSortPriority();
+		const int32 IndexRHS = InRHS->GetSortPriority();
+		if (IndexLHS == INDEX_NONE || IndexRHS == INDEX_NONE)
+		{
+			return (InLHS->GetLabel() < InRHS->GetLabel()) == bIsAscending;
+		}
+		else
+		{
+			return (IndexLHS < IndexRHS) == bIsAscending;
+		}
 	});
 
 	if (bIsRecursive)
@@ -61,12 +72,12 @@ FString FPCGEditorGraphDebugObjectItem_Actor::GetLabel() const
 
 FString FPCGEditorGraphDebugObjectItem_PCGComponent::GetLabel() const
 {
-	return PCGComponent.IsValid() ? PCGComponent->GetName() : FString();
-}
+	if (PCGComponent.IsValid() && PCGGraph.IsValid())
+	{
+		return PCGComponent->GetName() + FString(TEXT(" - ") + PCGGraph->GetName());
+	}
 
-FString FPCGEditorGraphDebugObjectItem_PCGGraph::GetLabel() const
-{
-	return PCGGraph.IsValid() ? PCGGraph->GetName() : FString();
+	return FString();
 }
 
 FString FPCGEditorGraphDebugObjectItem_PCGSubgraph::GetLabel() const
@@ -81,12 +92,7 @@ FString FPCGEditorGraphDebugObjectItem_PCGSubgraph::GetLabel() const
 
 FString FPCGEditorGraphDebugObjectItem_PCGLoopIndex::GetLabel() const
 {
-	if (PCGNode.IsValid())
-	{
-		return PCGNode->GetName() + FString::Format(TEXT(" - {0}"), { LoopIndex });
-	}
-
-	return FString();
+	return FString::Format(TEXT("{0}"), { LoopIndex });
 }
 
 void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, FPCGEditorGraphDebugObjectItemPtr InItem)
@@ -98,14 +104,25 @@ void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, cons
 		SNew(SHorizontalBox)
 		+SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(2.0f, 0.0f)
+		.Padding(6.0f, 0.0f)
 		[
 			SNew(SImage)
 			.Visibility(EVisibility::HitTestInvisible)
+			.ColorAndOpacity_Lambda([this]() { return Item->IsDebuggable() ? FLinearColor::White : FLinearColor(1.0, 1.0f, 1.0f, 0.5f); })
 			.Image_Lambda([this]()
 			{
+				if (Item->IsDebuggable())
+				{
+					return FAppStyle::Get().GetBrush("LevelEditor.Tabs.Debug");
+				}
+
 				const UObject* ItemObject = Item->GetObject();
-				return FSlateIconFinder::FindIconBrushForClass(IsValid(ItemObject) ? ItemObject->GetClass() : nullptr); // TODO: IsValid check is done here to prevent crashing due to deleted pcg components, we need to refresh the tree items when world changes, then this might not be needed.
+				if (IsValid(ItemObject) && ItemObject->IsA<AActor>())
+				{
+					return FSlateIconFinder::FindIconBrushForClass(ItemObject->GetClass());
+				}
+				
+				return Item->IsExpanded() ? FAppStyle::Get().GetBrush("Icons.FolderOpen") : FAppStyle::Get().GetBrush("Icons.FolderClosed");
 			})
 		]
 		+SHorizontalBox::Slot()
@@ -113,6 +130,74 @@ void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, cons
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(Item->GetLabel()))
+		]
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(20.0f, 0.0f)
+		[
+			SNew(SImage)
+			.Visibility_Lambda([this]()
+			{
+				if (const UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance())
+				{
+					if (Item->GetPCGStack())
+					{
+						if (Subsystem->GetNodeVisualLogs().HasLogs(*Item->GetPCGStack()))
+						{
+							return EVisibility::Visible;
+						}
+					}
+					else
+					{
+						for (const FPCGEditorGraphDebugObjectItemPtr& Child : Item->GetChildren())
+						{
+							if (Child->GetPCGStack() && Subsystem->GetNodeVisualLogs().HasLogs(*Child->GetPCGStack()))
+							{
+								return EVisibility::Visible;
+							}
+						}
+					}
+				}
+				
+				return EVisibility::Hidden;
+			})
+			.Image(FAppStyle::Get().GetBrush("Icons.Error"))
+			.ColorAndOpacity_Lambda([this]()
+			{
+				if (const UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance())
+				{
+					constexpr FLinearColor WarningColor(1.0f, 0.75f, 0.0f, 0.9f);
+					constexpr FLinearColor ErrorColor(1.0f, 0.0f, 0.0f, 0.9f);
+
+					if (Item->GetPCGStack())
+					{
+						ELogVerbosity::Type MinVerbosity;
+						if (Subsystem->GetNodeVisualLogs().HasLogs(*Item->GetPCGStack(), MinVerbosity))
+						{
+							return FSlateColor(MinVerbosity <= ELogVerbosity::Error ? ErrorColor : WarningColor);
+						}
+					}
+					else
+					{
+						ELogVerbosity::Type MinVerbosityOfAll = ELogVerbosity::All;
+						for (const FPCGEditorGraphDebugObjectItemPtr& Child : Item->GetChildren())
+						{
+							ELogVerbosity::Type MinVerbosity;
+							if (Child->GetPCGStack() && Subsystem->GetNodeVisualLogs().HasLogs(*Child->GetPCGStack(), MinVerbosity))
+							{
+								MinVerbosityOfAll = FMath::Min(MinVerbosityOfAll, MinVerbosity);
+							}
+						}
+
+						if (MinVerbosityOfAll < ELogVerbosity::All)
+						{
+							return FSlateColor(MinVerbosityOfAll <= ELogVerbosity::Error ? ErrorColor : WarningColor);
+						}
+					}
+				}
+
+				return FSlateColor(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f));
+			})
 		]
 	];
 }
@@ -149,6 +234,7 @@ void SPCGEditorGraphDebugObjectTree::Construct(const FArguments& InArgs, TShared
 				.OnGenerateRow(this, &SPCGEditorGraphDebugObjectTree::MakeTreeRowWidget)
 				.OnGetChildren(this, &SPCGEditorGraphDebugObjectTree::OnGetChildren)
 				.OnSelectionChanged(this, &SPCGEditorGraphDebugObjectTree::OnSelectionChanged)
+				.OnExpansionChanged(this, &SPCGEditorGraphDebugObjectTree::OnExpansionChanged)
 				.OnSetExpansionRecursive(this, &SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive)
 				.ItemHeight(18)
 				.AllowOverscroll(EAllowOverscroll::No)
@@ -236,15 +322,29 @@ void SPCGEditorGraphDebugObjectTree::Tick(const FGeometry& AllottedGeometry, con
 	}
 }
 
-void SPCGEditorGraphDebugObjectTree::AddDynamicStack(const TWeakObjectPtr<UPCGComponent> InComponent, const FPCGStack& InvocationStack)
+void SPCGEditorGraphDebugObjectTree::SetDebugObjectSelection(const FPCGStack& FullStack)
 {
-	TArray<FPCGStack>& Stacks = DynamicInvocationStacks.FindOrAdd(InComponent);
+	bDisableDebugObjectChangeNotification = true;
 
-	if (!Stacks.Contains(InvocationStack))
+	for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
 	{
-		Stacks.Add(InvocationStack);
-		RequestRefresh();
+		const FPCGStack* ItemStack = Item->GetPCGStack();
+		const bool bSelected = ItemStack && *ItemStack == FullStack;
+
+		DebugObjectTreeView->SetItemSelection(Item, bSelected);
+
+		if (bSelected)
+		{
+			FPCGEditorGraphDebugObjectItemPtr Parent = Item->GetParent();
+			while (Parent)
+			{
+				DebugObjectTreeView->SetItemExpansion(Parent, true);
+				Parent = Parent->GetParent();
+			}
+		}
 	}
+
+	bDisableDebugObjectChangeNotification = false;
 }
 
 void SPCGEditorGraphDebugObjectTree::SelectedDebugObject_OnClicked() const
@@ -300,7 +400,11 @@ void SPCGEditorGraphDebugObjectTree::SetDebugObjectFromSelection_OnClicked()
 				continue;
 			}
 
-			FPCGStackContext StackContext = FPCGStackContext::CreateStackContextFromGraph(PCGComponent->GetGraph());
+			FPCGStackContext StackContext;
+			if (!PCGComponent->GetStackContext(StackContext))
+			{
+				continue;
+			}
 
 			for (const FPCGStack& Stack : StackContext.GetStacks())
 			{
@@ -361,7 +465,11 @@ bool SPCGEditorGraphDebugObjectTree::IsSetDebugObjectFromSelectionButtonEnabled(
 				continue;
 			}
 
-			FPCGStackContext StackContext = FPCGStackContext::CreateStackContextFromGraph(PCGComponent->GetGraph());
+			FPCGStackContext StackContext;
+			if (!PCGComponent->GetStackContext(StackContext))
+			{
+				continue;
+			}
 
 			const bool bGraphFound = Algo::AnyOf(StackContext.GetStacks(), [&PCGGraph](const FPCGStack& InStack)
 			{
@@ -378,14 +486,205 @@ bool SPCGEditorGraphDebugObjectTree::IsSetDebugObjectFromSelectionButtonEnabled(
 	return false;
 }
 
+void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& Stacks,
+	TMap<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>>& InOutActorItems,
+	TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr>& InOutStackToItem)
+{
+	const UPCGGraph* GraphBeingEdited = GetPCGGraph();
+	if (!GraphBeingEdited)
+	{
+		return;
+	}
+
+	for (const FPCGStack& Stack : Stacks)
+	{
+		// If the current graph is not in the stack at all then skip.
+		bool bRemainingStackContainsEditedGraph = Stack.HasObject(GraphBeingEdited);
+		if (!bRemainingStackContainsEditedGraph)
+		{
+			continue;
+		}
+
+		UPCGComponent* PCGComponent = const_cast<UPCGComponent*>(Stack.GetRootComponent());
+		if (!PCGComponent)
+		{
+			continue;
+		}
+
+		UPCGGraph* TopGraph = const_cast<UPCGGraph*>(Stack.GetRootGraph());
+		if (!TopGraph)
+		{
+			continue;
+		}
+
+		AActor* Actor = PCGComponent->GetOwner();
+		if (!Actor)
+		{
+			continue;
+		}
+
+		// Add actor item if not already added.
+		FPCGEditorGraphDebugObjectItemPtr ActorItem;
+		if (TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>* FoundActorItem = InOutActorItems.Find(Actor))
+		{
+			ActorItem = *FoundActorItem;
+		}
+		else
+		{
+			ActorItem = InOutActorItems.Emplace(Actor, MakeShared<FPCGEditorGraphDebugObjectItem_Actor>(Actor));
+			AllGraphItems.Add(ActorItem);
+		}
+
+		const TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFrames();
+
+		// Example stack:
+		//     Component/TopGraph/SubgraphNode/Subgraph/LoopSubgraphNode/LoopIndex/LoopSubgraph
+		// 
+		// The loop below adds tree items for component & top graph, and then whenever a graph is encountered
+		// we look a previous frames to determine whether to add a subgraph item or loop subgraph item.
+		for (int FrameIndex = 1; FrameIndex < StackFrames.Num() && bRemainingStackContainsEditedGraph; FrameIndex++)
+		{
+			const FPCGStackFrame& StackFrame = StackFrames[FrameIndex];
+			const FPCGStackFrame& PreviousStackFrame = StackFrames[FrameIndex - 1];
+			FPCGEditorGraphDebugObjectItemPtr CurrentItem;
+
+			// When we encounter a graph, we look at the frame index and/or preceding frames to determine the graph type.
+			if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object))
+			{
+				const bool bIsDebuggable = (GraphBeingEdited == StackGraph);
+
+				// Top graph.
+				if (StackGraph == TopGraph)
+				{
+					FPCGStack GraphStack = Stack;
+					GraphStack.GetStackFramesMutable().SetNum(FrameIndex + 1);
+
+					if (!InOutStackToItem.Contains(GraphStack))
+					{
+						FPCGEditorGraphDebugObjectItemPtr TopGraphItem = InOutStackToItem.Emplace(
+							GraphStack,
+							MakeShared<FPCGEditorGraphDebugObjectItem_PCGComponent>(PCGComponent, StackGraph, GraphStack, bIsDebuggable));
+
+						AllGraphItems.Add(TopGraphItem);
+
+						ActorItem->AddChild(TopGraphItem.ToSharedRef());
+					}
+				}
+				// Previous stack was node, therefore subgraph.
+				else if (const UPCGNode* SubgraphNode = Cast<const UPCGNode>(PreviousStackFrame.Object))
+				{
+					FPCGStack GraphStack = Stack;
+					GraphStack.GetStackFramesMutable().SetNum(FrameIndex + 1);
+
+					if (!InOutStackToItem.Contains(GraphStack))
+					{
+						FPCGEditorGraphDebugObjectItemPtr GraphItem = InOutStackToItem.Emplace(
+							GraphStack,
+							MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(SubgraphNode, StackGraph, GraphStack, bIsDebuggable));
+
+						AllGraphItems.Add(GraphItem);
+
+						TArray<FPCGStackFrame>& GraphStackFrames = GraphStack.GetStackFramesMutable();
+						while (GraphStackFrames.Num() > 0)
+						{
+							GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+
+							if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(GraphStack))
+							{
+								(*ParentItem)->AddChild(GraphItem.ToSharedRef());
+								break;
+							}
+						}
+					}
+				}
+				// Previous stack was loop index, therefore loop subgraph.
+				else if (FrameIndex >= 2 && PreviousStackFrame.LoopIndex != INDEX_NONE)
+				{
+					const UPCGNode* LoopSubgraphNode = Cast<const UPCGNode>(StackFrames[FrameIndex - 2].Object);
+					if (ensure(LoopSubgraphNode))
+					{
+						// Take the stack up to the looped subgraph node, add a item for the node + graph.
+						FPCGStack LoopGraphStack = Stack;
+						LoopGraphStack.GetStackFramesMutable().SetNum(FrameIndex - 1);
+
+						if (!InOutStackToItem.Contains(LoopGraphStack))
+						{
+							FPCGEditorGraphDebugObjectItemPtr LoopGraphItem = InOutStackToItem.Emplace(
+								LoopGraphStack,
+								MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(LoopSubgraphNode, StackGraph, LoopGraphStack, /*bIsDebuggable=*/false));
+
+							AllGraphItems.Add(LoopGraphItem);
+
+							TArray<FPCGStackFrame>& LoopGraphStackFrames = LoopGraphStack.GetStackFramesMutable();
+							while (LoopGraphStackFrames.Num() > 0)
+							{
+								LoopGraphStackFrames.SetNum(LoopGraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+
+								if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(LoopGraphStack))
+								{
+									(*ParentItem)->AddChild(LoopGraphItem.ToSharedRef());
+									break;
+								}
+							}
+						}
+
+						// Take full stack up until this point which will be the unique stack for the loop iteration.
+						FPCGStack LoopIterationStack = Stack;
+						LoopIterationStack.GetStackFramesMutable().SetNum(FrameIndex + 1);
+
+						if (!InOutStackToItem.Contains(LoopIterationStack))
+						{
+							FPCGEditorGraphDebugObjectItemPtr LoopIterationItem = InOutStackToItem.Emplace(
+								LoopIterationStack,
+								MakeShared<FPCGEditorGraphDebugObjectItem_PCGLoopIndex>(PreviousStackFrame.LoopIndex, StackGraph, LoopIterationStack, bIsDebuggable));
+
+							AllGraphItems.Add(LoopIterationItem);
+
+							TArray<FPCGStackFrame>& GraphStackFrames = LoopIterationStack.GetStackFramesMutable();
+							while (GraphStackFrames.Num() > 0)
+							{
+								GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+
+								if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(LoopIterationStack))
+								{
+									(*ParentItem)->AddChild(LoopIterationItem.ToSharedRef());
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Check if any of the remaining stack frames contain valid debug targets - invocations of the current edited graph.
+			// If not then we will abandon this stack, pruning the tree.
+			bRemainingStackContainsEditedGraph = false;
+			for (int RemainingFrameIndex = FrameIndex + 1; RemainingFrameIndex < StackFrames.Num(); ++RemainingFrameIndex)
+			{
+				if (StackFrames[RemainingFrameIndex].Object == GraphBeingEdited)
+				{
+					bRemainingStackContainsEditedGraph = true;
+					break;
+				}
+			}
+		}
+	}
+}
+
 void SPCGEditorGraphDebugObjectTree::RefreshTree()
 {
 	RootItems.Empty();
 	AllGraphItems.Empty();
 	DebugObjectTreeView->RequestTreeRefresh();
 
-	const UPCGGraph* PCGGraph = GetPCGGraph();
+	UPCGGraph* PCGGraph = GetPCGGraph();
 	if (!PCGGraph)
+	{
+		return;
+	}
+
+	UPCGSubsystem* Subsystem = PCGEditor.Pin()->GetSubsystem();
+	if (!Subsystem)
 	{
 		return;
 	}
@@ -394,7 +693,7 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 	GetObjectsOfClass(UPCGComponent::StaticClass(), PCGComponents, /*bIncludeDerivedClasses=*/ true);
 
 	TMap<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>> ActorItems;
-	TMap<UPCGComponent*, TSharedPtr<FPCGEditorGraphDebugObjectItem_PCGComponent>> ComponentItems;
+	TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr> StackToItem;
 
 	for (UObject* PCGComponentObject : PCGComponents)
 	{
@@ -409,226 +708,17 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 			continue;
 		}
 
-		AActor* Actor = PCGComponent->GetOwner();
-		if (!Actor)
+		// Process static stacks that can be read from the compiled graph.
+		FPCGStackContext StackContext;
+		if (!PCGComponent->GetStackContext(StackContext))
 		{
 			continue;
 		}
+		AddStacksToTree(StackContext.GetStacks(), ActorItems, StackToItem);
 
-		const UPCGGraph* PCGComponentGraph = PCGComponent->GetGraph();
-		if (!PCGComponentGraph)
-		{
-			continue;
-		}
-
-		FPCGStackContext StackContext = FPCGStackContext::CreateStackContextFromGraph(PCGComponentGraph);
-
-		TMap<const UPCGGraph*, FPCGEditorGraphDebugObjectItemPtr> GraphItems;
-		TArray<FPCGEditorGraphDebugObjectItemPtr> NodeItems;
-
-		// Process statically generated stacks
-		for (const FPCGStack& Stack : StackContext.GetStacks())
-		{
-			const UPCGGraph* TopStackGraph = Cast<const UPCGGraph>(Stack.GetStackFrames().Top().Object);
-			if (TopStackGraph == PCGGraph)
-			{
-				// Find or Create ActorItem
-				TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor> ActorItem;
-				if (TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>* FoundActorItem = ActorItems.Find(Actor))
-				{
-					ActorItem = *FoundActorItem;
-				}
-				else
-				{
-					ActorItem = ActorItems.Emplace(Actor, MakeShared<FPCGEditorGraphDebugObjectItem_Actor>(Actor));
-				}
-
-				// Find or Create ComponentItem
-				TSharedPtr<FPCGEditorGraphDebugObjectItem_PCGComponent> ComponentItem;
-				if (TSharedPtr<FPCGEditorGraphDebugObjectItem_PCGComponent>* FoundComponentItem = ComponentItems.Find(PCGComponent))
-				{
-					ComponentItem = *FoundComponentItem;
-				}
-				else
-				{
-					ComponentItem = ComponentItems.Emplace(PCGComponent, MakeShared<FPCGEditorGraphDebugObjectItem_PCGComponent>(PCGComponent));
-				}
-
-				if (!ComponentItem->GetParent())
-				{
-					ActorItem->AddChild(ComponentItem.ToSharedRef());
-				}
-
-				const TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFrames();
-
-				FString StackPath;
-				Stack.CreateStackFramePath(StackPath);
-
-				FPCGEditorGraphDebugObjectItemPtr PreviousItem = ComponentItem;
-				for (int32 StackIndex = 0; StackIndex < StackFrames.Num(); StackIndex++)
-				{
-					const FPCGStackFrame& StackFrame = StackFrames[StackIndex];
-					FPCGEditorGraphDebugObjectItemPtr CurrentItem;
-					if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object))
-					{
-						if (FPCGEditorGraphDebugObjectItemPtr* GraphItem = GraphItems.Find(StackGraph))
-						{
-							CurrentItem = *GraphItem;
-						}
-						else
-						{
-							CurrentItem = GraphItems.Emplace(StackGraph, MakeShared<FPCGEditorGraphDebugObjectItem_PCGGraph>(StackGraph, StackGraph == PCGGraph ? Stack : FPCGStack()));
-						}
-					}
-					else if (const UPCGNode* StackNode = Cast<const UPCGNode>(StackFrame.Object))
-					{
-						// We cannot handle dynamically executed graphs in this path. They must be provided through DynamicInvocationStacks
-						if (const UPCGBaseSubgraphSettings* SubgraphSettings = Cast<const UPCGBaseSubgraphSettings>(StackNode->GetSettings()))
-						{
-							if (SubgraphSettings->IsDynamicGraph())
-							{
-								break;
-							}
-						}
-
-						const int32 NextStackIndex = StackIndex + 1;
-						if (StackFrames.IsValidIndex(NextStackIndex))
-						{
-							const FPCGStackFrame& NextStackFrame = StackFrames[NextStackIndex];
-							if (const UPCGGraph* NextStackGraph = Cast<const UPCGGraph>(NextStackFrame.Object))
-							{
-								const FPCGEditorGraphDebugObjectItemPtr* NodeItem = NodeItems.FindByPredicate([&StackNode,&Stack](const FPCGEditorGraphDebugObjectItemPtr& InItem)
-								{
-									return (InItem->GetObject() == StackNode) && (*InItem->GetPCGStack() == Stack);
-								});
-
-								if (NodeItem)
-								{
-									CurrentItem = *NodeItem;
-								}
-								else
-								{
-									CurrentItem = NodeItems.Add_GetRef(MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(StackNode, NextStackGraph, NextStackGraph == TopStackGraph ? Stack : FPCGStack()));
-								}
-
-								StackIndex++;
-							}
-						}
-					}
-
-					if (!CurrentItem)
-					{
-						break;
-					}
-
-					if (!CurrentItem->GetParent())
-					{
-						PreviousItem->AddChild(CurrentItem.ToSharedRef());
-					}
-
-					AllGraphItems.Add(CurrentItem);
-					PreviousItem = CurrentItem;
-				}
-			}
-		}
-
-		if (const TArray<FPCGStack>* DynamicStacks = DynamicInvocationStacks.Find(PCGComponent))
-		{
-			for (const FPCGStack& Stack : *DynamicStacks)
-			{
-				TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor> ActorItem;
-				if (TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>* FoundActorItem = ActorItems.Find(Actor))
-				{
-					ActorItem = *FoundActorItem;
-				}
-				else
-				{
-					ActorItem = ActorItems.Emplace(Actor, MakeShared<FPCGEditorGraphDebugObjectItem_Actor>(Actor));
-				}
-
-				TSharedPtr<FPCGEditorGraphDebugObjectItem_PCGComponent> ComponentItem;
-				if (TSharedPtr<FPCGEditorGraphDebugObjectItem_PCGComponent>* FoundComponentItem = ComponentItems.Find(PCGComponent))
-				{
-					ComponentItem = *FoundComponentItem;
-				}
-				else
-				{
-					ComponentItem = ComponentItems.Emplace(PCGComponent, MakeShared<FPCGEditorGraphDebugObjectItem_PCGComponent>(PCGComponent));
-				}
-
-				if (!ComponentItem->GetParent())
-				{
-					ActorItem->AddChild(ComponentItem.ToSharedRef());
-				}
-
-				const TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFrames();
-
-				FString StackPath;
-				Stack.CreateStackFramePath(StackPath);
-
-				FPCGEditorGraphDebugObjectItemPtr PreviousItem = ComponentItem;
-				for (int32 StackIndex = 0; StackIndex < StackFrames.Num(); StackIndex++)
-				{
-					const FPCGStackFrame& StackFrame = StackFrames[StackIndex];
-					FPCGEditorGraphDebugObjectItemPtr CurrentItem;
-					if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object))
-					{
-						if (FPCGEditorGraphDebugObjectItemPtr* GraphItem = GraphItems.Find(StackGraph))
-						{
-							CurrentItem = *GraphItem;
-						}
-						else
-						{
-							CurrentItem = GraphItems.Emplace(StackGraph, MakeShared<FPCGEditorGraphDebugObjectItem_PCGGraph>(StackGraph, StackGraph == PCGGraph ? Stack : FPCGStack()));
-						}
-					}
-					else if (const UPCGNode* StackNode = Cast<const UPCGNode>(StackFrame.Object))
-					{
-						const int32 NextStackIndex = StackIndex + 1;
-						if (StackFrames.IsValidIndex(NextStackIndex))
-						{
-							const FPCGEditorGraphDebugObjectItemPtr* NodeItem = NodeItems.FindByPredicate([&StackNode, &Stack](const FPCGEditorGraphDebugObjectItemPtr& InItem)
-								{
-									return (InItem->GetObject() == StackNode) && (*InItem->GetPCGStack() == Stack);
-								});
-
-							if (NodeItem)
-							{
-								CurrentItem = *NodeItem;
-							}
-							else
-							{
-								const FPCGStackFrame& NextStackFrame = StackFrames[NextStackIndex];
-
-								if (const UPCGGraph* NextStackGraph = Cast<const UPCGGraph>(NextStackFrame.Object))
-								{
-									CurrentItem = NodeItems.Add_GetRef(MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(StackNode, NextStackGraph, Stack));
-								}
-								else if (NextStackFrame.LoopIndex != INDEX_NONE)
-								{
-									CurrentItem = NodeItems.Add_GetRef(MakeShared<FPCGEditorGraphDebugObjectItem_PCGLoopIndex>(StackNode, NextStackFrame.LoopIndex, Stack));
-								}
-							}
-
-							StackIndex++;
-						}
-					}
-
-					if (!CurrentItem)
-					{
-						break;
-					}
-
-					if (!CurrentItem->GetParent())
-					{
-						PreviousItem->AddChild(CurrentItem.ToSharedRef());
-					}
-
-					AllGraphItems.Add(CurrentItem);
-					PreviousItem = CurrentItem;
-				}
-			}
-		}
+		// Process stacks encountered during execution so far, which will include dynamic subgraphs & loop subgraphs.
+		// There will be overlaps with the static stacks but only unique entries will be added to the tree.
+		AddStacksToTree(Subsystem->GetExecutedStacks(PCGComponent, PCGGraph), ActorItems, StackToItem);
 	}
 
 	for (TPair<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>>& ActorItem : ActorItems)
@@ -637,6 +727,33 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 	}
 
 	SortTreeItems();
+
+	// Try to restore user item expansion.
+	TSet<FPCGStack> ExpandedStacksBefore = ExpandedStacks;
+	for (const FPCGStack& ExpandedStack : ExpandedStacksBefore)
+	{
+		for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
+		{
+			const FPCGStack* ItemStack = Item->GetPCGStack();
+
+			if (ItemStack && *ItemStack == ExpandedStack)
+			{
+				DebugObjectTreeView->SetItemExpansion(Item, true);
+			}
+		}
+	}
+
+	// Try to restore user item selection.
+	for (FPCGEditorGraphDebugObjectItemPtr& Item : AllGraphItems)
+	{
+		const FPCGStack* ItemStack = Item->GetPCGStack();
+
+		if (ItemStack && SelectedStack == *ItemStack)
+		{
+			DebugObjectTreeView->SetItemSelection(Item, true);
+			break;
+		}
+	}
 }
 
 void SPCGEditorGraphDebugObjectTree::SortTreeItems(bool bIsAscending, bool bIsRecursive)
@@ -715,11 +832,25 @@ void SPCGEditorGraphDebugObjectTree::OnGetChildren(FPCGEditorGraphDebugObjectIte
 	}
 }
 
-void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo) const
+void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo)
 {
+	if (const FPCGStack* Stack = InItem ? InItem->GetPCGStack() : nullptr)
+	{
+		SelectedStack = *Stack;
+	}
+	else
+	{
+		SelectedStack = FPCGStack();
+	}
+
+	if (bDisableDebugObjectChangeNotification)
+	{
+		return;
+	}
+
 	if (!InItem)
 	{
-		PCGEditor.Pin()->SetComponentAndStackBeingInspected(nullptr, FPCGStack());
+		PCGEditor.Pin()->SetStackBeingInspected(FPCGStack(), FPCGDebugObjectSelectionMethod::DebugObjectTree);
 		return;
 	}
 
@@ -727,7 +858,29 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 	{
 		if (const FPCGStack* PCGStack = InItem->GetPCGStack())
 		{
-			PCGEditor.Pin()->SetComponentAndStackBeingInspected(PCGComponent, *PCGStack);
+			PCGEditor.Pin()->SetStackBeingInspected(*PCGStack, FPCGDebugObjectSelectionMethod::DebugObjectTree);
+		}
+	}
+}
+
+void SPCGEditorGraphDebugObjectTree::OnExpansionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInIsExpanded)
+{
+	if (!InItem.IsValid())
+	{
+		return;
+	}
+
+	InItem->SetExpanded(bInIsExpanded);
+
+	if (const FPCGStack* Stack = InItem->GetPCGStack())
+	{
+		if (bInIsExpanded)
+		{
+			ExpandedStacks.Add(*Stack);
+		}
+		else
+		{
+			ExpandedStacks.Remove(*Stack);
 		}
 	}
 }
@@ -740,6 +893,8 @@ void SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive(FPCGEditorGraphDebu
 	}
 
 	DebugObjectTreeView->SetItemExpansion(InItem, bInExpand);
+	InItem->SetExpanded(bInExpand);
+
 	for (const FPCGEditorGraphDebugObjectItemPtr& ChildItem : InItem->GetChildren())
 	{
 		if (ChildItem.IsValid())

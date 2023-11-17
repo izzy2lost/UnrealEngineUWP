@@ -28,6 +28,15 @@ public:
 	FPCGEditorGraphDebugObjectItemPtr GetParent() const;
 	void SortChildren(bool bIsAscending, bool bIsRecursive);
 
+	bool IsExpanded() const { return bIsExpanded; }
+	void SetExpanded(bool bInIsExpanded) { bIsExpanded = bInIsExpanded; }
+
+	/** Optional sort priority, if returns INDEX_NONE then sort will fall back to alphabetical. */
+	virtual int32 GetSortPriority() const { return INDEX_NONE; }
+
+	/** Whether this item represents a currently debuggable object for the current edited graph. */
+	virtual bool IsDebuggable() const { return false; }
+
 	virtual FString GetLabel() const = 0;
 	virtual UPCGComponent* GetPCGComponent() const = 0;
 	virtual const FPCGStack* GetPCGStack() const { return nullptr; }
@@ -36,6 +45,7 @@ public:
 protected:
 	TWeakPtr<FPCGEditorGraphDebugObjectItem> Parent;
 	TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>> Children;
+	bool bIsExpanded = false;
 };
 
 class FPCGEditorGraphDebugObjectItem_Actor : public FPCGEditorGraphDebugObjectItem
@@ -43,88 +53,106 @@ class FPCGEditorGraphDebugObjectItem_Actor : public FPCGEditorGraphDebugObjectIt
 public:
 	FPCGEditorGraphDebugObjectItem_Actor(TWeakObjectPtr<AActor> InActor)
 		: Actor(InActor)
-	{ }
+	{
+		PCGStack.PushFrame(InActor.Get());
+	}
 
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return nullptr; }
 	virtual const UObject* GetObject() const override { return Actor.Get(); };
+	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 
 protected:
 	TWeakObjectPtr<AActor> Actor = nullptr;
+
+	FPCGStack PCGStack;
 };
 
 class FPCGEditorGraphDebugObjectItem_PCGComponent : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGComponent(TWeakObjectPtr<UPCGComponent> InPCGComponent)
+	FPCGEditorGraphDebugObjectItem_PCGComponent(
+		TWeakObjectPtr<UPCGComponent> InPCGComponent,
+		TWeakObjectPtr<const UPCGGraph> InPCGGraph,
+		const FPCGStack& InPCGStack,
+		bool bInIsDebuggable)
 		: PCGComponent(InPCGComponent)
+		, PCGGraph(InPCGGraph)
+		, PCGStack(InPCGStack)
+		, bIsDebuggable(bInIsDebuggable)
 	{}
 
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return PCGComponent.Get(); }
 	virtual const UObject* GetObject() const override { return PCGComponent.Get(); };
+	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
+	virtual bool IsDebuggable() const override { return bIsDebuggable; }
 
 protected:
 	TWeakObjectPtr<UPCGComponent> PCGComponent = nullptr;
-};
-
-class FPCGEditorGraphDebugObjectItem_PCGGraph : public FPCGEditorGraphDebugObjectItem
-{
-public:
-	FPCGEditorGraphDebugObjectItem_PCGGraph(TWeakObjectPtr<const UPCGGraph> InPCGGraph, const FPCGStack& InPCGStack)
-		: PCGGraph(InPCGGraph)
-		, PCGStack(InPCGStack)
-	{}
-
-	virtual FString GetLabel() const override;
-	virtual UPCGComponent* GetPCGComponent() const override { return GetParent() ? GetParent()->GetPCGComponent() : nullptr; }
-	virtual const UObject* GetObject() const override { return PCGGraph.Get(); };
-	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
-
-protected:
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
+
 	FPCGStack PCGStack;
+	bool bIsDebuggable = false;
 };
 
 class FPCGEditorGraphDebugObjectItem_PCGSubgraph : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGSubgraph(TWeakObjectPtr<const UPCGNode> InPCGNode, TWeakObjectPtr<const UPCGGraph> InPCGGraph, const FPCGStack& InPCGStack)
+	FPCGEditorGraphDebugObjectItem_PCGSubgraph(
+		TWeakObjectPtr<const UPCGNode> InPCGNode,
+		TWeakObjectPtr<const UPCGGraph> InPCGGraph,
+		const FPCGStack& InPCGStack,
+		bool bInIsDebuggable)
 		: PCGNode(InPCGNode)
 		, PCGGraph(InPCGGraph)
 		, PCGStack(InPCGStack)
+		, bIsDebuggable(bInIsDebuggable)
 	{}
 
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return GetParent() ? GetParent()->GetPCGComponent() : nullptr; }
 	virtual const UObject* GetObject() const override { return PCGNode.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
+	virtual bool IsDebuggable() const override { return bIsDebuggable; }
 
 protected:
 	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
 	TWeakObjectPtr<const UPCGGraph> PCGGraph = nullptr;
+
 	FPCGStack PCGStack;
+	bool bIsDebuggable = false;
 };
 
 class FPCGEditorGraphDebugObjectItem_PCGLoopIndex : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGLoopIndex(TWeakObjectPtr<const UPCGNode> InPCGNode, int32 InLoopIndex, const FPCGStack& InPCGStack)
-		: PCGNode(InPCGNode)
-		, LoopIndex(InLoopIndex)
+	FPCGEditorGraphDebugObjectItem_PCGLoopIndex(
+		int32 InLoopIndex,
+		TWeakObjectPtr<const UObject> InLoopedPCGGraph,
+		const FPCGStack& InPCGStack,
+		bool bInIsDebuggable)
+		: LoopIndex(InLoopIndex)
+		, LoopedPCGGraph(InLoopedPCGGraph)
 		, PCGStack(InPCGStack)
+		, bIsDebuggable(bInIsDebuggable)
 	{}
+
+	virtual int32 GetLoopIndex() const { return LoopIndex; }
 
 	virtual FString GetLabel() const override;
 	virtual UPCGComponent* GetPCGComponent() const override { return GetParent() ? GetParent()->GetPCGComponent() : nullptr; }
-	virtual const UObject* GetObject() const override { return PCGNode.Get(); };
+	virtual const UObject* GetObject() const override { return nullptr; };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
-	virtual int32 GetLoopIndex() const { return LoopIndex; }
+	virtual int32 GetSortPriority() const override { return LoopIndex; }
+	virtual bool IsDebuggable() const override { return bIsDebuggable; }
 
 protected:
-	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
 	int32 LoopIndex = INDEX_NONE;
+	TWeakObjectPtr<const UObject> LoopedPCGGraph = nullptr;
+
 	FPCGStack PCGStack;
+	bool bIsDebuggable = false;
 };
 
 class SPCGEditorGraphDebugObjectItemRow : public SCompoundWidget
@@ -153,7 +181,7 @@ public:
 
 	void RequestRefresh() { bNeedsRefresh = true; }
 
-	void AddDynamicStack(TWeakObjectPtr<UPCGComponent> InComponent, const FPCGStack& InvocationStack);
+	void SetDebugObjectSelection(const FPCGStack& FullStack);
 
 private:
 	void SelectedDebugObject_OnClicked() const;
@@ -165,6 +193,11 @@ private:
 	void RefreshTree();
 	void SortTreeItems(bool bIsAscending = true, bool bIsRecursive = true);
 
+	void AddStacksToTree(
+		const TArray<FPCGStack>& Stacks,
+		TMap<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>>& InOutActorItems,
+		TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr>& InOutStackToItem);
+
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 	void OnObjectConstructed(UObject* InObject);
@@ -173,7 +206,8 @@ private:
 
 	TSharedRef<ITableRow> MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable) const;
 	void OnGetChildren(FPCGEditorGraphDebugObjectItemPtr InItem, TArray<FPCGEditorGraphDebugObjectItemPtr>& OutChildren) const;
-	void OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo) const;
+	void OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo);
+	void OnExpansionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInIsExpanded);
 	void OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand);
 
 	TWeakPtr<FPCGEditor> PCGEditor;
@@ -182,7 +216,14 @@ private:
 	TArray<FPCGEditorGraphDebugObjectItemPtr> RootItems;
 	TArray<FPCGEditorGraphDebugObjectItemPtr> AllGraphItems;
 
-	TMap<const TWeakObjectPtr<UPCGComponent>, TArray<FPCGStack>> DynamicInvocationStacks;
-
 	bool bNeedsRefresh = false;
+
+	/** Set true to avoid broadcasting debug object change notifications when setting the object from code. */
+	bool bDisableDebugObjectChangeNotification = false;
+
+	/** Used to retain item expansion state across tree refreshes. */
+	TSet<FPCGStack> ExpandedStacks;
+
+	/** Used to retain item selection state across tree refreshes. */
+	FPCGStack SelectedStack;
 };

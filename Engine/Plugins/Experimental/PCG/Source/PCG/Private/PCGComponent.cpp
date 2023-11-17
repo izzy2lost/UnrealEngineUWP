@@ -442,6 +442,8 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	}
 
 	StopGenerationInProgress();
+
+	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
 #endif
 }
 
@@ -538,6 +540,8 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	// the component is still considered dirty if we aborted processing, hence it should stay this way.
 
 	StopGenerationInProgress();
+
+	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
 #endif
 }
 
@@ -2825,6 +2829,20 @@ void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 	{
 		GEditor->Trans->Reset(LOCTEXT("ChangeEditingMode", "Changing Editing Mode"));
 	}
+}
+
+bool UPCGComponent::GetStackContext(FPCGStackContext& OutStackContext) const
+{
+	const UPCGSubsystem* Subsystem = GetSubsystem();
+	if (Subsystem && Subsystem->GetStackContext(this, OutStackContext))
+	{
+		FPCGStack ComponentStack;
+		ComponentStack.PushFrame(this);
+		OutStackContext.PrependParentStack(&ComponentStack);
+		return true;
+	}
+
+	return false;
 }
 #endif // WITH_EDITOR
 

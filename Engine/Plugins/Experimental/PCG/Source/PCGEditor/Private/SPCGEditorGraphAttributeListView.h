@@ -142,7 +142,6 @@ public:
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget() const;
 
-	void OnInspectedComponentChanged(UPCGComponent* InPCGComponent);
 	void OnInspectedStackChanged(const FPCGStack& InPCGStack);
 	void OnInspectedNodeChanged(UPCGEditorGraphNodeBase* InPCGEditorGraphNode);
 

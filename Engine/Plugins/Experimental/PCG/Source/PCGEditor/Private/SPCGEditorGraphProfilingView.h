@@ -3,16 +3,17 @@
 #pragma once
 
 #include "Utils/PCGExtraCapture.h"
+
 #include "Widgets/Views/ITableRow.h"
 #include "Widgets/Views/STableRow.h"
 
-class STableViewBase;
-
 class FPCGEditor;
+class STableViewBase;
 class UPCGComponent;
 class UPCGEditorGraphNode;
 class UPCGEditorGraph;
 class UPCGNode;
+struct FPCGStack;
 
 struct FPCGProfilingListViewItem
 {
@@ -58,7 +59,8 @@ private:
 	ECheckBoxState IsSubgraphExpanded() const;
 	void OnSubgraphExpandedChanged(ECheckBoxState InNewState);
 
-	void OnDebugObjectChanged(UPCGComponent* InPCGComponent);
+	void OnDebugStackChanged(const FPCGStack& InPCGStack);
+
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 	
 	// Callbacks

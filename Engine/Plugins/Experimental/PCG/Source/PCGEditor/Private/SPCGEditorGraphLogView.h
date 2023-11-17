@@ -12,6 +12,7 @@ class UPCGComponent;
 class UPCGEditorGraphNode;
 class UPCGEditorGraph;
 class UPCGNode;
+struct FPCGStack;
 
 namespace PCGEditorGraphLogView
 {	
@@ -62,7 +63,8 @@ private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget();
 	void CreateAndAddItem(const UPCGEditorGraphNode* InPCGEditorNode, const UPCGNode* InPCGNode, const FName& InName);
 
-	void OnDebugObjectChanged(UPCGComponent* InPCGComponent);
+	void OnDebugStackChanged(const FPCGStack& InPCGStack);
+
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 	
 	// Callbacks

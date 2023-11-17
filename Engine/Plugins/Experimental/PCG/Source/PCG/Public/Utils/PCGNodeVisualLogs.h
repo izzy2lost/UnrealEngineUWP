@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "Logging/LogVerbosity.h"
+#include "Graph/PCGStackContext.h"
 
 #include "Containers/Map.h"
 #include "Internationalization/Text.h"
+#include "Logging/LogVerbosity.h"
 #include "UObject/WeakObjectPtr.h"
 
 #if WITH_EDITOR
@@ -15,16 +16,14 @@ class UPCGNode;
 
 struct FPCGNodeLogEntry
 {
-	explicit FPCGNodeLogEntry(const FText& InMessage, ELogVerbosity::Type InVerbosity, TWeakObjectPtr<UPCGComponent> InComponent)
+	explicit FPCGNodeLogEntry(const FText& InMessage, ELogVerbosity::Type InVerbosity)
 		: Message(InMessage)
 		, Verbosity(InVerbosity)
-		, Component(InComponent)
 	{
 	}
 
 	FText Message;
 	ELogVerbosity::Type Verbosity;
-	TWeakObjectPtr<UPCGComponent> Component;
 };
 
 typedef TArray<FPCGNodeLogEntry, TInlineAllocator<16>> FPCGPerNodeVisualLogs;
@@ -34,23 +33,33 @@ class PCG_API FPCGNodeVisualLogs
 {
 public:
 	/** Log warnings and errors to be displayed on node in graph editor. */
-	void Log(TWeakObjectPtr<const UPCGNode> InNode, TWeakObjectPtr<UPCGComponent> InComponent, ELogVerbosity::Type InVerbosity, const FText& InMessage);
+	void Log(const FPCGStack& InPCGStack, ELogVerbosity::Type InVerbosity, const FText& InMessage);
 
-	/** True if any issues were logged during last execution. */
-	bool HasLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent) const;
+	/** Returns true if any issues were logged during last execution. */
+	bool HasLogs(const FPCGStack& InPCGStack) const;
 
-	/** True if an issue with given severity was logged during last execution. */
-	bool HasLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent, ELogVerbosity::Type InVerbosity) const;
+	/** Returns true if an issue with given severity was logged during last execution, and writes the minimum encountered verbosity to OutMinVerbosity. */
+	bool HasLogs(const FPCGStack& InPCGStack, ELogVerbosity::Type& OutMinVerbosity) const;
 
-	/** Summary text of visual logs from recent execution, appropriate for display in graph editor tooltip. */
-	FText GetLogsSummaryText(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent = nullptr) const;
+	/** Returns true if an issue with given severity was logged during last execution. */
+	bool HasLogsOfVerbosity(const FPCGStack& InPCGStack, ELogVerbosity::Type InVerbosity) const;
 
-	/** Clear all errors and warnings that occurred while executing the given component. */
-	void ClearLogs(TWeakObjectPtr<const UPCGNode> InNode, const UPCGComponent* InComponent);
+	/** Summary text of all visual logs produced while executing the provided base stack, appropriate for display in graph editor tooltip. */
+	FText GetLogsSummaryText(const FPCGStack& InBaseStack) const;
+
+	/**
+	* Returns summary text of visual logs from recent execution, appropriate for display in graph editor tooltip. Writes the minimum encountered verbosity
+	* to OutMinimumVerbosity.
+	*/
+	FText GetLogsSummaryText(const UPCGNode* InNode, ELogVerbosity::Type& OutMinimumVerbosity) const;
+
+	/** Clear all errors and warnings that occurred while executing stacks beginning with the given stack. */
+	void ClearLogs(const FPCGStack& InPCGStack);
 
 private:
-	TMap<TWeakObjectPtr<const UPCGNode>, FPCGPerNodeVisualLogs> NodeToLogs;
+	const int MaxLogsInSummary = 8;
 
+	TMap<FPCGStack, FPCGPerNodeVisualLogs> StackToLogs;
 	mutable FRWLock LogsLock;
 };
 

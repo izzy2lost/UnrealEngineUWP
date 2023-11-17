@@ -320,7 +320,6 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 	PCGEditorPtr = InPCGEditor;
 	SortingColumn = PCGEditorGraphAttributeListView::NAME_Index;
 
-	PCGEditorPtr.Pin()->OnInspectedComponentChangedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnInspectedComponentChanged);
 	PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnInspectedStackChanged);
 	PCGEditorPtr.Pin()->OnInspectedNodeChangedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnInspectedNodeChanged);
 
@@ -527,7 +526,7 @@ TSharedRef<SHeaderRow> SPCGEditorGraphAttributeListView::CreateHeaderRowWidget()
 	return SNew(SHeaderRow);
 }
 
-void SPCGEditorGraphAttributeListView::OnInspectedComponentChanged(UPCGComponent* InPCGComponent)
+void SPCGEditorGraphAttributeListView::OnInspectedStackChanged(const FPCGStack& InPCGStack)
 {
 	if (PCGComponent.IsValid())
 	{
@@ -535,7 +534,7 @@ void SPCGEditorGraphAttributeListView::OnInspectedComponentChanged(UPCGComponent
 		PCGComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
 	}
 
-	PCGComponent = InPCGComponent;
+	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
 
 	if (PCGComponent.IsValid())
 	{
@@ -553,11 +552,6 @@ void SPCGEditorGraphAttributeListView::OnInspectedComponentChanged(UPCGComponent
 		// Refresh if PCGComponent is cleared since we wont get a refresh after generate/cleaned
 		RequestRefresh();
 	}
-}
-
-void SPCGEditorGraphAttributeListView::OnInspectedStackChanged(const FPCGStack& InPCGStack)
-{
-	RequestRefresh();
 }
 
 void SPCGEditorGraphAttributeListView::OnInspectedNodeChanged(UPCGEditorGraphNodeBase* InPCGEditorGraphNode)
@@ -617,10 +611,14 @@ const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData() 
 	}
 
 	const TSharedPtr<FPCGEditor> PCGEditor = PCGEditorPtr.Pin();
-	const FPCGStack& PCGStack = PCGEditor->GetStackBeingInspected();
+	const FPCGStack* PCGStack = PCGEditor->GetStackBeingInspected();
+	if (!PCGStack)
+	{
+		return nullptr;
+	}
 
 	// Create a temporary stack with Node+Pin to query the exact DataCollection we are inspecting
-	FPCGStack Stack = PCGStack;
+	FPCGStack Stack = *PCGStack;
 	TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
 	StackFrames.Reserve(StackFrames.Num() + 2);
 	StackFrames.Emplace(PCGNode);

@@ -3,6 +3,8 @@
 #include "SPCGEditorGraphDebugObjectWidget.h"
 
 #include "PCGComponent.h"
+#include "PCGSubsystem.h"
+
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
 
@@ -45,10 +47,11 @@ void SPCGEditorGraphDebugObjectWidget::Construct(const FArguments& InArgs, TShar
 {
 	PCGEditorPtr = InPCGEditor;
 	
-	if (UPCGComponent* PCGComponent = InPCGEditor->GetPCGComponentBeingInspected())
+	UPCGComponent* PCGComponent = InPCGEditor->GetPCGComponentBeingInspected();
+	const FPCGStack* PCGStack = InPCGEditor->GetStackBeingInspected();
+	if (PCGComponent && PCGStack)
 	{
-		const FPCGStack& PCGStack = InPCGEditor->GetStackBeingInspected();
-		DebugObjects.Add(MakeShared<FPCGEditorGraphDebugObjectInstance>(PCGComponent, PCGStack));
+		DebugObjects.Add(MakeShared<FPCGEditorGraphDebugObjectInstance>(PCGComponent, *PCGStack));
 	}
 	else
 	{
@@ -102,6 +105,8 @@ void SPCGEditorGraphDebugObjectWidget::Construct(const FArguments& InArgs, TShar
 			BrowseButton
 		]
 	];
+
+	RefreshDebugObjects();
 }
 
 void SPCGEditorGraphDebugObjectWidget::RefreshDebugObjects()
@@ -110,7 +115,8 @@ void SPCGEditorGraphDebugObjectWidget::RefreshDebugObjects()
 	DebugObjectsComboBox->RefreshOptions();
 
 	const UPCGGraph* PCGGraph = GetPCGGraph();
-	if (!PCGGraph)
+	UPCGSubsystem* Subsystem = FPCGEditor::GetSubsystem();
+	if (!PCGGraph || !Subsystem)
 	{
 		return;
 	}
@@ -151,29 +157,16 @@ void SPCGEditorGraphDebugObjectWidget::RefreshDebugObjects()
 			continue;
 		}
 
-		FPCGStackContext StackContext = FPCGStackContext::CreateStackContextFromGraph(PCGComponentGraph);
-
-		for (const FPCGStack& Stack : StackContext.GetStacks())
+		FPCGStackContext StackContext;
+		if (!PCGComponent->GetStackContext(StackContext))
 		{
-			const FPCGStackFrame& StackFrame = Stack.GetStackFrames().Top();
-			if (const UPCGGraph* StackGraph = Cast<const UPCGGraph>(StackFrame.Object))
-			{
-				if (StackGraph == PCGGraph)
-				{
-					const TSharedPtr<FPCGEditorGraphDebugObjectInstance> DebugInstance = MakeShared<FPCGEditorGraphDebugObjectInstance>(PCGComponent, Stack);
-					DebugObjects.Add(DebugInstance);
-
-					if (SelectedItem.IsValid() && SelectedItem->GetPCGComponent() == PCGComponent && SelectedItem->GetStack() == Stack)
-					{
-						DebugObjectsComboBox->SetSelectedItem(DebugInstance);
-					}
-				}
-			}
+			continue;
 		}
 
-		if (const TArray<FPCGStack>* DynamicStacks = DynamicInvocationStacks.Find(PCGComponent))
+		// Process static stacks that can be read from the compiled graph.
+		for (const FPCGStack& Stack : StackContext.GetStacks())
 		{
-			for (const FPCGStack& Stack : *DynamicStacks)
+			if (Stack.GetRootGraph() == PCGGraph)
 			{
 				const TSharedPtr<FPCGEditorGraphDebugObjectInstance> DebugInstance = MakeShared<FPCGEditorGraphDebugObjectInstance>(PCGComponent, Stack);
 				DebugObjects.Add(DebugInstance);
@@ -182,6 +175,19 @@ void SPCGEditorGraphDebugObjectWidget::RefreshDebugObjects()
 				{
 					DebugObjectsComboBox->SetSelectedItem(DebugInstance);
 				}
+			}
+		}
+
+		// Process stacks encountered during execution so far, which will include dynamic subgraphs & loop subgraphs.
+		// There will be overlaps with the static stacks but only unique entries will be added to the tree.
+		for (const FPCGStack& Stack : Subsystem->GetExecutedStacks(PCGComponent, PCGGraph))
+		{
+			const TSharedPtr<FPCGEditorGraphDebugObjectInstance> DebugInstance = MakeShared<FPCGEditorGraphDebugObjectInstance>(PCGComponent, Stack);
+			DebugObjects.Add(DebugInstance);
+
+			if (SelectedItem.IsValid() && SelectedItem->GetPCGComponent() == PCGComponent && SelectedItem->GetStack() == Stack)
+			{
+				DebugObjectsComboBox->SetSelectedItem(DebugInstance);
 			}
 		}
 	}
@@ -194,10 +200,9 @@ void SPCGEditorGraphDebugObjectWidget::OnComboBoxOpening()
 
 void SPCGEditorGraphDebugObjectWidget::OnSelectionChanged(TSharedPtr<FPCGEditorGraphDebugObjectInstance> NewSelection, ESelectInfo::Type SelectInfo) const
 {
-	if (NewSelection.IsValid())
+	if (!bDisableDebugObjectChangeNotification && NewSelection.IsValid() && SelectInfo != ESelectInfo::Direct)
 	{
-		UPCGComponent* PCGComponent = NewSelection->GetPCGComponent().Get();
-		PCGEditorPtr.Pin()->SetComponentAndStackBeingInspected(PCGComponent, NewSelection->GetStack());
+		PCGEditorPtr.Pin()->SetStackBeingInspected(NewSelection->GetStack(), FPCGDebugObjectSelectionMethod::DebugObjectDropdown);
 	}
 }
 
@@ -264,18 +269,24 @@ void SPCGEditorGraphDebugObjectWidget::SetDebugObjectFromSelection_OnClicked()
 		const TSharedPtr<FPCGEditorGraphDebugObjectInstance> DebugInstance = MakeShared<FPCGEditorGraphDebugObjectInstance>(InPCGComponent, InStack);
 		DebugObjects.Add(DebugInstance);
 		DebugObjectsComboBox->SetSelectedItem(DebugInstance);
-		PCGEditorPtr.Pin()->SetComponentAndStackBeingInspected(InPCGComponent, InStack);
-		
+		PCGEditorPtr.Pin()->SetStackBeingInspected(InStack, FPCGDebugObjectSelectionMethod::DebugObjectDropdown);
+
 		return true;
 	});
 }
 
 bool SPCGEditorGraphDebugObjectWidget::IsSetDebugObjectFromSelectionButtonEnabled() const
-{	
+{
 	return ForEachStackInSelection([](const FPCGStack& /*InStack*/, const UPCGComponent* /*InPCGComponent*/)
 	{
 		return true;
 	});
+}
+
+void SPCGEditorGraphDebugObjectWidget::OnDebugObjectChanged(UPCGComponent* InPCGComponent, const FPCGStack& InPCGStack)
+{
+	const TSharedPtr<FPCGEditorGraphDebugObjectInstance> DebugInstance = MakeShared<FPCGEditorGraphDebugObjectInstance>(InPCGComponent, InPCGStack);
+	DebugObjectsComboBox->SetSelectedItem(DebugInstance);
 }
 
 bool SPCGEditorGraphDebugObjectWidget::ForEachStackInSelection(const TFunctionRef<bool(const FPCGStack&, UPCGComponent*)>& InOperation) const
@@ -310,7 +321,12 @@ bool SPCGEditorGraphDebugObjectWidget::ForEachStackInSelection(const TFunctionRe
 				continue;
 			}
 
-			FPCGStackContext StackContext = FPCGStackContext::CreateStackContextFromGraph(PCGComponent->GetGraph());
+			FPCGStackContext StackContext;
+			if (!PCGComponent->GetStackContext(StackContext))
+			{
+				continue;
+			}
+
 			for (const FPCGStack& Stack : StackContext.GetStacks())
 			{
 				const FPCGStackFrame& StackFrame = Stack.GetStackFrames().Top();
@@ -386,15 +402,25 @@ void SPCGEditorGraphDebugObjectWidget::OnLevelActorDeleted(const AActor* InActor
 	}
 }
 
-void SPCGEditorGraphDebugObjectWidget::AddDynamicStack(const TWeakObjectPtr<UPCGComponent> InComponent, const FPCGStack& InvocationStack)
+void SPCGEditorGraphDebugObjectWidget::SetDebugObjectSelection(const FPCGStack& FullStack)
 {
-	TArray<FPCGStack>& Stacks = DynamicInvocationStacks.FindOrAdd(InComponent);
-
-	if (!Stacks.Contains(InvocationStack))
+	bDisableDebugObjectChangeNotification = true;
+	ON_SCOPE_EXIT
 	{
-		Stacks.Add(InvocationStack);
-		RefreshDebugObjects();
+		bDisableDebugObjectChangeNotification = false;
+	};
+
+	for (const TSharedPtr<FPCGEditorGraphDebugObjectInstance>& Object : DebugObjects)
+	{
+		if (Object.IsValid() && Object->GetStack() == FullStack)
+		{
+			DebugObjectsComboBox->SetSelectedItem(Object);
+			return;
+		}
 	}
+
+	// No matching debug object found, select nothing.
+	DebugObjectsComboBox->SetSelectedItem(DebugObjects[0]);
 }
 
 #undef LOCTEXT_NAMESPACE

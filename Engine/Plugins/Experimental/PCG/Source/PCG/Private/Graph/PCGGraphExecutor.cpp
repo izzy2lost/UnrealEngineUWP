@@ -7,7 +7,6 @@
 #include "PCGContext.h"
 #include "PCGCrc.h"
 #include "PCGGraph.h"
-#include "PCGGraphCompiler.h"
 #include "PCGInputOutputSettings.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
@@ -15,6 +14,7 @@
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
 #include "Graph/PCGGraphCache.h"
+#include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
@@ -111,18 +111,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceCo
 	{
 		UE_LOG(LogPCG, Log, TEXT("[%s] --- SCHEDULE GRAPH ---"), *SourceComponent->GetOwner()->GetName());
 	}
-
-#if WITH_EDITOR
-	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(SourceComponent->GetWorld()))
-	{
-		for (const UPCGNode* Node : Graph->GetNodes())
-		{
-			// Always clear warnings/errors before compile regardless of connectivity
-			Subsystem->GetNodeVisualLogsMutable().ClearLogs(Node, SourceComponent);
-		}
-	}
-#endif
-
+	
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
 	const bool bNonPartitionedComponent = !SourceComponent->IsLocalComponent() && !SourceComponent->IsPartitioned();
@@ -137,6 +126,19 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceCo
 	{
 		StackContextPtr->PrependParentStack(InFromStack);
 	}
+	else
+	{
+		FPCGStack ComponentStack;
+		ComponentStack.PushFrame(SourceComponent);
+		StackContextPtr->PrependParentStack(&ComponentStack);		
+	}
+
+#if WITH_EDITOR
+	if (UPCGSubsystem* Subsystem = SourceComponent ? SourceComponent->GetSubsystem() : nullptr)
+	{
+		Subsystem->OnScheduleGraph(*StackContextPtr);
+	}
+#endif
 
 	// Assign this component to the tasks
 	for (FPCGGraphTask& Task : CompiledTasks)
@@ -1554,8 +1556,7 @@ namespace PCGGraphExecutor
 				if (ToGridSize == PCGHiGenGrid::UnboundedGridSize())
 				{
 					Subsystem->GetNodeVisualLogsMutable().Log(
-						InDownstreamNode,
-						InContext->SourceComponent,
+						*InContext->Stack,
 						ELogVerbosity::Error,
 						FText::Format(
 							NSLOCTEXT("PCGGraphCompiler", "InvalidLinkageToUnbounded", "Could not read data across grid levels - cannot read from grid size {0} to Unbounded domain."),
@@ -1565,8 +1566,7 @@ namespace PCGGraphExecutor
 				else
 				{
 					Subsystem->GetNodeVisualLogsMutable().Log(
-						InDownstreamNode,
-						InContext->SourceComponent,
+						*InContext->Stack,
 						ELogVerbosity::Error,
 						FText::Format(
 							NSLOCTEXT("PCGGraphCompiler", "InvalidLinkageInvalidGridSizes", "Could not read data across grid levels - origin grid size {0} must be greater than destination grid size {1}. Graph default grid size may need increasing."),

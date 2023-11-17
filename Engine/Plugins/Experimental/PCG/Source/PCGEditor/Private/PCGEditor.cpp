@@ -104,7 +104,11 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	if (PCGGraphBeingEdited)
 	{
 		PCGGraphBeingEdited->OnGraphGridSizesChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphGridSizesChanged);
-		PCGGraphBeingEdited->OnGraphDynamicallyExecutedDelegate.AddRaw(this, &FPCGEditor::OnGraphDynamicallyExecuted);
+	}
+
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
 	}
 
 	// Initializes the UPCGEditorGraph if needed
@@ -203,6 +207,15 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	{
 		GEngine->OnLevelActorDeleted().AddRaw(this, &FPCGEditor::OnLevelActorDeleted);
 	}
+
+	// Clear inspection flag on all nodes.
+	for (UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
+	{
+		if (UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
+		{
+			PCGEditorGraphNode->SetInspected(false);
+		}
+	}
 }
 
 UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
@@ -210,12 +223,12 @@ UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
 	return PCGEditorGraph;
 }
 
-void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponent, const FPCGStack& InPCGStack)
+void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObjectSelectionMethod SelectionMethod)
 {
 	UPCGComponent* OldComponent = PCGComponentBeingInspected.Get();
-	UPCGComponent* NewComponent = InPCGComponent;
+	UPCGComponent* NewComponent = const_cast<UPCGComponent*>(FullStack.GetRootComponent());
 
-	if (OldComponent != NewComponent)
+	if (StackBeingInspected != FullStack)
 	{
 		if (OldComponent)
 		{
@@ -229,7 +242,9 @@ void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponen
 		const bool bNewComponentStartedInspecting = NewComponent && !NewComponent->IsInspecting();
 
 		PCGComponentBeingInspected = NewComponent;
-		OnInspectedComponentChangedDelegate.Broadcast(NewComponent);
+
+		StackBeingInspected = FullStack;
+		OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
 
 		if (NewComponent)
 		{
@@ -238,6 +253,15 @@ void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponen
 			{
 				PCGGraphBeingEdited->EnableInspection();
 			}
+		}
+
+		if (SelectionMethod == FPCGDebugObjectSelectionMethod::DebugObjectTree)
+		{
+			DebugObjectWidget->SetDebugObjectSelection(StackBeingInspected);
+		}
+		else
+		{
+			DebugObjectTreeWidget->SetDebugObjectSelection(StackBeingInspected);
 		}
 
 		UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
@@ -249,7 +273,7 @@ void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponen
 			{
 				// Update now that component has changed. Will fire OnNodeChanged if necessary.
 				EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-				ChangeType |= PCGNode->UpdateGridSizeVisualization(InPCGComponent, InPCGStack);
+				ChangeType |= PCGNode->UpdateGridSizeVisualization(NewComponent, FullStack);
 
 				if (ChangeType != EPCGChangeType::None)
 				{
@@ -257,12 +281,6 @@ void FPCGEditor::SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponen
 				}
 			}
 		}
-	}
-
-	if (InPCGStack != StackBeingInspected)
-	{
-		StackBeingInspected = InPCGStack;
-		OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
 	}
 }
 
@@ -334,6 +352,11 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 			RefreshComponent(InNewComponent->GetOriginalComponent());
 		}
 	}
+}
+
+const FPCGStack* FPCGEditor::GetStackBeingInspected() const
+{
+	return StackBeingInspected.GetStackFrames().IsEmpty() ? nullptr : &StackBeingInspected;
 }
 
 void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
@@ -2046,7 +2069,11 @@ void FPCGEditor::OnClose()
 		}
 
 		PCGGraphBeingEdited->OnGraphGridSizesChangedDelegate.RemoveAll(this);
-		PCGGraphBeingEdited->OnGraphDynamicallyExecutedDelegate.RemoveAll(this);
+	}
+
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		Subsystem->OnComponentGenerationCompleteOrCancelled.RemoveAll(this);
 	}
 }
 
@@ -2268,25 +2295,19 @@ bool FPCGEditor::IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent
 void FPCGEditor::OnGraphGridSizesChanged(UPCGGraphInterface* InGraph)
 {
 	check(PCGEditorGraph);
-	if (UPCGComponent* PCGComponent = GetPCGComponentBeingInspected())
+
+	const FPCGStack* Stack = GetStackBeingInspected();
+	UPCGComponent* PCGComponent = GetPCGComponentBeingInspected();
+	if (Stack && PCGComponent)
 	{
-		PCGEditorGraph->UpdateGridSizeVisualization(PCGComponent, GetStackBeingInspected());
+		PCGEditorGraph->UpdateGridSizeVisualization(PCGComponent, *Stack);
 	}
 }
 
-void FPCGEditor::OnGraphDynamicallyExecuted(UPCGGraphInterface* InGraphInterface, const TWeakObjectPtr<UPCGComponent> InSourceComponent, FPCGStack InvocationStack)
+void FPCGEditor::OnComponentGenerationCompleteOrCancelled()
 {
-	InvocationStack.GetStackFramesMutable().Emplace(InGraphInterface);
-
-	if (DebugObjectWidget.IsValid())
-	{
-		DebugObjectWidget->AddDynamicStack(InSourceComponent, InvocationStack);
-	}
-
-	if (DebugObjectTreeWidget.IsValid())
-	{
-		DebugObjectTreeWidget->AddDynamicStack(InSourceComponent, InvocationStack);
-	}
+	DebugObjectWidget->RefreshDebugObjects();
+	DebugObjectTreeWidget->RequestRefresh();
 }
 
 UPCGSubsystem* FPCGEditor::GetSubsystem()
@@ -2306,6 +2327,12 @@ void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 		if (DebugObjectWidget.IsValid())
 		{
 			DebugObjectWidget->RefreshDebugObjects();
+		}
+
+		// Subsystem has been torn down and rebuilt.
+		if (UPCGSubsystem* Subsystem = GetSubsystem())
+		{
+			Subsystem->OnComponentGenerationCompleteOrCancelled.AddRaw(this, &FPCGEditor::OnComponentGenerationCompleteOrCancelled);
 		}
 	}
 }

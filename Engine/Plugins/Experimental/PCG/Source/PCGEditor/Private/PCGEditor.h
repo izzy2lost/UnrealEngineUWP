@@ -35,6 +35,13 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedComponentChanged, UPCGComponent*
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedStackChanged, const FPCGStack&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedNodeChanged, UPCGEditorGraphNodeBase*);
 
+/** Used to communicate how a debug object was selected so that other selection widgets can be synchronized. */
+enum class FPCGDebugObjectSelectionMethod : uint8
+{
+	DebugObjectTree,
+	DebugObjectDropdown,
+};
+
 class FPCGEditor : public FAssetEditorToolkit, public FGCObject, public FSelfRegisteringEditorUndoClient
 {
 public:
@@ -47,17 +54,20 @@ public:
 	/** Gets/Creates the PCG graph editor for a given PCG graph */
 	static UPCGEditorGraph* GetPCGEditorGraph(UPCGGraph* InGraph);
 
-	/** Sets the PCG component and stack that we want to inspect */
-	void SetComponentAndStackBeingInspected(UPCGComponent* InPCGComponent, const FPCGStack& InPCGStack);
+	/** Sets the execution stack that want to inspect. */
+	void SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObjectSelectionMethod SelectionMethod);
 
 	/** Gets the PCG component we are debugging */
-	UPCGComponent* GetPCGComponentBeingInspected() const { return PCGComponentBeingInspected.Get(); }
+	UPCGComponent* GetPCGComponentBeingInspected() const { return const_cast<UPCGComponent*>(StackBeingInspected.GetRootComponent()); }
 	
 	/** Gets the PCG stack we are inspecting */
-	const FPCGStack& GetStackBeingInspected() const { return StackBeingInspected; }
+	const FPCGStack* GetStackBeingInspected() const;
 
 	/** Focus the graph view on a specific node */
 	void JumpToNode(const UEdGraphNode* InNode);
+
+	/** Helper to get to the subsystem. */
+	static class UPCGSubsystem* GetSubsystem();
 
 	// ~Begin IToolkit interface
 	virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager) override;
@@ -87,7 +97,6 @@ public:
 	virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 	// ~End FAssetEditorToolkit interface
 
-	FOnInspectedComponentChanged OnInspectedComponentChangedDelegate;
 	FOnInspectedStackChanged OnInspectedStackChangedDelegate;
 	FOnInspectedNodeChanged OnInspectedNodeChangedDelegate;
 
@@ -285,13 +294,12 @@ private:
 	bool IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const;
 
 	void OnGraphGridSizesChanged(UPCGGraphInterface* InGraph);
-	void OnGraphDynamicallyExecuted(UPCGGraphInterface* InGraphInterface, const TWeakObjectPtr<UPCGComponent> InSourceComponent, FPCGStack InvocationStack);
+
+	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
+	void OnComponentGenerationCompleteOrCancelled();
 
 	/** Trigger any generation required to ensure debug display is up to date. */
 	void UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bNewComponentStartedInspecting);
-
-	/** Helper to get to the subsystem. */
-	static class UPCGSubsystem* GetSubsystem();
 
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType);
 	void OnLevelActorDeleted(AActor* InActor);

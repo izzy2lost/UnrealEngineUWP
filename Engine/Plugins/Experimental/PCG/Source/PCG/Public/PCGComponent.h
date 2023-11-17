@@ -17,8 +17,8 @@
 namespace EEndPlayReason { enum Type : int; }
 
 class APCGPartitionActor;
-struct FPCGContext;
 class FPCGActorAndComponentMapping;
+class FPCGStackContext;
 class UPCGComponent;
 class UPCGData;
 class IPCGGenSourceBase;
@@ -31,7 +31,7 @@ class UPCGSubsystem;
 class ALandscapeProxy;
 class FLandscapeProxyComponentDataChangedParams;
 class UClass;
-
+struct FPCGContext;
 
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphGenerated, UPCGComponent*);
@@ -299,6 +299,9 @@ public:
 
 	/** Changes the transient state (preview, normal, load on preview) - public only because it needs to be accessed by APCGPartitionActor */
 	void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode);
+
+	/** Get execution stack information. */
+	bool GetStackContext(FPCGStackContext& OutStackContext) const;
 #endif
 
 	/** Utility function (mostly for tests) to properly set the value of bIsComponentPartitioned.

@@ -9,6 +9,7 @@
 
 class FString;
 class UObject;
+class UPCGComponent;
 class UPCGGraph;
 class UPCGNode;
 class UPCGPin;
@@ -56,7 +57,9 @@ struct PCG_API FPCGStack
 
 public:
 	/** Push frame onto top of stack. */
-	void PushFrame(const FPCGStackFrame& InFrame) { StackFrames.Add(InFrame); }
+	void PushFrame(const FPCGStackFrame& Frame) { StackFrames.Add(Frame); }
+	void PushFrame(const UObject* InFrameObject) { StackFrames.Emplace(InFrameObject); }
+	void PushFrame(int32 FrameLoopIndex) { StackFrames.Emplace(FrameLoopIndex); }
 
 	/** Pop frame from the stack. */
 	void PopFrame();
@@ -67,16 +70,44 @@ public:
 	/** Returns how many graphs the stack contains (top level graph stacks will return 1). */
 	uint32 GetNumGraphLevels() const;
 
-	/** Returns true if this stack in the top level graph, rather than in a subgraph. */
-	bool IsTopLevelGraph() const { return GetNumGraphLevels() == 1; }
+	/** Returns true if given stack is a prefix of this stack. */
+	bool BeginsWith(const FPCGStack& Other) const;
 
 	const TArray<FPCGStackFrame>& GetStackFrames() const { return StackFrames; }
 	TArray<FPCGStackFrame>& GetStackFramesMutable() { return StackFrames; }
 
+	/** Component given by first stack frame. */
+	const UPCGComponent* GetRootComponent() const;
+
+	/** First (top) graph frame in stack (or null if no graph frames present). */
+	const UPCGGraph* GetRootGraph() const;
+
+	/** Returns true if this stack is the top level/root graph, rather than in a subgraph. */
+	bool IsCurrentFrameInRootGraph() const { return GetNumGraphLevels() == 1; }
+
+	/** Gets the graph from the graph frame closest to the top of the stack (most recent), or null if no such graph present. */
+	const UPCGGraph* GetGraphForCurrentFrame() const;
+
+	/** If current frame (top of stack) corresponds to a node returns that node, otherwise returns null. */
+	const UPCGNode* GetCurrentFrameNode() const;
+
+	/** Stack has a frame corresponding to the given object. */
+	bool HasObject(const UObject* InObject) const;
+
 	bool operator==(const FPCGStack& Other) const;
 	bool operator!=(const FPCGStack& Other) const { return !(*this == Other); }
 
-	friend uint32 GetTypeHash(const FPCGStack& In);
+	friend uint32 GetTypeHash(const FPCGStack& In)
+	{
+		uint32 Hash = 0;
+
+		for (const FPCGStackFrame& Frame : In.StackFrames)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Frame));
+		}
+
+		return Hash;
+	}
 
 private:
 	TArray<FPCGStackFrame> StackFrames;
@@ -103,7 +134,7 @@ public:
 	/** Called during execution when invoking a dynamic subgraph, to prepend the caller stack to form the complete callstacks. */
 	void PrependParentStack(const FPCGStack* InParentStack);
 
-	static FPCGStackContext CreateStackContextFromGraph(const UPCGGraph* InPCGGraph);
+	TArray<FPCGStack>& GetStacksMutable() { return Stacks; }
 
 private:
 	/** List of all stacks encountered top graph and all (nested) subgraphs. Order is simply order of encountering during compilation. */

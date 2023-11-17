@@ -32,6 +32,10 @@ typedef TSharedPtr<IPCGElement, ESPMode::ThreadSafe> FPCGElementPtr;
 
 class UWorld;
 
+#if WITH_EDITOR
+DECLARE_MULTICAST_DELEGATE(FPCGOnComponentGenerationCompleteOrCancelled);
+#endif // WITH_EDITOR
+
 /**
 * UPCGSubsystem
 */
@@ -87,6 +91,9 @@ public:
 
 	void OnOriginalComponentRegistered(UPCGComponent* InComponent);
 	void OnOriginalComponentUnregistered(UPCGComponent* InComponent);
+
+	/** Called by graph executor when a graph is scheduled. */
+	void OnScheduleGraph(const FPCGStackContext& StackContext);
 
 	UPCGLandscapeCache* GetLandscapeCache();
 
@@ -209,7 +216,10 @@ public:
 	void ClearLandscapeCache();
 
 	/** Returns the graph compiler so we can figure out task info in the profiler view **/
-	const FPCGGraphCompiler* GetGraphCompiler() const;
+	FPCGGraphCompiler* GetGraphCompiler() const;
+
+	/** Get the execution stack information for the given component. */
+	bool GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext) const;
 
 	/** Returns how many times InElement is present in the cache. */
 	uint32 GetGraphCacheEntryCount(IPCGElement* InElement) const;
@@ -220,6 +230,12 @@ public:
 
 	/** Notify that we exited the Landscape edit mode. */
 	void NotifyLandscapeEditModeExited() { ActorAndComponentMapping.NotifyLandscapeEditModeExited(); }
+
+	/** Get a list of stacks that were executed during the last execution. */
+	TArray<FPCGStack> GetExecutedStacks(const UPCGComponent* InComponent, const UPCGGraph* InSubgraph);
+	void ClearExecutedStacks(FPCGStack BeginningWithStack);
+
+	FPCGOnComponentGenerationCompleteOrCancelled OnComponentGenerationCompleteOrCancelled;
 
 private:
 	enum class EOperation : uint32
@@ -240,6 +256,10 @@ private:
 	FPCGRuntimeGenScheduler* RuntimeGenScheduler = nullptr;
 	bool bHasTickedOnce = false;
 	FPCGActorAndComponentMapping ActorAndComponentMapping;
+
+	/** A record of stacks that were executed. Used to populate debugging tool UIs. */
+	TArray<FPCGStack> ExecutedStacks;
+	mutable FRWLock ExecutedStacksLock;
 
 #if WITH_EDITOR
 	FCriticalSection PCGWorldActorLock;

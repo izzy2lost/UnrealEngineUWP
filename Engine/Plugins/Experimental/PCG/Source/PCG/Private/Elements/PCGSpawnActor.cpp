@@ -543,10 +543,6 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 
 							UPCGGraph* Graph = GraphInterface->GetGraph();
 
-#if WITH_EDITOR
-							Graph->OnGraphDynamicallyExecutedDelegate.Broadcast(Graph, Context->SourceComponent, InvocationStack);
-#endif
-
 							FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(Graph,
 								Context->SourceComponent.Get(),
 								MakeShared<FPCGTrivialElement>(),// TODO: prepare user parameters like in subgraph/loop
