@@ -8,6 +8,7 @@
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "Evaluation/MovieSceneEvaluationField.h"
+#include "MovieScene.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneBindingLifetimeSection)
 
@@ -44,5 +45,40 @@ void UMovieSceneBindingLifetimeSection::ExternalPopulateEvaluationField(const TR
 
 	const int32 EntityIndex = OutFieldBuilder->FindOrAddEntity(this, 1);
 	OutFieldBuilder->AddPersistentEntity(EffectiveRange, EntityIndex, MetaDataIndex);
+}
+
+void UMovieSceneBindingLifetimeSection::InitialPlacement(const TArray<UMovieSceneSection*>& Sections, FFrameNumber InStartTime, int32 Duration, bool bAllowMultipleRows)
+{
+	// We don't allow overlap or multi row here, so need a few extra rules for initial placement
+
+	check(Duration >= 0);
+
+	// Inclusive lower, exclusive upper bounds
+	SectionRange = TRange<FFrameNumber>(InStartTime, InStartTime + Duration);
+
+	for (;;)
+	{
+		UMovieSceneSection* OverlappedSection = const_cast<UMovieSceneSection*>(OverlapsWithSections(Sections));
+		if (OverlappedSection == nullptr)
+		{
+			break;
+		}
+
+		TRange<FFrameNumber> OtherRange = OverlappedSection->GetRange();
+
+		if (OtherRange.GetUpperBound().IsClosed())
+		{
+			MoveSection(OtherRange.GetUpperBoundValue() - InStartTime);
+		}
+		else
+		{
+			// We're likely overlapping the first infinite section here. Split it.
+			UMovieSceneSection* NewSection = OverlappedSection->SplitSection(FQualifiedFrameTime(InStartTime, GetTypedOuter<UMovieScene>()->GetTickResolution()), false);
+			// The new section will be the one on the right and will still have an open upper bound. Resize it to fit the new section.
+			TRange<FFrameNumber> NewSectionRange = NewSection->GetRange();
+			NewSectionRange.SetLowerBoundValue(InStartTime + Duration);
+			NewSection->SetRange(NewSectionRange);
+		}
+	}
 }
 
