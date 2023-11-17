@@ -38,7 +38,7 @@ public:
 
 		SetHover(TAttribute<bool>::CreateLambda([this]()
 		{
-			if (auto TableView = OwnerTablePtr.Pin())
+			if (TSharedPtr<ITypedTableView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>> TableView = OwnerTablePtr.Pin())
 			{
 				if (const TSharedPtr<RewindDebugger::FRewindDebuggerTrack>* Track = GetItemForThis(TableView.ToSharedRef()))
 				{
@@ -52,7 +52,7 @@ public:
 
 	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
 	{
-		if (auto TableView = OwnerTablePtr.Pin())
+		if (TSharedPtr<ITypedTableView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>> TableView = OwnerTablePtr.Pin())
 		{
 			if (const TSharedPtr<RewindDebugger::FRewindDebuggerTrack>* Track = GetItemForThis(TableView.ToSharedRef()))
 			{
@@ -66,7 +66,7 @@ public:
 	{
 		STableRow<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>::OnMouseLeave(MouseEvent);
 
-		if (auto TableView = OwnerTablePtr.Pin())
+		if (TSharedPtr<ITypedTableView<TSharedPtr<RewindDebugger::FRewindDebuggerTrack>>> TableView = OwnerTablePtr.Pin())
 		{
 			if (const TSharedPtr<RewindDebugger::FRewindDebuggerTrack>* Track = GetItemForThis(TableView.ToSharedRef()))
 			{
@@ -179,7 +179,7 @@ static void RestoreExpansion(TSharedPtr<RewindDebugger::FRewindDebuggerTrack> Tr
 
 void SRewindDebuggerComponentTree::RestoreExpansion()
 {
-	for (auto& Track : *DebugComponents)
+	for (TSharedPtr<RewindDebugger::FRewindDebuggerTrack>& Track : *DebugComponents)
 	{
 		::RestoreExpansion(Track, ComponentTreeView);
 	}

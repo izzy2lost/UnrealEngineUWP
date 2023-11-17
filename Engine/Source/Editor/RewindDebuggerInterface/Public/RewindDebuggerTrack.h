@@ -19,7 +19,7 @@ namespace RewindDebugger
 class FRewindDebuggerTrack
 {
 public:
-	FRewindDebuggerTrack(): bExpanded(true), bVisible(true)
+	FRewindDebuggerTrack()
 	{
 	}
 
@@ -159,8 +159,8 @@ private:
 	bool bSelected : 1 = false;
 	bool bTrackHovered : 1 = false;
 	bool bTreeHovered : 1 = false;
-	bool bExpanded : 1 = false;
-	bool bVisible : 1 = false;
+	bool bExpanded : 1 = true;
+	bool bVisible : 1 = true;
 };
 	
 }
