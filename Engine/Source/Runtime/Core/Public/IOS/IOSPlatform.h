@@ -77,7 +77,7 @@ typedef FIOSPlatformTypes FPlatformTypes;
 
 #define PLATFORM_GLOBAL_LOG_CATEGORY					LogIOS
 
-#define PLATFORM_BREAK()                                __builtin_trap()
+#define PLATFORM_BREAK()                                __builtin_debugtrap()
 
 #define PLATFORM_CODE_SECTION(Name)						__attribute__((section("__TEXT,__" Name ",regular,pure_instructions"))) \
 														__attribute__((aligned(4)))

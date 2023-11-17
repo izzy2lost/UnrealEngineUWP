@@ -89,7 +89,7 @@ typedef FMacPlatformTypes FPlatformTypes;
 #if PLATFORM_MAC_X86
 	#define PLATFORM_BREAK()							__asm__("int $3")
 #else
-    #define PLATFORM_BREAK()                            __builtin_trap()
+    #define PLATFORM_BREAK()                            __builtin_debugtrap()
 #endif
 
 #define PLATFORM_CODE_SECTION(Name)						__attribute__((section("__TEXT,__" Name ",regular,pure_instructions")))
