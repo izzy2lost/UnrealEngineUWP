@@ -545,6 +545,12 @@ bool URigVM::ValidateBytecode()
 				}
 				break;
 			}
+			case ERigVMOpCode::RunInstructions:
+			{
+				const FRigVMRunInstructionsOp& Op = ByteCodeStorage.GetOpAt<FRigVMRunInstructionsOp>(ByteCodeInstruction);
+				CheckOperandValidity(Op.Arg);
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			{
 				ensure(false);
@@ -1126,6 +1132,13 @@ void URigVM::InstructionOpEval(FRigVMExtendedExecuteContext& Context, int32 Inst
 		case ERigVMOpCode::JumpToBranch:
 		{
 			const FRigVMJumpToBranchOp& Op = ByteCode.GetOpAt<FRigVMJumpToBranchOp>(Instructions[InstructionIndex]);
+			const FRigVMOperand& Arg = Op.Arg;
+			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
+			break;
+		}
+		case ERigVMOpCode::RunInstructions:
+		{
+			const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instructions[InstructionIndex]);
 			const FRigVMOperand& Arg = Op.Arg;
 			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
 			break;
@@ -2067,6 +2080,32 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 				}
 				break;
 			}
+			case ERigVMOpCode::RunInstructions:
+			{
+				const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+				FRigVMInstructionSetExecuteState& ExecutionState = *(FRigVMInstructionSetExecuteState*)Context.CachedMemoryHandles[FirstHandleForInstruction[ContextPublicData.InstructionIndex]].GetData();
+
+				if((Op.StartInstruction != INDEX_NONE) &&
+					(Op.EndInstruction != INDEX_NONE) &&
+					(Op.EndInstruction >= Op.StartInstruction))
+				{
+					const int32 SliceIndex = FMath::Max(0, Context.GetSlice().GetIndex());
+					while(!ExecutionState.HashPerSlice.IsValidIndex(SliceIndex))
+					{
+						ExecutionState.HashPerSlice.Add(UINT32_MAX);
+					}
+						
+					const uint32 Hash = GetTypeHash(ContextPublicData.GetNumExecutions());
+					if(ExecutionState.HashPerSlice[SliceIndex] != Hash)
+					{
+						ExecuteInstructions(Context, Op.StartInstruction, Op.EndInstruction);
+						ExecutionState.HashPerSlice[SliceIndex] = Hash;
+					}
+				}
+
+				ContextPublicData.InstructionIndex++;
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			{
 				ensure(false);
@@ -2392,6 +2431,12 @@ TArray<FString> URigVM::DumpByteCodeAsTextArray(FRigVMExtendedExecuteContext& Co
 				ResultLine = FString::Printf(TEXT("Jump To Branch %s"), *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
 				break;
 			}
+			case ERigVMOpCode::RunInstructions:
+			{
+				const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instructions[InstructionIndex]);
+				ResultLine = FString::Printf(TEXT("Run Instructions %d-%d (%s)"), Op.StartInstruction, Op.EndInstruction, *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
+				break;
+			}
 			default:
 			{
 				ensure(false);
@@ -2447,13 +2492,28 @@ FString URigVM::GetOperandLabel(FRigVMExtendedExecuteContext& Context, const FRi
 			return FString();
 		}
 
-		check(Memory->IsValidIndex(InOperand.GetRegisterIndex()));
-		
-		RegisterName = Memory->GetProperties()[InOperand.GetRegisterIndex()]->GetName();
-		RegisterOffsetName =
-			InOperand.GetRegisterOffset() != INDEX_NONE ?
-			Memory->GetPropertyPaths()[InOperand.GetRegisterOffset()].ToString() :
-			FString();
+		if(!Memory->IsValidIndex(InOperand.GetRegisterIndex()))
+		{
+			if(Memory->Num() == 0)
+			{
+				Memory = GetDefaultMemoryByType(InOperand.GetMemoryType());
+			}
+		}
+
+		if(!Memory->IsValidIndex(InOperand.GetRegisterIndex()))
+		{
+			static const UEnum* MemoryTypeEnum = StaticEnum<ERigVMMemoryType>();
+			static constexpr TCHAR Format[] = TEXT("%s_%d");
+			RegisterName = FString::Printf(Format, *MemoryTypeEnum->GetDisplayNameTextByValue((int64)InOperand.GetMemoryType()).ToString(), InOperand.GetRegisterIndex());
+		}
+		else
+		{
+			RegisterName = Memory->GetProperties()[InOperand.GetRegisterIndex()]->GetName();
+			RegisterOffsetName =
+				InOperand.GetRegisterOffset() != INDEX_NONE ?
+				Memory->GetPropertyPaths()[InOperand.GetRegisterOffset()].ToString() :
+				FString();
+		}
 	}
 	
 	FString OperandLabel = RegisterName;

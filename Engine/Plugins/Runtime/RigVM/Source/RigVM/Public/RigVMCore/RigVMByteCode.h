@@ -94,6 +94,21 @@ struct FRigVMBranchInfoKey
 	FName Label;
 };
 
+// A runtime cache for determining if a set of instruction has to
+// run for this execution of the VM
+USTRUCT(BlueprintType)
+struct RIGVM_API FRigVMInstructionSetExecuteState
+{
+	GENERATED_BODY()
+
+	FRigVMInstructionSetExecuteState()
+	{
+	}
+
+	UPROPERTY()
+	TArray<uint32> HashPerSlice;
+};
+
 // A description of a predicate branch in the VM's bytecode
 USTRUCT()
 struct RIGVM_API FRigVMPredicateBranch
@@ -220,6 +235,7 @@ enum class ERigVMOpCode : uint8
 	InvokeEntry, // invokes an entry from the entry list
 	JumpToBranch, // jumps to a branch based on a name operand
 	Execute, // single execute op (formerly Execute_0_Operands to Execute_64_Operands)
+	RunInstructions, // runs a set of instructions lazily
 	Invalid,
 	FirstArrayOpCode = ArrayReset,
 	LastArrayOpCode = ArrayReverse,
@@ -330,7 +346,8 @@ struct RIGVM_API FRigVMUnaryOp : public FRigVMBaseOp
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpForwardIf) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpBackwardIf) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::ChangeType) ||
-			uint8(InOpCode) == uint8(ERigVMOpCode::JumpToBranch)
+			uint8(InOpCode) == uint8(ERigVMOpCode::JumpToBranch) ||
+			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions)
 		);
 	}
 
@@ -971,6 +988,44 @@ struct RIGVM_API FRigVMJumpToBranchOp : public FRigVMUnaryOp
 	}
 };
 
+// runs a set of instructions lazily
+USTRUCT()
+struct RIGVM_API FRigVMRunInstructionsOp : public FRigVMUnaryOp
+{
+	GENERATED_USTRUCT_BODY()
+
+	FRigVMRunInstructionsOp()
+		: FRigVMUnaryOp()
+		, StartInstruction(INDEX_NONE)
+		, EndInstruction(INDEX_NONE)
+	{
+	}
+
+	FRigVMRunInstructionsOp(FRigVMOperand InExecutionStateArg, int32 InStartInstruction, int32 InEndInstruction)
+		: FRigVMUnaryOp(ERigVMOpCode::RunInstructions, InExecutionStateArg)
+		, StartInstruction(InStartInstruction)
+		, EndInstruction(InEndInstruction)
+	{
+	}
+
+	int32 StartInstruction;
+	int32 EndInstruction;
+
+	friend uint32 GetTypeHash(const FRigVMRunInstructionsOp& Op)
+	{
+		uint32 Hash = GetTypeHash((const FRigVMBaseOp&)Op);
+		Hash = HashCombine(Hash, GetTypeHash(Op.StartInstruction));
+		Hash = HashCombine(Hash, GetTypeHash(Op.EndInstruction));
+		return Hash;
+	}
+
+	void Serialize(FArchive& Ar);
+	friend FArchive& operator<<(FArchive& Ar, FRigVMRunInstructionsOp& P)
+	{
+		P.Serialize(Ar);
+		return Ar;
+	}
+};
 
 /**
  * The FRigVMInstruction represents
@@ -1170,6 +1225,9 @@ public:
 
 	// adds a jump to branch operator
 	uint64 AddJumpToBranchOp(FRigVMOperand InBranchNameArg, int32 InFirstBranchInfoIndex);
+
+	// adds a run instructions op
+	uint64 AddRunInstructionsOp(FRigVMOperand InExecuteStateArg, int32 InStartInstruction, int32 InEndInstruction);
 
 	// adds information about a branch for an instruction's argument
 	int32 AddBranchInfo(const FRigVMBranchInfo& InBranchInfo);

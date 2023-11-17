@@ -17,6 +17,7 @@
 #include "RigVMModel/RigVMClient.h"
 #include "RigVMFunctions/RigVMDispatch_Array.h"
 #include "Algo/Count.h"
+#include "Algo/Sort.h"
 #include "String/Join.h"
 
 #if WITH_EDITOR
@@ -1165,6 +1166,28 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 		}
 	}
 
+	// find all blocks
+	for (FRigVMExprAST* Expression : WorkData.AST->Expressions)
+	{
+		const TOptional<uint32> OptionalHash = Expression->GetBlockCombinationHash();
+		const uint32 Hash = OptionalHash.Get(0);
+		if(!WorkData.LazyBlocks.Contains(Hash))
+		{
+			WorkData.LazyBlocks.Add(Hash, MakeShared<FRigVMCompilerWorkData::FLazyBlockInfo>());
+		}
+
+		if(OptionalHash.IsSet())
+		{
+			TSharedPtr<FRigVMCompilerWorkData::FLazyBlockInfo> Info = WorkData.LazyBlocks.FindChecked(Hash);
+			Info->Hash = OptionalHash;
+			if(Info->BlockCombinationName.IsEmpty())
+			{
+				Info->BlockCombinationName = Expression->GetBlockCombinationName();
+			}
+			Info->Expressions.Add(Expression);
+		}
+	}
+
 	WorkData.ExprComplete.Reset();
 	for (FRigVMExprAST* RootExpr : *WorkData.AST)
 	{
@@ -1216,6 +1239,19 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 
 	WorkData.bSetupMemory = false;
 	WorkData.ExprComplete.Reset();
+
+	// sort the expressions in each block by depth
+	for(auto Pair : WorkData.LazyBlocks)
+	{
+		auto SortByDepth = [](const FRigVMExprAST* InExpression) -> int32
+		{
+			return InExpression->GetMaximumDepth();
+		};
+		Algo::SortBy(Pair.Value->Expressions, SortByDepth);
+	}
+	
+	// traverse the top level blocks
+	WorkData.CurrentBlockHash = TOptional<uint32>();
 	for (FRigVMExprAST* RootExpr : *WorkData.AST)
 	{
 		if (!TraverseExpression(RootExpr, WorkData))
@@ -1231,7 +1267,57 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 		{
 			WorkData.VM->GetByteCode().AddExitOp();
 		}
+	}
+
+	// traverse all other blocks - this has to be an index based loop
+	if(!WorkData.LazyBlocksToProcess.IsEmpty())
+	{
+		const uint64 JumpToEndOfBlocksExternByte = WorkData.VM->GetByteCode().AddJumpOp(ERigVMOpCode::JumpForward, INDEX_NONE);
+		const int32 JumpToEndOfBlocksExternInstruction = WorkData.VM->GetByteCode().GetNumInstructions() - 1;
+
+		FRigVMByteCode& ByteCode = WorkData.VM->GetByteCode();
+		for(int32 LazyBlockHashIndex = 0; LazyBlockHashIndex < WorkData.LazyBlocksToProcess.Num(); LazyBlockHashIndex++)
+		{
+			TSharedPtr<FRigVMCompilerWorkData::FLazyBlockInfo>& BlockInfo =
+				WorkData.LazyBlocks.FindChecked(WorkData.LazyBlocksToProcess[LazyBlockHashIndex]);
+			if(BlockInfo->bProcessed)
+			{
+				continue;
+			}
+
+			BlockInfo->StartInstruction = ByteCode.GetNumInstructions();
+
+			TGuardValue<TOptional<uint32>> HashGuard(WorkData.CurrentBlockHash, BlockInfo->Hash);
+			for(const FRigVMExprAST* Expression : BlockInfo->Expressions)
+			{
+				TraverseExpression(Expression, WorkData);
+			}
+
+			BlockInfo->EndInstruction = ByteCode.GetNumInstructions() - 1;
+			BlockInfo->bProcessed = true;
+		}
+
+		for(int32 LazyBlockHashIndex = 0; LazyBlockHashIndex < WorkData.LazyBlocksToProcess.Num(); LazyBlockHashIndex++)
+		{
+			TSharedPtr<FRigVMCompilerWorkData::FLazyBlockInfo>& BlockInfo =
+				WorkData.LazyBlocks.FindChecked(WorkData.LazyBlocksToProcess[LazyBlockHashIndex]);
+
+			// update all run instructions ops in the bytecode
+			for(uint64 RunInstructionsByteCode : BlockInfo->RunInstructionsToUpdate)
+			{
+				FRigVMRunInstructionsOp& RunInstructionsOp = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(RunInstructionsByteCode);
+				RunInstructionsOp.StartInstruction = BlockInfo->StartInstruction;
+				RunInstructionsOp.EndInstruction = BlockInfo->EndInstruction;
+			}
+		}
+		
+		// update the operator with the target instruction 
+		const int32 InstructionsToJump = WorkData.VM->GetByteCode().GetNumInstructions() - JumpToEndOfBlocksExternInstruction;
+		WorkData.VM->GetByteCode().GetOpAt<FRigVMJumpOp>(JumpToEndOfBlocksExternByte).InstructionIndex = InstructionsToJump;
+	}
 	
+	if (!CurrentCompilationFunction)
+	{
 		WorkData.VM->GetByteCode().AlignByteCode();
 	}
 
@@ -1473,12 +1559,101 @@ bool URigVMCompiler::TraverseExpression(const FRigVMExprAST* InExpr, FRigVMCompi
 		return true;
 	}
 
+	// if we hit an expression which is on a different block
+	// take care of redirecting this to the RunInstructions op
+	if(!WorkData.TraversalExpressions.IsEmpty())
+	{
+		const TOptional<uint32> PreviousBlockHash = WorkData.TraversalExpressions.Last()->GetBlockCombinationHash();
+		const TOptional<uint32> NextBlockHash = InExpr->GetBlockCombinationHash();
+
+		if((PreviousBlockHash != NextBlockHash) && NextBlockHash.IsSet())
+		{
+			TSharedPtr<FRigVMCompilerWorkData::FLazyBlockInfo>& BlockInfo = WorkData.LazyBlocks.FindChecked(NextBlockHash.GetValue());
+
+			// if we are hitting the block for the first time - let's register the execution state operand
+			if(WorkData.bSetupMemory)
+			{
+				if(!BlockInfo->ExecuteStateOperand.IsValid())
+				{
+					static constexpr TCHAR Format[] = TEXT("BlockExecuteState_%zu");
+					const FString BlockStateName = FString::Printf(Format, NextBlockHash.GetValue());
+					BlockInfo->ExecuteStateOperand = WorkData.AddProperty(
+						ERigVMMemoryType::Work,
+						*BlockStateName,
+						FRigVMInstructionSetExecuteState::StaticStruct()->GetStructCPPName(),
+						FRigVMInstructionSetExecuteState::StaticStruct()
+					);
+				}
+			}
+			else
+			{
+				check(BlockInfo->ExecuteStateOperand.IsValid());
+
+				FRigVMByteCode& ByteCode = WorkData.VM->GetByteCode();
+
+				// add an operator to invoke the block lazily
+				const int32 RunInstructionsOpIndex = ByteCode.GetNumInstructions();
+				BlockInfo->RunInstructionsToUpdate.Add(
+					ByteCode.AddRunInstructionsOp(BlockInfo->ExecuteStateOperand, INDEX_NONE, INDEX_NONE)
+				);
+				if (WorkData.Settings.SetupNodeInstructionIndex)
+				{
+					const FRigVMCallstack Callstack = InExpr->GetProxy().GetCallstack();
+					if(Callstack.Num() > 0)
+					{
+						WorkData.VM->GetByteCode().SetSubject(RunInstructionsOpIndex, Callstack.GetCallPath(), Callstack.GetStack());
+					}
+				}
+
+				// mark the block to be processed
+				if(!BlockInfo->bProcessed)
+				{
+					WorkData.LazyBlocksToProcess.AddUnique(NextBlockHash.GetValue());
+				}
+
+				// return here and stop traversal
+				return true;
+			}
+		}
+	}
+
+	if(!WorkData.bSetupMemory)
+	{
+		// skip any expression which is not part of this block
+		if(WorkData.CurrentBlockHash.IsSet())
+		{
+			const TOptional<uint32> NextBlockHash = InExpr->GetBlockCombinationHash();
+			if(WorkData.CurrentBlockHash != NextBlockHash)
+			{
+				return true;
+			}
+		}
+	}
+
 	if (WorkData.ExprComplete.Contains(InExpr))
 	{
 		return true;
 	}
 	WorkData.ExprComplete.Add(InExpr, true);
 
+	struct FTraversalGuard
+	{
+		FTraversalGuard(const FRigVMExprAST* InExpr, FRigVMCompilerWorkData& InWorkData)
+			: WorkData(InWorkData)
+		{
+			WorkData.TraversalExpressions.Push(InExpr);
+		}
+
+		~FTraversalGuard()
+		{
+			WorkData.TraversalExpressions.Pop();
+		}
+		
+		FRigVMCompilerWorkData& WorkData;
+	};
+
+	const FTraversalGuard TraversalGuard(InExpr, WorkData);
+	
 	switch (InExpr->GetType())
 	{
 		case FRigVMExprAST::EType::Block:
@@ -2304,10 +2479,16 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 			int32 StartIndex = MemoryType == ERigVMMemoryType::Work ? NumProperties : 0;
 			for (int32 PropertyIndex = StartIndex; PropertyIndex < Properties.Num(); ++PropertyIndex)
 			{
+				static const FString RigVMInstructionSetExecuteStateName = FRigVMInstructionSetExecuteState::StaticStruct()->GetStructCPPName();
+				
 				const FRigVMFunctionCompilationPropertyDescription& Description = Properties[PropertyIndex];
 				FString NewName = Description.Name.ToString();
 				static const FString FunctionLibraryPrefix = TEXT("FunctionLibrary");
-				if (NewName.StartsWith(FunctionLibraryPrefix))
+
+				// instantiate function library specific work state as well as
+				// instruction set execute state - which is used for lazy blocks.
+				if (NewName.StartsWith(FunctionLibraryPrefix) ||
+					Description.CPPType.Equals(RigVMInstructionSetExecuteStateName))
 				{
 					NewName = FString::Printf(TEXT("%s%s"), *FunctionReferenceNode->GetNodePath(), *NewName.RightChop(FunctionLibraryPrefix.Len()));
 					FRigVMPropertyDescription::SanitizeName(NewName);
@@ -2490,11 +2671,16 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				const int32 FunctionIndex = WorkData.VM->AddRigVMFunction(FunctionCompilationData->FunctionNames[Op.FunctionIndex].ToString());
 				Op.FunctionIndex = FunctionIndex;
 			}
-
-			if (Instruction.OpCode == ERigVMOpCode::JumpToBranch)
+			else if (Instruction.OpCode == ERigVMOpCode::JumpToBranch)
 			{
 				FRigVMJumpToBranchOp& Op = ByteCode.GetOpAt<FRigVMJumpToBranchOp>(Instruction);
 				Op.FirstBranchInfoIndex = Op.FirstBranchInfoIndex + BranchIndexStart;
+			}
+			else if (Instruction.OpCode == ERigVMOpCode::RunInstructions)
+			{
+				FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+				Op.StartInstruction = Op.StartInstruction + InstructionIndexStart;
+				Op.EndInstruction = Op.EndInstruction + InstructionIndexStart;
 			}
 
 			if (WorkData.Settings.SetupNodeInstructionIndex)

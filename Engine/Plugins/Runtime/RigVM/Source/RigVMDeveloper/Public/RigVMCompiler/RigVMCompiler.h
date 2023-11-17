@@ -139,6 +139,7 @@ public:
 	TMap<const FRigVMVarExprAST*, FRigVMOperand> ExprToOperand;
 	TMap<const FRigVMExprAST*, bool> ExprComplete;
 	TArray<const FRigVMExprAST*> ExprToSkip;
+	TArray<const FRigVMExprAST*> TraversalExpressions;
 	TMap<FString, int32> ProcessedLinks;
 	TMap<int32, FRigVMOperand> IntegerLiterals;
 	FRigVMOperand ComparisonOperand;
@@ -195,6 +196,28 @@ public:
 
 	// operators that have been delayed for injection into the bytecode
 	TMap<FRigVMOperand, FCopyOpInfo> DeferredCopyOps;
+
+	struct FLazyBlockInfo
+	{
+		FLazyBlockInfo()
+			: StartInstruction(INDEX_NONE)
+			, EndInstruction(INDEX_NONE)
+			, bProcessed(false)
+		{}
+
+		TOptional<uint32> Hash;
+		FString BlockCombinationName;
+		FRigVMOperand ExecuteStateOperand;
+		int32 StartInstruction;
+		int32 EndInstruction;
+		TArray<const FRigVMExprAST*> Expressions;
+		TArray<uint64> RunInstructionsToUpdate;
+		bool bProcessed;
+	};
+
+	TMap<uint32, TSharedPtr<FLazyBlockInfo>> LazyBlocks;
+	TArray<uint32> LazyBlocksToProcess;
+	TOptional<uint32> CurrentBlockHash;
 
 	void ReportInfo(const FString& InMessage) const;
 	void ReportWarning(const FString& InMessage) const;

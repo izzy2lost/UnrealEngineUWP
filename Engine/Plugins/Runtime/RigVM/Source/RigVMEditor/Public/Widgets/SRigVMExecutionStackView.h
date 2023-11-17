@@ -104,6 +104,13 @@ private:
 	/** Offers a dialog to move to a specific instruction */
 	void HandleGoToInstruction();
 
+	/** Selects the target instructions for the current selection */
+	void HandleSelectTargetInstructions();
+
+	TArray<TSharedPtr<FRigStackEntry>> GetTargetItems(const TArray<TSharedPtr<FRigStackEntry>>& InItems) const;
+
+	void UpdateTargetItemHighlighting();
+
 	void OnVMCompiled(UObject* InCompiledObject, URigVM* InCompiledVM, FRigVMExtendedExecuteContext& InVMContext);
 
 	//* Focus on the instruction when the execution is halted */

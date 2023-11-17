@@ -865,6 +865,12 @@ FString FRigVMCodeGenerator::DumpInstructions(const FRigVMExtendedExecuteContext
 				}
 				break;
 			}
+			case ERigVMOpCode::RunInstructions:
+			{
+				const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+				// todo
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			case ERigVMOpCode::ChangeType:
 			default:
@@ -1407,6 +1413,12 @@ void FRigVMCodeGenerator::ParseInstructionGroups(const FRigVMExtendedExecuteCont
 						}
 						break;
 					}
+					case ERigVMOpCode::RunInstructions:
+					{
+						const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+						// todo
+						break;
+					}
 					default:
 					{
 						break;
@@ -1554,6 +1566,12 @@ void FRigVMCodeGenerator::ParseInstructionGroups(const FRigVMExtendedExecuteCont
 							Group.RequiredLabels.AddUnique((int32)Branches[BranchIndex].FirstInstruction);
 						}
 					}
+					break;
+				}
+				case ERigVMOpCode::RunInstructions:
+				{
+					const FRigVMRunInstructionsOp& Op = ByteCode.GetOpAt<FRigVMRunInstructionsOp>(Instruction);
+					// todo
 					break;
 				}
 				default:
