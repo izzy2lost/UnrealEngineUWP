@@ -414,31 +414,28 @@ public:
 	// FResource interface.
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		if (SupportsTextureCubeArray(GetFeatureLevel()))
+		const TCHAR* Name = TEXT("BlackCubeArray");
+
+		const FRHITextureCreateDesc Desc =
+			FRHITextureCreateDesc::CreateCubeArray(TEXT("BlackCubeArray"), 1, 1, PF_B8G8R8A8)
+			.SetFlags(ETextureCreateFlags::ShaderResource)
+			.SetClassName(TEXT("FBlackCubeArrayTexture"));
+
+		// Create the texture RHI.
+		TextureRHI = RHICreateTexture(Desc);
+
+		for (uint32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
 		{
-			const TCHAR* Name = TEXT("BlackCubeArray");
-
-			const FRHITextureCreateDesc Desc =
-				FRHITextureCreateDesc::CreateCubeArray(TEXT("BlackCubeArray"), 1, 1, PF_B8G8R8A8)
-				.SetFlags(ETextureCreateFlags::ShaderResource)
-				.SetClassName(TEXT("FBlackCubeArrayTexture"));
-
-			// Create the texture RHI.
-			TextureRHI = RHICreateTexture(Desc);
-
-			for (uint32 FaceIndex = 0; FaceIndex < 6; FaceIndex++)
-			{
-				uint32 DestStride;
-				FColor* DestBuffer = (FColor*)RHILockTextureCubeFace(TextureRHI, FaceIndex, 0, 0, RLM_WriteOnly, DestStride, false);
-				// Note: alpha is used by reflection environment to say how much of the foreground texture is visible, so 0 says it is completely invisible
-				*DestBuffer = FColor(0, 0, 0, 0);
-				RHIUnlockTextureCubeFace(TextureRHI, FaceIndex, 0, 0, false);
-			}
-
-			// Create the sampler state RHI resource.
-			FSamplerStateInitializerRHI SamplerStateInitializer(SF_Point, AM_Wrap, AM_Wrap, AM_Wrap);
-			SamplerStateRHI = GetOrCreateSamplerState(SamplerStateInitializer);
+			uint32 DestStride;
+			FColor* DestBuffer = (FColor*)RHILockTextureCubeFace(TextureRHI, FaceIndex, 0, 0, RLM_WriteOnly, DestStride, false);
+			// Note: alpha is used by reflection environment to say how much of the foreground texture is visible, so 0 says it is completely invisible
+			*DestBuffer = FColor(0, 0, 0, 0);
+			RHIUnlockTextureCubeFace(TextureRHI, FaceIndex, 0, 0, false);
 		}
+
+		// Create the sampler state RHI resource.
+		FSamplerStateInitializerRHI SamplerStateInitializer(SF_Point, AM_Wrap, AM_Wrap, AM_Wrap);
+		SamplerStateRHI = GetOrCreateSamplerState(SamplerStateInitializer);
 	}
 
 	virtual uint32 GetSizeX() const override { return 1; }
