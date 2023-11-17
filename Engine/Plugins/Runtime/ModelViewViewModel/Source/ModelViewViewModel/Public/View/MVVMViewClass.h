@@ -58,6 +58,11 @@ public:
 	{
 		return (Flags & (uint8)ESourceFlags::CanBeEvaluated) != 0;
 	}
+	
+	bool IsOptional() const
+	{
+		return (Flags & (uint8)ESourceFlags::IsOptional) != 0;
+	}
 
 	FName GetSourceName() const
 	{
@@ -125,6 +130,7 @@ private:
 		IsOptional = 1 << 2,
 		CanBeSet = 1 << 3,
 		CanBeEvaluated = 1 << 4,
+		SelfReference = 1 << 5,
 	};
 
 	UPROPERTY()

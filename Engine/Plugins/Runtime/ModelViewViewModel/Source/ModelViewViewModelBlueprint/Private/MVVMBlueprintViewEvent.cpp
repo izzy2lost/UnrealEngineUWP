@@ -13,6 +13,7 @@
 
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/EdGraphPin.h"
+#include "GraphEditAction.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
@@ -61,6 +62,32 @@ void UMVVMBlueprintViewEvent::SetDestinationPath(FMVVMBlueprintPropertyPath InDe
 	CreateWrapperGraphInternal();
 	SavePinValues();
 }
+
+void UMVVMBlueprintViewEvent::SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node)
+{
+	if (CachedWrapperNode && OnUserDefinedPinRenamedHandle.IsValid())
+	{
+		CachedWrapperNode->OnUserDefinedPinRenamed().Remove(OnUserDefinedPinRenamedHandle);
+	}
+	if (CachedWrapperGraph && OnGraphChangedHandle.IsValid())
+	{
+		CachedWrapperGraph->RemoveOnGraphChangedHandler(OnGraphChangedHandle);
+	}
+
+	CachedWrapperGraph = Graph;
+	CachedWrapperNode = Node;
+	OnGraphChangedHandle.Reset();
+	OnUserDefinedPinRenamedHandle.Reset();
+
+	if (CachedWrapperGraph)
+	{
+		OnGraphChangedHandle = CachedWrapperGraph->AddOnGraphChangedHandler(FOnGraphChanged::FDelegate::CreateUObject(this, &UMVVMBlueprintViewEvent::HandleGraphChanged));
+	}
+	if (CachedWrapperNode)
+	{
+		OnUserDefinedPinRenamedHandle = CachedWrapperNode->OnUserDefinedPinRenamed().AddUObject(this, &UMVVMBlueprintViewEvent::HandleUserDefinedPinRenamed);
+	}
+}
 	
 UEdGraph* UMVVMBlueprintViewEvent::GetOrCreateWrapperGraph()
 {
@@ -78,8 +105,7 @@ void UMVVMBlueprintViewEvent::RemoveWrapperGraph()
 	if (CachedWrapperGraph)
 	{
 		FBlueprintEditorUtils::RemoveGraph(GetWidgetBlueprintInternal(), CachedWrapperGraph);
-		CachedWrapperGraph = nullptr;
-		CachedWrapperNode = nullptr;
+		SetCachedWrapperGraphInternal(nullptr, nullptr);
 	}
 
 	Messages.Empty();
@@ -100,15 +126,8 @@ void UMVVMBlueprintViewEvent::SavePinValues()
 {
 	if (CachedWrapperNode)
 	{
-		SavedPins.Reset();
 		UWidgetBlueprint* Blueprint = GetWidgetBlueprintInternal();
-		for (UEdGraphPin* Pin : CachedWrapperNode->Pins)
-		{
-			if (Pin->PinName != UEdGraphSchema_K2::PN_Self && Pin->PinName != UEdGraphSchema_K2::PN_Execute && Pin->Direction == EGPD_Input)
-			{
-				SavedPins.Add(FMVVMBlueprintPin::CreateFromPin(Blueprint, Pin));
-			}
-		}
+		SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
 	}
 }
 
@@ -231,8 +250,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* D
 	bool bIsConst = false;
 	bool bTransient = true;
 	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, Function, bIsConst, bTransient);
-	CachedWrapperGraph = Result.Get<0>();
-	CachedWrapperNode = Result.Get<1>();
+	SetCachedWrapperGraphInternal(Result.Get<0>(), Result.Get<1>());
 
 	// Add SelfNode if needed
 	if (CachedWrapperNode)
@@ -266,8 +284,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* D
 			UK2Node_VariableSet* VariableNode = CastChecked<UK2Node_VariableSet>(NewNode);
 			UEdGraphSchema_K2::ConfigureVarNode(VariableNode, Property->GetFName(), Property->GetOwnerStruct(), WidgetBlueprint);
 		});
-	CachedWrapperGraph = Result.Get<0>();
-	CachedWrapperNode = Result.Get<1>();
+	SetCachedWrapperGraphInternal(Result.Get<0>(), Result.Get<1>());
 
 	// Add SelfNode
 	if (CachedWrapperNode)
@@ -291,37 +308,8 @@ void UMVVMBlueprintViewEvent::LoadPinValuesInternal()
 {
 	if (CachedWrapperNode)
 	{
-		TArray<UEdGraphPin*> AllPins;
-		AllPins.Reserve(CachedWrapperNode->Pins.Num());
-		for (UEdGraphPin* Pin : CachedWrapperNode->Pins)
-		{
-			if (Pin->PinName != UEdGraphSchema_K2::PN_Self && Pin->PinName != UEdGraphSchema_K2::PN_Execute && Pin->Direction == EGPD_Input)
-			{
-				AllPins.Add(Pin);
-			}
-		}
-
-		UBlueprint* Blueprint = GetWidgetBlueprintInternal();
-		for (int32 Index = SavedPins.Num() - 1; Index >= 0; --Index)
-		{
-			const FMVVMBlueprintPin& Pin = SavedPins[Index];
-			if (UEdGraphPin* GraphPin = CachedWrapperNode->FindPin(Pin.GetName()))
-			{
-				AllPins.RemoveSingleSwap(GraphPin);
-				Pin.CopyTo(Blueprint, GraphPin);
-			}
-			else
-			{
-				// pin doesn't exist anymore
-				SavedPins.RemoveAt(Index);
-			}
-		}
-
-		// Create the reminding pin.
-		for (UEdGraphPin* Pin : AllPins)
-		{
-			SavedPins.Add(FMVVMBlueprintPin::CreateFromPin(Blueprint, Pin));
-		}
+		TArray<FMVVMBlueprintPin> MissingPins = FMVVMBlueprintPin::CopyAndReturnMissingPins(GetWidgetBlueprintInternal(), CachedWrapperNode, SavedPins);
+		SavedPins.Append(MissingPins);
 	}
 }
 
@@ -347,7 +335,7 @@ bool UMVVMBlueprintViewEvent::HasCompilationMessage(EMessageType InMessageType) 
 	});
 }
 
-void UMVVMBlueprintViewEvent::AddCompilationToBinding(FMessage MessageToAdd)
+void UMVVMBlueprintViewEvent::AddCompilationToBinding(FMessage MessageToAdd) const
 {
 	Messages.Add(MoveTemp(MessageToAdd));
 }
@@ -397,6 +385,42 @@ FString UMVVMBlueprintViewEvent::GetSearchableString() const
 	}
 	Builder << TEXT(')');
 	return Builder.ToString();
+}
+
+void UMVVMBlueprintViewEvent::HandleGraphChanged(const FEdGraphEditAction& EditAction)
+{
+	if (EditAction.Graph == CachedWrapperGraph && CachedWrapperGraph)
+	{
+		if (CachedWrapperNode && EditAction.Nodes.Contains(CachedWrapperNode))
+		{
+			if (EditAction.Action == EEdGraphActionType::GRAPHACTION_RemoveNode)
+			{
+				CachedWrapperNode = UE::MVVM::ConversionFunctionHelper::GetWrapperNode(CachedWrapperGraph);
+				SavePinValues();
+				OnWrapperGraphModified.Broadcast();
+			}
+			else if (EditAction.Action == EEdGraphActionType::GRAPHACTION_EditNode)
+			{
+				SavePinValues();
+				OnWrapperGraphModified.Broadcast();
+			}
+		}
+		else if (CachedWrapperNode == nullptr && EditAction.Action == EEdGraphActionType::GRAPHACTION_AddNode)
+		{
+			CachedWrapperNode = UE::MVVM::ConversionFunctionHelper::GetWrapperNode(CachedWrapperGraph);
+			SavePinValues();
+			OnWrapperGraphModified.Broadcast();
+		}
+	}
+}
+
+void UMVVMBlueprintViewEvent::HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
+{
+	if (InNode == CachedWrapperNode)
+	{
+		SavePinValues();
+		OnWrapperGraphModified.Broadcast();
+	}
 }
 
 void UMVVMBlueprintViewEvent::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent)

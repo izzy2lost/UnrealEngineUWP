@@ -98,6 +98,7 @@ private:
 	TSharedRef<SWidget> HandleAddViewModelContextMenu();
 
 	EVisibility GetWarningPanelVisibility() const;
+	FText GetWarningMessage() const;
 	FReply HandleDisableWarningPanel();
 
 	void CreateCommandList();
