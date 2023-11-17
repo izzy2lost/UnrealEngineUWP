@@ -36,6 +36,11 @@ namespace Horde.Server.Telemetry.Metrics
 		/// Average all the samples
 		/// </summary>
 		Average,
+
+		/// <summary>
+		/// Estimates the value at a certain percentile
+		/// </summary>
+		Percentile,
 	}
 
 	/// <summary>
@@ -62,6 +67,11 @@ namespace Horde.Server.Telemetry.Metrics
 		/// How to aggregate samples for this metric
 		/// </summary>
 		public AggregationFunction Function { get; set; }
+
+		/// <summary>
+		/// For the percentile function, specifies the percentile to measure
+		/// </summary>
+		public int Percentile { get; set; } = 95;
 
 		/// <summary>
 		/// Interval for each metric. Supports times such as "2d", "1h", "1h30m", "20s".

@@ -17,6 +17,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using TDigestNet;
 
 namespace Horde.Server.Telemetry.Metrics
 {
@@ -40,6 +41,9 @@ namespace Horde.Server.Telemetry.Metrics
 
 			[BsonElement("count")]
 			public int Count { get; set; }
+
+			[BsonElement("state")]
+			public byte[]? State { get; set; }
 		}
 
 		record class SampleKey(MetricId Metric, string Group, DateTime Time);
@@ -226,32 +230,42 @@ namespace Horde.Server.Telemetry.Metrics
 				MetricDocument metric = await _metrics.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<MetricDocument, MetricDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
 
 				// Combine the samples
+				TDigest digest = (metric.Count == 0) ? new TDigest() : TDigest.Deserialize(metric.State);
+				foreach (double value in values)
+				{
+					digest.Add(value); 
+				}
+				metric.State = digest.Serialize();
+
+				// Save the previous count of samples to sequence updates to the document
+				int prevCount = metric.Count;
+				metric.Count += values.Count;
+
+				// Update the current value
 				switch (metricConfig.Function)
 				{
 					case AggregationFunction.Count:
+						metric.Value = metric.Count;
 						break;
 					case AggregationFunction.Min:
-						double minValue = values.Min();
-						metric.Value = (metric.Count == 0) ? minValue : Math.Min(minValue, metric.Value);
+						metric.Value = digest.Min;
 						break;
 					case AggregationFunction.Max:
-						double maxValue = values.Max();
-						metric.Value = (metric.Count == 0) ? maxValue : Math.Max(maxValue, metric.Value);
+						metric.Value = digest.Max;
 						break;
 					case AggregationFunction.Sum:
 						metric.Value += values.Sum();
 						break;
 					case AggregationFunction.Average:
-						metric.Value += values.Sum();
+						metric.Value = digest.Average;
+						break;
+					case AggregationFunction.Percentile:
+						metric.Value = digest.Quantile(metricConfig.Percentile / 100.0);
 						break;
 					default:
 						_logger.LogWarning("Unhandled aggregation function '{Function}'", metricConfig.Function);
 						break;
 				}
-
-				// Use the previous count of samples to sequence updates to the document
-				int prevCount = metric.Count;
-				metric.Count += values.Count;
 
 				// Update the document
 				ReplaceOneResult result = await _metrics.ReplaceOneAsync(x => x.Id == metric.Id && x.Count == prevCount, metric, cancellationToken: cancellationToken);

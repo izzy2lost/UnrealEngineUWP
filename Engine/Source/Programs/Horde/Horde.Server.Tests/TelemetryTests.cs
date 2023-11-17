@@ -144,9 +144,12 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task FunctionTestAsync()
 		{
+			await SingleFunctionTestAsync(AggregationFunction.Count, new double[] { 5, 4, 3, -1, 2 }, 5);
 			await SingleFunctionTestAsync(AggregationFunction.Min, new double[] { 5, 4, 3, -1, 2 }, -1);
 			await SingleFunctionTestAsync(AggregationFunction.Max, new double[] { 5, 4, 3, -1, 2 }, 5);
 			await SingleFunctionTestAsync(AggregationFunction.Sum, new double[] { 5, 4, 3, -1, 2 }, 13);
+			await SingleFunctionTestAsync(AggregationFunction.Average, new double[] { 5, 4, 3, -1, 2 }, 2.6);
+			await SingleFunctionTestAsync(AggregationFunction.Percentile, new double[] { 5, 4, 3, -1, 2 }, 4.25);
 		}
 
 		async Task SingleFunctionTestAsync(AggregationFunction function, double[] values, double result)
@@ -158,6 +161,7 @@ namespace Horde.Server.Tests
 			metricConfig.Function = function;
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+			metricConfig.Percentile = 75;
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Metrics.Add(metricConfig);

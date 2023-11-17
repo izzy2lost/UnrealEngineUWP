@@ -68,6 +68,7 @@
     <PackageReference Include="StackExchange.Redis" Version="2.6.70" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
+    <PackageReference Include="T-Digest.NET" Version="1.0.3" />
     <PackageReference Include="TimeZoneConverter" Version="6.0.1" />
   </ItemGroup>
 
