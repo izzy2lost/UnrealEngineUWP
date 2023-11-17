@@ -5734,7 +5734,12 @@ FORCEINLINE static void MarkAsReachable(const UObject* Obj)
 
 void UObject::MarkAsReachable() const
 {
-	::MarkAsReachable<false>(this);
+	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
+	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
+	UE_AUTORTFM_OPEN(
+	{
+		::MarkAsReachable<false>(this);
+	});
 }
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)

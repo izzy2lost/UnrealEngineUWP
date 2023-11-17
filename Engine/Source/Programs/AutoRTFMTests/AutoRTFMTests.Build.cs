@@ -12,6 +12,7 @@ public class AutoRTFMTests : ModuleRules
 			new string[] {
 				"Catch2Extras",
 				"Core",
+				"CoreUObject",
 				"ApplicationCore",
 				"Projects",
 			}

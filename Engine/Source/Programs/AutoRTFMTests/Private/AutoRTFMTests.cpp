@@ -11,9 +11,21 @@ class SetupListener : public Catch::EventListenerBase {
 public:
 	using Catch::EventListenerBase::EventListenerBase;
 
-	void testRunStarting(Catch::TestRunInfo const&) override
+	void testRunStarting(const Catch::TestRunInfo&) override
 	{
+		GEngineLoop.PreInit(0, nullptr);
+		FModuleManager::Get().StartProcessingNewlyLoadedObjects();
+
 		AutoRTFM::SetAutoRTFMRuntime(true);
+	}
+
+	void testRunEnded(const Catch::TestRunStats&) override
+	{
+		FEngineLoop::AppPreExit();
+		FModuleManager::Get().UnloadModulesAtShutdown();
+		FEngineLoop::AppExit();
+
+		FPlatformMisc::RequestExit(false);
 	}
 };
 

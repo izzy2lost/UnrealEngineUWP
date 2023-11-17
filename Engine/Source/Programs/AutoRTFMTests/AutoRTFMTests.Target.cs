@@ -15,9 +15,8 @@ public class AutoRTFMTestsTarget : TargetRules
 		Name = "AutoRTFMTests";
 		LaunchModuleName = "AutoRTFMTests";
 
-		// Compile out references from Core to the rest of the engine
 		bCompileAgainstEngine = false;
-		bCompileAgainstCoreUObject = false;
+		bCompileAgainstCoreUObject = true;
 
 		// Logs are still useful to print the results
 		bUseLoggingInShipping = true;
