@@ -108,6 +108,29 @@ namespace UE::MovieGraph::DefaultRenderer
 		}
 	};
 
+	struct FMovieGraphImagePreviewDataPoolParams
+	{
+		/** The size of the render target, and the depth requested. */
+		FRenderTargetInitParams RenderInitParams;
+		/** Identifier for which render resource this is used by. */
+		FMovieGraphRenderDataIdentifier Identifier;
+
+		bool operator == (const FMovieGraphImagePreviewDataPoolParams& InRHS) const
+		{
+			return RenderInitParams == InRHS.RenderInitParams && Identifier == InRHS.Identifier;
+		}
+
+		bool operator != (const FMovieGraphImagePreviewDataPoolParams& InRHS) const
+		{
+			return !(*this == InRHS);
+		}
+
+		friend uint32 GetTypeHash(FMovieGraphImagePreviewDataPoolParams Params)
+		{
+			return HashCombineFast(GetTypeHash(Params.RenderInitParams), GetTypeHash(Params.Identifier));
+		}
+	};
+
 	struct FSurfaceAccumulatorPool : public TSharedFromThis<FSurfaceAccumulatorPool>
 	{
 		struct FInstance
@@ -233,7 +256,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphDefaultRenderer : public UMovieGrap
 
 public:
 	// UMovieGraphRendererBase Interface
-	virtual UTexture* GetPreviewTexture() const override;
+	virtual TArray<FMovieGraphImagePreviewData> GetPreviewData() const override;
 	virtual void Render(const FMovieGraphTimeStepData& InTimeData) override;
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
@@ -250,7 +273,7 @@ public:
 	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
 	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
 public:
-	UTextureRenderTarget2D* GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
+	UTextureRenderTarget2D* GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams, const FMovieGraphRenderDataIdentifier& InIdentifier);
 	FMoviePipelineSurfaceQueuePtr GetOrCreateSurfaceQueue(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams);
 	
 	template <typename AccumulatorType>
@@ -291,7 +314,7 @@ protected:
 	* because we queue a copy onto a FMoviePipelineSurface so the only reason it is needed
 	* is for display in the UI.
 	*/
-	TMap<UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams, TObjectPtr<UTextureRenderTarget2D>> PooledViewRenderTargets;
+	TMap<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>> PooledViewRenderTargets;
 
 	/*
 	* This is a list of Surfaces that we can copy our render target to immediately after

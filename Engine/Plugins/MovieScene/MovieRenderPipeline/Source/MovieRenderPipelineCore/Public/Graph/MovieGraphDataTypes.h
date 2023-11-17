@@ -31,6 +31,24 @@ namespace UE::MovieGraph
 }
 
 USTRUCT(BlueprintType)
+struct FMovieGraphImagePreviewData
+{
+	GENERATED_BODY()
+
+	FMovieGraphImagePreviewData()
+	: Texture(nullptr)
+	{}
+
+	/** The texture this preview image was rendered to. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	class UTexture* Texture;
+	
+	/** The identifier for the image, containing the render layer name, renderer, etc. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FMovieGraphRenderDataIdentifier Identifier;
+};
+
+USTRUCT(BlueprintType)
 struct MOVIERENDERPIPELINECORE_API FMovieGraphInitConfig
 {
 	GENERATED_BODY()
@@ -190,10 +208,10 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphRendererBase : public UObject
 {
 	GENERATED_BODY()
 public:
-	/** Get an texture that can be used to see what the Renderer is producing for the in-game overlay. */
-	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	virtual UTexture* GetPreviewTexture() const { return nullptr; }
-
+	/** Get an array of image previews that are valid this frame. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	virtual TArray<FMovieGraphImagePreviewData> GetPreviewData() const { return TArray<FMovieGraphImagePreviewData>(); }
+		
 	virtual void Render(const FMovieGraphTimeStepData& InTimeData) {}
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}

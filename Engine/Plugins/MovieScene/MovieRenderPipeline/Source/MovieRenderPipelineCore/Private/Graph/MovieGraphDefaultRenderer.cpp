@@ -173,7 +173,7 @@ void UMovieGraphDefaultRenderer::AddReferencedObjects(UObject* InThis, FReferenc
 	UMovieGraphDefaultRenderer* This = CastChecked<UMovieGraphDefaultRenderer>(InThis);
 
 	// Can't be a const& due to AddStableReference API
-	for (TPair<UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams, TObjectPtr<UTextureRenderTarget2D>>& KVP : This->PooledViewRenderTargets)
+	for (TPair<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>>& KVP : This->PooledViewRenderTargets)
 	{
 		Collector.AddStableReference(&KVP.Value);
 	}
@@ -373,15 +373,19 @@ UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCame
 	return CameraInfo;
 }
 
-UTextureRenderTarget2D* UMovieGraphDefaultRenderer::GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams)
+UTextureRenderTarget2D* UMovieGraphDefaultRenderer::GetOrCreateViewRenderTarget(const UE::MovieGraph::DefaultRenderer::FRenderTargetInitParams& InInitParams, const FMovieGraphRenderDataIdentifier& InIdentifier)
 {
-	if (const TObjectPtr<UTextureRenderTarget2D>* ExistingViewRenderTarget = PooledViewRenderTargets.Find(InInitParams))
+	UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams CombinedParams;
+	CombinedParams.RenderInitParams = InInitParams;
+	CombinedParams.Identifier = InIdentifier;
+
+	if (const TObjectPtr<UTextureRenderTarget2D>* ExistingViewRenderTarget = PooledViewRenderTargets.Find(CombinedParams))
 	{
 		return *ExistingViewRenderTarget;
 	}
 
 	const TObjectPtr<UTextureRenderTarget2D> NewViewRenderTarget = CreateViewRenderTarget(InInitParams);
-	PooledViewRenderTargets.Emplace(InInitParams, NewViewRenderTarget);
+	PooledViewRenderTargets.Emplace(CombinedParams, NewViewRenderTarget);
 
 	return NewViewRenderTarget.Get();
 }
@@ -425,15 +429,18 @@ UE::MovieGraph::FRenderTimeStatistics* UMovieGraphDefaultRenderer::GetRenderTime
 	return &RenderTimeStatistics.FindOrAdd(InFrameNumber);
 }
 
-UTexture* UMovieGraphDefaultRenderer::GetPreviewTexture() const
-{
+TArray<FMovieGraphImagePreviewData> UMovieGraphDefaultRenderer::GetPreviewData() const
+{ 
+	TArray<FMovieGraphImagePreviewData> Results;
+
 	TArray<TObjectPtr<UTextureRenderTarget2D>> PooledTargets;
 	PooledViewRenderTargets.GenerateValueArray(PooledTargets);
 
-	if (PooledTargets.Num() > 0)
+	for (const TObjectPtr<UTextureRenderTarget2D>& Target : PooledTargets)
 	{
-		return PooledTargets[0];
+		FMovieGraphImagePreviewData& Data = Results.AddDefaulted_GetRef();
+		Data.Texture = Target.Get();
 	}
 
-	return nullptr;
+	return Results;
 }

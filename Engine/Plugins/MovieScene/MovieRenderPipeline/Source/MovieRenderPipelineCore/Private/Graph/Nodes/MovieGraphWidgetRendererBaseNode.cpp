@@ -111,7 +111,7 @@ void UMovieGraphWidgetRendererBaseNode::FMovieGraphWidgetPass::Render(const FMov
 	RenderTargetInitParams.Size = OutputResolution;
 	RenderTargetInitParams.TargetGamma = FOpenColorIORendering::DefaultDisplayGamma;
 	RenderTargetInitParams.PixelFormat = PF_B8G8R8A8;
-	UTextureRenderTarget2D* RenderTarget = Renderer->GetOrCreateViewRenderTarget(RenderTargetInitParams);
+	UTextureRenderTarget2D* RenderTarget = Renderer->GetOrCreateViewRenderTarget(RenderTargetInitParams, RenderDataIdentifier);
 
 	if (InFrameTraversalContext.Time.bIsFirstTemporalSampleForFrame)
 	{
