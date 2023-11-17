@@ -502,7 +502,7 @@ struct FOpenGLES : public FOpenGLBase
 		glUniform4uiv(Location, Count, Value);
 	}
 
-	static FORCEINLINE bool SupportsProgramBinary() { return true; }
+	static FORCEINLINE bool SupportsProgramBinary() { return bSupportsProgramBinary; }
 
 	static FORCEINLINE void GetProgramBinary(GLuint Program, GLsizei BufSize, GLsizei* Length, GLenum* BinaryFormat, void* Binary)
 	{

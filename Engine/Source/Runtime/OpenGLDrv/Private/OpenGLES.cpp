@@ -147,6 +147,9 @@ GLint FOpenGLES::MaxCombinedUAVUnits = 0;
 /** GL_EXT_texture_compression_astc_decode_mode */
 bool FOpenGLES::bSupportsASTCDecodeMode = false;
 
+// GL_OES_get_program_binary
+bool FOpenGLES::bSupportsProgramBinary = false;
+
 FOpenGLES::EFeatureLevelSupport FOpenGLES::CurrentFeatureLevelSupport = FOpenGLES::EFeatureLevelSupport::ES31;
 
 bool FOpenGLES::SupportsDisjointTimeQueries()
@@ -274,6 +277,8 @@ void FOpenGLES::ProcessExtensions(const FString& ExtensionsString)
 		// indicates RHI supports on-chip MSAA but this device does not.
 		MaxMSAASamplesTileMem = 1;
 	}
+
+	bSupportsProgramBinary = ExtensionsString.Contains(TEXT("GL_OES_get_program_binary"));
 
 	bSupportsETC2 = true;
 	// According to https://www.khronos.org/registry/gles/extensions/EXT/EXT_color_buffer_float.txt
