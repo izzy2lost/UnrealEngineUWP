@@ -1072,7 +1072,7 @@ struct FOpenGLResourceBinder
 			}
 			else
 			{
-				RHI.InternalSetShaderTexture(nullptr, SRV, FirstTextureUnit + Index, SRV->Target, SRV->Resource, 0, SRV->LimitMip);
+				RHI.InternalSetShaderTexture(nullptr, SRV, FirstTextureUnit + Index, SRV->Target, SRV->Resource, 1, SRV->LimitMip);
 				SetSampler(RHI.GetPointSamplerState(), Index);
 			}
 		}
