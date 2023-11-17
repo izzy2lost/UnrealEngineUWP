@@ -2212,7 +2212,7 @@ void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type Co
 			NodeBeingChanged->OnRenameNode(NewText.ToString());
 		}
 
-		if (UPCGEditorGraphNodeBase* PCGEditorNode = CastChecked<UPCGEditorGraphNodeBase>(NodeBeingChanged))
+		if (UPCGEditorGraphNodeBase* PCGEditorNode = Cast<UPCGEditorGraphNodeBase>(NodeBeingChanged))
 		{
 			PCGEditorNode->ExitRenamingMode();
 		}
