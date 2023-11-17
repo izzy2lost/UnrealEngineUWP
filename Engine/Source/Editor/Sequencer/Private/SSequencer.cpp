@@ -876,7 +876,9 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 					+ SSplitter::Slot()
 					.Value(FillCoefficient_0)
-					.MinSize(200)
+					// Can't use a minsize here because the grid panel that is actually being used to
+					//   lay out the widgets only supports fill coefficients and this leads to a disparity between the two
+					// .MinSize(200)
 					.OnSlotResized(SSplitter::FOnSlotResized::CreateSP(this, &SSequencer::OnColumnFillCoefficientChanged, 0))
 					[
 						SNew(SSpacer)
