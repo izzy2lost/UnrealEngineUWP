@@ -5,7 +5,7 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGVolumeData.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGIntersectionDataTest, FPCGTestBaseClass, "pcg.tests.Intersection.Data", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGIntersectionDataTest, FPCGTestBaseClass, "Plugins.PCG.Intersection.Data", PCGTestsCommon::TestFlags)
 
 bool FPCGIntersectionDataTest::RunTest(const FString& Parameters)
 {

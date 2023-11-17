@@ -9,7 +9,7 @@
 #include "Elements/PCGPointExtentsModifier.h"
 #include "PCGContext.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGPointsBoundsModiferTest, FPCGTestBaseClass, "pcg.tests.PointExtentsModifier.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGPointsBoundsModiferTest, FPCGTestBaseClass, "Plugins.PCG.PointExtentsModifier.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGPointsBoundsModiferTest::RunTest(const FString& Parameters)
 {

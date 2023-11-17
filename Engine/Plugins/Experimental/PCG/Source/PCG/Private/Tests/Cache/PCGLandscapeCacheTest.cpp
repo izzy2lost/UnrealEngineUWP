@@ -6,7 +6,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGLandscapeCache_CalcSafeIndices, FPCGTestBaseClass, "pcg.tests.LandscapeCache.CalcSafeIndices", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGLandscapeCache_CalcSafeIndices, FPCGTestBaseClass, "Plugins.PCG.LandscapeCache.CalcSafeIndices", PCGTestsCommon::TestFlags)
 
 bool FPCGLandscapeCache_CalcSafeIndices::RunTest(const FString& Parameters)
 {

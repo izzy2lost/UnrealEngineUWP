@@ -9,7 +9,7 @@
 #include "Tests/Elements/PCGDataTableRowToParamDataTestHelpers.h"
 #include "Engine/DataTable.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDataTableRowToParamDataTest, FPCGTestBaseClass, "pcg.tests.DataTableRowToParamData.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDataTableRowToParamDataTest, FPCGTestBaseClass, "Plugins.PCG.DataTableRowToParamData.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGDataTableRowToParamDataTest::RunTest(const FString& Parameters)
 {
@@ -68,7 +68,7 @@ CCC,"C Name","C String","333","3333","3.3","3.33","(X=3.0,Y=3.0)","(X=3.0,Y=3.0,
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDataTableRowToParamDataTest_ParamsOverride, FPCGTestBaseClass, "pcg.tests.DataTableRowToParamData.ParamsOverride", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDataTableRowToParamDataTest_ParamsOverride, FPCGTestBaseClass, "Plugins.PCG.DataTableRowToParamData.ParamsOverride", PCGTestsCommon::TestFlags)
 
 bool FPCGDataTableRowToParamDataTest_ParamsOverride::RunTest(const FString& Parameters)
 {

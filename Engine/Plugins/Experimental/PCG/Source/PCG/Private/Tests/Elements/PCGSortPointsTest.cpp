@@ -30,7 +30,7 @@ namespace SortCommonTestData
 	}
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Basic, FPCGTestBaseClass, "pcg.tests.SortPoints.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Basic, FPCGTestBaseClass, "Plugins.PCG.SortPoints.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGSortPointsTest_Basic::RunTest(const FString& Parameters)
 {
@@ -53,7 +53,7 @@ bool FPCGSortPointsTest_Basic::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Ascending, FPCGTestBaseClass, "pcg.tests.SortPoints.Ascending", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Ascending, FPCGTestBaseClass, "Plugins.PCG.SortPoints.Ascending", PCGTestsCommon::TestFlags)
 
 bool FPCGSortPointsTest_Ascending::RunTest(const FString& Parameters)
 {
@@ -79,7 +79,7 @@ bool FPCGSortPointsTest_Ascending::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Descending, FPCGTestBaseClass, "pcg.tests.SortPoints.Descending", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_Descending, FPCGTestBaseClass, "Plugins.PCG.SortPoints.Descending", PCGTestsCommon::TestFlags)
 
 bool FPCGSortPointsTest_Descending::RunTest(const FString& Parameters)
 {
@@ -105,7 +105,7 @@ bool FPCGSortPointsTest_Descending::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_SameValues, FPCGTestBaseClass, "pcg.tests.SortPoints.SameValues", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSortPointsTest_SameValues, FPCGTestBaseClass, "Plugins.PCG.SortPoints.SameValues", PCGTestsCommon::TestFlags)
 
 bool FPCGSortPointsTest_SameValues::RunTest(const FString& Parameters)
 {

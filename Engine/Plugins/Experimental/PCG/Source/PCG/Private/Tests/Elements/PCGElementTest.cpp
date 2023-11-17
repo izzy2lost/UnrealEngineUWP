@@ -29,7 +29,7 @@ bool FPCGBadOutputNodeElement::ExecuteInternal(FPCGContext* Context) const
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGElementTest_CleanupAndValidateOutput, FPCGTestBaseClass, "pcg.tests.PCGElement.CleanupAndValidateOutput", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGElementTest_CleanupAndValidateOutput, FPCGTestBaseClass, "Plugins.PCG.PCGElement.CleanupAndValidateOutput", PCGTestsCommon::TestFlags)
 
 bool FPCGElementTest_CleanupAndValidateOutput::RunTest(const FString& Parameters)
 {

@@ -8,7 +8,7 @@
 
 #include "Elements/PCGDistance.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToPoint, FPCGTestBaseClass, "pcg.tests.Distance.PointToPoint", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToPoint, FPCGTestBaseClass, "Plugins.PCG.Distance.PointToPoint", PCGTestsCommon::TestFlags)
 
 bool FPCGDistanceTest_PointToPoint::RunTest(const FString& Parameters)
 {
@@ -65,7 +65,7 @@ bool FPCGDistanceTest_PointToPoint::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_SetDensity, FPCGTestBaseClass, "pcg.tests.Distance.SetDensity", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_SetDensity, FPCGTestBaseClass, "Plugins.PCG.Distance.SetDensity", PCGTestsCommon::TestFlags)
 
 bool FPCGDistanceTest_SetDensity::RunTest(const FString& Parameters)
 {
@@ -122,7 +122,7 @@ bool FPCGDistanceTest_SetDensity::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToSphere, FPCGTestBaseClass, "pcg.tests.Distance.PointToSphere", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToSphere, FPCGTestBaseClass, "Plugins.PCG.Distance.PointToSphere", PCGTestsCommon::TestFlags)
 
 bool FPCGDistanceTest_PointToSphere::RunTest(const FString& Parameters)
 {
@@ -187,7 +187,7 @@ bool FPCGDistanceTest_PointToSphere::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToBox, FPCGTestBaseClass, "pcg.tests.Distance.PointToBox", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDistanceTest_PointToBox, FPCGTestBaseClass, "Plugins.PCG.Distance.PointToBox", PCGTestsCommon::TestFlags)
 
 bool FPCGDistanceTest_PointToBox::RunTest(const FString& Parameters)
 {

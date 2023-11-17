@@ -19,7 +19,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGInActorAddComponentField, FPCGTestBaseClass, "Editor.Plugins.Tools.PCG.PCGInActorAddComponentField", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGInActorAddComponentField, FPCGTestBaseClass, "Plugins.PCG.Display.PCGInActorAddComponentField", PCGTestsCommon::TestFlags)
 
 ULevel* LoadLevelByTemplateName(const FString& TemplateName)
 {

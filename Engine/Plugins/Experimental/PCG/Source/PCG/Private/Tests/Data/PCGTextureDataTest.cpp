@@ -9,7 +9,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGTextureDataOffsetTilingRotation, FPCGTestBaseClass, "pcg.tests.Texture.OffsetTilingRotation", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGTextureDataOffsetTilingRotation, FPCGTestBaseClass, "Plugins.PCG.Texture.OffsetTilingRotation", PCGTestsCommon::TestFlags)
 
 bool FPCGTextureDataOffsetTilingRotation::RunTest(const FString& Parameters)
 {

@@ -6,7 +6,7 @@
 #include "Data/PCGPointData.h"
 #include "Elements/PCGSpatialNoise.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_CalcLocalCoordinates2D, "pcg.tests.Noise.CalcLocalCoordinates2D", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_CalcLocalCoordinates2D, "Plugins.PCG.Noise.CalcLocalCoordinates2D", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FPCGSpatialNoise_CalcLocalCoordinates2D::RunTest(const FString& Parameters)
 {
@@ -39,7 +39,7 @@ bool FPCGSpatialNoise_CalcLocalCoordinates2D::RunTest(const FString& Parameters)
 
 // just make sure stuff doesn't crash
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Perlin2D, FPCGTestBaseClass, "pcg.tests.Noise.Perlin2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Perlin2D, FPCGTestBaseClass, "Plugins.PCG.Noise.Perlin2D", PCGTestsCommon::TestFlags)
 
 bool FPCGSpatialNoise_Perlin2D::RunTest(const FString& Parameters)
 {
@@ -77,7 +77,7 @@ bool FPCGSpatialNoise_Perlin2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Caustic2D, FPCGTestBaseClass, "pcg.tests.Noise.Caustic2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Caustic2D, FPCGTestBaseClass, "Plugins.PCG.Noise.Caustic2D", PCGTestsCommon::TestFlags)
 
 bool FPCGSpatialNoise_Caustic2D::RunTest(const FString& Parameters)
 {
@@ -115,7 +115,7 @@ bool FPCGSpatialNoise_Caustic2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Voronoi2D, FPCGTestBaseClass, "pcg.tests.Noise.Voronoi2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_Voronoi2D, FPCGTestBaseClass, "Plugins.PCG.Noise.Voronoi2D", PCGTestsCommon::TestFlags)
 
 bool FPCGSpatialNoise_Voronoi2D::RunTest(const FString& Parameters)
 {
@@ -158,7 +158,7 @@ bool FPCGSpatialNoise_Voronoi2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_FractionalBrownian2D, FPCGTestBaseClass, "pcg.tests.Noise.FractionalBrownian2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_FractionalBrownian2D, FPCGTestBaseClass, "Plugins.PCG.Noise.FractionalBrownian2D", PCGTestsCommon::TestFlags)
 
 bool FPCGSpatialNoise_FractionalBrownian2D::RunTest(const FString& Parameters)
 {
@@ -196,7 +196,7 @@ bool FPCGSpatialNoise_FractionalBrownian2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_EdgeMask2D, FPCGTestBaseClass, "pcg.tests.Noise.EdgeMask2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_EdgeMask2D, FPCGTestBaseClass, "Plugins.PCG.Noise.EdgeMask2D", PCGTestsCommon::TestFlags)
 
 bool FPCGSpatialNoise_EdgeMask2D::RunTest(const FString& Parameters)
 {
@@ -234,7 +234,7 @@ bool FPCGSpatialNoise_EdgeMask2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingPerlin2D, FPCGTestBaseClass, "pcg.tests.Noise.TilingPerlin2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingPerlin2D, FPCGTestBaseClass, "Plugins.PCG.Noise.TilingPerlin2D", PCGTestsCommon::TestFlags)
 bool FPCGSpatialNoise_TilingPerlin2D::RunTest(const FString& Parameters)
 {
 	PCGTestsCommon::FTestData TestData;
@@ -272,7 +272,7 @@ bool FPCGSpatialNoise_TilingPerlin2D::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingVoronoi2D, FPCGTestBaseClass, "pcg.tests.Noise.TilingVoronoi2D", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSpatialNoise_TilingVoronoi2D, FPCGTestBaseClass, "Plugins.PCG.Noise.TilingVoronoi2D", PCGTestsCommon::TestFlags)
 bool FPCGSpatialNoise_TilingVoronoi2D::RunTest(const FString& Parameters)
 {
 	PCGTestsCommon::FTestData TestData;

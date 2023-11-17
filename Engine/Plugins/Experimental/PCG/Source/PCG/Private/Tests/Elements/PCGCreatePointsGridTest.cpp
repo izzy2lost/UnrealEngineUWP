@@ -44,7 +44,7 @@ namespace CreatePointsGridCommonTests
 	}
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_CellCenter, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.CellCenter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_CellCenter, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.CellCenter", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_CellCenter::RunTest(const FString& Parameters)
 {
@@ -71,7 +71,7 @@ bool FPCGCreatePointsGridTest_CellCenter::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_CellCorner, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.CellCorner", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_CellCorner, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.CellCorner", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_CellCorner::RunTest(const FString& Parameters)
 {
@@ -100,7 +100,7 @@ bool FPCGCreatePointsGridTest_CellCorner::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XYCenter, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.XYCenter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XYCenter, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.XYCenter", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_XYCenter::RunTest(const FString& Parameters)
 {
@@ -127,7 +127,7 @@ bool FPCGCreatePointsGridTest_XYCenter::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XYCorner, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.XYCorner", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XYCorner, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.XYCorner", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_XYCorner::RunTest(const FString& Parameters)
 {
@@ -154,7 +154,7 @@ bool FPCGCreatePointsGridTest_XYCorner::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XZCenter, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.XZCenter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XZCenter, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.XZCenter", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_XZCenter::RunTest(const FString& Parameters)
 {
@@ -181,7 +181,7 @@ bool FPCGCreatePointsGridTest_XZCenter::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XZCorner, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.XZCorner", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_XZCorner, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.XZCorner", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_XZCorner::RunTest(const FString& Parameters)
 {
@@ -208,7 +208,7 @@ bool FPCGCreatePointsGridTest_XZCorner::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_YZCenter, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.YZCenter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_YZCenter, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.YZCenter", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_YZCenter::RunTest(const FString& Parameters)
 {
@@ -235,7 +235,7 @@ bool FPCGCreatePointsGridTest_YZCenter::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_YZCorner, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.YZCorner", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_YZCorner, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.YZCorner", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_YZCorner::RunTest(const FString& Parameters)
 {
@@ -262,7 +262,7 @@ bool FPCGCreatePointsGridTest_YZCorner::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_NegativeValuesGrid, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.NegativeValuesGrid", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_NegativeValuesGrid, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.NegativeValuesGrid", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_NegativeValuesGrid::RunTest(const FString& Parameters)
 {
@@ -278,7 +278,7 @@ bool FPCGCreatePointsGridTest_NegativeValuesGrid::RunTest(const FString& Paramet
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_NegativeValuesCell, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.NegativeValuesCell", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_NegativeValuesCell, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.NegativeValuesCell", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_NegativeValuesCell::RunTest(const FString& Parameters)
 {
@@ -294,7 +294,7 @@ bool FPCGCreatePointsGridTest_NegativeValuesCell::RunTest(const FString& Paramet
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_OversizedCell, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.OversizedCell", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_OversizedCell, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.OversizedCell", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_OversizedCell::RunTest(const FString& Parameters)
 {
@@ -318,7 +318,7 @@ bool FPCGCreatePointsGridTest_OversizedCell::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCenter, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.LocalCenter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCenter, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.LocalCenter", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_LocalCenter::RunTest(const FString& Parameters)
 {
@@ -363,7 +363,7 @@ bool FPCGCreatePointsGridTest_LocalCenter::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCorner, FPCGTestBaseClass, "pcg.tests.CreatePointsGrid.LocalCorner", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCorner, FPCGTestBaseClass, "Plugins.PCG.CreatePointsGrid.LocalCorner", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsGridTest_LocalCorner::RunTest(const FString& Parameters)
 {

@@ -8,7 +8,7 @@
 
 #include "Elements/PCGAddTag.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_ZeroTags, FPCGTestBaseClass, "pcg.tests.AddTag.ZeroTags", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_ZeroTags, FPCGTestBaseClass, "Plugins.PCG.AddTag.ZeroTags", PCGTestsCommon::TestFlags)
 
 bool FPCGAddTagTest_ZeroTags::RunTest(const FString& Parameters)
 {
@@ -45,7 +45,7 @@ bool FPCGAddTagTest_ZeroTags::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_OneTag, FPCGTestBaseClass, "pcg.tests.AddTag.OneTag", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_OneTag, FPCGTestBaseClass, "Plugins.PCG.AddTag.OneTag", PCGTestsCommon::TestFlags)
 
 bool FPCGAddTagTest_OneTag::RunTest(const FString& Parameters)
 {
@@ -92,7 +92,7 @@ bool FPCGAddTagTest_OneTag::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_MultipleTags, FPCGTestBaseClass, "pcg.tests.AddTag.MultipleTags", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAddTagTest_MultipleTags, FPCGTestBaseClass, "Plugins.PCG.AddTag.MultipleTags", PCGTestsCommon::TestFlags)
 
 bool FPCGAddTagTest_MultipleTags::RunTest(const FString& Parameters)
 {

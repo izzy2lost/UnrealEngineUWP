@@ -7,7 +7,7 @@
 
 #include "Elements/PCGApplyScaleToBounds.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGApplyScaleToBoundsTest_Basic, FPCGTestBaseClass, "pcg.tests.ApplyScaleToBounds.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGApplyScaleToBoundsTest_Basic, FPCGTestBaseClass, "Plugins.PCG.ApplyScaleToBounds.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGApplyScaleToBoundsTest_Basic::RunTest(const FString& Parameters)
 {
@@ -55,7 +55,7 @@ bool FPCGApplyScaleToBoundsTest_Basic::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGApplyScaleToBoundsTest_NegativeScale, FPCGTestBaseClass, "pcg.tests.ApplyScaleToBounds.NegativeScale", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGApplyScaleToBoundsTest_NegativeScale, FPCGTestBaseClass, "Plugins.PCG.ApplyScaleToBounds.NegativeScale", PCGTestsCommon::TestFlags)
 
 bool FPCGApplyScaleToBoundsTest_NegativeScale::RunTest(const FString& Parameters)
 {

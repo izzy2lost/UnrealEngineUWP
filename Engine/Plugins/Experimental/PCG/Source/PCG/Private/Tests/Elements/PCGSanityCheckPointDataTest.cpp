@@ -11,7 +11,7 @@
 
 #include "Elements/PCGSanityCheckPointData.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MinPointCount, FPCGTestBaseClass, "pcg.tests.SanityCheckPointData.MinPointCount", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MinPointCount, FPCGTestBaseClass, "Plugins.PCG.SanityCheckPointData.MinPointCount", PCGTestsCommon::TestFlags)
 
 bool FPCGSanityCheckPointData_MinPointCount::RunTest(const FString& Parameters)
 {
@@ -39,7 +39,7 @@ bool FPCGSanityCheckPointData_MinPointCount::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MaxPointCount, FPCGTestBaseClass, "pcg.tests.SanityCheckPointData.MaxPointCount", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_MaxPointCount, FPCGTestBaseClass, "Plugins.PCG.SanityCheckPointData.MaxPointCount", PCGTestsCommon::TestFlags)
 
 bool FPCGSanityCheckPointData_MaxPointCount::RunTest(const FString& Parameters)
 {
@@ -67,7 +67,7 @@ bool FPCGSanityCheckPointData_MaxPointCount::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_Success, FPCGTestBaseClass, "pcg.tests.SanityCheckPointData.Success", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSanityCheckPointData_Success, FPCGTestBaseClass, "Plugins.PCG.SanityCheckPointData.Success", PCGTestsCommon::TestFlags)
 
 bool FPCGSanityCheckPointData_Success::RunTest(const FString& Parameters)
 {

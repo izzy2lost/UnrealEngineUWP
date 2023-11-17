@@ -10,7 +10,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataBooleanOpTest, FPCGTestBaseClass, "pcg.tests.Metadata.BooleanOp", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataBooleanOpTest, FPCGTestBaseClass, "Plugins.PCG.Metadata.BooleanOp", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataBooleanOpTest::RunTest(const FString& Parameters)
 {

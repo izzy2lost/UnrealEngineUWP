@@ -40,7 +40,7 @@ namespace ResetPointCenterCommonTests
 	}
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_Center, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.Center", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_Center, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.Center", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_Center::RunTest(const FString& Parameters)
 {
@@ -66,7 +66,7 @@ bool FPCGResetPointCenterTest_Center::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_Zero, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.Zero", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_Zero, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.Zero", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_Zero::RunTest(const FString& Parameters)
 {
@@ -92,7 +92,7 @@ bool FPCGResetPointCenterTest_Zero::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_One, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.One", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_One, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.One", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_One::RunTest(const FString& Parameters)
 {
@@ -118,7 +118,7 @@ bool FPCGResetPointCenterTest_One::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_NegativeOutside, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.NegativeOutside", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_NegativeOutside, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.NegativeOutside", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_NegativeOutside::RunTest(const FString& Parameters)
 {
@@ -144,7 +144,7 @@ bool FPCGResetPointCenterTest_NegativeOutside::RunTest(const FString& Parameters
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_PositiveOutside, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.PositiveOutside", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_PositiveOutside, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.PositiveOutside", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_PositiveOutside::RunTest(const FString& Parameters)
 {
@@ -170,7 +170,7 @@ bool FPCGResetPointCenterTest_PositiveOutside::RunTest(const FString& Parameters
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_NonUniform, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.NonUniform", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_NonUniform, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.NonUniform", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_NonUniform::RunTest(const FString& Parameters)
 {
@@ -195,7 +195,7 @@ bool FPCGResetPointCenterTest_NonUniform::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_CenterRotation, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.CenterRotation", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_CenterRotation, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.CenterRotation", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_CenterRotation::RunTest(const FString& Parameters)
 {
@@ -221,7 +221,7 @@ bool FPCGResetPointCenterTest_CenterRotation::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_CenterScale, FPCGTestBaseClass, "pcg.tests.ResetPointCenter.CenterScale", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGResetPointCenterTest_CenterScale, FPCGTestBaseClass, "Plugins.PCG.ResetPointCenter.CenterScale", PCGTestsCommon::TestFlags)
 
 bool FPCGResetPointCenterTest_CenterScale::RunTest(const FString& Parameters)
 {

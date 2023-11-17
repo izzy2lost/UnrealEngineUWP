@@ -19,9 +19,9 @@
 #include "Engine/StaticMesh.h"
 
 // FIXME: Unit tests are crashing, disabled for now.
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerByAttributeTest, FPCGTestBaseClass, "pcg.tests.StaticMeshSpawner.ByAttribute", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerWeightedTest, FPCGTestBaseClass, "pcg.tests.StaticMeshSpawner.Weighted", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerWeightedByCategoryTest, FPCGTestBaseClass, "pcg.tests.StaticMeshSpawner.WeightedByCategory", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerByAttributeTest, FPCGTestBaseClass, "Plugins.PCG.StaticMeshSpawner.ByAttribute", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerWeightedTest, FPCGTestBaseClass, "Plugins.PCG.StaticMeshSpawner.Weighted", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGStaticMeshSpawnerWeightedByCategoryTest, FPCGTestBaseClass, "Plugins.PCG.StaticMeshSpawner.WeightedByCategory", PCGTestsCommon::TestFlags | EAutomationTestFlags::Disabled)
 
 namespace
 {

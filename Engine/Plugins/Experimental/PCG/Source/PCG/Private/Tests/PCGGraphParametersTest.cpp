@@ -8,19 +8,19 @@
 #include "PropertyBag.h"
 #include "StructView.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphNoUserParameters, FPCGTestBaseClass, "pcg.Graph.NoUserParameters", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParameters, FPCGTestBaseClass, "pcg.Graph.AddSingleUserParameter", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParametersPropagates, FPCGTestBaseClass, "pcg.Graph.AddSingleUserParameterPropagates", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemoveSingleUserParameters, FPCGTestBaseClass, "pcg.Graph.RemoveSingleUserParameter", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemoveSingleUserParametersPropagates, FPCGTestBaseClass, "pcg.Graph.RemoveSingleUserParameterPropagates", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphNoUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.NoUserParameters", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.AddSingleUserParameter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAddSingleUserParametersPropagates, FPCGTestBaseClass, "Plugins.PCG.Graph.AddSingleUserParameterPropagates", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemoveSingleUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.RemoveSingleUserParameter", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemoveSingleUserParametersPropagates, FPCGTestBaseClass, "Plugins.PCG.Graph.RemoveSingleUserParameterPropagates", PCGTestsCommon::TestFlags)
 
 // We test the graph add/remove parameters just as a redundancy, but it is already tested by StructUtils. So we won't test more.
 // What is important is the propagation between graphs and graphs instances
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRenameUserParametersPropagates, FPCGTestBaseClass, "pcg.Graph.RenameUserParameterPropagates", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphChangeTypeUserParametersPropagates, FPCGTestBaseClass, "pcg.Graph.ChangeTypeUserParameterPropagates", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemovingGraphCleansUserParameters, FPCGTestBaseClass, "pcg.Graph.RemovingGraphCleansUserParameters", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphSetGraphUpdatesUserParameters, FPCGTestBaseClass, "pcg.Graph.SetGraphCleansUserParameters", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphSetValueUserParametersPropagates, FPCGTestBaseClass, "pcg.Graph.SetValueUserParametersPropagates", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRenameUserParametersPropagates, FPCGTestBaseClass, "Plugins.PCG.Graph.RenameUserParameterPropagates", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphChangeTypeUserParametersPropagates, FPCGTestBaseClass, "Plugins.PCG.Graph.ChangeTypeUserParameterPropagates", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphRemovingGraphCleansUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.RemovingGraphCleansUserParameters", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphSetGraphUpdatesUserParameters, FPCGTestBaseClass, "Plugins.PCG.Graph.SetGraphCleansUserParameters", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphSetValueUserParametersPropagates, FPCGTestBaseClass, "Plugins.PCG.Graph.SetValueUserParametersPropagates", PCGTestsCommon::TestFlags)
 
 #define PCG_FMT(Text, ...) FString::Printf(TEXT(Text), __VA_ARGS__)
 

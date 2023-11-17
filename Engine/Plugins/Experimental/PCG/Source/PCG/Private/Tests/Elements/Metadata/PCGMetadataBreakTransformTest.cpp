@@ -14,7 +14,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataBreakTransformTest, FPCGTestBaseClass, "pcg.tests.Metadata.BreakTransform", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataBreakTransformTest, FPCGTestBaseClass, "Plugins.PCG.Metadata.BreakTransform", PCGTestsCommon::TestFlags)
 
 namespace PCGBreakTransformTest
 {

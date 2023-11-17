@@ -9,7 +9,7 @@
 #include "Elements/PCGDensityRemapElement.h"
 #include "PCGContext.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDensityRemapTest, FPCGTestBaseClass, "pcg.tests.DensityRemap.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDensityRemapTest, FPCGTestBaseClass, "Plugins.PCG.DensityRemap.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGDensityRemapTest::RunTest(const FString& Parameters)
 {

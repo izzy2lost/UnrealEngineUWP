@@ -5,7 +5,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGVolumeExposedInCreationMenu, FPCGTestBaseClass, "Editor.Plugins.Tools.PCG.PCGVolumeExposedInCreationMenu", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGVolumeExposedInCreationMenu, FPCGTestBaseClass, "Plugins.PCG.Display.PCGVolumeExposedInCreationMenu", PCGTestsCommon::TestFlags)
 
 bool FPCGVolumeExposedInCreationMenu::RunTest(const FString& Parameters)
 {

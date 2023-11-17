@@ -8,7 +8,7 @@
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGetAttributeSetByIndexTest_Basic, FPCGTestBaseClass, "pcg.GetAttributeSetByIndex.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGetAttributeSetByIndexTest_Basic, FPCGTestBaseClass, "Plugins.PCG.GetAttributeSetByIndex.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGGetAttributeSetByIndexTest_Basic::RunTest(const FString& Parameters)
 {

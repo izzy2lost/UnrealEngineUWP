@@ -16,7 +16,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGComponentInNewPCGVolumes, FPCGTestBaseClass, "Editor.Plugins.Tools.PCG.PCGComponentInNewPCGVolumes", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGComponentInNewPCGVolumes, FPCGTestBaseClass, "Plugins.PCG.Display.PCGComponentInNewPCGVolumes", PCGTestsCommon::TestFlags)
 
 bool FPCGComponentInNewPCGVolumes::RunTest(const FString& Parameters)
 {

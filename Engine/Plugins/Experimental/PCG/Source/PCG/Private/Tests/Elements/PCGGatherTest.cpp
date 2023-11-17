@@ -8,7 +8,7 @@
 
 #include "Elements/PCGGather.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGatherTest_Basic, FPCGTestBaseClass, "pcg.tests.Gather.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGatherTest_Basic, FPCGTestBaseClass, "Plugins.PCG.Gather.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGGatherTest_Basic::RunTest(const FString& Parameters)
 {

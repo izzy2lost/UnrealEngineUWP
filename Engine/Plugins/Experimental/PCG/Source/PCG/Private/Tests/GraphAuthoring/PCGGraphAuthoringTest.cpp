@@ -10,7 +10,7 @@
 #include "Tests/PCGTestsCommon.h"
 #include "Tests/GraphAuthoring/PCGGraphAuthoringTestHelperSettings.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAuthoringTypeSystemTest, FPCGTestBaseClass, "pcg.GraphAuthoring.TypeSystem", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphAuthoringTypeSystemTest, FPCGTestBaseClass, "Plugins.PCG.GraphAuthoring.TypeSystem", PCGTestsCommon::TestFlags)
 
 bool FPCGGraphAuthoringTypeSystemTest::RunTest(const FString& Parameters)
 {

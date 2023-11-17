@@ -12,7 +12,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCopyPointsTest, FPCGTestBaseClass, "pcg.tests.CopyPoints.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCopyPointsTest, FPCGTestBaseClass, "Plugins.PCG.CopyPoints.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGCopyPointsTest::RunTest(const FString& Parameters)
 {

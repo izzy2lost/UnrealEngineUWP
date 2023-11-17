@@ -9,7 +9,7 @@
 #include "Elements/PCGAttributeNoise.h"
 #include "PCGContext.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseDensityTest, FPCGTestBaseClass, "pcg.tests.AttributeNoise.Density", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeNoiseDensityTest, FPCGTestBaseClass, "Plugins.PCG.AttributeNoise.Density", PCGTestsCommon::TestFlags)
 
 bool FPCGAttributeNoiseDensityTest::RunTest(const FString& Parameters)
 {

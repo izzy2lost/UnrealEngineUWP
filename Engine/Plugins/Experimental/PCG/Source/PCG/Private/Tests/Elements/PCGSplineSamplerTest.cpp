@@ -5,7 +5,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplineSamplerTest, FPCGTestBaseClass, "pcg.tests.SplineSampler.PointInPolygon", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplineSamplerTest, FPCGTestBaseClass, "Plugins.PCG.SplineSampler.PointInPolygon", PCGTestsCommon::TestFlags)
 
 bool FPCGSplineSamplerTest::RunTest(const FString& Parameters)
 {	

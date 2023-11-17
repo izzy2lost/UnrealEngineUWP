@@ -7,7 +7,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(PCGComponentFoundInRegistry, FPCGTestBaseClass, "Editor.Plugins.Tools.PCG.PCGComponentFoundInRegistry", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(PCGComponentFoundInRegistry, FPCGTestBaseClass, "Plugins.PCG.Display.PCGComponentFoundInRegistry", PCGTestsCommon::TestFlags)
 
 bool PCGComponentFoundInRegistry::RunTest(const FString& Parameters)
 {

@@ -5,11 +5,11 @@
 #include "Elements/PCGCollapseElement.h"
 #include "Tests/Determinism/PCGDeterminismTestsCommon.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismSingleSameDataTest, FPCGTestBaseClass, "pcg.tests.Collapse.Determinism.SingleSameData", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismSingleIdenticalDataTest, FPCGTestBaseClass, "pcg.tests.Collapse.Determinism.SingleIdenticalData", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismMultipleSameDataTest, FPCGTestBaseClass, "pcg.tests.Collapse.Determinism.MultipleSameData", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismMultipleIdenticalDataTest, FPCGTestBaseClass, "pcg.tests.Collapse.Determinism.MultipleIdenticalData", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismOrderIndependenceTest, FPCGTestBaseClass, "pcg.tests.Collapse.Determinism.OrderIndependence", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismSingleSameDataTest, FPCGTestBaseClass, "Plugins.PCG.Collapse.Determinism.SingleSameData", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismSingleIdenticalDataTest, FPCGTestBaseClass, "Plugins.PCG.Collapse.Determinism.SingleIdenticalData", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismMultipleSameDataTest, FPCGTestBaseClass, "Plugins.PCG.Collapse.Determinism.MultipleSameData", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismMultipleIdenticalDataTest, FPCGTestBaseClass, "Plugins.PCG.Collapse.Determinism.MultipleIdenticalData", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseDeterminismOrderIndependenceTest, FPCGTestBaseClass, "Plugins.PCG.Collapse.Determinism.OrderIndependence", PCGTestsCommon::TestFlags)
 
 namespace
 {

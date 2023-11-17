@@ -11,7 +11,7 @@
 
 #if WITH_EDITOR
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGTransformPointsTest, FPCGTestBaseClass, "pcg.tests.TransformPoints.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGTransformPointsTest, FPCGTestBaseClass, "Plugins.PCG.TransformPoints.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGTransformPointsTest::RunTest(const FString& Parameters)
 {

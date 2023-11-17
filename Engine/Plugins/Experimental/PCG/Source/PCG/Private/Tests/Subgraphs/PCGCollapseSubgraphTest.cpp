@@ -11,8 +11,8 @@
 #include "Helpers/PCGSubgraphHelpers.h"
 #include "Tests/PCGTestsCommon.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphSimple, FPCGTestBaseClass, "pcg.tests.Subgraph.Collapse.Simple", PCGTestsCommon::TestFlags);
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphWithParams, FPCGTestBaseClass, "pcg.tests.Subgraph.Collapse.WithParams", PCGTestsCommon::TestFlags);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphSimple, FPCGTestBaseClass, "Plugins.PCG.Subgraph.Collapse.Simple", PCGTestsCommon::TestFlags);
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCollapseSubgraphWithParams, FPCGTestBaseClass, "Plugins.PCG.Subgraph.Collapse.WithParams", PCGTestsCommon::TestFlags);
 
 namespace PCGCollapseSubgraphTests
 {

@@ -184,7 +184,7 @@ protected:
 	}
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_OneMinus, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.OneMinus", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_OneMinus, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.OneMinus", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_OneMinus::RunTest(const FString& Parameters)
 {
@@ -213,7 +213,7 @@ bool FPCGMetadataMathsOp_OneMinus::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Sign, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Sign", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Sign, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Sign", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Sign::RunTest(const FString& Parameters)
 {
@@ -244,7 +244,7 @@ bool FPCGMetadataMathsOp_Sign::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Frac, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Frac", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Frac, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Frac", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Frac::RunTest(const FString& Parameters)
 {
@@ -273,7 +273,7 @@ bool FPCGMetadataMathsOp_Frac::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Truncate, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Truncate", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Truncate, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Truncate", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Truncate::RunTest(const FString& Parameters)
 {
@@ -302,7 +302,7 @@ bool FPCGMetadataMathsOp_Truncate::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Add, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Add", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Add, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Add", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Add::RunTest(const FString& Parameters)
 {
@@ -331,7 +331,7 @@ bool FPCGMetadataMathsOp_Add::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Subtract, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Subtract", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Subtract, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Subtract", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Subtract::RunTest(const FString& Parameters)
 {
@@ -360,7 +360,7 @@ bool FPCGMetadataMathsOp_Subtract::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Multiply, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Multiply", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Multiply, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Multiply", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Multiply::RunTest(const FString& Parameters)
 {
@@ -389,7 +389,7 @@ bool FPCGMetadataMathsOp_Multiply::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Divide, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.Divide", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_Divide, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.Divide", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_Divide::RunTest(const FString& Parameters)
 {
@@ -418,7 +418,7 @@ bool FPCGMetadataMathsOp_Divide::RunTest(const FString& Parameters)
 	return bSuccess;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_MultipleInput, FPCGMetadataMathsOpTest, "pcg.tests.Metadata.MathsOp.MultipleInput", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataMathsOp_MultipleInput, FPCGMetadataMathsOpTest, "Plugins.PCG.Metadata.MathsOp.MultipleInput", PCGTestsCommon::TestFlags)
 
 bool FPCGMetadataMathsOp_MultipleInput::RunTest(const FString& Parameters)
 {

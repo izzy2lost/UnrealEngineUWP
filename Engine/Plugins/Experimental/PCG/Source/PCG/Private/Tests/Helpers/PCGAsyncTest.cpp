@@ -5,7 +5,7 @@
 #include "Helpers/PCGAsync.h"
 
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessing, FPCGTestBaseClass, "pcg.Async.AsyncProcessing", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessing, FPCGTestBaseClass, "Plugins.PCG.Async.AsyncProcessing", PCGTestsCommon::TestFlags)
 
 bool FPCGAsyncTest_AsyncProcessing::RunTest(const FString& Parameters)
 {
@@ -43,7 +43,7 @@ bool FPCGAsyncTest_AsyncProcessing::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessingEx, FPCGTestBaseClass, "pcg.Async.AsyncProcessingEx", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessingEx, FPCGTestBaseClass, "Plugins.PCG.Async.AsyncProcessingEx", PCGTestsCommon::TestFlags)
 
 bool FPCGAsyncTest_AsyncProcessingEx::RunTest(const FString& Parameters)
 {
@@ -92,7 +92,7 @@ bool FPCGAsyncTest_AsyncProcessingEx::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessingOneToOneEx, FPCGTestBaseClass, "pcg.Async.AsyncProcessingOneToOneEx", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessingOneToOneEx, FPCGTestBaseClass, "Plugins.PCG.Async.AsyncProcessingOneToOneEx", PCGTestsCommon::TestFlags)
 
 bool FPCGAsyncTest_AsyncProcessingOneToOneEx::RunTest(const FString& Parameters)
 {

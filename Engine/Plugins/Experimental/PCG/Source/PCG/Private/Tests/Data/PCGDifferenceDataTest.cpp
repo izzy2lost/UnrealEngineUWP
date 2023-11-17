@@ -5,7 +5,7 @@
 #include "Data/PCGPointData.h"
 #include "Data/PCGVolumeData.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDifferenceDataTest, FPCGTestBaseClass, "pcg.tests.Difference.Data", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDifferenceDataTest, FPCGTestBaseClass, "Plugins.PCG.Difference.Data", PCGTestsCommon::TestFlags)
 
 bool FPCGDifferenceDataTest::RunTest(const FString& Parameters)
 {

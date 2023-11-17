@@ -79,26 +79,26 @@ namespace FPCGAttributeAccessorTestHelpers
 	}
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetDefaultTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleGetDefault", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleGet", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetOutsideRangeTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleGetOutsideRange", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetDefaultTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleGetDefault", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleGet", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetOutsideRangeTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleGetOutsideRange", PCGTestsCommon::TestFlags)
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeDefaultTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.GetRangeDefault", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.GetRange", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeOutsideRangeTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.GetRangeOutsideRange", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeDefaultTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.GetRangeDefault", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.GetRange", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangeOutsideRangeTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.GetRangeOutsideRange", PCGTestsCommon::TestFlags)
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetDefaultTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleSetDefault", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleSet", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleInvalidKeySetTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleSetInvalidKey", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetDefaultTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleSetDefault", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleSet", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleInvalidKeySetTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleSetInvalidKey", PCGTestsCommon::TestFlags)
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangeTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SetRange", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangeOutsideRangeTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SetRangeOutsideRange", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangeTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SetRange", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangeOutsideRangeTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SetRangeOutsideRange", PCGTestsCommon::TestFlags)
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetPointsTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleGetPoints", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangePointsTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.GetRangePoints", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleGetPointsTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleGetPoints", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorGetRangePointsTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.GetRangePoints", PCGTestsCommon::TestFlags)
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetPointsTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SingleSetPoints", PCGTestsCommon::TestFlags)
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangePointsTest, FPCGTestBaseClass, "pcg.tests.Accessor.Attribute.SetRangePoints", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSingleSetPointsTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SingleSetPoints", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAttributeAccessorSetRangePointsTest, FPCGTestBaseClass, "Plugins.PCG.Accessor.Attribute.SetRangePoints", PCGTestsCommon::TestFlags)
 
 
 bool FPCGAttributeAccessorSingleGetDefaultTest::RunTest(const FString& Parameters)

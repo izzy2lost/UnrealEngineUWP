@@ -9,7 +9,7 @@
 #include "Elements/PCGNormalToDensity.h"
 #include "PCGContext.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Set, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Set", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Set, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Set", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Set::RunTest(const FString& Parameters)
 {
@@ -57,7 +57,7 @@ bool FPCGNormalToDensityTest_Set::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_CustomNormal, FPCGTestBaseClass, "pcg.tests.NormalToDensity.CustomNormal", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_CustomNormal, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.CustomNormal", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_CustomNormal::RunTest(const FString& Parameters)
 {
@@ -104,7 +104,7 @@ bool FPCGNormalToDensityTest_CustomNormal::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Strength, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Strength", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Strength, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Strength", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Strength::RunTest(const FString& Parameters)
 {
@@ -151,7 +151,7 @@ bool FPCGNormalToDensityTest_Strength::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Minimum, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Minimum", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Minimum, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Minimum", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Minimum::RunTest(const FString& Parameters)
 {
@@ -199,7 +199,7 @@ bool FPCGNormalToDensityTest_Minimum::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Maximum, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Maximum", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Maximum, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Maximum", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Maximum::RunTest(const FString& Parameters)
 {
@@ -248,7 +248,7 @@ bool FPCGNormalToDensityTest_Maximum::RunTest(const FString& Parameters)
 }
 
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Add, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Add", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Add, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Add", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Add::RunTest(const FString& Parameters)
 {
@@ -296,7 +296,7 @@ bool FPCGNormalToDensityTest_Add::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Subtract, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Subtract", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Subtract, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Subtract", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Subtract::RunTest(const FString& Parameters)
 {
@@ -344,7 +344,7 @@ bool FPCGNormalToDensityTest_Subtract::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Multiply, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Multiply", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Multiply, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Multiply", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Multiply::RunTest(const FString& Parameters)
 {
@@ -392,7 +392,7 @@ bool FPCGNormalToDensityTest_Multiply::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Divide, FPCGTestBaseClass, "pcg.tests.NormalToDensity.Divide", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGNormalToDensityTest_Divide, FPCGTestBaseClass, "Plugins.PCG.NormalToDensity.Divide", PCGTestsCommon::TestFlags)
 
 bool FPCGNormalToDensityTest_Divide::RunTest(const FString& Parameters)
 {

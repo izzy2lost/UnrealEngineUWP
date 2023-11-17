@@ -7,7 +7,7 @@
 
 #if WITH_AUTOMATION_TESTS
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphExposedInContentMenuTest, FPCGTestBaseClass, "Editor.Plugins.Tools.PCG.PCGGraphExposedInContentMenuTest", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGGraphExposedInContentMenuTest, FPCGTestBaseClass, "Plugins.PCG.Display.PCGGraphExposedInContentMenuTest", PCGTestsCommon::TestFlags)
 
 bool FPCGGraphExposedInContentMenuTest::RunTest(const FString& Parameters)
 {

@@ -8,7 +8,7 @@
 #include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttributeTpl.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataFlatten, FPCGTestBaseClass, "pcg.tests.Metadata.Flatten", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGMetadataFlatten, FPCGTestBaseClass, "Plugins.PCG.Metadata.Flatten", PCGTestsCommon::TestFlags)
 
 /**
 * Series of operations to manipulate points and attributes, to validate the flatten operation.

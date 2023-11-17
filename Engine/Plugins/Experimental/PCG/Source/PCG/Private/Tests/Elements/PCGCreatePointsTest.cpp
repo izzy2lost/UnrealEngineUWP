@@ -7,7 +7,7 @@
 
 #include "Elements/PCGCreatePoints.h"
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsTest_Basic, FPCGTestBaseClass, "pcg.tests.CreatePoints.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsTest_Basic, FPCGTestBaseClass, "Plugins.PCG.CreatePoints.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGCreatePointsTest_Basic::RunTest(const FString& Parameters)
 {
