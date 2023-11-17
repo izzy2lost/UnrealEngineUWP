@@ -333,7 +333,8 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="namespaceId">Namespace to create a client for</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
-		public IStorageClient CreateClient(NamespaceId namespaceId, string? accessToken = null) => CreateClientWithPath($"api/v1/storage/{namespaceId}", accessToken);
+		/// <param name="withBackendCache">Whether to enable the backend cache, which caches full bundles to disk</param>
+		public IStorageClient CreateClient(NamespaceId namespaceId, string? accessToken = null, bool withBackendCache = true) => CreateClientWithPath($"api/v1/storage/{namespaceId}", accessToken, withBackendCache);
 
 		/// <inheritdoc/>
 		IStorageClient? IStorageClientFactory.TryCreateClient(NamespaceId namespaceId) => CreateClient(namespaceId);
