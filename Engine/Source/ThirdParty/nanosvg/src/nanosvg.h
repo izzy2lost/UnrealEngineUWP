@@ -26,8 +26,6 @@
  *
  */
 
-#pragma once
-
 #ifndef NANOSVG_H
 #define NANOSVG_H
 
@@ -166,20 +164,17 @@ extern "C" {
 	} NSVGimage;
 
 	// Parses SVG file from a file, returns SVG image as paths.
-	NANOSVG_API NSVGimage* nsvgParseFromFile(const char* filename, const char* units, float dpi);
+	NSVGimage* nsvgParseFromFile(const char* filename, const char* units, float dpi);
 
 	// Parses SVG file from a null terminated string, returns SVG image as paths.
 	// Important note: changes the string.
-	NANOSVG_API NSVGimage* nsvgParse(char* input, const char* units, float dpi);
+	NSVGimage* nsvgParse(char* input, const char* units, float dpi);
 
 	// Duplicates a path.
-	NANOSVG_API NSVGpath* nsvgDuplicatePath(NSVGpath* p);
+	NSVGpath* nsvgDuplicatePath(NSVGpath* p);
 
 	// Deletes an image.
-	NANOSVG_API void nsvgDelete(NSVGimage* image);
-
-	// Parses the provided string as a transform, and outputs its elements to a float array
-	NANOSVG_API void nsvgParseTransform(float* xform, const char* str);
+	void nsvgDelete(NSVGimage* image);
 
 #ifndef NANOSVG_CPLUSPLUS
 #ifdef __cplusplus
@@ -3226,11 +3221,6 @@ void nsvgDelete(NSVGimage* image)
 		shape = snext;
 	}
 	free(image);
-}
-
-void nsvgParseTransform(float* xform, const char* str)
-{
-	nsvg__parseTransform(xform, str); 
 }
 
 #ifdef _MSC_VER
