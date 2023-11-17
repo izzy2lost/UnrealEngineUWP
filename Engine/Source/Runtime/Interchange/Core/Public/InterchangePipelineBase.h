@@ -18,6 +18,8 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
+#include "Widgets/SCompoundWidget.h"
+#include "Widgets/SWindow.h"
 
 #include "InterchangePipelineBase.generated.h"
 
@@ -99,6 +101,38 @@ struct FInterchangePipelinePropertyStates
 	/** The property states for the reimport context */
 	UPROPERTY(EditAnywhere, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext ReimportStates;
+};
+
+struct FInterchangeConflictInfo
+{
+	FString DisplayName;
+	FString Description;
+	FGuid UniqueId;
+	TObjectPtr<UInterchangePipelineBase> Pipeline = nullptr;
+};
+
+class SInterchangeBaseConflictWidget : public SCompoundWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SInterchangeBaseConflictWidget)
+		: _WidgetWindow(nullptr)
+		{}
+
+		SLATE_ARGUMENT(TSharedPtr<SWindow>, WidgetWindow)
+
+	SLATE_END_ARGS()
+
+	virtual void SetWidgetWindow(TSharedPtr<SWindow> InWidgetWindow)
+	{
+		WidgetWindow = InWidgetWindow;
+	}
+
+	FVector2D GetMinimumSize(float ApplicationScale) const
+	{
+		return ComputeDesiredSize(ApplicationScale);
+	}
+protected:
+	TSharedPtr<SWindow> WidgetWindow = nullptr;
 };
 
 UCLASS(BlueprintType, Blueprintable, editinlinenew, Abstract, MinimalAPI)
@@ -255,7 +289,24 @@ public:
 	{
 		return false;
 	}
+
 #endif //WITH_EDITOR
+
+	/**
+	 * Return all conflict the pipeline find in the translated data. This function is call by the import dialog.
+	 * If some specific options change, the UI must refresh the conflicts, see function IsPropertyChangeNeedRefresh.
+	 */
+	INTERCHANGECORE_API virtual TArray<FInterchangeConflictInfo> GetConflictInfos(UObject* ReimportObject, UInterchangeBaseNodeContainer* InBaseNodeContainer, UInterchangeSourceData* SourceData)
+	{
+		//The base class function do not have any conflict
+		ConflictInfos.Empty();
+		return ConflictInfos;
+	}
+
+	INTERCHANGECORE_API virtual void ShowConflictDialog(const FGuid& ConflictUniqueId)
+	{
+		return;
+	}
 
 	/**
 	 * This function is used to add the given message object directly into the results for this operation.
@@ -443,4 +494,6 @@ protected:
 	mutable TMap<FName, FInterchangePipelinePropertyStates> CachePropertiesStates;
 	mutable EInterchangePipelineContext CachePipelineContext = EInterchangePipelineContext::None;
 	mutable TWeakObjectPtr<UObject> CacheReimportObject = nullptr;
+
+	TArray<FInterchangeConflictInfo> ConflictInfos;
 };

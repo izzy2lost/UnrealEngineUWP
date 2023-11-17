@@ -8,20 +8,20 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "IDetailsView.h"
 #include "IDocumentation.h"
-#include "Nodes/InterchangeBaseNodeContainer.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeProjectSettings.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Nodes/InterchangeBaseNodeContainer.h"
 #include "PropertyEditorModule.h"
 #include "SPrimaryButton.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
-
-#include "Widgets/SWindow.h"
+#include "Layout/Visibility.h"
 
 #define LOCTEXT_NAMESPACE "InterchangePipelineConfiguration"
 
@@ -59,11 +59,28 @@ void SInterchangePipelineItem::Construct(
 	TObjectPtr<UInterchangePipelineBase> PipelineElementPtr = PipelineElement->Pipeline;
 	check(PipelineElementPtr.Get());
 	FText PipelineName = LOCTEXT("InvalidPipelineName", "Invalid Pipeline");
+	FText ConflictsComboEntryText = LOCTEXT("SInterchangePipelineItem::Conflicts", "Conflicts");
+	ConflictsComboEntry = MakeShared<FString>(ConflictsComboEntryText.ToString());
 	if (PipelineElementPtr.Get())
 	{
 		FString PipelineNameString = FString::Printf(TEXT("%s (%s)"), *PipelineElement->DisplayName, *PipelineElementPtr->GetClass()->GetName());
 		PipelineName = FText::FromString(PipelineNameString);
+		ConflictInfos = PipelineElementPtr->GetConflictInfos(PipelineElement->ReimportObject, PipelineElement->Container, PipelineElement->SourceData);
+		if (ConflictInfos.Num() > 0)
+		{
+			ConflictNameList.Reset(ConflictInfos.Num() + 1);
+			ConflictNameList.Add(ConflictsComboEntry);
+			for (const FInterchangeConflictInfo& ConflictInfo : ConflictInfos)
+			{
+				TSharedPtr<FString> ConflictNamePtr = MakeShared<FString>(ConflictInfo.DisplayName);
+				ConflictNameList.Add(ConflictNamePtr);
+			}
+		}
 	}
+	
+	ConflictComboBox = nullptr;
+
+	FText ConflictsComboBoxTooltip = LOCTEXT("ConflictsComboBoxTooltip", "If there is some conflict, simply select one to see more details.");
 		
 	STableRow<TSharedPtr<FInterchangePipelineItemType>>::Construct(
 		STableRow<TSharedPtr<FInterchangePipelineItemType>>::FArguments()
@@ -85,7 +102,48 @@ void SInterchangePipelineItem::Construct(
 				SNew(STextBlock)
 				.Text(PipelineName)
 			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.0f, 0.0f)
+			.VAlign(VAlign_Center)
+			[
+				SAssignNew(ConflictComboBox, STextComboBox)
+					.Visibility_Lambda([this]()->EVisibility
+						{
+							return ConflictInfos.Num() > 0 ? EVisibility::All : EVisibility::Collapsed;
+						})
+					.OptionsSource(&ConflictNameList)
+					.OnSelectionChanged_Lambda([this](TSharedPtr<FString> String, ESelectInfo::Type)
+						{
+							if (!String.IsValid() || String->IsEmpty() || ConflictsComboEntry.Get()->Equals(*String.Get()))
+							{
+								return;
+							}
+							//Find and display the conflict info
+							for (const FInterchangeConflictInfo& ConflictInfo : ConflictInfos)
+							{
+								if (ConflictInfo.DisplayName.Equals(*String.Get()))
+								{
+									if (ConflictInfo.Pipeline)
+									{
+										ConflictInfo.Pipeline->ShowConflictDialog(ConflictInfo.UniqueId);
+									}
+
+									//Re-select the conflict item after we show the conflict modal dialog
+									ConflictComboBox->SetSelectedItem(ConflictsComboEntry);
+									break;
+								}
+							}
+						})
+					.ToolTipText(ConflictsComboBoxTooltip)
+			]
 		], OwnerTable);
+
+	if (ConflictInfos.Num() > 0)
+	{
+		//Select the conflicts item
+		ConflictComboBox->SetSelectedItem(ConflictsComboEntry);
+	}
 }
 
 const FSlateBrush* SInterchangePipelineItem::GetImageItemIcon() const
@@ -177,7 +235,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 					{
 						GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
 					}
-					PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline}));
+					PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get()}));
 				}
 			}
 			SelectedStack = StackNamePtr;
@@ -312,6 +370,12 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 	PipelineStacks = InArgs._PipelineStacks;
 	OutPipelines = InArgs._OutPipelines;
 	BaseNodeContainer = InArgs._BaseNodeContainer;
+	ReimportObject = InArgs._ReimportObject;
+	SourceData = InArgs._SourceData;
+	if (ReimportObject.IsValid())
+	{
+		ensure(bReimport);
+	}
 
 	check(OutPipelines);
 
@@ -548,12 +612,9 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 					//We assume the pipelines inside one stack are all different classes, we use the class to know which default asset we need to duplicate
 					if (DefaultPipeline->GetClass() == PipelineClass)
 					{
-						
 						for(int32 PipelineIndex = 0; PipelineIndex < PipelineListViewItems.Num(); ++PipelineIndex)
 						{
-							
 							TObjectPtr<UInterchangePipelineBase> PipelineElement = PipelineListViewItems[PipelineIndex]->Pipeline;
-
 							if (PipelineElement.Get() == Pipeline)
 							{
 								if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
@@ -719,13 +780,17 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 				{
 					//Load the settings for this pipeline
 					GeneratedPipeline->LoadSettings(Stack.StackName);
-					GeneratedPipeline->PreDialogCleanup(Stack.StackName);
+					if (bStackSelectionChange)
+					{
+						//Do not reset pipeline value if we are just refreshing the filtering
+						GeneratedPipeline->PreDialogCleanup(Stack.StackName);
+					}
 				}
 				if (bFilterOptions && BaseNodeContainer.IsValid())
 				{
 					GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
 				}
-				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline }));
+				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get() }));
 			}
 		}
 	}

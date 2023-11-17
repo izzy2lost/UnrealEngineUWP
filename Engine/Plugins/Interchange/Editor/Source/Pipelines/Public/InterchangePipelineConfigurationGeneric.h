@@ -29,7 +29,8 @@ protected:
 	virtual EInterchangePipelineConfigurationDialogResult ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, TWeakObjectPtr<UInterchangeSourceData> SourceData
-		, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer) override;
+		, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer
+		, TWeakObjectPtr <UObject> ReimportAsset) override;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

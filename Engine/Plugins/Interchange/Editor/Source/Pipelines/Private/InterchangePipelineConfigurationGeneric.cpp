@@ -98,7 +98,8 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationGeneric::ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 	, TArray<UInterchangePipelineBase*>& OutPipelines
 	, TWeakObjectPtr<UInterchangeSourceData> SourceData
-	, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer)
+	, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer
+	, TWeakObjectPtr <UObject> ReimportAsset)
 {
 	//Create and show the graph inspector UI dialog
 	TSharedPtr<SWindow> ParentWindow;
@@ -121,6 +122,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 		.PipelineStacks(PipelineStacks)
 		.OutPipelines(&OutPipelines)
 		.BaseNodeContainer(BaseNodeContainer)
+		.ReimportObject(ReimportAsset)
 	);
 
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);

@@ -82,16 +82,18 @@ public:
 	INTERCHANGEENGINE_API EInterchangePipelineConfigurationDialogResult ScriptedShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, UInterchangeSourceData* SourceData
-		, UInterchangeBaseNodeContainer* BaseNodeContainer);
+		, UInterchangeBaseNodeContainer* BaseNodeContainer
+		, UObject* ReimportAsset);
 
 	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecuteImportPipeline */
 	EInterchangePipelineConfigurationDialogResult ScriptedShowReimportPipelineConfigurationDialog_Implementation(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, UInterchangeSourceData* SourceData
-		, UInterchangeBaseNodeContainer* BaseNodeContainer)
+		, UInterchangeBaseNodeContainer* BaseNodeContainer
+		, UObject* ReimportAsset)
 	{
 		//By default we call the virtual import pipeline execution
-		return ShowReimportPipelineConfigurationDialog(PipelineStacks, OutPipelines, SourceData, BaseNodeContainer);
+		return ShowReimportPipelineConfigurationDialog(PipelineStacks, OutPipelines, SourceData, BaseNodeContainer, ReimportAsset);
 	}
 
 protected:
@@ -126,7 +128,8 @@ protected:
 	virtual EInterchangePipelineConfigurationDialogResult ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, TWeakObjectPtr<UInterchangeSourceData> SourceData
-		, TWeakObjectPtr <UInterchangeBaseNodeContainer> BaseNodeContainer)
+		, TWeakObjectPtr <UInterchangeBaseNodeContainer> BaseNodeContainer
+		, TWeakObjectPtr <UObject> ReimportAsset)
 	{
 		//Not implemented
 		return EInterchangePipelineConfigurationDialogResult::Cancel;

@@ -14,13 +14,16 @@ struct FPropertyAndParent;
 struct FSlateBrush;
 class IDetailsView;
 class SCheckBox;
+class STextComboBox;
 
 struct FInterchangePipelineItemType
 {
 public:
 	FString DisplayName;
-
 	UInterchangePipelineBase* Pipeline;
+	UObject* ReimportObject = nullptr;
+	UInterchangeBaseNodeContainer* Container = nullptr;
+	UInterchangeSourceData* SourceData = nullptr;
 };
 
 class SInterchangePipelineItem : public STableRow<TSharedPtr<FInterchangePipelineItemType>>
@@ -33,7 +36,11 @@ public:
 private:
 	const FSlateBrush* GetImageItemIcon() const;
 
-	TSharedPtr<FInterchangePipelineItemType> PipelineElement;
+	TSharedPtr<FInterchangePipelineItemType> PipelineElement = nullptr;
+	TArray<FInterchangeConflictInfo> ConflictInfos;
+	TArray<TSharedPtr<FString>> ConflictNameList;
+	TSharedPtr<FString> ConflictsComboEntry = nullptr;
+	TSharedPtr<STextComboBox> ConflictComboBox = nullptr;
 };
 
 typedef SListView< TSharedPtr<FInterchangePipelineItemType> > SPipelineListViewType;
@@ -59,6 +66,7 @@ public:
 		SLATE_ARGUMENT(TArray<FInterchangeStackInfo>, PipelineStacks)
 		SLATE_ARGUMENT(TArray<UInterchangePipelineBase*>*, OutPipelines)
 		SLATE_ARGUMENT(TWeakObjectPtr<UInterchangeBaseNodeContainer>, BaseNodeContainer)
+		SLATE_ARGUMENT(TWeakObjectPtr<UObject>, ReimportObject)
 	SLATE_END_ARGS()
 
 public:
@@ -107,6 +115,7 @@ private:
 	TWeakPtr< SWindow > OwnerWindow;
 	TWeakObjectPtr<UInterchangeSourceData> SourceData;
 	TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer;
+	TWeakObjectPtr<UObject> ReimportObject;
 	TArray<FInterchangeStackInfo> PipelineStacks;
 	TArray<UInterchangePipelineBase*>* OutPipelines;
 
