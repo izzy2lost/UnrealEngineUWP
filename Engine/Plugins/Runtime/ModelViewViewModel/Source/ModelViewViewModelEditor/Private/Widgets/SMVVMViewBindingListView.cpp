@@ -133,7 +133,7 @@ struct FBindingEntry
 		return Name;
 	}
 
-	void SetBindingParameterName(FGuid Id, FName ParameterName)
+	void SetBindingParameter(FGuid Id, FName ParameterName)
 	{
 		check(RowType == ERowType::None);
 		RowType = ERowType::BindingParameter;
@@ -158,7 +158,7 @@ struct FBindingEntry
 		return Name;
 	}
 
-	void SetEventParameterName(UMVVMBlueprintViewEvent* InEvent, FName ParameterName)
+	void SetEventParameter(UMVVMBlueprintViewEvent* InEvent, FName ParameterName)
 	{
 		check(RowType == ERowType::None);
 		RowType = ERowType::EventParameter;
@@ -201,9 +201,10 @@ struct FBindingEntry
 
 	bool operator==(const FBindingEntry& Other) const
 	{
-		return RowType == Other.RowType &&
-			Name == Other.Name &&
-			BindingId == Other.BindingId;
+		return RowType == Other.RowType
+			&& Name == Other.Name
+			&& BindingId == Other.BindingId
+			&& Event == Other.Event;
 	}
 
 	FString GetSearchNameString(UMVVMBlueprintView* View, UWidgetBlueprint* WidgetBP)
@@ -1802,11 +1803,8 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 
 		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
 
-		FSlateColor PrimaryColor, SecondaryColor;
-		const FSlateBrush* PrimaryBrush = nullptr;
-		const FSlateBrush* SecondaryBrush = nullptr;
-		FText DisplayName, ToolTip;
-
+		const FMVVMBlueprintPin* Pin = nullptr;
+		const UEdGraphPin* GraphPin = nullptr;
 		TSharedPtr<SWidget> ContentWidget;
 
 		if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
@@ -1814,26 +1812,14 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 			bool bSimpleConversionFunction = false;
 			UMVVMBlueprintView* View = EditorSubsystem->GetView(InWidgetBlueprint);
 			FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(View);
+			check(Binding);
+
 			const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
+			UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding->Conversion.GetConversionFunction(bSourceToDestination);
+			check(ConversionFunction);
 
-			if (UEdGraphPin* Pin = EditorSubsystem->GetConversionFunctionArgumentPin(InWidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
-			{
-				PrimaryBrush = FBlueprintEditor::GetVarIconAndColorFromPinType(Pin->PinType, PrimaryColor, SecondaryBrush, SecondaryColor);
-				DisplayName = Pin->GetDisplayName();
-				ToolTip = FText::FromString(Pin->PinToolTip);
-			}
-			else if (const UFunction* Function = EditorSubsystem->GetConversionFunction(InWidgetBlueprint, *Binding, bSourceToDestination))
-			{
-				// no wrapper graph, this is a simple conversion function of the form: int32 Convert(float x)
-				if (const FProperty* Argument = BindingHelper::GetFirstArgumentProperty(Function))
-				{
-					bSimpleConversionFunction = true;
-
-					PrimaryBrush = FBlueprintEditor::GetVarIconAndColorFromProperty(Argument, PrimaryColor, SecondaryBrush, SecondaryColor);
-					DisplayName = Argument->GetDisplayNameText();
-					ToolTip = Argument->GetToolTipText();
-				}
-			}
+			Pin = ConversionFunction->GetPins().FindByPredicate([Name = Entry->GetBindingParameterName()](const FMVVMBlueprintPin& Other){ return Other.GetName() == Name; });
+			GraphPin = ConversionFunction->GetOrCreateGraphPin(InWidgetBlueprint, Entry->GetBindingParameterName());
 
 			ContentWidget = SNew(SFunctionParameter, InWidgetBlueprint)
 				.BindingId(Binding->BindingId)
@@ -1844,12 +1830,10 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 		else if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 		{
 			UMVVMBlueprintViewEvent* ViewEvent = Entry->GetEvent();
-			if (UEdGraphPin* Pin = ViewEvent ? ViewEvent->GetOrCreateGraphPin(Entry->GetEventParameterName()) : nullptr)
-			{
-				PrimaryBrush = FBlueprintEditor::GetVarIconAndColorFromPinType(Pin->PinType, PrimaryColor, SecondaryBrush, SecondaryColor);
-				DisplayName = Pin->GetDisplayName();
-				ToolTip = FText::FromString(Pin->PinToolTip);
-			}
+			check(ViewEvent);
+
+			Pin = ViewEvent->GetPins().FindByPredicate([Name = Entry->GetEventParameterName()](const FMVVMBlueprintPin& Other) { return Other.GetName() == Name; });
+			GraphPin = ViewEvent->GetOrCreateGraphPin(Entry->GetEventParameterName());
 
 			ContentWidget = SNew(SEventParameter, InWidgetBlueprint)
 				.Event(Entry->GetEvent())
@@ -1857,6 +1841,26 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 				.AllowDefault(true);
 		}
 
+		FSlateColor PrimaryColor, SecondaryColor;
+		const FSlateBrush* PrimaryBrush = nullptr;
+		const FSlateBrush* SecondaryBrush = nullptr;
+		FText DisplayName, ToolTip;
+		bool bTextColorIsRed = false;
+		if (Pin == nullptr || GraphPin == nullptr || Pin->GetStatus() == EMVVMBlueprintPinStatus::Orphaned)
+		{
+			PrimaryBrush = FBlueprintEditorUtils::GetIconFromPin(FEdGraphPinType());
+			PrimaryColor = FLinearColor::Red;
+			DisplayName = GraphPin ? GraphPin->GetDisplayName() : (Pin ? FText::FromName(Pin->GetName()) : FText::GetEmpty());
+			bTextColorIsRed = true;
+		}
+		else
+		{
+			PrimaryBrush = FBlueprintEditor::GetVarIconAndColorFromPinType(GraphPin->PinType, PrimaryColor, SecondaryBrush, SecondaryColor);
+			DisplayName = GraphPin->GetDisplayName();
+			ToolTip = FText::FromString(GraphPin->PinToolTip);
+		}
+
+		TSharedPtr<STextBlock> DisplayNameTextBlock;
 		STableRow<TSharedPtr<FBindingEntry>>::Construct(
 			STableRow<TSharedPtr<FBindingEntry>>::FArguments()
 			.ShowWires(true)
@@ -1887,7 +1891,7 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 						]
 						+ SHorizontalBox::Slot()
 						[
-							SNew(STextBlock)
+							SAssignNew(DisplayNameTextBlock, STextBlock)
 							.Text(DisplayName)
 						]
 					]
@@ -1902,6 +1906,11 @@ class SFunctionParameterRow : public STableRow<TSharedPtr<FBindingEntry>>
 			], 
 			OwnerTableView
 		);
+
+		if (bTextColorIsRed)
+		{
+			DisplayNameTextBlock->SetColorAndOpacity(PrimaryColor);
+		}
 	}
 
 private:
@@ -2088,67 +2097,33 @@ void SBindingsList::Refresh()
 			if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(UE::MVVM::IsForwardBinding(Binding.BindingType)))
 			{
 				ConversionFunction->GetOrCreateWrapperGraph(MVVMExtensionPtr->GetWidgetBlueprint());
-				if (ConversionFunction->NeedsWrapperGraph())
+				for (const FMVVMBlueprintPin& Pin : ConversionFunction->GetPins())
 				{
-					for (const FMVVMBlueprintPin& Pin : ConversionFunction->GetPins())
+					UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(MVVMExtensionPtr->GetWidgetBlueprint(), Pin.GetName());
+					if (GraphPin && GraphPin->bHidden)
 					{
-						UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(MVVMExtensionPtr->GetWidgetBlueprint(), Pin.GetName());
-						if (GraphPin && GraphPin->bHidden)
-						{
-							continue;
-						}
-
-						TSharedPtr<FBindingEntry> ArgumentEntry;
-						if (PreviousGroupEntry)
-						{
-							if (TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate([BindingId, ArgumentName = Pin.GetName()](const TSharedPtr<FBindingEntry>& Other)
-								{ return Other->GetBindingId() == BindingId && Other->GetRowType() == FBindingEntry::ERowType::BindingParameter && Other->GetBindingParameterName() == ArgumentName; }))
-							{
-								ArgumentEntry = *FoundParameter;
-							}
-						}
-
-						if (!ArgumentEntry.IsValid())
-						{
-							ArgumentEntry = MakeShared<FBindingEntry>();
-							ArgumentEntry->SetBindingParameterName(Binding.BindingId, Pin.GetName());
-
-							NewEntries.Add(ArgumentEntry);
-						}
-						BindingEntry->AddChild(ArgumentEntry);
+						continue;
 					}
-				}
-				else // simple conversion function with one parameters (no subpins)
-				{
-					const UFunction* Function = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->GetConversionFunction(MVVMExtensionPtr->GetWidgetBlueprint(), Binding, UE::MVVM::IsForwardBinding(Binding.BindingType));
-					if (Function != nullptr)
+
+					TSharedPtr<FBindingEntry> ArgumentEntry;
+					if (PreviousGroupEntry)
 					{
-						TValueOrError<TArray<const FProperty*>, FText> ArgumentsResult = BindingHelper::TryGetArgumentsForConversionFunction(Function);
-						if (ArgumentsResult.HasValue())
+						if (TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate([BindingId, ArgumentName = Pin.GetName()](const TSharedPtr<FBindingEntry>& Other)
+							{ return Other->GetBindingId() == BindingId && Other->GetRowType() == FBindingEntry::ERowType::BindingParameter && Other->GetBindingParameterName() == ArgumentName; }))
 						{
-							for (const FProperty* Argument : ArgumentsResult.GetValue())
-							{
-								TSharedPtr<FBindingEntry> ArgumentEntry;
-								if (PreviousGroupEntry)
-								{
-									if (TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate([BindingId, ArgumentName = Argument->GetFName()](const TSharedPtr<FBindingEntry>& Other)
-										{ return Other->GetBindingId() == BindingId && Other->GetRowType() == FBindingEntry::ERowType::BindingParameter && Other->GetBindingParameterName() == ArgumentName; }))
-									{
-										ArgumentEntry = *FoundParameter;
-									}
-								}
-
-								if (!ArgumentEntry.IsValid())
-								{
-									ArgumentEntry = MakeShared<FBindingEntry>();
-									ArgumentEntry->SetBindingParameterName(Binding.BindingId, Argument->GetFName());
-
-									NewEntries.Add(ArgumentEntry);
-								}
-								BindingEntry->AddChild(ArgumentEntry);
-							}
+							ArgumentEntry = *FoundParameter;
 						}
 					}
+
+					if (!ArgumentEntry.IsValid())
+					{
+						ArgumentEntry = MakeShared<FBindingEntry>();
+						ArgumentEntry->SetBindingParameter(Binding.BindingId, Pin.GetName());
+						ConversionFunction->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
+
+						NewEntries.Add(ArgumentEntry);
+					}
+					BindingEntry->AddChild(ArgumentEntry);
 				}
 			}
 		}
@@ -2226,7 +2201,8 @@ void SBindingsList::Refresh()
 				if (!ArgumentEntry.IsValid())
 				{
 					ArgumentEntry = MakeShared<FBindingEntry>();
-					ArgumentEntry->SetEventParameterName(Event, Pin.GetName());
+					ArgumentEntry->SetEventParameter(Event, Pin.GetName());
+					Event->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
 
 					NewEntries.Add(ArgumentEntry);
 				}
@@ -2396,6 +2372,33 @@ void SBindingsList::HandleDeleteSelected()
 	}
 }
 
+void SBindingsList::HandleResetSelectedPin()
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		UWidgetBlueprint* WidgetBlueprint = MVVMExtensionPtr->GetWidgetBlueprint();
+		check(WidgetBlueprint);
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+
+		TArray<TSharedPtr<FBindingEntry>> Selection = TreeView->GetSelectedItems();
+		for (const TSharedPtr<FBindingEntry>& Entry : Selection)
+		{
+			if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
+			{
+				EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			}
+			else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
+			{
+				if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(MVVMExtensionPtr->GetBlueprintView()))
+				{
+					const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
+					EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				}
+			}
+		}
+	}
+}
+
 void SBindingsList::HandleBreakSelectedPin()
 {
 	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
@@ -2416,7 +2419,7 @@ void SBindingsList::HandleBreakSelectedPin()
 				if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(MVVMExtensionPtr->GetBlueprintView()))
 				{
 					const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-					EditorSubsystem->SplitPin(WidgetBlueprint, *Binding, Entry->GetEventParameterName(), bSourceToDestination);
+					EditorSubsystem->SplitPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
 				}
 			}
 		}
@@ -2427,8 +2430,6 @@ void SBindingsList::HandleRecombineSelectedPin()
 {
 	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
 	{
-		const FScopedTransaction Transaction(LOCTEXT("RecombineStructPin", "Recombine Struct Pin"));
-
 		UWidgetBlueprint* WidgetBlueprint = MVVMExtensionPtr->GetWidgetBlueprint();
 		check(WidgetBlueprint);
 		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
@@ -2445,7 +2446,34 @@ void SBindingsList::HandleRecombineSelectedPin()
 				if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(MVVMExtensionPtr->GetBlueprintView()))
 				{
 					const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-					EditorSubsystem->RecombinePin(WidgetBlueprint, *Binding, Entry->GetEventParameterName(), bSourceToDestination);
+					EditorSubsystem->RecombinePin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				}
+			}
+		}
+	}
+}
+
+void SBindingsList::HandleResetOrphanedSelectedPin()
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		UWidgetBlueprint* WidgetBlueprint = MVVMExtensionPtr->GetWidgetBlueprint();
+		check(WidgetBlueprint);
+		UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+
+		TArray<TSharedPtr<FBindingEntry>> Selection = TreeView->GetSelectedItems();
+		for (const TSharedPtr<FBindingEntry>& Entry : Selection)
+		{
+			if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
+			{
+				EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			}
+			else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
+			{
+				if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(MVVMExtensionPtr->GetBlueprintView()))
+				{
+					const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
+					EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
 				}
 			}
 		}
@@ -2460,28 +2488,51 @@ TSharedPtr<SWidget> SBindingsList::OnSourceConstructContextMenu()
 	TArray<TSharedPtr<FBindingEntry>> Selection = TreeView->GetSelectedItems();
 	if (Selection.Num() > 0)
 	{
-		{
-			FUIAction RemoveAction;
-			RemoveAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleDeleteSelected);
-			MenuBuilder.AddMenuEntry(LOCTEXT("RemoveBinding", "Remove Binding"),
-				LOCTEXT("RemoveBindingTooltip", "Remove this binding."),
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete"),
-				RemoveAction);
-		}
+		const UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
+		const UWidgetBlueprint* WidgetBlueprint = MVVMExtensionPtr ? MVVMExtensionPtr->GetWidgetBlueprint() : nullptr;
+		const UMVVMBlueprintView* View = MVVMExtensionPtr ? MVVMExtensionPtr->GetBlueprintView() : nullptr;
+		const UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
 
+		if (View && WidgetBlueprint)
 		{
-			const UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get();
-			const UWidgetBlueprint* WidgetBlueprint = MVVMExtensionPtr ? MVVMExtensionPtr->GetWidgetBlueprint() : nullptr;
-			const UMVVMBlueprintView* View = MVVMExtensionPtr ? MVVMExtensionPtr->GetBlueprintView() : nullptr;
-			const UMVVMEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-
-			if (View && WidgetBlueprint)
+			bool bCanRemoveEntry = false;
+			bool bCanSplitPin = false;
+			bool bCanRecombinePin = false;
+			bool bCanRecombinePinVisible = false;
+			bool bCanResetPin = false;
+			bool bCanResetPinVisible = false;
+			bool bCanResetOrphanedPin = false;
+			auto SetAll = [&](bool Value)
 			{
-				bool bCanSplitPin = true;
-				bool bCanRecombinePin = true;
-				bool bCanRecombinePinVisible = true;
+				bCanRemoveEntry = Value;
+				bCanSplitPin = Value;
+				bCanRecombinePin = Value;
+				bCanRecombinePinVisible = Value;
+				bCanResetPin = Value;
+				bCanResetPinVisible = Value;
+				bCanResetOrphanedPin = Value;
+			};
+			auto AllFalse = [&]()
+			{
+				return !bCanRemoveEntry && !bCanRecombinePin && !bCanSplitPin && !bCanRecombinePinVisible && bCanResetPin && !bCanResetPinVisible && !bCanResetOrphanedPin;
+			};
+
+			if (Selection.Num())
+			{
+				SetAll(true);
 				for (const TSharedPtr<FBindingEntry>& Entry : Selection)
 				{
+					switch(Entry->GetRowType())
+					{
+						case FBindingEntry::ERowType::Group:
+						case FBindingEntry::ERowType::Binding:
+						case FBindingEntry::ERowType::Event:
+							break;
+						default:
+							bCanRemoveEntry = false;
+							break;
+					}
+
 					if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 					{
 						if (!EditorSubsystem->CanSplitPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
@@ -2492,11 +2543,32 @@ TSharedPtr<SWidget> SBindingsList::OnSourceConstructContextMenu()
 						{
 							bCanRecombinePin = false;
 						}
+						if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+						{
+							bCanResetPin = false;
+						}
+						if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+						{
+							bCanResetOrphanedPin = false;
+						}
+
 						UMVVMBlueprintViewEvent* ViewEvent = Entry->GetEvent();
 						UEdGraphPin* GraphPin = ViewEvent ? ViewEvent->GetOrCreateGraphPin(Entry->GetEventParameterName()) : nullptr;
-						if (GraphPin == nullptr || GraphPin->ParentPin == nullptr)
+						if (GraphPin == nullptr)
 						{
 							bCanRecombinePinVisible = false;
+							bCanResetPinVisible = false;
+						}
+						else
+						{
+							if (GraphPin->ParentPin == nullptr)
+							{
+								bCanRecombinePinVisible = false;
+							}
+							if (!FMVVMBlueprintPin::IsInputPin(GraphPin) || GetDefault<UEdGraphSchema_K2>()->ShouldHidePinDefaultValue(GraphPin))
+							{
+								bCanResetPinVisible = false;
+							}
 						}
 					}
 					else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
@@ -2513,46 +2585,97 @@ TSharedPtr<SWidget> SBindingsList::OnSourceConstructContextMenu()
 							{
 								bCanRecombinePin = false;
 							}
+							if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+							{
+								bCanResetPin = false;
+							}
+							if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+							{
+								bCanResetOrphanedPin = false;
+							}
 
 							UEdGraphPin* GraphPin = EditorSubsystem->GetConversionFunctionArgumentPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
-							if (GraphPin == nullptr || GraphPin->ParentPin == nullptr)
+							if (GraphPin == nullptr)
 							{
 								bCanRecombinePinVisible = false;
+								bCanResetPinVisible = false;
+							}
+							else
+							{
+								if (GraphPin->ParentPin == nullptr)
+								{
+									bCanRecombinePinVisible = false;
+								}
+								if (!FMVVMBlueprintPin::IsInputPin(GraphPin) || GetDefault<UEdGraphSchema_K2>()->ShouldHidePinDefaultValue(GraphPin))
+								{
+									bCanResetPinVisible = false;
+								}
 							}
 						}
 						else
 						{
-							bCanSplitPin = false;
-							bCanRecombinePin = false;
-							bCanRecombinePinVisible = false;
+							SetAll(false);
 						}
 					}
+					else
+					{
+						SetAll(false);
+					}
 
-					if (!bCanRecombinePin && !bCanSplitPin && !bCanRecombinePinVisible)
+					if (AllFalse())
 					{
 						break;
 					}
 				}
+			}
 
-				if (bCanSplitPin)
-				{
-					FUIAction SplitPinAction;
-					SplitPinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleBreakSelectedPin);
-					MenuBuilder.AddMenuEntry(LOCTEXT("BreakPin", "Split Struct Pin"),
-						LOCTEXT("BreakPinTooltip", "Breaks a struct pin in to a separate pin per element."),
-						FSlateIcon(),
-						SplitPinAction);
-				}
-				if (bCanRecombinePinVisible)
-				{
-					FUIAction RecombinePinAction;
-					RecombinePinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleRecombineSelectedPin);
-					RecombinePinAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanRecombinePin](){ return bCanRecombinePin; });
-					MenuBuilder.AddMenuEntry(LOCTEXT("RecombinePin", "Recombine Struct Pin"),
-						LOCTEXT("RecombinePinTooltip", "Takes struct pins that have been broken in to composite elements and combines them back to a single struct pin."),
-						FSlateIcon(),
-						RecombinePinAction);
-				}
+			{
+				FUIAction RemoveAction;
+				RemoveAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleDeleteSelected);
+				RemoveAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanRemoveEntry]() { return bCanRemoveEntry; });
+				MenuBuilder.AddMenuEntry(LOCTEXT("RemoveBinding", "Remove Binding"),
+					LOCTEXT("RemoveBindingTooltip", "Remove this binding."),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete"),
+					RemoveAction);
+			}
+
+			if (bCanResetPinVisible)
+			{
+				FUIAction ResetPinAction;
+				ResetPinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleResetSelectedPin);
+				ResetPinAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanResetPin]() { return bCanResetPin; });
+				MenuBuilder.AddMenuEntry(LOCTEXT("ResetPin", "Reset to Default Value"),
+					LOCTEXT("ResetPinTooltip", "Reset value of this pin to the default"),
+					FSlateIcon(),
+					ResetPinAction);
+			}
+			if (bCanSplitPin)
+			{
+				FUIAction SplitPinAction;
+				SplitPinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleBreakSelectedPin);
+				MenuBuilder.AddMenuEntry(LOCTEXT("BreakPin", "Split Struct Pin"),
+					LOCTEXT("BreakPinTooltip", "Breaks a struct pin in to a separate pin per element."),
+					FSlateIcon(),
+					SplitPinAction);
+			}
+			if (bCanRecombinePinVisible)
+			{
+				FUIAction RecombinePinAction;
+				RecombinePinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleRecombineSelectedPin);
+				RecombinePinAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanRecombinePin](){ return bCanRecombinePin; });
+				MenuBuilder.AddMenuEntry(LOCTEXT("RecombinePin", "Recombine Struct Pin"),
+					LOCTEXT("RecombinePinTooltip", "Takes struct pins that have been broken in to composite elements and combines them back to a single struct pin."),
+					FSlateIcon(),
+					RecombinePinAction);
+			}
+			if (bCanResetOrphanedPin)
+			{
+				FUIAction ResetOrphanedPinAction;
+				ResetOrphanedPinAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingsList::HandleResetOrphanedSelectedPin);
+				MenuBuilder.AddMenuEntry(LOCTEXT("ResetOrphanedPin", "Remove the Orphaned Struct Pin"),
+					LOCTEXT("ResetOrphanedPinTooltip", "Removes pins that used to exist but do not exist anymore."),
+					FSlateIcon(),
+					ResetOrphanedPinAction);
 			}
 		}
 	}

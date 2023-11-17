@@ -7,6 +7,7 @@
 
 #include "MVVMBlueprintViewEvent.generated.h"
 
+struct FEdGraphEditAction;
 class UEdGraph;
 class UK2Node;
 class UWidgetBlueprint;
@@ -94,10 +95,12 @@ public:
 	// To set a pin when loading the asset (no graph generation)
 	void SetPinPathNoGraphGeneration(FName PinName, const FMVVMBlueprintPropertyPath& Path);
 
+	FSimpleMulticastDelegate OnWrapperGraphModified;
+
 public:
 	TArray<FText> GetCompilationMessages(EMessageType InMessageType) const;
 	bool HasCompilationMessage(EMessageType InMessageType) const;
-	void AddCompilationToBinding(FMessage MessageToAdd);
+	void AddCompilationToBinding(FMessage MessageToAdd) const;
 	void ResetCompilationMessages();
 
 public:
@@ -119,7 +122,10 @@ public:
 private:
 	static const UFunction* GetEventSignature(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath);
 	const UFunction* GetEventSignature() const;
+	void HandleGraphChanged(const FEdGraphEditAction& Action);
+	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName);
 	UWidgetBlueprint* GetWidgetBlueprintInternal() const;
+	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node);
 	UEdGraph* CreateWrapperGraphInternal();
 	UEdGraph* CreateWrapperGraphInternal(const UFunction* Signature, const UFunction* Function);
 	UEdGraph* CreateWrapperGraphInternal(const UFunction* Signature, const FProperty* Property);
@@ -142,11 +148,14 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	FName GraphName;
 
-	TArray<FMessage> Messages;
+	mutable TArray<FMessage> Messages;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UEdGraph> CachedWrapperGraph;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UK2Node> CachedWrapperNode;
+
+	FDelegateHandle OnGraphChangedHandle;
+	FDelegateHandle OnUserDefinedPinRenamedHandle;
 };

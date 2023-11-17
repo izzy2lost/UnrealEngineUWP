@@ -128,7 +128,7 @@ public:
 
 	/** When a conversion function requires a wrapper graph, add and save the generated graph to the blueprint. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
-	bool bAllowConversionFunctionGeneratedGraphInEditor = true;
+	bool bAllowConversionFunctionGeneratedGraphInEditor = false;
 
 	/** When binding to a multicast delegate property, allow to create an event. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")

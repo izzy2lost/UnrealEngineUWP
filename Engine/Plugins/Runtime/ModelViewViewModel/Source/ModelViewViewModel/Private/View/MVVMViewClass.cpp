@@ -50,6 +50,10 @@ UObject* FMVVMViewClass_SourceCreator::CreateInstance(const UMVVMViewClass* InVi
 			Log.Error(FText::Format(LOCTEXT("CreateInstanceCreateInstance", "The source '{0}' could not be created. The class is not loaded."), FText::FromName(PropertyName)));
 		}
 	}
+	else if ((Flags & (uint8)ESourceFlags::SelfReference) != 0)
+	{ 
+		Result = InUserWidget;
+	}
 	else if (Resolver)
 	{
 		Result = Resolver->CreateInstance(ExpectedSourceType.Get(), InUserWidget, InView);

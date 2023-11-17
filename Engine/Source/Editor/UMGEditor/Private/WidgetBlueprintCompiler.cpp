@@ -72,6 +72,23 @@ EKismetCompileType::Type FWidgetBlueprintCompilerContext::FCreateVariableContext
 
 
 //////////////////////////////////////////////////////////////////////////
+// FWidgetBlueprintCompiler::FCreateFunctionContext
+FWidgetBlueprintCompilerContext::FCreateFunctionContext::FCreateFunctionContext(FWidgetBlueprintCompilerContext& InContext)
+	: Context(InContext)
+{}
+
+void FWidgetBlueprintCompilerContext::FCreateFunctionContext::AddGeneratedFunctionGraph(UEdGraph* Graph) const
+{
+	Context.GeneratedFunctionGraphs.Add(Graph);
+}
+
+UWidgetBlueprintGeneratedClass* FWidgetBlueprintCompilerContext::FCreateFunctionContext::GetGeneratedClass() const
+{
+	return Context.NewWidgetBlueprintClass;
+}
+
+
+//////////////////////////////////////////////////////////////////////////
 // FWidgetBlueprintCompiler
 FWidgetBlueprintCompiler::FWidgetBlueprintCompiler()
 	: ReRegister(nullptr)
@@ -164,9 +181,9 @@ UEdGraphSchema_K2* FWidgetBlueprintCompilerContext::CreateSchema()
 
 void FWidgetBlueprintCompilerContext::CreateFunctionList()
 {
-	UWidgetBlueprintExtension::ForEachExtension(WidgetBlueprint(), [this](UWidgetBlueprintExtension* InExtension)
+	UWidgetBlueprintExtension::ForEachExtension(WidgetBlueprint(), [Self = this](UWidgetBlueprintExtension* InExtension)
 		{
-			InExtension->CreateFunctionList();
+			InExtension->CreateFunctionList(FCreateFunctionContext(*Self));
 		});
 
 	Super::CreateFunctionList();

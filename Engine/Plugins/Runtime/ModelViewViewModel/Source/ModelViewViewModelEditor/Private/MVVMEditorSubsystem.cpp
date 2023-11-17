@@ -338,7 +338,7 @@ UFunction* UMVVMEditorSubsystem::GetConversionFunction(const UWidgetBlueprint* W
 {
 	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination))
 	{
-		TVariant<const UFunction*, TSubclassOf<UK2Node>> Result = ConversionFunction->GetConversionFunction(WidgetBlueprint->SkeletonGeneratedClass);
+		TVariant<const UFunction*, TSubclassOf<UK2Node>> Result = ConversionFunction->GetConversionFunction(WidgetBlueprint);
 		if (Result.IsType<const UFunction*>())
 		{
 			return const_cast<UFunction*>(Result.Get<const UFunction*>());
@@ -378,7 +378,8 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
-				Binding.Conversion.SourceToDestinationConversion->InitFromFunction(WidgetBlueprint, ConversionFunction, GraphName);
+				Binding.Conversion.SourceToDestinationConversion->InitializeFromFunction(WidgetBlueprint, GraphName, ConversionFunction);
+				Binding.SourcePath = FMVVMBlueprintPropertyPath();
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -409,7 +410,8 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, false);
-				Binding.Conversion.DestinationToSourceConversion->InitFromFunction(WidgetBlueprint, ConversionFunction, GraphName);
+				Binding.Conversion.DestinationToSourceConversion->InitializeFromFunction(WidgetBlueprint, GraphName, ConversionFunction);
+				Binding.DestinationPath = FMVVMBlueprintPropertyPath();
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -426,9 +428,9 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 
 		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 
-		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+		bool bEventSupported = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
 		UMVVMBlueprintViewEvent* Event = nullptr;
-		if (bSupports)
+		if (bEventSupported)
 		{
 			Event = AddEvent(WidgetBlueprint);
 		}
@@ -440,6 +442,11 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 		}
 		else
 		{
+			if (Binding.Conversion.DestinationToSourceConversion && PropertyPath.IsValid())
+			{
+				Binding.Conversion.DestinationToSourceConversion->RemoveWrapperGraph(WidgetBlueprint);
+				Binding.Conversion.DestinationToSourceConversion = nullptr;
+			}
 			Binding.DestinationPath = PropertyPath;
 		}
 
@@ -448,7 +455,7 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 	}
 }
 
-void UMVVMEditorSubsystem::SetSourcePathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath Field)
+void UMVVMEditorSubsystem::SetSourcePathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
@@ -456,7 +463,12 @@ void UMVVMEditorSubsystem::SetSourcePathForBinding(UWidgetBlueprint* WidgetBluep
 
 		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
 
-		Binding.SourcePath = Field;
+		if (Binding.Conversion.SourceToDestinationConversion && PropertyPath.IsValid())
+		{
+			Binding.Conversion.SourceToDestinationConversion->RemoveWrapperGraph(WidgetBlueprint);
+			Binding.Conversion.SourceToDestinationConversion = nullptr;
+		}
+		Binding.SourcePath = PropertyPath;
 
 		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
 		FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
@@ -652,69 +664,71 @@ void UMVVMEditorSubsystem::SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bo
 
 bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const
 {
-	TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
-	if (ReturnResult.HasError())
+	if (!UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(WidgetBlueprint, Function))
 	{
 		return false;
 	}
 
-	const FProperty* ReturnProperty = ReturnResult.GetValue();
-	if (ReturnProperty == nullptr)
 	{
-		return false;
-	}
-
-	TValueOrError<TArray<const FProperty*>, FText> ArgumentsResult = UE::MVVM::BindingHelper::TryGetArgumentsForConversionFunction(Function);
-	if (ArgumentsResult.HasError())
-	{
-		return false;
-	}
-
-	const FProperty* SourceProperty = nullptr;
-
-	TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-	if (SourceFields.Num() > 0)
-	{
-		SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
-	}
-
-	const FProperty* DestinationProperty = nullptr;
-
-	TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-	if (DestFields.Num() > 0)
-	{
-		DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
-	}
-
-	// check that at least one source -> argument binding is compatible
-	bool bAnyCompatible = false;
-
-	const TArray<const FProperty*>& ConversionArgProperties = ArgumentsResult.GetValue();
-	for (const FProperty* ArgumentProperty : ConversionArgProperties)
-	{
-
-		if (SourceProperty == nullptr || UE::MVVM::BindingHelper::ArePropertiesCompatible(SourceProperty, ArgumentProperty))
+		const FProperty* SourceProperty = nullptr;
+		TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
+		if (SourceFields.Num() > 0)
 		{
-			bAnyCompatible = true;
+			SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+		}
+
+		// check that at least one source -> argument binding is compatible
+		if (SourceProperty)
+		{
+			TValueOrError<TArray<const FProperty*>, FText> ArgumentsResult = UE::MVVM::BindingHelper::TryGetArgumentsForConversionFunction(Function);
+			check(ArgumentsResult.HasValue());
+
+			bool bAnyCompatible = false;
+
+			const TArray<const FProperty*>& ConversionArgProperties = ArgumentsResult.GetValue();
+			for (const FProperty* ArgumentProperty : ConversionArgProperties)
+			{
+				if (UE::MVVM::BindingHelper::ArePropertiesCompatible(SourceProperty, ArgumentProperty))
+				{
+					bAnyCompatible = true;
+					break;
+				}
+			}
+			if (!bAnyCompatible)
+			{
+				return false;
+			}
 		}
 	}
 
-	if (!bAnyCompatible)
 	{
-		return false;
+		const FProperty* DestinationProperty = nullptr;
+		TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
+		if (DestFields.Num() > 0)
+		{
+			if (!DestFields.Last().IsEmpty())
+			{
+				DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
+			}
+		}
+
+		if (DestinationProperty)
+		{
+			TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
+			check(ReturnResult.HasValue());
+
+			// check that the return -> dest is valid
+			if (!UE::MVVM::BindingHelper::ArePropertiesCompatible(ReturnResult.GetValue(), DestinationProperty))
+			{
+				return false;
+			}
+		}
 	}
 
-	// check that the return -> dest is valid
-	if (DestinationProperty != nullptr &&
-		!UE::MVVM::BindingHelper::ArePropertiesCompatible(ReturnProperty, DestinationProperty))
-	{
-		return false;
-	}
-
-	return GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(WidgetBlueprint, Function);
+	return true;
 }
 
-bool UMVVMEditorSubsystem::IsSimpleConversionFunction(const UFunction* Function) const
+bool UMVVMEditorSubsystem::IsSimpleConversionFunctionA(const UFunction* Function) const
 {
 	TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
 	if (ReturnResult.HasError())
@@ -761,18 +775,9 @@ TArray<UFunction*> UMVVMEditorSubsystem::GetAvailableConversionFunctions(const U
 
 	auto AddFunction = [this, &Source, &Destination, WidgetBlueprint, &ConversionFunctions](const UFunction* Function)
 	{
-		// functions in the widget blueprint can do anything they want, other functions have to be static functions in a BlueprintFunctionLibrary
-		const UClass* FunctionClass = Function->GetOuterUClass();
-
-		bool bIsFromWidgetBlueprint = WidgetBlueprint->GeneratedClass && WidgetBlueprint->GeneratedClass->IsChildOf(FunctionClass) && Function->HasAllFunctionFlags(FUNC_BlueprintPure);
-		bool bIsFromSkeletonWidgetBlueprint = WidgetBlueprint->SkeletonGeneratedClass && WidgetBlueprint->SkeletonGeneratedClass->IsChildOf(FunctionClass) && Function->HasAllFunctionFlags(FUNC_BlueprintPure);
-		bool bFromBlueprintFunctionLibrary = FunctionClass->IsChildOf<UBlueprintFunctionLibrary>() && Function->HasAllFunctionFlags(FUNC_Static | FUNC_BlueprintPure);
-		if (bIsFromWidgetBlueprint || bIsFromSkeletonWidgetBlueprint || bFromBlueprintFunctionLibrary)
+		if (IsValidConversionFunction(WidgetBlueprint, Function, Source, Destination))
 		{
-			if (IsValidConversionFunction(WidgetBlueprint, Function, Source, Destination))
-			{
-				ConversionFunctions.Add(const_cast<UFunction*>(Function));
-			}
+			ConversionFunctions.Add(const_cast<UFunction*>(Function));
 		}
 	};
 
@@ -846,17 +851,9 @@ TArray<UFunction*> UMVVMEditorSubsystem::GetAvailableConversionFunctions(const U
 FMVVMBlueprintPropertyPath UMVVMEditorSubsystem::GetPathForConversionFunctionArgument(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, FName ArgumentName, bool bSourceToDestination) const
 {
 	UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination);
-	if (ConversionFunction == nullptr || !ConversionFunction->NeedsWrapperGraph())
+	if (ConversionFunction == nullptr)
 	{
-		// simple conversion function
-		if (bSourceToDestination)
-		{
-			return Binding.SourcePath;
-		}
-		else
-		{
-			return Binding.DestinationPath;
-		}
+		return FMVVMBlueprintPropertyPath();
 	}
 
 	UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(const_cast<UWidgetBlueprint*>(WidgetBlueprint), ArgumentName);
@@ -871,21 +868,8 @@ FMVVMBlueprintPropertyPath UMVVMEditorSubsystem::GetPathForConversionFunctionArg
 void UMVVMEditorSubsystem::SetPathForConversionFunctionArgument(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FName ArgumentName, const FMVVMBlueprintPropertyPath& Path, bool bSourceToDestination) const
 {
 	UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination);
-	if (ConversionFunction == nullptr || !ConversionFunction->NeedsWrapperGraph())
+	if (ConversionFunction)
 	{
-		// simple conversion function
-		if (bSourceToDestination)
-		{
-			Binding.SourcePath = Path;
-		}
-		else
-		{
-			Binding.DestinationPath = Path;
-		}
-	}
-	else
-	{
-		check(ConversionFunction);
 		ConversionFunction->SetGraphPin(WidgetBlueprint, ArgumentName, Path);
 	}
 	FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
@@ -911,106 +895,209 @@ namespace Private
 
 		return ViewEvent->GetOrCreateGraphPin(PinName);
 	}
-}
+
+	void DoAction(const UMVVMEditorSubsystem* Subsystem, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FMVVMBlueprintViewBinding* Binding, FName PinName, bool bSourceToDestination
+		, FText TransactionName
+		, TFunctionRef<bool(const UEdGraphSchema_K2*, UEdGraphPin*)> Test, TFunctionRef<void(const UEdGraphSchema_K2*, UEdGraphPin*)> Action)
+	{
+		UEdGraphPin* GraphPin = ViewEvent
+			? Private::GetGraphPin(WidgetBlueprint, ViewEvent, PinName)
+			: Private::GetGraphPin(Subsystem, WidgetBlueprint, *Binding, PinName, bSourceToDestination);
+		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+		if (!Test(K2Schema, GraphPin))
+		{
+			return;
+		}
+
+		FScopedTransaction Transaction(TransactionName);
+		if (ViewEvent)
+		{
+			FName NAME_SavedPin = "SavedPins";
+			UE::MVVM::Private::OnEventPreEditChange(ViewEvent, NAME_SavedPin);
+			Action(K2Schema, GraphPin);
+			ViewEvent->SavePinValues();
+			UE::MVVM::Private::OnEventPostEditChange(ViewEvent, NAME_SavedPin);
+		}
+		else
+		{
+			FName NAME_Conversion = GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion);
+			UMVVMBlueprintView* View = Subsystem->GetView(WidgetBlueprint);
+			UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding->Conversion.GetConversionFunction(bSourceToDestination);
+			check(View);
+			check(ConversionFunction);
+
+			UE::MVVM::Private::OnBindingPreEditChange(View, NAME_Conversion);
+			Action(K2Schema, GraphPin);
+			ConversionFunction->SavePinValues(WidgetBlueprint);
+			UE::MVVM::Private::OnBindingPostEditChange(View, NAME_Conversion);
+		}
+	}
+
+	void SplitPin(const UMVVMEditorSubsystem* Subsystem, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FMVVMBlueprintViewBinding* Binding, FName PinName, bool bSourceToDestination)
+	{
+		DoAction(Subsystem, WidgetBlueprint, ViewEvent, Binding, PinName, bSourceToDestination, LOCTEXT("BreakPin", "Split Struct Pin")
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)->bool
+			{
+				return GraphPin != nullptr && K2Schema->CanSplitStructPin(*GraphPin);
+			}
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)
+			{
+				K2Schema->SplitPin(GraphPin);
+			});
+	}
+
+	bool CanSplitPin(UEdGraphPin* GraphPin)
+	{
+		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+		return GraphPin ? K2Schema->CanSplitStructPin(*GraphPin) && !GraphPin->bOrphanedPin : false;
+	}
+	
+	void RecombinePin(const UMVVMEditorSubsystem* Subsystem, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FMVVMBlueprintViewBinding* Binding, FName PinName, bool bSourceToDestination)
+	{
+		DoAction(Subsystem, WidgetBlueprint, ViewEvent, Binding, PinName, bSourceToDestination, LOCTEXT("BreakPin", "Split Struct Pin")
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)->bool
+			{
+				return GraphPin != nullptr && K2Schema->CanRecombineStructPin(*GraphPin);
+			}
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)
+			{
+				K2Schema->RecombinePin(GraphPin);
+			});
+	}
+
+	bool CanRecombinePin(UEdGraphPin* GraphPin)
+	{
+		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+		return GraphPin ? K2Schema->CanRecombineStructPin(*GraphPin) && !GraphPin->bOrphanedPin : false;
+	}
+	
+	void ResetPinToDefaultValue(const UMVVMEditorSubsystem* Subsystem, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FMVVMBlueprintViewBinding* Binding, FName PinName, bool bSourceToDestination)
+	{
+		DoAction(Subsystem, WidgetBlueprint, ViewEvent, Binding, PinName, bSourceToDestination, LOCTEXT("BreakPin", "Split Struct Pin")
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)->bool
+			{
+				return GraphPin != nullptr && !K2Schema->DoesDefaultValueMatchAutogenerated(*GraphPin);
+			}
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)
+			{
+				K2Schema->ResetPinToAutogeneratedDefaultValue(GraphPin);
+			});
+	}
+
+	bool CanResetPinToDefaultValue(UEdGraphPin* GraphPin)
+	{
+		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+		return GraphPin ? !K2Schema->DoesDefaultValueMatchAutogenerated(*GraphPin) && !GraphPin->bOrphanedPin : false;
+	}
+
+	void ResetOrphanedPin(const UMVVMEditorSubsystem* Subsystem, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FMVVMBlueprintViewBinding* Binding, FName PinName, bool bSourceToDestination)
+	{
+		DoAction(Subsystem, WidgetBlueprint, ViewEvent, Binding, PinName, bSourceToDestination, LOCTEXT("BreakPin", "Split Struct Pin")
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)->bool
+			{
+				return GraphPin == nullptr || GraphPin->bOrphanedPin;
+			}
+			, [](const UEdGraphSchema_K2* K2Schema, UEdGraphPin* GraphPin)
+				{
+					if (GraphPin)
+					{
+						K2Schema->ResetPinToAutogeneratedDefaultValue(GraphPin);
+					}
+				});
+	}
+	
+	bool CanResetOrphanedPin(UEdGraphPin* GraphPin)
+	{
+		return GraphPin ? GraphPin->bOrphanedPin : true;
+	}
+} //namespace
 
 void UMVVMEditorSubsystem::SplitPin(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
 {
-	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	if (GraphPin == nullptr || !K2Schema->CanSplitStructPin(*GraphPin))
-	{
-		return;
-	}
-
-	UMVVMBlueprintView* View = GetView(WidgetBlueprint);
-	UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination);
-
-	FScopedTransaction Transaction(LOCTEXT("BreakPin", "Split Struct Pin"));
-	UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
-	K2Schema->SplitPin(GraphPin);
-	ConversionFunction->SavePinValues(WidgetBlueprint);
-	UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
+	Private::SplitPin(this, WidgetBlueprint, nullptr, &Binding, PinName, bSourceToDestination);
 }
 
 bool UMVVMEditorSubsystem::CanSplitPin(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
 {
 	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	return GraphPin ? K2Schema->CanSplitStructPin(*GraphPin) : false;
+	return Private::CanSplitPin(GraphPin);
 }
 
 void UMVVMEditorSubsystem::SplitPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FName PinName) const
 {
-	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, ViewEvent, PinName);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	if (GraphPin == nullptr || !K2Schema->CanSplitStructPin(*GraphPin))
-	{
-		return;
-	}
-
-	FName NAME_SavedPin = "SavedPins";
-	FScopedTransaction Transaction(LOCTEXT("BreakPin", "Split Struct Pin"));
-	UE::MVVM::Private::OnEventPreEditChange(ViewEvent, NAME_SavedPin);
-	K2Schema->SplitPin(GraphPin);
-	ViewEvent->SavePinValues();
-	UE::MVVM::Private::OnEventPostEditChange(ViewEvent, NAME_SavedPin);
+	Private::SplitPin(this, WidgetBlueprint, ViewEvent, nullptr, PinName, true);
 }
 
 bool UMVVMEditorSubsystem::CanSplitPin(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event, FName PinName) const
 {
 	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, Event, PinName);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	return GraphPin ? K2Schema->CanSplitStructPin(*GraphPin) : false;
+	return Private::CanSplitPin(GraphPin);
 }
 
 void UMVVMEditorSubsystem::RecombinePin(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
 {
-	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	if (GraphPin == nullptr || !K2Schema->CanRecombineStructPin(*GraphPin))
-	{
-		return;
-	}
-
-	UMVVMBlueprintView* View = GetView(WidgetBlueprint);
-	UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination);
-
-	FScopedTransaction Transaction(LOCTEXT("RecombinePin", "Recombine Struct Pin"));
-	UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
-	K2Schema->RecombinePin(GraphPin);
-	ConversionFunction->SavePinValues(WidgetBlueprint);
-	UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
+	Private::RecombinePin(this, WidgetBlueprint, nullptr, &Binding, PinName, bSourceToDestination);
 }
 
 bool UMVVMEditorSubsystem::CanRecombinePin(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
 {
 	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	return GraphPin ? K2Schema->CanRecombineStructPin(*GraphPin) : false;
+	return Private::CanRecombinePin(GraphPin);
 }
 
 void UMVVMEditorSubsystem::RecombinePin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FName PinName) const
 {
-	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, ViewEvent, PinName);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	if (GraphPin == nullptr || !K2Schema->CanRecombineStructPin(*GraphPin))
-	{
-		return;
-	}
-
-	FName NAME_SavedPin = "SavedPins";
-	FScopedTransaction Transaction(LOCTEXT("RecombinePin", "Recombine Struct Pin"));
-	UE::MVVM::Private::OnEventPreEditChange(ViewEvent, NAME_SavedPin);
-	K2Schema->RecombinePin(GraphPin);
-	ViewEvent->SavePinValues();
-	UE::MVVM::Private::OnEventPostEditChange(ViewEvent, NAME_SavedPin);
+	Private::RecombinePin(this, WidgetBlueprint, ViewEvent, nullptr, PinName, true);
 }
 
 bool UMVVMEditorSubsystem::CanRecombinePin(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event, FName PinName) const
 {
 	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, Event, PinName);
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-	return GraphPin ? K2Schema->CanRecombineStructPin(*GraphPin) : false;
+	return Private::CanRecombinePin(GraphPin);
+}
+
+void UMVVMEditorSubsystem::ResetPinToDefaultValue(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
+{
+	Private::ResetPinToDefaultValue(this, WidgetBlueprint, nullptr, &Binding, PinName, bSourceToDestination);
+}
+
+bool UMVVMEditorSubsystem::CanResetPinToDefaultValue(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
+{
+	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
+	return Private::CanResetPinToDefaultValue(GraphPin);
+}
+
+void UMVVMEditorSubsystem::ResetPinToDefaultValue(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FName PinName) const
+{
+	Private::ResetPinToDefaultValue(this, WidgetBlueprint, ViewEvent, nullptr, PinName, true);
+}
+
+bool UMVVMEditorSubsystem::CanResetPinToDefaultValue(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event, FName PinName) const
+{
+	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, Event, PinName);
+	return Private::CanResetPinToDefaultValue(GraphPin);
+}
+
+void UMVVMEditorSubsystem::ResetOrphanedPin(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
+{
+	Private::ResetOrphanedPin(this, WidgetBlueprint, nullptr, &Binding, PinName, bSourceToDestination);
+}
+
+bool UMVVMEditorSubsystem::CanResetOrphanedPin(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, FName PinName, bool bSourceToDestination) const
+{
+	UEdGraphPin* GraphPin = Private::GetGraphPin(this, WidgetBlueprint, Binding, PinName, bSourceToDestination);
+	return Private::CanResetOrphanedPin(GraphPin);
+}
+
+void UMVVMEditorSubsystem::ResetOrphanedPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* ViewEvent, FName PinName) const
+{
+	Private::ResetOrphanedPin(this, WidgetBlueprint, ViewEvent, nullptr, PinName, true);
+}
+
+bool UMVVMEditorSubsystem::CanResetOrphanedPin(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintViewEvent* Event, FName PinName) const
+{
+	UEdGraphPin* GraphPin = Private::GetGraphPin(WidgetBlueprint, Event, PinName);
+	return Private::CanResetOrphanedPin(GraphPin);
 }
 
 TArray<UE::MVVM::FBindingSource> UMVVMEditorSubsystem::GetBindableWidgets(const UWidgetBlueprint* WidgetBlueprint) const
