@@ -94,8 +94,30 @@ float UTargetingSelectionTask_Trace::GetSweptTraceRadius_Implementation(const FT
 	return DefaultSweptTraceRadius.GetValue();
 }
 
+float UTargetingSelectionTask_Trace::GetSweptTraceCapsuleHalfHeight_Implementation(const FTargetingRequestHandle& TargetingHandle) const
+{
+	return DefaultSweptTraceCapsuleHalfHeight.GetValue();
+}
+
+FVector UTargetingSelectionTask_Trace::GetSweptTraceBoxHalfExtents_Implementation(const FTargetingRequestHandle& TargetingHandle) const
+{
+	return FVector(DefaultSweptTraceBoxHalfExtentX.GetValue(), DefaultSweptTraceBoxHalfExtentY.GetValue(), DefaultSweptTraceBoxHalfExtentZ.GetValue());
+}
+
+FRotator UTargetingSelectionTask_Trace::GetSweptTraceRotation_Implementation(const FTargetingRequestHandle& TargetingHandle) const
+{
+	return DefaultSweptTraceRotation;
+}
+
 void UTargetingSelectionTask_Trace::GetAdditionalActorsToIgnore_Implementation(const FTargetingRequestHandle& TargetingHandle, TArray<AActor*>& OutAdditionalActorsToIgnore) const
 {
+}
+
+FQuat UTargetingSelectionTask_Trace::GetSweptTraceQuat(const FVector& TraceDirection, const FTargetingRequestHandle& TargetingHandle) const
+{
+	const FQuat AbsoluteQuat = TraceDirection.ToOrientationQuat();
+	const FQuat RelativeQuat = GetSweptTraceRotation(TargetingHandle).Quaternion();
+	return AbsoluteQuat * RelativeQuat;
 }
 
 void UTargetingSelectionTask_Trace::ExecuteImmediateTrace(const FTargetingRequestHandle& TargetingHandle) const
@@ -106,8 +128,9 @@ void UTargetingSelectionTask_Trace::ExecuteImmediateTrace(const FTargetingReques
 		ResetTraceResultsDebugString(TargetingHandle);
 #endif // ENABLE_DRAW_DEBUG
 
+		const FVector Direction = GetTraceDirection(TargetingHandle).GetSafeNormal();
 		const FVector Start = (GetSourceLocation(TargetingHandle) + GetSourceOffset(TargetingHandle));
-		const FVector End = Start + (GetTraceDirection(TargetingHandle) * GetTraceLength(TargetingHandle));
+		const FVector End = Start + (Direction * GetTraceLength(TargetingHandle));
 
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(ExecuteImmediateTrace), bComplexTrace);
 		InitCollisionParams(TargetingHandle, Params);
@@ -115,25 +138,47 @@ void UTargetingSelectionTask_Trace::ExecuteImmediateTrace(const FTargetingReques
 		TArray<FHitResult> Hits;
 		if (CollisionProfileName.Name != TEXT("NoCollision"))
 		{
-			if (TraceType == ETargetingTraceType::Sweep)
+			switch (TraceType)
 			{
-				World->SweepMultiByProfile(Hits, Start, End, FQuat::Identity, CollisionProfileName.Name, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params);
-			}
-			else
-			{
+			default:
+			case ETargetingTraceType::Line:
 				World->LineTraceMultiByProfile(Hits, Start, End, CollisionProfileName.Name, Params);
+				break;
+			case ETargetingTraceType::Sphere:
+				World->SweepMultiByProfile(Hits, Start, End, FQuat::Identity, CollisionProfileName.Name, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params);
+				break;
+			case ETargetingTraceType::Capsule:
+			{
+				const FVector CapsuleShapeVector = FVector(0.0f, GetSweptTraceRadius(TargetingHandle), GetSweptTraceCapsuleHalfHeight(TargetingHandle));
+				World->SweepMultiByProfile(Hits, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionProfileName.Name, FCollisionShape::MakeCapsule(CapsuleShapeVector), Params);
+			}
+				break;
+			case ETargetingTraceType::Box:
+				World->SweepMultiByProfile(Hits, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionProfileName.Name, FCollisionShape::MakeBox(GetSweptTraceBoxHalfExtents(TargetingHandle)), Params);
+				break;
 			}
 		}
 		else
 		{
-			ECollisionChannel CollisionChannel = UEngineTypes::ConvertToCollisionChannel(TraceChannel);
-			if (TraceType == ETargetingTraceType::Sweep)
+			const ECollisionChannel CollisionChannel = UEngineTypes::ConvertToCollisionChannel(TraceChannel);
+			switch (TraceType)
 			{
-				World->SweepMultiByChannel(Hits, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params);
-			}
-			else
-			{
+			default:
+			case ETargetingTraceType::Line:
 				World->LineTraceMultiByChannel(Hits, Start, End, CollisionChannel, Params);
+				break;
+			case ETargetingTraceType::Sphere:
+				World->SweepMultiByChannel(Hits, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params);
+				break;
+			case ETargetingTraceType::Capsule:
+			{
+				const FVector CapsuleShapeVector = FVector(0.0f, GetSweptTraceRadius(TargetingHandle), GetSweptTraceCapsuleHalfHeight(TargetingHandle));
+				World->SweepMultiByChannel(Hits, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionChannel, FCollisionShape::MakeCapsule(CapsuleShapeVector), Params);
+			}
+				break;
+			case ETargetingTraceType::Box:
+				World->SweepMultiByChannel(Hits, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionChannel, FCollisionShape::MakeBox(GetSweptTraceBoxHalfExtents(TargetingHandle)), Params);
+				break;
 			}
 		}
 
@@ -159,8 +204,9 @@ void UTargetingSelectionTask_Trace::ExecuteAsyncTrace(const FTargetingRequestHan
 		{
 			SourceActor = SourceContext->SourceActor;
 		}
+		const FVector Direction = GetTraceDirection(TargetingHandle).GetSafeNormal();
 		const FVector Start = (GetSourceLocation(TargetingHandle) + GetSourceOffset(TargetingHandle));
-		const FVector End = Start + (GetTraceDirection(TargetingHandle) * GetTraceLength(TargetingHandle));
+		const FVector End = Start + (Direction * GetTraceLength(TargetingHandle));
 
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(ExecuteAsyncTrace), bComplexTrace);
 		InitCollisionParams(TargetingHandle, Params);
@@ -168,25 +214,47 @@ void UTargetingSelectionTask_Trace::ExecuteAsyncTrace(const FTargetingRequestHan
 		FTraceDelegate Delegate = FTraceDelegate::CreateUObject(this, &UTargetingSelectionTask_Trace::HandleAsyncTraceComplete, TargetingHandle);
 		if (CollisionProfileName.Name != TEXT("NoCollision"))
 		{
-			if (TraceType == ETargetingTraceType::Sweep)
+			switch (TraceType)
 			{
-				World->AsyncSweepByProfile(EAsyncTraceType::Multi, Start, End, FQuat::Identity, CollisionProfileName.Name, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params, &Delegate);
-			}
-			else
-			{
+			default:
+			case ETargetingTraceType::Line:
 				World->AsyncLineTraceByProfile(EAsyncTraceType::Multi, Start, End, CollisionProfileName.Name, Params, &Delegate);
+				break;
+			case ETargetingTraceType::Sphere:
+				World->AsyncSweepByProfile(EAsyncTraceType::Multi, Start, End, FQuat::Identity, CollisionProfileName.Name, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params, &Delegate);
+				break;
+			case ETargetingTraceType::Capsule:
+			{
+				const FVector CapsuleShapeVector = FVector(0.0f, GetSweptTraceRadius(TargetingHandle), GetSweptTraceCapsuleHalfHeight(TargetingHandle));
+				World->AsyncSweepByProfile(EAsyncTraceType::Multi, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionProfileName.Name, FCollisionShape::MakeCapsule(CapsuleShapeVector), Params, &Delegate);
+			}
+			break;
+			case ETargetingTraceType::Box:
+				World->AsyncSweepByProfile(EAsyncTraceType::Multi, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionProfileName.Name, FCollisionShape::MakeBox(GetSweptTraceBoxHalfExtents(TargetingHandle)), Params, &Delegate);
+				break;
 			}
 		}
 		else
 		{
-			ECollisionChannel CollisionChannel = UEngineTypes::ConvertToCollisionChannel(TraceChannel);
-			if (TraceType == ETargetingTraceType::Sweep)
+			const ECollisionChannel CollisionChannel = UEngineTypes::ConvertToCollisionChannel(TraceChannel);
+			switch (TraceType)
 			{
-				World->AsyncSweepByChannel(EAsyncTraceType::Multi, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params, FCollisionResponseParams::DefaultResponseParam, &Delegate);
-			}
-			else
-			{
+			default:
+			case ETargetingTraceType::Line:
 				World->AsyncLineTraceByChannel(EAsyncTraceType::Multi, Start, End, CollisionChannel, Params, FCollisionResponseParams::DefaultResponseParam, &Delegate);
+				break;
+			case ETargetingTraceType::Sphere:
+				World->AsyncSweepByChannel(EAsyncTraceType::Multi, Start, End, FQuat::Identity, CollisionChannel, FCollisionShape::MakeSphere(GetSweptTraceRadius(TargetingHandle)), Params, FCollisionResponseParams::DefaultResponseParam, &Delegate);
+				break;
+			case ETargetingTraceType::Capsule:
+			{
+				const FVector CapsuleShapeVector = FVector(0.0f, GetSweptTraceRadius(TargetingHandle), GetSweptTraceCapsuleHalfHeight(TargetingHandle));
+				World->AsyncSweepByChannel(EAsyncTraceType::Multi, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionChannel, FCollisionShape::MakeCapsule(CapsuleShapeVector), Params, FCollisionResponseParams::DefaultResponseParam, &Delegate);
+			}
+				break;
+			case ETargetingTraceType::Box:
+				World->AsyncSweepByChannel(EAsyncTraceType::Multi, Start, End, GetSweptTraceQuat(Direction, TargetingHandle), CollisionChannel, FCollisionShape::MakeBox(GetSweptTraceBoxHalfExtents(TargetingHandle)), Params, FCollisionResponseParams::DefaultResponseParam, &Delegate);
+				break;
 			}
 		}
 	}
@@ -284,12 +352,30 @@ bool UTargetingSelectionTask_Trace::CanEditChange(const FProperty* InProperty) c
 
 	if (bCanEdit && InProperty)
 	{
-		if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceRadius.GetValue()))
+		const FName PropertyName = InProperty->GetFName();
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceRadius))
 		{
-			return (TraceType == ETargetingTraceType::Sweep);
+			return (TraceType == ETargetingTraceType::Sphere || TraceType == ETargetingTraceType::Capsule);
 		}
 
-		if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, TraceChannel))
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceCapsuleHalfHeight))
+		{
+			return (TraceType == ETargetingTraceType::Capsule);
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceBoxHalfExtentX)
+			|| PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceBoxHalfExtentY)
+			|| PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceBoxHalfExtentZ))
+		{
+			return (TraceType == ETargetingTraceType::Box);
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, DefaultSweptTraceRotation))
+		{
+			return (TraceType == ETargetingTraceType::Capsule || TraceType == ETargetingTraceType::Box);
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UTargetingSelectionTask_Trace, TraceChannel))
 		{
 			return (CollisionProfileName.Name == TEXT("NoCollision"));
 		}

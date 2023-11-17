@@ -18,15 +18,17 @@ struct FTargetingRequestHandle;
 struct FTraceDatum;
 struct FTraceHandle;
 
-
 /**
-*	@enum ETargetingAOEShape	
+*	@enum ETargetingTraceType determines the shape of the trace used.
 */
 UENUM()
 enum class ETargetingTraceType : uint8
 {
 	Line,
-	Sweep,
+	Sphere,
+	/* With zero rotation, the capsule length is along the cross product of the trace direction and Up. */
+	Capsule,
+	Box,
 };
 
 /**
@@ -63,9 +65,22 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
 	float GetTraceLength(const FTargetingRequestHandle& TargetingHandle) const;
 
-	/** Native Event to get the swept trace radius (only called if bSweptTrace is true) */
+	/** Native Event to get the swept trace radius (only called if TraceType = ETargetingTraceType::Sphere or TraceType = ETargetingTraceType::Capsule) */
 	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
 	float GetSweptTraceRadius(const FTargetingRequestHandle& TargetingHandle) const;
+
+	/** Native Event to get the swept trace capsule's half height (only called if  TraceType = ETargetingTraceType::Capsule) */
+	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
+	float GetSweptTraceCapsuleHalfHeight(const FTargetingRequestHandle& TargetingHandle) const;
+
+	/** Native Event to get the swept box trace half extents (only called if TraceType = ETargetingTraceType::Box) */
+	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
+	FVector GetSweptTraceBoxHalfExtents(const FTargetingRequestHandle& TargetingHandle) const;
+
+	/** Native Event to get the swept trace rotation relative to trace direction
+	(only called if TraceType = ETargetingTraceType::Capsule or TraceType = ETargetingTraceType::Box) */
+	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
+	FRotator GetSweptTraceRotation(const FTargetingRequestHandle& TargetingHandle) const;
 
 	/** Native Event to get additional actors the Trace should ignore */
 	UFUNCTION(BlueprintNativeEvent, Category = "Target Trace Selection")
@@ -87,8 +102,11 @@ private:
 	/** Setup CollisionQueryParams for the trace */
 	void InitCollisionParams(const FTargetingRequestHandle& TargetingHandle, FCollisionQueryParams& OutParams) const;
 
+	/** For non-sphere shape traces, calculates the world rotation for that trace. */
+	FQuat GetSweptTraceQuat(const FVector& TraceDirection, const FTargetingRequestHandle& TargetingHandle) const;
+
 protected:
-	/** The trace type to use */
+	/** The trace type (i.e. shape) to use */
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Collision Data")
 	ETargetingTraceType TraceType = ETargetingTraceType::Line;
 
@@ -100,9 +118,29 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Collision Data")
 	FCollisionProfileName CollisionProfileName;
 
-	/** The default swept trace radius used by GetSweptTraceRadius when the trace type is set to Sweep */
+	/** The default swept trace radius used by GetSweptTraceRadius when the trace type is set to Sphere or Capsule */
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
 	FScalableFloat DefaultSweptTraceRadius = 10.0f;
+	
+	/** The default swept trace radius used by GetSweptTraceRadius when the trace type is set to Capsule */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
+	FScalableFloat DefaultSweptTraceCapsuleHalfHeight = 10.0f;
+
+	/** The default swept extents used by GetSweptTraceExtents when the trace type is set to Box */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
+	FScalableFloat DefaultSweptTraceBoxHalfExtentX = 10.0f;
+
+	/** The default swept extents used by GetSweptTraceBoxHalfExtents when the trace type is set to Box */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
+	FScalableFloat DefaultSweptTraceBoxHalfExtentY = 10.0f;
+
+	/** The default swept extents used by GetSweptTraceBoxHalfExtents when the trace type is set to Box  */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
+	FScalableFloat DefaultSweptTraceBoxHalfExtentZ = 10.0f;
+
+	/** The default swept rotation (relative to the trace direction) used by GetSweptTraceRotation when the trace type is set to Capsule or Box */
+	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Swept Data")
+	FRotator DefaultSweptTraceRotation = FRotator::ZeroRotator;
 
 	/** The default trace length to use if GetTraceLength is not overridden by a child */
 	UPROPERTY(EditAnywhere, Category = "Target Trace Selection | Trace Data")
