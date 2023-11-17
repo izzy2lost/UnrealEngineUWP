@@ -1049,8 +1049,9 @@ void FVirtualTextureDataBuilder::BuildLayerBlocks(FSlowTask& BuildTask, uint32 L
 
 		// We skip the first compressed mip output, since that will just be a copy of the input
 		check(CompressedMips.Num() >= BlockData.NumMips + 1);
-		check(BlockData.SizeX == CompressedMips[1].SizeX);
-		check(BlockData.SizeY == CompressedMips[1].SizeY);
+		// not true with padding options :
+		//check(BlockData.SizeX == CompressedMips[1].SizeX);
+		//check(BlockData.SizeY == CompressedMips[1].SizeY);
 
 		BlockData.Mips.Reserve(CompressedMips.Num() - 1);
 		for (int32 MipIndex = 1; MipIndex < BlockData.NumMips + 1; ++MipIndex)

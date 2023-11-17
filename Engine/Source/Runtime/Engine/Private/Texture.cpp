@@ -546,7 +546,8 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		ResizeDuringBuildX = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildX));
 		ResizeDuringBuildY = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildY));
 
-		// IsPowerOfTwo only checks XY :
+		// IsPowerOfTwo only checks XY : and only checks BlockIndex 0 
+		//	<- this is wrong for VT, need to check if all blocks are Pow2
 		bool bIsPowerOfTwo = Source.IsPowerOfTwo();
 		if ( ! FMath::IsPowerOfTwo(Source.GetVolumeSizeZ()) )
 		{
@@ -2576,6 +2577,8 @@ int64 FTextureSource::GetBytesPerPixel(int32 LayerIndex) const
 	return GetBytesPerPixel(GetFormat(LayerIndex));
 }
 
+// IsPowerOfTwo() with no BlockIndex just checks the first block (and only XY)
+//	not the overall dimensions of UDIM
 bool FTextureSource::IsPowerOfTwo(int32 BlockIndex) const
 {
 	FTextureSourceBlock Block;
@@ -3027,6 +3030,8 @@ int64 FTextureSource::CalcMipOffset(int32 BlockIndex, int32 LayerIndex, int32 Of
 	return MipOffset.Get(0);
 }
 
+// UseHashAsGuid is done automatically in UnlockMip, should not usually be called directly
+//	calling it multiple times does not re-hash the data; it's harmless
 void FTextureSource::UseHashAsGuid()
 {
 	if (HasPayloadData())
