@@ -117,7 +117,7 @@ FDisplayClusterViewportProxyData* FDisplayClusterViewport::CreateViewportProxyDa
 	OutViewportProxyData->OpenColorIO = OpenColorIO;
 
 	// Get Display Device proxy object
-	if (UDisplayClusterDisplayDeviceBaseComponent* DisplayDevice = GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration))
+	if (UDisplayClusterDisplayDeviceBaseComponent* DisplayDevice = GetDisplayDeviceComponent(Configuration->GetPreviewSettings().DisplayDeviceRootActorType))
 	{
 		OutViewportProxyData->DisplayDeviceProxy = DisplayDevice->GetDisplayDeviceProxy(GetConfiguration());
 	}
@@ -422,7 +422,7 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	CameraMotionBlur.SetupSceneView(Contexts[ContextNum], InOutView);
 
 	// Handle DisplayDevice
-	if (UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration))
+	if (UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = GetDisplayDeviceComponent(Configuration->GetPreviewSettings().DisplayDeviceRootActorType))
 	{
 		InDisplayDeviceComponent->SetupSceneView(*ViewportPreview, ContextNum, InOutViewFamily, InOutView);
 	}

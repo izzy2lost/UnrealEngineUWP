@@ -374,7 +374,6 @@ bool UDisplayClusterPreviewShareComponent::UpdateCustomViewportManager(const ADi
 
 	// Override preview settings:
 	NewPreviewSettings.bPreviewEnable = true;
-	NewPreviewSettings.bPreviewEnablePostProcess = bPreviewEnablePostProcess;
 	NewPreviewSettings.bEnablePreviewMesh = false;
 	NewPreviewSettings.bEnablePreviewEditableMesh = false;
 	NewPreviewSettings.bPreviewICVFXFrustums = false; // disable frustum rendering
@@ -538,7 +537,7 @@ void UDisplayClusterPreviewShareComponent::TickSend()
 
 }
 
-void UDisplayClusterPreviewShareComponent::TickPullActor()
+void UDisplayClusterPreviewShareComponent::TickPullActor(const bool bUseSourceActorSettings)
 {
 	using namespace UE::DisplayCluster::PreviewShareComponent;
 
@@ -555,23 +554,21 @@ void UDisplayClusterPreviewShareComponent::TickPullActor()
 
 	// Pull preview textures
 	{
-		// reconfigure to rendering from external DCRA
+		// Reconfigure to rendering from external DCRA
 		ViewportManager->GetConfiguration().SetRootActor(EDisplayClusterRootActorType::Scene | EDisplayClusterRootActorType::Configuration, SourceRootActor);
 
-		// Part of setttings gets from owner (DCRA)
-		const FDisplayClusterViewport_PreviewSettings OwnerPreviewSettings = RootActor->GetPreviewSettings(true);
+		// Gets preview settings from various RootActors
+		ADisplayClusterRootActor* PreviewSettingsRootActor = bUseSourceActorSettings ? SourceRootActor : RootActor;
 
-		// Get preview settings from SourceRootActor properties
-		FDisplayClusterViewport_PreviewSettings NewPreviewSettings = SourceRootActor->GetPreviewSettings(true);
+		// Override preview settings:
+		FDisplayClusterViewport_PreviewSettings NewPreviewSettings = PreviewSettingsRootActor->GetPreviewSettings(true);
 
-		// Override some preview settings for the configurator and set them as the source of the preview settings
-		NewPreviewSettings.bPreviewEnable = OwnerPreviewSettings.bPreviewEnable;
-		NewPreviewSettings.bPreviewICVFXFrustums = OwnerPreviewSettings.bPreviewICVFXFrustums;
-
-		// Override preview PostProcess from component
-		NewPreviewSettings.bPreviewEnablePostProcess = bPreviewEnablePostProcess;
+		// When using the preview settings from the local RootActor, we also use the DisplayDevice from the same.
+		NewPreviewSettings.DisplayDeviceRootActorType = bUseSourceActorSettings ? EDisplayClusterRootActorType::Configuration : EDisplayClusterRootActorType::Preview;
 
 		ViewportManager->GetConfiguration().SetPreviewSettings(NewPreviewSettings);
+
+		// Sets configuration mode to use overridden values instead of values from RootActor.
 		RootActor->PreviewSetttingsSource = EDisplayClusterConfigurationRootActorPreviewSettingsSource::Configuration;
 	}
 
@@ -874,7 +871,7 @@ void UDisplayClusterPreviewShareComponent::TickComponent(float DeltaTime, ELevel
 	}
 	case EDisplayClusterPreviewShareMode::PullActor:
 	{
-		TickPullActor();
+		TickPullActor(false);
 		break;
 	}
 	case EDisplayClusterPreviewShareMode::Send:

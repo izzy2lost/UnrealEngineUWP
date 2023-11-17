@@ -62,7 +62,7 @@ void FDisplayClusterViewportPreview::Update()
 
 	FDisplayClusterViewport* InViewport = GetViewportImpl();
 	UDisplayClusterCameraComponent* ViewPointComponent = InViewport ? InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration) : nullptr;
-	UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = InViewport ? InViewport->GetDisplayDeviceComponent(EDisplayClusterRootActorType::Configuration) : nullptr;
+	UDisplayClusterDisplayDeviceBaseComponent* InDisplayDeviceComponent = InViewport ? InViewport->GetDisplayDeviceComponent(Configuration->GetPreviewSettings().DisplayDeviceRootActorType) : nullptr;
 
 	// Update preview meshes only if DisplayDevice is used
 	PreviewMesh.Update(InViewport, InDisplayDeviceComponent, ViewPointComponent);

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 /**
 * Viewport preview-in-scene rendering settings.
@@ -56,4 +57,7 @@ struct FDisplayClusterViewport_PreviewSettings
 
 	// Max amount of Viewports Per Frame
 	int ViewportsPerFrame = 1;
+
+	// The DisplayDevice component will be obtained from the RootActor with the specified type
+	EDisplayClusterRootActorType DisplayDeviceRootActorType = EDisplayClusterRootActorType::Configuration;
 };

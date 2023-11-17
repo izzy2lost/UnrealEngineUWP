@@ -158,3 +158,26 @@ enum class EDisplayClusterViewportContextState : uint8
 	InvalidProjectionMatrix = 1 << 4,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportContextState);
+
+/**
+* Type of DCRA used by configuration
+*/
+enum class EDisplayClusterRootActorType : uint8
+{
+	// This DCRA will be used to render previews. The meshes and preview materials are created at runtime.
+	Preview = 1 << 0,
+
+	// A reference to DCRA in the scene, used as a source for math calculations and references.
+	// Locations in the scene and math data are taken from this DCRA.
+	Scene = 1 << 1,
+
+	// Reference to DCRA, used as a source of configuration data from DCRA and its components.
+	Configuration = 1 << 2,
+
+	// This value can only be used in very specific cases:
+	// For function GetRootActor() : Return any of the DCRAs that are not nullptr, in ascending order of type: Preview, Scene, Configuration.
+	// For function SetRootActor() : Sets all references to DRCA to the specified value.
+	Any = Preview | Scene | Configuration,
+};
+ENUM_CLASS_FLAGS(EDisplayClusterRootActorType);
+

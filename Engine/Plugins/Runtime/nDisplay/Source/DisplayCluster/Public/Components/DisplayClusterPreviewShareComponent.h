@@ -128,10 +128,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = Sharing, meta = (EditCondition = "Mode == EDisplayClusterPreviewShareMode::PullActor"))
 	EDisplayClusterPreviewShareIcvfxSync IcvfxCamerasSyncType = EDisplayClusterPreviewShareIcvfxSync::PullActor;
 
-	/** Override the Enable PostProcess value. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Sharing, meta = (DisplayName = "Enable Post Process"))
-	bool bPreviewEnablePostProcess = true;
-
 private:
 	// DC ViewportManager instance for this component
 	// Used to perform rendering with custom settings from an external DCRA
@@ -161,8 +157,11 @@ private:
 	/** Logic that should run every tick when in Receive mode */
 	void TickReceive();
 
-	/** Logic that should run every tick when in Pull Actor mode */
-	void TickPullActor();
+	/** Logic that should run every tick when in Pull Actor mode
+	* 
+	* @param bUseSourceActorSettings - Get preview settings from Source nDisplay Actor
+	*/
+	void TickPullActor(const bool bUseSourceActorSettings);
 
 	/** Syncs the Icvfx cameras from the given source nDisplay actor to the given destination nDisplay actor */
 	void SyncIcvxCamerasFromSourceActor(const ADisplayClusterRootActor* SrcRootActor, const ADisplayClusterRootActor* DstRootActor);
