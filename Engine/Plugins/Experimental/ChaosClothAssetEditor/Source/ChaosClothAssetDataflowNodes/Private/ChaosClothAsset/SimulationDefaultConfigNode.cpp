@@ -19,6 +19,7 @@ FChaosClothAssetSimulationDefaultConfigNode::FChaosClothAssetSimulationDefaultCo
 	: FDataflowNode(InParam, InGuid)
 	, SimulationConfig(NewObject<UChaosClothConfig>(InParam.OwningObject))
 	, SharedSimulationConfig(NewObject<UChaosClothSharedSimConfig>(InParam.OwningObject))
+	, OwningObject(InParam.OwningObject)
 {
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
@@ -31,13 +32,13 @@ void FChaosClothAssetSimulationDefaultConfigNode::Serialize(FArchive& Ar)
 	{
 		if (!SimulationConfig)
 		{
-			SimulationConfig = NewObject<UChaosClothConfig>();
+			SimulationConfig = NewObject<UChaosClothConfig>(OwningObject);
 		}
 		SimulationConfig->Serialize(Ar);
 
 		if (!SharedSimulationConfig)
 		{
-			SharedSimulationConfig = NewObject<UChaosClothSharedSimConfig>();
+			SharedSimulationConfig = NewObject<UChaosClothSharedSimConfig>(OwningObject);
 		}
 		SharedSimulationConfig->Serialize(Ar);
 	}
@@ -82,17 +83,6 @@ void FChaosClothAssetSimulationDefaultConfigNode::Evaluate(Dataflow::FContext& C
 
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}
-}
-
-void FChaosClothAssetSimulationDefaultConfigNode::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	Collector.AddReferencedObject(SimulationConfig);
-	Collector.AddReferencedObject(SharedSimulationConfig);
-}
-
-FString FChaosClothAssetSimulationDefaultConfigNode::GetReferencerName() const
-{
-	return TEXT("FChaosClothAssetSimulationDefaultConfigNode");
 }
 
 #undef LOCTEXT_NAMESPACE

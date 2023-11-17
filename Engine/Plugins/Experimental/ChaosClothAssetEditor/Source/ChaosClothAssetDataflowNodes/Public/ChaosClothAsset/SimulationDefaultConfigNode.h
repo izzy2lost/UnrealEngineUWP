@@ -11,7 +11,7 @@ class UChaosClothSharedSimConfig;
 
 /** Add default simulation properties to the cloth collection in the format of the skeletal mesh cloth editor. */
 USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSimulationDefaultConfigNode : public FDataflowNode, public FGCObject
+struct FChaosClothAssetSimulationDefaultConfigNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationDefaultConfigNode, "SimulationDefaultConfig", "Cloth", "Cloth Simulation Default Config")
@@ -36,8 +36,5 @@ private:
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode Interface
 
-	//~ Begin FGCObject Interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
-	//~ End FGCObject Interface
+	UObject* OwningObject;  // For backward compatibility when null SimulationConfig and SharedSimulationConfig are reloaded
 };
