@@ -37,8 +37,6 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		ChangedBindingsRepresentation,
 		// Added guid to transitions
 		AddedTransitionIds,
-		// Added data handles
-		AddedDataHandlesIds,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
@@ -92,8 +90,8 @@ public:
 	/** @return Shared instance data. */
 	TSharedPtr<FStateTreeInstanceData> GetSharedInstanceData() const;
 
-	/** @return Number of context data views required for StateTree execution (Tree params, context data, External data). */
-	int32 GetNumContextDataViews() const { return NumContextDataViews; }
+	/** @return Number of data views required for StateTree execution (Evaluators, Tasks, Conditions, External data). */
+	int32 GetNumDataViews() const { return NumDataViews; }
 
 	/** @return List of external data required by the state tree */
 	TConstArrayView<FStateTreeExternalDataDesc> GetExternalDataDescs() const { return ExternalDataDescs; }
@@ -142,9 +140,6 @@ public:
 
 	/** @return Id of the transition matching a given runtime transition index; invalid Id if transition not found. */
 	FGuid GetTransitionIdFromIndex(const FStateTreeIndex16 Index) const;	
-
-	UE_DEPRECATED(5.4, "Replaced with GetNumContextDataViews() which contains context data and external data only.")
-	int32 GetNumDataViews() const { return 0; }
 
 #if WITH_EDITOR
 	/** Resets the compiled data to empty. */
@@ -262,16 +257,8 @@ private:
 
 	/** Data view index of the tree Parameters */
 	UPROPERTY()
-	FStateTreeDataHandle ParametersDataHandle = FStateTreeDataHandle::Invalid; 
+	FStateTreeIndex8 ParametersDataViewIndex = FStateTreeIndex8::Invalid;
 
-	/** Number of context data. */
-	UPROPERTY()
-	uint16 NumContextData = 0;
-
-	/** Number of global instance data. */
-	UPROPERTY()
-	uint16 NumGlobalInstanceData = 0;
-	
 	/** Index of first evaluator in Nodes. */
 	UPROPERTY()
 	uint16 EvaluatorsBegin = 0;
@@ -302,10 +289,10 @@ private:
 	UPROPERTY(Transient)
 	int32 ExternalDataBaseIndex = 0;
 
-	/** Total number of context data views, created during linking. */
+	/** Total number of data views, created during linking. */
 	UPROPERTY(Transient)
-	int32 NumContextDataViews = 0;
-	
+	int32 NumDataViews = 0;
+
 	/** True if the StateTree was linked successfully. */
 	bool bIsLinked = false;
 

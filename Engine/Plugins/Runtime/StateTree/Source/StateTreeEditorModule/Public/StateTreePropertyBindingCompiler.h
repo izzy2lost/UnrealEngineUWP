@@ -46,19 +46,12 @@ struct STATETREEEDITORMODULE_API FStateTreePropertyBindingCompiler
 	int32 AddSourceStruct(const FStateTreeBindableStructDesc& SourceStruct);
 
 	/** @return Index of a source struct by specified ID, or INDEX_NONE if not found. */
-	UE_DEPRECATED(5.4, "Use GetSourceStructDescByID() instead.")
 	int32 GetSourceStructIndexByID(const FGuid& ID) const;
 
 	/** @return Reference to a source struct based on ID. */
-	UE_DEPRECATED(5.4, "Use GetSourceStructDescByID() instead.")
 	const FStateTreeBindableStructDesc& GetSourceStructDesc(const int32 Index) const
 	{
 		return SourceStructs[Index];
-	}
-
-	const FStateTreeBindableStructDesc* GetSourceStructDescByID(const FGuid& ID) const
-	{
-		return SourceStructs.FindByPredicate([ID](const FStateTreeBindableStructDesc& Structs) { return (Structs.ID == ID); });
 	}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

@@ -135,28 +135,6 @@ void FStateTreePropertyBindings::Reset()
 	bBindingsResolved = false;
 }
 
-const FStateTreeBindableStructDesc* FStateTreePropertyBindings::GetSourceDescByHandle(const FStateTreeDataHandle SourceDataHandle)
-{
-	TArray<FStateTreeBindableStructDesc> FoundDescs;
-	for (const FStateTreeBindableStructDesc& Desc : SourceStructs)
-	{
-		if (Desc.DataHandle == SourceDataHandle)
-		{
-			FoundDescs.Add(Desc);
-		}
-	}
-
-	if (FoundDescs.Num() > 1)
-	{
-		UE_LOG(LogStateTree, Error, TEXT("%hs: Found %d entries for handle %s."), __FUNCTION__, FoundDescs.Num(), *SourceDataHandle.Describe());
-	}
-	
-	return SourceStructs.FindByPredicate([SourceDataHandle](const FStateTreeBindableStructDesc& Desc)
-	{
-		return Desc.DataHandle == SourceDataHandle;
-	});
-}
-
 bool FStateTreePropertyBindings::ResolvePaths()
 {
 	PropertyIndirections.Reset();
@@ -171,30 +149,18 @@ bool FStateTreePropertyBindings::ResolvePaths()
 		for (int32 i = Batch.BindingsBegin; i != Batch.BindingsEnd; i++)
 		{
 			const FStateTreePropertyPathBinding& Binding = PropertyPathBindings[i];
-			
 			FStateTreePropertyCopy& Copy = PropertyCopies[i];
-			Copy.SourceDataHandle = Binding.GetSourceDataHandle();
 
-			if (!Binding.GetSourceDataHandle().IsValid())
+			if (!Binding.GetCompiledSourceStructIndex().IsValid())
 			{
 				UE_LOG(LogStateTree, Error, TEXT("%hs: Invalid source struct for property binding %s."), __FUNCTION__, *Binding.GetSourcePath().ToString());
-				Copy.Type = EStateTreePropertyCopyType::None;
-				bBindingsResolved = false;
 				bResult = false;
 				continue;
 			}
 
-			const FStateTreeBindableStructDesc* SourceDesc = GetSourceDescByHandle(Copy.SourceDataHandle);
-			if (!SourceDesc)
-			{
-				UE_LOG(LogStateTree, Error, TEXT("%hs: Could not find data source for binding %s."), __FUNCTION__, *Binding.GetSourcePath().ToString());
-				Copy.Type = EStateTreePropertyCopyType::None;
-				bBindingsResolved = false;
-				bResult = false;
-				continue;
-			}
+			Copy.SourceStructIndex = Binding.GetCompiledSourceStructIndex();
 
-			const UStruct* SourceStruct = SourceDesc->Struct;
+			const UStruct* SourceStruct = SourceStructs[Copy.SourceStructIndex.Get()].Struct;
 			const UStruct* TargetStruct = Batch.TargetStruct.Struct;
 			if (!SourceStruct || !TargetStruct)
 			{
@@ -203,8 +169,6 @@ bool FStateTreePropertyBindings::ResolvePaths()
 				bResult = false;
 				continue;
 			}
-
-			Copy.SourceStructType = SourceStruct;
 
 			// Resolve paths and validate the copy. Stops on first failure.
 			bool bSuccess = true;
@@ -996,7 +960,7 @@ void FStateTreePropertyBindings::PerformCopy(const FStateTreePropertyCopy& Copy,
 	}
 }
 
-bool FStateTreePropertyBindings::CopyProperty(const FStateTreePropertyCopy& Copy, FStateTreeDataView SourceStructView, FStateTreeDataView TargetStructView) const
+bool FStateTreePropertyBindings::CopyTo(TConstArrayView<FStateTreeDataView> SourceStructViews, const FStateTreeIndex16 TargetBatchIndex, FStateTreeDataView TargetStructView) const
 {
 	// This is made ensure so that the programmers have the change to catch it (it's usually programming error not to call ResolvePaths(), and it wont spam log for others.
 	if (!ensureMsgf(bBindingsResolved, TEXT("Bindings must be resolved successfully before copying. See ResolvePaths()")))
@@ -1004,34 +968,50 @@ bool FStateTreePropertyBindings::CopyProperty(const FStateTreePropertyCopy& Copy
 		return false;
 	}
 
-	// Copies that fail to be resolved (i.e. property path does not resolve, types changed) will be marked as None, skip them.
-	if (Copy.Type == EStateTreePropertyCopyType::None)
+	if (TargetBatchIndex.IsValid() == false)
 	{
-		return true;
+		return false;
 	}
+
+	check(CopyBatches.IsValidIndex(TargetBatchIndex.Get()));
+	const FStateTreePropertyCopyBatch& Batch = CopyBatches[TargetBatchIndex.Get()];
+
+	check(TargetStructView.IsValid());
+	check(TargetStructView.GetStruct() == Batch.TargetStruct.Struct);
 
 	bool bResult = true;
 	
-	if (SourceStructView.IsValid() && TargetStructView.IsValid())
+	for (int32 i = Batch.BindingsBegin; i != Batch.BindingsEnd; i++)
 	{
-		check(SourceStructView.GetStruct() == Copy.SourceStructType
-			|| (SourceStructView.GetStruct() && SourceStructView.GetStruct()->IsChildOf(Copy.SourceStructType)));
-			
-		uint8* SourceAddress = GetAddress(SourceStructView, Copy.SourceIndirection, Copy.SourceLeafProperty);
-		uint8* TargetAddress = GetAddress(TargetStructView, Copy.TargetIndirection, Copy.TargetLeafProperty);
-		
-		if (SourceAddress != nullptr && TargetAddress != nullptr)
+		const FStateTreePropertyCopy& Copy = PropertyCopies[i];
+		// Copies that fail to be resolved (i.e. property path does not resolve, types changed) will be marked as None, skip them.
+		if (Copy.Type == EStateTreePropertyCopyType::None)
 		{
-			PerformCopy(Copy, SourceAddress, TargetAddress);
+			continue;
+		}
+		
+		const FStateTreeDataView SourceStructView = SourceStructViews[Copy.SourceStructIndex.Get()];
+		if (SourceStructView.IsValid())
+		{
+			check(SourceStructView.GetStruct() == SourceStructs[Copy.SourceStructIndex.Get()].Struct
+				|| (SourceStructView.GetStruct() && SourceStructView.GetStruct()->IsChildOf(SourceStructs[Copy.SourceStructIndex.Get()].Struct)));
+				
+			uint8* SourceAddress = GetAddress(SourceStructView, Copy.SourceIndirection, Copy.SourceLeafProperty);
+			uint8* TargetAddress = GetAddress(TargetStructView, Copy.TargetIndirection, Copy.TargetLeafProperty);
+			
+			if (SourceAddress != nullptr && TargetAddress != nullptr)
+			{
+				PerformCopy(Copy, SourceAddress, TargetAddress);
+			}
+			else
+			{
+				bResult = false;
+			}
 		}
 		else
 		{
 			bResult = false;
 		}
-	}
-	else
-	{
-		bResult = false;
 	}
 
 	return bResult;
@@ -1185,13 +1165,13 @@ void FStateTreePropertyBindings::DebugPrintInternalLayout(FString& OutString) co
 	}
 
 	/** Array of property copies */
-	OutString += FString::Printf(TEXT("\nPropertyCopies (%d)\n  [ %-7s | %-4s | %-4s | %-10s | %-7s | %-4s | %-4s | %-10s | %-10s | %-20s | %-4s ]\n"), PropertyCopies.Num(),
+	OutString += FString::Printf(TEXT("\nPropertyCopies (%d)\n  [ %-7s | %-4s | %-4s | %-10s | %-7s | %-4s | %-4s | %-10s | %-7s | %-20s | %-4s ]\n"), PropertyCopies.Num(),
 		TEXT("Src Idx"), TEXT("Off."), TEXT("Next"), TEXT("Type"),
 		TEXT("Tgt Idx"), TEXT("Off."), TEXT("Next"), TEXT("Type"),
-		TEXT("Source"), TEXT("Copy Type"), TEXT("Size"));
+		TEXT("Struct"), TEXT("Copy Type"), TEXT("Size"));
 	for (const FStateTreePropertyCopy& PropertyCopy : PropertyCopies)
 	{
-		OutString += FString::Printf(TEXT("  | %7d | %4d | %4d | %-10s | %7d | %4d | %4d | %-10s | %10s | %-20s | %4d |\n"),
+		OutString += FString::Printf(TEXT("  | %7d | %4d | %4d | %-10s | %7d | %4d | %4d | %-10s | %7d | %-20s | %4d |\n"),
 					PropertyCopy.SourceIndirection.ArrayIndex.Get(),
 					PropertyCopy.SourceIndirection.Offset,
 					PropertyCopy.SourceIndirection.NextIndex.Get(),
@@ -1200,7 +1180,7 @@ void FStateTreePropertyBindings::DebugPrintInternalLayout(FString& OutString) co
 					PropertyCopy.TargetIndirection.Offset,
 					PropertyCopy.TargetIndirection.NextIndex.Get(),
 					*UEnum::GetDisplayValueAsText(PropertyCopy.TargetIndirection.Type).ToString(),
-					*PropertyCopy.SourceDataHandle.Describe(),
+					PropertyCopy.SourceStructIndex.Get(),
 					*UEnum::GetDisplayValueAsText(PropertyCopy.Type).ToString(),
 					PropertyCopy.CopySize);
 	}

@@ -25,6 +25,13 @@ struct FStateTreeLinker
 	/** Sets base index for all external data handles. */
 	void SetExternalDataBaseIndex(const int32 InExternalDataBaseIndex) { ExternalDataBaseIndex = InExternalDataBaseIndex; }
 
+	/** Sets currently linked item's instance data type and index. */ 
+	void SetCurrentInstanceDataType(const UStruct* Struct, const int32 Index)
+	{
+		CurrentInstanceStruct = Struct;
+		CurrentInstanceIndex = Index;
+	}
+
 	EStateTreeLinkerStatus GetStatus() const { return Status; }
 	
 	/**
@@ -83,9 +90,10 @@ struct FStateTreeLinker
 		if (Index == INDEX_NONE)
 		{
 			Index = ExternalDataDescs.Add(Desc);
-			ExternalDataDescs[Index].Handle.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, Index + ExternalDataBaseIndex);
+			check(FStateTreeExternalDataHandle::IsValidIndex(Index + ExternalDataBaseIndex));
+			ExternalDataDescs[Index].Handle.DataViewIndex = FStateTreeIndex16(Index + ExternalDataBaseIndex);
 		}
-		Handle.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, Index + ExternalDataBaseIndex);
+		Handle.DataViewIndex = FStateTreeIndex16(Index + ExternalDataBaseIndex);
 	}
 
 	/** @return linked external data descriptors. */
@@ -95,6 +103,8 @@ protected:
 
 	const UStateTreeSchema* Schema = nullptr;
 	EStateTreeLinkerStatus Status = EStateTreeLinkerStatus::Succeeded;
+	const UStruct* CurrentInstanceStruct = nullptr;
+	int32 CurrentInstanceIndex = INDEX_NONE;
 	int32 ExternalDataBaseIndex = 0;
 	TArray<FStateTreeExternalDataDesc> ExternalDataDescs;
 };

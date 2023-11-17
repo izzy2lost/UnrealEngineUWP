@@ -124,21 +124,8 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	FStateTreeBindableStructDesc() = default;
 
 #if WITH_EDITORONLY_DATA
-	FStateTreeBindableStructDesc(const FName InName, const UStruct* InStruct, const FStateTreeDataHandle InDataHandle, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
-		: Struct(InStruct)
-		, Name(InName)
-		, DataHandle(InDataHandle)
-		, DataSource(InDataSource)
-		, ID(InGuid)
-	{
-	}
-
-	UE_DEPRECATED(5.4, "Use constructor with DataHandle instead.")
 	FStateTreeBindableStructDesc(const FName InName, const UStruct* InStruct, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
-		: Struct(InStruct)
-		, Name(InName)
-		, DataSource(InDataSource)
-		, ID(InGuid)
+		: Struct(InStruct), Name(InName), DataSource(InDataSource), ID(InGuid)
 	{
 	}
 
@@ -160,14 +147,9 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	UPROPERTY()
 	FName Name;
 
-	/** Runtime data the struct represents. */
-	UPROPERTY()
-	FStateTreeDataHandle DataHandle = FStateTreeDataHandle::Invalid;
-
-	/** Type of the source. */
 	UPROPERTY()
 	EStateTreeBindableStructSource DataSource = EStateTreeBindableStructSource::Context;
-
+	
 #if WITH_EDITORONLY_DATA
 	/** Unique identifier of the struct. */
 	UPROPERTY()
@@ -524,24 +506,15 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	{
 	}
 
-	FStateTreePropertyPathBinding(const FStateTreeDataHandle InSourceDataHandle, const FStateTreePropertyPath& InSourcePath, const FStateTreePropertyPath& InTargetPath)
-		: SourcePropertyPath(InSourcePath)
-		, TargetPropertyPath(InTargetPath)
-		, SourceDataHandle(InSourceDataHandle)
-	{
-	}
-
-	UE_DEPRECATED(5.4, "Use constructor with DataHandle instead.")
 	FStateTreePropertyPathBinding(const FStateTreeIndex16 InCompiledSourceStructIndex, const FStateTreePropertyPath& InSourcePath, const FStateTreePropertyPath& InTargetPath)
 		: SourcePropertyPath(InSourcePath)
 		, TargetPropertyPath(InTargetPath)
+		, CompiledSourceStructIndex(InCompiledSourceStructIndex)
 	{
 	}
 
 	UE_DEPRECATED(5.3, "Use constructor with FStateTreePropertyPath instead.")
-	FStateTreePropertyPathBinding(const FStateTreeEditorPropertyPath& InSourcePath, const FStateTreeEditorPropertyPath& InTargetPath)
-	{
-	}
+	FStateTreePropertyPathBinding(const FStateTreeEditorPropertyPath& InSourcePath, const FStateTreeEditorPropertyPath& InTargetPath);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void PostSerialize(const FArchive& Ar);
@@ -552,11 +525,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FStateTreePropertyPath& GetMutableSourcePath() { return SourcePropertyPath; }
 	FStateTreePropertyPath& GetMutableTargetPath() { return TargetPropertyPath; }
 
-	UE_DEPRECATED(5.4, "Use GetSourceDataHandle instead.")
-	FStateTreeIndex16 GetCompiledSourceStructIndex() const { return {}; }
-
-	void SetSourceDataHandle(const FStateTreeDataHandle NewSourceDataHandle) { SourceDataHandle = NewSourceDataHandle; }
-	FStateTreeDataHandle GetSourceDataHandle() const { return SourceDataHandle; }
+	FStateTreeIndex16 GetCompiledSourceStructIndex() const { return CompiledSourceStructIndex; }
 
 private:
 	/** Source property path of the binding */
@@ -567,9 +536,9 @@ private:
 	UPROPERTY()
 	FStateTreePropertyPath TargetPropertyPath;
 
-	/** Describes how to get the source data pointer for the binding. */
+	/** ID of the struct this property path is relative to. */
 	UPROPERTY()
-	FStateTreeDataHandle SourceDataHandle = FStateTreeDataHandle::Invalid;
+	FStateTreeIndex16 CompiledSourceStructIndex;
 
 public:
 #if WITH_EDITORONLY_DATA
@@ -698,14 +667,6 @@ struct STATETREEMODULE_API FStateTreePropertyCopy
 {
 	GENERATED_BODY()
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FStateTreePropertyCopy() = default;
-	FStateTreePropertyCopy(const FStateTreePropertyCopy&) = default;
-	FStateTreePropertyCopy(FStateTreePropertyCopy&&) = default;
-	FStateTreePropertyCopy& operator=(const FStateTreePropertyCopy&) = default;
-	FStateTreePropertyCopy& operator=(FStateTreePropertyCopy&&) = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	/** Source property access. */
 	UPROPERTY()
 	FStateTreePropertyIndirection SourceIndirection;
@@ -720,25 +681,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Cached pointer to the leaf property of the access. */
 	const FProperty* TargetLeafProperty = nullptr;
 
-	/** Type of the source data, used for validation. */
-	UPROPERTY(Transient)
-	TObjectPtr<const UStruct> SourceStructType = nullptr;
-
 	/** Cached property element size * dim. */
 	UPROPERTY()
 	int32 CopySize = 0;
 
-	/** Describes how to get the source data pointer for the copy. */
+	/** Index to the struct the source path refers to, sources are stored in FStateTreePropertyBindings. */
 	UPROPERTY()
-	FStateTreeDataHandle SourceDataHandle = FStateTreeDataHandle::Invalid;
+	FStateTreeIndex16 SourceStructIndex = FStateTreeIndex16::Invalid;
 
 	/** Type of the copy */
 	UPROPERTY()
 	EStateTreePropertyCopyType Type = EStateTreePropertyCopyType::None;
-
-	UE_DEPRECATED(5.4, "Use SourceDataHandle instead")
-	UPROPERTY()
-	FStateTreeIndex16 SourceStructIndex_DEPRECATED = FStateTreeIndex16::Invalid;
 };
 
 using FStateTreePropCopy UE_DEPRECATED(5.3, "Deprecated struct. Please use FStateTreePropertyCopy instead.") = FStateTreePropertyCopy;
@@ -798,39 +751,21 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 */
 	int32 GetSourceStructNum() const { return SourceStructs.Num(); }
 
+	UE_DEPRECATED(5.3, "Will be removed in a future version.")
+	TArrayView<FStateTreeBindableStructDesc> GetSourceStructs() { return  SourceStructs; };
+
+	UE_DEPRECATED(5.3, "Will be removed in a future version.")
+	TArrayView<FStateTreePropertyCopyBatch> GetCopyBatches() { return CopyBatches; };
+
 	/**
-	 * Copies a property from Source to Target based on the provided Copy.
-	 * @param Copy Describes which parameter and how is copied.
-	 * @param SourceStructView Pointer and type for the source containing the property to be copied.
-	 * @param TargetStructView Pointer and type for the target containing the property to be copied.
-	 * @return true if the property was copied successfully.
+	 * Copies a batch of properties from source structs to target struct.
+	 * @param SourceStructViews Views to structs where properties are copied from.
+	 * @param TargetBatchIndex Batch index to copy (see FStateTreePropertyBindingCompiler).
+	 * @param TargetStructView View to struct where properties are copied to.
+	 * @return true if all copies succeeded (a copy can fail e.g. if source or destination struct view is invalid).
 	 */
-	bool CopyProperty(const FStateTreePropertyCopy& Copy, FStateTreeDataView SourceStructView, FStateTreeDataView TargetStructView) const;
+	bool CopyTo(TConstArrayView<FStateTreeDataView> SourceStructViews, const FStateTreeIndex16 TargetBatchIndex, FStateTreeDataView TargetStructView) const;
 
-	/** @return copy batch at specified index. */
-	const FStateTreePropertyCopyBatch& GetBatch(const FStateTreeIndex16 TargetBatchIndex) const
-	{
-		check(TargetBatchIndex.IsValid());
-		return CopyBatches[TargetBatchIndex.Get()];
-	}
-
-	/** @return All the property copies for a specific batch. */
-	TConstArrayView<FStateTreePropertyCopy> GetBatchCopies(const FStateTreeIndex16 TargetBatchIndex) const
-	{
-		return GetBatchCopies(GetBatch(TargetBatchIndex));
-	}
-
-	/** @return All the property copies for a specific batch. */
-	TConstArrayView<FStateTreePropertyCopy> GetBatchCopies(const FStateTreePropertyCopyBatch& Batch) const
-	{
-		const int32 Count = (int32)Batch.BindingsEnd - (int32)Batch.BindingsBegin;
-		if (Count == 0)
-		{
-			return {};
-		}
-		return MakeArrayView(&PropertyCopies[Batch.BindingsBegin], Count);
-	}
-	
 	/**
 	 * Resets copied properties in TargetStructView. Can be used e.g. to erase UObject references.
 	 * @param TargetBatchIndex Batch index to copy (see FStateTreePropertyBindingCompiler).
@@ -858,22 +793,8 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 */
 	[[nodiscard]] static bool ResolveCopyType(const FStateTreePropertyPathIndirection& SourceIndirection, const FStateTreePropertyPathIndirection& TargetIndirection, FStateTreePropertyCopy& OutCopy);
 
-	
-	UE_DEPRECATED(5.3, "Should not be used, will be removed in a future version.")
-	TArrayView<FStateTreeBindableStructDesc> GetSourceStructs() { return  SourceStructs; };
-
-	UE_DEPRECATED(5.3, "Use GetBatch() instead.")
-	TArrayView<FStateTreePropertyCopyBatch> GetCopyBatches() { return CopyBatches; };
-
-	UE_DEPRECATED(5.4, "Use GetBatchCopies() and Copy() instead.")
-	bool CopyTo(TConstArrayView<FStateTreeDataView> SourceStructViews, const FStateTreeIndex16 TargetBatchIndex, FStateTreeDataView TargetStructView) const
-	{
-		return false;
-	}
-
 private:
 	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
-	const FStateTreeBindableStructDesc* GetSourceDescByHandle(const FStateTreeDataHandle SourceDataHandle);
 
 	void PerformCopy(const FStateTreePropertyCopy& Copy, uint8* SourceAddress, uint8* TargetAddress) const;
 	void PerformResetObjects(const FStateTreePropertyCopy& Copy, uint8* TargetAddress) const;
@@ -891,6 +812,20 @@ private:
 	UPROPERTY()
 	TArray<FStateTreePropertyPathBinding> PropertyPathBindings;
 
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	/** Array of property bindings, resolved into arrays of copies before use. */
+	UE_DEPRECATED_FORGAME(5.3, "Use PropertyPathBindings instead.")
+	UPROPERTY()
+	TArray<FStateTreePropertyBinding> PropertyBindings_DEPRECATED;
+
+	/** Array of property segments, indexed by property paths. */
+	UE_DEPRECATED_FORGAME(5.3, "Use PropertyPathBindings instead.")
+	UPROPERTY()
+	TArray<FStateTreePropertySegment> PropertySegments_DEPRECATED;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	
 	/** Array of property copies */
 	UPROPERTY(Transient)
 	TArray<FStateTreePropertyCopy> PropertyCopies;
@@ -901,20 +836,6 @@ private:
 
 	/** Flag indicating if the properties has been resolved successfully . */
 	bool bBindingsResolved = false;
-
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	
-	UE_DEPRECATED_FORGAME(5.3, "Use PropertyPathBindings instead.")
-	UPROPERTY()
-	TArray<FStateTreePropertyBinding> PropertyBindings_DEPRECATED;
-
-	UE_DEPRECATED_FORGAME(5.3, "Use PropertyPathBindings instead.")
-	UPROPERTY()
-	TArray<FStateTreePropertySegment> PropertySegments_DEPRECATED;
-	
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
 
 	friend FStateTreePropertyBindingCompiler;
 	friend UStateTree;

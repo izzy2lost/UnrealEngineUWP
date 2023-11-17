@@ -5,8 +5,6 @@
 
 #include "StateTreeExecutionTypes.generated.h"
 
-class UStateTree;
-
 /**
  * Enumeration for the different update phases.
  * This is used as context information when tracing debug events.
@@ -92,30 +90,15 @@ struct STATETREEMODULE_API FStateTreeExternalDataHandle
 {
 	GENERATED_BODY()
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FStateTreeExternalDataHandle() = default;
-	FStateTreeExternalDataHandle(const FStateTreeExternalDataHandle& Other) = default;
-	FStateTreeExternalDataHandle(FStateTreeExternalDataHandle&& Other) = default;
-	FStateTreeExternalDataHandle& operator=(FStateTreeExternalDataHandle const& Other) = default;
-	FStateTreeExternalDataHandle& operator=(FStateTreeExternalDataHandle&& Other) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	static const FStateTreeExternalDataHandle Invalid;
 	
-	bool IsValid() const { return DataHandle.IsValid(); }
-
-	UE_DEPRECATED(5.4, "Index is deprecated, use DataHandle instead.")
-	static bool IsValidIndex(const int32 Index) { return FStateTreeDataHandle::IsValidIndex(Index); }
+	static bool IsValidIndex(const int32 Index) { return FStateTreeIndex16::IsValidIndex(Index); }
+	bool IsValid() const { return DataViewIndex.IsValid(); }
 
 	UPROPERTY()
-	FStateTreeDataHandle DataHandle = FStateTreeDataHandle::Invalid;
-
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "Use DataHandle instead.")
-	UPROPERTY()
-	FStateTreeIndex16 DataViewIndex_DEPRECATED = FStateTreeIndex16::Invalid;
-#endif // WITH_EDITORONLY_DATA
+	FStateTreeIndex16 DataViewIndex = FStateTreeIndex16::Invalid;
 };
+
 
 /**
  * Handle to access an external struct or object.
@@ -218,16 +201,8 @@ struct STATETREEMODULE_API FStateTreeTransitionRequest
 	}
 
 	/** Source state of the transition. Filled in by the StateTree execution context. */
-	UPROPERTY()
+	UPROPERTY(EditDefaultsOnly, Category = "Default")
 	FStateTreeStateHandle SourceState;
-
-	/** StateTree asset that was active when the transition was requested. Filled in by the StateTree execution context. */
-	UPROPERTY()
-	TObjectPtr<const UStateTree> SourceStateTree = nullptr;
-
-	/** Root state the execution frame where the transition was requested. Filled in by the StateTree execution context. */
-	UPROPERTY()
-	FStateTreeStateHandle SourceRootState = FStateTreeStateHandle::Invalid;
 
 	/** Target state of the transition. */
 	UPROPERTY(EditDefaultsOnly, Category = "Default")
@@ -436,7 +411,6 @@ struct STATETREEMODULE_API FStateTreeTransitionSource
 		*this = {};
 	}
 
-	/** Describes where the transition originated. */
 	EStateTreeTransitionSourceType SourceType = EStateTreeTransitionSourceType::Unset;
 
 	/* Index of the transition if from predefined asset transitions, invalid otherwise */
@@ -446,6 +420,63 @@ struct STATETREEMODULE_API FStateTreeTransitionSource
 	FStateTreeStateHandle TargetState = FStateTreeStateHandle::Invalid;
 	
 	/** Priority of the transition that caused the state change. */
+	EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::None;
+};
+
+
+/**
+ * Describes a state tree transition. Source is the state where the transition started, Target describes the state where the transition pointed at,
+ * and Next describes the selected state. The reason Transition and Next are different is that Transition state can be a selector state,
+ * in which case the children will be visited until a leaf state is found, which will be the next state.
+ */
+USTRUCT(BlueprintType)
+struct STATETREEMODULE_API FStateTreeTransitionResult
+{
+	GENERATED_BODY()
+
+	FStateTreeTransitionResult() = default;
+
+	void Reset()
+	{
+		CurrentActiveStates.Reset();
+		CurrentRunStatus = EStateTreeRunStatus::Unset;
+		TargetState = FStateTreeStateHandle::Invalid;
+		NextActiveStates.Reset();
+		CurrentState = FStateTreeStateHandle::Invalid;
+		ChangeType = EStateTreeStateChangeType::Changed;
+		Priority = EStateTreeTransitionPriority::None;
+	}
+	
+	/** Current active states, where the transition started. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	FStateTreeActiveStates CurrentActiveStates;
+
+	/** Current Run status. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	EStateTreeRunStatus CurrentRunStatus = EStateTreeRunStatus::Unset;
+
+	/** Transition source state */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	FStateTreeStateHandle SourceState = FStateTreeStateHandle::Invalid;
+
+	/** Transition target state */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	FStateTreeStateHandle TargetState = FStateTreeStateHandle::Invalid;
+
+	/** States selected as result of the transition. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	FStateTreeActiveStates NextActiveStates;
+
+	/** The current state being executed. On enter/exit callbacks this is the state of the task. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	FStateTreeStateHandle CurrentState = FStateTreeStateHandle::Invalid;
+
+	/** If the change type is Sustained, then the CurrentState was reselected, or if Changed then the state was just activated. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
+	EStateTreeStateChangeType ChangeType = EStateTreeStateChangeType::Changed; 
+
+	/** Priority of the transition that caused the state change. */
+	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
 	EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::None;
 };
 
@@ -490,235 +521,52 @@ struct STATETREEMODULE_API FStateTreeInstanceDebugId
 };
 #endif // WITH_STATETREE_DEBUGGER
 
-/** Describes current state of a delayed transition. */
-USTRUCT()
-struct STATETREEMODULE_API FStateTreeTransitionDelayedState
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TObjectPtr<const UStateTree> StateTree = nullptr;
-
-	UPROPERTY()
-	FStateTreeIndex16 TransitionIndex = FStateTreeIndex16::Invalid;
-
-	UPROPERTY()
-	float TimeLeft = 0.0f;
-};
-
-/** Describes an active branch of a State Tree. */
-USTRUCT(BlueprintType)
-struct STATETREEMODULE_API FStateTreeExecutionFrame
-{
-	GENERATED_BODY()
-
-	bool IsSameFrame(const FStateTreeExecutionFrame& OtherFrame) const
-	{
-		return StateTree == OtherFrame.StateTree && RootState == OtherFrame.RootState;
-	}
-	
-	/** The State Tree used for ticking this frame. */
-	UPROPERTY()
-	TObjectPtr<const UStateTree> StateTree = nullptr;
-
-	/** The root state of the frame (e.g. Root state or a subtree). */
-	UPROPERTY()
-	FStateTreeStateHandle RootState = FStateTreeStateHandle::Root; 
-	
-	/** Active states in this frame */
-	UPROPERTY()
-	FStateTreeActiveStates ActiveStates;
-
-	/** Index within the instance data to the first global instance data (e.g. global tasks) */
-	UPROPERTY()
-	FStateTreeIndex16 GlobalInstanceIndexBase = FStateTreeIndex16::Invalid;
-
-	/** Index within the instance data to the first active state's instance data (e.g. tasks) */
-	UPROPERTY()
-	FStateTreeIndex16 ActiveInstanceIndexBase = FStateTreeIndex16::Invalid;
-
-	/** Index in the active instance data for the parameters of the root state. */
-	UPROPERTY()
-	FStateTreeIndex16 StateParameterDataIndex = FStateTreeIndex16::Invalid;
-
-	/** If true, the global tasks of the State Tree should be handle in this frame. */
-	UPROPERTY()
-	uint8 bIsGlobalFrame : 1 = false;
-};
-
-/** Describes the execution state of the current State Tree instance. */
 USTRUCT()
 struct STATETREEMODULE_API FStateTreeExecutionState
 {
 	GENERATED_BODY()
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FStateTreeExecutionState() = default;
-	FStateTreeExecutionState(const FStateTreeExecutionState&) = default;
-	FStateTreeExecutionState(FStateTreeExecutionState&&) = default;
-	FStateTreeExecutionState& operator=(const FStateTreeExecutionState&) = default;
-	FStateTreeExecutionState& operator=(FStateTreeExecutionState&&) = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
-	void Reset()
-	{
-		ActiveFrames.Reset();
-#if WITH_STATETREE_DEBUGGER
-		InstanceDebugId.Reset();
-#endif
-		EnterStateFailedTaskIndex = FStateTreeIndex16::Invalid;
-		LastTickStatus = EStateTreeRunStatus::Failed;
-		TreeRunStatus = EStateTreeRunStatus::Unset;
-		RequestedStop = EStateTreeRunStatus::Unset;
-		CurrentPhase = EStateTreeUpdatePhase::Unset;
-		CompletedStateHandle = FStateTreeStateHandle::Invalid;
-		StateChangeCount = 0;
-	}
-
 	/** @returns Delayed transition state for a specific transition, or nullptr if it does not exists. */
-	FStateTreeTransitionDelayedState* FindDelayedTransition(const UStateTree* OwnerStateTree, const FStateTreeIndex16 TransitionIndex)
+	FStateTreeTransitionDelayedState* FindDelayedTransition(const FStateTreeIndex16 TransitionIndex)
 	{
-		return DelayedTransitions.FindByPredicate([OwnerStateTree, TransitionIndex](const FStateTreeTransitionDelayedState& TransitionState)
-		{
-			return TransitionState.StateTree == OwnerStateTree && TransitionState.TransitionIndex == TransitionIndex;
-		});
+		return DelayedTransitions.FindByPredicate([TransitionIndex](const FStateTreeTransitionDelayedState& State){ return State.TransitionIndex == TransitionIndex; });
 	}
 
-	/** Currently active frames (and states) */
-	UPROPERTY()
-	TArray<FStateTreeExecutionFrame> ActiveFrames;
-
-	/** Pending delayed transitions. */
-	UPROPERTY()
-	TArray<FStateTreeTransitionDelayedState> DelayedTransitions;
+	/** Currently active states */
+	FStateTreeActiveStates ActiveStates;
 
 #if WITH_STATETREE_DEBUGGER
 	/** Id for the active instance used for debugging. */
 	mutable FStateTreeInstanceDebugId InstanceDebugId;
 #endif
 
-	/** The index of the task that failed during enter state. Exit state uses it to call ExitState() symmetrically. */
-	UPROPERTY()
-	FStateTreeIndex16 EnterStateFailedFrameIndex = FStateTreeIndex16::Invalid;
+	/** Index of the first task struct in the currently initialized instance data. */
+	FStateTreeIndex16 FirstTaskStructIndex = FStateTreeIndex16::Invalid;
+	
+	/** Index of the first task object in the currently initialized instance data. */
+	FStateTreeIndex16 FirstTaskObjectIndex = FStateTreeIndex16::Invalid;
 
-	/** The index of the frame that failed during enter state. Exit state uses it to call ExitState() symmetrically. */
-	UPROPERTY()
+	/** The index of the task that failed during enter state. Exit state uses it to call ExitState() symmetrically. */
 	FStateTreeIndex16 EnterStateFailedTaskIndex = FStateTreeIndex16::Invalid;
 
 	/** Result of last tick */
-	UPROPERTY()
 	EStateTreeRunStatus LastTickStatus = EStateTreeRunStatus::Failed;
 
 	/** Running status of the instance */
-	UPROPERTY()
 	EStateTreeRunStatus TreeRunStatus = EStateTreeRunStatus::Unset;
 
 	/** Completion status stored if Stop was called during the Tick and needed to be deferred. */
-	UPROPERTY()
 	EStateTreeRunStatus RequestedStop = EStateTreeRunStatus::Unset;
 
 	/** Current update phase used to validate reentrant calls to the main entry points of the execution context (i.e. Start, Stop, Tick). */
-	UPROPERTY()
 	EStateTreeUpdatePhase CurrentPhase = EStateTreeUpdatePhase::Unset;
 
 	/** Handle of the state that was first to report state completed (success or failure), used to trigger completion transitions. */
-	UPROPERTY()
-	FStateTreeIndex16 CompletedFrameIndex = FStateTreeIndex16::Invalid; 
-	
-	UPROPERTY()
 	FStateTreeStateHandle CompletedStateHandle = FStateTreeStateHandle::Invalid;
 
 	/** Number of times a new state has been changed. */
-	UPROPERTY()
 	uint16 StateChangeCount = 0;
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.3, "Use DataHandle instead.")
-	UPROPERTY()
-	FStateTreeActiveStates CurrentActiveStates_DEPRECATED;
-	
-	/** Index of the first task struct in the currently initialized instance data. */
-	UE_DEPRECATED(5.4, "Superceded by State Tree Data Handles.")
-	FStateTreeIndex16 FirstTaskStructIndex_DEPRECATED = FStateTreeIndex16::Invalid;
-	
-	/** Index of the first task object in the currently initialized instance data. */
-	UE_DEPRECATED(5.4, "Superceded by State Tree Data Handles.")
-	FStateTreeIndex16 FirstTaskObjectIndex_DEPRECATED = FStateTreeIndex16::Invalid;
-#endif	
-};
-
-/**
- * Describes a state tree transition. Source is the state where the transition started, Target describes the state where the transition pointed at,
- * and Next describes the selected state. The reason Transition and Next are different is that Transition state can be a selector state,
- * in which case the children will be visited until a leaf state is found, which will be the next state.
- */
-USTRUCT(BlueprintType)
-struct STATETREEMODULE_API FStateTreeTransitionResult
-{
-	GENERATED_BODY()
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FStateTreeTransitionResult() = default;
-	FStateTreeTransitionResult(const FStateTreeTransitionResult&) = default;
-	FStateTreeTransitionResult(FStateTreeTransitionResult&&) = default;
-	FStateTreeTransitionResult& operator=(const FStateTreeTransitionResult&) = default;
-	FStateTreeTransitionResult& operator=(FStateTreeTransitionResult&&) = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	
-	void Reset()
-	{
-		NextActiveFrames.Reset();
-		CurrentRunStatus = EStateTreeRunStatus::Unset;
-		TargetState = FStateTreeStateHandle::Invalid;
-		CurrentState = FStateTreeStateHandle::Invalid;
-		ChangeType = EStateTreeStateChangeType::Changed;
-		Priority = EStateTreeTransitionPriority::None;
-	}
-
-	/** States selected as result of the transition. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	TArray<FStateTreeExecutionFrame> NextActiveFrames;
-
-	/** Current Run status. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	EStateTreeRunStatus CurrentRunStatus = EStateTreeRunStatus::Unset;
-
-	/** Transition source state */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	FStateTreeStateHandle SourceState = FStateTreeStateHandle::Invalid;
-
-	/** Transition target state */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	FStateTreeStateHandle TargetState = FStateTreeStateHandle::Invalid;
-
-	/** The current state being executed. On enter/exit callbacks this is the state of the task. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	FStateTreeStateHandle CurrentState = FStateTreeStateHandle::Invalid;
-	
-	/** If the change type is Sustained, then the CurrentState was reselected, or if Changed then the state was just activated. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	EStateTreeStateChangeType ChangeType = EStateTreeStateChangeType::Changed; 
-
-	/** Priority of the transition that caused the state change. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	EStateTreeTransitionPriority Priority = EStateTreeTransitionPriority::None;
-
-	/** StateTree asset that was active when the transition was requested. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	TObjectPtr<const UStateTree> SourceStateTree = nullptr;
-
-	/** Root state the execution frame where the transition was requested. */
-	UPROPERTY(EditDefaultsOnly, Category = "Default", BlueprintReadOnly)
-	FStateTreeStateHandle SourceRootState = FStateTreeStateHandle::Invalid;
-	
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "Use the ActiveFrames on FStateTreeExecutionState instead.")
-	UPROPERTY()
-	FStateTreeActiveStates CurrentActiveStates_DEPRECATED;
-
-	UE_DEPRECATED(5.4, "Use the NextActiveFrames instead.")
-	UPROPERTY()
-	FStateTreeActiveStates NextActiveStates_DEPRECATED;
-#endif	
+	/** Running time of the delayed transition */
+	TArray<FStateTreeTransitionDelayedState> DelayedTransitions;
 };
