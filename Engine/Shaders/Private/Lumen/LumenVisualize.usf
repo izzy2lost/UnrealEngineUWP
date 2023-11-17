@@ -11,7 +11,6 @@
 #include "LumenRadianceCacheCommon.ush"
 #include "LumenVisualizeTraces.ush"
 #include "LumenVisualize.ush"
-#include "LumenReflectionsCombine.ush"
 #include "../ShaderPrint.ush"
 
 uint3 CullGridSize;
@@ -156,33 +155,10 @@ void VisualizeQuadsCS(
 		FinalColor = float4(Debug, 0);
 	}
 
-	// The overview outputs after the tonemapper to overwrite editor primitives and must apply its own tonemapping
-	FinalColor.rgb = VisualizeTonemap(FinalColor.rgb);
-
-	//#TODO: Implement Substrate support
-	#if ENABLE_VISUALIZE_MODE == 1
-	if (VisualizeMode == VISUALIZE_MODE_DEDICATED_REFLECTION_RAYS)
-	{
-		const float2 GBufferUV = (ViewportUV * View.ViewRectMinAndSize.zw + 0.5f) * View.BufferSizeAndInvSize.zw;
-		const FGBufferData GBuffer = GetGBufferData(GBufferUV);
-
-		FinalColor.rgb = Luminance(sqrt(GBuffer.BaseColor));
-
-		const bool bFoliage = GBuffer.ShadingModelID == SHADINGMODELID_TWOSIDED_FOLIAGE || GBuffer.ShadingModelID == SHADINGMODELID_SUBSURFACE;
-
-		// Mark pixels which require dedicated reflection rays
-		if (LumenCombineReflectionsAlpha(GBuffer.Roughness, bFoliage) > 0.0f || GBuffer.ShadingModelID == SHADINGMODELID_CLEAR_COAT)
-		{
-			FinalColor.rgb = bFoliage ? float3(0, 1, 0) : float3(1, 0, 0);
-		}
-	
-		// Add sky as a background
-		if (GBuffer.Depth > 1e6)
-		{
-			FinalColor.rgb = VisualizeTonemap(EvaluateSkyRadiance(CameraVector));
-		}
-	}
-	#endif
+	LumenVisualizationFinalize(
+		ViewportUV,
+		CameraVector,
+		FinalColor.xyz);
 
 	RWSceneColor[OutputScreenCoord] = FinalColor;
 }

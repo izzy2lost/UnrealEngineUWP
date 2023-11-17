@@ -598,10 +598,12 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenVisualizeHardwareRayTracing)
 			TraceResult.Lighting.rgb = GetFogOnLuminance(TraceResult.Lighting.rgb, CoverageForFog, OriginToCollider);
 		}
 
-		// The overview outputs after the tonemapper to overwrite editor primitives and must apply its own tonemapping
-		float3 TonemappedLighting = VisualizeTonemap(TraceResult.Lighting);
+		LumenVisualizationFinalize(
+			ViewportUV,
+			Ray.Direction,
+			TraceResult.Lighting);
 
-		RWRadiance[OutputScreenCoord] = TonemappedLighting;
+		RWRadiance[OutputScreenCoord] = TraceResult.Lighting;
 	}
 }
 

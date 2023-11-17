@@ -68,8 +68,8 @@ FAutoConsoleVariableRef CVarLumenReflectionRadianceCacheReprojectionRadiusScale(
 
 TAutoConsoleVariable<float> CVarLumenReflectionMaxRoughnessToTrace(
 	TEXT("r.Lumen.Reflections.MaxRoughnessToTrace"),
-	0.4f,
-	TEXT("Max roughness value for which Lumen still traces dedicated reflection rays. Can be overriden by a Post Process Volume."),
+	-1.0f,
+	TEXT("Max roughness value for which Lumen still traces dedicated reflection rays. Overrides Post Process Volume settings when set to anything >= 0."),
 	ECVF_RenderThreadSafe
 );
 
@@ -307,6 +307,11 @@ void LumenReflections::SetupCompositeParameters(const FViewInfo& View, LumenRefl
 	OutParameters.MaxRoughnessToTrace = FMath::Min(View.FinalPostProcessSettings.LumenMaxRoughnessToTraceReflections, CVarLumenReflectionMaxRoughnessToTraceClamp.GetValueOnRenderThread());
 	OutParameters.InvRoughnessFadeLength = 1.0f / FMath::Clamp(GLumenReflectionRoughnessFadeLength, 0.001f, 1.0f);
 	OutParameters.MaxRoughnessToTraceForFoliage = CVarLumenReflectionsMaxRoughnessToTraceForFoliage.GetValueOnRenderThread();
+
+	if (CVarLumenReflectionMaxRoughnessToTrace.GetValueOnRenderThread() >= 0.0f)
+	{
+		OutParameters.MaxRoughnessToTrace = CVarLumenReflectionMaxRoughnessToTrace.GetValueOnRenderThread();
+	}
 }
 
 TRefCountPtr<FRDGPooledBuffer> GVisualizeReflectionTracesData;
