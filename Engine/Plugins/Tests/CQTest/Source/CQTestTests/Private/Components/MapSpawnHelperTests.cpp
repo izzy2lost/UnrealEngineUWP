@@ -1,12 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#define ENABLE_MAPSPAWNER_TEST WITH_EDITOR && (WITH_DEV_AUTOMATION_TESTS || WITH_PERF_AUTOMATION_TESTS)
-
-#if ENABLE_MAPSPAWNER_TEST
-
 #include "CQTest.h"
 #include "Components/MapTestSpawner.h"
 #include "GameFramework/Pawn.h"
+
+#if ENABLE_MAPSPAWNER_TEST
 
 TEST_CLASS(MapSpawnHelperTests, "TestFramework.CQTest.Map")
 {

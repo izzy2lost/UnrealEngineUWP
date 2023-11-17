@@ -6,6 +6,10 @@
 
 #include "Commands/TestCommandBuilder.h"
 
+#define ENABLE_MAPSPAWNER_TEST WITH_EDITOR && WITH_AUTOMATION_TESTS
+
+#if ENABLE_MAPSPAWNER_TEST
+
 /// Class for spawning Actors in a named Map/Level
 struct CQTEST_API FMapTestSpawner : public FSpawnHelper
 {
@@ -49,3 +53,5 @@ private:
 	FString MapName;
 	UWorld* PieWorld{ nullptr };
 };
+
+#endif // ENABLE_MAPSPAWNER_TEST
