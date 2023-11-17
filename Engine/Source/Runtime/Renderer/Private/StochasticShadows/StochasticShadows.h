@@ -17,4 +17,5 @@ namespace StochasticShadows
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing();
 	bool UseInlineHardwareRayTracing();
+	bool UseGlobalSDF();
 };

@@ -92,6 +92,11 @@ namespace StochasticShadows
 		#endif
 	}
 
+	bool UseGlobalSDF()
+	{
+		return CVarStochasticShadowsWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
+	}
+
 	bool IsUsingClosestHZB()
 	{
 		return IsEnabled() && CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0;
@@ -576,6 +581,8 @@ void StochasticShadows::RayTraceLightSamples(
 		}
 		else
 		{
+			ensure(StochasticShadows::UseGlobalSDF());
+
 			FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
 			PassParameters->CompactedTraceParameters = CompactedTraceParameters;
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
