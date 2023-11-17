@@ -18,7 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPerformTargetingReady, FTargetingRe
 /**
 *	@class UAsyncAction_PerformTargeting
 */
-UCLASS(meta = (ExposedAsyncProxy = "AsyncTaskRef"))
+UCLASS(BlueprintType, meta = (ExposedAsyncProxy = "AsyncTaskRef"))
 class UAsyncAction_PerformTargeting : public UBlueprintAsyncActionBase
 {
 	GENERATED_UCLASS_BODY()
