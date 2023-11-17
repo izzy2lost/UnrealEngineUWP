@@ -70,6 +70,13 @@ namespace BuildPatchServices
 			static TArray<uint8> None;
 			return None;
 		}
+
+		HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetStatus");
+			return EHttpRequestStatus::Failed;
+		}
+
 	};
 }
 

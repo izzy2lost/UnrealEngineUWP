@@ -998,7 +998,7 @@ bool FCurlHttpRequest::ProcessRequest()
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CurlHttpAddThreadedRequest);
 	// Mark as in-flight to prevent overlapped requests using the same object
-	CompletionStatus = EHttpRequestStatus::Processing;
+	SetStatus(EHttpRequestStatus::Processing);
 	// Add to global list while being processed so that the ref counted request does not get deleted
 	FHttpModule::Get().GetHttpManager().AddThreadedRequest(SharedThis(this));
 
@@ -1252,7 +1252,8 @@ void FCurlHttpRequest::FinishRequest()
 		}
 
 		// Mark last request attempt as completed successfully
-		CompletionStatus = EHttpRequestStatus::Succeeded;
+		SetStatus(EHttpRequestStatus::Succeeded);
+
 		// Call delegate with valid request/response objects
 		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this),Response,true);
 	}
@@ -1286,7 +1287,7 @@ void FCurlHttpRequest::FinishRequest()
 		// Mark last request attempt as completed but failed
 		if (bCanceled)
 		{
-			CompletionStatus = EHttpRequestStatus::Failed;
+			SetStatus(EHttpRequestStatus::Failed);
 		}
 		else if (bCurlRequestCompleted)
 		{
@@ -1297,21 +1298,21 @@ void FCurlHttpRequest::FinishRequest()
 			case CURLE_COULDNT_RESOLVE_HOST:
 			case CURLE_SSL_CONNECT_ERROR:
 				// report these as connection errors (safe to retry)
-				CompletionStatus = EHttpRequestStatus::Failed_ConnectionError;
+				SetStatus(EHttpRequestStatus::Failed_ConnectionError);
 				break;
 			default:
-				CompletionStatus = EHttpRequestStatus::Failed;
+				SetStatus(EHttpRequestStatus::Failed);
 			}
 		}
 		else
 		{
 			if (bAnyHttpActivity)
 			{
-				CompletionStatus = EHttpRequestStatus::Failed;
+				SetStatus(EHttpRequestStatus::Failed);
 			}
 			else
 			{
-				CompletionStatus = EHttpRequestStatus::Failed_ConnectionError;
+				SetStatus(EHttpRequestStatus::Failed_ConnectionError);
 			}
 		}
 		// Call delegate with failure
@@ -1331,7 +1332,7 @@ float FCurlHttpRequest::GetElapsedTime() const
 // FCurlHttpRequest
 
 FCurlHttpResponse::FCurlHttpResponse(const FCurlHttpRequest& InRequest)
-	: FHttpResponseCommon(InRequest.GetURL())
+	: FHttpResponseCommon(InRequest)
 	, TotalBytesRead(0)
 	, HttpCode(EHttpResponseCodes::Unknown)
 	, ContentLength(0)

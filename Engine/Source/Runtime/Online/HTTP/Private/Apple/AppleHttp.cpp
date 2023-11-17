@@ -695,7 +695,7 @@ bool FAppleHttpRequest::StartRequest()
 	{
 		bStarted = true;
 
-		CompletionStatus = EHttpRequestStatus::Processing;
+		SetStatus(EHttpRequestStatus::Processing);
 
 		Response = MakeShared<FAppleHttpResponse>(*this);
 
@@ -711,7 +711,7 @@ bool FAppleHttpRequest::StartRequest()
 	else
 	{
 		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. Could not initialize Internet connection."));
-		CompletionStatus = EHttpRequestStatus::Failed_ConnectionError;
+		SetStatus(EHttpRequestStatus::Failed_ConnectionError);
 	}
 
 	return bStarted;
@@ -729,7 +729,7 @@ void FAppleHttpRequest::FinishRequest()
 	{
 		bSuccess = true;
 		UE_LOG(LogHttp, Verbose, TEXT("Request succeeded"));
-		CompletionStatus = EHttpRequestStatus::Succeeded;
+		SetStatus(EHttpRequestStatus::Succeeded);
 
 		// TODO: Try to broadcast OnHeaderReceived when we receive headers instead of here at the end
 		BroadcastResponseHeadersReceived();
@@ -738,10 +738,10 @@ void FAppleHttpRequest::FinishRequest()
 	{
 		UE_LOG(LogHttp, Verbose, TEXT("Request failed"));
 		FString URL([[Request URL] absoluteString]);
-		CompletionStatus = EHttpRequestStatus::Failed;
+		SetStatus(EHttpRequestStatus::Failed);
 		if (Response.IsValid() && Response->HadConnectionError())
 		{
-			CompletionStatus = EHttpRequestStatus::Failed_ConnectionError;
+			SetStatus(EHttpRequestStatus::Failed_ConnectionError);
 			Response = nullptr;
 		}
 	}
@@ -841,7 +841,7 @@ void FAppleHttpRequest::TickThreadedRequest(float DeltaSeconds)
  **************************************************************************/
 
 FAppleHttpResponse::FAppleHttpResponse(const FAppleHttpRequest& InRequest)
-	: FHttpResponseCommon(InRequest.GetURL())
+	: FHttpResponseCommon(InRequest)
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::FAppleHttpResponse()"));
 	ResponseDelegate = [[FAppleHttpResponseDelegate alloc] initWithResponseStream: InRequest.ResponseBodyReceiveStream];

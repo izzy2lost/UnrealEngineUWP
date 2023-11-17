@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GenericPlatform/HttpRequestCommon.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 #include "Http.h"
 #include "HttpManager.h"
 
@@ -66,5 +67,16 @@ void FHttpRequestCommon::SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolic
 EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() const
 { 
 	return DelegateThreadPolicy; 
+}
+
+void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
+{
+	CompletionStatus = InCompletionStatus;
+
+	if (FHttpResponsePtr Response = GetResponse())
+	{
+		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
+		ResponseCommon->SetRequestStatus(InCompletionStatus);
+	}
 }
 

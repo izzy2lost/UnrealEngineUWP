@@ -4,18 +4,26 @@
 
 #include "Interfaces/IHttpResponse.h"
 
+class FHttpRequestCommon;
+
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
  */
 class FHttpResponseCommon : public IHttpResponse
 {
+	friend FHttpRequestCommon;
+
 public:
-	HTTP_API FHttpResponseCommon(const FString& InURL);
+	HTTP_API FHttpResponseCommon(const FHttpRequestCommon& HttpRequest);
 
 	// IHttpBase
 	HTTP_API virtual FString GetURLParameter(const FString& ParameterName) const override;
 	HTTP_API virtual FString GetURL() const override;
+	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
 
 protected:
+	HTTP_API void SetRequestStatus(EHttpRequestStatus::Type InCompletionStatus);
+
 	FString URL;
+	EHttpRequestStatus::Type CompletionStatus;
 };

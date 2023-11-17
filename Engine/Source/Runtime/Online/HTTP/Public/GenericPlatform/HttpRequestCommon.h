@@ -23,6 +23,7 @@ protected:
 	 * Check if this request is valid or allowed, before actually process the request
 	 */
 	HTTP_API bool PreCheck() const;
+	HTTP_API void SetStatus(EHttpRequestStatus::Type InCompletionStatus);
 
 protected:
 	/** Current status of request being processed */
