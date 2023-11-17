@@ -348,9 +348,9 @@ public:
 	FAsyncLoadingThread(int32 InThreadIndex);
 	virtual ~FAsyncLoadingThread();
 
-	virtual FName GetLoaderName() const override
+	virtual ELoaderType GetLoaderType() const override
 	{
-		return TEXT("LegacyLoader");
+		return ELoaderType::LegacyLoader;
 	}
 
 	IAsyncPackageLoader* GetIoStorePackageLoader() const

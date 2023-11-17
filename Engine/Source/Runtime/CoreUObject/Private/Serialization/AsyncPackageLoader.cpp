@@ -326,9 +326,9 @@ bool IsAsyncLoadingMultithreadedCoreUObjectInternal()
 	return GetAsyncPackageLoader().IsMultithreaded();
 }
 
-FName GetLoaderNameInternal()
+ELoaderType GetLoaderTypeInternal()
 {
-	return GetAsyncPackageLoader().GetLoaderName();
+	return GetAsyncPackageLoader().GetLoaderType();
 }
 
 void SuspendAsyncLoadingInternal()

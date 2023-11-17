@@ -25,9 +25,9 @@ public:
 
 	virtual ~FEditorPackageLoader () { }
 
-	virtual FName GetLoaderName() const override
+	virtual ELoaderType GetLoaderType() const override
 	{
-		return TEXT("EditorPackageLoader");
+		return ELoaderType::EditorPackageLoader;
 	}
 
 	virtual void InitializeLoading() override

@@ -460,8 +460,18 @@ extern CORE_API bool (*IsAsyncLoadingSuspended)();
 /** Returns true if async loading is using the async loading thread */
 extern CORE_API bool(*IsAsyncLoadingMultithreaded)();
 
-/** Returns the name of the currently active loader, if any. */
-extern CORE_API FName(*GetLoaderName)();
+enum class ELoaderType : uint8
+{
+	NotInitialized,
+	LegacyLoader,
+	EditorPackageLoader,
+	ZenLoader
+};
+
+CORE_API const TCHAR* LexToString(ELoaderType Type);
+
+/** Returns the type of the currently active loader, if any. */
+extern CORE_API ELoaderType(*GetLoaderType)();
 
 /** Suspends texture updates caused by completed async IOs. */
 extern CORE_API void (*SuspendTextureStreamingRenderTasks)();

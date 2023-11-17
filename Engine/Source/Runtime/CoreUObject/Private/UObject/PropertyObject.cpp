@@ -60,13 +60,14 @@ EConvertFromTypeResult FObjectProperty::ConvertFromType(const FPropertyTag& Tag,
 
 		// If we're async loading, only zenloader supports synchronous loads from the async loading thread.
 		// Other loaders are not safe to do a sync load because they may crash or fail to set the variable, so throw an error if it's not already in memory
-		if (!IsInGameThread() && GetLoaderName() != TEXT("ZenLoader"))
+		ELoaderType LoaderType = GetLoaderType();
+		if (!IsInGameThread() && (LoaderType != ELoaderType::ZenLoader))
 		{
 			PreviousValueObj = PreviousValue.Get();
 
 			if (!PreviousValueObj && !PreviousValue.IsNull())
 			{
-				UE_LOG(LogClass, Error, TEXT("Failed to convert soft path %s to unloaded object as this is not supported during async loading with the currently active loader '%s'. Load and resave %s in the editor to fix!"), *PreviousValue.ToString(), *GetLoaderName().ToString(), *Slot.GetUnderlyingArchive().GetArchiveName());
+				UE_LOG(LogClass, Error, TEXT("Failed to convert soft path %s to unloaded object as this is not supported during async loading with the currently active loader '%s'. Load and resave %s in the editor to fix!"), *PreviousValue.ToString(), LexToString(LoaderType), *Slot.GetUnderlyingArchive().GetArchiveName());
 			}
 		}
 		else

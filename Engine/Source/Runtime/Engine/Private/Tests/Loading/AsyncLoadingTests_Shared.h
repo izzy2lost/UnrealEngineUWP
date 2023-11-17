@@ -120,11 +120,12 @@ public:
 protected:
 	bool CanRunInEnvironment(const FString& TestParams, FString* OutReason, bool* OutWarn) const override
 	{
-		if (GetLoaderName() != TEXT("ZenLoader"))
+		ELoaderType LoaderType = GetLoaderType();
+		if (LoaderType != ELoaderType::ZenLoader)
 		{
 			if (OutReason)
 			{
-				*OutReason = FString::Printf(TEXT("Test %s is for ZenLoader only. Cannot run on non-compliant loader currently active: %s"), *GetTestName(), *GetLoaderName().ToString());
+				*OutReason = FString::Printf(TEXT("Test %s is for ZenLoader only. Cannot run on non-compliant loader currently active: %s"), *GetTestName(), LexToString(LoaderType));
 			}
 			return false;
 		}

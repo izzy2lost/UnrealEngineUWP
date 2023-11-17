@@ -3080,9 +3080,9 @@ public:
 	FAsyncLoadingThread2(FIoDispatcher& IoDispatcher, IAsyncPackageLoader* InUncookedPackageLoader);
 	virtual ~FAsyncLoadingThread2();
 
-	virtual FName GetLoaderName() const override
+	virtual ELoaderType GetLoaderType() const override
 	{
-		return TEXT("ZenLoader");
+		return ELoaderType::ZenLoader;
 	}
 
 private:
@@ -9161,12 +9161,13 @@ void FAsyncLoadingThread2::FlushLoading(TConstArrayView<int32> RequestIDs)
 #else
 		const bool bIsFlushSupportedOnCurrentThread = IsInGameThread();
 #endif
+		ELoaderType LoaderType = GetLoaderType();
 
-		ensureMsgf(bIsFlushSupportedOnCurrentThread, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread."), *GetLoaderName().ToString());
+		ensureMsgf(bIsFlushSupportedOnCurrentThread, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread."), LexToString(LoaderType));
 
 		if (!bIsFlushSupportedOnCurrentThread)
 		{
-			UE_LOG(LogStreaming, Error, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread. Flush will be ignored."), *GetLoaderName().ToString());
+			UE_LOG(LogStreaming, Error, TEXT("The current loader '%s' is unable to FlushAsyncLoading from the current thread. Flush will be ignored."), LexToString(LoaderType));
 			return;
 		}
 
