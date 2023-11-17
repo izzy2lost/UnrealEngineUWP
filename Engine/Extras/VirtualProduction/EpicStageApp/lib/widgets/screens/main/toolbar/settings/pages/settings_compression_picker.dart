@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,6 @@ import 'package:streaming_shared_preferences/streaming_shared_preferences.dart';
 
 import '../../../../../../models/engine_connection.dart';
 import '../../../../../../models/settings/connection_settings.dart';
-import '../settings_generic.dart';
 
 /// Page showing the possible compression modes.
 class SettingsCompressionPicker extends StatelessWidget {
