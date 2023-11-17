@@ -297,6 +297,12 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 				TArray<FString> DeviceProfileNames, FriendlyNames;
 				AllDeviceProfiles.ParseIntoArray(DeviceProfileNames, TEXT(","));
 				AllFriendlyName.ParseIntoArray(FriendlyNames, TEXT(","));
+				
+				if (DeviceProfileNames.Num() == 0)
+				{
+					DeviceProfileNames.Add(TEXT(""));
+					FriendlyNames.Add(TEXT(""));
+				}
 
 				for (int DPIndex = 0; DPIndex < DeviceProfileNames.Num(); DPIndex++)
 				{
