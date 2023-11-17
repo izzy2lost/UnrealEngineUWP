@@ -266,6 +266,9 @@ class UViewport : public UContentWidget
 	UFUNCTION(BlueprintCallable, Category = "Viewport")
 	UMG_API void SetSkyIntensity(float LightIntensity);
 
+	UFUNCTION(BlueprintCallable, Category = "Viewport")
+	UMG_API void SetShowFlag(FString InShowFlagName, bool InValue);
+
 	// UWidget interface
 	UMG_API virtual void SynchronizeProperties() override;
 	// End of UWidget interface

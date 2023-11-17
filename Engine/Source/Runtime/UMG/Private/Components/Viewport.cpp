@@ -501,6 +501,16 @@ AActor* UViewport::Spawn(TSubclassOf<AActor> ActorClass)
 	return NULL;
 }
 
+void UViewport::SetShowFlag(FString InShowFlagName, bool InValue)
+{
+	if (ShowFlags.IsNameThere(*InShowFlagName, 0))
+	{
+		int32 FlagIndex = ShowFlags.FindIndexByName(*InShowFlagName);
+		ShowFlags.SetSingleFlag(FlagIndex, InValue);
+		ViewportWidget->ViewportClient->SetEngineShowFlags(ShowFlags);
+	}
+}
+
 void UViewport::SetEnableAdvancedFeatures(bool InEnableAdvancedFeatures)
 {
 	ShowFlags.DisableAdvancedFeatures();
