@@ -240,7 +240,7 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHashSet::StoreToE
 {
 	check(!RuntimeStreamingData.IsEmpty());
 
-	URuntimeHashSetExternalStreamingObject* NewStreamingObject = CreateExternalStreamingObject<URuntimeHashSetExternalStreamingObject>(this, MakeUniqueObjectName(this, URuntimeHashExternalStreamingObjectBase::StaticClass()));
+	URuntimeHashSetExternalStreamingObject* NewStreamingObject = CreateExternalStreamingObject<URuntimeHashSetExternalStreamingObject>(StreamingObjectOuter, StreamingObjectName);
 	NewStreamingObject->RuntimeStreamingData = MoveTemp(RuntimeStreamingData);
 
 	for (FRuntimePartitionStreamingData& StreamingData : NewStreamingObject->RuntimeStreamingData)
