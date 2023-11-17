@@ -52,6 +52,8 @@ namespace Horde.Server.Telemetry
 						break;
 				}
 			}
+
+			_telemetrySinks.Add(serviceProvider.GetRequiredService<MetricTelemetrySink>());
 		}
 
 		/// <inheritdoc/>
