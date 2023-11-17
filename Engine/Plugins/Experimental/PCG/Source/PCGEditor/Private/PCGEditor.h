@@ -226,6 +226,11 @@ private:
 	/** Whether the user can add a dynamic source pin to a node */
 	bool CanAddDynamicInputPin() const;
 
+	/** User is attempting to rename a node */
+	void OnRenameNode();
+	/** Whether the user can rename the selected node */
+	bool CanRenameNode() const;
+
 	void OnAlignTop();
 	void OnAlignMiddle();
 	void OnAlignBottom();

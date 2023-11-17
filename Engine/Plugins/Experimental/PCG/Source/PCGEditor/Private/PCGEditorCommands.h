@@ -29,4 +29,5 @@ public:
 	TSharedPtr<FUICommandInfo> DisableDebugOnAllNodes;
 	TSharedPtr<FUICommandInfo> ToggleInspect;
 	TSharedPtr<FUICommandInfo> AddSourcePin;
+	TSharedPtr<FUICommandInfo> RenameNode;
 };

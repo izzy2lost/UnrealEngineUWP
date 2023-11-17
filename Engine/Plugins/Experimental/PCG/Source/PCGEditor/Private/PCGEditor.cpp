@@ -644,6 +644,11 @@ void FPCGEditor::BindCommands()
 		PCGEditorCommands.AddSourcePin,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnAddDynamicInputPin),
 		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanAddDynamicInputPin));
+
+	GraphEditorCommands->MapAction(
+		PCGEditorCommands.RenameNode,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnRenameNode),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::CanRenameNode));
 }
 
 void FPCGEditor::OnFind()
@@ -931,6 +936,38 @@ bool FPCGEditor::CanAddDynamicInputPin() const
 
 	const UPCGEditorGraphNodeBase* Node = Cast<const UPCGEditorGraphNodeBase>(*SelectedNodes.CreateConstIterator());
 	return (Node && Node->CanUserAddRemoveDynamicInputPins());
+}
+
+void FPCGEditor::OnRenameNode()
+{
+	check(GraphEditorWidget.IsValid());
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+
+	if (!ensure(SelectedNodes.Num() == 1))
+	{
+		UE_LOG(LogPCGEditor, Warning, TEXT("Attempting to rename multiple nodes."));
+		return;
+	}
+
+	UPCGEditorGraphNodeBase* Node = CastChecked<UPCGEditorGraphNodeBase>(*SelectedNodes.CreateConstIterator());
+	Node->EnterRenamingMode();
+}
+
+bool FPCGEditor::CanRenameNode() const
+{
+	check(GraphEditorWidget.IsValid());
+
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+
+	// You cannot enter renaming mode on multiple nodes at once, since they will not all enter synchronously.
+	// Simultaneous editing of multiple InlineEditableTextBlocks may not even be possible with default behavior.
+	if (SelectedNodes.Num() != 1)
+	{
+		return false;
+	}
+
+	return (*SelectedNodes.CreateConstIterator())->IsA<UPCGEditorGraphNodeBase>();
 }
 
 void FPCGEditor::OnCollapseNodesInSubgraph()
@@ -2168,9 +2205,17 @@ void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type Co
 {
 	if (NodeBeingChanged)
 	{
-		const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorRenameNode", "PCG Editor: Rename Node"), nullptr);
-		NodeBeingChanged->Modify();
-		NodeBeingChanged->OnRenameNode(NewText.ToString());
+		if (CommitInfo == ETextCommit::OnEnter)
+		{
+			const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorRenameNode", "PCG Editor: Rename Node"), nullptr);
+			NodeBeingChanged->Modify();
+			NodeBeingChanged->OnRenameNode(NewText.ToString());
+		}
+
+		if (UPCGEditorGraphNodeBase* PCGEditorNode = CastChecked<UPCGEditorGraphNodeBase>(NodeBeingChanged))
+		{
+			PCGEditorNode->ExitRenamingMode();
+		}
 	}
 }
 

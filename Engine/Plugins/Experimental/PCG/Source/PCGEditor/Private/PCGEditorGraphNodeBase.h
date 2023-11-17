@@ -42,6 +42,7 @@ public:
 	virtual UObject* GetJumpTargetForDoubleClick() const override;
 	virtual void OnUpdateCommentText(const FString& NewComment) override;
 	virtual void OnCommentBubbleToggled(bool bInCommentBubbleVisible) override;
+	virtual bool GetCanRenameNode() const override { return bCanRenameNode; }
 	// ~End UEdGraphNode interface
 
 	void OnUserAddDynamicInputPin();
@@ -76,8 +77,17 @@ public:
 
 	bool CanUserAddRemoveDynamicInputPins() const { return bCanUserAddRemoveSourcePins; }
 
+	/** Marks the node as re-nameable and provokes the node to update, placing the user in rename mode. */
+	void EnterRenamingMode();
+
+	/** Disables renaming, preventing the node from entering editing mode on subsequent updates. */
+	void ExitRenamingMode();
+
 	DECLARE_DELEGATE(FOnPCGEditorGraphNodeChanged);
 	FOnPCGEditorGraphNodeChanged OnNodeChangedDelegate;
+
+	DECLARE_DELEGATE(FOnPCGEditorGraphNodeRenameInitiated);
+	FOnPCGEditorGraphNodeRenameInitiated OnNodeRenameInitiatedDelegate;
 
 protected:
 	static FEdGraphPinType GetPinType(const UPCGPin* InPin);

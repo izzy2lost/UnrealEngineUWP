@@ -358,6 +358,7 @@ void SPCGEditorGraphNode::Construct(const FArguments& InArgs, UPCGEditorGraphNod
 	if (InNode)
 	{
 		InNode->OnNodeChangedDelegate.BindSP(this, &SPCGEditorGraphNode::OnNodeChanged);
+		InNode->OnNodeRenameInitiatedDelegate.BindSP(this, &SPCGEditorGraphNode::OnNodeRenameInitiated);
 	}
 
 	UpdateGraphNode();
@@ -560,6 +561,14 @@ void SPCGEditorGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D Widg
 void SPCGEditorGraphNode::OnNodeChanged()
 {
 	UpdateGraphNode();
+}
+
+void SPCGEditorGraphNode::OnNodeRenameInitiated()
+{
+	if (InlineEditableText.IsValid())
+	{
+		InlineEditableText->EnterEditingMode();
+	}
 }
 
 void SPCGEditorGraphNode::UpdateCompactNode()

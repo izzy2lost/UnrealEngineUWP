@@ -34,6 +34,7 @@ public:
 
 protected:
 	void OnNodeChanged();
+	void OnNodeRenameInitiated();
 
 	/** Set up node in 'compact' mode */
 	void UpdateCompactNode();

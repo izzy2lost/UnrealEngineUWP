@@ -36,6 +36,7 @@ void UPCGEditorGraphNodeBase::Construct(UPCGNode* InPCGNode)
 	NodeComment = InPCGNode->NodeComment;
 	bCommentBubblePinned = InPCGNode->bCommentBubblePinned;
 	bCommentBubbleVisible = InPCGNode->bCommentBubbleVisible;
+	bCanRenameNode = false;
 
 	if (const UPCGSettingsInterface* PCGSettingsInterface = InPCGNode->GetSettingsInterface())
 	{
@@ -112,6 +113,7 @@ void UPCGEditorGraphNodeBase::GetNodeContextMenuActions(UToolMenu* Menu, class U
 		Section.AddMenuEntry(FPCGEditorCommands::Get().CollapseNodes);
 		Section.AddMenuEntry(FPCGEditorCommands::Get().ExportNodes);
 		Section.AddMenuEntry(FPCGEditorCommands::Get().ConvertToStandaloneNodes);
+		Section.AddMenuEntry(FPCGEditorCommands::Get().RenameNode, LOCTEXT("RenameNode", "Rename"));
 	}
 
 	{
@@ -452,6 +454,22 @@ bool UPCGEditorGraphNodeBase::ShouldDrawCompact() const
 {
 	UPCGSettings* Settings = PCGNode ? PCGNode->GetSettings() : nullptr;
 	return Settings && Settings->ShouldDrawNodeCompact();
+}
+
+void UPCGEditorGraphNodeBase::EnterRenamingMode()
+{
+	bCanRenameNode = true;
+
+	// Notify the SPCGEditorGraphNode that the user is trying to rename it.
+	OnNodeRenameInitiatedDelegate.ExecuteIfBound();
+}
+
+void UPCGEditorGraphNodeBase::ExitRenamingMode()
+{
+	bCanRenameNode = false;
+
+	// Update so that the node renders with the new node title.
+	OnNodeChangedDelegate.ExecuteIfBound();
 }
 
 void UPCGEditorGraphNodeBase::OnPickColor()
