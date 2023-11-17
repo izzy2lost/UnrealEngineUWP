@@ -14,7 +14,9 @@ bool FStateTreePropertyBindingCompiler::Init(FStateTreePropertyBindings& InPrope
 	Log = &InLog;
 	PropertyBindings = &InPropertyBindings;
 	PropertyBindings->Reset();
+
 	SourceStructs.Reset();
+	
 	return true;
 }
 
@@ -40,26 +42,21 @@ bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStr
 			continue;
 		}
 		// Source must be in the source array
-		const FGuid SourceStructID = Binding.GetSourcePath().GetStructID();
-		const int32 SourceStructIdx = SourceStructs.IndexOfByPredicate([SourceStructID](const FStateTreeBindableStructDesc& Struct)
-			{
-				return (Struct.ID == SourceStructID);
-			});
-		if (SourceStructIdx == INDEX_NONE)
+		const FStateTreeBindableStructDesc* SourceStruct = GetSourceStructDescByID(Binding.GetSourcePath().GetStructID());
+		if (!SourceStruct)
 		{
 			Log->Reportf(EMessageSeverity::Error, TargetStruct,
 				TEXT("Could not find a binding source."));
 			return false;
 		}
-		const FStateTreeBindableStructDesc& SourceStruct = SourceStructs[SourceStructIdx];
 
 		FString Error;
 		TArray<FStateTreePropertyPathIndirection> SourceIndirections;
 		TArray<FStateTreePropertyPathIndirection> TargetIndirections;
 		
-		if (!Binding.GetSourcePath().ResolveIndirections(SourceStruct.Struct, SourceIndirections, &Error))
+		if (!Binding.GetSourcePath().ResolveIndirections(SourceStruct->Struct, SourceIndirections, &Error))
 		{
-			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *SourceStruct.ToString(), *Error);
+			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *SourceStruct->ToString(), *Error);
 			return false;
 		}
 
@@ -70,25 +67,19 @@ bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStr
 		}
 
 		FStateTreePropertyCopy DummyCopy;
-		FStateTreePropertyPathIndirection LastSourceIndirection = !SourceIndirections.IsEmpty() ? SourceIndirections.Last() : FStateTreePropertyPathIndirection(SourceStruct.Struct);
+		FStateTreePropertyPathIndirection LastSourceIndirection = !SourceIndirections.IsEmpty() ? SourceIndirections.Last() : FStateTreePropertyPathIndirection(SourceStruct->Struct);
 		FStateTreePropertyPathIndirection LastTargetIndirection = !TargetIndirections.IsEmpty() ? TargetIndirections.Last() : FStateTreePropertyPathIndirection(TargetStruct.Struct);
 		if (!PropertyBindings->ResolveCopyType(LastSourceIndirection, LastTargetIndirection, DummyCopy))
 		{
 			Log->Reportf(EMessageSeverity::Error, TargetStruct,
 			TEXT("Cannot copy properties between %s and %s, properties are incompatible."),
-				*UE::StateTree::GetDescAndPathAsString(SourceStruct, Binding.GetSourcePath()),
+				*UE::StateTree::GetDescAndPathAsString(*SourceStruct, Binding.GetSourcePath()),
 				*UE::StateTree::GetDescAndPathAsString(TargetStruct, Binding.GetTargetPath()));
 			return false;
 		}
 
-		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(SourceStructIdx); Validation.DidFail())
-		{
-			Validation.Log(*Log, TEXT("Source Struct Index"), SourceStruct);
-			return false;
-		}
-
 		FSortedBinding& NewBinding = NewBindings.AddDefaulted_GetRef();
-		NewBinding.Binding = FStateTreePropertyPathBinding(FStateTreeIndex16(SourceStructIdx), Binding.GetSourcePath(), Binding.GetTargetPath());
+		NewBinding.Binding = FStateTreePropertyPathBinding(SourceStruct->DataHandle, Binding.GetSourcePath(), Binding.GetTargetPath());
 		NewBinding.TargetIndirections = TargetIndirections;
 	}
 
@@ -149,6 +140,8 @@ int32 FStateTreePropertyBindingCompiler::AddSourceStruct(const FStateTreeBindabl
 		UE_LOG(LogStateTree, Error, TEXT("%s already exists as %s using ID '%s'"),
 			*SourceStruct.ToString(), *ExistingStruct->ToString(), *ExistingStruct->ID.ToString());
 	}
+	
+	UE_CLOG(!SourceStruct.DataHandle.IsValid(), LogStateTree, Error, TEXT("%s does not have a valid data handle."), *SourceStruct.ToString());
 	
 	SourceStructs.Add(SourceStruct);
 	return SourceStructs.Num() - 1;

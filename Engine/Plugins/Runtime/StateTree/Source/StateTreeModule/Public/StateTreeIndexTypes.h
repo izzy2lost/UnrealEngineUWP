@@ -13,6 +13,11 @@ struct STATETREEMODULE_API FStateTreeIndex16
 	static constexpr uint16 InvalidValue = MAX_uint16;
 	static const FStateTreeIndex16 Invalid;
 
+	friend FORCEINLINE uint32 GetTypeHash(const FStateTreeIndex16 Index)
+	{
+		return GetTypeHash(Index.Value);
+	}
+
 	/** @return true if the given index can be represented by the type. */
 	static bool IsValidIndex(const int32 Index)
 	{

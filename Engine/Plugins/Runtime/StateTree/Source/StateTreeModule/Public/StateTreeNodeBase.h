@@ -18,7 +18,13 @@ struct STATETREEMODULE_API FStateTreeNodeBase
 {
 	GENERATED_BODY()
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FStateTreeNodeBase() = default;
+	FStateTreeNodeBase(const FStateTreeNodeBase&) = default;
+	FStateTreeNodeBase(FStateTreeNodeBase&&) = default;
+	FStateTreeNodeBase& operator=(const FStateTreeNodeBase&) = default;
+	FStateTreeNodeBase& operator=(FStateTreeNodeBase&&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	virtual ~FStateTreeNodeBase() {}
 
@@ -66,15 +72,25 @@ struct STATETREEMODULE_API FStateTreeNodeBase
 	UPROPERTY()
 	FStateTreeIndex16 BindingsBatch = FStateTreeIndex16::Invalid;
 
-	/** The runtime data's data view index in the StateTreeExecutionContext, and source struct index in property binding. */
+	/** Index of template instance data for the node. Can point to Shared or Default instance data in StateTree depending on node type. */
 	UPROPERTY()
-	FStateTreeIndex16 DataViewIndex = FStateTreeIndex16::Invalid;
+	FStateTreeIndex16 InstanceTemplateIndex = FStateTreeIndex16::Invalid;
 
-	/** Index in runtime instance storage. */
+	/** Data handle to access the instance data. */
 	UPROPERTY()
-	FStateTreeIndex16 InstanceIndex = FStateTreeIndex16::Invalid;
+	FStateTreeDataHandle InstanceDataHandle = FStateTreeDataHandle::Invalid; 
 
-	/** True if the instance is an UObject. */
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "InstanceDataHandle is used instead to reference to the instance data.")
 	UPROPERTY()
-	uint8 bInstanceIsObject : 1;
+	FStateTreeIndex16 DataViewIndex_DEPRECATED = FStateTreeIndex16::Invalid;
+
+	UE_DEPRECATED(5.4, "InstanceDataHandle is used instead to reference to the instance data.")
+	UPROPERTY()
+	FStateTreeIndex16 InstanceIndex_DEPRECATED = FStateTreeIndex16::Invalid;
+	
+	UE_DEPRECATED(5.4, "InstanceDataHandle is used to determine if the node has object data.")
+	UPROPERTY()
+	uint8 bInstanceIsObject_DEPRECATED : 1;
+#endif
 };
