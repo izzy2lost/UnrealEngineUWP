@@ -21,6 +21,72 @@ UMovieGraphGlobalGameOverridesNode::UMovieGraphGlobalGameOverridesNode()
 {
 }
 
+void UMovieGraphGlobalGameOverridesNode::BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const
+{
+	// We don't provide the GameMode on the command line argument as we expect NewProcess to boot into an empty map and then it will
+	// transition into the correct map which will then use the GameModeOverride setting.
+	
+	{
+		Scalability::FQualityLevels QualityLevels;
+		QualityLevels.SetFromSingleQualityLevel(static_cast<int32>(ScalabilityQualityLevel));
+
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.ViewDistanceQuality={0}"), {QualityLevels.ViewDistanceQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.AntiAliasingQuality={0}"), {QualityLevels.AntiAliasingQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.ShadowQuality={0}"), {QualityLevels.ShadowQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.GlobalIlluminationQuality={0}"), {QualityLevels.GlobalIlluminationQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.ReflectionQuality={0}"), {QualityLevels.ReflectionQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.PostProcessQuality={0}"), {QualityLevels.PostProcessQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.TextureQuality={0}"), {QualityLevels.TextureQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.EffectsQuality={0}"), {QualityLevels.EffectsQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.FoliageQuality={0}"), {QualityLevels.FoliageQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.ShadingQuality={0}"), {QualityLevels.ShadingQuality}));
+		InOutDeviceProfileCvars.Add(FString::Format(TEXT("sg.LandscapeQuality={0}"), {QualityLevels.LandscapeQuality}));
+	}
+
+	if (bDisableTextureStreaming)
+	{
+		InOutDeviceProfileCvars.Add(TEXT("r.TextureStreaming=0"));
+	}
+
+	if (bDisableLODs)
+	{
+		InOutDeviceProfileCvars.Add(TEXT("r.ForceLOD=0"));
+		InOutDeviceProfileCvars.Add(TEXT("r.SkeletalMeshLODBias=-10"));
+		InOutDeviceProfileCvars.Add(TEXT("r.ParticleLODBias=-10"));
+		InOutDeviceProfileCvars.Add(TEXT("foliage.DitheredLOD=0"));
+		InOutDeviceProfileCvars.Add(TEXT("foliage.ForceLOD=0"));
+	}
+
+	if (bDisableHLODs)
+	{
+		// It's a command and not an integer cvar (despite taking 1/0)
+		InOutExecCmds.Add(TEXT("r.HLOD 0"));
+	}
+
+	if (bFlushStreamingManagers)
+	{
+		InOutDeviceProfileCvars.Add(TEXT("r.Streaming.SyncStatesWhenBlocking=1"));
+	}
+
+	// Like the extra cvars applied in ApplySettings(), the below are applied to allow MRQ to function correctly.
+
+#if WITH_EDITOR
+	{
+		InOutDeviceProfileCvars.Add(TEXT("GeometryCache.Streamer.BlockTillFinishStreaming=1"));
+		InOutDeviceProfileCvars.Add(TEXT("GeometryCache.Streamer.ShowNotification=0"));
+	}
+#endif
+
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("a.URO.Enable=%d"), 0));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.SkyLight.RealTimeReflectionCapture.TimeSlice=%d"), 0));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.VolumetricRenderTarget=%d"), 1));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.VolumetricRenderTarget.Mode=%d"), 3));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("wp.Runtime.BlockOnSlowStreaming=%d"), 0));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.Chaos.ImmPhys.MinStepTime=%d"), 0));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.SkipRedundantTransformUpdate=%d"), 0));
+	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.ChaosCloth.UseTimeStepSmoothing=%d"), 0));
+}
+
 void UMovieGraphGlobalGameOverridesNode::ApplySettings(const bool bOverrideValues, UWorld* InWorld)
 {
 	// Apply the scalability settings

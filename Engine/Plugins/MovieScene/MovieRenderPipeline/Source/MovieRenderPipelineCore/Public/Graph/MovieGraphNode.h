@@ -354,6 +354,7 @@ UCLASS(Abstract, BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphSettingNode : public UMovieGraphNode
 {
 	GENERATED_BODY()
+	
 public:
 	// UMovieGraphNode Interface
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const override;
@@ -377,6 +378,9 @@ public:
 	* resolving the settings of the graph, the node only needs to read its own values.
 	*/
 	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const {}
+	
+	/** Modify the Unreal URL and command line arguments when the node will be run in a new process. Only applies to nodes in the Globals branch. */
+	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const { }
 };
 
 /**

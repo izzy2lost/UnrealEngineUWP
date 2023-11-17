@@ -19,6 +19,12 @@ static TAutoConsoleVariable<float> CVarWaveOutputDelay(
 	TEXT("encoder runs, the encoder may fail.\n"),
 	ECVF_Default);
 
+void UMovieGraphAudioOutputNode::BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const
+{
+	// Always add this so that audio is muted, it'll never line up during preview anyways.
+	InOutCommandLineArgs.Add("-deterministicaudio");
+}
+
 #if WITH_EDITOR
 FText UMovieGraphAudioOutputNode::GetNodeTitle(const bool bGetDescriptive) const
 {

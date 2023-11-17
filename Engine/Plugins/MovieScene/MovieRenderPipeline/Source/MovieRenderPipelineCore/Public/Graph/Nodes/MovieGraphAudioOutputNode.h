@@ -19,16 +19,18 @@ public:
 	UMovieGraphAudioOutputNode() = default;
 
 	// UMovieGraphSettingNode Interface
+	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
+	// ~UMovieGraphSettingNode Interface
+
+	// UMovieGraphNode Interface
+	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
+
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive) const override;
 	virtual FText GetKeywords() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
 #endif
-	// ~UMovieGraphSettingNode Interface
-
-	// UMovieGraphNode Interface
-	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
 	// ~UMovieGraphNode Interface
 
 	/**

@@ -27,7 +27,13 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphGlobalGameOverridesNode : public UM
 public:
 	UMovieGraphGlobalGameOverridesNode();
 
+	// UMovieGraphNode interface
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override { return EMovieGraphBranchRestriction::Globals; }
+	// ~UMovieGraphNode interface
+
+	// UMovieGraphSettingNode interface
+	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const override;
+	// ~UMovieGraphSettingNode interface
 
 	/**
 	 * Applies any cvars, scalability settings, etc. to reflect the properties set on the node. Remembers what the
