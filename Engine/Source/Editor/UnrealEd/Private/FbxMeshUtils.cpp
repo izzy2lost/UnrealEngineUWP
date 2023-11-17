@@ -782,8 +782,12 @@ namespace FbxMeshUtils
 					//Update the import data for this lod
 					UnFbx::FFbxImporter::UpdateSkeletalMeshImportData(SelectedSkelMesh, nullptr, SelectedLOD, &ImportMaterialOriginalNameData, &ImportMeshLodData);
 
+					const FString SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
 					if (SkelMeshDataPtr)
 					{
+						//Setting the source filename allow to not restore the reduction settings in case we import a custom LOD over a generated LOD.
+						//This value will be wipe during the restore but we put it back just after.
+						SelectedSkelMesh->GetLODInfo(SelectedLOD)->SourceImportFilename = SourceImportFilename;
 						SkeletalMeshImportUtils::RestoreExistingSkelMeshData(SkelMeshDataPtr, SelectedSkelMesh, SelectedLOD, false, ImportOptions->bImportAsSkeletalSkinning, ImportOptions->bResetToFbxOnMaterialConflict);
 					}
 
@@ -795,7 +799,7 @@ namespace FbxMeshUtils
 					bSuccess = true;
 
 					// Set LOD source filename
-					SelectedSkelMesh->GetLODInfo(SelectedLOD)->SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
+					SelectedSkelMesh->GetLODInfo(SelectedLOD)->SourceImportFilename = SourceImportFilename;
 					SelectedSkelMesh->GetLODInfo(SelectedLOD)->bImportWithBaseMesh = false;
 
 					ReapplyClothing();

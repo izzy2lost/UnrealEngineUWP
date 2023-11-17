@@ -463,8 +463,8 @@ void SkeletalMesUtilsImpl::RestoreLODInfo(const TSharedPtr<const FExistingSkelMe
 	ImportedLODInfo.ScreenSize = ExistingLODInfo.ScreenSize;
 	ImportedLODInfo.LODHysteresis = ExistingLODInfo.LODHysteresis;
 	ImportedLODInfo.BuildSettings = ExistingLODInfo.BuildSettings;
-	//Old assets may have non-applied reduction settings, so only restore the reduction settings if the LOD was effectively reduced.
-	if (ExistingLODInfo.bHasBeenSimplified)
+	//Old assets may have non-applied reduction settings, so only restore the reduction settings if the LOD was effectively reduced and we did not import a custom LOD over this generated LOD.
+	if (ExistingLODInfo.bHasBeenSimplified && (!ExistingLODInfo.SourceImportFilename.IsEmpty() || ImportedLODInfo.SourceImportFilename.IsEmpty()))
 	{
 		ImportedLODInfo.ReductionSettings = ExistingLODInfo.ReductionSettings;
 	}

@@ -4232,7 +4232,11 @@ void UnFbx::FFbxImporter::InsertNewLODToBaseSkeletalMesh(USkeletalMesh* InSkelet
 	{
 		//Make sure any custom LOD have correct settings (no reduce)
 		LODInfo.ReductionSettings.NumOfTrianglesPercentage = 1.0f;
+		LODInfo.ReductionSettings.MaxNumOfTriangles = MAX_uint32;
+		LODInfo.ReductionSettings.MaxNumOfTrianglesPercentage = MAX_uint32;
 		LODInfo.ReductionSettings.NumOfVertPercentage = 1.0f;
+		LODInfo.ReductionSettings.MaxNumOfVerts = MAX_uint32;
+		LODInfo.ReductionSettings.MaxNumOfVertsPercentage = MAX_uint32;
 		LODInfo.ReductionSettings.MaxDeviationPercentage = 0.0f;
 	}
 
