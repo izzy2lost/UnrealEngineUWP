@@ -527,9 +527,9 @@ namespace Horde.Server.Server
 			{
 				switch (e.EventCase)
 				{
-					case WrappedTelemetryEvent.EventOneofCase.AgentMetadata: _telemetrySink.SendEvent("Agent.Metadata", e.AgentMetadata); break;
-					case WrappedTelemetryEvent.EventOneofCase.Cpu: _telemetrySink.SendEvent("Agent.Cpu", e.Cpu); break;
-					case WrappedTelemetryEvent.EventOneofCase.Mem: _telemetrySink.SendEvent("Agent.Memory", e.Mem); break;
+					case WrappedTelemetryEvent.EventOneofCase.AgentMetadata: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.AgentMetadata); break;
+					case WrappedTelemetryEvent.EventOneofCase.Cpu: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.Cpu); break;
+					case WrappedTelemetryEvent.EventOneofCase.Mem: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.Mem); break;
 					default: _logger.LogError("Unhandled wrapped telemetry type {Type}", e.EventCase.ToString()); break;
 				}
 			}

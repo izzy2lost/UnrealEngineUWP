@@ -124,8 +124,9 @@ namespace Horde.Server.Jobs
 
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent("State.JobStepRef", new
+				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new
 				{
+					EventName = "State.JobStepRef",
 					Id = id.ToString(),
 					JobId = id.JobId.ToString(),
 					BatchId = id.BatchId.ToString(),

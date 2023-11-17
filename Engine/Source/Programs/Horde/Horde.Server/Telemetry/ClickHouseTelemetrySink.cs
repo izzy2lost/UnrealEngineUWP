@@ -29,7 +29,7 @@ namespace Horde.Server.Telemetry
 		private readonly Uri? _uri;
 
 		private readonly ILogger _logger;
-		private readonly ConcurrentQueue<(string eventName, object evt)> _queuedEvents = new();
+		private readonly ConcurrentQueue<TelemetryEvent> _queuedEvents = new();
 
 		/// <inheritdoc/>
 		public bool Enabled => _uri != null;
@@ -51,9 +51,9 @@ namespace Horde.Server.Telemetry
 		}
 		
 		/// <inheritdoc/>
-		public void SendEvent(string eventName, object attributes)
+		public void SendEvent(TelemetryEvent telemetryEvent)
 		{
-			_queuedEvents.Enqueue((eventName, attributes));
+			_queuedEvents.Enqueue(telemetryEvent);
 		}
 
 		/// <inheritdoc />
@@ -64,9 +64,9 @@ namespace Horde.Server.Telemetry
 			List<AgentMemoryMetricsEvent> agentMemEvents = new();
 
 			int c = 0;
-			while (_queuedEvents.TryDequeue(out (string eventName, object evt) tuple))
+			while (_queuedEvents.TryDequeue(out TelemetryEvent? evt))
 			{
-				switch (tuple.evt)
+				switch (evt.Payload)
 				{
 					case AgentMetadataEvent agentMetadata: agentMetadataEvents.Add(agentMetadata); break;
 					case AgentCpuMetricsEvent agentCpu: agentCpuEvents.Add(agentCpu); break;

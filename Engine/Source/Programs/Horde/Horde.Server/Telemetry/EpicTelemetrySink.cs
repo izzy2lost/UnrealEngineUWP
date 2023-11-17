@@ -2,9 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -57,25 +57,75 @@ namespace Horde.Server.Telemetry
 		/// </summary>
 		public const string HttpClientName = "EpicTelemetrySink";
 
-		static readonly JsonEncodedText s_eventsPropertyName = JsonEncodedText.Encode("Events");
-		static readonly JsonEncodedText s_eventNamePropertyName = JsonEncodedText.Encode("EventName");
+		static readonly Utf8String s_packetPrefix = new Utf8String("{\"Events\":[");
+		static readonly Utf8String s_packetSuffix = new Utf8String("]}");
 
 		readonly object _lockObject = new object();
 
 		readonly IHttpClientFactory _httpClientFactory;
-		readonly Uri? _uri;
+		readonly Uri? _baseUrl;
 		readonly JsonSerializerOptions _jsonOptions;
 
-		readonly ArrayMemoryWriter _packetMemoryWriter;
-		readonly Utf8JsonWriter _packetWriter;
+		class Writer : IDisposable
+		{
+			readonly Uri _uri;
+			readonly JsonSerializerOptions _jsonOptions;
+			readonly ArrayMemoryWriter _packetMemoryWriter;
+			readonly Utf8JsonWriter _packetWriter;
 
-		readonly ArrayMemoryWriter _eventMemoryWriter;
-		readonly Utf8JsonWriter _eventWriter;
+			public Stopwatch Timer { get; } = Stopwatch.StartNew();
+			public Uri Uri => _uri;
+			public bool HasData => _packetMemoryWriter.WrittenMemory.Length > 0;
 
+			public Writer(Uri uri, JsonSerializerOptions jsonOptions)
+			{
+				_uri = uri;
+				_jsonOptions = jsonOptions;
+				_packetMemoryWriter = new ArrayMemoryWriter(65536);
+				_packetWriter = new Utf8JsonWriter(_packetMemoryWriter);
+			}
+
+			public void Dispose()
+			{
+				_packetWriter.Dispose();
+			}
+
+			public void AddEvent(object payload)
+			{
+				// Restart the timer
+				Timer.Restart();
+
+				// If this is the first event written, write the outer events array
+				if (_packetMemoryWriter.Length == 0)
+				{
+					_packetMemoryWriter.WriteFixedLengthBytes(s_packetPrefix.Span);
+				}
+				else
+				{
+					_packetMemoryWriter.WriteUInt8((byte)',');
+				}
+
+				// Serialize the event data
+				JsonSerializer.Serialize(_packetWriter, payload, _jsonOptions);
+				_packetWriter.Flush();
+			}
+
+			public byte[] Flush()
+			{
+				_packetMemoryWriter.WriteFixedLengthBytes(s_packetSuffix.Span);
+				byte[] packet = _packetMemoryWriter.WrittenMemory.ToArray();
+
+				_packetMemoryWriter.Clear();
+				_packetWriter.Reset(_packetMemoryWriter);
+				return packet;
+			}
+		}
+
+		readonly Dictionary<TelemetryRecordMeta, Writer> _writers = new Dictionary<TelemetryRecordMeta, Writer>();
 		readonly ILogger _logger;
 
 		/// <inheritdoc/>
-		public bool Enabled => _uri != null;
+		public bool Enabled => _baseUrl != null;
 
 		/// <summary>
 		/// Constructor
@@ -89,124 +139,118 @@ namespace Horde.Server.Telemetry
 			_jsonOptions.PropertyNamingPolicy = null;
 			_jsonOptions.Converters.Insert(0, new TableauDateTimeConverter());
 
-			_packetMemoryWriter = new ArrayMemoryWriter(65536);
-			_packetWriter = new Utf8JsonWriter(_packetMemoryWriter);
-
-			_eventMemoryWriter = new ArrayMemoryWriter(65536);
-			_eventWriter = new Utf8JsonWriter(_eventMemoryWriter);
-
 			_logger = logger;
-
-			if (config.Url != null)
-			{
-				Dictionary<string, string?> queryParams = new Dictionary<string, string?>()
-				{
-					["SessionID"] = Guid.NewGuid().ToString(),
-					["AppID"] = config.AppId,
-					["AppVersion"] = ServerApp.Version.ToString(),
-					["AppEnvironment"] = ServerApp.DeploymentEnvironment,
-					["UploadType"] = "eteventstream"
-				};
-				_uri = new Uri(QueryHelpers.AddQueryString(config.Url.ToString(), queryParams));
-			}
+			_baseUrl = config.Url;
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
+		public ValueTask DisposeAsync()
 		{
-			await _packetWriter.DisposeAsync();
-			await _eventWriter.DisposeAsync();
+			foreach (Writer writer in _writers.Values)
+			{
+				writer.Dispose();
+			}
+			return new ValueTask();
 		}
-		
+
 		/// <inheritdoc/>
 		public async ValueTask FlushAsync(CancellationToken cancellationToken)
 		{
-			// Generate the content for this event
-			byte[] packet;
-			lock (_lockObject)
-			{
-				if (_packetMemoryWriter.Length == 0)
-				{
-					return;
-				}
-
-				_packetWriter.WriteEndArray();
-				_packetWriter.WriteEndObject();
-				_packetWriter.Flush();
-
-				packet = _packetMemoryWriter.WrittenMemory.ToArray();
-
-				_packetMemoryWriter.Clear();
-				_packetWriter.Reset(_packetMemoryWriter);
-			}
-
 			// Make sure the settings are valid
-			if (_uri == null)
+			if (_baseUrl == null)
 			{
 				return;
 			}
 
-			// Post the event data
-			HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName);
-			using (HttpRequestMessage request = new HttpRequestMessage())
+			// Generate the content for this event
+			List<(Uri, byte[])> packets = new List<(Uri, byte[])>();
+			lock (_lockObject)
 			{
-				request.RequestUri = _uri;
-				request.Method = HttpMethod.Post;
-				request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", ServerApp.Version.ToString()));
-				request.Content = new ByteArrayContent(packet);
-				request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-				using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
+				// Get all the data to write
+				List<TelemetryRecordMeta> removeKeys = new List<TelemetryRecordMeta>();
+				foreach ((TelemetryRecordMeta key, Writer writer) in _writers)
 				{
-					if (response.IsSuccessStatusCode)
+					if (writer.HasData)
 					{
-						_logger.LogDebug("Sending {Size} bytes of telemetry data to {Url}", packet.Length, _uri);
+						packets.Add((writer.Uri, writer.Flush()));
 					}
-					else
+					else if (writer.Timer.Elapsed > TimeSpan.FromSeconds(30.0))
 					{
-						string content = await response.Content.ReadAsStringAsync(cancellationToken);
-						_logger.LogError("Unable to send telemetry data to server ({Code}): {Message}", response.StatusCode, content);
+						removeKeys.Add(key);
+					}
+				}
+
+				// Remove any writers that haven't been written to in 30s
+				foreach (TelemetryRecordMeta removeKey in removeKeys)
+				{
+					if (_writers.Remove(removeKey, out Writer? writer))
+					{
+						writer.Dispose();
+					}
+				}
+			}
+
+			// Post the event data
+			foreach((Uri uri, byte[] packet) in packets)
+			{
+				HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName);
+				using (HttpRequestMessage request = new HttpRequestMessage())
+				{
+					request.RequestUri = _baseUrl;
+					request.Method = HttpMethod.Post;
+					request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Horde", ServerApp.Version.ToString()));
+					request.Content = new ByteArrayContent(packet);
+					request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
+					{
+						if (response.IsSuccessStatusCode)
+						{
+							_logger.LogDebug("Sending {Size} bytes of telemetry data to {Url}", packet.Length, _baseUrl);
+						}
+						else
+						{
+							string content = await response.Content.ReadAsStringAsync(cancellationToken);
+							_logger.LogError("Unable to send telemetry data to server ({Code}): {Message}", response.StatusCode, content);
+						}
 					}
 				}
 			}
 		}
 
 		/// <inheritdoc/>
-		public void SendEvent(string eventName, object attributes)
+		public void SendEvent(TelemetryEvent telemetryEvent)
 		{
+			if (_baseUrl == null)
+			{
+				return;
+			}
+
+			TelemetryRecordMeta recordMeta = telemetryEvent.RecordMeta;
+			if (recordMeta.AppId == null || recordMeta.AppVersion == null || recordMeta.AppEnvironment == null)
+			{
+				_logger.LogDebug("Unable to send telemetry event to Epic data router; missing required fields in record metadata. {@Event}", telemetryEvent);
+				return;
+			}
+
 			lock (_lockObject)
 			{
-				// If this is the first event written, write the outer events array
-				if (_packetMemoryWriter.Length == 0)
+				Writer? writer;
+				if (!_writers.TryGetValue(recordMeta, out writer))
 				{
-					_packetWriter.WriteStartObject();
-					_packetWriter.WriteStartArray(s_eventsPropertyName);
+					Dictionary<string, string?> queryParams = new Dictionary<string, string?>();
+					queryParams.Add("AppID", telemetryEvent.RecordMeta.AppId);
+					queryParams.Add("AppVersion", telemetryEvent.RecordMeta.AppVersion);
+					queryParams.Add("AppEnvironment", telemetryEvent.RecordMeta.AppEnvironment);
+					queryParams.Add("SessionID", telemetryEvent.RecordMeta.SessionId);
+					queryParams.Add("UploadType", "eteventstream");
+
+					Uri uri = new Uri(QueryHelpers.AddQueryString(_baseUrl.ToString(), queryParams));
+					writer = new Writer(uri, _jsonOptions);
+
+					_writers.Add(recordMeta, writer);
 				}
-
-				// Serialize the event data
-				_eventMemoryWriter.Clear();
-				_eventWriter.Reset(_eventMemoryWriter);
-				JsonSerializer.Serialize(_eventWriter, attributes, _jsonOptions);
-				_eventWriter.Flush();
-
-				// Get the event bytes and check it's a full object
-				Span<byte> eventData = _eventMemoryWriter.WrittenSpan;
-				if (eventData[0] != (byte)'{' || eventData[^1] != (byte)'}')
-				{
-					_logger.LogError("Unexpected output from JSON serialization: {Message}", Encoding.UTF8.GetString(eventData));
-					return;
-				}
-
-				// Modify the serialized data so we can append it to another object
-				eventData[0] = (byte)',';
-				eventData = eventData.Slice(0, eventData.Length - 1);
-
-				// Copy the event data to the buffer along with the event name
-				_packetWriter.WriteStartObject();
-				_packetWriter.WriteString(s_eventNamePropertyName, eventName);
-				_packetWriter.Flush();
-				_packetMemoryWriter.WriteFixedLengthBytes(eventData);
-				_packetWriter.WriteEndObject();
+				writer.AddEvent(telemetryEvent.Payload);
 			}
 		}
 	}

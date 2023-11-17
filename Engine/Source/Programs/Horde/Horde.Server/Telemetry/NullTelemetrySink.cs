@@ -11,7 +11,7 @@ namespace Horde.Server.Telemetry
 		public bool Enabled => false;
 
 		/// <inheritdoc/>
-		public void SendEvent(string eventName, object attributes)
+		public void SendEvent(TelemetryEvent telemetryEvent)
 		{
 		}
 	}

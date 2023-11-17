@@ -723,8 +723,9 @@ namespace Horde.Server.Issues
 		{
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent("State.Issue", new
+				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new
 				{
+					EventName = "State.Issue", 
 					Id = issue.Id,
 					AcknowledgedAt = issue.AcknowledgedAt,
 					CreatedAt = issue.CreatedAt,
@@ -1492,8 +1493,9 @@ namespace Horde.Server.Issues
 		{
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent("State.IssueSpan", new
+				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new
 				{
+					EventName = "State.IssueSpan",
 					Id = issueSpan.Id,
 					IssueId = issueSpan.IssueId,
 					Fingerprint = new { Type = issueSpan.Fingerprint.Type, Keys = issueSpan.Fingerprint.Keys },

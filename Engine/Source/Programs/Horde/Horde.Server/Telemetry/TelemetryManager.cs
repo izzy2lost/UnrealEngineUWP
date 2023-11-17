@@ -29,17 +29,12 @@ namespace Horde.Server.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="httpClientFactory"></param>
-		/// <param name="clock"></param>
-		/// <param name="serverSettings"></param>
-		/// <param name="tracer"></param>
-		/// <param name="loggerFactory"></param>
 		public TelemetryManager(IHttpClientFactory httpClientFactory, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_tracer = tracer;
 			_logger = loggerFactory.CreateLogger<TelemetryManager>();
 			_ticker = clock.AddTicker<EpicTelemetrySink>(TimeSpan.FromSeconds(30.0), FlushAsync, _logger);
-			
+
 			foreach (BaseTelemetryConfig config in serverSettings.Value.Telemetry)
 			{
 				switch (config)
@@ -55,11 +50,9 @@ namespace Horde.Server.Telemetry
 		}
 
 		/// <inheritdoc/>
-		public void SendEvent(string eventName, object attributes)
+		public void SendEvent(TelemetryEvent telemetryEvent)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(TelemetryManager)}.{nameof(SendEvent)}");
-			span.SetAttribute("eventName", eventName);
-			
 			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
 			{
 				using TelemetrySpan sinkSpan = _tracer.StartActiveSpan($"SendEvent");
@@ -70,7 +63,7 @@ namespace Horde.Server.Telemetry
 				{
 					try
 					{
-						sink.SendEvent(eventName, attributes);
+						sink.SendEvent(telemetryEvent);
 					}
 					catch (Exception e)
 					{

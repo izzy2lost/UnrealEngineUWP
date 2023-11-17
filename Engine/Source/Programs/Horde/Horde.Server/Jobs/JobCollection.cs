@@ -450,8 +450,9 @@ namespace Horde.Server.Jobs
 
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent("State.Job", new
+				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new 
 				{
+					EventName = "State.Job",
 					Id = newJob.Id,
 					StreamId = newJob.StreamId,
 					Arguments = newJob.Arguments,

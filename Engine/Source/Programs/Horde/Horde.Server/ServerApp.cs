@@ -63,6 +63,8 @@ namespace Horde.Server
 
 		public static string DeploymentEnvironment { get; } = GetEnvironment();
 
+		public static string SessionId { get; } = Guid.NewGuid().ToString("n");
+
 		public static DirectoryReference AppDir { get; } = GetAppDir();
 
 		public static DirectoryReference DataDir { get; } = GetDataDir();
