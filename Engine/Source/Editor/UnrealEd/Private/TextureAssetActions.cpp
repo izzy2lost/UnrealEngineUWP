@@ -30,6 +30,7 @@
 #include "Engine/Texture.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "TextureSourceDataUtils.h"
+#include "TextureImportSettings.h"
 
 #define LOCTEXT_NAMESPACE "TextureAssetActions"
 
@@ -168,7 +169,6 @@ private:
 	TArray<TextureListEntry> TextureList;
 
 	int ThresholdValue = 0;
-	bool bThresholdVisible = true;
 
 	bool bNormalMapsKeep16bits = true;
 
@@ -368,8 +368,6 @@ void STextureAssetList::Init(const TArray<UTexture *> &Textures, ETextureAction 
 {
 	Action = InAction;
 	
-	bThresholdVisible = (Action == ETextureAction::Resize );
-
 	IntroMessage = TAA_Intro(Action);
 
 	TextureList.SetNum(Textures.Num());
@@ -577,6 +575,9 @@ static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 			*Texture->GetFullName());
 	}
 
+	// this counts as a reimport :
+	UE::TextureUtilitiesCommon::ApplyDefaultsForNewlyImportedTextures(Texture,true);
+
 	// DownsizeTextureSourceData did the PreEditChange
 	Texture->PostEditChange();
 }
@@ -601,6 +602,7 @@ static ETextureSourceFormat GetReducedTextureSourceFormat(TextureCompressionSett
 		// Gray and Displacement pass through G16 ; note they do not do that for RGBA16 (see GetDefaultTextureFormatName)
 		if ( InTSF == TSF_G16 ) return InTSF;
 		// otherwise we will convert to G8
+		// [[fallthrough]];
 	case TC_DistanceFieldFont		: //"DistanceFieldFont (G8)"),
 		Out8bit = true;
 		OutSingleChannel = true;
@@ -807,8 +809,7 @@ void STextureAssetList::UpdateList()
 			}
 			else
 			{
-				// note: this does not match the logic in TextureSourceDataUtils
-				//	(@@FIXME) (eg. udim)
+				// GetLogicalSize = sum of udim blocks
 				FIntPoint SourceSize = Texture->Source.GetLogicalSize();
 				int MaxSize = FMath::Max(SourceSize.X,SourceSize.Y);
 				if ( MaxSize <= ThresholdValue )
@@ -827,6 +828,7 @@ void STextureAssetList::UpdateList()
 			}
 			else if ( Texture->Source.GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_JPEG )
 			{
+				// JPEG is already 8 bit; we don't want to try to change RGB JPEG to G8, just leave it alone
 				Status = EAssetActionStatus::DontChangeJPEG;
 			}
 		}
@@ -928,7 +930,7 @@ EVisibility STextureAssetList::GetErrorMessageVisibility() const
 
 EVisibility STextureAssetList::GetThresholdVisibility() const
 {
-	return (bThresholdVisible) ? EVisibility::Visible : EVisibility::Collapsed;
+	return ( Action == ETextureAction::Resize ) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText STextureAssetList::GetIntroMessage() const

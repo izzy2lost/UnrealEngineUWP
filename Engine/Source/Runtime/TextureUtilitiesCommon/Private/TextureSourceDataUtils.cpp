@@ -8,6 +8,7 @@
 #include "Engine/Texture.h"
 #include "HAL/UnrealMemory.h"
 #include "EngineLogs.h"
+#include "TextureImportSettings.h"
 
 namespace UE::TextureUtilitiesCommon::Experimental
 {
@@ -18,7 +19,10 @@ namespace Private
 	// resize so that the largest dimension is <= MaxSize
 	static bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
-		// We want to reduce the asset size so ignore the imported mip(s)
+		check( Texture->Source.GetNumLayers() == 1 );
+		const int32 LayerIndex = 0;
+
+		// We want to reduce the asset size so ignore the imported mip(s) (??)
 		const int32 MipIndex = 0;
 		FImage SourceMip0;
 		if (!Texture->Source.GetMipImage(SourceMip0, MipIndex))
@@ -30,7 +34,6 @@ namespace Private
 
 		int32 NumSlices = Texture->Source.GetNumSlices(); // == 1 or 6 for cubes
 
-		const int32 LayerIndex = 0;
 		bool MadeChanges;
 		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
 		{
@@ -88,24 +91,20 @@ namespace Private
 		return WriteImageBuffer.MoveToShared();
 	}
 
-	static bool ResizeTexture2DBlocked(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
+	static bool ResizeTexture2DBlocked(UTexture* Texture, int32 TotalMaxSize, const ITargetPlatform* TargetPlatform)
 	{
-		// note: does not support layers
+		// does not support layers
+		check( Texture->Source.GetNumLayers() == 1 );
+		const int32 NumLayers = 1;
+		const int32 LayerIndex = 0;
 
-		// MaxSize is applied to each block in the UDIM, not the total size
-		// @@ should we target total size?
+		// MaxSize is applied to the total UDIM size
 
-		/*
 		FIntPoint LogicalSourceSize = Texture->Source.GetLogicalSize();
-		double RatioX = double(MaxSize) / LogicalSourceSize.X;
-		double RatioY = double(MaxSize) / LogicalSourceSize.Y;
+		check( LogicalSourceSize.X > TotalMaxSize || LogicalSourceSize.Y > TotalMaxSize );
 
-		// early return if we're not shrinking
-		if ( RatioX >= 1.0 && RatioY >= 1.0 )
-		{
-			return false;
-		}
-		*/
+		double ResizeRatio = double(TotalMaxSize) / FMath::Max(LogicalSourceSize.X,LogicalSourceSize.Y);
+		check( ResizeRatio < 1.0 );
 
 		TArray<FTextureSourceBlock> ResizedSourceBlocks;
 		ResizedSourceBlocks.Reserve(Texture->Source.GetNumBlocks());
@@ -120,7 +119,6 @@ namespace Private
 			// We want to reduce the asset size so ignore the imported mip(s)
 			FImage SourceMip0;
 			const int32 MipIndex = 0;
-			const int32 LayerIndex = 0;
 			if (!Texture->Source.GetMipImage(SourceMip0, BlockIndex, LayerIndex, MipIndex))
 			{
 				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2DBlocked: Texture GetMipImage failed [%s]"),
@@ -128,11 +126,12 @@ namespace Private
 				return false;
 			}
 
-			//int32 BlockMaxSize = FMath::RoundToInt32(FMath::Min(ResizedSourceBlock.SizeX * RatioX, ResizedSourceBlock.SizeY * RatioY));
+			int32 NewSizeX = FMath::RoundToInt32( ResizeRatio * SourceMip0.SizeX );
+			int32 NewSizeY = FMath::RoundToInt32( ResizeRatio * SourceMip0.SizeY );
+			int32 BlockMaxSize = FMath::Max(NewSizeX,NewSizeY);
 
-			// each block is resized to MaxSize
 			bool MadeChanges;
-			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
+			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, BlockMaxSize, LayerIndex, MadeChanges) )
 			{
 				// critical error
 				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2DBlocked: Texture DownsizeImageUsingTextureSettings failed [%s]"),
@@ -149,7 +148,7 @@ namespace Private
 			
 			ResizedSourceBlock.SizeX = ResizedBlock.SizeX;
 			ResizedSourceBlock.SizeY = ResizedBlock.SizeY;
-			ResizedSourceBlock.NumSlices = 1;
+			ResizedSourceBlock.NumMips = 1;
 		}
 
 		if ( ! MadeAnyChanges )
@@ -163,7 +162,6 @@ namespace Private
 		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferForImageDatas(ResizedBlocks);
 
 		const ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
-		int32 NumLayers = 1;
 		Texture->Source.InitBlocked(
 			&SourceFormat, // array of formats per layer
 			ResizedSourceBlocks.GetData(),
@@ -267,6 +265,10 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UText
 	if (DownsizeTextureSourceData(Texture, TargetSourceSize, TargetPlatform))
 	{
 		Texture->LODBias = 0;
+		
+		// this counts as a reimport :
+		UE::TextureUtilitiesCommon::ApplyDefaultsForNewlyImportedTextures(Texture,true);
+
 		Texture->PostEditChange();
 		
 		// check that GetBuiltTextureSize was preserved :
@@ -339,7 +341,7 @@ TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETe
 			, NewFormat
 			, MoveTemp(ResizedImageBufferWithID));
 	}
-	else
+	else // blocks and/or mips
 	{
 		// all blocks of a UDIM have the same format; Layers do not
 		int32 NumLayers = 1;
@@ -394,6 +396,10 @@ TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETe
 
 	// if gamma was Pow22 it is now sRGB
 	Texture->bUseLegacyGamma = false;
+	
+	// this counts as a reimport :
+	UE::TextureUtilitiesCommon::ApplyDefaultsForNewlyImportedTextures(Texture,true);
+
 	Texture->PostEditChange();
 
 	check( Texture->Source.GetGammaSpace(0) == NewGamma );
