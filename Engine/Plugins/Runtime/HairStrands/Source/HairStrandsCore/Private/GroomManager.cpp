@@ -493,6 +493,7 @@ static void RunHairStrandsInterpolation_Guide(
 		}
 	}
 
+	// RBF sample position update
 	// Guide update need to run only if simulation is enabled, or if RBF is enabled (since RFB are transfer through guides)
 	for (FInstanceData& InstanceData : InstanceDatas)
 	{
@@ -501,6 +502,25 @@ static void RunHairStrandsInterpolation_Guide(
 			if (InstanceData.bGlobalDeformationEnable)
 			{
 				AddHairStrandInitMeshSamplesPass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.Instance->Debug.MeshLODIndex,
+					InstanceData.MeshDataLOD,
+					InstanceData.Instance->Guides.RestRootResource,
+					InstanceData.Instance->Guides.DeformedRootResource);
+			}
+		}
+	}
+
+	// RBF weights update
+	// Guide update need to run only if simulation is enabled, or if RBF is enabled (since RFB are transfer through guides)
+	for (FInstanceData& InstanceData : InstanceDatas)
+	{
+		if (InstanceData.NeedsMeshUpdate())
+		{
+			if (InstanceData.bGlobalDeformationEnable)
+			{
+				AddHairStrandUpdateMeshSamplesPass(
 					GraphBuilder,
 					ShaderMap,
 					InstanceData.Instance->Debug.MeshLODIndex,
