@@ -337,7 +337,13 @@ namespace Horde.Server
 						child.Bind(clickHouse);
 						telemetryConfigs.Add(clickHouse);
 						break;
-					
+
+					case TelemetrySinkType.Mongo:
+						MongoTelemetryConfig mongo = new();
+						child.Bind(mongo);
+						telemetryConfigs.Add(mongo);
+						break;
+
 					case TelemetrySinkType.None:
 					default:
 						break;
@@ -705,6 +711,8 @@ namespace Horde.Server
 			services.AddSingleton<TelemetryManager>();
 			services.AddSingleton<ITelemetrySink>(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
+			services.AddSingleton<MongoTelemetrySink>();
+			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 

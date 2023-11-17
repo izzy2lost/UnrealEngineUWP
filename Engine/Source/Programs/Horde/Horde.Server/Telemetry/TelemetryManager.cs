@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using Horde.Server.Telemetry.Sinks;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Horde.Server.Telemetry
 {
@@ -30,7 +31,7 @@ namespace Horde.Server.Telemetry
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryManager(IHttpClientFactory httpClientFactory, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
+		public TelemetryManager(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory, IClock clock, IOptions<ServerSettings> serverSettings, Tracer tracer, ILoggerFactory loggerFactory)
 		{
 			_tracer = tracer;
 			_logger = loggerFactory.CreateLogger<TelemetryManager>();
@@ -45,6 +46,9 @@ namespace Horde.Server.Telemetry
 						break;
 					case ClickHouseTelemetryConfig chConfig:
 						_telemetrySinks.Add(new ClickHouseTelemetrySink(chConfig, httpClientFactory, loggerFactory.CreateLogger<ClickHouseTelemetrySink>()));
+						break;
+					case MongoTelemetryConfig mongoConfig:
+						_telemetrySinks.Add(serviceProvider.GetRequiredService<MongoTelemetrySink>());
 						break;
 				}
 			}

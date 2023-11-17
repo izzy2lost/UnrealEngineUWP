@@ -191,6 +191,11 @@ namespace Horde.Server
 		/// Use the ClickHouse telemetry sink
 		/// </summary>
 		ClickHouse,
+
+		/// <summary>
+		/// Mongo telemetry
+		/// </summary>
+		Mongo,
 	}
 
 	/// <summary>
@@ -247,7 +252,18 @@ namespace Horde.Server
 			return $"{nameof(Url)}={Url}";
 		}
 	}
-	
+
+	/// <summary>
+	/// Configuration for the telemetry sink
+	/// </summary>
+	public class MongoTelemetryConfig : BaseTelemetryConfig
+	{
+		/// <summary>
+		/// Number of days worth of telmetry events to keep
+		/// </summary>
+		public double RetainDays { get; set; } = 1;
+	}
+
 	/// <summary>
 	/// Feature flags to aid rollout of new features.
 	///
