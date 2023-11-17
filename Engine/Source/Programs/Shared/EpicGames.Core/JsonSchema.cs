@@ -297,6 +297,19 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Constructs a schema type for the given property
+		/// </summary>
+		static JsonSchemaType CreateSchemaType(PropertyInfo property, Dictionary<Type, JsonSchemaType> typeCache, XmlDocReader? xmlDocReader)
+		{
+			if (property.GetCustomAttribute<JsonSchemaStringAttribute>() != null)
+			{
+				return new JsonSchemaString();
+			}
+
+			return CreateSchemaType(property.PropertyType, typeCache, xmlDocReader);
+		}
+
+		/// <summary>
 		/// Constructs a schema type from the given type object
 		/// </summary>
 		static JsonSchemaType CreateSchemaType(Type type, Dictionary<Type, JsonSchemaType> typeCache, XmlDocReader? xmlDocReader)
@@ -440,7 +453,7 @@ namespace EpicGames.Core
 				if (property.GetCustomAttribute<JsonIgnoreAttribute>() == null)
 				{
 					string? description = xmlDocReader?.GetDescription(property);
-					JsonSchemaType propertyType = CreateSchemaType(property.PropertyType, typeCache, xmlDocReader);
+					JsonSchemaType propertyType = CreateSchemaType(property, typeCache, xmlDocReader);
 					obj.Properties.Add(new JsonSchemaProperty(property.Name, description, propertyType));
 				}
 			}

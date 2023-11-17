@@ -2,6 +2,7 @@
 
 using System;
 using System.Text.Json.Serialization;
+using EpicGames.Core;
 using Horde.Server.Utilities;
 using Json.Path;
 
@@ -56,11 +57,13 @@ namespace Horde.Server.Telemetry.Metrics
 		/// <summary>
 		/// Property to aggregate
 		/// </summary>
+		[JsonSchemaString]
 		public JsonPath? Property { get; set; }
 
 		/// <summary>
 		/// Property to group by
 		/// </summary>
+		[JsonSchemaString]
 		public JsonPath? GroupBy { get; set; }
 
 		/// <summary>
