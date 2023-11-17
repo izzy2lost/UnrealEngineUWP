@@ -218,10 +218,6 @@ void FObjectProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value,
 #endif
 		{
 			TObjectPtr<UObject> ObjectValuePtr = GetObjectPtrPropertyValue(Value);
-			if (!ObjectValuePtr.IsResolved())
-			{
-				printf("");
-			}
 			check(ObjectValuePtr.IsResolved());
 			UObject* ObjectValue = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(ObjectValuePtr.GetHandle());
 
