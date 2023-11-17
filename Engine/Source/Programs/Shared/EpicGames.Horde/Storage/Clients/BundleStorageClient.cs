@@ -128,7 +128,7 @@ namespace EpicGames.Horde.Storage.Clients
 						}
 					}
 
-					data = data.Slice(Bundle.SignatureLength + signature.HeaderLength);
+					data = data.Slice(signature.HeaderLength);
 				}
 				return locators;
 			}
