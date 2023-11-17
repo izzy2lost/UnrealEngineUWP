@@ -9,6 +9,7 @@
 
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
+#include "Helpers/PCGHelpers.h"
 
 #include "PropertyCustomizationHelpers.h"
 #include "Selection.h"
@@ -509,6 +510,18 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 		if (!PCGComponent)
 		{
 			continue;
+		}
+
+		// Prevent duplicate entries from the editor world while in PIE.
+		if (PCGHelpers::IsRuntimeOrPIE())
+		{
+			if (UWorld* World = PCGComponent->GetWorld())
+			{
+				if (!World->IsGameWorld())
+				{
+					continue;
+				}
+			}
 		}
 
 		UPCGGraph* TopGraph = const_cast<UPCGGraph*>(Stack.GetRootGraph());

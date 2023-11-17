@@ -7,6 +7,7 @@
 
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
+#include "Helpers/PCGHelpers.h"
 
 #include "PropertyCustomizationHelpers.h"
 #include "Selection.h"
@@ -137,6 +138,18 @@ void SPCGEditorGraphDebugObjectWidget::RefreshDebugObjects()
 		if (!IsValid(PCGComponentObject))
 		{
 			continue;
+		}
+
+		// Prevent duplicate entries from the editor world while in PIE.
+		if (PCGHelpers::IsRuntimeOrPIE())
+		{
+			if (UWorld* World = PCGComponentObject->GetWorld())
+			{
+				if (!World->IsGameWorld())
+				{
+					continue;
+				}
+			}
 		}
 
 		UPCGComponent* PCGComponent = Cast<UPCGComponent>(PCGComponentObject);
