@@ -11,9 +11,6 @@
 @end
 #endif
 #include "HAL/PlatformFramePacer.h"
-THIRD_PARTY_INCLUDES_START
-#include "mtlpp.hpp"
-THIRD_PARTY_INCLUDES_END
 
 #if PLATFORM_VISIONOS
 #import <CompositorServices/CompositorServices.h>

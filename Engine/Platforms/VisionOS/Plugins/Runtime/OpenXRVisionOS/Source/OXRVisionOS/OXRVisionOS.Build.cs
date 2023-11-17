@@ -22,9 +22,6 @@ namespace UnrealBuildTool.Rules
 				"OXRVisionOSSettings",
 			});
 			
-		AddEngineThirdPartyPrivateStaticDependencies(Target,
-			"MTLPP"
-		);
 			PublicWeakFrameworks.Add("Metal");
 			PublicWeakFrameworks.Add("ARKit");		
 			PrivateIncludePathModuleNames.Add("OpenXRHMD");
