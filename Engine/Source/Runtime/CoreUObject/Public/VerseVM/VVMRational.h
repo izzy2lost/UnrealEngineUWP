@@ -58,6 +58,8 @@ struct VRational : VHeapValue
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VRational(FAllocationContext Context, VValue InNumerator, VValue InDenominator)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))

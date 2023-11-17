@@ -99,6 +99,8 @@ struct VHeapInt final : VHeapValue
 	Digit GetDigit(const uint32 Index) const;
 	unsigned int GetLength() const { return Length; }
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	explicit VHeapInt(FAllocationContext Context, uint32 NumWords)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))

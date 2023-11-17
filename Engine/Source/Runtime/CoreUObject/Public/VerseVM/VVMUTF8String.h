@@ -138,6 +138,8 @@ struct VUTF8String : VHeapValue
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	static size_t DataOffset()
 	{
@@ -195,6 +197,8 @@ struct VUniqueString final : VUTF8String
 	{
 		return this == &Other;
 	}
+
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 private:
 	static VUniqueString& Make(FAllocationContext Context, FUtf8StringView String)
@@ -266,6 +270,8 @@ struct VUniqueStringSet : VCell
 	FSetElementId FindId(const FUtf8StringView& String) const;
 
 	bool IsValidId(const FSetElementId& Id) const;
+
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 private:
 	static SetType FormSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);

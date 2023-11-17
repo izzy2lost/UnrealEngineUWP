@@ -19,6 +19,7 @@
 namespace Verse
 {
 struct FAccessContext;
+struct FCellFormatter;
 struct VCppClassInfo;
 struct FMarkStack;
 struct VEmergentType;
@@ -191,5 +192,35 @@ struct VHeapValue : VCell
 	{
 	}
 };
+
+namespace Details
+{
+
+template <typename T, typename = void>
+struct HasToString : std::false_type
+{
+};
+
+template <typename T>
+struct HasToString<T, std::void_t<decltype(std::declval<T>().ToStringImpl(std::declval<FStringBuilderBase&>(), std::declval<FAllocationContext>(), std::declval<FCellFormatter&>()))>> : std::true_type
+{
+};
+
+using ToStringMethodSig = void (*)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+template <typename CellType>
+constexpr ToStringMethodSig GetToStringMethod()
+{
+	if constexpr (HasToString<CellType>::value)
+	{
+		return [](VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) {
+			This->StaticCast<CellType>().ToStringImpl(Builder, Context, Formatter);
+		};
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+} // namespace Details
 
 } // namespace Verse

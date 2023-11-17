@@ -24,61 +24,45 @@ namespace Verse
 {
 FString FDefaultCellFormatter::ToString(FAllocationContext Context, VCell& Cell) const
 {
-	if (Cell.IsA<VTuple>())
-	{
-		VTuple& Tuple = Cell.StaticCast<VTuple>();
-		FString Result("Tuple(");
-		for (uint32 Index = 0, End = Tuple.Num(); Index < End; ++Index)
-		{
-			if (Index > 0)
-			{
-				Result += ", ";
-			}
-			Result += Tuple.GetValue(Index).ToString(Context, *this);
-		}
-		Result += ")";
-		return Result;
-	}
-	if (Cell.IsA<VVar>())
-	{
-		return FString::Printf(TEXT("Var(%s)"), *Cell.StaticCast<VVar>().Get(Context).ToString(Context, *this));
-	}
+	TStringBuilder<128> Builder;
+	Append(Builder, Context, Cell);
+	return Builder.ToString();
+}
 
-	if (const ::Verse::VRational* Rational = Cell.DynamicCast<VRational>())
-	{
-		return FString::Printf(TEXT("Rational(%s / %s)"),
-			*Rational->Numerator.Get().ToString(Context, *this),
-			*Rational->Denominator.Get().ToString(Context, *this));
-	}
-
-	if (const ::Verse::VUniqueString* UniqueString = Cell.DynamicCast<VUniqueString>())
-	{
-		return FString::Printf(TEXT("UniqueString(\"%hs\"), address: %p"), UniqueString->AsCString(), &UniqueString);
-	}
-	else if (const ::Verse::VUTF8String* String = Cell.DynamicCast<VUTF8String>())
-	{
-		return FString::Printf(TEXT("String(\"%hs\")"), String->AsCString());
-	}
-	else if (const ::Verse::VUniqueStringSet* UniqueStringSet = Cell.DynamicCast<VUniqueStringSet>())
-	{
-		return Verse::ToString(Context, *UniqueStringSet);
-	}
-	else if (const ::Verse::VConstructor* Constructor = Cell.DynamicCast<VConstructor>())
-	{
-		return Verse::ToString(Context, *Constructor);
-	}
-
+bool FDefaultCellFormatter::TryAppend(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const
+{
+	// Logical values are handled via two globally unique cells.
 	if (VValue Logic(Cell); Logic.IsLogic())
 	{
-		return Logic.AsBool() ? TEXT("true") : TEXT("false");
+		Builder << (Logic.AsBool() ? TEXT("true") : TEXT("false"));
+		return true;
 	}
 
-	if (VFunction* Function = Cell.DynamicCast<VFunction>())
+	const VCppClassInfo* ClassInfo = Cell.GetCppClassInfo();
+	if (ClassInfo != nullptr && ClassInfo->ToString != nullptr)
 	{
-		return FString::Printf(TEXT("Function(Procedure=%s)"), *ToString(Context, *Function->Procedure.Get()));
+		ClassInfo->ToString(&Cell, Builder, Context, *this);
+		return true;
 	}
 
-	return FString::Printf(TEXT("Cell(0x%" PRIxPTR ")"), BitCast<uintptr_t>(&Cell));
+	return false;
+}
+
+void FDefaultCellFormatter::Append(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const
+{
+	if (!TryAppend(Builder, Context, Cell))
+	{
+		Builder.Append(*Cell.DebugName());
+		Builder.Append(TEXT("(, address 0x"));
+		Builder.Appendf(TEXT("%p"), &Cell);
+		Builder.Append(TEXT(")"));
+	}
+	else if (Cell.IsA<VUniqueString>() || Cell.IsA<VUniqueStringSet>())
+	{
+		Builder.Append(TEXT(", address 0x"));
+		Builder.Appendf(TEXT("%p"), &Cell);
+		Builder.Append(TEXT(")"));
+	}
 }
 
 FString ToString(const VInt& Int)
@@ -94,84 +78,74 @@ FString ToString(const VInt& Int)
 	}
 }
 
-FString ToString(const VHeapInt& HeapInt)
-{
-	FString NumberResult;
-
-	if (HeapInt.IsZero())
-	{
-		NumberResult = "0";
-	}
-	else
-	{
-		for (int32 I = HeapInt.GetLength() - 1; I >= 0; --I)
-		{
-			NumberResult += FString::Printf(TEXT(" %08X"), HeapInt.GetDigit(I));
-		}
-	}
-
-	return FString::Printf(TEXT("HeapInt(%hc%sh)"), HeapInt.GetSign() ? '-' : '+', *NumberResult);
-}
-
-FString ToString(double Double)
-{
-	return LexToString(Double);
-}
-
-FString ToString(FAllocationContext Context, const VValue& Value, const FCellFormatter& Formatter)
+FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value)
 {
 	return Value.ToString(Context, Formatter);
 }
 
+void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value)
+{
+	return Value.ToString(Builder, Context, Formatter);
+}
+
 FString VValue::ToString(FAllocationContext Context, const FCellFormatter& Formatter) const
 {
+	TStringBuilder<128> Builder;
+	ToString(Builder, Context, Formatter);
+	return Builder.ToString();
+}
+
+void VValue::ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const
+{
+
 	if (*this == VValue::EffectDoneMarker())
 	{
-		return FString::Printf(TEXT("0x%x"), AsInt32());
+		Builder.Appendf(TEXT("0x%x"), AsInt32());
 	}
 	else if (IsInt())
 	{
 		if (IsCellOfType<VHeapInt>())
 		{
 			// larger heap-ints
-			return ::Verse::ToString(AsCell().StaticCast<VHeapInt>());
+			Formatter.Append(Builder, Context, AsCell());
 		}
-
-		// Smaller ints
-		return ::Verse::ToString(AsInt());
+		else
+		{
+			// Smaller ints
+			Builder.Append(::Verse::ToString(AsInt()));
+		}
 	}
 	else if (IsFloat())
 	{
-		return ::Verse::ToString(AsFloat().AsDouble());
+		Builder << AsFloat().AsDouble();
 	}
 	else if (IsCell())
 	{
-		return Formatter.ToString(Context, AsCell());
+		Formatter.Append(Builder, Context, AsCell());
 	}
 	else if (IsRoot())
 	{
-		return FString::Printf(TEXT("Root(%u)"), GetSplitDepth());
+		Builder.Appendf(TEXT("Root(%u)"), GetSplitDepth());
 	}
 	else if (IsPlaceholder())
 	{
 		VValue Temp = *this; // Don't have printing path compress
 		VPlaceholder& Placeholder = Temp.AsPlaceholder();
-		FString Result = FString::Printf(TEXT("Placeholder(0x%" PRIxPTR "->"), &Placeholder);
+		Builder.Appendf(TEXT("Placeholder(0x%" PRIxPTR "->"), &Placeholder);
 		VValue Pointee = Placeholder.Follow();
 		if (Pointee.IsPlaceholder())
 		{
-			Result += FString::Printf(TEXT("0x%" PRIxPTR), &Pointee.AsPlaceholder());
+			Builder.Appendf(TEXT("0x%" PRIxPTR), &Pointee.AsPlaceholder());
 		}
 		else
 		{
-			Result += Pointee.ToString(Context, Formatter);
+			Pointee.ToString(Builder, Context, Formatter);
 		}
-		Result += TEXT(")");
-		return Result;
+		Builder.Append(TEXT(")"));
 	}
 	else if (IsUninitialized())
 	{
-		return TEXT("Uninitialized");
+		Builder.Append(TEXT("Uninitialized"));
 	}
 	else
 	{
@@ -179,43 +153,24 @@ FString VValue::ToString(FAllocationContext Context, const FCellFormatter& Forma
 	}
 }
 
-FString ToString(FAllocationContext Context, const VRestValue& Value, const FCellFormatter& CellFormatter)
+FString ToString(FAllocationContext Context, const FCellFormatter& CellFormatter, const VRestValue& Value)
 {
 	return Value.ToString(Context, CellFormatter);
 }
 
-FString ToString(FAllocationContext Context, const VUniqueString& String)
+void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& CellFormatter, const VRestValue& Value)
 {
-	return FString::Printf(TEXT("UniqueString(\"%hs\"), address 0x%p"), String.AsCString(), &String);
+	return Value.ToString(Builder, Context, CellFormatter);
 }
 
-FString ToString(FAllocationContext Context, const VUniqueStringSet& UniqueStringSet)
+FString VRestValue::ToString(FAllocationContext Context, const FCellFormatter& Formatter) const
 {
-	FString Result = "UniqueStringSet( ";
-	for (auto& CurrentString : UniqueStringSet)
-	{
-		Result += FString::Printf(TEXT("(\"%s\"), "), *ToString(Context, *CurrentString.Get()));
-	}
-	Result += FString::Printf(TEXT("), address 0x%p"), &UniqueStringSet);
-	return Result;
+	return Value.Get().ToString(Context, Formatter);
 }
 
-FString ToString(FAllocationContext Context, const VConstructor& Constructor, const FCellFormatter& CellFormatter)
+void VRestValue::ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const
 {
-	FString Result = "Constructor(\n";
-	for (uint32 Index = 0; Index < Constructor.NumEntries; ++Index)
-	{
-		const VConstructor::VEntry& Entry = Constructor.Entries[Index];
-		const FString ConstantStringRepresentation = Entry.Value.Get().ToString(Context, CellFormatter);
-		Result += FString::Printf(TEXT("\t%s : Entry(Value: %s, Dynamic: %s))\n"), *ToString(Context, *Entry.Name), *ConstantStringRepresentation, Entry.bDynamic ? "true" : "false");
-	}
-	Result += FString::Printf(TEXT(")"));
-	return Result;
-}
-
-FString VRestValue::ToString(FAllocationContext Context, const FCellFormatter& CellFormatter) const
-{
-	return ::Verse::ToString(Context, Value.Get(), CellFormatter);
+	return Value.Get().ToString(Builder, Context, Formatter);
 }
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

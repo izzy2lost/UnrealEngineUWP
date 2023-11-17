@@ -90,6 +90,8 @@ struct VTuple : VHeapValue
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VTuple(FAllocationContext Context, uint32 InNumValues)
 		: VHeapValue(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeTuple>(Context, InNumValues), &StaticCppClassInfo))

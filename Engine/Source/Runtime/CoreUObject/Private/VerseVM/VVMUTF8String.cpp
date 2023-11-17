@@ -8,6 +8,7 @@
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMValuePrinting.h"
 
 namespace Verse
 {
@@ -50,6 +51,11 @@ uint32 VUTF8String::GetTypeHashImpl()
 	return GetTypeHash(*this);
 }
 
+void VUTF8String::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("String(\"")).Append(AsCString()).Append(TEXT("\")"));
+}
+
 DEFINE_DERIVED_VCPPCLASSINFO(VUTF8String);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VUTF8String);
 TGlobalTrivialEmergentTypePtr<&VUTF8String::StaticCppClassInfo> VUTF8String::GlobalTrivialEmergentType;
@@ -57,6 +63,11 @@ TGlobalTrivialEmergentTypePtr<&VUTF8String::StaticCppClassInfo> VUTF8String::Glo
 DEFINE_DERIVED_VCPPCLASSINFO(VUniqueString);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VUniqueString);
 TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString::GlobalTrivialEmergentType;
+
+void VUniqueString::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("UniqueString(\"")).Append(AsCString()).Append(TEXT("\")"));
+}
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
 
@@ -120,6 +131,18 @@ void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 {
 	// We still have to mark each of the strings in the set as being used.
 	Visitor.Visit(Strings.begin(), Strings.end());
+}
+
+void VUniqueStringSet::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("UniqueStringSet( "));
+	for (auto& CurrentString : *this)
+	{
+		Builder.Append(TEXT("("));
+		Formatter.Append(Builder, Context, *CurrentString);
+		Builder.Append(TEXT("), "));
+	}
+	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

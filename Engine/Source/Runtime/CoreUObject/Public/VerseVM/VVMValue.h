@@ -183,7 +183,8 @@ struct VValue
 
 	void EnqueueSuspension(FRunningContext Context, VSuspension& Suspension);
 
-	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
+	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
+	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 
 private:
 	friend struct VRestValue;

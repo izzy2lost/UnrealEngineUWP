@@ -6,6 +6,7 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 
 class FString;
@@ -14,32 +15,37 @@ namespace Verse
 {
 struct VInt;
 struct VCell;
-struct VConstructor;
-struct VUniqueString;
-struct VUniqueStringSet;
 struct VValue;
 struct VRestValue;
 struct FAllocationContext;
-enum class EFieldType : int8;
 
 struct FCellFormatter
 {
 	virtual ~FCellFormatter() {}
-	virtual FString ToString(FAllocationContext, VCell& Cell) const = 0;
+
+	// Format the cell into a string. Where possible, use a string builder and the Append method below
+	virtual FString ToString(FAllocationContext Context, VCell& Cell) const = 0;
+
+	// Format the cell into an existing string builder.
+	virtual void Append(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const = 0;
 };
 
 struct FDefaultCellFormatter : FCellFormatter
 {
-	COREUOBJECT_API virtual FString ToString(FAllocationContext, VCell& Cell) const;
+	// FCellFormatter implementation
+	COREUOBJECT_API virtual FString ToString(FAllocationContext Context, VCell& Cell) const override;
+	COREUOBJECT_API virtual void Append(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const override;
+
+protected:
+	// This helper method appends the cell to the string builder but without any of the debugging address text.
+	// This allows such things as unit tests to override Append to provide stable strings to compare.
+	COREUOBJECT_API virtual bool TryAppend(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const;
 };
 
-FString ToString(const EFieldType FieldType);
 COREUOBJECT_API FString ToString(const VInt& Int);
-COREUOBJECT_API FString ToString(double Double);
-COREUOBJECT_API FString ToString(FAllocationContext, const VValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
-COREUOBJECT_API FString ToString(FAllocationContext Context, const VUniqueString& String);
-COREUOBJECT_API FString ToString(FAllocationContext Context, const VUniqueStringSet& String);
-COREUOBJECT_API FString ToString(FAllocationContext Context, const VConstructor& Constructor, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
-FString ToString(FAllocationContext, const VRestValue& Value, const FCellFormatter& CellFormatter = FDefaultCellFormatter{});
+COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
+COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
+COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VValue& Value);
+COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
 
 } // namespace Verse

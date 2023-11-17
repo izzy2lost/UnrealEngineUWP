@@ -50,5 +50,19 @@ uint32 VTuple::GetTypeHashImpl()
 	return ::GetArrayHash(Ptr, Size);
 }
 
+void VTuple::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("Tuple("));
+	for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+	{
+		if (Index > 0)
+		{
+			Builder.Append(TEXT(", "));
+		}
+		GetValue(Index).ToString(Builder, Context, Formatter);
+	}
+	Builder.Append(TEXT(")"));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

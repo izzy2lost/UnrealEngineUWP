@@ -6,6 +6,7 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Templates/Function.h"
 #include <type_traits>
@@ -15,6 +16,8 @@ class FString;
 namespace Verse
 {
 struct FAbstractVisitor;
+struct FAllocationContext;
+struct FCellFormatter;
 struct FMarkStack;
 struct FMarkStackVisitor;
 struct FRunningContext;
@@ -93,7 +96,9 @@ public:                                                                         
 		},                                                                                                                                                                      \
 		[](::Verse::VCell* This) -> uint32 {                                                                                                                                    \
 			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
-		}};
+		},                                                                                                                                                                      \
+		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
+	};
 
 #define DEFINE_BASE_VCPPCLASSINFO(CellType) DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)
 
@@ -121,6 +126,7 @@ struct VCppClassInfo
 	void (*RunDestructor)(VCell* This);
 	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
+	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 	bool IsA(const VCppClassInfo* Other) const
 	{

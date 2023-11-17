@@ -10,6 +10,7 @@
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
+#include "VerseVM/VVMValuePrinting.h"
 
 namespace Verse
 {
@@ -24,6 +25,23 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.Visit(Entries[Index].Name);
 		Visitor.Visit(Entries[Index].Value);
 	}
+}
+
+void VConstructor::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("Constructor(\n"));
+	for (uint32 Index = 0; Index < NumEntries; ++Index)
+	{
+		const VEntry& Entry = Entries[Index];
+		Builder.Append(TEXT("\t"));
+		Formatter.Append(Builder, Context, *Entry.Name);
+		Builder.Append(TEXT(" : Entry(Value: "));
+		Entry.Value.Get().ToString(Builder, Context, Formatter);
+		Builder.Append(TEXT(", Dynamic: "));
+		Builder.Append(Entry.bDynamic ? TEXT("true") : TEXT("false"));
+		Builder.Append(TEXT("))\n"));
+	}
+	Builder.Append(TEXT(")"));
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VClass);

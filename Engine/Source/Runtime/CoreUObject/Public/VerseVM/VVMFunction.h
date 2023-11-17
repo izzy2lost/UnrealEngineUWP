@@ -33,6 +33,8 @@ struct VFunction : VHeapValue
 
 	VProcedure& GetProcedure() { return *Procedure.Get(); }
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VFunction(FAllocationContext Context, VProcedure& InFunction, VCell& InParentScope)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))

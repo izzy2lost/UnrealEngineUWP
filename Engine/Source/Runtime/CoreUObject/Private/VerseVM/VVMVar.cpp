@@ -19,5 +19,12 @@ void VVar::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(Value);
 }
 
+void VVar::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("Var("));
+	Get(Context).ToString(Builder, Context, Formatter);
+	Builder.Append(TEXT(")"));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -215,5 +215,14 @@ uint32 VRational::GetTypeHashImpl()
 	return ::HashCombineFast(GetTypeHash(Numerator.Get()), GetTypeHash(Denominator.Get()));
 }
 
+void VRational::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("Rational("));
+	Numerator.Get().ToString(Builder, Context, Formatter);
+	Builder.Append(TEXT(" / "));
+	Denominator.Get().ToString(Builder, Context, Formatter);
+	Builder.Append(TEXT(")"));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

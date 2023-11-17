@@ -21,15 +21,15 @@ struct FBytecodeCellFormatter : public FDefaultCellFormatter
 	TMap<VCell*, FString> CellSymbolMap;
 
 	// FCellFormatter interface.
-	virtual FString ToString(FAllocationContext Context, VCell& Cell) const override
+	virtual void Append(FStringBuilderBase& Builder, FAllocationContext Context, VCell& Cell) const override
 	{
 		if (const FString* Symbol = CellSymbolMap.Find(&Cell))
 		{
-			return *Symbol;
+			Builder.Append(*Symbol);
 		}
 		else
 		{
-			return FDefaultCellFormatter::ToString(Context, Cell);
+			FDefaultCellFormatter::Append(Builder, Context, Cell);
 		}
 	}
 };
@@ -78,7 +78,7 @@ struct FBytecodePrinter
 		{
 			String += FString::Printf(TEXT("    c%u = %s\n"),
 				ConstantIndex,
-				*ToString(Context, Procedure.GetConstant(FConstantIndex{ConstantIndex}), CellFormatter));
+				*ToString(Context, CellFormatter, Procedure.GetConstant(FConstantIndex{ConstantIndex})));
 		}
 
 		// Print info about the procedure's frame.
@@ -149,7 +149,7 @@ private:
 		{
 			FConstantIndex ConstantIndex = ValueOperand.AsConstant();
 			String += FString::Printf(TEXT("c%u="), ConstantIndex.Index);
-			String += ToString(Context, Procedure.GetConstant(ConstantIndex), CellFormatter);
+			String += ToString(Context, CellFormatter, Procedure.GetConstant(ConstantIndex));
 		}
 		else
 		{
@@ -211,7 +211,7 @@ private:
 				String += ArgSeparator();
 				String += FString::Printf(TEXT("%s: "), *FString(Name));
 				// We can safely assume that all immediates are wrapped in a `TWriteBarrier`.
-				String += ToString(Context, *Operand.Get());
+				String += ToString(Context, FDefaultCellFormatter{}, *Operand.Get());
 			}
 		});
 

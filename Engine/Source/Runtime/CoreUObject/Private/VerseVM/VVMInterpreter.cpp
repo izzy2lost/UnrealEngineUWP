@@ -233,11 +233,11 @@ class FInterpreter
 	{
 		if (Operand.IsConstant())
 		{
-			return ToString(Context, State.Constants[Operand.AsConstant().Index].Get());
+			return ToString(Context, FDefaultCellFormatter(), State.Constants[Operand.AsConstant().Index].Get());
 		}
 		else
 		{
-			return ToString(Context, State.Frame->Registers[Operand.AsRegister().Index]);
+			return ToString(Context, FDefaultCellFormatter(), State.Frame->Registers[Operand.AsRegister().Index]);
 		}
 	}
 
@@ -246,14 +246,14 @@ class FInterpreter
 	{
 		if constexpr (std::is_same_v<T, VValue>)
 		{
-			return ToString(Context, Operand.Get());
+			return ToString(Context, FDefaultCellFormatter(), Operand.Get());
 		}
 		else
 		{
-			return ToString(Context, *Operand.Get());
+			return ToString(Context, FDefaultCellFormatter(), *Operand.Get());
 		}
 	}
-	FString StringifyOperandOrValue(VValue Value) { return ToString(Context, Value); }
+	FString StringifyOperandOrValue(VValue Value) { return ToString(Context, FDefaultCellFormatter(), Value); }
 	FString StringifyOperandOrValue(FValueOperand Operand) { return TraceOperand(Operand); }
 	FString StringifyOperandOrValue(const TArray<FValueOperand>& Operands)
 	{
@@ -302,7 +302,7 @@ class FInterpreter
 		if (CurrentEffectToken)
 		{
 			String += TEXT("EffectToken=");
-			String += ToString(Context, *CurrentEffectToken);
+			String += ToString(Context, FDefaultCellFormatter(), *CurrentEffectToken);
 			String += TEXT("|");
 		}
 		if (bLenient)

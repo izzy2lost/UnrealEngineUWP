@@ -122,6 +122,8 @@ struct VConstructor : VCell
 		return *new (Context.AllocateFastCell(NumBytes)) VConstructor(Context, InEntries);
 	}
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VConstructor(FAllocationContext Context, const TArray<VEntry>& InEntries)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))

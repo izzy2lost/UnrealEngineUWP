@@ -35,6 +35,8 @@ struct VVar : VCell
 		return Value.Set(Context, NewValue);
 	}
 
+	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
 private:
 	VRestValue Value;
 

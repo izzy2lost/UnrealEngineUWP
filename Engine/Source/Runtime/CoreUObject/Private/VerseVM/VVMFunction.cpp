@@ -7,6 +7,7 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMValuePrinting.h"
 
 namespace Verse
 {
@@ -19,6 +20,13 @@ void VFunction::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(Procedure);
 	Visitor.Visit(ParentScope);
+}
+
+void VFunction::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("Function(Procedure="));
+	Formatter.Append(Builder, Context, *Procedure);
+	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

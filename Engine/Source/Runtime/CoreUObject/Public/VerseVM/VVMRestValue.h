@@ -49,7 +49,8 @@ struct VRestValue
 
 	VValue Get(FAllocationContext Context);
 
-	FString ToString(FAllocationContext, const FCellFormatter& Formatter) const;
+	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
+	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 
 	template <typename TVisitor>
 	FORCEINLINE void Visit(TVisitor& Visitor)

@@ -61,6 +61,26 @@ DEFINE_DERIVED_VCPPCLASSINFO(VHeapInt);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapInt);
 TGlobalTrivialEmergentTypePtr<&VHeapInt::StaticCppClassInfo> VHeapInt::GlobalTrivialEmergentType;
 
+void VHeapInt::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	Builder.Append(TEXT("HeapInt("));
+	Builder.AppendChar(GetSign() ? TCHAR('-') : TCHAR('+'));
+
+	if (IsZero())
+	{
+		Builder.AppendChar(TCHAR('0'));
+	}
+	else
+	{
+		for (int32 I = GetLength() - 1; I >= 0; --I)
+		{
+			Builder.Appendf(TEXT(" %08X"), GetDigit(I));
+		}
+	}
+
+	Builder.Append(TEXT("h)"));
+}
+
 bool VHeapInt::IsInt32() const
 {
 	static_assert(sizeof(Digit) == 4);
