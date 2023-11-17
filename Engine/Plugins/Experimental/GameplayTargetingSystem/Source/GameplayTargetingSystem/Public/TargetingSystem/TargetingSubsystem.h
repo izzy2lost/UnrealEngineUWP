@@ -143,7 +143,7 @@ public:
 
 	/** Method to remove an async targeting request with a given targeting handle */
 	UFUNCTION(BlueprintCallable, Category = "Targeting System | Async Request")
-	TARGETINGSYSTEM_API void RemoveAsyncTargetingRequestWithHandle(FTargetingRequestHandle& TargetingHandle);
+	TARGETINGSYSTEM_API void RemoveAsyncTargetingRequestWithHandle(UPARAM(ref) FTargetingRequestHandle& TargetingHandle);
 
 	/** Method to queue an async targeting request based on a gameplay targeting preset. */
 	UFUNCTION(BlueprintCallable, Category = "Targeting System | Async Request")
