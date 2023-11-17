@@ -422,7 +422,8 @@ namespace EpicGames.Core
 		public ReadOnlySequence<byte> AsSequence(int offset, int length)
 		{
 			// TODO: could do a binary search for offset and work fowards from there
-			return AsSequence().Slice(offset, length);
+			ReadOnlySequence<byte> sequence = AsSequence();
+			return sequence.Slice(offset, Math.Min(length, sequence.Length - offset));
 		}
 
 		/// <summary>

@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Buffers;
 using System.Buffers.Text;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -201,9 +203,57 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		async Task<IReadOnlyMemoryOwner<byte>> ReadEncodedPacketInternalAsync(EncodedPacketCacheKey key, CancellationToken cancellationToken)
 		{
-			// TODO: If this is more than one packet, slice it up into separate things and add them to the cache.
-			// Use a BundleSignature or BundleFrame
-			return await _outer.ReadBodyAsync(_packetOffset, _packetLength, cancellationToken);
+			IMemoryOwner<byte>? leadingPacket = null;
+			IMemoryOwner<byte>? trailingPacket = null;
+			try
+			{
+				// Read more data than was requested so we can add additional packets to the cache
+				int readLength = Math.Max(_packetLength, 512 * 1024);
+				using Stream stream = await _outer.OpenBodyAsync(_packetOffset, readLength, cancellationToken);
+
+				// Read the first packet
+				leadingPacket = _cache.Allocate(_packetLength);
+				Memory<byte> memory = leadingPacket.Memory.Slice(0, _packetLength);
+				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
+
+				// Read any other packets in the same stream
+				byte[] header = new byte[Bundle.SignatureLength];
+				for (int readOffset = _packetLength; readOffset + Bundle.SignatureLength < readLength;)
+				{
+					int readBytes = await stream.ReadGreedyAsync(header, cancellationToken);
+					if (readBytes < header.Length)
+					{
+						break;
+					}
+
+					BundleSignature signature = Bundle.ReadSignature(header);
+					if (readOffset + signature.HeaderLength >= readLength)
+					{
+						break;
+					}
+
+					trailingPacket = _cache.Allocate(signature.HeaderLength);
+					header.CopyTo(trailingPacket.Memory);
+					memory = trailingPacket.Memory.Slice(Bundle.SignatureLength, signature.HeaderLength - Bundle.SignatureLength);
+					await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
+
+					EncodedPacketCacheKey trailingKey = new EncodedPacketCacheKey(key.Bundle, _packetOffset + readOffset);
+					if (!_cache.TryAdd(trailingKey, () => ReadOnlyMemoryOwner.Create<byte>(memory, trailingPacket)))
+					{
+						trailingPacket.Dispose();
+					}
+					trailingPacket = null;
+
+					readOffset += signature.HeaderLength;
+				}
+			}
+			catch
+			{
+				trailingPacket?.Dispose();
+				leadingPacket?.Dispose();
+				throw;
+			}
+			return ReadOnlyMemoryOwner.Create<byte>(leadingPacket.Memory.Slice(0, _packetLength), leadingPacket);
 		}
 
 		#endregion

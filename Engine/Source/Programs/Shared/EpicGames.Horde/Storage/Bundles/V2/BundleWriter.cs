@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -281,6 +282,18 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			/// <inheritdoc/>
 			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken)
 				=> GetFlushedHandle().ReadAsync(cancellationToken);
+
+			/// <inheritdoc/>
+			public async Task<Stream> OpenBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				if (_flushedHandle == null)
+				{
+					IReadOnlyMemoryOwner<byte> owner = await ReadBodyAsync(offset, length, cancellationToken);
+					return owner.AsStream();
+				}
+
+				return await _flushedHandle.OpenBodyAsync(offset, length, cancellationToken);
+			}
 
 			/// <inheritdoc/>
 			public async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
