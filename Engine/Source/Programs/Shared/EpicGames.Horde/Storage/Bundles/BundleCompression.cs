@@ -30,7 +30,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		Gzip = 2,
 
 		/// <summary>
-		/// Oodle compression (Kraken)
+		/// Oodle compression (Selkie)
 		/// </summary>
 		Oodle = 3,
 
