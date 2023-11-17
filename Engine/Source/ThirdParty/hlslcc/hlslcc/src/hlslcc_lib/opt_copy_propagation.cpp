@@ -489,7 +489,7 @@ void ir_copy_propagation_visitor::handle_rvalue(ir_rvalue **rvalue)
 	}
 	
 	// Shared variables should be considered volatile
-	if (deref_var == nullptr || deref_var->var == nullptr || deref_var->var->mode == ir_var_shared)
+	if (deref_var == nullptr || deref_var->var == nullptr || deref_var->var->mode == ir_var_shared || deref_var->var->precise)
 	{
 		return;
 	}
@@ -654,7 +654,7 @@ void ir_copy_propagation_visitor::kill(ir_variable *var)
 	check(var != NULL);
 
 	// Shared variables should be considered volatile
-	if (var->mode == ir_var_shared)
+	if (var->mode == ir_var_shared || var->precise)
 	{
 		return;
 	}
@@ -689,7 +689,9 @@ void ir_copy_propagation_visitor::add_copy(ir_assignment *ir)
 
 	// Shared variables should be considered volatile
 	if ((lhs_var != NULL && lhs_var->mode == ir_var_shared) ||
-		(rhs_var != NULL && rhs_var->mode == ir_var_shared))
+		(rhs_var != NULL && rhs_var->mode == ir_var_shared) ||
+		(lhs_var != NULL && lhs_var->precise) ||
+		(rhs_var != NULL && rhs_var->precise))
 	{
 		return;
 	}

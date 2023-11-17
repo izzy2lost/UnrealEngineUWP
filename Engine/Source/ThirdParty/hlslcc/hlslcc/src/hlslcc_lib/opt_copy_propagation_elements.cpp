@@ -385,7 +385,7 @@ void ir_copy_propagation_elements_visitor::handle_rvalue(ir_rvalue **ir)
 	ir_variable *var = deref_var->var;
 
 	// Shared variables should be considered volatile
-	if (var->mode == ir_var_shared)
+	if (var->mode == ir_var_shared || var->precise)
 	{
 		return;
 	}
@@ -676,6 +676,11 @@ void ir_copy_propagation_elements_visitor::add_copy(ir_assignment *ir)
 
 	if (ir->condition)
 		return;
+
+	if (ir->lhs->as_variable() != NULL && ir->lhs->as_variable()->precise)
+	{
+		return;
+	}
 
 	ir_dereference_variable *lhs = ir->lhs->as_dereference_variable();
 	if (!lhs || !(lhs->type->is_scalar() || lhs->type->is_vector()))

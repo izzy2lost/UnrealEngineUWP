@@ -335,6 +335,10 @@ _mesa_ast_type_qualifier_print(const struct ast_type_qualifier *q)
 	{
 		printf("noperspective ");
 	}
+	if (q->flags.q.precise)
+	{
+		printf("precise ");
+	}
 }
 
 
