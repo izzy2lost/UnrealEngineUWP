@@ -61,6 +61,36 @@ struct CONTROLRIG_API FRigModuleInstance
 	FString GetPath() const;
 };
 
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigModuleExecutionElement
+{
+	GENERATED_USTRUCT_BODY()
+
+	FRigModuleExecutionElement()
+		: ModulePath(FString())
+		, ModuleInstance(nullptr)
+		, EventName(NAME_None)
+		, bExecuted(false)
+	{}
+
+	FRigModuleExecutionElement(FRigModuleInstance* InModule, FName InEvent)
+		: ModulePath(InModule->GetPath())
+		, ModuleInstance(InModule)
+		, EventName(InEvent)
+		, bExecuted(false)
+	{}
+
+	UPROPERTY()
+	FString ModulePath;
+	FRigModuleInstance* ModuleInstance;
+
+	UPROPERTY()
+	FName EventName;
+
+	UPROPERTY()
+	bool bExecuted;
+};
+
 /** Runs logic for mapping input data to transforms (the "Rig") */
 UCLASS(Blueprintable, Abstract, editinlinenew)
 class CONTROLRIG_API UModularRig : public UControlRig
@@ -79,8 +109,15 @@ public:
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
 	virtual void RequestInitVMs() override { URigVMHost::RequestInit(); }
 	virtual bool Execute_Internal(const FName& InEventName) override;
+	virtual void Evaluate_AnyThread() override;
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector() override { return ElementKeyRedirector; }
 	// END ControlRig
+
+	UPROPERTY()
+	TArray<FRigModuleExecutionElement> ExecutionQueue;
+	int32 ExecutionQueueFront = 0;
+	void ExecuteQueue();
+	void ResetExecutionQueue();
 
 	// BEGIN UObject
 	virtual void BeginDestroy() override;
