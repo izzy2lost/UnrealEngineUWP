@@ -6,8 +6,9 @@
 
 #include "NiagaraRenderTargetVolumeSimCacheVisualizer.generated.h"
 
+// Used in the visualizer panel to populate the temperature mask dropdown
 UENUM()
-enum class ENiagaraRenderTargetVolumeMask
+enum class ENiagaraRenderTargetVolumeVisualizerMask
 {
 	R, G, B, A
 };

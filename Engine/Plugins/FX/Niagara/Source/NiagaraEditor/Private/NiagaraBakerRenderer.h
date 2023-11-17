@@ -101,7 +101,7 @@ class FNiagaraBakerRenderer : FGCObject
 {
 public:
 	FNiagaraBakerRenderer(UNiagaraSystem* NiagaraSystem);
-	virtual ~FNiagaraBakerRenderer();
+	virtual ~FNiagaraBakerRenderer() override;
 
 	void SetAbsoluteTime(float AbsoluteTime, bool bShouldTickComponent = true);
 

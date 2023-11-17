@@ -12,10 +12,8 @@
 #include "NiagaraEditorCommon.h"
 
 #include "NiagaraDataInterfaceGrid2DCollection.h"
-#include "NiagaraDataInterfaceRenderTarget2D.h"
 
 #include "Components/SceneCaptureComponent2D.h"
-#include "Engine/Canvas.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -30,7 +28,6 @@
 #include "ImageWrapperHelper.h"
 #include "LegacyScreenPercentageDriver.h"
 #include "UObject/Package.h"
-#include "VolumeCache.h"
 #include "TextureResource.h"
 #include "SceneInterface.h"
 
@@ -580,11 +577,11 @@ void FNiagaraBakerRenderer::RenderParticleAttribute(UTextureRenderTarget2D* Rend
 		}
 		const FNiagaraVariableLayoutInfo& VariableInfo = ParticleDataSet.GetCompiledData().VariableLayouts[VariableIndex];
 	
-		float* FloatChannels[4];
-		FloatChannels[0] = (float*)ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart());
-		FloatChannels[1] = VariableInfo.GetNumFloatComponents() > 1 ? (float*)ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 1) : nullptr;
-		FloatChannels[2] = VariableInfo.GetNumFloatComponents() > 2 ? (float*)ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 2) : nullptr;
-		FloatChannels[3] = VariableInfo.GetNumFloatComponents() > 3 ? (float*)ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 3) : nullptr;
+		const float* FloatChannels[4];
+		FloatChannels[0] = reinterpret_cast<const float*>(ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart()));
+		FloatChannels[1] = VariableInfo.GetNumFloatComponents() > 1 ? reinterpret_cast<const float*>(ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 1)) : nullptr;
+		FloatChannels[2] = VariableInfo.GetNumFloatComponents() > 2 ? reinterpret_cast<const float*>(ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 2)) : nullptr;
+		FloatChannels[3] = VariableInfo.GetNumFloatComponents() > 3 ? reinterpret_cast<const float*>(ParticleDataBuffer->GetComponentPtrFloat(VariableInfo.GetFloatComponentStart() + 3)) : nullptr;
 	
 		const FIntPoint RenderTargetSize(RenderTarget->GetSurfaceWidth(), RenderTarget->GetSurfaceHeight());
 		const int32 ParticleBufferStore = RenderTargetSize.X * RenderTargetSize.Y;
@@ -649,13 +646,12 @@ void FNiagaraBakerRenderer::RenderSparseVolumeTexture(UTextureRenderTarget2D* Re
 		return;
 	}
 
-	bool CreatePreviewComponent = SVTPreviewComponent == nullptr;
-	if (CreatePreviewComponent)
+	if (SVTPreviewComponent == nullptr)
 	{
 		SVTPreviewComponent = NewObject<UHeterogeneousVolumeComponent>(GetTransientPackage(), NAME_None, RF_Transient);
 				
 		// create HV component and wire all the things
-		UMaterialInterface* MaterialInterface = LoadObject<UMaterialInterface>(NULL, TEXT("/Engine/EngineMaterials/SparseVolumeMaterial"), NULL, LOAD_None, NULL);
+		UMaterialInterface* MaterialInterface = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/SparseVolumeMaterial"));
 		
 		UMaterial *Mat = MaterialInterface->GetMaterial();
 
@@ -864,7 +860,7 @@ bool FVolumeDataInterfaceHelper::Initialize(const TArray<FString>& InputDataInte
 	{
 		VolumeRenderTargetDataInterface = CastChecked<UNiagaraDataInterfaceRenderTargetVolume>(DataInterface);
 		VolumeRenderTargetProxy = static_cast<FNiagaraDataInterfaceProxyRenderTargetVolumeProxy*>(VolumeRenderTargetDataInterface->GetProxy());
-		VolumeRenderTargetInstanceData_GameThread = reinterpret_cast<FRenderTargetVolumeRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(VolumeRenderTargetDataInterface));
+		VolumeRenderTargetInstanceData_GameThread = static_cast<FRenderTargetVolumeRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(VolumeRenderTargetDataInterface));
 		if (VolumeRenderTargetInstanceData_GameThread == nullptr)
 		{
 			return false;
@@ -875,7 +871,7 @@ bool FVolumeDataInterfaceHelper::Initialize(const TArray<FString>& InputDataInte
 	{
 		Grid3DDataInterface = CastChecked<UNiagaraDataInterfaceGrid3DCollection>(DataInterface);
 		Grid3DProxy = static_cast<FNiagaraDataInterfaceProxyGrid3DCollectionProxy*>(Grid3DDataInterface->GetProxy());
-		Grid3DInstanceData_GameThread = reinterpret_cast<FGrid3DCollectionRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(Grid3DDataInterface));
+		Grid3DInstanceData_GameThread = static_cast<FGrid3DCollectionRWInstanceData_GameThread*>(SystemInstance->FindDataInterfaceInstanceData(Grid3DDataInterface));
 		if (Grid3DInstanceData_GameThread == nullptr)
 		{
 			return false;

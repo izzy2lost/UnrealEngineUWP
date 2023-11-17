@@ -29,7 +29,6 @@
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "Engine/TextureCube.h"
-#include "Serialization/ArchiveCountMem.h"
 #include "Slate/SceneViewport.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -824,7 +823,6 @@ void SNiagaraSystemViewport::Tick( const FGeometry& AllottedGeometry, const doub
 	{
 		const float MotionTime = PreviewComponent->GetDesiredAge();
 
-		UWorld* World = GetWorld();
 		FVector Location;
 		Location.X = MotionRadius * FMath::Sin(FMath::DegreesToRadians(MotionRate) * MotionTime);
 		Location.Y = 0.0f;
@@ -1254,11 +1252,6 @@ SNiagaraBaselineViewport::~SNiagaraBaselineViewport()
 	{
 		SystemViewportClient->Viewport = NULL;
 	}
-}
-
-void SNiagaraBaselineViewport::AddReferencedObjects( FReferenceCollector& Collector )
-{
-
 }
 
 void SNiagaraBaselineViewport::RefreshViewport()

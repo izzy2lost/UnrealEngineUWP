@@ -49,8 +49,8 @@ public:
 
 	TStrongObjectPtr<UHeterogeneousVolumeComponent> PreviewComponent;
 
-	void SetTemperatureMask(ENiagaraRenderTargetVolumeMask NewMask);
-	ENiagaraRenderTargetVolumeMask TemparatureMask = ENiagaraRenderTargetVolumeMask::G;
+	void SetTemperatureMask(ENiagaraRenderTargetVolumeVisualizerMask NewMask);
+	ENiagaraRenderTargetVolumeVisualizerMask TemparatureMask = ENiagaraRenderTargetVolumeVisualizerMask::G;
 
 	void SetDensityScale(float NewValue);
 	float DensityScale = 0.1f;
@@ -75,7 +75,7 @@ TSharedPtr<SWidget> FNiagaraRenderTargetVolumeSimCacheVisualizer::CreateWidgetFo
 {
 	if (UAnimatedSparseVolumeTexture* VolumeTexture = Cast<UAnimatedSparseVolumeTexture>(CachedData))
 	{
-		static UEnum* MaskEnum = StaticEnum<ENiagaraRenderTargetVolumeMask>();
+		static UEnum* MaskEnum = StaticEnum<ENiagaraRenderTargetVolumeVisualizerMask>();
 		TSharedPtr<SNiagaraVolumeTextureViewport> Viewport = SNew(SNiagaraVolumeTextureViewport, ViewModel, VolumeTexture);
 		
 		return SNew(SVerticalBox)
@@ -114,7 +114,7 @@ TSharedPtr<SWidget> FNiagaraRenderTargetVolumeSimCacheVisualizer::CreateWidgetFo
 					})
 					.OnEnumSelectionChanged_Lambda([Viewport](int32 NewValue, ESelectInfo::Type)
 					{
-						ENiagaraRenderTargetVolumeMask Value = static_cast<ENiagaraRenderTargetVolumeMask>(NewValue);
+						ENiagaraRenderTargetVolumeVisualizerMask Value = static_cast<ENiagaraRenderTargetVolumeVisualizerMask>(NewValue);
 						Viewport->SetTemperatureMask(Value);
 					})
 				]
@@ -321,7 +321,7 @@ void SNiagaraVolumeTextureViewport::OnFloatingButtonClicked()
 {
 }
 
-void SNiagaraVolumeTextureViewport::SetTemperatureMask(ENiagaraRenderTargetVolumeMask NewMask)
+void SNiagaraVolumeTextureViewport::SetTemperatureMask(ENiagaraRenderTargetVolumeVisualizerMask NewMask)
 {
 	if (PreviewComponent)
 	{
@@ -330,10 +330,10 @@ void SNiagaraVolumeTextureViewport::SetTemperatureMask(ENiagaraRenderTargetVolum
 			UMaterial *DuplicateMat = DuplicateObject<UMaterial>(CurrentMat, PreviewComponent.Get());
 			FGuid ExprGuid;
 			DuplicateMat->SetStaticComponentMaskParameterValueEditorOnly("Temperature Mask",
-				NewMask == ENiagaraRenderTargetVolumeMask::R,
-				NewMask == ENiagaraRenderTargetVolumeMask::G,
-				NewMask == ENiagaraRenderTargetVolumeMask::B,
-				NewMask == ENiagaraRenderTargetVolumeMask::A,
+				NewMask == ENiagaraRenderTargetVolumeVisualizerMask::R,
+				NewMask == ENiagaraRenderTargetVolumeVisualizerMask::G,
+				NewMask == ENiagaraRenderTargetVolumeVisualizerMask::B,
+				NewMask == ENiagaraRenderTargetVolumeVisualizerMask::A,
 				ExprGuid);
 			PreviewComponent->OverrideMaterials[0] = DuplicateMat;
 			PreviewComponent->PostLoad();
