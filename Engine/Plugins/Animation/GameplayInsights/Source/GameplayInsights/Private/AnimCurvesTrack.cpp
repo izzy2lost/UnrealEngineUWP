@@ -207,6 +207,7 @@ TSharedPtr<SWidget> FAnimCurveTrack::GetTimelineViewInternal()
 	FLinearColor CurveColor(0.5,0.5,0.5);
 	
 	return SNew(SCurveTimelineView)
+		.TrackName(GetDisplayNameInternal())
 		.CurveColor(CurveColor)
 		.ViewRange_Lambda([]() { return IRewindDebugger::Instance()->GetCurrentViewRange(); })
 		.RenderFill(false)

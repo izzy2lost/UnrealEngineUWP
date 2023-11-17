@@ -568,7 +568,18 @@ TSharedRef<SWidget> SRewindDebugger::MakeFilterMenu()
 
 void SRewindDebugger::ComponentSelectionChanged(TSharedPtr<RewindDebugger::FRewindDebuggerTrack> SelectedItem, ESelectInfo::Type SelectInfo)
 {
+	if (SelectedComponent)
+	{
+		SelectedComponent->SetIsSelected(false);
+	}
+	
 	SelectedComponent = SelectedItem;
+	
+	if (SelectedComponent)
+	{
+		SelectedComponent->SetIsSelected(true);
+	}
+	
 
 	OnComponentSelectionChanged.ExecuteIfBound(SelectedItem);
 }

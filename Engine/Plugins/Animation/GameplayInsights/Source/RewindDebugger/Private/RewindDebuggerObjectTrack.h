@@ -2,7 +2,7 @@
 #pragma once
 
 #include "RewindDebuggerTrack.h"
-#include "SSegmentedTimelineView.h"
+#include "SEventTimelineView.h"
 
 
 namespace RewindDebugger
@@ -22,7 +22,7 @@ public:
 
 	FRewindDebuggerObjectTrack(uint64 InObjectId, const FString& InObjectName, bool bInAddController = false);
 
-	TSharedPtr<SSegmentedTimelineView::FSegmentData> GetExistenceRange() const { return ExistenceRange; }
+	TSharedPtr<SEventTimelineView::FTimelineEventData> GetExistenceRange() const { return ExistenceRange; }
 
 private:
 	virtual TSharedPtr<SWidget> GetTimelineViewInternal() override;
@@ -39,7 +39,7 @@ private:
 	mutable FText DisplayName;
 	FString ObjectName;
 	FSlateIcon Icon;
-	TSharedPtr<SSegmentedTimelineView::FSegmentData> ExistenceRange;
+	TSharedPtr<SEventTimelineView::FTimelineEventData> ExistenceRange;
 	uint64 ObjectId;
 	TArray<FTrackCreatorAndTrack> TrackChildren;
 	TArray<TSharedPtr<FRewindDebuggerTrack>> Children;

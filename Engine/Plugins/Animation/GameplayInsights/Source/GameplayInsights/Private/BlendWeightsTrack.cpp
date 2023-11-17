@@ -283,44 +283,31 @@ static FLinearColor MakeBlendWeightCurveColor(uint32 InSeed, bool bInLine = fals
 
 TSharedPtr<SWidget> FBlendWeightTrack::GetTimelineViewInternal()
 {
-	FLinearColor Color;
+	FLinearColor FillColor;
+	FLinearColor CurveColor;
+	FLinearColor SelectedColor;
+	
 	switch(CurveType)
 	{
 	case ECurveType::BlendWeight:
-		Color = MakeBlendWeightCurveColor(CityHash32(reinterpret_cast<char*>(&AssetId), 8));
-		Color.A = 0.5f;
-		break; 
-	case ECurveType::PlaybackTime:
-		Color = FLinearColor::MakeFromHSV8(0, 50, 50);
+		FillColor = MakeBlendWeightCurveColor(CityHash32(reinterpret_cast<char*>(&AssetId), 8));
+		FillColor.A = 0.5f;
+		CurveColor = FillColor;
+		CurveColor.R *= 0.5;
+		CurveColor.G *= 0.5;
+		CurveColor.B *= 0.5;
+		SelectedColor = CurveColor;
 		break;
-	case ECurveType::RootMotionWeight:
-		Color = FLinearColor::MakeFromHSV8(60, 50, 50);
-		break;
-	case ECurveType::PlayRate:		
-		Color = FLinearColor::MakeFromHSV8(120, 50, 50);
-		break;
-	case ECurveType::BlendSpacePositionX:
-		Color = FLinearColor::MakeFromHSV8(180, 50, 50);
-		break;
-	case ECurveType::BlendSpacePositionY:
-		Color = FLinearColor::MakeFromHSV8(240, 50, 50);
-		break;
-	case ECurveType::BlendSpaceFilteredPositionX:
-		Color = FLinearColor::MakeFromHSV8(180, 50, 80);
-		break;
-	case ECurveType::BlendSpaceFilteredPositionY:
-		Color = FLinearColor::MakeFromHSV8(240, 50, 80);
+	default:
+		CurveColor = FLinearColor::MakeFromHSV8(100, 50, 65);
+		SelectedColor = FLinearColor::MakeFromHSV8(100, 50, 130);
 		break;
 	}
 
-	FLinearColor CurveColor = Color;
-	CurveColor.R *= 0.5;
-	CurveColor.G *= 0.5;
-	CurveColor.B *= 0.5;
-
 	TSharedPtr<SCurveTimelineView> CurveTimelineView = SNew(SCurveTimelineView)
-		.FillColor(Color)
-		.CurveColor(CurveColor)
+		.TrackName(GetDisplayNameInternal())
+		.FillColor(FillColor)
+		.CurveColor_Lambda([CurveColor, SelectedColor,  this]() { return GetIsSelected() ? SelectedColor : CurveColor; })
 		.ViewRange_Lambda([]() { return IRewindDebugger::Instance()->GetCurrentViewRange(); })
 		.RenderFill(CurveType == ECurveType::BlendWeight)
 		.CurveData_Raw(this, &FBlendWeightTrack::GetCurveData);

@@ -40,6 +40,9 @@ FRewindDebuggerStyle::FRewindDebuggerStyle() :
 
 	// menu icon
 	Set("RewindDebugger.MenuIcon", new CORE_IMAGE_BRUSH_SVG("Slate/Starship/Common/menu", Icon16x16));
+
+	FTableRowStyle TableRowStyle = FTableRowStyle(FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("SceneOutliner.TableViewRow"));
+	Set("RewindDebugger.TableRow", TableRowStyle);
 }
 
 void FRewindDebuggerStyle::Initialize()

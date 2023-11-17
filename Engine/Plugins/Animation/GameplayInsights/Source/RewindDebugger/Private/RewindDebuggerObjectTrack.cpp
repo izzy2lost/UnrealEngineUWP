@@ -7,10 +7,13 @@
 #include "IAnimationProvider.h"
 #include "RewindDebuggerViewCreators.h"
 #include "RewindDebuggerTrackCreators.h"
-#include "SSegmentedTimelineView.h"
+#include "SEventTimelineView.h"
 #include "Styling/SlateIconFinder.h"
 #include "ObjectTrace.h"
 #include "IRewindDebuggerDoubleClickHandler.h"
+
+
+#define LOCTEXT_NAMESPACE "RewindDebuggerObjectTrack"
 
 namespace RewindDebugger
 {
@@ -43,8 +46,7 @@ FRewindDebuggerObjectTrack::FRewindDebuggerObjectTrack(uint64 InObjectId, const 
 	, bAddController(bInAddController)
 	, bDisplayNameValid(false)
 {
-	ExistenceRange = MakeShared<SSegmentedTimelineView::FSegmentData>();
-	ExistenceRange->Segments.SetNumUninitialized(1);
+	ExistenceRange = MakeShared<SEventTimelineView::FTimelineEventData>();
 	
 	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 	const TraceServices::IAnalysisSession* Session = RewindDebugger->GetAnalysisSession();
@@ -74,10 +76,9 @@ FRewindDebuggerObjectTrack::FRewindDebuggerObjectTrack(uint64 InObjectId, const 
 	
 TSharedPtr<SWidget> FRewindDebuggerObjectTrack::GetTimelineViewInternal()
 {
-	return SNew(SSegmentedTimelineView)
+	return SNew(SEventTimelineView)
 		.ViewRange_Lambda([]() { return IRewindDebugger::Instance()->GetCurrentViewRange(); })
-		.FillColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.5f))
-		.SegmentData_Raw(this, &FRewindDebuggerObjectTrack::GetExistenceRange);
+		.EventData_Raw(this, &FRewindDebuggerObjectTrack::GetExistenceRange);
 }
 
 bool FRewindDebuggerObjectTrack::HandleDoubleClickInternal()
@@ -188,8 +189,13 @@ bool FRewindDebuggerObjectTrack::UpdateInternal()
 
 	bool bChanged = false;
 
-	check(ExistenceRange->Segments.Num() == 1);
-	ExistenceRange->Segments[0] = GameplayProvider->GetObjectRecordingLifetime(ObjectId);
+	TRange<double> Existence = GameplayProvider->GetObjectRecordingLifetime(ObjectId);
+
+	ExistenceRange->Windows.SetNum(0,false);
+	if (Existence.HasLowerBound() && Existence.HasUpperBound())
+	{
+		ExistenceRange->Windows.Add({Existence.GetLowerBoundValue(), Existence.GetUpperBoundValue(), LOCTEXT("Object Existence","Object Existence"), LOCTEXT("Object Existence","Object Existence"), FLinearColor(0.1f,0.11f,0.1f)});
+	}
 
 	if (!Icon.IsSet())
 	{
@@ -360,3 +366,5 @@ bool FRewindDebuggerObjectTrack::UpdateInternal()
 }
 
 }
+
+#undef LOCTEXT_NAMESPACE

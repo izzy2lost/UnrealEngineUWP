@@ -36,6 +36,41 @@ public:
 	{
 		bExpanded = bIsExpanded;
 	}
+	
+	bool GetIsSelected()
+	{
+		return bSelected;
+	}
+
+	void SetIsSelected(bool bIsSelected)
+	{
+		bSelected = bIsSelected;
+	}
+    		
+	bool GetIsTreeHovered()
+	{
+		return bTreeHovered;
+	}
+	
+	void SetIsTreeHovered(bool bIsHovered)
+   	{
+   		bTreeHovered = bIsHovered;
+   	}	
+		
+	bool GetIsTrackHovered()
+	{
+		return bTrackHovered;
+	}
+	
+	void SetIsTrackHovered(bool bIsHovered)
+   	{
+   		bTrackHovered = bIsHovered;
+   	}
+	
+	bool GetIsHovered()
+	{
+		return bTrackHovered || bTreeHovered;
+	}
 
 	// Update should do work to compute children etc for the current time range.  Return true if children have changed.
 	bool Update()
@@ -121,8 +156,11 @@ private:
 		return true;
 	};
 
-	bool bExpanded;
-	bool bVisible;
+	bool bSelected : 1 = false;
+	bool bTrackHovered : 1 = false;
+	bool bTreeHovered : 1 = false;
+	bool bExpanded : 1 = false;
+	bool bVisible : 1 = false;
 };
 	
 }

@@ -177,6 +177,7 @@ TSharedPtr<SWidget> FInertializationTrack::GetTimelineViewInternal()
 	CurveColor.B *= 0.5;
 
 	TSharedPtr<SCurveTimelineView> CurveTimelineView = SNew(SCurveTimelineView)
+		.TrackName(GetDisplayNameInternal())
 		.FillColor(Color)
 		.CurveColor(CurveColor)
 		.ViewRange_Lambda([]() { return IRewindDebugger::Instance()->GetCurrentViewRange(); })
