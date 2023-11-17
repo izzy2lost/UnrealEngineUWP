@@ -6,7 +6,7 @@
 #include "Elements/PCGActorSelector.h"
 #include "Metadata/PCGMetadataAttribute.h"
 
-#include "PCGPropertyToParamData.generated.h"
+#include "PCGGetActorProperty.generated.h"
 
 class UActorComponent;
 
@@ -14,7 +14,7 @@ class UActorComponent;
 * Extract a property value from an actor/component into a ParamData.
 */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGPropertyToParamDataSettings : public UPCGSettings
+class PCG_API UPCGGetActorPropertySettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
@@ -54,7 +54,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSelectComponent", EditConditionHides))
 	TSubclassOf<UActorComponent> ComponentClass;
 
-	/** Property name to extract. Can only extract properties that are compatible with metadata types. */
+	/** Property name to extract. Can only extract properties that are compatible with metadata types. If None, extract the actor/component directly.*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	FName PropertyName = NAME_None;
 
@@ -96,11 +96,11 @@ private:
 	bool bIncludeChildren_DEPRECATED = false;
 };
 
-class FPCGPropertyToParamDataElement : public IPCGElement
+class FPCGGetActorPropertyElement : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return !CastChecked<UPCGPropertyToParamDataSettings>(InSettings)->bAlwaysRequeryActors; }
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return !CastChecked<UPCGGetActorPropertySettings>(InSettings)->bAlwaysRequeryActors; }
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

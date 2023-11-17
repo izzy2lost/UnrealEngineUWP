@@ -6,7 +6,7 @@
 #include "PCGGraph.h"
 #include "PCGParamData.h"
 #include "PCGVolume.h"
-#include "Elements/PCGPropertyToParamData.h"
+#include "Elements/PCGGetActorProperty.h"
 #include "Tests/PCGTestsCommon.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPropertyToParamDataElementTest)
@@ -37,7 +37,7 @@ template <bool bShouldFail, typename ...AttributeTypes>
 bool VerifyAttributeValue(FPCGTestBaseClass* TestInstance, PCGTestsCommon::FTestData& TestData, FName PropertyName, TArray<FName> AttributeNames, FString ExtraTestWhat, AttributeTypes&& ...ExpectedValues)
 {
 	// Use TestData settings to set the property name
-	UPCGPropertyToParamDataSettings* Settings = Cast<UPCGPropertyToParamDataSettings>(TestData.Settings);
+	UPCGGetActorPropertySettings* Settings = Cast<UPCGGetActorPropertySettings>(TestData.Settings);
 	if (!TestInstance->TestNotNull(TEXT("CastToUPCGPropertyToParamDataSettings"), Settings))
 	{
 		return false;
@@ -184,7 +184,7 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	UPCGPropertyToParamDataSettings* Settings = NewObject<UPCGPropertyToParamDataSettings>();
+	UPCGGetActorPropertySettings* Settings = NewObject<UPCGGetActorPropertySettings>();
 	Settings->ActorSelector.ActorSelection = EPCGActorSelection::ByClass;
 	Settings->ActorSelector.ActorSelectionClass = APCGUnitTestDummyActor::StaticClass();
 	Settings->ActorSelector.ActorFilter = EPCGActorFilter::Self;
@@ -328,7 +328,7 @@ bool FPCGPropertyToParamDataActorFindTest::RunTest(const FString& Parameters)
 	static const FName Tag = TEXT("PCGUnitTestDummyMyTag");
 	static const FString Name = TEXT("MyPCGUnitTestDummyActor");
 
-	UPCGPropertyToParamDataSettings* Settings = NewObject<UPCGPropertyToParamDataSettings>();
+	UPCGGetActorPropertySettings* Settings = NewObject<UPCGGetActorPropertySettings>();
 	Settings->ActorSelector.ActorSelectionClass = APCGUnitTestDummyActor::StaticClass();
 	Settings->ActorSelector.ActorSelectionTag = Tag;
 	Settings->ComponentClass = UPCGUnitTestDummyComponent::StaticClass();

@@ -240,10 +240,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Max depth for structs of structs. -1 = no limit
 		int32 MaxStructDepth = -1;
+
+		// If you want to go through objects too
+		bool bExtractObjects = false;
+
+		// If you want to also extract arrays
+		bool bExtractArrays = false;
 	};
 
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UClass* InClass, const FPCGGetAllOverridableParamsConfig& InConfig);
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UScriptStruct* InStruct, const FPCGGetAllOverridableParamsConfig& InConfig);
+	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig);
 }
 
 // Deprecated macro, not necessary anymore. Cf. GetValue

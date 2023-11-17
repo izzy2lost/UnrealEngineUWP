@@ -273,8 +273,7 @@ namespace PCGSettingsHelpers
 		}
 	}
 
-	template <typename ClassType>
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParamsImpl(const ClassType* InClass, const FPCGGetAllOverridableParamsConfig& InConfig)
+	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig)
 	{
 		TArray<FName> LabelCache;
 
@@ -375,42 +374,12 @@ namespace PCGSettingsHelpers
 				continue;
 			}
 
-			// Validate that the property can be overriden by params
-			if (PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(Property))
-			{
-				FName Label = NAME_None;
-				bool bHasNameClash = false;
-#if WITH_EDITOR
-				// GetDisplayNameText is not available in non-editor build.
-				Label = *Property->GetDisplayNameText().ToString();
-				const int32 CachedLabelIndex = LabelCache.IndexOfByKey(Label);
-				if (CachedLabelIndex != INDEX_NONE)
-				{
-					// If we have a clash, we will use the full path, so mark this param and the other that clashed to use the full path.
-					Res[CachedLabelIndex].bHasNameClash = true;
-					Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetDisplayPropertyPath());
-					bHasNameClash = true;
-				}
-
-				LabelCache.AddUnique(Label);
-#endif // WITH_EDITOR
-
-				FPCGSettingsOverridableParam& Param = Res.Emplace_GetRef();
-				Param.PropertiesNames.Add(Property->GetFName());
-				Param.Properties.Add(Property);
-				Param.PropertyClass = InClass;
-				Param.bHasNameClash = bHasNameClash;
-#if WITH_EDITOR
-				Param.Label = bHasNameClash ? FName(Param.GetDisplayPropertyPath()) : Label;
-				GatherAliases(Property, Param);
-#endif // WITH_EDITOR
-			}
-			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+			auto RecursiveExtraction = [&InConfig, &Res, &LabelCache, Property, InClass, &GatherAliases](const UStruct* NextClass)
 			{
 				// Reached max depth
 				if (InConfig.MaxStructDepth == 0)
 				{
-					continue;
+					return;
 				}
 
 				// Use the seed, and don't check metadata for PCG overridable.
@@ -425,7 +394,7 @@ namespace PCGSettingsHelpers
 					RecurseConfig.MaxStructDepth--;
 				}
 
-				for (FPCGSettingsOverridableParam& ChildParam : GetAllOverridableParams(StructProperty->Struct, RecurseConfig))
+				for (FPCGSettingsOverridableParam& ChildParam : GetAllOverridableParams(NextClass, RecurseConfig))
 				{
 					FName Label = ChildParam.Label;
 					bool bHasNameClash = false;
@@ -470,19 +439,54 @@ namespace PCGSettingsHelpers
 					}
 #endif // WITH_EDITOR
 				}
+			};
+
+			const FProperty* PropertyToCheck = Property;
+			if (InConfig.bExtractArrays && Property->IsA<FArrayProperty>())
+			{
+				PropertyToCheck = CastFieldChecked<FArrayProperty>(Property)->Inner;
+			}
+
+			if (PropertyToCheck->IsA<FObjectProperty>() && InConfig.bExtractObjects)
+			{
+				RecursiveExtraction(CastFieldChecked<FObjectProperty>(PropertyToCheck)->PropertyClass);
+			}
+			// Validate that the property can be overriden by params
+			else if (PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(PropertyToCheck))
+			{
+				FName Label = NAME_None;
+				bool bHasNameClash = false;
+#if WITH_EDITOR
+				// GetDisplayNameText is not available in non-editor build.
+				Label = *Property->GetDisplayNameText().ToString();
+				const int32 CachedLabelIndex = LabelCache.IndexOfByKey(Label);
+				if (CachedLabelIndex != INDEX_NONE)
+				{
+					// If we have a clash, we will use the full path, so mark this param and the other that clashed to use the full path.
+					Res[CachedLabelIndex].bHasNameClash = true;
+					Res[CachedLabelIndex].Label = FName(Res[CachedLabelIndex].GetDisplayPropertyPath());
+					bHasNameClash = true;
+				}
+
+				LabelCache.AddUnique(Label);
+#endif // WITH_EDITOR
+
+				FPCGSettingsOverridableParam& Param = Res.Emplace_GetRef();
+				Param.PropertiesNames.Add(Property->GetFName());
+				Param.Properties.Add(Property);
+				Param.PropertyClass = InClass;
+				Param.bHasNameClash = bHasNameClash;
+#if WITH_EDITOR
+				Param.Label = bHasNameClash ? FName(Param.GetDisplayPropertyPath()) : Label;
+				GatherAliases(Property, Param);
+#endif // WITH_EDITOR
+			}
+			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(PropertyToCheck))
+			{
+				RecursiveExtraction(StructProperty->Struct);
 			}
 		}
 
 		return Res;
-	}
-
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UClass* InClass, const FPCGGetAllOverridableParamsConfig& InConfig)
-	{
-		return GetAllOverridableParamsImpl(InClass, InConfig);
-	}
-
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UScriptStruct* InStruct, const FPCGGetAllOverridableParamsConfig& InConfig)
-	{
-		return GetAllOverridableParamsImpl(InStruct, InConfig);
 	}
 }

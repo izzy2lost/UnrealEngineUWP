@@ -130,11 +130,17 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	check(Parameters.Container && Parameters.Class);
 
 	const void* Container = Parameters.Container;
-	const FProperty* Property = ExtractPropertyChain(Parameters.Class, Parameters.PropertySelector.GetName(), Parameters.PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Container, InOptionalContext);
-
-	if (!Property)
+	const FProperty* Property = nullptr;
+	const FName PropertyName = Parameters.PropertySelector.GetName();
+	const bool ExtractRoot = (PropertyName == NAME_None);
+	// If Name is none, extract the container as-is, using Parameters.Class, otherwise, extract the chain.
+	if (!ExtractRoot)
 	{
-		return nullptr;
+		Property = ExtractPropertyChain(Parameters.Class, PropertyName, Parameters.PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Container, InOptionalContext);
+		if (!Property)
+		{
+			return nullptr;
+		}
 	}
 
 	// If the property is an array, we will work on the underlying property, and extract each element as an entry in the param data
@@ -154,14 +160,19 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	const bool bShouldExtract = Parameters.bShouldExtract || !PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(Property);
 
 	// Special case where the property is a struct/object, that is not supported by our metadata, we will try to break it down to multiple attributes in the resulting param data, if asked.
-	if ((Property->IsA<FStructProperty>() || Property->IsA<FObjectProperty>()) && bShouldExtract)
+	if (ExtractRoot || ((Property->IsA<FStructProperty>() || Property->IsA<FObjectProperty>()) && bShouldExtract))
 	{
-		const UScriptStruct* UnderlyingStruct = nullptr;
-		const UClass* UnderlyingClass = nullptr;
+		const UStruct* UnderlyingClass = nullptr;
 
-		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+		if (ExtractRoot)
 		{
-			UnderlyingStruct = StructProperty->Struct;
+			UnderlyingClass = Parameters.Class;
+			// Identity
+			AddressFunc = [](const void* InAddress) { return InAddress; };
+		}
+		else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+		{
+			UnderlyingClass = StructProperty->Struct;
 			AddressFunc = [StructProperty](const void* InAddress) { return StructProperty->ContainerPtrToValuePtr<void>(InAddress); };
 		}
 		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
@@ -170,7 +181,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 			AddressFunc = [ObjectProperty](const void* InAddress) { return ObjectProperty->GetObjectPropertyValue_InContainer(InAddress); };
 		}
 
-		check(UnderlyingStruct || UnderlyingClass);
+		check(UnderlyingClass);
 		check(!!AddressFunc);
 
 		// Re-use code from overridable params
@@ -185,18 +196,18 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 			Config.ExcludePropertyFlags = ExcludePropertyFlags;
 			Config.IncludePropertyFlags = IncludePropertyFlags;
 		}
-		TArray<FPCGSettingsOverridableParam> AllChildProperties = UnderlyingStruct ? PCGSettingsHelpers::GetAllOverridableParams(UnderlyingStruct, Config) : PCGSettingsHelpers::GetAllOverridableParams(UnderlyingClass, Config);
+		TArray<FPCGSettingsOverridableParam> AllChildProperties = PCGSettingsHelpers::GetAllOverridableParams(UnderlyingClass, Config);
 
 		for (const FPCGSettingsOverridableParam& Param : AllChildProperties)
 		{
 			if (ensure(!Param.PropertiesNames.IsEmpty()))
 			{
 				const FName ChildPropertyName = Param.PropertiesNames[0];
-				if (const FProperty* ChildProperty = (UnderlyingStruct ? UnderlyingStruct->FindPropertyByName(ChildPropertyName) : UnderlyingClass->FindPropertyByName(ChildPropertyName)))
+				if (const FProperty* ChildProperty = UnderlyingClass->FindPropertyByName(ChildPropertyName))
 				{
 					// We use authored name as attribute name to avoid issue with noisy property names, like in UUserDefinedStructs, where some random number is appended to the property name.
 					// By default, it will just return the property name anyway.
-					const FString AuthoredName = UnderlyingStruct ? UnderlyingStruct->GetAuthoredNameForField(ChildProperty) : UnderlyingClass->GetAuthoredNameForField(ChildProperty);
+					const FString AuthoredName = UnderlyingClass->GetAuthoredNameForField(ChildProperty);
 					ExtractableProperties.Emplace(FName(AuthoredName), ChildProperty);
 				}
 			}

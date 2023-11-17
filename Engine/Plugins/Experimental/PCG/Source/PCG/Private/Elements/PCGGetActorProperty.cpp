@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGPropertyToParamData.h"
+#include "Elements/PCGGetActorProperty.h"
 
 #include "GameFramework/Actor.h"
 #include "PCGContext.h"
@@ -12,21 +12,19 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(PCGPropertyToParamData)
-
 #define LOCTEXT_NAMESPACE "PCGPropertyToParamDataElement"
 
 #if WITH_EDITOR
-void UPCGPropertyToParamDataSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGGetActorPropertySettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	OutKeysToSettings.FindOrAdd(ActorSelector.GetAssociatedKey()).Emplace(this, bTrackActorsOnlyWithinBounds);
 }
 
-void UPCGPropertyToParamDataSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UPCGGetActorPropertySettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UPCGPropertyToParamDataSettings, ActorSelector))
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UPCGGetActorPropertySettings, ActorSelector))
 	{
 		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FPCGActorSelectorSettings, ActorSelection))
 		{
@@ -39,7 +37,7 @@ void UPCGPropertyToParamDataSettings::PostEditChangeProperty(FPropertyChangedEve
 }
 #endif // WITH_EDITOR
 
-void UPCGPropertyToParamDataSettings::PostLoad()
+void UPCGGetActorPropertySettings::PostLoad()
 {
 	Super::PostLoad();
 
@@ -71,7 +69,7 @@ void UPCGPropertyToParamDataSettings::PostLoad()
 	}
 }
 
-FName UPCGPropertyToParamDataSettings::AdditionalTaskName() const
+FName UPCGGetActorPropertySettings::AdditionalTaskName() const
 {
 #if WITH_EDITOR
 	return ActorSelector.GetTaskName(GetDefaultNodeTitle());
@@ -81,7 +79,7 @@ FName UPCGPropertyToParamDataSettings::AdditionalTaskName() const
 }
 
 
-TArray<FPCGPinProperties> UPCGPropertyToParamDataSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGGetActorPropertySettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Param);
@@ -89,18 +87,18 @@ TArray<FPCGPinProperties> UPCGPropertyToParamDataSettings::OutputPinProperties()
 	return PinProperties;
 }
 
-FPCGElementPtr UPCGPropertyToParamDataSettings::CreateElement() const
+FPCGElementPtr UPCGGetActorPropertySettings::CreateElement() const
 {
-	return MakeShared<FPCGPropertyToParamDataElement>();
+	return MakeShared<FPCGGetActorPropertyElement>();
 }
 
-bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPropertyToParamDataElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGetActorPropertyElement::Execute);
 
 	check(Context);
 
-	const UPCGPropertyToParamDataSettings* Settings = Context->GetInputSettings<UPCGPropertyToParamDataSettings>();
+	const UPCGGetActorPropertySettings* Settings = Context->GetInputSettings<UPCGGetActorPropertySettings>();
 	check(Settings);
 
 	// Early out if arguments are not specified
@@ -173,7 +171,14 @@ bool FPCGPropertyToParamDataElement::ExecuteInternal(FPCGContext* Context) const
 		}
 		else
 		{
-			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtract", "Fail to extract the property '{0}' on actor {1}"), Selector.GetDisplayText(), FText::FromString(FoundActor->GetName())));
+			if (Selector.GetName() == NAME_None)
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtractActor", "Fail to extract actor {0}."), FText::FromString(FoundActor->GetName())));
+			}
+			else
+			{
+				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtract", "Fail to extract the property '{0}' on actor {1}."), Selector.GetDisplayText(), FText::FromString(FoundActor->GetName())));
+			}
 		}
 	}
 
