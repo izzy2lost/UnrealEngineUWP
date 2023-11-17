@@ -158,13 +158,27 @@ protected:
 class SPCGEditorGraphDebugObjectItemRow : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SPCGEditorGraphDebugObjectItemRow) {}
+	using FDoubleClickFunc = TFunction<void(FPCGEditorGraphDebugObjectItemPtr)>;
+
+	SLATE_BEGIN_ARGS(SPCGEditorGraphDebugObjectItemRow)
+		: _OnDoubleClickFunc()
+	{}
+
+		SLATE_ARGUMENT(FDoubleClickFunc, OnDoubleClickFunc)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, FPCGEditorGraphDebugObjectItemPtr InItem);
 
+	//~Begin SWidget Interface
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	//~End SWidget Interface
+
 private:
 	FPCGEditorGraphDebugObjectItemPtr Item;
+	
+	/** Invoked when the user double clicks on the row. */
+	FDoubleClickFunc DoubleClickFunc;
 };
 
 class SPCGEditorGraphDebugObjectTree : public SCompoundWidget
@@ -204,11 +218,14 @@ private:
 
 	UPCGGraph* GetPCGGraph() const;
 
-	TSharedRef<ITableRow> MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable) const;
+	TSharedRef<ITableRow> MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable);
 	void OnGetChildren(FPCGEditorGraphDebugObjectItemPtr InItem, TArray<FPCGEditorGraphDebugObjectItemPtr>& OutChildren) const;
 	void OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo);
 	void OnExpansionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInIsExpanded);
-	void OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand);
+	void OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand) const;
+
+	/** Expand the given row and select the deepest entry as the debug object if it is unambiguous (the only entry at its level in the tree). */
+	void ExpandAndSelectDebugObject(FPCGEditorGraphDebugObjectItemPtr InItem);
 
 	TWeakPtr<FPCGEditor> PCGEditor;
 

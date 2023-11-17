@@ -99,6 +99,8 @@ FString FPCGEditorGraphDebugObjectItem_PCGLoopIndex::GetLabel() const
 void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, FPCGEditorGraphDebugObjectItemPtr InItem)
 {
 	Item = InItem;
+	// This function should auto-expand the row and select the deepest entry as the debug object if it is unambiguous (the only entry at its level in the tree).
+	DoubleClickFunc = InArgs._OnDoubleClickFunc;
 
 	ChildSlot
 	[
@@ -201,6 +203,16 @@ void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, cons
 			})
 		]
 	];
+}
+
+FReply SPCGEditorGraphDebugObjectItemRow::OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (Item.IsValid() && DoubleClickFunc)
+	{
+		DoubleClickFunc(Item);
+	}
+
+	return FReply::Handled();
 }
 
 SPCGEditorGraphDebugObjectTree::~SPCGEditorGraphDebugObjectTree()
@@ -825,11 +837,12 @@ UPCGGraph* SPCGEditorGraphDebugObjectTree::GetPCGGraph() const
 	return PCGEditorGraph ? PCGEditorGraph->GetPCGGraph() : nullptr;
 }
 
-TSharedRef<ITableRow> SPCGEditorGraphDebugObjectTree::MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable) const
+TSharedRef<ITableRow> SPCGEditorGraphDebugObjectTree::MakeTreeRowWidget(FPCGEditorGraphDebugObjectItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	return SNew( STableRow<TSharedPtr<SPCGEditorGraphDebugObjectItemRow>>, InOwnerTable)
 		[
 			SNew(SPCGEditorGraphDebugObjectItemRow, InOwnerTable, InItem)
+				.OnDoubleClickFunc([this](const FPCGEditorGraphDebugObjectItemPtr& Item) { ExpandAndSelectDebugObject(Item); } )
 		];
 }
 
@@ -898,7 +911,7 @@ void SPCGEditorGraphDebugObjectTree::OnExpansionChanged(FPCGEditorGraphDebugObje
 	}
 }
 
-void SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand)
+void SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive(FPCGEditorGraphDebugObjectItemPtr InItem, bool bInExpand) const
 {
 	if (!InItem.IsValid() || !DebugObjectTreeView.IsValid())
 	{
@@ -914,6 +927,43 @@ void SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive(FPCGEditorGraphDebu
 		{
 			OnSetExpansionRecursive(ChildItem, bInExpand);
 		}
+	}
+}
+
+void SPCGEditorGraphDebugObjectTree::ExpandAndSelectDebugObject(FPCGEditorGraphDebugObjectItemPtr InItem)
+{
+	if (!InItem.IsValid())
+	{
+		return;
+	}
+
+	// Expand this item in the tree view.
+	OnSetExpansionRecursive(InItem, /*bInExpand=*/true);
+
+	FPCGEditorGraphDebugObjectItemPtr Item = InItem;
+	int NumChildren = 1; // If we land on the deepest item already, we should just select it regardless of how many siblings it has.
+
+	// Find the deepest entry in this branch of the tree view.
+	while (true)
+	{
+		const TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>>& Children = Item->GetChildren();
+		TSet<FPCGEditorGraphDebugObjectItemPtr>::TConstIterator It = Children.CreateConstIterator();
+
+		if (!It)
+		{
+			break;
+		}
+		else
+		{
+			Item = *It;
+			NumChildren = Children.Num();
+		}
+	}
+
+	// Set the discovered item as the debug object if it is the only child.
+	if (NumChildren == 1)
+	{
+		OnSelectionChanged(Item, ESelectInfo::Direct);
 	}
 }
 
