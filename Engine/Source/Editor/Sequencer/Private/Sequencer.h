@@ -513,8 +513,8 @@ public:
 	void OnTogglePilotCamera();
 	bool IsPilotCamera() const;
 
-	/** Set the new global time, accounting for looping options */
-	void SetLocalTimeLooped(FFrameTime InTime);
+	/** Sets the new global time calculated from local time and the given warp counter, accounting for looping options */
+	void SetLocalTimeLooped(FFrameTime InTime, FMovieSceneWarpCounter WarpCounter=FMovieSceneWarpCounter());
 
 	ESequencerLoopMode GetLoopMode() const;
 
@@ -853,6 +853,12 @@ public:
 	 */
 	TRange<FFrameNumber> GetTimeBounds() const;
 
+
+	/**
+	 * Gets the time boundaries of the root movie scene in local space. If this is a looping subsequence, this will include all loops.
+	 */
+	TRange<FFrameNumber> GetRootTimeBounds() const;
+
 protected:
 
 	// FCameraCutPlaybackCapability interface
@@ -1146,6 +1152,9 @@ private:
 	int32 FindClosestPlaybackSpeed(float InPlaybackSpeed, bool bExactOnly = false) const;
 	void RestorePlaybackSpeedAfterPlay();
 
+	// Given the root sequence time, returns the local time and loop counter clamped to the maximum number of loops
+	void CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutTime, FMovieSceneWarpCounter& OutLoopCounter) const;
+
 public:
 
 	/** Helper function which returns how many frames (in tick resolution) one display rate frame represents. */
@@ -1282,10 +1291,13 @@ private:
 	FMovieScenePlaybackPosition PlayPosition;
 
 	/** Local loop index at the time we began scrubbing */
-	uint32 LocalLoopIndexOnBeginScrubbing;
+	int32 LocalLoopIndexOnBeginScrubbing;
 
 	/** Local loop index to add for the purposes of displaying it in the UI */
-	uint32 LocalLoopIndexOffsetDuringScrubbing;
+	int32 LocalLoopIndexOffsetDuringScrubbing;
+
+	/** MaxLocalLoopIndex as calculated in UpdateSubSequenceData. Used to ensure LocalTime is also clamped to the correct number of loops. */
+	int32 MaxLocalLoopIndex;
 
 	/** The playback speed */
 	float PlaybackSpeed;
