@@ -29,6 +29,7 @@ using Horde.Server.Projects;
 using Horde.Server.Secrets;
 using Horde.Server.Storage;
 using Horde.Server.Streams;
+using Horde.Server.Telemetry.Metrics;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
 
@@ -233,6 +234,11 @@ namespace Horde.Server.Server
 		/// Configuration for different artifact types
 		/// </summary>
 		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
+
+		/// <summary>
+		/// Metrics to aggregate on the Horde server
+		/// </summary>
+		public List<MetricConfig> Metrics { get; set; } = new List<MetricConfig>();
 
 		/// <summary>
 		/// Access control list

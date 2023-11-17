@@ -1,0 +1,227 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Horde.Server.Server;
+using Horde.Server.Telemetry;
+using Horde.Server.Telemetry.Metrics;
+using Horde.Server.Telemetry.Sinks;
+using Json.Path;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace Horde.Server.Tests
+{
+	[TestClass]
+	public class TelemetryTests : TestSetup
+	{
+		protected override void ConfigureServices(IServiceCollection services)
+		{
+			base.ConfigureServices(services);
+
+			services.AddSingleton<MetricTelemetrySink>();
+			services.AddSingleton<IMetricCollection, MetricCollection>();
+		}
+
+		[TestMethod]
+		public async Task SingleMetricAsync()
+		{
+			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);
+
+			MetricConfig metricConfig = new MetricConfig();
+			metricConfig.Id = new MetricId("test-metric");
+			metricConfig.Function = AggregationFunction.Sum;
+			metricConfig.Interval = TimeSpan.FromHours(1.0);
+			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Metrics.Add(metricConfig);
+			SetConfig(globalConfig);
+
+			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
+			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
+
+			// Test 1
+			{
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				await sink.FlushAsync(CancellationToken.None);
+				await collection.FlushAsync(CancellationToken.None);
+
+				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				Assert.AreEqual(1, metrics.Count);
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
+				Assert.AreEqual(6, metrics[0].Value);
+				Assert.AreEqual(3, metrics[0].Count);
+			}
+
+			// Test 2
+			{
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				await sink.FlushAsync(CancellationToken.None);
+				await collection.FlushAsync(CancellationToken.None);
+
+				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				Assert.AreEqual(1, metrics.Count);
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
+				Assert.AreEqual(9, metrics[0].Value);
+				Assert.AreEqual(4, metrics[0].Count);
+			}
+
+			// Test 3
+			{
+				await Clock.AdvanceAsync(TimeSpan.FromHours(1.0));
+
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4 });
+				await sink.FlushAsync(CancellationToken.None);
+				await collection.FlushAsync(CancellationToken.None);
+
+				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				Assert.AreEqual(2, metrics.Count);
+
+				Assert.AreEqual(new DateTime(2023, 6, 8, 5, 0, 0), metrics[0].Time);
+				Assert.AreEqual(4, metrics[0].Value);
+				Assert.AreEqual(1, metrics[0].Count);
+
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[1].Time);
+				Assert.AreEqual(9, metrics[1].Value);
+				Assert.AreEqual(4, metrics[1].Count);
+			}
+		}
+
+		[TestMethod]
+		public async Task SeparateMetricsAsync()
+		{
+			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);
+
+			MetricConfig metricConfig1 = new MetricConfig();
+			metricConfig1.Id = new MetricId("test-metric-1");
+			metricConfig1.Function = AggregationFunction.Sum;
+			metricConfig1.Interval = TimeSpan.FromHours(1.0);
+			metricConfig1.Property = JsonPath.Parse("$.Payload.foo");
+
+			MetricConfig metricConfig2 = new MetricConfig();
+			metricConfig2.Id = new MetricId("test-metric-2");
+			metricConfig2.Function = AggregationFunction.Sum;
+			metricConfig2.Interval = TimeSpan.FromHours(1.0);
+			metricConfig2.Property = JsonPath.Parse("$.Payload.bar.baz");
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Metrics.Add(metricConfig1);
+			globalConfig.Metrics.Add(metricConfig2);
+			SetConfig(globalConfig);
+
+			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
+			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
+
+			// Test 1
+			{
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, bar = 201 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, bar = new { baz = 101 } });
+				await sink.FlushAsync(CancellationToken.None);
+				await collection.FlushAsync(CancellationToken.None);
+
+				List<IMetric> metrics = await collection.FindAsync(metricConfig1.Id);
+				Assert.AreEqual(1, metrics.Count);
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
+				Assert.AreEqual(6, metrics[0].Value);
+				Assert.AreEqual(3, metrics[0].Count);
+
+				List<IMetric> metrics2 = await collection.FindAsync(metricConfig2.Id);
+				Assert.AreEqual(1, metrics2.Count);
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics2[0].Time);
+				Assert.AreEqual(101, metrics2[0].Value);
+				Assert.AreEqual(1, metrics2[0].Count);
+			}	
+		}
+			
+		[TestMethod]
+		public async Task FunctionTestAsync()
+		{
+			await SingleFunctionTestAsync(AggregationFunction.Min, new double[] { 5, 4, 3, -1, 2 }, -1);
+			await SingleFunctionTestAsync(AggregationFunction.Max, new double[] { 5, 4, 3, -1, 2 }, 5);
+			await SingleFunctionTestAsync(AggregationFunction.Sum, new double[] { 5, 4, 3, -1, 2 }, 13);
+		}
+
+		async Task SingleFunctionTestAsync(AggregationFunction function, double[] values, double result)
+		{
+			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
+
+			MetricConfig metricConfig = new MetricConfig();
+			metricConfig.Id = new MetricId("test-metric-2");
+			metricConfig.Function = function;
+			metricConfig.Interval = TimeSpan.FromHours(1.0);
+			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Metrics.Add(metricConfig);
+			SetConfig(globalConfig);
+
+			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
+			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
+
+			foreach (double value in values)
+			{
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = value });
+			}
+
+			await sink.FlushAsync(CancellationToken.None);
+			await collection.FlushAsync(CancellationToken.None);
+
+			List<IMetric> metrics = await collection.FindAsync(metricConfig.Id, maxResults: 1);
+			Assert.AreEqual(1, metrics.Count);
+			Assert.AreEqual(values.Length, metrics[0].Count);
+			Assert.AreEqual(result, metrics[0].Value);
+		}
+
+		[TestMethod]
+		public async Task GroupingTestAsync()
+		{
+			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);
+
+			MetricConfig metricConfig = new MetricConfig();
+			metricConfig.Id = new MetricId("test-metric-1");
+			metricConfig.Function = AggregationFunction.Sum;
+			metricConfig.Interval = TimeSpan.FromHours(1.0);
+			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+			metricConfig.GroupBy = JsonPath.Parse("$.Payload.group");
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Metrics.Add(metricConfig);
+			SetConfig(globalConfig);
+
+			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
+			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
+
+			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1, group = "first" });
+			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, group = "first" });
+			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, group = "first" });
+			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4, group = "second" });
+			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 5 });
+			await sink.FlushAsync(CancellationToken.None);
+			await collection.FlushAsync(CancellationToken.None);
+
+			List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+			metrics = metrics.OrderBy(x => x.Group).ToList();
+			Assert.AreEqual(3, metrics.Count);
+
+			Assert.AreEqual("", metrics[0].Group);
+			Assert.AreEqual(1, metrics[0].Count);
+			Assert.AreEqual(5, metrics[0].Value);
+
+			Assert.AreEqual("first", metrics[1].Group);
+			Assert.AreEqual(3, metrics[1].Count);
+			Assert.AreEqual(6, metrics[1].Value);
+
+			Assert.AreEqual("second", metrics[2].Group);
+			Assert.AreEqual(1, metrics[2].Count);
+			Assert.AreEqual(4, metrics[2].Value);
+		}
+	}
+}

@@ -113,6 +113,7 @@ using EpicGames.Redis;
 using Horde.Server.Aws;
 using StackExchange.Redis;
 using Horde.Server.Telemetry.Sinks;
+using Horde.Server.Telemetry.Metrics;
 
 namespace Horde.Server
 {
@@ -713,6 +714,8 @@ namespace Horde.Server
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryManager>());
 			services.AddSingleton<MongoTelemetrySink>();
 			services.AddHostedService(sp => sp.GetRequiredService<MongoTelemetrySink>());
+			services.AddSingleton<MetricTelemetrySink>();
+			services.AddSingleton<IMetricCollection, MetricCollection>();
 			services.AddHttpClient(EpicTelemetrySink.HttpClientName, client => { });
 			services.AddHttpClient(ClickHouseTelemetrySink.HttpClientName, client => { });
 

@@ -1,10 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
+using Horde.Server.Acls;
+using Horde.Server.Server;
+using Horde.Server.Telemetry.Metrics;
 using Horde.Server.Utilities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Telemetry
 {
@@ -31,6 +39,38 @@ namespace Horde.Server.Telemetry
 	}
 
 	/// <summary>
+	/// Metrics matching a particular query
+	/// </summary>
+	public class GetTelemetryMetricsResponse
+	{
+		/// <summary>
+		/// Metrics matching the search terms
+		/// </summary>
+		public List<GetTelemetryMetricResponse> Metrics { get; set; } = new List<GetTelemetryMetricResponse>();
+	}
+
+	/// <summary>
+	/// Information about a particular metric
+	/// </summary>
+	public class GetTelemetryMetricResponse
+	{
+		/// <summary>
+		/// Start time for the sample
+		/// </summary>
+		public DateTime Time { get; set; }
+
+		/// <summary>
+		/// Name of the group
+		/// </summary>
+		public string? Group { get; set; }
+
+		/// <summary>
+		/// Value for the metric
+		/// </summary>
+		public double Value { get; set; }
+	}
+
+	/// <summary>
 	/// Controller for the /api/v1/telemetry endpoint
 	/// </summary>
 	[ApiController]
@@ -38,13 +78,56 @@ namespace Horde.Server.Telemetry
 	public class TelemetryController : HordeControllerBase
 	{
 		readonly TelemetryManager _telemetryManager;
+		readonly IMetricCollection _metricCollection;
+		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TelemetryController(TelemetryManager telemetryManager)
+		public TelemetryController(TelemetryManager telemetryManager, IMetricCollection metricCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_telemetryManager = telemetryManager;
+			_metricCollection = metricCollection;
+			_globalConfig = globalConfig;
+		}
+
+		/// <summary>
+		/// Queries aggregated metrics from the telemetry system
+		/// </summary>
+		/// <param name="id">The metric to query</param>
+		/// <param name="minTime">Minimum time interval to query</param>
+		/// <param name="maxTime">Maximum time interval to query</param>
+		/// <param name="group">Grouping key</param>
+		/// <param name="results">Number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		[HttpGet]
+		[Authorize]
+		[Route("/api/v1/telemetry/metrics/{Id}")]
+		public async Task<ActionResult<GetTelemetryMetricsResponse>> GetMetricsAsync(MetricId id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
+		{
+			if (!_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
+			{
+				return Forbid(TelemetryAclAction.QueryMetrics);
+			}
+
+			List<IMetric> metrics = await _metricCollection.FindAsync(id, minTime, maxTime, group, results, cancellationToken);
+
+			GetTelemetryMetricsResponse responses = new GetTelemetryMetricsResponse();
+			foreach (IMetric metric in metrics)
+			{
+				GetTelemetryMetricResponse response = new GetTelemetryMetricResponse();
+				response.Time = metric.Time;
+				response.Value = metric.Value;
+
+				if (group == null)
+				{
+					response.Group = metric.Group;
+				}
+
+				responses.Metrics.Add(response);
+			}
+
+			return responses;
 		}
 
 		/// <summary>
