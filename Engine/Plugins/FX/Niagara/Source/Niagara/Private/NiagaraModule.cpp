@@ -573,6 +573,7 @@ void INiagaraModule::OnPostGarbageCollect()
 
 void INiagaraModule::OnBeginFrame()
 {
+	FNiagaraComponentSettings::UpdateSettings();
 	FNiagaraPlatformSet::RefreshScalability();
 }
 
