@@ -25,6 +25,7 @@
 #include "Serialization/MemoryReader.h"
 #include "String/ParseTokens.h"
 #include "String/LexFromString.h"
+#include "Tasks/Pipe.h"
 #include "GameFeaturesProjectPolicies.h"
 #include "UObject/ObjectRename.h"
 #include "UObject/ReferenceChainSearch.h"
@@ -70,6 +71,10 @@ namespace UE::GameFeatures
 	static TAutoConsoleVariable<bool> CVarAllowForceMonolithicShaderLibrary(TEXT("GameFeaturePlugin.AllowForceMonolithicShaderLibrary"),
 		true,
 		TEXT("Enable to force only searching for monolithic shader libs when possible"));
+
+	static TAutoConsoleVariable<bool> CVarForceSyncLoadShaderLibrary(TEXT("GameFeaturePlugin.ForceSyncLoadShaderLibrary"),
+		true,
+		TEXT("Enable to force shaderlibs to be opened on the game thread"));
 
 	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
 	FString ToString(EGameFeaturePluginState InType)
@@ -1789,6 +1794,8 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	bool bCheckedRealtimeMode = false;
 	bool bForceMonolithicShaderLibrary = true;	// use monolithic unless a DLC plugin is chunked
 
+	static UE::Tasks::FPipe ShaderlibPipe;
+
 	void OnInstallBundleCompleted(FInstallBundleRequestResultInfo BundleResult)
 	{
 		if (!PendingBundles.Contains(BundleResult.BundleName))
@@ -1994,7 +2001,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			FShaderCodeLibrary::DontOpenPluginShaderLibraryOnMount(StateProperties.PluginName);
 		}
 
-		if (!UseAsyncLoading())
+		if (!UseAsyncLoading() || UE::GameFeatures::CVarForceSyncLoadShaderLibrary.GetValueOnGameThread())
 		{
 			verify(IPluginManager::Get().MountExplicitlyLoadedPlugin(StateProperties.PluginName));
 			if (bManuallyOpenPluginShaderLibrary)
@@ -2012,7 +2019,8 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
 		if (bManuallyOpenPluginShaderLibrary && Plugin->CanContainContent() && Plugin->IsEnabled())
 		{
-			UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, Plugin]
+			// TEMP HACK - use a pipe because if this goes too wide we can end up blocking all available tasks.
+			ShaderlibPipe.Launch(UE_SOURCE_LOCATION, [this, Plugin]
 			{
 				FShaderCodeLibrary::OpenPluginShaderLibrary(*Plugin, bForceMonolithicShaderLibrary);
 
@@ -2200,6 +2208,7 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	}
 };
 ENUM_CLASS_FLAGS(FGameFeaturePluginState_Mounting::ESubState);
+UE::Tasks::FPipe FGameFeaturePluginState_Mounting::ShaderlibPipe(TEXT("FGameFeaturePluginState_Mounting::ShaderlibPipe"));
 
 struct FWaitingForDependenciesTransitionPolicy
 {
