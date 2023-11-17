@@ -493,7 +493,7 @@ FString FOnlineIdentityGoogleCommon::GetAuthToken(int32 LocalUserNum) const
 	return FString();
 }
 
-void FOnlineIdentityGoogleCommon::GetUserPrivilege(const FUniqueNetId& UserId, EUserPrivileges::Type Privilege, const FOnGetUserPrivilegeCompleteDelegate& Delegate)
+void FOnlineIdentityGoogleCommon::GetUserPrivilege(const FUniqueNetId& UserId, EUserPrivileges::Type Privilege, const FOnGetUserPrivilegeCompleteDelegate& Delegate, EShowPrivilegeResolveUI ShowResolveUI)
 {
 	Delegate.ExecuteIfBound(UserId, Privilege, (uint32)EPrivilegeResults::NoFailures);
 }	
