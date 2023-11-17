@@ -1264,13 +1264,14 @@ void UIKRigController::ResetInitialGoalTransforms() const
 {
 	for (UIKRigEffectorGoal* Goal : Asset->Goals)
 	{
-		// record the current delta rotation
-		const FQuat DeltaRotation = Goal->CurrentTransform.GetRotation() * Goal->InitialTransform.GetRotation().Inverse();
-		// update the initial transform based on the new ref pose
-		const FTransform InitialTransform = GetRefPoseTransformOfBone(Goal->BoneName);
-		Goal->InitialTransform = InitialTransform;
-		// restore the current transform
-		Goal->CurrentTransform.SetRotation(Goal->InitialTransform.GetRotation() * DeltaRotation);
+		// record the current delta relative to the current bone
+		FTransform Delta = Goal->CurrentTransform.GetRelativeTransform(Goal->InitialTransform);
+		// get the initial transform based on the ref pose of the bone it's attached to
+		const FTransform NewInitialTransform = GetRefPoseTransformOfBone(Goal->BoneName);
+		// update the initial transform
+		Goal->InitialTransform = NewInitialTransform;
+		// reapply the delta
+		Goal->CurrentTransform = Delta * NewInitialTransform;
 	}
 }
 
