@@ -176,6 +176,7 @@ InnerMain(int Argc, char** Argv)
 		auto RunP4HaveOpt = SubPack->add_flag("--p4have", bRunP4Have, "Run `p4 have` when generating the dirctory pack");
 
 		SubPack->add_option("--store", StorePathUtf8, "Use this location to store pack data (default: <Input>/.unsync/pack)");
+		SubPack->add_option("--snapshot", SnapshotNameUtf8, "Custom name for the snapshot (will overwrite an existing tag)");
 
 		RunP4HaveOpt->excludes(P4HaveFileOpt);
 
@@ -815,6 +816,7 @@ InnerMain(int Argc, char** Argv)
 		PackOptions.bRunP4Have	 = bRunP4Have;
 		PackOptions.BlockSize	 = HashOrSyncBlockSize;
 		PackOptions.Algorithm	 = Algorithm;
+		PackOptions.SnapshotName = SnapshotNameUtf8;
 
 		return CmdPack(PackOptions);
 	}
@@ -1022,7 +1024,14 @@ ExceptionFilter(_EXCEPTION_POINTERS* ExceptionPointers)
 
 	PEXCEPTION_RECORD Record = ExceptionPointers->ExceptionRecord;
 
-	LogPrintf(ELogLevel::Error, L"Unhandled exception 0x%08X at address 0x%016X\n", Record->ExceptionCode, Record->ExceptionAddress);
+	if (Record->ExceptionCode == EXCEPTION_BREAKPOINT)
+	{
+		LogPrintf(ELogLevel::Error, L"Break point at address 0x%016X\n", Record->ExceptionAddress);
+	}
+	else
+	{
+		LogPrintf(ELogLevel::Error, L"Unhandled exception 0x%08X at address 0x%016X\n", Record->ExceptionCode, Record->ExceptionAddress);
+	}
 
 	LogWriteCrashDump(ExceptionPointers);
 

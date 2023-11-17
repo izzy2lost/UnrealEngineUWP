@@ -7,6 +7,7 @@
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
 #include "UnsyncError.h"
+#include "UnsyncProgress.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -469,7 +470,7 @@ CmdPack(const FCmdPackOptions& Options)
 
 		UNSYNC_LOG(L"Loaded entries from p4 manifest: %llu", llu(DirectoryManifest.Files.size()));
 
-		UNSYNC_LOG(L"Updating file attributes");
+		UNSYNC_LOG(L"Updating file metadata");
 		auto UpdateFileMetadata = [&OldDirectoryManifest](std::pair<const std::wstring, FFileManifest>& It)
 		{
 			if (OldDirectoryManifest.bHasFileRevisionControl)
@@ -657,7 +658,7 @@ CmdPack(const FCmdPackOptions& Options)
 		FHash128 ManifestBlocksBufferHash = HashBlake3Bytes<FHash128>(ManifestBlocksBuffer.Data, ManifestBlocksBuffer.Size);
 
 		std::string SnapshotId	 = HashToHexString(ManifestBlocksBufferHash);  // TODO: allow overriding this from command line
-		FPath		SnapshotPath = StoreRoot / (SnapshotId + ".unsync_snapshot");
+		FPath		SnapshotPath = StoreRoot / "snapshot" / (SnapshotId + ".unsync_snapshot");
 
 		UNSYNC_LOG(L"Writing snapshot: %hs", SnapshotId.c_str());
 
@@ -665,6 +666,22 @@ CmdPack(const FCmdPackOptions& Options)
 		if (!bSnapshotWritten)
 		{
 			UNSYNC_FATAL(L"Failed to write snapthot file '%ls'", SnapshotPath.wstring().c_str());
+			return -1;
+		}
+
+		// If explicit snapshot name is provided, save it as a separate "tag" file,
+		// never overwriting normal snapshots which are named based on content hash.
+		if (!Options.SnapshotName.empty())
+		{
+			UNSYNC_LOG(L"Saving snapshot %hs as tag '%hs'", SnapshotId.c_str(), Options.SnapshotName.c_str());
+			FPath			TagPath = StoreRoot / "tag" / (Options.SnapshotName + ".unsync_tag");
+			std::error_code ErrorCode;
+			if (!FileCopyOverwrite(SnapshotPath, TagPath, ErrorCode))
+			{
+				std::string SystemError = FormatSystemErrorMessage(ErrorCode.value());
+				UNSYNC_FATAL(L"Failed to save snapshot tag '%ls'. %hs", TagPath.wstring().c_str(), SystemError.c_str());
+				return -1;
+			}
 		}
 
 		ManifestUniqueBytes += ProcessedRawBytes.load();
@@ -827,25 +844,156 @@ struct FDirectoryCreationCache
 	std::mutex					 Mutex;
 };
 
+uint64 ComputeManifestTotalSize(const FDirectoryManifest& Manifest)
+{
+	uint64 Result = 0;
+
+	for (const auto& It : Manifest.Files)
+	{
+		Result += It.second.Size;
+	}
+
+	return Result;
+}
+
 bool
 SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, const FDirectoryManifest& NewDirectoryManifest)
 {
-	// TODO: incremental sync
+	// TODO: incrementally patch individual files
 	// TODO: fetch blocks from server
+
+	FTimingLogger SyncTimingLogger("Sync time", ELogLevel::Info);
+
+	FDirectoryManifest OldDirectoryManifest;
+	FPath			   OldManifestPath = OutputRoot / ".unsync" / "manifest.bin";
+	if (PathExists(OldManifestPath))
+	{
+		UNSYNC_LOG(L"Loading existing unsync manifest for '%ls'", OutputRoot.wstring().c_str());
+		UNSYNC_LOG_INDENT;
+
+		if (LoadDirectoryManifest(OldDirectoryManifest, OutputRoot, OldManifestPath))
+		{
+			if (OldDirectoryManifest.bHasFileRevisionControl)
+			{
+				UNSYNC_LOG(L"Loaded existing manifest with revision control data");
+			}
+			else
+			{
+				UNSYNC_LOG(L"Loaded existing manifest without revision control data");
+			}
+
+			UNSYNC_LOG(L"Updating file metadata");
+			FTimingLogger TimingLogger("Manifest generation time", ELogLevel::Info);
+
+			std::atomic<uint64> NumDirtyFiles = 0;
+
+			FLogProgressScope ScanProgressLogger(OldDirectoryManifest.Files.size(), ELogProgressUnits::Raw, 1000, false /*bVerboseOnly*/);
+
+			FThreadLogConfig LogConfig;
+			auto UpdateFileMetadata = [&NumDirtyFiles, &ScanProgressLogger, &LogConfig](std::pair<const std::wstring, FFileManifest>& It)
+			{
+				FThreadLogConfig::FScope LogConfigScope(LogConfig);
+
+				FFileAttributes Attrib = GetFileAttrib(It.second.CurrentPath);
+
+				// Check if the file on disk still matches the manifest and invalidate it otherwise
+				if (!Attrib.bValid || It.second.Mtime != Attrib.Mtime || It.second.Size != Attrib.Size ||
+					It.second.bReadOnly != Attrib.bReadOnly)
+				{
+					It.second = FFileManifest();
+					NumDirtyFiles++;
+				}
+
+				ScanProgressLogger.Add(1);
+			};
+			ParallelForEach(OldDirectoryManifest.Files, UpdateFileMetadata);
+
+			ScanProgressLogger.Complete();
+
+			if (NumDirtyFiles)
+			{
+				UNSYNC_LOG(L"Found dirty files: %llu", llu(NumDirtyFiles));
+			}
+		}
+	}
+
+	if (!OldDirectoryManifest.IsValid())
+	{
+		UNSYNC_LOG(L"Creating unsync manifest for '%ls'", OutputRoot.wstring().c_str());
+		UNSYNC_LOG_INDENT;
+
+		FTimingLogger TimingLogger("Manifest generation complete", ELogLevel::Info);
+
+		FComputeBlocksParams LightweightManifestParams;
+		LightweightManifestParams.Algorithm	  = NewDirectoryManifest.Algorithm;
+		LightweightManifestParams.bNeedBlocks = false;
+		LightweightManifestParams.BlockSize	  = 0;
+
+		OldDirectoryManifest = CreateDirectoryManifest(OutputRoot, LightweightManifestParams);
+	}
+
+	if (!OldDirectoryManifest.IsValid())
+	{
+		UNSYNC_ERROR(L"Failed to load or create manifest for target directory");
+		return false;
+	}
+
+	UNSYNC_LOG("Writing target files");
 
 	FAtomicError Error;
 
 	FDirectoryCreationCache DirCache;
 
-	auto BuildTargetCallback = [&Error, &PackDb, &DirCache](const std::pair<const std::wstring, FFileManifest>& FileIt)
+	struct FStats
+	{
+		std::atomic<uint64> NumFilesSkipped;
+		std::atomic<uint64> NumFilesSynced;
+
+		std::atomic<uint64> BytesSkipped;
+		std::atomic<uint64> BytesSynced;
+	};
+
+	FStats Stats;
+
+	const uint64 TotalSizeInBytes = ComputeManifestTotalSize(NewDirectoryManifest);
+
+	FLogProgressScope SyncProgressLogger(TotalSizeInBytes, ELogProgressUnits::MB, 1000, false /*bVerboseOnly*/);
+
+	FThreadLogConfig LogConfig;
+	auto BuildTargetCallback = [&Error, &PackDb, &DirCache, &OldDirectoryManifest, &Stats, &SyncProgressLogger, &LogConfig](
+								   const std::pair<const std::wstring, FFileManifest>& FileIt)
 	{
 		if (Error)
 		{
 			return;
 		}
 
+		FThreadLogConfig::FScope LogConfigScope(LogConfig);
+
 		const FFileManifest& FileManifest	= FileIt.second;
 		const FPath&		 TargetFilePath = FileManifest.CurrentPath;
+
+		auto				 OldManifestIt	 = OldDirectoryManifest.Files.find(FileIt.first);
+		const FFileManifest* OldFileManifest = nullptr;
+		if (OldManifestIt != OldDirectoryManifest.Files.end())
+		{
+			OldFileManifest = &OldManifestIt->second;
+
+			// TODO: option to diff blocks instead of just checking revision and metadata
+			// TODO: fix only the the read-only flag when that's the only difference
+			if (OldFileManifest->RevisionControlIdentity == FileManifest.RevisionControlIdentity &&
+				OldFileManifest->Mtime == FileManifest.Mtime && OldFileManifest->Size == FileManifest.Size &&
+				OldFileManifest->bReadOnly == FileManifest.bReadOnly)
+			{
+				UNSYNC_VERBOSE2(L"Skipped '%ls' (up to date)", FileIt.first.c_str());
+				Stats.NumFilesSkipped += 1;
+				Stats.BytesSkipped += FileManifest.Size;
+
+				SyncProgressLogger.Add(FileManifest.Size);
+
+				return;
+			}
+		}
 
 		FPath TargetFileParent = TargetFilePath.parent_path();
 		if (!DirCache.EnsureDirectoryExists(TargetFileParent))
@@ -854,6 +1002,8 @@ SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, cons
 			Error.Set(AppError("Failed to create target directory"));
 			return;
 		}
+
+		// TODO: perform block diff before the expensive copy
 
 		if (GDryRun)
 		{
@@ -867,13 +1017,15 @@ SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, cons
 		}
 		else
 		{
-			// TODO: mark file writable if it exists
+			SetFileReadOnly(TargetFilePath, false);
+
 			FNativeFile TargetFile(TargetFilePath, EFileMode::CreateWriteOnly, FileManifest.Size);
 
 			if (!TargetFile.IsValid())
 			{
-				UNSYNC_ERROR(L"Failed to create target file '%ls'", TargetFilePath.wstring().c_str());
-				Error.Set(AppError("Failed to create target file"));
+				std::string SystemError = FormatSystemErrorMessage(TargetFile.GetError());
+				UNSYNC_ERROR(L"Failed to create target file '%ls'. %hs", TargetFilePath.wstring().c_str(), SystemError.c_str());
+				Error.Set(AppError("Failed to create target file", TargetFile.GetError()));
 				return;
 			}
 
@@ -893,10 +1045,18 @@ SyncDirectoryFromPack(const FPath& OutputRoot, const FPackDatabase& PackDb, cons
 				SetFileReadOnly(TargetFilePath, true);
 			}
 		}
-		
+
+		Stats.NumFilesSynced += 1;
+		Stats.BytesSynced += FileManifest.Size;
+
+		SyncProgressLogger.Add(FileManifest.Size);
 	};
 
 	ParallelForEach(NewDirectoryManifest.Files, BuildTargetCallback);
+	SyncProgressLogger.Complete();
+
+	UNSYNC_LOG(L"Skipped files: %llu (%.2f MB)", llu(Stats.NumFilesSkipped), SizeMb(Stats.BytesSkipped));
+	UNSYNC_LOG(L"Synced files: %llu (%.2f MB)", llu(Stats.NumFilesSynced), SizeMb(Stats.BytesSynced));
 
 	return !Error;
 }
@@ -1004,10 +1164,28 @@ CmdUnpack(const FCmdUnpackOptions& Options)
 				   double(PackDb.TotalCompressedSize) / double(1 << 30));
 	}
 
-	UNSYNC_LOG(L"Reading snapshot");
+	// Named/tagged snapshots take precendence over regular snapshots
+	FPath TagPath	   = Options.StorePath / "tag" / (Options.SnapshotName + ".unsync_tag");
+	FPath SnapshotPath = Options.StorePath / "snapshot" / (Options.SnapshotName + ".unsync_snapshot");
 
-	FPath	SnapshotPath   = Options.StorePath / (Options.SnapshotName + ".unsync_snapshot");
-	FBuffer SnapshotBuffer = ReadFileToBuffer(SnapshotPath);
+	FBuffer SnapshotBuffer;
+
+	if (PathExists(TagPath))
+	{
+		UNSYNC_LOG(L"Loading snapshot '%hs' from tag file", Options.SnapshotName.c_str());
+		SnapshotBuffer = ReadFileToBuffer(TagPath);
+	}
+	else if (PathExists(SnapshotPath))
+	{
+		UNSYNC_LOG(L"Loading snapshot '%hs'", Options.SnapshotName.c_str());
+		SnapshotBuffer = ReadFileToBuffer(SnapshotPath);
+	}
+	else
+	{
+		UNSYNC_ERROR(L"Could not find snapshot file or named tag '%hs'", Options.SnapshotName.c_str());
+		return -1;
+	}
+
 	if (SnapshotBuffer.Empty())
 	{
 		UNSYNC_ERROR(L"Failed read directory snapshot manifest");
@@ -1064,7 +1242,7 @@ CmdUnpack(const FCmdUnpackOptions& Options)
 
 	if (Options.bOutputFiles)
 	{
-		UNSYNC_LOG(L"Writing target files");
+		UNSYNC_LOG(L"Synchronizing directory from pack");
 		{
 			UNSYNC_LOG_INDENT;
 			if (!SyncDirectoryFromPack(Options.OutputPath, PackDb, NewDirectoryManifest))
@@ -1088,7 +1266,7 @@ CmdUnpack(const FCmdUnpackOptions& Options)
 	{
 		if (Options.bOutputRevisions)
 		{
-			UNSYNC_LOG(L"Extracting revision control identities");
+			UNSYNC_LOG(L"Extracting revision control data to file: '%ls'", RevisionFilePath.wstring().c_str());
 			UNSYNC_LOG_INDENT;
 
 			if (!SaveRevisionControlData(RevisionFilePath, NewDirectoryManifest, ERevisionControlFileFormat::IdentityOnly))
@@ -1100,7 +1278,7 @@ CmdUnpack(const FCmdUnpackOptions& Options)
 
 		if (!Options.P4HaveOutputPath.empty())
 		{
-			UNSYNC_LOG(L"Extracting revision control data into `p4 have` file '%ls'", Options.P4HaveOutputPath.wstring().c_str());
+			UNSYNC_LOG(L"Extracting revision control data to `p4 have` file '%ls'", Options.P4HaveOutputPath.wstring().c_str());
 			UNSYNC_LOG_INDENT;
 
 			if (!SaveRevisionControlData(Options.P4HaveOutputPath, NewDirectoryManifest, ERevisionControlFileFormat::P4Have))

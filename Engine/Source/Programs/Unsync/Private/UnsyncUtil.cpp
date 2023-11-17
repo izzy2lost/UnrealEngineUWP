@@ -90,19 +90,19 @@ void FTimingLogger::Finish()
 
 		if (Name.empty())
 		{
-			LogPrintf(LogLevel, L"%.3f sec", TotalSeconds);
+			LogPrintf(LogLevel, L"%.3f sec\n", TotalSeconds);
 		}
 		else
 		{
-			LogPrintf(LogLevel, L"%hs: %.3f sec", Name.c_str(), TotalSeconds);
+			if (TotalSeconds >= 60.0)
+			{
+				LogPrintf(LogLevel, L"%hs: %.3f sec (%02d:%02d:%02d)\n", Name.c_str(), TotalSeconds, H, M, S);
+			}
+			else
+			{
+				LogPrintf(LogLevel, L"%hs: %.3f sec\n", Name.c_str(), TotalSeconds);
+			}
 		}
-
-		if (TotalSeconds >= 60.0)
-		{
-			LogPrintf(LogLevel, L" (%02d:%02d:%02d)", H, M, S);
-		}
-
-		LogPrintf(LogLevel, L"\n");
 
 		LogFlush();
 

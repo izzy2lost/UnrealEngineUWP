@@ -15,6 +15,10 @@ struct FCmdPackOptions
 	FPath			  StorePath;   // optional
 	uint32			  BlockSize = uint32(64_KB);
 	FAlgorithmOptions Algorithm;
+
+	// Optional tag for this snapshot which can be used to reference it later using a human-friendly name.
+	// Overwrites the tag if it already exists.
+	std::string		  SnapshotName;
 };
 
 int32 CmdPack(const FCmdPackOptions& Options);
