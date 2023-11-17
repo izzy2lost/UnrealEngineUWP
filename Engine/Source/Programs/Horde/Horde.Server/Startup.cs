@@ -112,6 +112,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Redis;
 using Horde.Server.Aws;
 using StackExchange.Redis;
+using Horde.Server.Telemetry.Sinks;
 
 namespace Horde.Server
 {

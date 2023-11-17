@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
+using Horde.Server.Telemetry.Sinks;
 
 namespace Horde.Server.Telemetry
 {

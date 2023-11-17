@@ -13,7 +13,7 @@ using EpicGames.Core;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Telemetry
+namespace Horde.Server.Telemetry.Sinks
 {
 	/// <summary>
 	/// Options for the Epic telemetry sink

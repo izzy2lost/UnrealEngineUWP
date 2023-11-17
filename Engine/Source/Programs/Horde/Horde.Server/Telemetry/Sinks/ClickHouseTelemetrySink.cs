@@ -11,7 +11,7 @@ using Horde.Server.Jobs;
 using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Telemetry
+namespace Horde.Server.Telemetry.Sinks
 {
 	/// <summary>
 	/// ClickHouse telemetry sink

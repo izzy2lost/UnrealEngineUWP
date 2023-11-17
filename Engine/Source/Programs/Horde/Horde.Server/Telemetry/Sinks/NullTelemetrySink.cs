@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace Horde.Server.Telemetry
+namespace Horde.Server.Telemetry.Sinks
 {
 	/// <summary>
 	/// Telemetry sink that discards all events

@@ -27,7 +27,7 @@ using Horde.Server.Storage.Backends;
 using Horde.Server.Streams;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
-using Horde.Server.Telemetry;
+using Horde.Server.Telemetry.Sinks;
 
 namespace Horde.Server
 {

@@ -63,6 +63,7 @@ using Horde.Server.Compute;
 using Horde.Server.Dashboard;
 using OpenTelemetry.Trace;
 using Horde.Server.Jobs.Bisect;
+using Horde.Server.Telemetry.Sinks;
 
 namespace Horde.Server.Tests
 {
