@@ -72,7 +72,7 @@ protected:
 	 */
 	virtual void HandleBeginCompilation(FWidgetBlueprintCompilerContext& InCreationContext) {}
 
-	virtual void HandleCreateFunctionList(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& InCreationContext) {}
+	virtual void HandleCreateFunctionList() {}
 	virtual void HandleCleanAndSanitizeClass(UWidgetBlueprintGeneratedClass* ClassToClean, UObject* OldCDO) {}
 	virtual TArray<UObject*> HandleSaveSubObjectsFromCleanAndSanitizeClass(UWidgetBlueprintGeneratedClass* ClassToClean) { return TArray<UObject*>();  }
 	virtual void HandleCreateClassVariablesFromBlueprint(const FWidgetBlueprintCompilerContext::FCreateVariableContext& Context) {}
@@ -95,9 +95,9 @@ private:
 		HandleBeginCompilation(InCreationContext);
 	}
 
-	void CreateFunctionList(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& InCreationContext)
+	void CreateFunctionList()
 	{
-		HandleCreateFunctionList(InCreationContext);
+		HandleCreateFunctionList();
 	}
 
 	void CleanAndSanitizeClass(UWidgetBlueprintGeneratedClass* ClassToClean, UObject* OldCDO)

@@ -104,7 +104,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprint
 	if (BlueprintView)
 	{
 		BlueprintView->ResetBindingMessages();
-		CurrentCompilerContext = MakePimpl<UE::MVVM::Private::FMVVMViewBlueprintCompiler>(InCreationContext, GetBlueprintView());
+		CurrentCompilerContext = MakePimpl<UE::MVVM::Private::FMVVMViewBlueprintCompiler>(InCreationContext);
 	}
 }
 
@@ -130,17 +130,17 @@ void UMVVMWidgetBlueprintExtension_View::HandleCreateClassVariablesFromBlueprint
 {
 	Super::HandleCreateClassVariablesFromBlueprint(Context);
 
-	CurrentCompilerContext->CreateVariables(Context);
+	CurrentCompilerContext->CreateVariables(Context, GetBlueprintView());
 }
 
 
-void UMVVMWidgetBlueprintExtension_View::HandleCreateFunctionList(const FWidgetBlueprintCompilerContext::FCreateFunctionContext& Context)
+void UMVVMWidgetBlueprintExtension_View::HandleCreateFunctionList()
 {
-	Super::HandleCreateFunctionList(Context);
+	Super::HandleCreateFunctionList();
 
 	if (CurrentCompilerContext)
 	{
-		CurrentCompilerContext->CreateFunctions(Context);
+		CurrentCompilerContext->CreateFunctions(BlueprintView);
 	}
 }
 
@@ -155,7 +155,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 	{
 		UMVVMViewClass* ViewExtension = nullptr;
 		bool bCompiled = false;
-		if (CurrentCompilerContext->PreCompile(Class))
+		if (CurrentCompilerContext->PreCompile(Class, BlueprintView))
 		{
 			FName ClassName = "ViewClass";
 			if (UObject* PreviousObj = StaticFindObjectFastInternal(nullptr, Class, ClassName, true))
@@ -166,7 +166,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 				PreviousObj->Rename(*TrashName.ToString(), GetTransientPackage(), RenameFlags);
 			}
 			ViewExtension = NewObject<UMVVMViewClass>(Class);
-			bCompiled = CurrentCompilerContext->Compile(Class, ViewExtension);
+			bCompiled = CurrentCompilerContext->Compile(Class, BlueprintView, ViewExtension);
 		}
 
 		if (bCompiled)

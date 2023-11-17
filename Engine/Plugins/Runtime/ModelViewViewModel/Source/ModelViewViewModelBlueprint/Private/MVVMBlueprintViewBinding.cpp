@@ -39,47 +39,31 @@ void FMVVMBlueprintViewConversionPath::SavePinValues(UBlueprint* Blueprint)
 	}
 }
 
-void FMVVMBlueprintViewConversionPath::DeprecateViewConversionFunction(UBlueprint* Blueprint, FMVVMBlueprintViewBinding& Owner)
+void FMVVMBlueprintViewConversionPath::DeprecateViewConversionFunction(UBlueprint* Blueprint)
 {
-	auto Deprecate = [&Owner, Blueprint](bool bSourceToDestination, FName& Wrapper, FMemberReference& Reference, TObjectPtr<UMVVMBlueprintViewConversionFunction>& ConversionFunction, FMVVMBlueprintPropertyPath& Path)
+	auto Deprecate = [Blueprint](FName& Wrapper, FMemberReference& Reference, TObjectPtr<UMVVMBlueprintViewConversionFunction>& ConversionFunction)
 	{
-		if (ConversionFunction)
+		if (!Wrapper.IsNone())
 		{
-			ConversionFunction->ConditionalPostLoad();
-			if (ConversionFunction->GetWrapperGraphName().IsNone())
-			{
-				// The function was a simple conversion function but now we want to always have a wrapper
-				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Owner, bSourceToDestination);
-				ConversionFunction->Deprecation_SetWrapperGraphName(Blueprint, GraphName, Path);
-				Path = FMVVMBlueprintPropertyPath();
-			}
-		}
-		else
-		{
-			if (!Wrapper.IsNone())
-			{
-				TObjectPtr<UEdGraph>* GraphPtr = Blueprint->FunctionGraphs.FindByPredicate([Wrapper](const UEdGraph* Other) { return Other->GetFName() == Wrapper; });
-				if (GraphPtr)
-				{
-					ConversionFunction = NewObject<UMVVMBlueprintViewConversionFunction>(Blueprint);
-					ConversionFunction->Deprecation_InitializeFromWrapperGraph(Blueprint, *GraphPtr);
-				}
-			}
-			else if (!Reference.GetMemberName().IsNone())
+			TObjectPtr<UEdGraph>* GraphPtr = Blueprint->FunctionGraphs.FindByPredicate([Wrapper](const UEdGraph* Other) { return Other->GetFName() == Wrapper; });
+			if (GraphPtr)
 			{
 				ConversionFunction = NewObject<UMVVMBlueprintViewConversionFunction>(Blueprint);
-				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Owner, bSourceToDestination);
-				ConversionFunction->Deprecation_InitializeFromMemberReference(Blueprint, GraphName, Reference, Path);
-				Path = FMVVMBlueprintPropertyPath();
+				ConversionFunction->InitializeFromWrapperGraph(Blueprint, *GraphPtr);
 			}
-			Wrapper = FName();
-			Reference = FMemberReference();
 		}
+		else if (!Reference.GetMemberName().IsNone())
+		{
+			ConversionFunction = NewObject<UMVVMBlueprintViewConversionFunction>(Blueprint);
+			ConversionFunction->InitializeFromMemberReference(Blueprint, Reference);
+		}
+		Wrapper = FName();
+		Reference = FMemberReference();
 	};
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	Deprecate(false, DestinationToSourceWrapper_DEPRECATED, DestinationToSourceFunction_DEPRECATED, DestinationToSourceConversion, Owner.DestinationPath);
-	Deprecate(true, SourceToDestinationWrapper_DEPRECATED, SourceToDestinationFunction_DEPRECATED, SourceToDestinationConversion, Owner.SourcePath);
+	Deprecate(DestinationToSourceWrapper_DEPRECATED, DestinationToSourceFunction_DEPRECATED, DestinationToSourceConversion);
+	Deprecate(SourceToDestinationWrapper_DEPRECATED, SourceToDestinationFunction_DEPRECATED, SourceToDestinationConversion);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
@@ -104,7 +88,7 @@ namespace UE::MVVM::Private
 
 		if (UMVVMBlueprintViewConversionFunction* ViewConversionFunction = Binding.Conversion.GetConversionFunction(bIsSource))
 		{
-			TVariant<const UFunction*, TSubclassOf<UK2Node>> ConversionFunction = ViewConversionFunction->GetConversionFunction(WidgetBlueprint);
+			TVariant<const UFunction*, TSubclassOf<UK2Node>> ConversionFunction = ViewConversionFunction->GetConversionFunction(WidgetBlueprint->SkeletonGeneratedClass);
 			if (ConversionFunction.IsType<const UFunction*>())
 			{
 				if (const UFunction* ConversionFunctionPtr = ConversionFunction.Get<const UFunction*>())
@@ -157,24 +141,32 @@ namespace UE::MVVM::Private
 			{
 				NameBuilder << TEXT("(");
 
-				bool bFirst = true;
-				for (const FMVVMBlueprintPin& Pin : ViewConversionFunction->GetPins())
+				if (ViewConversionFunction->NeedsWrapperGraph())
 				{
-					if (!bFirst)
+					bool bFirst = true;
+					for (const FMVVMBlueprintPin& Pin : ViewConversionFunction->GetPins())
 					{
-						NameBuilder << TEXT(", ");
-					}
+						if (!bFirst)
+						{
+							NameBuilder << TEXT(", ");
+						}
 
-					if (Pin.UsedPathAsValue())
-					{
-						AddPath(Pin.GetPath());
-					}
-					else
-					{
-						NameBuilder << Pin.GetValueAsString(WidgetBlueprint->SkeletonGeneratedClass);
-					}
+						if (Pin.UsedPathAsValue())
+						{
+							AddPath(Pin.GetPath());
+						}
+						else
+						{
+							NameBuilder << Pin.GetValueAsString(WidgetBlueprint->SkeletonGeneratedClass);
+						}
 
-					bFirst = false;
+						bFirst = false;
+					}
+				}
+				else
+				{
+					const FMVVMBlueprintPropertyPath& Path = bIsSource ? Binding.SourcePath : Binding.DestinationPath;
+					AddPath(Path);
 				}
 
 				NameBuilder << TEXT(")");

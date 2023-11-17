@@ -470,7 +470,7 @@ void UMVVMBlueprintView::PostLoad()
 
 	for (FMVVMBlueprintViewBinding& Binding : Bindings)
 	{
-		Binding.Conversion.DeprecateViewConversionFunction(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint(), Binding);
+		Binding.Conversion.DeprecateViewConversionFunction(GetOuterUMVVMWidgetBlueprintExtension_View()->GetWidgetBlueprint());
 	}
 
 	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MVVMPropertyPathSelf)

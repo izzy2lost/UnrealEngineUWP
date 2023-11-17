@@ -113,18 +113,6 @@ public:
 		FWidgetBlueprintCompilerContext& Context;
 	};
 
-	struct UMGEDITOR_API FCreateFunctionContext
-	{
-	public:
-		void AddGeneratedFunctionGraph(UEdGraph*) const;
-		UWidgetBlueprintGeneratedClass* GetGeneratedClass() const;
-
-	private:
-		friend FWidgetBlueprintCompilerContext;
-		FCreateFunctionContext(FWidgetBlueprintCompilerContext& InContext);
-		FWidgetBlueprintCompilerContext& Context;
-	};
-
 protected:
 	void FixAbandonedWidgetTree(UWidgetBlueprint* WidgetBP);
 

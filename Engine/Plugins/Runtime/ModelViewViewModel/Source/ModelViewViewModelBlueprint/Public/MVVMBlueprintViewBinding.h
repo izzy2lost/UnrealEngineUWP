@@ -74,7 +74,7 @@ public:
 
 	void GenerateWrapper(UBlueprint* Blueprint);
 	void SavePinValues(UBlueprint* Blueprint);
-	void DeprecateViewConversionFunction(UBlueprint* Blueprint, FMVVMBlueprintViewBinding& Owner);
+	void DeprecateViewConversionFunction(UBlueprint* Blueprint);
 
 public:
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

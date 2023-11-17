@@ -287,7 +287,7 @@ void SMVVMViewModelPanel::Construct(const FArguments& InArgs, TSharedPtr<FWidget
 				SNew(SWarningOrErrorBox)
 				.Visibility(this, &SMVVMViewModelPanel::GetWarningPanelVisibility)
 				.MessageStyle(EMessageStyle::Warning)
-				.Message(this, &SMVVMViewModelPanel::GetWarningMessage)
+				.Message(LOCTEXT("InitializationPanelWarningDescription", "The view will not initialize automatically. It was manually set in the View Settings."))
 				[
 					SNew(SButton)
 					.OnClicked(this, &SMVVMViewModelPanel::HandleDisableWarningPanel)
@@ -886,10 +886,6 @@ EVisibility SMVVMViewModelPanel::GetWarningPanelVisibility() const
 	{
 		if (UMVVMBlueprintView* WidgetBlueprint = WeakBlueprintView.Get())
 		{
-			if (WidgetBlueprint->GetNumBindings() == 0 && WidgetBlueprint->GetViewModels().Num() != 0)
-			{
-				return EVisibility::Visible;
-			}
 			if (!WidgetBlueprint->GetSettings()->bInitializeSourcesOnConstruct || !WidgetBlueprint->GetSettings()->bInitializeBindingsOnConstruct)
 			{
 				return EVisibility::Visible;
@@ -898,26 +894,6 @@ EVisibility SMVVMViewModelPanel::GetWarningPanelVisibility() const
 	}
 
 	return EVisibility::Collapsed;
-}
-
-
-FText SMVVMViewModelPanel::GetWarningMessage() const
-{
-	if (!bDisableWarningPanel)
-	{
-		if (UMVVMBlueprintView* WidgetBlueprint = WeakBlueprintView.Get())
-		{
-			if (WidgetBlueprint->GetNumBindings() == 0 && WidgetBlueprint->GetViewModels().Num() != 0)
-			{
-				return LOCTEXT("NoBindingWarningDescription", "No view will be created for this widget because there are no bindings. Your viewmodels won't be initialized.");
-			}
-			if (!WidgetBlueprint->GetSettings()->bInitializeSourcesOnConstruct || !WidgetBlueprint->GetSettings()->bInitializeBindingsOnConstruct)
-			{
-				return LOCTEXT("InitializationPanelWarningDescription", "The view will not initialize automatically. It was manually set in the View Settings.");
-			}
-		}
-	}
-	return FText::GetEmpty();
 }
 
 
