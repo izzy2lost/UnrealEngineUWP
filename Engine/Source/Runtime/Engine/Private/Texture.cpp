@@ -546,9 +546,8 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		ResizeDuringBuildX = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildX));
 		ResizeDuringBuildY = FMath::Max(0, FMath::Min((int32)GetMaximumDimension(), ResizeDuringBuildY));
 
-		// IsPowerOfTwo only checks XY : and only checks BlockIndex 0 
-		//	<- this is wrong for VT, need to check if all blocks are Pow2
-		bool bIsPowerOfTwo = Source.IsPowerOfTwo();
+		// IsPowerOfTwo only checks XY
+		bool bIsPowerOfTwo = Source.AreAllBlocksPowerOfTwo();
 		if ( ! FMath::IsPowerOfTwo(Source.GetVolumeSizeZ()) )
 		{
 			bIsPowerOfTwo = false;
@@ -1609,7 +1608,7 @@ bool UTexture::IsPossibleToStream() const
 		// duplicate the checks done for NeverStream :
 
 		// IsPowerOfTwo only checks XY :
-		bool bIsPowerOfTwo = Source.IsPowerOfTwo();
+		bool bIsPowerOfTwo = Source.AreAllBlocksPowerOfTwo();
 		if ( ! FMath::IsPowerOfTwo(Source.GetVolumeSizeZ()) )
 		{
 			bIsPowerOfTwo = false;
@@ -2577,13 +2576,24 @@ int64 FTextureSource::GetBytesPerPixel(int32 LayerIndex) const
 	return GetBytesPerPixel(GetFormat(LayerIndex));
 }
 
-// IsPowerOfTwo() with no BlockIndex just checks the first block (and only XY)
-//	not the overall dimensions of UDIM
-bool FTextureSource::IsPowerOfTwo(int32 BlockIndex) const
+bool FTextureSource::IsBlockPowerOfTwo(int32 BlockIndex) const
 {
 	FTextureSourceBlock Block;
 	GetBlock(BlockIndex, Block);
 	return FMath::IsPowerOfTwo(Block.SizeX) && FMath::IsPowerOfTwo(Block.SizeY);
+}
+
+bool FTextureSource::AreAllBlocksPowerOfTwo() const
+{
+	int32 NumBlocks = GetNumBlocks();
+	for(int32 BlockIndex=0;BlockIndex<NumBlocks;BlockIndex++)
+	{
+		if ( ! IsBlockPowerOfTwo(BlockIndex) )
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool FTextureSource::IsValid() const

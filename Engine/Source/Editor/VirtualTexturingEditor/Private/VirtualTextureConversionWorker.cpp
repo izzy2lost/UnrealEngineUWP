@@ -157,7 +157,7 @@ void FVirtualTextureConversionWorker::FindAllTexturesAndMaterials_Iteration(TSet
 			// since we're not changing the original texture, we don't need to bring in any additional dependencies
 			// Non-power-2 textures won't convert to VT, don't bring any dependencies for them
 			if (!Tex2D->GetPathName().StartsWith("/Engine/") &&
-				(Tex2D->Source.IsPowerOfTwo() || Tex2D->PowerOfTwoMode != ETexturePowerOfTwoSetting::None))
+				(Tex2D->Source.AreAllBlocksPowerOfTwo() || Tex2D->PowerOfTwoMode != ETexturePowerOfTwoSetting::None))
 			{
 				// Also get any preview materials that reference the given texture
 				// We need to convert these to ensure any active material editors remain valid
@@ -483,7 +483,7 @@ void FVirtualTextureConversionWorker::FilterList(int32 SizeThreshold)
 	{
 		bool DoInclude;
 
-		if ( !Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None )
+		if ( !Texture->Source.AreAllBlocksPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None )
 		{
 			// not pow2, reject
 			DoInclude = false;

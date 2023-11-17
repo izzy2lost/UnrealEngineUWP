@@ -461,7 +461,7 @@ void SConvertToVirtualTexture::UpdateList()
 		FConversionStatus* Status = new(AssetStatus) FConversionStatus();
 		Status->UserSelected = Worker.UserTextures.Contains(Texture);
 		Status->UnderSized = CheckUnderSized(Texture,ThresholdValue,bBackwards);
-		Status->NonPowerOf2 = !Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None;
+		Status->NonPowerOf2 = !Texture->Source.AreAllBlocksPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None;
 	}
 
 	for (UTexture2D* Texture : Worker.MaterialRejectedTextures)
@@ -470,7 +470,7 @@ void SConvertToVirtualTexture::UpdateList()
 		FConversionStatus* Status = new(AssetStatus) FConversionStatus();
 		Status->UserSelected = Worker.UserTextures.Contains(Texture);
 		Status->UnderSized = CheckUnderSized(Texture,ThresholdValue,bBackwards);
-		Status->NonPowerOf2 = !Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None;
+		Status->NonPowerOf2 = !Texture->Source.AreAllBlocksPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None;
 		Status->InvalidMaterialUsage = true;
 	}
 

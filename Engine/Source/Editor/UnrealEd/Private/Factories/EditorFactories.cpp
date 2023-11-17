@@ -4155,7 +4155,7 @@ UObject* UTextureFactory::FactoryCreateBinary
 	
 	Texture->bPreserveBorder		= bPreserveBorder;
 
-	if ( ! Texture->Source.IsPowerOfTwo() )
+	if ( Texture->Source.GetNumBlocks() == 1 && ! Texture->Source.IsBlockPowerOfTwo(0) )
 	{
 		// try to set some better default options for non-pow2 textures
 

@@ -289,7 +289,12 @@ struct FTextureSource
 	ENGINE_API int64 GetBytesPerPixel(int32 LayerIndex = 0) const;
 
 	/** Return true if the source XY size is power-of-2.  Does not check Z size for volumes.  */
-	ENGINE_API bool IsPowerOfTwo(int32 BlockIndex = 0) const;
+	UE_DEPRECATED(5.5,"Prefer AreAllBlocksPowerOfTwo, or IsBlockPowerOfTwo if you really only want one block")
+	ENGINE_API bool IsPowerOfTwo(int32 BlockIndex = 0) const { return IsBlockPowerOfTwo(BlockIndex); }
+	
+	/** Return true if the source XY size is power-of-2.  Does not check Z size for volumes.  */
+	ENGINE_API bool IsBlockPowerOfTwo(int32 BlockIndex) const;
+	ENGINE_API bool AreAllBlocksPowerOfTwo() const;
 
 	/** Returns true if source art is available. */
 	ENGINE_API bool IsValid() const;

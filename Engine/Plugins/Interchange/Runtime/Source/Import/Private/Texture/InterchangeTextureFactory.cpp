@@ -1507,7 +1507,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 #if WITH_EDITORONLY_DATA
 		// At some point, these decisions should be left to the pipeline
-		if (!Texture->Source.IsPowerOfTwo())
+		if ( Texture->Source.GetNumBlocks() == 1 && !Texture->Source.IsBlockPowerOfTwo(0))
 		{
 			// try to set some better default options for non-pow2 textures
 
