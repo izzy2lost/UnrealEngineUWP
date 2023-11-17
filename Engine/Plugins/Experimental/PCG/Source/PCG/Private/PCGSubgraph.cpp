@@ -204,7 +204,10 @@ TArray<FPCGPinProperties> UPCGBaseSubgraphSettings::OutputPinProperties() const
 	}
 	else
 	{
-		return Super::OutputPinProperties();
+		// Here we do not want the base class implementation as it forces Spatial but that might not be the case here
+		TArray<FPCGPinProperties> OutputPins;
+		OutputPins.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
+		return OutputPins;
 	}
 }
 
@@ -275,7 +278,7 @@ FName UPCGSubgraphSettings::AdditionalTaskName() const
 	}
 	else
 	{
-		return TEXT("Invalid subgraph");
+		return TEXT("Empty subgraph");
 	}
 }
 
@@ -482,6 +485,12 @@ bool FPCGSubgraphElement::IsCacheable(const UPCGSettings* InSettings) const
 	return (!Settings || !Settings->IsDynamicGraph());
 }
 
+bool FPCGSubgraphElement::IsPassthrough(const UPCGSettings* InSettings) const
+{
+	const UPCGSubgraphSettings* Settings = Cast<UPCGSubgraphSettings>(InSettings);
+	return (!Settings || (Settings->bEnabled && Settings->GetSubgraph()));
+}
+
 bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	FPCGSubgraphContext* Context = static_cast<FPCGSubgraphContext*>(InContext);
@@ -549,6 +558,12 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					Context->OutputData.bCancelExecution = true;
 					return true;
 				}
+			}
+			else if (!Subgraph)
+			{
+				// Simple pass-through
+				Context->OutputData.TaggedData = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+				return true;
 			}
 			else
 			{

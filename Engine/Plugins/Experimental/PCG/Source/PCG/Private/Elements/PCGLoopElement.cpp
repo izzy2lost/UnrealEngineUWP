@@ -171,7 +171,7 @@ FName UPCGLoopSettings::AdditionalTaskName() const
 	}
 	else
 	{
-		return FName(LOCTEXT("NodeTitleExtendedInvalidSubgraph", "Loop Subgraph - Invalid Subgraph").ToString());
+		return FName(LOCTEXT("NodeTitleExtendedInvalidSubgraph", "Loop Subgraph - Empty Subgraph").ToString());
 	}
 }
 
@@ -197,14 +197,15 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 		UPCGGraph* Subgraph = Settings->GetSubgraph();
 		UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
 
-		if (!Subsystem || !Subgraph)
+		if (!Subgraph)
+		{
+			// No subgraph is equivalent to disabling the node
+			Context->OutputData.TaggedData = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+			return true;
+		}
+		else if (!Subsystem)
 		{
 			// Job cannot run; cancel
-			if (!Subgraph)
-			{
-				PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidSubgraph", "Cannot loop on an invalid subgraph"));
-			}
-			
 			Context->OutputData.bCancelExecution = true;
 			return true;
 		}
@@ -218,7 +219,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 		// Early out if there are no data on the loop pin
 		if (LoopDataCollection.IsEmpty() || LoopDataCollection[0].TaggedData.IsEmpty())
 		{
-			PCGE_LOG(Verbose, LogOnly, LOCTEXT("EmptyLoopCollection", "Loop data is empty - will not do anything"));
+			PCGE_LOG(Verbose, LogOnly, LOCTEXT("EmptyLoopCollection", "Loop data is empty - will not do anything."));
 			return true;
 		}
 
