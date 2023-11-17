@@ -318,8 +318,11 @@ namespace EpicGames.Horde.Storage.Clients
 				return httpClient;
 			}
 
+			// Fetching entire blobs doesn't seem to be a win on S3; disabling the cache for now.
+			const bool UseBackendCache = false;
+
 			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
-			if (_backendCache != null)
+			if (_backendCache != null && UseBackendCache)
 			{
 				backend = _backendCache.CreateWrapper(basePath, backend);
 			}
