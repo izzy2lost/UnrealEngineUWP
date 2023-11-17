@@ -63,6 +63,7 @@
 #include "Insights/ViewModels/RegionsTimingTrack.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
 #include "Insights/ViewModels/TimeFilterValueConverter.h"
+#include "Insights/ViewModels/TimerFilters.h"
 #include "Insights/ViewModels/TimeRulerTrack.h"
 #include "Insights/ViewModels/TimingEventSearch.h"
 #include "Insights/ViewModels/TimingGraphTrack.h"
@@ -530,6 +531,8 @@ void STimingView::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 	TickStopwatch.Start();
 
 	LLM_SCOPE_BYTAG(Insights);
+
+	UpdateFilters();
 
 	ThisGeometry = AllottedGeometry;
 
@@ -4960,20 +4963,7 @@ void STimingView::QuickFind_Execute()
 			nullptr,
 			FFilterService::Get()->GetIntegerOperators()));
 
-		TSharedPtr<TArray<TSharedPtr<IFilterOperator>>> EventNameFilterOperators = MakeShared<TArray<TSharedPtr<IFilterOperator>>>();
-		EventNameFilterOperators->Add(StaticCastSharedRef<IFilterOperator>(MakeShared<FFilterOperator<int64>>(EFilterOperator::Eq, TEXT("Is"), [](int64 lhs, int64 rhs) { return lhs == rhs; })));
-		TSharedRef<FFilterWithSuggestions> TimerNameFilter = MakeShared<FFilterWithSuggestions>(
-			static_cast<int32>(EFilterField::TimerName),
-			LOCTEXT("TimerName", "Timer Name"),
-			LOCTEXT("TimerName", "Timer Name"),
-			EFilterDataType::StringInt64Pair,
-			MakeShared<FEventNameFilterValueConverter>(),
-			EventNameFilterOperators);
-		TimerNameFilter->SetCallback([this](const FString& Text, TArray<FString>& OutSuggestions)
-		{
-			this->PopulateTimerNameSuggestionList(Text, OutSuggestions);
-		});
-		NewFilterConfigurator->Add(TimerNameFilter);
+		NewFilterConfigurator->Add(MakeShared<FTimerNameFilter>());
 
 		for (Insights::ITimingViewExtender* Extender : GetExtenders())
 		{
@@ -5235,6 +5225,8 @@ void STimingView::FilterAllTracks()
 {
 	LLM_SCOPE_BYTAG(Insights);
 	FilterConfigurator = MakeShared<Insights::FFilterConfigurator>(*QuickFindVm->GetFilterConfigurator());
+	FilterConfigurator->Update();
+
 	for (auto& Entry : AllTracks)
 	{
 		Entry.Value->SetFilterConfigurator(FilterConfigurator);
@@ -5370,6 +5362,27 @@ void STimingView::SelectEventInstance(uint32 TimerId, ESelectEventType Type, boo
 		FMessageLog ReportMessageLog(FTimingProfilerManager::Get()->GetLogListingName());
 		ReportMessageLog.Error(LOCTEXT("NoEventInstanceFound", "No event instance found!"));
 		ReportMessageLog.Notify();
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimingView::UpdateFilters()
+{
+	if (!bUpdateFilters)
+	{
+		return;
+	}
+
+	if (FInsightsManager::Get()->IsAnalysisComplete())
+	{
+		// This will be the final update.
+		bUpdateFilters = false;
+	}
+
+	if (FilterConfigurator.IsValid())
+	{
+		FilterConfigurator->Update();
 	}
 }
 

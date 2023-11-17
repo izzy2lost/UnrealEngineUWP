@@ -526,6 +526,11 @@ protected:
 	void EnumerateFilteredTracks(TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator, EnumerateFilteredTracksCallback Callback);
 
 	ETraceFrameType GetFrameTypeToSnapTo();
+	
+	/** The FilterConfigurator needs to be updated so that custom filters work correctly when analysis is still running
+	* and the timer list can change. 
+	 */ 
+	void UpdateFilters();
 
 protected:
 	/** The name of the view. */
@@ -744,6 +749,7 @@ protected:
 	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
 	static uint32 TimingViewId;
 	const FName QuickFindTabId;
+	bool bUpdateFilters = true;
 	
 	// Used only between the creation of the widget and the spawning of the owning tab. When the tab is spawned, we relinquish ownership.
 	TSharedPtr<Insights::SQuickFind> QuickFindWidgetSharedPtr;

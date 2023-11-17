@@ -24,6 +24,8 @@ enum class EFilterDataType : uint32
 	Double,
 	String,
 	StringInt64Pair, // Displayed as a string but translates to a Int64 key.
+	
+	Custom, // For complex filters that are implemented as separate classes.
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,9 +125,86 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef TSharedPtr<const TArray<TSharedPtr<IFilterOperator>>> SupportedOperatorsArrayPtr;
+class FFilterContext
+{
+public:
+	typedef TVariant<double, int64, FString> ContextData;
 
-class FFilter
+public:
+	template<typename T>
+	void AddFilterData(int32 Key, const T& InData)
+	{
+		ContextData VariantData;
+		VariantData.Set<T>(InData);
+		DataMap.Add(Key, VariantData);
+	}
+
+	template<typename T>
+	void SetFilterData(int32 Key, const T& InData)
+	{
+		DataMap[Key].Set<T>(InData);
+	}
+
+	template<typename T>
+	void GetFilterData(int32 Key, T& OutData) const
+	{
+		const ContextData* Data = DataMap.Find(Key);
+		check(Data);
+
+		check(Data->IsType<T>());
+		OutData = Data->Get<T>();
+	}
+
+	bool HasFilterData(int32 Key) const
+	{
+		return DataMap.Contains(Key);
+	}
+
+	bool GetReturnValueForUnsetFilters() const { return bReturnValueForUnsetFilters; }
+	void SetReturnValueForUnsetFilters(bool InValue) { bReturnValueForUnsetFilters = InValue; }
+
+private:
+	TMap<int32, ContextData> DataMap;
+	bool bReturnValueForUnsetFilters = true;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef TSharedPtr<const TArray<TSharedPtr<IFilterOperator>>> SupportedOperatorsArrayConstPtr;
+typedef TSharedPtr<TArray<TSharedPtr<IFilterOperator>>> SupportedOperatorsArrayPtr;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FFilter;
+
+class FFilterState
+{
+	INSIGHTS_DECLARE_RTTI_BASE(FFilterState)
+public:
+	FFilterState(TSharedRef<FFilter> InFilter)
+		: Filter(InFilter)
+	{
+	}
+
+	virtual ~FFilterState() {}
+
+	void SetSelectedOperator(TSharedPtr<IFilterOperator> InOperator) { SelectedOperator = InOperator; }
+	TSharedPtr<IFilterOperator> GetSelectedOperator() { return SelectedOperator; }
+
+	virtual void Update() {};
+	virtual bool ApplyFilter(const FFilterContext& Context) const;
+
+	virtual void SetFilterValue(FString InTextValue);
+
+protected:
+	TSharedRef<FFilter> Filter;
+	TSharedPtr<IFilterOperator> SelectedOperator;
+	FFilterContext::ContextData FilterValue;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+class FFilter : public TSharedFromThis<FFilter>
 {
 	INSIGHTS_DECLARE_RTTI_BASE(FFilter)
 
@@ -149,9 +228,12 @@ public:
 	const FText& GetDesc() const { return Desc; }
 	EFilterDataType GetDataType() const { return DataType; }
 	const TSharedPtr<IFilterValueConverter>& GetConverter() const { return Converter; }
-	SupportedOperatorsArrayPtr GetSupportedOperators() const { return SupportedOperators; }
+	SupportedOperatorsArrayConstPtr GetSupportedOperators() const { return SupportedOperators; }
 
-private:
+	virtual TSharedRef<FFilterState> BuildFilterState() { return MakeShared<FFilterState>(SharedThis(this)); }
+	virtual TSharedRef<FFilterState> BuildFilterState(const FFilterState& Other) { return MakeShared<FFilterState>(Other); }
+
+protected:
 	int32 Key;
 	FText Name;
 	FText Desc;
@@ -244,49 +326,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FFilterContext
+class FCustomFilter : public FFilterWithSuggestions
 {
+	INSIGHTS_DECLARE_RTTI(FCustomFilter, FFilterWithSuggestions)
 public:
-	typedef TVariant<double, int64, FString> ContextData;
-
-public:
-	template<typename T>
-	void AddFilterData(int32 Key, const T& InData)
+	FCustomFilter(int32 InKey, FText InName, FText InDesc, EFilterDataType InDataType, TSharedPtr<IFilterValueConverter> InConverter, SupportedOperatorsArrayPtr InSupportedOperators)
+		: FFilterWithSuggestions(InKey, InName, InDesc, InDataType, InConverter, InSupportedOperators)
 	{
-		ContextData VariantData;
-		VariantData.Set<T>(InData);
-		DataMap.Add(Key, VariantData);
 	}
 
-	template<typename T>
-	void SetFilterData(int32 Key, const T& InData)
+	virtual ~FCustomFilter()
 	{
-		DataMap[Key].Set<T>(InData);
 	}
-
-	template<typename T>
-	void GetFilterData(int32 Key, T& OutData) const
-	{
-		const ContextData* Data = DataMap.Find(Key);
-		check(Data);
-
-		check(Data->IsType<T>());
-		OutData = Data->Get<T>();
-	}
-
-	bool HasFilterData(int32 Key) const
-	{
-		return DataMap.Contains(Key);
-	}
-
-	bool GetReturnValueForUnsetFilters() const { return bReturnValueForUnsetFilters; }
-	void SetReturnValueForUnsetFilters(bool InValue) { bReturnValueForUnsetFilters = InValue; }
-
-private:
-	TMap<int32, ContextData> DataMap;
-	bool bReturnValueForUnsetFilters = true;
 };
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Insights
