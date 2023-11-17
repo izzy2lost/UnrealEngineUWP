@@ -306,7 +306,8 @@ namespace EpicGames.Horde.Storage.Clients
 		/// </summary>
 		/// <param name="basePath">Base path for all requests</param>
 		/// <param name="accessToken">Custom access token to use for requests</param>
-		public IStorageClient CreateClientWithPath(string basePath, string? accessToken = null)
+		/// <param name="withBackendCache"></param>
+		public IStorageClient CreateClientWithPath(string basePath, string? accessToken = null, bool withBackendCache = true)
 		{
 			HttpClient CreateClient()
 			{
@@ -319,7 +320,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
-			if (_backendCache != null)
+			if (_backendCache != null && withBackendCache)
 			{
 				backend = _backendCache.CreateWrapper(basePath, backend);
 			}

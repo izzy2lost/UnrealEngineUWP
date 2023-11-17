@@ -249,7 +249,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 			catch
 			{
+#pragma warning disable CA1508 // trailingPacket is always null (...not if it's thrown an exception)
 				trailingPacket?.Dispose();
+#pragma warning restore CA1508
 				leadingPacket?.Dispose();
 				throw;
 			}
