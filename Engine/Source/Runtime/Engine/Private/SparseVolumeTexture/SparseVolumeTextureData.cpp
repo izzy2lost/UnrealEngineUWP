@@ -706,11 +706,11 @@ bool FTextureData::DeduplicateTiles()
 
 		if (!MipMaps[MipLevel].PhysicalTileDataA.IsEmpty())
 		{
-			MipMaps[MipLevel].PhysicalTileDataA.SetNum(TileWritePos * TileByteSize[0]);
+			MipMaps[MipLevel].PhysicalTileDataA.SetNum(DeduplicatedTileSizeBytes[0]);
 		}
 		if (!MipMaps[MipLevel].PhysicalTileDataB.IsEmpty())
 		{
-			MipMaps[MipLevel].PhysicalTileDataB.SetNum(TileWritePos * TileByteSize[1]);
+			MipMaps[MipLevel].PhysicalTileDataB.SetNum(DeduplicatedTileSizeBytes[1]);
 		}
 	}
 
