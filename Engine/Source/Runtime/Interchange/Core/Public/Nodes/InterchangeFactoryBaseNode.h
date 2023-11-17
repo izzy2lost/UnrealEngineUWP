@@ -164,8 +164,11 @@ class UInterchangeFactoryBaseNode : public UInterchangeBaseNode
 public:
 	INTERCHANGECORE_API UInterchangeFactoryBaseNode();
 
+#if WITH_EDITOR
 	INTERCHANGECORE_API virtual FString GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override;
 	INTERCHANGECORE_API virtual FString GetAttributeCategory(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override;
+	INTERCHANGECORE_API virtual bool ShouldHideAttribute(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override;
+#endif
 
 	/**
 	 * Return the reimport strategy flags.

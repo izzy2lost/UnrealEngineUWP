@@ -68,6 +68,19 @@ public:
 #endif
 	}
 
+#if WITH_EDITOR
+
+	virtual bool ShouldHideAttribute(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override
+	{
+		if (NodeAttributeKey == Macro_CustomSkeletalMeshUidKey)
+		{
+			return true;
+		}
+
+		return Super::ShouldHideAttribute(NodeAttributeKey);
+	}
+#endif
+
 	virtual FGuid GetHash() const override
 	{
 		return Attributes->GetStorageHash();

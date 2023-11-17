@@ -173,6 +173,13 @@ enum class EInterchangeNodeContainerType : uint8
 	FactoryData
 };
 
+UENUM(BlueprintType)
+enum class EInterchangeNodeUserInterfaceContext : uint8
+{
+	None,
+	Preview //When we want to preview the node data, a preview is normaly read only and should not show internal data
+};
+
 /**
  * This struct is used to store and retrieve key value attributes. The attributes are store in a generic FAttributeStorage which serialize the value in a TArray64<uint8>
  * See UE::Interchange::EAttributeTypes to know the supported template types
@@ -207,6 +214,7 @@ public:
 	 */
 	INTERCHANGECORE_API virtual FName GetIconName() const;
 
+#if WITH_EDITOR
 	/**
 	 * UI that inspect node attribute call this to give a readable name to attribute key
 	 */
@@ -221,6 +229,16 @@ public:
 	 * UI that inspect node attribute call this to display the attribute under the returned category
 	 */
 	INTERCHANGECORE_API virtual FString GetAttributeCategory(const UE::Interchange::FAttributeKey& NodeAttributeKey) const;
+
+#endif //WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Temporary property set by UI to have the context for ShouldHideAttribute. We use this because property editor cannot add this custom context when it call CustomizeDetails
+	 */
+	UPROPERTY(Transient, DuplicateTransient)
+	EInterchangeNodeUserInterfaceContext UserInterfaceContext = EInterchangeNodeUserInterfaceContext::None;
+#endif
 
 	/**
 	 * Add an attribute to the node

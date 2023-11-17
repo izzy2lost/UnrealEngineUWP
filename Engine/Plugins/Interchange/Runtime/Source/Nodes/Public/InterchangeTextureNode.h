@@ -63,7 +63,7 @@ public:
 		const FString TypeName = TEXT("TextureNode");
 		return TypeName;
 	}
-
+#if WITH_EDITOR
 	virtual FString GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override
 	{
 		FString KeyDisplayName = NodeAttributeKey.ToString();
@@ -73,6 +73,7 @@ public:
 		}
 		return Super::GetKeyDisplayName(NodeAttributeKey);
 	}
+#endif //WITH_EDITOR
 
 	virtual FGuid GetHash() const override
 	{

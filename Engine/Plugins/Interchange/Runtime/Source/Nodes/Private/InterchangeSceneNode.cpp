@@ -71,6 +71,8 @@ FString UInterchangeSceneNode::GetTypeName() const
 	return TypeName;
 }
 
+#if WITH_EDITOR
+
 FString UInterchangeSceneNode::GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {
 	FString KeyDisplayName = NodeAttributeKey.ToString();
@@ -135,6 +137,8 @@ FString UInterchangeSceneNode::GetAttributeCategory(const UE::Interchange::FAttr
 	
 	return Super::GetAttributeCategory(NodeAttributeKey);
 }
+
+#endif //WITH_EDITOR
 
 FName UInterchangeSceneNode::GetIconName() const
 {

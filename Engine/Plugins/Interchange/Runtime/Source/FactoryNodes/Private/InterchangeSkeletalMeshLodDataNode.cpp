@@ -28,6 +28,8 @@ FString UInterchangeSkeletalMeshLodDataNode::GetTypeName() const
 	return TypeName;
 }
 
+#if WITH_EDITOR
+
 FString UInterchangeSkeletalMeshLodDataNode::GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {
 	FString KeyDisplayName = NodeAttributeKey.ToString();
@@ -64,6 +66,8 @@ FString UInterchangeSkeletalMeshLodDataNode::GetAttributeCategory(const UE::Inte
 	}
 	return Super::GetAttributeCategory(NodeAttributeKey);
 }
+
+#endif //WITH_EDITOR
 
 bool UInterchangeSkeletalMeshLodDataNode::GetCustomSkeletonUid(FString& AttributeValue) const
 {

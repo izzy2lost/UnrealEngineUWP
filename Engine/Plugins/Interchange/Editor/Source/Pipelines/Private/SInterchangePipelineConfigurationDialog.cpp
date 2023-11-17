@@ -16,6 +16,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "PropertyEditorModule.h"
+#include "SInterchangeGraphInspectorWindow.h"
 #include "SPrimaryButton.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -520,6 +521,15 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
+				.Padding(4.f, 0.f)
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.Text(LOCTEXT("InspectorGraphWindow_Preview", "Preview..."))
+					.OnClicked(this, &SInterchangePipelineConfigurationDialog::OnPreviewImport)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
 				.Padding(4.f, 0.f) 
 				[
 					SNew(SButton)
@@ -870,6 +880,47 @@ void SInterchangePipelineConfigurationDialog::OnFilterOptionsChanged(ECheckBoxSt
 	RefreshStack(bStackSelectionChange);
 
 	GConfig->SetBool(TEXT("InterchangeImportDialogOptions"), TEXT("FilterOptions"), bFilterOptions, GEditorPerProjectIni);
+}
+
+FReply SInterchangePipelineConfigurationDialog::OnPreviewImport() const
+{
+	UInterchangeBaseNodeContainer* DuplicateBaseNodeContainer = DuplicateObject<UInterchangeBaseNodeContainer>(BaseNodeContainer.Get(), GetTransientPackage());
+
+	TArray<UInterchangeSourceData*> SourceDatas;
+	SourceDatas.Add(SourceData.Get());
+
+	//Execute all pipelines on the duplicated container
+	UInterchangeResultsContainer* Results = NewObject<UInterchangeResultsContainer>(GetTransientPackage());
+	for (int32 PipelineIndex = 0; PipelineIndex < PipelineListViewItems.Num(); ++PipelineIndex)
+	{
+		const TSharedPtr<FInterchangePipelineItemType> PipelineItem = PipelineListViewItems[PipelineIndex];
+		PipelineItem->Pipeline->SetResultsContainer(Results);
+		PipelineItem->Pipeline->ScriptedExecutePipeline(DuplicateBaseNodeContainer, SourceDatas);
+	}
+
+	//Set all node in preview mode so hide the internal data attributes
+	DuplicateBaseNodeContainer->IterateNodesOfType<UInterchangeFactoryBaseNode>([](const FString& NodeUid, UInterchangeFactoryBaseNode* Node)
+		{
+			Node->UserInterfaceContext = EInterchangeNodeUserInterfaceContext::Preview;
+		});
+
+	//Create and show the graph inspector UI dialog
+	TSharedRef<SWindow> Window = SNew(SWindow)
+		.ClientSize(FVector2D(800.f, 650.f))
+		.Title(NSLOCTEXT("Interchange", "GraphInspectorTitle", "Interchange node graph inspector"));
+	TSharedPtr<SInterchangeGraphInspectorWindow> InterchangeGraphInspectorWindow;
+
+	Window->SetContent
+	(
+		SAssignNew(InterchangeGraphInspectorWindow, SInterchangeGraphInspectorWindow)
+		.InterchangeBaseNodeContainer(DuplicateBaseNodeContainer)
+		.bPreview(true)
+		.OwnerWindow(Window)
+	);
+
+	FSlateApplication::Get().AddModalWindow(Window, OwnerWindow.Pin(), false);
+
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE

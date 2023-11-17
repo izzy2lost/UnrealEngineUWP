@@ -670,6 +670,31 @@ void FInterchangeBaseNodeDetailsCustomization::CustomizeDetails( IDetailLayoutBu
 		return;
 	}
 
+	//Add a row to describe the node type and class
+	{
+		const FText NodeInformationCategoryText = LOCTEXT("NodeInformationCategoryName", "Node Information");
+		const FName NodeInformationCategoryName = FName(TEXT("Node Information"));
+		IDetailCategoryBuilder& AttributeCategoryBuilder = DetailBuilder.EditCategory(NodeInformationCategoryName, NodeInformationCategoryText);
+		FText NodeInformationText = FText::GetEmpty();
+		if (UInterchangeFactoryBaseNode* FactoryNode = Cast<UInterchangeFactoryBaseNode>(InterchangeBaseNode))
+		{
+			const FString ClassName = FactoryNode->GetObjectClass() ? FactoryNode->GetObjectClass()->GetName() : InterchangeBaseNode->GetClass()->GetName();
+			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText", "Factory Node ({0})"), FText::FromString(ClassName));
+		}
+		else
+		{
+			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText", "Translated Node ({0})"), FText::FromString(InterchangeBaseNode->GetClass()->GetName()));
+		}
+
+		FDetailWidgetRow& CustomRow = AttributeCategoryBuilder.AddCustomRow(NodeInformationCategoryText)
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Text(NodeInformationText)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+		];
+	}
+
 	TArray< UE::Interchange::FAttributeKey> AttributeKeys;
 	InterchangeBaseNode->GetAttributeKeys(AttributeKeys);
 
@@ -890,6 +915,7 @@ void FInterchangeBaseNodeDetailsCustomization::BuildBoolValueContent(IDetailCate
 			SNew(SBox)
 			[
 				SNew(SCheckBox)
+				.IsEnabled(InterchangeBaseNode->UserInterfaceContext == EInterchangeNodeUserInterfaceContext::None)
 				.OnCheckStateChanged_Lambda([this, AttributeKey](ECheckBoxState CheckType)
 				{
 					const bool IsChecked = CheckType == ECheckBoxState::Checked;
@@ -1689,6 +1715,7 @@ TSharedRef<SWidget> FInterchangeBaseNodeDetailsCustomization::MakeNumericWidget(
 	
 	return
 		SNew(SNumericEntryBox<NumericType>)
+			.IsEnabled(InterchangeBaseNode->UserInterfaceContext == EInterchangeNodeUserInterfaceContext::None)
 			.EditableTextBoxStyle(&FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"))
 			.Value_Lambda([this, &GetValue, ComponentIndex, AttributeKey]()
 			{

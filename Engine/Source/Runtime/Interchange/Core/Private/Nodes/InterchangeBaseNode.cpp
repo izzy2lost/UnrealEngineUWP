@@ -107,6 +107,8 @@ FName UInterchangeBaseNode::GetIconName() const
 	return NAME_None;
 }
 
+#if WITH_EDITOR
+
 FString UInterchangeBaseNode::GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {
 	FString KeyDisplayName = NodeAttributeKey.ToString();
@@ -159,14 +161,51 @@ FString UInterchangeBaseNode::GetKeyDisplayName(const UE::Interchange::FAttribut
 
 bool UInterchangeBaseNode::ShouldHideAttribute(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {
+	//If context is preview we hide internal data
+	if (UserInterfaceContext == EInterchangeNodeUserInterfaceContext::Preview)
+	{
+		if (NodeAttributeKey == UE::Interchange::FBaseNodeStaticData::ParentIDKey())
+		{
+			return true;
+		}
+		else if (NodeAttributeKey == UE::Interchange::FBaseNodeStaticData::IsEnabledKey())
+		{
+			return true;
+		}
+		else if (NodeAttributeKey == UE::Interchange::FBaseNodeStaticData::UniqueIDKey())
+		{
+			return true;
+		}
+		else if (NodeAttributeKey == UE::Interchange::FBaseNodeStaticData::NodeContainerTypeKey())
+		{
+			return true;
+		}
+		else if (NodeAttributeKey == UE::Interchange::FBaseNodeStaticData::TargetAssetIDsKey())
+		{
+			return true;
+		}
+		else if (NodeAttributeKey.ToString().StartsWith(UE::Interchange::FBaseNodeStaticData::TargetAssetIDsKey().ToString()))
+		{
+			return true;
+		}
+	}
+
+	//Show anything else
 	return false;
 }
 
 FString UInterchangeBaseNode::GetAttributeCategory(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {
 	FString CategoryName = TEXT("Attributes");
+	const FString NodeAttributeString = NodeAttributeKey.ToString();
+	if (NodeAttributeString.StartsWith(TEXT("UserDefined_")) && NodeAttributeString.EndsWith(TEXT("_Value")))
+	{
+		CategoryName = TEXT("Custom Attributes");
+	}
 	return CategoryName;
 }
+
+#endif //WITH_EDITOR
 
 bool UInterchangeBaseNode::HasAttribute(const UE::Interchange::FAttributeKey& NodeAttributeKey) const
 {

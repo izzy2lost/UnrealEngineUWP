@@ -70,9 +70,11 @@ class INTERCHANGENODES_API UInterchangeMeshNode : public UInterchangeBaseNode
 public:
 	UInterchangeMeshNode();
 
+#if WITH_EDITOR
 	virtual FString GetKeyDisplayName(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override;
 
 	virtual FString GetAttributeCategory(const UE::Interchange::FAttributeKey& NodeAttributeKey) const override;
+#endif //WITH_EDITOR
 
 	/**
 	 * Return the node type name of the class, we use this when reporting error

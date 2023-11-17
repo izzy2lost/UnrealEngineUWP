@@ -145,6 +145,8 @@ private:
 
 	void OnFilterOptionsChanged(ECheckBoxState CheckState);
 
+	FReply OnPreviewImport() const;
+
 	TSharedPtr<IDetailsView> PipelineConfigurationDetailsView;
 	TSharedPtr<SCheckBox> UseSameSettingsForAllCheckBox;
 
