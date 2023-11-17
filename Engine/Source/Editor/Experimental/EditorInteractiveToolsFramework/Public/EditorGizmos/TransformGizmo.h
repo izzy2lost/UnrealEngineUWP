@@ -535,22 +535,22 @@ protected:
 	 */
 
 	/** Handle click press for rotate X axis */
-	virtual void OnClickPressRotateXAxis(const FInputDeviceRay& PressPos);
+	virtual void OnClickPressRotateXAxis(const FInputDeviceRay& InPressPos);
 
 	/** Handle click press for rotate Y axis */
-	virtual void OnClickPressRotateYAxis(const FInputDeviceRay& PressPos);
+	virtual void OnClickPressRotateYAxis(const FInputDeviceRay& InPressPos);
 
 	/** Handle click press for rotate Z axis */
-	virtual void OnClickPressRotateZAxis(const FInputDeviceRay& PressPos);
+	virtual void OnClickPressRotateZAxis(const FInputDeviceRay& InPressPos);
 
 	/** Handle click drag for rotate axis */
-	virtual void OnClickDragRotateAxis(const FInputDeviceRay& DragPos);
+	virtual void OnClickDragRotateAxis(const FInputDeviceRay& InDragPos);
 
 	/** Handle click release for rotate axes */
-	virtual void OnClickReleaseRotateAxis(const FInputDeviceRay& ReleasePos);
+	virtual void OnClickReleaseRotateAxis(const FInputDeviceRay& InReleasePos);
 
 	/** Get screen-space axis for rotation drag */
-	FVector2D GetScreenRotateAxisDir(const FVector& InAxis0, const FVector& InAxis1);
+	FVector2D GetScreenRotateAxisDir(const FInputDeviceRay& InPressPos);
 
 	/** Compute rotate delta based on screen-space start/end positions */
 	virtual FQuat ComputeAxisRotateDelta(const FVector2D& InStartPos, const FVector2D& InEndPos);
@@ -585,7 +585,7 @@ protected:
 	virtual void OnClickReleaseArcBallRotate(const FInputDeviceRay& ReleasePos);
 
 	/** Get the arc ball sphere world radius */
-	float GetArcBallWorldRadius() const;
+	float GetWorldRadius(const float InRadius) const;
 
 	/** */
 	float GetSizeCoefficient() const;
@@ -797,6 +797,10 @@ protected:
 	UPROPERTY()
 	FVector2D InteractionScreenAxisDirection;
 
+	/** Active normal projection to remove from drag when rotating */
+	UPROPERTY()
+	FVector2D NormalProjectionToRemove;
+
 	/** Active interaction screen start pos (only valid between state target BeginModify/EndModify) */
 	UPROPERTY()
 	FVector2D InteractionScreenStartPos;
@@ -838,4 +842,10 @@ protected:
 	/** Use Ctrl + MMB to do indirect manipulation on the Y axis */
 	UPROPERTY()
 	bool bCtrlMiddleDoesY = true;
+
+private:
+	/** Debug attributes to display the pull direction */
+	bool bDebugRotate = false;
+	FVector DebugDirection = FVector::ZeroVector;
+	FVector DebugClosest = FVector::ZeroVector;
 };
