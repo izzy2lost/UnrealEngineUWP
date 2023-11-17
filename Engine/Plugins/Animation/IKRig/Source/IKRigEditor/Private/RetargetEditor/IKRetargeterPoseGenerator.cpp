@@ -148,7 +148,7 @@ void FRetargetAutoPoseGenerator::AlignBone(
 	case ERetargetAutoAlignMethod::MeshToMesh:
 		{
 			bFoundAlignVector = GetChainTangentFromMesh(ChainToAlign, Param, SideToAlign, DirectionToAlign);
-			bFoundMatchVector = GetChainTangentFromMesh(ChainToMatch, Param, SideToMatch, DirectionToAlign);
+			bFoundMatchVector = GetChainTangentFromMesh(ChainToMatch, Param, SideToMatch, DirectionToMatch);
 			break;
 		}
 		
