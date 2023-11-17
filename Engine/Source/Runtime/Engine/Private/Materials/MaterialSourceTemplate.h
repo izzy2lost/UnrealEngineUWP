@@ -18,11 +18,14 @@ struct FMaterialSourceTemplate
 	 * The appropriate template is loaded for the first time if it wasn't loaded before.*/
 	FStringTemplateResolver BeginResolve(EShaderPlatform ShaderPlatform, int32* MaterialTemplateLineNumber = nullptr);
 
+	/* Returns the string template for specified shader platform.  */
+	const FStringTemplate& GetTemplate(EShaderPlatform ShaderPlatform);
+
 	/** Return the hash of the material template for specified shader platform 
 	  * The information hashed is the string contained within "$TemplateVersion{...}" and the name of the parameters
 	  * contained in the template string (insensitive to ordering).
 	  */
-	const FSHA1& GetTemplateHash(EShaderPlatform ShaderPlatform);
+	const FString& GetTemplateHashString(EShaderPlatform ShaderPlatform);
 
 	/** Loads a material source template if still unloaded. */
 	bool Preload(EShaderPlatform ShaderPlatform);
@@ -31,7 +34,7 @@ struct FMaterialSourceTemplate
 	FStringTemplate Templates[SP_NumPlatforms];
 
 	/** Hash of the template parameters and TemplateVersion parameter extracted from file */
-	FSHA1 TemplateHash[SP_NumPlatforms];
+	FString TemplateHashString[SP_NumPlatforms];
 
 	/** Cached material template line numbers per shader platform */
 	int32 MaterialTemplateLineNumbers[SP_NumPlatforms];

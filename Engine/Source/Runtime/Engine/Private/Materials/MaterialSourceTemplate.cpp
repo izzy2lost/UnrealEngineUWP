@@ -25,10 +25,16 @@ FStringTemplateResolver FMaterialSourceTemplate::BeginResolve(EShaderPlatform Sh
 	return { Templates[ShaderPlatform], 50 * 1024 };
 }
 
-const FSHA1& FMaterialSourceTemplate::GetTemplateHash(EShaderPlatform ShaderPlatform)
+const FStringTemplate& FMaterialSourceTemplate::GetTemplate(EShaderPlatform ShaderPlatform)
 {
 	Preload(ShaderPlatform);
-	return TemplateHash[ShaderPlatform];
+	return Templates[ShaderPlatform];
+}
+
+const FString& FMaterialSourceTemplate::GetTemplateHashString(EShaderPlatform ShaderPlatform)
+{
+	Preload(ShaderPlatform);
+	return TemplateHashString[ShaderPlatform];
 }
 
 bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
@@ -88,13 +94,14 @@ bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
 	}
 
 	// Extract the material template string TemplateVersion parameter
+	FSHA1 TemplateHash = {};
 	const TStringView TemplateVersionKeyword = TEXT("$TemplateVersion{");
 	int Begin = MaterialTemplateString.Find(TemplateVersionKeyword.GetData());
 	int End = MaterialTemplateString.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Begin + TemplateVersionKeyword.Len());
 	if (Begin > 0 && End > 0)
 	{
 		Begin += TemplateVersionKeyword.Len();
-		TemplateHash[ShaderPlatform].UpdateWithString(*MaterialTemplateString + Begin, End - Begin);
+		TemplateHash.UpdateWithString(*MaterialTemplateString + Begin, End - Begin);
 	}
 
 	TArray<FStringView> Parameters;
@@ -102,8 +109,10 @@ bool FMaterialSourceTemplate::Preload(EShaderPlatform ShaderPlatform)
 	Parameters.Sort();
 	for (const FStringView& Param : Parameters)
 	{
-		TemplateHash[ShaderPlatform].UpdateWithString(Param.GetData(), Param.Len());
+		TemplateHash.UpdateWithString(Param.GetData(), Param.Len());
 	}
+
+	TemplateHashString[ShaderPlatform] = LexToString(TemplateHash.Finalize());
 
 	return true;
 }

@@ -426,6 +426,8 @@ protected:
 	/** Will contain all the shading models picked up from the material expression graph */
 	FMaterialShadingModelField ShadingModelsFromCompilation;
 
+	struct FEnvironmentDefines;
+
 	// Describe the simplification status. Once the material has been compiled, it can be used to understand if and how it has been simplified.
 	struct FSubstrateSimplificationStatus
 	{
@@ -526,6 +528,7 @@ protected:
 		bool SubstrateGenerateDerivedMaterialOperatorData(FHLSLMaterialTranslator* Compiler);
 
 		void SubstrateEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FShaderCompilerEnvironment* OutEnvironment);
+		void SubstrateEvaluateSharedLocalBasesNew(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FEnvironmentDefines* OutEnvironment);
 
 		FSubstrateSharedLocalBasesInfo SubstrateCompilationInfoGetMatchingSharedLocalBasisInfo(const FSubstrateRegisteredSharedLocalBasis& SearchedSharedLocalBasis);
 
@@ -552,7 +555,15 @@ protected:
 
 	/** Substrate material compilation and simplification configuration. */
 	FSubstrateCompilationConfig SubstrateCompilationConfig;
+	
+	/** The DDC key for the material translation results */
+	FIoHash DDCKeyHash;
+
 public: 
+	/**
+	 * Returns a string representation that identify the translator version. Used to keep shader DDC keys valid when material translation internals change.
+	 */
+	static void AppendVersionString(FString& Output, EShaderPlatform Platform);
 
 	FHLSLMaterialTranslator(FMaterial* InMaterial,
 		FMaterialCompilationOutput& InMaterialCompilationOutput,
@@ -561,7 +572,8 @@ public:
 		EMaterialQualityLevel::Type InQualityLevel,
 		ERHIFeatureLevel::Type InFeatureLevel,
 		const ITargetPlatform* InTargetPlatform = nullptr,
-		const FSubstrateCompilationConfig* InSubstrateCompilationConfig = nullptr);
+		const FSubstrateCompilationConfig* InSubstrateCompilationConfig = nullptr,
+		FString MaterialTranslationDDCKeyString = {});
 
 	~FHLSLMaterialTranslator();
 
@@ -621,6 +633,11 @@ public:
 	virtual FString GetParameterCodeDeriv(int32 Index, ECompiledPartialDerivativeVariation Variation);
 
 protected:
+	// These -Old functions are temporarily preserved in order to switch back to the old way of
+	// generating material translation results. We intend to remove these as soon as we are sure
+	// the new implementations of these functions work well.
+	void GetMaterialEnvironmentOld(EShaderPlatform InPlatform, FShaderCompilerEnvironment& OutEnvironment);
+	FString GetMaterialShaderCodeOld();
 
 	uint64 GetParameterHash(int32 Index);
 
@@ -1346,6 +1363,38 @@ protected:
 	virtual bool IsCurrentlyCompilingForPreviousFrame() const;
 
 	virtual bool IsDevelopmentFeatureEnabled(const FName& FeatureName) const override;
+	
+	/**
+	 * EFfectively performs the translation without querying the DDC first.
+	 */
+	void DoTranslate();
+
+	/**
+	 * Queries the DDC cache for a cached translation.
+	 * @return Whether the speecified key is in the DDC.
+	 */
+	bool QueryDDCCachedTranslationResults();
+
+	/**
+	 * Pushes the final results to the DDC cache.
+	 */
+	void PushResultsToDDCCache();
+
+	/**
+	 * Prepares the material source generation parameters.
+	 */
+	void PrepareMaterialSourceStringParameters();
+
+	/**
+	 * Prepares the Environment Defines array based on compilation results.
+	 */
+	void PrepareEnvironmentDefines();
+
+	/** The material shader source template parameters */
+	TMap<FString, FString> MaterialSourceTemplateParams;
+
+	/** The output material shader defines */
+	TUniquePtr<FEnvironmentDefines> EnvironmentDefines;
 };
 
 #endif // WITH_EDITORONLY_DATA

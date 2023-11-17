@@ -27,6 +27,7 @@
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "Materials/Material.h"
 #include "MaterialHLSLGenerator.h"
+#include "HLSLMaterialTranslator.h"
 
 int32 GMaterialExcludeNonPipelinedShaders = 1;
 static FAutoConsoleVariableRef CVarMaterialExcludeNonPipelinedShaders(
@@ -178,7 +179,7 @@ FString GetBlendModeString(EBlendMode BlendMode)
 
 #if WITH_EDITOR
 /** Creates a string key for the derived data cache given a shader map id. */
-static FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform)
+FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderMapId, EShaderPlatform Platform, bool bIncludeKeyStringShaderDependencies)
 {
 	FName Format = LegacyShaderPlatformToShaderFormat(Platform);
 	FString ShaderMapKeyString;
@@ -194,9 +195,11 @@ static FString GetMaterialShaderMapKeyString(const FMaterialShaderMapId& ShaderM
 	ShaderMapKeyString.AppendChar('_');
 
 	ShaderMapAppendKeyString(Platform, ShaderMapKeyString);
-	ShaderMapId.AppendKeyString(ShaderMapKeyString);
+	ShaderMapId.AppendKeyString(ShaderMapKeyString, true, bIncludeKeyStringShaderDependencies);
 	FMaterialAttributeDefinitionMap::AppendDDCKeyString(ShaderMapKeyString);
 	FShaderCompileUtilities::AppendGBufferDDCKeyString(Platform, ShaderMapKeyString);
+
+	FHLSLMaterialTranslator::AppendVersionString(ShaderMapKeyString, Platform);
 
 	return ShaderMapKeyString;
 }
@@ -1077,7 +1080,7 @@ void FMaterialShaderMapId::AppendStaticParametersString(FString& ParamsString) c
 	}
 }
 
-void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState) const
+void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSourceAndMaterialState, bool bIncludeKeyStringShaderDependencies) const
 {
 	check(IsContentValid());
 	if (bIncludeSourceAndMaterialState)
@@ -1140,13 +1143,16 @@ void FMaterialShaderMapId::AppendKeyString(FString& KeyString, bool bIncludeSour
 	}
 
 	// Add the inputs for any shaders that are stored inline in the shader map
-	AppendKeyStringShaderDependencies(
-		MakeArrayView(ShaderTypeDependencies),
-		MakeArrayView(ShaderPipelineTypeDependencies),
-		MakeArrayView(VertexFactoryTypeDependencies),
-		LayoutParams, 
-		KeyString,
-		bIncludeSourceAndMaterialState);
+	if (bIncludeKeyStringShaderDependencies)
+	{
+		AppendKeyStringShaderDependencies(
+			MakeArrayView(ShaderTypeDependencies),
+			MakeArrayView(ShaderPipelineTypeDependencies),
+			MakeArrayView(VertexFactoryTypeDependencies),
+			LayoutParams,
+			KeyString,
+			bIncludeSourceAndMaterialState);
+	}
 
 	BytesToHex(&TextureReferencesHash.Hash[0], sizeof(TextureReferencesHash.Hash), KeyString);
 
@@ -1440,7 +1446,8 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				ShaderMap->Serialize(Ar);
 				//InOutShaderMap->RegisterSerializedShaders(false);
 
-				const FString InDataKey = GetMaterialShaderMapKeyString(ShaderMap->GetShaderMapId(), Platform);
+				const FString InDataKey = GetMaterialShaderMapKeyString(ShaderMap->GetShaderMapId(), Platform, true);
+
 				if (InDataKey != DataKey)
 				{
 					UE_LOG(LogMaterial, Warning, TEXT("Shader map key recomputed from DDC data: %s"), *InDataKey);
