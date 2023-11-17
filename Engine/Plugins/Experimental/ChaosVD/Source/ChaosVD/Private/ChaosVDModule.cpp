@@ -27,7 +27,6 @@ FChaosVDModule& FChaosVDModule::Get()
 void FChaosVDModule::StartupModule()
 {	
 	FChaosVDStyle::Initialize();
-	FChaosVDStyle::ReloadTextures();
 
 	RegisterClassesCustomDetails();
 
