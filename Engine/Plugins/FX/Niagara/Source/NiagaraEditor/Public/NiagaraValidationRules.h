@@ -8,6 +8,7 @@
 #include "NiagaraRendererProperties.h"
 #include "NiagaraValidationRules.generated.h"
 
+class UNiagaraEffectType;
 class UNiagaraScript;
 
 namespace NiagaraValidation
@@ -225,6 +226,10 @@ public:
 	/** Check that the skeletal mesh interface isn't adding a tick dependency on the CPU. */
 	UPROPERTY(EditAnywhere, Category = Validation)
 	bool bCheckSkeletalMeshInterface = true;
+
+	/** If the system uses one of these effect types the rule will not be run. */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	TArray<TSoftObjectPtr<UNiagaraEffectType>> EffectTypesToExclude;
 };
 
 /** This validation rule checks to see if you have exposed user data interfaces. */

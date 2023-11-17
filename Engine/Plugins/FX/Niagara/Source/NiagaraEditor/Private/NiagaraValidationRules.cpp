@@ -1007,6 +1007,11 @@ void UNiagaraValidationRule_TickDependencyCheck::CheckValidity(const FNiagaraVal
 		return;
 	}
 
+	if (EffectTypesToExclude.Contains(TSoftObjectPtr<UNiagaraEffectType>(NiagaraSystem->GetEffectType())))
+	{
+		return;
+	}
+
 	TSet<UNiagaraDataInterface*> VisitedDIs;
 	NiagaraSystem->ForEachScript(
 		[&](UNiagaraScript* NiagaraScript)
