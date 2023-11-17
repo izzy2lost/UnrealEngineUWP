@@ -496,6 +496,38 @@ FCustomizedToolMenuHierarchy UToolMenu::GetMenuCustomizationHierarchy() const
 	return Result;
 }
 
+FToolMenuProfile* UToolMenu::FindMenuProfile(const FName& ProfileName) const
+{
+	return UToolMenus::Get()->FindMenuProfile(MenuName, ProfileName);
+}
+
+FToolMenuProfile* UToolMenu::AddMenuProfile(const FName& ProfileName) const
+{
+	return UToolMenus::Get()->AddMenuProfile(MenuName, ProfileName);
+}
+
+FToolMenuProfileHierarchy UToolMenu::GetMenuProfileHierarchy(const FName& ProfileName) const
+{
+	FToolMenuProfileHierarchy Result;
+	
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	TArray<FName> HierarchyNames = GetMenuHierarchyNames(true);
+	for (const FName& ItName : HierarchyNames)
+	{
+		if (FToolMenuProfile* Found = ToolMenus->FindMenuProfile(ItName, ProfileName))
+		{
+			Result.ProfileHierarchy.Add(Found);
+		}
+
+		if (FToolMenuProfile* FoundRuntime = ToolMenus->FindRuntimeMenuProfile(ItName, ProfileName))
+		{
+			Result.RuntimeProfileHierarchy.Add(FoundRuntime);
+		}
+	}
+
+	return Result;
+}
+
 void UToolMenu::UpdateMenuCustomizationFromMultibox(const TSharedRef<const FMultiBox>& InMultiBox)
 {
 	FCustomizedToolMenu* Customization = AddMenuCustomization();

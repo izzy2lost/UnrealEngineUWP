@@ -113,6 +113,9 @@ public:
 	virtual FCustomizedToolMenu* FindMenuCustomization() const override;
 	virtual FCustomizedToolMenu* AddMenuCustomization() const override;
 	virtual FCustomizedToolMenuHierarchy GetMenuCustomizationHierarchy() const override;
+	virtual FToolMenuProfile* FindMenuProfile(const FName& ProfileName) const override;
+	virtual FToolMenuProfile* AddMenuProfile(const FName& ProfileName) const override;
+	virtual FToolMenuProfileHierarchy GetMenuProfileHierarchy(const FName& ProfileName) const override;
 	virtual void UpdateMenuCustomizationFromMultibox(const TSharedRef<const FMultiBox>& InMultiBox) override;
 	virtual void OnMenuDestroyed() override;
 	//~ End UToolMenuBase Interface

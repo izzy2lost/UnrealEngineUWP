@@ -88,6 +88,22 @@ public:
 };
 
 /**
+ * Allows an asset editor to specify which custom menus/toolbar items are visible in read-only mode, with
+ * the default behavior being that all entries specific to an asset editor are hidden
+ */
+struct FReadOnlyAssetEditorCustomization
+{
+	// Permission list for the main menu
+	FNamePermissionList MainMenuPermissionList;
+
+	// Permission list for the toolbar
+	FNamePermissionList ToolbarPermissionList;
+
+	// Permission list for the various submenus on the main menu (e.g File, Help..)
+	TMap<FName, FNamePermissionList> MainMenuSubmenuPermissionLists;
+};
+
+/**
  * Base class for toolkits that are used for asset editing (abstract)
  */
 class FAssetEditorToolkit
@@ -403,6 +419,12 @@ protected:
 
 	UNREALED_API virtual void CreateEditorModeManager() override;
 
+	/** Specify the permission lists to use in read only mode */
+	UNREALED_API virtual void SetupReadOnlyMenuProfiles(FReadOnlyAssetEditorCustomization& OutReadOnlyCustomization) { }
+
+	/** Get the name of the profile registered with UToolMenus for read only menu customizations */
+	UNREALED_API virtual FName GetReadOnlyMenuProfileName() { return ReadOnlyMenuProfileName; }
+
 private:
 	// Callback for persisting the Asset Editor's layout.
 	void HandleTabManagerPersistLayout( const TSharedRef<FTabManager::FLayout>& LayoutToSave )
@@ -412,6 +434,9 @@ private:
 			FLayoutSaveRestore::SaveToConfig(GEditorLayoutIni, LayoutToSave);
 		}
 	}
+
+	/** Initialize the base level customizations for read only mode and register the profile */
+	void InitializeReadOnlyMenuProfiles();
 
 private:
 	/**
@@ -468,6 +493,9 @@ private:
 	static UNREALED_API TSharedPtr<FExtensibilityManager> SharedMenuExtensibilityManager;
 	static UNREALED_API TSharedPtr<FExtensibilityManager> SharedToolBarExtensibilityManager;
 
+	/** The name of the profile registered with UToolMenus for read only menu customizations */
+	static UNREALED_API const FName ReadOnlyMenuProfileName;
+
 	/** The object we're currently editing */
 	// @todo toolkit minor: Currently we don't need to serialize this object reference because the AssetEditorSubsystem is kept in sync (and will always serialize it.)
 	TArray<TObjectPtr<UObject>> EditingObjects;
@@ -492,4 +520,7 @@ private:
 
 	/** Whether the asset editor was opened in edit mode or read only mode */
 	EAssetOpenMethod OpenMethod;
+
+	/** Determines menu/toolbar customization in read only mode */
+	FReadOnlyAssetEditorCustomization ReadOnlyCustomization;
 };

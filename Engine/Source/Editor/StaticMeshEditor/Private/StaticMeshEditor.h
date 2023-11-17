@@ -474,6 +474,8 @@ private:
 
 	//~ Begin FAssetEditorToolkit Interface.
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
+	virtual void SetupReadOnlyMenuProfiles(FReadOnlyAssetEditorCustomization& OutReadOnlyCustomization) override;
+
 	//~ End FAssetEditorToolkit Interface.
 
 	//~ Begin FEditorUndoClient Interface

@@ -34,6 +34,7 @@
 #include "Misc/Attribute.h"
 #include "Textures/SlateIcon.h"
 #include "WidgetDrawerConfig.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
 #include "Widgets/Images/SImage.h"
 
@@ -46,6 +47,7 @@ TSharedPtr<FExtensibilityManager> FAssetEditorToolkit::SharedMenuExtensibilityMa
 TSharedPtr<FExtensibilityManager> FAssetEditorToolkit::SharedToolBarExtensibilityManager;
 
 const FName FAssetEditorToolkit::DefaultAssetEditorToolBarName("AssetEditor.DefaultToolBar");
+const FName FAssetEditorToolkit::ReadOnlyMenuProfileName("AssetEditor.ReadOnlyMenuProfile");
 
 FAssetEditorToolkit::FAssetEditorToolkit()
 	: GCEditingObjects(*this)
@@ -293,9 +295,11 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		}
 	}
 
+	InitializeReadOnlyMenuProfiles();
+
 	// Give a chance to customize tab manager and other UI before widgets are created
 	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->NotifyEditorOpeningPreWidgets(ObjectPtrDecay(EditingObjects), this);
-
+	
 	// Create menus
 	if (ToolkitMode == EToolkitMode::Standalone)
 	{
@@ -1057,14 +1061,10 @@ void FAssetEditorToolkit::FillDefaultFileMenuCommands(FToolMenuSection& InSectio
 
 	if (UAssetEditorToolkitMenuContext* Context = InSection.FindContext<UAssetEditorToolkitMenuContext>())
 	{
-		// The save buttons are hidden if we are in read only mode
-		if(Context->Toolkit.Pin()->GetOpenMethod() == EAssetOpenMethod::Edit)
+		InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAsset, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAsset")).InsertPosition = InsertPosition;
+		if( IsActuallyAnAsset() )
 		{
-			InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAsset, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAsset")).InsertPosition = InsertPosition;
-			if( IsActuallyAnAsset() )
-			{
-				InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
-			}
+			InSection.AddMenuEntry(FAssetEditorCommonCommands::Get().SaveAssetAs, TAttribute<FText>(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "AssetEditor.SaveAssetAs")).InsertPosition = InsertPosition;
 		}
 	}
 
@@ -1174,8 +1174,82 @@ void FAssetEditorToolkit::RegisterDefaultToolBar()
 	}
 }
 
+void FAssetEditorToolkit::InitializeReadOnlyMenuProfiles()
+{
+	// Toolbar Customizations
+
+	// Only allow the "Find in Content Browser" toolbar item by default - which hides "Save" since we are using an allowlist
+	ReadOnlyCustomization.ToolbarPermissionList.AddAllowListItem(ReadOnlyMenuProfileName, FGlobalEditorCommonCommands::Get().FindInContentBrowser->GetCommandName());
+
+	// Main Menu Customizations
+
+	// The default menus we provide in the main menu
+	TArray<FName> MainMenuSubmenus({"File", "Edit", "Asset", "Window", "Tools", "Help"});
+
+	// Only allow the default menus we provide
+	for(const FName& Submenu : MainMenuSubmenus)
+	{
+		ReadOnlyCustomization.MainMenuPermissionList.AddAllowListItem(ReadOnlyMenuProfileName, Submenu);
+		ReadOnlyCustomization.MainMenuSubmenuPermissionLists.Add(Submenu, FNamePermissionList());
+	}
+
+	// Hide the save commands in the "File" menu in read only mode
+	FNamePermissionList& FileMenuPermissionList = ReadOnlyCustomization.MainMenuSubmenuPermissionLists.FindOrAdd("File");
+
+	FileMenuPermissionList.AddDenyListItem(ReadOnlyMenuProfileName, FAssetEditorCommonCommands::Get().SaveAsset->GetCommandName());
+	FileMenuPermissionList.AddDenyListItem(ReadOnlyMenuProfileName, FAssetEditorCommonCommands::Get().SaveAssetAs->GetCommandName());
+
+	// Hide the re-import command in the "asset" menu in read only mode
+	// There is a reimport command per editing object, so we make sure to hide them all. See FAssetEditorToolkit::FillDefaultAssetMenuCommands
+	FNamePermissionList& AssetMenuPermissionList = ReadOnlyCustomization.MainMenuSubmenuPermissionLists.FindOrAdd("Asset");
+	
+	FName ReimportEntryName = TEXT("Reimport");
+	int32 MenuEntryCount = 0;
+
+	for( auto ObjectIter = EditingObjects.CreateConstIterator(); ObjectIter; ++ObjectIter )
+	{
+		ReimportEntryName.SetNumber(MenuEntryCount++);
+		AssetMenuPermissionList.AddDenyListItem(ReadOnlyMenuProfileName, ReimportEntryName);
+	}
+	
+	// Give specific asset editors a chance to customize the default behavior (e.g show specific menus they want to allow in read only mode)
+	SetupReadOnlyMenuProfiles(ReadOnlyCustomization);
+
+	// Create the menu profile and apply the permission lists
+	FToolMenuProfile* MainMenuProfile = UToolMenus::Get()->AddRuntimeMenuProfile(GetToolMenuName(), ReadOnlyMenuProfileName);
+	FToolMenuProfile* ToolbarProfile = UToolMenus::Get()->AddRuntimeMenuProfile(GetToolMenuToolbarName(), ReadOnlyMenuProfileName);
+	FToolMenuProfile* CommonActionsToolbarProfile = UToolMenus::Get()->AddRuntimeMenuProfile("AssetEditorToolbar.CommonActions", ReadOnlyMenuProfileName);
+
+	MainMenuProfile->MenuPermissions = ReadOnlyCustomization.MainMenuPermissionList;
+	ToolbarProfile->MenuPermissions = ReadOnlyCustomization.ToolbarPermissionList;
+	CommonActionsToolbarProfile->MenuPermissions = ReadOnlyCustomization.ToolbarPermissionList;
+
+	for(const FName& Submenu : MainMenuSubmenus)
+	{
+		const FName SubmenuName = *(GetToolMenuName().ToString() + TEXT(".") + Submenu.ToString());
+		
+		FToolMenuProfile* SubmenuProfile = UToolMenus::Get()->AddRuntimeMenuProfile(SubmenuName, ReadOnlyMenuProfileName);
+		SubmenuProfile->MenuPermissions = ReadOnlyCustomization.MainMenuSubmenuPermissionLists[Submenu];
+	}
+
+}
+
 void FAssetEditorToolkit::InitToolMenuContext(FToolMenuContext& MenuContext)
 {
+	UAssetEditorToolkitMenuContext* ToolkitMenuContext = MenuContext.FindContext<UAssetEditorToolkitMenuContext>();
+	
+	if(!ToolkitMenuContext || !ToolkitMenuContext->Toolkit.IsValid())
+	{
+		return;
+	}
+
+	// If we are in read only mode, set the read only menu profile as active
+	if(ToolkitMenuContext->Toolkit.Pin()->GetOpenMethod() == EAssetOpenMethod::View)
+	{
+		UToolMenuProfileContext* ProfileContext = NewObject<UToolMenuProfileContext>();
+		ProfileContext->ActiveProfiles.Add(ReadOnlyMenuProfileName);
+		MenuContext.AddObject(ProfileContext);
+	}
 }
 
 UToolMenu* FAssetEditorToolkit::GenerateCommonActionsToolbar(FToolMenuContext& MenuContext)
@@ -1200,11 +1274,7 @@ UToolMenu* FAssetEditorToolkit::GenerateCommonActionsToolbar(FToolMenuContext& M
 			{
 				if(TSharedPtr<FAssetEditorToolkit> AssetEditorToolkit = AssetEditorToolkitMenuContext->Toolkit.Pin())
 				{
-					// The save button is hidden if we are in read only mode
-					if(AssetEditorToolkit->GetOpenMethod() == EAssetOpenMethod::Edit)
-					{
-						InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FAssetEditorCommonCommands::Get().SaveAsset));
-					}
+					InSection.AddEntry(FToolMenuEntry::InitToolBarButton(FAssetEditorCommonCommands::Get().SaveAsset));
 				}
 			}
 		}));

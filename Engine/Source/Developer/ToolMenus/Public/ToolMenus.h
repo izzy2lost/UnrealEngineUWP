@@ -43,6 +43,30 @@ struct FGeneratedToolMenuWidgets
 	TArray<FGeneratedToolMenuWidget> Instances;
 };
 
+/*
+ * A global context that any menu can add/modify to specify which profiles are currently active
+ */
+UCLASS()
+class TOOLMENUS_API UToolMenuProfileContext : public UToolMenuContextBase
+{
+	GENERATED_BODY()
+public:
+
+	TArray<FName> ActiveProfiles;
+};
+
+/*
+ * Struct to store all the profiles for a menu for serialization
+ */
+USTRUCT()
+struct FToolMenuProfileMap
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<FName /*profile name*/, FToolMenuProfile> MenuProfiles;
+};
+
 UCLASS(config=EditorPerProjectUserSettings)
 class TOOLMENUS_API UToolMenus : public UObject
 {
@@ -254,6 +278,18 @@ public:
 	/** Find or add runtime customization settings for a menu */
 	FCustomizedToolMenu* AddRuntimeMenuCustomization(const FName InName);
 
+	/** Find a specific profile for a menu */
+	FToolMenuProfile* FindMenuProfile(const FName InMenuName, const FName InProfileName);
+
+	/** Find or add a specific profile for a menu */
+	FToolMenuProfile* AddMenuProfile(const FName InMenuName, const FName InProfileName);
+
+	/** Find a specific runtime only profile for a menu */
+	FToolMenuProfile* FindRuntimeMenuProfile(const FName InMenuName, const FName InProfileName);
+
+	/** Find or add a specific runtime only profile for a menu */
+	FToolMenuProfile* AddRuntimeMenuProfile(const FName InMenuName, const FName InProfileName);
+
 	/** Unregister runtime customization settings for a specific owner name */
 	void UnregisterRuntimeMenuCustomizationOwner(const FName InOwnerName);
 
@@ -368,7 +404,9 @@ private:
 
 	void AddReferencedContextObjects(const TSharedRef<FMultiBox>& InMultiBox, const UToolMenu* InMenu);
 
-	void ApplyCustomization(UToolMenu* GeneratedMenu);
+	void ApplyCustomizationAndProfiles(UToolMenu* GeneratedMenu);
+	void ApplyProfile(UToolMenu* GeneratedMenu, const FToolMenuProfile& Profile);
+	void ApplyCustomization(UToolMenu* GeneratedMenu, const FCustomizedToolMenu& Profile);
 
 	void UnregisterOwnerInternal(FToolMenuOwner Owner);
 
@@ -382,7 +420,7 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = Misc)
 	TArray<FCustomizedToolMenu> CustomizedMenus;
-
+	
 	/* Allow substituting one menu for another during generate but not during find or extend */
 	UPROPERTY(EditAnywhere, Category = Misc)
 	TMap<FName, FName> MenuSubstitutionsDuringGenerate;
@@ -400,6 +438,13 @@ private:
 
 	/** Transient customizations made during runtime that will not be saved */
 	TArray<FCustomizedToolMenu> RuntimeCustomizedMenus;
+
+	UPROPERTY(EditAnywhere, Category = Misc)
+	TMap<FName /*MenuName*/, FToolMenuProfileMap> MenuProfiles;
+
+	/** Transient profiles made during runtime that will not be saved */
+	TMap<FName /*MenuName*/, FToolMenuProfileMap> RuntimeMenuProfiles;
+
 
 	FSimpleDelegate SetTimerForNextTickDelegate;
 

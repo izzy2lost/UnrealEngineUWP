@@ -510,12 +510,6 @@ void FStaticMeshEditor::ExtendMenu()
 			{
 				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
 				{
-					// These entries modify the mesh, so we don't want them in read only mode
-					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
-					{
-						return;
-					}
-					
 					FToolMenuEntry& Entry = InSection.AddSubMenu("Collision",
 						LOCTEXT("StaticMeshEditorCollisionMenu", "Collision"),
 						LOCTEXT("StaticMeshEditorCollisionMenu_ToolTip", "Opens a menu with commands for editing this mesh's collision"),
@@ -711,7 +705,8 @@ void FStaticMeshEditor::BindCommands()
 	UICommandList->MapAction(
 		FGenericCommands::Get().Duplicate,
 		FExecuteAction::CreateSP(this, &FStaticMeshEditor::DuplicateSelected),
-		FCanExecuteAction::CreateSP(this, &FStaticMeshEditor::CanDuplicateSelected));
+		FCanExecuteAction::CreateSP(this, &FStaticMeshEditor::CanDuplicateSelected),
+		FIsActionChecked());
 
 	UICommandList->MapAction(
 		FGenericCommands::Get().Copy,
@@ -726,7 +721,8 @@ void FStaticMeshEditor::BindCommands()
 	UICommandList->MapAction(
 		FGenericCommands::Get().Rename,
 		FExecuteAction::CreateSP(this, &FStaticMeshEditor::RequestRenameSelectedSocket),
-		FCanExecuteAction::CreateSP(this, &FStaticMeshEditor::CanRenameSelected));
+		FCanExecuteAction::CreateSP(this, &FStaticMeshEditor::CanRenameSelected),
+		FIsActionChecked());
 
 	UICommandList->MapAction(
 		Commands.CreateDOP10X,
@@ -878,7 +874,11 @@ void FStaticMeshEditor::BindCommands()
 	UICommandList->MapAction(
 		Commands.BakeMaterials,
 		FExecuteAction::CreateSP(this, &FStaticMeshEditor::BakeMaterials),
-		FCanExecuteAction());
+		FCanExecuteAction::CreateLambda([this]()
+		{
+			return GetOpenMethod() != EAssetOpenMethod::View;
+		}),
+		FIsActionChecked());
 }
 
 void FStaticMeshEditor::ExtendToolBar()
@@ -900,12 +900,6 @@ void FStaticMeshEditor::ExtendToolBar()
 			{
 				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
 				{
-					// These entries modify the mesh, so we don't want them in read only mode
-					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
-					{
-						return;
-					}
-					
 					auto ConstructReimportContextMenu = [](UToolMenu* InMenu)
 					{
 						FToolMenuSection& Section = InMenu->AddSection("Reimport");
@@ -940,12 +934,6 @@ void FStaticMeshEditor::ExtendToolBar()
 			{
 				if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InSection))
 				{
-					// These entries modify the mesh, so we don't want them in read only mode
-					if(StaticMeshEditor->GetOpenMethod() != EAssetOpenMethod::Edit)
-					{
-						return;
-					}
-					
 					FToolMenuEntry& CollisionEntry = InSection.AddEntry(FToolMenuEntry::InitComboButton(
 					"Collision",
 					FUIAction(),
@@ -1716,23 +1704,19 @@ void FStaticMeshEditor::GenerateUVChannelComboList(UToolMenu* InMenu)
 
 	if (TSharedPtr<FStaticMeshEditor> StaticMeshEditor = StaticMeshEditor::GetStaticMeshEditorFromMenuContext(InMenu))
 	{
-		// These actions modify the mesh, so we don't want them in read only mode
-		if(StaticMeshEditor->GetOpenMethod() == EAssetOpenMethod::Edit)
-		{
-			FToolMenuSection& Section = InMenu->AddSection("UVActionOptions");
+		FToolMenuSection& Section = InMenu->AddSection("UVActionOptions");
 
-			FUIAction MenuAction;
-			MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::RemoveCurrentUVChannel);
-			MenuAction.CanExecuteAction.BindSP(this, &FStaticMeshEditor::CanRemoveUVChannel);
-			Section.AddMenuEntry(
-				"Remove_UVChannel",
-				LOCTEXT("Remove_UVChannel", "Remove Selected"),
-				LOCTEXT("Remove_UVChannel_ToolTip", "Remove currently selected UV channel from the static mesh"),
-				FSlateIcon(),
-				MenuAction,
-				EUserInterfaceActionType::Button
-			);
-		}
+		FUIAction MenuAction;
+		MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::RemoveCurrentUVChannel);
+		MenuAction.CanExecuteAction.BindSP(this, &FStaticMeshEditor::CanRemoveUVChannel);
+		Section.AddMenuEntry(
+			"Remove_UVChannel",
+			LOCTEXT("Remove_UVChannel", "Remove Selected"),
+			LOCTEXT("Remove_UVChannel_ToolTip", "Remove currently selected UV channel from the static mesh"),
+			FSlateIcon(),
+			MenuAction,
+			EUserInterfaceActionType::Button
+		);
 		
 	}
 }
@@ -2383,7 +2367,7 @@ void FStaticMeshEditor::DeleteSelected()
 
 bool FStaticMeshEditor::CanDeleteSelected() const
 {
-	return (GetSelectedSocket() != NULL || HasSelectedPrims());
+	return GetOpenMethod() != EAssetOpenMethod::View && (GetSelectedSocket() != NULL || HasSelectedPrims());
 }
 
 void FStaticMeshEditor::DeleteSelectedSockets()
@@ -2472,7 +2456,7 @@ void FStaticMeshEditor::DuplicateSelected()
 
 bool FStaticMeshEditor::CanDuplicateSelected() const
 {
-	return (GetSelectedSocket() != NULL || HasSelectedPrims());
+	return GetOpenMethod() != EAssetOpenMethod::View && (GetSelectedSocket() != NULL || HasSelectedPrims());
 }
 
 void FStaticMeshEditor::CopySelected()
@@ -2492,6 +2476,11 @@ void FStaticMeshEditor::PasteCopied()
 
 bool FStaticMeshEditor::CanPasteCopied() const
 {
+	if(GetOpenMethod() == EAssetOpenMethod::View)
+	{
+		return false;
+	}
+	
 	FString TextToImport;
 	FPlatformApplicationMisc::ClipboardPaste(TextToImport);
 	FBodySetupObjectTextFactory Factory;
@@ -2500,7 +2489,7 @@ bool FStaticMeshEditor::CanPasteCopied() const
 
 bool FStaticMeshEditor::CanRenameSelected() const
 {
-	return (GetSelectedSocket() != NULL);
+	return GetOpenMethod() != EAssetOpenMethod::View && (GetSelectedSocket() != NULL);
 }
 
 void FStaticMeshEditor::ExecuteFindInExplorer()
@@ -2604,6 +2593,25 @@ bool FStaticMeshEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 	}
 
 	return bAllowClose;
+}
+
+void FStaticMeshEditor::SetupReadOnlyMenuProfiles(FReadOnlyAssetEditorCustomization& OutReadOnlyCustomization)
+{
+	FName ReadOnlyOwnerName("StaticMeshEditorReadOnly");
+
+	// The combo button to show UVs is fine to be available in read only mode
+	OutReadOnlyCustomization.ToolbarPermissionList.AddAllowListItem(ReadOnlyOwnerName, "UVToolbar");
+
+	// Hide the command to bake materials in the "Asset" menu in read only mode
+	FNamePermissionList& AssetMenuPermissionList = OutReadOnlyCustomization.MainMenuSubmenuPermissionLists.FindOrAdd("Asset");
+	AssetMenuPermissionList.AddDenyListItem(ReadOnlyOwnerName, FStaticMeshEditorCommands::Get().BakeMaterials->GetCommandName());
+
+	// Hide the command to edit sockets in the "Edit" menu in read only mode
+	FNamePermissionList& EditMenuPermissionList = OutReadOnlyCustomization.MainMenuSubmenuPermissionLists.FindOrAdd("Edit");
+	EditMenuPermissionList.AddDenyListItem(ReadOnlyOwnerName, "DeleteSocket");
+	EditMenuPermissionList.AddDenyListItem(ReadOnlyOwnerName, "DuplicateSocket");
+
+
 }
 
 void FStaticMeshEditor::RegisterOnPostUndo( const FOnPostUndo& Delegate )

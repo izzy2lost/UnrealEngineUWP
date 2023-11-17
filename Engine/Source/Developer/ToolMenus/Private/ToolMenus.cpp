@@ -933,20 +933,148 @@ FCustomizedToolMenu* UToolMenus::AddRuntimeMenuCustomization(const FName InName)
 	}
 }
 
-void UToolMenus::ApplyCustomization(UToolMenu* GeneratedMenu)
+FToolMenuProfile* UToolMenus::FindMenuProfile(const FName InMenuName, const FName InProfileName)
 {
-	FCustomizedToolMenuHierarchy CustomizationHierarchy = GeneratedMenu->GetMenuCustomizationHierarchy();
-	if (CustomizationHierarchy.Hierarchy.Num() == 0 && CustomizationHierarchy.RuntimeHierarchy.Num() == 0)
+	if(FToolMenuProfileMap* FoundMenu = MenuProfiles.Find(InMenuName))
 	{
-		return;
+		return FoundMenu->MenuProfiles.Find(InProfileName);
 	}
-	FCustomizedToolMenu CustomizedMenu = CustomizationHierarchy.GenerateFlattened();
 
-	if (CustomizedMenu.IsSuppressExtenders())
+	return nullptr;
+}
+
+FToolMenuProfile* UToolMenus::AddMenuProfile(const FName InMenuName, const FName InProfileName)
+{
+	if (FToolMenuProfile* Found = FindMenuProfile(InMenuName, InProfileName))
+	{
+		return Found;
+	}
+	else
+	{
+		FToolMenuProfileMap& FoundMenu = MenuProfiles.FindOrAdd(InMenuName);
+		
+		FToolMenuProfile& NewCustomization = FoundMenu.MenuProfiles.Add(InProfileName, FToolMenuProfile());
+		NewCustomization.Name = InProfileName;
+		return &NewCustomization;
+	}
+}
+
+
+FToolMenuProfile* UToolMenus::FindRuntimeMenuProfile(const FName InMenuName, const FName InProfileName)
+{
+	if(FToolMenuProfileMap* FoundMenu = RuntimeMenuProfiles.Find(InMenuName))
+	{
+		return FoundMenu->MenuProfiles.Find(InProfileName);
+	}
+
+	return nullptr;
+}
+
+FToolMenuProfile* UToolMenus::AddRuntimeMenuProfile(const FName InMenuName, const FName InProfileName)
+{
+	if (FToolMenuProfile* Found = FindRuntimeMenuProfile(InMenuName, InProfileName))
+	{
+		return Found;
+	}
+	else
+	{
+		FToolMenuProfileMap& FoundMenu = RuntimeMenuProfiles.FindOrAdd(InMenuName);
+		
+		FToolMenuProfile& NewCustomization = FoundMenu.MenuProfiles.Add(InProfileName, FToolMenuProfile());
+		NewCustomization.Name = InProfileName;
+		return &NewCustomization;
+	}
+}
+
+void UToolMenus::ApplyCustomizationAndProfiles(UToolMenu* GeneratedMenu)
+{
+	// Apply all profiles that are active by looking for them in the context
+	UToolMenuProfileContext* ProfileContext = GeneratedMenu->FindContext<UToolMenuProfileContext>();
+	
+	if(ProfileContext)
+	{
+		for(const FName& ActiveProfile : ProfileContext->ActiveProfiles)
+		{
+			FToolMenuProfileHierarchy MenuProfileHieararchy = GeneratedMenu->GetMenuProfileHierarchy(ActiveProfile);
+
+			if (MenuProfileHieararchy.ProfileHierarchy.Num() != 0 || MenuProfileHieararchy.RuntimeProfileHierarchy.Num() != 0)
+			{
+				FToolMenuProfile MenuProfile = MenuProfileHieararchy.GenerateFlattenedMenuProfile();
+				ApplyProfile(GeneratedMenu, MenuProfile);
+			}
+			else
+			{
+				UE_LOG(LogToolMenus, Verbose, TEXT("Menu Profile %s for menu %s not found!"), *ActiveProfile.ToString(), *GeneratedMenu->GetMenuName().ToString());
+
+			}
+		}
+	}
+
+	// Apply the customization for the menu (if any)
+	FCustomizedToolMenuHierarchy CustomizationHierarchy = GeneratedMenu->GetMenuCustomizationHierarchy();
+	if (CustomizationHierarchy.Hierarchy.Num() != 0 || CustomizationHierarchy.RuntimeHierarchy.Num() != 0)
+	{
+		FCustomizedToolMenu CustomizedMenu = CustomizationHierarchy.GenerateFlattened();
+		ApplyCustomization(GeneratedMenu, CustomizedMenu);
+	}
+}
+
+void UToolMenus::ApplyProfile(UToolMenu* GeneratedMenu, const FToolMenuProfile& MenuProfile)
+{
+	if (MenuProfile.IsSuppressExtenders())
 	{
 		GeneratedMenu->SetExtendersEnabled(false);
 	}
+	
+	TArray<FToolMenuSection> NewSections(GeneratedMenu->Sections);
+	
+	// Hide items based on deny list
+	if (MenuProfile.MenuPermissions.HasFiltering())
+	{
+		for (int32 SectionIndex = 0; SectionIndex < NewSections.Num(); ++SectionIndex)
+		{
+			FToolMenuSection& Section = NewSections[SectionIndex];
+			for (int32 i = 0; i < Section.Blocks.Num(); ++i)
+			{
+				if (!MenuProfile.MenuPermissions.PassesFilter(Section.Blocks[i].Name))
+				{
+					Section.Blocks.RemoveAt(i);
+					--i;
+				}
+			}
+		}
+	}
 
+	// Hide sections and entries
+	if (!GeneratedMenu->IsEditing())
+	{
+		for (int32 SectionIndex = 0; SectionIndex < NewSections.Num(); ++SectionIndex)
+		{
+			FToolMenuSection& Section = NewSections[SectionIndex];
+			if (MenuProfile.IsSectionHidden(Section.Name))
+			{
+				NewSections.RemoveAt(SectionIndex);
+				--SectionIndex;
+				continue;
+			}
+
+			for (int32 i = 0; i < Section.Blocks.Num(); ++i)
+			{
+				if (MenuProfile.IsEntryHidden(Section.Blocks[i].Name))
+				{
+					Section.Blocks.RemoveAt(i);
+					--i;
+				}
+			}
+		}
+	}
+
+	GeneratedMenu->Sections = NewSections;
+
+}
+
+void UToolMenus::ApplyCustomization(UToolMenu* GeneratedMenu, const FCustomizedToolMenu& CustomizedMenu)
+{
 	TArray<FToolMenuSection> NewSections;
 	NewSections.Reserve(GeneratedMenu->Sections.Num());
 
@@ -989,7 +1117,7 @@ void UToolMenus::ApplyCustomization(UToolMenu* GeneratedMenu)
 
 		if (OriginalSection.Name != NAME_None)
 		{
-			if (FCustomizedToolMenuNameArray* EntryOrder = CustomizedMenu.EntryOrder.Find(OriginalSection.Name))
+			if (const FCustomizedToolMenuNameArray* EntryOrder = CustomizedMenu.EntryOrder.Find(OriginalSection.Name))
 			{
 				for (const FName& EntryName : EntryOrder->Names)
 				{
@@ -1030,48 +1158,9 @@ void UToolMenus::ApplyCustomization(UToolMenu* GeneratedMenu)
 		}
 	}
 
-	// Hide items based on deny list
-	if (CustomizedMenu.MenuPermissions.HasFiltering())
-	{
-		for (int32 SectionIndex = 0; SectionIndex < NewSections.Num(); ++SectionIndex)
-		{
-			FToolMenuSection& Section = NewSections[SectionIndex];
-			for (int32 i = 0; i < Section.Blocks.Num(); ++i)
-			{
-				if (!CustomizedMenu.MenuPermissions.PassesFilter(Section.Blocks[i].Name))
-				{
-					Section.Blocks.RemoveAt(i);
-					--i;
-				}
-			}
-		}
-	}
-
-	// Hide sections and entries
-	if (!GeneratedMenu->IsEditing())
-	{
-		for (int32 SectionIndex = 0; SectionIndex < NewSections.Num(); ++SectionIndex)
-		{
-			FToolMenuSection& Section = NewSections[SectionIndex];
-			if (CustomizedMenu.IsSectionHidden(Section.Name))
-			{
-				NewSections.RemoveAt(SectionIndex);
-				--SectionIndex;
-				continue;
-			}
-
-			for (int32 i = 0; i < Section.Blocks.Num(); ++i)
-			{
-				if (CustomizedMenu.IsEntryHidden(Section.Blocks[i].Name))
-				{
-					Section.Blocks.RemoveAt(i);
-					--i;
-				}
-			}
-		}
-	}
-
 	GeneratedMenu->Sections = NewSections;
+
+	ApplyProfile(GeneratedMenu, CustomizedMenu);
 }
 
 void UToolMenus::AssembleMenuHierarchy(UToolMenu* GeneratedMenu, const TArray<UToolMenu*>& Hierarchy)
@@ -1083,7 +1172,7 @@ void UToolMenus::AssembleMenuHierarchy(UToolMenu* GeneratedMenu, const TArray<UT
 		AssembleMenu(GeneratedMenu, FoundParent);
 	}
 
-	ApplyCustomization(GeneratedMenu);
+	ApplyCustomizationAndProfiles(GeneratedMenu);
 }
 
 UToolMenu* UToolMenus::GenerateSubMenu(const UToolMenu* InGeneratedParent, const FName InBlockName)
