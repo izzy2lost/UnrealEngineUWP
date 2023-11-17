@@ -359,7 +359,7 @@ worker:
 
   ## Docker image configuration
   image:
-    repository: "ghcr.io/epicgames/unreal-cloud-ddc:latest"
+    repository: "ghcr.io/epicgames/unreal-cloud-ddc"
     pullPolicy: IfNotPresent
   
   ## Disable storage by default as this is normally used for cache volumes which we do not need for the worker deployment
