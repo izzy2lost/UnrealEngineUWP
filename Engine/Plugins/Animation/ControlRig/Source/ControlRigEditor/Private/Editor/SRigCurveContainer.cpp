@@ -147,6 +147,13 @@ void SRigCurveContainer::Construct(const FArguments& InArgs, TSharedRef<FControl
 	ControlRigBlueprint->Hierarchy->OnModified().AddRaw(this, &SRigCurveContainer::OnHierarchyModified);
 	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SRigCurveContainer::HandleRefreshEditorFromBlueprint);
 
+	UEditorEngine* Editor = Cast<UEditorEngine>(GEngine);
+	if (Editor != nullptr)
+	{
+		Editor->RegisterForUndo(this);
+	}
+
+
 	// Register and bind all our menu commands
 	FCurveContainerCommands::Register();
 	BindCommands();
@@ -452,6 +459,22 @@ void SRigCurveContainer::OnNameCommitted(const FText& InNewName, ETextCommit::Ty
 				Controller->RenameElement(FRigElementKey(OldName, ERigElementType::Curve), NewName, true, true);
 			}
 		}
+	}
+}
+
+void SRigCurveContainer::PostUndo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		RefreshCurveList();
+	}
+}
+
+void SRigCurveContainer::PostRedo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		RefreshCurveList();
 	}
 }
 
