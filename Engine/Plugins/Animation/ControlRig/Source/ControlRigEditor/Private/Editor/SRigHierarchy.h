@@ -174,6 +174,8 @@ private:
 	EVisibility IsToolbarVisible() const;
 	EVisibility IsSearchbarVisible() const;
 	FReply OnImportSkeletonClicked();
+	FText GetImportHierarchyText() const;
+	bool IsImportHierarchyEnabled() const;
 	void OnFilterTextChanged(const FText& SearchText);
 
 	/** Tree view widget */

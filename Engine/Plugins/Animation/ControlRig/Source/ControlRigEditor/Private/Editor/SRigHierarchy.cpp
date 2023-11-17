@@ -179,7 +179,8 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 						.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
 						.ForegroundColor(FLinearColor::White)
 						.OnClicked(FOnClicked::CreateSP(this, &SRigHierarchy::OnImportSkeletonClicked))
-						.Text(FText::FromString(TEXT("Import Hierarchy")))
+						.Text(this, &SRigHierarchy::GetImportHierarchyText)
+						.IsEnabled(this, &SRigHierarchy::IsImportHierarchyEnabled)
 					]
 				]
 
@@ -535,13 +536,36 @@ FReply SRigHierarchy::OnImportSkeletonClicked()
 	{
 		if (Settings.Mesh != nullptr)
 		{
-			ImportHierarchy(FAssetData(Settings.Mesh));
+			if(ControlRigBlueprint->IsControlRigModule())
+			{
+				//ControlRigBlueprint->SetPreviewMesh(Settings.Mesh);
+				UpdateMesh(Settings.Mesh, true);
+			}
+			else
+			{
+				ImportHierarchy(FAssetData(Settings.Mesh));
+			}
 		}
 	});
 	
 	SGenericDialogWidget::OpenDialog(LOCTEXT("ControlRigHierarchyImport", "Import Hierarchy"), KismetInspector, DialogArguments, true);
 
 	return FReply::Handled();
+}
+
+FText SRigHierarchy::GetImportHierarchyText() const
+{
+	if(ControlRigBlueprint->IsControlRigModule())
+	{
+		return LOCTEXT("SetPreviewMesh", "Set Preview Mesh");
+	}
+	return LOCTEXT("ImportHierarchy", "Import Hierarchy");
+}
+
+bool SRigHierarchy::IsImportHierarchyEnabled() const
+{
+	// for now we'll enable this always
+	return true;
 }
 
 void SRigHierarchy::OnFilterTextChanged(const FText& SearchText)
