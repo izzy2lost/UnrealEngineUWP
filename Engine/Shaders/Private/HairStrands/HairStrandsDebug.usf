@@ -129,6 +129,12 @@ void MainPS(
 	if (!bIsValid)
 		discard;
 
+	const bool bIsDepthValid = HairStrands.HairOnlyDepthTexture.Load(uint3(PixelPos, 0)) > 0;
+	if (!bIsDepthValid)
+	{
+		discard;
+	}
+
 	const FNodeDesc NodeDesc = DecodeNodeDesc(HairStrands.HairSampleOffset.Load(uint3(PixelPos, 0)));
 
 	float3 Color = 0;

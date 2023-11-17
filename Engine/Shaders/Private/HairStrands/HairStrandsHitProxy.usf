@@ -16,11 +16,11 @@ StructuredBuffer<FPackedHairVis> VisNodeData;
 Texture2D<float>				 CoverageTexture;
 
 void EmitPS(
-	in float4 SvPosition : SV_Position,
+	in FScreenVertexOutput In,
 	out float4 OutHitProxyId : SV_Target0,
 	out float OutDepth : SV_Depth)
 {
-	const uint2 PixelCoord = (uint2)SvPosition.xy;
+	const uint2 PixelCoord = (uint2)In.Position.xy;
 
 	// Take the first sample
 	const FNodeDesc NodeDesc = DecodeNodeDesc(VisNodeIndex.Load(uint3(PixelCoord,0)));
@@ -61,10 +61,10 @@ StructuredBuffer<FPackedHairVis> VisNodeData;
 Texture2D<float>				 CoverageTexture;
 
 void EmitPS(
-	in float4 SvPosition : SV_Position,
+	in FScreenVertexOutput In,
 	out float OutDepth : SV_Depth)
 {
-	const float2 UV = SvPosition.xy * InvViewportResolution;
+	const float2 UV = In.Position.xy * InvViewportResolution;
 	const uint2 PixelCoord = UV * View.ViewSizeAndInvSize.xy;
 
 	// Take the first sample
