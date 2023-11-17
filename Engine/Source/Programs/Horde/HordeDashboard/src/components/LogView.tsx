@@ -1144,7 +1144,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                     componentRef={searchBox}
 
                                     styles={{
-                                       root: { width: 320, fontSize: 12 }, fieldGroup: {
+                                       root: { width: 280, fontSize: 12 }, fieldGroup: {
                                           borderWidth: 1
                                        }
                                     }}
