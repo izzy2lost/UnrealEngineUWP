@@ -441,15 +441,6 @@ void SDebuggerView::OnPoseSelectionChanged(const UPoseSearchDatabase* Database, 
 	{
 		DetailsView->Update(*State);
 	}
-	
-	if (DbPoseIdx == INDEX_NONE)
-	{
-		Model->ClearSelectedSkeleton();
-	}
-	else
-	{
-		Model->ShowSelectedSkeleton(Database, DbPoseIdx, Time);
-	}
 }
 
 FReply SDebuggerView::OnUpdateNodeSelection(int32 InSelectedNodeId)

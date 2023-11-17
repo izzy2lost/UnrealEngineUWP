@@ -37,12 +37,6 @@ public:
 	/** Updates active motion matching state based on node selection */
 	void OnUpdateNodeSelection(int32 InNodeId);
 
-	/** Sets the selected pose skeleton*/
-	void ShowSelectedSkeleton(const UPoseSearchDatabase* Database, int32 DbPoseIdx, float Time);
-	
-	/** Clears the selected pose skeleton */
-	void ClearSelectedSkeleton();
-	
 	void SetVerbose(bool bVerbose) { bIsVerbose = bVerbose; }
 	bool IsVerbose() const { return bIsVerbose; }
 
@@ -59,41 +53,9 @@ public:
 	const USkinnedMeshComponent* GetMeshComponent() const;
 
 private:
-	/** Debug visualization skeleton actor */
-	struct FSkeleton
-	{
-		/** Actor object for the skeleton */
-		TWeakObjectPtr<AActor> Actor;
-
-		/** Derived skeletal mesh for setting the skeleton in the scene */
-		TWeakObjectPtr<UPoseSearchMeshComponent> Component;
-
-		/** Source database for this skeleton  */
-		TWeakObjectPtr<const UPoseSearchDatabase> SourceDatabase;
-
-		/** Source asset for this skeleton */
-		int32 AssetIdx = 0;
-
-		/** Time in the sequence this skeleton is accessing */
-		float Time = 0.0f;
-
-		/** If this asset should be mirrored */
-		bool bMirrored = false;
-
-		/** Blend Parameters if asset is a BlendSpace */
-		FVector BlendParameters = FVector::Zero();
-
-		const FInstancedStruct* GetAnimationAsset() const;
-	};
-
 	/** Update the list of states for this frame */
 	void UpdateFromTimeline();
 
-	/** Populates arrays used for mirroring the animation pose */
-	void FillCompactPoseAndComponentRefRotations();
-
-	void UpdatePoseSearchContext(UPoseSearchMeshComponent::FUpdateContext& InOutContext, const FSkeleton& Skeleton) const;
-	
 	/** List of all Node IDs associated with motion matching states */
 	TArray<int32> NodeIds;
 	
@@ -115,26 +77,14 @@ private:
 	/** Anim Instance associated with this debugger instance */
 	uint64 AnimInstanceId = 0;
 
-	FMirrorDataCache MirrorDataCache;
+	/** Actor object for the skeleton */
+	TWeakObjectPtr<AActor> DebugDrawActor;
 
-	/** Index for each type of skeleton we store for debug visualization */
-	enum ESkeletonIndex
-	{
-		ActivePose = 0,
-		SelectedPose,
-		Asset,
+	/** Derived skeletal mesh for setting the skeleton in the scene */
+	TWeakObjectPtr<UPoseSearchMeshComponent> DebugDrawMeshComponent;
 
-		Num
-	};
-
-	/** Skeleton container for each type */
-	TArray<FSkeleton, TFixedAllocator<ESkeletonIndex::Num>> Skeletons;
-
-	/** Whether the skeletons have been initialized for this world */
-	bool bSkeletonsInitialized = false;
-	
-	/** If we currently have a selection active in the view */
-	bool bSelecting = false;
+	/** Whether the skeleton have been initialized for this world */
+	bool bSkeletonInitialized = false;
 	
 	bool bIsVerbose = false;
 

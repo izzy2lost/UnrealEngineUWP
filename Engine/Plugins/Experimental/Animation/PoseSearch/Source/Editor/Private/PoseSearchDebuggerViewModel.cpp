@@ -20,20 +20,14 @@ namespace UE::PoseSearch
 FDebuggerViewModel::FDebuggerViewModel(uint64 InAnimInstanceId)
 	: AnimInstanceId(InAnimInstanceId)
 {
-	Skeletons.AddDefaulted(ESkeletonIndex::Num);
 }
 
 FDebuggerViewModel::~FDebuggerViewModel()
 {
-	for (FSkeleton& Skeleton : Skeletons)
+	if (DebugDrawActor != nullptr)
 	{
-		if (Skeleton.Actor != nullptr)
-		{
-			Skeleton.Actor->Destroy();
-		}
+		DebugDrawActor->Destroy();
 	}
-
-	Skeletons.Empty();
 }
 
 const FTraceMotionMatchingStateMessage* FDebuggerViewModel::GetMotionMatchingState() const
@@ -54,38 +48,6 @@ const UPoseSearchDatabase* FDebuggerViewModel::GetCurrentDatabase() const
 	return nullptr;
 }
 
-void FDebuggerViewModel::ShowSelectedSkeleton(const UPoseSearchDatabase* Database, int32 DbPoseIdx, float Time)
-{
-	UPoseSearchMeshComponent* Component = Skeletons[SelectedPose].Component.Get();
-	if (!Component)
-	{
-		return;
-	}
-
-	if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
-	{
-		return;
-	}
-
-	const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-	if (const FSearchIndexAsset* IndexAsset = SearchIndex.GetAssetForPoseSafe(DbPoseIdx))
-	{
-		Component->ResetToStart();
-		bSelecting = true;
-
-		Skeletons[SelectedPose].Time = Time;
-		Skeletons[SelectedPose].bMirrored = IndexAsset->IsMirrored();
-		Skeletons[SelectedPose].SourceDatabase = Database;
-		Skeletons[SelectedPose].AssetIdx = IndexAsset->GetSourceAssetIdx();
-		Skeletons[SelectedPose].BlendParameters = IndexAsset->GetBlendParameters();
-	}
-}
-
-void FDebuggerViewModel::ClearSelectedSkeleton()
-{
-	bSelecting = false;
-}
-
 const TArray<int32>* FDebuggerViewModel::GetNodeIds() const
 {
 	return &NodeIds;
@@ -103,22 +65,20 @@ const FTransform& FDebuggerViewModel::GetRootBoneTransform() const
 
 void FDebuggerViewModel::OnUpdate()
 {
-	if (!bSkeletonsInitialized)
+	if (!bSkeletonInitialized)
 	{
 		UWorld* World = RewindDebugger.Get()->GetWorldToVisualize();
-		for (FSkeleton& Skeleton : Skeletons)
-		{
-			FActorSpawnParameters ActorSpawnParameters;
-			ActorSpawnParameters.bHideFromSceneOutliner = false;
-			ActorSpawnParameters.ObjectFlags |= RF_Transient;
-			Skeleton.Actor = World->SpawnActor<AActor>(ActorSpawnParameters);
-			Skeleton.Actor->SetActorLabel(TEXT("PoseSearch"));
-			Skeleton.Component = NewObject<UPoseSearchMeshComponent>(Skeleton.Actor.Get());
-			Skeleton.Actor->AddInstanceComponent(Skeleton.Component.Get());
-			Skeleton.Component->RegisterComponentWithWorld(World);
-		}
+		FActorSpawnParameters ActorSpawnParameters;
+		ActorSpawnParameters.bHideFromSceneOutliner = false;
+		ActorSpawnParameters.ObjectFlags |= RF_Transient;
+		DebugDrawActor = World->SpawnActor<AActor>(ActorSpawnParameters);
+		DebugDrawActor->SetActorLabel(TEXT("PoseSearch"));
+		DebugDrawMeshComponent = NewObject<UPoseSearchMeshComponent>(DebugDrawActor.Get());
+		DebugDrawActor->AddInstanceComponent(DebugDrawMeshComponent.Get());
+		DebugDrawMeshComponent->RegisterComponentWithWorld(World);
+	
 		FWorldDelegates::OnWorldCleanup.AddRaw(this, &FDebuggerViewModel::OnWorldCleanup);
-		bSkeletonsInitialized = true;
+		bSkeletonInitialized = true;
 	}
 
 	UpdateFromTimeline();
@@ -140,59 +100,6 @@ void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
 		{
 			ActiveMotionMatchingStateIdx = i;
 			break;
-		}
-	}
-
-	if (const FTraceMotionMatchingStateMessage* State = GetMotionMatchingState())
-	{
-		if (const UPoseSearchDatabase* CurrentDatabase = State->GetCurrentDatabase())
-		{
-			if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest))
-			{
-				const FSearchIndex& CurrentSearchIndex = CurrentDatabase->GetSearchIndex();
-				int32 CurrentPoseIdx = State->GetCurrentDatabasePoseIndex();
-				if (const FSearchIndexAsset* IndexAsset = CurrentSearchIndex.GetAssetForPoseSafe(CurrentPoseIdx))
-				{
-					Skeletons[Asset].bMirrored = IndexAsset->IsMirrored();
-					Skeletons[Asset].SourceDatabase = CurrentDatabase;
-					Skeletons[Asset].AssetIdx = IndexAsset->GetSourceAssetIdx();
-					Skeletons[Asset].BlendParameters = IndexAsset->GetBlendParameters();
-				}
-			}
-		}
-	}
-}
-
-void FDebuggerViewModel::UpdatePoseSearchContext(UPoseSearchMeshComponent::FUpdateContext& InOutContext, const FSkeleton& Skeleton) const
-{
-	const FInstancedStruct* DatabaseAssetStruct = Skeleton.GetAnimationAsset();
-	if (DatabaseAssetStruct)
-	{
-		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct->GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
-		if (DatabaseAsset)
-		{
-			InOutContext.StartTime = Skeletons[SelectedPose].Time;
-			InOutContext.Time = Skeletons[SelectedPose].Time;
-			InOutContext.MirrorDataCache = Skeletons[SelectedPose].bMirrored ? &MirrorDataCache : nullptr;
-			InOutContext.bLoop = DatabaseAsset->IsLooping();
-		}
-
-		if (const FPoseSearchDatabaseSequence* DatabaseSequence = DatabaseAssetStruct->GetPtr<FPoseSearchDatabaseSequence>())
-		{
-			InOutContext.SequenceBase = DatabaseSequence->Sequence;
-		}
-		else if (const FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAssetStruct->GetPtr<FPoseSearchDatabaseAnimComposite>())
-		{
-			InOutContext.SequenceBase = DatabaseAnimComposite->AnimComposite;
-		}
-		else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct->GetPtr<FPoseSearchDatabaseBlendSpace>())
-		{
-			InOutContext.BlendSpace = DatabaseBlendSpace->BlendSpace;
-			InOutContext.BlendParameters = Skeletons[SelectedPose].BlendParameters;
-		}
-		else
-		{
-			checkNoEntry();
 		}
 	}
 }
@@ -251,19 +158,15 @@ void FDebuggerViewModel::UpdateFromTimeline()
 				return TraceServices::EEventEnumerate::Stop;
 			}
 
-			UPoseSearchMeshComponent* ActiveComponent = Skeletons[ActivePose].Component.Get();
-			UPoseSearchMeshComponent* SelectedComponent = Skeletons[SelectedPose].Component.Get();
-			UPoseSearchMeshComponent* AssetComponent = Skeletons[Asset].Component.Get();
+			UPoseSearchMeshComponent* PoseSearchMeshComponent = DebugDrawMeshComponent.Get();
 			USkeletalMesh* SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(SkeletalMeshObjectInfo->PathName)).LoadSynchronous();
 			if (SkeletalMesh)
 			{
-				ActiveComponent->SetSkinnedAssetAndUpdate(SkeletalMesh, true);
-				SelectedComponent->SetSkinnedAssetAndUpdate(SkeletalMesh, true);
-				AssetComponent->SetSkinnedAssetAndUpdate(SkeletalMesh, true);
+				PoseSearchMeshComponent->SetSkinnedAssetAndUpdate(SkeletalMesh, true);
 			}
 			FTransform ComponentWorldTransform;
 			// Active skeleton is simply the traced bone transforms
-			TArray<FTransform>& ComponentSpaceTransforms = ActiveComponent->GetEditableComponentSpaceTransforms();
+			TArray<FTransform>& ComponentSpaceTransforms = PoseSearchMeshComponent->GetEditableComponentSpaceTransforms();
 			AnimationProvider->GetSkeletalMeshComponentSpacePose(PoseMessage, *SkeletalMeshInfo, ComponentWorldTransform, ComponentSpaceTransforms);
 
 			check(ComponentWorldTransform.Equals(PoseMessage.ComponentToWorld));
@@ -277,12 +180,7 @@ void FDebuggerViewModel::UpdateFromTimeline()
 				RootBoneWorldTransform = ComponentWorldTransform;
 			}
 
-			ActiveComponent->Initialize(ComponentWorldTransform);
-			ActiveComponent->SetDebugDrawColor(FLinearColor::Green);
-			SelectedComponent->SetDebugDrawColor(FLinearColor::Blue);
-			SelectedComponent->Initialize(ComponentWorldTransform);
-			AssetComponent->SetDebugDrawColor(FLinearColor::Red);
-			AssetComponent->Initialize(ComponentWorldTransform);
+			PoseSearchMeshComponent->Initialize(ComponentWorldTransform);
 
 			return TraceServices::EEventEnumerate::Stop;
 		});
@@ -291,49 +189,12 @@ void FDebuggerViewModel::UpdateFromTimeline()
 
 const USkinnedMeshComponent* FDebuggerViewModel::GetMeshComponent() const
 {
-	if (Skeletons.Num() > FDebuggerViewModel::Asset)
-	{
-		return Skeletons[FDebuggerViewModel::Asset].Component.Get();
-	}
-	return nullptr;
-}
-
-void FDebuggerViewModel::FillCompactPoseAndComponentRefRotations()
-{
-	bool bResetMirrorDataCache = true;
-	if (const UPoseSearchDatabase* Database = GetCurrentDatabase())
-	{
-		if (MirrorDataCache.GetMirrorDataTable() != Database->Schema->MirrorDataTable)
-		{
-			if (UPoseSearchMeshComponent* MeshComponent = Skeletons[ActivePose].Component.Get())
-			{
-				if (MeshComponent->RequiredBones.IsValid())
-				{
-					MirrorDataCache.Init(Database->Schema->MirrorDataTable, MeshComponent->RequiredBones);
-					bResetMirrorDataCache = false;
-				}
-			}
-		}
-	}
-
-	if (bResetMirrorDataCache)
-	{
-		MirrorDataCache.Reset();
-	}
+	return DebugDrawMeshComponent.Get();
 }
 
 void FDebuggerViewModel::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)
 {
-	bSkeletonsInitialized = false;
-}
-
-const FInstancedStruct* FDebuggerViewModel::FSkeleton::GetAnimationAsset() const
-{
-	if (SourceDatabase.IsValid() && SourceDatabase->AnimationAssets.IsValidIndex(AssetIdx))
-	{
-		return &SourceDatabase->GetAnimationAssetStruct(AssetIdx);
-	}
-	return nullptr;
+	bSkeletonInitialized = false;
 }
 
 } // namespace UE::PoseSearch
