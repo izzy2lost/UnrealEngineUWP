@@ -13,6 +13,7 @@
 #include "Stats/Stats.h"
 #include "Subsystems/ImportSubsystem.h"
 #include "UObject/UObjectThreadContext.h"
+#include "Misc/ScopedSlowTask.h"
 
 #include "EdGraphSchema_Niagara.h"
 #include "EdGraphUtilities.h"
@@ -53,6 +54,7 @@
 #include "NiagaraDataInterfaceColorCurve.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelRead.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelWrite.h"
+#include "NiagaraDataInterfaceRenderTargetVolume.h"
 
 #include "ViewModels/NiagaraScriptViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
@@ -75,6 +77,7 @@
 #include "NiagaraBakerSettings.h"
 #include "ContentBrowserModule.h"
 #include "NiagaraParameterDefinitions.h"
+#include "NiagaraActions.h"
 
 #include "MovieScene/Parameters/MovieSceneNiagaraBoolParameterTrack.h"
 #include "MovieScene/Parameters/MovieSceneNiagaraFloatParameterTrack.h"
@@ -111,6 +114,8 @@
 #include "Customizations/NiagaraOutlinerCustomization.h"
 #include "Customizations/NiagaraSimulationStageCustomization.h"
 #include "Customizations/NiagaraDataChannelDetails.h"
+#include "Customizations/SimCache/FNiagaraDataChannelSimCacheVisualizer.h"
+#include "Customizations/SimCache/NiagaraRenderTargetVolumeSimCacheVisualizer.h"
 
 #include "NiagaraComponent.h"
 #include "NiagaraNodeStaticSwitch.h"
@@ -158,10 +163,6 @@
 #include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraVolumeRendererProperties.h"
-#include "Misc/ScopedSlowTask.h"
-
-#include "NiagaraActions.h"
-#include "Customizations/SimCache/FNiagaraDataChannelSimCacheVisualizer.h"
 
 #include "Engine/AssetManager.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyCommands.h"
@@ -1425,6 +1426,7 @@ void FNiagaraEditorModule::StartupModule()
 
 	// Register sim cache visualizers
 	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceDataChannelWrite::StaticClass(), MakeShared<FNiagaraDataChannelSimCacheVisualizer>());
+	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceRenderTargetVolume::StaticClass(), MakeShared<FNiagaraRenderTargetVolumeSimCacheVisualizer>());
 
 #if NIAGARA_PERF_BASELINES
 	UNiagaraEffectType::OnGeneratePerfBaselines().BindRaw(this, &FNiagaraEditorModule::GeneratePerfBaselines);
