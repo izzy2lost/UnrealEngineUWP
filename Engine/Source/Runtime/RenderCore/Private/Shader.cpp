@@ -1614,8 +1614,11 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	}
 
 	{
-		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Shaders.WarningsAsErrors"));
-		KeyString += (CVar && CVar->GetInt() == 1) ? TEXT("_WX") : TEXT("");
+		static FShaderPlatformCachedIniValue<int32> CVarWarningsAsErrorsPerPlatform(TEXT("r.Shaders.WarningsAsErrors"));
+		if (const int32 Level = CVarWarningsAsErrorsPerPlatform.Get(Platform); Level != 0)
+		{
+			KeyString.Appendf(TEXT("_WX%d"), Level);
+		}
 	}
 	
 	{

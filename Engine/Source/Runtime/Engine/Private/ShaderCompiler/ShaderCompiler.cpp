@@ -7848,8 +7848,9 @@ void GlobalBeginCompileShader(
 		SET_SHADER_DEFINE(Input.Environment, DO_GUARD_SLOW, GSShaderCheckLevel > 1 ? 1 : 0);
 	}
 
-	if (int WarnLevel = CVarShaderWarningsAsErrors.GetValueOnAnyThread(); WarnLevel != 0)
 	{
+		static FShaderPlatformCachedIniValue<int32> CVarWarningsAsErrorsPerPlatform(TEXT("r.Shaders.WarningsAsErrors"));
+		const int WarnLevel = CVarWarningsAsErrorsPerPlatform.Get(ShaderPlatform);
 		if ((WarnLevel == 1 && ShaderType->GetTypeForDynamicCast() == FShaderType::EShaderTypeForDynamicCast::Global) || WarnLevel > 1)
 		{
 			Input.Environment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
