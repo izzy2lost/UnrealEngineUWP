@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGAttributeFilterNamesElement.h"
+#include "Elements/PCGDeleteAttributesElement.h"
 
 #include "PCGContext.h"
 #include "PCGParamData.h"
@@ -12,11 +12,20 @@
 
 namespace PCGAttributeFilterConstants
 {
-	const FName NodeName = TEXT("FilterAttributesByName");
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Attributes By Name");
+	const FName NodeName = TEXT("DeleteAttributes");
+	const FText NodeTitle = LOCTEXT("NodeTitle", "Delete Attributes");
+	const FText NodeTitleAlias = LOCTEXT("NodeTitleAlias", "Filter Attributes By Name");
 }
 
-void UPCGAttributeFilterNamesSettings::PostLoad()
+UPCGDeleteAttributesSettings::UPCGDeleteAttributesSettings()
+{
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		Operation = EPCGAttributeFilterOperation::DeleteSelectedAttributes;
+	}
+}
+
+void UPCGDeleteAttributesSettings::PostLoad()
 {
 	Super::PostLoad();
 
@@ -42,18 +51,23 @@ void UPCGAttributeFilterNamesSettings::PostLoad()
 }
 
 #if WITH_EDITOR
-FName UPCGAttributeFilterNamesSettings::GetDefaultNodeName() const
+FName UPCGDeleteAttributesSettings::GetDefaultNodeName() const
 {
 	return PCGAttributeFilterConstants::NodeName;
 }
 
-FText UPCGAttributeFilterNamesSettings::GetDefaultNodeTitle() const
+FText UPCGDeleteAttributesSettings::GetDefaultNodeTitle() const
 {
 	return PCGAttributeFilterConstants::NodeTitle;
 }
+
+TArray<FText> UPCGDeleteAttributesSettings::GetNodeTitleAliases() const
+{
+	return { PCGAttributeFilterConstants::NodeTitleAlias };
+}
 #endif
 
-EPCGDataType UPCGAttributeFilterNamesSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+EPCGDataType UPCGDeleteAttributesSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
 	if (!InPin->IsOutputPin())
@@ -66,34 +80,29 @@ EPCGDataType UPCGAttributeFilterNamesSettings::GetCurrentPinTypes(const UPCGPin*
 	return (InputTypeUnion != EPCGDataType::None) ? InputTypeUnion : EPCGDataType::Any;
 }
 
-FName UPCGAttributeFilterNamesSettings::AdditionalTaskName() const
+FName UPCGDeleteAttributesSettings::AdditionalTaskName() const
 {
-	TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
-
-	FString NodeName = PCGAttributeFilterConstants::NodeTitle.ToString();
-
-	switch (Operation)
+	if (const UEnum* SelectionEnum = StaticEnum<EPCGAttributeFilterOperation>())
 	{
-	case EPCGAttributeFilterOperation::KeepSelectedAttributes:
-		NodeName += TEXT(" (Keep)");
-		break;
-	case EPCGAttributeFilterOperation::DeleteSelectedAttributes:
-		NodeName += TEXT(" (Delete)");
-		break;
-	}
+		FText OperationText = SelectionEnum->GetDisplayNameTextByValue(static_cast<int64>(Operation));
+		TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
 
-	// If we filter only one attribute, show its name
-	if (AttributesToKeep.Num() == 1)
-	{
-		return FName(FString::Printf(TEXT("%s: %s"), *NodeName, *AttributesToKeep[0]));
+		if (AttributesToKeep.Num() == 1)
+		{
+			return FName(FString::Printf(TEXT("%s (%s)"), *OperationText.ToString(), *AttributesToKeep[0]));
+		}
+		else
+		{
+			return FName(OperationText.ToString());
+		}
 	}
 	else
 	{
-		return FName(NodeName);
+		return NAME_None;
 	}
 }
 
-TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::InputPinProperties() const
+TArray<FPCGPinProperties> UPCGDeleteAttributesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
@@ -101,7 +110,7 @@ TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::InputPinProperties()
 	return PinProperties;
 }
 
-TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::OutputPinProperties() const
+TArray<FPCGPinProperties> UPCGDeleteAttributesSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
@@ -109,18 +118,18 @@ TArray<FPCGPinProperties> UPCGAttributeFilterNamesSettings::OutputPinProperties(
 	return PinProperties;
 }
 
-FPCGElementPtr UPCGAttributeFilterNamesSettings::CreateElement() const
+FPCGElementPtr UPCGDeleteAttributesSettings::CreateElement() const
 {
-	return MakeShared<FPCGAttributeFilterNamesElement>();
+	return MakeShared<FPCGDeleteAttributesElement>();
 }
 
-bool FPCGAttributeFilterNamesElement::ExecuteInternal(FPCGContext* Context) const
+bool FPCGDeleteAttributesElement::ExecuteInternal(FPCGContext* Context) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterNamesElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDeleteAttributesElement::Execute);
 
 	check(Context);
 
-	const UPCGAttributeFilterNamesSettings* Settings = Context->GetInputSettings<UPCGAttributeFilterNamesSettings>();
+	const UPCGDeleteAttributesSettings* Settings = Context->GetInputSettings<UPCGDeleteAttributesSettings>();
 
 	const bool bAddAttributesFromParent = (Settings->Operation == EPCGAttributeFilterOperation::DeleteSelectedAttributes);
 	const EPCGMetadataFilterMode FilterMode = bAddAttributesFromParent ? EPCGMetadataFilterMode::ExcludeAttributes : EPCGMetadataFilterMode::IncludeAttributes;
