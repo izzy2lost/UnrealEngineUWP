@@ -54,6 +54,20 @@ static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingInline
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
+static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingBias(
+	TEXT("r.StochasticShadows.HardwareRayTracing.Bias"),
+	1.0f,
+	TEXT("Constant bias for hardware ray traced shadow rays."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingNormalBias(
+	TEXT("r.StochasticShadows.HardwareRayTracing.NormalBias"),
+	0.1f,
+	TEXT("Normal bias for hardware ray traced shadow rays."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingMaxIterations(
 	TEXT("r.StochasticShadows.HardwareRayTracing.MaxIterations"),
 	8192,
@@ -205,6 +219,8 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
+		SHADER_PARAMETER(float, RayTracingBias)
+		SHADER_PARAMETER(float, RayTracingNormalBias)
 		// Ray Tracing
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
@@ -375,6 +391,8 @@ void StochasticShadows::SetHardwareRayTracingPassParameters(
 	PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 	PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 	PassParameters->LightSampleRayDistance = LightSampleRayDistance;
+	PassParameters->RayTracingBias = CVarStochasticShadowsHardwareRayTracingBias.GetValueOnRenderThread();
+	PassParameters->RayTracingNormalBias = CVarStochasticShadowsHardwareRayTracingNormalBias.GetValueOnRenderThread();
 
 	checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
 	PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);

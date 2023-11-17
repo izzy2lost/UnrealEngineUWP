@@ -286,7 +286,13 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			FLightSceneData LightSceneData = GetLightSceneData(LightSample.LightSceneId);
-			AddLineTWS(Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT), float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
+
+			float3 RayStart = TranslatedWorldPosition;
+			float3 RayEnd = TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT);
+			float4 RayColor = float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f);
+
+			AddLineTWS(Context, RayStart, RayEnd, RayColor, 1.0f);
+			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
 		}
 		#endif
 	}

@@ -13,6 +13,8 @@
 	#include "../ShaderPrint.ush"
 #endif
 
+float RayTracingBias;
+float RayTracingNormalBias;
 uint StochasticShadowsStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
@@ -35,6 +37,7 @@ Texture2D<float> LightSampleRayDistance;
 StructuredBuffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 Texture2D<float> DownsampledSceneDepth;
+Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 
 RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 {
@@ -42,42 +45,34 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 	uint GroupIndex = DispatchThreadIndex.y;
 	uint TraceTexelIndex = GroupIndex * 64 + ThreadIndex;
 
-#if DEBUG_MODE
-	FShaderPrintContext Context = InitShaderPrintContext(true, TraceTexelIndex == 0 ? float2(0.55, 0.4) : float2(0.55, 0.45));
-	if (TraceTexelIndex == 0)
-	{
-		Print(Context, TEXT("HardwareRayTraceLightSamples"));
-		Newline(Context);
-		Print(Context, TEXT("CompactedTraceTexelAllocator: "));
-		Print(Context, CompactedTraceTexelAllocator[0]);
-	}
-#endif
-
 	if (TraceTexelIndex < CompactedTraceTexelAllocator[0])
 	{
 		uint2 SampleCoord = UnpackTraceTexel(CompactedTraceTexelData[TraceTexelIndex]);
 		uint2 ScreenCoord = SampleCoordToScreenCoord(SampleCoord);
 		uint2 DownsampledScreenCoord = SampleCoordToDownsampledScreenCoord(SampleCoord);
 
-		#if DEBUG_MODE
-			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-			bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
-		#endif
+#if DEBUG_MODE
+		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.45));
+		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+		bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
+#endif
 
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float SceneDepth = DownsampledSceneDepth[DownsampledScreenCoord];
+		float3 SceneWorldNormal = normalize(DecodeNormal(DownsampledSceneWorldNormal[DownsampledScreenCoord]));
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
 		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LightSceneId, SampleCoord);
 		const float LightSampleRayMinT = LightSampleRayDistance[SampleCoord];
 
-		// #sdl_todo: proper bias
 		FRayDesc Ray = (FRayDesc)0;
 		Ray.Origin = TranslatedWorldPosition;
 		Ray.Direction = LightSampleTrace.Direction;
-		Ray.TMin = max(LightSampleRayMinT, 1.0f);
+		Ray.TMin = max(LightSampleRayMinT, RayTracingBias);
 		Ray.TMax = LightSampleTrace.Distance;
+
+		ApplyPositionBias(Ray.Origin, Ray.Direction, SceneWorldNormal, RayTracingNormalBias);
 
 		uint RayFlags = RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH;
 		uint RayMask = RAY_TRACING_MASK_OPAQUE;
@@ -138,7 +133,12 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			FLightSceneData LightSceneData = GetLightSceneData(LightSample.LightSceneId);
-			AddLineTWS(Context, TranslatedWorldPosition + LightSampleTrace.Direction * Ray.TMin, TranslatedWorldPosition + LightSampleTrace.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax), float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
+
+			float3 RayStart = Ray.Origin + Ray.Direction * Ray.TMin;
+			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);
+			float4 RayColor = float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f);
+
+			AddLineTWS(Context, RayStart, RayEnd, RayColor);
 		}
 		#endif
 	}
