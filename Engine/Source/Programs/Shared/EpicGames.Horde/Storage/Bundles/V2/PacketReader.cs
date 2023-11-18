@@ -117,19 +117,20 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				PacketImport import = _decodedPacket.GetImport(index);
 
+				Utf8String fragment = import.Fragment.Clone(); // Handles may outlive the current packet reader, so duplicate the fragment string.
 				switch (import.BaseIdx)
 				{
 					case PacketImport.InvalidBaseIdx:
-						importHandle = _storageClient.CreateBlobHandle(new BlobLocator(import.Fragment));
+						importHandle = _storageClient.CreateBlobHandle(new BlobLocator(fragment));
 						break;
 					case PacketImport.CurrentBundleBaseIdx:
-						importHandle = new PacketHandle(_storageClient, _bundleHandle, import.Fragment, _cache);
+						importHandle = new PacketHandle(_storageClient, _bundleHandle, fragment, _cache);
 						break;
 					case PacketImport.CurrentPacketBaseIdx:
-						importHandle = new ExportHandle(_packetHandle, import.Fragment);
+						importHandle = new ExportHandle(_packetHandle, fragment);
 						break;
 					default:
-						importHandle = GetImportHandle(import.BaseIdx).GetFragmentHandle(import.Fragment);
+						importHandle = GetImportHandle(import.BaseIdx).GetFragmentHandle(fragment);
 						break;
 				}
 

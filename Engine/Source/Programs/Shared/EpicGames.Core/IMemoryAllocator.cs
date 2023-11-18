@@ -4,6 +4,7 @@ using System;
 using System.Buffers;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace EpicGames.Core
 {
@@ -29,19 +30,42 @@ namespace EpicGames.Core
 	{
 		class MemoryOwner : IMemoryOwner<byte>
 		{
-			public Memory<byte> Memory { get; }
+			readonly ManagedHeapAllocator _outer;
 
-			public MemoryOwner(int size) => Memory = new byte[size];
-			public void Dispose() { }
+			public Memory<byte> Memory { get; private set; }
+
+			public MemoryOwner(ManagedHeapAllocator outer, int size)
+			{
+				_outer = outer;
+				Interlocked.Add(ref _outer._allocatedSize, size);
+				Memory = new byte[size];
+			}
+
+			public void Dispose()
+			{
+#if DEBUG
+				Memory.Span.Fill(0xfe);
+#endif
+
+				Interlocked.Add(ref _outer._allocatedSize, -Memory.Length);
+				Memory = Memory<byte>.Empty;
+			}
 		}
+
+		long _allocatedSize;
 
 		/// <summary>
 		/// Default shared instance
 		/// </summary>
-		public static ManagedHeapAllocator Instance { get; } = new ManagedHeapAllocator();
+		public static ManagedHeapAllocator Shared { get; } = new ManagedHeapAllocator();
+
+		/// <summary>
+		/// Currently allocated size using this heap
+		/// </summary>
+		public long AllocatedSize => _allocatedSize;
 
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => new MemoryOwner(minSize);
+		public IMemoryOwner<byte> Alloc(int minSize) => new MemoryOwner(this, minSize);
 	}
 
 	/// <summary>
@@ -72,13 +96,17 @@ namespace EpicGames.Core
 	{
 		unsafe class Allocation : MemoryManager<byte>
 		{
+			readonly GlobalHeapAllocator _outer;
 			IntPtr _handle;
 			int _length;
 
-			public Allocation(int size)
+			public Allocation(GlobalHeapAllocator outer, int size)
 			{
+				_outer = outer;
 				_handle = Marshal.AllocHGlobal(size);
 				_length = size;
+
+				Interlocked.Add(ref _outer._allocatedSize, _length);
 			}
 
 			byte* GetPointer() => (byte*)_handle.ToPointer();
@@ -99,14 +127,28 @@ namespace EpicGames.Core
 				{
 					Marshal.FreeHGlobal(_handle);
 					_handle = IntPtr.Zero;
+
+					Interlocked.Add(ref _outer._allocatedSize, -_length);
 				}
 
 				_length = -1;
 			}
 		}
 
+		long _allocatedSize;
+
+		/// <summary>
+		/// Shared heap allocator
+		/// </summary>
+		public static GlobalHeapAllocator Shared { get; } = new GlobalHeapAllocator();
+
+		/// <summary>
+		/// Currently allocated size using this heap
+		/// </summary>
+		public long AllocatedSize => _allocatedSize;
+
 		/// <inheritdoc/>
-		public IMemoryOwner<byte> Alloc(int minSize) => new Allocation(minSize);
+		public IMemoryOwner<byte> Alloc(int minSize) => new Allocation(this, minSize);
 	}
 	
 	/// <summary>

@@ -55,10 +55,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Extracts the contents of this node to a file
 		/// </summary>
+		/// <param name="handle">Handle to the data to read</param>
 		/// <param name="file">File to write with the contents of this node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task CopyToFileAsync(FileInfo file, CancellationToken cancellationToken)
+		public static async Task CopyToFileAsync(IBlobHandle handle, FileInfo file, CancellationToken cancellationToken)
 		{
 			if(file.Exists && (file.Attributes & FileAttributes.ReadOnly) != 0)
 			{
@@ -66,7 +67,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 			using (FileStream stream = file.Open(FileMode.Create, FileAccess.Write, FileShare.Read))
 			{
-				await CopyToStreamAsync(stream, cancellationToken);
+				await CopyToStreamAsync(handle, stream, cancellationToken);
 			}
 		}
 
@@ -188,7 +189,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public LeafChunkedDataNode(IBlobReader reader)
 		{
 			// Keep this code in sync with CopyToStreamAsync
-			Data = reader.GetMemory();
+			Data = reader.GetMemory().ToArray();
 		}
 
 		/// <inheritdoc/>

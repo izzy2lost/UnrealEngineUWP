@@ -156,8 +156,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			try
 			{
-				ChunkedDataNode node = await ExpandAsync(cancellationToken);
-				await node.CopyToFileAsync(file, cancellationToken);
+				await ChunkedDataNode.CopyToFileAsync(Handle, file, cancellationToken);
 
 				if ((Flags & FileEntryFlags.Executable) != 0)
 				{

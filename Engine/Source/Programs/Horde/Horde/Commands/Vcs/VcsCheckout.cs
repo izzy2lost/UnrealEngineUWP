@@ -117,8 +117,7 @@ namespace Horde.Commands.Vcs
 		static async Task<FileState> CheckoutFileAsync(FileEntry fileRef, FileInfo fileInfo, ILogger logger)
 		{
 			logger.LogInformation("Updating {File} to {Hash}", fileInfo, fileRef.Hash);
-			ChunkedDataNode fileNode = await fileRef.ExpandAsync();
-			await fileNode.CopyToFileAsync(fileInfo, CancellationToken.None);
+			await ChunkedDataNode.CopyToFileAsync(fileRef.Handle, fileInfo, CancellationToken.None);
 			fileInfo.Refresh();
 			return new FileState(fileInfo, fileRef.Hash);
 		}
