@@ -688,3 +688,15 @@ void UHeadMountedDisplayFunctionLibrary::BreakKey(FKey InKey, FString& Interacti
 	}
 }
 
+bool UHeadMountedDisplayFunctionLibrary::SetHMDColorScaleAndBias(FLinearColor ColorScale, FLinearColor ColorBias)
+{
+	IXRTrackingSystem* TrackingSys = GEngine->XRSystem.Get();
+	if (TrackingSys) {
+		IHeadMountedDisplay* HMD = TrackingSys->GetHMDDevice();
+		if (HMD) {
+			return HMD->SetColorScaleAndBias(ColorScale, ColorBias);
+		}
+	}
+	return false;
+}
+

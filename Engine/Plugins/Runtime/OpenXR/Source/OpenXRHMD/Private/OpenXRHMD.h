@@ -120,6 +120,14 @@ public:
 		XrBlendFactorFB	dstFactorAlpha;
 	};
 
+	struct FLayerColorScaleAndBias
+	{
+		// Used by XR_KHR_composition_layer_color_scale_bias to apply a color multiplier and offset to the background layer
+		// and set via UHeadMountedDisplayFunctionLibrary::SetHMDColorScaleAndBias() --> OpenXRHMD::SetColorScaleAndBias()
+		XrColor4f ColorScale;
+		XrColor4f ColorBias;
+	};
+
 	enum class EOpenXRLayerStateFlags : uint32
 	{
 		None = 0u,
@@ -147,6 +155,7 @@ public:
 
 		EOpenXRLayerStateFlags LayerStateFlags = EOpenXRLayerStateFlags::None;
 		FBasePassLayerBlendParameters BasePassLayerBlendParams;
+		FLayerColorScaleAndBias LayerColorScaleAndBias;
 	};
 
 	class FVulkanExtensions : public IHeadMountedDisplayVulkanExtensions
@@ -327,6 +336,7 @@ public:
 	virtual void OnLateUpdateApplied_RenderThread(FRHICommandListImmediate& RHICmdList, const FTransform& NewRelativeTransform) override;
 	virtual bool OnStartGameFrame(FWorldContext& WorldContext) override;
 	virtual EHMDWornState::Type GetHMDWornState() override { return bIsReady ? EHMDWornState::Worn : EHMDWornState::NotWorn; }
+	virtual bool SetColorScaleAndBias(FLinearColor ColorScale, FLinearColor ColorBias);
 
 	/** IStereoRendering interface */
 	virtual bool IsStereoEnabled() const override;
@@ -505,6 +515,10 @@ private:
 	TUniquePtr<FFBFoveationImageGenerator> FBFoveationImageGenerator;
 	bool					bFoveationExtensionSupported;
 	bool					bRuntimeFoveationSupported;
+
+	XrColor4f				LayerColorScale;
+	XrColor4f				LayerColorBias;
+	bool					bCompositionLayerColorScaleBiasSupported;
 };
 
 ENUM_CLASS_FLAGS(FOpenXRHMD::EOpenXRLayerStateFlags);

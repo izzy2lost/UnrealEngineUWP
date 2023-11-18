@@ -274,6 +274,18 @@ class XRBASE_API UHeadMountedDisplayFunctionLibrary : public UBlueprintFunctionL
 	static void SetSpectatorScreenModeTexturePlusEyeLayout(FVector2D EyeRectMin, FVector2D EyeRectMax, FVector2D TextureRectMin, FVector2D TextureRectMax, bool bDrawEyeFirst = true, bool bClearBlack = false, bool bUseAlpha = false);
 
 	/**
+	 * Multiply the post-compositor frame by a color and add a bias.
+	 * LayerColor = LayerColor * ColorScale + ColorBias
+	 *
+	 * @param ColorScale		(in) Color to multiply the compositor layer by
+	 * @param ColorBias			(in) Color to offset the compositor layer by
+	 * 
+	 * @return  (boolean)		True if successful, false if unsuccessful or unsupported.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|HeadMountedDisplay")
+	static bool SetHMDColorScaleAndBias(FLinearColor ColorScale, FLinearColor ColorBias);
+
+	/**
 	 * Cross XR-System query that will list all XR devices currently being tracked.
 	 *
 	 * @param  SystemId		(Optional) Specifies an explicit system to poll devices from (use if you want only devices belonging to one explicit XR ecosystem, e.g. 'OculusHMD', or 'OpenXR')

@@ -1142,6 +1142,11 @@ void FOpenXRHMD::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 	PipelinedLayerStateRendering.DepthImages.SetNum(PipelinedFrameStateRendering.ViewConfigs.Num());
 	PipelinedLayerStateRendering.EmulatedLayerState.EmulationImages.SetNum(PipelinedFrameStateRendering.ViewConfigs.Num());
 
+	if (bCompositionLayerColorScaleBiasSupported)
+	{
+		PipelinedLayerStateRendering.LayerColorScaleAndBias = { LayerColorScale, LayerColorBias };
+	}
+
 	if (SpectatorScreenController)
 	{
 		SpectatorScreenController->BeginRenderViewFamily();
@@ -1322,6 +1327,8 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 	, bUseCustomReferenceSpace(false)
 	, BaseOrientation(FQuat::Identity)
 	, BasePosition(FVector::ZeroVector)
+	, LayerColorScale{ 1.0f, 1.0f, 1.0f, 1.0f }
+	, LayerColorBias{ 0.0f, 0.0f, 0.0f, 0.0f }
 {
 	InstanceProperties = { XR_TYPE_INSTANCE_PROPERTIES, nullptr };
 	XR_ENSURE(xrGetInstanceProperties(Instance, &InstanceProperties));
@@ -1331,6 +1338,7 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 	bHiddenAreaMaskSupported = IsExtensionEnabled(XR_KHR_VISIBILITY_MASK_EXTENSION_NAME) &&
 		!FCStringAnsi::Strstr(InstanceProperties.runtimeName, "Oculus");
 	bViewConfigurationFovSupported = IsExtensionEnabled(XR_EPIC_VIEW_CONFIGURATION_FOV_EXTENSION_NAME);
+	bCompositionLayerColorScaleBiasSupported = IsExtensionEnabled(XR_KHR_COMPOSITION_LAYER_COLOR_SCALE_BIAS_EXTENSION_NAME);
 	bSupportsHandTracking = IsExtensionEnabled(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
 	bSpaceAccelerationSupported = IsExtensionEnabled(XR_EPIC_SPACE_ACCELERATION_NAME);
 	bIsAcquireOnAnyThreadSupported = CheckPlatformAcquireOnAnyThreadSupport(InstanceProperties);
@@ -3229,6 +3237,18 @@ bool FOpenXRHMD::OnStartGameFrame(FWorldContext& WorldContext)
 	return true;
 }
 
+bool FOpenXRHMD::SetColorScaleAndBias(FLinearColor ColorScale, FLinearColor ColorBias)
+{
+	if (!bCompositionLayerColorScaleBiasSupported)
+	{
+		return false;
+	}
+
+	LayerColorScale = XrColor4f{ ColorScale.R, ColorScale.G, ColorScale.B, ColorScale.A };
+	LayerColorBias = XrColor4f{ ColorBias.R, ColorBias.G, ColorBias.B, ColorBias.A };
+	return true;
+}
+
 void FOpenXRHMD::RequestExitApp()
 {
 	UE_LOG(LogHMD, Log, TEXT("FOpenXRHMD is requesting app exit.  CurrentSessionState: %s"), OpenXRSessionStateToString(CurrentSessionState));
@@ -3377,6 +3397,7 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 		TArray<const XrCompositionLayerBaseHeader*> Headers;
 		XrCompositionLayerProjection Layer = {};
 		XrCompositionLayerAlphaBlendFB LayerAlphaBlend = { XR_TYPE_COMPOSITION_LAYER_ALPHA_BLEND_FB };
+		XrCompositionLayerColorScaleBiasKHR ColorScaleBias = { XR_TYPE_COMPOSITION_LAYER_COLOR_SCALE_BIAS_KHR };
 		if (EnumHasAnyFlags(PipelinedLayerStateRHI.LayerStateFlags, EOpenXRLayerStateFlags::SubmitBackgroundLayer))
 		{
 			Layer.type = XR_TYPE_COMPOSITION_LAYER_PROJECTION;
@@ -3397,6 +3418,15 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 				LayerAlphaBlend.dstFactorAlpha = PipelinedLayerStateRHI.BasePassLayerBlendParams.dstFactorAlpha;
 
 				Layer.next = &LayerAlphaBlend;
+			}
+
+			if (bCompositionLayerColorScaleBiasSupported)
+			{
+				ColorScaleBias.next = const_cast<void*>(Layer.next);
+				ColorScaleBias.colorScale = PipelinedLayerStateRHI.LayerColorScaleAndBias.ColorScale;
+				ColorScaleBias.colorBias = PipelinedLayerStateRHI.LayerColorScaleAndBias.ColorBias;
+
+				Layer.next = &ColorScaleBias;
 			}
 
 			for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
