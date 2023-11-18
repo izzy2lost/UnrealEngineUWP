@@ -108,7 +108,7 @@ namespace Horde.Server.Compute
 			_baseKey = baseKey;
 			_queueIndex = new RedisSetKey<TQueueId>(baseKey.Append("index"));
 			_activeQueues = new RedisHashKey<TQueueId, DateTime>(baseKey.Append("active"));
-			_newQueueChannel = new RedisChannel<TQueueId>(baseKey.Append("new_queues").ToString());
+			_newQueueChannel = new RedisChannel<TQueueId>(RedisChannel.Literal(baseKey.Append("new_queues").ToString()));
 			_logger = logger;
 
 			_queueUpdateTask = Task.Run(() => UpdateQueuesAsync(_cancellationSource.Token));

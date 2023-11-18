@@ -160,7 +160,7 @@ namespace Horde.Server.Agents
 			_agents = mongoService.GetCollection<AgentDocument>("Agents", indexes);
 			_redisService = redisService;
 			_clock = clock;
-			_updateEventChannel = new RedisChannel<AgentId>("agents/notify");
+			_updateEventChannel = new RedisChannel<AgentId>(RedisChannel.Literal("agents/notify"));
 			_auditLog = auditLog;
 		}
 

@@ -61,7 +61,7 @@ namespace Horde.Server.Compute
 		{
 			_redis = redis;
 			_keyPrefix = keyPrefix;
-			_updateChannel = keyPrefix.Append("updates").ToString();
+			_updateChannel = RedisChannel.Literal(keyPrefix.Append("updates").ToString());
 
 			redis.Multiplexer.GetSubscriber().Subscribe(_updateChannel, OnChannelUpdate);
 		}

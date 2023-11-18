@@ -90,7 +90,7 @@ namespace Horde.Server.Logs
 			ChunkLineCount = chunkLineCount;
 
 			_redisService = redisService;
-			_tailStartChannel = new RedisChannel<LogId>("logs:notify");
+			_tailStartChannel = new RedisChannel<LogId>(RedisChannel.Literal("logs:notify"));
 
 			_clock = clock;
 			_expireTailsTicker = clock.AddSharedTicker<LogTailService>(TimeSpan.FromSeconds(30.0), ExpireTailsAsync, logger);

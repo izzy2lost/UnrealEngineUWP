@@ -275,7 +275,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 
 	private Task PublishUpdateEventAsync(string clusterId)
 	{
-		return _redis.GetDatabase().PublishAsync(RedisChannelUpdate, clusterId);
+		return _redis.GetDatabase().PublishAsync(RedisChannel.Literal(RedisChannelUpdate), clusterId);
 	}
 	
 	private async Task<IAsyncDisposable> SubscribeToUpdateEventAsync(Action<string> onUpdate)

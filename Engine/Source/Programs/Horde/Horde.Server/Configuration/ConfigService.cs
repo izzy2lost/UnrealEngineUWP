@@ -118,7 +118,7 @@ namespace Horde.Server.Configuration
 		readonly ITicker _ticker;
 		readonly TimeSpan _tickInterval = TimeSpan.FromMinutes(1.0);
 
-		readonly RedisChannel _updateChannel = "config-update";
+		readonly RedisChannel _updateChannel = RedisChannel.Literal("config-update");
 		readonly BackgroundTask _updateTask;
 
 		Task<ConfigState> _stateTask;
