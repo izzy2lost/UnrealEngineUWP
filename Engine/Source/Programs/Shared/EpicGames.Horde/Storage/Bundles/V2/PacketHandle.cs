@@ -238,12 +238,15 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					await stream.ReadFixedLengthBytesAsync(memory.Slice(Bundle.SignatureLength), cancellationToken);
 
 					EncodedPacketCacheKey trailingKey = new EncodedPacketCacheKey(key.Bundle, _packetOffset + readOffset);
+
+#pragma warning disable CA2000
 					IReadOnlyMemoryOwner<byte> trailingValue = ReadOnlyMemoryOwner.Create<byte>(memory, trailingPacket);
 					if (!_cache.TryAdd(trailingKey, trailingValue))
 					{
 						trailingValue.Dispose();
 					}
 					trailingPacket = null;
+#pragma warning restore CA2000
 
 					readOffset += signature.HeaderLength;
 				}

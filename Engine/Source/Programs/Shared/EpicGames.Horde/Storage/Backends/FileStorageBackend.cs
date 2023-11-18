@@ -241,12 +241,12 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-			IReadOnlyMemoryOwner<byte> storageObject = Read(path, offset, length);
+			IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(path, offset, length, cancellationToken);
+			return storageObject.AsStream();
 #pragma warning restore CA2000 // Dispose objects before losing scope
-			return Task.FromResult<Stream>(storageObject.AsStream());
 		}
 
 		/// <summary>

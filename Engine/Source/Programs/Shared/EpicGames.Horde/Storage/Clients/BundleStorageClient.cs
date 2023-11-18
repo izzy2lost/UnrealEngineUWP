@@ -57,10 +57,10 @@ namespace EpicGames.Horde.Storage.Clients
 					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_inner.GetLocator(), cancellationToken);
 					if (header.Exports.Count > 0)
 					{
-					foreach (BlobLocator import in header.Imports)
-					{
-						refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
-					}
+						foreach (BlobLocator import in header.Imports)
+						{
+							refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
+						}
 					}
 					else
 					{
@@ -82,22 +82,22 @@ namespace EpicGames.Horde.Storage.Clients
 			{
 				IReadOnlyMemoryOwner<byte> data = await _inner.ReadBodyAsync(cancellationToken);
 
-				List<BlobLocator> importLocators = ReadImports(data.Memory).ToList();
+				List<BlobLocator> importLocators = ReadImportsFromData(data.Memory).ToList();
 				List<IBlobHandle> importHandles = importLocators.ConvertAll(x => _storageClient.CreateBlobHandle(x));
 
 				return new BlobDataWithOwner(Bundle.BlobType, data.Memory, importHandles, data);
 			}
 
-			IEnumerable<BlobLocator> ReadImports(ReadOnlyMemory<byte> data)
+			IEnumerable<BlobLocator> ReadImportsFromData(ReadOnlyMemory<byte> data)
 			{
 				BundleSignature signature = Bundle.ReadSignature(data.Span);
 				if (signature.Version <= BundleVersion.LatestV1)
 				{
-					return ReadImportsV1(data);
+					return ReadImportsFromDataV1(data);
 				}
 				else if (signature.Version <= BundleVersion.LatestV2)
 				{
-					return ReadImportsV2(data);
+					return ReadImportsFromDataV2(data);
 				}
 				else
 				{
@@ -105,13 +105,13 @@ namespace EpicGames.Horde.Storage.Clients
 				}
 			}
 
-			static IEnumerable<BlobLocator> ReadImportsV1(ReadOnlyMemory<byte> data)
+			static IEnumerable<BlobLocator> ReadImportsFromDataV1(ReadOnlyMemory<byte> data)
 			{
 				BundleHeader header = BundleHeader.Read(data);
 				return header.Imports.Select(x => x.BaseLocator);
 			}
 
-			IEnumerable<BlobLocator> ReadImportsV2(ReadOnlyMemory<byte> data)
+			IEnumerable<BlobLocator> ReadImportsFromDataV2(ReadOnlyMemory<byte> data)
 			{
 				HashSet<BlobLocator> locators = new HashSet<BlobLocator>();
 				while (data.Length > 0)
