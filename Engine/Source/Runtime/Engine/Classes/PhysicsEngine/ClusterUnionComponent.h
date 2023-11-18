@@ -374,6 +374,8 @@ protected:
 	UFUNCTION()
 	ENGINE_API bool IsAuthority() const;
 
+	const FClusterUnionReplicatedData& GetReplicatedRigidState() const { return ReplicatedRigidState; }
+
 private:
 	// These are the statically clustered components. These should
 	// be specified in the editor and never change.
@@ -411,10 +413,13 @@ private:
 	mutable bool bHasCachedLocalBounds;
 	mutable FBoxSphereBounds CachedLocalBounds;
 
+protected:
 	// Handles changes to ReplicatedRigidState. Note that this function does not handle replication of X/R since we make use
 	// of the scene component's default replication for that.
 	UFUNCTION()
-	ENGINE_API void OnRep_RigidState();
+	ENGINE_API virtual void OnRep_RigidState();
+
+private:
 
 	ENGINE_API FPhysScene_Chaos* GetChaosScene() const;
 
