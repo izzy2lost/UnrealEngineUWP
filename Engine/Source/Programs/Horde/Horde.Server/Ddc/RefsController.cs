@@ -601,10 +601,16 @@ namespace Horde.Server.Ddc
 			{
 				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
-				BlobId headerHash;
+				string? hashHeaderValue = null;
 				if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))
 				{
-					headerHash = BlobId.Parse(Request.Headers[CommonHeaders.HashHeaderName]);
+					hashHeaderValue = Request.Headers[CommonHeaders.HashHeaderName];
+				}
+
+				BlobId headerHash;
+				if (!String.IsNullOrEmpty(hashHeaderValue))
+				{
+					headerHash = BlobId.Parse(hashHeaderValue);
 				}
 				else
 				{

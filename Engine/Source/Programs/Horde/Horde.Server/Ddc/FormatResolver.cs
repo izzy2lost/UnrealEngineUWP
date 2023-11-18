@@ -58,9 +58,9 @@ namespace Horde.Server.Ddc
                 return defaultContentType;
             }
 
-            foreach (string header in acceptHeader)
+            foreach (string? header in acceptHeader)
             {
-                if (_validContentTypes.Contains(header, StringComparer.OrdinalIgnoreCase))
+                if (header != null && _validContentTypes.Contains(header, StringComparer.OrdinalIgnoreCase))
                 {
                     return header;
                 }

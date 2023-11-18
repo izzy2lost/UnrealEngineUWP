@@ -54,7 +54,7 @@ public class HordeJwtBearerHandler
 	/// <param name="context">Message context</param>
 	private Task OnMessageReceived(MessageReceivedContext context)
 	{
-		string authorization = context.Request.Headers.Authorization;
+		string? authorization = context.Request.Headers.Authorization;
 		if (!String.IsNullOrEmpty(authorization))
 		{
 			string prefix = AuthenticationScheme + " ";

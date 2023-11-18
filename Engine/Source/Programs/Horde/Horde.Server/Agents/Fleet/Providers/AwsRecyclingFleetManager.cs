@@ -120,7 +120,7 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 		span.SetAttribute("numAgents", agents.Count);
 		span.SetAttribute("count", requestedInstancesCount);
 
-		using IDisposable logScope = _logger.BeginScope(new Dictionary<string, object> { ["PoolId"] = pool.Id });
+		using IDisposable? logScope = _logger.BeginScope(new Dictionary<string, object> { ["PoolId"] = pool.Id });
 
 		await StopStuckPendingInstancesAsync(pool, cancellationToken);
 		Dictionary<string, List<Instance>> candidatesPerAz = await GetCandidateInstancesAsync(pool, cancellationToken);
@@ -260,7 +260,7 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 			instanceTypes.AddRange(instanceTypePriority);
 		}
 		
-		using IDisposable logScope = _logger.BeginScope(new Dictionary<string, object>
+		using IDisposable? logScope = _logger.BeginScope(new Dictionary<string, object>
 		{
 			["InstanceIds"] = instanceIds,
 			["InstanceTypes"] = instanceTypes

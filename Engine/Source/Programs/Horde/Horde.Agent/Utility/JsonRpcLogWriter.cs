@@ -238,8 +238,7 @@ namespace Horde.Agent.Utility
 					string name = format.Substring(nameStart, idx - nameStart);
 					if (properties.TryGetValue(name, out string? text))
 					{
-						int textLineEnd = text.IndexOf('\n', StringComparison.Ordinal);
-						if (textLineEnd != -1)
+						if (text.Contains('\n', StringComparison.Ordinal))
 						{
 							prefix = format.Substring(0, nameStart - 1);
 							suffix = format.Substring(idx + 1);

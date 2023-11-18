@@ -84,7 +84,7 @@ namespace Horde.Agent.Utility
 		public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
 
 		/// <inheritdoc/>
-		public IDisposable BeginScope<TState>(TState state) => _inner.BeginScope(state);
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _inner.BeginScope(state);
 
 		static bool ReadFirstLogProperty(ref Utf8JsonReader reader)
 		{

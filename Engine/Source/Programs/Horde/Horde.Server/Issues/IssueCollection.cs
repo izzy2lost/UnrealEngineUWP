@@ -770,7 +770,7 @@ namespace Horde.Server.Issues
 		async Task LogIssueChangesAsync(UserId? initiatedByUserId, Issue oldIssue, Issue newIssue)
 		{
 			ILogger issueLogger = GetLogger(oldIssue.Id);
-			using IDisposable scope = issueLogger.BeginScope("User {UserName} ({UserId})", await GetUserNameAsync(initiatedByUserId), initiatedByUserId ?? UserId.Empty);
+			using IDisposable? scope = issueLogger.BeginScope("User {UserName} ({UserId})", await GetUserNameAsync(initiatedByUserId), initiatedByUserId ?? UserId.Empty);
 			await LogIssueChangesImplAsync(issueLogger, oldIssue, newIssue);
 		}
 

@@ -254,7 +254,7 @@ namespace Horde.Server.Server
 		/// <returns>Information about the new agent</returns>
 		public override async Task<CreateAgentResponse> CreateAgent(CreateAgentRequest request, ServerCallContext context)
 		{
-			using IDisposable scope = _logger.BeginScope("CreateAgent({AgentId})", request.Name.ToString());
+			using IDisposable? scope = _logger.BeginScope("CreateAgent({AgentId})", request.Name.ToString());
 
 			if (!_globalConfig.Value.Authorize(AgentAclAction.CreateAgent, context.GetHttpContext().User))
 			{
@@ -292,7 +292,7 @@ namespace Horde.Server.Server
 			}
 
 			AgentId agentId = new AgentId(request.Id);
-			using IDisposable scope = _logger.BeginScope("CreateSession({AgentId})", agentId.ToString());
+			using IDisposable? scope = _logger.BeginScope("CreateSession({AgentId})", agentId.ToString());
 
 			GlobalConfig globalConfig = _globalConfig.Value;
 
@@ -348,7 +348,7 @@ namespace Horde.Server.Server
 			if (await nextRequestTask)
 			{
 				UpdateSessionRequest request = reader.Current;
-				using IDisposable scope = _logger.BeginScope("UpdateSession for agent {AgentId}, session {SessionId}", request.AgentId, request.SessionId);
+				using IDisposable? scope = _logger.BeginScope("UpdateSession for agent {AgentId}, session {SessionId}", request.AgentId, request.SessionId);
 
 				_logger.LogDebug("Updating session for {AgentId}", request.AgentId);
 				foreach (HordeCommon.Rpc.Messages.Lease lease in request.Leases)

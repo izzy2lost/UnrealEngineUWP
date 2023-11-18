@@ -44,12 +44,13 @@ namespace Horde.Server.Authentication
 				return AuthenticateResult.NoResult();
 			}
 
-			if (!headerValue[0].StartsWith(Prefix, StringComparison.Ordinal))
+			string? header = headerValue[0];
+			if (header == null || !header.StartsWith(Prefix, StringComparison.Ordinal))
 			{
 				return AuthenticateResult.NoResult();
 			}
 			
-			string token = headerValue[0].Replace(Prefix, "", StringComparison.Ordinal).Trim();
+			string token = header.Replace(Prefix, "", StringComparison.Ordinal).Trim();
 			IServiceAccount? serviceAccount = await _serviceAccounts.GetBySecretTokenAsync(token);
 
 			if (serviceAccount == null)

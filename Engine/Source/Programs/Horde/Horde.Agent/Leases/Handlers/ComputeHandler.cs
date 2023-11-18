@@ -59,7 +59,7 @@ namespace Horde.Agent.Leases.Handlers
 
 			public CombinedLogger(params ILogger[] loggers) { _loggers = loggers; }
 
-			public IDisposable BeginScope<TState>(TState state) => null!;
+			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
 
 			public bool IsEnabled(LogLevel logLevel) => _loggers.Any(x => x.IsEnabled(logLevel));
 

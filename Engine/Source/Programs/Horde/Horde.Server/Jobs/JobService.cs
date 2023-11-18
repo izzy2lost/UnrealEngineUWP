@@ -197,7 +197,7 @@ namespace Horde.Server.Jobs
 			}
 
 			JobId jobIdValue = jobId ?? JobId.GenerateNewId();
-			using IDisposable scope = _logger.BeginScope("CreateJobAsync({JobId})", jobIdValue);
+			using IDisposable? scope = _logger.BeginScope("CreateJobAsync({JobId})", jobIdValue);
 
 			if (options.PreflightChange != null && ShouldClonePreflightChange(streamConfig.Id))
 			{
@@ -300,7 +300,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("JobId", job.Id.ToString());
 			span.SetAttribute("JobName", job.Name);
 
-			using IDisposable scope = _logger.BeginScope("DeleteJobAsync({JobId})", job.Id);
+			using IDisposable? scope = _logger.BeginScope("DeleteJobAsync({JobId})", job.Id);
 
 			// Delete the job
 			while (!await _jobs.RemoveAsync(job))
@@ -359,7 +359,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("JobId", job.Id.ToString());
 			span.SetAttribute("Name", name);
 			
-			using IDisposable scope = _logger.BeginScope("UpdateJobAsync({JobId})", job.Id);
+			using IDisposable? scope = _logger.BeginScope("UpdateJobAsync({JobId})", job.Id);
 			for(IJob? newJob = job; newJob != null; newJob = await GetJobAsync(job.Id))
 			{
 				IGraph graph = await GetGraphAsync(newJob);
@@ -673,7 +673,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("Job", job.Id.ToString());
 			span.SetAttribute("NewGraph", newGraph.Id);
 
-			using IDisposable scope = _logger.BeginScope("TryUpdateGraphAsync({JobId})", job.Id);
+			using IDisposable? scope = _logger.BeginScope("TryUpdateGraphAsync({JobId})", job.Id);
 
 			IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates = job.GetLabelStates(newGraph);
 
@@ -696,7 +696,7 @@ namespace Horde.Server.Jobs
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(GetJobTimingAsync)}");
 			span.SetAttribute("Job", job.Id.ToString());
 
-			using IDisposable scope = _logger.BeginScope("GetJobTimingAsync({JobId})", job.Id);
+			using IDisposable? scope = _logger.BeginScope("GetJobTimingAsync({JobId})", job.Id);
 
 			IGraph graph = await _graphs.GetAsync(job.GraphHash);
 
@@ -820,7 +820,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("NewLogId", newLogId?.ToString());
 			span.SetAttribute("NewState", newState.ToString());
 
-			using IDisposable scope = _logger.BeginScope("UpdateBatchAsync({JobId})", job.Id);
+			using IDisposable? scope = _logger.BeginScope("UpdateBatchAsync({JobId})", job.Id);
 
 			JobStepBatchError? error = null;
 
@@ -954,7 +954,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("BatchId", batchId.ToString());
 			span.SetAttribute("StepId", stepId.ToString());
 			
-			using IDisposable scope = _logger.BeginScope("UpdateStepAsync({JobId}:{BatchId}:{StepId})", job.Id, batchId, stepId);
+			using IDisposable? scope = _logger.BeginScope("UpdateStepAsync({JobId}:{BatchId}:{StepId})", job.Id, batchId, stepId);
 			for (; ;)
 			{
 				IJob? newJob = await TryUpdateStepAsync(job, batchId, stepId, streamConfig, newState, newOutcome, newError, newAbortRequested, newAbortByUserId, newLogId, newNotificationTriggerId, newRetryByUserId, newPriority, newReports, newProperties);
@@ -999,7 +999,7 @@ namespace Horde.Server.Jobs
 			span.SetAttribute("BatchId", batchId.ToString());
 			span.SetAttribute("StepId", stepId.ToString());
 
-			using IDisposable scope = _logger.BeginScope("TryUpdateStepAsync({JobId}:{BatchId}:{StepId})", job.Id, batchId, stepId);
+			using IDisposable? scope = _logger.BeginScope("TryUpdateStepAsync({JobId}:{BatchId}:{StepId})", job.Id, batchId, stepId);
 
 			// Get the graph for this job
 			IGraph graph = await GetGraphAsync(job);

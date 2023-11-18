@@ -462,7 +462,7 @@ namespace Horde.Server.Server
 				}
 			}
 
-			using IDisposable logScope = _logger.BeginScope(args);
+			using IDisposable? logScope = _logger.BeginScope(args);
 			
 			// Ignore warning as we explicitly want to build this message manually
 #pragma warning disable CA2254 // Template should be a static expression

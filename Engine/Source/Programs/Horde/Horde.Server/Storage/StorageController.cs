@@ -149,7 +149,11 @@ namespace Horde.Server.Storage
 					return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unsupported range header; only one range is allowed"));
 				}
 
-				string value = headers.Range[0];
+				string? value = headers.Range[0];
+				if (value == null)
+				{
+					return new BadRequestObjectResult(LogEvent.Create(LogLevel.Error, "Unsupported range header; only one range is allowed"));
+				}
 
 				Match match = Regex.Match(value, @"^\s*bytes\s*=\s*(\d*)-(\d*)$");
 				if (!match.Success)
@@ -281,9 +285,9 @@ namespace Horde.Server.Storage
 			using IStorageClient client = storageService.CreateClient(namespaceId);
 
 			RefCacheTime cacheTime = new RefCacheTime();
-			foreach (string entry in headers.CacheControl)
+			foreach (string? entry in headers.CacheControl)
 			{
-				if (CacheControlHeaderValue.TryParse(entry, out CacheControlHeaderValue? value) && value?.MaxAge != null)
+				if (entry != null && CacheControlHeaderValue.TryParse(entry, out CacheControlHeaderValue? value) && value?.MaxAge != null)
 				{
 					cacheTime = new RefCacheTime(value.MaxAge.Value);
 				}

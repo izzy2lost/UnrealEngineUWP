@@ -786,7 +786,7 @@ namespace Horde.Server.Notifications.Sinks
 
 		async Task NotifyIssueUpdatedInternalAsync(GlobalConfig globalConfig, int issueId)
 		{
-			using IDisposable scope = _logger.BeginScope("Slack notifications for issue {IssueId}", issueId);
+			using IDisposable? scope = _logger.BeginScope("Slack notifications for issue {IssueId}", issueId);
 			_logger.LogInformation("Updating Slack notifications for issue {IssueId}", issueId);
 
 			IIssueDetails? details = await _issueService.GetIssueDetailsAsync(issueId);
@@ -1388,7 +1388,7 @@ namespace Horde.Server.Notifications.Sinks
 
 		async Task SendIssueMessageAsync(GlobalConfig globalConfig, string recipient, IIssue issue, IIssueDetails details, UserId? userId, bool allowMentions)
 		{
-			using IDisposable scope = _logger.BeginScope("SendIssueMessageAsync (User: {SlackUser}, Issue: {IssueId})", recipient, issue.Id);
+			using IDisposable? scope = _logger.BeginScope("SendIssueMessageAsync (User: {SlackUser}, Issue: {IssueId})", recipient, issue.Id);
 
 			SlackAttachment attachment = new SlackAttachment();
 			attachment.Color = ErrorColor;

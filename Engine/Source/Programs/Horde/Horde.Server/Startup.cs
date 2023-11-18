@@ -171,12 +171,12 @@ namespace Horde.Server
 				AgentId? agentId = AclService.GetAgentId(httpContext.User);
 				if (agentId != null)
 				{
-					using IDisposable scope = _logger.BeginScope("Agent: {AgentId}, RemoteIP: {RemoteIP}, Method: {Method}", agentId.Value, httpContext.Connection.RemoteIpAddress, context.Method);
+					using IDisposable? scope = _logger.BeginScope("Agent: {AgentId}, RemoteIP: {RemoteIP}, Method: {Method}", agentId.Value, httpContext.Connection.RemoteIpAddress, context.Method);
 					await GuardInnerAsync(context, callFunc);
 				}
 				else
 				{
-					using IDisposable scope = _logger.BeginScope("RemoteIP: {RemoteIP}, Method: {Method}", httpContext.Connection.RemoteIpAddress, context.Method);
+					using IDisposable? scope = _logger.BeginScope("RemoteIP: {RemoteIP}, Method: {Method}", httpContext.Connection.RemoteIpAddress, context.Method);
 					await GuardInnerAsync(context, callFunc);
 				}
 			}

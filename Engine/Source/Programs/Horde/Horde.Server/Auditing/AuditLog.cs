@@ -80,7 +80,7 @@ namespace Horde.Server.Auditing
 				Subject = subject;
 			}
 
-			public IDisposable BeginScope<TState>(TState state) => new Scope(this, LogEvent.FromState(LogLevel.Information, default, state, null, (x, y) => x?.ToString() ?? String.Empty));
+			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => new Scope(this, LogEvent.FromState(LogLevel.Information, default, state, null, (x, y) => x?.ToString() ?? String.Empty));
 
 			public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -145,7 +145,7 @@ namespace Horde.Server.Auditing
 				Outer._messageChannel.Writer.TryWrite(message);
 
 #pragma warning disable CA2254 // Template should be a static expression
-				using (IDisposable _ = Outer._logger.BeginScope($"Subject: {{{Outer._subjectProperty}}}", Subject))
+				using (IDisposable? _ = Outer._logger.BeginScope($"Subject: {{{Outer._subjectProperty}}}", Subject))
 				{
 					Outer._logger.Log(logLevel, eventId, state, exception, formatter);
 				}

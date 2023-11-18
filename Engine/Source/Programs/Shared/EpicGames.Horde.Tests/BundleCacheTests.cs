@@ -114,7 +114,9 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
+#pragma warning disable CA2000
 			Assert.IsTrue(cache.TryAdd("test", new TestData(cache.Allocator.Alloc(20))));
+#pragma warning restore CA2000
 			Assert.AreEqual(20, cache.CurrentSize);
 
 			IRefCountedHandle<TestData> result = await cache.FindOrAddAsync("test", (key, ctx) => Task.FromResult(new TestData(cache.Allocator.Alloc(20))));

@@ -83,7 +83,7 @@ namespace Horde.Server.Configuration
 				}
 			}
 
-			public IDisposable RegisterChangeCallback(Action<object> callback, object state)
+			public IDisposable RegisterChangeCallback(Action<object?> callback, object? state)
 			{
 				Registration registration = new Registration { _callback = callback, _state = state };
 				for (; ; )

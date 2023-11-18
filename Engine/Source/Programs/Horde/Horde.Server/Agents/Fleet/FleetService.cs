@@ -229,7 +229,7 @@ namespace Horde.Server.Agents.Fleet
 				["PoolId"] = pool.Id,
 			};
 
-			using IDisposable logScope = _logger.BeginScope(logScopeMetadata);
+			using IDisposable? logScope = _logger.BeginScope(logScopeMetadata);
 			if (pool.LastAgentCount != currentAgentCount || pool.LastDesiredAgentCount != desiredAgentCount)
 			{
 				_logger.LogInformation("{PoolName} Current={Current} Target={Target} Delta={Delta}",

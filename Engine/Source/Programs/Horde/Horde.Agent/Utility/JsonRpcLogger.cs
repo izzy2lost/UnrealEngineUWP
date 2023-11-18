@@ -88,7 +88,7 @@ namespace Horde.Agent.Utility
 		public bool IsEnabled(LogLevel logLevel) => logLevel >= OutputLevel;
 
 		/// <inheritdoc/>
-		public IDisposable BeginScope<TState>(TState state) => Inner.BeginScope(state);
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => Inner.BeginScope(state);
 
 		private void WriteFormattedEvent(JsonLogEvent jsonLogEvent)
 		{

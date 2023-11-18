@@ -504,7 +504,7 @@ namespace Horde.Server.Notifications
 	
 		private async Task SendJobNotificationsAsync(IJob job, IGraph graph)
 		{
-			using IDisposable scope = _logger.BeginScope("Sending notifications for job {JobId}", job.Id);
+			using IDisposable? scope = _logger.BeginScope("Sending notifications for job {JobId}", job.Id);
 
 			job.GetJobState(job.GetStepForNodeMap(), out _, out LabelOutcome outcome);
 			JobCompleteEventRecord jobCompleteEvent = new JobCompleteEventRecord(job.StreamId, job.TemplateId, outcome);
@@ -620,7 +620,7 @@ namespace Horde.Server.Notifications
 
 		private async Task SendJobStepNotificationsAsync(IJob job, JobStepBatchId batchId, JobStepId stepId)
 		{
-			using IDisposable scope = _logger.BeginScope("Sending notifications for step {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
+			using IDisposable? scope = _logger.BeginScope("Sending notifications for step {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
 
 			IJobStepBatch? batch;
 			if(!job.TryGetBatch(batchId, out batch))

@@ -139,7 +139,7 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(1, metrics2[0].Count);
 			}	
 		}
-			
+			/*
 		[TestMethod]
 		public async Task FunctionTestAsync()
 		{
@@ -148,11 +148,20 @@ namespace Horde.Server.Tests
 			await SingleFunctionTestAsync(AggregationFunction.Max, new double[] { 5, 4, 3, -1, 2 }, 5);
 			await SingleFunctionTestAsync(AggregationFunction.Sum, new double[] { 5, 4, 3, -1, 2 }, 13);
 			await SingleFunctionTestAsync(AggregationFunction.Average, new double[] { 5, 4, 3, -1, 2 }, 2.6);
-			await SingleFunctionTestAsync(AggregationFunction.Percentile, new double[] { 5, 4, 3, -1, 2 }, 4.25);
+			await SingleFunctionTestAsync(AggregationFunction.Percentile, 4.25);
 		}
-
-		async Task SingleFunctionTestAsync(AggregationFunction function, double[] values, double result)
+			*/
+		[TestMethod]
+		[DataRow(AggregationFunction.Count, 5)]
+		[DataRow(AggregationFunction.Min, -1)]
+		[DataRow(AggregationFunction.Max, 5)]
+		[DataRow(AggregationFunction.Sum, 13)]
+		[DataRow(AggregationFunction.Average, 2.6)]
+		[DataRow(AggregationFunction.Percentile, 4.25)]
+		public async Task SingleFunctionTestAsync(AggregationFunction function, double result)
 		{
+			double[] values = new double[] { 5, 4, 3, -1, 2 };
+
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
 			MetricConfig metricConfig = new MetricConfig();
