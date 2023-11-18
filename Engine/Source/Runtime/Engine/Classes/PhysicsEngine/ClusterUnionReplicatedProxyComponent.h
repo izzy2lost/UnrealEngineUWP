@@ -58,6 +58,8 @@ public:
 	/* reinitialize the internal transient state of the replicated proxy */
 	ENGINE_API void ResetTransientState();
 
+	ENGINE_API const TArray<FTransform>& GetParticleChildToParents() { return ParticleChildToParents; }
+
 protected:
 
 	UFUNCTION()
