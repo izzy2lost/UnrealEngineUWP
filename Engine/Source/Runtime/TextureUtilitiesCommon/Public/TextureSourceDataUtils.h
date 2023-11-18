@@ -23,6 +23,12 @@ namespace UE::TextureUtilitiesCommon::Experimental
 	//	beware that changing format may change the interpretation of the SRGB bool in Texture
 	// ChangeTextureSourceFormat supports mips and blocks (udim) but not layers
 	TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETextureSourceFormat NewFormat);
+	
+	// Replace TextureSource with JPEG compressed data
+	// returns true if change was made
+	// calls Pre/PostEditChange :
+	//	Quality == 0 for default (85)
+	TEXTUREUTILITIESCOMMON_API bool CompressTextureSourceWithJPEG(UTexture* Texture,int32 Quality = 0);
 }
 
 #endif // WITH_EDITOR

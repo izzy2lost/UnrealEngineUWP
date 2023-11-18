@@ -42,7 +42,7 @@ FAssetOpenSupport UAssetDefinition_Texture::GetAssetOpenSupport(const FAssetOpen
 
 namespace MenuExtension_Texture
 {
-	void ExecuteCreateMaterial(const FToolMenuContext& InContext)
+	static void ExecuteCreateMaterial(const FToolMenuContext& InContext)
 	{
 		const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext);
 
@@ -69,6 +69,14 @@ namespace MenuExtension_Texture
 		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
 		{
 			UE::TextureAssetActions::TextureSource_ConvertTo8bit_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
+		}
+	}
+	
+	static void ExecuteJPEGTextureSource(const FToolMenuContext& InContext)
+	{
+		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+		{
+			UE::TextureAssetActions::TextureSource_JPEG_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
 		}
 	}
 
@@ -154,6 +162,14 @@ namespace MenuExtension_Texture
 							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
 							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&Execute8bitTextureSource);
 							InSection.AddMenuEntry("Texture_ConvertTo8bit", Label, ToolTip, Icon, UIAction);
+						}
+						
+						{
+							const TAttribute<FText> Label = LOCTEXT("Texture2D_JPEGSource", "Texture Source Compress With JPEG");
+							const TAttribute<FText> ToolTip = LOCTEXT("Texture2D_JPEGSourceTooltip", "Reduce texture asset size by compressing source with JPEG.");
+							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteJPEGTextureSource);
+							InSection.AddMenuEntry("Texture2D_JPEGSource", Label, ToolTip, Icon, UIAction);
 						}
 					}
 				}));

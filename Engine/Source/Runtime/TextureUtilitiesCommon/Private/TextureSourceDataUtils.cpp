@@ -9,6 +9,7 @@
 #include "HAL/UnrealMemory.h"
 #include "EngineLogs.h"
 #include "TextureImportSettings.h"
+#include "ImageUtils.h"
 
 namespace UE::TextureUtilitiesCommon::Experimental
 {
@@ -389,6 +390,80 @@ TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETe
 
 	check( Texture->Source.GetGammaSpace(0) == NewGamma );
 
+	return true;
+}
+
+// calls Pre/PostEditChange :
+TEXTUREUTILITIESCOMMON_API bool CompressTextureSourceWithJPEG(UTexture* Texture,int32 Quality)
+{
+	if ( ! Texture->Source.IsValid() )
+	{
+		return false;
+	}
+
+	// we only support 1 layer currently
+	if (Texture->Source.GetNumLayers() != 1)
+	{
+		return false;
+	}
+	
+	if (Texture->Source.GetNumBlocks() != 1 )
+	{
+		// JPEG does not support UDIM/blocks ; fix me?
+		return false;
+	}
+	
+	if (Texture->Source.GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_JPEG )
+	{
+		// already JPEG
+		return false;
+	}
+	
+	if ( Texture->Source.GetNumSlices() != 1 )
+	{
+		// 1 mip, 1 slice only
+		return false;
+	}
+
+	ETextureSourceFormat Format = Texture->Source.GetFormat(0);
+	if ( Format != TSF_G8 && Format != TSF_BGRA8 )
+	{
+		// must be 8 bit
+		return false;
+	}
+
+	// we do kill existing mips to match the behavior of the other conversions in here
+
+	// okay, looks good, do it!
+
+	FImage Image;
+	if ( ! Texture->Source.GetMipImage(Image,0) )
+	{
+		UE_LOG(LogTexture,Error,TEXT("CompressTextureSourceWithJPEG: Texture GetMipImage failed [%s]"),
+			*Texture->GetFullName());
+		return false;
+	}
+
+	// JPEG it :
+
+	TArray64<uint8> JPEGData;
+	if ( ! FImageUtils::CompressImage(JPEGData,TEXT(".jpg"),Image,Quality) )
+	{
+		UE_LOG(LogTexture,Error,TEXT("CompressTextureSourceWithJPEG: Texture CompressImage failed [%s]"),
+			*Texture->GetFullName());
+		return false;
+	}
+
+	Texture->PreEditChange(nullptr);
+
+	// Format stays BGRA8 or G8
+	const int32 NumMips = 1;
+	Texture->Source.InitWithCompressedSourceData(Image.SizeX,Image.SizeY,NumMips,Format,
+		JPEGData,
+		ETextureSourceCompressionFormat::TSCF_JPEG);
+
+	Texture->PostEditChange();
+	
 	return true;
 }
 

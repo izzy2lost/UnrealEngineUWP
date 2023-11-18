@@ -42,7 +42,8 @@ enum class ETextureAction
 {
 	Invalid = 0,
 	Resize,
-	ConvertTo8bit
+	ConvertTo8bit,
+	JPEG
 };
 
 enum class EAssetActionStatus
@@ -52,8 +53,10 @@ enum class EAssetActionStatus
 	UnderSized,
 	WrongType,
 	HasLayers,
+	HasMipsLeaveExisting,
 	Already8bit,
-	DontChangeJPEG
+	DontChangeJPEG,
+	MustBe8BitForJPEG
 };
 
 /**
@@ -198,6 +201,7 @@ static FText TAA_DialogTitle(ETextureAction Act)
 	{
 	case ETextureAction::Resize: return LOCTEXT("TAA_Title_Resize", "Texture Asset : Resize Source");
 	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Title_Convert", "Texture Asset : Convert To 8 bit or minimum viable bit depth");
+	case ETextureAction::JPEG: return LOCTEXT("TAA_Title_JPEG", "Texture Asset : Compress with JPEG");
 	default: check(0); return FText();
 	}
 }
@@ -208,12 +212,16 @@ static FText TAA_Intro(ETextureAction Act)
 	{
 	case ETextureAction::Resize: return LOCTEXT("TAA_Intro_Resize", "Reduce size of Texture Source to compact uassets.  Resizing is done using mip filter, in power of two steps.  LODBias is adjusted but platform built size may change.");
 	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Intro_Convert", "Convert Texture Source to 8 bit, Normals to 8 or 16, HDR to 16F.  Only converts if bits per pixel goes down.  Output built texture may change.  Make sure CompressionSetting and SRGB are set correctly first!");
+	case ETextureAction::JPEG: return LOCTEXT("TAA_Intro_JPEG", "Compress Texture Source with JPEG.  Only works on 8 bit, 2D simple textures.  Greatly reduces uasset size with some loss of quality.  Does not affect in-game size.");
 	default: check(0); return FText();
 	}
 }
 
 void STextureAssetList::Construct(const FArguments& InArgs)
-{	
+{
+	// BEWARE : Action is not set yet (it comes in Init)
+	//	cannot do per-Action setup here
+
 	UserResponse = STextureActionDlg::Cancel;
 	ParentWindow = InArgs._ParentWindow.Get();
 	static FName ErrorIcon = "MessageLog.Error";
@@ -310,6 +318,20 @@ void STextureAssetList::Construct(const FArguments& InArgs)
 						.Text(this, &STextureAssetList::GetThresholdText)
 					]
 				]
+				/*
+				// cannot do Action-dependent setup here :(
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text( Action == ETextureAction::JPEG ? 
+						LOCTEXT("TAA_Threshold_JPEG", "included if pixel count >= threshold^2") :
+						LOCTEXT("TAA_Threshold_Resize", "resizes so larger dimension is <= threshold")
+					)
+					.AutoWrapText(true)
+				]
+				*/
 			]
 		+ SVerticalBox::Slot()
 			.AutoHeight()
@@ -430,10 +452,12 @@ static FText AssetActionStatus_Text(EAssetActionStatus Status)
 	case EAssetActionStatus::Enabled: return FText();
 	case EAssetActionStatus::NoSource: return LOCTEXT("TAAStatus_NoSource", "The texture has no source data; cooked Editor?");
 	case EAssetActionStatus::WrongType: return LOCTEXT("TAAStatus_WrongType", "The texture is not a supported type.");
-	case EAssetActionStatus::UnderSized: return LOCTEXT("TAAStatus_UnderSized", "The texture was under the threshold size.");
+	case EAssetActionStatus::UnderSized: return LOCTEXT("TAAStatus_UnderSized", "The texture was under or equal the threshold size.");
 	case EAssetActionStatus::HasLayers: return LOCTEXT("TAAStatus_HasLayers", "Textures with more than 1 layer not supported.");
+	case EAssetActionStatus::HasMipsLeaveExisting: return LOCTEXT("TAAStatus_HasMipsLeaveExisting", "Textures has imported mips and LeaveExisting, will not change. (change MipGen if wanted)");
 	case EAssetActionStatus::Already8bit: return LOCTEXT("TAAStatus_Already8", "Texture format is already minimum bit depth.");
 	case EAssetActionStatus::DontChangeJPEG: return LOCTEXT("TAAStatus_JPEG", "Texture source is JPEG compressed, will not change."); 
+	case EAssetActionStatus::MustBe8BitForJPEG: return LOCTEXT("TAAStatus_MustBe8BitForJPEG", "Texture source must be 8 bit for JPEG; change bit depth first."); 
 	default:
 		check(0);
 		return FText();
@@ -843,6 +867,17 @@ static void DoConvertTo8bitTextureSource(UTexture * Texture,bool NormalMapsKeep1
 	UE::TextureUtilitiesCommon::Experimental::ChangeTextureSourceFormat(Texture,OutTSF);	
 }
 
+static void DoCompressTextureSourceWithJPEG(UTexture * Texture)
+{
+	// calls Pre/PostEditChange :
+	bool bDid = UE::TextureUtilitiesCommon::Experimental::CompressTextureSourceWithJPEG(Texture);
+	
+	UE_LOG(LogTexture, Display, TEXT("Texture (%s) %s"), 
+		*Texture->GetName() ,
+		bDid ? TEXT("was changed to JPEG compression.") : TEXT("was not changed.")
+		);
+}
+
 void STextureAssetList::DoAction()
 {
 	int NumEnabled = 0;
@@ -885,6 +920,9 @@ void STextureAssetList::DoAction()
 			break;
 		case ETextureAction::ConvertTo8bit:
 			DoConvertTo8bitTextureSource(Texture,bNormalMapsKeep16bits);
+			break;
+		case ETextureAction::JPEG:
+			DoCompressTextureSourceWithJPEG(Texture);
 			break;
 		default:
 			check(0);
@@ -931,6 +969,10 @@ void STextureAssetList::UpdateList()
 		else if ( Texture->Source.GetNumLayers() != 1 ) // only 1 layer textures
 		{
 			Status = EAssetActionStatus::HasLayers;
+		}
+		else if ( Texture->Source.GetNumMips() != 1 && Texture->MipGenSettings == TMGS_LeaveExistingMips )
+		{
+			Status = EAssetActionStatus::HasMipsLeaveExisting;
 		}
 		else
 		{
@@ -990,6 +1032,37 @@ void STextureAssetList::UpdateList()
 						*StaticEnum<TextureCompressionSettings>()->GetDisplayNameTextByValue(Texture->CompressionSettings).ToString(),
 						ERawImageFormat::GetName( FImageCoreUtils::ConvertToRawImageFormat( OutTSF ) ) );
 				}
+			}
+			else if ( Action == ETextureAction::JPEG )
+			{
+				if ( Class != ETextureClass::TwoD || Texture->Source.GetNumBlocks() > 1 || Texture->Source.GetNumSlices() > 1 )
+				{
+					// JPEG only supports 2d
+					// Blocked/UDIM doesn't support JPEG (@@ ??)
+					Status = EAssetActionStatus::WrongType;
+				}
+				else if ( Texture->Source.GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_JPEG )
+				{
+					// Already JPEG
+					Status = EAssetActionStatus::DontChangeJPEG;
+				}
+				else if ( InTSF != TSF_BGRA8 && InTSF != TSF_G8 )
+				{
+					Status = EAssetActionStatus::MustBe8BitForJPEG;
+				}
+				else if ( SourceSize.X < 16 || SourceSize.Y < 16 )
+				{
+					// hard-coded requirement of at least 16 in both dimensions
+					Status = EAssetActionStatus::UnderSized;
+				}
+				else if ( (int64)SourceSize.X*SourceSize.Y < (int64)ThresholdValue*ThresholdValue ) // pixel count
+				{
+					Status = EAssetActionStatus::UnderSized;
+				}
+				else
+				{
+					// enabled!
+				}				
 			}
 			else
 			{
@@ -1094,7 +1167,7 @@ EVisibility STextureAssetList::GetErrorMessageVisibility() const
 
 EVisibility STextureAssetList::GetThresholdVisibility() const
 {
-	return ( Action == ETextureAction::Resize ) ? EVisibility::Visible : EVisibility::Collapsed;
+	return ( Action == ETextureAction::Resize || Action == ETextureAction::JPEG ) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText STextureAssetList::GetIntroMessage() const
@@ -1151,6 +1224,12 @@ void UE::TextureAssetActions::TextureSource_Resize_WithDialog(const TArray<UText
 void UE::TextureAssetActions::TextureSource_ConvertTo8bit_WithDialog(const TArray<UTexture*> & InTextures)
 {
 	STextureActionDlg Dlg(InTextures,ETextureAction::ConvertTo8bit);
+	Dlg.ShowModal();
+}
+
+void UE::TextureAssetActions::TextureSource_JPEG_WithDialog(const TArray<UTexture*> & InTextures)
+{
+	STextureActionDlg Dlg(InTextures,ETextureAction::JPEG);
 	Dlg.ShowModal();
 }
 
