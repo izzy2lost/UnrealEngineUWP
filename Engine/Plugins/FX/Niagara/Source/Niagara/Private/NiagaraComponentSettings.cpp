@@ -356,7 +356,7 @@ namespace FNiagaraComponentSettings
 					}
 
 					const TArray<TSharedRef<const FNiagaraEmitterCompiledData>>& EmitterCompiledData = OwnerSystem->GetEmitterCompiledData();
-					if (!ensure(EmitterCompiledData.IsValidIndex(iEmitter)))
+					if (!EmitterCompiledData.IsValidIndex(iEmitter))
 					{
 						continue;
 					}
