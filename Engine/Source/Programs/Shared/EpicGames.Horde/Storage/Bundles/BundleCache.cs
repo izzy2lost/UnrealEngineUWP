@@ -340,25 +340,33 @@ namespace EpicGames.Horde.Storage
 			where TKey : notnull
 			where TValue : class, IDisposable
 		{
-			CacheValue? item;
-			lock (_lockObject)
+			CacheValue? item = null;
+			try
 			{
-				CacheValue? untypedItem;
-				if (_itemLookup.TryGetValue(key, out untypedItem))
+				lock (_lockObject)
 				{
-					item = untypedItem;
+					CacheValue? untypedItem;
+					if (_itemLookup.TryGetValue(key, out untypedItem))
+					{
+						item = untypedItem;
+					}
+					else
+					{
+						item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
+						_items.AddFirst(item);
+						_itemLookup.Add(key, item);
+					}
+					item.AddRef(); // Don't allow the item to be freed while we wait for it
 				}
-				else
-				{
-					item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
-					_items.AddFirst(item);
-					_itemLookup.Add(key, item);
-				}
-			}
 
-			TValue value = (TValue)await item.InitTask.WaitAsync(cancellationToken);
-			item.AddRef();
-			return new CacheValueHandle<TValue>(item, value);
+				TValue value = (TValue)await item.InitTask.WaitAsync(cancellationToken);
+				return new CacheValueHandle<TValue>(item, value);
+			}
+			catch
+			{
+				item?.Release();
+				throw;
+			}
 		}
 
 		void CreateSpace(long size)

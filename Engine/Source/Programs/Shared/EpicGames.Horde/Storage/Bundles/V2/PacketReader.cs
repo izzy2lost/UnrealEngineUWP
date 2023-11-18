@@ -14,9 +14,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		readonly BundleCache _cache;
 		readonly IBlobHandle _bundleHandle;
 		readonly PacketHandle _packetHandle;
-		readonly Packet _decodedPacket;
-		readonly IRefCountedHandle _memoryOwner;
-		readonly IBlobHandle?[] _cachedImportHandles;
+
+		Packet _decodedPacket;
+		IBlobHandle?[] _cachedImportHandles;
+		IRefCountedHandle _memoryOwner;
 
 		/// <summary>
 		/// Accessor for the underlying packet data
@@ -44,7 +45,17 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public void Dispose() => _memoryOwner?.Dispose();
+		public void Dispose()
+		{
+			if(_memoryOwner != null)
+			{
+				_memoryOwner.Dispose();
+				_memoryOwner = null!;
+			}
+
+			_decodedPacket = null!;
+			_cachedImportHandles = null!;
+		}
 
 		/// <summary>
 		/// Reads this packet in its entirety
