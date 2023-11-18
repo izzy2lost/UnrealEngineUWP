@@ -27,6 +27,8 @@ namespace Horde.Server.Telemetry.Sinks
 		class EventDocument
 		{
 			public ObjectId Id { get; set; }
+
+			[BsonElement("data")]
 			public BsonDocument Data { get; set; }
 
 			[BsonConstructor]
