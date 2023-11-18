@@ -24,18 +24,16 @@ namespace Private
 
 		// We want to reduce the asset size so ignore the imported mip(s) (??)
 		const int32 MipIndex = 0;
-		FImage SourceMip0;
-		if (!Texture->Source.GetMipImage(SourceMip0, MipIndex))
+		FImage Image;
+		if (!Texture->Source.GetMipImage(Image, MipIndex))
 		{
 			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture GetMipImage failed [%s]"),
 				*Texture->GetFullName());
 			return false;
 		}
 
-		int32 NumSlices = Texture->Source.GetNumSlices(); // == 1 or 6 for cubes
-
 		bool MadeChanges;
-		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, SourceMip0, MaxSize, LayerIndex, MadeChanges) )
+		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Image, MaxSize, LayerIndex, MadeChanges) )
 		{
 			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture DownsizeImageUsingTextureSettings failed [%s]"),
 				*Texture->GetFullName());
@@ -48,19 +46,11 @@ namespace Private
 		
 		Texture->PreEditChange(nullptr);
 
-		FImage ResizedImage = MoveTemp(SourceMip0); // this is just a variable rename
+		Texture->Source.Init(Image);
 
-		check( ResizedImage.NumSlices == NumSlices ); // slices are done one by one
-
-		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferFromArray(MoveTemp(ResizedImage.RawData));
-
-		const int32 NumMips = 1;
-		Texture->Source.Init(ResizedImage.SizeX
-			, ResizedImage.SizeY
-			, ResizedImage.NumSlices
-			, NumMips
-			, FImageCoreUtils::ConvertToTextureSourceFormat(ResizedImage.Format)
-			, MoveTemp(ResizedImageBufferWithID));
+		// Compress() applies PNG filter to the BulkData
+		//	Compress is done automatically in Texture PreSave
+		//Texture->Source.Compress(); 
 
 		// if gamma was Pow22 it is now sRGB
 		Texture->bUseLegacyGamma = false;
@@ -320,6 +310,7 @@ TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETe
 	if ( Texture->Source.GetNumBlocks() == 1 && Texture->Source.GetNumMips() == 1 )
 	{
 		const int32 MipIndex = 0;
+
 		FImage SourceMip;
 		if (!Texture->Source.GetMipImage(SourceMip, MipIndex))
 		{
@@ -331,15 +322,9 @@ TEXTUREUTILITIESCOMMON_API bool ChangeTextureSourceFormat(UTexture* Texture, ETe
 		FImage NewMip;
 		SourceMip.CopyTo(NewMip,NewRIF,NewGamma);
 		
-		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferFromArray(MoveTemp(NewMip.RawData));
-		
 		Texture->PreEditChange(nullptr);
 
-		const int32 NumMips = 1;
-		Texture->Source.Init(NewMip.SizeX,NewMip.SizeY,NewMip.NumSlices
-			, NumMips
-			, NewFormat
-			, MoveTemp(ResizedImageBufferWithID));
+		Texture->Source.Init(NewMip);
 	}
 	else // blocks and/or mips
 	{
