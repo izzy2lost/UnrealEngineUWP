@@ -40,21 +40,26 @@ namespace EpicGames.Horde.Storage
 	{
 		class CacheValue : IDisposable
 		{
+			public object Key { get; }
 			public LinkedListNode<CacheValue> Node { get; }
 			public Task<IDisposable> InitTask { get; }
-			int _lockCount;
+			int _refCount;
 
-			public CacheValue(IDisposable value)
+			public int RefCount => Interlocked.CompareExchange(ref _refCount, 0, 0);
+
+			public CacheValue(object key, IDisposable value)
 			{
+				_refCount = 1;
+				Key = key;
 				Node = new LinkedListNode<CacheValue>(this);
-				Lock();
 				InitTask = Task.FromResult<IDisposable>(value);
 			}
 
-			public CacheValue(Func<Task<IDisposable>> initTask)
+			public CacheValue(object key, Func<Task<IDisposable>> initTask)
 			{
+				_refCount = 2; // Will be released by RunAndUnlock
+				Key = key;
 				Node = new LinkedListNode<CacheValue>(this);
-				Lock();
 				InitTask = Task.Run(() => RunAndUnlockAsync(initTask));
 			}
 
@@ -71,20 +76,20 @@ namespace EpicGames.Horde.Storage
 				}
 				finally
 				{
-					Unlock();
+					Release();
 				}
 			}
 
-			public bool IsLocked() => Interlocked.CompareExchange(ref _lockCount, 0, 0) > 0;
-
-			public void Lock() => Interlocked.Increment(ref _lockCount);
-			public void Unlock() => Interlocked.Decrement(ref _lockCount);
+			public void AddRef() => Interlocked.Increment(ref _refCount);
+			public void Release() => Interlocked.Decrement(ref _refCount);
 		}
 
 		class CacheValueHandle<T> : IRefCountedHandle<T> where T : class, IDisposable
 		{
 			CacheValue? _item;
 			T? _target;
+
+			public int RefCount => _item?.RefCount ?? throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
 
 			public T Target => _target ?? throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
 
@@ -98,7 +103,7 @@ namespace EpicGames.Horde.Storage
 			{
 				if (_item != null)
 				{
-					_item.Unlock();
+					_item.Release();
 					_item = null;
 					_target = null;
 				}
@@ -111,49 +116,40 @@ namespace EpicGames.Horde.Storage
 					throw new ObjectDisposedException(nameof(CacheValueHandle<T>));
 				}
 
-				_item.Lock();
+				_item.AddRef();
 				return new CacheValueHandle<T>(_item, _target);
 			}
 		}
 
-		class MemoryReservation : IDisposable
+		// Tracks an owned blocks of memory against the cache budged.
+		sealed class MemoryAllocation : IMemoryOwner<byte>
 		{
 			readonly BundleCache _outer;
-			long _size;
-
-			public MemoryReservation(BundleCache outer, long size)
-			{
-				_outer = outer;
-				_size = size;
-			}
-
-			public virtual void Dispose()
-			{
-				Interlocked.Add(ref _outer._currentSize, -_size);
-				_size = 0;
-			}
-		}
-
-		sealed class MemoryAllocation : MemoryReservation, IMemoryOwner<byte>
-		{
-			readonly IMemoryOwner<byte> _owner;
+			IMemoryOwner<byte> _owner;
 
 			public Memory<byte> Memory => _owner.Memory;
 
 			public MemoryAllocation(BundleCache outer, IMemoryOwner<byte> owner)
-				: base(outer, owner.Memory.Length)
 			{
+				_outer = outer;
 				_owner = owner;
 			}
 
-			public override void Dispose()
+			/// <inheritdoc/>
+			public void Dispose()
 			{
-				base.Dispose();
-
-				_owner.Dispose();
+				if (_owner != null)
+				{
+					long size = _owner.Memory.Length;
+					_owner.Dispose();
+					_outer.ReleaseSpace(size);
+					_owner = null!;
+				}
 			}
 		}
 
+		// Custom memory allocator which tracks allocated blocks against the cache's budget. Older cache entries will be 
+		// disposed to create space for new allocations.
 		class MemoryAllocator : IMemoryAllocator<byte>
 		{
 			readonly BundleCache _outer;
@@ -165,7 +161,13 @@ namespace EpicGames.Horde.Storage
 				_inner = inner;
 			}
 
-			public IMemoryOwner<byte> Alloc(int minSize) => new MemoryAllocation(_outer, _inner.Alloc(minSize));
+			public IMemoryOwner<byte> Alloc(int minSize)
+			{
+				_outer.CreateSpace(minSize);
+				IMemoryOwner<byte> owner = _inner.Alloc(minSize);
+				_outer.CreateSpace(owner.Memory.Length - minSize);
+				return new MemoryAllocation(_outer, owner);
+			}
 		}
 
 		readonly object _lockObject = new object();
@@ -173,7 +175,7 @@ namespace EpicGames.Horde.Storage
 		readonly LinkedList<CacheValue> _items = new LinkedList<CacheValue>();
 		readonly Dictionary<object, CacheValue> _itemLookup = new Dictionary<object, CacheValue>();
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
-		readonly IMemoryAllocator<byte> _allocator;
+		readonly MemoryAllocator _allocator;
 
 		long _currentSize;
 
@@ -189,6 +191,11 @@ namespace EpicGames.Horde.Storage
 		/// Accessor for the default allocator
 		/// </summary>
 		public IMemoryAllocator<byte> Allocator => _allocator;
+
+		/// <summary>
+		/// Current size of data allocated or in the cache
+		/// </summary>
+		public long CurrentSize => _currentSize;
 
 		/// <summary>
 		/// Size of the configured header cache
@@ -208,17 +215,29 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleCache() : this(new BundleCacheOptions()) 
+		public BundleCache() 
+			: this(new BundleCacheOptions()) 
 		{ 
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		/// <param name="options">Options for the cache</param>
 		public BundleCache(BundleCacheOptions options)
+			: this(options, PoolAllocator.Shared)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="options">Options for the cache</param>
+		/// <param name="innerAllocator">Inner allocator to use. Will be wrapped in an allocator that tracks allocations against the cache's budget.</param>
+		public BundleCache(BundleCacheOptions options, IMemoryAllocator<byte> innerAllocator)
 		{
 			_options = options;
-			_allocator = new MemoryAllocator(this, PoolAllocator.Shared);
+			_allocator = new MemoryAllocator(this, innerAllocator);
 
 			if (options.HeaderCacheSize > 0)
 			{
@@ -258,6 +277,15 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Empty the cache
+		/// </summary>
+		public void Trim()
+		{
+			CreateSpace(_options.MaxSize);
+			ReleaseSpace(_options.MaxSize);
+		}
+
+		/// <summary>
 		/// Find or add a new cached value to the cache
 		/// </summary>
 		/// <param name="key">Key for the lookup</param>
@@ -271,7 +299,7 @@ namespace EpicGames.Horde.Storage
 				CacheValue? item;
 				if (_itemLookup.TryGetValue(key, out item) && item.InitTask.TryGetResult(out IDisposable result))
 				{
-					item.Lock();
+					item.AddRef();
 					return new CacheValueHandle<TValue>(item, (TValue)result);
 				}
 			}
@@ -279,12 +307,12 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// Attempts to add a value to the cache
+		/// Attempts to add a value to the cache. 
 		/// </summary>
-		/// <param name="key"></param>
-		/// <param name="createFunc"></param>
+		/// <param name="key">Key to add the item to the cache with</param>
+		/// <param name="value">Value to be added. If the item is added, ownership is implicitly transferred to the cache.</param>
 		/// <returns>True if the value was added</returns>
-		public bool TryAdd<TKey, TValue>(TKey key, Func<TValue> createFunc)
+		public bool TryAdd<TKey, TValue>(TKey key, TValue value)
 			where TKey : notnull
 			where TValue : class, IDisposable
 		{
@@ -292,7 +320,8 @@ namespace EpicGames.Horde.Storage
 			{
 				if (!_itemLookup.ContainsKey(key))
 				{
-					CacheValue item = new CacheValue(createFunc());
+					CacheValue item = new CacheValue(key, value);
+					_items.AddFirst(item);
 					_itemLookup.Add(key, item);
 					return true;
 				}
@@ -307,68 +336,54 @@ namespace EpicGames.Horde.Storage
 		/// <param name="createAsync"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns>Handle to the item that was read. Must be disposed by the caller.</returns>
-		public async Task<IRefCountedHandle<TValue>> FindOrAddAsync<TKey, TValue>(TKey key, Func<TKey, CancellationToken, Task<TValue>> createAsync, CancellationToken cancellationToken)
+		public async Task<IRefCountedHandle<TValue>> FindOrAddAsync<TKey, TValue>(TKey key, Func<TKey, CancellationToken, Task<TValue>> createAsync, CancellationToken cancellationToken = default)
 			where TKey : notnull
 			where TValue : class, IDisposable
 		{
-			CacheValue? item = null;
-			try
+			CacheValue? item;
+			lock (_lockObject)
+			{
+				CacheValue? untypedItem;
+				if (_itemLookup.TryGetValue(key, out untypedItem))
+				{
+					item = untypedItem;
+				}
+				else
+				{
+					item = new CacheValue(key, async () => await createAsync(key, _cancellationSource.Token));
+					_items.AddFirst(item);
+					_itemLookup.Add(key, item);
+				}
+			}
+
+			TValue value = (TValue)await item.InitTask.WaitAsync(cancellationToken);
+			item.AddRef();
+			return new CacheValueHandle<TValue>(item, value);
+		}
+
+		void CreateSpace(long size)
+		{
+			if (Interlocked.Add(ref _currentSize, size) > _options.MaxSize)
 			{
 				lock (_lockObject)
 				{
-					CacheValue? untypedItem;
-					if (_itemLookup.TryGetValue(key, out untypedItem))
+					for (LinkedListNode<CacheValue>? lastNode = _items.Last; lastNode != null && Interlocked.CompareExchange(ref _currentSize, 0, 0) > _options.MaxSize; lastNode = lastNode.Previous)
 					{
-						item = untypedItem;
-						item.Lock();
-					}
-					else
-					{
-						item = new CacheValue(async () => await createAsync(key, _cancellationSource.Token));
-						_items.AddFirst(item);
-						_itemLookup.Add(key, item);
+						CacheValue lastItem = lastNode.Value;
+						if (lastItem.RefCount == 1)
+						{
+							_items.Remove(lastItem);
+							_itemLookup.Remove(lastItem.Key);
+							lastItem.Dispose();
+						}
 					}
 				}
-
-				TValue value = (TValue)await item.InitTask.WaitAsync(cancellationToken);
-				return new CacheValueHandle<TValue>(item, value);
-			}
-			finally
-			{
-				item?.Unlock();
 			}
 		}
 
-		/// <summary>
-		/// Allocate a block of memory from the shared heap
-		/// </summary>
-		/// <param name="size">Size of the allocation. The returned memory may be larger than this.</param>
-		public IMemoryOwner<byte> Allocate(int size)
+		void ReleaseSpace(long size)
 		{
-			return _allocator.Alloc(size);
-		}
-
-		/// <summary>
-		/// Add a reservation against the maximum allowed size of cached data. 
-		/// </summary>
-		public IDisposable Reserve(long size)
-		{
-			lock (_lockObject)
-			{
-				Interlocked.Add(ref _currentSize, size);
-
-				for (LinkedListNode<CacheValue>? lastNode = _items.Last; lastNode != null && Interlocked.CompareExchange(ref _currentSize, 0, 0) > _options.MaxSize; lastNode = lastNode.Previous)
-				{
-					CacheValue lastItem = lastNode.Value;
-					if (!lastItem.IsLocked())
-					{
-						_items.Remove(lastItem);
-						lastItem.Dispose();
-					}
-				}
-
-				return new MemoryReservation(this, size);
-			}
+			Interlocked.Add(ref _currentSize, -size);
 		}
 
 		#region V1

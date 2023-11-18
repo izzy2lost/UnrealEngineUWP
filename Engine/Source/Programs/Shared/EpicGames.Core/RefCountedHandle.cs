@@ -24,6 +24,11 @@ namespace EpicGames.Core
 	public interface IRefCountedHandle<T> : IRefCountedHandle
 	{
 		/// <summary>
+		/// Accessor for the current ref count, for debugging purposes.
+		/// </summary>
+		int RefCount { get; }
+
+		/// <summary>
 		/// Target of the reference
 		/// </summary>
 		T Target { get; }
@@ -72,6 +77,9 @@ namespace EpicGames.Core
 	{
 		readonly RefCountedDisposer? _refCountedDisposer;
 		T _target;
+
+		/// <inheritdoc/>
+		public int RefCount => _refCountedDisposer?.RefCount ?? throw new ObjectDisposedException(typeof(RefCountedHandle<T>).Name);
 
 		/// <inheritdoc/>
 		public T Target => _target ?? throw new ObjectDisposedException(typeof(RefCountedHandle<T>).Name);
@@ -123,6 +131,11 @@ namespace EpicGames.Core
 	{
 		IDisposable? _owner;
 		int _value = 1;
+
+		/// <summary>
+		/// Current reference count
+		/// </summary>
+		public int RefCount => _value;
 
 		/// <summary>
 		/// Constructor

@@ -212,7 +212,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				using Stream stream = await _outer.OpenBodyAsync(_packetOffset, readLength, cancellationToken);
 
 				// Read the first packet
-				leadingPacket = _cache.Allocate(_packetLength);
+				leadingPacket = _cache.Allocator.Alloc(_packetLength);
 				Memory<byte> memory = leadingPacket.Memory.Slice(0, _packetLength);
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 
@@ -232,15 +232,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						break;
 					}
 
-					trailingPacket = _cache.Allocate(signature.HeaderLength);
+					trailingPacket = _cache.Allocator.Alloc(signature.HeaderLength);
 					memory = trailingPacket.Memory.Slice(0, signature.HeaderLength);
 					header.CopyTo(memory);
 					await stream.ReadFixedLengthBytesAsync(memory.Slice(Bundle.SignatureLength), cancellationToken);
 
 					EncodedPacketCacheKey trailingKey = new EncodedPacketCacheKey(key.Bundle, _packetOffset + readOffset);
-					if (!_cache.TryAdd(trailingKey, () => ReadOnlyMemoryOwner.Create<byte>(memory, trailingPacket)))
+					IReadOnlyMemoryOwner<byte> trailingValue = ReadOnlyMemoryOwner.Create<byte>(memory, trailingPacket);
+					if (!_cache.TryAdd(trailingKey, trailingValue))
 					{
-						trailingPacket.Dispose();
+						trailingValue.Dispose();
 					}
 					trailingPacket = null;
 
