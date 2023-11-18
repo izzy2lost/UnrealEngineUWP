@@ -199,7 +199,6 @@ namespace UsdGroomTranslatorUtils
 	{
 		// At this point, the prim (SkelRoot or GeomMesh) has already been checked to have the GroomBindingAPI,
 		// so we need to set up the GroomComponent and the groom binding asset to be able to bind it to the mesh
-		FScopedUsdAllocs Allocs;
 
 		// The GroomBinding schema must specify a groom prim to bind to the mesh
 		const FString GroomPrimPath = GetGroomPrimPath(Prim);

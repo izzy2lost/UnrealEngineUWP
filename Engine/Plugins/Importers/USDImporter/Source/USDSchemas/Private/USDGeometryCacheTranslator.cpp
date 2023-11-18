@@ -114,6 +114,10 @@ namespace UsdGeometryCacheTranslatorImpl
 			return;
 		}
 
+		// MeshDescriptions are always allocated on the UE allocator as the allocation happens within
+		// another dll, so we need to deallocate them using it too
+		FScopedUnrealAllocs Allocs;
+
 		FMeshDescription TempMeshDescription;
 		UsdUtils::FUsdPrimMaterialAssignmentInfo TempMaterialInfo;
 
@@ -240,6 +244,10 @@ namespace UsdGeometryCacheTranslatorImpl
 
 	bool ReadMeshData(const FReadMeshDataArgs& Args, const UE::FUsdPrim& MeshPrim, int32 MaterialOffset, float Time, FGeometryCacheMeshData& OutMeshData)
 	{
+		// MeshDescriptions are always allocated on the UE allocator as the allocation happens within
+		// another dll, so we need to deallocate them using it too
+		FScopedUnrealAllocs Allocs;
+
 		FTransform PropatagedTransform = FTransform::Identity;
 		if (Args.bPropagateTransform)
 		{
