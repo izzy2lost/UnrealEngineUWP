@@ -260,99 +260,105 @@ namespace Horde.Server.Perforce
 
 			// Poll each cluster
 			List<ClusterTicker> tickers = new List<ClusterTicker>();
-
-			for (; ; )
+			try
 			{
-				// Update the background task for refreshing the list of clusters
-				if (clusterTask != null && clusterTask.IsCompleted)
+				for (; ; )
 				{
-					try
+					// Update the background task for refreshing the list of clusters
+					if (clusterTask != null && clusterTask.IsCompleted)
 					{
-						clusters = await clusterTask;
-					}
-					catch (Exception ex)
-					{
-						_logger.LogError(ex, "Exception while updating cluster information: {Message}", ex.Message);
-					}
-					clusterTask = null;
-				}
-
-				// Don't do any updates during downtime; we might just create a bunch of P4 errors.
-				if (!_downtimeService.IsDowntimeActive)
-				{
-					// Check if it's time to start a new cluster update
-					if (clusterTask == null && clusterTimer.Elapsed > TimeSpan.FromSeconds(30.0))
-					{
-						clusterTask = Task.Run(() => CreateStreamInfoAsync(cancellationToken), cancellationToken);
-						clusterTimer.Restart();
-					}
-
-					// Remove any state for clusters that are no longer valid
-					bool updateState = false;
-					foreach (string clusterName in state.Clusters.Keys)
-					{
-						if (!clusters.ContainsKey(clusterName))
+						try
 						{
-							state.Clusters.Remove(clusterName);
-							updateState = true;
+							clusters = await clusterTask;
 						}
-					}
-
-					// Make sure there's a ticker for every cluster
-					foreach (string clusterName in clusters.Keys)
-					{
-						if (!tickers.Any(x => x.ClusterName.Equals(clusterName, StringComparison.OrdinalIgnoreCase)))
+						catch (Exception ex)
 						{
-							ClusterTicker ticker = new ClusterTicker(clusterName);
-							tickers.Add(ticker);
+							_logger.LogError(ex, "Exception while updating cluster information: {Message}", ex.Message);
 						}
+						clusterTask = null;
 					}
 
-					// Check if it's time to update any tickers
-					for (int idx = 0; idx < tickers.Count; idx++)
+					// Don't do any updates during downtime; we might just create a bunch of P4 errors.
+					if (!_downtimeService.IsDowntimeActive)
 					{
-						ClusterTicker ticker = tickers[idx];
-						if (ticker.Task != null && ticker.Task.IsCompleted)
+						// Check if it's time to start a new cluster update
+						if (clusterTask == null && clusterTimer.Elapsed > TimeSpan.FromSeconds(30.0))
 						{
-							ClusterState? clusterState = await ticker.Task;
-							if (clusterState != null)
+							clusterTask = Task.Run(() => CreateStreamInfoAsync(cancellationToken), cancellationToken);
+							clusterTimer.Restart();
+						}
+
+						// Remove any state for clusters that are no longer valid
+						bool updateState = false;
+						foreach (string clusterName in state.Clusters.Keys)
+						{
+							if (!clusters.ContainsKey(clusterName))
 							{
-								state.Clusters[ticker.ClusterName] = clusterState;
+								state.Clusters.Remove(clusterName);
 								updateState = true;
 							}
-							ticker.Task = null;
 						}
-						if (ticker.Task == null)
+
+						// Make sure there's a ticker for every cluster
+						foreach (string clusterName in clusters.Keys)
 						{
-							List<StreamInfo>? streams;
-							if (!clusters.TryGetValue(ticker.ClusterName, out streams))
+							if (!tickers.Any(x => x.ClusterName.Equals(clusterName, StringComparison.OrdinalIgnoreCase)))
 							{
-								tickers.RemoveAt(idx--);
-								continue;
+								ClusterTicker ticker = new ClusterTicker(clusterName);
+								tickers.Add(ticker);
 							}
+						}
 
-							ClusterState? clusterState;
-							if (!state.Clusters.TryGetValue(ticker.ClusterName, out clusterState))
+						// Check if it's time to update any tickers
+						for (int idx = 0; idx < tickers.Count; idx++)
+						{
+							ClusterTicker ticker = tickers[idx];
+							if (ticker.Task != null && ticker.Task.IsCompleted)
 							{
-								clusterState = new ClusterState();
+								ClusterState? clusterState = await ticker.Task;
+								if (clusterState != null)
+								{
+									state.Clusters[ticker.ClusterName] = clusterState;
+									updateState = true;
+								}
+								ticker.Task = null;
 							}
+							if (ticker.Task == null)
+							{
+								List<StreamInfo>? streams;
+								if (!clusters.TryGetValue(ticker.ClusterName, out streams))
+								{
+									tickers.RemoveAt(idx--);
+									continue;
+								}
 
-							ticker.Task = Task.Run(() => UpdateClusterGuardedAsync(ticker.ClusterName, streams, clusterState, cancellationToken));
+								ClusterState? clusterState;
+								if (!state.Clusters.TryGetValue(ticker.ClusterName, out clusterState))
+								{
+									clusterState = new ClusterState();
+								}
+
+								ticker.Task = Task.Run(() => UpdateClusterGuardedAsync(ticker.ClusterName, streams, clusterState, cancellationToken));
+							}
+						}
+
+						// Apply any updates to the global state
+						if (updateState)
+						{
+							if (!await _mongoService.TryUpdateSingletonAsync(state))
+							{
+								state = await _mongoService.GetSingletonAsync<CacheState>();
+							}
 						}
 					}
 
-					// Apply any updates to the global state
-					if (updateState)
-					{
-						if (!await _mongoService.TryUpdateSingletonAsync(state))
-						{
-							state = await _mongoService.GetSingletonAsync<CacheState>();
-						}
-					}
+					// Wait before performing the next poll
+					await Task.Delay(TimeSpan.FromSeconds(2.0), cancellationToken);
 				}
-
-				// Wait before performing the next poll
-				await Task.Delay(TimeSpan.FromSeconds(2.0), cancellationToken);
+			}
+			finally
+			{
+				await Task.WhenAll(tickers.Select(x => x.Task).Where(x => x != null)!);
 			}
 		}
 
