@@ -887,7 +887,7 @@ void UClusterUnionComponent::HandleComponentPhysicsStateChangePostAddIntoCluster
 }
 
 DECLARE_CYCLE_STAT(TEXT("UClusterUnionComponent::SyncClusterUnionFromProxy"), STAT_ClusterUnionComponent_SyncClusterUnionFromProxy, STATGROUP_Chaos);
-void UClusterUnionComponent::SyncClusterUnionFromProxy()
+void UClusterUnionComponent::SyncClusterUnionFromProxy(const FTransform& NewTransform, TArray<TTuple<UPrimitiveComponent*, FTransform>>* OutNewComponents)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ClusterUnionComponent_SyncClusterUnionFromProxy);
 
@@ -1013,7 +1013,7 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	// If a component lives in both, then it's a modified component.
 	for (const TPair<FMappedComponentKey, FLocalBonesToTransformMap>& Kvp : MappedData)
 	{
-		HandleAddOrModifiedClusteredComponent(Kvp.Key, Kvp.Value);
+		HandleAddOrModifiedClusteredComponent(Kvp.Key, Kvp.Value, NewTransform, OutNewComponents);
 	}
 
 	// If a component lives in PerComponentData but not in MappedData, deleted component!
@@ -1047,7 +1047,7 @@ void UClusterUnionComponent::SyncClusterUnionFromProxy()
 	}
 }
 
-void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMappedComponentKey& ChangedComponentData, const FLocalBonesToTransformMap& PerBoneChildToParent)
+void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMappedComponentKey& ChangedComponentData, const FLocalBonesToTransformMap& PerBoneChildToParent, const FTransform& NewTransform, TArray<TTuple<UPrimitiveComponent*, FTransform>>* OutNewComponents)
 {
 	if (!ChangedComponentData.ComponentPtr || !ChangedComponentData.ComponentPtr->HasValidPhysicsState() || !ChangedComponentData.ComponentPtr->GetWorld())
 	{
@@ -1158,7 +1158,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 		}
 	}
 
-	OnChildToParentUpdated(ChangedComponentData.ComponentPtr, PerBoneChildToParent);
+	OnChildToParentUpdated(ChangedComponentData.ComponentPtr, PerBoneChildToParent, NewTransform, OutNewComponents);
 
 	if (PerBoneChildToParent.Num())
 	{

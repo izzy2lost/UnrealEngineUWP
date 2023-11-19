@@ -62,6 +62,9 @@ FAutoConsoleVariableRef CVar_KinematicDeferralLogInvalidBodies(TEXT("p.Kinematic
 float GReplicationCacheLingerForNSeconds = 3.f;
 FAutoConsoleVariableRef CVar_ReplicationCacheLingerForNSeconds(TEXT("np2.ReplicationCache.LingerForNSeconds"), GReplicationCacheLingerForNSeconds, TEXT("How long to keep data in the replication cache without the actor accessing it, after this we stop caching the actors state until it tries to access it again."));
 
+bool bGClusterUnionSyncBodiesMoveNewComponents = false;
+FAutoConsoleVariableRef CVar_GClusterUnionSyncBodiesCheckDirtyFlag(TEXT("p.ClusterUnion.SyncBodiesMoveNewComponents"), bGClusterUnionSyncBodiesMoveNewComponents, TEXT("Enable a fix to ensure new components in a cluster union are moved once on add (even if the cluster is not moving)."));
+
 DECLARE_CYCLE_STAT(TEXT("Update Kinematics On Deferred SkelMeshes"), STAT_UpdateKinematicsOnDeferredSkelMeshesChaos, STATGROUP_Physics);
 
 struct FPendingAsyncPhysicsCommand
@@ -2355,7 +2358,27 @@ void FPhysScene_Chaos::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
 					PendingTransforms.Add(FPhysScenePendingComponentTransform_Chaos(ParentComponent, DirtyParticle->GetWakeEvent()));
 				}
 
-				ParentComponent->SyncClusterUnionFromProxy();
+				if (bHasMoved || !bGClusterUnionSyncBodiesMoveNewComponents)
+				{
+					ParentComponent->SyncClusterUnionFromProxy(NewTransform, nullptr);
+				}
+				else
+				{
+					// We must to call MoveComponent on any newly added component. The Cluster Union will take care of
+					// that but only if it moved. If it did not move we need to handle it manually
+					TArray<TTuple<UPrimitiveComponent*, FTransform>> NewComponents;
+					ParentComponent->SyncClusterUnionFromProxy(NewTransform, &NewComponents);
+
+					for (TTuple<UPrimitiveComponent*, FTransform>& NewComponentTuple : NewComponents)
+					{
+						UPrimitiveComponent* NewComponent = NewComponentTuple.Get<0>();
+						const FTransform& NewComponentTransform = NewComponentTuple.Get<1>();
+						const FVector NewComponentCurrentLocation = NewComponent->GetComponentLocation();
+						const FVector NewComponentDelta = NewComponentTransform.GetLocation() - NewComponentCurrentLocation;
+
+						PendingTransforms.Add(FPhysScenePendingComponentTransform_Chaos(NewComponent, NewComponentDelta, NewComponentTransform.GetRotation(), DirtyParticle->GetWakeEvent()));
+					}
+				}
 
 				// make sure we have at least a child to be added to the acceleration structure 
 				// this avoid the invalid bounds to cause the particle to be added to the global acceleration structure array

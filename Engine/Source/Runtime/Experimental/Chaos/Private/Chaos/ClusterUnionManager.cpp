@@ -1361,6 +1361,8 @@ namespace Chaos
 
 		if (bMadeChanges)
 		{
+			MEvolution.GetParticles().MarkTransientDirtyParticle(ClusterUnion->InternalCluster, false);
+
 			constexpr EUpdateClusterUnionPropertiesFlags Flags = EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph
 				| EUpdateClusterUnionPropertiesFlags::IncrementalGenerateGeometry;
 			RequestDeferredClusterPropertiesUpdate(ClusterIndex, Flags);
