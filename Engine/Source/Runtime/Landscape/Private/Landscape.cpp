@@ -637,8 +637,6 @@ FGuid ALandscapeProxy::GetNaniteContentId() const
 	float NaniteSkirtDepthTest = bNaniteSkirtEnabled ? NaniteSkirtDepth : 0.0f; // The hash should only change if Skirts are enabled.
 	ContentStateAr << NaniteSkirtEnabled;
 	ContentStateAr << NaniteSkirtDepthTest;
-	int32 NanitePositionPrecisionCopy(NanitePositionPrecision);  
-	ContentStateAr << NanitePositionPrecisionCopy;
 
 	uint32 Hash[5];
 	FSHA1::HashBuffer(ContentStateAr.GetData(), ContentStateAr.Num(), (uint8*)Hash);
