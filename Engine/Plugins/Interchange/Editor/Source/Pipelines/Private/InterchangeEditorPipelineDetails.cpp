@@ -679,11 +679,11 @@ void FInterchangeBaseNodeDetailsCustomization::CustomizeDetails( IDetailLayoutBu
 		if (UInterchangeFactoryBaseNode* FactoryNode = Cast<UInterchangeFactoryBaseNode>(InterchangeBaseNode))
 		{
 			const FString ClassName = FactoryNode->GetObjectClass() ? FactoryNode->GetObjectClass()->GetName() : InterchangeBaseNode->GetClass()->GetName();
-			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText", "Factory Node ({0})"), FText::FromString(ClassName));
+			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText_FactoryBaseNode", "Factory Node ({0})"), FText::FromString(ClassName));
 		}
 		else
 		{
-			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText", "Translated Node ({0})"), FText::FromString(InterchangeBaseNode->GetClass()->GetName()));
+			NodeInformationText = FText::Format(LOCTEXT("NodeFactoryInformationText_BaseNode", "Translated Node ({0})"), FText::FromString(InterchangeBaseNode->GetClass()->GetName()));
 		}
 
 		FDetailWidgetRow& CustomRow = AttributeCategoryBuilder.AddCustomRow(NodeInformationCategoryText)

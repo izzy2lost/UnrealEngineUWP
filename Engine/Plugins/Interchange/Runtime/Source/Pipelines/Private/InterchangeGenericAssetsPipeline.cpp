@@ -1451,12 +1451,12 @@ public:
 			FText Tooltip;
 			if (bConflict)
 			{
-				Tooltip = NSLOCTEXT("InterchangeGenericAssetPipeline", "SInterchangeGenericAssetMaterialConflictListRow_Conflict", "Import material is unmatched");
+				Tooltip = NSLOCTEXT("InterchangeGenericAssetPipeline", "SInterchangeGenericAssetMaterialConflictListRow_Conflict_unmatched", "Import material is unmatched");
 			}
 			else
 			{
 				Tooltip = FText::FromString(
-					FText(NSLOCTEXT("InterchangeGenericAssetPipeline", "SInterchangeGenericAssetMaterialConflictListRow_Conflict", "Import material is matched with original asset index: ")).ToString()
+					FText(NSLOCTEXT("InterchangeGenericAssetPipeline", "SInterchangeGenericAssetMaterialConflictListRow_Conflict_matched", "Import material is matched with original asset index: ")).ToString()
 					+ FString::FromInt(Item->bMatched));
 			}
 			return SNew(SBox)
