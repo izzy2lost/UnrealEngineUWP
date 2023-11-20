@@ -15,6 +15,7 @@
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "Engine/TextureCube.h"
 #include "RHIUtilities.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 
 #if WITH_EDITOR
 #include "Components/SceneCaptureComponentCube.h"
@@ -215,7 +216,8 @@ UTextureCube* UTextureRenderTargetCube::ConstructTextureCube(UObject* InOuter, c
  */
 void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, Owner->GetPackage()->GetFName());
 
 	if(Owner->SizeX > 0)
 	{
@@ -307,7 +309,8 @@ void FTextureRenderTargetCubeResource::ReleaseRHI()
  */
 void FTextureRenderTargetCubeResource::UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/)
 {
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, Owner->GetPackage()->GetFName());
 
 	RemoveFromDeferredUpdateList();
 

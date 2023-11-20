@@ -17,6 +17,8 @@
 #include "RenderGraphUtils.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
+
 #if WITH_EDITOR
 #include "Components/SceneCaptureComponent2D.h"
 #include "TextureCompiler.h"
@@ -470,7 +472,8 @@ ETextureCreateFlags FTextureRenderTarget2DResource::GetCreateFlags()
  */
 void FTextureRenderTarget2DResource::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, Owner->GetPackage()->GetFName());
 
 	if( TargetSizeX > 0 && TargetSizeY > 0 )
 	{
@@ -554,7 +557,8 @@ void FTextureRenderTarget2DResource::ReleaseRHI()
  */
 void FTextureRenderTarget2DResource::UpdateDeferredResource( FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget/*=true*/ )
 {
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Owner->GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, Owner->GetPackage()->GetFName());
 
 	SCOPED_DRAW_EVENT(RHICmdList, GPUResourceUpdate)
 	RemoveFromDeferredUpdateList();

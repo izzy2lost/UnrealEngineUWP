@@ -30,14 +30,15 @@ public class Renderer : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
-				"CoreUObject", 
+				"CoreUObject",
 				"ApplicationCore",
-				"RenderCore", 
+				"RenderCore",
 				"ImageWriteQueue",
 				"RHI",
-				"MaterialShaderQualitySettings"
+				"MaterialShaderQualitySettings",
+				"TraceLog"
 			}
-            );
+		);
 
         PrivateIncludePathModuleNames.AddRange(new string[] { "HeadMountedDisplay" });
         DynamicallyLoadedModuleNames.AddRange(new string[] { "HeadMountedDisplay" });

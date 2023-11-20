@@ -48,6 +48,7 @@
 #include "Misc/RedirectCollector.h"
 #include "Misc/PlayInEditorLoadingScope.h"
 #include "UObject/GCScopeLock.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "UObject/GCObject.h"
@@ -1278,9 +1279,9 @@ void UObject::ConditionalPostLoad()
 				UE_SCOPED_COOK_STAT(Package->GetFName(), EPackageEventStatType::LoadPackage);
 				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Package, ELLMTagSet::Assets);
 				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetClass(), ELLMTagSet::AssetClasses);
-				UE_TRACE_METADATA_SCOPE_ASSET(this, GetClass());
+				UE_TRACE_METADATA_SCOPE_ASSET_FNAME(GetFName(), GetClass()->GetFName(), Package->GetFName())
 				TRACE_LOADTIME_POSTLOAD_OBJECT_SCOPE(this);
-				
+
 				PostLoad();
 
 				LLM_PUSH_STATS_FOR_ASSET_TAGS();

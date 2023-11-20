@@ -2,45 +2,47 @@
 // ActorComponent.cpp: Actor component implementation.
 
 #include "Components/ActorComponent.h"
-#include "Engine/LevelStreaming.h"
-#include "EngineStats.h"
-#include "Engine/MemberReference.h"
-#include "Engine/Level.h"
-#include "Components/PrimitiveComponent.h"
+
 #include "AI/NavigationSystemBase.h"
-#include "Engine/BlueprintGeneratedClass.h"
-#include "Elements/Framework/EngineElementsLibrary.h"
-#include "ComponentReregisterContext.h"
-#include "Engine/AssetUserData.h"
-#include "Engine/LevelStreamingPersistent.h"
-#include "Engine/NetDriver.h"
-#include "Engine/ActorChannel.h"
-#include "HAL/LowLevelMemStats.h"
-#include "Misc/ScopeRWLock.h"
-#include "Net/UnrealNetwork.h"
-#include "Logging/MessageLog.h"
-#include "Misc/UObjectToken.h"
-#include "Misc/MapErrors.h"
+#include "Async/ParallelFor.h"
 #include "ComponentRecreateRenderStateContext.h"
-#include "Engine/SimpleConstructionScript.h"
+#include "ComponentReregisterContext.h"
+#include "Components/PrimitiveComponent.h"
 #include "ComponentUtils.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Engine/ActorChannel.h"
+#include "Engine/AssetUserData.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/Engine.h"
+#include "Engine/InputDelegateBinding.h"
+#include "Engine/Level.h"
+#include "Engine/LevelStreaming.h"
+#include "Engine/LevelStreamingPersistent.h"
+#include "Engine/MemberReference.h"
+#include "Engine/NetDriver.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "EngineStats.h"
+#include "GameFramework/InputSettings.h"
+#include "HAL/LowLevelMemStats.h"
+#include "Logging/MessageLog.h"
+#include "Misc/MapErrors.h"
+#include "Misc/ScopeRWLock.h"
+#include "Misc/UObjectToken.h"
 #include "Net/Core/PushModel/PushModel.h"
+#include "Net/UnrealNetwork.h"
+#include "ObjectTrace.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "SceneInterface.h"
-#include "UObject/FrameworkObjectVersion.h"
 #include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
-#include "Async/ParallelFor.h"
-#include "Engine/InputDelegateBinding.h"
-#include "GameFramework/InputSettings.h"
+#include "UObject/FrameworkObjectVersion.h"
 
 #if WITH_EDITOR
 #include "Kismet2/ComponentEditorUtils.h"
 #include "ObjectCacheEventSink.h"
 #include "StaticMeshCompiler.h"
 #endif
-#include "ObjectTrace.h"
 
 #if UE_WITH_IRIS
 #include "Iris/Core/IrisLog.h"
@@ -1644,7 +1646,8 @@ void UActorComponent::OnDestroyPhysicsState()
 void UActorComponent::CreatePhysicsState(bool bAllowDeferral)
 {
 	LLM_SCOPE(ELLMTag::Chaos);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, GetPackage()->GetFName());
 
 	SCOPE_CYCLE_COUNTER(STAT_ComponentCreatePhysicsState);
 
@@ -1730,7 +1733,8 @@ void UActorComponent::ExecuteRegisterEvents(FRegisterComponentContext* Context)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_ComponentCreateRenderState);
 		LLM_SCOPE(ELLMTag::SceneRender);
-		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetOutermost(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, GetPackage()->GetFName());
 		CreateRenderState_Concurrent(Context);
 		checkf(bRenderStateCreated, TEXT("Failed to route CreateRenderState_Concurrent (%s)"), *GetFullName());
 	}
@@ -1840,7 +1844,8 @@ void UActorComponent::RemoveTickPrerequisiteComponent(UActorComponent* Prerequis
 void UActorComponent::DoDeferredRenderUpdates_Concurrent()
 {
 	LLM_SCOPE(ELLMTag::SceneRender);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetOutermost(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, GetPackage()->GetFName());
 
 	checkf(!IsUnreachable(), TEXT("%s"), *GetFullName());
 	checkf(!IsTemplate(), TEXT("%s"), *GetFullName());

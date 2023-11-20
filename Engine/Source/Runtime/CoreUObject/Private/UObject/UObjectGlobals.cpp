@@ -67,7 +67,7 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "IO/IoDispatcher.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
-#include "Misc/PackageAccessTracking.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Misc/PackageAccessTracking.h"
 #include "UObject/PropertyWithSetterAndGetter.h"
 #include "UObject/AnyPackagePrivate.h"
@@ -2057,6 +2057,7 @@ UPackage* LoadPackage(UPackage* InOuter, const FPackagePath& PackagePath, uint32
 #endif // STATS
 
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(PackagePath.GetPackageFName(), ELLMTagSet::Assets);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(NAME_None, NAME_None, PackagePath.GetPackageFName());
 	TRACE_LOADTIME_REQUEST_GROUP_SCOPE(TEXT("SyncLoad - %s"), *PackagePath.GetDebugName());
 	
 	// if this is a supported asset, it should be loaded fully rather than just for diffing

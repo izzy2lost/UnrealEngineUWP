@@ -3163,22 +3163,23 @@ UObject* FAsyncPackage::EventDrivenIndexToObject(FPackageIndex Index, bool bChec
 
 void FAsyncPackage::EventDrivenCreateExport(int32 LocalExportIndex)
 {
+	LLM_SCOPE(ELLMTag::AsyncLoading);
 	SCOPED_LOADTIMER(Package_CreateExports);
+
 	FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 
 	TRACE_LOADTIME_CREATE_EXPORT_SCOPE(this, &Export.Object);
-
-	const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
-	LLM_SCOPE(ELLMTag::AsyncLoading);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
-   	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Export.ObjectName, Class->GetFName(), GetLinkerRoot()->GetFName());
 
 	// Check whether we already loaded the object and if not whether the context flags allow loading it.
 	//check(!Export.Object || Export.Object->HasAnyFlags(RF_ClassDefaultObject)); // we should not have this yet, unless it is a CDO
 	check(!Export.Object); // we should not have this yet
 	if (!Export.Object && !Export.bExportLoadFailed)
 	{
+		const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Export.ObjectName, Class->GetFName(), GetLinkerRoot()->GetFName());
+
 		FUObjectSerializeContext* LoadContext = GetSerializeContext();
 		FScopedAddObjectreference OnExitAddReference(*this, Export.Object);
 
@@ -3456,21 +3457,20 @@ void FAsyncPackage::EventDrivenSerializeExport(int32 LocalExportIndex)
 
 	FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 
-	const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
-	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
-
 	UObject* Object = Export.Object;
 	if (Object && Object->HasAnyFlags(RF_NeedLoad))
 	{
-  		UE_TRACE_METADATA_SCOPE_ASSET(Object, Class);
+		const UClass* Class = CastEventDrivenIndexToObject<UClass>(Export.ClassIndex, false);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetLinkerRoot(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Class, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(Export.ObjectName, Class->GetFName(), GetLinkerRoot()->GetFName());
+
 		Linker->GetAsyncLoader()->LogItem(TEXT("EventDrivenSerializeExport"), Export.SerialOffset, Export.SerialSize);
 
 		LastTypeOfWorkPerformed = TEXT("EventDrivenSerializeExport");
 		LastObjectWorkWasPerformedOn = Object;
 		check(Object->GetLinker() == Linker);
 		check(Object->GetLinkerIndex() == LocalExportIndex);
-		UClass* Cls = nullptr;
 
 		// If this is a struct, make sure that its parent struct is completely loaded
 		if (UStruct* Struct = dynamic_cast<UStruct*>(Object))
