@@ -2,6 +2,9 @@
 
 #include "Rendering/RayTracingGeometryManager.h"
 
+#include "PrimitiveSceneProxy.h"
+#include "SceneInterface.h"
+
 #include "RHIResources.h"
 #include "RHICommandList.h"
 
@@ -33,6 +36,8 @@ FRayTracingGeometryManager::~FRayTracingGeometryManager()
 {
 	check(GeometryBuildRequests.IsEmpty());
 	check(RegisteredGeometries.IsEmpty());
+
+	check(CachedRayTracingStateProxiesMap.IsEmpty());
 }
 
 static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBuildPriority)
@@ -265,6 +270,51 @@ void FRayTracingGeometryManager::SetupBuildParams(const BuildRequest& InBuildReq
 
 	DEC_DWORD_STAT(STAT_RayTracingPendingBuilds);
 	DEC_DWORD_STAT_BY(STAT_RayTracingPendingBuildPrimitives, InBuildRequest.Owner->Initializer.TotalPrimitiveCount);
+}
+
+void FRayTracingGeometryManager::RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
+{
+	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+
+	TSet<FPrimitiveSceneProxy*>& ProxiesSet = CachedRayTracingStateProxiesMap.FindOrAdd(StaticMesh);
+	check(!ProxiesSet.Contains(Proxy));
+
+	ProxiesSet.Add(Proxy);
+}
+
+void FRayTracingGeometryManager::UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
+{
+	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+
+	check(CachedRayTracingStateProxiesMap.Contains(StaticMesh));
+
+	TSet<FPrimitiveSceneProxy*>& ProxiesSet = *CachedRayTracingStateProxiesMap.Find(StaticMesh);
+
+	verify(ProxiesSet.Remove(Proxy) == 1);
+
+	if (ProxiesSet.IsEmpty())
+	{
+		verify(CachedRayTracingStateProxiesMap.Remove(StaticMesh) == 1);
+	}
+}
+
+void FRayTracingGeometryManager::RequestUpdateCachedRenderState(const UStaticMesh* StaticMesh)
+{
+	check(IsInRenderingThread());
+
+	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+
+	const TSet<FPrimitiveSceneProxy*>* ProxiesSet = CachedRayTracingStateProxiesMap.Find(StaticMesh);
+
+	if (ProxiesSet == nullptr)
+	{
+		return;
+	}
+
+	for (FPrimitiveSceneProxy* Proxy : *ProxiesSet)
+	{
+		Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
+	}
 }
 
 #endif // RHI_RAYTRACING

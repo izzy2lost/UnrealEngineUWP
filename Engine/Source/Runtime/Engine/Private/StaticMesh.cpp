@@ -29,6 +29,7 @@
 #include "StaticMeshOperations.h"
 #include "Rendering/NaniteResources.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "NaniteVertexFactory.h"
 #include "SpeedTreeWind.h"
 #include "DistanceFieldAtlas.h"
@@ -1973,6 +1974,10 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 	{
 		CoarseMeshSM->RequestUpdateCachedRenderState(this);
 	}
+
+#if RHI_RAYTRACING
+	((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(this);
+#endif
 
 	// TODO: Need to mark all DynamicRayTracingGeometries used in FStaticMeshSceneProxy referencing this StaticMesh as either invalid or request a recreation (UE-139474)
 }

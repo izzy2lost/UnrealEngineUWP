@@ -6,6 +6,7 @@
 #include "EngineLogs.h"
 #include "EngineModule.h"
 #include "Rendering/NaniteStreamingManager.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "EngineUtils.h"
 #include "Engine/MapBuildDataRegistry.h"
@@ -872,6 +873,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 		// This will be filled later (on the render thread) and cached.
 		CachedRayTracingInstanceMaskAndFlags.Mask = 0;
+
+		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(this, StaticMesh);
 	}
 #endif
 
@@ -972,7 +975,12 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, UHierarchicalInsta
 
 FSceneProxy::~FSceneProxy()
 {
-
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed())
+	{
+		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(this, StaticMesh);
+	}
+#endif
 }
 
 void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
