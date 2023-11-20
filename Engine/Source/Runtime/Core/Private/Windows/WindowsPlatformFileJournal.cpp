@@ -272,8 +272,6 @@ bool FWindowsPlatformFile::FileJournalIterateDirectory(const TCHAR* Directory,
 			return true;
 		}
 	}
-	checkNoEntry(); // loop body does not break, it only returns
-	return true;
 }
 
 FFileJournalData FWindowsPlatformFile::FileJournalGetFileData(const TCHAR* FilenameOrDirectory)

@@ -690,7 +690,6 @@ bool FManifestParserDASH::ProcessClose(const TCHAR* ElementName)
 		PopLastElement(ElementName);
 		return bContinue;
 	}
-	return true;
 }
 
 /**

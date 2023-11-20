@@ -1360,17 +1360,8 @@ void FBehaviorTreeDebugger::UpdateCurrentSubtree()
 
 static int32 GetNumActiveInstances(const FBehaviorTreeExecutionStep& StepInfo, class UBehaviorTree*& ActiveSubtree)
 {
-	for (int32 Idx = StepInfo.InstanceStack.Num() - 1; Idx >= 0; Idx--)
-	{
-		//if (StepInfo.InstanceStack[Idx].ActivePath.Num())
-		{
-			ActiveSubtree = StepInfo.InstanceStack[Idx].TreeAsset;
-			return Idx + 1;
-		}
-	}
-
-	ActiveSubtree = NULL;
-	return 0;
+	ActiveSubtree = !StepInfo.InstanceStack.IsEmpty() ? StepInfo.InstanceStack.Last().TreeAsset : nullptr;
+	return StepInfo.InstanceStack.Num();
 }
 
 void FBehaviorTreeDebugger::UpdateAvailableActions()

@@ -161,8 +161,10 @@ public:
 		{
 			return GetInstancedPropertyBagFromLayer();
 		}
-
-		return nullptr;
+		else
+		{
+			return nullptr;
+		}
 	}
 
 private:

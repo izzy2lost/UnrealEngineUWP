@@ -1723,8 +1723,6 @@ int32 SRCPanelExposedEntitiesList::GetColumnIndex(const FName& ForColumn) const
 	{
 		return GetColumnIndex_Internal(ForColumn, RemoteControlPresetColumns::Value, ERCColumn::ERC_After);
 	}
-
-	return INDEX_NONE;
 }
 
 int32 SRCPanelExposedEntitiesList::GetColumnIndex_Internal(const FName& ForColumn, const FName& ExistingColumnName, ERCColumn::Position InPosition) const

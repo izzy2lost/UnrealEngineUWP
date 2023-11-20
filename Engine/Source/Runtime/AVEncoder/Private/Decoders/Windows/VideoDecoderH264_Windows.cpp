@@ -1400,8 +1400,6 @@ bool FVideoDecoderH264_WindowsImpl::DecoderSetOutputType()
 			}
 		}
 	}
-	UE_LOG(LogVideoDecoder, Error, TEXT("Failed to set video decoder output type to desired format"));
-	return false;
 }
 
 

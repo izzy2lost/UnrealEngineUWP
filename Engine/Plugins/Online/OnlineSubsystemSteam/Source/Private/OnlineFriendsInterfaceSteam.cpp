@@ -246,8 +246,6 @@ bool FOnlineAsyncTaskSteamReadFriendsList::CanAddUserToList(bool bIsOnline, bool
 		case EFriendsLists::InGameAndSessionPlayers:
 			return bIsOnline && bIsPlayingThisGame && bIsPlayingGameInSession;
 	}
-
-	return false;
 }
 
 void FOnlineAsyncTaskSteamReadFriendsList::Finalize()

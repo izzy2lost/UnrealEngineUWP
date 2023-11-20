@@ -128,8 +128,9 @@ bool FOpenXRHMDModule::PreInit()
 		}
 	}
 	return bInitialized;
-#endif // PLATFORM_WINDOWS
+#else
 	return true;
+#endif // PLATFORM_WINDOWS
 }
 
 void FOpenXRHMDModule::ShutdownModule()

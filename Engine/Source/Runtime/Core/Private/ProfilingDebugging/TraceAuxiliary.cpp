@@ -1450,8 +1450,9 @@ bool FTraceAuxiliary::Start(EConnectionType Type, const TCHAR* Target, const TCH
 	uint16 SendFlags = (Options && Options->bExcludeTail) ? UE::Trace::FSendFlags::ExcludeTail : 0;
 
 	return GTraceAuxiliary.Connect(Type, Target, LogCategory, SendFlags);
-#endif
+#else
 	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1747,24 +1748,27 @@ const TCHAR* FTraceAuxiliary::GetTraceDestination()
 #if UE_TRACE_ENABLED
 	static FString TempUnsafe = GTraceAuxiliary.GetDest();
 	return *TempUnsafe;
-#endif
+#else
 	return nullptr;
+#endif
 }
 
 FString FTraceAuxiliary::GetTraceDestinationString()
 {
 #if UE_TRACE_ENABLED
 	return GTraceAuxiliary.GetDest();
-#endif
+#else
 	return FString();
+#endif
 }
 
 bool FTraceAuxiliary::IsConnected()
 {
 #if UE_TRACE_ENABLED
 	return GTraceAuxiliary.IsConnected();
-#endif
+#else
 	return false;
+#endif
 }
 
 bool FTraceAuxiliary::IsConnected(FGuid& OutSessionGuid, FGuid& OutTraceGuid)
@@ -1780,8 +1784,9 @@ FTraceAuxiliary::EConnectionType FTraceAuxiliary::GetConnectionType()
 {
 #if UE_TRACE_ENABLED
 	return GTraceAuxiliary.GetConnectionType();
-#endif
+#else
 	return FTraceAuxiliary::EConnectionType::None;
+#endif
 }
 
 void FTraceAuxiliary::GetActiveChannelsString(FStringBuilderBase& String)

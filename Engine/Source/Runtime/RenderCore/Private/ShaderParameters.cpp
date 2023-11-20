@@ -430,8 +430,8 @@ static FShaderParametersMetadata* FindShaderParametersMetadataWithVariableName(u
 			return Metadata;
 		}
 	}
-#endif
 	return nullptr;
+#endif
 }
 
 void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames)

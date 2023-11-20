@@ -264,8 +264,6 @@ FSlateColor FMaterialStatsUtils::QualitySettingColor(const EMaterialQualityLevel
 			return FStyleColors::Foreground;
 		break;
 	}
-
-	return  FStyleColors::Foreground;
 }
 
 static void MobileBasePassShaderName(bool bVertexShader, const TCHAR* PolicyName, const TCHAR* LocalLightSetting, bool bHDR, bool bSkyLight, FString& OutName)

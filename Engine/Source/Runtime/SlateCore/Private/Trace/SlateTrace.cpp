@@ -137,16 +137,18 @@ namespace SlateTraceDetail
 #if UE_SLATE_WITH_WIDGET_UNIQUE_IDENTIFIER
 		check(InWidget);
 		return InWidget->GetId();
-#endif
+#else
 		return 0;
+#endif
 	}
 
 	uint64 GetWidgetIdIfValid(const SWidget* InWidget)
 	{
 #if UE_SLATE_WITH_WIDGET_UNIQUE_IDENTIFIER
 		return InWidget ? InWidget->GetId() : 0;
-#endif
+#else
 		return 0;
+#endif
 	}
 
 	void SerializeToWidgetUpdateSteps(uint8 InNumber)

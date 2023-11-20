@@ -929,7 +929,7 @@ void FOnlineAsyncTaskSteamFindServerBase::CreateQuery(MatchMakingKeyValuePair_t*
 
 	// TEMP!!!!
 	return;
-
+#if 0
 	/**
 	 * "full"		- not full
 	 * "empty"		- not empty
@@ -1018,6 +1018,7 @@ void FOnlineAsyncTaskSteamFindServerBase::CreateQuery(MatchMakingKeyValuePair_t*
 			}
 		}
 	}
+#endif
 }
 
 #ifdef _MSC_VER

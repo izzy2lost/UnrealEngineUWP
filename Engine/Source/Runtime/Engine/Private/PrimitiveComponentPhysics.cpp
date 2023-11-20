@@ -1025,8 +1025,6 @@ bool UPrimitiveComponent::IsSimulatingPhysics(FName BoneName) const
 
 		return Interface->AreAllDynamicOrSleeping(PhysicsObjects);
 	}
-
-	return false;
 }
 
 FVector UPrimitiveComponent::GetComponentVelocity() const

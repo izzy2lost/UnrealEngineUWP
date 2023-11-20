@@ -19,7 +19,6 @@ EGizmoTransformMode FEditorTransformGizmoUtil::GetGizmoMode(UE::Widget::EWidgetM
 		case UE::Widget::EWidgetMode::WM_Scale: return EGizmoTransformMode::Scale;
 		default: return EGizmoTransformMode::None;
 	}
-	return EGizmoTransformMode::None;
 }
 
 UE::Widget::EWidgetMode FEditorTransformGizmoUtil::GetWidgetMode(EGizmoTransformMode InGizmoMode)
@@ -31,7 +30,6 @@ UE::Widget::EWidgetMode FEditorTransformGizmoUtil::GetWidgetMode(EGizmoTransform
 		case EGizmoTransformMode::Scale: return UE::Widget::EWidgetMode::WM_Scale;
 		default: return UE::Widget::EWidgetMode::WM_None;
 	}
-	return UE::Widget::EWidgetMode::WM_None;
 }
 
 EGizmoTransformMode UEditorTransformGizmoSource::GetGizmoMode() const

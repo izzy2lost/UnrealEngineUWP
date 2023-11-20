@@ -71,7 +71,6 @@ bool CompareNumbers(const T Left, const T Right, const EGenericAICheck Operator)
 		return false;
 		break;
 	}
-	return false;
 }
 
 } // UE::StateTree::Conditions

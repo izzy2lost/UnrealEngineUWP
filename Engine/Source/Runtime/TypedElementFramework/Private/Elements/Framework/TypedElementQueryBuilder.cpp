@@ -303,7 +303,6 @@ namespace TypedElementQueryBuilder
 				ColumnIndex++;
 				return Result;
 			}
-			return true;
 		};
 		bool Result = Init();
 

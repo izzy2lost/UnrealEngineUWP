@@ -23,7 +23,10 @@ namespace Chaos
 		{
 			return new TAABBTree<TPayloadType, TBoundingVolume<TPayloadType, T, 3>>();
 		}
-		return nullptr;
+		else
+		{
+			return nullptr;
+		}
 	}
 
 	template class CHAOS_API Chaos::ISpatialAcceleration<int32, FReal, 3>;

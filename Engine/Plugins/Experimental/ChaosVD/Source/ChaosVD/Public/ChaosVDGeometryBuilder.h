@@ -581,8 +581,6 @@ const GeometryType* FChaosVDGeometryBuilder::GetGeometryBasedOnPackedType(const 
 	{
 		return GetGeometry<false, GeometryType>(InImplicitObject, bIsScaled, Transform);
 	}
-
-	return nullptr;
 }
 
 template <typename MeshType>

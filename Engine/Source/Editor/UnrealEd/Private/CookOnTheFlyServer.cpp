@@ -7137,7 +7137,6 @@ TArray<UE::Cook::FInstigator> UCookOnTheFlyServer::GetInstigatorChain(FName Pack
 			return Result;
 		}
 	}
-	return Result; // Unreachable
 }
 
 UE::Cook::ECookType UCookOnTheFlyServer::GetCookType()

@@ -1030,8 +1030,6 @@ const TCHAR* LexToString(const EConnectionState Value)
 		return TEXT("Invalid");
 		break;
 	}
-
-	return TEXT("Invalid");
 }
 
 void UNetConnection::Close(FNetResult&& CloseReason)

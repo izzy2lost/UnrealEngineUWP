@@ -2467,7 +2467,7 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 {
 	// todo: Check if the rules are satisfied
 	return true;
-	
+#if 0
 	check(InConnectionInfo);
 	check(InConnectionInfo->IsValid());
 
@@ -2580,6 +2580,7 @@ bool URigHierarchy::CanConnect(const FRigConnectionInfo* InConnectionInfo, FStri
 		}
 	}
 	return true;
+#endif
 }
 
 const FRigElementKey& URigHierarchy::GetResolvedTarget(const FRigElementKey& InConnectorKey) const
@@ -6148,10 +6149,9 @@ bool URigHierarchy::ApplyTransformFromStack(const FRigTransformStackEntry& InEnt
 	}
 
 	return true;
-
-#endif
-
+#else
 	return false;
+#endif
 }
 
 void URigHierarchy::ComputeAllTransforms()

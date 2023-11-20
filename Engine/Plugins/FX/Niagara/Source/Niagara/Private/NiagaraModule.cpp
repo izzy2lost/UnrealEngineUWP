@@ -1339,7 +1339,6 @@ bool FNiagaraTypeDefinition::TypesAreAssignable(const FNiagaraTypeDefinition& Ty
 		if (const UClass* BClass = TypeOutput.GetClass())
 		{
 			return AClass == BClass;
-			return true;
 		}
 	}
 	

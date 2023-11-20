@@ -41,8 +41,9 @@ bool UVCamBlueprintFunctionLibrary::IsGameRunning()
 {
 #if WITH_EDITOR
 	return (GEditor && GEditor->IsPlaySessionInProgress());
-#endif
+#else
 	return true;
+#endif
 }
 
 UVirtualCameraUserSettings* UVCamBlueprintFunctionLibrary::GetUserSettings()
@@ -74,8 +75,9 @@ bool UVCamBlueprintFunctionLibrary::OpenLevelSequence(ULevelSequence* LevelSeque
 {
 #if WITH_EDITOR
 	return ULevelSequenceEditorBlueprintLibrary::OpenLevelSequence(LevelSequence);
-#endif
+#else
 	return false;
+#endif
 }
 
 void UVCamBlueprintFunctionLibrary::PlayCurrentLevelSequence()
@@ -173,12 +175,8 @@ bool UVCamBlueprintFunctionLibrary::ModifyLevelSequenceMetadata(UVirtualCameraCl
 
 		return UEditorAssetLibrary::SaveAsset(LevelSequenceMetaData->GetPathName());
 	}
-	else
-	{
-		return false;
-	}
-
 #endif
+
 	return false;
 }
 
@@ -192,12 +190,8 @@ bool UVCamBlueprintFunctionLibrary::ModifyLevelSequenceMetadataForSelects(UVirtu
 
 		return UEditorAssetLibrary::SaveAsset(LevelSequenceMetaData->GetPathName());
 	}
-	else
-	{
-		return false;
-	}
-
 #endif
+
 	return false;
 
 }

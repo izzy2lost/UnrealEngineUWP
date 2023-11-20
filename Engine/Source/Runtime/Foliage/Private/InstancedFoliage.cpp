@@ -2716,8 +2716,6 @@ bool FFoliageInfo::CheckForOverlappingSphere(const FSphere& Sphere) const
 {
 	TArrayView<const FFoliageInstance> InstancesView = Instances;
 	return InstanceHash->IsAnyInstanceInSphere([InstancesView](int32 Index) -> FVector { return InstancesView[Index].Location; }, Sphere.Center, Sphere.W);
-
-	return false;
 }
 
 // Returns whether or not there is are any instances overlapping the instance specified, excluding the set of instances provided

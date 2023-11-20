@@ -1370,7 +1370,6 @@ static D3D12_SHADING_RATE_COMBINER ConvertShadingRateCombiner(EVRSRateCombiner I
 	default:
 		return D3D12_SHADING_RATE_COMBINER_PASSTHROUGH;
 	}
-	return D3D12_SHADING_RATE_COMBINER_PASSTHROUGH;
 }
 #endif
 

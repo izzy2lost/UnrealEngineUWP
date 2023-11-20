@@ -265,9 +265,9 @@ bool FTurnkeyEditorSupport::CheckSupportedPlatforms(FName IniPlatformName)
 {
 #if WITH_EDITOR
 	return FModuleManager::LoadModuleChecked<IProjectTargetPlatformEditorModule>("ProjectTargetPlatformEditor").ShowUnsupportedTargetWarning(IniPlatformName);
-#endif
-
+#else
 	return true;
+#endif
 }
 
 void FTurnkeyEditorSupport::ShowInstallationHelp(FName IniPlatformName, FString DocLink)
@@ -285,8 +285,9 @@ bool FTurnkeyEditorSupport::IsPIERunning()
 {
 #if WITH_EDITOR
 	return GEditor->PlayWorld != NULL;
-#endif
+#else
 	return false;
+#endif
 }
 
 

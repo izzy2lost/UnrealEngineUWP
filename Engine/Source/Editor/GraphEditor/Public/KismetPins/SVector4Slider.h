@@ -355,8 +355,10 @@ private:
 		{
 			return FCString::Atod(*InString);
 		}
-
-		return NumericType{};
+		else
+		{
+			return NumericType{};
+		}
 	}
 
 	TOptional<NumericType> GetTypeInValue_0() const

@@ -856,8 +856,8 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstanceFromAssetName(co
 	{
 		return *FoundDataLayerInstance;
 	}
-#endif
 	return nullptr;
+#endif
 }
 
 const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const UDataLayerAsset* InDataLayerAsset) const
@@ -884,9 +884,8 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const UDataLaye
 	{
 		return *FoundDataLayerInstance;
 	}
-#endif
-
 	return nullptr;
+#endif
 }
 
 void AWorldDataLayers::ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInstance*)> Func)

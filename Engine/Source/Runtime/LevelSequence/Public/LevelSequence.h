@@ -207,8 +207,9 @@ public:
 		MetaDataObjects.Add(NewMetaData);
 
 		return NewMetaData;
-#endif	
+#else
 		return nullptr;
+#endif	
 	}
 
 	/**

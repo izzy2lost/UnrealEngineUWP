@@ -1725,9 +1725,6 @@ D3D12_RESOURCE_STATES GetD3D12ResourceState(ERHIAccess InRHIAccess, bool InIsAsy
 		}
 	}
 	}
-
-	// unreachable code
-	return D3D12_RESOURCE_STATE_COMMON;
 }
 
 //==================================================================================================================================

@@ -333,63 +333,66 @@ FVector4f FSceneCapturePhotoSet::ComputeSampleNearest(
 		return FVector4f(BaseColor, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::Roughness)
+	else if constexpr (CaptureType == ERenderCaptureType::Roughness)
 	{
 		float Roughness = RoughnessPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.Roughness);
 		return FVector4f(Roughness, Roughness, Roughness, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::Specular)
+	else if constexpr (CaptureType == ERenderCaptureType::Specular)
 	{
 		float Specular = SpecularPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.Specular);
 		return FVector4f(Specular, Specular, Specular, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::Metallic)
+	else if constexpr (CaptureType == ERenderCaptureType::Metallic)
 	{
 		float Metallic = MetallicPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.Metallic);
 		return FVector4f(Metallic, Metallic, Metallic, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::CombinedMRS)
+	else if constexpr (CaptureType == ERenderCaptureType::CombinedMRS)
 	{
 		FVector3f MRSValue(DefaultSample.Metallic, DefaultSample.Roughness, DefaultSample.Specular);
 		MRSValue = PackedMRSPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, MRSValue);
 		return FVector4f(MRSValue, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::Emissive)
+	else if constexpr (CaptureType == ERenderCaptureType::Emissive)
 	{
 		FVector3f Emissive = EmissivePhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.Emissive);
 		return FVector4f(Emissive, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::Opacity)
+	else if constexpr (CaptureType == ERenderCaptureType::Opacity)
 	{
 		float Opacity = OpacityPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.Opacity);
 		return FVector4f(Opacity, Opacity, Opacity, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::SubsurfaceColor)
+	else if constexpr (CaptureType == ERenderCaptureType::SubsurfaceColor)
 	{
 		FVector3f SubsurfaceColor = SubsurfaceColorPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.SubsurfaceColor);
 		return FVector4f(SubsurfaceColor, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::WorldNormal)
+	else if constexpr (CaptureType == ERenderCaptureType::WorldNormal)
 	{
 		FVector3f WorldNormal = WorldNormalPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.WorldNormal);
 		return FVector4f(WorldNormal, 1.f);
 	}
 
-	if constexpr (CaptureType == ERenderCaptureType::DeviceDepth)
+	else if constexpr (CaptureType == ERenderCaptureType::DeviceDepth)
 	{
 		float Depth = DeviceDepthPhotoSet.ComputeSampleNearest(PhotoIndex, PhotoCoords, DefaultSample.DeviceDepth);
 		return FVector4f(Depth, Depth, Depth, 1.f);
 	}
 
-	ensure(false);
-	return FVector4f::Zero();
+	else
+	{
+		ensure(false);
+		return FVector4f::Zero();
+	}
 }
 
 MODELINGCOMPONENTS_API

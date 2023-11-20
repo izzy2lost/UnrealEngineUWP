@@ -185,9 +185,6 @@ bool ReadQuantizedVector(const int32 Scale, T& Value, FArchive& Ar)
 			return true;
 		}
 	}
-
-	// Should not get here so something is very wrong.
-	return false;
 }
 
 }

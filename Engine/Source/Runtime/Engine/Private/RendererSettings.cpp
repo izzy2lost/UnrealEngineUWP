@@ -62,7 +62,6 @@ namespace EDefaultBackBufferPixelFormat
 			default:
 				return 0;
 		}
-		return 0;
 	}
 
 	EDefaultBackBufferPixelFormat::Type FromInt(int32 InDefaultBackBufferPixelFormat)

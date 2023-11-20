@@ -42,9 +42,10 @@ static bool IsRenderDocPresent()
 	// Run only once as this func is called each time the UI is rendered
 	static HMODULE RenderDocDLLHandle = GetModuleHandleW(L"renderdoc.dll");
 	return RenderDocDLLHandle != nullptr;
-#endif
+#else
 	// TODO: other platforms
 	return false;
+#endif
 }
 
 static bool IsCurrentRHIRayTracingCapable()

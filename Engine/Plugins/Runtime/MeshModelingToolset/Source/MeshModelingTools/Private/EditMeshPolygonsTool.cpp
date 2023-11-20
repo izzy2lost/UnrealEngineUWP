@@ -1907,7 +1907,7 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 {
 	// AAAHHH cannot do because of overlays!
 	return;
-
+#if 0
 	if (SelectionMechanic->GetActiveSelection().SelectedEdgeIDs.Num() != 1 || BeginMeshEdgeEditChange() == false)
 	{
 		GetToolManager()->DisplayMessage(
@@ -1937,6 +1937,7 @@ void UEditMeshPolygonsTool::ApplyCollapseEdge()
 	FGroupTopologySelection NewSelection;
 	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshEdgeCollapseChange", "Collapse"),
 		ChangeTracker.EndChange(), NewSelection);
+#endif
 }
 
 

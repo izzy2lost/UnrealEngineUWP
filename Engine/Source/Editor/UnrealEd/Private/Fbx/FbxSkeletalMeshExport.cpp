@@ -767,8 +767,6 @@ FbxNode* FFbxExporter::ExportSkeletalMeshToFbx(const USkeletalMesh* SkeletalMesh
 		Scene->RemoveNode(TmpNodeNoTransform);
 		return SkeletonRootNode;
 	}
-
-	return nullptr;
 }
 
 } // namespace UnFbx

@@ -221,8 +221,6 @@ namespace CrossCompiler
 
 			return Result;
 		}
-
-		return EParseResult::NotMatched;
 	}
 
 	EParseResult ParseColonSpecifier(FHlslScanner& Scanner, FLinearAllocator* Allocator, int32 EDFFlags, AST::FSemanticSpecifier** OutSpecifier)

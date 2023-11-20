@@ -579,13 +579,12 @@ SOCKLEN FInternetAddrBSD::GetStorageSize() const
 	{
 		return sizeof(sockaddr_in);
 	}
-	else
-	{
+
 #if PLATFORM_HAS_BSD_IPV6_SOCKETS
-		return sizeof(sockaddr_in6);
-#endif
-	}
+	return sizeof(sockaddr_in6);
+#else
 	return sizeof(sockaddr_storage);
+#endif
 }
 
 uint32 FInternetAddrBSD::GetTypeHash() const

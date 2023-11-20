@@ -566,7 +566,6 @@ bool FGameplayTagContainer::ComplexHasTag(FGameplayTag const& TagToCheck, TEnumA
 	{
 		return TagToCheck.GetSingleTagContainer().DoesTagContainerMatch(*this, EGameplayTagMatchType::IncludeParentTags, EGameplayTagMatchType::Explicit, EGameplayContainerMatchType::Any);
 	}
-	return false;
 }
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

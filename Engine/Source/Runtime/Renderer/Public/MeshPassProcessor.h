@@ -1295,8 +1295,9 @@ public:
 	{
 #if MESH_DRAW_COMMAND_DEBUG_DATA
 		return sizeof(DebugData);
-#endif
+#else
 		return 0;
+#endif
 	}
 
 #if MESH_DRAW_COMMAND_DEBUG_DATA

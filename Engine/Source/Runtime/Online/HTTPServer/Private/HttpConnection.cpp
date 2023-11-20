@@ -358,5 +358,4 @@ bool FHttpConnection::ResolveKeepAlive(HttpVersion::EHttpServerHttpVersion HttpV
 	{
 		return ConnectionHeaders.Contains(TEXT("Keep-Alive"));
 	}
-	return true;
 }

@@ -226,9 +226,9 @@ bool ADisplayClusterRootActor::IsPrimaryRootActorForPIE() const
 
 	// Only PIE is currently supported
 	return IsPrimaryRootActor();
-#endif
-
+#else
 	return false;
+#endif
 }
 
 bool ADisplayClusterRootActor::IsRunningPIE() const

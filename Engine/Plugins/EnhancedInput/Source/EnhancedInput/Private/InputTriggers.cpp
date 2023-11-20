@@ -53,8 +53,6 @@ bool UInputTrigger::IsSupportedTriggerEvent(const ETriggerEventsSupported Suppor
 	default:
 		return false;
 	}	
-	
-	return false;
 }
 
 ETriggerState UInputTriggerTimedBase::UpdateState_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue ModifiedValue, float DeltaTime)

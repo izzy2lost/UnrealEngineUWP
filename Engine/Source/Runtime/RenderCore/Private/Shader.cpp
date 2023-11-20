@@ -489,7 +489,6 @@ ERayTracingPayloadType FShaderType::GetRayTracingPayloadType(const int32 Permuta
 {
 #if RHI_RAYTRACING
 	return (*GetRayTracingPayloadTypeRef)(PermutationId);
-	return ERayTracingPayloadType::None;
 #else
 	return static_cast<ERayTracingPayloadType>(0);
 #endif
@@ -844,24 +843,27 @@ const FSHAHash& FShader::GetOutputHash() const
 {
 #if WITH_EDITORONLY_DATA
 	return OutputHash;
-#endif
+#else
 	return ShaderSourceDefaultHash;
+#endif
 }
 
 const FSHAHash& FShader::GetHash() const 
 {
 #if WITH_EDITORONLY_DATA
 	return SourceHash;
-#endif
+#else
 	return ShaderSourceDefaultHash;
+#endif
 }
 
 const FSHAHash& FShader::GetVertexFactoryHash() const
 {
 #if WITH_EDITORONLY_DATA
 	return VFSourceHash;
-#endif
+#else
 	return ShaderSourceDefaultHash;
+#endif
 }
 
 const FTypeLayoutDesc& GetTypeLayoutDesc(const FPointerTableBase* PtrTable, const FShader& Shader)

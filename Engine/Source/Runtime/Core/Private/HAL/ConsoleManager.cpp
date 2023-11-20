@@ -2345,11 +2345,6 @@ static void SetUnsetCVar(const TMap<FString, IConsoleObject*>& ConsoleObjects, c
 			return;
 		}
 	}
-#else
-	Ar.Logf(TEXT("Unable to lookup a CVar value on another platform in this build"));
-	return;
-#endif
-
 	
 	FString Value;
 	if (bSet)
@@ -2377,6 +2372,10 @@ static void SetUnsetCVar(const TMap<FString, IConsoleObject*>& ConsoleObjects, c
 	{
 		CVar->Unset(SetBy, Tag);
 	}
+#else
+	Ar.Logf(TEXT("Unable to lookup a CVar value on another platform in this build"));
+	return;
+#endif
 }
 
 void UnsetCVarTag(const TCHAR* Params, FOutputDevice& Ar)

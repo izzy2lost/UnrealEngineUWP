@@ -51,9 +51,9 @@ static bool CanEvaluateRawAnimationData(const UAnimSequence* AnimSequence)
 {
 #if WITH_EDITOR
 	return AnimSequence->IsDataModelValid();
-#endif
-
+#else
 	return false;
+#endif
 }
 
 static bool UseRawDataForPoseExtraction(const UAnimSequence* AnimSequence, FLODPose& AnimationPoseData)

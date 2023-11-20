@@ -944,7 +944,6 @@ void UTransformGizmo::HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMo
 		case UE::Widget::EWidgetMode::WM_Scale: return EGizmoTransformMode::Scale;
 		default: return EGizmoTransformMode::None;
 		}
-		return EGizmoTransformMode::None;
 	};
 	const EGizmoTransformMode NewMode = GetTransformMode();
 
@@ -965,7 +964,6 @@ void UTransformGizmo::HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMo
 			default:
 				return ETransformGizmoPartIdentifier::Default;
 			}
-			return ETransformGizmoPartIdentifier::Default;
 		};
 
 		const ETransformGizmoPartIdentifier DefaultHitPart = GetModeDefaultHitPart();

@@ -1194,8 +1194,6 @@ public:
 				}
 			}
 		}
-
-		return true;
 	}
 
 private:

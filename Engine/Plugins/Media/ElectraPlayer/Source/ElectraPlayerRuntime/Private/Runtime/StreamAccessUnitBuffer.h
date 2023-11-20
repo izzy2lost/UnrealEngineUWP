@@ -630,7 +630,6 @@ namespace Electra
 				// Max allowed duration ok?
 				return AU->Duration + ExternalInfo->Duration > Limit->MaxDuration ? false : true;
 			}
-			return false;
 		}
 
 		mutable FCriticalSection					AccessLock;

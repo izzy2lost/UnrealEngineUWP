@@ -1860,9 +1860,9 @@ bool UAnimSequence::CanEvaluateRawAnimationData() const
 {
 #if WITH_EDITOR
 	return IsDataModelValid();
-#endif
-
+#else
 	return false;
+#endif
 }
 
 #if WITH_EDITORONLY_DATA

@@ -48,8 +48,9 @@ UWorld* AnEmptyWorld()
 {
 #if WITH_AUTOMATION_TESTS
 	return FAutomationEditorCommonUtils::CreateNewMap();
-#endif
+#else
 	return nullptr;
+#endif
 }
 
 UControllablePlayer& AControllablePlayer(UWorld* World)

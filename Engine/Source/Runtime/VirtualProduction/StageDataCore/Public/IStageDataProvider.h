@@ -56,9 +56,9 @@ public:
 	{
 #if ENABLE_STAGEMONITOR_LOGGING
 		return SendMessage(Forward<MessageType>(Message), Flags);
-#endif
-
+#else
 		return false;
+#endif
 	}
 
 private:

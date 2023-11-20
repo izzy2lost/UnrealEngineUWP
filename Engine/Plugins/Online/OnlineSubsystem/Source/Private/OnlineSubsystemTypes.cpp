@@ -100,7 +100,6 @@ namespace EOnlineServerConnectionStatus
 			return TEXT("Unknown");
 		}
 		}
-		return TEXT("");
 	}
 } // namespace EOnlineServerConnectionStatus
 

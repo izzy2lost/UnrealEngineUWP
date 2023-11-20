@@ -112,7 +112,7 @@ public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
 		return false; // TODO: Work in progress
-
+#if 0
 		if (!Parameters.VertexFactoryType->SupportsNaniteRendering())
 		{
 			return false;
@@ -125,6 +125,7 @@ public:
 
 		return IsOpaqueOrMaskedBlendMode(Parameters.MaterialParameters.BlendMode)
 			&& ShouldCompileLumenMeshCardShaders(Parameters.MaterialParameters.MaterialDomain, Parameters.VertexFactoryType, Parameters.Platform);
+#endif
 	}
 
 	FLumenCardCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)

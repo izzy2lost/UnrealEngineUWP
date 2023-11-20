@@ -162,8 +162,9 @@ bool SChaosVDRecordingControls::IsRecording() const
 {
 #if WITH_CHAOS_VISUAL_DEBUGGER && UE_TRACE_ENABLED
 	return FChaosVisualDebuggerTrace::IsTracing();
-#endif
+#else
 	return false;
+#endif
 }
 
 FText SChaosVDRecordingControls::GetRecordingTimeText() const

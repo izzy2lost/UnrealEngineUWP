@@ -97,8 +97,10 @@ inline UE::Math::TMatrix<T> Transpose(const FMatrix44d& Transform)
 	{
 		return Transform.GetTransposed();
 	}
-
-	return UE::Math::TMatrix<T>(Transform).GetTransposed();
+	else
+	{
+		return UE::Math::TMatrix<T>(Transform).GetTransposed();
+	}
 }
 
 /**

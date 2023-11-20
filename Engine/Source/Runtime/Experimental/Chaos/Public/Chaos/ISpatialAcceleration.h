@@ -362,7 +362,6 @@ public:
 		case ESpatialAcceleration::Collection: check(false);	//Collections must be serialized directly since they are variadic
 		default: check(false); return nullptr;
 		}
-		return nullptr;
 	}
 
 	virtual void Serialize(FChaosArchive& Ar)

@@ -141,8 +141,9 @@ namespace PluginSystemDefs
 	{
 #if PLATFORM_DESKTOP // with the reduced set of plugin files to scan, this is likely unnecessary on any platform, but DESKTOP platforms may have Saved/Cooked directories around are slooow to scan
 		return false;
-#endif
+#else
 		return true;
+#endif
 	}
 }
 

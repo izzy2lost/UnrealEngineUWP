@@ -133,7 +133,6 @@ bool SViewportToolBar::IsViewModeSupported(EViewModeIndex ViewModeIndex) const
 	default:
 		return true;
 	}
-	return true; 
 }
 
 #undef LOCTEXT_NAMESPACE

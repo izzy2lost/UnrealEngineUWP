@@ -5868,8 +5868,6 @@ bool FAudioDevice::GetListenerPosition(int32 ListenerIndex, FVector& OutPosition
 		OutPosition = Proxy.GetPosition(bAllowOverride);
 		return true;
 	}
-
-	return false;
 }
 
 bool FAudioDevice::GetListenerTransform(int32 ListenerIndex, FTransform& OutTransform) const

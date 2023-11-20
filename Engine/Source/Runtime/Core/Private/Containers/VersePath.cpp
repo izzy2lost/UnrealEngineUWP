@@ -119,8 +119,6 @@ namespace UE::VersePath::Private
 				return true;
 			}
 		}
-
-		return true;
 	}
 
 	template <typename EndType>

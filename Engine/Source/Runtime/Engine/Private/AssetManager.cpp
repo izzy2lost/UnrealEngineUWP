@@ -2552,7 +2552,7 @@ bool UAssetManager::OnAssetRegistryAvailableAfterInitialization(FName InName, FA
 #if WITH_EDITOR
 	UE_LOG(LogAssetManager, Warning, TEXT("UAssetManager::OnAssetRegistryAvailableAfterInitialization is only supported in cooked builds, but was called from the editor!"));
 	return false;
-#endif
+#else
 
 	bool bLoaded = false;
 	double RegistrationTime = 0.0;
@@ -2643,6 +2643,7 @@ bool UAssetManager::OnAssetRegistryAvailableAfterInitialization(FName InName, FA
 
 	UE_CLOG(bLoaded, LogAssetManager, Log, TEXT("Registered new asset registry '%s' in %.4fs"), *InName.ToString(), RegistrationTime);
 	return bLoaded;
+#endif
 }
 
 FPrimaryAssetData* UAssetManager::GetNameData(const FPrimaryAssetId& PrimaryAssetId, bool bCheckRedirector)

@@ -744,8 +744,6 @@ size_t FParamTypeHandle::GetSize() const
 	case EParamType::Custom:
 		return GetType().GetSize();
 	}
-
-	return 0;
 }
 
 size_t FParamTypeHandle::GetValueTypeSize() const
@@ -798,8 +796,6 @@ size_t FParamTypeHandle::GetAlignment() const
 	case EParamType::Custom:
 		return GetType().GetAlignment();
 	}
-
-	return 0;
 }
 
 size_t FParamTypeHandle::GetValueTypeAlignment() const

@@ -436,9 +436,9 @@ bool UStaticMeshComponent::IsPrecomputedLightingValid() const
 
 #if WITH_EDITOR
 	return FStaticLightingSystemInterface::GetPrimitiveMeshMapBuildData(this, MinLOD) != nullptr;
-#endif
-
+#else
 	return false;
+#endif
 }
 
 float UStaticMeshComponent::GetEmissiveBoost(int32 ElementIndex) const

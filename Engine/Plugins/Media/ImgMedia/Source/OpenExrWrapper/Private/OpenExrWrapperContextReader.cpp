@@ -94,8 +94,6 @@ const TCHAR* FOpenExrHeaderReader::GetCompressionName() const
 	default:
 		return TEXT("Unknown");
 	}
-
-	return nullptr;
 }
 
 FIntPoint FOpenExrHeaderReader::GetDataWindow() const

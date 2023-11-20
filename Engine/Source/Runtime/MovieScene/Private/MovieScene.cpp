@@ -1809,7 +1809,6 @@ int32 UMovieScene::FindNextMarkedFrame(FFrameNumber InFrameNumber, bool bForward
 		}
 		return MarkedFrames.Num() - 1;
 	}
-	return INDEX_NONE;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -3722,8 +3722,6 @@ bool FWindowsPlatformMisc::IsRunningOnBattery()
 	default:
 		return false;
 	}
-
-	return false;
 }
 
 FString FWindowsPlatformMisc::GetOperatingSystemId()

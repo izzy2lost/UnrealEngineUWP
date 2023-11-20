@@ -547,9 +547,7 @@ namespace UE::Zen {
 		Memcpy(Ptr, ReadDataView, Offset, ReadSize);
 		Request->BytesSent += ReadSize;
 		return ReadSize;
-
-		return 0;
-	}
+		}
 
 	size_t FZenHttpRequest::FStatics::StaticWriteHeaderFn(void* Ptr, size_t SizeInBlocks, size_t BlockSizeInBytes, void* UserData)
 	{

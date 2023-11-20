@@ -150,8 +150,6 @@ namespace Chaos
 			}
 			return bOverlap;
 		}
-
-		return false;
 	}
 
 	// @todo(chaos): This does not handle Unions

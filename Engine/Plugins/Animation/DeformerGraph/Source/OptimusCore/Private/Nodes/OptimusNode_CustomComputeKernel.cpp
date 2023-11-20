@@ -1997,8 +1997,6 @@ FString UOptimusNode_CustomComputeKernel::GetDeclarationForBinding(const FOptimu
 
 		return FString::Join(Declarations, TEXT("\n"));
 	}
-
-	return {};
 }
 
 #undef LOCTEXT_NAMESPACE

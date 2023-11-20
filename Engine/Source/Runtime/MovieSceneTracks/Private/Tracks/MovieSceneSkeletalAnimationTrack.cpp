@@ -1220,6 +1220,7 @@ void UMovieSceneSkeletalAnimationTrack::ToggleShowRootMotionTrail()
 void UMovieSceneSkeletalAnimationTrack::AutoMatchSectionRoot(UMovieSceneSkeletalAnimationSection* CurrentSection)
 {
 	return;
+#if 0
 	UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
 	if (AnimationSections.Num() > 0 && MovieScene && CurrentSection)
 	{
@@ -1237,6 +1238,7 @@ void UMovieSceneSkeletalAnimationTrack::AutoMatchSectionRoot(UMovieSceneSkeletal
 			}
 		}
 	}
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE

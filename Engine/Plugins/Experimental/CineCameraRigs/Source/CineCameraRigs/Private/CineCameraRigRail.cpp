@@ -541,8 +541,9 @@ bool ACineCameraRigRail::IsSequencerDriven()
 {
 #if WITH_EDITOR
 	return bSequencerDriven;
-#endif
+#else
 	return false;
+#endif
 }
 
 #if WITH_EDITOR

@@ -29,7 +29,6 @@ const TCHAR* ToString(FHairStrandsTiles::ETileType Type)
 		case FHairStrandsTiles::ETileType::Other:			return TEXT("Other");
 		default:											return TEXT("Unknown");
 	}
-	return TEXT("Unknown");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

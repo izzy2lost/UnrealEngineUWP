@@ -388,7 +388,7 @@ namespace Delaunay3Internal
 			{
 				return NoTri;
 			}
-			if (Chosen == 0)
+			else if (Chosen == 0)
 			{
 				return NoTri; // we're on this tri
 			}

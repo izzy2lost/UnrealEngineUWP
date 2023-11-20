@@ -75,7 +75,10 @@ FTypedElementHandle AcquireTypedElementHandle(const TUObjectType* InObject)
 	{
 		return UEngineElementsLibrary::AcquireEditorComponentElementHandle(InObject, /*bAllowCreate*/false);
 	}
-	return {};
+	else
+	{
+		return {};
+	}
 }
 
 template <typename TUObjectArrayType>

@@ -21816,8 +21816,6 @@ int32 UMaterialExpressionTangentOutput::Compile(class FMaterialCompiler* Compile
 	{
 		return CompilerError(Compiler, TEXT("Input missing"));
 	}
-
-	return INDEX_NONE;
 }
 
 void UMaterialExpressionTangentOutput::GetCaption(TArray<FString>& OutCaptions) const
@@ -21923,9 +21921,7 @@ int32  UMaterialExpressionBentNormalCustomOutput::Compile(class FMaterialCompile
 	{
 		return CompilerError(Compiler, TEXT("Input missing"));
 	}
-	return INDEX_NONE;
 }
-
 
 void UMaterialExpressionBentNormalCustomOutput::GetCaption(TArray<FString>& OutCaptions) const
 {

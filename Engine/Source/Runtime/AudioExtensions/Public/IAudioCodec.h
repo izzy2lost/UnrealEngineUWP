@@ -631,8 +631,11 @@ namespace Audio
 			{
 				return Buffer.Pop(reinterpret_cast<TSampleType*>(InExternalInt16Buffer.GetData()), InExternalInt16Buffer.Num());
 			}
-			audio_ensure(false);
-			return 0;
+			else
+			{
+				audio_ensure(false);
+				return 0;
+			}
 		}
 
 		int32 PopAudio(TArrayView<float> InExternalFloat32Buffer, FPushedAudioDetails& OutDetails) override
@@ -641,8 +644,11 @@ namespace Audio
 			{
 				return Buffer.Pop(reinterpret_cast<TSampleType*>(InExternalFloat32Buffer.GetData()), InExternalFloat32Buffer.Num());
 			}
-			audio_ensure(false);
-			return 0;			
+			else
+			{
+				audio_ensure(false);
+				return 0;
+			}
 		}
 	};
 };

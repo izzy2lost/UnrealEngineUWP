@@ -435,9 +435,6 @@ int32 FAnimationStreamingManager::BlockTillAllRequestsFinished(float TimeLimit, 
 
 		return Result;
 	}
-
-	// Not sure yet whether this will work the same as textures - aside from just before destroying
-	return 0;
 }
 
 void FAnimationStreamingManager::CancelForcedResources()

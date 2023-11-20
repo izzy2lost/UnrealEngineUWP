@@ -574,8 +574,10 @@ namespace UE::Json
 
 			return TryParse<TypeIndex + 1, ValueTypes...>(InJsonValue, OutValue);
 		}
-
-		return false;
+		else
+		{
+			return false;
+		}
 	}
 
 	// Variant

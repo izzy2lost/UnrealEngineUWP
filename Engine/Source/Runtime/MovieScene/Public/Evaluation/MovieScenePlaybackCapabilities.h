@@ -86,7 +86,10 @@ struct TPlaybackCapabilityInterfaceCast
 		{
 			return static_cast<IPlaybackCapability*>((StorageType*)Ptr);
 		}
-		return nullptr;
+		else
+		{
+			return nullptr;
+		}
 	}
 };
 template<typename PointedType>
@@ -99,7 +102,10 @@ struct TPlaybackCapabilityInterfaceCast<PointedType*>
 			PointedType* TypedPtr = *(PointedType**)Ptr;
 			return static_cast<IPlaybackCapability*>(TypedPtr);
 		}
-		return nullptr;
+		else
+		{
+			return nullptr;
+		}
 	};
 };
 template<typename PointedType>
@@ -112,7 +118,10 @@ struct TPlaybackCapabilityInterfaceCast<TSharedPtr<PointedType>>
 			TSharedPtr<PointedType>& TypedPtr = *(TSharedPtr<PointedType>*)Ptr;
 			return static_cast<IPlaybackCapability*>(TypedPtr.Get());
 		}
-		return nullptr;
+		else
+		{
+			return nullptr;
+		}
 	};
 };
 

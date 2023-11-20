@@ -3449,10 +3449,10 @@ bool ARecastNavMesh::IsVoxelCacheEnabled()
 	// voxel cache is using static buffers to minimize memory impact
 	// therefore it can run only with synchronous navmesh rebuilds
 	return false;
-#endif
-
+#else
 	ARecastNavMesh* DefOb = (ARecastNavMesh*)ARecastNavMesh::StaticClass()->GetDefaultObject();
 	return DefOb && DefOb->bUseVoxelCache;
+#endif
 }
 
 const FRecastQueryFilter* ARecastNavMesh::GetNamedFilter(ERecastNamedFilter::Type FilterType)

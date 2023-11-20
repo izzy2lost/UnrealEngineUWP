@@ -183,7 +183,10 @@ public:
 				}
 			}
 		}
-		return Random.GetNext(Value);
+		else
+		{
+			return Random.GetNext(Value);
+		}
 	}
 
 private:

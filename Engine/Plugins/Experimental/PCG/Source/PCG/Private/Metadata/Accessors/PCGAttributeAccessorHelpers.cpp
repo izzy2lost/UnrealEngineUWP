@@ -226,15 +226,15 @@ namespace PCGAttributeAccessorHelpers
 			{
 				return PCGAttributeExtractor::CreateVectorExtractor<AccessorType>(std::move(Accessor), Name, bOutSuccess);
 			}
-			if constexpr (PCG::Private::IsOfTypes<AccessorType, FTransform>())
+			else if constexpr (PCG::Private::IsOfTypes<AccessorType, FTransform>())
 			{
 				return PCGAttributeExtractor::CreateTransformExtractor(std::move(Accessor), Name, bOutSuccess);
 			}
-			if constexpr (PCG::Private::IsOfTypes<AccessorType, FQuat>())
+			else if constexpr (PCG::Private::IsOfTypes<AccessorType, FQuat>())
 			{
 				return PCGAttributeExtractor::CreateQuatExtractor(std::move(Accessor), Name, bOutSuccess);
 			}
-			if constexpr (PCG::Private::IsOfTypes<AccessorType, FRotator>())
+			else if constexpr (PCG::Private::IsOfTypes<AccessorType, FRotator>())
 			{
 				return PCGAttributeExtractor::CreateRotatorExtractor(std::move(Accessor), Name, bOutSuccess);
 			}

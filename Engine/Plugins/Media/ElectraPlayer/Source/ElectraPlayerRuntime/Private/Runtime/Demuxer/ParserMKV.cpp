@@ -3984,7 +3984,6 @@ namespace Electra
 				}
 				return CurrentBlockTypeID == MKV_SimpleBlock.ID ? StartSimpleBlock() : StartBlockGroup();
 			}
-			return IParserMKV::IClusterParser::EParseAction::Failure;
 		};
 		// What was the previous action?
 		switch(PreviousActionType)
@@ -4372,8 +4371,6 @@ namespace Electra
 			}
 			return Result;
 		}
-
-		return IParserMKV::IClusterParser::EParseAction::Failure;
 	}
 	FErrorDetail FParserMKV::FMKVClusterParser::GetLastError() const
 	{

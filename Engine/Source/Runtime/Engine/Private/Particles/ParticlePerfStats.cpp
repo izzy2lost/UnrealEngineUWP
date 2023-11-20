@@ -422,8 +422,9 @@ FParticlePerfStats* FParticlePerfStatsManager::GetSystemPerfStats(const UFXSyste
 		}
 	}
 	return FXAsset->ParticlePerfStats;
-#endif
+#else
 	return nullptr;
+#endif
 }
 
 FParticlePerfStats* FParticlePerfStatsManager::GetComponentPerfStats(const UFXSystemComponent* FXComponent)
@@ -454,8 +455,9 @@ FParticlePerfStats* FParticlePerfStatsManager::GetComponentPerfStats(const UFXSy
 		}
 	}
 	return FXComponent->ParticlePerfStats;
-#endif
+#else
 	return nullptr;
+#endif
 }
 
 void FParticlePerfStatsManager::TogglePerfStatsRender(UWorld* World)

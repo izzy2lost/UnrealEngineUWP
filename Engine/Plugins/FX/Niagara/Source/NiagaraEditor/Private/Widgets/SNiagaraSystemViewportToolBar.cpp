@@ -59,7 +59,6 @@ bool SNiagaraSystemViewportToolBar::IsViewModeSupported(EViewModeIndex ViewModeI
 	default:
 		return true;
 	}
-	return true; 
 }
 
 EVisibility SNiagaraSystemViewportToolBar::GetSimulationRealtimeWarningVisibility() const

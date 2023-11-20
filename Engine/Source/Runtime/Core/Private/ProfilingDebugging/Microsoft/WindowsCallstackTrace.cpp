@@ -483,7 +483,7 @@ void FBacktracer::RemoveModule(UPTRINT ModuleBase)
 	// anything due to how DLLs and processes' address spaces work. So we will...
 #if defined PLATFORM_WINDOWS
 	return;
-#endif
+#else
 
 	FScopeLock _(&Lock);
 
@@ -516,6 +516,7 @@ void FBacktracer::RemoveModule(UPTRINT ModuleBase)
 	}
 
 	--ModulesNum;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

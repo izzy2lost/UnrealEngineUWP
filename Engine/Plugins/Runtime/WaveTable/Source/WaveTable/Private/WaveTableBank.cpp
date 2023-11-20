@@ -120,8 +120,6 @@ namespace WaveTable
 							return 1 << static_cast<int32>(InBank.Resolution);
 						}
 					}
-
-					return MaxNumSamples;
 				}
 				break;
 

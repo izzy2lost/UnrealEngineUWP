@@ -79,7 +79,6 @@ TOptional<FVector2D> UDMXPixelMappingPreprocessRenderer::GetDesiredOutputSize2D(
 	}
 
 	return TOptional<FVector2D>();
-	checkf(0, TEXT("Unhandled output size mode in DMXPixelMappingRenderInputTextureProxy"));
 }
 
 FVector2D UDMXPixelMappingPreprocessRenderer::GetResultingSize2D() const

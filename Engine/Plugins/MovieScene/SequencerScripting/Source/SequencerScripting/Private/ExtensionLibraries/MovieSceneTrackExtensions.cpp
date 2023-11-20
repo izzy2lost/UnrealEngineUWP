@@ -122,8 +122,9 @@ int32 UMovieSceneTrackExtensions::GetSortingOrder(UMovieSceneTrack* Track)
 
 #if WITH_EDITORONLY_DATA
 	return Track->GetSortingOrder(); 
-#endif
+#else
 	return 0;
+#endif
 }
  
 void UMovieSceneTrackExtensions::SetSortingOrder(UMovieSceneTrack* Track, int32 SortingOrder) 

@@ -1387,8 +1387,9 @@ bool UMaterial::IsUsageFlagDirty(EMaterialUsage Usage)
 {
 #if WITH_EDITOR
 	return GMaterialsWithDirtyUsageFlags.GetAnnotation(this).IsUsageFlagDirty(Usage);
-#endif
+#else
 	return false;
+#endif
 }
 
 bool UMaterial::IsCompilingOrHadCompileError(ERHIFeatureLevel::Type InFeatureLevel)

@@ -58,7 +58,6 @@ namespace LiveLinkTimedDataInput
 		default:
 			return ETimedDataInputEvaluationType::None;
 		}
-		return ETimedDataInputEvaluationType::None;
 	}
 
 	ELiveLinkSourceMode ToLiveLinkSourceMode(ETimedDataInputEvaluationType EvaluationType)
@@ -73,7 +72,6 @@ namespace LiveLinkTimedDataInput
 		default:
 			return ELiveLinkSourceMode::Latest;
 		}
-		return ELiveLinkSourceMode::Latest;
 	}
 }
 

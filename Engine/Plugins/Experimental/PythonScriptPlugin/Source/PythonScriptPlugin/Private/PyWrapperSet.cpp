@@ -589,8 +589,6 @@ PyObject* FPyWrapperSet::Pop(FPyWrapperSet* InSelf)
 
 		return PyReturnValue;
 	}
-
-	return nullptr;
 }
 
 int FPyWrapperSet::Clear(FPyWrapperSet* InSelf)

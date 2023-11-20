@@ -108,7 +108,6 @@ const FSlateBrush* FWidgetTemplateClass::GetIcon() const
 	{
 		return FSlateIconFinder::FindIconBrushForClass(UWidget::StaticClass());
 	}
-	return nullptr;
 }
 
 TSharedRef<IToolTip> FWidgetTemplateClass::GetToolTip() const

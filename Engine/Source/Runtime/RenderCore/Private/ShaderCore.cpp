@@ -1212,7 +1212,6 @@ public:
 			return false;
 		}
 #endif
-		return false;
 	}
 
 	static void PreprocessShaderInternal(

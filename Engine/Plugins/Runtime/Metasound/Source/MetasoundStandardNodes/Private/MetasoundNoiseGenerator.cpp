@@ -259,8 +259,6 @@ namespace Metasound
 		case ENoiseType::Pink:
 			return MakeUnique<FNoiseOperator_Pink>(InParams.OperatorSettings, MoveTemp(Seed), MoveTemp(Type));
 		}
-		checkNoEntry();
-		return nullptr;
 	}
 
 	METASOUND_REGISTER_NODE(FNoiseNode);

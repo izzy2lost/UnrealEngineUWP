@@ -55,8 +55,6 @@ bool FChaosVDGeometryBuilder::DoesImplicitContainType(const Chaos::FImplicitObje
 	default:
 		return InnerType == ImplicitTypeToCheck;
 	}
-
-	return false;
 }
 
 bool FChaosVDGeometryBuilder::HasNegativeScale(const Chaos::FRigidTransform3& InTransform) const

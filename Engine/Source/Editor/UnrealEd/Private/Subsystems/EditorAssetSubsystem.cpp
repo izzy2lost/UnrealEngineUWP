@@ -1563,8 +1563,9 @@ FString UEditorAssetSubsystem::GetMetadataTag(UObject* Object, FName Tag)
 		return FString();
 	}
 	return Object->GetPackage()->GetMetaData()->GetValue(Object, Tag);
-#endif // WITH_EDITORONLY_DATA
+#else
 	return FString();
+#endif // WITH_EDITORONLY_DATA
 }
 
 void UEditorAssetSubsystem::SetMetadataTag(UObject* Object, FName Tag, const FString& Value)

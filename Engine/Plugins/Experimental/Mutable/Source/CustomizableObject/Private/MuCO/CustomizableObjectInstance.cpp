@@ -575,8 +575,9 @@ bool UCustomizableObjectInstance::GetBuildParameterRelevancy() const
 {
 #if WITH_EDITOR
 	return true;
-#endif
+#else
 	return Descriptor.bBuildParameterRelevancy;
+#endif
 }
 
 

@@ -228,8 +228,6 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int
 		// UDIM VT
 		return Private::ResizeTexture2DBlocked(Texture, TargetSourceSize, TargetPlatform);
 	}
-		
-	return false;
 }
 
 TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform)

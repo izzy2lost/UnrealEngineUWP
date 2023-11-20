@@ -596,8 +596,6 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 			return FCachedInterpolation(Range, FConstantValue(V1));
 		}
 	}
-
-	return FCachedInterpolation();
 }
 
 template<typename ChannelType>

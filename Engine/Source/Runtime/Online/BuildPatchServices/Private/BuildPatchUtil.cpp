@@ -129,7 +129,6 @@ FString FBuildPatchUtils::GetDataFilename(const FBuildPatchAppManifest&    Manif
 		check(bFound);
 		return FBuildPatchUtils::GetFileNewFilename(Manifest.GetFeatureLevel(), DataGUID, FileHash);
 	}
-	return TEXT("");
 }
 
 bool FBuildPatchUtils::GetGUIDFromFilename( const FString& DataFilename, FGuid& DataGUID )

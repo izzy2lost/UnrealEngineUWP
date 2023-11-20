@@ -831,8 +831,6 @@ static FString ConnectionStateToString(const ESteamNetworkingConnectionState& Co
 	case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
 		return TEXT("Local Connection Issue");
 	}
-
-	return TEXT("");
 }
 
 void FSteamSocketsSubsystem::SteamSocketEventHandler(struct SteamNetConnectionStatusChangedCallback_t* Message)
