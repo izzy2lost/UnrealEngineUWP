@@ -25,7 +25,7 @@ bool ILevelInstanceInterface::SupportsPartialEditorLoading() const
 	{
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GetLevelInstanceSubsystem())
 		{
-			if (LevelInstanceSubsystem->IsEditingLevelInstance(this))
+			if (LevelInstanceSubsystem->IsEditingLevelInstance(this) || HasChildEdit())
 			{
 				return false;
 			}
