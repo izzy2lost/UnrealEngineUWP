@@ -448,15 +448,7 @@ namespace Horde.Server.Tools
 			{
 				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 				_logger.LogInformation("Tool {ToolId} has {NumDirectories}, {NumFiles}, total size {NumBytes}", tool.Id, node.NameToFile.Count, node.NameToDirectory.Count, node.Length);
-
-				using Stream zipStream = node.AsZipStream();
-
-				MemoryStream memoryStream = new MemoryStream();
-				await zipStream.CopyToAsync(memoryStream, cancellationToken);
-				_logger.LogInformation("Tool {ToolId} zip stream is {NumBytes}", tool.Id, memoryStream.Length);
-
-				memoryStream.Position = 0;
-				return memoryStream;
+				return node.AsZipStream(logger: _logger);
 			}
 			else
 			{
