@@ -7,6 +7,7 @@
 #include "PixelStreamingPrivate.h"
 #include "PixelStreamingCodec.h"
 #include "PixelStreamingModule.h"
+#include "RHI.h"
 
 void UPixelStreamingMediaIOCapture::OnRHIResourceCaptured_RenderingThread(
 	const FCaptureBaseData& InBaseData,
@@ -64,7 +65,9 @@ bool UPixelStreamingMediaIOCapture::SupportsAnyThreadCapture() const
 {
 	EPixelStreamingCodec SelectedCodec = IPixelStreamingModule::Get().GetCodec();
 	// If we are using VP8 or VP9 we want to ensure capture happens on the render thread as we do our capture/convert to I420 there
-	bool bForceRenderThread = SelectedCodec == EPixelStreamingCodec::VP8 || SelectedCodec == EPixelStreamingCodec::VP9;
+    bool bForceRenderThread = SelectedCodec == EPixelStreamingCodec::VP8 || SelectedCodec == EPixelStreamingCodec::VP9;
+    // If we are using the Metal RHI, we want to ensure capture happens on the render thread as we do our capture to a CPU_READBACK texture there
+    bForceRenderThread |= RHIGetInterfaceType() == ERHIInterfaceType::Metal;
 	return bForceRenderThread == false;
 }
 

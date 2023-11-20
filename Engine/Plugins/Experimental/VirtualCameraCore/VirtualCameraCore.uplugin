@@ -27,7 +27,7 @@
 			"Name": "PixelStreamingVCam",
 			"Type": "Editor",
 			"LoadingPhase": "PostDefault",
-			"PlatformAllowList": [ "Win64", "Linux" ],
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ],
 			"TargetDenyList": [ "Server" ]
 		},
 		{
@@ -104,12 +104,12 @@
 		{
 			"Name": "PixelStreaming",
 			"Enabled": true,
-			"PlatformAllowList" : [ "Win64", "Linux" ]
+			"PlatformAllowList" : [ "Win64", "Linux", "Mac" ]
 		},
 		{
 			"Name" : "PixelCapture",
 			"Enabled": true,
-            "PlatformAllowList" : [ "Win64", "Linux" ]
+            "PlatformAllowList" : [ "Win64", "Linux", "Mac" ]
 		}
 	]
 }

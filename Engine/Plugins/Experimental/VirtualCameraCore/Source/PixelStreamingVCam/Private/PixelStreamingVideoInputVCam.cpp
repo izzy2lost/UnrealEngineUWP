@@ -7,6 +7,7 @@
 #include "PixelCaptureCapturerRHINoCopy.h"
 #include "PixelCaptureCapturerRHIToI420CPU.h"
 #include "PixelCaptureCapturerRHIToI420Compute.h"
+#include "RHI.h"
 
 TSharedPtr<FPixelStreamingVideoInputVCam> FPixelStreamingVideoInputVCam::Create()
 {
@@ -34,7 +35,9 @@ TSharedPtr<FPixelCaptureCapturer> FPixelStreamingVideoInputVCam::CreateCapturer(
 		case PixelCaptureBufferFormat::FORMAT_RHI:
 		{
 			if(FPixelStreamingSettings::GetSimulcastParameters().Layers.Num() == 1 && 
-			   FPixelStreamingSettings::GetSimulcastParameters().Layers[0].Scaling == 1.0)
+			   FPixelStreamingSettings::GetSimulcastParameters().Layers[0].Scaling == 1.0 &&
+               // We have to do a copy on the Metal RHI to ensure that our output texture is created with the CPU_READBACK flag
+               RHIGetInterfaceType() != ERHIInterfaceType::Metal)
 			{
 				// If we only have a single layer (and it's scale is 1), we can use the no copy capturer 
 				// as we know the output from the media capture will already be the correct format and scale
