@@ -11,7 +11,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"CoreUObject",
-					"Engine",
+					"Engine"
 				}
 			);
 
@@ -24,13 +24,15 @@ namespace UnrealBuildTool.Rules
 					{
 						"Concert",
 						"ConcertClient",
-						"ConcertSyncCore"
+						"ConcertSyncCore",
+						"ConcertTransport"
 					}
 				);
 
 				PrivateIncludePathModuleNames.AddRange(
 					new string[]
 					{
+						"Concert",
 						"ConcertSyncCore",
 						"ConcertSyncClient",
 						"MultiUserClient",
@@ -47,6 +49,13 @@ namespace UnrealBuildTool.Rules
 			else
 			{
 				PrivateDefinitions.Add("WITH_CONCERT=0");
+				PrivateDependencyModuleNames.AddRange(
+					new string[]
+					{
+						"Concert",
+						"ConcertTransport"
+					}
+				);
 			}
 		}
 	}
