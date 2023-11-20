@@ -1357,8 +1357,6 @@ public:
 	FRayTracingSceneWithGeometryInstances RayTracingSceneInitData;
 	FGraphEventRef RayTracingSceneInitTask; // Task to asynchronously create RayTracingSceneInitData
 
-	TArray<FPrimitiveSceneProxy*> ProxiesWithDirtyCachedInstance;
-
 	FGraphEventArray AddRayTracingMeshBatchTaskList;
 	TArray<FRayTracingMeshCommandOneFrameArray*, SceneRenderingAllocator> VisibleRayTracingMeshCommandsPerTask;
 	TArray<FDynamicRayTracingMeshCommandStorage*, SceneRenderingAllocator> DynamicRayTracingMeshCommandStoragePerTask;
