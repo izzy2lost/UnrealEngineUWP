@@ -92,7 +92,7 @@ void UMovieSceneEventSystem::TriggerAllEvents()
 		{
 			if (bSkipTrigger)
 			{
-				Algo::RemoveIf(Pair.Value, [SkipUntil](FMovieSceneEventTriggerData& Data) { return Data.RootTime <= SkipUntil; });
+				Pair.Value.SetNum(Algo::RemoveIf(Pair.Value, [SkipUntil](FMovieSceneEventTriggerData& Data) { return Data.RootTime <= SkipUntil; }));
 			}
 			Algo::SortBy(Pair.Value, &FMovieSceneEventTriggerData::RootTime);
 		}
@@ -100,7 +100,7 @@ void UMovieSceneEventSystem::TriggerAllEvents()
 		{
 			if (bSkipTrigger)
 			{
-				Algo::RemoveIf(Pair.Value, [SkipUntil](FMovieSceneEventTriggerData& Data) { return Data.RootTime >= SkipUntil; });
+				Pair.Value.SetNum(Algo::RemoveIf(Pair.Value, [SkipUntil](FMovieSceneEventTriggerData& Data) { return Data.RootTime >= SkipUntil; }));
 			}
 			Algo::SortBy(Pair.Value, &FMovieSceneEventTriggerData::RootTime, TGreater<>());
 		}

@@ -95,7 +95,10 @@ void FLiveLinkProvider::ValidateConnections()
 	FConnectionValidator Validator;
 
 	TArray<FMessageAddress> RemovedConnections;
-	Algo::RemoveIf(ConnectedAddresses, [this, &Validator, &RemovedConnections](const FTrackedAddress& Address) mutable
+
+	// Using SetNumUninitialized because FTrackedAddress does not have a default constructor, resulting in SetNum not
+	// compiling (due to the DefaultConstructItems<> usage). Uninitialized is not unsafe here, because we're shrinking.
+	ConnectedAddresses.SetNumUninitialized(Algo::RemoveIf(ConnectedAddresses, [this, &Validator, &RemovedConnections](const FTrackedAddress& Address) mutable
 	{
 		if (!Validator(Address))
 	    {
@@ -103,7 +106,7 @@ void FLiveLinkProvider::ValidateConnections()
 			return true;
 	    }
 		return false;
-	});
+	}));
 
 	if (RemovedConnections.Num() > 0)
 	{

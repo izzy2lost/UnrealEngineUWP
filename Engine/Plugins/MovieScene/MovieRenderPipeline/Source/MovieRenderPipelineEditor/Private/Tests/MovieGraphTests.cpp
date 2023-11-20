@@ -29,11 +29,11 @@ namespace UE::MovieGraph::Private::Tests
 			UMovieGraphSubgraphNode::StaticClass()	// Will be tested separately in another test
 		};
 
-		Algo::StableRemoveIf(InClassArray,
+		InClassArray.SetNum(Algo::StableRemoveIf(InClassArray,
 			[&](const UClass* Class)
 			{
 				return UndesirableClasses.Contains(Class);
-			});
+			}));
 	}
 
 	void OpenGraphConfigInEditorIfDesired(UMovieGraphConfig* InGraphConfig)

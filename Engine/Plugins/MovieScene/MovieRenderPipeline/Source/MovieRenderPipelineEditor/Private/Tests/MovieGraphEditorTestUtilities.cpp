@@ -56,11 +56,11 @@ namespace UE::MovieGraph::Private::Tests
 
 	void RemoveAbstractClasses(TArray<UClass*>& InClassArray)
 	{
-		Algo::StableRemoveIf(InClassArray,
+		InClassArray.SetNum(Algo::StableRemoveIf(InClassArray,
 			[](const UClass* Class)
 			{
 				return !Class ||Class->HasAnyClassFlags(CLASS_Abstract);
-			});
+			}));
 	}
 
 	TArray<UClass*> GetNativeClasses(UClass* BaseClass, bool bRecursive)
