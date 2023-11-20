@@ -28,6 +28,26 @@ protected:
 	//~End UPCGSettings interface
 };
 
+/** Converts attribute sets to point data */
+UCLASS(BlueprintType, ClassGroup = (Procedural))
+class PCG_API UPCGConvertToPointDataSettings : public UPCGCollapseSettings
+{
+	GENERATED_BODY()
+
+public:
+	//~Begin UPCGSettings interface
+#if WITH_EDITOR
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("AttributeSetToPoint")); }
+	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGConvertToPointElement", "NodeTitle", "Attribute Set To Point"); }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual bool ShouldDrawNodeCompact() const override { return true; }
+#endif
+
+protected:
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
+	//~End UPCGSettings interface
+};
+
 class FPCGCollapseElement : public IPCGElement
 {
 public:
