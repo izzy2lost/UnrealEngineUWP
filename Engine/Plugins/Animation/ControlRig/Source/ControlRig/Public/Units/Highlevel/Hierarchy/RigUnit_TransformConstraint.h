@@ -249,6 +249,59 @@ struct FRigUnit_ParentConstraint : public FRigUnit_HighlevelBaseMutable
 	TArray<FCachedRigElement> ParentCaches;
 };
 
+USTRUCT()
+struct FRigUnit_ParentConstraintMath_AdvancedSettings
+{
+	GENERATED_BODY()
+
+	FRigUnit_ParentConstraintMath_AdvancedSettings()
+		: InterpolationType(EConstraintInterpType::Average)
+	{}
+	
+	/**
+	*	Options for interpolating rotations
+	*/
+	UPROPERTY(EditAnywhere, Category = "Constraint", meta = (Input))
+	EConstraintInterpType InterpolationType;
+};
+
+/**
+* Computes the output transform by constraining the input transform to multiple parents 
+*/
+USTRUCT(meta=(DisplayName="Parent Constraint Math", Category="Constraints", Keywords = "Parent,Orient,Scale"))
+struct FRigUnit_ParentConstraintMath : public FRigUnit_HighlevelBase
+{
+	GENERATED_BODY()
+
+	FRigUnit_ParentConstraintMath()
+		: Input(FTransform::Identity)
+		, Output(FTransform::Identity)
+	{
+		Parents.Add(FConstraintParent());
+	}
+	
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	/**
+	*	Input is used to calculate offsets from parents' initial transform
+	*/
+	UPROPERTY(EditAnywhere, Category = "Constraint", meta = (Input, ExpandByDefault))
+	FTransform Input;
+	
+	UPROPERTY(EditAnywhere, Category = "Constraint", meta = (Input, ExpandByDefault, DefaultArraySize = 1))
+	TArray<FConstraintParent> Parents;
+
+	UPROPERTY(EditAnywhere, Category = "Constraint", meta = (Input)) 
+	FRigUnit_ParentConstraintMath_AdvancedSettings AdvancedSettings;
+	
+	UPROPERTY(EditAnywhere, Category = "Constraint", meta = (Output))
+	FTransform Output;
+
+	UPROPERTY()
+	TArray<FCachedRigElement> ParentCaches;
+};
+
 /**
 * Constrains an item's position to multiple items' positions 
 */
