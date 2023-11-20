@@ -363,7 +363,7 @@ struct FPropertyInstance
 			FScriptSetHelper Helper(SetProperty, SetProperty->ContainerPtrToValuePtr<void>(Object));
 			for (FScriptSetHelper::FIterator It = Helper.CreateIterator(); It; ++It)
 			{
-				TryAddChild(Helper.GetElementPtr(*It), SetProperty->ElementProp);
+				TryAddChild(Helper.GetElementPtr(It), SetProperty->ElementProp);
 			}
 		}
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(ValProperty))
@@ -371,7 +371,7 @@ struct FPropertyInstance
 			FScriptMapHelper MapHelper(MapProperty, MapProperty->ContainerPtrToValuePtr<void>(Object));
 			for (FScriptMapHelper::FIterator MapIt = MapHelper.CreateIterator(); MapIt; ++MapIt)
 			{
-				TryAddChild(MapHelper.GetPairPtr(*MapIt), MapProperty->ValueProp, MapProperty->KeyProp);
+				TryAddChild(MapHelper.GetPairPtr(MapIt), MapProperty->ValueProp, MapProperty->KeyProp);
 			}
 		}
 

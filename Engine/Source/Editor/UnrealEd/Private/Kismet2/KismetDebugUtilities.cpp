@@ -2274,11 +2274,10 @@ void FPropertyInstanceInfo::PopulateChildren(FPropertyInstance PropertyInstance)
 	{
 		FScriptMapHelper MapHelper(MapProperty, PropertyInstance.Value);
 
-		int32 Index = 0;
-		for (FScriptMapHelper::FIterator Itr = MapHelper.CreateIterator(); Itr; ++Itr, ++Index)
+		for (FScriptMapHelper::FIterator Itr = MapHelper.CreateIterator(); Itr; ++Itr)
 		{
-			uint8* KeyData = MapHelper.GetKeyPtr(*Itr);
-			uint8* ValData = MapHelper.GetValuePtr(*Itr);
+			uint8* KeyData = MapHelper.GetKeyPtr(Itr);
+			uint8* ValData = MapHelper.GetValuePtr(Itr);
 			FPropertyInstance ChildProperty = {
 				MapProperty->ValueProp,
 				ValData
@@ -2297,7 +2296,7 @@ void FPropertyInstanceInfo::PopulateChildren(FPropertyInstance PropertyInstance)
 			NameStr += TEXT("] ");
 			ChildInfo->DisplayName = FText::FromString(NameStr);
 			ChildInfo->bIsInContainer = true;
-			ChildInfo->ContainerIndex = Index;
+			ChildInfo->ContainerIndex = Itr.GetLogicalIndex();
 				
 			Children.Add(ChildInfo);
 		}
@@ -2305,19 +2304,18 @@ void FPropertyInstanceInfo::PopulateChildren(FPropertyInstance PropertyInstance)
 	else if (const FSetProperty* SetProperty = CastField<FSetProperty>(Property.Get()))
 	{
 		FScriptSetHelper SetHelper(SetProperty, PropertyInstance.Value);
-		int32 Index = 0;
-		for (FScriptSetHelper::FIterator Itr = SetHelper.CreateIterator(); Itr; ++Itr, ++Index)
+		for (FScriptSetHelper::FIterator Itr = SetHelper.CreateIterator(); Itr; ++Itr)
 		{
-			uint8* PropData = SetHelper.GetElementPtr(*Itr);
+			uint8* PropData = SetHelper.GetElementPtr(Itr);
 			FPropertyInstance ChildProperty = {
 				SetProperty->ElementProp,
 				PropData
 			};
 			const TSharedPtr<FPropertyInstanceInfo> ChildInfo = Make(ChildProperty, AsShared());
 				
-			ChildInfo->DisplayName = FText::Format(LOCTEXT("SetIndexName", "[{0}]"), FText::AsNumber(Index));
+			ChildInfo->DisplayName = FText::Format(LOCTEXT("SetIndexName", "[{0}]"), FText::AsNumber(Itr.GetLogicalIndex()));
 			ChildInfo->bIsInContainer = true;
-			ChildInfo->ContainerIndex = Index;
+			ChildInfo->ContainerIndex = Itr.GetLogicalIndex();
 
 			Children.Add(ChildInfo);
 		}

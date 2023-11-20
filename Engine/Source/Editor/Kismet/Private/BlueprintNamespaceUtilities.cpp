@@ -209,7 +209,7 @@ void FBlueprintNamespaceUtilities::GetPropertyValueNamespaces(const FProperty* I
 			FScriptSetHelper SetHelper(SetProperty, ValuePtr);
 			for (FScriptSetHelper::FIterator SetIt = SetHelper.CreateIterator(); SetIt; ++SetIt)
 			{
-				GetPropertyValueNamespaces(SetProperty->ElementProp, SetHelper.GetElementPtr(*SetIt), OutNamespaces);
+				GetPropertyValueNamespaces(SetProperty->ElementProp, SetHelper.GetElementPtr(SetIt), OutNamespaces);
 			}
 		}
 		else if (const FMapProperty* MapProperty = CastField<FMapProperty>(InProperty))
@@ -217,7 +217,7 @@ void FBlueprintNamespaceUtilities::GetPropertyValueNamespaces(const FProperty* I
 			FScriptMapHelper MapHelper(MapProperty, ValuePtr);
 			for (FScriptMapHelper::FIterator MapIt = MapHelper.CreateIterator(); MapIt; ++MapIt)
 			{
-				const uint8* MapValuePtr = MapHelper.GetPairPtr(*MapIt);
+				const uint8* MapValuePtr = MapHelper.GetPairPtr(MapIt);
 				GetPropertyValueNamespaces(MapProperty->KeyProp, MapValuePtr, OutNamespaces);
 				GetPropertyValueNamespaces(MapProperty->ValueProp, MapValuePtr, OutNamespaces);
 			}
