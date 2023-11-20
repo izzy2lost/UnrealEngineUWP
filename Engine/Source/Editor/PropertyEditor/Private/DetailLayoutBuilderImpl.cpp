@@ -26,13 +26,7 @@ FDetailLayoutBuilderImpl::FDetailLayoutBuilderImpl(TSharedPtr<FComplexPropertyNo
 
 FDetailLayoutBuilderImpl::~FDetailLayoutBuilderImpl()
 {
-	if (GetDetailsView())
-	{
-		for (TSharedPtr<FComplexPropertyNode> ExternalRootPropertyNode : ExternalRootPropertyNodes)
-		{
-			GetDetailsView()->SaveExpandedItems(ExternalRootPropertyNode.ToSharedRef());
-		}
-	}
+	ClearExternalRootPropertyNodes();
 }
 
 IDetailCategoryBuilder& FDetailLayoutBuilderImpl::EditCategory(FName CategoryName, const FText& NewLocalizedDisplayName, ECategoryPriority::Type CategoryType)
@@ -140,6 +134,7 @@ TSharedPtr<IPropertyHandle> FDetailLayoutBuilderImpl::AddObjectPropertyData(TCon
 
 		if (TSharedPtr<FPropertyNode> PropertyNode = RootPropertyNode->GenerateSingleChild(PropertyName))
 		{
+			// This is useless as PropertyNode should already be in the child nodes
 			RootPropertyNode->AddChildNode(PropertyNode);
 			PropertyNode->RebuildChildren();
 			Handle = GetPropertyHandle(PropertyNode);
@@ -799,6 +794,19 @@ void FDetailLayoutBuilderImpl::RemoveExternalRootPropertyNode(TSharedRef<FComple
 	{
 		GetDetailsView()->SaveExpandedItems(InExternalRootNode);
 	}
+}
+
+void FDetailLayoutBuilderImpl::ClearExternalRootPropertyNodes()
+{
+	if (GetDetailsView())
+	{
+		for (const TSharedPtr<FComplexPropertyNode>& ExternalRootPropertyNode : ExternalRootPropertyNodes)
+		{
+			GetDetailsView()->SaveExpandedItems(ExternalRootPropertyNode.ToSharedRef());
+		}
+	}
+
+	ExternalRootPropertyNodes.Empty();
 }
 
 FDelegateHandle FDetailLayoutBuilderImpl::AddNodeVisibilityChangedHandler(FSimpleMulticastDelegate::FDelegate InOnNodeVisibilityChanged)

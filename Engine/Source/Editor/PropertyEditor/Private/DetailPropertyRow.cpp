@@ -617,15 +617,24 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(const TArray<UObje
 
 	RootPropertyNode->InitNode(InitParams);
 
-	ParentCategory->GetParentLayoutImpl()->AddExternalRootPropertyNode(RootPropertyNode);
 
 	if (PropertyName != NAME_None)
 	{
 		TSharedPtr<FPropertyNode> PropertyNode = RootPropertyNode->GenerateSingleChild(PropertyName);
 		if(PropertyNode.IsValid())
 		{
+			// This is useless as PropertyNode should already be in the child nodes
 			RootPropertyNode->AddChildNode(PropertyNode);
 
+			if (InitParams.bCreateCategoryNodes)
+			{
+				PropertyNode->SetNodeFlags(EPropertyNodeFlags::ShowCategories, true);
+			}
+			else
+			{
+				PropertyNode->SetNodeFlags(EPropertyNodeFlags::ShowCategories, false);
+			}
+			
 			PropertyNode->RebuildChildren();
 
 			OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(PropertyNode, ParentCategory, RootPropertyNode);
@@ -637,6 +646,8 @@ void FDetailPropertyRow::MakeExternalPropertyRowCustomization(const TArray<UObje
 		OutCustomization.PropertyRow = MakeShared<FDetailPropertyRow>(RootPropertyNode, ParentCategory, RootPropertyNode);
 		OutCustomization.PropertyRow->SetCustomExpansionId(Parameters.GetUniqueId());
 	}
+	
+	ParentCategory->GetParentLayoutImpl()->AddExternalRootPropertyNode(RootPropertyNode);
 }
 
 EVisibility FDetailPropertyRow::GetPropertyVisibility() const

@@ -1,30 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PropertyNode.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Serialization/ArchiveReplaceObjectRef.h"
 #include "Components/ActorComponent.h"
 #include "Containers/Deque.h"
-#include "Editor/UnrealEdEngine.h"
-#include "Engine/UserDefinedStruct.h"
 #include "EditConditionContext.h"
-#include "UnrealEdGlobals.h"
-#include "ScopedTransaction.h"
-#include "PropertyRestriction.h"
-#include "Kismet2/StructureEditorUtils.h"
-#include "Kismet2/BlueprintEditorUtils.h"
-#include "Misc/ScopeExit.h"
 #include "Editor.h"
-#include "ObjectPropertyNode.h"
-#include "StructurePropertyNode.h"
-#include "PropertyHandleImpl.h"
-#include "PropertyTextUtilities.h"
+#include "Editor/UnrealEdEngine.h"
 #include "EditorSupportDelegates.h"
-#include "UObject/ConstructorHelpers.h"
+#include "Engine/UserDefinedStruct.h"
 #include "InstancedReferenceSubobjectHelper.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeExit.h"
+#include "ObjectPropertyNode.h"
+#include "PropertyHandleImpl.h"
+#include "PropertyRestriction.h"
+#include "PropertyTextUtilities.h"
+#include "StringPrefixTree.h"
+#include "StructurePropertyNode.h"
 
-#include "Framework/Notifications/NotificationManager.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #include "UObject/MetaData.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
@@ -267,6 +261,48 @@ void FPropertyNode::InitNode(const FPropertyNodeInitParams& InitParams)
 	PropertyPath = FPropertyNode::CreatePropertyPath(this->AsShared())->ToString();
 }
 
+namespace FPropertyNodeUtils
+{
+	void GetExpandedItems(const TSharedPtr<FPropertyNode>& InPropertyNode, FStringPrefixTree& OutExpandedItems)
+	{
+		if (InPropertyNode->HasNodeFlags(EPropertyNodeFlags::Expanded))
+		{
+			constexpr bool bWithArrayIndex = true;
+			FString Path;
+			Path.Empty(128);
+			InPropertyNode->GetQualifiedName(Path, bWithArrayIndex);
+
+			OutExpandedItems.Insert(Path);
+		}
+
+		for (int32 ChildIndex = 0; ChildIndex < InPropertyNode->GetNumChildNodes(); ++ChildIndex)
+		{
+			GetExpandedItems(InPropertyNode->GetChildNode(ChildIndex), OutExpandedItems);
+		}
+	}
+
+	void SetExpandedItems(const TSharedPtr<FPropertyNode>& InPropertyNode, const FStringPrefixTree& InExpandedItems)
+	{
+		constexpr bool bWithArrayIndex = true;
+		FString Path;
+		Path.Empty(128);
+		InPropertyNode->GetQualifiedName(Path, bWithArrayIndex);
+
+		if (InExpandedItems.Contains(Path))
+		{
+			InPropertyNode->SetNodeFlags(EPropertyNodeFlags::Expanded, true);
+		}
+
+		if (InExpandedItems.AnyStartsWith(Path))
+		{
+			for (int32 NodeIndex = 0; NodeIndex < InPropertyNode->GetNumChildNodes(); ++NodeIndex)
+			{
+				SetExpandedItems(InPropertyNode->GetChildNode(NodeIndex), InExpandedItems);
+			}
+		}
+	}
+}
+
 /**
  * Used for rebuilding a sub portion of the tree
  */
@@ -278,18 +314,12 @@ void FPropertyNode::RebuildChildren()
 	}
 
 	CachedReadAddresses.Reset();
-
-	bool bDestroySelf = false;
-	TSet<FString> OutExpandedChildPropertyPaths;
-
-	for (const TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
-	{
-		if (ChildNode->HasNodeFlags(EPropertyNodeFlags::Expanded))
-		{
-			OutExpandedChildPropertyPaths.Add(ChildNode->GetPropertyPath());
-		}
-	}
 	
+	FStringPrefixTree ExpandedPropertyItemSet;
+	const TSharedRef<FPropertyNode> ThisAsSharedRef = AsShared();
+	FPropertyNodeUtils::GetExpandedItems(ThisAsSharedRef, ExpandedPropertyItemSet);
+
+	constexpr bool bDestroySelf = false;
 	DestroyTree(bDestroySelf);
 
 	if (MaxChildDepthAllowed != 0)
@@ -300,12 +330,9 @@ void FPropertyNode::RebuildChildren()
 		if (HasNodeFlags(EPropertyNodeFlags::CanBeExpanded) && (ChildNodes.Num() == 0))
 		{
 			InitChildNodes();
-			for (const TSharedPtr<FPropertyNode>& ChildNode : ChildNodes)
+			if (ExpandedPropertyItemSet.Size() > 0)
 			{
-				if ( OutExpandedChildPropertyPaths.Contains(ChildNode->GetPropertyPath()) )
-				{
-					ChildNode->SetNodeFlags(EPropertyNodeFlags::Expanded, true);
-				}
+				FPropertyNodeUtils::SetExpandedItems(ThisAsSharedRef, ExpandedPropertyItemSet);
 			}
 		}
 	}

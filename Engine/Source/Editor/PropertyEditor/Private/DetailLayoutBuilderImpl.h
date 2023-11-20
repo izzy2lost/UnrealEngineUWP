@@ -205,6 +205,8 @@ public:
 	*/
 	void RemoveExternalRootPropertyNode(TSharedRef<FComplexPropertyNode> InExternalRootNode);
 
+	void ClearExternalRootPropertyNodes();
+
 	/** @return The details view that owns this layout */
 	IDetailsViewPrivate* GetDetailsView() { return DetailsView; }
 	/** @return The root node for this customization */

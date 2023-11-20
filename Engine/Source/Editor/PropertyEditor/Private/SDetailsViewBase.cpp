@@ -1249,27 +1249,22 @@ void SDetailsViewBase::Tick( const FGeometry& AllottedGeometry, const double InC
 	{
 		for (FDetailLayoutData& LayoutData : DetailLayouts)
 		{
-			FRootPropertyNodeList& ExternalRootPropertyNodes = LayoutData.DetailLayout->GetExternalRootPropertyNodes();
-
-			for (int32 NodeIndex = 0; NodeIndex < ExternalRootPropertyNodes.Num(); ++NodeIndex)
+			for (const TSharedPtr<FPropertyNode>& PropertyNode : LayoutData.DetailLayout->GetExternalRootPropertyNodes())
 			{
-				TSharedPtr<FPropertyNode> PropertyNode = ExternalRootPropertyNodes[NodeIndex];
+				EPropertyDataValidationResult Result = PropertyNode->EnsureDataIsValid();
+				if (Result == EPropertyDataValidationResult::PropertiesChanged || Result == EPropertyDataValidationResult::EditInlineNewValueChanged)
 				{
-					EPropertyDataValidationResult Result = PropertyNode->EnsureDataIsValid();
-					if (Result == EPropertyDataValidationResult::PropertiesChanged || Result == EPropertyDataValidationResult::EditInlineNewValueChanged)
-					{
-						// Note this will invalidate all the external root nodes so there is no need to continue
-						ExternalRootPropertyNodes.Empty();
+					// Note this will invalidate all the external root nodes so there is no need to continue
+					LayoutData.DetailLayout->ClearExternalRootPropertyNodes();
 
-						UpdatePropertyMaps();
-						bUpdateFilteredDetails = true;
+					UpdatePropertyMaps();
+					bUpdateFilteredDetails = true;
 
-						break;
-					}
-					else if (Result == EPropertyDataValidationResult::ArraySizeChanged || Result == EPropertyDataValidationResult::ChildrenRebuilt)
-					{
-						bUpdateFilteredDetails = true;
-					}
+					break;
+				}
+				else if (Result == EPropertyDataValidationResult::ArraySizeChanged || Result == EPropertyDataValidationResult::ChildrenRebuilt)
+				{
+					bUpdateFilteredDetails = true;
 				}
 			}
 		}
