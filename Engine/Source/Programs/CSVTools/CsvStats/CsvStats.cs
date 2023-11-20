@@ -942,8 +942,17 @@ namespace CSVStats
 					{
 						using (DeflateStream decompressionStream = new DeflateStream(memoryStream, CompressionMode.Decompress))
 						{
-							int bytesRead=decompressionStream.Read(uncompressedValuesBuffer, 0, uncompressedValuesBuffer.Length);
-							if (bytesRead != uncompressedBufferLength)
+							int offset = 0;
+							while(offset<uncompressedBufferLength)
+							{
+								int bytesRead = decompressionStream.Read(uncompressedValuesBuffer, offset, uncompressedBufferLength - offset);
+								if (bytesRead == 0)
+								{
+									throw new Exception("Decompression error!");
+								}
+								offset += bytesRead;
+							}
+							if (offset != uncompressedBufferLength)
 							{
 								throw new Exception("Decompression error!");
 							}

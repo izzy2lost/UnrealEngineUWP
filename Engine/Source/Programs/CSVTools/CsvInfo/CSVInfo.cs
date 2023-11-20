@@ -12,7 +12,7 @@ namespace CSVInfo
 {
     class Version
     {
-        private static string VersionString = "1.06";
+        private static string VersionString = "1.07";
 
         public static string Get() { return VersionString; }
     };

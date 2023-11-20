@@ -6,13 +6,14 @@ using System.Threading.Tasks;
 using System.Text;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Security.Cryptography;
 
 namespace CSVTools
 {
 
 	public class CsvToSvgLibVersion
 	{
-		private static string VersionString = "2.59";
+		private static string VersionString = "3.60";
 
 		public static string Get() { return VersionString; }
 	};
@@ -1888,9 +1889,18 @@ namespace CSVTools
 			return value - (float)Math.Truncate(value);
 		}
 
+		string GetStringHash8Char(string name)
+		{
+			using (SHA256 sha256 = SHA256.Create())
+			{
+				Encoding enc = Encoding.UTF8;
+				byte[] hash = sha256.ComputeHash(enc.GetBytes(name));
+				return BitConverter.ToString(hash).Replace("-", string.Empty).Substring(0, 8);
+			}
+		}
+
 		string GetJSStatName(string statName)
 		{
-			uint hashCode = (uint)statName.GetHashCode();
 			string newString = "_";
 			foreach (char c in statName)
 			{
@@ -1903,7 +1913,7 @@ namespace CSVTools
 					newString += "_";
 				}
 			}
-			newString += "_" + hashCode.ToString();
+			newString += "_" + GetStringHash8Char(statName);
 			return newString;
 		}
 

@@ -482,7 +482,7 @@ namespace CSVTools
 					Console.WriteLine("[ERROR] " + e.Message);
 					if (Debugger.IsAttached)
 					{
-						throw e;
+						throw;
 					}
 				}
 			}

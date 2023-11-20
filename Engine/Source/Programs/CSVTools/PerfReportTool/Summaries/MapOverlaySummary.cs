@@ -9,6 +9,7 @@ using PerfReportTool;
 using CSVStats;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.Versioning;
 
 namespace PerfSummaries
 {
@@ -120,17 +121,24 @@ namespace PerfSummaries
 
 		private void CopyAndResizeImage(string sourceImagePath, string destImagePath, int destWidth, int destHeight)
 		{
-			Console.WriteLine("Downsampling map image.\n  Source: " + sourceImagePath+"\n  Dest  : "+destImagePath);
+			if (!OperatingSystem.IsWindows())
+			{
+				Console.WriteLine("CopyAndResizeImage is not supported on this platform!");
+				return;
+			}
+			Console.WriteLine("Downsampling map image.\n  Source: " + sourceImagePath + "\n  Dest  : " + destImagePath);
 			using (FileStream fileStream = new FileStream(sourceImagePath, FileMode.Open, FileAccess.Read))
 			{
 				Console.WriteLine("Reading source image");
-				var image = System.Drawing.Image.FromStream(fileStream);
-				Console.WriteLine("Generating downsampled image");
-				var thumbnail = image.GetThumbnailImage(destWidth, destHeight, null, IntPtr.Zero);
-				using (var destImageStream = new FileStream(destImagePath, FileMode.OpenOrCreate, FileAccess.Write))
+				using (var image = Image.FromStream(fileStream))
 				{
-					Console.WriteLine("Saving downsampled map image: " + destImageStream);
-					thumbnail.Save(destImageStream, ImageFormat.Jpeg);
+					Console.WriteLine("Generating downsampled image");
+					var thumbnail = image.GetThumbnailImage(destWidth, destHeight, null, IntPtr.Zero);
+					using (var destImageStream = new FileStream(destImagePath, FileMode.OpenOrCreate, FileAccess.Write))
+					{
+						Console.WriteLine("Saving downsampled map image: " + destImageStream);
+						thumbnail.Save(destImageStream, ImageFormat.Jpeg);
+					}
 				}
 			}
 		}

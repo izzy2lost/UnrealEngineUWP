@@ -26,7 +26,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.108.0";
+        private static string VersionString = "4.200.0";
 
         public static string Get() { return VersionString; }
     };
@@ -646,7 +646,7 @@ namespace PerfReportTool
 					else
 					{
 						// If we're not in bulk mode, exceptions are fatal
-						throw e;
+						throw;
 					}
 				}
 			}
@@ -1978,7 +1978,7 @@ namespace PerfReportTool
 
 		Dictionary<string, dynamic> JsonToDynamicDict(string jsonStr)
 		{
-			JsonElement RootElement = JsonSerializer.Deserialize<JsonElement>((string)jsonStr, null);
+			JsonElement RootElement = JsonSerializer.Deserialize<JsonElement>((string)jsonStr);
 			Dictionary<string, dynamic> RootElementValue = GetJsonValue(RootElement);
 			return RootElementValue;
 		}

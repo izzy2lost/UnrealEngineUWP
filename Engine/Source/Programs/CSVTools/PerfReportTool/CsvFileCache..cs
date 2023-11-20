@@ -418,7 +418,7 @@ namespace PerfReportTool
 				else
 				{
 					// If we're not in bulk mode, exceptions are fatal
-					throw e;
+					throw;
 				}
 			}
 		}
