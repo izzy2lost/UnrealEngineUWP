@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using Google.Protobuf;
+using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Server.Acls;
@@ -521,20 +522,27 @@ namespace Horde.Server.Server
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>An empty response</returns>
-		public override Task<Empty> SendTelemetryEvents(SendTelemetryEventsRequest request, ServerCallContext context)
+		public override async Task<Empty> SendTelemetryEvents(SendTelemetryEventsRequest request, ServerCallContext context)
 		{
-			foreach (WrappedTelemetryEvent e in request.Events)
+			ISession? session = null;
+
+			SessionId? sessionId = context.GetHttpContext().User.GetSessionClaim();
+			if (sessionId != null)
 			{
-				switch (e.EventCase)
-				{
-					case WrappedTelemetryEvent.EventOneofCase.AgentMetadata: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.AgentMetadata); break;
-					case WrappedTelemetryEvent.EventOneofCase.Cpu: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.Cpu); break;
-					case WrappedTelemetryEvent.EventOneofCase.Mem: _telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, e.Mem); break;
-					default: _logger.LogError("Unhandled wrapped telemetry type {Type}", e.EventCase.ToString()); break;
-				}
+				session = await _agentService.GetSessionAsync(sessionId.Value);
 			}
 
-			return Task.FromResult(new Empty());
+			TelemetryRecordMeta agentMeta = new TelemetryRecordMeta("HordeAgent", session?.Version ?? "(Unknown)", ServerApp.DeploymentEnvironment, sessionId?.ToString() ?? "(Unknown)");
+			foreach (WrappedTelemetryEvent wrappedEvent in request.Events)
+			{
+				OneofDescriptor oneofDescriptor = WrappedTelemetryEvent.Descriptor.Oneofs[0];
+				FieldDescriptor caseDescriptor = oneofDescriptor.Accessor.GetCaseFieldDescriptor(wrappedEvent);
+
+				object wrappedValue = caseDescriptor.Accessor.GetValue(wrappedEvent);
+				_telemetrySink.SendEvent(agentMeta, wrappedValue);
+			}
+
+			return new Empty();
 		}
 
 		/// <inheritdoc/>
