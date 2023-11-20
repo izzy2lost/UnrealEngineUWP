@@ -728,6 +728,33 @@ public:
 	static COREUOBJECT_API FString ObjectPathToObjectName(const FString& InObjectPath);
 
 	/**
+	 * Splits an ObjectPath string into the first component and the remainder. 
+	 *
+	 * "/Path/To/A/Package.Object:SubObject" -> { "/Path/To/A/Package", "Object:SubObject" }
+	 * "Object:SubObject" -> { "Object", "SubObject" }
+	 * "Object.SubObject" -> { "Object", "SubObject" }
+	 */
+	static COREUOBJECT_API void ObjectPathSplitFirstName(FWideStringView Text,
+		FWideStringView& OutFirst, FWideStringView& OutRemainder);
+	static COREUOBJECT_API void ObjectPathSplitFirstName(FAnsiStringView Text,
+		FAnsiStringView& OutFirst, FAnsiStringView& OutRemainder);
+
+	/**
+	 * Combines an ObjectPath with an ObjectName.
+	 * { "/Package", "Object" } -> "/Package.Object"
+	 * { "/Package.Object", "SubObject" } -> "/Package.Object:SubObject"
+	 * { "/Package.Object:SubObject", "NextSubObject" } -> "/Package.Object:SubObject.NextSubObject"
+	 * { "/Package", "Object.SubObject" } -> "/Package.Object:SubObject"
+	 * { "/Package", "/OtherPackage.Object:SubObject" } -> "/OtherPackage.Object:SubObject"
+	*/
+	static COREUOBJECT_API void ObjectPathAppend(FStringBuilderBase& ObjectPath, FStringView NextName);
+	/**
+	 * Combines an ObjectPath with an ObjectName, the same as ObjectPathAppend but returns the result rather
+	 * than modifying the input argument.
+	 */
+	static COREUOBJECT_API FString ObjectPathCombine(FStringView ObjectPath, FStringView NextName);
+
+	/**
 	 * Checks the package's path to see if it's a Verse package
 	 */
 	static COREUOBJECT_API bool IsVersePackage(FStringView InPackageName);
