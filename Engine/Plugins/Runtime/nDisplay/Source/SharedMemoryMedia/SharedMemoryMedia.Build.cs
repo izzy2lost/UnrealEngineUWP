@@ -18,6 +18,7 @@ namespace UnrealBuildTool.Rules
 					"MediaAssets",
 					"MediaIOCore",
 					"RenderCore",
+					"Renderer",
 					"RHI",
 				});
 

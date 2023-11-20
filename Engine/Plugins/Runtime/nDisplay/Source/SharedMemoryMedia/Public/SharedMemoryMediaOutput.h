@@ -24,6 +24,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output")
 	FString UniqueName = TEXT("UniqueName");
 
+	/** If checked, the alpha channel of the texture will be inverted */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Output")
+	bool bInvertAlpha = true;
+
 public:
 	
 	//~ Begin UMediaOutput interface
