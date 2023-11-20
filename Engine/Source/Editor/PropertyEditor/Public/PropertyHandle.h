@@ -938,7 +938,7 @@ public:
 	 * Get the item
 	 * @param OutValue	The value of the optional if it is set.
 	 */
-	virtual FPropertyAccess::Result GetOptionalValue(FProperty* OutValue) = 0;
+	virtual FPropertyAccess::Result GetOptionalValue(FProperty*& OutValue) = 0;
 
 	/**
 	 * Set the item

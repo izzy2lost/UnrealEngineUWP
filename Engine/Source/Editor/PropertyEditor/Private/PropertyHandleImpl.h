@@ -711,6 +711,7 @@ public:
 	virtual TSharedPtr<IPropertyHandleArray> AsArray() override;
 	virtual TSharedRef<IPropertyHandle> GetElement( int32 Index ) const override;
 	virtual FPropertyAccess::Result MoveElementTo(int32 OriginalIndex, int32 NewIndex) override;
+	virtual FPropertyAccess::Result SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
 	virtual bool IsEditable() const override;
 };
 
@@ -720,7 +721,7 @@ public:
 	FPropertyHandleOptional(TSharedRef<FPropertyNode> PropertyNode, FNotifyHook* NotifyHook, TSharedPtr<IPropertyUtilities> PropertyUtilities);
 	static bool Supports(TSharedRef<FPropertyNode> PropertyNode);
 	/** IPropertyHandleOptional interface */
-	virtual FPropertyAccess::Result GetOptionalValue(FProperty* OutValue) override;
+	virtual FPropertyAccess::Result GetOptionalValue(FProperty*& OutValue) override;
 	virtual FPropertyAccess::Result SetOptionalValue(FProperty* NewValue) override;
 	virtual FPropertyAccess::Result ClearOptionalValue() override;
 	virtual TSharedPtr<IPropertyHandleOptional> AsOptional() override;
@@ -753,6 +754,7 @@ public:
 	virtual FPropertyAccess::Result DeleteItem(int32 Index) override;
 	virtual FPropertyAccess::Result GetNumElements(uint32& OutNumElements) override;
 	virtual TSharedRef<IPropertyHandle> GetElement(int32 Index) const override;
+	virtual FPropertyAccess::Result SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags) override;
 
 	virtual FDelegateHandle SetOnNumElementsChanged( const FSimpleDelegate& InOnNumElementsChanged ) override;
 	virtual void UnregisterOnNumElementsChanged(FDelegateHandle Handle) override;

@@ -4122,7 +4122,7 @@ FPropertyAccess::Result FPropertyHandleObject::SetValueFromFormattedString(const
 			{
 				for (const FString& ClassName : AllowedClassNames)
 				{
-					UClass* AllowedClass = nullptr;
+					const UClass* AllowedClass = nullptr;
 					if (!FPackageName::IsShortPackageName(ClassName))
 					{
 						AllowedClass = FindObject<UClass>(nullptr, *ClassName);
@@ -4149,19 +4149,94 @@ FPropertyAccess::Result FPropertyHandleObject::SetValueFromFormattedString(const
 
 			if (bSupportedObject)
 			{
+				const FString& GetAllowedClassesFunctionName = NodeProperty->GetMetaData("GetAllowedClasses");
+				if (!GetAllowedClassesFunctionName.IsEmpty() && NodeProperty->GetOwnerUObject())
+				{
+					TArray<UObject*> OuterObjects;
+					GetOuterObjects(OuterObjects);
+					for (UObject* Object : OuterObjects)
+					{
+						const UFunction* GetAllowedClassesFunction = Object->FindFunction(*GetAllowedClassesFunctionName);
+						if (GetAllowedClassesFunction)
+						{
+							DECLARE_DELEGATE_RetVal(TArray<UClass*>, FGetAllowedClasses);
+							TArray<UClass*> AllowedClasses = FGetAllowedClasses::CreateUFunction(Object, GetAllowedClassesFunction->GetFName()).Execute();
+							if (AllowedClasses.Num() > 0)
+							{
+								bSupportedObject = false;
+								for (const UClass* AllowedClass : AllowedClasses)
+								{
+									const bool bIsInterface = AllowedClass && AllowedClass->HasAnyClassFlags(CLASS_Interface);
+				
+									// Check if the object is an allowed class type this property supports
+									if ((AllowedClass && QualifiedClass->IsChildOf(AllowedClass)) || (bIsInterface && QualifiedObject->GetClass()->ImplementsInterface(AllowedClass)))
+									{
+										bSupportedObject = true;
+										break;
+									}
+								}
+								if (!bSupportedObject)
+								{
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (bSupportedObject)
+			{
 				const FString& DisallowedClassesString = NodeProperty->GetMetaData("DisallowedClasses");
 				TArray<FString> DisallowedClassNames;
 				DisallowedClassesString.ParseIntoArrayWS(DisallowedClassNames, TEXT(","), true);
 
 				for (const FString& DisallowedClassName : DisallowedClassNames)
 				{
-					UClass* DisallowedClass = UClass::TryFindTypeSlow<UClass>(DisallowedClassName);
+					const UClass* DisallowedClass = UClass::TryFindTypeSlow<UClass>(DisallowedClassName);
 					const bool bIsInterface = DisallowedClass && DisallowedClass->HasAnyClassFlags(CLASS_Interface);
 
 					if ((DisallowedClass && QualifiedClass->IsChildOf(DisallowedClass)) || (bIsInterface && QualifiedObject->GetClass()->ImplementsInterface(DisallowedClass)))
 					{
 						bSupportedObject = false;
 						break;
+					}
+				}
+			}
+
+			if (bSupportedObject)
+			{
+				const FString& GetDisallowedClassesFunctionName = NodeProperty->GetMetaData("GetDisallowedClasses");
+				if (!GetDisallowedClassesFunctionName.IsEmpty() && NodeProperty->GetOwnerUObject())
+				{
+					TArray<UObject*> OuterObjects;
+					GetOuterObjects(OuterObjects);
+					for (UObject* Object : OuterObjects)
+					{
+						const UFunction* GetDisallowedClassesFunction = Object->FindFunction(*GetDisallowedClassesFunctionName);
+						if (GetDisallowedClassesFunction)
+						{
+							DECLARE_DELEGATE_RetVal(TArray<UClass*>, FGetAllowedClasses);
+							TArray<UClass*> DisallowedClasses = FGetAllowedClasses::CreateUFunction(Object, GetDisallowedClassesFunction->GetFName()).Execute();
+							if (DisallowedClasses.Num() > 0)
+							{
+								for (const UClass* DisallowedClass : DisallowedClasses)
+								{
+									const bool bIsInterface = DisallowedClass && DisallowedClass->HasAnyClassFlags(CLASS_Interface);
+					
+									// Check if the object is an allowed class type this property supports
+									if ((DisallowedClass && QualifiedClass->IsChildOf(DisallowedClass)) || (bIsInterface && QualifiedObject->GetClass()->ImplementsInterface(DisallowedClass)))
+									{
+										bSupportedObject = false;
+										break;
+									}
+								}
+								if (!bSupportedObject)
+								{
+									break;
+								}
+							}
+						}
 					}
 				}
 			}
@@ -4681,6 +4756,8 @@ FPropertyAccess::Result FPropertyHandleVector::SetW(double InValue, EPropertyVal
 	if( VectorComponents.Num() == 4 )
 	{
 		FPropertyAccess::Result Res = VectorComponents[3]->SetValue( InValue, Flags );
+		
+		return Res;
 	}
 
 	return FPropertyAccess::Fail;
@@ -4985,6 +5062,48 @@ FPropertyAccess::Result FPropertyHandleArray::MoveElementTo(int32 OriginalIndex,
 	return Result;
 }
 
+FPropertyAccess::Result FPropertyHandleArray::SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags)
+{
+	FPropertyAccess::Result Result = FPropertyAccess::Success;
+
+	if (InValue.StartsWith("(") && InValue.EndsWith(")"))
+	{
+		if (EmptyArray() != FPropertyAccess::Success)
+		{
+			return FPropertyAccess::Fail;
+		}
+
+		TArray<FString> Values;
+
+		// Remove first and last parenthesis  
+		InValue.LeftChop(1).RightChop(1).ParseIntoArrayWS(Values, TEXT(","), true);
+
+		for (const FString& Value : Values)
+		{
+			if (AddItem() != FPropertyAccess::Success)
+			{
+				return FPropertyAccess::Fail;
+			}
+			uint32 NumElements = 0;
+			if (GetNumElements(NumElements) != FPropertyAccess::Success || NumElements == 0)
+			{
+				return FPropertyAccess::Fail;
+			}
+			
+			const TSharedRef<IPropertyHandle> Property = GetElement( NumElements - 1 );
+			if (Property->IsValidHandle() && Property->SetValueFromFormattedString(Value, Flags) == FPropertyAccess::Fail)
+			{
+				Result = FPropertyAccess::Fail;
+			}
+		}
+		return Result;
+	}
+	else
+	{
+		return FPropertyHandleBase::SetValueFromFormattedString(InValue, Flags);
+	}
+}
+
 bool FPropertyHandleArray::IsEditable() const
 {
 	// Property is editable if its a non-const dynamic array
@@ -4999,7 +5118,7 @@ bool FPropertyHandleOptional::Supports(TSharedRef<FPropertyNode> PropertyNode)
 }
 
 /** IPropertyHandleOptional interface */
-FPropertyAccess::Result FPropertyHandleOptional::GetOptionalValue(FProperty* OutValue)
+FPropertyAccess::Result FPropertyHandleOptional::GetOptionalValue(FProperty*& OutValue)
 {
 	const TSharedPtr<FPropertyNode>& PropertyNode = Implementation->GetPropertyNode();
 	FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(PropertyNode->GetProperty());
@@ -5177,6 +5296,7 @@ FPropertyAccess::Result FPropertyHandleSet::AddItem()
 		if (!HasDefaultElement())
 		{
 			Implementation->AddChild();
+			Implementation->GetPropertyNode()->RebuildChildren();
 			Result = FPropertyAccess::Success;
 		}
 		else
@@ -5245,6 +5365,43 @@ bool FPropertyHandleSet::IsEditable() const
 {
 	// Property is editable if its a non-const dynamic array
 	return Implementation->HasValidPropertyNode() && !Implementation->IsEditConst() && Implementation->IsPropertyTypeOf(FSetProperty::StaticClass());
+}
+
+FPropertyAccess::Result FPropertyHandleSet::SetValueFromFormattedString(const FString& InValue, EPropertyValueSetFlags::Type Flags)
+{
+	FPropertyAccess::Result Result = FPropertyAccess::Success;
+
+	if (InValue.StartsWith("(") && InValue.EndsWith(")"))
+	{
+		if (Empty() != FPropertyAccess::Success)
+		{
+			return FPropertyAccess::Fail;
+		}
+		
+		TArray<FString> Values;
+
+		// Remove first and last parenthesis  
+		InValue.LeftChop(1).RightChop(1).ParseIntoArrayWS(Values, TEXT(","), true);
+		for (const FString& Value : Values)
+		{
+			AddItem();
+			uint32 NumElements = 0;
+			if (GetNumElements(NumElements) != FPropertyAccess::Success || NumElements == 0)
+			{
+				return FPropertyAccess::Fail;
+			}
+			const TSharedRef<IPropertyHandle> Property = GetElement( NumElements - 1 );
+			if ( Property->IsValidHandle() && Property->SetValueFromFormattedString(Value, Flags) == FPropertyAccess::Fail)
+			{
+				Result = FPropertyAccess::Fail;
+			}
+		}
+		return Result;
+	}
+	else
+	{
+		return FPropertyHandleBase::SetValueFromFormattedString(InValue, Flags);
+	}
 }
 
 // Maps
