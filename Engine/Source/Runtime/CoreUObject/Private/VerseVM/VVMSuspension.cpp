@@ -23,17 +23,17 @@ TGlobalTrivialEmergentTypePtr<&VLambdaSuspension::StaticCppClassInfo> VLambdaSus
 template <typename TVisitor>
 void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(FailureContext);
-	Visitor.Visit(Next);
+	Visitor.Visit(FailureContext, "FailureContext");
+	Visitor.Visit(Next, "Next");
 }
 
 template <typename TVisitor>
 void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Procedure);
+	Visitor.Visit(Procedure, "Procedure");
 	CaptureSwitch([&Visitor](auto& Captures) {
 		Captures.ForEachOperand([&Visitor](EOperandRole, auto Value) {
-			Visitor.Visit(Value); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
+			Visitor.Visit(Value, "Value"); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
 		});
 	});
 }
@@ -41,7 +41,7 @@ void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 template <typename TVisitor>
 void VLambdaSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Args(), NumValues);
+	Visitor.Visit(Args(), NumValues, "Args");
 }
 
 } // namespace Verse

@@ -40,18 +40,22 @@ VShape::VShape(FAllocationContext Context, FieldsMap&& InFields)
 template <typename TVisitor>
 void VShape::VisitReferencesImpl(TVisitor& Visitor)
 {
+	Visitor.BeginArray("Fields");
 	for (auto It = Fields.CreateIterator(); It; ++It)
 	{
+		Visitor.BeginObject();
+		Visitor.Visit(It->Key, "Key");
 		switch (It->Value.Type)
 		{
 			case EFieldType::Offset:
 				break;
 			case EFieldType::Constant:
-				Visitor.Visit(It->Value.Value);
+				Visitor.Visit(It->Value.Value, "Value");
 				break;
 		}
-		Visitor.Visit(It->Key);
+		Visitor.EndObject();
 	}
+	Visitor.EndArray();
 }
 
 VShape* VShape::New(FAllocationContext Context, FieldsMap&& InFields)

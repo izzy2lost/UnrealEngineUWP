@@ -20,7 +20,7 @@ TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivial
 template <typename TVisitor>
 void VArray::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Tuple);
+	Visitor.Visit(Tuple, "Tuple");
 }
 
 bool VArray::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)

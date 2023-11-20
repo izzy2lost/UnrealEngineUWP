@@ -16,7 +16,7 @@ TGlobalTrivialEmergentTypePtr<&VPlaceholder::StaticCppClassInfo> VPlaceholder::G
 template <typename TVisitor>
 void VPlaceholder::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Value);
+	Visitor.Visit(Value, "Value");
 }
 
 } // namespace Verse

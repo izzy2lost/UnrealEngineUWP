@@ -18,7 +18,7 @@ DEFINE_DERIVED_VCPPCLASSINFO(VTuple);
 template <typename TVisitor>
 void VTuple::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Values, NumValues);
+	Visitor.Visit(Values, NumValues, "Values");
 }
 
 bool VTuple::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)

@@ -71,12 +71,7 @@ void VMap::VisitReferencesImpl(TVisitor& Visitor)
 {
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
-
-	for (VMapInternal::TIterator MapIt = InternalMap.CreateIterator(); MapIt; ++MapIt)
-	{
-		Visitor.Visit(MapIt.Key());
-		Visitor.Visit(MapIt.Value());
-	}
+	Visitor.Visit(InternalMap, "Values");
 
 	Visitor.ReportNativeBytes(GetAllocatedSize());
 }

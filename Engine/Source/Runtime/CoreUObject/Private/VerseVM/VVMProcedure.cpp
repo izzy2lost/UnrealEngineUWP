@@ -46,7 +46,7 @@ VProcedure::~VProcedure()
 template <typename TVisitor>
 void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Constants, NumConstants);
+	Visitor.Visit(Constants, NumConstants, "Constants");
 
 	// We also need to mark the immediate operands for each opcode to make sure that the GC doesn't sweep them.
 	for (FOp* CurrentOp = GetOpsBegin(); CurrentOp != GetOpsEnd();)
@@ -66,7 +66,7 @@ void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 			}                                                                                                        \
 			else if (Role == EOperandRole::Immediate)                                                                \
 			{                                                                                                        \
-				Visitor.Visit(Operand);                                                                              \
+				Visitor.Visit(Operand, #Name);                                                                       \
 			}                                                                                                        \
 		});                                                                                                          \
 		CurrentOp = BitCast<FOp*>(CurrentDerivedOp + 1);                                                             \

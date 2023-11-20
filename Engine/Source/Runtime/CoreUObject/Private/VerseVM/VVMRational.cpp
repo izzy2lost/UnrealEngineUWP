@@ -189,8 +189,8 @@ void VRational::NormalizeSigns(FRunningContext Context)
 template <typename TVisitor>
 void VRational::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Numerator);
-	Visitor.Visit(Denominator);
+	Visitor.Visit(Numerator, "Numerator");
+	Visitor.Visit(Denominator, "Denominator");
 }
 
 bool VRational::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)

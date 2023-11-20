@@ -6,50 +6,82 @@
 
 namespace Verse
 {
-void FAbstractVisitor::VisitNonNull(VCell* InCell)
+void FAbstractVisitor::VisitNonNull(VCell* InCell, const char* ElementName)
 {
 }
 
-void FAbstractVisitor::VisitNonNull(UObject* InObject)
+void FAbstractVisitor::VisitNonNull(UObject* InObject, const char* ElementName)
+{
+}
+
+void FAbstractVisitor::BeginArray(const char* ElementName)
+{
+}
+
+void FAbstractVisitor::EndArray()
+{
+}
+
+void FAbstractVisitor::BeginSet(const char* ElementName)
+{
+}
+
+void FAbstractVisitor::EndSet()
+{
+}
+
+void FAbstractVisitor::BeginMap(const char* ElementName)
+{
+}
+
+void FAbstractVisitor::EndMap()
+{
+}
+
+void FAbstractVisitor::BeginObject()
+{
+}
+
+void FAbstractVisitor::EndObject()
 {
 }
 
 void FAbstractVisitor::VisitEmergentType(const VCell* InEmergentType)
 {
-	VisitNonNull(const_cast<VCell*>(InEmergentType));
+	VisitNonNull(const_cast<VCell*>(InEmergentType), "EmergentType");
 }
 
-void FAbstractVisitor::Visit(VCell* InCell)
+void FAbstractVisitor::Visit(VCell* InCell, const char* ElementName)
 {
 	if (InCell != nullptr)
 	{
-		VisitNonNull(InCell);
+		VisitNonNull(InCell, ElementName);
 	}
 }
 
-void FAbstractVisitor::Visit(UObject* InObject)
+void FAbstractVisitor::Visit(UObject* InObject, const char* ElementName)
 {
 	if (InObject != nullptr)
 	{
-		VisitNonNull(InObject);
+		VisitNonNull(InObject, ElementName);
 	}
 }
 
-void FAbstractVisitor::Visit(VValue Value)
+void FAbstractVisitor::Visit(VValue Value, const char* ElementName)
 {
 	if (VCell* Cell = Value.ExtractCell())
 	{
-		Visit(Cell);
+		Visit(Cell, ElementName);
 	}
 	else if (Value.IsUObject())
 	{
-		Visit(Value.AsUObject());
+		Visit(Value.AsUObject(), ElementName);
 	}
 }
 
-void FAbstractVisitor::Visit(VRestValue& Value)
+void FAbstractVisitor::Visit(VRestValue& Value, const char* ElementName)
 {
-	Value.Visit(*this);
+	Value.Visit(*this, ElementName);
 }
 
 } // namespace Verse

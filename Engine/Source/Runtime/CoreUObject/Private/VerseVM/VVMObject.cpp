@@ -21,10 +21,7 @@ TGlobalTrivialEmergentTypePtr<&VObject::StaticCppClassInfo> VObject::GlobalTrivi
 template <typename TVisitor>
 void VObject::VisitReferencesImpl(TVisitor& Visitor)
 {
-	for (uint64 Index = GetEmergentType()->Shape->NumIndexedFields; Index--;)
-	{
-		Visitor.Visit(Data[Index]);
-	}
+	Visitor.Visit(Data, GetEmergentType()->Shape->NumIndexedFields, "Data");
 }
 
 VObject& VObject::New(

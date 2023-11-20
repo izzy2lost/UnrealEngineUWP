@@ -17,14 +17,14 @@ TGlobalTrivialEmergentTypePtr<&VFailureContext::StaticCppClassInfo> VFailureCont
 template <typename TVisitor>
 void VFailureContext::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(FirstChild);
-	Visitor.Visit(Next);
-	Visitor.Visit(Prev);
-	Visitor.Visit(Parent);
-	Visitor.Visit(Frame);
-	Visitor.Visit(IncomingEffectToken);
-	Visitor.Visit(BeforeThenEffectToken);
-	Visitor.Visit(DoneEffectToken);
+	Visitor.Visit(FirstChild, "FirstChild");
+	Visitor.Visit(Next, "Next");
+	Visitor.Visit(Prev, "Prev");
+	Visitor.Visit(Parent, "Parent");
+	Visitor.Visit(Frame, "Frame");
+	Visitor.Visit(IncomingEffectToken, "IncomingEffectToken");
+	Visitor.Visit(BeforeThenEffectToken, "BeforeThenEffectToken");
+	Visitor.Visit(DoneEffectToken, "DoneEffectToken");
 }
 
 } // namespace Verse

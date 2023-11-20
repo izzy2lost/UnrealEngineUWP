@@ -17,11 +17,11 @@ TGlobalTrivialEmergentTypePtr<&VFrame::StaticCppClassInfo> VFrame::GlobalTrivial
 template <typename TVisitor>
 void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(ReturnEffectToken);
-	Visitor.Visit(Procedure);
-	Visitor.Visit(ReturnSlot);
-	Visitor.Visit(CallerFrame);
-	Visitor.Visit(Registers, NumRegisters);
+	Visitor.Visit(ReturnEffectToken, "ReturnEffectToken");
+	Visitor.Visit(Procedure, "Procedure");
+	Visitor.Visit(ReturnSlot, "ReturnSlot");
+	Visitor.Visit(CallerFrame, "CallerFrame");
+	Visitor.Visit(Registers, NumRegisters, "Registers");
 }
 
 } // namespace Verse

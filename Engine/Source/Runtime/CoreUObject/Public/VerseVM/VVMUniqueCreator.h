@@ -91,7 +91,7 @@ private:
 	void VisitImpl(TVisitor& Visitor)
 	{
 		UE::TUniqueLock Lock(Mutex);
-		Visitor.Visit(Items, ItemsEnd);
+		Visitor.Visit(Items, ItemsEnd, "Items");
 	}
 
 	UE::FMutex Mutex;

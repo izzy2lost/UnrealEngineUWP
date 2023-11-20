@@ -53,15 +53,15 @@ struct VRestValue
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 
 	template <typename TVisitor>
-	FORCEINLINE void Visit(TVisitor& Visitor)
+	FORCEINLINE void Visit(TVisitor& Visitor, const char* ElementName)
 	{
-		Visitor.Visit(Value);
+		Visitor.Visit(Value, ElementName);
 	}
 
 	template <typename TVisitor>
-	FORCEINLINE void Visit(TVisitor& Visitor) const
+	FORCEINLINE void Visit(TVisitor& Visitor, const char* ElementName) const
 	{
-		Visitor.Visit(Value);
+		Visitor.Visit(Value, ElementName);
 	}
 
 	friend uint32 GetTypeHash(VRestValue RestValue);

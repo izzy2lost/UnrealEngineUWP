@@ -130,7 +130,7 @@ template <typename TVisitor>
 void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 {
 	// We still have to mark each of the strings in the set as being used.
-	Visitor.Visit(Strings.begin(), Strings.end());
+	Visitor.Visit(Strings.begin(), Strings.end(), "Strings");
 }
 
 void VUniqueStringSet::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMWeakCellMap.h"
 #include "Async/ExternalMutex.h"
 #include "Async/UniqueLock.h"
@@ -59,13 +59,17 @@ void VWeakCellMap::VisitReferencesImpl(TVisitor& Visitor)
 {
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
+	Visitor.BeginMap("Values");
 	for (auto It = Map.CreateIterator(); It; ++It)
 	{
-		if (Visitor.IsMarked(It->Key))
+		Visitor.BeginObject();
+		if (Visitor.IsMarked(It->Key, "Key"))
 		{
-			Visitor.VisitNonNull(It->Value);
+			Visitor.VisitNonNull(It->Value, "Value");
 		}
+		Visitor.EndObject();
 	}
+	Visitor.EndMap();
 	Visitor.ReportNativeBytes(GetAllocatedSize());
 }
 
@@ -105,4 +109,4 @@ VWeakCellMap::~VWeakCellMap()
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

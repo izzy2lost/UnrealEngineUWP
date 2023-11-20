@@ -41,7 +41,7 @@ struct TGlobalHeapPtrImpl : FGlobalHeapRoot
 	template <typename TVisitor>
 	void VisitImpl(TVisitor& Visitor)
 	{
-		Visitor.Visit(*this);
+		Visitor.Visit(*this, "GlobalHeapPtr");
 	}
 };
 

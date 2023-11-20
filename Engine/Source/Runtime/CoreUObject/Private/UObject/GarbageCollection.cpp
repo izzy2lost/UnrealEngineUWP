@@ -3197,7 +3197,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 	{
 	}
 
-	virtual void VisitNonNull(Verse::VCell* InCell) override
+	virtual void VisitNonNull(Verse::VCell* InCell, const char* ElementName) override
 	{
 		Context.Stats.AddVerseCells(1);
 		if (MarkStack.TryMarkNonNull(InCell) && bTrackHistory)
@@ -3206,12 +3206,12 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 			if (VisitorContext != nullptr && VisitorContext->GetReferrer().IsCell())
 			{
 				const Verse::VCell* Referencer = VisitorContext->GetReferrer().AsCell();
-				GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InCell));
+				GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InCell, FName(ElementName)));
 			}
 		}
 	}
 
-	virtual void VisitNonNull(UObject* InObject) override
+	virtual void VisitNonNull(UObject* InObject, const char* ElementName) override
 	{
 		UE::GC::GStats.IncreaseObjectRefStats(InObject);
 		Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();
@@ -3224,7 +3224,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 			{
 				if (Referencer != nullptr)
 				{
-					GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InObject));
+					GetContextHistoryReferences(Context, FReferenceToken(Referencer), 0).Add(FGCDirectReference(InObject, FName(ElementName)));
 				}
 			}
 		}

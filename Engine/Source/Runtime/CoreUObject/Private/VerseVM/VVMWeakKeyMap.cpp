@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMWeakKeyMap.h"
 #include "VerseVM/VVMAbstractVisitor.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
@@ -54,14 +54,18 @@ void FWeakKeyMap::Visit(VCell* Key, TVisitor& Visitor)
 {
 	if (TMap<VCell*, VCell*>* MapMap = InternalMap.Find(Key))
 	{
+		Visitor.BeginMap("Values");
 		for (auto It = MapMap->CreateIterator(); It; ++It)
 		{
 			// It->Key is a weak map in this case.
-			if (Visitor.IsMarked(It->Key))
+			Visitor.BeginObject();
+			if (Visitor.IsMarked(It->Key, "Key"))
 			{
-				Visitor.VisitNonNull(It->Value);
+				Visitor.VisitNonNull(It->Value, "Value");
 			}
+			Visitor.EndObject();
 		}
+		Visitor.EndMap();
 	}
 }
 
@@ -102,4 +106,4 @@ void FWeakKeyMap::ConductCensus()
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

@@ -21,7 +21,7 @@ void FGlobalTrivialEmergentTypePtrRoot::Visit(FMarkStackVisitor& Visitor)
 template <typename TVisitor>
 void FGlobalTrivialEmergentTypePtrRoot::VisitImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(EmergentType);
+	Visitor.Visit(EmergentType, "EmergentType");
 }
 
 } // namespace Verse

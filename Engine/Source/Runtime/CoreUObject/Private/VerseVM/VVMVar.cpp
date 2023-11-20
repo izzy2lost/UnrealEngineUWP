@@ -16,7 +16,7 @@ TGlobalTrivialEmergentTypePtr<&VVar::StaticCppClassInfo> VVar::GlobalTrivialEmer
 template <typename TVisitor>
 void VVar::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Value);
+	Visitor.Visit(Value, "Value");
 }
 
 void VVar::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
