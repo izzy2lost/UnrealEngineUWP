@@ -1589,7 +1589,9 @@ bool ShouldCompileRayTracingShadersForProject(EShaderPlatform ShaderPlatform)
 {
 	if (RHISupportsRayTracingShaders(ShaderPlatform))
 	{
-		return IsRayTracingEnabledForProject(ShaderPlatform);
+		const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
+
+		return IsRayTracingEnabledForProject(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);		
 	}
 	else
 	{

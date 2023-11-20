@@ -399,6 +399,13 @@ const FD3D12ShaderIdentifier FD3D12ShaderIdentifier::Null = { 0, 0, 0, 0 };
 
 static_assert(sizeof(FD3D12ShaderIdentifier) == D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, "Unexpected shader identifier size");
 
+static bool ShouldRunRayTracingGPUValidation()
+{
+	// Wave ops are required to run ray tracing validation shaders
+	const bool bSupportsWaveOps = GRHISupportsWaveOperations && RHISupportsWaveOperations(GMaxRHIShaderPlatform);
+	return GD3D12RayTracingGPUValidation && bSupportsWaveOps;
+}
+
 static D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS TranslateRayTracingAccelerationStructureFlags(ERayTracingAccelerationStructureFlags Flags)
 {
 	uint32 Result = {};
@@ -3672,7 +3679,7 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 		0
 	);
 
-	if (GD3D12RayTracingGPUValidation)
+	if (ShouldRunRayTracingGPUValidation())
 	{
 		for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 		{
@@ -3957,7 +3964,7 @@ void FD3D12CommandContext::RHIBuildAccelerationStructures(const TArrayView<const
 		}		
 	}
 
-	if (GD3D12RayTracingGPUValidation)
+	if (ShouldRunRayTracingGPUValidation())
 	{
 		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
 
