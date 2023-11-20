@@ -2759,7 +2759,7 @@ bool UHierarchicalInstancedStaticMeshComponent::BuildTreeIfOutdated(bool Async, 
 
 	if (ForceUpdate 
 		|| bIsOutOfDate
-		|| PrimitiveInstanceDataManager.HasAnyInstanceChanges()
+		|| PrimitiveInstanceDataManager.HasAnyChanges()
 		|| InstanceReorderTable.Num() != PerInstanceSMData.Num()
 		|| NumBuiltInstances != PerInstanceSMData.Num() 
 		|| (GetStaticMesh() != nullptr && CacheMeshExtendedBounds != GetStaticMesh()->GetBounds())

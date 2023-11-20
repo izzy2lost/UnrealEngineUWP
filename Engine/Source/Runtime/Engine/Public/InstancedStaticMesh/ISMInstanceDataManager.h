@@ -123,6 +123,12 @@ public:
 
 	ENGINE_API bool HasAnyInstanceChanges() const;
 
+	/** 
+	 * Returns true if there are explicitly tracked instance changes, or the state is not tracked (because no proxy has been created yet),
+	 * and the tracking state is not Disabled.
+	 */
+	inline bool HasAnyChanges() const { return GetState() != ETrackingState::Disabled && (GetState() != ETrackingState::Tracked || HasAnyInstanceChanges());}
+
 	void SerializeRenderData(FArchive& Ar, bool bCooked);
 
 	bool FlushChanges(FInstanceUpdateComponentDesc &&ComponentData, bool bNewPrimitiveProxy);
