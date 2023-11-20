@@ -2302,7 +2302,9 @@ static void ComputeDynamicMeshRelevance(
 	const bool bIsHairStrandsCompatible = ViewRelevance.bHairStrands && IsHairStrandsEnabled(EHairStrandsShaderType::All, View.GetShaderPlatform());
 	if (bIsHairStrandsCompatible)
 	{
-		if (HairStrands::IsHairStrandsVF(MeshBatch.Mesh) && HairStrands::IsHairVisible(MeshBatch))
+		// Disable bCheckLengthScaleInitialize when running hit proxy as LengthScale is not initialized
+		const bool bCheckLengthScale = !View.Family->EngineShowFlags.HitProxies;
+		if (HairStrands::IsHairStrandsVF(MeshBatch.Mesh) && HairStrands::IsHairVisible(MeshBatch, bCheckLengthScale))
 		{
 			View.HairStrandsMeshElements.AddUninitialized(1);
 			FMeshBatchAndRelevance& BatchAndProxy = View.HairStrandsMeshElements.Last();

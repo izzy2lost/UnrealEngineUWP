@@ -494,7 +494,7 @@ namespace HairStrands
 	bool IsHairCompatible(const FMeshBatch* Mesh);
 	bool IsHairStrandsVF(const FMeshBatch* Mesh);
 	bool IsHairCardsVF(const FMeshBatch* Mesh);
-	bool IsHairVisible(const FMeshBatchAndRelevance& MeshBatch);
+	bool IsHairVisible(const FMeshBatchAndRelevance& MeshBatch, bool bCheckLengthScale);
 
 	// Hair helpers
 	bool HasHairInstanceInScene(const FScene& Scene);

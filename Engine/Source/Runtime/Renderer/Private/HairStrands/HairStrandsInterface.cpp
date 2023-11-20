@@ -507,14 +507,14 @@ bool IsHairCompatible(const FMeshBatch* Mesh)
 	return IsHairStrandsVF(Mesh) || IsHairCardsVF(Mesh);
 }
 
-bool IsHairVisible(const FMeshBatchAndRelevance& MeshBatch)
+bool IsHairVisible(const FMeshBatchAndRelevance& MeshBatch, bool bCheckLengthScale)
 {
 	if (MeshBatch.Mesh && MeshBatch.PrimitiveSceneProxy && MeshBatch.PrimitiveSceneProxy->ShouldRenderInMainPass())
 	{
 		const FHairGroupPublicData* Data = HairStrands::GetHairData(MeshBatch.Mesh);
 		switch (Data->VFInput.GeometryType)
 		{
-		case EHairGeometryType::Strands: return Data->VFInput.Strands.Common.LengthScale > 0;
+		case EHairGeometryType::Strands: return bCheckLengthScale ? Data->VFInput.Strands.Common.LengthScale > 0 : true;
 		case EHairGeometryType::Cards: return true;
 		case EHairGeometryType::Meshes: return true;
 		}
