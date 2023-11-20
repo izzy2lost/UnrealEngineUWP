@@ -58,6 +58,8 @@ public:
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 
 	FCompilationOptions Options;
+	
+	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
 
 	FString ErrorMsg;
 

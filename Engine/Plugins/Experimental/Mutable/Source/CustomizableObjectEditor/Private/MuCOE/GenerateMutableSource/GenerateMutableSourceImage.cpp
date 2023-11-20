@@ -48,7 +48,6 @@
 #include "MuT/NodeImageTable.h"
 #include "MuT/NodeImageTransform.h"
 #include "MuT/NodeImageVariation.h"
-#include "MuT/NodeImageReference.h"
 #include "MuT/NodeImageConstant.h"
 #include "MuT/NodeScalarConstant.h"
 
@@ -165,35 +164,11 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 			}
 			else
 			{
-				if (GenerationContext.Options.OptimizationLevel==0)
-				{
-					// In the "None" optimization level, we don't process any image, and we set them all as image references
-					// that will be loaded at instance generation time: fast compilation x slow generation.
-					FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(BaseTexture);
-					FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
+				mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(BaseTexture, GenerationContext, false);
 
-					if (!FoundIndex)
-					{
-						FoundIndex = &NewEntry;
-						NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
-						NewEntry.ImageDesc.m_size[0] = BaseTexture->Source.GetSizeX();
-						NewEntry.ImageDesc.m_size[1] = BaseTexture->Source.GetSizeY();
-						NewEntry.ImageDesc.m_lods = BaseTexture->Source.GetNumMips();
-						NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
-						GenerationContext.PassThroughTextureMap.Add(BaseTexture, NewEntry);
-					}
-
-					mu::Ptr<mu::NodeImageReference> ReferenceImageNode = new mu::NodeImageReference;
-					ReferenceImageNode->SetImageReference(FoundIndex->ID,FoundIndex->ImageDesc);
-					ReferenceImageNode->SetForceLoad(true);
-					ImageNode = ReferenceImageNode;
-				}
-				else
-				{
-					mu::Ptr<mu::NodeImageConstant> ConstantImageNode = new mu::NodeImageConstant();
-					ImageNode = ConstantImageNode;
-					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(ConstantImageNode, BaseTexture, Node));
-				}
+				mu::Ptr<mu::NodeImageConstant> ReferenceImageNode = new mu::NodeImageConstant;
+				ReferenceImageNode->SetValue( ImageConstant.get() );
+				ImageNode = ReferenceImageNode;
 
 				GenerationContext.GeneratedImages.Add(imageKey, ImageNode);
 			}
@@ -270,11 +245,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		Result = ImageNode;
 
 		UTexture2D* Texture = TypedNodeMesh->FindTextureForPin(Pin);
-
-		if (Texture)
-		{
-			GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(ImageNode, Texture, Node));
-		}
+		ImageNode->SetValue( GenerateImageConstant(Texture, GenerationContext, false).get() );
 
 		Result = ResizeToMaxTextureSize(MaxTextureSize, Texture, ImageNode);
 	}
@@ -898,24 +869,10 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		UTexture2D* BaseTexture = TypedNodePassThroughTex->Texture;
 		if (BaseTexture)
 		{
-			FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(BaseTexture);
-			FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
-
-			if (!FoundIndex)
-			{
-				FoundIndex = &NewEntry;
-				NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
-				NewEntry.ImageDesc.m_size[0] = BaseTexture->Source.GetSizeX();
-				NewEntry.ImageDesc.m_size[1] = BaseTexture->Source.GetSizeY();
-				NewEntry.ImageDesc.m_lods = BaseTexture->Source.GetNumMips();
-				NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
-				GenerationContext.PassThroughTextureMap.Add(BaseTexture, NewEntry);
-			}
-
-			mu::Ptr<mu::NodeImageReference> ImageNode = new mu::NodeImageReference;
-			ImageNode->SetImageReference(FoundIndex->ID, FoundIndex->ImageDesc);
-
+			mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
 			Result = ImageNode;
+
+			ImageNode->SetValue(GenerateImageConstant(BaseTexture, GenerationContext, true).get());
 		}
 		else
 		{

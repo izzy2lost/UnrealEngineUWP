@@ -57,7 +57,6 @@
 #include "MuT/NodeImageConditionalPrivate.h"
 #include "MuT/NodeImageConstant.h"
 #include "MuT/NodeImageConstantPrivate.h"
-#include "MuT/NodeImageReferencePrivate.h"
 #include "MuT/NodeImageFormat.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageGradient.h"
@@ -162,7 +161,6 @@ namespace mu
 			case NodeImage::EType::Variation: GenerateImage_Variation(Options, Result, static_cast<const NodeImageVariation*>(Node)); break;
 			case NodeImage::EType::NormalComposite: GenerateImage_NormalComposite(Options, Result, static_cast<const NodeImageNormalComposite*>(Node)); break;
 			case NodeImage::EType::Transform: GenerateImage_Transform(Options, Result, static_cast<const NodeImageTransform*>(Node)); break;
-			case NodeImage::EType::Reference: GenerateImage_Reference(Options, Result, static_cast<const NodeImageReference*>(Node)); break;
 			case NodeImage::EType::None: check(false);
 			}
 
@@ -192,6 +190,23 @@ namespace mu
             // Log an error message
             m_pErrorLog->GetPrivate()->Add( "Constant image not set.", ELMT_WARNING, node.m_errorContext );
         }
+
+
+		if (pImage->IsReference())
+		{
+			Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
+			ReferenceOp->type = OP_TYPE::IM_REFERENCE;
+			ReferenceOp->ID = pImage->GetReferencedTexture();
+			ReferenceOp->bForceLoad = pImage->IsForceLoad();
+			Result.op = ReferenceOp;
+		}
+		else
+		{
+			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
+			op->type = OP_TYPE::IM_CONSTANT;
+			op->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+			Result.op = op;
+		}
 
 		if (Options.ImageLayoutStrategy!= CompilerOptions::TextureLayoutStrategy::None && Options.LayoutToApply)
 		{
@@ -225,100 +240,16 @@ namespace mu
 			// Do we need to crop?
 			if (rect.min[0]!=0 || rect.min[1]!=0 || pImage->GetSizeX() != rect.size[0] || pImage->GetSizeY() != rect.size[1])
 			{
-				// Crop now
-				FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
-
-				Ptr<Image> pCropped = new Image(rect.size[0], rect.size[1], 1, pImage->GetFormat(), EInitializationType::NotInitialized);
-				ImOp.ImageCrop(pCropped.get(), m_compilerOptions->ImageCompressionQuality, pImage.get(), rect);
-
-				Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-				op->type = OP_TYPE::IM_CONSTANT;
-				op->SetValue(pCropped, m_compilerOptions->OptimisationOptions.bUseDiskCache);
-				Result.op = op;
-			}
-			else
-			{
-				// No need to crop.
-				Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-				op->type = OP_TYPE::IM_CONSTANT;
-				op->SetValue(pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache);
-				Result.op = op;
-			}
-		}
-        else
-        {
-			Ptr<ASTOpConstantResource> op = new ASTOpConstantResource();
-			op->type = OP_TYPE::IM_CONSTANT;
-			op->SetValue( pImage, m_compilerOptions->OptimisationOptions.bUseDiskCache );
-			Result.op = op;
-		}
-    }
-
-
-	//---------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateImage_Reference(const FImageGenerationOptions& Options, FImageGenerationResult& Result, const NodeImageReference* InNode)
-	{
-		const NodeImageReference::Private& node = *InNode->GetPrivate();
-
-		Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
-		ReferenceOp->type = OP_TYPE::IM_REFERENCE;
-		ReferenceOp->ID = node.ImageReferenceID;
-		ReferenceOp->bForceLoad = node.bForceLoad;
-
-		if (Options.ImageLayoutStrategy != CompilerOptions::TextureLayoutStrategy::None && Options.LayoutToApply)
-		{
-			// We want to generate only a block from the image.
-
-			FIntVector2 SourceImageSize(node.ImageDesc.m_size[0], node.ImageDesc.m_size[1]);
-
-			int32 BlockIndex = Options.LayoutToApply->FindBlock(Options.LayoutBlockId);
-			check(BlockIndex >= 0);
-
-			// Block in layout grid units
-			box< UE::Math::TIntVector2<uint16> > RectInCells;
-			Options.LayoutToApply->GetBlock
-			(
-				BlockIndex,
-				&RectInCells.min[0], &RectInCells.min[1],
-				&RectInCells.size[0], &RectInCells.size[1]
-			);
-
-			FIntPoint grid = Options.LayoutToApply->GetGridSize();
-			grid[0] = FMath::Max(1, grid[0]);
-			grid[1] = FMath::Max(1, grid[1]);
-
-			// Transform to pixels
-			box< UE::Math::TIntVector2<int32> > rect;
-			rect.min[0] = (RectInCells.min[0] * SourceImageSize[0]) / grid[0];
-			rect.min[1] = (RectInCells.min[1] * SourceImageSize[1]) / grid[1];
-			rect.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
-			rect.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
-
-			// Do we need to crop?
-			if (rect.min[0] != 0 || rect.min[1] != 0 || node.ImageDesc.m_size[0] != rect.size[0] || node.ImageDesc.m_size[1] != rect.size[1])
-			{
-				// If need to crop it has to be the case of an image we will force to load.
-				check(node.bForceLoad);
-
 				Ptr<ASTOpImageCrop> CropOp = new ASTOpImageCrop();
-				CropOp->Source = ReferenceOp;
+				CropOp->Source = Result.op;
 				CropOp->Min[0] = rect.min[0];
 				CropOp->Min[1] = rect.min[1];
 				CropOp->Size[0] = rect.size[0];
 				CropOp->Size[1] = rect.size[1];
-
 				Result.op = CropOp;
 			}
-			else
-			{
-				Result.op = ReferenceOp;
-			}
 		}
-		else
-		{
-			Result.op = ReferenceOp;
-		}
-	}
+    }
 
 
     //---------------------------------------------------------------------------------------------
@@ -1764,12 +1695,13 @@ namespace mu
 			{
 				const FTableValue& CellData = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex];
 				ImagePtrConst pImage = nullptr;
-				NodeImagePtr CellImage = nullptr;
 
 				if (Ptr<ResourceProxy<Image>> pProxyImage = CellData.ProxyImage)
 				{
 					pImage = pProxyImage->Get();
 				}
+
+				Ptr<ASTOp> ImageOp;
 
 				if (!pImage)
 				{
@@ -1778,42 +1710,26 @@ namespace mu
 				}
 				else
 				{
-					if (pImage->IsReference())
-					{
-						FImageDesc ImageDesc;
-						ImageDesc.m_format = pImage->GetFormat();
-						ImageDesc.m_lods = pImage->GetLODCount();
-						ImageDesc.m_size[0] = pImage->GetSizeX();
-						ImageDesc.m_size[1] = pImage->GetSizeY();
+					NodeImageConstantPtr ImageConst = new NodeImageConstant();
+					ImageConst->SetValue(pImage.get());
 
-						Ptr<NodeImageReference> ImageRef = new NodeImageReference();
-						ImageRef->SetImageReference(pImage->GetReferencedTexture(), ImageDesc);
-						ImageRef->SetForceLoad( pImage->m_flags & Image::IF_IS_FORCELOAD );
-
-						CellImage = ImageRef;
-					}
-					else
-					{
-						if (node.MaxTextureSize > 0 && (node.MaxTextureSize < pImage->GetSizeX() || node.MaxTextureSize < pImage->GetSizeY()))
-						{
-							float Factor = FMath::Min(node.MaxTextureSize / (float)(pImage->GetSizeX()), node.MaxTextureSize / (float)(pImage->GetSizeY()));
-
-							FImageOperator ImOp = FImageOperator::GetDefault(m_compilerOptions->ImageFormatFunc);
-							Ptr<Image> ResizedImage = new Image(pImage->GetSizeX() * Factor, pImage->GetSizeY() * Factor, pImage->GetLODCount(), pImage->GetFormat(), EInitializationType::NotInitialized);
-							ImOp.ImageResizeLinear(ResizedImage.get(), m_compilerOptions->ImageCompressionQuality, pImage.get());
-							pImage = ResizedImage;
-						}
-
-						NodeImageConstantPtr ImageConst = new NodeImageConstant();
-						ImageConst->SetValue(pImage);
-
-						CellImage = ImageConst;
-					}
+					FImageGenerationResult Result;
+					GenerateImage(Options, Result, ImageConst);
+					ImageOp = Result.op;
 				}
 
-				FImageGenerationResult Result;
-				GenerateImage(Options, Result, CellImage);
-				return Result.op;
+				if (node.MaxTextureSize > 0 && (node.MaxTextureSize < pImage->GetSizeX() || node.MaxTextureSize < pImage->GetSizeY()))
+				{
+					float Factor = FMath::Min(node.MaxTextureSize / (float)(pImage->GetSizeX()), node.MaxTextureSize / (float)(pImage->GetSizeY()));
+					Ptr<ASTOpFixed> op = new ASTOpFixed();
+					op->op.type = OP_TYPE::IM_RESIZE;
+					op->op.args.ImageResize.size[0] = (uint16)pImage->GetSizeX() * Factor;
+					op->op.args.ImageResize.size[1] = (uint16)pImage->GetSizeY() * Factor;
+					op->SetChild(op->op.args.ImageResize.source, ImageOp);
+					ImageOp = op;
+				}
+
+				return ImageOp;
 			});
 	}
 

@@ -96,6 +96,9 @@ namespace mu
 		/** Return true if this is a reference to an engine image. */
 		bool IsReference() const;
 
+		/** If true, this is a reference that must be resolved at compile time. */
+		bool IsForceLoad() const;
+
 		/** Return the id of the engine referenced texture. Only valid if IsReference. */
 		uint32 GetReferencedTexture() const;
 

@@ -32,14 +32,12 @@ class UTexture2D;
 #define UE_MUTABLE_COMPILE_REGION		TEXT("Mutable Compile")
 #define UE_MUTABLE_PRELOAD_REGION		TEXT("Mutable Preload")
 #define UE_MUTABLE_SAVEDD_REGION		TEXT("Mutable SaveDD")
-#define UE_MUTABLE_CONVERTING_REGION	TEXT("Mutable Converting")
 
 UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool &bOutMultipleBaseObjectsFound);
 
 
 
 FCustomizableObjectCompiler::FCustomizableObjectCompiler() : FCustomizableObjectCompilerBase()
-	, PendingTexturesToLoad(false)
 	, CompilationLaunchPending(false)
 	, PreloadingReferencerAssets(false)
 	, CurrentGAsyncLoadingTimeLimit(-1.0f)
@@ -103,10 +101,7 @@ bool FCustomizableObjectCompiler::Tick()
 		TRACE_END_REGION(UE_MUTABLE_SAVEDD_REGION);
 	}
 
-	// In editor, when compiling a CO, referencer assets and Unreal to Mutable texture conversion are performed asynchronously
-	UpdatePendingTextureConversion(true);
-
-	if (!PendingTexturesToLoad && CompilationLaunchPending)
+	if (CompilationLaunchPending)
 	{
 		CompilationLaunchPending = false;
 		LaunchMutableCompile(true);
@@ -307,12 +302,6 @@ void FCustomizableObjectCompiler::AddReferencedObjects(FReferenceCollector& Coll
 	for (int32 i = 0; i < MaxIndex; ++i)
 	{
 		Collector.AddReferencedObject(ArrayGCProtect[i]);
-	}
-
-	// Protect images that are pending to be loaded as well
-	for (FTextureUnrealToMutableTask& Image: ArrayTextureUnrealToMutableTask )
-	{
-		Collector.AddReferencedObject(Image.Texture);
 	}
 
 	if (CurrentObject)
@@ -828,86 +817,6 @@ FAssetData* FCustomizableObjectCompiler::GetCachedAssetData(const FString& Packa
 }
 
 
-void FCustomizableObjectCompiler::UpdatePendingTextureConversion(bool UseTimeLimit)
-{
-	// In editor, when compiling a CO, referencer assets and Unreal to Mutable texture conversion are performed asynchronously
-	if (PendingTexturesToLoad)
-	{
-		double InitialTimeSeconds = FPlatformTime::Seconds();
-
-		float CurrentMaxConvertToMutableTextureTimeSeconds = MaxConvertToMutableTextureTime;
-		if (!FApp::HasFocus())
-		{
-			// If the app is not focused, it will reduce the framerate to 10fps. Do 2 more seconds of work to compensate for that.
-			CurrentMaxConvertToMutableTextureTimeSeconds += 2.0f;
-		}
-
-		while ( CompletedUnrealToMutableTask < ArrayTextureUnrealToMutableTask.Num() )
-		{
-			UTexture2D* Texture = ArrayTextureUnrealToMutableTask[CompletedUnrealToMutableTask].Texture;
-
-			// If the texture has been set to null, it means it was a duplicate that we already processed.
-			if (!Texture)
-			{ 
-				CompletedUnrealToMutableTask++;
-				continue;
-			}
-
-			// Convert the texture
-			mu::ImagePtr Image = ConvertTextureUnrealToMutable( 
-				Texture, 
-				ArrayTextureUnrealToMutableTask[CompletedUnrealToMutableTask].Node,
-				this,
-				ArrayTextureUnrealToMutableTask[CompletedUnrealToMutableTask].bIsNormalComposite );
-
-			// Assign to all tasks referring to the same texture
-			for (int32 j = CompletedUnrealToMutableTask; j < ArrayTextureUnrealToMutableTask.Num(); ++j)
-			{
-				if (ArrayTextureUnrealToMutableTask[j].Texture == Texture)
-				{
-					if (ArrayTextureUnrealToMutableTask[j].ImageNode.get())
-					{
-						ArrayTextureUnrealToMutableTask[j].ImageNode->SetValue(Image.get());
-						ArrayTextureUnrealToMutableTask[j].Texture = nullptr;
-					}
-
-					else if (ArrayTextureUnrealToMutableTask[j].TableNode.get())
-					{
-						int32 ColumnIndx = ArrayTextureUnrealToMutableTask[j].TableColumn;
-						int32 RowIndx = ArrayTextureUnrealToMutableTask[j].TableRow;
-
-						mu::Ptr<mu::ResourceProxyMemory<mu::Image>> ImageProxy = new mu::ResourceProxyMemory<mu::Image>(Image);
-						ArrayTextureUnrealToMutableTask[j].TableNode->SetCell(ColumnIndx, RowIndx, ImageProxy.get());
-
-						ArrayTextureUnrealToMutableTask[j].Texture = nullptr;
-					}
-				}
-			}
-
-			CompletedUnrealToMutableTask++;
-
-			if (UseTimeLimit)
-			{
-				double UsedTimeSeconds = (FPlatformTime::Seconds() - InitialTimeSeconds);
-				if (UsedTimeSeconds > CurrentMaxConvertToMutableTextureTimeSeconds)
-				{
-					break;
-				}
-			}
-		}
-
-		if (CompletedUnrealToMutableTask >= ArrayTextureUnrealToMutableTask.Num())
-		{
-			PendingTexturesToLoad = false;
-			ArrayTextureUnrealToMutableTask.Empty();
-			CompletedUnrealToMutableTask = 0;
-
-			TRACE_END_REGION(UE_MUTABLE_CONVERTING_REGION);
-		}
-	}
-}
-
-
 float FCustomizableObjectCompiler::ComputeAsyncLoadingTimeLimit()
 {
 	float DeltaTimeSeconds = FApp::GetDeltaTime();
@@ -1276,19 +1185,24 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		Object->SetBoneNamesArray(GenerationContext.BoneNames);
 
 		// Pass-through textures
-		TArray<TSoftObjectPtr<UTexture>> NewReferencedPassThroughTextures;
-
-		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedPassThroughTexture>& Pair : GenerationContext.PassThroughTextureMap)
+		TArray<TSoftObjectPtr<UTexture>> NewCompileTimeReferencedTextures;
+		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
 		{
-			check(Pair.Value.ID == NewReferencedPassThroughTextures.Num());
-			NewReferencedPassThroughTextures.Add(Pair.Key);
+			check(Pair.Value.ID == NewCompileTimeReferencedTextures.Num());
+			NewCompileTimeReferencedTextures.Add(Pair.Key);
+		}
+
+		TArray<TSoftObjectPtr<UTexture>> NewRuntimeReferencedTextures;
+		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+		{
+			check(Pair.Value.ID == NewRuntimeReferencedTextures.Num());
+			NewRuntimeReferencedTextures.Add(Pair.Key);
 		}
 
 		// Mark the object as modified, used to avoid missing assets in packages.
-		if (Object->ReferencedPassThroughTextures != NewReferencedPassThroughTextures)
+		if (Object->ReferencedPassThroughTextures != NewRuntimeReferencedTextures)
 		{
-			Object->ReferencedPassThroughTextures.Empty(NewReferencedPassThroughTextures.Num());
-			Object->ReferencedPassThroughTextures = NewReferencedPassThroughTextures;
+			Object->ReferencedPassThroughTextures = NewRuntimeReferencedTextures;
 
 			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
 			{
@@ -1382,22 +1296,13 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(MutableRoot));
 		CompileTask->Options = Options;
+		CompileTask->ReferencedTextures = NewCompileTimeReferencedTextures;
 		SetCompilationState(ECustomizableObjectCompilationState::InProgress);
 
-		if (GenerationContext.ArrayTextureUnrealToMutableTask.Num() > 0)
-		{
-			ArrayTextureUnrealToMutableTask.Insert(GenerationContext.ArrayTextureUnrealToMutableTask, ArrayTextureUnrealToMutableTask.Num());
-			PendingTexturesToLoad = true;
-			TRACE_BEGIN_REGION(UE_MUTABLE_CONVERTING_REGION);
-		}
-
-		// If synchronous compilation is requested, proceed the same way if in editor and if packaging
 		if (!bAsync)
 		{
-			UpdatePendingTextureConversion(false);
-			LaunchMutableCompile(false);
-			MUTABLE_CPUPROFILER_SCOPE(WaitForCompletion);
-			CompileThread->WaitForCompletion();
+			CompileTask->Init();
+			CompileTask->Run();
 			FinishCompilation();
 
 			if (SaveDDTask.IsValid())
@@ -1419,7 +1324,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			// If packaging, convert textures and launch Mutable compile thread
 			if (IsRunningCommandlet())
 			{
-				UpdatePendingTextureConversion(false);
 				LaunchMutableCompile(false);
 			}
 			else
@@ -1427,11 +1331,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 				// If asynchronous compilation and not packaging, set CompilationLaunchPending to true and FCustomizableObjectCompiler::Tick()
 				// will do the remaining steps (convert textures asynchronously and launch the Mutable compile thread)
 				CompilationLaunchPending = true;
-
-				if (PendingTexturesToLoad)
-				{
-					AddCompileNotification(LOCTEXT("ConvertingToMutableTexture", "Converting textures"));
-				}
 			}
 		}
 	}
@@ -1455,7 +1354,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 }
 
 
-mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, TArray<TSoftObjectPtr<UTexture>>& OutReferencedTextures)
+mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures)
 {
 	UE_LOG(LogMutable, Log, TEXT("Started Customizable Object Export %s."), *Object->GetName());
 
@@ -1490,20 +1389,12 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 		return nullptr;
 	}
 
-	// Ensure the images are converted
-	if (GenerationContext.ArrayTextureUnrealToMutableTask.Num() > 0)
-	{
-		ArrayTextureUnrealToMutableTask.Insert(GenerationContext.ArrayTextureUnrealToMutableTask, ArrayTextureUnrealToMutableTask.Num());
-		PendingTexturesToLoad = true;
-		UpdatePendingTextureConversion(false);
-	}
-
 	// Pass out the references textures
-	OutReferencedTextures.Empty();
-	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedPassThroughTexture>& Pair : GenerationContext.PassThroughTextureMap)
+	OutRuntimeReferencedTextures.Empty();
+	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
 	{
-		check(Pair.Value.ID == OutReferencedTextures.Num());
-		OutReferencedTextures.Add(Pair.Key);
+		check(Pair.Value.ID == OutRuntimeReferencedTextures.Num());
+		OutRuntimeReferencedTextures.Add(Pair.Key);
 	}
 
 	return MutableRoot;

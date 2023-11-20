@@ -178,9 +178,6 @@ private:
 	* @return nothing */
 	void SaveCODerivedData(bool bShowNotification);
 
-	/** When compiling a CO in the editor, flag to know when the Unreal textures have been converted to Mutable textures */
-	bool PendingTexturesToLoad;
-
 	/** When compiling a CO in the editor, flag to know if there's a mutable task pending to be launched through LaunchMutableCompile */
 	bool CompilationLaunchPending;
 
@@ -197,13 +194,6 @@ private:
 	* @param PackageName [in] package name to find in ArrayAssetData
 	* @return pointer to element if any found, nullptr otherwise */
 	FAssetData* GetCachedAssetData(const FString& PackageName);
-
-	/** When compiling a CO, performs the texture conversion from Unreal to Mutable. If in editor, this method is called in
-	* FCustomizableObjectCompiler::Tick with time limit, otherwise it is called in FCustomizableObjectCompiler::Compile with
-	* no time limit to convert all textures in a row
-	* @param UseTimeLimit [in] if true, the method will return after TimeLimit seconds have been used to convert textures, if false, all textures will be processed in a row
-	* @return nothing */
-	void UpdatePendingTextureConversion(bool UseTimeLimit);
 
 	/** Helper function to compute the value for Unreal Engine variable s.AsyncLoadingTimeLimit while asynchronous loading is used.
 	* Also assigned to MaxConvertToMutableTextureTime
@@ -227,13 +217,10 @@ private:
 	/** Copy of GAsyncLoadingTimeLimit while assets are loaded, previous value is restored after asset load */
 	float CurrentGAsyncLoadingTimeLimit;
 
-	/** Array with the textures that need to be asynchronously converted from Unreal to Mutable */
-	TArray<FTextureUnrealToMutableTask> ArrayTextureUnrealToMutableTask;
-
 	/** Counter to know how many of the textures in ArrayTextureUnrealToMutableTask have been converted from Unreal to Mutable */
 	int32 CompletedUnrealToMutableTask;
 
-	/** Time threshold used in UpdatePendingTextureConversion to stop converting textures from Unreal to Mutable until next tick */
+	/** Time threshold used to prevent doing too much work in one tick */
 	float MaxConvertToMutableTextureTime;
 
 	// Stores the only option of an Int Param that should be compiled

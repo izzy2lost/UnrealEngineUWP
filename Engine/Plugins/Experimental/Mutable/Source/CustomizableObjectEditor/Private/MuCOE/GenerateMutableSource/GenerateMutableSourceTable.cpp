@@ -419,59 +419,17 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 				CurrentColumn = MutableTable->AddColumn(ColumnName, mu::ETableColumnType::Image);
 			}
 
-			if (TableNode->GetColumnImageMode(PinName) == ETableTextureType::PASSTHROUGH_TEXTURE)
+			bool bIsPassthroughTexture = TableNode->GetColumnImageMode(PinName) == ETableTextureType::PASSTHROUGH_TEXTURE;
+			if (!bIsPassthroughTexture)
 			{
-				FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(Texture);
-				FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
-
-				if (!FoundIndex)
+				if (Texture)
 				{
-					FoundIndex = &NewEntry;
-					NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
-					NewEntry.ImageDesc.m_size[0] = Texture->Source.GetSizeX();
-					NewEntry.ImageDesc.m_size[1] = Texture->Source.GetSizeY();
-					NewEntry.ImageDesc.m_lods = Texture->Source.GetNumMips();
-					NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
-					GenerationContext.PassThroughTextureMap.Add(Texture, NewEntry);
+					GenerationContext.AddParticipatingObject(*Texture);
 				}
-
-				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(FoundIndex->ID,FoundIndex->ImageDesc, false));
-				MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
 			}
-			else 
-			{
-				if (Texture2D)
-				{
-					GenerationContext.AddParticipatingObject(*Texture2D);
-				}
 
-				if (GenerationContext.Options.OptimizationLevel == 0)
-				{
-					// In the "None" optimization level, we don't process any image, and we set them all as image references
-					// that will be loaded at instance generation time: fast compilation x slow generation.
-					FMutableGraphGenerationContext::FGeneratedPassThroughTexture* FoundIndex = GenerationContext.PassThroughTextureMap.Find(Texture);
-					FMutableGraphGenerationContext::FGeneratedPassThroughTexture NewEntry;
-
-					if (!FoundIndex)
-					{
-						FoundIndex = &NewEntry;
-						NewEntry.ID = GenerationContext.PassThroughTextureMap.Num();
-						NewEntry.ImageDesc.m_size[0] = Texture->Source.GetSizeX();
-						NewEntry.ImageDesc.m_size[1] = Texture->Source.GetSizeY();
-						NewEntry.ImageDesc.m_lods = Texture->Source.GetNumMips();
-						NewEntry.ImageDesc.m_format = mu::EImageFormat::IF_RGBA_UBYTE; //TODO: it cannot be known without actually loading the image, which we don't want to do here.
-						GenerationContext.PassThroughTextureMap.Add(Texture, NewEntry);
-					}
-
-					mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(mu::Image::CreateAsReference(FoundIndex->ID, FoundIndex->ImageDesc, true));
-					MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
-				}
-				else
-				{
-					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(MutableTable, Texture2D, TableNode, CurrentColumn, RowIdx));
-				}
-
-			}
+			mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(GenerateImageConstant(Texture, GenerationContext, bIsPassthroughTexture));
+			MutableTable->SetCell(CurrentColumn, RowIdx, Proxy.get());
 		}
 
 		else if (SoftObjectProperty->PropertyClass->IsChildOf(UMaterialInstance::StaticClass()))
@@ -594,7 +552,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 					LogRowGenerationMessage(TableNode, DataTablePtr, GenerationContext, msg, RowName);
 				}
 
-				GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(MutableTable, ParameterTexture, TableNode, ColumnIndex, RowIdx));
+				bool bIsPassthroughTexture = false;
+				mu::Ptr<mu::ResourceProxyMemory<mu::Image>> Proxy = new mu::ResourceProxyMemory<mu::Image>(GenerateImageConstant(ParameterTexture, GenerationContext, bIsPassthroughTexture));
+				MutableTable->SetCell(ColumnIndex, RowIdx, Proxy.get());
 
 				return true;
 			}

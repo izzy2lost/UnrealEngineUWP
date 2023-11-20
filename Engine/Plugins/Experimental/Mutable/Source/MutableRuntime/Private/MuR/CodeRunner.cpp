@@ -64,6 +64,7 @@
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"
 
+
 namespace
 {
 

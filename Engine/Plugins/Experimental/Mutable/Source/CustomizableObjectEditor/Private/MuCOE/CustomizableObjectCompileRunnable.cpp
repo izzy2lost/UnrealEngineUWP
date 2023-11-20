@@ -4,11 +4,13 @@
 
 #include "HAL/FileManager.h"
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
+#include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "MuR/Model.h"
 #include "MuT/Compiler.h"
 #include "MuT/ErrorLog.h"
 #include "MuT/UnrealPixelFormatOverride.h"
 #include "Serialization/MemoryWriter.h"
+#include "Async/Async.h"
 #include "Trace/Trace.inl"
 
 class ITargetPlatform;
@@ -87,6 +89,62 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		CompilerOptions->SetImagePixelFormatOverride( UnrealPixelFormatFunc );
 	}
 
+	CompilerOptions->SetReferencedResourceCallback([this](int32 ID) 
+		{
+			mu::Ptr<mu::Image> Image;
+
+			auto LoadFunc = [this,ID]() 
+			{
+				check(IsInGameThread());
+
+				mu::Ptr<mu::Image> Image;
+				if (!ReferencedTextures.IsValidIndex(ID))
+				{
+					// The id is not valid for this CO
+					check(false);
+					return Image;
+				}
+
+				// Find the texture id
+				TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[ID];
+
+				// This can cause a stall because of loading the asset.
+				UTexture2D* Texture = Cast<UTexture2D>(TexturePtr.LoadSynchronous());
+				if (!Texture)
+				{
+					// Failed to load the texture
+					check(false);
+					return Image;
+				}
+
+				// In the editor the src data can be directly accessed
+				Image = new mu::Image();
+				int32 MipmapsToSkip = 0;
+				bool bIsNormalComposite = false; // TODO?
+				EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), Texture, bIsNormalComposite, MipmapsToSkip);
+				check(Error == EUnrealToMutableConversionError::Success);
+				return Image;
+			};
+
+			// This runs in a random thread
+			if (IsInGameThread())
+			{
+				Image = LoadFunc();
+			}
+			else
+			{
+				UE::Tasks::FTaskEvent Completion(TEXT("SetReferencedResourceCallback"));
+
+				AsyncTask(ENamedThreads::GameThread, [&Image, &Completion, LoadFunc]() 
+					{
+						Image = LoadFunc();
+						Completion.Trigger();
+					});
+
+				Completion.Wait();
+			}
+			return Image;
+		});
 
 	// Minimum resident mip count.
 	const int MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
@@ -292,3 +350,4 @@ const ITargetPlatform* FCustomizableObjectSaveDDRunnable::GetTargetPlatform() co
 }
 
 #undef LOCTEXT_NAMESPACE
+

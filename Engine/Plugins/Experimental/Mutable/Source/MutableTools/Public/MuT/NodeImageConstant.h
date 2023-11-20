@@ -58,7 +58,7 @@ namespace mu
         Ptr<const Image> GetValue() const;
 
         //! Set the image to be output by this node
-        void SetValue( Ptr<const Image> pImage );
+        void SetValue( const Image* );
 
         //! Set the image proxy that will provide the image for this node when necessary
         void SetValue( Ptr<ResourceProxy<Image>> pImage );

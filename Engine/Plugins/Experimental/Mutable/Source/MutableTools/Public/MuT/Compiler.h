@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "HAL/PlatformMath.h"
+#include "MuT/AST.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Image.h"
 #include "Templates/SharedPointer.h"
+#include "HAL/PlatformMath.h"
 
 namespace mu
 {
@@ -74,6 +75,9 @@ namespace mu
 
 		/** Set an optional pixel conversion function that will be called before any pixel format conversion. */
 		void SetImagePixelFormatOverride(const FImageOperator::FImagePixelFormatFunc&);
+
+		/** */
+		void SetReferencedResourceCallback(const FReferencedResourceFunc&);
 
         //! Different data packing strategies
         enum class TextureLayoutStrategy : uint8

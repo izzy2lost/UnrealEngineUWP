@@ -278,6 +278,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	// Do the compilation to Mutable Code synchronously.
 	TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(RootNode));
 	CompileTask->Options = CompileOptions;
+	CompileTask->ReferencedTextures = ReferencedTextures;
 	CompileTask->Init();
 	CompileTask->Run();
 

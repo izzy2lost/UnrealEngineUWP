@@ -238,37 +238,6 @@ inline uint32 GetTypeHash(const FGeneratedImageKey& Key)
 }
 
 
-/** Struct describing the conversion task for each Unreal texture that needs to be converted to Mutable format */
-struct FTextureUnrealToMutableTask
-{
-	/** Default constructor */
-	FTextureUnrealToMutableTask(mu::NodeImageConstantPtr ImageNodeParameter, UTexture2D* TextureParameter, const UCustomizableObjectNode* NodeParameter, bool bIsNormalCompositeParameter = false)
-		: ImageNode(ImageNodeParameter)
-		, Texture(TextureParameter)
-		, Node(NodeParameter)
-		, bIsNormalComposite(bIsNormalCompositeParameter)
-	{}
-
-	/** Table Node constructor */
-	FTextureUnrealToMutableTask(mu::TablePtr TableParameter, UTexture2D* TextureParameter, const UCustomizableObjectNode* NodeParameter, int32 ColumnIndex, int32 RowIndex, bool bIsNormalCompositeParameter = false)
-		: TableNode(TableParameter)
-		, Texture(TextureParameter)
-		, Node(NodeParameter)
-		, TableColumn(ColumnIndex)
-		, TableRow(RowIndex)
-		, bIsNormalComposite(bIsNormalCompositeParameter)
-	{}
-
-	mu::NodeImageConstantPtr ImageNode;
-	mu::TablePtr TableNode;
-	TObjectPtr<UTexture2D> Texture;
-	const UCustomizableObjectNode* Node;
-	int32 TableColumn;
-	int32 TableRow;
-	bool bIsNormalComposite;	
-};
-
-
 struct FPoseBoneData
 {
 	TArray<FName> ArrayBoneName;
@@ -560,13 +529,19 @@ struct FMutableGraphGenerationContext
 	TMap<FGeneratedImageKey, mu::NodeImagePtr> GeneratedImages;
 
 	/** Data stored per-generated passthrough texture. */
-	struct FGeneratedPassThroughTexture
+	struct FGeneratedReferencedTexture
 	{
 		uint32 ID;
-		mu::FImageDesc ImageDesc;
+		//mu::FImageDesc ImageDesc;
 	};
-	// Cache of pass-through images and their IDs used in the core to indentify them
-	TMap<TSoftObjectPtr<UTexture>, FGeneratedPassThroughTexture> PassThroughTextureMap;
+
+	// Cache of runtime pass-through images and their IDs used in the core to indentify them.
+	// These textures will remain as external references even in optimized models.
+	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> RuntimeReferencedTextureMap;
+
+	// Cache of runtime pass-through images and their IDs used in the core to indentify them
+	// These textures will become mutable images in the compiled model.
+	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> CompileTimeTextureMap;
 
     // Global morph selection overrides.
     TArray<FRealTimeMorphSelectionOverride> RealTimeMorphTargetsOverrides;
@@ -747,12 +722,6 @@ struct FMutableGraphGenerationContext
 	// Set of all the guids of all the child CustomizableObjects in the compilation
 	TSet<FGuid> CustomizableObjectGuidsInCompilation;
 
-	/** Array with the conversion tasks for each Unreal texture that needs to be converted to Mutable format for a particular Customizable Object.
-	* Multiple tasks for the same texture may be added here when referenced from different LODs or nodes, however when precessing the array it'll
-	* make sure to avoid converting the same texture more than once.
-	*/
-	TArray<FTextureUnrealToMutableTask> ArrayTextureUnrealToMutableTask;
-
 	/** Stores the physics assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
 	TMap<FString, TSoftObjectPtr<UPhysicsAsset>> PhysicsAssetMap;
 
@@ -880,3 +849,5 @@ int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, co
 
 
 int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphGenerationContext& GenerationContext);
+
+mu::Ptr<mu::Image> GenerateImageConstant( UTexture*, FMutableGraphGenerationContext&, bool bIsReference);

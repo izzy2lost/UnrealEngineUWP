@@ -50,6 +50,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "Math/NumericLimits.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -1684,6 +1685,73 @@ int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphG
 	}
 
 	return 0;
+}
+
+
+mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerationContext& GenerationContext, bool bIsReference)
+{
+	if (!Texture)
+	{
+		return nullptr;
+	}
+
+	bool bForceLoad = false;
+	bool bIsCompileTime = false;
+	if (!bIsReference)
+	{
+		bForceLoad = true;
+		if (GenerationContext.Options.OptimizationLevel == 0)
+		{
+			bIsCompileTime = false;
+		}
+		else
+		{
+			bIsCompileTime = true;
+		}
+	}
+
+	TMap<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& TextureMap = bIsCompileTime
+		? GenerationContext.CompileTimeTextureMap
+		: GenerationContext.RuntimeReferencedTextureMap;
+
+	FMutableGraphGenerationContext::FGeneratedReferencedTexture InvalidEntry;
+	InvalidEntry.ID = TNumericLimits<uint32>::Max();
+	FMutableGraphGenerationContext::FGeneratedReferencedTexture& Entry = TextureMap.FindOrAdd(Texture,InvalidEntry);
+
+	if (Entry.ID == TNumericLimits<uint32>::Max())
+	{
+		Entry.ID = TextureMap.Num()-1;
+	}
+
+	// Create a descriptor for the image but fill it only if it is not a true passthrough image. Otherwise we want it empty.
+	mu::FImageDesc ImageDesc;
+	if (bForceLoad)
+	{
+		ImageDesc.m_size[0] = Texture->Source.GetSizeX();
+		ImageDesc.m_size[1] = Texture->Source.GetSizeY();
+		ImageDesc.m_lods = Texture->Source.GetNumMips();
+
+		mu::EImageFormat MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
+		ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
+		switch (SourceFormat)
+		{
+		case ETextureSourceFormat::TSF_G8:
+		case ETextureSourceFormat::TSF_G16:
+		case ETextureSourceFormat::TSF_R16F:
+		case ETextureSourceFormat::TSF_R32F:
+			MutableFormat = mu::EImageFormat::IF_L_UBYTE;
+			break;
+
+		default:
+			break;
+		}
+
+		ImageDesc.m_format = MutableFormat;
+	}
+
+	// Compile-time references that are left should be resolved immediately (should only happen in editor).
+	mu::Ptr<mu::Image> Result = mu::Image::CreateAsReference(Entry.ID, ImageDesc, bForceLoad);
+	return Result;
 }
 
 

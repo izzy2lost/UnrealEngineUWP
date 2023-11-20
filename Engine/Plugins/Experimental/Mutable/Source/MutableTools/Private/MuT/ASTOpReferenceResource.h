@@ -36,12 +36,7 @@ namespace mu
 
 	public:
 
-		~ASTOpReferenceResource() override;
-
 		// Own interface
-
-		//! Get a hash of the stored value.
-		uint64 GetValueHash() const;
 
 		// ASTOp interface
 		OP_TYPE GetOpType() const override { return type; }
@@ -55,6 +50,7 @@ namespace mu
 		void GetLayoutBlockSize(int* pBlockX, int* pBlockY) override;
 		bool GetNonBlackRect(FImageRect& maskUsage) const override;
 		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
+		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const override;
 	};
 
 

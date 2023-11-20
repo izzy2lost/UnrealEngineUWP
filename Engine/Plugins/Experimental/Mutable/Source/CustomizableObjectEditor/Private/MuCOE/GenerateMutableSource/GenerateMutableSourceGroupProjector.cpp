@@ -552,8 +552,11 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			{
 				if (ArrayOptionImage[SelectorIndex].OptionImage)
 				{
+					mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(ArrayOptionImage[SelectorIndex].OptionImage, GenerationContext, false);
+
 					mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
-					GenerationContext.ArrayTextureUnrealToMutableTask.Add(FTextureUnrealToMutableTask(ImageNode, ArrayOptionImage[SelectorIndex].OptionImage, ProjParamNode));
+					ImageNode->SetValue(ImageConstant.get());
+
 					SwitchNode->SetOption(SelectorIndex, ImageNode);
 				}
 				else

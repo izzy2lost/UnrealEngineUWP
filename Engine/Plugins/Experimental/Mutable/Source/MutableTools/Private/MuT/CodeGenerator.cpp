@@ -55,7 +55,6 @@
 #include "MuT/NodeImageMipmap.h"
 #include "MuT/NodeImageMipmapPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
-#include "MuT/NodeImageReference.h"
 #include "MuT/NodeLODPrivate.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodeMeshClipMorphPlane.h"

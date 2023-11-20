@@ -16,7 +16,6 @@
 #include "MuT/NodeImageColourMapPrivate.h"
 #include "MuT/NodeImageConditionalPrivate.h"
 #include "MuT/NodeImageConstantPrivate.h"
-#include "MuT/NodeImageReferencePrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeImageGradientPrivate.h"
 #include "MuT/NodeImageInterpolatePrivate.h"
@@ -95,14 +94,6 @@ namespace mu
 
         return 0;
     }
-
-
-	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> ImageDescGenerator::Visit( const NodeImageReference::Private& node )
-	{
-		m_desc = node.ImageDesc;
-		return 0;
-	}
 
 
     //---------------------------------------------------------------------------------------------

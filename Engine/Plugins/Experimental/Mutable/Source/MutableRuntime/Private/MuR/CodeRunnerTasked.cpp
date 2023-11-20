@@ -696,7 +696,8 @@ namespace mu
 			Base = Formatted;
 		}
 
-		if (Blended && InitialFormat != Blended->GetFormat() && !Args.flags)
+		bool bMustHaveSameFormat = !(Args.flags & (OP::ImageLayerArgs::F_BASE_RGB_FROM_ALPHA | OP::ImageLayerArgs::F_BLENDED_RGB_FROM_ALPHA));
+		if (Blended && InitialFormat != Blended->GetFormat() && bMustHaveSameFormat)
 		{
 			Ptr<Image> Formatted = Runner->CreateImage(Blended->GetSizeX(), Blended->GetSizeY(), Blended->GetLODCount(), Base->GetFormat(), EInitializationType::NotInitialized);
 			bool bSuccess = false;
@@ -1614,6 +1615,13 @@ namespace mu
 		if (bSourceHasMips)
 		{
 			Lods = Image::GetMipmapCount(destSize[0], destSize[1]);
+		}
+
+		if (Base->IsReference())
+		{
+			// We are trying to resize an external reference. This shouldn't happen, but be deffensive.
+			Runner->StoreImage(Op, Base);
+			return false;
 		}
 
 		Result = Runner->CreateImage( destSize[0], destSize[1], Lods, Base->GetFormat(), EInitializationType::NotInitialized );

@@ -2,9 +2,9 @@
 
 #include "MuT/ASTOpReferenceResource.h"
 
+#include "MuT/ASTOpConstantResource.h"
 #include "Containers/Array.h"
 #include "HAL/PlatformMath.h"
-#include "Hash/CityHash.h"
 #include "Misc/AssertionMacros.h"
 #include "MuR/Types.h"
 #include "MuT/StreamsPrivate.h"
@@ -124,18 +124,44 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	ASTOpReferenceResource::~ASTOpReferenceResource()
-	{
-	}
-
-
-	//-------------------------------------------------------------------------------------------------
 	mu::Ptr<ImageSizeExpression> ASTOpReferenceResource::GetImageSizeExpression() const
 	{
 		Ptr<ImageSizeExpression> pRes = new ImageSizeExpression;
 		pRes->type = ImageSizeExpression::ISET_UNKNOWN;
 
 		return pRes;
+	}
+
+
+	Ptr<ASTOp> ASTOpReferenceResource::OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const
+	{
+		mu::Ptr<ASTOp> NewOp;
+
+		switch (type)
+		{
+
+		case OP_TYPE::IM_REFERENCE:
+		{
+			// If we are in reference resolution stage
+			if (Pass>=2 && bForceLoad)
+			{
+				check(options.ReferencedResourceProvider);
+
+				Ptr<Image> ConstantImage = options.ReferencedResourceProvider(ID);
+
+				Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
+				ConstantOp->type = OP_TYPE::IM_CONSTANT;
+				ConstantOp->SetValue( ConstantImage.get(), options.bUseDiskCache );
+				NewOp = ConstantOp;
+			}
+			break;
+		}
+
+		default:
+			checkf(false, TEXT("Instruction not supported"));
+		}
+
+		return NewOp;
 	}
 
 }

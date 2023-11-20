@@ -297,6 +297,12 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
+	bool Image::IsForceLoad() const
+	{
+		return m_flags & EImageFlags::IF_IS_FORCELOAD;
+	}
+
+	//---------------------------------------------------------------------------------------------
 	uint32 Image::GetReferencedTexture() const
 	{
 		ensure(IsReference());

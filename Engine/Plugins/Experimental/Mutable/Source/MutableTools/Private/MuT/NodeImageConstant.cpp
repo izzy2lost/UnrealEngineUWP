@@ -56,9 +56,9 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeImageConstant::SetValue(Ptr<const Image> pValue)
+	void NodeImageConstant::SetValue(const Image* Value)
 	{
-		m_pD->m_pProxy = new ResourceProxyMemory<Image>(pValue);
+		m_pD->m_pProxy = new ResourceProxyMemory<Image>(Value);
 	}
 
 

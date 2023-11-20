@@ -1266,6 +1266,24 @@ namespace mu
 				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 
+				FullOptimiseAST( roots, 1 );
+				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				ASTOp::LogHistogram(roots);
+			}
+
+			// Constant resolution stage: resolve referenced assets.
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ReferenceResolution);
+				FullOptimiseAST(roots, 2);
+			}
+
+			// Main optimisation stage again for data-aware optimizations
+			{
+				MUTABLE_CPUPROFILER_SCOPE(FinalStage);
+				FullOptimiseAST(roots, 0);
+				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				ASTOp::LogHistogram(roots);
+
 				FullOptimiseAST(roots, 1);
 				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
@@ -1319,6 +1337,12 @@ namespace mu
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated code remover"));
 			DuplicatedCodeRemoverAST( roots );
 			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+
+			// Constant resolution stage: resolve referenced assets.
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ReferenceResolution);
+				FullOptimiseAST(roots, 2);
+			}
 
 			for ( size_t s=0;  s<m_states.size(); ++s )
 			{

@@ -178,6 +178,8 @@ namespace mu
     typedef TSet<Ptr<ASTOp>> ASTOpSet;
 
 
+	typedef TFunction<Ptr<Image>(int32)> FReferencedResourceFunc;
+
     //! Detailed optimization flags
     struct FModelOptimizationOptions
     {
@@ -206,6 +208,9 @@ namespace mu
 
         //! Ratio used to decide if it is worth to generate a crop operation
         float MinRLECompressionGain = 1.2f;
+
+		//
+		FReferencedResourceFunc ReferencedResourceProvider;
     };
 
 

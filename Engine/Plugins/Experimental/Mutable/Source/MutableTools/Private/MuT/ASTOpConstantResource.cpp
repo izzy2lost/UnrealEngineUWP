@@ -451,8 +451,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v,
-		bool useDiskCache)
+	void ASTOpConstantResource::SetValue(const Ptr<const RefCounted>& v, bool useDiskCache)
 	{
 		switch (type)
 		{
