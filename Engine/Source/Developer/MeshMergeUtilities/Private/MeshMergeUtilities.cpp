@@ -87,6 +87,28 @@
 
 DEFINE_LOG_CATEGORY(LogMeshMerging);
 
+static TAutoConsoleVariable<int32> CVarMeshMergeUtilitiesUVGenerationMethod(
+	TEXT("MeshMergeUtilities.UVGenerationMethod"),
+	0,
+	TEXT("UV generation method when creating merged or proxy meshes\n"
+		 "0 - Engine default - (currently Patch Builder)\n"
+		 "1 - Legacy\n"
+		 "2 - UVAtlas\n"
+		 "3 - XAtlas\n"
+		 "4 - Patch Builder\n"));
+
+static FStaticMeshOperations::EGenerateUVMethod GetUVGenerationMethodToUse()
+{
+	switch (CVarMeshMergeUtilitiesUVGenerationMethod.GetValueOnAnyThread())
+	{
+	case 1:  return FStaticMeshOperations::EGenerateUVMethod::Legacy;
+	case 2:  return FStaticMeshOperations::EGenerateUVMethod::UVAtlas;
+	case 3:  return FStaticMeshOperations::EGenerateUVMethod::XAtlas;
+	case 4:  return FStaticMeshOperations::EGenerateUVMethod::PatchBuilder;
+	default: return FStaticMeshOperations::EGenerateUVMethod::Default;
+	}
+}
+
 FMeshMergeUtilities::FMeshMergeUtilities()
 {
 	Processor = new FProxyGenerationProcessor(this);
@@ -1109,10 +1131,15 @@ static TArray<FVector2D> GetCustomTextureCoordinates(const FMeshDescription& InM
 	}
 	else
 	{
-		bool bSuccess = FStaticMeshOperations::GenerateUniqueUVsForStaticMesh(InMeshDescription, InMeshProxySettings.MaterialSettings.TextureSize.GetMax(), false, CustomTextureCoordinates);
+		FStaticMeshOperations::FGenerateUVOptions GenerateUVOptions;
+		GenerateUVOptions.TextureResolution = InMeshProxySettings.MaterialSettings.TextureSize.GetMax();
+		GenerateUVOptions.bMergeTrianglesWithIdenticalAttributes = false;
+		GenerateUVOptions.UVMethod = GetUVGenerationMethodToUse();
+
+		bool bSuccess = FStaticMeshOperations::GenerateUV(InMeshDescription, GenerateUVOptions, CustomTextureCoordinates);
 		if (!bSuccess)
 		{
-			UE_LOG(LogMeshMerging, Warning, TEXT("GenerateUniqueUVsForStaticMesh: Failed to pack UVs for static mesh \"%s\" (num triangles = %d, texture resolution = %d)."), *InStaticMesh->GetName(), InMeshDescription.Triangles().Num(), InMeshProxySettings.MaterialSettings.TextureSize.GetMax());
+			UE_LOG(LogMeshMerging, Warning, TEXT("GenerateUV: Failed to pack UVs for static mesh \"%s\" (num triangles = %d, texture resolution = %d)."), *InStaticMesh->GetName(), InMeshDescription.Triangles().Num(), InMeshProxySettings.MaterialSettings.TextureSize.GetMax());
 			CustomTextureCoordinates.Empty();
 		}
 	}
@@ -2844,12 +2871,22 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 							{
 								// No job found yet, fire an async task
 								MeshLODsTextureCoordinates.Add(Tuple, Async(EAsyncExecution::Thread, [MeshDescription, MaterialOptions, this]()
+								{
+									FStaticMeshOperations::FGenerateUVOptions GenerateUVOptions;
+									GenerateUVOptions.TextureResolution = MaterialOptions->TextureSize.GetMax();
+									GenerateUVOptions.bMergeTrianglesWithIdenticalAttributes = false;
+									GenerateUVOptions.UVMethod = GetUVGenerationMethodToUse();
+
+									TArray<FVector2D> UniqueTextureCoordinates;
+									FStaticMeshOperations::GenerateUV(*MeshDescription, GenerateUVOptions, UniqueTextureCoordinates);
+
+									if (GenerateUVOptions.UVMethod == FStaticMeshOperations::EGenerateUVMethod::Legacy)
 									{
-										TArray<FVector2D> UniqueTextureCoordinates;
-										FStaticMeshOperations::GenerateUniqueUVsForStaticMesh(*MeshDescription, MaterialOptions->TextureSize.GetMax(), false, UniqueTextureCoordinates);
 										ScaleTextureCoordinatesToBox(FBox2D(FVector2D::ZeroVector, FVector2D(1, 1)), UniqueTextureCoordinates);
-										return UniqueTextureCoordinates;
-									}));
+									}
+
+									return UniqueTextureCoordinates;
+								}));
 							}
 							// Keep track of the fact that this mesh is waiting for the UV computation to finish
 							MeshDataAwaitingResults.Add(MeshDataIndex, Tuple);
@@ -2895,11 +2932,19 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 		CreateMergedRawMeshes(InDataTracker, RemapUVMergeSettings, InStaticMeshComponentsToMerge, InUniqueMaterials, InCollapsedMaterialMap, InOutputMaterialsMap, false, false, InMergedAssetPivot, MergedRawMeshes);
 
 		// Create texture coords for the merged mesh
+		FStaticMeshOperations::FGenerateUVOptions GenerateUVOptions;
+		GenerateUVOptions.TextureResolution = MaterialOptions->TextureSize.GetMax();
+		GenerateUVOptions.bMergeTrianglesWithIdenticalAttributes = true;
+		GenerateUVOptions.UVMethod = GetUVGenerationMethodToUse();
+
 		TArray<FVector2D> GlobalTextureCoordinates;
-		bool bSuccess = FStaticMeshOperations::GenerateUniqueUVsForStaticMesh(MergedRawMeshes[0], MaterialOptions->TextureSize.GetMax(), true, GlobalTextureCoordinates);
+		bool bSuccess = FStaticMeshOperations::GenerateUV(MergedRawMeshes[0], GenerateUVOptions, GlobalTextureCoordinates);
 		if (bSuccess)
 		{
-			ScaleTextureCoordinatesToBox(FBox2D(FVector2D::ZeroVector, FVector2D(1, 1)), GlobalTextureCoordinates);
+			if (GenerateUVOptions.UVMethod == FStaticMeshOperations::EGenerateUVMethod::Legacy)
+			{
+				ScaleTextureCoordinatesToBox(FBox2D(FVector2D::ZeroVector, FVector2D(1, 1)), GlobalTextureCoordinates);
+			}
 
 			// copy UVs back to the un-merged mesh's custom texture coords
 			// iterate the raw meshes in the same way as when we combined the mesh above in CreateMergedRawMeshes()
@@ -2935,7 +2980,7 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 		}
 		else
 		{
-			UE_LOG(LogMeshMerging, Warning, TEXT("GenerateUniqueUVsForStaticMesh: Failed to pack UVs for static mesh"));
+			UE_LOG(LogMeshMerging, Warning, TEXT("GenerateUV: Failed to pack UVs for static mesh"));
 		}
 	}
 

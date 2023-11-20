@@ -130,7 +130,32 @@ public:
 		const FOverlappingCorners& OverlappingCorners);
 
 	/** Create some UVs from the specified mesh description data. */
+	UE_DEPRECATED(5.4, "Please use GenerateUV() instead.")
 	static STATICMESHDESCRIPTION_API bool GenerateUniqueUVsForStaticMesh(const FMeshDescription& MeshDescription, int32 TextureResolution, bool bMergeIdenticalMaterials, TArray<FVector2D>& OutTexCoords);
+		
+	enum class EGenerateUVMethod
+	{
+		Default,
+		Legacy,
+		UVAtlas,
+		XAtlas,		
+		PatchBuilder
+	};
+
+	struct FGenerateUVOptions
+	{
+		// Expected texture resolution
+		int32 TextureResolution = 512;
+
+		// Wether to fold triangles sharing the same UVs & vertex colors in the generated UV mapping.
+		bool bMergeTrianglesWithIdenticalAttributes = false;
+
+		// Method to use when generating UVs
+		EGenerateUVMethod UVMethod = EGenerateUVMethod::Default;
+	};
+
+	/** Generate UV coordinates from the specified mesh description data. */
+	static STATICMESHDESCRIPTION_API bool GenerateUV(const FMeshDescription& MeshDescription, const FGenerateUVOptions& Options, TArray<FVector2D>& OutTexCoords);
 
 	/** Add a UV channel to the MeshDescription. */
 	static STATICMESHDESCRIPTION_API bool AddUVChannel(FMeshDescription& MeshDescription);

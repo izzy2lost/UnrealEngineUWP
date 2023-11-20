@@ -54,6 +54,10 @@ uint32 UHLODBuilderMeshSimplifySettings::GetCRC() const
 	uint32 MaterialBakingModuleCRC = Module.GetCRC();
 	Ar << MaterialBakingModuleCRC;
 
+	static const auto MeshMergeUtilitiesUVGenerationMethodCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("MeshMergeUtilities.UVGenerationMethod"));
+	int32 MeshMergeUtilitiesUVGenerationMethod = (MeshMergeUtilitiesUVGenerationMethodCVar != nullptr) ? MeshMergeUtilitiesUVGenerationMethodCVar->GetInt() : 0;
+	Ar << MeshMergeUtilitiesUVGenerationMethod;
+
 	uint32 Hash = Ar.GetCrc();
 
 	if (!HLODMaterial.IsNull())
