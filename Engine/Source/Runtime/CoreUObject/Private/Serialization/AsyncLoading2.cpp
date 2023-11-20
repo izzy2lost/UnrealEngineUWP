@@ -735,7 +735,7 @@ private:
 			Values[Index] = GUObjectArray.ObjectToIndex(Object);
 		}
 
-		void Remove(uint64 ExportHash)
+		bool Remove(uint64 ExportHash)
 		{
 			TArrayView<uint64> Keys = GetKeys();
 			int32 Index = Algo::LowerBound(Keys, ExportHash);
@@ -743,7 +743,10 @@ private:
 			{
 				TArrayView<int32> Values = GetValues();
 				Values[Index] = -1;
+				return true;
 			}
+
+			return false;
 		}
 
 		UObject* Find(uint64 ExportHash)
@@ -955,8 +958,10 @@ public:
 	{
 		check(!bIsMissing);
 		check(HasPackage());
-		bAreAllPublicExportsLoaded = false;
-		PublicExportMap.Remove(ExportHash);
+		if (PublicExportMap.Remove(ExportHash))
+		{
+			bAreAllPublicExportsLoaded = false;
+		}
 	}
 
 	UObject* GetPublicExport(uint64 ExportHash)
@@ -1418,14 +1423,24 @@ public:
 		}
 
 		FPublicExportKey* ExistingKey = ObjectIndexToPublicExport.Find(ObjectIndex);
-		if (ExistingKey && (*ExistingKey != Key))
+		if (ExistingKey && *ExistingKey != Key)
 		{
-			UE_LOG(LogStreaming, Fatal,
-				TEXT("FGlobalImportStore::StoreGlobalObject: The constructed public export object '%s' with index %d and id %s:0x%llX already exists in GlobalImportStore but with a different key %s:0x%llX."),
+			UE_LOG(LogStreaming, Log,
+				TEXT("FGlobalImportStore::StoreGlobalObject: The constructed public export object '%s' with index %d and id %s:0x%llX already exists in GlobalImportStore but with a different key %s:0x%llX.")
+				TEXT("The existing object will be replaced since it or its package was most likely renamed after it was loaded the first time."),
 				Object ? *Object->GetFullName() : TEXT("null"),
 				ObjectIndex,
 				*FormatPackageId(Key.GetPackageId()), Key.GetExportHash(),
 				*FormatPackageId(ExistingKey->GetPackageId()), ExistingKey->GetExportHash());
+
+			// Break the link with the old package now because otherwise, we wouldn't be able to remove the export
+			// during GC since the ObjectIndex can only be linked to a single package ref.
+			if (FLoadedPackageRef* ExistingPackageRef = FindPackageRef(ExistingKey->GetPackageId()))
+			{
+				ExistingPackageRef->RemovePublicExport(ExistingKey->GetExportHash());
+			}
+
+			ObjectIndexToPublicExport.Remove(ObjectIndex);
 		}
 
 		FLoadedPackageRef& PackageRef = FindPackageRefChecked(Key.GetPackageId());
@@ -5594,7 +5609,7 @@ bool FAsyncPackage2::ResolveLinkerLoadImports(FAsyncLoadingThreadState2& ThreadS
 		}
 	}
 
-	const int32 ImportCount = LinkerLoadState->Linker->ImportMap.Num();
+	const int32 ImportCount = HeaderData.ImportMap.Num();
 	while (LinkerLoadState->CreateImportIndex < ImportCount)
 	{
 		const int32 ImportIndex = LinkerLoadState->CreateImportIndex++;

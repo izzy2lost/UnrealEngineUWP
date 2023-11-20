@@ -18,6 +18,9 @@ public:
 	UPROPERTY()
 	TSoftObjectPtr<UObject> SoftReference;
 
+	UPROPERTY()
+	TObjectPtr<UObject> HardReference;
+
 	// Those delegates allow to easily change behavior between tests
 	using FOnPostLoadDelegate = TDelegate<void(UAsyncLoadingTests_Shared*), FDefaultTSDelegateUserPolicy>;
 	static FOnPostLoadDelegate OnPostLoad;
@@ -72,12 +75,15 @@ class FLoadingTestsScope
 {
 private:
 	FAutomationTestBase& AutomationTest;
+
+	TArray<FString>     PackageNames;
+	std::atomic<uint32> PackageIndex;
 public:
 	static constexpr const TCHAR* ObjectName = TEXT("TestObject");
-	static constexpr const TCHAR* PackagePath1 = TEXT("/Engine/TestRecursiveLoads_Package1");
-	static constexpr const TCHAR* ObjectPath1 = TEXT("/Engine/TestRecursiveLoads_Package1.TestObject");
-	static constexpr const TCHAR* PackagePath2 = TEXT("/Engine/TestRecursiveLoads_Package2");
-	static constexpr const TCHAR* ObjectPath2 = TEXT("/Engine/TestRecursiveLoads_Package2.TestObject");
+	static constexpr const TCHAR* PackagePath1 = TEXT("/Engine/LoadingTestsScope_Package1");
+	static constexpr const TCHAR* ObjectPath1 = TEXT("/Engine/LoadingTestsScope_Package1.TestObject");
+	static constexpr const TCHAR* PackagePath2 = TEXT("/Engine/LoadingTestsScope_Package2");
+	static constexpr const TCHAR* ObjectPath2 = TEXT("/Engine/LoadingTestsScope_Package2.TestObject");
 
 	UPackage* Package1 = nullptr;
 	UPackage* Package2 = nullptr;
@@ -85,13 +91,22 @@ public:
 	UAsyncLoadingTests_Shared* Object1 = nullptr;
 	UAsyncLoadingTests_Shared* Object2 = nullptr;
 
+	UPackage* CreatePackage()
+	{
+		FString PackageName = FString::Printf(TEXT("/Engine/LoadingTestsScope_Package%u"), ++PackageIndex);
+		UPackage* Package = ::CreatePackage(*PackageName);
+		PackageNames.Add(PackageName);
+		return Package;
+	}
+
 	void CreateObjects();
-	void MutateObjects();
-	void SaveObjects();
+	void DefaultMutateObjects();
+	void SavePackages();
 	void LoadObjects();
 	void CleanupObjects();
+	void GarbageCollect();
 
-	FLoadingTestsScope(FAutomationTestBase* InAutomationTest)
+	FLoadingTestsScope(FAutomationTestBase* InAutomationTest, TFunction<void (FLoadingTestsScope&)> InMutateObjects = nullptr)
 		: AutomationTest(*InAutomationTest)
 	{
 		// Just make sure the async loading queue is empty before beginning.
@@ -99,9 +114,18 @@ public:
 
 		CreateObjects();
 
-		MutateObjects();
+		if (InMutateObjects)
+		{
+			InMutateObjects(*this);
+		}
+		else
+		{
+			DefaultMutateObjects();
+		}
 
-		SaveObjects();
+		SavePackages();
+
+		GarbageCollect();
 	}
 
 	virtual ~FLoadingTestsScope()

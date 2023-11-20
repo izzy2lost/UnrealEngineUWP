@@ -15,49 +15,77 @@ UAsyncLoadingTests_Shared::FOnIsPostLoadThreadSafeDelegate UAsyncLoadingTests_Sh
 
 void FLoadingTestsScope::CreateObjects()
 {
-	Package1 = CreatePackage(PackagePath1);
+	Package1 = CreatePackage();
 	Object1 = NewObject<UAsyncLoadingTests_Shared>(Package1, ObjectName, RF_Public | RF_Standalone);
 
-	Package2 = CreatePackage(PackagePath2);
+	Package2 = CreatePackage();
 	Object2 = NewObject<UAsyncLoadingTests_Shared>(Package2, ObjectName, RF_Public | RF_Standalone);
 }
 
-void FLoadingTestsScope::MutateObjects()
+void FLoadingTestsScope::DefaultMutateObjects()
 {
 	// This is the soft reference that we want to test loading for
 	Object1->SoftReference = Object2;
 }
 
-void FLoadingTestsScope::SaveObjects()
+void FLoadingTestsScope::SavePackages()
 {
 	// To avoid an error on save, we need to mark the package as fully loaded.
-	Package1->MarkAsFullyLoaded();
-	Package2->MarkAsFullyLoaded();
+	for (const FString& PackageName : PackageNames)
+	{
+		if (UPackage* Package = FindObject<UPackage>(nullptr, *PackageName))
+		{
+			Package->MarkAsFullyLoaded();
+		}
+	}
 
 	// Save packages to disk.
-	check(UPackage::SavePackage(Package1, nullptr, *FPackageName::LongPackageNameToFilename(PackagePath1, FPackageName::GetAssetPackageExtension()), FSavePackageArgs()));
-	check(UPackage::SavePackage(Package2, nullptr, *FPackageName::LongPackageNameToFilename(PackagePath2, FPackageName::GetAssetPackageExtension()), FSavePackageArgs()));
+	for (const FString& PackageName : PackageNames)
+	{
+		if (UPackage* Package = FindObject<UPackage>(nullptr, *PackageName))
+		{
+			check(UPackage::SavePackage(Package, nullptr, *FPackageName::LongPackageNameToFilename(*PackageName, FPackageName::GetAssetPackageExtension()), FSavePackageArgs()));
+		}
+	}
+}
 
-	// Remove RF_Standalone from top level object.
-	Object1->ClearFlags(RF_Standalone);
-	Object2->ClearFlags(RF_Standalone);
+void FLoadingTestsScope::GarbageCollect()
+{
+	TArray<FString> ObjectPaths;
 
-	// Remove RF_Standalone from the UMetaData otherwise the package will not GC.
-	Package1->GetMetaData()->ClearFlags(RF_Standalone);
-	Package2->GetMetaData()->ClearFlags(RF_Standalone);
+	// Remove RF_Standalone from package and objects inside it.
+	for (const FString& PackageName : PackageNames)
+	{
+		if (UPackage* Package = FindObject<UPackage>(nullptr, *PackageName))
+		{
+			Package->GetMetaData()->ClearFlags(RF_Standalone);
+			ObjectPaths.Add(PackageName);
+
+			ForEachObjectWithPackage(Package,
+				[&ObjectPaths](UObject* Object)
+				{
+					ObjectPaths.Add(Object->GetPathName());
+					Object->ClearFlags(RF_Standalone);
+					return true;
+				}
+			);
+		}
+	}
+
+	// Make sure everything we gathered can be properly found
+	for (const FString& ObjectPath : ObjectPaths)
+	{
+		checkf(FindObject<UObject>(nullptr, *ObjectPath) != nullptr, TEXT("%s should be present in memory"), *ObjectPath);
+	}
 
 	// GC and make sure everything gets cleaned up before loading
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath1) != nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath1) != nullptr);
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath2) != nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath2) != nullptr);
-
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath1) == nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath1) == nullptr);
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath2) == nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath2) == nullptr);
+	// Now make sure everything is gone
+	for (const FString& ObjectPath : ObjectPaths)
+	{
+		checkf(FindObject<UObject>(nullptr, *ObjectPath) == nullptr, TEXT("%s should have been garbage collected"), *ObjectPath);
+	}
 }
 
 void FLoadingTestsScope::LoadObjects()
@@ -74,38 +102,7 @@ void FLoadingTestsScope::LoadObjects()
 
 void FLoadingTestsScope::CleanupObjects()
 {
-	// GC and make sure everything gets cleaned up before exiting
-	Object1 = FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath1);
-	Object2 = FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath2);
-	
-	if (Object1)
-	{
-		Object1->ClearFlags(RF_Standalone);
-	}
-	if (Object2)
-	{
-		Object2->ClearFlags(RF_Standalone);
-	}
-
-	Package1 = FindObject<UPackage>(nullptr, PackagePath1);
-	Package2 = FindObject<UPackage>(nullptr, PackagePath2);
-
-	if (Package1)
-	{
-		Package1->GetMetaData()->ClearFlags(RF_Standalone);
-	}
-	
-	if (Package2)
-	{
-		Package2->GetMetaData()->ClearFlags(RF_Standalone);
-	}
-
-	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
-
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath1) == nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath1) == nullptr);
-	check(FindObject<UAsyncLoadingTests_Shared>(nullptr, ObjectPath2) == nullptr);
-	check(FindObject<UPackage>(nullptr, PackagePath2) == nullptr);
+	GarbageCollect();
 
 	UAsyncLoadingTests_Shared::OnPostLoad.Unbind();
 	UAsyncLoadingTests_Shared::OnSerialize.Unbind();
