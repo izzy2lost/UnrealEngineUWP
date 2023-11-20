@@ -242,7 +242,6 @@ public:
 		}
 
 		const uint32 AutoBindingSpace = GetAutoBindingSpace(Input.Target);
-		if (AutoBindingSpace != ~0u)
 		{
 			ExtraArguments.Add(TEXT("-auto-binding-space"));
 			ExtraArguments.Add(FString::Printf(TEXT("%d"), AutoBindingSpace));
