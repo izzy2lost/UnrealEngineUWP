@@ -110,6 +110,9 @@ public:
 	/** Gets the icon that represents this query class in the UI. */
 	virtual const FSlateIcon& GetIcon() const;
 
+	/** Gets the display name for this query class as shown in the UI. */
+	virtual const FText& GetDisplayName() const;
+
 #if WITH_EDITOR
 	/**
 	 * Gets the widgets that should be displayed for this query. If no custom widgets are specified (returning an empty array), the default
@@ -151,7 +154,7 @@ private:
 };
 
 /** Query type which filters actors via an explicit actor list. */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Actor Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_Actor final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -159,6 +162,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_Actor final : p
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
@@ -187,7 +191,7 @@ private:
 };
 
 /** Query type which filters actors via tags on actors. */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Actor Tag Name Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorTagName final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -195,6 +199,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorTagName fi
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
@@ -219,7 +224,7 @@ public:
 };
 
 /** Query type which filters actors via their name (label). */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Actor Name Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorName final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -227,6 +232,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorName final
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
@@ -253,7 +259,7 @@ public:
 };
 
 /** Query type which filters actors by type. */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Actor Type Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorType final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -261,6 +267,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorType final
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
@@ -282,7 +289,7 @@ private:
 };
 
 /** Query type which filters actors by tags on their components. */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Component Tag Name Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentTagName final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -290,6 +297,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentTagNam
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
@@ -314,7 +322,7 @@ public:
 };
 
 /** Query type which filters actors via the components contained in them. */
-UCLASS(BlueprintType, meta = (DisplayName = "Movie Graph Component Type Query"))
+UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentType final : public UMovieGraphConditionGroupQueryBase
 {
 	GENERATED_BODY()
@@ -322,6 +330,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentType f
 public:
 	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;

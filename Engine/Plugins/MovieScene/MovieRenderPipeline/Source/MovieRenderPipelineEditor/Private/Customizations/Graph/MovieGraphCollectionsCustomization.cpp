@@ -534,7 +534,16 @@ TSharedRef<SWidget> SMovieGraphCollectionTreeQueryTypeSelectorWidget::GetQueryTy
 	else
 	{
 		SAssignNew(QueryTypeTextBlock, STextBlock)
-		.Text(InTypeClass->GetDisplayNameText())
+		.Text_Lambda([InTypeClass]()
+		{
+			if (const UMovieGraphConditionGroupQueryBase* Query = Cast<UMovieGraphConditionGroupQueryBase>(InTypeClass->GetDefaultObject()))
+			{
+				return Query->GetDisplayName();
+			}
+
+			// Show the UClass display name as a backup
+			return InTypeClass->GetDisplayNameText();
+		})
 		.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")));
 	}
 
@@ -568,7 +577,9 @@ FText SMovieGraphCollectionTreeQueryTypeSelectorWidget::GetCurrentQueryTypeDispl
 	{
 		if (const UClass* CurrentQueryType = GetCurrentQueryType())
 		{
-			return CurrentQueryType->GetDisplayNameText();
+			check(CurrentQueryType->IsChildOf(UMovieGraphConditionGroupQueryBase::StaticClass()));
+			
+			return Cast<UMovieGraphConditionGroupQueryBase>(CurrentQueryType->GetDefaultObject())->GetDisplayName();
 		}
 	}
 		

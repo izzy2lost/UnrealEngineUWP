@@ -427,6 +427,12 @@ const FSlateIcon& UMovieGraphConditionGroupQueryBase::GetIcon() const
 	return EmptyIcon;
 }
 
+const FText& UMovieGraphConditionGroupQueryBase::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName", "Query Base");
+	return DisplayName;
+}
+
 #if WITH_EDITOR
 TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQueryBase::GetWidgets()
 {
@@ -484,6 +490,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_Actor::GetIcon() const
 {
 	static const FSlateIcon ActorIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Actor");
 	return ActorIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_Actor::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_Actor", "Actor");
+	return DisplayName;
 }
 
 #if WITH_EDITOR
@@ -635,6 +647,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ActorTagName::GetIcon() const
 	return ActorTagIcon;
 }
 
+const FText& UMovieGraphConditionGroupQuery_ActorTagName::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ActorTagName", "Actor Tag Name");
+	return DisplayName;
+}
+
 #if WITH_EDITOR
 TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorTagName::GetWidgets()
 {
@@ -691,6 +709,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ActorName::GetIcon() const
 	return ActorTagIcon;
 }
 
+const FText& UMovieGraphConditionGroupQuery_ActorName::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ActorName", "Actor Name");
+	return DisplayName;
+}
+
 #if WITH_EDITOR
 TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorName::GetWidgets()
 {
@@ -735,6 +759,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ActorType::GetIcon() const
 {
 	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.ActorComponent");
 	return ActorTagIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_ActorType::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ActorType", "Actor Type");
+	return DisplayName;
 }
 
 #if WITH_EDITOR
@@ -867,6 +897,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentTagName::GetIcon() con
 	return ActorTagIcon;
 }
 
+const FText& UMovieGraphConditionGroupQuery_ComponentTagName::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ComponentTagName", "Component Tag Name");
+	return DisplayName;
+}
+
 #if WITH_EDITOR
 TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentTagName::GetWidgets()
 {
@@ -914,6 +950,12 @@ const FSlateIcon& UMovieGraphConditionGroupQuery_ComponentType::GetIcon() const
 {
 	static const FSlateIcon ActorTagIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.ActorComponent");
 	return ActorTagIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_ComponentType::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_ComponentType", "Component Type");
+	return DisplayName;
 }
 
 #if WITH_EDITOR
