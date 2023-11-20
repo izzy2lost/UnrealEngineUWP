@@ -50,7 +50,7 @@ public:
 	void ClearSelection() const;
 
 	/** Deletes the member(s) which are currently selected from the graph and the UI. */
-	void DeleteSelectedMembers() const;
+	void DeleteSelectedMembers();
 
 	/** Determines if all selected member(s) can be deleted. */
 	bool CanDeleteSelectedMembers() const;
@@ -100,6 +100,9 @@ private:
 	
 	/** Delegate to call when an action is selected */
 	FOnActionSelected OnActionSelected;
+
+	/** Handles to delegates handling member changes. */
+	TMap<TWeakObjectPtr<UMovieGraphMember>, FDelegateHandle> MemberChangedHandles;
 };
 
 /* Drag-and-drop action which handles variable members. */
