@@ -213,6 +213,9 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	/**
 	 */
 	ENGINE_API bool IsValidId(FPrimitiveInstanceId InstanceId);
+	
+	/** Fetches current instance index for a given InstanceId */
+	FORCEINLINE int32 GetInstanceIndexForId(FPrimitiveInstanceId InstanceId) const { return PrimitiveInstanceDataManager.IdToIndex(InstanceId); }
 
 	ENGINE_API void SetHasPerInstancePrevTransforms(bool bInHasPreviousTransforms);
 
