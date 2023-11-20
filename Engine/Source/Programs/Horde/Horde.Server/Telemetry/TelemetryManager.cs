@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using Horde.Server.Telemetry.Sinks;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Horde.Server.Telemetry
 {
@@ -74,9 +75,24 @@ namespace Horde.Server.Telemetry
 					}
 					catch (Exception e)
 					{
-						_logger.LogError(e, "Failed sending event to {Sink}. Message: {Message}", fullName, e.Message);
+						_logger.LogError(e, "Failed sending event to {Sink}. Message: {Message}. Event: {Event}", fullName, e.Message, GetEventText(telemetryEvent));
 					}
 				}
+			}
+		}
+
+		static string GetEventText(TelemetryEvent telemetryEvent)
+		{
+			try
+			{
+				JsonSerializerOptions options = new JsonSerializerOptions();
+				Startup.ConfigureJsonSerializer(options);
+
+				return JsonSerializer.Serialize(telemetryEvent, options);
+			}
+			catch
+			{
+				return "(Unable to serialize)";
 			}
 		}
 
