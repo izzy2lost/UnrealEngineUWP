@@ -87,7 +87,7 @@ protected:
 	}
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_WithSource, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.WithSource", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_WithSource, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.WithSource", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_WithSource::RunTest(const FString& Parameters)
 {
@@ -105,7 +105,7 @@ bool FPCGDuplicatePointTest_WithSource::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(SourceParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_WithoutSource, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.WithoutSource", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_WithoutSource, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.WithoutSource", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_WithoutSource::RunTest(const FString& Parameters)
 {
@@ -123,7 +123,7 @@ bool FPCGDuplicatePointTest_WithoutSource::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(NoSourceParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionX, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionX, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionX", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionX::RunTest(const FString& Parameters)
 {
@@ -141,7 +141,7 @@ bool FPCGDuplicatePointTest_DirectionX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(XParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegX, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionNegX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegX, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionNegX", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionNegX::RunTest(const FString& Parameters)
 {
@@ -159,7 +159,7 @@ bool FPCGDuplicatePointTest_DirectionNegX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(NegXParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionY, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionY, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionY", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionY::RunTest(const FString& Parameters)
 {
@@ -177,7 +177,7 @@ bool FPCGDuplicatePointTest_DirectionY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(YParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegY, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionNegY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegY, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionNegY", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionNegY::RunTest(const FString& Parameters)
 {
@@ -195,7 +195,7 @@ bool FPCGDuplicatePointTest_DirectionNegY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(NegYParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionZ, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionZ, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionZ", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionZ::RunTest(const FString& Parameters)
 {
@@ -213,7 +213,7 @@ bool FPCGDuplicatePointTest_DirectionZ::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(ZParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegZ, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.DirectionNegZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_DirectionNegZ, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.DirectionNegZ", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_DirectionNegZ::RunTest(const FString& Parameters)
 {
@@ -231,7 +231,7 @@ bool FPCGDuplicatePointTest_DirectionNegZ::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(NegZParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_ScaleOne, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.ScaleOne", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_ScaleOne, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.ScaleOne", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_ScaleOne::RunTest(const FString& Parameters)
 {
@@ -249,7 +249,7 @@ bool FPCGDuplicatePointTest_ScaleOne::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(ScaleParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_ScaleNegative, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.ScaleNegative", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_ScaleNegative, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.ScaleNegative", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_ScaleNegative::RunTest(const FString& Parameters)
 {
@@ -267,7 +267,7 @@ bool FPCGDuplicatePointTest_ScaleNegative::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(NegScaleParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_Rotation, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.Rotation", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_Rotation, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.Rotation", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_Rotation::RunTest(const FString& Parameters)
 {
@@ -285,7 +285,7 @@ bool FPCGDuplicatePointTest_Rotation::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(RotationParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationX, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.LocationX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationX, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.LocationX", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_LocationX::RunTest(const FString& Parameters)
 {
@@ -303,7 +303,7 @@ bool FPCGDuplicatePointTest_LocationX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(LocationXParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationY, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.LocationY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationY, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.LocationY", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_LocationY::RunTest(const FString& Parameters)
 {
@@ -321,7 +321,7 @@ bool FPCGDuplicatePointTest_LocationY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(LocationYParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationZ, DuplicatePointTestBase, "pcg.tests.DuplicatePoint.LocationZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGDuplicatePointTest_LocationZ, DuplicatePointTestBase, "Plugins.PCG.DuplicatePoint.LocationZ", PCGTestsCommon::TestFlags)
 
 bool FPCGDuplicatePointTest_LocationZ::RunTest(const FString& Parameters)
 {

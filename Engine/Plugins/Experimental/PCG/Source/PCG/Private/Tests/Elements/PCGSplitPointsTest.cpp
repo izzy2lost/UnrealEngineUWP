@@ -76,7 +76,7 @@ protected:
 	}
 };
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultX, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.DefaultX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultX, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.DefaultX", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_DefaultX::RunTest(const FString& Parameters)
 {
@@ -92,7 +92,7 @@ bool FPCGSplitPointsTest_DefaultX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(DefaultXParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultY, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.DefaultY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultY, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.DefaultY", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_DefaultY::RunTest(const FString& Parameters)
 {
@@ -108,7 +108,7 @@ bool FPCGSplitPointsTest_DefaultY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(DefaultYParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultZ, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.DefaultZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_DefaultZ, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.DefaultZ", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_DefaultZ::RunTest(const FString& Parameters)
 {
@@ -124,7 +124,7 @@ bool FPCGSplitPointsTest_DefaultZ::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(DefaultZParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroX, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.ZeroX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroX, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.ZeroX", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_ZeroX::RunTest(const FString& Parameters)
 {
@@ -140,7 +140,7 @@ bool FPCGSplitPointsTest_ZeroX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(ZeroXParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroY, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.ZeroY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroY, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.ZeroY", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_ZeroY::RunTest(const FString& Parameters)
 {
@@ -156,7 +156,7 @@ bool FPCGSplitPointsTest_ZeroY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(ZeroYParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroZ, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.ZeroZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_ZeroZ, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.ZeroZ", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_ZeroZ::RunTest(const FString& Parameters)
 {
@@ -172,7 +172,7 @@ bool FPCGSplitPointsTest_ZeroZ::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(ZeroZParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneX, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.OneX", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneX, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.OneX", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_OneX::RunTest(const FString& Parameters)
 {
@@ -188,7 +188,7 @@ bool FPCGSplitPointsTest_OneX::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(OneXParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneY, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.OneY", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneY, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.OneY", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_OneY::RunTest(const FString& Parameters)
 {
@@ -204,7 +204,7 @@ bool FPCGSplitPointsTest_OneY::RunTest(const FString& Parameters)
 	return GenerateTestDataRunAndValidate(OneYParameters);
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneZ, FPCGSplitPointTestBase, "pcg.tests.SplitPoints.OneZ", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGSplitPointsTest_OneZ, FPCGSplitPointTestBase, "Plugins.PCG.SplitPoints.OneZ", PCGTestsCommon::TestFlags)
 
 bool FPCGSplitPointsTest_OneZ::RunTest(const FString& Parameters)
 {
