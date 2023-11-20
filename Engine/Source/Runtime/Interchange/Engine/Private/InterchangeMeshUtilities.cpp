@@ -94,12 +94,17 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLodAsync(TSharedPtr
 	USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(MeshObject);
 	UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshObject);
 	EInterchangePipelineContext ImportType = EInterchangePipelineContext::AssetCustomLODImport;
+	bool bInvalidLodIndex = false;
 	if (SkeletalMesh)
 	{
 		InterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
 		if (SkeletalMesh->GetLODNum() > LodIndex && InterchangeAssetImportData)
 		{
 			ImportType = EInterchangePipelineContext::AssetCustomLODReimport;
+		}
+		if (LodIndex > SkeletalMesh->GetLODNum())
+		{
+			bInvalidLodIndex = true;
 		}
 	}
 	else if (StaticMesh)
@@ -109,10 +114,21 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLodAsync(TSharedPtr
 		{
 			ImportType = EInterchangePipelineContext::AssetCustomLODReimport;
 		}
+		if (LodIndex > StaticMesh->GetNumSourceModels())
+		{
+			bInvalidLodIndex = true;
+		}
 	}
 	else
 	{
 		//We support Import custom LOD only for skeletalmesh and staticmesh
+		Promise->SetValue(false);
+		return Promise->GetFuture();
+	}
+
+	if (bInvalidLodIndex)
+	{
+		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::InternalImportCustomLodAsync: Invalid mesh LOD index %d, no prior LOD index exists."), LodIndex);
 		Promise->SetValue(false);
 		return Promise->GetFuture();
 	}

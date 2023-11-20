@@ -51,6 +51,11 @@ namespace FbxMeshUtils
 {
 	namespace Private
 	{
+		void ShowFailedToImportLodDialog(int32 LodIndex)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("LODImport_Failure", "Failed to import LOD{0}"), FText::AsNumber(LodIndex)));
+		}
+
 		void SetupFbxImportOptions(const UStaticMesh* BaseStaticMesh, UnFbx::FBXImportOptions* ImportOptions)
 		{
 			check(BaseStaticMesh);
@@ -895,30 +900,55 @@ namespace FbxMeshUtils
 
 		FString FilenameToImport("");
 		UInterchangeAssetImportData* SelectedInterchangeAssetImportData = nullptr;
+
+		//Make sure the LODLevel is valid, it should not be more then one over the existing lod count
+		bool bInvalidLodIndex = false;
 		if (SkeletalMesh)
 		{
-			if (!bReimportWithNewFile && SkeletalMesh->IsValidLODIndex(LODLevel))
+			if (LODLevel > SkeletalMesh->GetLODNum())
 			{
-				FilenameToImport = SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename.IsEmpty() ?
-					SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename :
-					UAssetImportData::ResolveImportFilename(SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename, nullptr);
+				bInvalidLodIndex = true;
 			}
-			SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
+			else
+			{
+				if (!bReimportWithNewFile && SkeletalMesh->IsValidLODIndex(LODLevel))
+				{
+					FilenameToImport = SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename.IsEmpty() ?
+						SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename :
+						UAssetImportData::ResolveImportFilename(SkeletalMesh->GetLODInfo(LODLevel)->SourceImportFilename, nullptr);
+				}
+				SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
+			}
 		}
 		else if (StaticMesh)
 		{
-			if (!bReimportWithNewFile && StaticMesh->IsSourceModelValid(LODLevel))
+			if (LODLevel > StaticMesh->GetNumSourceModels())
 			{
-				const FStaticMeshSourceModel& SourceModel = StaticMesh->GetSourceModel(LODLevel);
-				FilenameToImport = SourceModel.SourceImportFilename.IsEmpty() ?
-					SourceModel.SourceImportFilename :
-					UAssetImportData::ResolveImportFilename(SourceModel.SourceImportFilename, nullptr);
+				bInvalidLodIndex = true;
 			}
-			SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(StaticMesh->GetAssetImportData());
+			else
+			{
+				if (!bReimportWithNewFile && StaticMesh->IsSourceModelValid(LODLevel))
+				{
+					const FStaticMeshSourceModel& SourceModel = StaticMesh->GetSourceModel(LODLevel);
+					FilenameToImport = SourceModel.SourceImportFilename.IsEmpty() ?
+						SourceModel.SourceImportFilename :
+						UAssetImportData::ResolveImportFilename(SourceModel.SourceImportFilename, nullptr);
+				}
+				SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(StaticMesh->GetAssetImportData());
+			}
 		}
 		else
 		{
 			//We support only staticmesh and skeletalmesh asset for LOD import
+			return false;
+		}
+
+
+		if (bInvalidLodIndex)
+		{
+			UE_LOG(LogExportMeshUtils, Warning, TEXT("ImportMeshLODDialog: Invalid mesh LOD index %d, no prior LOD index exists."), LODLevel);
+			FbxMeshUtils::Private::ShowFailedToImportLodDialog(LODLevel);
 			return false;
 		}
 
@@ -945,6 +975,10 @@ namespace FbxMeshUtils
 							{
 								GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostLODImport(StaticMesh, LODLevel);
 							}
+						}
+						else
+						{
+							FbxMeshUtils::Private::ShowFailedToImportLodDialog(LODLevel);
 						}
 					});
 			};
@@ -1016,7 +1050,7 @@ namespace FbxMeshUtils
 		if(!bImportSuccess && !FilenameToImport.IsEmpty())
 		{
 			// Failed to import a LOD, even after retries (if applicable)
-			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("LODImport_Failure", "Failed to import LOD{0}"), FText::AsNumber(LODLevel)));
+			FbxMeshUtils::Private::ShowFailedToImportLodDialog(LODLevel);
 		}
 
 		if (bImportSuccess && bNotifyCB)
