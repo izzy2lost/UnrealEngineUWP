@@ -78,7 +78,6 @@ struct OPTIMUSCORE_API FOptimusDataDomain
 	UPROPERTY(EditAnywhere, Category = DataDomain, meta=(ClampMin=1, UIMax=8, SupportDynamicSliderMaxValue="true", EditCondition="DomainType==EOptimusDataDomainType::Dimensional"))
 	int32 Multiplier = 1;
 
-	//  
 	UPROPERTY(EditAnywhere, Category = DataDomain, meta=(EditCondition="DomainType==EOptimusDataDomainType::Expression"))
 	FString Expression;
 
@@ -140,6 +139,8 @@ struct OPTIMUSCORE_API FOptimusDataDomain
 	void BackCompFixupLevels();
 
 	TOptional<FString> AsExpression() const;
+
+	TSet<FName> GetUsedConstants() const;
 
 	FString GetDisplayName() const;
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "IOptimusComputeKernelDataInterface.h"
-#include "IOptimusDeformerInstanceAccessor.h"
+#include "OptimusComponentSource.h"
 #include "OptimusComputeDataInterface.h"
 #include "OptimusConstant.h"
 #include "OptimusDataType.h"
@@ -37,26 +37,24 @@ public:
 	//~ End UComputeDataInterface Interface
 
 	//~ Begin IOptimusComputeKernelDataInterface Interface
-	void SetExecutionDomainConstant(const FOptimusConstantIdentifier& InExecutionDomainConstantIdentifier) override;
+	void SetExecutionDomain(const FString& InExecutionDomain) override;
+	void SetComponentBinding(const UOptimusComponentSourceBinding* InBinding) override;
 	//~ End IOptimusComputeKernelDataInterface Interface
 	
 	UPROPERTY()
-	TWeakObjectPtr<const UOptimusComponentSourceBinding> ComponentSourceBinding_DEPRECATED;
+	TWeakObjectPtr<const UOptimusComponentSourceBinding> ComponentSourceBinding;
 	
 	UPROPERTY()
-	FString NumThreadsExpression_DEPRECATED;
+	FString NumThreadsExpression;
 
 	UPROPERTY()
-	FOptimusConstantIdentifier ExecutionDomainConstantIdentifier;
-
-protected:
+	FOptimusConstantIdentifier ExecutionDomainConstantIdentifier_DEPRECATED;
 };
 
 /** Compute Framework Data Provider for each custom compute kernel. */
 UCLASS()
 class UOptimusCustomComputeKernelDataProvider :
-	public UComputeDataProvider,
-	public IOptimusDeformerInstanceAccessor
+	public UComputeDataProvider
 {
 	GENERATED_BODY()
 
@@ -67,11 +65,6 @@ public:
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
 
-	//~ Begin IOptimusDeformerInstanceAccessor Interface
-	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
-	UOptimusDeformerInstance* GetDeformerInstance() const override;
-	//~ End IOptimusDeformerInstanceAccessor Interface
-	
 	TWeakObjectPtr<const UActorComponent> WeakComponent = nullptr;
 
 	TWeakObjectPtr<const UOptimusCustomComputeKernelDataInterface> WeakDataInterface = nullptr;
@@ -81,16 +74,6 @@ protected:
 		TArray<int32>& OutInvocationThreadCount,
 		int32& OutTotalThreadCount
 		) const;
-	
-	bool GetInvocationThreadCounts_DEPRECATED(
-		TArray<int32>& OutInvocationThreadCount,
-		int32& OutTotalThreadCount
-		) const;
-
-		
-private:
-	UPROPERTY()
-	TObjectPtr<UOptimusDeformerInstance> DeformerInstance = nullptr;
 };
 
 class FOptimusCustomComputeKernelDataProviderProxy : public FComputeDataProviderRenderProxy

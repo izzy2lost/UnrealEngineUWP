@@ -12,6 +12,7 @@
 #include "OptimusNodeGraph.h"
 #include "OptimusNodePin.h"
 #include "IOptimusNodeAdderPinProvider.h"
+#include "IOptimusUnnamedNodePinProvider.h"
 
 #include "EdGraphSchema_K2.h"
 #include "Editor.h"
@@ -159,6 +160,17 @@ void UOptimusEditorGraphSchema::GetGraphActions(
 
 		Action->DataInterfaceClass = Class;
 
+		IoActionBuilder.AddAction(Action);
+	}
+
+	{
+		TSharedPtr< FOptimusSchemaAction_NewLoopTerminalNodes> Action(
+			new FOptimusSchemaAction_NewLoopTerminalNodes(
+				{},
+				FText::FromName(TEXT("Loop")),
+				/* Tooltip */{}, 0, /* Keywords */{}
+		));
+		
 		IoActionBuilder.AddAction(Action);
 	}
 	
@@ -462,6 +474,22 @@ FLinearColor UOptimusEditorGraphSchema::GetColorFromPinType(const FEdGraphPinTyp
 	}
 
 	return GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(InPinType);
+}
+
+FText UOptimusEditorGraphSchema::GetPinDisplayName(const UEdGraphPin* Pin) const
+{
+	if (UOptimusNodePin* ModelPin = OptimusEditor::GetModelPinFromGraphPin(Pin))
+	{
+		if (const IOptimusUnnamedNodePinProvider* UnnamedNodePinProvider = Cast<const IOptimusUnnamedNodePinProvider>(ModelPin->GetOwningNode()))
+		{
+			if (UnnamedNodePinProvider->IsPinNameHidden(ModelPin))
+			{
+				return FText::GetEmpty();
+			}
+		}
+	}
+	
+	return Super::GetPinDisplayName(Pin);
 }
 
 

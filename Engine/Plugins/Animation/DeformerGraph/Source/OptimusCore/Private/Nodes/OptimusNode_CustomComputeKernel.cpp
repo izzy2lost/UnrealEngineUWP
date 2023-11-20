@@ -16,6 +16,7 @@
 #include "ComponentSources/OptimusSkinnedMeshComponentSource.h"
 #include "DataInterfaces/OptimusDataInterfaceCustomComputeKernel.h"
 #include "IOptimusDeprecatedExecutionDataInterface.h"
+#include "IOptimusUnnamedNodePinProvider.h"
 #include "OptimusNode_ResourceAccessorBase.h"
 #include "Engine/UserDefinedStruct.h"
 
@@ -435,7 +436,8 @@ TArray<IOptimusNodeAdderPinProvider::FAdderPinAction> UOptimusNode_CustomCompute
 
 TArray<UOptimusNodePin*> UOptimusNode_CustomComputeKernel::TryAddPinFromPin(
 	const FAdderPinAction& InSelectedAction,
-	UOptimusNodePin* InSourcePin
+	UOptimusNodePin* InSourcePin,
+	FName InNameToUse
 	)
 {
 	TArray<UOptimusNodePin*> AddedPins;
@@ -526,7 +528,7 @@ TArray<UOptimusNodePin*> UOptimusNode_CustomComputeKernel::TryAddPinFromPin(
 	}
 	
 	FOptimusParameterBinding Binding;
-	Binding.Name = GetSanitizedNewPinName(ParentPin, InSourcePin->GetFName());
+	Binding.Name = GetSanitizedNewPinName(ParentPin, InNameToUse);
 	Binding.DataType = {InSourcePin->GetDataType()};
 	Binding.DataDomain = InSourcePin->GetDataDomain();
 	
@@ -627,13 +629,13 @@ FName UOptimusNode_CustomComputeKernel::GetSanitizedNewPinName(
 	
 	if (InParentPin && InParentPin != PrimaryGroupPin)
 	{
-		NewName = Optimus::GetUniqueNameForScope(InParentPin, NewName);
+		NewName = GetAvailablePinNameStable(InParentPin, NewName);
 	}
 	else
 	{
 		// Primary Input and Output need to name check against node scope as well as primary group pin scope
-		NewName = Optimus::GetUniqueNameForScope(this, NewName);
-		NewName = Optimus::GetUniqueNameForScope(PrimaryGroupPin, NewName);
+		NewName = GetAvailablePinNameStable(this, NewName);
+		NewName = GetAvailablePinNameStable(PrimaryGroupPin, NewName);
 	}
 
 
@@ -1354,41 +1356,75 @@ void UOptimusNode_CustomComputeKernel::PropertyArrayItemMoved(
 		TFunction<bool(const UOptimusNodePin *)> InPinPredicate
 		)
 	{
-		int32 BindingIndex = 0;
+		FName NameToMove = NAME_None;
 		
 		// Find the first entry that's different. That's an element we can consider moved. Since array move only
 		// deals with a single item moving either forward or backward.
-		for (const UOptimusNodePin* Pin: InPins)
 		{
-			if (InPinPredicate(Pin))
+			int32 DivergeIndex = INDEX_NONE;
+			FName PinNameAtDiverge = NAME_None;
+			FName BindingNameAtDiverge = NAME_None;
+			
+			int32 BindingIndex = 0;
+			for (const UOptimusNodePin* Pin: InPins)
 			{
-				if (Pin->GetFName() != BindingNameArray[BindingIndex])
+				if (InPinPredicate(Pin))
 				{
-					break;
-				}
-				
-				BindingIndex++;
-				
-				if (BindingIndex == BindingNameArray.Num())
-				{
-					// Nothing got moved.
-					return;
+					if (Pin->GetFName() != BindingNameArray[BindingIndex] && DivergeIndex == INDEX_NONE)
+					{
+						DivergeIndex = BindingIndex;
+						PinNameAtDiverge = Pin->GetFName();
+						BindingNameAtDiverge = BindingNameArray[BindingIndex];
+						BindingIndex++;
+						continue;
+					}
+
+					if (DivergeIndex != INDEX_NONE)
+					{
+						if (BindingNameAtDiverge == Pin->GetFName())
+						{
+							NameToMove = PinNameAtDiverge;
+						}
+						else if (ensure(BindingNameArray[BindingIndex] == PinNameAtDiverge))
+						{
+							NameToMove = BindingNameAtDiverge;
+						}
+
+						break;
+					}
+					
+					BindingIndex++;
+					
+					
+					if (BindingIndex == BindingNameArray.Num())
+					{
+						// Nothing got moved.
+						return;
+					}
 				}
 			}
 		}
 
-		UOptimusNodePin* MovedPin = *InPins.FindByPredicate([Name=BindingNameArray[BindingIndex]](const UOptimusNodePin* InPin)
+		UOptimusNodePin* MovedPin = *InPins.FindByPredicate([NameToMove](const UOptimusNodePin* InPin)
 		{
-			return InPin->GetFName() == Name;
+			return InPin->GetFName() == NameToMove;
 		});
 
-		const UOptimusNodePin* NextPin = nullptr;
-		const FName NextPinName = (BindingIndex < (BindingNameArray.Num() - 1)) ? BindingNameArray[BindingIndex + 1] : NAME_None;
-		if (!NextPinName.IsNone())
+		int32 NameIndex = BindingNameArray.IndexOfByPredicate([NameToMove](FName InBindingName)
 		{
-			NextPin = *InPins.FindByPredicate([NextPinName](const UOptimusNodePin* InPin)
+			return InBindingName == NameToMove;
+		});
+
+		const int32 NextNameIndex = NameIndex + 1;
+
+		const FName NextName = BindingNameArray.IsValidIndex(NextNameIndex) ? BindingNameArray[NextNameIndex] : NAME_None;
+
+		const UOptimusNodePin* NextPin = nullptr;
+		if (!NextName.IsNone())
+		{
+			NextPin = *InPins.FindByPredicate([NextName](const UOptimusNodePin* InPin)
 			{
-				return InPin->GetFName() == NextPinName;
+				return InPin->GetFName() == NextName;
 			});
 		}
 

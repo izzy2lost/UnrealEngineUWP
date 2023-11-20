@@ -11,6 +11,9 @@
 
 #include "OptimusNodeGraph.generated.h"
 
+class IOptimusNodePairProvider;
+class IOptimusComputeKernelProvider;
+class UOptimusNode_LoopTerminal;
 class UOptimusComponentSourceBinding;
 struct FOptimusCompoundAction;
 struct FOptimusPinTraversalContext;
@@ -21,6 +24,7 @@ class UOptimusComputeDataInterface;
 class IOptimusNodeGraphCollectionOwner;
 class UOptimusActionStack;
 class UOptimusNode;
+class UOptimusNodePair;
 class UOptimusNodeGraph;
 class UOptimusNodeLink;
 class UOptimusNodePin;
@@ -82,6 +86,8 @@ public:
 		const FString& InGraphName,
 		FText* OutFailureReason = nullptr
 		);
+
+	static FString ConstructPath(const FString& GraphPath, const FString& NodeName, const FString& PinPath);
 	
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	EOptimusNodeGraphType GetGraphType() const { return GraphType; }
@@ -125,6 +131,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	UOptimusNode* AddDataInterfaceNode(
 		const TSubclassOf<UOptimusComputeDataInterface> InDataInterfaceClass,
+		const FVector2D& InPosition
+	);
+
+	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
+	TArray<UOptimusNode*> AddLoopTerminalNodes(
 		const FVector2D& InPosition
 	);
 
@@ -263,6 +274,14 @@ public:
 	  */
 	UFUNCTION(BlueprintCallable, Category = OptimusNodeGraph)
 	bool IsSubGraphReference(UOptimusNode *InNode) const;
+
+	/** Returns the node pair given a IOptimusNodePairProvider
+	  */
+	UOptimusNodePair* GetNodePair(const UOptimusNode* InNode) const;
+	
+	/** Returns the paired node for the given IOptimusNodePairProvider
+	  */
+	UOptimusNode* GetNodeCounterpart(const UOptimusNode* InNode) const;
 	
 	/** Returns all pins that have a _direct_ connection to this pin. If nothing is connected 
 	  * to this pin, it returns an empty array.
@@ -279,7 +298,6 @@ public:
 		const FOptimusPinTraversalContext& InContext
 		) const;
 
-
 	/** Get all unique component bindings that lead to this pin. Note that only pins with a zero or single bindings
 	 *  are considered valid. We return all of them however for error messaging.
 	 */
@@ -287,11 +305,28 @@ public:
 		const UOptimusNodePin* InNodePin
 		) const;
 
-	/** Check if a pin is represents time varying data */
+	/** Check if a pin represents time varying data */
 	bool IsPinMutable(
 		const UOptimusNodePin* InNodePin
 		) const;
-		
+
+	/** Check if a Node has mutable input pins */
+	bool DoesNodeHaveMutableInput(
+		const UOptimusNode* InNode 
+		) const;
+
+	/** Gather connected loop entry terminals */
+	TSet<FOptimusRoutedConstNode> GetLoopEntryTerminalForPin(
+		const UOptimusNodePin* InNodePin,
+		const FOptimusPinTraversalContext& InContext = {}	
+		) const;
+
+	/** Gather connected loop entry terminals */
+	TSet<FOptimusRoutedConstNode> GetLoopEntryTerminalForNode(
+		const UOptimusNode* InNode,
+		const FOptimusPinTraversalContext& InContext = {}
+		) const;
+
 	TArray<const UOptimusNodeLink *> GetPinLinks(const UOptimusNodePin* InNodePin) const;
 
 	/// Check to see if connecting these two nodes will form a graph cycle.
@@ -368,6 +403,7 @@ protected:
 	friend struct FOptimusNodeGraphAction_AddNode;
 	friend struct FOptimusNodeGraphAction_DuplicateNode;
 	friend struct FOptimusNodeGraphAction_RemoveNode;
+	friend struct FOptimusNodeGraphAction_AddRemoveNodePair;
 	friend struct FOptimusNodeGraphAction_AddRemoveLink;
 	friend struct FOptimusNodeGraphAction_PackageKernelFunction;
 	friend struct FOptimusNodeGraphAction_UnpackageKernelFunction;
@@ -393,6 +429,10 @@ protected:
 		UOptimusNode* InNode,		
 		bool bFailIfLinks = true);
 
+	bool AddNodePairDirect(UOptimusNode* InFirstNode, UOptimusNode* InSecondNode);
+	
+	bool RemoveNodePairDirect(UOptimusNode* InFirstNode, UOptimusNode* InSecondNode);
+	
 	bool AddLinkDirect(UOptimusNodePin* InNodeOutputPin, UOptimusNodePin* InNodeInputPin);
 
 	bool RemoveLinkDirect(UOptimusNodePin* InNodeOutputPin, UOptimusNodePin* InNodeInputPin);
@@ -433,7 +473,18 @@ private:
 		const FVector2D& InPosition,
 		TFunction<void(UOptimusNode*)> InNodeConfigFunc
 	);
+	
+	TArray<UOptimusNode*> AddNodePairInternal(
+		const TSubclassOf<UOptimusNode> InNodeClass,
+		const FVector2D& InPosition,
+		TFunction<void(UOptimusNode*)> InFirstNodeConfigFunc,
+		TFunction<void(UOptimusNode*)> InSecondNodeConfigFunc
+	);
 
+	void AddPairNodesToArray(const TArray<UOptimusNode*>& InNodes, TArray<UOptimusNode*>& OutNodes, TArray<UOptimusNodePair*>& OutNodePairs) const;
+	
+	void RemoveNodePairByIndex(int32 NodePairIndex);
+	
 	void RemoveLinkByIndex(int32 LinkIndex);
 
 	/// Returns the indexes of all links that connect to the node. If a direction is specified
@@ -465,6 +516,9 @@ private:
 	UPROPERTY(NonTransactional)
 	TArray<TObjectPtr<UOptimusNodeLink>> Links;
 
+	UPROPERTY(NonTransactional)
+	TArray<TObjectPtr<UOptimusNodePair>> NodePairs;
+	
 	UPROPERTY()
 	TArray<TObjectPtr<UOptimusNodeGraph>> SubGraphs;
 

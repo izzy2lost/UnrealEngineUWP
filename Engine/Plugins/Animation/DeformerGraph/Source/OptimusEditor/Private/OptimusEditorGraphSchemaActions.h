@@ -84,10 +84,24 @@ struct FOptimusGraphSchemaAction_NewDataInterfaceNode :
 	FName GetTypeId() const override { return StaticGetTypeId(); }
 
 	// FEdGraphSchemaAction overrides
-	UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
+	UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bInSelectNewNode = true) override;
 };
 
 
+USTRUCT()
+struct FOptimusSchemaAction_NewLoopTerminalNodes : public FEdGraphSchemaAction
+{
+	GENERATED_BODY()
+
+	// Inherit the base class's constructors
+	using FEdGraphSchemaAction::FEdGraphSchemaAction;
+	
+	static FName StaticGetTypeId() { static FName Type("FOptimusSchemaAction_LoopTerminal"); return Type; }
+	FName GetTypeId() const override { return StaticGetTypeId(); }
+
+	// FEdGraphSchemaAction overrides
+	UEdGraphNode* PerformAction(class UEdGraph* InParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bInSelectNewNode = true) override;
+};
 
 
 /// Reference to a UOptimusNodeGraph.

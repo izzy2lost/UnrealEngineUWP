@@ -1065,7 +1065,8 @@ FText SOptimusEditorGraphNode::GetPinLabel(TWeakPtr<SGraphPin> InWeakGraphPin) c
 	UOptimusEditorGraphNode* EditorGraphNode = GetEditorGraphNode();
 	TSharedPtr<SGraphPin> GraphPin = InWeakGraphPin.Pin();
 
-	if (GraphPin.IsValid() && EditorGraphNode)
+	// Absence of ModelNode indicates the node has been deleted
+	if (GraphPin.IsValid() && EditorGraphNode && EditorGraphNode->ModelNode)
 	{
 		return EditorGraphNode->GetPinDisplayName(GraphPin->GetPinObj());
 	}

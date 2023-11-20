@@ -58,8 +58,8 @@ void FOptimusPersistentBufferPool::GetResourceBuffers(
 
 void FOptimusPersistentBufferPool::GetImplicitPersistentBuffers(
 	FRDGBuilder& GraphBuilder,
-	const FOptimusConstantIdentifier& InIdentifier, 
-	const FOptimusDeformerInstanceComponentLodContext& InLodContext,
+	FName DataInterfaceName,
+	int32 InLODIndex,
 	int32 InElementStride, 
 	int32 InRawStride,
 	TArray<int32> const& InElementCounts,
@@ -69,17 +69,19 @@ void FOptimusPersistentBufferPool::GetImplicitPersistentBuffers(
 	OutBuffers.Reset();
 	bOutJustAllocated = false;
 
-	TMap<FOptimusConstantIdentifier, TArray<FOptimusPersistentStructuredBuffer>>& LODResources = ImplicitBuffersMap.FindOrAdd(InLodContext);  
-	TArray<FOptimusPersistentStructuredBuffer>& ResourceBuffers = LODResources.FindOrAdd(InIdentifier);
-	if (ResourceBuffers.IsEmpty())
+	TMap<int32, TArray<FOptimusPersistentStructuredBuffer>>& LODResources = ImplicitBuffersMap.FindOrAdd(DataInterfaceName);  
+	TArray<FOptimusPersistentStructuredBuffer>* ResourceBuffersPtr = LODResources.Find(InLODIndex);
+	if (ResourceBuffersPtr == nullptr)
 	{
 		// Create pooled buffers and store.
+		TArray<FOptimusPersistentStructuredBuffer> ResourceBuffers;
 		AllocateBuffers(GraphBuilder, InElementStride, InRawStride, InElementCounts, ResourceBuffers, OutBuffers);
+		LODResources.Add(InLODIndex, MoveTemp(ResourceBuffers));
 		bOutJustAllocated = true;
 	}
 	else
 	{
-		ValidateAndGetBuffers(GraphBuilder,InElementStride, InElementCounts, ResourceBuffers, OutBuffers);
+		ValidateAndGetBuffers(GraphBuilder,InElementStride, InElementCounts, *ResourceBuffersPtr, OutBuffers);
 	}
 }
 
@@ -380,9 +382,6 @@ void UOptimusDeformerInstance::SetupFromDeformer(UOptimusDeformer* InDeformer)
 	ComputeGraphExecInfos.Reset();
 	GraphsToRunOnNextTick.Reset();
 	
-	ConstantContainer = InDeformer->ConstantContainer;
-	ConstantValuesPerContext.Reset();
-	
 	for (int32 GraphIndex = 0; GraphIndex < InDeformer->ComputeGraphs.Num(); ++GraphIndex)
 	{
 		FOptimusComputeGraphInfo const& ComputeGraphInfo = InDeformer->ComputeGraphs[GraphIndex];
@@ -472,103 +471,6 @@ void UOptimusDeformerInstance::SetCanBeActive(bool bInCanBeActive)
 	bCanBeActive = bInCanBeActive;
 }
 
-FOptimusConstantEvaluationResult UOptimusDeformerInstance::GetConstantValuePerInvocation(
-	const FOptimusConstantIdentifier& InIdentifier)
-{
-	FOptimusConstantEvaluationResult Result;
-
-	check(WeakBoundComponents.Num() == WeakComponentSources.Num());
-	int32 NumBindings = WeakBoundComponents.Num();
-	for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
-	{
-		int32 LodIndex = INDEX_NONE;
-		if (UActorComponent* Component = WeakBoundComponents[BindingIndex].Get())
-		{
-			if (const UOptimusComponentSource* ComponentSource = WeakComponentSources[BindingIndex].Get())
-			{
-				LodIndex = ComponentSource->GetLodIndex(Component);
-			}
-		}
-
-
-		if (LodIndex != INDEX_NONE)
-		{
-			Result.LodContext.LodIndexPerComponent.Add(LodIndex);
-		}
-		else
-		{
-			return {};
-		}
-	}
-	
-	
-	if (!InIdentifier.IsValid())
-	{
-		return Result;
-	}
-
-	if (const FOptimusConstantContainerInstance* ConstantValues = ConstantValuesPerContext.Find(Result.LodContext))
-	{
-		Result.ValuePerInvocation = ConstantValues->GetConstantValuePerInvocation(InIdentifier);
-		return Result;
-	}
-
-	TMap<int32, TMap<FName, TArray<float>>> BindingIndexToConstantValues;
-
-	auto CollectAllBindingConstants = [&]()
-	{
-		for (int32 BindingIndex = 0; BindingIndex < NumBindings; BindingIndex++)
-		{
-			TMap<FName, TArray<float>>& BindingConstantValues = BindingIndexToConstantValues.Add(BindingIndex);
-	
-			if (UActorComponent* Component = WeakBoundComponents[BindingIndex].Get())
-			{
-				if (const UOptimusComponentSource* ComponentSource = WeakComponentSources[BindingIndex].Get())
-				{
-					const int32 LodIndex = ComponentSource->GetLodIndex(Component);
-					TArray<FName> ComponentConstants = ComponentSource->GetExecutionDomains();
-
-					for (int32 ConstantIndex = 0; ConstantIndex < ComponentConstants.Num(); ConstantIndex++)
-					{
-						const FName& ConstantName = ComponentConstants[ConstantIndex];
-				
-						TArray<float>& Values = BindingConstantValues.Add(ConstantName);
-						
-						TArray<int32> Counts;
-						if (!ComponentSource->GetComponentElementCountsForExecutionDomain(
-							ConstantName,
-							Component, LodIndex, Counts))
-						{
-							return false;
-						}
-
-						Values.Reserve(Counts.Num());
-						for (const int32 Count : Counts)
-						{
-							Values.Add(Count);
-						}
-					}
-				}
-			}
-		}
-		
-		return true;
-	};
-
-
-	if (CollectAllBindingConstants())
-	{
-		FOptimusConstantContainerInstance& NewConstantValues = ConstantValuesPerContext.Add(Result.LodContext);
-		if (NewConstantValues.Initialize(ConstantContainer, BindingIndexToConstantValues))
-		{
-			Result.ValuePerInvocation = NewConstantValues.GetConstantValuePerInvocation(InIdentifier);
-			return Result;
-		}
-	}
-
-	return Result;
-}
-
 void UOptimusDeformerInstance::AllocateResources()
 {
 }
@@ -617,6 +519,9 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 		Swap(GraphsToRunOnNextTick, GraphsToRun);
 	}
 	
+	
+	
+	
 	// Enqueue work.
 	bool bIsWorkEnqueued = false;
 	if (bCanBeActive)
@@ -625,7 +530,24 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 		{
 			if (Info.GraphType == EOptimusNodeGraphType::Update || GraphsToRun.Contains(Info.GraphName))
 			{
-				bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate, this);
+				FSimpleDelegate FallbackDelegate = InDesc.FallbackDelegate;
+
+#if WITH_EDITOR
+				// Pending shader compilation may cause queued graph to not execute, so requeue on failure
+				// Ideally all compute graph should be ready before the deformer instance starts to enqueue work
+				if (Info.GraphType != EOptimusNodeGraphType::Update)
+				{
+					FallbackDelegate = FSimpleDelegate::CreateLambda([InDesc, this, GraphName=Info.GraphName]()
+					{
+						{
+							UE::TScopeLock<FCriticalSection> Lock(GraphsToRunOnNextTickLock);
+							GraphsToRunOnNextTick.Add(GraphName);
+						}	
+					});		
+				}
+#endif
+				
+				bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, FallbackDelegate, this);
 			}
 		}
 	}

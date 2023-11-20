@@ -94,6 +94,29 @@ UEdGraphNode* FOptimusGraphSchemaAction_NewDataInterfaceNode::PerformAction(
 	return nullptr;
 }
 
+UEdGraphNode* FOptimusSchemaAction_NewLoopTerminalNodes::PerformAction(UEdGraph* InParentGraph, UEdGraphPin* FromPin,
+	const FVector2D Location, bool bInSelectNewNode)
+{
+	UOptimusEditorGraph* Graph = Cast<UOptimusEditorGraph>(InParentGraph);
+	
+	if (ensure(Graph != nullptr))
+	{
+		TArray<UOptimusNode*> Nodes = Graph->GetModelGraph()->AddLoopTerminalNodes(Location);
+
+		if (ensure(Nodes.Num() == 2))
+		{
+			UOptimusEditorGraphNode* GraphNode = Graph->FindGraphNodeFromModelNode(Nodes[0]);
+			if (GraphNode && bInSelectNewNode)
+			{
+				Graph->SelectNodeSet({GraphNode});
+			}
+			return GraphNode;
+		}
+	}
+
+	return nullptr;
+}
+
 
 static FText GetGraphTooltip(UOptimusNodeGraph* InGraph)
 {

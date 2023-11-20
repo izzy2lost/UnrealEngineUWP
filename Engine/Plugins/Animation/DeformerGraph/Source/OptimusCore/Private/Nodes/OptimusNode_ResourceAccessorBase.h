@@ -67,7 +67,7 @@ public:
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//IOptimusPinMutabilityDefiner overrides 
-	bool IsOutputPinMutable(const UOptimusNodePin* InPin) const override { return true; };
+	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override { return EOptimusPinMutability::Mutable; };
 	
 protected:
 	void PreDuplicateRequirementActions(const UOptimusNodeGraph* InTargetGraph, FOptimusCompoundAction* InCompoundAction) override;

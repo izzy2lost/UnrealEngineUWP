@@ -11,6 +11,7 @@
 #include "Containers/Queue.h"
 #include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
+#include "DataInterfaces/OptimusDataInterfaceLoopTerminal.h"
 #include "IOptimusComputeKernelProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
 #include "IOptimusValueProvider.h"
@@ -44,6 +45,7 @@
 #include "Nodes/OptimusNode_DataInterface.h"
 #include "Nodes/OptimusNode_GetVariable.h"
 #include "Nodes/OptimusNode_ResourceAccessorBase.h"
+#include "Nodes/OptimusNode_LoopTerminal.h"
 
 #include "IOptimusDeprecatedExecutionDataInterface.h"
 #include "OptimusNodeLink.h"
@@ -1341,7 +1343,9 @@ UOptimusComponentSourceBinding* UOptimusDeformer::ResolveComponentBinding(
 // Do a breadth-first collection of nodes starting from the seed nodes (terminal data interfaces).
 static void CollectNodes(
 	const TArray<const UOptimusNode*>& InSeedNodes,
-	TArray<FOptimusRoutedConstNode>& OutCollectedNodes
+	TArray<FOptimusRoutedConstNode>& OutCollectedNodes,
+	TMap<FOptimusRoutedConstNode, TArray<FOptimusRoutedConstNode>>& OutNodeToInputNodes,
+	TMap<FOptimusRoutedConstNode, TArray<FOptimusRoutedConstNode>>& OutNodeToOutputNodes 
 	)
 {
 	TSet<FOptimusRoutedConstNode> VisitedNodes;
@@ -1355,7 +1359,7 @@ static void CollectNodes(
 		OutCollectedNodes.Add({Node, FOptimusPinTraversalContext{}});
 	}
 
-	auto CollectFromInputPins = [&WorkingSet, &VisitedNodes, &UniqueNeighborNodes, &OutCollectedNodes](const FOptimusRoutedConstNode& InWorkItem, const UOptimusNodePin* InPin)
+	auto CollectFromInputPins = [&WorkingSet, &VisitedNodes, &UniqueNeighborNodes, &OutCollectedNodes, &OutNodeToInputNodes, &OutNodeToOutputNodes](const FOptimusRoutedConstNode& InWorkItem, const UOptimusNodePin* InPin)
 	{
 		for (const FOptimusRoutedNodePin& ConnectedPin: InPin->GetConnectedPinsWithRouting(InWorkItem.TraversalContext))
 		{
@@ -1366,6 +1370,9 @@ static void CollectNodes(
 				if (!UniqueNeighborNodes.Contains(CollectedNode))
 				{
 					UniqueNeighborNodes.Add(CollectedNode);
+					
+					OutNodeToInputNodes.FindOrAdd(InWorkItem).Add(CollectedNode);
+					OutNodeToOutputNodes.FindOrAdd(CollectedNode).Add(InWorkItem);
 					
 					WorkingSet.Enqueue(CollectedNode);
 					
@@ -1430,7 +1437,6 @@ bool UOptimusDeformer::Compile()
 	}
 
 	ComputeGraphs.Reset();
-	ConstantContainer.Reset();
 	
 	CompileBeginDelegate.Broadcast(this);
 	
@@ -1458,13 +1464,12 @@ bool UOptimusDeformer::Compile()
 		TArray<FOptimusComputeGraphInfo> ComputeGraphInfos = CompileNodeGraphToComputeGraphs(Graph, ErrorReporter);
 		ComputeGraphs.Append(ComputeGraphInfos);
 	}
-	
+
 	CompileEndDelegate.Broadcast(this);
 
 	if (Status == EOptimusDeformerStatus::HasErrors)
 	{
 		ComputeGraphs.Reset();
-		ConstantContainer.Reset();
 		return false;
 	}
 	
@@ -1511,6 +1516,37 @@ TArray<UOptimusNode*> UOptimusDeformer::GetAllNodesOfClass(UClass* InNodeClass) 
 	return NodesFound;
 }
 
+struct FOptimusInstancedNode
+{
+	FOptimusRoutedConstNode	RoutedNode;
+	int32 LoopIndex;
+		
+	friend uint32 GetTypeHash(const FOptimusInstancedNode& InNode)
+	{
+		return HashCombineFast(GetTypeHash(InNode.RoutedNode), InNode.LoopIndex);
+	}
+
+	bool operator==(const FOptimusInstancedNode& InOther) const
+	{
+		return RoutedNode == InOther.RoutedNode && LoopIndex == InOther.LoopIndex;
+	}
+};
+
+struct FOptimusInstancedPin
+{
+	FOptimusInstancedNode InstancedNode;
+	const UOptimusNodePin* Pin;
+
+	friend uint32 GetTypeHash(const FOptimusInstancedPin& InPin)
+	{
+		return HashCombineFast(GetTypeHash(InPin.InstancedNode), GetTypeHash(InPin.Pin));
+	}
+
+	bool operator==(const FOptimusInstancedPin& InOther) const
+	{
+		return InstancedNode == InOther.InstancedNode && Pin == InOther.Pin;
+	}
+};
 
 TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGraphs(
 	const UOptimusNodeGraph* InNodeGraph,
@@ -1587,7 +1623,9 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	}
 
 	TArray<FOptimusRoutedConstNode> ConnectedNodes;
-	CollectNodes(TerminalNodes, ConnectedNodes);
+	TMap<FOptimusRoutedConstNode, TArray<FOptimusRoutedConstNode>> NodeToInputNodes;
+	TMap<FOptimusRoutedConstNode, TArray<FOptimusRoutedConstNode>> NodeToOutputNodes; 
+	CollectNodes(TerminalNodes, ConnectedNodes, NodeToInputNodes, NodeToOutputNodes);
 
 	// Since we now have the connected nodes in a breadth-first list, reverse the list which
 	// will give use the same list but topologically sorted in kernel execution order.
@@ -1609,108 +1647,233 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		return {};
 	}
 
-	TArray<FOptimusComputeGraphInfo> GraphInfos;
-	TMap<const IOptimusComputeKernelProvider*, int> KernelComputeGraphIndexMap;
-	
-	if (InNodeGraph->GraphType != EOptimusNodeGraphType::Update)
+	// Mark zero-count loops as skippable
+	TSet<FOptimusRoutedConstNode> LoopTerminalToSkip; 
+	for (const FOptimusRoutedConstNode& ConnectedNode : ConnectedNodes )
 	{
-		FOptimusComputeGraphInfo GraphInfo;
-		GraphInfo.GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), InNodeGraph->GetFName());;
-		GraphInfo.GraphType = InNodeGraph->GetGraphType();
-		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
-		GraphInfos.Add(GraphInfo);
-
-		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(ConnectedNode.Node);
+			LoopTerminal && LoopTerminal->GetLoopCount() == 0)
 		{
-			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			LoopTerminalToSkip.Add(ConnectedNode);
+		}
+	}
+
+	// Collect looping kernels and skippable kernels
+	TMap<FOptimusRoutedConstNode, TArray<FOptimusRoutedConstNode>> LoopEntryToKernelNodes; 
+	TMap<FOptimusRoutedConstNode, FOptimusRoutedConstNode> KernelNodeToLoopEntry; 
+	TSet<FOptimusRoutedConstNode> KernelToSkip; 
+
+	for (const FOptimusRoutedConstNode& ConnectedNode : ConnectedNodes )
+	{
+		if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+		{
+			TSet<FOptimusRoutedConstNode> LoopTerminals = ConnectedNode.Node->GetOwningGraph()->GetLoopEntryTerminalForNode(ConnectedNode.Node, ConnectedNode.TraversalContext);
+			if (LoopTerminals.Num() > 0)
 			{
-				KernelComputeGraphIndexMap.Add(KernelProvider) = 0;
+				FOptimusRoutedConstNode LoopEntry= *LoopTerminals.CreateConstIterator();
+
+				LoopEntryToKernelNodes.FindOrAdd(LoopEntry).Add(ConnectedNode);
+				KernelNodeToLoopEntry.Add(ConnectedNode) = LoopEntry;
+
+				if (LoopTerminalToSkip.Contains(LoopEntry))
+				{
+					KernelToSkip.Add(ConnectedNode);
+				}
 			}
 		}
 	}
-	else
+
+	// Mark additional kernels with no meaningful output as skippable
+	for (int32 Index = ConnectedNodes.Num() - 1; Index >= 0 ; Index-- )
 	{
-		bool bHasRunOnceKernels = false;
-		bool bHasRunAlwaysKernels = false;
-	
-		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		const FOptimusRoutedConstNode& ConnectedNode = ConnectedNodes[Index];
+
+		if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
 		{
-			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			bool bShouldSkip = true;
+			for (const FOptimusRoutedConstNode& OutputNode : NodeToOutputNodes[ConnectedNode])
 			{
-				if (!KernelProvider->HasMutableInput())
+				// Do not skip if this node has at least one meaningful output
+				if (!KernelToSkip.Contains(OutputNode))
 				{
-					bHasRunOnceKernels = true;
+					bShouldSkip = false;
+				}
+			}
+
+			if (bShouldSkip)
+			{
+				KernelToSkip.Add(ConnectedNode);
+			}
+		}
+	}
+
+	// Used to establish kernel - kernel , kernel - data interface dependencies so that we know what data interface to assign to the output pin at loop boundaries
+	TMap<FOptimusRoutedConstNodePin, TArray<FOptimusRoutedConstNodePin>> TargetResourcePinConnections;
+	TMap<FOptimusRoutedConstNodePin, FOptimusRoutedConstNodePin> SourceResourcePinConnections;
+	
+	for (FOptimusRoutedConstNode ConnectedNode : ConnectedNodes)
+	{
+		if (Cast<const IOptimusDataInterfaceProvider>(ConnectedNode.Node) || Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+		{
+			if (!KernelToSkip.Contains(ConnectedNode))
+			{
+				for (const UOptimusNodePin* Pin: ConnectedNode.Node->GetPinsByDirection(EOptimusNodePinDirection::Input, true))
+				{
+					if (!Pin->GetDataDomain().IsSingleton())
+					{
+						TArray<FOptimusRoutedConstNodePin> SourceResourcePins;
+
+						FOptimusRoutedConstNodePin WorkPin;
+						TQueue<FOptimusRoutedConstNodePin> PinQueue;
+						TSet<FOptimusRoutedConstNodePin> VisitedPin;
+						PinQueue.Enqueue({Pin, ConnectedNode.TraversalContext});
+						while(PinQueue.Dequeue(WorkPin))
+						{
+							if (VisitedPin.Contains(WorkPin))
+							{
+								continue;
+							}
+							VisitedPin.Add({Pin, ConnectedNode.TraversalContext});
+							
+							TArray<FOptimusRoutedNodePin> NextRoutedPin = WorkPin.NodePin->GetConnectedPinsWithRouting(WorkPin.TraversalContext);
+
+							if (NextRoutedPin.Num() == 1)
+							{
+								UOptimusNodePin* NextPin = NextRoutedPin[0].NodePin;
+								FOptimusRoutedConstNode NextRoutedNode = {NextPin->GetOwningNode(), NextRoutedPin[0].TraversalContext};
+								if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<UOptimusNode_LoopTerminal>(NextRoutedNode.Node))
+								{
+									if (LoopTerminal->GetTerminalType() == EOptimusTerminalType::Return)
+									{
+										if (!LoopTerminalToSkip.Contains(NextRoutedNode))
+										{
+											PinQueue.Enqueue({LoopTerminal->GetPinCounterpart(NextPin, EOptimusTerminalType::Return), NextRoutedPin[0].TraversalContext});
+										}
+										else
+										{
+											PinQueue.Enqueue({LoopTerminal->GetPinCounterpart(NextPin, EOptimusTerminalType::Entry), NextRoutedPin[0].TraversalContext});
+										}
+									}
+									else if (LoopTerminal->GetTerminalType() == EOptimusTerminalType::Entry)
+									{
+										if (ensure(!LoopTerminalToSkip.Contains(NextRoutedNode)))
+										{
+											PinQueue.Enqueue( {LoopTerminal->GetPinCounterpart(NextPin, EOptimusTerminalType::Entry), NextRoutedPin[0].TraversalContext});
+										}
+									}
+								}
+								else
+								{
+									if (!KernelToSkip.Contains(ConnectedNode))
+									{
+										SourceResourcePins.Add({NextRoutedPin[0].NodePin, NextRoutedPin[0].TraversalContext});	
+									}
+								}
+							}
+						}
+
+						if (SourceResourcePins.Num() == 1)
+						{
+							TargetResourcePinConnections.FindOrAdd(SourceResourcePins[0]).Add({Pin, ConnectedNode.TraversalContext});
+							SourceResourcePinConnections.Add({Pin, ConnectedNode.TraversalContext}) = SourceResourcePins[0];
+						}
+					}
+				}	
+			}
+		}
+	}
+
+	TSet<EOptimusNodeGraphType> GraphTypes;
+	TMap<FOptimusRoutedConstNode, EOptimusNodeGraphType> KernelToGraphType; 
+	
+	for (FOptimusRoutedConstNode ConnectedNode : ConnectedNodes)
+	{
+		if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+		{
+			if (InNodeGraph->GraphType != EOptimusNodeGraphType::Update)
+			{
+				KernelToGraphType.Add(ConnectedNode) = InNodeGraph->GraphType;
+				GraphTypes.Add(InNodeGraph->GraphType);
+			}
+			else
+			{
+				if (ConnectedNode.Node->GetOwningGraph()->DoesNodeHaveMutableInput(ConnectedNode.Node))
+				{
+					KernelToGraphType.Add(ConnectedNode) = EOptimusNodeGraphType::Update;
+					GraphTypes.Add(EOptimusNodeGraphType::Update);
 				}
 				else
 				{
-					bHasRunAlwaysKernels = true;
+					KernelToGraphType.Add(ConnectedNode) = EOptimusNodeGraphType::Setup;
+					GraphTypes.Add(EOptimusNodeGraphType::Setup);
 				}
-			}
-		}
-
-		// Insert a setup graph if applicable
-		if (bHasRunOnceKernels)
-		{
-			FName GraphName = InNodeGraph->GetFName();
-			GraphName = *(GraphName.ToString() + TEXT("_Setup"));
-			GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), GraphName);
-		
-			FOptimusComputeGraphInfo GraphInfo;
-			GraphInfo.GraphName = GraphName;
-			GraphInfo.GraphType = EOptimusNodeGraphType::Setup;
-			GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
-			GraphInfos.Add(GraphInfo);
-		}
-
-		if (bHasRunAlwaysKernels)
-		{
-			FOptimusComputeGraphInfo GraphInfo;
-			GraphInfo.GraphName = MakeUniqueObjectName(this, UOptimusComputeGraph::StaticClass(), InNodeGraph->GetFName());;
-			GraphInfo.GraphType = InNodeGraph->GetGraphType();
-			GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
-			GraphInfos.Add(GraphInfo);
-		}
-
-		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
-		{
-			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
-			{
-				int32 ComputeGraphIndex = 0;
-				if (GraphInfos.Num() == 2)
-				{
-					ComputeGraphIndex = KernelProvider->HasMutableInput() ? 1 : 0;
-				}
-				KernelComputeGraphIndexMap.Add(KernelProvider) = ComputeGraphIndex;
 			}
 		}
 	}
 
-	check(GraphInfos.Num() <= 2);
+	
 
+	// Instance looped nodes
+	TArray<FOptimusInstancedNode> InstancedNodes;
+	TMap<FOptimusRoutedConstNode, int32> NodeToMaxLoopIndex;
+
+	for (const FOptimusRoutedConstNode& ConnectedNode : ConnectedNodes)
+	{
+		if (KernelToSkip.Contains(ConnectedNode))
+		{
+			continue;
+		}
+
+		if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(ConnectedNode.Node))
+		{
+			if (!LoopTerminalToSkip.Contains(ConnectedNode))
+			{
+				if (LoopTerminal->GetTerminalType() == EOptimusTerminalType::Return)
+				{
+					FOptimusRoutedConstNode LoopEntry = {LoopTerminal->GetOtherTerminal(), ConnectedNode.TraversalContext};
+
+					for (int32 Index = 1; Index < LoopTerminal->GetLoopCount(); Index++)
+					{
+						for (const FOptimusRoutedConstNode& KernelNode : LoopEntryToKernelNodes[LoopEntry])
+						{
+							InstancedNodes.Add({ KernelNode , Index });
+						}
+					}
+					
+					for (const FOptimusRoutedConstNode& KernelNode : LoopEntryToKernelNodes[LoopEntry])
+					{
+						NodeToMaxLoopIndex.FindOrAdd(KernelNode) = LoopTerminal->GetLoopCount() - 1;
+					}
+				}
+			}
+		}
+
+		InstancedNodes.Add({ConnectedNode, 0});
+		NodeToMaxLoopIndex.FindOrAdd(ConnectedNode) = 0;
+	}
+
+
+	
+	// Create all the data interfaces: node, graph, kernel outputs, loop terminal data
+	
+	// The component binding for the graph data is the primary binding on the deformer.
+	UOptimusComponentSourceBinding* GraphDataComponentBinding = Bindings->Bindings[0];
+	
+	TMap<const UComputeDataInterface*, int32> DataInterfaceToBindingIndexMap;
 	
 	// Find all data interface nodes and create their data interfaces.
 	FOptimus_NodeToDataInterfaceMap NodeDataInterfaceMap;
-
-	// Find all resource links from one compute kernel directly to another. The pin here is
-	// the output pin from a kernel node that connects to another. We don't map from input pins
-	// because a resource output may be used multiple times, but only written into once.
-	FOptimus_PinToDataInterfaceMap LinkDataInterfaceMap;
-
-	// Each kernel spawns a data interface to pass along kernel specific data to the kernel itself
-	FOptimus_KernelNodeToKernelDataInterfaceMap KernelDataInterfaceMap;
-
+	
 	// Find all value nodes (constant and variable) 
 	TArray<const UOptimusNode *> ValueNodes;
 
-	TMap<const UComputeDataInterface*, int32> DataInterfaceToBindingIndexMap;
-
+	TMap<FOptimusRoutedConstNode, TArray<UOptimusComputeDataInterface*>> LoopEntryToLoopDataInterfaces;
 	
-
-	for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+	for (const FOptimusRoutedConstNode& ConnectedNode : ConnectedNodes)
 	{
-		if (const IOptimusDataInterfaceProvider* DataInterfaceNode = Cast<const IOptimusDataInterfaceProvider>(ConnectedNode.Node))
+		if (const IOptimusDataInterfaceProvider* NodeDataInterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(ConnectedNode.Node))
 		{
-			UOptimusComputeDataInterface* DataInterface = DataInterfaceNode->GetDataInterface(this);
+			UOptimusComputeDataInterface* DataInterface = NodeDataInterfaceProvider->GetDataInterface(this);
 			if (!DataInterface)
 			{
 				AddDiagnostic(EOptimusDiagnosticLevel::Error, LOCTEXT("NoDataInterfaceOnProvider", "No data interface object returned from node. Compilation aborted."));
@@ -1718,82 +1881,27 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			}
 
 			NodeDataInterfaceMap.Add(ConnectedNode.Node, DataInterface);
-			DataInterfaceToBindingIndexMap.Add(DataInterface) = DataInterfaceNode->GetComponentBinding()->GetIndex();
-		}
-		else if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
-		{
-			UComputeDataInterface* KernelDataInterface = KernelProvider->MakeKernelDataInterface(this);
-			TSet<UOptimusComponentSourceBinding*> KernelPrimaryBindings = KernelProvider->GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
-
-			if (!ensure(KernelPrimaryBindings.Num() == 1))
-			{
-				AddDiagnostic(EOptimusDiagnosticLevel::Error,
-					FText::Format(LOCTEXT("InvalidComponentBindingForKernel", "Missing or multiple component bindings found in primary group of a kernel ({0}). Compilation aborted."),
-					ConnectedNode.Node->GetDisplayName()),
-					ConnectedNode.Node);
-				return {};
-			}
-			
-			UOptimusComponentSourceBinding* KernelPrimaryBinding = *KernelPrimaryBindings.CreateConstIterator();
-			int32 PrimaryBindingIndex = KernelPrimaryBinding->GetIndex();
-
-			KernelDataInterfaceMap.Add(ConnectedNode.Node, KernelDataInterface);
-			DataInterfaceToBindingIndexMap.Add(KernelDataInterface) = PrimaryBindingIndex;	
-			
-			for (const UOptimusNodePin* Pin: ConnectedNode.Node->GetPins())
-			{
-				if (Pin->GetDirection() == EOptimusNodePinDirection::Output &&
-					ensure(!Pin->GetDataDomain().IsSingleton()) &&
-					!LinkDataInterfaceMap.Contains(Pin))
-				{
-					for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext))
-					{
-						// Make sure it connects to another kernel node.
-						if (const IOptimusComputeKernelProvider* ConnectedKernel = Cast<const IOptimusComputeKernelProvider>(ConnectedPin.NodePin->GetOwningNode());
-							ConnectedKernel && ensure(Pin->GetDataType().IsValid()))
-						{
-							if (KernelComputeGraphIndexMap[KernelProvider] == KernelComputeGraphIndexMap[ConnectedKernel])
-							{
-								UOptimusTransientBufferDataInterface* TransientBufferDI =
-									NewObject<UOptimusTransientBufferDataInterface>(this);
-
-								TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
-								TransientBufferDI->DataDomain = Pin->GetDataDomain();
-								TransientBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
-								TransientBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
-								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
-								{
-									TransientBufferDI->bZeroInitForAtomicWrites = true;
-								}
-							
-								LinkDataInterfaceMap.Add(Pin, TransientBufferDI);
-								DataInterfaceToBindingIndexMap.Add(TransientBufferDI) = PrimaryBindingIndex;	
-							}
-							else
-							{
-								UOptimusImplicitPersistentBufferDataInterface* ImplicitPersistentBufferDI =
-									NewObject<UOptimusImplicitPersistentBufferDataInterface>(this);
-
-								ImplicitPersistentBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
-								ImplicitPersistentBufferDI->DataDomain = Pin->GetDataDomain();
-								ImplicitPersistentBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
-								ImplicitPersistentBufferDI->DomainConstantIdentifier = {ConnectedNode.Node, NAME_None, Pin->GetFName()};
-								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
-								{
-									ImplicitPersistentBufferDI->bZeroInitForAtomicWrites = true;
-								}
-							
-								LinkDataInterfaceMap.Add(Pin, ImplicitPersistentBufferDI);
-								DataInterfaceToBindingIndexMap.Add(ImplicitPersistentBufferDI) = PrimaryBindingIndex;	
-							}
-						}
-					}
-				}
-			}
+			DataInterfaceToBindingIndexMap.Add(DataInterface) = NodeDataInterfaceProvider->GetComponentBinding()->GetIndex();
 		}
 		else if (Cast<const IOptimusValueProvider>(ConnectedNode.Node))
 		{
 			ValueNodes.AddUnique(ConnectedNode.Node);
+		}
+		else if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(ConnectedNode.Node))
+		{
+			if (LoopTerminal->GetTerminalType() == EOptimusTerminalType::Entry)
+			{
+				TArray<UOptimusComputeDataInterface*>& LoopDataInterfaces = LoopEntryToLoopDataInterfaces.Add(ConnectedNode);
+				for (int32 LoopIndex = 0; LoopIndex < LoopTerminal->GetLoopCount(); LoopIndex++)
+				{
+					UOptimusLoopTerminalDataInterface* LoopDataInterface = NewObject<UOptimusLoopTerminalDataInterface>(this);
+					LoopDataInterface->Index = LoopIndex;
+					LoopDataInterface->Count = LoopTerminal->GetLoopCount();
+					LoopDataInterfaces.Add(LoopDataInterface);
+					// Loop Data are constant values for now so it does not matter which binding is used
+					DataInterfaceToBindingIndexMap.Add(LoopDataInterface) = GraphDataComponentBinding->GetIndex();
+				}
+			}
 		}
 	}
 
@@ -1818,14 +1926,288 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	}
 	GraphDataInterface->Init(ValueNodeDescriptions);
 
-	// The component binding for the graph data is the primary binding on the deformer.
-	UOptimusComponentSourceBinding* GraphDataComponentBinding = Bindings->Bindings[0];
 	DataInterfaceToBindingIndexMap.Add(GraphDataInterface) = GraphDataComponentBinding->GetIndex();
+	
+	TMap<FOptimusInstancedNode, UComputeDataInterface*> KernelDataInterfaceMap;
+	TMap<FOptimusInstancedNode, FOptimus_KernelInputMap> KernelInputMap;
+	TMap<FOptimusInstancedNode, FOptimus_KernelOutputMap> KernelOutputMap;
+	TMap<FOptimusInstancedPin, UOptimusComputeDataInterface*> KernelOutputDataInterfaceMap;
 
-	for (int32 ComputeGraphIndex = 0 ; ComputeGraphIndex < GraphInfos.Num(); ComputeGraphIndex++)
+	for (const FOptimusInstancedNode& InstancedNode : InstancedNodes )
 	{
-		UOptimusComputeGraph* ComputeGraph = GraphInfos[ComputeGraphIndex].ComputeGraph;
+		const FOptimusRoutedConstNode& ConnectedNode = InstancedNode.RoutedNode;
 
+		if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+		{
+			UComputeDataInterface* KernelDataInterface = KernelProvider->MakeKernelDataInterface(this);
+			TSet<UOptimusComponentSourceBinding*> KernelPrimaryBindings = KernelProvider->GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
+
+			if (!ensure(KernelPrimaryBindings.Num() == 1))
+			{
+				AddDiagnostic(EOptimusDiagnosticLevel::Error,
+					FText::Format(LOCTEXT("InvalidComponentBindingForKernel", "Missing or multiple component bindings found in primary group of a kernel ({0}). Compilation aborted."),
+					ConnectedNode.Node->GetDisplayName()),
+					ConnectedNode.Node);
+				return {};
+			}
+			
+			UOptimusComponentSourceBinding* KernelPrimaryBinding = *KernelPrimaryBindings.CreateConstIterator();
+			int32 PrimaryBindingIndex = KernelPrimaryBinding->GetIndex();
+
+			KernelDataInterfaceMap.Add(InstancedNode, KernelDataInterface);
+			DataInterfaceToBindingIndexMap.Add(KernelDataInterface) = PrimaryBindingIndex;	
+			
+			for (const UOptimusNodePin* Pin: ConnectedNode.Node->GetPinsByDirection(EOptimusNodePinDirection::Input, true))
+			{
+				if (Pin->IsGroupingPin())
+				{
+					continue;
+				}
+				
+				FOptimusInstancedPin InstancedPin = {InstancedNode, Pin};
+				FOptimusInstancedPin SourceInstancedPin;
+
+				if (!Pin->GetDataDomain().IsSingleton())
+				{
+					for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext))
+					{
+						// By default Read from the connected node in the same iteration
+						FOptimusRoutedConstNode SourceRoutedNode = {ConnectedPin.NodePin->GetOwningNode(), ConnectedPin.TraversalContext};
+						int32 SourceLoopIndex = FMath::Clamp(InstancedNode.LoopIndex, 0, NodeToMaxLoopIndex[SourceRoutedNode]);
+						SourceInstancedPin = {FOptimusInstancedNode(SourceRoutedNode, SourceLoopIndex), ConnectedPin.NodePin};
+
+						// If connecting to a terminal Read from last node from the previous iteration
+						if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(ConnectedPin.NodePin->GetOwningNode()))
+						{
+							if (InstancedNode.LoopIndex == 0)
+							{
+								// 0th instance reads from upstream as if there isn't a loop terminal
+								FOptimusRoutedConstNodePin RoutedPin = {Pin, ConnectedNode.TraversalContext};
+								if (const FOptimusRoutedConstNodePin* SourceRoutedPin = SourceResourcePinConnections.Find(RoutedPin))
+								{
+									SourceRoutedNode = {SourceRoutedPin->NodePin->GetOwningNode(), SourceRoutedPin->TraversalContext};
+									int32 MaxLoopIndex = NodeToMaxLoopIndex[SourceRoutedNode];
+									SourceInstancedPin = {FOptimusInstancedNode(SourceRoutedNode, MaxLoopIndex), SourceRoutedPin->NodePin};
+								}	
+							}
+							else
+							{
+								if (ensure(LoopTerminal->GetTerminalType() == EOptimusTerminalType::Entry))
+								{
+									UOptimusNodePin* PinCounterpart = LoopTerminal->GetPinCounterpart(ConnectedPin.NodePin, EOptimusTerminalType::Return);
+									for (const FOptimusRoutedNodePin& PinFromLastIteration: PinCounterpart->GetConnectedPinsWithRouting(ConnectedPin.TraversalContext))
+									{
+										SourceRoutedNode = {PinFromLastIteration.NodePin->GetOwningNode(), PinFromLastIteration.TraversalContext};
+										int32 SourceLoopIndexFromLastIteration = FMath::Clamp(InstancedNode.LoopIndex - 1, 0, NodeToMaxLoopIndex[SourceRoutedNode]);
+										SourceInstancedPin = {FOptimusInstancedNode(SourceRoutedNode, SourceLoopIndexFromLastIteration), PinFromLastIteration.NodePin};
+									}
+								}	
+							}
+						}
+					}
+				}
+				else
+				{
+					for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext))
+					{
+						FOptimusRoutedConstNode SourceRoutedNode = {ConnectedPin.NodePin->GetOwningNode(), ConnectedPin.TraversalContext};
+						SourceInstancedPin = {FOptimusInstancedNode(SourceRoutedNode, 0), ConnectedPin.NodePin};
+					}
+				}
+
+				const UOptimusNodePin* SourcePin = SourceInstancedPin.Pin;
+				const FOptimusRoutedConstNode& SourceRoutedNode = SourceInstancedPin.InstancedNode.RoutedNode;
+
+				if (SourcePin)
+				{
+					if (const IOptimusValueProvider* ValueProvider = Cast<const IOptimusValueProvider>(SourcePin->GetOwningNode()))
+					{
+						KernelInputMap.FindOrAdd(InstancedNode).Add(Pin) = {GraphDataInterface, SourcePin};
+					}
+					else if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(SourcePin->GetOwningNode()))
+					{
+						KernelInputMap.FindOrAdd(InstancedNode).Add(Pin) = {*NodeDataInterface, SourcePin};
+					}
+					else if (UOptimusComputeDataInterface** KernelOutputDataInterface = KernelOutputDataInterfaceMap.Find(SourceInstancedPin))
+					{
+						KernelInputMap.FindOrAdd(InstancedNode).Add(Pin) = {*KernelOutputDataInterface, SourcePin};
+					}
+					else if (Cast<const UOptimusNode_LoopTerminal>(SourcePin->GetOwningNode()) && Pin->GetDataDomain().IsSingleton())
+					{
+						KernelInputMap.FindOrAdd(InstancedNode).Add(Pin) = {LoopEntryToLoopDataInterfaces[SourceRoutedNode][InstancedNode.LoopIndex] , SourcePin};
+					}
+				}
+			}
+			
+			for (const UOptimusNodePin* Pin: ConnectedNode.Node->GetPinsByDirection(EOptimusNodePinDirection::Output, true))
+			{
+				if (ensure(!Pin->GetDataDomain().IsSingleton()))
+				{
+					FOptimusInstancedPin InstancedPin = {InstancedNode, Pin};
+
+					TArray<FOptimusInstancedPin> TargetInstancedPins;
+
+					// Writing to other looped kernel instances or data interface node
+					for (const FOptimusRoutedNodePin& ConnectedPin: Pin->GetConnectedPinsWithRouting(ConnectedNode.TraversalContext))
+					{
+						// By default write to the connected node in the same iteration
+						UOptimusNode* TargetNode = ConnectedPin.NodePin->GetOwningNode();
+						
+						if (const UOptimusNode_LoopTerminal* LoopTerminal = Cast<const UOptimusNode_LoopTerminal>(TargetNode))
+						{
+							// Last instance of the kernel writes as if there isn't a loop terminal
+							if (InstancedNode.LoopIndex == NodeToMaxLoopIndex[ConnectedNode])
+							{
+								FOptimusRoutedConstNodePin RoutedPin = {Pin, ConnectedNode.TraversalContext};
+								if (TArray<FOptimusRoutedConstNodePin>* TargetRoutedPins = TargetResourcePinConnections.Find(RoutedPin))
+								{
+									for (FOptimusRoutedConstNodePin& TargetRoutedPin : *TargetRoutedPins)
+									{
+										FOptimusRoutedConstNode TargetRoutedNode = {TargetRoutedPin.NodePin->GetOwningNode(), TargetRoutedPin.TraversalContext};
+										TargetInstancedPins.Add({FOptimusInstancedNode(TargetRoutedNode, 0) , TargetRoutedPin.NodePin});	
+									}
+								}	
+							}
+							else
+							{
+								// For nodes with in a loop, if connecting to a terminal, write to the first node from the next iteration
+								if (ensure(LoopTerminal->GetTerminalType() == EOptimusTerminalType::Return))
+								{
+									UOptimusNodePin* PinCounterpart = LoopTerminal->GetPinCounterpart(ConnectedPin.NodePin, EOptimusTerminalType::Entry);
+									for (const FOptimusRoutedNodePin& PinFromNextIteration: PinCounterpart->GetConnectedPinsWithRouting(ConnectedPin.TraversalContext))
+									{
+										UOptimusNode* TargetNodeFromNextIteration = PinFromNextIteration.NodePin->GetOwningNode();
+										FOptimusRoutedConstNode TargetRoutedNodeFromNextIteration = {TargetNodeFromNextIteration, PinFromNextIteration.TraversalContext};
+										int32 TargetLoopIndexFromNextIteration = FMath::Clamp(InstancedNode.LoopIndex + 1, 0, NodeToMaxLoopIndex[TargetRoutedNodeFromNextIteration]);
+										TargetInstancedPins.Add({FOptimusInstancedNode(TargetRoutedNodeFromNextIteration, TargetLoopIndexFromNextIteration), PinFromNextIteration.NodePin});
+									}
+								}	
+							}
+						}
+						else
+						{
+							FOptimusRoutedConstNode TargetRoutedNode = {TargetNode, ConnectedPin.TraversalContext};
+							int32 TargetLoopIndex = FMath::Clamp(InstancedNode.LoopIndex, 0, NodeToMaxLoopIndex[TargetRoutedNode]);
+							FOptimusInstancedPin TargetInstancedPin = {FOptimusInstancedNode(TargetRoutedNode, TargetLoopIndex), ConnectedPin.NodePin};
+							TargetInstancedPins.Add(TargetInstancedPin);	
+						}
+					}	
+
+					if (TargetInstancedPins.Num() == 0)
+					{
+						if (KernelProvider->DoesOutputPinSupportAtomic(Pin) || KernelProvider->DoesOutputPinSupportRead(Pin))
+						{
+							UOptimusTransientBufferDataInterface* TransientBufferDI = NewObject<UOptimusTransientBufferDataInterface>(this);
+							if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+							{
+								CastChecked<UOptimusTransientBufferDataInterface>(TransientBufferDI)->bZeroInitForAtomicWrites = true;
+							}
+							TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
+							TransientBufferDI->DataDomain = Pin->GetDataDomain();
+							TransientBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
+							DataInterfaceToBindingIndexMap.Add(TransientBufferDI) = PrimaryBindingIndex;
+								
+							KernelOutputDataInterfaceMap.Add(InstancedPin) = TransientBufferDI;
+
+							KernelOutputMap.FindOrAdd(InstancedNode).FindOrAdd(Pin).Add({TransientBufferDI, nullptr});	
+						}
+					}
+					else
+					{
+						bool bShouldUseImplicitPersistentDI = false;
+						TArray<const UOptimusNodePin*> TargetKernelPins;
+						
+						for (const FOptimusInstancedPin& TargetInstancedPin : TargetInstancedPins)
+						{
+							const FOptimusRoutedConstNode TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
+							const UOptimusNode* TargetNode = TargetRoutedNode.Node;
+							const UOptimusNodePin* TargetPin = TargetInstancedPin.Pin;
+							
+							if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(TargetNode))
+							{
+								KernelOutputMap.FindOrAdd(InstancedNode).FindOrAdd(Pin).Add({*NodeDataInterface, TargetPin});
+							}
+							else if (const IOptimusComputeKernelProvider* ConnectedKernel = Cast<const IOptimusComputeKernelProvider>(TargetNode))
+							{
+								if (KernelToGraphType[ConnectedNode] != KernelToGraphType[TargetRoutedNode])
+								{
+									bShouldUseImplicitPersistentDI = true;
+								}
+
+								TargetKernelPins.Add(TargetPin);
+							}
+						}
+
+						if (TargetKernelPins.Num() > 0)
+						{
+							UOptimusRawBufferDataInterface* RawBufferDI = nullptr;
+							if (bShouldUseImplicitPersistentDI)
+							{
+								RawBufferDI = NewObject<UOptimusImplicitPersistentBufferDataInterface>(this);
+								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+								{
+									CastChecked<UOptimusImplicitPersistentBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
+								}
+							}
+							else
+							{
+								RawBufferDI = NewObject<UOptimusTransientBufferDataInterface>(this);
+								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+								{
+									CastChecked<UOptimusTransientBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
+								}
+							}
+								
+							RawBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
+							RawBufferDI->DataDomain = Pin->GetDataDomain();
+							RawBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
+							DataInterfaceToBindingIndexMap.Add(RawBufferDI) = PrimaryBindingIndex;
+								
+							KernelOutputDataInterfaceMap.Add(InstancedPin) = RawBufferDI;
+
+							// All connected kernels share the same raw buffer data interface
+							for (const UOptimusNodePin* TargetKernelPin : TargetKernelPins)
+							{
+								KernelOutputMap.FindOrAdd(InstancedNode).FindOrAdd(Pin).Add({RawBufferDI, TargetKernelPin});		
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+
+	TArray<FOptimusComputeGraphInfo> GraphInfos;
+	for (EOptimusNodeGraphType GraphType : GraphTypes)
+	{
+		FString Name = InNodeGraph->GetName();
+		if (GraphType != InNodeGraph->GraphType)
+		{
+			check(GraphType == EOptimusNodeGraphType::Setup);
+			Name += TEXT("_Setup");
+		}
+		
+		FOptimusComputeGraphInfo GraphInfo;
+		FName GraphName =
+			MakeUniqueObjectName(
+				this,
+				UOptimusComputeGraph::StaticClass(),
+				*Name
+				);
+		GraphInfo.GraphName = GraphName;
+		GraphInfo.GraphType = GraphType;
+		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
+
+		GraphInfos.Add(GraphInfo);
+	}
+
+	for (int32 GraphIndex = 0 ; GraphIndex < GraphInfos.Num(); GraphIndex++)
+	{
+		FOptimusComputeGraphInfo& GraphInfo = GraphInfos[GraphIndex];
+		
+		UOptimusComputeGraph* ComputeGraph = GraphInfo.ComputeGraph;
+	
 		// Create the binding objects.
 		for (const UOptimusComponentSourceBinding* Binding: Bindings->Bindings)
 		{
@@ -1836,22 +2218,50 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		ComputeGraph->DataInterfaces.Add(GraphDataInterface);
 		ComputeGraph->DataInterfaceToBinding.Add(0);		// Graph data interface always uses the primary binding.
 
-		for (TPair<const UOptimusNode*, UOptimusComputeDataInterface*>& Item : NodeDataInterfaceMap)
+		for (const FOptimusInstancedNode& InstancedNode : InstancedNodes )
 		{
-			ComputeGraph->DataInterfaces.Add(Item.Value);
-			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-		}
-		for (TPair<const UOptimusNodePin *, UOptimusComputeDataInterface *>&Item: LinkDataInterfaceMap)
-		{
-			ComputeGraph->DataInterfaces.Add(Item.Value);
-			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-		}
-		for (TPair<const UOptimusNode *, UComputeDataInterface *>&Item: KernelDataInterfaceMap)
-		{
-			ComputeGraph->DataInterfaces.Add(Item.Value);
-			ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[Item.Value]);
-		}
+			const FOptimusRoutedConstNode& ConnectedNode = InstancedNode.RoutedNode;
 
+			if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			{
+				if (KernelToGraphType[ConnectedNode] != GraphInfo.GraphType)
+				{
+					continue;
+				}
+				
+				const FOptimus_KernelInputMap KernelInputs = KernelInputMap[InstancedNode];
+				const FOptimus_KernelOutputMap KernelOutputs = KernelOutputMap[InstancedNode];
+
+				for (const TPair<const UOptimusNodePin*, FOptimus_KernelConnection>& Item : KernelInputs)
+				{
+					UComputeDataInterface* DataInterface = Item.Value.DataInterface;
+					if (!ComputeGraph->DataInterfaces.Contains(DataInterface))
+					{
+						ComputeGraph->DataInterfaces.Add(DataInterface);
+						ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[DataInterface]);
+					}
+				}
+
+				for (const TPair<const UOptimusNodePin*, TArray<FOptimus_KernelConnection>>& Item : KernelOutputs)
+				{
+					for (const FOptimus_KernelConnection& Connection : Item.Value)
+					{
+						UComputeDataInterface* DataInterface = Connection.DataInterface;
+						if (!ComputeGraph->DataInterfaces.Contains(DataInterface))
+						{
+							ComputeGraph->DataInterfaces.Add(DataInterface);
+							ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[DataInterface]);
+						}	
+					}
+				}
+
+				UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[InstancedNode];
+
+				ComputeGraph->DataInterfaces.Add(KernelDataInterface);
+				ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[KernelDataInterface]);
+			}
+		}
+			
 		// Create bound kernels
 		struct FKernelWithDataBindings
 		{
@@ -1861,11 +2271,14 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		};
 
 		TArray<FKernelWithDataBindings> BoundKernels;
-		for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
+		
+		for (const FOptimusInstancedNode& InstancedNode : InstancedNodes )
 		{
-			if (const IOptimusComputeKernelProvider *KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
+			const FOptimusRoutedConstNode& ConnectedNode = InstancedNode.RoutedNode;
+
+			if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(ConnectedNode.Node))
 			{
-				if (KernelComputeGraphIndexMap[KernelProvider] != ComputeGraphIndex)
+				if (KernelToGraphType[ConnectedNode] != GraphInfo.GraphType)
 				{
 					continue;
 				}
@@ -1874,16 +2287,16 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 
 				BoundKernel.Kernel = NewObject<UComputeKernel>(this);
 
-				FOptimusKernelConstantContainer& KernelConstantContainer = ConstantContainer.AddContainerForKernel();
-				UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[ConnectedNode.Node];
+				UComputeDataInterface* KernelDataInterface = KernelDataInterfaceMap[InstancedNode];
+
+				const FOptimus_KernelInputMap& KernelInputs = KernelInputMap[InstancedNode];
+				const FOptimus_KernelOutputMap& KernelOutputs = KernelOutputMap[InstancedNode];
 				
 				FOptimus_ComputeKernelResult KernelSourceResult = KernelProvider->CreateComputeKernel(	
 					BoundKernel.Kernel, ConnectedNode.TraversalContext,
-					NodeDataInterfaceMap, LinkDataInterfaceMap,
-					ValueNodes,
-					GraphDataInterface,
+					KernelInputs, KernelOutputs, ValueNodes,
 					KernelDataInterface,
-					BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings, KernelConstantContainer
+					BoundKernel.InputDataBindings, BoundKernel.OutputDataBindings
 				);
 				if (FText* ErrorMessage = KernelSourceResult.TryGet<FText>())
 				{
@@ -2692,6 +3105,7 @@ UMeshDeformerInstance* UOptimusDeformer::CreateInstance(
 	Instance->SetInstanceSettings(Cast<UOptimusDeformerInstanceSettings>(InSettings));
 	Instance->SetupFromDeformer(this);
 
+	CompileEndDelegate.RemoveAll(Instance);
 	// Make sure all the instances know when we finish compiling so they can update their local state to match.
 	CompileEndDelegate.AddUObject(Instance, &UOptimusDeformerInstance::SetupFromDeformer);
 	ConstantValueUpdateDelegate.AddUObject(Instance, &UOptimusDeformerInstance::SetConstantValueDirect);

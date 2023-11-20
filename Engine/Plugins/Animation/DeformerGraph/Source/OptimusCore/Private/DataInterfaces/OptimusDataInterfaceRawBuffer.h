@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "IOptimusDeformerInstanceAccessor.h"
 #include "IOptimusPersistentBufferProvider.h"
 #include "ComputeFramework/ComputeDataProvider.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
@@ -76,7 +75,7 @@ public:
 	TWeakObjectPtr<UOptimusComponentSourceBinding> ComponentSourceBinding;
 
 	UPROPERTY()
-	FOptimusConstantIdentifier DomainConstantIdentifier;
+	FOptimusConstantIdentifier DomainConstantIdentifier_DEPRECATED;
 	
 protected:
 	virtual bool UseSplitBuffers() const { return true; }
@@ -94,7 +93,6 @@ protected:
 			Provider->DataDomain = DataDomain;
 			Provider->ElementStride = ValueType->GetResourceElementSize();
 			Provider->RawStride = GetRawStride();
-			Provider->DomainConstantIdentifier = DomainConstantIdentifier;
 		}
 		return Provider;
 	}
@@ -130,7 +128,7 @@ public:
 	bool bZeroInitForAtomicWrites = false;	
 };
 
-/** Compute Framework Data Interface for a transient buffer. */
+/** Compute Framework Data Interface for a implicit persistent buffer. */
 UCLASS(Category = ComputeFramework)
 class OPTIMUSCORE_API UOptimusImplicitPersistentBufferDataInterface : public UOptimusRawBufferDataInterface
 {
@@ -185,8 +183,7 @@ protected:
 /** Compute Framework Data Provider for a transient buffer. */
 UCLASS(Abstract)
 class OPTIMUSCORE_API UOptimusRawBufferDataProvider :
-	public UComputeDataProvider,
-	public IOptimusDeformerInstanceAccessor
+	public UComputeDataProvider
 {
 	GENERATED_BODY()
 
@@ -200,19 +197,6 @@ public:
 		TArray<int32>& OutInvocationElementCounts
 		) const;
 
-	/** Helper function to calculate the element count given a constant identifier,
-	 *	LOD is handled by the deformer instance
-	 */
-	bool GetLodContextAndInvocationElementCounts(
-		TArray<int32>& OutInvocationElementCounts,
-		FOptimusDeformerInstanceComponentLodContext* OutLodContext = nullptr
-		) const;
-
-	//~ Begin IOptimusDeformerInstanceAccessor Interface
-	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
-	UOptimusDeformerInstance* GetDeformerInstance() const override;
-	//~ End IOptimusDeformerInstanceAccessor Interface
-	
 	/** The skinned mesh component that governs the sizing and LOD of this buffer */
 	TWeakObjectPtr<const UActorComponent> Component = nullptr;
 
@@ -224,11 +208,6 @@ public:
 	int32 ElementStride = 4;
 
 	int32 RawStride = 0;
-
-	FOptimusConstantIdentifier DomainConstantIdentifier;
-	
-private:
-	TObjectPtr<UOptimusDeformerInstance> DeformerInstance = nullptr;
 };
 
 
@@ -265,6 +244,8 @@ public:
 	//~ Begin IOptimusPersistentBufferPoolUser Interface
 	
 	bool bZeroInitForAtomicWrites = false;
+	
+	FName DataInterfaceName = NAME_None;
 private:
 	/** The buffer pool we refer to. Set by UOptimusDeformerInstance::SetupFromDeformer after providers have been
 	 *  created
@@ -340,8 +321,8 @@ public:
 		int32 InRawStride,
 		bool bInZeroInitForAtomicWrites,
 		TSharedPtr<FOptimusPersistentBufferPool> InBufferPool,
-		const FOptimusConstantIdentifier& InDomainConstantIdentifier,
-		const FOptimusDeformerInstanceComponentLodContext& InLodContext
+		FName InDataInterfaceName,
+		int32 InLODIndex
 		);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
@@ -360,8 +341,8 @@ public:
 	const bool bZeroInitForAtomicWrites;
 	
 	const TSharedPtr<FOptimusPersistentBufferPool> BufferPool;
-	const FOptimusConstantIdentifier DomainConstantIdentifier;
-	const FOptimusDeformerInstanceComponentLodContext LodContext;
+	FName DataInterfaceName;
+	int32 LODIndex;
 
 	FRDGBufferRef Buffer;
 	FRDGBufferSRVRef BufferSRV;

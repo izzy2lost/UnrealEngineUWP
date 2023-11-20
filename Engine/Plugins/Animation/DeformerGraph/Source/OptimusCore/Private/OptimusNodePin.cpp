@@ -147,7 +147,10 @@ FText UOptimusNodePin::GetTooltipText() const
 
 FString UOptimusNodePin::GetPinPath() const
 {
-	return FString::Printf(TEXT("%s.%s"), *GetOwningNode()->GetNodePath(), *GetUniqueName().ToString());
+	return UOptimusNodeGraph::ConstructPath(
+		GetOwningNode()->GetOwningGraph()->GetGraphPath(),
+		GetOwningNode()->GetName(),
+		GetUniqueName().ToString());
 }
 
 

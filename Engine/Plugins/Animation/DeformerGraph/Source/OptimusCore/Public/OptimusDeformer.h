@@ -10,7 +10,6 @@
 #include "OptimusNodeGraph.h"
 #include "OptimusComponentSource.h"
 #include "OptimusDataDomain.h"
-#include "OptimusConstant.h"
 
 #include "Animation/MeshDeformer.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
@@ -465,10 +464,6 @@ protected:
 	// The compute graphs to execute.
 	UPROPERTY()
 	TArray<FOptimusComputeGraphInfo> ComputeGraphs;
-
-	// Constants used by resource pins in the graph
-	UPROPERTY()
-	FOptimusConstantContainer ConstantContainer;
 
 private:
 	void PostLoadFixupMissingComponentBindingsCompat();

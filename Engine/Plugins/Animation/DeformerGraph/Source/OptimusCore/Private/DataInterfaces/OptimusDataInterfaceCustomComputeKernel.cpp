@@ -77,10 +77,14 @@ UComputeDataProvider* UOptimusCustomComputeKernelDataInterface::CreateDataProvid
 	return Provider;
 }
 
-void UOptimusCustomComputeKernelDataInterface::SetExecutionDomainConstant(
-	const FOptimusConstantIdentifier& InExecutionDomainConstantIdentifier)
+void UOptimusCustomComputeKernelDataInterface::SetExecutionDomain(const FString& InExecutionDomain)
 {
-	ExecutionDomainConstantIdentifier = InExecutionDomainConstantIdentifier;
+	NumThreadsExpression = InExecutionDomain;
+}
+
+void UOptimusCustomComputeKernelDataInterface::SetComponentBinding(const UOptimusComponentSourceBinding* InBinding)
+{
+	ComponentSourceBinding = InBinding;
 }
 
 void UOptimusCustomComputeKernelDataProvider::InitFromDataInterface(const UOptimusCustomComputeKernelDataInterface* InDataInterface, const UObject* InBinding)
@@ -103,55 +107,7 @@ FComputeDataProviderRenderProxy* UOptimusCustomComputeKernelDataProvider::GetRen
 	return Proxy;
 }
 
-void UOptimusCustomComputeKernelDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
-{
-	DeformerInstance = InInstance;
-}
-
-UOptimusDeformerInstance* UOptimusCustomComputeKernelDataProvider::GetDeformerInstance() const
-{
-	return DeformerInstance;
-}
-
-bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(TArray<int32>& OutInvocationThreadCount,
-                                                                        int32& OutTotalThreadCount) const
-{
-	if (!WeakDataInterface.IsValid())
-	{
-		return false;
-	}
-
-	const FOptimusConstantIdentifier& ExecutionDomainIdentifier = WeakDataInterface->ExecutionDomainConstantIdentifier;
-	
-	if (!ExecutionDomainIdentifier.IsValid())
-	{
-		return GetInvocationThreadCounts_DEPRECATED(OutInvocationThreadCount, OutTotalThreadCount);
-	}
-
-	const FOptimusConstantEvaluationResult Result = DeformerInstance->GetConstantValuePerInvocation(ExecutionDomainIdentifier);
-
-	const TArray<float>& Values = Result.ValuePerInvocation;
-	
-	// Can happen if the bound component does not have actual data, like when there is no preview mesh
-	if (Values.Num() == 0)
-	{
-		return false;
-	}
-
-
-	OutTotalThreadCount = 0;
-	OutInvocationThreadCount.Reset(Values.Num());
-	for (const float& Value : Values)
-	{
-		int32 Count = static_cast<int32>(Value);
-		OutInvocationThreadCount.Add(Count);
-		OutTotalThreadCount += Count;
-	}
-
-	return true;
-}
-
-bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts_DEPRECATED(
+bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 	TArray<int32>& OutInvocationThreadCount,
 	int32& OutTotalThreadCount
 	) const
@@ -161,15 +117,13 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts_DEPRECAT
 		return false;
 	}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (!WeakDataInterface->ComponentSourceBinding_DEPRECATED.IsValid())
+	if (!WeakDataInterface->ComponentSourceBinding.IsValid())
 	{
 		return false;
 	}
 	
-	const UOptimusComponentSource* ComponentSource = WeakDataInterface->ComponentSourceBinding_DEPRECATED->GetComponentSource();
-	const FString& NumThreadsExpression = WeakDataInterface->NumThreadsExpression_DEPRECATED;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	const UOptimusComponentSource* ComponentSource = WeakDataInterface->ComponentSourceBinding->GetComponentSource();
+	const FString& NumThreadsExpression = WeakDataInterface->NumThreadsExpression;
 	
 	if (!WeakComponent.IsValid() || !ComponentSource)
 	{

@@ -48,13 +48,16 @@ public:
 	UOptimusComponentSourceBinding* GetComponentBinding() const override;
 
 	// -- IOptimusPinMutabilityDefiner
-	bool IsOutputPinMutable(const UOptimusNodePin* InPin) const override;
+	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override;
 	
 protected:
 	// -- UOptimusNode overrides
 	void ConstructNode() override;
 	bool ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const override;
 	TOptional<FText> ValidateForCompile() const override;
+
+	void SaveState(FArchive& Ar) const override;
+	void RestoreState(FArchive& Ar) override;
 
 	// -- UObject overrides
 	void PostLoad() override;

@@ -76,6 +76,18 @@ struct FOptimusParameterBindingArray
 		return InnerArray.FindByPredicate(Pred);
 	}
 
+	template <typename Predicate>
+	int32 IndexOfByPredicate(Predicate Pred) const
+	{
+		return InnerArray.IndexOfByPredicate(Pred);
+	}
+
+	template <typename Predicate>
+	int32 IndexOfByPredicate(Predicate Pred)
+	{
+		return InnerArray.IndexOfByPredicate(Pred);
+	}
+
 	bool IsEmpty() const
 	{
 		return InnerArray.IsEmpty();

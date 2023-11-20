@@ -39,14 +39,12 @@ public:
 	FOptimus_ComputeKernelResult CreateComputeKernel(
 		UObject* InKernelSourceOuter,
 		const FOptimusPinTraversalContext& InTraversalContext,
-		const FOptimus_NodeToDataInterfaceMap& InNodeDataInterfaceMap,
-		const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
+		const FOptimus_KernelInputMap InKernelInputs,
+		const FOptimus_KernelOutputMap InKernelOutputs,
 		const TArray<const UOptimusNode*>& InValueNodes,
-		const UComputeDataInterface* InGraphDataInterface,
 		UComputeDataInterface* InOutKernelDataInterface,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
-		FOptimusKernelConstantContainer& OutKernelConstantContainer
+		FOptimus_InterfaceBindingMap& OutOutputDataBindings
 	) const override;
 
 	FOptimusExecutionDomain GetExecutionDomain() const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::GetExecutionDomain, return {}; );
@@ -54,7 +52,6 @@ public:
 	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::MakeKernelDataInterface, return {}; );
 	bool DoesOutputPinSupportAtomic(const UOptimusNodePin* InPin) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::DoesOutputPinSupportAtomic, return false; );
 	bool DoesOutputPinSupportRead(const UOptimusNodePin* InPin) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::DoesOutputPinSupportRead, return false; );
-	bool HasMutableInput() const override;
 	
 	// -- UOptimusNode overrides
 	TOptional<FText> ValidateForCompile() const override;
@@ -111,34 +108,28 @@ private:
 		const FOptimusPinTraversalContext& InTraversalContext,
 		const UOptimusNodePin* InInputPin,
 		const FString& InGroupName,
-		const FOptimus_NodeToDataInterfaceMap& InNodeDataInterfaceMap,
-		const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
+		const FOptimus_KernelInputMap& InKernelInputs,
 		const TArray<const UOptimusNode*>& InValueNodes,
-		const UComputeDataInterface* InGraphDataInterface,
 		UOptimusKernelSource* InKernelSource,
 		TArray<FString>& OutGeneratedFunctions,
-		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimusKernelConstantContainer& OutKernelConstantContainer
+		FOptimus_InterfaceBindingMap& OutInputDataBindings
 		) const;
 
 	void ProcessOutputPinForComputeKernel(
 		const FOptimusPinTraversalContext& InTraversalContext,
 		const UOptimusNodePin* InOutputPin,
-		const FOptimus_NodeToDataInterfaceMap& InNodeDataInterfaceMap,
-		const FOptimus_PinToDataInterfaceMap& InLinkDataInterfaceMap,
+		const FOptimus_KernelOutputMap& InKernelOutputs,
 		UOptimusKernelSource* InKernelSource,
 		TArray<FString>& OutGeneratedFunctions,
 		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimus_InterfaceBindingMap& OutOutputDataBindings,
-		FOptimusKernelConstantContainer& OutKernelConstantContainer
+		FOptimus_InterfaceBindingMap& OutOutputDataBindings
 		) const;
 
 	void BindKernelDataInterfaceForComputeKernel(
 		const UOptimusComponentSourceBinding* InKernelPrimaryComponentSourceBinding,
 		UComputeDataInterface* InOutKernelDataInterface,
 		UOptimusKernelSource* InKernelSource,
-		FOptimus_InterfaceBindingMap& OutInputDataBindings,
-		FOptimusKernelConstantContainer& OutKernelConstantContainer
+		FOptimus_InterfaceBindingMap& OutInputDataBindings
 		) const;
 };
 

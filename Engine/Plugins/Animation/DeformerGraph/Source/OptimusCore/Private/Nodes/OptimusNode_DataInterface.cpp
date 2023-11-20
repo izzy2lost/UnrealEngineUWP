@@ -11,6 +11,9 @@
 #include "OptimusObjectVersion.h"
 
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNode_DataInterface)
 
@@ -92,6 +95,27 @@ TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile() const
 	}
 	
 	return {};
+}
+
+void UOptimusNode_DataInterface::SaveState(FArchive& Ar) const
+{
+	Super::SaveState(Ar);
+	// This fella does the heavy lifting of serializing object references. 
+	// FMemoryWriter and fam do not handle UObject* serialization on their own.
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+			Ar, /* bInLoadIfFindFails=*/ false);
+	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);	
+}
+
+void UOptimusNode_DataInterface::RestoreState(FArchive& Ar)
+{
+	Super::RestoreState(Ar);
+
+	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
+	
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+			Ar, /* bInLoadIfFindFails=*/true);
+	DataInterfaceData->SerializeScriptProperties(NodeProxyArchive);
 }
 
 bool UOptimusNode_DataInterface::IsComponentSourceCompatible(const UOptimusComponentSource* InComponentSource) const
@@ -197,7 +221,7 @@ UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(
 	return nullptr;
 }
 
-bool UOptimusNode_DataInterface::IsOutputPinMutable(const UOptimusNodePin* InPin) const
+EOptimusPinMutability UOptimusNode_DataInterface::GetOutputPinMutability(const UOptimusNodePin* InPin) const
 {
 	const TArray<FOptimusCDIPinDefinition> PinDefinitions = DataInterfaceData->GetPinDefinitions();
 
@@ -212,10 +236,10 @@ bool UOptimusNode_DataInterface::IsOutputPinMutable(const UOptimusNodePin* InPin
 	}
 	if (!ensure(PinDefinitionIndex != INDEX_NONE))
 	{
-		return true;
+		return EOptimusPinMutability::Mutable;
 	}
 
-	return PinDefinitions[PinDefinitionIndex].bMutable;
+	return PinDefinitions[PinDefinitionIndex].bMutable ? EOptimusPinMutability::Mutable : EOptimusPinMutability::Immutable;
 }
 
 

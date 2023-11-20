@@ -57,7 +57,7 @@ public:
 	FShaderValueType::FValue GetShaderValue() const override;
 
 	//IOptimusPinMutabilityDefiner overrides 
-	bool IsOutputPinMutable(const UOptimusNodePin* InPin) const override { return true; };
+	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override { return EOptimusPinMutability::Mutable; };
 	
 protected:
 	void ConstructNode() override;

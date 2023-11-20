@@ -87,8 +87,9 @@ public:
 		) const override;
 
 	TArray<UOptimusNodePin*> TryAddPinFromPin(
-		const FAdderPinAction& InSelectedAction,
-		UOptimusNodePin* InSourcePin
+		const FAdderPinAction& InSelectedAction, 
+		UOptimusNodePin* InSourcePin, 
+		FName InNameToUse
 		) override;
 	
 	bool RemoveAddedPins(

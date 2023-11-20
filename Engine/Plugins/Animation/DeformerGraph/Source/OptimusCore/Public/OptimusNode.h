@@ -105,6 +105,9 @@ public:
 	/** Returns the list of all the pins on this node */
 	TArrayView<UOptimusNodePin* const> GetPins() const { return Pins; }
 
+	/** Returns the list of pins on this node filtered by direction */
+	TArray<UOptimusNodePin*> GetPinsByDirection(EOptimusNodePinDirection InDirection, bool bInRecursive) const;
+	
 	/**
 	 * Preliminary check for whether valid connection can be made between two existing pins.
 	 * Can be overridden by derived nodes to add their own additional checks. 
@@ -196,7 +199,17 @@ protected:
 	friend struct FOptimusNodeAction_SetPinDataDomain;
 	friend struct FOptimusNodeGraphAction_PackageKernelFunction;
 	friend struct FOptimusNodeGraphAction_UnpackageKernelFunction;
+	friend struct FOptimusNodeGraphAction_RemoveNode;
 
+	/**
+	 * Returns a unique name for pin. If given the same pins to compare to, the output
+	 * name will always be the same, unlike Optimus::GetUniqueNameForScope, which gives
+	 * a different name each time it is called, use this function if pin names are generated during
+	 * an action instead of prior to an action. Though ideally there should be only one way to generate
+	 * pin names
+	 */
+	static FName GetAvailablePinNameStable(const UObject* InNodeOrPin, FName InName);
+	
 	// Return the action stack for this node.
 	UOptimusActionStack* GetActionStack() const;
 
@@ -227,7 +240,9 @@ protected:
 	virtual void PreDuplicateRequirementActions(
 		const UOptimusNodeGraph* InTargetGraph, 
 		FOptimusCompoundAction *InCompoundAction) {}
-	
+
+	virtual void SaveState(FArchive& Ar) const;
+	virtual void RestoreState(FArchive& Ar);
 
 	void EnableDynamicPins();
 

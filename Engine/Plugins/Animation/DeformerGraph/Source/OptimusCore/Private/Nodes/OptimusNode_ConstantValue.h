@@ -78,7 +78,7 @@ public:
 		) const override;
 
 	// IOptimusPinMutabilityDefiner implementation
-	bool IsOutputPinMutable(const UOptimusNodePin* InPin) const override { return false; };
+	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override { return EOptimusPinMutability::Immutable; };
 	
 	
 protected:

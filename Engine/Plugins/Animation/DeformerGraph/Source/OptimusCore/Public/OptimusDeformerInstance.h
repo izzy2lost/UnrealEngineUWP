@@ -4,13 +4,11 @@
 
 #include "Animation/MeshDeformerInstance.h"
 #include "ComputeFramework/ComputeGraphInstance.h"
-#include "OptimusConstant.h"
 #include "Engine/EngineTypes.h"
 
 #include "OptimusDeformerInstance.generated.h"
 
 class UOptimusComponentSource;
-struct FOptimusConstantIdentifier;
 enum class EOptimusNodeGraphType;
 struct FOptimusPersistentStructuredBuffer;
 class FRDGBuffer;
@@ -44,17 +42,6 @@ struct FOptimusDeformerInstanceComponentLodContext
 	}
 };
 
-struct FOptimusConstantEvaluationResult
-{
-	TArray<float> ValuePerInvocation;
-	FOptimusDeformerInstanceComponentLodContext LodContext;
-
-	bool IsValid() const
-	{
-		return ValuePerInvocation.Num() != 0;
-	};
-};
-
 class FOptimusPersistentBufferPool
 {
 public:
@@ -76,8 +63,8 @@ public:
 
 	void GetImplicitPersistentBuffers(
 		FRDGBuilder& GraphBuilder,
-		const FOptimusConstantIdentifier& InIdentifier,
-		const FOptimusDeformerInstanceComponentLodContext& InLodContext,
+		FName DataInterfaceName,
+		int32 LODIndex,
 		int32 InElementStride,
 		int32 InRawStride,
 		TArray<int32> const& InElementCounts,
@@ -106,7 +93,7 @@ private:
 		) const;
 	
 	TMap<FName, TMap<int32, TArray<FOptimusPersistentStructuredBuffer>>> ResourceBuffersMap;
-	TMap<FOptimusDeformerInstanceComponentLodContext, TMap<FOptimusConstantIdentifier, TArray<FOptimusPersistentStructuredBuffer>>> ImplicitBuffersMap;
+	TMap<FName, TMap<int32, TArray<FOptimusPersistentStructuredBuffer>>> ImplicitBuffersMap;
 };
 using FOptimusPersistentBufferPoolPtr = TSharedPtr<FOptimusPersistentBufferPool>;
 
@@ -264,9 +251,6 @@ public:
 	FOptimusPersistentBufferPoolPtr GetBufferPool() const { return BufferPool; }
 
 	void SetCanBeActive(bool bInCanBeActive);
-
-	FOptimusConstantEvaluationResult GetConstantValuePerInvocation(const FOptimusConstantIdentifier& InIdentifier);
-
 protected:
 	/** Implementation of UMeshDeformerInstance. */
 	void AllocateResources() override;
@@ -295,12 +279,7 @@ private:
 	
 	UPROPERTY()
 	TArray<TWeakObjectPtr<const UOptimusComponentSource>> WeakComponentSources;
-
-	UPROPERTY()
-	FOptimusConstantContainer ConstantContainer;
 	
-	TMap<FOptimusDeformerInstanceComponentLodContext, FOptimusConstantContainerInstance> ConstantValuesPerContext;
-
 	// List of graphs that should be run on the next tick. 
 	TSet<FName> GraphsToRunOnNextTick;
 	FCriticalSection GraphsToRunOnNextTickLock;

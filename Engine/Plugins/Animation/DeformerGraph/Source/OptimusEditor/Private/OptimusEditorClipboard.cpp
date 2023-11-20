@@ -4,6 +4,7 @@
 
 #include "OptimusNode.h"
 #include "OptimusNodeGraph.h"
+#include "OptimusNodePair.h"
 #include "OptimusNodeLink.h"
 #include "OptimusNodePin.h"
 
@@ -21,8 +22,13 @@ void FOptimusEditorClipboard::SetClipboardFromNodes(const TArray<UOptimusNode*>&
 	{
 		return;
 	}
+
+	TArray<UOptimusNode*> NodesToConsider;
+	TArray<UOptimusNodePair*> NodePairsToConsider;
 	
 	UOptimusNodeGraph* Graph = InNodes[0]->GetOwningGraph();
+
+	Graph->AddPairNodesToArray(InNodes, NodesToConsider, NodePairsToConsider);
 
 	// Export the clipboard to text.
 	const FExportObjectInnerContext Context;
@@ -33,8 +39,8 @@ void FOptimusEditorClipboard::SetClipboardFromNodes(const TArray<UOptimusNode*>&
 
 	// Export the nodes first.
 	TSet<UOptimusNode*> NodesToCopy;
-	NodesToCopy.Reserve(InNodes.Num());
-	for (UOptimusNode* Node: InNodes)
+	NodesToCopy.Reserve(NodesToConsider.Num());
+	for (UOptimusNode* Node: NodesToConsider)
 	{
 		if (!ensure(Node->GetOwningGraph() == Graph))
 		{
@@ -63,6 +69,20 @@ void FOptimusEditorClipboard::SetClipboardFromNodes(const TArray<UOptimusNode*>&
 			Graph);
 		
 		NodesToCopy.Add(Node);
+	}
+
+	for (UOptimusNodePair* NodePair : NodePairsToConsider)
+	{
+		UExporter::ExportToOutputDevice(
+			&Context,
+			NodePair,
+			nullptr,
+			Archive,
+			TEXT("copy"),
+			0,
+			PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited,
+			false,
+			Graph);	
 	}
 
 	// Export all internal links as well.
@@ -321,7 +341,8 @@ bool FOptimusEditorClipboard::CanCreateClass(const UClass* InClass)
 {
 	return InClass->IsChildOf(UOptimusNode::StaticClass()) ||
 		   InClass == UOptimusNodePin::StaticClass() ||
-		   InClass == UOptimusNodeLink::StaticClass();
+		   InClass == UOptimusNodeLink::StaticClass() ||
+		   InClass == UOptimusNodePair::StaticClass();
 }
 
 
@@ -341,6 +362,11 @@ bool FOptimusEditorClipboard::ProcessPostCreateObject(UObject* InRootOuter, UObj
 			const UOptimusNodeLink* Link = Cast<UOptimusNodeLink>(InNewObject);
 
 			return Graph->AddLinkDirect(Link->GetNodeOutputPin(), Link->GetNodeInputPin());
+		}else if (InNewObject->IsA<UOptimusNodePair>())
+		{
+			const UOptimusNodePair* NodePair = Cast<UOptimusNodePair>(InNewObject);
+
+			return Graph->AddNodePairDirect(NodePair->GetFirst(), NodePair->GetSecond());
 		}
 	}
 

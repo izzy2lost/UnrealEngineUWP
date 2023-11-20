@@ -15,12 +15,19 @@ class OPTIMUSCORE_API UOptimusPinMutabilityDefiner :
 	GENERATED_BODY()
 };
 
+UENUM()
+enum class EOptimusPinMutability
+{
+	Undefined,
+	Immutable,
+	Mutable,
+};
 
 class IOptimusPinMutabilityDefiner
 {
 	GENERATED_BODY()
 
 public:
-	/** Returns the component binding for the node that this interface is implemented on */
-	virtual bool IsOutputPinMutable(const UOptimusNodePin* InPin) const = 0;
+	// Returns whether the output pin is mutable, immutable or undefined
+	virtual EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const = 0;
 };

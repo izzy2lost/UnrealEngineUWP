@@ -314,32 +314,35 @@ void UOptimusEditorGraphNode::GetNodeContextMenuActions(
 
 FLinearColor UOptimusEditorGraphNode::GetNodeTitleColor() const
 {
-	const FLinearColor ImmutableColor = FLinearColor::Green;
-	if (IOptimusComputeKernelProvider* KernelProvider = Cast<IOptimusComputeKernelProvider>(ModelNode))
+	if (ModelNode)
 	{
+		const FLinearColor ImmutableColor = FLinearColor::Green;
+
 		if (ModelNode->GetOwningGraph()->GetGraphType() == EOptimusNodeGraphType::Update)
 		{
-			if (!KernelProvider->HasMutableInput())
+			if (ModelNode->GetOwningGraph()->DoesNodeHaveMutableInput(ModelNode))
 			{
-				return ImmutableColor;
-			}	
-		}
-	}
+				return Super::GetNodeTitleColor();
+			}
 
-	if (IOptimusPinMutabilityDefiner* PinMutabilityDefiner = Cast<IOptimusPinMutabilityDefiner>(ModelNode))
-	{
-		for (UOptimusNodePin* Pin : ModelNode->GetPins())
-		{
-			if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
+			if (IOptimusPinMutabilityDefiner* PinMutabilityDefiner = Cast<IOptimusPinMutabilityDefiner>(ModelNode))
 			{
-				if (PinMutabilityDefiner->IsOutputPinMutable(Pin))
+				for (UOptimusNodePin* Pin : ModelNode->GetPins())
 				{
-					return Super::GetNodeTitleColor();
+					if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
+					{
+						const EOptimusPinMutability Mutability = PinMutabilityDefiner->GetOutputPinMutability(Pin);
+						if (Mutability == EOptimusPinMutability::Mutable)
+						{
+							return Super::GetNodeTitleColor();
+						}
+					}
 				}
 			}
+			
+			// No mutable output, no mutable input
+			return ImmutableColor;
 		}
-
-		return ImmutableColor;
 	}
 	
 	return Super::GetNodeTitleColor();

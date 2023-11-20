@@ -214,6 +214,7 @@ UComputeDataProvider* UOptimusImplicitPersistentBufferDataInterface::CreateDataP
 	uint64 InInputMask, uint64 InOutputMask) const
 {
 	UOptimusImplicitPersistentBufferDataProvider *Provider = CreateProvider<UOptimusImplicitPersistentBufferDataProvider>(InBinding);
+	Provider->DataInterfaceName = this->GetFName();
 	Provider->bZeroInitForAtomicWrites = bZeroInitForAtomicWrites;
 	return Provider;
 }
@@ -411,63 +412,14 @@ bool UOptimusRawBufferDataProvider::GetLodAndInvocationElementCounts(
 	return false;
 }
 
-bool UOptimusRawBufferDataProvider::GetLodContextAndInvocationElementCounts(
-	TArray<int32>& OutInvocationElementCounts,
-	FOptimusDeformerInstanceComponentLodContext* OutLodContext
-	) const
-{
-	FOptimusConstantEvaluationResult Result = DeformerInstance->GetConstantValuePerInvocation(DomainConstantIdentifier);
-
-	// Can happen if the bound component does not have actual data, like when there is no preview mesh
-	if (!Result.IsValid())
-	{
-		return false;
-	}
-
-	if (OutLodContext)
-	{
-		*OutLodContext = Result.LodContext;
-	}
-	const TArray<float>& Values = Result.ValuePerInvocation;
-	OutInvocationElementCounts.Reset(Values.Num());
-	for (const float& Value : Values)
-	{
-		OutInvocationElementCounts.Add(static_cast<int32>(Value));
-	}
-
-	return true;
-}
-
-void UOptimusRawBufferDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
-{
-	DeformerInstance = InInstance;
-}
-
-UOptimusDeformerInstance* UOptimusRawBufferDataProvider::GetDeformerInstance() const
-{
-	return DeformerInstance;
-}
-
-
 FComputeDataProviderRenderProxy* UOptimusTransientBufferDataProvider::GetRenderProxy()
 {
 	int32 LodIndex;
 	TArray<int32> InvocationCounts;
 	
-	if (DomainConstantIdentifier.IsValid())
+	if (!GetLodAndInvocationElementCounts(LodIndex, InvocationCounts))
 	{
-		// Querying the deformer instance for the domain of this buffer
-		if (!GetLodContextAndInvocationElementCounts(InvocationCounts))
-		{
-			InvocationCounts.Reset();
-		}
-	}
-	else
-	{
-		if (!GetLodAndInvocationElementCounts(LodIndex, InvocationCounts))
-		{
-			InvocationCounts.Reset();
-		}
+		InvocationCounts.Reset();
 	}
 	
 	return new FOptimusTransientBufferDataProviderProxy(InvocationCounts, ElementStride, RawStride, bZeroInitForAtomicWrites);
@@ -475,24 +427,19 @@ FComputeDataProviderRenderProxy* UOptimusTransientBufferDataProvider::GetRenderP
 
 FComputeDataProviderRenderProxy* UOptimusImplicitPersistentBufferDataProvider::GetRenderProxy()
 {
-	FOptimusDeformerInstanceComponentLodContext LodContext;
+	int32 LodIndex;
 	TArray<int32> InvocationCounts;
 
-	// Identifier can be unassigned when there isn't a valid component bound, see UOptimusRawBufferDataInterface::CreateProvider
-	if (DomainConstantIdentifier.IsValid())
+	if (!GetLodAndInvocationElementCounts(LodIndex, InvocationCounts))
 	{
-		// Querying the deformer instance for the domain of this buffer
-		if (!GetLodContextAndInvocationElementCounts(InvocationCounts, &LodContext))
-		{
-			InvocationCounts.Reset();
-		}
+		InvocationCounts.Reset();
 	}
-	
+
 	return new FOptimusImplicitPersistentBufferDataProviderProxy(
 		InvocationCounts, ElementStride, RawStride, bZeroInitForAtomicWrites,
 		BufferPool,
-		DomainConstantIdentifier,
-		LodContext);
+		DataInterfaceName,
+		LodIndex);
 }
 
 
@@ -580,8 +527,8 @@ FOptimusImplicitPersistentBufferDataProviderProxy::FOptimusImplicitPersistentBuf
 	int32 InRawStride,
 	bool bInZeroInitForAtomicWrites,
 	TSharedPtr<FOptimusPersistentBufferPool> InBufferPool,
-	const FOptimusConstantIdentifier& InDomainConstantIdentifier,
-	const FOptimusDeformerInstanceComponentLodContext& InLodContext
+	FName InDataInterfaceName,
+	int32 InLODIndex
 	) :
 	InvocationElementCounts(InInvocationElementCounts),
 	TotalElementCount(0),
@@ -589,8 +536,8 @@ FOptimusImplicitPersistentBufferDataProviderProxy::FOptimusImplicitPersistentBuf
 	RawStride(InRawStride),
 	bZeroInitForAtomicWrites(bInZeroInitForAtomicWrites),
 	BufferPool(InBufferPool),
-	DomainConstantIdentifier(InDomainConstantIdentifier),
-	LodContext(InLodContext)
+	DataInterfaceName(InDataInterfaceName),
+	LODIndex(InLODIndex)
 {
 	for (int32 NumElements : InvocationElementCounts)
 	{
@@ -610,6 +557,11 @@ bool FOptimusImplicitPersistentBufferDataProviderProxy::IsValid(FValidationData 
 		return false;
 	}
 
+	if (DataInterfaceName == NAME_None)
+	{
+		return false;
+	}
+
 	return true;
 }
 
@@ -619,7 +571,7 @@ void FOptimusImplicitPersistentBufferDataProviderProxy::AllocateResources(FRDGBu
 	Count.Add(TotalElementCount);
 	TArray<FRDGBufferRef> Buffers;
 	bool bJustAllocated = false;
-	BufferPool->GetImplicitPersistentBuffers(GraphBuilder, DomainConstantIdentifier, LodContext, ElementStride, RawStride, Count, Buffers, bJustAllocated);
+	BufferPool->GetImplicitPersistentBuffers(GraphBuilder, DataInterfaceName, LODIndex, ElementStride, RawStride, Count, Buffers, bJustAllocated);
 
 	ensure(Buffers.Num() == 1);
 	Buffer = Buffers[0];

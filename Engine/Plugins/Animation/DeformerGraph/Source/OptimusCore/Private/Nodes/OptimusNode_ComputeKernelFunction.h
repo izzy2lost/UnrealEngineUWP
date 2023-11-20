@@ -81,7 +81,6 @@ public:
 	UComputeDataInterface* MakeKernelDataInterface(UObject* InOuter) const override { return nullptr; };
 	bool DoesOutputPinSupportAtomic(const UOptimusNodePin* InPin) const override {return false;};
 	bool DoesOutputPinSupportRead(const UOptimusNodePin* InPin) const override {return false;};
-	bool HasMutableInput() const override {return false;};
 private:
 	UOptimusNode_ComputeKernelFunctionGeneratorClass *GetGeneratorClass() const;
 };

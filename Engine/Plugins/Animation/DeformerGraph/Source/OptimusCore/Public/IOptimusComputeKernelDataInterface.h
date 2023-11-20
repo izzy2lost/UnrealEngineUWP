@@ -6,7 +6,7 @@
 
 #include "IOptimusComputeKernelDataInterface.generated.h"
 
-struct FOptimusConstantIdentifier;
+class UOptimusComponentSourceBinding;
 
 UINTERFACE()
 class OPTIMUSCORE_API UOptimusComputeKernelDataInterface :
@@ -22,5 +22,7 @@ class OPTIMUSCORE_API IOptimusComputeKernelDataInterface
 {
 public:
 	GENERATED_BODY()
-	virtual void SetExecutionDomainConstant(const FOptimusConstantIdentifier& InExecutionDomainConstantIdentifier) = 0;
+	virtual void SetExecutionDomain(const FString& InExecutionDomain) = 0;
+	virtual void SetComponentBinding(const UOptimusComponentSourceBinding* InBinding) = 0;
+	
 };

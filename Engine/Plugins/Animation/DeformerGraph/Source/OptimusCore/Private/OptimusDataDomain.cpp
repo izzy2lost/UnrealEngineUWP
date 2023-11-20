@@ -174,6 +174,25 @@ TOptional<FString> FOptimusDataDomain::AsExpression() const
 	return {};
 }
 
+TSet<FName> FOptimusDataDomain::GetUsedConstants() const
+{
+	if (ensure(Type == EOptimusDataDomainType::Expression))
+	{
+		using namespace Optimus::Expression;
+		FEngine Engine;
+		TVariant<FExpressionObject, FParseError> ParseResult = Engine.Parse(Expression);
+
+		if (ParseResult.IsType<FParseError>())
+		{
+			return {};
+		}
+
+		return ParseResult.Get<FExpressionObject>().GetUsedConstants();
+	}
+
+	return {};
+}
+
 FString FOptimusDataDomain::GetDisplayName() const
 {
 	switch(Type)
@@ -212,8 +231,12 @@ FString FOptimusDataDomain::GetDisplayName() const
 bool FOptimusDataDomain::AreCompatible(const FOptimusDataDomain& InOutput, const FOptimusDataDomain& InInput,
                                        FString* OutReason)
 {
-	if (!InOutput.IsFullyDefined())
+	if (!InOutput.IsFullyDefined() || !InInput.IsFullyDefined())
 	{
+		if (OutReason)
+		{
+			*OutReason = TEXT("One of the pins has undefined datadomain");
+		}
 		return false;
 	}
 
@@ -228,23 +251,10 @@ bool FOptimusDataDomain::AreCompatible(const FOptimusDataDomain& InOutput, const
 		return false;
 	}
 
-	if (InOutput.IsSingleton() && !InInput.IsSingleton())
-	{
-		if (!InInput.IsFullyDefined())
-		{
-			if (OutReason)
-			{
-				*OutReason = TEXT("Can't connect a value output to a input with undefined data domain");
-			}
-			return false;
-		}
-		
-	}
-	
 	// If it's resource -> resource, check that the domains are compatible
 	if (!InOutput.IsSingleton() && !InInput.IsSingleton())
 	{
-		if (InOutput != InInput && InInput.IsFullyDefined())
+		if (InOutput != InInput)
 		{
 			if (OutReason)
 			{

@@ -17,6 +17,9 @@
 #include "Actions/OptimusNodeGraphActions.h"
 
 #include "Algo/Reverse.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UObjectGlobals.h"
@@ -125,13 +128,36 @@ FString UOptimusNode::GetNodePath() const
 		GraphPath = Graph->GetGraphPath();
 	}
 
-	return FString::Printf(TEXT("%s/%s"), *GraphPath, *GetName());
+	return UOptimusNodeGraph::ConstructPath(GraphPath, GetName(), {});
 }
 
 
 UOptimusNodeGraph* UOptimusNode::GetOwningGraph() const
 {
 	return Cast<UOptimusNodeGraph>(GetOuter());
+}
+
+TArray<UOptimusNodePin*> UOptimusNode::GetPinsByDirection(EOptimusNodePinDirection InDirection,
+	bool bInRecursive) const
+{
+	TArray<UOptimusNodePin*> Results;
+
+	for (UOptimusNodePin* Pin : Pins)
+	{
+		if (Pin->GetDirection() == InDirection)
+		{
+			if (bInRecursive)
+			{
+				Results.Append(Pin->GetSubPinsRecursively(true));
+			}
+			else
+			{
+				Results.Add(Pin);
+			}
+		}
+	}
+
+	return Results;
 }
 
 bool UOptimusNode::CanConnectPinToPin(
@@ -351,6 +377,51 @@ TArray<UClass*> UOptimusNode::GetAllNodeClasses()
 	return NodeClasses;
 }
 
+FName UOptimusNode::GetAvailablePinNameStable(const UObject* InNodeOrPin, FName InName)
+{
+	TArray<const UOptimusNodePin*> PinsToCompare;
+	if (const UOptimusNode* Node = Cast<const UOptimusNode>(InNodeOrPin))
+	{
+		PinsToCompare.Append(Node->GetPins());
+	}
+	else if (const UOptimusNodePin* Pin = Cast<const UOptimusNodePin>(InNodeOrPin))
+	{
+		PinsToCompare.Append(Pin->GetSubPins());
+	}
+
+	TMap<FName, int32> BaseNameToMaxNumber;
+
+	for(const UOptimusNodePin* Pin : PinsToCompare)
+	{
+		const int32 Number = Pin->GetFName().GetNumber();
+		FName BaseName = Pin->GetFName();
+		BaseName.SetNumber(0);
+
+		if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(BaseName))
+		{
+			BaseNameToMaxNumber[BaseName] = FMath::Max(Number, *ExistingNumber);
+		}
+		else
+		{
+			BaseNameToMaxNumber.Add(BaseName) = Number;
+		}
+	}
+
+	FName NewName = InName;
+	const int32 InputNumber = InName.GetNumber();
+	FName InputBaseName = InName;
+	InputBaseName.SetNumber(0);
+	if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(InputBaseName))
+	{
+		if (InputNumber <= *ExistingNumber)
+		{
+			NewName.SetNumber(*ExistingNumber+1);
+		}
+	}
+
+	return NewName;
+}
+
 
 void UOptimusNode::PostCreateNode()
 {
@@ -421,6 +492,25 @@ void UOptimusNode::ConstructNode()
 	CreatePinsFromStructLayout(GetClass(), nullptr);
 }
 
+
+void UOptimusNode::SaveState(FArchive& Ar) const
+{
+	// Take a copy of the node's contents but not sub-data (like pins).
+	// Derived nodes may add additional data to the archive
+	
+	// This fella does the heavy lifting of serializing object references. 
+	// FMemoryWriter and fam do not handle UObject* serialization on their own.
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+			Ar, /* bInLoadIfFindFails=*/ false);
+	SerializeScriptProperties(NodeProxyArchive);
+}
+
+void UOptimusNode::RestoreState(FArchive& Ar)
+{
+	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
+		Ar, /* bInLoadIfFindFails=*/true);
+	SerializeScriptProperties(NodeProxyArchive);
+}
 
 void UOptimusNode::EnableDynamicPins()
 {
