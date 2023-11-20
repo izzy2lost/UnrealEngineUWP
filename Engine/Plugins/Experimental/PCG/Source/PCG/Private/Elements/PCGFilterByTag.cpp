@@ -11,8 +11,8 @@
 
 namespace PCGFilterByTagConstants
 {
-	const FName NodeName = FName(TEXT("FilterByTag"));
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter By Tag");
+	const FName NodeName = FName(TEXT("FilterDataByTag"));
+	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Data By Tag");
 }
 
 #if WITH_EDITOR
@@ -32,19 +32,6 @@ FText UPCGFilterByTagSettings::GetNodeTooltipText() const
 }
 #endif
 
-EPCGDataType UPCGFilterByTagSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
-{
-	check(InPin);
-	if (!InPin->IsOutputPin())
-	{
-		return Super::GetCurrentPinTypes(InPin);
-	}
-
-	// Output pin narrows to union of inputs on first pin
-	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-	return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
-}
-
 FName UPCGFilterByTagSettings::AdditionalTaskName() const
 {
 	const TArray<FString> Tags = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
@@ -60,22 +47,6 @@ FName UPCGFilterByTagSettings::AdditionalTaskName() const
 	{
 		return FName(NodeName);
 	}
-}
-
-TArray<FPCGPinProperties> UPCGFilterByTagSettings::InputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
-
-	return PinProperties;
-}
-
-TArray<FPCGPinProperties> UPCGFilterByTagSettings::OutputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Any);
-
-	return PinProperties;
 }
 
 FPCGElementPtr UPCGFilterByTagSettings::CreateElement() const
@@ -98,6 +69,9 @@ bool FPCGFilterByTagElement::ExecuteInternal(FPCGContext* Context) const
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
+		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
+		Output.Pin = PCGPinConstants::DefaultOutFilterLabel;
+
 		bool bHasCommonTags = false;
 
 		for (const FString& Tag : Tags)
@@ -111,7 +85,7 @@ bool FPCGFilterByTagElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (bKeepIfTag == bHasCommonTags)
 		{
-			Outputs.Add(Input);
+			Output.Pin = PCGPinConstants::DefaultInFilterLabel;
 		}
 	}
 

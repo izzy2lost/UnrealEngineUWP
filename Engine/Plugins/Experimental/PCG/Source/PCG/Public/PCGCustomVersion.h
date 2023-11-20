@@ -62,6 +62,9 @@ struct PCG_API FPCGCustomVersion
 		// Introduced the concept of pin usage and graph defaults around loops, which changed the default behavior otherwise
 		UpdateGraphSettingsLoopPins = 17,
 
+		// Added 'out' filter pins on filter by tag & by type
+		UpdateFilterNodeOutputPins = 18,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

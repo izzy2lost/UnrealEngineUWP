@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "PCGSettings.h"
+#include "Elements/PCGFilterDataBase.h"
 
 #include "PCGFilterByIndex.generated.h"
 
 /** Filters a data collection based on a user defined index range expression. */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByIndexSettings : public UPCGSettings
+class PCG_API UPCGFilterByIndexSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 
@@ -18,14 +18,10 @@ public:
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif
-	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 	virtual FName AdditionalTaskName() const override;
 
 protected:
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 

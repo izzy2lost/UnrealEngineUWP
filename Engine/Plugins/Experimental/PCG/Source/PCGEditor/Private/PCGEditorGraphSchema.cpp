@@ -232,7 +232,7 @@ bool UPCGEditorGraphSchema::TryCreateConnectionInternal(UEdGraphPin* InA, UEdGra
 		// which can refresh the node, so we must re-query the pins after each connection is made.
 		UEdGraphPin*const* ConversionOutputPin = ConversionNode->GetAllPins().FindByPredicate([](const UEdGraphPin* InPin)
 		{
-			return InPin->Direction == EGPD_Output && InPin->GetFName() == PCGPinConstants::DefaultOutputLabel;
+			return InPin->Direction == EGPD_Output && (InPin->GetFName() == PCGPinConstants::DefaultOutputLabel || InPin->GetFName() == PCGPinConstants::DefaultInFilterLabel);
 		});
 
 		if (ensure(ConversionOutputPin && *ConversionOutputPin))

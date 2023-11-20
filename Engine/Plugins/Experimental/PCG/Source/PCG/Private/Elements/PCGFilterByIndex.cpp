@@ -13,8 +13,8 @@
 
 namespace PCGFilterByIndexConstants
 {
-	const FName NodeName = FName(TEXT("FilterByIndex"));
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter By Index");
+	const FName NodeName = FName(TEXT("FilterDataByIndex"));
+	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Data By Index");
 
 	// After so many characters on the node, it will truncate with an ellipsis ...
 	static constexpr int32 IndexExpressionTruncation = 12;
@@ -37,35 +37,12 @@ FText UPCGFilterByIndexSettings::GetNodeTooltipText() const
 }
 #endif
 
-EPCGDataType UPCGFilterByIndexSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
-{
-	check(InPin);
-
-	if (!InPin->IsOutputPin())
-	{
-		return Super::GetCurrentPinTypes(InPin);
-	}
-
-	// Output pin narrows to union of inputs on first pin
-	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-	return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
-}
-
 FName UPCGFilterByIndexSettings::AdditionalTaskName() const
 {
 	FString NodeName = PCGFilterByIndexConstants::NodeTitle.ToString();
 	NodeName += TEXT(" : ");
 	NodeName += SelectedIndices.Len() <= PCGFilterByIndexConstants::IndexExpressionTruncation ? SelectedIndices : SelectedIndices.Left(PCGFilterByIndexConstants::IndexExpressionTruncation - 3) + TEXT("...");
 	return FName(NodeName);
-}
-
-TArray<FPCGPinProperties> UPCGFilterByIndexSettings::OutputPinProperties() const
-{
-	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::Any);
-	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::Any);
-
-	return PinProperties;
 }
 
 FPCGElementPtr UPCGFilterByIndexSettings::CreateElement() const
@@ -85,7 +62,9 @@ bool FPCGFilterByIndexElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	PCGIndexing::FPCGIndexCollection FilteredIndices(Context->InputData.GetInputs().Num());
+	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
+
+	PCGIndexing::FPCGIndexCollection FilteredIndices(Inputs.Num());
 	// Parse the indices and switch through possible issues.
 	switch (PCGParser::ParseIndexRanges(FilteredIndices, Settings->SelectedIndices))
 	{
@@ -112,7 +91,7 @@ bool FPCGFilterByIndexElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	Outputs = Context->InputData.GetInputs();
+	Outputs = Inputs;
 
 	for (int Index = 0; Index < Outputs.Num(); ++Index)
 	{

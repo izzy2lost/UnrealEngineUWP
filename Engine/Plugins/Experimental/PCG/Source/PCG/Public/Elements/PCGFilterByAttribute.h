@@ -4,28 +4,22 @@
 
 #include "Elements/PCGFilterDataBase.h"
 
-#include "PCGFilterByTag.generated.h"
+#include "PCGFilterByAttribute.generated.h"
 
-UENUM()
-enum class EPCGFilterByTagOperation
-{
-	KeepTagged,
-	RemoveTagged
-};
-
-/** Filters a data collection based on some tag criterion */
+/** Separates data on whether they have a specific metadata attribute (not by value) */
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class PCG_API UPCGFilterByTagSettings : public UPCGFilterDataBaseSettings
+class PCG_API UPCGFilterByAttributeSettings : public UPCGFilterDataBaseSettings
 {
 	GENERATED_BODY()
 
 public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override;
+	virtual FName GetDefaultNodeName() const override { return FName(TEXT("FilterDataByAttribute")); }
 	virtual FText GetDefaultNodeTitle() const override;
-	virtual FText GetNodeTooltipText() const override;
+	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGFilterByAttributeElement", "NodeTooltip", "Separates input data by whether they have the specified attribute or not."); }
 #endif
+
 	virtual FName AdditionalTaskName() const override;
 
 protected:
@@ -33,15 +27,12 @@ protected:
 	//~End UPCGSettings interface
 
 public:
+	/** Attribute to look for */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	EPCGFilterByTagOperation Operation = EPCGFilterByTagOperation::KeepTagged;
-
-	/** Comma-separated list of tags */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	FString SelectedTags;
+	FName Attribute;
 };
 
-class FPCGFilterByTagElement : public IPCGElement
+class FPCGFilterByAttributeElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
