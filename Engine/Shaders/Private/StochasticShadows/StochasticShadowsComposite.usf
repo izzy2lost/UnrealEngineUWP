@@ -15,6 +15,7 @@ Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 uint TemporalMaxFramesAccumulated;
 float TemporalStdDevOffset;
+uint2 NumSamplesPerPixel;
 
 RWTexture2D<uint> RWShadowMaskTileAtlas;
 
@@ -72,11 +73,11 @@ void CompositeShadowMaskTracesCS(
 			SampleAccumulator.SampleSum = 0.0f;
 			SampleAccumulator.SampleWeightSum = 0.0f;
 
-			for (uint LocalSampleY = 0; LocalSampleY < NUM_SAMPLES_PER_PIXEL_Y; ++LocalSampleY)
+			for (uint LocalSampleY = 0; LocalSampleY < NumSamplesPerPixel.y; ++LocalSampleY)
 			{
-				for (uint LocalSampleX = 0; LocalSampleX < NUM_SAMPLES_PER_PIXEL_X; ++LocalSampleX)
+				for (uint LocalSampleX = 0; LocalSampleX < NumSamplesPerPixel.x; ++LocalSampleX)
 				{
-					uint2 SampleCoord = ShadowMaskScreenCoord * uint2(NUM_SAMPLES_PER_PIXEL_X, NUM_SAMPLES_PER_PIXEL_Y) + uint2(LocalSampleX, LocalSampleY);
+					uint2 SampleCoord = ShadowMaskScreenCoord * NumSamplesPerPixel + uint2(LocalSampleX, LocalSampleY);
 					FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
 					if (LightSample.LightSceneId == LightSceneId)

@@ -36,12 +36,6 @@
 #define DOWNSAMPLE_FACTOR				2
 #define SHADOW_MASK_DOWNSAMPLE_FACTOR	2
 
-#ifndef NUM_SAMPLES_PER_PIXEL
-	#define NUM_SAMPLES_PER_PIXEL	4
-	#define NUM_SAMPLES_PER_PIXEL_Y 2
-	#define NUM_SAMPLES_PER_PIXEL_X 2
-#endif
-
 // Keep in sync with StochasticShadows::ETileType
 #define TILE_MODE_SIMPLE_SHADING	0
 #define TILE_MODE_COMPLEX_SHADING	1

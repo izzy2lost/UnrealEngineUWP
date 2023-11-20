@@ -1,9 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define STOCHASTIC_SHADOWS 1
-
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 1
 #define SUPPORT_CONTACT_SHADOWS 0
+
+#ifndef NUM_SAMPLES_PER_PIXEL_1D
+	#error NUM_SAMPLES_PER_PIXEL_1D must be defined
+#endif
 
 #include "../Common.ush"
 #include "../LightGridCommon.ush"
@@ -87,6 +90,7 @@ Texture2D<float4> ShadowMaskHistoryWeights;
 uint2 DownsampledViewSize;
 uint MaxShadowMaskTiles;
 float SamplingMinWeight;
+uint2 NumSamplesPerPixel;
 int DebugMode;
 
 RWTexture2D<uint2> RWShadowMaskHistoryScreenCoord00;
@@ -206,8 +210,8 @@ void GenerateSamplesCS(
 			FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.05, 0.05));
 	#endif
 
-			uint SelectedLights[NUM_SAMPLES_PER_PIXEL];
-			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+			uint SelectedLights[NUM_SAMPLES_PER_PIXEL_1D];
+			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
 				SelectedLights[LightSampleIndex] = INVALID_LIGHT_SCENE_ID;
 			}
@@ -281,8 +285,8 @@ void GenerateSamplesCS(
 				const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 				const uint NumLocalLights = GetNumLocalLights(EyeIndex);
 
-				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL];
-				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
+				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 				{
 					LightIndexRandom[LightSampleIndex] = BlueNoiseScalar(DownsampledScreenCoord * DOWNSAMPLE_FACTOR + LightSampleOffsets[LightSampleIndex], StochasticShadowsStateFrameIndex);
 				}
@@ -323,7 +327,7 @@ void GenerateSamplesCS(
 				float WeightSum = 0.0f;
 
 				// Weighted blue noise sampling
-				float Xi[NUM_SAMPLES_PER_PIXEL] = LightIndexRandom;
+				float Xi[NUM_SAMPLES_PER_PIXEL_1D] = LightIndexRandom;
 
 	#if CANDIDATE_LIGHT_MASK
 				for (uint MaskIndex = 0; MaskIndex < LIGHT_SCENE_ID_MASK_SIZE; ++MaskIndex)
@@ -404,7 +408,7 @@ void GenerateSamplesCS(
 								float Tau = WeightSum / (WeightSum + SampleWeight);
 								WeightSum += SampleWeight;
 
-								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 								{
 									if (Xi[LightSampleIndex] < Tau)
 									{
@@ -497,7 +501,7 @@ void GenerateSamplesCS(
 								float Tau = WeightSum / (WeightSum + SampleWeight);
 								WeightSum += SampleWeight;
 
-								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 								{
 									if (Xi[LightSampleIndex] < Tau)
 									{
@@ -524,7 +528,7 @@ void GenerateSamplesCS(
 					Newline(Context);
 					Print(Context, TEXT("Selected lights: "));
 
-					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 					{
 						Print(Context, SelectedLights[LightSampleIndex]);
 
@@ -551,13 +555,13 @@ void GenerateSamplesCS(
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
 			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(GBuffer.WorldNormal);
 
-			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL; ++LightSampleIndex)
+			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
 				FLightSample LightSample;
 				LightSample.LightSceneId = SelectedLights[LightSampleIndex];
 				LightSample.bCompleted = LightSample.LightSceneId == INVALID_LIGHT_SCENE_ID ? true : false;
 				LightSample.bVisible = true;
-				RWLightSamples[DownsampledScreenCoord * uint2(NUM_SAMPLES_PER_PIXEL_X, NUM_SAMPLES_PER_PIXEL_Y) + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
+				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
 			}
 		}
 

@@ -6,13 +6,12 @@
 #include "../RayTracing/RayTracingSphereLight.ush"
 #include "../RayTracing/RayTracingRectLight.ush"
 
-#ifndef NUM_SAMPLES_PER_PIXEL_X
-	#error NUM_SAMPLES_PER_PIXEL_X must be defined
-#endif
+uint2 NumSamplesPerPixelDivideShift;
 
 uint2 SampleCoordToDownsampledScreenCoord(uint2 SampleCoord)
 {
-	return SampleCoord / uint2(NUM_SAMPLES_PER_PIXEL_X, NUM_SAMPLES_PER_PIXEL_Y);
+	// SampleCoord / NumSamplesPerPixel
+	return SampleCoord >> NumSamplesPerPixelDivideShift;
 }
 
 uint2 SampleCoordToScreenCoord(uint2 SampleCoord)

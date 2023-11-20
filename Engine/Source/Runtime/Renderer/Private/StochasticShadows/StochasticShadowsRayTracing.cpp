@@ -230,9 +230,8 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
@@ -243,11 +242,6 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
 	}
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
@@ -280,9 +274,8 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 		return 64;
 	}
 
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -297,11 +290,6 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 
 		// GPU Scene definitions
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
 	}
 };
 
@@ -329,9 +317,8 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 		return 64;
 	}
 
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -343,11 +330,6 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
 	}
 };
 
@@ -359,7 +341,6 @@ void FDeferredShadingSceneRenderer::PrepareStochasticShadowsLumenMaterial(const 
 	if (StochasticShadows::IsEnabled() && StochasticShadows::UseHardwareRayTracing())
 	{
 		FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FNumSamplesPerPixel>(StochasticShadows::GetNumSamplesPerPixel());
 		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(StochasticShadows::GetDebugMode() != 0);
 		TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
 		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
@@ -489,8 +470,6 @@ void StochasticShadows::RayTraceLightSamples(
 	const FStochasticShadowsParameters& StochasticShadowsParameters)
 {
 	const bool bDebug = StochasticShadows::GetDebugMode() != 0;
-	const int32 NumSamplesPerPixel1d = StochasticShadows::GetNumSamplesPerPixel();
-	const FIntPoint NumSamplesPerPixel2d = StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
 
 	if (CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0)
 	{
@@ -513,7 +492,6 @@ void StochasticShadows::RayTraceLightSamples(
 		PassParameters->MinimumTracingThreadOccupancy = CVarStochasticShadowsScreenTracesMinimumOccupancy.GetValueOnRenderThread();
 
 		FScreenSpaceRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FScreenSpaceRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 		PermutationVector.Set<FScreenSpaceRayTraceLightSamplesCS::FDebugMode>(bDebug);
 		auto ComputeShader = View.ShaderMap->GetShader<FScreenSpaceRayTraceLightSamplesCS>(PermutationVector);
 
@@ -555,7 +533,6 @@ void StochasticShadows::RayTraceLightSamples(
 					PassParameters);
 
 				FHardwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
 				auto ComputeShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesCS>(PermutationVector);
 
@@ -581,7 +558,6 @@ void StochasticShadows::RayTraceLightSamples(
 					PassParameters);
 
 				FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(bDebug);
 				auto RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
 
@@ -608,7 +584,6 @@ void StochasticShadows::RayTraceLightSamples(
 			PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 
 			FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FSoftwareRayTraceLightSamplesCS>(PermutationVector);
 

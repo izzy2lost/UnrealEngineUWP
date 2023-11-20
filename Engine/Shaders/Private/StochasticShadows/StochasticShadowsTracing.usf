@@ -18,6 +18,7 @@
 
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 RWBuffer<uint> RWIndirectArgs;
+Texture2D<uint> DownsampledTileMask;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -69,6 +70,9 @@ groupshared uint SharedGlobalTraceTexelStartOffset;
 	groupshared uint SharedTraceTexels[THREADGROUP_SIZE * THREADGROUP_SIZE];
 #endif
 
+// Allocated for max size, where we have only 1 sample per pixel
+groupshared uint SharedTileMask[THREADGROUP_SIZE / TILE_SIZE][THREADGROUP_SIZE / TILE_SIZE];
+
 #if COMPILER_SUPPORTS_WAVE_SIZE && WAVE_OPS
 	WAVESIZE(32)
 #endif
@@ -91,13 +95,22 @@ void CompactLightSampleTracesCS(
 	}
 	#endif
 
+	uint2 LocalTileMaskSize = SampleCoordToDownsampledScreenCoord(THREADGROUP_SIZE) / TILE_SIZE;
+	if (all(GroupThreadId.xy < LocalTileMaskSize))
+	{
+		// Skip unitialized SampleBuffer tiles
+		uint2 DownsampledTileCoord = SampleCoordToDownsampledScreenCoord(GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE + GroupThreadId.xy;
+		SharedTileMask[GroupThreadId.x][GroupThreadId.y] = DownsampledTileMask[DownsampledTileCoord];
+	}
+
 	GroupMemoryBarrierWithGroupSync();
 
 	uint2 SampleCoord = DispatchThreadId.xy;
 	bool bTraceValid = false;
 	uint TraceTexelForThisThread = 0;
 
-	if (all(SampleCoord < SampleViewSize))
+	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
+	if (all(SampleCoord < SampleViewSize) && SharedTileMask[LocalTileMaskCoord.x][LocalTileMaskCoord.y] != 0)
 	{
 		// #sdl_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);

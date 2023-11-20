@@ -163,14 +163,9 @@ namespace StochasticShadows
 		return StateFrameIndex;
 	}
 
-	uint32 GetNumSamplesPerPixel()
+	FIntPoint GetNumSamplesPerPixel2d()
 	{
-		const uint32 NumSamplesPerPixel = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarStochasticShadowsNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
-		return NumSamplesPerPixel;
-	}
-
-	FIntPoint GetNumSamplesPerPixel2d(uint32 NumSamplesPerPixel1d)
-	{
+		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarStochasticShadowsNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
 		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
 	}
 
@@ -204,6 +199,7 @@ class FTileClassificationCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileData)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWDownsampledTileMask)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FDownsampledClassification : SHADER_PERMUTATION_BOOL("DOWNSAMPLED_CLASSIFICATION");
@@ -318,12 +314,12 @@ class FGenerateSamplesCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)StochasticShadows::ETileType::MAX);
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
+	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
 	class FShadowMaskReprojectionWeights : SHADER_PERMUTATION_BOOL("SHADOW_MASK_REPROJECTION_WEIGHTS");
 	class FShadowFactorEstimate : SHADER_PERMUTATION_BOOL("SHADOW_FACTOR_ESTIMATE");
 	class FCandidateLightMask : SHADER_PERMUTATION_BOOL("CANDIDATE_LIGHT_MASK");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FNumSamplesPerPixel, FShadowMaskReprojectionWeights, FShadowFactorEstimate, FCandidateLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FNumSamplesPerPixel1d, FShadowMaskReprojectionWeights, FShadowFactorEstimate, FCandidateLightMask, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -357,11 +353,6 @@ class FGenerateSamplesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
 	}
 };
 
@@ -423,10 +414,9 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 		return 8;
 	}
 
-	class FNumSamplesPerPixel : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL", 1, 2, 4);
 	class FTemporalAccumulation : SHADER_PERMUTATION_BOOL("TEMPORAL_ACCUMULATION");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerPixel, FTemporalAccumulation, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTemporalAccumulation, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -438,11 +428,6 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-
-		FPermutationDomain PermutationVector(Parameters.PermutationId);
-		const uint32 NumSamplesPerPixel = PermutationVector.Get<FNumSamplesPerPixel>();
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_X"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).X);
-		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_Y"), StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel).Y);
 	}
 };
 
@@ -569,8 +554,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		bResetHistory = true;
 	}
 
-	const int32 NumSamplesPerPixel1d = StochasticShadows::GetNumSamplesPerPixel();
-	const FIntPoint NumSamplesPerPixel2d = StochasticShadows::GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
+	const FIntPoint NumSamplesPerPixel2d = StochasticShadows::GetNumSamplesPerPixel2d();
 
 	const uint32 DownsampleFactor = 2;
 	const uint32 ShadowMaskDownsampleFactor = 2;
@@ -659,6 +643,10 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, StochasticShadows::TileSize);
 	const int32 DownsampledTileDataStride = DownsampledViewSizeInTiles.X * DownsampledViewSizeInTiles.Y;
 
+	FRDGTextureRef DownsampledTileMask = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, StochasticShadows::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("StochasticShadows.DownsampledTileMask"));
+
 	FStochasticShadowsParameters StochasticShadowsParameters;
 	{
 		StochasticShadowsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
@@ -669,8 +657,12 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.BlueNoise = BlueNoiseUniformBuffer;
 		StochasticShadowsParameters.DownsampledViewSize = DownsampledViewSize;
 		StochasticShadowsParameters.SampleViewSize = SampleViewSize;
-		StochasticShadowsParameters.ShadowMaskViewSize = ShadowMaskViewSize;
+		StochasticShadowsParameters.ShadowMaskViewSize = ShadowMaskViewSize;	
+		StochasticShadowsParameters.NumSamplesPerPixel = NumSamplesPerPixel2d;
+		StochasticShadowsParameters.NumSamplesPerPixelDivideShift.X = FMath::FloorLog2(NumSamplesPerPixel2d.X);
+		StochasticShadowsParameters.NumSamplesPerPixelDivideShift.Y = FMath::FloorLog2(NumSamplesPerPixel2d.Y);
 		StochasticShadowsParameters.StochasticShadowsStateFrameIndex = StochasticShadows::GetStateFrameIndex(View.ViewState);
+		StochasticShadowsParameters.DownsampledTileMask = DownsampledTileMask;
 		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
 		StochasticShadowsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
 		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
@@ -702,6 +694,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)StochasticShadows::ETileType::MAX), TEXT("StochasticShadows.DownsampledTileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DownsampledTileAllocator), 0);
 
+	// #sdl_todo: merge classification passes or reuse downsampled one to create full res tiles
 	// Run tile classification to generate tiles for the subsequent passes
 	{
 		{
@@ -709,6 +702,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
 			PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
+			PassParameters->RWDownsampledTileMask = nullptr;
 
 			FTileClassificationCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(false);
@@ -729,6 +723,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
 			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
 			PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
+			PassParameters->RWDownsampledTileMask = GraphBuilder.CreateUAV(DownsampledTileMask);
 
 			FTileClassificationCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
@@ -815,7 +810,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 
 			FGenerateSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FGenerateSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
+			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 			PermutationVector.Set<FGenerateSamplesCS::FShadowMaskReprojectionWeights>(bTemporal);
 			PermutationVector.Set<FGenerateSamplesCS::FShadowFactorEstimate>(bTemporal && CVarStochasticSamplingShadowEstimate.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
@@ -922,7 +917,6 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 
 		FCompositeShadowMaskTracesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FCompositeShadowMaskTracesCS::FNumSamplesPerPixel>(NumSamplesPerPixel1d);
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FTemporalAccumulation>(bTemporal);
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FDebugMode>(bDebug);
 		auto ComputeShader = View.ShaderMap->GetShader<FCompositeShadowMaskTracesCS>(PermutationVector);

@@ -17,6 +17,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER(FIntPoint, SampleViewSize)
 	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
 	SHADER_PARAMETER(FIntPoint, ShadowMaskViewSize)
+	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixel)
+	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixelDivideShift)
 	SHADER_PARAMETER(uint32, StochasticShadowsStateFrameIndex)
 	SHADER_PARAMETER(uint32, MaxShadowMaskTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTiles)
@@ -30,6 +32,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER(int32, TemporalMaxFramesAccumulated)
 	SHADER_PARAMETER(float, TemporalStdDevOffset)
 	SHADER_PARAMETER(int32, DebugMode)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DownsampledTileMask)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DownsampledSceneDepth)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float3>, DownsampledSceneWorldNormal)
 END_SHADER_PARAMETER_STRUCT()
@@ -50,6 +53,4 @@ namespace StochasticShadows
 	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
 	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	int32 GetDebugMode();
-	uint32 GetNumSamplesPerPixel();
-	FIntPoint GetNumSamplesPerPixel2d(uint32 NumSamplesPerPixel1d);
 };

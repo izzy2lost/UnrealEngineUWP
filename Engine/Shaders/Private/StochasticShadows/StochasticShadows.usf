@@ -11,6 +11,7 @@ groupshared uint SharedTileMode[THREADGROUP_SIZE * THREADGROUP_SIZE];
 
 RWStructuredBuffer<uint> RWTileAllocator;
 RWStructuredBuffer<uint> RWTileData;
+RWTexture2D<uint> RWDownsampledTileMask;
 uint TileDataStride;
 uint DownsampledTileDataStride;
 uint2 DownsampledViewSize;
@@ -110,17 +111,25 @@ void TileClassificationCS(
 		const uint DataStride = TileDataStride;
 #endif
 
+		uint2 TileCoord = ScreenCoord / TILE_SIZE;
+
+		#if DOWNSAMPLED_CLASSIFICATION
+		{
+			RWDownsampledTileMask[TileCoord] = SharedTileMode[0] != 0 ? 1 : 0;
+		}
+		#endif
+
 		if (SharedTileMode[0] & 0x2)
 		{
 			uint StochasticShadowsTileIndex = 0;
 			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, StochasticShadowsTileIndex);
-			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + StochasticShadowsTileIndex] = PackTile(ScreenCoord / 8);
+			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + StochasticShadowsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] & 0x1)
 		{
 			uint StochasticShadowsTileIndex = 0;
 			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, StochasticShadowsTileIndex);
-			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + StochasticShadowsTileIndex] = PackTile(ScreenCoord / 8);
+			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + StochasticShadowsTileIndex] = PackTile(TileCoord);
 		}
 	}
 }
