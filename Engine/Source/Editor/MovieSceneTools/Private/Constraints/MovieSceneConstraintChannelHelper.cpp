@@ -767,6 +767,11 @@ void FMovieSceneConstraintChannelHelper::HandleConstraintKeyDeleted(
 	UMovieSceneSection* InSection,
 	const FFrameNumber& InTime)
 {
+	if (bDoNotCompensate)
+	{
+		return;
+	}
+	
 	if (!InConstraint || !InConstraint->NeedsCompensation())
 	{
 		return;

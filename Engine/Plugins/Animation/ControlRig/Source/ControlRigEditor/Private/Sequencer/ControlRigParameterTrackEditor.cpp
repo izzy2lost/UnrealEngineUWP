@@ -2779,6 +2779,11 @@ void FControlRigParameterTrackEditor::HandleConstraintKeyDeleted(
 	const FMovieSceneConstraintChannel* InConstraintChannel,
 	const TArray<FKeyAddOrDeleteEventItem>& InDeletedItems) const
 {
+	if (FMovieSceneConstraintChannelHelper::bDoNotCompensate)
+	{
+		return;
+	}
+	
 	UMovieSceneControlRigParameterSection* Section = Cast<UMovieSceneControlRigParameterSection>(InSection);
 
 	const UControlRig* ControlRig = Section ? Section->GetControlRig() : nullptr;

@@ -1819,6 +1819,11 @@ static UTickableTransformConstraint* GetTickableTransformConstraint(IMovieSceneC
 void F3DTransformTrackEditor::HandleConstraintKeyDeleted(IMovieSceneConstrainedSection* InSection, const FMovieSceneConstraintChannel* InConstraintChannel,
 	const TArray<FKeyAddOrDeleteEventItem>& InDeletedItems) const
 {
+	if (FMovieSceneConstraintChannelHelper::bDoNotCompensate)
+	{
+		return;
+	}
+	
 	if (!InConstraintChannel)
 	{
 		return;
