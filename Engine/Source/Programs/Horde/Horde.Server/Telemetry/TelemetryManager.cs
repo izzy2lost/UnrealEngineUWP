@@ -75,7 +75,7 @@ namespace Horde.Server.Telemetry
 					}
 					catch (Exception e)
 					{
-						_logger.LogError(e, "Failed sending event to {Sink}. Message: {Message}. Event: {Event}", fullName, e.Message, GetEventText(telemetryEvent));
+						_logger.LogWarning(e, "Failed sending event to {Sink}. Message: {Message}. Event: {Event}", fullName, e.Message, GetEventText(telemetryEvent));
 					}
 				}
 			}

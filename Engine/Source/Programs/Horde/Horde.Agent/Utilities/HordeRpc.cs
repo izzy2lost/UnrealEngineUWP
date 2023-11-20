@@ -193,7 +193,7 @@ namespace HordeCommon.Rpc.Messages.Telemetry
 		/// Calculate an agent ID
 		/// </summary>
 		/// <returns>A unique hash for all fields</returns>
-		public ulong CalculateAgentId()
+		public long CalculateAgentId()
 		{
 			using SHA256 sha256 = SHA256.Create();
 			using MemoryStream ms = new(200);
@@ -222,7 +222,7 @@ namespace HordeCommon.Rpc.Messages.Telemetry
 			
 			ms.Position = 0;
 			byte[] hash = sha256.ComputeHash(ms);
-			return BitConverter.ToUInt64(hash, 0);
+			return BitConverter.ToInt64(hash, 0);
 		}
 	}
 }
