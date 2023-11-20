@@ -173,8 +173,8 @@ public class AgentRelayTests : TestSetup
 	{
 		PortMapping newPm = await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
 		Assert.AreEqual(2, newPm.Ports.Count);
-		Assert.AreEqual(2000, newPm.Ports[0].RelayPort);
-		Assert.AreEqual(2001, newPm.Ports[1].RelayPort);
+		Assert.AreEqual(10000, newPm.Ports[0].RelayPort);
+		Assert.AreEqual(10001, newPm.Ports[1].RelayPort);
 	}
 	
 	[TestMethod]

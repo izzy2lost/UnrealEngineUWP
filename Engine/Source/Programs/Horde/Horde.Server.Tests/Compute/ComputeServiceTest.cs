@@ -262,9 +262,9 @@ namespace Horde.Server.Tests.Compute
 			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay, ports: new Dictionary<string, int> { {"myOtherPort", 13000}, {"myPort", 12000} });
 			Assert.AreEqual(ConnectionMode.Relay, cr!.ConnectionMode);
 			Assert.AreEqual(3, cr.Ports.Count);
-			Assert.AreEqual(new ComputeResourcePort(2000, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
-			Assert.AreEqual(new ComputeResourcePort(2002, 12000), cr.Ports["myPort"]);
-			Assert.AreEqual(new ComputeResourcePort(2004, 13000), cr.Ports["myOtherPort"]);
+			Assert.AreEqual(new ComputeResourcePort(10000, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
+			Assert.AreEqual(new ComputeResourcePort(10002, 12000), cr.Ports["myPort"]);
+			Assert.AreEqual(new ComputeResourcePort(10004, 13000), cr.Ports["myOtherPort"]);
 		}
 
 		private async Task<ComputeService> CreateComputeServiceAsync(string? tunnelAddress)
