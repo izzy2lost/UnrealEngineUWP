@@ -238,7 +238,7 @@ UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg)
 //
 // Guaranteed to crash if called outside a transaction.
 #if UE_AUTORTFM
-UE_AUTORTFM_API [[nodiscard]] autortfm_status autortfm_close(void (*work)(void* arg), void* arg);
+[[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*work)(void* arg), void* arg);
 #else
 [[nodiscard]] UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*work)(void* arg), void* arg)
 {

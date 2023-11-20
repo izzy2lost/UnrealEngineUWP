@@ -28,7 +28,7 @@ void CheckAlignment(FContext* Context, void* Ptr, size_t AlignmentMask)
     }
 }
 
-extern "C" AUTORTFM_NO_ASAN void autortfm_record_write(void* Ptr, size_t Size)
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write(void* Ptr, size_t Size)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
@@ -41,7 +41,7 @@ extern "C" AUTORTFM_NO_ASAN void autortfm_record_write(void* Ptr, size_t Size)
 	Context->RecordWrite(Ptr, Size);
 }
 
-extern "C" AUTORTFM_NO_ASAN void autortfm_record_write_8(void* Ptr)
+extern "C" UE_AUTORTFM_API AUTORTFM_NO_ASAN void autortfm_record_write_8(void* Ptr)
 {
 	// check for writes to null here so we end up crashing in the user
 	// code rather than in the autortfm runtime.
@@ -54,31 +54,31 @@ extern "C" AUTORTFM_NO_ASAN void autortfm_record_write_8(void* Ptr)
 	Context->RecordWrite<8>(Ptr);
 }
 
-extern "C" void* autortfm_lookup_function(void* OriginalFunction, const char* Where)
+extern "C" UE_AUTORTFM_API void* autortfm_lookup_function(void* OriginalFunction, const char* Where)
 {
 	FContext* Context = FContext::Get();
     return FunctionMapLookup(OriginalFunction, Where);
 }
 
-extern "C" void autortfm_memcpy(void* Dst, const void* Src, size_t Size)
+extern "C" UE_AUTORTFM_API void autortfm_memcpy(void* Dst, const void* Src, size_t Size)
 {
 	FContext* Context = FContext::Get();
     Memcpy(Dst, Src, Size, Context);
 }
 
-extern "C" void autortfm_memmove(void* Dst, const void* Src, size_t Size)
+extern "C" UE_AUTORTFM_API void autortfm_memmove(void* Dst, const void* Src, size_t Size)
 {
 	FContext* Context = FContext::Get();
     Memmove(Dst, Src, Size, Context);
 }
 
-extern "C" void autortfm_memset(void* Dst, int Value, size_t Size)
+extern "C" UE_AUTORTFM_API void autortfm_memset(void* Dst, int Value, size_t Size)
 {
 	FContext* Context = FContext::Get();
     Memset(Dst, Value, Size, Context);
 }
 
-extern "C" void autortfm_llvm_fail(const char* Message)
+extern "C" UE_AUTORTFM_API void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
@@ -93,12 +93,12 @@ extern "C" void autortfm_llvm_fail(const char* Message)
     Context->AbortByLanguageAndThrow();
 }
 
-extern "C" void autortfm_llvm_alignment_error(FContext* Context, void* Ptr, size_t Alignment, const char* Message)
+extern "C" UE_AUTORTFM_API void autortfm_llvm_alignment_error(FContext* Context, void* Ptr, size_t Alignment, const char* Message)
 {
     AbortDueToBadAlignment(Context, Ptr, Alignment, Message);
 }
 
-extern "C" void autortfm_llvm_error(const char* Message)
+extern "C" UE_AUTORTFM_API void autortfm_llvm_error(const char* Message)
 {
 	if (Message)
 	{

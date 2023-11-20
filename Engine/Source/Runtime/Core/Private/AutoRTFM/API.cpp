@@ -5,7 +5,7 @@
 #include "HAL/IConsoleManager.h"
 
 #if UE_AUTORTFM
-bool GAutoRTFMRuntimeEnabled = false;
+UE_AUTORTFM_API bool GAutoRTFMRuntimeEnabled = false;
 static FAutoConsoleVariableRef CVarAutoRTFMRuntimeEnabled(
 	TEXT("AutoRTFMRuntimeEnabled"),
 	GAutoRTFMRuntimeEnabled,
