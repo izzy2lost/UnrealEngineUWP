@@ -190,7 +190,7 @@ static FAutoConsoleVariableRef CVarPedanticErrorChecksEnabled(
 	TEXT("Enables material compilation pedantic error checking"));
 
 /* Controls whether to use the new GetMaterialShaderCode() and GetMaterialEnvironment() implementations. */
-static bool GUseMaterialTranslationResultsGrouping = false;
+static bool GUseMaterialTranslationResultsGrouping = true;
 
 /* Controls whether DDC caching of material translation results is enabled. */
 static bool GJobMaterialTranslateDDCEnable = false;
