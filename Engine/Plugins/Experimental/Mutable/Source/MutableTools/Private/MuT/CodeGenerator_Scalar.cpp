@@ -284,11 +284,6 @@ namespace mu
 			GenerateScalar(ChildResult, node.m_defaultScalar);
 			op = ChildResult.op;
 		}
-		else
-		{
-			// This argument is required
-			op = GenerateMissingScalarCode(TEXT("Variation default"), 0.0f, node.m_errorContext);
-		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
 		for (int t = node.m_variations.Num() - 1; t >= 0; --t)

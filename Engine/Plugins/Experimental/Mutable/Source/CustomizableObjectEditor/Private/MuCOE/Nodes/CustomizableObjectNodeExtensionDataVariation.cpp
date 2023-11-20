@@ -75,10 +75,6 @@ mu::NodeExtensionDataPtr UCustomizableObjectNodeExtensionDataVariation::Generate
 			}
 		}
 	}
-	else
-	{
-		InCompilerInterface.CompilerLog(LOCTEXT("ExtensionDataVariationMissinfDef", "Extension Data Variation node requires a default value"), this);
-	}
 
 	VariationNode->SetVariationCount(Variations.Num());
 	for (int32 VariationIndex = 0; VariationIndex < Variations.Num(); ++VariationIndex)

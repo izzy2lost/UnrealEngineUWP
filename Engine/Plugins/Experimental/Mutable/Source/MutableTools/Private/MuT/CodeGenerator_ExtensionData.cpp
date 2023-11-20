@@ -156,11 +156,6 @@ class Node;
 
 			CurrentOp = DefaultResult.Op;
 		}
-		else
-		{
-			// This argument is required
-			CurrentOp = GenerateMissingExtensionDataCode(TEXT("Variation default"), Node.m_errorContext);
-		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
 		for (int32 VariationIndex = Node.Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)

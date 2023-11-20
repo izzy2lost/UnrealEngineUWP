@@ -241,11 +241,6 @@ namespace mu
 			FMeshGenerationResult branchResults;
 			currentOp = Generate(node.m_defaultColour);
 		}
-		else
-		{
-			// This argument is required
-			currentOp = GenerateMissingColourCode(TEXT("Variation default"), node.m_errorContext);
-		}
 
 		// Process variations in reverse order, since conditionals are built bottom-up.
 		for (int t = node.m_variations.Num() - 1; t >= 0; --t)

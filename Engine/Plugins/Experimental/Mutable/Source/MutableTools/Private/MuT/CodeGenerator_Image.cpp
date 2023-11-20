@@ -1605,12 +1605,7 @@ namespace mu
 			GenerateImage(Options, BranchResults, node.m_defaultImage);
 			currentOp = BranchResults.op;
         }
-        else
-        {
-            // This argument is required
-            currentOp = GenerateMissingImageCode(TEXT("Variation default"), EImageFormat::IF_RGBA_UBYTE, node.m_errorContext, Options);
-        }
-
+        
         // Process variations in reverse order, since conditionals are built bottom-up.
         for ( int t = int( node.m_variations.Num() ) - 1; t >= 0; --t )
         {
