@@ -68,7 +68,7 @@ void FAnimNode_RandomPlayer::Initialize_AnyThread(const FAnimationInitializeCont
 
 		if (Entry->MaxPlayRate < Entry->MinPlayRate)
 		{
-			Swap(Entry->MaxLoopCount, Entry->MinLoopCount);
+			Swap(Entry->MaxPlayRate, Entry->MinPlayRate);
 		}
 
 		Entry->BlendIn.Reset();
