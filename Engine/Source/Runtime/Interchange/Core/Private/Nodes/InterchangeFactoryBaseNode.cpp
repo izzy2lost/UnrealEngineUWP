@@ -57,7 +57,7 @@ FString UInterchangeFactoryBaseNode::GetKeyDisplayName(const UE::Interchange::FA
 	const FString OriginalKeyName = KeyDisplayName;
 	if (NodeAttributeKey == Macro_CustomSubPathKey)
 	{
-		KeyDisplayName = TEXT("Import Sub-Path");
+		KeyDisplayName = TEXT("Asset Sub-Path");
 	}
 	else if (OriginalKeyName.Equals(UE::Interchange::FFactoryBaseNodeStaticData::FactoryDependenciesBaseKey()))
 	{
@@ -84,10 +84,6 @@ FString UInterchangeFactoryBaseNode::GetKeyDisplayName(const UE::Interchange::FA
 	else if (NodeAttributeKey == UE::Interchange::FFactoryBaseNodeStaticData::ForceNodeReimportKey())
 	{
 		KeyDisplayName = TEXT("Force Node Reimport");
-	}
-	else if (NodeAttributeKey == Macro_CustomSubPathKey)
-	{
-		KeyDisplayName = TEXT("Asset Sub Path");
 	}
 	else
 	{
