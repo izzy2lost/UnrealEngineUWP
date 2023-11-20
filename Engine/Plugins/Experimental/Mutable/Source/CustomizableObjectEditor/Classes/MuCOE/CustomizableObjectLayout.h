@@ -52,7 +52,7 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectLayoutBlock
 	uint32 Priority;
 
 	/** Unique unchangeable id used to reference this block from other nodes. */
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FGuid Id;
 
 	/** Block will be reduced on both sizes at the same time on each reduction. */
