@@ -225,8 +225,9 @@ namespace UnrealBuildTool
 			return Result;
 		}
 
-		protected void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
+		protected override void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
 		{
+			base.GetLinkArguments_Global(LinkEnvironment, Arguments);
 			// Pass through architecture and OS info		
 			Arguments.Add(FormatArchitectureArg(LinkEnvironment.Architectures));
 			Arguments.Add(String.Format("-isysroot \"{0}\"", ToolChainSettings.Value.GetSDKPath(LinkEnvironment.Architecture)));
