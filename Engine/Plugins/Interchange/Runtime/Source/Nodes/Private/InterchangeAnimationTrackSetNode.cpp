@@ -80,7 +80,6 @@ bool UInterchangeAnimationTrackSetNode::SetCustomFrameRate(const float& Attribut
 bool UInterchangeAnimationTrackBaseNode::GetCustomCompletionMode(int32& AttributeValue) const
 {
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(CompletionMode, int32);
-	AttributeValue = FMath::Clamp(AttributeValue, (int32)EInterchangeAimationCompletionMode::KeepState, (int32)EInterchangeAimationCompletionMode::ProjectDefault);
 }
 
 bool UInterchangeAnimationTrackBaseNode::SetCustomCompletionMode(const int32& AttributeValue)

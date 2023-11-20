@@ -449,8 +449,17 @@ bool UInterchangeMaterialFunctionCallExpressionFactoryNode::GetCustomMaterialFun
 
 bool UInterchangeMaterialFunctionCallExpressionFactoryNode::SetCustomMaterialFunctionDependency(const FString& AttributeValue)
 {
-	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(MaterialFunctionDependency, FString);
-	AddFactoryDependencyUid(AttributeValue);
+	
+	auto ImplementationFunction = [this, &AttributeValue]()
+		{
+			IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(MaterialFunctionDependency, FString);
+		};
+	if (ImplementationFunction())
+	{
+		AddFactoryDependencyUid(AttributeValue);
+		return true;
+	}
+	return false;
 }
 
 FString UInterchangeMaterialFunctionFactoryNode::GetTypeName() const
