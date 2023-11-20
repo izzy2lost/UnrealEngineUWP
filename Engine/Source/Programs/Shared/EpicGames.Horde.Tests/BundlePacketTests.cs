@@ -67,7 +67,7 @@ namespace EpicGames.Horde.Tests
 			FakeHandle bundleHandle = new FakeHandle(null, null);
 			FakeHandle packetHandle = new FakeHandle(bundleHandle, null);
 
-			using PacketWriter writer = new PacketWriter(bundleHandle, packetHandle, ManagedHeapAllocator.Instance, new object());
+			using PacketWriter writer = new PacketWriter(bundleHandle, packetHandle, ManagedHeapAllocator.Shared, new object());
 			int type1 = writer.FindOrAddType(blobType1);
 			int type2 = writer.FindOrAddType(blobType2);
 			int type1b = writer.FindOrAddType(blobType1); // Check it's deduped
@@ -101,7 +101,7 @@ namespace EpicGames.Horde.Tests
 			packet.Encode(BundleCompressionFormat.None, memoryWriter);
 
 			// Check we can read it back in
-			IRefCountedHandle<Packet> handle = Packet.Decode(memoryWriter.WrittenMemory, ManagedHeapAllocator.Instance);
+			IRefCountedHandle<Packet> handle = Packet.Decode(memoryWriter.WrittenMemory, ManagedHeapAllocator.Shared);
 			packet = handle.Target;
 
 			Assert.AreEqual(2, packet.GetTypeCount());

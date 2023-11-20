@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task FindOrAddAsync()
 		{
-			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Instance);
+			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Shared);
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
@@ -84,7 +84,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TrimAsync()
 		{
-			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Instance);
+			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Shared);
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
@@ -106,7 +106,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TryAddSuccessAsync()
 		{
-			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Instance);
+			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Shared);
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
@@ -129,7 +129,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TryAddFailureAsync()
 		{
-			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Instance);
+			await using BundleCache cache = new BundleCache(new BundleCacheOptions { MaxSize = 1024 }, ManagedHeapAllocator.Shared);
 
 			Assert.AreEqual(0, cache.CurrentSize);
 
