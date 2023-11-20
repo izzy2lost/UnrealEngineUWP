@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.5.2
+* Fixed issue in helm charts defaulting to a incorrect docker registry path for the worker deployment.
+* Added ability to configure and bumped number of keepalive connections in nginx, resolves issues during large spikes of traffic.
+
 # 0.5.1
 * Fixed issue in helm charts defaulting to a incorrect docker registry path.
 
