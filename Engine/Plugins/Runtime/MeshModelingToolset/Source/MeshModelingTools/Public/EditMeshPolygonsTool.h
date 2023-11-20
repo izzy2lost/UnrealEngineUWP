@@ -280,7 +280,7 @@ public:
 	UFUNCTION(CallInEditor, Category = FaceEdits, meta = (DisplayName = "RecalcNormals", DisplayPriority = 6))
 	void RecalcNormals() { PostAction(EEditMeshPolygonsToolActions::RecalculateNormals); }
 
-	/** Flip normalsand face orientation for the current set of selected faces */
+	/** Flip normals and face orientation for the current set of selected faces */
 	UFUNCTION(CallInEditor, Category = FaceEdits, meta = (DisplayName = "Flip", DisplayPriority = 7))
 	void Flip() { PostAction(EEditMeshPolygonsToolActions::FlipNormals); }
 
