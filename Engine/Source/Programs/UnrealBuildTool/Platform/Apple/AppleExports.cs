@@ -122,7 +122,7 @@ namespace UnrealBuildTool
 			}
 			else if (Platform == UnrealTargetPlatform.VisionOS)
 			{
-				return Architectures.SingleArchitecture == UnrealArch.IOSSimulator ? "xrOS Simulator" : "xrOS";
+				return Architectures.SingleArchitecture == UnrealArch.IOSSimulator ? "visionOS Simulator" : "visionOS";
 			}
 
 			throw new BuildException($"Unknown plaform {Platform}");
