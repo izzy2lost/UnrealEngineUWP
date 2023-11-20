@@ -42,14 +42,6 @@ bool FHttpRequestCommon::PreCheck() const
 		return false;
 	}
 
-	// Make sure the URL is parsed correctly with a valid HTTP scheme
-	const FString URL = GetURL();
-	if (!URL.StartsWith(TEXT("http://")) && !URL.StartsWith(TEXT("https://")))
-	{
-		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. URL '%s' is not a valid HTTP request."), *GetURL());
-		return false;
-	}
-
 	if (!FHttpModule::Get().GetHttpManager().IsDomainAllowed(GetURL()))
 	{
 		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. URL '%s' is not using an allowed domain."), *GetURL());

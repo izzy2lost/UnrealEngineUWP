@@ -572,20 +572,31 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can upload big file exceeds 32 
 	HttpRequest->ProcessRequest();
 }
 
-TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from file by PUT can work well", HTTP_TAG)
+namespace UE
 {
-	FString Filename = FString(FPlatformProcess::UserSettingsDir()) / TEXT("TestStreamUpload.dat");
+namespace TestHttp
+{
 
-	FArchive* RawFile = IFileManager::Get().CreateFileWriter(*Filename);
+void WriteTestFile(const FString& TestFileName, uint64 TestFileSize)
+{
+	FArchive* RawFile = IFileManager::Get().CreateFileWriter(*TestFileName);
 	CHECK(RawFile != nullptr);
 	TSharedRef<FArchive> FileToWrite = MakeShareable(RawFile);
-	const uint64 FileSize = 5*1024*1024; // 5MB
-	char* FileData = (char*)FMemory::Malloc(FileSize);
-	FMemory::Memset(FileData, 'd', FileSize);
-	FileToWrite->Serialize(FileData, FileSize);
+	char* FileData = (char*)FMemory::Malloc(TestFileSize);
+	FMemory::Memset(FileData, 'd', TestFileSize);
+	FileToWrite->Serialize(FileData, TestFileSize);
 	FileToWrite->FlushCache();
 	FileToWrite->Close();
 	FMemory::Free(FileData);
+}
+
+}
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from file by PUT can work well", HTTP_TAG)
+{
+	FString Filename = FString(FPlatformProcess::UserSettingsDir()) / TEXT("TestStreamUpload.dat");
+	UE::TestHttp::WriteTestFile(Filename, 5*1024*1024/*5MB*/);
 
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
 	HttpRequest->SetURL(FString::Format(TEXT("{0}/streaming_upload_put"), { *UrlHttpTests() }));
@@ -1037,6 +1048,36 @@ TEST_CASE_METHOD(FThreadedBatchRequestsFixture, "Retry manager and http manager 
 	BlockUntilFlushed();
 }
 
+#if (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Scheme besides http and https can work if allowed by settings", HTTP_TAG)
+{
+	bool bShouldSucceed = false;
+	SECTION("when allowed")
+	{
+		bShouldSucceed = true;
+	}
+	SECTION("when not allowed")
+	{
+		DisableWarningsInThisTest();
+		// Pre check will fail when scheme is not listed
+		UE::TestHttp::SetupURLRequestFilter(HttpModule);
+	}
+
+	FString Filename = FString(FPlatformProcess::UserSettingsDir()) / TEXT("TestProtocolAllowed.dat");
+	UE::TestHttp::WriteTestFile(Filename, 10/*Bytes*/);
+
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpModule->CreateRequest();
+	HttpRequest->SetURL(FString(TEXT("file://")) + Filename.Replace(TEXT(" "), TEXT("%20")));
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([Filename, bShouldSucceed](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded == bShouldSucceed);
+		IFileManager::Get().Delete(*Filename);
+	});
+	HttpRequest->ProcessRequest();
+}
+
+#endif
 
 // TODO: Add cancel test, with multiple cancel calls
 
