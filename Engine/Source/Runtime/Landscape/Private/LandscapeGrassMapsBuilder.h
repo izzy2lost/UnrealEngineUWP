@@ -59,7 +59,7 @@ private:
 	// Update all of the non-pending components.
 	// If passed an empty Cameras array, distances are calculated as zero (i.e. it won't evict for distance)
 	// returns true if any components changed states
-	bool UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering);
+	bool UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAll);
 
 	// Start the grass map generation process on pending components in priority order
 	// (based on distance from the given Camera set) -- Cameras must not be empty.
@@ -184,10 +184,10 @@ private:
 	// number of components that need to render but are waiting (as of the last call to StartTrackingComponents())
 	int32 TotalComponentsWaitingCount = 0;
 
+	TAllocatorFixedSizeFreeList<sizeof(FComponentState), 32> StatePoolAllocator;
+
 	// store the grass map state of each registered (or recently unregistered) component
 	TMap<ULandscapeComponent*, FComponentState*> ComponentStates;
-
-	static TAllocatorFixedSizeFreeList<sizeof(FComponentState), 32> StatePoolAllocator;
 
 	TArray<FPendingComponent> PendingComponentsHeap;
 	int32 PendingUpdateAmortizationCounter = 0;
