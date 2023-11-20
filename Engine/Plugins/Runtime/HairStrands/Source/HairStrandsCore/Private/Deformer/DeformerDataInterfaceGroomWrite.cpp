@@ -14,6 +14,7 @@
 #include "GroomInstance.h"
 #include "DeformerGroomComponentSource.h"
 #include "RenderGraphUtils.h"
+#include "SystemTextures.h"
 
 FString UOptimusGroomWriteDataInterface::GetDisplayName() const
 {
@@ -214,9 +215,11 @@ void FOptimusGroomWriteDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 			}
 			else
 			{
-				R.PositionOffsetBufferSRV 	= GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_A32B32G32R32F);
+				FRDGBufferRef DummyUAVBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(8u, 1), TEXT("Hair.Deformer.DummyBuffer"));
+				
+				R.PositionOffsetBufferSRV 	= GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16u), PF_A32B32G32R32F); //GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_A32B32G32R32F);
 				R.PositionBufferSRV 		= GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_R16G16B16A16_UINT);
-				R.PositionBufferUAV 		= GraphBuilder.CreateUAV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_R16G16B16A16_UINT);
+				R.PositionBufferUAV 		= GraphBuilder.CreateUAV(DummyUAVBuffer, PF_R16G16B16A16_UINT);
 			}
 			
 			// Curve Attributes

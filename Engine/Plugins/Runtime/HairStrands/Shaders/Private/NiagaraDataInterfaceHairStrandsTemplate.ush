@@ -24,7 +24,7 @@ int					{ParameterName}_InterpolationMode;
 float3				{ParameterName}_RestRootOffset;
 float3				{ParameterName}_DeformedRootOffset;
 float3				{ParameterName}_RestPositionOffset;
-Buffer<float4>		{ParameterName}_DeformedPositionOffset;
+StructuredBuffer<float4> {ParameterName}_DeformedPositionOffset;
 RWBuffer<uint>	    {ParameterName}_BoundingBoxBuffer;
 uint				{ParameterName}_ResetSimulation;
 uint				{ParameterName}_RestUpdate;
