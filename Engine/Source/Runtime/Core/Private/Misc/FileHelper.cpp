@@ -612,11 +612,15 @@ bool FFileHelper::SaveStringToFile( FStringView String, const TCHAR* Filename,  
 {
 	// max size of the string is a UCS2CHAR for each character and some UNICODE magic 
 	TUniquePtr<FArchive> Ar = TUniquePtr<FArchive>( FileManager->CreateFileWriter( Filename, WriteFlags ) );
-	if( !Ar )
-		return false;
-
-	if( String.IsEmpty() )
+	if (!Ar)
 	{
+		UE_LOG(LogStreaming, Warning, TEXT("SaveStringToFile: Failed to open writer. File:%s"), Filename);
+		return false;
+	}
+
+	if (String.IsEmpty())
+	{
+		UE_LOG(LogStreaming, Warning, TEXT("SaveStringToFile: Empty String. File:%s"), Filename);
 		Ar->Close();
 		return true;
 	}

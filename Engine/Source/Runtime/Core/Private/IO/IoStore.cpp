@@ -2236,7 +2236,7 @@ public:
 	{
 		FCriticalSection HandleLock[NumHandlesPerFile];
 		IFileHandle* Handle[NumHandlesPerFile];
-		std::atomic_uint32_t NextHandleIndex;
+		std::atomic_uint32_t NextHandleIndex{0};
 		bool bValid = false;
 
 		FContainerFileAccess(IPlatformFile& Ipf, const TCHAR* ContainerFileName)

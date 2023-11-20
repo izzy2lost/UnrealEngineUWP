@@ -191,9 +191,19 @@ public:
 	{
 		struct FScopedReadTracker
 		{
-			FScopedReadTracker(FFileHandleUnix& InHandle) : Handle(InHandle) { GFileRegistry.TrackStartRead(&Handle); }
-			~FScopedReadTracker() { GFileRegistry.TrackEndRead(&Handle); }
+			FScopedReadTracker(FFileHandleUnix& InHandle) : Handle(InHandle) 
+			{ 
+				bSuccess = GFileRegistry.TrackStartRead(&Handle);
+			}
+			~FScopedReadTracker() 
+			{
+				if (bSuccess)
+				{
+					GFileRegistry.TrackEndRead(&Handle); 
+				}
+			}
 			FFileHandleUnix& Handle;
+			bool bSuccess = false;
 		};
 
 		check(IsValid());
@@ -201,6 +211,11 @@ public:
 		{
 			// Handle virtual file handles (only in read mode, write mode doesn't use the file handle registry)
 			FScopedReadTracker ScopedReadTracker(*this);
+			if (!ScopedReadTracker.bSuccess)
+			{
+				return false;
+			}
+
 			FScopedDiskUtilizationTracker Tracker(BytesToRead, FileOffset);
 
 			// seek to the offset on seek? this matches console behavior more closely
