@@ -38,6 +38,12 @@ int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponents(const FStatic
 	return VisualizationComponent->AddVisualDescWithISMComponents(Desc, ISMComponents);
 }
 
+const FMassISMCSharedData* UMassRepresentationSubsystem::GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const
+{
+	check(VisualizationComponent);
+	return VisualizationComponent->GetISMCSharedDataForDescriptionIndex(DescriptionIndex);
+}
+
 void UMassRepresentationSubsystem::RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

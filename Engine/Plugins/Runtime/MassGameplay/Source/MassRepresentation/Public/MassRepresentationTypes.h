@@ -148,6 +148,7 @@ class UInstancedStaticMeshComponent;
 
 struct MASSREPRESENTATION_API FMassISMCSharedData
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FMassISMCSharedData() 
 		: bRequiresExternalInstanceIDTracking(false)
 	{		
@@ -158,15 +159,20 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 	{
 	}
 
+	FMassISMCSharedData(const FMassISMCSharedData& Other) = default;
+	FMassISMCSharedData& operator=(const FMassISMCSharedData& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	void SetISMComponent(UInstancedStaticMeshComponent& InISMC)
 	{
-		check(ISMC == nullptr && RefCount == 0);
+		check(ISMC == nullptr && ISMComponentReferencesCount == 0);
 		ISMC = &InISMC;
 	}
 
-	UInstancedStaticMeshComponent* GetISMComponent() { return ISMC; }
-	int32 StoreReference() { return ++RefCount; }
-	int32 ReleaseReference() { ensure(RefCount >= 0); return --RefCount; }
+	UInstancedStaticMeshComponent* GetMutableISMComponent() { return ISMC; }
+	const UInstancedStaticMeshComponent* GetISMComponent() const { return ISMC; }
+	int32 OnISMComponentReferenceStored() { return ++ISMComponentReferencesCount; }
+	int32 OnISMComponentReferenceReleased() { ensure(ISMComponentReferencesCount >= 0); return --ISMComponentReferencesCount; }
 
 	void ResetAccumulatedData()
 	{
@@ -210,7 +216,10 @@ struct MASSREPRESENTATION_API FMassISMCSharedData
 
 	using FIdMap = Experimental::TRobinHoodHashMap<int32, FPrimitiveInstanceId>;
 
-	FIdMap &GetIdMap() { return MassInstanceIdToComponentInstanceIdMap; }
+	FIdMap& GetMutableIdMap() { return MassInstanceIdToComponentInstanceIdMap; }
+	const FIdMap& GetIdMap() const { return MassInstanceIdToComponentInstanceIdMap; }
+
+	int16 GetComponentInstanceIdTouchCounter() const { return ComponentInstanceIdTouchCounter; }
 
 protected:
 	friend FMassLODSignificanceRange;
@@ -228,7 +237,7 @@ protected:
 	int32 WriteIterator = 0;
 
 	UInstancedStaticMeshComponent* ISMC = nullptr;
-	int32 RefCount = 0;
+	int32 ISMComponentReferencesCount = 0;
 
 	/** 
 	 * When set to true will result in MassVisualizationComponent manually perform Instance ID-related operations 
@@ -237,8 +246,23 @@ protected:
 	 *	instance ID logic. WIP as of Jun 17th 2023 
 	 */
 	uint8 bRequiresExternalInstanceIDTracking : 1;
+	
+private:
+	/** Indicates that mutating changes, that can affect MassInstanceIdToComponentInstanceIdMap, have been performed.
+	 *	Can be used to validate whether cached data stored in other placed needs to be re-cached. */
+	uint16 ComponentInstanceIdTouchCounter = 0;
 
+protected:
 	FIdMap MassInstanceIdToComponentInstanceIdMap;
+
+	UE_DEPRECATED(5.4, "RefCount is deprecated, use ISMComponentReferencesCount instead")
+	int32 RefCount = 0;
+
+public:
+	UE_DEPRECATED(5.4, "StoreReference is deprecated, use OnISMComponentReferenceStored instead")
+	int32 StoreReference() { return OnISMComponentReferenceStored(); }
+	UE_DEPRECATED(5.4, "ReleaseReference is deprecated, use OnISMComponentReferenceReleased instead")
+	int32 ReleaseReference() { return OnISMComponentReferenceReleased(); }
 };
 
 
@@ -315,12 +339,13 @@ struct FMassISMCSharedDataMap
 		return nullptr;
 	}
 	
-	FMassISMCSharedData& FindOrAdd(const uint32 Hash, const FMassISMCSharedData& NewData)
+	template<typename... TArgs>
+	FMassISMCSharedData& FindOrAdd(const uint32 Hash, TArgs&&... InNewInstanceArgs)
 	{
 		const int32* DataIndex = Map.Find(Hash);
 		if (DataIndex == nullptr)
 		{
-			return Add(Hash, NewData);
+			return Add(Hash, Forward<TArgs>(InNewInstanceArgs)...);
 		}
 		check(Data.IsValidIndex(*DataIndex));
 		return Data[*DataIndex];
@@ -332,7 +357,8 @@ struct FMassISMCSharedDataMap
 		return (DataIndex == nullptr || *DataIndex == INDEX_NONE) ? (FMassISMCSharedData*)nullptr : &Data[*DataIndex];
 	}
 
-	FMassISMCSharedData& Add(const uint32 Hash, const FMassISMCSharedData& NewData)
+	template<typename... TArgs>
+	FMassISMCSharedData& Add(const uint32 Hash, TArgs&&... InNewInstanceArgs)
 	{
 		const int32 DataIndex = FreeIndices.Num() ? FreeIndices.Pop() : Data.Num();
 		Map.Add(Hash, DataIndex);
@@ -341,12 +367,12 @@ struct FMassISMCSharedDataMap
 		{
 			DirtyData.Add(false, DataIndex - DirtyData.Num() + 1);
 			DirtyData[DataIndex] = true;
-			return Data.Add_GetRef(NewData);
+			return Data.Add_GetRef(FMassISMCSharedData(Forward<TArgs>(InNewInstanceArgs)...));
 		}
 		else
 		{
 			DirtyData[DataIndex] = true;
-			Data[DataIndex] = NewData;
+			Data[DataIndex] = FMassISMCSharedData(Forward<TArgs>(InNewInstanceArgs)...);
 			return Data[DataIndex];
 		}
 	}
@@ -392,6 +418,11 @@ struct FMassISMCSharedDataMap
 	void Reset()
 	{
 		*this = FMassISMCSharedDataMap();
+	}
+
+	const FMassISMCSharedData* GetDataForIndex(const int32 Index) const
+	{
+		return Data.IsValidIndex(Index) ? &Data[Index] : nullptr;
 	}
 
 protected:
@@ -576,8 +607,8 @@ public:
 	{
 		if (ensure(SharedData.GetISMComponent()))
 		{
-			InstancedStaticMeshComponents.Add(SharedData.GetISMComponent());
-			SharedData.StoreReference();
+			InstancedStaticMeshComponents.Add(SharedData.GetMutableISMComponent());
+			SharedData.OnISMComponentReferenceStored();
 		}
 	}
 

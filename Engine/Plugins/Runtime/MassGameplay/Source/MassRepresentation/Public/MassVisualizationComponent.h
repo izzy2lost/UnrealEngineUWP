@@ -42,6 +42,11 @@ public:
 	 */
 	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
+	/**
+	 * Fetches FMassISMCSharedData indicated by DescriptionIndex, or nullptr if it's not a valid index
+	 */
+	const FMassISMCSharedData* GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const;
+
 	/** 
 	 * Removes all the visualization data associated with the given ISM component. The function resolves the VisualizationIndex
 	 * associated with the given ISMComponent and calls RemoveVisualDescByIndex which will remove data on all ISMComponents

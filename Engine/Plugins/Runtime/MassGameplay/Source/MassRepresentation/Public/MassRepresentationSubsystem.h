@@ -51,6 +51,11 @@ public:
 	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/**
+	 * Fetches FMassISMCSharedData indicated by DescriptionIndex, or nullptr if it's not a valid index
+	 */
+	const FMassISMCSharedData* GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const;
+
+	/**
 	 * Removes the visualization data associated with the given ISM component. Note that this is safe to do only when
 	 * there are no entities relying on this data. No entity data patching will take place.
 	 * Note that the function will assert if there's more ISM components associated with given visualization. Also, in 
