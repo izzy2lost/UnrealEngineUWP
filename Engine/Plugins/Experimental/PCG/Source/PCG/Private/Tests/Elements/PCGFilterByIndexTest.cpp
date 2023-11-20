@@ -52,7 +52,7 @@ namespace PCGFilterByIndexTestPrivate
 	}
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGFilterByIndexTest_Basic, FPCGTestBaseClass, "pcg.tests.FilterByIndex.Basic", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGFilterByIndexTest_Basic, FPCGTestBaseClass, "Plugins.PCG.FilterByIndex.Basic", PCGTestsCommon::TestFlags)
 
 bool FPCGFilterByIndexTest_Basic::RunTest(const FString& Parameters)
 {
@@ -170,7 +170,7 @@ bool FPCGFilterByIndexTest_Basic::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGFilterByIndexTest_InvalidSelection, FPCGTestBaseClass, "pcg.tests.FilterByIndex.InvalidSelection", PCGTestsCommon::TestFlags)
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGFilterByIndexTest_InvalidSelection, FPCGTestBaseClass, "Plugins.PCG.FilterByIndex.InvalidSelection", PCGTestsCommon::TestFlags)
 
 bool FPCGFilterByIndexTest_InvalidSelection::RunTest(const FString& Parameters)
 {
