@@ -106,7 +106,7 @@ enum EOutputFormat
 	HDR_LINEAR_64,
 };
 
-EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent);
+EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform);
 
 enum class EMobileTranslucentColorTransmittanceMode
 {
@@ -388,7 +388,7 @@ public:
 		EMobileLocalLightSetting SupportedLocalLightsType = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 		if (bForwardShading && bIsLit)
 		{
-			SupportedLocalLightsType = GetMobileForwardLocalLightSetting(Parameters.Platform, bIsTranslucent);
+			SupportedLocalLightsType = GetMobileForwardLocalLightSetting(Parameters.Platform);
 		}
 		// Deferred shading does not need SkyLight and LocalLight permutations
 		// TODO: skip skylight permutations for deferred	
@@ -428,11 +428,11 @@ public:
 		uint32 MergedLocalLights = 0u;
 		if (LocalLightSetting == EMobileLocalLightSetting::LOCAL_LIGHTS_BUFFER)
 		{
-			if (MobileMergeLocalLightsInPrepassEnabled(Parameters.Platform))
+			if (MobileMergeLocalLightsInPrepassEnabled(Parameters.Platform) && !bTranslucentMaterial)
 			{
 				MergedLocalLights = 1u;
 			}
-			else if (MobileMergeLocalLightsInBasepassEnabled(Parameters.Platform))
+			else if (MobileMergeLocalLightsInBasepassEnabled(Parameters.Platform) || bTranslucentMaterial)
 			{
 				MergedLocalLights = 2u;
 			}

@@ -44,13 +44,13 @@ bool MobileLocalLightsUseSinglePermutation()
 	return GMobileForwardLocalLightsSinglePermutation != 0;
 }
 
-EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform, bool bIsTranslucent)
+EMobileLocalLightSetting GetMobileForwardLocalLightSetting(EShaderPlatform ShaderPlatform)
 {
 	const int32 MobileForwardLocalLightsIniValue = FReadOnlyCVARCache::MobileForwardLocalLights(ShaderPlatform);
 
 	if (MobileForwardLocalLightsIniValue > 0)
 	{
-		if ((MobileForwardLocalLightsIniValue == 1) || bIsTranslucent)
+		if (MobileForwardLocalLightsIniValue == 1)
 		{
 			return EMobileLocalLightSetting::LOCAL_LIGHTS_ENABLED;
 		}
@@ -926,7 +926,7 @@ bool FMobileBasePassMeshProcessor::Process(
 			// Translucency always use un-cached MDC so this option does not apply to it
 			((MobileLocalLightsUseSinglePermutation() && !bIsTranslucent) || PrimitiveSceneProxy->GetPrimitiveSceneInfo()->NumMobileDynamicLocalLights > 0))
 		{
-			LocalLightSetting = GetMobileForwardLocalLightSetting(Scene->GetShaderPlatform(), bIsTranslucent);
+			LocalLightSetting = GetMobileForwardLocalLightSetting(Scene->GetShaderPlatform());
 		}
 	}
 
@@ -1116,7 +1116,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 	EMobileLocalLightSetting LocalLightSetting = EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED;
 	if (bLitMaterial && !bPassUsesDeferredShading)
 	{
-		LocalLightSetting = GetMobileForwardLocalLightSetting(ShaderPlatform, bTranslucentBasePass);
+		LocalLightSetting = GetMobileForwardLocalLightSetting(ShaderPlatform);
 	}
 	const bool bUseLocalLightPermutation = (LocalLightSetting != EMobileLocalLightSetting::LOCAL_LIGHTS_DISABLED);
 
