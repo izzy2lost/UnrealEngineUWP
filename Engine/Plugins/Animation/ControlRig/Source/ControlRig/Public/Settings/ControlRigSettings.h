@@ -66,6 +66,11 @@ public:
 	// value as the user interacts with a pin value
 	UPROPERTY(EditAnywhere, config, Category = Interaction)
 	bool bResetControlsOnPinValueInteraction;
+	
+	// When this is checked all elements will be reset to their initial value
+	// if the user changes the event queue (for example between forward / backward solve)
+	UPROPERTY(EditAnywhere, config, Category = Interaction)
+	bool bResetPoseWhenTogglingEventQueue;
 
 	// When this is checked any hierarchy interaction within the Control Rig
 	// Editor will be stored on the undo stack

@@ -873,7 +873,10 @@ void FControlRigEditor::SetEventQueue(TArray<FName> InEventQueue, bool bCompile)
 		if (InEventQueue.Contains(FRigUnit_PrepareForExecution::EventName) ||
 			InEventQueue.Contains(FRigUnit_BeginExecution::EventName))
 		{
-			ControlRig->GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
+			if(UControlRigEditorSettings::Get()->bResetPoseWhenTogglingEventQueue)
+			{
+				ControlRig->GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
+			}
 		}
 	}
 

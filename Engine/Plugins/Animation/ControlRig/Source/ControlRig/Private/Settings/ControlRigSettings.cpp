@@ -21,6 +21,7 @@ UControlRigEditorSettings::UControlRigEditorSettings(const FObjectInitializer& O
 #if WITH_EDITORONLY_DATA
 	bResetControlsOnCompile = true;
 	bResetControlsOnPinValueInteraction = false;
+	bResetPoseWhenTogglingEventQueue = true;
 	bEnableUndoForPoseInteraction = true;
 
 	ConstructionEventBorderColor = FLinearColor::Red;
