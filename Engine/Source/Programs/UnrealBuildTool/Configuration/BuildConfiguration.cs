@@ -40,6 +40,12 @@ namespace UnrealBuildTool
 		public bool bAllowHybridExecutor = false;
 
 		/// <summary>
+		/// Priority order for remote executors (XGE, SNDBS, FASTBuild, UBAExecutor)
+		/// </summary>
+		[XmlConfigFile]
+		public string[] RemoteExecutorPriority = new string[] { "XGE", "SNDBS", "FASTBuild", "UBA" };
+
+		/// <summary>
 		/// This property is being renamed and should not be used
 		/// </summary>
 		[XmlConfigFile]
