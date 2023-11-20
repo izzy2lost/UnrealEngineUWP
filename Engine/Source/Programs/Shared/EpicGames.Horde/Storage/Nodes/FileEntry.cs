@@ -142,8 +142,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task CopyToStreamAsync(Stream outputStream, CancellationToken cancellationToken)
 		{
-			ChunkedDataNode node = await ExpandAsync(cancellationToken);
-			await node.CopyToStreamAsync(outputStream, cancellationToken);
+			await ChunkedDataNode.CopyToStreamAsync(Handle, outputStream, cancellationToken);
 		}
 
 		/// <summary>

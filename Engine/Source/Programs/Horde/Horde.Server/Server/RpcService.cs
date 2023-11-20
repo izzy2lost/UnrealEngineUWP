@@ -501,6 +501,7 @@ namespace Horde.Server.Server
 			using Stream stream = await _toolCollection.GetDeploymentZipAsync(tool, deployment, context.CancellationToken);
 			using (IMemoryOwner<byte> buffer = MemoryPool<byte>.Shared.Rent(128 * 1024))
 			{
+				long totalWritten = 0;
 				for(; ;)
 				{
 					int read = await stream.ReadAsync(buffer.Memory, context.CancellationToken);
@@ -512,7 +513,10 @@ namespace Horde.Server.Server
 					DownloadSoftwareResponse response = new DownloadSoftwareResponse();
 					response.Data = UnsafeByteOperations.UnsafeWrap(buffer.Memory.Slice(0, read));
 					await responseStream.WriteAsync(response);
+
+					totalWritten += response.Data.Length;
 				}
+				_logger.LogInformation("Agent software zip is {Size:n0} bytes", totalWritten);
 			}
 		}
 
