@@ -2359,8 +2359,9 @@ void SBindingsList::HandleDeleteSelected()
 
 				BlueprintView->Modify();
 
-				for (const FMVVMBlueprintViewBinding* Binding : BindingsToRemove)
+				for (int32 BindingIndex = BindingsToRemove.Num() - 1; BindingIndex > -1; BindingIndex--)
 				{
+					const FMVVMBlueprintViewBinding* Binding = BindingsToRemove[BindingIndex];
 					BlueprintView->RemoveBinding(Binding);
 				}
 				for (UMVVMBlueprintViewEvent* Event : EventsToRemove)
