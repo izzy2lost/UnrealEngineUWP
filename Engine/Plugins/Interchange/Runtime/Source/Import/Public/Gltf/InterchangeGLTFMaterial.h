@@ -22,7 +22,8 @@ const FString InterchangeGltfMaterialAttributeIdentifier = TEXT("Gltf_MI_Attribu
 												 const FString MapName##Texture_Scale_X = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_Scale_X)); \
 												 const FString MapName##Texture_Scale_Y = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_Scale_Y)); \
 												 const FString MapName##Texture_Rotation = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_Rotation)); \
-												 const FString MapName##Texture_TexCoord = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_TexCoord));
+												 const FString MapName##Texture_TexCoord = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_TexCoord)); \
+												 const FString MapName##Texture_TilingMethod = TEXT(INTERCHANGE_GLTF_STRINGIFY(MapName ## Texture_TilingMethod));
 
 namespace UE::Interchange::GLTFMaterials
 {
@@ -183,8 +184,7 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("EmissiveColor"),
 					TEXT("Opacity"),
 					TEXT("Normal"),
-					TEXT("Occlusion"),
-					TEXT("Refraction")})},
+					TEXT("Occlusion")})},
 
 		{EShadingModel::SPECULARGLOSSINESS,
 			TPair<FString, TArray<FString>>(

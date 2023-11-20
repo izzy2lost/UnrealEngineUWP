@@ -138,6 +138,29 @@ namespace UE::Interchange::GLTFMaterials
 		return UInterchangeShaderPortsAPI::MakeInputValueKey(Name);
 	}
 
+	FVector4f GetTilingMethod(const GLTF::FSampler& Sampler)
+	{
+		float TilingU = 0;
+		switch (Sampler.WrapS)
+		{
+			case GLTF::FSampler::EWrap::Repeat:         TilingU = 0; break;
+			case GLTF::FSampler::EWrap::ClampToEdge:    TilingU = 1; break;
+			case GLTF::FSampler::EWrap::MirroredRepeat: TilingU = 2; break;
+			default:                                    TilingU = 0; break;;
+		}
+
+		float TilingV = 0;
+		switch (Sampler.WrapT)
+		{
+			case GLTF::FSampler::EWrap::Repeat:         TilingV = 0; break;
+			case GLTF::FSampler::EWrap::ClampToEdge:    TilingV = 1; break;
+			case GLTF::FSampler::EWrap::MirroredRepeat: TilingV = 2; break;
+			default:                                    TilingV = 0; break;;
+		}
+
+		return FVector4f(TilingU, TilingV, 0, 0);
+	}
+
 	struct FGLTFMaterialProcessor
 	{
 		UInterchangeBaseNodeContainer& NodeContainer;
@@ -346,6 +369,9 @@ namespace UE::Interchange::GLTFMaterials
 				// [3...4) -> UV3
 				// else    -> UV0 (defaults to 0)
 				SetScalar(Name + TEXT("_TexCoord"), TextureMap.TexCoord, 0.f);
+
+				//Set the TilingMethod:
+				SetVec4(Name + TEXT("_TilingMethod"), GetTilingMethod(Textures[TextureMap.TextureIndex].Sampler), FVector4f(0, 0, 0, 0));
 			}
 
 			if (TextureMap.bHasTextureTransform)
