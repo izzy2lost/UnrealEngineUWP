@@ -143,6 +143,19 @@ TSharedRef<SDockTab> FRewindDebuggerModule::SpawnRewindDebuggerTab(const FSpawnT
 							 FIsActionChecked(),
 							 FIsActionButtonVisible::CreateRaw(DebuggerInstance, &FRewindDebugger::CanStopRecording));
 
+	CommandList->MapAction(Commands.AutoEject,
+							 FExecuteAction::CreateLambda([DebuggerInstance]() { DebuggerInstance->SetShouldAutoEject(!DebuggerInstance->ShouldAutoEject()); }),
+							 FCanExecuteAction(),
+							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::ShouldAutoEject),
+							 FIsActionButtonVisible());
+							 
+	CommandList->MapAction(Commands.AutoRecord,
+							 FExecuteAction::CreateLambda([DebuggerInstance]() { DebuggerInstance->SetShouldAutoRecordOnPIE(!DebuggerInstance->ShouldAutoRecordOnPIE()); }),
+							 FCanExecuteAction(),
+							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::ShouldAutoRecordOnPIE),
+							 FIsActionButtonVisible());
+		 
+
 	// Register PIE Rewind Debugger Commands
 	if (GEditor != nullptr)
 	{

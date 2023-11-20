@@ -181,7 +181,7 @@ void FRewindDebugger::OnPIEPaused(bool bSimulating)
 		SetCurrentScrubTime(RecordingDuration.Get());
 	}
 	
-	if (ShouldAutoDetach() && FPlayWorldCommandCallbacks::IsInPIE())
+	if (ShouldAutoEject() && FPlayWorldCommandCallbacks::IsInPIE())
 	{
 		bool CanEject= false;
 		for (auto It = GUnrealEd->SlatePlayInEditorMap.CreateIterator(); It; ++It)
@@ -211,7 +211,7 @@ void FRewindDebugger::OnPIEResumed(bool bSimulating)
 
 	MeshComponentsToReset.Empty();
 
-	if (ShouldAutoDetach() && FPlayWorldCommandCallbacks::IsInSIE())
+	if (ShouldAutoEject() && FPlayWorldCommandCallbacks::IsInSIE())
 	{
 		GEditor->RequestToggleBetweenPIEandSIE();
 	}
@@ -477,14 +477,14 @@ void FRewindDebugger::SetShouldAutoRecordOnPIE(bool value)
 	URewindDebuggerSettings::Get().bShouldAutoRecordOnPIE = value;
 }
 
-bool FRewindDebugger::ShouldAutoDetach() const
+bool FRewindDebugger::ShouldAutoEject() const
 {
-	return URewindDebuggerSettings::Get().bShouldAutoDetach;
+	return URewindDebuggerSettings::Get().bShouldAutoEject;
 }
 
-void FRewindDebugger::SetShouldAutoDetach(bool value)
+void FRewindDebugger::SetShouldAutoEject(bool value)
 {
-	URewindDebuggerSettings::Get().bShouldAutoDetach = value;
+	URewindDebuggerSettings::Get().bShouldAutoEject = value;
 }
 
 void FRewindDebugger::StopRecording()
@@ -1357,6 +1357,22 @@ void FRewindDebugger::RegisterToolBar()
 				LOCTEXT("Blank",""),
 				TAttribute<FText>(),
 				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.StopRecording.small")));
+
+	Section.AddSeparator(NAME_None);
+	
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.AutoEject,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoEject")));
+					Section.AddSeparator(NAME_None);
+                				
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.AutoRecord,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.AutoRecord")));
+
 	
 	Menu->SetStyleSet(&FAppStyle::Get());
 	Menu->StyleName = "PaletteToolBar";
