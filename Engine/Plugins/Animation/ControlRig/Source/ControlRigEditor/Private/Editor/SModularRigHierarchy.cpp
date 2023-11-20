@@ -615,7 +615,11 @@ void SModularRigHierarchy::HandleDeleteModules()
 		TArray<FString> SelectedPaths;
 		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
 		{
-			return Element->Key;
+			if (Element.IsValid())
+			{
+				return Element->Key;
+			}
+			return FString();
 		});
 		HandleDeleteModules(SelectedPaths);
 	}

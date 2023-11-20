@@ -1552,7 +1552,7 @@ static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* I
 		}
 	}
 	
-	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections, InModule->ConfigValues);
+	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections, InModule->ConfigValues, InModule->Bindings);
 	
 	for (const FRigModuleReference* ChildModule : InModule->CachedChildren)
 	{

@@ -507,4 +507,51 @@ namespace RigVMTypeUtils
 	{
 		return Cast<T>(FindObjectFromCPPTypeObjectPath(InObjectPath));
 	}
+
+	static bool AreCompatible(const FProperty* InSourceProperty, const FProperty* InTargetProperty)
+	{
+		bool bCompatible = InSourceProperty->SameType(InTargetProperty);
+		if (!bCompatible)
+		{
+			if(const FFloatProperty* TargetFloatProperty = CastField<FFloatProperty>(InTargetProperty))
+			{
+				bCompatible = InSourceProperty->IsA<FDoubleProperty>();
+			}
+			else if(const FDoubleProperty* TargetDoubleProperty = CastField<FDoubleProperty>(InTargetProperty))
+			{
+				bCompatible = InSourceProperty->IsA<FFloatProperty>();
+			}
+			else if (const FByteProperty* TargetByteProperty = CastField<FByteProperty>(InTargetProperty))
+			{
+				bCompatible = InSourceProperty->IsA<FEnumProperty>();
+			}
+			else if (const FEnumProperty* TargetEnumProperty = CastField<FEnumProperty>(InTargetProperty))
+			{
+				bCompatible = InSourceProperty->IsA<FByteProperty>();
+			}
+			else if(const FArrayProperty* TargetArrayProperty = CastField<FArrayProperty>(InTargetProperty))
+			{
+				if(const FArrayProperty* SourceArrayProperty = CastField<FArrayProperty>(InSourceProperty))
+				{
+					if(TargetArrayProperty->Inner->IsA<FFloatProperty>())
+					{
+						bCompatible = SourceArrayProperty->Inner->IsA<FDoubleProperty>();
+					}
+					else if(TargetArrayProperty->Inner->IsA<FDoubleProperty>())
+					{
+						bCompatible = SourceArrayProperty->Inner->IsA<FFloatProperty>();
+					}
+					else if(FByteProperty* TargetArrayInnerByteProperty = CastField<FByteProperty>(TargetArrayProperty->Inner))
+					{
+						bCompatible = SourceArrayProperty->Inner->IsA<FEnumProperty>();
+					}
+					else if(FEnumProperty* TargetArrayInnerEnumProperty = CastField<FEnumProperty>(TargetArrayProperty->Inner))
+					{
+						bCompatible = SourceArrayProperty->Inner->IsA<FByteProperty>();
+					}
+				}
+			}
+		}
+		return bCompatible;
+	}
 }

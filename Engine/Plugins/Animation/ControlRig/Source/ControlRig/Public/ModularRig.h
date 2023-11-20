@@ -56,6 +56,9 @@ struct CONTROLRIG_API FRigModuleInstance
 	UPROPERTY()
 	FString ParentPath;
 
+	UPROPERTY()
+	TMap<FName, FRigVMExternalVariable> VariableBindings;
+
 	TArray<FRigModuleInstance*> CachedChildren;
 
 	FString GetPath() const;
@@ -130,8 +133,8 @@ public:
 	void UpdateCachedChildren();
 
 	/** Adds a module to the rig*/
-	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariables);
-	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariables);
+	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
+	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
 
 	FRigModuleInstance* FindModule(const FString& InPath) const;
 	FString GetParentPath(const FString& InPath) const;

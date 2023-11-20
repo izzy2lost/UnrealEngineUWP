@@ -193,6 +193,12 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 		return false;
 	}
 
+	if (Property->HasAllPropertyFlags(CPF_BlueprintReadOnly))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("The target variable %s in module %s is read only"), *InVariableName.ToString(), *InModulePath);
+		return false;
+	}
+
 	TArray<uint8, TAlignedHeapAllocator<16>> TempStorage;
 	TempStorage.AddZeroed(Property->GetSize());
 	uint8* TempMemory = TempStorage.GetData();
@@ -217,6 +223,249 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 #endif 
 
 	Module->ConfigValues.FindOrAdd(InVariableName) = InValue;
+
+	Notify(EModularRigNotification::ModuleConfigValueChanged, Module);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+
+	return true;
+}
+
+TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModulePath, const FName& InVariableName)
+{
+	TArray<FString> PossibleBindings;
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		return PossibleBindings;
+	}
+
+	if (!Module->Class.IsValid())
+	{
+		return PossibleBindings;
+	}
+
+	const FProperty* TargetProperty = Module->Class->FindPropertyByName(InVariableName);
+	if (!TargetProperty)
+	{
+		return PossibleBindings;
+	}
+
+	if (TargetProperty->HasAnyPropertyFlags(CPF_BlueprintReadOnly | CPF_DisableEditOnInstance))
+	{
+		return PossibleBindings;
+	}
+
+	// Add possible blueprint variables
+	if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+	{
+		TArray<FRigVMExternalVariable> Variables = Blueprint->GetControlRigClass()->GetDefaultObject<UControlRig>()->GetExternalVariables();
+		for (const FRigVMExternalVariable& Variable : Variables)
+		{
+			FText ErrorMessage;
+			const FString VariableName = Variable.Name.ToString();
+			if (CanBindModuleVariable(InModulePath, InVariableName, VariableName, ErrorMessage))
+			{
+				PossibleBindings.Add(VariableName);
+			}
+		}
+	}
+
+	// Add possible module variables
+	TArray<FRigModuleReference*> Modules = Model->RootModules;
+	const FString ModulePath = Module->GetPath();
+	for (int32 i=0; i<Modules.Num(); ++i)
+	{
+		const FString CurModulePath = Modules[i]->GetPath();
+		if (ModulePath == CurModulePath)
+		{
+			continue;
+		}
+
+		TArray<FRigVMExternalVariable> Variables = Modules[i]->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
+		for (const FRigVMExternalVariable& Variable : Variables)
+		{
+			FText ErrorMessage;
+			const FString VariablePath = FString::Printf(TEXT("%s:%s"), *CurModulePath, *Variable.Name.ToString());
+			if (CanBindModuleVariable(InModulePath, InVariableName, VariablePath, ErrorMessage))
+			{
+				PossibleBindings.Add(VariablePath);
+			}
+		}
+
+		Modules.Append(Modules[i]->CachedChildren);
+	}
+
+	return PossibleBindings;
+}
+
+bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, const FName& InVariableName, const FString& InSourcePath, FText& OutErrorMessage)
+{
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Could not find module %s"), *InModulePath));
+		return false;
+	}
+
+	if (!Module->Class.IsValid())
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Class defined in module %s is not valid"), *InModulePath));
+		return false;
+	}
+
+	const FProperty* TargetProperty = Module->Class->FindPropertyByName(InVariableName);
+	if (!TargetProperty)
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Could not find variable %s in module %s"), *InVariableName.ToString(), *InModulePath));
+		return false;
+	}
+
+	if (TargetProperty->HasAnyPropertyFlags(CPF_BlueprintReadOnly | CPF_DisableEditOnInstance))
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("The target variable %s in module %s is read only"), *InVariableName.ToString(), *InModulePath));
+		return false;
+	}
+
+	FString SourceModulePath, SourceVariableName = InSourcePath;
+	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+
+	FRigModuleReference* SourceModule = nullptr;
+	if (!SourceModulePath.IsEmpty())
+	{
+		SourceModule = FindModule(SourceModulePath);
+		if (!SourceModule)
+		{
+			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Could not find source module %s"), *SourceModulePath));
+			return false;
+		}
+
+		if (SourceModulePath.StartsWith(InModulePath))
+		{
+			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Cannot bind variable of module %s to a variable of module %s because the source module is a child of the target module"), *InModulePath, *SourceModulePath));
+			return false;
+		}
+	}
+
+	const FProperty* SourceProperty = nullptr;
+	if (SourceModule)
+	{
+		SourceProperty = SourceModule->Class->FindPropertyByName(*SourceVariableName);
+	}
+	else
+	{
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			SourceProperty = Blueprint->GetControlRigClass()->FindPropertyByName(*SourceVariableName);
+		}
+	}
+	if (!SourceProperty)
+	{
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Could not find source variable %s"), *InSourcePath));
+		return false;
+	}
+
+	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : FString::Printf(TEXT("%s:%s"), *SourceModulePath, *SourceVariableName);
+	if (!RigVMTypeUtils::AreCompatible(SourceProperty, TargetProperty))
+	{
+		FString TargetPath = FString::Printf(TEXT("%s.%s"), *InModulePath, *InVariableName.ToString());
+		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Property %s of type %s and %s of type %s are not compatible"), *SourcePath, *SourceProperty->GetCPPType(), *TargetPath, *TargetProperty->GetCPPType()));
+		return false;
+	}
+
+	return true;
+}
+
+bool UModularRigController::BindModuleVariable(const FString& InModulePath, const FName& InVariableName, const FString& InSourcePath, bool bSetupUndo)
+{
+	FText ErrorMessage;
+	if (!CanBindModuleVariable(InModulePath, InVariableName, InSourcePath, ErrorMessage))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not bind module variable %s:%s : %s"), *InModulePath, *InVariableName.ToString(), *ErrorMessage.ToString());
+		return false;
+	}
+	
+	FRigModuleReference* Module = FindModule(InModulePath);
+	const FProperty* TargetProperty = Module->Class->FindPropertyByName(InVariableName);
+
+	FString SourceModulePath, SourceVariableName = InSourcePath;
+	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+
+	FRigModuleReference* SourceModule = nullptr;
+	if (!SourceModulePath.IsEmpty())
+	{
+		SourceModule = FindModule(SourceModulePath);
+	}
+
+	const FProperty* SourceProperty = nullptr;
+	if (SourceModule)
+	{
+		SourceProperty = SourceModule->Class->FindPropertyByName(*SourceVariableName);
+	}
+	else
+	{
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			SourceProperty = Blueprint->GetControlRigClass()->FindPropertyByName(*SourceVariableName);
+		}
+	}
+
+	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : FString::Printf(TEXT("%s:%s"), *SourceModulePath, *SourceVariableName);
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	FString& SourceStr = Module->Bindings.FindOrAdd(InVariableName);
+	SourceStr = SourcePath;
+
+	Notify(EModularRigNotification::ModuleConfigValueChanged, Module);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+
+	return true;
+}
+
+bool UModularRigController::UnBindModuleVariable(const FString& InModulePath, const FName& InVariableName, bool bSetupUndo)
+{
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+	if (!Module->Bindings.Contains(InVariableName))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Variable %s in module %s is not bound"), *InVariableName.ToString(), *InModulePath);
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+
+	Module->Bindings.Remove(InVariableName);
 
 	Notify(EModularRigNotification::ModuleConfigValueChanged, Module);
 
@@ -257,6 +506,21 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	Model->DeletedModules.Add(*Module);
 	Model->Modules.RemoveSingle(*Module);
 	Model->UpdateCachedChildren();
+
+	// Fix bindings
+	for (FRigModuleReference& Reference : Model->Modules)
+	{
+		Reference.Bindings = Reference.Bindings.FilterByPredicate([InModulePath](const TPair<FName, FString>& Binding)
+		{
+			FString ModulePath, VariableName = Binding.Value;
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			if (ModulePath == InModulePath)
+			{
+				return false;
+			}
+			return true;
+		});
+	}
 
 	Notify(EModularRigNotification::ModuleRemoved, &Model->DeletedModules.Last());
 
@@ -315,6 +579,20 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 		Child->ParentPath.ReplaceInline(*OldPath, *NewPath);
 
 		Children.Append(Child->CachedChildren);
+	}
+
+	// Fix bindings
+	for (FRigModuleReference& Reference : Model->Modules)
+	{
+		for (TPair<FName, FString>& Binding : Reference.Bindings)
+		{
+			FString ModulePath, VariableName = Binding.Value;
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			if (ModulePath == OldPath)
+			{
+				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);
+			}
+		};
 	}
 
 	Notify(EModularRigNotification::ModuleRenamed, Module);
@@ -406,6 +684,34 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 	}
 
 	Model->UpdateCachedChildren();
+
+	// Fix bindings
+	for (FRigModuleReference& Reference : Model->Modules)
+	{
+		const FString ReferencePath = Reference.GetPath();
+		for (TPair<FName, FString>& Binding : Reference.Bindings)
+		{
+			FString ModulePath, VariableName = Binding.Value;
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			if (ModulePath == OldPath)
+			{
+				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);
+				ModulePath = NewPath;
+			}
+
+			// Remove any child dependency
+			if (ModulePath.Contains(ReferencePath))
+			{
+				UE_LOG(LogControlRig, Warning, TEXT("Binding lost due to source %s contained in child module of %s"), *Binding.Value, *ReferencePath);
+				Binding.Value.Reset();
+			}
+		};
+
+		Reference.Bindings = Reference.Bindings.FilterByPredicate([](const TPair<FName, FString>& Binding)
+		{
+			return !Binding.Value.IsEmpty();
+		});
+	}
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
 	

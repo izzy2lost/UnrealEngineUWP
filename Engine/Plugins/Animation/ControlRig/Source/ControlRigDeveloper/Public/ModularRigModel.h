@@ -39,6 +39,9 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 	UPROPERTY()
 	TMap<FName, FString> ConfigValues;
 
+	UPROPERTY()
+	TMap<FName, FString> Bindings; // ExternalVariableName (current module) -> SourceExternalVariableNamespacedPath (root rig or other module)
+
 	UPROPERTY(transient)
 	FName PreviousName;
 

@@ -206,8 +206,17 @@ void UModularRig::ExecuteQueue()
 				}
 				RigPublicContext.AssetUserData.Remove(nullptr);
 			}
-				
-				
+
+			// Copy variable bindings
+			for (TPair<FName, FRigVMExternalVariable>& Pair : ExecutionElement.ModuleInstance->VariableBindings)
+			{
+				FRigVMExternalVariable TargetVariable = ExecutionElement.ModuleInstance->Rig->GetPublicVariableByName(Pair.Key);
+				if (RigVMTypeUtils::AreCompatible(Pair.Value.Property, TargetVariable.Property))
+				{
+					Pair.Value.Property->CopyCompleteValue(TargetVariable.Memory, Pair.Value.Memory);
+				}
+			}
+			
 			Rig->Execute_Internal(ExecutionElement.EventName);
 			ExecutionElement.bExecuted = true;
 		}
@@ -286,14 +295,14 @@ void UModularRig::UpdateCachedChildren()
 }
 
 bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath,
-	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues )
+	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings )
 {
 	FRigModuleInstance* ParentModule = FindModule(InParentPath);
-	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap, InVariableDefaultValues ) != nullptr;
+	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap, InVariableDefaultValues, InVariableBindings) != nullptr;
 }
 
 FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent,
-	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues ) 
+	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings ) 
 {
 	// Make sure there are no name clashes
 	if (InParent)
@@ -346,9 +355,28 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		ModulePublicContext.RigModuleNameSpaceHash = GetTypeHash(ModulePublicContext.RigModuleNameSpace);
 		NewModule.Rig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));
 
-		for (TPair<FName, FString> Variable : InVariableDefaultValues )
+		for (const TPair<FName, FString>& Variable : InVariableDefaultValues )
 		{
 			NewModule.Rig->SetVariableFromString(Variable.Key, Variable.Value);
+		}
+
+		for (const TPair<FName, FString>& Pair : InVariableBindings)
+		{
+			FString SourceModulePath, SourceVariableName = Pair.Value;
+			Pair.Value.Split(NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+			FRigVMExternalVariable SourceVariable;
+			if (SourceModulePath.IsEmpty())
+			{
+				if (FProperty* Property = GetClass()->FindPropertyByName(*SourceVariableName))
+				{
+					SourceVariable = FRigVMExternalVariable::Make(Property, (UObject*)this);
+				}
+			}
+			else if(FRigModuleInstance* SourceModule = FindModule(SourceModulePath))
+			{
+				SourceVariable = SourceModule->Rig->GetPublicVariableByName(*SourceVariableName);
+			}
+			NewModule.VariableBindings.Add(Pair.Key, SourceVariable);
 		}
 	}
 	
