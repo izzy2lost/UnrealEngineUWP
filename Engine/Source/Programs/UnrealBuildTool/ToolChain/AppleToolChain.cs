@@ -1170,12 +1170,9 @@ namespace UnrealBuildTool
 
 			string PostBuildSyncArguments = String.Format("-modernxcode -Input=\"{0}\" -XmlConfigCache=\"{1}\" -remoteini=\"{2}\"", PostBuildSyncFile, XmlConfig.CacheFile, UnrealBuildTool.GetRemoteIniPath());
 			Action PostBuildSyncAction = Graph.CreateRecursiveAction<ApplePostBuildSyncMode>(ActionType.CreateAppBundle, PostBuildSyncArguments);
-
-			PostBuildSyncAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			PostBuildSyncAction.PrerequisiteItems.Add(Executable);
 			PostBuildSyncAction.ProducedItems.Add(GetPostBuildOutputFile(Executable.Location, Target.Name, Target.Platform));
 			PostBuildSyncAction.StatusDescription = $"Executing PostBuildSync [{Executable.Location}]";
-			PostBuildSyncAction.bCanExecuteRemotely = false;
 
 			if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
 			{
