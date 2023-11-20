@@ -20,8 +20,6 @@ namespace PCGAttributeFilterConstants
 	const FName FilterLabel = TEXT("Filter");
 	const FName FilterMinLabel = TEXT("FilterMin");
 	const FName FilterMaxLabel = TEXT("FilterMax");
-	const FName InFilterLabel = TEXT("InsideFilter");
-	const FName OutFilterLabel = TEXT("OutsideFilter");
 
 	constexpr int32 ChunkSize = 256;
 
@@ -297,8 +295,8 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::InputPinProperties() c
 TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGAttributeFilterConstants::InFilterLabel, EPCGDataType::Any);
-	PinProperties.Emplace(PCGAttributeFilterConstants::OutFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::Any);
 
 	return PinProperties;
 }
@@ -407,8 +405,8 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::InputPinPropertie
 TArray<FPCGPinProperties> UPCGAttributeFilteringRangeSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGAttributeFilterConstants::InFilterLabel, EPCGDataType::Any);
-	PinProperties.Emplace(PCGAttributeFilterConstants::OutFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultInFilterLabel, EPCGDataType::Any);
+	PinProperties.Emplace(PCGPinConstants::DefaultOutFilterLabel, EPCGDataType::Any);
 
 	return PinProperties;
 }
@@ -501,14 +499,14 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		auto ForwardInputToInFilterPin = [&Outputs, Input]()
 		{
 			FPCGTaggedData& InFilterOutput = Outputs.Add_GetRef(Input);
-			InFilterOutput.Pin = PCGAttributeFilterConstants::InFilterLabel;
+			InFilterOutput.Pin = PCGPinConstants::DefaultInFilterLabel;
 		};
 
 		// If there is a problem with target -> forward to OutFilter
 		auto ForwardInputToOutFilterPin = [&Outputs, Input]()
 		{
 			FPCGTaggedData& OutFilterOutput = Outputs.Add_GetRef(Input);
-			OutFilterOutput.Pin = PCGAttributeFilterConstants::OutFilterLabel;
+			OutFilterOutput.Pin = PCGPinConstants::DefaultOutFilterLabel;
 		};
 
 		FPCGAttributePropertyInputSelector TargetAttribute = InTargetAttribute.CopyAndFixLast(OriginalData);
@@ -704,12 +702,12 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		if (PCGMetadataAttribute::CallbackWithRightType(TargetAccessor->GetUnderlyingType(), Operation))
 		{
 			FPCGTaggedData& InFilterOutput = Outputs.Add_GetRef(Input);
-			InFilterOutput.Pin = PCGAttributeFilterConstants::InFilterLabel;
+			InFilterOutput.Pin = PCGPinConstants::DefaultInFilterLabel;
 			InFilterOutput.Data = InFilterData;
 			InFilterOutput.Tags = Input.Tags;
 
 			FPCGTaggedData& OutFilterOutput = Outputs.Add_GetRef(Input);
-			OutFilterOutput.Pin = PCGAttributeFilterConstants::OutFilterLabel;
+			OutFilterOutput.Pin = PCGPinConstants::DefaultOutFilterLabel;
 			OutFilterOutput.Data = OutFilterData;
 			OutFilterOutput.Tags = Input.Tags;
 		}
@@ -729,8 +727,8 @@ bool FPCGAttributeFilterElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterElement::Execute);
 
 #if !WITH_EDITOR
-	const bool bHasInFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeFilterConstants::InFilterLabel);
-	const bool bHasOutsideFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeFilterConstants::OutFilterLabel);
+	const bool bHasInFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGPinConstants::DefaultInFilterLabel);
+	const bool bHasOutsideFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGPinConstants::DefaultOutFilterLabel);
 
 	// Early out - only in non-editor builds, otherwise we will potentially poison the cache, since it is input-driven
 	if (!bHasInFilterOutputPin && !bHasOutsideFilterOutputPin)
@@ -756,8 +754,8 @@ bool FPCGAttributeFilterRangeElement::ExecuteInternal(FPCGContext* Context) cons
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeFilterRangeElement::Execute);
 
 #if !WITH_EDITOR
-	const bool bHasInFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeFilterConstants::InFilterLabel);
-	const bool bHasOutsideFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeFilterConstants::OutFilterLabel);
+	const bool bHasInFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGPinConstants::DefaultInFilterLabel);
+	const bool bHasOutsideFilterOutputPin = Context->Node && Context->Node->IsOutputPinConnected(PCGPinConstants::DefaultOutFilterLabel);
 
 	// Early out - only in non-editor builds, otherwise we will potentially poison the cache, since it is input-driven
 	if (!bHasInFilterOutputPin && !bHasOutsideFilterOutputPin)

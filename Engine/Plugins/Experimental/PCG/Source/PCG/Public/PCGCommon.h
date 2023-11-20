@@ -93,6 +93,9 @@ namespace PCGPinConstants
 	const FName DefaultParamsLabel = TEXT("Overrides");
 	const FName DefaultDependencyOnlyLabel = TEXT("Dependency Only");
 
+	const FName DefaultInFilterLabel = TEXT("InsideFilter");
+	const FName DefaultOutFilterLabel = TEXT("OutsideFilter");
+
 namespace Private
 {
 	const FName OldDefaultParamsLabel = TEXT("Params");
