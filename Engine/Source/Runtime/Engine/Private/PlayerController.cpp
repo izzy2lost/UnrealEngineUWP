@@ -6332,7 +6332,7 @@ void APlayerController::ClientSetupNetworkPhysicsTimestamp_Implementation(FAsync
 
 void APlayerController::ClientAckTimeDilation_Implementation(float TimeDilation, int32 ServerStep)
 {
-	if (ClientLatestTimeDilationServerStep <= ServerStep)
+	if (ServerStep <= ClientLatestTimeDilationServerStep)
 	{
 		return;
 	}

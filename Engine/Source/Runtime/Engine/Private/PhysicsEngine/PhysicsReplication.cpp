@@ -880,7 +880,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 		Target->TargetState = Input.TargetState;
 		Target->RepMode = Input.RepMode;
 		Target->FrameOffset = Input.FrameOffset;
-		Target->TickCount = bFirstTarget ? 0 : FMath::Clamp((PrevTickCount - (SendInterval > 0 ? SendInterval : PrevReceiveInterval)), -AdjustedAverageReceiveInterval, AdjustedAverageReceiveInterval);
+		Target->TickCount = 0;
 		Target->AccumulatedSleepSeconds = 0.0f;
 
 		if (Input.RepMode == EPhysicsReplicationMode::PredictiveInterpolation)
@@ -892,6 +892,10 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Input.TargetState.Position + Offset, FVector(15.0f, 15.0f, 15.0f), Input.TargetState.Quaternion, FColor::MakeRandomSeededColor(Input.ServerFrame), false, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
 			}
 #endif
+
+			// Set the TickCount to the physics tick offset value from where we expected this target to arrive.
+			// If the client has ticked 2 times ahead from the last target and this target is 3 ticks in front of the previous target then the TickOffset should be -1
+			Target->TickCount = bFirstTarget ? 0 : FMath::Clamp((PrevTickCount - (SendInterval > 0 ? SendInterval : PrevReceiveInterval)), -AdjustedAverageReceiveInterval, AdjustedAverageReceiveInterval);
 
 			// Cache the position we received this target at, Predictive Interpolation will alter the target state but use this as the source position for reconciliation.
 			Target->PrevPosTarget = Input.TargetState.Position;
@@ -1320,6 +1324,16 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		return false;
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bDrawDebugTargets)
+	{
+		const FVector Offset = FVector(0.0f, 0.0f, 50.0f);
+		const FVector StartPos = Target.TargetState.Position + Offset;
+		const int32 SizeMultiplier = FMath::Clamp(Target.TickCount, -4, 30);
+		Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(StartPos, FVector(5.0f + SizeMultiplier * 0.75f, 5.0f + SizeMultiplier * 0.75f, 5.0f + SizeMultiplier * 0.75f), Target.TargetState.Quaternion, FColor::MakeRandomSeededColor(Target.ServerFrame), false, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+	}
+#endif
+
 	const bool bIsSleeping = Handle->IsSleeping();
 	const bool bCanSimulate = Handle->IsDynamic() || bIsSleeping;
 
@@ -1541,16 +1555,6 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 		// Cache data for next replication
 		Target.PrevPos = FVector(CurrentState.Position);
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bDrawDebugTargets)
-		{
-			const FVector Offset = FVector(0.0f, 0.0f, 50.0f);
-			const FVector StartPos = TargetPos + Offset;
-			const int32 SizeMultiplier = FMath::Min(Target.TickCount, 100);
-			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(StartPos, FVector(5.0f + SizeMultiplier * 0.75f, 5.0f + SizeMultiplier * 0.75f, 5.0f + SizeMultiplier * 0.75f), Target.TargetState.Quaternion, FColor::MakeRandomSeededColor(Target.ServerFrame), false, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
-		}
-#endif
-
 		// --- Target Extrapolation ---
 		if (Target.TickCount <= FMath::CeilToInt(Target.ReceiveInterval * PhysicsReplicationCVars::PredictiveInterpolationCVars::ExtrapolationTimeMultiplier))
 		{
@@ -1606,10 +1610,10 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 
 	if (LocalFrame > RewindData->CurrentFrame() || LocalFrame < RewindData->GetEarliestFrame_Internal())
 	{
-		if (LocalFrame > 0)
+		if (LocalFrame > 0 && (RewindData->CurrentFrame() - RewindData->GetEarliestFrame_Internal()) == RewindData->Capacity())
 		{
-			UE_LOG(LogPhysics, Warning, TEXT("FPhysicsReplication::ApplyRigidBodyState target frame (%d) out of rewind data bounds (%d,%d)"), LocalFrame,
-				RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
+			UE_LOG(LogPhysics, Warning, TEXT("FPhysicsReplication::ResimulationReplication target frame (%d) out of rewind data bounds (%d,%d)"),
+				LocalFrame,	RewindData->GetEarliestFrame_Internal(), RewindData->CurrentFrame());
 		}
 		return true;
 	}

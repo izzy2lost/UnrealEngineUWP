@@ -684,7 +684,6 @@ namespace Chaos
 			Constraint->GetContainerCookie().bIsMultiShapePair = false;
 			Constraint->GetContainerCookie().CreationEpoch = CurrentEpoch;
 		}
-		check(!Constraint->IsEnabled());
 
 		// Copy the constraint data over the existing one (ensure we do not replace data required by the graph and the allocator/container)
 		Constraint->RestoreFrom(SourceConstraint);

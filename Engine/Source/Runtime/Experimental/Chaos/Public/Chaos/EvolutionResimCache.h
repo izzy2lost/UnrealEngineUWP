@@ -54,7 +54,7 @@ namespace Chaos
 		{
 			//if this function is called it means the particle is in sync, which means we should have a cached value
 			const FPBDSolveCache* Cache = ParticleToCachedSolve.Find(Particle.UniqueIdx());
-			if(ensure(Cache))
+			if (Cache)
 			{
 				Particle.P() = Cache->P;
 				Particle.Q() = Cache->Q;

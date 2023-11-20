@@ -424,6 +424,9 @@ public:
 	// Add states/inputs history to rewind datas
 	ENGINE_API void AddDatasHistory();
 
+	// Enable RewindData history caching and return the history size
+	ENGINE_API int32 SetupRewindData();
+
 	// Get the datas factory that will be used for net serialization
 	TSharedPtr<Chaos::FBaseRewindHistory>& GetStatesHistory() { return StatesHistory; }
 
@@ -500,10 +503,11 @@ private:
 template<typename PhysicsTraits>
 FORCEINLINE void UNetworkPhysicsComponent::CreateDatasHistory(UActorComponent* HistoryComponent)
 {
+	const int32 NumFrames = SetupRewindData();
+
 	APlayerController* Controller = GetPlayerController();
-	const bool bIsLocalHistory = (Controller && Controller->IsLocalController());
-	const int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
-	
+	const bool bIsLocalHistory = (Controller && Controller->IsLocalController()); // FIXME: The controller is null at this point, but bIsLocalHistory isn't currently used so doesn't create an issue.
+
 	InputsHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
 	StatesHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
 

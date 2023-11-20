@@ -332,15 +332,25 @@ void UNetworkPhysicsSystem::OnWorldPostInit(UWorld* World, const UWorld::Initial
 		return;
 	}
 
-	if(UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
+	if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 	{
 		if (FPhysScene* PhysScene = World->GetPhysicsScene())
 		{
-			if(Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
 			{ 
 				if (Solver->GetRewindCallback() == nullptr)
 				{
 					Solver->SetRewindCallback(MakeUnique<FNetworkPhysicsCallback>(World));
+				}
+
+				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsResimulation)
+				{
+					// Enable RewindData from having bEnablePhysicsResimulation set
+					if (Solver->GetRewindData() == nullptr)
+					{
+						const int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
+						Solver->EnableRewindCapture(NumFrames, true);
+					}
 				}
 			}
 		}
@@ -390,11 +400,7 @@ void UNetworkPhysicsComponent::BeginPlay()
 			{
 				if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction)
 				{
-					if (Solver->GetRewindData() == nullptr)
-					{
-						const int32 NumFrames = FMath::Max<int32>(1, UPhysicsSettings::Get()->GetPhysicsHistoryCount());
-						Solver->EnableRewindCapture(NumFrames, true);
-					}
+					SetupRewindData();
 
 					if(FNetworkPhysicsCallback* SolverCallback = static_cast<FNetworkPhysicsCallback*>(Solver->GetRewindCallback()))
 					{
@@ -901,6 +907,29 @@ void UNetworkPhysicsComponent::AddDatasHistory()
 			}
 		}
 	}
+}
+
+int32 UNetworkPhysicsComponent::SetupRewindData()
+{
+	int32 NumFrames = UPhysicsSettings::Get()->GetPhysicsHistoryCount();
+
+	if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
+	{
+		if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+		{
+			if (UPhysicsSettings::Get()->PhysicsPrediction.bEnablePhysicsPrediction && Solver->GetRewindData() == nullptr)
+			{
+				Solver->EnableRewindCapture(NumFrames, true);
+			}
+
+			if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
+			{
+				NumFrames = RewindData->Capacity();
+			}
+		}
+	}
+
+	return NumFrames;
 }
 
 

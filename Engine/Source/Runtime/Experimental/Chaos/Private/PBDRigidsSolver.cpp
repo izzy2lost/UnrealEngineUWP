@@ -999,8 +999,6 @@ namespace Chaos
 
 	void FPBDRigidsSolver::EnableRewindCapture(int32 NumFrames, bool InUseCollisionResimCache)
 	{
-		UE_LOG(LogChaos, Log, TEXT("PBDRigidsSolver::EnableRewindCapture - Starting physics data history caching for rewind / resimulation."));
-
 		//TODO: this function calls both internal and external - sort of assumed during initialization. Should decide what thread it's called on and mark it as either external or internal
 		if (MRewindData.IsValid())
 		{
@@ -1021,6 +1019,8 @@ namespace Chaos
 		}
 		
 		UpdateIsDeterministic();
+
+		UE_LOG(LogChaos, Log, TEXT("PBDRigidsSolver::EnableRewindCapture - Starting physics data history caching for rewind / resimulation. History Size: %d"), NumFramesSet);
 	}
 
 	void FPBDRigidsSolver::Reset()
@@ -1550,10 +1550,6 @@ namespace Chaos
 						// Pass until after all bodies are created. 
 						break;
 					}
-					default:
-					{
-						ensure(0 && TEXT("Unknown proxy type in physics solver."));
-					}
 				}
 			}
 		});
@@ -1565,61 +1561,60 @@ namespace Chaos
 			{
 				switch (Dirty.Proxy->GetType())
 				{
-				case EPhysicsProxyType::JointConstraintType:
-				{
-					auto JointProxy = static_cast<FJointConstraintPhysicsProxy*>(Dirty.Proxy);
-					const bool bIsNew = !JointProxy->IsInitialized();
-					if (bIsNew)
+					case EPhysicsProxyType::JointConstraintType:
 					{
-						JointConstraintPhysicsProxies_Internal.Add(JointProxy);
-						JointProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-						JointProxy->SetInitialized(GetCurrentFrame());
-					}
+						auto JointProxy = static_cast<FJointConstraintPhysicsProxy*>(Dirty.Proxy);
+						const bool bIsNew = !JointProxy->IsInitialized();
+						if (bIsNew)
+						{
+							JointConstraintPhysicsProxies_Internal.Add(JointProxy);
+							JointProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+							JointProxy->SetInitialized(GetCurrentFrame());
+						}
 
-					//TODO: if we support predicting creation / destruction of joints need to handle null joint case
-					if (RewindData)
-					{
-						RewindData->PushGTDirtyData(*Manager, DataIdx, Dirty, nullptr);
-					}
+						//TODO: if we support predicting creation / destruction of joints need to handle null joint case
+						if (RewindData)
+						{
+							RewindData->PushGTDirtyData(*Manager, DataIdx, Dirty, nullptr);
+						}
 				
-					JointProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-					break;
-				}
-
-				case EPhysicsProxyType::SuspensionConstraintType:
-				{
-					auto SuspensionProxy = static_cast<FSuspensionConstraintPhysicsProxy*>(Dirty.Proxy);
-					const bool bIsNew = !SuspensionProxy->IsInitialized();
-					if (bIsNew)
-					{
-						SuspensionProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-						SuspensionProxy->SetInitialized();
-					}
-					SuspensionProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-					break;
-				}
-
-				case EPhysicsProxyType::CharacterGroundConstraintType:
-				{
-					auto ConstraintProxy = static_cast<FCharacterGroundConstraintProxy*>(Dirty.Proxy);
-					const bool bIsNew = !ConstraintProxy->IsInitialized();
-					if (bIsNew)
-					{
-						CharacterGroundConstraintProxies_Internal.Add(ConstraintProxy);
-						ConstraintProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-						ConstraintProxy->SetInitialized(GetCurrentFrame());
+						JointProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+						break;
 					}
 
-					//TODO: Support rewind for character ground constraints
-					//if (RewindData)
-					//{
-					//	RewindData->PushGTDirtyData(*Manager, DataIdx, Dirty, nullptr);
-					//}
+					case EPhysicsProxyType::SuspensionConstraintType:
+					{
+						auto SuspensionProxy = static_cast<FSuspensionConstraintPhysicsProxy*>(Dirty.Proxy);
+						const bool bIsNew = !SuspensionProxy->IsInitialized();
+						if (bIsNew)
+						{
+							SuspensionProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+							SuspensionProxy->SetInitialized();
+						}
+						SuspensionProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+						break;
+					}
 
-					ConstraintProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
-					break;
-				}
+					case EPhysicsProxyType::CharacterGroundConstraintType:
+					{
+						auto ConstraintProxy = static_cast<FCharacterGroundConstraintProxy*>(Dirty.Proxy);
+						const bool bIsNew = !ConstraintProxy->IsInitialized();
+						if (bIsNew)
+						{
+							CharacterGroundConstraintProxies_Internal.Add(ConstraintProxy);
+							ConstraintProxy->InitializeOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+							ConstraintProxy->SetInitialized(GetCurrentFrame());
+						}
 
+						//TODO: Support rewind for character ground constraints
+						//if (RewindData)
+						//{
+						//	RewindData->PushGTDirtyData(*Manager, DataIdx, Dirty, nullptr);
+						//}
+
+						ConstraintProxy->PushStateOnPhysicsThread(this, *Manager, DataIdx, Dirty.PropertyData);
+						break;
+					}
 				}
 			}
 		});
