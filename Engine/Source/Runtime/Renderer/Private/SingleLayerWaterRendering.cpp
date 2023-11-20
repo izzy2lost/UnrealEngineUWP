@@ -1154,7 +1154,8 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 	const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 	bool bShouldRenderVolumetricCloud,
 	FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
-	FLumenSceneFrameTemporaries& LumenFrameTemporaries)
+	FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+	bool bIsCameraUnderWater)
 {
 	RDG_EVENT_SCOPE(GraphBuilder, "SingleLayerWater");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SingleLayerWater);
@@ -1164,11 +1165,11 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWater(
 	SceneWithoutWaterTextures = AddCopySceneWithoutWaterPass(GraphBuilder, ViewFamily, Views, SceneTextures.Color.Resolve, SceneTextures.Depth.Resolve);
 
 	// Render height fog over the color buffer if it is allocated, e.g. SingleLayerWaterUsesSimpleShading is true.
-	if (SceneWithoutWaterTextures.ColorTexture && ShouldRenderFog(ViewFamily))
+	if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && ShouldRenderFog(ViewFamily))
 	{
 		RenderUnderWaterFog(GraphBuilder, SceneWithoutWaterTextures, SceneTextures.UniformBuffer);
 	}
-	if (SceneWithoutWaterTextures.ColorTexture && bShouldRenderVolumetricCloud)
+	if (!bIsCameraUnderWater && SceneWithoutWaterTextures.ColorTexture && bShouldRenderVolumetricCloud)
 	{
 		// This path is only taken when rendering the clouds in a render target that can be composited
 		ComposeVolumetricRenderTargetOverSceneUnderWater(GraphBuilder, Views, SceneWithoutWaterTextures, SceneTextures);

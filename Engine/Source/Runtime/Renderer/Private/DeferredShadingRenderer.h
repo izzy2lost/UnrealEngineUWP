@@ -390,7 +390,8 @@ public:
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 		bool bShouldRenderVolumetricCloud,
 		FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
-		FLumenSceneFrameTemporaries& LumenFrameTemporaries);
+		FLumenSceneFrameTemporaries& LumenFrameTemporaries,
+		bool bIsCameraUnderWater);
 
 	void RenderSingleLayerWaterInner(
 		FRDGBuilder& GraphBuilder,
