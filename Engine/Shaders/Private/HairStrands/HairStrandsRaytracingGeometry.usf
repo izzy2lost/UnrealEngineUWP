@@ -22,7 +22,7 @@ RWBuffer<float4> OutputPositionBuffer;
 #if PERMUTATION_PROCEDURAL_PRIMITIVE 
 uint             RaytracingProceduralSplits;
 #else
-RWBuffer<uint>   OutputIndexBuffer;
+RWStructuredBuffer<uint> OutputIndexBuffer;
 #endif
 
 uint HairStrandsVF_bCullingEnable;
