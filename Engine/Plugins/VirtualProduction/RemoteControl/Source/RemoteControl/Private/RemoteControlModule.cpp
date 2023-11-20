@@ -213,6 +213,12 @@ namespace RemoteControlUtil
 		return Access == ERCAccess::WRITE_ACCESS || Access == ERCAccess::WRITE_TRANSACTION_ACCESS || Access == ERCAccess::WRITE_MANUAL_TRANSACTION_ACCESS;
 	}
 
+	/** Returns whether the access is a read access. */
+	bool IsReadAccess(ERCAccess Access)
+	{
+		return Access == ERCAccess::READ_ACCESS;
+	}
+
 	/** Helper function to check if a value is 0 without always calling FMath::IsNearlyZero, since that results in an ambiguous call for non-float values. */
 	template <typename T>
 	bool IsNearlyZero(T Value)
@@ -1161,7 +1167,8 @@ bool FRemoteControlModule::ResolveObjectProperty(ERCAccess AccessType, UObject* 
 
 					// When resolving a property for writing, resolve successfully if it should use a setter since it will end up using it. 
 					if ((RemoteControlUtil::IsWriteAccess(AccessType) && PropertyModificationShouldUseSetter(Object, ResolvedProperty))
-						|| RemoteControlUtil::IsPropertyAllowed(ResolvedProperty, AccessType, bObjectInGame))
+						|| RemoteControlUtil::IsPropertyAllowed(ResolvedProperty, AccessType, bObjectInGame)
+						|| (RemoteControlUtil::IsReadAccess(AccessType) && ResolvedProperty->HasGetter()))
 					{
 						OutObjectRef = FRCObjectReference{AccessType, Object, MoveTemp(PropertyPath)};
 					}
@@ -1236,7 +1243,9 @@ bool FRemoteControlModule::GetObjectProperties(const FRCObjectReference& ObjectA
 			bool bObjectInGame = !GIsEditor || Object->GetOutermost()->HasAnyPackageFlags(PKG_PlayInEditor);
 			Policies.PropertyFilter = [&ObjectAccess, bObjectInGame](const FProperty* CurrentProp, const FProperty* ParentProp)
 			{
-				return RemoteControlUtil::IsPropertyAllowed(CurrentProp, ObjectAccess.Access, bObjectInGame) || ParentProp != nullptr;
+				return	RemoteControlUtil::IsPropertyAllowed(CurrentProp, ObjectAccess.Access, bObjectInGame) ||
+						ParentProp != nullptr ||
+						(RemoteControlUtil::IsReadAccess(ObjectAccess.Access) && CurrentProp->HasGetter());
 			};
 		}
 
