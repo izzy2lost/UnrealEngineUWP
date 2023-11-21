@@ -81,6 +81,7 @@ PAS_API size_t verse_heap_get_allocation_size(uintptr_t inner_ptr);
 PAS_API bool verse_heap_owns_address(uintptr_t ptr);
 
 PAS_API verse_heap_page_header* verse_heap_get_page_header(uintptr_t inner_ptr);
+PAS_API pas_heap* verse_heap_get_heap(uintptr_t inner_ptr);
 
 #ifdef __cplusplus
 }

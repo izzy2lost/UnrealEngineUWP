@@ -329,7 +329,39 @@ struct FAccessContext : FContext
 
 	VCell* RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell) const
 	{
-		return GetImpl()->RunWeakReadBarrierUnmarkedWhenActive(Cell);
+		return GetImpl()->RunWeakReadBarrierUnmarkedWhenActive(Cell,
+			[this](const VCell* Cell) { GetImpl()->MarkStack.MarkNonNull(Cell); });
+	}
+
+	void RunAuxWriteBarrier(void* Aux) const
+	{
+		GetImpl()->RunAuxWriteBarrier(Aux);
+	}
+
+	void RunAuxWriteBarrierNonNull(const void* Aux) const
+	{
+		GetImpl()->RunAuxWriteBarrierNonNull(Aux);
+	}
+
+	void RunAuxWriteBarrierNonNullDuringMarking(void* Aux) const
+	{
+		GetImpl()->RunAuxWriteBarrierNonNullDuringMarking(Aux);
+	}
+
+	void RunAuxWriteBarrierDuringMarking(void* Aux) const
+	{
+		GetImpl()->RunAuxWriteBarrierDuringMarking(Aux);
+	}
+
+	void* RunAuxWeakReadBarrier(void* Aux) const
+	{
+		return GetImpl()->RunAuxWeakReadBarrier(Aux);
+	}
+
+	void* RunAuxWeakReadBarrierUnmarkedWhenActive(void* Aux) const
+	{
+		return GetImpl()->RunWeakReadBarrierUnmarkedWhenActive(Aux,
+			[this](const void* Aux) { GetImpl()->MarkStack.MarkAuxNonNull(Aux); });
 	}
 
 	FTransaction* CurrentTransaction() const
@@ -500,6 +532,18 @@ struct FAllocationContext : FAccessContext
 	{
 		CheckInvariants();
 		return GetImpl()->TryAllocateFastCell(NumBytes);
+	}
+
+	std::byte* AllocateAuxCell(size_t NumBytes) const
+	{
+		CheckInvariants();
+		return GetImpl()->AllocateAuxCell(NumBytes);
+	}
+
+	std::byte* TryAllocateAuxCell(size_t NumBytes) const
+	{
+		CheckInvariants();
+		return GetImpl()->TryAllocateAuxCell(NumBytes);
 	}
 
 	// Special reservation for EmergentTypes where offset fits in 32 bits.

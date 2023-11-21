@@ -71,6 +71,11 @@ struct FMarkStackVisitor
 		MarkStack.MarkNonNull(InObject);
 	}
 
+	void VisitAuxNonNull(const void* InAux, const char* ElementName)
+	{
+		MarkStack.MarkAuxNonNull(InAux);
+	}
+
 	FORCEINLINE void VisitEmergentType(const VCell* InEmergentType)
 	{
 		VisitNonNull(InEmergentType, "EmergentType");
@@ -89,6 +94,14 @@ struct FMarkStackVisitor
 		if (InObject != nullptr)
 		{
 			VisitNonNull(InObject, ElementName);
+		}
+	}
+
+	FORCEINLINE void VisitAux(const void* Aux, const char* ElementName)
+	{
+		if (Aux != nullptr)
+		{
+			VisitAuxNonNull(Aux, ElementName);
 		}
 	}
 

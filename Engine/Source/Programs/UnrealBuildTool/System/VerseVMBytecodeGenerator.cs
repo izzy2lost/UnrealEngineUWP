@@ -722,6 +722,12 @@ namespace UnrealBuildTool
 					.Suspends();
 			}
 
+			Inst("MutableAdd")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("LeftSource", Role.Use)
+				.Arg("RightSource", Role.Use)
+				.Suspends();
+
 			string[] UnaryOps =
 			{
 				"Neg",
@@ -781,10 +787,6 @@ namespace UnrealBuildTool
 				.CapturesEffectToken()
 				.Suspends();
 
-			Inst("NewTuple")
-				.Arg("Dest", Role.UnifyDef)
-				.Arg("Values", Role.Use, Arity.Variadic);
-
 			Inst("Length")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Container", Role.Use)
@@ -797,18 +799,29 @@ namespace UnrealBuildTool
 				.CapturesEffectToken()
 				.Suspends();
 
-			Inst("NewArrayWithCapacity")
+			Inst("NewArray")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Values", Role.Use, Arity.Variadic)
+				.Suspends();
+
+			Inst("NewMutableArray")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Values", Role.Use, Arity.Variadic)
+				.Suspends();
+
+			Inst("NewMutableArrayWithCapacity")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Size", Role.Use)
 				.Suspends();
 
-			Inst("NewArray")
-				.Arg("Dest", Role.UnifyDef)
-				.Arg("Values", Role.Use, Arity.Variadic);
-
 			Inst("ArrayAdd")
 				.Arg("Container", Role.Use)
 				.Arg("ValueToAdd", Role.Use)
+				.Suspends();
+
+			Inst("AsArray")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Container", Role.Use)
 				.Suspends();
 
 			Inst("NewOption")

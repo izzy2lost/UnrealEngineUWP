@@ -6,100 +6,92 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
-#include "VVMCell.h"
-#include "VVMWriteBarrier.h"
+#include "VVMArrayBase.h"
+#include "VVMEmergentTypeCreator.h"
+#include "VVMGlobalTrivialEmergentTypePtr.h"
+#include "VVMType.h"
+#include "VVMTypeCreator.h"
+#include "VVMUniqueCreator.h"
 
 namespace Verse
 {
-struct VTuple;
-struct VCppClassInfo;
 
-template <VCppClassInfo*>
-struct TGlobalTrivialEmergentTypePtr;
+struct VInt;
 
-// An Array can be extended with Add
-
-struct VArray : VHeapValue
+// Array, fix number of elements, each with its own type
+// No type information for the parts here.
+struct VTypeArray : VType
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+	static constexpr EVerseTypeTag Tag = EVerseTypeTag::Array;
+	uint32 Size;
 
-private:
-	uint32 NumValues;
-	TWriteBarrier<VTuple> Tuple;
-
-public:
-	VTuple& GetTuple() { return *Tuple.Get(); }
+	static VTypeArray* New(FAllocationContext Context, uint32 S)
+	{
+		return new (Context.AllocateFastCell(sizeof(VTypeArray))) VTypeArray(Context, S);
+	}
+	static bool Equals(const VType& Type, uint32 S)
+	{
+		if (Type.IsA<VTypeArray>())
+		{
+			const VTypeArray& Other = Type.StaticCast<VTypeArray>();
+			return Other.Size == S;
+		}
+		return false;
+	}
 
 	uint32 Num() const
 	{
-		return NumValues;
+		return Size;
 	}
 
-	uint32 Capacity() const;
-
-	bool IsInBounds(uint32 Index) const;
-	bool IsInBounds(const VInt& Index) const;
-
-	void SetValue(FAccessContext Context, uint32 Index, VValue Value);
-	VValue GetValue(uint32 Index);
-	void AddValue(FAllocationContext Context, VValue Value);
-
-	void Append(FAllocationContext Context, VArray& Array);
-
-	// Capacity is initial capacity
-	static VArray& New(FAllocationContext Context, uint32 InitialCapacity = 1)
+private:
+	explicit VTypeArray(FAllocationContext& Context, uint32 S)
+		: VType(Context, Tag)
+		, Size(S)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, InitialCapacity);
 	}
+};
 
-	static VArray& New(FAllocationContext Context, VArray& Array)
+struct VArray : VArrayBase
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VArrayBase);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	static VArray& New(FAllocationContext Context, uint32 NumValues)
 	{
-		VArray& NewArray = *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Array.Num());
-		NewArray.Append(Context, Array);
-		return NewArray;
+		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, NumValues);
 	}
 
 	static VArray& New(FAllocationContext Context, std::initializer_list<VValue> InitList)
 	{
-		VArray& NewArray = *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, static_cast<uint32>(InitList.size()));
-		for (const VValue& Value : InitList)
-		{
-			NewArray.AddValue(Context, Value);
-		}
-		return NewArray;
+		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, InitList);
 	}
 
-	static VArray& Concat(FAllocationContext Context, VArray& Lhs, VArray& Rhs);
-
-	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
-
-	COREUOBJECT_API uint32 GetTypeHashImpl();
-
-	// C++ ranged-based iteration
-	class FConstIterator
+	template <typename InitIndexFunc>
+	static VArray& New(FAllocationContext Context, uint32 NumValues, InitIndexFunc&& InitFunc)
 	{
-	public:
-		FORCEINLINE VValue operator*() const { return CurrentValue->Get(); }
-		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
-		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
-		FORCEINLINE FConstIterator& operator++()
-		{
-			++CurrentValue;
-			return *this;
-		}
+		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, NumValues, InitFunc);
+	}
 
-	private:
-		friend struct VArray;
-		FORCEINLINE FConstIterator(const TWriteBarrier<VValue>* InCurrentValue)
-			: CurrentValue(InCurrentValue) {}
-		const TWriteBarrier<VValue>* CurrentValue;
-	};
-	COREUOBJECT_API FConstIterator begin() const;
-	COREUOBJECT_API FConstIterator end() const;
+	static VArray& New(FAllocationContext Context, VArray& Other)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Other);
+	}
 
 private:
-	COREUOBJECT_API VArray(FAllocationContext Context, uint32 InitialCapacity);
+	friend struct VMutableArray;
+	VArray(FAllocationContext Context, uint32 InNumValues)
+		: VArrayBase(Context, InNumValues, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, InNumValues), &StaticCppClassInfo)) {}
+
+	VArray(FAllocationContext Context, std::initializer_list<VValue> InitList)
+		: VArrayBase(Context, InitList, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, static_cast<uint32>(InitList.size())), &StaticCppClassInfo)) {}
+
+	template <typename InitIndexFunc>
+	VArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
+		: VArrayBase(Context, InNumValues, InitFunc, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, InNumValues), &StaticCppClassInfo)) {}
+
+	VArray(FAllocationContext Context, VArray& Other)
+		: VArrayBase(Context, Other) {}
 };
 
 } // namespace Verse

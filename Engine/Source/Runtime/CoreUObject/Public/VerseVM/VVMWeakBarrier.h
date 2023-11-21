@@ -6,6 +6,7 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
+#include "VVMAux.h"
 #include "VVMContext.h"
 #include "VVMContextImpl.h"
 #include "VVMValue.h"
@@ -16,7 +17,8 @@ template <typename T>
 struct TWeakBarrier
 {
 	static constexpr bool bIsVValue = std::is_same_v<T, VValue>;
-	using TValue = typename std::conditional<bIsVValue, VValue, T*>::type;
+	static constexpr bool bIsAux = IsTAux<T>;
+	using TValue = typename std::conditional_t<bIsAux, T, typename std::conditional_t<bIsVValue, VValue, T*>>;
 	using TEncodedValue = typename std::conditional<bIsVValue, uint64, T*>::type;
 
 	TWeakBarrier() = default;
@@ -99,10 +101,10 @@ struct TWeakBarrier
 	//     use Get() + VValue member functions to check/access boxed values
 
 	template <typename TResult = TValue>
-	std::enable_if_t<!bIsVValue, TResult> operator->() const { return Get(); }
+	std::enable_if_t<!bIsVValue && !bIsAux, TResult> operator->() const { return Get(); }
 
 	template <typename TResult = T>
-	std::enable_if_t<!bIsVValue, TResult&> operator*() const { return *Get(); }
+	std::enable_if_t<!bIsVValue && !bIsAux, TResult&> operator*() const { return *Get(); }
 
 	explicit operator bool() const { return !!Get(); }
 
@@ -146,7 +148,14 @@ private:
 		{
 			return Value;
 		}
-		if constexpr (bIsVValue)
+		if constexpr (bIsAux)
+		{
+			if (!FHeap::IsMarked(Value.GetPtr()))
+			{
+				FAccessContext(Context).RunAuxWeakReadBarrierUnmarkedWhenActive(Value.GetPtr());
+			}
+		}
+		else if constexpr (bIsVValue)
 		{
 			if (VCell* Cell = Value.ExtractCell())
 			{

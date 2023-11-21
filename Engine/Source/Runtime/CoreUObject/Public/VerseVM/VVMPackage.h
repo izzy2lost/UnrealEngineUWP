@@ -7,9 +7,9 @@
 #endif
 
 #include "Containers/StringView.h"
-#include "VerseVM/Inline/VVMArrayInline.h"
+#include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
-#include "VerseVM/VVMArray.h"
+#include "VerseVM/VVMMutableArray.h"
 #include "VerseVM/VVMUTF8String.h"
 
 namespace Verse
@@ -20,7 +20,7 @@ struct VPackage : VCell
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 	// We keep names at 2*Index and definitions at 2*Index+1
-	TWriteBarrier<VArray> NameAndDefinitions;
+	TWriteBarrier<VMutableArray> NameAndDefinitions;
 
 	uint32 Num() const
 	{
@@ -44,7 +44,7 @@ struct VPackage : VCell
 
 	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition)
 	{
-		NameAndDefinitions->AddValue(Context, VUTF8String::New(Context, Name));
+		NameAndDefinitions->AddValue(Context, VValue(VUTF8String::New(Context, Name)));
 		NameAndDefinitions->AddValue(Context, Definition);
 	}
 
@@ -89,7 +89,7 @@ struct VPackage : VCell
 private:
 	VPackage(FAllocationContext Context, uint32 Capacity)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
-		, NameAndDefinitions(Context, &VArray::New(Context, Capacity))
+		, NameAndDefinitions(Context, &VMutableArray::New(Context, Capacity))
 	{
 	}
 };

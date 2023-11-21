@@ -4,16 +4,17 @@
 #include "AutoRTFM/AutoRTFM.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
-#include "VerseVM/Inline/VVMArrayInline.h"
+#include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
-#include "VerseVM/Inline/VVMTupleInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
 #include "VerseVM/VVMArray.h"
+#include "VerseVM/VVMArrayBase.h"
 #include "VerseVM/VVMBytecode.h"
 #include "VerseVM/VVMBytecodeOps.h"
 #include "VerseVM/VVMBytecodesAndCaptures.h"
@@ -27,13 +28,13 @@
 #include "VerseVM/VVMInt.h"
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMMap.h"
+#include "VerseVM/VVMMutableArray.h"
 #include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMOption.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMRational.h"
 #include "VerseVM/VVMSuspension.h"
-#include "VerseVM/VVMTuple.h"
 #include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMUnreachable.h"
 #include "VerseVM/VVMValue.h"
@@ -141,13 +142,9 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 			V_DIE_UNLESS(NumParams == 1);
 
 			// Function wants arguments in a tuple - box them up
-			VTuple& ArgTuple = VTuple::New(Context, NumArgs);
-			for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
-			{
-				ArgTuple.SetValue(Context, Arg, GetArg(Arg));
-			}
+			VArray& ArgArray = VArray::New(Context, NumArgs, GetArg);
 
-			StoreArg(0, ArgTuple);
+			StoreArg(0, ArgArray);
 		}
 		else
 		{
@@ -156,15 +153,7 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 
 			// Function wants loose arguments but a tuple is provided - unbox them
 			VValue IncomingArg = GetArg(0);
-			VTuple* Args = nullptr;
-			if (VArray* ArgArray = IncomingArg.DynamicCast<VArray>())
-			{
-				Args = &ArgArray->GetTuple();
-			}
-			else
-			{
-				Args = &IncomingArg.StaticCast<VTuple>();
-			}
+			VArray* Args = IncomingArg.DynamicCast<VArray>();
 
 			V_DIE_UNLESS(Args->Num() == NumParams);
 			for (uint32 Param = 0; Param < NumParams; ++Param)
@@ -741,17 +730,43 @@ class FInterpreter
 
 			DEF(Op.Dest, VUTF8String::Concat(Context, LeftString, RightString));
 		}
-		else if (LeftSource.IsCellOfType<VArray>() && RightSource.IsCellOfType<VArray>())
+		else if (LeftSource.IsCellOfType<VArrayBase>() && RightSource.IsCellOfType<VArrayBase>())
 		{
 			// Array concatenation.
-			VArray& LeftArray = LeftSource.StaticCast<VArray>();
-			VArray& RightArray = RightSource.StaticCast<VArray>();
+			VArrayBase& LeftArray = LeftSource.StaticCast<VArrayBase>();
+			VArrayBase& RightArray = RightSource.StaticCast<VArrayBase>();
 
-			DEF(Op.Dest, VArray::Concat(Context, LeftArray, RightArray));
+			DEF(Op.Dest, VArrayBase::Concat<VArray>(Context, LeftArray, RightArray));
 		}
 		else
 		{
 			V_DIE("Unsupported operands were passed to a `Add` operation!");
+		}
+
+		return {FOpResult::Normal};
+	}
+
+	// TODO: Add the ability for bytecode instructions to have optional arguments so instead of having this bytecode
+	//		 we can just have 'Add' which can take a boolean telling it whether the result should be mutable.
+	template <typename OpType>
+	FOpResult MutableAddImpl(OpType& Op)
+	{
+		VValue LeftSource = GetOperand(Op.LeftSource);
+		VValue RightSource = GetOperand(Op.RightSource);
+		REQUIRE_CONCRETE(LeftSource);
+		REQUIRE_CONCRETE(RightSource);
+
+		if (LeftSource.IsCellOfType<VArrayBase>() && RightSource.IsCellOfType<VArrayBase>())
+		{
+			// Array concatenation.
+			VArrayBase& LeftArray = LeftSource.StaticCast<VArrayBase>();
+			VArrayBase& RightArray = RightSource.StaticCast<VArrayBase>();
+
+			DEF(Op.Dest, VArrayBase::Concat<VMutableArray>(Context, LeftArray, RightArray));
+		}
+		else
+		{
+			V_DIE("Unsupported operands were passed to a `MutableAdd` operation!");
 		}
 
 		return {FOpResult::Normal};
@@ -951,21 +966,6 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult NewTupleImpl(OpType& Op)
-	{
-		const uint32 NumValues = Op.Values.Num();
-		VTuple& NewTuple = VTuple::New(Context, NumValues);
-		for (uint32 Index = 0; Index < NumValues; ++Index)
-		{
-			const VValue VarArgValue = GetOperand(Op.Values[Index]);
-			NewTuple.SetValue(Context, Index, VarArgValue);
-		}
-		DEF(Op.Dest, NewTuple);
-
-		return {FOpResult::Normal};
-	}
-
-	template <typename OpType>
 	FOpResult MapKeyImpl(OpType& Op)
 	{
 		VValue Map = GetOperand(Op.Map);
@@ -1010,11 +1010,7 @@ class FInterpreter
 		// We need this to be concrete before we can attempt to get its size, even if the values in the container
 		// might be placeholders.
 		REQUIRE_CONCRETE(Container);
-		if (const VTuple* Tuple = Container.DynamicCast<VTuple>())
-		{
-			DEF(Op.Dest, VInt{static_cast<int32>(Tuple->Num())});
-		}
-		else if (const VArray* Array = Container.DynamicCast<VArray>())
+		if (const VArrayBase* Array = Container.DynamicCast<VArrayBase>())
 		{
 			DEF(Op.Dest, VInt{static_cast<int32>(Array->Num())});
 		}
@@ -1061,20 +1057,9 @@ class FInterpreter
 		const VValue ValueToSet = GetOperand(Op.ValueToSet);
 		REQUIRE_CONCRETE(Container);
 		REQUIRE_CONCRETE(Index); // Must be an Int32 (although UInt32 is better)
-		if (VTuple* Tuple = Container.DynamicCast<VTuple>())
+		if (VMutableArray* Array = Container.DynamicCast<VMutableArray>())
 		{
 			// Bounds check since this index access in Verse is failable.
-			if (Index.IsInt32() && Index.AsInt32() >= 0 && Tuple->IsInBounds(Index.AsInt32()))
-			{
-				Tuple->SetValue(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
-			}
-			else
-			{
-				FAIL();
-			}
-		}
-		else if (VArray* Array = Container.DynamicCast<VArray>())
-		{
 			if (Index.IsInt32() && Index.AsInt32() >= 0 && Array->IsInBounds(Index.AsInt32()))
 			{
 				Array->SetValue(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
@@ -1125,20 +1110,7 @@ class FInterpreter
 
 			VValue Argument = GetOperand(Op.Arguments[0]);
 			// Special cases for known container types.
-			if (VTuple* Tuple = Callee.DynamicCast<VTuple>())
-			{
-				REQUIRE_CONCRETE(Argument);
-				// Bounds check since this index access in Verse is failable.
-				if (Argument.IsInt32() && Argument.AsInt32() >= 0 && Tuple->IsInBounds(Argument.AsInt32()))
-				{
-					DEF(Op.Dest, Tuple->GetValue(Argument.AsInt32()));
-				}
-				else
-				{
-					FAIL();
-				}
-			}
-			else if (VArray* Array = Callee.DynamicCast<VArray>())
+			if (VArrayBase* Array = Callee.DynamicCast<VArrayBase>())
 			{
 				REQUIRE_CONCRETE(Argument);
 				// Bounds check since this index access in Verse is failable.
@@ -1161,20 +1133,20 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult NewArrayWithCapacityImpl(OpType& Op)
+	FOpResult NewArrayImpl(OpType& Op)
 	{
-		const VValue Size = GetOperand(Op.Size);
-		REQUIRE_CONCRETE(Size); // Must be an Int32 (although UInt32 is better)
-		DEF(Op.Dest, VArray::New(Context, static_cast<uint32>(Size.AsInt32())));
+		const uint32 NumValues = Op.Values.Num();
+		VArray& NewArray = VArray::New(Context, NumValues, [this, &Op](uint32 Index) { return GetOperand(Op.Values[Index]); });
+		DEF(Op.Dest, NewArray);
 
 		return {FOpResult::Normal};
 	}
 
 	template <typename OpType>
-	FOpResult NewArrayImpl(OpType& Op)
+	FOpResult NewMutableArrayImpl(OpType& Op)
 	{
 		const uint32 NumValues = Op.Values.Num();
-		VArray& NewArray = VArray::New(Context, NumValues);
+		VMutableArray& NewArray = VMutableArray::New(Context, NumValues);
 		for (uint32 Index = 0; Index < NumValues; ++Index)
 		{
 			const VValue VarArgValue = GetOperand(Op.Values[Index]);
@@ -1186,14 +1158,40 @@ class FInterpreter
 	}
 
 	template <typename OpType>
+	FOpResult NewMutableArrayWithCapacityImpl(OpType& Op)
+	{
+		const VValue Size = GetOperand(Op.Size);
+		REQUIRE_CONCRETE(Size); // Must be an Int32 (although UInt32 is better)
+		DEF(Op.Dest, VMutableArray::New(Context, static_cast<uint32>(Size.AsInt32())));
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
 	FOpResult ArrayAddImpl(OpType& Op)
 	{
 		const VValue Container = GetOperand(Op.Container);
 		const VValue ValueToAdd = GetOperand(Op.ValueToAdd);
 		REQUIRE_CONCRETE(Container);
-		if (VArray* Array = Container.DynamicCast<VArray>())
+		if (VMutableArray* Array = Container.DynamicCast<VMutableArray>())
 		{
 			Array->AddValue(Context, ValueToAdd);
+		}
+		else
+		{
+			V_DIE("Unimplemented type passed to VM `ArrayAdd` operation!");
+		}
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult AsArrayImpl(OpType& Op)
+	{
+		const VValue Container = GetOperand(Op.Container);
+		if (VMutableArray* MutableArray = Container.DynamicCast<VMutableArray>())
+		{
+			DEF(Op.Dest, MutableArray->AsArray(Context));
 		}
 		else
 		{
@@ -1649,6 +1647,8 @@ class FInterpreter
 				OP_IMPL(Mod)
 				OP_IMPL(Neg)
 
+				OP_IMPL(MutableAdd)
+
 				OP_IMPL(Neq)
 				OP_IMPL(Lt)
 				OP_IMPL(Lte)
@@ -1662,11 +1662,12 @@ class FInterpreter
 				OP_IMPL_THREAD_EFFECTS(IndexSet)
 
 				OP_IMPL(NewOption)
-				OP_IMPL_NO_SUSPENDS(NewTuple)
 				OP_IMPL(Length)
-				OP_IMPL(NewArrayWithCapacity)
-				OP_IMPL_NO_SUSPENDS(NewArray)
+				OP_IMPL(NewArray)
+				OP_IMPL(NewMutableArray)
+				OP_IMPL(NewMutableArrayWithCapacity)
 				OP_IMPL_THREAD_EFFECTS(ArrayAdd)
+				OP_IMPL(AsArray)
 				OP_IMPL(NewMap)
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
@@ -1919,6 +1920,8 @@ class FInterpreter
 						OP_IMPL(Mod)
 						OP_IMPL(Neg)
 
+						OP_IMPL(MutableAdd)
+
 						OP_IMPL(Neq)
 						OP_IMPL(Lt)
 						OP_IMPL(Lte)
@@ -1932,7 +1935,6 @@ class FInterpreter
 						OP_IMPL_THREAD_EFFECTS(IndexSet)
 
 						OP_IMPL(Length)
-						OP_IMPL(NewArrayWithCapacity)
 
 						// An indexed access (i.e. `B := A[10]`) is just the same as `Call(B, A, 10)`.
 						BEGIN_OP_CASE(Call)

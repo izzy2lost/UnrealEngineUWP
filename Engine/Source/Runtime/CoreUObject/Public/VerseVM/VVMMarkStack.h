@@ -83,6 +83,30 @@ struct FMarkStack
 		}
 	}
 
+	void MarkAuxNonNull(const void* Aux)
+	{
+		if (!FHeap::IsMarked(Aux))
+		{
+			MarkAuxSlow(Aux);
+		}
+	}
+
+	void FencedMarkAuxNonNull(const void* Aux)
+	{
+		if (!FHeap::IsMarked(Aux))
+		{
+			FencedMarkAuxSlow(Aux);
+		}
+	}
+
+	void MarkAux(const void* Aux)
+	{
+		if (Aux)
+		{
+			MarkAuxNonNull(Aux);
+		}
+	}
+
 	void MarkNonNull(const UObject* Object)
 	{
 		if (ensure(UE::GC::GIsFrankenGCCollecting))
@@ -113,8 +137,14 @@ private:
 	template <std::memory_order MemoryOrder>
 	void MarkSlowImpl(const VCell* Cell);
 
-	COREUOBJECT_API void FencedMarkSlow(const VCell* Cell);
 	COREUOBJECT_API void MarkSlow(const VCell* Cell);
+	COREUOBJECT_API void FencedMarkSlow(const VCell* Cell);
+
+	template <std::memory_order MemoryOrder>
+	void MarkAuxSlowImpl(const void* Aux);
+
+	COREUOBJECT_API void MarkAuxSlow(const void* Aux);
+	COREUOBJECT_API void FencedMarkAuxSlow(const void* Aux);
 
 	TArray<VCell*> Stack;
 };

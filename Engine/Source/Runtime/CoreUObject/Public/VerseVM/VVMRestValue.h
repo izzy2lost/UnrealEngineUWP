@@ -69,13 +69,13 @@ struct VRestValue
 private:
 	TWriteBarrier<VValue> Value;
 
-	// TODO: This default constructor is here just to appease VFrame and VTuple.
+	// TODO: This default constructor is here just to appease VFrame and VArray.
 	// It would be nice to find a way to omit it entirely.
 	VRestValue() = default;
 
 	friend struct VValue;
 	friend struct VFrame;
-	friend struct VTuple;
+	friend struct VArray;
 	friend struct VObject;
 };
 } // namespace Verse

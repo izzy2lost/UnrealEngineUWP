@@ -151,7 +151,7 @@ void testAllocations(size_t count,
             CHECK_EQUAL(verse_heap_get_allocation_size(reinterpret_cast<uintptr_t>(ptr)), actualSize);
             CHECK_EQUAL(verse_heap_find_allocated_object_start(reinterpret_cast<uintptr_t>(ptr)),
                         reinterpret_cast<uintptr_t>(ptr));
-            CHECK_EQUAL(verse_heap_get_heap(reinterpret_cast<uintptr_t>(ptr)), defaultHeap);
+            CHECK_EQUAL(verse_heap_get_heap_inline(reinterpret_cast<uintptr_t>(ptr)), defaultHeap);
             
             CHECK_EQUAL(verse_heap_get_object_kind(reinterpret_cast<uintptr_t>(ptr)), expectedObjectKind);
 
@@ -210,7 +210,7 @@ void testAllocations(size_t count,
         CHECK_EQUAL(verse_heap_get_allocation_size(reinterpret_cast<uintptr_t>(ptr)), actualSize);
         CHECK_EQUAL(verse_heap_find_allocated_object_start(reinterpret_cast<uintptr_t>(ptr)),
                     reinterpret_cast<uintptr_t>(ptr));
-        CHECK_EQUAL(verse_heap_get_heap(reinterpret_cast<uintptr_t>(ptr)), defaultHeap);
+        CHECK_EQUAL(verse_heap_get_heap_inline(reinterpret_cast<uintptr_t>(ptr)), defaultHeap);
     }
 
     // And then sweep them dead.
@@ -561,7 +561,7 @@ struct Object {
                  << ", page = " << verse_heap_get_segregated_page(reinterpret_cast<uintptr_t>(ptr)) << "\n";
             CHECK_EQUAL(heapIsMarked, isMarked);
         }
-        CHECK_EQUAL(verse_heap_get_heap(reinterpret_cast<uintptr_t>(ptr)), getHeap(heap));
+        CHECK_EQUAL(verse_heap_get_heap_inline(reinterpret_cast<uintptr_t>(ptr)), getHeap(heap));
 
         switch (heap) {
         case Default:

@@ -59,6 +59,10 @@ public:
 	// objects we allocate dynamically are fast.
 	COREUOBJECT_API static FSubspace* FastSpace;
 
+	// Same as FastSpace above, except allocations in this space are NOT put onto the mark stack.
+	// It is up to the callers who allocated into this space to handle marking anything those allocations contain.
+	COREUOBJECT_API static FSubspace* AuxSpace;
+
 	// Space for objects that require destructors. It's fine for objects to have destructors so long as those objects
 	// are relatively infrequently allocated (they have low churn rate). It's fine for this space to get large so long
 	// as churn rate stays low.

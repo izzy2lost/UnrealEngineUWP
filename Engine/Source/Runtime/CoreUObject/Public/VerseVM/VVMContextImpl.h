@@ -7,6 +7,7 @@
 #endif
 
 #include "Async/Mutex.h"
+#include "Async/UniqueLock.h"
 #include "Containers/Array.h"
 #include "Containers/Set.h"
 #include "Experimental/Async/ConditionVariable.h"
@@ -15,6 +16,7 @@
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/Function.h"
 #include "Templates/TypeCompatibleBytes.h"
+#include "VerseVM/VVMLog.h"
 
 #include "VVMLocalAllocator.h"
 #include "VVMMarkStack.h"
@@ -42,6 +44,9 @@ struct VValue;
 
 template <typename T>
 struct TWriteBarrier;
+
+// The size of this must be matched to what is going on in FContextImpl::FContextImpl().
+typedef std::array<FLocalAllocator, (416 >> VERSE_HEAP_MIN_ALIGN_SHIFT) + 1> FastAllocatorArray;
 
 enum class EContextHeapRole
 {
@@ -189,7 +194,7 @@ struct FContextImpl
 
 	VCell* RunWeakReadBarrier(VCell* Cell)
 	{
-		if (FHeap::GetWeakBarrierState() == EWeakBarrierState::Inactive || !Cell)
+		if (!Cell || FHeap::GetWeakBarrierState() == EWeakBarrierState::Inactive)
 		{
 			return Cell;
 		}
@@ -199,49 +204,130 @@ struct FContextImpl
 		}
 	}
 
-	COREUOBJECT_API VCell* RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell);
-
-	std::byte* AllocateFastCell(size_t NumBytes)
+	void RunAuxWriteBarrierNonNull(const void* Aux)
 	{
-		// What's the point?
-		//
-		// This allows us to fold away two parts of an allocation that are expensive:
-		//
-		// 1) The size class lookup. The common case is that we're allocating something that has a compile-time known size. In that case,
-		//    this computation happens at compile-time and we just directly access the right allocator (or call the slow path). Even if the
-		//    size is not known at compile-time, this reduces the size class lookup to a shift.
-		//
-		// 2) The TLC lookup. Normally when allocating with libpas there's a TLC lookup using some OS TLS mechanism. This eliminates that
-		//    lookup entirely because we're using FContextImpl as the TLC.
-		//
-		// In microbenchmarks, this gives a 2x speed-up on allocation throughput!
-
-		size_t Index = (NumBytes + VERSE_HEAP_MIN_ALIGN - 1) >> VERSE_HEAP_MIN_ALIGN_SHIFT;
-		std::byte* Result;
-		if (Index >= FastAllocators.size())
+		if (FHeap::IsMarking())
 		{
-			Result = FHeap::FastSpace->Allocate(NumBytes);
+			MarkStack.MarkAuxNonNull(Aux);
+		}
+	}
+
+	void RunAuxWriteBarrier(void* Aux)
+	{
+		if (Aux)
+		{
+			RunAuxWriteBarrierNonNull(Aux);
+		}
+	}
+
+	void RunAuxWriteBarrierNonNullDuringMarking(void* Aux)
+	{
+		checkSlow(FHeap::IsMarking());
+		MarkStack.MarkAuxNonNull(Aux);
+	}
+
+	void RunAuxWriteBarrierDuringMarking(void* Aux)
+	{
+		checkSlow(FHeap::IsMarking());
+		if (Aux)
+		{
+			MarkStack.MarkAuxNonNull(Aux);
+		}
+	}
+
+	void* RunAuxWeakReadBarrier(void* Aux)
+	{
+		if (!Aux || FHeap::GetWeakBarrierState() == EWeakBarrierState::Inactive)
+		{
+			return Aux;
 		}
 		else
 		{
-			Result = FastAllocators[Index].Allocate();
+			return RunAuxWeakReadBarrierNonNullSlow(Aux);
 		}
-		return Result;
+	}
+
+	template <typename T, typename MarkFunction>
+	T* RunWeakReadBarrierUnmarkedWhenActive(T* Cell, MarkFunction&& MarkFunc)
+	{
+		using namespace UE;
+
+		EWeakBarrierState WeakBarrierState = FHeap::GetWeakBarrierState();
+		if (WeakBarrierState == EWeakBarrierState::Inactive)
+		{
+			return Cell;
+		}
+
+		if (WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead)
+		{
+			return nullptr;
+		}
+
+		if (WeakBarrierState == EWeakBarrierState::MarkOnRead)
+		{
+			MarkFunc(Cell);
+			return Cell;
+		}
+
+		V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate); // means that `AttemptToTerminate()` was called
+		TUniqueLock Lock(FHeap::Mutex);
+		WeakBarrierState = FHeap::GetWeakBarrierState();
+
+		/*
+		 * We can hit this TOCTOU race on the following conditions:
+		 * - The GC is attempting to terminate. We've read the weak barrier state by this point, but haven't yet acquired the lock.
+		 * - During the soft handshake with mutator threads, one of them ends up marking items and thus cancels termination. The weak barrier state is now inactive.
+		 * - We then acquire the lock and read the barrier state which is inactive.
+		 * In this case, we should be safe to return the cell because the GC is inactive and the memory should be safe to read from.
+		 */
+		if (WeakBarrierState == EWeakBarrierState::Inactive)
+		{
+			return Cell;
+		}
+
+		if (WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead)
+		{
+			// This means that we've since terminated, so the object could have become marked.
+			if (FHeap::IsMarked(Cell))
+			{
+				return Cell;
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+
+		if (WeakBarrierState == EWeakBarrierState::MarkOnRead)
+		{
+			MarkFunc(Cell);
+			return Cell;
+		}
+
+		V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate);
+		FHeap::WeakBarrierState = EWeakBarrierState::MarkOnRead;
+		MarkFunc(Cell);
+		return Cell;
+	}
+
+	std::byte* AllocateFastCell(size_t NumBytes)
+	{
+		return AllocateFastCell_Internal(NumBytes, FastSpaceAllocators, FHeap::FastSpace);
 	}
 
 	std::byte* TryAllocateFastCell(size_t NumBytes)
 	{
-		size_t Index = (NumBytes + VERSE_HEAP_MIN_ALIGN - 1) >> VERSE_HEAP_MIN_ALIGN_SHIFT;
-		std::byte* Result;
-		if (Index >= FastAllocators.size())
-		{
-			Result = FHeap::FastSpace->TryAllocate(NumBytes);
-		}
-		else
-		{
-			Result = FastAllocators[Index].TryAllocate();
-		}
-		return Result;
+		return TryAllocateFastCell_Internal(NumBytes, FastSpaceAllocators, FHeap::FastSpace);
+	}
+
+	std::byte* AllocateAuxCell(size_t NumBytes)
+	{
+		return AllocateFastCell_Internal(NumBytes, AuxSpaceAllocators, FHeap::AuxSpace);
+	}
+
+	std::byte* TryAllocateAuxCell(size_t NumBytes)
+	{
+		return TryAllocateFastCell_Internal(NumBytes, AuxSpaceAllocators, FHeap::AuxSpace);
 	}
 
 	COREUOBJECT_API void StopAllocators();
@@ -300,6 +386,49 @@ private:
 	friend struct FThreadLocalContextHolder;
 	friend struct TWriteBarrier<VValue>;
 
+	std::byte* AllocateFastCell_Internal(size_t NumBytes, FastAllocatorArray& Allocators, FSubspace* Subspace)
+	{
+		// What's the point?
+		//
+		// This allows us to fold away two parts of an allocation that are expensive:
+		//
+		// 1) The size class lookup. The common case is that we're allocating something that has a compile-time known size. In that case,
+		//    this computation happens at compile-time and we just directly access the right allocator (or call the slow path). Even if the
+		//    size is not known at compile-time, this reduces the size class lookup to a shift.
+		//
+		// 2) The TLC lookup. Normally when allocating with libpas there's a TLC lookup using some OS TLS mechanism. This eliminates that
+		//    lookup entirely because we're using FContextImpl as the TLC.
+		//
+		// In microbenchmarks, this gives a 2x speed-up on allocation throughput!
+
+		size_t Index = (NumBytes + VERSE_HEAP_MIN_ALIGN - 1) >> VERSE_HEAP_MIN_ALIGN_SHIFT;
+		std::byte* Result;
+		if (Index >= Allocators.size())
+		{
+			Result = Subspace->Allocate(NumBytes);
+		}
+		else
+		{
+			Result = Allocators[Index].Allocate();
+		}
+		return Result;
+	}
+
+	std::byte* TryAllocateFastCell_Internal(size_t NumBytes, FastAllocatorArray& Allocators, FSubspace* Subspace)
+	{
+		size_t Index = (NumBytes + VERSE_HEAP_MIN_ALIGN - 1) >> VERSE_HEAP_MIN_ALIGN_SHIFT;
+		std::byte* Result;
+		if (Index >= Allocators.size())
+		{
+			Result = Subspace->TryAllocate(NumBytes);
+		}
+		else
+		{
+			Result = Allocators[Index].TryAllocate();
+		}
+		return Result;
+	}
+
 	COREUOBJECT_API static FContextImpl* ClaimOrAllocateContext(EContextHeapRole);
 	COREUOBJECT_API void ReleaseContext();
 	COREUOBJECT_API void FreeContextDueToThreadDeath();
@@ -317,6 +446,7 @@ private:
 	COREUOBJECT_API void CheckForHandshakeSlow();
 
 	COREUOBJECT_API VCell* RunWeakReadBarrierNonNullSlow(VCell* Cell);
+	COREUOBJECT_API void* RunAuxWeakReadBarrierNonNullSlow(void* Aux);
 
 	COREUOBJECT_API void RequestHandshake(TUniqueFunction<void(FHandshakeContext)>&& HandshakeAction);
 	COREUOBJECT_API bool AttemptHandshakeAcknowledgement();
@@ -394,8 +524,8 @@ private:
 
 	EContextHeapRole HeapRole;
 
-	// The size of this must be matched to what is going on in FContextImpl::FContextImpl().
-	std::array<FLocalAllocator, (416 >> VERSE_HEAP_MIN_ALIGN_SHIFT) + 1> FastAllocators;
+	FastAllocatorArray FastSpaceAllocators;
+	FastAllocatorArray AuxSpaceAllocators;
 
 	// The context for the current thread. Even if the thread stops passing around a context and forgets
 	// it has one, we must remember that it had one, because of the affinity between our notion of

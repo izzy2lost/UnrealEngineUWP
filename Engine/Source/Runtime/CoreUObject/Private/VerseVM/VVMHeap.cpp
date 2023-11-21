@@ -27,6 +27,7 @@ namespace Verse
 {
 
 FSubspace* FHeap::FastSpace;
+FSubspace* FHeap::AuxSpace;
 FSubspace* FHeap::DestructorSpace;
 FSubspace* FHeap::CensusSpace;
 FSubspace* FHeap::DestructorAndCensusSpace;
@@ -71,6 +72,7 @@ void FHeap::Initialize()
 	if (!bIsInitialized)
 	{
 		FastSpace = FSubspace::Create();
+		AuxSpace = FSubspace::Create();
 		DestructorSpace = FSubspace::Create();
 		CensusSpace = FSubspace::Create();
 		DestructorAndCensusSpace = FSubspace::Create();

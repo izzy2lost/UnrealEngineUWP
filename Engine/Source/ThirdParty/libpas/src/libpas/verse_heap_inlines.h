@@ -139,7 +139,7 @@ static PAS_ALWAYS_INLINE uintptr_t verse_heap_find_allocated_object_start_inline
     return large_entry->begin;
 }
 
-static PAS_ALWAYS_INLINE pas_heap* verse_heap_get_heap(uintptr_t inner_ptr)
+static PAS_ALWAYS_INLINE pas_heap* verse_heap_get_heap_inline(uintptr_t inner_ptr)
 {
     verse_heap_chunk_map_entry chunk_map_entry;
     pas_segregated_page* page;

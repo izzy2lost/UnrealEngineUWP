@@ -123,9 +123,9 @@ protected:
 		checkSlow(FHeap::OwnsAddress(this));
 	}
 
+public:
 	void SetEmergentType(FAccessContext, VEmergentType* EmergentType);
 
-public:
 	// Override this if your cell subtype has a destructor.
 	//
 	// Note that this function may run concurrently to the mutator, in parallel, or from within the

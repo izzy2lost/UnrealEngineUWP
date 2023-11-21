@@ -2,7 +2,6 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMContextImpl.h"
-#include "Async/UniqueLock.h"
 #include "Experimental/Async/MultiUniqueLock.h"
 #include "VerseVM/VVMConservativeStackEntryFrame.h"
 #include "VerseVM/VVMConservativeStackExitFrame.h"
@@ -99,27 +98,32 @@ FContextImpl::FContextImpl()
 		416,
 		416};
 
-	V_DIE_UNLESS(FastAllocatorSizes.Num() == FastAllocators.size());
+	auto InitializeFastAllocators = [&FastAllocatorSizes](FastAllocatorArray& Allocators, FSubspace* Subspace) {
+		V_DIE_UNLESS(FastAllocatorSizes.Num() == Allocators.size());
 
-	size_t LastSizeByIndex = 0;
-	size_t LastSizeByTable = 0;
-	for (size_t Index = 0; Index < FastAllocators.size(); ++Index)
-	{
-		size_t SizeByIndex = Index << VERSE_HEAP_MIN_ALIGN_SHIFT;
-		V_DIE_UNLESS(SizeByIndex <= FastAllocatorSizes[Index]);
-
-		if (FastAllocatorSizes[Index] != LastSizeByTable)
+		size_t LastSizeByIndex = 0;
+		size_t LastSizeByTable = 0;
+		for (size_t Index = 0; Index < Allocators.size(); ++Index)
 		{
-			// Make sure that the sizes aren't unnecessarily sloppy. In particular, an allocator at a particular index should only point
-			// to a size that is larger than that index if there is also some larger index that matches that size exactly.
-			check(LastSizeByIndex == LastSizeByTable);
+			size_t SizeByIndex = Index << VERSE_HEAP_MIN_ALIGN_SHIFT;
+			V_DIE_UNLESS(SizeByIndex <= FastAllocatorSizes[Index]);
+
+			if (FastAllocatorSizes[Index] != LastSizeByTable)
+			{
+				// Make sure that the sizes aren't unnecessarily sloppy. In particular, an allocator at a particular index should only point
+				// to a size that is larger than that index if there is also some larger index that matches that size exactly.
+				check(LastSizeByIndex == LastSizeByTable);
+			}
+
+			LastSizeByIndex = SizeByIndex;
+			LastSizeByTable = FastAllocatorSizes[Index];
+
+			Allocators[Index].Initialize(Subspace, FastAllocatorSizes[Index]);
 		}
+	};
 
-		LastSizeByIndex = SizeByIndex;
-		LastSizeByTable = FastAllocatorSizes[Index];
-
-		FastAllocators[Index].Initialize(FHeap::FastSpace, FastAllocatorSizes[Index]);
-	}
+	InitializeFastAllocators(FastSpaceAllocators, FHeap::FastSpace);
+	InitializeFastAllocators(AuxSpaceAllocators, FHeap::AuxSpace);
 }
 
 FContextImpl::~FContextImpl()
@@ -514,7 +518,12 @@ void FContextImpl::StopAllocators()
 	V_DIE_UNLESS(StateMutex.IsLocked());
 	if (IsLive())
 	{
-		for (FLocalAllocator& Allocator : FastAllocators)
+		for (FLocalAllocator& Allocator : FastSpaceAllocators)
+		{
+			Allocator.Stop();
+		}
+
+		for (FLocalAllocator& Allocator : AuxSpaceAllocators)
 		{
 			Allocator.Stop();
 		}
@@ -569,12 +578,21 @@ V_NO_SANITIZE_ADDRESS void FContextImpl::MarkReferencedCells()
 				//
 				// See the comment above find_allocated_object_start in verse_heap_inlines.h for more
 				// details.
-				MarkStack.FencedMarkNonNull(reinterpret_cast<VCell*>(CellBase));
+
+				if (reinterpret_cast<FSubspace*>(verse_heap_get_heap(CellBase)) == FHeap::AuxSpace)
+				{
+					MarkStack.FencedMarkAuxNonNull(reinterpret_cast<void*>(CellBase));
+				}
+				else
+				{
+					MarkStack.FencedMarkNonNull(reinterpret_cast<VCell*>(CellBase));
+				}
 			}
 		}
 
 		ExitFrame = EntryFrame->ExitFrame;
 	}
+	// TODO: Report aux memory marked as well.
 	size_t NumMarkedAfter = MarkStack.Num();
 	size_t NumMarked = NumMarkedAfter - NumMarkedBefore;
 	if (NumMarked)
@@ -697,73 +715,18 @@ VCell* FContextImpl::RunWeakReadBarrierNonNullSlow(VCell* Cell)
 	{
 		return Cell;
 	}
-	else
-	{
-		return RunWeakReadBarrierUnmarkedWhenActive(Cell);
-	}
+	return RunWeakReadBarrierUnmarkedWhenActive(Cell, [this](const VCell* Cell) { MarkStack.MarkNonNull(Cell); });
 }
 
-VCell* FContextImpl::RunWeakReadBarrierUnmarkedWhenActive(VCell* Cell)
+void* FContextImpl::RunAuxWeakReadBarrierNonNullSlow(void* Aux)
 {
-	using namespace UE;
+	V_DIE_UNLESS(Aux);
 
-	EWeakBarrierState WeakBarrierState = FHeap::GetWeakBarrierState();
-	if (WeakBarrierState == EWeakBarrierState::Inactive)
+	if (FHeap::IsMarked(Aux))
 	{
-		return Cell;
+		return Aux;
 	}
-	else if (WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead)
-	{
-		return nullptr;
-	}
-	else if (WeakBarrierState == EWeakBarrierState::MarkOnRead)
-	{
-		MarkStack.MarkNonNull(Cell);
-		return Cell;
-	}
-	else
-	{
-		V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate); // means that `AttemptToTerminate()` was called
-		TUniqueLock Lock(FHeap::Mutex);
-		WeakBarrierState = FHeap::GetWeakBarrierState();
-
-		/*
-		 * We can hit this TOCTOU race on the following conditions:
-		 * - The GC is attempting to terminate. We've read the weak barrier state by this point, but haven't yet acquired the lock.
-		 * - During the soft handshake with mutator threads, one of them ends up marking items and thus cancels termination. The weak barrier state is now inactive.
-		 * - We then acquire the lock and read the barrier state which is inactive.
-		 * In this case, we should be safe to return the cell because the GC is inactive and the memory should be safe to read from.
-		 */
-		if (WeakBarrierState == EWeakBarrierState::Inactive)
-		{
-			return Cell;
-		}
-
-		if (WeakBarrierState == EWeakBarrierState::CheckMarkedOnRead)
-		{
-			// This means that we've since terminated, so the object could have become marked.
-			if (FHeap::IsMarked(Cell))
-			{
-				return Cell;
-			}
-			else
-			{
-				return nullptr;
-			}
-		}
-		else if (WeakBarrierState == EWeakBarrierState::MarkOnRead)
-		{
-			MarkStack.MarkNonNull(Cell);
-			return Cell;
-		}
-		else
-		{
-			V_DIE_UNLESS(WeakBarrierState == EWeakBarrierState::AttemptingToTerminate);
-			FHeap::WeakBarrierState = EWeakBarrierState::MarkOnRead;
-			MarkStack.MarkNonNull(Cell);
-			return Cell;
-		}
-	}
+	return RunWeakReadBarrierUnmarkedWhenActive(Aux, [this](const void* Aux) { MarkStack.MarkAuxNonNull(Aux); });
 }
 
 } // namespace Verse

@@ -14,6 +14,10 @@ void FAbstractVisitor::VisitNonNull(UObject* InObject, const char* ElementName)
 {
 }
 
+void FAbstractVisitor::VisitAuxNonNull(void* InAux, const char* ElementName)
+{
+}
+
 void FAbstractVisitor::BeginArray(const char* ElementName)
 {
 }
@@ -64,6 +68,14 @@ void FAbstractVisitor::Visit(UObject* InObject, const char* ElementName)
 	if (InObject != nullptr)
 	{
 		VisitNonNull(InObject, ElementName);
+	}
+}
+
+void FAbstractVisitor::VisitAux(void* InAux, const char* ElementName)
+{
+	if (InAux != nullptr)
+	{
+		VisitAuxNonNull(InAux, ElementName);
 	}
 }
 

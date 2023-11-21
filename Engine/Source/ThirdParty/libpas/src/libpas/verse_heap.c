@@ -1022,6 +1022,11 @@ verse_heap_page_header* verse_heap_get_page_header(uintptr_t inner_ptr)
 	return verse_heap_get_page_header_inline(inner_ptr);
 }
 
+pas_heap* verse_heap_get_heap(uintptr_t inner_ptr)
+{
+	return verse_heap_get_heap_inline(inner_ptr);
+}
+
 #endif /* PAS_ENABLE_VERSE */
 
 #endif /* LIBPAS_ENABLED */
