@@ -166,7 +166,6 @@ void FAnimNextGraph_EdGraphNodeCustomization::GenerateMemoryStorage(const TArray
 		PropertyDesc.Property = nullptr;
 		PropertyDesc.CPPType = ModelPin->GetCPPType();
 		PropertyDesc.CPPTypeObject = ModelPin->GetCPPTypeObject();
-		PropertyDesc.Containers;
 		if (ModelPin->IsArray())
 		{
 			PropertyDesc.Containers.Add(EPinContainerType::Array);
