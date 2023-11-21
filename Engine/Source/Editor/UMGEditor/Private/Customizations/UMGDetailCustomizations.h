@@ -54,8 +54,9 @@ private:
 	void PerformAccessibilityCustomization(IDetailLayoutBuilder& DetailLayout);
 	void CustomizeAccessibilityProperty(IDetailLayoutBuilder& DetailLayout, const FName& BehaviorPropertyName, const FName& TextPropertyName);
 	void PerformCustomizationExtenders(IDetailLayoutBuilder& DetailLayout, const TArrayView<UWidget*> Widgets);
-private:
 
+private:
 	TWeakPtr<FWidgetBlueprintEditor> Editor;
 	TWeakObjectPtr<UWidgetBlueprint> Blueprint;
+	bool bCreateMulticastEventCustomizationErrorAdded = false;
 };
