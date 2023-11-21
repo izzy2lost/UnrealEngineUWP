@@ -6,7 +6,6 @@
 #include "Widgets/SCompoundWidget.h"
 
 class IConcertClient;
-class SBox;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -35,9 +34,6 @@ namespace UE::MultiUserClient
 		void Construct(const FArguments& InArgs, const TSharedRef<IConcertClient>& InClient, FReplicationClientManager& InClientManager);
 
 	private:
-
-		/** Holds the dynamic content, which changes based on CVarReplicationClientViewMode  */
-		TSharedPtr<SBox> Content;
 		
 		/** Used to rebuild Content */
 		TSharedPtr<IConcertClient> ConcertClient;
@@ -50,17 +46,11 @@ namespace UE::MultiUserClient
 		
 		/** The client to depict. Should always return true. If the client is destroyed, so should this widget be. */
 		TAttribute<FReplicationClient*> GetReplicationClientAttribute;
-
-
-		TSharedRef<SWidget> CreateEditorContent();
-		void RebuildContent();
-		TSharedRef<SWidget> CreateThreeSectionedContent(FReplicationClient& InReplicationClient);
-		TSharedRef<SWidget> CreateTwoSectionedContent(FReplicationClient& InReplicationClient);
+		
+		TSharedRef<SWidget> CreateContent(FReplicationClient& InReplicationClient);
 		
 		/** Called when any of the streams change. */
 		void OnModelChanged() const;
-		
-		void OnConsoleVariableChanged(IConsoleVariable* ConsoleVariable);
 
 		/** Lists all objects being replicated */
 		void EnumerateReplicatedObjects(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;

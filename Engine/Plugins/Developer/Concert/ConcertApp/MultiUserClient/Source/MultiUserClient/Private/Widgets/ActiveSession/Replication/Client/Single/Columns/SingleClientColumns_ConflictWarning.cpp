@@ -21,13 +21,13 @@ namespace UE::MultiUserClient::SingleClientColumns
 	const FName ConflictWarningSubobjectColumnId = TEXT("ConflictWarningSubobjectColumn");
 	const FName ConflictWarningPropertyColumnId = TEXT("ConflictWarningPropertyColumn");
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn ConflictWarningForSubobject(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ConflictWarningForObject(
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const FGuid& ClientId
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn;
+		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient = MoveTemp(InClient), &InAuthorityCache, ClientId](const FColumnType::FBuildArgs& InArgs) mutable
@@ -63,7 +63,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						.ToolTipText_Lambda(GetToolTip);
 				})
 				.PopulateSearchItems_Lambda([](const ConcertClientSharedSlate::FReplicatedObjectData&, TArray<FString>&){})
-				.ColumnSortOrder(static_cast<int32>(ESubobjectColumnOrder::ConflictWarning)),
+				.ColumnSortOrder(static_cast<int32>(ETopLevelObjectColumnOrder::ConflictWarning)),
 			SHeaderRow::Column(ConflictWarningSubobjectColumnId)
 				.DefaultLabel(FText::GetEmpty())
 				.FixedWidth(20.f)

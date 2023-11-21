@@ -24,14 +24,8 @@ namespace UE::MultiUserClient
 
 namespace UE::MultiUserClient::SingleClientColumns
 {
-	/** @see UE::ConcertClientSharedSlate::ReplicationColumns::Subobject::ETopLevelColumnOrder */
+	/** @see UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel::ETopLevelColumnOrder */
 	enum class ETopLevelObjectColumnOrder
-	{
-		ToggleAuthority = 0,
-		Owner = 40
-	};
-	/** @see UE::ConcertClientSharedSlate::ReplicationColumns::Subobject::ESubobjectColumnOrder */
-	enum class ESubobjectColumnOrder
 	{
 		ToggleAuthority = 0,
 		ConflictWarning = 5,
@@ -73,7 +67,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * @param AuthoritySynchronizer Used to determine whether changing authority is at all enabled
 	 * @return Column that can be placed in the table
 	 */
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn ToggleSubobjectAuthority(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		);
@@ -102,7 +96,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * @param InAuthorityCache Used to determine which client owns the property
 	 * @return Column that can be placed in the table
 	 */
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn OwnerOfSubobject(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache
 		);
@@ -135,7 +129,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	 * 
 	 * @return Column that can be placed in the table
 	 */
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn ConflictWarningForSubobject(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ConflictWarningForObject(
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const FGuid& ClientId

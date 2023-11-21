@@ -32,23 +32,6 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 	FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model);
 }
 
-namespace UE::ConcertClientSharedSlate::ReplicationColumns::Subobject
-{
-	extern const FName DisplayColumnId;
-	
-	enum class ESubobjectColumnOrder : int32
-	{
-		/** Displays subobject name and class icon */
-		DisplayLabel = 10,
-	};
-
-	/**
-	 * Displays class icon and name of subobject
-	 * @param SubobjectModel Used to get display names. Outlives the column.
-	 */
-	FReplicationSubobjectObjectColumn DisplayColumn(ISubobjectModel& SubobjectModel);
-}
-
 namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 {
 	extern const FName ReplicatesColumnId;

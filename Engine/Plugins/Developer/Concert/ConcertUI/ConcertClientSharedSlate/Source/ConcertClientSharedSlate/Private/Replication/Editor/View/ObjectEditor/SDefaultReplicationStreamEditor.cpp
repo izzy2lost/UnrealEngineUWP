@@ -3,7 +3,7 @@
 #include "SDefaultReplicationStreamEditor.h"
 
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
 
 #include "SBaseReplicationStreamEditor.h"
 
@@ -36,7 +36,6 @@ namespace UE::ConcertClientSharedSlate
 			SAssignNew(WrappedEditor, SBaseReplicationStreamEditor, InPropertiesModel, InObjectSelectionSource, InPropertySelectionSource)
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
 				.AdditionalPropertyColumns(PropertyColumns)
-				.SubobjectView(InArgs._SubobjectView)
 				.SubobjectModel(InArgs._SubobjectModel)
 				.OnExtendObjectsContextMenu(InArgs._OnExtendObjectsContextMenu)
 				.SortPropertyRowPredicate(this, &SDefaultReplicationStreamEditor::SortPropertiesPredicate)

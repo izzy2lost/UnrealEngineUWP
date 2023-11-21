@@ -6,9 +6,9 @@
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/ISubobjectModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
-#include "SSubobjectAndPropertySection.h"
+#include "Replication/Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
+#include "SReplicatedPropertyView.h"
 #include "Replication/Editor/View/ObjectUtils.h"
 
 #include "Widgets/Layout/SBorder.h"
@@ -38,7 +38,6 @@ namespace UE::ConcertClientSharedSlate
 	{
 		RefreshObjectData();
 		RefreshPropertyData();
-		RefreshSubobjectData();
 	}
 
 	TArray<FSoftObjectPath> SReplicationStreamViewer::GetSelectedTopLevelObjects() const
@@ -90,14 +89,6 @@ namespace UE::ConcertClientSharedSlate
 			BuildRootObjectRowData();
 			ReplicatedObjects->OnItemsChanged();
 		}
-	}
-
-	void SReplicationStreamViewer::RefreshSubobjectData()
-	{
-		SubobjectAndPropertySection->RefreshSubobjectData();
-		
-		// Need to update properties in case the subobject view changed selection
-		RefreshPropertyData();
 	}
 
 	void SReplicationStreamViewer::RefreshPropertyData()
@@ -154,12 +145,7 @@ namespace UE::ConcertClientSharedSlate
 			ReplicatedObjects->SetSelectedItems(ItemsToExpand, true);
 		}
 	}
-
-	void SReplicationStreamViewer::ClearSubobjectSelection()
-	{
-		SubobjectAndPropertySection->ClearSubobjectSelection();
-	}
-
+	
 	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
 	{
 		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
@@ -200,12 +186,9 @@ namespace UE::ConcertClientSharedSlate
 			.RootItemsSource(&RootObjectRowData)
 			.OnGetChildren(this, &SReplicationStreamViewer::GetObjectRowChildren)
 			.OnContextMenuOpening(InArgs._OnObjectsContextMenuOpening)
-			.OnDeleteItems(InArgs._OnDeleteObjects)
-			.OnSelectionChanged_Lambda([this]()
+			.OnDeleteItems(InArgs._OnDeleteObjects).OnSelectionChanged_Lambda([this]()
 			{
-				RefreshSubobjectData();
-				// The subobject UI should automatically highlight the root objects after they are selected in the outliner
-				SubobjectAndPropertySection->SelectRootObjects();
+				RefreshPropertyData();
 			})
 			.Columns(Columns)
 			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
@@ -237,9 +220,8 @@ namespace UE::ConcertClientSharedSlate
 				]
 				.BodyContent()
 				[
-					SAssignNew(SubobjectAndPropertySection, SSubobjectAndPropertySection, PropertiesModel.ToSharedRef())
+					SAssignNew(SubobjectAndPropertySection, SReplicatedPropertyView, PropertiesModel.ToSharedRef())
 					.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
-					.SubobjectView(InArgs._SubobjectView)
 					.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
 					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
 					.LeftOfPropertySearchBar()

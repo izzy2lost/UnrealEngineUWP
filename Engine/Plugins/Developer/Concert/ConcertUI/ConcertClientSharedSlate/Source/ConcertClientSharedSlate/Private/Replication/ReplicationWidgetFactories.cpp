@@ -7,16 +7,9 @@
 #include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
-#include "Editor/View/SubobjectView/SSubobjectView.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView(FCreateSubobjectViewParams Params)
-	{
-		return SNew(SSubobjectView, MoveTemp(Params.SubobjectModel))
-			.AdditionalColumns(Params.AdditionalColumns);
-	}
-	
 	TSharedRef<ISubobjectModel> CreateDefaultComponentHierarchySubobjectModel()
 	{
 		return MakeShared<FComponentHierarchySubobjectModel>();
@@ -27,7 +20,6 @@ namespace UE::ConcertClientSharedSlate
 		return SNew(SBaseReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
 			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
 			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
-			.SubobjectView(Params.ViewerParams.SubobjectView)
 			.SubobjectModel(Params.ViewerParams.SubobjectModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
 			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)
@@ -43,7 +35,6 @@ namespace UE::ConcertClientSharedSlate
 		return SNew(SDefaultReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
 			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
 			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
-			.SubobjectView(Params.ViewerParams.SubobjectView)
 			.SubobjectModel(Params.ViewerParams.SubobjectModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
 			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)

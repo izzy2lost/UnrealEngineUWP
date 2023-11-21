@@ -48,31 +48,9 @@ namespace UE::ConcertClientSharedSlate
 	/** Builds a similar tree hierarchy as SSubobjectEditor. Reports only components as subobjects. */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ISubobjectModel> CreateDefaultComponentHierarchySubobjectModel();
 	
-	struct FCreateSubobjectViewParams
-	{
-		/** Additional columns that should be displayed for the subobjects. */
-		TArray<ReplicationColumns::FReplicationSubobjectObjectColumn> AdditionalColumns;
-
-		/** Determines the subobjects displayed in the view. */
-		TSharedRef<ISubobjectModel> SubobjectModel = CreateDefaultComponentHierarchySubobjectModel();
-	};
-	/** Creates a stream editor with a subobject view that looks like the SSubobjectEditor. */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IReplicationSubobjectView> CreateUnrealEditorSubobjectView(
-		FCreateSubobjectViewParams Params
-		);
-
 	/** Params for creating a IReplicationStreamViewer. */
 	struct FCreateViewerParams
 	{
-		/**
-		 * Optional. This is inserted between the root object outliner and property view.
-		 * It e.g. displays the components of the actor selected in the root object view.
-		 * 
-		 * Exists so it can be customized differently depending on whether used in the editor or on the server.
-		 * @note The created view will keep a strong reference to this.
-		 */
-		TSharedPtr<IReplicationSubobjectView> SubobjectView;
-
 		/**
 		 * Optional. Determines the objects displayed as children to the top-level objects in the top section.
 		 * If left unspecified, the top will only display actors.

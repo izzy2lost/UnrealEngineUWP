@@ -5,6 +5,7 @@
 #include "SReplicationMultiToggleCheckbox.h"
 
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Views/SHeaderRow.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationToggle"
 

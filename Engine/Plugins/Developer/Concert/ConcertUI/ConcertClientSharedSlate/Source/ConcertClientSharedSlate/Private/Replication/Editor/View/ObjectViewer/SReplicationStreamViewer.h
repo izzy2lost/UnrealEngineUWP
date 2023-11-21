@@ -5,9 +5,9 @@
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SReplicationTreeView.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
-#include "SSubobjectAndPropertySection.h"
+#include "Replication/Editor/View/Tree/SReplicationTreeView.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
+#include "SReplicatedPropertyView.h"
 
 #include "Algo/Transform.h"
 #include "Misc/Optional.h"
@@ -21,14 +21,13 @@ struct FSoftObjectPath;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class SSubobjectAndPropertySection;
+	class SReplicatedPropertyView;
 	class FReplicatedPropertyData;
 	class FReplicatedObjectData;
 	class IEditableReplicationStreamModel;
-	class IReplicationSubobjectView;
 	class IReplicationStreamModel;
 	class ISubobjectModel;
-	class SReplicatedPropertiesView;
+	class SPropertyTreeView;
 	
 	/**
 	 * Root widget for viewing UMultiUserPropertyReplicationSelection.
@@ -51,8 +50,6 @@ namespace UE::ConcertClientSharedSlate
 			/** Additional columns to add to the property view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
 
-			/** Optional. Placed between root object outliner and property editor. */
-			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
 			/** Optional. If set, this determines the children nested under the root objects. */
 			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
 
@@ -83,7 +80,6 @@ namespace UE::ConcertClientSharedSlate
 		//~ End IReplicationStreamViewer Interface
 
 		void RefreshObjectData();
-		void RefreshSubobjectData();
 		void RefreshPropertyData();
 
 		/** Selects the given objects from the top level view, if applicable. */
@@ -91,9 +87,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Expands the given objects, recursively if desired. */
 		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive);
-		
-		/** Clears all objects selected in the subobject view, if there is one. */
-		void ClearSubobjectSelection();
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const { return ReplicatedObjects->GetSelectedItems(); }
@@ -108,7 +101,7 @@ namespace UE::ConcertClientSharedSlate
 		/** Lists the properties of the selected actor */
 		TSharedPtr<SExpandableArea> PropertyArea;
 		/** Edits the property list and (optionally) exposes subobjects of the selected root object. */
-		TSharedPtr<SSubobjectAndPropertySection> SubobjectAndPropertySection;
+		TSharedPtr<SReplicatedPropertyView> SubobjectAndPropertySection;
 
 		/** Tree view for replicated objects. */
 		TSharedPtr<SReplicationTreeView<FReplicatedObjectData>> ReplicatedObjects;

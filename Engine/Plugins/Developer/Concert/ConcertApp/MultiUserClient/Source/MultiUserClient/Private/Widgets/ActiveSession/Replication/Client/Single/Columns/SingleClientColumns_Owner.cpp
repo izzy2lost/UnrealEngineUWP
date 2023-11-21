@@ -57,7 +57,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 		ConcertClientSharedSlate::IReplicationStreamModel& InObjectModel
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn;
+		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient, &InObjectModel, &InAuthorityCache](const FColumnType::FBuildArgs& InArgs)
@@ -84,12 +84,12 @@ namespace UE::MultiUserClient::SingleClientColumns
 			);
 	}
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn OwnerOfSubobject(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn;
+		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient, &InAuthorityCache](const FColumnType::FBuildArgs& InArgs)
@@ -109,7 +109,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						InOutSearchStrings
 						);
 				})
-				.ColumnSortOrder(static_cast<int32>(ESubobjectColumnOrder::Owner)),
+				.ColumnSortOrder(static_cast<int32>(ETopLevelObjectColumnOrder::Owner)),
 			SHeaderRow::Column(OwnerOfSubobjectColumnId)
 				.DefaultLabel(LOCTEXT("Subobject.Owner", "Owner"))
 				.FillSized(Private::Shared::DefaultWidth)

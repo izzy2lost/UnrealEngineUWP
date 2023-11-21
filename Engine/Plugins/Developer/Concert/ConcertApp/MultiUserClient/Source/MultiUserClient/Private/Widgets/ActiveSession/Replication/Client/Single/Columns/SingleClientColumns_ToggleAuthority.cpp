@@ -163,7 +163,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 		);
 	}
 
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationSubobjectObjectColumn ToggleSubobjectAuthority(
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		)
@@ -210,7 +210,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 					})
 				),
 			FText::GetEmpty(),
-			static_cast<int32>(ESubobjectColumnOrder::ToggleAuthority)
+			static_cast<int32>(ETopLevelObjectColumnOrder::ToggleAuthority)
 		);
 	}
 }

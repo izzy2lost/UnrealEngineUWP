@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
 #include "Replication/ReplicationWidgetDelegates.h"
 
 #include "Misc/Optional.h"
@@ -14,27 +14,19 @@ class SWidgetSwitcher;
 
 namespace UE::ConcertClientSharedSlate
 {
-	class SReplicatedPropertiesView;
-	class IReplicationSubobjectView;
+	class SPropertyTreeView;
 
-	/**
-	 * Displays an optional IReplicationSubobjectView and followed by SReplicatedPropertiesView tree view (which is always created).
-	 * 
-	 * Important: this view should be possible to be built in programs, so it should not reference things like AActor,
-	 * UActorComponent, ResolveObject, etc. directly. 
-	 */
-	class SSubobjectAndPropertySection : public SCompoundWidget
+	/** Displays the SPropertyTreeView and decorates it with messages that prompt the user for action, e.g. to select an object to view properties. */
+	class SReplicatedPropertyView : public SCompoundWidget
 	{
 	public:
 		
 		DECLARE_DELEGATE_RetVal(TArray<TSharedPtr<FReplicatedObjectData>>, FGetSelectedRootObjects)
 
-		SLATE_BEGIN_ARGS(SSubobjectAndPropertySection)
+		SLATE_BEGIN_ARGS(SReplicatedPropertyView)
 		{}
 			/** Additional columns to add to the property view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
-			/** Optional. Placed between root object outliner and property editor. */
-			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
 		
 			/** Optional. Used for determining the order in which properties are displayed. */
 			SLATE_EVENT(FSortPropertyPredicate, SortPropertyRowPredicate)
@@ -46,13 +38,7 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
-
-		/** If there is a subobject view, makes it select the root objects. */
-		void SelectRootObjects() const;
-		/** Clears the subobject selection */
-		void ClearSubobjectSelection() const;
 		
-		void RefreshSubobjectData();
 		void RefreshPropertyData();
 		
 		const TArray<TSharedPtr<FReplicatedPropertyData>>& GetPropertyRowData() const { return PropertyRowData; }
@@ -63,10 +49,8 @@ namespace UE::ConcertClientSharedSlate
 		/** The model this view is visualizing. */
 		TSharedPtr<IReplicationStreamModel> PropertiesModel;
 		
-		/** Optional. External widget that selects subobjects from ActorArea. */
-		TSharedPtr<IReplicationSubobjectView> SubobjectView;
 		/** Tree view for replicated properties. Content depends on the current object selected. */
-		TSharedPtr<SReplicatedPropertiesView> ReplicatedProperties;
+		TSharedPtr<SPropertyTreeView> ReplicatedProperties;
 		
 		enum class EReplicatedPropertyContent
 		{
@@ -97,7 +81,6 @@ namespace UE::ConcertClientSharedSlate
 		/** Inverse map of PropertyRowData using FReplicatedPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
 		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> ChainToPropertyDataCache;
 
-		TSharedRef<SWidget> CreateSubobjectsAndPropertiesSection(const FArguments& InArgs);
 		TSharedRef<SWidget> CreatePropertiesView(const FArguments& InArgs);
 		
 		TSharedRef<FReplicatedPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
@@ -107,8 +90,6 @@ namespace UE::ConcertClientSharedSlate
 		/** Given the selected objects, determines whether they all have the same class and returns it if so. */
 		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const;
 		void GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild);
-		
-		void OnSubobjectSelectionChanged();
 		
 		// Utils
 		void SortPropertyRowArray(TArray<TSharedPtr<FReplicatedPropertyData>>& ToSort) const;

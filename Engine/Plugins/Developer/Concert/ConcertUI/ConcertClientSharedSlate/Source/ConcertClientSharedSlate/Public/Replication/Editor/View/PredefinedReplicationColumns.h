@@ -10,7 +10,5 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns
 {
 	/** Rows displayed in the outliner */
 	using FReplicationTopLevelObjectColumn = TReplicationColumn<FReplicatedObjectData>;
-	/** The type of rows exposed by the subobject view as API. */
-	using FReplicationSubobjectObjectColumn = TReplicationColumn<FReplicatedObjectData>;
 	using FReplicationPropertyColumn = TReplicationColumn<FReplicatedPropertyData>;
 }

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SReplicatedPropertiesView.h"
+#include "SPropertyTreeView.h"
 
 #include "Filters/SBasicFilterBar.h"
 #include "PropertyFilter_ByPropertyType.h"
@@ -25,7 +25,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_EVENT(FOnFilterChanged, OnFilterChanged)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TArray<SReplicatedPropertiesView::FFilterRef> AllFilters)
+		void Construct(const FArguments& InArgs, TArray<SPropertyTreeView::FFilterRef> AllFilters)
 		{
 			Super::Construct(
 			Super::FArguments()
@@ -39,7 +39,7 @@ namespace UE::ConcertClientSharedSlate
 		// Expose from SBasicFilterBar
 		using Super::SetFrontendFilterActive;
 
-		void SetFilterVisuallyEnabled(const SReplicatedPropertiesView::FFilterRef& Filter, bool bEnabled)
+		void SetFilterVisuallyEnabled(const SPropertyTreeView::FFilterRef& Filter, bool bEnabled)
 		{
 			const TSharedRef<SFilter>* FilterWidget = Filters.FindByPredicate([&Filter](const TSharedRef<SFilter>& FilterWidget)
 			{
@@ -52,7 +52,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	};
 	
-	void SReplicatedPropertiesView::Construct(const FArguments& InArgs)
+	void SPropertyTreeView::Construct(const FArguments& InArgs)
 	{
 		SelectedObjectsAttribute = InArgs._SelectedObjects;
 		
@@ -65,7 +65,7 @@ namespace UE::ConcertClientSharedSlate
 				.Columns(InArgs._Columns)
 				.ExpandableColumnLabel(InArgs._ExpandableColumnLabel)
 				.SelectionMode(InArgs._SelectionMode)
-				.FilterItem(this, &SReplicatedPropertiesView::PassesFilters)
+				.FilterItem(this, &SPropertyTreeView::PassesFilters)
 				.LeftOfSearchBar()
 				[
 					SNew(SHorizontalBox)
@@ -84,7 +84,7 @@ namespace UE::ConcertClientSharedSlate
 					]
 				]
 				.RowBelowSearchBar() [ FilterBar.ToSharedRef() ]
-				.NoItemsContent() [ SNew(STextBlock).Text(this, &SReplicatedPropertiesView::GetAllFilteredText) ]
+				.NoItemsContent() [ SNew(STextBlock).Text(this, &SPropertyTreeView::GetAllFilteredText) ]
 		];
 
 		// For better UX, hide certain properties by default (e.g. why would you want to replicate bools?)
@@ -107,12 +107,12 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void SReplicatedPropertiesView::OnItemsChanged() const
+	void SPropertyTreeView::OnItemsChanged() const
 	{
 		ReplicatedProperties->OnItemsChanged();
 	}
 
-	SReplicatedPropertiesView::FBuildFilterBarResult SReplicatedPropertiesView::BuildFilterBar()
+	SPropertyTreeView::FBuildFilterBarResult SPropertyTreeView::BuildFilterBar()
 	{
 		TSharedRef<FFilterCategory> GeneralCategory = MakeShared<FFilterCategory>(
 			LOCTEXT("CommonCategory.Name", "General"),
@@ -162,17 +162,17 @@ namespace UE::ConcertClientSharedSlate
 		AllFilters.Append(Result.EnabledByDefault);
 		
 		FilterBar = SNew(SReplicationFilterBar, MoveTemp(AllFilters))
-			.OnFilterChanged(this, &SReplicatedPropertiesView::OnItemsChanged);
+			.OnFilterChanged(this, &SPropertyTreeView::OnItemsChanged);
 		
 		return Result;
 	}
 
-	bool SReplicatedPropertiesView::PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const
+	bool SPropertyTreeView::PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const
 	{
 		return FilterBar->GetAllActiveFilters()->PassesAllFilters(ReplicatedPropertyData);
 	}
 
-	FText SReplicatedPropertiesView::GetAllFilteredText() const
+	FText SPropertyTreeView::GetAllFilteredText() const
 	{
 		const TArray<FSoftObjectPath> Objects = SelectedObjectsAttribute.Get();
 		if (Objects.IsEmpty())

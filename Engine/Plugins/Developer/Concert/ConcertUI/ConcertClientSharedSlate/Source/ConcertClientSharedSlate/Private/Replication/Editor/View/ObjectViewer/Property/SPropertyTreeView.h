@@ -5,7 +5,7 @@
 #include "Filters/SBasicFilterBar.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SReplicationTreeView.h"
+#include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -14,13 +14,13 @@ namespace UE::ConcertClientSharedSlate
 	class SReplicationFilterBar;
 	
 	/** Displays a searchable tree view of properties (SReplicationTreeView) and decorates it with a SBasicFilterBar. */
-	class SReplicatedPropertiesView : public SCompoundWidget
+	class SPropertyTreeView : public SCompoundWidget
 	{
 	public:
 		
 		using FFilterRef = TSharedRef<FFilterBase<TSharedPtr<FReplicatedPropertyData>>>;
 		
-		SLATE_BEGIN_ARGS(SReplicatedPropertiesView)
+		SLATE_BEGIN_ARGS(SPropertyTreeView)
 		{}
 			/*************** Arguments inherited by SReplicationTreeView ***************/
 		

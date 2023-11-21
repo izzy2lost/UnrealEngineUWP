@@ -49,7 +49,6 @@ namespace UE::ConcertClientSharedSlate
 			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
 				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
-				.SubobjectView(InArgs._SubobjectView)
 				.SubobjectModel(InArgs._SubobjectModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
@@ -226,10 +225,6 @@ namespace UE::ConcertClientSharedSlate
 		});
 		
 		EditablePropertiesModel->RemoveObjects(ObjectAndChildren);
-
-		// Viewer has an internal cache of the selected object. Setting the displayed object to the cached one is a no-op.
-		// Clear the cache so it displays correctly if the user adds the object back straight after removing it.
-		ReplicationViewer->ClearSubobjectSelection();
 	}
 
 	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening()

@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SSubobjectAndPropertySection.h"
+#include "SReplicatedPropertyView.h"
 
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
-#include "Replication/Editor/View/IReplicationSubobjectView.h"
-#include "Replication/Editor/View/ObjectViewer/Property/SReplicatedPropertiesView.h"
-#include "Replication/Editor/View/ObjectViewer/Tree/SelectionViewerColumns.h"
+#include "Replication/Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
 
 #include "Algo/AllOf.h"
 #include "Algo/ForEach.h"
@@ -17,11 +16,11 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "SSubobjectAndPropertiesSection"
+#define LOCTEXT_NAMESPACE "SReplicatedPropertyView"
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SSubobjectAndPropertySection::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
+	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		SortPropertyRowPredicate = InArgs._SortPropertyRowPredicate;
@@ -30,40 +29,11 @@ namespace UE::ConcertClientSharedSlate
 		
 		ChildSlot
 		[
-			CreateSubobjectsAndPropertiesSection(InArgs)
+			CreatePropertiesView(InArgs)
 		];
 	}
-
-	void SSubobjectAndPropertySection::SelectRootObjects() const
-	{
-		if (SubobjectView)
-		{
-			SubobjectView->SelectTopLevelObjects();
-		}
-	}
-
-	void SSubobjectAndPropertySection::ClearSubobjectSelection() const
-	{
-		if (SubobjectView)
-		{
-			SubobjectView->ClearRootObjects();
-		}
-	}
-
-	void SSubobjectAndPropertySection::RefreshSubobjectData()
-	{
-		if (!SubobjectView)
-		{
-			return;
-		}
-		
-		const TArray<TSharedPtr<FReplicatedObjectData>> SelectedObjects = GetSelectedRootObjectsDelegate.Execute();
-		TArray<FSoftObjectPath> SelectedObjectPaths;
-		Algo::Transform(SelectedObjects, SelectedObjectPaths, [](const TSharedPtr<FReplicatedObjectData>& Item){ return Item->GetObjectPath(); });
-		SubobjectView->SetTopLevelObjects(SelectedObjectPaths);
-	}
 	
-	void SSubobjectAndPropertySection::RefreshPropertyData()
+	void SReplicatedPropertyView::RefreshPropertyData()
 	{
 		const TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
@@ -113,13 +83,8 @@ namespace UE::ConcertClientSharedSlate
 		ReplicatedProperties->OnItemsChanged();
 	}
 
-	TArray<FSoftObjectPath> SSubobjectAndPropertySection::GetObjectsSelectedForPropertyEditing() const
+	TArray<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
 	{
-		if (SubobjectView)
-		{
-			return SubobjectView->GetSelectedObjects();
-		}
-
 		TArray<FSoftObjectPath> Result;
 		Algo::Transform(GetSelectedRootObjectsDelegate.Execute(), Result, [](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 		{
@@ -128,49 +93,7 @@ namespace UE::ConcertClientSharedSlate
 		return Result;
 	}
 
-	TSharedRef<SWidget> SSubobjectAndPropertySection::CreateSubobjectsAndPropertiesSection(const FArguments& InArgs)
-	{
-		if (InArgs._SubobjectView.IsValid())
-		{
-			SubobjectView = InArgs._SubobjectView;
-			SubobjectView->OnSelectionChanged().AddSP(this, &SSubobjectAndPropertySection::OnSubobjectSelectionChanged);
-			return SNew(SWidgetSwitcher)
-				.WidgetIndex_Lambda([this]()
-				{
-					return GetSelectedRootObjectsDelegate.Execute().IsEmpty() ? 1 : 0;
-				})
-			
-				+SWidgetSwitcher::Slot()
-				[
-					SNew(SSplitter)
-					.Orientation(Orient_Vertical)
-
-					+SSplitter::Slot()
-					.Value(1.f)
-					[
-						SubobjectView.ToSharedRef()
-					]
-					
-					+SSplitter::Slot()
-					.Value(2.f)
-					[
-						CreatePropertiesView(InArgs)
-					]
-				]
-			
-				+SWidgetSwitcher::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("NoRootObjects", "Select an object to see selected properties"))
-				];
-		}
-		
-		return CreatePropertiesView(InArgs);
-	}
-
-	TSharedRef<SWidget> SSubobjectAndPropertySection::CreatePropertiesView(const FArguments& InArgs)
+	TSharedRef<SWidget> SReplicatedPropertyView::CreatePropertiesView(const FArguments& InArgs)
 	{
 		TArray Columns
 		{
@@ -186,9 +109,9 @@ namespace UE::ConcertClientSharedSlate
 			// EReplicatedPropertyContent::Properties
 			+SWidgetSwitcher::Slot()
 			[
-				SAssignNew(ReplicatedProperties, SReplicatedPropertiesView)
+				SAssignNew(ReplicatedProperties, SPropertyTreeView)
 				.RootItemsSource(&RootPropertyRowData)
-				.OnGetChildren(this, &SSubobjectAndPropertySection::GetPropertyRowChildren)
+				.OnGetChildren(this, &SReplicatedPropertyView::GetPropertyRowChildren)
 				.Columns(Columns)
 				.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
 				.SelectionMode(ESelectionMode::Multi)
@@ -196,7 +119,7 @@ namespace UE::ConcertClientSharedSlate
 				[
 					InArgs._LeftOfPropertySearchBar.Widget
 				]
-				.SelectedObjects(this, &SSubobjectAndPropertySection::GetObjectsSelectedForPropertyEditing)
+				.SelectedObjects(this, &SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing)
 			]
 			
 			// EReplicatedPropertyContent::NoSelection
@@ -218,12 +141,12 @@ namespace UE::ConcertClientSharedSlate
 			];
 	}
 	
-	TSharedRef<FReplicatedPropertyData> SSubobjectAndPropertySection::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
+	TSharedRef<FReplicatedPropertyData> SReplicatedPropertyView::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
 	{
 		return MakeShared<FReplicatedPropertyData>(MoveTemp(OwningClass), MoveTemp(PropertyChain));
 	}
 
-	void SSubobjectAndPropertySection::BuildRootPropertyRowData()
+	void SReplicatedPropertyView::BuildRootPropertyRowData()
 	{
 		RootPropertyRowData.Empty(PropertyRowData.Num());
 		for (const TSharedPtr<FReplicatedPropertyData>& PropertyData : PropertyRowData)
@@ -237,7 +160,7 @@ namespace UE::ConcertClientSharedSlate
 		SortPropertyRowArray(RootPropertyRowData);
 	}
 	
-	TOptional<FSoftClassPath> SSubobjectAndPropertySection::GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const
+	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const
 	{
 		const FSoftClassPath Class = PropertiesModel->GetObjectClass(Objects[0]);
 		const bool bAllHaveSameClass = Algo::AllOf(Objects, [this, Class](const FSoftObjectPath& Object)
@@ -247,7 +170,7 @@ namespace UE::ConcertClientSharedSlate
 		return bAllHaveSameClass ? Class : TOptional<FSoftClassPath>{};
 	}
 
-	void SSubobjectAndPropertySection::GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild)
+	void SReplicatedPropertyView::GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild)
 	{
 		TArray<TSharedPtr<FReplicatedPropertyData>> Children;
 		
@@ -264,12 +187,7 @@ namespace UE::ConcertClientSharedSlate
 		Algo::ForEach(Children, [&ProcessChild](const TSharedPtr<FReplicatedPropertyData>& Data){ ProcessChild(Data); });
 	}
 
-	void SSubobjectAndPropertySection::OnSubobjectSelectionChanged()
-	{
-		RefreshPropertyData();
-	}
-
-	void SSubobjectAndPropertySection::SortPropertyRowArray(TArray<TSharedPtr<FReplicatedPropertyData>>& ToSort) const
+	void SReplicatedPropertyView::SortPropertyRowArray(TArray<TSharedPtr<FReplicatedPropertyData>>& ToSort) const
 	{
 		if (SortPropertyRowPredicate.IsBound())
 		{
@@ -280,7 +198,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	void SSubobjectAndPropertySection::SetPropertyContent(EReplicatedPropertyContent Content) const
+	void SReplicatedPropertyView::SetPropertyContent(EReplicatedPropertyContent Content) const
 	{
 		PropertyContent->SetActiveWidgetIndex(static_cast<int32>(Content));
 	}

@@ -100,57 +100,6 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 }
 
 #undef LOCTEXT_NAMESPACE
-
-namespace UE::ConcertClientSharedSlate::ReplicationColumns::Subobject
-{
-	const FName DisplayColumnId(TEXT("DisplayColumn"));
-	
-	FReplicationSubobjectObjectColumn DisplayColumn(ISubobjectModel& SubobjectModel)
-	{
-		return FReplicationSubobjectObjectColumn(
-			FReplicationSubobjectObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([&SubobjectModel](const FReplicationSubobjectObjectColumn::FBuildArgs& Args)
-				{
-					const FSoftObjectPath ObjectPath = Args.RowData.GetObjectPath();
-					
-					const FSlateBrush* ComponentIcon = FAppStyle::GetBrush("SCS.NativeComponent");
-					const UObject* Object = ObjectPath.ResolveObject();
-					const AActor* AsActor = Cast<AActor>(Object);
-					ComponentIcon = AsActor ? FClassIconFinder::FindIconForActor(AsActor) : ComponentIcon;
-					ComponentIcon = Object ? FSlateIconFinder::FindIconBrushForClass(Object->GetClass(), TEXT("SCS.Component")) : ComponentIcon;
-					
-					return SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.AutoWidth()
-						.VAlign(VAlign_Center)
-						[
-							SNew(SImage)
-							.Image(ComponentIcon)
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
-
-						+SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.Padding(6.f, 0.f, 0.f, 0.f)
-						[
-							SNew(STextBlock)
-							.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
-							.Text(SubobjectModel.GetSubobjectDisplayName(ObjectPath))
-						];
-				})
-				.PopulateSearchItems_Lambda([&SubobjectModel](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
-				{
-					const FSoftObjectPath ObjectPath = ObjectData.GetObjectPath();
-					InOutSearchStrings.Add(SubobjectModel.GetSubobjectDisplayName(ObjectPath).ToString());
-				})
-				.ColumnSortOrder(static_cast<int32>(ESubobjectColumnOrder::DisplayLabel)),
-			SHeaderRow::Column(DisplayColumnId)
-				.FillWidth(1.f)
-			);
-	}
-}
-
 #define LOCTEXT_NAMESPACE "ReplicationPropertyColumns"
 
 namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
