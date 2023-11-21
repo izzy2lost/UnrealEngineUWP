@@ -225,6 +225,7 @@ void FAnimNextGraphInstance::ExecuteLatentPin(int32 LatentPinIndex, void* Destin
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextExecuteContext::StaticStruct());
 	SetRigVMExtendedExecuteContext(&ExtendedExecuteContext);
 }
 

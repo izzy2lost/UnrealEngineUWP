@@ -16,6 +16,7 @@ DEFINE_STAT(STAT_AnimNext_ParamBlock_UpdateLayer);
 UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	BaseRigVMContext.SetContextPublicDataStruct(FAnimNextParameterExecuteContext::StaticStruct());
 	SetRigVMExtendedExecuteContext(&BaseRigVMContext);
 }
 
