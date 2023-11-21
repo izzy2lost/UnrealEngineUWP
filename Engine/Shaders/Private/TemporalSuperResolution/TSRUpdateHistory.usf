@@ -325,6 +325,15 @@ T BilinearSampleColorHistory(Texture2D<T> Texture, float2 SampleUV)
 tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIndex, const uint XorButterFly)
 {
 	SceneColor = SceneColor * tsr_half(0.25);
+	// Forces the * tsr_half(0.25) to be applied before to avoid turning bright pixels to +inf in the adds below.
+	#if CONFIG_FP16_PRECISE_MULTIPLY_ORDER
+		#if CONFIG_SCENE_COLOR_ALPHA
+			const tsr_halfC ColorMax10BitsFloat = tsr_half(Max10BitsFloat * 0.25).xxxx;
+		#else
+			const tsr_halfC ColorMax10BitsFloat = tsr_half(Max10BitsFloat * 0.25).xxx;
+		#endif
+		SceneColor = dpv_min(SceneColor, ColorMax10BitsFloat);
+	#endif
 
 	#if PLATFORM_SUPPORTS_WAVE_BROADCAST && CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
 	if (uint(XorButterFly * 4) <= WaveGetLaneCount())

@@ -695,6 +695,8 @@ void MainCS(
 			CenterLumaLDR.SetElement(SimdIndex, CenterLuma / (SpatialAAExposure + CenterLuma));
 		}
 
+		CenterFinalSceneColor = min(CenterFinalSceneColor, tsr_simd_halfC::Const(tsr_half(Max10BitsFloat)));
+
 		// Output some data early.
 		PLATFORM_SPECIFIC_ISOLATE
 		{

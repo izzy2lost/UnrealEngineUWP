@@ -92,7 +92,7 @@ TAutoConsoleVariable<int32> CVarTSR16BitVALUOnAMD(
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarTSR16BitVALUOnIntel(
-	TEXT("r.TSR.16BitVALU.Intel"), 0,
+	TEXT("r.TSR.16BitVALU.Intel"), 1,
 	TEXT("Overrides whether to use 16bit VALU on Intel desktop GPUs"),
 	ECVF_RenderThreadSafe);
 

@@ -51,6 +51,11 @@
 
 #define CONFIG_ENABLE_STOCASTIC_QUANTIZATION (!CONFIG_SCENE_COLOR_ALPHA)
 
+// DXC allows changing order between multiply and adds https://github.com/microsoft/DirectXShaderCompiler/blob/main/docs/DXIL.rst#precise-qualifier
+// which on 16bit, if linear color spaces ends up close to half(65504.0), this can go +inf on if the compiler transform a * 0.5 + b * 0.5 into (a + b) * 0.5.
+#define CONFIG_FP16_PRECISE_MULTIPLY_ORDER 1
+
+
 //------------------------------------------------------- CONSTANTS
 
 /* Maximum number of sample. */

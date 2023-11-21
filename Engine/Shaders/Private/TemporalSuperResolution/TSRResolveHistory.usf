@@ -246,6 +246,8 @@ void MainCS(
 			tsr_short2(OutputViewRectMin) +
 			tsr_short2(GroupId) * tsr_short(TILE_SIZE).xx);
 		
+		Output = min(Output, tsr_output_halfC::Const(tsr_half(Max10BitsFloat)));
+
 		UNROLL_N(OUTPUT_SIMD_SIZE)
 		for (uint SimdIndex = 0; SimdIndex < OUTPUT_SIMD_SIZE; SimdIndex++)
 		{
@@ -259,6 +261,11 @@ void MainCS(
 		
 		{
 			tsr_output_halfC HalfResOutput = Output * tsr_half(0.25);
+			// Forces the * tsr_half(0.25) to be applied before to avoid turning bright pixels to +inf in the adds below.
+			#if CONFIG_FP16_PRECISE_MULTIPLY_ORDER
+				HalfResOutput = min(HalfResOutput, tsr_output_halfC::Const(tsr_half(Max10BitsFloat * 0.25)));
+			#endif
+
 			HalfResOutput = HalfResOutput + WaveAccessNeighborTexel(HalfResOutput, tsr_short2(1, 0));
 			HalfResOutput = HalfResOutput + WaveAccessNeighborTexel(HalfResOutput, tsr_short2(0, 1));
 		
@@ -353,6 +360,11 @@ void MainCS(
 		uint LocalGroupThreadIndex = GroupThreadIndex;
 
 		tsr_halfC HalfResOutput = FinalOutputColor * tsr_half(0.25);
+		// Forces the * tsr_half(0.25) to be applied before to avoid turning bright pixels to +inf in the adds below.
+		#if CONFIG_FP16_PRECISE_MULTIPLY_ORDER
+			HalfResOutput = min(HalfResOutput, tsr_half(Max10BitsFloat * 0.25));
+		#endif
+
 		tsr_short2 HalfResOutputPixelPos;
 		HalfResOutputPixelPos[0] = (OutputPixelPosition[0] >> tsr_short(1)) | (((OutputPixelPosition[0] & tsr_short(0x1)) | tsr_short(!bGenerateOutputMip1)) * tsr_short(~0));
 		HalfResOutputPixelPos[1] = (OutputPixelPosition[1] >> tsr_short(1)) | (((OutputPixelPosition[1] & tsr_short(0x1)) | tsr_short(!bGenerateOutputMip1)) * tsr_short(~0));
