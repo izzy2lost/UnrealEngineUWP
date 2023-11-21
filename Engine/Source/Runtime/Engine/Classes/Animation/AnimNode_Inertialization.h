@@ -8,6 +8,7 @@
 #include "Animation/AnimCurveTypes.h"
 #include "Animation/AnimNodeMessages.h"
 #include "AlphaBlend.h" // Required for EAlphaBlendOption
+#include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 
 #include "AnimNode_Inertialization.generated.h"
 
@@ -20,7 +21,8 @@
 // https://www.gdcvault.com/play/1025331/Inertialization
 
 
-namespace UE { namespace Anim {
+namespace UE::Anim
+{
 
 // Event that can be subscribed to request inertialization-based blends
 class IInertializationRequester : public IGraphMessage
@@ -42,7 +44,7 @@ public:
 	virtual void AddDebugRecord(const FAnimInstanceProxy& InSourceProxy, int32 InSourceNodeId) = 0;
 };
 
-}}	// namespace UE::Anim
+}	// namespace UE::Anim
 
 UENUM()
 enum class EInertializationState : uint8
@@ -52,9 +54,8 @@ enum class EInertializationState : uint8
 	Active			// Inertialization active... apply the previously captured pose difference
 };
 
-
 UENUM()
-enum class EInertializationBoneState : uint8
+enum class UE_DEPRECATED(5.4, "Internal private pose storage is now used by inertialization.") EInertializationBoneState : uint8
 {
 	Invalid,		// Invalid bone (ie: bone was present in the skeleton but was not present in the pose when it was captured)
 	Valid,			// Valid bone
@@ -186,29 +187,17 @@ struct FInertializationRequest
 // endif ANIM_TRACE_ENABLED
 };
 
-
 USTRUCT()
-struct FInertializationPose
+struct UE_DEPRECATED(5.4, "Internal private pose storage is now used by inertialization.") FInertializationPose
 {
 	GENERATED_BODY()
 
 	FTransform ComponentTransform;
-
-	// Bone transforms indexed by skeleton bone index.  Transforms are in local space except for direct descendants of
-	// the root which are in component space (ie: they have been multiplied by the root).  Invalid bones (ie: bones
-	// that are present in the skeleton but were not present in the pose when it was captured) are all zero
-	//
 	TArray<FTransform> BoneTransforms;
-
-	// Bone states indexed by skeleton bone index
-	//
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<EInertializationBoneState> BoneStates;
-
-	// Snapshot of active curves
-	// 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FInertializationCurve Curves;
-
-
 	FName AttachParentName;
 	float DeltaTime;
 
@@ -228,13 +217,15 @@ struct FInertializationPose
 	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName& InAttachParentName, float InDeltaTime);
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 template <>
 struct TUseBitwiseSwap<FInertializationPose>
 {
 	enum { Value = false };
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-// Structure for storing a pose snapshot sparsely (i.e. when we may not have the full set of transform for every bone)
+// Internal private structure used for storing a pose snapshots sparsely (i.e. when we may not have the full set of transform for every bone)
 struct FInertializationSparsePose
 {
 	friend struct FAnimNode_Inertialization;
@@ -242,11 +233,12 @@ struct FInertializationSparsePose
 
 private:
 
+	// Transform of the component at the point of the snapshot
 	FTransform ComponentTransform;
 	
 	// For each SkeletonPoseBoneIndex this array stores the index into the BoneTranslations, BoneRotations, and 
 	// BoneScales arrays which contains that bone's data. Or INDEX_NONE if this bone's data is not in the snapshot.
-	TArray<uint16> BoneIndices;
+	TArray<int32> BoneIndices;
 	
 	// Bone translation Data
 	TArray<FVector> BoneTranslations;
@@ -260,16 +252,19 @@ private:
     // Curve Data
 	FInertializationCurve Curves;
 
-	FName AttachParentName;
-	float DeltaTime;
+	// Attached Parent object Name
+	FName AttachParentName = NAME_None;
+	
+	// Delta Time since last snapshot
+	float DeltaTime = 0.0f;
 
-	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName& InAttachParentName, float InDeltaTime);
+	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName InAttachParentName, const float InDeltaTime);
 	bool IsEmpty() const;
 	void Empty();
 };
 
 USTRUCT()
-struct FInertializationBoneDiff
+struct UE_DEPRECATED(5.4, "Internal private pose difference storage is now used by inertialization.") FInertializationBoneDiff
 {
 	GENERATED_BODY()
 
@@ -328,9 +323,8 @@ struct FInertializationCurveDiffElement : public UE::Anim::FCurveElement
 	}
 };
 
-
 USTRUCT()
-struct FInertializationPoseDiff
+struct UE_DEPRECATED(5.4, "Internal private pose difference storage is now used by inertialization.") FInertializationPoseDiff
 {
 	GENERATED_BODY()
 
@@ -346,29 +340,11 @@ struct FInertializationPoseDiff
 		InertializationSpace = EInertializationSpace::Default;
 	}
 
-	// Initialize the pose difference from the current pose and the two previous snapshots
-	//
-	// Pose								the current frame's pose
-	// ComponentTransform				the current frame's component to world transform
-	// AttachParentName					the current frame's attach parent name (for checking if the attachment has changed)
-	// Prev1							the previous frame's pose
-	// Prev2							the pose from two frames before
-	// CurveFilter						filter for curves we don't want to inertialize
-	//
-	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& Curves, const FTransform& ComponentTransform, const FName& AttachParentName, const FInertializationPose& Prev1, const FInertializationPose& Prev2, const UE::Anim::FCurveFilter& CurveFilter);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
-	// Apply this difference to a pose, decaying over time as InertializationElapsedTime approaches InertializationDuration
-	//
-	// Pose								[in/out] the current frame's pose
-	// Curves							[in/out] the current frame's animation curves
-	// InertializationElapsedTime		time elapsed since the start of the inertialization
-	// InertializationDuration			total inertialization duration (used for curves)
-	// InertializationDurationPerBone	inertialization duration per bone (indexed by skeleton bone index) (used for pose)
-	//
+	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& Curves, const FTransform& ComponentTransform, const FName& AttachParentName, const FInertializationPose& Prev1, const FInertializationPose& Prev2, const UE::Anim::FCurveFilter& CurveFilter);
 	void ApplyTo(FCompactPose& Pose, FBlendedCurve& Curves, float InertializationElapsedTime, float InertializationDuration, TArrayView<const float> InertializationDurationPerBone) const;
 
-	// Get the inertialization space for this pose diff (for debug display)
-	//
 	EInertializationSpace GetInertializationSpace() const
 	{
 		return InertializationSpace;
@@ -376,21 +352,15 @@ struct FInertializationPoseDiff
 
 private:
 
-	static float CalcInertialFloat(float x0, float v0, float t, float t1);
-
-	// Bone differences indexed by skeleton bone index
 	TArray<FInertializationBoneDiff> BoneDiffs;
-
-	// Curve differences
 	TBaseBlendedCurve<FDefaultAllocator, FInertializationCurveDiffElement> CurveDiffs;
-
-	// Inertialization space (local vs world for situations where we wish to correct a world-space discontinuity such as an abrupt orientation change)
 	EInertializationSpace InertializationSpace;
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
-
 USTRUCT(BlueprintInternalUseOnly)
-struct FAnimNode_Inertialization : public FAnimNode_Base
+struct FAnimNode_Inertialization : public FAnimNode_Base, public IBoneReferenceSkeletonProvider
 {
 	GENERATED_BODY()
 
@@ -407,13 +377,15 @@ private:
 	UPROPERTY(EditAnywhere, Category = Filter)
 	TArray<FName> FilteredCurves;
 
-	/**
-	 * Enable this to pre-allocate memory for the node rather than to allocate and deallocate memory when blending
-	 * becomes active and inactive. This improves performance, but causes larger memory usage, in particular when you
-	 * have multiple Inertialization nodes in an animation graph that are not all used at once.
-	 */
-	UPROPERTY(EditAnywhere, Category = Memory)
-	bool bPreallocateMemory = false;
+	// List of bones that should not use inertial blending. These bones will change instantly when the animation switches.
+	UPROPERTY(EditAnywhere, Category = Filter)
+	TArray<FBoneReference> FilteredBones;
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Preallocate Memory has been deprecated.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Preallocate Memory has been deprecated."))
+	bool bPreallocateMemory_DEPRECATED = false;
+#endif
 
 	/**
 	* Clear any active blends if we just became relevant, to avoid carrying over undesired blends.
@@ -432,7 +404,15 @@ private:
 
 public: // FAnimNode_Inertialization
 
-	ENGINE_API FAnimNode_Inertialization();
+	// Note: We need to explicitly disable warnings on these constructors/operators for clang to be happy with deprecated variables
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ENGINE_API FAnimNode_Inertialization() = default;
+	ENGINE_API ~FAnimNode_Inertialization() = default;
+	ENGINE_API FAnimNode_Inertialization(const FAnimNode_Inertialization&) = default;
+	ENGINE_API FAnimNode_Inertialization(FAnimNode_Inertialization&&) = default;
+	ENGINE_API FAnimNode_Inertialization& operator=(const FAnimNode_Inertialization&) = default;
+	ENGINE_API FAnimNode_Inertialization& operator=(FAnimNode_Inertialization&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	// Request to activate inertialization for a duration.
 	// If multiple requests are made on the same inertialization node, the minimum requested time will be used.
@@ -462,29 +442,55 @@ public: // FAnimNode_Base
 
 protected:
 
-	// Start Inertialization
-	//
-	// Computes the inertialization pose difference from the current pose and the two previous poses (to capture velocity).  This function
-	// is virtual so that a derived class could optionally regularize the pose snapshots to align better with the current frame's pose
-	// before computing the inertial difference (for example to correct for instantaneous changes in the root relative to its children).
-	//
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	UE_DEPRECATED(5.4, "This function is longer called by the node internally as inertialization method is now private.")
 	ENGINE_API virtual void StartInertialization(FPoseContext& Context, FInertializationPose& PreviousPose1, FInertializationPose& PreviousPose2, float Duration, TArrayView<const float> DurationPerBone, /*OUT*/ FInertializationPoseDiff& OutPoseDiff);
 
-	// Apply Inertialization
-	//
-	// Applies the inertialization pose difference to the current pose (feathering down to zero as ElapsedTime approaches Duration).  This
-	// function is virtual so that a derived class could optionally adjust the pose based on any regularization done in StartInertialization.
-	//
+	UE_DEPRECATED(5.4, "This function is longer called by the node internally as inertialization method is now private.")
 	ENGINE_API virtual void ApplyInertialization(FPoseContext& Context, const FInertializationPoseDiff& PoseDiff, float ElapsedTime, float Duration, TArrayView<const float> DurationPerBone);
 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 private:
 
-	// Snapshots of the actor pose from past frames
-	TArray<FInertializationPose> PoseSnapshots;
+	/**
+	 * Deactivates the inertialization and frees any temporary memory.
+	 */
+	void Deactivate();
+
+	/**
+	 * Computes the inertialization pose difference between the current pose and the previous pose and computes the velocity of this difference.
+	 *
+	 * @param InPose				The current pose for the animation being transitioned to.
+	 * @param InCurves				The current curves for the animation being transitioned to.
+	 * @param ComponentTransform	The component transform of the current pose
+	 * @param AttachParentName		The name of the attached parent object
+	 * @param PreviousPose1			The pose recorded as output of the inertializer on the previous frame.
+	 * @param PreviousPose2			The pose recorded as output of the inertializer two frames ago.
+	 */
+	void InitFrom(
+		const FCompactPose& InPose, 
+		const FBlendedCurve& InCurves, 
+		const FTransform& ComponentTransform, 
+		const FName AttachParentName, 
+		const FInertializationSparsePose& PreviousPose1, 
+		const FInertializationSparsePose& PreviousPose2);
+
+	/**
+	 * Applies the inertialization difference to the given pose (decaying to zero as ElapsedTime approaches Duration)
+	 *
+	 * @param InOutPose		The current pose to blend with the extrapolated pose.
+	 * @param InOutCurves	The current curves to blend with the extrapolated curves.
+	 */
+	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves);
+
+	// Snapshots of the actor pose generated as output.
+	FInertializationSparsePose PrevPoseSnapshot;
+	FInertializationSparsePose CurrPoseSnapshot;
 
 	// Elapsed delta time between calls to evaluate
-	float DeltaTime;
+	float DeltaTime = 0.0f;
 
 	// Pending inertialization requests
 	UPROPERTY(Transient)
@@ -493,36 +499,52 @@ private:
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
 
-	// Teleport type
-	ETeleportType TeleportType;
-
 	// Inertialization state
-	EInertializationState InertializationState;
+	EInertializationState InertializationState = EInertializationState::Inactive;
 
 	// Amount of time elapsed during the Inertialization
-	float InertializationElapsedTime;
+	float InertializationElapsedTime = 0.0f;
 
 	// Inertialization duration for the main inertialization request (used for curve blending and deficit tracking)
-	float InertializationDuration;
+	float InertializationDuration = 0.0f;
 
 	// Inertialization durations indexed by skeleton bone index (used for per-bone blending)
 	TCustomBoneIndexArray<float, FSkeletonPoseBoneIndex> InertializationDurationPerBone;
 
 	// Maximum of InertializationDuration and all entries in InertializationDurationPerBone (used for knowing when to shutdown the inertialization)
-	float InertializationMaxDuration;
+	float InertializationMaxDuration = 0.0f;
 
 	// Inertialization deficit (for tracking and reducing 'pose melting' when thrashing inertialization requests)
-	float InertializationDeficit;
+	float InertializationDeficit = 0.0f;
 
 	// Inertialization pose differences
-	FInertializationPoseDiff InertializationPoseDiff;
+	TArray<int32> BoneIndices;
+	TArray<FVector3f> BoneTranslationDiffDirection;
+	TArray<float> BoneTranslationDiffMagnitude;
+	TArray<float> BoneTranslationDiffSpeed;
+	TArray<FVector3f> BoneRotationDiffAxis;
+	TArray<float> BoneRotationDiffAngle;
+	TArray<float> BoneRotationDiffSpeed;
+	TArray<FVector3f> BoneScaleDiffAxis;
+	TArray<float> BoneScaleDiffMagnitude;
+	TArray<float> BoneScaleDiffSpeed;
+
+	// Curve differences
+	TBaseBlendedCurve<FDefaultAllocator, FInertializationCurveDiffElement> CurveDiffs;
+
+	// Temporary storage for curve data of the Destination Pose
+	TBaseBlendedCurve<TInlineAllocator<8>, UE::Anim::FCurveElement> PoseCurveData;
+
+public: // IBoneReferenceSkeletonProvider
+	ENGINE_API class USkeleton* GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle) override;
+
+private:
 
 	// Cached curve filter built from FilteredCurves
 	UE::Anim::FCurveFilter CurveFilter;
-	
-	// Reset inertialization timing and state
-	void Deactivate();
 
+	// Cache compact pose bone index for FilteredBones
+	TArray<FCompactPoseBoneIndex, TInlineAllocator<8>> BoneFilter;
 
 // if ANIM_TRACE_ENABLED - these properties are only used for debugging when ANIM_TRACE_ENABLED == 1
 
