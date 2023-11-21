@@ -1185,8 +1185,8 @@ void FRHITransientPageSpanAllocator::Validate()
 
 	// Count free pages
 	uint32 FreeCount = 0;
-	int32 PrevIndex = FreeSpanListHeadIndex;
-	for (int32 Index = GetFirstSpanIndex(); Index != InvalidIndex; Index = PageSpans[Index].NextSpanIndex)
+	uint32 PrevIndex = FreeSpanListHeadIndex;
+	for (uint32 Index = GetFirstSpanIndex(); PageSpans.IsValidIndex(Index); Index = PageSpans[Index].NextSpanIndex)
 	{
 		FPageSpan& Span = PageSpans[Index];
 		check(Span.PrevSpanIndex == PrevIndex);

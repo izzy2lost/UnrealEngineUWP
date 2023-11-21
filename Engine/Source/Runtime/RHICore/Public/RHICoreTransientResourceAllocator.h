@@ -825,7 +825,7 @@ private:
 
 	RHICORE_API void Validate();
 
-	int GetFirstSpanIndex() const
+	uint32 GetFirstSpanIndex() const
 	{
 		return PageSpans[FreeSpanListHeadIndex].NextSpanIndex;
 	}
