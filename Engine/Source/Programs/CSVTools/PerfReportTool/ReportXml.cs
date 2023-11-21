@@ -78,10 +78,10 @@ namespace PerfReportTool
 		{
 
 			string location = System.Reflection.Assembly.GetEntryAssembly().Location.ToLower();
-			string baseDirectory = location.Replace("perfreporttool.exe", "");
+			string baseDirectory = Path.GetDirectoryName(location);
 
 			// Check if this is a debug build, and redirect base dir to binaries if so
-			if (baseDirectory.Contains("\\engine\\source\\programs\\") && baseDirectory.Contains("\\csvtools\\") && baseDirectory.Contains("\\bin\\debug\\"))
+			if (baseDirectory.Contains("\\engine\\source\\programs\\") && baseDirectory.Contains("\\csvtools\\") && baseDirectory.Contains("\\bin\\debug"))
 			{
 				baseDirectory = baseDirectory.Replace("\\engine\\source\\programs\\", "\\engine\\binaries\\dotnet\\");
 				int csvToolsIndex = baseDirectory.LastIndexOf("\\csvtools\\");

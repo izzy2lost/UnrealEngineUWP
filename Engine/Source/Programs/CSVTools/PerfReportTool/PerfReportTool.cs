@@ -228,18 +228,7 @@ namespace PerfReportTool
 		string GetBaseDirectory()
 		{
 			string location = System.Reflection.Assembly.GetEntryAssembly().Location.ToLower();
-
-			string baseDirectory = location;
-			baseDirectory = baseDirectory.Replace("perfreporttool.exe", "");
-
-			string debugSubDir = "\\bin\\debug\\";
-			if (baseDirectory.ToLower().EndsWith(debugSubDir))
-			{
-				// Might be best to use the CSVToSVG from source, but that might not be built, so use the one checked into binaries instead
-				baseDirectory = baseDirectory.Substring(0, baseDirectory.Length - debugSubDir.Length);
-				baseDirectory += "\\..\\..\\..\\..\\Binaries\\DotNET\\CsvTools";
-			}
-			return baseDirectory;
+			return Path.GetDirectoryName(location);
 		}
 
 		void Run(string[] args)
@@ -1841,7 +1830,7 @@ namespace PerfReportTool
 
 		Process LaunchCsvToSvgAsync(string args)
 		{
-			string csvToolPath = GetBaseDirectory() + "/CSVToSVG.exe";
+			string csvToolPath = Path.Combine(GetBaseDirectory(), "CSVToSVG.exe");
 			string binary = csvToolPath;
 
 			// run mono on non-Windows hosts
