@@ -88,6 +88,7 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	virtual bool ShouldCacheLayer(const UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
 
 	// UObject interface
+	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 

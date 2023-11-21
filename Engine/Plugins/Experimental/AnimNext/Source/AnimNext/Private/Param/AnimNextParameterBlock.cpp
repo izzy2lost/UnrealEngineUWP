@@ -25,18 +25,16 @@ void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& 
 	
 	if (VM)
 	{
-		UE::AnimNext::FRigVMRuntimeData* RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::FindRuntimeData(VM);
-		if (RuntimeData == nullptr || RuntimeData->Context.VMHash != VM->GetVMHash())
+		if (TSharedPtr<UE::AnimNext::FRigVMRuntimeData> RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::FindOrAddLocalRuntimeData(VM, GetRigVMExtendedExecuteContext()).Pin())
 		{
-			RuntimeData = UE::AnimNext::FRigVMRuntimeDataRegistry::AddRuntimeData(VM, GetRigVMExtendedExecuteContext());
-			VM->InitializeInstance(RuntimeData->Context, false); // TODO zzz : Temp until VM supports WorkData cached handles using offsets (UE-197067)
-			RuntimeData->Context.VMHash = VM->GetVMHash();
-		}
+			FRigVMExtendedExecuteContext& Context = RuntimeData->Context;
 
-		FRigVMExtendedExecuteContext& Context = RuntimeData->Context;
-		FAnimNextParameterExecuteContext& AnimNextParameterContext = Context.GetPublicDataSafe<FAnimNextParameterExecuteContext>();
-		AnimNextParameterContext.SetParamContextData(InHandle);
-		VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
+			check(Context.VMHash == VM->GetVMHash());
+
+			FAnimNextParameterExecuteContext& AnimNextParameterContext = Context.GetPublicDataSafe<FAnimNextParameterExecuteContext>();
+			AnimNextParameterContext.SetParamContextData(InHandle);
+			VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
+		}
 	}
 }
 
@@ -61,6 +59,16 @@ bool UAnimNextParameterBlock::ShouldCacheLayer(const UE::AnimNext::FParamStackLa
 #endif
 
 	return false;
+}
+
+void UAnimNextParameterBlock::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	if (VM)
+	{
+		UE::AnimNext::FRigVMRuntimeDataRegistry::ReleaseAllVMRuntimeData(VM);
+	}
 }
 
 void UAnimNextParameterBlock::PostLoad()
