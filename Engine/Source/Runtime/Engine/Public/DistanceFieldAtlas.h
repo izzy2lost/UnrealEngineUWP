@@ -208,20 +208,20 @@ class FSparseDistanceFieldMip
 public:
 
 	FSparseDistanceFieldMip() :
-		IndirectionDimensions(FIntVector::ZeroValue),
+		IndirectionDimensions(FInt32Vector::ZeroValue),
 		NumDistanceFieldBricks(0),
-		VolumeToVirtualUVScale(FVector::ZeroVector),
-		VolumeToVirtualUVAdd(FVector::ZeroVector),
-		DistanceFieldToVolumeScaleBias(FVector2D::ZeroVector),
+		VolumeToVirtualUVScale(FVector3f::ZeroVector),
+		VolumeToVirtualUVAdd(FVector3f::ZeroVector),
+		DistanceFieldToVolumeScaleBias(FVector2f::ZeroVector),
 		BulkOffset(0),
 		BulkSize(0)
 	{}
 
-	FIntVector IndirectionDimensions;
+	FInt32Vector IndirectionDimensions;
 	int32 NumDistanceFieldBricks;
-	FVector VolumeToVirtualUVScale;
-	FVector VolumeToVirtualUVAdd;
-	FVector2D DistanceFieldToVolumeScaleBias;
+	FVector3f VolumeToVirtualUVScale;
+	FVector3f VolumeToVirtualUVAdd;
+	FVector2f DistanceFieldToVolumeScaleBias;
 	uint32 BulkOffset;
 	uint32 BulkSize;
 
@@ -250,7 +250,7 @@ class FDistanceFieldVolumeData : public FDeferredCleanupInterface
 public:
 
 	/** Local space bounding box of the distance field volume. */
-	FBox LocalSpaceMeshBounds;
+	FBox3f LocalSpaceMeshBounds;
 
 	/** Whether most of the triangles in the mesh used a two-sided material. */
 	bool bMostlyTwoSided;

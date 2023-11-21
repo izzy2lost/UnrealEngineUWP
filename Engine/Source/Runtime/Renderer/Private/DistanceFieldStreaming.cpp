@@ -1295,7 +1295,7 @@ void EncodeAssetData(const FDistanceFieldAssetState& AssetState, const int32 Rev
 	const FDistanceFieldAssetMipState& MipState = AssetState.ReversedMips[ReversedMipIndex];
 	const int32 MipIndex = AssetState.BuiltData->Mips.Num() - ReversedMipIndex - 1;
 	const FSparseDistanceFieldMip& MipBuiltData = AssetState.BuiltData->Mips[MipIndex];
-	const FVector2D DistanceFieldToVolumeScaleBias = MipBuiltData.DistanceFieldToVolumeScaleBias;
+	const FVector2f DistanceFieldToVolumeScaleBias = MipBuiltData.DistanceFieldToVolumeScaleBias;
 	const int32 NumMips = AssetState.ReversedMips.Num();
 
 	check(NumMips <= DistanceField::NumMips);
@@ -1319,12 +1319,12 @@ void EncodeAssetData(const FDistanceFieldAssetState& AssetState, const int32 Rev
 	FloatVector0.Z = *(const float*)&IntVector0[2];
 	FloatVector0.W = *(const float*)&IntVector0[3];
 
-	FVector4f VolumeToIndirectionScale = FVector4f((FVector3f)MipBuiltData.VolumeToVirtualUVScale, DistanceFieldToVolumeScaleBias.X);
+	FVector4f VolumeToIndirectionScale = FVector4f(MipBuiltData.VolumeToVirtualUVScale, DistanceFieldToVolumeScaleBias.X);
 	VolumeToIndirectionScale.X *= MipBuiltData.IndirectionDimensions.X;
 	VolumeToIndirectionScale.Y *= MipBuiltData.IndirectionDimensions.Y;
 	VolumeToIndirectionScale.Z *= MipBuiltData.IndirectionDimensions.Z;
 
-	FVector4f VolumeToIndirectionAdd = FVector4f((FVector3f)MipBuiltData.VolumeToVirtualUVAdd, DistanceFieldToVolumeScaleBias.Y);
+	FVector4f VolumeToIndirectionAdd = FVector4f(MipBuiltData.VolumeToVirtualUVAdd, DistanceFieldToVolumeScaleBias.Y);
 	VolumeToIndirectionAdd.X *= MipBuiltData.IndirectionDimensions.X;
 	VolumeToIndirectionAdd.Y *= MipBuiltData.IndirectionDimensions.Y;
 	VolumeToIndirectionAdd.Z *= MipBuiltData.IndirectionDimensions.Z;

@@ -411,7 +411,7 @@ void ProcessPrimitiveUpdate(
 
 				IndicesToUpdateInObjectBuffers.Add(UploadIndex);
 
-				const FBox WorldBounds = DistanceFieldData->LocalSpaceMeshBounds.TransformBy(LocalToWorld);
+				const FBox WorldBounds = ((FBox)DistanceFieldData->LocalSpaceMeshBounds).TransformBy(LocalToWorld);
 
 				if (bIsAddOperation)
 				{
@@ -588,12 +588,12 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								float SelfShadowBias;
 								PrimitiveSceneProxy->GetDistanceFieldAtlasData(DistanceFieldData, SelfShadowBias);
 
-								const FBox LocalSpaceMeshBounds = DistanceFieldData->LocalSpaceMeshBounds;
+								const FBox3f LocalSpaceMeshBounds = DistanceFieldData->LocalSpaceMeshBounds;
 			
 								const FMatrix LocalToWorld = PrimAndInst.LocalToWorld;
 
 								{
-									const FBox WorldSpaceMeshBounds = LocalSpaceMeshBounds.TransformBy(LocalToWorld);
+									const FBox WorldSpaceMeshBounds = ((FBox)LocalSpaceMeshBounds).TransformBy(LocalToWorld);
 
 									const FLargeWorldRenderPosition AbsoluteWorldPosition(WorldSpaceMeshBounds.GetCenter());
 
@@ -625,9 +625,9 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 
 								// Uniformly scale our Volume space to lie within [-1, 1] at the max extent
 								// This is mirrored in the SDF encoding
-								const FBox::FReal LocalToVolumeScale = 1.0f / LocalSpaceMeshBounds.GetExtent().GetMax();
+								const FBox3f::FReal LocalToVolumeScale = 1.0f / LocalSpaceMeshBounds.GetExtent().GetMax();
 
-								const FMatrix VolumeToWorld = FScaleMatrix(1.0f / LocalToVolumeScale) * FTranslationMatrix(LocalSpaceMeshBounds.GetCenter()) * LocalToWorld;
+								const FMatrix VolumeToWorld = FScaleMatrix(1.0f / LocalToVolumeScale) * FTranslationMatrix((FVector)LocalSpaceMeshBounds.GetCenter()) * LocalToWorld;
 
 								const FLargeWorldRenderPosition WorldPosition(VolumeToWorld.GetOrigin());
 								const FVector TilePositionOffset = WorldPosition.GetTileOffset();
@@ -644,13 +644,13 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								UploadObjectData[2] = (*(FVector4f*)&WorldToVolumeT.M[1]);
 								UploadObjectData[3] = (*(FVector4f*)&WorldToVolumeT.M[2]);
 
-								const FVector VolumePositionExtent = LocalSpaceMeshBounds.GetExtent() * LocalToVolumeScale;
+								const FVector3f VolumePositionExtent = LocalSpaceMeshBounds.GetExtent() * LocalToVolumeScale;
 
 								// Minimal surface bias which increases chance that ray hit will a surface located between two texels
-								float ExpandSurfaceDistance = (GMeshSDFSurfaceBiasExpand * VolumePositionExtent / FVector(DistanceFieldData->Mips[0].IndirectionDimensions * DistanceField::UniqueDataBrickSize)).Size();
+								float ExpandSurfaceDistance = (GMeshSDFSurfaceBiasExpand * VolumePositionExtent / FVector3f(DistanceFieldData->Mips[0].IndirectionDimensions * DistanceField::UniqueDataBrickSize)).Size();
 
 								const float WSign = DistanceFieldData->bMostlyTwoSided ? -1 : 1;
-								UploadObjectData[4] = FVector4f((FVector3f)VolumePositionExtent, WSign * ExpandSurfaceDistance);
+								UploadObjectData[4] = FVector4f(VolumePositionExtent, WSign * ExpandSurfaceDistance);
 
 								const int32 PrimIdx = PrimAndInst.Primitive->GetIndex();
 								const FPrimitiveBounds& PrimBounds = PrimitiveBounds[PrimIdx];

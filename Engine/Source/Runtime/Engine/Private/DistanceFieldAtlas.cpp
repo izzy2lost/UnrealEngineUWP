@@ -126,7 +126,7 @@ FDistanceFieldAsyncQueue* GDistanceFieldAsyncQueue = NULL;
 #if WITH_EDITOR
 
 // DDC key for distance field data, must be changed when modifying the generation code or data format
-#define DISTANCEFIELD_DERIVEDDATA_VER TEXT("235D7D36-C204-44B7-A44C-D9C67359075C")
+#define DISTANCEFIELD_DERIVEDDATA_VER TEXT("4BD0E980-7212-4093-A14D-2E468CD9FAF3")
 
 FString BuildDistanceFieldDerivedDataKey(const FString& InMeshKey)
 {
@@ -727,7 +727,7 @@ void FDistanceFieldAsyncQueue::Build(FAsyncDistanceFieldTask* Task, FQueuedThrea
 			LODModel,
 			BuildThreadPool,
 			Task->SectionData,
-			Task->GenerateSource->GetRenderData()->Bounds,
+			(FBoxSphereBounds3f)Task->GenerateSource->GetRenderData()->Bounds,
 			Task->DistanceFieldResolutionScale,
 			Task->bGenerateDistanceFieldAsIfTwoSided,
 			*Task->GeneratedVolumeData);

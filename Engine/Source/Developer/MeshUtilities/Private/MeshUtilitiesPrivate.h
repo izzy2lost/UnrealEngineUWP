@@ -61,7 +61,7 @@ private:
 		const FStaticMeshLODResources& LODModel,
 		class FQueuedThreadPool& ThreadPool,
 		const TArray<FSignedDistanceFieldBuildSectionData>& SectionData,
-		const FBoxSphereBounds& Bounds,
+		const FBoxSphereBounds3f& Bounds,
 		float DistanceFieldResolutionScale,
 		bool bGenerateAsIfTwoSided,
 		FDistanceFieldVolumeData& OutData) override;
