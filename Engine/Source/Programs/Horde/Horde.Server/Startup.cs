@@ -1276,6 +1276,10 @@ namespace Horde.Server
 				{
 					return LogEventLevel.Debug;
 				}
+				if (requestPath.Equals("/Horde.Relay.RelayRpc/GetPortMappings", StringComparison.OrdinalIgnoreCase))
+				{
+					return LogEventLevel.Verbose;
+				}
 
 				if (requestPath.StartsWith("/health", StringComparison.OrdinalIgnoreCase))
 				{
