@@ -202,7 +202,9 @@ class FInterpreter
 	{
 		if (Operand.IsConstant())
 		{
-			return State.Constants[Operand.AsConstant().Index].Get();
+			VValue Result = State.Constants[Operand.AsConstant().Index].Get();
+			checkSlow(!Result.IsPlaceholder());
+			return Result;
 		}
 		else
 		{

@@ -16,8 +16,8 @@ struct VFrame;
 
 struct VRestValue
 {
-	VRestValue(const VRestValue&) = delete;
-	VRestValue& operator=(const VRestValue&) = delete;
+	VRestValue(const VRestValue&) = default;
+	VRestValue& operator=(const VRestValue&) = default;
 
 	VRestValue(uint16 SplitDepth)
 	{
