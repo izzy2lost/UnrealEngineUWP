@@ -213,7 +213,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		RedisValue[] ports = portMapping.Ports.Select(x => new RedisValue(Convert.ToString(x.RelayPort))).ToArray();
 		ITransaction transaction = _redis.GetDatabase().CreateTransaction();
 		_ = transaction.SetRemoveAsync(KeyUsedPorts(clusterId), ports);
-		_ = transaction.HashDecrementAsync(KeyPortMappings(clusterId), leaseId);
+		_ = transaction.HashDeleteAsync(KeyPortMappings(clusterId), leaseId);
 		return await transaction.ExecuteAsync();
 	}
 

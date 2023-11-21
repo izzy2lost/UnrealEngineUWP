@@ -169,6 +169,18 @@ public class AgentRelayTests : TestSetup
 	}
 	
 	[TestMethod]
+	public async Task PortMapping_Remove_Async()
+	{
+		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
+		List<PortMapping> portMappings = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(2, portMappings.Count);
+		Assert.IsTrue(await _service.RemovePortMappingAsync("cluster1", _pm3.LeaseId));
+		portMappings = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(1, portMappings.Count);
+	}
+	
+	[TestMethod]
 	public async Task PortAssignment_Simple_Async()
 	{
 		PortMapping newPm = await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
