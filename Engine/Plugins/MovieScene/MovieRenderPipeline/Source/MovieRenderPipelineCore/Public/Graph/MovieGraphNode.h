@@ -223,8 +223,8 @@ public:
 	 * Gets the input pin with the specified name, or nullptr if one could not be found. Most pins on a node are
 	 * "built-in", meaning they ship with the node. Dynamic pins (pins which are not built-in) can potentially have the
 	 * same name as a built-in (eg, the option pins on the Select node). To disambiguate between built-in and dynamic
-	 * pins, specify bIsBuiltInPin = false if trying to fetch a pin that is not built-in. */
-	UMovieGraphPin* GetInputPin(const FName& InPinLabel, const bool bIsBuiltInPin = true) const;
+	 * pins, PinRequirement can be specified. */
+	UMovieGraphPin* GetInputPin(const FName& InPinLabel, const EMovieGraphPinQueryRequirement PinRequirement = EMovieGraphPinQueryRequirement::BuiltInOrDynamic) const;
 
 	/** Gets the output pin with the specified name, or nullptr if one could not be found. */
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;

@@ -184,7 +184,7 @@ TArray<UMovieGraphPin*> UMovieGraphSelectNode::EvaluatePinsToFollow(FMovieGraphE
 
 	// Try getting the value from a connection first
 	bool bGotValueFromConnection = false;
-	if (const UMovieGraphPin* SelectPin = GetInputPin(UE::MovieGraph::SelectNode::SelectedOption))
+	if (const UMovieGraphPin* SelectPin = GetInputPin(UE::MovieGraph::SelectNode::SelectedOption, EMovieGraphPinQueryRequirement::BuiltIn))
 	{
 		if (const UMovieGraphPin* OtherPin = SelectPin->GetFirstConnectedPin())
 		{
@@ -330,7 +330,7 @@ TArray<UMovieGraphPin*> UMovieGraphSelectNode::EvaluatePinsToFollow(FMovieGraphE
 	// Follow the Default branch if no pins match
 	if (PinsToFollow.IsEmpty())
 	{
-		PinsToFollow.Add(GetInputPin(UE::MovieGraph::SelectNode::DefaultBranch));
+		PinsToFollow.Add(GetInputPin(UE::MovieGraph::SelectNode::DefaultBranch, EMovieGraphPinQueryRequirement::BuiltIn));
 	}	
 
 	return PinsToFollow;

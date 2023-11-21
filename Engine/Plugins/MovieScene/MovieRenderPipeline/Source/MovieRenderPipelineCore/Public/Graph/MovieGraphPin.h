@@ -68,6 +68,20 @@ struct FMovieGraphPinProperties
 	}
 };
 
+/** Specifies a restriction on pin properties when searching for a pin on a node. */
+UENUM(BlueprintType)
+enum class EMovieGraphPinQueryRequirement : uint8
+{
+	/** The pin must be built-in, meaning that it is always present on the node. */
+	BuiltIn,
+
+	/** The pin must be dynamic, meaning that it may not always exist on the node. These are typically user-created pins. */
+	Dynamic,
+
+	/** The pin can be either built-in or dynamic. */
+	BuiltInOrDynamic
+};
+
 
 UCLASS()
 class MOVIERENDERPIPELINECORE_API UMovieGraphPin : public UObject

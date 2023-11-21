@@ -286,11 +286,27 @@ UMovieGraphConfig* UMovieGraphNode::GetGraph() const
 	return Cast<UMovieGraphConfig>(GetOuter());
 }
 
-UMovieGraphPin* UMovieGraphNode::GetInputPin(const FName& Label, const bool bIsBuiltInPin) const
+UMovieGraphPin* UMovieGraphNode::GetInputPin(const FName& InPinLabel, const EMovieGraphPinQueryRequirement PinRequirement) const
 {
 	for (UMovieGraphPin* InputPin : InputPins)
 	{
-		if ((InputPin->Properties.Label == Label) && (InputPin->Properties.bIsBuiltIn == bIsBuiltInPin))
+		if (InputPin->Properties.Label != InPinLabel)
+		{
+			continue;
+		}
+
+		if (PinRequirement == EMovieGraphPinQueryRequirement::BuiltInOrDynamic)
+		{
+			return InputPin;
+		}
+
+		const bool bIsBuiltIn = InputPin->Properties.bIsBuiltIn;
+		if ((PinRequirement == EMovieGraphPinQueryRequirement::BuiltIn) && bIsBuiltIn)
+		{
+			return InputPin;
+		}
+		
+		if ((PinRequirement == EMovieGraphPinQueryRequirement::Dynamic) && !bIsBuiltIn)
 		{
 			return InputPin;
 		}
