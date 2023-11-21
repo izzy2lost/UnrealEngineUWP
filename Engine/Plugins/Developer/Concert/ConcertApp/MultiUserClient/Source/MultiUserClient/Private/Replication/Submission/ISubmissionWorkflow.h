@@ -2,12 +2,19 @@
 
 #pragma once
 
-#include "Data/EChangeRevertability.h"
 #include "Data/EChangeUploadability.h"
+#include "Replication/IConcertClientReplicationManager.h"
 
 #include "Delegates/Delegate.h"
+#include "Misc/Optional.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
+
+namespace UE::ConcertSyncClient::Replication
+{
+	struct FChangeStreamRequest;
+	struct FAuthorityChangeRequest;
+}
 
 namespace UE::MultiUserClient
 {
@@ -15,6 +22,13 @@ namespace UE::MultiUserClient
 	struct FSubmitStreamChangesResponse;
 	struct FSubmitAuthorityChangesRequest;
 	struct FSubmitAuthorityChangesResponse;
+
+	/** At least StreamRequest or AuthorityRequest need to be valid to form a valid request */
+	struct FSubmissionParams
+	{
+		TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> StreamRequest;
+		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityRequest;
+	};
 	
 	/**
 	 * Manages the flow of changing stream and authority on the server.
@@ -38,7 +52,7 @@ namespace UE::MultiUserClient
 		 * @note The operation might start and instantly stop before SubmitChanges finishes (e.g. a network request fails to be created instantly).
 		 * @return The operation object if the operation was started
 		 */
-		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() = 0;
+		virtual TSharedPtr<ISubmissionOperation> SubmitChanges(FSubmissionParams Params) = 0;
 
 		/** @return Detailed information about whether Submit can be called */
 		virtual EChangeUploadability GetUploadability() const = 0;

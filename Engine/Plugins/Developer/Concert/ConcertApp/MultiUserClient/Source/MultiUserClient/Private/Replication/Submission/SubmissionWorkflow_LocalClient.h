@@ -25,16 +25,10 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FSubmissionWorkflow_LocalClient(
-			TSharedRef<IConcertSyncClient> InClient,
-			FStreamChangeTracker& InStreamChangeTracker,
-			FAuthorityChangeTracker& InAuthorityChangeTracker,
-			IClientStreamSynchronizer& InStreamSynchronizer,
-			const FGlobalAuthorityCache& InAuthorityCache
-			);
+		FSubmissionWorkflow_LocalClient(TSharedRef<IConcertSyncClient> InClient);
 		
 		//~ Begin ISubmissionWorkflow Interface
-		virtual TSharedPtr<ISubmissionOperation> SubmitChanges() override;
+		virtual TSharedPtr<ISubmissionOperation> SubmitChanges(FSubmissionParams Params) override;
 		virtual EChangeUploadability GetUploadability() const override;
 		//~ End ISubmissionWorkflow Interface
 	
@@ -46,24 +40,11 @@ namespace UE::MultiUserClient
 		/** Used to send authority requests to the server. */
 		const TSharedRef<IConcertSyncClient> Client;
 
-		/** Used to filter out changes that would cause a conflict when submitted. */
-		const FGlobalAuthorityCache& AuthorityCache;
-
-		/** Used to get changes made to the stream */
-		FStreamChangeTracker& StreamChangeTracker;
-		/** Used to get changes made to the authority */
-		FAuthorityChangeTracker& AuthorityChangeTracker;
-
-		/** Used to change the streams */
-		IClientStreamSynchronizer& StreamSynchronizer;
-
 		/**
 		 * Set for as long as there is a SubmitChanges operation in progress.
 		 * Automatically cancels pending promises when destroyed.
 		 */
 		TOptional<TSharedRef<FSingleClientSubmissionOperation>> InProgressOperation;
-
-		FGuid GetLocalClientStreamId() const { return StreamSynchronizer.GetStreamId(); }
 
 		/** Advances the request by requesting authority. */
 		void OnStreamChangeCompleted(
@@ -72,8 +53,6 @@ namespace UE::MultiUserClient
 			ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
 			);
 		void SendAuthorityChangeRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest);
-		
-		FGuid GetLocalClientId() const;
 	};
 }
 

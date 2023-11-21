@@ -9,8 +9,6 @@ namespace UE::MultiUserClient
 		/** Can click the upload button */
 		Ready,
 
-		/** There are no changes to upload */
-		NoChanges,
 		/** A previous upload operation is in progress */
 		InProgress,
 		

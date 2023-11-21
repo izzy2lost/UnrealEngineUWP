@@ -45,8 +45,8 @@ namespace UE::MultiUserClient
 		/** @return Detailed information why the object's authority can or cannot be changed.  */
 		EAuthorityMutability GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const;
 
-		/** Builds a change request from the local changes. */
-		ConcertSyncClient::Replication::FAuthorityChangeRequest BuildChangeRequest(const FGuid& StreamId) const;
+		/** Builds a change request from the local changes, if there are changes. */
+		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> BuildChangeRequest(const FGuid& StreamId) const;
 
 		/** Called entries are added to NewAuthorityStates. NOT called when objects are removed. */
 		DECLARE_MULTICAST_DELEGATE(FOnAuthorityChangeMade);

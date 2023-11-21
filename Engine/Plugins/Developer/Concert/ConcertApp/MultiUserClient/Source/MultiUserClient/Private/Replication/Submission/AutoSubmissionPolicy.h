@@ -5,6 +5,11 @@
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Templates/UnrealTemplate.h"
 
+namespace UE::MultiUserClient
+{
+	class FChangeRequestBuilder;
+}
+
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableReplicationStreamModel;
@@ -12,8 +17,10 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient
 {
-	class FAuthorityChangeTracker;
+	class IClientStreamSynchronizer;
 	class ISubmissionWorkflow;
+	class FAuthorityChangeTracker;
+	class FStreamChangeTracker;
 	
 	/**
 	 * Automatically submits stream and authority changes as the user makes them.
@@ -28,6 +35,7 @@ namespace UE::MultiUserClient
 		
 		FAutoSubmissionPolicy(
 			ISubmissionWorkflow& InSubmissionWorkflow,
+			const FChangeRequestBuilder& InRequestBuilder,
 			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 			FAuthorityChangeTracker& InAuthorityChangeTracker
 			);
@@ -37,6 +45,8 @@ namespace UE::MultiUserClient
 
 		/** Handles performing the submission */
 		ISubmissionWorkflow& SubmissionWorkflow;
+		/** Used to building the requests that are passed to SubmissionWorkflow. */
+		const FChangeRequestBuilder& RequestBuilder;
 
 		/** Informs us when the stream is structurally changed by the user. */
 		ConcertClientSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;

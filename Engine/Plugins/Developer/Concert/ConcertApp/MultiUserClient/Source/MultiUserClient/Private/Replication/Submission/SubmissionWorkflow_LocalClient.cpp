@@ -3,84 +3,59 @@
 #include "SubmissionWorkflow_LocalClient.h"
 
 #include "IConcertSyncClient.h"
-#include "Replication/Authority/AuthorityChangeTracker.h"
-#include "Replication/Stream/StreamChangeTracker.h"
-#include "Replication/Util/GlobalAuthorityCache.h"
-#include "Replication/Util/StreamRequestUtils.h"
+#include "Replication/IConcertClientReplicationManager.h"
 
 namespace UE::MultiUserClient
 {
-	FSubmissionWorkflow_LocalClient::FSubmissionWorkflow_LocalClient(
-		TSharedRef<IConcertSyncClient> InClient,
-		FStreamChangeTracker& InStreamChangeTracker,
-		FAuthorityChangeTracker& InAuthorityChangeTracker,
-		IClientStreamSynchronizer& InStreamSynchronizer,
-		const FGlobalAuthorityCache& InAuthorityCache
-		)
+	FSubmissionWorkflow_LocalClient::FSubmissionWorkflow_LocalClient(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))
-		, AuthorityCache(InAuthorityCache)
-		, StreamChangeTracker(InStreamChangeTracker)
-		, AuthorityChangeTracker(InAuthorityChangeTracker)
-		, StreamSynchronizer(InStreamSynchronizer)
 	{}
 
 	EChangeUploadability FSubmissionWorkflow_LocalClient::GetUploadability() const
 	{
 		const bool bOperationInProgress = InProgressOperation.IsSet(); 
-		if (bOperationInProgress)
-		{
-			return EChangeUploadability::InProgress;
-		}
-
-		const bool bHasChanges = StreamChangeTracker.HasChanges() || AuthorityChangeTracker.HasChanges();
-		return bHasChanges ? EChangeUploadability::Ready : EChangeUploadability::NoChanges;
+		return bOperationInProgress ? EChangeUploadability::InProgress : EChangeUploadability::Ready;
 	}
 
-	TSharedPtr<ISubmissionOperation> FSubmissionWorkflow_LocalClient::SubmitChanges()
+	TSharedPtr<ISubmissionOperation> FSubmissionWorkflow_LocalClient::SubmitChanges(FSubmissionParams Params)
 	{
 		using namespace ConcertSyncClient::Replication;
+		
+		const TOptional<FChangeStreamRequest>& StreamRequest = Params.StreamRequest;
+		TOptional<FAuthorityChangeRequest>& AuthorityRequest = Params.AuthorityRequest;
+		const bool bIsStreamChangeEmpty = !StreamRequest.IsSet() || StreamRequest->IsEmpty();
+		const bool bIsAuthorityChangeEmpty = !AuthorityRequest.IsSet() || AuthorityRequest->IsEmpty();
+		
+		const bool bPointlessRequest = bIsStreamChangeEmpty && bIsAuthorityChangeEmpty;
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
-		if (!CanSubmit() || !ensure(ReplicationManager))
+		if (bPointlessRequest || !CanSubmit() || !ensure(ReplicationManager))
 		{
 			return nullptr;
 		}
 		
-		// The authority request is pre-built now to avoid sending changes the local client makes while we're waiting for the latent server responses
-		FAuthorityChangeRequest AuthorityChangeRequest = AuthorityChangeTracker.BuildChangeRequest(GetLocalClientStreamId());
-		
-		const FStreamChangelist& Changelist = StreamChangeTracker.GetCachedDeltaChange();
-		const bool bIsChangelistEmpty = Changelist.ObjectsToPut.IsEmpty() && Changelist.ObjectsToRemove.IsEmpty();
-		const bool bModifyStreams = !bIsChangelistEmpty;
-		
+		const bool bModifyStreams = !bIsStreamChangeEmpty;
 		const TSharedRef<FSingleClientSubmissionOperation> Operation = MakeShared<FSingleClientSubmissionOperation>(bModifyStreams);
 		InProgressOperation.Emplace(Operation);
 		
-		if (bIsChangelistEmpty)
+		if (bIsStreamChangeEmpty)
 		{
 			const FSubmitStreamChangesResponse CompletedChange { EStreamSubmissionErrorCode::NoChange };
 			Operation->EmplaceStreamPromise(CompletedChange);
 			StreamRequestCompletedDelegate.Broadcast(CompletedChange);
 			
-			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
+			SendAuthorityChangeRequest(MoveTemp(*AuthorityRequest));
 		}
 		else
 		{
-			FChangeStreamRequest StreamRequest = StreamSynchronizer.GetServerState().ReplicatedObjects.IsEmpty()
-				? StreamRequestUtils::BuildChangeRequest_CreateNewStream(GetLocalClientStreamId(), Changelist)
-				: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(Changelist);
-			
-			// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
-			AuthorityCache.CleanseConflictsFromStreamRequest(StreamRequest, GetLocalClientId());
-		
-			ReplicationManager->ChangeStream(StreamRequest)
-				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), StreamRequest, AuthorityChangeRequest = MoveTemp(AuthorityChangeRequest)](FChangeStreamResponse&& Response)
+			ReplicationManager->ChangeStream(*StreamRequest)
+				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), StreamRequest, AuthorityRequest = MoveTemp(*AuthorityRequest)](FChangeStreamResponse&& Response)
 				{
-					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{StreamRequest, Response } } };
+					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{*StreamRequest, Response } } };
 					// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 					// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
 					if (DestructionDetection.IsValid())
 					{
-						OnStreamChangeCompleted(StreamRequest, Response, AuthorityChangeRequest);
+						OnStreamChangeCompleted(*StreamRequest, Response, AuthorityRequest);
 					}
 
 					return SubmissionResult;
@@ -148,9 +123,6 @@ namespace UE::MultiUserClient
 			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
 			return;
 		}
-
-		// Predict conflicts in case the remote client's streams have changed. Also: while the UI highlights "bad" requests, it does not correct it.
-		AuthorityCache.CleanseConflictsFromAuthorityRequest(AuthorityChangeRequest, GetLocalClientId());
 		
 		FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest };
 		Operation->EmplaceAuthorityRequestPromise(Request);
@@ -170,10 +142,5 @@ namespace UE::MultiUserClient
 					AuthorityRequestCompletedDelegate.Broadcast(Request, Result);
 				}
 			});
-	}
-	
-	FGuid FSubmissionWorkflow_LocalClient::GetLocalClientId() const
-	{
-		return Client->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId();
 	}
 }

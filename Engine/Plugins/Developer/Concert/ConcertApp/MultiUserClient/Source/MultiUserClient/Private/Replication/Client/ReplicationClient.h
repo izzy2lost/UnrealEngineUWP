@@ -7,6 +7,7 @@
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/AutoSubmissionPolicy.h"
+#include "Replication/Submission/ChangeRequestBuilder.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 
 #include "Templates/SharedPointer.h"
@@ -32,16 +33,13 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		/** Indirection for creating ISubmissionWorkflow because some ISubmissionWorkflow implementations needs members constructed in FReplicationClient. */
-		using FMakeSubmissionWorkflow = TUniquePtr<ISubmissionWorkflow>(FStreamChangeTracker&, FAuthorityChangeTracker&, IClientStreamSynchronizer&);
-
 		FReplicationClient(
 			const FGuid& EndpointId,
 			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
-			TFunctionRef<FMakeSubmissionWorkflow> MakeSubmissionWorkflowFunc
+			TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
 			);
 		~FReplicationClient();
 
@@ -87,6 +85,8 @@ namespace UE::MultiUserClient
 		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;
 		/** Keeps the client's authority state on the server in sync.*/
 		TUniquePtr<IClientAuthoritySynchronizer> AuthoritySynchronizer;
+		/** Handles the logic of submitting and reverting for this client. */
+		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.
@@ -104,8 +104,8 @@ namespace UE::MultiUserClient
 		/** Tracks changes made to the client's authority state. */
 		FAuthorityChangeTracker LocalAuthorityDiffer;
 		
-		/** Handles the logic of submitting and reverting for this client. */
-		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
+		/** Shared logic for building stream and authority change requests based on local change made. */
+		FChangeRequestBuilder ChangeRequestBuilder;
 		/** Automatically submits changes as they are made by the user. */
 		FAutoSubmissionPolicy AutoSubmissionPolicy;
 

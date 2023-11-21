@@ -44,6 +44,8 @@ struct FConcertReplication_ChangeAuthority_Request
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertStreamArray> ReleaseAuthority;
+
+	bool IsEmpty() const { return TakeAuthority.IsEmpty() && ReleaseAuthority.IsEmpty(); }
 };
 
 USTRUCT()

@@ -118,6 +118,8 @@ struct FConcertReplication_ChangeStream_Request
 	UPROPERTY()
 	TSet<FGuid> StreamsToRemove;
 
+	bool IsEmpty() const { return ObjectsToRemove.IsEmpty() && ObjectsToPut.IsEmpty() && StreamsToAdd.IsEmpty() && StreamsToRemove.IsEmpty(); }
+
 	friend bool operator==(const FConcertReplication_ChangeStream_Request& Left, const FConcertReplication_ChangeStream_Request& Right)
 	{
 		const auto OrderIndependentEquals = [](const auto& Left, const auto& Right){ return Left.Num() == Right.Num() && Left.Includes(Right); };

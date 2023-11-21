@@ -88,10 +88,14 @@ namespace UE::MultiUserClient
 		return AuthoritySynchronizer.GetChangeAuthorityMutability(ObjectPath);
 	}
 
-	ConcertSyncClient::Replication::FAuthorityChangeRequest FAuthorityChangeTracker::BuildChangeRequest(const FGuid& StreamId) const
+	TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> FAuthorityChangeTracker::BuildChangeRequest(const FGuid& StreamId) const
 	{
+		if (NewAuthorityStates.IsEmpty())
+		{
+			return {};
+		}
+		
 		ConcertSyncClient::Replication::FAuthorityChangeRequest ChangeRequest;
-
 		for (const TPair<FSoftObjectPath, bool>& NewAuthorityState : NewAuthorityStates)
 		{
 			if (NewAuthorityState.Value)
