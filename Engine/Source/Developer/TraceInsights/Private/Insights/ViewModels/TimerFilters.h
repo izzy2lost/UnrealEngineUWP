@@ -10,8 +10,8 @@ namespace Insights
 
 class FTimerNameFilterState : public FFilterState
 {
-
 	INSIGHTS_DECLARE_RTTI(FTimerNameFilterState, FFilterState)
+
 public:
 	FTimerNameFilterState(TSharedRef<FFilter> InFilter)
 		: FFilterState(InFilter)
