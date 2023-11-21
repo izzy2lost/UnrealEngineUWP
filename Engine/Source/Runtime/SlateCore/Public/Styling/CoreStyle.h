@@ -96,6 +96,7 @@ namespace CoreStyleConstants
 	inline const UE::Slate::FDeprecateVector2DResult Icon22x22(22.0f, 22.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon24x24(24.0f, 24.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon25x25(25.0f, 25.0f);
+	inline const UE::Slate::FDeprecateVector2DResult Icon26x26(26.0f, 26.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon32x32(32.0f, 32.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon40x40(40.0f, 40.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon64x64(64.0f, 64.0f);
