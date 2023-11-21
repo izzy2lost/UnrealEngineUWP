@@ -291,9 +291,9 @@ public:
 	 */
 	TSet<int>&& ExtractFinalTriangleROI()
 	{
-		return MoveTemp(TriangleROI);
 		EdgeROI.Reset();
 		VertexROI.Reset();
+		return MoveTemp(TriangleROI);
 	}
 
 
