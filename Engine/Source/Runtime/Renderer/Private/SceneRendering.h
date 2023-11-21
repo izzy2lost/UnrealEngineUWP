@@ -47,6 +47,7 @@
 #include "SceneInterface.h"
 #include "Async/Mutex.h"
 #include "LocalFogVolumeRendering.h"
+#include "Nanite/NaniteShared.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstanceBufferUtil.h"
@@ -100,6 +101,7 @@ extern bool ShouldUseStereoLumenOptimizations();
 
 DECLARE_GPU_DRAWCALL_STAT_EXTERN(VirtualTextureUpdate);
 DECLARE_GPU_STAT_NAMED_EXTERN(Postprocessing, TEXT("Postprocessing"))
+DECLARE_GPU_STAT_NAMED_EXTERN(CustomRenderPasses, TEXT("CustomRenderPasses"))
 
 /** Mobile only. Information used to determine whether static meshes will be rendered with CSM shaders or not. */
 class FMobileCSMVisibilityInfo
@@ -2016,14 +2018,18 @@ public:
 	/** The views being rendered. */
 	TArray<FViewInfo> Views;
 
-	/** Information of a scene capture that renders as part of the main renderer. */
-	struct FSceneCaptureRenderPassInfo
+	/** Information of a custom render pass that renders as part of the main renderer. */
+	struct FCustomRenderPassInfo
 	{
+		/** Custom render pass that render as part of the main renderer. */
+		FCustomRenderPass* CustomRenderPass;
+		/** Views used to render the custom render pass. */
 		TArray<FViewInfo> Views;
+		FNaniteShadingCommands NaniteBasePassShadingCommands;
 	};
-	TArray<FSceneCaptureRenderPassInfo> SceneCaptureRenderPassInfos;
+	TArray<FCustomRenderPassInfo> CustomRenderPassInfos;
 
-	/** All views include main camera views and scene capture views. */
+	/** All views include main camera views and custom render pass views. */
 	TArray<FViewInfo*> AllViews;
 
 	/** Views across all view families (may contain additional views if rendering multiple families together). */
@@ -2595,6 +2601,8 @@ struct FForwardScreenSpaceShadowMaskTextureMobileOutputs
 
 extern FForwardScreenSpaceShadowMaskTextureMobileOutputs GScreenSpaceShadowMaskTextureMobileOutputs;
 
+typedef TArray<FRDGTextureRef, TInlineAllocator<6>> FColorTargets;
+
 /**
  * Renderer that implements simple forward shading and associated features.
  */
@@ -2650,6 +2658,8 @@ protected:
 	void RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FSceneTextures& SceneTextures, bool bIsSceneCaptureRenderPass=false);
 
 	void RenderMobileLocalLightsBuffer(FRDGBuilder& GraphBuilder, FSceneTextures& SceneTextures, const FSortedLightSetSceneInfo& SortedLights);
+
+	void RenderCustomRenderPassBasePass(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef ViewFamilyTexture, FSceneTextures& SceneTextures);
 
 	/** Renders the opaque base pass for mobile. */
 	void RenderMobileBasePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams);
@@ -2711,6 +2721,11 @@ protected:
 	void RenderPixelProjectedReflection(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneColorTexture, FRDGTextureRef SceneDepthTexture, FRDGTextureRef PixelProjectedReflectionTexture, const FPlanarReflectionSceneProxy* PlanarReflectionSceneProxy);
 
 	void RenderMobileShadowProjections(FRDGBuilder& GraphBuilder);
+
+	FRenderTargetBindingSlots InitRenderTargetBindings_Deferred(FSceneTextures& SceneTextures, FColorTargets& ColorTargets);
+	FRenderTargetBindingSlots InitRenderTargetBindings_Forward(FRDGTextureRef ViewFamilyTexture, FSceneTextures& SceneTextures);
+	FColorTargets GetColorTargets_Deferred(FSceneTextures& SceneTextures);
+
 private:
 	const bool bGammaSpace;
 	const bool bDeferredShading;

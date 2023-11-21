@@ -93,8 +93,6 @@ public:
 	virtual bool IsMaterialValid(const UMaterialInterface* Mat)const { return Mat != nullptr; }
 
 	// Determine if we are rendering into an opaque only view
-	// This is an optimization for depth only scene capture which render in the main pass.
-	// These captures will have SceneCaptureRenderTarget set on the view, no other capture type does this.
 	static NIAGARA_API bool IsViewRenderingOpaqueOnly(const FSceneView* View, bool bCastsVolumetricTranslucentShadow);
 	static NIAGARA_API bool AreViewsRenderingOpaqueOnly(const TArray<const FSceneView*>& Views, int32 ViewVisibilityMask, bool bCastsVolumetricTranslucentShadow);
 

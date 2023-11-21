@@ -29,4 +29,8 @@ void UpdateWaterInfoRendering(
 void UpdateWaterInfoRendering2(
 	FSceneView& InView, 
 	const TMap<AWaterZone*, UE::WaterInfo::FRenderingContext>& WaterInfoContexts);
+
+void UpdateWaterInfoRendering_CustomRenderPass(
+	FSceneInterface* Scene,
+	const FRenderingContext& Context);
 }

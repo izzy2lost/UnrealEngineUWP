@@ -96,6 +96,7 @@
 #include "MeshDrawCommandStats.h"
 #include "LocalFogVolumeRendering.h"
 #include "OIT/OIT.h"
+#include "Rendering/CustomRenderPass.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -2754,34 +2755,36 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		}
 	}
 
-	SceneCaptureRenderPassInfos.Empty(Scene->SceneCaptureInfos.Num());
-	SceneCaptureRenderPassInfos.AddDefaulted(Scene->SceneCaptureInfos.Num());
+	CustomRenderPassInfos.Empty(Scene->CustomRenderPassRendererInputs.Num());
+	CustomRenderPassInfos.AddDefaulted(Scene->CustomRenderPassRendererInputs.Num());
 
 	int32 NumSceneCaptureViews = 0;
-	for (int32 i = 0; i < Scene->SceneCaptureInfos.Num(); i++)
+	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i++)
 	{
-		const FScene::FSceneCaptureInfo& CaptureInfo = Scene->SceneCaptureInfos[i];
+		const FScene::FCustomRenderPassRendererInput& PassInput = Scene->CustomRenderPassRendererInputs[i];
+		FCustomRenderPass* CustomRenderPass = PassInput.CustomRenderPass;
+		check(CustomRenderPass);
+		CustomRenderPassInfos[i].CustomRenderPass = CustomRenderPass;
 
 		FSceneViewInitOptions ViewInitOptions;
-		FIntPoint RenderTargetSize = CaptureInfo.RenderTarget->GetSizeXY();
-		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, RenderTargetSize.X, RenderTargetSize.Y));
-		ViewInitOptions.ViewOrigin = CaptureInfo.ViewLocation;
-		ViewInitOptions.ViewRotationMatrix = CaptureInfo.ViewRotationMatrix;
-		ViewInitOptions.ProjectionMatrix = CaptureInfo.ProjectionMatrix;
-		ViewInitOptions.SceneCaptureRenderTarget = CaptureInfo.RenderTarget;
+		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, CustomRenderPass->RenderTargetSize.X, CustomRenderPass->RenderTargetSize.Y));
+		ViewInitOptions.ViewOrigin = PassInput.ViewLocation;
+		ViewInitOptions.ViewRotationMatrix = PassInput.ViewRotationMatrix;
+		ViewInitOptions.ProjectionMatrix = PassInput.ProjectionMatrix;
 		ViewInitOptions.bIsSceneCapture = true;
-		ViewInitOptions.SceneCaptureSource = CaptureInfo.SceneCaptureSource;
 		ViewInitOptions.ViewFamily = &ViewFamily;
-		ViewInitOptions.ViewActor = CaptureInfo.ViewActor;
-		ViewInitOptions.ShowOnlyPrimitives = CaptureInfo.ShowOnlyPrimitives;
-		ViewInitOptions.HiddenPrimitives = CaptureInfo.HiddenPrimitives;
+		ViewInitOptions.ViewActor = PassInput.ViewActor;
+		ViewInitOptions.ShowOnlyPrimitives = PassInput.ShowOnlyPrimitives;
+		ViewInitOptions.HiddenPrimitives = PassInput.HiddenPrimitives;
 
 		FSceneView NewView(ViewInitOptions);
-		FViewInfo* ViewInfo = &SceneCaptureRenderPassInfos[i].Views.Emplace_GetRef(&NewView);
+		FViewInfo* ViewInfo = &CustomRenderPassInfos[i].Views.Emplace_GetRef(&NewView);
 		// Must initialize to have a GPUScene connected to be able to collect dynamic primitives.
 		ViewInfo->DynamicPrimitiveCollector = FGPUScenePrimitiveCollector(&GPUSceneDynamicContext);
 		ViewInfo->bDisableQuerySubmissions = true;
 		ViewInfo->bIgnoreExistingQueries = true;
+		ViewInfo->CustomRenderPass = CustomRenderPass;
+		CustomRenderPass->Views.Add(ViewInfo);
 
 		NumSceneCaptureViews++;
 	}
@@ -2791,7 +2794,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	{
 		AllViews.Add(&Views[i]);
 	}
-	for (FSceneCaptureRenderPassInfo& PassInfo : SceneCaptureRenderPassInfos)
+	for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
 	{
 		for (FViewInfo& View : PassInfo.Views)
 		{
@@ -2802,7 +2805,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	check(!ViewFamily.AllViews.Num());
 	ViewFamily.AllViews.Append(AllViews);
 
-	Scene->SceneCaptureInfos.Reset();
+	Scene->CustomRenderPassRendererInputs.Reset();
 
 	FeatureLevel = Scene->GetFeatureLevel();
 	ShaderPlatform = Scene->GetShaderPlatform();
@@ -2847,7 +2850,7 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 	{
 		FIntPoint FamilySizeUpperBound(0, 0);
 
-		for (const FSceneView* View : ViewFamily.Views)
+		for (const FSceneView* View : ViewFamily.AllViews)
 		{
 			FamilySizeUpperBound.X = FMath::Max(FamilySizeUpperBound.X, View->UnscaledViewRect.Max.X);
 			FamilySizeUpperBound.Y = FMath::Max(FamilySizeUpperBound.Y, View->UnscaledViewRect.Max.Y);
@@ -2869,7 +2872,7 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 
 	FIntPoint FamilySizeUpperBound(0, 0);
 
-	for (const FSceneView* View : ViewFamily.Views)
+	for (const FSceneView* View : ViewFamily.AllViews)
 	{
 		FIntPoint ViewSize = ApplyResolutionFraction(ViewFamily, View->UnconstrainedViewRect.Size(), ResolutionFractionUpperBound);
 		FIntPoint ViewRectMin = QuantizeViewRectMin(FIntPoint(
@@ -3103,7 +3106,7 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 		}
 	}
 
-	for (FSceneCaptureRenderPassInfo& PassInfo : SceneCaptureRenderPassInfos)
+	for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
 	{
 		for (FViewInfo& View : PassInfo.Views)
 		{
@@ -3413,6 +3416,14 @@ FSceneRenderer::~FSceneRenderer()
 {
 	// Manually release references to TRefCountPtrs that are allocated on the mem stack, which doesn't call dtors
 	SortedShadowsForShadowDepthPass.Release();
+
+	for (FCustomRenderPassInfo& Info : CustomRenderPassInfos)
+	{
+		if (Info.CustomRenderPass)
+		{
+			delete Info.CustomRenderPass;
+		}
+	}
 }
 
 IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)

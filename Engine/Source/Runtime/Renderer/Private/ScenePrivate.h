@@ -2769,21 +2769,6 @@ private:
 	FLumenSceneDataMap::TConstIterator NextSceneData;
 };
 
-struct FNaniteShadingCommands
-{
-	using FMetaBufferArray = TArray<FUintVector4, SceneRenderingAllocator>;
-
-	uint32 MaxShadingBin = 0u;
-	uint32 NumCommands = 0u;
-	uint32 BoundTargetMask = 0x0u;
-	FShaderBundleRHIRef ShaderBundle;
-	TArray<FNaniteShadingCommand> Commands;
-	FMetaBufferArray MetaBufferData;
-
-	UE::Tasks::FTask SetupTask;
-	UE::Tasks::FTask BuildCommandsTask;
-};
-
 /** 
  * Renderer scene which is private to the renderer module.
  * Ordinarily this is the renderer version of a UWorld, but an FScene can be created for previewing in editors which don't have a UWorld as well.

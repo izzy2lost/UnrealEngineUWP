@@ -352,16 +352,19 @@ public:
 
 	void RenderBasePass(
 		FRDGBuilder& GraphBuilder,
+		TArrayView<FViewInfo> InViews,
 		FSceneTextures& SceneTextures,
 		const FDBufferTextures& DBufferTextures,
 		FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
 		FRDGTextureRef ForwardShadowMaskTexture,
 		FInstanceCullingManager& InstanceCullingManager,
 		bool bNaniteEnabled,
+		struct FNaniteShadingCommands& NaniteBasePassShadingCommands,
 		const TArrayView<Nanite::FRasterResults>& NaniteRasterResults);
 
 	void RenderBasePassInternal(
 		FRDGBuilder& GraphBuilder,
+		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
 		const FRenderTargetBindingSlots& BasePassRenderTargets,
 		FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
@@ -371,6 +374,7 @@ public:
 		bool bRenderLightmapDensity,
 		FInstanceCullingManager& InstanceCullingManager,
 		bool bNaniteEnabled,
+		struct FNaniteShadingCommands& NaniteBasePassShadingCommands,
 		const TArrayView<Nanite::FRasterResults>& NaniteRasterResults);
 
 	void RenderAnisotropyPass(
@@ -474,10 +478,14 @@ private:
 
 	FORCEINLINE int32 GetViewIndexInScene(const FViewInfo& ViewInfo) const
 	{
-		const FViewInfo* BasePointer = Views.GetData();
-		check(&ViewInfo >= BasePointer && &ViewInfo < BasePointer + Views.Num());
-		int32 ViewIndex = &ViewInfo - BasePointer;
-		return ViewIndex;
+		for (int32 i = 0; i < AllViews.Num(); ++i)
+		{
+			if (AllViews[i] == &ViewInfo)
+				return i;
+		}
+
+		check(false);
+		return -1;
 	}
 
 	FORCEINLINE const FPerViewPipelineState& GetViewPipelineState(const FViewInfo& View) const

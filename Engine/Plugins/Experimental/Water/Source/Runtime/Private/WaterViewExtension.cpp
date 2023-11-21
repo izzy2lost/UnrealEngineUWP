@@ -25,11 +25,13 @@ static TAutoConsoleVariable<float> CVarLocalTessellationUpdateMargin(
 	TEXT("If the view is less than UpdateMargin units away from the edge, it moves the sliding window forward."),
 	ECVF_Default);
 
+extern void OnCVarWaterInfoSceneProxiesValueChanged(IConsoleVariable*);
 static TAutoConsoleVariable<int32> CVarWaterInfoRenderMethod(
 	TEXT("r.Water.WaterInfo.RenderMethod"),
 	0,
-	TEXT("0: SceneCaptures, 1: Custom"),
-	ECVF_Default);
+	TEXT("0: SceneCaptures, 1: Custom, 2: CustomRenderPasses"),
+	FConsoleVariableDelegate::CreateStatic(OnCVarWaterInfoSceneProxiesValueChanged),
+	ECVF_Default | ECVF_RenderThreadSafe);
 
 // ----------------------------------------------------------------------------------
 
@@ -366,10 +368,16 @@ void FWaterViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& 
 			const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
 			UE::WaterInfo::UpdateWaterInfoRendering(WorldPtr.Get()->Scene, Context);
 		}
+		// Render the water info texture using custom render pass method
+		else if (WaterInfoRenderMethod == 2)
+		{
+			const UE::WaterInfo::FRenderingContext& Context(Pair.Value);
+			UE::WaterInfo::UpdateWaterInfoRendering_CustomRenderPass(WorldPtr.Get()->Scene, Context);
+		}
 	}
 
 	// New method of rendering the water info texture; rendering is done in a separate pass when rendering the main view
-	if (WaterInfoRenderMethod != 0)
+	if (WaterInfoRenderMethod == 1)
 	{
 		UE::WaterInfo::UpdateWaterInfoRendering2(InView, WaterInfoContextsToRender);
 	}

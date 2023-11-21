@@ -403,15 +403,13 @@ bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 }
 
-void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass)
+void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass, FNaniteShadingCommands& ShadingCommands, bool bForceBuildCommands)
 {
 	FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
-	if (ShadingPipelines.bBuildCommands)
+	if (ShadingPipelines.bBuildCommands || bForceBuildCommands)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommands);
 		const auto& Pipelines = ShadingPipelines.GetShadingPipelineMap();
-
-		FNaniteShadingCommands& ShadingCommands = Scene.NaniteShadingCommands[MeshPass];
 
 		ShadingCommands.SetupTask = GraphBuilder.AddSetupTask([&ShadingCommands, &Pipelines]
 		{
@@ -497,7 +495,10 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<F
 
 		}, ShadingCommands.SetupTask);
 
-		ShadingPipelines.bBuildCommands = false;
+		if (!bForceBuildCommands)
+		{
+			ShadingPipelines.bBuildCommands = false;
+		}
 	}
 }
 

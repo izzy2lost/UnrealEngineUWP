@@ -42,6 +42,7 @@
 #include "GenerateMips.h"
 #include "RectLightTexture.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "Rendering/CustomRenderPass.h"
 
 bool GSceneCaptureAllowRenderInMainRenderer = true;
 static FAutoConsoleVariableRef CVarSceneCaptureAllowRenderInMainRenderer(
@@ -214,15 +215,8 @@ void CopySceneCaptureComponentToTarget(
 	{
 		const FViewInfo& View = *Views[ViewIndex];
 
-		// If view has its own scene capture RT, it takes priority over view family RT
-		FRDGTextureRef RenderTarget = View.SceneCaptureRenderTarget ? View.SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder) : ViewFamilyTexture;
-		if (!RenderTarget)
-		{
-			continue;
-		}
-
 		// If view has its own scene capture setting, use it over view family setting
-		ESceneCaptureSource SceneCaptureSource = View.SceneCaptureRenderTarget ? View.SceneCaptureSource : ViewFamily.SceneCaptureSource;
+		ESceneCaptureSource SceneCaptureSource = View.CustomRenderPass ? View.CustomRenderPass->GetSceneCaptureSource() : ViewFamily.SceneCaptureSource;
 		if (bForwardShadingEnabled && (SceneCaptureSource == SCS_Normal || SceneCaptureSource == SCS_BaseColor))
 		{
 			SceneCaptureSource = SCS_SceneColorHDR;
@@ -252,13 +246,13 @@ void CopySceneCaptureComponentToTarget(
 			GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
 		}
 
-		const bool bUse128BitRT = PlatformRequires128bitRT(RenderTarget->Desc.Format);
+		const bool bUse128BitRT = PlatformRequires128bitRT(ViewFamilyTexture->Desc.Format);
 		const FSceneCapturePS::FPermutationDomain PixelPermutationVector = FSceneCapturePS::GetPermutationVector(SceneCaptureSource, bUse128BitRT, IsMobilePlatform(ViewFamily.GetShaderPlatform()));
 
 		FSceneCapturePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSceneCapturePS::FParameters>();
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->SceneTextures = SceneTextures.GetSceneTextureShaderParameters(ViewFamily.GetFeatureLevel());
-		PassParameters->RenderTargets[0] = FRenderTargetBinding(RenderTarget, bIsCompositing ? ERenderTargetLoadAction::ELoad : ERenderTargetLoadAction::ENoAction);
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, bIsCompositing ? ERenderTargetLoadAction::ELoad : ERenderTargetLoadAction::ENoAction);
 
 		TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
 		TShaderMapRef<FSceneCapturePS> PixelShader(View.ShaderMap, PixelPermutationVector);
@@ -833,6 +827,21 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	return FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 }
 
+class FSceneCapturePass : public FCustomRenderPass
+{
+public:
+	FSceneCapturePass()
+		: FCustomRenderPass()
+	{}
+
+	virtual void PreRender(FRDGBuilder& GraphBuilder) override
+	{
+		RenderTargetTexture = SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder);
+	}
+
+	FRenderTarget* SceneCaptureRenderTarget = nullptr;
+};
+
 void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureComponent)
 {
 	check(CaptureComponent);
@@ -898,22 +907,27 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		// As optimization for depth capture modes, render scene capture as additional render passes inside the main renderer.
 		if (GSceneCaptureAllowRenderInMainRenderer && 
 			CaptureComponent->bRenderInMainRenderer && 
-			(CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_DeviceDepth) &&
-			(!IsMobilePlatform(GetShaderPlatform()) || MobileUsesFullDepthPrepass(GetShaderPlatform()))
+			(CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_DeviceDepth)
 			)
 		{
-			FSceneCaptureInfo CaptureInfo;
-			CaptureInfo.ViewLocation = ViewLocation;
-			CaptureInfo.ViewRotationMatrix = ViewRotationMatrix;
-			CaptureInfo.ProjectionMatrix = ProjectionMatrix;
-			CaptureInfo.RenderTarget = TextureRenderTarget->GameThread_GetRenderTargetResource();
-			CaptureInfo.SceneCaptureSource = CaptureComponent->CaptureSource;
-			CaptureInfo.ViewActor = CaptureComponent->GetViewOwner();
+			FCustomRenderPassRendererInput PassInput;
+			PassInput.ViewLocation = ViewLocation;
+			PassInput.ViewRotationMatrix = ViewRotationMatrix;
+			PassInput.ProjectionMatrix = ProjectionMatrix;
+			PassInput.ViewActor = CaptureComponent->GetViewOwner();
 
-			GetShowOnlyAndHiddenComponents(CaptureComponent, CaptureInfo.HiddenPrimitives, CaptureInfo.ShowOnlyPrimitives);
+			FSceneCapturePass* CustomPass = new FSceneCapturePass();
+			CustomPass->RenderMode = FCustomRenderPass::ERenderMode_DepthPass;
+			CustomPass->RenderOutput = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? FCustomRenderPass::ERenderOutput_SceneDepth : FCustomRenderPass::ERenderOutput_DeviceDepth;
+			CustomPass->Name = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? TEXT("SceneCapturePass_SceneDepth") : TEXT("SceneCapturePass_DeviceDepth");
+			CustomPass->SceneCaptureRenderTarget = TextureRenderTarget->GameThread_GetRenderTargetResource();
+			CustomPass->RenderTargetSize = FIntPoint(TextureRenderTarget->GetSurfaceWidth(), TextureRenderTarget->GetSurfaceHeight());
+			PassInput.CustomRenderPass = CustomPass;
+
+			GetShowOnlyAndHiddenComponents(CaptureComponent, PassInput.HiddenPrimitives, PassInput.ShowOnlyPrimitives);
 
 			// Caching scene capture info to be passed to the scene renderer.
-			SceneCaptureInfos.Add(CaptureInfo);
+			CustomRenderPassRendererInputs.Add(PassInput);
 			return;
 		}
 

@@ -580,9 +580,8 @@ void FNiagaraRenderer::ProcessMaterialParameterBindings(const FNiagaraRendererMa
 
 bool FNiagaraRenderer::IsViewRenderingOpaqueOnly(const FSceneView* View, bool bCastsVolumetricTranslucentShadow)
 {
-	const bool bOpaqueSceneCapture = View->bIsSceneCapture && View->SceneCaptureRenderTarget;
 	const bool bShadowView = View->GetDynamicMeshElementsShadowCullFrustum() != nullptr;
-	return bOpaqueSceneCapture || (bShadowView && !bCastsVolumetricTranslucentShadow);
+	return View->CustomRenderPass || (bShadowView && !bCastsVolumetricTranslucentShadow);
 }
 
 bool FNiagaraRenderer::AreViewsRenderingOpaqueOnly(const TArray<const FSceneView*>& Views, int32 ViewVisibilityMask, bool bCastsVolumetricTranslucentShadow)

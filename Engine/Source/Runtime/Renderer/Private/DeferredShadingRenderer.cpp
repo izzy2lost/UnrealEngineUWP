@@ -99,6 +99,7 @@
 #include "SplineMeshSceneResources.h"
 #include "PostProcess/DebugAlphaChannel.h"
 #include "StochasticShadows/StochasticShadows.h"
+#include "Rendering/CustomRenderPass.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -444,6 +445,7 @@ DECLARE_GPU_STAT(HairRendering);
 DEFINE_GPU_DRAWCALL_STAT(VirtualTextureUpdate);
 DECLARE_GPU_STAT(UploadDynamicBuffers);
 DECLARE_GPU_STAT(PostOpaqueExtensions);
+DEFINE_GPU_STAT(CustomRenderPasses);
 
 DECLARE_GPU_STAT_NAMED(NaniteVisBuffer, TEXT("Nanite VisBuffer"));
 
@@ -2361,9 +2363,9 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 	CommitIndirectLightingState();
 
 	// Views pipeline states
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 	{
-		const FViewInfo& View = Views[ViewIndex];
+		const FViewInfo& View = *AllViews[ViewIndex];
 		TPipelineState<FPerViewPipelineState>& ViewPipelineState = GetViewPipelineStateWritable(View);
 
 		// Commit HZB state
@@ -2387,9 +2389,9 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 
 	// Commit all the pipeline states.
 	{
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
-			const FViewInfo& View = Views[ViewIndex];
+			const FViewInfo& View = *AllViews[ViewIndex];
 
 			GetViewPipelineStateWritable(View).Commit();
 		}
@@ -3319,24 +3321,54 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		AddResolveSceneDepthPass(GraphBuilder, InViews, SceneTextures.Depth);
 	};
 
-	for (int32 i = 0; i < SceneCaptureRenderPassInfos.Num(); ++i)
+	FDBufferTextures DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
+
+	if (CustomRenderPassInfos.Num() > 0)
 	{
-		FSceneCaptureRenderPassInfo& PassInfo = SceneCaptureRenderPassInfos[i];
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPasses);
+		RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPasses");
+		RDG_GPU_STAT_SCOPE(GraphBuilder, CustomRenderPasses);
 
-		TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
-		TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
-		FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
-		RenderPrepassAndVelocity(PassInfo.Views, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+		for (int32 i = 0; i < CustomRenderPassInfos.Num(); ++i)
+		{
+			FCustomRenderPass* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
+			TArray<FViewInfo>& CustomRenderPassViews = CustomRenderPassInfos[i].Views;
+			FNaniteShadingCommands& NaniteBasePassShadingCommands = CustomRenderPassInfos[i].NaniteBasePassShadingCommands;
+			check(CustomRenderPass);
 
-		CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, nullptr, ViewFamily, PassInfo.Views);
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPass);
+			RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPass[%d] %s", i, *CustomRenderPass->Name);
+
+			CustomRenderPass->PreRender(GraphBuilder);
+
+			TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
+			TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
+			FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
+			RenderPrepassAndVelocity(CustomRenderPassViews, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+
+			if (CustomRenderPass->RenderMode == FCustomRenderPass::ERenderMode_DepthAndBasePass)
+			{
+				SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
+				SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+
+				// Setup dummy uniform buffer parameters for fog volume.
+				SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
+
+				if (bNaniteEnabled && UseNaniteComputeMaterials())
+				{
+					Nanite::BuildShadingCommands(GraphBuilder, *Scene, CustomRenderPassViews, ENaniteMeshPass::BasePass, NaniteBasePassShadingCommands, true);
+				}
+
+				RenderBasePass(GraphBuilder, CustomRenderPassViews, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, /*ForwardScreenSpaceShadowMaskTexture=*/nullptr, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
+			}
+
+			CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->RenderTargetTexture, ViewFamily, CustomRenderPassViews);
+			CustomRenderPass->PostRender(GraphBuilder);
 
 #if WITH_MGPU
-		const FRenderTarget* RenderTarget = PassInfo.Views.Num() > 0 ? PassInfo.Views[0].SceneCaptureRenderTarget : nullptr;
-		if (RenderTarget)
-		{
-			DoCrossGPUTransfers(GraphBuilder, RenderTarget->GetRenderTargetTexture(GraphBuilder), PassInfo.Views, false, FRHIGPUMask::All());
-		}
+			DoCrossGPUTransfers(GraphBuilder, CustomRenderPass->RenderTargetTexture, CustomRenderPassViews, false, FRHIGPUMask::All());
 #endif
+		}
 	}
 
 	TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
@@ -3346,7 +3378,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Run Nanite compute commands early in the frame to allow some task overlap on the CPU until the base pass runs.
 	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay && UseNaniteComputeMaterials())
 	{
-		Nanite::BuildShadingCommands(GraphBuilder, *Scene, Views, ENaniteMeshPass::BasePass);
+		Nanite::BuildShadingCommands(GraphBuilder, *Scene, Views, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], false);
 	}
 
 	FComputeLightGridOutput ComputeLightGridOutput = {};
@@ -3576,8 +3608,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		ExternalAccessQueue.Submit(GraphBuilder);
 
-		FDBufferTextures DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
-
 		{
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, DeferredShadingSceneRenderer_DBuffer);
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_DBuffer);
@@ -3624,7 +3654,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			if (!bHasRayTracedOverlay)
 			{
-				RenderBasePass(GraphBuilder, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, ForwardScreenSpaceShadowMaskTexture, InstanceCullingManager, bNaniteEnabled, NaniteRasterResults);
+				RenderBasePass(GraphBuilder, Views, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, ForwardScreenSpaceShadowMaskTexture, InstanceCullingManager, bNaniteEnabled, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], NaniteRasterResults);
 				GraphBuilder.AddDispatchHint();
 			}
 

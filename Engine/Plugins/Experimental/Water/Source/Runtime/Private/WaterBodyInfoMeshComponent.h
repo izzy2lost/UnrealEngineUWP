@@ -50,6 +50,8 @@ public:
 		bool bAllowPreCulledIndices,
 		FMeshBatch& OutMeshBatch) const override;
 
+	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
+
 	SIZE_T GetTypeHash() const
 	{
 		static size_t UniquePointer;

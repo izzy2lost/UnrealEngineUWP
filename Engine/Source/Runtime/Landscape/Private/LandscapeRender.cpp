@@ -55,6 +55,7 @@ LandscapeRender.cpp: New terrain rendering
 #include "LandscapeCulling.h"
 #include "RenderGraphBuilder.h"
 #include "Scalability.h"
+#include "Rendering/CustomRenderPass.h"
 
 using namespace UE::Landscape;
 
@@ -386,7 +387,7 @@ void ULandscapeComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMater
  * A return value less than 0 means no override.
  * Any positive value must still be clamped into the valid Lod range for the landscape.
  */
-static int32 GetViewLodOverride(FSceneView const& View)
+static int32 GetViewLodOverride(FSceneView const& View, uint32 LandscapeKey)
 {
 	// Apply r.ForceLOD override
 	int32 LodOverride = GetCVarForceLOD_AnyThread();
@@ -394,6 +395,17 @@ static int32 GetViewLodOverride(FSceneView const& View)
 	LodOverride = View.Family->LandscapeLODOverride >= 0 ? View.Family->LandscapeLODOverride : LodOverride;
 	// Use lod 0 if lodding is disabled
 	LodOverride = View.Family->EngineShowFlags.LOD == 0 ? 0 : LodOverride;
+	
+	if (View.CustomRenderPass && View.CustomRenderPass->UserData)
+	{
+		TOptional<TMap<uint32, int32>>& LandscapeLODOverrides = *(TOptional<TMap<uint32, int32>>*)(View.CustomRenderPass->UserData);
+		if (LandscapeLODOverrides)
+		{
+			int32 LandscapeLODOverride = LandscapeLODOverrides->FindChecked(LandscapeKey);
+			LodOverride = LandscapeLODOverride > -1 ? LandscapeLODOverride : LodOverride;
+		}
+	}
+
 	return LodOverride;
 }
 
@@ -1881,7 +1893,7 @@ FPrimitiveViewRelevance FLandscapeComponentSceneProxy::GetViewRelevance(const FS
 		(IsSelected() && !GLandscapeEditModeActive) ||
 		(GLandscapeViewMode != ELandscapeViewMode::Normal) ||
 		(CVarLandscapeShowDirty.GetValueOnAnyThread() && GLandscapeDirtyMaterial) ||
-		(GetViewLodOverride(*View) >= 0)
+		(GetViewLodOverride(*View, LandscapeKey) >= 0)
 #else
 		IsSelected()
 #endif
@@ -2587,7 +2599,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 						bIsWireframe ||
 #if WITH_EDITOR
 						(IsSelected() && !GLandscapeEditModeActive) ||
-						(GetViewLodOverride(*View) >= 0)
+						(GetViewLodOverride(*View, LandscapeKey) >= 0)
 #else
 						IsSelected()
 #endif
@@ -4227,7 +4239,7 @@ float FLandscapeComponentSceneProxy::ComputeLODForView(const FSceneView& InView)
 {
 	// TODO: this function generates A LOT OF cache misses - it should be much better if we have an event of FTexture2DResource::UpdateTexture
 
-	int32 ViewLODOverride = GetViewLodOverride(InView);
+	int32 ViewLODOverride = GetViewLodOverride(InView, LandscapeKey);
 	float ViewLODDistanceFactor = InView.LODDistanceFactor;
 	bool ViewEngineShowFlagCollisionPawn = InView.Family->EngineShowFlags.CollisionPawn;
 	bool ViewEngineShowFlagCollisionVisibility = InView.Family->EngineShowFlags.CollisionVisibility;

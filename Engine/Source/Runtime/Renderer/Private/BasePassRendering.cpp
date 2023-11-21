@@ -684,13 +684,22 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
 	}
 }
 
+extern void SetupDummyForwardLightUniformParameters(FRDGBuilder& GraphBuilder, FForwardLightData& ForwardLightData, EShaderPlatform ShaderPlatform);
+
 void SetupSharedBasePassParameters(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	bool bLumenGIEnabled,
 	FSharedBasePassUniformParameters& SharedParameters)
 {
-	SharedParameters.Forward = *View.ForwardLightingResources.ForwardLightData;
+	if (View.ForwardLightingResources.ForwardLightData)
+	{
+		SharedParameters.Forward = *View.ForwardLightingResources.ForwardLightData;
+	}
+	else
+	{
+		SetupDummyForwardLightUniformParameters(GraphBuilder, SharedParameters.Forward, View.GetShaderPlatform());
+	}
 
 	SetupFogUniformParameters(GraphBuilder, View, SharedParameters.Fog);
 
@@ -702,7 +711,14 @@ void SetupSharedBasePassParameters(
 	}
 	else
 	{
-		SharedParameters.ForwardISR = *View.ForwardLightingResources.ForwardLightData;
+		if (View.ForwardLightingResources.ForwardLightData)
+		{
+			SharedParameters.ForwardISR = *View.ForwardLightingResources.ForwardLightData;
+		}
+		else
+		{
+			SharedParameters.ForwardISR = SharedParameters.Forward;
+		}
 		SharedParameters.FogISR = SharedParameters.Fog;
 	}
 
@@ -942,12 +958,14 @@ void ModifyBasePassCSPSCompilationEnvironment(const FMeshMaterialShaderPermutati
 
 void FDeferredShadingSceneRenderer::RenderBasePass(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	FSceneTextures& SceneTextures,
 	const FDBufferTextures& DBufferTextures,
 	FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
 	FRDGTextureRef ForwardShadowMaskTexture,
 	FInstanceCullingManager& InstanceCullingManager,
 	bool bNaniteEnabled,
+	FNaniteShadingCommands& NaniteBasePassShadingCommands,
 	const TArrayView<Nanite::FRasterResults>& NaniteRasterResults)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::RenderBasePass);
@@ -994,7 +1012,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		bRequiresFarZQuadClear = false;
 	}
 
-	const bool bIsWireframeRenderpass = ViewFamily.EngineShowFlags.Wireframe && FSceneRenderer::ShouldCompositeEditorPrimitives(Views[0]);
+	const bool bIsWireframeRenderpass = ViewFamily.EngineShowFlags.Wireframe && FSceneRenderer::ShouldCompositeEditorPrimitives(InViews[0]);
 	const bool bDebugViewMode = ViewFamily.UseDebugViewPS();
 	const bool bRenderLightmapDensity = ViewFamily.EngineShowFlags.LightMapDensity && AllowDebugViewmodes();
 	const bool bRenderSkyAtmosphereEditorNotifications = ShouldRenderSkyAtmosphereEditorNotifications();
@@ -1033,7 +1051,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		}
 		else
 		{
-			SceneColorClearValue = FLinearColor(Views[0].BackgroundColor.R, Views[0].BackgroundColor.G, Views[0].BackgroundColor.B, kSceneColorClearAlpha);
+			SceneColorClearValue = FLinearColor(InViews[0].BackgroundColor.R, InViews[0].BackgroundColor.G, InViews[0].BackgroundColor.B, kSceneColorClearAlpha);
 		}
 
 		ERenderTargetLoadAction ColorLoadAction = ERenderTargetLoadAction::ELoad;
@@ -1127,12 +1145,12 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	ForwardBasePassTextures.bIs24BitUnormDepthStencil = ForwardBasePassTextures.SceneDepthIfResolved ? GPixelFormats[ForwardBasePassTextures.SceneDepthIfResolved->Desc.Format].bIs24BitUnormDepthStencil : 1;
 
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_BasePass));
-	RenderBasePassInternal(GraphBuilder, SceneTextures, BasePassRenderTargets, BasePassDepthStencilAccess, ForwardBasePassTextures, DBufferTextures, bDoParallelBasePass, bRenderLightmapDensity, InstanceCullingManager, bNaniteEnabled, NaniteRasterResults);
+	RenderBasePassInternal(GraphBuilder, InViews, SceneTextures, BasePassRenderTargets, BasePassDepthStencilAccess, ForwardBasePassTextures, DBufferTextures, bDoParallelBasePass, bRenderLightmapDensity, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterBasePass));
 
 	for (const TSharedRef<ISceneViewExtension>& ViewExtension : ViewFamily.ViewExtensions)
 	{
-		for (FViewInfo& View : Views)
+		for (FViewInfo& View : InViews)
 		{
 			ViewExtension->PostRenderBasePassDeferred_RenderThread(GraphBuilder, View, BasePassRenderTargets, SceneTextures.UniformBuffer);
 		}
@@ -1140,10 +1158,10 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 
 	if (bRequiresFarZQuadClear)
 	{
-		ClearGBufferAtMaxZ(GraphBuilder, Views, BasePassRenderTargets, SceneColorClearValue);
+		ClearGBufferAtMaxZ(GraphBuilder, InViews, BasePassRenderTargets, SceneColorClearValue);
 	}
 
-	if (ShouldRenderAnisotropyPass(Views))
+	if (ShouldRenderAnisotropyPass(InViews))
 	{
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AnisotropyPass));
 		RenderAnisotropyPass(GraphBuilder, SceneTextures, bEnableParallelBasePasses);
@@ -1153,7 +1171,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 #if !(UE_BUILD_SHIPPING)
 	if (!bForwardShadingEnabled)
 	{
-		StampDeferredDebugProbeMaterialPS(GraphBuilder, Views, BasePassRenderTargets, SceneTextures);
+		StampDeferredDebugProbeMaterialPS(GraphBuilder, InViews, BasePassRenderTargets, SceneTextures);
 	}
 #endif
 }
@@ -1286,6 +1304,7 @@ static void RenderEditorPrimitives(
 
 void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	FRDGBuilder& GraphBuilder,
+	TArrayView<FViewInfo> InViews,
 	const FSceneTextures& SceneTextures,
 	const FRenderTargetBindingSlots& BasePassRenderTargets,
 	FExclusiveDepthStencil::Type BasePassDepthStencilAccess,
@@ -1295,6 +1314,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	bool bRenderLightmapDensity,
 	FInstanceCullingManager& InstanceCullingManager,
 	bool bNaniteEnabled,
+	FNaniteShadingCommands& NaniteBasePassShadingCommands,
 	const TArrayView<Nanite::FRasterResults>& NaniteRasterResults)
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderBasePass);
@@ -1364,7 +1384,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 			{
 				Nanite::DispatchBasePass(
 					GraphBuilder,
-					Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass],
+					NaniteBasePassShadingCommands,
 					*this,
 					SceneTextures,
 					BasePassRenderTargets,
@@ -1401,11 +1421,11 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 			// Should always have a full Z prepass with Nanite
 			check(ShouldRenderPrePass());
 
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
-				FViewInfo& View = Views[ViewIndex];
+				FViewInfo& View = InViews[ViewIndex];
 				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 
 				RenderNaniteBasePass(View, ViewIndex);
 			}
@@ -1414,12 +1434,12 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		if (bRenderLightmapDensity)
 		{
 			// Override the base pass with the lightmap density pass if the viewmode is enabled.
-			RenderLightMapDensities(GraphBuilder, Views, BasePassRenderTargets);
+			RenderLightMapDensities(GraphBuilder, InViews, BasePassRenderTargets);
 		}
 		else if (ViewFamily.UseDebugViewPS())
 		{
 			// Override the base pass with one of the debug view shader mode (see EDebugViewShaderMode) if required.
-			RenderDebugViewMode(GraphBuilder, Views, SceneTextures.QuadOverdraw, BasePassRenderTargets);
+			RenderDebugViewMode(GraphBuilder, InViews, SceneTextures.QuadOverdraw, BasePassRenderTargets);
 		}
 	}
 	else
@@ -1428,16 +1448,16 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		RDG_EVENT_SCOPE(GraphBuilder, "BasePass");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, Basepass);
 
-		const bool bDrawSceneViewsInOneNanitePass = Views.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(Views[0]);
+		const bool bDrawSceneViewsInOneNanitePass = InViews.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(InViews[0]);
 		if (bParallelBasePass)
 		{
 			RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsBasePassWaitForTasksEnabled());
 
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
-				FViewInfo& View = Views[ViewIndex];
+				FViewInfo& View = InViews[ViewIndex];
 				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 				View.BeginRenderView();
 
 				const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
@@ -1503,11 +1523,11 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		}
 		else
 		{
-			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
-				FViewInfo& View = Views[ViewIndex];
+				FViewInfo& View = InViews[ViewIndex];
 				RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
-				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
+				RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, InViews.Num() > 1, "View%d", ViewIndex);
 				View.BeginRenderView();
 
 				const bool bLumenGIEnabled = GetViewPipelineState(View).DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;

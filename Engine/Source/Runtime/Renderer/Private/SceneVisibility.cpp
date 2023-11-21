@@ -5336,7 +5336,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 			View.InitRHIResources();
 		}
 
-		for (FSceneCaptureRenderPassInfo& PassInfo : SceneCaptureRenderPassInfos)
+		for (FCustomRenderPassInfo& PassInfo : CustomRenderPassInfos)
 		{
 			for (FViewInfo& View : PassInfo.Views)
 			{

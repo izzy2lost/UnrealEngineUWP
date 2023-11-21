@@ -289,6 +289,7 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		View.ViewRect = View.UnscaledViewRect;
 		FViewFamilyInfo* ViewFamily = RenderContext.Alloc<FViewFamilyInfo>(*SceneView.Family);
 		ViewFamily->Views.Add(&View);
+		ViewFamily->AllViews.Add(&View);
 		View.Family = ViewFamily;
 
 		// Default init of SceneTexturesConfig will take extents from FSceneTextureExtentState.

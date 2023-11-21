@@ -27,6 +27,7 @@
 
 #include "ScenePrivate.h"
 #include "SceneRendering.h"
+#include "Rendering/CustomRenderPass.h"
 
 static int32 WaterInfoRenderLandscapeMinimumMipLevel = 0;
 static FAutoConsoleVariableRef CVarWaterInfoRenderLandscapeMinimumMipLevel(
@@ -892,6 +893,273 @@ void UpdateWaterInfoRendering2(FSceneView& InView, const TMap<AWaterZone*, UE::W
 
 		InView.WaterInfoTextureRenderingParams.Add(MoveTemp(RenderingParams));
 	}
+}
+
+/** Base class containing common functionalities for all water info passes. */
+class FWaterInfoCustomRenderPassBase : public FCustomRenderPass
+{
+public:
+	FWaterInfoCustomRenderPassBase()
+		: FCustomRenderPass()
+	{}
+
+	void SetLandscapeLODOverrides(const TOptional<TMap<uint32, int32>>& InLandscapeLODOverrides)
+	{
+		// See LandscapeRender.cpp FLandscapeComponentSceneProxy::GetViewLodOverride() where UserData is casted back to LandscapeLODOverrides.
+		LandscapeLODOverrides = InLandscapeLODOverrides;
+		UserData = &LandscapeLODOverrides;
+	}
+
+	TOptional<TMap<uint32, int32>> LandscapeLODOverrides;
+};
+
+class FWaterInfoRenderingDepthPass : public FWaterInfoCustomRenderPassBase
+{
+public:
+	FWaterInfoRenderingDepthPass()
+		: FWaterInfoCustomRenderPassBase()
+	{
+		Name = TEXT("WaterInfoDepthPass");
+		RenderMode = FCustomRenderPass::ERenderMode_DepthPass;
+		RenderOutput = FCustomRenderPass::ERenderOutput_DeviceDepth;
+	}
+
+	virtual void PreRender(FRDGBuilder& GraphBuilder) override
+	{
+		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create2D(RenderTargetSize, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+		RenderTargetTexture = GraphBuilder.CreateTexture(TextureDesc, TEXT("WaterDepthTexture"));
+		AddClearRenderTargetPass(GraphBuilder, RenderTargetTexture, FLinearColor::Black, Views[0]->UnscaledViewRect);
+	}
+};
+
+class FWaterInfoRenderingColorPass : public FWaterInfoCustomRenderPassBase
+{
+public:
+	FWaterInfoRenderingColorPass()
+		: FWaterInfoCustomRenderPassBase()
+	{
+		Name = TEXT("WaterInfoColorPass");
+		RenderMode = FCustomRenderPass::ERenderMode_DepthAndBasePass;
+		RenderOutput = FCustomRenderPass::ERenderOutput_SceneColorAndDepth;
+	}
+
+	virtual void PreRender(FRDGBuilder& GraphBuilder) override
+	{
+		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create2D(RenderTargetSize, PF_A32B32G32R32F, FClearValueBinding::Black, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+		RenderTargetTexture = GraphBuilder.CreateTexture(TextureDesc, TEXT("WaterColorTexture"));
+		AddClearRenderTargetPass(GraphBuilder, RenderTargetTexture, FLinearColor::Black, Views[0]->UnscaledViewRect);
+	}
+};
+
+class FWaterInfoRenderingDilationPass : public FWaterInfoCustomRenderPassBase
+{
+public:
+	FWaterInfoRenderingDilationPass()
+		: FWaterInfoCustomRenderPassBase()
+	{
+		Name = TEXT("WaterInfoDilationPass");
+		RenderMode = FCustomRenderPass::ERenderMode_DepthPass;
+		RenderOutput = FCustomRenderPass::ERenderOutput_DeviceDepth;
+	}
+
+	virtual void PreRender(FRDGBuilder& GraphBuilder) override
+	{
+		const FRDGTextureDesc TextureDesc = FRDGTextureDesc::Create2D(RenderTargetSize, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+		RenderTargetTexture = GraphBuilder.CreateTexture(TextureDesc, TEXT("WaterDilationTexture"));
+		AddClearRenderTargetPass(GraphBuilder, RenderTargetTexture, FLinearColor::Black, Views[0]->UnscaledViewRect);
+	}
+	
+	virtual void PostRender(FRDGBuilder& GraphBuilder) override
+	{
+		FRDGTextureDesc TextureDesc(RenderTargetTexture->Desc);		
+		FRDGTextureRef MergeTargetTexture = GraphBuilder.CreateTexture(TextureDesc, TEXT("WaterInfoMerged"));
+		MergeWaterInfoAndDepth(GraphBuilder, *Views[0]->Family, *Views[0], MergeTargetTexture, DepthPass->RenderTargetTexture, ColorPass->RenderTargetTexture, RenderTargetTexture, Params);
+	
+		FRDGTextureRef FinalizedTexture = GraphBuilder.CreateTexture(RenderTargetTexture->Desc, TEXT("WaterInfoFinalized"));
+		FinalizeWaterInfo(GraphBuilder, *Views[0]->Family, *Views[0], MergeTargetTexture, FinalizedTexture, Params);
+
+		FRDGTextureRef WaterInfoTexture = RegisterExternalTexture(GraphBuilder, WaterInfoRenderTarget->GetRenderTargetTexture(), TEXT("WaterInfoTexture"));
+		AddCopyTexturePass(GraphBuilder, FinalizedTexture, WaterInfoTexture);
+	}
+
+	FRenderTarget* WaterInfoRenderTarget = nullptr;
+	FWaterInfoRenderingDepthPass* DepthPass = nullptr;
+	FWaterInfoRenderingColorPass* ColorPass = nullptr;
+	FUpdateWaterInfoParams Params;
+};
+
+static void GatherLandscapeLODOverrides(const FIntPoint& RenderTargetSize, const FVector& WaterZoneExtents, TOptional<TMap<uint32, int32>>& OutLandscapeLODOverrides)
+{
+	TMap<uint32, FLandscapeRenderSystem*> const* LandscapeRenderSystems = nullptr;
+	if (ILandscapeModule* LandscapeModule = FModuleManager::GetModulePtr<ILandscapeModule>("Landscape"))
+	{
+		if (TSharedPtr<FLandscapeSceneViewExtension, ESPMode::ThreadSafe> LandscapeViewExtension = LandscapeModule->GetLandscapeSceneViewExtension())
+		{
+			LandscapeRenderSystems = &LandscapeViewExtension->GetLandscapeRenderSystems();
+		}
+	}
+
+	if (!LandscapeRenderSystems)
+	{
+		return;
+	}
+
+	OutLandscapeLODOverrides.Emplace();
+
+	// In order to prevent overdrawing the landscape components, we compute the lowest-detailed LOD level which satisfies the pixel coverage of the Water Info texture
+	// and force it on all landscape components. This override is set different per Landscape actor in case there are multiple under the same water zone.
+	//
+	// Ex: If the WaterInfoTexture only has 1 pixel per 100 units, and the highest landscape LOD has 1 vertex per 20 units, we don't need to use the maximum landscape LOD
+	// and can force a lower level of detail (in this case LOD2) while still satisfying the resolution of the water info texture.
+
+	const double MinWaterInfoTextureExtent = (double)FMath::Min(RenderTargetSize.X, RenderTargetSize.Y);
+	const double MaxWaterZoneExtent = FMath::Max(WaterZoneExtents.X, WaterZoneExtents.Y);
+	const double WaterInfoUnitsPerPixel =  MaxWaterZoneExtent / MinWaterInfoTextureExtent;
+
+	for (const TPair<uint32, FLandscapeRenderSystem*>& Pair : *LandscapeRenderSystems)
+	{
+		uint32 LandscapeRenderSystemKey = Pair.Key;
+		FLandscapeRenderSystem* LandscapeRenderSystem = Pair.Value;
+		int32 OptimalLODLevel = INDEX_NONE;
+
+		// All components within the same landscape (and thus its render system) should have the same number of quads and the same extent.
+		// therefore we can simply find the first component and compute its optimal LOD level.
+		for (FLandscapeSectionInfo* LandscapeSectionInfo : LandscapeRenderSystem->SectionInfos)
+		{
+			if (LandscapeSectionInfo != nullptr)
+			{
+				// Double the required landscape resolution to achieve 2 quads per pixel.
+				const double LandscapeComponentUnitsPerQuad = 2.0 * LandscapeSectionInfo->ComputeSectionResolution();
+				if (LandscapeComponentUnitsPerQuad <= 0.f)
+				{
+					// No section resolution probably means the section is a mesh proxy, which might not have regular units per vertex.
+					// Avoid computing optimal LOD in this case.
+					continue;
+				}
+
+				// Derived from:
+				// (ComponentWorldExtent / WaterInfoWorldspaceExtent) * WaterInfoTextureResolution = (NumComponentQuads / 2 ^ (LodLevel))
+				OptimalLODLevel = FMath::Max(WaterInfoRenderLandscapeMinimumMipLevel, FMath::FloorToInt(FMath::Log2(WaterInfoUnitsPerPixel / LandscapeComponentUnitsPerQuad)));
+
+				break;
+			}
+		}
+
+		OutLandscapeLODOverrides->Add(LandscapeRenderSystemKey, OptimalLODLevel);
+	}
+}
+
+void UpdateWaterInfoRendering_CustomRenderPass(
+	FSceneInterface* Scene,
+	const WaterInfo::FRenderingContext& Context)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(WaterInfo::UpdateWaterInfoRendering_CustomRenderPass);
+
+	static auto* CVarRenderCaptureNextWaterInfoDraws = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.WaterInfo.RenderCaptureNextWaterInfoDraws"));
+	int32 RenderCaptureNextWaterInfoDraws = CVarRenderCaptureNextWaterInfoDraws ? CVarRenderCaptureNextWaterInfoDraws->AsVariableInt()->GetValueOnGameThread() : 0;
+	RenderCaptureInterface::FScopedCapture RenderCapture((RenderCaptureNextWaterInfoDraws != 0), TEXT("RenderWaterInfo"));
+	if (RenderCaptureNextWaterInfoDraws != 0)
+	{
+		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
+		CVarRenderCaptureNextWaterInfoDraws->Set(RenderCaptureNextWaterInfoDraws);
+	}
+
+	if (!IsValid(Context.TextureRenderTarget) || Scene == nullptr)
+	{
+		return;
+	}
+
+	const FVector ZoneExtent = Context.ZoneToRender->GetDynamicWaterInfoExtent();
+
+	FVector ViewLocation = Context.ZoneToRender->GetDynamicWaterInfoCenter();
+	ViewLocation.Z = Context.CaptureZ;
+
+	const FBox2D CaptureBounds(FVector2D(ViewLocation - ZoneExtent), FVector2D(ViewLocation + ZoneExtent));
+
+	// Zone rendering always happens facing towards negative z.
+	const FVector LookAt = ViewLocation - FVector(0.f, 0.f, 1.f);
+
+	const FIntPoint RenderTargetSize(Context.TextureRenderTarget->GetSurfaceWidth(), Context.TextureRenderTarget->GetSurfaceHeight());
+
+	FTextureRenderTargetResource* TextureRenderTargetResource = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
+
+	TOptional<TMap<uint32, int32>> LandscapeLODOverrides;
+	GatherLandscapeLODOverrides(RenderTargetSize, ZoneExtent, LandscapeLODOverrides);
+
+	FSceneInterface::FCustomRenderPassRendererInput PassInput;
+	PassInput.ViewLocation = ViewLocation;
+	PassInput.ViewRotationMatrix = FLookAtMatrix(ViewLocation, LookAt, FVector(0.f, -1.f, 0.f));
+	PassInput.ViewRotationMatrix = PassInput.ViewRotationMatrix.RemoveTranslation();
+	PassInput.ViewRotationMatrix.RemoveScaling();
+	PassInput.ProjectionMatrix = BuildOrthoMatrix(ZoneExtent.X, ZoneExtent.Y);
+	PassInput.ViewActor = Context.ZoneToRender;
+
+	TSet<FPrimitiveComponentId> ComponentsToRenderInDepthPass;
+	if (Context.GroundPrimitiveComponents.Num() > 0)
+	{
+		ComponentsToRenderInDepthPass.Reserve(Context.GroundPrimitiveComponents.Num());
+		for (TWeakObjectPtr<UPrimitiveComponent> GroundPrimComp : Context.GroundPrimitiveComponents)
+		{
+			if (GroundPrimComp.IsValid())
+			{
+				ComponentsToRenderInDepthPass.Add(GroundPrimComp.Get()->GetPrimitiveSceneId());
+			}
+		}
+	}
+	PassInput.ShowOnlyPrimitives = MoveTemp(ComponentsToRenderInDepthPass);
+
+	FWaterInfoRenderingDepthPass* DepthPass = new FWaterInfoRenderingDepthPass();
+	DepthPass->RenderTargetSize = RenderTargetSize;
+	DepthPass->SetLandscapeLODOverrides(LandscapeLODOverrides);
+	PassInput.CustomRenderPass = DepthPass;
+	Scene->CustomRenderPassRendererInputs.Add(PassInput);
+
+	TSet<FPrimitiveComponentId> ComponentsToRenderInColorPass;
+	TSet<FPrimitiveComponentId> ComponentsToRenderInDilationPass;
+	if (Context.WaterBodies.Num() > 0)
+	{
+		ComponentsToRenderInColorPass.Reserve(Context.WaterBodies.Num());
+		ComponentsToRenderInDilationPass.Reserve(Context.WaterBodies.Num());
+		for (const UWaterBodyComponent* WaterBodyToRender : Context.WaterBodies)
+		{
+			if (!IsValid(WaterBodyToRender))
+			{
+				continue;
+			}
+
+			// Perform our own simple culling based on the known Capture bounds:
+			const FBox WaterBodyBounds = WaterBodyToRender->Bounds.GetBox();
+			if (CaptureBounds.Intersect(FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max))))
+			{
+				ComponentsToRenderInColorPass.Add(WaterBodyToRender->GetWaterInfoMeshComponent()->GetPrimitiveSceneId());
+				ComponentsToRenderInDilationPass.Add(WaterBodyToRender->GetDilatedWaterInfoMeshComponent()->GetPrimitiveSceneId());
+			}
+		}
+	}
+	PassInput.ShowOnlyPrimitives = MoveTemp(ComponentsToRenderInColorPass);
+	FWaterInfoRenderingColorPass* ColorPass = new FWaterInfoRenderingColorPass();
+	ColorPass->RenderTargetSize = RenderTargetSize;
+	ColorPass->SetLandscapeLODOverrides(LandscapeLODOverrides);
+	PassInput.CustomRenderPass = ColorPass;
+	Scene->CustomRenderPassRendererInputs.Add(PassInput);
+
+	FUpdateWaterInfoParams Params;
+	Params.CaptureZ = ViewLocation.Z;
+	Params.WaterHeightExtents = Context.ZoneToRender->GetWaterHeightExtents();
+	Params.GroundZMin = Context.ZoneToRender->GetGroundZMin();
+	Params.VelocityBlurRadius = Context.ZoneToRender->GetVelocityBlurRadius();
+	Params.WaterZoneExtents = ZoneExtent;
+
+	PassInput.ShowOnlyPrimitives = MoveTemp(ComponentsToRenderInDilationPass);
+	FWaterInfoRenderingDilationPass* DilationPass = new FWaterInfoRenderingDilationPass();
+	DilationPass->DepthPass = DepthPass;
+	DilationPass->ColorPass = ColorPass;
+	DilationPass->WaterInfoRenderTarget = Context.TextureRenderTarget->GameThread_GetRenderTargetResource();
+	DilationPass->RenderTargetSize = RenderTargetSize;
+	DilationPass->SetLandscapeLODOverrides(LandscapeLODOverrides);
+	DilationPass->Params = Params;
+	PassInput.CustomRenderPass = DilationPass;
+	Scene->CustomRenderPassRendererInputs.Add(PassInput);
 }
 
 } // namespace WaterInfo

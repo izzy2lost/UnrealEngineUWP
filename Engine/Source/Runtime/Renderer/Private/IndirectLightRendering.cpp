@@ -458,9 +458,9 @@ static bool ShouldRenderPluginGlobalIllumination(const FViewInfo& View)
 
 void FDeferredShadingSceneRenderer::CommitIndirectLightingState()
 {
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 	{
-		const FViewInfo& View = Views[ViewIndex];
+		const FViewInfo& View = *AllViews[ViewIndex];
 		TPipelineState<FPerViewPipelineState>& ViewPipelineState = GetViewPipelineStateWritable(View);
 
 		EDiffuseIndirectMethod DiffuseIndirectMethod = EDiffuseIndirectMethod::Disabled;

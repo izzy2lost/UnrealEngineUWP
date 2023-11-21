@@ -163,7 +163,7 @@ public:
 		bool bIsReflectionCapture = false;
 		bool bIsVRScene = false;
 
-		for (const FSceneView* View : ViewFamily.Views)
+		for (const FSceneView* View : ViewFamily.AllViews)
 		{
 			bIsSceneCapture |= View->bIsSceneCapture;
 			bIsReflectionCapture |= View->bIsReflectionCapture;
@@ -399,23 +399,23 @@ void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneVie
 
 	bool bRequiresAlphaChannel = ShadingPath == EShadingPath::Mobile ? IsMobilePropagateAlphaEnabled(ViewFamily.GetShaderPlatform()) : false;
 	int32 NumberOfViewsWithMultiviewEnabled = 0;
-	for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < ViewFamily.AllViews.Num(); ViewIndex++)
 	{
 		// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
-		if (ViewFamily.Views[ViewIndex]->bIsPlanarReflection || ViewFamily.Views[ViewIndex]->bIsSceneCapture)
+		if (ViewFamily.AllViews[ViewIndex]->bIsPlanarReflection || ViewFamily.AllViews[ViewIndex]->bIsSceneCapture)
 		{
 			bRequiresAlphaChannel = true;
 		}
 
-		NumberOfViewsWithMultiviewEnabled += (ViewFamily.Views[ViewIndex]->bIsMobileMultiViewEnabled) ? 1 : 0;
+		NumberOfViewsWithMultiviewEnabled += (ViewFamily.AllViews[ViewIndex]->bIsMobileMultiViewEnabled) ? 1 : 0;
 	}
 
-	ensureMsgf(NumberOfViewsWithMultiviewEnabled == 0 || NumberOfViewsWithMultiviewEnabled == ViewFamily.Views.Num(),
+	ensureMsgf(NumberOfViewsWithMultiviewEnabled == 0 || NumberOfViewsWithMultiviewEnabled == ViewFamily.AllViews.Num(),
 		TEXT("Either all or no views in a view family should have multiview enabled. Mixing views with enabled and disabled is not allowed."));
 
-	const bool bAllViewsHaveMultiviewEnabled = NumberOfViewsWithMultiviewEnabled == ViewFamily.Views.Num();
+	const bool bAllViewsHaveMultiviewEnabled = NumberOfViewsWithMultiviewEnabled == ViewFamily.AllViews.Num();
 
-	const bool bNeedsStereoAlloc = ViewFamily.Views.ContainsByPredicate([](const FSceneView* View)
+	const bool bNeedsStereoAlloc = ViewFamily.AllViews.ContainsByPredicate([](const FSceneView* View)
 		{
 			return (IStereoRendering::IsStereoEyeView(*View) && (FindStereoRenderTargetManager() != nullptr));
 		});

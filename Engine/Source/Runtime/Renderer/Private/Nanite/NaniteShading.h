@@ -42,7 +42,9 @@ void BuildShadingCommands(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
 	TArrayView<FViewInfo> Views,
-	ENaniteMeshPass::Type MeshPass
+	ENaniteMeshPass::Type MeshPass,
+	FNaniteShadingCommands& ShadingCommands,
+	bool bForceBuildCommands
 );
 
 bool LoadBasePassPipeline(

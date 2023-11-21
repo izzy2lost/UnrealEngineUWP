@@ -687,19 +687,20 @@ public:
 
 	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) { }
 
-	/** Scene capture info is used to collect scene capture settings and passing to scene views during the renderer construction. */
-	struct FSceneCaptureInfo
+	/** Contains settings used to construct scene view for custom render pass during the renderer construction. */
+	struct FCustomRenderPassRendererInput
 	{
-		FRenderTarget* RenderTarget = nullptr;
+		/** Data used to construct scene view for the custom render pass. */
 		FVector ViewLocation;
 		FMatrix ViewRotationMatrix;
 		FMatrix ProjectionMatrix;
 		TSet<FPrimitiveComponentId> HiddenPrimitives;
 		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
-		ESceneCaptureSource SceneCaptureSource;
 		const AActor* ViewActor = nullptr;
+
+		class FCustomRenderPass* CustomRenderPass = nullptr;
 	};
-	TArray<FSceneCaptureInfo> SceneCaptureInfos;
+	TArray<FCustomRenderPassRendererInput> CustomRenderPassRendererInputs;
 
 protected:
 	virtual ~FSceneInterface() {}
