@@ -418,6 +418,8 @@ void UWaterBodyComponent::UpdateWaterZones(bool bAllowChangesDuringCook /* = fal
 			}
 
 			OwningWaterZone = FoundZone;
+			
+			UpdateMaterialInstances();
 		}
 	}
 }
