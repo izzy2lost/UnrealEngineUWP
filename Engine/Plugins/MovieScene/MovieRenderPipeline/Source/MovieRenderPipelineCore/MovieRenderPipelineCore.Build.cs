@@ -47,6 +47,7 @@ public class MovieRenderPipelineCore : ModuleRules
 		        {
 			        "ClassViewer",
 			        "SceneOutliner",
+			        "UnrealEd",
 		        });
 	        
 			PublicDependencyModuleNames.Add("MovieSceneTools");

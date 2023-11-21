@@ -20,6 +20,7 @@
 #include "ActorTreeItem.h"
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
+#include "Editor.h"
 #include "Graph/MovieGraphSharedWidgets.h"
 #include "ISceneOutliner.h"
 #include "SceneOutlinerModule.h"
@@ -477,9 +478,39 @@ void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InAct
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_Actor::Evaluate);
 
+	// Convert the actors in the query to PIE equivalents once, rather than constantly in the loop.
+	TArray<AActor*> ActorsToMatch_Pie;
+	ActorsToMatch_Pie.Reserve(ActorsToMatch.Num());
+	for (const TSoftObjectPtr<AActor>& SoftActorToMatch : ActorsToMatch)
+	{
+		if (!SoftActorToMatch.IsValid())
+		{
+			continue;
+		}
+		
+		AActor* ActorToMatch = SoftActorToMatch.Get();
+
+		// Only do editor -> PIE actor conversion when the actor is from an editor world
+		const UWorld* ActorWorld = ActorToMatch->GetWorld();
+		if (ActorWorld && ActorWorld->IsEditorWorld())
+		{
+#if WITH_EDITOR
+			if (AActor* PieActor = EditorUtilities::GetSimWorldCounterpartActor(ActorToMatch))
+			{
+				ActorsToMatch_Pie.Add(PieActor);
+			}
+#endif
+		}
+		else
+		{
+			// Just use ActorToMatch as-is if it's not from an editor actor
+			ActorsToMatch_Pie.Add(ActorToMatch);
+		}
+	}
+	
 	for (AActor* Actor : InActorsToQuery)
 	{
-		if (ActorsToMatch.Contains(Actor))
+		if (ActorsToMatch_Pie.Contains(Actor))
 		{
 			OutMatchingActors.Add(Actor);
 		}
@@ -511,12 +542,18 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 	}
 
 	Widgets.Add(
-		SNew(SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<AActor>>>)
+		SAssignNew(ActorsList, SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<AActor>>>)
 			.DataSource(&ListDataSource)
 			.DataType(FText::FromString("Actor"))
 			.DataTypePlural(FText::FromString("Actors"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
+			.OnDelete_Lambda([this](const TSharedPtr<TSoftObjectPtr<AActor>> InActor)
+			{
+				ListDataSource.Remove(InActor);
+				ActorsToMatch.Remove(*InActor.Get());
+				ActorsList->Refresh();
+			})
 	);
 
 	return Widgets;
@@ -773,12 +810,17 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorType::GetWidgets
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	Widgets.Add(
-		SNew(SMovieGraphSimpleList<UClass*>)
+		SAssignNew(ActorTypesList, SMovieGraphSimpleList<UClass*>)
 			.DataSource(&ActorTypes)
 			.DataType(FText::FromString("Actor Type"))
 			.DataTypePlural(FText::FromString("Actor Types"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
+			.OnDelete_Lambda([this](UClass* InActorClass)
+			{
+				ActorTypes.Remove(InActorClass);
+				ActorTypesList->Refresh();
+			})
 	);
 
 	return Widgets;
@@ -964,12 +1006,17 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentType::GetWid
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	Widgets.Add(
-		SNew(SMovieGraphSimpleList<UClass*>)
+		SAssignNew(ComponentTypesList, SMovieGraphSimpleList<UClass*>)
 			.DataSource(&ComponentTypes)
 			.DataType(FText::FromString("Component Type"))
 			.DataTypePlural(FText::FromString("Component Types"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
+			.OnDelete_Lambda([this](UClass* InComponentType)
+			{
+				ComponentTypes.Remove(InComponentType);
+				ComponentTypesList->Refresh();
+			})			
 	);
 
 	return Widgets;

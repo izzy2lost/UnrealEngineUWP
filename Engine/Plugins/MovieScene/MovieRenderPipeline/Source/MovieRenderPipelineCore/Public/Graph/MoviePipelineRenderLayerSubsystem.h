@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Graph/MovieGraphSharedWidgets.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Textures/SlateIcon.h"
 
@@ -176,13 +177,16 @@ private:
 #endif
 
 public:
-	/** The query must match one of the actors in order to be a match. */
+	/** The query must match one of the actors in order to be a match. If these are editor actors, they will be converted to PIE actors automatically. */
 	UPROPERTY(EditAnywhere, Category="General")
 	TArray<TSoftObjectPtr<AActor>> ActorsToMatch;
 
 private:
 #if WITH_EDITOR
 	TSharedPtr<class ISceneOutliner> ActorPickerWidget;
+
+	/** Displays the actors which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<AActor>>>> ActorsList;
 
 	// Not ideal to store a duplicate of ActorsToMatch, but SListView requires TSharedPtr<...> as the data source, and UPROPERTY does not
 	// support TSharedPtr<...>
@@ -282,6 +286,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(UClass* InActorType);
 	static FText GetRowText(UClass* InActorType);
+
+	/** Displays the actor types which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<UClass*>> ActorTypesList;
 #endif
 	
 	/** The class viewer widget to show in the Add menu. */
@@ -341,6 +348,9 @@ private:
 #if WITH_EDITOR
 	static const FSlateBrush* GetRowIcon(UClass* InComponentType);
 	static FText GetRowText(UClass* InComponentType);
+
+	/** Displays the component types which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<UClass*>> ComponentTypesList;
 #endif
 	
 	/** The class viewer widget to show in the Add menu. */

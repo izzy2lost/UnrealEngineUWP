@@ -65,6 +65,7 @@ public:
 			[
 				SAssignNew(ListView, SListView<ListType>)
 				.ListItemsSource(DataSource)
+				.SelectionMode(ESelectionMode::Single)
 				.OnKeyDownHandler(this, &SMovieGraphSimpleList<ListType>::HandleDelete)
 				.OnGenerateRow(this, &SMovieGraphSimpleList<ListType>::GenerateRow)
 			]
