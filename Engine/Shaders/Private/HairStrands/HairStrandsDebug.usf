@@ -879,7 +879,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #include "HairStrandsVisibilityCommon.ush"
 #include "HairStrandsAABBCommon.ush" 
 
-int2 PixelCoord;
+float ResolutionScale;
 int2 MaxResolution;
 uint FastResolveMask;
 uint HairMacroGroupCount;
@@ -997,19 +997,18 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 		Newline(Context);
 	}
 
-	const float2 PixelPos = PixelCoord;
-	if (PixelCoord.x < 0 || PixelCoord.y < 0 || PixelCoord.x >= MaxResolution.x || PixelCoord.y >= MaxResolution.y)
+	FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 500));	
+	const int2 PixelCoord = int2(ResolutionScale * GetCursorPos(Context));
+	if (any(PixelCoord < 0) || any(PixelCoord >= MaxResolution))
 		return;
 
-	const float HairPixelCoverage = HairStrands.HairCoverageTexture.Load(uint3(PixelPos, 0));
-	const bool bIsValid = HairPixelCoverage > 0;
+	const bool bIsValid = HairStrands.HairOnlyDepthTexture.Load(uint3(PixelCoord, 0)).x > 0;
 	if (!bIsValid)
 		return;
 
-	const float ViewHairCount = HairCountTexture.Load(uint3(PixelPos, 0));
-	const float ViewHairCountUint = HairCountUintTexture.Load(uint3(PixelPos, 0)) /  1000.f;
-
-	FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 500));
+	const float ViewHairCount = HairCountTexture.Load(uint3(PixelCoord, 0));
+	const float ViewHairCountUint = HairCountUintTexture.Load(uint3(PixelCoord, 0)) /  1000.f;
+	const float HairPixelCoverage = HairStrands.HairCoverageTexture.Load(uint3(PixelCoord, 0));
 
 	uint Total8BitCoverage = 0;
 	const FNodeDesc NodeDesc = DecodeNodeDesc(HairStrands.HairSampleOffset.Load(uint3(PixelCoord, 0)));
@@ -1057,7 +1056,7 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 	Newline(Context);
 
 	// Resolve type
-	const uint Stencil = StencilTexture.Load(uint3(PixelPos,0)).y;
+	const uint Stencil = StencilTexture.Load(uint3(PixelCoord,0)).y;
 	const bool bIsFastResolve = (Stencil & FastResolveMask) != 0;
 	Print(Context, TEXT("Resolve         "));
 
