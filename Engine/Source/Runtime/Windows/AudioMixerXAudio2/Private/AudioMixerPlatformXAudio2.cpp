@@ -1485,16 +1485,14 @@ namespace Audio
 		{
 			AudioStreamInfo.StreamState = EAudioOutputStreamState::Running;
 			OutputAudioStreamSourceVoice->Start();
-			return true;
 		}
 		else
 		{
 			check(!bIsUsingNullDevice);
 			StartRunningNullDevice();
-			return true;
 		}
 
-		return false;
+		return true;
 	}
 
 	bool FMixerPlatformXAudio2::StopAudioStream()
