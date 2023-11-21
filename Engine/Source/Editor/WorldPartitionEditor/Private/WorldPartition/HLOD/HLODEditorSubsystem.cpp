@@ -14,7 +14,7 @@
 
 static TAutoConsoleVariable<bool> CVarHLODInEditorEnabled(
 	TEXT("wp.Editor.HLOD.AllowShowingHLODsInEditor"),
-	false,
+	true,
 	TEXT("Allow showing World Partition HLODs in the editor."));
 
 
