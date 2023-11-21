@@ -120,7 +120,6 @@ static bool DoesGroupExists(uint32 ResourceId, uint32 GroupIndex, const FHairStr
 }
 
 bool IsHairStrandsNonVisibleShadowCastingEnable();
-bool IsHairStrandsVisibleInShadows(const FViewInfo& View, const FHairStrandsInstance& Instance);
 
 static void InternalUpdateMacroGroup(FHairStrandsMacroGroupData& MacroGroup, int32& MaterialId, FHairGroupPublicData* HairData, const FMeshBatch* Mesh, const FPrimitiveSceneProxy* Proxy)
 {
@@ -149,6 +148,7 @@ void CreateHairStrandsMacroGroups(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View, 
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType,
 	FHairStrandsViewData& OutHairStrandsViewData,
 	bool bBuildGPUAABB)
 {
@@ -248,26 +248,19 @@ void CreateHairStrandsMacroGroups(
 
 	// 1. Add all visible hair-strands instances
 	static FBoxSphereBounds EmptyBound(ForceInit);
-	const int32 ActiveInstanceCount = Scene->HairStrandsSceneData.RegisteredProxies.Num();
-	TBitArray InstancesVisibility(false, ActiveInstanceCount);
 	for (FVisibleBatch& VisibleBatch : VisibleBatches)
 	{
 		UpdateMacroGroup(VisibleBatch.HairData, VisibleBatch.Batch->Mesh, VisibleBatch.Batch->PrimitiveSceneProxy, EmptyBound);
-		InstancesVisibility[VisibleBatch.HairData->Instance->RegisteredIndex] = true;
 	}
 
 	// 2. Add all hair-strands instances which are non-visible in primary view(s) but visible in shadow view(s)
-	// Slow Linear search
 	if (IsHairStrandsNonVisibleShadowCastingEnable())
 	{
 		for (FHairStrandsInstance* Instance : Scene->HairStrandsSceneData.RegisteredProxies)
 		{
-			if (Instance && InstancesVisibility.IsValidIndex(Instance->RegisteredIndex) && !InstancesVisibility[Instance->RegisteredIndex])
+			if (Instance && InstancesVisibilityType.IsValidIndex(Instance->RegisteredIndex) && InstancesVisibilityType[Instance->RegisteredIndex] == EHairInstanceVisibilityType::StrandsShadowView)
 			{
-				if (IsHairStrandsVisibleInShadows(View, *Instance))
-				{
-					UpdateMacroGroup(const_cast<FHairGroupPublicData*>(Instance->GetHairData()), nullptr, nullptr, Instance->GetBounds());
-				}
+				UpdateMacroGroup(const_cast<FHairGroupPublicData*>(Instance->GetHairData()), nullptr, nullptr, Instance->GetBounds());
 			}
 		}
 	}

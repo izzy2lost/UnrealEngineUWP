@@ -114,7 +114,8 @@ void RenderHairPrePass(
 	FRDGBuilder& GraphBuilder,
 	FScene* Scene,
 	TArray<FViewInfo>& Views,
-	FInstanceCullingManager& InstanceCullingManager)
+	FInstanceCullingManager& InstanceCullingManager,
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType)
 {
 	for (FViewInfo& View : Views)
 	{
@@ -150,7 +151,7 @@ void RenderHairPrePass(
 		}
 
 		//SCOPED_GPU_STAT(RHICmdList, HairRendering);
-		CreateHairStrandsMacroGroups(GraphBuilder, Scene, View, View.HairStrandsViewData);
+		CreateHairStrandsMacroGroups(GraphBuilder, Scene, View, InstancesVisibilityType, View.HairStrandsViewData);
 		GraphBuilder.AddDispatchHint();
 
 		// Voxelization and Deep Opacity Maps

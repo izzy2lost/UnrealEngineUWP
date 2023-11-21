@@ -3553,7 +3553,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessStrandsInterpolation, HairStrandsBookmarkParameters);
 				if (!bHasRayTracedOverlay)
 				{
-					RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
+					RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager, HairStrandsBookmarkParameters.InstancesVisibilityType);
 					RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
 				}
 			}
@@ -3727,7 +3727,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessStrandsInterpolation, HairStrandsBookmarkParameters);
 			if (!bHasRayTracedOverlay)
 			{
-				RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager);
+				RenderHairPrePass(GraphBuilder, Scene, Views, InstanceCullingManager, HairStrandsBookmarkParameters.InstancesVisibilityType);
 				RenderHairBasePass(GraphBuilder, Scene, SceneTextures, Views, InstanceCullingManager);
 			}
 		}

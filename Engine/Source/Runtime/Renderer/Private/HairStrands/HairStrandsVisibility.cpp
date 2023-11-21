@@ -4164,7 +4164,8 @@ void DrawHitProxies(
 	// Geometry won't be updated for proxy view
 	const FIntPoint Resolution = HitProxyTexture->Desc.Extent;
 	FHairStrandsViewData HairStrandsViewData;
-	CreateHairStrandsMacroGroups(GraphBuilder, &Scene, View, HairStrandsViewData, false /*bBuildGPUAABB*/);
+	TArray<EHairInstanceVisibilityType> EmptyInstancesVisibilityType;
+	CreateHairStrandsMacroGroups(GraphBuilder, &Scene, View, EmptyInstancesVisibilityType, HairStrandsViewData, false /*bBuildGPUAABB*/);
 
 	// We don't compute the transmittance texture as there is no need for picking.
 	FRDGTextureRef DummyTransmittanceTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(Resolution, PF_R32_FLOAT, FClearValueBinding::White, ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV), TEXT("Hair.DummyTransmittanceTextureForHitProxyId"));

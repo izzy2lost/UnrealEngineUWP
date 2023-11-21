@@ -27,7 +27,8 @@ void RenderHairPrePass(
 	FRDGBuilder& GraphBuilder,
 	FScene* Scene,
 	TArray<FViewInfo>& Views,
-	FInstanceCullingManager& InstanceCullingManager);
+	FInstanceCullingManager& InstanceCullingManager,
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType);
 
 void RenderHairBasePass(
 	FRDGBuilder& GraphBuilder,

@@ -16,5 +16,6 @@ void CreateHairStrandsMacroGroups(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View, 
+	const TArray<EHairInstanceVisibilityType>& InstancesVisibilityType,
 	FHairStrandsViewData& OutHairStrandsViewData,
 	bool bBuildGPUAABB=true);
