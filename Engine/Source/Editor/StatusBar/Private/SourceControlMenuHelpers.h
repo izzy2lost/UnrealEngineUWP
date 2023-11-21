@@ -9,6 +9,7 @@
 class FUICommandList;
 class FReply;
 class SWidget;
+class SSourceControlControls;
 
 class FSourceControlCommands : public TCommands<FSourceControlCommands>
 {
@@ -75,37 +76,19 @@ private:
 	static FText GetSourceControlTooltip();
 	static const FSlateBrush* GetSourceControlIconBadge();
 
-	/** Sync button */
-	static bool IsAtLatestRevision();
-	static bool CanSourceControlSync();
-	static EVisibility GetSourceControlSyncStatusVisibility();
-	static FText GetSourceControlSyncStatusText();
-	static FText GetSourceControlSyncStatusTooltipText();
-	static const FSlateBrush* GetSourceControlSyncStatusIcon();
-	static FReply OnSourceControlSyncClicked();
-
-	/** Check-in button */
-	static int GetNumLocalChanges();
-	static bool CanSourceControlCheckIn();
 	static EVisibility GetSourceControlCheckInStatusVisibility();
-	static FText GetSourceControlCheckInStatusText();
-	static FText GetSourceControlCheckInStatusTooltipText();
-	static const FSlateBrush* GetSourceControlCheckInStatusIcon();
+
+	static FReply OnSourceControlSyncClicked();
 	static FReply OnSourceControlCheckInChangesClicked();
 
 	/** Callbacks */
 	static void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
 	static void OnSourceControlStateChanged();
 
-	/** Conflicts */
-	static bool AreConflictsRemaining();
-
 private:
 	/** Delegate handles */
-	static FDelegateHandle SourceControlProviderChangedHandle;
-	static FDelegateHandle SourceControlStateChangedHandle;
+	FDelegateHandle SourceControlProviderChangedHandle;
+	FDelegateHandle SourceControlStateChangedHandle;
 
-	/** Is there a conflict remaining? */
-	static bool bConflictsRemaining;
 };
 
