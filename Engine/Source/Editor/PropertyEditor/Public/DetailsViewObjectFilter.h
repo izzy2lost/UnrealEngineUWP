@@ -49,7 +49,7 @@ public:
 
 	explicit FDetailsViewObjectFilter()
 	{
-		InitializeDetailsDisplayManager();
+		DisplayManager = MakeShared<FDetailsDisplayManager>();
 	}
 
 	virtual ~FDetailsViewObjectFilter()
@@ -76,10 +76,6 @@ public:
 	*/
 	virtual TSharedPtr<FDetailsDisplayManager> GetDisplayManager()
 	{
-		if (!DisplayManager.IsValid())
-		{
-			InitializeDetailsDisplayManager();
-		}
 		return DisplayManager;
 	}
 
@@ -90,14 +86,6 @@ protected:
 	 * details display
 	 */
 	TSharedPtr<FDetailsDisplayManager> DisplayManager;
-
-	/**
-	 * Initializes the Details Display Manager
-	 */
-	virtual void InitializeDetailsDisplayManager()
-	{
-		DisplayManager = MakeShared<FDetailsDisplayManager>();
-	}
 	
 };
  
