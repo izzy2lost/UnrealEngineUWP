@@ -20,17 +20,17 @@ public:
 	virtual FStructurePropertyNode* AsStructureNode() override { return this; }
 	virtual const FStructurePropertyNode* AsStructureNode() const override { return this; }
 
-	void RemoveStructure()
+	void RemoveStructure(bool bInDestroySelf = true)
 	{
 		ClearCachedReadAddresses(true);
-		DestroyTree();
+		DestroyTree(bInDestroySelf);
 		StructProvider = nullptr;
 		WeakCachedBaseStruct.Reset();
 	}
 
 	void SetStructure(TSharedPtr<FStructOnScope> InStructData)
 	{
-		RemoveStructure();
+		RemoveStructure(false);
 		if (InStructData)
 		{
 			StructProvider = MakeShared<FStructOnScopeStructureDataProvider>(InStructData);
@@ -39,7 +39,7 @@ public:
 
 	void SetStructure(TSharedPtr<IStructureDataProvider> InStructProvider)
 	{
-		RemoveStructure();
+		RemoveStructure(false);
 		StructProvider = InStructProvider;
 	}
 
