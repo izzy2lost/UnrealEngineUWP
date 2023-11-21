@@ -1470,6 +1470,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 		WorkData.ReportInfof(TEXT("Total Compilation time %f\n"), CompilationTime*1000);
 
 		WorkData.VM->SetVMHash(WorkData.VM->ComputeVMHash());
+		WorkData.VM->GetByteCode().SetPublicContextPathName((WorkData.Context&& WorkData.Context->GetContextPublicDataStruct() != nullptr) ? WorkData.Context->GetContextPublicDataStruct()->GetPathName() : FString());
 	}
 
 	return true;

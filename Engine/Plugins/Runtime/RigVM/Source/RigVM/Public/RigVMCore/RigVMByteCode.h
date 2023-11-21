@@ -1131,7 +1131,7 @@ public:
 	FRigVMByteCode();
 
 	void Serialize(FArchive& Ar);
-	void Save(FArchive& Ar) const;
+	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);
 	friend FArchive& operator<<(FArchive& Ar, FRigVMByteCode& P)
 	{
@@ -1339,6 +1339,22 @@ public:
 
 	FString DumpToText() const;
 
+	bool HasPublicContextPathName() const
+	{
+		return bHasPublicContextPathName;
+	}
+
+	const FString& GetPublicContextPathName() const
+	{
+		return PublicContextPathName;
+	}
+
+	void SetPublicContextPathName(const FString& InPublicContextPathName)
+	{
+		PublicContextPathName = InPublicContextPathName;
+		bHasPublicContextPathName = true;
+	}
+
 #if WITH_EDITOR
 
 	// returns the subject which was used to inject a given instruction
@@ -1467,11 +1483,16 @@ private:
 	UPROPERTY()
 	TArray<FRigVMPredicateBranch> PredicateBranches;
 
+	UPROPERTY()
+	FString PublicContextPathName;
+
 	const FRigVMBranchInfo* GetBranchInfo(const FRigVMBranchInfoKey& InBranchInfoKey) const;
 	mutable TMap<FRigVMBranchInfoKey, const FRigVMBranchInfo*> BranchInfoLookup;
 
 	// if this is set to true the stored bytecode is aligned / padded
 	bool bByteCodeIsAligned;
+	// If the serialization has loaded a PublicContextPathName, so we check on new versions and skip check on older
+	bool bHasPublicContextPathName = false;
 
 	static TArray<int32> EmptyInstructionIndices;
 

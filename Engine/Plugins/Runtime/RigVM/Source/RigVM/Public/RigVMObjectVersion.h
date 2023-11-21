@@ -33,6 +33,10 @@ struct RIGVM_API FRigVMObjectVersion
 		// VM Memory Storage Defaults generated at VM
 		VMMemoryStorageDefaultsGeneratedAtVM,
 
+		// VM Bytecode Stores the Public Context Path
+		VMBytecodeStorePublicContextPath,
+
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

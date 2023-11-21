@@ -1514,6 +1514,8 @@ ERigVMExecuteResult URigVM::ExecuteVM(FRigVMExtendedExecuteContext& Context, con
 	TGuardValue<FName> EntryNameGuard(Context.CurrentEntryName, InEntryName);
 	TGuardValue<bool> RootEntryGuard(Context.bCurrentlyRunningRootEntry, bIsRootEntry);
 
+	FRigVMByteCode& ByteCode = GetByteCode();
+
 	if(bIsRootEntry)
 	{
 		Context.CurrentExecuteResult = ERigVMExecuteResult::Succeeded;
@@ -1526,9 +1528,19 @@ ERigVMExecuteResult URigVM::ExecuteVM(FRigVMExtendedExecuteContext& Context, con
 		}
 
 		Context.CurrentVMMemory = GetInstanceMemory(Context);
+
+		if (ByteCode.HasPublicContextPathName())
+		{
+			const FString ContextPublicDataPathName = Context.GetContextPublicDataStruct() != nullptr ? Context.GetContextPublicDataStruct()->GetPathName() : FString();
+			if (ByteCode.GetPublicContextPathName().IsEmpty() || ByteCode.GetPublicContextPathName() != ContextPublicDataPathName)
+			{
+				UE_LOG(LogRigVM, Error, TEXT("Context PublicData [%s] does not match ByteCode Public Data [%s]. Likely a corrupt VM. Exiting."), *ContextPublicDataPathName, *ByteCode.GetPublicContextPathName());
+				return Context.CurrentExecuteResult = ERigVMExecuteResult::Failed;
+			}
+		}
 	}
 
-	FRigVMByteCode& ByteCode = GetByteCode();
+
 	TArray<const FRigVMFunction*>& Functions = GetFunctions();
 	TArray<const FRigVMDispatchFactory*>& Factories = GetFactories();
 

@@ -267,6 +267,7 @@ void FRigVMByteCode::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FAnimObjectVersion::GUID);
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
 
 	if (Ar.CustomVer(FAnimObjectVersion::GUID) < FAnimObjectVersion::StoreMarkerNamesOnSkeleton)
 	{
@@ -287,7 +288,7 @@ void FRigVMByteCode::Serialize(FArchive& Ar)
 	}
 }
 
-void FRigVMByteCode::Save(FArchive& Ar) const
+void FRigVMByteCode::Save(FArchive& Ar)
 {
 	FRigVMInstructionArray Instructions;
 
@@ -455,6 +456,8 @@ void FRigVMByteCode::Save(FArchive& Ar) const
 
 	TArray<FRigVMBranchInfo> TempBranchInfos = BranchInfos;
 	Ar << TempBranchInfos;
+
+	Ar << PublicContextPathName;
 }
 
 void FRigVMByteCode::Load(FArchive& Ar)
@@ -659,6 +662,12 @@ void FRigVMByteCode::Load(FArchive& Ar)
 		BranchInfos.Reset();
 		BranchInfoLookup.Reset();
 	}
+
+	if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::VMBytecodeStorePublicContextPath)
+	{
+		Ar << PublicContextPathName;
+		bHasPublicContextPathName = true;
+	}
 }
 
 void FRigVMByteCode::Reset()
@@ -669,6 +678,7 @@ void FRigVMByteCode::Reset()
 	Entries.Reset();
 	BranchInfos.Reset();
 	BranchInfoLookup.Reset();
+	PublicContextPathName.Reset();
 
 #if WITH_EDITORONLY_DATA
 	SubjectPerInstruction.Reset();
@@ -689,6 +699,7 @@ void FRigVMByteCode::Empty()
 	bByteCodeIsAligned = false;
 	NumInstructions = 0;
 	Entries.Empty();
+	PublicContextPathName.Empty();
 
 #if WITH_EDITORONLY_DATA
 	SubjectPerInstruction.Empty();
