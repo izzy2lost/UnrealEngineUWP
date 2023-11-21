@@ -5,8 +5,11 @@
 #include "Containers/Map.h"
 #include "UObject/NameTypes.h"
 #include "Stats/Stats.h"
+#include "HAL/IConsoleManager.h"
 
+class UCustomizableObjectInstance;
 class UTexture2D;
+
 
 /** Stat which automatically gets updated to Insights when modified. */
 #define DECLARE_BENCHMARK_STAT(Name, Type) \
@@ -62,15 +65,14 @@ DECLARE_BENCHMARK_INSIGHTS(NumBuiltInstances, TEXT("Num Built Instances"))
 DECLARE_BENCHMARK_INSIGHTS(InstanceBuildTimeAvrg, TEXT("Avrg Instance Build Time"));
 
 
+extern TAutoConsoleVariable<bool> CVarEnableBenchmark;
+
+
 /** Benchmarking system. Gathers stats and send it to Insights an Benchmarking Files. */
 class FLogBenchmarkUtil
 {
 public:
-	FLogBenchmarkUtil();
 	~FLogBenchmarkUtil();
-
-	/** Enable or disable the system. */
-	void SetEnable(bool bEnable);
 
 	/** Get stats. */
 	void GetInstancesStats(int32& OutNumInstances, int32& OutNumBuiltInstances, int32& OutNumInstancesLOD0, int32& OutNumInstancesLOD1, int32& OutNumInstancesLOD2, int32& OutNumAllocatedSkeletalMeshes) const;
@@ -81,8 +83,10 @@ public:
 	/** Update stats which can only be updated on the tick. */
 	void UpdateStats();
 
-	/** Gathers stats update stats when it has finished. */
-	void FinishUpdate(const TSharedRef<FUpdateContextPrivate>& Context);
+	/** Gathers update stats when it has finished. */
+	void FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>& Context);
+
+	void FinishUpdateImage(const FString& CustomizableObjectPathName, const FString& InstancePathName, double TaskUpdateImageTime) const;
 	
 	DECLARE_BENCHMARK_STAT(NumAllocatedTextures, uint32);
 	DECLARE_BENCHMARK_STAT(NumAllocatedSkeletalMeshes, int32);

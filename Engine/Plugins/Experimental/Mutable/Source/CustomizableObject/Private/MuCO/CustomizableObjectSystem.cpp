@@ -163,7 +163,6 @@ void FUpdateContextPrivate::AddReferencedObjects(FReferenceCollector& Collector)
 FMutablePendingInstanceUpdate::FMutablePendingInstanceUpdate(const TSharedRef<FUpdateContextPrivate>& InContext) :
 	Context(InContext)
 {
-	SecondsAtUpdate = FPlatformTime::Seconds();
 }
 
 
@@ -185,7 +184,7 @@ bool FMutablePendingInstanceUpdate::operator<(const FMutablePendingInstanceUpdat
 	}
 	else
 	{
-		return SecondsAtUpdate < Other.SecondsAtUpdate;
+		return Context->StartQueueTime < Other.Context->StartQueueTime;
 	}
 }
 
@@ -214,12 +213,6 @@ uint32 FPendingInstanceUpdateKeyFuncs::GetKeyHash(const TWeakObjectPtr<const UCu
 }
 
 
-bool FMutablePendingInstanceWork::ArePendingUpdatesEmpty() const
-{
-	return PendingInstanceUpdates.Num() == 0;
-}
-
-
 int32 FMutablePendingInstanceWork::Num() const
 {
 	return PendingInstanceUpdates.Num() + PendingInstanceDiscards.Num() + PendingIDsToRelease.Num() + NumLODUpdatesLastTick;
@@ -234,16 +227,18 @@ void FMutablePendingInstanceWork::SetLODUpdatesLastTick(int32 NumLODUpdates)
 
 void FMutablePendingInstanceWork::AddUpdate(const FMutablePendingInstanceUpdate& UpdateToAdd)
 {
+	UpdateToAdd.Context->StartQueueTime = FPlatformTime::Seconds();
+	
 	if (const FMutablePendingInstanceUpdate* ExistingUpdate = PendingInstanceUpdates.Find(UpdateToAdd.Context->Instance))
 	{
 		ExistingUpdate->Context->UpdateResult = EUpdateResult::ErrorReplaced;
 		FinishUpdateGlobal(ExistingUpdate->Context);
 
-		FMutablePendingInstanceUpdate TaskToEnqueue = UpdateToAdd;
+		const FMutablePendingInstanceUpdate TaskToEnqueue = UpdateToAdd;
 		TaskToEnqueue.Context->PriorityType = FMath::Min(ExistingUpdate->Context->PriorityType, UpdateToAdd.Context->PriorityType);
-		TaskToEnqueue.SecondsAtUpdate = FMath::Min(ExistingUpdate->SecondsAtUpdate, UpdateToAdd.SecondsAtUpdate);
+		TaskToEnqueue.Context->StartQueueTime = FMath::Min(ExistingUpdate->Context->StartQueueTime, UpdateToAdd.Context->StartQueueTime);
 		
-		PendingInstanceUpdates.Remove(ExistingUpdate->Context->Instance);
+		RemoveUpdate(ExistingUpdate->Context->Instance);
 		PendingInstanceUpdates.Add(TaskToEnqueue);
 	}
 	else
@@ -263,7 +258,11 @@ void FMutablePendingInstanceWork::AddUpdate(const FMutablePendingInstanceUpdate&
 
 void FMutablePendingInstanceWork::RemoveUpdate(const TWeakObjectPtr<UCustomizableObjectInstance>& Instance)
 {
-	PendingInstanceUpdates.Remove(Instance);
+	if (const FMutablePendingInstanceUpdate* Update = PendingInstanceUpdates.Find(Instance))
+	{
+		Update->Context->QueueTime = FPlatformTime::Seconds() - Update->Context->StartQueueTime;
+		PendingInstanceUpdates.Remove(Instance);
+	}	
 }
 
 
@@ -279,7 +278,7 @@ void FMutablePendingInstanceWork::AddDiscard(const FMutablePendingInstanceDiscar
 	{
 		ExistingUpdate->Context->UpdateResult = EUpdateResult::ErrorReplaced;
 		FinishUpdateGlobal(ExistingUpdate->Context);
-		PendingInstanceUpdates.Remove(ExistingUpdate->Context->Instance);
+		RemoveUpdate(ExistingUpdate->Context->Instance);
 	}
 
 	PendingInstanceDiscards.Add(TaskToEnqueue);
@@ -289,14 +288,6 @@ void FMutablePendingInstanceWork::AddDiscard(const FMutablePendingInstanceDiscar
 void FMutablePendingInstanceWork::AddIDRelease(mu::Instance::ID IDToRelease)
 {
 	PendingIDsToRelease.Add(IDToRelease);
-}
-
-
-void FMutablePendingInstanceWork::RemoveAllUpdatesAndDiscardsAndReleases()
-{
-	PendingInstanceUpdates.Empty();
-	PendingInstanceDiscards.Empty();
-	PendingIDsToRelease.Empty();
 }
 
 
@@ -557,8 +548,6 @@ void UCustomizableObjectSystem::BeginDestroy()
 		Private->Streamer->EndStreaming();
 
 		Private->CurrentInstanceBeingUpdated = nullptr;
-
-		Private->MutablePendingInstanceWork.RemoveAllUpdatesAndDiscardsAndReleases();
 
 		FCustomizableObjectSystemPrivate::SSystem = nullptr;
 
@@ -839,13 +828,31 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		SystemPrivate->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(true, false);
 	}
 	
-	const uint32 InstanceId = Instance ? Instance->GetUniqueID() : 0;
-	Context->UpdateTime = FPlatformTime::Seconds() - Context->StartUpdateTime;
-	UE_LOG(LogMutable, Log, TEXT("Finished UpdateSkeletalMesh Async. of Instance %d, Frame=%d, UpdateTime=%f"), InstanceId, GFrameNumber, Context->UpdateTime);
-
-	if (SystemPrivate)
+	if (Context->StartUpdateTime != 0.0) // Update started.
 	{
-		SystemPrivate->LogBenchmarkUtil.FinishUpdate(Context);		
+		Context->UpdateTime = FPlatformTime::Seconds() - Context->StartUpdateTime;		
+	}
+	
+	const uint32 InstanceId = Instance ? Instance->GetUniqueID() : 0;
+	UE_LOG(LogMutable, Log, TEXT("Finished UpdateSkeletalMesh Async. Instance=%d, Frame=%d, QueueTime=%f, UpdateTime=%f"), InstanceId, GFrameNumber, Context->QueueTime, Context->UpdateTime);
+
+	if (SystemPrivate &&
+		CVarEnableBenchmark.GetValueOnAnyThread())
+	{
+		FFunctionGraphTask::CreateAndDispatchWhenReady( // Calling Benchmark in a task so we make sure we exited all scopes.
+		[Context]()
+		{
+			UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+			if (!System)
+			{
+				return;
+			}
+
+			System->GetPrivateChecked()->LogBenchmarkUtil.FinishUpdateMesh(Context);
+		},
+		TStatId{},
+		nullptr,
+		ENamedThreads::GameThread);
 	}
 	
 	if (Context->UpdateStarted)
@@ -1121,6 +1128,12 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 	check(Instance);
 	
 	UCustomizableInstancePrivateData* InstancePrivate = Instance->GetPrivate();
+
+	const EQueuePriorityType Priority = GetUpdatePriority(*Instance, Context->bForceHighPriority);
+	const uint32 InstanceId = Instance->GetUniqueID();
+	const float Distance = FMath::Sqrt(InstancePrivate->LastMinSquareDistFromComponentToPlayer);
+	const bool bIsPlayerOrNearIt = InstancePrivate->HasCOInstanceFlags(UsedByPlayerOrNearIt);
+	UE_LOG(LogMutable, Log, TEXT("Enqueue UpdateSkeletalMesh Async. Instance=%d, Frame=%d, Priority=%d, dist=%f, bIsPlayerOrNearIt=%d"), InstanceId, GFrameNumber, static_cast<int32>(Priority), Distance, bIsPlayerOrNearIt);				
 	
 	if (!Instance->CanUpdateInstance())
 	{
@@ -1131,7 +1144,6 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 
-	
 	const EUpdateRequired UpdateRequired = IsUpdateRequired(*Instance, Context->bOnlyUpdateIfNotGenerated, Context->bIgnoreCloseDist);
 	switch (UpdateRequired)
 	{
@@ -1143,13 +1155,6 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 	}		
 	case EUpdateRequired::Update:
 	{
-		EQueuePriorityType Priority = GetUpdatePriority(*Instance, Context->bForceHighPriority);
-
-		const uint32 InstanceId = Instance->GetUniqueID();
-		const float Distance = FMath::Sqrt(InstancePrivate->LastMinSquareDistFromComponentToPlayer);
-		const bool bIsPlayerOrNearIt = InstancePrivate->HasCOInstanceFlags(UsedByPlayerOrNearIt);
-		UE_LOG(LogMutable, Log, TEXT("Enqueued UpdateSkeletalMesh Async. of Instance %d with priority %d at dist %f bIsPlayerOrNearIt=%d, frame=%d"), InstanceId, static_cast<int32>(Priority), Distance, bIsPlayerOrNearIt, GFrameNumber);				
-
 		if (InstancePrivate->HasCOInstanceFlags(PendingLODsUpdate))
 		{
 			UE_LOG(LogMutable, Verbose, TEXT("LOD change: %d, %d -> %d, %d"), Instance->GetCurrentMinLOD(), Instance->GetCurrentMaxLOD(), Instance->GetMinLODToLoad(), Instance->GetMaxLODToLoad());
@@ -3145,11 +3150,11 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 						const double MinSquareDistFromComponentToPlayer = PendingUpdate.Context->Instance->GetPrivate()->MinSquareDistFromComponentToPlayer;
 						
 						if (MinSquareDistFromComponentToPlayer < MaxSquareDistanceFound ||
-							(MinSquareDistFromComponentToPlayer == MaxSquareDistanceFound && PendingUpdate.SecondsAtUpdate < MinTimeFound))
+							(MinSquareDistFromComponentToPlayer == MaxSquareDistanceFound && PendingUpdate.Context->StartQueueTime < MinTimeFound))
 						{
 							MaxPriorityFound = PriorityType;
 							MaxSquareDistanceFound = MinSquareDistFromComponentToPlayer;
-							MinTimeFound = PendingUpdate.SecondsAtUpdate;
+							MinTimeFound = PendingUpdate.Context->StartQueueTime;
 							PendingInstanceUpdateFound = &PendingUpdate;
 							LODUpdateCandidateFound = nullptr;
 						}
@@ -3560,13 +3565,13 @@ void UCustomizableObjectSystem::AddUncompiledCOWarning(const UCustomizableObject
 
 void UCustomizableObjectSystem::EnableBenchmark()
 {
-	GetPrivate()->LogBenchmarkUtil.SetEnable(true);
+	CVarEnableBenchmark->Set(true);
 }
 
 
 void UCustomizableObjectSystem::EndBenchmark()
 {
-	GetPrivate()->LogBenchmarkUtil.SetEnable(false);
+	CVarEnableBenchmark->Set(false);
 }
 
 
@@ -3822,7 +3827,10 @@ void FCustomizableObjectSystemPrivate::StartUpdateSkeletalMesh(const TSharedRef<
 
 	check(!CurrentMutableOperation); // Can not start an update if there is already another in progress
 	check(Context->Instance.IsValid()) // The instance has to be alive to start the update
-		
+
+	const uint32 InstanceId = Context->Instance->GetUniqueID();
+	UE_LOG(LogMutable, Log, TEXT("Started UpdateSkeletalMesh Async. Instance=%d, Frame=%d"), InstanceId, GFrameNumber);				
+			
 	CurrentMutableOperation = Context;
 }
 

@@ -16,8 +16,15 @@ UMutableTextureMipDataProviderFactory::UMutableTextureMipDataProviderFactory(con
 }
 
 
-FMutableUpdateContext::FMutableUpdateContext(mu::Ptr<mu::System> InSystem,
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> InModel, mu::Ptr<const mu::Parameters> InParameters, int32 InState):
+FMutableUpdateContext::FMutableUpdateContext(
+	const FString& InCustomizableObjectPathName,
+	const FString& InInstancePathName,
+	mu::Ptr<mu::System> InSystem,
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> InModel,
+	mu::Ptr<const mu::Parameters> InParameters,
+	int32 InState) :
+	CustomizableObjectPathName(InCustomizableObjectPathName),
+	InstancePathName(InInstancePathName),
 	System(InSystem),
 	Model(InModel),
 	Parameters(InParameters),
@@ -39,6 +46,18 @@ FMutableUpdateContext::~FMutableUpdateContext()
 		const FCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 		Private->GetImageProviderChecked()->UnCacheImages(*Parameters);
 	}
+}
+
+
+const FString& FMutableUpdateContext::GetCustomizableObjectPathName() const
+{
+	return CustomizableObjectPathName;
+}
+
+
+const FString& FMutableUpdateContext::GetInstancePathName() const
+{
+	return InstancePathName;
 }
 
 
@@ -109,7 +128,8 @@ namespace impl
 	void Task_Mutable_UpdateImage(TSharedPtr<FMutableImageOperationData> OperationData)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
-
+		const double StartTime = FPlatformTime::Seconds();
+		
 		// Any external texture that may be needed for this update will be requested from Mutable Core's GetImage
 		// which will safely access the GlobalExternalImages map, and then just get the cached image or issue a disk read
 
@@ -209,6 +229,29 @@ namespace impl
 			}
 		}
 
+		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		{
+			double Time = FPlatformTime::Seconds() - StartTime;
+
+			const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
+			const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
+			
+			FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[CustomizableObjectPathName, InstancePathName, Time]()
+			{
+				UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+				if (!System)
+				{
+					return;
+				}
+
+				System->GetPrivateChecked()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time);
+			},
+			TStatId{},
+			nullptr,
+			ENamedThreads::GameThread);
+		}
+		
 		{
 			// The request could be cancelled in parallel from CancelCounterSafely and its value be changed
 			// between reading it and actually running Decrement() and RescheduleCallback(), so lock

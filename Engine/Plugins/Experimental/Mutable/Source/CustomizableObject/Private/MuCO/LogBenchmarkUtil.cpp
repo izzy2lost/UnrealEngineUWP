@@ -24,10 +24,11 @@
 extern ENGINE_API UEngine* GEngine;
 
 
-static TAutoConsoleVariable<bool> CVarEnableBenchmark(
+TAutoConsoleVariable<bool> CVarEnableBenchmark(
 	TEXT("mutable.EnableBenchmark"),
 	false,
 	TEXT("Enable or disable the benchmarking."));
+
 
 namespace LogBenchmarkUtil
 {
@@ -40,21 +41,12 @@ namespace LogBenchmarkUtil
 		const FStringView StringView = ComposedString;
 		Archive.Serialize(const_cast<ANSICHAR*>(StringCast<ANSICHAR>(StringView.GetData(), StringView.Len()).Get()), StringView.Len() * sizeof(ANSICHAR));
 	}
-
-	static FString LocalBenchmarkFilePath = TEXT("");
-	static FAutoConsoleVariableRef CVarBenchmarkFilePath(
-		TEXT("mutable.BenchmarkFilePath"),
-		LocalBenchmarkFilePath,
-		TEXT("Sets the path where to store the generated mutable benchmark report file"));
 }
+
 
 TSharedPtr<FArchive> CreateFile()
 {
-	FString Directory = LogBenchmarkUtil::LocalBenchmarkFilePath;
-	if (Directory.IsEmpty())
-	{
-		Directory = FPaths::ProfilingDir() + TEXT("Mutable/Benchmark");
-	}
+	const FString Directory = FPaths::ProfilingDir() + TEXT("Mutable/Benchmark");
 	IFileManager::Get().MakeDirectory(*Directory, true);
 
 	const FDateTime FileDate = FDateTime::Now();
@@ -63,19 +55,12 @@ TSharedPtr<FArchive> CreateFile()
 	TSharedPtr<FArchive> Archive = MakeShareable(IFileManager::Get().CreateFileWriter(*Filename, FILEWRITE_AllowRead | FILEWRITE_NoFail));
 	check(Archive);
 
-	const FString HeaderRow = TEXT("ID_CO,ID_COI,ID_UpdateType,Time_Update,Time_TaskGetMesh,Time_TaskLockCache,Time_TaskGetImages,Time_TaskConvertResources,Time_TaskCallbacks");
-	LogBenchmarkUtil::Write(*Archive, HeaderRow);		
+	const FString HeaderRow = TEXT("ID_CO,ID_COI,ID_UpdateType,ID_UpdateResult,Time_Queue,Time_Update,Time_TaskGetMesh,Time_TaskLockCache,Time_TaskGetImages,Time_TaskConvertResources,Time_TaskCallbacks,Time_TaskUpdateImages");
+	LogBenchmarkUtil::Write(*Archive, HeaderRow);
 
 	return Archive;
 }
 
-FLogBenchmarkUtil::FLogBenchmarkUtil()
-{
-	if (LogBenchmarkUtil::LocalBenchmarkFilePath.IsEmpty())
-	{
-		LogBenchmarkUtil::LocalBenchmarkFilePath = FPaths::ProfilingDir() + TEXT("Mutable/Benchmark");
-	}
-}
 
 FLogBenchmarkUtil::~FLogBenchmarkUtil()
 {
@@ -83,12 +68,6 @@ FLogBenchmarkUtil::~FLogBenchmarkUtil()
 	{
 		Archive->Close();
 	}
-}
-
-
-void FLogBenchmarkUtil::SetEnable(bool bEnabled)
-{
-	CVarEnableBenchmark->Set(bEnabled);
 }
 
 
@@ -286,7 +265,7 @@ void FLogBenchmarkUtil::UpdateStats()
 }
 
 
-void FLogBenchmarkUtil::FinishUpdate(const TSharedRef<FUpdateContextPrivate>& Context)
+void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 {
 	check(IsInGameThread());
 
@@ -320,16 +299,37 @@ void FLogBenchmarkUtil::FinishUpdate(const TSharedRef<FUpdateContextPrivate>& Co
 	const FString ID_CO = Context->Instance->GetCustomizableObject()->GetPathName();
 	const FString ID_COI = Instance->GetPathName();
 	const FString ID_UpdateType = TEXT("Mesh");
+	const FString ID_UpdateResult = StaticEnum<EUpdateResult>()->GetValueAsString(Context->UpdateResult);
+	const double Time_Queue = Context->QueueTime * 1000;
 	const double Time_Update = Context->UpdateTime * 1000;
 	const double Time_TaskGetMesh = Context->TaskGetMeshTime * 1000;
 	const double Time_TaskLockCache = Context->TaskLockCacheTime * 1000;
 	const double Time_TaskGetImages = Context->TaskGetImagesTime * 1000;
 	const double Time_TaskConvertResources = Context->TaskConvertResourcesTime * 1000;
-	const double Time_TaskCallbacks = Context->TaskCallbacksTime * 1000;
+	const double Time_TaskCallbacks =  Context->TaskCallbacksTime * 1000;
 
-	const FString UpdateString = FString::Printf(TEXT("%s,%s,%s,%f,%f,%f,%f,%f,%f"), *ID_CO, *ID_COI, *ID_UpdateType, Time_Update, Time_TaskGetMesh, Time_TaskLockCache, Time_TaskGetImages, Time_TaskConvertResources, Time_TaskCallbacks);
+	const FString UpdateString = FString::Printf(TEXT("%s,%s,%s,%s,%f,%f,%f,%f,%f,%f,%f"), *ID_CO, *ID_COI, *ID_UpdateType, *ID_UpdateResult, Time_Queue, Time_Update, Time_TaskGetMesh, Time_TaskLockCache, Time_TaskGetImages, Time_TaskConvertResources, Time_TaskCallbacks);
 	LogBenchmarkUtil::Write(*Archive, UpdateString);
 	Archive->Flush();
-	
+}
+
+
+void FLogBenchmarkUtil::FinishUpdateImage(const FString& CustomizableObjectPathName, const FString& InstancePathName, const double TaskUpdateImageTime) const
+{
+	check(IsInGameThread());
+
+	if (!CVarEnableBenchmark.GetValueOnGameThread())
+	{
+		return;
+	}
+
+	const FString& ID_CO = CustomizableObjectPathName;
+	const FString& ID_COI = InstancePathName;
+	const FString ID_UpdateType = TEXT("Image");
+	const double Time_TaskUpdateImage = TaskUpdateImageTime * 1000;
+		
+	const FString UpdateString = FString::Printf(TEXT("%s,%s,%s,,,,,,,,,%f"), *ID_CO, *ID_COI, *ID_UpdateType, Time_TaskUpdateImage);
+	LogBenchmarkUtil::Write(*Archive, UpdateString);
+	Archive->Flush();	
 }
 

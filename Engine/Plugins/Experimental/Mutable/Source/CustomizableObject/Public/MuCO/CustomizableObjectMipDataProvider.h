@@ -33,10 +33,15 @@ class FMutableUpdateContext
 public:
 	FMutableUpdateContext() = default;
 	
-	FMutableUpdateContext(mu::Ptr<mu::System> InSystem, TSharedPtr<mu::Model, ESPMode::ThreadSafe> InModel, mu::Ptr<const mu::Parameters> InParameters, int32 InState);
+	FMutableUpdateContext(const FString& InCustomizableObjectPathName, const FString& InInstancePathName, mu::Ptr<mu::System> InSystem,
+		TSharedPtr<mu::Model, ESPMode::ThreadSafe> InModel, mu::Ptr<const mu::Parameters> InParameters, int32 InState);
 
 	~FMutableUpdateContext();
 
+	const FString& GetCustomizableObjectPathName() const;
+
+	const FString& GetInstancePathName() const;
+	
 	mu::Ptr<mu::System> GetSystem() const;
 	
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> GetModel() const;
@@ -48,6 +53,9 @@ public:
 	const TArray<mu::Ptr<const mu::Image>>& GetImageParameterValues() const;
 	
 private:
+	FString CustomizableObjectPathName;
+	FString InstancePathName;
+
 	mu::Ptr<mu::System> System;
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 	mu::Ptr<const mu::Parameters> Parameters;

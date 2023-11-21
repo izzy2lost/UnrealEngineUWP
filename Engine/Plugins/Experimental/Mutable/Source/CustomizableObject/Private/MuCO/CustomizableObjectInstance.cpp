@@ -5353,7 +5353,10 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 	GeneratedMaterials.Reset();
 
 	// Prepare the data to store in order to regenerate resources for this instance (usually texture mips).
-	TSharedPtr<FMutableUpdateContext> UpdateContext = MakeShared<FMutableUpdateContext>(UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem,
+	TSharedPtr<FMutableUpdateContext> UpdateContext = MakeShared<FMutableUpdateContext>(
+		CustomizableObject->GetPathName(),
+		Public->GetPathName(),
+		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem,
 		CustomizableObject->GetModel(),
 		OperationData->Parameters,
 	    OperationData->State);

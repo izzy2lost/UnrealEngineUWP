@@ -38,8 +38,6 @@ struct FMutablePendingInstanceUpdate
 {
 	TSharedRef<FUpdateContextPrivate> Context;
 
-	double SecondsAtUpdate = 0;
-
 	FMutablePendingInstanceUpdate(const TSharedRef<FUpdateContextPrivate>& InContext);
 
 	bool operator==(const FMutablePendingInstanceUpdate& Other) const;
@@ -117,9 +115,6 @@ class FMutablePendingInstanceWork
 	int32 NumLODUpdatesLastTick = 0;
 
 public:
-	// Returns true if there are no pending instance updates. Doesn't take into account discards.
-	bool ArePendingUpdatesEmpty() const;
-
 	// Returns the number of pending instance updates, LOD Updates, discards and releases last tick.
 	int32 Num() const;
 
@@ -479,6 +474,9 @@ public:
 	bool UpdateStarted = false;
 
 	// Update stats
+	double StartQueueTime = 0.0;
+	double QueueTime = 0.0;
+	
 	double StartUpdateTime = 0.0;
 	double UpdateTime = 0.0;
 
