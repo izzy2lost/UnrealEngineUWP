@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if SOURCE_CONTROL_WITH_SLATE
+
 #include "CoreMinimal.h"
 #include "ISourceControlProvider.h"
 #include "Delegates/IDelegateInstance.h"
@@ -62,3 +64,5 @@ private:
 	FDelegateHandle SourceControlProviderChangedHandle;
 	FDelegateHandle SourceControlStateChangedHandle;
 };
+
+#endif // SOURCE_CONTROL_WITH_SLATE

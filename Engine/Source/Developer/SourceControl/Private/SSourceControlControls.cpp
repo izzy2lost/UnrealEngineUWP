@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if SOURCE_CONTROL_WITH_SLATE
+
 #include "SSourceControlControls.h"
 #include "ISourceControlProvider.h"
 #include "ISourceControlModule.h"
@@ -390,3 +392,5 @@ FReply SSourceControlControls::OnSourceControlCheckInChangesClicked() const
 
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // SOURCE_CONTROL_WITH_SLATE
