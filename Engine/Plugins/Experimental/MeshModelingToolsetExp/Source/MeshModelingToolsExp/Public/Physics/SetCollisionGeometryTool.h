@@ -187,6 +187,24 @@ public:
 		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
 	float MinPartThickness = 0.1;
 
+	/** Whether to guide the convex decomposition to prioritize not filling negative space of the input shape */
+	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1"))
+	bool bUseNegativeSpaceInDecomposition = false;
+
+	/** Negative space closer to the input than this tolerance distance can be filled in */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+	double NegativeSpaceTolerance = 3;
+	/** Minimum radius of negative space to protect; tunnels with radius smaller than this could be filled in */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+	double NegativeSpaceMinRadius = 10;
+	/** Whether to ignore negative space that is not accessible by traversing from the convex hull (via paths w/ radius of at least Negative Space Tolerance) */
+	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (
+		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+	bool bIgnoreInternalNegativeSpace = true;
+
 	/** If > 0, the polygon used to generate the swept hull will be simplified up to this distance tolerance, in cm */
 	UPROPERTY(EditAnywhere, Category = SweptHulls, meta = (UIMin = "0", UIMax = "10", ClampMin = "0", ClampMax = "100000",
 		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::SweptHulls"))

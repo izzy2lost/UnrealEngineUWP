@@ -389,7 +389,24 @@ void FMeshSimpleShapeApproximation::Generate_ConvexHullDecompositions(FSimpleSha
 		const FDynamicMesh3& SourceMesh = *SourceMeshes[idx];
 		// TODO: if (bSimplifyHulls), also consider simplifying the input?
 		FConvexDecomposition3 Decomposition(SourceMesh);
-		const int32 NumAdditionalSplits = FMath::FloorToInt32(float(ConvexDecompositionMaxPieces) * ConvexDecompositionSearchFactor);
+		int32 NumAdditionalSplits = FMath::FloorToInt32(float(ConvexDecompositionMaxPieces) * ConvexDecompositionSearchFactor);
+		if (bConvexDecompositionProtectNegativeSpace)
+		{
+			FNegativeSpaceSampleSettings Settings;
+			Settings.bOnlyConnectedToHull = bIgnoreInternalNegativeSpace;
+			Settings.MinRadius = NegativeSpaceMinRadius;
+			Settings.ReduceRadiusMargin = NegativeSpaceTolerance;
+			Settings.MinRadius = FMath::Max(1, (NegativeSpaceMinRadius + NegativeSpaceTolerance) * .5);
+			Settings.SampleMethod = FNegativeSpaceSampleSettings::ESampleMethod::VoxelSearch;
+			Settings.bRequireSearchSampleCoverage = true;
+			Settings.TargetNumSamples = 1; // let the sample coverage determine the number of spheres to place
+
+			Decomposition.InitializeNegativeSpace(Settings);
+
+			// Let negative space decide when to stop merging; target only 1 piece if negative space allows
+			NumAdditionalSplits += ConvexDecompositionMaxPieces;
+			ConvexDecompositionMaxPieces = 1;
+		}
 		Decomposition.Compute(ConvexDecompositionMaxPieces, NumAdditionalSplits, ConvexDecompositionErrorTolerance, ConvexDecompositionMinPartThickness);
 
 		for (int32 HullIdx = 0; HullIdx < Decomposition.NumHulls(); HullIdx++)
