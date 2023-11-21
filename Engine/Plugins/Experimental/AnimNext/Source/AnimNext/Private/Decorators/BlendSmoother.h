@@ -14,21 +14,21 @@
 
 class UCurveFloat;
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Blend Smoother"))
 struct FAnimNextBlendSmootherDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
 	/** How long to take when blending into each child. */
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	TArray<float> BlendTimes;
 
 	/** What type of blend equation to use when converting the time elapsed into a blend weight. */
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	EAlphaBlendOption BlendType = EAlphaBlendOption::Linear;
 
 	/** Custom curve to use when the Custom blend type is used. */
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	TObjectPtr<UCurveFloat> CustomBlendCurve;
 };
 

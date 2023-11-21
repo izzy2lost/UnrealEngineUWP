@@ -23,6 +23,8 @@ struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMDecorator
 
 #if WITH_EDITOR
 	virtual void GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, const FString& InDefaultValue, struct FRigVMPinInfoArray& OutPinArray) const override;
+	
+	virtual UScriptStruct* GetDecoratorSharedDataStruct() const { return DecoratorSharedDataStruct; }
 
 	const UE::AnimNext::FDecorator* GetDecorator() const;
 #endif

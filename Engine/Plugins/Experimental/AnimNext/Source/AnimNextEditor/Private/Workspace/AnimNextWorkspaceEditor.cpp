@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextWorkspaceEditor.h"
 
@@ -26,6 +26,8 @@
 #include "Scheduler/AnimNextSchedule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "GraphEditAction.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceEditor"
 
@@ -202,6 +204,11 @@ void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMet
 	}
 }
 
+void FWorkspaceEditor::OnGraphSelectionChanged(const TSet<UObject*>& NewSelection)
+{
+	SetSelectedObjects(NewSelection.Array());
+}
+
 void FWorkspaceEditor::RestoreEditedObjectState()
 {
 	for (const FEditedDocumentInfo& Document : Workspace->LastEditedDocuments)
@@ -318,10 +325,23 @@ void FWorkspaceEditor::SaveAsset_Execute()
 	}
 }
 
+void FWorkspaceEditor::OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* Graph, UObject* Subject)
+{
+	if (Type == ERigVMGraphNotifType::PinDefaultValueChanged)
+	{
+		if (DetailsView.IsValid())
+		{
+			DetailsView->ForceRefresh();
+		}
+	}
+}
+
 void FWorkspaceEditor::SetFocusedGraphEditor(TSharedPtr<SGraphEditor> InGraphEditor)
 {
 	// Update the graph editor that is currently focused
 	FocusedGraphEdPtr = InGraphEditor;
+
+	SetSelectedObjects({});
 }
 
 UEdGraph* FWorkspaceEditor::GetFocusedGraph() const
@@ -546,6 +566,15 @@ bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 	}
 
 	return true;
+}
+
+void FWorkspaceEditor::OnClose()
+{
+	if (DetailsView.IsValid())
+	{
+		DetailsView->SetObject(nullptr);
+		DetailsView.Reset();
+	}
 }
 
 }

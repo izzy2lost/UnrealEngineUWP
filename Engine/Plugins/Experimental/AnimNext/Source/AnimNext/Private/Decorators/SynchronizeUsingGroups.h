@@ -11,18 +11,18 @@
 
 #include "SynchronizeUsingGroups.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Synchronize Using Groups"))
 struct FAnimNextSynchronizeUsingGroupsDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
 	// The group name
 	// If no name is provided, this decorator is inactive
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	FName GroupName;
 
 	// The role this player can assume within the group
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
 };
 

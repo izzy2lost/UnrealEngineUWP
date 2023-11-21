@@ -439,14 +439,16 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	// Link our shim and evaluator nodes together using the execution context
 	TempController->AddLink(
 		TempShimRootNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextShimRoot, ExecuteContext)),
-		GraphEvaluatorNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphEvaluator, ExecuteContext)));
+		GraphEvaluatorNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextGraphEvaluator, ExecuteContext)),
+		false);
 
 	// Link our latent pins
 	for (const FRigVMPinInfo& LatentPin : LatentPins)
 	{
 		TempController->AddLink(
 			LatentPinMapping[LatentPin.Name],
-			GraphEvaluatorNode->FindPin(LatentPin.Name.ToString()));
+			GraphEvaluatorNode->FindPin(LatentPin.Name.ToString()),
+			false);
 	}
 
 	FDecoratorWriter DecoratorWriter;

@@ -121,6 +121,11 @@ public:
 	UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce);
 	bool RemoveEdGraph(URigVMGraph* InModel);
 
+	FRigVMGraphModifiedEvent& GetRigVMGraphModifiedEvent()
+	{
+		return RigVMGraphModifiedEvent;
+	}
+
 	ANIMNEXTUNCOOKEDONLY_API void Initialize(bool bRecompileVM);
 
 protected:

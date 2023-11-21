@@ -12,7 +12,7 @@
 
 #include "BlendByBool.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Blend By Bool"))
 struct FAnimNextBlendByBoolDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
@@ -26,7 +26,7 @@ struct FAnimNextBlendByBoolDecoratorSharedData : public FAnimNextDecoratorShared
 	FAnimNextDecoratorHandle FalseChild;
 
 	/** The boolean condition that decides which child is active. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Default")
 	bool bCondition = false;
 
 	// Latent pin support boilerplate

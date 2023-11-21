@@ -11,25 +11,25 @@
 
 #include "SequencePlayer.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Sequence Player"))
 struct FAnimNextSequencePlayerDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
 	/** The sequence to play. */
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	TObjectPtr<UAnimSequence> AnimSequence;
 
 	/** The play rate multiplier at which this sequence plays. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Default")
 	float PlayRate = 1.0f;
 
 	/** The time at which we should start playing this sequence. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Default")
 	float StartPosition = 0.0f;
 
 	/** Whether or not this sequence playback will loop. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Default")
 	bool bLoop = 0.0f;
 
 	// Latent pin support boilerplate

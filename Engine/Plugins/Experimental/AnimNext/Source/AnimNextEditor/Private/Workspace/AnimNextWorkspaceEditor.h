@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -70,6 +70,8 @@ public:
 	// Open an asset inside the workspace editor.
 	static void OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMethod InOpenMethod);
 
+	void OnGraphSelectionChanged(const TSet<UObject*>& NewSelection);
+
 private:
 	friend class FWorkspaceEditorMode;
 	friend struct FGraphDocumentSummoner;
@@ -87,6 +89,7 @@ private:
 	virtual void InitToolMenuContext(FToolMenuContext& InMenuContext) override;
 	virtual void SaveAsset_Execute() override;
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
+	virtual void OnClose() override;
 
 	// FAssetEditorToolkit interface
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
@@ -139,6 +142,8 @@ private:
 	void HandleSaveGraphState(UEdGraph* InGraph, FVector2D InViewOffset, float InZoomAmount);
 
 	void HandleSaveDocumentState(UObject* InObject);
+
+	void OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* Graph, UObject* Subject);
 
 	// The asset we are editing
 	UAnimNextWorkspace* Workspace = nullptr;

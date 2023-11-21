@@ -12,7 +12,7 @@
 
 #include "BlendTwoWay.generated.h"
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Blend Two Way"))
 struct FAnimNextBlendTwoWayDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
@@ -26,7 +26,7 @@ struct FAnimNextBlendTwoWayDecoratorSharedData : public FAnimNextDecoratorShared
 	FAnimNextDecoratorHandle ChildB;
 
 	/** How much to blend our two children: 0.0 is fully child A while 1.0 is fully child B. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Default")
 	float BlendWeight = 0.0f;
 
 	// Latent pin support boilerplate

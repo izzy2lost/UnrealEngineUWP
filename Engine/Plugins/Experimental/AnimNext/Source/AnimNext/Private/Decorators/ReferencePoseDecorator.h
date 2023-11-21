@@ -21,13 +21,13 @@ enum class EAnimNextReferencePoseType : int32
 	AdditiveIdentity,
 };
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Reference Pose"))
 struct FAnimNextReferencePoseDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
 	/** The type of the reference pose. */
-	UPROPERTY(meta = (Inline))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline))
 	EAnimNextReferencePoseType ReferencePoseType = EAnimNextReferencePoseType::MeshLocalSpace;
 };
 

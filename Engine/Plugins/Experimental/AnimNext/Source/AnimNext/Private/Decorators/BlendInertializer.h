@@ -12,14 +12,14 @@
 
 class UBlendProfile;
 
-USTRUCT()
+USTRUCT(meta = (DisplayName = "Blend Inertializer"))
 struct FAnimNextBlendInertializerDecoratorSharedData : public FAnimNextDecoratorSharedData
 {
 	GENERATED_BODY()
 
 	/** Blend profile that configures how fast to blend each bone. */
 	// TODO: Can't show list of blend profiles, we need to find a skeleton to perform the lookup with
-	UPROPERTY(meta = (Inline, UseAsBlendProfile = true))
+	UPROPERTY(EditAnywhere, Category = "Default", meta = (Inline, UseAsBlendProfile = true))
 	TObjectPtr<UBlendProfile> BlendProfile = nullptr;
 };
 

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GraphDocumentSummoner.h"
 
@@ -86,6 +86,7 @@ TSharedRef<SWidget> FGraphDocumentSummoner::CreateTabBodyForObject(const FWorkfl
 {
 	SGraphEditor::FGraphEditorEvents Events;
 	Events.OnCreateActionMenu = SGraphEditor::FOnCreateActionMenu::CreateSP(this, &FGraphDocumentSummoner::OnCreateGraphActionMenu);
+	Events.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(HostingAppPtr.Pin().Get(), &FWorkspaceEditor::OnGraphSelectionChanged);
 	
 	return SNew(SGraphEditor)
 		.AdditionalCommands(CommandList)

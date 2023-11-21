@@ -23,6 +23,8 @@
 #include "Workspace/AnimNextWorkspaceEditor.h"
 #include "Param/ParameterBlockParameterCustomization.h"
 #include "Param/AnimNextParameterBlockParameter.h"
+#include "Graph/AnimNextGraph_EdGraphNode.h"
+#include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -55,6 +57,9 @@ class FModule : public IModule
 
 		PropertyModule.RegisterCustomClassLayout(UAnimNextParameterBlockParameter::StaticClass()->GetFName(), 
 			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterBlockParameterCustomization>(); }));
+
+		PropertyModule.RegisterCustomClassLayout(UAnimNextGraph_EdGraphNode::StaticClass()->GetFName(),
+			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
 
 		AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
 		FEdGraphUtilities::RegisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
@@ -142,6 +147,9 @@ class FModule : public IModule
 		{
 			UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InAsset);
 			UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
+			
+			EditorData->GetRigVMGraphModifiedEvent().RemoveAll(&InEditor.Get());
+			EditorData->GetRigVMGraphModifiedEvent().AddSP(InEditor, &FWorkspaceEditor::OnGraphModified);
 
 			return SNew(SAnimNextGraphView, EditorData)
 				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
