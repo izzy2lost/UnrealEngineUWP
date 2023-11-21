@@ -89,6 +89,11 @@ bool FDisplayClusterGameManager::StartScene(UWorld* InWorld)
 		// If a corresponding DCRA instance was found, overwrite its settings
 		if (RootActor)
 		{
+			UE_LOG(LogDisplayClusterGame, Log, TEXT("Chose DCRA '%s' corresponding to asset '%s'"), 
+				*RootActor->GetName(),
+				*ConfigData->Info.AssetPath
+			);
+
 			RootActor->OverrideFromConfig(ConfigData);
 		}
 		// If no proper DCRA found,
