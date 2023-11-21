@@ -1295,7 +1295,7 @@ class DevicenDisplay(DeviceUnreal):
 
         elif render_sync_policy == 'Ethernet':
 
-            new_rsp['type'] = 'ethernet' # .ndisplay uses lowercase
+            new_rsp['type'] = 'Ethernet'
             new_rsp['parameters'] = {}
 
         elif render_sync_policy == 'None':
