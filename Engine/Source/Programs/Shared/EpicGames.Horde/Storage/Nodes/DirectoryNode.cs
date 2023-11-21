@@ -1044,6 +1044,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 		/// <inheritdoc/>
+		protected override void Dispose(bool disposing)
+		{
+			base.Dispose(disposing);
+
+			_backgroundTask.DisposeAsync().AsTask().Wait();
+		}
+
+		/// <inheritdoc/>
 		public override async ValueTask DisposeAsync()
 		{
 			await base.DisposeAsync();
@@ -1061,7 +1069,9 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				if (result.IsCompleted && _current.Length == 0)
 				{
-					_logger?.LogInformation("Zip file was read to end");
+					// Wait for the background thread to finish; it may error/have errored, and we want to re-throw on this thread before completing the read.
+					await _backgroundTask.StopAsync(cancellationToken);
+					_logger?.LogInformation("Zip file pipe was read to end");
 					return 0;
 				}
 			}

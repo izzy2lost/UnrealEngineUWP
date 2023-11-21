@@ -498,7 +498,7 @@ namespace Horde.Server.Server
 				throw new StructuredRpcException(StatusCode.NotFound, $"Missing tool version {version}");
 			}
 
-			using Stream stream = await _toolCollection.GetDeploymentZipAsync(tool, deployment, context.CancellationToken);
+			await using Stream stream = await _toolCollection.GetDeploymentZipAsync(tool, deployment, context.CancellationToken);
 			using (IMemoryOwner<byte> buffer = MemoryPool<byte>.Shared.Rent(128 * 1024))
 			{
 				long totalWritten = 0;

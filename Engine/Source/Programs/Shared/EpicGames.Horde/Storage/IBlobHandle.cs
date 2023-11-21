@@ -221,7 +221,7 @@ namespace EpicGames.Horde.Storage
 		public static bool TryGetLocator(this IBlobHandle handle, [NotNullWhen(true)] out BlobLocator locator)
 		{
 			Utf8StringBuilder builder = new Utf8StringBuilder();
-			if (AppendLocator(handle, builder))
+			if (TryAppendLocator(handle, builder))
 			{
 				locator = new BlobLocator(builder.ToUtf8String());
 				return true;
@@ -236,15 +236,16 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Builds a full locator for a blob by traversing the outer chain
 		/// </summary>
-		static bool AppendLocator(IBlobHandle handle, Utf8StringBuilder builder)
+		static bool TryAppendLocator(IBlobHandle handle, Utf8StringBuilder builder)
 		{
 			IBlobHandle? outer = handle.Outer;
 			if (outer != null)
 			{
-				if (!AppendLocator(outer, builder))
+				if (!TryAppendLocator(outer, builder))
 				{
 					return false;
 				}
+
 				if (outer.Outer == null)
 				{
 					builder.Append('#');
