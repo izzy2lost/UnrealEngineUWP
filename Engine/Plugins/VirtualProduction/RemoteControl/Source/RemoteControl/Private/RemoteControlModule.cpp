@@ -755,6 +755,7 @@ void FRemoteControlModule::UnregisterEmbeddedPreset(FName Name)
 	// Check the cached preset ids and remove it if our name matches the stored id
 	TWeakObjectPtr<URemoteControlPreset>* FoundPreset = EmbeddedPresets.Find(Name);
 
+	// Remark: the weak ptr will be invalid during GC and the object will not be unregistered.
 	if (FoundPreset && FoundPreset->IsValid())
 	{
 		UnregisterEmbeddedPreset(FoundPreset->Get());
@@ -768,26 +769,34 @@ void FRemoteControlModule::UnregisterEmbeddedPreset(URemoteControlPreset* Preset
 		return;
 	}
 
+	// Remark: the PresetName is unreliable. When unregistering during the garbage collection,
+	// the name can be "None". In that case we can recover the name from CachedPresetNamesById
+	// by using the PresetId.
 	FName PresetName = Preset->GetPresetName();
 
-	if (PresetName == NAME_None)
-	{
-		return;
-	}
-
-	FGuid PresetId = Preset->GetPresetId();
-
+	const FGuid PresetId = Preset->GetPresetId();
+	
 	if (PresetId.IsValid())
 	{
-		FName* FoundPresetName = CachedPresetNamesById.Find(PresetId);
-
-		if (FoundPresetName && *FoundPresetName == PresetName)
+		if (const FName* FoundPresetName = CachedPresetNamesById.Find(PresetId))
 		{
-			CachedPresetNamesById.Remove(PresetId);
+			// Recover the name from the id.
+			if (PresetName == NAME_None)
+			{
+				PresetName = *FoundPresetName;
+			}
+			
+			if (PresetName == *FoundPresetName)
+			{
+				CachedPresetNamesById.Remove(PresetId);
+			}
 		}
 	}
 
-	EmbeddedPresets.Remove(PresetName);
+	if (PresetName != NAME_None)
+	{
+		EmbeddedPresets.Remove(PresetName);
+	}
 }
 
 bool FRemoteControlModule::CanResetToDefaultValue(UObject* InObject, const FRCResetToDefaultArgs& InArgs) const
