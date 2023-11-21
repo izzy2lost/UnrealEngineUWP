@@ -330,85 +330,14 @@ void ULandscapeComponent::BeginCacheForCookedPlatformData(const ITargetPlatform*
 {
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
-	// first check if there is a cooked state cached currently, and reset back to non cooked state if so
-	if (PlatformCook.CurrentCookedPlatformOrdinal != -1)
-	{
-		ClearAllCachedCookedPlatformData();
-	}
-
-	// record the platform we are cooking for, so we know what state we are in
-	PlatformCook.CurrentCookedPlatformOrdinal = TargetPlatform->GetPlatformOrdinal();
-	PlatformCook.bStripGrassData = false;
-	PlatformCook.StrippedGrassData = nullptr;
-
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
 		if (TargetPlatform->SupportsFeature(ETargetPlatformFeatures::MobileRendering))
 		{
 			CheckGenerateMobilePlatformData(/*bIsCooking = */ true, TargetPlatform);
 		}
-
-		// determine whether our target platform is going to need serialized grass data
-		bool bNeedSerializedGrassData = false;
-		{
-			TSharedPtr<IConsoleVariable> TargetPlatformUseRuntimeGeneration =
-				CVarGrassMapUseRuntimeGeneration->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
-			check(TargetPlatformUseRuntimeGeneration.IsValid());
-
-			if (!TargetPlatformUseRuntimeGeneration->GetBool())
-			{
-				bNeedSerializedGrassData = true;
-			}
-		}
-		PlatformCook.bStripGrassData = !bNeedSerializedGrassData;
-
-		if (ALandscapeProxy* Proxy = GetLandscapeProxy())
-		{
-			// Also strip grass data according to Proxy flags (when not cooking for editor)
-			if (!TargetPlatform->AllowsEditorObjects())
-			{
-				if (CVarAllowGrassStripping->GetBool() &&
-					((Proxy->bStripGrassWhenCookedClient && Proxy->bStripGrassWhenCookedServer) ||
-					(Proxy->bStripGrassWhenCookedClient && TargetPlatform->IsClientOnly()) ||
-					(Proxy->bStripGrassWhenCookedServer && TargetPlatform->IsServerOnly())))
-				{
-					PlatformCook.bStripGrassData = true;
-				}
-			}
-		}
-		
-		if (PlatformCook.bStripGrassData)
-		{
-			// save existing value before we strip it, so we can restore later
-			PlatformCook.StrippedGrassData = GrassData;
-			TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
-			GrassData = MakeShareable(NewGrassData.Release());
-			GrassData->NumElements = 0;
-		}
 	}
 }
-
-bool ULandscapeComponent::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform)
-{
-	return (PlatformCook.CurrentCookedPlatformOrdinal == TargetPlatform->GetPlatformOrdinal());
-}
-
-void ULandscapeComponent::ClearAllCachedCookedPlatformData()
-{
-	// restore back to "non-cooked" state
-	if (PlatformCook.CurrentCookedPlatformOrdinal >= 0 && PlatformCook.bStripGrassData)
-	{
-		if (PlatformCook.StrippedGrassData.IsValid())
-		{
-			GrassData = PlatformCook.StrippedGrassData.ToSharedRef();
-		}
-	}
-
-	PlatformCook.CurrentCookedPlatformOrdinal = -1;
-	PlatformCook.bStripGrassData = false;
-	PlatformCook.StrippedGrassData = nullptr;
-}
-
 
 void ALandscapeProxy::CheckGenerateMobilePlatformData(bool bIsCooking, const ITargetPlatform* TargetPlatform)
 {
@@ -752,15 +681,39 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 	Ar.UsingCustomVersion(FEditorObjectVersion::GUID);
 
+	bool bStripGrassData = false;
 #if WITH_EDITOR
 	if (Ar.IsCooking() && !HasAnyFlags(RF_ClassDefaultObject))
 	{
+		const ITargetPlatform* TargetPlatform = Ar.CookingTarget();
+
 		// for -oldcook:
 		// the old cooker calls BeginCacheForCookedPlatformData after the package export set is tagged, so the mobile material doesn't get saved, so we have to do CheckGenerateMobilePlatformData in serialize
 		// the new cooker clears the texture source data before calling serialize, causing GeneratePlatformVertexData to crash, so we have to do CheckGenerateMobilePlatformData in BeginCacheForCookedPlatformData
-		if (Ar.CookingTarget()->SupportsFeature(ETargetPlatformFeatures::MobileRendering))
+		if (TargetPlatform->SupportsFeature(ETargetPlatformFeatures::MobileRendering))
 		{
-			CheckGenerateMobilePlatformData(/*bIsCooking = */ true, Ar.CookingTarget());
+			CheckGenerateMobilePlatformData(/*bIsCooking = */ true, TargetPlatform);
+		}
+
+		// determine whether our target platform is going to need serialized grass data
+		TSharedPtr<IConsoleVariable> TargetPlatformUseRuntimeGeneration =
+			CVarGrassMapUseRuntimeGeneration->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
+		check(TargetPlatformUseRuntimeGeneration.IsValid());
+		bStripGrassData = TargetPlatformUseRuntimeGeneration->GetBool();
+
+		if (ALandscapeProxy* Proxy = GetLandscapeProxy())
+		{
+			// Also strip grass data according to Proxy flags (when not cooking for editor)
+			if (!TargetPlatform->AllowsEditorObjects())
+			{
+				if (CVarAllowGrassStripping->GetBool() &&
+					((Proxy->bStripGrassWhenCookedClient && Proxy->bStripGrassWhenCookedServer) ||
+					 (Proxy->bStripGrassWhenCookedClient && TargetPlatform->IsClientOnly()) ||
+					 (Proxy->bStripGrassWhenCookedServer && TargetPlatform->IsServerOnly())))
+				{
+					bStripGrassData = true;
+				}
+			}
 		}
 	}
 
@@ -928,7 +881,16 @@ void ULandscapeComponent::Serialize(FArchive& Ar)
 		}
 		else
 		{
-			Ar << GrassData.Get();
+			if (bStripGrassData)
+			{
+				FLandscapeComponentGrassData EmptyGrassData;
+				EmptyGrassData.NumElements = 0;
+				Ar << EmptyGrassData;
+			}
+			else
+			{
+				Ar << GrassData.Get();
+			}
 		}
 
 		// When loading or saving a component, validate that grass data is valid : 

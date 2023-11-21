@@ -694,20 +694,6 @@ public:
 	 * Returns false if there are no non-null physical materials. (We probably don't want to use if no physical material connections are bound.)
 	 */
 	bool GetRenderPhysicalMaterials(TArray<UPhysicalMaterial*>& OutPhysicalMaterials) const;
-
-	// Non-serialized data used to implement BeginCacheForCookedPlatformData() / ClearAllCachedCookedPlatformData()
-	struct FPlatformCook
-	{
-		// -1 indicates not currently cached for a cooked platform
-		int32 CurrentCookedPlatformOrdinal = -1;
-
-		// flags indicating if the current cooked platform stripped grass or collision
-		bool bStripGrassData = false;
-
-		// if Landscape data is stripped by a platform cook, it is stored here so it can be restored
-		TSharedPtr<FLandscapeComponentGrassData> StrippedGrassData;
-	};
-	FPlatformCook PlatformCook;
 #endif // WITH_EDITOR
 
 	//~ Begin UObject Interface.	
@@ -725,8 +711,6 @@ public:
 
 #if WITH_EDITOR
 	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
-	virtual bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
-	virtual void ClearAllCachedCookedPlatformData() override;
 	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 	virtual void PreEditChange(FProperty* PropertyThatWillChange) override;

@@ -2529,6 +2529,26 @@ void ULandscapeHeightfieldCollisionComponent::PreSave(FObjectPreSaveContext Obje
 }
 
 #if WITH_EDITOR
+bool ULandscapeHeightfieldCollisionComponent::NeedsLoadForClient() const
+{
+	ALandscapeProxy* Proxy = GetLandscapeProxy();
+	if (ensure(Proxy))
+	{
+		return !Proxy->bStripPhysicsWhenCookedClient;
+	}
+	return true;
+}
+
+bool ULandscapeHeightfieldCollisionComponent::NeedsLoadForServer() const
+{
+	ALandscapeProxy* Proxy = GetLandscapeProxy();
+	if (ensure(Proxy))
+	{
+		return !Proxy->bStripPhysicsWhenCookedServer;
+	}
+	return true;
+}
+
 void ULandscapeInfo::UpdateAllAddCollisions()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeInfo::UpdateAllAddCollisions);
