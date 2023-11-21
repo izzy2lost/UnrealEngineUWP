@@ -55,6 +55,7 @@
 #endif
 
 class Error;
+class FAddUniformExpressionScope;
 
 /**
  * Returns whether the specified class of material expression is permitted.
@@ -416,6 +417,11 @@ protected:
 	/** true if PerInstanceFadeAmount expression is used */
 	uint32 bUsesPerInstanceFadeAmount : 1;
 
+	uint32 bCullIntermediateUniformExpressions : 1;
+
+	/** Incremented and decremented by FAddUniformExpressionScope.  See comments on that class below */
+	int32 AddingUniformExpression;
+
 	/** Tracks the texture coordinates used by this material. */
 	TBitArray<> AllocatedUserTexCoords;
 	/** Tracks the texture coordinates used by the vertex shader in this material. */
@@ -765,7 +771,7 @@ protected:
 	int32 AddUniformExpressionInner(uint64 Hash, FMaterialUniformExpression* UniformExpression, EMaterialValueType Type, const TCHAR* FormattedCode);
 
 	// AddUniformExpression - Adds an input to the Code array and returns its index.
-	int32 AddUniformExpression(FMaterialUniformExpression* UniformExpression, EMaterialValueType Type, const TCHAR* Format, ...);
+	int32 AddUniformExpression(FAddUniformExpressionScope& Scope, FMaterialUniformExpression* UniformExpression, EMaterialValueType Type, const TCHAR* Format, ...);
 
 	// AccessUniformExpression - Adds code to access the value of a uniform expression to the Code array and returns its index.
 	int32 AccessUniformExpression(int32 Index);
@@ -1395,6 +1401,42 @@ protected:
 
 	/** The output material shader defines */
 	TUniquePtr<FEnvironmentDefines> EnvironmentDefines;
+
+	friend class FAddUniformExpressionScope;
+};
+
+/**
+ * The purpose of this class is to avoid generating unused preshaders, meaning preshaders not actually fetched in the HLSL code, saving performance.
+ * The translator normally generates preshaders when the function "AccessUniformExpression" is called the first time on a uniform expression.  We want
+ * to detect in that function whether the uniform expression access is from HLSL code or a parent uniform expression.  In the latter case, there is no
+ * need to generate a preshader.  The FAddUniformExpressionScope class provides that context.
+ *
+ * This class sets a flag in the translator when we enter a code path where we are adding a uniform expression (technically uses a count, so scopes can
+ * be nested).  To enforce usage of this scope class everywhere, the translator's AddUniformExpression function requires it to be passed in.  The reason
+ * we need a separate scope class, rather than setting the state in the AddUniformExpression function, is that the code that needs the context is actually
+ * the arguments to the AddUniformExpression function, not the function itself.  Calls to GetParameterCode and other utility functions that call
+ * GetParameterCode (CoerceParameter, ValidCast, ForceCast) are what call "AccessUniformExpression", and need to know whether they are being passed to
+ * "AddUniformExpression", versus functions like AddCodeChunk that emit the HLSL.
+ *
+ * If you make a mistake and place the scope somewhere it doesn't belong, it will generate stub code that will result in shader compile errors on
+ * symbols that look like "UniformStub[$0]".  Most likely, any new opcodes will be cut-and-paste from existing code, and thus already have the scope in
+ * the right place, so bugs should be rare.
+ */
+class FAddUniformExpressionScope
+{
+public:
+	FAddUniformExpressionScope(FHLSLMaterialTranslator* InTranslator)
+		: Translator(InTranslator)
+	{
+		Translator->AddingUniformExpression++;
+	}
+	~FAddUniformExpressionScope()
+	{
+		Translator->AddingUniformExpression--;
+		check(Translator->AddingUniformExpression >= 0);
+	}
+private:
+	FHLSLMaterialTranslator* Translator;
 };
 
 #endif // WITH_EDITORONLY_DATA
