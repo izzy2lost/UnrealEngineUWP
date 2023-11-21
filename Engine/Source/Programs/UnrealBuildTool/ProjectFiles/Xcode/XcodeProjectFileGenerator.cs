@@ -28,6 +28,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		protected override bool bMakeProjectPerTarget => true;
 		protected override bool bAllowContentOnlyProjects => true;
+		protected override bool bAllowMultiModuleReference => true;
 
 		public DirectoryReference? XCWorkspace;
 
