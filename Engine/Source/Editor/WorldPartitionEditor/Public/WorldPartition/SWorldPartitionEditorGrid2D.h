@@ -105,6 +105,7 @@ protected:
 	
 	TSharedRef<SWidget> GenerateContextualMenu() const;
 
+	void OnActorAdded(AActor* Actor);
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
@@ -226,4 +227,7 @@ protected:
 	TSharedPtr<SWorldPartitionViewportWidget> ViewportWidget;
 	TSharedPtr<STextBlock> TextWorldBoundsInKMWidget;
 	TSharedPtr<STextBlock> TextRulerWidget;
+
+	// List of actors without an actor descriptor
+	TSet<TWeakObjectPtr<AActor>> NewlyAddedUnsavedActors;
 };

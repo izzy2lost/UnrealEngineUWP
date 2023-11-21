@@ -478,7 +478,12 @@ SWorldPartitionEditorGrid2D::SWorldPartitionEditorGrid2D()
 }
 
 SWorldPartitionEditorGrid2D::~SWorldPartitionEditorGrid2D()
-{}
+{
+	if (GEngine)
+	{
+		GEngine->OnLevelActorAdded().RemoveAll(this);
+	}
+}
 
 void SWorldPartitionEditorGrid2D::Construct(const FArguments& InArgs)
 {
@@ -556,6 +561,8 @@ void SWorldPartitionEditorGrid2D::Construct(const FArguments& InArgs)
 	];
 
 	BindCommands();
+
+	GEngine->OnLevelActorAdded().AddRaw(this, &SWorldPartitionEditorGrid2D::OnActorAdded);
 }
 
 void SWorldPartitionEditorGrid2D::BindCommands()
@@ -964,6 +971,14 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 	return UToolMenus::Get()->GenerateWidget(MenuName, FToolMenuContext(CommandList));
 }
 
+void SWorldPartitionEditorGrid2D::OnActorAdded(AActor* Actor)
+{
+	if (Actor->IsPackageExternal())
+	{
+		NewlyAddedUnsavedActors.Add(Actor);
+	}
+}
+
 FReply SWorldPartitionEditorGrid2D::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	const bool bIsLeftMouseButtonEffecting = MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton;
@@ -1263,19 +1278,39 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 		}
 	}, ForEachIntersectingActorParams);
 
-	// Also include transient actor loader adapters that might have been spawned by blutilities, etc. Since these actors can't be saved because they are transient,
-	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
+	// Add dirty actors as an acceleration for FWorldPartitionActorDescViewBoundsProxy constructor
 	for (auto& [Reference, Actor] : GetWorldPartition()->GetDirtyActors())
 	{
-		if (!GetWorldPartition()->GetActorDesc(Actor->GetActorGuid()) && Actor->Implements<UWorldPartitionActorLoaderInterface>())
+		DirtyActorGuids.Add(Actor->GetActorGuid());
+	}
+
+	// Also include transient actor loader adapters that might have been spawned by blutilities, etc. Since these actors can't be saved because they are transient,
+	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
+	for (auto It = NewlyAddedUnsavedActors.CreateIterator(); It; ++It)
+	{
+		if (It->IsValid())
 		{
-			if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(Actor)->GetLoaderAdapter())
+			AActor* NewlyAddedUnsavedActor = It->Get();
+
+			if (!NewlyAddedUnsavedActor->GetPackage()->IsDirty())
 			{
-				ShownLoaderInterfaces.Add(Actor);
+				It.RemoveCurrent();
+			}
+			else
+			{
+				if (NewlyAddedUnsavedActor->Implements<UWorldPartitionActorLoaderInterface>())
+				{
+					if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(NewlyAddedUnsavedActor)->GetLoaderAdapter())
+					{
+						ShownLoaderInterfaces.Add(NewlyAddedUnsavedActor);
+					}
+				}
 			}
 		}
-
-		DirtyActorGuids.Add(Actor->GetActorGuid());
+		else if (!It->IsValid(true))
+		{
+			It.RemoveCurrent();
+		}
 	}
 
 	FLoaderInterfaceSet LastHoveredLoaderInterfaces = MoveTemp(HoveredLoaderInterfaces);
