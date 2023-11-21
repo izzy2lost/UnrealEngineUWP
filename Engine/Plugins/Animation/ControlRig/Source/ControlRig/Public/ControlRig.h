@@ -179,6 +179,9 @@ public:
 	// called after post reinstance when compilng blueprint by Sequencer
 	void PostReinstanceCallback(const UControlRig* Old);
 
+	// resets the recorded transform changes
+	void ResetRecordedTransforms(const FName& InEventName);
+
 #endif // WITH_EDITOR
 	
 	// BEGIN UObject interface

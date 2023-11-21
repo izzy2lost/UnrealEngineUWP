@@ -112,25 +112,6 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 	{
 		FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
 		URigHierarchy* Hierarchy = GetHierarchy();
-#if WITH_EDITOR
-
-		bool bRecordTransformsAtRuntime = true;
-		if(const UObject* Outer = GetOuter())
-		{
-			if(Outer->IsA<UControlRigComponent>())
-			{
-				bRecordTransformsAtRuntime = false;
-			}
-		}
-		TGuardValue<bool> RecordTransformsPerInstructionGuard(Hierarchy->bRecordTransformsAtRuntime, bRecordTransformsAtRuntime);
-		
-		if(Hierarchy->bRecordTransformsAtRuntime)
-		{
-			Hierarchy->ReadTransformsAtRuntime.Reset();
-			Hierarchy->WrittenTransformsAtRuntime.Reset();
-		}
-		
-#endif
 
 		ForEachModule([&InEventName, this, Hierarchy](FRigModuleInstance* Module) -> bool
 		{
