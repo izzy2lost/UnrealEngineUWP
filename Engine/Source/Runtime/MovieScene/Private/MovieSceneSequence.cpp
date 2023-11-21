@@ -83,6 +83,11 @@ void UMovieSceneSequence::BeginDestroy()
 	if (!GExitPurge && !HasAnyFlags(RF_ClassDefaultObject))
 	{
 		UMovieSceneCompiledDataManager::GetPrecompiledData()->Reset(this);
+
+#if WITH_EDITOR
+		UMovieSceneCompiledDataManager::GetPrecompiledData(EMovieSceneServerClientMask::Client)->Reset(this);
+		UMovieSceneCompiledDataManager::GetPrecompiledData(EMovieSceneServerClientMask::Server)->Reset(this);
+#endif
 	}
 }
 
