@@ -245,7 +245,8 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 		uint32 IndexBaseIndex;
 		uint32 UVsChannelOffset : 8;
 		uint32 UVsChannelCount : 8;
-		uint32 Pad : 16;
+		uint32 bIsSwapped : 8;
+		uint32 Pad : 8;
 	};
 	TArray<FSectionData> SectionDatas;
 	SectionDatas.SetNum(SectionCount);
@@ -257,15 +258,21 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 		SectionDatas[SectionIt].IndexBaseIndex	= MeshSectionData.IndexBaseIndex;
 		SectionDatas[SectionIt].UVsChannelOffset= MeshSectionData.UVsChannelOffset;
 		SectionDatas[SectionIt].UVsChannelCount	= MeshSectionData.UVsChannelCount;
+		SectionDatas[SectionIt].bIsSwapped		= MeshData.Sections[SectionIt].PositionBuffer != CommonParameters.MeshPositionBuffer ? 1u : 0u;
 
 		// Sanity check
 		check(MeshSectionData.SectionIndex == SectionIt);
 		check(MeshSectionData.UVsChannelOffset < 255);
 		check(MeshSectionData.UVsChannelCount < 255);
-		check(CommonParameters.RDGMeshPositionBuffer		== MeshData.Sections[SectionIt].RDGPositionBuffer);
-		check(CommonParameters.RDGMeshPreviousPositionBuffer== MeshData.Sections[SectionIt].RDGPreviousPositionBuffer);
-		check(CommonParameters.MeshPositionBuffer			== MeshData.Sections[SectionIt].PositionBuffer);
-		check(CommonParameters.MeshPreviousPositionBuffer	== MeshData.Sections[SectionIt].PreviousPositionBuffer);
+#if 1 // Relaxed check, with optional buffer swap
+		check(CommonParameters.RDGMeshPositionBuffer == MeshData.Sections[SectionIt].RDGPositionBuffer || CommonParameters.RDGMeshPreviousPositionBuffer == MeshData.Sections[SectionIt].RDGPositionBuffer);
+		check(CommonParameters.MeshPositionBuffer    == MeshData.Sections[SectionIt].PositionBuffer    || CommonParameters.MeshPreviousPositionBuffer    == MeshData.Sections[SectionIt].PositionBuffer);
+#else
+//		check(CommonParameters.RDGMeshPositionBuffer		== MeshData.Sections[SectionIt].RDGPositionBuffer);
+//		check(CommonParameters.RDGMeshPreviousPositionBuffer== MeshData.Sections[SectionIt].RDGPreviousPositionBuffer);
+//		check(CommonParameters.MeshPositionBuffer			== MeshData.Sections[SectionIt].PositionBuffer);
+//		check(CommonParameters.MeshPreviousPositionBuffer	== MeshData.Sections[SectionIt].PreviousPositionBuffer);
+#endif
 		check(CommonParameters.MeshIndexBuffer				== MeshData.Sections[SectionIt].IndexBuffer);
 		check(CommonParameters.MeshUVsBuffer				== MeshData.Sections[SectionIt].UVsBuffer);
 	}

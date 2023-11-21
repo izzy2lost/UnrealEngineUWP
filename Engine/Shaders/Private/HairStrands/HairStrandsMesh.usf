@@ -222,6 +222,7 @@ struct FMeshSectionData
 	uint IndexOffset;
 	uint UVsChannelOffset;
 	uint UVsChannelCount;
+	uint bIsSwapped;
 };
 
 uint MaxSectionCount;
@@ -260,21 +261,39 @@ FMeshSectionData ReadMeshSectionData(uint InSectionIndex)
 	Out.IndexOffset = Packed.z;
 	Out.UVsChannelOffset = BitFieldExtractU32(Packed.w, 8, 0);
 	Out.UVsChannelCount = BitFieldExtractU32(Packed.w, 8, 8);
+	Out.bIsSwapped = BitFieldExtractU32(Packed.w, 1, 16);
 	return Out;
 }
 
 FHairMeshTriangleWithUVs GetTriangleData(FHairTriangleIndex TriangleIndex, FMeshSectionData MeshSectionData, bool bPrevious)
 {
-	return GetTriangleData(
-		TriangleIndex.TriangleIndex, 
-		bPrevious ? MeshPreviousPositionBuffer : MeshPositionBuffer, 
-		MeshUVsBuffer, 
-		MeshIndexBuffer, 
-		MeshSectionData.IndexOffset,
-		MeshSectionData.MaxIndexCount,
-		MeshSectionData.MaxVertexCount,
-		MeshSectionData.UVsChannelOffset, 
-		MeshSectionData.UVsChannelCount);
+	const bool bSamplePrev = (MeshSectionData.bIsSwapped > 0 && !bPrevious) || (MeshSectionData.bIsSwapped == 0 && bPrevious);
+	if (bSamplePrev)
+	{
+		return GetTriangleData(
+			TriangleIndex.TriangleIndex, 
+			MeshPreviousPositionBuffer, 
+			MeshUVsBuffer, 
+			MeshIndexBuffer, 
+			MeshSectionData.IndexOffset,
+			MeshSectionData.MaxIndexCount,
+			MeshSectionData.MaxVertexCount,
+			MeshSectionData.UVsChannelOffset, 
+			MeshSectionData.UVsChannelCount);
+	}
+	else
+	{
+		return GetTriangleData(
+			TriangleIndex.TriangleIndex, 
+			MeshPositionBuffer, 
+			MeshUVsBuffer, 
+			MeshIndexBuffer, 
+			MeshSectionData.IndexOffset,
+			MeshSectionData.MaxIndexCount,
+			MeshSectionData.MaxVertexCount,
+			MeshSectionData.UVsChannelOffset, 
+			MeshSectionData.UVsChannelCount);
+	}
 }
 
 [numthreads(GROUP_SIZE, 1, 1)]
