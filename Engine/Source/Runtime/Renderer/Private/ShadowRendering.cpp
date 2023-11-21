@@ -2317,22 +2317,9 @@ void FDeferredShadingSceneRenderer::RenderDeferredShadowProjections(
 	{
 		bool bNeedHairShadowMaskPass = false;
 		const bool bVirtualShadowOnePass = VisibleLightInfo.VirtualShadowMapClipmaps.Num() > 0;
-		if (!bVirtualShadowOnePass)
+		if (!bVirtualShadowOnePass && VisibleLightInfo.ShadowsToProject.Num() > 0)
 		{
-			for (int32 ShadowIndex = 0; ShadowIndex < VisibleLightInfo.ShadowsToProject.Num(); ShadowIndex++)
-			{
-				FProjectedShadowInfo* ProjectedShadowInfo = VisibleLightInfo.ShadowsToProject[ShadowIndex];
-				if (ProjectedShadowInfo->HasVirtualShadowMap())
-				{
-					bNeedHairShadowMaskPass = false;
-					break;
-				}
-				else
-				{
-					bNeedHairShadowMaskPass = true;
-					break;
-				}
-			}
+			bNeedHairShadowMaskPass = !VisibleLightInfo.ShadowsToProject[0]->HasVirtualShadowMap();
 		}
 		if (bNeedHairShadowMaskPass)
 		{
