@@ -327,7 +327,7 @@ bool UE::Geometry::AppendSimpleCollision(
 namespace UE::Private::ConvertCollisionInternal
 {
 	static void ConvertSimpleCollisionToMeshesHelper(
-		const FKAggregateGeom& AggGeom,
+		const FKAggregateGeom& AggGeom, FVector ExternalScale,
 		const FSimpleCollisionTriangulationSettings& TriangulationSettings,
 		const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings,
 		TFunctionRef<void(int32 Index, const FKShapeElem& ShapeElem, FDynamicMesh3&)> DynamicMeshCallback,
@@ -387,11 +387,13 @@ namespace UE::Private::ConvertCollisionInternal
 			{
 				continue;
 			}
+			FVector Center = Sphere.Center * ExternalScale;
+			double Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius) * ExternalScale.GetAbsMin();
 			if (TriangulationSettings.bUseBoxSphere)
 			{
 				FBoxSphereGenerator BoxSphereGen;
-				BoxSphereGen.Box.Frame.Origin = Sphere.Center;
-				BoxSphereGen.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
+				BoxSphereGen.Box.Frame.Origin = Center;
+				BoxSphereGen.Radius = Radius;
 				int32 StepsPerSide = FMath::Max(1, TriangulationSettings.BoxSphereStepsPerSide);
 				BoxSphereGen.EdgeVertices = FIndex3i(StepsPerSide, StepsPerSide, StepsPerSide);
 				BoxSphereGen.Generate();
@@ -400,11 +402,11 @@ namespace UE::Private::ConvertCollisionInternal
 			else
 			{
 				FSphereGenerator LatLongSphereGen;
-				LatLongSphereGen.Radius = FMath::Max(FMathf::ZeroTolerance, Sphere.Radius);
+				LatLongSphereGen.Radius = Radius;
 				LatLongSphereGen.NumPhi = LatLongSphereGen.NumTheta = FMath::Max(1, TriangulationSettings.LatLongSphereSteps);
 				LatLongSphereGen.bPolygroupPerQuad = false;
 				LatLongSphereGen.Generate();
-				TranslateVerts(FVector3d(Sphere.Center), LatLongSphereGen.Vertices);
+				TranslateVerts(FVector3d(Center), LatLongSphereGen.Vertices);
 				RunCallbacks(ShapeIndex++, Sphere, LatLongSphereGen);
 			}
 		}
@@ -417,8 +419,8 @@ namespace UE::Private::ConvertCollisionInternal
 			}
 			FMinimalBoxMeshGenerator BoxGen;
 			BoxGen.Box = UE::Geometry::FOrientedBox3d(
-				FFrame3d(FVector3d(Box.Center), FQuaterniond(Box.Rotation.Quaternion())),
-				0.5 * FVector3d(Box.X, Box.Y, Box.Z));
+				FFrame3d(FVector3d(Box.Center * ExternalScale), FQuaterniond(Box.Rotation.Quaternion())),
+				0.5 * FVector3d(Box.X, Box.Y, Box.Z) * ExternalScale);
 			BoxGen.Generate();
 			RunCallbacks(ShapeIndex++, Box, BoxGen);
 		}
@@ -430,14 +432,15 @@ namespace UE::Private::ConvertCollisionInternal
 				continue;
 			}
 			FCapsuleGenerator CapsuleGen;
-			CapsuleGen.Radius = Capsule.Radius;
-			CapsuleGen.SegmentLength = Capsule.Length;
+			CapsuleGen.Radius = (double)Capsule.GetScaledRadius(ExternalScale);
+			CapsuleGen.SegmentLength = (double)Capsule.GetScaledCylinderLength(ExternalScale);
 			CapsuleGen.NumHemisphereArcSteps = TriangulationSettings.CapsuleHemisphereSteps;
 			CapsuleGen.NumCircleSteps = TriangulationSettings.CapsuleCircleSteps;
 			CapsuleGen.bPolygroupPerQuad = false;
 			CapsuleGen.Generate();
-			TranslateVerts(FVector3d(0, 0, -0.5 * Capsule.Length), CapsuleGen.Vertices);
+			TranslateVerts(FVector3d(0, 0, -0.5 * CapsuleGen.SegmentLength), CapsuleGen.Vertices);
 			FTransform Transform = Capsule.GetTransform();
+			Transform.ScaleTranslation(ExternalScale);
 			// Note: Capsule transform cannot invert; it is generated from a rotation and translation
 			TransformVerts(Transform, CapsuleGen.Vertices, CapsuleGen.Normals);
 			RunCallbacks(ShapeIndex++, Capsule, CapsuleGen);
@@ -450,6 +453,8 @@ namespace UE::Private::ConvertCollisionInternal
 				continue;
 			}
 			FTransform ElemTransform = Convex.GetTransform();
+			ElemTransform.ScaleTranslation(ExternalScale);
+			ElemTransform.MultiplyScale3D(ExternalScale);
 			const int32 NumVertices = Convex.VertexData.Num();
 			const int32 NumTris = Convex.IndexData.Num() / 3;
 			bool bInvert = ElemTransform.GetDeterminant() < 0;
@@ -505,6 +510,8 @@ namespace UE::Private::ConvertCollisionInternal
 				continue;
 			}
 			FTransform ElemTransform = LevelSet.GetTransform();
+			ElemTransform.ScaleTranslation(ExternalScale);
+			ElemTransform.MultiplyScale3D(ExternalScale);
 			bool bInvert = ElemTransform.GetDeterminant() < 0;
 
 			FDynamicMesh3 LevelSetMesh(EMeshComponents::None);
@@ -578,13 +585,13 @@ namespace UE::Private::ConvertCollisionInternal
 }
 
 void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
-	const FKAggregateGeom& AggGeom,
+	const FKAggregateGeom& AggGeom, FVector ExternalScale,
 	TFunctionRef<void(int32, const FKShapeElem&, FDynamicMesh3&)> PerElementMeshCallback,
 	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
 	const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings)
 {
 	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
-		AggGeom,
+		AggGeom, ExternalScale,
 		TriangulationSettings,
 		MeshAttributeSettings,
 		PerElementMeshCallback,
@@ -592,14 +599,14 @@ void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
 }
 
 void UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
-	const FKAggregateGeom& AggGeom,
+	const FKAggregateGeom& AggGeom, FVector ExternalScale,
 	TFunctionRef<void(int32, const FKShapeElem&, FDynamicMesh3&)> PerElementMeshCallback,
 	TFunctionRef<bool(const FKShapeElem&)> IncludeElement,
 	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
 	const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings)
 {
 	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
-		AggGeom,
+		AggGeom, ExternalScale,
 		TriangulationSettings,
 		MeshAttributeSettings,
 		PerElementMeshCallback,
@@ -615,7 +622,8 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 	bool bSetToPerTriangleNormals,
 	bool bInitializeConvexAndLevelSetUVs,
 	TFunction<void(int, const FDynamicMesh3&)> PerElementMeshCallback,
-	bool bApproximateLevelSetWithCubes)
+	bool bApproximateLevelSetWithCubes,
+	FVector ExternalScale)
 {
 	FDynamicMeshEditor Editor(&MeshOut);
 
@@ -632,7 +640,7 @@ void UE::Geometry::ConvertSimpleCollisionToMeshes(
 
 	FMeshIndexMappings Mappings;
 	UE::Private::ConvertCollisionInternal::ConvertSimpleCollisionToMeshesHelper(
-		AggGeom,
+		AggGeom, ExternalScale,
 		TriangulationSettings,
 		MeshAttributeSettings,
 		[&](int32 Index, const FKShapeElem& Elem, const UE::Geometry::FDynamicMesh3& Mesh)

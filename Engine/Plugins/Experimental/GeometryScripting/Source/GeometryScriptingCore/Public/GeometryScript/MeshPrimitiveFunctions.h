@@ -590,6 +590,7 @@ public:
 	
 	/**
 	 * Appends Simple Collision shapes to the Target Mesh, triangulated as specified by Triangulation Options
+	 * @param Transform Transform to be applied to simple collision shapes, following the method by which simple collision shapes are transformed -- so, e.g., spheres will not be non-uniformly scaled
 	 */
 	UFUNCTION(BlueprintCallable, DisplayName = "Append Simple Collision Shapes to Mesh", Category = "GeometryScript|Primitives")
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*

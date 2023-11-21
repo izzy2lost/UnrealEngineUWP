@@ -35,7 +35,7 @@ void InitializePreviewGeometrySolid(
 	TriangulationSettings.bApproximateLevelSetWithCubes = false;
 
 	UE::Geometry::ConvertSimpleCollisionToDynamicMeshes(
-		AggGeom,
+		AggGeom, PhysicsData.ExternalScale3D,
 		[&](int32 ShapeIndex, const FKShapeElem& ShapeElem, FDynamicMesh3& Mesh)
 		{
 			FColor Color = GeoSetIndexToColorFunc(ShapeIndex);

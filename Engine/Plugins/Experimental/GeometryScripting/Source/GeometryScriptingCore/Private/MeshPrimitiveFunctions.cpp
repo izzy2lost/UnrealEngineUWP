@@ -1526,8 +1526,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendSimpleCollisi
 
 	FSimpleCollisionToMeshAttributeSettings UseAttributeOptions(true /*enable attributes*/, false /*per-triangle normals*/, true /*initialize UVs*/);
 
+	FVector ExternalScale = Transform.GetScale3D();
+	Transform.SetScale3D(FVector::OneVector);
 	ConvertSimpleCollisionToDynamicMeshes(
-		SimpleCollision.AggGeom,
+		SimpleCollision.AggGeom, ExternalScale,
 		[&](int32 Index, const FKShapeElem& ShapeElem, FDynamicMesh3& Mesh)
 		{
 			AppendPrimitiveMesh(TargetMesh, Mesh, Transform, PrimitiveOptions);

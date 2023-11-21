@@ -323,7 +323,7 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyCollisionMeshesF
 		bool bFoundMeshErrors = false;
 		UE::Geometry::ConvertComplexCollisionToMeshes(CollisionProvider, AccumulatedMesh, Transforms, bFoundMeshErrors, true, true);
 	}
-	else
+	else // simple collision
 	{
 		const UBodySetup* BodySetup = nullptr;
 		if (UPrimitiveComponent* AnyComponent = Cast<UPrimitiveComponent>(FromObject))
@@ -344,12 +344,16 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyCollisionMeshesF
 		}
 
 		FTransformSequence3d Transforms;
+		FVector ExternalScale = FVector::OneVector;
 		if (bTransformToWorld)
 		{
-			Transforms.Append(LocalToWorld);
+			ExternalScale = LocalToWorld.GetScale3D();
+			FTransform WithoutScale = LocalToWorld;
+			WithoutScale.SetScale3D(FVector::OneVector);
+			Transforms.Append(WithoutScale);
 		}
 
-		UE::Geometry::ConvertSimpleCollisionToMeshes(BodySetup->AggGeom, AccumulatedMesh, Transforms, SphereResolution, true, true);
+		UE::Geometry::ConvertSimpleCollisionToMeshes(BodySetup->AggGeom, AccumulatedMesh, Transforms, SphereResolution, true, true, nullptr, false, ExternalScale);
 	}
 
 	ToDynamicMesh->EditMesh([&](FDynamicMesh3& EditMesh)

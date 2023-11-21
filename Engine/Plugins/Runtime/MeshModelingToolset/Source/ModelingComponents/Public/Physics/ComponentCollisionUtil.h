@@ -122,6 +122,7 @@ MODELINGCOMPONENTS_API UBodySetup* GetBodySetup(UPrimitiveComponent* SourceCompo
  * @param bInitializeConvexUVs if true convex hulls have their UVs initialized to per-face planar projections, otherwise no UVs are set
  * @param PerElementMeshCallback if provided, called with each element mesh before transforming/appending to MeshOut. The int parameter is the shape type (EAggCollisionShape::Type), 0=Sphere, 1=Box, 2=Capsule, 3=Convex
  * @param bApproximateLevelSetWithCubes if true, level sets will be approximated with cubes; otherwise, marching cubes will be used to triangulate level set surfaces
+ * @param ExternalScale if provided, apply external component scaling according to the simple collision shapes, in limited way that UE does so (e.g., so spheres w/ non-uniform scaling will still remain spheres)
  */
 MODELINGCOMPONENTS_API void ConvertSimpleCollisionToMeshes(
 	const FKAggregateGeom& AggGeom,
@@ -131,7 +132,8 @@ MODELINGCOMPONENTS_API void ConvertSimpleCollisionToMeshes(
 	bool bSetToPerTriangleNormals = false,
 	bool bInitializeConvexUVs = false,
 	TFunction<void(int, const FDynamicMesh3&)> PerElementMeshCallback = nullptr,
-	bool bApproximateLevelSetWithCubes = true);
+	bool bApproximateLevelSetWithCubes = true,
+	FVector ExternalScale = FVector::OneVector);
 
 // Settings to define how simple collision shapes are triangulated
 struct FSimpleCollisionTriangulationSettings
@@ -181,7 +183,7 @@ struct FSimpleCollisionToMeshAttributeSettings
 // Similar to ConvertSimpleCollisionToMeshes but without aggregating to an output mesh.
 // @param PerElementMeshCallback	Called with each shape element and the corresponding mesh
 MODELINGCOMPONENTS_API void ConvertSimpleCollisionToDynamicMeshes(
-	const FKAggregateGeom& AggGeom,
+	const FKAggregateGeom& AggGeom, FVector ExternalScale,
 	TFunctionRef<void(int32 Index, const FKShapeElem&, FDynamicMesh3& Mesh)> PerElementMeshCallback,
 	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
 	const FSimpleCollisionToMeshAttributeSettings& MeshAttributeSettings = FSimpleCollisionToMeshAttributeSettings()
@@ -191,7 +193,7 @@ MODELINGCOMPONENTS_API void ConvertSimpleCollisionToDynamicMeshes(
 // @param PerElementMeshCallback	Called with each shape element and the corresponding mesh
 // @param IncludeElement			Filters Shape Elements: The PerElementMeshCallback will only be called if this function returns true
 MODELINGCOMPONENTS_API void ConvertSimpleCollisionToDynamicMeshes(
-	const FKAggregateGeom& AggGeom,
+	const FKAggregateGeom& AggGeom, FVector ExternalScale,
 	TFunctionRef<void(int32 Index, const FKShapeElem&, FDynamicMesh3& Mesh)> PerElementMeshCallback,
 	TFunctionRef<bool(const FKShapeElem&)> IncludeElement,
 	const FSimpleCollisionTriangulationSettings& TriangulationSettings,
