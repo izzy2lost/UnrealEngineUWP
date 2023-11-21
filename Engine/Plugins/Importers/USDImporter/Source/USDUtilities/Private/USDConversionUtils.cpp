@@ -73,7 +73,6 @@
 	#include "pxr/usd/usdGeom/modelAPI.h"
 	#include "pxr/usd/usdGeom/primvar.h"
 	#include "pxr/usd/usdGeom/primvarsAPI.h"
-	#include "pxr/usd/usdGeom/xform.h"
 	#include "pxr/usd/usdLux/diskLight.h"
 	#include "pxr/usd/usdLux/distantLight.h"
 	#include "pxr/usd/usdLux/domeLight.h"
@@ -2046,65 +2045,6 @@ bool UsdUtils::RenamePrim( UE::FUsdPrim& Prim, const TCHAR* NewPrimName )
 #else
 	return false;
 #endif // #if USE_USD_SDK
-}
-
-TArray<UE::FSdfPath> UsdUtils::ReparentPrims(const TArray<UE::FUsdPrim>& Prims, const UE::FUsdPrim& ParentPrim)
-{
-	TArray<UE::FSdfPath> Result;
-
-#if USE_USD_SDK
-	Result.Reserve(Prims.Num());
-
-	FScopedUsdAllocs Allocs;
-
-	if ( const pxr::UsdPrim UsdParentPrim{ ParentPrim } )
-	{
-		if ( const pxr::UsdStageRefPtr ParentUsdStage = UsdParentPrim.GetStage() )
-		{
-			if ( const pxr::SdfLayerHandle ParentEditTargetLayer = ParentUsdStage->GetEditTarget().GetLayer() )
-			{
-				for ( const UE::FUsdPrim& Prim : Prims )
-				{
-					if ( const pxr::UsdPrim UsdPrim{ Prim } )
-					{
-						const pxr::UsdStageRefPtr UsdStage = UsdPrim.GetStage();
-
-						if ( const pxr::SdfLayerHandle EditTargetLayer = UsdStage->GetEditTarget().GetLayer() )
-						{
-							const pxr::SdfPath SourcePath = UsdPrim.GetPrimPath();
-							const pxr::SdfPath TargetPath = UsdParentPrim.GetPrimPath().AppendChild(UsdPrim.GetName());
-
-							// Copy the old prim to the new path
-							if ( pxr::SdfCopySpec(EditTargetLayer, SourcePath, ParentEditTargetLayer, TargetPath) )
-							{
-								// Remove the old prim
-								if ( UsdStage->RemovePrim(SourcePath) )
-								{
-									UE_LOG(LogUsd, Log, TEXT("Moved prim '%s' from layer '%s' under new parent prim '%s' from layer '%s'."),
-										*UsdToUnreal::ConvertPath(SourcePath),
-										*UsdToUnreal::ConvertString(EditTargetLayer->GetIdentifier()),
-										*UsdToUnreal::ConvertPath(UsdParentPrim.GetPrimPath()),
-										*UsdToUnreal::ConvertString(ParentEditTargetLayer->GetIdentifier()));
-								}
-								else
-								{
-									UE_LOG(LogUsd, Warning, TEXT("Copied prim '%s' from layer '%s' under new parent prim '%s' from layer '%s', but failed to remove the source prim from under its old parent."),
-										*UsdToUnreal::ConvertPath(SourcePath),
-										*UsdToUnreal::ConvertString(EditTargetLayer->GetIdentifier()),
-										*UsdToUnreal::ConvertPath(UsdParentPrim.GetPrimPath()),
-										*UsdToUnreal::ConvertString(ParentEditTargetLayer->GetIdentifier()));
-								}
-								Result.Emplace(TargetPath);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-#endif // USE_USD_SDK
-
-	return Result;
 }
 
 bool UsdUtils::RemoveNumberedSuffix( FString& Prefix )

@@ -333,16 +333,6 @@ namespace UsdUtils
 	 */
 	USDUTILITIES_API bool RenamePrim( UE::FUsdPrim& Prim, const TCHAR* NewPrimName );
 
-	/** 
-	 * Reparent the specified prims under a new parent prim.
-	 * The prims will be removed from under their old parent and moved under the new parent prim unless
-	 * the removing operation fails, in which case they are only copied under the new parent prim.
-	 * @param Prims - Prims to reparent
-	 * @param ParentPrim - The new parent prim
-	 * @return Paths to the succesfully copied prim specs, after they were added as children of ParentPrim
-	 */
-	USDUTILITIES_API TArray<UE::FSdfPath> ReparentPrims( const TArray<UE::FUsdPrim>& Prims, const UE::FUsdPrim& ParentPrim);
-
 	/**
 	 * Removes any numbered suffix, followed by any number of underscores (e.g. Asset_2, Asset__232_31 or Asset94 all become 'Asset'), making
 	 * sure the string is kept at least one character long. Returns true if it removed anything.
