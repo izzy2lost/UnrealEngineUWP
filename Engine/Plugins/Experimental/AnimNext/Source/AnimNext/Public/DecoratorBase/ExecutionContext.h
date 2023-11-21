@@ -11,11 +11,6 @@
 #include "DecoratorBase/NodeHandle.h"
 #include "Graph/AnimNextGraph.h"
 
-struct FRigVMExtendedExecuteContext;
-struct FRigVMMemoryHandle;
-
-using FRigVMMemoryHandleArray = TArrayView<FRigVMMemoryHandle>;
-
 namespace UE::AnimNext
 {
 	struct FNodeDescription;
@@ -35,9 +30,6 @@ namespace UE::AnimNext
 	{
 		// Creates an execution context for the specified graph instance
 		explicit FExecutionContext(FAnimNextGraphInstance& InGraphInstance);
-
-		// Creates an execution context for the specified graph with RigVM latent pin support
-		FExecutionContext(FAnimNextGraphInstance& InGraphInstance, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles);
 
 		// Destroys the execution context
 		~FExecutionContext();
@@ -98,7 +90,7 @@ namespace UE::AnimNext
 
 		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
 		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const;
-		const void* EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle) const;
+		void EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle, void* DestinationPtr) const;
 
 		const FNodeDescription& GetNodeDescription(FNodeHandle NodeHandle) const;
 		const FNodeTemplate* GetNodeTemplate(const FNodeDescription& NodeDesc) const;
@@ -112,8 +104,6 @@ namespace UE::AnimNext
 		const UAnimNextGraph* Graph = nullptr;
 		FAnimNextGraphInstance* GraphInstance = nullptr;
 		TArrayView<const uint8> GraphSharedData;
-		FRigVMMemoryHandleArray RigVMLatentMemoryHandles;
-		FRigVMExtendedExecuteContext* RigVMExecuteContext = nullptr;
 	};
 
 	// Returns a pointer to the current execution context if present, nullptr otherwise.
@@ -156,21 +146,15 @@ namespace UE::AnimNext
 	template<typename LatentPinType>
 	inline LatentPinType FExecutionContext::EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const
 	{
+		LatentPinType Result{};
+
 		// Latent pin handle needs to be valid
-		ensure(LatentPropertyHandle.IsValid());
-		if (!LatentPropertyHandle.IsValid())
+		if (ensure(LatentPropertyHandle.IsValid()))
 		{
-			return LatentPinType();
+			EvaluateLatentPinImpl(LatentPropertyHandle, &Result);
 		}
 
-		// We need latent pin memory handles, also implies we have a valid RigVM execution context
-		ensure(RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()));
-		if (!RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()))
-		{
-			return LatentPinType();
-		}
-
-		return *reinterpret_cast<const LatentPinType*>(EvaluateLatentPinImpl(LatentPropertyHandle));
+		return Result;
 	}
 
 	template<class ComponentType>

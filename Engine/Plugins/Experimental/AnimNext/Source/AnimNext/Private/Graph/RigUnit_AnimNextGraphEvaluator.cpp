@@ -1,15 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
-#include "DecoratorBase/ExecutionContext.h"
-#include "DecoratorInterfaces/IUpdate.h"
-#include "DecoratorInterfaces/IEvaluate.h"
-#include "EvaluationVM/EvaluationVM.h"
 #include "Context.h"
-#include "Graph/AnimNextGraph.h"
-#include "Param/ParamStack.h"
-#include "Graph/AnimNext_LODPose.h"
-#include "AnimNextStats.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextGraphEvaluator)
 
@@ -33,62 +25,33 @@ namespace UE::AnimNext::Private
 
 void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext& RigVMExecuteContext, FRigVMMemoryHandleArray RigVMMemoryHandles, FRigVMPredicateBranchArray RigVMBranches)
 {
-	using namespace UE::AnimNext;
-
 	const FAnimNextExecuteContext& VMExecuteContext = RigVMExecuteContext.GetPublicData<FAnimNextExecuteContext>();
-	FAnimNextGraphInstance& GraphInstance = VMExecuteContext.GetGraphInstance();
 
-	// Setup what we need to execute
-	FExecutionContext Context(GraphInstance, RigVMExecuteContext, RigVMMemoryHandles);
-
-	const FWeakDecoratorPtr& GraphInstancePtr = GraphInstance.GraphInstancePtr;
-	const EAnimNextGraphSimulationSteps SimulationSteps = VMExecuteContext.GetSimulationSteps();
-
-	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Update))
+	const int32 LatentPinIndex = VMExecuteContext.GetLatentPinIndex();
+	if (LatentPinIndex == INDEX_NONE)
 	{
-		const FContext& InterfaceContext = VMExecuteContext.GetContext();
-
-		// Call pre/post update on our graph
-		UpdateGraph(Context, GraphInstancePtr, InterfaceContext.GetDeltaTime());
+		return;
 	}
 
-	if (EnumHasAnyFlags(SimulationSteps, EAnimNextGraphSimulationSteps::Evaluate))
+	FRigVMMemoryHandle& MemoryHandle = RigVMMemoryHandles[LatentPinIndex];
+
+	// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
+	// are assigned during compilation. We keep it as an ensure because in this case, we can recover
+	// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
+	// value we expect but it'll work. The ensure will signal that we need to fix the bug.
+	if (ensure(MemoryHandle.IsLazy()))
 	{
-		// Call pre/post evaluate on our graph
-		FEvaluationProgram EvaluationProgram = EvaluateGraph(Context, GraphInstancePtr);
-
-		if (!EvaluationProgram.IsEmpty())
-		{
-			FParamStack& ParamStack = FParamStack::Get();
-
-			const UAnimNextGraph* Graph = GraphInstance.GetGraph();
-			const FAnimNextGraphReferencePose* GraphReferencePosePtr = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(Graph->GetReferencePoseParam());
-			const int32* GraphLODLevelPtr = ParamStack.GetParamPtr<int32>(Graph->GetCurrentLODParam());
-			static FParamId ResultId("UE_Internal_ResultPose");
-			FAnimNextGraphLODPose* ResultPosePtr = ParamStack.GetMutableParamPtr<FAnimNextGraphLODPose>(ResultId);
-			static FParamId ExpectsAdditiveId("UE_Internal_GraphExpectsAdditive");
-			const bool* bExpectsAdditivePtr = ParamStack.GetParamPtr<bool>(ExpectsAdditiveId);
-
-			if(GraphReferencePosePtr && GraphLODLevelPtr && ResultPosePtr && bExpectsAdditivePtr)
-			{
-				FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePosePtr->ReferencePose, *GraphLODLevelPtr);
-				EvaluationProgram.Execute(EvaluationVM);
-
-				TUniquePtr<FKeyframeState> EvaluatedKeyframe;
-				if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
-				{
-					ResultPosePtr->LODPose.CopyFrom(EvaluatedKeyframe->Pose);
-				}
-				else
-				{
-					// We need to output a valid pose, generate one
-					
-					FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(*bExpectsAdditivePtr);
-					ResultPosePtr->LODPose.CopyFrom(ReferenceKeyframe.Pose);
-				}
-			}
-		}
+		MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSlice().GetIndex());
 	}
+
+	const uint8* SourcePtr = MemoryHandle.GetData();
+	uint8* DestinationPtr = (uint8*)VMExecuteContext.GetDestinationPtr();
+
+	// Copy from our source into our destination
+	// We assume the source and destination properties are identical
+	URigVMMemoryStorage::CopyProperty(
+		MemoryHandle.GetProperty(), DestinationPtr,
+		MemoryHandle.GetProperty(), SourcePtr);
 }
 
 void FRigUnit_AnimNextGraphEvaluator::RegisterExecuteMethod(const FAnimNextGraphEvaluatorExecuteDefinition& ExecuteDefinition)

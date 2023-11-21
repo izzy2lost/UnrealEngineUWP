@@ -14,7 +14,7 @@
 #include "Serialization/MemoryReader.h"
 #include "AnimNextStats.h"
 
-DEFINE_STAT(STAT_AnimNext_Graph);
+DEFINE_STAT(STAT_AnimNext_Graph_RigVM);
 DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
@@ -163,6 +163,11 @@ const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
 	return Graph;
 }
 
+UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstance::GetGraphRootPtr() const
+{
+	return GraphInstancePtr;
+}
+
 bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
 {
 	return Graph == InGraph;
@@ -196,6 +201,27 @@ GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstance::GetCompone
 	return Components.CreateConstIterator();
 }
 
+void FAnimNextGraphInstance::ExecuteLatentPin(int32 LatentPinIndex, void* DestinationPtr)
+{
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_RigVM);
+
+	if (!IsValid())
+	{
+		return;
+	}
+
+	if (URigVM* VM = Graph->VM)
+	{
+		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
+		AnimNextContext.SetupForExecution(LatentPinIndex, DestinationPtr);
+
+		VM->ExecuteVM(ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
+
+		// Reset the context to avoid issues if we forget to reset it the next time we use it
+		AnimNextContext.DebugReset();
+	}
+}
+
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -223,29 +249,22 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 		Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
 	}
 
-#if WITH_EDITORONLY_DATA
-	FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
-	check(!GraphInstances.Contains(&Instance));
-	GraphInstances.Add(&Instance);
-#endif
-}
-
-void UAnimNextGraph::Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const
-{
-	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph);
-
-	if (VM && GraphInstance.IsValid())
+	if (!Instance.GraphInstancePtr.IsValid())
 	{
-		FAnimNextExecuteContext& AnimNextContext = GraphInstance.ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
-		AnimNextContext.SetContextData(Context);
-		AnimNextContext.SetGraphInstance(GraphInstance);
-		AnimNextContext.SetSimulationSteps(SimulationSteps);
-
-		VM->ExecuteVM(GraphInstance.ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
-
-		// Reset the context to avoid issues if we forget to reset it the next time we use it
-		AnimNextContext.DebugReset();
+		// We failed to allocate our instance, clear everything
+		Instance.Graph = nullptr;
+		Instance.ExtendedExecuteContext.Reset();
+		Instance.Components.Empty();
 	}
+
+#if WITH_EDITORONLY_DATA
+	if (Instance.GraphInstancePtr.IsValid())
+	{
+		FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
+		check(!GraphInstances.Contains(&Instance));
+		GraphInstances.Add(&Instance);
+	}
+#endif
 }
 
 TArray<FRigVMExternalVariable> UAnimNextGraph::GetRigVMExternalVariables()

@@ -272,7 +272,12 @@ TWeakPtr<FParamStack> FParamStack::DetachFromCurrentThread(EDecoalesce InDecoale
 
 FParamStack::FPushedLayerHandle FParamStack::PushLayer(const FParamStackLayerHandle& InLayerHandle)
 {
-	return PushLayerInternal(*InLayerHandle.Layer.Get());
+	if (InLayerHandle.IsValid())
+	{
+		return PushLayerInternal(*InLayerHandle.Layer.Get());
+	}
+
+	return FPushedLayerHandle();
 }
 
 FParamStack::FPushedLayerHandle FParamStack::PushLayer(TConstArrayView<Private::FParamEntry> InParams)

@@ -20,7 +20,6 @@ class UAnimNextGraph;
 class UAnimGraphNode_AnimNextGraph;
 struct FAnimNode_AnimNextGraph;
 struct FRigUnit_AnimNextGraphEvaluator;
-enum class EAnimNextGraphSimulationSteps;
 
 namespace UE::AnimNext
 {
@@ -83,6 +82,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns the graph used by this instance or nullptr if the instance is invalid
 	const UAnimNextGraph* GetGraph() const;
 
+	// Returns a weak handle to the root decorator instance
+	UE::AnimNext::FWeakDecoratorPtr GetGraphRootPtr() const;
+
 	// Check to see if this instance data matches the provided graph
 	bool UsesGraph(const UAnimNextGraph* InGraph) const;
 
@@ -111,6 +113,9 @@ private:
 	// Adds the specified component and returns a reference to it
 	UE::AnimNext::FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component);
 
+	// Executes a latent RigVM pin and writes the result into the destination pointer
+	void ExecuteLatentPin(int32 LatentPinIndex, void* DestinationPtr);
+
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
 	TObjectPtr<const UAnimNextGraph> Graph;
@@ -127,6 +132,7 @@ private:
 
 	friend UAnimNextGraph;					// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
+	friend UE::AnimNext::FExecutionContext;
 };
 
 template<>
@@ -156,9 +162,6 @@ public:
 
 	// Allocates an instance of the graph, retain the handle and use it with the Run() function to evaluate it
 	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
-
-	// Run the specified simulation steps on the provided graph with the given context
-	void Run(const UE::AnimNext::FContext& Context, FAnimNextGraphInstance& GraphInstance, EAnimNextGraphSimulationSteps SimulationSteps) const;
 
 	// Get the parameter to use to access the reference pose
 	UE::AnimNext::FParamId GetReferencePoseParam() const { return ReferencePoseId; }

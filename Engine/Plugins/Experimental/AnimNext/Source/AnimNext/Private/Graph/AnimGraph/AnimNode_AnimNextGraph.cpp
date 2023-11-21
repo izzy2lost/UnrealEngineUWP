@@ -17,6 +17,9 @@
 #include "Param/ParamStack.h"
 #include "AnimGraphParamStackScope.h"
 #include "Scheduler/ScheduleContext.h"
+#include "DecoratorInterfaces/IEvaluate.h"
+#include "DecoratorInterfaces/IUpdate.h"
+#include "EvaluationVM/EvaluationVM.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextGraph)
 
@@ -63,19 +66,17 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 
 		PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
 
-		// Populate our param stack since our instance data might need it during construction
 		const int32 LODLevel = Context.AnimInstanceProxy->GetLODLevel();
 
 		UE::AnimNext::FAnimGraphParamStackScope Scope(Context);
 
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			"GraphLODLevel", LODLevel
+			AnimNextGraph->GetCurrentLODParam(), LODLevel
 		);
 
-		FContext AnimNextContext(Context.GetDeltaTime());
-
-		AnimNextGraph->Run(AnimNextContext, GraphInstance, EAnimNextGraphSimulationSteps::Update);
+		FExecutionContext ExecutionContext(GraphInstance);
+		UE::AnimNext::UpdateGraph(ExecutionContext, GraphInstance.GetGraphRootPtr(), Context.GetDeltaTime());
 
 		ParamStack.PopLayer(LayerHandle);
 	}
@@ -103,7 +104,7 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
-			"GraphLODLevel", LODLevel
+			AnimNextGraph->GetCurrentLODParam(), LODLevel
 		);
 
 		AnimNextGraph->AllocateInstance(GraphInstance);
@@ -140,8 +141,6 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 
 		const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
 
-		UE::AnimNext::FContext Context(0.0f);
-
 		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
 		FScheduleContext ScheduleContext(SkeletalMeshComponent);
@@ -151,12 +150,35 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
 			AnimNextGraph->GetReferencePoseParam(), GraphReferencePose,
-			"UE_Internal_ResultPose", ResultPose,
-			AnimNextGraph->GetCurrentLODParam(), LODLevel,
-			"UE_Internal_GraphExpectsAdditive", Output.ExpectsAdditivePose()
+			AnimNextGraph->GetCurrentLODParam(), LODLevel
 		);
 
-		AnimNextGraph->Run(Context, GraphInstance, EAnimNextGraphSimulationSteps::Evaluate);
+		{
+			FExecutionContext ExecutionContext(GraphInstance);
+			FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(ExecutionContext, GraphInstance.GetGraphRootPtr());
+
+			FEvaluationVM EvaluationVM(EEvaluationFlags::All, RefPose, LODLevel);
+			bool bHasValidOutput = false;
+
+			if (!EvaluationProgram.IsEmpty())
+			{
+				EvaluationProgram.Execute(EvaluationVM);
+
+				TUniquePtr<FKeyframeState> EvaluatedKeyframe;
+				if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
+				{
+					ResultPose.LODPose.CopyFrom(EvaluatedKeyframe->Pose);
+					bHasValidOutput = true;
+				}
+			}
+
+			if (!bHasValidOutput)
+			{
+				// We need to output a valid pose, generate one
+				FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(Output.ExpectsAdditivePose());
+				ResultPose.LODPose.CopyFrom(ReferenceKeyframe.Pose);
+			}
+		}
 
 		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
 

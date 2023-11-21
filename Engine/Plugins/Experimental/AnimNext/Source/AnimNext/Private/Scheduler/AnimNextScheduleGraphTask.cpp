@@ -5,6 +5,9 @@
 #include "Scheduler/ScheduleContext.h"
 #include "Graph/AnimNextGraph.h"
 #include "Context.h"
+#include "DecoratorInterfaces/IEvaluate.h"
+#include "DecoratorInterfaces/IUpdate.h"
+#include "EvaluationVM/EvaluationVM.h"
 #include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
@@ -96,23 +99,6 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	check(OutputPose->LODPose.LODLevel == *GraphLODLevel);
 
 	// Push parameter layers that translate schedule data to graph inputs
-	// TODO: This should probably be reworked, its overly complex for what it does!
-	static FParamId ResultId("UE_Internal_ResultPose");
-	static FParamId ExpectsAdditiveId("UE_Internal_GraphExpectsAdditive");
-
-	if(!InstanceData.GraphInputLayers[TaskIndex].IsValid())
-	{
-		InstanceData.GraphInputLayers[TaskIndex] = FParamStack::MakeValuesLayer(
-			ResultId, *OutputPose,
-			ExpectsAdditiveId, false);
-	}
-	else
-	{
-		InstanceData.GraphInputLayers[TaskIndex].SetValues(
-			ResultId, *OutputPose,
-			ExpectsAdditiveId, false);
-	}
-
 	FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushLayer(InstanceData.GraphInputLayers[TaskIndex]);
 
 	// Internally we use memstack allocation, so we need a mark here
@@ -123,9 +109,35 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	const float DeltaTime = InContext.GetDeltaTime();
-	const FContext Context(DeltaTime);
-	GraphToRun->Run(Context, InstanceData.GraphInstanceData[TaskIndex], EAnimNextGraphSimulationSteps::All);
+	FExecutionContext Context(InstanceData.GraphInstanceData[TaskIndex]);
+
+	UE::AnimNext::UpdateGraph(Context, InstanceData.GraphInstanceData[TaskIndex].GetGraphRootPtr(), InContext.GetDeltaTime());
+
+	{
+		FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(Context, InstanceData.GraphInstanceData[TaskIndex].GetGraphRootPtr());
+
+		FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePose->ReferencePose, *GraphLODLevel);
+		bool bHasValidOutput = false;
+
+		if (!EvaluationProgram.IsEmpty())
+		{
+			EvaluationProgram.Execute(EvaluationVM);
+
+			TUniquePtr<FKeyframeState> EvaluatedKeyframe;
+			if (EvaluationVM.PopValue(KEYFRAME_STACK_NAME, EvaluatedKeyframe))
+			{
+				OutputPose->LODPose.CopyFrom(EvaluatedKeyframe->Pose);
+				bHasValidOutput = true;
+			}
+		}
+
+		if (!bHasValidOutput)
+		{
+			// We need to output a valid pose, generate one
+			FKeyframeState ReferenceKeyframe = EvaluationVM.MakeReferenceKeyframe(false);
+			OutputPose->LODPose.CopyFrom(ReferenceKeyframe.Pose);
+		}
+	}
 
 	ParamStack.PopLayer(LayerHandle);
 }

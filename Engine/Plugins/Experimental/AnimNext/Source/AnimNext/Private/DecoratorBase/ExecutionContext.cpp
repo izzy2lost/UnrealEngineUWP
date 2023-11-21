@@ -30,20 +30,6 @@ namespace UE::AnimNext
 		Private::GThreadLocalExecutionContext = this;
 	}
 
-	FExecutionContext::FExecutionContext(FAnimNextGraphInstance& InGraphInstance, FRigVMExtendedExecuteContext& InRigVMExecuteContext, FRigVMMemoryHandleArray InRigVMLatentMemoryHandles)
-		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
-		, DecoratorRegistry(FDecoratorRegistry::Get())
-		, Graph(InGraphInstance.GetGraph())
-		, GraphInstance(&InGraphInstance)
-		, GraphSharedData(Graph->SharedDataBuffer)
-		, RigVMLatentMemoryHandles(InRigVMLatentMemoryHandles)
-		, RigVMExecuteContext(&InRigVMExecuteContext)
-	{
-		// There can be only one execution context alive per thread
-		ensure(Private::GThreadLocalExecutionContext == nullptr);
-		Private::GThreadLocalExecutionContext = this;
-	}
-
 	FExecutionContext::~FExecutionContext()
 	{
 		// There can be only one execution context alive per thread
@@ -336,23 +322,10 @@ namespace UE::AnimNext
 		return false;
 	}
 
-	const void* FExecutionContext::EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle) const
+	void FExecutionContext::EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle, void* DestinationPtr) const
 	{
 		check(LatentPropertyHandle.IsValid());
-		check(RigVMLatentMemoryHandles.IsValidIndex(LatentPropertyHandle.GetLatentPropertyIndex()));
-
-		FRigVMMemoryHandle& MemoryHandle = RigVMLatentMemoryHandles[LatentPropertyHandle.GetLatentPropertyIndex()];
-
-		// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
-		// are assigned during compilation. We keep it as an ensure because in this case, we can recover
-		// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
-		// value we expect but it'll work. The ensure will signal that we need to fix the bug.
-		if (ensure(MemoryHandle.IsLazy()))
-		{
-			MemoryHandle.ComputeLazyValueIfNecessary(*RigVMExecuteContext, RigVMExecuteContext->GetSlice().GetIndex());
-		}
-
-		return MemoryHandle.GetData();
+		GraphInstance->ExecuteLatentPin(LatentPropertyHandle.GetLatentPropertyIndex(), DestinationPtr);
 	}
 
 	const FNodeDescription& FExecutionContext::GetNodeDescription(FNodeHandle NodeHandle) const
