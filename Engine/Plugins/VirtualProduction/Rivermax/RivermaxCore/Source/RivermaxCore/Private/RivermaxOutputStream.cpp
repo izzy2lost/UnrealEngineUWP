@@ -1271,9 +1271,9 @@ namespace UE::RivermaxCore::Private
 			{
 				BuildRTPHeader(StreamMemory.RTPHeaders[MemblockIndex][BaseHeaderIndex + PacketIndex]);
 				
+				CurrentFrame->BytesSent += StreamMemory.PayloadSizes[CurrentFrame->PacketCounter];
 				++StreamData.SequenceNumber;
 				++CurrentFrame->PacketCounter;
-				CurrentFrame->BytesSent += StreamMemory.PayloadSizes[CurrentFrame->PacketCounter];
 			}
 		}
 	}

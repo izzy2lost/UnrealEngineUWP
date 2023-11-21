@@ -70,7 +70,7 @@ double FMediaOutputSynchronizationPolicyRivermaxHandler::GetTimeBeforeNextSyncPo
 				const uint64 TimeLeftNanosec = NextAlignmentTimeNanosec - CurrentTimeNanosec;
 
 				// Return remaining time in seconds
-				return double(TimeLeftNanosec * 1E9);
+				return double(TimeLeftNanosec * 1E-9);
 			}
 		}
 	}
