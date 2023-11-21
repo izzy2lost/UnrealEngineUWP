@@ -12,6 +12,7 @@
 #include "ControlRigObjectBinding.h"
 #include "SceneManagement.h"
 #include "Math/ControlRigMathLibrary.h"
+#include "ControlRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigComponent)
 
@@ -492,7 +493,16 @@ void UControlRigComponent::Update(float DeltaTime)
 				{
 					CR->ClearPoseBeforeBackwardsSolve();
 				}
-				CR->Evaluate_AnyThread();
+
+				{
+					// Necessary for FStackAttributeContainer that uses a FAnimStackAllocator (TMemStackAllocator) which allocates from FMemStack.
+					// When allocating memory from FMemStack we need to explicitly use FMemMark to ensure items are freed when the scope exits. 
+					FMemMark Mark(FMemStack::Get());
+					TempAttributeContainer = MakeUnique<UE::Anim::FStackAttributeContainer>();
+					UControlRig::FAnimAttributeContainerPtrScope AttributeScope(CR, *TempAttributeContainer);
+				
+					CR->Evaluate_AnyThread();
+				}
 
 #if WITH_EDITOR
 				if(URigHierarchy* Hierarchy = CR->GetHierarchy())
@@ -1532,10 +1542,25 @@ void UControlRigComponent::TransferOutputs()
 				{
 					if (USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset())
 					{
+						USceneComponent* LastComponent = nullptr;
+						FControlRigAnimInstanceProxy* Proxy = nullptr;
+						
 						TArray<FTransform> BoneSpaceTransforms;
 						BoneSpaceTransforms.SetNumUninitialized(SkeletalMesh->GetRefSkeleton().GetNum());
 						for (const FControlRigComponentMappedElement& MappedElement : MappedElements)
 						{
+							if (LastComponent != MappedElement.SceneComponent || Proxy == nullptr)
+							{
+								Proxy = MappedElement.GetAnimProxyOnGameThread();
+								if (Proxy)
+								{
+									Proxy->StoredTransforms.Reset();
+									Proxy->StoredCurves.Reset();
+									Proxy->StoredAttributes.Empty();
+									LastComponent = MappedElement.SceneComponent;
+								}
+							}
+							
 							if (MappedElement.ElementIndex == INDEX_NONE || MappedElement.Direction == EControlRigComponentMapDirection::Input)
 							{
 								continue;
@@ -1556,9 +1581,11 @@ void UControlRigComponent::TransferOutputs()
 						TArray<FTransform> OutSpaceBases;
 						OutSpaceBases.SetNumUninitialized(BoneSpaceTransforms.Num());
 						SkeletalMesh->FillComponentSpaceTransforms(BoneSpaceTransforms, SkeletalMeshComponent->FillComponentSpaceTransformsRequiredBones, SkeletalMeshComponent->GetEditableComponentSpaceTransforms());
-#if WITH_EDITOR
-						SkeletalMeshComponent->ApplyEditedComponentSpaceTransforms();
-#endif
+
+						if (Proxy)
+						{
+							Proxy->StoredAttributes.CopyFrom(*TempAttributeContainer);
+						}	
 					}
 				}
 			}
@@ -1577,6 +1604,7 @@ void UControlRigComponent::TransferOutputs()
 					{
 						Proxy->StoredTransforms.Reset();
 						Proxy->StoredCurves.Reset();
+						Proxy->StoredAttributes.Empty();
 						LastComponent = MappedElement.SceneComponent;
 					}
 				}
@@ -1661,6 +1689,11 @@ void UControlRigComponent::TransferOutputs()
 					}
 				}
 			}
+
+			if (Proxy)
+			{
+				Proxy->StoredAttributes.CopyFrom(*TempAttributeContainer);
+			}			
 		}
 
 #if WITH_EDITOR
@@ -1743,6 +1776,7 @@ void UControlRigComponent::HandleControlRigPreConstructionEvent(UControlRig* InC
 			{
 				Proxy->StoredTransforms.Reset();
 				Proxy->StoredCurves.Reset();
+				Proxy->StoredAttributes.Empty();
 				LastComponent = MappedElement.SceneComponent;
 			}
 		}

@@ -661,6 +661,8 @@ private:
 
 	UPROPERTY(transient)
 	TObjectPtr<UControlRig> ControlRig;
+	
+	TUniquePtr<UE::Anim::FStackAttributeContainer> TempAttributeContainer;
 
 	TMap<USkeletalMeshComponent*, FCachedSkeletalMeshComponentSettings> CachedSkeletalMeshComponentSettings;
 

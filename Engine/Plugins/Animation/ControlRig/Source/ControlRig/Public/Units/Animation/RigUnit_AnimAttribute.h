@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Units/RigDispatchFactory.h"
 #include "Animation/BuiltInAttributeTypes.h"
+#include "ControlRigComponent.h"
 #include "RigUnit_AnimAttribute.generated.h"
 
 namespace RigUnit_AnimAttribute
@@ -76,6 +77,16 @@ namespace RigUnit_AnimAttribute
 		}
 	
 		const USkeletalMeshComponent* OwningComponent = Cast<USkeletalMeshComponent>(Context.GetOwningComponent());
+		if (!OwningComponent)
+		{
+			if (const UControlRigComponent* ControlRigComponent = Cast<UControlRigComponent>(Context.GetOwningComponent()))
+			{
+				if (ControlRigComponent->MappedElements.Num() > 0)
+				{
+					OwningComponent = Cast<USkeletalMeshComponent>(ControlRigComponent->MappedElements[0].SceneComponent);
+				}				
+			}
+		}
 
 		if (!OwningComponent ||
 			!OwningComponent->GetSkeletalMeshAsset())
