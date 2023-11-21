@@ -144,7 +144,19 @@ CmdQueryMirrors(const FCmdQueryOptions& Options)
 int32
 CmdQueryList(const FCmdQueryOptions& Options)
 {
-	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, 5 * 60);
+	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(Connection);
+	if (HelloResponse.IsError())
+	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+		LogError(HelloResponse.GetError());
+		return -1;
+	}
+	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
+
+	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
+
 	if (!AuthToken.IsOk())
 	{
 		LogError(AuthToken.GetError());
@@ -157,7 +169,6 @@ CmdQueryList(const FCmdQueryOptions& Options)
 		return -1;
 	}
 
-	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Options.Remote);
 
 	std::string Url = fmt::format("/api/v1/list?{}", Options.Args[0]);
 
@@ -188,13 +199,6 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 {
 	using namespace ProxyQuery;
 
-	TResult<FAuthToken> AuthToken = Authenticate(Options.Remote, 5 * 60);
-	if (!AuthToken.IsOk())
-	{
-		LogError(AuthToken.GetError());
-		return -1;
-	}
-
 	if (Options.Args.empty())
 	{
 		UNSYNC_ERROR(L"Path argument is required");
@@ -204,10 +208,35 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	auto CreateConnection = [Remote = Options.Remote]
 	{
 		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.HostAddress, Remote.HostPort, &TlsSettings);
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, &TlsSettings);
 	};
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
+
+	std::string BearerToken;
+
+	{
+		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
+		TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(*Connection);
+		ConnectionPool.Release(std::move(Connection));
+		if (HelloResponse.IsError())
+		{
+			UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+			LogError(HelloResponse.GetError());
+			return -1;
+		}
+
+		FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
+
+		TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
+		if (!AuthToken.IsOk())
+		{
+			LogError(AuthToken.GetError());
+			return -1;
+		}
+
+		BearerToken = std::move(AuthToken->Access);
+	}
 
 	const std::string& RootPath = Options.Args[0];
 	std::vector<std::regex> SubdirPatterns;
@@ -261,7 +290,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 	Context.ParentThreadIndent	 = GLogIndent;
 
 	std::function<void(std::string, int32)> ExploreDirectory =
-		[&Context, &AuthToken, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
+		[&Context, &BearerToken, &ConnectionPool, &ExploreDirectory, &SubdirPatterns, &Tasks](std::string Path, int32 CurrentDepth)
 	{
 		FLogVerbosityScope VerboseScope(Context.bParentThreadVerbose);
 		FLogIndentScope	   IndentScope(Context.ParentThreadIndent, true);
@@ -273,7 +302,7 @@ CmdQuerySearch(const FCmdQueryOptions& Options)
 		FHttpRequest Request;
 		Request.Url			= Url;
 		Request.Method		= EHttpMethod::GET;
-		Request.BearerToken = AuthToken->Access;
+		Request.BearerToken = BearerToken;
 
 		Context.ConnectionSemaphore.Acquire();
 
@@ -370,6 +399,26 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 		return -1;
 	}
 
+	// TODO: use a global connection pool and use it for ProxyQuery::DownloadFile too
+	FHttpConnection HelloConnection = FHttpConnection::CreateDefaultHttps(Options.Remote);
+	TResult<ProxyQuery::FHelloResponse> HelloResponse = ProxyQuery::Hello(HelloConnection);
+	if (HelloResponse.IsError())
+	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+		LogError(HelloResponse.GetError());
+		return -1;
+	}
+	FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponse);
+	HelloConnection.Close();
+
+	TResult<FAuthToken> AuthToken = Authenticate(AuthDesc, 5 * 60);
+
+	if (!AuthToken.IsOk())
+	{
+		LogError(AuthToken.GetError());
+		return -1;
+	}
+
 	UNSYNC_LOG(L"Downloading file: '%hs'", Options.Args[0].c_str());
 	UNSYNC_LOG_INDENT;
 
@@ -402,7 +451,7 @@ CmdQueryFile(const FCmdQueryOptions& Options)
 		return *ResultWriter;
 	};
 
-	TResult<> Response = ProxyQuery::DownloadFile(Options.Remote, Options.Args[0], OutputCallback);
+	TResult<> Response = ProxyQuery::DownloadFile(Options.Remote, &AuthDesc, Options.Args[0], OutputCallback);
 
 	if (Response.IsOk())
 	{

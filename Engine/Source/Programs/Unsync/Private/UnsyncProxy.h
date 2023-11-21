@@ -12,10 +12,13 @@
 #include <functional>
 #include <mutex>
 #include <unordered_map>
+#include <optional>
 
 namespace unsync {
 
 struct FDirectoryManifest;
+struct FAuthDesc;
+struct FHttpConnection;
 
 enum class EDownloadRetryMode
 {
@@ -136,7 +139,10 @@ struct FRemoteProtocolBase
 class FProxy
 {
 public:
-	FProxy(const FRemoteDesc& InRemoteDesc, const FRemoteProtocolFeatures& InFeatures, const FBlockRequestMap* InRequestMap);
+	FProxy(const FRemoteDesc&			  InRemoteDesc,
+		   const FRemoteProtocolFeatures& InFeatures,
+		   const FAuthDesc*				  InAuthDesc,
+		   const FBlockRequestMap*		  InRequestMap);
 	~FProxy();
 
 	bool Contains(const FDirectoryManifest& Manifest);
@@ -153,7 +159,7 @@ class FProxyPool
 {
 public:
 	FProxyPool();
-	FProxyPool(const FRemoteDesc& InRemoteDesc);
+	FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthDesc);
 
 	std::unique_ptr<FProxy> Alloc();
 	void					Dealloc(std::unique_ptr<FProxy>&& Proxy);
@@ -164,6 +170,7 @@ public:
 	FSemaphore ParallelDownloadSemaphore;
 
 	const FRemoteDesc RemoteDesc;
+	const FAuthDesc* AuthDesc = nullptr; // optional reference to externally-owned auth parameters
 
 	void InitRequestMap(EStrongHashAlgorithmID InStrongHasher);
 	void BuildFileBlockRequests(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest);
@@ -202,9 +209,12 @@ struct FHelloResponse
 	std::vector<std::string> FeatureNames;
 	FRemoteProtocolFeatures	 Features;
 
+	std::optional<FHostAddressAndPort> PrimaryHost;
+
 	bool SupportsAuthentication() const { return Features.bAuthentication && !AuthServerUri.empty() && !AuthClientId.empty(); }
 };
-TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous = false);
+TResult<FHelloResponse> Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc = nullptr);
+TResult<FHelloResponse> Hello(FHttpConnection& Connection, const FAuthDesc* OptAuthDesc = nullptr);
 
 struct FDirectoryListingEntry
 {
@@ -221,11 +231,12 @@ struct FDirectoryListing
 	static TResult<FDirectoryListing> FromJson(const char* JsonString);
 };
 
-TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const std::string& Path);
-TResult<FBuffer>		   DownloadFile(const FRemoteDesc& Remote, const std::string& Path);
+// TODO: add overloads with HTTP connection
+TResult<FDirectoryListing> ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path);
+TResult<FBuffer>		   DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path);
 
 using FDownloadOutputCallback = std::function<FIOWriter&(uint64 Size)>;
-TResult<> DownloadFile(const FRemoteDesc& Remote, const std::string& Path, FDownloadOutputCallback OutputCallback);
+TResult<> DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path, FDownloadOutputCallback OutputCallback);
 
 } 
 

@@ -270,14 +270,14 @@ DecodeJwtPayload(std::string JwtDataBase64Url)
 }
 
 TResult<FAuthToken>
-AcquireAuthToken(const FAuthDesc& AuthDesc)
+AcquireAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig)
 {
-	if (AuthDesc.AuthorizationEndpoint.empty())
+	if (OpenIdConfig.AuthorizationEndpoint.empty())
 	{
 		return AppError(L"Authorization endpoint is required");
 	}
 
-	if (AuthDesc.TokenEndpoint.empty())
+	if (OpenIdConfig.TokenEndpoint.empty())
 	{
 		return AppError(L"Token endpoint is required");
 	}
@@ -297,9 +297,15 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 
 	FAuthToken Result;
 
-	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(AuthDesc.ServerHost);
+	TResult<FRemoteDesc> AuthRemoteDesc = FRemoteDesc::FromUrl(AuthDesc.AuthServer);
+	if (AuthRemoteDesc.IsError())
+	{
+		return AppError(L"Failed to parse authentication server URI");
+	}
 
-	const uint16 CallbackPortNumber = CallbackServerDesc.HostPort;
+	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(*AuthRemoteDesc);
+
+	const uint16 CallbackPortNumber = CallbackServerDesc.Host.Port;
 
 	FSocketHandle CallbackListenSocket = SocketListenTcp("127.0.0.1", CallbackPortNumber);
 
@@ -325,8 +331,8 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 		"code_challenge={}&"
 		"state={}&"
 		"redirect_uri={}",
-		AuthDesc.ServerHost,
-		AuthDesc.AuthorizationEndpoint,
+		AuthRemoteDesc->Host.Address,
+		OpenIdConfig.AuthorizationEndpoint,
 		AuthDesc.ClientId,
 		AudienceParam,
 		CodeChallenge,
@@ -377,7 +383,7 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 			CallbackUrl);
 
 		FHttpRequest Request;
-		Request.Url				   = AuthDesc.TokenEndpoint;
+		Request.Url				   = OpenIdConfig.TokenEndpoint;
 		Request.Method			   = EHttpMethod::POST;
 		Request.PayloadContentType = EHttpContentType::Application_WWWFormUrlEncoded;
 		Request.Payload			   = FBufferView{(const uint8*)TokenPayload.data(), (uint64)TokenPayload.size()};
@@ -433,15 +439,15 @@ AcquireAuthToken(const FAuthDesc& AuthDesc)
 }
 
 TResult<FAuthUserInfo>
-GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FAuthToken& AuthToken)
+GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, const FAuthToken& AuthToken)
 {
-	if (AuthDesc.UserInfoEndpoint.empty())
+	if (OpenIdConfig.UserInfoEndpoint.empty())
 	{
 		return AppError(L"User info endpoint is unknown");
 	}
 
 	FHttpRequest Request;
-	Request.Url			= AuthDesc.UserInfoEndpoint;
+	Request.Url			= OpenIdConfig.UserInfoEndpoint;
 	Request.Method		= EHttpMethod::GET;
 	Request.BearerToken = AuthToken.Access;
 
@@ -479,16 +485,22 @@ GetUserInfo(FHttpConnection& HttpConnection, const FAuthDesc& AuthDesc, const FA
 }
 
 TResult<FAuthToken>
-RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
+RefreshAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, const FAuthToken& PreviousToken)
 {
-	if (AuthDesc.TokenEndpoint.empty())
+	if (OpenIdConfig.TokenEndpoint.empty())
 	{
 		return AppError(L"Token endpoint is unknown");
 	}
 
 	FAuthToken Result = PreviousToken;
 
-	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(AuthDesc.ServerHost);
+	TResult<FRemoteDesc> AuthRemoteDesc = FRemoteDesc::FromUrl(AuthDesc.AuthServer);
+	if (AuthRemoteDesc.IsError())
+	{
+		return AppError(L"Failed to parse authentication server URI");
+	}
+
+	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(*AuthRemoteDesc);
 
 	std::string AccessToken;
 	std::string RefreshToken;
@@ -506,7 +518,7 @@ RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
 			PreviousToken.Refresh);
 
 		FHttpRequest Request;
-		Request.Url				   = AuthDesc.TokenEndpoint;
+		Request.Url				   = OpenIdConfig.TokenEndpoint;
 		Request.Method			   = EHttpMethod::POST;
 		Request.PayloadContentType = EHttpContentType::Application_WWWFormUrlEncoded;
 		Request.Payload			   = FBufferView{(const uint8*)TokenPayload.data(), (uint64)TokenPayload.size()};
@@ -566,9 +578,15 @@ RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
 }
 
 std::string
-GenerateTokenId(const FRemoteDesc& RemoteDesc)
+GenerateTokenId(const FAuthDesc& AuthDesc)
 {
-	FHash128 Hash = HashBlake3String<FHash128>(RemoteDesc.GetLoginAddress());
+	// TODO: just stream fields directly through a hasher
+	std::string HashInput;
+	HashInput += AuthDesc.AuthServer + " ";
+	HashInput += AuthDesc.ClientId + " ";
+	HashInput += AuthDesc.Audience;
+	//HashInput += AuthDesc.Callback; // don't need to consider the callback url
+	FHash128 Hash = HashBlake3String<FHash128>(HashInput);
 	return HashToHexString(Hash);
 }
 
@@ -690,12 +708,12 @@ LoadAuthToken(const FPath& Path)
 }
 
 TResult<FAuthToken>
-RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken)
+RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, const FAuthToken& PreviousToken)
 {
 	if (!PreviousToken.Refresh.empty())
 	{
 		UNSYNC_VERBOSE(L"Refreshing access token");
-		TResult<FAuthToken> RefreshResult = RefreshAuthToken(AuthDesc, PreviousToken);
+		TResult<FAuthToken> RefreshResult = RefreshAuthToken(AuthDesc, OpenIdConfig, PreviousToken);
 		if (RefreshResult.IsOk())
 		{
 			return RefreshResult;
@@ -703,11 +721,11 @@ RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken
 	}
 
 	UNSYNC_VERBOSE(L"Requesting new access token");
-	return AcquireAuthToken(AuthDesc);
+	return AcquireAuthToken(AuthDesc, OpenIdConfig);
 }
 
 TResult<FPath>
-GetTokenCachePath(const FRemoteDesc& RemoteDesc)
+GetTokenCachePath(const FAuthDesc& AuthDesc)
 {
 	FPath UserHomePath = GetUserHomeDirectory();
 	if (UserHomePath.empty())
@@ -715,7 +733,7 @@ GetTokenCachePath(const FRemoteDesc& RemoteDesc)
 		return AppError(L"Could not query user home directory path");
 	}
 
-	std::string TokenId = GenerateTokenId(RemoteDesc);
+	std::string TokenId = GenerateTokenId(AuthDesc);
 
 	FPath UnsyncSettingsPath = UserHomePath / FPath(".unsync");
 	FPath TokenCachePath	 = UnsyncSettingsPath / FPath(TokenId);
@@ -741,8 +759,25 @@ LogAuthTokenExpiration(const FAuthToken& AuthToken)
 	}
 }
 
+FAuthDesc
+FAuthDesc::FromHelloResponse(const ProxyQuery::FHelloResponse& HelloResponse)
+{
+	FAuthDesc AuthDesc;
+	AuthDesc.AuthServer = HelloResponse.AuthServerUri;
+	AuthDesc.ClientId	= HelloResponse.AuthClientId;
+	AuthDesc.Audience	= HelloResponse.AuthAudience;
+	AuthDesc.Callback	= HelloResponse.CallbackUri;
+
+	if (AuthDesc.Callback.empty())
+	{
+		AuthDesc.Callback = "http://localhost:8080";  // sensible default
+	}
+
+	return AuthDesc;
+}
+
 TResult<FAuthToken>
-Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
+Authenticate(const FAuthDesc& AuthDesc, int32 RefreshThreshold)
 {
 	// Authentication must be serialized (only one thread should ever open the browser for interactive login, etc.)
 	static std::mutex			AuthMutex;
@@ -750,7 +785,7 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 
 	FAuthToken PreviousToken;
 
-	TResult<FPath> TokenCachePathResult = GetTokenCachePath(RemoteDesc);
+	TResult<FPath> TokenCachePathResult = GetTokenCachePath(AuthDesc);
 
 	if (const FPath* TokenCachePath = TokenCachePathResult.TryData())
 	{
@@ -787,15 +822,13 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 		return ResultOk(PreviousToken);
 	}
 
-	TResult<FAuthDesc> AuthDescResult = GetAuthenticationDesc(RemoteDesc);
-	if (AuthDescResult.IsError())
+	TResult<FOpenIdConfig> OpenIdConfigResult = GetOpenIdConfig(AuthDesc);
+	if (OpenIdConfigResult.IsError())
 	{
-		return MoveError<FAuthToken>(AuthDescResult);
+		return MoveError<FAuthToken>(OpenIdConfigResult);
 	}
 
-	const FAuthDesc& AuthDesc = AuthDescResult.GetData();
-
-	TResult<FAuthToken> FreshTokenResult = RefreshOrAcquireToken(AuthDesc, PreviousToken);
+	TResult<FAuthToken> FreshTokenResult = RefreshOrAcquireToken(AuthDesc, *OpenIdConfigResult, PreviousToken);
 	if (FreshTokenResult.IsError())
 	{
 		return FreshTokenResult;
@@ -821,64 +854,37 @@ Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold)
 	return FreshTokenResult;
 }
 
-bool
-TryAddAuthentication(FRemoteDesc& InOutRemoteDesc)
-{
-	TResult<FAuthToken> AuthTokenResult = Authenticate(InOutRemoteDesc, 5 * 60);
-
-	if (AuthTokenResult.IsError())
-	{
-		return false;
-	}
-
-	// Authentication requires encrypted connection
-	InOutRemoteDesc.bTlsEnable				= true;
-	InOutRemoteDesc.bAuthenticationRequired = true;
-
-	return true;
-}
-
 TResult<FAuthDesc>
-GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
+GetRemoteAuthDesc(const FRemoteDesc& RemoteDesc)
 {
-	// TODO: possibly other backend could use automatic authentication also
-	if (RemoteDesc.Protocol != EProtocolFlavor::Unsync)
-	{
-		return AppError(L"Authentication is only implemented for UNSYNC protocol");
-	}
-
-	FRemoteDesc LoginRemoteDesc = RemoteDesc;
-	LoginRemoteDesc.HostAddress = RemoteDesc.GetLoginAddress();
-
-	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(LoginRemoteDesc, /*bAnonymous*/ true);
+	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(RemoteDesc, nullptr /*AuthDesc: null for anonymous initial connection*/);
 	if (HelloResponseResult.IsError())
 	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", RemoteDesc.Host.Address.c_str());
+		LogError(HelloResponseResult.GetError());
 		return MoveError<FAuthDesc>(HelloResponseResult);
 	}
 
-	if (!HelloResponseResult->SupportsAuthentication())
+	const FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponseResult);
+
+	return ResultOk(AuthDesc);
+}
+
+TResult<FOpenIdConfig>
+GetOpenIdConfig(const FAuthDesc& AuthDesc)
+{
+	if (!AuthDesc.IsValid())
 	{
-		return AppError(L"Server does not support authentication");
+		return AppError(L"Mandatory authentication parameters not provided");
 	}
 
-	FAuthDesc AuthDesc;
-	AuthDesc.ClientId = HelloResponseResult->AuthClientId;
-	AuthDesc.Audience = HelloResponseResult->AuthAudience;
-	AuthDesc.Callback = HelloResponseResult->CallbackUri;
-	if (AuthDesc.Callback.empty())
-	{
-		AuthDesc.Callback = "http://localhost:8080";  // sensible default
-	}
-
-	TResult<FRemoteDesc> AuthServerDescResult = FRemoteDesc::FromUrl(HelloResponseResult->AuthServerUri);
+	TResult<FRemoteDesc> AuthServerDescResult = FRemoteDesc::FromUrl(AuthDesc.AuthServer);
 	if (AuthServerDescResult.IsError())
 	{
-		return MoveError<FAuthDesc>(AuthServerDescResult);
+		return MoveError<FOpenIdConfig>(AuthServerDescResult);
 	}
 
 	const FRemoteDesc& AuthServerDesc = AuthServerDescResult.GetData();
-
-	AuthDesc.ServerHost = AuthServerDesc.HostAddress;
 
 	std::string ServerApiPrefix;
 	if (!AuthServerDesc.RequestPath.empty())
@@ -886,13 +892,10 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 		ServerApiPrefix = fmt::format("/{}", AuthServerDesc.RequestPath);
 	}
 
-	if (!AuthDesc.IsValid())
-	{
-		return AppError(L"Mandatory authentication parameters not found");
-	}
-
-	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(AuthDesc.ServerHost);
+	FHttpConnection AuthServerConnection = FHttpConnection::CreateDefaultHttps(*AuthServerDescResult);
 	std::string		ConfigEndpoint		 = fmt::format("{}/.well-known/openid-configuration", ServerApiPrefix);
+
+	FOpenIdConfig OpenIdConfig;
 
 	FHttpResponse ConfigResponse = HttpRequest(AuthServerConnection, EHttpMethod::GET, ConfigEndpoint);
 	if (ConfigResponse.Success())
@@ -903,7 +906,7 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 		std::string JsonErrorString;
 		Json		JsonObject = Json::parse(JsonString, JsonErrorString);
 
-		std::string EndpointPrefix = fmt::format("https://{}", AuthDesc.ServerHost);
+		std::string EndpointPrefix = fmt::format("https://{}", AuthServerDescResult->Host.Address);
 
 		if (JsonErrorString.empty())
 		{
@@ -919,14 +922,14 @@ GetAuthenticationDesc(const FRemoteDesc& RemoteDesc)
 				return {};
 			};
 
-			AuthDesc.AuthorizationEndpoint = ExtractEndpoint("authorization_endpoint");
-			AuthDesc.TokenEndpoint		   = ExtractEndpoint("token_endpoint");
-			AuthDesc.UserInfoEndpoint	   = ExtractEndpoint("userinfo_endpoint");
-			AuthDesc.JwksUri			   = JsonObject["jwks_uri"].string_value();
+			OpenIdConfig.AuthorizationEndpoint = ExtractEndpoint("authorization_endpoint");
+			OpenIdConfig.TokenEndpoint		   = ExtractEndpoint("token_endpoint");
+			OpenIdConfig.UserInfoEndpoint	   = ExtractEndpoint("userinfo_endpoint");
+			OpenIdConfig.JwksUri			   = JsonObject["jwks_uri"].string_value();
 		}
 	}
 
-	return ResultOk(AuthDesc);
+	return ResultOk(OpenIdConfig);
 }
 
 int64

@@ -21,7 +21,7 @@ CmdSync(const FCmdSyncOptions& Options)
 		return Options.Filter ? Options.Filter->Resolve(Path) : Path;
 	};
 
-	FProxyPool ProxyPool(Options.Remote);
+	FProxyPool ProxyPool(Options.Remote, Options.AuthDesc);
 
 	std::error_code ErrorCode	   = {};
 	FPath			ResolvedSource = ResolvePath(Options.Source);

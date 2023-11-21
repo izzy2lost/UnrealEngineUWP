@@ -8,6 +8,8 @@
 
 namespace unsync {
 
+struct FAuthDesc;
+
 struct FCmdSyncOptions
 {
 	FAlgorithmOptions Algorithm;
@@ -22,6 +24,7 @@ struct FCmdSyncOptions
 	std::vector<FPath> Overlays;
 
 	FRemoteDesc Remote;
+	FAuthDesc*	AuthDesc = nullptr;
 
 	bool bFullDifference = false;
 	bool bFullSourceScan = false;

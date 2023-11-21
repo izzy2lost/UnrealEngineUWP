@@ -14,6 +14,10 @@ namespace unsync {
 struct FHttpConnection;
 struct FRemoteDesc;
 
+namespace ProxyQuery {
+	struct FHelloResponse;
+}
+
 struct FAuthToken
 {
 	// Raw data acquired from authentication endpoint
@@ -25,18 +29,22 @@ struct FAuthToken
 	int64		ExirationTime = 0; // UNIX timestamp in seconds (0 if unknown)
 };
 
-struct FAuthDesc
+// Data from /.well-known/openid-configuration
+struct FOpenIdConfig
 {
-	// Mandatory configuration
-	std::string ServerHost; // only the hostname itself
-	std::string ClientId;
-	
-	// Mandatory fields for certain APIs
 	std::string AuthorizationEndpoint;
 	std::string TokenEndpoint;
 	std::string UserInfoEndpoint;
 	std::string JwksUri;
+};
 
+// Data from server configuration
+struct FAuthDesc
+{
+	// Mandatory configuration
+	std::string AuthServer;
+	std::string ClientId;
+	
 	// Optional configuration
 	std::string Audience;
 	std::string Callback;	// OAuth flow redirection URL
@@ -44,25 +52,27 @@ struct FAuthDesc
 	// Check that mandatory fields have values
 	bool IsValid() const
 	{
-		return !ServerHost.empty() && !ClientId.empty();
+		return !AuthServer.empty() && !ClientId.empty();
 	}
+
+	static FAuthDesc FromHelloResponse(const ProxyQuery::FHelloResponse& HelloResponse);
 };
 
-// Query OIDC/OAuth2 configuration using server handshake
-TResult<FAuthDesc> GetAuthenticationDesc(const FRemoteDesc& RemoteDesc);
+// Query OIDC/OAuth2 configuration via HTTP
+TResult<FOpenIdConfig> GetOpenIdConfig(const FAuthDesc& AuthDesc);
 
 // Perform the complete authentication flow:
 // - Attempt use stored refresh token first
 // - If refresh is not possible, use PKCE Authentication flow to get new tokens
 // - Save refresh token in user directory for future use
 // - Skips acquiring new token if remaining valid time is above RefreshThreshold (in seconds)
-TResult<FAuthToken> Authenticate(const FRemoteDesc& RemoteDesc, int32 RefreshThreshold = INT_MAX);
+TResult<FAuthToken> Authenticate(const FAuthDesc& AuthDesc, int32 RefreshThreshold = INT_MAX);
 
 // Auth utility functions
 
-TResult<FAuthToken> AcquireAuthToken(const FAuthDesc& AuthDesc);
-TResult<FAuthToken> RefreshAuthToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken);
-TResult<FAuthToken> RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FAuthToken& PreviousToken);
+TResult<FAuthToken> AcquireAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig);
+TResult<FAuthToken> RefreshAuthToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, const FAuthToken& PreviousToken);
+TResult<FAuthToken> RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConfig, const FAuthToken& PreviousToken);
 
 struct FAuthUserInfo
 {
@@ -90,7 +100,7 @@ void TransformBase64UrlSafeToVanilla(std::string& Base64UrlSafe);
 
 std::string GetPKCECodeChallenge(std::string_view CodeVerifier);
 
-bool TryAddAuthentication(FRemoteDesc& InOutRemoteDesc);
+TResult<FAuthDesc> GetRemoteAuthDesc(const FRemoteDesc& RemoteDesc);
 
 int64 GetSecondsFromUnixEpoch();
 

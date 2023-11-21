@@ -18,6 +18,7 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 {
 	FUnsyncProtocolImpl(const FRemoteDesc&			   InRemoteDesc,
 						const FRemoteProtocolFeatures& InFeatures,
+						const FAuthDesc*			   InAuthDesc,
 						const FBlockRequestMap*		   InRequestMap,
 						const FTlsClientSettings*	   TlsSettings);
 	virtual ~FUnsyncProtocolImpl() override;
@@ -40,7 +41,7 @@ struct FUnsyncProtocolImpl : FRemoteProtocolBase
 	static void SendTelemetryEvent(const FRemoteDesc& RemoteDesc, const FTelemetryEventSyncComplete& Event);
 };
 
-FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InFeatures, const FBlockRequestMap* InRequestMap)
+FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InFeatures, const FAuthDesc* InAuthDesc, const FBlockRequestMap* InRequestMap)
 {
 	UNSYNC_ASSERT(InRequestMap);
 
@@ -48,12 +49,13 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 
 	if (RemoteDesc.Protocol == EProtocolFlavor::Jupiter)
 	{
-		ProtocolImpl =
-			std::unique_ptr<FRemoteProtocolBase>(new FJupiterProtocolImpl(RemoteDesc, InRequestMap, &TlsSettings, RemoteDesc.HttpHeaders));
+		auto Inner	 = new FJupiterProtocolImpl(RemoteDesc, InRequestMap, &TlsSettings, RemoteDesc.HttpHeaders);
+		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
 	}
 	else if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
-		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InRequestMap, &TlsSettings));
+		auto* Inner	 = new FUnsyncProtocolImpl(RemoteDesc, InFeatures, InAuthDesc, InRequestMap, &TlsSettings);
+		ProtocolImpl = std::unique_ptr<FRemoteProtocolBase>(Inner);
 	}
 	else
 	{
@@ -63,6 +65,7 @@ FProxy::FProxy(const FRemoteDesc& RemoteDesc, const FRemoteProtocolFeatures& InF
 
 FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 										 const FRemoteProtocolFeatures& InFeatures,
+										 const FAuthDesc*				InAuthDesc,
 										 const FBlockRequestMap*		InRequestMap,
 										 const FTlsClientSettings*		TlsSettings)
 : FRemoteProtocolBase(RemoteDesc, InRequestMap)
@@ -70,7 +73,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 {
 	if (RemoteDesc.bTlsEnable && TlsSettings)
 	{
-		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort);
+		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
 		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
 
 		if (RawSocketHandle)
@@ -89,7 +92,7 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 
 	if (!SocketHandle)
 	{
-		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort);
+		FSocketHandle RawSocketHandle = SocketConnectTcp(RemoteDesc.Host.Address.c_str(), RemoteDesc.Host.Port);
 		SocketSetRecvTimeout(RawSocketHandle, RemoteDesc.RecvTimeoutSeconds);
 
 		SocketHandle = std::unique_ptr<FSocketRaw>(new FSocketRaw(RawSocketHandle));
@@ -127,35 +130,43 @@ FUnsyncProtocolImpl::FUnsyncProtocolImpl(const FRemoteDesc&				RemoteDesc,
 
 	if (IsValid() && Features.bAuthentication && RemoteDesc.bAuthenticationRequired)
 	{
-		bool bOk = IsValid();
-
-		TResult<FAuthToken> AuthTokenResult = Authenticate(RemoteDesc, 15 * 60);
-
-		if (AuthTokenResult.IsOk())
+		if (InAuthDesc)
 		{
-			FBufferView AccessToken = {(const uint8*)AuthTokenResult->Access.data(), AuthTokenResult->Access.length()};
+			bool bOk = IsValid();
 
-			FCommandPacket Packet;
-			Packet.CommandId = COMMAND_ID_AUTHENTICATE;
-			bOk &= SendStruct(*SocketHandle, Packet);
-			bOk &= SendBuffer(*SocketHandle, AccessToken);
+			TResult<FAuthToken> AuthTokenResult = Authenticate(*InAuthDesc, 15 * 60);
 
-			int32 ResultSize = 0;
-			bOk &= SocketRecvT(*SocketHandle, ResultSize);
-
-			FBuffer ResultBuffer;
-			if (ResultSize)
+			if (AuthTokenResult.IsOk())
 			{
-				ResultBuffer.Resize(ResultSize);
-				bOk &= (SocketRecvAll(*SocketHandle, ResultBuffer.Data(), ResultSize) == ResultSize);
-			}
+				FBufferView AccessToken = {(const uint8*)AuthTokenResult->Access.data(), AuthTokenResult->Access.length()};
 
-			// TODO: parse authentication result packet and report errors
+				FCommandPacket Packet;
+				Packet.CommandId = COMMAND_ID_AUTHENTICATE;
+				bOk &= SendStruct(*SocketHandle, Packet);
+				bOk &= SendBuffer(*SocketHandle, AccessToken);
+
+				int32 ResultSize = 0;
+				bOk &= SocketRecvT(*SocketHandle, ResultSize);
+
+				FBuffer ResultBuffer;
+				if (ResultSize)
+				{
+					ResultBuffer.Resize(ResultSize);
+					bOk &= (SocketRecvAll(*SocketHandle, ResultBuffer.Data(), ResultSize) == ResultSize);
+				}
+
+				// TODO: parse authentication result packet and report errors
+			}
+			else
+			{
+				LogError(AuthTokenResult.GetError());
+				UNSYNC_ERROR(L"Server requires authentication, but access token could not be acquired");
+				Invalidate();
+			}
 		}
 		else
 		{
-			LogError(AuthTokenResult.GetError());
-			UNSYNC_ERROR(L"Server requires authentication");
+			UNSYNC_ERROR(L"Server requires authentication, but required parameters were not provided");
 			Invalidate();
 		}
 	}
@@ -394,26 +405,34 @@ FUnsyncProtocolImpl::GetSocketSecurity() const
 }
 
 TResult<ProxyQuery::FHelloResponse>
-ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
+ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, const FAuthDesc* OptAuthDesc)
+{
+	FTlsClientSettings TlsSettings = RemoteDesc.GetTlsClientSettings();
+	FHttpConnection	   Connection(RemoteDesc.Host.Address, RemoteDesc.Host.Port, RemoteDesc.bTlsEnable ? &TlsSettings : nullptr);
+	return Hello(Connection, OptAuthDesc);
+}
+
+TResult<ProxyQuery::FHelloResponse>
+ProxyQuery::Hello(FHttpConnection& HttpConnection, const FAuthDesc* OptAuthDesc)
 {
 	const char* Url = "/api/v1/hello";
 
 	std::string BearerToken;
-	if (RemoteDesc.bAuthenticationRequired && !bAnonymous)
+	if (OptAuthDesc)
 	{
-		TResult<FAuthToken> AuthTokenResult = Authenticate(RemoteDesc, 15 * 60);
+		TResult<FAuthToken> AuthTokenResult = Authenticate(*OptAuthDesc, 15 * 60);
 		if (AuthTokenResult.IsOk())
 		{
 			BearerToken = std::move(AuthTokenResult.GetData().Access);
 		}
 	}
 
-	FHttpResponse Response = HttpRequest(RemoteDesc, EHttpMethod::GET, Url, BearerToken);
+	FHttpResponse Response = HttpRequest(HttpConnection, EHttpMethod::GET, Url, {} /*CustomHeaders*/, BearerToken);
 
 	if (!Response.Success())
 	{
 		UNSYNC_ERROR(L"Failed to establish connection to UNSYNC server. Error code: %d.", Response.Code);
-		return HttpError(fmt::format("{}:{}{}", RemoteDesc.HostAddress.c_str(), RemoteDesc.HostPort, Url), Response.Code);
+		return HttpError(fmt::format("{}:{}{}", HttpConnection.HostAddress.c_str(), HttpConnection.HostPort, Url), Response.Code);
 	}
 
 	FHelloResponse Result;
@@ -499,6 +518,16 @@ ProxyQuery::Hello(const FRemoteDesc& RemoteDesc, bool bAnonymous)
 		}
 	}
 
+	if (auto& Field = JsonObject["primary"]; Field.is_string())
+	{
+		const std::string& PrimaryHostStr = Field.string_value();
+		TResult<FRemoteDesc> PrimaryHostDesc = FRemoteDesc::FromUrl(PrimaryHostStr);
+		if (PrimaryHostDesc.IsOk())
+		{
+			Result.PrimaryHost = PrimaryHostDesc->Host;
+		}
+	}
+
 	return ResultOk(std::move(Result));
 }
 
@@ -549,22 +578,28 @@ ProxyQuery::FDirectoryListing::FromJson(const char* JsonString)
 }
 
 TResult<ProxyQuery::FDirectoryListing>
-ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
+ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path)
 {
-	TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
-	if (!AuthToken.IsOk())
+	std::string Url = fmt::format("/api/v1/list?{}", Path);
+
+	std::string BearerToken;
+	if (AuthDesc)
 	{
-		return MoveError<FDirectoryListing>(AuthToken);
+		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+		if (!AuthToken.IsOk())
+		{
+			return MoveError<FDirectoryListing>(AuthToken);
+		}
+
+		BearerToken = std::move(AuthToken->Access);
 	}
 
 	FHttpConnection Connection = FHttpConnection::CreateDefaultHttps(Remote);
 
-	std::string Url = fmt::format("/api/v1/list?{}", Path);
-
 	FHttpRequest Request;
 	Request.Url			= Url;
 	Request.Method		= EHttpMethod::GET;
-	Request.BearerToken = AuthToken->Access;
+	Request.BearerToken = BearerToken;
 
 	FHttpResponse Response = HttpRequest(Connection, Request);
 
@@ -579,12 +614,15 @@ ProxyQuery::ListDirectory(const FRemoteDesc& Remote, const std::string& Path)
 }
 
 TResult<>
-ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, ProxyQuery::FDownloadOutputCallback OutputCallback)
+ProxyQuery::DownloadFile(const FRemoteDesc&					 Remote,
+						 const FAuthDesc*					 AuthDesc,
+						 const std::string&					 Path,
+						 ProxyQuery::FDownloadOutputCallback OutputCallback)
 {
 	auto CreateConnection = [Remote]
 	{
 		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
-		return new FHttpConnection(Remote.HostAddress, Remote.HostPort, &TlsSettings);
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, &TlsSettings);
 	};
 
 	TObjectPool<FHttpConnection> ConnectionPool(CreateConnection);
@@ -596,16 +634,21 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 	{
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
-		TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
-		if (!AuthToken.IsOk())
+		std::string BearerToken;
+		if (AuthDesc)
 		{
-			return std::move(AuthToken.GetError());
+			TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+			if (!AuthToken.IsOk())
+			{
+				return std::move(AuthToken.GetError());
+			}
+			BearerToken = std::move(AuthToken->Access);
 		}
 
 		FHttpRequest HeadRequest;
 		HeadRequest.Url			   = Url;
 		HeadRequest.Method		   = EHttpMethod::HEAD;
-		HeadRequest.BearerToken	   = AuthToken->Access;
+		HeadRequest.BearerToken	   = BearerToken;
 		FHttpResponse HeadResponse = HttpRequest(*Connection, HeadRequest);
 		if (!HeadResponse.Success())
 		{
@@ -643,8 +686,20 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 
 	FLogProgressScope DownloadProgress(FileSize, ELogProgressUnits::MB);
 
+	std::string BearerToken;
+	if (AuthDesc)
+	{
+		TResult<FAuthToken> AuthToken = Authenticate(*AuthDesc, 5 * 60);
+		if (!AuthToken.IsOk())
+		{
+			Error.Set(std::move(AuthToken.GetError()));
+			return AppError(L"Failed to acquire access token");
+		}
+		BearerToken = std::move(AuthToken->Access);
+	}
+
 	auto ProcessChunk =
-		[&Error, &Result, &Url, &Remote, &ConnectionPool, &DownloadSempahore, &DownloadProgress](
+		[&Error, &Result, &Url, &Remote, &ConnectionPool, &DownloadSempahore, &DownloadProgress, &BearerToken](
 			const FRange& Range)
 	{
 		FLogIndentScope	   IndentScope(DownloadProgress.ParentThreadIndent, true);
@@ -657,13 +712,6 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 
 		DownloadSempahore.Acquire();
 
-		TResult<FAuthToken> AuthToken = Authenticate(Remote, 5 * 60);
-		if (!AuthToken.IsOk())
-		{
-			Error.Set(std::move(AuthToken.GetError()));
-			return;
-		}
-
 		std::unique_ptr<FHttpConnection> Connection = ConnectionPool.Acquire();
 
 		std::string RequestHeaders = fmt::format("Range: bytes={}-{}", Range.Offset, Range.Offset + Range.Size - 1);
@@ -671,7 +719,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 		FHttpRequest Request;
 		Request.Url			   = Url;
 		Request.Method		   = EHttpMethod::GET;
-		Request.BearerToken	   = AuthToken->Access;
+		Request.BearerToken	   = BearerToken;
 		Request.CustomHeaders  = RequestHeaders;
 		FHttpResponse Response = HttpRequest(*Connection, Request);
 
@@ -708,7 +756,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path, Pro
 }
 
 TResult<FBuffer>
-ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path)
+ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const FAuthDesc* AuthDesc, const std::string& Path)
 {
 	FBuffer Result;
 
@@ -721,7 +769,7 @@ ProxyQuery::DownloadFile(const FRemoteDesc& Remote, const std::string& Path)
 		return *ResultWriter;
 	};
 
-	TResult<> DownloadResult = DownloadFile(Remote, Path, OutputCallback);
+	TResult<> DownloadResult = DownloadFile(Remote, AuthDesc, Path, OutputCallback);
 	if (DownloadResult.IsOk())
 	{
 		return ResultOk(std::move(Result));
@@ -889,13 +937,14 @@ FBlockRequestMap::GetMacroBlockRequest(const FGenericHash& BlockHash) const
 	return Result;
 }
 
-FProxyPool::FProxyPool() : FProxyPool(FRemoteDesc())
+FProxyPool::FProxyPool() : FProxyPool(FRemoteDesc(), nullptr)
 {
 }
 
-FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
+FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthDesc)
 : ParallelDownloadSemaphore(InRemoteDesc.MaxConnections)
 , RemoteDesc(InRemoteDesc)
+, AuthDesc(InAuthDesc)
 , bValid(InRemoteDesc.IsValid())
 {
 	if (!bValid)
@@ -907,10 +956,10 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc)
 	{
 		UNSYNC_VERBOSE(L"Connecting to %hs server '%hs:%d' ...",
 					   ToString(RemoteDesc.Protocol),
-					   RemoteDesc.HostAddress.c_str(),
-					   RemoteDesc.HostPort);
+					   RemoteDesc.Host.Address.c_str(),
+					   RemoteDesc.Host.Port);
 
-		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc);
+		TResult<ProxyQuery::FHelloResponse> Response = ProxyQuery::Hello(RemoteDesc, AuthDesc);
 
 		if (Response.IsError())
 		{
@@ -955,7 +1004,7 @@ FProxyPool::Alloc()
 
 	if (!Result || !Result->IsValid())
 	{
-		Result = std::make_unique<FProxy>(RemoteDesc, Features, &RequestMap);
+ 		Result = std::make_unique<FProxy>(RemoteDesc, Features, AuthDesc, &RequestMap);
 	}
 
 	return Result;

@@ -27,7 +27,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.63-dev1"
+#define UNSYNC_VERSION_STR "1.0.63-dev2"
 
 namespace unsync {
 
@@ -1849,7 +1849,7 @@ struct FPooledProxy
 };
 
 static bool
-DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FPath& Target, EFileMode TargetFileMode)
+DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FAuthDesc* AuthDesc, const FPath& Source, const FPath& Target, EFileMode TargetFileMode)
 {
 	using FDirectoryListing		 = ProxyQuery::FDirectoryListing;
 	using FDirectoryListingEntry = ProxyQuery::FDirectoryListingEntry;
@@ -1862,7 +1862,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FP
 	std::string SourceFileNameUtf8 = ConvertWideToUtf8(SourceFileName.wstring());
 
 	// TODO: could have a dedicated single file stat query
-	TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(RemoteDesc, SourceParentUtf8);
+	TResult<FDirectoryListing> DirectoryListingResult = ProxyQuery::ListDirectory(RemoteDesc, AuthDesc, SourceParentUtf8);
 	if (DirectoryListingResult.IsError())
 	{
 		LogError(DirectoryListingResult.GetError());
@@ -1890,7 +1890,7 @@ DownloadFileIfNewer(const FRemoteDesc& RemoteDesc, const FPath& Source, const FP
 	if (SourceEntry->Size != TargetAttr.Size || SourceEntry->Mtime != TargetAttr.Mtime)
 	{
 		UNSYNC_VERBOSE(L"Downloading '%ls'", Source.wstring().c_str());
-		TResult<FBuffer> DownloadResult = ProxyQuery::DownloadFile(RemoteDesc, SourceUtf8);
+		TResult<FBuffer> DownloadResult = ProxyQuery::DownloadFile(RemoteDesc, AuthDesc, SourceUtf8);
 		if (DownloadResult.IsError())
 		{
 			LogError(DownloadResult.GetError());
@@ -1968,6 +1968,7 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 	{
 		UNSYNC_LOG_INDENT;
 		bool bDownloadedOk = DownloadFileIfNewer(ProxyPool.RemoteDesc,
+												 ProxyPool.AuthDesc,
 												 SourceManifestPath,
 												 SourceManifestTempPath,
 												 EFileMode::CreateWriteOnly | EFileMode::IgnoreDryRun);
@@ -2633,8 +2634,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		LogGlobalStatus(L"Connecting to server");
 		UNSYNC_LOG(L"Connecting to %hs server '%hs:%d' ...",
 					   ToString(ProxyPool.RemoteDesc.Protocol),
-					   ProxyPool.RemoteDesc.HostAddress.c_str(),
-					   ProxyPool.RemoteDesc.HostPort);
+					   ProxyPool.RemoteDesc.Host.Address.c_str(),
+					   ProxyPool.RemoteDesc.Host.Port);
 		UNSYNC_LOG_INDENT;
 
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();

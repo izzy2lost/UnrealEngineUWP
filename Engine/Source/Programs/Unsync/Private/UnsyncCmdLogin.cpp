@@ -35,7 +35,18 @@ CmdLogin(const FCmdLoginOptions& Options)
 {
 	const int32 RefreshThreshold = Options.bForceRefresh ? INT_MAX : 5 * 60;
 
-	TResult<FAuthToken> AuthTokenResult = Authenticate(Options.Remote, RefreshThreshold);
+	UNSYNC_VERBOSE(L"Connecting to '%hs'", Options.Remote.Host.Address.c_str());
+	TResult<ProxyQuery::FHelloResponse> HelloResponseResult = ProxyQuery::Hello(Options.Remote, nullptr /*AuthDesc: anonymous initial connection*/);
+	if (HelloResponseResult.IsError())
+	{
+		UNSYNC_ERROR("Failed establish a handshake with server '%hs'", Options.Remote.Host.Address.c_str());
+		LogError(HelloResponseResult.GetError());
+		return -1;
+	}
+
+	const FAuthDesc AuthDesc = FAuthDesc::FromHelloResponse(*HelloResponseResult);
+
+	TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc, RefreshThreshold);
 
 	if (AuthTokenResult.IsOk())
 	{

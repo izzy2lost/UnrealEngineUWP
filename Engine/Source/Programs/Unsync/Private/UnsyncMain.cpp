@@ -532,6 +532,7 @@ InnerMain(int Argc, char** Argv)
 	}
 
 	FRemoteDesc RemoteDesc;
+	FAuthDesc	AuthDesc;
 
 	if (RemoteAddressUtf8.empty())
 	{
@@ -767,7 +768,7 @@ InnerMain(int Argc, char** Argv)
 
 	if (bShouldLogin)
 	{
-		RemoteDesc.LoginAddress = RemoteDesc.HostAddress;
+		RemoteDesc.PrimaryHost = RemoteDesc.Host;
 	}
 
 	FRemoteDesc RootRemoteDesc = RemoteDesc;
@@ -776,14 +777,14 @@ InnerMain(int Argc, char** Argv)
 		&& Cli.got_subcommand(SubSync)
 		&& RemoteDesc.IsValid() && RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
-		UNSYNC_LOG(L"Selecting server using root '%hs'", RemoteDesc.HostAddress.c_str());
+		UNSYNC_LOG(L"Selecting server using root '%hs'", RemoteDesc.Host.Address.c_str());
 		TResult<FMirrorInfo> MirrorResult = FindClosestMirror(RemoteDesc);
 		if (const FMirrorInfo* Mirror = MirrorResult.TryData())
 		{
 			UNSYNC_LOG(L"Closest server: '%hs', ping: %.2f ms", Mirror->Address.c_str(), Mirror->Ping * 1000.0);
 
-			RemoteDesc.HostAddress = Mirror->Address;
-			RemoteDesc.HostPort	   = Mirror->Port;
+			RemoteDesc.Host.Address = Mirror->Address;
+			RemoteDesc.Host.Port	= Mirror->Port;
 		}
 		else
 		{
@@ -859,10 +860,29 @@ InnerMain(int Argc, char** Argv)
 		{
 			UNSYNC_LOG(L"Attempting to authenticate");
 			UNSYNC_LOG_INDENT;
-			bool bUsingAuthentication = TryAddAuthentication(RemoteDesc);
-			if (bUsingAuthentication)
+
+			TResult<FAuthDesc> AuthDescResult = GetRemoteAuthDesc(RemoteDesc);
+
+			if (AuthDescResult.IsOk())
 			{
-				UNSYNC_LOG(L"Authentication enabled");
+				AuthDesc = AuthDescResult.GetData();
+
+				// Note: since tokens can expire during a long operation,
+				// we can only save the auth descriptor and re-authenticate later if necessary
+				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc, 5 * 60);
+
+				if (AuthTokenResult.IsError())
+				{
+					UNSYNC_ERROR("Failed to authenticate with server '%hs'", RemoteDesc.Host.Address.c_str());
+					LogError(AuthTokenResult.GetError());
+					return -1;
+				}
+
+				// Authentication requires encrypted connection
+				RemoteDesc.bTlsEnable			   = true;
+				RemoteDesc.bAuthenticationRequired = true;
+
+				UNSYNC_LOG(L"Authentication enabled")
 			}
 		}
 
@@ -902,6 +922,7 @@ InnerMain(int Argc, char** Argv)
 		SyncOptions.Target					   = TargetFilename;
 		SyncOptions.SourceManifestOverride	   = SourceManifestFilename;
 		SyncOptions.Remote					   = RemoteDesc;
+		SyncOptions.AuthDesc				   = AuthDesc.IsValid() ? &AuthDesc : nullptr;
 		SyncOptions.bFullDifference			   = bFullDifference;
 		SyncOptions.bFullSourceScan			   = bFullSourceScan;
 		SyncOptions.bCleanup				   = !bNoCleanupAfterSync;
