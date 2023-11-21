@@ -33,10 +33,10 @@ EPropertyBagPropertyType FBasePropertyIdHandler::GetPropertyType(const FProperty
 				{
 					PropertyType = EPropertyBagPropertyType::Enum;
 				}
-			}
-			else
-			{
-				PropertyType = EPropertyBagPropertyType::Byte;
+				else
+				{
+					PropertyType = EPropertyBagPropertyType::Byte;
+				}
 			}
 		}
 		else if (PropertyName == NAME_Int32Property)
