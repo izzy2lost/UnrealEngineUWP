@@ -1879,17 +1879,58 @@ class FPrimitiveAndInstance
 public:
 
 	FPrimitiveAndInstance(const FMatrix& InLocalToWorld, const FBox& InWorldBounds, FPrimitiveSceneInfo* InPrimitive, int32 InInstanceIndex)
-	: LocalToWorld(InLocalToWorld)
-	, WorldBounds(InWorldBounds)
+	: Primitive(InPrimitive)
 	, InstanceIndex(InInstanceIndex)
-	, Primitive(InPrimitive)
 	{
+		SetTransformAndBounds(InLocalToWorld, InWorldBounds);
 	}
 
-	FMatrix LocalToWorld;
-	FBox WorldBounds;
-	int32 InstanceIndex;
 	FPrimitiveSceneInfo* Primitive;
+
+	FVector Origin;
+	FVector3f TransformRows[3];
+
+	FBox3f WorldBoundsRelativeToOrigin;
+
+	int32 InstanceIndex;
+
+	FORCEINLINE void SetTransformAndBounds(const FMatrix& InLocalToWorld, const FBox& InWorldBounds)
+	{
+		TransformRows[0] = FVector3f((float)InLocalToWorld.M[0][0], (float)InLocalToWorld.M[0][1], (float)InLocalToWorld.M[0][2]);
+		TransformRows[1] = FVector3f((float)InLocalToWorld.M[1][0], (float)InLocalToWorld.M[1][1], (float)InLocalToWorld.M[1][2]);
+		TransformRows[2] = FVector3f((float)InLocalToWorld.M[2][0], (float)InLocalToWorld.M[2][1], (float)InLocalToWorld.M[2][2]);
+		Origin = FVector(InLocalToWorld.M[3][0], InLocalToWorld.M[3][1], InLocalToWorld.M[3][2]);
+
+		WorldBoundsRelativeToOrigin = (FBox3f)(InWorldBounds.ShiftBy(-Origin));
+	}
+
+	FORCEINLINE FMatrix GetLocalToWorld() const
+	{
+		FMatrix Matrix;
+		Matrix.M[0][0] = TransformRows[0].X;
+		Matrix.M[0][1] = TransformRows[0].Y;
+		Matrix.M[0][2] = TransformRows[0].Z;
+		Matrix.M[0][3] = 0.0f;
+		Matrix.M[1][0] = TransformRows[1].X;
+		Matrix.M[1][1] = TransformRows[1].Y;
+		Matrix.M[1][2] = TransformRows[1].Z;
+		Matrix.M[1][3] = 0.0f;
+		Matrix.M[2][0] = TransformRows[2].X;
+		Matrix.M[2][1] = TransformRows[2].Y;
+		Matrix.M[2][2] = TransformRows[2].Z;
+		Matrix.M[2][3] = 0.0f;
+		Matrix.M[3][0] = Origin.X;
+		Matrix.M[3][1] = Origin.Y;
+		Matrix.M[3][2] = Origin.Z;
+		Matrix.M[3][3] = 1.0f;
+		return Matrix;
+	}
+
+	FORCEINLINE FBox GetWorldBounds() const
+	{
+		FBox WorldBoundsRelativeToOriginDoublePrecision = (FBox)WorldBoundsRelativeToOrigin;
+		return WorldBoundsRelativeToOriginDoublePrecision.ShiftBy(Origin);
+	}
 };
 
 class FPrimitiveRemoveInfo

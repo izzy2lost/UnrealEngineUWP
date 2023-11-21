@@ -249,7 +249,7 @@ void ProcessDistanceFieldObjectRemoves(FScene* Scene, TArray<FSetElementId>& Dis
 				{
 					// Mark region covered by instance in global distance field as modified
 					FGlobalDFCacheType CacheType = PrimitiveRemoveInfo.bOftenMoving ? GDF_Full : GDF_MostlyStatic;
-					AddModifiedBounds(Scene, CacheType, DistanceFieldSceneData.PrimitiveInstanceMapping[InstanceIndex].WorldBounds);
+					AddModifiedBounds(Scene, CacheType, DistanceFieldSceneData.PrimitiveInstanceMapping[InstanceIndex].GetWorldBounds());
 
 					// Add individual instances to temporary array for processing in the next pass
 					PendingRemoveOperations.Add(InstanceIndex);
@@ -430,26 +430,28 @@ void ProcessPrimitiveUpdate(
 					{
 						FPrimitiveAndInstance& Mapping = DistanceFieldSceneData.PrimitiveInstanceMapping[InstanceIndex];
 
+						const FMatrix PrevLocalToWorld = Mapping.GetLocalToWorld();
+						const FBox PrevWorldBounds = Mapping.GetWorldBounds();
+
 						// Filter out global distance field updates which were too small
-						if (!Mapping.WorldBounds.GetExtent().Equals(WorldBounds.GetExtent(), 0.01f)
-							|| !Mapping.LocalToWorld.Equals(LocalToWorld, 0.01f))
+						if (!PrevWorldBounds.GetExtent().Equals(WorldBounds.GetExtent(), 0.01f)
+							|| !PrevLocalToWorld.Equals(LocalToWorld, 0.01f))
 						{
 							// decide if we want to make a single global distance field update or two updates for large movement (teleport) case
-							const FBox MergedBounds = Mapping.WorldBounds + WorldBounds;
-							const FVector MergedExtentIncrease = MergedBounds.GetExtent() - Mapping.WorldBounds.GetExtent() - WorldBounds.GetExtent();
+							const FBox MergedBounds = PrevWorldBounds + WorldBounds;
+							const FVector MergedExtentIncrease = MergedBounds.GetExtent() - PrevWorldBounds.GetExtent() - WorldBounds.GetExtent();
 							if (MergedExtentIncrease.GetMax() < 100.0f)
 							{
 								AddModifiedBounds(Scene, CacheType, MergedBounds);
 							}
 							else
 							{
-								AddModifiedBounds(Scene, CacheType, Mapping.WorldBounds);
+								AddModifiedBounds(Scene, CacheType, PrevWorldBounds);
 								AddModifiedBounds(Scene, CacheType, WorldBounds);
 							}
 							LogDistanceFieldUpdate(PrimitiveSceneInfo, BoundingRadius, bIsAddOperation);
 
-							Mapping.LocalToWorld = LocalToWorld;
-							Mapping.WorldBounds = WorldBounds;
+							Mapping.SetTransformAndBounds(LocalToWorld, WorldBounds);
 						}
 					}
 				}
@@ -590,10 +592,10 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 
 								const FBox3f LocalSpaceMeshBounds = DistanceFieldData->LocalSpaceMeshBounds;
 			
-								const FMatrix LocalToWorld = PrimAndInst.LocalToWorld;
+								const FMatrix LocalToWorld = PrimAndInst.GetLocalToWorld();
 
 								{
-									const FBox WorldSpaceMeshBounds = ((FBox)LocalSpaceMeshBounds).TransformBy(LocalToWorld);
+									const FBox WorldSpaceMeshBounds = PrimAndInst.GetWorldBounds();
 
 									const FLargeWorldRenderPosition AbsoluteWorldPosition(WorldSpaceMeshBounds.GetCenter());
 
