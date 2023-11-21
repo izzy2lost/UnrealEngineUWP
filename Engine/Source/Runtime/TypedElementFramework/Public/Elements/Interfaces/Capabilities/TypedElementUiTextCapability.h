@@ -16,9 +16,9 @@ public:
 
 	~ITypedElementUiTextCapability() override = default;
 
-	virtual void SetText(TAttribute<FText> Text) = 0;
+	virtual void SetText(const TAttribute<FText>& Text) = 0;
 
-	virtual void SetHighlightText(TAttribute<FText> Text) = 0;
+	virtual void SetHighlightText(const TAttribute<FText>& Text) = 0;
 };
 
 template<typename WidgetType>
@@ -27,12 +27,12 @@ class TTypedElementUiTextCapability : public ITypedElementUiTextCapability
 public:
 	explicit TTypedElementUiTextCapability(WidgetType& InWidget) : Widget(InWidget){}
 	
-	void SetText(TAttribute<FText> Text) override
+	void SetText(const TAttribute<FText>& Text) override
 	{
 		Widget.SetText(Text);
 	}
 
-	void SetHighlightText(TAttribute<FText> Text) override
+	void SetHighlightText(const TAttribute<FText>& Text) override
 	{
 		Widget.SetHighlightText(Text);
 	}

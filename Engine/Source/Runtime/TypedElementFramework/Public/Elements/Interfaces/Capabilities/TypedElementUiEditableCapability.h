@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementUiCapabilities.h"
+#include "Misc/Attribute.h"
 
 /**
  * Interface to provide access to widget that have explicit editing modes.
@@ -16,6 +17,7 @@ public:
 
 	virtual void EnterEditingMode() = 0;
 	virtual void ExitEditingMode() = 0;
+	virtual void SetIsReadOnly(const TAttribute<bool>& InIsReadOnly) = 0;
 };
 
 template<typename WidgetType>
@@ -31,6 +33,11 @@ public:
 	void ExitEditingMode() override
 	{
 		Widget.ExitEditingMode();
+	}
+	
+	void SetIsReadOnly(const TAttribute<bool>& InIsReadOnly) override
+	{
+		Widget.SetReadOnly(InIsReadOnly);
 	}
 
 private:
