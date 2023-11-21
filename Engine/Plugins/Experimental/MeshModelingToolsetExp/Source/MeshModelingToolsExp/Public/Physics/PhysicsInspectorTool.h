@@ -48,6 +48,8 @@ public:
 		return true;
 	}
 
+	void OnCreatePhysics(UActorComponent* Component);
+
 protected:
 
 	UPROPERTY()
@@ -60,6 +62,11 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UPreviewGeometry>> PreviewElements;
 
-	// these are TSharedPtr because TPimplPtr cannot currently be added to a TArray?
-	TArray<TSharedPtr<FPhysicsDataCollection>> PhysicsInfos;
+private:
+	// Helper to create or re-create preview geometry
+	void InitializePreviewGeometry(bool bClearExisting);
+	// Delegate to track when physics data may have been updated
+	FDelegateHandle OnCreatePhysicsDelegateHandle;
+	// A flag to track when the preview geometry needs to be re-initialized
+	bool bUnderlyingPhysicsObjectsUpdated = false;
 };
