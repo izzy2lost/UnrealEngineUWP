@@ -160,7 +160,8 @@ protected:
 		const UMovieGraphImageSequenceOutputNode* InParentNode,
 		TUniquePtr<FImagePixelData> InImageData,
 		int32 InLayerIndex,
-		const FString& InLayerName = {}
+		const FString& InLayerName = {},
+		const TMap<FString, FString>& InResolvedOCIOContext = {}
 	) const;
 };
 
