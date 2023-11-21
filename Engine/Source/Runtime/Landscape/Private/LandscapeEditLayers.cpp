@@ -7496,13 +7496,21 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 							continue;
 						}
 
+						FTextureResource* WeightmapTextureResource = WeightmapTexture ? WeightmapTexture->GetResource() : nullptr;
+						if (WeightmapTextureResource == nullptr)
+						{
+							continue;
+						}
+
+						const int32 TextureSizeX = WeightmapTextureResource->GetSizeX();
+						const int32 TextureSizeY = WeightmapTextureResource->GetSizeY();
+
 						FIntPoint TextureTopLeftPositionInAtlas(
 							static_cast<int32>(WeightmapTextureOutputOffset[NextTextureIndexToProcess - StartTextureIndex].X),
 							static_cast<int32>(WeightmapTextureOutputOffset[NextTextureIndexToProcess - StartTextureIndex].Y));
 
 						int32 CurrentMip = 0;
-						const int32 TextureSizeX = WeightmapTexture->GetResource()->GetSizeX();
-						const int32 TextureSizeY = WeightmapTexture->GetResource()->GetSizeY();
+
 						for (int32 MipRTIndex = (int32)EWeightmapRTType::WeightmapRT_Mip0; MipRTIndex < (int32)EWeightmapRTType::WeightmapRT_Count; ++MipRTIndex)
 						{
 							CurrentRT = WeightmapRTList[MipRTIndex];

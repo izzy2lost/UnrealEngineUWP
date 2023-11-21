@@ -438,17 +438,21 @@ void UEdGraphNode::BreakAllNodeLinks()
 	NodeList.Add(this);
 
 	// Iterate over each pin and break all links
-	for(int32 PinIdx = 0; PinIdx < Pins.Num(); ++PinIdx)
+	for (int32 PinIdx = 0; PinIdx < Pins.Num(); ++PinIdx)
 	{
-		UEdGraphPin* Pin = Pins[PinIdx];
-
-		// Save all the connected nodes to be notified below
-		for (UEdGraphPin* Connection : Pin->LinkedTo)
+		if (UEdGraphPin* Pin = Pins[PinIdx])
 		{
-			NodeList.Add(Connection->GetOwningNode());
-		}
+			// Save all the connected nodes to be notified below
+			for (UEdGraphPin* Connection : Pin->LinkedTo)
+			{
+				if (Connection != nullptr)
+				{
+					NodeList.Add(Connection->GetOwningNode());
+				}
+			}
 
-		Pin->BreakAllPinLinks();
+			Pin->BreakAllPinLinks();
+		}
 	}
 
 	// Send a notification to all nodes that lost a connection
