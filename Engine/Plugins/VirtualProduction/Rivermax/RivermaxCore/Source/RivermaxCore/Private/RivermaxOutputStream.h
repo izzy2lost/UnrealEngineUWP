@@ -94,7 +94,13 @@ namespace UE::RivermaxCore::Private
 		float FrameRateMultiplier = 1.00;
 
 		/** Memory blocks given to Rivermax which where data is located */
-		TArray<rmax_mem_block> MemoryBlocks;
+		TArray<rmx_output_media_mem_block> MemoryBlocks;
+
+		/** Data Sub block ID */
+		const uint8 HeaderBlockID = 0;
+
+		/** Data Sub block ID */
+		const uint8 DataBlockID = 1;
 
 		/** Array with each packet size */
 		TArray<uint16_t> PayloadSizes; 
@@ -138,6 +144,9 @@ namespace UE::RivermaxCore::Private
 
 	struct FRivermaxOutputStreamData
 	{
+		// Handle used to retrieve chunks associated with output stream
+		rmx_output_media_chunk_handle ChunkHandle;
+
 		/** Current sequence number being done */
 		uint32 SequenceNumber = 0;
 		double FrameFieldTimeIntervalNs = 0.0;
@@ -348,7 +357,7 @@ namespace UE::RivermaxCore::Private
 		FRivermaxOutputStreamData StreamData;
 
 		/** Stream id returned by rmax library */
-		rmax_stream_id StreamId;
+		rmx_stream_id StreamId = 0;
 
 		/** Critical section to protect frames access */
 		mutable FCriticalSection FrameCriticalSection;
