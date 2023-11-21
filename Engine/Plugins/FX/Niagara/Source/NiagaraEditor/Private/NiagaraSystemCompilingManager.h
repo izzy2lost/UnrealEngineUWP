@@ -9,6 +9,7 @@
 #include "NiagaraSystem.h"
 
 struct FNiagaraSystemCompilationTask;
+class ITargetPlatform;
 
 class FNiagaraSystemCompilingManager : public IAssetCompilingManager
 {
@@ -16,6 +17,9 @@ public:
 	struct FCompileOptions
 	{
 		TArray<TWeakObjectPtr<UNiagaraParameterCollection>> ParameterCollections;
+		const ITargetPlatform* TargetPlatform = nullptr;
+		EShaderPlatform PreviewShaderPlatform = EShaderPlatform::SP_NumPlatforms;
+		ERHIFeatureLevel::Type PreviewFeatureLevel = ERHIFeatureLevel::Num;
 		bool bForced = false;
 	};
 
@@ -41,6 +45,12 @@ protected:
 	// End - IAssetCompilingManager
 
 	bool ConditionalLaunchTask();
+
+	FNiagaraShaderType* NiagaraShaderType = nullptr;
+
+	using FPlatformFeatureLevelPair = TPair<EShaderPlatform, ERHIFeatureLevel::Type>;
+	TMap<const ITargetPlatform*, TArray<FPlatformFeatureLevelPair>> PlatformFeatureLevels;
+	void FindOrAddFeatureLevels(const FCompileOptions& CompileOptions, TArray<FPlatformFeatureLevelPair>& FeatureLevels);
 
 	using FTaskPtr = TSharedPtr<FNiagaraSystemCompilationTask, ESPMode::ThreadSafe>;
 

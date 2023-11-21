@@ -10,6 +10,7 @@
 
 struct FNiagaraSystemCompilationTask
 {
+	// helper for script DDC get requests
 	struct FDispatchAndProcessDataCacheGetRequests
 	{
 		void Launch(FNiagaraSystemCompilationTask* SystemCompileTask);
@@ -18,6 +19,7 @@ struct FNiagaraSystemCompilationTask
 		std::atomic<int32> PendingGetRequestCount = 0;
 	};
 
+	// helepr for script DDC put requests
 	struct FDispatchDataCachePutRequests
 	{
 		void Launch(FNiagaraSystemCompilationTask* SystemCompileTask);
@@ -26,24 +28,33 @@ struct FNiagaraSystemCompilationTask
 		std::atomic<int32> PendingPutRequestCount = 0;
 	};
 
+	struct FShaderCompileRequest
+	{
+		FNiagaraShaderMapId ShaderMapId;
+		EShaderPlatform ShaderPlatform;
+	};
+
 	FNiagaraSystemCompilationTask(FNiagaraCompilationTaskHandle InTaskHandle, UNiagaraSystem* InSystem);
 
 	void Abort();
 
 	void DigestSystemInfo();
 	void DigestParameterCollections(TConstArrayView<TWeakObjectPtr<UNiagaraParameterCollection>> Collections);
-	void AddScript(int32 EmitterIndex, UNiagaraScript* ScriptToCompile, bool bRequiresCompilation);
+	void DigestShaderInfo(const ITargetPlatform* TargetPlatform, FNiagaraShaderType* ShaderType);
+	void AddScript(int32 EmitterIndex, UNiagaraScript* ScriptToCompile, const FNiagaraVMExecutableDataId& CompileId, bool bRequiresCompilation, TConstArrayView<FShaderCompileRequest> ShaderRequests);
 	UE::Tasks::FTask BeginTasks();
 
 	UE::Tasks::FTask BuildRapidIterationParametersAsync();
 	void BuildAndApplyRapidIterationParameters();
 	void IssueCompilationTasks();
+	void IssuePostResultsProcessedTasks();
 	bool HasOutstandingCompileTasks() const;
 
 	double PrepareStartTime = 0.0;
 	double QueueStartTime = 0.0;
 	double LaunchStartTime = 0.0;
 
+	// compilation was forced
 	bool bForced = false;
 
 	enum class EState : uint8
@@ -119,39 +130,86 @@ struct FNiagaraSystemCompilationTask
 		int32 SourceEmitterIndex = INDEX_NONE;
 	};
 
+	struct FDDCTaskInfo
+	{
+		bool ResolveGet(bool bSuccess);
+
+		UE::DerivedData::FCacheKey DataCacheGetKey;
+		TArray< UE::DerivedData::FCacheKey> DataCachePutKeys;
+		FUniqueBuffer PendingDDCData;
+		bool bFromDerivedDataCache = false;
+	};
+
+	struct FCompileComputeShaderTaskInfo
+	{
+		int32 ParentCompileTaskIndex = INDEX_NONE;
+
+		FNiagaraShaderMapId ShaderMapId;
+		EShaderPlatform ShaderPlatform;
+		FNiagaraShaderMapRef ShaderMap;
+
+		FDDCTaskInfo DDCTaskInfo;
+
+		bool IsOutstanding() const;
+	};
+
+	enum class EScriptCompileType
+	{
+		Invalid = 0,
+		CompileForVm,
+		TranslateForGpu,
+		CompileForGpu,
+		DummyCompileForCpuStubs,
+	};
+
 	struct FCompileTaskInfo
 	{
 		FNiagaraCompileOptions CompileOptions;
 		FNiagaraTranslateResults TranslateResults;
 		FNiagaraTranslatorOutput TranslateOutput;
 		FString TranslatedHlsl;
-		TSharedPtr<FHlslNiagaraCompiler> Compiler;
-		FUniqueBuffer PendingDDCData;
 		TSharedPtr<FNiagaraVMExecutableData> ExeData;
+
+		// complier for VM script compiles
+		TUniquePtr<FHlslNiagaraCompiler> ScriptCompiler;
+
+		// information for GPU script compiles
+		TUniquePtr<FNiagaraShaderMapCompiler> ShaderMapCompiler;
+		TArray<int32> ComputeShaderTaskIndices;
+
 		TWeakObjectPtr<UNiagaraScript> SourceScript;
 		TObjectKey<UNiagaraScript> ScriptKey;
 		FString AssetPath;
 		FNiagaraVMExecutableDataId CompileId;
-		int32 CompilationJobId = INDEX_NONE;
-		UE::DerivedData::FCacheKey DataCacheGetKey;
-		TArray<UE::DerivedData::FCacheKey> DataCachePutKeys;
+		uint32 ScriptCompilationJobId;
+
+		FDDCTaskInfo DDCTaskInfo;
+
 		TUniquePtr<UE::Tasks::FTaskEvent> CompileResultsReadyEvent;
 		TUniquePtr<UE::Tasks::FTaskEvent> CompileResultsProcessedEvent;
 		TMap<FName, UNiagaraDataInterface*> NamedDataInterfaces;
 		TArray<FNiagaraVariable> BakedRapidIterationParameters; // todo - remove and have the data pulled directly from the precompile data
-		bool bFromDerivedDataCache = false;
 		double TaskStartTime = 0;
 		float TranslationTime = 0.0f;
 		float CompilerWallTime = 0.0f;
 		float CompilerWorkerTime = 0.0f;
 		float CompilerPreprocessTime = 0.0f;
 		float ByteCodeOptimizeTime = 0.0f;
+		EScriptCompileType ScriptCompileType = EScriptCompileType::Invalid;
 
-		bool IsOutstanding() const;
+		bool IsOutstanding(const FNiagaraSystemCompilationTask& ParentTask) const;
 		void CollectNamedDataInterfaces(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
-		void TranslateAndIssueCompile(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void Translate(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void IssueCompileVm(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void IssueTranslateGpu(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void IssueCompileGpu(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
 		void ProcessCompilation(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void GenerateOptimizedVMByteCode(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo);
+		void RetrieveTranslateResult();
 		bool RetrieveCompilationResult(bool bWait);
+		bool RetrieveShaderMap(bool bWait);
+
+		TOptional<FNiagaraCompileResults> HandleDeprecatedGpuScriptResults() const;
 	};
 
 	struct FCollectStaticVariablesTaskBuilder;
@@ -165,8 +223,12 @@ struct FNiagaraSystemCompilationTask
 
 	TArray<FCompileGroupInfo> CompileGroups;
 	TArray<FCompileTaskInfo> CompileTasks;
+	TArray<FCompileComputeShaderTaskInfo> CompileComputeShaderTasks;
 
 	const FNiagaraCompilationTaskHandle TaskHandle;
+
+	const ITargetPlatform* TargetPlatform = nullptr;
+	FNiagaraShaderType* NiagaraShaderType = nullptr;
 
 	int32 TasksAwaitingDDCGetResults = 0;
 

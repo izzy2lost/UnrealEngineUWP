@@ -369,7 +369,7 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 
 			if (bValid)
 			{
-				TRefCountPtr<FNiagaraShaderMap> LoadedShaderMap = new FNiagaraShaderMap();
+				FNiagaraShaderMapRef LoadedShaderMap = new FNiagaraShaderMap();
 				bool bLoaded = LoadedShaderMap->Serialize(Ar, true, true);
 
 				// Toss the loaded shader data if this is a server only instance
@@ -785,7 +785,7 @@ void FNiagaraShaderScript::GetShaderMapIDsWithUnfinishedCompilation(TArray<int32
 */
 bool FNiagaraShaderScript::BeginCompileShaderMap(
 	const FNiagaraShaderMapId& ShaderMapId,
-	TRefCountPtr<FNiagaraShaderMap>& OutShaderMap,
+	FNiagaraShaderMapRef& OutShaderMap,
 	bool bApplyCompletedShaderMapForRendering,
 	bool bSynchronous)
 {
@@ -798,7 +798,7 @@ bool FNiagaraShaderScript::BeginCompileShaderMap(
 	SCOPE_SECONDS_COUNTER(NiagaraCompileTime);
 
 	// Queue hlsl generation and shader compilation - Unlike materials, we queue this here, and compilation happens from the editor module
-	TRefCountPtr<FNiagaraShaderMap> NewShaderMap = new FNiagaraShaderMap();
+	FNiagaraShaderMapRef NewShaderMap = new FNiagaraShaderMap();
 	OutstandingCompileShaderMapIds.AddUnique(NewShaderMap->GetCompilingId());		
 	UE_LOG(LogShaders, Log, TEXT("BeginCompileShaderMap AddUnique %p %d"), this, NewShaderMap->GetCompilingId());
 

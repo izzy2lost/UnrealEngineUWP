@@ -1631,14 +1631,17 @@ void FVersionedNiagaraEmitterData::CacheFromCompiledData(const FNiagaraDataSetCo
 
 	// Cache shaders for all GPU scripts
 #if WITH_EDITORONLY_DATA
-	if (AreAllScriptAndSourcesSynchronized())
+	if (!UNiagaraScript::AreGpuScriptsCompiledBySystem())
 	{
-		ForEachScript(
-			[](UNiagaraScript* Script)
-			{
-				Script->CacheResourceShadersForRendering(false, false);
-			}
-		);
+		if (AreAllScriptAndSourcesSynchronized())
+		{
+			ForEachScript(
+				[](UNiagaraScript* Script)
+				{
+					Script->CacheResourceShadersForRendering(false, false);
+				}
+			);
+		}
 	}
 #endif
 

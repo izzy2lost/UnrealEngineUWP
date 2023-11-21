@@ -48,6 +48,7 @@ struct FNiagaraGraphCachedDataBase;
 #endif
 
 class UNiagaraDataChannel;
+class ITargetPlatform;
 
 USTRUCT()
 struct FNiagaraEmitterCompiledData
@@ -402,7 +403,7 @@ public:
 	NIAGARA_API void RemoveSystemParametersForEmitter(const FNiagaraEmitterHandle& EmitterHandle);
 
 	/** Request that any dirty scripts referenced by this system be compiled.*/
-	NIAGARA_API bool RequestCompile(bool bForce, FNiagaraSystemUpdateContext* OptionalUpdateContext = nullptr);
+	NIAGARA_API bool RequestCompile(bool bForce, FNiagaraSystemUpdateContext* OptionalUpdateContext = nullptr, const ITargetPlatform* TargetPlatform = nullptr);
 
 	/** If we have a pending compile request, is it done with yet? */
 	NIAGARA_API bool PollForCompilationComplete(bool bFlushRequestCompile = true);

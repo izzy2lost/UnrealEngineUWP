@@ -10,6 +10,7 @@
 #include "NiagaraCompilationTypes.generated.h"
 
 class UNiagaraSystem;
+class ITargetPlatform;
 
 using FNiagaraCompilationTaskHandle = int32;
 
@@ -32,6 +33,14 @@ struct FNiagaraSystemCompileMetrics
 	TMap<TObjectKey<UNiagaraScript>, FNiagaraScriptCompileMetrics> ScriptMetrics;
 };
 
+struct FNiagaraCompiledShaderInfo
+{
+	FNiagaraShaderMapRef CompiledShader;
+	const ITargetPlatform* TargetPlatform = nullptr;
+	EShaderPlatform ShaderPlatform = SP_NumPlatforms;
+	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
+};
+
 USTRUCT()
 struct FNiagaraScriptAsyncCompileData
 {
@@ -39,6 +48,7 @@ struct FNiagaraScriptAsyncCompileData
 
 	FNiagaraVMExecutableDataId CompileId;
 	TSharedPtr<struct FNiagaraVMExecutableData> ExeData;
+	TArray<FNiagaraCompiledShaderInfo> CompiledShaders;
 	FString UniqueEmitterName;
 	FNiagaraEmitterID EmitterID = INDEX_NONE;
 	FNiagaraScriptCompileMetrics CompileMetrics;
@@ -77,6 +87,7 @@ struct FNiagaraSystemAsyncCompileResults
 struct FNiagaraCompilationOptions
 {
 	UNiagaraSystem* System = nullptr;
+	const ITargetPlatform* TargetPlatform = nullptr;
 	bool bForced = false;
 };
 

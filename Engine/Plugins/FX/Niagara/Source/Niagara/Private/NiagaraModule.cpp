@@ -772,10 +772,10 @@ void INiagaraModule::UnregisterGraphTraversalCacher(FDelegateHandle DelegateHand
 	GraphTraversalCacheDelegate.Unbind();
 }
 
-FNiagaraCompilationTaskHandle INiagaraModule::RequestCompileSystem(UNiagaraSystem* System, bool bForce)
+FNiagaraCompilationTaskHandle INiagaraModule::RequestCompileSystem(UNiagaraSystem* System, bool bForce, const ITargetPlatform* TargetPlatform)
 {
 	checkf(RequestCompileSystemDelegate.IsBound(), TEXT("RequestCompileSystemDelegate delegate not bound."));
-	return RequestCompileSystemDelegate.Execute(System, bForce);
+	return RequestCompileSystemDelegate.Execute(System, bForce, TargetPlatform);
 }
 
 FDelegateHandle INiagaraModule::RegisterRequestCompileSystem(FOnRequestCompileSystem RequestCompileSystemCallback)

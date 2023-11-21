@@ -186,7 +186,7 @@ public:
 		FNiagaraSystemAsyncCompileResults NewCompileRequest;
 		INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
 
-		CompileRequestHandle = NiagaraModule.RequestCompileSystem(Options.System, bForced);
+		CompileRequestHandle = NiagaraModule.RequestCompileSystem(Options.System, bForced, Options.TargetPlatform);
 
 		return CompileRequestHandle != INDEX_NONE;
 	}
@@ -313,10 +313,17 @@ public:
 			ResultIt;
 			++ResultIt)
 		{
+			UNiagaraScript* TargetScript = ResultIt->Key;
 			const FNiagaraScriptAsyncCompileData& ScriptCompileData = ResultIt->Value;
-			if (ensure(ScriptCompileData.ExeData.IsValid()))
+
+			// because our compilation process includes the generation of rapid iteration parameters and static
+			// variables we need to generate the ExecutableDataId
+			// if we dirtied any RI parameters then we need to regenerate our CompilationId
+			FNiagaraVMExecutableDataId UpdatedCompileId;
+			TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
+
+			if (ScriptCompileData.ExeData.IsValid())
 			{
-				UNiagaraScript* TargetScript = ResultIt->Key;
 				TMap<FName, UNiagaraDataInterface*> ObjectNameMap;
 
 				if (ScriptCompileData.bFromDerivedDataCache)
@@ -334,12 +341,6 @@ public:
 					});
 				}
 
-				// because our compilation process includes the generation of rapid iteration parameters and static
-				// variables we need to generate the ExecutableDataId
-				// if we dirtied any RI parameters then we need to regenerate our CompilationId
-				FNiagaraVMExecutableDataId UpdatedCompileId;
-				TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
-
 				constexpr bool bApplyRapidIterationParameters = false;
 				TargetScript->SetVMCompilationResults(
 					UpdatedCompileId,
@@ -347,17 +348,33 @@ public:
 					ScriptCompileData.UniqueEmitterName,
 					ObjectNameMap,
 					bApplyRapidIterationParameters);
+
+				if (!ScriptCompileData.CompiledShaders.IsEmpty())
+				{
+					for (const FNiagaraCompiledShaderInfo& ShaderMapInfo : ScriptCompileData.CompiledShaders)
+					{
+						TargetScript->SetComputeCompilationResults(
+							ShaderMapInfo.TargetPlatform,
+							ShaderMapInfo.ShaderPlatform,
+							ShaderMapInfo.FeatureLevel,
+							ScriptCompileData.ExeData->ShaderScriptParametersMetadata,
+							ShaderMapInfo.CompiledShader);
+					}
+
+				}
 			}
 		}
 
 		// Synchronize the variables that we actually encountered during precompile so that we can expose them to the end user.
-		FNiagaraUserRedirectionParameterStore& ExposedParameters = Options.System->GetExposedParameters();
-
-		for (const FNiagaraVariable& ExposedVariable : CompileResults.ExposedVariables)
 		{
-			if (!ExposedParameters.FindParameterOffset(ExposedVariable))
+			FNiagaraUserRedirectionParameterStore& ExposedParameters = Options.System->GetExposedParameters();
+
+			for (const FNiagaraVariable& ExposedVariable : CompileResults.ExposedVariables)
 			{
-				ExposedParameters.AddParameter(ExposedVariable, true, false);
+				if (!ExposedParameters.FindParameterOffset(ExposedVariable))
+				{
+					ExposedParameters.AddParameter(ExposedVariable, true, false);
+				}
 			}
 		}
 	}
@@ -748,13 +765,13 @@ private:
 TUniquePtr<FNiagaraActiveCompilation> FNiagaraActiveCompilation::CreateCompilation()
 {
 #if WITH_EDITORONLY_DATA
-	const ENiagaraCompilationMode Compilationmode = GetDefault<UNiagaraSettings>()->CompilationMode;
+	const ENiagaraCompilationMode CompilationMode = GetDefault<UNiagaraSettings>()->CompilationMode;
 
-	if (Compilationmode == ENiagaraCompilationMode::AsyncTasks)
+	if (CompilationMode == ENiagaraCompilationMode::AsyncTasks)
 	{
 		return MakeUnique<FNiagaraActiveCompilationAsyncTask>();
 	}
-	else if (Compilationmode == ENiagaraCompilationMode::Verify)
+	else if (CompilationMode == ENiagaraCompilationMode::Verify)
 	{
 		return MakeUnique<FNiagaraActiveCompilationVerify>();
 	}

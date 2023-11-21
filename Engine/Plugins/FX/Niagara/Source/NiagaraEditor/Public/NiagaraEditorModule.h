@@ -50,6 +50,7 @@ class UNiagaraReservedParametersManager;
 class FNiagaraGraphDataCache;
 class UNiagaraParameterCollection;
 struct FNiagaraSystemAsyncCompileResults;
+class ITargetPlatform;
 
 DECLARE_STATS_GROUP(TEXT("Niagara Editor"), STATGROUP_NiagaraEditor, STATCAT_Advanced);
 
@@ -161,7 +162,7 @@ public:
 		FGuid TargetVersion);
 	TSharedPtr<FNiagaraGraphCachedDataBase, ESPMode::ThreadSafe> CacheGraphTraversal(const UObject* Obj, FGuid Version);
 
-	FNiagaraCompilationTaskHandle RequestCompileSystem(UNiagaraSystem* System, bool bForce);
+	FNiagaraCompilationTaskHandle RequestCompileSystem(UNiagaraSystem* System, bool bForce, const ITargetPlatform* TargetPlatform);
 	bool PollSystemCompile(FNiagaraCompilationTaskHandle, FNiagaraSystemAsyncCompileResults&, bool /*bWait*/, bool /*bPeek*/);
 	void AbortSystemCompile(FNiagaraCompilationTaskHandle);
 

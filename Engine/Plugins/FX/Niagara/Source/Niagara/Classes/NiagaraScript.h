@@ -245,7 +245,7 @@ public:
 	UPROPERTY()
 	TArray<FNiagaraVariableBase> AdditionalVariables;
 
-	NIAGARA_API TArray<FString> GetAdditionalVariableStrings();
+	NIAGARA_API TArray<FString> GetAdditionalVariableStrings() const;
 #endif
 
 	/** Whether or not we need to bake Rapid Iteration params. True to keep params, false to bake.*/
@@ -1030,6 +1030,7 @@ public:
 	bool IsDynamicInputScript() const { return IsDynamicInputScript(Usage); }
 	bool IsParticleEventScript() const { return IsParticleEventScript(Usage); }
 	bool IsParticleScript() const {	return IsParticleScript(Usage);}
+	bool IsGPUScript() const { return IsGPUScript(Usage); }
 
 	bool IsNonParticleScript() const { return IsNonParticleScript(Usage); }
 	
@@ -1082,6 +1083,7 @@ public:
 	NIAGARA_API bool IsReadyToRun(ENiagaraSimTarget SimTarget) const;
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API static void SetPreviewFeatureLevel(ERHIFeatureLevel::Type PreviewFeatureLevel);
+	NIAGARA_API static ERHIFeatureLevel::Type GetPreviewFeatureLevel();
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -1127,6 +1129,10 @@ public:
 
 	// Infrastructure for GPU compute Shaders
 #if WITH_EDITOR
+	// utility function answering whether it's the NiagaraSystem or the NiagaraScript that will be responsible
+	// for the generation of the FNiagaraShaderMap and general compilation for GPU scripts
+	NIAGARA_API static bool AreGpuScriptsCompiledBySystem();
+
 	NIAGARA_API void CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform, TArray<TUniquePtr<FNiagaraShaderScript>>& InOutCachedResources, const ITargetPlatform* TargetPlatform = nullptr);
 
 	NIAGARA_API void CacheResourceShadersForRendering(bool bRegenerateId, bool bForceRecompile=false);
@@ -1257,6 +1263,15 @@ public:
 
 	/** External call used to identify the values for a successful VM script compilation. OnVMScriptCompiled will be issued in this case.*/
 	void SetVMCompilationResults(const FNiagaraVMExecutableDataId& InCompileId, FNiagaraVMExecutableData& InScriptVM, const FString& EmitterUniqueName, const TMap<FName, UNiagaraDataInterface*>& ObjectNameMap, bool ApplyRapidIterationParameters);
+
+	void SetComputeCompilationResults(
+		const ITargetPlatform* TargetPlatform,
+		EShaderPlatform ShaderPlatform,
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FNiagaraShaderScriptParametersMetadata& SharedParameters,
+		const FNiagaraShaderMapRef& ShaderMap);
+
+	NIAGARA_API bool IsShaderMapCached(const ITargetPlatform* TargetPlatform, const FNiagaraShaderMapId& ShaderMapId) const;
 
 	/** Updates the RI parameter store based on the provided variables (missing entries will be
 	    added and stale entries will be removed.  Returns true if the parameter store was modified. */
@@ -1394,9 +1409,6 @@ private:
 	TArray<FNiagaraShaderScript> LoadedScriptResources;
 	TSharedPtr<FNiagaraShaderScript> ScriptResourcesByFeatureLevel[ERHIFeatureLevel::Num];
 #endif
-
-	/** Compute shader compiled for this script */
-	FComputeShaderRHIRef ScriptShader;
 
 	/** Runtime stat IDs generated from StatScopes. */
 #if STATS

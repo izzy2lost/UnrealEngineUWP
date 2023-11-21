@@ -46,8 +46,10 @@ enum EShaderPlatform : uint16;
 enum EPixelFormat : uint8;
 
 class FNiagaraDataBuffer;
+class FNiagaraShaderMap;
 
 using FNiagaraDataBufferRef = TRefCountPtr<FNiagaraDataBuffer>;
+using FNiagaraShaderMapRef = TRefCountPtr<FNiagaraShaderMap>;
 
 #define NIAGARA_MEMORY_TRACKING	!UE_BUILD_SHIPPING
 

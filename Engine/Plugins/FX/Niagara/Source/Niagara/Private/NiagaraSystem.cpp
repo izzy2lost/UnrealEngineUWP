@@ -281,7 +281,7 @@ void UNiagaraSystem::BeginCacheForCookedPlatformData(const ITargetPlatform *Targ
 
 	if (bNeedsRequestCompile)
 	{
-		RequestCompile(false);
+		RequestCompile(false, nullptr, TargetPlatform);
 	}
 
 	// check if any of the active compilations requires waiting - note that none should but the original
@@ -3091,7 +3091,7 @@ void UNiagaraSystem::InvalidateCachedData()
 	CachedTraversalData.Reset();
 }
 
-bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* OptionalUpdateContext)
+bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* OptionalUpdateContext, const ITargetPlatform* TargetPlatform)
 {
 	check(IsInGameThread());
 	TRACE_CPUPROFILER_EVENT_SCOPE(UNiagaraSystem::RequestCompile)
@@ -3149,6 +3149,7 @@ bool UNiagaraSystem::RequestCompile(bool bForce, FNiagaraSystemUpdateContext* Op
 
 		FNiagaraCompilationOptions Options;
 		Options.System = this;
+		Options.TargetPlatform = TargetPlatform;
 		Options.bForced = bForce;
 
 		bLaunchedCompilations = CurrentCompilation->Launch(Options);

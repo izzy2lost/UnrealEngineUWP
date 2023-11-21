@@ -23,7 +23,9 @@ struct FSharedShaderCompilerEnvironment;
 		);
 
 class FNiagaraShaderScript;
+class FShaderCommonCompileJob;
 class FShaderCompileJob;
+struct FSimulationStageMetaData;
 class FUniformExpressionSet;
 
 
@@ -126,9 +128,22 @@ public:
 			const FNiagaraShaderScript* Script,
 			FSharedShaderCompilerEnvironment* CompilationEnvironment,
 			EShaderPlatform Platform,
-			TArray<TRefCountPtr<class FShaderCommonCompileJob>>& NewJobs,
+			TArray<TRefCountPtr<FShaderCommonCompileJob>>& NewJobs,
 			FShaderTarget Target
 		);
+
+	void BeginCompileShaderFromSource(
+		FStringView FriendlyName,
+		uint32 ShaderMapId,
+		int32 PermutationId,
+		TSharedRef<FNiagaraShaderScriptParametersMetadata> ShaderParameters,
+		FSharedShaderCompilerEnvironment* CompilationEnvironment,
+		FStringView ScriptSource,
+		EShaderPlatform Platform,
+		const FSimulationStageMetaData& SimStageMetaData,
+		FShaderTarget Target,
+		TArray<TRefCountPtr<FShaderCommonCompileJob>>& NewJobs
+	) const;
 
 	/**
 	 * Either creates a new instance of this type or returns an equivalent existing shader.

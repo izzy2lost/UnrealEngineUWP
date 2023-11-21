@@ -76,7 +76,7 @@ FCriticalSection FNiagaraShaderMap::AllNiagaraShaderMapsGuard;
 #endif
 
 #if WITH_EDITOR
-TMap<TRefCountPtr<FNiagaraShaderMap>, TArray<FNiagaraShaderScript*>> FNiagaraShaderMap::NiagaraShaderMapsBeingCompiled;
+TMap<FNiagaraShaderMapRef, TArray<FNiagaraShaderScript*>> FNiagaraShaderMap::NiagaraShaderMapsBeingCompiled;
 
 static inline bool ShouldCacheNiagaraShader(const FNiagaraShaderType* ShaderType, EShaderPlatform Platform, const FNiagaraShaderScript* Script)
 {
@@ -390,6 +390,76 @@ void FNiagaraShaderType::BeginCompileShader(
 	NewJobs.Add(FShaderCommonCompileJobPtr(NewJob));
 }
 
+
+/**
+ * Enqueues a compilation for a new shader of this type.
+ * @param script - The script to link the shader with.
+ */
+void FNiagaraShaderType::BeginCompileShaderFromSource(
+	FStringView FriendlyName,
+	uint32 ShaderMapId,
+	int32 PermutationId,
+	TSharedRef<FNiagaraShaderScriptParametersMetadata> ShaderParameters,
+	FSharedShaderCompilerEnvironment* CompilationEnvironment,
+	FStringView ScriptSource,
+	EShaderPlatform Platform,
+	const FSimulationStageMetaData& SimStageMetaData,
+	FShaderTarget Target,
+	TArray<TRefCountPtr<FShaderCommonCompileJob>>& NewJobs
+) const
+{
+	FShaderCompileJob* NewJob = GShaderCompilingManager->PrepareShaderCompileJob(ShaderMapId, FShaderCompileJobKey(this, nullptr, PermutationId), EShaderCompileJobPriority::Normal);
+	if (!NewJob)
+	{
+		return;
+	}
+	NewJob->ShaderParameters = MakeShared<const FParameters, ESPMode::ThreadSafe>(ShaderParameters);
+	NewJob->Input.SharedEnvironment = CompilationEnvironment;
+	NewJob->Input.Target = Target;
+	NewJob->Input.ShaderFormat = LegacyShaderPlatformToShaderFormat(Platform);
+	NewJob->Input.VirtualSourceFilePath = TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf");
+	NewJob->Input.EntryPointName = TEXT("SimulateMainComputeCS");
+	NewJob->Input.Environment.SetDefine(TEXT("GPU_SIMULATION"), 1);
+	NewJob->Input.Environment.SetDefine(TEXT("NIAGARA_MAX_GPU_SPAWN_INFOS"), NIAGARA_MAX_GPU_SPAWN_INFOS);
+	NewJob->Input.Environment.IncludeVirtualPathToContentsMap.Emplace(TEXT("/Engine/Generated/NiagaraEmitterInstance.ush"), ScriptSource);
+
+	NewJob->Input.Environment.SetDefine(TEXT("SimulationStageIndex"), PermutationId);
+
+	if (SimStageMetaData.bWritesParticles && SimStageMetaData.bPartialParticleUpdate)
+	{
+		NewJob->Input.Environment.SetDefine(TEXT("NIAGARA_PARTICLE_PARTIAL_ENABLED"), 1);
+	}
+
+	const FIntVector ThreadGroupSize = SimStageMetaData.GpuDispatchNumThreads;
+	NewJob->Input.Environment.SetDefine(TEXT("NIAGARA_DISPATCH_TYPE"), int(SimStageMetaData.GpuDispatchType));
+	NewJob->Input.Environment.SetDefine(TEXT("NIAGARA_DISPATCH_INDIRECT"), SimStageMetaData.bGpuIndirectDispatch ? 1 : 0);
+	NewJob->Input.Environment.SetDefine(TEXT("THREADGROUP_SIZE"), ThreadGroupSize.X * ThreadGroupSize.Y * ThreadGroupSize.Z);
+	NewJob->Input.Environment.SetDefine(TEXT("THREADGROUP_SIZE_X"), ThreadGroupSize.X);
+	NewJob->Input.Environment.SetDefine(TEXT("THREADGROUP_SIZE_Y"), ThreadGroupSize.Y);
+	NewJob->Input.Environment.SetDefine(TEXT("THREADGROUP_SIZE_Z"), ThreadGroupSize.Z);
+
+	AddUniformBufferIncludesToEnvironment(NewJob->Input.Environment, Platform);
+
+	FShaderCompilerEnvironment& ShaderEnvironment = NewJob->Input.Environment;
+
+	// Allow the shader type to modify the compile environment.
+	ModifyCompilationEnvironment(FShaderPermutationParameters(Platform), ShaderEnvironment);
+
+	::GlobalBeginCompileShader(
+		FString(FriendlyName),
+		nullptr,
+		this,
+		nullptr,//ShaderPipeline,
+		PermutationId,
+		TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf"),
+		TEXT("SimulateMainComputeCS"),
+		FShaderTarget(GetFrequency(), Platform),
+		NewJob->Input
+	);
+
+	NewJobs.Emplace(NewJob);
+}
+
 void FNiagaraShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, EShaderPlatform Platform) const
 {
 	UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(OutEnvironment, ReferencedUniformBufferNames);
@@ -457,7 +527,7 @@ static FString GetNiagaraShaderMapKeyString(const FNiagaraShaderMapId& ShaderMap
 	return FDerivedDataCacheInterface::BuildCacheKey(TEXT("NIAGARASM"), *NIAGARASHADERMAP_DERIVEDDATA_VER, *ShaderMapKeyString);
 }
 
-void FNiagaraShaderMap::LoadFromDerivedDataCache(const FNiagaraShaderScript* Script, const FNiagaraShaderMapId& ShaderMapId, EShaderPlatform Platform, TRefCountPtr<FNiagaraShaderMap>& InOutShaderMap)
+void FNiagaraShaderMap::LoadFromDerivedDataCache(const FNiagaraShaderScript* Script, const FNiagaraShaderMapId& ShaderMapId, EShaderPlatform Platform, FNiagaraShaderMapRef& InOutShaderMap)
 {
 	if (InOutShaderMap != NULL)
 	{
@@ -668,6 +738,70 @@ void FNiagaraShaderMap::Compile(
 	}
 }
 
+
+/**
+* Compiles the shaders for a script and caches them in this shader map.
+* @param script - The script to compile shaders for.
+* @param InShaderMapId - the script id and set of static parameters to compile for
+* @param Platform - The platform to compile to
+*/
+void FNiagaraShaderMap::CreateCompileJobs(
+	const FNiagaraShaderType* ShaderType,
+	FStringView FriendlyName,
+	const FNiagaraShaderMapId& InShaderMapId,
+	FStringView ScriptSource,
+	TRefCountPtr<FSharedShaderCompilerEnvironment> CompilationEnvironment,
+	TConstArrayView<FSimulationStageMetaData> StageMetaData,
+	int32 PermutationCount,
+	EShaderPlatform InPlatform,
+	TSharedPtr<FNiagaraShaderScriptParametersMetadata> ShaderParameters,
+	TArray<TRefCountPtr<FShaderCommonCompileJob>>& CompileJobs)
+{
+	if (FPlatformProperties::RequiresCookedData())
+	{
+		return;
+	}
+
+	// Make sure we are operating on a referenced shader map or the below Find will cause this shader map to be deleted,
+	// Since it creates a temporary ref counted pointer.
+	check(NumRefs > 0);
+
+	// Assign a unique identifier so that shaders from this shader map can be associated with it after a deferred compile
+	CompilingId = FShaderCommonCompileJob::GetNextJobId();
+
+	// Store the script name for debugging purposes.
+	FNiagaraShaderMapContent* NewContent = new FNiagaraShaderMapContent(InPlatform);
+	NewContent->FriendlyName = FString(FriendlyName);
+	NewContent->ShaderMapId = InShaderMapId;
+	AssignContent(NewContent);
+
+	// Compile this niagara shader .
+	for (int32 PermutationId = 0; PermutationId < PermutationCount; ++PermutationId)
+	{
+		ShaderType->BeginCompileShaderFromSource(
+			FriendlyName,
+			CompilingId,
+			PermutationId,
+			ShaderParameters.ToSharedRef(),
+			CompilationEnvironment,
+			ScriptSource,
+			InPlatform,
+			StageMetaData[PermutationId],
+			FShaderTarget(ShaderType->GetFrequency(), InPlatform),
+			CompileJobs
+		);
+	}
+
+	// Register this shader map in the global script->shadermap map
+	Register(InPlatform);
+
+	// Mark the shader map as not having been finalized with ProcessCompilationResults
+	bCompilationFinalized = false;
+
+	// Mark as not having been compiled
+	bCompiledSuccessfully = false;
+}
+
 FShader* FNiagaraShaderMap::ProcessCompilationResultsForSingleJob(const TRefCountPtr<class FShaderCommonCompileJob>& SingleJob, const FSHAHash& ShaderMapHash)
 {
 	auto CurrentJob = SingleJob->GetSingleShaderJob();
@@ -682,12 +816,25 @@ FShader* FNiagaraShaderMap::ProcessCompilationResultsForSingleJob(const TRefCoun
 	Shader = NiagaraShaderType->FinishCompileShader(ShaderMapHash, *CurrentJob, GetContent()->FriendlyName);
 	bCompiledSuccessfully = CurrentJob->bSucceeded;
 
-	FNiagaraShader *NiagaraShader = static_cast<FNiagaraShader*>(Shader);
+	FNiagaraShader* NiagaraShader = static_cast<FNiagaraShader*>(Shader);
 
 	// UE-67395 - we had a case where we polluted the DDC with a shader containing no bytecode.
 	check(Shader && Shader->GetCodeSize() > 0);
 	check(!GetContent()->HasShader(NiagaraShaderType, CurrentJob->Key.PermutationId));
 	return GetMutableContent()->FindOrAddShader(NiagaraShaderType->GetHashedName(), CurrentJob->Key.PermutationId, Shader);
+}
+
+void FNiagaraShaderMap::ProcessAndFinalizeShaderCompileJob(const TRefCountPtr<FShaderCommonCompileJob>& SingleJob)
+{
+	FSHAHash ShaderMapHash;
+	GetContent()->ShaderMapId.GetScriptHash(ShaderMapHash);
+
+	ProcessCompilationResultsForSingleJob(SingleJob, ShaderMapHash);
+
+	FinalizeContent();
+
+	// The shader map can now be used on the rendering thread
+	bCompilationFinalized = true;
 }
 
 bool FNiagaraShaderMap::ProcessCompilationResults(const TArray<FShaderCommonCompileJobPtr>& InCompilationResults, int32& InOutJobIndex, float& TimeBudget)
@@ -914,6 +1061,23 @@ FNiagaraShaderMap::FNiagaraShaderMap() :
 #endif
 }
 
+#if WITH_EDITOR
+FNiagaraShaderMap::FNiagaraShaderMap(EWorkerThread)
+	: CompilingId(1)
+	, NumRefs(0)
+	, bDeletedThroughDeferredCleanup(false)
+	, bRegistered(false)
+	, bCompilationFinalized(true)
+	, bCompiledSuccessfully(true)
+	, bIsPersistent(true) 
+{
+#if ALLOW_SHADERMAP_DEBUG_DATA
+	FScopeLock AllSMAccess(&AllNiagaraShaderMapsGuard);
+	AllNiagaraShaderMaps.Add(this);
+#endif
+}
+#endif // WITH_EDITOR
+
 FNiagaraShaderMap::~FNiagaraShaderMap()
 { 
 	checkSlow(IsInGameThread() || IsAsyncLoading());
@@ -939,7 +1103,7 @@ bool FNiagaraShaderMap::RemovePendingScript(FNiagaraShaderScript* Script)
 	bool bRemoved = false;
 	//All access to NiagaraShaderMapsBeingCompiled must be done on the game thread!
 	check(IsInGameThread());
-	for (TMap<TRefCountPtr<FNiagaraShaderMap>, TArray<FNiagaraShaderScript*> >::TIterator It(NiagaraShaderMapsBeingCompiled); It; ++It)
+	for (TMap<FNiagaraShaderMapRef, TArray<FNiagaraShaderScript*> >::TIterator It(NiagaraShaderMapsBeingCompiled); It; ++It)
 	{
 		TArray<FNiagaraShaderScript*>& Scripts = It.Value();
 		int32 Result = Scripts.Remove(Script);
@@ -993,7 +1157,7 @@ const FNiagaraShaderMap* FNiagaraShaderMap::GetShaderMapBeingCompiled(const FNia
 	// Inefficient search, but only when compiling a lot of shaders
 	//All access to NiagaraShaderMapsBeingCompiled must be done on the game thread!
 	check(IsInGameThread());
-	for (TMap<TRefCountPtr<FNiagaraShaderMap>, TArray<FNiagaraShaderScript*> >::TIterator It(NiagaraShaderMapsBeingCompiled); It; ++It)
+	for (TMap<FNiagaraShaderMapRef, TArray<FNiagaraShaderScript*> >::TIterator It(NiagaraShaderMapsBeingCompiled); It; ++It)
 	{
 		TArray<FNiagaraShaderScript*>& Scripts = It.Value();
 		

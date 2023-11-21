@@ -1355,9 +1355,9 @@ void FNiagaraEditorModule::StartupModule()
 		return CacheGraphTraversal(InObj, Version);
 	}));
 
-	RequestCompileSystemHandle = NiagaraModule.RegisterRequestCompileSystem(INiagaraModule::FOnRequestCompileSystem::CreateLambda([this](UNiagaraSystem* System, bool bForced)
+	RequestCompileSystemHandle = NiagaraModule.RegisterRequestCompileSystem(INiagaraModule::FOnRequestCompileSystem::CreateLambda([this](UNiagaraSystem* System, bool bForced, const ITargetPlatform* TargetPlatform)
 	{
-		return RequestCompileSystem(System, bForced);
+		return RequestCompileSystem(System, bForced, TargetPlatform);
 	}));
 
 	PollSystemCompileHandle = NiagaraModule.RegisterPollSystemCompile(INiagaraModule::FOnPollSystemCompile::CreateLambda([this](FNiagaraCompilationTaskHandle TaskHandle, FNiagaraSystemAsyncCompileResults& Results, bool bWait, bool bPeek)

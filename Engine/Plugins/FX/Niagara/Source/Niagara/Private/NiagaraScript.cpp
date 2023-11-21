@@ -136,6 +136,14 @@ static FAutoConsoleVariableRef CVarNiagaraStripByteCodeOverride(
 	ECVF_Default
 );
 
+static bool GNiagaraGpuScriptsCompiledBySystem = true;
+static FAutoConsoleVariableRef CVarNiagaraGpuScriptsCompiledBySystem(
+	TEXT("fx.Niagara.GpuScriptsCompiledBySystem"),
+	GNiagaraGpuScriptsCompiledBySystem,
+	TEXT("If true GPU shaders for Niagara scripts will be compiled along with the NiagaraSystem (when using AsyncTask compilation mode). \n"),
+	ECVF_Default
+);
+
 namespace NiagaraScriptInternal
 {
 #if WITH_EDITORONLY_DATA
@@ -757,7 +765,7 @@ void FNiagaraVMExecutableDataId::Invalidate()
 
 #if WITH_EDITORONLY_DATA
 
-TArray<FString> FNiagaraVMExecutableDataId::GetAdditionalVariableStrings()
+TArray<FString> FNiagaraVMExecutableDataId::GetAdditionalVariableStrings() const
 {
 	TArray<FString> Vars;
 	for (const FNiagaraVariableBase& Var : AdditionalVariables)
@@ -2373,24 +2381,46 @@ void UNiagaraScript::SetPreviewFeatureLevel(ERHIFeatureLevel::Type InPreviewFeat
 	}
 
 	// Force scripts to recache that can run on the GPU and already have a script resource
-	for (TObjectIterator<UNiagaraScript> It; It; ++It)
+	if (!AreGpuScriptsCompiledBySystem())
 	{
-		UNiagaraScript* Script = *It;
-		if ( Script == nullptr || !Script->OwnerCanBeRunOnGpu() || Script->ScriptResource == nullptr )
+		for (TObjectIterator<UNiagaraScript> It; It; ++It)
 		{
-			continue;
-		}
-
-		for (TSharedPtr<FNiagaraShaderScript>& ExistingScript : Script->ScriptResourcesByFeatureLevel )
-		{
-			if (ExistingScript == Script->ScriptResource)
+			UNiagaraScript* Script = *It;
+			if ( Script == nullptr || !Script->OwnerCanBeRunOnGpu() || Script->ScriptResource == nullptr )
 			{
-				Script->CacheResourceShadersForRendering(true, false);
-				break;
+				continue;
+			}
+
+			for (TSharedPtr<FNiagaraShaderScript>& ExistingScript : Script->ScriptResourcesByFeatureLevel )
+			{
+				if (ExistingScript == Script->ScriptResource)
+				{
+					Script->CacheResourceShadersForRendering(true, false);
+					break;
+				}
+			}
+		}
+	}
+	else
+	{
+		for (TObjectIterator<UNiagaraSystem> It; It; ++It)
+		{
+			if (UNiagaraSystem* System = *It)
+			{
+				if (System->bFullyLoaded && System->HasAnyGPUEmitters())
+				{
+					System->RequestCompile(false);
+				}
 			}
 		}
 	}
 }
+
+ERHIFeatureLevel::Type UNiagaraScript::GetPreviewFeatureLevel()
+{
+	return NiagaraScriptInternal::PreviewFeatureLevel.Get(GMaxRHIFeatureLevel);
+}
+
 #endif
 
 void UNiagaraScript::GenerateStatIDs()
@@ -2440,7 +2470,11 @@ void UNiagaraScript::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	CacheResourceShadersForRendering(true);
+	if (!AreGpuScriptsCompiledBySystem())
+	{
+		CacheResourceShadersForRendering(true);
+	}
+
 	CustomAssetRegistryTagCache.Reset();
 	OnPropertyChangedDelegate.Broadcast(PropertyChangedEvent);
 }
@@ -2953,17 +2987,20 @@ void UNiagaraScript::SetVMCompilationResults(const FNiagaraVMExecutableDataId& I
 	GenerateStatIDs();
 
 	// Now go ahead and trigger the GPU script compile now that we have a compiled GPU hlsl script.
-	if (Usage == ENiagaraScriptUsage::ParticleGPUComputeScript)
+	if (!AreGpuScriptsCompiledBySystem())
 	{
-		if (CachedScriptVMId.CompilerVersionID.IsValid() && CachedScriptVMId.BaseScriptCompileHash.IsValid())
+		if (Usage == ENiagaraScriptUsage::ParticleGPUComputeScript)
 		{
-			CacheResourceShadersForRendering(false, true);
-		}
-		else
-		{
-			UE_LOG(LogNiagara, Warning,
-				TEXT("Could not cache resource shaders for rendering for script %s because it had an invalid cached script id. This should be fixed by force recompiling the owning asset using the 'Full Rebuild' option and then saving the asset."),
-				*GetPathName());
+			if (CachedScriptVMId.CompilerVersionID.IsValid() && CachedScriptVMId.BaseScriptCompileHash.IsValid())
+			{
+				CacheResourceShadersForRendering(false, true);
+			}
+			else
+			{
+				UE_LOG(LogNiagara, Warning,
+					TEXT("Could not cache resource shaders for rendering for script %s because it had an invalid cached script id. This should be fixed by force recompiling the owning asset using the 'Full Rebuild' option and then saving the asset."),
+					*GetPathName());
+			}
 		}
 	}
 
@@ -2976,6 +3013,98 @@ void UNiagaraScript::SetVMCompilationResults(const FNiagaraVMExecutableDataId& I
 	}
 	
 	OnVMScriptCompiled().Broadcast(this, InCompileId.ScriptVersionID);
+}
+
+void UNiagaraScript::SetComputeCompilationResults(
+	const ITargetPlatform* TargetPlatform,
+	EShaderPlatform ShaderPlatform,
+	ERHIFeatureLevel::Type FeatureLevel,
+	const FNiagaraShaderScriptParametersMetadata& ShaderParameters,
+	const FNiagaraShaderMapRef& ShaderMap)
+{
+	// for now we will use the CachedScriptResourcesForCooking for storing all compilation results and will update ScriptResource
+	// if it matches with the supplied parameters
+	auto ScriptMatchesFeatureLevel = [FeatureLevel](const TUniquePtr<FNiagaraShaderScript>& ShaderScript) -> bool
+	{
+		return ShaderScript->GetFeatureLevel() == FeatureLevel;
+	};
+
+	TArray<TUniquePtr<FNiagaraShaderScript>>& CachedScripts = CachedScriptResourcesForCooking.FindOrAdd(TargetPlatform);
+	FNiagaraShaderScript* TargetShaderScript = nullptr;
+
+	if (TUniquePtr<FNiagaraShaderScript>* ExistingScript = CachedScripts.FindByPredicate(ScriptMatchesFeatureLevel))
+	{
+		TargetShaderScript = ExistingScript->Get();
+	}
+	else
+	{
+		TargetShaderScript = CachedScripts.Emplace_GetRef(MakeUnique<FNiagaraShaderScript>()).Get();
+	}
+
+	auto UpdateShaderScript = [this, FeatureLevel, ShaderPlatform, &ShaderParameters, ShaderMap](FNiagaraShaderScript* ScriptToUpdate) -> void
+	{
+		ScriptToUpdate->BuildScriptParametersMetadata(ShaderParameters);
+		ScriptToUpdate->SetShaderMap(ShaderMap);
+		ScriptToUpdate->SetScript(this, FeatureLevel, ShaderPlatform, CachedScriptVMId.CompilerVersionID, CachedScriptVMId.AdditionalDefines,
+			CachedScriptVMId.GetAdditionalVariableStrings(),
+			CachedScriptVMId.BaseScriptCompileHash, CachedScriptVMId.ReferencedCompileHashes,
+			CachedScriptVMId.bUsesRapidIterationParams, GetFriendlyName());
+	};
+
+	if (ensure(TargetShaderScript))
+	{
+		UpdateShaderScript(TargetShaderScript);
+
+		// next see if we need to update the currently active ShaderScript (and update it's renderthread data)
+		{
+			const ERHIFeatureLevel::Type ActiveFeatureLevel = NiagaraScriptInternal::PreviewFeatureLevel.Get(GMaxRHIFeatureLevel);
+			const EShaderPlatform ActiveShaderPlatform = GShaderPlatformForFeatureLevel[ActiveFeatureLevel];
+
+			if (ActiveFeatureLevel == FeatureLevel && ActiveShaderPlatform == ShaderPlatform)
+			{
+				if (!ScriptResource.IsValid())
+				{
+					ScriptResource = MakeShared<FNiagaraShaderScript>(*TargetShaderScript);
+				}
+				else
+				{
+					UpdateShaderScript(ScriptResource.Get());
+				}
+
+				ENQUEUE_RENDER_COMMAND(FSetShaderMapOnScriptResources)(
+					[RT_Script = ScriptResource, RT_ShaderMap = ShaderMap](FRHICommandListImmediate& RHICmdList)
+				{
+					RT_Script->SetRenderingThreadShaderMap(RT_ShaderMap);
+				});
+			}
+		}
+	}
+}
+
+bool UNiagaraScript::IsShaderMapCached(const ITargetPlatform* TargetPlatform, const FNiagaraShaderMapId& ShaderMapId) const
+{
+	if (TargetPlatform)
+	{
+		if (const TArray<TUniquePtr<FNiagaraShaderScript>>* CachedShaders = CachedScriptResourcesForCooking.Find(TargetPlatform))
+		{
+			for (const TUniquePtr<FNiagaraShaderScript>& CachedShader : *CachedShaders)
+			{
+				if (CachedShader.IsValid() && CachedShader->IsSame(ShaderMapId))
+				{
+					return CachedShader->IsShaderMapComplete();
+				}
+			}
+		}
+	}
+	else
+	{
+		if (ScriptResource.IsValid())
+		{
+			return ScriptResource->IsSame(ShaderMapId) && ScriptResource->IsShaderMapComplete();
+		}
+	}
+
+	return false;
 }
 
 bool UNiagaraScript::ApplyRapidIterationParameters(TConstArrayView<FNiagaraVariable> InParameters, bool bAllowRemoval)
@@ -3416,6 +3545,12 @@ TArray<FName> UNiagaraScript::FindShaderFormatsForCooking(const ITargetPlatform*
 
 void UNiagaraScript::BeginCacheForCookedPlatformData(const ITargetPlatform *TargetPlatform)
 {
+	if (AreGpuScriptsCompiledBySystem())
+	{
+		// if the system is responsible for generating the GPU scripts, then we don't need to do anything here
+		return;
+	}
+
 	TArray<FName> ShaderFormatsForCooking = FindShaderFormatsForCooking(TargetPlatform);
 
 	if (!ShaderFormatsForCooking.IsEmpty())
@@ -3452,6 +3587,19 @@ bool UNiagaraScript::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* Tar
 {
 	if (!HasIdsRequiredForShaderCaching())
 	{
+		return true;
+	}
+
+	if (AreGpuScriptsCompiledBySystem())
+	{
+		if (UNiagaraSystem* SystemOwner = FindRootSystem())
+		{
+			if (SystemOwner->HasOutstandingCompilationRequests(true))
+			{
+				return false;
+			}
+		}
+
 		return true;
 	}
 
@@ -3492,6 +3640,14 @@ bool UNiagaraScript::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* Tar
 	}
 
 	return true;
+}
+
+// utility function answering whether it's the NiagaraSystme or the NiagaraScript that will be responsible
+// for the generation of the FNiagaraShaderMap and general compilation for GPU scripts
+bool UNiagaraScript::AreGpuScriptsCompiledBySystem()
+{
+	const ENiagaraCompilationMode CompilationMode = GetDefault<UNiagaraSettings>()->CompilationMode;
+	return GNiagaraGpuScriptsCompiledBySystem && CompilationMode == ENiagaraCompilationMode::AsyncTasks;
 }
 
 void UNiagaraScript::CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform, TArray<TUniquePtr<FNiagaraShaderScript>>& InOutCachedResources, const ITargetPlatform* TargetPlatform)
@@ -3834,7 +3990,6 @@ bool UNiagaraScript::SynchronizeExecutablesWithCompilation(const UNiagaraScript*
 	FNiagaraVMExecutableDataId Id;
 	ComputeVMCompilationId(Id, FGuid());
 
-#if 1 // TODO Shaun... turn this on...
 	if (Id == Script->GetVMExecutableDataCompilationId())
 	{
 		CachedScriptVM.Reset();
@@ -3860,15 +4015,17 @@ bool UNiagaraScript::SynchronizeExecutablesWithCompilation(const UNiagaraScript*
 		//SyncAliases(RenameMap);
 
 		// Now go ahead and trigger the GPU script compile now that we have a compiled GPU hlsl script.
-		if (Usage == ENiagaraScriptUsage::ParticleGPUComputeScript)
+		if (!AreGpuScriptsCompiledBySystem())
 		{
-			CacheResourceShadersForRendering(false, true);
+			if (Usage == ENiagaraScriptUsage::ParticleGPUComputeScript)
+			{
+				CacheResourceShadersForRendering(false, true);
+			}
 		}
 
 		OnVMScriptCompiled().Broadcast(this, FGuid()); // TODO what version id to use here?
 		return true;
 	}
-#endif
 
 	return false;
 }
