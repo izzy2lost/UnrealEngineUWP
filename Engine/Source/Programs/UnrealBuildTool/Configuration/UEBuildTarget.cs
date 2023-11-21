@@ -2904,6 +2904,7 @@ namespace UnrealBuildTool
 					PostBuildStepAction.bCanExecuteRemotely = false;
 					PostBuildStepAction.PrerequisiteItems.Add(FileItem.GetItemByFileReference(ReceiptFileName));
 					PostBuildStepAction.ProducedItems.Add(FileItem.GetItemByFileReference(OutputFile));
+					PostBuildStepAction.bCanExecuteInUBA = false;
 
 					Makefile.OutputItems.AddRange(PostBuildStepAction.ProducedItems);
 				}
