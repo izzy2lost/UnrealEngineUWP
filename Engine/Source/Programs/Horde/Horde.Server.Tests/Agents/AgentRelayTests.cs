@@ -18,7 +18,7 @@ namespace Horde.Server.Tests.Agents;
 public class AgentRelayTests : TestSetup
 {
 	private readonly AgentRelayService _service;
-	private readonly GetPortMappingsRequest _request = new () { ClusterId = "myCluster", AgentId = "myAgent", IpAddresses = { "192.168.1.1" }};
+	private readonly GetPortMappingsRequest _request = new () { ClusterId = "cluster1", AgentId = "agent1", IpAddresses = { "192.168.1.1" }};
 	
 	private readonly PortMapping _pm1 = new()
 	{
@@ -78,58 +78,78 @@ public class AgentRelayTests : TestSetup
 		responseStream.Complete();
 		return await responseStream.ReadAllAsync().ToListAsync(cts.Token);
 	}
+
+	private static GetPortMappingsRequest Request(string cluster = "cluster1", string agent = "agent1", int revision = -1, string ipAddress = "192.168.1.1")
+	{
+		return new GetPortMappingsRequest { ClusterId = cluster, AgentId = agent, RevisionCount = revision, IpAddresses = { ipAddress }};
+	}
+
+	private async Task<GetPortMappingsResponse> GetPortMappingsAsync(GetPortMappingsRequest request, int timeoutMs = 5000)
+	{
+		List<GetPortMappingsResponse> responses = await TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
+		{
+			await _service.GetPortMappings(request, sw, ctx);
+		}, TimeSpan.FromMilliseconds(timeoutMs));
+		
+		Assert.AreEqual(1, responses.Count);
+		return responses[0];
+	}
 	
 	[TestMethod]
 	public async Task LongPoll_Simple_Async()
 	{
-		List<GetPortMappingsResponse> responses = await TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
-		{
-			Task task = _service.GetPortMappings(_request, sw, ctx);
-			await _service.AddPortMappingAsync("cluster1", "lease1", "192.168.100.10", _pm1.Ports);
-			await task;
-		}, TimeSpan.FromSeconds(5));
-		
-		Assert.AreEqual(2, responses.Count);
-		Assert.AreEqual(0, responses[0].PortMappings.Count); // Immediately get served current state, which is no port mappings
-		Assert.AreEqual(1, responses[1].PortMappings.Count); // Long poll returns due to AddPortMappingAsync call, now contains one port mapping
+		Task<GetPortMappingsResponse> task = GetPortMappingsAsync(_request);
+		await _service.AddPortMappingAsync("cluster1", "lease1", "192.168.100.10", _pm1.Ports);
+		GetPortMappingsResponse res = await task;
+		Assert.AreEqual(1, res.RevisionCount);
+		Assert.AreEqual(1, res.PortMappings.Count);
+		Assert.AreEqual("lease1", res.PortMappings[0].LeaseId);
+	}
+	
+	[TestMethod]
+	public async Task LongPoll_TooOldRevision_Async()
+	{
+		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
+		GetPortMappingsResponse res = await GetPortMappingsAsync(Request(revision: 1));
+		Assert.AreEqual(3, res.RevisionCount);
+		Assert.AreEqual(3, res.PortMappings.Count);
+	}
+	
+	[TestMethod]
+	public async Task LongPoll_TooNewRevision_Async()
+	{
+		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
+		GetPortMappingsResponse res = await GetPortMappingsAsync(Request(revision: 999999));
+		Assert.AreEqual(3, res.RevisionCount);
+		Assert.AreEqual(3, res.PortMappings.Count);
 	}
 	
 	[TestMethod]
 	public async Task LongPoll_TwoClients_Async()
 	{
-		Task<List<GetPortMappingsResponse>> task1 = TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
-		{
-			await _service.GetPortMappings(_request, sw, ctx);
-		}, TimeSpan.FromSeconds(5));
-		Task<List<GetPortMappingsResponse>> task2 = TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
-		{
-			await _service.GetPortMappings(_request, sw, ctx);
-		}, TimeSpan.FromSeconds(5));
-		
+		Task<GetPortMappingsResponse> task1 = GetPortMappingsAsync(Request());
+		Task<GetPortMappingsResponse> task2 = GetPortMappingsAsync(Request());
 		await _service.AddPortMappingAsync("cluster1", "lease1", "192.168.100.10", _pm1.Ports);
 
-		List<GetPortMappingsResponse> responses1 = await task1;
-		List<GetPortMappingsResponse> responses2 = await task2;
-		
-		Assert.AreEqual(2, responses1.Count);
-		Assert.AreEqual(0, responses1[0].PortMappings.Count);
-		Assert.AreEqual(1, responses1[1].PortMappings.Count);
-		
-		Assert.AreEqual(2, responses2.Count);
-		Assert.AreEqual(0, responses2[0].PortMappings.Count);
-		Assert.AreEqual(1, responses2[1].PortMappings.Count);
+		GetPortMappingsResponse response1 = await task1;
+		GetPortMappingsResponse response2 = await task2;
+		Assert.AreEqual(1, response1.PortMappings.Count);
+		Assert.AreEqual(1, response2.PortMappings.Count);
+		Assert.AreEqual(1, response1.RevisionCount);
+		Assert.AreEqual(1, response2.RevisionCount);
 	}
 	
 	[TestMethod]
 	public async Task AgentHeartbeat_IsAvailable_Async()
 	{
 		_service.SetTimeouts(100, 5000);
-		await TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
-		{
-			await _service.GetPortMappings(_request, sw, ctx);
-		}, TimeSpan.FromSeconds(5));
+		await GetPortMappingsAsync(Request(revision: -2));
 
-		List<RelayAgentInfo> agents = await _service.GetAvailableRelayAgentsAsync("myCluster");
+		List<RelayAgentInfo> agents = await _service.GetAvailableRelayAgentsAsync("cluster1");
 		Assert.AreEqual(1, agents.Count);
 		Assert.AreEqual("192.168.1.1" , agents[0].IpAddresses[0]);
 		
@@ -140,11 +160,7 @@ public class AgentRelayTests : TestSetup
 	public async Task AgentHeartbeat_StaleAgentsAreNotReturned_Async()
 	{
 		_service.SetTimeouts(100, 5000);
-		await TestStreamingGrpcAsync<GetPortMappingsResponse>(async (sw, ctx) =>
-		{
-			await _service.GetPortMappings(_request, sw, ctx);
-		}, TimeSpan.FromSeconds(5));
-		
+		await GetPortMappingsAsync(Request(revision: -2));
 		Assert.AreEqual(1, (await _service.GetAvailableRelayAgentsAsync(_request.ClusterId)).Count);
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(5));
 		Assert.AreEqual(0, (await _service.GetAvailableRelayAgentsAsync(_request.ClusterId)).Count);
@@ -153,15 +169,21 @@ public class AgentRelayTests : TestSetup
 	[TestMethod]
 	public async Task GetAndSetPortMappingsAsync()
 	{
+		(int changeId, List<PortMapping> portMappings) =  await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(0, changeId);
+		Assert.AreEqual(0, portMappings.Count);
+		
 		PortMapping newPm1 = await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
-		List<PortMapping> portMappings = await _service.GetPortMappingsAsync("cluster1");
+		(changeId, portMappings) = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(1, changeId);
 		Assert.AreEqual(1, portMappings.Count);
 		Assert.AreEqual(newPm1.LeaseId, portMappings[0].LeaseId);
 		Assert.AreEqual(newPm1.AgentIp, portMappings[0].AgentIp);
 		Assert.AreEqual("lease1", portMappings[0].LeaseId);
 		
 		await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
-		portMappings = await _service.GetPortMappingsAsync("cluster1");
+		(changeId, portMappings) = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(2, changeId);
 		Assert.AreEqual(2, portMappings.Count);
 		portMappings.Sort((a, b) => String.CompareOrdinal(a.LeaseId, b.LeaseId));
 		Assert.AreEqual("lease1", portMappings[0].LeaseId);
@@ -173,10 +195,12 @@ public class AgentRelayTests : TestSetup
 	{
 		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
 		await _service.AddPortMappingAsync("cluster1", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
-		List<PortMapping> portMappings = await _service.GetPortMappingsAsync("cluster1");
+		(int changeId, List<PortMapping> portMappings) = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(2, changeId);
 		Assert.AreEqual(2, portMappings.Count);
 		Assert.IsTrue(await _service.RemovePortMappingAsync("cluster1", _pm3.LeaseId));
-		portMappings = await _service.GetPortMappingsAsync("cluster1");
+		(changeId, portMappings) = await _service.GetPortMappingsAsync("cluster1");
+		Assert.AreEqual(3, changeId);
 		Assert.AreEqual(1, portMappings.Count);
 	}
 	

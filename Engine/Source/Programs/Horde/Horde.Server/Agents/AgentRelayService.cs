@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -67,8 +68,11 @@ public class PortMappingResult
 /// </summary>
 public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 {
+	private record PortMappingsInfo(int Revision, List<PortMapping> PortMappings);
+	
 	private const string RedisChannelUpdate = "relay/update";
 	private static string KeyPortMappings(string clusterId) => $"relay/port-mappings/{clusterId}";
+	private static string KeyPortMappingRevision(string clusterId) => $"relay/port-mappings-revision/{clusterId}";
 	private static string KeyUsedPorts(string clusterId) => $"relay/used-ports/{clusterId}";
 	private static string KeyAgents(string clusterId) => $"relay/agents/{clusterId}";
 
@@ -76,10 +80,10 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	private readonly IClock _clock;
 	private readonly ILogger<AgentRelayService> _logger;
 	private readonly object _lock = new();
+	private TaskCompletionSource _onPortMappingUpdated = new();
+	private readonly ConcurrentDictionary<string, PortMappingsInfo> _clusterPortMappings = new();
 	private TimeSpan _longPollTimeout = TimeSpan.FromSeconds(20);
 	private TimeSpan _agentExpirationTimeout;
-	private TaskCompletionSource<List<PortMapping>> _onPortMappingUpdated = new();
-
 	private IAsyncDisposable? _redisSubscription;
 	private int _minPort = 10000;
 	private int _maxPort = 50000;
@@ -132,11 +136,21 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// </summary>
 	/// <param name="clusterId">Cluster ID</param>
 	/// <returns>List of all port mappings</returns>
-	public async Task<List<PortMapping>> GetPortMappingsAsync(string clusterId)
+	public async Task<(int revision, List<PortMapping> portMappings)> GetPortMappingsAsync(string clusterId)
 	{
 		IDatabase redis = _redis.GetDatabase();
-		HashEntry[] entries = await redis.HashGetAllAsync(KeyPortMappings(clusterId));
-		return entries.Select(x => PortMapping.Parser.ParseFrom(x.Value)).ToList();
+		ITransaction transaction = redis.CreateTransaction();
+		Task<HashEntry[]> entriesTask = transaction.HashGetAllAsync(KeyPortMappings(clusterId));
+		Task<RedisValue> revisionTask = transaction.StringGetAsync(KeyPortMappingRevision(clusterId));
+		if (await transaction.ExecuteAsync())
+		{
+			HashEntry[] entries = await entriesTask;
+			RedisValue revisionStr = await revisionTask;
+			int revision = String.IsNullOrEmpty(revisionStr) ? 0 : Convert.ToInt32(revisionStr);
+			return (revision, entries.Select(x => PortMapping.Parser.ParseFrom(x.Value)).ToList());
+		}
+
+		throw new RedisException("Transaction failed for GetPortMappingsAsync");
 	}
 	
 	/// <summary>
@@ -185,6 +199,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			
 			_ = transaction.SetAddAsync(KeyUsedPorts(clusterId), portRangeRedis);
 			_ = transaction.HashSetAsync(KeyPortMappings(clusterId), leaseId, newPortMapping.ToByteArray());
+			_ = transaction.StringIncrementAsync(KeyPortMappingRevision(clusterId));
 			bool isSuccessful = await transaction.ExecuteAsync();
 			if (isSuccessful)
 			{
@@ -214,6 +229,8 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		ITransaction transaction = _redis.GetDatabase().CreateTransaction();
 		_ = transaction.SetRemoveAsync(KeyUsedPorts(clusterId), ports);
 		_ = transaction.HashDeleteAsync(KeyPortMappings(clusterId), leaseId);
+		_ = transaction.StringIncrementAsync(KeyPortMappingRevision(clusterId));
+		
 		return await transaction.ExecuteAsync();
 	}
 
@@ -287,11 +304,12 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	{
 		try
 		{
-			List<PortMapping> portMappings = await GetPortMappingsAsync(clusterId);
+			(int revision, List<PortMapping> portMappings) = await GetPortMappingsAsync(clusterId);
 			lock (_lock)
 			{
-				_onPortMappingUpdated.SetResult(portMappings);
-				_onPortMappingUpdated = new TaskCompletionSource<List<PortMapping>>();
+				_clusterPortMappings[clusterId] = new PortMappingsInfo(revision, portMappings);
+				_onPortMappingUpdated.SetResult();
+				_onPortMappingUpdated = new TaskCompletionSource();
 			}
 		}
 		catch (Exception e)
@@ -348,19 +366,35 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		{
 			await UpdateAgentHeartbeatAsync(request.ClusterId, request.AgentId, request.IpAddresses);
 			
-			// Send current state then long-poll for updates
-			List<PortMapping> portMappings = await GetPortMappingsAsync(request.ClusterId);
-			GetPortMappingsResponse response = new();
-			response.PortMappings.AddRange(portMappings);
-			await responseStream.WriteAsync(response);
-			
-			Task<List<PortMapping>> mappingUpdatedTask = _onPortMappingUpdated.Task;
-			Task result = await Task.WhenAny(mappingUpdatedTask, Task.Delay(_longPollTimeout, context.CancellationToken));
-			if (result == mappingUpdatedTask)
+			(int revisionCount, List<PortMapping> portMappings) = await GetPortMappingsAsync(request.ClusterId);
+			if (request.RevisionCount == revisionCount || request.RevisionCount == -1)
 			{
-				GetPortMappingsResponse additionalResponse = new();
-				additionalResponse.PortMappings.AddRange(await mappingUpdatedTask);
-				await responseStream.WriteAsync(additionalResponse);
+				// Client is in sync with latest revision server has or explicitly requested long-polling by setting revision to -1
+				// Long-poll for any new updates...
+				
+				Task mappingUpdatedTask = _onPortMappingUpdated.Task;
+				Task result = await Task.WhenAny(mappingUpdatedTask, Task.Delay(_longPollTimeout, context.CancellationToken));
+				if (result == mappingUpdatedTask)
+				{
+					// Port mappings are updated. Fetch from in-memory cache to avoid every client re-reading from Redis again.
+					if (!_clusterPortMappings.TryGetValue(request.ClusterId, out PortMappingsInfo? pmi))
+					{
+						(revisionCount, portMappings) = await GetPortMappingsAsync(request.ClusterId);
+						pmi = new PortMappingsInfo(revisionCount, portMappings);
+					}
+					    
+					GetPortMappingsResponse response = new() { RevisionCount = pmi.Revision };
+					response.PortMappings.AddRange(pmi.PortMappings);
+					await responseStream.WriteAsync(response);
+				}
+			}
+			else
+			{
+				// Client is out of sync with server
+				// Immediately return an update and let the client retry the request with an updated revision count
+				GetPortMappingsResponse response = new() { RevisionCount = revisionCount };
+				response.PortMappings.AddRange(portMappings);
+				await responseStream.WriteAsync(response);
 			}
 		}
 		catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
