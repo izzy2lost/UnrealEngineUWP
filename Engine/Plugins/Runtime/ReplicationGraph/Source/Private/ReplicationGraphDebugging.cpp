@@ -1091,12 +1091,23 @@ void UReplicationGraphNode::VerifyActorReferences()
 
 bool UReplicationGraphNode::VerifyActorReference(const FActorRepListType& Actor) const
 {
-	const bool bIsValid = IsValid(Actor);
-	UE_CLOG(!bIsValid, LogReplicationGraph, Error,
-		TEXT("Invalid Actor %s (%s) is still referenced by %s"),
-		*GetNameSafe(Actor),
-		*GetNameSafe(Actor ? Actor->GetClass() : nullptr),
+	//This logic should be triggered just before GC, so we can have an invalid actor which still has safely addressable memory
+	//However, if we have a case where the Actor was cleaned up or stomped, we would crash on GetNameSafe, so I'm logging the Node separately
+	const bool bIsValid = Actor && IsValid(Actor);
+	
+	UE_CLOG(!bIsValid, LogReplicationGraph, Error, TEXT("VerifyActorReference Invalid Actor in RepGraphNode: %s"),
 		*GetName());
+
+	const bool bIsValidLowLevel = Actor && Actor->IsValidLowLevel();
+
+	UE_CLOG(!bIsValid || !bIsValidLowLevel, LogReplicationGraph, Error,
+		TEXT("Invalid Actor %s (%s) is still referenced in %s. Actor bIsValid: %d bIsValidLowLevel:%d"),
+		*GetPathNameSafe(Actor),
+		*GetNameSafe(Actor ? Actor->GetClass() : nullptr),
+		*GetName(),
+		bIsValid,
+		bIsValidLowLevel);
+		
 	return bIsValid;
 }
 
