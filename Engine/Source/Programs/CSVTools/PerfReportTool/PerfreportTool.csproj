@@ -31,6 +31,5 @@
 Copyright Epic Games, Inc. All Rights Reserved.</Copyright>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <BaseOutputPath>D:\p4\Fortnite\Main\Engine\Binaries\DotNET\CsvTools</BaseOutputPath>
   </PropertyGroup>
 </Project>
