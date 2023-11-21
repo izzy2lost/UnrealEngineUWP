@@ -236,7 +236,7 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModulePath, const FName& InVariableName)
 {
 	TArray<FString> PossibleBindings;
-	FRigModuleReference* Module = FindModule(InModulePath);
+	const FRigModuleReference* Module = FindModule(InModulePath);
 	if (!Module)
 	{
 		return PossibleBindings;
@@ -274,29 +274,24 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 	}
 
 	// Add possible module variables
-	TArray<FRigModuleReference*> Modules = Model->RootModules;
-	const FString ModulePath = Module->GetPath();
-	for (int32 i=0; i<Modules.Num(); ++i)
+	Model->ForEachModule([this, &PossibleBindings, InModulePath, InVariableName](const FRigModuleReference* InModule) -> bool
 	{
-		const FString CurModulePath = Modules[i]->GetPath();
-		if (ModulePath == CurModulePath)
+		const FString CurModulePath = InModule->GetPath();
+		if (InModulePath != CurModulePath)
 		{
-			continue;
-		}
-
-		TArray<FRigVMExternalVariable> Variables = Modules[i]->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
-		for (const FRigVMExternalVariable& Variable : Variables)
-		{
-			FText ErrorMessage;
-			const FString VariablePath = FString::Printf(TEXT("%s:%s"), *CurModulePath, *Variable.Name.ToString());
-			if (CanBindModuleVariable(InModulePath, InVariableName, VariablePath, ErrorMessage))
+			TArray<FRigVMExternalVariable> Variables = InModule->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
+			for (const FRigVMExternalVariable& Variable : Variables)
 			{
-				PossibleBindings.Add(VariablePath);
+				FText ErrorMessage;
+				const FString SourceVariablePath = FString::Printf(TEXT("%s:%s"), *CurModulePath, *Variable.Name.ToString());
+				if (CanBindModuleVariable(InModulePath, InVariableName, SourceVariablePath, ErrorMessage))
+				{
+					PossibleBindings.Add(SourceVariablePath);
+				}
 			}
-		}
-
-		Modules.Append(Modules[i]->CachedChildren);
-	}
+		}		
+		return true;
+	});
 
 	return PossibleBindings;
 }
@@ -330,7 +325,7 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 	}
 
 	FString SourceModulePath, SourceVariableName = InSourcePath;
-	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 
 	FRigModuleReference* SourceModule = nullptr;
 	if (!SourceModulePath.IsEmpty())

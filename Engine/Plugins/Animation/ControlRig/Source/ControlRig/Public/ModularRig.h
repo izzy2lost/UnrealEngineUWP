@@ -22,16 +22,17 @@ public:
 	bool IsValid() const { return Get() != nullptr; }
 	operator bool() const { return IsValid(); }
 	
-	const UModularRig* GetModularRig() const { return ModularRig.Get(); }
-	UModularRig* GetHierarchy() { return ModularRig.Get(); }
+	const UModularRig* GetModularRig() const
+	{
+		return ModularRig.Get();
+	}
 	const FString& GetPath() const { return Path; }
 
 	const FRigModuleInstance* Get() const;
-	FRigModuleInstance* Get();
 
 private:
 
-	TWeakObjectPtr<UModularRig> ModularRig;
+	mutable TSoftObjectPtr<UModularRig> ModularRig;
 	FString Path;
 };
 
@@ -136,7 +137,8 @@ public:
 	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
 	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
 
-	FRigModuleInstance* FindModule(const FString& InPath) const;
+	const FRigModuleInstance* FindModule(const FString& InPath) const;
+	const FRigModuleInstance* FindModule(const UControlRig* InModuleInstance) const;
 	FString GetParentPath(const FString& InPath) const;
 
 	void ForEachModule(TFunctionRef<bool(FRigModuleInstance*)> PerModuleFunction);
@@ -149,7 +151,7 @@ public:
 	 */
 	FModuleInstanceHandle GetHandle(const FString& InPath) const
 	{
-		if(FRigModuleInstance* Module = FindModule(InPath))
+		if(FindModule(InPath))
 		{
 			return FModuleInstanceHandle((UModularRig*)this, InPath);
 		}

@@ -158,6 +158,7 @@ public:
 	void HandleRigTypeChanged(UControlRigBlueprint* InBlueprint);
 
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
+	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
 
 	const FName RigHierarchyToGraphDragAndDropMenuName = TEXT("ControlRigEditor.RigHierarchyToGraphDragAndDropMenu");
 	void CreateRigHierarchyToGraphDragAndDropMenu() const;

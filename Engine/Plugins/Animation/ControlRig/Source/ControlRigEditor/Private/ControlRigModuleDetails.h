@@ -31,7 +31,6 @@ public:
 
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
-	virtual void BeginDestroy() {};
 
 	// Makes a new instance of this detail layout class for a specific detail view requesting it
 	static TSharedRef<IDetailCustomization> MakeInstance()
@@ -39,36 +38,17 @@ public:
 		return MakeShareable(new FRigModuleInstanceDetails);
 	}
 
-	FString GetModulePath() const;
 	FText GetName() const;
 	FText GetRigClassPath() const;
 	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;
-	TArray<FRigVMExternalVariable> GetConfigValues() const;
 
 	void OnConfigValueChanged(const FName InVariableName);
 	
-	TArray<FString> GetModulePaths() const;
-
-	TArray<FRigModuleInstance> GetModulesInDetailsView(const TArray<FString>& InFilter = TArray<FString>()) const
-	{
-		TArray<FRigModuleInstance> Elements;
-		for(const FPerModuleInfo& Info : PerModuleInfos)
-		{
-			FRigModuleInstance Content = Info.WrapperObject->GetContent<FRigModuleInstance>();
-			if(!InFilter.IsEmpty() && !InFilter.Contains(Content.GetPath()))
-			{
-				continue;
-			}
-			Elements.Add(Content);
-		}
-		return Elements;
-	}
-
 	struct FPerModuleInfo
 	{
 		FPerModuleInfo()
-			: WrapperObject()
+			: Path()
 			, Module()
 			, DefaultModule()
 		{}
@@ -76,7 +56,16 @@ public:
 		bool IsValid() const { return Module.IsValid(); }
 		operator bool() const { return IsValid(); }
 
-		UModularRig* GetModularRig() const { return (UModularRig*)Module.GetModularRig(); }
+		const FString& GetPath() const
+		{
+			return Path;
+		}
+
+		UModularRig* GetModularRig() const
+		{
+			return (UModularRig*)Module.GetModularRig();
+		}
+		
 		UModularRig* GetDefaultRig() const
 		{
 			if(DefaultModule.IsValid())
@@ -92,7 +81,7 @@ public:
 			{
 				return Cast<UControlRigBlueprint>(ControlRig->GetClass()->ClassGeneratedBy);
 			}
-			return GetDefaultRig()->GetTypedOuter<UControlRigBlueprint>();
+			return nullptr;
 		}
 
 		FRigModuleInstance* GetModule() const
@@ -100,7 +89,7 @@ public:
 			return (FRigModuleInstance*)Module.Get();
 		}
 
-		FRigModuleInstance* GetDefaultElement() const
+		FRigModuleInstance* GetDefaultModule() const
 		{
 			if(DefaultModule)
 			{
@@ -109,7 +98,16 @@ public:
 			return GetModule();
 		}
 
-		TWeakObjectPtr<URigVMDetailsViewWrapperObject> WrapperObject;
+		const FRigModuleReference* GetReference() const
+		{
+			if(const UControlRigBlueprint* Blueprint = GetBlueprint())
+			{
+				return Blueprint->ModularRigModel.FindModule(Path);
+			}
+			return nullptr;
+		}
+
+		FString Path;
 		FModuleInstanceHandle Module;
 		FModuleInstanceHandle DefaultModule;
 	};
@@ -128,6 +126,14 @@ public:
 	ERigElementType GetElementType(FRigElementKey Connector) const;
 
 protected:
+
+	FText GetBindingText(const FProperty* InProperty) const;
+	const FSlateBrush* GetBindingImage(const FProperty* InProperty) const;
+	FLinearColor GetBindingColor(const FProperty* InProperty) const;
+	void FillBindingMenu(FMenuBuilder& MenuBuilder, const FProperty* InProperty) const;
+	bool CanRemoveBinding(FName InPropertyName) const;
+	void HandleRemoveBinding(FName InPropertyName) const;
+	void HandleChangeBinding(const FProperty* InProperty, const FString& InNewVariablePath) const;
 
 	TArray<FPerModuleInfo> PerModuleInfos;
 	TSharedPtr<SRigElementKeyWidget> RigElementKeyWidget;

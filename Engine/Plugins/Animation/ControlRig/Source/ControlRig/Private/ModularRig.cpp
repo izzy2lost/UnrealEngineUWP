@@ -38,15 +38,6 @@ const FRigModuleInstance* FModuleInstanceHandle::Get() const
 	return nullptr;
 }
 
-FRigModuleInstance* FModuleInstanceHandle::Get()
-{
-	if(ModularRig.IsValid())
-	{
-		return ModularRig->FindModule(Path);
-	}
-	return nullptr;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // UModularRig
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,10 +182,13 @@ void UModularRig::ExecuteQueue()
 			// Copy variable bindings
 			for (TPair<FName, FRigVMExternalVariable>& Pair : ExecutionElement.ModuleInstance->VariableBindings)
 			{
-				FRigVMExternalVariable TargetVariable = ExecutionElement.ModuleInstance->Rig->GetPublicVariableByName(Pair.Key);
-				if (RigVMTypeUtils::AreCompatible(Pair.Value.Property, TargetVariable.Property))
+				const FRigVMExternalVariable TargetVariable = ExecutionElement.ModuleInstance->Rig->GetPublicVariableByName(Pair.Key);
+				if(ensure(TargetVariable.Property))
 				{
-					Pair.Value.Property->CopyCompleteValue(TargetVariable.Memory, Pair.Value.Memory);
+					if (RigVMTypeUtils::AreCompatible(Pair.Value.Property, TargetVariable.Property))
+					{
+						Pair.Value.Property->CopyCompleteValue(TargetVariable.Memory, Pair.Value.Memory);
+					}
 				}
 			}
 			
@@ -278,7 +272,7 @@ void UModularRig::UpdateCachedChildren()
 bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath,
 	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings )
 {
-	FRigModuleInstance* ParentModule = FindModule(InParentPath);
+	FRigModuleInstance* ParentModule = const_cast<FRigModuleInstance*>(FindModule(InParentPath));
 	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap, InVariableDefaultValues, InVariableBindings) != nullptr;
 }
 
@@ -353,7 +347,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 					SourceVariable = FRigVMExternalVariable::Make(Property, (UObject*)this);
 				}
 			}
-			else if(FRigModuleInstance* SourceModule = FindModule(SourceModulePath))
+			else if(const FRigModuleInstance* SourceModule = FindModule(SourceModulePath))
 			{
 				SourceVariable = SourceModule->Rig->GetPublicVariableByName(*SourceVariableName);
 			}
@@ -364,7 +358,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	return &NewModule;
 }
 
-FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
+const FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
 {
 	const TArray<FRigModuleInstance*>* Children = &RootModules;
 	FString Left = InPath, Right;
@@ -393,9 +387,29 @@ FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
 	return *Cur;
 }
 
+const FRigModuleInstance* UModularRig::FindModule(const UControlRig* InModuleInstance) const
+{
+	const FRigModuleInstance* FoundModule = nullptr;
+	ForEachModule([InModuleInstance, &FoundModule](const FRigModuleInstance* Module) -> bool
+	{
+		if (Module->Rig.IsValid())
+		{
+			if(Module->Rig.Get() == InModuleInstance)
+			{
+				FoundModule = Module;
+				// don't continue
+				return false;
+			}
+		}
+		return true;
+	});
+
+	return FoundModule;
+}
+
 FString UModularRig::GetParentPath(const FString& InPath) const
 {
-	if (FRigModuleInstance* Element = FindModule(InPath))
+	if (const FRigModuleInstance* Element = FindModule(InPath))
 	{
 		return Element->ParentPath;
 	}

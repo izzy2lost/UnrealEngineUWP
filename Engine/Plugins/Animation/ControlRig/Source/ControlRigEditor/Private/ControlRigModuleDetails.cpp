@@ -20,6 +20,9 @@
 #include "Editor/SModularRigHierarchyTreeView.h"
 #include "StructViewerFilter.h"
 #include "StructViewerModule.h"
+#include "Features/IModularFeatures.h"
+#include "IPropertyAccessEditor.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigModuleDetails"
 
@@ -113,36 +116,43 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	DetailBuilder.GetObjectsBeingCustomized(DetailObjects);
 	for(TWeakObjectPtr<UObject> DetailObject : DetailObjects)
 	{
-		URigVMDetailsViewWrapperObject* WrapperObject = CastChecked<URigVMDetailsViewWrapperObject>(DetailObject.Get());
-
-		const FString Path = WrapperObject->GetContent<FRigModuleInstance>().GetPath();
-
-		FPerModuleInfo Info;
-		Info.WrapperObject = WrapperObject;
-		if (UModularRig* Subject = Cast<UModularRig>(WrapperObject->GetSubject()))
+		if(UControlRig* ModuleInstance = Cast<UControlRig>(DetailObject))
 		{
-			Info.Module = Subject->GetHandle(Path);
-		}
-
-		if(!Info.Module.IsValid())
-		{
-			return;
-		}
-		if(const UControlRigBlueprint* Blueprint = Info.GetBlueprint())
-		{
-			if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+			if(const UModularRig* ModularRig = Cast<UModularRig>(ModuleInstance->GetOuter()))
 			{
-				Info.DefaultModule = ModularRig->GetHandle(Path);
+				if(const FRigModuleInstance* Module = ModularRig->FindModule(ModuleInstance))
+				{
+					const FString Path = Module->GetPath();
+
+					FPerModuleInfo Info;
+					Info.Path = Path;
+					Info.Module = ModularRig->GetHandle(Path);
+					if(!Info.Module.IsValid())
+					{
+						return;
+					}
+					
+					if(const UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+					{
+						if(const UModularRig* DefaultModularRig = Cast<UModularRig>(Blueprint->GeneratedClass->GetDefaultObject()))
+						{
+							Info.DefaultModule = DefaultModularRig->GetHandle(Path);
+						}
+					}
+
+					PerModuleInfos.Add(Info);
+				}
 			}
 		}
-
-		PerModuleInfos.Add(Info);
 	}
 
-	DetailBuilder.HideCategory(TEXT("RigModuleInstance"));
+	// don't customize if the 
+	if(PerModuleInfos.IsEmpty())
+	{
+		return;
+	}
 
 	IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory(TEXT("General"), LOCTEXT("General", "General"));
-
 	{
 		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Name")))
 		.NameContent()
@@ -178,7 +188,6 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	}
 
 	IDetailCategoryBuilder& ConnectionsCategory = DetailBuilder.EditCategory(TEXT("Connections"), LOCTEXT("Connections", "Connections"));
-
 	{
 		TArray<FRigModuleConnector> Connectors = GetConnectors();
 		FRigElementKeyRedirector Redirector = GetConnections();
@@ -222,63 +231,102 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 		}
 	}
 
-	IDetailCategoryBuilder& ConfigValuesCategory = DetailBuilder.EditCategory(TEXT("Config Values"), LOCTEXT("ConfigValues", "Config Values"));
+	IDetailCategoryBuilder& ConfigValuesCategory = DetailBuilder.EditCategory(TEXT("Default"), LOCTEXT("ConfigValues", "Config Values"));
 	{
-		TArray<UObject*> DetailObjectsRaw;
-		DetailObjectsRaw.Reserve(DetailObjects.Num());
-		for (TWeakObjectPtr<UObject> Obj : DetailObjects)
+		IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
+
+		TArray<TSharedRef<IPropertyHandle>> DefaultProperties;
+		ConfigValuesCategory.GetDefaultProperties(DefaultProperties, true, true);
+
+		for(const TSharedRef<IPropertyHandle>& DefaultProperty : DefaultProperties)
 		{
-			if (Obj.IsValid())
+			const FProperty* Property = DefaultProperty->GetProperty();
+			if(Property == nullptr)
 			{
-				DetailObjectsRaw.Add(Obj.Get());
-			}
-		}
-		
-		TArray<FRigVMExternalVariable> Variables = GetConfigValues();
-		for(FRigVMExternalVariable& Variable : Variables)
-		{
-			if (!Variable.bIsPublic)
-			{
+				DetailBuilder.HideProperty(DefaultProperty);
 				continue;
 			}
-			const FText Label = FText::FromName(Variable.Name);
 
-			if (FRigModuleInstance* ModuleInstance = PerModuleInfos[0].GetModule())
+			// skip advanced properties for now
+			const bool bAdvancedDisplay = Property->HasAnyPropertyFlags(CPF_AdvancedDisplay);
+			if(bAdvancedDisplay)
 			{
-				TSoftObjectPtr<UControlRig> Rig = ModuleInstance->Rig;
-				if (Rig.IsValid())
-				{
-					if (FProperty* Property = Rig.Get()->GetClass()->FindPropertyByName(Variable.Name))
-					{
-						uint8* Container = (uint8*)Rig.Get();
-
-						TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Rig.Get()->GetClass(), Container));
-						IDetailPropertyRow* Row = ConfigValuesCategory.AddExternalObjectProperty({Rig.Get()}, Variable.Name);
-						
-
-						Row->DisplayName(FText::FromName(Variable.Name));
-
-						const FSimpleDelegate OnValueChangedDelegate = FSimpleDelegate::CreateSP(this, &FRigModuleInstanceDetails::OnConfigValueChanged, Variable.Name);
-
-						TSharedPtr<IPropertyHandle> Handle = Row->GetPropertyHandle();
-						Handle->SetOnPropertyValueChanged(OnValueChangedDelegate);
-						Handle->SetOnChildPropertyValueChanged(OnValueChangedDelegate);
-						
-					}
-				}
+				DetailBuilder.HideProperty(DefaultProperty);
+				continue;
 			}
+
+			// skip non-public properties for now
+			const bool bIsPublic = Property->HasAnyPropertyFlags(CPF_Edit | CPF_EditConst);
+			const bool bIsInstanceEditable = !Property->HasAnyPropertyFlags(CPF_DisableEditOnInstance);
+			if(!bIsPublic || !bIsInstanceEditable)
+			{
+				DetailBuilder.HideProperty(DefaultProperty);
+				continue;
+			}
+
+			const FSimpleDelegate OnValueChangedDelegate = FSimpleDelegate::CreateSP(this, &FRigModuleInstanceDetails::OnConfigValueChanged, Property->GetFName());
+			DefaultProperty->SetOnPropertyValueChanged(OnValueChangedDelegate);
+			DefaultProperty->SetOnChildPropertyValueChanged(OnValueChangedDelegate);
+
+			FPropertyBindingWidgetArgs BindingArgs;
+			BindingArgs.Property = (FProperty*)Property;
+			BindingArgs.CurrentBindingText = TAttribute<FText>::CreateLambda([this, Property]()
+			{
+				return GetBindingText(Property);
+			});
+			BindingArgs.CurrentBindingImage = TAttribute<const FSlateBrush*>::CreateLambda([this, Property]()
+			{
+				return GetBindingImage(Property);
+			});
+			BindingArgs.CurrentBindingColor = TAttribute<FLinearColor>::CreateLambda([this, Property]()
+			{
+				return GetBindingColor(Property);
+			});
+
+			BindingArgs.OnCanBindProperty.BindLambda([](const FProperty* InProperty) -> bool { return true; });
+			BindingArgs.OnCanBindToClass.BindLambda([](UClass* InClass) -> bool { return false; });
+			BindingArgs.OnCanRemoveBinding.BindRaw(this, &FRigModuleInstanceDetails::CanRemoveBinding);
+			BindingArgs.OnRemoveBinding.BindSP(this, &FRigModuleInstanceDetails::HandleRemoveBinding);
+
+			BindingArgs.bGeneratePureBindings = true;
+			BindingArgs.bAllowNewBindings = true;
+			BindingArgs.bAllowArrayElementBindings = false;
+			BindingArgs.bAllowStructMemberBindings = false;
+			BindingArgs.bAllowUObjectFunctions = false;
+
+			BindingArgs.MenuExtender = MakeShareable(new FExtender);
+			BindingArgs.MenuExtender->AddMenuExtension(
+				"Properties",
+				EExtensionHook::After,
+				nullptr,
+				FMenuExtensionDelegate::CreateSPLambda(this, [this, Property](FMenuBuilder& MenuBuilder)
+				{
+					FillBindingMenu(MenuBuilder, Property);
+				})
+			);
+
+			// todo: remove the original row.
+
+			ConfigValuesCategory.AddCustomRow(DefaultProperty->GetPropertyDisplayName())
+			.NameContent()
+			[
+				DefaultProperty->CreatePropertyNameWidget()
+			]
+
+			// note: this doesn't work for some reason. seeking help from the editor team
+			.ValueContent()
+			[
+				DefaultProperty->CreatePropertyValueWidget()
+				// todo: if the property is bound / or partially bound
+				// mark the property value widget as disabled / read only.
+			]
+			
+			.ExtensionContent()
+			[
+				PropertyAccessEditor.MakePropertyBindingWidget(nullptr, BindingArgs)
+			];
 		}
 	}
-}
-
-FString FRigModuleInstanceDetails::GetModulePath() const
-{
-	check(PerModuleInfos.Num() == 1);
-	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
-	{
-		return Module->GetPath();
-	}
-	return FString();
 }
 
 FText FRigModuleInstanceDetails::GetName() const
@@ -377,52 +425,24 @@ FRigElementKeyRedirector FRigModuleInstanceDetails::GetConnections() const
 	return FRigElementKeyRedirector();
 }
 
-TArray<FRigVMExternalVariable> FRigModuleInstanceDetails::GetConfigValues() const
-{
-	if(PerModuleInfos.Num() > 1)
-	{
-		return TArray<FRigVMExternalVariable>();
-	}
-
-	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
-	{
-		if (TSoftObjectPtr<UControlRig> Rig = Module->Rig)
-		{
-			if (Rig.IsValid())
-			{
-				return Rig->GetExternalVariables();
-			}
-		}
-	}
-
-	return TArray<FRigVMExternalVariable>();
-}
-
 void FRigModuleInstanceDetails::OnConfigValueChanged(const FName InVariableName)
 {
-	if (FRigModuleInstance* ModuleInstance = PerModuleInfos[0].GetModule())
+	for(const FPerModuleInfo& Info : PerModuleInfos)
 	{
-		TSoftObjectPtr<UControlRig> Rig = ModuleInstance->Rig;
-		if (Rig.IsValid())
+		if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
 		{
-			FString ValueStr = Rig->GetVariableAsString(InVariableName);
-			if (UControlRigBlueprint* Blueprint = RigModuleDetails_GetBlueprintFromRig(PerModuleInfos[0].GetModularRig()))
+			TSoftObjectPtr<UControlRig> Rig = ModuleInstance->Rig;
+			if (Rig.IsValid())
 			{
-				UModularRigController* Controller = Blueprint->GetModularRigController();
-				Controller->SetConfigValueInModule(ModuleInstance->GetPath(), InVariableName, ValueStr);
+				FString ValueStr = Rig->GetVariableAsString(InVariableName);
+				if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+				{
+					UModularRigController* Controller = Blueprint->GetModularRigController();
+					Controller->SetConfigValueInModule(ModuleInstance->GetPath(), InVariableName, ValueStr);
+				}
 			}
 		}
 	}
-}
-
-TArray<FString> FRigModuleInstanceDetails::GetModulePaths() const
-{
-	TArray<FString> Paths;
-	Algo::Transform(PerModuleInfos, Paths, [](const FPerModuleInfo& Info)
-	{
-		return Info.GetModule()->GetPath();
-	});
-	return Paths;
 }
 
 const FRigModuleInstanceDetails::FPerModuleInfo& FRigModuleInstanceDetails::FindModule(const FString& InPath) const
@@ -545,6 +565,257 @@ ERigElementType FRigModuleInstanceDetails::GetElementType(FRigElementKey Connect
 		return TargetKey->Type;
 	}
 	return ERigElementType::None;
+}
+
+FText FRigModuleInstanceDetails::GetBindingText(const FProperty* InProperty) const
+{
+	const FName VariableName = InProperty->GetFName();
+	FText FirstValue;
+	for(const FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (const FRigModuleReference* ModuleReference = Info.GetReference())
+		{
+			if(ModuleReference->Bindings.Contains(VariableName))
+			{
+				const FText BindingText = FText::FromString(ModuleReference->Bindings.FindChecked(VariableName));
+				if(FirstValue.IsEmpty())
+				{
+					FirstValue = BindingText;
+				}
+				else if(!FirstValue.EqualTo(BindingText))
+				{
+					return ControlRigModuleDetailsMultipleValues;
+				}
+			}
+		}
+	}
+	return FirstValue;
+}
+
+const FSlateBrush* FRigModuleInstanceDetails::GetBindingImage(const FProperty* InProperty) const
+{
+	static FName TypeIcon(TEXT("Kismet.VariableList.TypeIcon"));
+	static FName ArrayTypeIcon(TEXT("Kismet.VariableList.ArrayTypeIcon"));
+
+	if(CastField<FArrayProperty>(InProperty))
+	{
+		return FAppStyle::GetBrush(ArrayTypeIcon);
+	}
+	return FAppStyle::GetBrush(TypeIcon);
+}
+
+FLinearColor FRigModuleInstanceDetails::GetBindingColor(const FProperty* InProperty) const
+{
+	if(InProperty)
+	{
+		FEdGraphPinType PinType;
+		const UEdGraphSchema_K2* Schema_K2 = GetDefault<UEdGraphSchema_K2>();
+		if (Schema_K2->ConvertPropertyToPinType(InProperty, PinType))
+		{
+			const URigVMEdGraphSchema* Schema = GetDefault<URigVMEdGraphSchema>();
+			return Schema->GetPinTypeColor(PinType);
+		}
+	}
+	return FLinearColor::White;
+}
+
+void FRigModuleInstanceDetails::FillBindingMenu(FMenuBuilder& MenuBuilder, const FProperty* InProperty) const
+{
+	if(PerModuleInfos.IsEmpty())
+	{
+		return;
+	}
+
+	UControlRigBlueprint* Blueprint = PerModuleInfos[0].GetBlueprint();
+	UModularRigController* Controller = Blueprint->GetModularRigController();
+
+	TArray<FString> CombinedBindings;
+	for(int32 Index = 0; Index < PerModuleInfos.Num(); Index++)
+	{
+		const FPerModuleInfo& Info  = PerModuleInfos[Index];
+		const TArray<FString> Bindings = Controller->GetPossibleBindings(Info.GetPath(), InProperty->GetFName());
+		if(Index == 0)
+		{
+			CombinedBindings = Bindings;
+		}
+		else
+		{
+			// reduce the set of bindings to the overall possible bindings
+			CombinedBindings.RemoveAll([Bindings](const FString& Binding)
+			{
+				return !Bindings.Contains(Binding);
+			});
+		}
+	}
+
+	// sort lexically
+	CombinedBindings.Sort();
+
+	// create a map of all of the variables per menu prefix (the module path the variables belong to)
+	struct FPerMenuData
+	{
+		FString Name;
+		FString ParentMenuPath;
+		TArray<FString> SubMenuPaths;
+		TArray<FString> Variables;
+
+		static void SetupMenu(
+			TSharedRef<FRigModuleInstanceDetails const> ThisDetails,
+			const FProperty* InProperty,
+			FMenuBuilder& InMenuBuilder,
+			const FString& InMenuPath,
+			TSharedRef<TMap<FString, FPerMenuData>> PerMenuData)
+		{
+			FPerMenuData& Data = PerMenuData->FindChecked((InMenuPath));
+
+			Data.SubMenuPaths.Sort();
+			Data.Variables.Sort();
+
+			for(const FString& VariablePath : Data.Variables)
+			{
+				FString VariableName = VariablePath;
+				(void)VariablePath.Split(UModularRig::NamespaceSeparator, nullptr, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+				
+				InMenuBuilder.AddMenuEntry(
+					FUIAction(FExecuteAction::CreateLambda([ThisDetails, InProperty, VariablePath]()
+					{
+						ThisDetails->HandleChangeBinding(InProperty, VariablePath);
+					})),
+					SNew(SHorizontalBox)
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(1.0f, 0.0f)
+						[
+							SNew(SImage)
+							.Image(ThisDetails->GetBindingImage(InProperty))
+							.ColorAndOpacity(ThisDetails->GetBindingColor(InProperty))
+						]
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.Padding(4.0f, 0.0f)
+						[
+							SNew(STextBlock)
+							.Text(FText::FromString(VariableName))
+							.ColorAndOpacity(FLinearColor::White)
+						]
+					);
+			}
+
+			for(const FString& SubMenuPath : Data.SubMenuPaths)
+			{
+				const FPerMenuData& SubMenuData = PerMenuData->FindChecked(SubMenuPath);
+
+				const FText Label = FText::FromString(SubMenuData.Name);
+				static const FText TooltipFormat = LOCTEXT("BindingMenuTooltipFormat", "Access to all variables of the {0} module");
+				const FText Tooltip = FText::Format(TooltipFormat, Label);  
+				InMenuBuilder.AddSubMenu(Label, Tooltip, FNewMenuDelegate::CreateLambda([ThisDetails, InProperty, SubMenuPath, PerMenuData](FMenuBuilder& SubMenuBuilder)
+				{
+					SetupMenu(ThisDetails, InProperty, SubMenuBuilder, SubMenuPath, PerMenuData);
+				}));
+			}
+		}
+	};
+	
+	// define the root menu
+	const TSharedRef<TMap<FString, FPerMenuData>> PerMenuData = MakeShared<TMap<FString, FPerMenuData>>();
+	PerMenuData->FindOrAdd(FString());
+
+	// make sure all levels of the menu are known and we have the variables available
+	for(const FString& BindingPath : CombinedBindings)
+	{
+		FString MenuPath;
+		(void)BindingPath.Split(UModularRig::NamespaceSeparator, &MenuPath, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+
+		FString PreviousMenuPath = MenuPath;
+		FString ParentMenuPath = MenuPath, RemainingPath;
+		while(ParentMenuPath.Split(UModularRig::NamespaceSeparator, &ParentMenuPath, &RemainingPath, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+		{
+			// scope since the map may change at the end of this block
+			{
+				FPerMenuData& Data = PerMenuData->FindOrAdd(MenuPath);
+				if(Data.Name.IsEmpty())
+				{
+					Data.Name = RemainingPath;
+				}
+			}
+			
+			PerMenuData->FindOrAdd(ParentMenuPath).SubMenuPaths.AddUnique(PreviousMenuPath);
+			PerMenuData->FindOrAdd(PreviousMenuPath).ParentMenuPath = ParentMenuPath;
+			PerMenuData->FindOrAdd(PreviousMenuPath).Name = RemainingPath;
+			if(!ParentMenuPath.Contains(UModularRig::NamespaceSeparator))
+			{
+				PerMenuData->FindOrAdd(FString()).SubMenuPaths.AddUnique(ParentMenuPath);
+				PerMenuData->FindOrAdd(ParentMenuPath).Name = ParentMenuPath;
+			}
+			PreviousMenuPath = ParentMenuPath;
+		}
+
+		FPerMenuData& Data = PerMenuData->FindOrAdd(MenuPath);
+		if(Data.Name.IsEmpty())
+		{
+			Data.Name = MenuPath;
+		}
+
+		Data.Variables.Add(BindingPath);
+		if(!MenuPath.IsEmpty())
+		{
+			PerMenuData->FindChecked(Data.ParentMenuPath).SubMenuPaths.AddUnique(MenuPath);
+		}
+	}
+
+	// build the menu
+	FPerMenuData::SetupMenu(SharedThis(this), InProperty, MenuBuilder, FString(), PerMenuData);
+}
+
+bool FRigModuleInstanceDetails::CanRemoveBinding(FName InPropertyName) const
+{
+	// offer the "removing binding" button if any of the selected module instances
+	// has a binding for the given variable
+	for(const FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+		{
+			if(ModuleInstance->VariableBindings.Contains(InPropertyName))
+			{
+				return true;
+			}
+		}
+	}
+	return false; 
+}
+
+void FRigModuleInstanceDetails::HandleRemoveBinding(FName InPropertyName) const
+{
+	FScopedTransaction Transaction(LOCTEXT("BindModuleVariableTransaction", "Remove Binding"));
+	for(const FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+			{
+				UModularRigController* Controller = Blueprint->GetModularRigController();
+				Controller->UnBindModuleVariable(ModuleInstance->GetPath(), InPropertyName);
+			}
+		}
+	}
+}
+
+void FRigModuleInstanceDetails::HandleChangeBinding(const FProperty* InProperty, const FString& InNewVariablePath) const
+{
+	FScopedTransaction Transaction(LOCTEXT("BindModuleVariableTransaction", "Bind Module Variable"));
+	for(const FPerModuleInfo& Info : PerModuleInfos)
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+			{
+				UModularRigController* Controller = Blueprint->GetModularRigController();
+				Controller->BindModuleVariable(ModuleInstance->GetPath(), InProperty->GetFName(), InNewVariablePath);
+			}
+		}
+	}
 }
 
 

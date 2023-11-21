@@ -601,7 +601,7 @@ TPair<const FSlateBrush*, FSlateColor> SModularRigHierarchyItem::GetBrushForElem
 	const FSlateBrush* Brush = nullptr;
 	FSlateColor Color = FSlateColor::UseForeground();
 
-	if (FRigModuleInstance* Module = InHierarchy->FindModule(InKey))
+	if (const FRigModuleInstance* Module = InHierarchy->FindModule(InKey))
 	{
 		if (Module->Rig.IsValid())
 		{

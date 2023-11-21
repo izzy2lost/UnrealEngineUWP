@@ -152,6 +152,7 @@ FControlRigEditor::~FControlRigEditor()
 		if (RigBlueprint->IsModularRig())
 		{
 			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(this);
+			RigBlueprint->OnModularRigCompiled().RemoveAll(this);
 		}
 	}
 
@@ -320,6 +321,7 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		if (ControlRigBlueprint->IsModularRig())
 		{
 			ControlRigBlueprint->GetModularRigController()->OnModified().AddSP(this, &FControlRigEditor::HandleModularRigModified);
+			ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &FControlRigEditor::HandlePostCompileModularRigs);
 		}
 	}
 
@@ -869,7 +871,7 @@ void FControlRigEditor::SetEventQueue(TArray<FName> InEventQueue, bool bCompile)
 			}
 		}
 
-		// Reset transforms only for construction and forward solve to not inturrupt any animation that might be playing
+		// Reset transforms only for construction and forward solve to not interrupt any animation that might be playing
 		if (InEventQueue.Contains(FRigUnit_PrepareForExecution::EventName) ||
 			InEventQueue.Contains(FRigUnit_BeginExecution::EventName))
 		{
@@ -1109,22 +1111,11 @@ void FControlRigEditor::SetDetailViewForRigElements(const TArray<FRigElementKey>
 
 void FControlRigEditor::SetDetailObjects(const TArray<UObject*>& InObjects)
 {
-	bool bAnyModule = false;
-	for (const UObject* Object : InObjects)
+	// if no modules should be selected - we need to deselect all modules
+	if (!InObjects.ContainsByPredicate([](const UObject* InObject) -> bool
 	{
-		if (const URigVMDetailsViewWrapperObject* WrapperObject = Cast<URigVMDetailsViewWrapperObject>(Object))
-		{
-			if (const UScriptStruct* WrappedStruct = WrapperObject->GetWrappedStruct())
-			{
-				if (WrappedStruct->IsChildOf(FRigModuleInstance::StaticStruct()))
-				{
-					bAnyModule = true;
-				}
-			}
-		}
-	}
-	
-	if (!bAnyModule)
+		return IsValid(InObject) && InObject->IsA<UControlRig>();
+	}))
 	{
 		ModulesSelected.Reset();
 	}
@@ -1205,24 +1196,23 @@ void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString> InKeys)
 
 	for(const FString& Key : InKeys)
 	{
-		FRigModuleInstance* Element = RigBeingDebugged->FindModule(Key);
+		const FRigModuleInstance* Element = RigBeingDebugged->FindModule(Key);
 		if (Element == nullptr)
 		{
 			continue;
 		}
 
-		URigVMDetailsViewWrapperObject* WrapperObject = URigVMDetailsViewWrapperObject::MakeInstance(GetDetailWrapperClass(), GetBlueprintObj(), FRigModuleInstance::StaticStruct(), (uint8*)Element, RigBeingDebugged);
-		WrapperObject->GetWrappedPropertyChangedChainEvent().AddSP(this, &FControlRigEditor::OnWrappedPropertyChangedChainEvent);
-		WrapperObject->AddToRoot();
-
-		Objects.Add(WrapperObject);
+		if(UControlRig* ModuleInstance = Element->Rig.Get())
+		{
+			Objects.Add(ModuleInstance);
+		}
 	}
 	
 	SetDetailObjects(Objects);
 
+	// In case the modules selected are still not available, lets set them again
 	if (Objects.IsEmpty())
 	{
-		// In case the modules selected are still not available, lets set them again
 		ModulesSelected = InKeys;
 	}
 }
@@ -3603,6 +3593,11 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			break;
 		}
 	}
+}
+
+void FControlRigEditor::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
+{
+	RefreshDetailView();
 }
 
 void FControlRigEditor::SynchronizeViewportBoneSelection()
