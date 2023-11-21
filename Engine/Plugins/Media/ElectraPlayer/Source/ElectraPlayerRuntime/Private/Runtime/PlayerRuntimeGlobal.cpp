@@ -5,6 +5,15 @@
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 
+#ifndef ELECTRA_PRECREATE_HTTP_MANAGER
+#define ELECTRA_PRECREATE_HTTP_MANAGER 0
+#endif
+
+#if ELECTRA_PRECREATE_HTTP_MANAGER
+#include "HTTP/HTTPManager.h"
+#endif
+
+
 
 namespace Electra
 {
@@ -19,6 +28,10 @@ namespace Electra
 		TArray<TWeakPtrTS<FFGBGNotificationHandlers>>		ApplicationBGFGHandlers;
 		volatile bool										bIsInBackground = false;
 		volatile bool										bAppIsTerminating = false;
+
+#if ELECTRA_PRECREATE_HTTP_MANAGER
+		TSharedPtrTS<IElectraHttpManager>					HttpManager;
+#endif
 	}
 	using namespace Global;
 
@@ -107,6 +120,14 @@ namespace Electra
 		FModuleManager::Get().LoadModule(TEXT("ElectraCDM"));
 
 		EnabledAnalyticsEvents = InConfiguration.EnabledAnalyticsEvents;
+
+#if ELECTRA_PRECREATE_HTTP_MANAGER
+		HttpManager = IElectraHttpManager::Create();
+		if (!HttpManager.IsValid())
+		{
+			return false;
+		}
+#endif
 		return true;
 	}
 
@@ -117,6 +138,10 @@ namespace Electra
 	 */
 	void Shutdown(void)
 	{
+#if ELECTRA_PRECREATE_HTTP_MANAGER
+		HttpManager.Reset();
+#endif
+
 		if (ApplicationSuspendedDelegate.IsValid())
 		{
 			FCoreDelegates::ApplicationWillEnterBackgroundDelegate.Remove(ApplicationSuspendedDelegate);
