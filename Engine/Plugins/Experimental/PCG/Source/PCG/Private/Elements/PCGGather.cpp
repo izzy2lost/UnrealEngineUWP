@@ -7,21 +7,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGGatherElement"
 
-EPCGDataType UPCGGatherSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
-{
-	check(InPin);
-
-	if (InPin->Properties.Label == PCGPinConstants::DefaultDependencyOnlyLabel || !InPin->IsOutputPin())
-	{
-		return Super::GetCurrentPinTypes(InPin);
-	}
-	else
-	{
-		const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-		return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
-	}
-}
-
 TArray<FPCGPinProperties> UPCGGatherSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

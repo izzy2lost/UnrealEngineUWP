@@ -30,12 +30,14 @@ FText UPCGFilterByTypeSettings::GetNodeTooltipText() const
 EPCGDataType UPCGFilterByTypeSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
-	if (!InPin->IsOutputPin() || InPin->Properties.Label != PCGPinConstants::DefaultInFilterLabel)
+	if (InPin->Properties.Label == PCGPinConstants::DefaultInFilterLabel)
+	{
+		return TargetType;
+	}
+	else
 	{
 		return Super::GetCurrentPinTypes(InPin);
 	}
-
-	return TargetType;
 }
 
 TArray<FPCGPinProperties> UPCGFilterByTypeSettings::OutputPinProperties() const

@@ -29,18 +29,6 @@ FText UPCGBranchSettings::GetNodeTooltipText() const
 }
 #endif // WITH_EDITOR
 
-EPCGDataType UPCGBranchSettings::GetCurrentPinTypes(const UPCGPin* Pin) const
-{
-	check(Pin);
-	if (Pin->IsOutputPin())
-	{
-		const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-		return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
-	}
-
-	return Super::GetCurrentPinTypes(Pin);
-}
-
 TArray<FPCGPinProperties> UPCGBranchSettings::OutputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

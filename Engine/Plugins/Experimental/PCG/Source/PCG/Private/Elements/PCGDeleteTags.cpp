@@ -20,19 +20,6 @@ FText UPCGDeleteTagsSettings::GetDefaultNodeTitle() const
 }
 #endif // WITH_EDITOR
 
-EPCGDataType UPCGDeleteTagsSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
-{
-	check(InPin);
-	if (!InPin->IsOutputPin())
-	{
-		return Super::GetCurrentPinTypes(InPin);
-	}
-
-	// Output pin narrows to union of inputs on first pin
-	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-	return (InputTypeUnion != EPCGDataType::None) ? InputTypeUnion : EPCGDataType::Any;
-}
-
 FName UPCGDeleteTagsSettings::AdditionalTaskName() const
 {
 	if (const UEnum* SelectionEnum = StaticEnum< EPCGTagFilterOperation>())

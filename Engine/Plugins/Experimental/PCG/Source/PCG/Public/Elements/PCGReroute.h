@@ -24,7 +24,6 @@ public:
 
 	//~Begin UPCGSettings interface
 	virtual bool HasDynamicPins() const override { return true; }
-	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName("Reroute"); }

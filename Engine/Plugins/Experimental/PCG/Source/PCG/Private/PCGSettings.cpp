@@ -645,6 +645,17 @@ void UPCGSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<
 EPCGDataType UPCGSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
 	check(InPin);
+
+	if (HasDynamicPins() && InPin->IsOutputPin())
+	{
+		const UPCGNode* Node = Cast<const UPCGNode>(GetOuter());
+		if (Node && Node->GetInputPin(PCGPinConstants::DefaultInputLabel) != nullptr)
+		{
+			const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
+			return InputTypeUnion != EPCGDataType::None ? InputTypeUnion : EPCGDataType::Any;
+		}
+	}
+
 	return InPin->Properties.AllowedTypes;
 }
 

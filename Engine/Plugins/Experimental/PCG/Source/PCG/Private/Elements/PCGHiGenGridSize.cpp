@@ -41,7 +41,7 @@ EPCGDataType UPCGHiGenGridSizeSettings::GetCurrentPinTypes(const UPCGPin* InPin)
 	// Non-dynamically-typed pins
 	if (!InPin->IsOutputPin() || InPin->Properties.Label == PCGHiGenGridSizeConstants::CellVolumeOutputLabel)
 	{
-		return Super::GetCurrentPinTypes(InPin);
+		return InPin->Properties.AllowedTypes;
 	}
 
 	// Output pin narrows to union of inputs on first pin

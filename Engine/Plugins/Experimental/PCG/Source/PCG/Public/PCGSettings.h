@@ -306,7 +306,9 @@ public:
 	/** Returns true if only the first input edge is used from the primary pin when the node is disabled. */
 	virtual bool OnlyPassThroughOneEdgeWhenDisabled() const { return false; }
 
-	/** Returns the current pin types, which can either be the static types from the pin properties, or a dynamic type based on connected edges. */
+	/** Returns the current pin types, which can either be the static types from the pin properties, or a dynamic type based on connected edges.
+	* By default we set output pin types to the union of the default input pin incident edge types, if it is dynamic and the default input exists.
+	*/
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition=bUseSeed, EditConditionHides, PCG_Overridable))

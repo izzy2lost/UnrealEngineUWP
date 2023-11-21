@@ -23,8 +23,6 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 #endif
 
-	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* Pin) const override;
-
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;

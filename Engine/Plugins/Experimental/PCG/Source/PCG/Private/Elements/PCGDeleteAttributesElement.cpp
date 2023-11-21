@@ -67,19 +67,6 @@ TArray<FText> UPCGDeleteAttributesSettings::GetNodeTitleAliases() const
 }
 #endif
 
-EPCGDataType UPCGDeleteAttributesSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
-{
-	check(InPin);
-	if (!InPin->IsOutputPin())
-	{
-		return Super::GetCurrentPinTypes(InPin);
-	}
-
-	// Output pin narrows to union of inputs on first pin
-	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
-	return (InputTypeUnion != EPCGDataType::None) ? InputTypeUnion : EPCGDataType::Any;
-}
-
 FName UPCGDeleteAttributesSettings::AdditionalTaskName() const
 {
 	if (const UEnum* SelectionEnum = StaticEnum<EPCGAttributeFilterOperation>())
