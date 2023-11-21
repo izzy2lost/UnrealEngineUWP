@@ -911,7 +911,9 @@ bool FElectraVideoDecoderH265_DX::ConvertDecoderOutput()
 	// Width and height as "decoded dims" (which are featuring format specific scales & no cropping)
 	NewOutput->DecodedWidth = (int32)dwInputWidth;
 	NewOutput->DecodedHeight = (int32)dwInputHeight;
-	if (DecoderPlatformHandle->IsSoftware() || DecoderPlatformHandle->GetDXVersionTimes1000() >= 12000 || DecoderPlatformHandle->GetDXVersionTimes1000() == 0)
+	// If we deliver the data in a CPU side buffer, we need to patch the decoded height to reflect the oddness of these planar formats
+	// (DirectX12 and higher (unless we can use the render device to decode), SW decoder or a non-DirectX API will trigger this)
+	if (DecoderPlatformHandle->IsSoftware() || (DecoderPlatformHandle->GetDXVersionTimes1000() >= 12000 && DecoderPlatformHandle->GetDXDevice() != nullptr) || DecoderPlatformHandle->GetDXVersionTimes1000() == 0)
 	{
 		// We are returning a CPU side buffer (software decode OR DX12 render device) - adjust the height so it can be interpreted as a single plane texture
 		NewOutput->DecodedHeight = NewOutput->DecodedHeight * 3 / 2;
