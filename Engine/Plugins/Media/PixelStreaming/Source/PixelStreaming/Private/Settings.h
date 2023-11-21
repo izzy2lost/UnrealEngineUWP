@@ -45,6 +45,7 @@ namespace UE::PixelStreaming::Settings
 	extern TAutoConsoleVariable<int> CVarPixelStreamingWebRTCHighQpThreshold;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableReceiveAudio;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableTransmitAudio;
+	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableTransmitVideo;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableAudioSync;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCUseLegacyAudioDevice;
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableStats;

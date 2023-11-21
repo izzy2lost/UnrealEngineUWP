@@ -6,11 +6,25 @@
 #include "PixelStreamingPrivate.h"
 #include "IPixelStreamingModule.h"
 #include "PixelCaptureInputFrameI420.h"
+#include "Streamer.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace UE::PixelStreaming
 {
+	int32 TestUtils::NextStreamerPort()
+	{
+		// Start of IANA un-registerable ports (49152 - 65535)
+		static int NextStreamerPort = 49152;
+		return NextStreamerPort++;
+	}
+
+	int32 TestUtils::NextPlayerPort()
+	{
+		// Half of IANA un-registerable ports (49152 - 65535)
+		static int NextPlayerPort = 57344;
+		return NextPlayerPort++;
+	}
 
 	/* ---------- Latent Automation Commands ----------- */
 
@@ -248,6 +262,37 @@ namespace UE::PixelStreaming
 		return *bComplete.Get();
 	}
 
+	bool FCheckTransceivers::Update()
+	{
+		if(!Streamer)
+		{
+			UE_LOG(LogPixelStreaming, Error, TEXT("Streamer is invalid!"));
+			return true;
+		}
+
+        FStreamer* StreamerPtr = (FStreamer*)Streamer.Get();
+
+        bool bTransceiverExists = false;
+        const TFunction<void(rtc::scoped_refptr<webrtc::RtpTransceiverInterface>)> TranceiverFunc = [&bTransceiverExists = bTransceiverExists, this](rtc::scoped_refptr<webrtc::RtpTransceiverInterface> Transceiver) 
+        {
+            bTransceiverExists |= CheckFunc(Transceiver);
+		};
+
+        const TFunction<void(FPixelStreamingPlayerId, FPlayerContext)> PlayerFunc = [&TranceiverFunc = TranceiverFunc, this](FPixelStreamingPlayerId PlayerId, FPlayerContext PlayerContext) 
+        {
+            PlayerContext.PeerConnection->ForEachTransceiver(TranceiverFunc);
+        };
+
+        StreamerPtr->ForEachPlayer(PlayerFunc);
+
+        if(!bTransceiverExists)
+        {
+            UE_LOG(LogPixelStreaming, Error, TEXT("Transceivers don't exist!"));
+        }
+
+		return true;
+	}
+
 	bool FCleanupAll::Update()
 	{
 		if (OutPlayer)
@@ -278,6 +323,30 @@ namespace UE::PixelStreaming
 		UE::PixelStreaming::DoOnGameThreadAndWait(MAX_uint32, [Codec, bUseComputeShaders]() {
 			Settings::SetCodec(Codec);
 			Settings::CVarPixelStreamingVPXUseCompute->Set(bUseComputeShaders, ECVF_SetByCode);
+		});
+	}
+
+	void SetDisableTransmitAudio(bool bDisableTransmitAudio)
+	{
+		// Set whether to transmit audio
+		UE::PixelStreaming::DoOnGameThreadAndWait(MAX_uint32, [bDisableTransmitAudio]() {
+			Settings::CVarPixelStreamingWebRTCDisableTransmitAudio->Set(bDisableTransmitAudio, ECVF_SetByCode);
+		});
+	}
+
+	void SetDisableReceiveAudio(bool bDisableReceiveAudio)
+	{
+		// Set whether to receive audio
+		UE::PixelStreaming::DoOnGameThreadAndWait(MAX_uint32, [bDisableReceiveAudio]() {
+			Settings::CVarPixelStreamingWebRTCDisableReceiveAudio->Set(bDisableReceiveAudio, ECVF_SetByCode);
+		});
+	}
+
+	void SetDisableTransmitVideo(bool bDisableTransmitVideo)
+	{
+		// Set whether to transmit video
+		UE::PixelStreaming::DoOnGameThreadAndWait(MAX_uint32, [bDisableTransmitVideo]() {
+			Settings::CVarPixelStreamingWebRTCDisableTransmitVideo->Set(bDisableTransmitVideo, ECVF_SetByCode);
 		});
 	}
 
@@ -333,7 +402,6 @@ namespace UE::PixelStreaming
 	{
 		return CreateSignallingServer(StreamerPort, PlayerPort, true /*bCreateLegacySignallingServer*/);
 	}
-
 } // namespace UE::PixelStreaming
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -86,6 +86,8 @@ namespace UE::PixelStreaming
 
 		virtual void RefreshStreamBitrate() override;
 
+		void ForEachPlayer(const TFunction<void(FPixelStreamingPlayerId, FPlayerContext)>& Func);
+
 	private:
 		FStreamer(const FString& StreamerId);
 

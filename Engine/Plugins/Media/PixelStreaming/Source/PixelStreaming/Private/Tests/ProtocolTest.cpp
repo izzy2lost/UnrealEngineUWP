@@ -17,8 +17,8 @@ namespace UE::PixelStreaming
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtocolTestAddMessage, "System.Plugins.PixelStreaming.FProtocolTestAddMessage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FProtocolTestAddMessage::RunTest(const FString& Parameters)
 	{
-		int32 StreamerPort = 7569;
-		int32 PlayerPort = 4583;
+		int32 StreamerPort = TestUtils::NextStreamerPort();
+		int32 PlayerPort = TestUtils::NextPlayerPort();
 
 		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = CreateSignallingServer(StreamerPort, PlayerPort);
 
@@ -84,8 +84,8 @@ namespace UE::PixelStreaming
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FProtocolTestUseCustomMessage, "System.Plugins.PixelStreaming.FProtocolTestUseCustomMessage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 	bool FProtocolTestUseCustomMessage::RunTest(const FString& Parameters)
 	{
-		int32 StreamerPort = 7571;
-		int32 PlayerPort = 4585;
+		int32 StreamerPort = TestUtils::NextStreamerPort();
+		int32 PlayerPort = TestUtils::NextPlayerPort();
 
 		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = CreateSignallingServer(StreamerPort, PlayerPort);
 

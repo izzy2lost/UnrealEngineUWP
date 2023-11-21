@@ -156,7 +156,7 @@ namespace UE::PixelStreaming
 	{
 		UE_LOG(LogPixelStreaming, Log, TEXT("----------- ConnectAndDisconnectMultipleStreamersEmbeddedCirrus -----------"));
 
-		const int StreamerPort = 8989;
+		int32 StreamerPort = TestUtils::NextStreamerPort();
 		const int HttpPort = 85;
 
 		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = UE::PixelStreamingServers::MakeSignallingServer();

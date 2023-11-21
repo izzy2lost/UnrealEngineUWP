@@ -13,8 +13,8 @@ namespace
 
 	void DoFrameReceiveTest()
 	{
-		int32 StreamerPort = 7564;
-		int32 PlayerPort = 4578;
+		int32 StreamerPort = TestUtils::NextStreamerPort();
+		int32 PlayerPort = TestUtils::NextPlayerPort();
 
 		FMockVideoFrameConfig FrameConfig = { 128 /*Width*/, 128 /*Height*/, 255 /*Y*/, 137 /*U*/, 216 /*V*/ };
 
@@ -41,8 +41,8 @@ namespace
 
 	void DoFrameResizeMultipleTimesTest()
 	{
-		int32 StreamerPort = 7564;
-		int32 PlayerPort = 4578;
+		int32 StreamerPort = TestUtils::NextStreamerPort();
+		int32 PlayerPort = TestUtils::NextPlayerPort();
 
 		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = CreateSignallingServer(StreamerPort, PlayerPort);
 

@@ -180,6 +180,13 @@ public:
 	TSharedPtr<IPixelStreamingAudioSink> GetAudioSink() { return AudioSink; }
 
 	/**
+	 * @brief A method for iterating through all of the tranceivers on the peer connection. You could use this to check for the existence of an audio/video transceiver
+	 *
+	 * @param Func The lambda to execute with each transceiver
+	 */
+	virtual void ForEachTransceiver(const TFunction<void(rtc::scoped_refptr<webrtc::RtpTransceiverInterface>)>& Func);
+
+	/**
 	 * Adds ICE candidate data to the peer connection. Usually supplied from the signalling server.
 	 * @param SDPMid
 	 * @param SDPMLineIndex

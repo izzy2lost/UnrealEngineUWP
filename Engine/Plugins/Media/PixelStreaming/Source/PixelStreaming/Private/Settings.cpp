@@ -167,6 +167,12 @@ namespace UE::PixelStreaming::Settings
 		TEXT("Disables transmission of UE audio to the browser."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableTransmitVideo(
+		TEXT("PixelStreaming.WebRTC.DisableTransmitVideo"),
+		false,
+		TEXT("Disables transmission of UE video to the browser."),
+		ECVF_Default);
+
 	TAutoConsoleVariable<bool> CVarPixelStreamingWebRTCDisableAudioSync(
 		TEXT("PixelStreaming.WebRTC.DisableAudioSync"),
 		true,
@@ -812,6 +818,7 @@ namespace UE::PixelStreaming::Settings
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableStats"), CVarPixelStreamingWebRTCDisableStats);
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableReceiveAudio"), CVarPixelStreamingWebRTCDisableReceiveAudio);
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableTransmitAudio"), CVarPixelStreamingWebRTCDisableTransmitAudio);
+		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableTransmitVideo"), CVarPixelStreamingWebRTCDisableTransmitVideo);
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableAudioSync"), CVarPixelStreamingWebRTCDisableAudioSync);
 		CommandLineParseOption(TEXT("PixelStreamingWebRTCDisableFrameDropper"), CVarPixelStreamingWebRTCDisableFrameDropper);
 		CommandLineParseOption(TEXT("PixelStreamingSendPlayerIdAsInteger"), CVarSendPlayerIdAsInteger);

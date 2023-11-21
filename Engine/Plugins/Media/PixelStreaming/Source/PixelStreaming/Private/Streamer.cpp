@@ -499,6 +499,11 @@ namespace UE::PixelStreaming
 		});
 	}
 
+	void FStreamer::ForEachPlayer(const TFunction<void(FPixelStreamingPlayerId, FPlayerContext)>& Func)
+	{
+		Players.Apply(Func);
+	}
+
 	bool FStreamer::CreateSession(FPixelStreamingPlayerId PlayerId)
 	{
 		if (FPlayerContext* PlayerContext = Players.Find(PlayerId))
@@ -556,12 +561,9 @@ namespace UE::PixelStreaming
 			if (FPlayerContext* PlayerContext = Players.Find(PlayerId))
 			{
 				const bool AllowSimulcast = PlayerContext->Config.IsSFU;
+				
 				PlayerContext->PeerConnection->SetVideoSource(VideoSourceGroup->CreateVideoSource([this, PlayerId]() { return ShouldPeerGenerateFrames(PlayerId); }));
-				if (!Settings::CVarPixelStreamingWebRTCDisableTransmitAudio.GetValueOnAnyThread())
-				{
-					PlayerContext->PeerConnection->SetAudioSource(FPixelStreamingPeerConnection::GetApplicationAudioSource());
-				}
-
+				PlayerContext->PeerConnection->SetAudioSource(FPixelStreamingPeerConnection::GetApplicationAudioSource());
 				PlayerContext->PeerConnection->SetAudioSink(MakeShared<FAudioSink>());
 			}
 		}

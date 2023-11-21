@@ -460,6 +460,18 @@ void FPixelStreamingPeerConnection::SetVideoSource(rtc::scoped_refptr<webrtc::Vi
 
 	VideoSource = InVideoSource;
 
+	const bool bTransmitUEVideo = !Settings::CVarPixelStreamingWebRTCDisableTransmitVideo.GetValueOnAnyThread();
+
+	webrtc::RtpTransceiverDirection VideoTransceiverDirection;
+	if (bTransmitUEVideo)
+	{
+		VideoTransceiverDirection = webrtc::RtpTransceiverDirection::kSendOnly;
+	}
+	else
+	{
+		VideoTransceiverDirection = webrtc::RtpTransceiverDirection::kInactive;
+	}
+
 	// Create video track
 	rtc::scoped_refptr<webrtc::VideoTrackInterface> VideoTrack = PeerConnectionFactory->CreateVideoTrack(ToString(VideoTrackLabel), VideoSource.get());
 	VideoTrack->set_enabled(true);
@@ -491,7 +503,7 @@ void FPixelStreamingPeerConnection::SetVideoSource(rtc::scoped_refptr<webrtc::Vi
 			Sender->SetTrack(VideoTrack);
 #endif
 			Sender->SetStreams({ GetVideoStreamID() });
-			SetTransceiverDirection(*Transceiver, webrtc::RtpTransceiverDirection::kSendOnly);
+			SetTransceiverDirection(*Transceiver, VideoTransceiverDirection);
 			webrtc::RtpParameters ExistingParams = Sender->GetParameters();
 			ExistingParams.degradation_preference = Settings::GetDegradationPreference();
 		}
@@ -502,12 +514,12 @@ void FPixelStreamingPeerConnection::SetVideoSource(rtc::scoped_refptr<webrtc::Vi
 	{
 		webrtc::RtpTransceiverInit TransceiverOptions;
 		TransceiverOptions.stream_ids = { GetVideoStreamID() };
-		TransceiverOptions.direction = webrtc::RtpTransceiverDirection::kSendOnly;
+		TransceiverOptions.direction = VideoTransceiverDirection;
 		TransceiverOptions.send_encodings = CreateRTPEncodingParams(IsSFU);
 
 		webrtc::RTCErrorOr<rtc::scoped_refptr<webrtc::RtpTransceiverInterface>> Result = PeerConnection->AddTransceiver(VideoTrack, TransceiverOptions);
 		checkf(Result.ok(), TEXT("Failed to add Video transceiver to PeerConnection. Msg=%s"), *FString(Result.error().message()));
-		SetTransceiverDirection(*Result.value(), webrtc::RtpTransceiverDirection::kSendOnly);
+		SetTransceiverDirection(*Result.value(), VideoTransceiverDirection);
 		webrtc::RtpParameters ExistingParams = Result.value()->sender()->GetParameters();
 		ExistingParams.degradation_preference = Settings::GetDegradationPreference();
 	}
@@ -635,6 +647,19 @@ void FPixelStreamingPeerConnection::SetAudioSink(TSharedPtr<IPixelStreamingAudio
 				}
 			}
 		}
+	}
+}
+
+void FPixelStreamingPeerConnection::ForEachTransceiver(const TFunction<void(rtc::scoped_refptr<webrtc::RtpTransceiverInterface>)>& Func)
+{
+	if(!PeerConnection)
+	{
+		return;
+	}
+
+	for (auto& Transceiver : PeerConnection->GetTransceivers())
+	{
+		Func(Transceiver);
 	}
 }
 
@@ -849,7 +874,7 @@ void FPixelStreamingPeerConnection::CreateSDP(ESDPType SDPType, EReceiveMediaOpt
 	bool voice_activity_detection = false;
 	bool ice_restart = true;
 	bool use_rtp_mux = true;
-
+	
 	webrtc::PeerConnectionInterface::RTCOfferAnswerOptions SDPOption{
 		offer_to_receive_video,
 		offer_to_receive_audio,
