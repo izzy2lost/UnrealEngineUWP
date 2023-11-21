@@ -111,7 +111,11 @@ namespace UE
 		FUsdStage GetStage() const;
 
 		FName GetName() const;
+
 		FName GetTypeName() const;
+		bool SetTypeName(FName TypeName) const;
+		bool ClearTypeName() const;
+		bool HasAuthoredTypeName() const;
 
 		FUsdPrim GetParent() const;
 

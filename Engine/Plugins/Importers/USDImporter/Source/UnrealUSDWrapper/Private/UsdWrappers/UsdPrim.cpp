@@ -433,6 +433,34 @@ namespace UE
 #endif // #if USE_USD_SDK
 	}
 
+	bool FUsdPrim::SetTypeName(FName TypeName) const
+	{
+#if USE_USD_SDK
+		FScopedUsdAllocs UsdAllocs;
+		return Impl->PxrUsdPrim.Get().SetTypeName(pxr::TfToken(TCHAR_TO_ANSI(*TypeName.ToString())));
+#else
+		return false;
+#endif // #if USE_USD_SDK
+	}
+
+	bool FUsdPrim::ClearTypeName() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdPrim.Get().ClearTypeName();
+#else
+		return false;
+#endif // #if USE_USD_SDK
+	}
+
+	bool FUsdPrim::HasAuthoredTypeName() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdPrim.Get().HasAuthoredTypeName();
+#else
+		return false;
+#endif // #if USE_USD_SDK
+	}
+
 	FUsdPrim FUsdPrim::GetParent() const
 	{
 #if USE_USD_SDK
