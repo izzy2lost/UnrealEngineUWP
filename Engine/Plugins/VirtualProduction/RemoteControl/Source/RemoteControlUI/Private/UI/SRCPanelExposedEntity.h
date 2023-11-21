@@ -75,7 +75,8 @@ protected:
 	TAttribute<FText> HighlightText;
 	/** Panel Style reference. */
 	const FRCPanelStyle* RCPanelStyle;
-
+	/** Extra information to add to the tooltips. */
+	static const FText SelectInOutliner;
 private:
 	/** Handles changing the object this entity is bound to upon selecting an actor in the rebinding dropdown. */
 	void OnActorSelected(AActor* InActor) const;
