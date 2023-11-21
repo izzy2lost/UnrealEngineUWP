@@ -302,6 +302,9 @@ static void AddTimingEventToBuilder(ITimingEventsTrackDrawStateBuilder& Builder,
 		case Insights::ETimingEventsColoringMode::ByTimerId:
 			EventColor = FTimingEvent::ComputeEventColor(Timer->Id);
 			break;
+		case Insights::ETimingEventsColoringMode::BySourceFile:
+			EventColor = FTimingEvent::ComputeEventColor(Timer->File);
+			break;
 		case Insights::ETimingEventsColoringMode::ByDuration:
 		{
 			const double EventDuration = EventEndTime - EventStartTime;
@@ -310,7 +313,7 @@ static void AddTimingEventToBuilder(ITimingEventsTrackDrawStateBuilder& Builder,
 						 (EventDuration >= 0.0001)   ? 0xFF338833 : // green:  [100us .. 1ms)
 						 (EventDuration >= 0.00001)  ? 0xFF338888 : // cyan:   [10us .. 100us)
 						 (EventDuration >= 0.000001) ? 0xFF333388 : // blue:   [1us .. 10us)
-						                               0xFF888888;  // grey:   < 1us
+						                               0xFF888888;  // gray:   < 1us
 			break;
 		}
 		default:
@@ -1200,12 +1203,26 @@ void FThreadTimingTrack::PostDraw(const ITimingTrackDrawContext& Context) const
 		const TraceServices::FTimingProfilerTimer* Timer = TimerReader->GetTimer(SelectedEvent.GetTimerIndex());
 		if (Timer != nullptr)
 		{
-			FString Str = FString::Printf(TEXT("%s (Incl.: %s, Excl.: %s)"),
-				Timer->Name,
-				*TimeUtils::FormatTimeAuto(SelectedEvent.GetDuration()),
-				*TimeUtils::FormatTimeAuto(SelectedEvent.GetExclusiveTime()));
+			FString TimerName(Timer->Name);
 
-			DrawSelectedEventInfo(Str, Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
+			const double SelectedEventDuration = SelectedEvent.GetDuration();
+			TStringBuilder<1024> StringBuilder;
+			StringBuilder.Appendf(TEXT("  Incl.: %s"), *TimeUtils::FormatTimeAuto(SelectedEventDuration, 2));
+			if (SelectedEventDuration != std::numeric_limits<double>::infinity())
+			{
+				StringBuilder.Appendf(TEXT("   Excl.: %s"), *TimeUtils::FormatTimeAuto(SelectedEvent.GetExclusiveTime(), 2));
+			}
+			FString StatsText(StringBuilder.ToView());
+
+			if (Timer->File)
+			{
+				FString SourceFile(Timer->File);
+				DrawSelectedEventInfoEx(StatsText, TimerName, FPaths::GetCleanFilename(SourceFile), Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
+			}
+			else
+			{
+				DrawSelectedEventInfoEx(StatsText, TimerName, FString(), Context.GetViewport(), Context.GetDrawContext(), Helper.GetWhiteBrush(), Helper.GetEventFont());
+			}
 		}
 	}
 }
@@ -1238,13 +1255,15 @@ void FThreadTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITim
 		FString TimerName = (Timer != nullptr) ? Timer->Name : TEXT("N/A");
 		InOutTooltip.AddTitle(TimerName);
 
+		const double TooltipEventDuration = TooltipEvent.GetDuration();
+
 		if (ParentTimingEvent.IsValid() && TooltipEvent.GetDepth() > 0)
 		{
 			Timer = TimerReader->GetTimer(ParentTimingEvent->GetTimerIndex());
 			const TCHAR* ParentTimerName = (Timer != nullptr) ? Timer->Name : TEXT("N/A");
 			FNumberFormattingOptions FormattingOptions;
 			FormattingOptions.MaximumFractionalDigits = 2;
-			const FString ValueStr = FString::Printf(TEXT("%s %s"), *FText::AsPercent(TooltipEvent.GetDuration() / ParentTimingEvent->GetDuration(), &FormattingOptions).ToString(), ParentTimerName);
+			const FString ValueStr = FString::Printf(TEXT("%s %s"), *FText::AsPercent(TooltipEventDuration / ParentTimingEvent->GetDuration(), &FormattingOptions).ToString(), ParentTimerName);
 			InOutTooltip.AddNameValueTextLine(TEXT("% of Parent:"), ValueStr);
 		}
 
@@ -1254,15 +1273,15 @@ void FThreadTimingTrack::InitTooltip(FTooltipDrawState& InOutTooltip, const ITim
 			const TCHAR* RootTimerName = (Timer != nullptr) ? Timer->Name : TEXT("N/A");
 			FNumberFormattingOptions FormattingOptions;
 			FormattingOptions.MaximumFractionalDigits = 2;
-			const FString ValueStr = FString::Printf(TEXT("%s %s"), *FText::AsPercent(TooltipEvent.GetDuration() / RootTimingEvent->GetDuration(), &FormattingOptions).ToString(), RootTimerName);
+			const FString ValueStr = FString::Printf(TEXT("%s %s"), *FText::AsPercent(TooltipEventDuration / RootTimingEvent->GetDuration(), &FormattingOptions).ToString(), RootTimerName);
 			InOutTooltip.AddNameValueTextLine(TEXT("% of Root:"), ValueStr);
 		}
 
-		InOutTooltip.AddNameValueTextLine(TEXT("Inclusive Time:"), TimeUtils::FormatTimeAuto(TooltipEvent.GetDuration()));
+		InOutTooltip.AddNameValueTextLine(TEXT("Inclusive Time:"), TimeUtils::FormatTimeAuto(TooltipEventDuration));
 
-		if (TooltipEvent.GetDuration() > 0.0)
+		if (TooltipEventDuration > 0.0 && TooltipEventDuration != std::numeric_limits<double>::infinity())
 		{
-			const double ExclusiveTimePercent = TooltipEvent.GetExclusiveTime() / TooltipEvent.GetDuration();
+			const double ExclusiveTimePercent = TooltipEvent.GetExclusiveTime() / TooltipEventDuration;
 			FNumberFormattingOptions FormattingOptions;
 			FormattingOptions.MaximumFractionalDigits = 2;
 			const FString ExclStr = FString::Printf(TEXT("%s (%s)"), *TimeUtils::FormatTimeAuto(TooltipEvent.GetExclusiveTime()), *FText::AsPercent(ExclusiveTimePercent, &FormattingOptions).ToString());

@@ -20,6 +20,7 @@ namespace Insights
 	{
 		ByTimerName,
 		ByTimerId,
+		BySourceFile,
 		ByDuration,
 
 		Count

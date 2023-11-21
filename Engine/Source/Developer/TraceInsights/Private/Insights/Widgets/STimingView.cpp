@@ -84,7 +84,7 @@
 
 #define INSIGHTS_ACTIVATE_BENCHMARK 0
 
-// start auto generated ids from a big number (MSB set to 1) to avoid collisions with ids for gpu/cpu tracks based on 32bit timeline index
+// start auto generated ids from a big number (MSB set to 1) to avoid collisions with ids for GPU/CPU tracks based on 32bit timeline index
 uint64 FBaseTimingTrack::IdGenerator = (1ULL << 63);
 
 uint32 STimingView::TimingViewId = 0;
@@ -3884,7 +3884,7 @@ void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent
 			if (bBringEventIntoViewVertically)
 			{
 				bBringSelectedEventIntoViewVerticallyOnNextTick = true;
-				// We need the layout to be callculated in one frame, no animations, otherwise the event might not be in view at the end of the animation.
+				// We need the layout to be calculated in one frame, no animations, otherwise the event might not be in view at the end of the animation.
 				Viewport.AddDirtyFlags(ETimingTrackViewportDirtyFlags::VLayoutChanged);
 			}
 		}
@@ -4181,13 +4181,13 @@ TSharedRef<SWidget> STimingView::MakeCompactAutoScrollOptionsMenu()
 			.Value_Lambda([this] { return AutoScrollFrameAlignment; })
 			+ SSegmentedControl<int32>::Slot(-1)
 			.Text(LOCTEXT("None", "None"))
-			.ToolTip(LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when autoscrolling)."))
+			.ToolTip(LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when auto-scrolling)."))
 			+ SSegmentedControl<int32>::Slot((int32)TraceFrameType_Game)
 			.Text(LOCTEXT("Game", "Game"))
-			.ToolTip(LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when autoscrolling)."))
+			.ToolTip(LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when auto-scrolling)."))
 			+ SSegmentedControl<int32>::Slot((int32)TraceFrameType_Rendering)
 			.Text(LOCTEXT("Rendering", "Rendering"))
-			.ToolTip(LOCTEXT("AutoScrollAlignWithGameFrames_Tooltip", "Aligns the viewport's center position with the start time of a Game frame (when autoscrolling)."))
+			.ToolTip(LOCTEXT("AutoScrollAlignWithGameFrames_Tooltip", "Aligns the viewport's center position with the start time of a Game frame (when auto-scrolling)."))
 		);
 
 		CreateCompactMenuLine(MenuBuilder,
@@ -4214,13 +4214,13 @@ TSharedRef<SWidget> STimingView::MakeCompactAutoScrollOptionsMenu()
 				.Value_Lambda([this] { return AutoScrollViewportOffsetPercent; })
 				+ SSegmentedControl<double>::Slot(-0.1)
 				.Text(LOCTEXT("AutoScrollViewportOffset-10", "-10%"))
-				.ToolTip(LOCTEXT("AutoScrollViewportOffset-10_Tooltip", "Sets the viewport offset to -10% (i.e. backward) of the viewport's width (when autoscrolling).\nAvoids flickering as the end of the session will be outside of the viewport."))
+				.ToolTip(LOCTEXT("AutoScrollViewportOffset-10_Tooltip", "Sets the viewport offset to -10% (i.e. backward) of the viewport's width (when auto-scrolling).\nAvoids flickering as the end of the session will be outside of the viewport."))
 				+ SSegmentedControl<double>::Slot(0.0)
 				.Text(LOCTEXT("AutoScrollViewportOffset0", "0"))
-				.ToolTip(LOCTEXT("AutoScrollViewportOffset0_Tooltip", "Sets the viewport offset to 0 (when autoscrolling).\nThe right side of the viewport will correspond to the current session time."))
+				.ToolTip(LOCTEXT("AutoScrollViewportOffset0_Tooltip", "Sets the viewport offset to 0 (when auto-scrolling).\nThe right side of the viewport will correspond to the current session time."))
 				+ SSegmentedControl<double>::Slot(+0.1)
 				.Text(LOCTEXT("AutoScrollViewportOffset+10", "+10%"))
-				.ToolTip(LOCTEXT("AutoScrollViewportOffset+10_Tooltip", "Sets the viewport offset to +10% (i.e. forward) of the viewport's width (when autoscrolling).\nAllows 10% empty space on the right side of the viewport."))
+				.ToolTip(LOCTEXT("AutoScrollViewportOffset+10_Tooltip", "Sets the viewport offset to +10% (i.e. forward) of the viewport's width (when auto-scrolling).\nAllows 10% empty space on the right side of the viewport."))
 			]
 		);
 
@@ -4276,7 +4276,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollNoFrameAlignment", "None"),
-			LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when autoscrolling)."),
+			LOCTEXT("AutoScrollNoFrameAlignment_Tooltip", "Disables the frame alignment (when auto-scrolling)."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollFrameAlignment, -1),
 				FCanExecuteAction(),
@@ -4287,7 +4287,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollAlignWithGameFrames", "Game Frames"),
-			LOCTEXT("AutoScrollAlignWithGameFrames_Tooltip", "Aligns the viewport's center position with the start time of a Game frame (when autoscrolling)."),
+			LOCTEXT("AutoScrollAlignWithGameFrames_Tooltip", "Aligns the viewport's center position with the start time of a Game frame (when auto-scrolling)."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollFrameAlignment, (int32)TraceFrameType_Game),
 				FCanExecuteAction(),
@@ -4298,7 +4298,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollAlignWithRenderingFrames", "Rendering Frames"),
-			LOCTEXT("AutoScrollAlignWithRenderingFrames_Tooltip", "Aligns the viewport's center position with the start time of a Rendering frame (when autoscrolling)."),
+			LOCTEXT("AutoScrollAlignWithRenderingFrames_Tooltip", "Aligns the viewport's center position with the start time of a Rendering frame (when auto-scrolling)."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollFrameAlignment, (int32)TraceFrameType_Rendering),
 				FCanExecuteAction(),
@@ -4313,7 +4313,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollViewportOffset-10", "-10%"),
-			LOCTEXT("AutoScrollViewportOffset-10_Tooltip", "Sets the viewport offset to -10% (i.e. backward) of the viewport's width (when autoscrolling).\nAvoids flickering as the end of the session will be outside of the viewport."),
+			LOCTEXT("AutoScrollViewportOffset-10_Tooltip", "Sets the viewport offset to -10% (i.e. backward) of the viewport's width (when auto-scrolling).\nAvoids flickering as the end of the session will be outside of the viewport."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollViewportOffset, -0.1),
 				FCanExecuteAction(),
@@ -4324,7 +4324,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollViewportOffset0", "0"),
-			LOCTEXT("AutoScrollViewportOffset0_Tooltip", "Sets the viewport offset to 0 (when autoscrolling).\nThe right side of the viewport will correspond to the current session time."),
+			LOCTEXT("AutoScrollViewportOffset0_Tooltip", "Sets the viewport offset to 0 (when auto-scrolling).\nThe right side of the viewport will correspond to the current session time."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollViewportOffset, 0.0),
 				FCanExecuteAction(),
@@ -4335,7 +4335,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("AutoScrollViewportOffset+10", "+10%"),
-			LOCTEXT("AutoScrollViewportOffset+10_Tooltip", "Sets the viewport offset to +10% (i.e. forward) of the viewport's width (when autoscrolling).\nAllows 10% empty space on the right side of the viewport."),
+			LOCTEXT("AutoScrollViewportOffset+10_Tooltip", "Sets the viewport offset to +10% (i.e. forward) of the viewport's width (when auto-scrolling).\nAllows 10% empty space on the right side of the viewport."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateSP(this, &STimingView::SetAutoScrollViewportOffset, +0.1),
 				FCanExecuteAction(),
@@ -4365,7 +4365,7 @@ TSharedRef<SWidget> STimingView::MakeAutoScrollOptionsMenu()
 				.OnTextChanged_Lambda([this](const FText& InText) { SetAutoScrollViewportOffset(atof(TCHAR_TO_ANSI(*InText.ToString())) * 0.01); })
 			],
 			NAME_None,
-			LOCTEXT("AutoScrollViewportOffsetCustom_Tooltip", "Sets a custom value for the viewport offset as percent from viewport's width (when autoscrolling)."),
+			LOCTEXT("AutoScrollViewportOffsetCustom_Tooltip", "Sets a custom value for the viewport offset as percent from viewport's width (when auto-scrolling)."),
 			EUserInterfaceActionType::RadioButton
 		);
 	}
@@ -4836,8 +4836,19 @@ void STimingView::CreateCpuThreadTrackColoringModeMenu(FMenuBuilder& MenuBuilder
 			EUserInterfaceActionType::RadioButton
 		);
 		MenuBuilder.AddMenuEntry(
+			LOCTEXT("CpuThreadTrackColoringMode_BySourceFile", "By Source File"),
+			LOCTEXT("CpuThreadTrackColoringMode_BySourceFile_Desc", "Assign a color to CPU/GPU timing events based on their source file."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::BySourceFile),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &STimingView::CheckCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::BySourceFile)),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+		MenuBuilder.AddMenuEntry(
 			LOCTEXT("CpuThreadTrackColoringMode_ByDuration", "By Duration"),
-			LOCTEXT("CpuThreadTrackColoringMode_ByDuration_Desc", "Assign a color to CPU/GPU timing events based on their duration (inclusive time).\n\t≥ 10ms : red\n\t≥ 1ms : yellow\n\t≥ 100μs : green\n\t≥ 10μs : cyan\n\t≥ 1μs : blue\n\t< 1μs : grey"),
+			LOCTEXT("CpuThreadTrackColoringMode_ByDuration_Desc", "Assign a color to CPU/GPU timing events based on their duration (inclusive time).\n\t≥ 10ms : red\n\t≥ 1ms : yellow\n\t≥ 100μs : green\n\t≥ 10μs : cyan\n\t≥ 1μs : blue\n\t< 1μs : gray"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &STimingView::SetCpuThreadTrackColoringMode, Insights::ETimingEventsColoringMode::ByDuration),

@@ -721,14 +721,14 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 				}
 				else if (Token.StartsWith(StartTimeToken))
 				{
-					// Default: -startTime=-infinte
+					// Default: -startTime=-infinite
 					// Example: -startTime=10.0
 					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
 					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
 				}
 				else if (Token.StartsWith(EndTimeToken))
 				{
-					// Default: -endTime=+infinte
+					// Default: -endTime=+infinite
 					// Example: -endTime=20.0
 					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
 					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
@@ -809,14 +809,14 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 				}
 				else if (Token.StartsWith(StartTimeToken))
 				{
-					// Default: -startTime=-infinte
+					// Default: -startTime=-infinite
 					// Example: -startTime=10.0
 					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
 					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
 				}
 				else if (Token.StartsWith(EndTimeToken))
 				{
-					// Default: -endTime=+infinte
+					// Default: -endTime=+infinite
 					// Example: -endTime=20.0
 					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
 					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));

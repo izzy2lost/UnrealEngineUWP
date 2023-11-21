@@ -480,4 +480,48 @@ void FTimingEventsTrack::DrawSelectedEventInfo(const FString& InText, const FTim
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FTimingEventsTrack::DrawSelectedEventInfoEx(const FString& InText, const FString& InLeftText, const FString& InTopText, const FTimingTrackViewport& Viewport, const FDrawContext& DrawContext, const FSlateBrush* WhiteBrush, const FSlateFontInfo& Font) const
+{
+	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	const float FontScale = DrawContext.Geometry.Scale;
+
+	const FLinearColor BackgroundColor(0.05f, 0.05f, 0.05f, 1.0f);
+	const FLinearColor TextColor(0.7f, 0.7f, 0.7f, 1.0f);
+	const FLinearColor LeftTextColor(0.9f, 0.9f, 0.5f, 1.0f);
+	const FLinearColor TopTextColor(0.3f, 0.3f, 0.3f, 1.0f);
+
+	const FVector2D Size = FontMeasureService->Measure(InText, Font, FontScale) / FontScale;
+	const float W = static_cast<float>(Size.X);
+	const float H = static_cast<float>(Size.Y);
+	const float X = Viewport.GetWidth() - W - 23.0f;
+	const float Y = Viewport.GetPosY() + Viewport.GetHeight() - H - 18.0f;
+	DrawContext.DrawBox(DrawContext.LayerId, X - 8.0f, Y - 2.0f, W + 16.0f, H + 4.0f, WhiteBrush, BackgroundColor);
+	DrawContext.DrawText(DrawContext.LayerId + 1, X, Y, InText, Font, TextColor);
+
+	if (InLeftText.Len() > 0)
+	{
+		const FVector2D Size2 = FontMeasureService->Measure(InLeftText, Font, FontScale) / FontScale;
+		const float W2 = static_cast<float>(Size2.X);
+		const float H2 = static_cast<float>(Size2.Y);
+		const float X2 = X - W2 - 4.0f;
+		const float Y2 = Y;
+		DrawContext.DrawBox(DrawContext.LayerId, X2 - 8.0f, Y2 - 2.0f, W2 + 16.0f, H2 + 4.0f, WhiteBrush, BackgroundColor);
+		DrawContext.DrawText(DrawContext.LayerId + 1, X2, Y2, InLeftText, Font, LeftTextColor);
+	}
+	if (InTopText.Len() > 0)
+	{
+		const FVector2D Size2 = FontMeasureService->Measure(InTopText, Font, FontScale) / FontScale;
+		const float W2 = static_cast<float>(Size2.X);
+		const float H2 = static_cast<float>(Size2.Y);
+		const float X2 = Viewport.GetWidth() - W2 - 23.0f;
+		const float Y2 = Y - H2 - 4.0f;
+		DrawContext.DrawBox(DrawContext.LayerId, X2 - 8.0f, Y2 - 2.0f, W2 + 16.0f, H2 + 4.0f, WhiteBrush, BackgroundColor);
+		DrawContext.DrawText(DrawContext.LayerId + 1, X2, Y2, InTopText, Font, TopTextColor);
+	}
+
+	DrawContext.LayerId += 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #undef LOCTEXT_NAMESPACE
