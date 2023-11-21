@@ -490,6 +490,11 @@ bool UPCGPointData::SamplePoint(const FTransform& InTransform, const FBox& InBou
 
 bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
 {
+	return ProjectPoint(InTransform, InBounds, InParams, OutPoint, OutMetadata, true);
+}
+
+bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata, bool bUseBounds) const
+{
 	//TRACE_CPUPROFILER_EVENT_SCOPE(UPCGPointData::SamplePoint);
 	if (bOctreeIsDirty)
 	{
@@ -502,7 +507,8 @@ bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBo
 	if (!bSampleInVolume)
 	{
 		const FVector InPosition = InTransform.GetLocation();
-		Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(InPosition, FVector::Zero()), [&InPosition, &Contributions](const FPCGPointRef& InPointRef) {
+		Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(InPosition, FVector::Zero()), [&InPosition, &Contributions](const FPCGPointRef& InPointRef) 
+		{
 			Contributions.Emplace(InPointRef.Point, PCGPointHelpers::InverseEuclidianDistance(*InPointRef.Point, InPosition));
 		});
 	}
@@ -511,8 +517,9 @@ bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBo
 		FBox TransformedBounds = InBounds.TransformBy(InTransform);
 		FMatrix InTransformInverseMatrix = InTransform.ToMatrixWithScale().Inverse();
 
-		Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(TransformedBounds.GetCenter(), TransformedBounds.GetExtent()), [&InBounds, &InTransformInverseMatrix, &Contributions](const FPCGPointRef& InPointRef) {
-			float Contribution = PCGPointHelpers::VolumeOverlap(*InPointRef.Point, InBounds, InTransformInverseMatrix);
+		Octree.FindElementsWithBoundsTest(FBoxCenterAndExtent(TransformedBounds.GetCenter(), TransformedBounds.GetExtent()), [bUseBounds, &InBounds, &InTransformInverseMatrix, &Contributions](const FPCGPointRef& InPointRef) 
+		{
+			const FVector::FReal Contribution = bUseBounds ? PCGPointHelpers::VolumeOverlap(*InPointRef.Point, InBounds, InTransformInverseMatrix) : 1.0;
 			if (Contribution > 0)
 			{
 				Contributions.Emplace(InPointRef.Point, Contribution);
@@ -576,7 +583,7 @@ bool UPCGPointData::ProjectPoint(const FTransform& InTransform, const FBox& InBo
 		}
 		else
 		{
-			WeightedDensity += SourcePoint.Density * Contribution.Value * DensityNormalizationFactor;
+			WeightedDensity += SourcePoint.Density * (bUseBounds ? (Contribution.Value * DensityNormalizationFactor) : Weight);
 		}
 
 		WeightedBoundsMin += SourcePoint.BoundsMin * Weight;

@@ -120,6 +120,8 @@ public:
 
 	const PointOctree& GetOctree() const;
 
+	bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata, bool bUseBounds) const;
+
 protected:
 	void RebuildOctree() const;
 	void RecomputeBounds() const;
