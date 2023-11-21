@@ -46,6 +46,7 @@
 #include "MaterialHLSLGenerator.h"
 #include "MaterialHLSLEmitter.h"
 #include "HLSLTree/HLSLTreeCommon.h"
+#include "Shader/PreshaderEvaluate.h"
 #endif
 #if WITH_ODSC
 #include "ODSC/ODSCManager.h"
@@ -73,6 +74,14 @@ namespace MaterialSharedCookStats
 			));
 		});
 }
+#endif
+
+#if WITH_EDITOR
+static TAutoConsoleVariable<bool> CVarMaterialEdPreshaderDumpToHLSL(
+	TEXT("r.MaterialEditor.PreshaderDumpToHLSL"),
+	true,
+	TEXT("Controls whether to append preshader expressions and parameter reference counts to the HLSL source window (as comments at the end of the code)."),
+	ECVF_RenderThreadSafe);
 #endif
 
 IMPLEMENT_TYPE_LAYOUT(FHashedMaterialParameterInfo);
@@ -4332,6 +4341,72 @@ bool FMaterial::GetMaterialExpressionSource( FString& OutSource )
 		if (Source)
 		{
 			OutSource = MoveTemp(*Source);
+
+			if (CVarMaterialEdPreshaderDumpToHLSL.GetValueOnGameThread())
+			{
+				OutSource.AppendChar('\n');
+
+				TMap<FString, uint32> ParameterReferences;
+				FMaterialRenderContext MaterialContext(nullptr, *this, nullptr);
+				UE::Shader::FPreshaderDataContext PreshaderContextBase(NewCompilationOutput.UniformExpressionSet.UniformPreshaderData);
+				for (int32 PreshaderIndex = 0; PreshaderIndex < NewCompilationOutput.UniformExpressionSet.UniformPreshaders.Num(); PreshaderIndex++)
+				{
+					const FMaterialUniformPreshaderHeader& PreshaderHeader = NewCompilationOutput.UniformExpressionSet.UniformPreshaders[PreshaderIndex];
+					const FMaterialUniformPreshaderField& PreshaderField = NewCompilationOutput.UniformExpressionSet.UniformPreshaderFields[PreshaderIndex];
+
+					UE::Shader::FPreshaderDataContext PreshaderContext(PreshaderContextBase, PreshaderHeader.OpcodeOffset, PreshaderHeader.OpcodeSize);
+					FString PreshaderDebug = PreshaderGenerateDebugString(&NewCompilationOutput.UniformExpressionSet, MaterialContext, PreshaderContext, &ParameterReferences);
+
+					// If this is a numeric field, add a swizzle for it
+					const TCHAR* SwizzleSuffix = TEXT("");
+					if (((uint8)PreshaderField.Type >= (uint8)UE::Shader::EValueType::Float1 && (uint8)PreshaderField.Type <= (uint8)UE::Shader::EValueType::Float4) ||
+						((uint8)PreshaderField.Type >= (uint8)UE::Shader::EValueType::Int1 && (uint8)PreshaderField.Type <= (uint8)UE::Shader::EValueType::Int4) ||
+						((uint8)PreshaderField.Type >= (uint8)UE::Shader::EValueType::Bool1 && (uint8)PreshaderField.Type <= (uint8)UE::Shader::EValueType::Bool4))
+					{
+						UE::Shader::FType ShaderType(PreshaderField.Type);
+
+						// First axis is offset, second axis is number of components (minus one)
+						static const TCHAR* SwizzleTable[4][4] =
+						{
+							{ TEXT(".x"), TEXT(".xy"), TEXT(".xyz"), TEXT(".xyzw") },
+							{ TEXT(".y"), TEXT(".yz"), TEXT(".yzw"), TEXT(".yzw?") },
+							{ TEXT(".z"), TEXT(".zw"), TEXT(".zw?"), TEXT(".zw??") },
+							{ TEXT(".w"), TEXT(".w?"), TEXT(".w??"), TEXT(".w???") },
+						};
+						SwizzleSuffix = SwizzleTable[PreshaderField.BufferOffset % 4][ShaderType.GetNumComponents() - 1];
+					}
+
+					OutSource.Appendf(TEXT("// PreshaderBuffer[%d]%s = %s\n"), PreshaderField.BufferOffset / 4, SwizzleSuffix, *PreshaderDebug);
+				}
+
+				// Sort parameter references by frequency
+				TArray<FSetElementId> ParameterReferencesSort;
+				ParameterReferencesSort.Reserve(ParameterReferences.Num());
+				for (auto ParameterReferenceIt = ParameterReferences.CreateConstIterator(); ParameterReferenceIt; ++ParameterReferenceIt)
+				{
+					ParameterReferencesSort.Add(ParameterReferenceIt.GetId());
+				}
+				Algo::Sort(ParameterReferencesSort, [&ParameterReferences](const FSetElementId& A, const FSetElementId& B)
+					{
+						const auto& ParameterReferenceA = ParameterReferences.Get(A);
+						const auto& ParameterReferenceB = ParameterReferences.Get(B);
+						if (ParameterReferenceA.Value != ParameterReferenceB.Value)
+						{
+							// Descending count
+							return ParameterReferenceA.Value > ParameterReferenceB.Value;
+						}
+						return ParameterReferenceA.Key < ParameterReferenceB.Key;
+					});
+
+				// Print parameter references
+				OutSource.Append("\n// Preshader parameter reference counts:\n");
+
+				for (int32 ParameterReferenceIndex = 0; ParameterReferenceIndex < ParameterReferencesSort.Num(); ++ParameterReferenceIndex)
+				{
+					const auto& ParameterReference = ParameterReferences.Get(ParameterReferencesSort[ParameterReferenceIndex]);
+					OutSource.Appendf(TEXT("// Param[\"%s\"] = %d\n"), *ParameterReference.Key, ParameterReference.Value);
+				}
+			}
 			return true;
 		}
 	}
@@ -4339,6 +4414,29 @@ bool FMaterial::GetMaterialExpressionSource( FString& OutSource )
 #else
 	UE_LOG(LogMaterial, Fatal,TEXT("Not supported."));
 	return false;
+#endif
+}
+
+void FMaterial::GetPreshaderStats(uint32& TotalParameters, uint32& TotalOps) const
+{
+	TotalParameters = 0;
+	TotalOps = 0;
+
+#if WITH_EDITORONLY_DATA
+	const FMaterialShaderMap* ShaderMap = GetGameThreadShaderMap();
+	if (ShaderMap)
+	{
+		const FUniformExpressionSet& UniformExpressionSet = ShaderMap->GetUniformExpressionSet();
+		FMaterialRenderContext MaterialContext(nullptr, *this, nullptr);
+		UE::Shader::FPreshaderDataContext PreshaderContextBase(UniformExpressionSet.UniformPreshaderData);
+		for (const FMaterialUniformPreshaderHeader& PreshaderHeader : UniformExpressionSet.UniformPreshaders)
+		{
+			UE::Shader::FPreshaderDataContext PreshaderContext(PreshaderContextBase, PreshaderHeader.OpcodeOffset, PreshaderHeader.OpcodeSize);
+			PreshaderComputeDebugStats(&UniformExpressionSet, MaterialContext, PreshaderContext, TotalParameters, TotalOps);
+		}
+	}
+#else
+	UE_LOG(LogMaterial, Fatal,TEXT("GetPreshaderStats is only supported for WITH_EDITOR builds."));
 #endif
 }
 

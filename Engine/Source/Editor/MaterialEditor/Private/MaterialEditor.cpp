@@ -3159,6 +3159,14 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 					TSharedRef<FTokenizedMessage> ShaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
 					ShaderCountLine->AddToken(FTextToken::Create(FText::FromString(ShaderCountString)));
 					Messages.Add(ShaderCountLine);
+
+					// Add number of preshaders and stats
+					uint32 TotalParams, TotalOps;
+					MaterialResource->GetPreshaderStats(TotalParams, TotalOps);
+					FString PreshaderCountString = FString::Printf(TEXT("Preshaders: %u  (%u param fetches, %u ops)"), ShaderMap->GetNumPreshaders(), TotalParams, TotalOps);
+					TSharedRef<FTokenizedMessage> PreshaderCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+					PreshaderCountLine->AddToken(FTextToken::Create(FText::FromString(PreshaderCountString)));
+					Messages.Add(PreshaderCountLine);
 				}
 			}
 

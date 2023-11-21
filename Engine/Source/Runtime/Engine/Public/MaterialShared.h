@@ -1431,6 +1431,7 @@ public:
 		CopyAssignItems(Result.GetData(), GetContent()->MaterialCompilationOutput.EstimatedLWCFuncUsages, (int)ELWCFunctionKind::Max);
 		return Result;
 	}
+	uint32 GetNumPreshaders() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.UniformPreshaders.Num(); }
 #endif
 	uint32 GetNumVirtualTextureStacks() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.VTStacks.Num(); }
 	uint8 GetRuntimeVirtualTextureOutputAttributeMask() const { return GetContent()->MaterialCompilationOutput.RuntimeVirtualTextureOutputAttributeMask; }
@@ -2273,6 +2274,9 @@ public:
 	* @return - true on Success
 	*/
 	ENGINE_API bool GetMaterialExpressionSource(FString& OutSource);
+
+	/** Returns summary statistics for preshaders */
+	ENGINE_API void GetPreshaderStats(uint32& TotalParameters, uint32& TotalOps) const;
 
 	/* Helper function to look at both IsMasked and IsDitheredLODTransition to determine if it writes every pixel */
 	ENGINE_API bool WritesEveryPixel(bool bShadowPass = false) const;
