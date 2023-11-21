@@ -96,6 +96,9 @@ public:
 	/* Hide parents on filter */
 	TSharedPtr< FUICommandInfo > HideParentsWhenFiltering;
 
+	/* Show short names */
+	TSharedPtr< FUICommandInfo > ShowShortNames;
+
 	/* Show imported bones */
 	TSharedPtr< FUICommandInfo > ShowImportedBones;
 

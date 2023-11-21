@@ -118,8 +118,6 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SRigHierarchy::HandleRefreshEditorFromBlueprint);
 	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SRigHierarchy::HandleSetObjectBeingDebugged);
 
-	DisplaySettings.bUseShortName = !ControlRigBlueprint->IsModularRig();
-
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
 
@@ -424,6 +422,12 @@ void SRigHierarchy::BindCommands()
 		FExecuteAction::CreateLambda([this]() { DisplaySettings.bHideParentsOnFilter = !DisplaySettings.bHideParentsOnFilter; RefreshTreeView(); }),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bHideParentsOnFilter; }));
+
+	CommandList->MapAction(
+		Commands.ShowShortNames,
+		FExecuteAction::CreateLambda([this]() { DisplaySettings.bUseShortName = !DisplaySettings.bUseShortName; RefreshTreeView(); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bUseShortName; }));
 
 	CommandList->MapAction(
 		Commands.ShowImportedBones,
@@ -1044,6 +1048,7 @@ TSharedRef< SWidget > SRigHierarchy::CreateFilterMenu()
 	{
 		MenuBuilder.AddMenuEntry(Actions.FilteringFlattensHierarchy);
 		MenuBuilder.AddMenuEntry(Actions.HideParentsWhenFiltering);
+		MenuBuilder.AddMenuEntry(Actions.ShowShortNames);
 	}
 	MenuBuilder.EndSection();
 
@@ -1838,11 +1843,6 @@ bool SRigHierarchy::IsNonProceduralElementSelected() const
 
 bool SRigHierarchy::CanAddElement(const ERigElementType ElementType) const
 {
-	if (IsProceduralElementSelected())
-	{
-		return false;
-	}
-
 	// Always allow connectors 
 	if (ElementType == ERigElementType::Connector)
 	{

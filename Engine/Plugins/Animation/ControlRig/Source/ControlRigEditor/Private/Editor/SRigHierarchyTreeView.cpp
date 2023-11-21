@@ -515,7 +515,14 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 								const FRigElementKey ConnectorKey = InElement->GetKey();
 
 								SRigHierarchyTagWidget::FArguments TagArguments;
-								TagArguments.Text(FText::FromString(InElement->GetName()));
+
+								FName Name = ConnectorKey.Name;
+								if (GetRigTreeDelegates().GetDisplaySettings().bUseShortName)
+								{
+									Name = Hierarchy->GetNameMetadata(ConnectorKey, URigHierarchy::ShortNameMetadataName, ConnectorKey.Name);
+								}
+								TagArguments.Text(FText::FromName(Name));
+								TagArguments.TooltipText(FText::FromName(ConnectorKey.Name));
 								TagArguments.TextColor(FSlateColor(FLinearColor::White));
 								TagArguments.Color(FLinearColor(0.0, 112.f/255.f, 224.f/255.f));
 								TagArguments.AllowDragDrop(true);

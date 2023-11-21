@@ -1919,10 +1919,13 @@ int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigB
 	FRigName DesiredName = InDesiredName;
 	URigHierarchy::SanitizeName(DesiredName);
 
-	int32 NameSpaceTokenIndex = INDEX_NONE; 
-	if(InElementToAdd->GetName().FindLastChar(':', NameSpaceTokenIndex))
+	// Short name of an element is ModuleName:ElementName (or ElementName if not in a module)
+	FString ModulePath, ElementName = InElementToAdd->GetName();
+	if (ElementName.Split(UModularRig::NamespaceSeparator, &ModulePath, &ElementName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
 	{
-		const FString ShortName = InElementToAdd->GetName().RightChop(NameSpaceTokenIndex + 1);
+		FString ModuleName = ModulePath, ModuleParentPath;
+		ModulePath.Split(UModularRig::NamespaceSeparator, &ModuleParentPath, &ModuleName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		const FString ShortName = FString::Printf(TEXT("%s:%s"), *ModuleName, *ElementName);
 		if(!ShortName.IsEmpty())
 		{
 			Hierarchy->SetNameMetadata(InElementToAdd->Key, URigHierarchy::ShortNameMetadataName, *ShortName);
