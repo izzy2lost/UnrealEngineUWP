@@ -239,7 +239,8 @@ FLinearColor FColorSpace::MakeFromColorTemperature(float Temp) const
 	FVector3d XYZ = FVector3d(1.0 / y * x, 1.0, 1.0 / y * z);
 	FVector4d RGB = XYZToRgb.TransformVector(XYZ);
 
-	return FLinearColor((float)RGB.X, (float)RGB.Y, (float)RGB.Z);
+	// The XYZ to RGB transform can result in negative values, so we need to clamp here.
+	return FLinearColor(FMath::Max(0.0f, (float)RGB.X), FMath::Max(0.0f, (float)RGB.Y), FMath::Max(0.0f, (float)RGB.Z));
 }
 
 float FColorSpace::GetLuminance(const FLinearColor& Color) const

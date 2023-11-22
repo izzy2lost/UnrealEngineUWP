@@ -1532,6 +1532,8 @@ float MaterialExpressionDepthOfFieldFunction(float SceneDepth, int FunctionValue
 // TODO convert to LUT
 float3 MaterialExpressionBlackBody( float Temp )
 {
+	Temp = clamp(Temp, 1000.0f, 15000.0f);
+
 	float u = ( 0.860117757f + 1.54118254e-4f * Temp + 1.28641212e-7f * Temp*Temp ) / ( 1.0f + 8.42420235e-4f * Temp + 7.08145163e-7f * Temp*Temp );
 	float v = ( 0.317398726f + 4.22806245e-5f * Temp + 4.20481691e-8f * Temp*Temp ) / ( 1.0f - 2.89741816e-5f * Temp + 1.61456053e-7f * Temp*Temp );
 
@@ -1550,7 +1552,8 @@ float3 MaterialExpressionBlackBody( float Temp )
 		 0.0556434, -0.2040259,  1.0572252,
 	};
 
-	return mul( XYZtoRGB, float3( X, Y, Z ) ) * pow( 0.0004 * Temp, 4 );
+	// The XYZtoRGB transform can result in negative values, so we need to clamp here.
+	return max( 0.0f, mul( XYZtoRGB, float3( X, Y, Z ) ) ) * pow( 0.0004 * Temp, 4 );
 }
 
 float2 MaterialExpressionGetHairRootUV(FMaterialPixelParameters Parameters)

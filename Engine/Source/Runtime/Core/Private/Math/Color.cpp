@@ -511,7 +511,8 @@ FLinearColor FLinearColor::MakeFromColorTemperature( float Temp )
 	float G = -0.9692660f * X +  1.8760108f * Y +  0.0415560f * Z;
 	float B =  0.0556434f * X + -0.2040259f * Y +  1.0572252f * Z;
 
-	return FLinearColor(R,G,B);
+	// The XYZ to RGB transform can result in negative values, so we need to clamp here.
+	return FLinearColor(FMath::Max(0.0f, R), FMath::Max(0.0f, G), FMath::Max(0.0f, B));
 }
 
 FLinearColor FLinearColor::MakeRandomSeededColor(int32 Seed)
