@@ -146,7 +146,7 @@ struct FGameInstancePIEParameters
 
 enum class EInputDeviceConnectionState : uint8;
 
-DECLARE_EVENT_OneParam(UGameInstance, FOnLocalPlayerEvent, ULocalPlayer*);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLocalPlayerEvent, ULocalPlayer*);
 
 /**
  * GameInstance: high-level manager object for an instance of the running game.
