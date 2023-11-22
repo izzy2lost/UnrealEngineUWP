@@ -5,6 +5,7 @@
 
 #include "Bindings/MVVMConversionFunctionHelper.h"
 #include "Bindings/MVVMBindingHelper.h"
+#include "Bindings/MVVMFieldPathHelper.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "MVVMDeveloperProjectSettings.h"
@@ -219,88 +220,21 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 		return nullptr;
 	}
 
-	if (DestinationPath.GetFieldPaths().Num() > 0)
-	{
-		const FMVVMBlueprintFieldPath& LastPath = DestinationPath.GetFieldPaths().Last();
-		UE::MVVM::FMVVMConstFieldVariant LastField = LastPath.GetField(GetWidgetBlueprintInternal()->SkeletonGeneratedClass);
-		if (LastField.IsFunction() && LastField.GetFunction() != nullptr)
-		{
-			return CreateWrapperGraphInternal(DelegateSignature, LastField.GetFunction());
-		}
-		else if (LastField.IsProperty() && LastField.GetProperty() != nullptr)
-		{
-			return CreateWrapperGraphInternal(DelegateSignature, LastField.GetProperty());
-		}
-	}
-	else if (DestinationPath.GetViewModelId().IsValid())
-	{
-		const FMVVMBlueprintViewModelContext* Context = GetOuterUMVVMBlueprintView()->FindViewModel(DestinationPath.GetViewModelId());
-		const FProperty* ViewModel = Context ? GetWidgetBlueprintInternal()->SkeletonGeneratedClass->FindPropertyByName(Context->GetViewModelName()) : nullptr;
-		if (ViewModel)
-		{
-			return CreateWrapperGraphInternal(DelegateSignature, ViewModel);
-		}
-	}
-	return nullptr;
-}
-
-UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* DelegateSignature, const UFunction* Function)
-{
 	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
 	bool bIsConst = false;
 	bool bTransient = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, Function, bIsConst, bTransient);
-	SetCachedWrapperGraphInternal(Result.Get<0>(), Result.Get<1>());
-
-	// Add SelfNode if needed
-	if (CachedWrapperNode)
+	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateSetterGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient);
+	if (CreateSetterGraphResult.HasError())
 	{
-		if (UEdGraphPin* SelfPin = CachedWrapperNode->FindPin(UEdGraphSchema_K2::PSC_Self))
-		{
-			FMVVMBlueprintPropertyPath PathToSet = DestinationPath;
-			TArray<UE::MVVM::FMVVMConstFieldVariant> FieldPaths = PathToSet.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-			PathToSet.ResetPropertyPath();
-			for (int32 Index = 0; Index < FieldPaths.Num() - 1; ++Index)
-			{
-				PathToSet.AppendPropertyPath(WidgetBlueprint, FieldPaths[Index]);
-			}
-			;
-			UE::MVVM::ConversionFunctionHelper::SetPropertyPathForPin(WidgetBlueprint, PathToSet, SelfPin);
-		}
+		SetCachedWrapperGraphInternal(nullptr, nullptr);
+		return nullptr;
+	}
+	else
+	{
+		SetCachedWrapperGraphInternal(CreateSetterGraphResult.GetValue().NewGraph, CreateSetterGraphResult.GetValue().WrappedNode);
+		LoadPinValuesInternal();
 	}
 
-	LoadPinValuesInternal();
-	return CachedWrapperGraph;
-}
-
-UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal(const UFunction* DelegateSignature, const FProperty* Property)
-{
-	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
-	bool bConst = false;
-	bool bTransient = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(WidgetBlueprint, GraphName, DelegateSignature, UK2Node_VariableSet::StaticClass(), bConst, bTransient,
-		[WidgetBlueprint, Property](UK2Node* NewNode)
-		{
-			UK2Node_VariableSet* VariableNode = CastChecked<UK2Node_VariableSet>(NewNode);
-			UEdGraphSchema_K2::ConfigureVarNode(VariableNode, Property->GetFName(), Property->GetOwnerStruct(), WidgetBlueprint);
-		});
-	SetCachedWrapperGraphInternal(Result.Get<0>(), Result.Get<1>());
-
-	// Add SelfNode
-	if (CachedWrapperNode)
-	{
-		FMVVMBlueprintPropertyPath PathToSet = DestinationPath;
-		TArray<UE::MVVM::FMVVMConstFieldVariant> FieldPaths = PathToSet.GetFields(WidgetBlueprint->SkeletonGeneratedClass);
-		PathToSet.ResetPropertyPath();
-		for (int32 Index = 0; Index < FieldPaths.Num() - 1; ++Index)
-		{
-			PathToSet.AppendPropertyPath(WidgetBlueprint, FieldPaths[Index]);
-		}
-		UEdGraphPin* SelfPin = CachedWrapperNode->FindPinChecked(UEdGraphSchema_K2::PSC_Self);
-		UE::MVVM::ConversionFunctionHelper::SetPropertyPathForPin(WidgetBlueprint, PathToSet, SelfPin);
-	}
-
-	LoadPinValuesInternal();
 	return CachedWrapperGraph;
 }
 

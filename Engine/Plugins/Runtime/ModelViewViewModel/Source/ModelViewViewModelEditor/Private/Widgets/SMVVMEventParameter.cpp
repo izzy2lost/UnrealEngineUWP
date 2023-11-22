@@ -37,33 +37,34 @@ void SEventParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* InWi
 
 	bAllowDefault = InArgs._AllowDefault;
 
-	UEdGraphPin* Pin = InArgs._Event->GetOrCreateGraphPin(ParameterName);
-	check(Pin);
-
-	bool bIsBooleanPin = Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean;
+	bool bIsBooleanPin = false;
 	TSharedRef<SWidget> ValueWidget = SNullWidget::NullWidget;
-	// create a new pin widget so that we can get the default value widget out of it
-	if (TSharedPtr<SGraphPin> PinWidget = FNodeFactory::CreatePinWidget(Pin))
+	if (UEdGraphPin* Pin = InArgs._Event->GetOrCreateGraphPin(ParameterName))
 	{
-		GraphPin = PinWidget;
-		ValueWidget = PinWidget->GetDefaultValueWidget();
-	}
+		bIsBooleanPin = Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean;
+		// create a new pin widget so that we can get the default value widget out of it
+		if (TSharedPtr<SGraphPin> PinWidget = FNodeFactory::CreatePinWidget(Pin))
+		{
+			GraphPin = PinWidget;
+			ValueWidget = PinWidget->GetDefaultValueWidget();
+		}
 
-	if (ValueWidget == SNullWidget::NullWidget)
-	{
-		ValueWidget = SNew(STextBlock)
-			.Text(LOCTEXT("DefaultValue", "Default Value"))
-			.TextStyle(FAppStyle::Get(), "HintText");
-	}
-	// booleans are represented by a checkbox which doesn't expand to the minsize we have, so don't put a border around them
-	else if (!bIsBooleanPin)
-	{
-		ValueWidget = SNew(SBorder)
-			.Padding(0.0f)
-			.BorderImage(FMVVMEditorStyle::Get().GetBrush("FunctionParameter.Border"))
-			[
-				ValueWidget
-			];
+		if (ValueWidget == SNullWidget::NullWidget)
+		{
+			ValueWidget = SNew(STextBlock)
+				.Text(LOCTEXT("DefaultValue", "Default Value"))
+				.TextStyle(FAppStyle::Get(), "HintText");
+		}
+		// booleans are represented by a checkbox which doesn't expand to the minsize we have, so don't put a border around them
+		else if (!bIsBooleanPin)
+		{
+			ValueWidget = SNew(SBorder)
+				.Padding(0.0f)
+				.BorderImage(FMVVMEditorStyle::Get().GetBrush("FunctionParameter.Border"))
+				[
+					ValueWidget
+				];
+		}
 	}
 
 	FMVVMBlueprintPropertyPath Path = OnGetSelectedField();

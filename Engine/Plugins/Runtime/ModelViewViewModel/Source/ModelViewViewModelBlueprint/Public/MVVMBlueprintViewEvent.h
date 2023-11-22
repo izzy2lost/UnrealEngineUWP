@@ -127,8 +127,6 @@ private:
 	UWidgetBlueprint* GetWidgetBlueprintInternal() const;
 	void SetCachedWrapperGraphInternal(UEdGraph* Graph, UK2Node* Node);
 	UEdGraph* CreateWrapperGraphInternal();
-	UEdGraph* CreateWrapperGraphInternal(const UFunction* Signature, const UFunction* Function);
-	UEdGraph* CreateWrapperGraphInternal(const UFunction* Signature, const FProperty* Property);
 	void LoadPinValuesInternal();
 
 private:

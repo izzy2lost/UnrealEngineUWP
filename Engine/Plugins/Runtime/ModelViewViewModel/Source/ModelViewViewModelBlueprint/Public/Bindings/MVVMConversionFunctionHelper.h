@@ -5,6 +5,7 @@
 #include "Containers/Map.h"
 #include "Templates/Function.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/ValueOrError.h"
 
 struct FMVVMBlueprintPropertyPath;
 struct FMVVMBlueprintViewBinding;
@@ -17,6 +18,7 @@ class UK2Node;
 class UK2Node_CallFunction;
 class FKismetCompilerContext;
 class UMVVMBlueprintView;
+namespace UE::MVVM { struct FMVVMConstFieldVariant; }
 
 namespace UE::MVVM::ConversionFunctionHelper
 {
@@ -33,13 +35,31 @@ namespace UE::MVVM::ConversionFunctionHelper
 	MODELVIEWVIEWMODELBLUEPRINT_API FMVVMBlueprintPropertyPath GetPropertyPathForPin(const UBlueprint* WidgetBlueprint, const UEdGraphPin* Pin, bool bSkipResolve);
 	
 	/** Set the property path of a given argument in the conversion function. */
-	MODELVIEWVIEWMODELBLUEPRINT_API void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintPropertyPath& Path, UEdGraphPin* Pin);
+	MODELVIEWVIEWMODELBLUEPRINT_API void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintPropertyPath& PropertyPath, UEdGraphPin* Pin);
 	
 	/** Find the property path of a given argument in the conversion function. */
 	MODELVIEWVIEWMODELBLUEPRINT_API FMVVMBlueprintPropertyPath GetPropertyPathForArgument(const UBlueprint* WidgetBlueprint, const UK2Node_CallFunction* Function, FName ArgumentName, bool bSkipResolve);
 
 	/** Create the name of the conversion function wrapper this binding should have. */
 	MODELVIEWVIEWMODELBLUEPRINT_API FName CreateWrapperName(const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination);
+
+	/**
+	 * If we can create a graph to set a property/function.
+	 */
+	MODELVIEWVIEWMODELBLUEPRINT_API TValueOrError<void, FText> CanCreateSetterGraph(UBlueprint* WidgetBlueprint, const FMVVMBlueprintPropertyPath& PropertyPath);
+
+	struct FCreateSetterGraphResult
+	{
+		/** The new graph created. */
+		UEdGraph* NewGraph = nullptr;
+		/** Node that owns the pins. */
+		UK2Node* WrappedNode = nullptr;
+	};
+
+	/**
+	 * Create a graph to set a property/function.
+	 */
+	MODELVIEWVIEWMODELBLUEPRINT_API TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient);
 
 	/** */
 	MODELVIEWVIEWMODELBLUEPRINT_API TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient);
