@@ -1,0 +1,8 @@
+{
+	"TargetPlatformName": "Win64",
+	"SharedLibraryExtension": "dll",
+	"ModelCompilationCommand": "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Win64/iree-compile.exe",
+	"ModelCompilationArguments": "--iree-input-type=auto --iree-llvmcpu-target-triple=x86_64-pc-windows-msvc --iree-hal-target-backends=llvm-cpu --iree-llvmcpu-link-embedded=false --iree-llvmcpu-link-static --iree-llvmcpu-static-library-output-path=\"${OBJECT_PATH}\" --output-format=vm-bytecode -o \"${ADDITIONAL_OUTPUT_PATH}\" \"${INPUT_PATH}\"",
+	"SharedLibraryCompilationCommand": "${WIN_TOOLCHAIN_PATH}/bin/Hostx64/x64/link.exe",
+	"SharedLibraryCompilationArguments": "/DLL /NOENTRY /OUT:\"${SHARED_LIB_PATH}\" \"${OBJECT_PATH}\" \"${WIN_TOOLCHAIN_PATH}/lib/x64/libcmt.lib\" \"${WIN_TOOLCHAIN_PATH}/lib/x64/libvcruntime.lib\" \"${WIN_SDK_LIB_PATH}/ucrt/x64/libucrt.lib\" \"${WIN_SDK_LIB_PATH}/um/x64/Uuid.lib\" \"${WIN_SDK_LIB_PATH}/um/x64/kernel32.lib\""
+}
