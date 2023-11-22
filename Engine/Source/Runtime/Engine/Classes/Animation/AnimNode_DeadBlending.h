@@ -3,7 +3,6 @@
 #pragma once
 
 #include "AnimNode_Inertialization.h"
-#include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 #include "AnimNode_DeadBlending.generated.h"
 
 /**
@@ -75,6 +74,13 @@ private:
 	UPROPERTY(EditAnywhere, Category = Filter)
 	TArray<FName> FilteredCurves;
 
+	/**
+	 * List of curves that will not be included in the extrapolation. Curves in this list will effectively act like they have had their value reset 
+	 * to zero at the point of the transition, and will be blended in with the curve values in the animation that is being transitioned to.
+	 */ 
+	UPROPERTY(EditAnywhere, Category = Filter)
+	TArray<FName> ExtrapolationFilteredCurves;
+
 	// List of bones that should not use inertial blending. These bones will change instantly when the animation switches.
 	UPROPERTY(EditAnywhere, Category = Filter)
 	TArray<FBoneReference> FilteredBones;
@@ -132,14 +138,6 @@ private:
 	float MaximumCurveVelocity = 100.0f;
 
 	/**
-	 * Enable this to pre-allocate memory for the node rather than to allocate and deallocate memory when blending 
-	 * becomes active and inactive. This improves performance, but causes larger memory usage, in particular when you 
-	 * have multiple Dead Blending nodes in an animation graph that are not all used at once.
-	 */
-	UPROPERTY(EditAnywhere, Category = Memory)
-	bool bPreallocateMemory = false;
-
-	/**
 	* Clear any active blends if we just became relevant, to avoid carrying over undesired blends.
 	*/	
 	UPROPERTY(EditAnywhere, Category = Blending)
@@ -175,7 +173,7 @@ public: // FAnimNode_Base
 private:
 	
 	/**
-	 * Deactivates the inertialization and frees any temporary memory (unless bPreallocateMemory is set).
+	 * Deactivates the inertialization and frees any temporary memory.
 	 */
 	void Deactivate();
 
@@ -209,6 +207,9 @@ private:
 	// Cached curve filter built from FilteredCurves
 	UE::Anim::FCurveFilter CurveFilter;
 
+	// Cached curve filter built from ExtrapolationFilteredCurves
+	UE::Anim::FCurveFilter ExtrapolatedCurveFilter;
+
 	// Cache compact pose bone index for FilteredBones
 	TArray<FCompactPoseBoneIndex, TInlineAllocator<8>> BoneFilter;
 
@@ -227,7 +228,7 @@ private:
 
 	// Recorded pose state at point of transition.
 
-	TArray<uint16> BoneIndices;
+	TArray<int32> BoneIndices;
 	
 	TArray<FVector> BoneTranslations;
 	TArray<FQuat> BoneRotations;
@@ -252,7 +253,11 @@ private:
 		FDeadBlendingCurveElement() = default;
 	};
 
+	// Recorded curve state at the point of transition
 	TBaseBlendedCurve<TInlineAllocator<8>, FDeadBlendingCurveElement> CurveData;
+
+	// Temporary storage for curve data of the Destination Pose
+	TBaseBlendedCurve<TInlineAllocator<8>, UE::Anim::FCurveElement> PoseCurveData;
 
 private:
 
