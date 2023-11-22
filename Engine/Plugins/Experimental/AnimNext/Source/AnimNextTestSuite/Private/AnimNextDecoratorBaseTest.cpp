@@ -36,13 +36,13 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_DECORATOR_INTERFACE(IInterfaceA, 0x34cb8e62)
 
-		virtual void FuncA(FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const;
+		virtual void FuncA(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const;
 	};
 
 	template<>
 	struct TDecoratorBinding<IInterfaceA> : FDecoratorBinding
 	{
-		void FuncA(FExecutionContext& Context) const
+		void FuncA(const FExecutionContext& Context) const
 		{
 			GetInterface()->FuncA(Context, *this);
 		}
@@ -51,7 +51,7 @@ namespace UE::AnimNext
 		const IInterfaceA* GetInterface() const { return GetInterfaceTyped<IInterfaceA>(); }
 	};
 
-	void IInterfaceA::FuncA(FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const
+	void IInterfaceA::FuncA(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const
 	{
 		TDecoratorBinding<IInterfaceA> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -66,13 +66,13 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_DECORATOR_INTERFACE(IInterfaceB, 0x33cb8ccf)
 
-		virtual void FuncB(FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const;
+		virtual void FuncB(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const;
 	};
 
 	template<>
 	struct TDecoratorBinding<IInterfaceB> : FDecoratorBinding
 	{
-		void FuncB(FExecutionContext& Context) const
+		void FuncB(const FExecutionContext& Context) const
 		{
 			GetInterface()->FuncB(Context, *this);
 		}
@@ -81,7 +81,7 @@ namespace UE::AnimNext
 		const IInterfaceB* GetInterface() const { return GetInterfaceTyped<IInterfaceB>(); }
 	};
 
-	void IInterfaceB::FuncB(FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const
+	void IInterfaceB::FuncB(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const
 	{
 		TDecoratorBinding<IInterfaceB> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -96,13 +96,13 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_DECORATOR_INTERFACE(IInterfaceC, 0x32cb8b3c)
 
-		virtual void FuncC(FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const;
+		virtual void FuncC(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const;
 	};
 
 	template<>
 	struct TDecoratorBinding<IInterfaceC> : FDecoratorBinding
 	{
-		void FuncC(FExecutionContext& Context) const
+		void FuncC(const FExecutionContext& Context) const
 		{
 			GetInterface()->FuncC(Context, *this);
 		}
@@ -111,7 +111,7 @@ namespace UE::AnimNext
 		const IInterfaceC* GetInterface() const { return GetInterfaceTyped<IInterfaceC>(); }
 	};
 
-	void IInterfaceC::FuncC(FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const
+	void IInterfaceC::FuncC(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const
 	{
 		TDecoratorBinding<IInterfaceC> SuperBinding;
 		if (Context.GetInterfaceSuper(Binding, SuperBinding))
@@ -150,7 +150,7 @@ namespace UE::AnimNext
 		};
 
 		// IInterfaceA impl
-		virtual void FuncA(FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
+		virtual void FuncA(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
 		{
 		}
 	};
@@ -189,12 +189,12 @@ namespace UE::AnimNext
 		};
 
 		// IInterfaceA impl
-		virtual void FuncA(FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
+		virtual void FuncA(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
 		{
 		}
 
 		// IInterfaceB impl
-		virtual void FuncB(FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const override
+		virtual void FuncB(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceB>& Binding) const override
 		{
 		}
 	};
@@ -234,12 +234,12 @@ namespace UE::AnimNext
 		};
 
 		// IInterfaceA impl
-		virtual void FuncA(FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
+		virtual void FuncA(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceA>& Binding) const override
 		{
 		}
 
 		// IInterfaceC impl
-		virtual void FuncC(FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const override
+		virtual void FuncC(const FExecutionContext& Context, const TDecoratorBinding<IInterfaceC>& Binding) const override
 		{
 		}
 	};

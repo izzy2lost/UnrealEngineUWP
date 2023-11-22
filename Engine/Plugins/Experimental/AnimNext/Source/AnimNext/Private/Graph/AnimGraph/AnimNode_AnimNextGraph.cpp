@@ -75,8 +75,7 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 			AnimNextGraph->GetCurrentLODParam(), LODLevel
 		);
 
-		FExecutionContext ExecutionContext(GraphInstance);
-		UE::AnimNext::UpdateGraph(ExecutionContext, GraphInstance.GetGraphRootPtr(), Context.GetDeltaTime());
+		UE::AnimNext::UpdateGraph(GraphInstance, Context.GetDeltaTime());
 
 		ParamStack.PopLayer(LayerHandle);
 	}
@@ -154,8 +153,7 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		);
 
 		{
-			FExecutionContext ExecutionContext(GraphInstance);
-			FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(ExecutionContext, GraphInstance.GetGraphRootPtr());
+			const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphInstance);
 
 			FEvaluationVM EvaluationVM(EEvaluationFlags::All, RefPose, LODLevel);
 			bool bHasValidOutput = false;

@@ -160,7 +160,7 @@ public:
 	// IAnimNextScheduleTermInterface interface
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
 
-	// Allocates an instance of the graph, retain the handle and use it with the Run() function to evaluate it
+	// Allocates an instance of the graph
 	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
 
 	// Get the parameter to use to access the reference pose

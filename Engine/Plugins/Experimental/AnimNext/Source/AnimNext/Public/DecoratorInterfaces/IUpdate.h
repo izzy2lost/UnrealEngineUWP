@@ -6,6 +6,7 @@
 #include "DecoratorBase/ExecutionContextProxy.h"
 #include "DecoratorBase/IDecoratorInterface.h"
 
+struct FAnimNextGraphInstance;
 class FMemStack;
 
 namespace UE::AnimNext
@@ -126,7 +127,7 @@ namespace UE::AnimNext
 		// be warmer in the CPU cache
 		FUpdateEntry* FreeEntryStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(const FExecutionContext& Context, const FWeakDecoratorPtr& GraphRootPtr, float DeltaTime);
+		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalQueue;
 	};
 
@@ -154,7 +155,7 @@ namespace UE::AnimNext
 		// emptied and pushed onto the update stack
 		FUpdateEntry* QueuedUpdateStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(const FExecutionContext& Context, const FWeakDecoratorPtr& GraphRootPtr, float DeltaTime);
+		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalContext;
 	};
 
@@ -217,7 +218,6 @@ namespace UE::AnimNext
 
 	/**
 	 * Updates a sub-graph starting at its root.
-	 * Update starts at the top of the stack that includes the graph root decorator.
 	 *
 	 * For each node:
 	 *     - We call PreUpdate on all its decorators
@@ -226,5 +226,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void UpdateGraph(const FExecutionContext& Context, const FWeakDecoratorPtr& GraphRootPtr, float DeltaTime);
+	ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
 }

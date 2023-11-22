@@ -22,8 +22,8 @@ namespace UE::AnimNext
 		void RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakDecoratorPtr& DecoratorPtr, const FDecoratorUpdateState& DecoratorState);
 
 		// FGraphInstanceComponent impl
-		virtual void PreUpdate(FUpdateTraversalContext& Context) override;
-		virtual void PostUpdate(FUpdateTraversalContext& Context) override;
+		virtual void PreUpdate(FExecutionContext& Context) override;
+		virtual void PostUpdate(FExecutionContext& Context) override;
 
 	private:
 		struct FSyncGroupMember

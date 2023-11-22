@@ -13,49 +13,70 @@
 
 namespace UE::AnimNext
 {
-	namespace Private
+	FExecutionContext::FExecutionContext()
+		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
+		, DecoratorRegistry(FDecoratorRegistry::Get())
+		, GraphInstance(nullptr)
 	{
-		static thread_local UE::AnimNext::FExecutionContext* GThreadLocalExecutionContext = nullptr;
 	}
 
 	FExecutionContext::FExecutionContext(FAnimNextGraphInstance& InGraphInstance)
-		: NodeTemplateRegistry(FNodeTemplateRegistry::Get())
-		, DecoratorRegistry(FDecoratorRegistry::Get())
-		, Graph(InGraphInstance.GetGraph())
-		, GraphInstance(&InGraphInstance)
-		, GraphSharedData(Graph->SharedDataBuffer)
+		: FExecutionContext()
 	{
-		// There can be only one execution context alive per thread
-		ensure(Private::GThreadLocalExecutionContext == nullptr);
-		Private::GThreadLocalExecutionContext = this;
+		BindTo(InGraphInstance);
 	}
 
-	FExecutionContext::~FExecutionContext()
+	void FExecutionContext::BindTo(FAnimNextGraphInstance& InGraphInstance)
 	{
-		// There can be only one execution context alive per thread
-		ensure(Private::GThreadLocalExecutionContext == this);
-		Private::GThreadLocalExecutionContext = nullptr;
+		if (GraphInstance == &InGraphInstance)
+		{
+			return;	// Already bound to this graph instance, nothing to do
+		}
+
+		GraphInstance = &InGraphInstance;
+		GraphSharedData = InGraphInstance.GetGraph()->SharedDataBuffer;
+	}
+
+	void FExecutionContext::BindTo(const FWeakDecoratorPtr& DecoratorPtr)
+	{
+		if (const FNodeInstance* NodeInstance = DecoratorPtr.GetNodeInstance())
+		{
+			BindTo(NodeInstance->GetOwner());
+		}
+	}
+
+	bool FExecutionContext::IsBound() const
+	{
+		return GraphInstance != nullptr;
+	}
+
+	bool FExecutionContext::IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const
+	{
+		return GraphInstance == &InGraphInstance;
 	}
 
 	FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FWeakDecoratorPtr& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const
 	{
-		ensure(ChildDecoratorHandle.IsValid());
-		if (!ChildDecoratorHandle.IsValid())
+		if (!ensure(ChildDecoratorHandle.IsValid()))
 		{
 			return FDecoratorPtr();	// Attempting to allocate a node using an invalid decorator handle
+		}
+
+		if (!ensure(IsBound()))
+		{
+			return FDecoratorPtr();	// The execution context must be bound to a valid graph instance
 		}
 
 		const FNodeHandle ChildNodeHandle = ChildDecoratorHandle.GetNodeHandle();
 		const FNodeDescription& NodeDesc = GetNodeDescription(ChildNodeHandle);
 
 		const FNodeTemplate* NodeTemplate = GetNodeTemplate(NodeDesc);
-		ensure(NodeTemplate != nullptr);
-		if (NodeTemplate == nullptr)
+		if (!ensure(NodeTemplate != nullptr))
 		{
 			return FDecoratorPtr();	// Node template wasn't found, node descriptor is perhaps corrupted
 		}
 
-		const uint32_t ChildDecoratorIndex = ChildDecoratorHandle.GetDecoratorIndex();
+		const uint32 ChildDecoratorIndex = ChildDecoratorHandle.GetDecoratorIndex();
 
 		if (ChildDecoratorIndex >= NodeTemplate->GetNumDecorators())
 		{
@@ -79,7 +100,7 @@ namespace UE::AnimNext
 
 		const uint32 InstanceSize = NodeTemplate->GetNodeInstanceDataSize();
 		uint8* NodeInstanceBuffer = reinterpret_cast<uint8*>(FMemory::Malloc(InstanceSize, 16));
-		FNodeInstance* NodeInstance = new(NodeInstanceBuffer) FNodeInstance(ChildNodeHandle);
+		FNodeInstance* NodeInstance = new(NodeInstanceBuffer) FNodeInstance(*GraphInstance, ChildNodeHandle);
 
 		// Start construction with the bottom decorator
 		const FDecoratorTemplate* StartDesc = DecoratorDescs;
@@ -107,16 +128,25 @@ namespace UE::AnimNext
 		return FDecoratorPtr(NodeInstance, ChildDecoratorIndex);
 	}
 
-	void FExecutionContext::ReleaseNodeInstance(FNodeInstance* NodeInstance) const
+	void FExecutionContext::ReleaseNodeInstance(FDecoratorPtr& NodePtr) const
 	{
-		ensure(NodeInstance != nullptr && NodeInstance->IsValid());
-		if (NodeInstance == nullptr || !NodeInstance->IsValid())
+		if (!NodePtr.IsValid())
 		{
-			return;	// Invalid node instance provided
+			return;
 		}
 
-		ensure(NodeInstance->GetReferenceCount() == 0);
-		if (NodeInstance->GetReferenceCount() != 0)
+		FNodeInstance* NodeInstance = NodePtr.GetNodeInstance();
+
+		if (!ensure(IsBoundTo(NodeInstance->GetOwner())))
+		{
+			return;	// The execution context isn't bound to the right graph instance
+		}
+
+		// Reset the handle here to simplify the multiple return statements below
+		NodePtr.PackedPointerAndFlags = 0;
+		NodePtr.DecoratorIndex = 0;
+
+		if (NodeInstance->RemoveReference())
 		{
 			return;	// Node instance still has references, we can't release it
 		}
@@ -124,10 +154,9 @@ namespace UE::AnimNext
 		const FNodeDescription& NodeDesc = GetNodeDescription(NodeInstance->GetNodeHandle());
 
 		const FNodeTemplate* NodeTemplate = GetNodeTemplate(NodeDesc);
-		ensure(NodeTemplate != nullptr);
-		if (NodeTemplate == nullptr)
+		if (!ensure(NodeTemplate != nullptr))
 		{
-			return;	// Node template wasn't found, node descriptor is perhaps corrupted
+			return;	// Node template wasn't found, node descriptor is perhaps corrupted (we'll leak the node memory)
 		}
 
 		const FDecoratorTemplate* DecoratorDescs = NodeTemplate->GetDecorators();
@@ -222,11 +251,15 @@ namespace UE::AnimNext
 
 		FNodeInstance* NodeInstance = DecoratorPtr.GetNodeInstance();
 
+		if (!ensure(IsBoundTo(NodeInstance->GetOwner())))
+		{
+			return false;	// The execution context isn't bound to the right graph instance
+		}
+
 		const FNodeDescription& NodeDesc = GetNodeDescription(NodeInstance->GetNodeHandle());
 
 		const FNodeTemplate* NodeTemplate = GetNodeTemplate(NodeDesc);
-		ensure(NodeTemplate != nullptr);
-		if (NodeTemplate == nullptr)
+		if (!ensure(NodeTemplate != nullptr))
 		{
 			return false;	// Node template wasn't found, node descriptor is perhaps corrupted
 		}
@@ -274,11 +307,15 @@ namespace UE::AnimNext
 
 		FNodeInstance* NodeInstance = DecoratorPtr.GetNodeInstance();
 
+		if (!ensure(IsBoundTo(NodeInstance->GetOwner())))
+		{
+			return false;	// The execution context isn't bound to the right graph instance
+		}
+
 		const FNodeDescription& NodeDesc = GetNodeDescription(NodeInstance->GetNodeHandle());
 
 		const FNodeTemplate* NodeTemplate = GetNodeTemplate(NodeDesc);
-		ensure(NodeTemplate != nullptr);
-		if (NodeTemplate == nullptr)
+		if (!ensure(NodeTemplate != nullptr))
 		{
 			return false;	// Node template wasn't found, node descriptor is perhaps corrupted
 		}
@@ -344,10 +381,5 @@ namespace UE::AnimNext
 	{
 		check(Template.GetRegistryHandle().IsValid());
 		return DecoratorRegistry.Find(Template.GetRegistryHandle());
-	}
-
-	FExecutionContext* GetThreadExecutionContext()
-	{
-		return Private::GThreadLocalExecutionContext;
 	}
 }

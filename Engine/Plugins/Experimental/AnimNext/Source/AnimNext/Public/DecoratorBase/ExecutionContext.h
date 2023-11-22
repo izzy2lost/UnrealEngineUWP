@@ -24,15 +24,28 @@ namespace UE::AnimNext
 	/**
 	 * Execution Context
 	 * 
-	 * The execution context holds internal state during traversals of the animation graph.
+	 * The execution context aims to centralize the decorator query API.
+	 * It is meant to be bound to a graph instance and re-used by the nodes/decorators within.
 	 */
 	struct ANIMNEXT_API FExecutionContext
 	{
-		// Creates an execution context for the specified graph instance
+		// Creates an unbound execution context
+		FExecutionContext();
+
+		// Creates an execution context and binds it to the specified graph instance
 		explicit FExecutionContext(FAnimNextGraphInstance& InGraphInstance);
 
-		// Destroys the execution context
-		~FExecutionContext();
+		// Binds the execution context to the specified graph instance if it differs from the currently bound instance
+		void BindTo(FAnimNextGraphInstance& InGraphInstance);
+
+		// Binds the execution context to the graph instance that owns the specified decorator if it differs from the currently bound instance
+		void BindTo(const FWeakDecoratorPtr& DecoratorPtr);
+
+		// Returns whether or not this execution context is bound to a graph instance
+		bool IsBound() const;
+
+		// Returns whether or not this execution context is bound to the specified graph instance
+		bool IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const;
 
 		// Queries a node for a decorator that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
@@ -62,8 +75,9 @@ namespace UE::AnimNext
 		// If the desired decorator lives in the current parent, a weak handle to it will be returned
 		FDecoratorPtr AllocateNodeInstance(const FWeakDecoratorPtr& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const;
 
-		// Releases a node instance that is no longer referenced
-		void ReleaseNodeInstance(FNodeInstance* Node) const;
+		// Decrements the reference count of the provided node pointer and releases it if
+		// there are no more references remaining, reseting the pointer in the process
+		void ReleaseNodeInstance(FDecoratorPtr& NodePtr) const;
 
 		// Evaluates the latent pin with the specified handle
 		template<typename LatentPinType>
@@ -101,13 +115,9 @@ namespace UE::AnimNext
 		const FDecoratorRegistry& DecoratorRegistry;
 
 		// Cached properties for the currently executing graph
-		const UAnimNextGraph* Graph = nullptr;
 		FAnimNextGraphInstance* GraphInstance = nullptr;
 		TArrayView<const uint8> GraphSharedData;
 	};
-
-	// Returns a pointer to the current execution context if present, nullptr otherwise.
-	FExecutionContext* GetThreadExecutionContext();
 
 	//////////////////////////////////////////////////////////////////////////
 	// Inline implementations

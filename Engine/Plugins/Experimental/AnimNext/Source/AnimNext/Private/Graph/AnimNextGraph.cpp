@@ -135,12 +135,7 @@ void FAnimNextGraphInstance::Release()
 		return;
 	}
 
-	{
-		// We need an execution context for this graph to be active when we delete the graph instance
-		UE::AnimNext::FExecutionContext Context(*this);
-		GraphInstancePtr.Reset();
-	}
-
+	GraphInstancePtr.Reset();
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
 

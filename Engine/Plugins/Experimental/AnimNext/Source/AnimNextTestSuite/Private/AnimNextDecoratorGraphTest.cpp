@@ -263,9 +263,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 	);
 
 	{
-		FExecutionContext Context(GraphInstance);
-		UE::AnimNext::UpdateGraph(Context, GraphInstance.GetGraphRootPtr(), 1.0f / 30.0f);
-		(void)UE::AnimNext::EvaluateGraph(Context, GraphInstance.GetGraphRootPtr());
+		UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f);
+		(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 	}
 
 	AddErrorIfFalse(ParamStack->GetParam<int32>("UpdateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecute -> Unexpected update count");
@@ -407,9 +406,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 	);
 
 	{
-		FExecutionContext Context(GraphInstance);
-		UE::AnimNext::UpdateGraph(Context, GraphInstance.GetGraphRootPtr(), 1.0f / 30.0f);
-		(void)UE::AnimNext::EvaluateGraph(Context, GraphInstance.GetGraphRootPtr());
+		UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f);
+		(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 	}
 
 	AddErrorIfFalse(ParamStack->GetParam<int32>("UpdateCount") == 1, "FAnimationAnimNextRuntimeTest_GraphExecuteLatent -> Unexpected update count");

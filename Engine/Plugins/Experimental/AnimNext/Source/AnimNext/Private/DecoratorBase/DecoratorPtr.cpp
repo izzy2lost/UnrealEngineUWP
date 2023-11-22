@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DecoratorBase/DecoratorPtr.h"
+
+#include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorBase/NodeInstance.h"
 
 namespace UE::AnimNext
@@ -74,14 +76,7 @@ namespace UE::AnimNext
 			}
 		}
 
-		// Only decrement the reference count if we aren't a weak handle
-		if (!IsWeak())
-		{
-			if (FNodeInstance* OldNode = GetNodeInstance())
-			{
-				OldNode->ReleaseReference();
-			}
-		}
+		Reset();
 
 		PackedPointerAndFlags = DecoratorPtr.PackedPointerAndFlags;
 		DecoratorIndex = DecoratorPtr.DecoratorIndex;
@@ -99,12 +94,13 @@ namespace UE::AnimNext
 
 	void FDecoratorPtr::Reset()
 	{
-		// Only decrement the reference count if we aren't a weak handle
+		// Only decrement the reference count if we aren't a weak handle and if we are valid
 		if (!IsWeak())
 		{
 			if (FNodeInstance* Node = GetNodeInstance())
 			{
-				Node->ReleaseReference();
+				FExecutionContext Context(Node->GetOwner());
+				Context.ReleaseNodeInstance(*this);
 			}
 		}
 

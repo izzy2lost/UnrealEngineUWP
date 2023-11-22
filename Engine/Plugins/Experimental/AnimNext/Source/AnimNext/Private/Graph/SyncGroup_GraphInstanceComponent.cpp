@@ -11,13 +11,13 @@ namespace UE::AnimNext
 		GroupState.Members.Add(FSyncGroupMember{ DecoratorState, DecoratorPtr, GroupRole });
 	}
 
-	void FSyncGroupGraphInstanceComponent::PreUpdate(FUpdateTraversalContext& Context)
+	void FSyncGroupGraphInstanceComponent::PreUpdate(FExecutionContext& Context)
 	{
 		// Reset our group state, we want to start fresh every update
 		SyncGroupMap.Reset();
 	}
 
-	void FSyncGroupGraphInstanceComponent::PostUpdate(FUpdateTraversalContext& Context)
+	void FSyncGroupGraphInstanceComponent::PostUpdate(FExecutionContext& Context)
 	{
 		TDecoratorBinding<IGroupSynchronization> GroupSyncDecorator;
 
@@ -73,6 +73,7 @@ namespace UE::AnimNext
 			{
 				const FSyncGroupMember& GroupLeader = GroupState.Members[LeaderIndex];
 
+				Context.BindTo(GroupLeader.DecoratorPtr);
 				ensure(Context.GetInterface(GroupLeader.DecoratorPtr, GroupSyncDecorator));
 
 				LeaderProgressRatio = GroupSyncDecorator.AdvanceBy(Context, GroupLeader.DecoratorState.GetDeltaTime());
@@ -88,6 +89,7 @@ namespace UE::AnimNext
 
 				const FSyncGroupMember& GroupMember = GroupState.Members[MemberIndex];
 
+				Context.BindTo(GroupMember.DecoratorPtr);
 				ensure(Context.GetInterface(GroupMember.DecoratorPtr, GroupSyncDecorator));
 
 				GroupSyncDecorator.AdvanceToRatio(Context, LeaderProgressRatio);

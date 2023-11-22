@@ -16,10 +16,26 @@ namespace UE::AnimNext
 	{
 		explicit FExecutionContextProxy(const FExecutionContext& InExecutionContext)
 			: ExecutionContext(InExecutionContext)
-		{}
+		{
+		}
 
 		// We safely coerce to our wrapped execution context to allow identical usage
-		operator const FExecutionContext& () const { return ExecutionContext; }
+		operator const FExecutionContext& () const
+		{
+			return ExecutionContext;
+		}
+
+		// Returns whether or not this execution context is bound to a graph instance
+		bool IsBound() const
+		{
+			return ExecutionContext.IsBound();
+		}
+
+		// Returns whether or not this execution context is bound to the specified graph instance
+		bool IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const
+		{
+			return ExecutionContext.IsBoundTo(InGraphInstance);
+		}
 
 		// Queries a node for a decorator that implements the specified interface.
 		// If no such decorator exists, nullptr is returned.
@@ -67,10 +83,11 @@ namespace UE::AnimNext
 			return ExecutionContext.AllocateNodeInstance(ParentBinding, ChildDecoratorHandle);
 		}
 
-		// Releases a node instance that is no longer referenced
-		void ReleaseNodeInstance(FNodeInstance* Node) const
+		// Decrements the reference count of the provided node pointer and releases it if
+		// there are no more references remaining, reseting the pointer in the process
+		void ReleaseNodeInstance(FDecoratorPtr& NodePtr) const
 		{
-			return ExecutionContext.ReleaseNodeInstance(Node);
+			return ExecutionContext.ReleaseNodeInstance(NodePtr);
 		}
 
 		// Evaluates the latent pin with the specified handle

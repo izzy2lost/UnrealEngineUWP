@@ -109,12 +109,10 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	FExecutionContext Context(InstanceData.GraphInstanceData[TaskIndex]);
-
-	UE::AnimNext::UpdateGraph(Context, InstanceData.GraphInstanceData[TaskIndex].GetGraphRootPtr(), InContext.GetDeltaTime());
+	UE::AnimNext::UpdateGraph(InstanceData.GraphInstanceData[TaskIndex], InContext.GetDeltaTime());
 
 	{
-		FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(Context, InstanceData.GraphInstanceData[TaskIndex].GetGraphRootPtr());
+		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(InstanceData.GraphInstanceData[TaskIndex]);
 
 		FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePose->ReferencePose, *GraphLODLevel);
 		bool bHasValidOutput = false;

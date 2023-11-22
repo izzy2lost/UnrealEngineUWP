@@ -207,11 +207,11 @@ namespace UE::AnimNext
 	// perform as much useful work as possible while waiting for memory, hiding its slow latency by fully
 	// leveraging out-of-order CPU execution.
 
-	void UpdateGraph(const FExecutionContext& Context, const FWeakDecoratorPtr& GraphRootPtr, float DeltaTime)
+	void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_UpdateGraph);
 		
-		if (!GraphRootPtr.IsValid())
+		if (!GraphInstance.IsValid())
 		{
 			return;	// Nothing to update
 		}
@@ -222,24 +222,31 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		TDecoratorBinding<IHierarchy> HierarchyDecorator;
 
-		FUpdateTraversalContext TraversalContext(Context, MemStack);
+		FExecutionContext ExecutionContext;
+		FUpdateTraversalContext TraversalContext(ExecutionContext, MemStack);
 		FUpdateTraversalQueue TraversalQueue(TraversalContext);
 
 		// Before we start the traversal, we give the graph instance components the chance to do some work
-		for (auto It = Context.GetComponentIterator(); It; ++It)
+		ExecutionContext.BindTo(GraphInstance);
+		for (auto It = ExecutionContext.GetComponentIterator(); It; ++It)
 		{
-			It.Value()->PreUpdate(TraversalContext);
+			It.Value()->PreUpdate(ExecutionContext);
 		}
 
 		// Add the graph root to start the update process
-		FUpdateEntry RootEntry(GraphRootPtr, FDecoratorUpdateState(DeltaTime));
+		FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), FDecoratorUpdateState(DeltaTime));
 		TraversalContext.PushUpdateEntry(&RootEntry);
 
 		while (FUpdateEntry* Entry = TraversalContext.PopUpdateEntry())
 		{
+			const FWeakDecoratorPtr& EntryDecoratorPtr = Entry->DecoratorPtr;
+
+			// Make sure the execution context is bound to our graph instance
+			ExecutionContext.BindTo(EntryDecoratorPtr);
+
 			if (!Entry->bHasPreUpdated)
 			{
-				if (Context.GetInterface(Entry->DecoratorPtr, Entry->UpdateDecorator))
+				if (ExecutionContext.GetInterface(EntryDecoratorPtr, Entry->UpdateDecorator))
 				{
 					// This is the first time we visit this node, time to pre-update
 					Entry->UpdateDecorator.PreUpdate(TraversalContext, Entry->DecoratorState);
@@ -267,9 +274,9 @@ namespace UE::AnimNext
 				{
 					// This node doesn't implement IUpdate
 					// We'll grab its children and traverse them
-					if (Context.GetInterface(Entry->DecoratorPtr, HierarchyDecorator))
+					if (ExecutionContext.GetInterface(EntryDecoratorPtr, HierarchyDecorator))
 					{
-						HierarchyDecorator.GetChildren(Context, Children);
+						HierarchyDecorator.GetChildren(ExecutionContext, Children);
 
 						// Append our children in reserve order so that they are visited in the same order they were added
 						for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)
@@ -298,9 +305,10 @@ namespace UE::AnimNext
 		}
 
 		// After we finish the traversal, we give the graph instance components the chance to do some work
-		for (auto It = Context.GetComponentIterator(); It; ++It)
+		ExecutionContext.BindTo(GraphInstance);
+		for (auto It = ExecutionContext.GetComponentIterator(); It; ++It)
 		{
-			It.Value()->PostUpdate(TraversalContext);
+			It.Value()->PostUpdate(ExecutionContext);
 		}
 	}
 }

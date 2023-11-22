@@ -71,7 +71,12 @@ namespace UE::AnimNext
 		}
 	};
 
-	FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr)
+	FEvaluationProgram EvaluateGraph(FAnimNextGraphInstance& GraphInstance)
+	{
+		return EvaluateGraph(GraphInstance.GetGraphRootPtr());
+	}
+
+	FEvaluationProgram EvaluateGraph(const FWeakDecoratorPtr& GraphRootPtr)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_EvaluateGraph);
 		
@@ -88,7 +93,8 @@ namespace UE::AnimNext
 		FChildrenArray Children;
 		Children.Reserve(16);
 
-		FEvaluateTraversalContext TraversalContext(Context, EvaluationProgram);
+		FExecutionContext ExecutionContext;
+		FEvaluateTraversalContext TraversalContext(ExecutionContext, EvaluationProgram);
 
 		// Add the graph root to kick start the evaluation process
 		FEvaluateEntry GraphRootEntry(GraphRootPtr, EEvaluateStep::PreEvaluate);
@@ -106,9 +112,14 @@ namespace UE::AnimNext
 			FEvaluateEntry* Entry = NodesPendingUpdateStackTop;
 			bool bIsEntryUsed = true;
 
+			const FWeakDecoratorPtr& EntryDecoratorPtr = Entry->DecoratorPtr;
+
+			// Make sure the execution context is bound to our graph instance
+			ExecutionContext.BindTo(EntryDecoratorPtr);
+
 			if (Entry->DesiredStep == EEvaluateStep::PreEvaluate)
 			{
-				if (Context.GetInterface(Entry->DecoratorPtr, Entry->EvaluateDecorator))
+				if (ExecutionContext.GetInterface(EntryDecoratorPtr, Entry->EvaluateDecorator))
 				{
 					// This is the first time we visit this node, time to pre-evaluate
 					Entry->EvaluateDecorator.PreEvaluate(TraversalContext);
@@ -124,9 +135,9 @@ namespace UE::AnimNext
 					bIsEntryUsed = false;
 				}
 
-				if (Context.GetInterface(Entry->DecoratorPtr, HierarchyDecorator))
+				if (ExecutionContext.GetInterface(EntryDecoratorPtr, HierarchyDecorator))
 				{
-					HierarchyDecorator.GetChildren(Context, Children);
+					HierarchyDecorator.GetChildren(ExecutionContext, Children);
 
 					// Append our children in reserve order so that they are visited in the same order they were added
 					for (int32 ChildIndex = Children.Num() - 1; ChildIndex >= 0; --ChildIndex)

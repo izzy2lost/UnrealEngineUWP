@@ -29,7 +29,7 @@ namespace UE::AnimNext
 
 		FEvaluationProgram& EvaluationProgram;
 
-		friend ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr);
+		friend ANIMNEXT_API FEvaluationProgram EvaluateGraph(const FWeakDecoratorPtr& GraphRootPtr);
 	};
 
 	/**
@@ -81,7 +81,7 @@ namespace UE::AnimNext
 
 	/**
 	 * Evaluates a sub-graph starting at its root and produces an evaluation program.
-	 * Evaluation starts at the top of the stack that includes the graph root decorator.
+	 * Evaluation should be deterministic and repeated calls should yield the same evaluation program.
 	 *
 	 * For each node:
 	 *     - We call PreEvaluate on all its decorators
@@ -91,5 +91,20 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FExecutionContext& Context, FWeakDecoratorPtr GraphRootPtr);
+	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(FAnimNextGraphInstance& GraphInstance);
+
+	/**
+	 * Evaluates a sub-graph starting at its root and produces an evaluation program.
+	 * Evaluation starts at the top of the stack that includes the graph root decorator.
+	 * Evaluation should be deterministic and repeated calls should yield the same evaluation program.
+	 *
+	 * For each node:
+	 *     - We call PreEvaluate on all its decorators
+	 *     - We call GetChildren on all its decorators
+	 *     - We evaluate all children found
+	 *     - We call PostEvaluate on all its decorators
+	 *
+	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
+	 */
+	[[nodiscard]] ANIMNEXT_API FEvaluationProgram EvaluateGraph(const FWeakDecoratorPtr& GraphRootPtr);
 }

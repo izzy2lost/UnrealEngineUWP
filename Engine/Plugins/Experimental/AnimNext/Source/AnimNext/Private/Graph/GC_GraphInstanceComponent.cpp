@@ -28,12 +28,13 @@ namespace UE::AnimNext
 
 	void FGCGraphInstanceComponent::AddReferencedObjects(FReferenceCollector& Collector) const
 	{
+		FExecutionContext Context;
 		TDecoratorBinding<IGarbageCollection> GCDecorator;
 
 		// TODO: If we kept the entries sorted by graph instance, we could re-use the execution context
 		for (const FEntry& Entry : DecoratorsWithReferences)
 		{
-			FExecutionContext Context(Entry.GraphInstance);
+			Context.BindTo(Entry.GraphInstance);
 			ensure(Context.GetInterface(Entry.DecoratorPtr, GCDecorator));
 
 			GCDecorator.AddReferencedObjects(Context, Collector);

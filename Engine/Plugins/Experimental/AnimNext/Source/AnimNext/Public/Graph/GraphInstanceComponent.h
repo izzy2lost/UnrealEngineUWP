@@ -11,7 +11,7 @@
 
 namespace UE::AnimNext
 {
-	struct FUpdateTraversalContext;
+	struct FExecutionContext;
 
 	/**
 	 * FGraphInstanceComponent
@@ -28,9 +28,11 @@ namespace UE::AnimNext
 
 		// Called before the update traversal begins, before any node has been visited
 		// Note that PreUpdate won't be called if a component is created during the update traversal until the next update
-		virtual void PreUpdate(FUpdateTraversalContext& Context) {}
+		// The execution context provided is bound to the graph root and can be bound to anything the component wishes
+		virtual void PreUpdate(FExecutionContext& Context) {}
 
 		// Called after the update traversal completes, after every node has been visited
-		virtual void PostUpdate(FUpdateTraversalContext& Context) {}
+		// The execution context provided is bound to the graph root and can be bound to anything the component wishes
+		virtual void PostUpdate(FExecutionContext& Context) {}
 	};
 }
