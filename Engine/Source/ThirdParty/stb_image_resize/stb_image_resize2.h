@@ -1,4 +1,4 @@
-/* stb_image_resize2 - v2.03 - public domain image resizing
+/* stb_image_resize2 - v2.04 - public domain image resizing
    
    by Jeff Roberts (v2) and Jorge L Rodriguez 
    http://github.com/nothings/stb
@@ -328,6 +328,7 @@
       Nathan Reed: warning fixes for 1.0
 
    REVISIONS
+      2.04 (2023-11-17)     Fix for rare AVX bug, shadowed symbol (thanks Nikola Smiljanic).
       2.01-03 (2023-11-01)  ASAN and TSAN warnings fixed, minor tweaks.
       2.00 (2023-10-10)     Mostly new source: new api, optimizations, simd, vertical-first, etc 
                               (2x-5x faster without simd, 4x-12x faster with simd)
@@ -1562,7 +1563,6 @@ static stbir__inline stbir_uint8 stbir__linear_to_srgb_uchar(float in)
 
     #define stbir__simdf8_0123to2222( out, in ) (out) = stbir__simdf_swiz(_mm256_castps256_ps128(in), 2,2,2,2 )
 
-    #define stbir__simdf8_load2( out, ptr ) (out) = _mm256_castsi256_ps(_mm256_castsi128_si256( _mm_loadl_epi64( (__m128i*)(ptr)) )) // top values can be random (not denormal or nan for perf)
     #define stbir__simdf8_load4b( out, ptr ) (out) = _mm256_broadcast_ps( (__m128 const *)(ptr) )
 
     static __m256i stbir_00112233 = { STBIR__CONST_4d_32i( 0, 0, 1, 1 ), STBIR__CONST_4d_32i( 2, 2, 3, 3 ) };
@@ -1595,11 +1595,11 @@ static stbir__inline stbir_uint8 stbir__linear_to_srgb_uchar(float in)
     #ifdef STBIR_USE_FMA           // not on by default to maintain bit identical simd to non-simd
     #define stbir__simdf8_madd( out, add, mul1, mul2 ) (out) = _mm256_fmadd_ps( mul1, mul2, add )
     #define stbir__simdf8_madd_mem( out, add, mul, ptr ) (out) = _mm256_fmadd_ps( mul, _mm256_loadu_ps( (float const*)(ptr) ), add )
-    #define stbir__simdf8_madd_mem4( out, add, mul, ptr ) (out) = _mm256_fmadd_ps( _mm256_castps128_ps256( mul ), _mm256_castps128_ps256( _mm_loadu_ps( (float const*)(ptr) ) ), add )
+    #define stbir__simdf8_madd_mem4( out, add, mul, ptr )(out) = _mm256_fmadd_ps( _mm256_setr_m128( mul, _mm_setzero_ps() ), _mm256_setr_m128( _mm_loadu_ps( (float const*)(ptr) ), _mm_setzero_ps() ), add )
     #else
     #define stbir__simdf8_madd( out, add, mul1, mul2 ) (out) = _mm256_add_ps( add, _mm256_mul_ps( mul1, mul2 ) )
     #define stbir__simdf8_madd_mem( out, add, mul, ptr ) (out) = _mm256_add_ps( add, _mm256_mul_ps( mul, _mm256_loadu_ps( (float const*)(ptr) ) ) )
-    #define stbir__simdf8_madd_mem4( out, add, mul, ptr ) (out) = _mm256_add_ps( add, _mm256_castps128_ps256( _mm_mul_ps( mul, _mm_loadu_ps( (float const*)(ptr) ) ) ) )
+    #define stbir__simdf8_madd_mem4( out, add, mul, ptr )  (out) = _mm256_add_ps( add, _mm256_setr_m128( _mm_mul_ps( mul, _mm_loadu_ps( (float const*)(ptr) ) ), _mm_setzero_ps() ) )
     #endif
     #define stbir__if_simdf8_cast_to_simdf4( val ) _mm256_castps256_ps128( val )
 
