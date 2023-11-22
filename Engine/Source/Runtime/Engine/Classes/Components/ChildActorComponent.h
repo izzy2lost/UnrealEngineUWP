@@ -127,7 +127,7 @@ private:
 	/** We try to keep the child actor's name as best we can, so we store it off here when destroying */
 	FName ChildActorName;
 
-	/** Detect when the parent actor is renamed, in which case we can't preseve the child actor's name */
+	/** Detect when the parent actor is renamed, in which case we can't preserve the child actor's name */
 	UObject* ActorOuter;
 
 	/** Cached copy of the instance data when the ChildActor is destroyed to be available when needed */
@@ -137,6 +137,9 @@ private:
 	/** Indicates how this component will be visualized for editing in a tree view. Users can change this setting per instance via the context menu in the Blueprint/SCS editor. */
 	UPROPERTY()
 	EChildActorComponentTreeViewVisualizationMode EditorTreeViewVisualizationMode;
+
+	UPROPERTY(EditDefaultsOnly, Category=ChildActorComponent)
+	uint8 bHideFromSceneOutliner:1;
 #endif
 
 	/**
@@ -215,6 +218,9 @@ public:
 	}
 
 	ENGINE_API void SetEditorTreeViewVisualizationMode(EChildActorComponentTreeViewVisualizationMode InMode);
+
+	bool GetHideFromSceneOutliner() const { return bHideFromSceneOutliner; }
+	void SetHideFromSceneOutliner(bool bHide) {bHideFromSceneOutliner = bHide;}
 #endif
 
 #if UE_WITH_IRIS
