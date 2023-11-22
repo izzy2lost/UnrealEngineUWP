@@ -59,7 +59,7 @@ struct FInterchangePipelinePropertyStatePerContext
 	GENERATED_BODY()
 
 	/** If true, the property is visible. */
-	UPROPERTY(EditAnywhere, Category = "Property States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bVisible = true;
 };
 
@@ -91,15 +91,15 @@ struct FInterchangePipelinePropertyStates
 	}
 
 	/** If true, the property is locked. */
-	UPROPERTY(EditAnywhere, Category = "Property States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bLocked = false;
 
 	/** The property states for the import context */
-	UPROPERTY(EditAnywhere, Category = "Context Properties States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext ImportStates;
 
 	/** The property states for the reimport context */
-	UPROPERTY(EditAnywhere, Category = "Context Properties States")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext ReimportStates;
 };
 
@@ -149,12 +149,12 @@ public:
 	 * @note - the FTaskPipeline is calling this function not the virtual one that is call by the default implementation.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
-	INTERCHANGECORE_API void ScriptedExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas);
+	INTERCHANGECORE_API void ScriptedExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath);
 	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecutePipeline */
-	void ScriptedExecutePipeline_Implementation(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas)
+	void ScriptedExecutePipeline_Implementation(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
 	{
 		//By default we call the virtual import pipeline execution
-		ExecutePipeline(BaseNodeContainer, SourceDatas);
+		ExecutePipeline(BaseNodeContainer, SourceDatas, ContentBasePath);
 	}
 
 	/**
@@ -410,19 +410,8 @@ public:
 
 protected:
 
-	UE_DEPRECATED(5.2, "This function is replace by ExecutePipeline.")
-	virtual void ExecutePreImportPipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas)
+	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
 	{
-	}
-
-	/**
-	 * This function is called after the translation is done. It should create any factory node representing unreal assets to be imported by the factories
-	 */
-	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		ExecutePreImportPipeline(BaseNodeContainer, SourceDatas);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/**

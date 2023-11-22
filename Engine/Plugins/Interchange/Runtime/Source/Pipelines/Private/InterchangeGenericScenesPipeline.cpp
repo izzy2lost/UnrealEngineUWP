@@ -216,7 +216,7 @@ void UInterchangeGenericLevelPipeline::AdjustSettingsForContext(EInterchangePipe
 	bIsReimportContext = ReimportAsset != nullptr;
 }
 
-void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
+void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
 	if (!InBaseNodeContainer)
 	{

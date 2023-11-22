@@ -206,6 +206,9 @@ namespace UE
 			/** Unique id for this asynchelper. */
 			int32 UniqueId;
 
+			//The content base path where to import
+			FString ContentBasePath;
+
 			//The following Arrays are per source data
 			TArray<TStrongObjectPtr<UInterchangeBaseNodeContainer>> BaseNodeContainers;
 			TArray<TObjectPtr<UInterchangeSourceData>> SourceDatas;
@@ -675,7 +678,6 @@ protected:
 private:
 	struct FQueuedTaskData
 	{
-		FString PackageBasePath;
 		TSharedPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper;
 		UClass* TranslatorClass = nullptr;
 	};

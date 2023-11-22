@@ -131,32 +131,32 @@ struct FInterchangePipelineMeshesUtilitiesContext
 	/**
 	 * Convert static mesh to skeletal mesh
 	 */
-	UPROPERTY(EditAnywhere, Category = "Interchange | Pipeline | MeshesContext")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange | Pipeline | MeshesContext")
 	bool bConvertStaticMeshToSkeletalMesh = false;
 
 	/**
 	 * Convert static mesh to skeletal mesh
 	 */
-	UPROPERTY(EditAnywhere, Category = "Interchange | Pipeline | MeshesContext")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange | Pipeline | MeshesContext")
 	bool bConvertSkeletalMeshToStaticMesh = false;
 
 	/**
 	 * Convert static mesh that has morph target to skeletal mesh
 	 */
-	UPROPERTY(EditAnywhere, Category = "Interchange | Pipeline | MeshesContext")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange | Pipeline | MeshesContext")
 	bool bConvertStaticsWithMorphTargetsToSkeletals = false;
 
 	/**
 	 * If checked, meshes nested in bone hierarchies will be imported instead of being converted to bones. If the mesh are not skinned they will
 	 * be added to skeletal mesh and remove from the static meshes.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Interchange | Pipeline | MeshesContext")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange | Pipeline | MeshesContext")
 	bool bImportMeshesInBoneHierarchy = true;
 
 	/**
 	 * When querying geometry, this flag will not add MeshGeometry if there is a scene node pointing on a geometry.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Interchange | Pipeline | MeshesContext")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interchange | Pipeline | MeshesContext")
 	bool bQueryGeometryOnlyIfNoInstance = true;
 
 	bool IsStaticMeshInstance(const FInterchangeMeshInstance& MeshInstance, UInterchangeBaseNodeContainer* BaseNodeContainer);

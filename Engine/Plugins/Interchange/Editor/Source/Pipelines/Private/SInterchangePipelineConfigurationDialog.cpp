@@ -750,7 +750,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 	//When doing a reimport we do not want to save the setting because the context have special default
 	//value for some options like: (Import Materials, Import Textures...).
 	//So when doing a reimport switching stack is like doing a reset to default on all pipelines
-	if (!bReimport)
+	if (!bReimport || !bStackSelectionChange)
 	{
 		SaveAllPipelineSettings();
 	}
@@ -786,7 +786,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 			if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
 			{
 				GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
-				if (Stack.StackName != ReimportStackName)
+				if (Stack.StackName != ReimportStackName || !bStackSelectionChange)
 				{
 					//Load the settings for this pipeline
 					GeneratedPipeline->LoadSettings(Stack.StackName);
@@ -895,7 +895,7 @@ FReply SInterchangePipelineConfigurationDialog::OnPreviewImport() const
 	{
 		const TSharedPtr<FInterchangePipelineItemType> PipelineItem = PipelineListViewItems[PipelineIndex];
 		PipelineItem->Pipeline->SetResultsContainer(Results);
-		PipelineItem->Pipeline->ScriptedExecutePipeline(DuplicateBaseNodeContainer, SourceDatas);
+		PipelineItem->Pipeline->ScriptedExecutePipeline(DuplicateBaseNodeContainer, SourceDatas, FString());
 	}
 
 	//Set all node in preview mode so hide the internal data attributes

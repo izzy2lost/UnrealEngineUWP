@@ -864,7 +864,7 @@ TArray<FInterchangeConflictInfo> UInterchangeGenericAssetsPipeline::GetConflictI
 
 	UInterchangeResultsContainer* OldResults = Results;
 	Results = NewObject<UInterchangeResultsContainer>(GetTransientPackage());
-	ExecutePipeline(TransientBaseNodeContainer, SourceDatas);
+	ExecutePipeline(TransientBaseNodeContainer, SourceDatas, FString());
 	Results = OldResults;
 
 	//Create the materials conflict
@@ -999,7 +999,7 @@ void UInterchangeGenericAssetsPipeline::ShowConflictDialog(const FGuid& Conflict
 	}
 }
 
-void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
+void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
 	check(CommonSkeletalMeshesAndAnimationsProperties);
 
@@ -1073,15 +1073,15 @@ void UInterchangeGenericAssetsPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 
 	if (MaterialPipeline)
 	{
-		MaterialPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas);
+		MaterialPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas, ContentBasePath);
 	}
 	if (MeshPipeline)
 	{
-		MeshPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas);
+		MeshPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas, ContentBasePath);
 	}
 	if (AnimationPipeline)
 	{
-		AnimationPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas);
+		AnimationPipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas, ContentBasePath);
 	}
 
 	ImplementUseSourceNameForAssetOption(InBaseNodeContainer, InSourceDatas);

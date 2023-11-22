@@ -10,14 +10,14 @@
 #include "Engine/StaticMesh.h"
 #include "LevelSequence.h"
 
-void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* NodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
+void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* NodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
 	if (!NodeContainer)
 	{
 		return;
 	}
 
-	Super::ExecutePipeline(NodeContainer, InSourceDatas);
+	Super::ExecutePipeline(NodeContainer, InSourceDatas, ContentBasePath);
 
 	static TMap<UClass*, FString> SubPathsPerClass{
 		{ UTexture::StaticClass(), "Textures" },

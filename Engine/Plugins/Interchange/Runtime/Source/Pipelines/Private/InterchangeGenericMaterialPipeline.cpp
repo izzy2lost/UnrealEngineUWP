@@ -558,7 +558,7 @@ bool UInterchangeGenericMaterialPipeline::IsPropertyChangeNeedRefresh(const FPro
 
 #endif //WITH_EDITOR
 
-void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas)
+void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* InBaseNodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
 #if UE_BUILD_DEBUG
 	UE::Interchange::Materials::HashUtils::FMaterialHashDebugData HashDebugData(TEXT("InterchangeDebug/MaterialHashLogs/"));
@@ -592,7 +592,7 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 	
 	if (TexturePipeline)
 	{
-		TexturePipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas);
+		TexturePipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas, ContentBasePath);
 	}
 
 	//Skip Material import if the toggle is off

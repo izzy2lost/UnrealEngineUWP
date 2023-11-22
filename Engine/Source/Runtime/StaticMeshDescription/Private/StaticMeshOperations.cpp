@@ -1343,10 +1343,6 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 	// Second normal(F to A) = Normalize(F+G+H+A)
 	// We found the connected edge using the triangle that share edges
 
-	// @todo: provide an option to weight each contributing polygon normal according to the size of
-	// the angle it makes with the vertex being calculated. This means that triangulated faces whose
-	// internal edge meets the vertex doesn't get undue extra weight.
-
 	struct FTriangleCornerData
 	{
 		FVertexInstanceID VertexInstanceID;

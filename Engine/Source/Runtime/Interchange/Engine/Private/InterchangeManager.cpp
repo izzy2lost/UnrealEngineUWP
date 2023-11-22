@@ -1360,12 +1360,12 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 
 			if (GraphParsingPrerequistes.Num() > 0)
 			{
-				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&GraphParsingPrerequistes).ConstructAndDispatchWhenReady(this, QueuedTaskData.PackageBasePath, WeakAsyncHelper);
+				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&GraphParsingPrerequistes).ConstructAndDispatchWhenReady(this, WeakAsyncHelper);
 			}
 			else
 			{
 				//Fallback on the translator pipeline prerequisites (translator must be done if there is no pipeline)
-				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&PipelinePrerequistes).ConstructAndDispatchWhenReady(this, QueuedTaskData.PackageBasePath, WeakAsyncHelper);
+				QueuedTaskData.AsyncHelper->ParsingTask = TGraphTask<UE::Interchange::FTaskParsing>::CreateTask(&PipelinePrerequistes).ConstructAndDispatchWhenReady(this, WeakAsyncHelper);
 			}
 
 			//The graph parsing task will create the FCreateAssetTask that will run after them, the FAssetImportTask will call the appropriate Post asset import pipeline when the asset is completed
@@ -1500,14 +1500,14 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	}
 
 	UInterchangeAssetImportData* OriginalAssetImportData = UInterchangeAssetImportData::GetFromObject(ImportAssetParameters.ReimportAsset);
-	FString PackageBasePath = ContentPath;
+	FString ContentBasePath = ContentPath;
 	if (!ImportAssetParameters.ReimportAsset)
 	{
-		UE::Interchange::SanitizeObjectPath(PackageBasePath);
+		UE::Interchange::SanitizeObjectPath(ContentBasePath);
 	}
 	else
 	{
-		PackageBasePath = FPaths::GetPath(ImportAssetParameters.ReimportAsset->GetPathName());
+		ContentBasePath = FPaths::GetPath(ImportAssetParameters.ReimportAsset->GetPathName());
 	}
 
 	const bool bIsReimport = OriginalAssetImportData && OriginalAssetImportData->GetPipelines().Num() > 0;
@@ -1868,10 +1868,10 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 		AsyncHelper->CleanUp();
 	}
 
+	AsyncHelper->ContentBasePath = ContentBasePath;
 	//Queue the task cancel or not, we need to return a valid asset import result
 	FQueuedTaskData QueuedTaskData;
 	QueuedTaskData.AsyncHelper = AsyncHelper;
-	QueuedTaskData.PackageBasePath = PackageBasePath;
 	QueuedTaskData.TranslatorClass = AsyncTranslator->GetClass();
 
 	//If we cancel or abort the task we want to avoid putting it in the NonParallelTranslatorQueueTasks (the locks will not be release if the task doesn't start)
