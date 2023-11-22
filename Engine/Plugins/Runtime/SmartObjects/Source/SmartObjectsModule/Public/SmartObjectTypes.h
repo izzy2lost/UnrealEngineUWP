@@ -256,13 +256,17 @@ class SMARTOBJECTSMODULE_API USmartObjectSpacePartition : public UObject
 
 public:
 	virtual void SetBounds(const FBox& Bounds) {}
-	virtual FInstancedStruct Add(const FSmartObjectHandle Handle, const FBox& Bounds) { return FInstancedStruct(); }
+	
+	virtual void Add(const FSmartObjectHandle Handle, const FBox& Bounds, FInstancedStruct& OutHandle) {}
 	virtual void Remove(const FSmartObjectHandle Handle, FStructView EntryData) {}
 	virtual void Find(const FBox& QueryBox, TArray<FSmartObjectHandle>& OutResults) {}
 
 #if UE_ENABLE_DEBUG_DRAWING
 	virtual void Draw(FDebugRenderSceneProxy* DebugProxy) {}
 #endif
+
+	UE_DEPRECATED(5.4, "Use version of the Add that takes the instanced struct as parameter.")
+	virtual FInstancedStruct Add(const FSmartObjectHandle Handle, const FBox& Bounds) final { return FInstancedStruct(); }
 };
 
 

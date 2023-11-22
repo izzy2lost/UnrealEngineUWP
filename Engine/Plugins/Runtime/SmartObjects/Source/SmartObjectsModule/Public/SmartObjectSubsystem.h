@@ -475,6 +475,14 @@ public:
 	void BindComponentToSimulation(USmartObjectComponent& SmartObjectComponent);
 
 	/**
+	 * Updates the smart object transform.
+	 * @param Handle Handle to the Smart Object to update.
+	 * @param NewTransform New transform of the runtime Smart Object
+	 * @return is transform was updated.
+	 */
+	bool UpdateSmartObjectTransform(const FSmartObjectHandle Handle, const FTransform& NewTransform);
+	
+	/**
 	 * Returns the component associated to the claim handle if still
 	 * accessible. In some scenarios the component may no longer exist
 	 * but its smart object data could (e.g. streaming)

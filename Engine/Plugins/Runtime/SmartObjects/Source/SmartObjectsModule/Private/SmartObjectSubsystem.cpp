@@ -301,6 +301,41 @@ void USmartObjectSubsystem::BindComponentToSimulation(USmartObjectComponent& Sma
 	}
 }
 
+bool USmartObjectSubsystem::UpdateSmartObjectTransform(const FSmartObjectHandle Handle, const FTransform& NewTransform)
+{
+	FSmartObjectRuntime* SmartObjectRuntime = RuntimeSmartObjects.Find(Handle);
+	if (!SmartObjectRuntime)
+	{
+		return false;
+	}
+
+	check(SpacePartition);
+	
+	// Remove from old location in spatial partition.
+	if (SmartObjectRuntime->SpatialEntryData.IsValid())
+	{
+		SpacePartition->Remove(Handle, SmartObjectRuntime->SpatialEntryData);
+	}
+
+	// Set transform and register back to spatial partition.
+	SmartObjectRuntime->SetTransform(NewTransform);
+
+	const FBox Bounds = SmartObjectRuntime->GetDefinition().GetBounds().TransformBy(NewTransform);
+	SpacePartition->Add(Handle, Bounds, SmartObjectRuntime->SpatialEntryData);
+
+#if UE_ENABLE_DEBUG_DRAWING
+	// Refresh debug draw
+	SmartObjectRuntime->Bounds = Bounds;
+	if (RenderingActor != nullptr)
+	{
+		RenderingActor->MarkComponentsRenderStateDirty();
+	}
+#endif // UE_ENABLE_DEBUG_DRAWING
+	
+	return true;
+}
+
+
 void USmartObjectSubsystem::BindComponentToSimulationInternal(USmartObjectComponent& SmartObjectComponent, FSmartObjectRuntime& SmartObjectRuntime)
 {
 	// It is possible that the component is already linked to the runtime instance when the collection entry was initially added.
@@ -437,7 +472,7 @@ FSmartObjectRuntime* USmartObjectSubsystem::AddCollectionEntryToSimulation(
 
 	// Insert to the spatial representation structure and store associated data
 	checkfSlow(SpacePartition != nullptr, TEXT("Space partition is expected to be valid since we use the plugins default in OnWorldComponentsUpdated."));
-	Runtime.SpatialEntryData = SpacePartition->Add(Handle, Bounds);
+	SpacePartition->Add(Handle, Bounds, Runtime.SpatialEntryData);
 
 	// Notify that the object became in use.
 	if (Runtime.OnEvent.IsBound())

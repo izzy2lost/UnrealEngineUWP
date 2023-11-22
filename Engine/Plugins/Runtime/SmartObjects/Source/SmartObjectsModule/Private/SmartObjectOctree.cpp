@@ -66,11 +66,12 @@ void USmartObjectOctree::SetBounds(const FBox& Bounds)
 	new(&SmartObjectOctree) FSmartObjectOctree(Bounds.GetCenter(), Bounds.GetExtent().Size2D());
 }
 
-FInstancedStruct USmartObjectOctree::Add(const FSmartObjectHandle Handle, const FBox& Bounds)
+void USmartObjectOctree::Add(const FSmartObjectHandle Handle, const FBox& Bounds, FInstancedStruct& OutHandle)
 {
 	const FSmartObjectOctreeEntryData EntryData;
 	SmartObjectOctree.AddNode(Bounds, Handle, EntryData.SharedOctreeID);
-	return FInstancedStruct::Make(EntryData);
+	
+	OutHandle = FConstStructView::Make(EntryData);
 }
 
 void USmartObjectOctree::Remove(const FSmartObjectHandle Handle, FStructView EntryData)
