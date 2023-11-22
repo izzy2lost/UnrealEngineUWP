@@ -276,7 +276,14 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			}
 
 			FPCGElementPtr InputElement = MakeShared<FPCGLoopInputForwardingElement>(InputDataCollection, PreviousTaskId, FeedbackPinNames);
-			FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(Subgraph, Context->SourceComponent.Get(), PreGraphElement, InputElement, Dependencies, &InvocationStack);
+			FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(
+				Subgraph,
+				Context->SourceComponent.Get(),
+				PreGraphElement,
+				InputElement,
+				Dependencies,
+				&InvocationStack,
+				/*bAllowHierarchicalGeneration=*/false);
 
 			if (SubgraphTaskId != InvalidPCGTaskId)
 			{

@@ -781,6 +781,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	CullTasksStaticBranchNodes(CompiledTasks);
 
 	// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
+	// TODO - we could add an else branch for higen disabled that culls the grid size nodes.
 	if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
 		const EPCGHiGenGrid GenerationGrid = PCGHiGenGrid::GridSizeToGrid(GenerationGridSize);

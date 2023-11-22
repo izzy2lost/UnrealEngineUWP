@@ -93,7 +93,16 @@ public:
 
 	/** Schedules the execution of a given graph with specified inputs. This call is threadsafe */
 	FPCGTaskId Schedule(UPCGComponent* InComponent, const TArray<FPCGTaskId>& TaskDependency = TArray<FPCGTaskId>(), const FPCGStack* InFromStack = nullptr);
-	FPCGTaskId Schedule(UPCGGraph* Graph, UPCGComponent* InSourceComponent, FPCGElementPtr PreGraphElement, FPCGElementPtr InputElement, const TArray<FPCGTaskId>& TaskDependency, const FPCGStack* InFromStack);
+
+	/** Schedules the execution of a given graph with specified inputs. This call is threadsafe */
+	FPCGTaskId Schedule(
+		UPCGGraph* Graph,
+		UPCGComponent* InSourceComponent,
+		FPCGElementPtr PreGraphElement,
+		FPCGElementPtr InputElement,
+		const TArray<FPCGTaskId>& TaskDependency,
+		const FPCGStack* InFromStack,
+		bool bAllowHierarchicalGeneration);
 
 	/** Cancels all tasks originating from the given component */
 	TArray<UPCGComponent*> Cancel(UPCGComponent* InComponent);

@@ -100,10 +100,17 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGComponent* Component, const TArray<FP
 	check(Component);
 	UPCGGraph* Graph = Component->GetGraph();
 
-	return Schedule(Graph, Component, FPCGElementPtr(), GetFetchInputElement(), ExternalDependencies, InFromStack);
+	return Schedule(Graph, Component, FPCGElementPtr(), GetFetchInputElement(), ExternalDependencies, InFromStack, /*bAllowHierarchicalGeneration=*/true);
 }
 
-FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceComponent, FPCGElementPtr PreGraphElement, FPCGElementPtr InputElement, const TArray<FPCGTaskId>& ExternalDependencies, const FPCGStack* InFromStack)
+FPCGTaskId FPCGGraphExecutor::Schedule(
+	UPCGGraph* Graph,
+	UPCGComponent* SourceComponent,
+	FPCGElementPtr PreGraphElement,
+	FPCGElementPtr InputElement,
+	const TArray<FPCGTaskId>& ExternalDependencies,
+	const FPCGStack* InFromStack,
+	bool bAllowHierarchicalGeneration)
 {
 	check(SourceComponent);
 
@@ -115,8 +122,12 @@ FPCGTaskId FPCGGraphExecutor::Schedule(UPCGGraph* Graph, UPCGComponent* SourceCo
 	
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
-	const bool bNonPartitionedComponent = !SourceComponent->IsLocalComponent() && !SourceComponent->IsPartitioned();
-	const uint32 GenerationGridSize = bNonPartitionedComponent ? PCGHiGenGrid::UninitializedGridSize() : SourceComponent->GetGenerationGridSize();
+	uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
+	const bool bComponentIsPartOfHierarchy = SourceComponent->IsLocalComponent() || SourceComponent->IsPartitioned();
+	if (bAllowHierarchicalGeneration && bComponentIsPartOfHierarchy)
+	{
+		GenerationGridSize = SourceComponent->GetGenerationGridSize();
+	}
 
 	// Get compiled tasks from compiler
 	TSharedPtr<FPCGStackContext> StackContextPtr = MakeShared<FPCGStackContext>();

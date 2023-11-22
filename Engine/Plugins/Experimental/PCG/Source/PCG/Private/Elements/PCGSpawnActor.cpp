@@ -547,8 +547,9 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 								Context->SourceComponent.Get(),
 								MakeShared<FPCGTrivialElement>(),// TODO: prepare user parameters like in subgraph/loop
 								MakeShared<FPCGInputForwardingElement>(SubgraphInputData),
-								{},
-								&InvocationStack);
+								/*Dependencies=*/{},
+								&InvocationStack,
+								/*bAllowHierarchicalGeneration=*/false);
 
 							if (SubgraphTaskId != InvalidPCGTaskId)
 							{

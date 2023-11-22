@@ -692,11 +692,18 @@ FPCGTaskId UPCGSubsystem::ScheduleGraph(UPCGComponent* SourceComponent, const TA
 	}
 }
 
-FPCGTaskId UPCGSubsystem::ScheduleGraph(UPCGGraph* Graph, UPCGComponent* SourceComponent, FPCGElementPtr PreGraphElement, FPCGElementPtr InputElement, const TArray<FPCGTaskId>& Dependencies, const FPCGStack* InFromStack)
+FPCGTaskId UPCGSubsystem::ScheduleGraph(
+	UPCGGraph* Graph,
+	UPCGComponent* SourceComponent,
+	FPCGElementPtr PreGraphElement, 
+	FPCGElementPtr InputElement, 
+	const TArray<FPCGTaskId>& Dependencies, 
+	const FPCGStack* InFromStack, 
+	bool bAllowHierarchicalGeneration)
 {
 	if (SourceComponent)
 	{
-		return GraphExecutor->Schedule(Graph, SourceComponent, PreGraphElement, InputElement, Dependencies, InFromStack);
+		return GraphExecutor->Schedule(Graph, SourceComponent, PreGraphElement, InputElement, Dependencies, InFromStack, bAllowHierarchicalGeneration);
 	}
 	else
 	{

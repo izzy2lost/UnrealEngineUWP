@@ -535,7 +535,15 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 				FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();
 				InvocationStack.GetStackFramesMutable().Emplace(Context->Node);
 
-				FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(Subgraph, Context->SourceComponent.Get(), MakeShared<FPCGInputForwardingElement>(PreSubgraphInputData), MakeShared<FPCGInputForwardingElement>(SubgraphInputData), {}, &InvocationStack);
+				// Higen is not allowed in dynamic subgraphs, entire subgraph is executed on the same grid as this subgraph node.
+				FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(
+					Subgraph,
+					Context->SourceComponent.Get(),
+					MakeShared<FPCGInputForwardingElement>(PreSubgraphInputData),
+					MakeShared<FPCGInputForwardingElement>(SubgraphInputData),
+					/*Dependencies=*/{},
+					&InvocationStack,
+					/*bAllowHierarchicalGeneration=*/false);
 
 				if (SubgraphTaskId != InvalidPCGTaskId)
 				{

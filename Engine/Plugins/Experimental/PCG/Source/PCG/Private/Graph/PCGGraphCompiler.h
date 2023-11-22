@@ -30,6 +30,8 @@ public:
 
 private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
+
+	/** Compiles the top graph and applies culling optimizations if a non-unitialized grid size is provided. */
 	void CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize);
 
 	/** Propagates grid sizes through a graph's compiled tasks. */
