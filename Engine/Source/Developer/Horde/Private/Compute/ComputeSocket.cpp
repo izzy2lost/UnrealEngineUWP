@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ComputeSocket.h"
-#include "ComputePlatform.h"
+#include "Compute/ComputeSocket.h"
+#include "Compute/ComputePlatform.h"
 #include <iostream>
 #include <assert.h>
 #include <unordered_set>

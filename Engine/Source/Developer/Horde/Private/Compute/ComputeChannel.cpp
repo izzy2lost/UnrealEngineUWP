@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ComputeChannel.h"
+#include "Compute/ComputeChannel.h"
 #include <string.h>
 #include <stdio.h>
-#include "ComputeSocket.h"
+#include "Compute/ComputeSocket.h"
 
 FComputeChannel::FComputeChannel()
 {

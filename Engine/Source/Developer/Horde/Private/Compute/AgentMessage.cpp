@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AgentMessage.h"
-#include "ComputePlatform.h"
+#include "Compute/AgentMessage.h"
+#include "Compute/ComputePlatform.h"
 
 //// FAgentMessageChannel ////
 
@@ -162,7 +162,7 @@ EAgentMessageType FAgentMessageChannel::ReadResponse()
 	}
 
 	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength);
-	check(Header != nullptr);
+	UE_COMPUTE_ASSERT(Header != nullptr);
 	unsigned int Length = *((unsigned int*)(Header + 1));
 
 	Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength + Length);

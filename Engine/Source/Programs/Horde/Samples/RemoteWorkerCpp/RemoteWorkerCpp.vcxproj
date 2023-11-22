@@ -197,22 +197,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\AgentMessage.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\ComputeBuffer.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\ComputeChannel.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\ComputePlatform.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\ComputeSocket.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\ComputeTransport.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\AgentMessage.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeBuffer.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeChannel.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputePlatform.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeSocket.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeTransport.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\AgentMessage.h" />
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\ComputeBuffer.h" />
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\ComputeChannel.h" />
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\ComputePlatform.h" />
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\ComputeSocket.h" />
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\ComputeTransport.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\AgentMessage.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeBuffer.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeChannel.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputePlatform.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeSocket.h" />
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeTransport.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

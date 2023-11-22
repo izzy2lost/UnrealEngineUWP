@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ComputePlatform.h"
+#include "Compute/ComputePlatform.h"
 #include <assert.h>
 #include <wchar.h>
 #include <bit>

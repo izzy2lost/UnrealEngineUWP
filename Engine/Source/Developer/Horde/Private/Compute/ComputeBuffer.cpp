@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ComputeBuffer.h"
-#include "ComputePlatform.h"
+#include "Compute/ComputeBuffer.h"
+#include "Compute/ComputePlatform.h"
 #include <assert.h>
 #include <iostream>
 #include <assert.h>
