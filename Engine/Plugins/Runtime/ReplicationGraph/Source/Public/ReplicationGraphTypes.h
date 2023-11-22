@@ -1666,8 +1666,9 @@ struct FReplicationGraphCSVTracker
 			VisibleLevelConnectionTracker.Add(VisibleLevelData);
 			return true;
 		}
-#endif
+#else
 		return false;
+#endif
 	}
 
 	void VisibleLevelConnectionRemoved(FName LevelName)
