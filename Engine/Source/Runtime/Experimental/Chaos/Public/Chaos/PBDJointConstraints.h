@@ -73,9 +73,24 @@ namespace Chaos
 		CHAOS_API void SetAngularDriveDamping(const FVec3 Damping);
 		CHAOS_API void SetAngularDriveMaxTorque(const FVec3 MaxTorque);
 
-		CHAOS_API void SetDriveProperties(
+		/**
+		 * This allows the most common drive parameters to be set in one call. Note that the 
+		 * individual drive elements will be enabled/disabled depending on the strength/damping
+		 * values passed in.
+		 *
+		 * Angular values are passed in as (swing, twist, slerp)
+		 */
+		CHAOS_API void SetDriveParams(
 			const FVec3 LinearStiffness, const FVec3 LinearDamping, const FVec3 MaxForce,
 			const FVec3 AngularStiffness, const FVec3 AngularDamping, const FVec3 MaxTorque);
+
+		// TODO remove - this is just a temporary workaround before fixing calling code
+		void SetDriveProperties(
+			const FVec3 LinearStiffness, const FVec3 LinearDamping, const FVec3 MaxForce,
+			const FVec3 AngularStiffness, const FVec3 AngularDamping, const FVec3 MaxTorque)
+		{
+			SetDriveParams(LinearStiffness, LinearDamping, MaxForce, AngularStiffness, AngularDamping, MaxTorque);
+		}
 
 		CHAOS_API TVec2<FGeometryParticleHandle*> GetConstrainedParticles() const override final;
 

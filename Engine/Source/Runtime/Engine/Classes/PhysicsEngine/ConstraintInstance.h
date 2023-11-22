@@ -866,6 +866,18 @@ public:
 		return ProfileInstance.AngularDrive.AngularDriveMode;
 	}
 
+	/** 
+	 * This allows the most common drive parameters to be set in one call, avoiding lock overheads etc.
+	 * Note that the individual drive elements will be enabled/disabled depending on the strength/damping
+	 * values passed in.
+	 * 
+	 * Angular values are passed in as (swing, twist, slerp)
+	 */
+	ENGINE_API void SetDriveParams(
+		const FVector& InPositionStrength, const FVector& InVelocityStrength, const FVector& InForceLimit,
+		const FVector& InAngularSpring, const FVector& InAngularDamping, const FVector& InTorqueLimit,
+		EAngularDriveMode::Type InAngularDriveMode);
+
 	/** Refreshes the physics engine joint's linear limits. Only applicable if the joint has been created already.*/
 	ENGINE_API void UpdateLinearLimit();
 

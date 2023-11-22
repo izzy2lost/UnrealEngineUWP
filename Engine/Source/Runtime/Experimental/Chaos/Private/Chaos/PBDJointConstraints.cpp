@@ -210,7 +210,7 @@ namespace Chaos
 		GetConstraintSettingsInternal().AngularDriveMaxTorque = MaxTorque;
 	}
 
-	void FPBDJointConstraintHandle::SetDriveProperties(
+	void FPBDJointConstraintHandle::SetDriveParams(
 		const FVec3 LinearStiffness, const FVec3 LinearDamping, const FVec3 MaxForce,
 		const FVec3 AngularStiffness, const FVec3 AngularDamping, const FVec3 MaxTorque)
 	{
@@ -221,6 +221,18 @@ namespace Chaos
 		Settings.AngularDriveStiffness = AngularStiffness;
 		Settings.AngularDriveDamping = AngularDamping;
 		Settings.AngularDriveMaxTorque = MaxTorque;
+		Settings.bLinearPositionDriveEnabled[0] = LinearStiffness.X > 0;
+		Settings.bLinearPositionDriveEnabled[1] = LinearStiffness.Y > 0;
+		Settings.bLinearPositionDriveEnabled[2] = LinearStiffness.Z > 0;
+		Settings.bLinearVelocityDriveEnabled[0] = LinearDamping.X > 0;
+		Settings.bLinearVelocityDriveEnabled[1] = LinearDamping.Y > 0;
+		Settings.bLinearVelocityDriveEnabled[2] = LinearDamping.Z > 0;
+		Settings.bAngularSwingPositionDriveEnabled = AngularStiffness.X > 0;
+		Settings.bAngularTwistPositionDriveEnabled = AngularStiffness.Y > 0;
+		Settings.bAngularSLerpPositionDriveEnabled = AngularStiffness.Z > 0;
+		Settings.bAngularSwingVelocityDriveEnabled = AngularDamping.X > 0;
+		Settings.bAngularTwistVelocityDriveEnabled = AngularDamping.Y > 0;
+		Settings.bAngularSLerpVelocityDriveEnabled = AngularDamping.Z > 0;
 	}
 
 	const FPBDJointSettings& FPBDJointConstraintHandle::GetSettings() const

@@ -1020,6 +1020,31 @@ void FConstraintInstance::SetAngularOrientationTarget(const FQuat& InOrientation
 	FPhysicsInterface::SetDriveOrientation(ConstraintHandle, InOrientationTarget);
 }
 
+void FConstraintInstance::SetDriveParams(
+	const FVector& InLinearSpring, const FVector& InLinearDamping, const FVector& InForceLimit,
+	const FVector& InAngularSpring, const FVector& InAngularDamping, const FVector& InTorqueLimit,
+	EAngularDriveMode::Type InAngularDriveMode)
+{
+	ProfileInstance.LinearDrive.SetDriveParams(InLinearSpring, InLinearDamping, InForceLimit);
+	ProfileInstance.LinearDrive.SetLinearPositionDrive(
+		InLinearSpring.X != 0, InLinearSpring.Y != 0, InLinearSpring.Z != 0);
+	ProfileInstance.LinearDrive.SetLinearVelocityDrive(
+		InLinearDamping.X != 0, InLinearDamping.Y != 0, InLinearDamping.Z != 0);
+
+	ProfileInstance.AngularDrive.SetDriveParams(InAngularSpring, InAngularDamping, InTorqueLimit);
+	ProfileInstance.AngularDrive.SetAngularDriveMode(InAngularDriveMode);
+	ProfileInstance.AngularDrive.SetOrientationDriveTwistAndSwing(InAngularSpring.Y != 0, InAngularSpring.X != 0);
+	ProfileInstance.AngularDrive.SetOrientationDriveSLERP(InAngularSpring.Z != 0);
+	ProfileInstance.AngularDrive.SetAngularVelocityDriveTwistAndSwing(InAngularDamping.Y != 0, InAngularDamping.X != 0);
+	ProfileInstance.AngularDrive.SetAngularVelocityDriveSLERP(InAngularDamping.Z != 0);
+
+	FPhysicsInterface::ExecuteOnUnbrokenConstraintReadWrite(ConstraintHandle, [this](const FPhysicsConstraintHandle& InUnbrokenConstraint)
+	{
+		FPhysicsInterface::UpdateLinearDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.LinearDrive);
+		FPhysicsInterface::UpdateAngularDrive_AssumesLocked(InUnbrokenConstraint, ProfileInstance.AngularDrive);
+	});
+}
+
 float FConstraintInstance::GetCurrentSwing1() const
 {
 	return FPhysicsInterface::GetCurrentSwing1(ConstraintHandle);
