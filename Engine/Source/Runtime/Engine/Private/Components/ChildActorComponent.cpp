@@ -42,7 +42,6 @@ UChildActorComponent::UChildActorComponent(const FObjectInitializer& ObjectIniti
 
 #if WITH_EDITORONLY_DATA
 	EditorTreeViewVisualizationMode = EChildActorComponentTreeViewVisualizationMode::UseDefault;
-	bHideFromSceneOutliner = false;
 #endif
 }
 
@@ -801,7 +800,7 @@ void UChildActorComponent::CreateChildActor(TFunction<void(AActor*)> CustomizerF
 				Params.bCreateActorPackage = false;
 				Params.OverridePackage = (MyOwner ? MyOwner->GetExternalPackage() : nullptr);
 				Params.OverrideActorGuid = CachedInstanceData ? CachedInstanceData->ChildActorGUID : FGuid();
-				Params.bHideFromSceneOutliner = bHideFromSceneOutliner;
+				Params.bHideFromSceneOutliner = EditorTreeViewVisualizationMode == EChildActorComponentTreeViewVisualizationMode::Hidden;
 #endif
 				if (ChildActorTemplate && ChildActorTemplate->GetClass() == ChildActorClass)
 				{

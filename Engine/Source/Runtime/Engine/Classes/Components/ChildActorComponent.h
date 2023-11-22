@@ -74,6 +74,8 @@ enum class EChildActorComponentTreeViewVisualizationMode : uint8
 	ComponentWithChildActor,
 	/** Show only as a child actor hierarchy (i.e. do not show the outer component node as the root). */
 	ChildActorOnly,
+	/** Do not display the actor in the tree view. */
+	Hidden,
 };
 #endif
 
@@ -137,9 +139,6 @@ private:
 	/** Indicates how this component will be visualized for editing in a tree view. Users can change this setting per instance via the context menu in the Blueprint/SCS editor. */
 	UPROPERTY()
 	EChildActorComponentTreeViewVisualizationMode EditorTreeViewVisualizationMode;
-
-	UPROPERTY(EditDefaultsOnly, Category=ChildActorComponent)
-	uint8 bHideFromSceneOutliner:1;
 #endif
 
 	/**
@@ -218,9 +217,6 @@ public:
 	}
 
 	ENGINE_API void SetEditorTreeViewVisualizationMode(EChildActorComponentTreeViewVisualizationMode InMode);
-
-	bool GetHideFromSceneOutliner() const { return bHideFromSceneOutliner; }
-	void SetHideFromSceneOutliner(bool bHide) {bHideFromSceneOutliner = bHide;}
 #endif
 
 #if UE_WITH_IRIS
