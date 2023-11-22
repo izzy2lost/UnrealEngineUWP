@@ -1148,8 +1148,7 @@ static void ComputeUpdateRegionsAndUpdateViewState(
 
 					const TArray<FBox>& PrimitiveModifiedBounds = ClipmapViewState.Cache[CacheType].PrimitiveModifiedBounds;
 
-					TArray<FBox, SceneRenderingAllocator> CulledPrimitiveModifiedBounds;
-					CulledPrimitiveModifiedBounds.Empty(PrimitiveModifiedBounds.Num() / 2);
+					uint32 NumCulledPrimitiveModifiedBounds = 0;
 
 					Clipmap.UpdateBounds.Empty(PrimitiveModifiedBounds.Num() / 2);
 
@@ -1159,7 +1158,7 @@ static void ComputeUpdateRegionsAndUpdateViewState(
 
 						if (ModifiedBounds.ComputeSquaredDistanceToBox(ClipmapBounds) < ClipmapInfluenceRadius * ClipmapInfluenceRadius)
 						{
-							CulledPrimitiveModifiedBounds.Add(ModifiedBounds);
+							++NumCulledPrimitiveModifiedBounds;
 
 							Clipmap.UpdateBounds.Add(FClipmapUpdateBounds(ModifiedBounds.GetCenter(), ModifiedBounds.GetExtent(), true));
 							
@@ -1201,7 +1200,7 @@ static void ComputeUpdateRegionsAndUpdateViewState(
 					}
 
 					// Only use partial updates with small numbers of primitive modifications
-					bool bUsePartialUpdatesForUpdateBounds = bUsePartialUpdates && CulledPrimitiveModifiedBounds.Num() < 1024;
+					bool bUsePartialUpdatesForUpdateBounds = bUsePartialUpdates && NumCulledPrimitiveModifiedBounds < 1024;
 
 					if (!bUsePartialUpdatesForUpdateBounds)
 					{
