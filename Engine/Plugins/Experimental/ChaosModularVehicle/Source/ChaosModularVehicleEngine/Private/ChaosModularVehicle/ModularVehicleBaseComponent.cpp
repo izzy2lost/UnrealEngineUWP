@@ -907,20 +907,20 @@ void UModularVehicleBaseComponent::CreateVehicleSim()
 {
 	UWorld* World = GetWorld();
 
-	// create the simulation class
-	VehicleSimulationPT = MakeUnique<FModularVehicleSimulationCU>(bUsingNetworkPhysicsPrediction, (int8)World->GetNetMode());
-
-	// create physics output container
-	PVehicleOutput = MakeUnique<FPhysicsVehicleOutput>();
-
-	// generate the simulation tree with initial components
-	FModularVehicleBuilder::GenerateSimTree(this);
-
 	// register our vehicle with the modular vehicle Sim Manager
 	if (World)
 	{
 		if (World->IsGameWorld())
 		{
+			// create the simulation class
+			VehicleSimulationPT = MakeUnique<FModularVehicleSimulationCU>(bUsingNetworkPhysicsPrediction, (int8)World->GetNetMode());
+
+			// create physics output container
+			PVehicleOutput = MakeUnique<FPhysicsVehicleOutput>();
+
+			// generate the simulation tree with initial components
+			FModularVehicleBuilder::GenerateSimTree(this);
+
 			FPhysScene* PhysScene = World->GetPhysicsScene();
 
 			if (FChaosSimModuleManager* SimManager = FChaosSimModuleManager::GetManagerFromScene(PhysScene))
