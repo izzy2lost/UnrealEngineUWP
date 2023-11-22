@@ -705,6 +705,10 @@ bool SRetainerWidget::CustomPrepass(float LayoutScaleMultiplier)
 {
 	if (bEnableRetainedRendering)
 	{
+		if (NeedsPrepass())
+		{
+			SetNeedsSlowPath(true);
+		}
 		ProcessInvalidation();
 		if (NeedsSlowPath())
 		{

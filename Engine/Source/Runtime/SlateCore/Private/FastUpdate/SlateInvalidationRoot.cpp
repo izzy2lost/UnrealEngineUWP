@@ -1358,6 +1358,11 @@ void FSlateInvalidationRoot::ClearAllFastPathData(bool bClearResourcesImmediatel
 	FinalUpdateList.Empty();
 }
 
+void FSlateInvalidationRoot::SetNeedsSlowPath(bool InNeedsSlowPath)
+{
+	bNeedsSlowPath = InNeedsSlowPath;
+}
+
 void FSlateInvalidationRoot::HandleInvalidateAllWidgets(bool bClearResourcesImmediately)
 {
 	Advanced_ResetInvalidation(bClearResourcesImmediately);

@@ -277,6 +277,10 @@ bool SInvalidationPanel::CustomPrepass(float LayoutScaleMultiplier)
 
 	if (GetCanCache())
 	{
+		if (NeedsPrepass())
+		{
+			SetNeedsSlowPath(true);
+		}
 		ProcessInvalidation();
 		if (NeedsSlowPath())
 		{
