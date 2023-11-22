@@ -11,6 +11,19 @@
 struct FStateTreeTransitionRequest;
 struct FStateTreeExecutionState;
 
+/** Wrapper class to store an object amongst the structs. */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreeInstanceObjectWrapper
+{
+	GENERATED_BODY()
+
+	FStateTreeInstanceObjectWrapper() = default;
+	FStateTreeInstanceObjectWrapper(UObject* Object) : InstanceObject(Object) {}
+	
+	UPROPERTY()
+	TObjectPtr<UObject> InstanceObject = nullptr;
+};
+
 /**
  * State Tree instance data is used to store the runtime state of a State Tree. It is used together with FStateTreeExecution context to tick the state tree.
  * You are supposed to use FStateTreeInstanceData as a property to store the instance data. That ensures that any UObject references will get GC'd correctly.
@@ -28,35 +41,17 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 {
 	GENERATED_BODY()
 
-	/** @return true if the instance is correctly initialized. */
-	bool IsValid() const;
-
-	/** @return Number of items in the instance data. */
-	int32 NumStructs() const { return InstanceStructs.Num(); }
-
-	/** @return true if the specified index is valid index into the struct data container. */
-	bool IsValidStructIndex(const int32 Index) const { return InstanceStructs.IsValidIndex(Index); }
-	
-	/** @return mutable view to the struct at specified index. */
-	FStructView GetMutableStruct(const int32 Index) { return InstanceStructs[Index]; }
-
-	/** @return const view to the struct at specified index. */
-	FConstStructView GetStruct(const int32 Index) const { return InstanceStructs[Index]; }
-
-	/** @return number of instance objects */
-	int32 NumObjects() const { return InstanceObjects.Num(); }
-
-	/** @return pointer to an instance object   */
-	UObject* GetMutableObject(const int32 Index) const { return InstanceObjects[Index]; }
-
-	/** @return const pointer to an instance object   */
-	const UObject* GetObject(const int32 Index) const { return InstanceObjects[Index]; }
+	/** @return reference to the event queue. */
+	FStateTreeEventQueue& GetMutableEventQueue()
+	{
+		return EventQueue;
+	}
 
 	/** @return reference to the event queue. */
-	FStateTreeEventQueue& GetMutableEventQueue() { return EventQueue; }
-
-	/** @return reference to the event queue. */
-	const FStateTreeEventQueue& GetEventQueue() const { return EventQueue; }
+	const FStateTreeEventQueue& GetEventQueue() const
+	{
+		return EventQueue;
+	}
 
 	/** 
 	 * Buffers a transition request to be sent to the State Tree.
@@ -68,7 +63,7 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	/** @return currently pending transition requests. */
 	TConstArrayView<FStateTreeTransitionRequest> GetTransitionRequests() const
 	{
-		return TransitionRequests;		
+		return TransitionRequests;
 	}
 
 	/** Reset all pending transition requests. */
@@ -77,14 +72,66 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	/** @return true if all instances are valid. */
 	bool AreAllInstancesValid() const;
 
+	/** @return number of items in the storage. */
+	int32 Num() const
+	{
+		return InstanceStructs.Num();
+	}
+
+	/** @return true if the index can be used to get data. */
+	bool IsValidIndex(const int32 Index) const
+	{
+		return InstanceStructs.IsValidIndex(Index);
+	}
+
+	/** @return true if item at the specified index is object type. */
+	bool IsObject(const int32 Index) const
+	{
+		return InstanceStructs[Index].GetScriptStruct() == TBaseStructure<FStateTreeInstanceObjectWrapper>::Get();
+	}
+
+	/** @return specified item as struct. */
+	FConstStructView GetStruct(const int32 Index) const
+	{
+		return InstanceStructs[Index];
+	}
+	
+	/** @return specified item as mutable struct. */
+	FStructView GetMutableStruct(const int32 Index)
+	{
+		return InstanceStructs[Index];
+	}
+
+	/** @return specified item as object, will check() if the item is not an object. */
+	const UObject* GetObject(const int32 Index) const
+	{
+		const FStateTreeInstanceObjectWrapper& Wrapper = InstanceStructs[Index].Get<const FStateTreeInstanceObjectWrapper>();
+		return Wrapper.InstanceObject;
+	}
+
+	/** @return specified item as mutable Object, will check() if the item is not an object. */
+	UObject* GetMutableObject(const int32 Index) const
+	{
+		const FStateTreeInstanceObjectWrapper& Wrapper = InstanceStructs[Index].Get<const FStateTreeInstanceObjectWrapper>();
+		return Wrapper.InstanceObject;
+	}
+
+	UE_DEPRECATED(5.4, "Use Num() instead.")
+	int32 NumStructs() const { return 0; }
+
+	UE_DEPRECATED(5.4, "Use IsValidIndex() instead.")
+	bool IsValidStructIndex(const int32 Index) const { return false; }
+	
+	UE_DEPRECATED(5.4, "Use Num() instead.")
+	int32 NumObjects() const { return 0; }
+
+	UE_DEPRECATED(5.4, "Not used anymore, since ExecutionState is stored separately.")
+	bool IsValid() const { return false; }
+
 protected:
 	/** Struct instances */
 	UPROPERTY()
 	FInstancedStructContainer InstanceStructs;
-
-	/** Object instances. */
-	UPROPERTY()
-	TArray<TObjectPtr<UObject>> InstanceObjects;
 
 	/** Events */
 	UPROPERTY()
@@ -112,18 +159,18 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 
 	FStateTreeInstanceData();
 	~FStateTreeInstanceData();
-
+	
 	/** Initializes the array with specified items. */
-	void Init(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs, TConstArrayView<const UObject*> InObjects);
-	void Init(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<const UObject*> InObjects);
+	void Init(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs);
+	void Init(UObject& InOwner, TConstArrayView<FConstStructView> InStructs);
 
 	/** Appends new items to the instance. */
-	void Append(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs, TConstArrayView<const UObject*> InObjects);
-	void Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<const UObject*> InObjects);
+	void Append(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs);
+	void Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs);
 
 	/** Shrinks the array sizes to specified lengths. Sizes must be small or equal than current size. */
-	void ShrinkTo(const int32 NumStructs, const int32 NumObjects);
-
+	void ShrinkTo(const int32 Num);
+	
 	/** Shares the layout from another instance data, and copies the data over. */
 	void CopyFrom(UObject& InOwner, const FStateTreeInstanceData& InOther);
 
@@ -134,32 +181,57 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	bool IsValid() const;
 
 	/** @return Number of items in the instance data. */
-	int32 NumStructs() const { return GetStorage().InstanceStructs.Num(); }
+	int32 Num() const
+	{
+		return GetStorage().Num();
+	}
 
-	/** @return true if the specified index is valid index into the struct data container. */
-	bool IsValidStructIndex(const int32 Index) const { return GetStorage().InstanceStructs.IsValidIndex(Index); }
-	
+	/** @return true if the specified index is valid index into the instance data container. */
+	bool IsValidIndex(const int32 Index) const
+	{
+		return GetStorage().IsValidIndex(Index);
+	}
+
+	/** @return true if the data at specified index is object. */
+	bool IsObject(const int32 Index) const
+	{
+		return GetStorage().IsObject(Index);
+	}
+
 	/** @return mutable view to the struct at specified index. */
-	FStructView GetMutableStruct(const int32 Index) { return GetMutableStorage().InstanceStructs[Index]; }
+	FStructView GetMutableStruct(const int32 Index)
+	{
+		return GetMutableStorage().GetMutableStruct(Index);
+	}
 
 	/** @return const view to the struct at specified index. */
-	FConstStructView GetStruct(const int32 Index) const { return GetStorage().InstanceStructs[Index]; }
-
-	/** @return number of instance objects */
-	int32 NumObjects() const { return GetStorage().InstanceObjects.Num(); }
+	FConstStructView GetStruct(const int32 Index) const
+	{
+		return GetStorage().GetStruct(Index);
+	}
 
 	/** @return pointer to an instance object   */
-	UObject* GetMutableObject(const int32 Index) { return GetMutableStorage().InstanceObjects[Index]; }
+	UObject* GetMutableObject(const int32 Index)
+	{
+		return GetMutableStorage().GetMutableObject(Index);
+	}
 
 	/** @return const pointer to an instance object   */
-	const UObject* GetObject(const int32 Index) const { return GetStorage().InstanceObjects[Index]; }
+	const UObject* GetObject(const int32 Index) const
+	{
+		return GetStorage().GetObject(Index);
+	}
 
 	/** @return pointer to StateTree execution state, or null if the instance data is not initialized. */
-	const FStateTreeExecutionState* GetExecutionState() const;
-	
-	/** @return array to store unprocessed events. */
-	UE_DEPRECATED(5.2, "Use GetEventQueue() instead.")
-	TArray<FStateTreeEvent>& GetEvents() const;
+	const FStateTreeExecutionState* GetExecutionState() const
+	{
+		return &ExecutionState;
+	}
+
+	FStateTreeExecutionState* GetMutableExecutionState()
+	{
+		return &ExecutionState;
+	}
 
 	/** @return reference to the event queue. */
 	FStateTreeEventQueue& GetMutableEventQueue();
@@ -185,25 +257,47 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	const FStateTreeInstanceStorage& GetStorage() const;
 
 	int32 GetEstimatedMemoryUsage() const;
-	int32 GetNumItems() const;
 	
 	/** Type traits */
 	bool Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const;
-	void PostSerialize(const FArchive& Ar);
+
+
+	UE_DEPRECATED(5.4, "Use the structs only Init(), objects should be wrapped in FStateTreeInstanceObjectWrapper.")
+	void Init(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs, TConstArrayView<const UObject*> InObjects);
+
+	UE_DEPRECATED(5.4, "Use the structs only Init(), objects should be wrapped in FStateTreeInstanceObjectWrapper.")
+	void Init(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<const UObject*> InObjects);
+
+	UE_DEPRECATED(5.4, "Use the structs only Init(), objects should be wrapped in FStateTreeInstanceObjectWrapper.")
+	void Append(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs, TConstArrayView<const UObject*> InObjects);
+
+	UE_DEPRECATED(5.4, "Use the structs only Init(), objects should be wrapped in FStateTreeInstanceObjectWrapper.")
+	void Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<const UObject*> InObjects);
+
+	UE_DEPRECATED(5.4, "Use the one param ShrinkTo().")
+	void ShrinkTo(const int32 NumStructs, const int32 NumObjects);
+
+	UE_DEPRECATED(5.4, "Use IsValidIndex() instead.")
+	bool IsValidStructIndex(const int32 Index) const { return false; }
+
+	UE_DEPRECATED(5.4, "Use Num() instead.")
+	int32 NumStructs() const { return GetStorage().InstanceStructs.Num(); }
+	
+	UE_DEPRECATED(5.4, "Use Num() instead.")
+	int32 NumObjects() const { return 0; }
+
+	UE_DEPRECATED(5.4, "Use Num() instead.")
+	int32 GetNumItems() const { return 0; }
 
 protected:
 
+	/** Execution state of the state tree instance. */
+	UPROPERTY()
+	FStateTreeExecutionState ExecutionState;
+	
 	/** Storage for the actual instance data, always stores FStateTreeInstanceStorage. */
 	UPROPERTY()
-	FInstancedStruct InstanceStorage;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(meta = (DeprecatedProperty))
-	FInstancedStructContainer InstanceStructs_DEPRECATED;
-
-	UPROPERTY(meta = (DeprecatedProperty))
-	TArray<TObjectPtr<UObject>> InstanceObjects_DEPRECATED;
-#endif // WITH_EDITORONLY_DATA
+	TInstancedStruct<FStateTreeInstanceStorage> InstanceStorage;
 };
 
 template<>
@@ -212,7 +306,6 @@ struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTrait
 	enum
 	{
 		WithIdentical = true,
-		WithPostSerialize = true,
 	};
 };
 
@@ -251,7 +344,7 @@ struct TStateTreeInstanceDataStructRef
 	{
 		const FConstStructView InstanceDataStructView = FConstStructView::template Make(InstanceDataStruct);
 		// Find struct in the instance data.
-		for (int32 Index = 0; Index < Storage.NumStructs(); Index++)
+		for (int32 Index = 0; Index < Storage.Num(); Index++)
 		{
 			if (Storage.GetStruct(Index) == InstanceDataStructView)
 			{
@@ -262,7 +355,7 @@ struct TStateTreeInstanceDataStructRef
 		check(StructIndex != INDEX_NONE);
 	}
 
-	bool IsValid() const { return Storage.IsValidStructIndex(StructIndex); }
+	bool IsValid() const { return Storage.IsValidIndex(StructIndex); }
 
 	T& operator*()
 	{

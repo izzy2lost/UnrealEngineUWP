@@ -168,7 +168,12 @@ struct STATETREEMODULE_API FStateTreeStateHandle
 	{
 		return Index >= 0 && Index < (int32)MAX_uint16;
 	}
-	
+
+	friend FORCEINLINE uint32 GetTypeHash(const FStateTreeStateHandle& Handle)
+	{
+		return GetTypeHash(Handle.Index);
+	}
+
 	FStateTreeStateHandle() = default;
 	explicit FStateTreeStateHandle(const uint16 InIndex) : Index(InIndex) {}
 	explicit FStateTreeStateHandle(const int32 InIndex) : Index()
@@ -200,6 +205,182 @@ struct STATETREEMODULE_API FStateTreeStateHandle
 
 	UPROPERTY()
 	uint16 Index = InvalidIndex;
+};
+
+
+/** Data type the FStateTreeDataHandle is pointing at. */
+UENUM(BlueprintType)
+enum class EStateTreeDataSourceType : uint8
+{
+	None UMETA(Hidden),
+
+	/** Global Tasks, Evaluators */
+	GlobalInstanceData,
+
+	/** Global Tasks, Evaluators*/
+	GlobalInstanceDataObject,
+
+	/** Active State Tasks */
+	ActiveInstanceData,
+
+	/** Active State Tasks */
+	ActiveInstanceDataObject,
+
+	/** Conditions */
+	SharedInstanceData,
+
+	/** Conditions */
+	SharedInstanceDataObject,
+
+	/** Context Data, External Data, Tree Parameters */
+	ContextData,
+
+	/** Subtree parameters */
+	SubtreeParameterData,
+
+	/** Linked state parameters */
+	LinkedStateParameterData,
+};
+
+/** Handle to a StateTree data */
+USTRUCT(BlueprintType)
+struct STATETREEMODULE_API FStateTreeDataHandle
+{
+	GENERATED_BODY()
+
+	static const FStateTreeDataHandle Invalid;
+	static constexpr uint16 InvalidIndex = MAX_uint16;
+
+	/** @return true if the given index can be represented by the type. */
+	static bool IsValidIndex(const int32 Index)
+	{
+		return Index >= 0 && Index < (int32)InvalidIndex;
+	}
+
+	friend FORCEINLINE uint32 GetTypeHash(const FStateTreeDataHandle& Handle)
+	{
+		uint32 Hash = GetTypeHash(Handle.Source);
+		Hash = HashCombineFast(Hash, GetTypeHash(Handle.Source));
+		Hash = HashCombineFast(Hash, GetTypeHash(Handle.StateHandle));
+		return Hash;
+	}
+	
+	FStateTreeDataHandle() = default;
+	
+	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource, const uint16 InIndex, const FStateTreeStateHandle InStateHandle = FStateTreeStateHandle::Invalid)
+		: Source(InSource)
+		, Index(InIndex)
+		, StateHandle(InStateHandle)
+	{
+		// Require valid state for active instance data
+		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
+		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
+	}
+
+	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource, const int32 InIndex, const FStateTreeStateHandle InStateHandle = FStateTreeStateHandle::Invalid)
+		: Source(InSource)
+		, StateHandle(InStateHandle)
+	{
+		// Require valid state for active instance data
+		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
+		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
+		check(InIndex == INDEX_NONE || IsValidIndex(InIndex));
+		Index = static_cast<uint16>(InIndex);
+	}
+
+	bool IsValid() const
+	{
+		return Source != EStateTreeDataSourceType::None;
+	}
+
+	void Reset()
+	{
+		Source = EStateTreeDataSourceType::None;
+		Index = InvalidIndex;
+		StateHandle = FStateTreeStateHandle::Invalid;
+	}
+
+	bool operator==(const FStateTreeDataHandle& RHS) const
+	{
+		return Source == RHS.Source && Index == RHS.Index && StateHandle == RHS.StateHandle;
+	}
+	
+	bool operator!=(const FStateTreeDataHandle& RHS) const
+	{
+		return !(*this == RHS);
+	}
+
+	EStateTreeDataSourceType GetSource() const
+	{
+		return Source;
+	}
+
+	int32 GetIndex() const
+	{
+		return Index;
+	}
+
+	FStateTreeStateHandle GetState() const
+	{
+		return StateHandle;
+	}
+
+	bool IsObjectSource() const
+	{
+		return Source == EStateTreeDataSourceType::GlobalInstanceDataObject
+			|| Source == EStateTreeDataSourceType::ActiveInstanceDataObject
+			|| Source == EStateTreeDataSourceType::SharedInstanceDataObject;
+	}
+	
+	FStateTreeDataHandle ToObjectSource() const
+	{
+		switch (Source)
+		{
+		case EStateTreeDataSourceType::GlobalInstanceData:
+			return FStateTreeDataHandle(EStateTreeDataSourceType::GlobalInstanceDataObject, Index, StateHandle);
+		case EStateTreeDataSourceType::ActiveInstanceData:
+			return FStateTreeDataHandle(EStateTreeDataSourceType::ActiveInstanceDataObject, Index, StateHandle);
+		case EStateTreeDataSourceType::SharedInstanceData:
+			return FStateTreeDataHandle(EStateTreeDataSourceType::SharedInstanceDataObject, Index, StateHandle);
+		default:
+			return *this;
+		}
+	}
+	
+	FString Describe() const
+	{
+		switch (Source)
+		{
+		case EStateTreeDataSourceType::None:
+			return TEXT("None");
+		case EStateTreeDataSourceType::ContextData:
+			return FString::Printf(TEXT("Context[%d]"), Index);
+		case EStateTreeDataSourceType::GlobalInstanceData:
+			return FString::Printf(TEXT("Global[%d]"), Index);
+		case EStateTreeDataSourceType::GlobalInstanceDataObject:
+			return FString::Printf(TEXT("GlobalO[%d]"), Index);
+		case EStateTreeDataSourceType::ActiveInstanceData:
+			return FString::Printf(TEXT("Active[%d]"), Index);
+		case EStateTreeDataSourceType::ActiveInstanceDataObject:
+			return FString::Printf(TEXT("ActiveO[%d]"), Index);
+		case EStateTreeDataSourceType::SharedInstanceData:
+			return FString::Printf(TEXT("Shared[%d]"), Index);
+		case EStateTreeDataSourceType::SharedInstanceDataObject:
+			return FString::Printf(TEXT("SharedO[%d]"), Index);
+		default:
+			return TEXT("---");
+		}
+	}
+	
+private:
+	UPROPERTY()
+	EStateTreeDataSourceType Source = EStateTreeDataSourceType::None;
+
+	UPROPERTY()
+	uint16 Index = InvalidIndex;
+
+	UPROPERTY()
+	FStateTreeStateHandle StateHandle = FStateTreeStateHandle::Invalid; 
 };
 
 
@@ -386,11 +567,13 @@ struct STATETREEMODULE_API FCompactStateTreeState
 
 	/** Index to state instance data. */
 	UPROPERTY()
-	FStateTreeIndex16 ParameterInstanceIndex = FStateTreeIndex16::Invalid;
+	FStateTreeIndex16 ParameterTemplateIndex = FStateTreeIndex16::Invalid;
 
-	/** Data view index of the input parameters. */
 	UPROPERTY()
-	FStateTreeIndex16 ParameterDataViewIndex = FStateTreeIndex16::Invalid;
+	FStateTreeDataHandle ParameterDataHandle = FStateTreeDataHandle::Invalid;
+
+	UPROPERTY()
+	FStateTreeIndex16 ParameterBindingsBatch = FStateTreeIndex16::Invalid;
 
 	/** Number of enter conditions */
 	UPROPERTY()
@@ -404,13 +587,9 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	uint8 TasksNum = 0;
 
-	/** Number of tasks with struct instance data. */
+	/** Number of instance data */
 	UPROPERTY()
-	uint8 TaskInstanceStructNum = 0;
-
-	/** Number of tasks with object instance data. */
-	UPROPERTY()
-	uint8 TaskInstanceObjectNum = 0;
+	uint8 InstanceDataNum = 0;
 
 	/** Type of the state */
 	UPROPERTY()
@@ -434,9 +613,13 @@ struct STATETREEMODULE_API FCompactStateTreeParameters
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
-	FStateTreeIndex16 BindingsBatch = FStateTreeIndex16::Invalid;
+	FCompactStateTreeParameters() = default;
 
+	FCompactStateTreeParameters(const FInstancedPropertyBag& InParameters)
+		: Parameters(InParameters)
+	{
+	}
+	
 	UPROPERTY()
 	FInstancedPropertyBag Parameters;
 };
@@ -774,13 +957,6 @@ protected:
 	/** Memory pointing at the class or struct */
 	uint8* Memory = nullptr;
 };
-
-struct STATETREEMODULE_API FStateTreeTransitionDelayedState
-{
-	FStateTreeIndex16 TransitionIndex = FStateTreeIndex16::Invalid;
-	float TimeLeft = 0.0f;
-};
-
 
 /**
  * Link to another state in StateTree

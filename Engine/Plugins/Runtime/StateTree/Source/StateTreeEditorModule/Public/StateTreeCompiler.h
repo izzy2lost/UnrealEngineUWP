@@ -50,8 +50,8 @@ private:
 	
 	bool CreateConditions(UStateTreeState& State, TConstArrayView<FStateTreeEditorNode> Conditions);
 	bool CreateCondition(UStateTreeState& State, const FStateTreeEditorNode& CondNode, const EStateTreeConditionOperand Operand, const int8 DeltaIndent);
-	bool CreateTask(UStateTreeState* State, const FStateTreeEditorNode& TaskNode);
-	bool CreateEvaluator(const FStateTreeEditorNode& EvalNode);
+	bool CreateTask(UStateTreeState* State, const FStateTreeEditorNode& TaskNode, const FStateTreeDataHandle TaskDataHandle);
+	bool CreateEvaluator(const FStateTreeEditorNode& EvalNode, const FStateTreeDataHandle EvalDataHandle);
 	bool GetAndValidateBindings(const FStateTreeBindableStructDesc& TargetStruct, FStateTreeDataView TargetValue, TArray<FStateTreePropertyPathBinding>& OutBindings) const;
 	bool IsPropertyAnyEnum(const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const;
 	bool ValidateStructRef(const FStateTreeBindableStructDesc& SourceStruct, FStateTreePropertyPath SourcePath,
@@ -59,8 +59,6 @@ private:
 	bool CompileAndValidateNode(const UStateTreeState* SourceState, const FStateTreeBindableStructDesc& NodeDesc, FStructView NodeView, const FStateTreeDataView InstanceData);
 
 	void InstantiateStructSubobjects(FStructView Struct);
-	
-	FStateTreeDataView GetBindingSourceValue(const int32 SourceIndex);
 	
 	FStateTreeCompilerLog& Log;
 	UStateTree* StateTree = nullptr;
@@ -74,8 +72,6 @@ private:
 	TArray<FInstancedStruct> Nodes;
 	TArray<FInstancedStruct> InstanceStructs;
 	TArray<FInstancedStruct> SharedInstanceStructs;
-	TArray<TObjectPtr<UObject>> InstanceObjects;
-	TArray<TObjectPtr<UObject>> SharedInstanceObjects;
 	
 	FStateTreePropertyBindingCompiler BindingsCompiler;
 };
