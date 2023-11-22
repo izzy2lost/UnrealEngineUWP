@@ -202,9 +202,14 @@ static void BlitUIToHDRScene(FRHICommandListImmediate& RHICmdList, IRendererModu
 
 	const FVector2f InvSrcTextureSize(1.f / SrcTextureWidth, 1.f / SrcTextureHeight);
 
+	// If using a custom output target, sample the source rect for UV's, else do not as the dest rect may be a subsection
+	const FSlateRect& UVRect = RectParams.PostProcessDest == EPostProcessDestination::DestTexture
+		? SourceRect
+		: DestRect;
+
 	// no guard band is actually needed because GaussianBlurMain already takes ensure that sampling happens inside the rectangle
-	const FVector2f UVStart = FVector2f(DestRect.Left - 0.0f, DestRect.Top - 0.0f) * InvSrcTextureSize;
-	const FVector2f UVEnd = FVector2f(DestRect.Right + 0.0f, DestRect.Bottom + 0.0f) * InvSrcTextureSize;
+	const FVector2f UVStart = FVector2f(UVRect.Left - 0.0f, UVRect.Top - 0.0f) * InvSrcTextureSize;
+	const FVector2f UVEnd = FVector2f(UVRect.Right + 0.0f, UVRect.Bottom + 0.0f) * InvSrcTextureSize;
 	const FVector2f SizeUV = UVEnd - UVStart;
 
 	RHICmdList.SetViewport(0, 0, 0, SrcTextureWidth, SrcTextureHeight, 0.0f);
@@ -369,8 +374,13 @@ void FSlatePostProcessor::BlurRect(FRHICommandListImmediate& RHICmdList, IRender
 				{
 					const FVector2f InvSrcTextureSize(1.f / SrcTextureWidth, 1.f / SrcTextureHeight);
 
-					const FVector2f UVStart = FVector2f(DestRect.Left, DestRect.Top) * InvSrcTextureSize;
-					const FVector2f UVEnd = FVector2f(DestRect.Right, DestRect.Bottom) * InvSrcTextureSize;
+					// If using a custom output target, sample the source rect for UV's, else do not as the dest rect may be a subsection
+					const FSlateRect& UVRect = RectParams.PostProcessDest == EPostProcessDestination::DestTexture
+						? SourceRect
+						: DestRect;
+
+					const FVector2f UVStart = FVector2f(UVRect.Left, UVRect.Top) * InvSrcTextureSize;
+					const FVector2f UVEnd = FVector2f(UVRect.Right, UVRect.Bottom) * InvSrcTextureSize;
 					const FVector2f SizeUV = UVEnd - UVStart;
 
 					PixelShader->SetUVBounds(BatchedParameters, FVector4f(UVStart, UVEnd));
@@ -571,8 +581,13 @@ void FSlatePostProcessor::DownsampleRect(FRHICommandListImmediate& RHICmdList, I
 
 		const FVector2f InvSrcTextureSize(1.f/SrcTextureWidth, 1.f/SrcTextureHeight);
 
-		const FVector2f UVStart = FVector2f(DestRect.Left, DestRect.Top) * InvSrcTextureSize;
-		const FVector2f UVEnd = FVector2f(DestRect.Right, DestRect.Bottom) * InvSrcTextureSize;
+		// If using a custom output target, sample the source rect for UV's, else do not as the dest rect may be a subsection
+		const FSlateRect& UVRect = Params.PostProcessDest == EPostProcessDestination::DestTexture
+			? SourceRect
+			: DestRect;
+
+		const FVector2f UVStart = FVector2f(UVRect.Left, UVRect.Top) * InvSrcTextureSize;
+		const FVector2f UVEnd = FVector2f(UVRect.Right, UVRect.Bottom) * InvSrcTextureSize;
 		const FVector2f SizeUV = UVEnd - UVStart;
 		
 		RHICmdList.SetViewport(0.f, 0.f, 0.f, (float)DestTextureWidth, (float)DestTextureHeight, 0.0f);
@@ -636,8 +651,8 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 	FTexture2DRHIRef DestTexture = Params.PostProcessDest == EPostProcessDestination::DestTexture && Params.DestTexture 
 		? Params.DestTexture 
 		: Params.SourceTexture;
-	const int32 DestTextureWidth = Params.SourceTextureSize.X;
-	const int32 DestTextureHeight = Params.SourceTextureSize.Y;
+	const int32 DestTextureWidth = DestTexture->GetSizeX();
+	const int32 DestTextureHeight = DestTexture->GetSizeY();
 
 	const int32 DownsampledWidth = DownsampleSize.X;
 	const int32 DownsampledHeight = DownsampleSize.Y;
@@ -737,7 +752,7 @@ void FSlatePostProcessor::UpsampleRect(FRHICommandListImmediate& RHICmdList, IRe
 			Size.X, Size.Y,
 			0, 0,
 			SizeUV.X, SizeUV.Y,
-			Params.SourceTextureSize,
+			DestTexture->GetSizeXY(),
 			FIntPoint(1, 1),
 			VertexShader,
 			EDRF_Default);

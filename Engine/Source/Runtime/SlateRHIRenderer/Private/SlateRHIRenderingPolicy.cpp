@@ -10,6 +10,7 @@
 #include "RHIStaticStates.h"
 #include "RHIUtilities.h"
 #include "GlobalRenderResources.h"
+#include "Interfaces/SlateRHIRenderingPolicyInterface.h"
 #include "SceneView.h"
 #include "SceneUtils.h"
 #include "Engine/Engine.h"
@@ -1244,7 +1245,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 
 				FPostProcessRectParams RectParams;
 				RectParams.SourceTexture = PostProcessTexture;
-				RectParams.SourceRect = FSlateRect(0.f, 0.f, (float)PostProcessTexture->GetSizeX(), (float)PostProcessTexture->GetSizeY());
+				RectParams.SourceRect = FSlateRect((float)Params.ViewRect.Min.X, (float)Params.ViewRect.Min.Y, (float)Params.ViewRect.Max.X, (float)Params.ViewRect.Max.Y);
 				RectParams.DestRect = FSlateRect(QuadPositionData.X, QuadPositionData.Y, QuadPositionData.Z, QuadPositionData.W);
 				RectParams.SourceTextureSize = PostProcessTexture->GetSizeXY();
 				RectParams.CornerRadius = ShaderParams.PixelParams3;
@@ -1300,8 +1301,25 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 				LastClippingState = nullptr;
 
+				ICustomSlateElement::FSlateCustomDrawParams CustomDrawParams = ICustomSlateElement::FSlateCustomDrawParams();
+				CustomDrawParams.ViewProjectionMatrix = Params.ViewProjectionMatrix;
+				CustomDrawParams.ViewOffset = Params.ViewOffset;
+				CustomDrawParams.ViewRect = Params.ViewRect;
+				CustomDrawParams.HDRDisplayColorGamut = Params.HDRDisplayColorGamut;
+				CustomDrawParams.UsedSlatePostBuffers = Params.UsedSlatePostBuffers;
+				CustomDrawParams.bWireFrame = Params.bWireFrame;
+				CustomDrawParams.bIsHDR = Params.bIsHDR;
+
 				// This element is custom and has no Slate geometry.  Tell it to render itself now
-				CustomDrawer->DrawRenderThread(RHICmdList, &BackBuffer.GetRenderTargetTexture());
+				if (CustomDrawer->UsesAdditionalRHIParams())
+				{
+					ICustomSlateElementRHI* CustomDrawerRHI = static_cast<ICustomSlateElementRHI*>(CustomDrawer);
+					CustomDrawerRHI->Draw_RHIRenderThread(RHICmdList, BackBuffer.GetRenderTargetTexture(), CustomDrawParams, FSlateRHIRenderingPolicyInterface(this));
+				}
+				else
+				{
+					CustomDrawer->Draw_RenderThread(RHICmdList, &BackBuffer.GetRenderTargetTexture(), CustomDrawParams);
+				}
 
 				//We reset the maskingID here because otherwise the RT might not get re-set in the lines above see: if (bClearStencil || bForceStateChange)
 				MaskingID = 0;
@@ -1654,11 +1672,11 @@ void FSlateRHIRenderingPolicy::FlushGeneratedResources()
 	PostProcessor->ReleaseRenderTargets();
 }
 
-void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef BlurSrc, FTextureReferenceRHIRef& BlurDst, FIntPoint DstExtent, float BlurStrength) const
+void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const
 {
 	SLATE_DRAW_EVENT(RHICmdList, PostProcess);
 
-	FIntPoint BlurDstExtent = DstExtent;
+	FIntPoint BlurDstExtent = FIntPoint(DstRect.Width(), DstRect.Height());
 
 	// If the radius isn't set, auto-compute it based on the strength
 	int32 OutKernelSize = FMath::RoundToInt(BlurStrength * 3.f);
@@ -1698,7 +1716,7 @@ void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmd
 
 	FPostProcessRectParams RectParams;
 	RectParams.SourceTexture = BlurSrc;
-	RectParams.SourceRect = FSlateRect(0.f, 0.f, (float)BlurSrc->GetSizeX(), (float)BlurSrc->GetSizeY());
+	RectParams.SourceRect = FSlateRect((float)SrcRect.Min.X, (float)SrcRect.Min.Y, (float)SrcRect.Max.X, (float)SrcRect.Max.Y);
 	RectParams.DestRect = FSlateRect(TopLeft.X, TopLeft.Y, BotRight.X, BotRight.Y);
 	RectParams.SourceTextureSize = BlurSrc->GetSizeXY();
 	RectParams.CornerRadius = FVector4f(0, 0, 0, 0);

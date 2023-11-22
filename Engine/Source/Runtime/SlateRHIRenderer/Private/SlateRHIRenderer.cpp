@@ -138,6 +138,7 @@ struct FSlateDrawWindowCommandParams
 	FSlateWindowElementList* WindowElementList;
 	SWindow* Window;
 	FIntRect ViewRect;
+	ESlatePostRT UsedSlatePostBuffers;
 #if WANTS_DRAW_MESH_EVENTS
 	FString WindowTitle;
 #endif
@@ -274,6 +275,11 @@ FMatrix FSlateRHIRenderer::CreateProjectionMatrix(uint32 Width, uint32 Height)
 int32 FSlateRHIRenderer::GetDrawToVRRenderTarget()
 {
 	return CVarDrawToVRRenderTarget->GetInt();
+}
+
+int32 FSlateRHIRenderer::GetProcessSlatePostBuffers()
+{
+	return CVarCopyBackbufferToSlatePostRenderTargets->GetInt();
 }
 
 bool FSlateRHIRenderer::Initialize()
@@ -1001,6 +1007,7 @@ void RenderSlateBatch(FTexture2DRHIRef SlateRenderTarget, bool bClear, bool bIsH
 				RenderParams.bIsHDR = bIsHDR;
 				RenderParams.HDRDisplayColorGamut = ViewportInfo.HDRDisplayColorGamut;
 				RenderParams.ViewRect = DrawCommandParams.ViewRect;
+				RenderParams.UsedSlatePostBuffers = DrawCommandParams.UsedSlatePostBuffers;
 				if (ViewportInfo.bSceneHDREnabled && !bIsHDR)
 				{
 					RenderParams.UITarget = ViewportInfo.UITargetRT;
@@ -1730,8 +1737,10 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 				bLockToVsync |= bForceVsyncFromCVar;
 
-				// Cache if the element batcher used a post buffer, will get reset on batch reset
+				// Cache if the element batcher post buffer usage, will get reset on batch reset
 				ESlatePostRT UsedSlatePostBufferBits = ElementBatcher->GetUsedSlatePostBuffers();
+				ESlatePostRT ResourceUpdatingPostBufferBits = ElementBatcher->GetResourceUpdatingPostBuffers();
+				ESlatePostRT SkipDefaultUpdatePostBufferBits = ElementBatcher->GetSkipDefaultUpdatePostBuffers();
 
 				// All elements for this window have been batched and rendering data updated
 				ElementBatcher->ResetBatches();
@@ -1766,6 +1775,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 						bool bIsViewportPresentForPIE = GIsEditor ? Window->GetViewport().IsValid() : true;
 						bool bPostBufferBitUsed = (UsedSlatePostBufferBits & SlatePostBufferBit) != ESlatePostRT::None;
+						bool bSkipDefaultPostBufferUpdate = (SkipDefaultUpdatePostBufferBits & SlatePostBufferBit) != ESlatePostRT::None;
 
 						if (bIsViewportPresentForPIE && bPostBufferBitUsed)
 						{
@@ -1793,61 +1803,49 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 
 							const FVector2D ElementWindowSize = ElementList.GetWindowSize();
 
-							auto GetPostProcessor = [&](ESlatePostRT InSlatePostBufferBit)
+							if (!bSkipDefaultPostBufferUpdate)
 							{
-								USlateRHIPostBufferProcessor* Result = nullptr;
-
-								if (GEngine)
+								if (USlateRHIPostBufferProcessor* PostProcessor = USlateFXSubsystem::GetPostProcessor(SlatePostBufferBit))
 								{
-									if (USlateFXSubsystem* SlateFXSubsystem = GEngine->GetEngineSubsystem<USlateFXSubsystem>())
+									// Allow the post processor to enque render commands, we delgate this task so it can be done in a thread safe manner.
+									PostProcessor->PostProcess(ViewInfo, ViewportTexture, ElementWindowSize, FSlateRHIRenderingPolicyInterface(RenderingPolicy.Get()), SlatePostBuffer);
+								}
+								else
+								{
+									ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffers)([ViewInfo, ElementWindowSize, ViewportTexture, SlatePostBuffer](FRHICommandListImmediate& RHICmdList)
 									{
-										Result = SlateFXSubsystem->GetSlatePostProcessor(InSlatePostBufferBit);
-									}
+										bool bRenderedStereo = false;
+										if (CVarDrawToVRRenderTarget->GetInt() == 0 && GEngine && IsValidRef(ViewInfo->GetRenderTargetTexture()) && GEngine->StereoRenderingDevice.IsValid())
+										{
+											GEngine->StereoRenderingDevice->RenderTexture_RenderThread(RHICmdList, RHIGetViewportBackBuffer(ViewInfo->ViewportRHI), ViewInfo->GetRenderTargetTexture(), ElementWindowSize);
+											bRenderedStereo = true;
+										}
+
+										FTexture2DRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewInfo->GetRenderTargetTexture();
+										FTexture2DRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewInfo->ViewportRHI);
+
+										if (BackBuffer)
+										{
+											FRHICopyTextureInfo CopyInfo;
+
+											// Copy just the viewport RT if in PIE, else do entire backbuffer
+											if (GIsEditor)
+											{
+												CopyInfo.Size = FIntVector(ViewportTexture->GetWidth(), ViewportTexture->GetHeight(), 1);
+												TransitionAndCopyTexture(RHICmdList, ViewportTexture->GetRHIRef(), SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
+											}
+											else
+											{
+												FIntPoint BackbufferExtent = BackBuffer->GetDesc().Extent;
+												CopyInfo.Size = FIntVector(BackbufferExtent.X, BackbufferExtent.Y, 1);
+												TransitionAndCopyTexture(RHICmdList, BackBuffer, SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
+											}
+										}
+									});
 								}
 
-								return Result;
-							};
-
-							if (USlateRHIPostBufferProcessor* PostProcessor = GetPostProcessor(SlatePostBufferBit))
-							{
-								// Allow the post processor to enque render commands, we delgate this task so it can be done in a thread safe manner.
-								PostProcessor->PostProcess(ViewInfo, ViewportTexture, ElementWindowSize, FSlateRHIRenderingPolicyInterface(RenderingPolicy.Get()), SlatePostBuffer);
+								SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
 							}
-							else
-							{
-								ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffers)([ViewInfo, ElementWindowSize, ViewportTexture, SlatePostBuffer](FRHICommandListImmediate& RHICmdList)
-								{
-									bool bRenderedStereo = false;
-									if (CVarDrawToVRRenderTarget->GetInt() == 0 && GEngine && IsValidRef(ViewInfo->GetRenderTargetTexture()) && GEngine->StereoRenderingDevice.IsValid())
-									{
-										GEngine->StereoRenderingDevice->RenderTexture_RenderThread(RHICmdList, RHIGetViewportBackBuffer(ViewInfo->ViewportRHI), ViewInfo->GetRenderTargetTexture(), ElementWindowSize);
-										bRenderedStereo = true;
-									}
-
-									FTexture2DRHIRef ViewportRT = bRenderedStereo ? nullptr : ViewInfo->GetRenderTargetTexture();
-									FTexture2DRHIRef BackBuffer = (ViewportRT) ? ViewportRT : RHIGetViewportBackBuffer(ViewInfo->ViewportRHI);
-
-									if (BackBuffer)
-									{
-										FRHICopyTextureInfo CopyInfo;
-
-										// Copy just the viewport RT if in PIE, else do entire backbuffer
-										if (GIsEditor)
-										{
-											CopyInfo.Size = FIntVector(ViewportTexture->GetWidth(), ViewportTexture->GetHeight(), 1);
-											TransitionAndCopyTexture(RHICmdList, ViewportTexture->GetRHIRef(), SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
-										}
-										else
-										{
-											FIntPoint BackbufferExtent = BackBuffer->GetDesc().Extent;
-											CopyInfo.Size = FIntVector(BackbufferExtent.X, BackbufferExtent.Y, 1);
-											TransitionAndCopyTexture(RHICmdList, BackBuffer, SlatePostBuffer->TextureReference.TextureReferenceRHI, CopyInfo);
-										}
-									}
-								});
-							}
-
-							SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
 
 							bShrinkPostBufferRequested &= ~SlatePostBufferBit;
 						}
@@ -1901,6 +1899,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					Params.WindowElementList = &ElementList;
 					Params.Window = Window;
 					Params.ViewRect = GetViewRect();
+					Params.UsedSlatePostBuffers = UsedSlatePostBufferBits;
 #if WANTS_DRAW_MESH_EVENTS
 					Params.WindowTitle = Window->GetTitle().ToString();
 #endif
@@ -1924,6 +1923,23 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 								Params.Renderer->DrawWindow_RenderThread(RHICmdList, *ViewInfo, *Params.WindowElementList, Params);
 							}
 						);
+
+						// After we draw, if a resource is going to update a post buffer we need to add another render fence for that buffer
+						if (CVarCopyBackbufferToSlatePostRenderTargets.GetValueOnAnyThread())
+						{
+							uint8 SlatePostBufferBitIndex = 0;
+							for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+							{
+								bool bResourceUpdatedPostBuffer = (ResourceUpdatingPostBufferBits & SlatePostBufferBit) != ESlatePostRT::None;
+								if (bResourceUpdatedPostBuffer)
+								{
+									SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
+									bShrinkPostBufferRequested &= ~SlatePostBufferBit;
+								}
+
+								SlatePostBufferBitIndex++;
+							}
+						}
 					}
 
 					SlateWindowRendered.Broadcast(*Window, &ViewInfo->ViewportRHI);
@@ -2423,6 +2439,11 @@ void FSlateRHIRenderer::SetWindowRenderTarget(const SWindow& Window, IViewportRe
 	{
 		ViewInfo->RTProvider = Provider;
 	}
+}
+
+FSlateRHIRenderingPolicyInterface FSlateRHIRenderer::GetRenderingPolicyInterface()
+{
+	return FSlateRHIRenderingPolicyInterface(RenderingPolicy.Get());
 }
 
 void FSlateRHIRenderer::AddWidgetRendererUpdate(const struct FRenderThreadUpdateContext& Context, bool bDeferredRenderTargetUpdate)

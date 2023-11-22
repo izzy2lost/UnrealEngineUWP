@@ -97,7 +97,7 @@ public:
 
 private:
 
-	void DrawRenderThread(FRHICommandListImmediate& RHICmdList, const void* RenderTarget) override;
+	virtual void Draw_RenderThread(class FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
 
 	/** Basic function to draw a block in the canvas */
 	void DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color);
@@ -1219,7 +1219,7 @@ void FUVCanvasDrawer::SetLayoutMode(ELayoutGridMode Mode)
 }
 
 
-void FUVCanvasDrawer::DrawRenderThread(class FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer)
+void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params)
 {
 	if (Initialized)
 	{

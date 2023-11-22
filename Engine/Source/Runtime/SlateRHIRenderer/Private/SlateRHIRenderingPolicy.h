@@ -7,6 +7,7 @@
 #include "GameTime.h"
 #include "RendererInterface.h"
 #include "Rendering/RenderingCommon.h"
+#include "Rendering/SlateRendererTypes.h"
 #include "Rendering/ShaderResourceManager.h"
 #include "Rendering/DrawElements.h"
 #include "Rendering/RenderingPolicy.h"
@@ -36,6 +37,7 @@ struct FSlateRenderingParams
 	FGameTime Time;
 	TRefCountPtr<IPooledRenderTarget> UITarget;
 	EDisplayColorGamut HDRDisplayColorGamut;
+	ESlatePostRT UsedSlatePostBuffers;
 	bool bWireFrame;
 	bool bIsHDR;
 
@@ -45,6 +47,7 @@ struct FSlateRenderingParams
 		, ViewRect(FIntRect())
 		, Time(InTime)
 		, HDRDisplayColorGamut(EDisplayColorGamut::sRGB_D65)
+		, UsedSlatePostBuffers(ESlatePostRT::None)
 		, bWireFrame(false)
 		, bIsHDR(false)
 	{
@@ -80,7 +83,7 @@ public:
 
 	virtual void FlushGeneratedResources();
 
-	void BlurRectExternal(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef BlurSrc, FTextureReferenceRHIRef& BlurDst, FIntPoint DstExtent, float BlurStrength) const;
+	void BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const;
 
 private:
 	ETextureSamplerFilter GetSamplerFilter(const UTexture* Texture) const;

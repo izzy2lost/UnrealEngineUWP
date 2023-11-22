@@ -5,9 +5,11 @@
 #include "Subsystems/EngineSubsystem.h"
 
 #include "Engine/World.h"
-#include "SlateRHIRendererSettings.h"
 
 #include "SlateFXSubsystem.generated.h"
+
+class FSlateRHIPostBufferProcessorProxy;
+class USlateRHIPostBufferProcessor;
 
 UCLASS(DisplayName = "Slate FX Subsystem")
 class SLATERHIRENDERER_API USlateFXSubsystem : public UEngineSubsystem
@@ -16,11 +18,21 @@ class SLATERHIRENDERER_API USlateFXSubsystem : public UEngineSubsystem
 
 public:
 
-	//~Begin UGameInstanceSubsystem Insterface
+	static USlateRHIPostBufferProcessor* GetPostProcessor(ESlatePostRT InSlatePostBufferBit);
+	static TSharedPtr<FSlateRHIPostBufferProcessorProxy> GetPostProcessorProxy(ESlatePostRT InSlatePostBufferBit);
+
+	//~ Begin UObject Interface.
+	virtual void BeginDestroy() override;
+	//~ End UObject Interface.
+
+	//~Begin UGameInstanceSubsystem Interface
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-	//~End UGameInstanceSubsystem Insterface
+	//~End UGameInstanceSubsystem Interface
+
+	/** Get post processor proxy for a particular post buffer index, if it exists */
+	TSharedPtr<FSlateRHIPostBufferProcessorProxy> GetSlatePostProcessorProxy(ESlatePostRT InPostBufferBit);
 
 public:
 
@@ -41,4 +53,9 @@ private:
 
 	/** Callback to remove processors on world cleanup */
 	void OnPostWorldCleanup(UWorld* World, bool SessionEnded, bool bCleanupResources);
+
+private:
+
+	/** Map of post RT buffer index to buffer processor renderthread proxies, if they exist */
+	TMap<ESlatePostRT, TSharedPtr<FSlateRHIPostBufferProcessorProxy>> SlatePostBufferProcessorProxies;
 };

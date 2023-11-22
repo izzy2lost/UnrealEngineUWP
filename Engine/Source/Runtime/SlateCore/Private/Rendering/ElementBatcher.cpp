@@ -284,6 +284,8 @@ FSlateElementBatcher::FSlateElementBatcher( TSharedRef<FSlateRenderingPolicy> In
 	, bRequiresVsync(false)
 	, bCompositeHDRViewports(false)
 	, UsedSlatePostBuffers(ESlatePostRT::None)
+	, ResourceUpdatingPostBuffers(ESlatePostRT::None)
+	, SkipDefaultUpdatePostBuffers(ESlatePostRT::None)
 {
 }
 
@@ -2961,6 +2963,7 @@ void FSlateElementBatcher::AddCustomElement( const FSlateCustomDrawerElement& Dr
 	FSlateRenderBatch& RenderBatch = CreateRenderBatch(Layer, FShaderParams(), nullptr, ESlateDrawPrimitive::None, ESlateShader::Default, ESlateDrawEffect::None, ESlateBatchDrawFlag::None, DrawElement);
 	RenderBatch.CustomDrawer = DrawElement.CustomDrawer.Pin().Get();
 	RenderBatch.bIsMergable = false;
+	RenderBatch.CustomDrawer->PostCustomElementAdded(*this);
 }
 
 void FSlateElementBatcher::AddCustomVerts(const FSlateCustomVertsElement& DrawElement)
@@ -3573,6 +3576,8 @@ void FSlateElementBatcher::ResetBatches()
 	bRequiresVsync = false;
 	bCompositeHDRViewports = false;
 	UsedSlatePostBuffers = ESlatePostRT::None;
+	ResourceUpdatingPostBuffers = ESlatePostRT::None;
+	SkipDefaultUpdatePostBuffers = ESlatePostRT::None;
 	NumPostProcessPasses = 0;
 }
 

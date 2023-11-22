@@ -8,7 +8,6 @@
 #include "RHI.h"
 #include "RenderCommandFence.h"
 #include "RenderResource.h"
-#include "SlateRHIRendererSettings.h"
 #include "SlateRHIResourceManager.h"
 #include "UnrealClient.h"
 #include "Rendering/SlateRenderer.h"
@@ -18,8 +17,12 @@
 
 class FSlateElementBatcher;
 class FSlateRHIRenderingPolicy;
+class FSlateRHIRenderingPolicyInterface;
+class USlateRHIPostBufferProcessor;
+class USlateRHIRendererSettings;
 class ISlateStyle;
 class SWindow;
+struct FSlatePostSettings;
 struct Rect;
 
 template<typename TCmd, typename NameType> struct FRHICommand;
@@ -178,6 +181,7 @@ public:
 	 */
 	static FMatrix CreateProjectionMatrix( uint32 Width, uint32 Height );
 	static int32 GetDrawToVRRenderTarget();
+	static int32 GetProcessSlatePostBuffers();
 
 	/** FSlateRenderer interface */
 	virtual bool Initialize() override;
@@ -244,6 +248,7 @@ public:
 
 	virtual void SetWindowRenderTarget(const SWindow& Window, class IViewportRenderTargetProvider* Provider) override;
 
+	FSlateRHIRenderingPolicyInterface GetRenderingPolicyInterface();
 
 private:
 	/** Loads all known textures from Slate styles */

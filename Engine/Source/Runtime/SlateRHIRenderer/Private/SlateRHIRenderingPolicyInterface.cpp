@@ -2,10 +2,16 @@
 
 #include "Interfaces/SlateRHIRenderingPolicyInterface.h"
 #include "SlateRHIRenderingPolicy.h"
+#include "SlateRHIRenderer.h"
 
 FSlateRHIRenderingPolicyInterface::FSlateRHIRenderingPolicyInterface(FSlateRHIRenderingPolicy* InRenderingPolicy)
 	: RenderingPolicy(InRenderingPolicy)
 {
+}
+
+int32 FSlateRHIRenderingPolicyInterface::GetProcessSlatePostBuffers()
+{
+	return FSlateRHIRenderer::GetProcessSlatePostBuffers();
 }
 
 bool FSlateRHIRenderingPolicyInterface::IsValid() const
@@ -33,10 +39,10 @@ bool FSlateRHIRenderingPolicyInterface::GetApplyColorDeficiencyCorrection() cons
 	return false;
 }
 
-void FSlateRHIRenderingPolicyInterface::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FTexture2DRHIRef BlurSrc, FTextureReferenceRHIRef& BlurDst, FIntPoint DstExtent, float BlurStrength) const
+void FSlateRHIRenderingPolicyInterface::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const
 {
 	if (RenderingPolicy)
 	{
-		RenderingPolicy->BlurRectExternal(RHICmdList, BlurSrc, BlurDst, DstExtent, BlurStrength);
+		RenderingPolicy->BlurRectExternal(RHICmdList, BlurSrc, BlurDst, SrcRect, DstRect, BlurStrength);
 	}
 }

@@ -258,6 +258,14 @@ public:
 
 	ESlatePostRT GetUsedSlatePostBuffers() const { return UsedSlatePostBuffers; }
 
+	ESlatePostRT GetResourceUpdatingPostBuffers() const { return ResourceUpdatingPostBuffers; }
+
+	ESlatePostRT GetSkipDefaultUpdatePostBuffers() const { return SkipDefaultUpdatePostBuffers; }
+
+	void SetResourceUpdatingPostBuffers(ESlatePostRT InResourceUpdatingPostBuffers) { ResourceUpdatingPostBuffers = InResourceUpdatingPostBuffers; }
+
+	void SetSkipDefaultUpdatePostBuffers(ESlatePostRT InSkipDefaultUpdatePostBuffers) { SkipDefaultUpdatePostBuffers = InSkipDefaultUpdatePostBuffers; }
+
 	void SetCompositeHDRViewports(bool bInCompositeHDRViewports) { bCompositeHDRViewports = bInCompositeHDRViewports; }
 
 	/** 
@@ -486,4 +494,10 @@ private:
 
 	// true if we added a resource that is using a slate post buffer 
 	ESlatePostRT UsedSlatePostBuffers;
+
+	// true if a resource is updating a slate post buffer, if true we need to add a fence for the scene draw to complete before clearing unused post buffers
+	ESlatePostRT ResourceUpdatingPostBuffers;
+
+	// true if we should skip the default population of the post buffers with the scene & no UI.
+	ESlatePostRT SkipDefaultUpdatePostBuffers;
 };

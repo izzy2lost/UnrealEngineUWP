@@ -689,7 +689,14 @@ void FSlateDrawElement::MakeCustomVerts(FSlateWindowElementList& ElementList, ui
 	Element.RenderTransform = FSlateRenderTransform();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FSlateDrawElement::MakePostProcessPass(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FVector4f& Params, int32 DownsampleAmount, FVector4f CornerRadius)
+{
+	FSlateDrawElement::MakePostProcessBlur(ElementList, InLayer, PaintGeometry, Params, DownsampleAmount, CornerRadius);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+void FSlateDrawElement::MakePostProcessBlur(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FVector4f& Params, int32 DownsampleAmount, FVector4f CornerRadius)
 {
 	PaintGeometry.CommitTransformsIfUsingLegacyConstructor();
 

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SlateRHIRendererSettings.h"
+#include "FX/SlateRHIPostBufferProcessor.h"
 #include "HAL/IConsoleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SlateRHIRendererSettings)
@@ -50,6 +51,14 @@ USlateRHIRendererSettings::~USlateRHIRendererSettings()
 			SlatePostBuffer->RemoveFromRoot();
 		}
 	}
+}
+
+void USlateRHIRendererSettings::BeginDestroy()
+{
+	// Flush rendering commands since these settings can be used in render thread
+	FlushRenderingCommands();
+
+	Super::BeginDestroy();
 }
 
 FSlatePostSettings& USlateRHIRendererSettings::GetMutableSlatePostSetting(ESlatePostRT InPostBufferBit)

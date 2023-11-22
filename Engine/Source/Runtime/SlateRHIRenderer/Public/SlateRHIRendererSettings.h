@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Engine/DeveloperSettings.h"
-#include "FX/SlateRHIPostBufferProcessor.h"
 #include "Misc/EnumRange.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPath.h"
@@ -13,6 +12,8 @@
 #include "Templates/SubclassOf.h"
 
 #include "SlateRHIRendererSettings.generated.h"
+
+class USlateRHIPostBufferProcessor;
 
 /**
  * Settings for a particular Slate Post RT.
@@ -82,6 +83,10 @@ public:
 
 	USlateRHIRendererSettings();
 	~USlateRHIRendererSettings();
+
+	//~ Begin UObject Interface.
+	virtual void BeginDestroy() override;
+	//~ End UObject Interface.
 
 public:
 
