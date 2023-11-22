@@ -8,6 +8,7 @@
 #include "AI/Navigation/NavLinkDefinition.h"
 #include "Math/GenericOctreePublic.h"
 #include "AI/NavigationModifier.h"
+#include "UObject/WeakInterfacePtr.h"
 
 #define NAVSYS_DEBUG (0 && UE_BUILD_DEBUG)
 
@@ -20,6 +21,7 @@ struct FKAggregateGeom;
 class FNavigationOctree;
 class UNavigationPath;
 class ANavigationData;
+class INavigationInvokerInterface;
 
 struct FPathFindingQueryData
 {
@@ -105,7 +107,9 @@ struct FNavigationInvokerRaw
 
 struct FNavigationInvoker
 {
+	/** The Invoker source should be either an Actor or an Object. Thus only 1 of those member should be set. We'll use IsExplicitlyNull to know which one to use */
 	TWeakObjectPtr<AActor> Actor;
+	TWeakInterfacePtr<INavigationInvokerInterface> Object;
 
 	/** tiles GenerationRadius away or close will be generated if they're not already present */
 	float GenerationRadius;
@@ -119,9 +123,13 @@ struct FNavigationInvoker
 
 	/** invoker Priority used when dirtying tiles */
 	ENavigationInvokerPriority Priority;
-	
+
 	FNavigationInvoker();
 	FNavigationInvoker(AActor& InActor, float InGenerationRadius, float InRemovalRadius, const FNavAgentSelector& InSupportedAgents, ENavigationInvokerPriority InPriority);
+	FNavigationInvoker(INavigationInvokerInterface& InObject, float InGenerationRadius, float InRemovalRadius, const FNavAgentSelector& InSupportedAgents, ENavigationInvokerPriority InPriority);
+
+	FString GetName() const;
+	bool GetLocation(FVector& OutLocation) const;
 };
 
 namespace NavigationHelper
