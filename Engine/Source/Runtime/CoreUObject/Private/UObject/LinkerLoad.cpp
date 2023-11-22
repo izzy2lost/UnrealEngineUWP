@@ -5249,7 +5249,7 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 
 
 		// If we are about to create a CDO, we need to ensure that all parent sub-objects are loaded
-		// to get default value initialization to work.
+		// to get default value initialization to work. This matches code in ResolveDeferredExports
 		if ((ObjectLoadFlags & RF_ClassDefaultObject) != 0)
 		{
 			TArray<UObject*> SubObjects;
