@@ -12,6 +12,7 @@ using EpicGames.Horde.Compute;
 using Horde.Server.Agents;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
+using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -161,6 +162,7 @@ namespace Horde.Server.Compute
 		/// <inheritdoc/>
 		public override TaskSourceFlags Flags => TaskSourceFlags.None;
 
+		readonly AgentRelayService _agentRelay;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
@@ -170,8 +172,9 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeTaskSource(IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ComputeTaskSource> logger)
+		public ComputeTaskSource(AgentRelayService agentRelay, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ComputeTaskSource> logger)
 		{
+			_agentRelay = agentRelay;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -180,6 +183,15 @@ namespace Horde.Server.Compute
 		public override Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(WaitInternalAsync(agent, cancellationToken));
+		}
+		
+		/// <inheritdoc/>
+		public override async Task OnLeaseFinishedAsync(IAgent agent, LeaseId leaseId, ComputeTask payload, LeaseOutcome outcome, ReadOnlyMemory<byte> output, ILogger logger)
+		{
+			await base.OnLeaseFinishedAsync(agent, leaseId, payload, outcome, output, logger);
+
+			// Remove any port mapping associated with this lease ID (as of now, only compute tasks can be relayed)
+			await _agentRelay.RemovePortMappingAsync(leaseId.ToString());
 		}
 
 		async Task<AgentLease?> WaitInternalAsync(IAgent agent, CancellationToken cancellationToken)

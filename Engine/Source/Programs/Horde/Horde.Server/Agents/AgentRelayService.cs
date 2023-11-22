@@ -71,6 +71,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	private record PortMappingsInfo(int Revision, List<PortMapping> PortMappings);
 	
 	private const string RedisChannelUpdate = "relay/update";
+	private static string KeyClusters() => "relay/clusters";
 	private static string KeyPortMappings(string clusterId) => $"relay/port-mappings/{clusterId}";
 	private static string KeyPortMappingRevision(string clusterId) => $"relay/port-mappings-revision/{clusterId}";
 	private static string KeyUsedPorts(string clusterId) => $"relay/used-ports/{clusterId}";
@@ -116,6 +117,17 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			await _redisSubscription.DisposeAsync();
 			_redisSubscription = null;
 		}
+	}
+	
+	/// <summary>
+	/// Get a list of all cluster IDs having registered a port mapping
+	/// </summary>
+	/// <returns>List of cluster IDs</returns>
+	public async Task<HashSet<string>> GetClustersAsync()
+	{
+		IDatabase redis = _redis.GetDatabase();
+		HashEntry[] entries = await redis.HashGetAllAsync(KeyClusters());
+		return new HashSet<string>(entries.Select(e => e.Name.ToString()));
 	}
 	
 	/// <summary>
@@ -200,6 +212,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			_ = transaction.SetAddAsync(KeyUsedPorts(clusterId), portRangeRedis);
 			_ = transaction.HashSetAsync(KeyPortMappings(clusterId), leaseId, newPortMapping.ToByteArray());
 			_ = transaction.StringIncrementAsync(KeyPortMappingRevision(clusterId));
+			_ = transaction.HashSetAsync(KeyClusters(), clusterId, _clock.UtcNow.ToFileTimeUtc());
 			bool isSuccessful = await transaction.ExecuteAsync();
 			if (isSuccessful)
 			{
@@ -232,6 +245,23 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		_ = transaction.StringIncrementAsync(KeyPortMappingRevision(clusterId));
 		
 		return await transaction.ExecuteAsync();
+	}
+	
+	/// <summary>
+	/// Remove a port mapping for a lease from all clusters
+	/// </summary>
+	/// <param name="leaseId">Lease ID to remove</param>
+	/// <returns>True if successful</returns>
+	public async Task<bool> RemovePortMappingAsync(string leaseId)
+	{
+		ISet<string> clusterIds = await GetClustersAsync();
+		bool success = false;
+		foreach (string clusterId in clusterIds)
+		{
+			success = success || await RemovePortMappingAsync(clusterId, leaseId);
+		}
+
+		return success;
 	}
 
 	/// <summary>

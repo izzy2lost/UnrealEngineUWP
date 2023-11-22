@@ -205,6 +205,34 @@ public class AgentRelayTests : TestSetup
 	}
 	
 	[TestMethod]
+	public async Task GetAllClustersAsync()
+	{
+		Assert.AreEqual(0, (await _service.GetClustersAsync()).Count);
+		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
+		await _service.AddPortMappingAsync("cluster2", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
+		Assert.IsTrue(new HashSet<string> {"cluster1", "cluster2"}.SetEquals(await _service.GetClustersAsync()));
+	}
+	
+	[TestMethod]
+	public async Task PortMapping_RemoveFromAllClusters_Async()
+	{
+		await _service.AddPortMappingAsync("cluster1", _pm1.LeaseId, _pm1.AgentIp, _pm1.Ports);
+		await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
+		await _service.AddPortMappingAsync("cluster2", _pm3.LeaseId, _pm3.AgentIp, _pm3.Ports);
+		(int revision, List<PortMapping> portMappings) cluster1 = await _service.GetPortMappingsAsync("cluster1");
+		(int revision, List<PortMapping> portMappings) cluster2 = await _service.GetPortMappingsAsync("cluster2");
+		Assert.AreEqual(3, cluster1.portMappings.Count + cluster2.portMappings.Count);
+
+		await _service.RemovePortMappingAsync(_pm1.LeaseId);
+		await _service.RemovePortMappingAsync(_pm2.LeaseId);
+		await _service.RemovePortMappingAsync(_pm3.LeaseId);
+		cluster1 = await _service.GetPortMappingsAsync("cluster1");
+		cluster2 = await _service.GetPortMappingsAsync("cluster2");
+		Assert.AreEqual(0, cluster1.portMappings.Count + cluster2.portMappings.Count);
+	}
+	
+	[TestMethod]
 	public async Task PortAssignment_Simple_Async()
 	{
 		PortMapping newPm = await _service.AddPortMappingAsync("cluster1", _pm2.LeaseId, _pm2.AgentIp, _pm2.Ports);
