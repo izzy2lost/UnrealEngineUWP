@@ -236,7 +236,7 @@ USubsystem* FSubsystemCollectionBase::AddAndInitializeSubsystem(UClass* Subsyste
 			// Catch any attempt to add a subsystem of the wrong type
 			checkf(SubsystemClass->IsChildOf(BaseType), TEXT("ClassType (%s) must be a subclass of BaseType(%s)."), *SubsystemClass->GetName(), *BaseType->GetName());
 
-			// Do not create instances of classes aren't authoritative
+			// Do not create instances of classes that aren't authoritative.
 			if (SubsystemClass->GetAuthoritativeClass() != SubsystemClass)
 			{	
 				return nullptr;
