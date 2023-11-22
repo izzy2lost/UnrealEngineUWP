@@ -426,20 +426,23 @@ bool FPCGMetadataMathsOp_MultipleInput::RunTest(const FString& Parameters)
 
 	using EPCGMedadataMathsOperation::Add;
 
-	// 2 x 2
+	// 2 x 2 - N:N
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4, 5}, {6, 7}}), TArray({0, 0}), TArray({10, 12})));
 
-	// 3 x 3
+	// 3 x 3 - N:N
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4, 5, 6}, {7, 8, 9}}), TArray({0, 0, 0}), TArray({11, 13, 15})));
 
-	// 2 x 1
+	// 2 x 1 - N:1
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4, 5}, {6}}), TArray({0, 0}), TArray({10, 11})));
 
-	// 3 x 1
+	// 3 x 1 - N:1
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4, 5, 6}, {7}}), TArray({0, 0, 0}), TArray({11, 12, 13})));
 
-	// 1 x 3
+	// 1 x 3 - N:1 with second pin
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4}, {5, 6, 7}}), TArray({0, 0, 0}), TArray({9, 10, 11}), /*PinToForward=*/ 1));
+
+	// 1 x 3 - 1:N
+	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4}, {5, 6, 7}}), TArray({0, 0, 0}), TArray({9, 10, 11})));
 
 	return bSuccess;
 }
