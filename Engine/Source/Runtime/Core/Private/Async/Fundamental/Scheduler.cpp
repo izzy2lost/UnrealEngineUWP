@@ -259,8 +259,6 @@ namespace LowLevelTasks
 
 			if (bWakeUpWorker)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(FScheduler::LaunchInternal_WakeUpWorker);
-
 				if (bWakeUpWorker && !WakeUpWorker(bIsBackgroundTask) && !bIsBackgroundTask)
 				{
 					WakeUpWorker(true);
