@@ -105,19 +105,25 @@
 							</DataTemplate>
 						</ComboBox.ItemTemplate>
 					</ComboBox>
-					<TextBlock Grid.Row="1" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
-					<Run Text="User:"/>
-					<!--Logged in-->
-					<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed}}">
-						<Run FontWeight="Bold" Text="{Binding Path=LoggedInUser, Mode=OneWay}"/>
-						<Run Text=" - "/>
-						<Hyperlink Command="{Binding OnLogOutClicked}">Log out</Hyperlink>
-					</TextBlock>
-					<!--Not logged in-->
-					<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed_Inv}}">
-						<Hyperlink FontWeight="Bold" Command="{Binding OnLogInClicked}">Log in</Hyperlink>
-					</TextBlock>
-				</TextBlock>
+					<Grid Grid.Row="1" ToolTip="User authentication allows enumerating files and downloading data directly through the proxy server">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="auto"/>
+							<ColumnDefinition Width="*"/>
+						</Grid.ColumnDefinitions>
+						<TextBlock Grid.Column="0" Visibility="{Binding Path=ShouldShowLoginInfo, Converter={StaticResource VisConv_Collapsed}}">
+							<Run Text="[Experimental] User:"/>
+							<!--Logged in-->
+							<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed}}">
+								<Run FontWeight="Bold" Text="{Binding Path=LoggedInUser, Mode=OneWay}"/>
+								<Run Text=" - "/>
+								<Hyperlink Command="{Binding OnLogOutClicked}">Log out</Hyperlink>
+							</TextBlock>
+							<!--Not logged in-->
+							<TextBlock Visibility="{Binding Path=LoggedInUser, Converter={StaticResource VisConv_Collapsed_Inv}}">
+								<Hyperlink FontWeight="Bold" Command="{Binding OnLogInClicked}">Log in</Hyperlink>
+							</TextBlock>
+						</TextBlock>
+					</Grid>
 				</Grid>
 			</GroupBox>
 
@@ -242,7 +248,10 @@
 								TODO: expandable log window
 								<Expander VerticalAlignment="Center" Name="ApplicationLogExpander" IsExpanded="{Binding LogExpanded}" />
 							-->
-							<TextBlock VerticalAlignment="Center"><Run Text="Application Log"/></TextBlock>
+							<TextBlock VerticalAlignment="Center"><Run Text="Application Log"/>
+								<Run Text=" - " />
+								<Hyperlink Command="{Binding OnClearApplicationLogClicked}">Clear</Hyperlink>
+							</TextBlock>
 						</WrapPanel>
 					</GroupBox.Header>
 					<local:AutoScrollTextBox 

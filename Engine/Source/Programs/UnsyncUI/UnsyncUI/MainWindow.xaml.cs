@@ -268,6 +268,8 @@ namespace UnsyncUI
 		public Command OnClearQueueClicked { get; }
 		public Command OnClearCompletedClicked { get; }
 
+		public Command OnClearApplicationLogClicked { get; }
+
 		public ObservableCollection<TabModel> Tabs { get; } = new ObservableCollection<TabModel>();
 		public ObservableCollection<JobModel> QueuedJobs { get; } = new ObservableCollection<JobModel>();
 
@@ -295,6 +297,7 @@ namespace UnsyncUI
 		{
 			OnClearQueueClicked = new Command(ClearQueue) { Enabled = true };
 			OnClearCompletedClicked = new Command(ClearCompleted) { Enabled = true };
+			OnClearApplicationLogClicked = new Command(ClearApplicationLog) { Enabled = true };
 
 			OnLogInClicked = new Command(LogIn) { Enabled = true };
 			OnLogOutClicked = new Command(LogOut) { Enabled = true };
@@ -328,6 +331,11 @@ namespace UnsyncUI
 		{
 			CompletedJobs.Clear();
 			UpdateProgressState();
+		}
+
+		private void ClearApplicationLog()
+		{
+			App.Current.ClearApplicationLog();
 		}
 
 		public void OnBuildsSelected(IEnumerable<(SyncStartConfig Config, BuildPlatformModel Model)> selectedBuilds)

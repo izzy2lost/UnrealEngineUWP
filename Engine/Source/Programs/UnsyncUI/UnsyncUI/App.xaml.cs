@@ -28,6 +28,19 @@ namespace UnsyncUI
 
 		internal string ApplicationLog { get; private set; } = "";
 
+		internal void ClearApplicationLog()
+		{
+			Dispatcher.InvokeAsync(delegate
+			{
+				ApplicationLog = "";
+				var model = MainWindow.DataContext as MainWindowModel;
+				if (model != null)
+				{
+					model.OnLogUpdated();
+				}
+			});
+		}
+
 		internal void LogError(string message)
 		{
 			LogMessage("ERROR: " + message);
