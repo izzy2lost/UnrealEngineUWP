@@ -431,12 +431,11 @@ void UAnimSequenceBase::GetAnimNotifies(const float& StartTime, const float& Del
 		
 		GetAnimNotifiesFromDeltaPositions(PreviousPosition, CurrentPosition, NotifyContext);
 	
+		const float ActualDeltaMove = (CurrentPosition - PreviousPosition);
 		// If we've hit the end of the animation, and we're allowed to loop, keep going.
-		if( (AdvanceType == ETAA_Finished) &&  NotifyContext.TickRecord && NotifyContext.TickRecord->bLooping )
+		if( (AdvanceType == ETAA_Finished) &&  NotifyContext.TickRecord && NotifyContext.TickRecord->bLooping && ActualDeltaMove != 0.f)
 		{
-			const float ActualDeltaMove = (CurrentPosition - PreviousPosition);
-			DesiredDeltaMove -= ActualDeltaMove; 
-
+			DesiredDeltaMove -= ActualDeltaMove;
 			PreviousPosition = bPlayingBackwards ? GetPlayLength() : 0.f;
 			CurrentPosition = PreviousPosition;
 		}
