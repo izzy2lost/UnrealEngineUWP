@@ -2,12 +2,13 @@
 
 #include "Elements/PCGProjectionElement.h"
 
-#include "Data/PCGProjectionData.h"
-#include "PCGCustomVersion.h"
-#include "Data/PCGSpatialData.h"
-#include "PCGEdge.h"
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
+#include "PCGEdge.h"
 #include "PCGPin.h"
+#include "Data/PCGPointData.h"
+#include "Data/PCGProjectionData.h"
+#include "Data/PCGSpatialData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGProjectionElement)
 
@@ -35,6 +36,19 @@ FText UPCGProjectionSettings::GetNodeTooltipText() const
 	return LOCTEXT("ProjectionNodeTooltip", "Projects each of the inputs connected to In onto the Projection Target and concatenates all of the results to Out.");
 }
 #endif
+
+EPCGDataType UPCGProjectionSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	if (InPin->IsOutputPin())
+	{
+		if (bForceCollapseToPoint || GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel) == EPCGDataType::Point)
+		{
+			return EPCGDataType::Point;
+		}
+	}
+
+	return Super::GetCurrentPinTypes(InPin);
+}
 
 FPCGElementPtr UPCGProjectionSettings::CreateElement() const
 {
@@ -84,15 +98,21 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 		UPCGSpatialData* ProjectionData = ProjectionSource->ProjectOn(ProjectionTarget, ProjectionParams);
 		ProjectionData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;
 
-		if (ProjectionData->RequiresCollapseToSample())
+		const UPCGSpatialData* OutputData = ProjectionData;
+
+		if (Settings->bForceCollapseToPoint || ProjectionSource->IsA<UPCGPointData>())
+		{
+			OutputData = OutputData->ToPointData(Context);
+		}
+		else if (OutputData->RequiresCollapseToSample())
 		{
 			// Calling ToPointData will populate the point cache. Doing so here means we can pass in the Context object, which
 			// means the operation will be multi-threaded. This primes the cache in the most efficient way.
-			ProjectionData->ToPointData(Context);
+			OutputData->ToPointData(Context);
 		}
 
 		FPCGTaggedData& ProjectionTaggedData = Outputs.Emplace_GetRef(Source);
-		ProjectionTaggedData.Data = ProjectionData;
+		ProjectionTaggedData.Data = OutputData;
 
 		if (ProjectionParams.TagMergeOperation == EPCGProjectionTagMergeMode::Target)
 		{
