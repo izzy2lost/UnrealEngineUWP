@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "CoreMinimal.h"
+#include "Modules/ModuleManager.h"
 #include "ComputeChannel.h"
 #include "ComputeBuffer.h"
 #include "ComputeSocket.h"
@@ -7,6 +9,10 @@
 #include <iostream>
 #include <thread>
 #include <assert.h>
+
+TCHAR GInternalProjectName[64] = { 0, };
+
+IMPLEMENT_FOREIGN_ENGINE_DIR()
 
 int main(int argc, const char* argv[])
 {
