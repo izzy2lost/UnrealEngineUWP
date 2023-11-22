@@ -38,7 +38,7 @@
 #include "Graph/ControlRigGraphPanelPinFactory.h"
 #include <Editor/ControlRigEditorCommands.h>
 #include "ControlRigHierarchyCommands.h"
-#include "ControlRigModularRigHierarchyCommands.h"
+#include "ControlRigModularRigCommands.h"
 #include "Animation/AnimSequence.h"
 #include "Editor/ControlRigEditorEditMode.h"
 #include "ControlRigElementDetails.h"
@@ -106,7 +106,7 @@ void FControlRigEditorModule::StartupModule()
 	FControlRigEditModeCommands::Register();
 	FControlRigEditorCommands::Register();
 	FControlRigHierarchyCommands::Register();
-	FControlRigModularHierarchyCommands::Register();
+	FControlRigModularRigCommands::Register();
 	FControlRigEditorStyle::Get();
 
 	EdGraphPanelPinFactory = MakeShared<FControlRigGraphPanelPinFactory>();

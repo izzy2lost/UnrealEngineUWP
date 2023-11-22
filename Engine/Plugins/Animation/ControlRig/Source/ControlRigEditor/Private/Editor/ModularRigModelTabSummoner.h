@@ -7,13 +7,13 @@
 
 class FControlRigEditor;
 
-struct FModularRigHierarchyTabSummoner : public FWorkflowTabFactory
+struct FModularRigModelTabSummoner : public FWorkflowTabFactory
 {
 public:
 	static const FName TabID;
 	
 public:
-	FModularRigHierarchyTabSummoner(const TSharedRef<FControlRigEditor>& InControlRigEditor);
+	FModularRigModelTabSummoner(const TSharedRef<FControlRigEditor>& InControlRigEditor);
 	
 	virtual FTabSpawnerEntry& RegisterTabSpawner(TSharedRef<FTabManager> TabManager, const FApplicationMode* CurrentApplicationMode) const;
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& Info) const override;

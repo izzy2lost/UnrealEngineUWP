@@ -1,16 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Editor/ModularRigHierarchyTabSummoner.h"
-#include "Editor/SModularRigHierarchy.h"
+#include "Editor/ModularRigModelTabSummoner.h"
+#include "Editor/SModularRigModel.h"
 #include "ControlRigEditorStyle.h"
 #include "Editor/ControlRigEditor.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "ModularRigHierarchyTabSummoner"
 
-const FName FModularRigHierarchyTabSummoner::TabID(TEXT("ModularRigHierarchy"));
+const FName FModularRigModelTabSummoner::TabID(TEXT("ModularRigModel"));
 
-FModularRigHierarchyTabSummoner::FModularRigHierarchyTabSummoner(const TSharedRef<FControlRigEditor>& InControlRigEditor)
+FModularRigModelTabSummoner::FModularRigModelTabSummoner(const TSharedRef<FControlRigEditor>& InControlRigEditor)
 	: FWorkflowTabFactory(TabID, InControlRigEditor)
 	, ControlRigEditor(InControlRigEditor)
 {
@@ -21,7 +21,7 @@ FModularRigHierarchyTabSummoner::FModularRigHierarchyTabSummoner(const TSharedRe
 	ViewMenuTooltip = LOCTEXT("ModularRigHierarchy_ViewMenu_ToolTip", "Show the Modular Rig Hierarchy tab");
 }
 
-FTabSpawnerEntry& FModularRigHierarchyTabSummoner::RegisterTabSpawner(TSharedRef<FTabManager> InTabManager, const FApplicationMode* CurrentApplicationMode) const
+FTabSpawnerEntry& FModularRigModelTabSummoner::RegisterTabSpawner(TSharedRef<FTabManager> InTabManager, const FApplicationMode* CurrentApplicationMode) const
 {
 	FTabSpawnerEntry& SpawnerEntry = FWorkflowTabFactory::RegisterTabSpawner(InTabManager, CurrentApplicationMode);
 
@@ -34,13 +34,13 @@ FTabSpawnerEntry& FModularRigHierarchyTabSummoner::RegisterTabSpawner(TSharedRef
 	return SpawnerEntry;
 }
 
-TSharedRef<SWidget> FModularRigHierarchyTabSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
+TSharedRef<SWidget> FModularRigModelTabSummoner::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
 {
 	ControlRigEditor.Pin()->ModularRigHierarchyTabCount++;
-	return SNew(SModularRigHierarchy, ControlRigEditor.Pin().ToSharedRef());
+	return SNew(SModularRigModel, ControlRigEditor.Pin().ToSharedRef());
 }
 
-TSharedRef<SDockTab> FModularRigHierarchyTabSummoner::SpawnTab(const FWorkflowTabSpawnInfo& Info) const
+TSharedRef<SDockTab> FModularRigModelTabSummoner::SpawnTab(const FWorkflowTabSpawnInfo& Info) const
 {
 	TSharedRef<SDockTab>  DockTab = FWorkflowTabFactory::SpawnTab(Info);
 	TWeakPtr<SDockTab> WeakDockTab = DockTab;
@@ -51,7 +51,7 @@ TSharedRef<SDockTab> FModularRigHierarchyTabSummoner::SpawnTab(const FWorkflowTa
 		{
 			if(SWidget* Content = &SharedDocTab->GetContent().Get())
 			{
-				SModularRigHierarchy* RigHierarchy = (SModularRigHierarchy*)Content;
+				SModularRigModel* RigHierarchy = (SModularRigModel*)Content;
 				if(FControlRigEditor* ControlRigEditorForTab = RigHierarchy->GetControlRigEditor())
 				{
 					HierarchyTabCount = ControlRigEditorForTab->GetModularRigHierarchyTabCount();
@@ -64,7 +64,7 @@ TSharedRef<SDockTab> FModularRigHierarchyTabSummoner::SpawnTab(const FWorkflowTa
 	{
 		if(SWidget* Content = &DockTab->GetContent().Get())
 		{
-			SModularRigHierarchy* RigHierarchy = (SModularRigHierarchy*)Content;
+			SModularRigModel* RigHierarchy = (SModularRigModel*)Content;
 			if(FControlRigEditor* ControlRigEditorForTab = RigHierarchy->GetControlRigEditor())
 			{
 				ControlRigEditorForTab->ModularRigHierarchyTabCount--;

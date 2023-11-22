@@ -7,12 +7,12 @@
 #include "ModularRig.h"
 
 class SSearchBox;
-class SModularRigHierarchyTreeView;
-class SModularRigHierarchyItem;
+class SModularRigTreeView;
+class SModularRigModelItem;
 class FModularRigTreeElement;
 
 
-DECLARE_DELEGATE_RetVal(const UModularRig*, FOnGetModularRigTreeHierarchy);
+DECLARE_DELEGATE_RetVal(const UModularRig*, FOnGetModularRigTreeRig);
 DECLARE_DELEGATE_OneParam(FOnModularRigTreeRequestDetailsInspection, const FString&);
 DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnModularRigTreeRenameElement, const FString& /*OldPath*/, const FName& /*NewName*/);
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnModularRigTreeVerifyElementNameChanged, const FString& /*OldPath*/, const FName& /*NewName*/, FText& /*OutErrorMessage*/);
@@ -25,7 +25,7 @@ typedef STableRow<TSharedPtr<FModularRigTreeElement>>::FOnAcceptDrop FOnModularR
 
 struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 {
-	FOnGetModularRigTreeHierarchy OnGetHierarchy;
+	FOnGetModularRigTreeRig OnGetModularRig;
 	FOnModularRigTreeMouseButtonClick OnMouseButtonClick;
 	FOnModularRigTreeMouseButtonDoubleClick OnMouseButtonDoubleClick;
 	FOnDragDetected OnDragDetected;
@@ -40,11 +40,11 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 	{
 	}
 
-	const UModularRig* GetHierarchy() const
+	const UModularRig* GetModularRig() const
 	{
-		if(OnGetHierarchy.IsBound())
+		if(OnGetModularRig.IsBound())
 		{
-			return OnGetHierarchy.Execute();
+			return OnGetModularRig.Execute();
 		}
 		return nullptr;
 	}
@@ -73,7 +73,7 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 class FModularRigTreeElement : public TSharedFromThis<FModularRigTreeElement>
 {
 public:
-	FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigHierarchyTreeView> InTreeView, bool InSupportsRename);
+	FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool InSupportsRename);
 
 public:
 	/** Element Data to display */
@@ -81,11 +81,11 @@ public:
 	FName ShortName;
 	TArray<TSharedPtr<FModularRigTreeElement>> Children;
 
-	TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned);
+	TSharedRef<ITableRow> MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigTreeView> InTreeView, bool bPinned);
 
 	void RequestRename();
 
-	void RefreshDisplaySettings(const UModularRig* InHierarchy);
+	void RefreshDisplaySettings(const UModularRig* InModularRig);
 
 	/** Delegate for when the context menu requests a rename */
 	DECLARE_DELEGATE(FOnRenameRequested);
@@ -101,15 +101,15 @@ public:
 	FSlateColor TextColor;
 };
 
-class SModularRigHierarchyItem : public STableRow<TSharedPtr<FModularRigTreeElement>>
+class SModularRigModelItem : public STableRow<TSharedPtr<FModularRigTreeElement>>
 {
 public:
 	
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned);
+	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigTreeView> InTreeView, bool bPinned);
 
 	void OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const;
 	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
-	static TPair<const FSlateBrush*, FSlateColor> GetBrushForElementType(const UModularRig* InHierarchy, const FString& InKey);
+	static TPair<const FSlateBrush*, FSlateColor> GetBrushForElementType(const UModularRig* InModularRig, const FString& InKey);
 	static FLinearColor GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum);
 
 private:
@@ -121,14 +121,14 @@ private:
 
 	static TMap<FSoftObjectPath, FSlateBrush> IconPathToBrush;
 
-	friend class SModularRigHierarchyTreeView; 
+	friend class SModularRigTreeView; 
 };
 
-class SModularRigHierarchyTreeView : public STreeView<TSharedPtr<FModularRigTreeElement>>
+class SModularRigTreeView : public STreeView<TSharedPtr<FModularRigTreeElement>>
 {
 public:
 
-	SLATE_BEGIN_ARGS(SModularRigHierarchyTreeView)
+	SLATE_BEGIN_ARGS(SModularRigTreeView)
 		: _AutoScrollEnabled(false)
 	{}
 		SLATE_ARGUMENT(FModularRigTreeDelegates, RigTreeDelegates)
@@ -136,7 +136,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	virtual ~SModularRigHierarchyTreeView() {}
+	virtual ~SModularRigTreeView() {}
 
 	/** Performs auto scroll */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -207,23 +207,23 @@ private:
 	FVector2D LastMousePosition;
 	double TimeAtMousePosition;
 
-	friend class SModularRigHierarchy;
+	friend class SModularRigModel;
 };
 
-class SSearchableModularRigHierarchyTreeView : public SCompoundWidget
+class SSearchableModularRigTreeView : public SCompoundWidget
 {
 public:
 
-	SLATE_BEGIN_ARGS(SSearchableModularRigHierarchyTreeView) {}
+	SLATE_BEGIN_ARGS(SSearchableModularRigTreeView) {}
 		SLATE_ARGUMENT(FModularRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(FText, InitialFilterText)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	virtual ~SSearchableModularRigHierarchyTreeView() {}
-	TSharedRef<SModularRigHierarchyTreeView> GetTreeView() const { return TreeView.ToSharedRef(); }
+	virtual ~SSearchableModularRigTreeView() {}
+	TSharedRef<SModularRigTreeView> GetTreeView() const { return TreeView.ToSharedRef(); }
 
 private:
 
-	TSharedPtr<SModularRigHierarchyTreeView> TreeView;
+	TSharedPtr<SModularRigTreeView> TreeView;
 };

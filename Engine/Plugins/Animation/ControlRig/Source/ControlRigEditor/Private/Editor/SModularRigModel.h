@@ -4,12 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "EditorUndoClient.h"
-#include "Editor/SModularRigHierarchyTreeView.h"
+#include "Editor/SModularRigTreeView.h"
 #include "ControlRigBlueprint.h"
 #include "DragAndDrop/GraphNodeDragDropOp.h"
 #include "Editor/RigVMEditor.h"
 
-class SModularRigHierarchy;
+class SModularRigModel;
 class FControlRigEditor;
 class SSearchBox;
 class FUICommandList;
@@ -20,12 +20,12 @@ class FMenuBuilder;
 class UToolMenu;
 struct FToolMenuContext;
 
-class FModuleRigHierarchyDragDropOp : public FDragDropOperation
+class FModularRigModuleDragDropOp : public FDragDropOperation
 {
 public:
-	DRAG_DROP_OPERATOR_TYPE(FModuleRigHierarchyDragDropOp, FDragDropOperation)
+	DRAG_DROP_OPERATOR_TYPE(FModularRigModuleDragDropOp, FDragDropOperation)
 
-	static TSharedRef<FModuleRigHierarchyDragDropOp> New(const TArray<FString>& InElements);
+	static TSharedRef<FModularRigModuleDragDropOp> New(const TArray<FString>& InElements);
 
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
 
@@ -50,13 +50,13 @@ private:
 };
 
 /** Widget allowing editing of a control rig's structure */
-class SModularRigHierarchy : public SCompoundWidget, public FEditorUndoClient
+class SModularRigModel : public SCompoundWidget, public FEditorUndoClient
 {
 public:
-	SLATE_BEGIN_ARGS(SModularRigHierarchy) {}
+	SLATE_BEGIN_ARGS(SModularRigModel) {}
 	SLATE_END_ARGS()
 
-	~SModularRigHierarchy();
+	~SModularRigModel();
 
 	void Construct(const FArguments& InArgs, TSharedRef<FControlRigEditor> InControlRigEditor);
 
@@ -132,7 +132,7 @@ private:
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 
 	/** Tree view widget */
-	TSharedPtr<SModularRigHierarchyTreeView> TreeView;
+	TSharedPtr<SModularRigTreeView> TreeView;
 
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
 	TWeakObjectPtr<UModularRig> ControlRigBeingDebuggedPtr;
@@ -142,9 +142,9 @@ private:
 
 	bool IsSingleSelected() const;
 	
-	UModularRig* GetHierarchy() const;
-	UModularRig* GetDefaultHierarchy() const;
-	const UModularRig* GetHierarchyForTreeView() const { return GetHierarchy(); }
+	UModularRig* GetModularRig() const;
+	UModularRig* GetDefaultModularRig() const;
+	const UModularRig* GetModularRigForTreeView() const { return GetModularRig(); }
 	FName CreateUniqueName(const FName& InBasePath) const;
 	void OnRequestDetailsInspection(const FString& InKey);
 	void ClearDetailPanel() const;
@@ -158,7 +158,7 @@ private:
 public:
 
 	friend class FModularRigTreeElement;
-	friend class SModularRigHierarchyItem;
+	friend class SModularRigModelItem;
 	friend class UControlRigBlueprintEditorLibrary;
 };
 

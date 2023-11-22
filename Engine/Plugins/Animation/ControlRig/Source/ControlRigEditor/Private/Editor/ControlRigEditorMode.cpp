@@ -7,7 +7,7 @@
 #include "IPersonaToolkit.h"
 #include "PersonaTabs.h"
 #include "Editor/RigHierarchyTabSummoner.h"
-#include "Editor/ModularRigHierarchyTabSummoner.h"
+#include "Editor/ModularRigModelTabSummoner.h"
 #include "Editor/RigModuleAssetBrowserTabSummoner.h"
 #include "Editor/RigVMExecutionStackTabSummoner.h"
 #include "Editor/RigCurveContainerTabSummoner.h"
@@ -145,7 +145,7 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 	: FControlRigEditorMode(InControlRigEditor, false)
 {
 
-	TabFactories.RegisterFactory(MakeShared<FModularRigHierarchyTabSummoner>(InControlRigEditor));
+	TabFactories.RegisterFactory(MakeShared<FModularRigModelTabSummoner>(InControlRigEditor));
 	TabFactories.RegisterFactory(MakeShared<FRigModuleAssetBrowserTabSummoner>(InControlRigEditor));
 	
 	TabLayout = FTabManager::NewLayout("Standalone_ModularRigEditMode_Layout_v1.2")
@@ -193,7 +193,7 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 							// Left bottom right
 							FTabManager::NewStack()
 							->SetSizeCoefficient(0.5f)
-							->AddTab(FModularRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
+							->AddTab(FModularRigModelTabSummoner::TabID, ETabState::OpenedTab)
 						)
 					)
 				)

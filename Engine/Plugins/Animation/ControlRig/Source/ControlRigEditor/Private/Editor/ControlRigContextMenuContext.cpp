@@ -80,11 +80,11 @@ SRigHierarchy* UControlRigContextMenuContext::GetRigHierarchyPanel() const
 	return nullptr;
 }
 
-SModularRigHierarchy* UControlRigContextMenuContext::GetModularRigHierarchyPanel() const
+SModularRigModel* UControlRigContextMenuContext::GetModularRigModelPanel() const
 {
-	if (const TSharedPtr<SModularRigHierarchy> ModularRigHierarchyPanel = MenuSpecificContext.ModularRigHierarchyPanel.Pin())
+	if (const TSharedPtr<SModularRigModel> ModularRigModelPanel = MenuSpecificContext.ModularRigModelPanel.Pin())
 	{
-		return ModularRigHierarchyPanel.Get();
+		return ModularRigModelPanel.Get();
 	}
 	return nullptr;
 }

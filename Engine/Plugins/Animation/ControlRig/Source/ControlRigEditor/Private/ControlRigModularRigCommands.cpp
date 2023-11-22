@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ControlRigModularRigHierarchyCommands.h"
+#include "ControlRigModularRigCommands.h"
 
-#define LOCTEXT_NAMESPACE "ControlRigModularRigHierarchyCommands"
+#define LOCTEXT_NAMESPACE "ControlRigModularRigCommands"
 
-void FControlRigModularHierarchyCommands::RegisterCommands()
+void FControlRigModularRigCommands::RegisterCommands()
 {
 	UI_COMMAND(AddModuleItem, "New Module", "Add new module to the rig.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RenameModuleItem, "Rename", "Rename module to the rig.", EUserInterfaceActionType::Button, FInputChord(EKeys::F2));

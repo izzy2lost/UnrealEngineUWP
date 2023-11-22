@@ -17,7 +17,7 @@
 #include "SEnumCombo.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Styling/AppStyle.h"
-#include "Editor/SModularRigHierarchyTreeView.h"
+#include "Editor/SModularRigTreeView.h"
 #include "StructViewerFilter.h"
 #include "StructViewerModule.h"
 #include "Features/IModularFeatures.h"

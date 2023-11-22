@@ -348,7 +348,7 @@ protected:
 	friend class FControlRigEditorMode;
 	friend class SControlRigStackView;
 	friend class SRigHierarchy;
-	friend class SModularRigHierarchy;
+	friend class SModularRigModel;
 	friend struct FRigHierarchyTabSummoner;
-	friend struct FModularRigHierarchyTabSummoner;
+	friend struct FModularRigModelTabSummoner;
 };

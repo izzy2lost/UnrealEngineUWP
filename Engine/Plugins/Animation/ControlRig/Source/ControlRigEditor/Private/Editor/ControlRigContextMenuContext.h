@@ -15,7 +15,7 @@ class URigVMGraph;
 class URigVMNode;
 class URigVMPin;
 class SRigHierarchy;
-class SModularRigHierarchy;
+class SModularRigModel;
 
 USTRUCT(BlueprintType)
 struct FControlRigRigHierarchyDragAndDropContext
@@ -98,7 +98,7 @@ struct FControlRigMenuSpecificContext
 	
 	FControlRigRigHierarchyDragAndDropContext RigHierarchyDragAndDropContext;
 
-	TWeakPtr<SModularRigHierarchy> ModularRigHierarchyPanel;
+	TWeakPtr<SModularRigModel> ModularRigModelPanel;
 	
 	FControlRigGraphNodeContextMenuContext GraphNodeContextMenuContext;
 
@@ -144,7 +144,7 @@ public:
 
 	SRigHierarchy* GetRigHierarchyPanel() const;
 
-	SModularRigHierarchy* GetModularRigHierarchyPanel() const;
+	SModularRigModel* GetModularRigModelPanel() const;
 	
 	FControlRigEditor* GetControlRigEditor() const;
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Editor/SModularRigHierarchy.h"
+#include "Editor/SModularRigModel.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
@@ -15,7 +15,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "K2Node_VariableGet.h"
 #include "RigVMBlueprintUtils.h"
-#include "ControlRigModularRigHierarchyCommands.h"
+#include "ControlRigModularRigCommands.h"
 #include "ControlRigBlueprint.h"
 #include "Graph/ControlRigGraph.h"
 #include "Graph/ControlRigGraphNode.h"
@@ -55,20 +55,20 @@
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
 
-#define LOCTEXT_NAMESPACE "SModularRigHierarchy"
+#define LOCTEXT_NAMESPACE "SModularRigModel"
 
 //////////////////////////////////////////////////////////////
-/// FModuleRigHierarchyDragDropOp
+/// FModularRigModuleDragDropOp
 ///////////////////////////////////////////////////////////
-TSharedRef<FModuleRigHierarchyDragDropOp> FModuleRigHierarchyDragDropOp::New(const TArray<FString>& InElements)
+TSharedRef<FModularRigModuleDragDropOp> FModularRigModuleDragDropOp::New(const TArray<FString>& InElements)
 {
-	TSharedRef<FModuleRigHierarchyDragDropOp> Operation = MakeShared<FModuleRigHierarchyDragDropOp>();
+	TSharedRef<FModularRigModuleDragDropOp> Operation = MakeShared<FModularRigModuleDragDropOp>();
 	Operation->Elements = InElements;
 	Operation->Construct();
 	return Operation;
 }
 
-TSharedPtr<SWidget> FModuleRigHierarchyDragDropOp::GetDefaultDecorator() const
+TSharedPtr<SWidget> FModularRigModuleDragDropOp::GetDefaultDecorator() const
 {
 	return SNew(SBorder)
 		.Visibility(EVisibility::Visible)
@@ -80,7 +80,7 @@ TSharedPtr<SWidget> FModuleRigHierarchyDragDropOp::GetDefaultDecorator() const
 		];
 }
 
-FString FModuleRigHierarchyDragDropOp::GetJoinedElementNames() const
+FString FModularRigModuleDragDropOp::GetJoinedElementNames() const
 {
 	TArray<FString> ElementNameStrings;
 	for (const FString& Element: Elements)
@@ -92,24 +92,24 @@ FString FModuleRigHierarchyDragDropOp::GetJoinedElementNames() const
 
 ///////////////////////////////////////////////////////////
 
-const FName SModularRigHierarchy::ContextMenuName = TEXT("ControlRigEditor.ModularRigHierarchy.ContextMenu");
+const FName SModularRigModel::ContextMenuName = TEXT("ControlRigEditor.ModularRigModel.ContextMenu");
 
-SModularRigHierarchy::~SModularRigHierarchy()
+SModularRigModel::~SModularRigModel()
 {
 	const FControlRigEditor* Editor = ControlRigEditor.IsValid() ? ControlRigEditor.Pin().Get() : nullptr;
 	OnEditorClose(Editor, ControlRigBlueprint.Get());
 }
 
-void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEditor> InControlRigEditor)
+void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRigEditor> InControlRigEditor)
 {
 	ControlRigEditor = InControlRigEditor;
 
 	ControlRigBlueprint = ControlRigEditor.Pin()->GetControlRigBlueprint();
 
-	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SModularRigHierarchy::HandleRefreshEditorFromBlueprint);
-	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SModularRigHierarchy::HandleSetObjectBeingDebugged);
-	ControlRigBlueprint->OnModularRigPreCompiled().AddRaw(this, &SModularRigHierarchy::HandlePreCompileModularRigs);
-	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigHierarchy::HandlePostCompileModularRigs);
+	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SModularRigModel::HandleRefreshEditorFromBlueprint);
+	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SModularRigModel::HandleSetObjectBeingDebugged);
+	ControlRigBlueprint->OnModularRigPreCompiled().AddRaw(this, &SModularRigModel::HandlePreCompileModularRigs);
+	ControlRigBlueprint->OnModularRigCompiled().AddRaw(this, &SModularRigModel::HandlePostCompileModularRigs);
 
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
@@ -122,18 +122,18 @@ void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FContr
 
 	BindCommands();
 
-	// setup all delegates for the rig hierarchy widget
+	// setup all delegates for the modular rig model widget
 	FModularRigTreeDelegates Delegates;
-	Delegates.OnGetHierarchy = FOnGetModularRigTreeHierarchy::CreateSP(this, &SModularRigHierarchy::GetHierarchyForTreeView);
-	Delegates.OnContextMenuOpening = FOnContextMenuOpening::CreateSP(this, &SModularRigHierarchy::CreateContextMenuWidget);
-	Delegates.OnDragDetected = FOnDragDetected::CreateSP(this, &SModularRigHierarchy::OnDragDetected);
-	Delegates.OnCanAcceptDrop = FOnModularRigTreeCanAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnCanAcceptDrop);
-	Delegates.OnAcceptDrop = FOnModularRigTreeAcceptDrop::CreateSP(this, &SModularRigHierarchy::OnAcceptDrop);
-	Delegates.OnMouseButtonClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigHierarchy::OnItemClicked);
-	Delegates.OnMouseButtonDoubleClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigHierarchy::OnItemDoubleClicked);
-	Delegates.OnRequestDetailsInspection = FOnModularRigTreeRequestDetailsInspection::CreateSP(this, &SModularRigHierarchy::OnRequestDetailsInspection);
-	Delegates.OnRenameElement = FOnModularRigTreeRenameElement::CreateSP(this, &SModularRigHierarchy::HandleRenameModule);
-	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigHierarchy::HandleVerifyNameChanged);
+	Delegates.OnGetModularRig = FOnGetModularRigTreeRig::CreateSP(this, &SModularRigModel::GetModularRigForTreeView);
+	Delegates.OnContextMenuOpening = FOnContextMenuOpening::CreateSP(this, &SModularRigModel::CreateContextMenuWidget);
+	Delegates.OnDragDetected = FOnDragDetected::CreateSP(this, &SModularRigModel::OnDragDetected);
+	Delegates.OnCanAcceptDrop = FOnModularRigTreeCanAcceptDrop::CreateSP(this, &SModularRigModel::OnCanAcceptDrop);
+	Delegates.OnAcceptDrop = FOnModularRigTreeAcceptDrop::CreateSP(this, &SModularRigModel::OnAcceptDrop);
+	Delegates.OnMouseButtonClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigModel::OnItemClicked);
+	Delegates.OnMouseButtonDoubleClick = FOnModularRigTreeMouseButtonClick::CreateSP(this, &SModularRigModel::OnItemDoubleClicked);
+	Delegates.OnRequestDetailsInspection = FOnModularRigTreeRequestDetailsInspection::CreateSP(this, &SModularRigModel::OnRequestDetailsInspection);
+	Delegates.OnRenameElement = FOnModularRigTreeRenameElement::CreateSP(this, &SModularRigModel::HandleRenameModule);
+	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigModel::HandleVerifyNameChanged);
 	
 	ChildSlot
 	[
@@ -149,7 +149,7 @@ void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FContr
 				.Padding(2.0f)
 				.BorderImage(FAppStyle::GetBrush("SCSEditor.TreePanel"))
 				[
-					SAssignNew(TreeView, SModularRigHierarchyTreeView)
+					SAssignNew(TreeView, SModularRigTreeView)
 					.RigTreeDelegates(Delegates)
 					.AutoScrollEnabled(true)
 				]
@@ -164,15 +164,15 @@ void SModularRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FContr
 		ControlRigEditor.Pin()->GetKeyDownDelegate().BindLambda([&](const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)->FReply {
 			return OnKeyDown(MyGeometry, InKeyEvent);
 		});
-		ControlRigEditor.Pin()->OnGetViewportContextMenu().BindSP(this, &SModularRigHierarchy::GetContextMenu);
-		ControlRigEditor.Pin()->OnViewportContextMenuCommands().BindSP(this, &SModularRigHierarchy::GetContextMenuCommands);
-		ControlRigEditor.Pin()->OnEditorClosed().AddSP(this, &SModularRigHierarchy::OnEditorClose);
+		ControlRigEditor.Pin()->OnGetViewportContextMenu().BindSP(this, &SModularRigModel::GetContextMenu);
+		ControlRigEditor.Pin()->OnViewportContextMenuCommands().BindSP(this, &SModularRigModel::GetContextMenuCommands);
+		ControlRigEditor.Pin()->OnEditorClosed().AddSP(this, &SModularRigModel::OnEditorClose);
 	}
 	
 	CreateContextMenu();
 }
 
-void SModularRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint* InBlueprint)
+void SModularRigModel::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint* InBlueprint)
 {
 	if (InEditor)
 	{
@@ -193,25 +193,25 @@ void SModularRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlu
 	ControlRigBlueprint.Reset();
 }
 
-void SModularRigHierarchy::BindCommands()
+void SModularRigModel::BindCommands()
 {
 	// create new command
-	const FControlRigModularHierarchyCommands& Commands = FControlRigModularHierarchyCommands::Get();
+	const FControlRigModularRigCommands& Commands = FControlRigModularRigCommands::Get();
 
 	CommandList->MapAction(Commands.AddModuleItem,
-		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleNewItem),
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleNewItem),
 		FCanExecuteAction());
 
 	CommandList->MapAction(Commands.RenameModuleItem,
-		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleRenameModule),
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleRenameModule),
 		FCanExecuteAction());
 
 	CommandList->MapAction(Commands.DeleteModuleItem,
-		FExecuteAction::CreateSP(this, &SModularRigHierarchy::HandleDeleteModules),
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleDeleteModules),
 		FCanExecuteAction());
 }
 
-FReply SModularRigHierarchy::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (CommandList.IsValid() && CommandList->ProcessCommandBindings(InKeyEvent))
 	{
@@ -220,9 +220,8 @@ FReply SModularRigHierarchy::OnKeyDown(const FGeometry& MyGeometry, const FKeyEv
 	return FReply::Unhandled();
 }
 
-void SModularRigHierarchy::RefreshTreeView(bool bRebuildContent)
+void SModularRigModel::RefreshTreeView(bool bRebuildContent)
 {
-	const UModularRig* Hierarchy = GetHierarchy();
 	bool bDummySuspensionFlag = false;
 	bool* SuspensionFlagPtr = &bDummySuspensionFlag;
 	if (ControlRigEditor.IsValid())
@@ -234,7 +233,7 @@ void SModularRigHierarchy::RefreshTreeView(bool bRebuildContent)
 	TreeView->RefreshTreeView(bRebuildContent);
 }
 
-TArray<FString> SModularRigHierarchy::GetSelectedKeys() const
+TArray<FString> SModularRigModel::GetSelectedKeys() const
 {
 	TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
 	
@@ -254,12 +253,12 @@ TArray<FString> SModularRigHierarchy::GetSelectedKeys() const
 }
 
 
-void SModularRigHierarchy::HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint)
+void SModularRigModel::HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint)
 {
 	ClearDetailPanel();
 }
 
-void SModularRigHierarchy::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
+void SModularRigModel::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
 {
 	RefreshTreeView();
 	if (ControlRigEditor.IsValid())
@@ -274,12 +273,12 @@ void SModularRigHierarchy::HandlePostCompileModularRigs(URigVMBlueprint* InBluep
 	}
 }
 
-void SModularRigHierarchy::HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint)
+void SModularRigModel::HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint)
 {
 	RefreshTreeView();
 }
 
-void SModularRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
+void SModularRigModel::HandleSetObjectBeingDebugged(UObject* InObject)
 {
 	if(ControlRigBeingDebuggedPtr.Get() == InObject)
 	{
@@ -296,7 +295,7 @@ void SModularRigHierarchy::HandleSetObjectBeingDebugged(UObject* InObject)
 	RefreshTreeView();
 }
 
-TSharedPtr< SWidget > SModularRigHierarchy::CreateContextMenuWidget()
+TSharedPtr< SWidget > SModularRigModel::CreateContextMenuWidget()
 {
 	UToolMenus* ToolMenus = UToolMenus::Get();
 
@@ -308,9 +307,9 @@ TSharedPtr< SWidget > SModularRigHierarchy::CreateContextMenuWidget()
 	return SNullWidget::NullWidget;
 }
 
-void SModularRigHierarchy::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
+void SModularRigModel::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
 {
-	UModularRig* Rig = GetHierarchy();
+	UModularRig* Rig = GetModularRig();
 	check(Rig);
 
 	if (ControlRigEditor.IsValid() && InItem.IsValid())
@@ -319,12 +318,12 @@ void SModularRigHierarchy::OnItemClicked(TSharedPtr<FModularRigTreeElement> InIt
 	}
 }
 
-void SModularRigHierarchy::OnItemDoubleClicked(TSharedPtr<FModularRigTreeElement> InItem)
+void SModularRigModel::OnItemDoubleClicked(TSharedPtr<FModularRigTreeElement> InItem)
 {
 
 }
 
-void SModularRigHierarchy::CreateContextMenu()
+void SModularRigModel::CreateContextMenu()
 {
 	static bool bCreatedMenu = false;
 	if(bCreatedMenu)
@@ -348,13 +347,13 @@ void SModularRigHierarchy::CreateContextMenu()
 			{
 				UControlRigContextMenuContext* MainContext = InMenu->FindContext<UControlRigContextMenuContext>();
 				
-				if (SModularRigHierarchy* RigHierarchyPanel = MainContext->GetModularRigHierarchyPanel())
+				if (SModularRigModel* ModelPanel = MainContext->GetModularRigModelPanel())
 				{
-					const FControlRigModularHierarchyCommands& Commands = FControlRigModularHierarchyCommands::Get(); 
+					const FControlRigModularRigCommands& Commands = FControlRigModularRigCommands::Get(); 
 				
 					FToolMenuSection& ElementsSection = InMenu->AddSection(TEXT("Elements"), LOCTEXT("ElementsHeader", "Elements"));
 					ElementsSection.AddSubMenu(TEXT("New"), LOCTEXT("New", "New"), LOCTEXT("New_ToolTip", "Create New Elements"),
-						FNewToolMenuDelegate::CreateLambda([Commands, RigHierarchyPanel](UToolMenu* InSubMenu)
+						FNewToolMenuDelegate::CreateLambda([Commands, ModelPanel](UToolMenu* InSubMenu)
 						{
 							FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None);
 							DefaultSection.AddMenuEntry(Commands.AddModuleItem);
@@ -368,7 +367,7 @@ void SModularRigHierarchy::CreateContextMenu()
 	}
 }
 
-UToolMenu* SModularRigHierarchy::GetContextMenu()
+UToolMenu* SModularRigModel::GetContextMenu()
 {
 	const FName MenuName = ContextMenuName;
 	UToolMenus* ToolMenus = UToolMenus::Get();
@@ -381,7 +380,7 @@ UToolMenu* SModularRigHierarchy::GetContextMenu()
 	// individual entries in this menu can access members of this context, particularly useful for editor scripting
 	UControlRigContextMenuContext* ContextMenuContext = NewObject<UControlRigContextMenuContext>();
 	FControlRigMenuSpecificContext MenuSpecificContext;
-	MenuSpecificContext.ModularRigHierarchyPanel = SharedThis(this);
+	MenuSpecificContext.ModularRigModelPanel = SharedThis(this);
 	ContextMenuContext->Init(ControlRigEditor, MenuSpecificContext);
 
 	FToolMenuContext MenuContext(CommandList);
@@ -392,12 +391,12 @@ UToolMenu* SModularRigHierarchy::GetContextMenu()
 	return Menu;
 }
 
-TSharedPtr<FUICommandList> SModularRigHierarchy::GetContextMenuCommands() const
+TSharedPtr<FUICommandList> SModularRigModel::GetContextMenuCommands() const
 {
 	return CommandList;
 }
 
-bool SModularRigHierarchy::IsSingleSelected() const
+bool SModularRigModel::IsSingleSelected() const
 {
 	if(GetSelectedKeys().Num() == 1)
 	{
@@ -470,7 +469,7 @@ private:
 };
 
 /** Create Item */
-void SModularRigHierarchy::HandleNewItem()
+void SModularRigModel::HandleNewItem()
 {
 	if(!ControlRigEditor.IsValid())
 	{
@@ -492,7 +491,7 @@ void SModularRigHierarchy::HandleNewItem()
 	Options.bShowNoneOption = false;
 	
 	UClass* ChosenClass;
-	const FText TitleText = LOCTEXT("ModularRigHierarchy", "Pick Rig Module Class");
+	const FText TitleText = LOCTEXT("ModularRigModelPickModuleClass", "Pick Rig Module Class");
 	const bool bPressedOk = SClassPickerDialog::PickClass(TitleText, Options, ChosenClass, UControlRig::StaticClass());
 	if (bPressedOk)
 	{
@@ -500,7 +499,7 @@ void SModularRigHierarchy::HandleNewItem()
 	}
 }
 
-void SModularRigHierarchy::HandleNewItem(UClass* InClass, const FString &InParentPath)
+void SModularRigModel::HandleNewItem(UClass* InClass, const FString &InParentPath)
 {
 	UControlRig* ControlRig = InClass->GetDefaultObject<UControlRig>();
 	if (!ControlRig)
@@ -528,12 +527,12 @@ void SModularRigHierarchy::HandleNewItem(UClass* InClass, const FString &InParen
 	}
 }
 
-bool SModularRigHierarchy::CanRenameModule() const
+bool SModularRigModel::CanRenameModule() const
 {
 	return IsSingleSelected();
 }
 
-void SModularRigHierarchy::HandleRenameModule()
+void SModularRigModel::HandleRenameModule()
 {
 	if(!ControlRigEditor.IsValid())
 	{
@@ -545,10 +544,10 @@ void SModularRigHierarchy::HandleRenameModule()
 		return;
 	}
 
-	UModularRig* Rig = GetDefaultHierarchy();
+	UModularRig* Rig = GetDefaultModularRig();
 	if (Rig)
 	{
-		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyRenameSelected", "Rename selected module"));
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelRenameSelected", "Rename selected module"));
 
 		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
 		if (SelectedItems.Num() == 1)
@@ -560,13 +559,13 @@ void SModularRigHierarchy::HandleRenameModule()
 	return;
 }
 
-FName SModularRigHierarchy::HandleRenameModule(const FString& InOldPath, const FName& InNewName)
+FName SModularRigModel::HandleRenameModule(const FString& InOldPath, const FName& InNewName)
 {
 	ClearDetailPanel();
 	
 	if (ControlRigBlueprint.IsValid())
 	{
-		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyRename", "Rename Module"));
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelRename", "Rename Module"));
 
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
@@ -581,7 +580,7 @@ FName SModularRigHierarchy::HandleRenameModule(const FString& InOldPath, const F
 	return NAME_None;
 }
 
-bool SModularRigHierarchy::HandleVerifyNameChanged(const FString& InOldPath, const FName& InNewName, FText& OutErrorMessage)
+bool SModularRigModel::HandleVerifyNameChanged(const FString& InOldPath, const FName& InNewName, FText& OutErrorMessage)
 {
 	if (InNewName.IsNone())
 	{
@@ -599,17 +598,17 @@ bool SModularRigHierarchy::HandleVerifyNameChanged(const FString& InOldPath, con
 	return false;
 }
 
-void SModularRigHierarchy::HandleDeleteModules()
+void SModularRigModel::HandleDeleteModules()
 {
 	if(!ControlRigEditor.IsValid())
 	{
 		return;
 	}
 
-	UModularRig* Rig = GetDefaultHierarchy();
+	UModularRig* Rig = GetDefaultModularRig();
 	if (Rig)
 	{
-		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyDeleteSelected", "Delete selected modules"));
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelDeleteSelected", "Delete selected modules"));
 
 		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
 		TArray<FString> SelectedPaths;
@@ -627,13 +626,13 @@ void SModularRigHierarchy::HandleDeleteModules()
 	return;
 }
 
-void SModularRigHierarchy::HandleDeleteModules(const TArray<FString>& InPaths)
+void SModularRigModel::HandleDeleteModules(const TArray<FString>& InPaths)
 {
 	ClearDetailPanel();
 	
 	if (ControlRigBlueprint.IsValid())
 	{
-		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyDelete", "Delete Modules"));
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelDelete", "Delete Modules"));
 
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
@@ -648,13 +647,13 @@ void SModularRigHierarchy::HandleDeleteModules(const TArray<FString>& InPaths)
 	}
 }
 
-void SModularRigHierarchy::HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath)
+void SModularRigModel::HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath)
 {
 	ClearDetailPanel();
 	
 	if (ControlRigBlueprint.IsValid())
 	{
-		FScopedTransaction Transaction(LOCTEXT("ModularRigHierarchyReparent", "Reparent Modules"));
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelReparent", "Reparent Modules"));
 
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
@@ -666,13 +665,13 @@ void SModularRigHierarchy::HandleReparentModules(const TArray<FString>& InPaths,
 	}
 }
 
-class SModularRigHierarchyPasteTransformsErrorPipe : public FOutputDevice
+class SModularRigModelPasteTransformsErrorPipe : public FOutputDevice
 {
 public:
 
 	int32 NumErrors;
 
-	SModularRigHierarchyPasteTransformsErrorPipe()
+	SModularRigModelPasteTransformsErrorPipe()
 		: FOutputDevice()
 		, NumErrors(0)
 	{
@@ -680,12 +679,12 @@ public:
 
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category) override
 	{
-		UE_LOG(LogControlRig, Error, TEXT("Error importing transforms to Hierarchy: %s"), V);
+		UE_LOG(LogControlRig, Error, TEXT("Error importing transforms to Model: %s"), V);
 		NumErrors++;
 	}
 };
 
-UModularRig* SModularRigHierarchy::GetHierarchy() const
+UModularRig* SModularRigModel::GetModularRig() const
 {
 	if (ControlRigBlueprint.IsValid())
 	{
@@ -704,7 +703,7 @@ UModularRig* SModularRigHierarchy::GetHierarchy() const
 	return nullptr;
 }
 
-UModularRig* SModularRigHierarchy::GetDefaultHierarchy() const
+UModularRig* SModularRigModel::GetDefaultModularRig() const
 {
 	if (ControlRigBlueprint.IsValid())
 	{
@@ -717,12 +716,12 @@ UModularRig* SModularRigHierarchy::GetDefaultHierarchy() const
 }
 
 
-FName SModularRigHierarchy::CreateUniqueName(const FName& InBasePath) const
+FName SModularRigModel::CreateUniqueName(const FName& InBasePath) const
 {
 	return ControlRigBlueprint->GetModularRigController()->GetSafeNewName(InBasePath.ToString());
 }
 
-void SModularRigHierarchy::OnRequestDetailsInspection(const FString& InKey)
+void SModularRigModel::OnRequestDetailsInspection(const FString& InKey)
 {
 	if(!ControlRigEditor.IsValid())
 	{
@@ -731,7 +730,7 @@ void SModularRigHierarchy::OnRequestDetailsInspection(const FString& InKey)
 	ControlRigEditor.Pin()->SetDetailViewForRigModules({InKey});
 }
 
-void SModularRigHierarchy::ClearDetailPanel() const
+void SModularRigModel::ClearDetailPanel() const
 {
 	if(ControlRigEditor.IsValid())
 	{
@@ -739,7 +738,7 @@ void SModularRigHierarchy::ClearDetailPanel() const
 	}
 }
 
-void SModularRigHierarchy::PostRedo(bool bSuccess) 
+void SModularRigModel::PostRedo(bool bSuccess) 
 {
 	if (bSuccess)
 	{
@@ -747,7 +746,7 @@ void SModularRigHierarchy::PostRedo(bool bSuccess)
 	}
 }
 
-void SModularRigHierarchy::PostUndo(bool bSuccess) 
+void SModularRigModel::PostUndo(bool bSuccess) 
 {
 	if (bSuccess)
 	{
@@ -755,14 +754,14 @@ void SModularRigHierarchy::PostUndo(bool bSuccess)
 	}
 }
 
-FReply SModularRigHierarchy::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply SModularRigModel::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	TArray<FString> DraggedElements = GetSelectedKeys();
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && DraggedElements.Num() > 0)
 	{
 		if (ControlRigEditor.IsValid())
 		{
-			TSharedRef<FModuleRigHierarchyDragDropOp> DragDropOp = FModuleRigHierarchyDragDropOp::New(MoveTemp(DraggedElements));
+			TSharedRef<FModularRigModuleDragDropOp> DragDropOp = FModularRigModuleDragDropOp::New(MoveTemp(DraggedElements));
 			return FReply::Handled().BeginDragDrop(DragDropOp);
 		}
 	}
@@ -770,13 +769,13 @@ FReply SModularRigHierarchy::OnDragDetected(const FGeometry& MyGeometry, const F
 	return FReply::Unhandled();
 }
 
-TOptional<EItemDropZone> SModularRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
+TOptional<EItemDropZone> SModularRigModel::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
 {
 	const TOptional<EItemDropZone> InvalidDropZone;
 	TOptional<EItemDropZone> ReturnDropZone = DropZone;
 
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
-	TSharedPtr<FModuleRigHierarchyDragDropOp> ModuleDragDropOperation = DragDropEvent.GetOperationAs<FModuleRigHierarchyDragDropOp>();
+	TSharedPtr<FModularRigModuleDragDropOp> ModuleDragDropOperation = DragDropEvent.GetOperationAs<FModularRigModuleDragDropOp>();
 	if (AssetDragDropOperation)
 	{
 		for (const FAssetData& AssetData : AssetDragDropOperation->GetAssets())
@@ -809,7 +808,7 @@ TOptional<EItemDropZone> SModularRigHierarchy::OnCanAcceptDrop(const FDragDropEv
 	return ReturnDropZone;
 }
 
-FReply SModularRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
+FReply SModularRigModel::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FModularRigTreeElement> TargetItem)
 {
 	const TSharedPtr<FModularRigTreeElement>* ItemAtMouse = TreeView->FindItemAtPosition(DragDropEvent.GetScreenSpacePosition());
 	FString ParentPath;
@@ -819,7 +818,7 @@ FReply SModularRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, E
 	}
 
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
-	TSharedPtr<FModuleRigHierarchyDragDropOp> ModuleDragDropOperation = DragDropEvent.GetOperationAs<FModuleRigHierarchyDragDropOp>();
+	TSharedPtr<FModularRigModuleDragDropOp> ModuleDragDropOperation = DragDropEvent.GetOperationAs<FModularRigModuleDragDropOp>();
 	if (AssetDragDropOperation)
 	{
 		for (const FAssetData& AssetData : AssetDragDropOperation->GetAssets())
@@ -860,10 +859,10 @@ FReply SModularRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, E
 	return FReply::Unhandled();
 }
 
-FReply SModularRigHierarchy::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+FReply SModularRigModel::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	// only allow drops onto empty space of the widget (when there's no target item under the mouse)
-	// when dropped onto an item SModularRigHierarchy::OnAcceptDrop will deal with the event
+	// when dropped onto an item SModularRigModel::OnAcceptDrop will deal with the event
 	const TSharedPtr<FModularRigTreeElement>* ItemAtMouse = TreeView->FindItemAtPosition(DragDropEvent.GetScreenSpacePosition());
 	FString ParentPath;
 	if (ItemAtMouse && ItemAtMouse->IsValid())

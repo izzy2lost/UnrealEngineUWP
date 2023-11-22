@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Editor/SModularRigHierarchyTreeView.h"
+#include "Editor/SModularRigTreeView.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -16,21 +16,21 @@
 #include "ControlRigEditorStyle.h"
 #include "ModularRig.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
-#include "Editor/SModularRigHierarchy.h"
+#include "Editor/SModularRigModel.h"
 #include "Settings/ControlRigSettings.h"
 #include "Graph/ControlRigGraphSchema.h"
 #include "Rigs/AdditiveControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Styling/AppStyle.h"
 
-#define LOCTEXT_NAMESPACE "SModularRigHierarchyTreeView"
+#define LOCTEXT_NAMESPACE "SModularRigTreeView"
 
-TMap<FSoftObjectPath, FSlateBrush> SModularRigHierarchyItem::IconPathToBrush;
+TMap<FSoftObjectPath, FSlateBrush> SModularRigModelItem::IconPathToBrush;
 
 //////////////////////////////////////////////////////////////
 /// FModularRigTreeElement
 ///////////////////////////////////////////////////////////
-FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigHierarchyTreeView> InTreeView, bool InSupportsRename)
+FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool InSupportsRename)
 {
 	Key = InKey;
 	FString ShortNameStr = Key;
@@ -40,25 +40,25 @@ FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SM
 	
 	if(InTreeView.IsValid())
 	{
-		if(const UModularRig* Hierarchy = InTreeView.Pin()->GetRigTreeDelegates().GetHierarchy())
+		if(const UModularRig* ModularRig = InTreeView.Pin()->GetRigTreeDelegates().GetModularRig())
 		{
-			RefreshDisplaySettings(Hierarchy);
+			RefreshDisplaySettings(ModularRig);
 		}
 	}
 }
 
-void FModularRigTreeElement::RefreshDisplaySettings(const UModularRig* InHierarchy)
+void FModularRigTreeElement::RefreshDisplaySettings(const UModularRig* InModularRig)
 {
-	const TPair<const FSlateBrush*, FSlateColor> Result = SModularRigHierarchyItem::GetBrushForElementType(InHierarchy, Key);
+	const TPair<const FSlateBrush*, FSlateColor> Result = SModularRigModelItem::GetBrushForElementType(InModularRig, Key);
 
 	IconBrush = Result.Key;
 	IconColor = Result.Value;
 	TextColor = FSlateColor::UseForeground();
 }
 
-TSharedRef<ITableRow> FModularRigTreeElement::MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned)
+TSharedRef<ITableRow> FModularRigTreeElement::MakeTreeRowWidget(const TSharedRef<STableViewBase>& InOwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigTreeView> InTreeView, bool bPinned)
 {
-	return SNew(SModularRigHierarchyItem, InOwnerTable, InRigTreeElement, InTreeView, bPinned);
+	return SNew(SModularRigModelItem, InOwnerTable, InRigTreeElement, InTreeView, bPinned);
 }
 
 void FModularRigTreeElement::RequestRename()
@@ -67,9 +67,9 @@ void FModularRigTreeElement::RequestRename()
 }
 
 //////////////////////////////////////////////////////////////
-/// SModularRigHierarchyItem
+/// SModularRigModelItem
 ///////////////////////////////////////////////////////////
-void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigHierarchyTreeView> InTreeView, bool bPinned)
+void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigTreeView> InTreeView, bool bPinned)
 {
 	WeakRigTreeElement = InRigTreeElement;
 	Delegates = InTreeView->GetRigTreeDelegates();
@@ -135,10 +135,10 @@ void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TShared
 			.VAlign(VAlign_Center)
 			[
 				SAssignNew(InlineWidget, SInlineEditableTextBlock)
-				.Text(this, &SModularRigHierarchyItem::GetName, true)
-				.OnVerifyTextChanged(this, &SModularRigHierarchyItem::OnVerifyNameChanged)
-				.OnTextCommitted(this, &SModularRigHierarchyItem::OnNameCommitted)
-				.ToolTipText(this, &SModularRigHierarchyItem::GetItemTooltip)
+				.Text(this, &SModularRigModelItem::GetName, true)
+				.OnVerifyTextChanged(this, &SModularRigModelItem::OnVerifyNameChanged)
+				.OnTextCommitted(this, &SModularRigModelItem::OnNameCommitted)
+				.ToolTipText(this, &SModularRigModelItem::GetItemTooltip)
 				.MultiLine(false)
 				.ColorAndOpacity_Lambda([this]()
 				{
@@ -154,7 +154,7 @@ void SModularRigHierarchyItem::Construct(const FArguments& InArgs, const TShared
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
 }
 
-void SModularRigHierarchyItem::OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const
+void SModularRigModelItem::OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const
 {
 	// for now only allow enter
 	// because it is important to keep the unique names per pose
@@ -167,14 +167,14 @@ void SModularRigHierarchyItem::OnNameCommitted(const FText& InText, ETextCommit:
 	}
 }
 
-bool SModularRigHierarchyItem::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
+bool SModularRigModelItem::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
 {
 	const FName NewName = *InText.ToString();
 	const FString OldPath = WeakRigTreeElement.Pin()->Key;
 	return Delegates.HandleVerifyElementNameChanged(OldPath, NewName, OutErrorMessage);
 }
 
-FText SModularRigHierarchyItem::GetName(bool bUseShortName) const
+FText SModularRigModelItem::GetName(bool bUseShortName) const
 {
 	if(bUseShortName)
 	{
@@ -183,7 +183,7 @@ FText SModularRigHierarchyItem::GetName(bool bUseShortName) const
 	return (FText::FromString(WeakRigTreeElement.Pin()->Key));
 }
 
-FText SModularRigHierarchyItem::GetItemTooltip() const
+FText SModularRigModelItem::GetItemTooltip() const
 {
 	const FText FullName = GetName(false);
 	const FText ShortName = GetName(true);
@@ -195,10 +195,10 @@ FText SModularRigHierarchyItem::GetItemTooltip() const
 }
 
 //////////////////////////////////////////////////////////////
-/// SModularRigHierarchyTreeView
+/// SModularRigTreeView
 ///////////////////////////////////////////////////////////
 
-void SModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
+void SModularRigTreeView::Construct(const FArguments& InArgs)
 {
 	Delegates = InArgs._RigTreeDelegates;
 	bAutoScrollEnabled = InArgs._AutoScrollEnabled;
@@ -206,8 +206,8 @@ void SModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	STreeView<TSharedPtr<FModularRigTreeElement>>::FArguments SuperArgs;
 	SuperArgs.TreeItemsSource(&RootElements);
 	SuperArgs.SelectionMode(ESelectionMode::Multi);
-	SuperArgs.OnGenerateRow(this, &SModularRigHierarchyTreeView::MakeTableRowWidget, false);
-	SuperArgs.OnGetChildren(this, &SModularRigHierarchyTreeView::HandleGetChildrenForTree);
+	SuperArgs.OnGenerateRow(this, &SModularRigTreeView::MakeTableRowWidget, false);
+	SuperArgs.OnGetChildren(this, &SModularRigTreeView::HandleGetChildrenForTree);
 	SuperArgs.OnContextMenuOpening(Delegates.OnContextMenuOpening);
 	SuperArgs.HighlightParentNodesForSelection(true);
 	SuperArgs.ItemHeight(24);
@@ -218,7 +218,7 @@ void SModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	SuperArgs.ShouldStackHierarchyHeaders_Lambda([]() -> bool {
 		return UControlRigEditorSettings::Get()->bShowStackedHierarchy;
 	});
-	SuperArgs.OnGeneratePinnedRow(this, &SModularRigHierarchyTreeView::MakeTableRowWidget, true);
+	SuperArgs.OnGeneratePinnedRow(this, &SModularRigTreeView::MakeTableRowWidget, true);
 	SuperArgs.MaxPinnedItems_Lambda([]() -> int32
 	{
 		return FMath::Max<int32>(1, UControlRigEditorSettings::Get()->MaxStackSize);
@@ -230,7 +230,7 @@ void SModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	TimeAtMousePosition = 0.0;
 }
 
-void SModularRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SModularRigTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	STreeView<TSharedPtr<FModularRigTreeElement, ESPMode::ThreadSafe>>::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
@@ -297,7 +297,7 @@ void SModularRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const
 	}
 }
 
-TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(const FString& InElementKey)
+TSharedPtr<FModularRigTreeElement> SModularRigTreeView::FindElement(const FString& InElementKey)
 {
 	for (TSharedPtr<FModularRigTreeElement> Root : RootElements)
 	{
@@ -310,7 +310,7 @@ TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(con
 	return TSharedPtr<FModularRigTreeElement>();
 }
 
-TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(const FString& InElementKey, TSharedPtr<FModularRigTreeElement> CurrentItem)
+TSharedPtr<FModularRigTreeElement> SModularRigTreeView::FindElement(const FString& InElementKey, TSharedPtr<FModularRigTreeElement> CurrentItem)
 {
 	if (CurrentItem->Key == InElementKey)
 	{
@@ -329,7 +329,7 @@ TSharedPtr<FModularRigTreeElement> SModularRigHierarchyTreeView::FindElement(con
 	return TSharedPtr<FModularRigTreeElement>();
 }
 
-bool SModularRigHierarchyTreeView::AddElement(FString InKey, FString InParentKey)
+bool SModularRigTreeView::AddElement(FString InKey, FString InParentKey)
 {
 	if(ElementMap.Contains(InKey))
 	{
@@ -368,7 +368,7 @@ bool SModularRigHierarchyTreeView::AddElement(FString InKey, FString InParentKey
 	return true;
 }
 
-bool SModularRigHierarchyTreeView::AddElement(const FRigModuleInstance* InElement)
+bool SModularRigTreeView::AddElement(const FRigModuleInstance* InElement)
 {
 	check(InElement);
 	
@@ -377,7 +377,7 @@ bool SModularRigHierarchyTreeView::AddElement(const FRigModuleInstance* InElemen
 		return false;
 	}
 
-	const UModularRig* Hierarchy = Delegates.GetHierarchy();
+	const UModularRig* ModularRig = Delegates.GetModularRig();
 
 	if(!AddElement(InElement->GetPath(), FString()))
 	{
@@ -386,12 +386,12 @@ bool SModularRigHierarchyTreeView::AddElement(const FRigModuleInstance* InElemen
 
 	if (ElementMap.Contains(InElement->GetPath()))
 	{
-		if(Hierarchy)
+		if(ModularRig)
 		{
-			FString ParentKey = Hierarchy->GetParentPath(InElement->GetPath());
+			FString ParentKey = ModularRig->GetParentPath(InElement->GetPath());
 			if (!ParentKey.IsEmpty())
 			{
-				if(const FRigModuleInstance* ParentElement = Hierarchy->FindModule(ParentKey))
+				if(const FRigModuleInstance* ParentElement = ModularRig->FindModule(ParentKey))
 				{
 					AddElement(ParentElement);
 
@@ -407,12 +407,12 @@ bool SModularRigHierarchyTreeView::AddElement(const FRigModuleInstance* InElemen
 	return true;
 }
 
-void SModularRigHierarchyTreeView::AddSpacerElement()
+void SModularRigTreeView::AddSpacerElement()
 {
 	AddElement(FString(), FString());
 }
 
-bool SModularRigHierarchyTreeView::ReparentElement(const FString InKey, const FString InParentKey)
+bool SModularRigTreeView::ReparentElement(const FString InKey, const FString InParentKey)
 {
 	if (InKey.IsEmpty() || InKey == InParentKey)
 	{
@@ -467,7 +467,7 @@ bool SModularRigHierarchyTreeView::ReparentElement(const FString InKey, const FS
 	return true;
 }
 
-void SModularRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
+void SModularRigTreeView::RefreshTreeView(bool bRebuildContent)
 {
 	TMap<FString, bool> ExpansionState;
 
@@ -488,10 +488,10 @@ void SModularRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 
 	if(bRebuildContent)
 	{
-		const UModularRig* Hierarchy = Delegates.GetHierarchy();
-		if(Hierarchy)
+		const UModularRig* ModularRig = Delegates.GetModularRig();
+		if(ModularRig)
 		{
-			Hierarchy->ForEachModule([&](const FRigModuleInstance* Element)
+			ModularRig->ForEachModule([&](const FRigModuleInstance* Element)
 			{
 				AddElement(Element);
 				return true;
@@ -540,19 +540,19 @@ void SModularRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 	}
 }
 
-TSharedRef<ITableRow> SModularRigHierarchyTreeView::MakeTableRowWidget(TSharedPtr<FModularRigTreeElement> InItem,
+TSharedRef<ITableRow> SModularRigTreeView::MakeTableRowWidget(TSharedPtr<FModularRigTreeElement> InItem,
 	const TSharedRef<STableViewBase>& OwnerTable, bool bPinned)
 {
 	return InItem->MakeTreeRowWidget(OwnerTable, InItem.ToSharedRef(), SharedThis(this), bPinned);
 }
 
-void SModularRigHierarchyTreeView::HandleGetChildrenForTree(TSharedPtr<FModularRigTreeElement> InItem,
+void SModularRigTreeView::HandleGetChildrenForTree(TSharedPtr<FModularRigTreeElement> InItem,
 	TArray<TSharedPtr<FModularRigTreeElement>>& OutChildren)
 {
 	OutChildren = InItem.Get()->Children;
 }
 
-TArray<FString> SModularRigHierarchyTreeView::GetSelectedKeys() const
+TArray<FString> SModularRigTreeView::GetSelectedKeys() const
 {
 	TArray<FString> Keys;
 	TArray<TSharedPtr<FModularRigTreeElement>> SelectedElements = GetSelectedItems();
@@ -563,13 +563,13 @@ TArray<FString> SModularRigHierarchyTreeView::GetSelectedKeys() const
 	return Keys;
 }
 
-void SModularRigHierarchyTreeView::SetSelection(const TArray<TSharedPtr<FModularRigTreeElement>>& InSelection) 
+void SModularRigTreeView::SetSelection(const TArray<TSharedPtr<FModularRigTreeElement>>& InSelection) 
 {
 	ClearSelection();
 	SetItemSelection(InSelection, true, ESelectInfo::Direct);
 }
 
-const TSharedPtr<FModularRigTreeElement>* SModularRigHierarchyTreeView::FindItemAtPosition(FVector2D InScreenSpacePosition) const
+const TSharedPtr<FModularRigTreeElement>* SModularRigTreeView::FindItemAtPosition(FVector2D InScreenSpacePosition) const
 {
 	if (ItemsPanel.IsValid() && SListView<TSharedPtr<FModularRigTreeElement>>::HasValidItemsSource())
 	{
@@ -577,7 +577,7 @@ const TSharedPtr<FModularRigTreeElement>* SModularRigHierarchyTreeView::FindItem
 		const int32 Index = FindChildUnderPosition(ArrangedChildren, InScreenSpacePosition);
 		if (ArrangedChildren.IsValidIndex(Index))
 		{
-			TSharedRef<SModularRigHierarchyItem> ItemWidget = StaticCastSharedRef<SModularRigHierarchyItem>(ArrangedChildren[Index].Widget);
+			TSharedRef<SModularRigModelItem> ItemWidget = StaticCastSharedRef<SModularRigModelItem>(ArrangedChildren[Index].Widget);
 			if (ItemWidget->WeakRigTreeElement.IsValid())
 			{
 				const FString Key = ItemWidget->WeakRigTreeElement.Pin()->Key;
@@ -596,12 +596,12 @@ const TSharedPtr<FModularRigTreeElement>* SModularRigHierarchyTreeView::FindItem
 	return nullptr;
 }
 
-TPair<const FSlateBrush*, FSlateColor> SModularRigHierarchyItem::GetBrushForElementType(const UModularRig* InHierarchy, const FString& InKey)
+TPair<const FSlateBrush*, FSlateColor> SModularRigModelItem::GetBrushForElementType(const UModularRig* InModularRig, const FString& InKey)
 {
 	const FSlateBrush* Brush = nullptr;
 	FSlateColor Color = FSlateColor::UseForeground();
 
-	if (const FRigModuleInstance* Module = InHierarchy->FindModule(InKey))
+	if (const FRigModuleInstance* Module = InModularRig->FindModule(InKey))
 	{
 		if (Module->Rig.IsValid())
 		{
@@ -623,7 +623,7 @@ TPair<const FSlateBrush*, FSlateColor> SModularRigHierarchyItem::GetBrushForElem
 	return TPair<const FSlateBrush*, FSlateColor>(Brush, Color);
 }
 
-FLinearColor SModularRigHierarchyItem::GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum)
+FLinearColor SModularRigModelItem::GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum)
 {
 	FEdGraphPinType PinType;
 	switch(InControlType)
@@ -685,10 +685,10 @@ FLinearColor SModularRigHierarchyItem::GetColorForControlType(ERigControlType In
 }
 
 //////////////////////////////////////////////////////////////
-/// SSearchableRigHierarchyTreeView
+/// SSearchableModularRigTreeView
 ///////////////////////////////////////////////////////////
 
-void SSearchableModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
+void SSearchableModularRigTreeView::Construct(const FArguments& InArgs)
 {
 	FModularRigTreeDelegates TreeDelegates = InArgs._RigTreeDelegates;
 	
@@ -708,7 +708,7 @@ void SSearchableModularRigHierarchyTreeView::Construct(const FArguments& InArgs)
 				.Padding(2.0f)
 				.BorderImage(FAppStyle::GetBrush("SCSEditor.TreePanel"))
 				[
-					SAssignNew(TreeView, SModularRigHierarchyTreeView)
+					SAssignNew(TreeView, SModularRigTreeView)
 					.RigTreeDelegates(TreeDelegates)
 				]
 			]

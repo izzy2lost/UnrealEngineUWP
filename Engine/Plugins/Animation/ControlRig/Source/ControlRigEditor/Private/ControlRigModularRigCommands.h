@@ -6,13 +6,13 @@
 #include "Framework/Commands/Commands.h"
 #include "ControlRigEditorStyle.h"
 
-class FControlRigModularHierarchyCommands : public TCommands<FControlRigModularHierarchyCommands>
+class FControlRigModularRigCommands : public TCommands<FControlRigModularRigCommands>
 {
 public:
-	FControlRigModularHierarchyCommands() : TCommands<FControlRigModularHierarchyCommands>
+	FControlRigModularRigCommands() : TCommands<FControlRigModularRigCommands>
 	(
-		"ControlRigModuleRigHierarchy",
-		NSLOCTEXT("Contexts", "ModuleRigHierarchy", "Module Rig Hierarchy"),
+		"ControlRigModularRigModel",
+		NSLOCTEXT("Contexts", "ModularRigModel", "Modular Rig Modules"),
 		NAME_None, // "MainFrame" // @todo Fix this crash
 		FControlRigEditorStyle::Get().GetStyleSetName() // Icon Style Set
 	)
