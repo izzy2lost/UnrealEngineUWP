@@ -497,20 +497,14 @@ public:
 class FMetalCommandBufferFence
 {
 public:
-    FMetalCommandBufferFence();
-    ~FMetalCommandBufferFence();
-
-public:
-    //void Init();
-    bool Wait(NS::UInteger TimeInterval) const;
+    bool Wait(uint32_t TimeInterval) const;
     void Insert(MTLCommandBufferPtr CmdBuffer);
     
 private:
     void Signal(const MTL::CommandBuffer* CmdBuffer);
     
-    NS::Condition* Condition = nullptr;
+    FEventRef Condition { EEventMode::ManualReset };
     MTLCommandBufferPtr CmdBuffer;
-    uint32_t bPassed = 0;
 };
 
 class FMetalGPUFence final : public FRHIGPUFence
