@@ -874,24 +874,31 @@ namespace Gauntlet
 		/// <returns></returns>
 		public UnrealTestRole GetMainRequiredRole()
 		{
-			var ClientRoles = GetRequiredRoles(UnrealTargetRole.Client);
-			if (ClientRoles.Any())
+			var PriorityList = new UnrealTargetRole[] {
+				UnrealTargetRole.Client,
+				UnrealTargetRole.EditorGame,
+				UnrealTargetRole.Server,
+				UnrealTargetRole.EditorServer,
+				UnrealTargetRole.Editor,
+				UnrealTargetRole.CookedEditor
+			};
+			foreach (UnrealTargetRole TargetRole in PriorityList)
 			{
-				return ClientRoles.First();
+				IEnumerable<UnrealTestRole> Roles = GetRequiredRoles(TargetRole);
+				if (Roles.Any())
+				{
+					return Roles.First();
+				}
 			}
-			var ServerRoles = GetRequiredRoles(UnrealTargetRole.Server);
-			if (ServerRoles.Any())
+
+			if (RequiredRoles.Any())
 			{
-				return ServerRoles.First();
+				var RoleEnumerator = RequiredRoles.Values.GetEnumerator();
+				RoleEnumerator.MoveNext();
+				return RoleEnumerator.Current.First();
 			}
-			var EditorRoles = GetRequiredRoles(UnrealTargetRole.Editor);
-			if (EditorRoles.Any())
-			{
-				return EditorRoles.First();
-			}
-			var RoleEnumerator = RequiredRoles.Values.GetEnumerator();
-			RoleEnumerator.MoveNext();
-			return RoleEnumerator.Current.First();
+
+			return new UnrealTestRole(UnrealTargetRole.Unknown, null);
 		}
 
 		/// <summary>
