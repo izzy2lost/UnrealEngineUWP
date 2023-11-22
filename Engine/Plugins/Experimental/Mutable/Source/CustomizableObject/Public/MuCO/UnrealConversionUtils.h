@@ -4,6 +4,11 @@
 
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 
+//! Order of the unreal vertex buffers when in mutable data
+#define MUTABLE_VERTEXBUFFER_POSITION	0
+#define MUTABLE_VERTEXBUFFER_TANGENT	1
+#define MUTABLE_VERTEXBUFFER_TEXCOORDS	2
+
 namespace mu { class FMeshBufferSet; }
 struct FReferenceSkeleton;
 

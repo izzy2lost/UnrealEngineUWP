@@ -216,21 +216,6 @@ void UCustomizableObject::PostLoad()
 }
 
 
-void UCustomizableObject::BeginDestroy()
-{
-#if !WITH_EDITORONLY_DATA
-	if (RefSkeletalMeshStreamingHandle.IsValid() && RefSkeletalMeshStreamingHandle->IsActive())
-	{
-		RefSkeletalMeshStreamingHandle->CancelHandle();
-	}
-	
-	RefSkeletalMeshStreamingHandle = nullptr;
-#endif
-
-	Super::BeginDestroy();
-}
-
-
 bool UCustomizableObject::IsLocked() const
 {
 	if (PrivateData.IsValid())
@@ -1029,9 +1014,9 @@ FString UCustomizableObject::GetCompiledDataFileName(bool bIsModel, const ITarge
 
 FString UCustomizableObject::GetDesc()
 {
-	int states = GetStateCount();
-	int params = GetParameterCount();
-	return FString::Printf(TEXT("%d States, %d Parameters"), states, params);
+	int32 States = GetStateCount();
+	int32 Params = GetParameterCount();
+	return FString::Printf(TEXT("%d States, %d Parameters"), States, Params);
 }
 
 
@@ -1194,60 +1179,6 @@ TSoftObjectPtr<USkeleton> UCustomizableObject::GetReferencedSkeletonAssetPtr( ui
 		"Skeleton data and CustomizableObject data may be out of sync. "
 		"Try recompiling and saving the CustomizableObject asset [%s]."), *GetName());
 	return nullptr;
-}
-
-
-void UCustomizableObject::LoadReferenceSkeletalMeshesAsync()
-{
-#if !WITH_EDITORONLY_DATA
-	if (!RefSkeletalMeshStreamingHandle)
-	{
-		TArray<FSoftObjectPath> MeshesToStream;
-
-		for (const FMutableRefSkeletalMeshData& RefSkeletalMeshData : ReferenceSkeletalMeshesData)
-		{
-			MeshesToStream.Add(RefSkeletalMeshData.SkeletalMeshAssetPath);
-		}
-
-		if (!MeshesToStream.IsEmpty())
-		{
-			TWeakObjectPtr<UCustomizableObject> WeakCO(this);
-
-			FStreamableManager& StreamableManager = UCustomizableObjectSystem::GetInstance()->GetStreamableManager();
-			RefSkeletalMeshStreamingHandle = StreamableManager.RequestAsyncLoad(MeshesToStream, FStreamableDelegate::CreateUObject(this, &UCustomizableObject::OnReferenceSkeletalMeshesAsyncLoaded),
-				FStreamableManager::AsyncLoadHighPriority);
-		}
-
-	}
-#endif
-}
-
-
-void UCustomizableObject::UnloadReferenceSkeletalMeshes()
-{
-#if !WITH_EDITORONLY_DATA
-	for (FMutableRefSkeletalMeshData& Data : ReferenceSkeletalMeshesData)
-	{
-		Data.SkeletalMesh = nullptr;
-	}
-#endif
-}
-
-
-void UCustomizableObject::OnReferenceSkeletalMeshesAsyncLoaded()
-{
-#if !WITH_EDITORONLY_DATA
-	if (RefSkeletalMeshStreamingHandle)
-	{
-		for (FMutableRefSkeletalMeshData& Data : ReferenceSkeletalMeshesData)
-		{
-			Data.SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(Data.SkeletalMeshAssetPath).Get();
-			check(Data.SkeletalMesh);
-		}
-
-		RefSkeletalMeshStreamingHandle.Reset();
-	}
-#endif
 }
 
 
@@ -1427,7 +1358,7 @@ int32 UCustomizableObject::GetComponentCount() const
 	return IsCompiled() ? NumMeshComponentsInRoot : 0;
 }
 
-int UCustomizableObject::GetParameterCount() const
+int32 UCustomizableObject::GetParameterCount() const
 {
 	return ParameterProperties.Num();
 }
@@ -1710,18 +1641,6 @@ FParameterUIData UCustomizableObject::GetStateUIMetadata(const FString& StateNam
 FParameterUIData UCustomizableObject::GetStateUIMetadataFromIndex(int32 StateIndex) const
 {
 	return GetStateUIMetadata(GetStateName(StateIndex));
-}
-
-
-void UCustomizableObject::LoadMaskOutCache()
-{
-	MaskOutCache_HardRef = MaskOutCache.LoadSynchronous();
-}
-
-
-void UCustomizableObject::UnloadMaskOutCache()
-{
-	MaskOutCache_HardRef = nullptr;
 }
 
 

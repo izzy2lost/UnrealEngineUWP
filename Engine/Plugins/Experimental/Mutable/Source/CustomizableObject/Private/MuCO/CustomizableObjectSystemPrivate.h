@@ -370,28 +370,6 @@ struct FInstanceUpdateData
 };
 
 
-struct FTextureCoverageQueryData
-{
-	uint32 CoveredTexels;
-	uint32 MaskedOutCoveredTexels;
-	uint32 TotalTexels;
-	FString MaskOutChannelName;
-
-	FTextureCoverageQueryData() : CoveredTexels(0), MaskedOutCoveredTexels(0), TotalTexels(0) { }
-
-	float GetCoverage() const { return TotalTexels > 0 ? (float(CoveredTexels) / TotalTexels) : 0.f; }
-	float GetMaskedOutCoverage() const { return CoveredTexels > 0 ? (float(MaskedOutCoveredTexels) / CoveredTexels) : 0.f; }
-};
-
-
-struct FPendingTextureCoverageQuery
-{
-	FString KeyName;
-	uint32 MaterialIndex = 0;
-	FTexturePlatformData* PlatformData = nullptr;
-};
-
-
 /** Update Context.
  *
  * Alive from the start to the end of the update (both API and LOD update). */
@@ -456,13 +434,7 @@ public:
 
 	TArray<uint16> RequestedLODs;
 
-	TMap<FString, FTextureCoverageQueryData> TextureCoverageQueries_MutableThreadParams;
-	TMap<FString, FTextureCoverageQueryData> TextureCoverageQueries_MutableThreadResults;
-
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
-
-	/** This list of queries is generated in the update mutable task, and consumed later in the game thread. */
-	TArray<FPendingTextureCoverageQuery> PendingTextureCoverageQueries;
 
 	EUpdateResult UpdateResult = EUpdateResult::Success;
 

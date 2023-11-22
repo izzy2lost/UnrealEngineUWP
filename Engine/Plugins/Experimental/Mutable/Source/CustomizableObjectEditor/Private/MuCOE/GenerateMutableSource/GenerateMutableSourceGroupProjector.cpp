@@ -214,64 +214,6 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 
 			ImageNodes.Add(ImageNode);
 			ImageNodes_ProjectorTempData.Add(ProjectorTempData);
-
-			// Generate the projection mask-out texture cache
-			const FString& MaskName = ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter->MaskedOutAreaMaterialChannelName;
-
-			if (!MaskName.IsEmpty())
-			{
-				const UMaterialInterface* MaskMaterial = TypedNodeMat ? TypedNodeMat->Material : ParentMaterial->Material;
-				if (MaskMaterial)
-				{
-					UTexture* MaskTexture = nullptr;
-
-					if (MaskMaterial->GetTextureParameterValue(FName(*MaskName), MaskTexture))
-					{
-						UTexture2D* MaskTexture2D = Cast<UTexture2D>(MaskTexture);
-
-						if (MaskTexture2D && MaskTexture2D->Source.GetNumMips() > 0)
-						{
-							TArray64<uint8> TempData;
-							verify( MaskTexture2D->Source.GetMipData(TempData, 0, 0, 0) );
-							uint32 TotalTexels = MaskTexture2D->Source.GetSizeX() * MaskTexture2D->Source.GetSizeY();
-
-							ETextureSourceFormat PixelFormat = MaskTexture2D->Source.GetFormat();
-							int32 BytesPerPixel = MaskTexture2D->Source.GetBytesPerPixel();
-							ensure((PixelFormat == TSF_BGRA8 && BytesPerPixel == 4) || BytesPerPixel == 1);
-
-							{
-								uint32 DataSize = TotalTexels * MaskTexture2D->Source.GetBytesPerPixel();
-								FString MaskTexture2DPath = MaskTexture2D->GetPathName();
-
-								if (!GenerationContext.MaskOutTextureCache.Find(MaskTexture2DPath) && DataSize > 1024) // Discard default or too small textures to have any mask detail
-								{
-									FMaskOutTexture& CachedTexture = GenerationContext.MaskOutTextureCache.Add(MaskTexture2DPath);
-									
-									CachedTexture.SetTextureSize(MaskTexture2D->Source.GetSizeX(), MaskTexture2D->Source.GetSizeY());
-
-									for (size_t p = 0; p < DataSize / BytesPerPixel; ++p)
-									{
-										if (BytesPerPixel == 4)
-										{
-											CachedTexture.GetTexelReference(p) = TempData[p * 4 + 3] > 0; // Copy alpha channel of PF_R8G8B8A8
-										}
-										else if (BytesPerPixel == 1)
-										{
-											CachedTexture.GetTexelReference(p) = TempData[p] > 0;
-										}
-										else
-										{
-											check(false);
-										}
-									}
-								}
-
-								GenerationContext.MaskOutMaterialCache.Add(MaskMaterial->GetPathName(), MaskTexture2DPath);
-							}
-						}
-					}
-				}
-			}
 		}
 	}
 

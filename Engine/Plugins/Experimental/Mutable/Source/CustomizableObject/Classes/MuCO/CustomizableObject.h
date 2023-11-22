@@ -444,46 +444,6 @@ struct FMutableModelParameterProperties
 };
 
 
-// Represents a texture used for masking-out areas of an object from projectors
-USTRUCT()
-struct FMaskOutTexture
-{
-	GENERATED_USTRUCT_BODY()
-
-	bool operator ==(const FMaskOutTexture& Other) const
-	{ 
-		return SizeX == Other.SizeX && SizeY == Other.SizeY && Data == Other.Data;
-	}
-
-	void SetTextureSize(int32 InSizeX, int32 InSizeY)
-	{
-		SizeX = InSizeX;
-		SizeY = InSizeY;
-		Data.SetNumUninitialized(FMath::DivideAndRoundUp(InSizeX * InSizeY, NumBitsPerDWORD)); 
-	}
-
-	int32 GetSizeX() const { return SizeX; }
-	int32 GetSizeY() const { return SizeY; }
-
-	FBitReference GetTexelReference(int32 Index)
-	{
-		check(Index >= 0 && Index < SizeX * SizeY);
-		return FBitReference(Data[Index / NumBitsPerDWORD], 1 << (Index & (NumBitsPerDWORD - 1)));
-	}
-
-private:
-	UPROPERTY()
-	int32 SizeX = 0;
-
-	UPROPERTY()
-	int32 SizeY = 0;
-
-	UPROPERTY()
-	TArray<uint32> Data; // Only alpha channel of PF_R8G8B8A8 is stored as binary bits
-};
-
-
-
 USTRUCT()
 struct CUSTOMIZABLEOBJECT_API FAnimBpOverridePhysicsAssetsInfo
 {
@@ -726,21 +686,6 @@ struct FMutableSkinWeightProfileInfo
 	{
 		return Name == Other.Name;
 	}
-};
-
-
-
-UCLASS()
-class CUSTOMIZABLEOBJECT_API UMutableMaskOutCache : public UObject
-{
-public:
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TMap<FString, FString> Materials; // Maps a UMaterial's asset path to a UTexture's asset path
-
-	UPROPERTY()
-	TMap<FString, FMaskOutTexture> Textures; // Maps a UTexture's asset path to the cached mask-out texture data
 };
 
 
@@ -1303,49 +1248,45 @@ public:
 	UPROPERTY()
 	int32 NumMeshComponentsInRoot = 0;
 	
-	/** Method to query the amount of components this Customizable Object has.
-	 * @warning It must be invoked from a COInstance to ensure that the CO has been compiled
-	 */
+	/** Get the number of components this Customizable Object has. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetComponentCount() const;
 	
-	// Object parameters interface. This is used to query static data about the parameters available
-	// in instances of this object.
-
-	// Get the number of parameters available in any instance.
+	/** Get the number of parameters available in instances of this object. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	int GetParameterCount() const;
+	int32 GetParameterCount() const;
 
-	// Get the index of a parameter
+	/** Get the index of a parameter from its name. Return -1 if the parameter is not found. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 FindParameter(const FString& Name) const;
 
-	// Get the type of a parameter
+	/** Get the type of a parameter from its index. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	EMutableParameterType GetParameterType(int32 ParamIndex) const;
+
+	/** Get the type of a parameter from its name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	EMutableParameterType GetParameterTypeByName(const FString& Name) const;
 
-	// Get the name of a parameter
+	/** Get the name of a parameter from its index. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	const FString& GetParameterName(int32 ParamIndex) const;
 
-	// Get the number of description images available for a parameter
+	/** Deprecated. It will always return 0. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject, meta = (DeprecatedFunction, DeprecationMessage = "Parameter decorations have been removed. This method will be removed in future versions."))
 	int32 GetParameterDescriptionCount(const FString& ParamName) const;
 
-	// Returns how many possible options an int parameter has
+	/** Returns how many possible options an int parameter has, if the parameter is an enumeration. Otherwise return 0. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetIntParameterNumOptions(int32 ParamIndex) const;
 
-	// Gets the Name of the option at position K in the list of available options for the int parameter.
-	// Useful to enumerate the int parameter's possible options (Ex: "Hat1", "Hat2", "Cap", "Nothing")
+	/** Gets the Name of the option at position K in the list of available options for the int parameter.
+	 * Useful to enumerate the int parameter's possible options (Ex: "Hat1", "Hat2", "Cap", "Nothing")
+	 */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	const FString& GetIntParameterAvailableOption(int32 ParamIndex, int32 K) const;
 
-	//UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 FindIntParameterValue( int32 ParamIndex, const FString& Value ) const;
-	//UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FString FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const;
 
 	//
@@ -1365,31 +1306,7 @@ public:
 	// Remove skeletons that have been destroyed by the garbage collector from the cache.
 	void UnCacheInvalidSkeletons();
 
-	// Call before using Mutable's Projector testing with mask out features. It should only be loaded when needed because it can spend quite a lot of memory
-	// Can cause a loading hitch
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	void LoadMaskOutCache();
-
-	// Call after having used Mutable's Projector testing with mask out features. It should be unloaded because it can spend quite a lot of memory
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	void UnloadMaskOutCache();
-
-	// Called to load the reference SkeletalMesh if it needs to be used as a placeholder and it's not loaded.
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	void LoadReferenceSkeletalMeshesAsync();
-
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	void UnloadReferenceSkeletalMeshes();
-
-	// Callback of LoadReferenceSkeletalMeshesAsync
-	void OnReferenceSkeletalMeshesAsyncLoaded();
-
 private:
-
-#if !WITH_EDITORONLY_DATA
-	// Handle used to store a streaming request operation.
-	TSharedPtr<FStreamableHandle> RefSkeletalMeshStreamingHandle;
-#endif
 
 	
 	/** Returns true or false if the parameter with name can be located and it has the type the caller is looking for. It will also
@@ -1442,7 +1359,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	void GetProjectorParameterDefaultValue (
 		UPARAM(DisplayName = "Parameter Name") const FString& InParameterName,
-		UPARAM(DisplayName = "Possition") FVector3f& OutPos,
+		UPARAM(DisplayName = "Position") FVector3f& OutPos,
 		UPARAM(DisplayName = "Direction") FVector3f& OutDirection,
 		UPARAM(DisplayName = "Up") FVector3f& OutUp,
 		UPARAM(DisplayName = "Scale") FVector3f& OutScale,
@@ -1461,13 +1378,13 @@ public:
 	 */
 	FName GetTextureParameterDefaultValue (const FString& InParameterName) const;
 
-	/** Return true or false depending if the parameter at the index provided is multidimensional or not.
+	/** Return true if the parameter at the index provided is multidimensional.
 	 * @param InParamIndex The index of the parameter to check.
 	 * @return True if the parameter is multidimensional and false if it is not.
 	 */
 	bool IsParameterMultidimensional(const int32& InParamIndex) const;
 	
-	/** Return true or false depending if the parameter at the index provided is multidimensional or not.
+	/** Return true if the parameter at the index provided is multidimensional.
 	 * @param InParameterName The name of the parameter to check.
 	 * @return True if the parameter is multidimensional and false if it is not.
 	 */
@@ -1571,43 +1488,46 @@ public:
 	void LoadEmbeddedData(FArchive& Ar);
 
 	void PostLoad() override;
-	void BeginDestroy() override;
 
 	void Serialize(FArchive& Ar) override;
-
-	// 
-	void SerializeClothingDerivedData(FMemoryWriter64& Ar);
-	void DeserializeClothingDerivedData(FMemoryReaderView& Ar);
 
 	FGuid GetCompilationGuid() const;
 
 	int32 FindState( const FString& Name ) const;
 
+	/** Return the number of object states that are defined in the CustomizableObject. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetStateCount() const;
 
+	/** Return the name of an object state from its index. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FString GetStateName(int32 StateIndex) const;
 
 	int32 GetStateParameterCount(int32 StateIndex) const;
 	int32 GetStateParameterIndex(int32 StateIndex, int32 ParameterIndex) const;
 
+	/** Return the number of parameters that are editable at runtime for a specific state. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetStateParameterCount(const FString& StateName) const;
 
+	/** Return the name of one of the state's runtime parameters, by its index (from 0 to GetStateParameterCount-1). */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FString GetStateParameterName(const FString& StateName, int32 ParameterIndex) const;
 	FString GetStateParameterName(int32 StateIndex, int32 ParameterIndex) const;
 
+	/** Return the metadata associated to an object state by name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetStateUIMetadata(const FString& StateName) const;
 
+	/** Return the metadata associated to an object state by state index. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetStateUIMetadataFromIndex(int32 StateIndex) const;
 
+	/** Return the metadata associated to an object parameter by parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetParameterUIMetadata(const FString& ParamName) const;
 
+	/** Return the metadata associated to an object parameter by parameter index (from 0 to GetParameterCount-1). */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
 
@@ -1616,7 +1536,7 @@ public:
 	/** See bPreserveUserLODsOnFirstGeneration. */
 	bool IsPreserveUserLODsOnFirstGeneration() const;
 
-	/** Stores all the parameter UI metadata information for all the dependencies of this Customizable Object */
+	/** Stores all the parameter UI metadata information for all the dependencies of this Customizable Object. */
 	UPROPERTY()
 	TMap<FString, FParameterUIData> ParameterUIDataMap;
 
@@ -1643,10 +1563,6 @@ public:
 	UPROPERTY()
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */
 	TArray<FMutableRefSocket> SocketArray;
-
-	/** Stores the textures that will be used to mask-out areas in projectors. The cache isn't used for rendering, but for coverage testing */
-	UPROPERTY()
-	TSoftObjectPtr<UMutableMaskOutCache> MaskOutCache;
 
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
 	UPROPERTY()
@@ -1687,6 +1603,7 @@ public:
 	void PostCompile();
 #endif
 
+	/** Create a new instance of this object. The instance parameters will be initialized with the object default values. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	class UCustomizableObjectInstance* CreateInstance();
 
@@ -1695,7 +1612,7 @@ public:
 
 	FCustomizableObjectPrivateData* GetPrivate() const;
 
-	// This will always return true in a packaged game
+	/** Check if the CustomizableObject asset has been compiled. This will always be true in a packaged game, but it could be false in the editor. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	bool IsCompiled() const;
 
@@ -1737,10 +1654,6 @@ private:
 
 	/** Cache of merged skeletons */
 	TArray<FMergedSkeleton> MergedSkeletons;
-
-	/** Used to prevent GC of MaskOutCache and keep it in memory while it's needed */
-	UPROPERTY(Transient)
-	TObjectPtr<UMutableMaskOutCache> MaskOutCache_HardRef;
 
 	/** Unique identifier. Regenerated each time the object is compiled. */
 	UPROPERTY()

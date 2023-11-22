@@ -1231,55 +1231,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
 		}
 
-		if (bIsRootObject && (GenerationContext.MaskOutMaterialCache.Num() > 0 || GenerationContext.MaskOutTextureCache.Num() > 0))
-		{
-			// Load MaskOutCache, if can't, create it.
-			if (!Object->MaskOutCache.Get())
-			{
-				if (!Object->MaskOutCache.LoadSynchronous())
-				{
-					FString MaskOutCacheName = TEXT("MaskOutCache");
-					FString PackageName = Object->GetOutermost()->GetPathName() + FString("_") + MaskOutCacheName;
-					UPackage* Package = CreatePackage(*PackageName);
-					Package->FullyLoad();
-
-					FString ObjectName = Object->GetName() + FString("_") + MaskOutCacheName;
-					Object->MaskOutCache = NewObject<UMutableMaskOutCache>(Package, *ObjectName, RF_Public | RF_Standalone);
-
-					if (!ParamNamesToSelectedOptions.Num()) // Don't marked the object as modified because of a partial compilation
-					{
-						Object->MarkPackageDirty();
-					}
-				}
-			}
-
-			check(Object->MaskOutCache.Get());
-
-			if (!Object->MaskOutCache->Materials.OrderIndependentCompareEqual(GenerationContext.MaskOutMaterialCache) ||
-				!Object->MaskOutCache->Textures.OrderIndependentCompareEqual(GenerationContext.MaskOutTextureCache))
-			{
-				Object->MaskOutCache->Materials = GenerationContext.MaskOutMaterialCache;
-				Object->MaskOutCache->Textures = GenerationContext.MaskOutTextureCache;
-
-				if (!ParamNamesToSelectedOptions.Num()) // Don't marked the object as modified because of a partial compilation
-				{
-					Object->MarkPackageDirty();
-					Object->MaskOutCache->Modify();
-				}
-			}
-		}
-		else
-		{
-			if (!Object->MaskOutCache.ToString().IsEmpty() || Object->MaskOutCache.Get())
-			{
-				if (!ParamNamesToSelectedOptions.Num()) // Don't mark the object as modified because of a partial compilation
-				{
-					Object->MaskOutCache = nullptr;
-					Object->MarkPackageDirty();
-				}
-			}
-		}
-
 		if (CompileTask.IsValid()) // Don't start compilation if there's a compilation running
 		{
 			// TODO : warning?

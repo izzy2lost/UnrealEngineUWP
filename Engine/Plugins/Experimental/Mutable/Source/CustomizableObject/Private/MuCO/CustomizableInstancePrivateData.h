@@ -255,11 +255,6 @@ public:
 
 	static void ReleaseMutableTexture(const FMutableImageCacheKey& MutableTextureKey, UTexture2D* Texture, struct FMutableResourceCache& Cache);
 
-	// Prepare the data for the unreal textures, but don't create them because
-	// it runs in the mutable thread
-	// \TODO: CustomizableObject shouldn't be here
-	static void ProcessTextureCoverageQueries(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObject* CustomizableObject, const FString& ImageKeyName, FTexturePlatformData *PlatformData, UMaterialInterface* Material);
-
 	// Copy data generated in the mutable thread over to the instance and initializes additional data required during the update
 	void PrepareForUpdate(const TSharedRef<FUpdateContextPrivate>& OperationData);
 
@@ -334,8 +329,6 @@ public:
 	// Maximum number of SkeletalMesh LODs to stream
 	uint8 NumMaxLODsToStream;
 	
-	TMap<FString, FTextureCoverageQueryData> TextureCoverageQueries;
-
 	UPROPERTY(Transient)
 	TArray<FCustomizableInstanceComponentData> ComponentsData;
 

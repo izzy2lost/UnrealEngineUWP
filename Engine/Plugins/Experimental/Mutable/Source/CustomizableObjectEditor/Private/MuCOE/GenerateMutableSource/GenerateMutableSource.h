@@ -736,10 +736,6 @@ struct FMutableGraphGenerationContext
 	*/
 	TArray<int32> SocketPriorityStack;
 
-	// Stores the textures that will be used to mask-out areas in the projection. The cache isn't used for rendering, but for coverage testing
-	TMap<FString, FString> MaskOutMaterialCache; // Maps a UMaterial's asset path to a UTexture's asset path
-	TMap<FString, FMaskOutTexture> MaskOutTextureCache; // Maps a UTexture's asset path to the cached mask-out texture data
-
 	// Stores the only option of an Int Param that should be compiled in a partial compilation
 	TMap<FString, FString> ParamNamesToSelectedOptions;
 

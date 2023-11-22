@@ -5995,81 +5995,6 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 }
 
 
-void UCustomizableInstancePrivateData::ProcessTextureCoverageQueries(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObject* CustomizableObject, const FString& ImageKeyName, FTexturePlatformData *PlatformData, UMaterialInterface* Material)
-{
-	if (OperationData->TextureCoverageQueries_MutableThreadParams.Num() && PlatformData->Mips.Num())
-	{
-		int32 ImageKey = FCString::Atoi(*ImageKeyName);
-		int32 ScannedMipLevel = 0;
-		check(PlatformData->Mips.IsValidIndex(ScannedMipLevel));
-
-		if (ImageKey >= 0 && ImageKey < CustomizableObject->ImageProperties.Num())
-		{
-			const FMutableModelImageProperties& Props = CustomizableObject->ImageProperties[ImageKey];
-
-			FTextureCoverageQueryData* TextureCoverageQueryData = OperationData->TextureCoverageQueries_MutableThreadParams.Find(Props.TextureParameterName);
-
-			if (TextureCoverageQueryData)
-			{
-				FTexture2DMipMap& ScannedMip = PlatformData->Mips[ScannedMipLevel];
-				uint32 TotalTexels = ScannedMip.SizeX * ScannedMip.SizeY;
-				uint32 CoveredTexels = 0;
-				uint32 MaskedOutCoveredTexels = 0;
-
-				auto MaskOutCache = CustomizableObject->MaskOutCache.Get();
-
-				if (!MaskOutCache)
-				{
-					UE_LOG(LogMutable, Error, TEXT("The CustomizableObject->MaskOutCache has to be manually loaded by the programmer by calling CustomizableObject->LoadMaskOutCache()."));
-				}
-
-				FString* MaskOutTexturePath = MaskOutCache ? MaskOutCache->Materials.Find(Material->GetPathName()) : nullptr;
-				FMaskOutTexture* MaskOutTexture = MaskOutTexturePath ? MaskOutCache->Textures.Find(*MaskOutTexturePath) : nullptr;
-
-				// Textures must be uncompressed, the CustomizableInstance's state should be set to one with
-				// texture compression disabled for Texture Coverage Queries
-				ensure(PlatformData->PixelFormat == PF_R8G8B8A8 || PlatformData->PixelFormat == PF_B8G8R8A8);
-
-				const void* pData = ScannedMip.BulkData.Lock(LOCK_READ_ONLY);
-				uint8_t* pDest = (uint8_t*)pData;
-
-				for (size_t px = 0; px < ScannedMip.SizeX; ++px)
-				{
-					for (size_t py = 0; py < ScannedMip.SizeY; ++py)
-					{
-						if (pDest[(py * ScannedMip.SizeX + px) * 4 + 3] > 0) // Check if alpha channel of PF_R8G8B8A8 is not zero
-						{
-							CoveredTexels++;
-
-							if (MaskOutTexture)
-							{
-								float u = float(px) / ScannedMip.SizeX;
-								float v = float(py) / ScannedMip.SizeY;
-
-								size_t pu = FMath::RoundToInt(u * MaskOutTexture->GetSizeX());
-								size_t pv = FMath::RoundToInt(v * MaskOutTexture->GetSizeY());
-
-								if (MaskOutTexture->GetTexelReference(pv * MaskOutTexture->GetSizeX() + pu) == 0)
-								{
-									MaskedOutCoveredTexels++;
-								}
-							}
-						}
-					}
-				}
-
-				ScannedMip.BulkData.Unlock();
-
-				auto& ResultData = OperationData->TextureCoverageQueries_MutableThreadResults.FindOrAdd(Props.TextureParameterName);
-				ResultData.CoveredTexels += CoveredTexels;
-				ResultData.MaskedOutCoveredTexels += MaskedOutCoveredTexels;
-				ResultData.TotalTexels += TotalTexels;
-			}
-		}
-	}
-}
-
-
 void UCustomizableObjectInstance::SetReplacePhysicsAssets(bool bReplaceEnabled)
 {
 	bReplaceEnabled ? GetPrivate()->SetCOInstanceFlags(ReplacePhysicsAssets) : GetPrivate()->ClearCOInstanceFlags(ReplacePhysicsAssets);
@@ -6085,39 +6010,6 @@ void UCustomizableObjectInstance::SetReuseInstanceTextures(bool bTextureReuseEna
 void UCustomizableObjectInstance::SetForceGenerateResidentMips(bool bForceGenerateResidentMips)
 {
 	bForceGenerateResidentMips ? GetPrivate()->SetCOInstanceFlags(ForceGenerateMipTail) : GetPrivate()->ClearCOInstanceFlags(ForceGenerateMipTail);
-}
-
-
-void UCustomizableObjectInstance::AddQueryTextureCoverage(const FString& TextureName, const FString* MaskOutChannelName)
-{
-	FTextureCoverageQueryData& QueryData = GetPrivate()->TextureCoverageQueries.FindOrAdd(TextureName);
-
-	if (MaskOutChannelName)
-	{
-		QueryData.MaskOutChannelName = *MaskOutChannelName;
-	}
-}
-
-
-void UCustomizableObjectInstance::RemoveQueryTextureCoverage(const FString& TextureName)
-{
-	GetPrivate()->TextureCoverageQueries.Remove(TextureName);
-}
-
-
-float UCustomizableObjectInstance::GetQueryResultTextureCoverage(const FString& TextureName)
-{
-	FTextureCoverageQueryData* QueryData = GetPrivate()->TextureCoverageQueries.Find(TextureName);
-
-	return QueryData ? QueryData->GetCoverage() : 0.f;
-}
-
-
-float UCustomizableObjectInstance::GetQueryResultTextureCoverageMasked(const FString& TextureName)
-{
-	FTextureCoverageQueryData* QueryData = GetPrivate()->TextureCoverageQueries.Find(TextureName);
-
-	return QueryData ? QueryData->GetMaskedOutCoverage() : 0.f;
 }
 
 

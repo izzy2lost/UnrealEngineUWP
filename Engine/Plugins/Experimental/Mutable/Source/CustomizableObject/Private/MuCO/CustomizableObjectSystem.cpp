@@ -2033,7 +2033,6 @@ namespace impl
 						{
 							FTexturePlatformData* PlatformData = UCustomizableInstancePrivateData::MutableCreateImagePlatformData(MutableImage, -1, Image.FullImageSizeX, Image.FullImageSizeY);
 							OperationData->ImageToPlatformDataMap.Add(Image.ImageID, PlatformData);
-							OperationData->PendingTextureCoverageQueries.Add({ KeyName.ToString(), Surface.MaterialIndex, PlatformData});
 						}
 						else
 						{
@@ -2379,70 +2378,39 @@ namespace impl
 		{
 			UCustomizableInstancePrivateData* CustomizableInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 
-			// Process the pending texture coverage queries
-			{
-				MUTABLE_CPUPROFILER_SCOPE(GameTextureQueries);
-				for (const FPendingTextureCoverageQuery& Query : OperationData->PendingTextureCoverageQueries)
-				{
-					UMaterialInterface* Material = nullptr;
-					const uint32* InstanceIndex = CustomizableInstancePrivateData->ObjectToInstanceIndexMap.Find(Query.MaterialIndex);
-					if (InstanceIndex && CustomizableInstancePrivateData->ReferencedMaterials.IsValidIndex(*InstanceIndex))
-					{
-						Material = CustomizableInstancePrivateData->ReferencedMaterials[*InstanceIndex];
-					}
-
-					UCustomizableInstancePrivateData::ProcessTextureCoverageQueries(OperationData, CustomizableObjectInstance->GetCustomizableObject(), Query.KeyName, Query.PlatformData, Material);
-				}
-				OperationData->PendingTextureCoverageQueries.Empty();
-			}
-
-			// Process texture coverage queries because it's safe to do now that the Mutable thread is stopped
-			{
-				if (OperationData->TextureCoverageQueries_MutableThreadResults.Num() > 0)
-				{
-					for (auto& Result : OperationData->TextureCoverageQueries_MutableThreadResults)
-					{
-						FTextureCoverageQueryData* FinalResultData = CustomizableInstancePrivateData->TextureCoverageQueries.Find(Result.Key);
-						*FinalResultData = Result.Value;
-					}
-
-					OperationData->TextureCoverageQueries_MutableThreadResults.Empty();
-				}
-
 #if WITH_EDITOR
-				CustomizableObjectInstance->LastUpdateMutableRuntimeCycles = OperationData->MutableRuntimeCycles;
+			CustomizableObjectInstance->LastUpdateMutableRuntimeCycles = OperationData->MutableRuntimeCycles;
 #endif
 
-				// Convert Step
-				//-------------------------------------------------------------
+			// Convert Step
+			//-------------------------------------------------------------
 
-				// \TODO: Bring that code here instead of keeping it in the UCustomizableObjectInstance
-				if (CustomizableInstancePrivateData->UpdateSkeletalMesh_PostBeginUpdate0(CustomizableObjectInstance, OperationData))
+			// \TODO: Bring that code here instead of keeping it in the UCustomizableObjectInstance
+			if (CustomizableInstancePrivateData->UpdateSkeletalMesh_PostBeginUpdate0(CustomizableObjectInstance, OperationData))
+			{
+				// This used to be CustomizableObjectInstance::UpdateSkeletalMesh_PostBeginUpdate1
 				{
-					// This used to be CustomizableObjectInstance::UpdateSkeletalMesh_PostBeginUpdate1
+					MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate1);
+
+					// \TODO: Bring here
+					CustomizableInstancePrivateData->BuildMaterials(OperationData, CustomizableObjectInstance);
+				}
+
+				// This used to be CustomizableObjectInstance::UpdateSkeletalMesh_PostBeginUpdate2
+				{
+					MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate2);
+
+					for (int32 Component = 0; Component < CustomizableObjectInstance->SkeletalMeshes.Num(); ++Component)
 					{
-						MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate1);
-
-						// \TODO: Bring here
-						CustomizableInstancePrivateData->BuildMaterials(OperationData, CustomizableObjectInstance);
-					}
-
-					// This used to be CustomizableObjectInstance::UpdateSkeletalMesh_PostBeginUpdate2
-					{
-						MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate2);
-
-						for (int32 Component = 0; Component < CustomizableObjectInstance->SkeletalMeshes.Num(); ++Component)
+						if (CustomizableObjectInstance->SkeletalMeshes[Component] && CustomizableObjectInstance->SkeletalMeshes[Component]->GetLODInfoArray().Num())
 						{
-							if (CustomizableObjectInstance->SkeletalMeshes[Component] && CustomizableObjectInstance->SkeletalMeshes[Component]->GetLODInfoArray().Num())
-							{
-								MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostEditChangeProperty);
+							MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostEditChangeProperty);
 
-								CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(CustomizableObjectInstance->SkeletalMeshes[Component]);
-							}
+							CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(CustomizableObjectInstance->SkeletalMeshes[Component]);
 						}
 					}
 				}
-			} // END - Process texture coverage queries
+			}
 		} // if (!bInstanceValid)
 
 		FCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
@@ -2892,7 +2860,6 @@ namespace impl
 		
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
-		Operation->TextureCoverageQueries_MutableThreadParams = CandidateInstancePrivateData->TextureCoverageQueries;
 		Operation->CurrentMinLOD = Operation->InstanceDescriptorRuntimeHash.GetMinLOD();
 		Operation->CurrentMaxLOD = Operation->InstanceDescriptorRuntimeHash.GetMaxLOD();
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
