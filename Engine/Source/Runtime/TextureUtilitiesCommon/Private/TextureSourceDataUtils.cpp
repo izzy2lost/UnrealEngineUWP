@@ -21,6 +21,7 @@ namespace Private
 	static bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
 		check( Texture->Source.GetNumLayers() == 1 );
+		check( Texture->Source.GetNumBlocks() == 1 );
 		const int32 LayerIndex = 0;
 
 		// We want to reduce the asset size so ignore the imported mip(s) (??)
@@ -49,9 +50,63 @@ namespace Private
 
 		Texture->Source.Init(Image);
 
-		// Compress() applies PNG filter to the BulkData
-		//	Compress is done automatically in Texture PreSave
-		//Texture->Source.Compress(); 
+		// if gamma was Pow22 it is now sRGB
+		Texture->bUseLegacyGamma = false;
+
+		// PostEditChange is called outside by our caller
+
+		return true;
+	}
+
+	static int32 RoundToNearestInt32PowerOfTwo(double X)
+	{
+		double Log2X = FMath::Log2(X);
+		int32 IntLog2X = FMath::RoundToInt32(Log2X);
+		
+		return 1 << FMath::Clamp(IntLog2X,0,30);
+	}
+
+	// resize so that the largest dimension is == MaxSize
+	static bool ResizeTextureToNearestPow2(UTexture* Texture)
+	{
+		check( Texture->Source.GetNumLayers() == 1 );
+		check( Texture->Source.GetNumBlocks() == 1 );
+		const int32 LayerIndex = 0;
+
+		// discard imported mips :
+		const int32 MipIndex = 0;
+
+		FImage Image;
+		if (!Texture->Source.GetMipImage(Image, MipIndex))
+		{
+			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture GetMipImage failed [%s]"),
+				*Texture->GetFullName());
+			return false;
+		}
+
+		check( Image.SizeX == Texture->Source.GetSizeX() );
+		check( Image.SizeY == Texture->Source.GetSizeY() );
+
+		int32 TargetSizeX,TargetSizeY;
+
+		// make the larger dimension go to nearest pow2 first
+		// then fix the smaller dimension for aspect ratio
+		if ( Image.SizeX >= Image.SizeY )
+		{
+			TargetSizeX = RoundToNearestInt32PowerOfTwo(Image.SizeX);
+			TargetSizeY = RoundToNearestInt32PowerOfTwo( (double) TargetSizeX * Image.SizeY / Image.SizeX );
+		}
+		else
+		{
+			TargetSizeY = RoundToNearestInt32PowerOfTwo(Image.SizeY);
+			TargetSizeX = RoundToNearestInt32PowerOfTwo( (double) TargetSizeY * Image.SizeX / Image.SizeY );
+		}
+
+		FImageCore::ResizeImageInPlace(Image,TargetSizeX,TargetSizeY);
+		
+		Texture->PreEditChange(nullptr);
+
+		Texture->Source.Init(Image);
 
 		// if gamma was Pow22 it is now sRGB
 		Texture->bUseLegacyGamma = false;
@@ -88,6 +143,8 @@ namespace Private
 		check( Texture->Source.GetNumLayers() == 1 );
 		const int32 NumLayers = 1;
 		const int32 LayerIndex = 0;
+		
+		check( Texture->Source.GetNumBlocks() > 1 );
 
 		// MaxSize is applied to the total UDIM size
 
@@ -166,12 +223,107 @@ namespace Private
 
 		return true;
 	}
-}
 
+	static bool ResizeTextureToNearestPow2Blocked(UTexture* Texture)
+	{
+		// does not support layers
+		check( Texture->Source.GetNumLayers() == 1 );
+		const int32 NumLayers = 1;
+		const int32 LayerIndex = 0;
+		
+		const int32 NumBlocks = Texture->Source.GetNumBlocks();
+		check( NumBlocks > 1 );
+	
+		// Resize to Pow2 acts on each UDIM block, not the net size
 
-TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const ITargetPlatform* TargetPlatform)
+		TArray<FTextureSourceBlock> SourceBlocks;
+		SourceBlocks.SetNum(NumBlocks);
+		
+		int32 BlockMaxSizeX = 0;
+		int32 BlockMaxSizeY = 0;
+
+		// get the largest of all blocks (same as VT builder)
+		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+		{
+			Texture->Source.GetBlock(BlockIndex, SourceBlocks[BlockIndex]);
+
+			BlockMaxSizeX = FMath::Max(BlockMaxSizeX, SourceBlocks[BlockIndex].SizeX );
+			BlockMaxSizeY = FMath::Max(BlockMaxSizeY, SourceBlocks[BlockIndex].SizeY );
+		}
+		
+		int32 TargetSizeX,TargetSizeY;
+
+		// make the larger dimension go to nearest pow2 first
+		// then fix the smaller dimension for aspect ratio
+		if ( BlockMaxSizeX >= BlockMaxSizeY )
+		{
+			TargetSizeX = RoundToNearestInt32PowerOfTwo(BlockMaxSizeX);
+			TargetSizeY = RoundToNearestInt32PowerOfTwo( (double) TargetSizeX * BlockMaxSizeY / BlockMaxSizeX );
+		}
+		else
+		{
+			TargetSizeY = RoundToNearestInt32PowerOfTwo(BlockMaxSizeY);
+			TargetSizeX = RoundToNearestInt32PowerOfTwo( (double) TargetSizeY * BlockMaxSizeX / BlockMaxSizeY );
+		}
+
+		TArray<FImage> ResizedBlocks;
+		ResizedBlocks.SetNum(NumBlocks);
+
+		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+		{
+			FImage & SourceMip0 = ResizedBlocks[BlockIndex];
+
+			// Drops any imported mip data (yuck?)
+			const int32 MipIndex = 0;
+			if (!Texture->Source.GetMipImage(SourceMip0, BlockIndex, LayerIndex, MipIndex))
+			{
+				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2DBlocked: Texture GetMipImage failed [%s]"),
+					*Texture->GetFullName());
+				return false;
+			}
+
+			// all blocks have to be pow2 and the same aspect ratio
+			// but they don't have to all be the same size
+			// if they were different sizes, we could use a mip of TargetSize here; eg. (TargetSizeX>>1) 
+			//	if that was closer to the original size
+			// don't bother for now, just make them all the same size
+
+			// if this block is == TargetSize, this is a nop
+			FImageCore::ResizeImageInPlace(SourceMip0,TargetSizeX,TargetSizeY);
+					
+			SourceBlocks[BlockIndex].SizeX = TargetSizeX;
+			SourceBlocks[BlockIndex].SizeY = TargetSizeY;
+			SourceBlocks[BlockIndex].NumMips = 1;
+		}
+				
+		// Protect the code from an async build of the texture
+		Texture->PreEditChange(nullptr);
+
+		UE::Serialization::FEditorBulkData::FSharedBufferWithID ResizedImageBufferWithID = MakeSharedBufferForImageDatas(ResizedBlocks);
+
+		const ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
+		Texture->Source.InitBlocked(
+			&SourceFormat, // array of formats per layer
+			SourceBlocks.GetData(),
+			NumLayers,
+			NumBlocks,
+			MoveTemp(ResizedImageBufferWithID)
+		);
+
+		// if gamma was Pow22 it is now sRGB
+		Texture->bUseLegacyGamma = false;
+
+		return true;
+	}
+
+} // namespace Private
+
+static bool IsTextureResizeSupported(UTexture * Texture)
 {
-	check( Texture->Source.IsValid() );
+	if ( ! ensure( Texture->Source.IsValid() ) )
+	{
+		return false;
+	}
 
 	// Check if we don't know how to resize that texture
 
@@ -213,11 +365,46 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int
 		}
 	}
 
+	return true;
+}
+	
+TEXTUREUTILITIESCOMMON_API bool ResizeTextureSourceDataToNearestPowerOfTwo(UTexture* Texture)
+{
+	if ( ! IsTextureResizeSupported(Texture) )
+	{
+		return false;
+	}
+
+	if ( Texture->Source.AreAllBlocksPowerOfTwo() )
+	{
+		return false;
+	}
+	
+	if (Texture->Source.GetNumBlocks() == 1)
+	{
+		return Private::ResizeTextureToNearestPow2(Texture);
+	}
+	else
+	{
+		// UDIM VT
+		return Private::ResizeTextureToNearestPow2Blocked(Texture);
+	}
+}
+
+TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const ITargetPlatform* TargetPlatform)
+{
+	if ( ! IsTextureResizeSupported(Texture) )
+	{
+		return false;
+	}
+
 	FIntPoint SourceSize = Texture->Source.GetLogicalSize();
 	if (SourceSize.X <= TargetSourceSize && SourceSize.Y <= TargetSourceSize)
 	{
 		return false;
 	}
+
+	// ?? if Texture has StretchToPow2 set, then do ResizeTextureToNearestPow2 automatically here ?
 
 	if (Texture->Source.GetNumBlocks() == 1)
 	{

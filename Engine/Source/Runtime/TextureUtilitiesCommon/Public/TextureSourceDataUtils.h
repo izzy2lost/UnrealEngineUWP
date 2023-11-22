@@ -14,7 +14,12 @@ namespace UE::TextureUtilitiesCommon::Experimental
 {
 	// Try to resize the texture source data so that it is not larger than one build for the specified platform (only Texture2D and TextureCube are supported at the moment)
 	// Note it does not trigger the post edit change after modifying the source texture
-	TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSizeInGame, const ITargetPlatform* TargetPlatform);
+	//	TargetSizeInGame should be a power of 2
+	TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int32 TargetSourceSize, const ITargetPlatform* TargetPlatform);
+	
+	// Try to resize the texture source data to a power of two
+	// Note it does not trigger the post edit change after modifying the source texture
+	TEXTUREUTILITIESCOMMON_API bool ResizeTextureSourceDataToNearestPowerOfTwo(UTexture* Texture);
 
 	//Note: This function does trigger the post edit change after modifying the source texture
 	TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform);

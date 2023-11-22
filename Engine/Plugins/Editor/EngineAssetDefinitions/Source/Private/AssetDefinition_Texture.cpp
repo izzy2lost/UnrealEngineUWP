@@ -64,6 +64,14 @@ namespace MenuExtension_Texture
 		}
 	}
 	
+	static void ExecuteResizeToPowerOfTwoTextureSource(const FToolMenuContext& InContext)
+	{
+		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
+		{
+			UE::TextureAssetActions::TextureSource_ResizeToPowerOfTwo_WithDialog(CBContext->LoadSelectedObjects<UTexture>());
+		}
+	}
+
 	static void Execute8bitTextureSource(const FToolMenuContext& InContext)
 	{
 		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
@@ -148,6 +156,14 @@ namespace MenuExtension_Texture
 							InSection.AddMenuEntry("Texture_FindMaterials", Label, ToolTip, Icon, UIAction);
 						}
 						
+						{
+							const TAttribute<FText> Label = LOCTEXT("Texture_ResizeSourceToPowerOfTwo", "Texture Source Resize To Power of Two");
+							const TAttribute<FText> ToolTip = LOCTEXT("Texture_ResizeSourceToPowerOfTwoTooltip", "Change texture source dimensions to the nearest power of two.");
+							const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D");
+							const FToolMenuExecuteAction UIAction = FToolMenuExecuteAction::CreateStatic(&ExecuteResizeToPowerOfTwoTextureSource);
+							InSection.AddMenuEntry("Texture_ResizeSourceToPowerOfTwo", Label, ToolTip, Icon, UIAction);
+						}
+
 						{
 							const TAttribute<FText> Label = LOCTEXT("Texture_ResizeSource", "Texture Source Reduce Size");
 							const TAttribute<FText> ToolTip = LOCTEXT("Texture_ResizeSourceTooltip", "Reduce texture asset size by shrinking the texture source dimensions.");

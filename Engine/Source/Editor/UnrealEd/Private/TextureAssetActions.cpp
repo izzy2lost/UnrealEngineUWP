@@ -42,6 +42,7 @@ enum class ETextureAction
 {
 	Invalid = 0,
 	Resize,
+	ResizePow2,
 	ConvertTo8bit,
 	JPEG
 };
@@ -56,7 +57,8 @@ enum class EAssetActionStatus
 	HasMipsLeaveExisting,
 	Already8bit,
 	DontChangeJPEG,
-	MustBe8BitForJPEG
+	MustBe8BitForJPEG,
+	AlreadyPow2
 };
 
 /**
@@ -132,8 +134,11 @@ private:
 
 	EVisibility GetErrorMessageVisibility() const;
 
-	EVisibility GetThresholdVisibility() const;
-	
+	EVisibility GetThresholdVisibility() const
+	{
+		return ( Action == ETextureAction::Resize || Action == ETextureAction::ResizePow2 || Action == ETextureAction::JPEG ) ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
 	EVisibility GetNMK16Visibility() const
 	{
 		return ( Action == ETextureAction::ConvertTo8bit ) ? EVisibility::Visible : EVisibility::Hidden;
@@ -200,6 +205,7 @@ static FText TAA_DialogTitle(ETextureAction Act)
 	switch(Act)
 	{
 	case ETextureAction::Resize: return LOCTEXT("TAA_Title_Resize", "Texture Asset : Resize Source");
+	case ETextureAction::ResizePow2: return LOCTEXT("TAA_Title_ResizePow2", "Texture Asset : Resize Source To Power of Two");
 	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Title_Convert", "Texture Asset : Convert To 8 bit or minimum viable bit depth");
 	case ETextureAction::JPEG: return LOCTEXT("TAA_Title_JPEG", "Texture Asset : Compress with JPEG");
 	default: check(0); return FText();
@@ -211,6 +217,7 @@ static FText TAA_Intro(ETextureAction Act)
 	switch(Act)
 	{
 	case ETextureAction::Resize: return LOCTEXT("TAA_Intro_Resize", "Reduce size of Texture Source to compact uassets.  Resizing is done using mip filter, in power of two steps.  LODBias is adjusted but platform built size may change.");
+	case ETextureAction::ResizePow2: return LOCTEXT("TAA_Intro_ResizePow2", "Change Texture Source dimensions to the nearest power or two.  May shrink or enlarge depending on which is closer.  Only textures larger than threshold are changed.  Does not resize to be <= threshold size, that's just a selection filter.");
 	case ETextureAction::ConvertTo8bit: return LOCTEXT("TAA_Intro_Convert", "Convert Texture Source to 8 bit, Normals to 8 or 16, HDR to 16F.  Only converts if bits per pixel goes down.  Output built texture may change.  Make sure CompressionSetting and SRGB are set correctly first!");
 	case ETextureAction::JPEG: return LOCTEXT("TAA_Intro_JPEG", "Compress Texture Source with JPEG.  Only works on 8 bit, 2D simple textures.  Greatly reduces uasset size with some loss of quality.  Does not affect in-game size.");
 	default: check(0); return FText();
@@ -453,6 +460,7 @@ static FText AssetActionStatus_Text(EAssetActionStatus Status)
 	case EAssetActionStatus::NoSource: return LOCTEXT("TAAStatus_NoSource", "The texture has no source data; cooked Editor?");
 	case EAssetActionStatus::WrongType: return LOCTEXT("TAAStatus_WrongType", "The texture is not a supported type.");
 	case EAssetActionStatus::UnderSized: return LOCTEXT("TAAStatus_UnderSized", "The texture was under or equal the threshold size.");
+	case EAssetActionStatus::AlreadyPow2: return LOCTEXT("TAAStatus_AlreadyPow2", "The texture is already power of two.");
 	case EAssetActionStatus::HasLayers: return LOCTEXT("TAAStatus_HasLayers", "Textures with more than 1 layer not supported.");
 	case EAssetActionStatus::HasMipsLeaveExisting: return LOCTEXT("TAAStatus_HasMipsLeaveExisting", "Textures has imported mips and LeaveExisting, will not change. (change MipGen if wanted)");
 	case EAssetActionStatus::Already8bit: return LOCTEXT("TAAStatus_Already8", "Texture format is already minimum bit depth.");
@@ -520,7 +528,8 @@ TSharedRef<SWidget> STextureAssetList::CreateAssetLine(int index, const UTexture
 		DetailedInfoText = AssetActionStatus_Text(Status);
 
 		if ( Status == EAssetActionStatus::UnderSized ||
-			Status == EAssetActionStatus::Already8bit )
+			Status == EAssetActionStatus::Already8bit ||
+			Status == EAssetActionStatus::AlreadyPow2 )
 		{
 			SeverityIcon = "MessageLog.Note";
 		}
@@ -651,6 +660,36 @@ TSharedRef<SWidget> STextureAssetList::CreateAssetLine(int index, const UTexture
 	return Result;
 }
 
+static void DoResizeTextureSourceToPowerOfTwo(UTexture * Texture)
+{
+	check( ! Texture->Source.AreAllBlocksPowerOfTwo() ); // already filtered for
+
+	const FIntPoint BeforeSourceSize = Texture->Source.GetLogicalSize();
+
+	if ( ! UE::TextureUtilitiesCommon::Experimental::ResizeTextureSourceDataToNearestPowerOfTwo(Texture) )
+	{
+		UE_LOG(LogTexture, Display, TEXT("Texture (%s) did not resize."), *Texture->GetName());
+
+		// did not resize, but may have done PreEditChange
+		return;
+	}
+	
+	const FIntPoint AfterSourceSize = Texture->Source.GetLogicalSize();
+
+	UE_LOG(LogTexture, Display, TEXT("Texture (%s) did resize Before Size=%dx%d After Size=%dx%d"), *Texture->GetName(),
+		BeforeSourceSize.X,BeforeSourceSize.Y,AfterSourceSize.X,AfterSourceSize.Y);
+
+	// ?? if Texture was set to stretch to Pow2, we could remove that now, but leaving it is harmless
+
+	// @@ ?? if Texture was set to MipGen = NoMipMaps, change to FromTextureGroup ?
+
+	// this counts as a reimport :
+	UE::TextureUtilitiesCommon::ApplyDefaultsForNewlyImportedTextures(Texture,true);
+
+	// DownsizeTextureSourceData did the PreEditChange
+	Texture->PostEditChange();
+}
+
 static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 {
 	// we do the resizing considering only mip/LOD/build settings for the running Editor platform (eg. Windows)
@@ -682,15 +721,9 @@ static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 
 	// if AfterSize > BeforeSize , kick up LODBias
 	//	to try to preserve GetBuiltTextureSize
-	while( AfterSizeX > BeforeSizeX || AfterSizeY > BeforeSizeY )
-	{
-		Texture->LODBias ++;
-		// just shifting down AfterSize is not exactly right
-		//	but ensures that our loop terminates
-		AfterSizeX = (AfterSizeX+1)>>1;
-		AfterSizeY = (AfterSizeY+1)>>1;
-	}
-	
+	Texture->LODBias = FMath::RoundToInt32( FMath::Log2( (double) FMath::Max(AfterSizeX,AfterSizeY) / FMath::Max(BeforeSizeX,BeforeSizeY) ) );
+	Texture->LODBias = FMath::Max(0,Texture->LODBias);
+		
 	// recompute AfterSize if we changed LODBias
 	if ( Texture->LODBias != 0 )
 	{
@@ -705,7 +738,7 @@ static void DoResizeTextureSource(UTexture * Texture,int TargetSize)
 		// not a warning, just FYI
 		// changing built size is totally possible and expected to happen sometimes
 		//	basically any time you resize smaller than the previous in-game size
-		UE_LOG(LogTexture,Verbose,TEXT("DoResizeTextureSource failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
+		UE_LOG(LogTexture,Display,TEXT("DoResizeTextureSource failed to preserve built size; was: %dx%d now: %dx%d on [%s]"),
 			BeforeSizeX,BeforeSizeY,
 			AfterSizeX,AfterSizeY,
 			*Texture->GetFullName());
@@ -918,6 +951,9 @@ void STextureAssetList::DoAction()
 		case ETextureAction::Resize:
 			DoResizeTextureSource(Texture,ThresholdValue);
 			break;
+		case ETextureAction::ResizePow2:
+			DoResizeTextureSourceToPowerOfTwo(Texture);
+			break;
 		case ETextureAction::ConvertTo8bit:
 			DoConvertTo8bitTextureSource(Texture,bNormalMapsKeep16bits);
 			break;
@@ -994,7 +1030,7 @@ void STextureAssetList::UpdateList()
 			}
 		
 			// per-Action filters :
-			if( Action == ETextureAction::Resize )
+			if( Action == ETextureAction::Resize || Action == ETextureAction::ResizePow2 )
 			{
 				int MaxSize = FMath::Max(SourceSize.X,SourceSize.Y);
 
@@ -1002,6 +1038,10 @@ void STextureAssetList::UpdateList()
 				{
 					// Resize only supports 2d and Cube for now, no arrays or volumes
 					Status = EAssetActionStatus::WrongType;
+				}
+				else if ( Action == ETextureAction::ResizePow2 && Texture->Source.AreAllBlocksPowerOfTwo() )
+				{
+					Status = EAssetActionStatus::AlreadyPow2;
 				}
 				else if ( MaxSize <= ThresholdValue )
 				{
@@ -1038,7 +1078,7 @@ void STextureAssetList::UpdateList()
 				if ( Class != ETextureClass::TwoD || Texture->Source.GetNumBlocks() > 1 || Texture->Source.GetNumSlices() > 1 )
 				{
 					// JPEG only supports 2d
-					// Blocked/UDIM doesn't support JPEG (@@ ??)
+					// Blocked/UDIM doesn't support JPEG
 					Status = EAssetActionStatus::WrongType;
 				}
 				else if ( Texture->Source.GetSourceCompression() == ETextureSourceCompressionFormat::TSCF_JPEG )
@@ -1165,11 +1205,6 @@ EVisibility STextureAssetList::GetErrorMessageVisibility() const
 	return (ErrorMessage.IsEmpty()) ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
-EVisibility STextureAssetList::GetThresholdVisibility() const
-{
-	return ( Action == ETextureAction::Resize || Action == ETextureAction::JPEG ) ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
 FText STextureAssetList::GetIntroMessage() const
 {
 	return IntroMessage;
@@ -1230,6 +1265,12 @@ void UE::TextureAssetActions::TextureSource_ConvertTo8bit_WithDialog(const TArra
 void UE::TextureAssetActions::TextureSource_JPEG_WithDialog(const TArray<UTexture*> & InTextures)
 {
 	STextureActionDlg Dlg(InTextures,ETextureAction::JPEG);
+	Dlg.ShowModal();
+}
+
+void UE::TextureAssetActions::TextureSource_ResizeToPowerOfTwo_WithDialog(const TArray<UTexture*> & InTextures)
+{
+	STextureActionDlg Dlg(InTextures,ETextureAction::ResizePow2);
 	Dlg.ShowModal();
 }
 
