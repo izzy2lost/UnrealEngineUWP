@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include <memory>
 #include <vector>
 #include <map>
 #include <string_view>
-#include "Horde.h"
 #include "ComputeBuffer.h"
 #include "ComputeChannel.h"
 
@@ -77,13 +77,13 @@ namespace AgentMessage
 {
 	struct FException
 	{
-		std::string_view Message;
-		std::string_view Description;
+		FUtf8StringView Message;
+		FUtf8StringView Description;
 	};
 
 	struct FBlobRequest
 	{
-		std::string_view Locator;
+		FUtf8StringView Locator;
 		int Offset;
 		int Length;
 	};
@@ -93,7 +93,7 @@ namespace AgentMessage
 class FAgentMessageChannel
 {
 public:
-	HORDE_API FAgentMessageChannel(std::shared_ptr<FComputeChannel> InChannel);
+	HORDE_API FAgentMessageChannel(TSharedPtr<FComputeChannel> InChannel);
 	HORDE_API ~FAgentMessageChannel();
 
 	//// Requests ////
@@ -151,7 +151,7 @@ public:
 private:
 	const size_t MessageHeaderLength = 5;
 
-	std::shared_ptr<FComputeChannel> ChannelBuffers;
+	TSharedPtr<FComputeChannel> ChannelBuffers;
 
 	unsigned char* RequestData;
 	size_t RequestSize;
@@ -177,7 +177,7 @@ private:
 	size_t MeasureString(const char* Text) const;
 	void WriteString(const char* Text);
 	void WriteString(const std::string_view& Text);
-	static std::string_view ReadString(const unsigned char** Pos);
+	static FUtf8StringView ReadString(const unsigned char** Pos);
 
 	void WriteOptionalString(const char* Text);
 };

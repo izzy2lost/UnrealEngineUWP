@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Horde.h"
+#include "CoreMinimal.h"
 #include "ComputeBuffer.h"
 
 class FComputeSocket;

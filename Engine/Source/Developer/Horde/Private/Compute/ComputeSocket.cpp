@@ -19,26 +19,26 @@ FComputeSocket::~FComputeSocket()
 {
 }
 
-std::shared_ptr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId)
+TSharedPtr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId)
 {
 	FComputeBuffer RecvBuffer;
 	if (!RecvBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return std::make_shared<FComputeChannel>(FComputeChannel());
+		return MakeShared<FComputeChannel>(FComputeChannel());
 	}
 
 	FComputeBuffer SendBuffer;
 	if (!SendBuffer.CreateNew(FComputeBuffer::FParams()))
 	{
-		return std::make_shared<FComputeChannel>(FComputeChannel());
+		return MakeShared<FComputeChannel>(FComputeChannel());
 	}
 
 	return CreateChannel(ChannelId, std::move(RecvBuffer), std::move(SendBuffer));
 }
 
-std::shared_ptr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
+TSharedPtr<FComputeChannel> FComputeSocket::CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer)
 {
-	std::shared_ptr<FComputeChannel> Channel = std::make_shared<FComputeChannel>(RecvBuffer.CreateReader(), SendBuffer.CreateWriter());
+	TSharedPtr<FComputeChannel> Channel = MakeShared<FComputeChannel>(RecvBuffer.CreateReader(), SendBuffer.CreateWriter());
 
 	AttachRecvBuffer(ChannelId, std::move(RecvBuffer));
 	AttachSendBuffer(ChannelId, std::move(SendBuffer));
@@ -148,7 +148,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				}
 				else
 				{
-					UE_COMPUTE_ASSERT(false);
+					check(false);
 				}
 			}
 			break;
@@ -167,12 +167,12 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 				}
 				else
 				{
-					UE_COMPUTE_ASSERT(false);
+					check(false);
 				}
 			}
 			break;
 		default:
-			UE_COMPUTE_ASSERT(false);
+			check(false);
 			return;
 		}
 
@@ -260,7 +260,7 @@ public:
 		int Size;
 	};
 
-	std::unique_ptr<FComputeTransport> Transport;
+	TUniquePtr<FComputeTransport> Transport;
 	const EComputeSocketEndpoint Endpoint;
 	std::mutex CriticalSection;
 
@@ -275,8 +275,8 @@ public:
 	std::vector<FComputeBufferReader> Readers;
 	std::unordered_map<int, std::thread> SendThreads;
 
-	FRemoteComputeSocket(std::unique_ptr<FComputeTransport> InTransport, EComputeSocketEndpoint InEndpoint)
-		: Transport(std::move(InTransport))
+	FRemoteComputeSocket(TUniquePtr<FComputeTransport> InTransport, EComputeSocketEndpoint InEndpoint)
+		: Transport(MoveTemp(InTransport))
 		, Endpoint(InEndpoint)
 		, CriticalSection()
 		, bPingThreadFinish(0)
@@ -356,7 +356,7 @@ public:
 			}
 			else
 			{
-				UE_COMPUTE_ASSERT(false);
+				check(false);
 			}
 		}
 	}
@@ -442,7 +442,7 @@ public:
 	}
 };
 
-std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint)
+TUniquePtr<FComputeSocket> CreateComputeSocket(TUniquePtr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint)
 {
-	return std::unique_ptr<FComputeSocket>(new FRemoteComputeSocket(std::move(Transport), Endpoint));
+	return TUniquePtr<FComputeSocket>(new FRemoteComputeSocket(MoveTemp(Transport), Endpoint));
 }

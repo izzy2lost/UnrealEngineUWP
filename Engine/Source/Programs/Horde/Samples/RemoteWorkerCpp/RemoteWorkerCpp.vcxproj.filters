@@ -3,51 +3,5 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Tests.cpp" />
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\AgentMessage.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeBuffer.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeChannel.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputePlatform.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeSocket.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeTransport.cpp">
-      <Filter>Horde\Compute</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\AgentMessage.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeBuffer.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeChannel.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputePlatform.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeSocket.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeTransport.h">
-      <Filter>Horde\Compute</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter Include="Horde">
-      <UniqueIdentifier>{478ea6be-4fb9-45e2-a2a6-42161c212608}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Horde\Compute">
-      <UniqueIdentifier>{b9a68a59-f527-446d-8154-5e0c6cbc193e}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
 </Project>

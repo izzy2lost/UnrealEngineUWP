@@ -5,8 +5,8 @@
 
 //// FAgentMessageChannel ////
 
-FAgentMessageChannel::FAgentMessageChannel(std::shared_ptr<FComputeChannel> InChannel)
-	: ChannelBuffers(InChannel)
+FAgentMessageChannel::FAgentMessageChannel(TSharedPtr<FComputeChannel> InChannel)
+	: ChannelBuffers(MoveTemp(InChannel))
 	, RequestData(0)
 	, RequestSize(0)
 	, MaxRequestSize(0)
@@ -110,7 +110,7 @@ void FAgentMessageChannel::Execute(const char* Exe, const char** Args, size_t Nu
 	for (size_t Idx = 0; Idx < NumEnvVars; Idx++)
 	{
 		const char* EqualsPtr = strchr(EnvVars[Idx], '=');
-		UE_COMPUTE_ASSERT(EqualsPtr != nullptr);
+		check(EqualsPtr != nullptr);
 
 		WriteString(std::string_view(EnvVars[Idx], EqualsPtr - EnvVars[Idx]));
 		if (*(EqualsPtr + 1) == 0)
@@ -162,7 +162,7 @@ EAgentMessageType FAgentMessageChannel::ReadResponse()
 	}
 
 	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength);
-	UE_COMPUTE_ASSERT(Header != nullptr);
+	check(Header != nullptr);
 	unsigned int Length = *((unsigned int*)(Header + 1));
 
 	Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength + Length);
@@ -176,34 +176,34 @@ EAgentMessageType FAgentMessageChannel::ReadResponse()
 
 void FAgentMessageChannel::ReadException(AgentMessage::FException& Ex)
 {
-	UE_COMPUTE_ASSERT(ResponseType == EAgentMessageType::Exception);
+	check(ResponseType == EAgentMessageType::Exception);
 
 	const unsigned char* Pos = ResponseData;
 	Ex.Message = ReadString(&Pos);
 	Ex.Description = ReadString(&Pos);
-	UE_COMPUTE_ASSERT(Pos == ResponseData + ResponseLength);
+	check(Pos == ResponseData + ResponseLength);
 }
 
 int FAgentMessageChannel::ReadExecuteResult()
 {
-	UE_COMPUTE_ASSERT(ResponseType == EAgentMessageType::ExecuteResult);
+	check(ResponseType == EAgentMessageType::ExecuteResult);
 
 	const unsigned char* Pos = ResponseData;
 	int Result = ReadInt32(&Pos);
-	UE_COMPUTE_ASSERT(Pos == ResponseData + ResponseLength);
+	check(Pos == ResponseData + ResponseLength);
 
 	return Result;
 }
 
 void FAgentMessageChannel::ReadBlobRequest(AgentMessage::FBlobRequest& Ex)
 {
-	UE_COMPUTE_ASSERT(ResponseType == EAgentMessageType::ReadBlob);
+	check(ResponseType == EAgentMessageType::ReadBlob);
 
 	const unsigned char* Pos = ResponseData;
 	Ex.Locator = ReadString(&Pos);
 	Ex.Offset = (int)ReadUnsignedVarInt(&Pos);
 	Ex.Length = (int)ReadUnsignedVarInt(&Pos);
-	UE_COMPUTE_ASSERT(Pos == ResponseData + ResponseLength);
+	check(Pos == ResponseData + ResponseLength);
 }
 
 void FAgentMessageChannel::CreateMessage(EAgentMessageType Type, size_t MaxLength)
@@ -236,7 +236,7 @@ int FAgentMessageChannel::ReadInt32(const unsigned char** Pos)
 
 void FAgentMessageChannel::WriteFixedLengthBytes(const unsigned char* Data, size_t Length)
 {
-	UE_COMPUTE_ASSERT(RequestSize + Length <= MaxRequestSize);
+	check(RequestSize + Length <= MaxRequestSize);
 	memcpy(&RequestData[MessageHeaderLength + RequestSize], Data, Length);
 	RequestSize += Length;
 }
@@ -250,7 +250,7 @@ const unsigned char* FAgentMessageChannel::ReadFixedLengthBytes(const unsigned c
 
 size_t FAgentMessageChannel::MeasureUnsignedVarInt(size_t Value)
 {
-	UE_COMPUTE_ASSERT(Value == (unsigned int)Value);
+	check(Value == (unsigned int)Value);
 
 	if (Value == 0)
 	{
@@ -265,7 +265,7 @@ size_t FAgentMessageChannel::MeasureUnsignedVarInt(size_t Value)
 void FAgentMessageChannel::WriteUnsignedVarInt(size_t Value)
 {
 	size_t ByteCount = MeasureUnsignedVarInt(Value);
-	UE_COMPUTE_ASSERT(RequestSize + ByteCount <= MaxRequestSize);
+	check(RequestSize + ByteCount <= MaxRequestSize);
 
 	unsigned char* Output = RequestData + MessageHeaderLength + RequestSize;
 	for (size_t Idx = 1; Idx < ByteCount; Idx++)
@@ -315,11 +315,11 @@ void FAgentMessageChannel::WriteString(const std::string_view& Text)
 	WriteFixedLengthBytes((const unsigned char*)Text.data(), Text.size());
 }
 
-std::string_view FAgentMessageChannel::ReadString(const unsigned char** Pos)
+FUtf8StringView FAgentMessageChannel::ReadString(const unsigned char** Pos)
 {
 	size_t Length = ReadUnsignedVarInt(Pos);
 	const char* Start = (const char*)ReadFixedLengthBytes(Pos, Length);
-	return std::string_view(Start, Length);
+	return FUtf8StringView(Start, Length);
 }
 
 void FAgentMessageChannel::WriteOptionalString(const char* Text)

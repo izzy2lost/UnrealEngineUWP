@@ -73,49 +73,49 @@ struct FComputeBufferDetail
 		// Read the state value from memory
 		FChunkState Get() const
 		{
-			return FChunkState(FComputePlatform::AtomicRead64(&State->Value));
+			return FChunkState(FPlatformAtomics::AtomicRead(&State->Value));
 		}
 
 		// Read the state value from memory
 		void Set(FChunkState NewState)
 		{
-			FComputePlatform::AtomicWrite64(&State->Value, NewState.Value);
+			FPlatformAtomics::AtomicStore(&State->Value, NewState.Value);
 		}
 
 		// Attempt to update the chunk state
 		bool TryUpdate(FChunkState PrevState, FChunkState NextState)
 		{
-			return FComputePlatform::AtomicCompareExchange64(&State->Value, NextState.Value, PrevState.Value);
+			return FPlatformAtomics::InterlockedCompareExchange(&State->Value, NextState.Value, PrevState.Value) == PrevState.Value;
 		}
 
 		// Append data to the chunk
 		void Append(long long Length)
 		{
-			FComputePlatform::AtomicAdd64(&State->Value, Length);
+			FPlatformAtomics::InterlockedAdd(&State->Value, Length);
 		}
 
 		// Mark this chunk as the end of the stream
 		void MarkComplete()
 		{
-			FComputePlatform::AtomicOr64(&State->Value, FChunkState(EWriteState::Complete, 0, 0).Value);
+			FPlatformAtomics::InterlockedOr(&State->Value, FChunkState(EWriteState::Complete, 0, 0).Value);
 		}
 
 		// Start reading the chunk with the given reader
 		void StartReading(int ReaderIdx)
 		{
-			FComputePlatform::AtomicOr64(&State->Value, FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
+			FPlatformAtomics::InterlockedOr(&State->Value, FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
 		}
 
 		// Clear the reader flag
 		void FinishReading(int ReaderIdx)
 		{
-			FComputePlatform::AtomicAnd64(&State->Value, ~FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
+			FPlatformAtomics::InterlockedAnd(&State->Value, ~FChunkState((EWriteState)0, 1 << ReaderIdx, 0).Value);
 		}
 
 		// Move to the next chunk
 		void FinishWriting()
 		{
-			FComputePlatform::AtomicAnd64(&State->Value, ~FChunkState(EWriteState::Writing, 0, 0).Value);
+			FPlatformAtomics::InterlockedAnd(&State->Value, ~FChunkState(EWriteState::Writing, 0, 0).Value);
 		}
 
 	private:
@@ -178,19 +178,19 @@ struct FComputeBufferDetail
 		// Read the state value from memory
 		FReaderState Get() const
 		{
-			return FReaderState(FComputePlatform::AtomicRead64(&State->Value));
+			return FReaderState(FPlatformAtomics::AtomicRead(&State->Value));
 		}
 
 		// Read the state value from memory
 		void Set(FReaderState NewState)
 		{
-			FComputePlatform::AtomicWrite64(&State->Value, NewState.Value);
+			FPlatformAtomics::AtomicStore(&State->Value, NewState.Value);
 		}
 
 		// Attempt to update the chunk state
 		bool TryUpdate(FReaderState PrevState, FReaderState NextState)
 		{
-			return FComputePlatform::AtomicCompareExchange64(&State->Value, NextState.Value, PrevState.Value);
+			return FPlatformAtomics::InterlockedCompareExchange(&State->Value, NextState.Value, PrevState.Value) == PrevState.Value;
 		}
 
 	private:
@@ -237,17 +237,17 @@ struct FComputeBufferDetail
 
 		FWriterState Get() const
 		{
-			return FWriterState(FComputePlatform::AtomicRead64(&State->Value));
+			return FWriterState(FPlatformAtomics::AtomicRead(&State->Value));
 		}
 
 		void Set(FWriterState NewState)
 		{
-			FComputePlatform::AtomicWrite64(&State->Value, NewState.Value);
+			FPlatformAtomics::AtomicStore(&State->Value, NewState.Value);
 		}
 
 		bool TryUpdate(FWriterState PrevValue, FWriterState NextValue)
 		{
-			return FComputePlatform::AtomicCompareExchange64(&State->Value, NextValue.Value, PrevValue.Value);
+			return FPlatformAtomics::InterlockedCompareExchange(&State->Value, NextValue.Value, PrevValue.Value) == PrevValue.Value;
 		}
 
 	private:
@@ -303,7 +303,7 @@ struct FComputeBufferDetail
 	FComputeEvent WriterEvent;
 	FComputeEvent ReaderEvents[FComputeBuffer::MaxReaders];
 
-	long RefCount;
+	int32 RefCount;
 
 	FComputeBufferDetail(const char* InName)
 		: Header(nullptr)
@@ -323,18 +323,18 @@ struct FComputeBufferDetail
 
 	void AddRef()
 	{
-		FComputePlatform::AtomicIncrement(&RefCount);
+		FPlatformAtomics::InterlockedIncrement(&RefCount);
 	}
 
 	void Release()
 	{
-		if (FComputePlatform::AtomicDecrement(&RefCount) == 0)
+		if (FPlatformAtomics::InterlockedDecrement(&RefCount) == 0)
 		{
 			delete this;
 		}
 	}
 
-	static std::unique_ptr<FComputeBufferDetail> CreateNew(const FComputeBuffer::FParams& Params)
+	static TUniquePtr<FComputeBufferDetail> CreateNew(const FComputeBuffer::FParams& Params)
 	{
 		long long Capacity = sizeof(FHeader) + (Params.NumChunks * sizeof(unsigned int)) + (Params.NumChunks * Params.ChunkLength);
 
@@ -350,7 +350,7 @@ struct FComputeBufferDetail
 		char NameBuffer[FComputeBuffer::MaxNameLength];
 		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_M", Name);
 
-		std::unique_ptr<FComputeBufferDetail> Detail = std::make_unique<FComputeBufferDetail>(Name);
+		TUniquePtr<FComputeBufferDetail> Detail = MakeUnique<FComputeBufferDetail>(Name);
 		if (!Detail->MemoryMappedFile.Create(NameBuffer, Capacity))
 		{
 			return nullptr;
@@ -379,16 +379,16 @@ struct FComputeBufferDetail
 			}
 		}
 
-		InitShared(Detail.get());
+		InitShared(Detail.Get());
 		return Detail;
 	}
 
-	static std::unique_ptr<FComputeBufferDetail> OpenExisting(const char* Name)
+	static TUniquePtr<FComputeBufferDetail> OpenExisting(const char* Name)
 	{
 		char NameBuffer[FComputeBuffer::MaxNameLength];
 		snprintf(NameBuffer, FComputeBuffer::MaxNameLength, "%s_M", Name);
 
-		std::unique_ptr<FComputeBufferDetail> Detail = std::make_unique<FComputeBufferDetail>(Name);
+		TUniquePtr<FComputeBufferDetail> Detail = MakeUnique<FComputeBufferDetail>(Name);
 		if (!Detail->MemoryMappedFile.OpenExisting(NameBuffer))
 		{
 			return nullptr;
@@ -415,7 +415,7 @@ struct FComputeBufferDetail
 			}
 		}
 
-		InitShared(Detail.get());
+		InitShared(Detail.Get());
 		return Detail;
 	}
 
@@ -437,7 +437,7 @@ struct FComputeBufferDetail
 					for (;;)
 					{
 						FWriterState WriterState = WriterStatePtr.Get();
-						UE_COMPUTE_ASSERT(!WriterState.HasWrapped());
+						check(!WriterState.HasWrapped());
 
 						if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags() | (1 << ReaderIdx), WriterState.GetRefCount(), WriterState.HasWrapped())))
 						{
@@ -460,7 +460,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FReaderState ReaderState = ReaderStatePtr.Get();
-			UE_COMPUTE_ASSERT(ReaderState.GetRefCount() > 0);
+			check(ReaderState.GetRefCount() > 0);
 
 			if (ReaderStatePtr.TryUpdate(ReaderState, FReaderState(ReaderState.GetChunkIdx(), ReaderState.GetOffset(), ReaderState.GetRefCount() + 1, ReaderState.IsDetached())))
 			{
@@ -475,7 +475,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FReaderState ReaderState = ReaderStatePtr.Get();
-			UE_COMPUTE_ASSERT(ReaderState.GetRefCount() > 0);
+			check(ReaderState.GetRefCount() > 0);
 
 			if (ReaderState.GetRefCount() == 1)
 			{
@@ -498,7 +498,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState WriterState = WriterStatePtr.Get();
-			UE_COMPUTE_ASSERT(WriterState.GetRefCount() == 0);
+			check(WriterState.GetRefCount() == 0);
 
 			if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags(), 1, WriterState.HasWrapped())))
 			{
@@ -522,7 +522,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState WriterState = WriterStatePtr.Get();
-			UE_COMPUTE_ASSERT(WriterState.GetRefCount() > 0);
+			check(WriterState.GetRefCount() > 0);
 
 			if (WriterStatePtr.TryUpdate(WriterState, FWriterState(WriterState.GetChunkIdx(), WriterState.GetReaderFlags(), WriterState.GetRefCount() + 1, WriterState.HasWrapped())))
 			{
@@ -537,7 +537,7 @@ struct FComputeBufferDetail
 		for (; ; )
 		{
 			FWriterState writerState = writerStatePtr.Get();
-			UE_COMPUTE_ASSERT(writerState.GetRefCount() > 0);
+			check(writerState.GetRefCount() > 0);
 
 			if (writerState.GetRefCount() == 1)
 			{
@@ -668,7 +668,7 @@ struct FComputeBufferDetail
 			}
 			else
 			{
-				UE_COMPUTE_ASSERT(false);
+				check(false);
 			}
 		}
 	}
@@ -697,7 +697,7 @@ struct FComputeBufferDetail
 			FChunkStatePtr ChunkStatePtr = Header->GetChunkStatePtr(WriterState.GetChunkIdx());
 			FChunkState ChunkState = ChunkStatePtr.Get();
 
-			UE_COMPUTE_ASSERT(ChunkState.GetWriteState() == EWriteState::Writing);
+			check(ChunkState.GetWriteState() == EWriteState::Writing);
 			ChunkStatePtr.Append(Size);
 
 			SetAllReadEvents();
@@ -740,7 +740,7 @@ struct FComputeBufferDetail
 
 	unsigned char* WaitToWrite(size_t MinSize, int TimeoutMs)
 	{
-		UE_COMPUTE_ASSERT(MinSize <= Header->ChunkLength);
+		check(MinSize <= Header->ChunkLength);
 
 		// Get the current chunk we're writing to
 		FWriterState WriterState = Header->GetWriterStatePtr().Get();
@@ -887,10 +887,10 @@ bool FComputeBuffer::CreateNew(const FParams& Params)
 {
 	Close();
 
-	std::unique_ptr<FComputeBufferDetail> Buffer = FComputeBufferDetail::CreateNew(Params);
+	TUniquePtr<FComputeBufferDetail> Buffer = FComputeBufferDetail::CreateNew(Params);
 	if (Buffer)
 	{
-		Detail = Buffer.release();
+		Detail = Buffer.Release();
 		return true;
 	}
 	return false;
@@ -900,10 +900,10 @@ bool FComputeBuffer::OpenExisting(const char* Name)
 {
 	Close();
 
-	std::unique_ptr<FComputeBufferDetail> Buffer = FComputeBufferDetail::OpenExisting(Name);
+	TUniquePtr<FComputeBufferDetail> Buffer = FComputeBufferDetail::OpenExisting(Name);
 	if (Buffer)
 	{
-		Detail = Buffer.release();
+		Detail = Buffer.Release();
 		return true;
 	}
 	return false;
@@ -1012,25 +1012,25 @@ void FComputeBufferReader::Close()
 
 void FComputeBufferReader::Detach()
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	Detail->DetachReader(ReaderIdx);
 }
 
 bool FComputeBufferReader::IsComplete() const
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	return Detail->IsComplete(ReaderIdx);
 }
 
 void FComputeBufferReader::AdvanceReadPosition(size_t Size)
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	Detail->AdvanceReadPosition(ReaderIdx, Size);
 }
 
 size_t FComputeBufferReader::GetMaxReadSize() const
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	return Detail->GetMaxReadSize(ReaderIdx);
 }
 
@@ -1055,7 +1055,7 @@ size_t FComputeBufferReader::Read(void* Buffer, size_t MaxSize, int TimeoutMs)
 
 const unsigned char* FComputeBufferReader::WaitToRead(size_t MinSize, int TimeoutMs)
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	return Detail->WaitToRead(ReaderIdx, MinSize, TimeoutMs);
 }
 
@@ -1067,7 +1067,7 @@ FComputeBufferReader::FComputeBufferReader(FComputeBufferDetail* InDetail, int I
 
 const char* FComputeBufferReader::GetName() const
 {
-	UE_COMPUTE_ASSERT(Detail);
+	check(Detail);
 	return Detail->Name;
 }
 

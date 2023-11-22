@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "ComputeBuffer.h"
 #include "ComputeChannel.h"
 #include "ComputeTransport.h"
@@ -30,10 +31,10 @@ public:
 	HORDE_API virtual void AttachSendBuffer(int ChannelId, FComputeBuffer SendBuffer) = 0;
 
 	// Attaches a channel to this socket
-	HORDE_API std::shared_ptr<FComputeChannel> CreateChannel(int ChannelId);
+	HORDE_API TSharedPtr<FComputeChannel> CreateChannel(int ChannelId);
 
 	// Attaches a channel to this socket
-	HORDE_API std::shared_ptr<FComputeChannel> CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer);
+	HORDE_API TSharedPtr<FComputeChannel> CreateChannel(int ChannelId, FComputeBuffer RecvBuffer, FComputeBuffer SendBuffer);
 };
 
 //
@@ -97,4 +98,4 @@ enum class EComputeSocketEndpoint
 };
 
 // Creates a socket using a custom transport. Also returns the default channel (channel 0)
-HORDE_API std::unique_ptr<FComputeSocket> CreateComputeSocket(std::unique_ptr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint);
+HORDE_API TUniquePtr<FComputeSocket> CreateComputeSocket(TUniquePtr<FComputeTransport> Transport, EComputeSocketEndpoint Endpoint);

@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="Core\Public\CoreMinimal.h">
+      <Filter>Core\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\AgentMessage.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeBuffer.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeChannel.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputePlatform.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeSocket.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeTransport.h">
+      <Filter>Horde\Public\Compute</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Core">
+      <UniqueIdentifier>{18a739de-f126-450e-825a-e2a856c42ada}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core\Public">
+      <UniqueIdentifier>{8251b041-db31-4d72-b80b-c5f2331c5384}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Horde">
+      <UniqueIdentifier>{8baf6b52-3509-49fd-9cfc-ac8312aadd64}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Horde\Public">
+      <UniqueIdentifier>{4ef60486-0764-4f9e-8fc1-d8965566aa54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Horde\Private">
+      <UniqueIdentifier>{3a151daa-75f0-4179-80d8-7a914a4ca0a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Horde\Private\Compute">
+      <UniqueIdentifier>{3121e2f0-8fac-4b36-a644-ee1d83295863}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Horde\Public\Compute">
+      <UniqueIdentifier>{240ca350-523f-47fd-a2d5-1a3fe9435078}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\AgentMessage.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeBuffer.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeChannel.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputePlatform.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeSocket.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeTransport.cpp">
+      <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

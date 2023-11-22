@@ -7,12 +7,28 @@
 #include <algorithm>
 #include <iostream>
 
+// Defines for the current platform
+#ifdef _MSC_VER
+	#define UE_COMPUTE_PLATFORM_WINDOWS 1
+	#define UE_COMPUTE_PLATFORM_MAC 0
+	#define UE_COMPUTE_PLATFORM_LINUX 0
+#elif defined(__APPLE__)
+	#define UE_COMPUTE_PLATFORM_WINDOWS 0
+	#define UE_COMPUTE_PLATFORM_MAC 1
+	#define UE_COMPUTE_PLATFORM_LINUX 0
+#else
+	#define UE_COMPUTE_PLATFORM_WINDOWS 0
+	#define UE_COMPUTE_PLATFORM_MAC 0
+	#define UE_COMPUTE_PLATFORM_LINUX 1
+#endif
+
 #if UE_COMPUTE_PLATFORM_WINDOWS
 	#include <Windows.h>
 	#undef min
 	#undef max
 	#undef GetEnvironmentVariable
 	#undef SendMessage
+	#undef InterlockedIncrement
 #else
 	#include <semaphore.h>
 	#include <unistd.h>
@@ -129,7 +145,7 @@ bool FComputeEvent::Wait(int timeoutMs)
 	struct timespec ts;
 	if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
 	{
-		UE_COMPUTE_ASSERT(false);
+		check(false);
 		return false;
 	}
 	
@@ -348,12 +364,12 @@ bool FComputePlatform::GetEnvironmentVariable(const char* Name, char* Buffer, si
 
 void FComputePlatform::CreateUniqueName(char* NameBuffer, size_t NameBufferLen)
 {
-	static long Counter = 0;
+	static int32 Counter = 0;
 
 #if UE_COMPUTE_PLATFORM_WINDOWS
 	DWORD Pid = GetCurrentProcessId();
 	ULONGLONG TickCount = GetTickCount64();
-	snprintf(NameBuffer, NameBufferLen, "Local\\COMPUTE_%lu_%llu_%lu", Pid, TickCount, (unsigned long)AtomicIncrement(&Counter));
+	snprintf(NameBuffer, NameBufferLen, "Local\\COMPUTE_%lu_%llu_%lu", Pid, TickCount, (unsigned long)FPlatformAtomics::InterlockedIncrement(&Counter));
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -386,112 +402,3 @@ int FComputePlatform::Stricmp(const char* A, const char* B)
 	return strcasecmp(A, B);
 #endif
 }
-
-long long FComputePlatform::AtomicRead64(const volatile long long* Ptr)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedCompareExchange64(const_cast<volatile long long*>(Ptr), 0, 0);
-#else
-	return std::atomic_load((std::atomic<long long>*)Ptr);
-#endif
-}
-
-void FComputePlatform::AtomicWrite64(volatile long long* Ptr, long long Value)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	InterlockedExchange64(Ptr, Value);
-#else
-	return std::atomic_store((std::atomic<long long>*)Ptr, Value);
-#endif
-}
-
-long FComputePlatform::AtomicIncrement(volatile long* Ptr)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedIncrement(Ptr);
-#else
-	return std::atomic_fetch_add((std::atomic<long>*)Ptr, 1) + 1;
-#endif
-}
-
-long FComputePlatform::AtomicDecrement(volatile long* Ptr)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedDecrement(Ptr);
-#else
-	return std::atomic_fetch_add((std::atomic<long>*)Ptr, -1) - 1;
-#endif
-}
-
-long long FComputePlatform::AtomicAdd64(volatile long long* Ptr, long long Value)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedAdd64(Ptr, Value);
-#else
-	return std::atomic_fetch_add((std::atomic<long long>*)Ptr, Value) + Value;
-#endif
-}
-
-long FComputePlatform::AtomicAnd(volatile long* Ptr, long Value)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedAnd(Ptr, Value);
-#else
-	return std::atomic_fetch_and((std::atomic<long>*)Ptr, Value);
-#endif
-}
-
-long long FComputePlatform::AtomicAnd64(volatile long long* Ptr, long long Value)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedAnd64(Ptr, Value);
-#else
-	return std::atomic_fetch_and((std::atomic<long long>*)Ptr, Value);
-#endif
-}
-
-long long FComputePlatform::AtomicOr64(volatile long long* Ptr, long long Value)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedOr64(Ptr, Value);
-#else
-	return std::atomic_fetch_or((std::atomic<long long>*)Ptr, Value);
-#endif
-}
-
-long long FComputePlatform::AtomicIncrement64(volatile long long* Ptr)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedIncrement64(Ptr);
-#else
-	return std::atomic_fetch_add((std::atomic<long long>*)Ptr, 1) + 1;
-#endif
-}
-
-long long FComputePlatform::AtomicExchange64(volatile long long* Ptr, long long Exchange)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedExchange64(Ptr, Exchange);
-#else
-	return std::atomic_exchange((std::atomic<long long>*)Ptr, Exchange);
-#endif
-}
-
-bool FComputePlatform::AtomicCompareExchange(volatile long* Ptr, long Exchange, long Comperand)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedCompareExchange(Ptr, Exchange, Comperand) == Comperand;
-#else
-	return std::atomic_compare_exchange_strong((std::atomic<long>*)Ptr, &Comperand, Exchange);
-#endif
-}
-
-bool FComputePlatform::AtomicCompareExchange64(volatile long long* Ptr, long long Exchange, long long Comperand)
-{
-#if UE_COMPUTE_PLATFORM_WINDOWS
-	return InterlockedCompareExchange64(Ptr, Exchange, Comperand) == Comperand;
-#else
-	return std::atomic_compare_exchange_strong((std::atomic<long long>*)Ptr, &Comperand, Exchange);
-#endif
-}
-
