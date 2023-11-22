@@ -934,9 +934,6 @@ namespace UnrealBuildTool
 				// Clang does EITHER pre-process or object file.
 				Arguments.Add("-E"); // Only run the preprocessor
 				Arguments.Add("-fuse-line-directives"); // Use #line in preprocessed output
-
-				// this is parsed by external tools wishing to open this file directly.
-				Logger.LogInformation("PreProcessPath: {File}", OutputFile.AbsolutePath);
 			}
 			else if (IsAnalyzing(CompileEnvironment))
 			{

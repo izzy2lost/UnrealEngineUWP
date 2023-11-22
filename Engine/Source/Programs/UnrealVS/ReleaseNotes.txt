@@ -1,3 +1,9 @@
+1.84.3.4
+* Bug fix for incorrect paths when compiling a single file
+* Open .asm after generating assembly
+* Disable remaining compile single buttons if a valid file isn't selected
+* Bug fix to show additional .target.cs files
+
 1.84.3.3
 * Bug fix for low level test projects - do not auto prefix project path in command line
 

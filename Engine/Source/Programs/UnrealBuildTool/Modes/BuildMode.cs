@@ -804,6 +804,24 @@ namespace UnrealBuildTool
 								await actionArtifactCache.FlushChangesAsync(default); //ETSTODO
 							}
 						}
+
+						// these are parsed by external tools wishing to open this file directly
+						foreach (LinkedAction BuildAction in MergedActionsToExecute)
+						{
+							if (BuildAction.ActionType == ActionType.Compile)
+							{
+								FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".i"));
+								if (PreprocessedFile != null)
+								{
+									Logger.LogInformation("PreProcessPath: {File}", PreprocessedFile);
+								}
+								FileItem? AssemblyPath = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".asm"));
+								if (AssemblyPath != null)
+								{
+									Logger.LogInformation("AssemblyPath: {File}", AssemblyPath);
+								}
+							}
+						}
 					}
 
 					// Run the deployment steps
