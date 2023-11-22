@@ -298,11 +298,11 @@ bool FOpenColorIOTransformResource::CacheShaders(const FOpenColorIOShaderMapId& 
 				FOpenColorIOShaderMap::LoadFromDerivedDataCache(this, InShaderMapId, InPlatform, GameThreadShaderMap);
 				if (GameThreadShaderMap && GameThreadShaderMap->IsValid())
 				{
-					UE_LOG(LogOpenColorIO, Display, TEXT("Loaded shader %s for OCIO ColorSpace %s from DDC"), *GameThreadShaderMap->GetFriendlyName(), *GetFriendlyName());
+					UE_LOG(LogOpenColorIO, Display, TEXT("Loaded shader %s for transform %s from DDC"), *GameThreadShaderMap->GetFriendlyName(), *GetFriendlyName());
 				}
 				else
 				{
-					UE_LOG(LogOpenColorIO, Display, TEXT("Loading shader for OCIO ColorSpace %s from DDC failed. Shader needs recompile."), *GetFriendlyName());
+					UE_LOG(LogOpenColorIO, Display, TEXT("Shader for transform %s was not loaded from the DDC, needs recompile."), *GetFriendlyName());
 				}
 #endif // WITH_EDITOR
 			}

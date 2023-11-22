@@ -29,11 +29,7 @@ uint TransformAlpha;
 
 float SafeRcp(float x)
 {
-	if (x > 0)
-	{
-		return rcp(x);
-	}
-	return 0;
+	return x > 0.0 ? rcp(x) : 0.0;
 }
 
 float4 InvertAlpha(float4 InColor)
