@@ -27,6 +27,11 @@ public class IREE : ModuleRules
 			}
 			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Win64", Version, "flatcc_parsing.lib"));
 			PublicAdditionalLibraries.Add(System.IO.Path.Combine(ModuleDirectory, "Lib", "Win64", Version, "ireert.lib"));
+
+			if (Target.WindowsPlatform.Compiler.IsClang())
+			{
+				PublicSystemIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "Clang"));
+			}
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
