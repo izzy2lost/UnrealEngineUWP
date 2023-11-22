@@ -805,6 +805,7 @@ void FSlateInvalidationRoot::AdjustWidgetsDesktopGeometry(UE::Slate::FDeprecateV
 
 	FastWidgetPathList->ForEachWidget([WindowToDesktopTransform, &WindowToDesktop](SWidget& Widget)
 		{
+			Widget.PersistentState.DesktopGeometry = Widget.PersistentState.AllottedGeometry;
 			Widget.PersistentState.DesktopGeometry.AppendTransform(WindowToDesktop);
 		});
 }
