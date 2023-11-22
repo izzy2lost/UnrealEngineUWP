@@ -2385,13 +2385,6 @@ namespace Catch {
 
 
 namespace Catch {
-    IGroupLifecycleEventInvoker::~IGroupLifecycleEventInvoker() = default;
-    ITestGroupEventRegistry::~ITestGroupEventRegistry() = default;
-}
-
-
-
-namespace Catch {
     IRegistryHub::~IRegistryHub() = default;
     IMutableRegistryHub::~IMutableRegistryHub() = default;
 }
