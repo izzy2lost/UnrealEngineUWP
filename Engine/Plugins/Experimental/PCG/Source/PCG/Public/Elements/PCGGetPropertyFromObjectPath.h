@@ -57,6 +57,14 @@ public:
 	/** By default, object loading is asynchronous, can force it synchronous if needed. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
+
+	/** Opt-in option to create empty data when there is nothing to extract or property is not found, to have the same number of inputs than outputs. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bPersistAllData = false;
+
+	/** Opt-in option to silence errors when the path is Empty or nothing to extract. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bSilenceErrorOnEmptyObjectPath = false;
 };
 
 struct FPCGGetPropertyFromObjectPathContext : public FPCGContext

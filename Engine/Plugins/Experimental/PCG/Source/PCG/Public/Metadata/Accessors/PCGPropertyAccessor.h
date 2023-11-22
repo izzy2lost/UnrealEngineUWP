@@ -392,13 +392,13 @@ private:
 /**
 * Templated accessor class for object/class ptr properties.
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
-* Will always convert to FString for PCG
+* Will always convert to FSoftObjectPath for PCG
 * Key supported: Generic object
 */
 class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>, IPCGPropertyChainAccessor
 {
 public:
-	using Type = FString;
+	using Type = FSoftObjectPath;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>;
 
 	FPCGPropertyObjectPtrAccessor(const FObjectProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
@@ -421,7 +421,7 @@ public:
 	{
 		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const Type& Value) -> void
 		{
-			Property->SetPropertyValue(PropertyAddressData, FSoftObjectPath(Value).TryLoad());
+			Property->SetPropertyValue(PropertyAddressData, Value.TryLoad());
 		});
 	}
 
