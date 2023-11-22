@@ -84,6 +84,18 @@ FSlateUTextureResource::FSlateUTextureResource(UTexture* InTexture)
 	{
 		Proxy->ActualSize = FIntPoint(InTexture->GetSurfaceWidth(), InTexture->GetSurfaceHeight());
 		Proxy->Resource = this;
+
+		CachedSlatePostBuffers = ESlatePostRT::None;
+		for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
+		{
+			const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+			const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+			if (SlatePostSettingValue.bEnabled && InTexture && InTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+			{
+				CachedSlatePostBuffers |= SlatePostBitflag;
+			}
+		}
 	}
 }
 

@@ -1761,16 +1761,12 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					uint8 SlatePostBufferBitIndex = 0;
 					for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
 					{
-						if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
+						// We only attempt to load if the buffer is enabled, so just try to load / get the buffer
+						UTextureRenderTarget2D* SlatePostBuffer = USlateRHIRendererSettings::GetMutable()->LoadGetPostBufferRT(SlatePostBufferBit);
+						if (!SlatePostBuffer)
 						{
 							SlatePostBufferBitIndex++;
 							continue;
-						}
-
-						UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
-						if (!SlatePostBuffer)
-						{
-							SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::GetMutable()->LoadGetPostBufferRT(SlatePostBufferBit));
 						}
 
 						bool bIsViewportPresentForPIE = GIsEditor ? Window->GetViewport().IsValid() : true;

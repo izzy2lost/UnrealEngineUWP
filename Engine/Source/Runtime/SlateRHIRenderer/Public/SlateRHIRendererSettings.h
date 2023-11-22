@@ -14,6 +14,7 @@
 #include "SlateRHIRendererSettings.generated.h"
 
 class USlateRHIPostBufferProcessor;
+class UTextureRenderTarget2D;
 
 /**
  * Settings for a particular Slate Post RT.
@@ -56,7 +57,10 @@ private:
 
 	/** Cached load of Slate Post RT Asset */
 	UPROPERTY(Transient)
-	TObjectPtr<UObject> CachedSlatePostRT;
+	TObjectPtr<UTextureRenderTarget2D> CachedSlatePostRT;
+
+	/** True if we attempted to load the post RT asset already */
+	bool bLoadAttempted:1;
 };
 
 /**
@@ -101,10 +105,10 @@ public:
 public:
 
 	/** Try to get post RT asset, returns nullptr if not already loaded */
-	UObject* TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const;
+	UTextureRenderTarget2D* TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const;
 
 	/** Get post RT asset, loading if not already loaded */
-	UObject* LoadGetPostBufferRT(ESlatePostRT InPostBufferBit);
+	UTextureRenderTarget2D* LoadGetPostBufferRT(ESlatePostRT InPostBufferBit);
 
 	/** Get slate post settings map, non mutable */
 	const TMap<ESlatePostRT, FSlatePostSettings>& GetSlatePostSettings() const;

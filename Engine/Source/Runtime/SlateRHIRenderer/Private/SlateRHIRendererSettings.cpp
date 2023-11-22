@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SlateRHIRendererSettings.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "FX/SlateRHIPostBufferProcessor.h"
 #include "HAL/IConsoleManager.h"
 
@@ -17,6 +18,7 @@ FSlatePostSettings::FSlatePostSettings()
 	, PostProcessorClass(nullptr)
 	, PathToSlatePostRT(FString())
 	, CachedSlatePostRT(nullptr)
+	, bLoadAttempted(false)
 {
 }
 
@@ -71,23 +73,32 @@ const FSlatePostSettings& USlateRHIRendererSettings::GetSlatePostSetting(ESlateP
 	return SlatePostSettings[InPostBufferBit];
 }
 
-UObject* USlateRHIRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
+UTextureRenderTarget2D* USlateRHIRendererSettings::TryGetPostBufferRT(ESlatePostRT InPostBufferBit) const
 {
 	return SlatePostSettings[InPostBufferBit].CachedSlatePostRT;
 }
 
-UObject* USlateRHIRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBit)
+UTextureRenderTarget2D* USlateRHIRendererSettings::LoadGetPostBufferRT(ESlatePostRT InPostBufferBit)
 {
-	UObject* Result = TryGetPostBufferRT(InPostBufferBit);
+	FSlatePostSettings& SlatePostSetting = SlatePostSettings[InPostBufferBit];
 
-	if (!Result)
+	UTextureRenderTarget2D* Result = nullptr;
+
+	if (SlatePostSetting.bEnabled)
 	{
-		Result = LoadObject<UObject>(nullptr, *SlatePostSettings[InPostBufferBit].PathToSlatePostRT, nullptr, LOAD_None, nullptr);
+		Result = SlatePostSetting.CachedSlatePostRT;
 
-		if (Result)
+		if (!Result && !SlatePostSetting.bLoadAttempted)
 		{
-			Result->AddToRoot();
-			SlatePostSettings[InPostBufferBit].CachedSlatePostRT = Result;
+			Result = LoadObject<UTextureRenderTarget2D>(nullptr, *SlatePostSetting.PathToSlatePostRT, nullptr, LOAD_None, nullptr);
+
+			if (Result)
+			{
+				Result->AddToRoot();
+				SlatePostSetting.CachedSlatePostRT = Result;
+			}
+
+			SlatePostSetting.bLoadAttempted = true;
 		}
 	}
 
