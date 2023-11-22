@@ -27,12 +27,11 @@ public:
 	void AddValue(FAllocationContext Context, VValue Value);
 	void Append(FAllocationContext Context, VArrayBase& Array);
 
-	VArray& AsArray(FRunningContext Context)
+	void InPlaceMakeImmutable(FRunningContext Context)
 	{
-		VArray& Result = VArray::New(Context, 0);
-		Result.NumValues = NumValues;
-		Result.Values.Set(Context, Values.Get());
-		return Result;
+		static_assert(std::is_base_of_v<VArrayBase, VArray>);
+		static_assert(sizeof(VArray) == sizeof(VArrayBase));
+		SetEmergentType(Context, &VArray::GlobalTrivialEmergentType.Get(Context));
 	}
 
 	static VMutableArray& New(FAllocationContext Context, uint32 InitialCapacity = 1)

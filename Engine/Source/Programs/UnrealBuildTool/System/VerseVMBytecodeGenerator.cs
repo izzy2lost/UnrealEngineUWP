@@ -819,8 +819,11 @@ namespace UnrealBuildTool
 				.Arg("ValueToAdd", Role.Use)
 				.Suspends();
 
-			Inst("AsArray")
-				.Arg("Dest", Role.UnifyDef)
+			// This in place converts a VMutableArray into a VArray.
+			// This can get away with being non-transactional because we
+			// call it on data structures before they become observable
+			// to user code.
+			Inst("InPlaceMakeImmutable")
 				.Arg("Container", Role.Use)
 				.Suspends();
 

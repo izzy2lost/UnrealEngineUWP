@@ -1188,16 +1188,18 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult AsArrayImpl(OpType& Op)
+	FOpResult InPlaceMakeImmutableImpl(OpType& Op)
 	{
 		const VValue Container = GetOperand(Op.Container);
-		if (VMutableArray* MutableArray = Container.DynamicCast<VMutableArray>())
+		REQUIRE_CONCRETE(Container);
+		if (Container.IsCellOfType<VMutableArray>())
 		{
-			DEF(Op.Dest, MutableArray->AsArray(Context));
+			Container.StaticCast<VMutableArray>().InPlaceMakeImmutable(Context);
+			checkSlow(Container.IsCellOfType<VArray>() && !Container.IsCellOfType<VMutableArray>());
 		}
 		else
 		{
-			V_DIE("Unimplemented type passed to VM `ArrayAdd` operation!");
+			V_DIE("Unimplemented type passed to VM `InPlaceMakeImmutable` operation!");
 		}
 
 		return {FOpResult::Normal};
@@ -1669,7 +1671,7 @@ class FInterpreter
 				OP_IMPL(NewMutableArray)
 				OP_IMPL(NewMutableArrayWithCapacity)
 				OP_IMPL_THREAD_EFFECTS(ArrayAdd)
-				OP_IMPL(AsArray)
+				OP_IMPL(InPlaceMakeImmutable)
 				OP_IMPL(NewMap)
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
