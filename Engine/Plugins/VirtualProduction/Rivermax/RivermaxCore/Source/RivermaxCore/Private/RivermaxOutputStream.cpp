@@ -1918,8 +1918,6 @@ namespace UE::RivermaxCore::Private
 			return false;
 		}
 		}
-
-		return false;
 	}
 
 	bool FRivermaxOutputStream::IsChunkOnTime_FrameCreation() const

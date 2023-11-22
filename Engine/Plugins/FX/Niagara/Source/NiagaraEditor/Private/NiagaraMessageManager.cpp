@@ -139,7 +139,6 @@ const TOptional<const FString> FNiagaraMessageManager::GetStringForScriptUsageIn
 		ensureMsgf(false, TEXT("Tried to get script usage text for usage that is not handled!"));
 		return TOptional<const FString>();
 	}
-	return TOptional<const FString>();
 }
 
 void FNiagaraMessageManager::RegisterMessageTopic(FName TopicName)

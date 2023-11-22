@@ -53,7 +53,6 @@ namespace QualityLevelProperty
 		{
 			return NAME_None;
 		}
-		return QualityLevelNames[QL];
 	}
 
 	int32 FNameToQualityLevel(FName QL)

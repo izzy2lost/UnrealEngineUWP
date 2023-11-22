@@ -605,8 +605,9 @@ FColor UMovieSceneSection::GetColorTint() const
 {
 #if WITH_EDITORONLY_DATA
 	return ColorTint;
-#endif
+#else
 	return FColor(0, 0, 0, 0);
+#endif
 }
 
 UMovieSceneSection* UMovieSceneSection::SplitSection(FQualifiedFrameTime SplitTime, bool bDeleteKeys)

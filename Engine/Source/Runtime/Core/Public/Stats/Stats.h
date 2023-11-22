@@ -395,9 +395,9 @@ struct FDynamicStats
 	{
 #if	STATS
 		return CreateStatIdInternal<TStatGroup>( FName( *StatNameOrDescription ), EStatDataType::ST_int64, true);
-#endif // STATS
-
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 	template< typename TStatGroup >
@@ -405,9 +405,9 @@ struct FDynamicStats
 	{
 #if	STATS
 		return CreateStatIdInternal<TStatGroup>(FName(*StatNameOrDescription), EStatDataType::ST_int64, false, !bIsAccumulator);
-#endif // STATS
-
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 	template< typename TStatGroup >
@@ -415,8 +415,9 @@ struct FDynamicStats
 	{
 #if	STATS
 		return CreateStatIdInternal<TStatGroup>(FName(*StatNameOrDescription), EStatDataType::ST_double, false, !bIsAccumulator);
-#endif // STATS
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 	template< typename TStatGroup >
@@ -424,8 +425,9 @@ struct FDynamicStats
 	{
 #if	STATS
 		return CreateStatIdInternal<TStatGroup>(StatNameOrDescription, EStatDataType::ST_int64, IsTimer);
-#endif // STATS
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 	template< typename TStatGroup >
@@ -433,9 +435,9 @@ struct FDynamicStats
 	{
 #if	STATS
 		return CreateMemoryStatId<TStatGroup>(FName(*StatNameOrDescription), MemRegion);
-#endif // STATS
-
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 	template< typename TStatGroup >
@@ -455,9 +457,9 @@ struct FDynamicStats
 			false, EStatDataType::ST_int64, *StatNameOrDescription.ToString(), false, false, MemRegion);
 
 		return StatID;
-#endif // STATS
-
+#else
 		return TStatId();
+#endif // STATS
 	}
 
 #if	STATS

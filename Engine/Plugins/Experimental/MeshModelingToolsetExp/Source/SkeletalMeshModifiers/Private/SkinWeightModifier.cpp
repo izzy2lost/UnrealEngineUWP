@@ -70,8 +70,8 @@ bool USkinWeightModifier::SetSkeletalMesh(USkeletalMesh* InMesh)
 	
 #else
 	ensureMsgf(false, TEXT("Skin Weight Modifier: is an editor only feature."));
-#endif
 	return false;
+#endif
 }
 
 bool USkinWeightModifier::CommitWeightsToSkeletalMesh()

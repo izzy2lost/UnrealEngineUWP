@@ -3358,8 +3358,9 @@ TStatId UNiagaraEmitter::GetStatID(bool bGameThread, bool bConcurrent)const
 			return StatID_RT;
 		}
 	}
-#endif
+#else
 	return TStatId();
+#endif
 }
 
 void FVersionedNiagaraEmitterData::ClearRuntimeAllocationEstimate(uint64 ReportHandle)

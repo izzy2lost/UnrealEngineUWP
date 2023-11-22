@@ -907,8 +907,6 @@ FCursorReply SCustomizableObjectLayoutGrid::OnCursorQuery(const FGeometry& MyGeo
 	{
 		return FCursorReply::Cursor(EMouseCursor::Default);
 	}
-
-	return FCursorReply::Unhandled();
 }
 
 

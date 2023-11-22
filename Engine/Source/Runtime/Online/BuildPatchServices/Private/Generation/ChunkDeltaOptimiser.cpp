@@ -83,8 +83,9 @@ namespace DeltaOptimiseHelpers
 #if UE_BUILD_DEBUG
 		static const bool bSingleScannerThread = FParse::Param(FCommandLine::Get(), TEXT("singlescanneronly"));
 		return bSingleScannerThread ? false : bHasUnusedCpu;
-#endif
+#else
 		return bHasUnusedCpu;
+#endif
 	}
 
 	template <typename T>
@@ -101,8 +102,9 @@ namespace DeltaOptimiseHelpers
 #if UE_BUILD_DEBUG
 		static const bool bSingleScannerThread = FParse::Param(FCommandLine::Get(), TEXT("singlescanneronly"));
 		return bSingleScannerThread ? (FDataScannerCounter::GetNumIncompleteScanners() + FDataScannerCounter::GetNumRunningScanners()) > 0 : bScannerArrayFull;
-#endif
+#else
 		return bScannerArrayFull;
+#endif
 	}
 
 	FChunkPart SelectBytes(const FChunkPart& FullPart, uint32 LeftChop, uint32 Size)

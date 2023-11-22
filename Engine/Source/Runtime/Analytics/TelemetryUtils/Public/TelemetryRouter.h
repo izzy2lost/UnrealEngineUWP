@@ -27,7 +27,10 @@ namespace UE::Telemetry::Private
         {
             return DATA_TYPE::TelemetryID;
         }
-        return FGuid{};
+		else
+		{
+			return FGuid{};
+		}
     }
 
     template <typename DATA_TYPE>
@@ -40,7 +43,10 @@ namespace UE::Telemetry::Private
         {
             return DATA_TYPE::TelemetryID;
         }
-        return FGuid{};
+        else
+        {
+            return FGuid{};
+        }
     }
 }
 

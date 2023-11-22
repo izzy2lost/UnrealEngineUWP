@@ -155,8 +155,6 @@ namespace Chaos
 				TArray<Chaos::TVector<int32, 3>> TrianglesLargeIdx;
 				return LambdaHelper(TrianglesLargeIdx);
 			}
-
-			return nullptr;
 		}
 
 		void BuildConvexMeshes(TArray<Chaos::FImplicitObjectPtr>& OutConvexMeshes, const FCookBodySetupInfo& InParams)

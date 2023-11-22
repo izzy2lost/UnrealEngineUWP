@@ -761,8 +761,4 @@ Thread::ReturnValue ClientUserCommandThread::ThreadFunction(Event* waitForStartE
 
 		delete command;
 	}
-
-	// BEGIN EPIC MOD
-	return Thread::ReturnValue(0u);
-	// END EPIC MOD
 }

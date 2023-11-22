@@ -1487,8 +1487,9 @@ public:
 	{
 #if STATS|| ENABLE_STATNAMEDEVENTS
 		return StatID;
-#endif
+#else
 		return TStatId();
+#endif
 	}
 
 private:

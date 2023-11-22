@@ -454,6 +454,8 @@ void FGenericPlatformMallocCrash::PrintPoolsUsage()
 #endif // _DEBUG
 }
 
+#pragma warning(push)
+#pragma warning(disable:4702)
 bool FGenericPlatformMallocCrash::IsOnCrashedThread() const
 {
 	// Suspend threads other than the crashed one to prevent serious memory errors.
@@ -468,6 +470,8 @@ bool FGenericPlatformMallocCrash::IsOnCrashedThread() const
 		return false;
 	}
 }
+#pragma warning(pop)
+
 
 bool FGenericPlatformMallocCrash::IsPtrInLargePool( void* Ptr ) const
 {

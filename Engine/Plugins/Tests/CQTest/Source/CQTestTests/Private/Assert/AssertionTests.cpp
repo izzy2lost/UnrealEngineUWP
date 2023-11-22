@@ -19,12 +19,15 @@ namespace CQTests
 			Assert.Fail(AnyError);
 		}
 
+#pragma warning(push)
+#pragma warning(disable:4702)
 		TEST_METHOD(AssertFail_Macro_AddsErrorAndExits)
 		{
 			Assert.ExpectError(ExpectedError);
 			ASSERT_FAIL(ExpectedError);
 			ASSERT_FAIL(TEXT("It should not assert after the first expected assert since it exits"));
 		}
+#pragma warning(pop)
 
 		TEST_METHOD(Assertions_Accept_RawStrings)
 		{

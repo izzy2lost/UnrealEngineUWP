@@ -783,8 +783,9 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		return InteractionRig_DEPRECATED;
-#endif
+#else
 		return nullptr;
+#endif
 	}
 
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
@@ -797,8 +798,9 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		return InteractionRigClass_DEPRECATED;
-#endif
+#else
 		return nullptr;
+#endif
 	}
 
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used")

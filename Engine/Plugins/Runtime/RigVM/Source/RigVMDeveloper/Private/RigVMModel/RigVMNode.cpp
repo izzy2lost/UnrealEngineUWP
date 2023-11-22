@@ -637,10 +637,9 @@ TArray<int32> URigVMNode::GetInstructionsForVMImpl(const FRigVMExtendedExecuteCo
 	{
 		return InVM->GetByteCode().GetAllInstructionIndicesForSubject((URigVMNode*)this);
 	}
-	
-#endif
-
+#else
 	return Instructions;
+#endif
 }
 
 int32 URigVMNode::GetInstructionVisitedCount(const FRigVMExtendedExecuteContext& Context, URigVM* InVM, const FRigVMASTProxy& InProxy) const
