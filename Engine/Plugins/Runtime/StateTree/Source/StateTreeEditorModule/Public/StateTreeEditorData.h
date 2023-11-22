@@ -249,6 +249,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 private:
 	void FixObjectInstance(TSet<UObject*>& SeenObjects, UObject& Outer, FStateTreeEditorNode& Node);
 	void FixObjectNodes();
+	void FixDuplicateIDs();
 	void UpdateBindingsInstanceStructs();
 
 #if WITH_EDITORONLY_DATA

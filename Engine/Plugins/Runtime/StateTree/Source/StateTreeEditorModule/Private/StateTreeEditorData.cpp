@@ -127,6 +127,7 @@ void UStateTreeEditorData::PostLoad()
 	Super::PostLoad();
 	ReparentStates();
 	FixObjectNodes();
+	FixDuplicateIDs();
 	UpdateBindingsInstanceStructs();
 }
 
@@ -538,6 +539,131 @@ void UStateTreeEditorData::FixObjectNodes()
 	{
 		FixObjectInstance(SeenObjects, *this, Node);
 	}
+}
+
+void UStateTreeEditorData::FixDuplicateIDs()
+{
+	// Around version 5.1-5.3 we had issue that copy/paste or some duplication methods could create nodes with duplicate IDs.
+	// This code tries to fix that, it looks for duplicates, makes them unique, and duplicates the bindings when ID changes.
+	TSet<FGuid> FoundNodeIDs;
+
+	// Evaluators
+	for (FStateTreeEditorNode& Node : Evaluators)
+	{
+		if (const FStateTreeEvaluatorBase* Evaluator = Node.Node.GetPtr<FStateTreeEvaluatorBase>())
+		{
+			const FGuid OldID = Node.ID; 
+			if (FoundNodeIDs.Contains(Node.ID))
+			{
+				Node.ID = FGuid::NewGuid();
+				UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found Evaluator '%s' with duplicate ID, changing ID:%s to ID:%s."),
+					*GetFullName(), *Node.GetName().ToString(), *OldID.ToString(), *Node.ID.ToString());
+				EditorBindings.CopyBindings(OldID, Node.ID);
+			}
+			FoundNodeIDs.Add(Node.ID);
+		}
+	}
+	
+	// Global Tasks
+	for (FStateTreeEditorNode& Node : GlobalTasks)
+	{
+		if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
+		{
+			const FGuid OldID = Node.ID; 
+			if (FoundNodeIDs.Contains(Node.ID))
+			{
+				Node.ID = FGuid::NewGuid();
+				UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found GlobalTask '%s' with duplicate ID, changing ID:%s to ID:%s."),
+					*GetFullName(), *Node.GetName().ToString(), *OldID.ToString(), *Node.ID.ToString());
+				EditorBindings.CopyBindings(OldID, Node.ID);
+			}
+			FoundNodeIDs.Add(Node.ID);
+		}
+	}
+	
+	VisitHierarchy([&FoundNodeIDs, &EditorBindings = EditorBindings, &Self = *this](UStateTreeState& State, UStateTreeState* ParentState)
+	{
+		// Enter conditions
+		for (FStateTreeEditorNode& Node : State.EnterConditions)
+		{
+			if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+			{
+				const FGuid OldID = Node.ID;
+				
+				bool bIsAlreadyInSet = false;
+				FoundNodeIDs.Add(Node.ID, &bIsAlreadyInSet);
+				if (bIsAlreadyInSet)
+				{
+					Node.ID = FGuid::NewGuid();
+					UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found Enter Condition '%s' with duplicate ID on state '%s', changing ID:%s to ID:%s."),
+						*Self.GetFullName(), *Node.GetName().ToString(), *GetNameSafe(&State), *OldID.ToString(), *Node.ID.ToString());
+					EditorBindings.CopyBindings(OldID, Node.ID);
+				}
+			}
+		}
+
+		// Tasks
+		for (FStateTreeEditorNode& Node : State.Tasks)
+		{
+			if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
+			{
+				const FGuid OldID = Node.ID;
+				
+				bool bIsAlreadyInSet = false;
+				FoundNodeIDs.Add(Node.ID, &bIsAlreadyInSet);
+				if (bIsAlreadyInSet)
+				{
+					Node.ID = FGuid::NewGuid();
+					UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found Task '%s' with duplicate ID on state '%s', changing ID:%s to ID:%s."),
+						*Self.GetFullName(), *Node.GetName().ToString(), *GetNameSafe(&State), *OldID.ToString(), *Node.ID.ToString());
+					EditorBindings.CopyBindings(OldID, Node.ID);
+				}
+			}
+		}
+
+		if (FStateTreeTaskBase* Task = State.SingleTask.Node.GetMutablePtr<FStateTreeTaskBase>())
+		{
+			const FGuid OldID = State.SingleTask.ID;
+
+			bool bIsAlreadyInSet = false;
+			FoundNodeIDs.Add(State.SingleTask.ID, &bIsAlreadyInSet);
+			if (bIsAlreadyInSet)
+			{
+				State.SingleTask.ID = FGuid::NewGuid();
+				UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found enter condition '%s' with duplicate ID on state '%s', changing ID:%s to ID:%s."),
+					*Self.GetFullName(), *State.SingleTask.GetName().ToString(), *GetNameSafe(&State), *OldID.ToString(), *State.SingleTask.ID.ToString());
+				EditorBindings.CopyBindings(OldID, State.SingleTask.ID);
+			}
+		}
+
+		// Transitions
+		for (FStateTreeTransition& Transition : State.Transitions)
+		{
+			for (FStateTreeEditorNode& Node : Transition.Conditions)
+			{
+				if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
+				{
+					const FGuid OldID = Node.ID; 
+					bool bIsAlreadyInSet = false;
+					FoundNodeIDs.Add(Node.ID, &bIsAlreadyInSet);
+					if (bIsAlreadyInSet)
+					{
+						Node.ID = FGuid::NewGuid();
+						UE_LOG(LogStateTreeEditor, Log, TEXT("%s: Found transition condition '%s' with duplicate ID on state '%s', changing ID:%s to ID:%s."),
+							*Self.GetFullName(), *Node.GetName().ToString(), *GetNameSafe(&State), *OldID.ToString(), *Node.ID.ToString());
+						EditorBindings.CopyBindings(OldID, Node.ID);
+					}
+				}
+			}
+		}
+		
+		return EStateTreeVisitor::Continue;
+	});
+
+	// It is possible that the user has changed the node type so some of the bindings might not make sense anymore, clean them up.
+	TMap<FGuid, const FStateTreeDataView> AllValues;
+	GetAllStructValues(AllValues);
+	EditorBindings.RemoveUnusedBindings(AllValues);
 }
 
 void UStateTreeEditorData::UpdateBindingsInstanceStructs()

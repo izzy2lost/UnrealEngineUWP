@@ -305,6 +305,12 @@ void UStateTree::PostLoad()
 	if (CurrentVersion < FStateTreeCustomVersion::LatestVersion)
 	{
 #if WITH_EDITOR
+		if (EditorData)
+		{
+			// Make sure all the fix up logic in the editor data has had chance to happen.
+			EditorData->ConditionalPostLoad();
+		}
+		
 		// Compiled data is in older format, try to compile the StateTree.
 		if (UE::StateTree::Delegates::OnRequestCompile.IsBound())
 		{
