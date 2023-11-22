@@ -399,7 +399,6 @@ void UControlRig::Evaluate_AnyThread()
 
 		if (PreAdditiveValuesApplicationEvent.IsBound())
 		{
-			FControlRigBracketScope BracketScope(PreAdditiveValuesApplicationBracket);
 			PreAdditiveValuesApplicationEvent.Broadcast(this, TEXT("Additive"));
 		}
 		
@@ -450,7 +449,6 @@ void UControlRig::Evaluate_AnyThread()
 		
 		// Forward solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferredEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_BeginExecution::EventName);
 		}
 	}
