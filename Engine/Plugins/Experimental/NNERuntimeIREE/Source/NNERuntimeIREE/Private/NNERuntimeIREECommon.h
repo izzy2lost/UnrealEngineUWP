@@ -6,6 +6,7 @@
 
 #include "Interfaces/ITargetPlatform.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "NNEModelData.h"
 #include "NNERuntimeCPU.h"

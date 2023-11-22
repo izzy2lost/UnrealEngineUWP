@@ -12,6 +12,7 @@
 #include "IO/IoHash.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
 #include "NNERuntimeIREECommon.h"
 #include "NNERuntimeIREECpuModel.h"
