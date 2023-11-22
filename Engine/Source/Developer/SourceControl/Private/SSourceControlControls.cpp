@@ -175,14 +175,7 @@ bool SSourceControlControls::AreConflictsRemaining() const
 
 	if (!bExiting)
 	{
-		// Is ConflictResolution enabled via Unreal Revision Control?
-		if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("UnrealRevisionControl.EnableConflictResolution")))
-		{
-			if (CVar->GetBool())
-			{
-				return bConflictsRemaining;
-			}
-		}
+		return bConflictsRemaining;
 	}
 
 	return false;
