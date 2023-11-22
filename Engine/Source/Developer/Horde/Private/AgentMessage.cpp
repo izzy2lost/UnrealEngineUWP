@@ -162,6 +162,7 @@ EAgentMessageType FAgentMessageChannel::ReadResponse()
 	}
 
 	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength);
+	check(Header != nullptr);
 	unsigned int Length = *((unsigned int*)(Header + 1));
 
 	Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength + Length);
