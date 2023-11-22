@@ -131,15 +131,27 @@ public:
 		return Paths;
 	}
 
-	/** Get the binding names, resolves reference deprecation / redirectors / etc before returning */
+	/**
+	 * Get the binding names. Resolves reference deprecation / redirectors.
+	 * Returns Field.SubProperty.SubProperty from ViewModel.Field.SubProperty.SubProperty
+	 */
 	MODELVIEWVIEWMODELBLUEPRINT_API TArray<FName> GetFieldNames(const UClass* SelfContext) const;
 
-	/** Get the binding fields, resolves reference deprecation / redirectors / etc before returning */
+	/**
+	 * Get the binding fields. Resolves reference deprecation / redirectors.
+	 * Returns Field.SubProperty.SubProperty from ViewModel.Field.SubProperty.SubProperty
+	 */
 	MODELVIEWVIEWMODELBLUEPRINT_API TArray<UE::MVVM::FMVVMConstFieldVariant> GetFields(const UClass* SelfContext) const;
 
 	/**
+	 * Get the binding fields. Resolves reference deprecation / redirectors.
+	 * Returns Viewmodel.Field.SubProperty.SubProperty from ViewModel.Field.SubProperty.SubProperty
+	 */
+	MODELVIEWVIEWMODELBLUEPRINT_API TArray<UE::MVVM::FMVVMConstFieldVariant> GetCompleteFields(const UBlueprint* SelfContext) const;
+
+	/**
 	 * Get the full path without the first property name.
-	 * returns Field.SubProperty.SubProperty from ViewModel.Field.SubProeprty.SubProperty
+	 * Returns Field.SubProperty.SubProperty from ViewModel.Field.SubProeprty.SubProperty
 	 */
 	MODELVIEWVIEWMODELBLUEPRINT_API FString GetPropertyPath(const UClass* SelfContext) const;
 
@@ -184,9 +196,6 @@ public:
 			const_cast<FMVVMBlueprintPropertyPath*>(this)->DeprecationUpdateSource(InContext);
 		}
 		return Source;
-		
-
-
 	}
 
 	UE_DEPRECATED(5.4, "Use GetSource instead.")

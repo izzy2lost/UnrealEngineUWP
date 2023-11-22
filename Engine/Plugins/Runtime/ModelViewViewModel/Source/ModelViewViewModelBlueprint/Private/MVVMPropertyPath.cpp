@@ -259,6 +259,54 @@ TArray<UE::MVVM::FMVVMConstFieldVariant> FMVVMBlueprintPropertyPath::GetFields(c
 }
 
 
+TArray<UE::MVVM::FMVVMConstFieldVariant> FMVVMBlueprintPropertyPath::GetCompleteFields(const UBlueprint* InSelfContext) const
+{
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Result;
+	Result.Reserve(Paths.Num() + 1);
+
+	UClass* ContextClass = InSelfContext->SkeletonGeneratedClass ? InSelfContext->SkeletonGeneratedClass : InSelfContext->GeneratedClass;
+	switch (GetSource(InSelfContext))
+	{
+	case EMVVMBlueprintFieldPathSource::ViewModel:
+	{
+		Result.AddDefaulted();
+		for (const TObjectPtr<UBlueprintExtension>& Extension : InSelfContext->GetExtensions())
+		{
+			if (Extension && Extension->GetClass() == UMVVMWidgetBlueprintExtension_View::StaticClass())
+			{
+				if (UMVVMBlueprintView* View = CastChecked<UMVVMWidgetBlueprintExtension_View>(Extension)->GetBlueprintView())
+				{
+					if (const FMVVMBlueprintViewModelContext* Viewmodel = View->FindViewModel(GetViewModelId()))
+					{
+						Result[0] = UE::MVVM::FMVVMConstFieldVariant(ContextClass->FindPropertyByName(Viewmodel->GetViewModelName()));
+					}
+				}
+			}
+		}
+		break;
+	}
+	case EMVVMBlueprintFieldPathSource::SelfContext:
+		break;
+	case EMVVMBlueprintFieldPathSource::Widget:
+	{
+		FProperty* WidgetProperty = ContextClass->FindPropertyByName(GetWidgetName());
+		Result.Add(UE::MVVM::FMVVMConstFieldVariant(WidgetProperty));
+		break;
+	}
+	default:
+		check(false);
+		break;
+	}
+
+	for (const FMVVMBlueprintFieldPath& Path : Paths)
+	{
+		Result.Add(Path.GetField(ContextClass));
+	}
+
+	return Result;
+}
+
+
 FString FMVVMBlueprintPropertyPath::GetPropertyPath(const UClass* InSelfContext) const
 {
 	TStringBuilder<512> Result;
