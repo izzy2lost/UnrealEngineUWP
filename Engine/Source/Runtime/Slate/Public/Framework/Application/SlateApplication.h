@@ -41,6 +41,7 @@ class ISlateSoundDevice;
 class ITextInputMethodSystem;
 class IVirtualKeyboardEntry;
 class IWidgetReflector;
+class SNotificationItem;
 class SViewport;
 class FSlateUser;
 class FSlateVirtualUserHandle;
@@ -839,6 +840,16 @@ public:
 	 * @param bLeavingDebugForSingleStep	Whether or not we are leaving debug mode due to single stepping
 	 */
 	SLATE_API void LeaveDebuggingMode( bool bLeavingDebugForSingleStep = false );
+
+#if WITH_EDITOR
+	struct FScopedPreventDebuggingMode
+	{
+		FScopedPreventDebuggingMode(FText Reason);
+		~FScopedPreventDebuggingMode();
+	private:
+		int32 Id;
+	};
+#endif
 	
 	/**
 	 * Calculates the popup window position from the passed in window position and size. 
@@ -1847,7 +1858,13 @@ private:
 #if WITH_EDITOR
 	/** List of all registered game viewports since the last time UnregisterGameViewport was called. */
 	TSet<TWeakPtr<SViewport>> AllGameViewports;
+
+	/** List of reason why we can't enter in debugging mode. */
+	TArray<TPair<FText, int32>> PreventDebuggingModeStack;
 #endif
+
+	/** The message when the EnterDebugginMode failed. */
+	TWeakPtr<SNotificationItem> DebuggingModeNotificationMessage;
 
 	TSharedPtr<ISlateSoundDevice> SlateSoundDevice;
 

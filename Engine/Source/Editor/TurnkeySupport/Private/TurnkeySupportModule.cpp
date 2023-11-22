@@ -2083,6 +2083,10 @@ void FTurnkeySupportModule::MakeTurnkeyMenu(FToolMenuSection& MenuSection) const
 
 	// hide during PIE
 	FUIAction PlatformMenuShownDelegate;
+	if (FSlateApplication::IsInitialized())
+	{
+		PlatformMenuShownDelegate.CanExecuteAction = FCanExecuteAction::CreateRaw(&FSlateApplication::Get(), &FSlateApplication::IsNormalExecution);
+	}
 	PlatformMenuShownDelegate.IsActionVisibleDelegate = FIsActionButtonVisible::CreateLambda([]() 
 	{
 		return !FTurnkeyEditorSupport::IsPIERunning();

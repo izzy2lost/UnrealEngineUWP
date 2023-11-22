@@ -1508,6 +1508,10 @@ void FSlateApplication::Tick(ESlateTickType TickType)
 
 	FScopeLock SlateTickAccess(&SlateTickCriticalSection);
 
+#if WITH_EDITOR
+	FScopedPreventDebuggingMode SlatePreventDebugginModeWhileTicking(NSLOCTEXT("EnterDebuggingMode", "WindowTicking", "The window is ticking."));
+#endif
+
 	SCOPED_NAMED_EVENT_F(TEXT("Slate::Tick (%s)"), FColor::Magenta, LexToString(TickType));
 	CSV_SCOPED_TIMING_STAT(Slate, Tick);
 
@@ -3630,11 +3634,48 @@ void FSlateApplication::GetAllVisibleChildWindows(TArray< TSharedRef<SWindow> >&
 
 void FSlateApplication::EnterDebuggingMode()
 {
-	if (GetActiveModalWindow().IsValid())
+	if (!IsInGameThread())
 	{
-		UE_LOG(LogSlate, Warning, TEXT("EnterDebuggingMode is not supported while a modal window is open."));
+		ensureMsgf(false, TEXT("Can only enter Debugging Mode while on the game thread."));
 		return;
 	}
+
+	auto AddNotification = [Self=this](const FText& SubText)
+	{
+		if (TSharedPtr<SNotificationItem> MessagePinned = Self->DebuggingModeNotificationMessage.Pin())
+		{
+			static float DefaultDuration = FNotificationInfo{FText::GetEmpty()}.ExpireDuration;
+			MessagePinned->SetSubText(SubText);
+		}
+		else
+		{
+			FNotificationInfo Info(NSLOCTEXT("EnterDebuggingMode", "FailTitle", "Debugging Mode Fail"));
+			Info.SubText = SubText;
+			Self->DebuggingModeNotificationMessage = FSlateNotificationManager::Get().AddNotification(Info);
+		}
+		UE_LOG(LogSlate, Warning, TEXT("Enter Debugging Mode failed."));
+
+		static bool bDoDebugBreak = true;
+		if (bDoDebugBreak)
+		{
+			UE_DEBUG_BREAK();
+		}
+	};
+
+	if (GetActiveModalWindow().IsValid())
+	{
+		AddNotification(NSLOCTEXT("EnterDebuggingMode", "Fail_ModalWindow", "A modal window is open."));
+		return;
+	}
+
+#if WITH_EDITOR
+	if (PreventDebuggingModeStack.Num() > 0)
+	{
+		AddNotification(PreventDebuggingModeStack.Last().Key);
+		return;
+	}
+	FScopedPreventDebuggingMode Scope(NSLOCTEXT("EnterDebuggingMode", "AlreadyInDebuggingMode", "Already in debug mode."));
+#endif
 
 	bRequestLeaveDebugMode = false;
 
@@ -3740,6 +3781,24 @@ void FSlateApplication::LeaveDebuggingMode( bool bLeavingForSingleStep )
 	bRequestLeaveDebugMode = true;
 	bLeaveDebugForSingleStep = bLeavingForSingleStep;
 }
+
+#if WITH_EDITOR
+FSlateApplication::FScopedPreventDebuggingMode::FScopedPreventDebuggingMode(FText InReason)
+{
+	static int32 IdGenerator = 0;
+	Id = ++IdGenerator;
+	FSlateApplication::Get().PreventDebuggingModeStack.Emplace(MoveTemp(InReason), Id);
+}
+
+FSlateApplication::FScopedPreventDebuggingMode::~FScopedPreventDebuggingMode()
+{
+	int32 IndexToRemove = FSlateApplication::Get().PreventDebuggingModeStack.IndexOfByPredicate([this](const TPair<FText, int32>& Reference){ return Reference.Value == Id;});
+	if (ensure(IndexToRemove != INDEX_NONE))
+	{
+		FSlateApplication::Get().PreventDebuggingModeStack.RemoveAtSwap(IndexToRemove);
+	}
+}
+#endif
 
 bool FSlateApplication::IsWindowInDestroyQueue(TSharedRef<SWindow> Window) const
 {

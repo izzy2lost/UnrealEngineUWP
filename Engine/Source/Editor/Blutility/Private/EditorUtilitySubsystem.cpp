@@ -13,6 +13,7 @@
 #include "EditorUtilityWidgetBlueprint.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintCore.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "GameFramework/Actor.h"
 #include "HAL/IConsoleManager.h"
@@ -348,6 +349,7 @@ bool UEditorUtilitySubsystem::SpawnRegisteredTabByID(FName NewTabID)
 			if (LevelEditorTabManager->HasTabSpawner(NewTabID))
 			{
 				TSharedPtr<SDockTab> NewDockTab = LevelEditorTabManager->TryInvokeTab(NewTabID);
+				NewDockTab->SetEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 				IBlutilityModule* BlutilityModule = FModuleManager::GetModulePtr<IBlutilityModule>("Blutility");
 				UEditorUtilityWidgetBlueprint** WidgetToSpawn = RegisteredTabs.Find(NewTabID);
 				if (WidgetToSpawn)
@@ -666,7 +668,8 @@ void UEditorUtilitySubsystem::HandleOnEndPIE(const bool bIsSimulating)
 
 TSharedRef<SDockTab> UEditorUtilitySubsystem::SpawnEditorUITabFromGeneratedClass(const FSpawnTabArgs& SpawnTabArgs, UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint)
 {
-	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab);
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 	UEditorUtilityWidget* CreatedUMGWidget = nullptr;
 
 	auto CreateUtilityWidgetFromGeneratedClass = [&CreatedUMGWidget](UWidgetBlueprintGeneratedClass* InGeneratedWidgetBlueprint)
