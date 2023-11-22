@@ -250,7 +250,10 @@ void VisualizeMeshDistanceFieldCS(
 		Lighting += GetSkySHDiffuse(WorldHitNormal) * View.SkyLightColor.rgb;
 		float3 Albedo = .05f;
 #if !USE_GLOBAL_DISTANCE_FIELD
-		Albedo = 0.1f * IntToColor(HitCulledObjectIndex + 1);
+		{
+			FDFObjectData DFObjectData = LoadDFObjectData(HitCulledObjectIndex);
+			Albedo = 0.1f * IntToColor(DFObjectData.GPUSceneInstanceIndex);
+		}
 #endif
 		Lighting *= Albedo;
 	}
