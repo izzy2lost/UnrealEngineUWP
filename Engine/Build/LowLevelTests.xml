@@ -49,7 +49,9 @@
 	<Option Name="TestCatch2Libs" DefaultValue="false" Description="True if additionally building Catch2 with extras and tests"/>
 	<Option Name="Catch2LibVariation" DefaultValue="VS2019" Description="Catch2 library variation, e.g. VS2022"/>
 	<Option Name="SubmitBuiltCatch2Libs" DefaultValue="false" Description="True if submitting the built Catch2 static libraries"/>
-	<Property Name="Catch2LatestVersion" Value="v3.0.1"/>
+
+	<Property Name="Catch2LatestVersion" Value="v3.4.0"/>
+	<Option Name="Catch2VersionBuild" DefaultValue="$(Catch2LatestVersion)" Description="Which version of Catch2 to build" />
 
 	<!-- Check if this is a release branch -->
 	<Option Name="IsReleaseBranch" DefaultValue="false" Description="True if release branch, false otherwise"/>
@@ -227,7 +229,7 @@
 						<Property Name="ExtraCMakeArgs" Value="-CmakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64&quot;"/>
 					</Do>
 					<Command Name="BuildCMakeLib"
-							 Arguments="-CMakeGenerator=$(Generator) -MakeTarget=Catch2 -TargetLib=Catch2 -TargetLibVersion=$(Catch2LatestVersion) -BinOutputPath=Binaries -LibOutputPath=lib -TargetPlatform=$(TargetPlatform) -TargetConfigs=$(TargetConfigs) -SkipCreateChangelist $(ExtraCMakeArgs)"/>
+							 Arguments="-CMakeGenerator=$(Generator) -MakeTarget=Catch2 -TargetLib=Catch2 -TargetLibVersion=$(Catch2VersionBuild) -BinOutputPath=Binaries -LibOutputPath=lib -TargetPlatform=$(TargetPlatform) -TargetConfigs=$(TargetConfigs) -SkipCreateChangelist $(ExtraCMakeArgs)"/>
 				</Node>
 				<Property Name="Catch2BuildNodes" Value="$(Catch2BuildNodes);Catch2 Build Library $(Platform)"/>
 			</Agent>

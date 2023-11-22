@@ -666,6 +666,37 @@ If everything works correctly, you will see some Log text in your terminal windo
 #### BuildGraph
 To build and run Foundation Tests, navigate to your project directory and run the command:
 ```
-.\RunUAT BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Foundation Tests Win64"
+.\RunUAT.bat BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Foundation Tests Win64"
 ```
 You can specify different platforms, build configuration, device target to run tests on or make the tests wait for a debugger to attach.
+
+## Build custom version of Catch2
+
+The BuildGraph script LowLevelTests.xml offers additional support to build the third-party Catch2 library using cmake. The following steps describe how to build a custom version of Catch2 based on an official released version.
+
+1. Download the desired version source code from https://github.com/catchorg/Catch2/releases and place it into  `Engine\Source\ThirdParty\Catch2` following the folder naming convention *vX.Y.Z* and apply source code changes.
+2. For the next step make sure cmake is installed and added to PATH. The version should be the same as the UE supported version found in `Engine\Extras\ThirdPartyNotUE\CMake\bin`: run `cmake --version` in this folder.
+3. Generate a VS2022 project using cmake command (example for version v3.4.0):
+	```
+	cmake.exe -B "<ROOT_DIR>\Engine\Source\ThirdParty\Catch2\v3.4.0\VSProject" -S "<ROOT_DIR>\Engine\Source\ThirdParty\Catch2\v3.4.0" -G "Visual Studio 17 2022" -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="<ROOT_DIR>\Engine\Source\ThirdParty\Catch2\v3.4.0\lib\Win64\x64" -DSET_CONFIG_NO_COLOUR_WIN32=OFF -A x64
+	```
+	The VS20022 project will be in the current Catch2 v3.4.0 folder under the `VSProject` directory.
+
+4. Mirror the files from `VSProject\generated-includes` into `v3.4.0\src`, for example `VSProject\generated-includes\catch2\catch_user_config.hpp` will be copied to `v3.4.0\src\catch2\catch_user_config.hpp`
+5. Generate amalgamated header and source files - the .hpp header file can be included directly as opposed to using a library. From the `extras` folder  run:
+    ```
+	python ..\tools\scripts\generateAmalgamatedFiles.py
+	```
+	Notice the updated *catch_amalgamated.cpp* and *catch_amalgamated.hpp* files, they should contain all source code changes applied on top of the downloaded source code.
+
+To build for a specific platform run the command:
+```
+.\RunUAT.bat BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Catch2 Build <PLATFORM>"
+```
+
+The default cmake generator for all platforms is "Makefile" with the exception of Mac which uses "XCode" and Windows which uses "VS2019".
+To specify a different generator, use the `Catch2LibVariation` option:
+```
+.\RunUAT.bat BuildGraph -Script="Engine/Build/LowLevelTests.xml" -Target="Catch2 Build Win64" -set:Catch2LibVariation=VS2022
+```
+*Example: build with VS2022 generator for the Win64 platform*

@@ -7,6 +7,7 @@ using UnrealBuildBase;
 
 public class Catch2 : ModuleRules
 {
+	public static readonly string Version = "v3.4.0";
 	/// <summary>
 	/// Library name can vary with platform.
 	/// For NDA platforms inherit from this module and override this property to set a different library name.
@@ -100,7 +101,7 @@ public class Catch2 : ModuleRules
 
 		string RelativeLibPath = Path.Combine(RelativeBaseLibPath, IsDebugConfig ? "debug" : "release", LibName);
 
-		PublicAdditionalLibraries.Add(Path.Combine(Catch2Root, "v3.0.1", "lib", RelativeLibPath));
-		PublicSystemIncludePaths.Add(Path.Combine(Unreal.EngineDirectory.FullName, "Source", "ThirdParty", "Catch2", "v3.0.1", "src"));
+		PublicAdditionalLibraries.Add(Path.Combine(Catch2Root, Version, "lib", RelativeLibPath));
+		PublicSystemIncludePaths.Add(Path.Combine(Unreal.EngineDirectory.FullName, "Source", "ThirdParty", "Catch2", Version, "src"));
 	}
 }
