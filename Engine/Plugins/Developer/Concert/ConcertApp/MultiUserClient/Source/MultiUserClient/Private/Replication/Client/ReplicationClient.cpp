@@ -95,8 +95,19 @@ namespace UE::MultiUserClient
 		LocalClientStreamDiffer.RefreshChangesCache();
 		
 		// Better UX for user: automatically take authority for newly added objects (but only if it is allowed and causes no conflicts)
+		TakeAuthorityOverNewlyAddedObjects(ChangeData);
+		// Refresh because local authority changes may no longer be valid after modifying the stream
+		LocalAuthorityDiffer.RefreshChanges();
+
+		// Finally, let everybody else know.
+		OnModelChangedDelegate.Broadcast();
+		AutoSubmissionPolicy.ProcessAccumulatedChangesAndSubmit();
+	}
+	
+	void FReplicationClient::TakeAuthorityOverNewlyAddedObjects(const FDeferredOnModelChangedData& ChangeData)
+	{
 		TArray<FSoftObjectPath> ObjectPaths;
-		Algo::TransformIf(ChangeData.AccumulatedAddedObjects, ObjectPaths, 
+		Algo::TransformIf(ChangeData.AccumulatedAddedObjects, ObjectPaths,
 			[](const TWeakObjectPtr<UObject>& Object)
 			{
 				// The object might have been made invalid last frame.
@@ -107,12 +118,6 @@ namespace UE::MultiUserClient
 				return FSoftObjectPath(Object.Get()) ;
 			});
 		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);
-
-		// Refresh because local authority changes may no longer be valid after modifying the stream
-		LocalAuthorityDiffer.RefreshChanges();
-
-		// Finally, let everybody else know.
-		OnModelChangedDelegate.Broadcast();
 	}
 
 	void FReplicationClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)

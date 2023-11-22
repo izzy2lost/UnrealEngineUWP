@@ -133,6 +133,9 @@ namespace UE::MultiUserClient
 		/** Processes all changes that have happened to the stream this frame. */
 		void ProcessOnModelChanged();
 		
+		/** Takes authority over newly added objects for better UX */
+		void TakeAuthorityOverNewlyAddedObjects(const FDeferredOnModelChangedData& ChangeData);
+		
 		/** Removes authority if request fails */
 		void OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response);
 	};

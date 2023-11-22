@@ -40,19 +40,32 @@ namespace UE::MultiUserClient
 		/** Used to send authority requests to the server. */
 		const TSharedRef<IConcertSyncClient> Client;
 
+		struct FOperationData
+		{
+			TSharedRef<FSingleClientSubmissionOperation> Operation;
+
+			DECLARE_DELEGATE(FOnDestroy);
+			FOnDestroy OnDestroy;
+			
+			~FOperationData()
+			{
+				OnDestroy.ExecuteIfBound();
+			}
+		};
+		
 		/**
 		 * Set for as long as there is a SubmitChanges operation in progress.
 		 * Automatically cancels pending promises when destroyed.
 		 */
-		TOptional<TSharedRef<FSingleClientSubmissionOperation>> InProgressOperation;
+		TOptional<FOperationData> InProgressOperation;
 
 		/** Advances the request by requesting authority. */
 		void OnStreamChangeCompleted(
 			const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
 			const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
-			ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
+			TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest
 			);
-		void SendAuthorityChangeRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest);
+		void HandlePendingAuthorityChangeRequest(TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest);
 	};
 }
 

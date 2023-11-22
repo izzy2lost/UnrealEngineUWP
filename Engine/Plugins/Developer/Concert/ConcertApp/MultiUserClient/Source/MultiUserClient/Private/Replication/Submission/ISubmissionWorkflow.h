@@ -7,7 +7,6 @@
 
 #include "Delegates/Delegate.h"
 #include "Misc/Optional.h"
-#include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSyncClient::Replication
@@ -28,6 +27,10 @@ namespace UE::MultiUserClient
 	{
 		TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> StreamRequest;
 		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityRequest;
+		
+		bool IsStreamChangeEmpty() const { return !StreamRequest.IsSet() || StreamRequest->IsEmpty(); }
+		bool IsAuthorityChangeEmpty() const { return !AuthorityRequest.IsSet() || AuthorityRequest->IsEmpty(); }
+		bool IsEmpty() const { return IsStreamChangeEmpty() && IsAuthorityChangeEmpty(); }
 	};
 	
 	/**
@@ -60,17 +63,21 @@ namespace UE::MultiUserClient
 		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnStreamRequestCompleted, const FSubmitStreamChangesResponse&);
 		/**
-		 * Called whenever a submit operation completes the stream change request stage.
+		 * Broadcasts whenever a submit operation completes the stream change request stage. Useful for accumulating and counting errors.
 		 * @note No stream changes may have been requested. Check the error code.
 		 */
 		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted() = 0;
 
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAuthorityRequestCompleted, const FSubmitAuthorityChangesRequest&, const FSubmitAuthorityChangesResponse&);
 		/**
-		 * Called whenever a submit operation completes the authority change request stage.
+		 * Broadcasts whenever a submit operation completes the authority change request stage. Useful for accumulating and counting errors.
 		 * @note No authority changes may have been requested. Check the error code.
 		 */
 		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted() = 0;
+
+		DECLARE_MULTICAST_DELEGATE(FOnSubmitOperationCompleted);
+		/** Broadcasts whenever a submit operation completes. Useful for enqueuing submit operations. */
+		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted() = 0;
 
 		virtual ~ISubmissionWorkflow() = default;
 	};
@@ -83,11 +90,13 @@ namespace UE::MultiUserClient
 		//~ Begin ISubmissionWorkflow Interface
 		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted() override { return StreamRequestCompletedDelegate; }
 		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted() override { return AuthorityRequestCompletedDelegate; }
+		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted() override { return OnSubmitOperationCompletedDelegate; }
 		//~ End ISubmissionWorkflow Interface
 
 	protected:
 		
 		FOnStreamRequestCompleted StreamRequestCompletedDelegate;
 		FOnAuthorityRequestCompleted AuthorityRequestCompletedDelegate;
+		FOnSubmitOperationCompleted OnSubmitOperationCompletedDelegate;
 	};
 }

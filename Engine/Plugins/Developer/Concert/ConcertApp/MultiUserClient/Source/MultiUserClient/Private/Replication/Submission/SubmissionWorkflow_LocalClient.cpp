@@ -21,21 +21,20 @@ namespace UE::MultiUserClient
 	{
 		using namespace ConcertSyncClient::Replication;
 		
-		const TOptional<FChangeStreamRequest>& StreamRequest = Params.StreamRequest;
-		TOptional<FAuthorityChangeRequest>& AuthorityRequest = Params.AuthorityRequest;
-		const bool bIsStreamChangeEmpty = !StreamRequest.IsSet() || StreamRequest->IsEmpty();
-		const bool bIsAuthorityChangeEmpty = !AuthorityRequest.IsSet() || AuthorityRequest->IsEmpty();
+		const TOptional<FChangeStreamRequest>& OptionalStreamRequest = Params.StreamRequest;
+		TOptional<FAuthorityChangeRequest>& OptionalAuthorityRequest = Params.AuthorityRequest;
 		
-		const bool bPointlessRequest = bIsStreamChangeEmpty && bIsAuthorityChangeEmpty;
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
-		if (bPointlessRequest || !CanSubmit() || !ensure(ReplicationManager))
+		if (Params.IsEmpty() || !CanSubmit() || !ensure(ReplicationManager))
 		{
 			return nullptr;
 		}
 		
+		const bool bIsStreamChangeEmpty = Params.IsStreamChangeEmpty();
 		const bool bModifyStreams = !bIsStreamChangeEmpty;
 		const TSharedRef<FSingleClientSubmissionOperation> Operation = MakeShared<FSingleClientSubmissionOperation>(bModifyStreams);
-		InProgressOperation.Emplace(Operation);
+		InProgressOperation = { Operation };
+		InProgressOperation->OnDestroy.BindLambda([this](){ OnSubmitOperationCompletedDelegate.Broadcast(); });
 		
 		if (bIsStreamChangeEmpty)
 		{
@@ -43,19 +42,19 @@ namespace UE::MultiUserClient
 			Operation->EmplaceStreamPromise(CompletedChange);
 			StreamRequestCompletedDelegate.Broadcast(CompletedChange);
 			
-			SendAuthorityChangeRequest(MoveTemp(*AuthorityRequest));
+			HandlePendingAuthorityChangeRequest(MoveTemp(*OptionalAuthorityRequest));
 		}
 		else
 		{
-			ReplicationManager->ChangeStream(*StreamRequest)
-				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), StreamRequest, AuthorityRequest = MoveTemp(*AuthorityRequest)](FChangeStreamResponse&& Response)
+			ReplicationManager->ChangeStream(*OptionalStreamRequest)
+				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), OptionalStreamRequest, AuthorityRequest = MoveTemp(OptionalAuthorityRequest)](FChangeStreamResponse&& Response) mutable
 				{
-					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{*StreamRequest, Response } } };
+					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{*OptionalStreamRequest, Response } } };
 					// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
 					// In that case, the Concert session triggers the OnSessionConnectionChanged which destroys us. Only after that, all the requests are timed out.
 					if (DestructionDetection.IsValid())
 					{
-						OnStreamChangeCompleted(*StreamRequest, Response, AuthorityRequest);
+						OnStreamChangeCompleted(*OptionalStreamRequest, Response, MoveTemp(AuthorityRequest));
 					}
 
 					return SubmissionResult;
@@ -69,10 +68,10 @@ namespace UE::MultiUserClient
 	void FSubmissionWorkflow_LocalClient::OnStreamChangeCompleted(
 		const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
 		const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
-		ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest
+		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest
 		)
 	{
-		const TSharedRef<FSingleClientSubmissionOperation> Operation = *InProgressOperation;
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = InProgressOperation->Operation;
 		
 		const EStreamSubmissionErrorCode ErrorCode = ChangeStreamResponse.ErrorCode == EReplicationResponseErrorCode::Handled
 			? EStreamSubmissionErrorCode::Success
@@ -83,7 +82,7 @@ namespace UE::MultiUserClient
 		
 		if (ChangeStreamResponse.IsSuccess())
 		{
-			SendAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
+			HandlePendingAuthorityChangeRequest(MoveTemp(AuthorityChangeRequest));
 		}
 		else
 		{
@@ -98,7 +97,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FSubmissionWorkflow_LocalClient::SendAuthorityChangeRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest AuthorityChangeRequest)
+	void FSubmissionWorkflow_LocalClient::HandlePendingAuthorityChangeRequest(TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest)
 	{
 		using namespace ConcertSyncClient::Replication;
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
@@ -109,8 +108,8 @@ namespace UE::MultiUserClient
 			return;
 		}
 
-		const TSharedRef<FSingleClientSubmissionOperation> Operation = *InProgressOperation;
-		const bool bHasNoChanges = AuthorityChangeRequest.ReleaseAuthority.IsEmpty() && AuthorityChangeRequest.TakeAuthority.IsEmpty();
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = InProgressOperation->Operation;
+		const bool bHasNoChanges = !AuthorityChangeRequest || AuthorityChangeRequest->IsEmpty();
 		if (bHasNoChanges)
 		{
 			const FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::NoChange };
@@ -126,7 +125,7 @@ namespace UE::MultiUserClient
 		
 		FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest };
 		Operation->EmplaceAuthorityRequestPromise(Request);
-		ReplicationManager->RequestAuthorityChange(MoveTemp(AuthorityChangeRequest))
+		ReplicationManager->RequestAuthorityChange(MoveTemp(*AuthorityChangeRequest))
 			.Next([this, Request = MoveTemp(Request), DestructionDetection = LifetimeToken->AsWeak()](FAuthorityChangeResponse&& Response)
 			{
 				if (DestructionDetection.IsValid())
@@ -136,7 +135,7 @@ namespace UE::MultiUserClient
 						: EAuthoritySubmissionResponseErrorCode::Timeout;
 					const FSubmitAuthorityChangesResponse Result { ErrorCode, MoveTemp(Response) };
 					
-					InProgressOperation->Get().EmplaceAuthorityResponsePromise(Result);
+					InProgressOperation->Operation->EmplaceAuthorityResponsePromise(Result);
 					InProgressOperation.Reset();
 					
 					AuthorityRequestCompletedDelegate.Broadcast(Request, Result);

@@ -40,6 +40,9 @@ namespace UE::MultiUserClient
 			FAuthorityChangeTracker& InAuthorityChangeTracker
 			);
 		~FAutoSubmissionPolicy();
+
+		/** Checks whether any changes have been made since the last call and submits a change request if so. */
+		void ProcessAccumulatedChangesAndSubmit();
 		
 	private:
 
@@ -52,12 +55,14 @@ namespace UE::MultiUserClient
 		ConcertClientSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;
 		/** Informs us when authority is changed by the user. */
 		FAuthorityChangeTracker& AuthorityChangeTracker;
+
+		/** Whether any changes were made. */
+		bool bIsDirty = false;
+		
+		void SubmitChanges();
 		
 		void OnObjectsChanged(TArrayView<UObject* const>, TArrayView<const FSoftObjectPath>, ConcertClientSharedSlate::EReplicatedObjectChangeReason) { OnChangesDetected(); }
 		void OnChangesDetected();
-
-		/** Checks whether any changes were made last frame and submits a change request if so. */
-		void OnEndFrame();
 	};
 }
 
