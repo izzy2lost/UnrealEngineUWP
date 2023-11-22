@@ -51,6 +51,8 @@ public:
 	virtual void ImportEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const FEntityImportParams& Params, FImportedEntity* OutImportedEntity) override;
 	virtual bool PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder) override;
 
+	MOVIESCENE_API static TArray<FFrameNumberRange> CalculateInverseLifetimeRange(const TArray<FFrameNumberRange>& Ranges);
+
 
 #if WITH_EDITORONLY_DATA
 	MOVIESCENE_API virtual FText GetDisplayName() const override;

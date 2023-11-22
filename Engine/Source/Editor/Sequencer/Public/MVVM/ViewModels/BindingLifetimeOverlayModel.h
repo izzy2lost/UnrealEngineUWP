@@ -38,7 +38,7 @@ namespace UE
 			TSharedPtr<ITrackLaneWidget> CreateTrackLaneView(const FCreateTrackLaneViewParams& InParams) override;
 			FTrackLaneVirtualAlignment ArrangeVirtualTrackLaneView() const override;
 
-			const TArray<TRange<FFrameNumber>>& GetInverseLifetimeRange() const;
+			const TArray<FFrameNumberRange>& GetInverseLifetimeRange() const;
 
 		private:
 

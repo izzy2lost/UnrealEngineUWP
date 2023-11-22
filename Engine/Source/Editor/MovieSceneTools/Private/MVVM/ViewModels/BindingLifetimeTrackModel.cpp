@@ -33,43 +33,10 @@ namespace UE
 
 		void FBindingLifetimeTrackModel::RecalculateInverseLifetimeRange()
 		{
-			InverseLifetimeRange.Reset();
-			InverseLifetimeRange.Add(TRange<FFrameNumber>::All());
-			// Iterate through our sections, removing them from the range
-
-			auto RemoveRangeFromSet = [&](TRange<FFrameNumber> SectionRange) {
-				for (int32 Index = 0; Index < InverseLifetimeRange.Num(); ++Index)
-				{
-					const TRange<FFrameNumber>& Current = InverseLifetimeRange[Index];
-					if (Current.Overlaps(SectionRange))
-					{
-						// Special case that difference doesn't handle well
-						if (!SectionRange.HasLowerBound() && !SectionRange.HasUpperBound())
-						{
-							InverseLifetimeRange.Reset();
-							return;
-						}
-
-						TArray<TRange<FFrameNumber>> SplitRanges = TRange<FFrameNumber>::Difference(Current, SectionRange);
-						for (const TRange<FFrameNumber>& NewRange : SplitRanges)
-						{
-							// Splitting infinite ranges keeps an infinite range, which we don't want to keep
-							if (!NewRange.HasLowerBound() && !NewRange.HasUpperBound())
-							{
-								continue;
-							}
-							
-							InverseLifetimeRange.Add(NewRange);
-						}
-						InverseLifetimeRange.RemoveAtSwap(Index--);
-					}
-				}
-			};
-
-			for (const TViewModelPtr<FSectionModel>& Item : GetSectionModels().IterateSubList<FSectionModel>())
-			{
-				RemoveRangeFromSet(Item->GetRange());
-			}
+			TArray<FFrameNumberRange> SectionRanges;
+			Algo::Transform(GetSectionModels().IterateSubList<FSectionModel>(), SectionRanges, [](const TViewModelPtr<FSectionModel>& Item) { return Item->GetRange(); });
+			
+			InverseLifetimeRange = UMovieSceneBindingLifetimeTrack::CalculateInverseLifetimeRange(SectionRanges);
 		}
 
 		FSortingKey FBindingLifetimeTrackModel::GetSortingKey() const

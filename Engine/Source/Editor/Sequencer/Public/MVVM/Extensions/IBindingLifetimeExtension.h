@@ -19,7 +19,7 @@ namespace UE
 
 			virtual ~IBindingLifetimeExtension() {}
 
-			virtual const TArray<TRange<FFrameNumber>>& GetInverseLifetimeRange() const = 0;
+			virtual const TArray<FFrameNumberRange>& GetInverseLifetimeRange() const = 0;
 		};
 
 	} // namespace Sequencer

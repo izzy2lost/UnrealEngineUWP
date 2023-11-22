@@ -34,7 +34,7 @@ namespace UE
 			void OnDeferredModifyFlush() override;
 
 			// IBindingLifetimeExtension
-			const TArray<TRange<FFrameNumber>>& GetInverseLifetimeRange() const override { return InverseLifetimeRange; }
+			const TArray<FFrameNumberRange>& GetInverseLifetimeRange() const override { return InverseLifetimeRange; }
 		
 		protected:
 			virtual void OnConstruct() override;
@@ -44,7 +44,7 @@ namespace UE
 
 			// The inverse of the range created by all of our binding lifetime sections
 			// In other words, the ranges where the object binding should be deactivated.
-			TArray<TRange<FFrameNumber>> InverseLifetimeRange;
+			TArray<FFrameNumberRange> InverseLifetimeRange;
 
 		};
 

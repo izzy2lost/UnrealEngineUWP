@@ -606,6 +606,12 @@ public:
 	 */
 	MOVIESCENE_API void GetOverlappingSections(TArray<UMovieSceneSection*>& OutSections, bool bSameRow, bool bIncludeThis);
 
+	/* Returns whether this section can have an open lower bound. This will generally be false if sections of this type cannot be blended and there is another section on the same row before this one.*/
+	MOVIESCENE_API bool CanHaveOpenLowerBound() const;
+
+	/* Returns whether this section can have an open upper bound. This will generally be false if sections of this type cannot be blended and there is another section on the same row after this one.*/
+	MOVIESCENE_API bool CanHaveOpenUpperBound() const;
+
 	/**
 	 * Evaluate this sections's easing functions based on the specified time
 	 */

@@ -97,8 +97,7 @@ void UMovieSceneBindingLifetimeTrack::ImportEntityImpl(UMovieSceneEntitySystemLi
 		);
 }
 
-
-TArray<FFrameNumberRange> CalculateInverseLifetimeRange(const FMovieSceneTrackEvaluationField& LocalEvaluationField)
+TArray<FFrameNumberRange> UMovieSceneBindingLifetimeTrack::CalculateInverseLifetimeRange(const TArray<FFrameNumberRange>& Ranges)
 {
 	TArray<FFrameNumberRange> InverseLifetimeRange;
 	InverseLifetimeRange.Add(FFrameNumberRange::All());
@@ -133,9 +132,18 @@ TArray<FFrameNumberRange> CalculateInverseLifetimeRange(const FMovieSceneTrackEv
 		}
 	};
 
-	for (const FMovieSceneTrackEvaluationFieldEntry& Entry : LocalEvaluationField.Entries)
+	TArray<TRange<FFrameNumber>> SectionRanges;
+	for (const FFrameNumberRange& Range : Ranges)
 	{
-		RemoveRangeFromSet(Entry.Range);
+		if (Algo::AnyOf(SectionRanges, [&](const TRange<FFrameNumber> OtherRange) { return OtherRange.Overlaps(Range); }))
+		{
+			// Lifetime Range sections have managed to overlap, which should not be allowed.
+			ensure(false);
+			InverseLifetimeRange.Reset();
+			return InverseLifetimeRange;
+		}
+		SectionRanges.Add(Range);
+		RemoveRangeFromSet(Range);
 	}
 	return InverseLifetimeRange;
 }
@@ -143,8 +151,10 @@ TArray<FFrameNumberRange> CalculateInverseLifetimeRange(const FMovieSceneTrackEv
 bool UMovieSceneBindingLifetimeTrack::PopulateEvaluationFieldImpl(const TRange<FFrameNumber>& EffectiveRange, const FMovieSceneEvaluationFieldEntityMetaData& InMetaData, FMovieSceneEntityComponentFieldBuilder* OutFieldBuilder)
 {
 	const FMovieSceneTrackEvaluationField& LocalEvaluationField = GetEvaluationField();
+	TArray<FFrameNumberRange> Ranges;
+	Algo::Transform(LocalEvaluationField.Entries, Ranges, [](const FMovieSceneTrackEvaluationFieldEntry& Entry) { return Entry.Range; });
 
-	TArray<FFrameNumberRange> InverseLifetimeRange = CalculateInverseLifetimeRange(LocalEvaluationField);
+	TArray<FFrameNumberRange> InverseLifetimeRange = CalculateInverseLifetimeRange(Ranges);
 	// Add an entity for each section of the inverse range to define areas where our lifetime is inactive.
 	for (const FFrameNumberRange& InverseRange : InverseLifetimeRange)
 	{

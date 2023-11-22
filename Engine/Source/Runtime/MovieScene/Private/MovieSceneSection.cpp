@@ -456,6 +456,84 @@ void UMovieSceneSection::GetOverlappingSections(TArray<UMovieSceneSection*>& Out
 	}
 }
 
+/* Returns whether this section can have an open lower bound. This will generally be false if sections of this type cannot be blended and there is another section on the same row before this one.*/
+bool UMovieSceneSection::CanHaveOpenLowerBound() const
+{
+	if (!GetBlendType().IsValid())
+	{
+		UMovieSceneTrack* Track = GetTypedOuter<UMovieSceneTrack>();
+		if (!Track)
+		{
+			return true;
+		}
+
+		TRange<FFrameNumber> ThisRange = GetRange();
+
+		if (!ThisRange.HasLowerBound())
+		{
+			return true;
+		}
+
+		for (UMovieSceneSection* Section : Track->GetAllSections())
+		{
+			if (!Section || (Section == this))
+			{
+				continue;
+			}
+
+			if (Section->GetRowIndex() != GetRowIndex())
+			{
+				continue;
+			}
+
+			if (Section->GetRange().Overlaps(ThisRange) || (Section->GetRange().HasUpperBound() && Section->GetRange().GetUpperBoundValue() <= ThisRange.GetLowerBoundValue()))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+/* Returns whether this section can have an open upper bound. This will generally be false if sections of this type cannot be blended and there is another section on the same row after this one.*/
+bool UMovieSceneSection::CanHaveOpenUpperBound() const
+{
+	if (!GetBlendType().IsValid())
+	{
+		UMovieSceneTrack* Track = GetTypedOuter<UMovieSceneTrack>();
+		if (!Track)
+		{
+			return true;
+		}
+
+		TRange<FFrameNumber> ThisRange = GetRange();
+
+		if (!ThisRange.HasUpperBound())
+		{
+			return true;
+		}
+
+		for (UMovieSceneSection* Section : Track->GetAllSections())
+		{
+			if (!Section || (Section == this))
+			{
+				continue;
+			}
+
+			if (Section->GetRowIndex() != GetRowIndex())
+			{
+				continue;
+			}
+
+			if (Section->GetRange().Overlaps(ThisRange) || (Section->GetRange().HasLowerBound() && Section->GetRange().GetLowerBoundValue() >= ThisRange.GetUpperBoundValue()))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 
 const UMovieSceneSection* UMovieSceneSection::OverlapsWithSections(const TArray<UMovieSceneSection*>& Sections, int32 TrackDelta, int32 TimeDelta) const
 {

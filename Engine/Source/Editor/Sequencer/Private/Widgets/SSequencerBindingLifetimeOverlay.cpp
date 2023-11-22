@@ -73,10 +73,10 @@ namespace UE
 			if (TSharedPtr<FBindingLifetimeOverlayModel> BindingLifetimeOverlayModel = GetBindingLifetimeOverlayModel())
 			{
 				// If applicable, paint an overlay over the range that the object binding is deactivated
-				const TArray<TRange<FFrameNumber>>& InverseLifetimeRange = BindingLifetimeOverlayModel->GetInverseLifetimeRange();
+				const TArray<FFrameNumberRange>& InverseLifetimeRange = BindingLifetimeOverlayModel->GetInverseLifetimeRange();
 				if (!InverseLifetimeRange.IsEmpty())
 				{
-					for (TRange<FFrameNumber> ExcludedRange : InverseLifetimeRange)
+					for (const FFrameNumberRange& ExcludedRange : InverseLifetimeRange)
 					{
 						const FFrameNumber LowerFrame = ExcludedRange.HasLowerBound() ? ExcludedRange.GetLowerBoundValue() : TimeToPixel->PixelToFrame(AllottedGeometry.Position.X).FloorToFrame();
 						const FFrameNumber UpperFrame = ExcludedRange.HasUpperBound() ? ExcludedRange.GetUpperBoundValue() : TimeToPixel->PixelToFrame(AllottedGeometry.Position.X + AllottedGeometry.Size.X).CeilToFrame();

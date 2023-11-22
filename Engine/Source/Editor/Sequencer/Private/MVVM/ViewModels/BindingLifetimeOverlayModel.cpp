@@ -55,9 +55,9 @@ namespace UE
 			return FTrackLaneVirtualAlignment::Proportional(ViewRange, 1.f);
 		}
 
-		const TArray<TRange<FFrameNumber>>& FBindingLifetimeOverlayModel::GetInverseLifetimeRange() const
+		const TArray<FFrameNumberRange>& FBindingLifetimeOverlayModel::GetInverseLifetimeRange() const
 		{
-			const static TArray<TRange<FFrameNumber>> EmptyLifetimeRange;
+			const static TArray<FFrameNumberRange> EmptyLifetimeRange;
 			if (BindingLifetimeTrack)
 			{
 				return BindingLifetimeTrack->GetInverseLifetimeRange();

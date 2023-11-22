@@ -72,12 +72,22 @@ void UMovieSceneBindingLifetimeSection::InitialPlacement(const TArray<UMovieScen
 		}
 		else
 		{
-			// We're likely overlapping the first infinite section here. Split it.
-			UMovieSceneSection* NewSection = OverlappedSection->SplitSection(FQualifiedFrameTime(InStartTime, GetTypedOuter<UMovieScene>()->GetTickResolution()), false);
-			// The new section will be the one on the right and will still have an open upper bound. Resize it to fit the new section.
-			TRange<FFrameNumber> NewSectionRange = NewSection->GetRange();
-			NewSectionRange.SetLowerBoundValue(InStartTime + Duration);
-			NewSection->SetRange(NewSectionRange);
+			// Edge case- the other range has an infinite end, but can't be split because the point it would be split at is its start.
+			if (OtherRange.GetLowerBound().IsClosed() && OtherRange.GetLowerBoundValue() == SectionRange.GetLowerBound().GetValue())
+			{
+				// Adjust the lowerbound of OtherRange
+				OtherRange.SetLowerBoundValue(SectionRange.GetUpperBound().GetValue());
+				OverlappedSection->SetRange(OtherRange);
+			}
+			else
+			{
+				// We're overlapping an at-least partially infinite section here. Split it.
+				UMovieSceneSection* NewSection = OverlappedSection->SplitSection(FQualifiedFrameTime(InStartTime, GetTypedOuter<UMovieScene>()->GetTickResolution()), false);
+				// The new section will be the one on the right and will still have an open upper bound. Resize it to fit the new section.
+				TRange<FFrameNumber> NewSectionRange = NewSection->GetRange();
+				NewSectionRange.SetLowerBoundValue(InStartTime + Duration);
+				NewSection->SetRange(NewSectionRange);
+			}
 		}
 	}
 }
