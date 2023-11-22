@@ -259,6 +259,7 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 		SectionDatas[SectionIt].UVsChannelOffset= MeshSectionData.UVsChannelOffset;
 		SectionDatas[SectionIt].UVsChannelCount	= MeshSectionData.UVsChannelCount;
 		SectionDatas[SectionIt].bIsSwapped		= MeshData.Sections[SectionIt].PositionBuffer != CommonParameters.MeshPositionBuffer ? 1u : 0u;
+		SectionDatas[SectionIt].Pad				= 0u;
 
 		// Sanity check
 		check(MeshSectionData.SectionIndex == SectionIt);
