@@ -3978,13 +3978,33 @@ namespace VulkanRHI
 		return false;
 	}
 
+	static VkDeviceSize AdjustToNonCoherentAtomSize(const VkDeviceSize RequestedOffset, const VkDeviceSize RequestedSize, const VkDeviceSize WholeAllocationSize, const VkDeviceSize NonCoherentAtomSize)
+	{
+		if (RequestedSize == VK_WHOLE_SIZE)
+		{
+			return RequestedSize;
+		}
+		
+		check(RequestedOffset + RequestedSize <= WholeAllocationSize);
+		
+		return FMath::Min(WholeAllocationSize - RequestedOffset, AlignArbitrary(RequestedSize, NonCoherentAtomSize));
+	}
+
 	void FVulkanSubresourceAllocator::Flush(VkDeviceSize Offset, VkDeviceSize AllocationSize)
 	{
-		MemoryAllocation->FlushMappedMemory(Offset, AllocationSize);
+		if (!MemoryAllocation->IsCoherent() || GForceCoherent != 0)
+		{
+			const VkDeviceSize NonCoherentAtomSize = Owner->GetParent()->GetLimits().nonCoherentAtomSize;
+			MemoryAllocation->FlushMappedMemory(Offset, AdjustToNonCoherentAtomSize(Offset, AllocationSize, MemoryAllocation->GetSize(), NonCoherentAtomSize));
+		}
 	}
 	void FVulkanSubresourceAllocator::Invalidate(VkDeviceSize Offset, VkDeviceSize AllocationSize)
 	{
-		MemoryAllocation->InvalidateMappedMemory(Offset, AllocationSize);
+		if (!MemoryAllocation->IsCoherent() || GForceCoherent != 0)
+		{
+			const VkDeviceSize NonCoherentAtomSize = Owner->GetParent()->GetLimits().nonCoherentAtomSize;
+			MemoryAllocation->InvalidateMappedMemory(Offset, AdjustToNonCoherentAtomSize(Offset, AllocationSize, MemoryAllocation->GetSize(), NonCoherentAtomSize));
+		}
 	}
 
 	TArrayView<uint32> FVulkanSubresourceAllocator::GetMemoryUsed()

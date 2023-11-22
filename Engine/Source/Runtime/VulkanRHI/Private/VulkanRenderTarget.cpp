@@ -312,14 +312,14 @@ void FVulkanDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRec
 			VkBufferImageCopy CopyRegion;
 			FMemory::Memzero(CopyRegion);
 			//Region.bufferOffset = 0;
-			CopyRegion.bufferRowLength = Desc.Extent.X >> InMipIndex;
-			CopyRegion.bufferImageHeight = Desc.Extent.Y >> InMipIndex;
+			CopyRegion.bufferRowLength = FMath::Max(1, Desc.Extent.X >> InMipIndex);
+			CopyRegion.bufferImageHeight = FMath::Max(1, Desc.Extent.Y >> InMipIndex);
 			CopyRegion.imageSubresource.aspectMask = Surface.GetFullAspectMask();
 			CopyRegion.imageSubresource.mipLevel = InMipIndex;
 			CopyRegion.imageSubresource.baseArrayLayer = SrcBaseArrayLayer;
 			CopyRegion.imageSubresource.layerCount = 1;
-			CopyRegion.imageExtent.width = Desc.Extent.X >> InMipIndex;
-			CopyRegion.imageExtent.height = Desc.Extent.Y >> InMipIndex;
+			CopyRegion.imageExtent.width = FMath::Max(1, Desc.Extent.X >> InMipIndex);
+			CopyRegion.imageExtent.height = FMath::Max(1, Desc.Extent.Y >> InMipIndex);
 			CopyRegion.imageExtent.depth = 1;
 
 			const VkImageLayout OriginalLayout = FVulkanLayoutManager::SetExpectedLayout(InCmdBuffer, Surface, ERHIAccess::CopySrc);

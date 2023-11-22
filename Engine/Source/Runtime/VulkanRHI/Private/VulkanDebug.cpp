@@ -94,6 +94,12 @@ static VkBool32 VKAPI_PTR DebugReportFunction(
 				//return VK_FALSE;
 			}
 		}
+		if (FCStringAnsi::Strstr(Msg, "VUID-RuntimeSpirv-Fragment-06427"))
+		{
+			// "vkCmdDrawIndexed: Dual source blend mode is used, but the number of written fragment shader output attachment (2) is greater than maxFragmentDualSrcAttachments (1)"
+			// Incorrectly generated in Validation layers 1.3.250.1, no longer shows up in 1.3.268.0
+			return VK_FALSE;
+		}
 
 		MsgPrefix = "ERROR";
 	}
@@ -252,7 +258,8 @@ static VkBool32 DebugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MsgSev
 		return VK_FALSE;
 	}
 
-	if (!FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "UNASSIGNED-CoreValidation-Shader-OutputNotConsumed"))
+	if (!FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "UNASSIGNED-CoreValidation-Shader-OutputNotConsumed") ||
+		!FCStringAnsi::Strcmp(CallbackData->pMessageIdName, "Undefined-Value-ShaderOutputNotConsumed"))
 	{
 		// Warning: *** [Warning:Validation-1(UNASSIGNED-CoreValidation-Shader-OutputNotConsumed)] fragment shader writes to output location 0 with no matching attachment
 		return VK_FALSE;
@@ -272,12 +279,12 @@ static VkBool32 DebugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MsgSev
 		// *** CreateDevice(): Attempting to enable deprecated extension VK_KHR_get_memory_requirements2, but this extension has been promoted to VK_VERSION_1_1.
 		return VK_FALSE;
 	}
-	else if (FCStringAnsi::Strstr(CallbackData->pMessage, "The SPIR-V Extension (SPV_GOOGLE_hlsl_functionality1) was declared") != nullptr)
+	else if (FCStringAnsi::Strstr(CallbackData->pMessage, "SPV_GOOGLE_hlsl_functionality1") != nullptr)
 	{
 		// *** [Error:Validation(VUID-VkShaderModuleCreateInfo-pCode-04147)] vkCreateShaderModule(): The SPIR-V Extension (SPV_GOOGLE_hlsl_functionality1) was declared, but none of the requirements were met to use it.
 		return VK_FALSE;
 	 }
-	else if (FCStringAnsi::Strstr(CallbackData->pMessage, "The SPIR-V Extension (SPV_GOOGLE_user_type) was declared") != nullptr)
+	else if (FCStringAnsi::Strstr(CallbackData->pMessage, "SPV_GOOGLE_user_type") != nullptr)
 	{
 		// *** [Error:Validation(VUID-VkShaderModuleCreateInfo-pCode-04147)] vkCreateShaderModule(): The SPIR-V Extension (SPV_GOOGLE_user_type) was declared, but none of the requirements were met to use it.
 		return VK_FALSE;
