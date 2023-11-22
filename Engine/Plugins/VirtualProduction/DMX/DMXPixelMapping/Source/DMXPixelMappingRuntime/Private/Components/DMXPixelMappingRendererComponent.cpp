@@ -38,22 +38,13 @@ DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputTexture"), STAT_DMXPixelMapping
 
 UDMXPixelMappingRendererComponent::UDMXPixelMappingRendererComponent()
 {
-	SetSize(FVector2D(100.f, 100.f));
-	
-#if WITH_EDITOR
 	ConstructorHelpers::FObjectFinder<UTexture> DefaultTexture(TEXT("Texture2D'/Engine/VREditor/Devices/Vive/UE4_Logo.UE4_Logo'"), LOAD_NoWarn);
 	if (ensureAlwaysMsgf(DefaultTexture.Succeeded(), TEXT("Failed to load Texture2D'/Engine/VREditor/Devices/Vive/UE4_Logo.UE4_Logo'")))
 	{
 		InputTexture = DefaultTexture.Object;
 		RendererType = EDMXPixelMappingRendererType::Texture;
-
-		if (FTextureResource* Resource = InputTexture->GetResource())
-		{
-			SetSize(FVector2D(Resource->GetSizeX(), Resource->GetSizeY()));
-		}
 	}
-#endif
-	
+
 	PreprocessRenderer = CreateDefaultSubobject<UDMXPixelMappingPreprocessRenderer>("PreprocessRenderer");
 	PixelMapRenderer = CreateDefaultSubobject<UDMXPixelMappingPixelMapRenderer>("PixelMapRenderer");
 
@@ -81,6 +72,21 @@ void UDMXPixelMappingRendererComponent::PostInitProperties()
 	if (!IsTemplate())
 	{
 		UpdatePreprocessRenderer();
+	}
+}
+
+void UDMXPixelMappingRendererComponent::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FDMXPixelMappingMainStreamObjectVersion::GUID);
+	if (Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FDMXPixelMappingMainStreamObjectVersion::GUID) < FDMXPixelMappingMainStreamObjectVersion::RendererComponentHoldsLayoutRect)
+		{	
+			// Assets created before 5.4 do not store the layout rect, so they cannot follow the texture size by default
+			bChildrenFollowSize = false;
+		}
 	}
 }
 
@@ -112,6 +118,7 @@ void UDMXPixelMappingRendererComponent::PostEditChangeChainProperty(FPropertyCha
 	if (PropertyChangedChainEvent.ChangeType != EPropertyChangeType::Interactive)
 	{
 		UpdatePreprocessRenderer();
+		LetChildrenFollowSize();
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -236,6 +243,8 @@ void UDMXPixelMappingRendererComponent::Render()
 		if (GetSize() != TextureSize)
 		{
 			SetSize(TextureSize);
+			LetChildrenFollowSize();
+
 			bInvalidatePixelMap = true;
 		}
 	}
@@ -311,12 +320,58 @@ FString UDMXPixelMappingRendererComponent::GetUserName() const
 
 UTexture* UDMXPixelMappingRendererComponent::GetRenderedInputTexture() const
 {
-	return  PreprocessRenderer ? PreprocessRenderer->GetRenderedTexture() : nullptr;
+	return PreprocessRenderer ? PreprocessRenderer->GetRenderedTexture() : nullptr;
 }
 
 void UDMXPixelMappingRendererComponent::OnComponentAddedOrRemoved(UDMXPixelMapping* PixelMapping, UDMXPixelMappingBaseComponent* Component)
 {
 	InvalidatePixelMapRenderer();
+}
+
+void UDMXPixelMappingRendererComponent::LetChildrenFollowSize()
+{
+	if (!bChildrenFollowSize || !PreprocessRenderer)
+	{
+		return;
+	}
+
+	const FVector2D NewSize = PreprocessRenderer->GetResultingSize2D();
+	
+	// Handle the case where the layout rect was never stored (new assets, and assets created before 5.4).
+	// In this case, simply initialize the LayoutRect member.
+	if (LayoutRect == FVector2D::ZeroVector)
+	{
+		LayoutRect = NewSize;
+		return;
+	}
+
+	// Skip unchanged values, or if the current size is zero (no texture).
+	if (NewSize == LayoutRect ||
+		NewSize == FVector2D::ZeroVector)
+	{
+		return;
+	}
+
+	// Scale position and size of all children
+	const FVector2D Scalar = NewSize / LayoutRect;
+
+	constexpr bool bRecursive = true;
+	ForEachChild(
+		[&Scalar](UDMXPixelMappingBaseComponent* Component)
+		{
+			if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component))
+			{
+				const FVector2D NewPosition = OutputComponent->GetPosition() * Scalar;
+				OutputComponent->SetPosition(NewPosition);
+
+				const FVector2D NewSize = OutputComponent->GetSize() * Scalar;
+				OutputComponent->SetSize(NewSize);
+			}
+		}, 
+		bRecursive);
+
+	// Remember the new layout rect
+	LayoutRect = NewSize;
 }
 
 UWorld* UDMXPixelMappingRendererComponent::TryGetWorld() const

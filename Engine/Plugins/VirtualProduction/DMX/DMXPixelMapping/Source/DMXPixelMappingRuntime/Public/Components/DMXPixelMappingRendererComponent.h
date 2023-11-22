@@ -38,6 +38,7 @@ public:
 	//~ Begin UObject implementation
 protected:
 	virtual void PostInitProperties() override;
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
@@ -81,7 +82,7 @@ public:
 	/** Returns a copy of the current pixel map render elements */
 	TArray<TSharedRef<UE::DMXPixelMapping::Rendering::FPixelMapRenderElement>> GetPixelMapRenderElements() const;
 
-	/** Type of rendering, Texture, Material, UMG, etc... */
+	/** Selects the input type. It can be a Texture, a Material or a User Widget. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Render Settings")
 	EDMXPixelMappingRendererType RendererType;
 
@@ -98,8 +99,12 @@ public:
 	TSubclassOf<UUserWidget> InputWidget;
 
 	/** The brightness of the renderer */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Render Settings", Meta = (ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Render Settings", Meta = (ClampMin = "0", UIMin = "0", UIMax = "1"))
 	float Brightness = 1.f;
+
+	/** If true, children are positioned relative to the size of this renderer */
+	UPROPERTY(EditAnywhere, Category = "Layout")
+	bool bChildrenFollowSize = true;
 
 	/** Layout script for the children of this component (hidden in customizations and displayed in its own panel). */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Layout")
@@ -108,6 +113,9 @@ public:
 private:
 	/** Called when a component was added to or removed from the pixel mapping */
 	void OnComponentAddedOrRemoved(UDMXPixelMapping* PixelMapping, UDMXPixelMappingBaseComponent* Component);
+
+	/** When bChildrenFollowSize is true, rearranges children relatively to the current size */
+	void LetChildrenFollowSize();
 
 	/** Tries to get any world. If with editor, returns the editor world, in game returns GWorld */
 	UWorld* TryGetWorld() const;
@@ -130,6 +138,9 @@ private:
 	UPROPERTY()
 	UDMXPixelMappingPixelMapRenderer* PixelMapRenderer;
 
+	/** The current rect in which children are laid out. Useful to compute UV position and size of children. */
+	UPROPERTY()
+	FVector2D LayoutRect;
 
 	//////////////////////
 	// Deprecated Members
