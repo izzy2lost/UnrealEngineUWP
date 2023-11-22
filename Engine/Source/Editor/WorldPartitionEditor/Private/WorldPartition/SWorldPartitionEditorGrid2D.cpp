@@ -237,21 +237,6 @@ public:
 		return bUseActor ? ActorDesc->GetActor(false) : nullptr;
 	}
 
-	FName GetActorLabel() const
-	{
-		FName ActorLabel = ActorDesc->GetActorLabel();
-		
-		if (ActorLabel.IsNone() && bUseActor)
-		{
-			if (AActor* Actor = GetActor())
-			{
-				ActorLabel = *Actor->GetActorLabel(false);
-			}
-		}
-
-		return ActorLabel;
-	}
-
 	bool bUseActor;
 };
 
@@ -988,10 +973,9 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 
 void SWorldPartitionEditorGrid2D::OnActorAdded(AActor* Actor)
 {
-	if (!Actor->GetWorld()->IsGameWorld() && Actor->IsPackageExternal() && !Actor->IsChildActor())
+	if (Actor->IsPackageExternal())
 	{
-		FWorldPartitionActorDesc* NewlyAddedUnsavedActorDesc = NewlyAddedUnsavedActorDescs.AddActor(Actor);
-		NewlyAddedUnsavedActors.Add(Actor, NewlyAddedUnsavedActorDesc);
+		NewlyAddedUnsavedActors.Add(Actor);
 	}
 }
 
@@ -1304,13 +1288,12 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
 	for (auto It = NewlyAddedUnsavedActors.CreateIterator(); It; ++It)
 	{
-		if (It.Key().IsValid())
+		if (It->IsValid())
 		{
-			AActor* NewlyAddedUnsavedActor = It.Key().Get();
+			AActor* NewlyAddedUnsavedActor = It->Get();
 
 			if (!NewlyAddedUnsavedActor->GetPackage()->IsDirty())
 			{
-				NewlyAddedUnsavedActorDescs.RemoveActorDescriptor(It.Value());
 				It.RemoveCurrent();
 			}
 			else
@@ -1322,13 +1305,10 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 						ShownLoaderInterfaces.Add(NewlyAddedUnsavedActor);
 					}
 				}
-
-				ShownActorGuids.Add(NewlyAddedUnsavedActor->GetActorGuid());
 			}
 		}
-		else if (!It.Key().IsValid(true))
+		else if (!It->IsValid(true))
 		{
-			NewlyAddedUnsavedActorDescs.RemoveActorDescriptor(It.Value());
 			It.RemoveCurrent();
 		}
 	}
@@ -1433,10 +1413,6 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 		if (const FWorldPartitionActorDesc* ActorDesc = ThisWorldPartition->GetActorDesc(ActorGuid))
 		{
 			ActorDescList.Emplace(ActorDesc, DirtyActorGuids.Contains(ActorGuid));
-		}
-		else if (const FWorldPartitionActorDesc* NewlyAddedUnsavedActorDesc = NewlyAddedUnsavedActorDescs.GetActorDesc(ActorGuid))
-		{
-			ActorDescList.Emplace(NewlyAddedUnsavedActorDesc, true);
 		}
 	}
 
