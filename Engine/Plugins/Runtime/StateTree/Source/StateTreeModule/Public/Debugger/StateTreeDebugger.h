@@ -178,6 +178,8 @@ struct STATETREEMODULE_API FStateTreeDebugger : FTickableGameObject
 	FTraceDescriptor GetSelectedTraceDescriptor() const { return ActiveSessionTraceDescriptor; }
 	FText GetSelectedTraceDescription() const;
 
+	void GetSessionInstances(TArray<UE::StateTreeDebugger::FInstanceDescriptor>& OutInstances) const;
+
 	FOnStateTreeDebuggerNewSession OnNewSession;
 	FOnStateTreeDebuggerNewInstance OnNewInstance;
 	FOnStateTreeDebuggerDebuggedInstanceSet OnSelectedInstanceCleared;
@@ -260,7 +262,7 @@ private:
 	void RefreshActiveStates();
 
 	UE::Trace::FStoreClient* GetStoreClient() const;
-	void GetSessionInstances(TArray<UE::StateTreeDebugger::FInstanceDescriptor>& OutInstances) const;
+
 	void UpdateInstances();
 
 	bool ProcessEvent(const FStateTreeInstanceDebugId InstanceId, const TraceServices::FFrame& Frame, const FStateTreeTraceEventVariantType& Event);

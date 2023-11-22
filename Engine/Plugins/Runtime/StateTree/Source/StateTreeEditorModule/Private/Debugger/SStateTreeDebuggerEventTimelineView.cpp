@@ -55,10 +55,13 @@ int32 SStateTreeDebuggerEventTimelineView::PaintEvents(const FGeometry& Allotted
 				const float Y = static_cast<float>(AllottedGeometry.Size.Y - EventSize.Y) / 2.f;
 
 				// window bar
+				constexpr float HSizeReduction = 2.f;
+				constexpr float VSizeReduction = 2.f;
+				constexpr float VerticalOffset = 0.5f * VSizeReduction;
 				FSlateDrawElement::MakeBox
 				(OutDrawElements,
 					LayerId++,
-					AllottedGeometry.ToPaintGeometry(FVector2D(XEnd - XStart, EventSize.Y - 2), FSlateLayoutTransform(FVector2D(XStart, Y + 1))),
+					AllottedGeometry.ToPaintGeometry(FVector2f((XEnd - XStart) - HSizeReduction, EventSize.Y - VSizeReduction), FSlateLayoutTransform(FVector2f(XStart, Y + VerticalOffset))),
 					Brush,
 					ESlateDrawEffect::None,
 					Window.Color);

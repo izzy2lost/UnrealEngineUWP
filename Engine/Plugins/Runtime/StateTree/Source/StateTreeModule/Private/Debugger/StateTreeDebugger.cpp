@@ -113,7 +113,7 @@ void FStateTreeDebugger::Tick(const float DeltaTime)
 	
 	UpdateInstances();
 
-	if (bSessionAnalysisPaused == false)
+	if (bSessionAnalysisPaused == false && StateTreeAsset.IsValid())
 	{
 		SyncToCurrentSessionDuration();
 	}
@@ -358,7 +358,7 @@ void FStateTreeDebugger::SetScrubStateCollectionIndex(const int32 EventCollectio
 {
 	ScrubState.SetEventCollectionIndex(EventCollectionIndex);
 
-	OnScrubStateChanged.Execute(ScrubState);
+	OnScrubStateChanged.ExecuteIfBound(ScrubState);
 
 	RefreshActiveStates();
 }
@@ -463,7 +463,7 @@ void FStateTreeDebugger::SetScrubTime(const double ScrubTime)
 {
 	if (ScrubState.SetScrubTime(ScrubTime))
 	{
-		OnScrubStateChanged.Execute(ScrubState);
+		OnScrubStateChanged.ExecuteIfBound(ScrubState);
 
 		RefreshActiveStates();
 	}
