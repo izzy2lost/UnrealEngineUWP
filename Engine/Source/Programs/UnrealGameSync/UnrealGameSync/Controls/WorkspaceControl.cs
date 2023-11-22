@@ -1055,11 +1055,23 @@ namespace UnrealGameSync
 				_owner.UpdateProgress();
 
 				FlashWindow(ParentForm.Handle, true);
-				using DeleteWindow window = new DeleteWindow(context.DeleteFiles);
-				if (window.ShowDialog(this) == DialogResult.OK)
+
+				if (context.DeleteFiles.Count > 2000)
 				{
-					StartWorkspaceUpdate(context, _updateCallback);
-					return;
+					if (MessageBox.Show($"{context.DeleteFiles.Count:n0} files will be removed from your workspace by the current sync filter. Would you like to continue?", "Delete Files", MessageBoxButtons.OKCancel) == DialogResult.OK)
+					{
+						StartWorkspaceUpdate(context, _updateCallback);
+						return;
+					}
+				}
+				else
+				{
+					using DeleteWindow window = new DeleteWindow(context.DeleteFiles);
+					if (window.ShowDialog(this) == DialogResult.OK)
+					{
+						StartWorkspaceUpdate(context, _updateCallback);
+						return;
+					}
 				}
 			}
 			else if (result == WorkspaceUpdateResult.FilesToClobber)
