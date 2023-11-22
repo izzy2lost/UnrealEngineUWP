@@ -869,9 +869,9 @@ namespace AutomationTool
 				string input = ReadAttribute(element, "Input");
 				string method = ReadAttribute(element, "Method");
 				string output = ReadAttribute(element, "Output");
-
+				
 				string operationResult = string.Empty;
-
+				
 				string[] arguments = { };
 
 				const string ArgumentsName = "Arguments";
@@ -892,6 +892,20 @@ namespace AutomationTool
 							throw new AutomationException($"String operation 'Replace' requires exactly 2 arguments.");
 						}
 						operationResult = input.Replace(arguments[0], arguments[1]);
+						break;
+					case "SplitFirst": 
+						if (arguments.Length != 1)
+						{
+							throw new AutomationException($"String operation 'SplitFirst' requires exactly 1 argument.");
+						}
+						operationResult = input.Split(arguments[0]).First();
+						break;
+					case "SplitLast": 
+						if (arguments.Length != 1)
+						{
+							throw new AutomationException($"String operation 'SplitLast' requires exactly 1 argument.");
+						}
+						operationResult = input.Split(arguments[0]).Last();
 						break;
 					default: throw new AutomationException($"String operation '{method}' not available.");
 				}
