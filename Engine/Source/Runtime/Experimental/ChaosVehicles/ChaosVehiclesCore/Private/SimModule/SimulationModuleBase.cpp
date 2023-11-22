@@ -114,4 +114,16 @@ const FTransform& ISimulationModuleBase::GetParentRelativeTransform() const
 }
 
 
+void FSimOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (SimModule)
+	{	
+		DebugString.Empty();
+		SimModule->GetDebugString(DebugString);
+	}
+#endif
+}
+
+
 } //namespace Chaos

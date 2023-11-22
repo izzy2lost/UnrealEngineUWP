@@ -172,6 +172,9 @@ namespace Chaos
 	void FSuspensionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Suspension);
+
+		FSimOutputData::FillOutputState(SimModule);
+
 		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
 		{
 			SpringDisplacement = Sim->SpringDisplacement;
@@ -188,10 +191,12 @@ namespace Chaos
 		SpringSpeed = FMath::Lerp(Current.SpringSpeed, Next.SpringSpeed, Alpha);
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString FSuspensionOutputData::ToString()
 	{
-		return FString::Printf(TEXT("SpringDisplacement=%3.3f, SpringSpeed=%3.3f"), SpringDisplacement, SpringSpeed);
+		return FString::Printf(TEXT("%s, SpringDisplacement=%3.3f, SpringSpeed=%3.3f"), *DebugString, SpringDisplacement, SpringSpeed);
 	}
+#endif
 
 } // namespace Chaos
 

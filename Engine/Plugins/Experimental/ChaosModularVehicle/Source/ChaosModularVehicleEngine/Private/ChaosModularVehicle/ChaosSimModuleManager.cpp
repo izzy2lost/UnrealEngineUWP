@@ -80,8 +80,8 @@ void FChaosSimModuleManager::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded,
 
 void FChaosSimModuleManager::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebugDisplayInfo& DisplayInfo, float& YL, float& YPos)
 {
-	static const FName NAME_VehicleModuleManager("VehicleModuleManager");
-	if (Canvas && HUD->ShouldDisplayDebug(NAME_VehicleModuleManager))
+	static const FName NAME_ModularVehicle("ModularVehicle");
+	if (Canvas && HUD->ShouldDisplayDebug(NAME_ModularVehicle))
 	{
 		FChaosSimModuleManager* Manager = FChaosSimModuleManager::GetManagerFromScene(HUD->GetWorld()->GetPhysicsScene());
 

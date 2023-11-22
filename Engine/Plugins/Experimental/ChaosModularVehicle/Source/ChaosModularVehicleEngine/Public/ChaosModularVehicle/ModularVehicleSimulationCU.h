@@ -21,8 +21,9 @@ namespace Chaos
 class CHAOSMODULARVEHICLEENGINE_API FModularVehicleSimulationCU
 {
 public:
-	FModularVehicleSimulationCU(bool InUsingNetworkPhysicsPrediction)
+	FModularVehicleSimulationCU(bool InUsingNetworkPhysicsPrediction, int8 InNetMode)
 		: bUsingNetworkPhysicsPrediction(InUsingNetworkPhysicsPrediction)
+		, NetMode(InNetMode)
 	{
 	}
 
@@ -66,5 +67,7 @@ public:
 
 	/** Current control inputs that is being used on the PT */
 	FModularVehicleInputs VehicleInputs;
+
+	int8 NetMode;
 
 };

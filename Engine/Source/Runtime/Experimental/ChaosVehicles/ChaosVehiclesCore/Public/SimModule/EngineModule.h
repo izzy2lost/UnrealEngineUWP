@@ -42,7 +42,9 @@ namespace Chaos
 		virtual eSimType GetType() override { return eSimType::Engine; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		virtual FString ToString() override;
+#endif
 
 		float RPM;
 		float Torque;

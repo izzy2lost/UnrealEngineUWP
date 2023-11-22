@@ -15,7 +15,6 @@
 FModularVehicleDebugParams GModularVehicleDebugParams;
 
 #if CHAOS_DEBUG_DRAW
-FAutoConsoleVariableRef CVarChaosModularVehiclesShowDebug(TEXT("p.ModularVehicle.ShowDebug"), GModularVehicleDebugParams.ShowDebug, TEXT("Enable/Disable Show Modular Vehicle Debug on HUD."));
 FAutoConsoleVariableRef CVarChaosModularVehiclesRaycastsEnabled(TEXT("p.ModularVehicle.SuspensionRaycastsEnabled"), GModularVehicleDebugParams.SuspensionRaycastsEnabled, TEXT("Enable/Disable Suspension Raycasts."));
 FAutoConsoleVariableRef CVarChaosModularVehiclesShowRaycasts(TEXT("p.ModularVehicle.ShowSuspensionRaycasts"), GModularVehicleDebugParams.ShowSuspensionRaycasts, TEXT("Enable/Disable Suspension Raycast Visualisation."));
 FAutoConsoleVariableRef CVarChaosModularVehiclesShowWheelData(TEXT("p.ModularVehicle.ShowWheelData"), GModularVehicleDebugParams.ShowWheelData, TEXT("Enable/Disable Displaying Wheel Simulation Data."));
@@ -267,7 +266,19 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 										if (GModularVehicleDebugParams.ShowWheelData)
 										{
 											FString TextOut = FString::Format(TEXT("{0}"), { Wheel->GetForceIntoSurface() });
-											Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, FColor::White, -1.f, true, 1.0f);
+											FColor Col = FColor::White;
+											if (InWorld)
+											{
+												if (InWorld->GetNetMode() == ENetMode::NM_Client)
+												{
+													Col = FColor::Blue;
+												}
+												else
+												{
+													Col = FColor::Red;
+												}
+											}
+											Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
 										}
 									}
 								}
@@ -284,7 +295,20 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 								Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(TraceStart, 3, 16, FColor::White, false, -1.f, 0, 10.f);
 								Chaos::FDebugDrawQueue::GetInstance().DrawDebugSphere(HitResult.ImpactPoint, 1, 16, FColor::Red, false, -1.f, 0, 10.f);
 								FString TextOut = FString::Format(TEXT("{0}"), { HitResult.Time});
-								Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, FColor::White, -1.f, true, 1.0f);
+
+								FColor Col = FColor::White;
+								if (InWorld)
+								{
+									if (InWorld->GetNetMode() == ENetMode::NM_Client)
+									{
+										Col = FColor::Blue;
+									}
+									else
+									{
+										Col = FColor::Red;
+									}
+								}
+								Chaos::FDebugDrawQueue::GetInstance().DrawDebugString(HitResult.ImpactPoint + FVec3(0, 50, 50), TextOut, nullptr, Col, -1.f, true, 1.0f);
 							}
 
 							if (GModularVehicleDebugParams.ShowRaycastMaterial)

@@ -48,7 +48,10 @@ namespace Chaos
 		virtual eSimType GetType() override { return eSimType::Wheel; }
 		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		virtual FString ToString() override;
+#endif
 
 		bool bTouchingGround;
 		float ForceIntoSurface;

@@ -994,8 +994,6 @@ void UModularVehicleComponent::ParallelUpdate(float DeltaSeconds)
 	{
 		if (CurrentOutput->bValid && PVehicleOutput)
 		{
-			PVehicleOutput->DebugStrings = MoveTemp(CurrentOutput->VehicleSimOutput.DebugStrings);
-
 			// #TODO: lerp output values here
 			// i.e. PVehicleOutput->Value = FMath::Lerp(CurAsyncOutput->VehicleSimOutput.Value, NextAsyncOutput->VehicleSimOutput.Value, OutputInterpAlpha);
 			//for (int I=0; I<CurAsyncOutput->VehicleSimOutput.ModuleTransform.Num(); I++)
@@ -1049,12 +1047,12 @@ void UModularVehicleComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const F
 		Canvas->SetDrawColor(FColor::White);
 		YPos += 16;
 
-		for (const FString& StringOut : PVehicleOutput->DebugStrings)
-		{
-			YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s"), *StringOut), 4, YPos);
-		}
+		//for (const FString& StringOut : PVehicleOutput->DebugStrings)
+		//{
+		//	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s"), *StringOut), 4, YPos);
+		//}
 
-		PVehicleOutput->DebugStrings.Empty();
+		//PVehicleOutput->DebugStrings.Empty();
 	}
 
 	YPos += 10;

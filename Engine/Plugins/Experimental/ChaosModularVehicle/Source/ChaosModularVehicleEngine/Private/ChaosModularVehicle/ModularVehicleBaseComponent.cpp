@@ -688,6 +688,9 @@ void UModularVehicleBaseComponent::ParallelUpdate(float DeltaTime)
 							EngineTorque = Engine->Torque;
 						}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+						PVehicleOutput->SimTreeOutputData[I]->DebugString = NextOutput->VehicleSimOutput.SimTreeOutputData[I]->DebugString;
+#endif
 					}
 				}
 			}
@@ -800,7 +803,7 @@ void UModularVehicleBaseComponent::AddComponentToSimulation(UPrimitiveComponent*
 	int32 ComponentAddOrder = INDEX_NONE;
 	if (InComponent && bIsNew)
 	{
-		UE_LOG(LogModularBase, Log, TEXT("AddComponentToSimulation %s"), *InComponent->GetName());
+		UE_LOG(LogModularBase, Log, TEXT("AddComponentToSimulation %s, NetMode %d"), *InComponent->GetName(), InComponent->GetNetMode());
 		
 		if (ClusterUnionComponent->IsAuthority())
 		{
@@ -842,7 +845,7 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 {
 	if (InComponent && VehicleSimulationPT)
 	{
-		UE_LOG(LogModularBase, Log, TEXT("UModularVehicleBaseComponent::RemoveComponentFromSimulation: %s"), *InComponent->GetFullName());
+		UE_LOG(LogModularBase, Log, TEXT("UModularVehicleBaseComponent::RemoveComponentFromSimulation: %s, NetMode %d"), *InComponent->GetFullName(), InComponent->GetNetMode());
 
 		Chaos::FSimTreeUpdates LatestTreeUpdates;
 
@@ -905,7 +908,7 @@ void UModularVehicleBaseComponent::CreateVehicleSim()
 	UWorld* World = GetWorld();
 
 	// create the simulation class
-	VehicleSimulationPT = MakeUnique<FModularVehicleSimulationCU>(bUsingNetworkPhysicsPrediction);
+	VehicleSimulationPT = MakeUnique<FModularVehicleSimulationCU>(bUsingNetworkPhysicsPrediction, (int8)World->GetNetMode());
 
 	// create physics output container
 	PVehicleOutput = MakeUnique<FPhysicsVehicleOutput>();
@@ -1109,17 +1112,24 @@ void UModularVehicleBaseComponent::ShowDebugInfo(AHUD* HUD, UCanvas* Canvas, con
 
 	// draw input values
 	Canvas->SetDrawColor(FColor::White);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Throttle Raw  (%f) %f"), RawThrottleInput, ThrottleInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Boost Raw     (%f) %f"), RawBoostInput, BoostInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Drift Raw     (%f) %f"), RawDriftInput, DriftInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Brake Raw     (%f) %f"), RawBrakeInput, BrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Steering Raw  (%f) %f"), RawSteeringInput, SteeringInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Handbrake Raw (%f) %f"), RawHandbrakeInput, HandbrakeInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Roll Raw      (%f) %f"), RawRollInput, RollInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Pitch Raw     (%f) %f"), RawPitchInput, PitchInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Yaw Raw       (%f) %f"), RawYawInput, YawInput), 4, YPos);
-	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Reverse Raw       (%f) %f"), RawReverseInput, ReverseInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Throttle Raw  (%3.2f) %3.2f"), RawThrottleInput, ThrottleInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Boost Raw     (%3.2f) %3.2f"), RawBoostInput, BoostInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Drift Raw     (%3.2f) %3.2f"), RawDriftInput, DriftInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Brake Raw     (%3.2f) %3.2f"), RawBrakeInput, BrakeInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Steering Raw  (%3.2f) %3.2f"), RawSteeringInput, SteeringInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Handbrake Raw (%3.2f) %3.2f"), RawHandbrakeInput, HandbrakeInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Roll Raw      (%3.2f) %3.2f"), RawRollInput, RollInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Pitch Raw     (%3.2f) %3.2f"), RawPitchInput, PitchInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Yaw Raw       (%3.2f) %3.2f"), RawYawInput, YawInput), 4, YPos);
+	YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("Reverse Raw   (%3.2f) %3.2f"), RawReverseInput, ReverseInput), 4, YPos);
 
 	YPos += 10;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	for (Chaos::FSimOutputData* Data : PVehicleOutput->SimTreeOutputData)
+	{
+		YPos += Canvas->DrawText(RenderFont, FString::Printf(TEXT("%s"), *Data->ToString()), 4, YPos);
+	}
+#endif
 
 }

@@ -148,7 +148,7 @@ namespace Chaos
 		Axle,			// connects more than one wheel
 		Transmission,	// gears - torque multiplier
 		Engine,			// (torque curve required) power source generates torque for wheel, axle, transmission, clutch
-		Motor,			// (electric?, no torque curve required?) power source generates torque for wheel, axle, transmission, clutch
+		Motor,			// NOT USED YET (electric?, no torque curve required?) power source generates torque for wheel, axle, transmission, clutch
 		Clutch,			// limits the amount of torque transferred between source and destination allowing for different rotation speeds of connected axles
 		Wing,			// lift and controls aircraft roll
 		Rudder,			// controls aircraft yaw
@@ -391,10 +391,17 @@ namespace Chaos
 		virtual ~FSimOutputData() {}
 
 		virtual eSimType GetType() = 0;
+		virtual bool IsEnabled() { return bEnabled; }
 		virtual FSimOutputData* MakeNewData() = 0;
-		virtual void FillOutputState(const ISimulationModuleBase* SimModule) = 0;
+		virtual void FillOutputState(const ISimulationModuleBase* SimModule);
 		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) = 0;
+
+		bool bEnabled = true;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		virtual FString ToString() { return FString(); }
+		FString DebugString;
+#endif
 	};
 
 

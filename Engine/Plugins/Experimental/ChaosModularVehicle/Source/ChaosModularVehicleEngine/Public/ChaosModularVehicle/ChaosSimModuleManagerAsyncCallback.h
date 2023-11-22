@@ -192,7 +192,6 @@ struct CHAOSMODULARVEHICLEENGINE_API FPhysicsVehicleOutput
 	}
 
 	TArray<Chaos::FSimOutputData*> SimTreeOutputData;
-	TArray<FString> DebugStrings;
 };
 
 struct CHAOSMODULARVEHICLEENGINE_API FPhysicsModularVehicleTraits

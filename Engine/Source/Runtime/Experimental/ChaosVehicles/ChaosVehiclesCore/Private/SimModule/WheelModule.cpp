@@ -229,6 +229,9 @@ namespace Chaos
 	inline void FWheelOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Wheel);
+
+		FSimOutputData::FillOutputState(SimModule);
+
 		if (const FWheelSimModule* Sim = static_cast<const FWheelSimModule*>(SimModule))
 		{
 			bTouchingGround = Sim->bTouchingGround;
@@ -249,12 +252,13 @@ namespace Chaos
 		RPM = FMath::Lerp(Current.RPM, Next.RPM, Alpha);
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString FWheelOutputData::ToString()
 	{
-		return  FString::Printf(TEXT("bTouchingGround=%d, ForceIntoSurface=%3.3f, SlipAngle=%3.3f, RPM=%3.3f")
-			, bTouchingGround, ForceIntoSurface, SlipAngle, RPM);
+		return  FString::Printf(TEXT("%s, bTouchingGround=%d, ForceIntoSurface=%3.3f, SlipAngle=%3.3f, RPM=%3.3f")
+			, *DebugString, bTouchingGround, ForceIntoSurface, SlipAngle, RPM);
 	}
-
+#endif
 
 } // namespace Chaos
 

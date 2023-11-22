@@ -74,6 +74,9 @@ namespace Chaos
 	void FEngineOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Engine);
+
+		FSimOutputData::FillOutputState(SimModule);
+
 		if (const FEngineSimModule* Sim = static_cast<const FEngineSimModule*>(SimModule))
 		{
 			RPM = Sim->GetRPM();
@@ -89,11 +92,13 @@ namespace Chaos
 		Torque = FMath::Lerp(Current.Torque, Next.Torque, Alpha);
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString FEngineOutputData::ToString()
 	{
-		return  FString::Printf(TEXT("RPM=%3.3f, Torque=%3.3f")
-			, RPM, Torque);
+		return FString::Printf(TEXT("%s, RPM=%3.3f, Torque=%3.3f")
+			, *DebugString, RPM, Torque);
 	}
+#endif
 
 } // namespace Chaos
 

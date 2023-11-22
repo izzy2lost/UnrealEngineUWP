@@ -198,6 +198,9 @@ namespace Chaos
 	void FTransmissionOutputData::FillOutputState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Transmission);
+
+		FSimOutputData::FillOutputState(SimModule);
+
 		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
 		{
 			CurrentGear = Sim->CurrentGear;
@@ -212,11 +215,13 @@ namespace Chaos
 		CurrentGear = Current.CurrentGear;
 	}
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString FTransmissionOutputData::ToString()
 	{
-		return  FString::Printf(TEXT("CurrentGear=%d")
-			, CurrentGear);
+		return FString::Printf(TEXT("%s CurrentGear=%d")
+			, *DebugString, CurrentGear);
 	}
+#endif
 
 } // namespace Chaos
 
