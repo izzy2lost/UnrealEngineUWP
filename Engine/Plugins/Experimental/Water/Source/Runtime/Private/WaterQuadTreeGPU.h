@@ -90,6 +90,14 @@ public:
 	bool IsInitialized() const { return bInitialized; }
 
 private:
+	enum class EOcclusionQueryMode
+	{
+		Disabled = 0,
+		HZB = 1,
+		PixelPrecise = 2,
+		HZBAndPixelPrecise = 3
+	};
+
 	/** Mipped texture representing the water quadtree on the GPU */
 	TRefCountPtr<FRHITexture> QuadTreeTexture;
 

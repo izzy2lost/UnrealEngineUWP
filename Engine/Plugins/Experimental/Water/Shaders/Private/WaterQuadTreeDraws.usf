@@ -54,9 +54,22 @@ FWaterLODParams GetWaterLODParams(float InObserverHeight, float InWaterHeightFor
 	return WaterLODParams;
 }
 
+float4 GetNodeAABB2D(uint3 InNodeCoord, float3 InQuadTreePosition, float InLeafSize)
+{
+	const float Scale = (1u << InNodeCoord.z) * InLeafSize;
+	return float4(InNodeCoord.xy, InNodeCoord.xy + 1.0f) * Scale + InQuadTreePosition.xyxy;
+}
+
 #ifdef INITIALIZE_INDIRECT_ARGS
 
+#ifndef PRECISE_OCCLUSION_QUERIES
+#define PRECISE_OCCLUSION_QUERIES 0
+#endif
+
 RWStructuredBuffer<FWaterTileDrawIndexedIndirectArgs> IndirectArgs;
+#if PRECISE_OCCLUSION_QUERIES
+RWStructuredBuffer<FWaterTileDrawIndexedIndirectArgs> OcclusionQueryIndirectArgs;
+#endif
 uint NumDensities;
 uint NumMaterials;
 uint NumViews;
@@ -88,22 +101,43 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 	{
 		IndirectArgs[NumBuckets * ViewIndex + BucketIndex] = BucketArgs;
 	}
+
+#if PRECISE_OCCLUSION_QUERIES
+	if (all(DispatchThreadID == 0))
+	{
+		FWaterTileDrawIndexedIndirectArgs OcclusionQueryArgs;
+		OcclusionQueryArgs.IndexCountPerInstance = 36; // 12 triangles per cube
+		OcclusionQueryArgs.InstanceCount = 0;
+		OcclusionQueryArgs.StartIndexLocation = 0;
+		OcclusionQueryArgs.BaseVertexLocation = 0;
+		OcclusionQueryArgs.StartInstanceLocation = 0;
+
+		for (uint ViewIndex = 0; ViewIndex < NumViews; ++ViewIndex)
+		{
+			OcclusionQueryIndirectArgs[ViewIndex] = OcclusionQueryArgs;
+		}
+	}
+#endif // PRECISE_OCCLUSION_QUERIES
 }
 
 #endif // INITIALIZE_INDIRECT_ARGS
 
 #ifdef QUAD_TREE_TRAVERSE
 
-#ifndef DEBUG_SHADER_PRINT
-#define DEBUG_SHADER_PRINT 0
-#endif
-
 #include "/Engine/Private/Nanite/NaniteHZBCull.ush" // BoxCullFrustum()
-#if DEBUG_SHADER_PRINT
-#include "/Engine/Private/ShaderPrint.ush"
+
+#ifndef PRECISE_OCCLUSION_QUERIES
+#define PRECISE_OCCLUSION_QUERIES 0
 #endif
 
 RWByteAddressBuffer PackedNodes;
+
+#if PRECISE_OCCLUSION_QUERIES
+RWBuffer<float4> OcclusionQueryBoxes;
+RWBuffer<uint> OcclusionVisibility;
+RWStructuredBuffer<FWaterTileDrawIndexedIndirectArgs> OcclusionQueryIndirectArgs;
+#endif // PRECISE_OCCLUSION_QUERIES
+
 Texture2D<float4> QuadTreeTexture;
 Texture2D<float4> WaterZBoundsTexture;
 StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
@@ -116,23 +150,14 @@ uint QuadTreeResolutionX;
 uint QuadTreeResolutionY;
 uint NumDensities;
 uint NumMaterials;
+uint ViewIndex;
 float LeafSize;
 float LODScale;
 float CaptureDepthRange;
 int ForceCollapseDensityLevel;
 uint NumLODs;
 uint NumDispatchedThreads;
-int DebugShowTile;
 uint bHZBOcclusionCullingEnabled;
-
-
-void AddNodeForRender(uint InNodeCoordPacked)
-{
-	uint WritePos = 0;
-	PackedNodes.InterlockedAdd(0, 1, WritePos);
-	WritePos += 1; // Num is stored at index 0
-	PackedNodes.Store(WritePos << 2u, InNodeCoordPacked);
-}
 
 float ComputeSquaredDistanceToPoint(float2 InBox2DMin, float2 InBox2DMax, float2 InPoint)
 {
@@ -178,12 +203,6 @@ bool CanRender(FWaterQuadTreeNode Node, int InDensityLevel, int InForceCollapseD
 	return MaterialIndex >= 0 && Node.bIsSubtreeSameWaterBody && ((InDensityLevel > InForceCollapseDensityLevel) || Node.bHasCompleteSubtree);
 }
 
-float4 GetNodeAABB2D(uint3 InNodeCoord)
-{
-	const float Scale = (1u << InNodeCoord.z) * LeafSize;
-	return float4(InNodeCoord.xy, InNodeCoord.xy + 1.0f) * Scale + QuadTreePosition.xyxy;
-}
-
 [numthreads(64, 1, 1)]
 void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 {
@@ -210,7 +229,7 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 	}
 
 	const uint LODLevel = NodeCoord.z;
-	const float4 NodeAABB2D = GetNodeAABB2D(NodeCoord);
+	const float4 NodeAABB2D = GetNodeAABB2D(NodeCoord, QuadTreePosition, LeafSize);
 	
 	// Bounds culling
 	{
@@ -221,9 +240,11 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 		}
 	}
 
-	// Frustum culling
+	// Frustum and HZB occlusion culling
+	float2 WaterZBounds = 0.0f;
+	bool bCrossesNearPlane = false;
 	{
-		const float2 WaterZBounds = WaterZBoundsTexture.Load(NodeCoord).xy * CaptureDepthRange + QuadTreePosition.z;
+		WaterZBounds = WaterZBoundsTexture.Load(NodeCoord).xy * CaptureDepthRange + QuadTreePosition.z;
 		const float3 NodeAABBMin = float3(NodeAABB2D.xy, WaterZBounds.x);
 		const float3 NodeAABBMax = float3(NodeAABB2D.zw, WaterZBounds.y);
 		const float3 NodeCenter = (NodeAABBMin + NodeAABBMax) * 0.5f;
@@ -242,6 +263,8 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 		{
 			return;
 		}
+
+		bCrossesNearPlane = Cull.bCrossesNearPlane;
 	}
 
 	// Compute the 2D distance between the observer and the tile. Will be zero if the observer is within the tile
@@ -264,7 +287,7 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 	{
 		// Does the parent tile intersect the LOD range of tiles at this LOD?
 		uint3 ParentNodeCoord = uint3(NodeCoord.xy / 2, NodeCoord.z + 1);
-		float4 ParentNodeAABB2D = GetNodeAABB2D(ParentNodeCoord);
+		float4 ParentNodeAABB2D = GetNodeAABB2D(ParentNodeCoord, QuadTreePosition, LeafSize);
 		const float ClosestDistanceToParentTile = sqrt(ComputeSquaredDistanceToPoint(ParentNodeAABB2D.xy, ParentNodeAABB2D.zw, ObserverPosition.xy));
 		const bool bParentTileIntersectsThisLOD = ClosestDistanceToParentTile <= GetLODDistance(LODLevel, LODScale) && LODLevel >= WaterLODParams.LowestLOD;
 
@@ -282,7 +305,7 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 				DensityLevel = ParentLOD - LODLevel;
 
 				ParentNodeCoord = uint3(NodeCoord.xy >> (ParentLOD - LODLevel), ParentLOD);
-				ParentNodeAABB2D = GetNodeAABB2D(ParentNodeCoord);
+				ParentNodeAABB2D = GetNodeAABB2D(ParentNodeCoord, QuadTreePosition, LeafSize);
 
 				const float Dist = sqrt(ComputeSquaredDistanceToPoint(ParentNodeAABB2D.xy, ParentNodeAABB2D.zw, ObserverPosition.xy));
 				if (Dist <= GetLODDistance(ParentLOD, LODScale) && ParentLOD >= WaterLODParams.LowestLOD)
@@ -305,59 +328,101 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 		const FWaterQuadTreeNode Node = WaterQuadTreeUnpackNodeRGBA8(QuadTreeTexture.Load(NodeCoord));
 		if (CanRender(Node, DensityLevel, ForceCollapseDensityLevel))
 		{
-			AddNodeForRender(PackNodeCoord(uint4(NodeCoord, DensityLevel)));
+			uint WritePos = 0;
+			PackedNodes.InterlockedAdd(0, 1, WritePos);
+			PackedNodes.Store((WritePos + 1) << 2u, PackNodeCoord(uint4(NodeCoord, DensityLevel))); // Num is stored at index 0, so we offset all writes by 1
 
-#if DEBUG_SHADER_PRINT
-			if (DebugShowTile != 0)
-			{
-				FWaterBodyRenderData WBRenderData = WaterBodyRenderData[Node.WaterBodyRenderDataIndex];
+#if PRECISE_OCCLUSION_QUERIES
+			// Increase the InstanceCount by 1.
+			uint Dummy = 0;
+			InterlockedAdd(OcclusionQueryIndirectArgs[ViewIndex].InstanceCount, 1, Dummy);
 
-				// TODO: Support the two missing modes for visualizing the LOD level and the density
-				float4 DebugColor;
-				switch (WBRenderData.WaterBodyType)
-				{
-				case WATER_BODY_TYPE_RIVER: DebugColor = ColorRed; break;
-				case WATER_BODY_TYPE_LAKE: DebugColor = ColorGreen; break;
-				case WATER_BODY_TYPE_OCEAN: DebugColor = ColorBlue; break;
-				default: DebugColor = ColorWhite;
-				}
+			// Write out bounding box and store a flag indicating if the box crosses the near plane.
+			const float3 NodeAABBMin = float3(NodeAABB2D.xy, WaterZBounds.x);
+			const float3 NodeAABBMax = float3(NodeAABB2D.zw, WaterZBounds.y);
+			const float3 NodeCenter = (NodeAABBMin + NodeAABBMax) * 0.5f;
+			const float3 NodeExtent = float3((NodeAABBMax.xy - NodeAABBMin.xy) * 0.5f, (NodeAABBMax.z - NodeAABBMin.z) * 0.5f + 1e-5f);
+			OcclusionQueryBoxes[WritePos * 2 + 0] = float4(NodeCenter, bCrossesNearPlane ? 1.0f : 0.0f);
+			OcclusionQueryBoxes[WritePos * 2 + 1] = float4(NodeExtent, 0.0f);
 
-				if (WBRenderData.WaterBodyType == WATER_BODY_TYPE_RIVER && Node.TransitionWaterBodyRenderDataIndex > 0)
-				{
-					const FWaterBodyRenderData TransitionWBRenderData = WaterBodyRenderData[Node.TransitionWaterBodyRenderDataIndex];
-					if (TransitionWBRenderData.WaterBodyType == WATER_BODY_TYPE_LAKE)
-					{
-						DebugColor = ColorYellow;
-					}
-					else if (TransitionWBRenderData.WaterBodyType == WATER_BODY_TYPE_OCEAN)
-					{
-						DebugColor = ColorPurple;
-					}
-				}
-
-				const float2 WaterZBounds = WaterZBoundsTexture.Load(NodeCoord).xy * CaptureDepthRange + QuadTreePosition.z;
-				const float3 AABBMin = float3(NodeAABB2D.xy + 20.0f, WaterZBounds.x);
-				const float3 AABBMax = float3(NodeAABB2D.zw - 20.0f, WaterZBounds.y);
-				
-				AddOBBTWS(InitShaderPrintContext(), AABBMin, AABBMax, DebugColor, float4x4(
-					1, 0, 0, 0, 
-					0, 1, 0, 0, 
-					0, 0, 1, 0, 
-					0, 0, 0, 1));
-			}
-#endif // DEBUG_SHADER_PRINT
+			// Set bounding boxes crossing the near plane as always visible and initialize to 0 otherwise.
+			OcclusionVisibility[WritePos] = bCrossesNearPlane ? 1 : 0;
+#endif // PRECISE_OCCLUSION_QUERIES
 		}
 	}
 }
 
 #endif // QUAD_TREE_TRAVERSE
 
+#ifdef OCCLUSION_QUERY_RASTER_VS
+
+Buffer<float4> OcclusionQueryBoxes;
+float4x4 ViewProjection;
+
+void MainVS(
+	in float3 InPosition : ATTRIBUTE0,
+	in uint InInstanceId : SV_InstanceID,
+	out nointerpolation uint OutQueryIndex : QUERY_INDEX,
+	out float4 OutPosition : SV_Position
+)
+{
+	OutQueryIndex = InInstanceId;
+
+	const float4 CenterAndCrossesNearPlane = OcclusionQueryBoxes[InInstanceId * 2 + 0];
+	const bool bCrossesNearPlane = CenterAndCrossesNearPlane.w != 0.0f;
+
+	if (!bCrossesNearPlane)
+	{
+		const float3 Center = CenterAndCrossesNearPlane.xyz;
+		const float3 Extent = OcclusionQueryBoxes[InInstanceId * 2 + 1].xyz;
+		const float3 TranslatedWorldPosition = (InPosition * Extent) + Center;
+		OutPosition = mul(float4(TranslatedWorldPosition, 1.0f), ViewProjection);
+	}
+	else
+	{
+		// Kill instance by setting all vertices to NaN. If the box crosses the near plane, we already set it as visible in the result buffer.
+		OutPosition = asfloat(0xFFFFFFFF).xxxx;
+	}
+}
+
+#endif // OCCLUSION_QUERY_RASTER_VS
+
+#ifdef OCCLUSION_QUERY_RASTER_PS
+
+RWBuffer<uint> Visibility;
+
+EARLYDEPTHSTENCIL
+void MainPS(
+	in uint InQueryIndex : QUERY_INDEX, 
+	out float4 OutColor : SV_Target0
+)
+{
+#if COMPILER_SUPPORTS_WAVE_VOTE
+	if (WaveIsFirstLane()) // Try to reduce the number of threads writing the same value to the same location.
+	{
+		Visibility[InQueryIndex] = 1;
+	}
+#else
+	Visibility[InQueryIndex] = 1;
+#endif
+	OutColor = float4(1.0f, 0.0f, 0.0f, 1.0f);
+}
+
+#endif // OCCLUSION_QUERY_RASTER_PS
+
 #ifdef COMPUTE_BUCKET_COUNTS
+
+#ifndef PRECISE_OCCLUSION_QUERIES
+#define PRECISE_OCCLUSION_QUERIES 0
+#endif
 
 RWByteAddressBuffer BucketCounts;
 Texture2D<float4> QuadTreeTexture;
 StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
 ByteAddressBuffer PackedNodes;
+#if PRECISE_OCCLUSION_QUERIES
+Buffer<uint> OcclusionResults;
+#endif // PRECISE_OCCLUSION_QUERIES
 uint NumDensities;
 uint NumMaterials;
 uint NumDispatchedThreads;
@@ -370,8 +435,16 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 	// We are limited to 65535 threads, but might end up with more draws than that
 	for (uint DrawIndex = DispatchThreadID.x; DrawIndex < NumDraws; DrawIndex += NumDispatchedThreads)
 	{
+#if PRECISE_OCCLUSION_QUERIES
+		const bool bIsVisible = OcclusionResults[DrawIndex] != 0;
+		if (!bIsVisible)
+		{
+			continue;
+		}
+#endif
+
 		// Load packed node coord and density index
-		uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
+		const uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
 		const uint DensityIndex = min(NodeCoordAndDensity.w, NumDensities - 1);
 
 		// Sample the quadtree to access the water body render data
@@ -547,6 +620,10 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 
 #ifdef GENERATE_INSTANCE_DATA
 
+#ifndef PRECISE_OCCLUSION_QUERIES
+#define PRECISE_OCCLUSION_QUERIES 0
+#endif
+
 RWStructuredBuffer<FWaterTileDrawIndexedIndirectArgs> IndirectArgs;
 RWBuffer<float4> InstanceData0;
 RWBuffer<float4> InstanceData1;
@@ -556,6 +633,9 @@ Texture2D<float4> WaterZBoundsTexture;
 StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
 ByteAddressBuffer PackedNodes;
 Buffer<uint> InstanceDataOffsets;
+#if PRECISE_OCCLUSION_QUERIES
+Buffer<uint> OcclusionResults;
+#endif // PRECISE_OCCLUSION_QUERIES
 
 float3 QuadTreePosition;
 float3 ObserverPosition;
@@ -579,8 +659,16 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 	// We are limited to 65535 threads, but might end up with more draws than that
 	for (uint DrawIndex = DispatchThreadID.x; DrawIndex < NumDraws; DrawIndex += NumDispatchedThreads)
 	{
+#if PRECISE_OCCLUSION_QUERIES
+		const bool bIsVisible = OcclusionResults[DrawIndex] != 0;
+		if (!bIsVisible)
+		{
+			continue;
+		}
+#endif
+
 		// Load packed node coord and density index
-		uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
+		const uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
 		const uint2 NodeCoord = NodeCoordAndDensity.xy;
 		const uint LODLevel = NodeCoordAndDensity.z;
 		const uint DensityIndex = NodeCoordAndDensity.w;
@@ -673,3 +761,86 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 }
 
 #endif // GENERATE_INSTANCE_DATA
+
+#if DEBUG_SHOW_TILES
+
+#include "/Engine/Private/ShaderPrint.ush"
+
+#ifndef PRECISE_OCCLUSION_QUERIES
+#define PRECISE_OCCLUSION_QUERIES 0
+#endif
+
+Texture2D<float4> QuadTreeTexture;
+Texture2D<float4> WaterZBoundsTexture;
+StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
+ByteAddressBuffer PackedNodes;
+#if PRECISE_OCCLUSION_QUERIES
+Buffer<uint> OcclusionResults;
+#endif // PRECISE_OCCLUSION_QUERIES
+
+float3 QuadTreePosition;
+uint NumDispatchedThreads;
+float LeafSize;
+float CaptureDepthRange;
+
+[numthreads(64, 1, 1)]
+void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
+{
+	const uint NumDraws = PackedNodes.Load(0);
+	// We are limited to 65535 threads, but might end up with more draws than that
+	for (uint DrawIndex = DispatchThreadID.x; DrawIndex < NumDraws; DrawIndex += NumDispatchedThreads)
+	{
+#if PRECISE_OCCLUSION_QUERIES
+		const bool bIsVisible = OcclusionResults[DrawIndex] != 0;
+		if (!bIsVisible)
+		{
+			continue;
+		}
+#endif
+
+		// Load packed node coord and density index
+		const uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
+		const uint3 NodeCoord = NodeCoordAndDensity.xyz;
+
+		// Sample the quadtree to access the water body render data
+		const float4 QuadTreeSample = QuadTreeTexture.Load(int3(NodeCoord));
+		const FWaterQuadTreeNode Node = WaterQuadTreeUnpackNodeRGBA8(QuadTreeSample);
+		const FWaterBodyRenderData WBRenderData = WaterBodyRenderData[Node.WaterBodyRenderDataIndex];
+
+		// TODO: Support the two missing modes for visualizing the LOD level and the density
+		float4 DebugColor;
+		switch (WBRenderData.WaterBodyType)
+		{
+		case WATER_BODY_TYPE_RIVER: DebugColor = ColorRed; break;
+		case WATER_BODY_TYPE_LAKE: DebugColor = ColorGreen; break;
+		case WATER_BODY_TYPE_OCEAN: DebugColor = ColorBlue; break;
+		default: DebugColor = ColorWhite;
+		}
+
+		if (WBRenderData.WaterBodyType == WATER_BODY_TYPE_RIVER && Node.TransitionWaterBodyRenderDataIndex > 0)
+		{
+			const FWaterBodyRenderData TransitionWBRenderData = WaterBodyRenderData[Node.TransitionWaterBodyRenderDataIndex];
+			if (TransitionWBRenderData.WaterBodyType == WATER_BODY_TYPE_LAKE)
+			{
+				DebugColor = ColorYellow;
+			}
+			else if (TransitionWBRenderData.WaterBodyType == WATER_BODY_TYPE_OCEAN)
+			{
+				DebugColor = ColorPurple;
+			}
+		}
+
+		const float4 NodeAABB2D = GetNodeAABB2D(NodeCoord, QuadTreePosition, LeafSize);
+		const float2 WaterZBounds = WaterZBoundsTexture.Load(NodeCoord).xy * CaptureDepthRange + QuadTreePosition.z;
+		const float3 AABBMin = float3(NodeAABB2D.xy + 20.0f, WaterZBounds.x);
+		const float3 AABBMax = float3(NodeAABB2D.zw - 20.0f, WaterZBounds.y);
+
+		AddOBBTWS(InitShaderPrintContext(), AABBMin, AABBMax, DebugColor, float4x4(
+			1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1));
+	}
+}
+
+#endif // DEBUG_SHOW_TILES
