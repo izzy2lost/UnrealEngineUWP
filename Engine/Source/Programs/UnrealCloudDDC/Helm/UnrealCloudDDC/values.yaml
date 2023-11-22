@@ -326,7 +326,7 @@ nginx:
   workerConnections: 1024
 
   ## Number of connections to keep alive between nginx and Jupiter
-  keepAliveConnections: 512
+  keepAliveConnections: 2048
 
   ## The length of the nginx backlog, bump this if you increase `net.core.somaxconn` beyond 4096
   backlog: 4096
