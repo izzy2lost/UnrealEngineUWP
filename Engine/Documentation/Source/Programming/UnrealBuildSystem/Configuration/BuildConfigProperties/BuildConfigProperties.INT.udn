@@ -12,6 +12,8 @@ $ bPrintDebugInfo : Whether debug info should be written to the console.
 
 $ bAllowHybridExecutor : Whether the hybrid executor will be used (a remote executor and local executor). No longer supported.
 
+$ RemoteExecutorPriority : Priority order for remote executors (XGE, SNDBS, FASTBuild, UBAExecutor)
+
 $ bAllowBoxExecutor : This property is being renamed and should not be used
 
 $ bAllowBoxLocalExecutor : This property is being renamed and should not be used
