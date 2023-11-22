@@ -5,7 +5,9 @@
 #include "Algo/Sort.h"
 #include "Algo/Unique.h"
 #include "Engine/World.h"
-#include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "EntitySystem/MovieSceneInstanceRegistry.h"
+#include "EntitySystem/MovieSceneSequenceInstance.h"
 #include "IMovieScenePlaybackClient.h"
 #include "IMovieScenePlayer.h"
 #include "MovieScene.h"
@@ -15,6 +17,14 @@
 
 DECLARE_CYCLE_STAT(TEXT("Find Bound Objects"), MovieSceneEval_FindBoundObjects, STATGROUP_MovieSceneEval);
 DECLARE_CYCLE_STAT(TEXT("Iterate Bound Objects"), MovieSceneEval_IterateBoundObjects, STATGROUP_MovieSceneEval);
+
+namespace UE::MovieScene
+{
+
+TPlaybackCapabilityID<IObjectBindingNotifyPlaybackCapability> IObjectBindingNotifyPlaybackCapability::ID = TPlaybackCapabilityID<IObjectBindingNotifyPlaybackCapability>::Register();
+TPlaybackCapabilityID<IStaticBindingOverridesPlaybackCapability> IStaticBindingOverridesPlaybackCapability::ID = TPlaybackCapabilityID<IStaticBindingOverridesPlaybackCapability>::Register();
+
+}  // namespace UE::MovieScene
 
 FMovieSceneSharedDataId FMovieSceneSharedDataId::Allocate()
 {
@@ -26,7 +36,7 @@ FMovieSceneSharedDataId FMovieSceneSharedDataId::Allocate()
 	return Value;
 }
 
-TArrayView<TWeakObjectPtr<>> FMovieSceneObjectCache::FindBoundObjects(const FGuid& InBindingID, IMovieScenePlayer& Player)
+TArrayView<TWeakObjectPtr<>> FMovieSceneObjectCache::FindBoundObjects(const FGuid& InBindingID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	MOVIESCENE_DETAILED_SCOPE_CYCLE_COUNTER(MovieSceneEval_FindBoundObjects)
 	
@@ -41,7 +51,7 @@ TArrayView<TWeakObjectPtr<>> FMovieSceneObjectCache::FindBoundObjects(const FGui
 	}
 
 	// Attempt to update the bindings
-	UpdateBindings(InBindingID, Player);
+	UpdateBindings(InBindingID, SharedPlaybackState);
 
 	Bindings = BoundObjects.Find(InBindingID);
 	if (Bindings)
@@ -70,7 +80,7 @@ TArrayView<const TWeakObjectPtr<>> FMovieSceneObjectCache::IterateBoundObjects(c
 	return TArrayView<TWeakObjectPtr<>>();
 }
 
-FGuid FMovieSceneObjectCache::FindObjectId(UObject& InObject, IMovieScenePlayer& Player)
+FGuid FMovieSceneObjectCache::FindObjectId(UObject& InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	UMovieSceneSequence* Sequence = WeakSequence.Get();
 	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
@@ -83,13 +93,13 @@ FGuid FMovieSceneObjectCache::FindObjectId(UObject& InObject, IMovieScenePlayer&
 	{
 		// @todo: Currently we delete the entire object cache when attempting to find an object's ID to ensure that we do a 
 		// complete lookup from scratch. This is required for UMG as it interchanges content slots without notifying sequencer.
-		Clear(Player);
+		Clear(SharedPlaybackState);
 	}
 
-	return FindCachedObjectId(InObject, Player);
+	return FindCachedObjectId(InObject, SharedPlaybackState);
 }
 
-FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, IMovieScenePlayer& Player)
+FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	UMovieSceneSequence* Sequence = WeakSequence.Get();
 	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
@@ -104,7 +114,7 @@ FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, IMovieSceneP
 	for (int32 Index = 0; Index < MovieScene->GetPossessableCount(); ++Index)
 	{
 		FGuid ThisGuid = MovieScene->GetPossessable(Index).GetGuid();
-		if (FindBoundObjects(ThisGuid, Player).Contains(ObjectToFind))
+		if (FindBoundObjects(ThisGuid, SharedPlaybackState).Contains(ObjectToFind))
 		{
 			return ThisGuid;
 		}
@@ -114,7 +124,7 @@ FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, IMovieSceneP
 	for (int32 Index = 0; Index < MovieScene->GetSpawnableCount(); ++Index)
 	{
 		FGuid ThisGuid = MovieScene->GetSpawnable(Index).GetGuid();
-		if (FindBoundObjects(ThisGuid, Player).Contains(ObjectToFind))
+		if (FindBoundObjects(ThisGuid, SharedPlaybackState).Contains(ObjectToFind))
 		{
 			return ThisGuid;
 		}
@@ -123,7 +133,7 @@ FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, IMovieSceneP
 	return FGuid();
 }
 
-void FMovieSceneObjectCache::FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings)
+void FMovieSceneObjectCache::FilterObjectBindings(UObject* PredicateObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<FMovieSceneObjectBindingID>* OutBindings)
 {
 	check(OutBindings);
 
@@ -150,7 +160,7 @@ void FMovieSceneObjectCache::FilterObjectBindings(UObject* PredicateObject, IMov
 
 	for (const FGuid& DirtyBinding : OutOfDateBindings)
 	{
-		UpdateBindings(DirtyBinding, Player);
+		UpdateBindings(DirtyBinding, SharedPlaybackState);
 
 		const FBoundObjects& Bindings = BoundObjects.FindChecked(DirtyBinding);
 		for (TWeakObjectPtr<> WeakObject : Bindings.Objects)
@@ -300,32 +310,39 @@ bool FMovieSceneObjectCache::InvalidateInternal(const FGuid& InGuid)
 	return true;
 }
 
-void FMovieSceneObjectCache::Clear(IMovieScenePlayer& Player)
+void FMovieSceneObjectCache::Clear(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
+	using namespace UE::MovieScene;
+
 	BoundObjects.Reset();
 	ChildBindings.Reset();
 	ReverseMappedBindings.Reset();
 
 	UpdateSerialNumber();
 
-	Player.NotifyBindingsChanged();
+	if (IObjectBindingNotifyPlaybackCapability* Notify = SharedPlaybackState->FindCapability<IObjectBindingNotifyPlaybackCapability>())
+	{
+		Notify->NotifyBindingsChanged();
+	}
 	OnBindingInvalidated.Broadcast(FGuid());
 }
 
 
-void FMovieSceneObjectCache::SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+void FMovieSceneObjectCache::SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	if (WeakSequence != &InSequence)
 	{
-		Clear(Player);
+		Clear(SharedPlaybackState);
 	}
 
 	WeakSequence = &InSequence;
 	SequenceID = InSequenceID;
 }
 
-void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlayer& Player)
+void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
+	using namespace UE::MovieScene;
+
 	TGuardValue<bool> ReentrancyGuard(bReentrantUpdate, true);
 
 	// Invalidate existing bindings, we're going to rebuild them.
@@ -360,16 +377,19 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 	// for a different sequence).
 	// TODO-lchabant: we could technically end up in a circular override that creates an infinite loop...
 	const FMovieSceneEvaluationOperand Operand(SequenceID, InGuid);
-	if (const FMovieSceneEvaluationOperand* OverrideOperand = Player.BindingOverrides.Find(Operand))
+	FMovieSceneEvaluationState* State = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
+	IStaticBindingOverridesPlaybackCapability* StaticOverrides = SharedPlaybackState->FindCapability<IStaticBindingOverridesPlaybackCapability>();
+	if (const FMovieSceneEvaluationOperand* OverrideOperand = StaticOverrides ? StaticOverrides->GetBindingOverride(Operand) : nullptr)
 	{
-		const TArrayView<TWeakObjectPtr<>> OverrideBoundObjects = Player.FindBoundObjects(*OverrideOperand);
+		const TArrayView<TWeakObjectPtr<>> OverrideBoundObjects = State->FindBoundObjects(*OverrideOperand, SharedPlaybackState);
 		Bindings->Objects.Append(OverrideBoundObjects.GetData(), OverrideBoundObjects.Num());
 	}
 	else
 	{
 		const bool bUseParentsAsContext = Sequence->AreParentContextsSignificant();
 
-		UObject* Context = Player.GetPlaybackContext();
+		UObject* Context = SharedPlaybackState->GetPlaybackContext();
+		IMovieScenePlayer* Player = FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 
 		const FMovieScenePossessable* Possessable = Sequence->GetMovieScene()->FindPossessable(InGuid);
 		if (Possessable)
@@ -379,7 +399,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 			// Because these are ordered parent-first, the parent must have already been bound, if it exists
 			if (Possessable->GetParent().IsValid())
 			{
-				TArrayView<TWeakObjectPtr<>> ParentBoundObjects = FindBoundObjects(Possessable->GetParent(), Player);
+				TArrayView<TWeakObjectPtr<>> ParentBoundObjects = FindBoundObjects(Possessable->GetParent(), SharedPlaybackState);
 
 				ChildBindings.FindOrAdd(Possessable->GetParent()).AddUnique(InGuid);
 
@@ -400,7 +420,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 					
 					if (Possessable->GetSpawnableObjectBindingID().IsValid())
 					{
-						for (TWeakObjectPtr<> BoundObject : Possessable->GetSpawnableObjectBindingID().ResolveBoundObjects(SequenceID, Player))
+						for (TWeakObjectPtr<> BoundObject : Possessable->GetSpawnableObjectBindingID().ResolveBoundObjects(SequenceID, SharedPlaybackState))
 						{
 							if (BoundObject.IsValid())
 							{
@@ -410,15 +430,19 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 					}
 					else
 					{
-						FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(Player, Sequence, SequenceID, InGuid, Possessable->DynamicBinding);
+						FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(*Player, Sequence, SequenceID, InGuid, Possessable->DynamicBinding);
 						if (ResolveResult.Object)
 						{
 							ensureMsgf(ResolveResult.bIsPossessedObject, TEXT("Possessables don't support spawnable-type ownership"));
 							FoundObjects.Add(ResolveResult.Object);
 						}
+						else if (Player)
+						{
+							Player->ResolveBoundObjects(InGuid, SequenceID, *Sequence, ResolutionContext, FoundObjects);
+						}
 						else
 						{
-							Player.ResolveBoundObjects(InGuid, SequenceID, *Sequence, ResolutionContext, FoundObjects);
+							Sequence->LocateBoundObjects(InGuid, ResolutionContext, FoundObjects);
 						}
 					}
 					
@@ -437,9 +461,9 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 				{
 					// We resolve this binding to fixed here, as we conveniently have a Player pointer already, and when being invalidated,
 					// the binding ID passed down will be relative to the root.
-					FMovieSceneObjectBindingID SpawnableFixedBindingID = Possessable->GetSpawnableObjectBindingID().ResolveToFixed(SequenceID, Player);
+					FMovieSceneObjectBindingID SpawnableFixedBindingID = Possessable->GetSpawnableObjectBindingID().ResolveToFixed(SequenceID, SharedPlaybackState);
 					ReverseMappedBindings.FindOrAdd(SpawnableFixedBindingID).AddUnique(InGuid);
-					for (TWeakObjectPtr<> BoundObject : Possessable->GetSpawnableObjectBindingID().ResolveBoundObjects(SequenceID, Player))
+					for (TWeakObjectPtr<> BoundObject : Possessable->GetSpawnableObjectBindingID().ResolveBoundObjects(SequenceID, SharedPlaybackState))
 					{
 						if (BoundObject.IsValid())
 						{
@@ -449,15 +473,19 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 				}
 				else
 				{
-					FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(Player, Sequence, SequenceID, InGuid, Possessable->DynamicBinding);
+					FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(*Player, Sequence, SequenceID, InGuid, Possessable->DynamicBinding);
 					if (ResolveResult.Object)
 					{
 						ensureMsgf(ResolveResult.bIsPossessedObject, TEXT("Possessables don't support spawnable-type ownership"));
 						FoundObjects.Add(ResolveResult.Object);
 					}
+					else if (Player)
+					{
+						Player->ResolveBoundObjects(InGuid, SequenceID, *Sequence, ResolutionContext, FoundObjects);
+					}
 					else
 					{
-						Player.ResolveBoundObjects(InGuid, SequenceID, *Sequence, ResolutionContext, FoundObjects);
+						Sequence->LocateBoundObjects(InGuid, ResolutionContext, FoundObjects);
 					}
 				}
 				
@@ -474,11 +502,11 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 			bool bUseDefault = true;
 
 			// Allow external overrides for spawnables
-			const IMovieScenePlaybackClient* PlaybackClient = Player.GetPlaybackClient();
-			if (PlaybackClient)
+			const IMovieScenePlaybackClient* DynamicOverrides = SharedPlaybackState->FindCapability<IMovieScenePlaybackClient>();
+			if (DynamicOverrides)
 			{
 				TArray<UObject*, TInlineAllocator<1>> FoundObjects;
-				bUseDefault = PlaybackClient->RetrieveBindingOverrides(InGuid, SequenceID, FoundObjects);
+				bUseDefault = DynamicOverrides->RetrieveBindingOverrides(InGuid, SequenceID, FoundObjects);
 				for (UObject* Object : FoundObjects)
 				{
 					Bindings->Objects.Add(Object);
@@ -488,7 +516,8 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 			// If we have no overrides, or they want to allow the default spawnable, do that now
 			if (bUseDefault)
 			{
-				UObject* SpawnedObject = Player.GetSpawnRegister().FindSpawnedObject(InGuid, SequenceID).Get();
+				const FMovieSceneSpawnRegister* SpawnRegister = SharedPlaybackState->FindCapability<FMovieSceneSpawnRegister>();
+				UObject* SpawnedObject = SpawnRegister ? SpawnRegister->FindSpawnedObject(InGuid, SequenceID).Get() : nullptr;
 				if (SpawnedObject)
 				{
 					Bindings->Objects.Add(SpawnedObject);
@@ -519,7 +548,11 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, IMovieScenePlay
 	if (NumBoundObjects > 0)
 	{
 		Bindings->bUpToDate = true;
-		Player.NotifyBindingUpdate(InGuid, SequenceID, Bindings->Objects);
+
+		if (IObjectBindingNotifyPlaybackCapability* Notify = SharedPlaybackState->FindCapability<IObjectBindingNotifyPlaybackCapability>())
+		{
+			Notify->NotifyBindingUpdate(InGuid, SequenceID, Bindings->Objects);
+		}
 
 		if (auto* Children = ChildBindings.Find(InGuid))
 		{
@@ -537,6 +570,38 @@ void FMovieSceneObjectCache::UpdateSerialNumber()
 	// Ok to overflow.
 	++SerialNumber;
 }
+
+TArrayView<TWeakObjectPtr<>> FMovieSceneObjectCache::FindBoundObjects(const FGuid& InBindingID, IMovieScenePlayer& Player)
+{
+	return FindBoundObjects(InBindingID, Player.GetSharedPlaybackState());
+}
+
+void FMovieSceneObjectCache::SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+{
+	SetSequence(InSequence, InSequenceID, Player.GetSharedPlaybackState());
+}
+
+FGuid FMovieSceneObjectCache::FindObjectId(UObject& InObject, IMovieScenePlayer& Player)
+{
+	return FindObjectId(InObject, Player.GetSharedPlaybackState());
+}
+
+FGuid FMovieSceneObjectCache::FindCachedObjectId(UObject& InObject, IMovieScenePlayer& Player)
+{
+	return FindCachedObjectId(InObject, Player.GetSharedPlaybackState());
+}
+
+void FMovieSceneObjectCache::Clear(IMovieScenePlayer& Player)
+{
+	Clear(Player.GetSharedPlaybackState());
+}
+
+void FMovieSceneObjectCache::FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings)
+{
+	FilterObjectBindings(PredicateObject, Player.GetSharedPlaybackState(), OutBindings);
+}
+
+UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState> FMovieSceneEvaluationState::ID = UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState>::Register();
 
 void FMovieSceneEvaluationState::InvalidateExpiredObjects()
 {
@@ -570,17 +635,17 @@ void FMovieSceneEvaluationState::SetBindingActivation(const FGuid& InGuid, FMovi
 	GetObjectCache(InSequenceID).SetBindingActivation(InGuid, bActive);
 }
 
-void FMovieSceneEvaluationState::ClearObjectCaches(IMovieScenePlayer& Player)
+void FMovieSceneEvaluationState::ClearObjectCaches(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	for (auto& Pair : ObjectCaches)
 	{
-		Pair.Value.ObjectCache.Clear(Player);
+		Pair.Value.ObjectCache.Clear(SharedPlaybackState);
 	}
 }
 
-void FMovieSceneEvaluationState::AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, IMovieScenePlayer& Player)
+void FMovieSceneEvaluationState::AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
-	GetObjectCache(InSequenceID).SetSequence(InSequence, InSequenceID, Player);
+	GetObjectCache(InSequenceID).SetSequence(InSequence, InSequenceID, SharedPlaybackState);
 }
 
 UMovieSceneSequence* FMovieSceneEvaluationState::FindSequence(FMovieSceneSequenceIDRef InSequenceID) const
@@ -602,25 +667,25 @@ FMovieSceneSequenceID FMovieSceneEvaluationState::FindSequenceId(UMovieSceneSequ
 	return FMovieSceneSequenceID();
 }
 
-FGuid FMovieSceneEvaluationState::FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+FGuid FMovieSceneEvaluationState::FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	FVersionedObjectCache* Cache = ObjectCaches.Find(InSequenceID);
-	return Cache ? Cache->ObjectCache.FindObjectId(Object, Player) : FGuid();
+	return Cache ? Cache->ObjectCache.FindObjectId(Object, SharedPlaybackState) : FGuid();
 }
 
-FGuid FMovieSceneEvaluationState::FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+FGuid FMovieSceneEvaluationState::FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	FVersionedObjectCache* Cache = ObjectCaches.Find(InSequenceID);
-	return Cache ? Cache->ObjectCache.FindCachedObjectId(Object, Player) : FGuid();
+	return Cache ? Cache->ObjectCache.FindCachedObjectId(Object, SharedPlaybackState) : FGuid();
 }
 
-void FMovieSceneEvaluationState::FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings)
+void FMovieSceneEvaluationState::FilterObjectBindings(UObject* PredicateObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<FMovieSceneObjectBindingID>* OutBindings)
 {
 	check(OutBindings);
 
 	for (TTuple<FMovieSceneSequenceID, FVersionedObjectCache>& Cache : ObjectCaches)
 	{
-		Cache.Value.ObjectCache.FilterObjectBindings(PredicateObject, Player, OutBindings);
+		Cache.Value.ObjectCache.FilterObjectBindings(PredicateObject, SharedPlaybackState, OutBindings);
 	}
 }
 
@@ -639,5 +704,51 @@ uint32 FMovieSceneEvaluationState::GetSerialNumber()
 		++SerialNumber;
 	}
 	return SerialNumber;
+}
+
+void FMovieSceneEvaluationState::Initialize(TSharedRef<const FSharedPlaybackState> Owner)
+{
+	UMovieSceneEntitySystemLinker* Linker = Owner->GetLinker();
+	RegisterObjectCacheEvents(Linker, Owner->GetRootInstanceHandle(), MovieSceneSequenceID::Root);
+}
+
+void FMovieSceneEvaluationState::OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const UE::MovieScene::FInstanceHandle InstanceHandle)
+{
+	UMovieSceneEntitySystemLinker* Linker = Owner->GetLinker();
+	const UE::MovieScene::FSequenceInstance& SubInstance = Linker->GetInstanceRegistry()->GetInstance(InstanceHandle);
+	RegisterObjectCacheEvents(Linker, InstanceHandle, SubInstance.GetSequenceID());
+}
+
+void FMovieSceneEvaluationState::RegisterObjectCacheEvents(UMovieSceneEntitySystemLinker* Linker, const UE::MovieScene::FInstanceHandle& InstanceHandle, const FMovieSceneSequenceID SequenceID)
+{
+	FMovieSceneObjectCache& ObjectCache = GetObjectCache(SequenceID);  // Make sure the cache is created...
+	FVersionedObjectCache& VersionedObjectCache = ObjectCaches.FindChecked(SequenceID);
+	VersionedObjectCache.OnInvalidateObjectBindingHandle = ObjectCache.OnBindingInvalidated.AddUObject(
+			Linker, &UMovieSceneEntitySystemLinker::InvalidateObjectBinding, InstanceHandle);
+}
+
+void FMovieSceneEvaluationState::AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, IMovieScenePlayer& Player)
+{
+	AssignSequence(InSequenceID, InSequence, Player.GetSharedPlaybackState());
+}
+
+FGuid FMovieSceneEvaluationState::FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+{
+	return FindObjectId(Object, InSequenceID, Player.GetSharedPlaybackState());
+}
+
+FGuid FMovieSceneEvaluationState::FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player)
+{
+	return FindCachedObjectId(Object, InSequenceID, Player.GetSharedPlaybackState());
+}
+
+void FMovieSceneEvaluationState::FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings)
+{
+	FilterObjectBindings(PredicateObject, Player.GetSharedPlaybackState(), OutBindings);
+}
+
+void FMovieSceneEvaluationState::ClearObjectCaches(IMovieScenePlayer& Player)
+{
+	ClearObjectCaches(Player.GetSharedPlaybackState());
 }
 

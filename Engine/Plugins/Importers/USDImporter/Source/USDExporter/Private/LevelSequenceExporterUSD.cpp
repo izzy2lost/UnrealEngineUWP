@@ -105,7 +105,7 @@ namespace UE
 			public:
 				bool bDestroyingJustHides = true;
 
-				virtual UObject* SpawnObject( FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, IMovieScenePlayer& Player ) override
+				virtual UObject* SpawnObject( FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState ) override
 				{
 					// Never spawn ASphereReflectionCapture actors. These are useless in USD anyway, and we run into
 					// trouble after we're done exporting them because on the tick where they're destroyed the editor
@@ -116,8 +116,7 @@ namespace UE
 						return nullptr;
 					}
 
-					ISequencer* Sequencer = static_cast<ISequencer*>(&Player);
-					UMovieSceneSequence* RootSequence = Sequencer->GetRootMovieSceneSequence();
+					UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
 					if ( !RootSequence )
 					{
 						return nullptr;
@@ -195,7 +194,7 @@ namespace UE
 					// Don't even have anything we can reuse: We need to spawn a brand new instance of this spawnable
 					if ( !Object )
 					{
-						Object = FLevelSequenceEditorSpawnRegister::SpawnObject( Spawnable, TemplateID, Player );
+						Object = FLevelSequenceEditorSpawnRegister::SpawnObject( Spawnable, TemplateID, SharedPlaybackState );
 						UE_LOG( LogUsd, VeryVerbose, TEXT( "Spawning '%s' (%0x) for RootSequence '%s', TemplateID '%u', Guid '%s'" ),
 							*Object->GetPathName(),
 							Object,
@@ -336,10 +335,10 @@ namespace UE
 					return SpawnableInstances.Contains(BindingGuid);
 				}
 
-				void DeleteSpawns( IMovieScenePlayer& Player )
+				void DeleteSpawns( TSharedRef<const FSharedPlaybackState> SharedPlaybackState )
 				{
 					bDestroyingJustHides = false;
-					CleanUp( Player );
+					CleanUp( SharedPlaybackState );
 
 					// If we still have existing spawns it may be because our base class' Register member didn't contain an
 					// entry for a spawnable before we called CleanUp (check its implementation: It just iterates over that Register).
@@ -460,7 +459,7 @@ namespace UE
 			public:
 				~FLevelSequenceExportContext()
 				{
-					SpawnRegister->DeleteSpawns( *Sequencer );
+					SpawnRegister->DeleteSpawns( Sequencer->GetSharedPlaybackState() );
 				}
 			};
 

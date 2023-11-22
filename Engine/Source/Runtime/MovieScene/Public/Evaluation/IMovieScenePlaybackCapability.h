@@ -5,12 +5,17 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/EnumClassFlags.h"
+#include "Templates/SharedPointer.h"
+#include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 
 class IMovieScenePlayer;
 class UMovieSceneEntitySystemLinker;
 
 namespace UE::MovieScene
 {
+
+struct FInstanceHandle;
+struct FSharedPlaybackState;
 
 /**
  * An identifier for a playback capability.
@@ -59,6 +64,11 @@ struct IPlaybackCapability
 {
 	virtual ~IPlaybackCapability() {}
 
+	/** Called after this capability has been added to a shared playback state */
+	virtual void Initialize(TSharedRef<const FSharedPlaybackState> Owner) {}
+	/** Called when a new sequence instance has been created and added to the sequence hierarchy */
+	virtual void OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const FInstanceHandle InstanceHandle) {}
+	/** Called when the root sequence is cleaning cached data */
 	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker) {}
 };
 

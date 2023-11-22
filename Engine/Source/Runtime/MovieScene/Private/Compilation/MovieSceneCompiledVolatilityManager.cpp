@@ -161,7 +161,7 @@ void FCompiledDataVolatilityManager::UpdateCachedSignatures()
 		UMovieSceneSequence* RootSequence = RootEntry.GetSequence();
 		if (RootSequence && Player)
 		{
-			Player->State.AssignSequence(MovieSceneSequenceID::Root, *RootSequence, *Player);
+			Player->State.AssignSequence(MovieSceneSequenceID::Root, *RootSequence, Player->GetSharedPlaybackState());
 		}
 	}
 
@@ -183,7 +183,7 @@ void FCompiledDataVolatilityManager::UpdateCachedSignatures()
 			UMovieSceneSequence* Sequence = SubData.Value.GetSequence();
 			if (Sequence && Player)
 			{
-				Player->State.AssignSequence(SubData.Key, *Sequence, *Player);
+				Player->State.AssignSequence(SubData.Key, *Sequence, Player->GetSharedPlaybackState());
 			}
 		}
 	}

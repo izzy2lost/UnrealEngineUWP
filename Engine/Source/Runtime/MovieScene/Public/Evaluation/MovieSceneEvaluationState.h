@@ -6,11 +6,11 @@
 #include "Containers/ArrayView.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/Map.h"
-#include "Containers/Set.h"
-#include "Containers/SparseArray.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/MulticastDelegateBase.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "Evaluation/IMovieScenePlaybackCapability.h"
 #include "Evaluation/MovieSceneEvaluationKey.h"
 #include "Evaluation/PersistentEvaluationData.h"
 #include "HAL/Platform.h"
@@ -33,11 +33,52 @@ struct FMovieSceneObjectBindingID;
 struct FSharedPersistentDataKey;
 struct IPersistentEvaluationData;
 
+namespace UE::MovieScene
+{
+
+	struct FInstanceHandle;
+	struct FSharedPlaybackState;
+
+	/**
+	 * Playback capability for being notified of object bindings changing.
+	 */
+	struct MOVIESCENE_API IObjectBindingNotifyPlaybackCapability
+	{
+		static TPlaybackCapabilityID<IObjectBindingNotifyPlaybackCapability> ID;
+
+		/** Called when multiple object bindings have changed. */
+		virtual void NotifyBindingsChanged() {}
+
+		/** Called when a specific object binding has changed. */
+		virtual void NotifyBindingUpdate(const FGuid& InBindingId, FMovieSceneSequenceIDRef InSequenceID, TArrayView<TWeakObjectPtr<>> BoundObjects) {}
+	};
+
+	/**
+	 * Playback capability for storing static object binding overrides.
+	 */
+	struct MOVIESCENE_API IStaticBindingOverridesPlaybackCapability
+	{
+		static TPlaybackCapabilityID<IStaticBindingOverridesPlaybackCapability> ID;
+
+		virtual ~IStaticBindingOverridesPlaybackCapability() {}
+
+		/** Retrieves any override for the given operand */
+		virtual FMovieSceneEvaluationOperand* GetBindingOverride(const FMovieSceneEvaluationOperand& InOperand) = 0;
+		/** Adds an override for the given operand */
+		virtual void AddBindingOverride(const FMovieSceneEvaluationOperand& InOperand, const FMovieSceneEvaluationOperand& InOverrideOperand) = 0;
+		/** Removes any override set for the given operand */
+		virtual void RemoveBindingOverride(const FMovieSceneEvaluationOperand& InOperand) = 0;
+	};
+
+}  // namespace UE::MovieScene
+
 /**
  * Object cache that looks up, resolves, and caches object bindings for a specific sequence
  */
 struct FMovieSceneObjectCache
 {
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
+
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingInvalidated, const FGuid&);
 	/** Invoked when a binding is either explicitly invalidated (as a result of a spawnable being spawned, or a binding override being added)
 	 *  or when a previously resolved binding becomes invalid */
@@ -51,7 +92,7 @@ struct FMovieSceneObjectCache
 	 * @param Player			The movie scene player that is playing back the sequence
 	 * @return An iterable type of all objects bound to the specified ID.
 	 */
-	MOVIESCENE_API TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& InBindingID, IMovieScenePlayer& Player);
+	MOVIESCENE_API TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& InBindingID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Find all objects that are bound to the specified binding ID
@@ -68,7 +109,7 @@ struct FMovieSceneObjectCache
 	 * @param InSequence		The sequence that this cache applies to
 	 * @param InSequenceID		The ID of the sequence within the root sequence
 	 */
-	MOVIESCENE_API void SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API void SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Attempt deduce the posessable or spawnable that relates to the specified object
@@ -78,7 +119,7 @@ struct FMovieSceneObjectCache
 	 * @param Player			The movie scene player that is playing back the sequence
 	 * @return The object's spawnable or possessable GUID, or a zero GUID if it was not found
 	 */
-	MOVIESCENE_API FGuid FindObjectId(UObject& InObject, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindObjectId(UObject& InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	* Attempt deduce the posessable or spawnable that relates to the specified object
@@ -88,7 +129,7 @@ struct FMovieSceneObjectCache
 	* @param Player			The movie scene player that is playing back the sequence
 	* @return The object's spawnable or possessable GUID, or a zero GUID if it was not found
 	*/
-	MOVIESCENE_API FGuid FindCachedObjectId(UObject& InObject, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindCachedObjectId(UObject& InObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Invalidate any object bindings for objects that have been destroyed
@@ -133,7 +174,7 @@ struct FMovieSceneObjectCache
 	/**
 	 * Completely erase all knowledge of, anc caches for all object bindings
 	 */
-	void Clear(IMovieScenePlayer& Player);
+	void Clear(TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Get the sequence that this cache relates to
@@ -152,21 +193,32 @@ struct FMovieSceneObjectCache
 	 * @param Player				The movie scene player that is playing back the sequence
 	 * @param OutBindings			(mandatory) Array to populate with bindings that relate to the object
 	 */
-	void FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings);
+	void FilterObjectBindings(UObject* PredicateObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<FMovieSceneObjectBindingID>* OutBindings);
+
+public:
+
+	// Backwards compatible API, to be deprecated later
+
+	MOVIESCENE_API TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& InBindingID, IMovieScenePlayer& Player);
+	MOVIESCENE_API void SetSequence(UMovieSceneSequence& InSequence, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindObjectId(UObject& InObject, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindCachedObjectId(UObject& InObject, IMovieScenePlayer& Player);
+	MOVIESCENE_API void Clear(IMovieScenePlayer& Player);
+	MOVIESCENE_API void FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings);
 
 private:
 	/**
 	 * Update the bindings for the specified GUID
 	 *
 	 * @param InGuid			The object binding ID to update bindings for
-	 * @param Player			The movie scene player that is playing back the sequence
+	 * @param SharedPlaybackState  The playback state for the sequence
 	 */
-	void UpdateBindings(const FGuid& InGuid, IMovieScenePlayer& Player);
+	void UpdateBindings(const FGuid& InGuid, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Handles optional dynamic binding for a given object binding.
 	 */
-	bool ResolveDynamicBinding(const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding, IMovieScenePlayer& Player, TArray<UObject*, TInlineAllocator<1>>& OutObjects);
+	bool ResolveDynamicBinding(const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<UObject*, TInlineAllocator<1>>& OutObjects);
 
 	/**
 	 * Invokes the custom function used to resolve a given dynamic object binding.
@@ -246,15 +298,19 @@ private:
 /**
  * Provides runtime evaluation functions with the ability to look up state from the main game environment
  */
-struct FMovieSceneEvaluationState
+struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 {
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
+
+	static UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState> ID;
+
 	/**
 	 * Assign a sequence to a specific ID
 	 *
 	 * @param InSequenceID		The sequence ID to assign to
 	 * @param InSequence		The sequence to assign
 	 */
-	MOVIESCENE_API void AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, IMovieScenePlayer& Player);
+	MOVIESCENE_API void AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Attempt to locate a sequence from its ID
@@ -278,7 +334,7 @@ struct FMovieSceneEvaluationState
 	 * @param Player			The movie scene player that is playing back the sequence
 	 * @return The object's spawnable or possessable GUID, or a zero GUID if it was not found
 	 */
-	MOVIESCENE_API FGuid FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	* Attempt deduce the posessable or spawnable that relates to the specified object
@@ -288,7 +344,7 @@ struct FMovieSceneEvaluationState
 	* @param Player			The movie scene player that is playing back the sequence
 	* @return The object's spawnable or possessable GUID, or a zero GUID if it was not found
 	*/
-	MOVIESCENE_API FGuid FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Filter all the object bindings in this object cache that contain the specified predicate object
@@ -297,7 +353,7 @@ struct FMovieSceneEvaluationState
 	 * @param Player				The movie scene player that is playing back the sequence
 	 * @param OutBindings			(mandatory) Array to populate with bindings that relate to the object
 	 */
-	MOVIESCENE_API void FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings);
+	MOVIESCENE_API void FilterObjectBindings(UObject* PredicateObject, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, TArray<FMovieSceneObjectBindingID>* OutBindings);
 
 	/**
 	 * Find an object cache pertaining to the specified sequence
@@ -343,6 +399,39 @@ struct FMovieSceneEvaluationState
 	}
 
 	/**
+	 * Locate objects bound to the specified object guid, in the specified sequence
+	 * @note: Objects lists are cached internally until they are invalidate.
+	 *
+	 * @param ObjectBindingID 		The object to resolve
+	 * @param SequenceID 			ID of the sequence to resolve for
+	 *
+	 * @return Iterable list of weak object pointers pertaining to the specified GUID
+	 */
+	TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+	{
+		FMovieSceneObjectCache* Cache = FindObjectCache(SequenceID);
+		if (Cache)
+		{
+			return Cache->FindBoundObjects(ObjectBindingID, SharedPlaybackState);
+		}
+
+		return TArrayView<TWeakObjectPtr<>>();
+	}
+
+	/**
+	 * Locate objects bound to the specified sequence operand
+	 * @note: Objects lists are cached internally until they are invalidate.
+	 *
+	 * @param Operand 			The movie scene operand to resolve
+	 *
+	 * @return Iterable list of weak object pointers pertaining to the specified GUID
+	 */
+	TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FMovieSceneEvaluationOperand& Operand, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
+	{
+		return FindBoundObjects(Operand.ObjectBindingID, Operand.SequenceID, SharedPlaybackState);
+	}
+
+	/**
 	 * Invalidate any object caches that may now contain expired objects
 	 */
 	MOVIESCENE_API void InvalidateExpiredObjects();
@@ -372,7 +461,7 @@ struct FMovieSceneEvaluationState
 	/**
 	 * Forcably clear all object caches
 	 */
-	MOVIESCENE_API void ClearObjectCaches(IMovieScenePlayer& Player);
+	MOVIESCENE_API void ClearObjectCaches(TSharedRef<const FSharedPlaybackState> SharedPlaybackState);
 
 	/**
 	 * Get the serial number for this state.
@@ -385,12 +474,33 @@ struct FMovieSceneEvaluationState
 	/** A map of persistent evaluation data mapped by shared evaluation key. Such data can be accessed from anywhere given an operand and a unique identifier. */
 	TMap<FSharedPersistentDataKey, TUniquePtr<IPersistentEvaluationData>> PersistentSharedData;
 
+public:
+
+	/** IPlaybackCapability members */
+	virtual void Initialize(TSharedRef<const FSharedPlaybackState> Owner) override;
+	virtual void OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const UE::MovieScene::FInstanceHandle InstanceHandle) override;
+
+private:
+
+	void RegisterObjectCacheEvents(UMovieSceneEntitySystemLinker* Linker, const UE::MovieScene::FInstanceHandle& InstanceHandle, const FMovieSceneSequenceID SequenceID);
+
+public:
+
+	// Backwards compatible API, to be deprecated later
+
+	MOVIESCENE_API void AssignSequence(FMovieSceneSequenceIDRef InSequenceID, UMovieSceneSequence& InSequence, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API FGuid FindCachedObjectId(UObject& Object, FMovieSceneSequenceIDRef InSequenceID, IMovieScenePlayer& Player);
+	MOVIESCENE_API void FilterObjectBindings(UObject* PredicateObject, IMovieScenePlayer& Player, TArray<FMovieSceneObjectBindingID>* OutBindings);
+	MOVIESCENE_API void ClearObjectCaches(IMovieScenePlayer& Player);
+
 private:
 
 	/** Object cache with a last known serial of it */
 	struct FVersionedObjectCache
 	{
 		FMovieSceneObjectCache ObjectCache;
+		FDelegateHandle OnInvalidateObjectBindingHandle;
 		uint32 LastKnownSerial = 0;
 	};
 

@@ -4,6 +4,7 @@
 
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
+#include "MovieSceneSequenceID.h"
 
 namespace UE::MovieScene
 {
@@ -47,9 +48,16 @@ const FMovieSceneSequenceHierarchy* FSharedPlaybackState::GetHierarchy() const
 
 UMovieSceneSequence* FSharedPlaybackState::GetSequence(FMovieSceneSequenceIDRef InSequenceID) const
 {
-	const FMovieSceneSequenceHierarchy* Hierarchy = GetHierarchy();
-	const FMovieSceneSubSequenceData*   SubData   = Hierarchy ? Hierarchy->FindSubData(InSequenceID) : nullptr;
-	return SubData ? SubData->GetSequence() : nullptr;
+	if (InSequenceID == MovieSceneSequenceID::Root)
+	{
+		return WeakRootSequence.Get();
+	}
+	else
+	{
+		const FMovieSceneSequenceHierarchy* Hierarchy = GetHierarchy();
+		const FMovieSceneSubSequenceData*   SubData   = Hierarchy ? Hierarchy->FindSubData(InSequenceID) : nullptr;
+		return SubData ? SubData->GetSequence() : nullptr;
+	}
 }
 
 void FSharedPlaybackState::InvalidateCachedData()

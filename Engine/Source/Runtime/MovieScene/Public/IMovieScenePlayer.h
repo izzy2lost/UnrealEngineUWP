@@ -13,6 +13,7 @@
 #include "Evaluation/MovieSceneEvaluationOperand.h"
 #include "Evaluation/MovieSceneEvaluationState.h"
 #include "Evaluation/MovieScenePreAnimatedState.h"
+#include "Evaluation/SequenceDirectorPlaybackCapability.h"
 #include "MovieSceneSpawnRegister.h"
 
 enum class EMovieSceneBuiltInEasing : uint8;
@@ -106,7 +107,10 @@ using EMovieSceneCameraCutParams = FMovieSceneCameraCutParams;
  * Interface for movie scene players
  * Provides information for playback of a movie scene
  */
-class IMovieScenePlayer
+class IMovieScenePlayer 
+	: public UE::MovieScene::IObjectBindingNotifyPlaybackCapability
+	, public UE::MovieScene::IStaticBindingOverridesPlaybackCapability
+	, public UE::MovieScene::ISequenceDirectorPlaybackCapability
 {
 public:
 	MOVIESCENE_API IMovieScenePlayer();
@@ -183,17 +187,51 @@ public:
 	 * @param InSequenceID	The ID of the sequence in which the object binding resides
 	 * @param Objects		The array of objects that were resolved
 	 */
-	virtual void NotifyBindingUpdate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID, TArrayView<TWeakObjectPtr<>> Objects) { NotifyBindingsChanged(); }
+	virtual void NotifyBindingUpdate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID, TArrayView<TWeakObjectPtr<>> Objects) override { NotifyBindingsChanged(); }
+
+	/**
+	 * Called whenever any object bindings have changed
+	 */
+	virtual void NotifyBindingsChanged() override {}
+
+	/** 
+	 * Retrieves any override for the given operand
+	 */
+	virtual FMovieSceneEvaluationOperand* GetBindingOverride(const FMovieSceneEvaluationOperand& InOperand) override
+	{
+		return BindingOverrides.Find(InOperand);
+	}
+
+	/** 
+	 * Adds an override for the given operand 
+	 */
+	virtual void AddBindingOverride(const FMovieSceneEvaluationOperand& InOperand, const FMovieSceneEvaluationOperand& InOverrideOperand) override
+	{
+		BindingOverrides.Add(InOperand, InOverrideOperand);
+	}
+
+	/** 
+	 * Removes any override set for the given operand
+	 */
+	virtual void RemoveBindingOverride(const FMovieSceneEvaluationOperand& InOperand) override
+	{
+		BindingOverrides.Remove(InOperand);
+	}
+
+	/**
+	 * Remove all director blueprint instances
+	 */
+	MOVIESCENE_API virtual void ResetDirectorInstances() override;
+
+	/**
+	 * Gets a new or existing director blueprint instance for the given root or sub sequence
+	 */
+	MOVIESCENE_API virtual UObject* GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID) override;
 
 	/**
 	 * Called to initialize the flag structure that denotes what functions need to be called on this updater
 	 */
 	MOVIESCENE_API virtual void PopulateUpdateFlags(UE::MovieScene::ESequenceInstanceUpdateFlags& OutFlags);
-
-	/**
-	 * Called whenever any object bindings have changed
-	 */
-	virtual void NotifyBindingsChanged() {}
 
 	/**
 	 * Access the playback context for this movie scene player
@@ -246,16 +284,7 @@ public:
 	 *
 	 * @return Iterable list of weak object pointers pertaining to the specified GUID
 	 */
-	TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID)
-	{
-		FMovieSceneObjectCache* Cache = State.FindObjectCache(SequenceID);
-		if (Cache)
-		{
-			return Cache->FindBoundObjects(ObjectBindingID, *this);
-		}
-
-		return TArrayView<TWeakObjectPtr<>>();
-	}
+	MOVIESCENE_API TArrayView<TWeakObjectPtr<>> FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID);
 
 	/**
 	 * Locate objects bound to the specified sequence operand
@@ -281,7 +310,7 @@ public:
 	 */
 	FGuid FindObjectId(UObject& InObject, FMovieSceneSequenceIDRef SequenceID)
 	{
-		return State.FindObjectId(InObject, SequenceID, *this);
+		return State.FindObjectId(InObject, SequenceID, GetSharedPlaybackState());
 	}
 
 	/**
@@ -295,7 +324,7 @@ public:
 	*/
 	FGuid FindCachedObjectId(UObject& InObject, FMovieSceneSequenceIDRef SequenceID)
 	{
-		return State.FindCachedObjectId(InObject, SequenceID, *this);
+		return State.FindCachedObjectId(InObject, SequenceID, GetSharedPlaybackState());
 	}
 
 	/**
@@ -329,7 +358,7 @@ public:
 	void RestorePreAnimatedState()
 	{
 		PreAnimatedState.RestorePreAnimatedState();
-		State.ClearObjectCaches(*this);
+		State.ClearObjectCaches(GetSharedPlaybackState());
 	}
 
 	/**
@@ -338,7 +367,7 @@ public:
 	void DiscardPreAnimatedState()
 	{
 		PreAnimatedState.DiscardPreAnimatedState();
-		State.ClearObjectCaches(*this);
+		State.ClearObjectCaches(GetSharedPlaybackState());
 	}
 
 
@@ -355,10 +384,28 @@ public:
 
 	MOVIESCENE_API bool IsEvaluating() const;
 
+	/**
+	 * Returns the evaluated sequence instance's shared playback state, if any.
+	 */
+	MOVIESCENE_API TSharedPtr<UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState();
+
+	/**
+	 * Returns the evaluated sequence instance's shared playback state, asserts if there is none.
+	 */
+	MOVIESCENE_API TSharedRef<UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState();
+
 	uint16 GetUniqueIndex() const
 	{
 		return UniqueIndex;
 	}
+
+public:
+
+	/**
+	 * Initializes a new root sequence instance and its shared playback state.
+	 * This adds all the player's playback capabilities to the given state.
+	 */
+	void InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState);
 
 public:
 

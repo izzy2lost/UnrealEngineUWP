@@ -75,18 +75,18 @@ void UTemplateSequenceSystem::OnRun(FSystemTaskPrerequisites& InPrerequisites, F
 			const FGuid& ObjectBindingID = ObjectBindingIDs[Index];
 			const FTemplateSequenceComponentData& TemplateSequenceData = TemplateSequenceDatas[Index];
 
-			IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-			if (ensure(Player))
+			IStaticBindingOverridesPlaybackCapability* StaticOverrides = SequenceInstance.GetSharedPlaybackState()->FindCapability<IStaticBindingOverridesPlaybackCapability>();
+			if (ensure(StaticOverrides))
 			{
 				if (bHasNeedsLink)
 				{
 					const FMovieSceneSequenceID SequenceID = SequenceInstance.GetSequenceID();
 					const FMovieSceneEvaluationOperand OuterOperand(SequenceID, ObjectBindingID);
-					Player->BindingOverrides.Add(TemplateSequenceData.InnerOperand, OuterOperand);
+					StaticOverrides->AddBindingOverride(TemplateSequenceData.InnerOperand, OuterOperand);
 				}
 				else if (bHasNeedsUnlink)
 				{
-					Player->BindingOverrides.Remove(TemplateSequenceData.InnerOperand);
+					StaticOverrides->RemoveBindingOverride(TemplateSequenceData.InnerOperand);
 				}
 			}
 		}

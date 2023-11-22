@@ -595,7 +595,7 @@ TArray<FGuid> ExpandMultiplePossessableBindings(TSharedRef<ISequencer> Sequencer
 				NewPossessable->SetParent(ParentGuid, MovieScene);
 			}
 
-			if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), FoundObject, &Sequencer.Get()))
+			if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), FoundObject, Sequencer->GetSharedPlaybackState()))
 			{
 				Sequence->BindPossessableObject(NewPossessableGuid, *FoundObject, BindingContext);
 			}
@@ -2534,7 +2534,7 @@ FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObje
 		}
 	}
 
-	if (!OwnerMovieScene->FindPossessable(PossessableGuid)->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), &InObject, &Sequencer.Get()))
+	if (!OwnerMovieScene->FindPossessable(PossessableGuid)->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), &InObject, Sequencer->GetSharedPlaybackState()))
 	{
 		OwnerSequence->BindPossessableObject(PossessableGuid, InObject, BindingContext);
 	}
@@ -2644,7 +2644,7 @@ FGuid FSequencerUtilities::AssignActor(TSharedRef<ISequencer> Sequencer, AActor*
 		// Add this object
 		NewPossessableActor = FMovieScenePossessable(NewActorLabel, Actor->GetClass());
 		NewGuid = NewPossessableActor.GetGuid();
-		if (!NewPossessableActor.BindSpawnableObject(Sequencer->GetFocusedTemplateID(), Actor, &Sequencer.Get()))
+		if (!NewPossessableActor.BindSpawnableObject(Sequencer->GetFocusedTemplateID(), Actor, Sequencer->GetSharedPlaybackState()))
 		{
 			OwnerSequence->BindPossessableObject(NewPossessableActor.GetGuid(), *Actor, Sequencer->GetPlaybackContext());
 		}
@@ -2831,7 +2831,7 @@ void FSequencerUtilities::AddActorsToBinding(TSharedRef<ISequencer> Sequencer, c
 				}
 
 				ActorToAdd->Modify();
-				if (!MovieScene->FindPossessable(Guid)->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), ActorToAdd, &Sequencer.Get()))
+				if (!MovieScene->FindPossessable(Guid)->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), ActorToAdd, Sequencer->GetSharedPlaybackState()))
 				{
 					Sequence->BindPossessableObject(Guid, *ActorToAdd, Sequencer->GetPlaybackContext());
 				}

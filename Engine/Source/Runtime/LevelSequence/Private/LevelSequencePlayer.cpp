@@ -135,14 +135,19 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InLevelSequence, ULevel* I
 
 	UMovieSceneSequencePlayer::Initialize(InLevelSequence);
 
-	// Add the camera cut playback capability.
-	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
-	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
-	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
-	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
-	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+	TSharedPtr<FSharedPlaybackState> SharedPlaybackState = RootTemplateInstance.GetSharedPlaybackState();
+	if (SharedPlaybackState)
 	{
-		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+		// The parent player class' root evaluation template may or may not have re-initialized itself.
+		// For instance, if we are given the same sequence asset we already had before, and nothing else
+		// (such as playback context) has changed, no actual re-initialization occurs and we keep the
+		// same shared playback state as before.
+		// That state would already have the spawn register and camera cut capabilies... however, our 
+		// spawn register was just re-created (see a few lines above) so we need to overwrite the 
+		// capability pointer to the new object.
+		// The camera cut capability will stay as a pointer to ourselves, and that's fine.
+		SharedPlaybackState->SetOrAddCapabilityRaw<FMovieSceneSpawnRegister>(SpawnRegister.Get());
+		SharedPlaybackState->SetOrAddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
 	}
 }
 

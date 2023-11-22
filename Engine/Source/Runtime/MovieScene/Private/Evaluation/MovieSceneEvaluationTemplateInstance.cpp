@@ -165,9 +165,11 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 		FRootInstanceHandle RootInstanceHandle;
 		if (EntitySystemLinker != nullptr && EntitySystemLinker->GetInstanceRegistry())
 		{
+			UObject* PlaybackContext = Player.GetPlaybackContext();
 			FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
-			RootInstanceHandle = InstanceRegistry->AllocateRootInstance(&Player, InRootSequence, InRunner, InCompiledDataManager);
+			RootInstanceHandle = InstanceRegistry->AllocateRootInstance(InRootSequence, PlaybackContext, InRunner, InCompiledDataManager);
 			SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+			Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
 		}
 		else
 		{
@@ -217,6 +219,16 @@ bool FMovieSceneRootEvaluationTemplateInstance::IsValid() const
 	return EntitySystemLinker && SharedPlaybackState;
 }
 
+TSharedPtr<UE::MovieScene::FSharedPlaybackState> FMovieSceneRootEvaluationTemplateInstance::GetSharedPlaybackState()
+{
+	return SharedPlaybackState;
+}
+
+TSharedPtr<const UE::MovieScene::FSharedPlaybackState> FMovieSceneRootEvaluationTemplateInstance::GetSharedPlaybackState() const
+{
+	return SharedPlaybackState;
+}
+
 UE::MovieScene::FRootInstanceHandle FMovieSceneRootEvaluationTemplateInstance::GetRootInstanceHandle() const
 {
 	return SharedPlaybackState ? SharedPlaybackState->GetRootInstanceHandle() : UE::MovieScene::FRootInstanceHandle();
@@ -262,19 +274,7 @@ void FMovieSceneRootEvaluationTemplateInstance::EnableGlobalPreAnimatedStateCapt
 
 UMovieSceneSequence* FMovieSceneRootEvaluationTemplateInstance::GetSequence(FMovieSceneSequenceIDRef SequenceID) const
 {
-	if (SequenceID == MovieSceneSequenceID::Root)
-	{
-		return SharedPlaybackState->GetRootSequence();
-	}
-	else if (const FMovieSceneSequenceHierarchy* Hierarchy = SharedPlaybackState->GetHierarchy())
-	{
-		const FMovieSceneSubSequenceData* SubSequenceData = Hierarchy->FindSubData(SequenceID);
-		if (SubSequenceData)
-		{
-			return SubSequenceData->GetSequence();
-		}
-	}
-	return nullptr;
+	return SharedPlaybackState ? SharedPlaybackState->GetSequence(SequenceID) : nullptr;
 }
 
 UMovieSceneEntitySystemLinker* FMovieSceneRootEvaluationTemplateInstance::GetEntitySystemLinker() const
@@ -510,9 +510,13 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 		Runner->AttachToLinker(EntitySystemLinker);
 	}
 
+	UObject* PlaybackContext = Player.GetPlaybackContext();
 	FInstanceRegistry* InstanceRegistry = EntitySystemLinker->GetInstanceRegistry();
-	const FRootInstanceHandle RootInstanceHandle = InstanceRegistry->AllocateRootInstance(&Player, *RootSequence, Runner, CompiledDataManager);
-	SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
+	const FRootInstanceHandle RootInstanceHandle = InstanceRegistry->AllocateRootInstance(
+			*RootSequence, PlaybackContext, Runner, CompiledDataManager);
+	FSequenceInstance& RootInstance = InstanceRegistry->MutateInstance(RootInstanceHandle);
+	SharedPlaybackState = RootInstance.GetSharedPlaybackState();
+	Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
 
 	DirectorInstances.Reset();
 

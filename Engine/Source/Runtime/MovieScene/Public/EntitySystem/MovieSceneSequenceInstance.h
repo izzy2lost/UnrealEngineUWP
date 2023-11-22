@@ -312,13 +312,13 @@ public:
 public:
 
 	/** Constructor for top level sequences */
-	MOVIESCENE_API explicit FSequenceInstance(TSharedRef<FSharedPlaybackState> PlaybackState, FRootInstanceHandle ThisInstanceHandle);
+	MOVIESCENE_API explicit FSequenceInstance(TSharedRef<FSharedPlaybackState> PlaybackState);
 
 	/** Constructor for sub sequences */
-	MOVIESCENE_API explicit FSequenceInstance(TSharedRef<FSharedPlaybackState> PlaybackState, FInstanceHandle ThisInstanceHandle, FInstanceHandle InParentInstanceHandle, FRootInstanceHandle RootInstanceHandle, FMovieSceneSequenceID InSequenceID);
+	MOVIESCENE_API explicit FSequenceInstance(TSharedRef<FSharedPlaybackState> PlaybackState, FInstanceHandle ThisInstanceHandle, FInstanceHandle InParentInstanceHandle, FMovieSceneSequenceID InSequenceID);
 
-	/** Initialization of the sequence */
-	MOVIESCENE_API void Initialize(IMovieScenePlayer* Player);
+	/** Finish initializing this sequence instance */
+	MOVIESCENE_API void Initialize();
 
 	/** Destructor */
 	MOVIESCENE_API ~FSequenceInstance();
@@ -333,32 +333,32 @@ public:
 
 public:
 
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API bool ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void DissectContext(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& Context, TArray<TRange<FFrameTime>>& OutDissections);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void Start(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& InContext);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void PreEvaluation(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void Update(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& InContext);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API bool CanFinishImmediately(UMovieSceneEntitySystemLinker* Linker) const;
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void Finish(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void PostEvaluation(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void DestroyImmediately(UMovieSceneEntitySystemLinker* Linker);
-	UE_DEPRECATED(5.4, "Please use the version of this method that doesn't take a Linker")
-	MOVIESCENE_API void OverrideRootSequence(UMovieSceneEntitySystemLinker* Linker, FMovieSceneSequenceID NewRootSequenceID);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	bool ConditionalRecompile(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void DissectContext(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& Context, TArray<TRange<FFrameTime>>& OutDissections);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void Start(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& InContext);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void PreEvaluation(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void Update(UMovieSceneEntitySystemLinker* Linker, const FMovieSceneContext& InContext);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	bool CanFinishImmediately(UMovieSceneEntitySystemLinker* Linker) const;
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void Finish(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void PostEvaluation(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void DestroyImmediately(UMovieSceneEntitySystemLinker* Linker);
+	UE_DEPRECATED(5.4, "Please use the version of this method without a Linker parameter")
+	void OverrideRootSequence(UMovieSceneEntitySystemLinker* Linker, FMovieSceneSequenceID NewRootSequenceID);
 
 private:
 
-	MOVIESCENE_API void InitializeLegacyEvaluator();
+	void InitializeLegacyEvaluator();
 
 private:
 
@@ -379,9 +379,6 @@ private:
 	/** Playback state shared by the entire sequence hierarchy */
 	TSharedRef<FSharedPlaybackState> SharedPlaybackState;
 
-
-	/** Delegate Binding for when an object binding is invalidated in this instance. */
-	FDelegateHandle OnInvalidateObjectBindingHandle;
 	/** This sequence instances sequence ID, or MovieSceneSequenceID::Root for top-level sequences. */
 	FMovieSceneSequenceID SequenceID;
 	/** When SequenceID != MovieSceneSequenceID::Root, specifies an ID to override as a simulated root. */
@@ -394,6 +391,8 @@ private:
 	FInstanceHandle ParentInstanceHandle;
 	/** This instance's root handle, if it is a sub sequence. */
 	FRootInstanceHandle RootInstanceHandle;
+	/** Flag that indicates whether this instance was initialized */
+	bool bInitialized : 1;
 	/** Flag that is set when this sequence has or (will be) finished. */
 	bool bFinished : 1;
 	/** Flag that is set if this sequence has ever updated. */

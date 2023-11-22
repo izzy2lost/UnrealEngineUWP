@@ -29,6 +29,18 @@ IMovieScenePlayer* FRestoreStateParams::GetTerminalPlayer() const
 	return nullptr;
 }
 
+TSharedPtr<const FSharedPlaybackState> FRestoreStateParams::GetTerminalPlaybackState() const
+{
+	if (Linker && TerminalInstanceHandle.IsValid())
+	{
+		const FSequenceInstance& TerminalInstance = Linker->GetInstanceRegistry()->GetInstance(TerminalInstanceHandle);
+		return TerminalInstance.GetSharedPlaybackState().ToSharedPtr();
+	}
+
+	ensureAlways(false);
+	return nullptr;
+}
+
 } // namespace MovieScene
 } // namespace UE
 

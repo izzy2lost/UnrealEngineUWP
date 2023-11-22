@@ -5,8 +5,6 @@
 #include "CoreTypes.h"
 #include "Evaluation/IMovieScenePlaybackCapability.h"
 #include "EntitySystem/RelativePtr.h"
-#include "UObject/WeakObjectPtr.h"
-#include "Misc/TVariant.h"
 #include "Templates/AlignmentTemplates.h"
 #include "Templates/PointerIsConvertibleFromTo.h"
 
@@ -297,12 +295,16 @@ protected:
 			}
 		}
 
-		uint64 RequiredSizeof = 0u;
+		// We'll keep track of where all our new capabilities will go, relative to the buffer start
+		TArray<uint16, TInlineAllocator<16>> NewCapabilityOffsets;
+		NewCapabilityOffsets.SetNum(ExistingNum + 1);
 
 		// Compute the required size of our allocation
+		uint64 RequiredSizeof = 0u;
+
 		{
 			// Allocate space for headers
-			RequiredSizeof += (ExistingNum+1) * sizeof(FPlaybackCapabilityHeader);
+			RequiredSizeof += (ExistingNum + 1) * sizeof(FPlaybackCapabilityHeader);
 
 			int32 Index = 0;
 
@@ -310,11 +312,13 @@ protected:
 			for (; Index < NewCapabilityIndex; ++Index)
 			{
 				RequiredSizeof = Align(RequiredSizeof, (uint64)ExistingHeaders[Index].Alignment);
+				NewCapabilityOffsets[Index] = RequiredSizeof;
 				RequiredSizeof += ExistingHeaders[Index].Sizeof;
 			}
 
 			// Count up the size and alignment for the new capability
 			RequiredSizeof = Align(RequiredSizeof, alignof(StorageType));
+			NewCapabilityOffsets[Index] = RequiredSizeof;
 			RequiredSizeof += sizeof(StorageType);
 			++Index;
 
@@ -322,6 +326,7 @@ protected:
 			for (; Index < ExistingNum+1; ++Index)
 			{
 				RequiredSizeof = Align(RequiredSizeof, (uint64)ExistingHeaders[Index-1].Alignment);
+				NewCapabilityOffsets[Index] = RequiredSizeof;
 				RequiredSizeof += ExistingHeaders[Index-1].Sizeof;
 			}
 		}
@@ -330,7 +335,7 @@ protected:
 
 		/// ----------------------------------------
 
-		uint8* OldAllocation = Memory;
+		uint8* OldMemory = Memory;
 
 		// Make a new allocation if necessary
 		const bool bNeedsReallocation = RequiredAlignment > Alignment || RequiredSizeof > Capacity;
@@ -344,76 +349,153 @@ protected:
 		// We now have an extra entry
 		++Num;
 
-		FPlaybackCapabilityHeader* CurrentHeader = reinterpret_cast<FPlaybackCapabilityHeader*>(Memory) + (Num-1);
-		uint8* CapabilityPtr = Memory + RequiredSizeof;
+		// We now need to re-arrange memory carefully, going back to front in order to avoid overlaps.
+		// For instance we can only move headers at the end of the whole operation, otherwise they could overwrite
+		// the memory of the first couple capabilities before we've had a chance to move them. So we do:
+		// 
+		// 1) Relocate capabilities from the last one up to where the new one will go
+		// 2) Allocate the new capability
+		// 3) Relocate capabilities from the one just before the new one, down to the first one
+		// 4) Relocate headers from the last one up to where the new one will go
+		// 5) Allocate the new header
+		// 6) Relocate headers from the one just before the new header, down to the first one
+		//
+		// In order to set the new capability pointers (obtained in steps 1-3) on the new headers (obtained in
+		// steps 4-6), we save these pointers in a temporary array.
 
-		auto RelocateCapability = [this, ExistingHeaders, OldAllocation, &CurrentHeader, &CapabilityPtr](int32 OldIndex)
+		const FPlaybackCapabilityHeader* OldHeaders = ExistingHeaders; // Better named variable for the rest of the steps...
+
+		auto RelocateCapability = [this, OldMemory, OldHeaders, &NewCapabilityOffsets](int32 OldIndex, int32 NewIndex)
 		{
-			// Go back
-			CapabilityPtr -= ExistingHeaders[OldIndex].Sizeof;
-			CapabilityPtr = AlignDown(CapabilityPtr, ExistingHeaders[OldIndex].Alignment);
-
-			// Copy the header
-			new (CurrentHeader) FPlaybackCapabilityHeader(ExistingHeaders[OldIndex]);
-			CurrentHeader->Capability = TRelativePtr<void, uint16>(this->Memory, CapabilityPtr);
-
-			--CurrentHeader;
-
-			void* OldCapability = ExistingHeaders[OldIndex].Capability.Resolve(OldAllocation);
-			FMemory::Memmove(CapabilityPtr, OldCapability, ExistingHeaders[OldIndex].Sizeof);
+			void* NewCapabilityPtr = this->Memory + NewCapabilityOffsets[NewIndex];
+			void* OldCapabilityPtr = OldHeaders[OldIndex].Capability.Resolve(OldMemory);
+			FMemory::Memmove(NewCapabilityPtr, OldCapabilityPtr, OldHeaders[OldIndex].Sizeof);
 		};
 
+		// Step 1
 		int32 Index = static_cast<int32>(Num) - 1;
 		for (; Index > NewCapabilityIndex; --Index)
 		{
-			RelocateCapability(Index-1);
+			RelocateCapability(Index - 1, Index);
 		}
 
-		// Make the new entry
-		CapabilityPtr -= sizeof(StorageType);
-		CapabilityPtr = AlignDown(CapabilityPtr, alignof(StorageType));
-
-		StorageType* NewCapabilityPtr = reinterpret_cast<StorageType*>(CapabilityPtr);
-
-		// Allocate the new type
-		new (NewCapabilityPtr) StorageType (Forward<ArgTypes>(InArgs)...);
-
-		static_assert(alignof(StorageType) < 0x7F, "Required alignment of capability must fit in 7 bytes");
-
-		using FStorageTraits = TPlaybackCapabilityStorageTraits<StorageType, CapabilityType>;
-
-		// Construct the header
-		const FPlaybackCapabilityHeader* NewHeader = CurrentHeader;
-		CurrentHeader->Capability.Reset(Memory, NewCapabilityPtr);
-		CurrentHeader->Sizeof = sizeof(StorageType);
-		CurrentHeader->Alignment = alignof(StorageType);
-		CurrentHeader->StorageMode = FStorageTraits::GetStorageMode();
-		// The pointer offset is whatever we need to add to the capability pointer in order to get
-		// a pointer to capability type itself (in case the storage type is a sub-class of it)
-		// We only need it if the capability object is stored inline inside our memory buffer.
-		CurrentHeader->PointerOffset = FStorageTraits::ComputePointerOffset(NewCapabilityPtr);
-
-		--CurrentHeader;
+		// Step 2
+		{
+			void* NewCapabilityPtr = this->Memory + NewCapabilityOffsets[Index];
+			StorageType* NewCapabilityTypedPtr = reinterpret_cast<StorageType*>(NewCapabilityPtr);
+			new (NewCapabilityTypedPtr) StorageType (Forward<ArgTypes>(InArgs)...);
+		}
 		--Index;
-
-		// Relocate the entries that are before the new one
+		
+		// Step 3
 		for (; Index >= 0; --Index)
 		{
-			RelocateCapability(Index);
+			RelocateCapability(Index, Index);
+		}
+		
+		FPlaybackCapabilityHeader* NewHeaders = reinterpret_cast<FPlaybackCapabilityHeader*>(Memory);
+
+		auto RelocateHeader = [this, OldHeaders, NewHeaders, &NewCapabilityOffsets](int32 OldIndex, int32 NewIndex)
+		{
+			const FPlaybackCapabilityHeader& OldHeader(OldHeaders[OldIndex]);
+			FPlaybackCapabilityHeader* NewHeaderPtr = &NewHeaders[NewIndex];
+			new (NewHeaderPtr) FPlaybackCapabilityHeader(OldHeader);
+
+			// Re-create the relative capability pointer, since the offset has changed (it's one capability
+			// further down), and the base pointer may have changed too (if we re-allocated the buffer)
+			void* NewCapabilityPtr = this->Memory + NewCapabilityOffsets[NewIndex];
+			NewHeaderPtr->Capability = TRelativePtr<void, uint16>(this->Memory, NewCapabilityPtr);
+		};
+
+		// Step 4
+		Index = static_cast<int32>(Num) - 1;
+		for (; Index > NewCapabilityIndex; --Index)
+		{
+			RelocateHeader(Index - 1, Index);
 		}
 
-		// Tidy up the old allocation. We do not call destructors here because we relocated everything.
-		if (bNeedsReallocation && OldAllocation)
+		// Step 5
+		FPlaybackCapabilityHeader* NewHeaderPtr = &NewHeaders[Index];
 		{
-			FMemory::Free(OldAllocation);
+			using FStorageTraits = TPlaybackCapabilityStorageTraits<StorageType, CapabilityType>;
+			static_assert(alignof(StorageType) < 0x7F, "Required alignment of capability must fit in 7 bytes");
+
+			void* NewCapabilityPtr = Memory + NewCapabilityOffsets[Index];
+			StorageType* NewCapabilityTypedPtr = reinterpret_cast<StorageType*>(NewCapabilityPtr);
+
+			new (NewHeaderPtr) FPlaybackCapabilityHeader(); // Reset to default constructor
+															//
+			NewHeaderPtr->Capability.Reset(Memory, NewCapabilityPtr);
+			NewHeaderPtr->Sizeof = sizeof(StorageType);
+			NewHeaderPtr->Alignment = alignof(StorageType);
+			NewHeaderPtr->StorageMode = FStorageTraits::GetStorageMode();
+			// The poPtrinter offset is whatever we need to add to the capability pointer in order to get
+			// a pointer to capability type itself (in case the storage type is a sub-class of it)
+			// We only need it if the capability object is stored inline inside our memory buffer.
+			NewHeaderPtr->PointerOffset = FStorageTraits::ComputePointerOffset(NewCapabilityTypedPtr);
+		}
+		--Index;
+
+		// Step 6
+		for (; Index >= 0; --Index)
+		{
+			RelocateHeader(Index, Index);
+		}
+
+		/// ----------------------------------------
+
+		// Tidy up the old allocation. We do not call destructors here because we relocated everything.
+		if (bNeedsReallocation && OldMemory)
+		{
+			FMemory::Free(OldMemory);
 		}
 
 		// Insert the helpers for the new capability.
 		Helpers.Insert(TPlaybackCapabilityHelpers<StorageType>::GetHelpers(), NewCapabilityIndex);
 
-		// Return the new capability pointer. We call the header's Resolve method here because returning NewCapabilityPtr
-		// would return the derived type pointer. We want the base (capability) pointer.
-		return NewHeader->Resolve(Memory);
+		// Return the new capability pointer. We call the header's Resolve method here because returning 
+		// the pointer of the stored capability would return the derived type pointer. 
+		// We want the base (capability) pointer.
+		return NewHeaderPtr->Resolve(Memory);
+	}
+
+	template<typename StorageType, typename CapabilityType, typename ...ArgTypes>
+	bool OverwriteCapability(uint32 CapabilityBit, ArgTypes&&... InArgs)
+	{
+		if (!ensureMsgf(HasCapability(CapabilityBit), TEXT("The given capability does not exist in this container")))
+		{
+			return false;
+		}
+
+		// Get the header for this capability
+		const int32 Index = GetCapabilityIndex(CapabilityBit);
+		const FPlaybackCapabilityHeader& Header = GetHeader(Index);
+
+		// Check that we are overwriting the same storage mode
+		using FStorageTraits = TPlaybackCapabilityStorageTraits<StorageType, CapabilityType>;
+		EPlaybackCapabilityStorageMode GivenStorageMode = FStorageTraits::GetStorageMode();
+		if (!ensureMsgf(GivenStorageMode == Header.StorageMode, TEXT("The given capability storage mode does not match the existing one")))
+		{
+			return false;
+		}
+
+		// Check that the types and alignments match
+		size_t GivenSizeof = sizeof(StorageType);
+		uint16 GivenAlignment = alignof(StorageType);
+		if (!ensureMsgf(
+					(GivenSizeof == Header.Sizeof && GivenAlignment == Header.Alignment),
+					TEXT("The given capability size and alignment do not match the existing one")))
+		{
+			return false;
+		}
+
+		// Don't use the header's Resolve method, we don't want to offset the pointer, we want
+		// the actual pointer to the actual stored capability.
+		void* CapabilityPtr = Header.Capability.Resolve(Memory);
+		StorageType* TypedCapabilityPtr = reinterpret_cast<StorageType*>(CapabilityPtr);
+		*TypedCapabilityPtr = StorageType(Forward<ArgTypes>(InArgs)...);
+
+		return true;
 	}
 
 	const FPlaybackCapabilityHeader& GetHeader(uint8 Index) const
@@ -533,11 +615,55 @@ struct FPlaybackCapabilities : FPlaybackCapabilitiesImpl
 	}
 
 	/**
+	 * Overwrites an existing capability, stored as a raw pointer on the container.
+	 */
+	template<typename T>
+	T& OverwriteCapabilityRaw(TPlaybackCapabilityID<T> CapabilityID, T* InPointer)
+	{
+		return DoOverwriteCapability<T*, T>(CapabilityID, InPointer);
+	}
+	
+	/**
+	 * Overwrites an existing capability, stored as a shared pointer on the container.
+	 */
+	template<typename T>
+	T& OverwriteCapabilityShared(TPlaybackCapabilityID<T> CapabilityID, TSharedRef<T> InSharedRef)
+	{
+		return DoOverwriteCapability<TSharedPtr<T>, T>(CapabilityID, InSharedRef);
+	}
+
+public:
+
+	/**
+	 * Calls OnSubInstanceCreated on any capability that implements the IPlaybackCapability interface.
+	 */
+	void OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const FInstanceHandle InstanceHandle);
+
+	/**
 	 * Calls InvalidateCacheData on any capability that implements the IPlaybackCapability interface.
 	 */
 	void InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker);
 
 private:
+
+	template<typename Callback, typename ...ArgTypes>
+	void ForEachCapabilityInterface(Callback&& InCallback, ArgTypes&&... InArgs)
+	{
+		TArrayView<const FPlaybackCapabilityHeader> Headers = GetHeaders();
+		for (int32 Index = 0; Index < Headers.Num(); ++Index)
+		{
+			const FPlaybackCapabilityHeader& Header = Headers[Index];
+			const FPlaybackCapabilityHelpers& ThisHelpers = Helpers[Index];
+			check(ThisHelpers.InterfaceCast != nullptr);
+			{
+				void* Ptr = Header.Capability.Resolve(Memory);
+				if (IPlaybackCapability* Interface = (*ThisHelpers.InterfaceCast)(Ptr))
+				{
+					InCallback(*Interface, Forward<ArgTypes>(InArgs)...);
+				}
+			}
+		}
+	}
 
 	template<typename Impl, typename T, typename ...ArgTypes>
 	T& DoAddCapability(TPlaybackCapabilityID<T> CapabilityID, ArgTypes&&... InArgs)
@@ -545,6 +671,14 @@ private:
 		uint32 CapabilityBit = 1 << CapabilityID.Index;
 		FPlaybackCapabilityPtr Ptr = FPlaybackCapabilitiesImpl::AddCapability<Impl, T>(CapabilityBit, Forward<ArgTypes>(InArgs)...);
 		return Ptr.ResolveChecked<T>();
+	}
+
+	template<typename Impl, typename T, typename ...ArgTypes>
+	T& DoOverwriteCapability(TPlaybackCapabilityID<T> CapabilityID, ArgTypes&&... InArgs)
+	{
+		uint32 CapabilityBit = 1 << CapabilityID.Index;
+		FPlaybackCapabilitiesImpl::OverwriteCapability<Impl, T>(CapabilityBit, Forward<ArgTypes>(InArgs)...);
+		return GetCapabilityChecked(CapabilityID);
 	}
 
 	void Destroy();

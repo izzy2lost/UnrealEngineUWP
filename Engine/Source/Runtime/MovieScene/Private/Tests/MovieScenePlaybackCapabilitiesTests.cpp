@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreTypes.h"
+#include "Misc/CoreMiscDefines.h"
 #include "MovieSceneFwd.h"
 #include "Misc/AutomationTest.h"
 #include "Evaluation/MovieScenePlaybackCapabilities.h"
@@ -57,6 +58,7 @@ struct FTestCapabilityBase
 
 	virtual int32 GetIntValue() { return 0; }
 	virtual FString GetStringValue() { return FString(); }
+	virtual void DoSomething() = 0;
 
 	static TPlaybackCapabilityID<FTestCapabilityBase> ID;
 };
@@ -80,6 +82,7 @@ struct FTestCapabilityDerived : FTestCapabilityBase
 
 	virtual int32 GetIntValue() override { return IntValue; }
 	virtual FString GetStringValue() override { return StringValue; }
+	virtual void DoSomething() override { ++IntValue; }
 };
 
 int32 FTestCapabilityDerived::TimesDestroyedDerived = 0;
@@ -319,6 +322,80 @@ bool FMovieScenePlaybackCapabilitiesMultipleTest::RunTest(const FString& Paramet
 		UTEST_EQUAL("Before invalidation", SharedCap->TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
 		UTEST_EQUAL("After invalidation", SharedCap->TimesInvalidated, 1);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesInheritanceTest, 
+		"System.Engine.Sequencer.Capabilities.Inheritance", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesInheritanceTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	struct ICapabilityAccessor
+	{
+		virtual ~ICapabilityAccessor() {}
+		virtual FTestCapabilityBase& GetCapability() = 0;
+	};
+
+	struct FCapabilityAccessor : ICapabilityAccessor
+	{
+		FTestCapabilityDerived Derived;
+
+		FCapabilityAccessor() : Derived(42, TEXT("Life, the universe, everything")) {}
+
+		virtual FTestCapabilityBase& GetCapability() override { return Derived; }
+	};
+
+	FCapabilityAccessor Accessor;
+	{
+		FPlaybackCapabilities Caps;
+
+		Caps.AddCapabilityRaw(FTestCapabilityBase::ID, &Accessor.GetCapability());
+
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
+		FTestCapabilityBase* Base = Caps.FindCapability(FTestCapabilityBase::ID);
+		UTEST_NOT_NULL("Got capability pointer", Base);
+		UTEST_EQUAL("Same capability pointer", Base, static_cast<FTestCapabilityBase*>(&Accessor.Derived));
+		UTEST_EQUAL("Checking IntValue", Base->GetIntValue(), 42);
+		Base->DoSomething();
+		UTEST_EQUAL("Checking IntValue", Base->GetIntValue(), 43);
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMovieScenePlaybackCapabilitiesOverwriteTest, 
+		"System.Engine.Sequencer.Capabilities.Overwrite", 
+		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FMovieScenePlaybackCapabilitiesOverwriteTest::RunTest(const FString& Parameters)
+{
+	using namespace UE::MovieScene;
+	using namespace UE::MovieScene::Tests;
+
+	FTestSimpleCapability Cap1(1, "First");
+	FTestSimpleCapability Cap2(2, "Second");
+	{
+		FPlaybackCapabilities Caps;
+
+		Caps.AddCapabilityRaw(FTestSimpleCapability::ID, &Cap1);
+
+		FTestSimpleCapability* ActualCap = Caps.FindCapability(FTestSimpleCapability::ID);
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_EQUAL("Same capability pointer", ActualCap, &Cap1);
+		UTEST_EQUAL("Checking IntValue", ActualCap->IntValue, 1);
+		UTEST_EQUAL("Checking StringValue", ActualCap->StringValue, TEXT("First"));
+
+		Caps.OverwriteCapabilityRaw(FTestSimpleCapability::ID, &Cap2);
+		
+		ActualCap = Caps.FindCapability(FTestSimpleCapability::ID);
+		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_EQUAL("Same capability pointer", ActualCap, &Cap2);
+		UTEST_EQUAL("Checking IntValue", ActualCap->IntValue, 2);
+		UTEST_EQUAL("Checking StringValue", ActualCap->StringValue, TEXT("Second"));
 	}
 
 	return true;

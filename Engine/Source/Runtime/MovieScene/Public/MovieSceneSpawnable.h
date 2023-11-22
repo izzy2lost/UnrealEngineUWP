@@ -9,10 +9,14 @@
 
 #include "MovieSceneSpawnable.generated.h"
 
-struct FMovieSceneSequenceID;
-
 class IMovieScenePlayer;
 class UMovieSceneSequence;
+struct FMovieSceneSequenceID;
+
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
 
 UENUM()
 enum class ESpawnOwnership : uint8
@@ -230,6 +234,9 @@ public:
 	/**
 	 * Get the name to use for spawning this object into a networked level
 	 */
+	MOVIESCENE_API FName GetNetAddressableName(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID SequenceID) const;
+
+	UE_DEPRECATED(5.4, "Please use the FSharedPlaybackState version of this method")
 	MOVIESCENE_API FName GetNetAddressableName(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID) const;
 
 	/**

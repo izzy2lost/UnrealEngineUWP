@@ -835,7 +835,11 @@ UE::MovieScene::ERunnerFlushResult FMovieSceneEntitySystemRunner::GameThread_Upd
 			FSequenceInstance& SequenceInstance = InstanceRegistry->MutateInstance(UpdatedInstance.InstanceHandle);
 
 			AccumulatedUpdateFlags |= SequenceInstance.GetUpdateFlags();
-			IMovieScenePlayer::SetIsEvaluatingFlag(SequenceInstance.GetPlayerIndex(), true);
+			uint16 PlayerIndex = FPlayerIndexPlaybackCapability::GetPlayerIndex(SequenceInstance.GetSharedPlaybackState());
+			if (PlayerIndex != (uint16)-1)
+			{
+				IMovieScenePlayer::SetIsEvaluatingFlag(PlayerIndex, true);
+			}
 
 			if (EnumHasAnyFlags(SequenceInstance.GetUpdateFlags(), ESequenceInstanceUpdateFlags::NeedsPreEvaluation))
 			{
@@ -1243,7 +1247,11 @@ void FMovieSceneEntitySystemRunner::GameThread_PostEvaluationPhase(UMovieSceneEn
 				FSequenceInstance& Instance = InstanceRegistry->MutateInstance(UpdateParams.InstanceHandle);
 
 				Instance.Ledger.UnlinkOneShots(Linker);
-				IMovieScenePlayer::SetIsEvaluatingFlag(Instance.GetPlayerIndex(), false);
+				uint16 PlayerIndex = FPlayerIndexPlaybackCapability::GetPlayerIndex(Instance.GetSharedPlaybackState());
+				if (PlayerIndex != (uint16)-1)
+				{
+					IMovieScenePlayer::SetIsEvaluatingFlag(PlayerIndex, false);
+				}
 
 				if (EnumHasAnyFlags(Instance.GetUpdateFlags(), ESequenceInstanceUpdateFlags::NeedsPostEvaluation))
 				{

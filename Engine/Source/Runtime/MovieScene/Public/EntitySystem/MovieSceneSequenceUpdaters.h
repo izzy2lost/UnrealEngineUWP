@@ -23,7 +23,6 @@ namespace MovieScene
 {
 
 struct FInstanceHandle;
-struct FRootInstanceHandle;
 struct FSharedPlaybackState;
 
 enum class ESequenceInstanceUpdateFlags : uint8;
@@ -58,7 +57,7 @@ public:
 	/**
 	 * Called to initialize the flag structure that denotes what functions need to be called on this updater
 	 */
-	virtual void PopulateUpdateFlags(UMovieSceneEntitySystemLinker* InLinker, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceUpdateFlags& OutUpdateFlags) = 0;
+	virtual void PopulateUpdateFlags(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, ESequenceInstanceUpdateFlags& OutUpdateFlags) = 0;
 
 	/**
 	 * Called before any updates to the sequence to allow this updater to dissect the context into smaller ranges that should be evaluated independently for the purpose of ensuring determinism.
@@ -69,7 +68,7 @@ public:
 	 * @param InContext        The total root-level context for the next evaluation to be dissected
 	 * @param OutDissections   (Out) Array to populate with dissected ranges
 	 */
-	virtual void DissectContext(UMovieSceneEntitySystemLinker* InLinker, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext, TArray<TRange<FFrameTime>>& OutDissections) = 0;
+	virtual void DissectContext(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext, TArray<TRange<FFrameTime>>& OutDissections) = 0;
 
 
 	/**
@@ -80,7 +79,7 @@ public:
 	 * @param InPlayer         The movie scene player instance playing this sequence
 	 * @param InContext        The root-level context for the current evaluation.
 	 */
-	virtual void Start(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InInstanceHandle, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext) = 0;
+	virtual void Start(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext) = 0;
 
 
 	/**
@@ -91,7 +90,7 @@ public:
 	 * @param InPlayer         The movie scene player instance playing this sequence
 	 * @param InContext        The root-level context for the current evaluation.
 	 */
-	virtual void Update(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InInstanceHandle, TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext) = 0;
+	virtual void Update(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, const FMovieSceneContext& InContext) = 0;
 
 
 	/**
@@ -101,7 +100,7 @@ public:
 	 * @param RootInstanceHandle  The handle to the root instance
 	 * @return                    Whether the instance can be finished immediately
 	 */
-	virtual bool CanFinishImmediately(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle RootInstanceHandle) const = 0;
+	virtual bool CanFinishImmediately(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) const = 0;
 
 
 	/**
@@ -111,7 +110,7 @@ public:
 	 * @param InInstanceHandle The instance handle for the top level sequence instance that this updater belongs to
 	 * @param InPlayer         The movie scene player instance playing this sequence
 	 */
-	virtual void Finish(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InInstanceHandle, TSharedRef<const FSharedPlaybackState> SharedPlaybackState) = 0;
+	virtual void Finish(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) = 0;
 
 
 	/**
@@ -120,7 +119,7 @@ public:
 	 * @param InLinker         The linker that is evaluating this sequence
 	 * @param InInstanceHandle The instance handle for the top level sequence instance that this updater belongs to
 	 */
-	virtual void InvalidateCachedData(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InInstanceHandle) = 0;
+	virtual void InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) = 0;
 
 
 	/**
@@ -128,7 +127,7 @@ public:
 	 *
 	 * @param InLinker         The linker that is owns this sequence
 	 */
-	virtual void Destroy(UMovieSceneEntitySystemLinker* Linker) = 0;
+	virtual void Destroy(TSharedRef<const FSharedPlaybackState> SharedPlaybackState) = 0;
 
 
 	/**
@@ -138,7 +137,7 @@ public:
 	 * @param InstanceHandle              The instance handle for the root sequence
 	 * @param NewRootOverrideSequenceID   The new sequence ID to treat as the root
 	 */
-	virtual void OverrideRootSequence(UMovieSceneEntitySystemLinker* InLinker, FRootInstanceHandle InstanceHandle, FMovieSceneSequenceID NewRootOverrideSequenceID) = 0;
+	virtual void OverrideRootSequence(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID NewRootOverrideSequenceID) = 0;
 
 
 	/**

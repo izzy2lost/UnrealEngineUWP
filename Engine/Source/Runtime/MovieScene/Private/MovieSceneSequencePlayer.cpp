@@ -1111,7 +1111,7 @@ void UMovieSceneSequencePlayer::UpdateTimeCursorPosition_Internal(FFrameTime New
 
 			if (SpawnRegister.IsValid())
 			{
-				SpawnRegister->ForgetExternallyOwnedSpawnedObjects(State, *this);
+				SpawnRegister->ForgetExternallyOwnedSpawnedObjects(GetSharedPlaybackState());
 			}
 
 			// Reset the play position, and generate a new range that gets us to the new frame time
@@ -1397,8 +1397,9 @@ void UMovieSceneSequencePlayer::SetIgnorePlaybackReplication(bool bState)
 TArray<UObject*> UMovieSceneSequencePlayer::GetBoundObjects(FMovieSceneObjectBindingID ObjectBinding)
 {
 	TArray<UObject*> Objects;
+	TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState = GetSharedPlaybackState();
 
-	for (TWeakObjectPtr<> WeakObject : ObjectBinding.ResolveBoundObjects(MovieSceneSequenceID::Root, *this))
+	for (TWeakObjectPtr<> WeakObject : ObjectBinding.ResolveBoundObjects(MovieSceneSequenceID::Root, SharedPlaybackState))
 	{
 		if (UObject* Object = WeakObject.Get())
 		{
@@ -1411,7 +1412,7 @@ TArray<UObject*> UMovieSceneSequencePlayer::GetBoundObjects(FMovieSceneObjectBin
 TArray<FMovieSceneObjectBindingID> UMovieSceneSequencePlayer::GetObjectBindings(UObject* InObject)
 {
 	TArray<FMovieSceneObjectBindingID> Bindings;
-	State.FilterObjectBindings(InObject, *this, &Bindings);
+	State.FilterObjectBindings(InObject, GetSharedPlaybackState(), &Bindings);
 	return Bindings;
 }
 

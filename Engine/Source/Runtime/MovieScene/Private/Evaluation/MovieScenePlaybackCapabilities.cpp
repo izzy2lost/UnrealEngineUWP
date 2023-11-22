@@ -36,22 +36,14 @@ FPlaybackCapabilities::~FPlaybackCapabilities()
 	Destroy();
 }
 
+void FPlaybackCapabilities::OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const FInstanceHandle InstanceHandle)
+{
+	ForEachCapabilityInterface([Owner, &InstanceHandle](IPlaybackCapability& Cap) { Cap.OnSubInstanceCreated(Owner, InstanceHandle); });
+}
+
 void FPlaybackCapabilities::InvalidateCachedData(UMovieSceneEntitySystemLinker* Linker)
 {
-	TArrayView<const FPlaybackCapabilityHeader> Headers = GetHeaders();
-	for (int32 Index = 0; Index < Headers.Num(); ++Index)
-	{
-		const FPlaybackCapabilityHeader& Header = Headers[Index];
-		const FPlaybackCapabilityHelpers& ThisHelpers = Helpers[Index];
-		check(ThisHelpers.InterfaceCast != nullptr);
-		{
-			void* Ptr = Header.Capability.Resolve(Memory);
-			if (IPlaybackCapability* Interface = (*ThisHelpers.InterfaceCast)(Ptr))
-			{
-				Interface->InvalidateCachedData(Linker);
-			}
-		}
-	}
+	ForEachCapabilityInterface([Linker](IPlaybackCapability& Cap) { Cap.InvalidateCachedData(Linker); });
 }
 
 void FPlaybackCapabilities::Destroy()

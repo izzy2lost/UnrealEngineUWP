@@ -57,7 +57,11 @@ FInstanceHandle FInstanceRegistry::FindRelatedInstanceHandle(FInstanceHandle Ins
 	return RootInstance->FindSubInstance(SequenceID);
 }
 
-FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* Player, UMovieSceneSequence& RootSequence, TSharedPtr<FMovieSceneEntitySystemRunner> Runner, UMovieSceneCompiledDataManager* CompiledDataManager)
+FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(
+		UMovieSceneSequence& InRootSequence,
+		UObject* InPlaybackContext,
+		TSharedPtr<FMovieSceneEntitySystemRunner> InRunner,
+		UMovieSceneCompiledDataManager* InCompiledDataManager)
 {
 	check(Instances.Num() < 65535);
 
@@ -66,21 +70,30 @@ FRootInstanceHandle FInstanceRegistry::AllocateRootInstance(IMovieScenePlayer* P
 	FSparseArrayAllocationInfo NewAllocation = Instances.AddUninitialized();
 	FRootInstanceHandle InstanceHandle { (uint16)NewAllocation.Index, InstanceSerial };
 
+	if (!InRunner)
+	{
+		FMovieSceneEntitySystemRunner* ActiveRunner = Linker->GetActiveRunner();
+		InRunner = ActiveRunner ? ActiveRunner->AsShared() : TSharedPtr<FMovieSceneEntitySystemRunner>();
+	}
+	if (!InCompiledDataManager)
+	{
+		InCompiledDataManager = UMovieSceneCompiledDataManager::GetPrecompiledData();
+	}
+
 	FSharedPlaybackStateCreateParams PlaybackStateCreateParams;
-	PlaybackStateCreateParams.PlaybackContext = Player->GetPlaybackContext();
+	PlaybackStateCreateParams.PlaybackContext = InPlaybackContext;
 	PlaybackStateCreateParams.RootInstanceHandle = InstanceHandle;
-	PlaybackStateCreateParams.Runner = Runner;
-	PlaybackStateCreateParams.CompiledDataManager = CompiledDataManager;
-	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>(RootSequence, PlaybackStateCreateParams);
+	PlaybackStateCreateParams.Runner = InRunner;
+	PlaybackStateCreateParams.CompiledDataManager = InCompiledDataManager;
 
-	FSequenceInstance* NewInstance = new (NewAllocation) FSequenceInstance(NewPlaybackState, InstanceHandle);
+	TSharedRef<FSharedPlaybackState> NewPlaybackState = MakeShared<FSharedPlaybackState>(InRootSequence, PlaybackStateCreateParams);
 
-	NewInstance->Initialize(Player);
+	new (NewAllocation) FSequenceInstance(NewPlaybackState);
 
 	return InstanceHandle;
 }
 
-FInstanceHandle FInstanceRegistry::AllocateSubInstance(IMovieScenePlayer* Player, FMovieSceneSequenceID SequenceID, FRootInstanceHandle RootInstanceHandle, FInstanceHandle ParentInstanceHandle)
+FInstanceHandle FInstanceRegistry::AllocateSubInstance(FMovieSceneSequenceID SequenceID, FRootInstanceHandle RootInstanceHandle, FInstanceHandle ParentInstanceHandle)
 {
 	check(Instances.Num() < 65535 && SequenceID != MovieSceneSequenceID::Root && ParentInstanceHandle.IsValid());
 
@@ -90,9 +103,9 @@ FInstanceHandle FInstanceRegistry::AllocateSubInstance(IMovieScenePlayer* Player
 	
 	TSharedRef<FSharedPlaybackState> PlaybackState = GetInstance(RootInstanceHandle).GetSharedPlaybackState();
 
-	FSequenceInstance* NewInstance = new (NewAllocation) FSequenceInstance(PlaybackState, InstanceHandle, ParentInstanceHandle, RootInstanceHandle, SequenceID);
+	new (NewAllocation) FSequenceInstance(PlaybackState, InstanceHandle, ParentInstanceHandle, SequenceID);
 
-	NewInstance->Initialize(Player);
+	PlaybackState->GetCapabilities().OnSubInstanceCreated(PlaybackState, InstanceHandle);
 
 	return InstanceHandle;
 }

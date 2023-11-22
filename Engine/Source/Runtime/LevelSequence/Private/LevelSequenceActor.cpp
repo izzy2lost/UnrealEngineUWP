@@ -376,9 +376,9 @@ void ALevelSequenceActor::SetBindingByTag(FName BindingTag, const TArray<AActor*
 	const FMovieSceneObjectBindingIDs* Bindings = Sequence ? Sequence->GetMovieScene()->AllTaggedBindings().Find(BindingTag) : nullptr;
 	if (Bindings)
 	{
-		for (FMovieSceneObjectBindingID ID : Bindings->IDs)
+		for (FMovieSceneObjectBindingID BindingID : Bindings->IDs)
 		{
-			SetBinding(ID, Actors, bAllowBindingsFromAsset);
+			SetBinding(BindingID, Actors, bAllowBindingsFromAsset);
 		}
 	}
 	else if (GLevelSequenceActor_InvalidBindingTagWarnings)
@@ -414,9 +414,9 @@ void ALevelSequenceActor::AddBindingByTag(FName BindingTag, AActor* Actor, bool 
 	const FMovieSceneObjectBindingIDs* Bindings = Sequence ? Sequence->GetMovieScene()->AllTaggedBindings().Find(BindingTag) : nullptr;
 	if (Bindings)
 	{
-		for (FMovieSceneObjectBindingID ID : Bindings->IDs)
+		for (FMovieSceneObjectBindingID BindingID : Bindings->IDs)
 		{
-			AddBinding(ID, Actor, bAllowBindingsFromAsset);
+			AddBinding(BindingID, Actor, bAllowBindingsFromAsset);
 		}
 	}
 	else if (GLevelSequenceActor_InvalidBindingTagWarnings)
@@ -452,9 +452,9 @@ void ALevelSequenceActor::RemoveBindingByTag(FName BindingTag, AActor* Actor)
 	const FMovieSceneObjectBindingIDs* Bindings = Sequence ? Sequence->GetMovieScene()->AllTaggedBindings().Find(BindingTag) : nullptr;
 	if (Bindings)
 	{
-		for (FMovieSceneObjectBindingID ID : Bindings->IDs)
+		for (FMovieSceneObjectBindingID BindingID : Bindings->IDs)
 		{
-			RemoveBinding(ID, Actor);
+			RemoveBinding(BindingID, Actor);
 		}
 	}
 	else if (GLevelSequenceActor_InvalidBindingTagWarnings)

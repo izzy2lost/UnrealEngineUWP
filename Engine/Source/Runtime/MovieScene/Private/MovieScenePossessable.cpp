@@ -10,17 +10,22 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieScenePossessable)
 
-bool FMovieScenePossessable::BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, IMovieScenePlayer* Player)
+bool FMovieScenePossessable::BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
 {
 	TOptional<FMovieSceneSpawnableAnnotation> Spawnable = FMovieSceneSpawnableAnnotation::Find(Object);
 	if (Spawnable.IsSet())
 	{
 		// Check whether the spawnable is underneath the current sequence, if so, we can remap it to a local sequence ID
-		SetSpawnableObjectBindingID(UE::MovieScene::FRelativeObjectBindingID(SequenceID, Spawnable->SequenceID, Spawnable->ObjectBindingID, *Player));
+		SetSpawnableObjectBindingID(UE::MovieScene::FRelativeObjectBindingID(SequenceID, Spawnable->SequenceID, Spawnable->ObjectBindingID, SharedPlaybackState));
 		return true;
 	}
 
 	return false;
+}
+
+bool FMovieScenePossessable::BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, IMovieScenePlayer* Player)
+{
+	return BindSpawnableObject(SequenceID, Object, Player->GetSharedPlaybackState());
 }
 
 void FMovieScenePossessable::SetParent(const FGuid& InParentGuid)

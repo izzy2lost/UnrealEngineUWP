@@ -155,9 +155,9 @@ struct FCameraCutAnimator
 
 public:
 
-	static UObject* FindBoundObject(FMovieSceneObjectBindingID BindingID, FMovieSceneSequenceID SequenceID, IMovieScenePlayer& Player)
+	static UObject* FindBoundObject(FMovieSceneObjectBindingID BindingID, FMovieSceneSequenceIDRef SequenceID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 	{
-		TArrayView<TWeakObjectPtr<>> Objects = BindingID.ResolveBoundObjects(SequenceID, Player);
+		TArrayView<TWeakObjectPtr<>> Objects = BindingID.ResolveBoundObjects(SequenceID, SharedPlaybackState);
 		if (Objects.Num() > 0)
 		{
 			return Objects[0].Get();
@@ -200,7 +200,7 @@ public:
 
 public:
 
-	void AnimatePreRoll(const FPreRollCameraCut& Params, const FMovieSceneSequenceID& SequenceID, IMovieScenePlayer& Player)
+	void AnimatePreRoll(const FPreRollCameraCut& Params, const FSequenceInstance& SequenceInstance)
 	{
 		if (Params.bHasCutTransform)
 		{
@@ -209,7 +209,7 @@ public:
 		}
 		else
 		{
-			UObject* CameraObject = FindBoundObject(Params.CameraBindingID, SequenceID, Player);
+			UObject* CameraObject = FindBoundObject(Params.CameraBindingID, SequenceInstance.GetSequenceID(), SequenceInstance.GetSharedPlaybackState());
 
 			if (AActor* Actor = Cast<AActor>(CameraObject))
 			{
@@ -224,10 +224,9 @@ public:
 			UMovieSceneEntitySystemLinker* Linker,
 			const FSequenceInstance& SequenceInstance)
 	{
-		IMovieScenePlayer& Player = *SequenceInstance.GetPlayer();
 		const FMovieSceneContext& Context = SequenceInstance.GetContext();
 
-		UObject* CameraActor = FindBoundObject(Params.CameraBindingID, Params.OperandSequenceID, Player);
+		UObject* CameraActor = FindBoundObject(Params.CameraBindingID, Params.OperandSequenceID, SequenceInstance.GetSharedPlaybackState());
 		if (Params.CameraBindingID.IsValid() && CameraActor == nullptr)
 		{
 			// We have an unresolved or incorrect binding.
@@ -241,7 +240,7 @@ public:
 		CameraCutParams.bLockPreviousCamera = Params.bLockPreviousCamera;
 
 #if WITH_EDITOR
-		UObject* PreviousCameraActor = FindBoundObject(Params.PreviousCameraBindingID, Params.PreviousOperandSequenceID, Player);
+		UObject* PreviousCameraActor = FindBoundObject(Params.PreviousCameraBindingID, Params.PreviousOperandSequenceID, SequenceInstance.GetSharedPlaybackState());
 		CameraCutParams.PreviousCameraObject = PreviousCameraActor;
 		CameraCutParams.PreviewBlendFactor = Params.PreviewBlendFactor;
 		CameraCutParams.bCanBlend = Params.bCanBlend;
@@ -448,9 +447,7 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 	{
 		FPreRollCameraCut& CameraCutPreRoll = CameraCutPreRolls.Last();
 		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(CameraCutPreRoll.InstanceHandle);
-		IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
-		const FMovieSceneSequenceID SequenceID = SequenceInstance.GetSequenceID();
-		Animator.AnimatePreRoll(CameraCutPreRoll, SequenceID, *Player);
+		Animator.AnimatePreRoll(CameraCutPreRoll, SequenceInstance);
 	}
 
 	// For now we only support 2 active camera cuts at most (with blending between them).
@@ -579,9 +576,9 @@ void UMovieSceneCameraCutTrackInstance::OnEndUpdateInputs()
 		else
 		{
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(Input.InstanceHandle);
-			IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
+			TSharedRef<const FSharedPlaybackState> SharedPlaybackState = SequenceInstance.GetSharedPlaybackState();
 
-			if (UObject* PlaybackContext = Player->GetPlaybackContext())
+			if (UObject* PlaybackContext = SharedPlaybackState->GetPlaybackContext())
 			{
 				if (UWorld* World = PlaybackContext->GetWorld())
 				{

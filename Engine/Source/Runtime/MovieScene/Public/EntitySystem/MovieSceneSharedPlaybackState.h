@@ -24,6 +24,8 @@ struct FSharedPlaybackStateCreateParams
 {
 	/**
 	 * The playback context in which the root sequence will be evaluated.
+	 *
+	 * Requires that RootInstanceHandle and Runner are also set.
 	 */
 	UObject* PlaybackContext = nullptr;
 
@@ -31,12 +33,16 @@ struct FSharedPlaybackStateCreateParams
 	 * The handle of the root sequence instance, if the created playback state
 	 * is meant to relate to an instance that has also been created inside
 	 * a runner/linker's instance registry.
+	 *
+	 * Requires that PlaybackContext and Runner are also set.
 	 */
 	FRootInstanceHandle RootInstanceHandle;
 
 	/**
 	 * The runner that will be evaluating the sequence that the created playback
 	 * state relates to.
+	 *
+	 * Requires that PlaybackContext and RootInstanceHandle are also set.
 	 */
 	TSharedPtr<FMovieSceneEntitySystemRunner> Runner;
 
@@ -124,7 +130,9 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& AddCapability(ArgTypes&&... InArgs)
 	{
-		return Capabilities.AddCapability<T>(T::ID, Forward<ArgTypes>(InArgs)...);
+		T& Cap = Capabilities.AddCapability<T>(T::ID, Forward<ArgTypes>(InArgs)...);
+		MaybeInitialize(Cap);
+		return Cap;
 	}
 
 	/**
@@ -133,7 +141,9 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& AddCapabilityRaw(T* InPointer)
 	{
-		return Capabilities.AddCapabilityRaw<T>(T::ID, InPointer);
+		T& Cap = Capabilities.AddCapabilityRaw<T>(T::ID, InPointer);
+		MaybeInitialize(Cap);
+		return Cap;
 	}
 
 	/**
@@ -142,12 +152,70 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& AddCapabilityShared(TSharedRef<T> InSharedRef)
 	{
-		return Capabilities.AddCapabilityShared<T>(T::ID, InSharedRef);
+		T& Cap = Capabilities.AddCapabilityShared<T>(T::ID, InSharedRef);
+		MaybeInitialize(Cap);
+		return Cap;
+	}
+
+	/**
+	 * Adds the specified capability on the root sequence as a raw pointer.
+	 * If the capability already exists, it must be stored as a raw pointer and its
+	 * value will be replaced by the new pointer.
+	 */
+	template<typename T, typename ...ArgTypes>
+	T& SetOrAddCapabilityRaw(T* InPointer)
+	{
+		if (HasCapability<T>())
+		{
+			T& Cap = Capabilities.OverwriteCapabilityRaw<T>(T::ID, InPointer);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
+		else
+		{
+			T& Cap = Capabilities.AddCapabilityRaw<T>(T::ID, InPointer);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
+	}
+
+	/**
+	 * Adds the specified capability on the root sequence as a shared pointer.
+	 * If the capability already exists, it must be stored as a shared pointer and its
+	 * value will be replaced by the new pointer.
+	 */
+	template<typename T, typename ...ArgTypes>
+	T& SetOrAddCapabilityShared(TSharedRef<T> InSharedRef)
+	{
+		if (HasCapability<T>())
+		{
+			T& Cap = Capabilities.OverwriteCapabilityShared<T>(T::ID, InSharedRef);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
+		else
+		{
+			T& Cap = Capabilities.AddCapabilityShared<T>(T::ID, InSharedRef);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
 	}
 
 public:
 
-	MOVIESCENE_API void InvalidateCachedData();
+	void InvalidateCachedData();
+
+private:
+
+	template<typename T>
+	void MaybeInitialize(T& Cap)
+	{
+		if constexpr (TPointerIsConvertibleFromTo<T, IPlaybackCapability>::Value)
+		{
+			IPlaybackCapability* InterfacePtr = static_cast<IPlaybackCapability*>(&Cap);
+			InterfacePtr->Initialize(SharedThis(this));
+		}
+	}
 
 private:
 

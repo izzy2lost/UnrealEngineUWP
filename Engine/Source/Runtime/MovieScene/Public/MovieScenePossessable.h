@@ -22,6 +22,11 @@ class UClass;
 class UMovieScene;
 struct FMovieSceneSequenceID;
 
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
+
 /**
  * MovieScenePossessable is a "typed slot" used to allow the MovieScene to control an already-existing object
  */
@@ -161,6 +166,9 @@ public:
 	}
 
 	/* Bind the potential spawnable object to this possessable by setting the ObjectBindingID */
+	MOVIESCENE_API bool BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
+
+	UE_DEPRECATED(5.4, "Please use the FSharedPlaybackState version of this method")
 	MOVIESCENE_API bool BindSpawnableObject(FMovieSceneSequenceID SequenceID, UObject* Object, IMovieScenePlayer* Player);
 
 	/* For sorts so we can search quickly by Guid */

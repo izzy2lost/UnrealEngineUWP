@@ -74,6 +74,10 @@ public:
 
 	MOVIESCENE_API bool IsValid() const;
 
+	MOVIESCENE_API TSharedPtr<UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState();
+
+	MOVIESCENE_API TSharedPtr<const UE::MovieScene::FSharedPlaybackState> GetSharedPlaybackState() const;
+
 	MOVIESCENE_API UE::MovieScene::FRootInstanceHandle GetRootInstanceHandle() const;
 
 	MOVIESCENE_API UMovieSceneSequence* GetRootSequence() const;

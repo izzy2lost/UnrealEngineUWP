@@ -13,6 +13,7 @@
 
 
 class FMovieSceneEntitySystemRunner;
+class UMovieSceneCompiledDataManager;
 class UMovieSceneEntitySystemLinker;
 class UMovieSceneCompiledDataManager;
 
@@ -83,9 +84,14 @@ struct FInstanceRegistry
 		return GetInstance(InstanceHandle).GetContext();
 	}
 
-	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(IMovieScenePlayer* Player, UMovieSceneSequence& RootSequence, TSharedPtr<FMovieSceneEntitySystemRunner> Runner, UMovieSceneCompiledDataManager* CompiledDataManager);
+	MOVIESCENE_API FRootInstanceHandle AllocateRootInstance(
+			UMovieSceneSequence& InRootSequence,
+			UObject* InPlaybackContext = nullptr,
+			TSharedPtr<FMovieSceneEntitySystemRunner> InRunner = nullptr,
+			UMovieSceneCompiledDataManager* InCompiledDataManager = nullptr);
 
-	MOVIESCENE_API FInstanceHandle AllocateSubInstance(IMovieScenePlayer* Player, FMovieSceneSequenceID SequenceID, FRootInstanceHandle RootInstance, FInstanceHandle ParentInstanceHandle);
+	MOVIESCENE_API FInstanceHandle AllocateSubInstance(
+			FMovieSceneSequenceID SequenceID, FRootInstanceHandle RootInstance, FInstanceHandle ParentInstanceHandle);
 
 	MOVIESCENE_API void DestroyInstance(FInstanceHandle InstanceHandle);
 

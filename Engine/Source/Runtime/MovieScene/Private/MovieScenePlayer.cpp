@@ -4,6 +4,8 @@
 #include "IMovieScenePlayer.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "IMovieScenePlaybackClient.h"
 #include "Misc/ScopeRWLock.h"
 #include "MovieSceneFwd.h"
 #include "MovieSceneSequence.h"
@@ -40,6 +42,8 @@ uint16 FPlayerIndexPlaybackCapability::GetPlayerIndex(TSharedRef<const FSharedPl
 
 } // namespace MovieScene
 } // namespace UE
+
+UE::MovieScene::TPlaybackCapabilityID<IMovieScenePlaybackClient> IMovieScenePlaybackClient::ID = UE::MovieScene::TPlaybackCapabilityID<IMovieScenePlaybackClient>::Register();
 
 IMovieScenePlayer::IMovieScenePlayer()
 {
@@ -105,6 +109,18 @@ void IMovieScenePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieScen
 	Sequence.LocateBoundObjects(InBindingId, ResolutionContext, OutObjects);
 }
 
+TArrayView<TWeakObjectPtr<>> IMovieScenePlayer::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID)
+{
+	using namespace UE::MovieScene;
+
+	if (TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = FindSharedPlaybackState())
+	{
+		return State.FindBoundObjects(ObjectBindingID, SequenceID, SharedPlaybackState.ToSharedRef());
+	}
+
+	return TArrayView<TWeakObjectPtr<>>();
+}
+
 void IMovieScenePlayer::InvalidateCachedData()
 {
 	FMovieSceneRootEvaluationTemplateInstance& Template = GetEvaluationTemplate();
@@ -115,3 +131,52 @@ void IMovieScenePlayer::InvalidateCachedData()
 		RootInstance->InvalidateCachedData();
 	}
 }
+
+TSharedPtr<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPlaybackState()
+{
+	const UE::MovieScene::FSequenceInstance* RootInstance = GetEvaluationTemplate().GetRootInstance();
+	if (RootInstance)
+	{
+		return RootInstance->GetSharedPlaybackState();
+	}
+	return nullptr;
+}
+
+TSharedRef<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState()
+{
+	const UE::MovieScene::FSequenceInstance* RootInstance = GetEvaluationTemplate().GetRootInstance();
+	check(RootInstance);
+	return RootInstance->GetSharedPlaybackState();
+}
+
+void IMovieScenePlayer::ResetDirectorInstances()
+{
+	GetEvaluationTemplate().ResetDirectorInstances();
+}
+
+UObject* IMovieScenePlayer::GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID)
+{
+	return GetEvaluationTemplate().GetOrCreateDirectorInstance(SequenceID, *this);
+}
+
+void IMovieScenePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)
+{
+	using namespace UE::MovieScene;
+
+	NewSharedPlaybackState->AddCapability<FPlayerIndexPlaybackCapability>(UniqueIndex);
+	NewSharedPlaybackState->AddCapabilityRaw(&State);
+	NewSharedPlaybackState->AddCapabilityRaw(&GetSpawnRegister());
+	NewSharedPlaybackState->AddCapabilityRaw((IObjectBindingNotifyPlaybackCapability*)this);
+	NewSharedPlaybackState->AddCapabilityRaw((IStaticBindingOverridesPlaybackCapability*)this);
+	NewSharedPlaybackState->AddCapabilityRaw((ISequenceDirectorPlaybackCapability*)this);
+
+	if (IMovieScenePlaybackClient* PlaybackClient = GetPlaybackClient())
+	{
+		NewSharedPlaybackState->AddCapabilityRaw(PlaybackClient);
+	}
+
+	FInstanceRegistry* InstanceRegistry = NewSharedPlaybackState->GetLinker()->GetInstanceRegistry();
+	FSequenceInstance& RootInstance = InstanceRegistry->MutateInstance(NewSharedPlaybackState->GetRootInstanceHandle());
+	RootInstance.Initialize();
+}
+

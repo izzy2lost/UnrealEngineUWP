@@ -661,13 +661,13 @@ void FSequencer::InitRootSequenceInstance()
 	using namespace UE::MovieScene;
 
 	// Add the camera cut playback capability.
-	FInstanceHandle RootInstanceHandle = RootTemplateInstance.GetRootInstanceHandle();
-	UMovieSceneEntitySystemLinker* Linker = GetEvaluationTemplate().GetEntitySystemLinker();
-	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
-	TSharedRef<FSharedPlaybackState> SharedPlaybackState = InstanceRegistry->GetInstance(RootInstanceHandle).GetSharedPlaybackState();
-	if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+	TSharedPtr<FSharedPlaybackState> SharedPlaybackState = RootTemplateInstance.GetSharedPlaybackState();
+	if (ensure(SharedPlaybackState.IsValid()))
 	{
-		SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+		if (!SharedPlaybackState->HasCapability<FCameraCutPlaybackCapability>())
+		{
+			SharedPlaybackState->AddCapabilityRaw<FCameraCutPlaybackCapability>((FCameraCutPlaybackCapability*)this);
+		}
 	}
 }
 
