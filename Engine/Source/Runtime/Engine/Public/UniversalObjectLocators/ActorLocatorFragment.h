@@ -4,7 +4,29 @@
 
 #include "CoreTypes.h"
 #include "UniversalObjectLocatorFwd.h"
+#include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "ActorLocatorFragment.generated.h"
+
+
+/**
+ * 32 Bytes (40 in-editor).
+ */
+USTRUCT()
+struct FActorLocatorFragmentResolveParameter
+{
+	GENERATED_BODY()
+
+	ENGINE_API static UE::UniversalObjectLocator::TParameterTypeHandle<FActorLocatorFragmentResolveParameter> ParameterType;
+
+	UPROPERTY()
+	TObjectPtr<UWorld> StreamingWorld;
+
+	UPROPERTY()
+	FActorContainerID ContainerID;
+
+	UPROPERTY()
+	FTopLevelAssetPath SourceAssetPath;
+};
 
 /**
  * 32 Bytes (40 in-editor).

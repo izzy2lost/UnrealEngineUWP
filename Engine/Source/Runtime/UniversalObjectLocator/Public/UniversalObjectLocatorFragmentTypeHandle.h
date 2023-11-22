@@ -71,7 +71,7 @@ struct FFragmentTypeHandle
 	UNIVERSALOBJECTLOCATOR_API FFragmentType* Resolve() const;
 
 private:
-	/** Global index into UE::UniversalObjectLocator::GFragmentTypes */
+	/** Global index into UE::UniversalObjectLocator::FRegistry::Get().FragmentTypes */
 	uint8 Handle;
 };
 

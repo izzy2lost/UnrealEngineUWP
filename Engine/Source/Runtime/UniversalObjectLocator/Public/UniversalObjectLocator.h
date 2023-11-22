@@ -170,6 +170,21 @@ public:
 	UNIVERSALOBJECTLOCATOR_API void Reset(UObject* Object, const UObject* Context = nullptr, const UObject* StopAtContext = nullptr);
 
 	/**
+	 * Add a fragment to the end of this locator
+	 *
+	 * @param InFragment       The fragment to add
+	 */
+	UNIVERSALOBJECTLOCATOR_API void AddFragment(FUniversalObjectLocatorFragment&& InFragment);
+
+	/**
+	 * Templated helper for AddFragment
+	 *
+	 * @param InFragment       The fragment to add
+	 */
+	template<typename FragmentType, typename ...ArgTypes>
+	void AddFragment(ArgTypes&&... FragmentArgs);
+
+	/**
 	 * Retrieve the last fragment in this address
 	 */
 	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocatorFragment* GetLastFragment();
@@ -216,6 +231,13 @@ private:
 	UPROPERTY()
 	TArray<FUniversalObjectLocatorFragment> Fragments;
 };
+
+template<typename FragmentType, typename ...ArgTypes>
+void FUniversalObjectLocator::AddFragment(ArgTypes&&... FragmentArgs)
+{
+	TUniversalObjectLocatorFragment<FragmentType> NewFragment(Forward<ArgTypes>(FragmentArgs)...);
+	AddFragment(MoveTemp(NewFragment));
+}
 
 template<>
 struct TStructOpsTypeTraits<FUniversalObjectLocator> : public TStructOpsTypeTraitsBase2<FUniversalObjectLocator>

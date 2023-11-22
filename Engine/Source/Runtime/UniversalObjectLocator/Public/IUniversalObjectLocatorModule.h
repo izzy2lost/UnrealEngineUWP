@@ -98,6 +98,17 @@ public:
 		return TFragmentTypeHandle<PayloadStructType>(RegisterFragmentTypeImpl(NewFragmentType));
 	}
 
+	template<typename ParameterType>
+	TParameterTypeHandle<ParameterType> RegisterParameterType()
+	{
+		return TParameterTypeHandle<ParameterType>(RegisterParameterTypeImpl(ParameterType::StaticStruct()));
+	}
+
+	void UnregisterParameterType(FParameterTypeHandle InHandle)
+	{
+		UnregisterParameterTypeImpl(InHandle);
+	}
+
 	template<typename PayloadStructType>
 	void UnregisterFragmentType(TFragmentTypeHandle<PayloadStructType> FragmentType)
 	{
@@ -108,6 +119,9 @@ private:
 
 	virtual FFragmentTypeHandle RegisterFragmentTypeImpl(const FFragmentType& FragmentType) = 0;
 	virtual void UnregisterFragmentTypeImpl(FFragmentTypeHandle FragmentType) = 0;
+
+	virtual FParameterTypeHandle RegisterParameterTypeImpl(UScriptStruct* Struct) = 0;
+	virtual void UnregisterParameterTypeImpl(FParameterTypeHandle ParameterType) = 0;
 };
 
 

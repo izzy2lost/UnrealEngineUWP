@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UniversalObjectLocators/ActorLocatorFragment.h"
-#include "UniversalObjectLocators/IActorLocatorFragmentResolver.h"
 #include "UniversalObjectLocatorFragmentTypeHandle.h"
 #include "UniversalObjectLocatorResolveParams.h"
 #include "UniversalObjectLocatorStringParams.h"
@@ -9,13 +8,16 @@
 #include "UniversalObjectLocatorInitializeResult.h"
 
 #include "UObject/UnrealNames.h"
+#include "UObject/Package.h"
 #include "LevelUtils.h"
 #include "Engine/Level.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/World.h"
+#include "WorldPartition/WorldPartitionLevelHelper.h"
 #include "Misc/EditorPathHelper.h"
 
 UE::UniversalObjectLocator::TFragmentTypeHandle<FActorLocatorFragment> FActorLocatorFragment::FragmentType;
+UE::UniversalObjectLocator::TParameterTypeHandle<FActorLocatorFragmentResolveParameter> FActorLocatorFragmentResolveParameter::ParameterType;
 
 ULevel* GetLevelFromContext(const UObject* InContext)
 {
@@ -75,13 +77,30 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 
 	UObject* Result = nullptr;
 
-	// Handle the context being a IActorLocatorFragmentResolver object - this is the first port of call
-	if (const IActorLocatorFragmentResolver* Resolver = Cast<const IActorLocatorFragmentResolver>(Params.Context))
+	const FActorLocatorFragmentResolveParameter* Parameter = Params.FindParameter<FActorLocatorFragmentResolveParameter>();
+
+	// If we have a custom fragment parameter specified and it matches the source asset path of this fragment's payload,
+	//   use the streaming world specified by the source asset path.
+	if (Parameter && Parameter->StreamingWorld && Parameter->SourceAssetPath == Path.GetAssetPath())
 	{
-		if (Resolver && Resolver->ResolveActorLocatorPayload(*this, Result))
+		if (!Parameter->ContainerID.IsMainContainer())
 		{
-			return FResolveResultData(Result);
+			// Append the ContainerID and lookup
+			const FString SubPathString = FWorldPartitionLevelHelper::AddActorContainerIDToSubPathString(
+				Parameter->ContainerID, Path.GetSubPathString());
+
+			Parameter->StreamingWorld->ResolveSubobject(*SubPathString, Result, /*bLoadIfExists*/false);
 		}
+		else
+		{
+			// Traditional level streaming needs to resolve bindings from the actual world that owns the streamed level
+			Parameter->StreamingWorld->ResolveSubobject(*Path.GetSubPathString(), Result, /*bLoadIfExists*/false);
+		}
+	}
+
+	if (Result)
+	{
+		return FResolveResultData(Result);
 	}
 
 	// Next handle default level streaming and partition worlds behavior
@@ -93,6 +112,23 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 	// Finally fallback to just trying to resolve the path directly
 	if (!Result)
 	{
+#if WITH_EDITORONLY_DATA
+		UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
+		if (ContextPackage)
+		{
+			// If we are resolving within a PIE instance, fixp the PIE instance on the path first
+			const int32 PIEInstanceID = ContextPackage->GetPIEInstanceID();
+			if (PIEInstanceID != INDEX_NONE)
+			{
+				FSoftObjectPath PIEPath = Path;
+				PIEPath.FixupForPIE(PIEInstanceID);
+
+				Result = PIEPath.ResolveObject();
+				return FResolveResultData(Result);
+			}
+		}
+#endif
+
 		Result = Path.ResolveObject();
 	}
 
@@ -125,6 +161,24 @@ UE::UniversalObjectLocator::FInitializeResult FActorLocatorFragment::Initialize(
 	}
 #else
 	Path = InParams.Object;
+#endif
+
+	// Fixup PIE prefixes so that re always reference the non-PIE instance object
+#if WITH_EDITORONLY_DATA
+	UPackage* ObjectPackage = InParams.Object->GetOutermost();
+	if (ensure(ObjectPackage))
+	{
+		// If this is being set from PIE we need to remove the pie prefix and point to the editor object
+		if (ObjectPackage->GetPIEInstanceID() != INDEX_NONE)
+		{
+			TStringBuilder<16> PIEPrefix;
+			PIEPrefix.Appendf(PLAYWORLD_PACKAGE_PREFIX TEXT("_%d_"), ObjectPackage->GetPIEInstanceID());
+
+			FString NewPath = Path.ToString();
+			NewPath.ReplaceInline(*PIEPrefix, TEXT(""));
+			Path.SetPath(NewPath);
+		}
+	}
 #endif
 
 	// Really, actors should be relative to their level in order to support streaming within level instances, but

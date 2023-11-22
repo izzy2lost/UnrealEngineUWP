@@ -6,6 +6,7 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UniversalObjectLocatorInitializeParams.h"
 #include "UniversalObjectLocatorInitializeResult.h"
+#include "UniversalObjectLocatorRegistry.h"
 #include "UObject/SoftObjectPath.h"
 #include "Containers/SparseArray.h"
 #include "Misc/AsciiSet.h"
@@ -17,15 +18,13 @@ DEFINE_LOG_CATEGORY(LogUniversalObjectLocator);
 
 namespace UE::UniversalObjectLocator
 {
-	extern TArray<FFragmentType> GFragmentTypes;
-
 	const FFragmentType* FindBestFragmentType(const UObject* Object, const UObject* Context)
 	{
 		// Loop through all our FragmentTypes to find the most supported one
 		uint32 BestFragmentTypePriority = 0;
 		const FFragmentType* BestFragmentType = nullptr;
 
-		for (const FFragmentType& FragmentType : GFragmentTypes)
+		for (const FFragmentType& FragmentType : FRegistry::Get().FragmentTypes)
 		{
 			const uint32 ThisFragmentTypePriority = FragmentType.ComputePriority(Object, Context);
 			if (ThisFragmentTypePriority > BestFragmentTypePriority)
@@ -45,14 +44,14 @@ namespace UE::UniversalObjectLocator
 
 	FFragmentType* FFragmentTypeHandle::Resolve() const
 	{
-		return Handle == 0xff ? nullptr : &GFragmentTypes[Handle];
+		return Handle == 0xff ? nullptr : &FRegistry::Get().FragmentTypes[Handle];
 	}
 
 	FFragmentTypeHandle MakeFragmentTypeHandle(const FFragmentType* FragmentType)
 	{
 		check(FragmentType);
 
-		const uint64 FragmentTypeOffset = static_cast<uint64>(FragmentType - GFragmentTypes.GetData());
+		const uint64 FragmentTypeOffset = static_cast<uint64>(FragmentType - FRegistry::Get().FragmentTypes.GetData());
 		checkf(FragmentTypeOffset < std::numeric_limits<uint8>::max(), TEXT("Maximum number of UOL FragmentTypes reached"));
 
 		return FFragmentTypeHandle(static_cast<uint8>(FragmentTypeOffset));
@@ -331,7 +330,7 @@ UE::UniversalObjectLocator::FParseStringResult FUniversalObjectLocatorFragment::
 	if (FragmentTypeID != NAME_None)
 	{
 		// Find the FragmentType
-		const FFragmentType* SerializedFragmentType = Algo::FindBy(GFragmentTypes, FragmentTypeID, &FFragmentType::FragmentTypeID);
+		const FFragmentType* SerializedFragmentType = FRegistry::Get().FindFragmentType(FragmentTypeID);
 		if (SerializedFragmentType != nullptr && SerializedFragmentType->PayloadType != nullptr)
 		{
 			this->DestroyPayload();
@@ -498,12 +497,13 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObje
 	uint32 BestFragmentTypePriority = 0;
 	const FFragmentType* BestFragmentType = nullptr;
 
-	if (!ensure(GFragmentTypes.Num() < 255))
+	TArray<FFragmentType>& FragmentTypes = FRegistry::Get().FragmentTypes;
+	if (!ensure(FragmentTypes.Num() < 255))
 	{
 		return;
 	}
 
-	const uint8 Num = static_cast<uint8>(GFragmentTypes.Num());
+	const uint8 Num = static_cast<uint8>(FragmentTypes.Num());
 	for (uint8 Index = 0; Index < Num; ++Index)
 	{
 		if (!CanUseFragmentType(FFragmentTypeHandle(Index)))
@@ -511,7 +511,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObje
 			continue;
 		}
 
-		const FFragmentType& ThisFragmentType = GFragmentTypes[Index];
+		const FFragmentType& ThisFragmentType = FragmentTypes[Index];
 		const uint32 ThisFragmentTypePriority = ThisFragmentType.ComputePriority(InObject, Context);
 		if (ThisFragmentTypePriority > BestFragmentTypePriority)
 		{
@@ -559,7 +559,7 @@ bool FUniversalObjectLocatorFragment::Serialize(FArchive& Ar)
 		else
 		{
 			// Find the FragmentType
-			const FFragmentType* SerializedFragmentType = Algo::FindBy(GFragmentTypes, FragmentTypeID, &FFragmentType::FragmentTypeID);
+			const FFragmentType* SerializedFragmentType = FRegistry::Get().FindFragmentType(FragmentTypeID);
 			if (!SerializedFragmentType || !SerializedFragmentType->PayloadType)
 			{
 				Reset();

@@ -5,6 +5,8 @@
 #include "CoreTypes.h"
 #include "Async/Future.h"
 #include "Misc/TVariant.h"
+#include "UniversalObjectLocatorFwd.h"
+#include "UniversalObjectLocatorResolveParameterBuffer.h"
 
 class UObject;
 
@@ -37,7 +39,6 @@ enum class EResolveFlags : uint8
 };
 ENUM_CLASS_FLAGS(EResolveFlags)
 
-
 /**
  * Parameters required to resolve a universal object locator
  */
@@ -59,6 +60,18 @@ struct FResolveParams
 		: Context(InContext)
 		, Flags(InFlags)
 	{
+	}
+
+	template<typename T>
+	const T* FindParameter() const
+	{
+		return FindParameter(T::ParameterType);
+	}
+
+	template<typename T>
+	const T* FindParameter(TParameterTypeHandle<T> ParameterType) const
+	{
+		return ParameterBuffer ? ParameterBuffer->FindParameter(ParameterType) : nullptr;
 	}
 
 	/** 
@@ -112,9 +125,35 @@ struct FResolveParams
 	/** (Optional) Object to use as a context for resolution. Normally this is the object that owns the reference being resolved */
 	const UObject* Context;
 
+	/** (Optional) Resolve buffer */
+	const FResolveParameterBuffer* ParameterBuffer;
+
 	/** Flag structure */
 	EResolveFlags Flags;
 };
+
+template<int InlineSize>
+struct TResolveParamsWithBuffer : TInlineResolveParameterBuffer<InlineSize>, FResolveParams
+{
+	TResolveParamsWithBuffer()
+	{
+		ParameterBuffer = this;
+	}
+
+	TResolveParamsWithBuffer(const UObject* InContext)
+		: FResolveParams(InContext)
+	{
+		ParameterBuffer = this;
+	}
+
+	TResolveParamsWithBuffer(const UObject* InContext, EResolveFlags InFlags)
+		: FResolveParams(InContext, InFlags)
+	{
+		ParameterBuffer = this;
+	}
+};
+
+
 
 
 /**
@@ -290,129 +329,5 @@ private:
 		TFuture<FResolveResultData>
 	> Value;
 };
-
-// struct FResolveObjectResult
-// {
-// 	FResolveObjectResult()
-// 		: Object(nullptr)
-// 	{
-// 	}
-
-// 	FResolveObjectResult(UObject* InObject, FResolveResultFlags InFlags = FResolveResultFlags())
-// 		: Object(InObject)
-// 		, Flags(InFlags)
-// 	{
-// 	}
-
-// 	/**
-// 	 * The resulting object or nullptr if it could not be found or loaded per the request params.
-// 	 * Should only be set if Params.Flags.bAsync is false.
-// 	 */
-// 	UObject* Object = nullptr;
-
-// 	/** Flags relating to the operation */
-// 	FResolveResultFlags Flags;
-// };
-
-
-// struct FResolveVoidResult
-// {
-// };
-
-// /**
-//  * Result structure that is returned from a request to resolve a Universal Object Locator
-//  */
-// struct FResolveResult
-// {
-// 	/**
-// 	 * Empty result
-// 	 */
-// 	FResolveResult()
-// 		: Value(TInPlaceType<TAsyncResolveResult<FResolveVoidResult>>())
-// 	{
-// 	}
-
-// 	/**
-// 	 * Constructor to use when an object needs to be returned from a Resolve function (ie, Load or Find)
-// 	 */
-// 	FResolveResult(FResolveObjectResult&& InResolveResult)
-// 		: Value(TInPlaceType<TAsyncResolveResult<FResolveObjectResult>>(), MoveTemp(InResolveResult))
-// 	{
-// 	}
-
-// 	/**
-// 	 * Constructor to use when no information needs to be returned from a Resolve function (ie, Unload)
-// 	 */
-// 	FResolveResult(FResolveVoidResult&& InVoidResult)
-// 		: Value(TInPlaceType<TAsyncResolveResult<FResolveVoidResult>>(), MoveTemp(InVoidResult))
-// 	{
-// 	}
-
-// 	/**
-// 	 * Constructor to use when an object needs to be returned from a Resolve function (ie, Load or Find)
-// 	 */
-// 	FResolveResult(TAsyncResolveResult<FResolveObjectResult>&& InResolveResult)
-// 		: Value(TInPlaceType<TAsyncResolveResult<FResolveObjectResult>>(), MoveTemp(InResolveResult))
-// 	{
-// 	}
-
-// 	/**
-// 	 * Constructor to use when no information needs to be returned from a Resolve function (ie, Unload)
-// 	 */
-// 	FResolveResult(TAsyncResolveResult<FResolveVoidResult>&& InVoidResult)
-// 		: Value(TInPlaceType<TAsyncResolveResult<FResolveVoidResult>>(), MoveTemp(InVoidResult))
-// 	{
-// 	}
-
-// 	FResolveResult(const FResolveResult&) = delete;
-// 	void operator=(const FResolveResult&) = delete;
-
-// 	FResolveResult(FResolveResult&&) = default;
-// 	FResolveResult& operator=(FResolveResult&&) = default;
-
-// 	bool IsVoid() const
-// 	{
-// 		return Value.IsType<TAsyncResolveResult<FResolveVoidResult>>();
-// 	}
-
-// 	bool IsObject() const
-// 	{
-// 		return Value.IsType<TAsyncResolveResult<FResolveObjectResult>>();
-// 	}
-
-// 	bool IsAsync() const
-// 	{
-// 		return IsVoid() ? AsVoid().IsAsync() : AsObject().IsAsync();
-// 	}
-
-
-// 	TAsyncResolveResult<FResolveVoidResult>& AsVoid()
-// 	{
-// 		return Value.Get<TAsyncResolveResult<FResolveVoidResult>>();
-// 	}
-// 	TAsyncResolveResult<FResolveObjectResult>& AsObject()
-// 	{
-// 		return Value.Get<TAsyncResolveResult<FResolveObjectResult>>();
-// 	}
-
-// 	const TAsyncResolveResult<FResolveVoidResult>& AsVoid() const
-// 	{
-// 		return Value.Get<TAsyncResolveResult<FResolveVoidResult>>();
-// 	}
-// 	const TAsyncResolveResult<FResolveObjectResult>& AsObject() const
-// 	{
-// 		return Value.Get<TAsyncResolveResult<FResolveObjectResult>>();
-// 	}
-
-
-// private:
-
-// 	/** Variant value representing either an object, or nothing */
-// 	TVariant<
-// 		TAsyncResolveResult<FResolveVoidResult>,
-// 		TAsyncResolveResult<FResolveObjectResult>
-// 	> Value;
-// };
-
 
 } // namespace UE::UniversalObjectLocator

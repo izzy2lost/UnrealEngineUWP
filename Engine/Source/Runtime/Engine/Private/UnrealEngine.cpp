@@ -2056,6 +2056,9 @@ void UEngine::Init(IEngineLoop* InEngineLoop)
 			FragmentTypeParams.PrimaryEditorType = "Component";
 			FAnimInstanceLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimInstanceLocatorFragment>(FragmentTypeParams);
 		}
+		{
+			FActorLocatorFragmentResolveParameter::ParameterType = UolModule.RegisterParameterType<FActorLocatorFragmentResolveParameter>();
+		}
 	}
 
 	if (GConfig)

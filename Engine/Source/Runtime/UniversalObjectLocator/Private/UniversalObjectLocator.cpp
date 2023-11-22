@@ -6,14 +6,13 @@
 #include "UniversalObjectLocatorInitializeResult.h"
 #include "UniversalObjectLocatorStringParams.h"
 #include "UniversalObjectLocatorStringUtils.h"
+#include "UniversalObjectLocatorRegistry.h"
 
 #define LOCTEXT_NAMESPACE "UOL"
 
 namespace UE::UniversalObjectLocator
 {
 	static constexpr FStringView MagicLeadingString = TEXTVIEW("uobj://");
-
-	extern TArray<FFragmentType> GFragmentTypes;
 
 	const FFragmentType* FindBestFragmentType(const UObject* Object, const UObject* Context);
 
@@ -47,6 +46,11 @@ FUniversalObjectLocator::FUniversalObjectLocator(UObject* Object, const UObject*
 UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::Resolve(const FResolveParams& Params) const
 {
 	using namespace UE::UniversalObjectLocator;
+
+	if (UE::IsSavingPackage(nullptr) || IsGarbageCollecting())
+	{
+		return FResolveResult();
+	}
 
 	// Check for invalid combinations of flags
 	check(!EnumHasAllFlags(Params.Flags, EResolveFlags::Load | EResolveFlags::Unload));
@@ -277,6 +281,11 @@ void FUniversalObjectLocator::Reset(UObject* InObject, const UObject* Context, c
 		// Failed to create the locator
 		Fragments.Empty();
 	}
+}
+
+void FUniversalObjectLocator::AddFragment(FUniversalObjectLocatorFragment&& InFragment)
+{
+	Fragments.Emplace(MoveTemp(InFragment));
 }
 
 const UE::UniversalObjectLocator::FFragmentType* FUniversalObjectLocator::GetLastFragmentType() const

@@ -23,11 +23,7 @@ UE::UniversalObjectLocator::TFragmentTypeHandle<FAnimInstanceLocatorFragment> FA
 
 uint32 FAnimInstanceLocatorFragment::ComputePriority(const UObject* ObjectToReference, const UObject* Context)
 {
-	if (Context && Context->IsA<USkeletalMeshComponent>())
-	{
-		return 1000;
-	}
-	if (ObjectToReference && (ObjectToReference->IsA<USkeletalMeshComponent>() || ObjectToReference->IsA<UAnimInstance>()))
+	if (ObjectToReference && ObjectToReference->IsA<UAnimInstance>())
 	{
 		return 1000;
 	}

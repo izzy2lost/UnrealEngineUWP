@@ -21,6 +21,9 @@ template<typename> struct TFragmentType;
 struct FFragmentTypeHandle;
 template<typename> struct TFragmentTypeHandle;
 
+struct FParameterTypeHandle;
+template<typename> struct TParameterTypeHandle;
+
 struct FInitializeParams;
 struct FInitializeResult;
 struct FResolveParams;
