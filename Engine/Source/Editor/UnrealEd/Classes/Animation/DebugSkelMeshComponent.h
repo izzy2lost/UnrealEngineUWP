@@ -370,6 +370,10 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UNREALED_API virtual void SetSkeletalMesh(USkeletalMesh* InSkelMesh, bool bReinitPose = true) override;
 	//~ End SkeletalMeshComponent Interface
 
+	//~ Begin UObject interface
+	UNREALED_API virtual void PostInitProperties() override;
+	//~ End UObject interface
+
 	// return true if currently preview animation asset is on
 	UNREALED_API virtual bool IsPreviewOn() const;
 

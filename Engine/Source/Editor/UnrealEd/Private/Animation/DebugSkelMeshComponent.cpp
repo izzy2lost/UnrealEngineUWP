@@ -602,6 +602,21 @@ void UDebugSkelMeshComponent::SetSkeletalMesh(USkeletalMesh* InSkelMesh, bool bR
 	}
 }
 
+void UDebugSkelMeshComponent::PostInitProperties()
+{
+	EAnimationMode::Type OriginalMode = AnimationMode;
+
+	// potentially reverts the mode to "AnimationSingleNode" which is not compatible with animation editors
+	Super::PostInitProperties();
+
+	if (OriginalMode == EAnimationMode::AnimationBlueprint)
+	{
+		// in cases where AnimationBlueprint mode is not supported, revert to custom mode to prevent
+		// the base USkeletalMeshComponent from overriding the anim instance used by this component
+		AnimationMode = EAnimationMode::AnimationCustomMode;
+	}
+}
+
 void UDebugSkelMeshComponent::EnablePreview(bool bEnable, UAnimationAsset* PreviewAsset)
 {
 	if (PreviewInstance)
