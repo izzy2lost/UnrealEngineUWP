@@ -2236,7 +2236,7 @@ protected:
 	}
 
 public:
-	FReferenceCollectorArchive(const UObject* InSerializingObject, FReferenceCollector& InCollector);
+	COREUOBJECT_API FReferenceCollectorArchive(const UObject* InSerializingObject, FReferenceCollector& InCollector);
 
 	void SetSerializingObject(const UObject* InSerializingObject)
 	{

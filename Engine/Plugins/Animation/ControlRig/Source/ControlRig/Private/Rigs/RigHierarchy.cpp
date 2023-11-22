@@ -163,6 +163,19 @@ void URigHierarchy::Serialize(FArchive& Ar)
 	}
 }
 
+void URigHierarchy::AddReferencedObjects(UObject* InpThis, FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(InpThis, Collector);
+
+	URigHierarchy* pThis = static_cast<URigHierarchy*>(InpThis);
+	FReferenceCollectorArchive Ar(pThis, Collector);
+	FScopeLock Lock(&pThis->ElementsLock);
+	for (FRigBaseElement* Element : pThis->Elements)
+	{
+		Collector.AddPropertyReferencesWithStructARO(Element->GetElementStruct(), Element, pThis);
+	}
+}
+
 void URigHierarchy::Save(FArchive& Ar)
 {
 	FScopeLock Lock(&ElementsLock);

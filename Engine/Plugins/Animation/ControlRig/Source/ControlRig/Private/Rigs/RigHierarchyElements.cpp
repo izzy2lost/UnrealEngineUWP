@@ -765,6 +765,10 @@ void FRigControlSettings::Save(FArchive& Ar)
 	if(ControlEnum)
 	{
 		ControlEnumPathName = ControlEnum->GetPathName();
+		if (Ar.IsObjectReferenceCollector())
+		{
+			Ar << ControlEnum;
+		}
 	}
 
 	Ar << AnimationTypeName;
