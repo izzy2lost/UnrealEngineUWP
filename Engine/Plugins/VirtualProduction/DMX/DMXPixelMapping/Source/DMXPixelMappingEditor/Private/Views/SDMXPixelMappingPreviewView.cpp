@@ -216,7 +216,7 @@ float SDMXPixelMappingPreviewView::GetGridScaleAmount() const
 	return 1.0f; // Parent override
 }
 
-int32 SDMXPixelMappingPreviewView::GetSnapGridSize() const
+int32 SDMXPixelMappingPreviewView::GetGridSize() const
 {
 	return 4; // Parent override
 }

@@ -7,14 +7,20 @@
 #include "Components/DMXPixelMappingMatrixComponent.h"
 #include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "UObject/LinkerLoad.h"
 
 #if WITH_EDITOR
 #include "DMXPixelMappingComponentWidget.h"
 #include "SDMXPixelMappingComponentBox.h"
 #endif // WITH_EDITOR
 
-#include "UObject/LinkerLoad.h"
 
+UDMXPixelMapping::UDMXPixelMapping()
+{
+#if WITH_EDITOR
+	SnapGridColor = FLinearColor::White.CopyWithNewOpacity(.12f);
+#endif // WITH_EDITOR
+}
 
 void UDMXPixelMapping::PostLoad()
 {

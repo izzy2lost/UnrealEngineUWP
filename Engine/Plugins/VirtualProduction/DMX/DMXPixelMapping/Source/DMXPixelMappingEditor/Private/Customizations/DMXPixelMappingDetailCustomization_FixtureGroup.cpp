@@ -129,13 +129,13 @@ void FDMXPixelMappingDetailCustomization_FixtureGroup::HandleSizePropertyChanged
 			{
 				Child->Modify();
 
-				// Scale size (SetSize already clamps)
-				Child->SetSize(Child->GetSize() * RatioVector);
+				// Scale size
+				const FVector2D NewChildSize = Child->GetSize() * RatioVector;
 
 				// Scale position
-				const FVector2D ChildPosition = Child->GetPosition();
-				const FVector2D NewPositionRelative = (ChildPosition - GroupPosition) * RatioVector;
-				Child->SetPosition(GroupPosition + NewPositionRelative);
+				const FVector2D NewChildPosition = Child->GetPosition();
+				const FVector2D NewChildPositionRelative = (NewChildPosition - GroupPosition) * RatioVector;
+				Child->SetPosition(GroupPosition + NewChildPositionRelative);
 			}
 		}
 	}

@@ -466,8 +466,8 @@ void FDMXPixelMappingToolkit::SizeSelectedComponentToTexture(bool bTransacted)
 				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeXPropertyName()));
 				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeYPropertyName()));
 
-				// Scale size (SetSize already clamps)
-				Child->SetSize(Child->GetSize() * RatioVector);
+				// Scale size
+				FVector2D NewSize = Child->GetSize() * RatioVector;
 
 				// Scale position (new position is zero vector)
 				const FVector2D ChildPosition = Child->GetPosition();
@@ -488,6 +488,41 @@ void FDMXPixelMappingToolkit::SizeSelectedComponentToTexture(bool bTransacted)
 	Component->SetSize(TextureSize);
 
 	Component->PostEditChange();
+}
+
+void FDMXPixelMappingToolkit::ToggleGridSnapping()
+{
+	if (UDMXPixelMapping* PixelMapping = GetDMXPixelMapping())
+	{
+		const FScopedTransaction AddMappingTransaction(LOCTEXT("ToggleGridSnappingTransaction", "Toggle Grid Snapping"));
+		PixelMapping->PreEditChange(UDMXPixelMapping::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UDMXPixelMapping, bGridSnappingEnabled)));
+		PixelMapping->bGridSnappingEnabled = !PixelMapping->bGridSnappingEnabled;
+		PixelMapping->PostEditChange();
+	}
+}
+
+void FDMXPixelMappingToolkit::PostUndo(bool bSuccess)
+{
+	UDMXPixelMappingRootComponent* RootComponent = DMXPixelMapping ? DMXPixelMapping->GetRootComponent() : nullptr;
+	if (!RootComponent)
+	{
+		return;
+	}
+
+	constexpr bool bRecursive = false;
+	RootComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
+		{
+			if (UDMXPixelMappingRendererComponent* RendererComponent = Cast<UDMXPixelMappingRendererComponent>(Component))
+			{
+				RendererComponent->UpdatePreprocessRenderer();
+			}
+		}, bRecursive);
+}
+
+void FDMXPixelMappingToolkit::PostRedo(bool bSuccess)
+{
+	// Same behaviour as PostUndo
+	PostUndo(bSuccess);
 }
 
 void FDMXPixelMappingToolkit::OnComponentAddedOrRemoved(UDMXPixelMapping* PixelMapping, UDMXPixelMappingBaseComponent* Component)
@@ -849,6 +884,11 @@ void FDMXPixelMappingToolkit::SetupCommands()
 			{ 
 				return bIsPlayingDMX;
 			})
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().ToggleGridSnapping,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::ToggleGridSnapping)
 	);
 
 	// Designer related

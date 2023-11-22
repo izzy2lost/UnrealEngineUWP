@@ -91,30 +91,6 @@ void FDMXPixelMappingDetailCustomization_Renderer::CustomizeDetails(IDetailLayou
 	}
 }
 
-void FDMXPixelMappingDetailCustomization_Renderer::PostUndo(bool bSuccess)
-{
-	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
-	for (const TWeakObjectPtr<UObject>& Object : SelectedObjects)
-	{
-		if (UDMXPixelMappingRendererComponent* RendererComponent = Cast<UDMXPixelMappingRendererComponent>(Object))
-		{
-			RendererComponent->UpdatePreprocessRenderer();
-		}
-	}
-}
-
-void FDMXPixelMappingDetailCustomization_Renderer::PostRedo(bool bSuccess)
-{
-	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = PropertyUtilities->GetSelectedObjects();
-	for (const TWeakObjectPtr<UObject>& Object : SelectedObjects)
-	{
-		if (UDMXPixelMappingRendererComponent* RendererComponent = Cast<UDMXPixelMappingRendererComponent>(Object))
-		{
-			RendererComponent->UpdatePreprocessRenderer();
-		}
-	}
-}
-
 void FDMXPixelMappingDetailCustomization_Renderer::AddInputTextureWarning(IDetailCategoryBuilder& InCategory)
 {
 	const FSlateBrush* WarningIcon = FAppStyle::GetBrush("SettingsEditor.WarningIcon");

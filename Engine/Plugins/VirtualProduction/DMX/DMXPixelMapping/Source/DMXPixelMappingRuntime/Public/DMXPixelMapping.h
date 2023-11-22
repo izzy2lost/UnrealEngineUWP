@@ -11,10 +11,6 @@ class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingOutputComponent;
 class UTexture;
 
-#if WITH_EDITOR
-DECLARE_DELEGATE_OneParam(FOnEditorRebuildChildrenComponentsDelegate, UDMXPixelMappingBaseComponent*)
-#endif // WITH_EDITOR
-
 
 /**
  * Public container of Pixel Mapping object and it using for asset
@@ -31,6 +27,8 @@ class DMXPIXELMAPPINGRUNTIME_API UDMXPixelMapping
 
 	GENERATED_BODY()
 public:
+	UDMXPixelMapping();
+
 	//~ Begin UObject implementation
 	virtual void PostLoad() override;
 	//~ End UObject implementation
@@ -144,13 +142,25 @@ public:
 	UPROPERTY()
 	TObjectPtr<UDMXPixelMappingRootComponent> RootComponent;
 
-
 #if WITH_EDITORONLY_DATA
-	/** Holds the Thumbnail for asset */
+	/** If true, grid snapping is enabled */
+	UPROPERTY()
+	bool bGridSnappingEnabled = false;
+
+	/** The number of columns in the grid */
+	UPROPERTY()
+	int32 SnapGridColumns = 10;
+
+	/** The number of rows in the grid */
+	UPROPERTY()
+	int32 SnapGridRows = 10;
+
+	/** The color of the grid snapping grid */
+	UPROPERTY()
+	FLinearColor SnapGridColor;
+
+	/** Holds the Thumbnail image for this asset */
 	UPROPERTY()
 	TObjectPtr<UTexture> ThumbnailImage;
-
-	/** DEPRECATED 4.27. Use FDMXPixelMappingMatrixComponent::GetOnMatrixChanged() instead */
-	FOnEditorRebuildChildrenComponentsDelegate OnEditorRebuildChildrenComponentsDelegate_DEPRECATED;
-#endif
+#endif // WITH_EDITORONLY_DATA
 };

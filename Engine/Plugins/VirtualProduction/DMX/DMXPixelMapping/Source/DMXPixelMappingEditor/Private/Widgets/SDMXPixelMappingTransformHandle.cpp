@@ -3,6 +3,8 @@
 #include "Widgets/SDMXPixelMappingTransformHandle.h"
 
 #include "Components/DMXPixelMappingMatrixCellComponent.h"
+#include "Components/DMXPixelMappingRendererComponent.h"
+#include "DMXPixelMapping.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
@@ -135,6 +137,23 @@ FReply SDMXPixelMappingTransformHandle::OnMouseMove(const FGeometry& MyGeometry,
 	return FReply::Unhandled();
 }
 
+FCursorReply SDMXPixelMappingTransformHandle::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
+{
+	switch (TransformDirection)
+	{
+	case EDMXPixelMappingTransformDirection::BottomRight:
+		return FCursorReply::Cursor(EMouseCursor::ResizeSouthEast);
+	case EDMXPixelMappingTransformDirection::BottomLeft:
+		return FCursorReply::Cursor(EMouseCursor::ResizeSouthWest);
+	case EDMXPixelMappingTransformDirection::BottomCenter:
+		return FCursorReply::Cursor(EMouseCursor::ResizeUpDown);
+	case EDMXPixelMappingTransformDirection::CenterRight:
+		return FCursorReply::Cursor(EMouseCursor::ResizeLeftRight);
+	}
+
+	return FCursorReply::Unhandled();
+}
+
 void SDMXPixelMappingTransformHandle::RequestResize(UDMXPixelMappingBaseComponent* BaseComponent, const FVector2D& Direction)
 {
 	if (!RequestResizeHandle.IsValid() && DesignerViewWeakPtr.IsValid())
@@ -184,13 +203,14 @@ void SDMXPixelMappingTransformHandle::Resize(UDMXPixelMappingBaseComponent* Base
 		}
 
 		const FVector2D OldSize = OutputComponent->GetSize();
-		const FVector2D NewSize = FVector2D(Offsets.Right, Offsets.Bottom);
+		const FVector2D RequestedSize = FVector2D(Offsets.Right, Offsets.Bottom);
+		const FVector2D NewSize = GetSnapSize(OutputComponent, RequestedSize, Direction);
 		if (OldSize == NewSize)
 		{
 			// No unchanged values
 			return;
 		}
-
+		OutputComponent->Modify();
 		OutputComponent->SetSize(NewSize);
 
 		// Scale children only if desired, no division by zero
@@ -200,55 +220,85 @@ void SDMXPixelMappingTransformHandle::Resize(UDMXPixelMappingBaseComponent* Base
 			return;
 		}
 
-		const FVector2D RatioVector = NewSize / OldSize;
+		// Scale children with parent. 
+		FVector2D RatioVector = NewSize / OldSize;
 		for (UDMXPixelMappingBaseComponent* BaseChild : OutputComponent->GetChildren())
 		{
 			if (UDMXPixelMappingOutputComponent* Child = Cast<UDMXPixelMappingOutputComponent>(BaseChild))
 			{
-				if (BaseChild->GetClass() == UDMXPixelMappingMatrixCellComponent::StaticClass())
-				{
-					// Don't scale matrix cells, the matrix component already cares for this
-					if (Child->IsLockInDesigner())
-					{
-						continue;
-					}
-				}
-
 				Child->Modify();
 
-				// Scale size (Note, SetSize already clamps)
-				Child->SetSize(Child->GetSize() * RatioVector);
+				// Scale size, at least 1x1 pixel
+				FVector2D NewChildSize = Child->GetSize() * RatioVector;
+				NewChildSize.X = FMath::Max(NewChildSize.X, 1.f);
+				NewChildSize.Y = FMath::Max(NewChildSize.Y, 1.f);
+				Child->SetSize(NewChildSize);
 
 				// Scale position
-				const FVector2D ChildPosition = Child->GetPosition();
-				const FVector2D NewPositionRelative = (ChildPosition - OutputComponent->GetPosition()) * RatioVector;
-				Child->SetPosition(OutputComponent->GetPosition() + NewPositionRelative);
+				const FVector2D NewChildPosition = Child->GetPosition();
+				const FVector2D NewChildPositionRelative = (NewChildPosition - OutputComponent->GetPosition()) * RatioVector;
+				Child->SetPosition(OutputComponent->GetPosition() + NewChildPositionRelative);
 			}
 		}
 	}
 }
 
-FCursorReply SDMXPixelMappingTransformHandle::OnCursorQuery(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
+FVector2D SDMXPixelMappingTransformHandle::GetSnapSize(UDMXPixelMappingOutputComponent* OutputComponent, const FVector2D& RequestedSize, const FVector2D& Direction) const
 {
-	EDMXPixelMappingTransformAction CurrentAction = Action;
-	if ( CurrentAction == EDMXPixelMappingTransformAction::None )
+	const TSharedPtr<FDMXPixelMappingToolkit> Toolkit = DesignerViewWeakPtr.Pin()->GetToolkit();
+	if (!Toolkit.IsValid() || !OutputComponent || !OutputComponent->GetRendererComponent())
 	{
-		CurrentAction = ComputeActionAtLocation(MyGeometry, MouseEvent);
+		return RequestedSize;
+	}
+	UDMXPixelMappingRendererComponent* RendererComponent = OutputComponent->GetRendererComponent();
+
+	const UDMXPixelMapping* PixelMapping = Toolkit->GetDMXPixelMapping();
+	if (!PixelMapping)
+	{
+		return RequestedSize;
 	}
 
-	switch ( TransformDirection )
+	const FVector2D CellSize = [PixelMapping, RendererComponent]()
+		{
+			if (PixelMapping->bGridSnappingEnabled)
+			{
+				const FVector2D TextureSize = RendererComponent->GetSize();
+				return TextureSize / FVector2D(PixelMapping->SnapGridColumns, PixelMapping->SnapGridRows);
+			}
+
+			// Grid snap to pixels if grid snapping is disabled
+			return FVector2D(1.f, 1.f);
+		}();
+
+	// Grid snap bottom right
+	const int32 BottomColumn = (OutputComponent->GetPosition().X + RequestedSize.X) / CellSize.X + 1;
+	const int32 RightRow = (OutputComponent->GetPosition().Y + RequestedSize.Y) / CellSize.Y + 1;
+
+	FVector2D NewBottomRight = OutputComponent->GetPosition() + RequestedSize;
+	if (Direction.X < 0.f)
 	{
-		case EDMXPixelMappingTransformDirection::BottomRight:
-			return FCursorReply::Cursor(EMouseCursor::ResizeSouthEast);
-		case EDMXPixelMappingTransformDirection::BottomLeft:
-			return FCursorReply::Cursor(EMouseCursor::ResizeSouthWest);
-		case EDMXPixelMappingTransformDirection::BottomCenter:
-			return FCursorReply::Cursor(EMouseCursor::ResizeUpDown);
-		case EDMXPixelMappingTransformDirection::CenterRight:
-			return FCursorReply::Cursor(EMouseCursor::ResizeLeftRight);
+		// Snap towards left
+		NewBottomRight.X = (BottomColumn - 1) * CellSize.X;
+	}
+	else if (Direction.X > 0.f)
+	{
+		// Snap towards right
+		NewBottomRight.X = BottomColumn * CellSize.X;
 	}
 
-	return FCursorReply::Unhandled();
+	if (Direction.Y < 0.f)
+	{
+		// Snap towards top
+		NewBottomRight.Y = (RightRow - 1) * CellSize.Y;
+	}
+	else if (Direction.Y > 0.f)
+	{
+		// Snap towards bottom
+		NewBottomRight.Y = RightRow * CellSize.Y;
+	}
+
+	const FVector2D SnapSize = NewBottomRight - OutputComponent->GetPosition();
+	return SnapSize;
 }
 
 FVector2D SDMXPixelMappingTransformHandle::ComputeDragDirection(EDMXPixelMappingTransformDirection InTransformDirection) const

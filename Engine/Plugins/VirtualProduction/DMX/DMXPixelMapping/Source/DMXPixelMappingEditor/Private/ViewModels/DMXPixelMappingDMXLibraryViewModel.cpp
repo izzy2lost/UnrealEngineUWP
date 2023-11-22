@@ -2,6 +2,7 @@
 
 #include "DMXPixelMappingDMXLibraryViewModel.h"
 
+#include "Algo/MaxElement.h"
 #include "Algo/Transform.h"
 #include "Components/DMXPixelMappingBaseComponent.h"
 #include "Components/DMXPixelMappingFixtureGroupComponent.h"
@@ -10,13 +11,16 @@
 #include "Components/DMXPixelMappingRendererComponent.h"
 #include "Components/DMXPixelMappingRootComponent.h"
 #include "DMXPixelMapping.h"
+#include "DMXPixelMappingEditorLog.h"
 #include "Editor.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
-#include "DMXPixelMappingEditorLog.h"
+#include "ScopedTransaction.h"
 #include "Templates/DMXPixelMappingComponentTemplate.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
 
+
+#define LOCTEXT_NAMESPACE "DMXPixelMappingDMXLibraryViewModel"
 
 void UDMXPixelMappingDMXLibraryViewModel::CreateAndSetNewFixtureGroup(TWeakPtr<FDMXPixelMappingToolkit> InWeakToolkit)
 {
@@ -33,6 +37,10 @@ void UDMXPixelMappingDMXLibraryViewModel::CreateAndSetNewFixtureGroup(TWeakPtr<F
 	{
 		return;
 	}
+
+	const FScopedTransaction AddNewFixtureGroupTransaction(LOCTEXT("AddNewFixtureGroupTransaction", "Add Fixture Group to Pixel Mapping"));
+	RootComponent->Modify();
+
 	const TArray<UDMXPixelMappingFixtureGroupComponent*> OtherFixtureGroupComponents = GetFixtureGroupComponentsOfSameLibrary();
 
 	const TSharedRef<FDMXPixelMappingComponentTemplate> Template = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingFixtureGroupComponent::StaticClass());
@@ -51,24 +59,22 @@ void UDMXPixelMappingDMXLibraryViewModel::CreateAndSetNewFixtureGroup(TWeakPtr<F
 		// If there's no group, add one that scales the texture of the active renderer component
 		if (Toolkit->CanSizeSelectedComponentToTexture())
 		{
-			constexpr bool bTransacted = true;
+			constexpr bool bTransacted = false;
 			Toolkit->SizeSelectedComponentToTexture(bTransacted);
 		}
 	}
 	else
 	{
 		// If there's already a group, offset over the top left of the existing group
-		FVector2D NewPosition(0.f, 0.f);
-		FVector2D NewSize = NewFixtureGroupComponent->GetSize();
-		for (UDMXPixelMappingFixtureGroupComponent* Other : OtherFixtureGroupComponents)
-		{
-			if (Other->GetPosition().Y > NewPosition.Y)
+		const UDMXPixelMappingFixtureGroupComponent* const* MostOffsetOtherPtr = Algo::MaxElementBy(OtherFixtureGroupComponents,
+			[](const UDMXPixelMappingFixtureGroupComponent* Other)
 			{
-				NewPosition = Other->GetPosition();
-				NewSize = Other->GetSize();
-			}
-		}
-		NewPosition += FVector2D(FMath::Max(1.f, NewSize.X / 16), FMath::Max(1.f, NewSize.Y / 16));
+				return Other->GetPosition().Length();
+			});
+		checkf(MostOffsetOtherPtr, TEXT("No result from array that was tested to not be empty."));
+
+		FVector2D NewSize = ActiveRendererComponent->GetSize();
+		FVector2D NewPosition = (*MostOffsetOtherPtr)->GetPosition() + FVector2D(FMath::Max(1.f, NewSize.X / 16), FMath::Max(1.f, NewSize.Y / 16));
 
 		NewFixtureGroupComponent->SetPosition(NewPosition);
 		NewFixtureGroupComponent->SetSize(NewSize);
@@ -428,3 +434,5 @@ TArray<UDMXPixelMappingFixtureGroupComponent*> UDMXPixelMappingDMXLibraryViewMod
 
 	return FixtureGroupComponents;
 }
+
+#undef LOCTEXT_NAMESPACE

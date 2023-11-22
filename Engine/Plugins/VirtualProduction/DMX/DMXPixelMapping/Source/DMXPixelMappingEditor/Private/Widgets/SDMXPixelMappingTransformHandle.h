@@ -5,6 +5,10 @@
 #include "Engine/EngineTypes.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FScopedTransaction;
+class SDMXPixelMappingDesignerView;
+class UDMXPixelMappingBaseComponent;
+class UDMXPixelMappingOutputComponent;
 
 enum class EDMXPixelMappingTransformDirection : uint8
 {
@@ -23,9 +27,6 @@ enum class EDMXPixelMappingTransformAction : uint8
 	Secondary
 };
 
-class SDMXPixelMappingDesignerView;
-class UDMXPixelMappingBaseComponent;
-class FScopedTransaction;
 
 /**
  * Most of the logic copied from a private class Engine/Source/Editor/UMGEditor/Private/Designer/STransformHandle.h
@@ -54,7 +55,7 @@ public:
 	EDMXPixelMappingTransformDirection GetTransformDirection() const { return TransformDirection; }
 	FVector2D GetOffset() const { return Offset.Get(); }
 
-protected:
+private:
 	EVisibility GetHandleVisibility() const;
 
 	/** Resizes the component on the next tick */
@@ -63,13 +64,14 @@ protected:
 	/** Resizes the component */
 	void Resize(UDMXPixelMappingBaseComponent* BaseComponent, const FVector2D& Direction, const FVector2D& Amount);
 
+	/** Utiltity that returns the snap size of an output component. Note, this snaps to pixels if grid snapping is disabled. */
+	FVector2D GetSnapSize(UDMXPixelMappingOutputComponent* OutputComponent, const FVector2D& RequestedSize, const FVector2D& Direction) const;
+
 	EDMXPixelMappingTransformAction ComputeActionAtLocation(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
 
-protected:
 	FVector2D ComputeDragDirection(EDMXPixelMappingTransformDirection InTransformDirection) const;
 	FVector2D ComputeOrigin(EDMXPixelMappingTransformDirection InTransformDirection) const;
 
-protected:
 	EDMXPixelMappingTransformDirection TransformDirection;
 	EDMXPixelMappingTransformAction Action;
 

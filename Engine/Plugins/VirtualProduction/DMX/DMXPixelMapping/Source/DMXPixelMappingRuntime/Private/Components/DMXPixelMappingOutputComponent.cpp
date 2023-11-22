@@ -272,16 +272,8 @@ FVector2D UDMXPixelMappingOutputComponent::GetPosition() const
 
 void UDMXPixelMappingOutputComponent::SetSize(const FVector2D& Size) 
 {
-	SizeX = FMath::Max(Size.X, 1.f);
-	SizeY = FMath::Max(Size.Y, 1.f);
-
-	// Limit all components size to max texture size, logged
-	const uint32 MaxTextureDimensions = GetMax2DTextureDimension();
-	if (SizeX > MaxTextureDimensions || SizeY > MaxTextureDimensions)
-	{
-		SizeX = MaxTextureDimensions;
-		SizeY = MaxTextureDimensions;
-	}
+	SizeX = Size.X;
+	SizeY = Size.Y;
 }
 
 void UDMXPixelMappingOutputComponent::InvalidatePixelMapRenderer()

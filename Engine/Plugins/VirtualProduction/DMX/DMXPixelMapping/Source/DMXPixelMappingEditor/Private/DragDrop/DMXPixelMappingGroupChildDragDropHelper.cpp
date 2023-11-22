@@ -80,104 +80,112 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutComponents(const FVector2D&
 
 void FDMXPixelMappingGroupChildDragDropHelper::LayoutAligned(const FVector2D& GraphSpacePosition)
 {
-	if (TSharedPtr<FDMXPixelMappingDragDropOp> DragDropOp = WeakPixelMappingDragDropOp.Pin())
+	TSharedPtr<FDMXPixelMappingDragDropOp> DragDropOp = WeakPixelMappingDragDropOp.Pin();
+	UDMXPixelMappingFixtureGroupComponent* GroupComponent = WeakParentGroupComponent.Get();
+	if (!DragDropOp.IsValid() || !GroupComponent)
 	{
-		if (UDMXPixelMappingFixtureGroupComponent* GroupComponent = WeakParentGroupComponent.Get())
+		return;
+	}
+
+	FVector2D NextPosition = GraphSpacePosition - DragDropOp->GraphSpaceDragOffset;
+	float RowHeight = 0.f;
+
+	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakChildComponent : WeakChildComponents)
+	{
+		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakChildComponent.Get())
 		{
-			FVector2D NextPosition = GraphSpacePosition - DragDropOp->GraphSpaceDragOffset;
-			float RowHeight = 0.f;
+			ChildComponent->PreEditChange(nullptr);
 
-			for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakChildComponent : WeakChildComponents)
-			{
-				if (UDMXPixelMappingOutputComponent* ChildComponent = WeakChildComponent.Get())
+			constexpr bool bModifyChildrenRecursive = true;
+			ChildComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
 				{
-					ChildComponent->PreEditChange(nullptr);
+					Component->Modify();
+				}, bModifyChildrenRecursive);
 
-					constexpr bool bModifyChildrenRecursive = true;
-					ChildComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
-						{
-							Component->Modify();
-						}, bModifyChildrenRecursive);
+			if (GroupComponent->IsOverPosition(NextPosition) && 
+				GroupComponent->IsOverPosition(NextPosition + ChildComponent->GetSize()))
+			{
+				ChildComponent->SetPosition(NextPosition);
 
-					if (GroupComponent->IsOverPosition(NextPosition) && 
-						GroupComponent->IsOverPosition(NextPosition + ChildComponent->GetSize()))
-					{
-						SetPosition(ChildComponent, NextPosition);
+				RowHeight = FMath::Max(ChildComponent->GetSize().Y, RowHeight);
+				NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
+			}
+			else
+			{
+				// Try on a new row
+				FVector2D NewRowPosition = FVector2D(GraphSpacePosition.X, NextPosition.Y + RowHeight);
 
-						RowHeight = FMath::Max(ChildComponent->GetSize().Y, RowHeight);
-						NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
-					}
-					else
-					{
-						// Try on a new row
-						FVector2D NewRowPosition = FVector2D(GraphSpacePosition.X, NextPosition.Y + RowHeight);
+				const FVector2D NextPositionOnNewRow = FVector2D(NewRowPosition.X + ChildComponent->GetSize().X, NewRowPosition.Y);
+				if (GroupComponent->IsOverPosition(NextPositionOnNewRow) &&
+					GroupComponent->IsOverPosition(NextPositionOnNewRow + ChildComponent->GetSize()))
+				{
+					ChildComponent->SetPosition(NewRowPosition);
 
-						const FVector2D NextPositionOnNewRow = FVector2D(NewRowPosition.X + ChildComponent->GetSize().X, NewRowPosition.Y);
-						if (GroupComponent->IsOverPosition(NextPositionOnNewRow) &&
-							GroupComponent->IsOverPosition(NextPositionOnNewRow + ChildComponent->GetSize()))
-						{
-							SetPosition(ChildComponent, NewRowPosition);
+					NextPosition = FVector2D(NewRowPosition.X + ChildComponent->GetSize().X, NewRowPosition.Y);
+					RowHeight = ChildComponent->GetSize().Y;							
+				}
+				else
+				{
+					ChildComponent->SetPosition(NextPosition);
 
-							NextPosition = FVector2D(NewRowPosition.X + ChildComponent->GetSize().X, NewRowPosition.Y);
-							RowHeight = ChildComponent->GetSize().Y;							
-						}
-						else
-						{
-							SetPosition(ChildComponent, NextPosition);
-
-							NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
-						}
-					}
-
-					ChildComponent->PostEditChange();
+					NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
 				}
 			}
+		}
+	}
+
+	DragDropOp->GridSnap();
+
+	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakChildComponent : WeakChildComponents)
+	{
+		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakChildComponent.Get())
+		{
+			ChildComponent->PostEditChange();
 		}
 	}
 }
 
 void FDMXPixelMappingGroupChildDragDropHelper::LayoutUnaligned(const FVector2D& GraphSpacePosition)
 {
-	if (TSharedPtr<FDMXPixelMappingDragDropOp> PinnedDragDropOp = WeakPixelMappingDragDropOp.Pin())
+	TSharedPtr<FDMXPixelMappingDragDropOp> DragDropOp = WeakPixelMappingDragDropOp.Pin();
+	if (!DragDropOp.IsValid() || WeakChildComponents.IsEmpty())
 	{
-		if (WeakChildComponents.Num() > 0)
+		return;
+	}
+
+	UDMXPixelMappingOutputComponent* FirstComponent = WeakChildComponents[0].Get();
+	if (!FirstComponent)
+	{
+		return;
+	}
+
+	const FVector2D Anchor = FirstComponent->GetPosition();
+	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
+	{
+		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
 		{
-			if (UDMXPixelMappingOutputComponent* FirstComponent = WeakChildComponents[0].Get())
-			{
-				const FVector2D Anchor = FirstComponent->GetPosition();
+			ChildComponent->PreEditChange(nullptr);
 
-				// Move all grou items to their new position
-				for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
+			constexpr bool bModifyChildrenRecursive = true;
+			ChildComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
 				{
-					if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
-					{
-						ChildComponent->PreEditChange(nullptr);
+					Component->Modify();
+				}, bModifyChildrenRecursive);
 
-						constexpr bool bModifyChildrenRecursive = true;
-						ChildComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
-							{
-								Component->Modify();
-							}, bModifyChildrenRecursive);
+			const FVector2D AnchorOffset = Anchor - ChildComponent->GetPosition();
 
-						FVector2D AnchorOffset = Anchor - ChildComponent->GetPosition();
-
-						FVector2D NewPosition = GraphSpacePosition - AnchorOffset - PinnedDragDropOp->GraphSpaceDragOffset;
-						SetPosition(ChildComponent, NewPosition);
-
-						ChildComponent->PostEditChange();
-					}
-				}
-			}
+			const FVector2D NewPosition = GraphSpacePosition - AnchorOffset - DragDropOp->GraphSpaceDragOffset;
+			ChildComponent->SetPosition(NewPosition);
 		}
 	}
-}
 
-void FDMXPixelMappingGroupChildDragDropHelper::SetPosition(UDMXPixelMappingOutputComponent* Component, const FVector2D& Position) const
-{
-	if (Component)
+	DragDropOp->GridSnap();
+
+	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
 	{
-		Component->Modify();
-
-		Component->SetPosition(Position);
+		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
+		{
+			ChildComponent->PostEditChange();
+		}
 	}
 }

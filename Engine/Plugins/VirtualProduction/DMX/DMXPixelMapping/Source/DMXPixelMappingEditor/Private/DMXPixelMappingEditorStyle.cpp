@@ -40,7 +40,6 @@ FDMXPixelMappingEditorStyle::FDMXPixelMappingEditorStyle()
 	// Icons
 	{
 		Set("Icons.Preview", new IMAGE_BRUSH_SVG("Preview", Icon16x16));
-		Set("Icons.ZoomToFit", new IMAGE_BRUSH_SVG("ZoomToFit", Icon16x16));
 		Set("Icons.AddSource",new CORE_IMAGE_BRUSH("Icons/PlusSymbol_12x", Icon12x12));
 		Set("Icons.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
 		Set("Icons.StopPlayingDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon16x16, FStyleColors::AccentRed));

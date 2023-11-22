@@ -3,6 +3,7 @@
 #pragma once
 
 #include "DMXPixelMappingComponentReference.h"
+#include "EditorUndoClient.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
 #include "TickableEditorObject.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -32,6 +33,7 @@ class UDMXPixelMappingRendererComponent;
 class FDMXPixelMappingToolkit
 	: public FAssetEditorToolkit
 	, public FTickableEditorObject
+	, public FSelfRegisteringEditorUndoClient
 {
 public:
 	DECLARE_MULTICAST_DELEGATE(FOnSelectedComponentsChangedDelegate)
@@ -136,7 +138,15 @@ public:
 	/** Sizes the component to the render target of the pixelmapping asset */
 	void SizeSelectedComponentToTexture(bool bTransacted);
 
+	/** Toggles between grid snapping enabled and disabled */
+	void ToggleGridSnapping();
+
 private:
+	//~ Begin FSelfRegisteringEditorUndoClient interface
+	virtual void PostUndo(bool bSuccess) override;
+	virtual void PostRedo(bool bSuccess) override;
+	//~ End FSelfRegisteringEditorUndoClient interface
+
 	/** Called when a component was added to the pixel mapping */
 	void OnComponentAddedOrRemoved(UDMXPixelMapping* PixelMapping, UDMXPixelMappingBaseComponent* Component);
 

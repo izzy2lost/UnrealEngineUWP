@@ -70,7 +70,7 @@ FReply SDMXPixelMappingFixturePatchList::OnRowDragDetected(const FGeometry& MyGe
 	}
 	else
 	{
-		return FReply::Handled().BeginDragDrop(FDMXPixelMappingDragDropOp::New(FVector2D::ZeroVector, Templates, FixtureGroup));
+		return FReply::Handled().BeginDragDrop(FDMXPixelMappingDragDropOp::New(Toolkit.ToSharedRef(), FVector2D::ZeroVector, Templates, FixtureGroup));
 	}
 }
 

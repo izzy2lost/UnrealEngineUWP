@@ -14,10 +14,12 @@ public:
 
 	virtual void RegisterCommands() override;
 
-	TSharedPtr<FUICommandInfo> SaveThumbnailImage;
 	TSharedPtr<FUICommandInfo> AddMapping;
 	TSharedPtr<FUICommandInfo> PlayDMX;
 	TSharedPtr<FUICommandInfo> StopPlayingDMX;
+
+	// Grid snapping related
+	TSharedPtr<FUICommandInfo> ToggleGridSnapping;
 
 	// Layout related
 	TSharedPtr<FUICommandInfo> SizeComponentToTexture;
