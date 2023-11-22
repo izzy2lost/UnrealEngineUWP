@@ -1067,20 +1067,15 @@ void FAutomationDriverSpec::Define()
 		It("should be able to perform actions across multiple windows", EAsyncExecution::ThreadPool, [this]()
 		{
 			FDriverSequenceRef Sequence = Driver->CreateSequence();
+
 			Sequence->Actions()
 				.Click(By::Id("KeyModifierA#"))
 				.Click(By::Id("KeyA#"))
-				// Workaround for Mac. The first click closes previously opened popup menu
-				// and the second click opens needed popup menu
-				.Click(By::Id("KeyModifierEb"))
 				.Click(By::Id("KeyModifierEb"))
 				.Click(By::Id("KeyEb"))
-				// Workaround for Mac. The first click closes previously opened popup menu
-				// and the second click opens needed popup menu
-				.Click(By::Id("KeyModifierB#"))
 				.Click(By::Id("KeyModifierB#"))
 				.Click(By::Id("KeyB#"));
-
+			
 			TEST_TRUE(Sequence->Perform());
 			TEST_EQUAL(SuiteViewModel->GetKeySequence(), TEXT("A#EbB#"));
 		});
