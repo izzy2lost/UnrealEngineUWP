@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
+#include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTag.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/PropertyHelper.h"
+#include "UObject/UObjectThreadContext.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 
@@ -287,6 +289,8 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 	if (UnderlyingArchive.IsLoading())
 	{
+		FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+
 		if (Defaults)
 		{
 			CopyValuesInternal(Value, Defaults, 1);
@@ -300,6 +304,12 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumElementsToRemove)
 			{
+				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+				if (Context)
+				{
+					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+				}
+
 				// Load and discard elements to remove, set is empty
 				void* TempElementStorage = FMemory::Malloc(SetLayout.Size);
 				ElementProp->InitializeValue(TempElementStorage);
@@ -322,6 +332,10 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			for (; Num; --Num)
 			{
 				int32 Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
+				if (Context)
+				{
+					Context->SerializedPropertyPath.SetIndex(Index);
+				}
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), SetHelper.GetElementPtrWithoutCheck(Index));
 			}
 		}
@@ -339,6 +353,12 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumElementsToRemove)
 			{
+				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+				if (Context)
+				{
+					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+				}
+
 				TempElementStorage = (uint8*)FMemory::Malloc(SetLayout.Size);
 				ElementProp->InitializeValue(TempElementStorage);
 
@@ -367,10 +387,19 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				ElementProp->InitializeValue(TempElementStorage);
 			}
 
+			// Disable serialization of unknown properties until the TODO in the loop is addressed.
+			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+			if (Context)
+			{
+				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+			}
+
 			FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ElementProp, this);
 			// Read remaining items into container
 			for (; Num; --Num)
 			{
+				// TODO: SetIndex on Context->SerializedPropertyPath and remove the element from the bag later if it existed.
+
 				// Read key into temporary storage
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), TempElementStorage);
 
@@ -384,6 +413,11 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 					ElementProp->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
 				}
 			}
+		}
+
+		if (Context)
+		{
+			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 		}
 
 		SetHelper.Rehash();

@@ -35,6 +35,8 @@
 #include "UObject/Interface.h"
 #include "UObject/LinkerPlaceholderClass.h"
 #include "UObject/LinkerPlaceholderFunction.h"
+#include "UObject/PropertyBag.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/StructScriptLoader.h"
@@ -1305,7 +1307,10 @@ const FBlake3Hash& UStruct::GetSchemaHash(bool bSkipEditorOnly) const
 
 void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
+	using namespace UE;
+
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+	FUObjectSerializeContext* LoadContext = UnderlyingArchive.GetSerializeContext();
 	//SCOPED_LOADTIMER(SerializeTaggedPropertiesTime);
 
 	// Determine if this struct supports optional property guid's (UBlueprintGeneratedClasses Only)
@@ -1322,19 +1327,36 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 		else
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 		{
-		// Load tagged properties.
-		FStructuredArchive::FStream PropertiesStream = Slot.EnterStream();
+			auto TryFindPropertyBag = [PropertyBag = (FPropertyBag*)nullptr, bSearched = false, LoadContext]() mutable -> FPropertyBag*
+			{
+				if (bSearched)
+				{
+					return PropertyBag;
+				}
+				bSearched = true;
+				if (LoadContext && LoadContext->bSerializeUnknownProperty)
+				{
+					if (UObject* Object = LoadContext->SerializedObject)
+					{
+						PropertyBag = FPropertyBagRepository::Get().CreateOuterBag(Object);
+					}
+				}
+				return PropertyBag;
+			};
 
-		// This code assumes that properties are loaded in the same order they are saved in. This removes a n^2 search 
-		// and makes it an O(n) when properties are saved in the same order as they are loaded (default case). In the 
-		// case that a property was reordered the code falls back to a slower search.
+			// Load tagged properties.
+			FStructuredArchive::FStream PropertiesStream = Slot.EnterStream();
+
+			// This code assumes that properties are loaded in the same order they are saved in. This removes a n^2 search 
+			// and makes it an O(n) when properties are saved in the same order as they are loaded (default case). In the 
+			// case that a property was reordered the code falls back to a slower search.
 			FProperty*	Property = PropertyLink;
-		bool		bAdvanceProperty	= false;
-		int32		RemainingArrayDim	= Property ? Property->ArrayDim : 0;
+			bool		bAdvanceProperty	= false;
+			int32		RemainingArrayDim	= Property ? Property->ArrayDim : 0;
 
-		// Load all stored properties, potentially skipping unknown ones.
-		while (true)
-		{
+			// Load all stored properties, potentially skipping unknown ones.
+			while (true)
+			{
 				FStructuredArchive::FRecord PropertyRecord = PropertiesStream.EnterElement().EnterRecord();
 
 				FPropertyTag Tag;
@@ -1422,6 +1444,32 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
+				if (LoadContext)
+				{
+					const FName Name = Property ? Property->GetFName() : Tag.Name;
+					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
+
+					FName Type;
+					if (!Tag.InnerType.IsNone() && Tag.ValueType.IsNone())
+					{
+						Type = Tag.InnerType;
+					}
+					else if (!Tag.StructName.IsNone())
+					{
+						Type = Tag.StructName;
+					}
+					else if (!Tag.EnumName.IsNone())
+					{
+						Type = Tag.EnumName;
+					}
+					else
+					{
+						Type = Tag.Type;
+					}
+
+					LoadContext->SerializedPropertyPath.Push({Name, Type, Index});
+				}
+
 				if (Property)
 				{
 					Tag.Prop = Property;
@@ -1480,12 +1528,24 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						{
 							case EConvertFromTypeResult::Converted:
 								bAdvanceProperty = true;
+								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+								{
+									UnderlyingArchive.Seek(StartOfProperty);
+									FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
+									Tag.Prop = nullptr;
+									PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+								}
 								break;
 
 							case EConvertFromTypeResult::UseSerializeItem:
 								if (Tag.Type != PropID)
 								{
 									UE_LOG(LogClass, Warning, TEXT("Type mismatch in %s of %s - Previous (%s) Current(%s) for package:  %s"), *Tag.Name.ToString(), *GetName(), *Tag.Type.ToString(), *PropID.ToString(), *UnderlyingArchive.GetArchiveName());
+									if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+									{
+										Tag.Prop = nullptr;
+										PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+									}
 								}
 								else
 								{
@@ -1499,12 +1559,28 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								break;
 
 							case EConvertFromTypeResult::CannotConvert:
+								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+								{
+									Tag.Prop = nullptr;
+									PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+								}
 								break;
 
 							default:
 								check(false);
 						}
 					}
+				}
+				else if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+				{
+					// TODO: Might we find defaults in a property bag for Defaults?
+					FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
+					PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot);
+				}
+
+				if (LoadContext)
+				{
+					LoadContext->SerializedPropertyPath.Pop();
 				}
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;

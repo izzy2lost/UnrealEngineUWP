@@ -3,11 +3,13 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/Casts.h"
+#include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTag.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/PropertyHelper.h"
+#include "UObject/UObjectThreadContext.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 #include "UObject/UObjectThreadContext.h"
@@ -332,6 +334,8 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 	if (UnderlyingArchive.IsLoading())
 	{
+		FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+
 		if (Defaults)
 		{
 			CopyValuesInternal(Value, Defaults, 1);
@@ -345,6 +349,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			if (NumKeysToRemove)
 			{
+				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+				if (Context)
+				{
+					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+				}
+
 				// Load and discard keys to remove, map is empty
 				void* TempKeyValueStorage = FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
@@ -359,6 +369,13 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				FMemory::Free(TempKeyValueStorage);
 			}
 
+			// Disable serialization of unknown properties until the TODO in the loop is addressed.
+			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+			if (Context)
+			{
+				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+			}
+
 			int32 NumEntries = 0;
 			FStructuredArchive::FArray EntriesArray = Record.EnterArray(TEXT("Entries"), NumEntries);
 
@@ -368,7 +385,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			{
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 				int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+				if (Context)
+				{
+					Context->SerializedPropertyPath.SetIndex(Index);
+				}
 
+				// TODO: Need a way to indicate that we are serializing a key and value into the property bag. Push Key/Value names?
 				{
 					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
 					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), MapHelper.GetKeyPtr(Index));
@@ -395,6 +417,12 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 			if (NumKeysToRemove)
 			{
+				TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+				if (Context)
+				{
+					SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+				}
+
 				TempKeyValueStorage = (uint8*)FMemory::Malloc(MapLayout.SetLayout.Size);
 				KeyProp->InitializeValue(TempKeyValueStorage);
 
@@ -412,6 +440,13 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				}
 			}
 
+			// Disable serialization of unknown properties until the TODO in the loop is addressed.
+			TOptional<TGuardValue<bool>> SerializeUnknownProperty;
+			if (Context)
+			{
+				SerializeUnknownProperty.Emplace(Context->bSerializeUnknownProperty, false);
+			}
+
 			int32 NumEntries = 0;
 			FStructuredArchive::FArray EntriesArray = Record.EnterArray(TEXT("Entries"), NumEntries);
 
@@ -425,7 +460,11 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			// Read remaining items into container
 			for (; NumEntries; --NumEntries)
 			{
+				// TODO: SetIndex on Context->SerializedPropertyPath and remove the element from the bag later if it existed.
+
 				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
+
+				// TODO: Need a way to indicate that we are serializing a key and value into the property bag. Push Key/Value names?
 
 				// Read key into temporary storage
 				{

@@ -4,11 +4,13 @@
 #include "Misc/ScopeExit.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/Casts.h"
+#include "UObject/PropertyPathName.h"
 #include "UObject/PropertyTag.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/PropertyHelper.h"
+#include "UObject/UObjectThreadContext.h"
 
 /*-----------------------------------------------------------------------------
 	FArrayProperty.
@@ -304,6 +306,8 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		}
 	}
 
+	FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+
 	// need to know how much data this call to SerializeItem consumes, so mark where we are
 	int64 DataOffset = UnderlyingArchive.Tell();
 
@@ -341,6 +345,10 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 
 				// Serialize the item at this array index
 				i = PropertyNode->ArrayIndex;
+				if (Context)
+				{
+					Context->SerializedPropertyPath.SetIndex(i);
+				}
 				SerializeContainerItem(Array.EnterElement(), ArrayHelper.GetRawPtr(i));
 				PropertyNode = PropertyNode->PropertyListNext;
 
@@ -365,6 +373,10 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			NAME_UArraySerializeCount.SetNumber(i);
 			FArchive::FScopeAddDebugData P(UnderlyingArchive, NAME_UArraySerializeCount);
 #endif
+			if (Context)
+			{
+				Context->SerializedPropertyPath.SetIndex(i);
+			}
 			SerializeContainerItem(Array.EnterElement(), ArrayHelper.GetRawPtr(i++));
 		}
 
@@ -391,6 +403,11 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			// return to the current location
 			UnderlyingArchive.Seek(DataOffset);
 		}
+	}
+
+	if (Context)
+	{
+		Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 	}
 }
 

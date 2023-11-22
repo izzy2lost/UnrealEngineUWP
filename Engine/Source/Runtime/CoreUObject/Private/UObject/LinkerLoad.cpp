@@ -4553,9 +4553,11 @@ void FLinkerLoad::Preload( UObject* Object )
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
 						
 						check(CurrentLoadContext);
-						// Maintain the current SerializedObjects.
+						// Maintain the current SerializedObject and SerializedPropertyPath.
 						UObject* PrevSerializedObject = CurrentLoadContext->SerializedObject;
+						UE::FPropertyPathName PrevSerializedPropertyPath = MoveTemp(CurrentLoadContext->SerializedPropertyPath);
 						CurrentLoadContext->SerializedObject = Object;
+						CurrentLoadContext->SerializedPropertyPath.Reset();
 
 #if WITH_EDITOR && WITH_TEXT_ARCHIVE_SUPPORT
 						if (IsTextFormat())
@@ -4580,6 +4582,7 @@ void FLinkerLoad::Preload( UObject* Object )
 						}
 
 						Object->SetFlags(RF_LoadCompleted);
+						CurrentLoadContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 						CurrentLoadContext->SerializedObject = PrevSerializedObject;
 					}
 					else
@@ -4597,9 +4600,11 @@ void FLinkerLoad::Preload( UObject* Object )
 						TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_ON_CHANNEL(*Object->GetFullName(), AssetLoadTimeChannel);
 #endif
 
-						// Maintain the current SerializedObjects.
+						// Maintain the current SerializedObject and SerializedPropertyPath.
 						UObject* PrevSerializedObject = CurrentLoadContext->SerializedObject;
+						UE::FPropertyPathName PrevSerializedPropertyPath = MoveTemp(CurrentLoadContext->SerializedPropertyPath);
 						CurrentLoadContext->SerializedObject = Object;
+						CurrentLoadContext->SerializedPropertyPath.Reset();
 
 #if WITH_EDITOR && WITH_TEXT_ARCHIVE_SUPPORT
 						if (IsTextFormat())
@@ -4625,6 +4630,7 @@ void FLinkerLoad::Preload( UObject* Object )
 						}
 
 						Object->SetFlags(RF_LoadCompleted);
+						CurrentLoadContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 						CurrentLoadContext->SerializedObject = PrevSerializedObject;
 					}
 				}

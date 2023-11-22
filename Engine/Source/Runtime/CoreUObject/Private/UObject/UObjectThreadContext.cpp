@@ -44,6 +44,7 @@ FUObjectSerializeContext::FUObjectSerializeContext()
 	, SerializedImportLinker(nullptr)
 	, SerializedExportIndex(0)
 	, SerializedExportLinker(nullptr)
+	, bSerializeUnknownProperty(false)
 {}
 
 FUObjectSerializeContext::~FUObjectSerializeContext()

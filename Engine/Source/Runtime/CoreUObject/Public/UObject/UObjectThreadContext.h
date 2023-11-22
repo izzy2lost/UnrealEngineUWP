@@ -21,6 +21,7 @@
 #include "Templates/RefCounting.h"
 #include "Templates/UnrealTemplate.h"
 #include "Trace/Detail/Channel.h"
+#include "UObject/PropertyPathName.h"
 
 class FLinkerLoad;
 class FName;
@@ -167,6 +168,10 @@ public:
 	int32 SerializedExportIndex;
 	/** Points to the most recently used Linker for serialization by CreateExport() */
 	FLinkerLoad* SerializedExportLinker;
+	/** Path to the property currently being serialized */
+	UE::FPropertyPathName SerializedPropertyPath;
+	/** True when unknown properties will be serialized to or from a property bag for the serialized object. */
+	bool bSerializeUnknownProperty;
 
 	/** Adds a new loaded object */
 	COREUOBJECT_API void AddLoadedObject(UObject* InObject);
