@@ -426,7 +426,12 @@ namespace EpicGames.OIDC
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
-				return Process.Start("xdg-open", url);
+				if (IsRunningWsl())
+				{
+					return Process.Start("wslview", url);
+				}
+
+				return Process.Start("xdg-open", url);	
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
@@ -436,6 +441,18 @@ namespace EpicGames.OIDC
 			{
 				throw new NotImplementedException();
 			}
+		}
+
+		private static bool IsRunningWsl()
+		{
+			string versionFile = "/proc/version";
+			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || !File.Exists(versionFile))
+			{
+				return false;
+			}
+
+			string version = File.ReadAllText(versionFile);
+			return version.Contains("microsoft", StringComparison.InvariantCultureIgnoreCase) || version.Contains("wsl2", StringComparison.InvariantCultureIgnoreCase);
 		}
 
 		[SupportedOSPlatform("windows")]
