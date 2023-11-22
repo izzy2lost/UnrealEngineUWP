@@ -103,7 +103,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 
 	if (PCGGraphBeingEdited)
 	{
-		PCGGraphBeingEdited->OnGraphGridSizesChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphGridSizesChanged);
+		PCGGraphBeingEdited->OnGraphStructureChangedDelegate.AddRaw(this, &FPCGEditor::OnGraphStructureChanged);
 	}
 
 	if (UPCGSubsystem* Subsystem = GetSubsystem())
@@ -273,7 +273,7 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObj
 			{
 				// Update now that component has changed. Will fire OnNodeChanged if necessary.
 				EPCGChangeType ChangeType = PCGNode->UpdateErrorsAndWarnings();
-				ChangeType |= PCGNode->UpdateGridSizeVisualization(NewComponent, FullStack);
+				ChangeType |= PCGNode->UpdateStructuralVisualization(NewComponent, &StackBeingInspected);
 
 				if (ChangeType != EPCGChangeType::None)
 				{
@@ -2105,7 +2105,7 @@ void FPCGEditor::OnClose()
 			PCGGraphBeingEdited->ToggleUserPausedNotificationsForEditor();
 		}
 
-		PCGGraphBeingEdited->OnGraphGridSizesChangedDelegate.RemoveAll(this);
+		PCGGraphBeingEdited->OnGraphStructureChangedDelegate.RemoveAll(this);
 	}
 
 	if (UPCGSubsystem* Subsystem = GetSubsystem())
@@ -2337,16 +2337,11 @@ bool FPCGEditor::IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent
 	return true;
 }
 
-void FPCGEditor::OnGraphGridSizesChanged(UPCGGraphInterface* InGraph)
+void FPCGEditor::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
 {
 	check(PCGEditorGraph);
 
-	const FPCGStack* Stack = GetStackBeingInspected();
-	UPCGComponent* PCGComponent = GetPCGComponentBeingInspected();
-	if (Stack && PCGComponent)
-	{
-		PCGEditorGraph->UpdateGridSizeVisualization(PCGComponent, *Stack);
-	}
+	PCGEditorGraph->UpdateStructuralVisualization(GetPCGComponentBeingInspected(), GetStackBeingInspected());
 }
 
 void FPCGEditor::OnComponentGenerationCompleteOrCancelled()

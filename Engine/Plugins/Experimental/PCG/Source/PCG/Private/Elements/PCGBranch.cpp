@@ -51,6 +51,62 @@ FPCGElementPtr UPCGBranchSettings::CreateElement() const
 	return MakeShared<FPCGBranchElement>();
 }
 
+#if WITH_EDITOR
+bool UPCGBranchSettings::IsStructuralProperty(const FName& InPropertyName) const
+{
+	// Static branches are processed during graph compilation and are part of the graph structure.
+	return InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bEnabled)
+		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB)
+		|| Super::IsStructuralProperty(InPropertyName);
+}
+#endif
+
+bool UPCGBranchSettings::IsDynamicBranch() const
+{
+	UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+
+	if (!Node && OriginalSettings)
+	{
+		Node = Cast<UPCGNode>(OriginalSettings->GetOuter());
+	}
+
+	if (!Node)
+	{
+		return false;
+	}
+
+	const FName PropertyName = GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB);
+
+	const FPCGSettingsOverridableParam* Param = CachedOverridableParams.FindByPredicate([PropertyName](const FPCGSettingsOverridableParam& ParamToCheck)
+	{
+		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames.Last() == PropertyName;
+	});
+
+	if (Param)
+	{
+		if (const UPCGPin* Pin = Node->GetInputPin(Param->Label))
+		{
+			return Pin->IsConnected();
+		}
+	}
+
+	return false;
+}
+
+bool UPCGBranchSettings::IsPinStaticallyActive(const FName& PinLabel) const
+{
+	// Dynamic branches are never known in advance - assume all branches are active prior to execution.
+	if (IsDynamicBranch())
+	{
+		return true;
+	}
+
+	// Branch must be both enabled and set to B in order for output pin B to be active.
+	const FName ActiveOutputPinLabel = (bEnabled && bOutputToB) ? PCGBranchConstants::OutputLabelB : PCGBranchConstants::OutputLabelA;
+
+	return PinLabel == ActiveOutputPinLabel;
+}
+
 bool FPCGBranchElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGBranchElement::ExecuteInternal);

@@ -99,6 +99,9 @@ void UPCGEditorGraph::ReconstructGraph()
 			AddNode(NewNode, bIsUserAction, bSelectNewNode);
 		}
 	}
+
+	// Ensure graph structure visualization is nice and fresh upon opening.
+	UpdateStructuralVisualization(nullptr, nullptr);
 }
 
 void UPCGEditorGraph::BeginDestroy()
@@ -134,12 +137,12 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 	CreateLinks(GraphNode, bCreateInbound, bCreateOutbound, PCGNodeToPCGEditorNodeMap);
 }
 
-void UPCGEditorGraph::UpdateGridSizeVisualization(UPCGComponent* PCGComponentBeingInspected, const FPCGStack& PCGStackBeingInspected)
+void UPCGEditorGraph::UpdateStructuralVisualization(UPCGComponent* PCGComponentBeingInspected, const FPCGStack* PCGStackBeingInspected)
 {
 	for (UEdGraphNode* EditorNode : Nodes)
 	{
 		UPCGEditorGraphNodeBase* PCGEditorNode = Cast<UPCGEditorGraphNodeBase>(EditorNode);
-		if (PCGEditorNode && PCGEditorNode->UpdateGridSizeVisualization(PCGComponentBeingInspected, PCGStackBeingInspected) != EPCGChangeType::None)
+		if (PCGEditorNode && PCGEditorNode->UpdateStructuralVisualization(PCGComponentBeingInspected, PCGStackBeingInspected) != EPCGChangeType::None)
 		{
 			PCGEditorNode->ReconstructNode();
 		}

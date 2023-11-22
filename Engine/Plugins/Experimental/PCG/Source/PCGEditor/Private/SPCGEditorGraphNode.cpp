@@ -528,33 +528,45 @@ void SPCGEditorGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D Widg
 {
 	check(PCGEditorGraphNode);
 	
-	const FSlateBrush* DebugBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Debug"));
-	const FSlateBrush* InspectBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Inspect"));
-	
-	const FVector2D HalfDebugBrushSize = DebugBrush->GetImageSize() / 2.0;
-	const FVector2D HalfInspectBrushSize = InspectBrush->GetImageSize() / 2.0;
-	
-	FVector2D OverlayOffset(0.0, 0.0);
-
-	if (const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode())
+	if (!PCGEditorGraphNode->IsOnActiveBranch())
 	{
-		if (PCGNode->GetSettingsInterface() && PCGNode->GetSettingsInterface()->bDebug)
+		const FSlateBrush* InactiveBranchBrush = FPCGEditorStyle::Get().GetBrush(PCGEditorStyleConstants::Node_Overlay_Inactive);
+
+		FOverlayBrushInfo BrushInfo;
+		BrushInfo.Brush = InactiveBranchBrush;
+		BrushInfo.OverlayOffset = -InactiveBranchBrush->GetImageSize() / 2.0;
+		Brushes.Add(BrushInfo);
+	}
+	else
+	{
+		const FSlateBrush* DebugBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Debug"));
+		const FSlateBrush* InspectBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Inspect"));
+
+		const FVector2D HalfDebugBrushSize = DebugBrush->GetImageSize() / 2.0;
+		const FVector2D HalfInspectBrushSize = InspectBrush->GetImageSize() / 2.0;
+
+		FVector2D OverlayOffset(0.0, 0.0);
+
+		if (const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode())
+		{
+			if (PCGNode->GetSettingsInterface() && PCGNode->GetSettingsInterface()->bDebug)
+			{
+				FOverlayBrushInfo BrushInfo;
+				BrushInfo.Brush = DebugBrush;
+				BrushInfo.OverlayOffset = OverlayOffset - HalfDebugBrushSize;
+				Brushes.Add(BrushInfo);
+
+				OverlayOffset.Y += HalfDebugBrushSize.Y + HalfInspectBrushSize.Y;
+			}
+		}
+
+		if (PCGEditorGraphNode->GetInspected())
 		{
 			FOverlayBrushInfo BrushInfo;
-			BrushInfo.Brush = DebugBrush;
-			BrushInfo.OverlayOffset = OverlayOffset - HalfDebugBrushSize;
+			BrushInfo.Brush = InspectBrush;
+			BrushInfo.OverlayOffset = OverlayOffset - HalfInspectBrushSize;
 			Brushes.Add(BrushInfo);
-			
-			OverlayOffset.Y += HalfDebugBrushSize.Y + HalfInspectBrushSize.Y;
 		}
-	}
-
-	if (PCGEditorGraphNode->GetInspected())
-	{
-		FOverlayBrushInfo BrushInfo;
-		BrushInfo.Brush = InspectBrush;
-		BrushInfo.OverlayOffset = OverlayOffset - HalfInspectBrushSize;
-		Brushes.Add(BrushInfo);	
 	}
 }
 

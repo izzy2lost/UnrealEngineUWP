@@ -6,7 +6,7 @@
 #include "PCGBranch.generated.h"
 
 /**
- * Routes input data to one of two outputs,based on a boolean condition.
+ * Routes input data to one of two outputs, based on a boolean condition.
  */
 UCLASS(BlueprintType, ClassGroup = (Procedural), meta=(Keywords = "if bool branch"))
 class UPCGBranchSettings : public UPCGSettings
@@ -23,10 +23,18 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 #endif
 
+	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
+
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
+#if WITH_EDITOR
+	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
+#endif
 	//~End UPCGSettings interface
+
+	/** Branch is dynamic if selection value is overridden / cannot be determined prior to execution. */
+	virtual bool IsDynamicBranch() const;
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings, meta=(PCG_Overridable))

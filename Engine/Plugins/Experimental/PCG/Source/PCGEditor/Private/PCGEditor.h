@@ -298,7 +298,7 @@ private:
 	/** Returns whether a property should be visible (used for instance vs. settings properties) */
 	bool IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const;
 
-	void OnGraphGridSizesChanged(UPCGGraphInterface* InGraph);
+	void OnGraphStructureChanged(UPCGGraphInterface* InGraph);
 
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
 	void OnComponentGenerationCompleteOrCancelled();

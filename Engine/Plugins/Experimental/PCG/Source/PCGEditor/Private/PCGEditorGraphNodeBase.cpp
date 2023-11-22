@@ -313,6 +313,18 @@ void UPCGEditorGraphNodeBase::OnNodeChanged(UPCGNode* InNode, EPCGChangeType Cha
 
 		ChangeType |= UpdateErrorsAndWarnings();
 
+		UPCGComponent* ComponentBeingDebugged = nullptr;
+		const FPCGStack* StackBeingDebugged = nullptr;
+
+		{
+			const UPCGEditorGraph* EditorGraph = CastChecked<UPCGEditorGraph>(GetGraph());
+			const FPCGEditor* Editor = EditorGraph ? EditorGraph->GetEditor().Pin().Get() : nullptr;
+			ComponentBeingDebugged = Editor ? Editor->GetPCGComponentBeingInspected() : nullptr;
+			StackBeingDebugged = Editor ? Editor->GetStackBeingInspected() : nullptr;
+		}
+
+		ChangeType |= UpdateStructuralVisualization(ComponentBeingDebugged, StackBeingDebugged);
+
 		if (!!(ChangeType & (EPCGChangeType::Structural | EPCGChangeType::Node | EPCGChangeType::Edge | EPCGChangeType::Cosmetic)))
 		{
 			ReconstructNode();
@@ -381,7 +393,7 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateErrorsAndWarnings()
 	return bStateChanged ? EPCGChangeType::Cosmetic : EPCGChangeType::None;
 }
 
-EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack& InStackBeingInspected)
+EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGComponent* InComponentBeingDebugged, const FPCGStack* InStackBeingInspected)
 {
 	const UPCGGraph* Graph = PCGNode ? PCGNode->GetGraph() : nullptr;
 	if (!Graph)
@@ -391,26 +403,17 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponen
 
 	EPCGChangeType ChangeType = EPCGChangeType::None;
 
+	SetOnActiveBranch(Graph->IsNodeOnActiveBranch(PCGNode));
+
+	bool bShouldDisplayAsDisabled = !IsOnActiveBranch();
+	bool bShouldDisplayAsHighlighted = false;
+
 	const bool HiGenEnabled = Graph->IsHierarchicalGenerationEnabled();
 	const uint32 InspectingGridSize = InComponentBeingDebugged ? InComponentBeingDebugged->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
 
-	// Disable grid size visualization if higen is disabled, or if we're not inspecting a specific grid, or if we're
-	// inspecting a subgraph since subgraphs execute at the invoked grid level.
-	if (!HiGenEnabled || (InspectingGridSize == PCGHiGenGrid::UninitializedGridSize()) || !InStackBeingInspected.IsCurrentFrameInRootGraph())
-	{
-		if (IsDisplayAsDisabledForced())
-		{
-			SetForceDisplayAsDisabled(false);
-			ChangeType |= EPCGChangeType::Cosmetic;
-		}
-
-		if (IsHighlighted())
-		{
-			SetIsHighlighted(false);
-			ChangeType |= EPCGChangeType::Cosmetic;
-		}
-	}
-	else
+	// Show grid size visualization if higen is enabled and if we're inspecting a specific grid, and we're inspecting a subgraph since subgraphs
+	// execute at the invoked grid level.
+	if (HiGenEnabled && InStackBeingInspected && InStackBeingInspected->IsCurrentFrameInRootGraph() && InspectingGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
 		uint32 DefaultGridSize;
 		UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
@@ -431,20 +434,22 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateGridSizeVisualization(UPCGComponen
 		const uint32 NodeGridSize = Graph->GetNodeGenerationGridSize(PCGNode, DefaultGridSize);
 
 		// Disable nodes that are on a smaller grid
-		const bool bForceDisable = NodeGridSize < InspectingGridSize;
-		if (IsDisplayAsDisabledForced() != bForceDisable)
-		{
-			SetForceDisplayAsDisabled(bForceDisable);
-			ChangeType |= EPCGChangeType::Cosmetic;
-		}
+		bShouldDisplayAsDisabled |= NodeGridSize < InspectingGridSize;
 
 		// If node is on larger grid than current, highlight it to indicate that its data is available for use
-		const bool bHighlight = NodeGridSize > InspectingGridSize;
-		if (IsHighlighted() != bHighlight)
-		{
-			SetIsHighlighted(bHighlight);
-			ChangeType |= EPCGChangeType::Cosmetic;
-		}
+		bShouldDisplayAsHighlighted |= NodeGridSize > InspectingGridSize;
+	}
+
+	if (IsDisplayAsDisabledForced() != bShouldDisplayAsDisabled)
+	{
+		SetForceDisplayAsDisabled(bShouldDisplayAsDisabled);
+		ChangeType |= EPCGChangeType::Cosmetic;
+	}
+
+	if (IsHighlighted() != bShouldDisplayAsHighlighted)
+	{
+		SetIsHighlighted(bShouldDisplayAsHighlighted);
+		ChangeType |= EPCGChangeType::Cosmetic;
 	}
 
 	return ChangeType;

@@ -55,6 +55,12 @@ private:
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
 		const FPCGStackContext& InStackContext);
 
+	/** Discovers whether task is on a statically active branch (and needs to be passed to graph executor). */
+	static bool CalculateActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag);
+
+	/** Culls nodes that are not on statically active branches. */
+	static void CullTasksStaticBranchNodes(TArray<FPCGGraphTask>& InOutCompiledTasks);
+
 	/** Culls tasks based on a given lambda. Never culls the first (input) task in the array. */
 	static void CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask);
 

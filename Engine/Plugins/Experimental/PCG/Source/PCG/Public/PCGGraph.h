@@ -33,7 +33,7 @@ enum class EPCGGraphParameterEvent
 
 #if WITH_EDITOR
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPCGGraphChanged, UPCGGraphInterface* /*Graph*/, EPCGChangeType /*ChangeType*/);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphGridSizesChanged, UPCGGraphInterface* /*Graph*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphStructureChanged, UPCGGraphInterface* /*Graph*/);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPCGGraphParametersChanged, UPCGGraphInterface* /*Graph*/, EPCGGraphParameterEvent /*ChangeType*/, FName /*ChangedPropertyName*/);
 #endif // WITH_EDITOR
 
@@ -109,8 +109,10 @@ public:
 
 #if WITH_EDITOR
 	FOnPCGGraphChanged OnGraphChangedDelegate;
-	FOnPCGGraphGridSizesChanged OnGraphGridSizesChangedDelegate;
 	FOnPCGGraphParametersChanged OnGraphParametersChangedDelegate;
+
+	/** A structural change has been made such as changing a static branch or a higen grid size node. */
+	FOnPCGGraphStructureChanged OnGraphStructureChangedDelegate;
 #endif // WITH_EDITOR
 
 	template <typename T>
@@ -296,6 +298,9 @@ public:
 	void DisableInspection() { bIsInspecting = false; }
 	bool DebugFlagAppliesToIndividualComponents() const { return bDebugFlagAppliesToIndividualComponents; }
 	void RemoveExtraEditorNode(const UObject* InNode);
+
+	/** Is this node on an active branch (and will therefore execute). */
+	bool IsNodeOnActiveBranch(const UPCGNode* InNode) const;
 #endif
 
 #if WITH_EDITOR
@@ -317,7 +322,7 @@ protected:
 
 	bool IsEditorOnly_Internal(TSet<const UPCGGraph*>& VisitedGraphs) const;
 
-	/** Calculates node grid size. Not thread safe, called within write lock. */
+	/** Calculates node grid size. Not thread safe, must be called within write lock. */
 	uint32 CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, uint32 InDefaultGridSize) const;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Graph, meta = (NoResetToDefault))
@@ -400,6 +405,12 @@ private:
 	/** Remove invalid edges and edges to nodes that are not present in the node array. */
 	void FixInvalidEdges();
 
+	/** Evaluates whether node is on active branch and will therefore execute. Not thread safe, must be called within write lock. */
+	bool CalculateNodeOnActiveBranchRecursive_Unsafe(const UPCGNode* InNode) const;
+
+	/** Clear all active branch flags. */
+	void ResetNodeToOnActiveBranchMap();
+
 	int32 GraphChangeNotificationsDisableCounter = 0;
 	bool bDelayedChangeNotification = false;
 	EPCGChangeType DelayedChangeType = EPCGChangeType::None;
@@ -407,6 +418,10 @@ private:
 	bool bUserPausedNotificationsInGraphEditor = false;
 	int32 NumberOfUserParametersPreEdit = 0;
 	bool bIsInspecting = false;
+
+	/** Cache for "on active branch" flag for nodes. */
+	mutable TMap<const UPCGNode*, bool> NodeToOnActiveBranch;
+	mutable FRWLock NodeToOnActiveBranchLock;
 #endif // WITH_EDITOR
 };
 
@@ -442,7 +457,7 @@ public:
 protected:
 #if WITH_EDITOR
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
-	void OnGraphGridSizesChanged(UPCGGraphInterface* InGraph);
+	void OnGraphStructureChanged(UPCGGraphInterface* InGraph);
 	void NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 #endif
 	void OnGraphParametersChanged(UPCGGraphInterface* InGraph, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);

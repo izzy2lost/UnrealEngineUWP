@@ -82,23 +82,25 @@ namespace PCGGraphUtils
 		InSourcePropertyDesc->CachedProperty->CopyCompleteValue(TargetValueAddress, SourceValueAddress);
 	}
 
-	EPCGChangeType NotifyTouchedNodes(const TSet<UPCGNode*>& InTouchedNodes)
+	EPCGChangeType NotifyTouchedNodes(const TSet<UPCGNode*>& InTouchedNodes, EPCGChangeType ChangeType)
 	{
-		EPCGChangeType ChangeType = EPCGChangeType::None;
+		EPCGChangeType FinalChangeType = EPCGChangeType::None;
 
 		for (UPCGNode* TouchedNode : InTouchedNodes)
 		{
 			if (TouchedNode)
 			{
-				ChangeType |= TouchedNode->PropagateDynamicPinTypes();
+				const EPCGChangeType NodeChangeType = ChangeType | TouchedNode->PropagateDynamicPinTypes();
 
 #if WITH_EDITOR
-				TouchedNode->OnNodeChangedDelegate.Broadcast(TouchedNode, EPCGChangeType::Node);
+				TouchedNode->OnNodeChangedDelegate.Broadcast(TouchedNode, NodeChangeType | EPCGChangeType::Node | ChangeType);
 #endif
+
+				FinalChangeType |= NodeChangeType;
 			}
 		}
 
-		return ChangeType;
+		return FinalChangeType;
 	}
 }
 
@@ -609,10 +611,10 @@ bool UPCGGraph::AddLabeledEdge(UPCGNode* From, const FName& FromPinLabel, UPCGNo
 		bToPinBrokeOtherEdges = ToPin->BreakAllIncompatibleEdges(&TouchedNodes);
 	}
 
-	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
+	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes, EPCGChangeType::Structural);
 
 #if WITH_EDITOR
-	NotifyGraphChanged(ChangeType | EPCGChangeType::Structural);
+	NotifyGraphChanged(ChangeType);
 #endif
 
 	return bToPinBrokeOtherEdges;
@@ -715,7 +717,7 @@ void UPCGGraph::RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes)
 		Nodes.Remove(Node);
 	}
 
-	PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
+	PCGGraphUtils::NotifyTouchedNodes(TouchedNodes, EPCGChangeType::Structural);
 
 	OnNodesRemoved(InNodes);
 }
@@ -737,12 +739,12 @@ bool UPCGGraph::RemoveEdge(UPCGNode* From, const FName& FromLabel, UPCGNode* To,
 		OutPin->BreakEdgeTo(InPin, &TouchedNodes);
 	}
 
-	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
+	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes, EPCGChangeType::Structural);
 
 	if (TouchedNodes.Num() > 0)
 	{
 #if WITH_EDITOR
-		NotifyGraphChanged(ChangeType | EPCGChangeType::Structural);
+		NotifyGraphChanged(ChangeType);
 #endif
 	}
 
@@ -770,12 +772,12 @@ bool UPCGGraph::RemoveInboundEdges(UPCGNode* InNode, const FName& InboundLabel)
 		InputPin->BreakAllEdges(&TouchedNodes);
 	}
 
-	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
+	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes, EPCGChangeType::Structural);
 
 #if WITH_EDITOR
 	if (TouchedNodes.Num() > 0)
 	{
-		NotifyGraphChanged(ChangeType | EPCGChangeType::Structural);
+		NotifyGraphChanged(ChangeType);
 	}
 #endif
 
@@ -793,12 +795,12 @@ bool UPCGGraph::RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel
 		OutputPin->BreakAllEdges(&TouchedNodes);
 	}
 
-	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes);
+	const EPCGChangeType ChangeType = PCGGraphUtils::NotifyTouchedNodes(TouchedNodes, EPCGChangeType::Structural);
 
 #if WITH_EDITOR
 	if (TouchedNodes.Num() > 0)
 	{
-		NotifyGraphChanged(ChangeType | EPCGChangeType::Structural);
+		NotifyGraphChanged(ChangeType);
 	}
 #endif
 
@@ -1013,7 +1015,9 @@ void UPCGGraph::NotifyGraphChanged(EPCGChangeType ChangeType)
 	// Graph settings, nodes, graph structure can all change the higen grid sizes.
 	if (ChangeType != EPCGChangeType::Cosmetic)
 	{
-		FWriteScopeLock ScopedWriteLock(NodeToGridSizeLock);
+		ResetNodeToOnActiveBranchMap();
+
+		FWriteScopeLock GridSizeLock(NodeToGridSizeLock);
 		NodeToGridSize.Reset();
 	}
 
@@ -1038,16 +1042,20 @@ void UPCGGraph::NotifyGraphParametersChanged(EPCGGraphParameterEvent InChangeTyp
 
 void UPCGGraph::OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType)
 {
-	if (!!(ChangeType & EPCGChangeType::Structural) && Cast<UPCGHiGenGridSizeSettings>(InNode->GetSettings()))
+	if (!!(ChangeType & EPCGChangeType::Structural))
 	{
 		// Update node to grid size map for grid size changes.
+		if (Cast<UPCGHiGenGridSizeSettings>(InNode->GetSettings()))
 		{
-			FWriteScopeLock ScopedWriteLock(NodeToGridSizeLock);
+			FWriteScopeLock Lock(NodeToGridSizeLock);
 			NodeToGridSize.Reset();
 		}
 
+		// Any node/edge change can affect which branches are statically active/inactive.
+		ResetNodeToOnActiveBranchMap();
+
 		// Broadcast so that grid size visualization can be updated editor-side.
-		OnGraphGridSizesChangedDelegate.Broadcast(this);
+		OnGraphStructureChangedDelegate.Broadcast(this);
 	}
 
 	if ((ChangeType & ~EPCGChangeType::Cosmetic) != EPCGChangeType::None)
@@ -1270,6 +1278,24 @@ FInstancedPropertyBag* UPCGGraph::GetMutableUserParametersStruct()
 	return &UserParameters;
 }
 
+#if WITH_EDITOR
+bool UPCGGraph::IsNodeOnActiveBranch(const UPCGNode* InNode) const
+{
+	{
+		FReadScopeLock Lock(NodeToOnActiveBranchLock);
+		if (const bool* CachedValue = NodeToOnActiveBranch.Find(InNode))
+		{
+			return *CachedValue;
+		}
+	}
+
+	{
+		FWriteScopeLock Lock(NodeToOnActiveBranchLock);
+		return CalculateNodeOnActiveBranchRecursive_Unsafe(InNode);
+	}
+}
+#endif // WITH_EDITOR
+
 uint32 UPCGGraph::GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const
 {
 	{
@@ -1333,6 +1359,69 @@ uint32 UPCGGraph::CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, 
 
 	return GridSize;
 }
+
+#if WITH_EDITOR
+bool UPCGGraph::CalculateNodeOnActiveBranchRecursive_Unsafe(const UPCGNode* InNode) const
+{
+	if (const bool* CachedValue = NodeToOnActiveBranch.Find(InNode))
+	{
+		return *CachedValue;
+	}
+
+	bool bAnyInputActive = false;
+	bool bAnyEdgesPresent = false;
+
+	for (const UPCGPin* Pin : InNode->GetInputPins())
+	{
+		if (!Pin)
+		{
+			continue;
+		}
+
+		for (const UPCGEdge* Edge : Pin->Edges)
+		{
+			bAnyEdgesPresent = true;
+
+			bool bEdgeActive = true;
+
+			const UPCGPin* OtherPin = Edge ? Edge->InputPin : nullptr;
+			if (OtherPin && OtherPin->Node.Get())
+			{
+				if (const UPCGSettings* UpstreamSettings = OtherPin->Node->GetSettings())
+				{
+					bEdgeActive &= UpstreamSettings->IsPinStaticallyActive(OtherPin->Properties.Label);
+				}
+
+				bEdgeActive = bEdgeActive && CalculateNodeOnActiveBranchRecursive_Unsafe(OtherPin->Node);
+			}
+
+			if (bEdgeActive)
+			{
+				bAnyInputActive = true;
+				break;
+			}
+		}
+
+		if (bAnyInputActive)
+		{
+			break;
+		}
+	}
+
+	// Active if any input is active, or if there are no edges.
+	const bool bActive = bAnyInputActive || !bAnyEdgesPresent;
+
+	NodeToOnActiveBranch.Add(InNode, bActive);
+
+	return bActive;
+}
+
+void UPCGGraph::ResetNodeToOnActiveBranchMap()
+{
+	FWriteScopeLock Lock(NodeToOnActiveBranchLock);
+	NodeToOnActiveBranch.Reset();
+}
+#endif
 
 void UPCGGraph::AddUserParameters(const TArray<FPropertyBagPropertyDesc>& InDescs, const UPCGGraph* InOptionalOriginalGraph)
 {
@@ -1461,11 +1550,11 @@ void UPCGGraphInstance::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeTy
 	}
 }
 
-void UPCGGraphInstance::OnGraphGridSizesChanged(UPCGGraphInterface* InGraph)
+void UPCGGraphInstance::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
 {
 	if (InGraph == Graph)
 	{
-		OnGraphGridSizesChangedDelegate.Broadcast(this);
+		OnGraphStructureChangedDelegate.Broadcast(this);
 	}
 }
 
@@ -1494,7 +1583,7 @@ void UPCGGraphInstance::TeardownCallbacks()
 	if (Graph)
 	{
 		Graph->OnGraphChangedDelegate.RemoveAll(this);
-		Graph->OnGraphGridSizesChangedDelegate.RemoveAll(this);
+		Graph->OnGraphStructureChangedDelegate.RemoveAll(this);
 		Graph->OnGraphParametersChangedDelegate.RemoveAll(this);
 	}
 }
@@ -1504,7 +1593,7 @@ void UPCGGraphInstance::SetupCallbacks()
 	if (Graph && !Graph->OnGraphChangedDelegate.IsBoundToObject(this))
 	{
 		Graph->OnGraphChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphChanged);
-		Graph->OnGraphGridSizesChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphGridSizesChanged);
+		Graph->OnGraphStructureChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphStructureChanged);
 		Graph->OnGraphParametersChangedDelegate.AddUObject(this, &UPCGGraphInstance::OnGraphParametersChanged);
 	}
 }

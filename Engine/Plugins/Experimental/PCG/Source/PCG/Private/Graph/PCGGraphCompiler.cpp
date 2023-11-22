@@ -475,6 +475,68 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	return Grid;
 }
 
+bool FPCGGraphCompiler::CalculateActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag)
+{
+	if (const bool* bEntry = InTaskIdToActiveFlag.Find(InTaskId))
+	{
+		return *bEntry;
+	}
+
+	bool bAnyInputActive = false;
+
+	for (FPCGGraphTaskInput Input : InCompiledTasks[InTaskId].Inputs)
+	{
+		// Default to tasks being active unless proved otherwise.
+		bool bInputActive = true;
+
+		// If we are connected to an upstream branch node, evaluate if the output pin is active.
+		const UPCGNode* UpstreamNode = InCompiledTasks[Input.TaskId].Node;
+		if (const UPCGSettings* UpstreamSettings = UpstreamNode ? UpstreamNode->GetSettings() : nullptr)
+		{
+			bInputActive &= UpstreamSettings->IsPinStaticallyActive(Input.InPin->Properties.Label);
+		}
+
+		if (bInputActive)
+		{
+			bInputActive &= CalculateActiveRecursive(Input.TaskId, InCompiledTasks, InTaskIdToActiveFlag);
+		}
+
+		if (bInputActive)
+		{
+			bAnyInputActive = true;
+			break;
+		}
+	}
+
+	const bool bActive = bAnyInputActive || InCompiledTasks[InTaskId].Inputs.IsEmpty();
+	InTaskIdToActiveFlag.Add(InTaskId, bActive);
+	return bActive;
+}
+
+void FPCGGraphCompiler::CullTasksStaticBranchNodes(TArray<FPCGGraphTask>& InOutCompiledTasks)
+{
+	if (InOutCompiledTasks.IsEmpty())
+	{
+		return;
+	}
+
+	TMap<int32, bool> NodeIdToActiveFlag;
+	// First task is input node task which is active
+	NodeIdToActiveFlag.Add(InOutCompiledTasks[0].NodeId, true);
+
+	for (int32 i = 1; i < InOutCompiledTasks.Num(); ++i)
+	{
+		CalculateActiveRecursive(InOutCompiledTasks[i].NodeId, InOutCompiledTasks, NodeIdToActiveFlag);
+	}
+
+	auto ShouldCull = [&NodeIdToActiveFlag](const FPCGGraphTask& InTask)
+	{
+		const bool* bActive = NodeIdToActiveFlag.Find(InTask.NodeId);
+		return bActive && !*bActive;
+	};
+	CullTasks(InOutCompiledTasks, /*bAddPassthroughWires=*/false, ShouldCull);
+}
+
 void FPCGGraphCompiler::CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompiler::CullTasks);
@@ -714,6 +776,9 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 
 	// Remove reroute nodes before execution grid setup, as grid linkages need final nodes to connect from/to.
 	CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()); });
+
+	// Cull inactive branches downstream of branch nodes with static selection values.
+	CullTasksStaticBranchNodes(CompiledTasks);
 
 	// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
 	if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())

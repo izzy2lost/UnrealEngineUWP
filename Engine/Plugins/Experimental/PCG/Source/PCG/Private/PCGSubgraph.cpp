@@ -352,7 +352,7 @@ bool UPCGSubgraphSettings::IsDynamicGraph() const
 
 	const FPCGSettingsOverridableParam* Param = CachedOverridableParams.FindByPredicate([PropertyName](const FPCGSettingsOverridableParam& ParamToCheck)
 	{
-		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames[0] == PropertyName;
+		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames.Last() == PropertyName;
 	});
 
 	if (Param)

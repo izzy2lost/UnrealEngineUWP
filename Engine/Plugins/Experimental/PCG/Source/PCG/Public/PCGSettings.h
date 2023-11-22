@@ -303,6 +303,9 @@ public:
 	/** Returns true if InPin is in use by node (assuming node enabled). Can be used to communicate when a pin is not in use to user. */
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const { return true; }
 
+	/** True if we know prior to execution that the given pin will be active (not on inactive branch). */
+	virtual bool IsPinStaticallyActive(const FName& OutputPinLabel) const { return true; }
+
 	/** Returns true if only the first input edge is used from the primary pin when the node is disabled. */
 	virtual bool OnlyPassThroughOneEdgeWhenDisabled() const { return false; }
 
