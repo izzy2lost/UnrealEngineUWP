@@ -25,6 +25,12 @@ namespace UE::PixelStreamingVCam::Private
 		// (Luke.Bermingham): If this set of configurations shows promising results
 		// then consider how we want to expose these to the user? Or which ones we should expose?
 
+		// Enabling the legacy audio device seems to result in better AV sync.
+		if(IConsoleVariable* UseLegacyAudioDevice = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.WebRTC.UseLegacyAudioDevice")))
+		{
+			UseLegacyAudioDevice->Set(true);
+		}
+
 		// Decouple engine's render rate from streaming rate
 		if(IConsoleVariable* DecoupleFramerateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.DecoupleFramerate")))
 		{
