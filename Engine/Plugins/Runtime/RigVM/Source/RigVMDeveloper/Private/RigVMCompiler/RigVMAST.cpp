@@ -273,45 +273,56 @@ TOptional<uint32> FRigVMExprAST::GetBlockCombinationHash() const
 	// only consider cached / computed values for lazy blocks
 	if (IsA(FRigVMExprAST::CachedValue))
 	{
-		// collect all of the blocks this expression is in
-		const FRigVMExprAST::FRigVMBlockArray Blocks = GetBlocks(true);
-		if(Blocks.Num() > 1)
+		// find the first node expr child
+		FRigVMExprAST* const* NodeChildPtr = Children.FindByPredicate([](const FRigVMExprAST* Child)
 		{
-			// compute a hash for the blocks
-			uint32 ComputedHash = 0;
-			for(const FRigVMBlockExprAST* Block : Blocks)
-			{
-				ComputedHash = HashCombine(ComputedHash, GetTypeHash(Block->Index));
-			}
+			return Child->IsNode();
+		});
 
-			BlockCombinationHash = TOptional<uint32>(ComputedHash);
-
-			if(const FRigVMParserAST* Parser = GetParser())
+		if(NodeChildPtr)
+		{
+			const FRigVMExprAST* NodeExpression = *NodeChildPtr;
+			
+			// collect all of the blocks this expression is in
+			const FRigVMExprAST::FRigVMBlockArray Blocks = NodeExpression->GetBlocks(true);
+			if(Blocks.Num() > 1)
 			{
-				// compute a unique name for the block combination
-				if(!Parser->BlockCombinationHashToName.Contains(ComputedHash))
+				// compute a hash for the blocks
+				uint32 ComputedHash = 0;
+				for(const FRigVMBlockExprAST* Block : Blocks)
 				{
-					FString BlockCombinationName;
-					for(const FRigVMBlockExprAST* Block : Blocks)
-					{
-						static constexpr TCHAR BlockNameFormat[] = TEXT("%s%d");
-						const FString BlockNameAndIndex = FString::Printf(BlockNameFormat, *Block->GetName().ToString(), Block->Index);
-
-						if(BlockCombinationName.IsEmpty())
-						{
-							BlockCombinationName = BlockNameAndIndex;
-						}
-						else
-						{
-							static constexpr TCHAR JoinFormat[] = TEXT("%s_%s");
-							BlockCombinationName = FString::Printf(JoinFormat, *BlockCombinationName, *BlockNameAndIndex);
-						}
-					}
-					Parser->BlockCombinationHashToName.Add(ComputedHash, BlockCombinationName);
+					ComputedHash = HashCombine(ComputedHash, GetTypeHash(Block->Index));
 				}
-			}
 
-			return BlockCombinationHash.GetValue();
+				BlockCombinationHash = TOptional<uint32>(ComputedHash);
+
+				if(const FRigVMParserAST* Parser = GetParser())
+				{
+					// compute a unique name for the block combination
+					if(!Parser->BlockCombinationHashToName.Contains(ComputedHash))
+					{
+						FString BlockCombinationName;
+						for(const FRigVMBlockExprAST* Block : Blocks)
+						{
+							static constexpr TCHAR BlockNameFormat[] = TEXT("%s%d");
+							const FString BlockNameAndIndex = FString::Printf(BlockNameFormat, *Block->GetName().ToString(), Block->Index);
+
+							if(BlockCombinationName.IsEmpty())
+							{
+								BlockCombinationName = BlockNameAndIndex;
+							}
+							else
+							{
+								static constexpr TCHAR JoinFormat[] = TEXT("%s_%s");
+								BlockCombinationName = FString::Printf(JoinFormat, *BlockCombinationName, *BlockNameAndIndex);
+							}
+						}
+						Parser->BlockCombinationHashToName.Add(ComputedHash, BlockCombinationName);
+					}
+				}
+
+				return BlockCombinationHash.GetValue();
+			}
 		}
 	}
 

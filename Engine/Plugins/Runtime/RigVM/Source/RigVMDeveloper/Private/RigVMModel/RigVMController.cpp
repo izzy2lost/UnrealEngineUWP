@@ -19940,6 +19940,32 @@ FRigVMClientPatchResult URigVMController::PatchExecutePins()
 	return Result;
 }
 
+FRigVMClientPatchResult URigVMController::PatchLazyPins()
+{
+	FRigVMClientPatchResult Result;
+	if (const URigVMGraph* Graph = GetGraph())
+	{
+		for (const URigVMNode* Node : Graph->GetNodes())
+		{
+			for(URigVMPin* Pin : Node->GetPins())
+			{
+				const bool bShouldBeLazy = Node->ShouldInputPinComputeLazily(Pin);
+				if(Pin->bIsLazy != bShouldBeLazy)
+				{
+					TArray<URigVMPin*> AllPins = {Pin};
+					for(int32 Index = 0; Index < AllPins.Num(); Index++)
+					{
+						AllPins[Index]->bIsLazy = true;
+						AllPins.Append(AllPins[Index]->GetSubPins());
+					}
+					Result.bChangedContent = true;
+				}
+			}
+		}
+	}
+	return Result;
+}
+
 void URigVMController::PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName)
 {
 	if (const URigVMGraph* Graph = GetGraph())

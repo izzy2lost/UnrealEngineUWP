@@ -1339,6 +1339,7 @@ protected:
 	FRigVMClientPatchResult PatchInvalidLinksOnWildcards();
 	FRigVMClientPatchResult PatchFunctionsWithInvalidReturnPaths();
 	FRigVMClientPatchResult PatchExecutePins();
+	FRigVMClientPatchResult PatchLazyPins();
 
 	// work to do after a duplication of the host asset
 	void PostDuplicateHost(const FString& InOldPathName, const FString& InNewPathName);

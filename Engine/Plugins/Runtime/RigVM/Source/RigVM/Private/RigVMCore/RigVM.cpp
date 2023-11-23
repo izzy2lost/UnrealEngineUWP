@@ -1685,9 +1685,17 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 {
 	// make we are already executing this VM
 	check(!Context.CurrentVMMemory.IsEmpty());
-	
+
 	FRigVMExecuteContext& ContextPublicData = Context.GetPublicData<>();
 	TGuardValue<uint16> InstructionIndexGuard(ContextPublicData.InstructionIndex, (uint16)InFirstInstruction);
+#if WITH_EDITOR
+	FInstructionBracketGuard InstructionBracket(Context, InFirstInstruction, InLastInstruction);
+	if(!InstructionBracket.ErrorMessage.IsEmpty())
+	{
+		Context.GetPublicDataSafe<>().Log(EMessageSeverity::Error, InstructionBracket.ErrorMessage);
+		return ERigVMExecuteResult::Failed;
+	}
+#endif
 	
 	FRigVMByteCode& ByteCode = GetByteCode();
 	TArray<const FRigVMFunction*>& Functions = GetFunctions();

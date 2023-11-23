@@ -810,5 +810,7 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		return ProfilingInfo;
 	}
 
+	TArray<TTuple<int32, int32>> InstructionBrackets;
+
 #endif // WITH_EDITOR
 };

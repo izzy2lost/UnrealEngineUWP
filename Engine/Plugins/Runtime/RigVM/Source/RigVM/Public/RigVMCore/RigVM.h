@@ -1092,7 +1092,37 @@ protected:
 
 		TArray<int32>& Stack;
 	};
-	
+
+#if WITH_EDITOR
+	struct FInstructionBracketGuard
+	{
+	public:
+		FInstructionBracketGuard(FRigVMExtendedExecuteContext& InOutContext, int32 InFirstInstruction, int32 InLastInstruction)
+		: Context(InOutContext)
+		{
+			const TTuple<int32, int32> Tuple(InFirstInstruction, InLastInstruction);
+			if(Context.InstructionBrackets.Contains(Tuple))
+			{
+				static constexpr TCHAR Format[] = TEXT("Re-Entry of Instructions %d - %d.");
+				ErrorMessage = FString::Printf(Format, Tuple.Get<0>(), Tuple.Get<1>());
+			}
+			Context.InstructionBrackets.Add(Tuple);
+		}
+
+		~FInstructionBracketGuard()
+		{
+			Context.InstructionBrackets.Pop();
+		}
+		
+	private:
+
+		FRigVMExtendedExecuteContext& Context;
+		FString ErrorMessage;
+
+		friend class URigVM;
+	};
+#endif
+
 private:
 
 	UPROPERTY()
@@ -1125,3 +1155,4 @@ protected:
 	friend struct FRigVMCompilerWorkData;
 	friend struct FRigVMCodeGenerator;
 };
+
