@@ -1947,7 +1947,7 @@ uint32 FTicketStatus::GetIndex() const
 ////////////////////////////////////////////////////////////////////////////////
 FResponse& FTicketStatus::GetResponse() const
 {
-	check(GetId() <= EId::Content);
+	check(GetId() < EId::Content);
 	const auto* Activity = (FActivity*)this;
 	return *(FResponse*)Activity;
 }
