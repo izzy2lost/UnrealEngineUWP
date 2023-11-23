@@ -900,7 +900,7 @@ void FTextHistory_Base::Serialize(FStructuredArchive::FRecord Record)
 
 bool FTextHistory_Base::CanUpdateDisplayString()
 {
-	return !TextId.IsEmpty();
+	return FTextLocalizationManager::IsDisplayStringSupportEnabled() && !TextId.IsEmpty();
 }
 
 void FTextHistory_Base::UpdateDisplayString()
@@ -2396,11 +2396,15 @@ const FString& FTextHistory_StringTableEntry::GetSourceString() const
 
 const FString& FTextHistory_StringTableEntry::GetDisplayString() const
 {
-	if (FTextConstDisplayStringPtr DisplayString = GetLocalizedString())
+	if (FTextLocalizationManager::IsDisplayStringSupportEnabled())
 	{
-		return *DisplayString;
+		if (FTextConstDisplayStringPtr DisplayString = GetLocalizedString())
+		{
+			return *DisplayString;
+		}
+		return FStringTableEntry::GetPlaceholderSourceString();
 	}
-	return FStringTableEntry::GetPlaceholderSourceString();
+	return GetSourceString();
 }
 
 FString FTextHistory_StringTableEntry::BuildInvariantDisplayString() const

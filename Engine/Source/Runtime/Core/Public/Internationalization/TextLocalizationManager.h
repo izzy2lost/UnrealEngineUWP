@@ -113,6 +113,8 @@ public:
 	static CORE_API FTextLocalizationManager& Get();
 	static CORE_API void TearDown();
 
+	static CORE_API bool IsDisplayStringSupportEnabled();
+
 	CORE_API void DumpMemoryInfo() const;
 	CORE_API void CompactDataStructures();
 
@@ -172,12 +174,6 @@ public:
 	/** If an entry exists for the specified namespace and key, returns true and provides the localization resource identifier from which it was loaded. Otherwise, returns false. */
 	CORE_API bool GetLocResID(const FTextKey& Namespace, const FTextKey& Key, FString& OutLocResId) const;
 #endif
-
-	UE_DEPRECATED(5.0, "FindNamespaceAndKeyFromDisplayString no longer functions! Use FTextInspector::GetTextId instead.")
-	bool FindNamespaceAndKeyFromDisplayString(const FTextConstDisplayStringPtr& InDisplayString, FString& OutNamespace, FString& OutKey) const { return false; }
-
-	UE_DEPRECATED(5.0, "FindNamespaceAndKeyFromDisplayString no longer functions! Use FTextInspector::GetTextId instead.")
-	bool FindNamespaceAndKeyFromDisplayString(const FTextConstDisplayStringPtr& InDisplayString, FTextKey& OutNamespace, FTextKey& OutKey) const { return false; }
 	
 	/**	Attempts to register the specified display string, associating it with the specified namespace and key.
 	 *	Returns true if the display string has been or was already associated with the namespace and key.

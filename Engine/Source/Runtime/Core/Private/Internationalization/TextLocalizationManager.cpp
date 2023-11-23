@@ -33,6 +33,15 @@ DEFINE_LOG_CATEGORY_STATIC(LogTextLocalizationManager, Log, All);
 
 namespace TextLocalizationManager
 {
+enum class EDisplayStringSupport : int32
+{
+	Auto = 0,
+	Enabled = 1,
+	Disabled = 2,
+};
+static int32 DisplayStringSupport = static_cast<int32>(EDisplayStringSupport::Auto);
+static FAutoConsoleVariableRef CVarDisplayStringSupport(TEXT("Localization.DisplayStringSupport"), DisplayStringSupport, TEXT("Is display string support enabled? 0: Auto (default), 1: Enabled, 2: Disabled"));
+
 static bool AsyncLoadLocalizationData = true;
 static FAutoConsoleVariableRef CVarAsyncLoadLocalizationData(TEXT("Localization.AsyncLoadLocalizationData"), AsyncLoadLocalizationData, TEXT("True to load localization data asynchronously (non-blocking), or False to load it synchronously (blocking)"));
 
@@ -530,8 +539,29 @@ void FTextLocalizationManager::TearDown()
 	FTextKey::TearDown();
 }
 
+bool FTextLocalizationManager::IsDisplayStringSupportEnabled()
+{
+	switch (static_cast<TextLocalizationManager::EDisplayStringSupport>(TextLocalizationManager::DisplayStringSupport))
+	{
+	case TextLocalizationManager::EDisplayStringSupport::Auto:
+#if UE_EDITOR
+		return true; // IsRunningDedicatedServer asserts during static-init if called in the editor
+#else
+		return !IsRunningDedicatedServer();
+#endif
+	case TextLocalizationManager::EDisplayStringSupport::Enabled:
+		return true;
+	case TextLocalizationManager::EDisplayStringSupport::Disabled:
+		return false;
+	default:
+		checkf(false, TEXT("Unknown EDisplayStringSupport!"));
+		break;
+	}
+	return true;
+}
+
 FTextLocalizationManager::FTextLocalizationManager()
-	: TextRevisionCounter(0)
+	: TextRevisionCounter(1) // Default to 1 as 0 is considered unset
 	, LocResTextSource(MakeShared<FLocalizationResourceTextSource>())
 	, PolyglotTextSource(MakeShared<FPolyglotTextSource>())
 {
@@ -749,6 +779,11 @@ void FTextLocalizationManager::RegisterPolyglotTextData(TArrayView<const FPolygl
 
 FTextConstDisplayStringPtr FTextLocalizationManager::FindDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceString) const
 {
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return nullptr;
+	}
+
 	FScopeLock ScopeLock(&DisplayStringLookupTableCS);
 
 	const FTextId TextId(Namespace, Key);
@@ -767,6 +802,18 @@ FTextConstDisplayStringRef FTextLocalizationManager::GetDisplayString(const FTex
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::GetDisplayString);
 	LLM_SCOPE(ELLMTag::Localization);
+
+	auto GetEmptyDisplayString = []()
+	{
+		static const FTextConstDisplayStringRef EmptyDisplayString = MakeTextDisplayString(FString());
+		return EmptyDisplayString;
+	};
+
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		ensureAlwaysMsgf(false, TEXT("FTextLocalizationManager::GetDisplayString was called but display string support is disabled! Either update the calling code to respect FTextLocalizationManager::IsDisplayStringSupportEnabled, or re-enable display string support via 'Localization.DisplayStringSupport'."));
+		return GetEmptyDisplayString();
+	}
 
 	FScopeLock ScopeLock(&DisplayStringLookupTableCS);
 
@@ -870,12 +917,6 @@ FTextConstDisplayStringRef FTextLocalizationManager::GetDisplayString(const FTex
 		{
 			UE_LOG(LogTextLocalizationManager, Verbose, TEXT("An attempt was made to get a localized string (Namespace:%s, Key:%s, Source:%s), but it did not exist."), TextId.GetNamespace().GetChars(), TextId.GetKey().GetChars(), SourceString ? **SourceString : TEXT(""));
 		}
-
-		auto GetEmptyDisplayString = []()
-		{
-			static const FTextConstDisplayStringRef EmptyDisplayString = MakeTextDisplayString(FString());
-			return EmptyDisplayString;
-		};
 		
 		FTextConstDisplayStringRef UnlocalizedString = SourceString ? MakeTextDisplayString(CopyTemp(*SourceString)) : GetEmptyDisplayString();
 
@@ -1072,6 +1113,13 @@ void FTextLocalizationManager::OnCultureChanged()
 		return;
 	}
 
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		// When display strings are disabled just bump the text revision (so that generated text updates correctly for the new locale) and bail
+		DirtyTextRevision();
+		return;
+	}
+
 	RefreshResources();
 
 	if (!TextLocalizationManager::AsyncLoadLocalizationDataOnLanguageChange)
@@ -1114,7 +1162,7 @@ void FTextLocalizationManager::LoadLocalizationResourcesForPrioritizedCultures_S
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::LoadLocalizationResourcesForPrioritizedCultures);
 
 	// Nothing to do?
-	if (PrioritizedCultureNames.Num() == 0)
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled() || PrioritizedCultureNames.Num() == 0)
 	{
 		return;
 	}
@@ -1181,6 +1229,12 @@ void FTextLocalizationManager::LoadLocalizationTargetsForPrioritizedCultures_Syn
 {
 	LLM_SCOPE(ELLMTag::Localization);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::LoadLocalizationTargetsForPrioritizedCultures);
+
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled() || PrioritizedCultureNames.Num() == 0 || LocalizationTargetPaths.Num() == 0)
+	{
+		return;
+	}
 
 	// Load the resources from each localization target
 	FTextLocalizationResource UnusedNativeResource;
@@ -1256,6 +1310,15 @@ void FTextLocalizationManager::LoadChunkedLocalizationResources_Sync(TArrayView<
 	if (LocResTextSource->HasRegisteredChunkId(ChunkId))
 	{
 		UE_LOG(LogTextLocalizationManager, Verbose, TEXT("Skipped loading localization data for chunk %d (from PAK '%s') as this chunk has already been processed"), ChunkId, *PakFilename);
+		return;
+	}
+
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		LocResTextSource->RegisterChunkId(ChunkId);
+
+		UE_LOG(LogTextLocalizationManager, Verbose, TEXT("Skipped loading localization data for chunk %d (from PAK '%s') as display strings are disabled"), ChunkId, *PakFilename);
 		return;
 	}
 
@@ -1373,6 +1436,12 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::UpdateFromNative);
 	LLM_SCOPE(ELLMTag::Localization);
 
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return;
+	}
+
 	// Lock while updating the tables
 	{
 		FScopeLock ScopeLock(&DisplayStringLookupTableCS);
@@ -1479,6 +1548,12 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::UpdateFromLocalizations);
 	LLM_SCOPE(ELLMTag::Localization);
+
+	// Nothing to do?
+	if (!FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return;
+	}
 
 	static const bool bShouldLEETIFYUnlocalizedString = FParse::Param(FCommandLine::Get(), TEXT("LEETIFYUnlocalized"));
 

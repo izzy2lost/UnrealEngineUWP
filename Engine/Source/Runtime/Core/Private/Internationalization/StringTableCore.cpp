@@ -69,7 +69,11 @@ const FString& FStringTableEntry::GetSourceString() const
 
 FTextConstDisplayStringPtr FStringTableEntry::GetDisplayString() const
 {
-	return FTextLocalizationManager::Get().GetDisplayString(DisplayStringId.GetNamespace(), DisplayStringId.GetKey(), &SourceString);
+	if (FTextLocalizationManager::IsDisplayStringSupportEnabled())
+	{
+		return FTextLocalizationManager::Get().GetDisplayString(DisplayStringId.GetNamespace(), DisplayStringId.GetKey(), &SourceString);
+	}
+	return nullptr;
 }
 
 FTextId FStringTableEntry::GetDisplayStringId() const

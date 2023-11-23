@@ -76,12 +76,6 @@ const FString& FTextInspector::GetDisplayString(const FText& Text)
 	return Text.TextData->GetDisplayString();
 }
 
-FTextConstDisplayStringPtr FTextInspector::GetSharedDisplayString(const FText& Text)
-{
-	Text.Rebuild();
-	return Text.TextData->GetLocalizedString();
-}
-
 bool FTextInspector::GetTableIdAndKey(const FText& Text, FName& OutTableId, FString& OutKey)
 {
 	FTextKey TmpKey;
