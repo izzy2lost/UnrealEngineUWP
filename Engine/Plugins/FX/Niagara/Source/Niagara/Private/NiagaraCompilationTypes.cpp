@@ -358,7 +358,8 @@ public:
 							ShaderMapInfo.ShaderPlatform,
 							ShaderMapInfo.FeatureLevel,
 							ScriptCompileData.ExeData->ShaderScriptParametersMetadata,
-							ShaderMapInfo.CompiledShader);
+							ShaderMapInfo.CompiledShader,
+							ShaderMapInfo.CompilationErrors);
 					}
 
 				}

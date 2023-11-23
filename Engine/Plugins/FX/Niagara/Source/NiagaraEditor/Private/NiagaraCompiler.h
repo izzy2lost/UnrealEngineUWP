@@ -83,12 +83,18 @@ public:
 	// returns true if there are no more results requiring processing
 	bool ProcessCompileResults(bool bWait = false);
 
-	TConstArrayView<FNiagaraShaderMapRef> ReadCompletedCompilations() const
+	struct FCompletedCompilation
+	{
+		FNiagaraShaderMapRef ShaderMap;
+		TArray<FShaderCompilerError> CompilationErrors;
+	};
+
+	TConstArrayView<FCompletedCompilation> ReadCompletedCompilations() const
 	{
 		return CompletedCompilations;
 	}
 
-	FNiagaraShaderMapRef GetShaderMap(const FNiagaraShaderMapId& ShaderMapId) const;
+	bool GetShaderMap(const FNiagaraShaderMapId& ShaderMapId, FNiagaraShaderMapRef& OutShaderMap, TArray<FShaderCompilerError>& OutCompilationErrors) const;
 
 	TSharedPtr<FNiagaraVMExecutableData> ReadScriptMetaData() const
 	{
@@ -112,6 +118,6 @@ private:
 	const FNiagaraShaderType* ShaderType = nullptr;
 	TSharedPtr<FNiagaraShaderScriptParametersMetadata> ShaderParameters;
 	TArray<FActiveCompilation> ActiveCompilations;
-	TArray<FNiagaraShaderMapRef> CompletedCompilations;
+	TArray<FCompletedCompilation> CompletedCompilations;
 	TSharedPtr<FNiagaraVMExecutableData> ScriptExeData;
 };

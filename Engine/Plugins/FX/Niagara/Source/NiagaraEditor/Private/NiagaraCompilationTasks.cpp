@@ -1028,8 +1028,7 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::ProcessCompilation(FNiagar
 		for (int32 ComputeShaderTaskIndex : ComputeShaderTaskIndices)
 		{
 			FCompileComputeShaderTaskInfo& ShaderTaskInfo = SystemCompileTask->CompileComputeShaderTasks[ComputeShaderTaskIndex];
-
-			ShaderTaskInfo.ShaderMap = ShaderMapCompiler->GetShaderMap(ShaderTaskInfo.ShaderMapId);
+			ShaderMapCompiler->GetShaderMap(ShaderTaskInfo.ShaderMapId, ShaderTaskInfo.ShaderMap, ShaderTaskInfo.CompilationErrors);
 		}
 	}
 }
@@ -1244,7 +1243,7 @@ void FNiagaraSystemCompilationTask::FDispatchDataCachePutRequests::Launch(FNiaga
 
 	for (const FNiagaraSystemCompilationTask::FCompileComputeShaderTaskInfo& CompileTask : SystemCompileTask->CompileComputeShaderTasks)
 	{
-		if (CompileTask.ShaderMap.IsValid() && !CompileTask.DDCTaskInfo.DataCachePutKeys.IsEmpty())
+		if (CompileTask.ShaderMap.IsValid() && CompileTask.ShaderMap->IsValid() && !CompileTask.DDCTaskInfo.DataCachePutKeys.IsEmpty())
 		{
 			const FNiagaraSystemCompilationTask::FCompileTaskInfo& ParentCompileTask = SystemCompileTask->CompileTasks[CompileTask.ParentCompileTaskIndex];
 
@@ -1625,6 +1624,7 @@ bool FNiagaraSystemCompilationTask::Poll(FNiagaraSystemAsyncCompileResults& Resu
 						ResultsInfo.ShaderPlatform = ShaderTaskInfo.ShaderPlatform;
 						ResultsInfo.FeatureLevel = ShaderTaskInfo.ShaderMapId.FeatureLevel;
 						ResultsInfo.CompiledShader = ShaderTaskInfo.ShaderMap;
+						ResultsInfo.CompilationErrors = ShaderTaskInfo.CompilationErrors;
 					}
 
 					CompileData.NamedDataInterfaces.Reserve(TaskInfo.NamedDataInterfaces.Num());

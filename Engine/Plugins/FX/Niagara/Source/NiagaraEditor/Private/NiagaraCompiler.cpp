@@ -2508,15 +2508,29 @@ bool FNiagaraShaderMapCompiler::ProcessCompileResults(bool bWait)
 		}
 
 		FActiveCompilation& CurrentCompilation = *CompileIt;
+		FCompletedCompilation& CompletedCompilation = CompletedCompilations.AddDefaulted_GetRef();
 
 		// for now we'll process all shaders at once (need to measure the cost here)
-		for (FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
+		for (const FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
+		{
+			if (ShaderCompileJob.IsValid() && ShaderCompileJob->bSucceeded)
 			{
 				CurrentCompilation.ShaderMap->ProcessAndFinalizeShaderCompileJob(ShaderCompileJob);
 			}
+			else
+			{
+				CurrentCompilation.ShaderMap->SetCompiledSuccessfully(false);
+			}
+
+			// pass on error/warning info
+			if (const FShaderCompileJob* SingleShaderJob = ShaderCompileJob->GetSingleShaderJob())
+			{
+				CompletedCompilation.CompilationErrors.Append(SingleShaderJob->Output.Errors);
+			}
+		}
 
 		// now that we've added all the results into the shader map we can move it over to CompletedCompilations
-		CompletedCompilations.Add(CurrentCompilation.ShaderMap);
+		CompletedCompilation.ShaderMap = CurrentCompilation.ShaderMap;
 
 		// and remove it from the ActiveCompilations
 		CompileIt.RemoveCurrentSwap();
@@ -2525,17 +2539,19 @@ bool FNiagaraShaderMapCompiler::ProcessCompileResults(bool bWait)
 	return ActiveCompilations.IsEmpty();
 }
 
-FNiagaraShaderMapRef FNiagaraShaderMapCompiler::GetShaderMap(const FNiagaraShaderMapId& ShaderMapId) const
+bool FNiagaraShaderMapCompiler::GetShaderMap(const FNiagaraShaderMapId& ShaderMapId, FNiagaraShaderMapRef& OutShaderMap, TArray<FShaderCompilerError>& OutCompilationErrors) const
 {
-	for (const FNiagaraShaderMapRef& ShaderMapRef : CompletedCompilations)
+	for (const FCompletedCompilation& CompletedCompilation : CompletedCompilations)
 	{
-		if (ShaderMapRef->GetShaderMapId() == ShaderMapId)
+		if (CompletedCompilation.ShaderMap->GetShaderMapId() == ShaderMapId)
 		{
-			return ShaderMapRef;
+			OutShaderMap = CompletedCompilation.ShaderMap;
+			OutCompilationErrors = CompletedCompilation.CompilationErrors;
+			return true;
 		}
 	}
 
-	return nullptr;
+	return false;
 }
 
 //////////////////////////////////////////////////////////////////////////

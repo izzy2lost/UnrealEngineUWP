@@ -906,10 +906,6 @@ public:
 
 #if WITH_EDITOR
 	NIAGARASHADER_API bool MatchesScript(ERHIFeatureLevel::Type InFeatureLevel, EShaderPlatform InShaderPlatform, const FNiagaraVMExecutableDataId& ScriptId) const;
-	void SetCompileErrors(TArray<FString>& InErrors)
-	{
-		CompileErrors = InErrors;
-	}
 #endif
 
 	UNiagaraScriptBase* GetBaseVMScript() { return BaseVMScript; }

@@ -3015,13 +3015,60 @@ void UNiagaraScript::SetVMCompilationResults(const FNiagaraVMExecutableDataId& I
 	OnVMScriptCompiled().Broadcast(this, InCompileId.ScriptVersionID);
 }
 
+void UNiagaraScript::ProcessCompilationErrors(bool bCompileSucceeded, TConstArrayView<FShaderCompilerError> CompilationErrors, TArray<FString>& ProcessedErrors)
+{
+	ProcessedErrors.Reserve(CompilationErrors.Num());
+
+	if (CompilationErrors.IsEmpty())
+	{
+		return;
+	}
+
+	for (const FShaderCompilerError& CompilationError : CompilationErrors)
+	{
+		ProcessedErrors.Add(CompilationError.GetErrorString().Replace(TEXT("Error"), TEXT("Err0r")));
+	}
+
+	static const IConsoleVariable* ShowShaderWarningsVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("niagara.ShowShaderCompilerWarnings"));
+
+	if (!bCompileSucceeded || (ShowShaderWarningsVariable && ShowShaderWarningsVariable->GetBool()))
+	{
+		UE_LOG(LogNiagara, Display, TEXT("There were issues for compilation of script \"%s\""), *GetFriendlyName());
+
+		if (!LogNiagara.IsSuppressed(ELogVerbosity::Verbose))
+		{
+			TArray<FString> OutputByLines;
+			CachedScriptVM.LastHlslTranslationGPU.ParseIntoArrayLines(OutputByLines, false);
+
+			UE_LOG(LogNiagara, Verbose, TEXT("Compile output as text:"));
+			UE_LOG(LogNiagara, Verbose, TEXT("==================================================================================="));
+			for (int32 i = 0; i < OutputByLines.Num(); i++)
+			{
+				UE_LOG(LogNiagara, Verbose, TEXT("/*%04d*/\t\t%s"), i + 1, *OutputByLines[i]);
+			}
+			UE_LOG(LogNiagara, Verbose, TEXT("==================================================================================="));
+		}
+
+		for (const FShaderCompilerError& Error : CompilationErrors)
+		{
+			UE_LOG(LogNiagara, Warning, TEXT("%s"), *Error.GetErrorString())
+		}
+	}
+}
+
 void UNiagaraScript::SetComputeCompilationResults(
 	const ITargetPlatform* TargetPlatform,
 	EShaderPlatform ShaderPlatform,
 	ERHIFeatureLevel::Type FeatureLevel,
 	const FNiagaraShaderScriptParametersMetadata& ShaderParameters,
-	const FNiagaraShaderMapRef& ShaderMap)
+	const FNiagaraShaderMapRef& ShaderMap,
+	TConstArrayView<FShaderCompilerError> CompilationErrors)
 {
+	const bool bCompilationSuccessful = ShaderMap.IsValid() && ShaderMap->IsValid();
+
+	TArray<FString> ProcessedErrors;
+	ProcessCompilationErrors(bCompilationSuccessful, CompilationErrors, ProcessedErrors);
+
 	// for now we will use the CachedScriptResourcesForCooking for storing all compilation results and will update ScriptResource
 	// if it matches with the supplied parameters
 	auto ScriptMatchesFeatureLevel = [FeatureLevel](const TUniquePtr<FNiagaraShaderScript>& ShaderScript) -> bool
@@ -3041,10 +3088,11 @@ void UNiagaraScript::SetComputeCompilationResults(
 		TargetShaderScript = CachedScripts.Emplace_GetRef(MakeUnique<FNiagaraShaderScript>()).Get();
 	}
 
-	auto UpdateShaderScript = [this, FeatureLevel, ShaderPlatform, &ShaderParameters, ShaderMap](FNiagaraShaderScript* ScriptToUpdate) -> void
+	auto UpdateShaderScript = [this, &ProcessedErrors, &ShaderParameters, FeatureLevel, ShaderPlatform](FNiagaraShaderScript* ScriptToUpdate, FNiagaraShaderMap* InShaderMap) -> void
 	{
+		ScriptToUpdate->SetCompileErrors(ProcessedErrors);
 		ScriptToUpdate->BuildScriptParametersMetadata(ShaderParameters);
-		ScriptToUpdate->SetShaderMap(ShaderMap);
+		ScriptToUpdate->SetGameThreadShaderMap(InShaderMap);
 		ScriptToUpdate->SetScript(this, FeatureLevel, ShaderPlatform, CachedScriptVMId.CompilerVersionID, CachedScriptVMId.AdditionalDefines,
 			CachedScriptVMId.GetAdditionalVariableStrings(),
 			CachedScriptVMId.BaseScriptCompileHash, CachedScriptVMId.ReferencedCompileHashes,
@@ -3053,7 +3101,9 @@ void UNiagaraScript::SetComputeCompilationResults(
 
 	if (ensure(TargetShaderScript))
 	{
-		UpdateShaderScript(TargetShaderScript);
+		FNiagaraShaderMap* ShaderMapToApply = bCompilationSuccessful ? ShaderMap.GetReference() : nullptr;
+
+		UpdateShaderScript(TargetShaderScript, ShaderMapToApply);
 
 		// next see if we need to update the currently active ShaderScript (and update it's renderthread data)
 		{
@@ -3068,11 +3118,11 @@ void UNiagaraScript::SetComputeCompilationResults(
 				}
 				else
 				{
-					UpdateShaderScript(ScriptResource.Get());
+					UpdateShaderScript(ScriptResource.Get(), ShaderMapToApply);
 				}
 
 				ENQUEUE_RENDER_COMMAND(FSetShaderMapOnScriptResources)(
-					[RT_Script = ScriptResource, RT_ShaderMap = ShaderMap](FRHICommandListImmediate& RHICmdList)
+					[RT_Script = ScriptResource, RT_ShaderMap = ShaderMapToApply](FRHICommandListImmediate& RHICmdList)
 				{
 					RT_Script->SetRenderingThreadShaderMap(RT_ShaderMap);
 				});

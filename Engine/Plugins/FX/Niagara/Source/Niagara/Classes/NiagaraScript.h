@@ -1269,7 +1269,8 @@ public:
 		EShaderPlatform ShaderPlatform,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FNiagaraShaderScriptParametersMetadata& SharedParameters,
-		const FNiagaraShaderMapRef& ShaderMap);
+		const FNiagaraShaderMapRef& ShaderMap,
+		TConstArrayView<FShaderCompilerError> CompilationErrors);
 
 	NIAGARA_API bool IsShaderMapCached(const ITargetPlatform* TargetPlatform, const FNiagaraShaderMapId& ShaderMapId) const;
 
@@ -1348,6 +1349,8 @@ private:
 	bool ShouldDecompressByteCode() const;
 	bool ShouldOptimizeByteCode() const;
 	bool ShouldFreeUnoptimizedByteCode() const;
+
+	void ProcessCompilationErrors(bool bCompileSucceeded, TConstArrayView<FShaderCompilerError> CompilationErrors, TArray<FString>& ProcessedErrors);
 
 public:
 	/** Kicks off an async job to convert the ByteCode into an optimized version for the platform we are running on. */

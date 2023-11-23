@@ -147,7 +147,7 @@ struct FNiagaraSystemCompilationTask
 		FNiagaraShaderMapId ShaderMapId;
 		EShaderPlatform ShaderPlatform;
 		FNiagaraShaderMapRef ShaderMap;
-
+		TArray<FShaderCompilerError> CompilationErrors;
 		FDDCTaskInfo DDCTaskInfo;
 
 		bool IsOutstanding() const;

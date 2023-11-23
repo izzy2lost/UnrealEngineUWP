@@ -36,6 +36,7 @@ struct FNiagaraSystemCompileMetrics
 struct FNiagaraCompiledShaderInfo
 {
 	FNiagaraShaderMapRef CompiledShader;
+	TArray<FShaderCompilerError> CompilationErrors;
 	const ITargetPlatform* TargetPlatform = nullptr;
 	EShaderPlatform ShaderPlatform = SP_NumPlatforms;
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
