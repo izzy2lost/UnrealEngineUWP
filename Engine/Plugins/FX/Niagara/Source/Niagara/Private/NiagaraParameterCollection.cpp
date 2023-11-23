@@ -540,6 +540,10 @@ FString UNiagaraParameterCollection::FriendlyNameFromParameterName(FString Param
 
 FString UNiagaraParameterCollection::ParameterNameFromFriendlyName(const FString& FriendlyName)const
 {
+	if (FriendlyName.StartsWith(GetFullNamespace()))
+	{
+		return FriendlyName;
+	}
 	return FString::Printf(TEXT("%s%s"), *GetFullNamespace(), *FriendlyName);
 }
 
