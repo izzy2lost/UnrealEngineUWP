@@ -7,9 +7,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Param/ParamType.h"
-#include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorUtils.h"
 #include "SAddParametersDialog.h"
@@ -32,7 +30,6 @@ namespace UE::AnimNext::Editor
 namespace ParameterPicker
 {
 static FName Column_Parameter(TEXT("Parameter"));
-static FName Column_Library(TEXT("Library"));
 static FName Column_Block(TEXT("Block"));
 static FName Column_Type(TEXT("Type"));
 static FName Column_New(TEXT("New"));
@@ -156,15 +153,13 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 				if(ParametersToAdd.Num() > 0)
 				{
 					FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-
-					// Create a new parameter in the supplied library
-					UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(ParametersToAdd[0].Library.GetAsset());
-					UAnimNextParameter* NewParameter = Library->AddParameter(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
-							
-					FParameterBindingReference Reference;
-					Reference.Parameter = ParametersToAdd[0].Name;
-					Reference.Library = ParametersToAdd[0].Library;
-					Args.OnParameterPicked.ExecuteIfBound(Reference);
+					for (const FParameterToAdd& ParameterToAdd : ParametersToAdd)
+					{
+						FParameterBindingReference Reference;
+						Reference.Parameter = ParametersToAdd[0].Name;
+						Args.OnAddParameter.ExecuteIfBound(ParametersToAdd[0]);
+						Args.OnParameterPicked.ExecuteIfBound(Reference);
+					}
 				}
 			}
 			return FReply::Handled();
@@ -237,16 +232,8 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 		]
 	];
 
-	if (Args.bShowLibraries)
-	{
-		HeaderRow->AddColumn(
-			SHeaderRow::Column(Column_Library)
-			.DefaultLabel(LOCTEXT("LibraryColumnHeader", "Library"))
-			.ToolTipText(LOCTEXT("LibraryColumnHeaderTooltip", "The library that the parameter is declared in"))
-			.FillWidth(0.33f));
-	}
 	
-	if (Args.bShowLibraries)
+	if (Args.bShowBlocks)
 	{
 		HeaderRow->AddColumn(
 			SHeaderRow::Column(Column_Block)
@@ -255,6 +242,52 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 			.FillWidth(0.33f));
 	}
 
+	if(Args.bAllowNew)
+	{
+		HeaderRow->AddColumn(
+			SHeaderRow::Column(Column_New)
+			.DefaultLabel(FText::GetEmpty())
+			.HeaderContentPadding(FMargin(0.0f))
+			.FixedWidth(24.0f)
+			.HeaderContent()
+			[
+				SNew(SButton)
+				.ToolTipText(LOCTEXT("AddColumnHeaderTooltip", "Add a new parameter at global scope"))
+				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+				.OnClicked_Lambda([this]()
+				{
+					FSlateApplication::Get().DismissAllMenus();
+					TSharedRef<SAddParametersDialog> AddParametersDialog =
+						SNew(SAddParametersDialog)
+						.AllowMultiple(false);
+					TArray<FParameterToAdd> ParametersToAdd;
+					if(AddParametersDialog->ShowModal(ParametersToAdd))
+					{
+						if(ParametersToAdd.Num() > 0)
+						{
+							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+
+							FParameterBindingReference Reference;
+							Reference.Parameter = ParametersToAdd[0].Name;
+							Args.OnParameterPicked.ExecuteIfBound(Reference);
+						}
+					}
+					return FReply::Handled();
+				})
+				[
+					SNew(SBox)
+					.WidthOverride(16.0f)
+					.HeightOverride(16.0f)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(FAppStyle::GetBrush("Icons.Plus"))
+					]
+				]
+			]);
+	}
 	
 	RefreshEntries();
 }
@@ -269,21 +302,8 @@ void SParameterPicker::RefreshEntries()
 
 	TSet<TTuple<FName, FAssetData>> BoundParameters;
 
-	TMap<FAssetData, FAnimNextParameterLibraryAssetRegistryExports> LibraryExportMap;
-
-	auto GetExportsForLibrary = [&LibraryExportMap](const FAssetData& InLibrary) -> const FAnimNextParameterLibraryAssetRegistryExports&
-	{
-		if(FAnimNextParameterLibraryAssetRegistryExports* ExistingExports = LibraryExportMap.Find(InLibrary))
-		{
-			return *ExistingExports;
-		}
-
-		FAnimNextParameterLibraryAssetRegistryExports& NewExports = LibraryExportMap.Add(InLibrary);
-		UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibrary, NewExports);
-		return NewExports;
-	};
-	
 	// Find all blocks and their bound parameters
+	if(Args.bShowBoundParameters)
 	{
 		ARFilter.ClassPaths = { UAnimNextParameterBlock::StaticClass()->GetClassPathName() };
 		
@@ -292,29 +312,22 @@ void SParameterPicker::RefreshEntries()
 
 		for(const FAssetData& BlockAsset : BlockAssets)
 		{
-			FAnimNextParameterBlockAssetRegistryExports Exports;
-			if(FUtils::GetExportedBindingsForBlock(BlockAsset, Exports))
+			FAnimNextParameterProviderAssetRegistryExports Exports;
+			if(UncookedOnly::FUtils::GetExportedParametersForAsset(BlockAsset, Exports))
 			{
-				for(const FAnimNextParameterBlockAssetRegistryExportEntry& Export : Exports.Bindings)
+				for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
 				{
-					const FSoftObjectPath LibraryAssetPath(Export.Library);
-					FAssetData LibraryAsset = AssetRegistry.GetAssetByObjectPath(LibraryAssetPath);
-					if(LibraryAsset.IsValid())
+					BoundParameters.Add({ Export.Name, BlockAsset });
+					FParameterBindingReference NewReference(Export.Name, BlockAsset);
+					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 					{
-						BoundParameters.Add({ Export.Name, LibraryAsset });
-
-						FParameterBindingReference NewReference(Export.Name, LibraryAsset, BlockAsset);
-						if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
+						FAnimNextParamType ParamType = UE::AnimNext::UncookedOnly::FUtils::GetParameterTypeFromName(Export.Name);
+						if(!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ParamType) == EFilterParameterResult::Include)
 						{
-							const FAnimNextParameterLibraryAssetRegistryExports& LibraryExports = GetExportsForLibrary(LibraryAsset);
-							FAnimNextParamType ParamType = FUtils::GetParameterTypeFromLibraryExports(Export.Name, LibraryExports);
-							if(!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ParamType) == EFilterParameterResult::Include)
+							if (Args.bShowBoundParameters && EnumHasAnyFlags(Export.Flags, EAnimNextParameterFlags::Bound))
 							{
-								if (Args.bShowBoundParameters)
-								{
-									TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ParamType);
-									Entries.Add(NewEntry);
-								}
+								TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ParamType);
+								Entries.Add(NewEntry);
 							}
 						}
 					}
@@ -323,27 +336,25 @@ void SParameterPicker::RefreshEntries()
 		}
 	}
 
-	// Find all library parameters (that have not already been added as bound above)
+	// Find all parameters (that have not already been added as bound above)
 	if(Args.bShowUnboundParameters)
 	{
-		ARFilter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
-
-		TArray<FAssetData> LibraryAssets;
-		AssetRegistry.GetAssets(ARFilter, LibraryAssets);
-
-		for(const FAssetData& LibraryAsset : LibraryAssets)
+		FAnimNextParameterProviderAssetRegistryExports AllExports;
+		if(UE::AnimNext::UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(AllExports))
 		{
-			const FAnimNextParameterLibraryAssetRegistryExports& Exports = GetExportsForLibrary(LibraryAsset);
-			for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : Exports.Parameters)
+			for(const FAnimNextParameterAssetRegistryExportEntry& ExportEntry : AllExports.Parameters)
 			{
-				if(!BoundParameters.Contains( { Export.Name, LibraryAsset } ))
+				if(!BoundParameters.Contains( { ExportEntry.Name, ExportEntry.ReferencingAsset } ))
 				{
-					FParameterBindingReference NewReference(Export.Name, LibraryAsset);
+					FParameterBindingReference NewReference;
+					NewReference.Asset = ExportEntry.ReferencingAsset;
+					NewReference.Parameter = ExportEntry.Name;
+
 					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 					{
-						if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(Export.Type) == EFilterParameterResult::Include)
+						if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ExportEntry.Type) == EFilterParameterResult::Include)
 						{
-							TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, Export.Type);
+							TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ExportEntry.Type);
 							Entries.Add(NewEntry);
 						}
 					}
@@ -555,6 +566,10 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 					SNew(SImage)
 					.Image(Entry->PinIcon)
 					.ColorAndOpacity(Entry->PinColor)
+					.ToolTipText_Lambda([this]() -> FText
+					{
+						return FText::FromString(Entry->ParamType.ToString());	
+					})
 				];
 		}
 		else if(InColumnName == Column_Parameter)
@@ -578,28 +593,12 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 					SNew(STextBlock)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(FText::FromString(Entry->DisplayString))
-					.ToolTipText(UncookedOnly::FUtils::GetParameterDisplayNameText(Entry->Binding.Parameter))
+					.ToolTipText(FText::Format(LOCTEXT("ParameterPathTooltip", "{1}::{0}"), UncookedOnly::FUtils::GetParameterDisplayNameText(Entry->Binding.Parameter), FText::FromName(Entry->Binding.Asset.AssetName)))
 					.HighlightText_Lambda([this]()
 					{
 						return ParameterPicker.Pin()->FilterText;
 					})
 				];
-		}
-		else if(InColumnName == Column_Library)
-		{
-			if(Entry->Binding.Library.IsValid())
-			{
-				
-				return
-					SNew(SBox)
-					.VAlign(VAlign_Center)
-					[
-						SNew(STextBlock)
-						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(FText::FromName(Entry->Binding.Library.AssetName))
-						.ToolTipText(FText::FromName(Entry->Binding.Library.PackageName))
-					];
-			}
 		}
 		else if(InColumnName == Column_Block)
 		{

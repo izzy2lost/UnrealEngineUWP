@@ -9,47 +9,22 @@
 
 class SWrapBox;
 class UAnimNextParameterLibrary;
+class UAnimNextParameterBlock_EditorData;
 
 namespace UE::AnimNext::Editor
 {
+	struct FParameterToAdd;
 
-struct FParameterToAdd
-{
-	FParameterToAdd() = default;
-
-	FParameterToAdd(const FAnimNextParamType& InType, FName InName, const FAssetData& InLibrary)
-		: Type(InType)
-		, Name(InName)
-		, Library(InLibrary)
-	{}
-
-	bool IsValid() const
-	{
-		return Name != NAME_None && Type.IsValid() && Library.IsValid(); 
-	}
-
-	bool IsValid(FText& OutReason) const;
-	
-	// Type
-	FAnimNextParamType Type;
-
-	// Name for parameter
-	FName Name;
-
-	// Parameter library
-	FAssetData Library;
-};
 
 class SAddParametersDialog : public SWindow
 {
 public:
 	SLATE_BEGIN_ARGS(SAddParametersDialog)
-		: _Library(nullptr)
-		, _AllowMultiple(true)
+		: _Block(nullptr),
+		_AllowMultiple(true)
 	{}
 
-	/** The default library to create new parameters in */
-	SLATE_ARGUMENT(UAnimNextParameterLibrary*, Library)
+	SLATE_ARGUMENT(UAnimNextParameterBlock_EditorData*, Block)
 
 	/** Whether we allow multiple parameters to be added or just one at a time */
 	SLATE_ARGUMENT(bool, AllowMultiple)
@@ -78,8 +53,7 @@ private:
 
 	TArray<TSharedRef<FParameterToAdd>> Entries;
 
-	// The fixed library to use. If this is NULL, any library can be used.
-	UAnimNextParameterLibrary* Library = nullptr;
+	UAnimNextParameterBlock_EditorData* TargetBlock = nullptr;
 	
 	bool bCancelPressed = false;
 };

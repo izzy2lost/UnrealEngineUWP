@@ -8,7 +8,6 @@
 #include "Templates/SharedPointer.h"
 
 class UAnimNextParameterBlockBinding;
-class UAnimNextParameter;
 class UAnimNextParameterBlock_EditorData;
 class UAnimNextParameterBlockEntry;
 class URigVMGraph;

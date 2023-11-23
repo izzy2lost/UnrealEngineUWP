@@ -21,6 +21,9 @@ struct ANIMNEXT_API FRigVMDispatch_GetParameter : public FRigVMDispatchFactory
 
 	FRigVMDispatch_GetParameter();
 
+	static const FName ParameterName;
+	static const FName ValueName;
+
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
@@ -40,8 +43,6 @@ private:
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches);
 
 	static const FName ExecuteContextName;
-	static const FName ParameterName;
 	static const FName ParameterIdName;
 	static const FName TypeHandleName;
-	static const FName ValueName;
 };

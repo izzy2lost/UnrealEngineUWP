@@ -26,7 +26,8 @@ TSharedPtr<SGraphPin> FParametersGraphPanelPinFactory::CreatePin_Internal(UEdGra
 			if(ModelPin->GetCustomWidgetName() == "ParamName")
 			{
 				return SNew(SGraphPinParamName, InPin)
-					.ModelPin(ModelPin);
+					.ModelPin(ModelPin)
+					.GraphNode(RigNode);
 			}
 		}
 	}

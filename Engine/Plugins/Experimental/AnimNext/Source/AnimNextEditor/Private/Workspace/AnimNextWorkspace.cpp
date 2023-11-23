@@ -4,7 +4,6 @@
 
 #include "Graph/AnimNextGraph.h"
 #include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "Scheduler/AnimNextSchedule.h"
 
 const FName UAnimNextWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
@@ -178,7 +177,6 @@ bool UAnimNextWorkspace::RemoveAssets(TConstArrayView<FAssetData> InAssets, bool
 const TArray<FTopLevelAssetPath>& UAnimNextWorkspace::GetSupportedAssetClassPaths()
 {
 	static TArray<FTopLevelAssetPath> SupportedAssets = {
-		UAnimNextParameterLibrary::StaticClass()->GetClassPathName(),
 		UAnimNextParameterBlock::StaticClass()->GetClassPathName(),
 		UAnimNextGraph::StaticClass()->GetClassPathName(),
 		UAnimNextSchedule::StaticClass()->GetClassPathName(),

@@ -549,7 +549,6 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 					return (FParamUtils::GetCompatibility(ParamTypeHandle, InParamType.GetHandle()).IsCompatibleWithDataLoss()) ? EFilterParameterResult::Include : EFilterParameterResult::Exclude;
 				});
 				Args.bMultiSelect = false;
-				Args.bShowLibraries = false;
 				Args.bShowBlocks = false;
 			
 				MenuBuilder.AddWidget(

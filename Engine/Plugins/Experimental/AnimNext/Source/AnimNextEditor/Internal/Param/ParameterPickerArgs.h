@@ -10,14 +10,36 @@
 namespace UE::AnimNext::Editor
 {
 
+struct FParameterToAdd
+{
+	FParameterToAdd() = default;
+
+	FParameterToAdd(const FAnimNextParamType& InType, FName InName)
+		: Type(InType)
+		, Name(InName)
+	{}
+
+	bool IsValid() const
+	{
+		return Name != NAME_None && Type.IsValid(); 
+	}
+
+	bool IsValid(FText& OutReason) const;
+
+	// Type
+	FAnimNextParamType Type;
+
+	// Name for parameter
+	FName Name;
+};
+
 // A parameter asset, optionally bound in a block
 struct FParameterBindingReference
 {
 	FParameterBindingReference() = default;
 
-	FParameterBindingReference(const FName& InParameter, const FAssetData& InLibrary = FAssetData(), const FAssetData& InBlock = FAssetData())
+	FParameterBindingReference(const FName& InParameter, const FAssetData& InBlock = FAssetData())
 		: Parameter(InParameter)
-		, Library(InLibrary)
 		, Block(InBlock)
 	{
 	}
@@ -25,8 +47,8 @@ struct FParameterBindingReference
 	// Parameter name
 	FName Parameter;
 
-	// Optional library asset (as this can represent built-in parameters too)
-	FAssetData Library;
+	// Asset (first found in asset registry) that the parameter is used in
+	FAssetData Asset;
 
 	// Optional block asset that the parameter is bound in
 	FAssetData Block;
@@ -37,6 +59,9 @@ DECLARE_DELEGATE_OneParam(FOnGetParameterBindings, TArray<FParameterBindingRefer
 
 // Delegate called when a parameter has been picked. Block argument is invalid when an unbound parameter is chosen.
 DECLARE_DELEGATE_OneParam(FOnParameterPicked, const FParameterBindingReference& /*InParameterBinding*/);
+
+// Delegate called when a parameter is due to be added.
+DECLARE_DELEGATE_OneParam(FOnAddParameter, const FParameterToAdd& /*InParameterToAdd*/);
 
 // Result of a filter operation via FOnFilterParameter
 enum class EFilterParameterResult : int32
@@ -65,6 +90,9 @@ struct FParameterPickerArgs
 	// Delegate called when a single parameter has been picked
 	FOnParameterPicked OnParameterPicked;
 
+	// Delegate called when a parameter, or set of parameters is added
+	FOnAddParameter OnAddParameter;
+
 	// Delegate called to filter parameters for display to the user
 	FOnFilterParameter OnFilterParameter;
 
@@ -82,9 +110,6 @@ struct FParameterPickerArgs
 
 	// Whether we should show parameters that are built in
 	bool bShowBuiltInParameters = true;
-
-	// Whether we should show the library alongside parameters
-	bool bShowLibraries = true;
 
 	// Whether we should show the block alongside bound parameters
 	bool bShowBlocks = true;

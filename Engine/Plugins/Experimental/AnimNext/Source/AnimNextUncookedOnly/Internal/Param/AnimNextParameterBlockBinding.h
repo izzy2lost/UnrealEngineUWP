@@ -9,7 +9,6 @@
 #include "AnimNextParameterBlockBinding.generated.h"
 
 class UAssetDefinition_AnimNextParameterBlockBinding;
-class UAnimNextParameter;
 class UAnimNextParameterLibrary;
 class URigVMGraph;
 
@@ -31,9 +30,8 @@ class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, publ
 	// IAnimNextParameterBlockParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;
-	virtual FName GetParameterName() const override;
-	virtual const UAnimNextParameter* GetParameter() const override;
-	virtual const UAnimNextParameterLibrary* GetLibrary() const override;
+	virtual FName GetParameterName() const override;	
+	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) override;
 
 	// IAnimNextParameterBlockGraphInterface interface
 	virtual URigVMGraph* GetGraph() const override { return BindingGraph; }
@@ -43,15 +41,14 @@ class UAnimNextParameterBlockBinding : public UAnimNextParameterBlockEntry, publ
 	// UAnimNextParameterBlockEntry interface
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDisplayNameTooltip() const override;
-	virtual void GetEditedObjects(TArray<UObject*>& OutObjects) const override;
 
 	/** Parameter name we reference */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	FName ParameterName;
 
-	/** Parameter library we reference */
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
-	TObjectPtr<UAnimNextParameterLibrary> Library;
+	/** The parameter's type */
+	UPROPERTY(EditAnywhere, Category = "Parameter", AssetRegistrySearchable)
+	FAnimNextParamType Type = FAnimNextParamType::GetType<bool>();
 
 	/** Binding graph */
 	UPROPERTY()

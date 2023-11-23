@@ -5,6 +5,7 @@
 #include "SGraphPin.h"
 
 class URigVMPin;
+class URigVMEdGraphNode;
 
 namespace UE::AnimNext::Editor
 {
@@ -15,6 +16,7 @@ class SGraphPinParamName : public SGraphPin
 	SLATE_BEGIN_ARGS(SGraphPinParamName) {}
 
 	SLATE_ARGUMENT(URigVMPin*, ModelPin)
+	SLATE_ARGUMENT(URigVMEdGraphNode*, GraphNode)
 
 	SLATE_END_ARGS()
 
@@ -24,6 +26,7 @@ private:
 	virtual TSharedRef<SWidget>	GetDefaultValueWidget() override;
 
 	URigVMPin* ModelPin = nullptr;
+	URigVMEdGraphNode* Node = nullptr;
 };
 
 }

@@ -8,8 +8,6 @@
 #include "Param/ParamStack.h"
 #include "Param/ParamStack.h"
 
-class UAnimNextParameter;
-
 const FName FRigVMDispatch_GetParameter::ValueName = TEXT("Value");
 const FName FRigVMDispatch_GetParameter::TypeHandleName = TEXT("Type");
 const FName FRigVMDispatch_GetParameter::ParameterName = TEXT("Parameter");

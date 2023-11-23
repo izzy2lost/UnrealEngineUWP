@@ -21,6 +21,7 @@ class UAnimNextParameterBlockParameter : public UAnimNextParameterBlockEntry, pu
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
+	friend class FAnimationAnimNextParametersEditorTest_Block;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 	
 	// UAnimNextParameterBlockEntry interface
@@ -31,14 +32,17 @@ class UAnimNextParameterBlockParameter : public UAnimNextParameterBlockEntry, pu
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FName GetParameterName() const override;
-	virtual const UAnimNextParameter* GetParameter() const override;
-	virtual const UAnimNextParameterLibrary* GetLibrary() const override;
+	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) override;
 	
 	/** Parameter name we reference */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	FName ParameterName;
 
-	/** Parameter library we reference */
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
-	TObjectPtr<UAnimNextParameterLibrary> Library;
+	/** The parameter's type */
+	UPROPERTY(EditAnywhere, Category = "Parameter", AssetRegistrySearchable)
+	FAnimNextParamType Type = FAnimNextParamType::GetType<bool>();
+	
+	/** Comment to display in editor */
+	UPROPERTY(EditAnywhere, Category = "Parameter", meta=(MultiLine))
+	FString Comment;
 };

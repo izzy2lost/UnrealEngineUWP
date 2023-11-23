@@ -8,17 +8,73 @@
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
-struct FAnimNextParameterLibraryAssetRegistryExports;
+#include "UncookedOnlyUtils.generated.h"
+
 class UAnimNextGraph;
 class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
 class URigVMController;
 class URigVMGraph;
-class UAnimNextParameter;
 class UAnimNextParameterBlock;
 class UAnimNextParameterBlock_EditorData;
 class UAnimNextGraph_EdGraph;
 struct FEdGraphPinType;
+
+namespace UE
+{
+	namespace AnimNext
+	{
+		static const FName ExportsAnimNextAssetRegistryTag = TEXT("AnimNextExports");
+	}
+}
+
+UENUM()
+enum class EAnimNextParameterFlags
+{
+	NoFlags = 0x0,
+	Private = 0x1,
+	Read = 0x02,
+	Write = 0x04,
+	Bound = 0x08,
+	Max
+};
+
+ENUM_CLASS_FLAGS(EAnimNextParameterFlags)
+
+USTRUCT()
+struct FAnimNextParameterAssetRegistryExportEntry
+{
+	GENERATED_BODY()
+
+	FAnimNextParameterAssetRegistryExportEntry() = default;
+	
+	FAnimNextParameterAssetRegistryExportEntry(FName InName, const FAnimNextParamType& InType, EAnimNextParameterFlags InFlags = EAnimNextParameterFlags::NoFlags)
+		: Name(InName)
+		, Type(InType)
+		, Flags(InFlags) 
+	{}
+	
+	UPROPERTY()
+	FName Name;
+
+	UPROPERTY()
+	FAnimNextParamType Type;
+
+	// Asset, found first in asset-registry, that references this parameter entry
+	FAssetData ReferencingAsset;
+
+	UPROPERTY()
+	EAnimNextParameterFlags Flags;
+};
+
+USTRUCT()
+struct FAnimNextParameterProviderAssetRegistryExports
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<FAnimNextParameterAssetRegistryExportEntry> Parameters;
+};
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -114,8 +170,11 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 			OutNodes.Append(GraphNodes);
 		}
 	}
+	
+	static bool GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+	static bool GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports);
 
-	static bool GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports);
+	static void GetGraphParameters(const URigVMGraph* Graph,FAnimNextParameterProviderAssetRegistryExports& OutExports);
 	
 	// Attempts to determine the type from a parameter name
 	// If the name cannot be found, the returned type will be invalid

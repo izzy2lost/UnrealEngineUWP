@@ -14,10 +14,8 @@
 #include "Graph/AnimNextGraph.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "Param/IAnimNextParameterBlockGraphInterface.h"
 #include "Param/SParameterBlockView.h"
-#include "Param/SParameterLibraryView.h"
 #include "Graph/SAnimNextGraphView.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
@@ -119,18 +117,6 @@ class FModule : public IModule
 				});
 		});
 
-		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextParameterLibrary::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
-		{
-			UAnimNextParameterLibrary* ParameterLibrary = CastChecked<UAnimNextParameterLibrary>(InAsset);
-			return SNew(SParameterLibraryView, ParameterLibrary)
-				.OnSelectionChanged_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UObject*>& InObjects)
-				{
-					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
-					{
-						Editor->SetSelectedObjects(InObjects);
-					}
-				});
-		});
 
 		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextSchedule::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
 		{

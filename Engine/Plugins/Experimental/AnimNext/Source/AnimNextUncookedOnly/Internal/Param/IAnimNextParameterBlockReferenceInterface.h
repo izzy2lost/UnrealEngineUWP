@@ -7,7 +7,6 @@
 #include "IAnimNextParameterBlockReferenceInterface.generated.h"
 
 class URigVMGraph;
-class UAnimNextParameter;
 class UAnimNextParameterBlock;
 
 namespace UE::AnimNext::Editor

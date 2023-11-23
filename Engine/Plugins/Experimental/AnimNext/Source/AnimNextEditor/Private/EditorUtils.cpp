@@ -6,7 +6,6 @@
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "PropertyBagDetails.h"
 #include "Graph/AnimNextGraphEntry.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -16,6 +15,9 @@
 #include "Param/Params.h"
 #include "Workspace/AnimNextWorkspace.h"
 #include "UncookedOnlyUtils.h"
+#include "Param/RigVMDispatch_GetLayerParameter.h"
+#include "Param/RigVMDispatch_GetParameter.h"
+#include "Param/RigVMDispatch_SetLayerParameter.h"
 
 namespace UE::AnimNext::Editor
 {
@@ -434,14 +436,15 @@ void FUtils::GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FP
 	}
 };
 
-FName FUtils::GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames)
+
+FName FUtils::GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames)
 {
-	FAnimNextParameterLibraryAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibraryAsset, Exports);
+	FAnimNextParameterProviderAssetRegistryExports Exports;
+	UE::AnimNext::UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
 
 	auto NameExists = [&Exports, &InAdditionalExistingNames](const TCHAR* InName)
 	{
-		for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Parameter : Exports.Parameters)
+		for(const FAnimNextParameterAssetRegistryExportEntry& Parameter : Exports.Parameters)
 		{
 			if(Parameter.Name.ToString() == InName)
 			{
@@ -481,38 +484,18 @@ FName FUtils::GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, con
 	return NAME_None;
 }
 
-bool FUtils::DoesParameterExistInLibrary(const FAssetData& InLibraryAsset, const FName InParameterName)
+bool FUtils::DoesParameterNameExist(const FName InName)
 {
-	FAnimNextParameterLibraryAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersForLibrary(InLibraryAsset, Exports);
-
-	for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Parameter : Exports.Parameters)
-	{
-		if(Parameter.Name == InParameterName)
-		{
-			return true;
-		}
-	}
-
-	return false;
+	FAnimNextParameterProviderAssetRegistryExports Exports;
+	UncookedOnly::FUtils::GetExportedParametersFromAssetRegistry(Exports);
+	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
 }
 
-FAnimNextParamType FUtils::GetParameterTypeFromLibraryExports(FName InName, const FAnimNextParameterLibraryAssetRegistryExports& InExports)
+bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset)
 {
-	for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : InExports.Parameters)
-	{
-		if(Export.Name == InName)
-		{
-			return Export.Type;
-		}
-	}
-	return FAnimNextParamType();
-}
-
-bool FUtils::GetExportedBindingsForBlock(const FAssetData& InLibraryAsset, FAnimNextParameterBlockAssetRegistryExports& OutExports)
-{
-	const FString TagValue = InLibraryAsset.GetTagValueRef<FString>(UAnimNextParameterBlock_EditorData::ExportsAssetRegistryTag);
-	return FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+	FAnimNextParameterProviderAssetRegistryExports Exports;
+	UncookedOnly::FUtils::GetExportedParametersForAsset(InAsset, Exports);
+	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
 }
 
 bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports)

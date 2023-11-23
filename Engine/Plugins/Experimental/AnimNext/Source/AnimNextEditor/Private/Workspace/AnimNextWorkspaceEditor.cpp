@@ -21,7 +21,6 @@
 #include "Graph/AnimNextGraphDocumentSummoner.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "Param/ParameterBlockGraphDocumentSummoner.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Framework/Application/SlateApplication.h"
@@ -81,7 +80,6 @@ void FWorkspaceEditor::InitEditor(const EToolkitMode::Type InMode, const TShared
 	{
 		UAnimNextGraph::StaticClass()->GetClassPathName(),
 		UAnimNextParameterBlock::StaticClass()->GetClassPathName(),
-		UAnimNextParameterLibrary::StaticClass()->GetClassPathName(),
 	});
 	LeftAssetDocumentSummoner->OnSaveDocumentState().BindSP(this, &FWorkspaceEditor::HandleSaveDocumentState);
 	DocumentManager->RegisterDocumentFactory(LeftAssetDocumentSummoner);

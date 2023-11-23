@@ -263,6 +263,19 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 #endif
 }
 
+
+#if WITH_EDITOR
+void UAnimNextGraph::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	if (EditorData)
+	{		
+		EditorData->GetAssetRegistryTags(OutTags);
+	}
+}
+#endif
+
 TArray<FRigVMExternalVariable> UAnimNextGraph::GetRigVMExternalVariables()
 {
 	return TArray<FRigVMExternalVariable>(); 

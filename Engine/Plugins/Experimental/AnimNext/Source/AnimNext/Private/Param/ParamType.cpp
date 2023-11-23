@@ -11,12 +11,87 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimSequence.h"
+#include "RigVMCore/RigVMTemplate.h"
 
 FAnimNextParamType::FAnimNextParamType(EValueType InValueType, EContainerType InContainerType, const UObject* InValueTypeObject)
 	: ValueTypeObject(InValueTypeObject)
 	, ValueType(InValueType)
 	, ContainerType(InContainerType)
 {
+}
+
+FAnimNextParamType FAnimNextParamType::FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType)
+{
+	FAnimNextParamType Type;	
+	const FString CPPType = RigVMType.CPPType.ToString();
+	
+	if (RigVMTypeUtils::IsArrayType(CPPType))
+	{
+		Type.ContainerType = EPropertyBagContainerType::Array;
+	}
+
+	static const FName IntTypeName(TEXT("int")); // type used by some engine tests
+	static const FName Int64TypeName(TEXT("Int64"));
+	static const FName UInt64TypeName(TEXT("UInt64"));
+
+	if (CPPType == RigVMTypeUtils::BoolTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Bool;
+	}
+	else if (CPPType == RigVMTypeUtils::Int32TypeName || CPPType == IntTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Int32;
+	}
+	else if (CPPType == RigVMTypeUtils::UInt32TypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::UInt32;
+	}
+	else if (CPPType == Int64TypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Int64;
+	}
+	else if (CPPType == UInt64TypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::UInt64;
+	}
+	else if (CPPType == RigVMTypeUtils::FloatTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Float;
+	}
+	else if (CPPType == RigVMTypeUtils::DoubleTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Double;
+	}
+	else if (CPPType == RigVMTypeUtils::FNameTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::Name;
+	}
+	else if (CPPType == RigVMTypeUtils::FStringTypeName)
+	{
+		Type.ValueType = EPropertyBagPropertyType::String;
+	}
+	else if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(RigVMType.CPPTypeObject))
+	{
+		Type.ValueType = EPropertyBagPropertyType::Struct;
+		Type.ValueTypeObject = ScriptStruct;
+	}
+	else if (UEnum* Enum = Cast<UEnum>(RigVMType.CPPTypeObject))
+	{
+		Type.ValueType = EPropertyBagPropertyType::Enum;
+		Type.ValueTypeObject = Enum;
+	}
+	else if (UObject* Object = Cast<UObject>(RigVMType.CPPTypeObject))
+	{
+		Type.ValueType = EPropertyBagPropertyType::Object;	
+		Type.ValueTypeObject = Object;
+	}
+	else
+	{
+		ensureMsgf(false, TEXT("Unsupported type : %s"), *CPPType);
+		Type.ValueType = EPropertyBagPropertyType::None;
+	}
+
+	return Type;
 }
 
 bool FAnimNextParamType::IsValidObject() const

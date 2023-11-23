@@ -5,6 +5,9 @@
 #include "SParameterPickerCombo.h"
 #include "ScopedTransaction.h"
 #include "UncookedOnlyUtils.h"
+#include "Param/RigVMDispatch_GetLayerParameter.h"
+#include "Param/RigVMDispatch_GetParameter.h"
+#include "Param/RigVMDispatch_SetLayerParameter.h"
 
 #define LOCTEXT_NAMESPACE "SGraphPinParamName"
 
@@ -14,6 +17,7 @@ namespace UE::AnimNext::Editor
 void SGraphPinParamName::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
 	ModelPin = InArgs._ModelPin;
+	Node = InArgs._GraphNode;
 
 	SGraphPin::Construct(SGraphPin::FArguments(), InPin);
 }
@@ -21,9 +25,24 @@ void SGraphPinParamName::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 {
 	FParameterPickerArgs Args;
-	Args.bShowLibraries = false;
 	Args.bShowBlocks = false;
 	Args.bMultiSelect = false;
+
+	// Check whether this is a Set/Get parameter from block node, and if so only show bound parameters
+	if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelPin->GetOuter()))
+	{
+		const FRigVMDispatchFactory* GetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetLayerParameter::StaticStruct());
+		const FName GetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
+
+		const FRigVMDispatchFactory* SetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_SetLayerParameter::StaticStruct());
+		const FName SetLayerParameterNotation = SetLayerParameterFactory->GetTemplate()->GetNotation();
+
+		if (TemplateNode->GetNotation() == GetLayerParameterNotation || TemplateNode->GetNotation() == SetLayerParameterNotation)
+		{
+			Args.bShowUnboundParameters = false;
+		}
+	}
+	
 	Args.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
 	{
 		if(ModelPin)
@@ -32,6 +51,17 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 			GraphPinObj->Modify();
 			GraphPinObj->GetSchema()->TrySetDefaultValue(*GraphPinObj, InParameterBinding.Parameter.ToString());
 		}
+	});
+	
+	Args.OnFilterParameterType = FOnFilterParameterType::CreateLambda([this](const FAnimNextParamType& InParamType)-> EFilterParameterResult
+	{
+		if(Node && ModelPin->IsLinked())
+		{
+			const FAnimNextParamType Type = FAnimNextParamType::FromRigVMTemplateArgument(ModelPin->GetTemplateArgumentType());
+			return Type.IsValid() && Type == InParamType ? EFilterParameterResult::Include : EFilterParameterResult::Exclude;
+		}
+
+		return EFilterParameterResult::Include;
 	});
 	
 	return SNew(SParameterPickerCombo)

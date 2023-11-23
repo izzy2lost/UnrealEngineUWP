@@ -8,8 +8,6 @@
 #include "Param/ParamTypeHandle.h"
 #include "Param/ParamStackLayerHandle.h"
 
-class UAnimNextParameter;
-
 const FName FRigVMDispatch_SetLayerParameter::ExecuteContextName = TEXT("ExecuteContext");
 const FName FRigVMDispatch_SetLayerParameter::ValueName = TEXT("Value");
 const FName FRigVMDispatch_SetLayerParameter::TypeHandleName = TEXT("Type");

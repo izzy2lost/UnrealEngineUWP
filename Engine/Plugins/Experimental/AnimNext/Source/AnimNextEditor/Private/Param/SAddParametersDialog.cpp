@@ -22,8 +22,6 @@
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "SSimpleButton.h"
 #include "SSimpleComboButton.h"
-#include "Param/AnimNextParameterLibrary.h"
-#include "Param/ParameterLibraryFactory.h"
 #include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "SAddParametersDialog"
@@ -35,7 +33,6 @@ namespace AddParametersDialog
 {
 static FName Column_Name(TEXT("Name"));
 static FName Column_Type(TEXT("Type"));
-static FName Column_Library(TEXT("Library"));
 static FName SelectLibraryMenuName(TEXT("AnimNext.AddParametersDialog.SelectedLibraryMenu"));
 }
 
@@ -50,11 +47,6 @@ bool FParameterToAdd::IsValid(FText& OutReason) const
 	{
 		OutReason = LOCTEXT("InvalidParameterType", "Invalid Parameter Type");
 	}
-
-	if(!Library.IsValid())
-	{
-		OutReason = LOCTEXT("InvalidParameterLibrary", "Invalid Parameter Library");
-	}
 	
 	return true; 
 }
@@ -63,7 +55,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 {
 	using namespace AddParametersDialog;
 
-	Library = InArgs._Library;
+	TargetBlock = InArgs._Block;
 
 	SWindow::Construct(SWindow::FArguments()
 		.Title(LOCTEXT("WindowTitle", "Add Parameters"))
@@ -110,11 +102,6 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 						.DefaultLabel(LOCTEXT("TypeColumnHeader", "Type"))
 						.ToolTipText(LOCTEXT("TypeColumnHeaderTooltip", "The type of the new parameter"))
 						.FillWidth(0.25f)
-
-						+SHeaderRow::Column(Column_Library)
-						.DefaultLabel(LOCTEXT("LibraryColumnHeader", "Library"))
-						.ToolTipText(LOCTEXT("LibraryColumnHeaderTooltip", "The library the new parameter will be created in"))
-						.FillWidth(0.5f)
 					)
 				]
 				+SVerticalBox::Slot()
@@ -191,23 +178,15 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 void SAddParametersDialog::AddEntry()
 {
 	const UAnimNextParameterSettings* Settings = GetDefault<UAnimNextParameterSettings>();
-	FAssetData LibraryAsset = Settings->GetLastLibrary();
-	if(Library != nullptr)
-	{
-		LibraryAsset = FAssetData(Library);
-	}
 	
 	TArray<FName> PendingNames;
 	PendingNames.Reserve(Entries.Num());
 	for(const TSharedRef<FParameterToAdd>& QueuedAdd : Entries)
 	{
-		if(QueuedAdd->Library == LibraryAsset)
-		{
-			PendingNames.Add(QueuedAdd->Name);
-		}
+		PendingNames.Add(QueuedAdd->Name);
 	}
-	FName ParameterName = FUtils::GetNewParameterNameInLibrary(LibraryAsset, TEXT("NewParameter"), PendingNames);
-	Entries.Add(MakeShared<FParameterToAdd>(Settings->GetLastParameterType(), ParameterName, Settings->GetLastLibrary()));
+	FName ParameterName = FUtils::GetNewParameterName(TEXT("NewParameter"), PendingNames);
+	Entries.Add(MakeShared<FParameterToAdd>(Settings->GetLastParameterType(), ParameterName));
 
 	RefreshEntries();
 }
@@ -263,11 +242,10 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 							return false;
 						}
 
-						FName Name(*NewString);
-
-						if(FUtils::DoesParameterExistInLibrary(Entry->Library, Name))
+						const FName Name(*NewString);
+						if(FUtils::DoesParameterNameExist(Name))
 						{
-							OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the specified library");
+							OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the project");
 							return false;
 						}
 
@@ -302,28 +280,6 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 						.bAllowArrays(true)
 						.TypeTreeFilter(ETypeTreeFilter::None)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-				];
-		}
-		else if(InColumnName == Column_Library)
-		{
-			return
-				SNew(SBox)
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.IsEnabled(WeakDialog.Pin()->Library == nullptr)
-				[
-					SNew(SSimpleComboButton)
-					.UsesSmallText(true)
-					.HasDownArrow(true)
-					.Text_Lambda([this]()
-					{
-						return FText::FromName(Entry->Library.PackageName);
-					})
-					.ToolTipText_Lambda([this]()
-					{
-						return FText::Format(LOCTEXT("LibraryTooltip", "The library of the new parameter.\n{0}"), FText::FromName(Entry->Library.PackageName));
-					})
-					.OnGetMenuContent(WeakDialog.Pin().Get(), &SAddParametersDialog::HandleGetAddParameterMenuContent, Entry)
 				];
 		}
 
@@ -364,95 +320,6 @@ TSharedRef<SWidget> SAddParametersDialog::HandleGetAddParameterMenuContent(TShar
 	using namespace AddParametersDialog;
 
 	UToolMenus* ToolMenus = UToolMenus::Get();
-
-	if(!ToolMenus->IsMenuRegistered(SelectLibraryMenuName))
-	{
-		UToolMenu* Menu = ToolMenus->RegisterMenu(SelectLibraryMenuName);
-
-		{
-			FToolMenuSection& Section = Menu->AddSection("AddNewLibrary", LOCTEXT("AddNewLibraryMenuSection", "Add New Library"));
-			Section.AddSubMenu("AddNewLibrary",
-				LOCTEXT("AddNewLibraryLabel", "Add New Library"),
-				LOCTEXT("AddNewLibraryTooltip", "Add a new parameter library"),
-				FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
-				{
-					if(UAddParameterDialogMenuContext* MenuContext = InMenu->FindContext<UAddParameterDialogMenuContext>())
-					{
-						FPathPickerConfig PathPickerConfig;
-						PathPickerConfig.bShowFavorites = false;
-						PathPickerConfig.OnPathSelected = FOnPathSelected::CreateLambda([MenuContext](const FString& InPath)
-						{
-							FSlateApplication::Get().DismissAllMenus();
-
-							if(TSharedPtr<FParameterToAdd> Entry = MenuContext->Entry.Pin())
-							{
-								IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-								if(UObject* NewAsset = AssetTools.CreateAsset(TEXT("NewParameterLibrary"), InPath, UAnimNextParameterLibrary::StaticClass(), NewObject<UAnimNextParameterLibraryFactory>()))
-								{
-									Entry->Library = FAssetData(NewAsset);
-
-									UAnimNextParameterSettings* Settings = GetMutableDefault<UAnimNextParameterSettings>();
-									Settings->SetLastLibrary(Entry->Library);
-								}
-							}
-						});
-
-						FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-						FToolMenuSection& Section = InMenu->AddSection("ChooseLibrary", LOCTEXT("ChooseLibraryMenuSection", "Choose Existing Library"));
-						Section.AddEntry(FToolMenuEntry::InitWidget(
-								"LibraryPicker",
-								SNew(SBox)
-								.WidthOverride(300.0f)
-								.HeightOverride(400.0f)
-								[
-									ContentBrowserModule.Get().CreatePathPicker(PathPickerConfig)
-								],
-								FText::GetEmpty(),
-								true));
-					}
-				}));
-		}
-
-		{
-			
-
-			FToolMenuSection& Section = Menu->AddDynamicSection("ChooseLibrary",  FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
-			{
-				if(UAddParameterDialogMenuContext* MenuContext = InMenu->FindContext<UAddParameterDialogMenuContext>())
-				{
-					FAssetPickerConfig AssetPickerConfig;
-					AssetPickerConfig.SelectionMode = ESelectionMode::Single;
-					AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
-					AssetPickerConfig.Filter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
-					AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda([MenuContext](const FAssetData& InAssetData)
-					{
-						FSlateApplication::Get().DismissAllMenus();
-
-						if(TSharedPtr<FParameterToAdd> Entry = MenuContext->Entry.Pin())
-						{
-							Entry->Library = InAssetData;
-
-							UAnimNextParameterSettings* Settings = GetMutableDefault<UAnimNextParameterSettings>();
-							Settings->SetLastLibrary(InAssetData);
-						}
-					});
-
-					FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-					FToolMenuSection& Section = InMenu->AddSection("ChooseLibrary", LOCTEXT("ChooseLibraryMenuSection", "Choose Existing Library"));
-					Section.AddEntry(FToolMenuEntry::InitWidget(
-							"LibraryPicker",
-							SNew(SBox)
-							.WidthOverride(300.0f)
-							.HeightOverride(400.0f)
-							[
-								ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
-							],
-							FText::GetEmpty(),
-							true));
-				}
-			}));
-		}
-	}
 
 	UAddParameterDialogMenuContext* MenuContext = NewObject<UAddParameterDialogMenuContext>();
 	MenuContext->AddParametersDialog = SharedThis(this);

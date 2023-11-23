@@ -169,6 +169,9 @@ public:
 	// Get the parameter to use to access the current LOD
 	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
 
+#if WITH_EDITOR
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+#endif	
 protected:
 	// Support rig VM execution
 	TArray<FRigVMExternalVariable> GetRigVMExternalVariables();

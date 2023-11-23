@@ -12,7 +12,6 @@
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
 #include "Graph/AnimNextExecuteContext.h"
-#include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/AnimNextParameterBlock_EdGraph.h"
@@ -32,10 +31,10 @@
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/Decorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "Param/Params.h"
 #include "Serialization/MemoryReader.h"
 #include "RigVMRuntimeDataRegistry.h"
+#include "Param/RigVMDispatch_GetLayerParameter.h"
 
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
@@ -742,11 +741,9 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	{
 		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
 		{
-			if(const UAnimNextParameter* Parameter = Binding->GetParameter())
-			{
-				const FAnimNextParamType& Type = Binding->GetParamType();
-				PropertyDescs.Emplace(Parameter->GetFName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
-			}
+			const FAnimNextParamType& Type = Binding->GetParamType();
+			ensure(Type.IsValid());
+			PropertyDescs.Emplace(Binding->GetParameterName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
 		}
 	}
 
@@ -1148,12 +1145,6 @@ FText FUtils::GetParameterDisplayNameText(FName InParameterName)
 	return FText::FromString(NameAsString);
 }
 
-bool FUtils::GetExportedParametersForLibrary(const FAssetData& InLibraryAsset, FAnimNextParameterLibraryAssetRegistryExports& OutExports)
-{
-	const FString TagValue = InLibraryAsset.GetTagValueRef<FString>(UAnimNextParameterLibrary::ExportsAssetRegistryTag);
-	return FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterLibraryAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
-}
-
 FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
 {
 	// Check built-in params first as they are cheaper
@@ -1165,26 +1156,103 @@ FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
 	// Query the asset registry for other params
 	IAssetRegistry& AssetRegistry = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
 
-	FARFilter ARFilter;
-	ARFilter.ClassPaths = { UAnimNextParameterLibrary::StaticClass()->GetClassPathName() };
-
-	TArray<FAssetData> LibraryAssets;
-	AssetRegistry.GetAssets(ARFilter, LibraryAssets);
-
-	for(const FAssetData& LibraryAsset : LibraryAssets)
+	FAnimNextParameterProviderAssetRegistryExports Exports;
+	GetExportedParametersFromAssetRegistry(Exports);
+	for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
 	{
-		FAnimNextParameterLibraryAssetRegistryExports Exports;
-		GetExportedParametersForLibrary(LibraryAsset, Exports);
-		for(const FAnimNextParameterLibraryAssetRegistryExportEntry& Export : Exports.Parameters)
+		if(Export.Name == InName)
 		{
-			if(Export.Name == InName)
-			{
-				return Export.Type;
-			}
+			return Export.Type;
 		}
 	}
 
 	return FAnimNextParamType();
 }
+bool FUtils::GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports)
+{
+	const FString TagValue = InAsset.GetTagValueRef<FString>(UE::AnimNext::ExportsAnimNextAssetRegistryTag);
+	return FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &OutExports, nullptr, PPF_None, nullptr, FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->GetName()) != nullptr;
+}
 
+bool FUtils::GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports)
+{
+	TArray<FAssetData> AssetData;
+	IAssetRegistry::GetChecked().GetAssetsByTags({UE::AnimNext::ExportsAnimNextAssetRegistryTag}, AssetData);
+
+	for (const FAssetData& Asset : AssetData)
+	{
+		const FString TagValue = Asset.GetTagValueRef<FString>(UE::AnimNext::ExportsAnimNextAssetRegistryTag);
+		FAnimNextParameterProviderAssetRegistryExports AssetExports;
+		if (FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ImportText(*TagValue, &AssetExports, nullptr, PPF_None, nullptr, FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->GetName()) != nullptr)
+		{
+			for (FAnimNextParameterAssetRegistryExportEntry& Parameter : AssetExports.Parameters)
+			{
+				if (Parameter.Name != NAME_None && Parameter.Type.IsValid() && Parameter.Type.ValueTypeObject != FRigVMUnknownType::StaticStruct())
+				{
+					FAnimNextParameterAssetRegistryExportEntry* ExistingEntry = OutExports.Parameters.FindByPredicate([Name=Parameter.Name](const FAnimNextParameterAssetRegistryExportEntry& Entry)
+					{
+						return Entry.Name == Name;
+					});
+					
+					if (!ExistingEntry)
+					{
+						Parameter.ReferencingAsset = Asset;
+						OutExports.Parameters.Add(Parameter);
+					}
+					else
+					{
+						ensureMsgf(ExistingEntry->Type == Parameter.Type, TEXT("[%s::%s] %s vs [%s::%s] %s"), *ExistingEntry->ReferencingAsset.ToSoftObjectPath().ToString(), *ExistingEntry->Name.ToString(), *ExistingEntry->Type.ToString(), *Asset.ToSoftObjectPath().ToString(), *Parameter.Name.ToString(), *Parameter.Type.ToString());
+
+						ExistingEntry->Flags |= Parameter.Flags;
+					}
+				}
+			}
+		}
+	}
+
+	return OutExports.Parameters.Num() > 0;
+}
+
+void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports)
+{
+	const TArray<URigVMNode*>& Nodes = Graph->GetNodes();
+	for (URigVMNode* Node : Nodes)
+	{
+		if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(Node))
+		{
+			const FRigVMDispatchFactory* GetParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetParameter::StaticStruct());
+			const FName GetParameterNotation = GetParameterFactory->GetTemplate()->GetNotation();
+
+			const FRigVMDispatchFactory* GetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetLayerParameter::StaticStruct());
+			const FName GetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
+
+			const FRigVMDispatchFactory* SetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_SetLayerParameter::StaticStruct());
+			const FName SetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
+
+			const bool bReadParameter = TemplateNode->GetNotation() == GetParameterNotation || TemplateNode->GetNotation() == GetLayerParameterNotation;
+			const bool bWriteParameter = TemplateNode->GetNotation() == SetLayerParameterNotation;
+			if (bReadParameter || bWriteParameter)
+			{
+				if (const URigVMPin* NamePin = TemplateNode->FindPin(FRigVMDispatch_GetParameter::ParameterName.ToString()))
+				{							
+					if (const URigVMPin* ValuePin = TemplateNode->FindPin(FRigVMDispatch_GetParameter::ValueName.ToString()))
+					{
+						FAnimNextParamType Type = FAnimNextParamType::FromRigVMTemplateArgument(ValuePin->GetTemplateArgumentType());
+						EAnimNextParameterFlags Flags = EAnimNextParameterFlags::NoFlags;
+						if (bReadParameter)
+						{
+							Flags |= EAnimNextParameterFlags::Read;
+						}
+						
+						if (bWriteParameter)
+						{
+							Flags |= EAnimNextParameterFlags::Write;
+						}
+						OutExports.Parameters.Emplace(FName(NamePin->GetDefaultValue()), Type, Flags);
+					}
+				}
+			}
+		}
+	}
+}
 }

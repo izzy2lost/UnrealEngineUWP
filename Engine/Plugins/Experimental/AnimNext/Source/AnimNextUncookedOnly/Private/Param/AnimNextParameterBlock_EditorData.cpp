@@ -15,14 +15,14 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlockEntry.h"
 #include "ExternalPackageHelper.h"
-#include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlockBinding.h"
 #include "Param/AnimNextParameterBlockBindingReference.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "ObjectTools.h"
 #include "Param/AnimNextParameterBlockGraph.h"
 #include "Param/AnimNextParameterBlockParameter.h"
+#include "Param/RigVMDispatch_GetLayerParameter.h"
+#include "Param/RigVMDispatch_GetParameter.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -71,28 +71,12 @@ UAnimNextParameterBlock_EditorData::UAnimNextParameterBlock_EditorData(const FOb
 
 #if WITH_EDITORONLY_DATA
 
-UAnimNextParameterBlockParameter* UAnimNextParameterBlockLibrary::AddParameter(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
-{
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddParameter(InName, InLibrary, bSetupUndoRedo, bPrintPythonCommand);
-}
-
-UAnimNextParameterBlockParameter* UAnimNextParameterBlock_EditorData::AddParameter(FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextParameterBlockParameter* UAnimNextParameterBlock_EditorData::AddParameter(FName InName, FAnimNextParamType InType, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if(InName == NAME_None)
 	{
 		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: Invalid parameter name supplied."));
 		return nullptr;
-	}
-
-	if(InLibrary != nullptr)
-	{
-		// Check if parameter exists in library
-		UAnimNextParameter* Parameter = InLibrary->FindParameter(InName);
-		if(Parameter == nullptr)
-		{
-			ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddParameter: Parameter does not exist in library."));
-			return nullptr;
-		}
 	}
 
 	// Check for duplicate parameter
@@ -113,7 +97,7 @@ UAnimNextParameterBlockParameter* UAnimNextParameterBlock_EditorData::AddParamet
 
 	UAnimNextParameterBlockParameter* NewEntry = UE::AnimNext::Parameters::Private::CreateNewParameterBlockEntry<UAnimNextParameterBlockParameter>(this);
 	NewEntry->ParameterName = InName;
-	NewEntry->Library = InLibrary;
+	NewEntry->Type = InType;
 
 	if(bSetupUndoRedo)
 	{
@@ -128,6 +112,12 @@ UAnimNextParameterBlockParameter* UAnimNextParameterBlock_EditorData::AddParamet
 	return NewEntry;
 }
 
+
+UAnimNextParameterBlockParameter* UAnimNextParameterBlockLibrary::AddParameter(UAnimNextParameterBlock* InBlock, FName InName, EPropertyBagPropertyType InValueType,
+	EPropertyBagContainerType InContainerType, const UObject* InValueTypeObject, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddParameter(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), bSetupUndoRedo, bPrintPythonCommand);
+}
 
 UAnimNextParameterBlockGraph* UAnimNextParameterBlockLibrary::AddGraph(UAnimNextParameterBlock* InBlock, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
@@ -190,12 +180,12 @@ UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName
 }
 
 
-UAnimNextParameterBlockBinding* UAnimNextParameterBlockLibrary::AddBinding(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextParameterBlockBinding* UAnimNextParameterBlockLibrary::AddBinding(UAnimNextParameterBlock* InBlock, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType, const UObject* InValueTypeObject, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddBinding(InName, InLibrary, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddBinding(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), bSetupUndoRedo, bPrintPythonCommand);
 }
 
-UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(FName InName, UAnimNextParameterLibrary* InLibrary, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(FName InName, FAnimNextParamType InType, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if(InName == NAME_None)
 	{
@@ -203,26 +193,12 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 		return nullptr;
 	}
 
-	if(InLibrary == nullptr)
-	{
-		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBinding: Invalid parameter library supplied."));
-		return nullptr;
-	}
-
-	// Check parameter exists in library
-	UAnimNextParameter* Parameter = InLibrary->FindParameter(InName);
-	if(Parameter == nullptr)
-	{
-		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBinding: Parameter does not exist in library."));
-		return nullptr;
-	}
-
 	// Check for duplicate bindings
-	const bool bAlreadyExists = Entries.ContainsByPredicate([InName, InLibrary](const UAnimNextParameterBlockEntry* InEntry)
+	const bool bAlreadyExists = Entries.ContainsByPredicate([InName](const UAnimNextParameterBlockEntry* InEntry)
 	{
 		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
-			return Binding->GetParameterName() == InName && Binding->GetLibrary() == InLibrary;
+			return Binding->GetParameterName() == InName;
 		}
 		return false;
 	});
@@ -235,7 +211,7 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 
 	UAnimNextParameterBlockBinding* NewEntry = UE::AnimNext::Parameters::Private::CreateNewParameterBlockEntry<UAnimNextParameterBlockBinding>(this);
 	NewEntry->ParameterName = InName;
-	NewEntry->Library = InLibrary;
+	NewEntry->Type = InType;
 
 	if(bSetupUndoRedo)
 	{
@@ -254,7 +230,7 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 		NewEntry->BindingGraph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
-		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraph(Controller, InName, Parameter->GetType());
+		UE::AnimNext::UncookedOnly::FUtils::SetupBindingGraph(Controller, InName, NewEntry->GetParamType());
 	}
 
 	BroadcastModified();
@@ -262,12 +238,12 @@ UAnimNextParameterBlockBinding* UAnimNextParameterBlock_EditorData::AddBinding(F
 	return NewEntry;
 }
 
-UAnimNextParameterBlockBindingReference* UAnimNextParameterBlockLibrary::AddBindingReference(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterLibrary* InLibrary, UAnimNextParameterBlock* InReferencedBlock, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextParameterBlockBindingReference* UAnimNextParameterBlockLibrary::AddBindingReference(UAnimNextParameterBlock* InBlock, FName InName, UAnimNextParameterBlock* InReferencedBlock, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddBindingReference(InName, InLibrary, InReferencedBlock, bSetupUndoRedo, bPrintPythonCommand);
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InBlock)->AddBindingReference(InName, InReferencedBlock, bSetupUndoRedo, bPrintPythonCommand);
 }
 
-UAnimNextParameterBlockBindingReference* UAnimNextParameterBlock_EditorData::AddBindingReference(FName InName, UAnimNextParameterLibrary* InLibrary, UAnimNextParameterBlock* InReferencedBlock, bool bSetupUndoRedo, bool bPrintPythonCommand)
+UAnimNextParameterBlockBindingReference* UAnimNextParameterBlock_EditorData::AddBindingReference(FName InName, UAnimNextParameterBlock* InReferencedBlock, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if(InName == NAME_None)
 	{
@@ -275,32 +251,25 @@ UAnimNextParameterBlockBindingReference* UAnimNextParameterBlock_EditorData::Add
 		return nullptr;
 	}
 
-	if(InLibrary == nullptr)
-	{
-		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBindingReference: Invalid parameter library supplied."));
-		return nullptr;
-	}
-	
 	if(InReferencedBlock == nullptr)
 	{
 		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBindingReference: Invalid block supplied."));
 		return nullptr;
 	}
 
-	// Check parameter exists in library
-	UAnimNextParameter* Parameter = InLibrary->FindParameter(InName);
-	if(Parameter == nullptr)
+	const UAnimNextParameterBlockEntry* ReferencedEntry = UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InReferencedBlock)->FindBinding(InName);
+	if(ReferencedEntry == nullptr)
 	{
-		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBindingReference: Parameter does not exist in library."));
+		ReportError(TEXT("UAnimNextParameterBlock_EditorData::AddBindingReference: Named parameter to reference not found in block supplied."));
 		return nullptr;
 	}
 
 	// Check for duplicates
-	const bool bAlreadyExists = Entries.ContainsByPredicate([InName, InLibrary](const UAnimNextParameterBlockEntry* InEntry)
+	const bool bAlreadyExists = Entries.ContainsByPredicate([InName](const UAnimNextParameterBlockEntry* InEntry)
 	{
 		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(InEntry))
 		{
-			return Binding->GetParameterName() == InName && Binding->GetLibrary() == InLibrary;
+			return Binding->GetParameterName() == InName;
 		}
 
 		return false;
@@ -314,7 +283,6 @@ UAnimNextParameterBlockBindingReference* UAnimNextParameterBlock_EditorData::Add
 
 	UAnimNextParameterBlockBindingReference* NewEntry = UE::AnimNext::Parameters::Private::CreateNewParameterBlockEntry<UAnimNextParameterBlockBindingReference>(this);
 	NewEntry->ParameterName = InName;
-	NewEntry->Library = InLibrary;
 	NewEntry->Block = InReferencedBlock;
 
 	if(bSetupUndoRedo)
@@ -609,21 +577,28 @@ void UAnimNextParameterBlock_EditorData::GetAssetRegistryTags(TArray<FAssetRegis
 {
 	Super::GetAssetRegistryTags(OutTags);
 
-	FAnimNextParameterBlockAssetRegistryExports Exports;
-	Exports.Bindings.Reserve(Entries.Num());
+	FAnimNextParameterProviderAssetRegistryExports ExportParameters;
+	ExportParameters.Parameters.Reserve(Entries.Num());
 
 	for(const UAnimNextParameterBlockEntry* Entry : Entries)
 	{
 		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
 		{
-			Exports.Bindings.Emplace(Binding->GetParameterName(), FSoftObjectPath(Binding->GetLibrary()));
+			ExportParameters.Parameters.Emplace(Binding->GetParameterName(), Binding->GetParamType(), EAnimNextParameterFlags::Bound);
+		}
+	}
+
+	for (const TObjectPtr<UAnimNextParameterBlock_EdGraph>& Graph : Graphs)
+	{
+		if (const URigVMGraph* RigGraph = Graph->GetModel())
+		{
+			UE::AnimNext::UncookedOnly::FUtils::GetGraphParameters(RigGraph, ExportParameters);
 		}
 	}
 
 	FString TagValue;
-	FAnimNextParameterBlockAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
-
-	OutTags.Add(FAssetRegistryTag(ExportsAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &ExportParameters, nullptr, nullptr, PPF_None, nullptr);
+	OutTags.Add(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }
 
 #if WITH_EDITOR

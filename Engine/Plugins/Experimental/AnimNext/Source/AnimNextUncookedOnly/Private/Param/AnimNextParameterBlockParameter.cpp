@@ -1,36 +1,39 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlockParameter.h"
-#include "Param/AnimNextParameter.h"
-#include "Param/AnimNextParameterLibrary.h"
+#include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/Params.h"
 
 FAnimNextParamType UAnimNextParameterBlockParameter::GetParamType() const
 {
 	using namespace UE::AnimNext;
-	
-	if(Library)
+
+	// Look in built-in parameters
+	if(const FParamDefinition* ParamDefinition = FParams::FindBuiltInParameter(ParameterName))
 	{
-		if(const UAnimNextParameter* Parameter = Library->FindParameter(ParameterName))
-		{
-			return Parameter->GetType();
-		}
-	}
-	else
-	{
-		// Look in built-in parameters
-		if(const FParamDefinition* ParamDefinition = FParams::FindBuiltInParameter(ParameterName))
-		{
-			return ParamDefinition->GetType();
-		}
+		return ParamDefinition->GetType();
 	}
 
-	return FAnimNextParamType();
+	return Type;
 }
 
 FName UAnimNextParameterBlockParameter::GetParameterName() const
 {
 	return ParameterName;
+}
+
+bool UAnimNextParameterBlockParameter::SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo)
+{
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	}
+	
+	Type = InType;
+
+	BroadcastModified();
+
+	return true;
 }
 
 void UAnimNextParameterBlockParameter::SetParameterName(FName InName, bool bSetupUndoRedo)
@@ -40,34 +43,8 @@ void UAnimNextParameterBlockParameter::SetParameterName(FName InName, bool bSetu
 		Modify();
 	}
 
-	if (Library)
-	{
-		UAnimNextParameter* Parameter = Library->FindParameter(ParameterName);
-		if (Parameter)
-		{
-			if (Parameter->Rename(*InName.ToString(), Parameter->GetOuter()))
-			{
-				ParameterName = InName;
-			}
-		}
-	}
-
+	ParameterName = InName;
 	BroadcastModified();
-}
-
-const UAnimNextParameter* UAnimNextParameterBlockParameter::GetParameter() const
-{
-	if(Library)
-	{
-		return Library->FindParameter(ParameterName);
-	}
-
-	return nullptr;
-}
-
-const UAnimNextParameterLibrary* UAnimNextParameterBlockParameter::GetLibrary() const
-{
-	return Library;
 }
 
 FText UAnimNextParameterBlockParameter::GetDisplayName() const

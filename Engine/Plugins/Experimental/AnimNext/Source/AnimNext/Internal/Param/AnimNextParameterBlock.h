@@ -32,36 +32,6 @@ namespace UE::AnimNext::Editor
 	class FParameterBlockParameterCustomization;
 }
 
-// Library entry used to export to asset registry
-USTRUCT()
-struct FAnimNextParameterBlockAssetRegistryExportEntry
-{
-	GENERATED_BODY()
-
-	FAnimNextParameterBlockAssetRegistryExportEntry() = default;
-
-	FAnimNextParameterBlockAssetRegistryExportEntry(FName InName, const FSoftObjectPath& InLibrary)
-		: Name(InName)
-		, Library(InLibrary)
-	{}
-	
-	UPROPERTY()
-	FName Name;
-
-	UPROPERTY()
-	FSoftObjectPath Library;
-};
-
-// Library used to export to asset registry
-USTRUCT()
-struct FAnimNextParameterBlockAssetRegistryExports
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TArray<FAnimNextParameterBlockAssetRegistryExportEntry> Bindings;
-};
-
 /** An asset used to define AnimNext parameters and their bindings */
 UCLASS(MinimalAPI, BlueprintType)
 class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSourceInterface

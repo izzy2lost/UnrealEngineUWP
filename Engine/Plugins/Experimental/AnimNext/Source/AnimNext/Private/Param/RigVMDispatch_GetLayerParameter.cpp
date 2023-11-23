@@ -6,8 +6,6 @@
 #include "Graph/AnimNextExecuteContext.h"
 #include "Param/ParamStack.h"
 
-class UAnimNextParameter;
-
 const FName FRigVMDispatch_GetLayerParameter::ValueName = TEXT("Value");
 const FName FRigVMDispatch_GetLayerParameter::TypeHandleName = TEXT("Type");
 const FName FRigVMDispatch_GetLayerParameter::ParameterName = TEXT("Parameter");

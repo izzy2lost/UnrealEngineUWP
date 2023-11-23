@@ -17,6 +17,8 @@
 #include "UObject/ObjectSaveContext.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Graph/AnimNextGraphEntry.h"
+#include "Param/RigVMDispatch_GetLayerParameter.h"
+#include "Param/RigVMDispatch_GetParameter.h"
 
 namespace UE::AnimNext::Graph::Private
 {
@@ -166,6 +168,28 @@ void UAnimNextGraph_EditorData::PostLoad()
 }
 
 #if WITH_EDITOR
+void UAnimNextGraph_EditorData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	UObject::GetAssetRegistryTags(OutTags);
+
+	FAnimNextParameterProviderAssetRegistryExports ExportParameters;
+	
+	for (const TObjectPtr<UAnimNextGraph_EdGraph>& Graph : Graphs)
+	{
+		if (const URigVMGraph* RigGraph = Graph->GetModel())
+		{
+			UE::AnimNext::UncookedOnly::FUtils::GetGraphParameters(RigGraph, ExportParameters);
+		}
+	}
+
+	if (ExportParameters.Parameters.Num())
+	{
+		FString TagValue;	
+		FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &ExportParameters, nullptr, nullptr, PPF_None, nullptr);
+		OutTags.Add(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));	
+	}
+}
+
 void UAnimNextGraph_EditorData::HandlePackageDone(const FEndLoadPackageContext& Context)
 {
 	if (!Context.LoadedPackages.Contains(GetPackage()))

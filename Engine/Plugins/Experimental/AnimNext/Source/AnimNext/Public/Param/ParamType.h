@@ -9,6 +9,7 @@
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/ReflectedTypeAccessors.h"
 #include "Concepts/BaseStructureProvider.h"
+#include "RigVMCore/RigVMTemplate.h"
 #include "ParamType.generated.h"
 
 namespace UE::AnimNext
@@ -70,6 +71,8 @@ public:
 	/** Construct a parameter type from the passed in value, container and object type. */
 	FAnimNextParamType(EValueType InValueType, EContainerType InContainerType = EContainerType::None, const UObject* InValueTypeObject = nullptr);
 
+	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
+	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
 private:
 	/** Pointer to object that defines the Enum, Struct, or Class. */
 	UPROPERTY()

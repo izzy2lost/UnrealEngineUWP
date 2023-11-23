@@ -8,7 +8,6 @@
 #include "IAnimNextParameterBlockParameterInterface.h"
 #include "AnimNextParameterBlockBindingReference.generated.h"
 
-class UAnimNextParameter;
 class UAnimNextParameterBlock;
 class UAnimNextParameterLibrary;
 class UAssetDefinition_AnimNextParameterBlockBindingReference;
@@ -31,9 +30,8 @@ class UAnimNextParameterBlockBindingReference : public UAnimNextParameterBlockEn
 	// IAnimNextParameterBlockParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
 	virtual FName GetParameterName() const override;
-	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;
-	virtual const UAnimNextParameter* GetParameter() const override;
-	virtual const UAnimNextParameterLibrary* GetLibrary() const override;
+	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;	
+	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) override { return false; }
 
 	// IAnimNextParameterBlockReferenceInterface interface
 	virtual const UAnimNextParameterBlock* GetBlock() const override;
@@ -46,10 +44,6 @@ class UAnimNextParameterBlockBindingReference : public UAnimNextParameterBlockEn
 	/** Parameter name we reference */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	FName ParameterName;
-
-	/** Parameter library we reference */
-	UPROPERTY(VisibleAnywhere, Category = Parameter)
-	TObjectPtr<UAnimNextParameterLibrary> Library;
 
 	/** Parameter block we reference */
 	UPROPERTY()

@@ -13,11 +13,11 @@ struct FAnimNextParamType;
 class UAnimNextParameterBlock;
 class UAnimNextParameterBlockBinding;
 class UAnimNextParameterBlock_EditorData;
-class UAnimNextParameter;
 class URigVMController;
-struct FAnimNextParameterLibraryAssetRegistryExports;
 struct FAnimNextParameterBlockAssetRegistryExports;
 struct FAnimNextWorkspaceAssetRegistryExports;
+
+struct FAnimNextParameterProviderAssetRegistryExports;
 
 namespace UE::AnimNext::Editor
 {
@@ -36,14 +36,10 @@ struct FUtils
 
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
-	static FName GetNewParameterNameInLibrary(const FAssetData& InLibraryAsset, const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
+	static FName GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
 
-	static bool DoesParameterExistInLibrary(const FAssetData& InLibraryAsset, const FName InParameterName);
-
-	static FAnimNextParamType GetParameterTypeFromLibraryExports(FName InName, const FAnimNextParameterLibraryAssetRegistryExports& InExports);
-
-	static bool GetExportedBindingsForBlock(const FAssetData& InBlockAsset, FAnimNextParameterBlockAssetRegistryExports& OutExports);
-
+	static bool DoesParameterNameExist(const FName InName);
+	static bool DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset);
 
 	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);
 };

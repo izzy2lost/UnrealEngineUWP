@@ -3,12 +3,10 @@
 #include "SParameterBlockView.h"
 
 #include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameter.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/AnimNextParameterLibrary.h"
 #include "DetailLayoutBuilder.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
@@ -694,19 +692,6 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 							{
 								TextBuilder.AppendLine(FText::FromName(ExternalPackage->GetFName()));
 							}
-
-							if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(BlockEntry))
-							{
-								if(const UAnimNextParameter* Parameter = Binding->GetParameter())
-								{
-									const UPackage* ParameterPackage = Parameter->GetPackage();
-									check(ParameterPackage);
-									if(ParameterPackage->IsDirty())
-									{
-										TextBuilder.AppendLine(FText::FromName(ParameterPackage->GetFName()));
-									}
-								}
-							}
 						}
 
 						return TextBuilder.ToText();
@@ -723,18 +708,6 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 								bIsDirty = true;
 							}
 
-							if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(BlockEntry))
-							{
-								if(const UAnimNextParameter* Parameter = Binding->GetParameter())
-								{
-									const UPackage* ParameterPackage = Parameter->GetPackage();
-									check(ParameterPackage);
-									if(ParameterPackage->IsDirty())
-									{
-										bIsDirty = true;
-									}
-								}
-							}
 
 							return bIsDirty ? FAppStyle::GetBrush("ContentBrowser.ContentDirty") : nullptr;
 						}
@@ -750,17 +723,27 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 					SNew(SBox)
 					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
-					.IsEnabled(false)
 					[
 						SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
 							.TargetPinType_Lambda([this]()
 							{
-								if(IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry->WeakEntry.Get()))
+								if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry->WeakEntry.Get()))
 								{
 									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetParamType());
 								}
 
 								return FEdGraphPinType();
+							})
+							.OnPinTypeChanged_Lambda([this](const FEdGraphPinType& PinType)
+							{
+								if(IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry->WeakEntry.Get()))
+								{
+									const FAnimNextParamType ParamType = UncookedOnly::FUtils::GetParamTypeFromPinType(PinType);
+									if(ParamType.IsValid())
+									{
+										Binding->SetParamType(ParamType);
+									}
+								}
 							})
 							.Schema(GetDefault<UPropertyBagSchema>())
 							.bAllowArrays(true)
@@ -829,10 +812,10 @@ class SParameterBlockViewRow : public SMultiColumnTableRow<TSharedRef<FParameter
 							}
 						}
 
-						if(IAnimNextParameterBlockReferenceInterface* Reference = Cast<IAnimNextParameterBlockReferenceInterface>(Entry->WeakEntry.Get()))
+						if(const IAnimNextParameterBlockReferenceInterface* Reference = Cast<IAnimNextParameterBlockReferenceInterface>(Entry->WeakEntry.Get()))
 						{
 							const FName Name(*NewString);
-							if(!FUtils::DoesParameterExistInLibrary(Reference->GetBlock(), Name))
+							if(!FUtils::DoesParameterNameExistInAsset(Name, Reference->GetBlock()))
 							{
 								OutErrorText = LOCTEXT("Error_NameDoesNotExist", "This name does not exist in the specified block");
 								return false;
@@ -1014,11 +997,10 @@ TSharedRef<ITableRow> SParameterBlockView::HandleGenerateRow(TSharedRef<FParamet
 				{
 					FParameterPickerArgs Args;
 					Args.bMultiSelect = false;
-					Args.bShowLibraries = false;
 					Args.bShowBlocks = false;
-					Args.bShowBoundParameters = true;
+					Args.bShowBoundParameters = false;
 					Args.bShowBuiltInParameters = false; // Built-In paameters Disabled for MVP
-					Args.OnFilterParameter = FOnFilterParameter::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+				Args.OnFilterParameter = FOnFilterParameter::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
 					{
 						// Skip params that are already bound in this block
 						if(InParameterBinding.Block == BlockAssetData)
@@ -1028,18 +1010,34 @@ TSharedRef<ITableRow> SParameterBlockView::HandleGenerateRow(TSharedRef<FParamet
 						
 						return EFilterParameterResult::Include;
 					});
-					Args.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+
+					Args.OnAddParameter = FOnAddParameter::CreateLambda([this](const FParameterToAdd& ParameterToAdd)
 					{
 						FSlateApplication::Get().DismissAllMenus();
 
+						check(EditorData->FindBinding(ParameterToAdd.Name) == nullptr);
 						FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
-						PendingSelection.Empty();
+						UAnimNextParameterBlockParameter* Parameter = EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
 
-						// Create a new entry for the parameter
-						UAnimNextParameterLibrary* Library = Cast<UAnimNextParameterLibrary>(InParameterBinding.Library.GetAsset());
-						UAnimNextParameterBlockParameter* Parameter = EditorData->AddParameter(InParameterBinding.Parameter, Library);
+						PendingSelection.Empty();
 						PendingSelection.Add(Parameter);
 					});
+					Args.OnParameterPicked = FOnParameterPicked::CreateLambda([this](const FParameterBindingReference& InParameterBinding)
+					{
+						FSlateApplication::Get().DismissAllMenus();			
+						PendingSelection.Empty();
+						UAnimNextParameterBlockEntry* Binding = EditorData->FindBinding(InParameterBinding.Parameter);
+						if (Binding == nullptr)
+						{
+							const FAnimNextParamType Type = UE::AnimNext::UncookedOnly::FUtils::GetParameterTypeFromName(InParameterBinding.Parameter);
+							if (Type.IsValid())
+							{
+								Binding = EditorData->AddParameter(InParameterBinding.Parameter, Type);
+							};
+							PendingSelection.Add(Binding);	
+						}
+					});
+					
 					return SNew(SParameterPicker)
 						.Args(Args);
 				})

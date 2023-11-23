@@ -1,27 +1,31 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlockBinding.h"
-#include "Param/AnimNextParameter.h"
-#include "Param/AnimNextParameterLibrary.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextParameterBlockBinding"
 
 FAnimNextParamType UAnimNextParameterBlockBinding::GetParamType() const
 {
-	if(Library)
-	{
-		if(const UAnimNextParameter* Parameter = Library->FindParameter(ParameterName))
-		{
-			return Parameter->GetType();
-		}
-	}
-
-	return FAnimNextParamType();
+	return Type;
 }
 
 FName UAnimNextParameterBlockBinding::GetParameterName() const
 {
 	return ParameterName;
+}
+
+bool UAnimNextParameterBlockBinding::SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo)
+{
+	if(bSetupUndoRedo)
+	{
+		Modify();
+	}
+	
+	Type = InType;
+
+	BroadcastModified();
+
+	return true;
 }
 
 void UAnimNextParameterBlockBinding::SetParameterName(FName InName, bool bSetupUndoRedo)
@@ -36,21 +40,6 @@ void UAnimNextParameterBlockBinding::SetParameterName(FName InName, bool bSetupU
 	BroadcastModified();
 }
 
-const UAnimNextParameter* UAnimNextParameterBlockBinding::GetParameter() const
-{
-	if(Library)
-	{
-		return Library->FindParameter(ParameterName);
-	}
-
-	return nullptr;
-}
-
-const UAnimNextParameterLibrary* UAnimNextParameterBlockBinding::GetLibrary() const
-{
-	return Library;
-}
-
 FText UAnimNextParameterBlockBinding::GetDisplayName() const
 {
 	return FText::FromName(ParameterName);
@@ -60,21 +49,7 @@ FText UAnimNextParameterBlockBinding::GetDisplayNameTooltip() const
 {
 	FTextBuilder TextBuilder;
 	TextBuilder.AppendLine(FText::FromName(ParameterName));
-	TextBuilder.AppendLine(Library ? FText::FromString(Library->GetPathName()) : LOCTEXT("MissingLibrary", "Missing parameter library"));
 	return TextBuilder.ToText();
-}
-
-void UAnimNextParameterBlockBinding::GetEditedObjects(TArray<UObject*>& OutObjects) const
-{
-	if(Library)
-	{
-		OutObjects.Add(Library);
-	}
-
-	if(const UAnimNextParameter* Parameter = GetParameter())
-	{
-		OutObjects.Add(const_cast<UAnimNextParameter*>(Parameter));
-	}
 }
 
 #undef LOCTEXT_NAMESPACE
