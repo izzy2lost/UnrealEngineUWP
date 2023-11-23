@@ -385,6 +385,13 @@ public:
 #endif
 
 		bIsJsonOutput = FParse::Param(FCommandLine::Get(), TEXT("JsonStdOut"));
+		if (!bIsJsonOutput)
+		{
+			if (FString Env = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_LOG_JSON_TO_STDOUT")); !Env.IsEmpty())
+			{
+				bIsJsonOutput = FCString::Atoi(*Env) != 0;
+			}
+		}
 
 		if (FParse::Param(FCommandLine::Get(), TEXT("AllowStdOutLogVerbosity")))
 		{
