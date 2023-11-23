@@ -11,12 +11,17 @@ namespace Horde.Agent.Relay;
 /// These mappings will port forward specific ports to agents sitting behind a firewall.
 /// An agent using this relay mode usually has multiple IPs assigned to allow bridging.
 /// </summary>
-public class RelayService
+public class RelayClient
 {
 	/// <summary>
 	/// Cooldown after an exception occurs. Primarily set to speed up tests.
 	/// </summary>
 	public TimeSpan CooldownOnException { get; set; } = TimeSpan.FromSeconds(5);
+	
+	/// <summary>
+	/// Last received revision number after a long-polling responses has returned
+	/// </summary>
+	public int RevisionNumber { get; private set; }= -2;
 
 	private readonly string _clusterId;
 	private readonly string _agentId;
@@ -34,7 +39,7 @@ public class RelayService
 	/// <param name="nftables"></param>
 	/// <param name="relayRpcClient"></param>
 	/// <param name="logger"></param>
-	public RelayService(string clusterId, string agentId, List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger logger)
+	public RelayClient(string clusterId, string agentId, List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger logger)
 	{
 		_clusterId = clusterId;
 		_agentId = agentId;
@@ -53,17 +58,22 @@ public class RelayService
 	/// <returns>List of new port mappings</returns>
 	public async Task<List<PortMapping>?> GetPortMappingsLongPollAsync(CancellationToken cancellationToken)
 	{
-		_logger.LogDebug("Long polling for port mappings...");
+		_logger.LogDebug("Long polling for port mappings... (revision={Revision})", RevisionNumber);
 
-		GetPortMappingsRequest request = new() { AgentId = _agentId, ClusterId = _clusterId };
+		GetPortMappingsRequest request = new() { AgentId = _agentId, ClusterId = _clusterId, RevisionCount = RevisionNumber };
 		request.IpAddresses.AddRange(_ipAddresses);
 		using AsyncServerStreamingCall<GetPortMappingsResponse> cursor = _relayRpcClient.GetPortMappings(request, null, null, cancellationToken);
 		await foreach (GetPortMappingsResponse response in cursor.ResponseStream.ReadAllAsync(cancellationToken))
 		{
+			if (RevisionNumber == response.RevisionCount)
+			{
+				_logger.LogDebug("Revision did not change");
+				return null;
+			}
+			RevisionNumber = response.RevisionCount;
 			return response.PortMappings.ToList();
 		}
 
-		// Should never make it here. It will be either get a return value back or get cancelled
 		return null;
 	}
 	
