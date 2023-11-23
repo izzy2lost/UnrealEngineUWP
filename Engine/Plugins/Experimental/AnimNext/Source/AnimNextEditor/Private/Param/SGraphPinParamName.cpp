@@ -29,17 +29,20 @@ TSharedRef<SWidget> SGraphPinParamName::GetDefaultValueWidget()
 	Args.bMultiSelect = false;
 
 	// Check whether this is a Set/Get parameter from block node, and if so only show bound parameters
-	if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelPin->GetOuter()))
+	if (ModelPin)
 	{
-		const FRigVMDispatchFactory* GetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetLayerParameter::StaticStruct());
-		const FName GetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
-
-		const FRigVMDispatchFactory* SetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_SetLayerParameter::StaticStruct());
-		const FName SetLayerParameterNotation = SetLayerParameterFactory->GetTemplate()->GetNotation();
-
-		if (TemplateNode->GetNotation() == GetLayerParameterNotation || TemplateNode->GetNotation() == SetLayerParameterNotation)
+		if (const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelPin->GetOuter()))
 		{
-			Args.bShowUnboundParameters = false;
+			const FRigVMDispatchFactory* GetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_GetLayerParameter::StaticStruct());
+			const FName GetLayerParameterNotation = GetLayerParameterFactory->GetTemplate()->GetNotation();
+
+			const FRigVMDispatchFactory* SetLayerParameterFactory = FRigVMRegistry::Get().FindOrAddDispatchFactory(FRigVMDispatch_SetLayerParameter::StaticStruct());
+			const FName SetLayerParameterNotation = SetLayerParameterFactory->GetTemplate()->GetNotation();
+
+			if (TemplateNode->GetNotation() == GetLayerParameterNotation || TemplateNode->GetNotation() == SetLayerParameterNotation)
+			{
+				Args.bShowUnboundParameters = false;
+			}
 		}
 	}
 	
