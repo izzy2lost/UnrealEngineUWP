@@ -67,7 +67,7 @@ namespace PCGGraphParametersHelpersPrivate
 			return T{};
 		}
 
-		if constexpr (std::is_pointer_v<U>)
+		if constexpr (!std::is_same_v<T, U> && std::is_pointer_v<U>)
 		{
 			static_assert(std::is_same_v<T, std::remove_pointer_t<U>>);
 			return Result.GetValue() ? *Result.GetValue() : T{};
@@ -187,6 +187,16 @@ TSoftClassPtr<UObject> UPCGGraphParametersHelpers::GetSoftClassParameter(const U
 	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<TSoftClassPtr<UObject>>(GraphInterface, Name);
 }
 
+UObject* UPCGGraphParametersHelpers::GetObjectParameter(const UPCGGraphInterface* GraphInterface, const FName Name)
+{
+	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<UObject*>(GraphInterface, Name);
+}
+
+UClass* UPCGGraphParametersHelpers::GetClassParameter(const UPCGGraphInterface* GraphInterface, const FName Name)
+{
+	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<UClass*>(GraphInterface, Name);
+}
+
 FVector UPCGGraphParametersHelpers::GetVectorParameter(const UPCGGraphInterface* GraphInterface, const FName Name)
 {
 	return PCGGraphParametersHelpersPrivate::ValidateAndReturnResult<FVector, FVector*>(GraphInterface, Name);
@@ -277,6 +287,16 @@ void UPCGGraphParametersHelpers::SetSoftObjectParameter(UPCGGraphInterface* Grap
 }
 
 void UPCGGraphParametersHelpers::SetSoftClassParameter(UPCGGraphInterface* GraphInterface, const FName Name, const TSoftClassPtr<UObject>& Value)
+{
+	PCGGraphParametersHelpersPrivate::ValidateAndSetValue(GraphInterface, Name, Value);
+}
+
+void UPCGGraphParametersHelpers::SetObjectParameter(UPCGGraphInterface* GraphInterface, const FName Name, UObject* Value)
+{
+	PCGGraphParametersHelpersPrivate::ValidateAndSetValue(GraphInterface, Name, Value);
+}
+
+void UPCGGraphParametersHelpers::SetClassParameter(UPCGGraphInterface* GraphInterface, const FName Name, UClass* Value)
 {
 	PCGGraphParametersHelpersPrivate::ValidateAndSetValue(GraphInterface, Name, Value);
 }

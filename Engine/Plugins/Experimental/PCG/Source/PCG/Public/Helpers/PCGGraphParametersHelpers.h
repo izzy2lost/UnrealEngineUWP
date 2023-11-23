@@ -52,13 +52,19 @@ public:
 	static uint8 GetEnumParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static FSoftObjectPath GetSoftObjectPathParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
 	static TSoftObjectPtr<UObject> GetSoftObjectParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
 	static TSoftClassPtr<UObject> GetSoftClassParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
-	static FSoftObjectPath GetSoftObjectPathParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+	static UObject* GetObjectParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static UClass* GetClassParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
 	static FVector GetVectorParameter(const UPCGGraphInterface* GraphInterface, const FName Name);
@@ -117,6 +123,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
 	static void SetSoftClassParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const TSoftClassPtr<UObject>& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetObjectParameter(UPCGGraphInterface* GraphInterface, const FName Name, UObject* Value);
+
+	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
+	static void SetClassParameter(UPCGGraphInterface* GraphInterface, const FName Name, UClass* Value);
 
 	UFUNCTION(BlueprintCallable, Category = "PCG|Graph Parameters")
 	static void SetVectorParameter(UPCGGraphInterface* GraphInterface, const FName Name, UPARAM(ref) const FVector& Value);

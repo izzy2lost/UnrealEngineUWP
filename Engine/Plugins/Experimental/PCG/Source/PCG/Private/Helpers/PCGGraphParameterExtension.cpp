@@ -63,6 +63,14 @@ template<> TValueOrError<TSoftClassPtr<UObject>, EPropertyBagResult> FPCGGraphPa
 	TValueOrError<TSoftClassPtr<UObject>, EPropertyBagResult> FinalResult(MakeValue(TSoftClassPtr<UObject>(InitialResult.GetValue())));
 	return FinalResult;
 }
+template<> TValueOrError<UObject*, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
+{
+	return PropertyBag.GetValueObject<UObject>(PropertyName);
+}
+template<> TValueOrError<UClass*, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
+{
+	return PropertyBag.GetValueClass(PropertyName);
+}
 template<> TValueOrError<FVector*, EPropertyBagResult> FPCGGraphParameterExtension::GetGraphParameter(const FInstancedPropertyBag& PropertyBag, const FName PropertyName)
 {
 	return PropertyBag.GetValueStruct<FVector>(PropertyName);
@@ -146,6 +154,14 @@ template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FIn
 template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, const TSoftClassPtr<UObject>& Value)
 {
 	return PropertyBag.SetValueSoftPath(PropertyName, Value.ToSoftObjectPath());
+}
+template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, UObject* const& Value)
+{
+	return PropertyBag.SetValueObject<UObject>(PropertyName, Value);
+}
+template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, UClass* const& Value)
+{
+	return PropertyBag.SetValueClass(PropertyName, Value);
 }
 template<> EPropertyBagResult FPCGGraphParameterExtension::SetGraphParameter(FInstancedPropertyBag& PropertyBag, const FName PropertyName, const FVector& Value)
 {
