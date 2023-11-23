@@ -12,6 +12,7 @@ NiagaraRenderer.h: Base class for Niagara render modules
 #include "NiagaraGPUSortInfo.h"
 #include "NiagaraSystemInstance.h"
 #include "NiagaraGPUSceneUtils.h"
+#include "InstanceUniformShaderParameters.h"
 
 class FNiagaraDataSet;
 struct FNiagaraDynamicDataMesh;

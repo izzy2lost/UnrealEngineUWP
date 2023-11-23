@@ -30,6 +30,10 @@
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "InstanceDataSceneProxy.h"
 
+// Useful for debugging
+#define FORCEINLINE_GPUSCENE FORCEINLINE
+//#define FORCEINLINE_GPUSCENE
+
 // Defaults to being disabled, enable using the command line argument: -CsvCategory GPUScene
 CSV_DEFINE_CATEGORY(GPUScene, false);
 
@@ -248,13 +252,6 @@ FGPUScenePrimitiveCollector::FUploadData* FGPUScenePrimitiveCollector::AllocateU
 	return GPUSceneDynamicContext->AllocateDynamicPrimitiveData();
 }
 
-struct FBVHNode
-{
-	uint32		ChildIndexes[4];
-	FVector4	ChildMin[3];
-	FVector4	ChildMax[3];
-};
-
 /**
  * Info needed by the uploader to prepare to upload a primitive.
  */
@@ -271,13 +268,7 @@ struct FPrimitiveUploadInfoHeader
 	const Nanite::FSceneProxyBase* NaniteSceneProxy = nullptr;
 	const FPrimitiveSceneInfo* PrimitiveSceneInfo = nullptr;
 };
-/**
- * Info needed by the uploader to update a primitive.
- */
-struct FPrimitiveUploadInfo : public FPrimitiveUploadInfoHeader
-{
-	FPrimitiveSceneShaderData PrimitiveSceneData;
-};
+
 /**
  * Info required by the uploader to update the instances that belong to a primitive.
  */
@@ -303,10 +294,6 @@ struct FInstanceUploadInfo
 	TConstArrayView<uint32> InstanceEditorData;
 #endif
 
-	// Used for primitives that need to create a dummy instance (they do not have instance data in the proxy)
-	FInstanceSceneData DummyInstance;
-	FRenderBounds DummyLocalBounds;
-
 	uint32 InstanceFlags = 0x0;
 
 	FRenderTransform PrimitiveToWorld;
@@ -320,9 +307,9 @@ struct FInstanceUploadInfo
 #endif
 };
 
+#if DO_CHECK
 void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffer* InstancePayloadDataBuffer)
 {
-#if DO_CHECK
 	const bool bHasRandomID			= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_RANDOM) != 0u;
 	const bool bHasCustomData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_CUSTOM_DATA) != 0u;
 	const bool bHasDynamicData		= (UploadInfo.InstanceFlags & INSTANCE_SCENE_DATA_FLAG_HAS_DYNAMIC_DATA) != 0u;
@@ -388,7 +375,7 @@ void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffe
 	else
 	{
 		check(UploadInfo.InstanceDynamicData.Num()	== (bHasDynamicData	? UploadInfo.NumInstances : 0));
-		check(UploadInfo.NumInstances == UploadInfo.PrimitiveInstances.Num());
+		check(UploadInfo.NumInstances == UploadInfo.PrimitiveInstances.Num()  || UploadInfo.NumInstances == 1 && UploadInfo.PrimitiveInstances.IsEmpty());
 	}
 
 	if (UploadInfo.PrimitiveSceneInfo)
@@ -396,8 +383,10 @@ void ValidateInstanceUploadInfo(const FInstanceUploadInfo& UploadInfo, FRDGBuffe
 		check(UploadInfo.PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() == UploadInfo.NumInstances);
 	}
 
-#endif
 }
+#else
+FORCEINLINE void ValidateInstanceUploadInfo(const FInstanceUploadInfo& , FRDGBuffer* ) {}
+#endif
 
 /**
  * Info required by the uploader to update the lightmap data for a primitive.
@@ -425,7 +414,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 	{}
 
 	/**
-	 * Return the number of primitives to upload N, GetPrimitiveInfo will be called with ItemIndex in [0,N).
+	 * Return the number of primitives to upload N, GetPrimitiveInfoHeader/GetPrimitiveShaderData will be called with ItemIndex in [0,N).
 	 */
 	FORCEINLINE int32 NumPrimitivesToUpload() const 
 	{ 
@@ -441,7 +430,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 	 * Populate the primitive info for a given item index.
 	 * 
 	 */
-	FORCEINLINE void GetPrimitiveInfoHeader(int32 ItemIndex, FPrimitiveUploadInfoHeader& PrimitiveUploadInfo) const
+	FORCEINLINE_GPUSCENE void GetPrimitiveInfoHeader(int32 ItemIndex, FPrimitiveUploadInfoHeader& PrimitiveUploadInfo) const
 	{
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
 		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
@@ -482,21 +471,17 @@ struct FUploadDataSourceAdapterScenePrimitives
 	 * Populate the primitive info for a given item index.
 	 * 
 	 */
-	FORCEINLINE void GetPrimitiveInfo(int32 ItemIndex, FPrimitiveUploadInfo& PrimitiveUploadInfo) const
+	FORCEINLINE_GPUSCENE void GetPrimitiveShaderData(int32 ItemIndex, FVector4f* RESTRICT OutData) const
 	{
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
 		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
 		check(Scene.PrimitiveSceneProxies.IsValidIndex(PrimitiveID));
 
-		GetPrimitiveInfoHeader(ItemIndex, PrimitiveUploadInfo);
-
 		const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy = Scene.PrimitiveSceneProxies[PrimitiveID];
-		const FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-
-		PrimitiveUploadInfo.PrimitiveSceneData = FPrimitiveSceneShaderData(PrimitiveSceneProxy);
+		FPrimitiveSceneShaderData::BuildDataFromProxy(PrimitiveSceneProxy, OutData);
 	}
 
-	FORCEINLINE void GetInstanceInfo(int32 ItemIndex, FInstanceUploadInfo& InstanceUploadInfo) const
+	FORCEINLINE_GPUSCENE void GetInstanceInfo(int32 ItemIndex, FInstanceUploadInfo& InstanceUploadInfo) const
 	{
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
 		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
@@ -509,35 +494,18 @@ struct FUploadDataSourceAdapterScenePrimitives
 #if DO_CHECK
 		InstanceUploadInfo.PrimitiveSceneInfo = PrimitiveSceneInfo;
 #endif
-		const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
-		InstanceUploadInfo.InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
-
-		const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
 
 		InstanceUploadInfo.InstanceSceneDataOffset = PrimitiveSceneInfo->GetInstanceSceneDataOffset();
 		check(InstanceUploadInfo.InstanceSceneDataOffset >= 0);
 		InstanceUploadInfo.InstancePayloadDataOffset = PrimitiveSceneInfo->GetInstancePayloadDataOffset();
 		InstanceUploadInfo.InstancePayloadDataStride = PrimitiveSceneInfo->GetInstancePayloadDataStride();
-
 		InstanceUploadInfo.LastUpdateSceneFrameNumber = SceneFrameNumber;
 		InstanceUploadInfo.PrimitiveID = PersistentPrimitiveIndex.Index;
-		InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
-		
 		// HACK: ignoring IsForceHidden for non-Nanite due to issues that cropped up with water rendering.
 		// TODO: Remove the IsNaniteMesh() check
 		InstanceUploadInfo.bIsPrimitiveForceHidden = PrimitiveSceneProxy->IsNaniteMesh() && PrimitiveSceneProxy->IsForceHidden();
 
-		{
-			bool bHasPrecomputedVolumetricLightmap{};
-			bool bOutputVelocity{};
-			int32 SingleCaptureIndex{};
-
-			FMatrix PreviousLocalToWorld;
-			Scene.GetPrimitiveUniformShaderParameters_RenderThread(PrimitiveSceneInfo, bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
-			InstanceUploadInfo.PrevPrimitiveToWorld = FLargeWorldRenderScalar::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), PreviousLocalToWorld);;
-		}
-
-
+		InstanceUploadInfo.InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
 		if (InstanceUploadInfo.InstanceSceneDataBuffers)
 		{
 			const FInstanceSceneDataBuffers::FReadView InstanceSceneDataBuffers = InstanceUploadInfo.InstanceSceneDataBuffers->GetReadView();
@@ -552,20 +520,41 @@ struct FUploadDataSourceAdapterScenePrimitives
 #if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = InstanceSceneDataBuffers.InstanceEditorData;
 #endif
+#if DO_CHECK
+			// This is already precomputed in the InstanceSceneDataBuffers and we don't need to do it again here, except for validation purposes
+			// TODO: this validation should (also?) move elsewhere and validate that the transform on RT matches that on GT
+			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
+			const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
+			InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+#endif
+
 		}
 		else
 		{
 			// Old path, only taken for uninstanced primitives.
+			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
+			const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
+			InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+
 			InstanceUploadInfo.InstanceFlags = 0u;
 			check(InstanceUploadInfo.InstancePayloadDataOffset == INDEX_NONE && InstanceUploadInfo.InstancePayloadDataStride == 0);
 
-			// We always create an instance to ensure that we can always use the same code paths in the shader
-			// In the future we should remove redundant data from the primitive, and then the instances should be
-			// provided by the proxy. However, this is a lot of work before we can just enable it in the base proxy class.
-			InstanceUploadInfo.DummyInstance.LocalToPrimitive.SetIdentity();
-			// TODO: replance DummyInstance with explicit primitive transform reference since it only ever is used for that case and it would be cheaper (no orthonorm etc)
-			InstanceUploadInfo.PrimitiveInstances = TConstArrayView<FInstanceSceneData>(&InstanceUploadInfo.DummyInstance, 1);
+			// empty array signals that we should use the PrimitiveToWorld as the instance transform (and that it is therefore pre-transformed).
+			InstanceUploadInfo.PrimitiveInstances = TConstArrayView<FInstanceSceneData>();
 			InstanceUploadInfo.InstanceDynamicData = TConstArrayView<FInstanceDynamicData>();
+
+#if 0
+			// NOTE: We only need this if not using the InstanceSceneDataBuffers and if the old path were to support dynamic data
+			{
+				bool bHasPrecomputedVolumetricLightmap{};
+				bool bOutputVelocity{};
+				int32 SingleCaptureIndex{};
+
+				FMatrix PreviousLocalToWorld;
+				Scene.GetPrimitiveUniformShaderParameters_RenderThread(PrimitiveSceneInfo, bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
+				InstanceUploadInfo.PrevPrimitiveToWorld = FLargeWorldRenderScalar::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), PreviousLocalToWorld);;
+			}
+#endif
 			InstanceUploadInfo.InstanceLightShadowUVBias = TConstArrayView<FVector4f>();
 			InstanceUploadInfo.InstanceCustomData = TConstArrayView<float>();
 			InstanceUploadInfo.InstanceRandomID = TConstArrayView<float>();
@@ -576,12 +565,6 @@ struct FUploadDataSourceAdapterScenePrimitives
 #if WITH_EDITOR
 			InstanceUploadInfo.InstanceEditorData = TConstArrayView<uint32>();
 #endif
-		}
-		
-		if (InstanceUploadInfo.InstanceLocalBounds.Num() == 0)
-		{
-			InstanceUploadInfo.DummyLocalBounds = PrimitiveSceneProxy->GetLocalBounds();
-			InstanceUploadInfo.InstanceLocalBounds = TConstArrayView<FRenderBounds>(&InstanceUploadInfo.DummyLocalBounds, 1);
 		}
 
 		InstanceUploadInfo.InstancePayloadExtensionCount = 0;
@@ -600,7 +583,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 		check(InstanceUploadInfo.NumInstances > 0);
 	}
 
-	FORCEINLINE bool GetLightMapInfo(int32 ItemIndex, FLightMapUploadInfo &UploadInfo) const
+	FORCEINLINE_GPUSCENE bool GetLightMapInfo(int32 ItemIndex, FLightMapUploadInfo &UploadInfo) const
 	{
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[ItemIndex];
 		const int32 PrimitiveID = Scene.GetPrimitiveIndex(PersistentPrimitiveIndex);
@@ -943,9 +926,6 @@ void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer
  */
 struct FInstanceUploadBatch
 {
-	static constexpr int32 MaxItems = 64;
-	static constexpr int32 MaxCost = MaxItems * 2; // Selected to allow filling the array when 1:1 primitive / instances
-
 	struct FItem
 	{
 		int32 ItemIndex;
@@ -959,6 +939,9 @@ struct FInstanceUploadBatch
 
 struct FInstanceBatcher
 {
+	int32 MaxItems = 64;
+	int32 MaxCost = MaxItems * 2; // Selected to allow filling the array when 1:1 primitive / instances
+
 	struct FPrimitiveItemInfo
 	{
 		int32 InstanceSceneDataUploadOffset;
@@ -975,8 +958,20 @@ struct FInstanceBatcher
 	int32 InstanceSceneDataUploadOffset = 0;
 	int32 InstancePayloadDataUploadOffset = 0; // Count of float4s
 
-	FInstanceBatcher()
+	FInstanceBatcher(bool bExecuteInParallel, int32 NumPrimitiveDataUploads)
 	{
+		if (bExecuteInParallel)
+		{
+			MaxItems = 64;
+			MaxCost = MaxItems * 2;
+		}
+		else
+		{
+			// funnel  all items into a single batch with one item per primitive.
+			MaxItems = MAX_int32;
+			MaxCost = MAX_int32;
+			UpdateBatchItems.Reserve(NumPrimitiveDataUploads);
+		}
 		CurrentBatch = &UpdateBatches.AddDefaulted_GetRef();
 	}
 
@@ -991,7 +986,7 @@ struct FInstanceBatcher
 			// Fill to minimum cost (1
 
 			// Can add one less to account for primitive cost
-			int32 MaxInstancesThisBatch = FInstanceUploadBatch::MaxCost - CurrentBatchCost - 1;
+			int32 MaxInstancesThisBatch = MaxCost - CurrentBatchCost - 1;
 
 			if (MaxInstancesThisBatch > 0)
 			{
@@ -1003,7 +998,7 @@ struct FInstanceBatcher
 			}
 
 			// Flush batch if it is not possible to add any more items (for one of the reasons)
-			if (MaxInstancesThisBatch <= 0 || CurrentBatchCost > FInstanceUploadBatch::MaxCost - 1 || CurrentBatch->NumItems >= FInstanceUploadBatch::MaxItems)
+			if (MaxInstancesThisBatch <= 0 || CurrentBatchCost > MaxCost - 1 || CurrentBatch->NumItems >= MaxItems)
 			{
 				CurrentBatchCost = 0;
 				CurrentBatch = &UpdateBatches.AddDefaulted_GetRef();
@@ -1117,7 +1112,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 			LockIfValid(RHICmdList, Uploader);
 		}
 
-		FInstanceBatcher InstanceUpdates;
+		FInstanceBatcher InstanceUpdates(bExecuteInParallel, TaskContext.NumPrimitiveDataUploads);
 
 		{
 			SCOPED_NAMED_EVENT(Primitives, FColor::Green);
@@ -1191,15 +1186,8 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 			{
 				FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
 
-				FPrimitiveUploadInfo UploadInfo;
-				UploadDataSourceAdapter.GetPrimitiveInfo(ItemIndex, UploadInfo);
-
 				FVector4f* DstData = static_cast<FVector4f*>(TaskContext.PrimitiveUploader->GetRef(ItemIndex));
-				for (uint32 VectorIndex = 0; VectorIndex < FPrimitiveSceneShaderData::DataStrideInFloat4s; ++VectorIndex)
-				{
-					DstData[VectorIndex] = UploadInfo.PrimitiveSceneData.Data[VectorIndex];
-				}
-
+				UploadDataSourceAdapter.GetPrimitiveShaderData(ItemIndex, DstData);
 			}, bExecuteInParallel ? EParallelForFlags::None : EParallelForFlags::ForceSingleThread);
 		}
 
@@ -1210,6 +1198,8 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 			ParallelForTemplate(TEXT("GPUScene Upload Instances Task"), InstanceUpdates.UpdateBatches.Num(), 1, [&TaskContext, &InstanceUpdates, &UploadDataSourceAdapter](int32 BatchIndex)
 			{
 				const FInstanceUploadBatch Batch = InstanceUpdates.UpdateBatches[BatchIndex];
+				const uint32 InstanceDataStrideInFloat4s = FInstanceSceneShaderData::GetDataStrideInFloat4s();
+				const bool bSupportsCompressedTransforms = FInstanceSceneShaderData::SupportsCompressedTransforms();
 
 				for (int32 BatchItemIndex = 0; BatchItemIndex < Batch.NumItems; ++BatchItemIndex)
 				{
@@ -1241,7 +1231,24 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 								UploadInfo.InstanceCustomDataCount,
 								RandomID,
 								UploadInfo.InstanceSceneDataBuffers->GetInstanceToPrimitiveRelative(InstanceIndex),
-								!UploadInfo.bIsPrimitiveForceHidden && UploadInfo.InstanceSceneDataBuffers->GetInstanceVisible(InstanceIndex)
+								!UploadInfo.bIsPrimitiveForceHidden && UploadInfo.InstanceSceneDataBuffers->GetInstanceVisible(InstanceIndex),
+								bSupportsCompressedTransforms
+							);
+						}
+						else if (UploadInfo.PrimitiveInstances.IsEmpty())
+						{
+							// This path should only be taken for uninstanced primitives
+							check(UploadInfo.NumInstances == 1 && InstanceIndex == 0);
+							InstanceSceneData.BuildInternal(
+								UploadInfo.PrimitiveID,
+								InstanceIndex,
+								UploadInfo.InstanceFlags,
+								UploadInfo.LastUpdateSceneFrameNumber,
+								UploadInfo.InstanceCustomDataCount,
+								RandomID,
+								UploadInfo.PrimitiveToWorld,
+								!UploadInfo.bIsPrimitiveForceHidden,
+								bSupportsCompressedTransforms
 							);
 						}
 						else
@@ -1260,9 +1267,9 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 							);
 						}
 						// RefIndex* BufferState.InstanceSceneDataSOAStride + UploadInfo.InstanceSceneDataOffset + InstanceIndex
-						const uint32 UploadInstanceItemOffset = (PrimitiveItemInfo.InstanceSceneDataUploadOffset + InstanceIndex) * FInstanceSceneShaderData::GetDataStrideInFloat4s();
+						const uint32 UploadInstanceItemOffset = (PrimitiveItemInfo.InstanceSceneDataUploadOffset + InstanceIndex) * InstanceDataStrideInFloat4s;
 
-						for (uint32 RefIndex = 0; RefIndex < FInstanceSceneShaderData::GetDataStrideInFloat4s(); ++RefIndex)
+						for (uint32 RefIndex = 0; RefIndex < InstanceDataStrideInFloat4s; ++RefIndex)
 						{
 							FVector4f* DstVector = static_cast<FVector4f*>(TaskContext.InstanceSceneUploader->Set_GetRef(UploadInstanceItemOffset + RefIndex, RefIndex * TaskContext.InstanceSceneDataSOAStride + UploadInfo.InstanceSceneDataOffset + InstanceIndex));
 							*DstVector = InstanceSceneData.Data[RefIndex];
@@ -1312,7 +1319,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 									UploadInfo.InstanceSceneDataBuffers->GetPrevInstanceToPrimitiveRelative(InstanceIndex) :
 									UploadInfo.InstanceDynamicData[InstanceIndex].ComputePrevLocalToWorld(UploadInfo.PrevPrimitiveToWorld);
 
-								if (FDataDrivenShaderPlatformInfo::GetSupportSceneDataCompressedTransforms(GMaxRHIShaderPlatform))
+								if (bSupportsCompressedTransforms)
 								{
 									check(PayloadPosition + 1 < InstancePayloadData.Num()); // Sanity check
 									FCompressedTransform CompressedPrevLocalToWorld(PrevLocalToWorld);
@@ -1469,13 +1476,13 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	}
 
 
-	FORCEINLINE TArrayView<const uint32> GetItemPrimitiveIds() const
+	FORCEINLINE_GPUSCENE TArrayView<const uint32> GetItemPrimitiveIds() const
 	{
 		return TArrayView<const uint32>(PrimitivesIds.GetData(), PrimitivesIds.Num());
 	}
 
 
-	FORCEINLINE void GetPrimitiveInfoHeader(int32 ItemIndex, FPrimitiveUploadInfoHeader& PrimitiveUploadInfo) const
+	FORCEINLINE_GPUSCENE void GetPrimitiveInfoHeader(int32 ItemIndex, FPrimitiveUploadInfoHeader& PrimitiveUploadInfo) const
 	{
 		PrimitiveUploadInfo.LightmapUploadCount = 0;
 		PrimitiveUploadInfo.NaniteSceneProxy = nullptr;
@@ -1500,10 +1507,8 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 		}
 	}
 
-	FORCEINLINE void GetPrimitiveInfo(int32 ItemIndex, FPrimitiveUploadInfo& PrimitiveUploadInfo) const
+	FORCEINLINE_GPUSCENE void GetPrimitiveShaderData(int32 ItemIndex, FVector4f* RESTRICT OutData) const
 	{
-		GetPrimitiveInfoHeader(ItemIndex, PrimitiveUploadInfo);
-
 		// Needed to ensure the link back to instance list is up to date
 		const FGPUScenePrimitiveCollector::FPrimitiveData& PrimData = PrimitiveData[ItemIndex];		
 		FPrimitiveUniformShaderParameters Tmp = *PrimData.ShaderParams;
@@ -1521,10 +1526,10 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 			Tmp.InstancePayloadDataStride = 0;
 		}
 
-		PrimitiveUploadInfo.PrimitiveSceneData = FPrimitiveSceneShaderData(Tmp);
+		FPrimitiveSceneShaderData::Setup(Tmp, OutData);
 	}
 
-	FORCEINLINE bool GetInstanceInfo(int32 ItemIndex, FInstanceUploadInfo& InstanceUploadInfo) const
+	FORCEINLINE_GPUSCENE bool GetInstanceInfo(int32 ItemIndex, FInstanceUploadInfo& InstanceUploadInfo) const
 	{
 		if (ItemIndex < PrimitiveData.Num())
 		{
@@ -1551,11 +1556,9 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 #endif
 			InstanceUploadInfo.NumInstances = PrimData.SourceData.InstanceSceneData.Num();
 			InstanceUploadInfo.bIsPrimitiveForceHidden = false;
-			// upload dummies where applicable
+			// Use primitive to world as instance transform:
 			if (InstanceUploadInfo.PrimitiveInstances.Num() == 0)
 			{
-				InstanceUploadInfo.DummyInstance.LocalToPrimitive.SetIdentity();
-				InstanceUploadInfo.PrimitiveInstances = TConstArrayView<FInstanceSceneData>(&InstanceUploadInfo.DummyInstance, 1);
 				InstanceUploadInfo.NumInstances = 1;
 			}
 
@@ -1565,7 +1568,7 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 		return false;
 	}
 
-	FORCEINLINE bool GetLightMapInfo(int32 ItemIndex, FLightMapUploadInfo& UploadInfo) const
+	FORCEINLINE_GPUSCENE bool GetLightMapInfo(int32 ItemIndex, FLightMapUploadInfo& UploadInfo) const
 	{
 		return false;
 	}

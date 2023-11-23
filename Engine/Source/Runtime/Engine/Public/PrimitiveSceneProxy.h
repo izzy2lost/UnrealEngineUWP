@@ -15,7 +15,9 @@
 #include "UniformBuffer.h"
 #include "SceneView.h"
 #include "PrimitiveUniformShaderParameters.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "InstanceUniformShaderParameters.h"
+#endif
 #include "DrawDebugHelpers.h"
 #include "Math/CapsuleShape.h"
 #include "SceneDefinitions.h"
@@ -40,6 +42,8 @@ class IHeterogeneousVolumeInterface;
 struct FPrimitiveUniformShaderParametersBuilder;
 struct FPrimitiveSceneProxyDesc;
 class IPrimitiveComponent;
+struct FRenderTransform;
+struct FRenderBounds;
 
 namespace Nanite
 {

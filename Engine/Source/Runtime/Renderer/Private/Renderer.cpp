@@ -206,7 +206,9 @@ FSceneUniformBuffer* FRendererModule::CreateSinglePrimitiveSceneUniformBuffer(FR
 				INVALID_LAST_UPDATE_FRAME,
 				0 /* Custom Data Count */,
 				0.0f /* Random ID */,
-				PrimitiveParams.LocalToRelativeWorld
+				PrimitiveParams.LocalToRelativeWorld,
+				true,
+				FInstanceSceneShaderData::SupportsCompressedTransforms()
 			);
 
 			// Set up the parameters for the LightmapSceneData from the given LCI data 
