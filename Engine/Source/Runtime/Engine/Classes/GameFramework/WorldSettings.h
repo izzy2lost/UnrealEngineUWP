@@ -12,6 +12,7 @@
 #include "GameFramework/Info.h"
 #include "Sound/AudioVolume.h"
 #include "UObject/ConstructorHelpers.h"
+#include "WorldGridPreviewer.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldSettings.generated.h"
 
@@ -624,6 +625,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = Foliage)
 	uint32 InstancedFoliageGridSize;
 
+	UPROPERTY(EditAnywhere, Category = Foliage, Transient, SkipSerialization)
+	bool bShowInstancedFoliageGrid;
+
 	UPROPERTY(EditAnywhere, Category = Landscape)
 	uint32 LandscapeSplineMeshesGridSize;
 
@@ -642,6 +646,10 @@ public:
 	/** Default size of the grid for placed elements from the editor */
 	UPROPERTY()
 	uint32 DefaultPlacementGridSize;
+#endif
+
+#if WITH_EDITOR
+	mutable TUniquePtr<FWorldGridPreviewer> InstancedFoliageGridGridPreviewer;
 #endif
 
 	/**

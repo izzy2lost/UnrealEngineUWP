@@ -18,6 +18,7 @@ void URuntimePartition::SetDefaultValues()
 	bClientOnlyVisible = false;
 	Priority = 0;
 	LoadingRange = 25600;
+	DebugColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(GetName()));
 	HLODIndex = INDEX_NONE;
 }
 

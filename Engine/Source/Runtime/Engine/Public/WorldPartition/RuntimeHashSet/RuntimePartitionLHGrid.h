@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WorldGridPreviewer.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "RuntimePartitionLHGrid.generated.h"
 
@@ -15,7 +16,8 @@ class URuntimePartitionLHGrid : public URuntimePartition
 public:
 #if WITH_EDITOR
 	//~ Begin UObject Interface.
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PreEditChange(FProperty* InPropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject Interface.
 
 	//~ Begin URuntimePartition interface
@@ -31,5 +33,12 @@ private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	uint32 CellSize;
+
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Transient, SkipSerialization)
+	bool bShowGridPreview = false;
+#endif
+
+#if WITH_EDITOR
+	TUniquePtr<FWorldGridPreviewer> WorldGridPreviewer;
 #endif
 };

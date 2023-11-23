@@ -56,16 +56,50 @@ struct FCellCoord
 	}
 };
 
-void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+static bool GPackageWasDirty = false;
+void URuntimePartitionLHGrid::PreEditChange(FProperty* InPropertyAboutToChange)
 {
-	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	GPackageWasDirty = GetPackage()->IsDirty();
+	Super::PreEditChange(InPropertyAboutToChange);
+}
+
+void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+{
+	const FName PropertyName = InPropertyChangedEvent.GetPropertyName();
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(URuntimePartitionLHGrid, CellSize))
 	{
 		CellSize = FMath::Max<int32>(CellSize, 1600);
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(URuntimePartitionLHGrid, bShowGridPreview))
+	{
+		if (bShowGridPreview)
+		{
+			check(!WorldGridPreviewer);
+			WorldGridPreviewer = MakeUnique<FWorldGridPreviewer>(GetTypedOuter<UWorld>(), false);
+		}
+		else
+		{
+			check(WorldGridPreviewer);
+			WorldGridPreviewer.Reset();
+		}
 
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+		if (!GPackageWasDirty)
+		{
+			GetPackage()->ClearDirtyFlag();
+		}
+	}
+
+	if (WorldGridPreviewer)
+	{
+		WorldGridPreviewer->CellSize = CellSize;
+		WorldGridPreviewer->GridColor = DebugColor;
+		WorldGridPreviewer->GridOffset = FVector::ZeroVector;
+		WorldGridPreviewer->LoadingRange = LoadingRange;
+		WorldGridPreviewer->Update();
+	}
+
+	Super::PostEditChangeProperty(InPropertyChangedEvent);
 }
 
 void URuntimePartitionLHGrid::InitHLODRuntimePartitionFrom(const URuntimePartition* InRuntimePartition, int32 InHLODIndex)

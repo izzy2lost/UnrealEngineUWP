@@ -86,6 +86,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	int32 LoadingRange;
 
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	FLinearColor DebugColor;
+
 	UPROPERTY()
 	int32 HLODIndex;
 #endif
