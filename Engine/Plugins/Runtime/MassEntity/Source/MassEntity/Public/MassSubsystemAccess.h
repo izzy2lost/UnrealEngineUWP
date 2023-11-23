@@ -184,8 +184,6 @@ protected:
 	template<typename T>
 	T* GetSubsystemInternal(const uint32 SystemIndex)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(Mass_GetSubsystemInternal)
-
 		if (UNLIKELY(Subsystems.IsValidIndex(SystemIndex) == false))
 		{
 			Subsystems.AddZeroed(Subsystems.Num() - SystemIndex + 1);
