@@ -71,6 +71,12 @@ void UPCGAttributeTransferSettings::ApplyDeprecation(UPCGNode* InOutNode)
 
 EPCGDataType UPCGAttributeTransferSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
+	check(InPin);
+	if (!InPin->IsOutputPin())
+	{
+		return Super::GetCurrentPinTypes(InPin);
+	}
+
 	// All pins narrow to same type, which is Point if any input is Point, otherwise Spatial
 	const bool bAnyArePoint = (GetTypeUnionOfIncidentEdges(PCGAttributeTransferConstants::TargetLabel) == EPCGDataType::Point)
 		|| (GetTypeUnionOfIncidentEdges(PCGAttributeTransferConstants::SourceLabel) == EPCGDataType::Point);
