@@ -733,6 +733,7 @@ public class BlobService : IBlobService
 		// if the blob store delete fails on the other hand we will still run a delete again during GC (as the blob is still orphaned at that point)
 		// this assumes that blob gc is based on scanning the root blob store
 		await _blobIndex.RemoveBlobFromRegionAsync(ns, blob);
+		await _blobIndex.RemoveReferencesAsync(ns, blob, null);
 
 		foreach (IBlobStore store in _blobStores)
 		{

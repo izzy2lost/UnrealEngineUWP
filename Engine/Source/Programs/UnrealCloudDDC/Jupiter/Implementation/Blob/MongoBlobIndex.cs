@@ -154,36 +154,44 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		}
 	}
 
-	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove)
+	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove)
 	{
 		IMongoCollection<MongoBlobIndexModelV0> collection = GetCollection<MongoBlobIndexModelV0>();
 
 		string nsAsString = ns.ToString();
-		List<Dictionary<string, string>> refs = referencesToRemove.Select(reference =>
+		if (referencesToRemove == null)
 		{
-			if (reference is RefBlobReference refBlobReference)
+			FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == id.ToString());
+			await collection.DeleteOneAsync(filter);
+		}
+		else
+		{
+			List<Dictionary<string, string>> refs = referencesToRemove.Select(reference =>
 			{
-				return new Dictionary<string, string>
+				if (reference is RefBlobReference refBlobReference)
 				{
-					{ "bucket", refBlobReference.Bucket.ToString() }, { "key", refBlobReference.Key.ToString() }
-				};
-			}
-			else if (reference is BlobToBlobReference blobToBlobReference)
-			{
-				return new Dictionary<string, string>
+					return new Dictionary<string, string>
+					{
+						{ "bucket", refBlobReference.Bucket.ToString() }, { "key", refBlobReference.Key.ToString() }
+					};
+				}
+				else if (reference is BlobToBlobReference blobToBlobReference)
 				{
-					{ "blob_id", blobToBlobReference.Blob.ToString()}
-				};
-			}
-			else
-			{
-				throw new NotImplementedException();
-			}
-		}).ToList();
-		UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.PullAll(m => m.References, refs);
-		FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == id.ToString());
+					return new Dictionary<string, string>
+					{
+						{ "blob_id", blobToBlobReference.Blob.ToString()}
+					};
+				}
+				else
+				{
+					throw new NotImplementedException();
+				}
+			}).ToList();
+			UpdateDefinition<MongoBlobIndexModelV0> update = Builders<MongoBlobIndexModelV0>.Update.PullAll(m => m.References, refs);
+			FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == id.ToString());
 
-		await collection.FindOneAndUpdateAsync(filter, update);
+			await collection.FindOneAndUpdateAsync(filter, update);	
+		}
 	}
 
 	public async Task<List<string>> GetBlobRegionsAsync(NamespaceId ns, BlobId blob)
@@ -191,7 +199,7 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		MongoBlobIndexModelV0? blobInfo = await GetBlobInfoAsync(ns, blob);
 		if (blobInfo == null)
 		{
-			throw new BlobNotFoundException(ns, blob);
+			return new List<string>();
 		}
 		return blobInfo.Regions.ToList();
 	}
@@ -206,6 +214,63 @@ public class MongoBlobIndex : MongoStore, IBlobIndex
 		FilterDefinition<MongoBlobIndexModelV0> filter = Builders<MongoBlobIndexModelV0>.Filter.Where(m => m.Ns == nsAsString && m.BlobId == sourceBlob.ToString());
 
 		await collection.FindOneAndUpdateAsync(filter, update);
+	}
+
+	public async Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize)
+	{
+		IMongoCollection<MongoBucketBlobV0> collection = GetCollection<MongoBucketBlobV0>();
+
+		FilterDefinition<MongoBucketBlobV0> filter = Builders<MongoBucketBlobV0>.Filter.Where(m => m.Ns == ns.ToString() && m.BucketId == bucket.ToString() && m.RefId == key.ToString() && m.BlobId == blobId.ToString());
+		await collection.ReplaceOneAsync(filter, new MongoBucketBlobV0(ns, bucket, key, blobId, blobSize), new ReplaceOptions() {IsUpsert = true});
+	}
+
+	public async Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
+	{
+		IMongoCollection<MongoBucketBlobV0> collection = GetCollection<MongoBucketBlobV0>();
+
+		FilterDefinition<MongoBucketBlobV0> filter = Builders<MongoBucketBlobV0>.Filter.Where(m => m.Ns == ns.ToString() && m.BucketId == bucket.ToString() && m.RefId == key.ToString());
+		await collection.DeleteManyAsync(filter);
+	}
+
+	public async Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
+	{
+		IMongoCollection<MongoBucketBlobV0> collection = GetCollection<MongoBucketBlobV0>();
+		FilterDefinition<MongoBucketBlobV0> filter = Builders<MongoBucketBlobV0>.Filter.Where(m => m.Ns == ns.ToString() && m.BucketId == bucket.ToString());
+
+		var blobStats = await collection.Aggregate()
+			.Match(filter)
+			.Group(
+				a => a.BucketId,
+				r => new
+			{
+				TotalSize = r.Sum(a => a.Size),
+				SmallestBlob = r.Min(a => a.Size),
+				LargestBlob = r.Max(a => a.Size),
+				CountOfBlobs = r.Count(),
+			}).ToListAsync();
+
+		var blobStat = blobStats.FirstOrDefault();
+
+		long countOfRefs = collection
+			.Aggregate()
+			.Match(filter)
+			.Group(m => m.RefId,
+				grouping => new { DoesNotMatter = grouping.Key })
+			.Count()
+			.First()
+			.Count;
+
+		return new BucketStats()
+		{
+			Namespace = ns,
+			Bucket = bucket,
+			CountOfRefs = countOfRefs,
+			CountOfBlobs = blobStat?.CountOfBlobs ?? 0,
+			SmallestBlobFound = (long)(blobStat?.SmallestBlob ?? 0),
+			LargestBlob = (long)(blobStat?.LargestBlob ?? 0),
+			TotalSize = blobStat?.TotalSize ?? 0,
+			AvgSize = blobStat == null ? 0 : blobStat.TotalSize / (double)blobStat.CountOfBlobs
+		};
 	}
 }
 
@@ -240,4 +305,44 @@ class MongoBlobIndexModelV0
 	[BsonDictionaryOptions(DictionaryRepresentation.Document)]
 	public List<Dictionary<string, string>> References { get; set; } = new List<Dictionary<string, string>>();
 
+}
+
+[BsonDiscriminator("bucket-blob.v0")]
+[BsonIgnoreExtraElements]
+[MongoCollectionName("BucketBlob")]
+class MongoBucketBlobV0
+{
+	[BsonConstructor]
+	public MongoBucketBlobV0(string ns, string bucketId, string refId, string blobId, long size)
+	{
+		Ns = ns;
+		BucketId = bucketId;
+		RefId = refId;
+		BlobId = blobId;
+		Size = size;
+	}
+
+	public MongoBucketBlobV0(NamespaceId ns, BucketId bucketId, RefId refId, BlobId blobId, long size)
+	{
+		Ns = ns.ToString();
+		BucketId = bucketId.ToString();
+		RefId = refId.ToString();
+		BlobId = blobId.ToString();
+		Size = size;
+	}
+
+	[BsonRequired]
+	public string Ns { get; set; }
+
+	[BsonRequired]
+	public string BucketId { get;set; }
+
+	[BsonRequired]
+	public string RefId { get;set; }
+
+	[BsonRequired]
+	public string BlobId { get;set; }
+
+	[BsonRequired]
+	public long Size { get;set; }
 }

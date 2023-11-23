@@ -2,11 +2,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
 using EpicGames.Horde.Storage;
+using Jupiter.Common;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
@@ -17,15 +19,19 @@ public class ScyllaBlobIndex : IBlobIndex
 	private readonly IScyllaSessionManager _scyllaSessionManager;
 	private readonly IOptionsMonitor<JupiterSettings> _jupiterSettings;
 	private readonly IOptionsMonitor<ScyllaSettings> _scyllaSettings;
+	private readonly INamespacePolicyResolver _namespacePolicyResolver;
 	private readonly Tracer _tracer;
 	private readonly ISession _session;
 	private readonly Mapper _mapper;
+	private readonly PreparedStatement _getBucketStatsStatement;
+	private readonly PreparedStatement _getBucketStatsRefsStatement;
 
-	public ScyllaBlobIndex(IScyllaSessionManager scyllaSessionManager, IOptionsMonitor<JupiterSettings> jupiterSettings, IOptionsMonitor<ScyllaSettings> scyllaSettings, Tracer tracer)
+	public ScyllaBlobIndex(IScyllaSessionManager scyllaSessionManager, IOptionsMonitor<JupiterSettings> jupiterSettings, IOptionsMonitor<ScyllaSettings> scyllaSettings, INamespacePolicyResolver namespacePolicyResolver, Tracer tracer)
 	{
 		_scyllaSessionManager = scyllaSessionManager;
 		_jupiterSettings = jupiterSettings;
 		_scyllaSettings = scyllaSettings;
+		_namespacePolicyResolver = namespacePolicyResolver;
 		_tracer = tracer;
 		_session = scyllaSessionManager.GetSessionForReplicatedKeyspace();
 		_mapper = new Mapper(_session);
@@ -59,7 +65,29 @@ public class ScyllaBlobIndex : IBlobIndex
 				PRIMARY KEY ((namespace, blob_id), reference_id)
 			);"
 			));
+
+			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS bucket_referenced_blobs (
+				namespace text,
+				bucket_id text,
+				hash_prefix text,
+				blob_id blob,
+				size bigint,
+				PRIMARY KEY ((namespace, bucket_id, hash_prefix), blob_id)
+			);"
+			));
+
+			_session.Execute(new SimpleStatement(@$"CREATE TABLE IF NOT EXISTS bucket_referenced_ref (
+				namespace text,
+				bucket_id text,
+				hash_prefix text,
+				reference_id text,
+				PRIMARY KEY ((namespace, bucket_id, hash_prefix), reference_id)
+			);"
+			));
 		}
+
+		_getBucketStatsStatement = _session.Prepare("select count(blob_id), min(size), max(size), sum(size) from bucket_referenced_blobs WHERE namespace = ? AND bucket_id = ?  AND hash_prefix = ?");
+		_getBucketStatsRefsStatement = _session.Prepare("select count(reference_id) from bucket_referenced_ref WHERE namespace = ? AND bucket_id = ?  AND hash_prefix = ?");
 	}
 
 	public async Task AddBlobToIndexAsync(NamespaceId ns, BlobId id, string? region = null)
@@ -253,35 +281,176 @@ public class ScyllaBlobIndex : IBlobIndex
 		await Task.WhenAll(refUpdateTasks);
 	}
 
-	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove)
+	public async Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove)
 	{
 		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.remove_ref_blobs");
 
 		string nsAsString = ns.ToString();
-		int countOfReferencesToRemove = referencesToRemove.Count;
-		Task[] refUpdateTasks = new Task[countOfReferencesToRemove];
-		for (int i = 0; i < countOfReferencesToRemove; i++)
+
+		if (referencesToRemove == null)
 		{
-			BaseBlobReference baseRef = referencesToRemove[i];
-			ScyllaBlobIncomingReference incomingReference;
+			await _mapper.DeleteAsync<ScyllaBlobIncomingReference>("WHERE namespace = ? AND blob_id = ?", nsAsString, id.ToString());
+		}
+		else
+		{
+			int countOfReferencesToRemove = referencesToRemove.Count;
+			Task[] removeRefTasks = new Task[countOfReferencesToRemove];
+			for (int i = 0; i < countOfReferencesToRemove; i++)
+			{
+				BaseBlobReference baseRef = referencesToRemove[i];
+				ScyllaBlobIncomingReference incomingReference;
 
-			if (baseRef is RefBlobReference refBlobReference)
-			{
-				incomingReference = new ScyllaBlobIncomingReference(nsAsString, id, refBlobReference.Key, refBlobReference.Bucket);
-			}
-			else if (baseRef is BlobToBlobReference blobToBlobReference)
-			{
-				incomingReference = new ScyllaBlobIncomingReference(nsAsString, id, blobToBlobReference.Blob);
-			}
-			else
-			{
-				throw new NotImplementedException("Unknown blob reference type");
+				if (baseRef is RefBlobReference refBlobReference)
+				{
+					incomingReference = new ScyllaBlobIncomingReference(nsAsString, id, refBlobReference.Key, refBlobReference.Bucket);
+				}
+				else if (baseRef is BlobToBlobReference blobToBlobReference)
+				{
+					incomingReference = new ScyllaBlobIncomingReference(nsAsString, id, blobToBlobReference.Blob);
+				}
+				else
+				{
+					throw new NotImplementedException("Unknown blob reference type");
+				}
+
+				removeRefTasks[i] =  _mapper.DeleteAsync<ScyllaBlobIncomingReference>(incomingReference);
 			}
 
-			refUpdateTasks[i] =  _mapper.InsertAsync<ScyllaBlobIncomingReference>(incomingReference);
+			await Task.WhenAll(removeRefTasks);
+		}
+	}
+
+	public async Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize)
+	{
+		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.add_bucket_blob");
+
+		int? ttl = null;
+		NamespacePolicy policy = _namespacePolicyResolver.GetPoliciesForNs(ns);
+		NamespacePolicy.StoragePoolGCMethod gcMethod = policy.GcMethod ?? NamespacePolicy.StoragePoolGCMethod.LastAccess;
+		if (gcMethod == NamespacePolicy.StoragePoolGCMethod.TTL)
+		{
+			ttl = (int)policy.DefaultTTL.TotalSeconds;
+	}
+
+		string nsAsString = ns.ToString();
+		ScyllaBucketReferencedBlob blobRef = new ScyllaBucketReferencedBlob(nsAsString, bucket, blobId, blobSize);
+		Task insertBlobRefTask = _mapper.InsertAsync<ScyllaBucketReferencedBlob>(blobRef, ttl: ttl, insertNulls: false);
+
+		ScyllaBucketReferencedRef refReference = new ScyllaBucketReferencedRef(nsAsString, bucket, key);
+		Task insertRefRefTask = _mapper.InsertAsync<ScyllaBucketReferencedRef>(refReference, ttl: ttl, insertNulls: false);
+
+		await Task.WhenAll(insertRefRefTask, insertBlobRefTask);
+	}
+
+	public async Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
+	{
+		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.remove_bucket_blob");
+
+		string nsAsString = ns.ToString();
+		List<Task> deleteBlobTasks = new List<Task>();
+		foreach (BlobId blobId in blobIds)
+		{
+			ScyllaBucketReferencedBlob blobRef = new ScyllaBucketReferencedBlob(nsAsString, bucket, blobId);
+			deleteBlobTasks.Add(_mapper.DeleteAsync<ScyllaBucketReferencedBlob>(blobRef));
+		}
+	
+		ScyllaBucketReferencedRef refReference = new ScyllaBucketReferencedRef(nsAsString, bucket, key);
+		Task deleteRefRefTask = _mapper.DeleteAsync<ScyllaBucketReferencedRef>(refReference);
+
+		await Task.WhenAll(deleteBlobTasks);
+		await deleteRefRefTask;
+	}
+
+	public async Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
+	{
+		using TelemetrySpan scope =  _tracer.BuildScyllaSpan("scylla.calc_bucket_stats");
+
+		string nsAsString = ns.ToString();
+		string bucketAsString = bucket.ToString();
+
+		int totalCountOfRefs = 0;
+		int totalCountOfBlobs = 0;
+		int smallestBlobFound = int.MaxValue;
+		int largestBlobFound = 0;
+		long totalSizeOfBlobs = 0;
+
+		string[] hashPrefixes = new string[65536];
+		int i = 0;
+		for (int a = 0; a <= byte.MaxValue; a++)
+		{
+			for (int b = 0; b <= byte.MaxValue; b++)
+			{
+				hashPrefixes[i] = StringUtils.FormatAsHexString(new byte[] { (byte)a, (byte)b }).ToLower();
+				i++;
+			}
 		}
 
-		await Task.WhenAll(refUpdateTasks);
+		Debug.Assert(i == 65536);
+
+		const int DegreeOfParallelism = 32;
+		await Parallel.ForEachAsync(hashPrefixes, new ParallelOptions {MaxDegreeOfParallelism = DegreeOfParallelism}, async (hashPrefix, token) =>
+		{
+			Task calcRefStats = Task.Run(async () =>
+			{
+				BoundStatement? boundStatement = _getBucketStatsRefsStatement.Bind(nsAsString, bucketAsString, hashPrefix);
+				RowSet? rowSet = await _session.ExecuteAsync(boundStatement);
+				foreach (Row row in rowSet)
+				{
+					int countOfRefs = (int)(long)row["system.count(reference_id)"];
+
+					totalCountOfRefs += countOfRefs;
+				}
+			}, token);
+
+			Task calcBlobStats = Task.Run(async () =>
+			{
+				// blob stats
+				BoundStatement? boundStatement = _getBucketStatsStatement.Bind(nsAsString, bucketAsString, hashPrefix);
+
+				RowSet? rowSet = await _session.ExecuteAsync(boundStatement);
+
+				bool rowFetched = false;
+				foreach (Row row in rowSet)
+				{
+					if (rowFetched)
+					{
+						throw new Exception("Multiple rows when fetching bucket stats, this is not expected");
+					}
+
+					rowFetched = true;
+
+					if (row["system.min(size)"] == null)
+					{
+						// no results
+						continue;
+					}
+
+					int countOfBlobs = (int)(long)row["system.count(blob_id)"];
+					int smallestBlob = (int)(long)row["system.min(size)"];
+					int largestBlob = (int)(long)row["system.max(size)"];
+					long sumSizeOfBlobs = (long)row["system.sum(size)"];
+
+					totalCountOfBlobs += countOfBlobs;
+					smallestBlobFound = Math.Min(smallestBlob, smallestBlobFound);
+					largestBlobFound = Math.Max(largestBlob, largestBlobFound);
+					totalSizeOfBlobs += sumSizeOfBlobs;
+				}
+			}, token);
+
+			await Task.WhenAll(calcRefStats, calcBlobStats);
+		});
+
+		return new BucketStats
+		{
+			Namespace = ns,
+			Bucket = bucket,
+			CountOfRefs = totalCountOfRefs,
+			CountOfBlobs = totalCountOfBlobs,
+			SmallestBlobFound = smallestBlobFound,
+			LargestBlob = largestBlobFound,
+			TotalSize = totalSizeOfBlobs,
+			AvgSize = totalSizeOfBlobs / (double)totalCountOfBlobs
+		};
 	}
 }
 
@@ -429,4 +598,88 @@ class ScyllaBlobIncomingReference
 
 	[Cassandra.Mapping.Attributes.Column("reference_type")]
 	public short ReferenceType { get; set; }
+}
+
+[Cassandra.Mapping.Attributes.Table("bucket_referenced_blobs")]
+class ScyllaBucketReferencedBlob
+{
+	public ScyllaBucketReferencedBlob()
+	{
+		Namespace = null!;
+		Bucket = null!;
+		HashPrefix = null!;
+		BlobId = null!;
+		Size = 0;
+	}
+	
+	public ScyllaBucketReferencedBlob(string @namespace, BucketId bucket, BlobId blobId)
+	{
+		Namespace = @namespace;
+		Bucket = bucket.ToString();
+		HashPrefix = StringUtils.FormatAsHexLowerString(blobId.HashData).Substring(0, 4);
+		BlobId = blobId.HashData;
+		Size = 0;
+	}
+
+	public ScyllaBucketReferencedBlob(string @namespace, BucketId bucket, BlobId blobId, long blobSize)
+	{
+		Namespace = @namespace;
+		Bucket = bucket.ToString();
+		HashPrefix = StringUtils.FormatAsHexLowerString(blobId.HashData).Substring(0, 4);
+		BlobId = blobId.HashData;
+		Size = blobSize;
+	}
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	public string Namespace { get; set; }
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	[Cassandra.Mapping.Attributes.Column("bucket_id")]
+	public string Bucket { get; set; }
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	[Cassandra.Mapping.Attributes.Column("hash_prefix")]
+	public string HashPrefix { get; set; }
+
+	[Cassandra.Mapping.Attributes.ClusteringKey]
+	[Cassandra.Mapping.Attributes.Column("blob_id")]
+	public byte[] BlobId { get; set; }
+
+	[Cassandra.Mapping.Attributes.Column("size")]
+	public long Size { get; set; }
+}
+
+[Cassandra.Mapping.Attributes.Table("bucket_referenced_ref")]
+class ScyllaBucketReferencedRef
+{
+	public ScyllaBucketReferencedRef()
+	{
+		Namespace = null!;
+		Bucket = null!;
+		HashPrefix = null!;
+		ReferenceId = null!;
+	}
+	
+	public ScyllaBucketReferencedRef(string @namespace, BucketId bucket, RefId refId)
+	{
+		Namespace = @namespace;
+		Bucket = bucket.ToString();
+		HashPrefix = refId.ToString().Substring(0, 4);
+		ReferenceId = refId.ToString();
+	}
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	public string Namespace { get; set; }
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	[Cassandra.Mapping.Attributes.Column("bucket_id")]
+	public string Bucket { get; set; }
+
+	[Cassandra.Mapping.Attributes.PartitionKey]
+	[Cassandra.Mapping.Attributes.Column("hash_prefix")]
+	public string HashPrefix { get; set; }
+
+	[Cassandra.Mapping.Attributes.ClusteringKey]
+	[Cassandra.Mapping.Attributes.Column("reference_id")]
+	public string ReferenceId { get; set; }
 }

@@ -49,7 +49,7 @@ public class CachedBlobIndex : IBlobIndex
 		throw new NotImplementedException();
 	}
 
-	public Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference> referencesToRemove)
+	public Task RemoveReferencesAsync(NamespaceId ns, BlobId id, List<BaseBlobReference>? referencesToRemove)
 	{
 		// We do not actually track any blob information when running in cached mode
 		return Task.CompletedTask;
@@ -61,6 +61,21 @@ public class CachedBlobIndex : IBlobIndex
 	}
 
 	public Task AddBlobReferencesAsync(NamespaceId ns, BlobId sourceBlob, BlobId targetBlob)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Task AddBlobToBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobId, long blobSize)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Task RemoveBlobFromBucketListAsync(NamespaceId ns, BucketId bucket, RefId key, List<BlobId> blobIds)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Task<BucketStats> CalculateBucketStatisticsAsync(NamespaceId ns, BucketId bucket)
 	{
 		throw new NotImplementedException();
 	}

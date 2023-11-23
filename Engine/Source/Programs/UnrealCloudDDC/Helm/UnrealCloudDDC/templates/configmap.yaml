@@ -37,6 +37,10 @@ UnrealCloudDDC:
   EnableLastAccessTracking: {{ $config.EnableLastAccessTracking }}
 {{- end -}}
 
+{{- if $config.EnableBucketStatsTracking -}}
+  EnableBucketStatsTracking: {{ $config.EnableBucketStatsTracking }}
+{{- end -}}
+
 {{ if $config.StorageImplementations }}
   StorageImplementations:
   {{- range $config.StorageImplementations -}}

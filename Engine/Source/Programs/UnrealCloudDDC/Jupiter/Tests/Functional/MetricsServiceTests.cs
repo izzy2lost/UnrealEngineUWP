@@ -16,6 +16,7 @@ using Serilog;
 using Serilog.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
+using Jupiter.Implementation.Blob;
 
 namespace Jupiter.FunctionalTests.Metrics
 {
@@ -31,6 +32,17 @@ namespace Jupiter.FunctionalTests.Metrics
 		}
 	}
 
+	[TestClass]
+	[DoNotParallelize]
+	public class MongoMetricsServiceTests : MetricsServiceTests
+	{
+		protected override NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace-metrics");
+
+		protected override string GetImplementation()
+		{
+			return "Mongo";
+		}
+	}
 	
 	public abstract class MetricsServiceTests : IDisposable
 	{
@@ -126,6 +138,7 @@ namespace Jupiter.FunctionalTests.Metrics
 				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
 				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", GetImplementation()),
 				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
+				new KeyValuePair<string, string>("UnrealCloudDDC:EnableBucketStatsTracking", "true"),
 			};
 		}
 
@@ -146,18 +159,18 @@ namespace Jupiter.FunctionalTests.Metrics
 			Assert.AreEqual(5, stats0.CountOfRefs);
 			Assert.AreEqual(2, stats1.CountOfRefs);
 
-			Assert.AreEqual(5, stats0.CountOfBlobs);
-			Assert.AreEqual(2, stats1.CountOfBlobs);
+			Assert.AreEqual(10, stats0.CountOfBlobs);
+			Assert.AreEqual(4, stats1.CountOfBlobs);
 
-			Assert.AreEqual(95, stats0.TotalSize);
+			Assert.AreEqual(265, stats0.TotalSize);
 			Assert.AreEqual(1, stats0.SmallestBlobFound);
 			Assert.AreEqual(44, stats0.LargestBlob);
-			Assert.AreEqual(19.0, stats0.AvgSize);
+			Assert.AreEqual(26.5, stats0.AvgSize);
 
-			Assert.AreEqual(10, stats1.TotalSize);
+			Assert.AreEqual(78, stats1.TotalSize);
 			Assert.AreEqual(4, stats1.SmallestBlobFound);
-			Assert.AreEqual(6, stats1.LargestBlob);
-			Assert.AreEqual(5, stats1.AvgSize);
+			Assert.AreEqual(34, stats1.LargestBlob);
+			Assert.AreEqual(19.5, stats1.AvgSize);
 		}
 
 		[TestMethod]

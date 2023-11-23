@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using Jupiter.Common;
+using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
@@ -22,17 +23,24 @@ namespace Jupiter.Implementation
 	{
 		private readonly IOptionsMonitor<GCSettings> _settings;
 		private readonly IReferencesStore _referencesStore;
+		private readonly IRefService _objectService;
+		private readonly IBlobIndex _blobIndex;
 		private readonly IReplicationLog _replicationLog;
 		private readonly INamespacePolicyResolver _namespacePolicyResolver;
 		private readonly Tracer _tracer;
 		private readonly ILogger _logger;
 		private readonly Gauge<long> _cleanupRefsConsidered;
+		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _cloudDDCSettings;
 
-		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IReferencesStore referencesStore,
+		public RefLastAccessCleanup(IOptionsMonitor<GCSettings> settings, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings, 
+			IReferencesStore referencesStore, IRefService objectService, IBlobIndex blobIndex, 
 			IReplicationLog replicationLog, INamespacePolicyResolver namespacePolicyResolver, Meter meter, Tracer tracer, ILogger<RefLastAccessCleanup> logger)
 		{
 			_settings = settings;
+			_cloudDDCSettings = cloudDDCSettings;
 			_referencesStore = referencesStore;
+			_objectService = objectService;
+			_blobIndex = blobIndex;
 			_replicationLog = replicationLog;
 			_namespacePolicyResolver = namespacePolicyResolver;
 			_tracer = tracer;
@@ -160,6 +168,12 @@ namespace Jupiter.Implementation
 			bool storeDelete = false;
 			try
 			{
+				if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
+				{
+					List<BlobId> blobs = await _objectService.GetReferencedBlobsAsync(ns, bucket, name);
+					await _blobIndex.RemoveBlobFromBucketListAsync(ns, bucket, name, blobs);
+				}
+
 				storeDelete = await _referencesStore.DeleteAsync(ns, bucket, name);
 				if (storeDelete && _settings.CurrentValue.WriteDeleteToReplicationLog)
 				{

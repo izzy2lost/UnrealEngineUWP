@@ -13,6 +13,7 @@ using Jupiter.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
@@ -29,8 +30,9 @@ namespace Jupiter.Implementation
 		private readonly ILastAccessTracker<LastAccessRecord> _lastAccessTracker;
 		private readonly Tracer _tracer;
 		private readonly ILogger _logger;
+		private readonly IOptionsMonitor<UnrealCloudDDCSettings> _cloudDDCSettings;
 
-		public ObjectService(IHttpContextAccessor httpContextAccessor, IReferencesStore referencesStore, IBlobService blobService, IReferenceResolver referenceResolver, IReplicationLog replicationLog, IBlobIndex blobIndex, INamespacePolicyResolver namespacePolicyResolver, ILastAccessTracker<LastAccessRecord> lastAccessTracker, Tracer tracer, ILogger<ObjectService> logger)
+		public ObjectService(IHttpContextAccessor httpContextAccessor, IReferencesStore referencesStore, IBlobService blobService, IReferenceResolver referenceResolver, IReplicationLog replicationLog, IBlobIndex blobIndex, INamespacePolicyResolver namespacePolicyResolver, ILastAccessTracker<LastAccessRecord> lastAccessTracker, Tracer tracer, ILogger<ObjectService> logger, IOptionsMonitor<UnrealCloudDDCSettings> cloudDDCSettings)
 		{
 			_httpContextAccessor = httpContextAccessor;
 			_referencesStore = referencesStore;
@@ -42,6 +44,7 @@ namespace Jupiter.Implementation
 			_lastAccessTracker = lastAccessTracker;
 			_tracer = tracer;
 			_logger = logger;
+			_cloudDDCSettings = cloudDDCSettings;
 		}
 
 		public Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[]? fields = null, bool doLastAccessTracking = true)
@@ -197,19 +200,37 @@ namespace Jupiter.Implementation
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope("ref.finalize", "Finalizing the ref");
 
 			Task addRefToBlobsTask = _blobIndex.AddRefToBlobsAsync(ns, bucket, key, new [] {blobHash});
-
+			Task addToBucketListTask = _cloudDDCSettings.CurrentValue.EnableBucketStatsTracking
+				? _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobHash, (long)payload.GetView().Length)
+				: Task.CompletedTask;
 			ContentId[] missingReferences = Array.Empty<ContentId>();
 			BlobId[] missingBlobs = Array.Empty<BlobId>();
 			bool hasReferences = HasAttachments(payload);
 			if (hasReferences)
 			{
+				List<Task> addToBucketTasks = new List<Task>();
+				List<Task> addRefMappingTasks = new List<Task>();
+
 				using TelemetrySpan _ = _tracer.StartActiveSpan("ObjectService.ResolveReferences").SetAttribute("operation.name", "ObjectService.ResolveReferences");
 				try
 				{
 					IAsyncEnumerable<BlobId> references = _referenceResolver.GetReferencedBlobs(ns, payload);
-					BlobId[] referencesArray = await references.ToArrayAsync();
-					// TODO: Blobs could be added to the blob index as we find them in the async enumerable
-					await _blobIndex.AddRefToBlobsAsync(ns, bucket, key, referencesArray);
+
+					await foreach (BlobId blobId in references)
+					{
+						if (_cloudDDCSettings.CurrentValue.EnableBucketStatsTracking)
+						{
+							addToBucketTasks.Add(Task.Run( async () =>
+							{
+								BlobContents result = await _blobService.GetObjectAsync(ns, blobId);
+								await _blobIndex.AddBlobToBucketListAsync(ns, bucket, key, blobId, result.Length);
+							}));
+						}
+
+						addRefMappingTasks.Add(_blobIndex.AddRefToBlobsAsync(ns, bucket, key, new BlobId[] {blobId}));
+					}
+
+					await Task.WhenAll(addRefToBlobsTask, addToBucketListTask, Task.WhenAll(addToBucketTasks), Task.WhenAll(addRefMappingTasks));
 				}
 				catch (PartialReferenceResolveException e)
 				{
@@ -220,8 +241,10 @@ namespace Jupiter.Implementation
 					missingBlobs = e.MissingBlobs.ToArray();
 				}
 			}
-
-			await addRefToBlobsTask;
+			else
+			{
+				await Task.WhenAll(addRefToBlobsTask, addToBucketListTask);
+			}
 
 			if (missingReferences.Length == 0 && missingBlobs.Length == 0)
 			{

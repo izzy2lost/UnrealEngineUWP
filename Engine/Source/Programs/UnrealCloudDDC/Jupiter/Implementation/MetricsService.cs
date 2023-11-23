@@ -6,13 +6,11 @@ using System.Diagnostics.Metrics;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
-using EpicGames.Serialization;
 using Jupiter.Common;
-using Jupiter.Utils;
+using Jupiter.Implementation.Blob;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OpenTelemetry.Trace;
 
 namespace Jupiter.Implementation
 {
@@ -110,46 +108,28 @@ namespace Jupiter.Implementation
 		}
 	}
 
-	public class BucketStats
-	{
-		public NamespaceId Namespace { get; set; }
-		public BucketId Bucket { get; set; }
-		public long CountOfRefs { get; set; }
-		public long CountOfBlobs { get; set; }
-		public long TotalSize { get; set; }
-		public double AvgSize { get; set; }
-		public long LargestBlob { get; set; }
-		public long SmallestBlobFound { get; set; }
-	}
-
 	public class MetricsCalculator
 	{
-		private readonly IReferencesStore _referencesStore;
-		private readonly IBlobService _blobService;
-		private readonly IReferenceResolver _referenceResolver;
+		private readonly IBlobIndex _blobIndex;
 
 		private readonly ILogger _logger;
-		private readonly Tracer _tracer;
-		private readonly Histogram<long> _blobSizeHistogram;
 		private readonly Gauge<double> _blobSizeAvgGauge;
 		private readonly Gauge<long> _blobSizeMinGauge;
 		private readonly Gauge<long> _blobSizeMaxGauge;
 		private readonly Gauge<long> _refsInBucketGauge;
 		private readonly Gauge<long> _blobSizeCountGauge;
+		private readonly Gauge<long> _blobSizeTotalGauge;
 
-		public MetricsCalculator(IReferencesStore referencesStore, IBlobService blobService, IReferenceResolver referenceResolver, Meter meter, ILogger<MetricsService> logger, Tracer tracer)
+		public MetricsCalculator(IBlobIndex blobIndex, Meter meter, ILogger<MetricsService> logger)
 		{
-			_referencesStore = referencesStore;
-			_blobService = blobService;
-			_referenceResolver = referenceResolver;
+			_blobIndex = blobIndex;
 			_logger = logger;
-			_tracer = tracer;
 
-			_blobSizeHistogram = meter.CreateHistogram<long>("blobstats.size");
 			_blobSizeAvgGauge = meter.CreateGauge<double>("blobstats.bucket_size.avg");
 			_blobSizeMinGauge = meter.CreateGauge<long>("blobstats.bucket_size.min");
 			_blobSizeMaxGauge = meter.CreateGauge<long>("blobstats.bucket_size.max");
 			_blobSizeCountGauge = meter.CreateGauge<long>("blobstats.bucket_size.count");
+			_blobSizeTotalGauge = meter.CreateGauge<long>("blobstats.bucket_size.sum,=");
 			_refsInBucketGauge = meter.CreateGauge<long>("blobstats.refs_in_bucket");
 		}
 
@@ -157,91 +137,18 @@ namespace Jupiter.Implementation
 		{
 			KeyValuePair<string, object?>[] tags = new[] { new KeyValuePair<string, object?>("Bucket", bucket.ToString()), new KeyValuePair<string, object?>("Namespace", ns.ToString()) };
 
-			try
-			{
-				long countOfRefsInBucket = 0;
-				long sizeOfBlobsInBucket = 0;
-				long countOfBlobsInBucket = 0;
-				long largestBlobFound = 0;
-				long smallestBlobFound = long.MaxValue;
-				HashSet<byte[]> alreadyCountedBlobs = new HashSet<byte[]>(ByteArrayComparer.Default);
-				await foreach ((RefId _, BlobId blobId) in _referencesStore.GetRecordsInBucketAsync(ns, bucket))
-				{
-					countOfRefsInBucket += 1;
+			BucketStats stats = await _blobIndex.CalculateBucketStatisticsAsync(ns, bucket);
 
-					using TelemetrySpan scope = _tracer.StartActiveSpan("metrics.calculate")
-						.SetAttribute("operation.name", "metrics.calculate")
-						.SetAttribute("resource.name", $"{ns}:{bucket}.{blobId}")
-						.SetAttribute("namespace", ns.ToString())
-						.SetAttribute("bucket", bucket.ToString());
-
-					try
-					{
-						BlobContents blobContents = await _blobService.GetObjectAsync(ns, blobId);
-						byte[] rawBlob = await blobContents.Stream.ToByteArrayAsync();
-						CbObject cbObject = new CbObject(rawBlob);
-						// enumerate all referenced blobs from the ref
-						await foreach (BlobId blob in _referenceResolver.GetReferencedBlobs(ns, cbObject))
-						{
-							// check to see if we have counted this blob before
-							bool added = alreadyCountedBlobs.Add(blob.HashData);
-							if (added)
-							{
-								// new blob, lets count it
-								try
-								{
-									BlobContents referencedBlob = await _blobService.GetObjectAsync(ns, blob);
-									sizeOfBlobsInBucket += referencedBlob.Length;
-
-									smallestBlobFound = Math.Min(referencedBlob.Length, smallestBlobFound);
-									largestBlobFound = Math.Max(referencedBlob.Length, largestBlobFound);
-
-									countOfBlobsInBucket += 1;
-
-									_blobSizeHistogram.Record(referencedBlob.Length, tags);
-								}
-								catch (BlobNotFoundException)
-								{
-									// if one of the referenced blobs is missing we just ignore this particular blob
-								}
-							}
-						}
-					}
-					catch (Exception e)
-					{
-						_logger.LogWarning("Unknown exception {Message} when attempting to calculate metrics for {Namespace} {Bucket}. Ignoring.", e.Message, ns, bucket);
-					}
-				}
-
-				double avgBlobSize = sizeOfBlobsInBucket / (double)countOfBlobsInBucket;
-				_blobSizeAvgGauge.Record(avgBlobSize, tags);
-				_blobSizeMinGauge.Record(smallestBlobFound, tags);
-				_blobSizeMaxGauge.Record(largestBlobFound, tags);
-				_blobSizeCountGauge.Record(countOfBlobsInBucket, tags);
-				_refsInBucketGauge.Record(countOfRefsInBucket, tags);
-
+			_blobSizeAvgGauge.Record(stats.AvgSize, tags);
+			_blobSizeMinGauge.Record(stats.SmallestBlobFound, tags);
+			_blobSizeMaxGauge.Record(stats.LargestBlob, tags);
+			_blobSizeCountGauge.Record(stats.CountOfBlobs, tags);
+			_refsInBucketGauge.Record(stats.CountOfRefs, tags);
+			_blobSizeTotalGauge.Record(stats.TotalSize, tags);
 				_logger.LogInformation("Stats calculated for {Namespace} {Bucket}. {CountOfRefs} {CountOfBlobs} {TotalSize} {AvgSize} {MaxSize} {MinSize}",
-					ns, bucket, countOfRefsInBucket, countOfBlobsInBucket, sizeOfBlobsInBucket, avgBlobSize, largestBlobFound, smallestBlobFound);
+				ns, bucket, stats.CountOfRefs, stats.CountOfBlobs, stats.TotalSize, stats.AvgSize, stats.LargestBlob, stats.SmallestBlobFound);
 
-				return new BucketStats
-				{
-					Namespace = ns,
-					Bucket = bucket,
-					CountOfRefs = countOfRefsInBucket,
-					CountOfBlobs = countOfBlobsInBucket,
-					TotalSize = sizeOfBlobsInBucket,
-					AvgSize = avgBlobSize,
-					LargestBlob = largestBlobFound,
-					SmallestBlobFound = smallestBlobFound
-				};
-
-			}
-			catch (Exception e)
-			{
-				_logger.LogError("Error calculating metrics for {Namespace} {Bucket} due to {Exception}", ns, bucket, e);
-			}
-
-			return null;
+			return stats;
 		}
 	}
 }

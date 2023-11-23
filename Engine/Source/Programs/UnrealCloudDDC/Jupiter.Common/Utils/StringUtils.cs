@@ -14,10 +14,22 @@ namespace Jupiter
 
 		public static string FormatAsHexString(byte[] data)
 		{
-			StringBuilder sb = new StringBuilder();
+			StringBuilder sb = new StringBuilder(data.Length * 2);
 			foreach (byte b in data)
 			{
 				string hex = b.ToString("X2");
+				sb.Append(hex);
+			}
+
+			return sb.ToString();
+		}
+
+		public static string FormatAsHexLowerString(byte[] data)
+		{
+			StringBuilder sb = new StringBuilder(data.Length * 2);
+			foreach (byte b in data)
+			{
+				string hex = b.ToString("x2");
 				sb.Append(hex);
 			}
 
