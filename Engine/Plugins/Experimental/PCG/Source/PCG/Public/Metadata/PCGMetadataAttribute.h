@@ -53,10 +53,18 @@ public:
 	virtual bool AreValuesEqual(PCGMetadataValueKey ValueKey1, PCGMetadataValueKey ValueKey2) const = 0;
 
 	void SetValueFromValueKey(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey);
-	void SetValuesFromValueKeys(const TArray<TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey = true);
 	PCGMetadataValueKey GetValueKey(PCGMetadataEntryKey EntryKey) const;
 	bool HasNonDefaultValue(PCGMetadataEntryKey EntryKey) const;
 	void ClearEntries();
+
+	/** Bulk getter, to lock in read only once per parent. */
+	void GetValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const;
+
+	/** Bulk setter to lock in write only once. */
+	void SetValuesFromValueKeys(const TArray<TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey = true);
+
+	/** Two arrays version of bulk setter to lock in write only once. Both arrays must be the same size. */
+	void SetValuesFromValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& ValueKeys, bool bResetValueOnDefaultValueKey = true);
 
 	bool AllowsInterpolation() const { return bAllowsInterpolation; }
 
@@ -70,6 +78,12 @@ public:
 
 	static bool IsValidName(const FString& Name);
 	static bool IsValidName(const FName& Name);
+
+private:
+	// Unsafe version, needs to be write lock protected.
+	void SetValueFromValueKey_Unsafe(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey);
+
+	void GetValueKeys_Internal(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys, TBitArray<>& UnsetValues) const;
 
 protected:
 	TMap<PCGMetadataEntryKey, PCGMetadataValueKey> EntryToValueKeyMap;

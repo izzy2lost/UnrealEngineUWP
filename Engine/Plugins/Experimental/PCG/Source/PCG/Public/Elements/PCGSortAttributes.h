@@ -4,7 +4,7 @@
 
 #include "PCGSettings.h"
 
-#include "PCGSortPoints.generated.h"
+#include "PCGSortAttributes.generated.h"
 
 /**
  * Sorts points based on an attribute.
@@ -18,22 +18,23 @@ enum class EPCGSortMethod : uint8
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
-class UPCGSortPointsSettings : public UPCGSettings
+class UPCGSortAttributesSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
 public:
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
-	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SortPoints")); }
-	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSortPointsElement", "NodeTitle", "Sort Points"); }
-	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGSortPointsElement", "NodeTooltip", "Sorts points based on an attribute."); }
+	virtual FName GetDefaultNodeName() const override;
+	virtual FText GetDefaultNodeTitle() const override;
+	virtual FText GetNodeTooltipText() const override;
+	virtual TArray<FText> GetNodeTitleAliases() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
+	virtual bool HasDynamicPins() const override { return true; }
 #endif
 
 protected:
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return Super::DefaultPointInputPinProperties(); }
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return Super::DefaultPointOutputPinProperties(); }
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
@@ -45,7 +46,7 @@ public:
 	EPCGSortMethod SortMethod = EPCGSortMethod::Ascending;
 };
 
-class FPCGSortPointsElement : public IPCGElement
+class FPCGSortAttributesElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

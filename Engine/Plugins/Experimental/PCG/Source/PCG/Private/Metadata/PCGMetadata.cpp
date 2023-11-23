@@ -105,12 +105,12 @@ void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, c
 	}
 }
 
-void UPCGMetadata::InitializeAsCopy(const UPCGMetadata* InMetadataToCopy)
+void UPCGMetadata::InitializeAsCopy(const UPCGMetadata* InMetadataToCopy, const TArray<PCGMetadataEntryKey>* EntriesToCopy)
 {
-	InitializeAsCopyWithAttributeFilter(InMetadataToCopy, TSet<FName>(), EPCGMetadataFilterMode::ExcludeAttributes);
+	InitializeAsCopyWithAttributeFilter(InMetadataToCopy, TSet<FName>(), EPCGMetadataFilterMode::ExcludeAttributes, EntriesToCopy);
 }
 
-void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMetadataToCopy, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode)
+void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMetadataToCopy, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode, const TArray<PCGMetadataEntryKey>* EntriesToCopy)
 {
 	if (!InMetadataToCopy)
 	{
@@ -131,6 +131,20 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 
 	const bool bSkipAttributesInFilterList = (InFilterMode == EPCGMetadataFilterMode::ExcludeAttributes);
 
+	const bool bPartialCopy = EntriesToCopy && EntriesToCopy->Num() <= InMetadataToCopy->GetItemCountForChild();
+	TArray<PCGMetadataEntryKey> NewEntryKeys;
+	TArray<PCGMetadataValueKey> NewValueKeys;
+	if (bPartialCopy)
+	{
+		const int32 Count = EntriesToCopy->Num();
+		NewEntryKeys.SetNumUninitialized(Count);
+		NewValueKeys.SetNumUninitialized(Count);
+		for (int32 j = 0; j < Count; ++j)
+		{
+			NewEntryKeys[j] = PCGMetadataEntryKey(j);
+		}
+	}
+
 	// Copy attributes
 	for (const TPair<FName, FPCGMetadataAttributeBase*>& OtherAttribute : InMetadataToCopy->Attributes)
 	{
@@ -139,7 +153,14 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 
 		if (!bSkipThisAttribute)
 		{
-			CopyAttribute(OtherAttribute.Value, OtherAttribute.Key, /*bKeepParent=*/false, /*bCopyEntries=*/true, /*bCopyValues=*/true);
+			// Don't copy entries if we have a partial copy, we will set them all after.
+			FPCGMetadataAttributeBase* Attribute = CopyAttribute(OtherAttribute.Value, OtherAttribute.Key, /*bKeepParent=*/false, /*bCopyEntries=*/!bPartialCopy, /*bCopyValues=*/true);
+
+			if (bPartialCopy && OtherAttribute.Value && Attribute)
+			{
+				OtherAttribute.Value->GetValueKeys(*EntriesToCopy, NewValueKeys);
+				Attribute->SetValuesFromValueKeys(NewEntryKeys, NewValueKeys);
+			}
 		}
 	}
 }

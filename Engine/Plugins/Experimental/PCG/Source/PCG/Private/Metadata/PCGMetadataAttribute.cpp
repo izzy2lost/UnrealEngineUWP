@@ -41,6 +41,22 @@ void FPCGMetadataAttributeBase::SetValueFromValueKey(PCGMetadataEntryKey EntryKe
 	EntryToValueKeyMap.FindOrAdd(EntryKey) = ValueKey;
 }
 
+void FPCGMetadataAttributeBase::SetValueFromValueKey_Unsafe(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey)
+{
+	check(EntryKey != PCGInvalidEntryKey);
+	if (EntryKey == PCGDefaultValueKey)
+	{
+		if (bResetValueOnDefaultValueKey)
+		{
+			EntryToValueKeyMap.Remove(EntryKey);
+		}
+	}
+	else
+	{
+		EntryToValueKeyMap.FindOrAdd(EntryKey) = ValueKey;
+	}
+}
+
 void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey)
 {
 	if (EntryValuePairs.IsEmpty())
@@ -51,18 +67,21 @@ void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<TTuple<PCGMe
 	FWriteScopeLock ScopeLock(EntryMapLock);
 	for (const TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>& EntryValuePair : EntryValuePairs)
 	{
-		check(EntryValuePair.Key != PCGInvalidEntryKey);
-		if (EntryValuePair.Value == PCGDefaultValueKey)
-		{
-			if (bResetValueOnDefaultValueKey)
-			{
-				EntryToValueKeyMap.Remove(EntryValuePair.Key);
-			}
-		}
-		else
-		{
-			EntryToValueKeyMap.FindOrAdd(EntryValuePair.Key, EntryValuePair.Value);
-		}
+		SetValueFromValueKey_Unsafe(EntryValuePair.Key, EntryValuePair.Value, bResetValueOnDefaultValueKey);
+	}
+}
+
+void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& ValueKeys, bool bResetValueOnDefaultValueKey)
+{
+	if (EntryKeys.IsEmpty() || EntryKeys.Num() != ValueKeys.Num())
+	{
+		return;
+	}
+
+	FWriteScopeLock ScopeLock(EntryMapLock);
+	for (int32 i = 0; i < EntryKeys.Num(); ++i)
+	{
+		SetValueFromValueKey_Unsafe(EntryKeys[i], ValueKeys[i], bResetValueOnDefaultValueKey);
 	}
 }
 
@@ -91,6 +110,72 @@ PCGMetadataValueKey FPCGMetadataAttributeBase::GetValueKey(PCGMetadataEntryKey E
 	else
 	{
 		return ValueKey;
+	}
+}
+
+void FPCGMetadataAttributeBase::GetValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const
+{
+	if (EntryKeys.IsEmpty())
+	{
+		return;
+	}
+
+	OutValueKeys.SetNumUninitialized(EntryKeys.Num());
+	// Bitset with all unset values. If we have any unset value, we will ask the parent for those.
+	TBitArray<> UnsetValues(true, EntryKeys.Num());
+
+	GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues);
+}
+
+void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys, TBitArray<>& UnsetValues) const
+{
+	check(EntryKeys.Num() == OutValueKeys.Num() && OutValueKeys.Num() == UnsetValues.Num());
+
+	bool bFoundAllKeys = true;
+	TConstSetBitIterator<> It(UnsetValues);
+	if (!It)
+	{
+		return;
+	}
+
+	EntryMapLock.ReadLock();
+
+	for (; It; ++It)
+	{
+		const int32 Index = It.GetIndex();
+		const PCGMetadataEntryKey EntryKey = EntryKeys[Index];
+
+		auto SetValueKey = [Index, &OutValueKeys, &UnsetValues](PCGMetadataValueKey ValueKey)
+		{
+			OutValueKeys[Index] = ValueKey;
+			UnsetValues[Index] = false;
+		};
+		
+		if (EntryKey == PCGInvalidEntryKey)
+		{
+			SetValueKey(PCGDefaultValueKey);
+		}
+		else if (const PCGMetadataValueKey* FoundLocalKey = EntryToValueKeyMap.Find(EntryKey))
+		{
+			SetValueKey(*FoundLocalKey);
+		}
+		else if (!Parent)
+		{
+			SetValueKey(PCGDefaultValueKey);
+		}
+		else
+		{
+			bFoundAllKeys = false;
+		}
+	}
+
+	EntryMapLock.ReadUnlock();
+
+	ensure(Parent || bFoundAllKeys);
+
+	if (Parent && !bFoundAllKeys)
+	{
+		Parent->GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues);
 	}
 }
 

@@ -219,7 +219,7 @@ void UPCGSpatialData::InitializeFromData(const UPCGSpatialData* InSource, const 
 	}
 }
 
-UPCGSpatialData* UPCGSpatialData::DuplicateData(const bool bInitializeMetadata) const
+UPCGSpatialData* UPCGSpatialData::DuplicateData(bool bInitializeMetadata) const
 {
 	UPCGSpatialData* NewSpatialData = CopyInternal();
 	check(NewSpatialData);

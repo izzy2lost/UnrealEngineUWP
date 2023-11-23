@@ -146,7 +146,7 @@ void UPCGData::Flatten()
 	}
 }
 
-UPCGData* UPCGData::DuplicateData() const
+UPCGData* UPCGData::DuplicateData(bool bInitializeMetadata) const
 {
 	return Cast<UPCGData>(StaticDuplicateObject(this, GetTransientPackage()));
 }

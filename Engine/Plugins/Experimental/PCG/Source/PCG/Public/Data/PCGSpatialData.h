@@ -47,9 +47,6 @@ public:
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const override;
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) override;
 
-	virtual UPCGSpatialData* DuplicateData() const override { return DuplicateData(/*bInitializeMetadata=*/ true); }
-	// ~End UPCGData interface
-
 	/** Virtual call to allocate a new spacial data object, duplicate this spatial data into
 	*   and parent the new metadata with this class metadata (if asked).
 	*   Should be way cheaper than DuplicateObject, since we avoid duplicating metadata.
@@ -58,7 +55,8 @@ public:
 	*   They are mainly cached values (and octree for points).
 	*   TODO: If we want to also copy those values (can be an optimization), we need to guard the copy.
 	*/
-	UPCGSpatialData* DuplicateData(const bool bInitializeMetadata) const;
+	virtual UPCGSpatialData* DuplicateData(bool bInitializeMetadata = true) const override;
+	// ~End UPCGData interface
 
 	/** Returns the dimension of the data type, which has nothing to do with the dimension of its points */
 	UFUNCTION(BlueprintCallable, Category = SpatialData)

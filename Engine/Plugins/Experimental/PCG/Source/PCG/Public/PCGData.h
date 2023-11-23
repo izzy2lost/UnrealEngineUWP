@@ -51,7 +51,7 @@ public:
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) {};
 
 	/** Return a copy of the data, with Metadata inheritence for spatial data. */
-	virtual UPCGData* DuplicateData() const;
+	virtual UPCGData* DuplicateData(bool bInitializeMetadata = true) const;
 
 	// ~Begin UObject interface
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }
@@ -239,8 +239,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Data, meta = (ScriptMethod, DeterminesOutputType = "InDataTypeClass"))
 	static TArray<UPCGData*> GetTypedInputsByTag(const FPCGDataCollection& InCollection, const FString& InTag, TArray<FPCGTaggedData>& OutTaggedData, TSubclassOf<UPCGData> InDataTypeClass = nullptr);
 
-	/** Adds a data object to a given collection, simpler usage than making a PCGTaggedData object */
-	UFUNCTION(BlueprintCallable, Category = Data, meta = (ScriptMethod))
+	/** Adds a data object to a given collection, simpler usage than making a PCGTaggedData object. InTags can be empty. */
+	UFUNCTION(BlueprintCallable, Category = Data, meta = (ScriptMethod, AutoCreateRefTerm = "InTags"))
 	static void AddToCollection(UPARAM(ref) FPCGDataCollection& InCollection, const UPCGData* InData, FName InPinLabel, TArray<FString> InTags);
 
 	// Blueprint methods to support interaction with FPCGDataCollection
