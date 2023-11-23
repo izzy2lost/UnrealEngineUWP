@@ -863,7 +863,8 @@ void UPCGLandscapeCache::SampleMetadataOnPoint(ALandscapeProxy* Landscape, FPCGP
 		return;
 	}
 
-	const FVector LocalPoint = Landscape->GetTransform().InverseTransformPosition(InOutPoint.Transform.GetLocation());
+	const FTransform LandscapeTransform = Landscape->LandscapeActorToWorld();
+	const FVector LocalPoint = LandscapeTransform.InverseTransformPosition(InOutPoint.Transform.GetLocation());
 	const FIntPoint ComponentMapKey(FMath::FloorToInt(LocalPoint.X / LandscapeInfo->ComponentSizeQuads), FMath::FloorToInt(LocalPoint.Y / LandscapeInfo->ComponentSizeQuads));
 
 #if WITH_EDITOR
