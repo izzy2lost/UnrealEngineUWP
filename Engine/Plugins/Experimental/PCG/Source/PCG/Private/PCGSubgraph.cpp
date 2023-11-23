@@ -498,27 +498,41 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 	const UPCGSubgraphSettings* Settings = Context->GetInputSettings<UPCGSubgraphSettings>();
 	check(Settings);
 
-	// TODO: only prevents A->A recursion, not A->B->A or cycles in general
-	if (Context->SourceComponent->GetGraph() == Settings->GetSubgraph())
+	const bool bIsDynamic = Settings->IsDynamicGraph();
+
+	if (bIsDynamic && !Context->bScheduledSubgraph)
 	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("FailedRecursiveSubgraph", "PCGGraph cannot include itself as a subgraph, subgraph will not be executed."));
-		return true;
+		if (Settings->SubgraphInstance && Settings->OriginalSettings)
+		{
+			// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
+			Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
+		}
 	}
 
-	if (Settings->IsDynamicGraph())
+	UPCGGraph* Subgraph = Settings->GetSubgraph();
+
+	// Implementation note: recursivity test here must be consequential with the way the compilation has been done,
+	// otherwise the other tasks will not behave as expected.
+	// If the current graph is present in the subgraph downstream, then this must be a dynamic graph execution
+	bool bIsRecursive = false;
+	if (Subgraph)
+	{
+		if (Context->Stack)
+		{
+			bIsRecursive = Subgraph->Contains(Context->Stack->GetGraphForCurrentFrame());
+		}
+		else if(Context->SourceComponent.Get())
+		{
+			bIsRecursive = Subgraph->Contains(Context->SourceComponent->GetGraph());
+		}
+	}
+
+	if (bIsDynamic || bIsRecursive)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSubgraphElement::Execute);
 
 		if (!Context->bScheduledSubgraph)
 		{
-			if (Settings->SubgraphInstance)
-			{
-				// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
-				check(Settings->OriginalSettings);
-				Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
-			}
-
-			UPCGGraph* Subgraph = Settings->GetSubgraph();
 			UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
 
 			if (Subsystem && Subgraph)
@@ -530,6 +544,12 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 				FPCGDataCollection SubgraphInputData;
 				PrepareSubgraphData(Settings, Context, Context->InputData, SubgraphInputData);
+
+				// At this point, if we're in a recursive context and we have no input, we must terminate execution
+				if (bIsRecursive && SubgraphInputData.TaggedData.IsEmpty())
+				{
+					return true;
+				}
 
 				// Prepare the invocation stack - which is the stack up to this node, and then this node
 				FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();

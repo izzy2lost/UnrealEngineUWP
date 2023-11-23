@@ -47,21 +47,13 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 		UPCGGraph* Subgraph = SubgraphNode ? SubgraphNode->GetSubgraph() : nullptr;
 		const UPCGBaseSubgraphSettings* SubgraphSettings = SubgraphNode ? Cast<const UPCGBaseSubgraphSettings>(SubgraphNode->GetSettings()) : nullptr;
 
-		// Only catch immediate infinite recursion.
-		// TODO: Add a better mechanism for detecting more complex cyclic recursions
-		// Like Graph A has subgraph node with Graph B, and Graph B has a subgraph node with Graph A (A -> B -> A)
-		// or A -> B -> C -> A, etc...
-		// NOTE (for the person that would work on it), keeping a stack of all the subgraphs is not enough, as we could already have compiled graph
-		// A, with an inclusion to graph B, but B has not yet a subgraph to A. When adding subgraph node to A in B, we will only recompile B, since A is already
-		// compiled and cached... We need to store a subgraph dependency chain to detect those more complex cases.
-		if (Subgraph == InGraph)
-		{
-			UE_LOG(LogPCG, Error, TEXT("[FPCGGraphCompiler::CompileGraph] %s cannot include itself as a subgraph, subgraph will not be executed."), *InGraph->GetName());
-			return TArray<FPCGGraphTask>();
-		}
+		// Note that recursive graphs must be dynamic by definition, as we aren't able to 'finish' emitting compiled tasks during compilation otherwise.
+		// Implementation note: it is very important that the predicate here is symmetrical with the one in the subgraph node otherwise some tasks could be missing.
+		const bool bIsRecursiveGraph = Subgraph && Subgraph->Contains(InGraph);
+		const bool bIsNonDynamic = SubgraphSettings && !SubgraphSettings->IsDynamicGraph();
+		const bool bIsNotDisabled = SubgraphSettings && SubgraphSettings->bEnabled;
 
-		const bool bIsNonDynamicAndNonDisabledSubgraphNode = (SubgraphNode && Subgraph && SubgraphSettings && !SubgraphSettings->IsDynamicGraph() && SubgraphSettings->bEnabled);
-		if (bIsNonDynamicAndNonDisabledSubgraphNode)
+		if(Subgraph && bIsNonDynamic && bIsNotDisabled && !bIsRecursiveGraph)
 		{
 			const FPCGTaskId PreId = NextId++;
 

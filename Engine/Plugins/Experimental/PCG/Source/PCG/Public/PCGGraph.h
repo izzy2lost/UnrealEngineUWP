@@ -264,13 +264,21 @@ public:
 	/** Creates an edge between two nodes/pins based on the labels. Returns true if the To node has removed other edges (happens with single pins) */
 	bool AddLabeledEdge(UPCGNode* From, const FName& InboundLabel, UPCGNode* To, const FName& OutboundLabel);
 
+	/** Returns true if the current graph contains directly the specified node. This does not query recursively (through subgraphs). */
 	bool Contains(UPCGNode* Node) const;
+
+	/** Returns true if the current graph contains a subgraph node using statically the specified graph, recursively. */
+	bool Contains(const UPCGGraph* InGraph) const;
+
 	const TArray<UPCGNode*>& GetNodes() const { return Nodes; }
 	void AddNode(UPCGNode* InNode);
 	void AddNodes(TArray<UPCGNode*>& InNodes);
 
-	/** Calls the lambda on every node in graph. */
-	void ForEachNode(const TFunction<void(UPCGNode*)>& Action) const;
+	/** Calls the lambda on every node in the graph or until the Action call returns false */
+	bool ForEachNode(TFunctionRef<bool(UPCGNode*)> Action) const;
+
+	/** Calls the lambda on every node (going through subgraphs too) or until the Action call returns false */
+	bool ForEachNodeRecursively(TFunctionRef<bool(UPCGNode*)> Action) const;
 
 	bool RemoveInboundEdges(UPCGNode* InNode, const FName& InboundLabel);
 	bool RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel);
@@ -320,7 +328,9 @@ protected:
 	void RemoveNodes_Internal(TArrayView<UPCGNode*> InNodes);
 	void AddNodes_Internal(TArrayView<UPCGNode*> InNodes);
 
-	bool IsEditorOnly_Internal(TSet<const UPCGGraph*>& VisitedGraphs) const;
+	bool IsEditorOnly_Internal() const;
+
+	bool ForEachNodeRecursively_Internal(TFunctionRef<bool(UPCGNode*)> Action, TSet<const UPCGGraph*>& VisitedGraphs) const;
 
 	/** Calculates node grid size. Not thread safe, must be called within write lock. */
 	uint32 CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, uint32 InDefaultGridSize) const;

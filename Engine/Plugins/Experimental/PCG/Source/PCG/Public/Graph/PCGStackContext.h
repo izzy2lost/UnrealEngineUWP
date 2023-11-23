@@ -80,7 +80,7 @@ public:
 	const UPCGComponent* GetRootComponent() const;
 
 	/** First (top) graph frame in stack (or null if no graph frames present). */
-	const UPCGGraph* GetRootGraph() const;
+	const UPCGGraph* GetRootGraph(int32* OutRootFrameIndex = nullptr) const;
 
 	/** Returns true if this stack is the top level/root graph, rather than in a subgraph. */
 	bool IsCurrentFrameInRootGraph() const { return GetNumGraphLevels() == 1; }

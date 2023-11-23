@@ -303,13 +303,13 @@ void UPCGGraph::PostLoad()
 	}
 
 	// Finally, apply deprecation that changes edges/rebinds
-	ForEachNode([](UPCGNode* InNode) { return InNode->ApplyDeprecationBeforeUpdatePins(); });
+	ForEachNode([](UPCGNode* InNode) { InNode->ApplyDeprecationBeforeUpdatePins(); return true; });
 
 	// Update pins on all nodes
-	ForEachNode([](UPCGNode* InNode) { return InNode->UpdatePins(); });
+	ForEachNode([](UPCGNode* InNode) { InNode->UpdatePins(); return true; });
 
 	// Finally, apply deprecation that changes edges/rebinds
-	ForEachNode([](UPCGNode* InNode) { return InNode->ApplyDeprecation(); });
+	ForEachNode([](UPCGNode* InNode) { InNode->ApplyDeprecation(); return true; });
 
 	InputNode->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
 	OutputNode->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
@@ -337,42 +337,57 @@ void UPCGGraph::PostLoad()
 
 bool UPCGGraph::IsEditorOnly() const
 {
-	TSet<const UPCGGraph*> VisitedGraphs;
-	return IsEditorOnly_Internal(VisitedGraphs);
-}
-
-bool UPCGGraph::IsEditorOnly_Internal(TSet<const UPCGGraph*>& VisitedGraphs) const
-{
 	bool bIsCurrentlyEditorOnly = (Super::IsEditorOnly() || bIsEditorOnly);
-	
-	check(!VisitedGraphs.Contains(this));
-	VisitedGraphs.Add(this);
 
 	if (!bIsCurrentlyEditorOnly)
 	{
-		// Check for any subgraphs...
-		ForEachNode([&bIsCurrentlyEditorOnly, &VisitedGraphs](UPCGNode* Node)
+		auto IsSubgraphEditorOnly = [&bIsCurrentlyEditorOnly](UPCGNode* Node)
 		{
-			// Early out if we already know this is going to be editor only
-			if (bIsCurrentlyEditorOnly)
-			{
-				return;
-			}
-
-			if (UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
+			if (const UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
 			{
 				if (const UPCGGraph* Subgraph = SubgraphNode->GetSubgraph())
 				{
-					if (!VisitedGraphs.Contains(Subgraph))
+					if (Subgraph->IsEditorOnly_Internal())
 					{
-						bIsCurrentlyEditorOnly |= Subgraph->IsEditorOnly_Internal(VisitedGraphs);
+						bIsCurrentlyEditorOnly = true;
+						return false;
 					}
 				}
 			}
-		});
+
+			return true;
+		};
+
+		ForEachNodeRecursively(IsSubgraphEditorOnly);
 	}
 
 	return bIsCurrentlyEditorOnly;
+}
+
+bool UPCGGraph::IsEditorOnly_Internal() const
+{
+	return Super::IsEditorOnly() || bIsEditorOnly;
+}
+
+bool UPCGGraph::Contains(const UPCGGraph* InGraph) const
+{
+	bool bContains = false;
+	auto ContainsSelectedGraph = [InGraph, &bContains](UPCGNode* Node)
+	{
+		if (UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
+		{
+			if (InGraph == SubgraphNode->GetSubgraph())
+			{
+				bContains = true;
+				return false; // stop execution
+			}
+		}
+
+		return true;
+	};
+
+	ForEachNodeRecursively(ContainsSelectedGraph);
+	return bContains;
 }
 
 #if WITH_EDITOR
@@ -751,15 +766,58 @@ bool UPCGGraph::RemoveEdge(UPCGNode* From, const FName& FromLabel, UPCGNode* To,
 	return TouchedNodes.Num() > 0;
 }
 
-void UPCGGraph::ForEachNode(const TFunction<void(UPCGNode*)>& Action) const
+bool UPCGGraph::ForEachNode(TFunctionRef<bool(UPCGNode*)> Action) const
 {
-	Action(InputNode);
-	Action(OutputNode);
+	if (!Action(InputNode) ||
+		!Action(OutputNode))
+	{
+		return false;
+	}
 
 	for (UPCGNode* Node : Nodes)
 	{
-		Action(Node);
+		if (!Action(Node))
+		{
+			return false;
+		}
 	}
+
+	return true;
+}
+
+bool UPCGGraph::ForEachNodeRecursively(TFunctionRef<bool(UPCGNode*)> Action) const
+{
+	TSet<const UPCGGraph*> VisitedGraphs;
+	return ForEachNodeRecursively_Internal(Action, VisitedGraphs);
+}
+
+bool UPCGGraph::ForEachNodeRecursively_Internal(TFunctionRef<bool(UPCGNode*)> Action, TSet<const UPCGGraph*>& VisitedGraphs) const
+{
+	check(!VisitedGraphs.Contains(this));
+	VisitedGraphs.Add(this);
+
+	auto RecursiveCall = [&Action, &VisitedGraphs](UPCGNode* Node) -> bool
+	{
+		if (!Action(Node))
+		{
+			return false;
+		}
+
+		if (UPCGBaseSubgraphNode* SubgraphNode = Cast<UPCGBaseSubgraphNode>(Node))
+		{
+			if (const UPCGGraph* Subgraph = SubgraphNode->GetSubgraph())
+			{
+				if (!VisitedGraphs.Contains(Subgraph))
+				{
+					return Subgraph->ForEachNodeRecursively_Internal(Action, VisitedGraphs);
+				}
+			}
+		}
+
+		return true;
+	};
+
+	return ForEachNode(RecursiveCall);
 }
 
 bool UPCGGraph::RemoveInboundEdges(UPCGNode* InNode, const FName& InboundLabel)
@@ -1170,6 +1228,7 @@ void UPCGGraph::FixInvalidEdges()
 	{
 		ValidatePins(InNode->GetInputPins(), /*bPinsAreInputs=*/true);
 		ValidatePins(InNode->GetOutputPins(), /*bPinsAreInputs=*/false);
+		return true;
 	});
 }
 

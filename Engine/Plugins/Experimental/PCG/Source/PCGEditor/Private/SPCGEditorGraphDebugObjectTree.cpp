@@ -536,7 +536,8 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 			}
 		}
 
-		UPCGGraph* TopGraph = const_cast<UPCGGraph*>(Stack.GetRootGraph());
+		int32 TopGraphIndex = INDEX_NONE;
+		UPCGGraph* TopGraph = const_cast<UPCGGraph*>(Stack.GetRootGraph(&TopGraphIndex));
 		if (!TopGraph)
 		{
 			continue;
@@ -579,7 +580,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 				const bool bIsDebuggable = (GraphBeingEdited == StackGraph);
 
 				// Top graph.
-				if (StackGraph == TopGraph)
+				if (FrameIndex == TopGraphIndex && StackGraph == TopGraph)
 				{
 					FPCGStack GraphStack = Stack;
 					GraphStack.GetStackFramesMutable().SetNum(FrameIndex + 1);

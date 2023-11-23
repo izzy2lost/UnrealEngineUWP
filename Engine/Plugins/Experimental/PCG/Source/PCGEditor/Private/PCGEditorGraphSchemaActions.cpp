@@ -324,11 +324,6 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSubgraphElement::PerformAction(UEdG
 	}
 
 	UPCGGraph* Subgraph = CastChecked<UPCGGraph>(SubgraphObjectPath.TryLoad());
-	if (Subgraph == PCGGraph)
-	{
-		UE_LOG(LogPCGEditor, Error, TEXT("Invalid Subgraph"));
-		return nullptr;
-	}
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewSubgraphElement", "PCG Editor: New Subgraph Element"), nullptr);
 	EditorGraph->Modify();

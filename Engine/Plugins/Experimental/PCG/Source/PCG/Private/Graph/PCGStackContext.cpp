@@ -136,12 +136,17 @@ const UPCGComponent* FPCGStack::GetRootComponent() const
 	return StackFrames.IsEmpty() ? nullptr : Cast<const UPCGComponent>(StackFrames[0].Object.Get());
 }
 
-const UPCGGraph* FPCGStack::GetRootGraph() const
+const UPCGGraph* FPCGStack::GetRootGraph(int32* OutRootFrameIndex) const
 {
 	for (int StackIndex = 0; StackIndex < GetStackFrames().Num(); ++StackIndex)
 	{
 		if (const UPCGGraph* Graph = Cast<const UPCGGraph>(StackFrames[StackIndex].Object.Get()))
 		{
+			if (OutRootFrameIndex)
+			{
+				*OutRootFrameIndex = StackIndex;
+			}
+
 			return Graph;
 		}
 	}
