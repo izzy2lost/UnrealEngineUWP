@@ -234,6 +234,8 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 
 	check(Collection);
 
+	// Check if subject should receive data
+
 	if (!FLiveLinkRoleTrait::Validate(Role, InStaticData))
 	{
 		if (Role == nullptr)
@@ -378,6 +380,7 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 	if (LiveLinkSubject)
 	{
 		// Dispatch it on the game thread since FLiveLinkSubject::SetStaticData asserts when called outside the game thread.
+		// Note that SetStaticData may not be needed on the hub but we might need it for interpolation or preprocessing in the future.
 		FFunctionGraphTask::CreateAndDispatchWhenReady([this, LiveLinkSubject, SubjectKey, Role, StaticData = MoveTemp(InStaticData)]() mutable
 			{
 				LiveLinkSubject->SetStaticData(Role, MoveTemp(StaticData));

@@ -4,6 +4,7 @@
 #include "LiveLinkProviderImpl.h"
 
 #include "Algo/RemoveIf.h"
+#include "Algo/Transform.h"
 #include "HAL/PlatformProcess.h"
 #include "IMessageContext.h"
 #include "LiveLinkMessages.h"
@@ -129,7 +130,7 @@ void FLiveLinkProvider::SendSubject(FName SubjectName, const FTrackedSubject& Su
 	SubjectData->SubjectName = SubjectName;
 
 	TArray<FMessageAddress> Addresses;
-	GetConnectedAddresses(Addresses);
+	GetFilteredAddresses(SubjectName, Addresses);
 
 	MessageEndpoint->Send(SubjectData, FLiveLinkSubjectDataMessage::StaticStruct(), EMessageFlags::None, GetAnnotations(), nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
@@ -145,7 +146,7 @@ void FLiveLinkProvider::SendSubjectFrame(FName SubjectName, const FTrackedSubjec
 	SubjectFrame->Time = Subject.Time;
 
 	TArray<FMessageAddress> Addresses;
-	GetConnectedAddresses(Addresses);
+	GetFilteredAddresses(SubjectName, Addresses);
 
 	MessageEndpoint->Send(SubjectFrame, FLiveLinkSubjectFrameMessage::StaticStruct(), EMessageFlags::None, GetAnnotations(), nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
@@ -207,7 +208,7 @@ void FLiveLinkProvider::ClearTrackedSubject(const FName& SubjectName)
 void FLiveLinkProvider::SendClearSubjectToConnections(FName SubjectName)
 {
 	TArray<FMessageAddress> MessageAddresses;
-	GetConnectedAddresses(MessageAddresses);
+	GetFilteredAddresses(SubjectName, MessageAddresses);
 
 	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, GetAnnotations(), nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
@@ -284,11 +285,7 @@ bool FLiveLinkProvider::UpdateSubjectStaticData(const FName SubjectName, TSubcla
 	if (ConnectedAddresses.Num() > 0)
 	{
 		TArray<FMessageAddress> Addresses;
-		Addresses.Reserve(ConnectedAddresses.Num());
-		for (const FTrackedAddress& Address : ConnectedAddresses)
-		{
-			Addresses.Add(Address.Address);
-		}
+		GetFilteredAddresses(SubjectName, Addresses);
 
 		TMap<FName, FString> Annotations;
 		Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
@@ -376,11 +373,7 @@ bool FLiveLinkProvider::UpdateSubjectFrameData(const FName SubjectName, FLiveLin
 	if (ConnectedAddresses.Num() > 0)
 	{
 		TArray<FMessageAddress> Addresses;
-		Addresses.Reserve(ConnectedAddresses.Num());
-		for (const FTrackedAddress& Address : ConnectedAddresses)
-		{
-			Addresses.Add(Address.Address);
-		}
+		GetFilteredAddresses(SubjectName, Addresses);
 
 		TMap<FName, FString> Annotations;
 		Annotations.Add(FLiveLinkMessageAnnotation::SubjectAnnotation, SubjectName.ToString());
@@ -522,4 +515,14 @@ void FLiveLinkProvider::GetConnectedAddresses(TArray<FMessageAddress>& Addresses
 	{
 		Addresses.Add(Address.Address);
 	}
+}
+
+void FLiveLinkProvider::GetFilteredAddresses(FName SubjectName, TArray<FMessageAddress>& Addresses)
+{
+	ValidateConnections();
+	Addresses.Reserve(ConnectedAddresses.Num());
+
+	Algo::TransformIf(ConnectedAddresses, Addresses,
+		[this, SubjectName](const FTrackedAddress& Address){ return ShouldTransmitToSubject_AnyThread(SubjectName, Address.Address); },
+		[](const FTrackedAddress& Address){ return Address.Address; });
 }

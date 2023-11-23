@@ -15,15 +15,14 @@ struct FLiveLinkHubUEClientInfo
 
 	FLiveLinkHubUEClientInfo() = default;
 
-	explicit FLiveLinkHubUEClientInfo(const FLiveLinkClientInfoMessage& InClientInfo, const FMessageAddress& InMessageAddress)
-		: MessageAddress(InMessageAddress)
+	explicit FLiveLinkHubUEClientInfo(const FLiveLinkClientInfoMessage& InClientInfo, FMessageAddress InMessageAddress)
+		: MessageAddress(MoveTemp(InMessageAddress))
 		, LongName(InClientInfo.LongName)
 		, Status(InClientInfo.Status)
 		, IPAddress(TEXT("192.168.0.1 (Placeholder)"))
 		, Hostname(InClientInfo.Hostname)
 		, ProjectName(InClientInfo.ProjectName)
 		, CurrentLevel(InClientInfo.CurrentLevel)
-
 	{
 	}
 
@@ -35,7 +34,7 @@ struct FLiveLinkHubUEClientInfo
    	FString LongName;
 	
 	/** Status of the client, ie. is it actively doing a take record at the moment? */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY()
 	ELiveLinkClientStatus Status = ELiveLinkClientStatus::Disconnected;
 	
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client", DisplayName = "IP Address")
@@ -53,7 +52,11 @@ struct FLiveLinkHubUEClientInfo
 	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
 	FString CurrentLevel;
 	
+	/** Subjects that should not be transmitted to this client. */
+	UPROPERTY()
+	TSet<FName> DisabledSubjects;
+	
 	/** Whether this client should receive messages. */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY()
 	bool bEnabled = true;
 };

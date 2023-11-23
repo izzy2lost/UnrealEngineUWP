@@ -92,6 +92,7 @@ private:
 				}
 
 				const FString* ProviderType = PollResult->Annotations.Find(FLiveLinkHubMessageAnnotation::ProviderTypeAnnotation);
+
 				if (ProviderType && *ProviderType == UE::LiveLinkHub::Private::LiveLinkHubProviderType)
 				{
 					AddLiveLinkSource(PollResult);
@@ -110,6 +111,14 @@ private:
 		if (ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
 		{
 			ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+			for (const FGuid& SourceId : LiveLinkClient->GetSources())
+			{
+				if (LiveLinkClient->GetSourceMachineName(SourceId).ToString() == PollResult->MachineName)
+				{
+					LiveLinkClient->RemoveSource(SourceId);
+				}
+			}
 
 			TSharedPtr<ILiveLinkSource> LiveLinkSource = MakeShared<FLiveLinkHubMessageBusSource>(FText::FromString(PollResult->Name), FText::FromString(PollResult->MachineName), PollResult->Address, PollResult->MachineTimeOffset);
 			LiveLinkClient->AddSource(LiveLinkSource);

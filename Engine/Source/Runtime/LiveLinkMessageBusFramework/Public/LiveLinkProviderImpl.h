@@ -77,7 +77,11 @@ private:
 	// Clear a existing track subject
 	void ClearTrackedSubject(const FName& SubjectName);
 
+	// Send a clear subject message to indicate that the subject should be removed from the connected client.
 	void SendClearSubjectToConnections(FName SubjectName);
+
+	// Get the connected addresses that should receive livelink data.
+	void GetFilteredAddresses(FName SubjectName, TArray<FMessageAddress>& Addresses);
 
 protected:
 	// Update connected addresses and send information to the connected source
@@ -145,6 +149,12 @@ protected:
 	virtual TMap<FName, FString> GetAnnotations() const
 	{
 		return {};
+	}
+
+	// Get whether a combination of a subject/client should receive livelink data.
+	virtual bool ShouldTransmitToSubject_AnyThread(FName SubjectName, FMessageAddress Address) const
+	{
+		return true;
 	}
 
 	// Constructor for derived classes that allows specifying that no endpoint should be created.

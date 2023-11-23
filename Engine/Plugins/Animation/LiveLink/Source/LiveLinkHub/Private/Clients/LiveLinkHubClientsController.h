@@ -18,11 +18,11 @@
 
 
 /** Controller responsible for holding the list of connected clients and creating the clients view. */
-class FLiveLinkHubClientsController : public TSharedFromThis<FLiveLinkHubClientsController>
+class FLiveLinkHubClientsController
 {
 public:
-	FLiveLinkHubClientsController(const TSharedPtr<ILiveLinkHubClientsModel>& InClientsModel)
-		: ClientsModel (InClientsModel)
+	FLiveLinkHubClientsController(const TSharedRef<ILiveLinkHubClientsModel>& InClientsModel)
+		: ClientsModel(InClientsModel)
 	{
 		ClientsModel->OnClientEvent().AddRaw(this, &FLiveLinkHubClientsController::OnClientEvent);
 		
@@ -37,8 +37,8 @@ public:
 	/** Create the widget that displays connected UE clients. */
 	TSharedRef<SWidget> MakeClientsView()
 	{
-		return SAssignNew(ClientsView, SLiveLinkHubClientsView, ClientsModel)
-			.OnClientSelected(this, &FLiveLinkHubClientsController::OnClientSelected);
+		return SAssignNew(ClientsView, SLiveLinkHubClientsView, ClientsModel.ToSharedRef())
+			.OnClientSelected_Raw(this, &FLiveLinkHubClientsController::OnClientSelected);
 	}
 
 	/** Create the widget that displays information about a given UE client. */
@@ -63,7 +63,7 @@ public:
 
 private:
 	/** Update the client info details if we received new info about it. */
-	void OnClientEvent(const FMessageAddress& MessageAddress, ILiveLinkHubClientsModel::EClientEventType EventType)
+	void OnClientEvent(FMessageAddress MessageAddress, ILiveLinkHubClientsModel::EClientEventType EventType)
 	{
 		switch (EventType)
 		{
@@ -73,9 +73,9 @@ private:
 				break;
 			case ILiveLinkHubClientsModel::EClientEventType::Modified:
 			{
-				if (TSharedPtr<FMessageAddress> ClientAddress = ClientsView->GetSelectedClient())
+				if (FMessageAddress ClientAddress = ClientsView->GetSelectedClient(); ClientAddress.IsValid())
 				{
-					if (MessageAddress == *ClientAddress)
+					if (MessageAddress == ClientAddress)
 					{
 						UpdateClientDetails(MessageAddress);
 					}
@@ -90,11 +90,11 @@ private:
 	}
 
 	/** Handler called when a client is selected in the clients view. */
-	void OnClientSelected(const TSharedPtr<FMessageAddress>& Client)
+	void OnClientSelected(FMessageAddress Client)
 	{
-		if (Client)
+		if (Client.IsValid())
 		{
-			UpdateClientDetails(*Client);
+			UpdateClientDetails(Client);
 		}
 		else
 		{
@@ -104,7 +104,7 @@ private:
 	}
 	
 	/** Handles updating client details in the client details panel. */
-	void UpdateClientDetails(const FMessageAddress& Client)
+	void UpdateClientDetails(FMessageAddress Client)
 	{
 		if (TOptional<FLiveLinkHubUEClientInfo> ClientInfo = ClientsModel->GetClientInfo(Client))
 		{

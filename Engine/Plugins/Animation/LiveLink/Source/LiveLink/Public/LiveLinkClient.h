@@ -79,6 +79,7 @@ public:
 	virtual FLiveLinkSourcePreset GetSourcePreset(FGuid SourceGuid, UObject* DuplicatedObjectOuter) const override;
 	virtual FText GetSourceType(FGuid EntryGuid) const override;
 	virtual FText GetSourceStatus(FGuid EntryGuid) const override;
+	virtual FText GetSourceMachineName(FGuid EntryGuid) const override;
 
 
 	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) override;
@@ -161,7 +162,6 @@ public:
 
 	FLiveLinkSubjectTimeSyncData GetTimeSyncData(FLiveLinkSubjectName SubjectName);
 
-	FText GetSourceMachineName(FGuid EntryGuid) const;
 	bool IsSourceStillValid(FGuid EntryGuid) const;
 	UE_DEPRECATED(4.23, "FLiveLinkClient::GetSourceTypeForEntry is deprecated. Please use GetSourceType instead!")
 	FText GetSourceTypeForEntry(FGuid EntryGuid) const { return GetSourceType(EntryGuid); }
