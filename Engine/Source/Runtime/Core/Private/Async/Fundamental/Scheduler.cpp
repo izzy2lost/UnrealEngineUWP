@@ -143,20 +143,21 @@ namespace LowLevelTasks
 		}
 	}
 
-	inline void FScheduler::ExecuteTask(FTask*& InOutTask)
+	inline FTask* FScheduler::ExecuteTask(FTask* InTask)
 	{
 		FTask* ParentTask = FTask::ActiveTask;
-		FTask::ActiveTask = InOutTask;
+		FTask::ActiveTask = InTask;
+		FTask* OutTask;
 
-		if (!InOutTask->IsBackgroundTask())
+		if (!InTask->IsBackgroundTask())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ExecuteForegroundTask);
-			InOutTask = InOutTask->ExecuteTask();
+			OutTask = InTask->ExecuteTask();
 		}
 		else
 		{
 			// Dynamic priority only enables for root task when we're not inside a named thread (i.e. GT, RT)
-			const bool bSkipPriorityChange = ParentTask || !GTaskGraphUseDynamicPrioritization || !FSchedulerTls::IsWorkerThread() || InOutTask->WasCanceledOrIsExpediting();
+			const bool bSkipPriorityChange = ParentTask || !GTaskGraphUseDynamicPrioritization || !FSchedulerTls::IsWorkerThread() || InTask->WasCanceledOrIsExpediting();
 
 			FRunnableThread* RunnableThread = nullptr;
 			if (!bSkipPriorityChange)
@@ -173,7 +174,7 @@ namespace LowLevelTasks
 
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(ExecuteBackgroundTask);
-				InOutTask = InOutTask->ExecuteTask();
+				OutTask = InTask->ExecuteTask();
 			}
 
 			if (!bSkipPriorityChange)
@@ -184,6 +185,7 @@ namespace LowLevelTasks
 		}
 
 		FTask::ActiveTask = ParentTask;
+		return OutTask;
 	}
 
 	void FScheduler::StopWorkers(bool DrainGlobalQueue)
@@ -215,8 +217,7 @@ namespace LowLevelTasks
 				{
 					while(Task)
 					{
-						ExecuteTask(Task);
-						if(Task)
+						if ((Task = ExecuteTask(Task)) != nullptr)
 						{
 							verifySlow(Task->TryPrepareLaunch());
 						}
@@ -268,10 +269,9 @@ namespace LowLevelTasks
 		else
 		{
 			FTask* TaskPtr = &Task;
-			while(TaskPtr)
+			while (TaskPtr)
 			{
-				ExecuteTask(TaskPtr);
-				if(TaskPtr)
+				if ((TaskPtr = ExecuteTask(TaskPtr)) != nullptr)
 				{
 					verifySlow(TaskPtr->TryPrepareLaunch());
 				}
@@ -316,25 +316,20 @@ namespace LowLevelTasks
 			if constexpr (bIsBusyWaiting)
 			{
 				FTask::FInitData InitData = Task->GetInitData();
-				bool bAllowBusyWaiting = EnumHasAnyFlags(InitData.Flags, ETaskFlags::AllowBusyWaiting) || Task->WasCanceledOrIsExpediting();
-				
-				if (!bAllowBusyWaiting || AnyExecuted)
+				const bool bAllowBusyWaiting = EnumHasAnyFlags(InitData.Flags, ETaskFlags::AllowBusyWaiting) || Task->WasCanceledOrIsExpediting();
+
+				if (!bAllowBusyWaiting)
 				{
-					//either the task is not allowed during busy waiting or we have a  
-					//symetric switching task that we do not want to execute during BusyWaiting
-					//in either case we requeue and try again or we exit early with success.
-					QueueRegistry.Enqueue(Task, uint32(InitData.Priority));
+					// The task is not allowed during busy waiting so requeue in a different
+					// queue to make sure we won't pick it up again.
+					constexpr static bool bAllowInsideBusyWaiting = false;
+					QueueRegistry.Enqueue<bAllowInsideBusyWaiting>(Task, uint32(InitData.Priority));
 
-					if (AnyExecuted)
-					{
-						return AnyExecuted;
-					}
-
+					// Fetch another task we could potentially run.
 					Task = (Queue->*DequeueFunction)(bPermitBackgroundWork);
-					if(Task == nullptr)
-					{
-						return false;
-					}
+
+					// Make sure we run the filtering logic again for the new task.
+					continue;
 				}
 			}
 			else
@@ -361,12 +356,21 @@ namespace LowLevelTasks
 				}
 			}
 
-			ExecuteTask(Task);
-			if(Task)
+			AnyExecuted = true;
+
+			// Executing a task can return a continuation.
+			if ((Task = ExecuteTask(Task)) != nullptr)
 			{
 				verifySlow(Task->TryPrepareLaunch());
+
+				// When busy waiting, we exit every time a task is run
+				// so queue this new task for later and bail out.
+				if constexpr (bIsBusyWaiting)
+				{
+					QueueRegistry.Enqueue(Task, uint32(Task->GetPriority()));
+					return AnyExecuted;
+				}
 			}
-			AnyExecuted = true;
 		}
 		return AnyExecuted;
 	}
@@ -389,7 +393,7 @@ namespace LowLevelTasks
 		while (true)
 		{
 			bool bExecutedSomething = false;
-			while(TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue,  false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
+			while(TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
 			   || TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, false>(WorkerEvent, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
 			{
 				bPreparingWait = false;
@@ -438,6 +442,7 @@ namespace LowLevelTasks
 		++FSchedulerTls::BusyWaitingDepth;
 		ON_SCOPE_EXIT{ --FSchedulerTls::BusyWaitingDepth; };
 
+		constexpr static bool bIsInsideBusyWait = true;
 		check(ActiveWorkers.load(std::memory_order_relaxed));
 		FSchedulerTls::FLocalQueueType* WorkerLocalQueue = FSchedulerTls::LocalQueue;
 
@@ -448,24 +453,29 @@ namespace LowLevelTasks
 		Private::FOutOfWork OutOfWork;
 		while (true)
 		{
-			while((WorkerLocalQueue && TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueLocal, true>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
-									|| TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueGlobal, true>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork))
+			if (WorkerLocalQueue)
 			{
-				if (Conditional())
+				while(TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::Dequeue<bIsInsideBusyWait>, bIsInsideBusyWait>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork)
+ 									|| TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueSteal, bIsInsideBusyWait>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
 				{
-					return;
+					if (Conditional())
+					{
+						return;
+					}
+					WaitCount = 0;
 				}
-				WaitCount = 0;
 			}
-
-			while((WorkerLocalQueue && TryExecuteTaskFrom<FSchedulerTls::FLocalQueueType, &FSchedulerTls::FLocalQueueType::DequeueLocal, true>(nullptr, WorkerLocalQueue, OutOfWork, bPermitBackgroundWork))
-									|| TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueSteal, true>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork))
+			else
 			{
-				if (Conditional())
+				while(TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueGlobal<bIsInsideBusyWait>, bIsInsideBusyWait>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork)
+									|| TryExecuteTaskFrom<FSchedulerTls::FQueueRegistry, &FSchedulerTls::FQueueRegistry::DequeueSteal, bIsInsideBusyWait>(nullptr, &QueueRegistry, OutOfWork, bPermitBackgroundWork))
 				{
-					return;
+					if (Conditional())
+					{
+						return;
+					}
+					WaitCount = 0;
 				}
-				WaitCount = 0;
 			}
 
 			if (Conditional())

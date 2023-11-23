@@ -1665,6 +1665,57 @@ namespace UE { namespace TasksTests
 		}
 	}
 
+	TEST_CASE_NAMED(FTasksDoNotRunInsideBusyWait, "System::Core::Async::Tasks::DoNotRunInsideBusyWait", "[.][ApplicationContextMask][EngineFilter]")
+	{
+		using namespace LowLevelTasks;
+
+		FPlatformProcess::Sleep(0.1f); // give workers time to fall asleep, to avoid any reserve worker messing around
+
+		uint32 NumWorkers = LowLevelTasks::FScheduler::Get().GetNumWorkers();
+
+		// Block all workers to make sure the tasks we're going to queue are not executed before we enter our busy wait loop.
+		FTaskEvent ResumeEvent{ UE_SOURCE_LOCATION };
+		TArray<LowLevelTasks::FTask> WorkerBlockers = BlockWorkers(ResumeEvent, NumWorkers);
+
+		std::atomic<bool>     CanExecute { false };
+		std::atomic<int32>    NumExecuted { 0 };
+		UE::FManualResetEvent Done;
+
+		// Queue enough busy wait excluded tasks to verify that the scheduler
+		// will do the right thing and not end up actually executing one of them
+		// from inside busy wait.
+		for (int32 Index = 0; Index < 100; ++Index)
+		{
+			Launch(UE_SOURCE_LOCATION,
+				[&CanExecute, &NumExecuted, &Done]()
+				{
+					verify(CanExecute.load());
+					if (++NumExecuted == 100)
+					{
+						Done.Notify();
+					}
+				},
+				UE::Tasks::ETaskPriority::Default,
+				UE::Tasks::EExtendedTaskPriority::None,
+				UE::Tasks::ETaskFlags::DoNotRunInsideBusyWait // this should not be picked up by busy waiting
+			);
+		}
+
+		// Busy wait for a second, making sure no excluded tasks are executed.
+		double StartTime = FPlatformTime::Seconds() + 1;
+		BusyWaitUntil([&StartTime]() { return FPlatformTime::Seconds() > StartTime; });
+
+		// Allow execution now.
+		CanExecute = true;
+
+		ResumeEvent.Trigger();
+
+		// Now busy waiting will run since we just unblocked all workers.
+		verify(Done.WaitFor(UE::FMonotonicTimeSpan::FromSeconds(1)));
+
+		// Do not exit the test before all blocked workers' tasks are done.
+		LowLevelTasks::BusyWaitForTasks<LowLevelTasks::FTask>(WorkerBlockers);
+	}
 }}
 
 #endif // WITH_TESTS

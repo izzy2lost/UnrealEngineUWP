@@ -155,6 +155,16 @@ private:
 	using FOverflowQueueType = FAAArrayQueue<FTask>;
 	using DequeueHazard		 = typename FOverflowQueueType::DequeueHazard;
 
+	enum class EOverflowType
+	{
+		// Tasks that can't be run inside busy waiting will be moved in that queue during busy wait loops.
+		// This queue is always looked at first by non busy waiting workers to keep ordering as much as possible.
+		DoNotRunInsideBusyWait,
+		// All tasks including those that can't run inside busy wait are queued here by default to keep FIFO ordering as much as possible.
+		Default,
+		Count,
+	};
+
 public:
 	class TLocalQueue
 	{
@@ -165,9 +175,12 @@ public:
 		TLocalQueue(TLocalQueueRegistry& InRegistry, ELocalQueueType InQueueType) : Registry(&InRegistry), QueueType(InQueueType)
 		{
 			AffinityIndex = Registry->AddLocalQueue(this, QueueType);
-			for (int32 PriorityIndex = 0; PriorityIndex < int32(ETaskPriority::Count); PriorityIndex++)
+			for (int32 PriorityIndex = 0; PriorityIndex < int32(ETaskPriority::Count); ++PriorityIndex)
 			{
-				DequeueHazards[PriorityIndex] = Registry->OverflowQueues[PriorityIndex].getHeadHazard();
+				for (int32 OverflowIndex = 0; OverflowIndex < int32(EOverflowType::Count); ++OverflowIndex)
+				{
+					DequeueHazards[PriorityIndex][OverflowIndex] = Registry->OverflowQueues[PriorityIndex][OverflowIndex].getHeadHazard();
+				}
 			}
 		}
 
@@ -182,13 +195,13 @@ public:
 					{
 						break;
 					}
-					Registry->OverflowQueues[PriorityIndex].enqueue(Item);
+					Registry->OverflowQueues[PriorityIndex][(int32)EOverflowType::Default].enqueue(Item);
 				}
 			}
 			Registry->DeleteLocalQueue(this, QueueType);
 		}
 
-		//add an item to the local queue and overflow into the global queue if full
+		// add an item to the local queue and overflow into the global queue if full
 		// returns true if we should wake a worker
 		inline void Enqueue(FTask* Item, uint32 PriorityIndex)
 		{
@@ -198,53 +211,32 @@ public:
 
 			if (!LocalQueues[PriorityIndex].Put(Item))
 			{
-				Registry->OverflowQueues[PriorityIndex].enqueue(Item);
+				Registry->OverflowQueues[PriorityIndex][(int32)EOverflowType::Default].enqueue(Item);
 			}
 		}
 
 		// Check both the local and global queue in priority order
+		template <bool bIsInsideBusyWait = false>
 		inline FTask* Dequeue(bool GetBackGroundTasks)
 		{
-			int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count) : int32(ETaskPriority::ForegroundCount);
-			for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; PriorityIndex++)
+			const int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count)   : int32(ETaskPriority::ForegroundCount);
+			constexpr int32 MinOverflow = bIsInsideBusyWait  ? int32(EOverflowType::Default) : int32(EOverflowType::DoNotRunInsideBusyWait);
+
+			for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; ++PriorityIndex)
 			{
 				FTask* Item;
 				if (LocalQueues[PriorityIndex].Get(Item))
 				{
 					return Item;
 				}
-				Item = Registry->OverflowQueues[PriorityIndex].dequeue(DequeueHazards[PriorityIndex]);
-				if (Item)
-				{
-					return Item;
-				}
-			}
-			return nullptr;
-		}
 
-		inline FTask* DequeueLocal(bool GetBackGroundTasks)
-		{
-			int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count) : int32(ETaskPriority::ForegroundCount);
-			for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; PriorityIndex++)
-			{
-				FTask* Item;
-				if (LocalQueues[PriorityIndex].Get(Item))
+				for (int32 OverflowIndex = MinOverflow; OverflowIndex < int32(EOverflowType::Count); ++OverflowIndex)
 				{
-					return Item;
-				}
-			}
-			return nullptr;
-		}
-
-		inline FTask* DequeueGlobal(bool GetBackGroundTasks)
-		{
-			int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count) : int32(ETaskPriority::ForegroundCount);
-			for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; PriorityIndex++)
-			{
-				FTask* Item = Registry->OverflowQueues[PriorityIndex].dequeue(DequeueHazards[PriorityIndex]);
-				if (Item)
-				{
-					return Item;
+					Item = Registry->OverflowQueues[PriorityIndex][OverflowIndex].dequeue(DequeueHazards[PriorityIndex][OverflowIndex]);
+					if (Item)
+					{
+						return Item;
+					}
 				}
 			}
 			return nullptr;
@@ -273,7 +265,7 @@ public:
 	private:
 		static constexpr uint32    InvalidIndex = ~0u;
 		FLocalQueueType            LocalQueues[uint32(ETaskPriority::Count)];
-		DequeueHazard              DequeueHazards[uint32(ETaskPriority::Count)];
+		DequeueHazard              DequeueHazards[uint32(ETaskPriority::Count)][int32(EOverflowType::Count)];
 		TLocalQueueRegistry*       Registry;
 		uint32                     CachedRandomIndex = InvalidIndex;
 		uint32                     CachedPriorityIndex = 0;
@@ -310,7 +302,7 @@ private:
 		{
 			TLocalQueue* LocalQueue = LocalQueues[CachedRandomIndex];
 			for(uint32 PriorityIndex = 0; PriorityIndex < MaxPriority; PriorityIndex++)
-			{	
+			{
 				FTask* Item;
 				if (LocalQueue->LocalQueues[CachedPriorityIndex].Steal(Item))
 				{
@@ -327,30 +319,37 @@ private:
 
 public:
 	// enqueue an Item directy into the Global OverflowQueue
+	template <bool bAllowInsideBusyWaiting = true>
 	void Enqueue(FTask* Item, uint32 PriorityIndex)
 	{
 		check(PriorityIndex < int32(ETaskPriority::Count));
 		check(Item != nullptr);
 
-		OverflowQueues[PriorityIndex].enqueue(Item);
+		constexpr int32 OverflowIndex = bAllowInsideBusyWaiting ? (int32)EOverflowType::Default : (int32)EOverflowType::DoNotRunInsideBusyWait;
+		OverflowQueues[PriorityIndex][OverflowIndex].enqueue(Item);
 	}
 
 	// grab an Item directy from the Global OverflowQueue
+	template <bool bIsInsideBusyWait = false>
 	FTask* DequeueGlobal(bool GetBackGroundTasks = true)
 	{
-		int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count) : int32(ETaskPriority::ForegroundCount);
-		for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; PriorityIndex++)
+		const int32 MaxPriority = GetBackGroundTasks ? int32(ETaskPriority::Count) : int32(ETaskPriority::ForegroundCount);
+		constexpr int32 MinOverflow = bIsInsideBusyWait ? int32(EOverflowType::Default) : int32(EOverflowType::DoNotRunInsideBusyWait);
+
+		for (int32 PriorityIndex = 0; PriorityIndex < MaxPriority; ++PriorityIndex)
 		{
-			FTask* Item = OverflowQueues[PriorityIndex].dequeue();
-			if (Item)
+			for (int32 OverflowIndex = MinOverflow; OverflowIndex < int32(EOverflowType::Count); ++OverflowIndex)
 			{
-				return Item;
+				if (FTask* Item = OverflowQueues[PriorityIndex][OverflowIndex].dequeue())
+				{
+					return Item;
+				}
 			}
 		}
 		return nullptr;
 	}
 
-	inline FTask* DequeueSteal(bool GetBackGroundTasks = true)
+	inline FTask* DequeueSteal(bool GetBackGroundTasks)
 	{
 		uint32 CachedRandomIndex = Rand();
 		uint32 CachedPriorityIndex = 0;
@@ -363,7 +362,7 @@ public:
 	}
 
 private:
-	FOverflowQueueType     OverflowQueues[uint32(ETaskPriority::Count)];
+	FOverflowQueueType     OverflowQueues[uint32(ETaskPriority::Count)][uint32(EOverflowType::Count)];
 	TArray<TLocalQueue*>   LocalQueues;
 	int                    NumActiveWorkers[2] = { 0, 0 };
 };
