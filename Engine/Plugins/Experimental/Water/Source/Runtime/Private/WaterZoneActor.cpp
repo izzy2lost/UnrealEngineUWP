@@ -262,6 +262,11 @@ void AWaterZone::RemoveWaterBodyComponent(UWaterBodyComponent* WaterBodyComponen
 	}
 }
 
+FVector2D AWaterZone::GetZoneExtent() const
+{
+	return ZoneExtent * FVector2D(GetActorScale());
+}
+
 void AWaterZone::Update()
 {
 	if (bNeedsWaterInfoRebuild || (ForceUpdateWaterInfoNextFrames != 0))
@@ -343,6 +348,10 @@ void AWaterZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 		MarkForRebuild(EWaterZoneRebuildFlags::All);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, bEnableLocalOnlyTessellation))
+	{
+		MarkForRebuild(EWaterZoneRebuildFlags::All);
+	}
+	else if (PropertyName == USceneComponent::GetRelativeScale3DPropertyName())
 	{
 		MarkForRebuild(EWaterZoneRebuildFlags::All);
 	}
@@ -615,7 +624,7 @@ FVector AWaterZone::GetDynamicWaterInfoExtent() const
 {
 	if (IsLocalOnlyTessellationEnabled())
 	{
-		return LocalTessellationExtent;
+		return LocalTessellationExtent * GetActorScale();
 	}
 	else
 	{

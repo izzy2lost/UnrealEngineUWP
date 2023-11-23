@@ -44,7 +44,7 @@ public:
 	void AddWaterBodyComponent(UWaterBodyComponent* WaterBodyComponent);
 	void RemoveWaterBodyComponent(UWaterBodyComponent* WaterBodyComponent);
 
-	FVector2D GetZoneExtent() const { return ZoneExtent; }
+	FVector2D GetZoneExtent() const;
 	void SetZoneExtent(FVector2D NewExtents);
 
 	FBox2D GetZoneBounds2D() const;
@@ -162,7 +162,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = Water, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UWaterMeshComponent> WaterMesh;
 
-	/** Width of the zone bounding box */
+	/** The maximum size in local space of the water zone. */
 	UPROPERTY(Category = Water, EditAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	FVector2D ZoneExtent;
 
@@ -190,7 +190,7 @@ private:
 	UPROPERTY(Category = LocalTessellation, EditAnywhere)
 	bool bEnableLocalOnlyTessellation = false;
 
-	/** The diameters in world space units for the region within which local dynamic tessellation occurs. A smaller value increases the effective pixel density of the water info texture. */
+	/** The diameters in local space units for the region within which dynamic tessellation occurs. A smaller value increases the effective pixel density of the water info texture. */
 	UPROPERTY(Category = LocalTessellation, EditAnywhere, meta = (EditCondition = "bEnableLocalOnlyTessellation"))
 	FVector LocalTessellationExtent;
 
