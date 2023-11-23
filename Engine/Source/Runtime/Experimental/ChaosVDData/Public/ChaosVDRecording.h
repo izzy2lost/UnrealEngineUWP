@@ -131,9 +131,10 @@ struct CHAOSVDDATA_API FChaosVDRecording
 	 * Return a ptr to the existing solver frame data from the specified ID and Frame number
 	 * @param SolverID ID of the solver
 	 * @param FrameNumber Frame number
+	 * @param bKeyFrameOnly True if we should return a keyframe (real or generated) for the provided frame number if available or nothing
 	 * @return Ptr to the existing solver frame data from the specified ID and Frame number - It is a ptr to the array element, Do not store
 	 */
-	FChaosVDSolverFrameData* GetSolverFrameData_AssumesLocked(int32 SolverID, int32 FrameNumber);
+	FChaosVDSolverFrameData* GetSolverFrameData_AssumesLocked(int32 SolverID, int32 FrameNumber, bool bKeyFrameOnly = false);
 	
 	/**
 	 * Return a ptr to the existing solver frame data from the specified ID and Frame number
@@ -265,8 +266,11 @@ protected:
 	 * These are used when scrubbing to make sure the visualization is in sync with what was recorded
 	 */
 	void AddKeyFrameNumberForSolver(int32 SolverID, int32 FrameNumber);
-	
+	void AddKeyFrameNumberForSolver_AssumesLocked(int32 SolverID, int32 FrameNumber);
+	void GenerateAndStoreKeyframeForSolver_AssumesLocked(int32 SolverID, int32 CurrentFrameNumber, int32 LastKeyFrameNumber);
+
 	TMap<int32, TArray<FChaosVDSolverFrameData>> RecordedFramesDataPerSolver;
+	TMap<int32, TMap<int32, FChaosVDSolverFrameData>> GeneratedKeyFrameDataPerSolver;
 	TMap<int32, TArray<int32>> RecordedKeyFramesNumberPerSolver;
 	TArray<FChaosVDGameFrameData> GameFrames;
 	FChaosVDRecordingUpdated RecordingUpdatedDelegate;

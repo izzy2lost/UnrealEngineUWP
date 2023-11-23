@@ -42,6 +42,7 @@ enum class EChaosVDGeometryVisibilityFlags : uint8
 	Simple = 1 << 3,
 	Complex = 1 << 4,
 	ShowHeightfields = 1 << 5, // Selecting this will show heightfields even if complex is not selected
+	ShowDisabledParticles = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
 
@@ -166,6 +167,9 @@ class UChaosVDEditorSettings : public UObject
 	GENERATED_BODY()
 public:
 
+	UPROPERTY(EditAnywhere, Category = "Viewport")
+	float FarClippingOverride = 10000.0f;
+
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint32 GlobalParticleDataVisualizationFlags = 0;
 	
@@ -220,10 +224,13 @@ public:
 
 	FChaosVDSettingChaged& OnColorSettingsChanged() { return ColorsSettingsChangedDelegate; }
 
+	FChaosVDSettingChaged& OnFarClippingOverrideChanged() { return FarClippingOverrideChangedDelegate; }
+
 	TSharedPtr<FName> SelectedTrackedTransformName;
 	TSharedPtr<FName> SelectedTrackedLocationName;
 
 protected:
 	FChaosVDSettingChaged VisibilitySettingsChangedDelegate;
 	FChaosVDSettingChaged ColorsSettingsChangedDelegate;
+	FChaosVDSettingChaged FarClippingOverrideChangedDelegate;
 };

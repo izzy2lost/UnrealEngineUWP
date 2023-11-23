@@ -3,6 +3,7 @@
 #pragma once
 #include "LevelEditorViewport.h"
 
+class UChaosVDEditorSettings;
 struct FChaosVDGameFrameData;
 class FChaosVDScene;
 enum class EChaosVDActorTrackingMode;
@@ -34,6 +35,7 @@ public:
 private:
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;
+	void HandleFarClippingOverrideSettingsChanged(UChaosVDEditorSettings* SettingsObject);
 	
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;

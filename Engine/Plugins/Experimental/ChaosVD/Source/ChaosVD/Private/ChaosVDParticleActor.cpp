@@ -225,6 +225,15 @@ void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	}
 }
 
+#if WITH_EDITOR
+void AChaosVDParticleActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
+{
+	const bool bShouldBeHidden = bIsActive ? bIsHidden : true;
+
+	Super::SetIsTemporarilyHiddenInEditor(bShouldBeHidden);
+}
+#endif //WITH_EDITOR
+
 void AChaosVDParticleActor::GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound)
 {
 	if (const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* MidPhases = GetCollisionMidPhasesArray())
@@ -333,15 +342,15 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 {
 	if (bIsActive != bNewActive)
 	{
+		bIsActive = bNewActive;
 #if WITH_EDITOR
 		//TODO: We need to add support for this to our Scene Outliner
 		// This will hide the actor and disable it in the outliner but it will still be listed
 		// We need to add a way to unlist inactive particle actors without a full hierarchy rebuild, which would be too costly
 		bEditable = bNewActive;
 		bListedInSceneOutliner = bNewActive;
-		SetIsTemporarilyHiddenInEditor(!bNewActive);
+		SetIsTemporarilyHiddenInEditor(!bIsActive);
 #endif
-		bIsActive = bNewActive;
 
 		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 		{

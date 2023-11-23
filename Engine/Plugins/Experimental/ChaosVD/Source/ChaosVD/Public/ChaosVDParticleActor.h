@@ -66,6 +66,7 @@ public:
 #if WITH_EDITOR
 	virtual bool IsSelectedInEditor() const override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void SetIsTemporarilyHiddenInEditor(bool bIsHidden) override;
 #endif
 
 	void UpdateGeometryComponentsVisibility();

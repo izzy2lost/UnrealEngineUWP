@@ -56,12 +56,29 @@ FString FChaosVDRecording::GetSolverName_AssumedLocked(int32 SolverID)
 	return DefaultName;
 }
 
-FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData_AssumesLocked(const int32 SolverID, const int32 FrameNumber)
+FChaosVDSolverFrameData* FChaosVDRecording::GetSolverFrameData_AssumesLocked(const int32 SolverID, const int32 FrameNumber, bool bKeyFrameOnly)
 {
 	if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
 	{
 		//TODO: Find a safer way of do this. If someone stores this ptr bad things will happen
-		return SolverFrames->IsValidIndex(FrameNumber) ? &(*SolverFrames)[FrameNumber] : nullptr;
+		if (FChaosVDSolverFrameData* FoundFrame = SolverFrames->IsValidIndex(FrameNumber) ? &(*SolverFrames)[FrameNumber] : nullptr)
+		{
+			if (!FoundFrame->bIsKeyFrame && bKeyFrameOnly)
+			{
+				if (TMap<int32, FChaosVDSolverFrameData>* GenerateSolverFrameByNumber = GeneratedKeyFrameDataPerSolver.Find(SolverID))
+				{
+					if (FChaosVDSolverFrameData* GeneratedKeyFrame = GenerateSolverFrameByNumber->Find(FrameNumber))
+					{
+						return GeneratedKeyFrame;
+					}
+				}
+				ensureMsgf(false, TEXT("Failed to find generated KeyFrame [%d] for Solver [%d]"), FrameNumber, SolverID);
+			}
+			else
+			{
+				return FoundFrame;
+			}			
+		}
 	}
 
 	return nullptr;
@@ -172,6 +189,11 @@ int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, i
 void FChaosVDRecording::AddKeyFrameNumberForSolver(const int32 SolverID, int32 FrameNumber)
 {
 	FWriteScopeLock WriteLock(RecordingDataLock);
+	AddKeyFrameNumberForSolver_AssumesLocked(SolverID, FrameNumber);
+}
+
+void FChaosVDRecording::AddKeyFrameNumberForSolver_AssumesLocked(int32 SolverID, int32 FrameNumber)
+{
 	if (TArray<int32>* KeyFrameNumber = RecordedKeyFramesNumberPerSolver.Find(SolverID))
 	{
 		KeyFrameNumber->Add(FrameNumber);
@@ -182,30 +204,79 @@ void FChaosVDRecording::AddKeyFrameNumberForSolver(const int32 SolverID, int32 F
 	}
 }
 
+void FChaosVDRecording::GenerateAndStoreKeyframeForSolver_AssumesLocked(const int32 SolverID, int32 CurrentFrameNumber, const int32 LastKeyFrameNumber)
+{
+	FChaosVDSolverFrameData GeneratedKeyFrame;
+	CollapseSolverFramesRange_AssumesLocked(SolverID, LastKeyFrameNumber, CurrentFrameNumber, GeneratedKeyFrame);
+
+	// We don't replace an existing delta frame with a generated keyframe because processing keyframes during playback is expensive
+	// So we keep the generated keyframes on its own map, so we can access them when needed
+	// (usually when we are skipping frames and we need to collapse frame data from the closest keyframe)
+	if (TMap<int32, FChaosVDSolverFrameData>* GenerateSolverFrameByNumber = GeneratedKeyFrameDataPerSolver.Find(SolverID))
+	{
+		GenerateSolverFrameByNumber->Add(CurrentFrameNumber, GeneratedKeyFrame);
+	}
+	else
+	{
+		TMap<int32, FChaosVDSolverFrameData> GeneratedSolverFramesByNumber;
+		GeneratedSolverFramesByNumber.Add(CurrentFrameNumber, GeneratedKeyFrame);
+		GeneratedKeyFrameDataPerSolver.Add(SolverID, GeneratedSolverFramesByNumber);
+	}
+}
+
+
 void FChaosVDRecording::AddFrameForSolver(const int32 SolverID, FChaosVDSolverFrameData&& InFrameData)
 {
-	int32 FrameNumber;
-	const bool bIsKeyFrame = InFrameData.bIsKeyFrame;
+	int32 CurrentFrameNumber;
+	bool bIsKeyFrame = InFrameData.bIsKeyFrame;
 
 	{
 		FWriteScopeLock WriteLock(RecordingDataLock);
 
+		auto FindLastKeyFrameNumberForSolver = [this](int32 SolverID)-> int32
+		{
+			if (TArray<int32>* KeyFrameNumber = RecordedKeyFramesNumberPerSolver.Find(SolverID))
+			{
+				return KeyFrameNumber->Num() ? KeyFrameNumber->Last() : INDEX_NONE;
+			}
+			return INDEX_NONE;
+		};
+
 		if (TArray<FChaosVDSolverFrameData>* SolverFrames = RecordedFramesDataPerSolver.Find(SolverID))
 		{
-			FrameNumber = SolverFrames->Num();
+			CurrentFrameNumber = SolverFrames->Num();
 
-			SolverFrames->Add(MoveTemp(InFrameData));	
+			SolverFrames->Add(MoveTemp(InFrameData));
+
+			if (!bIsKeyFrame)
+			{
+				// If not a keyframe, see if we should generate a to keyframe for the frame number we just added.
+				// This greatly reduces the cost during playback when we are skipping more than one frame or going backwards because with more keyframe
+				// we have less data to process on the process "Play from last key frame", needed in such situations.
+				const int32 LastKeyFrameNumber = FindLastKeyFrameNumberForSolver(SolverID);
+				if (LastKeyFrameNumber != INDEX_NONE)
+				{
+					constexpr int32 MaxDeltaBetweenKeyframes = 5;
+					const int32 FrameDiffSinceLastKeyframe = FMath::Abs(CurrentFrameNumber - LastKeyFrameNumber);
+
+					if (FrameDiffSinceLastKeyframe > MaxDeltaBetweenKeyframes)
+					{
+						GenerateAndStoreKeyframeForSolver_AssumesLocked(SolverID, CurrentFrameNumber, LastKeyFrameNumber);
+						AddKeyFrameNumberForSolver_AssumesLocked(SolverID, CurrentFrameNumber);
+					}
+				}
+			}
 		}
 		else
 		{
-			FrameNumber = 0;
+			CurrentFrameNumber = 0;
 			RecordedFramesDataPerSolver.Add(SolverID, {}).Emplace(MoveTemp(InFrameData));
 		}
 	}
 
 	if (bIsKeyFrame)
 	{
-		AddKeyFrameNumberForSolver(SolverID, FrameNumber);
+		AddKeyFrameNumberForSolver(SolverID, CurrentFrameNumber);
 	}
 
 	OnRecordingUpdated().Broadcast();
@@ -301,7 +372,8 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 	
 	for (int32 CurrentFrameNumber = StartFrame; CurrentFrameNumber <= EndFrame; CurrentFrameNumber++)
 	{
-		if (const FChaosVDSolverFrameData* SolverFrameData = GetSolverFrameData_AssumesLocked(SolverID, CurrentFrameNumber))
+		const bool bRequestingKeyFrameOnly = CurrentFrameNumber == StartFrame;
+		if (const FChaosVDSolverFrameData* SolverFrameData = GetSolverFrameData_AssumesLocked(SolverID, CurrentFrameNumber, bRequestingKeyFrameOnly))
 		{
 			OutCollapsedFrameData.ParticlesDestroyedIDs.Append(SolverFrameData->ParticlesDestroyedIDs);
 

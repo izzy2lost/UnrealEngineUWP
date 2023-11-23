@@ -29,6 +29,12 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 	{
 		GEngine->OnActorMoving().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleActorMoving);
 	}
+
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		OverrideFarClipPlane(Settings->FarClippingOverride);
+		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleFarClippingOverrideSettingsChanged);
+	}
 }
 
 FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
@@ -44,6 +50,11 @@ FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 	if (GEngine)
 	{
 		GEngine->OnActorMoving().RemoveAll(this);
+	}
+	
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->OnFarClippingOverrideChanged().RemoveAll(this);
 	}
 }
 
@@ -124,6 +135,14 @@ void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
 				IChaosVDSkySphereInterface::Execute_Refresh(SceneSharedPtr->GetSkySphereActor());
 			}
 		}
+	}
+}
+
+void FChaosVDPlaybackViewportClient::HandleFarClippingOverrideSettingsChanged(UChaosVDEditorSettings* SettingsObject)
+{
+	if (SettingsObject)
+	{
+		OverrideFarClipPlane(SettingsObject->FarClippingOverride);
 	}
 }
 

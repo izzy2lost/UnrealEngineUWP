@@ -127,7 +127,9 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 	{
 		constexpr float AmountOfWork = 1.0f;
 		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedParticlesData.Num();
-		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, LOCTEXT("ProcessingParticleData", "Processing Particle Data..."));
+
+		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromString(SolverName), FText::AsNumber(SolverID));
+		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, ProgressBarTitle);
 		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
 	
 		// Go over existing Particle VD Instances and update them or create them if needed 

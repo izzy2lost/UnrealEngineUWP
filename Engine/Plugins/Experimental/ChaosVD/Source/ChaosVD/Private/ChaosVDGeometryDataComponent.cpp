@@ -25,8 +25,25 @@ void FChaosVDGeometryDataComponentBase::UpdateVisibility_Internal(const FChaosVD
 		if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
 		{
 			const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = static_cast<EChaosVDGeometryVisibilityFlags>(EditorSettings->GeometryVisibilityFlags);
-
+			
 			bool bShouldGeometryBeVisible = false;
+
+			if (!EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::ShowDisabledParticles))
+			{
+				//TODO: We should use IChaosVDParticleVisualizationDataProvider instead, which AChaosVDParticleActor implements already
+				// but it is not an uinterface
+				if (AChaosVDParticleActor* ParticleActor = Cast<AChaosVDParticleActor>(MeshComponent->GetOwner()))
+				{
+					if (const FChaosVDParticleDataWrapper* ParticleData = ParticleActor->GetParticleData())
+					{
+						if (ParticleData->ParticleDynamicsMisc.HasValidData() && ParticleData->ParticleDynamicsMisc.bDisabled)
+						{
+							MeshComponent->SetVisibility(bShouldGeometryBeVisible);
+							return;
+						}
+					}
+				}
+			}
 
 			// TODO: Re-visit the way we determine visibility of the meshes.
 			// Now that the options have grown and they will continue to do so, these checks are becoming hard to read and extend

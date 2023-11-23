@@ -247,13 +247,14 @@ void FChaosVDGeometryBuilder::CreateMeshComponentsFromImplicit(const Chaos::FImp
 	
 	if (InnerType == ImplicitObjectType::Union)
 	{
-		const FImplicitObjectUnion* Union = InImplicitObject->template GetObject<FImplicitObjectUnion>();
-
-		for (int i = 0; i < Union->GetObjects().Num(); ++i)
+		if (const FImplicitObjectUnion* Union = InImplicitObject->template AsA<FImplicitObjectUnion>())
 		{
-			const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[i];
+			for (int i = 0; i < Union->GetObjects().Num(); ++i)
+			{
+				const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[i];
 
-			CreateMeshComponentsFromImplicit<MeshType, ComponentType>(UnionImplicit.GetReference(), Owner, OutMeshComponents, Transform, i, DesiredLODCount);	
+				CreateMeshComponentsFromImplicit<MeshType, ComponentType>(UnionImplicit.GetReference(), Owner, OutMeshComponents, Transform, i, DesiredLODCount);	
+			}
 		}
 
 		return;
