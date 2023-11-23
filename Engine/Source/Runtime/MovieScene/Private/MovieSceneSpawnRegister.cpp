@@ -51,7 +51,7 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 
 	// See if there is some dynamic binding logic to invoke, otherwise spawn the actor
 	FMovieSceneDynamicBindingResolveResult ResolveResult = FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(
-			*Player, Sequence, TemplateID, BindingId, Spawnable->DynamicBinding);
+			SharedPlaybackState, Sequence, TemplateID, BindingId, Spawnable->DynamicBinding);
 	if (ResolveResult.Object)
 	{
 		SpawnedActor = ResolveResult.Object;

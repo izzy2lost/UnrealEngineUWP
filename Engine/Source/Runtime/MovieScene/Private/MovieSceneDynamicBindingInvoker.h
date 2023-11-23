@@ -12,13 +12,18 @@ class UMovieSceneSequence;
 struct FGuid;
 struct FMovieSceneSequenceID;
 
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
+
 /**
  * Utility class for invoking dynamic binding endpoints.
  */
 struct FMovieSceneDynamicBindingInvoker
 {
 	/** Invoke the dynamic binding, if any, and return the result */
-	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(IMovieScenePlayer& Player, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding);
+	static FMovieSceneDynamicBindingResolveResult ResolveDynamicBinding(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding);
 
 private:
 	static FMovieSceneDynamicBindingResolveResult InvokeDynamicBinding(UObject* DirectorInstance, const FMovieSceneDynamicBinding& DynamicBinding, const FMovieSceneDynamicBindingResolveParams& Params);

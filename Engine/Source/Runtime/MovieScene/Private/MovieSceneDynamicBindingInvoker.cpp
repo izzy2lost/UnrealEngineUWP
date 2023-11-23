@@ -4,13 +4,17 @@
 
 #include "CoreMinimal.h"
 #include "Engine/World.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
-#include "IMovieScenePlayer.h"
+#include "Evaluation/SequenceDirectorPlaybackCapability.h"
 #include "MovieSceneDynamicBinding.h"
+#include "MovieSceneSequence.h"
 #include "UObject/UnrealType.h"
 
-FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(IMovieScenePlayer& Player, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)
+FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::ResolveDynamicBinding(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, UMovieSceneSequence* Sequence, const FMovieSceneSequenceID& SequenceID, const FGuid& InGuid, const FMovieSceneDynamicBinding& DynamicBinding)
 {
+	using namespace UE::MovieScene;
+
 	if (!ensure(Sequence))
 	{
 		// Sequence is somehow null... fallback to default behavior.
@@ -24,7 +28,15 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 		return FMovieSceneDynamicBindingResolveResult();
 	}
 
-	UObject* DirectorInstance = Player.GetEvaluationTemplate().GetOrCreateDirectorInstance(SequenceID, Player);
+	ISequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<ISequenceDirectorPlaybackCapability>();
+	if (!ensureMsgf(
+				DirectorCapability, 
+				TEXT("Can't invoke dynamic bindings, the current evaluation context does not have a sequence director playback capability!")))
+	{
+		return FMovieSceneDynamicBindingResolveResult();
+	}
+
+	UObject* DirectorInstance = DirectorCapability->GetOrCreateDirectorInstance(SharedPlaybackState, SequenceID);
 	if (!DirectorInstance)
 	{
 #if !NO_LOGGING
@@ -59,7 +71,7 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 	FMovieSceneDynamicBindingResolveParams ResolveParams;
 	ResolveParams.ObjectBindingID = InGuid;
 	ResolveParams.Sequence = Sequence;
-	ResolveParams.RootSequence = Player.GetEvaluationTemplate().GetRootSequence();
+	ResolveParams.RootSequence = SharedPlaybackState->GetRootSequence();
 	FMovieSceneDynamicBindingResolveResult Result = InvokeDynamicBinding(DirectorInstance, DynamicBinding, ResolveParams);
 
 	return Result;
