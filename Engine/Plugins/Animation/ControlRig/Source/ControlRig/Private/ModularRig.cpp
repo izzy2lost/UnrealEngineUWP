@@ -76,6 +76,13 @@ FString FRigModuleInstance::GetNamespace() const
 	return FString::Printf(TEXT("%s:"), *GetPath());
 }
 
+void UModularRig::Initialize(bool bRequestInit)
+{
+	Super::Initialize(bRequestInit);
+
+	UpdateCachedChildren();
+}
+
 void UModularRig::InitializeVMs(bool bRequestInit)
 {
 	URigVMHost::Initialize(bRequestInit);

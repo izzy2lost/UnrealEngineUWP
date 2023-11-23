@@ -111,6 +111,7 @@ class CONTROLRIG_API UModularRig : public UControlRig
 public:
 
 	// BEGIN ControlRig
+	virtual void Initialize(bool bRequestInit) override;
 	virtual void InitializeVMs(bool bRequestInit = true) override;
 	virtual bool InitializeVMs(const FName& InEventName) override;
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
