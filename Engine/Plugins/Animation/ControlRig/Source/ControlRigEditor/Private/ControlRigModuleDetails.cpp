@@ -788,7 +788,7 @@ bool FRigModuleInstanceDetails::CanRemoveBinding(FName InPropertyName) const
 
 void FRigModuleInstanceDetails::HandleRemoveBinding(FName InPropertyName) const
 {
-	FScopedTransaction Transaction(LOCTEXT("BindModuleVariableTransaction", "Remove Binding"));
+	FScopedTransaction Transaction(LOCTEXT("RemoveModuleVariableTransaction", "Remove Binding"));
 	for(const FPerModuleInfo& Info : PerModuleInfos)
 	{
 		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
