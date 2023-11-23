@@ -64,7 +64,9 @@
 #endif
 
 #define UE_HTTPDDC_GET_REQUEST_POOL_SIZE 128
-#define UE_HTTPDDC_PUT_REQUEST_POOL_SIZE 24
+#define UE_HTTPDDC_PUTREF_REQUEST_POOL_SIZE 64
+#define UE_HTTPDDC_PUTBLOBS_REQUEST_POOL_SIZE 64
+#define UE_HTTPDDC_PUTFINALIZE_REQUEST_POOL_SIZE 64
 #define UE_HTTPDDC_MAX_FAILED_LOGIN_ATTEMPTS 16
 #define UE_HTTPDDC_MAX_ATTEMPTS 4
 
@@ -440,7 +442,9 @@ private:
 	FBackendDebugOptions DebugOptions;
 	THttpUniquePtr<IHttpConnectionPool> ConnectionPool;
 	FHttpCacheStoreRequestQueue GetRequestQueue;
-	FHttpCacheStoreRequestQueue PutRequestQueue;
+	FHttpCacheStoreRequestQueue PutRefRequestQueue;
+	FHttpCacheStoreRequestQueue PutBlobsRequestQueue;
+	FHttpCacheStoreRequestQueue PutFinalizeRequestQueue;
 
 	FCriticalSection AccessCs;
 	TUniquePtr<FHttpAccessToken> Access;
@@ -463,11 +467,14 @@ private:
 	enum class EOperationCategory
 	{
 		Get,
-		Put,
+		PutRef,
+		PutBlobs,
+		PutFinalize
 	};
 
 	class FHttpOperation;
 
+	FHttpCacheStoreRequestQueue& PickRequestQueue(EOperationCategory Category);
 	TUniquePtr<FHttpOperation> WaitForHttpOperation(EOperationCategory Category);
 
 	/** Invokes the callback when an operation is available, or with null if canceled. */
@@ -926,7 +933,7 @@ void FHttpCacheStore::FPutPackageOp::Put(const FCacheKey& InKey, FCbPackage&& Pa
 
 void FHttpCacheStore::FPutPackageOp::BeginOperation(bool bFinalize, FOnCachePutRefComplete&& OnComplete)
 {
-	CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Put, [Self = TRefCountPtr(this), bFinalize, OnComplete = MoveTemp(OnComplete)](TUniquePtr<FHttpOperation>&& Operation) mutable
+	CacheStore.WaitForHttpOperationAsync(Owner, bFinalize ? EOperationCategory::PutFinalize : EOperationCategory::PutRef, [Self = TRefCountPtr(this), bFinalize, OnComplete = MoveTemp(OnComplete)](TUniquePtr<FHttpOperation>&& Operation) mutable
 	{
 		Self->BeginPutRef(MoveTemp(Operation), bFinalize, MoveTemp(OnComplete));
 	});
@@ -1101,7 +1108,7 @@ void FHttpCacheStore::FPutPackageOp::BeginPutBlobs(FCbPackage&& Package, FCacheP
 	FRequestBarrier Barrier(Owner);
 	for (const FCompressedBuffer& Blob : Blobs)
 	{
-		CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::Put, [Self = TRefCountPtr(this), Blob](TUniquePtr<FHttpOperation>&& Operation)
+		CacheStore.WaitForHttpOperationAsync(Owner, EOperationCategory::PutBlobs, [Self = TRefCountPtr(this), Blob](TUniquePtr<FHttpOperation>&& Operation)
 		{
 			if (UNLIKELY(!Operation))
 			{
@@ -2261,9 +2268,15 @@ FHttpCacheStore::FHttpCacheStore(const FHttpCacheStoreParams& Params, ICacheStor
 		// Disabling rate limits during PUT operations as the cause too many spurious failures to put blobs or finalize refs
 		ClientParams.LowSpeedLimit = 0;
 		ClientParams.LowSpeedTime = 0;
-		ClientParams.MaxRequests = UE_HTTPDDC_PUT_REQUEST_POOL_SIZE;
-		ClientParams.MinRequests = UE_HTTPDDC_PUT_REQUEST_POOL_SIZE;
-		PutRequestQueue.Initialize(*ConnectionPool, ClientParams);
+		ClientParams.MaxRequests = UE_HTTPDDC_PUTREF_REQUEST_POOL_SIZE;
+		ClientParams.MinRequests = UE_HTTPDDC_PUTREF_REQUEST_POOL_SIZE;
+		PutRefRequestQueue.Initialize(*ConnectionPool, ClientParams);
+		ClientParams.MaxRequests = UE_HTTPDDC_PUTBLOBS_REQUEST_POOL_SIZE;
+		ClientParams.MinRequests = UE_HTTPDDC_PUTBLOBS_REQUEST_POOL_SIZE;
+		PutBlobsRequestQueue.Initialize(*ConnectionPool, ClientParams);
+		ClientParams.MaxRequests = UE_HTTPDDC_PUTFINALIZE_REQUEST_POOL_SIZE;
+		ClientParams.MinRequests = UE_HTTPDDC_PUTFINALIZE_REQUEST_POOL_SIZE;
+		PutFinalizeRequestQueue.Initialize(*ConnectionPool, ClientParams);
 
 		bIsUsable = true;
 
@@ -2553,6 +2566,24 @@ void FHttpCacheStore::SetAccessTokenAndUnlock(FScopeLock& Lock, FStringView Toke
 	}
 }
 
+FHttpCacheStoreRequestQueue& FHttpCacheStore::PickRequestQueue(EOperationCategory Category)
+{
+	switch (Category)
+	{
+	case EOperationCategory::Get:
+		return GetRequestQueue;
+	case EOperationCategory::PutRef:
+		return PutRefRequestQueue;
+	case EOperationCategory::PutBlobs:
+		return PutBlobsRequestQueue;
+	case EOperationCategory::PutFinalize:
+		return PutFinalizeRequestQueue;
+	default:
+		checkNoEntry();
+		return GetRequestQueue;
+	}
+}
+
 TUniquePtr<FHttpCacheStore::FHttpOperation> FHttpCacheStore::WaitForHttpOperation(EOperationCategory Category)
 {
 	if (Access && RefreshAccessTokenTime > 0.0 && RefreshAccessTokenTime < FPlatformTime::Seconds())
@@ -2565,7 +2596,7 @@ TUniquePtr<FHttpCacheStore::FHttpOperation> FHttpCacheStore::WaitForHttpOperatio
 	{
 		FHttpRequestParams Params;
 		FRequestOwner BlockingOwner(EPriority::Blocking);
-		FHttpCacheStoreRequestQueue& RequestQueue = (Category == EOperationCategory::Get) ? GetRequestQueue : PutRequestQueue;
+		FHttpCacheStoreRequestQueue& RequestQueue = PickRequestQueue(Category);
 		RequestQueue.CreateRequestAsync(BlockingOwner, Params, [&Request](THttpUniquePtr<IHttpRequest>&& AsyncRequest)
 		{
 			Request = MoveTemp(AsyncRequest);
@@ -2608,7 +2639,7 @@ void FHttpCacheStore::WaitForHttpOperationAsync(IRequestOwner& Owner, EOperation
 void FHttpCacheStore::WaitForHttpRequestAsync(IRequestOwner& Owner, EOperationCategory Category, TUniqueFunction<void (THttpUniquePtr<IHttpRequest>&&)>&& OnRequest)
 {
 	FHttpRequestParams Params;
-	FHttpCacheStoreRequestQueue& RequestQueue = (Category == EOperationCategory::Get) ? GetRequestQueue : PutRequestQueue;
+	FHttpCacheStoreRequestQueue& RequestQueue = PickRequestQueue(Category);
 	RequestQueue.CreateRequestAsync(Owner, Params, MoveTemp(OnRequest));
 }
 
