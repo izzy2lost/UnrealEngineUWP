@@ -77,7 +77,7 @@ namespace Horde.Server.Configuration
 				public void Trigger() => _callback(_state);
 			}
 
-			List<Registration> _registrations = new List<Registration>();
+			readonly List<Registration> _registrations = new List<Registration>();
 
 			public bool ActiveChangeCallbacks => true;
 			public bool HasChanged { get; private set; }
