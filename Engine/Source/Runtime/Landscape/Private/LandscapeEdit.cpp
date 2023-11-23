@@ -5669,7 +5669,8 @@ bool ALandscapeProxy::CanEditChange(const FProperty* InProperty) const
 			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bEnableNanite))
 			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, bNaniteSkirtEnabled))
 			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NaniteSkirtDepth))
-			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NaniteLODIndex)))
+			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NaniteLODIndex))
+			|| (PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NanitePositionPrecision)))
 		{
 			return false;
 		}
@@ -5859,6 +5860,16 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 		if (ALandscape* Parent = GetLandscapeActor(); (Parent != this) && (NaniteLODIndex != Parent->GetNaniteLODIndex()))
 		{
 			NaniteLODIndex = Parent->GetNaniteLODIndex();
+		}
+		InvalidateGeneratedComponentData(/* bInvalidateLightingCache = */false);
+		MarkComponentsRenderStateDirty();
+	}
+	if (GIsEditor && PropertyName == GET_MEMBER_NAME_CHECKED(ALandscapeProxy, NanitePositionPrecision))
+	{
+		// This property is entirely shared with the parent material so don't let it be set to a different value than the parent : 
+		if (ALandscape* Parent = GetLandscapeActor(); (Parent != this) && (NanitePositionPrecision != Parent->GetNanitePositionPrecision()))
+		{
+			NanitePositionPrecision = Parent->GetNanitePositionPrecision();
 		}
 		InvalidateGeneratedComponentData(/* bInvalidateLightingCache = */false);
 		MarkComponentsRenderStateDirty();

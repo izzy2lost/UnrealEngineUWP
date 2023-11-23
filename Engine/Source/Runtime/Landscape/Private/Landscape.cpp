@@ -108,6 +108,7 @@ Landscape.cpp: Terrain rendering
 #include "Editor/EditorEngine.h"
 #include "Engine/Texture2D.h"
 #include "AssetCompilingManager.h"
+#include "FileHelpers.h"
 #endif
 
 /** Landscape stats */
@@ -187,6 +188,11 @@ static FAutoConsoleVariable CVarSilenceSharedPropertyDeprecationFixup(
 	TEXT("landscape.SilenceSharedPropertyDeprecationFixup"),
 	true,
 	TEXT("Silently performs the fixup of discrepancies in shared properties when handling data modified before the enforcement introduction."));
+
+static FAutoConsoleVariable CVarLandscapeSupressMapCheckWarnings_Nanite(
+	TEXT("landscape.SupressMapCheckWarnings.Nanite"),
+	false,
+	TEXT("Issue MapCheck Info messages instead of warnings if Nanite Data is out of date"));
 
 static FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad(
 	TEXT("landscape.StripLayerMipsOnLoad"),
@@ -566,6 +572,8 @@ FGuid ALandscapeProxy::GetNaniteContentId() const
 	float NaniteSkirtDepthTest = bNaniteSkirtEnabled ? NaniteSkirtDepth : 0.0f; // The hash should only change if Skirts are enabled.
 	ContentStateAr << NaniteSkirtEnabled;
 	ContentStateAr << NaniteSkirtDepthTest;
+	int32 NanitePositionPrecisionCopy(NanitePositionPrecision);  
+	ContentStateAr << NanitePositionPrecisionCopy;
 
 	uint32 Hash[5];
 	FSHA1::HashBuffer(ContentStateAr.GetData(), ContentStateAr.Num(), (uint8*)Hash);
@@ -4227,6 +4235,56 @@ void ALandscapeProxy::PostLoad()
 			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_FixedUpInvalidLandscapeMaterialInstances", "{LandscapeName} : Fixed up invalid landscape material instances. Please re-save {ProxyPackage}."), Arguments)))
 			->AddToken(FMapErrorToken::Create(FMapErrors::FixedUpInvalidLandscapeMaterialInstances));
 	}
+
+	// Display a MapCheck warning if the Nanite data is stale with the option to trigger a rebuild & Save
+	if (!IsNaniteMeshUpToDate())
+	{
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("LandscapeProxyName"), FText::FromString(GetActorNameOrLabel())); 
+
+		auto CreateMapCheckMessage = []()
+		{
+			if (CVarLandscapeSupressMapCheckWarnings_Nanite->GetBool())
+			{
+				return FMessageLog("MapCheck").Info();	
+			}
+			return FMessageLog("MapCheck").Warning();
+		};
+
+		CreateMapCheckMessage()
+			->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_LandscapeRebuildNanite", "{LandscapeProxyName} : Landscape Nanite is enabled but saved mesh data is out of date. "), Arguments)))
+			->AddToken(FActionToken::Create(LOCTEXT("MapCheck_SaveFixedUpData", "Save Modified Landscapes"), LOCTEXT("MapCheck_SaveFixedUpData_Desc", "Saves the modified landscape proxy actors"),
+				FOnActionTokenExecuted::CreateLambda([this]()
+				{
+					ULandscapeInfo* Info = GetLandscapeInfo();
+					check(Info);
+					
+					TSet<UPackage*> DirtyNanitePackages;
+					Info->ForEachLandscapeProxy([&DirtyNanitePackages](const ALandscapeProxy* Proxy)
+					{
+						if (!Proxy->IsNaniteMeshUpToDate())
+						{
+							DirtyNanitePackages.Add(Proxy->GetOutermost());
+						}
+						return true;
+					});
+					
+					Info->UpdateNanite(nullptr);
+					
+					constexpr bool bPromptUserToSave = true;
+					constexpr bool bSaveMapPackages = true;
+					constexpr bool bSaveContentPackages = true;
+					constexpr bool bFastSave = false;
+					constexpr bool bNotifyNoPackagesSaved = false;
+					constexpr bool bCanBeDeclined = true;
+
+					FEditorFileUtils::SaveDirtyPackages(bPromptUserToSave, bSaveMapPackages, bSaveContentPackages, bFastSave, bNotifyNoPackagesSaved, bCanBeDeclined, nullptr,
+						[ &DirtyNanitePackages ](const UPackage* Package) { return !DirtyNanitePackages.Contains(Package);}  );
+				
+				}), FCanExecuteActionToken::CreateLambda([this]() {return !IsNaniteMeshUpToDate();} ))
+				);
+	}
+	
 	UWorld* World = GetWorld();
 
 	// track feature level change to flush grass cache
