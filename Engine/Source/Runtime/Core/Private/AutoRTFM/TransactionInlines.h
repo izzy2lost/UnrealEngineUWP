@@ -34,7 +34,7 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSi
 
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
-    if (Size == 0)
+    if (0 == Size)
     {
         return;
     }
@@ -62,17 +62,14 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* Lo
     
         Stats.Collect<EStatsKind::HitSetMiss>();
     }
-    else
-    {
-        if (NewMemoryTracker.Contains(LogicalAddress, Size))
-        {
-            Stats.Collect<EStatsKind::NewMemoryTrackerHit>();
-            return;
-        }
 
-        Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
-    }
+	if (NewMemoryTracker.Contains(LogicalAddress, Size))
+	{
+		Stats.Collect<EStatsKind::NewMemoryTrackerHit>();
+		return;
+	}
 
+	Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
 
     uint8_t* const Address = reinterpret_cast<uint8_t*>(LogicalAddress);
 
@@ -112,6 +109,14 @@ template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransacti
 
     Stats.Collect<EStatsKind::HitSetMiss>();
 
+	if (NewMemoryTracker.Contains(LogicalAddress, SIZE))
+	{
+		Stats.Collect<EStatsKind::NewMemoryTrackerHit>();
+		return;
+	}
+
+	Stats.Collect<EStatsKind::NewMemoryTrackerMiss>();
+
     RecordWriteMaxPageSized(LogicalAddress, SIZE);
 }
 
@@ -122,22 +127,8 @@ UE_AUTORTFM_FORCEINLINE void FTransaction::DidAllocate(void* LogicalAddress, con
 		return;
 	}
 
-    const bool bUseHitSet = Size <= FWriteLogBumpAllocator::MaxSize;
-
-	if (bUseHitSet)
-    {
-        FMemoryLocation Key(LogicalAddress);
-        Key.SetTopTag(static_cast<uint16_t>(Size));
-        // Otherwise we need to record the write.
-        const bool DidInsert = HitSet.Insert(Key);
-        ASSERT(DidInsert);
-    }
-    
-    if (bTrackAllocationLocations || !bUseHitSet)
-    {
-        const bool DidInsert = NewMemoryTracker.Insert(LogicalAddress, Size);
-        ASSERT(DidInsert);
-    }
+    const bool DidInsert = NewMemoryTracker.Insert(LogicalAddress, Size);
+    ASSERT(DidInsert);
 }
 
 UE_AUTORTFM_FORCEINLINE void FTransaction::DidFree(void* LogicalAddress)
