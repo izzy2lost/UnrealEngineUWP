@@ -57,6 +57,7 @@ namespace UE::ConcertSyncServer::Replication
 				else
 				{
 					// ObjectsToPut can only write to pre-existing streams
+					UE_LOG(LogConcert, Log, TEXT("Semantic error: unknown stream %s"), *StreamToModify.ToString(EGuidFormats::Short));
 					OutResponse.ObjectsToPutSemanticErrors.Add(ChangedObject, EConcertPutObjectErrorCode::UnresolvedStream);
 				}
 			}
@@ -78,6 +79,7 @@ namespace UE::ConcertSyncServer::Replication
 				
 				if (bIdAlreadyExists || bIsDuplicateEntry)
 				{
+					UE_LOG(LogConcert, Log, TEXT("Duplicate stream entry %s"), *NewStreamId.ToString(EGuidFormats::Short));
 					OutResponse.FailedStreamCreation.Add(NewStreamId);
 				}
 			}
@@ -106,10 +108,12 @@ namespace UE::ConcertSyncServer::Replication
 
 				// Simply check whether any other client is already sending any of the requested properties.
 				AuthorityManager.EnumerateAuthorityConflicts(ReplicatedObjectInfo, &PropertySelection,
-					[&OutResponse, &ReplicatedObjectInfo](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain&)
+					[&OutResponse, &ReplicatedObjectInfo](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& Property)
 					{
 						const FReplicatedObjectId ConflictingObject = { { StreamId, ReplicatedObjectInfo.Object }, ClientId };
 						OutResponse.AuthorityConflicts.Add(ReplicatedObjectInfo, ConflictingObject);
+						
+						UE_LOG(LogConcert, Log, TEXT("Authority conflict with client %s for stream %s for property %s"), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short), *Property.ToString());
 						return EBreakBehavior::Continue;
 					});
 			}
@@ -122,6 +126,7 @@ namespace UE::ConcertSyncServer::Replication
 			{
 				if (!ToUnpack.Unpack())
 				{
+					UE_LOG(LogConcert, Log, TEXT("Failed to unpack stream %s"), *ToUnpack.BaseDescription.Identifier.ToString(EGuidFormats::Short));
 					OutResponse.FailedStreamCreation.Add(ToUnpack.BaseDescription.Identifier);
 				}
 			}

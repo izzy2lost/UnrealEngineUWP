@@ -7,8 +7,6 @@
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
-#include "Misc/CoreDelegates.h"
-
 namespace UE::MultiUserClient
 {
 	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
@@ -29,13 +27,9 @@ namespace UE::MultiUserClient
 
 	FAutoSubmissionPolicy::~FAutoSubmissionPolicy()
 	{
-		FCoreDelegates::OnEndFrame.RemoveAll(this);
-		
 		StreamEditorModel.OnObjectsChanged().RemoveAll(this);
 		StreamEditorModel.OnPropertiesChanged().RemoveAll(this);
 		AuthorityChangeTracker.OnAddedOwnedObjects().RemoveAll(this);
-		
-		SubmissionWorkflow.OnStreamRequestCompleted().RemoveAll(this);
 	}
 
 	void FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit()
@@ -47,25 +41,25 @@ namespace UE::MultiUserClient
 		
 		if (SubmissionWorkflow.CanSubmit())
 		{
+			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().RemoveAll(this);
 			SubmitChanges();
 		}
-		else if (!SubmissionWorkflow.OnSubmitOperationCompleted().IsBoundToObject(this))
+		else if (!SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().IsBoundToObject(this))
 		{
-			SubmissionWorkflow.OnSubmitOperationCompleted().AddRaw(this, &FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit);
+			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().AddRaw(this, &FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit);
 		}
 	}
 
 	void FAutoSubmissionPolicy::SubmitChanges()
 	{
 		using namespace UE::ConcertSyncClient::Replication;
-		FCoreDelegates::OnEndFrame.RemoveAll(this);
+		bIsDirty = false;
 			
 		// Even though authority request is sent after server confirms stream change, the authority request is pre-built to avoid sending changes
 		// the local client makes while we're waiting for the latent server responses.
 		TOptional<FAuthorityChangeRequest> AuthorityChangeRequest = RequestBuilder.BuildAuthorityChange();
 		TOptional<FChangeStreamRequest> StreamRequest = RequestBuilder.BuildStreamChange();
 			
-		// Should be true since a change caused OnEndFrame to be registered in the first place, but in THEORY changes could have been reverted in the same frame (e.g. via a transaction)
 		if (AuthorityChangeRequest || StreamRequest)
 		{
 			SubmissionWorkflow.SubmitChanges({ StreamRequest, AuthorityChangeRequest });

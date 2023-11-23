@@ -7,12 +7,8 @@
 
 namespace UE::MultiUserClient
 {
-	FAuthoritySynchronizer_LocalClient::FAuthoritySynchronizer_LocalClient(
-		TSharedRef<IConcertSyncClient> InClient,
-		FDoesObjectHaveProperties InDoesObjectHaveProperties
-		)
-		: FAuthoritySynchronizer_Base(MoveTemp(InDoesObjectHaveProperties))
-		, Client(MoveTemp(InClient))
+	FAuthoritySynchronizer_LocalClient::FAuthoritySynchronizer_LocalClient(TSharedRef<IConcertSyncClient> InClient)
+		: Client(MoveTemp(InClient))
 	{
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
 		if (ensure(ReplicationManager))

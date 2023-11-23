@@ -63,6 +63,9 @@ namespace UE::MultiUserClient
 		ClientSelectionModel.ForEachSelectedClient([this, &ReadOnlyClients, &WritableClients](FReplicationClient& Client)
 		{
 			const bool bIsUploadable = CanEverSubmit(Client.GetSubmissionWorkflow().GetUploadability());
+			const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
+			Client.OnModelChanged().AddRaw(this, &FMultiStreamModel::OnStreamExternallyChanged, Stream.ToWeakPtr());
+			
 			if (bIsUploadable)
 			{
 				WritableClients.Add(&Client);
@@ -70,8 +73,6 @@ namespace UE::MultiUserClient
 			else
 			{
 				ReadOnlyClients.Add(&Client);
-				const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
-				Client.OnModelChanged().AddRaw(this, &FMultiStreamModel::OnReadOnlyStreamChanged, Stream.ToWeakPtr());
 			}
 			
 			return EBreakBehavior::Continue;
@@ -94,7 +95,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FMultiStreamModel::OnReadOnlyStreamChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream)
+	void FMultiStreamModel::OnStreamExternallyChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream)
 	{
 		if (const TSharedPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStreamPin = ChangedStream.Pin())
 		{

@@ -6,6 +6,8 @@
 
 class FString;
 class IConcertClient;
+class IConcertClientSession;
+
 struct FConcertClientInfo;
 struct FGuid;
 
@@ -25,6 +27,7 @@ namespace UE::MultiUserClient::ClientUtils
 	 * @return The display name or empty
 	 */
 	FString GetClientDisplayName(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId);
+	FString GetClientDisplayName(const IConcertClientSession& InSession, const FGuid& InClientEndpointId);
 
 	/**
 	 * Gets the display info for a given client

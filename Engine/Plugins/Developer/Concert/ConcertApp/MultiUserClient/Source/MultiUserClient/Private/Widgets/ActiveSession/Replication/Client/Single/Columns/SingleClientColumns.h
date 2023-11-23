@@ -41,7 +41,6 @@ namespace UE::MultiUserClient::SingleClientColumns
 
 	/********** Toggle authority **********/
 	extern const FName ToggleTopLevelAuthorityColumnId;
-	extern const FName ToggleSubobjectAuthorityColumnId;
 
 	/**
 	 * Checkbox placed in the top-level view.

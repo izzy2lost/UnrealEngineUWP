@@ -46,7 +46,7 @@ namespace UE::ConcertClientSharedSlate
 		, StreamForAdding(Private::MakeModel(StreamForAddingObject, bShouldSupportTransactions))
 		, MultiStreamModel(MoveTemp(InMultiStreamModel))
 	{
-		MultiStreamModel->OnReadOnlyStreamChanged().AddRaw(this, &FConsolidatedMultiStreamModel::OnReadOnlyStreamChanged);
+		MultiStreamModel->OnStreamExternallyChanged().AddRaw(this, &FConsolidatedMultiStreamModel::OnStreamExternallyChanged);
 		MultiStreamModel->OnStreamSetChanged().AddRaw(this, &FConsolidatedMultiStreamModel::RebuildStreamSubscriptions);
 		StreamForAdding->OnObjectsChanged().AddRaw(this, &FConsolidatedMultiStreamModel::OnObjectsChanged_StreamForAdding);
 		RebuildStreamSubscriptions();
@@ -54,7 +54,7 @@ namespace UE::ConcertClientSharedSlate
 
 	FConsolidatedMultiStreamModel::~FConsolidatedMultiStreamModel()
 	{
-		MultiStreamModel->OnReadOnlyStreamChanged().RemoveAll(this);
+		MultiStreamModel->OnStreamExternallyChanged().RemoveAll(this);
 		MultiStreamModel->OnStreamSetChanged().RemoveAll(this);
 		StreamForAdding->OnObjectsChanged().RemoveAll(this);
 		ClearStreamSubscriptions();
@@ -152,7 +152,7 @@ namespace UE::ConcertClientSharedSlate
 		OnObjectsChangedDelegate.Broadcast(AddedObjects, RemovedObjects, ChangeReason);
 	}
 
-	void FConsolidatedMultiStreamModel::OnReadOnlyStreamChanged(TSharedRef<IReplicationStreamModel> Stream)
+	void FConsolidatedMultiStreamModel::OnStreamExternallyChanged(TSharedRef<IReplicationStreamModel> Stream)
 	{
 		OnObjectsChangedDelegate.Broadcast({}, {}, EReplicatedObjectChangeReason::ExternalChange);
 	}

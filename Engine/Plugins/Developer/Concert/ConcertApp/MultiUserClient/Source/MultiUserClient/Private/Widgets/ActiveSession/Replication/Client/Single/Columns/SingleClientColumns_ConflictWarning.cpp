@@ -3,6 +3,7 @@
 #include "SingleClientColumns.h"
 
 #include "IConcertClient.h"
+#include "Replication/Authority/EAuthorityMutability.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/IReplicationStreamViewer.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
@@ -34,22 +35,22 @@ namespace UE::MultiUserClient::SingleClientColumns
 				{
 					const auto GetVisibility = [&InAuthorityCache, ClientId, ObjectPath = InArgs.RowData.GetObjectPath()]()
 					{
-						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId);
-						return TakeAuthorityResult == FGlobalAuthorityCache::ECanTakeAuthority::Conflict
+						const EAuthorityMutability TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId);
+						return TakeAuthorityResult == EAuthorityMutability::Conflict
 							? EVisibility::Visible
 							: EVisibility::Collapsed;
 					};
 					const auto GetToolTip = [InClient = MoveTemp(InClient), &InAuthorityCache, ClientId, ObjectPath = InArgs.RowData.GetObjectPath()]()
 					{
 						TSet<FString> ClientNames;
-						const FGlobalAuthorityCache::ECanTakeAuthority TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId,
+						const EAuthorityMutability TakeAuthorityResult = InAuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId,
 						[InClient, &ClientNames](const FGuid& ClientId, const FConcertPropertyChain& ConflictingProperty)
 						{
 							ClientNames.Add(ClientUtils::GetClientDisplayName(*InClient, ClientId));
 							return EBreakBehavior::Continue;
 						});
 						
-						return TakeAuthorityResult != FGlobalAuthorityCache::ECanTakeAuthority::Conflict
+						return TakeAuthorityResult != EAuthorityMutability::Conflict
 							? FText::GetEmpty()
 							: FText::Format(
 								LOCTEXT("Subobject.WarningFmt", "{0} {1}|plural(one=is,other=are) replicating some of the assigned properties. This change will not be sent to the server."),

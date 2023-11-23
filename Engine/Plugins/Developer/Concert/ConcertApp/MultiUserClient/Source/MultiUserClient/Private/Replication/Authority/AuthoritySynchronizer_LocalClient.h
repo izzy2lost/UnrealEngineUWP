@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AuthoritySynchronizer_Base.h"
+#include "IClientAuthoritySynchronizer.h"
 #include "Templates/UnrealTemplate.h"
 
 class IConcertSyncClient;
@@ -13,7 +13,7 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FAuthoritySynchronizer_LocalClient(TSharedRef<IConcertSyncClient> InClient, FDoesObjectHaveProperties InDoesObjectHaveProperties);
+		FAuthoritySynchronizer_LocalClient(TSharedRef<IConcertSyncClient> InClient);
 		virtual ~FAuthoritySynchronizer_LocalClient() override;
 
 		//~ Begin IClientAuthoritySynchronizer Interface

@@ -13,6 +13,7 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
+class IConcertClient;
 class UMultiUserReplicationClientPreset;
 
 namespace UE::ConcertClientSharedSlate
@@ -126,6 +127,8 @@ namespace UE::MultiUserClient
 		// Respond to model changing
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
 		void OnPropertiesChanged();
+
+		void OnServerStateChanged();
 
 		/** Defers rebuilding operations, such as refreshing state and calling OnModelChanged, in case there are multiple changes in the same frame. */
 		void DeferOnModelChanged() { DeferOnModelChanged({}); }

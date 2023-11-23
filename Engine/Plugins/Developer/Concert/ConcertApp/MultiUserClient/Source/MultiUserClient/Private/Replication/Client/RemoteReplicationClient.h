@@ -4,6 +4,8 @@
 
 #include "ReplicationClient.h"
 
+class IConcertClient;
+
 namespace UE::MultiUserClient
 {
 	class FRegularQueryService;
@@ -15,6 +17,7 @@ namespace UE::MultiUserClient
 
 		FRemoteReplicationClient(
 			const FGuid& InConcertClientId,
+			TSharedRef<IConcertClient> InClient,
 			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			FRegularQueryService& QueryService

@@ -11,14 +11,13 @@ namespace UE::MultiUserClient
 
 		/** A previous upload operation is in progress */
 		InProgress,
-		
-		// TODO DP UE-197435: Remove once remote client streams can be changed
-		// TODO DP UE-198088: Remove once remote changing is implemented
-		NotImplemented
+
+		/** Changing is generally not available, e.g. remote client does not allow changes. */
+		NotAvailable
 	};
 
 	inline bool CanEverSubmit(EChangeUploadability Uploadability)
 	{
-		return Uploadability != EChangeUploadability::NotImplemented;
+		return Uploadability != EChangeUploadability::NotAvailable;
 	}
 }

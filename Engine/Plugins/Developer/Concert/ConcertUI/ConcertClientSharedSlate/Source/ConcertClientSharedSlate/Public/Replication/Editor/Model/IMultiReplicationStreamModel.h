@@ -17,9 +17,9 @@ namespace UE::ConcertClientSharedSlate
 		/** @return Streams in this model that can only be read from. */
 		virtual TSet<TSharedRef<IReplicationStreamModel>> GetReadOnlyStreams() const = 0;
 
-		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReadOnlyStreamChanged, TSharedRef<IReplicationStreamModel> /* ChangedStream */);
+		DECLARE_MULTICAST_DELEGATE_OneParam(FOnStreamExternallyChanged, TSharedRef<IReplicationStreamModel> /* ChangedStream */);
 		/** Called when a read-only stream has changed. */
-		virtual FOnReadOnlyStreamChanged& OnReadOnlyStreamChanged() = 0;
+		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() = 0;
 		
 		DECLARE_MULTICAST_DELEGATE(FOnStreamSetChanged);
 		/** Broadcasts when the result of GetStreams has changed. */

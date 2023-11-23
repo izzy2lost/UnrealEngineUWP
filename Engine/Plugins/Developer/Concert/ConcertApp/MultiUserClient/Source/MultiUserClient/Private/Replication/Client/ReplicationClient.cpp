@@ -40,9 +40,10 @@ namespace UE::MultiUserClient
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
+		LocalAuthorityDiffer.OnAddedOwnedObjects().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
 
-		SubmissionWorkflow->OnAuthorityRequestCompleted().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
-		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
+		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
+		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::OnServerStateChanged);
 	}
 
 	FReplicationClient::~FReplicationClient()
@@ -66,6 +67,14 @@ namespace UE::MultiUserClient
 
 	void FReplicationClient::OnPropertiesChanged()
 	{
+		DeferOnModelChanged();
+	}
+
+	void FReplicationClient::OnServerStateChanged()
+	{
+		// Whenever this client's server state changes, the UI must be refreshed.
+		GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
+
 		DeferOnModelChanged();
 	}
 

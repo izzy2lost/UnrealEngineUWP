@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ReplicationClient.h"
+#include "Replication/Submission/Remote/RemoteSubmissionListener.h"
 
 namespace UE::MultiUserClient
 {
@@ -19,6 +20,11 @@ namespace UE::MultiUserClient
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TSharedRef<IConcertSyncClient> InClient
 			);
+
+	private:
+		
+		/** Listens for and handles for submission request made by remote clients' SubmissionWorkflow.*/
+		FRemoteSubmissionListener RemoteSubmissionListener;
 	};
 }
 

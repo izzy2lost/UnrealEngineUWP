@@ -3,6 +3,7 @@
 #include "GlobalAuthorityCache.h"
 
 #include "Replication/AuthorityConflictSharedUtils.h"
+#include "Replication/Authority/EAuthorityMutability.h"
 #include "Replication/Client/RemoteReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 
@@ -65,12 +66,12 @@ namespace UE::MultiUserClient
 		return Result;
 	}
 
-	FGlobalAuthorityCache::ECanTakeAuthority FGlobalAuthorityCache::CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
+	EAuthorityMutability FGlobalAuthorityCache::CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
 	{
 		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
 		if (!ensure(Client))
 		{
-			return ECanTakeAuthority::NotApplicable;
+			return EAuthorityMutability::NotApplicable;
 		}
 
 		// Important: Get server state with local changes applied to it! CanClientTakeAuthority answers: "Can the client take authority after submitting?" 
@@ -78,7 +79,7 @@ namespace UE::MultiUserClient
 		if (!PropertySelection)
 		{
 			// Nothing to take authority over
-			return ECanTakeAuthority::NotApplicable;
+			return EAuthorityMutability::NotApplicable;
 		}
 		
 		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
@@ -91,7 +92,7 @@ namespace UE::MultiUserClient
 			{
 				return ProcessConflict(ClientId, ConflictingProperty);
 			});
-		return Conflict == EAuthorityConflict::Allowed ? ECanTakeAuthority::Allowed : ECanTakeAuthority::Conflict;
+		return Conflict == EAuthorityConflict::Allowed ? EAuthorityMutability::Allowed : EAuthorityMutability::Conflict;
 	}
 
 	bool FGlobalAuthorityCache::CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const

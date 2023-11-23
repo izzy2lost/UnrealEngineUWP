@@ -36,7 +36,7 @@ namespace UE::MultiUserClient
 		/** Error code of the submission. Determines whether Response is valid. */
 		EStreamSubmissionErrorCode ErrorCode;
 
-		/** Valid if ErrorCode != ESubmitChangesErrorCode::AlreadyInProgress. */
+		/** Valid if ErrorCode == ESubmitChangesErrorCode::Success. */
 		TOptional<FCompletedChangeSubmission> SubmissionInfo;
 	};
 }

@@ -11,6 +11,11 @@ namespace UE::MultiUserClient
 		: Client(MoveTemp(InClient))
 	{}
 
+	FSubmissionWorkflow_LocalClient::~FSubmissionWorkflow_LocalClient()
+	{
+		
+	}
+
 	EChangeUploadability FSubmissionWorkflow_LocalClient::GetUploadability() const
 	{
 		const bool bOperationInProgress = InProgressOperation.IsSet(); 
@@ -21,20 +26,19 @@ namespace UE::MultiUserClient
 	{
 		using namespace ConcertSyncClient::Replication;
 		
-		const TOptional<FChangeStreamRequest>& OptionalStreamRequest = Params.StreamRequest;
-		TOptional<FAuthorityChangeRequest>& OptionalAuthorityRequest = Params.AuthorityRequest;
-		
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
 		if (Params.IsEmpty() || !CanSubmit() || !ensure(ReplicationManager))
 		{
 			return nullptr;
 		}
 		
+		const TOptional<FChangeStreamRequest>& OptionalStreamRequest = Params.StreamRequest;
+		TOptional<FAuthorityChangeRequest>& OptionalAuthorityRequest = Params.AuthorityRequest;
+		
 		const bool bIsStreamChangeEmpty = Params.IsStreamChangeEmpty();
 		const bool bModifyStreams = !bIsStreamChangeEmpty;
 		const TSharedRef<FSingleClientSubmissionOperation> Operation = MakeShared<FSingleClientSubmissionOperation>(bModifyStreams);
 		InProgressOperation = { Operation };
-		InProgressOperation->OnDestroy.BindLambda([this](){ OnSubmitOperationCompletedDelegate.Broadcast(); });
 		
 		if (bIsStreamChangeEmpty)
 		{
@@ -91,9 +95,9 @@ namespace UE::MultiUserClient
 			
 			Operation->EmplaceAuthorityRequestPromise(Request);
 			Operation->EmplaceAuthorityResponsePromise(Response);
-			InProgressOperation.Reset();
-			
 			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
+			
+			CleanUpSubmissionOperation();
 		}
 	}
 
@@ -103,8 +107,8 @@ namespace UE::MultiUserClient
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
 		if (!ensure(ReplicationManager))
 		{
-			InProgressOperation.Reset(); // Automatically cancels the pending promises
 			AuthorityRequestCompletedDelegate.Broadcast({ EAuthoritySubmissionRequestErrorCode::Cancelled }, { EAuthoritySubmissionResponseErrorCode::Cancelled });
+			CleanUpSubmissionOperation(); // Automatically cancels the pending promises
 			return;
 		}
 
@@ -117,9 +121,8 @@ namespace UE::MultiUserClient
 			
 			Operation->EmplaceAuthorityRequestPromise(Request);
 			Operation->EmplaceAuthorityResponsePromise(Response);
-			InProgressOperation.Reset();
-			
 			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
+			CleanUpSubmissionOperation();
 			return;
 		}
 		
@@ -136,10 +139,15 @@ namespace UE::MultiUserClient
 					const FSubmitAuthorityChangesResponse Result { ErrorCode, MoveTemp(Response) };
 					
 					InProgressOperation->Operation->EmplaceAuthorityResponsePromise(Result);
-					InProgressOperation.Reset();
-					
 					AuthorityRequestCompletedDelegate.Broadcast(Request, Result);
+					CleanUpSubmissionOperation();
 				}
 			});
+	}
+
+	void FSubmissionWorkflow_LocalClient::CleanUpSubmissionOperation()
+	{
+		InProgressOperation.Reset();
+		OnSubmitOperationCompletedDelegate.Broadcast();
 	}
 }

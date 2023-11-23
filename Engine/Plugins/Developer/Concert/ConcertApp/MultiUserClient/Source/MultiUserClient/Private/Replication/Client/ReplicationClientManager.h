@@ -102,6 +102,9 @@ namespace UE::MultiUserClient
 		/** The state of the server is synched up with this object and displayed in the UI. */
 		TObjectPtr<UMultiUserReplicationSessionPreset> SessionContent;
 
+		/** The local Concert client */
+		TSharedRef<IConcertSyncClient> ConcertClient;
+
 		/**
 		 * The session the local client is in.
 		 * 

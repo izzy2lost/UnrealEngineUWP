@@ -66,18 +66,18 @@ namespace UE::MultiUserClient
 		 * Broadcasts whenever a submit operation completes the stream change request stage. Useful for accumulating and counting errors.
 		 * @note No stream changes may have been requested. Check the error code.
 		 */
-		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted() = 0;
+		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted_AnyThread() = 0;
 
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAuthorityRequestCompleted, const FSubmitAuthorityChangesRequest&, const FSubmitAuthorityChangesResponse&);
 		/**
 		 * Broadcasts whenever a submit operation completes the authority change request stage. Useful for accumulating and counting errors.
 		 * @note No authority changes may have been requested. Check the error code.
 		 */
-		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted() = 0;
+		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted_AnyThread() = 0;
 
 		DECLARE_MULTICAST_DELEGATE(FOnSubmitOperationCompleted);
 		/** Broadcasts whenever a submit operation completes. Useful for enqueuing submit operations. */
-		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted() = 0;
+		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted_AnyThread() = 0;
 
 		virtual ~ISubmissionWorkflow() = default;
 	};
@@ -88,9 +88,9 @@ namespace UE::MultiUserClient
 	public:
 
 		//~ Begin ISubmissionWorkflow Interface
-		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted() override { return StreamRequestCompletedDelegate; }
-		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted() override { return AuthorityRequestCompletedDelegate; }
-		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted() override { return OnSubmitOperationCompletedDelegate; }
+		virtual FOnStreamRequestCompleted& OnStreamRequestCompleted_AnyThread() override { return StreamRequestCompletedDelegate; }
+		virtual FOnAuthorityRequestCompleted& OnAuthorityRequestCompleted_AnyThread() override { return AuthorityRequestCompletedDelegate; }
+		virtual FOnSubmitOperationCompleted& OnSubmitOperationCompleted_AnyThread() override { return OnSubmitOperationCompletedDelegate; }
 		//~ End ISubmissionWorkflow Interface
 
 	protected:

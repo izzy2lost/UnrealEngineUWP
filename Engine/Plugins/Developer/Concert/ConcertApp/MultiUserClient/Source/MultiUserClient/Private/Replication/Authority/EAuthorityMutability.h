@@ -4,16 +4,16 @@
 
 namespace UE::MultiUserClient
 {
-	/** Various reasons in which an object can be when considering take over its authority */
-	enum class EAuthorityMutability
+	/** Various reasons in which an object can be when considering changing its authority */
+	enum class EAuthorityMutability : uint8
 	{
-		/** Authority can be taken */
-		Allowed,
-
 		/** The object has no registered properties. Cannot take authority. */
-		NoProperties,
+		NotApplicable,
 		
-		/** The operation is not implemented. */
-		NotSupported
+		/** There is a conflict with another client */
+		Conflict,
+		
+		/** Authority can be taken */
+		Allowed
 	};
 }

@@ -19,149 +19,6 @@
 namespace UE::MultiUserClient::SingleClientColumns
 {
 	const FName ToggleTopLevelAuthorityColumnId = TEXT("ToggleTopLevelAuthorityColumn");
-	const FName ToggleSubobjectAuthorityColumnId = TEXT("ToggleSubobjectAuthorityColumn");
-
-	namespace Private::ToggleTopLevelAuthority
-	{
-		static ECheckBoxState GetCheckboxState(
-			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
-			FAuthorityChangeTracker* ChangeTracker
-			)
-		{
-			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-
-			// Init the checkbox state to the top level object, if the top level object has properties associated with it...
-			const bool bCanSetTopLevelState = ChangeTracker->CanSetAuthorityFor(ObjectPath)
-				|| ChangeTracker->GetChangeAuthorityMutability(ObjectPath) == EAuthorityMutability::NotSupported;
-			TOptional<ECheckBoxState> CheckBoxState = bCanSetTopLevelState
-				? ChangeTracker->GetAuthorityStateAfterApplied(ObjectPath) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked
-				: TOptional<ECheckBoxState>{};
-
-			// ... and then determine whether all the other subobjects share that state (Check / Unchecked) or not (Undetermined)
-			ClientStreamModel->ForEachSubobject(ObjectPath, [&CheckBoxState, &ChangeTracker](const FSoftObjectPath& Child)
-			{
-				if (!ChangeTracker->CanSetAuthorityFor(Child)
-					&& ChangeTracker->GetChangeAuthorityMutability(Child) != EAuthorityMutability::NotSupported)
-				{
-					return EBreakBehavior::Continue;
-				}
-
-				// Init checkbox state
-				const bool bCurrentAuthorityState = ChangeTracker->GetAuthorityStateAfterApplied(Child);
-				const bool bIsFirstObject = !CheckBoxState.IsSet(); 
-				if (bIsFirstObject)
-				{
-					CheckBoxState = bCurrentAuthorityState ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-					return EBreakBehavior::Continue;
-				}
-
-				// Return the checkbox state that all subobjects share, or Undetermined if mixed
-				const bool bMustBeUndetermined = (*CheckBoxState == ECheckBoxState::Unchecked && bCurrentAuthorityState)
-					|| (*CheckBoxState == ECheckBoxState::Checked && !bCurrentAuthorityState);
-				if (bMustBeUndetermined)
-				{
-					CheckBoxState = ECheckBoxState::Undetermined;
-					return EBreakBehavior::Break;
-				}
-				return EBreakBehavior::Continue;
-			});
-						
-			return CheckBoxState
-				? *CheckBoxState
-				// If this case happens, there are no objects to check. In that case, it visually "looks better" to be unchecked
-				: ECheckBoxState::Unchecked;
-		}
-
-		static void OnCheckboxStateChanged(
-			bool bIsChecked,
-			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
-			FAuthorityChangeTracker* ChangeTracker
-			)
-		{
-			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-			TArray<FSoftObjectPath> Paths { ObjectPath };
-			ClientStreamModel->ForEachSubobject(ObjectPath, [&Paths](const FSoftObjectPath& Child)
-			{
-				Paths.Add(Child);
-				return EBreakBehavior::Continue;
-			});
-			
-			ChangeTracker->SetAuthorityIfAllowed(Paths, bIsChecked);
-		}
-
-		static bool IsEnabled(
-			const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData,
-			ConcertClientSharedSlate::IReplicationStreamModel* ClientStreamModel,
-			FAuthorityChangeTracker* ChangeTracker
-			)
-		{
-			const FSoftObjectPath& TopLevelObjectPath = ObjectData.GetObjectPath();
-			const bool bCanChangeTopLevel = ChangeTracker->CanSetAuthorityFor(TopLevelObjectPath);
-			if (bCanChangeTopLevel)
-			{
-				return true;
-			}
-						
-			bool bCanChangeAnySubobject = false;
-			ClientStreamModel->ForEachSubobject(TopLevelObjectPath, [&ChangeTracker, &bCanChangeAnySubobject](const FSoftObjectPath& Child)
-			{
-				bCanChangeAnySubobject |= ChangeTracker->CanSetAuthorityFor(Child);
-				return bCanChangeAnySubobject ? EBreakBehavior::Break : EBreakBehavior::Continue;
-			});
-			return bCanChangeAnySubobject;
-		}
-	}
-	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleTopLevelAuthority(
-		ConcertClientSharedSlate::IReplicationStreamModel& ClientStreamModel,
-		FAuthorityChangeTracker& ChangeTracker,
-		ISubmissionWorkflow& SubmissionWorkflow
-		)
-	{
-		using namespace ConcertClientSharedSlate;
-		using namespace Private::ToggleTopLevelAuthority;
-		using FTopLevelColumnDelegates = TReplicationColumnDelegates<FReplicatedObjectData>;
-		
-		return MakeCheckboxColumn<FReplicatedObjectData>(
-			ToggleTopLevelAuthorityColumnId,
-				FTopLevelColumnDelegates(
-					FTopLevelColumnDelegates::FGetColumnCheckboxState::CreateStatic(&GetCheckboxState, &ClientStreamModel, &ChangeTracker),
-					FTopLevelColumnDelegates::FOnColumnCheckboxChanged::CreateStatic(&OnCheckboxStateChanged, &ClientStreamModel, &ChangeTracker),
-					FTopLevelColumnDelegates::FGetToolTipText::CreateLambda([&ClientStreamModel, &ChangeTracker, &SubmissionWorkflow](const FReplicatedObjectData& ObjectData)
-					{
-						
-						if (SubmissionWorkflow.GetUploadability() == EChangeUploadability::NotImplemented)
-						{
-							const ECheckBoxState CheckBoxState = GetCheckboxState(ObjectData, &ClientStreamModel, &ChangeTracker);
-							const FText CheckBoxText = [CheckBoxState]()
-							{
-								switch (CheckBoxState)
-								{
-								case ECheckBoxState::Unchecked: return LOCTEXT("TopLevel.ChangeAuthority.ToolTip.NotSupported.Unchecked", "None of the subobjects are being replicated.");
-								case ECheckBoxState::Checked: return LOCTEXT("TopLevel.ChangeAuthority.ToolTip.NotSupported.Checked", "All of the subobjects are being replicated.");
-								case ECheckBoxState::Undetermined: return LOCTEXT("TopLevel.ChangeAuthority.ToolTip.NotSupported.Undetermined", "Some of the subobjects are being replicated.");
-								default: checkNoEntry(); return FText::GetEmpty();
-								}
-							}();
-							
-							return FText::Format(
-								LOCTEXT("TopLevel.ChangeAuthority.ToolTip.NotSupportedFmt", "{0}\nEditing remote clients is not implemented. You can only edit the local client."),
-								CheckBoxText
-								);
-						}
-						
-						return IsEnabled(ObjectData, &ClientStreamModel, &ChangeTracker)
-							? LOCTEXT("TopLevel.ChangeAuthority.Allowed", "Toggles whether this object and its subobjects will replicate the assigned properties.")
-							: LOCTEXT("TopLevel.ChangeAuthority.Disallowed", "Toggles whether this object and its subobjects will replicate the assigned properties.\nDisabled because none of the subobjects can be replicated with their current configuration.");
-					}),
-					FTopLevelColumnDelegates::FIsEnabled::CreateStatic(&IsEnabled, &ClientStreamModel, &ChangeTracker)
-				),
-			FText::GetEmpty(),
-			static_cast<int32>(ETopLevelObjectColumnOrder::ToggleAuthority)
-		);
-	}
 
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
 		FAuthorityChangeTracker& ChangeTracker,
@@ -169,42 +26,37 @@ namespace UE::MultiUserClient::SingleClientColumns
 		)
 	{
 		using namespace ConcertClientSharedSlate;
-		using FSubobjectColumnDelegates = TReplicationColumnDelegates<FReplicatedObjectData>;
+		using FColumnDelegates = TReplicationColumnDelegates<FReplicatedObjectData>;
 		return MakeCheckboxColumn<FReplicatedObjectData>(
 			ToggleTopLevelAuthorityColumnId,
-				FSubobjectColumnDelegates(
-					FSubobjectColumnDelegates::FGetColumnCheckboxState::CreateLambda(
+				FColumnDelegates(
+					FColumnDelegates::FGetColumnCheckboxState::CreateLambda(
 					[&ChangeTracker](const FReplicatedObjectData& ObjectData)
 					{
 						const bool bHasAuthority = ChangeTracker.GetAuthorityStateAfterApplied(ObjectData.GetObjectPath());
 						return bHasAuthority ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 					}),
-					FSubobjectColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
+					FColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
 					[&ChangeTracker](bool bIsChecked, const FReplicatedObjectData& ObjectData)
 					{
 						ChangeTracker.SetAuthorityIfAllowed({ ObjectData.GetObjectPath() }, bIsChecked);
 					}),
-					FSubobjectColumnDelegates::FGetToolTipText::CreateLambda([&ChangeTracker, &SubmissionWorkflow](const FReplicatedObjectData& ObjectData)
+					FColumnDelegates::FGetToolTipText::CreateLambda([&ChangeTracker, &SubmissionWorkflow](const FReplicatedObjectData& ObjectData)
 					{
-						const bool bHasAuthority = ChangeTracker.GetAuthorityStateAfterApplied(ObjectData.GetObjectPath());
-						const FText NotSupportedText = FText::Format(
-							LOCTEXT("Subobject.ChangeAuthority.ToolTip.NotSupportedFmt", "{0}\nEditing remote clients is not implemented. You can only edit the local client."),
-							bHasAuthority ? LOCTEXT("Subobject.ChangeAuthority.Replicating.True", "This object is being replicated.") : LOCTEXT("Subobject.ChangeAuthority.Replicating.False", "This object is not currently being replicated.")
-							);
-						if (SubmissionWorkflow.GetUploadability() == EChangeUploadability::NotImplemented)
+						if (!CanEverSubmit(SubmissionWorkflow.GetUploadability()))
 						{
-							return NotSupportedText;
+							return LOCTEXT("ToggleAuthority.ToolTip.NotSupported", "This client cannot be remotely edited.");
 						}
 						
 						switch (ChangeTracker.GetChangeAuthorityMutability(ObjectData.GetObjectPath()))
 						{
-						case EAuthorityMutability::Allowed: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.Allowed", "Toggles whether this object should be replicated.");
-						case EAuthorityMutability::NoProperties: return LOCTEXT("Subobject.ChangeAuthority.ToolTip.NoProperties", "Toggles whether this object should be replicated.\nAssign properties to this object first.\n");
-						case EAuthorityMutability::NotSupported: return NotSupportedText;
+						case EAuthorityMutability::Allowed: return LOCTEXT("ToggleAuthority.ToolTip.Allowed", "Whether to replicate this object.");
+						case EAuthorityMutability::NotApplicable: return LOCTEXT("ToggleAuthority.ToolTip.NotApplicable", "Assign properties to replicate first.");
+						case EAuthorityMutability::Conflict: return LOCTEXT("ToggleAuthority.ToolTip.Conflict", "Another client is replicating this property already.");
 						default: checkNoEntry(); return FText::GetEmpty();
 						}
 					}),
-					FSubobjectColumnDelegates::FIsEnabled::CreateLambda([&ChangeTracker](const FReplicatedObjectData& ObjectData)
+					FColumnDelegates::FIsEnabled::CreateLambda([&ChangeTracker](const FReplicatedObjectData& ObjectData)
 					{
 						return ChangeTracker.CanSetAuthorityFor(ObjectData.GetObjectPath());
 					})

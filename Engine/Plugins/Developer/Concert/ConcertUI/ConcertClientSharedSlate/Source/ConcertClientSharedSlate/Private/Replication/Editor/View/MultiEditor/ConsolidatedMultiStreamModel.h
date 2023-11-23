@@ -91,7 +91,7 @@ namespace UE::ConcertClientSharedSlate
 		void OnObjectsChanged_ClientStream(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
 		
 		/** Trigger subscription rebuild when streams are added / removed. */
-		void OnReadOnlyStreamChanged(TSharedRef<IReplicationStreamModel> Stream);
+		void OnStreamExternallyChanged(TSharedRef<IReplicationStreamModel> Stream);
 		void RebuildStreamSubscriptions();
 		void ClearStreamSubscriptions();
 	};

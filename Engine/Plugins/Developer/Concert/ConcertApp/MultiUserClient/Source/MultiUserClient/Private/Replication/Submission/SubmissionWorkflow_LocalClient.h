@@ -26,6 +26,7 @@ namespace UE::MultiUserClient
 	public:
 		
 		FSubmissionWorkflow_LocalClient(TSharedRef<IConcertSyncClient> InClient);
+		virtual ~FSubmissionWorkflow_LocalClient() override;
 		
 		//~ Begin ISubmissionWorkflow Interface
 		virtual TSharedPtr<ISubmissionOperation> SubmitChanges(FSubmissionParams Params) override;
@@ -43,16 +44,7 @@ namespace UE::MultiUserClient
 		struct FOperationData
 		{
 			TSharedRef<FSingleClientSubmissionOperation> Operation;
-
-			DECLARE_DELEGATE(FOnDestroy);
-			FOnDestroy OnDestroy;
-			
-			~FOperationData()
-			{
-				OnDestroy.ExecuteIfBound();
-			}
 		};
-		
 		/**
 		 * Set for as long as there is a SubmitChanges operation in progress.
 		 * Automatically cancels pending promises when destroyed.
@@ -66,6 +58,8 @@ namespace UE::MultiUserClient
 			TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest
 			);
 		void HandlePendingAuthorityChangeRequest(TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest);
+
+		void CleanUpSubmissionOperation();
 	};
 }
 

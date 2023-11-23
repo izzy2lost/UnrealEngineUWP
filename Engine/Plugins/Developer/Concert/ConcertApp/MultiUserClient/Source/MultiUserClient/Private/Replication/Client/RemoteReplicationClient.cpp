@@ -2,15 +2,17 @@
 
 #include "RemoteReplicationClient.h"
 
+#include "IConcertClient.h"
 #include "Assets/MultiUserReplicationClientPreset.h"
 #include "Replication/Authority/AuthoritySynchronizer_RemoteClient.h"
 #include "Replication/Stream/StreamSynchronizer_RemoteClient.h"
-#include "Replication/Submission/SubmissionWorkflow_RemoteClient.h"
+#include "Replication/Submission/Remote/SubmissionWorkflow_RemoteClient.h"
 
 namespace UE::MultiUserClient
 {
 	FRemoteReplicationClient::FRemoteReplicationClient(
 		const FGuid& InConcertClientId,
+		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		FRegularQueryService& QueryService
@@ -20,19 +22,7 @@ namespace UE::MultiUserClient
 			InAuthorityCache,
 			InSessionContent,
 			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),
-			MakeUnique<FAuthoritySynchronizer_RemoteClient>(
-				InConcertClientId,
-				QueryService,
-				FDoesObjectHaveProperties::CreateLambda([this](const FSoftObjectPath& ObjectPath)
-				{
-					return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
-				})),
-			MakeUnique<FSubmissionWorkflow_RemoteClient>())
-	{
-		// When the remote client's state has changed, refresh the UI.
-		GetStreamSynchronizer().OnServerStateChanged().AddLambda([this]()
-		{
-			GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
-		});
-	}
+			MakeUnique<FAuthoritySynchronizer_RemoteClient>(InConcertClientId,QueryService),
+			MakeUnique<FSubmissionWorkflow_RemoteClient>(InClient->GetCurrentSession().ToSharedRef(), InConcertClientId))
+	{}
 }

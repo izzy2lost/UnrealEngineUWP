@@ -19,12 +19,8 @@ namespace UE::MultiUserClient
 			InAuthorityCache,
 			InSessionContent,
 			MoveTemp(InStreamSynchronizer),
-		MakeUnique<FAuthoritySynchronizer_LocalClient>(
-			InClient,
-			FDoesObjectHaveProperties::CreateLambda([this](const FSoftObjectPath& ObjectPath)
-			{
-				return GetStreamDiffer().DoesObjectHavePropertiesAfterSubmit(ObjectPath);
-			})),
+			MakeUnique<FAuthoritySynchronizer_LocalClient>(InClient),
 			MakeUnique<FSubmissionWorkflow_LocalClient>(MoveTemp(InClient)))
+		, RemoteSubmissionListener(InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), GetStreamSynchronizer(), GetSubmissionWorkflow())
 	{}
 }

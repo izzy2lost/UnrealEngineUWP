@@ -2,6 +2,7 @@
 
 #include "AuthorityChangeTracker.h"
 
+#include "EAuthorityMutability.h"
 #include "IClientAuthoritySynchronizer.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
 
@@ -64,7 +65,7 @@ namespace UE::MultiUserClient
 
 			const bool bHasAuthority = AuthoritySynchronizer.HasAuthorityOver(ObjectPath); 
 			if (bHasAuthority == NewAuthorityState.Value
-				|| !AuthoritySynchronizer.CanChangeAuthority(ObjectPath))
+				|| !CanSetAuthorityFor(ObjectPath))
 			{
 				It.RemoveCurrent();
 			}
@@ -79,13 +80,12 @@ namespace UE::MultiUserClient
 
 	bool FAuthorityChangeTracker::CanSetAuthorityFor(const FSoftObjectPath& ObjectPath) const
 	{
-		return AuthoritySynchronizer.CanChangeAuthority(ObjectPath)
-			&& AuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId) != FGlobalAuthorityCache::ECanTakeAuthority::Conflict;
+		return GetChangeAuthorityMutability(ObjectPath) == EAuthorityMutability::Allowed;
 	}
 
 	EAuthorityMutability FAuthorityChangeTracker::GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const
 	{
-		return AuthoritySynchronizer.GetChangeAuthorityMutability(ObjectPath);
+		return AuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId);
 	}
 
 	TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> FAuthorityChangeTracker::BuildChangeRequest(const FGuid& StreamId) const

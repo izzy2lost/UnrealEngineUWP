@@ -11,6 +11,7 @@
 
 #include "Framework/Notifications/NotificationManager.h"
 #include "Input/Reply.h"
+#include "Stats/Stats2.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 namespace UE::MultiUserClient
@@ -39,6 +40,17 @@ namespace UE::MultiUserClient
 		}
 	}
 
+	void FSubmissionNotifier::Tick(float DeltaTime)
+	{
+		ProcessCompletedStreamChanges();
+		ProcessCompletedAuthorityChanges();
+	}
+
+	TStatId FSubmissionNotifier::GetStatId() const
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(FSubmissionNotifier, STATGROUP_Tickables);
+	}
+
 	void FSubmissionNotifier::OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteReplicationClient)
 	{
 		RegisterClient(RemoteReplicationClient);
@@ -46,27 +58,48 @@ namespace UE::MultiUserClient
 
 	void FSubmissionNotifier::RegisterClient(FReplicationClient& Client)
 	{
-		Client.GetSubmissionWorkflow().OnStreamRequestCompleted().AddRaw(this, &FSubmissionNotifier::OnStreamRequestCompleted);
-		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted().AddRaw(this, &FSubmissionNotifier::OnAuthorityRequestCompleted);
+		Client.GetSubmissionWorkflow().OnStreamRequestCompleted_AnyThread().AddRaw(this, &FSubmissionNotifier::OnStreamRequestCompleted_AnyThread);
+		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FSubmissionNotifier::OnAuthorityRequestCompleted_AnyThread);
 	}
 
 	void FSubmissionNotifier::UnregisterClient(FReplicationClient& Client)
 	{
-		Client.GetSubmissionWorkflow().OnStreamRequestCompleted().RemoveAll(this);
-		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted().RemoveAll(this);
+		Client.GetSubmissionWorkflow().OnStreamRequestCompleted_AnyThread().RemoveAll(this);
+		Client.GetSubmissionWorkflow().OnAuthorityRequestCompleted_AnyThread().RemoveAll(this);
 	}
 
-	void FSubmissionNotifier::OnStreamRequestCompleted(const FSubmitStreamChangesResponse& Request)
+	void FSubmissionNotifier::OnStreamRequestCompleted_AnyThread(const FSubmitStreamChangesResponse& Response)
 	{
-		AccumulateStreamRejections(Request);
+		// Must be processed on the game thread because it might create a SNotification
+		StreamRequestQueue.Enqueue(Response);
+	}
+
+	void FSubmissionNotifier::OnAuthorityRequestCompleted_AnyThread(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
+	{
+		// Must be processed on the game thread because it might create a SNotification
+		AuthorityRequestQueue.Enqueue({ Request, Response });
+	}
+
+	void FSubmissionNotifier::ProcessCompletedStreamChanges()
+	{
+		FSubmitStreamChangesResponse Response;
+		while (StreamRequestQueue.Dequeue(Response))
+		{
+			AccumulateStreamRejections(Response);
+		}
+		
 		CreateOrUpdateStreamNotification();
 	}
 
-	void FSubmissionNotifier::OnAuthorityRequestCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
+	void FSubmissionNotifier::ProcessCompletedAuthorityChanges()
 	{
-		AccumulateAuthorityRejections(Request, Response);
-		CreateOrUpdateAuthorityNotification();
+		TPair<FSubmitAuthorityChangesRequest, FSubmitAuthorityChangesResponse> PendingPair;
+		while (AuthorityRequestQueue.Dequeue(PendingPair))
+		{
+			AccumulateAuthorityRejections(PendingPair.Key, PendingPair.Value);
+		}
 		
+		CreateOrUpdateAuthorityNotification();
 	}
 
 	void FSubmissionNotifier::AccumulateStreamRejections(const FSubmitStreamChangesResponse& CompletedOp)

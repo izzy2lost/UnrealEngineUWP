@@ -6,13 +6,8 @@
 
 namespace UE::MultiUserClient
 {
-	FAuthoritySynchronizer_RemoteClient::FAuthoritySynchronizer_RemoteClient(
-		const FGuid& RemoteEndpointId,
-		FRegularQueryService& InQueryService,
-		FDoesObjectHaveProperties InDoesObjectHaveProperties
-		)
-		: FAuthoritySynchronizer_Base(MoveTemp(InDoesObjectHaveProperties))
-		, QueryService(InQueryService)
+	FAuthoritySynchronizer_RemoteClient::FAuthoritySynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService)
+		: QueryService(InQueryService)
 		, QueryStreamHandle(
     		QueryService.RegisterAuthorityQuery(
     			RemoteEndpointId,
@@ -24,12 +19,6 @@ namespace UE::MultiUserClient
 	FAuthoritySynchronizer_RemoteClient::~FAuthoritySynchronizer_RemoteClient()
 	{
 		QueryService.UnregisterAuthorityQuery(QueryStreamHandle);
-	}
-
-	EAuthorityMutability FAuthoritySynchronizer_RemoteClient::GetChangeAuthorityMutability(const FSoftObjectPath& ObjectPath) const
-	{
-		// TODO DP: UE-198088 return whether it is legal to change the authority
-		return EAuthorityMutability::NotSupported;
 	}
 
 	bool FAuthoritySynchronizer_RemoteClient::HasAnyAuthority() const

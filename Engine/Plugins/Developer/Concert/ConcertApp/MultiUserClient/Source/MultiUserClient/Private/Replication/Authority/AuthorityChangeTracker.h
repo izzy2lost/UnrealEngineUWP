@@ -16,7 +16,7 @@ struct FSoftObjectPath;
 namespace UE::MultiUserClient
 {
 	class IClientAuthoritySynchronizer;
-	enum class EAuthorityMutability;
+	enum class EAuthorityMutability : uint8;
 	
 	/** Keeps track of authority changes the local editor instance makes to a client. */
 	class FAuthorityChangeTracker

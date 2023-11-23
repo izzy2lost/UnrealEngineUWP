@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 		//~ Begin IEditableMultiReplicationStreamModel Interface
 		virtual TSet<TSharedRef<ConcertClientSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override;
 		virtual TSet<TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>> GetEditableStreams() const override;
-		virtual FOnReadOnlyStreamChanged& OnReadOnlyStreamChanged() override { return OnReadOnlyStreamChangedDelegate; }
+		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() override { return OnReadOnlyStreamChangedDelegate; }
 		virtual FOnStreamSetChanged& OnStreamSetChanged() override { return OnStreamSetChangedDelegate; }
 		//~ End IEditableMultiReplicationStreamModel Interface
 
@@ -44,13 +44,13 @@ namespace UE::MultiUserClient
 		TSet<const FReplicationClient*> CachedReadOnlyClients;
 		TSet<const FReplicationClient*> CachedWritableClients;
 
-		FOnReadOnlyStreamChanged OnReadOnlyStreamChangedDelegate;
+		FOnStreamExternallyChanged OnReadOnlyStreamChangedDelegate;
 		FOnStreamSetChanged OnStreamSetChangedDelegate;
 		
 		void RebuildStreamsSets();
 
 		/** Handle read-only streams changing */
-		void OnReadOnlyStreamChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream);
+		void OnStreamExternallyChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream);
 	};
 }
 

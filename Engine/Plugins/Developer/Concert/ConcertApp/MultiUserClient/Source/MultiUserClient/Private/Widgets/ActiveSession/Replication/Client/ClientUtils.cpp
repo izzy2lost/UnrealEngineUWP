@@ -12,20 +12,25 @@ namespace UE::MultiUserClient::ClientUtils
 	FString GetClientDisplayName(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId)
 	{
 		const TSharedPtr<IConcertClientSession> Session = InLocalClientInstance.GetCurrentSession();
-		const bool bIsLocalClient = ensure(Session) && Session->GetSessionClientEndpointId() == InClientEndpointId;
+		return ensure(Session) ? GetClientDisplayName(*Session, InClientEndpointId) : FString{};
+	}
+	
+	FString GetClientDisplayName(const IConcertClientSession& InSession, const FGuid& InClientEndpointId)
+	{
+		const bool bIsLocalClient = InSession.GetSessionClientEndpointId() == InClientEndpointId;
 		if (bIsLocalClient)
 		{
-			return ConcertClientSharedSlate::SClientName::GetDisplayText(Session->GetLocalClientInfo(), bIsLocalClient).ToString();
+			return ConcertClientSharedSlate::SClientName::GetDisplayText(InSession.GetLocalClientInfo(), bIsLocalClient).ToString();
 		}
 
 		FConcertSessionClientInfo ClientInfo;
-		if (ensure(Session) && Session->FindSessionClient(InClientEndpointId, ClientInfo))
+		if (InSession.FindSessionClient(InClientEndpointId, ClientInfo))
 		{
 			return ConcertClientSharedSlate::SClientName::GetDisplayText(ClientInfo.ClientInfo, bIsLocalClient).ToString();
 		}
 
 		ensureMsgf(false, TEXT("Bad args"));
-		return {};
+		return InClientEndpointId.ToString(EGuidFormats::DigitsWithHyphens);
 	}
 	
 	bool GetClientDisplayInfo(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId, FConcertClientInfo& OutClientInfo)

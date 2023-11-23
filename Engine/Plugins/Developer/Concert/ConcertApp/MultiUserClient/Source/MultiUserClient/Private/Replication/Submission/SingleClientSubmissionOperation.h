@@ -52,6 +52,10 @@ namespace UE::MultiUserClient
 			AuthorityChangeResponsePromise.EmplaceValue(MoveTemp(Result));
 		}
 
+		bool HasSetStreamPromise() const { return bStreamPromiseWasSet; }
+		bool HasSetAuthorityRequestPromise() const { return bAuthorityRequestPromiseWasSet; }
+		bool HasSetAuthorityResponsePromise() const { return bAuthorityResponsePromiseWasSet; }
+		
 		//~ Begin ISubmissionOperation Interface
 		virtual bool IsModifyingStreams() const override { return bModifiesStreams; }
 		virtual TFuture<FSubmitStreamChangesResponse> OnStreamChangesSubmittedFuture() override { return StreamChangesPromise.GetFuture();  }
