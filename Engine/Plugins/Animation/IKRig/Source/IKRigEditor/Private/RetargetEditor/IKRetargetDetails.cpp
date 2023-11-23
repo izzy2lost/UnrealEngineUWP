@@ -688,10 +688,10 @@ void UIKRetargetBoneDetails::OnMultiNumericValueCommitted(
 	FVector::FReal Value,
 	ETextCommit::Type CommitType,
 	EIKRetargetTransformType TransformType,
-	TArrayView<UIKRetargetBoneDetails*> Bones,
+	TArrayView<TObjectPtr<UIKRetargetBoneDetails>> Bones,
 	bool bIsCommit)
 {
-	for(UIKRetargetBoneDetails* Bone : Bones)
+	for(TObjectPtr<UIKRetargetBoneDetails> Bone : Bones)
 	{	
 		Bone->OnNumericValueCommitted(Component, Representation, SubComponent, Value, CommitType, TransformType, bIsCommit);
 	}
@@ -787,7 +787,7 @@ void FIKRetargetBoneDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 	.Font(IDetailLayoutBuilder::GetDetailFont())
 	.UseQuaternionForRotation(true);
 
-	TArrayView<UIKRetargetBoneDetails*> BonesView = TArrayView<UIKRetargetBoneDetails*>(Bones);
+	TArrayView< TObjectPtr<UIKRetargetBoneDetails> > BonesView = TArrayView< TObjectPtr<UIKRetargetBoneDetails> >(Bones);
 	
 	for(int32 PropertyIndex=0;PropertyIndex<UIData.Properties.Num();PropertyIndex++)
 	{
@@ -843,7 +843,7 @@ void FIKRetargetBoneDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 		})
 		.OnIsComponentRelativeChanged_Lambda( [bIsEditable, BonesView, TransformType](ESlateTransformComponent::Type InComponent, bool bIsRelative)
 		{
-			for (const TObjectPtr<UIKRetargetBoneDetails> Bone: BonesView)
+			for (const TObjectPtr<UIKRetargetBoneDetails>& Bone: BonesView)
 			{
 				Bone->OnComponentRelativeChanged(InComponent, bIsRelative, TransformType);
 			}
@@ -877,8 +877,8 @@ void FIKRetargetBoneDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 		});
 
 		// copy/paste bones transforms
-		TransformWidgetArgs.OnCopyToClipboard_UObject(Bones[0], &UIKRetargetBoneDetails::OnCopyToClipboard, TransformType);
-		TransformWidgetArgs.OnPasteFromClipboard_UObject(Bones[0], &UIKRetargetBoneDetails::OnPasteFromClipboard, TransformType);
+		TransformWidgetArgs.OnCopyToClipboard_UObject(Bones[0].Get(), &UIKRetargetBoneDetails::OnCopyToClipboard, TransformType);
+		TransformWidgetArgs.OnPasteFromClipboard_UObject(Bones[0].Get(), &UIKRetargetBoneDetails::OnPasteFromClipboard, TransformType);
 
 		TransformWidgetArgs.Visibility_Lambda([TransformChoiceWidget, TransformType]() -> EVisibility
 		{
@@ -891,6 +891,16 @@ void FIKRetargetBoneDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 			UIData.ButtonTooltips[PropertyIndex], 
 			TransformWidgetArgs);
 	}
+}
+
+void FIKRetargetBoneDetailCustomization::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(Bones);
+}
+
+FString FIKRetargetBoneDetailCustomization::GetReferencerName() const
+{
+	return TEXT("FIKRetargetBoneDetailCustomization");
 }
 
 void FIKRetargetBoneDetailCustomization::GetTransformUIData(

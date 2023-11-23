@@ -73,7 +73,7 @@ public:
 		FVector::FReal Value,
 		ETextCommit::Type CommitType,
 		EIKRetargetTransformType TransformType,
-		TArrayView<UIKRetargetBoneDetails*> Bones,
+		TArrayView<TObjectPtr<UIKRetargetBoneDetails>> Bones,
 		bool bIsCommit);
 
 	template<typename DataType>
@@ -140,7 +140,7 @@ struct FIKRetargetTransformUIData
 	TArray<TSharedRef<IPropertyHandle>> Properties;
 };
 
-class FIKRetargetBoneDetailCustomization : public IDetailCustomization
+class FIKRetargetBoneDetailCustomization : public IDetailCustomization, FGCObject
 {
 public:
 
@@ -152,6 +152,11 @@ public:
 	/** IDetailCustomization interface */
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
+	// End FGCObject interface
+
 private:
 
 	void GetTransformUIData(
@@ -159,7 +164,7 @@ private:
 		const IDetailLayoutBuilder& DetailBuilder,
 		FIKRetargetTransformUIData& OutData) const;
 
-	TArray<UIKRetargetBoneDetails*> Bones;
+	TArray<TObjectPtr<UIKRetargetBoneDetails>> Bones;
 };
 
 /** ------------------------------------- BEGIN CHAIN DETAILS CUSTOMIZATION -------------*/
