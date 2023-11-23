@@ -158,9 +158,17 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 		if (Inputs.TAAConfig == EMainTAAPassConfig::TSR)
 		{
 			FVisualizeBufferTile& Tile = Tiles[4 * 1 + 3];
-			Tile.Input = Inputs.Inputs.MoireInputTexture;
-			Tile.Input.ViewRect = CropViewRectToCenter(View.ViewRect);
-			Tile.Label = VisualizeTextureLabel(Inputs.Inputs.MoireInputTexture.Texture);
+			if (Inputs.Inputs.MoireInputTexture.IsValid())
+			{
+				Tile.Input = Inputs.Inputs.MoireInputTexture;
+				Tile.Input.ViewRect = CropViewRectToCenter(View.ViewRect);
+				Tile.Label = VisualizeTextureLabel(Inputs.Inputs.MoireInputTexture.Texture);
+			}
+			else
+			{
+				Tile.Input = FScreenPassTexture(GSystemTextures.GetBlackDummy(GraphBuilder));
+				Tile.Label = TEXT("No Moire Luma!");
+			}
 		}
 
 		// Display UMaterial::bHasPixelAnimation used to disable TSR's anti-flickering heuristic (r.TSR.ShadingRejection.Flickering) on per pixel basis

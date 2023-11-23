@@ -4086,18 +4086,21 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		TArray<FScreenPassTexture, TInlineAllocator<4>> TSRMoireInputTextures;
-		// Extract TSR's moire heuristic luminance before renderering translucency into the scene color.
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+		if (!bHasRayTracedOverlay)
 		{
-			FViewInfo& View = Views[ViewIndex];
-			if (NeedTSRMoireLuma(View))
+			// Extract TSR's moire heuristic luminance before rendering translucency into the scene color.
+			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 			{
-				if (TSRMoireInputTextures.Num() == 0)
+				FViewInfo& View = Views[ViewIndex];
+				if (NeedTSRMoireLuma(View))
 				{
-					TSRMoireInputTextures.SetNum(Views.Num());
-				}
+					if (TSRMoireInputTextures.Num() == 0)
+					{
+						TSRMoireInputTextures.SetNum(Views.Num());
+					}
 
-				TSRMoireInputTextures[ViewIndex] = AddTSRComputeMoireLuma(GraphBuilder, View.ShaderMap, FScreenPassTexture(SceneTextures.Color.Target, View.ViewRect));
+					TSRMoireInputTextures[ViewIndex] = AddTSRComputeMoireLuma(GraphBuilder, View.ShaderMap, FScreenPassTexture(SceneTextures.Color.Target, View.ViewRect));
+				}
 			}
 		}
 
