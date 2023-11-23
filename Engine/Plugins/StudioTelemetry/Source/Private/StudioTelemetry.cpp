@@ -5,9 +5,6 @@
 
 #if WITH_EDITOR
 #include "StudioTelemetryEditor.h"
-#endif
-
-#if !UE_BUILD_SHIPPING
 #include "Horde.h"
 #endif
 
@@ -137,7 +134,7 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("Config_IsBuildMachine"), GIsBuildMachine);
 		DefaultEventAttributes.Emplace(TEXT("Config_IsRunningCommandlet"), IsRunningCommandlet());
 
-#if !UE_BUILD_SHIPPING
+#if WITH_EDITOR
 		DefaultEventAttributes.Emplace(TEXT("Horde_TemplateID"), FHorde::GetTemplateId());
 		DefaultEventAttributes.Emplace(TEXT("Horde_TemplateName"), FHorde::GetTemplateName());
 		DefaultEventAttributes.Emplace(TEXT("Horde_JobURL"), FHorde::GetJobURL());

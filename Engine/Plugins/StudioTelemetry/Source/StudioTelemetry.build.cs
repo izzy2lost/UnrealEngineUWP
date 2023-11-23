@@ -29,19 +29,11 @@ public class StudioTelemetry : ModuleRules
 			}
 		);
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
-		{
-			PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Horde"
-			});
-		}
-
 		if (Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
+					"Horde",
 					"AssetRegistry",
 					"UnrealEd",
 					"DerivedDataCache",
