@@ -232,7 +232,7 @@ const TArray<FRigVMExecuteArgument>& FRigVMDispatchFactory::GetExecuteArguments_
 
 FRigVMFunctionPtr FRigVMDispatchFactory::GetOrCreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const
 {
-	FScopeLock GetTemplateScopeLock(&FRigVMRegistry::GetDispatchFunctionMutex);
+	FScopeLock DispatchFunctionScopeLock(&FRigVMRegistry::DispatchFunctionMutex);
 
 	const FString PermutationName = GetPermutationNameImpl(InTypes);
 	if(const FRigVMFunction* ExistingFunction = FRigVMRegistry::Get().FindFunction(*PermutationName))
@@ -245,7 +245,7 @@ FRigVMFunctionPtr FRigVMDispatchFactory::GetOrCreateDispatchFunction(const FRigV
 
 FRigVMFunctionPtr FRigVMDispatchFactory::CreateDispatchFunction(const FRigVMTemplateTypeMap& InTypes) const
 {
-	FScopeLock GetTemplateScopeLock(&FRigVMRegistry::GetDispatchFunctionMutex);
+	FScopeLock DispatchFunctionScopeLock(&FRigVMRegistry::DispatchFunctionMutex);
 	return CreateDispatchFunction_NoLock(InTypes);
 }
 
@@ -256,7 +256,7 @@ FRigVMFunctionPtr FRigVMDispatchFactory::CreateDispatchFunction_NoLock(const FRi
 
 TArray<FRigVMFunction> FRigVMDispatchFactory::CreateDispatchPredicates(const FRigVMTemplateTypeMap& InTypes) const
 {
-	FScopeLock GetTemplateScopeLock(&FRigVMRegistry::GetDispatchPredicatesMutex);
+	FScopeLock DispatchPredicatesScopeLock(&FRigVMRegistry::DispatchPredicatesMutex);
 	return CreateDispatchPredicates_NoLock(InTypes);
 }
 

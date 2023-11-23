@@ -1317,7 +1317,7 @@ const FRigVMFunction* FRigVMTemplate::GetPrimaryPermutation() const
 
 const FRigVMFunction* FRigVMTemplate::GetPermutation(int32 InIndex) const
 {
-	FScopeLock FindPermutationScopeLock(&FRigVMRegistry::GetPermutationMutex);
+	FScopeLock FunctionRegistryScopeLock(&FRigVMRegistry::FunctionRegistryMutex);
 	return GetPermutation_NoLock(InIndex);
 }
 
@@ -1334,8 +1334,13 @@ const FRigVMFunction* FRigVMTemplate::GetPermutation_NoLock(int32 InIndex) const
 
 const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation(int32 InIndex)
 {
-	FScopeLock FindPermutationScopeLock(&FRigVMRegistry::GetPermutationMutex);
+	FScopeLock FunctionRegistryScopeLock(&FRigVMRegistry::FunctionRegistryMutex);
 
+	return GetOrCreatePermutation_NoLock(InIndex);
+}
+
+const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation_NoLock(int32 InIndex)
+{
 	if(const FRigVMFunction* Function = GetPermutation_NoLock(InIndex))
 	{
 		return Function;
@@ -1343,7 +1348,6 @@ const FRigVMFunction* FRigVMTemplate::GetOrCreatePermutation(int32 InIndex)
 
 	if(Permutations[InIndex] == INDEX_NONE && UsesDispatch())
 	{
-		FScopeLock RegisterFunctionScopeLock(&FRigVMRegistry::RegisterFunctionMutex);
 		FRigVMRegistry& Registry = FRigVMRegistry::Get();
 		
 		FTypeMap Types;

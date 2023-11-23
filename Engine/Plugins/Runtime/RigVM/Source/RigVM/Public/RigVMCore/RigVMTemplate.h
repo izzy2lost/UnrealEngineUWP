@@ -517,6 +517,7 @@ private:
 	const TArray<FRigVMExecuteArgument>& GetExecuteArguments(const FRigVMDispatchContext& InContext) const;
 
 	const FRigVMFunction* GetPermutation_NoLock(int32 InIndex) const;
+	const FRigVMFunction* GetOrCreatePermutation_NoLock(int32 InIndex);
 
 	int32 Index;
 	FName Notation;

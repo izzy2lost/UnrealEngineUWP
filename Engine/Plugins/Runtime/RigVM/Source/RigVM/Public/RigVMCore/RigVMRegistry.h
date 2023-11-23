@@ -405,16 +405,13 @@ private:
 	bool bIsRefreshingEngineTypes;
 
 	static FCriticalSection RefreshTypesMutex;
-	static FCriticalSection RegisterFunctionMutex;
-	static FCriticalSection RegisterTemplateMutex;
-	static FCriticalSection RegisterFactoryMutex;
-	static FCriticalSection FindFunctionMutex;
-	static FCriticalSection FindTemplateMutex;
-	static FCriticalSection FindFactoryMutex;
-	static FCriticalSection GetDispatchFunctionMutex;
-	static FCriticalSection GetDispatchPredicatesMutex;
-	static FCriticalSection GetPermutationMutex;
+	static FCriticalSection FunctionRegistryMutex;
+	static FCriticalSection FactoryRegistryMutex;
+	static FCriticalSection TemplateRegistryMutex;
 
+	static FCriticalSection DispatchFunctionMutex;
+	static FCriticalSection DispatchPredicatesMutex;
+	
 	friend struct FRigVMStruct;
 	friend struct FRigVMTemplate;
 	friend struct FRigVMTemplateArgument;

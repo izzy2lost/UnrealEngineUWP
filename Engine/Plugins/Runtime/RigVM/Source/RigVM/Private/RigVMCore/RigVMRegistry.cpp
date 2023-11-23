@@ -16,16 +16,15 @@
 #include "RigVMFunctions/RigVMDispatch_Core.h"
 
 const FName FRigVMRegistry::TemplateNameMetaName = TEXT("TemplateName");
+
 FCriticalSection FRigVMRegistry::RefreshTypesMutex;
-FCriticalSection FRigVMRegistry::RegisterFunctionMutex;
-FCriticalSection FRigVMRegistry::RegisterTemplateMutex;
-FCriticalSection FRigVMRegistry::RegisterFactoryMutex;
-FCriticalSection FRigVMRegistry::FindFunctionMutex;
-FCriticalSection FRigVMRegistry::FindTemplateMutex;
-FCriticalSection FRigVMRegistry::FindFactoryMutex;
-FCriticalSection FRigVMRegistry::GetDispatchFunctionMutex;
-FCriticalSection FRigVMRegistry::GetDispatchPredicatesMutex;
-FCriticalSection FRigVMRegistry::GetPermutationMutex;
+
+FCriticalSection FRigVMRegistry::FunctionRegistryMutex;
+FCriticalSection FRigVMRegistry::FactoryRegistryMutex;
+FCriticalSection FRigVMRegistry::TemplateRegistryMutex;
+
+FCriticalSection FRigVMRegistry::DispatchFunctionMutex;
+FCriticalSection FRigVMRegistry::DispatchPredicatesMutex;
 
 
 // When the object system has been completely loaded, load in all the engine types that we haven't registered already in InitializeIfNeeded 
@@ -1198,9 +1197,9 @@ bool FRigVMRegistry::IsAllowedType(const UClass* InClass) const
 
 void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, const TArray<FRigVMFunctionArgument>& InArguments)
 {
-	FScopeLock RegisterFunctionScopeLock(&RegisterFunctionMutex);
+	FScopeLock FunctionRegistryScopeLock(&FunctionRegistryMutex);
 	
-	if (FindFunction(InName) != nullptr)
+	if (FindFunction_NoLock(InName) != nullptr)
 	{
 		return;
 	}
@@ -1280,7 +1279,6 @@ void FRigVMRegistry::Register(const TCHAR* InName, FRigVMFunctionPtr InFunctionP
 
 const FRigVMDispatchFactory* FRigVMRegistry::RegisterFactory(UScriptStruct* InFactoryStruct)
 {
-	FScopeLock RegisterFactoryScopeLock(&RegisterFactoryMutex);
 
 	check(InFactoryStruct);
 	check(InFactoryStruct != FRigVMDispatchFactory::StaticStruct());
@@ -1288,6 +1286,9 @@ const FRigVMDispatchFactory* FRigVMRegistry::RegisterFactory(UScriptStruct* InFa
 
 	// ensure to register factories only once
 	const FRigVMDispatchFactory* ExistingFactory = nullptr;
+
+	FScopeLock FactoryRegistryScopeLock(&FactoryRegistryMutex);
+
 	const bool bFactoryAlreadyRegistered = Factories.ContainsByPredicate([InFactoryStruct, &ExistingFactory](const FRigVMDispatchFactory* Factory)
 	{
 		if(Factory->GetScriptStruct() == InFactoryStruct)
@@ -1378,7 +1379,7 @@ void FRigVMRegistry::RegisterObjectTypes(TConstArrayView<TPair<UClass*, ERegiste
 
 const FRigVMFunction* FRigVMRegistry::FindFunction(const TCHAR* InName, const FRigVMUserDefinedTypeResolver& InTypeResolver) const
 {
-	FScopeLock FindFunctionScopeLock(&FindFunctionMutex);
+	FScopeLock FunctionRegistryScopeLock(&FunctionRegistryMutex);
 	return FindFunction_NoLock(InName, InTypeResolver);
 }
 
@@ -1406,7 +1407,7 @@ const FRigVMFunction* FRigVMRegistry::FindFunction_NoLock(const TCHAR* InName, c
 					const int32 PermutationIndex = Template->FindPermutation(ArgumentTypes);
 					if(PermutationIndex != INDEX_NONE)
 					{
-						return ((FRigVMTemplate*)Template)->GetOrCreatePermutation(PermutationIndex);
+						return ((FRigVMTemplate*)Template)->GetOrCreatePermutation_NoLock(PermutationIndex);
 					}
 				}
 			}
@@ -1478,7 +1479,7 @@ const FRigVMTemplate* FRigVMRegistry::FindTemplate(const FName& InNotation, bool
 		return nullptr;
 	}
 
-	FScopeLock FindTemplateScopeLock(&FindTemplateMutex);
+	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
 	return FindTemplate_NoLock(InNotation, bIncludeDeprecated);
 }
 
@@ -1601,7 +1602,7 @@ const TChunkedArray<FRigVMTemplate>& FRigVMRegistry::GetTemplates() const
 
 const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
-	FScopeLock RegisterTemplateScopeLock(&RegisterTemplateMutex);
+	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
 	
 	// avoid reentry in FindTemplate. try to find an existing
 	// template only if we are not yet in ::FindTemplate.
@@ -1616,7 +1617,7 @@ const FRigVMTemplate* FRigVMRegistry::GetOrAddTemplateFromArguments(const FName&
 
 const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments(const FName& InName, const TArray<FRigVMTemplateArgumentInfo>& InInfos, const FRigVMTemplateDelegates& InDelegates)
 {
-	FScopeLock RegisterTemplateScopeLock(&RegisterTemplateMutex);
+	FScopeLock TemplateRegistryScopeLock(&TemplateRegistryMutex);
 	return AddTemplateFromArguments_NoLock(InName, InInfos, InDelegates);
 }
 
@@ -1743,7 +1744,7 @@ const FRigVMTemplate* FRigVMRegistry::AddTemplateFromArguments_NoLock(const FNam
 
 FRigVMDispatchFactory* FRigVMRegistry::FindDispatchFactory(const FName& InFactoryName) const
 {
-	FScopeLock FindFactoryScopeLock(&FindFactoryMutex);
+	FScopeLock FactoryRegistryScopeLock(&FactoryRegistryMutex);
 	return FindDispatchFactory_NoLock(InFactoryName);
 }
 
