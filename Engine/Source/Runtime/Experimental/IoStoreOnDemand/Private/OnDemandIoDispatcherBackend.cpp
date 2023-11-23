@@ -1555,6 +1555,7 @@ public:
 	virtual void Mount(const FOnDemandEndpoint& Endpoint) override;
 	virtual void SetBulkOptionalEnabled(bool bEnabled) override;
 	virtual void SetEnabled(bool bEnabled) override;
+	virtual bool IsEnabled() const override;
 	virtual void AbandonCache() override;
 	virtual void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const override;
 
@@ -2302,6 +2303,11 @@ void FOnDemandIoBackend::SetBulkOptionalEnabled(bool bEnabled)
 void FOnDemandIoBackend::SetEnabled(bool bEnabled)
 {
 	BackendStatus.SetHttpEnabled(bEnabled);
+}
+
+bool FOnDemandIoBackend::IsEnabled() const
+{
+	return BackendStatus.IsHttpEnabled();
 }
 
 void FOnDemandIoBackend::AbandonCache()

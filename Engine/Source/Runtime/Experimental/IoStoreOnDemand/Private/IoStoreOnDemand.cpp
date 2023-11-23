@@ -2121,6 +2121,11 @@ void FIoStoreOnDemandModule::AbandonCache()
 	}
 }
 
+bool FIoStoreOnDemandModule::IsEnabled() const
+{
+	return Backend.IsValid()? Backend->IsEnabled():DeferredAbandonCache.IsSet();
+}
+
 void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const
 {
 	if (Backend.IsValid())

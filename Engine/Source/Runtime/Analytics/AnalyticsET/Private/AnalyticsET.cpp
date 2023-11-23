@@ -7,6 +7,7 @@
 #include "Analytics.h"
 #include "AnalyticsPerfTracker.h"
 #include "AnalyticsProviderETEventCache.h"
+#include "Misc/EngineVersion.h"
 
 IMPLEMENT_MODULE( FAnalyticsET, AnalyticsET );
 
@@ -26,13 +27,25 @@ void FAnalyticsET::ShutdownModule()
 
 TSharedPtr<IAnalyticsProvider> FAnalyticsET::CreateAnalyticsProvider(const FAnalyticsProviderConfigurationDelegate& GetConfigValue) const
 {
+	return CreateAnalyticsProviderET(GetConfigValue);
+}
+
+TSharedPtr<IAnalyticsProviderET> FAnalyticsET::CreateAnalyticsProviderET(const FAnalyticsProviderConfigurationDelegate& GetConfigValue) const
+{
 	if (GetConfigValue.IsBound())
 	{
 		Config ConfigValues;
 		ConfigValues.APIKeyET = GetConfigValue.Execute(Config::GetKeyNameForAPIKey(), true);
 		ConfigValues.APIServerET = GetConfigValue.Execute(Config::GetKeyNameForAPIServer(), true);
+		ConfigValues.APIEndpointET = GetConfigValue.Execute(Config::GetKeyNameForAPIEndpoint(), true);
 		ConfigValues.AppVersionET = GetConfigValue.Execute(Config::GetKeyNameForAppVersion(), false);
 		ConfigValues.UseLegacyProtocol = FCString::ToBool(*GetConfigValue.Execute(Config::GetKeyNameForUseLegacyProtocol(), false));
+
+		if (ConfigValues.AppVersionET.IsEmpty())
+		{
+			ConfigValues.AppVersionET = FEngineVersion::Current().ToString();
+		}
+
 		if (!ConfigValues.UseLegacyProtocol)
 		{
 			ConfigValues.AppEnvironment = GetConfigValue.Execute(Config::GetKeyNameForAppEnvironment(), true);
@@ -46,4 +59,3 @@ TSharedPtr<IAnalyticsProvider> FAnalyticsET::CreateAnalyticsProvider(const FAnal
 	}
 	return NULL;
 }
-

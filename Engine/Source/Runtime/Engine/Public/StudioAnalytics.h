@@ -47,10 +47,6 @@ public:
 	static ENGINE_API void RecordEvent(const FString& EventName);
 	static ENGINE_API void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes);
 
-	/** An event for reporting load time that blocks the editor. */
-	UE_DEPRECATED(5.3, "Functionality no longer used")
-	static ENGINE_API void FireEvent_Loading(const FString& LoadingName, double SecondsSpentLoading, const TArray<FAnalyticsEventAttribute>& Attributes = TArray<FAnalyticsEventAttribute>());
-
 private:
 	static void RunTimer_Concurrent();
 

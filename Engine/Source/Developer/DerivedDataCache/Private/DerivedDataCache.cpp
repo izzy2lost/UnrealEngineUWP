@@ -950,16 +950,6 @@ public:
 
 		GatherResourceStats(ResourceStats);
 
-		FDerivedDataCacheResourceStat ResourceStatsTotal(TEXT("Total"));
-
-		// Accumulate Totals
-		for (const FDerivedDataCacheResourceStat& Stat : ResourceStats)
-		{
-			ResourceStatsTotal += Stat;
-		}
-
-		ResourceStats.Emplace(ResourceStatsTotal);
-
 		// Append to the attributes
 		for (const FDerivedDataCacheResourceStat& Stat : ResourceStats)
 		{
@@ -1018,12 +1008,15 @@ public:
 			}
 		}
 
+		// Gather the backend stats
 		TSharedRef<FDerivedDataCacheStatsNode> RootNode = Backend->GatherUsageStats();
 		RootNode->ForEachDescendant([&Attributes](TSharedRef<const FDerivedDataCacheStatsNode> Node)
 			{
+				const FString& CacheName = Node->GetCacheName();
+
 				for (const FCookStatsManager::StringKeyValue& Stat : Node->CustomStats)
 				{
-					FString FormattedAttrName = Stat.Key.Replace(TEXT("."), TEXT("_"));
+					FString FormattedAttrName = CacheName + TEXT("_") + Stat.Key.Replace(TEXT("."), TEXT("_"));
 
 					if (Stat.Value.IsNumeric())
 					{
@@ -1033,8 +1026,6 @@ public:
 					{
 						Attributes.Emplace(FormattedAttrName, Stat.Value);
 					}
-
-
 				}
 			});
 #endif

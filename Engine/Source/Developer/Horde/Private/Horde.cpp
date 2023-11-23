@@ -4,8 +4,6 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
-#if WITH_EDITOR
-
 FString FHorde::GetTemplateName()
 {
 	static FString TemplateName;
@@ -101,5 +99,3 @@ FString FHorde::GetBatchId()
 	}
 	return BatchId;
 } 
-
-#endif

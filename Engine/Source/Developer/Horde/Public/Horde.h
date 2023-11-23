@@ -6,8 +6,6 @@
 #define HORDE_API
 #endif
 
-#if WITH_EDITOR
-
 #include "Containers/UnrealString.h"
 
 struct FHorde
@@ -22,4 +20,3 @@ struct FHorde
 	HORDE_API static FString GetBatchId();
 };
 
-#endif
