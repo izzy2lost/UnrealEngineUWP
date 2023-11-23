@@ -32,10 +32,10 @@ namespace PerfSummaries
 				title = inTitle;
 				statNamesFilter = inStatFilterStr.Split(',');
 			}
-			public PeakSummarySection(XElement element)
+			public PeakSummarySection(XElement element, XmlVariableMappings vars)
 			{
 				XElement statFilterElement = element.Element("statFilter");
-				title = element.Attribute("title").Value;
+				title = element.GetRequiredAttribute<string>(vars, "title");
 
 				statNamesFilter = statFilterElement.Value.Split(',');
 			}
@@ -58,17 +58,17 @@ namespace PerfSummaries
 			public string title;
 		};
 
-		public PeakSummary(XElement element, string baseXmlDirectory)
+		public PeakSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
 			//read the child elements (mostly for colourThresholds)
-			ReadStatsFromXML(element);
-			hideStatPrefix = element.GetSafeAttibute<string>("hideStatPrefix", "").ToLower();
+			ReadStatsFromXML(element, vars);
+			hideStatPrefix = element.GetSafeAttribute<string>(vars, "hideStatPrefix", "").ToLower();
 
 			foreach (XElement child in element.Elements())
 			{
 				if (child.Name == "summarySection")
 				{
-					peakSummarySections.Add(new PeakSummarySection(child));
+					peakSummarySections.Add(new PeakSummarySection(child, vars));
 				}
 			}
 
@@ -213,7 +213,7 @@ namespace PerfSummaries
 
 
 
-		void AddStat(string statName, OptionalDouble budget)
+		void AddStat(string statName, Optional<double> budget)
 		{
 			stats.Add(statName);
 
@@ -258,13 +258,13 @@ namespace PerfSummaries
 		{
 			public PeakStatInfo(string inName, string inShortName)
 			{
-				budget = new OptionalDouble();
+				budget = new Optional<double>();
 				name = inName;
 				shortName = inShortName;
 			}
 			public string name;
 			public string shortName;
-			public OptionalDouble budget;
+			public Optional<double> budget;
 		};
 
 		PeakStatInfo getOrAddStatInfo(string statName)

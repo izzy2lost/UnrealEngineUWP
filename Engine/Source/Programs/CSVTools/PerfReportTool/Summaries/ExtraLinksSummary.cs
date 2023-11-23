@@ -64,12 +64,12 @@ namespace PerfSummaries
 			public string LinkURL;
             public string LinkTemplateCsvId;
         };
-        public ExtraLinksSummary(XElement element, string baseXmlDirectory, bool bInLinkTemplates=false)
+        public ExtraLinksSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory, bool bInLinkTemplates=false)
         {
             title = "Links";
             if (element != null)
             {
-                title = element.GetSafeAttibute("title", title);
+                title = element.GetSafeAttribute(vars, "title", title);
             }
             bLinkTemplates = bInLinkTemplates;
         }

@@ -32,20 +32,20 @@ namespace PerfSummaries
 
 		class MapOverlay
 		{
-			public MapOverlay(XElement element)
+			public MapOverlay(XElement element, XmlVariableMappings vars)
 			{
-				positionStatNames[0] = element.GetSafeAttibute<string>("xStat");
-				positionStatNames[1] = element.GetSafeAttibute<string>("yStat");
-				positionStatNames[2] = element.GetSafeAttibute<string>("zStat");
-				summaryStatNamePrefix = element.GetSafeAttibute<string>("summaryStatNamePrefix"); // unused!
-				lineColor = element.GetSafeAttibute<string>("lineColor", "#ffffff");
+				positionStatNames[0] = element.GetSafeAttribute<string>(vars, "xStat");
+				positionStatNames[1] = element.GetSafeAttribute<string>(vars, "yStat");
+				positionStatNames[2] = element.GetSafeAttribute<string>(vars, "zStat");
+				summaryStatNamePrefix = element.GetSafeAttribute<string>(vars, "summaryStatNamePrefix"); // unused!
+				lineColor = element.GetSafeAttribute<string>(vars, "lineColor", "#ffffff");
 				foreach (XElement eventEl in element.Elements("event"))
 				{
-					MapOverlayEvent ev = new MapOverlayEvent(eventEl.Attribute("name").Value);
-					ev.shortName = eventEl.GetSafeAttibute<string>("shortName");
-					ev.summaryStatName = eventEl.GetSafeAttibute<string>("summaryStatName"); // unused!
-					ev.lineColor = eventEl.GetSafeAttibute<string>("lineColor");
-					if (eventEl.GetSafeAttibute<bool>("isStartEvent", false))
+					MapOverlayEvent ev = new MapOverlayEvent(eventEl.GetRequiredAttribute<string>(vars, "name"));
+					ev.shortName = eventEl.GetSafeAttribute<string>(vars, "shortName");
+					ev.summaryStatName = eventEl.GetSafeAttribute<string>(vars, "summaryStatName"); // unused!
+					ev.lineColor = eventEl.GetSafeAttribute<string>(vars, "lineColor");
+					if (eventEl.GetSafeAttribute<bool>(vars, "isStartEvent", false))
 					{
 						if (startEvent != null)
 						{
@@ -64,15 +64,15 @@ namespace PerfSummaries
 			public List<MapOverlayEvent> events = new List<MapOverlayEvent>();
 		}
 
-		public MapOverlaySummary(XElement element, string baseXmlDirectory)
+		public MapOverlaySummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
+			ReadStatsFromXML(element, vars);
 			if (stats.Count != 0)
 			{
 				throw new Exception("<stats> element is not supported");
 			}
 
-			sourceImagePath = element.GetSafeAttibute<string>("sourceImage");
+			sourceImagePath = element.GetSafeAttribute<string>(vars, "sourceImage");
 			if (baseXmlDirectory == null)
 			{
 				throw new Exception("BaseXmlDirectory not specified");
@@ -82,19 +82,19 @@ namespace PerfSummaries
 				sourceImagePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseXmlDirectory, sourceImagePath));
 			}
 
-			offsetX = element.GetSafeAttibute<float>("offsetX", 0.0f);
-			offsetY = element.GetSafeAttibute<float>("offsetY", 0.0f);
-			scale = element.GetSafeAttibute<float>("scale", 1.0f);
-			title = element.GetSafeAttibute("title", "Events");
-			destImageFilename = element.Attribute("destImage").Value;
-			imageWidth = element.GetSafeAttibute<float>("width", 250.0f);
-			imageHeight = element.GetSafeAttibute<float>("height", 250.0f);
-			framesPerLineSegment = element.GetSafeAttibute<int>("framesPerLineSegment", 5);
-			lineSplitDistanceThreshold = element.GetSafeAttibute<float>("lineSplitDistanceThreshold", float.MaxValue);
+			offsetX = element.GetSafeAttribute<float>(vars, "offsetX", 0.0f);
+			offsetY = element.GetSafeAttribute<float>(vars, "offsetY", 0.0f);
+			scale = element.GetSafeAttribute<float>(vars, "scale", 1.0f);
+			title = element.GetSafeAttribute(vars, "title", "Events");
+			destImageFilename = element.GetRequiredAttribute<string>(vars, "destImage");
+			imageWidth = element.GetSafeAttribute<float>(vars, "width", 250.0f);
+			imageHeight = element.GetSafeAttribute<float>(vars, "height", 250.0f);
+			framesPerLineSegment = element.GetSafeAttribute<int>(vars, "framesPerLineSegment", 5);
+			lineSplitDistanceThreshold = element.GetSafeAttribute<float>(vars, "lineSplitDistanceThreshold", float.MaxValue);
 
 			foreach (XElement overlayEl in element.Elements("overlay"))
 			{
-				MapOverlay overlay = new MapOverlay(overlayEl);
+				MapOverlay overlay = new MapOverlay(overlayEl, vars);
 				overlays.Add(overlay);
 				stats.Add(overlay.positionStatNames[0]);
 				stats.Add(overlay.positionStatNames[1]);

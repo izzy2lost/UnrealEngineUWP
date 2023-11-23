@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Xml.Linq;
 using System.IO;
 using System.Diagnostics;
 using CSVStats;
@@ -15,18 +14,16 @@ using System.Threading.Tasks;
 using System.Threading;
 
 using PerfSummaries;
-using System.Globalization;
 using CSVTools;
 
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace PerfReportTool
 {
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.200.0";
+        private static string VersionString = "4.210.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1386,7 +1383,7 @@ namespace PerfReportTool
 			if (bExtraLinksSummary)
 			{
 				bool bLinkTemplates = GetBoolArg("linkTemplates");
-				summaries.Insert(0, new ExtraLinksSummary(null, null, bLinkTemplates));
+				summaries.Insert(0, new ExtraLinksSummary(null, reportTypeInfo.vars, null, bLinkTemplates));
 			}
 
 			// If the reporttype has summary info, then write out the summary]
@@ -1638,7 +1635,7 @@ namespace PerfReportTool
 				}
 			}
 
-			OptionalDouble minFilterStatValueSetting = graph.minFilterStatValue.isSet ? graph.minFilterStatValue : graphSettings.minFilterStatValue;
+			Optional<double> minFilterStatValueSetting = graph.minFilterStatValue.isSet ? graph.minFilterStatValue : graphSettings.minFilterStatValue;
 
 			string args =
 				" -csvs \"" + csvFilename + "\"" +
@@ -2015,37 +2012,5 @@ namespace PerfReportTool
 			return null;
 		}
 	}
-
-	static class Extensions
-	{
-		public static T GetSafeAttibute<T>(this XElement element, string attributeName, T defaultValue = default(T))
-		{
-			XAttribute attribute = element.Attribute(attributeName);
-			if (attribute == null)
-			{
-				return defaultValue;
-			}
-
-			try
-			{
-				switch (Type.GetTypeCode(typeof(T)))
-				{
-					case TypeCode.Boolean:
-						return (T)Convert.ChangeType(Convert.ChangeType(attribute.Value, typeof(int)), typeof(bool));
-					case TypeCode.Single:
-					case TypeCode.Double:
-					case TypeCode.Decimal:
-						return (T)Convert.ChangeType(attribute.Value, typeof(T), CultureInfo.InvariantCulture.NumberFormat);
-					default:
-						return (T)Convert.ChangeType(attribute.Value, typeof(T));
-				}
-			}
-			catch (FormatException e)
-			{
-				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' ({1})", attributeName, e.Message));
-				return defaultValue;
-			}
-		}
-    };
 }
 

@@ -12,20 +12,20 @@ namespace PerfSummaries
 {
 	class FPSChartSummary : Summary
 	{
-		public FPSChartSummary(XElement element, string baseXmlDirectory)
+		public FPSChartSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
-			fps = Convert.ToInt32(element.Attribute("fps").Value);
-			hitchThreshold = (float)Convert.ToDouble(element.Attribute("hitchThreshold").Value, System.Globalization.CultureInfo.InvariantCulture);
-			bUseEngineHitchMetric = element.GetSafeAttibute<bool>("useEngineHitchMetric", false);
+			ReadStatsFromXML(element, vars);
+			fps = element.GetRequiredAttribute<int>(vars, "fps");
+			hitchThreshold = (float)element.GetRequiredAttribute<double>(vars, "hitchThreshold");
+			bUseEngineHitchMetric = element.GetSafeAttribute<bool>(vars, "useEngineHitchMetric", false);
 			if (bUseEngineHitchMetric)
 			{
-				engineHitchToNonHitchRatio = element.GetSafeAttibute<float>("engineHitchToNonHitchRatio", 1.5f);
-				engineMinTimeBetweenHitchesMs = element.GetSafeAttibute<float>("engineMinTimeBetweenHitchesMs", 200.0f);
+				engineHitchToNonHitchRatio = element.GetSafeAttribute<float>(vars, "engineHitchToNonHitchRatio", 1.5f);
+				engineMinTimeBetweenHitchesMs = element.GetSafeAttribute<float>(vars, "engineMinTimeBetweenHitchesMs", 200.0f);
 			}
 
-			bIgnoreHitchTimePercent = element.GetSafeAttibute<bool>("ignoreHitchTimePercent", false);
-			bIgnoreMVP = element.GetSafeAttibute<bool>("ignoreMVP", false);
+			bIgnoreHitchTimePercent = element.GetSafeAttribute<bool>(vars, "ignoreHitchTimePercent", false);
+			bIgnoreMVP = element.GetSafeAttribute<bool>(vars, "ignoreMVP", false);
 		}
 
 		public FPSChartSummary() { }

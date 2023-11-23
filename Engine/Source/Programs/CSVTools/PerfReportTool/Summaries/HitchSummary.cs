@@ -12,9 +12,9 @@ namespace PerfSummaries
 {
 	class HitchSummary : Summary
 	{
-		public HitchSummary(XElement element, string baseXmlDirectory)
+		public HitchSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
+			ReadStatsFromXML(element, vars);
 
 			string[] hitchThresholds = element.Element("hitchThresholds").Value.Split(',');
 			HitchThresholds = new double[hitchThresholds.Length];

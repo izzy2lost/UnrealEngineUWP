@@ -7,6 +7,8 @@ using System.Linq;
 using System.Xml.Linq;
 using CSVStats;
 using PerfSummaries;
+using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace PerfReportTool
 {
@@ -76,7 +78,6 @@ namespace PerfReportTool
 			string summaryTableXmlAppendStr,
 			string summaryTableXmlRowSortAppendStr )
 		{
-
 			string location = System.Reflection.Assembly.GetEntryAssembly().Location.ToLower();
 			string baseDirectory = Path.GetDirectoryName(location);
 
@@ -154,7 +155,7 @@ namespace PerfReportTool
 			}
 			else
 			{
-				graphsXMLFilename = reportTypesElement.GetSafeAttibute<string>("reportGraphsFile");
+				graphsXMLFilename = reportTypesElement.GetSafeAttribute<string>("reportGraphsFile");
 				if (graphsXMLFilename != null)
 				{
 					graphsXMLFilename = Path.GetDirectoryName(reportTypeXmlFilename) + "\\" + graphsXMLFilename;
@@ -165,7 +166,7 @@ namespace PerfReportTool
 				}
 
 			}
-			defaultReportTypeName = reportTypesElement.GetSafeAttibute<string>("default");
+			defaultReportTypeName = reportTypesElement.GetSafeAttribute<string>("default");
 
 			Console.Out.WriteLine("GraphXML:  " + graphsXMLFilename+"\n");
 			XDocument reportGraphsDoc = XDocument.Load(graphsXMLFilename);
@@ -191,7 +192,7 @@ namespace PerfReportTool
 					{
 						if (graphElement.Name == "graph")
 						{
-							string title = graphElement.Attribute("title").Value.ToLower();
+							string title = graphElement.GetRequiredAttribute<string>("title").ToLower();
 							GraphSettings graphSettings = new GraphSettings(graphElement);
 							graphSettings.InheritFrom(groupSettings);
 							graphs.Add(title, graphSettings);
@@ -209,8 +210,8 @@ namespace PerfReportTool
 			{
 				foreach (XElement mapping in displayNameElement.Elements("mapping"))
 				{
-					string statName = mapping.GetSafeAttibute<string>("statName");
-					string displayName = mapping.GetSafeAttibute<string>("displayName");
+					string statName = mapping.GetSafeAttribute<string>("statName");
+					string displayName = mapping.GetSafeAttribute<string>("displayName");
 					if (statName != null && displayName != null)
 					{
 						statDisplayNameMapping.Add(statName.ToLower(), displayName);
@@ -231,10 +232,10 @@ namespace PerfReportTool
 			{
 				foreach (XElement mapping in derivedMetadataMappingsElement.Elements("mapping"))
 				{
-					string sourceName = mapping.GetSafeAttibute<string>("sourceName");
-					string sourceValue = mapping.GetSafeAttibute<string>("sourceValue");
-					string destName = mapping.GetSafeAttibute<string>("destName");
-					string destValue = mapping.GetSafeAttibute<string>("destValue");
+					string sourceName = mapping.GetSafeAttribute<string>("sourceName");
+					string sourceValue = mapping.GetSafeAttribute<string>("sourceValue");
+					string destName = mapping.GetSafeAttribute<string>("destName");
+					string destValue = mapping.GetSafeAttribute<string>("destValue");
 					if (sourceName == null || sourceValue == null || destName == null || destValue == null)
 					{
 						throw new Exception("Derivedmetadata mapping is missing a required attribute!\nRequired attributes: sourceName, sourceValue, destName, destValue.\nXML: " + mapping.ToString());
@@ -251,8 +252,8 @@ namespace PerfReportTool
 				foreach (XElement eventPair in eventsToStripEl.Elements("eventPair"))
 				{
 					CsvEventStripInfo eventInfo = new CsvEventStripInfo();
-					eventInfo.beginName = eventPair.GetSafeAttibute<string>("begin");
-					eventInfo.endName = eventPair.GetSafeAttibute<string>("end");
+					eventInfo.beginName = eventPair.GetSafeAttribute<string>("begin");
+					eventInfo.endName = eventPair.GetSafeAttribute<string>("end");
 
 					if (eventInfo.beginName == null && eventInfo.endName == null)
 					{
@@ -298,7 +299,7 @@ namespace PerfReportTool
 				foreach (XElement summaryElement in summaryTablesElement.Elements("summaryTable"))
 				{
 					SummaryTableInfo table = new SummaryTableInfo(summaryElement, substitutionsDict, appendList, rowSortAppendList);
-					summaryTables.Add(summaryElement.Attribute("name").Value.ToLower(), table);
+					summaryTables.Add(summaryElement.GetRequiredAttribute<string>("name").ToLower(), table);
 				}
 			}
 
@@ -309,7 +310,7 @@ namespace PerfReportTool
 			{
 				foreach (XElement summaryElement in sharedSummariesElement.Elements("summary"))
 				{
-					sharedSummaries.Add(summaryElement.Attribute("refName").Value, summaryElement);
+					sharedSummaries.Add(summaryElement.GetRequiredAttribute<string>("refName"), summaryElement);
 				}
 			}
 
@@ -317,6 +318,17 @@ namespace PerfReportTool
 
 		public ReportTypeInfo GetReportTypeInfo(string reportType, CachedCsvFile csvFile, bool bBulkMode, bool forceReportType)
 		{
+			// Setup the variable mappings
+			XmlVariableMappings vars = new XmlVariableMappings();
+			if (csvFile.metadata != null)
+			{
+				Dictionary<string, string> metadataDict = csvFile.metadata.Values;
+				foreach (string key in metadataDict.Keys)
+				{
+					vars.SetVariable("meta." + key, metadataDict[key]);
+				}
+			}
+
 			ReportTypeInfo reportTypeInfo = null;
 			if (reportType == "")
 			{
@@ -324,15 +336,15 @@ namespace PerfReportTool
 				// Attempt to determine the report type automatically based on the stats
 				foreach (XElement element in reportTypesElement.Elements("reporttype"))
 				{
-					bool bReportTypeSupportsAutodetect = element.GetSafeAttibute<bool>("allowAutoDetect", true);
+					bool bReportTypeSupportsAutodetect = element.GetSafeAttribute<bool>(vars, "allowAutoDetect", true);
 
-					if (bReportTypeSupportsAutodetect && IsReportTypeXMLCompatibleWithStats(element, csvFile.dummyCsvStats))
+					if (bReportTypeSupportsAutodetect && IsReportTypeXMLCompatibleWithStats(element, csvFile.dummyCsvStats, vars))
 					{
-						reportTypeInfo = new ReportTypeInfo(element, sharedSummaries, baseXmlDirectory);
+						reportTypeInfo = new ReportTypeInfo(element, sharedSummaries, baseXmlDirectory, vars);
 						break;
 					}
 
-					if (defaultReportTypeName != null && element.GetSafeAttibute<string>("name") == defaultReportTypeName )
+					if (defaultReportTypeName != null && element.GetSafeAttribute<string>(vars, "name") == defaultReportTypeName )
 					{
 						defaultReportTypeElement = element;
 					}
@@ -344,12 +356,12 @@ namespace PerfReportTool
 					{
 						throw new Exception("Default report type " + defaultReportTypeName + " was not found in " + reportTypeXmlFilename);
 					}
-					if (!IsReportTypeXMLCompatibleWithStats(defaultReportTypeElement, csvFile.dummyCsvStats, true))
+					if (!IsReportTypeXMLCompatibleWithStats(defaultReportTypeElement, csvFile.dummyCsvStats, vars, true))
 					{
 						throw new Exception("Default report type " + defaultReportTypeName + " was not compatible with CSV " + csvFile.filename);
 					}
 					Console.Out.WriteLine("Falling back to default report type: " + defaultReportTypeName);
-					reportTypeInfo = new ReportTypeInfo(defaultReportTypeElement, sharedSummaries, baseXmlDirectory);
+					reportTypeInfo = new ReportTypeInfo(defaultReportTypeElement, sharedSummaries, baseXmlDirectory, vars);
 				}
 				else if (reportTypeInfo == null)
 				{
@@ -361,7 +373,7 @@ namespace PerfReportTool
 				XElement foundReportTypeElement = null;
 				foreach (XElement element in reportTypesElement.Elements("reporttype"))
 				{
-					if (element.Attribute("name").Value.ToLower() == reportType)
+					if (element.GetSafeAttribute<string>(vars, "name").ToLower() == reportType)
 					{
 						foundReportTypeElement = element;
 					}
@@ -371,7 +383,7 @@ namespace PerfReportTool
 					throw new Exception("Report type " + reportType + " not found in " + reportTypeXmlFilename);
 				}
 
-				if (!IsReportTypeXMLCompatibleWithStats(foundReportTypeElement, csvFile.dummyCsvStats))
+				if (!IsReportTypeXMLCompatibleWithStats(foundReportTypeElement, csvFile.dummyCsvStats, vars))
 				{
 					if (forceReportType)
 					{
@@ -382,7 +394,7 @@ namespace PerfReportTool
 						throw new Exception("Report type " + reportType + " is not compatible with CSV " + csvFile.filename);
 					}
 				}
-				reportTypeInfo = new ReportTypeInfo(foundReportTypeElement, sharedSummaries, baseXmlDirectory);
+				reportTypeInfo = new ReportTypeInfo(foundReportTypeElement, sharedSummaries, baseXmlDirectory, vars);
 			}
 
 			// Load the graphs
@@ -406,24 +418,24 @@ namespace PerfReportTool
 			return reportTypeInfo;
 		}
 
-		bool IsReportTypeXMLCompatibleWithStats(XElement reportTypeElement, CsvStats csvStats, bool bIsDefaultFallback=false)
+		bool IsReportTypeXMLCompatibleWithStats(XElement reportTypeElement, CsvStats csvStats, XmlVariableMappings vars, bool bIsDefaultFallback=false)
 		{
-			XAttribute nameAt = reportTypeElement.Attribute("name");
-			if (nameAt == null)
+			string name = reportTypeElement.GetSafeAttribute<string>(vars, "name");
+			if (name == null)
 			{
 				return false;
 			}
-			string reportTypeName = nameAt.Value;
+			string reportTypeName = name;
 
 			XElement autoDetectionEl = reportTypeElement.Element("autodetection");
 			if (autoDetectionEl == null)
 			{
 				return false;
 			}
-			XAttribute requiredStatsAt = autoDetectionEl.Attribute("requiredstats");
-			if (requiredStatsAt != null)
+			string requiredStatsStr = autoDetectionEl.GetSafeAttribute<string>(vars, "requiredstats");
+			if (requiredStatsStr != null)
 			{
-				string[] requiredStats = requiredStatsAt.Value.Split(',');
+				string[] requiredStats = requiredStatsStr.Split(',');
 				foreach (string stat in requiredStats)
 				{
 					if (csvStats.GetStatsMatchingString(stat).Count == 0)
@@ -435,12 +447,12 @@ namespace PerfReportTool
 
 			foreach (XElement requiredMetadataEl in autoDetectionEl.Elements("requiredmetadata"))
 			{
-				XAttribute keyAt = requiredMetadataEl.Attribute("key");
-				if (keyAt == null)
+				string key = requiredMetadataEl.GetSafeAttribute<string>(vars, "key");
+				if (key == null)
 				{
 					throw new Exception("Report type " + reportTypeName + " has no 'key' attribute!");
 				}
-				XAttribute allowedValuesAt = requiredMetadataEl.Attribute("allowedValues");
+				string allowedValuesAt = requiredMetadataEl.GetSafeAttribute<string>(vars, "allowedValues");
 				if (allowedValuesAt == null)
 				{
 					throw new Exception("Report type " + reportTypeName + " has no 'allowedValues' attribute!");
@@ -453,19 +465,19 @@ namespace PerfReportTool
 				}
 
 				// Some metadata may be safe to skip for the default fallback case
-				if (bIsDefaultFallback && requiredMetadataEl.GetSafeAttibute("ignoreForDefaultFallback", false))
+				if (bIsDefaultFallback && requiredMetadataEl.GetSafeAttribute(vars, "ignoreForDefaultFallback", false))
 				{
 					continue;
 				}
 
-				bool ignoreIfKeyNotFound = requiredMetadataEl.GetSafeAttibute("ignoreIfKeyNotFound", true);
-				bool stopIfKeyFound = requiredMetadataEl.GetSafeAttibute("stopIfKeyFound", false);
+				bool ignoreIfKeyNotFound = requiredMetadataEl.GetSafeAttribute(vars, "ignoreIfKeyNotFound", true);
+				bool stopIfKeyFound = requiredMetadataEl.GetSafeAttribute(vars, "stopIfKeyFound", false);
 
-				string key = keyAt.Value.ToLower();
+				key = key.ToLower();
 				if (csvStats.metaData.Values.ContainsKey(key))
 				{
 					string value = csvStats.metaData.Values[key].ToLower();
-					string[] allowedValues = allowedValuesAt.Value.ToString().ToLower().Split(',');
+					string[] allowedValues = allowedValuesAt.ToString().ToLower().Split(',');
 					if (!allowedValues.Contains(value))
 					{
 						return false;
@@ -533,4 +545,134 @@ namespace PerfReportTool
 		string reportTypeXmlFilename;
 		public DerivedMetadataMappings derivedMetadataMappings;
 	}
+
+	class XmlVariableMappings
+	{
+		public void SetVariable(string Name, string Value)
+		{
+			vars[Name] = Value;
+		}
+
+		public string ResolveVariables(string attributeValue)
+		{
+			// Remap all variables found in the attribute name
+			if (!attributeValue.Contains('$'))
+			{
+				return attributeValue;
+			}
+
+			// Remap all variables found in the attribute name
+			int StringPos = 0;
+			while (StringPos < attributeValue.Length)
+			{
+				int VarStartIndex = attributeValue.IndexOf("${", StringPos);
+				if (VarStartIndex == -1)
+				{
+					break;
+				}
+				int VarEndIndex = attributeValue.IndexOf('}', VarStartIndex+1);
+				if (VarEndIndex == -1)
+				{
+					break;
+				}
+				string VariableName = attributeValue.Substring(VarStartIndex+2, VarEndIndex - VarStartIndex-2);
+
+				// Replace the variable if found
+				if (vars.TryGetValue(VariableName, out string VariableValue))
+				{
+					attributeValue = attributeValue.Substring(0,VarStartIndex) + VariableValue + attributeValue.Substring(VarEndIndex+1);
+					StringPos = VarStartIndex + VariableValue.Length;
+				}
+				else
+				{
+					Console.WriteLine("[Warning] Failed to resolve variable $(" + VariableName + "}");
+					StringPos = VarEndIndex;
+				}
+			}
+			return attributeValue;
+		}
+		Dictionary<string, string> vars = new Dictionary<string, string>();
+	}
+	
+
+	static class Extensions
+	{
+		public static string GetValue(this XElement element, XmlVariableMappings xmlVariableMappings = null)
+		{
+			string value = element.Value;
+			if (xmlVariableMappings != null)
+			{
+				value = xmlVariableMappings.ResolveVariables(value);
+			}
+			return value;
+		}
+		public static T GetRequiredAttribute<T>(this XElement element, string attributeName)
+		{
+			return GetAttributeInternal<T>(element, null, attributeName, default, true);
+		}
+
+		public static T GetRequiredAttribute<T>(this XElement element, XmlVariableMappings xmlVariableMappings, string attributeName)
+		{
+			return GetAttributeInternal<T>(element, xmlVariableMappings, attributeName, default, true );
+		}
+
+		public static T GetSafeAttribute<T>(this XElement element, string attributeName, T defaultValue = default)
+		{
+			return GetAttributeInternal<T>(element, null,  attributeName, defaultValue, false);
+		}
+
+		public static T GetSafeAttribute<T>(this XElement element, XmlVariableMappings xmlVariableMappings, string attributeName, T defaultValue = default)
+		{
+			return GetAttributeInternal<T>(element, xmlVariableMappings, attributeName, defaultValue, false);
+		}
+
+		private static T GetAttributeInternal<T>(this XElement element, XmlVariableMappings xmlVariableMappings, string attributeName, T defaultValue, bool throwIfNotFound)
+		{
+			XAttribute attribute = element.Attribute(attributeName);
+			if (attribute == null)
+			{
+				if (throwIfNotFound)
+				{
+					throw new Exception("Attribute "+attributeName+" not found in element "+element.Name);
+				}
+				return defaultValue;
+			}
+
+			// Resolve variables if a mapping is provided
+			string attributeValue = attribute.Value;
+			if (xmlVariableMappings != null)
+			{
+				attributeValue = xmlVariableMappings.ResolveVariables(attributeValue);
+			}
+
+			try
+			{
+				switch (Type.GetTypeCode(typeof(T)))
+				{
+					case TypeCode.Boolean:
+						try
+						{
+							// Support int/bool conversion
+							return (T)Convert.ChangeType(Convert.ChangeType(attributeValue, typeof(int)), typeof(bool));
+						}
+						catch (FormatException)
+						{
+							// fall back to reading it as an actual bool
+							return (T)Convert.ChangeType(attributeValue, typeof(T));
+						}
+					case TypeCode.Single:
+					case TypeCode.Double:
+					case TypeCode.Decimal:
+						return (T)Convert.ChangeType(attributeValue, typeof(T), CultureInfo.InvariantCulture.NumberFormat);
+					default:
+						return (T)Convert.ChangeType(attributeValue, typeof(T));
+				}
+			}
+			catch (FormatException e)
+			{
+				Console.WriteLine(string.Format("[Warning] Failed to convert XML attribute '{0}' '{1}' ({2})", attributeName, attributeValue, e.Message));
+				return defaultValue;
+			}
+		}
+	};
 }

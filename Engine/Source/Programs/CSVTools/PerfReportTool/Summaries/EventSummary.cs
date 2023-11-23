@@ -11,12 +11,12 @@ namespace PerfSummaries
 {
 	class EventSummary : Summary
 	{
-		public EventSummary(XElement element, string baseXmlDirectory)
+		public EventSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			title = element.GetSafeAttibute("title", "Events");
-			summaryStatName = element.Attribute("summaryStatName").Value;
+			title = element.GetSafeAttribute(vars, "title", "Events");
+			summaryStatName = element.GetRequiredAttribute<string>(vars, "summaryStatName");
 			events = element.Element("events").Value.Split(',');
-			colourThresholds = ReadColourThresholdsXML(element.Element("colourThresholds"));
+			colourThresholds = ReadColourThresholdsXML(element.Element("colourThresholds"), vars);
 		}
 
 		public EventSummary() { }

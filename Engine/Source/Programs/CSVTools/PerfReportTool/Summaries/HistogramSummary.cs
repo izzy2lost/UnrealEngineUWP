@@ -11,11 +11,11 @@ namespace PerfSummaries
 {
 	class HistogramSummary : Summary
 	{
-		public HistogramSummary(XElement element, string baseXmlDirectory)
+		public HistogramSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
+			ReadStatsFromXML(element, vars);
 
-			ColourThresholds = ReadColourThresholdsXML(element.Element("colourThresholds"));
+			ColourThresholds = ReadColourThresholdsXML(element.Element("colourThresholds"), vars);
 
 			string[] histogramStrings = element.Element("histogramThresholds").Value.Split(',');
 			HistogramThresholds = new double[histogramStrings.Length];
@@ -28,12 +28,12 @@ namespace PerfSummaries
 			{
 				if (child.Name == "budgetOverride")
 				{
-					BudgetOverrideStatName = child.Attribute("stat").Value;
-					BudgetOverrideStatBudget = Convert.ToDouble(child.Attribute("budget").Value, System.Globalization.CultureInfo.InvariantCulture);
+					BudgetOverrideStatName = child.GetRequiredAttribute<string>(vars, "stat");
+					BudgetOverrideStatBudget = child.GetRequiredAttribute<double>(vars, "budget");
 				}
 			}
 
-			bSuppressAveragesTable = element.GetSafeAttibute<bool>("suppressAveragesTable", false);
+			bSuppressAveragesTable = element.GetSafeAttribute<bool>(vars, "suppressAveragesTable", false);
 		}
 
 		public HistogramSummary() { }

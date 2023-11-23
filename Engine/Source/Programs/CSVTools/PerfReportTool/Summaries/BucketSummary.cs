@@ -12,15 +12,15 @@ namespace PerfSummaries
 {
 	class BucketSummary : Summary
 	{
-		public BucketSummary(XElement element, string baseXmlDirectory)
+		public BucketSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
-			Title = element.GetSafeAttibute("title", "Untitled Bucket Summary");
+			ReadStatsFromXML(element, vars);
+			Title = element.GetSafeAttribute(vars, "title", "Untitled Bucket Summary");
 
 			XElement BucketElement = element.Element("buckets");
-			bool ReportOutOfRangeDefault = BucketElement.GetSafeAttibute<bool>("reportOutOfRange", false);
-			ReportBelowRange = BucketElement.GetSafeAttibute<bool>("reportBelowRange", ReportOutOfRangeDefault);
-			ReportAboveRange = BucketElement.GetSafeAttibute<bool>("reportAboveRange", ReportOutOfRangeDefault);
+			bool ReportOutOfRangeDefault = BucketElement.GetSafeAttribute<bool>(vars, "reportOutOfRange", false);
+			ReportBelowRange = BucketElement.GetSafeAttribute<bool>(vars, "reportBelowRange", ReportOutOfRangeDefault);
+			ReportAboveRange = BucketElement.GetSafeAttribute<bool>(vars, "reportAboveRange", ReportOutOfRangeDefault);
 
 			string[] XmlBuckets = BucketElement.Value.Split(',');
 			Buckets = new double[XmlBuckets.Length];
@@ -34,8 +34,8 @@ namespace PerfSummaries
 			XElement ColorElement = element.Element("colorDisplay");
 			if (ColorElement != null)
 			{
-				LowEndColor = new Colour(ColorElement.GetSafeAttibute<string>("lowEndColor"));
-				HighEndColor = new Colour(ColorElement.GetSafeAttibute<string>("highEndColor"));
+				LowEndColor = new Colour(ColorElement.GetSafeAttribute<string>(vars, "lowEndColor"));
+				HighEndColor = new Colour(ColorElement.GetSafeAttribute<string>(vars, "highEndColor"));
 			}
 		}
 		public BucketSummary() { }

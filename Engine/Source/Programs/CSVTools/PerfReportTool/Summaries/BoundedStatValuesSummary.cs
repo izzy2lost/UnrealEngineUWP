@@ -28,30 +28,25 @@ namespace PerfSummaries
 			public double statExponent; // Exponent for stat value in streamingstressmetric formula
 			public ColourThresholdList colourThresholdList;
 		};
-		public BoundedStatValuesSummary(XElement element, string baseXmlDirectory)
+		public BoundedStatValuesSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
-			ReadStatsFromXML(element);
+			ReadStatsFromXML(element, vars);
 			if (stats.Count != 0)
 			{
 				throw new Exception("<stats> element is not supported");
 			}
 
-			title = element.GetSafeAttibute("title", "Events");
-			beginEvent = element.GetSafeAttibute<string>("beginevent");
-			endEvent = element.GetSafeAttibute<string>("endevent");
+			title = element.GetSafeAttribute(vars, "title", "Events");
+			beginEvent = element.GetSafeAttribute<string>(vars, "beginevent");
+			endEvent = element.GetSafeAttribute<string>(vars, "endevent");
 
-			endOffsetPercentage = 0.0;
-			XAttribute endOffsetAtt = element.Attribute("endoffsetpercent");
-			if (endOffsetAtt != null)
-			{
-				endOffsetPercentage = double.Parse(endOffsetAtt.Value);
-			}
+			endOffsetPercentage = element.GetSafeAttribute<double>(vars, "endoffsetpercent", 0.0);
 			columns = new List<Column>();
 
 			foreach (XElement columnEl in element.Elements("column"))
 			{
 				Column column = new Column();
-				double[] colourThresholds = ReadColourThresholdsXML(columnEl.Element("colourThresholds"));
+				double[] colourThresholds = ReadColourThresholdsXML(columnEl.Element("colourThresholds"), vars);
 				if (colourThresholds != null)
 				{
 					column.colourThresholdList = new ColourThresholdList();
@@ -61,27 +56,23 @@ namespace PerfSummaries
 					}
 				}
 
-				XAttribute summaryStatNameAtt = columnEl.Attribute("summaryStatName");
-				if (summaryStatNameAtt != null)
-				{
-					column.summaryStatName = summaryStatNameAtt.Value;
-				}
-				column.statName = columnEl.Attribute("stat").Value.ToLower();
+				column.summaryStatName = columnEl.GetSafeAttribute<string>(vars, "summaryStatName");
+				column.statName = columnEl.GetRequiredAttribute<string>(vars, "stat").ToLower();
 				if (!stats.Contains(column.statName))
 				{
 					stats.Add(column.statName);
 				}
-				column.otherStatName = columnEl.GetSafeAttibute<string>("otherStat", "").ToLower();
+				column.otherStatName = columnEl.GetSafeAttribute<string>("otherStat", "").ToLower();
 
-				column.name = columnEl.Attribute("name").Value;
-				column.formula = columnEl.Attribute("formula").Value.ToLower();
-				column.filterOutZeros = columnEl.GetSafeAttibute<bool>("filteroutzeros", false);
-				column.perSecond = columnEl.GetSafeAttibute<bool>("persecond", false);
-				column.multiplier = columnEl.GetSafeAttibute<double>("multiplier", 1.0);
-				column.threshold = columnEl.GetSafeAttibute<double>("threshold", 0.0);
-				column.applyEndOffset = columnEl.GetSafeAttibute<bool>("applyEndOffset", true);
-				column.frameExponent = columnEl.GetSafeAttibute<double>("frameExponent", 4.0);
-				column.statExponent = columnEl.GetSafeAttibute<double>("statExponent", 0.25);
+				column.name = columnEl.GetRequiredAttribute<string>(vars, "name");
+				column.formula = columnEl.GetRequiredAttribute<string>(vars, "formula").ToLower();
+				column.filterOutZeros = columnEl.GetSafeAttribute<bool>(vars, "filteroutzeros", false);
+				column.perSecond = columnEl.GetSafeAttribute<bool>(vars, "persecond", false);
+				column.multiplier = columnEl.GetSafeAttribute<double>(vars, "multiplier", 1.0);
+				column.threshold = columnEl.GetSafeAttribute<double>(vars, "threshold", 0.0);
+				column.applyEndOffset = columnEl.GetSafeAttribute<bool>(vars, "applyEndOffset", true);
+				column.frameExponent = columnEl.GetSafeAttribute<double>(vars, "frameExponent", 4.0);
+				column.statExponent = columnEl.GetSafeAttribute<double>(vars, "statExponent", 0.25);
 				columns.Add(column);
 			}
 		}
