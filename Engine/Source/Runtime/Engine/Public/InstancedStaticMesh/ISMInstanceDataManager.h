@@ -42,10 +42,7 @@ struct FInstanceUpdateComponentDesc
  * NOTE/TODO: This is tied to the ISM use-case, mostly because of legacy (HISM) interactions. Will be refactored and sub-classed or something.
  *            Also: Still somewhat tied to the UComponent, which also can be refactored a bit to make it more general.
  */
-class FPrimitiveInstanceDataManager 
-#if !USE_NULL_RHI	// unparenting reduces the sizeof of the manager to 1
-	: public FInstanceIdIndexMap
-#endif
+class FPrimitiveInstanceDataManager : public FInstanceIdIndexMap
 {
 public:
 	ENGINE_API FPrimitiveInstanceDataManager(UPrimitiveComponent* InPrimitiveComponent);
@@ -67,34 +64,13 @@ public:
 		ExternalLegacyData // In this mode, it is illegal to call the incremental state tracking methods & updates can only be sent to the proxy if there has been and extranal one queued.
 	};
 
-#if USE_NULL_RHI	// functions used from FInstanceIdIndexMap - copied here for USE_NULL_RHI case since we unparented this class from it.
-	inline bool IsValidId(FPrimitiveInstanceId InstanceId) const { return false; }
-
-	inline int32 IdToIndex(FPrimitiveInstanceId InstanceId) const
-	{
-		return InstanceId.Id;
-	}
-
-	inline FPrimitiveInstanceId IndexToId(int32 InstanceIndex) const
-	{
-		return FPrimitiveInstanceId{ InstanceIndex };
-	}
-#endif
-
 	/**
 	 */
 	ENGINE_API void SetMode(EMode InMode);
 
 	/**
 	 */
-	ENGINE_API EMode GetMode() const
-	{ 
-#if !USE_NULL_RHI
-		return Mode;
-#else
-		return EMode::Default;
-#endif
-	}
+	ENGINE_API EMode GetMode() const { return Mode; }
 
 	void Add(int32 InInstanceAddAtIndex, bool bInsert);
 
@@ -153,14 +129,7 @@ public:
 
 	void CreateExplicitIdentityMapping();
 
-	ETrackingState GetState() const
-	{ 
-#if !USE_NULL_RHI
-		return TrackingState;
-#else
-		return ETrackingState::Disabled;
-#endif
-	}
+	ETrackingState GetState() const { return TrackingState; }
 
 	ENGINE_API TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel);
 
@@ -182,12 +151,7 @@ public:
 	ENGINE_API SIZE_T GetAllocatedSize() const;
 
 
-	inline void ResetComponentDirtyTracking()
-	{ 
-#if !USE_NULL_RHI
-		bComponentMarkedDirty = false; 
-#endif
-	}
+	inline void ResetComponentDirtyTracking() { bComponentMarkedDirty = false; }
 
 	/**
 	 * Called by the corresponding function in the owner UPrimitiveComponent
@@ -220,7 +184,6 @@ private:
 
 	void InitChangeSet(const union FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet);
 
-#if !USE_NULL_RHI
 	EMode Mode = EMode::Default;
 	ETrackingState TrackingState = ETrackingState::Initial;
 
@@ -258,5 +221,4 @@ private:
 	float AbsMaxDisplacement = 0.0f;
 	FRenderBounds StaticMeshBounds;
 	bool bFirstFlush = true;
-#endif
 };

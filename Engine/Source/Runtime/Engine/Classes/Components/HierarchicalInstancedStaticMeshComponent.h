@@ -209,14 +209,7 @@ public:
 	{
 		TArray<FClusterNode> Nodes;
 		TArray<int32> SortedInstances;
-#if !USE_NULL_RHI
 		TArray<int32> InstanceReorderTable;
-		inline int32 GetNumBuiltInstances() const { return InstanceReorderTable.Num(); }
-#else
-		// some code still needs to know how many instances are there and it relied on the InstanceReorderTable size for that
-		int32 NumInstancesTotal = 0;
-		inline int32 GetNumBuiltInstances() const { return NumInstancesTotal; }
-#endif
 		int32 OutOcclusionLayerNum = 0;
 
 		bool PrintLevel(int32 NodeIndex, int32 Level, int32 CurrentLevel, int32 Parent);
