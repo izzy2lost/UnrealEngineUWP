@@ -390,7 +390,6 @@ void UControlRig::Evaluate_AnyThread()
 		
 		// Backwards solve
 		{
-			TGuardValue<bool> UpdatePreferredAngles(Hierarchy->bUpdatePreferredEulerAngleWhenSettingTransform, false);
 			Execute(FRigUnit_InverseExecution::EventName);
 		}
 
