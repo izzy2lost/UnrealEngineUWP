@@ -24,7 +24,7 @@ class ULiveLinkRole;
 class ILiveLinkHub
 {
 public:
-	virtual ~ILiveLinkHub() {}
+	virtual ~ILiveLinkHub() = default;
 
 	/** Whether the hub is currently playing a recording. */
 	virtual bool IsInPlayback() const = 0;

@@ -92,9 +92,9 @@ protected:
 	//~ End ILiveLinkSubject Interface
 	
 private:
-	/** Not used, but needed to implement the FLiveLinkSubject interface. */
+	/** Last evaluated frame for this subject. */
 	FLiveLinkSubjectFrameData CurrentFrameSnapshot;
 
-	/** Subject key for the playback subject. */
+	/** Name of the subject */
 	FLiveLinkSubjectKey SubjectKey;
 };

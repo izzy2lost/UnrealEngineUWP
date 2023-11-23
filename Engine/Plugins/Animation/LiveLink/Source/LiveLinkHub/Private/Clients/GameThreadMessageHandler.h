@@ -38,7 +38,7 @@ public:
 	}
 
 	/** Virtual destructor. */
-	~TGameThreadMessageHandler() { }
+	~TGameThreadMessageHandler() = default;
 
 public:
 

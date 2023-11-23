@@ -1,46 +1,38 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-
+#include "LiveLinkRecorder.h"
 #include "LiveLinkTypes.h"
-#include "Widgets/SNullWidget.h"
+#include "Templates/PimplPtr.h"
 
-/** Stub class for the recording controller. Will be replaced with the real implementation in a future CL. */
+class ILiveLinkRecorder;
+struct FInstancedStruct;
+struct FLiveLinkRecordingBaseDataContainer;
+class SWidget;
+
 class FLiveLinkHubRecordingController
 {
 public:
+	FLiveLinkHubRecordingController();
 
-	void Initialize(const TSharedPtr<class FLiveLinkHubPlaybackController>& InPlaybackController)
-	{
-	}
+	/** Create the toolbar entry for starting/stopping recordings. */
+	TSharedRef<SWidget> MakeRecordToolbarEntry();
 
-	~FLiveLinkHubRecordingController()
-	{
-	}
-
-	TSharedRef<SWidget> MakeRecordToolbarEntry()
-	{
-		return SNullWidget::NullWidget;
-	}
-
-	void StartRecording()
-	{
-	}
+	/** Start recording livelink data. */
+	void StartRecording();
 	
-	void StopRecording()
-	{
-	}
+	/** Stop recording livelink data and prompt the user for a save location. */
+	void StopRecording();
 
-	bool IsRecording() const
-	{
-		return false;
-	}
-	
-	void RecordStaticData(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, const FLiveLinkStaticDataStruct& StaticData)
-	{
-	}
-	
-	void RecordFrameData(const FLiveLinkSubjectKey& SubjectKey, const FLiveLinkFrameDataStruct& FrameData)
-	{
-	}
+	/** Returns whether we're currently recording. */
+	bool IsRecording() const;
+
+	/** Record static data in the current recording. */
+	void RecordStaticData(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<class ULiveLinkRole> Role, const FLiveLinkStaticDataStruct& StaticData);
+
+	/** Record frame data in the current recording. */
+	void RecordFrameData(const FLiveLinkSubjectKey& SubjectKey, const FLiveLinkFrameDataStruct& FrameData);
+private:
+	/** Recorder used to serialize livelink data into a given format. */
+	TSharedPtr<ILiveLinkRecorder> RecorderImplementation;
 };

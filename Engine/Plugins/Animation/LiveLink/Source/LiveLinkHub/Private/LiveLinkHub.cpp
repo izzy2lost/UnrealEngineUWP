@@ -30,7 +30,7 @@ void FLiveLinkHub::Initialize()
 	RecordingController = MakeShared<FLiveLinkHubRecordingController>();
 	PlaybackController = MakeShared<FLiveLinkHubPlaybackController>();
 	RecordingListController = MakeShared<FLiveLinkHubRecordingListController>(AsShared());
-	ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider);
+	ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider.ToSharedRef());
 
 	FString LiveLinkHubLayoutIni = GConfig->GetConfigFilename(TEXT("LiveLinkHubLayout"));
 	WindowController = MakeShared<FLiveLinkHubWindowController>(FLiveLinkHubWindowInitParams{ LiveLinkHubLayoutIni });
@@ -42,11 +42,13 @@ void FLiveLinkHub::Initialize()
 	LiveLinkHubClient->OnLiveLinkSubjectRemoved().AddSP(this, &FLiveLinkHub::OnSubjectRemoved);
 
 	PlaybackController->Start();
-	RecordingController->Initialize(PlaybackController);
 }
 
 FLiveLinkHub::~FLiveLinkHub()
 {
+	RecordingController.Reset();
+	PlaybackController.Reset();
+
 	LiveLinkHubClient->OnLiveLinkSubjectRemoved().RemoveAll(this);
 	LiveLinkHubClient->OnLiveLinkSubjectAdded().RemoveAll(this);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().RemoveAll(this);
@@ -116,6 +118,7 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 		RecordingController->RecordFrameData(InSubjectKey, InFrameDataStruct);
 	}
 
+	
 	FLiveLinkFrameDataStruct FrameDataCopy;
 	FrameDataCopy.InitializeWith(InFrameDataStruct);
 	LiveLinkProvider->UpdateSubjectFrameData(InSubjectKey.SubjectName, MoveTemp(FrameDataCopy));
