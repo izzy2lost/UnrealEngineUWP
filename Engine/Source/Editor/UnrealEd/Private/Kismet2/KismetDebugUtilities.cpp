@@ -254,6 +254,11 @@ void FKismetDebugUtilities::OnScriptException(const UObject* ActiveObject, const
 		const FBlueprintExceptionInfo* ExceptionInfo = &Info;
 		bool bResetObjectBeingDebuggedWhenFinished = false;
 		UObject* ObjectBeingDebugged = BlueprintObj->GetObjectBeingDebugged();
+		if (UClass* GeneratedClass = BlueprintObj->GeneratedClass; 
+			ObjectBeingDebugged == nullptr && BPTYPE_FunctionLibrary == BlueprintObj->BlueprintType && GeneratedClass)
+		{
+			ObjectBeingDebugged = GeneratedClass->ClassDefaultObject;
+		}
 
 		auto IsAPreviewOrInactiveObject = [](const UObject* InObject)
 		{
