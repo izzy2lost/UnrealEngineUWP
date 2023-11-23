@@ -63,6 +63,7 @@ struct CONTROLRIG_API FRigModuleInstance
 	TArray<FRigModuleInstance*> CachedChildren;
 
 	FString GetPath() const;
+	FString GetNamespace() const;
 };
 
 USTRUCT(BlueprintType)
@@ -105,6 +106,8 @@ class CONTROLRIG_API UModularRig : public UControlRig
 	TArray<FRigModuleInstance> Modules;
 	TArray<FRigModuleInstance*> RootModules;
 
+	TArray<FName> SupportedEvents;
+
 public:
 
 	// BEGIN ControlRig
@@ -115,6 +118,8 @@ public:
 	virtual bool Execute_Internal(const FName& InEventName) override;
 	virtual void Evaluate_AnyThread() override;
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector() override { return ElementKeyRedirector; }
+	virtual bool SupportsEvent(const FName& InEventName) const override { return SupportedEvents.Contains(InEventName); }
+	virtual const TArray<FName>& GetSupportedEvents() const override { return SupportedEvents; }
 	// END ControlRig
 
 	UPROPERTY()
@@ -132,6 +137,7 @@ public:
 	void ResetModules();
 
 	void UpdateCachedChildren();
+	void UpdateSupportedEvents();
 
 	/** Adds a module to the rig*/
 	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);

@@ -183,10 +183,10 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = "RigVM")
-	bool SupportsEvent(const FName& InEventName) const;
+	virtual bool SupportsEvent(const FName& InEventName) const;
 
 	UFUNCTION(BlueprintPure, Category = "RigVM")
-	const TArray<FName>& GetSupportedEvents() const;
+	virtual const TArray<FName>& GetSupportedEvents() const;
 
 	/** Execute a user defined event */
 	UFUNCTION(BlueprintCallable, Category = "RigVM")

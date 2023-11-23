@@ -198,6 +198,14 @@ public:
 	virtual bool Execute_Internal(const FName& InEventName) override;
 	virtual void RequestInit() override;
 	virtual void RequestInitVMs()  { Super::RequestInit(); }
+	virtual bool SupportsEvent(const FName& InEventName) const override { return Super::SupportsEvent(InEventName); }
+	virtual const TArray<FName>& GetSupportedEvents() const override{ return Super::GetSupportedEvents(); }
+
+	template<class T>
+	bool SupportsEvent() const
+	{
+		return SupportsEvent(T::EventName);
+	}
 
 	bool AllConnectorsAreResolved(FString* OutFailureReason = nullptr, FRigElementKey* OutConnector = nullptr) const;
 
