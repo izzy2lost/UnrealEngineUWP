@@ -127,6 +127,9 @@ private:
 	// Command to look for Customizable Object Instance in the player pawn of the current world and open its Customizable Object Instance Editor
 	IConsoleCommand* LaunchCOIECommand;
 	static void OpenCOIE(const TArray<FString>& Arguments);
+
+	/** Register the COI factory */
+	void RegisterFactory();
 };
 
 IMPLEMENT_MODULE( FCustomizableObjectEditorModule, CustomizableObjectEditor );
@@ -191,15 +194,7 @@ void FCustomizableObjectEditorModule::StartupModule()
 	PropertyModule.NotifyCustomizationModuleChanged();
 
 	// Register factory
-	if (GEditor)
-	{
-		GEditor->ActorFactories.Add(NewObject<UCustomizableObjectInstanceFactory>());
-		if (UPlacementSubsystem* PlacementSubsystem = GEditor->GetEditorSubsystem<UPlacementSubsystem>())
-		{
-			PlacementSubsystem->RegisterAssetFactory(NewObject<UCustomizableObjectInstanceFactory>());
-		}
-	}
-	
+	FCoreDelegates::OnPostEngineInit.AddRaw(this,&FCustomizableObjectEditorModule::RegisterFactory);
 
 	// Additional UI style
 	FCustomizableObjectEditorStyle::Initialize();
@@ -236,6 +231,8 @@ void FCustomizableObjectEditorModule::ShutdownModule()
 
 	CustomizableObjectEditor_ToolBarExtensibilityManager.Reset();
 	CustomizableObjectEditor_MenuExtensibilityManager.Reset();
+
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	FCustomizableObjectEditorStyle::Shutdown();
 }
@@ -376,6 +373,19 @@ void FCustomizableObjectEditorModule::OpenCOIE(const TArray<FString>& Arguments)
 				AssetsToEdit.Add(COInstance);
 				AssetTypeActions->OpenAssetEditor(AssetsToEdit);
 			}
+		}
+	}
+}
+
+
+void FCustomizableObjectEditorModule::RegisterFactory()
+{
+	if (GEditor)
+	{
+		GEditor->ActorFactories.Add(NewObject<UCustomizableObjectInstanceFactory>());
+		if (UPlacementSubsystem* PlacementSubsystem = GEditor->GetEditorSubsystem<UPlacementSubsystem>())
+		{
+			PlacementSubsystem->RegisterAssetFactory(NewObject<UCustomizableObjectInstanceFactory>());
 		}
 	}
 }

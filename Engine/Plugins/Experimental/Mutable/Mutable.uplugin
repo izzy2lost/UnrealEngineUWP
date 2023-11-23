@@ -31,7 +31,7 @@
 		{
 			"Name": "CustomizableObjectEditor",
 			"Type": "Editor",
-			"LoadingPhase": "PostEngineInit"
+			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "CustomizableObjectPopulation",
