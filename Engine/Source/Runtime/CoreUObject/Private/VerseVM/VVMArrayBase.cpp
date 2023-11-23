@@ -45,7 +45,6 @@ uint32 VArrayBase::GetTypeHashImpl()
 
 void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("Array("));
 	for (int I = 0; I < Num(); ++I)
 	{
 		if (I > 0)
@@ -54,7 +53,6 @@ void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Co
 		}
 		GetValue(I).ToString(Builder, Context, Formatter);
 	}
-	Builder.Append(TEXT(")"));
 }
 
 VArrayBase::FConstIterator VArrayBase::begin() const

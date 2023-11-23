@@ -217,11 +217,9 @@ uint32 VRational::GetTypeHashImpl()
 
 void VRational::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("Rational("));
 	Numerator.Get().ToString(Builder, Context, Formatter);
 	Builder.Append(TEXT(" / "));
 	Denominator.Get().ToString(Builder, Context, Formatter);
-	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

@@ -21,9 +21,7 @@ void VVar::VisitReferencesImpl(TVisitor& Visitor)
 
 void VVar::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("Var("));
 	Get(Context).ToString(Builder, Context, Formatter);
-	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

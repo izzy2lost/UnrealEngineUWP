@@ -51,13 +51,18 @@ uint32 VUTF8String::GetTypeHashImpl()
 	return GetTypeHash(*this);
 }
 
+template <typename TVisitor>
+void VUTF8String::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(AsCString(), "Value");
+}
+
 void VUTF8String::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("String(\"")).Append(AsCString()).Append(TEXT("\")"));
+	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VUTF8String);
-DEFINE_TRIVIAL_VISIT_REFERENCES(VUTF8String);
 TGlobalTrivialEmergentTypePtr<&VUTF8String::StaticCppClassInfo> VUTF8String::GlobalTrivialEmergentType;
 
 DEFINE_DERIVED_VCPPCLASSINFO(VUniqueString);
@@ -66,7 +71,7 @@ TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString:
 
 void VUniqueString::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("UniqueString(\"")).Append(AsCString()).Append(TEXT("\")"));
+	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
 }
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
@@ -135,14 +140,17 @@ void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 
 void VUniqueStringSet::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("UniqueStringSet( "));
+	int Index = 0;
 	for (auto& CurrentString : *this)
 	{
+		if (Index++ != 0)
+		{
+			Builder.Append(TEXT(", "));
+		}
 		Builder.Append(TEXT("("));
 		Formatter.Append(Builder, Context, *CurrentString);
-		Builder.Append(TEXT("), "));
+		Builder.Append(TEXT(")"));
 	}
-	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

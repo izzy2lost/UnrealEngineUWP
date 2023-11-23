@@ -24,9 +24,8 @@ void VFunction::VisitReferencesImpl(TVisitor& Visitor)
 
 void VFunction::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("Function(Procedure="));
+	Builder.Append(TEXT("Procedure="));
 	Formatter.Append(Builder, Context, *Procedure);
-	Builder.Append(TEXT(")"));
 }
 
 } // namespace Verse

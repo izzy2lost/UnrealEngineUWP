@@ -58,27 +58,44 @@ namespace Verse
 using SignedDigit = int32_t;
 
 DEFINE_DERIVED_VCPPCLASSINFO(VHeapInt);
-DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapInt);
 TGlobalTrivialEmergentTypePtr<&VHeapInt::StaticCppClassInfo> VHeapInt::GlobalTrivialEmergentType;
 
-void VHeapInt::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+namespace
 {
-	Builder.Append(TEXT("HeapInt("));
-	Builder.AppendChar(GetSign() ? TCHAR('-') : TCHAR('+'));
+void ToString(FStringBuilderBase& Builder, const VHeapInt& Value)
+{
+	Builder.AppendChar(Value.GetSign() ? TCHAR('-') : TCHAR('+'));
 
-	if (IsZero())
+	if (Value.IsZero())
 	{
 		Builder.AppendChar(TCHAR('0'));
 	}
 	else
 	{
-		for (int32 I = GetLength() - 1; I >= 0; --I)
+		for (int32 I = Value.GetLength() - 1; I >= 0; --I)
 		{
-			Builder.Appendf(TEXT(" %08X"), GetDigit(I));
+			Builder.Appendf(TEXT(" %08X"), Value.GetDigit(I));
 		}
 	}
 
-	Builder.Append(TEXT("h)"));
+	Builder.Append(TEXT("h"));
+}
+} // namespace
+
+template <typename TVisitor>
+void VHeapInt::VisitReferencesImpl(TVisitor& Visitor)
+{
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		TStringBuilder<128> Builder;
+		ToString(Builder, *this);
+		Visitor.Visit(Builder.ToView(), "Value");
+	}
+}
+
+void VHeapInt::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
+{
+	ToString(Builder, *this);
 }
 
 bool VHeapInt::IsInt32() const

@@ -26,6 +26,7 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginObject();
 		Visitor.Visit(Entries[Index].Name, "Name");
 		Visitor.Visit(Entries[Index].Value, "Value");
+		Visitor.Visit(Entries[Index].bDynamic, "Dynamic");
 		Visitor.EndObject();
 	}
 	Visitor.EndArray();
@@ -33,7 +34,7 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 
 void VConstructor::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	Builder.Append(TEXT("Constructor(\n"));
+	Builder.Append(TEXT("\n"));
 	for (uint32 Index = 0; Index < NumEntries; ++Index)
 	{
 		const VEntry& Entry = Entries[Index];
@@ -45,7 +46,6 @@ void VConstructor::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext 
 		Builder.Append(Entry.bDynamic ? TEXT("true") : TEXT("false"));
 		Builder.Append(TEXT("))\n"));
 	}
-	Builder.Append(TEXT(")"));
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VClass);

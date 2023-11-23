@@ -18,6 +18,8 @@ struct FMarkStackVisitor
 {
 	UE_NONCOPYABLE(FMarkStackVisitor);
 
+	static constexpr bool bIsAbstractVisitor = false;
+
 	FMarkStackVisitor(FMarkStack& InMarkStack)
 		: MarkStack(InMarkStack)
 	{
@@ -120,6 +122,19 @@ struct FMarkStackVisitor
 	FORCEINLINE void Visit(const VRestValue& Value, const char* ElementName)
 	{
 		Value.Visit(*this, ElementName);
+	}
+
+	// Null visitors that are only used by the abstract visitor
+	FORCEINLINE void Visit(bool bValue, const char* ElementName)
+	{
+	}
+
+	FORCEINLINE void Visit(const char* Value, const char* ElementName)
+	{
+	}
+
+	FORCEINLINE void Visit(const FStringView Value, const char* ElementName)
+	{
 	}
 
 	// NOTE: The Value parameter can not be passed by value.

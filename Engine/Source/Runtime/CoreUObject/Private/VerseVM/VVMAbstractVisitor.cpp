@@ -18,6 +18,18 @@ void FAbstractVisitor::VisitAuxNonNull(void* InAux, const char* ElementName)
 {
 }
 
+void FAbstractVisitor::Visit(bool bValue, const char* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(const char* Value, const char* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(const FStringView Value, const char* ElementName)
+{
+}
+
 void FAbstractVisitor::BeginArray(const char* ElementName)
 {
 }

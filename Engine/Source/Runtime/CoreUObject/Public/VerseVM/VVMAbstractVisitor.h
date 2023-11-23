@@ -22,6 +22,8 @@ struct FAbstractVisitor
 {
 	UE_NONCOPYABLE(FAbstractVisitor);
 
+	static constexpr bool bIsAbstractVisitor = true;
+
 	enum class EReferrerType
 	{
 		Cell,
@@ -76,6 +78,11 @@ struct FAbstractVisitor
 	// This method is only invoked by VCell to visit the emergent type of the cell.  It should not be
 	// called in any other situtation.
 	virtual void VisitEmergentType(const VCell* InEmergentType);
+
+	// POD type visitors
+	virtual void Visit(bool bValue, const char* ElementName);
+	virtual void Visit(const char* Value, const char* ElementName);
+	virtual void Visit(const FStringView Value, const char* ElementName);
 
 	// Override the following methods to handle nesting of elements.  Begin/EndObject are intended for when
 	// objects are elements in arrays.
