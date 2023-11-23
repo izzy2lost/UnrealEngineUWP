@@ -264,8 +264,6 @@ void FNiagaraPrecompileData::FinishPrecompile(
 			Builder.BuildParameterMaps(FoundOutputNode, true);
 			Builder.EndUsage();
 
-			ensure(Builder.Histories.Num() <= 1);
-
 			int HistoryIdx = 0;
 			for (FParameterMapHistory& History : Builder.Histories)
 			{
@@ -552,8 +550,6 @@ void FNiagaraCompilationCopyData::CreateParameterMapHistory(const FNiagaraSystem
 			Builder.EnableScriptAllowList(true, FoundOutputNode->Usage);
 			Builder.BuildParameterMaps(FoundOutputNode, true);
 			Builder.EndUsage();
-
-			ensure(Builder.Histories.Num() <= 1);
 
 			for (FParameterMapHistory& History : Builder.Histories)
 			{

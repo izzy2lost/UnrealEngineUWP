@@ -658,8 +658,6 @@ void FNiagaraCompileRequestData::FinishPrecompile(const TArray<FNiagaraVariable>
 				Builder.BuildParameterMaps(FoundOutputNode, true);
 				Builder.EndUsage();
 
-				ensure(Builder.Histories.Num() <= 1);
-
 				int HistoryIdx = 0;
 				for (FNiagaraParameterMapHistory& History : Builder.Histories)
 				{
@@ -897,8 +895,6 @@ void FNiagaraCompileRequestDuplicateData::FinishPrecompileDuplicate(const TArray
 			Builder.EnableScriptAllowList(true, FoundOutputNode->GetUsage());
 			Builder.BuildParameterMaps(FoundOutputNode, true);
 			Builder.EndUsage();
-
-			ensure(Builder.Histories.Num() <= 1);
 
 			for (FNiagaraParameterMapHistory& History : Builder.Histories)
 			{
@@ -2515,9 +2511,9 @@ bool FNiagaraShaderMapCompiler::ProcessCompileResults(bool bWait)
 
 		// for now we'll process all shaders at once (need to measure the cost here)
 		for (FShaderCommonCompileJobPtr& ShaderCompileJob : CurrentCompilation.ShaderCompileJobs)
-		{
-			CurrentCompilation.ShaderMap->ProcessAndFinalizeShaderCompileJob(ShaderCompileJob);
-		}
+			{
+				CurrentCompilation.ShaderMap->ProcessAndFinalizeShaderCompileJob(ShaderCompileJob);
+			}
 
 		// now that we've added all the results into the shader map we can move it over to CompletedCompilations
 		CompletedCompilations.Add(CurrentCompilation.ShaderMap);

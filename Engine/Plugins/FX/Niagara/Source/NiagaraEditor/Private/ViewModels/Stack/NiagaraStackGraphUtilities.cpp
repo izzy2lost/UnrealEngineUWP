@@ -1859,7 +1859,7 @@ void FNiagaraStackGraphUtilities::GetStackFunctionOutputVariables(UNiagaraNodeFu
 
 	FunctionCallNode.BuildParameterMapHistory(Builder, false);
 
-	if (ensureMsgf(Builder.Histories.Num() == 1, TEXT("Invalid Stack Graph - Function call node has invalid history count!")))
+	if (Builder.Histories.Num() == 1)
 	{
 		for (int32 i = 0; i < Builder.Histories[0].Variables.Num(); i++)
 		{
@@ -1881,6 +1881,10 @@ void FNiagaraStackGraphUtilities::GetStackFunctionOutputVariables(UNiagaraNodeFu
 				OutOutputVariablesWithOriginalAliasesIntact.Add(VariableWithOriginalAliasIntact);
 			}
 		}
+	}
+	else
+	{
+		UE_LOG(LogNiagaraEditor, Log, TEXT("Invalid Stack Graph - Function call node has invalid history count!"));
 	}
 }
 
