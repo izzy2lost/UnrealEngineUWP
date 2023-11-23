@@ -17,7 +17,10 @@ public:
 
 	SLATE_BEGIN_ARGS(SMessageDialog)
 		: _AutoCloseOnButtonPress(true)
+		, _DecoratorStyleSet(nullptr)
 		, _Icon(nullptr)
+		, _UseScrollBox(true)
+		, _ScrollBoxMaxHeight(300)
 		, _WrapMessageAt(512.f)
 	{}
 
