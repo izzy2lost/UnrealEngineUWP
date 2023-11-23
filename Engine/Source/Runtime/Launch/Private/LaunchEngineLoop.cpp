@@ -5456,7 +5456,10 @@ uint64 FScopedSampleMallocChurn::DumpFrame = 0;
 
 #endif
 
+#if CPUPROFILERTRACE_ENABLED
 static uint32 TraceFrameEventThreadId = (uint32) -1;
+static uint32 TraceFrameEventSpecId = 0;
+#endif
 
 static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, uint64 CurrentFrameCounter)
 {
@@ -5468,6 +5471,7 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 	}
 
 	TRACE_BEGIN_FRAME(TraceFrameType_Rendering);
+
 	GRHICommandList.LatchBypass();
 	GFrameNumberRenderThread++;
 
@@ -5483,10 +5487,14 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 
 #if CPUPROFILERTRACE_ENABLED
 	TraceFrameEventThreadId = (uint32) -1;
-	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
+	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel) && !UE_TRACE_CHANNELEXPR_IS_ENABLED(RenderCommandsChannel))
 	{
 		TraceFrameEventThreadId = FPlatformTLS::GetCurrentThreadId();
-		FCpuProfilerTrace::OutputBeginDynamicEvent(TEXT("Frame"), __FILE__, __LINE__);
+		if (TraceFrameEventSpecId == 0)
+		{
+			TraceFrameEventSpecId = FCpuProfilerTrace::OutputEventType(TEXT("RenderingFrame"), __FILE__, __LINE__);
+		}
+		FCpuProfilerTrace::OutputBeginEvent(TraceFrameEventSpecId);
 	}
 #endif //CPUPROFILERTRACE_ENABLED
 
