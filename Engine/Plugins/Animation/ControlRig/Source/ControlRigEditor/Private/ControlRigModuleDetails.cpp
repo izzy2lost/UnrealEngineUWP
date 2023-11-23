@@ -648,6 +648,24 @@ void FRigModuleInstanceDetails::FillBindingMenu(FMenuBuilder& MenuBuilder, const
 		}
 	}
 
+	if(CombinedBindings.IsEmpty())
+	{
+		MenuBuilder.AddMenuEntry(
+			FUIAction(FExecuteAction()),
+			SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("NoBindingAvailable", "No bindings available for this property."))
+					.ColorAndOpacity(FLinearColor::White)
+				]
+			);
+		return;
+	}
+
 	// sort lexically
 	CombinedBindings.Sort();
 

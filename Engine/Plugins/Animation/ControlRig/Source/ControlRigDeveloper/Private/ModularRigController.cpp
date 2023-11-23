@@ -274,10 +274,11 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 	}
 
 	// Add possible module variables
-	Model->ForEachModule([this, &PossibleBindings, InModulePath, InVariableName](const FRigModuleReference* InModule) -> bool
+	const FString InvalidModulePrefix = InModulePath + UModularRig::NamespaceSeparator;
+	Model->ForEachModule([this, &PossibleBindings, InModulePath, InVariableName, InvalidModulePrefix](const FRigModuleReference* InModule) -> bool
 	{
 		const FString CurModulePath = InModule->GetPath();
-		if (InModulePath != CurModulePath)
+		if (InModulePath != CurModulePath && !CurModulePath.StartsWith(InvalidModulePrefix))
 		{
 			TArray<FRigVMExternalVariable> Variables = InModule->Class->GetDefaultObject<UControlRig>()->GetExternalVariables();
 			for (const FRigVMExternalVariable& Variable : Variables)
