@@ -791,7 +791,7 @@ void UPCGBlueprintElement::PointLoop(FPCGContext& InContext, const UPCGPointData
 
 	FPCGAsync::AsyncPointProcessing(&InContext, InPoints.Num(), OutPoints, [this, &InContext, InData, OutData, &InPoints](int32 Index, FPCGPoint& OutPoint)
 	{
-		return PointLoopBody(InContext, InData, InPoints[Index], OutPoint, OutData->Metadata);
+		return PointLoopBody(InContext, InData, InPoints[Index], OutPoint, OutData->Metadata, Index);
 	});
 }
 
@@ -818,7 +818,7 @@ void UPCGBlueprintElement::VariableLoop(FPCGContext& InContext, const UPCGPointD
 
 	FPCGAsync::AsyncMultiPointProcessing(&InContext, InPoints.Num(), OutPoints, [this, &InContext, InData, OutData, &InPoints](int32 Index)
 	{
-		return VariableLoopBody(InContext, InData, InPoints[Index], OutData->Metadata);
+		return VariableLoopBody(InContext, InData, InPoints[Index], OutData->Metadata, Index);
 	});
 }
 
@@ -847,7 +847,9 @@ void UPCGBlueprintElement::NestedLoop(FPCGContext& InContext, const UPCGPointDat
 
 	FPCGAsync::AsyncPointProcessing(&InContext, InOuterPoints.Num() * InInnerPoints.Num(), OutPoints, [this, &InContext, InOuterData, InInnerData, OutData, &InOuterPoints, &InInnerPoints](int32 Index, FPCGPoint& OutPoint)
 	{
-		return NestedLoopBody(InContext, InOuterData, InInnerData, InOuterPoints[Index / InInnerPoints.Num()], InInnerPoints[Index % InInnerPoints.Num()], OutPoint, OutData->Metadata);
+		const int32 OuterIndex = Index / InInnerPoints.Num();
+		const int32 InnerIndex = Index % InInnerPoints.Num();
+		return NestedLoopBody(InContext, InOuterData, InInnerData, InOuterPoints[OuterIndex], InInnerPoints[InnerIndex], OutPoint, OutData->Metadata, OuterIndex, InnerIndex);
 	});
 }
 
