@@ -110,6 +110,29 @@ bool UModularRig::InitializeVMs(const FName& InEventName)
 	return true;
 }
 
+void UModularRig::InitializeFromCDO()
+{
+	Super::InitializeFromCDO();
+
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		const UModularRig* CDO = GetClass()->GetDefaultObject<UModularRig>();
+
+		// Generate the rig module tree based on the CDO
+		ResetModules();
+		CDO->ForEachModule([this](const FRigModuleInstance* CDOModule) -> bool
+		{
+			if (FRigModuleInstance* NewModule = AddModuleInstance(CDOModule))
+			{
+				NewModule->Rig->Initialize();
+			}
+			return true;
+		});
+
+		SupportedEvents = CDO->SupportedEvents;
+	}
+}
+
 bool UModularRig::Execute_Internal(const FName& InEventName)
 {
 	if (VM)
@@ -382,7 +405,10 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		NewModule.ParentPath = InParent->GetPath();
 	}
 	UpdateCachedChildren();
-	SupportedEvents.Append(NewModule.Rig->GetSupportedEvents());
+	for (const FName& EventName : NewModule.Rig->GetSupportedEvents())
+	{
+		SupportedEvents.AddUnique(EventName);
+	}
 
 	// Configure module
 	{
@@ -404,7 +430,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		for (const TPair<FName, FString>& Pair : InVariableBindings)
 		{
 			FString SourceModulePath, SourceVariableName = Pair.Value;
-			Pair.Value.Split(NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+			Pair.Value.Split(NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			FRigVMExternalVariable SourceVariable;
 			if (SourceModulePath.IsEmpty())
 			{
@@ -417,11 +443,46 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 			{
 				SourceVariable = SourceModule->Rig->GetPublicVariableByName(*SourceVariableName);
 			}
+			SourceVariable.Name = *Pair.Value; // Adapt the name of the variable to contain the full path
+			check(SourceVariable.Property);
 			NewModule.VariableBindings.Add(Pair.Key, SourceVariable);
 		}
 	}
 	
 	return &NewModule;
+}
+
+FRigModuleInstance* UModularRig::AddModuleInstance(const FRigModuleInstance* InOtherModule)
+{
+	if (!InOtherModule->Rig.IsValid())
+	{
+		return nullptr;
+	}
+
+	// Figure out the ConnectionMap
+	const FRigElementKeyRedirector& Redirector = InOtherModule->Rig->GetElementKeyRedirector();
+	const TMap<FRigElementKey, FRigElementKey> ConnectionMap = Redirector.ExternalKeys;
+
+	// Figure out the DefaultValues (which is the current value on the CDO)
+	TMap<FName, FString> DefaultValues;
+	const TArray<FRigVMExternalVariable> Variables = InOtherModule->Rig->GetPublicVariables();
+	for (const FRigVMExternalVariable& Variable : Variables)
+	{
+		const FString Value = InOtherModule->Rig->GetVariableAsString(Variable.Name);
+		DefaultValues.Add(Variable.Name, Value);
+	}
+
+	// Figure out the variable bindings (where the source is either a root variable or a variable on another module)
+	TMap<FName, FString> VariableBindings;
+	for (const TPair<FName, FRigVMExternalVariable>& Pair : InOtherModule->VariableBindings)
+	{
+		VariableBindings.Add(Pair.Key, Pair.Value.Name.ToString());
+	}
+
+	// Figure out the parent module
+	FRigModuleInstance* ParentModule = const_cast<FRigModuleInstance*>(FindModule(InOtherModule->ParentPath));
+	
+	return AddModuleInstance(InOtherModule->Name, InOtherModule->Rig->GetClass(), ParentModule, ConnectionMap, DefaultValues, VariableBindings);
 }
 
 const FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const

@@ -387,7 +387,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	const FProperty* TargetProperty = Module->Class->FindPropertyByName(InVariableName);
 
 	FString SourceModulePath, SourceVariableName = InSourcePath;
-	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName);
+	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 
 	FRigModuleReference* SourceModule = nullptr;
 	if (!SourceModulePath.IsEmpty())
@@ -509,7 +509,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 		Reference.Bindings = Reference.Bindings.FilterByPredicate([InModulePath](const TPair<FName, FString>& Binding)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (ModulePath == InModulePath)
 			{
 				return false;
@@ -583,7 +583,7 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 		for (TPair<FName, FString>& Binding : Reference.Bindings)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (ModulePath == OldPath)
 			{
 				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);
@@ -688,7 +688,7 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 		for (TPair<FName, FString>& Binding : Reference.Bindings)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName);
+			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (ModulePath == OldPath)
 			{
 				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);

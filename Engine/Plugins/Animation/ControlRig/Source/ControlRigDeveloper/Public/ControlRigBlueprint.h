@@ -290,6 +290,7 @@ public:
 	void PropagateDrawInstructionsFromBPToInstances() const;
 	void PropagatePropertyFromBPToInstances(FRigElementKey InRigElement, const FProperty* InProperty) const;
 	void PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UControlRig* InInstance) const;
+	void PropagateModuleHierarchyFromBPToInstances() const;
 
 	/**
 	* Returns the modified event, which can be used to 

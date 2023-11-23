@@ -1560,16 +1560,6 @@ static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* I
 	}
 }
 
-static void BuildModularRig(UModularRig* Rig, const FModularRigModel& Model)
-{
-	Rig->ResetModules();
-	for (const FRigModuleReference* RootModule : Model.RootModules)
-	{
-		AddModulesRecursively(Rig, RootModule, nullptr);
-	}
-	Rig->InitializeVMs(true);
-}
-
 void UControlRigBlueprint::RecompileModularRig()
 {
 	OnModularRigPreCompiled().Broadcast(this);
@@ -1577,18 +1567,13 @@ void UControlRigBlueprint::RecompileModularRig()
 	{
 		if (UModularRig* DefaultObject = Cast<UModularRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
-			BuildModularRig(DefaultObject, ModularRigModel);
-
-			// Initialize Archetype Instances
-			TArray<UObject*> ArchetypeInstances;
-			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
-			for (UObject* Instance : ArchetypeInstances)
+			DefaultObject->ResetModules();
+			for (const FRigModuleReference* RootModule : ModularRigModel.RootModules)
 			{
-				if (UModularRig* ModularRigInstance = Cast<UModularRig>(Instance))
-				{
-					BuildModularRig(ModularRigInstance, ModularRigModel);
-				}
+				AddModulesRecursively(DefaultObject, RootModule, nullptr);
 			}
+			DefaultObject->InitializeVMs(true);
+			PropagateModuleHierarchyFromBPToInstances();
 		}
 	}
 
@@ -2187,6 +2172,25 @@ void UControlRigBlueprint::PropagatePropertyFromInstanceToBP(FRigElementKey InRi
 	FMemory::Memcpy(Dest, Source, PropertySize);
 }
 
+void UControlRigBlueprint::PropagateModuleHierarchyFromBPToInstances() const
+{
+	if (UClass* MyControlRigClass = GeneratedClass)
+	{
+		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
+		{
+			TArray<UObject*> ArchetypeInstances;
+			DefaultObject->GetArchetypeInstances(ArchetypeInstances);
+			for (UObject* ArchetypeInstance : ArchetypeInstances)
+			{
+				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
+				{
+					// this will provoke a call to InitializeFromCDO
+					InstanceRig->Initialize(true);
+				}
+			}
+		}
+	}
+}
 
 void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
 {
