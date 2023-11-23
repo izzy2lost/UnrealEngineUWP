@@ -611,6 +611,44 @@ bool FORCENOINLINE FDebug::CheckVerifyFailedImpl(
 #endif
 }
 
+bool FORCENOINLINE FDebug::CheckVerifyFailedImpl2(
+	const ANSICHAR* Expr,
+	const ANSICHAR* File,
+	int32 Line,
+	const TCHAR* Format,
+	...)
+{
+	va_list Args;
+
+	va_start(Args, Format);
+	FDebug::LogAssertFailedMessageImplV(Expr, File, Line, PLATFORM_RETURN_ADDRESS(), Format, Args);
+	va_end(Args);
+
+	if (GLog)
+	{
+		// Flushing the logs here increases the likelihood that recent messages will be written to the log file, stdout and the debugger console.
+		// Without this, some of the recent messages may not be reported when debugger stops due to an assertion failure.
+		GLog->Flush();
+	}
+
+	if (!FPlatformMisc::IsDebuggerPresent())
+	{
+		FPlatformMisc::PromptForRemoteDebugging(false);
+
+		va_start(Args, Format);
+		AssertFailedImplV(Expr, File, Line, PLATFORM_RETURN_ADDRESS(), Format, Args);
+		va_end(Args);
+
+		return false;
+	}
+
+#if UE_BUILD_SHIPPING
+	return true;
+#else
+	return !GIgnoreDebugger;
+#endif
+}
+
 #endif // DO_CHECK || DO_GUARD_SLOW || DO_ENSURE
 
 void VARARGS FDebug::AssertFailed(const ANSICHAR* Expr, const ANSICHAR* File, int32 Line, const TCHAR* Format/* = TEXT("")*/, ...)

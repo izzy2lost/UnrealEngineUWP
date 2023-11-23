@@ -88,6 +88,7 @@ struct FDebug
 #if DO_CHECK || DO_GUARD_SLOW || DO_ENSURE
 public:
 	static CORE_API bool VARARGS CheckVerifyFailedImpl(const ANSICHAR* Expr, const ANSICHAR* File, int32 Line, void* ProgramCounter, const TCHAR* Format, ...);
+	static CORE_API bool VARARGS CheckVerifyFailedImpl2(const ANSICHAR* Expr, const ANSICHAR* File, int32 Line, const TCHAR* Format, ...);
 private:
 	static CORE_API void VARARGS LogAssertFailedMessageImpl(const ANSICHAR* Expr, const ANSICHAR* File, int32 Line, void* ProgramCounter, const TCHAR* Fmt, ...);
 	static CORE_API void LogAssertFailedMessageImplV(const ANSICHAR* Expr, const ANSICHAR* File, int32 Line, void* ProgramCounter, const TCHAR* Fmt, va_list Args);
@@ -233,17 +234,10 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 		{ \
 			if(UNLIKELY(!(expr))) \
 			{ \
-				struct Impl \
+				if (FDebug::CheckVerifyFailedImpl2(#expr, __FILE__, __LINE__, TEXT(""))) \
 				{ \
-					static void FORCENOINLINE UE_DEBUG_SECTION ExecCheckImplInternal() \
-					{ \
-						if (FDebug::CheckVerifyFailedImpl(#expr, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), TEXT(""))) \
-						{ \
-							PLATFORM_BREAK(); \
-						} \
-					} \
-				}; \
-				Impl::ExecCheckImplInternal(); \
+					PLATFORM_BREAK(); \
+				} \
 				CA_ASSUME(false); \
 			} \
 		}
@@ -263,11 +257,11 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 		{ \
 			if(UNLIKELY(!(expr))) \
 			{ \
-				if (DispatchCheckVerify<bool>([&] () UE_DEBUG_SECTION \
+				UE_VALIDATE_FORMAT_STRING(format, ##__VA_ARGS__); \
+				if (FDebug::CheckVerifyFailedImpl2(#expr, __FILE__, __LINE__, format, ##__VA_ARGS__)) \
 				{ \
-					UE_VALIDATE_FORMAT_STRING(format, ##__VA_ARGS__); \
-					return FDebug::CheckVerifyFailedImpl(#expr, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), format, ##__VA_ARGS__); \
-				})) PLATFORM_BREAK(); \
+					PLATFORM_BREAK(); \
+				} \
 				CA_ASSUME(false); \
 			} \
 		}
