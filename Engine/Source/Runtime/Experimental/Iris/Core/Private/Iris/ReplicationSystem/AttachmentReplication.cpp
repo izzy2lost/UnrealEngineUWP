@@ -309,7 +309,7 @@ EAttachmentWriteStatus FNetObjectAttachmentSendQueue::Serialize(FNetSerializatio
 	uint32 SerializedReliableCount = 0;
 	if (bCanSendReliableAttachments)
 	{
-		UE_NET_TRACE_SCOPE(Reliable, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_NET_TRACE_SCOPE(Ordered, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		SerializedReliableCount = SerializeReliable(Context, RefHandle, ReplicationRecord.ReliableReplicationRecord);
 		// If we couldn't fit any reliable attachments then don't even try unreliable
 		if (SerializedReliableCount == 0)
@@ -674,14 +674,43 @@ public:
 		}
 	}
 
-	const TRefCountPtr<FNetBlob>* Peek() const
+	const TRefCountPtr<FNetBlob>* Peek()
 	{
-		return &Queue.Peek();
+		for (SIZE_T It = 0, EndIt = Queue.Count(); It < EndIt; ++It)
+		{
+			// Peek at head. We will return or pop the entry.
+			TRefCountPtr<FNetBlob>& Blob = Queue.Poke();
+			if (Blob.GetRefCount() > 0)
+			{
+				return &Blob;
+			}
+			else
+			{
+				Queue.Pop();
+			}
+		}
+
+		return nullptr;
 	}
 
 	void Pop()
 	{
 		return Queue.Pop();
+	}
+
+	void DequeueUnreliable(TArray<TRefCountPtr<FNetBlob>>& Unreliable)
+	{
+		for (SIZE_T It = 0, EndIt = Queue.Count(); It < EndIt; ++It)
+		{
+			TRefCountPtr<FNetBlob>& RefCntBlob = Queue.PokeAtOffset(It);
+			if (RefCntBlob.GetRefCount() > 0)
+			{
+				if (const bool bIsUnReliable = !EnumHasAnyFlags(RefCntBlob.GetReference()->GetCreationInfo().Flags, ENetBlobFlags::Reliable))
+				{
+					Unreliable.Emplace(MoveTemp(RefCntBlob));
+				}
+			}
+		}
 	}
 
 private:
@@ -720,7 +749,7 @@ bool FNetObjectAttachmentReceiveQueue::HasUnprocessed() const
 	return !UnreliableQueue.IsEmpty() || HasDeferredProcessingQueueUnprocessed();
 }
 
-const TRefCountPtr<FNetBlob>* FNetObjectAttachmentReceiveQueue::PeekReliable() const
+const TRefCountPtr<FNetBlob>* FNetObjectAttachmentReceiveQueue::PeekReliable()
 {
 	if (IsDeferredProcessingQueueEmpty())
 	{
@@ -752,6 +781,19 @@ const TRefCountPtr<FNetBlob>* FNetObjectAttachmentReceiveQueue::PeekUnreliable()
 void FNetObjectAttachmentReceiveQueue::PopUnreliable()
 {
 	UnreliableQueue.Pop();
+}
+
+void FNetObjectAttachmentReceiveQueue::GetOrderedUnreliable(TArray<TRefCountPtr<FNetBlob>>& OrderedUnreliable)
+{
+	if (DeferredProcessingQueue != nullptr)
+	{
+		DeferredProcessingQueue->DequeueUnreliable(OrderedUnreliable);
+	}
+	
+	if (ReliableQueue != nullptr)
+	{
+		ReliableQueue->DequeueUnreliable(OrderedUnreliable);
+	}
 }
 
 void FNetObjectAttachmentReceiveQueue::SetUnreliableQueueCapacity(uint32 QueueCapacity)
@@ -805,7 +847,7 @@ void FNetObjectAttachmentReceiveQueue::Deserialize(FNetSerializationContext& Con
 
 	if (bHasReliableAttachments)
 	{
-		UE_NET_TRACE_SCOPE(Reliable, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_NET_TRACE_SCOPE(Ordered, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		DeserializeReliable(Context, RefHandle);
 		if (Context.HasErrorOrOverflow())
 		{

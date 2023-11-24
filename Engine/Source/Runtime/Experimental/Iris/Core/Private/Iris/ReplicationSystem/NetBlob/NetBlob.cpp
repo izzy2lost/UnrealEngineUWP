@@ -46,12 +46,14 @@ void FNetBlob::SerializeCreationInfo(FNetSerializationContext& Context, const FN
 {
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
 
-	// Currently we only need to serialize the blob type as reliability is expected to be handled externally.
 	Writer->WriteBits((CreationInfo.Type == 0 ? 0U : 1U), 1U);
 	if (CreationInfo.Type != 0)
 	{
 		Writer->WriteBits(CreationInfo.Type, 7U);
 	}
+
+	// Retain Reliable flag
+	Writer->WriteBits(EnumHasAnyFlags(CreationInfo.Flags, ENetBlobFlags::Reliable) ? 1U : 0U, 1U);
 }
 
 void FNetBlob::DeserializeCreationInfo(FNetSerializationContext& Context, FNetBlobCreationInfo& OutCreationInfo)
@@ -63,8 +65,11 @@ void FNetBlob::DeserializeCreationInfo(FNetSerializationContext& Context, FNetBl
 		Type = Reader->ReadBits(7U);
 	}
 
+	const uint32 Reliable = Reader->ReadBits(1);
+	ENetBlobFlags Flags = (Reliable ? ENetBlobFlags::Reliable : ENetBlobFlags::None);
+
 	OutCreationInfo.Type = Type;
-	OutCreationInfo.Flags = ENetBlobFlags::None;
+	OutCreationInfo.Flags = Flags;
 }
 
 void FNetBlob::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const

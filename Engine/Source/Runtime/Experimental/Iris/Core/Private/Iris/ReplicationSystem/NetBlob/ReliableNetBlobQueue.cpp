@@ -342,6 +342,35 @@ void FReliableNetBlobQueue::Pop()
 	// $TODO. For a memory optimization one can change the storage implementation and free the memory here if everything is acked.
 }
 
+
+void FReliableNetBlobQueue::DequeueUnreliable(TArray<TRefCountPtr<FNetBlob>>& Unreliable)
+{
+	for (uint32 Seq = FirstSeq; Seq < LastSeq; ++Seq)
+	{
+		const uint32 Index = SequenceToIndex(Seq);
+		if (!IsIndexAcked(Index))
+		{
+			continue;
+		}
+
+		TRefCountPtr<FNetBlob>& RefCntBlob = NetBlobs[Index];
+		if (RefCntBlob.GetRefCount() > 0)
+		{
+			if (const bool bIsUnReliable = !EnumHasAnyFlags(RefCntBlob.GetReference()->GetCreationInfo().Flags, ENetBlobFlags::Reliable))
+			{
+				Unreliable.Emplace(MoveTemp(RefCntBlob));
+
+				// Advance the ack window if possible.
+				if (Seq == FirstSeq)
+				{
+					ClearIndexIsAcked(Index);
+					++FirstSeq;
+				}
+			}
+		}
+	}
+}
+
 void FReliableNetBlobQueue::ProcessPacketDeliveryStatus(EPacketDeliveryStatus Status, const FReliableNetBlobQueue::FReplicationRecord& Record)
 {
 	switch (Status)

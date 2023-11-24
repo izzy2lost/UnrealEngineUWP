@@ -2103,9 +2103,9 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 	const uint32 InternalIndex = ReplicationInfo->InternalIndex;
 
 	/**
-	* This code path handles all cases where the initial state has already been applied. An object can have multiple entries in ObjectsPendingResolve.
-	* Reliable attachments will be delivered if they can be resolved or if CVarDelayUnmappedRPCs is <= 0
-	*/
+	 * This code path handles all cases where the initial state has already been applied. An object can have multiple entries in ObjectsPendingResolve.
+	 * Reliable attachments will be dispatched if they can be resolved or if CVarDelayUnmappedRPCs is <= 0. Unreliable but ordered attachments will always be dispatched.
+	 */
 	bool bHasUnresolvedReferences = false;
 	const ENetObjectAttachmentType AttachmentType = (IsObjectIndexForOOBAttachment(InternalIndex) ? ENetObjectAttachmentType::OutOfBand : ENetObjectAttachmentType::Normal);
 	if (FNetObjectAttachmentReceiveQueue* AttachmentQueue = Attachments.GetQueue(AttachmentType, InternalIndex))
@@ -2151,6 +2151,21 @@ void FReplicationReader::ResolveAndDispatchAttachments(FNetSerializationContext&
 				if (Context.HasError())
 				{
 					return;
+				}
+			}
+
+			// Dispatch remaining ordered unreliable attachments. The side effects of for example blocking move RPCs are significant.
+			{
+				TArray<TRefCountPtr<FNetBlob>> OrderedUnreliableAttachments;
+				OrderedUnreliableAttachments.Reserve(16);
+				AttachmentQueue->GetOrderedUnreliable(OrderedUnreliableAttachments);
+				for (TRefCountPtr<FNetBlob>& Attachment : OrderedUnreliableAttachments)
+				{
+					NetBlobHandlerManager->OnNetBlobReceived(Context, Attachment);
+					if (Context.HasError())
+					{
+						return;
+					}
 				}
 			}
 		}

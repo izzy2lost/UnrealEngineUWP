@@ -166,11 +166,13 @@ public:
 	bool IsSafeToDestroy() const;
 	bool HasUnprocessed() const;
 
-	const TRefCountPtr<FNetBlob>* PeekReliable() const;
+	const TRefCountPtr<FNetBlob>* PeekReliable();
 	void PopReliable();
 
 	const TRefCountPtr<FNetBlob>* PeekUnreliable() const;
 	void PopUnreliable();
+
+	void GetOrderedUnreliable(TArray<TRefCountPtr<FNetBlob>>& OrderedUnreliable);
 
 	void SetUnreliableQueueCapacity(uint32 QueueCapacity);
 

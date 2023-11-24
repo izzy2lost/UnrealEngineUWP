@@ -86,6 +86,9 @@ public:
 	/** On the receiving end this will remove the next blob to be processed from the queue. Call after processing the blob returned from Peek(). */
 	IRISCORE_API void Pop();
 
+	/** On the receiving end this will move all received unreliable NetBlobs to the array and release them from the queue. This breaks the ordering guarantees provided by using Peek and Pop. Reliable NetBlobs are unaffected by this operation. */
+	IRISCORE_API void DequeueUnreliable(TArray<TRefCountPtr<FNetBlob>>& Unreliable);
+
 	/**
 	 * Serializes as many blobs as possible using their respective SerializeWithObject() method. It is assumed the NetRefHandle will be 
 	 * reconstructed somehow on the receiving end and passed to DeserializeWithObject().
