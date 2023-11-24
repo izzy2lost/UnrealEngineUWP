@@ -5550,7 +5550,8 @@ UObject* FLinkerLoad::CreateImport( int32 Index )
 					if( Import.OuterIndex.IsNull() )
 					{
 						FName ObjectName = InstancingContext.RemapPackage(Import.ObjectName);
-						UPackage* Pkg = CreatePackage(*ObjectName.ToString());
+						// Instancing context supports remapping editor-only references to none, handle this case here.
+						UPackage* Pkg = !ObjectName.IsNone() ? CreatePackage(*ObjectName.ToString()) : nullptr;
 						if (IsPackageReferenceAllowed(Pkg))
 						{
 							FindObject = Pkg;
