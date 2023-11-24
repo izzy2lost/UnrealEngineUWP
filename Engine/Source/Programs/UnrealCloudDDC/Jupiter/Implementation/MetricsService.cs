@@ -129,7 +129,7 @@ namespace Jupiter.Implementation
 			_blobSizeMinGauge = meter.CreateGauge<long>("blobstats.bucket_size.min");
 			_blobSizeMaxGauge = meter.CreateGauge<long>("blobstats.bucket_size.max");
 			_blobSizeCountGauge = meter.CreateGauge<long>("blobstats.bucket_size.count");
-			_blobSizeTotalGauge = meter.CreateGauge<long>("blobstats.bucket_size.sum,=");
+			_blobSizeTotalGauge = meter.CreateGauge<long>("blobstats.bucket_size.sum");
 			_refsInBucketGauge = meter.CreateGauge<long>("blobstats.refs_in_bucket");
 		}
 

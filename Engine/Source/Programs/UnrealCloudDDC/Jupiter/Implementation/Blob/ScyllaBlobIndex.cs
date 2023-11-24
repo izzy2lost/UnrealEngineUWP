@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Cassandra;
 using Cassandra.Mapping;
@@ -370,9 +371,10 @@ public class ScyllaBlobIndex : IBlobIndex
 
 		int totalCountOfRefs = 0;
 		int totalCountOfBlobs = 0;
-		int smallestBlobFound = int.MaxValue;
-		int largestBlobFound = 0;
 		long totalSizeOfBlobs = 0;
+
+		List<int> smallestBlobPerPrefix = new List<int>();
+		List<int> largestBlobPerPrefix = new List<int>();
 
 		string[] hashPrefixes = new string[65536];
 		int i = 0;
@@ -398,7 +400,7 @@ public class ScyllaBlobIndex : IBlobIndex
 				{
 					int countOfRefs = (int)(long)row["system.count(reference_id)"];
 
-					totalCountOfRefs += countOfRefs;
+					Interlocked.Add(ref totalCountOfRefs, countOfRefs);
 				}
 			}, token);
 
@@ -430,16 +432,19 @@ public class ScyllaBlobIndex : IBlobIndex
 					int largestBlob = (int)(long)row["system.max(size)"];
 					long sumSizeOfBlobs = (long)row["system.sum(size)"];
 
-					totalCountOfBlobs += countOfBlobs;
-					smallestBlobFound = Math.Min(smallestBlob, smallestBlobFound);
-					largestBlobFound = Math.Max(largestBlob, largestBlobFound);
-					totalSizeOfBlobs += sumSizeOfBlobs;
+					Interlocked.Add(ref totalCountOfBlobs, countOfBlobs);
+					Interlocked.Add(ref totalSizeOfBlobs, sumSizeOfBlobs);
+
+					smallestBlobPerPrefix.Add(smallestBlob);
+					largestBlobPerPrefix.Add(largestBlob);
 				}
 			}, token);
 
 			await Task.WhenAll(calcRefStats, calcBlobStats);
 		});
-
+		int smallestBlobFound = smallestBlobPerPrefix.Any() ? smallestBlobPerPrefix.Min() : 0;
+		int largestBlobFound = largestBlobPerPrefix.Any() ? largestBlobPerPrefix.Max() : 0;
+		
 		return new BucketStats
 		{
 			Namespace = ns,
@@ -449,7 +454,9 @@ public class ScyllaBlobIndex : IBlobIndex
 			SmallestBlobFound = smallestBlobFound,
 			LargestBlob = largestBlobFound,
 			TotalSize = totalSizeOfBlobs,
-			AvgSize = totalSizeOfBlobs / (double)totalCountOfBlobs
+#pragma warning disable CA1508
+			AvgSize = totalCountOfBlobs == 0 ? 0 : (totalSizeOfBlobs / (double)totalCountOfBlobs)
+#pragma warning restore CA1508
 		};
 	}
 }
