@@ -58,7 +58,6 @@ void FTexture2DDynamicResource::InitRHI(FRHICommandListBase&)
 	if (Owner->bIsResolveTarget)
 	{
 		Desc.AddFlags(ETextureCreateFlags::ResolveTargetable);
-		bIgnoreGammaConversions = true;		// Note, we're ignoring Owner->SRGB (it should be false).
 	}
 	else if (Owner->SRGB)
 	{

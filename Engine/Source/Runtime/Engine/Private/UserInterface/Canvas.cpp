@@ -437,12 +437,6 @@ bool FCanvasBatchedElementRenderItem::Render_RenderThread(FCanvasRenderContext& 
 			const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();
 			float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma();
 
-			// bIgnoreGammaConversions is deprecated; remove this
-			if (LocalData->Texture && LocalData->Texture->bIgnoreGammaConversions)
-			{
-				Gamma = 1.0f;
-			}
-
 			// draw batched items
 			LocalData->BatchedElements.Draw(
 				RHICmdList,
@@ -477,12 +471,6 @@ bool FCanvasBatchedElementRenderItem::Render_GameThread(const FCanvas* Canvas, F
 		const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();
 		float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma();
 		
-		// bIgnoreGammaConversions is deprecated; remove this
-		if ( Data->Texture && Data->Texture->bIgnoreGammaConversions )
-		{
-			Gamma = 1.0f;
-		}
-
 		// Render the batched elements.
 		struct FBatchedDrawParameters
 		{

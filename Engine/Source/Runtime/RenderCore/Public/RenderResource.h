@@ -381,9 +381,11 @@ public:
 	 * true if the texture is in the same gamma space as the intended rendertarget (e.g. screenshots).
 	 * The texture will have sRGB==false and bIgnoreGammaConversions==true, causing a non-sRGB texture lookup
 	 * and no gamma-correction in the shader.
-	 *
-	 * I believe this comment is no longer correct and bIgnoreGammaConversions is now deprecated and should not be used.
+	 * 
+	 * This was only ever checked in the Canvas renderer, not the standard Material shader path.
+	 * It is no longer set or checked.
 	 */
+	UE_DEPRECATED(5.5,"bIgnoreGammaConversions should not be used")
 	bool				bIgnoreGammaConversions = false;
 
 	/** 
