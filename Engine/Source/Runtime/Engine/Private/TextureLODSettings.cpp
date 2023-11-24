@@ -307,7 +307,9 @@ void UTextureLODSettings::GetMipGenSettings(const UTexture& Texture, TextureMipG
 
 	// ------------
 
-	// default:
+	// default to 2x2 SimpleAverage :
+	// if you generate mips when TMGS was set to NoMipMaps or LeaveExisting, etc.
+	//	it will use these defaults
 	OutSharpen = 0;
 	OutKernelSize = 2;
 

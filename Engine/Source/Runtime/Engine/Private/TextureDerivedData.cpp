@@ -3969,28 +3969,39 @@ bool UTexture::DownsizeImageUsingTextureSettings(const ITargetPlatform* TargetPl
 	FTextureBuildSettings& BuildSettings = SettingPerLayer[LayerIndex];
 	// even if we are a Cube or LatLong, tell it we are just 2d ?
 	//  so the image is shrunk as a plain 2d
-	//	@@ not sure this is okay/best for latlongs
 	BuildSettings.bCubemap = false;
 	BuildSettings.bTextureArray = false;
 	BuildSettings.bVolume = false;
 	BuildSettings.bLongLatSource = false;
-
-	if ( BuildSettings.MipGenSettings == TMGS_NoMipmaps ||
-		BuildSettings.MipGenSettings == TMGS_LeaveExistingMips )
-	{
-		// what kind of mipgen do we use here?
-		// yuck!
-		BuildSettings.MipGenSettings = TMGS_SimpleAverage;
-	}
-
-	/*
-	// ?? yes ??
+	
 	// make sure modern options are set:
 	BuildSettings.bUseNewMipFilter = true;
 	BuildSettings.bSharpenWithoutColorShift = false;
 	if ( IsNormalMap() )
+	{
 		BuildSettings.bNormalizeNormals = true;
-	*/
+	}
+
+	if ( BuildSettings.MipGenSettings == TMGS_NoMipmaps ||
+		BuildSettings.MipGenSettings == TMGS_LeaveExistingMips ||
+		BuildSettings.MipGenSettings == TMGS_Angular )
+	{
+		// what kind of mipgen do we use here? (default from GetMipGenSettings will use 2x2 simple average)
+		// external caller now prefers to use use ResizeImage in this case
+		BuildSettings.MipGenSettings = TMGS_SimpleAverage;
+	}
+
+	// we turned off bCubeMap, make sure cube face filters clamp, not wrap
+	//  see ComputeAddressMode
+	if ( GetTextureClass() == ETextureClass::Cube || GetTextureClass() == ETextureClass::CubeArray )
+	{
+		// for 6-face cubes, just clamp
+		// for LatLong we want to Clamp Y but Wrap X ; that's not supported so just clamp
+		// external caller now prefers to use use ResizeImage for latlongs
+
+		BuildSettings.TextureAddressModeX = TA_Clamp;
+		BuildSettings.TextureAddressModeY = TA_Clamp;
+	}
 
 	FImage Temp;
 	// convert to RGBA32F linear for the compressor

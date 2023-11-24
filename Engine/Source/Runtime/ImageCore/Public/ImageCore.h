@@ -828,7 +828,7 @@ IMAGECORE_API void TransformToWorkingColorSpace(const FImageView& InLinearImage,
 	/*
 	* filter choice for ResizeImage
 	*/
-	enum class EResizeImageFilter : uint8
+	enum class EResizeImageFilter : uint32
 	{
 		Default = 0, // uses a good default filter; = AdaptiveSharp
 		PointSample,
@@ -839,8 +839,13 @@ IMAGECORE_API void TransformToWorkingColorSpace(const FImageView& InLinearImage,
 		CubicSharp, // sharp interpolating cubic, Catmull-ROM (has negative lobes)
 		CubicMitchell, // compromise between sharp and smooth cubic, Mitchell-Netrevalli filter with B=1/3, C=1/3 (has negative lobes)
 		AdaptiveSharp,  // sharper adaptive filter; uses CubicSharp for upsample and CubicMitchell for downsample, nop for same size
-		AdaptiveSmooth  // smoother adaptive filter; uses CubicMitchell for upsample and CubicGaussian for downsample, nop for same size
+		AdaptiveSmooth,  // smoother adaptive filter; uses CubicMitchell for upsample and CubicGaussian for downsample, nop for same size
+
+		WithoutFlagsMask = 63,
+		Flag_WrapX = 64,  // default edge mode is clamp; set these to wrap instead
+		Flag_WrapY = 128
 	};
+	ENUM_CLASS_FLAGS(EResizeImageFilter);
 
 	/* ResizeImage :
 	*	DestImage should be already allocated; DestImage will be filled in specified format

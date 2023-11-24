@@ -17,6 +17,82 @@ namespace UE::TextureUtilitiesCommon::Experimental
 namespace Private
 {
 
+	// adds wrap/clamp flags for X/Y on the filter as appropriate for this texture
+	static FImageCore::EResizeImageFilter SetResizeImageFilterEdgeModes(UTexture * Texture,FImageCore::EResizeImageFilter Filter)
+	{
+		using namespace FImageCore;
+
+		// default Filter with no flags will clamp at edges
+
+		if ( Texture->GetTextureClass() == ETextureClass::Cube ||
+			Texture->GetTextureClass() == ETextureClass::CubeArray )
+		{
+			if ( Texture->Source.IsLongLatCubemap() )
+			{
+				// wrap X, clamp Y
+				return Filter | EResizeImageFilter::Flag_WrapX;
+			}
+			else
+			{
+				// clamp cube faces
+				return Filter;
+			}
+		}
+		else
+		{
+			// see ComputeAddressMode
+
+			if ( Texture->bPreserveBorder )
+			{
+				// clamp
+				return Filter;
+			}
+
+			// @@ nonpow2, UI, NoMipMaps -> clamp ?
+
+			if ( Texture->GetTextureAddressX() == TA_Wrap )
+			{
+				Filter |= EResizeImageFilter::Flag_WrapX;
+			}
+			if ( Texture->GetTextureAddressY() == TA_Wrap )
+			{
+				Filter |= EResizeImageFilter::Flag_WrapY;
+			}
+
+			return Filter;
+		}
+	}
+
+	// use ResizeImage instead of DownsizeImageUsingTextureSettings ?
+	static bool UseResizeImageInsteadOfTextureSettings(UTexture * Texture)
+	{
+		if ( Texture->Source.IsLongLatCubemap() )
+		{
+			// longlat needs to wrap X and clamp Y which the TextureSettings resize can't do
+			return true;
+		}
+
+		if ( Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo ||
+			Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo )
+		{
+			if ( ! Texture->Source.AreAllBlocksPowerOfTwo() )
+			{
+				// stretching required, ResizeImage instead
+				return true;
+			}
+		}
+
+		if ( Texture->MipGenSettings == TMGS_NoMipmaps ||
+			Texture->MipGenSettings == TMGS_LeaveExistingMips ||
+			Texture->MipGenSettings == TMGS_Angular )
+		{
+			// TextureSettings mip gen is ill defined in this case, don't use it
+			return true;
+		}
+
+		return false;
+	}
+
 	// resize so that the largest dimension is <= MaxSize
 	static bool ResizeTexture2D(UTexture* Texture, int32 MaxSize, const ITargetPlatform* TargetPlatform)
 	{
@@ -34,18 +110,54 @@ namespace Private
 			return false;
 		}
 
-		bool MadeChanges;
-		if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Image, MaxSize, LayerIndex, MadeChanges) )
+		if ( UseResizeImageInsteadOfTextureSettings(Texture) )
 		{
-			UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture DownsizeImageUsingTextureSettings failed [%s]"),
-				*Texture->GetFullName());
-			return false;
+			int32 TargetSizeX = Image.SizeX;
+			int32 TargetSizeY = Image.SizeY;
+			
+			// stretch to pow2 like TextureCompressorModule
+			if ( Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToPowerOfTwo )
+			{
+				TargetSizeX = FMath::RoundUpToPowerOfTwo(Image.SizeX);
+				TargetSizeY = FMath::RoundUpToPowerOfTwo(Image.SizeY);				
+			}
+			else if ( Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo )
+			{
+				TargetSizeX = TargetSizeY = FMath::RoundUpToPowerOfTwo( FMath::Max(Image.SizeX,Image.SizeY) );
+			}
+
+			// do halving steps to get <= MaxSize
+			while( TargetSizeX > MaxSize || TargetSizeY > MaxSize )
+			{
+				TargetSizeX = FMath::Max(1,TargetSizeX>>1);
+				TargetSizeY = FMath::Max(1,TargetSizeY>>1);
+			}
+
+			if ( TargetSizeX >= Image.SizeX && TargetSizeY >= Image.SizeY )
+			{
+				// nothing to do
+				return false;
+			}
+
+			FImageCore::EResizeImageFilter Filter = SetResizeImageFilterEdgeModes(Texture,FImageCore::EResizeImageFilter::Default);
+
+			FImageCore::ResizeImageInPlace(Image,TargetSizeX,TargetSizeY,Filter);
 		}
-		if ( ! MadeChanges )
+		else
 		{
-			return false;
+			bool MadeChanges = false;
+			if ( ! Texture->DownsizeImageUsingTextureSettings(TargetPlatform, Image, MaxSize, LayerIndex, MadeChanges) )
+			{
+				UE_LOG(LogTexture,Error,TEXT("ResizeTexture2D: Texture DownsizeImageUsingTextureSettings failed [%s]"),
+					*Texture->GetFullName());
+				return false;
+			}
+			if ( ! MadeChanges )
+			{
+				return false;
+			}
 		}
-		
+
 		Texture->PreEditChange(nullptr);
 
 		Texture->Source.Init(Image);
@@ -102,7 +214,9 @@ namespace Private
 			TargetSizeX = RoundToNearestInt32PowerOfTwo( (double) TargetSizeY * Image.SizeX / Image.SizeY );
 		}
 
-		FImageCore::ResizeImageInPlace(Image,TargetSizeX,TargetSizeY);
+		FImageCore::EResizeImageFilter Filter = SetResizeImageFilterEdgeModes(Texture,FImageCore::EResizeImageFilter::Default);
+
+		FImageCore::ResizeImageInPlace(Image,TargetSizeX,TargetSizeY,Filter);
 		
 		Texture->PreEditChange(nullptr);
 
@@ -403,8 +517,6 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int
 	{
 		return false;
 	}
-
-	// ?? if Texture has StretchToPow2 set, then do ResizeTextureToNearestPow2 automatically here ?
 
 	if (Texture->Source.GetNumBlocks() == 1)
 	{

@@ -1859,8 +1859,9 @@ static bool GetFormatSTBIR(ERawImageFormat::Type Format,EGammaSpace GammaSpace,
 	}
 }
 
-static bool FilterIsNopWhenSameSize(EResizeImageFilter Filter)
+static bool FilterIsNopWhenSameSize(EResizeImageFilter FilterWithFlags)
 {
+	EResizeImageFilter Filter = FilterWithFlags & EResizeImageFilter::WithoutFlagsMask;
 	switch(Filter)
 	{
 		case EResizeImageFilter::PointSample:
@@ -1883,12 +1884,17 @@ static bool FilterIsNopWhenSameSize(EResizeImageFilter Filter)
 	}
 }
 
-static stbir_filter MapFilterToStb(EResizeImageFilter Filter,int64 SizeFm,int64 SizeTo)
+static stbir_filter MapFilterToStb(EResizeImageFilter FilterWithFlags,int64 SizeFm,int64 SizeTo,uint32 WrapFlag, stbir_edge & OutStbirEdgeMode)
 {
-	if ( SizeFm == SizeTo && FilterIsNopWhenSameSize(Filter) )
+	if ( SizeFm == SizeTo && FilterIsNopWhenSameSize(FilterWithFlags) )
 	{
+		OutStbirEdgeMode = STBIR_EDGE_CLAMP;
 		return STBIR_FILTER_POINT_SAMPLE;
 	}
+	
+	OutStbirEdgeMode = WrapFlag ? STBIR_EDGE_WRAP : STBIR_EDGE_CLAMP;
+	
+	EResizeImageFilter Filter = FilterWithFlags & EResizeImageFilter::WithoutFlagsMask;
 
 	switch(Filter)
 	{
@@ -1964,6 +1970,9 @@ IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const 
 		return;
 	}
 	
+	// can't write Pow22 :
+	check( DestImage.GetGammaSpace() != EGammaSpace::Pow22 );
+
 	int SourceNumChannels;
 	stbir_datatype SourceDataType;
 	stbir_pixel_layout SourceLayout;
@@ -2020,12 +2029,14 @@ IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const 
 		DestImage.RawData,DestImage.SizeX,DestImage.SizeY,DestImage.GetBytesPerPixel()*DestImage.SizeX,
 		SourceLayout,SourceDataType);
 
-	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX);
-	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY);
+	stbir_edge StbirEdgeX,StbirEdgeY;
+	stbir_filter StbirFilterX = MapFilterToStb(Filter,SourceImage.SizeX,DestImage.SizeX, (uint32)(Filter & EResizeImageFilter::Flag_WrapX), StbirEdgeX);
+	stbir_filter StbirFilterY = MapFilterToStb(Filter,SourceImage.SizeY,DestImage.SizeY, (uint32)(Filter & EResizeImageFilter::Flag_WrapY), StbirEdgeY);
 
 	stbir_set_filters(&resize, StbirFilterX, StbirFilterY);
 	stbir_set_pixel_layouts(&resize,SourceLayout,DestLayout);
 	stbir_set_datatypes(&resize,SourceDataType,DestDataType);
+	stbir_set_edgemodes(&resize, StbirEdgeX, StbirEdgeY);
 
 	const int32 NumWorkers = FTaskGraphInterface::Get().GetNumWorkerThreads();
 
@@ -2070,6 +2081,9 @@ IMAGECORE_API void FImageCore::ResizeImage(const FImageView & SourceImage,const 
 IMAGECORE_API void FImageCore::ResizeImageAllocDest(const FImageView & SourceImage,FImage & DestImage,int32 DestSizeX, int32 DestSizeY, ERawImageFormat::Type DestFormat, EGammaSpace DestGammaSpace, EResizeImageFilter Filter)
 {
 	check( DestImage.RawData.Num() == 0 || SourceImage.RawData != DestImage.GetPixelPointer(0,0) ); // must not be resizing onto self
+	
+	// can't write Pow22 :
+	check( DestGammaSpace != EGammaSpace::Pow22 );
 
 	// note that if DestImage was already allocated to the right size, this will not re-allocate it
 	DestImage.Init(DestSizeX,DestSizeY,SourceImage.NumSlices,DestFormat,DestGammaSpace);
@@ -2088,6 +2102,12 @@ IMAGECORE_API void FImageCore::ResizeImageInPlace(FImage & Image,int32 DestSizeX
 	{
 		// nop!
 		return;
+	}
+
+	// ResizeImageInPlace of Pow22 will change you to sRGB
+	if ( DestGammaSpace == EGammaSpace::Pow22 )
+	{
+		DestGammaSpace = EGammaSpace::sRGB;
 	}
 
 	FImage Source;
