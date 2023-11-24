@@ -12,6 +12,7 @@
 #include "RenderResource.h"
 #include "Animation/AnimSequence.h"
 #include "MLDeformerCurveReference.h"
+#include "PerQualityLevelProperties.h"
 #include "MLDeformerModel.generated.h"
 
 class UMLDeformerAsset;
@@ -19,7 +20,6 @@ class UMLDeformerVizSettings;
 class UMLDeformerModelInstance;
 class UMLDeformerComponent;
 class UMLDeformerInputInfo;
-
 
 /** The channel to get the mask data from. */
 UENUM()
@@ -153,12 +153,20 @@ public:
 	virtual bool DoesSupportCurves() const					{ return true; }
 
 	/**
+	 * Check if this model supports LOD.
+	 * When this returns false, the UI will not show options to setup the maximum number of LOD levels.
+	 * @return Returns true if LOD is supported, otherwise false is returned, which means it only works on LOD0.
+	 */
+	virtual bool DoesSupportLOD() const						{ return false; }
+
+	/**
 	 * Does this model support deformer quality levels?
 	 * For example Morph based models can disable certain morph targets based on this quality level.
 	 * On default this is disabled for models. You can override this method and make it return true to support it.
 	 * Morph based models on enable this on default.
 	 * @return Returns true when Deformer Quality is supported, otherwise false is returned.
 	 */
+	UE_DEPRECATED(5.4, "This method will be removed.")
 	virtual bool DoesSupportQualityLevels() const			{ return false; }
 
 	/**
@@ -215,6 +223,19 @@ public:
 	 * @return Returns true when the provided actor is compatible for debugging, otherwise false is returned.
 	 */
 	virtual bool IsCompatibleDebugActor(const AActor* Actor, UMLDeformerComponent** OutDebugComponent = nullptr) const;
+
+	/** 
+	 * Get the maximum number of LOD levels that we will generate.
+ 	 * Some examples:
+	 * A value of 1 means we only store one LOD, which means LOD0. 
+	 * A value of 2 means we support this ML Deformer on LOD0 and LOD1.
+	 * A value of 3 means we support this ML Deformer on LOD0 and LOD1 and LOD2.
+	 * We never generate more LOD levels for the ML Deformer than number of LOD levels in the Skeletal Mesh, so if 
+	 * this value is set to 100, while the Skeletal Mesh has only 4 LOD levels, we will only generate and store 4 ML Deformer LODs.
+	 * The default value of 1 means we do not support this ML Deformer at LOD levels other than LOD0.
+	 * @ return The maximum number of LOD levels we will generate.
+	 */
+	const int32 GetMaxNumLODs() const		{ return MaxNumLODs; }
 
 #if WITH_EDITORONLY_DATA
 	/**
@@ -567,6 +588,7 @@ public:
 	static FName GetCurveIncludeListPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, CurveIncludeList); }
 	static FName GetMaxTrainingFramesPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, MaxTrainingFrames); }
 	static FName GetDeltaCutoffLengthPropertyName()		{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, DeltaCutoffLength); }
+	static FName GetMaxNumLODsPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, MaxNumLODs); }
 
 	UE_DEPRECATED(5.3, "This property has been removed and shouldn't be used anymore.")
 	static FName GetShouldIncludeBonesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerModel, bIncludeBones_DEPRECATED); }
@@ -666,10 +688,24 @@ private:
 	int32 NumTargetMeshVerts = 0;
 
 	/** 
+	 * How many Skeletal Mesh LOD levels should we generate MLD lods for at most?
+	 * Some examples:
+	 * A value of 1 means we only store one LOD, which means LOD0. 
+	 * A value of 2 means we support this ML Deformer on LOD0 and LOD1.
+	 * A value of 3 means we support this ML Deformer on LOD0 and LOD1 and LOD2.
+	 * We never generate more LOD levels for the ML Deformer than number of LOD levels in the Skeletal Mesh, so if 
+	 * this value is set to 100, while the Skeletal Mesh has only 4 LOD levels, we will only generate and store 4 ML Deformer LODs.
+	 * The default value of 1 means we do not support this ML Deformer at LOD levels other than LOD0.
+	 * When cooking, the console variable "sg.MLDeformer.MaxLODLevelsOnCook" can be used to set the maximum value per device or platform.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LOD Generation Settings", meta = (ClampMin = "1"))
+	int32 MaxNumLODs = 1;
+
+	/** 
 	 * The information about the neural network inputs. This contains things such as bone names and curve names.
 	 */
 	UPROPERTY()
-	TObjectPtr<UMLDeformerInputInfo> InputInfo = nullptr;
+	TObjectPtr<UMLDeformerInputInfo> InputInfo;
 
 	/** This is an index per vertex in the mesh, indicating the imported vertex number from the source asset. */
 	UPROPERTY()
@@ -677,7 +713,7 @@ private:
 
 	/** The skeletal mesh that represents the linear skinned mesh. */
 	UPROPERTY(EditAnywhere, Category = "Base Mesh")
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+	TObjectPtr<USkeletalMesh> SkeletalMesh;
 
 	/** The number of floats per bone in network input. */
 	UE_DEPRECATED(5.3, "This will be removed")
@@ -689,7 +725,7 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
-	TObjectPtr<UMLDeformerVizSettings> VizSettings = nullptr;
+	TObjectPtr<UMLDeformerVizSettings> VizSettings;
 
 	/** Specifies whether bone transformations should be included as inputs during the training process. */
 	UPROPERTY()

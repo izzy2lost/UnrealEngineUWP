@@ -209,6 +209,11 @@ namespace UE::MLDeformer
 		}
 	}
 
+	void FMLDeformerSampler::ExtractSkinnedPositions(int32 LODIndex, TArray<FVector3f>& OutPositions)
+	{
+		ExtractSkinnedPositions(LODIndex, BoneMatrices, TempVertexPositions, OutPositions);
+	}
+
 	void FMLDeformerSampler::ExtractSkinnedPositions(int32 LODIndex, TArray<FMatrix44f>& InBoneMatrices, TArray<FVector3f>& TempPositions, TArray<FVector3f>& OutPositions) const
 	{
 		OutPositions.Reset();

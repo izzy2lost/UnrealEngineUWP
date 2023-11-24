@@ -28,7 +28,6 @@ public:
 	virtual void Init(USkeletalMeshComponent* SkelMeshComponent) override;
 	virtual void PostMLDeformerComponentInit() override;
 	virtual void BeginDestroy() override;
-	virtual void Tick(float DeltaTime, float ModelWeight) override;
 	virtual void HandleZeroModelWeight() override;
 	virtual bool IsValidForDataProvider() const override;
 	virtual void PostTick(bool bExecuteCalled) override;
@@ -44,28 +43,9 @@ public:
 	FExternalMorphSetWeights* FindWeightData(int32 LOD) const;
 
 protected:
-#if WITH_EDITOR
-	/**
-	 * Copy the morph weights from a given morph model instance.
-	 * We assume that the other instance is compatible with this one.
-	 * @param SourceModelInstance The instance to copy the weights from.
-	 */
-	void CopyMorphWeightsFromMorphInstance(const UMLDeformerMorphModelInstance* SourceModelInstance);
-#endif
-
-protected:
 	/** The next free morph target set ID. This is used to generate unique ID's for each morph model. */
 	static TAtomic<int32> NextFreeMorphSetID;
 
 	/** The ID of the external morph target set for this instance. This gets initialized during Init. */
 	int32 ExternalMorphSetID = -1;
-
-	/** The morph target weights we are blending towards. */
-	TArray<float> StartMorphWeights;
-
-	/** The current lerp alpha (between 0 and 1). */
-	float MorphLerpAlpha = 1.0f;
-
-	/** The quality level in the previous tick. */
-	int32 LastQualityLevel = -1;
 };

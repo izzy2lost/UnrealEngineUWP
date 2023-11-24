@@ -58,6 +58,8 @@ namespace UE::MLDeformer
 		BaseMeshCategoryBuilder = &DetailLayoutBuilder->EditCategory("Base Mesh", FText::GetEmpty(), ECategoryPriority::Important);
 		InputOutputCategoryBuilder = &DetailLayoutBuilder->EditCategory("Inputs", FText::GetEmpty(), ECategoryPriority::Important);
 		TrainingSettingsCategoryBuilder = &DetailLayoutBuilder->EditCategory("Training Settings", FText::GetEmpty(), ECategoryPriority::Important);
+		LODSettingsCategoryBuilder = &DetailLayoutBuilder->EditCategory("LOD Generation Settings", FText::GetEmpty(), ECategoryPriority::Important);
+		LODSettingsCategoryBuilder->SetCategoryVisibility(Model->DoesSupportLOD());
 	}
 
 	void FMLDeformerModelDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
@@ -193,6 +195,8 @@ namespace UE::MLDeformer
 		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetMaxTrainingFramesPropertyName(), UMLDeformerModel::StaticClass());
 		TrainingSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetDeltaCutoffLengthPropertyName(), UMLDeformerModel::StaticClass());
 		AddTrainingSettingsErrors();
+
+		LODSettingsCategoryBuilder->AddProperty(UMLDeformerModel::GetMaxNumLODsPropertyName(), UMLDeformerModel::StaticClass());
 	}
 
 	bool FMLDeformerModelDetails::FilterAnimSequences(const FAssetData& AssetData, USkeleton* Skeleton)

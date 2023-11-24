@@ -735,7 +735,7 @@ FExternalMorphWeightData& USkinnedMeshComponent::GetExternalMorphWeights(int32 L
 
 bool USkinnedMeshComponent::IsValidExternalMorphSetLODIndex(int32 LOD) const
 {
-	return ExternalMorphSets.IsValidIndex(LOD);
+	return ExternalMorphWeightData.IsValidIndex(LOD) && ExternalMorphSets.IsValidIndex(LOD);
 }
 
 void USkinnedMeshComponent::AddExternalMorphSet(int32 LOD, int32 ID, TSharedPtr<FExternalMorphSet> MorphSet)

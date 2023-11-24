@@ -4,6 +4,7 @@
 #include "MLDeformerGeomCacheHelpers.h"
 #include "MLDeformerComponent.h"
 #include "MLDeformerAsset.h"
+#include "MLDeformerObjectVersion.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
 #include "GeometryCache.h"
@@ -14,6 +15,8 @@
 
 void UMLDeformerGeomCacheModel::Serialize(FArchive& Archive)
 {
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
+
 	#if WITH_EDITOR
 		if (Archive.IsSaving() && Archive.IsCooking())
 		{

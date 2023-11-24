@@ -229,7 +229,7 @@ void UNeuralMorphModelInstance::Execute(float ModelWeight)
 
 	// Grab the weight data for this morph set.
 	// This could potentially fail if we are applying this deformer to the wrong skeletal mesh component.
-	const int LOD = 0;	// For now we only support LOD 0, as we can't setup an ML Deformer per LOD yet.
+	const int32 LOD = SkeletalMeshComponent->GetPredictedLODLevel();
 	FExternalMorphSetWeights* WeightData = FindWeightData(LOD);
 	if (WeightData == nullptr)
 	{
@@ -264,32 +264,9 @@ void UNeuralMorphModelInstance::Execute(float ModelWeight)
 	WeightData->Weights[0] = ModelWeight;
 
 	// Update all generated morph target weights with the values calculated by our neural network.
-	const TArrayView<const float> ErrorValues = MorphModel->GetMorphTargetErrorValues();
-	const TArrayView<const int32> ErrorOrder = MorphModel->GetMorphTargetErrorOrder();
-	if (!ErrorValues.IsEmpty())
+	for (int32 MorphIndex = 0; MorphIndex < NumNetworkWeights; ++MorphIndex)
 	{
-		const int32 QualityLevel = GetMLDeformerComponent()->GetQualityLevel();
-		const int32 NumActiveMorphs = MorphModel->GetNumActiveMorphs(QualityLevel);
-		for (int32 Index = 0; Index < NumActiveMorphs; ++Index)
-		{
-			const int32 MorphIndex = ErrorOrder[Index];
-			const float TargetWeight = NetworkOutputs[MorphIndex] * ModelWeight;
-			WeightData->Weights[MorphIndex + 1] = FMath::Lerp<float, float>(StartMorphWeights[MorphIndex + 1], TargetWeight, MorphLerpAlpha);
-		}
-
-		// Disable all inactive morphs.
-		for (int32 Index = NumActiveMorphs; Index < NumNetworkWeights; ++Index)
-		{
-			const int32 MorphIndex = ErrorOrder[Index];
-			WeightData->Weights[MorphIndex + 1] = FMath::Lerp<float, float>(StartMorphWeights[MorphIndex + 1], 0.0f, MorphLerpAlpha);
-		}
-	}
-	else // Old models might not have the error values yet, and thus not support the quality levels yet.
-	{
-		for (int32 MorphIndex = 0; MorphIndex < NumNetworkWeights; ++MorphIndex)
-		{
-			WeightData->Weights[MorphIndex + 1] = NetworkOutputs[MorphIndex] * ModelWeight;
-		}
+		WeightData->Weights[MorphIndex + 1] = NetworkOutputs[MorphIndex] * ModelWeight;
 	}
 
 	// Clamp morph target weights to be within the bounds we seen on the training data set.

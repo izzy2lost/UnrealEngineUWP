@@ -228,8 +228,9 @@ void UMLDeformerComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	if (TickType != ELevelTick::LEVELTICK_PauseTick)
 	{
 		if (ModelInstance &&
+			ModelInstance->GetModel() &&
 			SkelMeshComponent && 
-			SkelMeshComponent->GetPredictedLODLevel() == 0)
+			SkelMeshComponent->GetPredictedLODLevel() < ModelInstance->GetModel()->GetMaxNumLODs())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UMLDeformerComponent::TickComponent)
 			

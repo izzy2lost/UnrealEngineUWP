@@ -33,6 +33,7 @@ namespace UE::MLDeformer
 		virtual FString GetHeatMapDeformerGraphPath() const override;
 		virtual void OnPreTraining() override;
 		virtual void OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted) override;
+		virtual void OnMaxNumLODsChanged() override;
 		// ~END FMLDeformerEditorModel overrides.
 
 		/**
@@ -138,6 +139,8 @@ namespace UE::MLDeformer
 		UMLDeformerMorphModelVizSettings* GetMorphModelVizSettings() const;
 
 	protected:
+		void TransferMorphTargets(TArray<UMorphTarget*> MorphTargetsLODZero);
+
 		/**
 		 * Initialize a set of engine morph targets and compress them to GPU friendly buffers.
 		 * These morph targets are initialized from a set of deltas. Each morph target needs to have Model->GetNumBaseVerts() number of deltas.

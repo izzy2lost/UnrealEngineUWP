@@ -176,8 +176,6 @@ namespace UE::MLDeformer
 		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetWeightPropertyName(), UMLDeformerVizSettings::StaticClass());
 		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetAnimPlaySpeedPropertyName(), UMLDeformerVizSettings::StaticClass());
 		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetTestingFrameNumberPropertyName(), UMLDeformerVizSettings::StaticClass());
-		LiveSettingsCategory->AddProperty(UMLDeformerVizSettings::GetQualityLevelPropertyName(), UMLDeformerVizSettings::StaticClass())
-			.Visibility(Model->DoesSupportQualityLevels() ? EVisibility::Visible : EVisibility::Collapsed);
 
 		IDetailGroup& HeatMapGroup = LiveSettingsCategory->AddGroup("HeatMap", LOCTEXT("HeatMap", "Heat Map"), false, true);
 		HeatMapGroup.AddPropertyRow(DetailBuilder.GetProperty(UMLDeformerVizSettings::GetShowHeatMapPropertyName(), UMLDeformerVizSettings::StaticClass()));

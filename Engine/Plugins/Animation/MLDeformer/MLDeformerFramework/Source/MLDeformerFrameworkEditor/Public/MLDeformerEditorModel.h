@@ -550,6 +550,12 @@ namespace UE::MLDeformer
 		virtual void UpdateDeformerGraph();
 
 		/**
+		 * Executed when the maximum number of LOD levels changed.
+		 * Other models could use this to reinitialize the morph targets for all LOD levels for example.
+		 */
+		virtual void OnMaxNumLODsChanged() {}
+
+		/**
 		 * Sample the vertex deltas between the training base model and target model.
 		 * This will initialize the sampler if needed and set the sampler space to post-skinning deltas, and then samples them using the sampler.
 		 * So this will update the internal state of the Sampler member. It will use the current training frame number to sample from.
@@ -649,6 +655,12 @@ namespace UE::MLDeformer
 		 * NOTE: This renders inside the PIE viewport, not our own MLD asset editor viewport.
 		 */
 		virtual void DrawPIEDebugActors();
+
+		/** 
+		 * Update LOD levels of the actors in editor world.
+		 * This can be used to for example sync the LOD levels of the compare actors with the main actor.
+		 */
+		virtual void UpdateActorLODs();
 
 		/** Apply the transforms of the debug actor to the actors in the asset editor world. This will internally call ApplyDebugActorTransforms(DebugActorComponentSpaceTransforms). */
 		void ApplyDebugActorTransforms();
@@ -949,7 +961,7 @@ namespace UE::MLDeformer
 		 *        recomputing normals can lead to lower quality results, in trade for faster performance.
 		 * @param MaskChannel The weight mask mode, which specifies what channel to get the weight data from. Such channel allows the user to define what areas the deformer should for example not be active in.
 		 * @param bInvertMaskChannel Specifies whether the weight mask should be inverted or not.
-		 * @param MaskBuffer An optional mask buffer that contains 'Model->GetNumBaseMeshVerts() * (MorphModel->GetNumMorphTargets() - 1)' number of floats. Deltas will be multiplied by this value. 
+		 * @param MaskBuffer An optional mask buffer that contains 'Model->GetNumBaseMeshVerts() * (MorphModel->GetNumMorphTargets()- 1)' number of floats. Deltas will be multiplied by this value. 
 		 *        When the mask buffer is an empty array, it will be ignored.
 		 */
 		UE_DEPRECATED(5.3, "Please call FMLDeformerMorphModelEditorModel::CreateMorphTargets instead.")
@@ -1018,7 +1030,24 @@ namespace UE::MLDeformer
 		int32 CalcNumValidCompareActorsPriorTo(int32 CompareActorIndex) const;
 		virtual bool IsAnimIndexValid(int32 AnimIndex) const;
 
+		void UpdateLODMappings();
+
 	protected:
+		struct FLODInfo
+		{
+			/** 
+			 * Map all vertices in this LOD into an imported vertex number in LOD 0. 
+			 * This basically tells us which vertex to get the vertex delta for, for each vertex in this LOD.
+			 */
+			TArray<int32> VtxMappingToLODZero;
+		};
+
+		/** The LOD information. The size of this array is the number of LODs on the skeletal mesh, unless less LOD levels are desired using MLD. */
+		TArray<FLODInfo> LODMappings;
+
+		/** A reusable array to store current LOD skinned vertex positions. */
+		TArray<FVector3f> SkinnedPositions;
+
 		/** The runtime model associated with this editor model. */
 		TObjectPtr<UMLDeformerModel> Model = nullptr;
 

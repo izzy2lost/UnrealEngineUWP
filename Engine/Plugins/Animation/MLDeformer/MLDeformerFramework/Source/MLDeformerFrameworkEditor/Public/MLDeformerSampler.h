@@ -96,6 +96,9 @@ namespace UE::MLDeformer
 		/** Get the number of floats per curve. */
 		int32 GetNumFloatsPerCurve() const								{ return NumFloatsPerCurve; }
 
+		/** Get the skinned positions for a given LOD level. */
+		void ExtractSkinnedPositions(int32 LODIndex, TArray<FVector3f>& OutPositions);
+
 	protected:
 		/** Create the actors used for sampling. This creates two actors, one for the base skeletal mesh and one for the target mesh. */
 		virtual void CreateActors();

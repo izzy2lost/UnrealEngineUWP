@@ -15,6 +15,7 @@
 #include "MLDeformerSampler.h"
 #include "MLDeformerModelInstance.h"
 #include "MLDeformerTrainingInputAnim.h"
+#include "MLDeformerOctree.h"
 #include "AnimationEditorPreviewActor.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorModeManager.h"
@@ -47,6 +48,8 @@
 #include "EditorViewportClient.h"
 #include "DrawDebugHelpers.h"
 #include "Slate/SceneViewport.h"
+#include "Rendering/SkeletalMeshLODModel.h"
+#include "Async/ParallelFor.h"
 
 #define LOCTEXT_NAMESPACE "MLDeformerEditorModel"
 
@@ -118,6 +121,8 @@ namespace UE::MLDeformer
 				}
 			}
 		);
+
+		UpdateLODMappings();
 	}
 
 	void FMLDeformerEditorModel::CreateSamplers()
@@ -393,6 +398,75 @@ namespace UE::MLDeformer
 		return FMath::IsWithinInclusive<int32>(AnimIndex, 0, GetNumTrainingInputAnims());
 	}
 
+	void FMLDeformerEditorModel::UpdateLODMappings()
+	{
+		LODMappings.Reset();
+
+		const USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
+		if (!SkelMesh || !SkelMesh->GetImportedModel())
+		{
+			return;
+		}
+
+		// Check some expectations on the number of LODS.
+		const FSkeletalMeshModel* ImportedModel = SkelMesh->GetImportedModel();
+		int32 NumLODLevels = SkelMesh->GetLODNum();
+		if (ImportedModel->LODModels.Num() != NumLODLevels)
+		{
+			return;
+		}
+		NumLODLevels = FMath::Min(NumLODLevels, Model->GetMaxNumLODs());
+
+		const double StartTime = FPlatformTime::Seconds();
+
+		TArray<FSoftSkinVertex> VertexPositionsLODZero;
+		ImportedModel->LODModels[0].GetVertices(VertexPositionsLODZero);
+
+		// Build an octree that contains all our vertices.
+		// We can use this to quickly get the closest vertex index for a given position.
+		// This isn't perfectly accurate in some edge cases, but good enough.
+		FMLDeformerOctree Octree;
+		Octree.Build(VertexPositionsLODZero, /*MaxVertsPerOctreeNode*/300, /*MaxSplitHierarchyDepth*/6);
+
+		// For each additional LOD level we are interested in.
+		// We skip LOD 0 because we don't need a mapping for that one, as it's our source LOD that we map into.
+		LODMappings.SetNum(NumLODLevels);
+		for (int32 LodLevel = 1; LodLevel < NumLODLevels; ++LodLevel)
+		{
+			FLODInfo& LodInfo = LODMappings[LodLevel];
+
+			// Get the number of vertices.
+			TArray<FSoftSkinVertex> VertexPositions;
+			ImportedModel->LODModels[LodLevel].GetVertices(VertexPositions);
+			const int32 NumVerts = ImportedModel->LODModels[LodLevel].NumVertices;
+			LodInfo.VtxMappingToLODZero.SetNum(NumVerts);
+
+			// Process all vertices in batches, and run all batches in parallel.
+			const int32 BatchSize = 100; // Number of verts per batch.
+			const int32 NumBatches = (NumVerts / BatchSize) + 1;
+			ParallelFor(NumBatches, [&LodInfo, &Octree, &VertexPositions, NumVerts](int32 BatchIndex)
+			{
+				// Make sure we don't go past the last vertex.
+				const int32 StartVertex = BatchIndex * BatchSize;
+				if (StartVertex >= NumVerts)
+				{
+					return;
+				}
+
+				// Process all vertices inside this batch.
+				const int32 NumVertsInBatch = (StartVertex + BatchSize) < NumVerts ? BatchSize : FMath::Max(NumVerts - StartVertex, 0);
+				for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
+				{
+					// Find the best vertex index in LOD 0.
+					LodInfo.VtxMappingToLODZero[VertexIndex] = Octree.FindClosestMeshVertexIndex((FVector)VertexPositions[VertexIndex].Position, 0.1);
+				}
+			});
+		} // For all LOD levels
+
+		const double TotalTime = FPlatformTime::Seconds() - StartTime;
+		UE_LOG(LogMLDeformer, Display, TEXT("Finished Updating ML Deformer LOD mappings in %.2f seconds"), TotalTime);
+	}
+
 	void FMLDeformerEditorModel::UpdateMeshOffsetFactors()
 	{
 		const bool bIsDebugging = (GetEditor()->GetDebugActor() != nullptr);
@@ -551,6 +625,7 @@ namespace UE::MLDeformer
 		if (bNeedsAssetReinit)
 		{
 			TriggerInputAssetChanged();
+			UpdateLODMappings();
 			Model->InitVertexMap();
 			Model->InitGPUData();
 			bNeedsAssetReinit = false;
@@ -572,6 +647,7 @@ namespace UE::MLDeformer
 		UpdateMeshOffsetFactors();
 		UpdateActorTransforms();
 		UpdateLabels();
+		UpdateActorLODs();
 		CheckTrainingDataFrameChanged();
 		ApplyDebugActorTransforms();
 
@@ -596,7 +672,6 @@ namespace UE::MLDeformer
 				const UMLDeformerVizSettings* VizSettings = Model->GetVizSettings();
 				UMLDeformerComponent* DeformerComponent = EditorActor->GetMLDeformerComponent();
 				DeformerComponent->SetWeight(VizSettings->GetWeight());
-				DeformerComponent->SetQualityLevel(VizSettings->GetQualityLevel());
 			}
 		}
 	}
@@ -947,6 +1022,7 @@ namespace UE::MLDeformer
 		if (Property->GetFName() == UMLDeformerModel::GetSkeletalMeshPropertyName())
 		{
 			TriggerInputAssetChanged();
+			UpdateLODMappings();
 			SetResamplingInputOutputsNeeded(true);
 			Model->InitVertexMap();
 			Model->InitGPUData();
@@ -1035,6 +1111,13 @@ namespace UE::MLDeformer
 			SetResamplingInputOutputsNeeded(true);
 			UpdateIsReadyForTrainingState();
 			RefreshInputWidget();
+		}
+		else if (Property->GetFName() == UMLDeformerModel::GetMaxNumLODsPropertyName())
+		{
+			if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+			{
+				OnMaxNumLODsChanged();
+			}
 		}
 		else if (Property->GetFName() == UMLDeformerVizSettings::GetAnimPlaySpeedPropertyName())
 		{
@@ -1649,25 +1732,57 @@ namespace UE::MLDeformer
 			}
 
 			// Draw the deltas for the current frame.
-			if (bDrawDeltas)
+			USkeletalMesh* SkelMesh = Model->GetSkeletalMesh();
+			if (bDrawDeltas && Model->GetSkeletalMesh() && SkelMesh->GetImportedModel())
 			{
 				const FLinearColor DeltasColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.Deltas.Color");
 				const FLinearColor DebugVectorsColor = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.DebugVectors.Color");
 				const FLinearColor DebugVectorsColor2 = FMLDeformerEditorStyle::Get().GetColor("MLDeformer.DebugVectors.Color2");
 				const uint8 DepthGroup = VizSettings->GetXRayDeltas() ? 100 : 0;
-				for (int32 Index = 0; Index < LinearSkinnedPositions.Num(); ++Index)
+
+				const int32 LOD = FindEditorActor(ActorID_Train_Base)->GetSkeletalMeshComponent()->GetPredictedLODLevel();
+				if (LODMappings.IsValidIndex(LOD))
 				{
-					const int32 ArrayIndex = 3 * Index;
-					const FVector Delta(
-						VertexDeltas[ArrayIndex], 
-						VertexDeltas[ArrayIndex + 1], 
-						VertexDeltas[ArrayIndex + 2]);
-					const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
-					PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
+					const TArray<int32>& Mapping = LODMappings[LOD].VtxMappingToLODZero;	// Map from current LOD render vertex index into LOD0 render vertex index.
+					const FSkeletalMeshLODModel& LODModel = SkelMesh->GetImportedModel()->LODModels[LOD];
+
+					// Get the current LOD skinned positions. We use those as starting point for the delta lines.
+					Sampler->ExtractSkinnedPositions(LOD, SkinnedPositions);
+
+					// Render a delta for every render vertex in this LOD.
+					if (!Mapping.IsEmpty()) // If we have LOD mapping data.
+					{
+						for (int32 RenderVertexIndex = 0; RenderVertexIndex < Mapping.Num(); ++RenderVertexIndex)
+						{
+							const int32 LOD0VertexIndex = Mapping[RenderVertexIndex]; // Get the vertex number in LOD0.
+							const int32 VertexIndex = SkelMesh->GetImportedModel()->LODModels[0].MeshToImportVertexMap[LOD0VertexIndex]; // Get the imported vertex number.
+							const int32 ArrayIndex = 3 * VertexIndex; // 3 floats per delta, so multiply by 3.
+							const FVector Delta(
+								VertexDeltas[ArrayIndex], 
+								VertexDeltas[ArrayIndex + 1], 
+								VertexDeltas[ArrayIndex + 2]);
+					
+							// The skinned vertex positions have only the number of imported vertices number of positions, which can differ from the render vertex count.
+							const FVector VertexPos = (FVector)SkinnedPositions[LODModel.MeshToImportVertexMap[RenderVertexIndex]];
+							PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
+						}
+					}
+					else
+					{
+						for (int32 Index = 0; Index < LinearSkinnedPositions.Num(); ++Index)
+						{
+							const int32 ArrayIndex = 3 * Index;
+							const FVector Delta(
+								VertexDeltas[ArrayIndex], 
+								VertexDeltas[ArrayIndex + 1], 
+								VertexDeltas[ArrayIndex + 2]);
+							const FVector VertexPos = (FVector)LinearSkinnedPositions[Index];
+							PDI->DrawLine(VertexPos, VertexPos + Delta, DeltasColor, DepthGroup);
+						}				
+					}
 				}
 			}
 		}
-
 	}
 
 	void FMLDeformerEditorModel::DrawPIEDebugActors()
@@ -2895,6 +3010,29 @@ namespace UE::MLDeformer
 	{
 		// Set the current training frame to -1, which will cause the deltas to get updated next frame.
 		CurrentTrainingFrame = -1;
+	}
+
+	void FMLDeformerEditorModel::UpdateActorLODs()
+	{
+		FMLDeformerEditorActor* MLDeformedActor = FindEditorActor(ActorID_Test_MLDeformed);
+		if (MLDeformedActor)
+		{		
+			USkeletalMeshComponent* BaseSkelMeshComponent = MLDeformedActor->GetSkeletalMeshComponent();		
+			if (BaseSkelMeshComponent)
+			{
+				const int32 LOD = BaseSkelMeshComponent->GetPredictedLODLevel();
+				for (FMLDeformerEditorActor* EditorActor : EditorActors)
+				{
+					if (EditorActor->GetTypeID() == ActorID_Test_Compare || EditorActor->GetTypeID() == ActorID_Test_Base)
+					{
+						if (EditorActor->GetSkeletalMeshComponent())
+						{
+							EditorActor->GetSkeletalMeshComponent()->SetPredictedLODLevel(LOD);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	void FMLDeformerEditorModel::ApplyDebugActorTransforms()

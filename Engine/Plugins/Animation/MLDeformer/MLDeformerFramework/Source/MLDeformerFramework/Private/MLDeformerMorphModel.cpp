@@ -5,6 +5,8 @@
 #include "MLDeformerModelInstance.h"
 #include "MLDeformerComponent.h"
 #include "MLDeformerMorphModelInputInfo.h"
+#include "MLDeformerObjectVersion.h"
+#include "MLDeformerModule.h"
 #include "Components/ExternalMorphSet.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Rendering/MorphTargetVertexInfoBuffers.h"
@@ -16,8 +18,6 @@
 UMLDeformerMorphModel::UMLDeformerMorphModel(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	MorphTargetSet = MakeShared<FExternalMorphSet>();
-	MorphTargetSet->Name = GetClass()->GetFName();
 }
 
 void UMLDeformerMorphModel::Serialize(FArchive& Archive)
@@ -25,26 +25,81 @@ void UMLDeformerMorphModel::Serialize(FArchive& Archive)
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMLDeformerMorphModel::Serialize)
 
 	Super::Serialize(Archive);
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 
 	// Check if we have initialized our compressed morph buffers.
 	bool bHasMorphData = false;
 	if (Archive.IsSaving())
 	{
 		// Strip editor only data on cook.
+		int32 NumLODs = GetNumLODs();
 		if (Archive.IsCooking())
 		{			
 			MorphTargetDeltas.Empty();
+
+			// Check if we want to limit the number of LODs (can be per platform/device).
+			UE::MLDeformer::FMLDeformerModule& MLDeformerModule = FModuleManager::LoadModuleChecked<UE::MLDeformer::FMLDeformerModule>("MLDeformerFramework");
+			const int32 MaxLODLevels = FMath::Clamp(MLDeformerModule.GetMaxLODLevelsOnCookCVar().GetInt(), 1, 1000);	// Limit to 1000 LODs, which should never be reached.
+
+			// Get lowest value between what we generated, console variable and the UI/property max lods value.
+			NumLODs = FMath::Min3(NumLODs, MaxLODLevels, GetMaxNumLODs());
+
+			UE_LOG(LogMLDeformer, Display, TEXT("Cooking MLD asset '%s' with %d LOD levels"), *GetFullName(), NumLODs);
+		}
+		else
+		{
+			// Get lowest number between how many LODs we have generated and the number of LODs we setup in the UI/Property.
+			NumLODs = FMath::Min(NumLODs, GetMaxNumLODs());
 		}
 
-		bHasMorphData = MorphTargetSet.IsValid() ? MorphTargetSet->MorphBuffers.IsMorphCPUDataValid() : false;
-	}
-	Archive << bHasMorphData;
+		// Save all LOD levels, strip out LODs we don't want.
+		Archive << NumLODs;
+		for (int32 LOD = 0; LOD < NumLODs; ++LOD)
+		{
+			bHasMorphData = GetMorphTargetSet(LOD).IsValid() ? GetMorphTargetSet(LOD)->MorphBuffers.IsMorphCPUDataValid() : false;
+			Archive << bHasMorphData;
 
-	// Load or save the compressed morph buffers, if they exist.
-	if (bHasMorphData)
+			// Load or save the compressed morph buffers, if they exist.
+			if (bHasMorphData)
+			{
+				Archive << GetMorphTargetSet(LOD)->MorphBuffers;
+			}
+		}
+	}
+
+	if (Archive.IsLoading())
 	{
-		check(MorphTargetSet.IsValid());
-		Archive << MorphTargetSet->MorphBuffers;
+		// If we only support 1 LOD, in older files.
+		if (Archive.CustomVer(UE::MLDeformer::FMLDeformerObjectVersion::GUID) < UE::MLDeformer::FMLDeformerObjectVersion::LODSupportAdded)
+		{
+			AddMorphSets(1);
+			Archive << bHasMorphData;
+
+			// Load or save the compressed morph buffers, if they exist.
+			if (bHasMorphData)
+			{
+				Archive << GetMorphTargetSet(0)->MorphBuffers;
+			}
+		}
+		else // We support multiple LOD levels.
+		{
+			int32 NumLODs = 1;
+			Archive << NumLODs;
+
+			check(GetNumLODs() == 0);
+			AddMorphSets(NumLODs);
+
+			for (int32 LOD = 0; LOD < NumLODs; ++LOD)
+			{
+				Archive << bHasMorphData;
+
+				// Load or save the compressed morph buffers, if they exist.
+				if (bHasMorphData)
+				{
+					Archive << GetMorphTargetSet(LOD)->MorphBuffers;
+				}
+			}
+		}
 	}
 }
 
@@ -78,17 +133,27 @@ void UMLDeformerMorphModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutT
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.ClampMorphWeights", bClampMorphWeights ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.InvertMaskChannel", bInvertMaskChannel? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.IncludeNormals", bIncludeNormals ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
-	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.NumMorphTargets", FString::FromInt(NumMorphTargets), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.NumMorphTargets", FString::FromInt(GetNumMorphTargets(0)), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.DeltaZeroThreshold", FString::Printf(TEXT("%f"), MorphDeltaZeroThreshold), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.CompressionLevel", FString::Printf(TEXT("%f"), MorphCompressionLevel), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.NumQualityLevels", FString::FromInt(QualityLevels.Num()), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.CompressedSize", FString::FromInt(CompressedMorphDataSizeInBytes), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.UncompressedSize", FString::FromInt(UncompressedMorphDataSizeInBytes), FAssetRegistryTag::TT_Numerical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.MorphModel.NumLODs", FString::FromInt(GetNumLODs()), FAssetRegistryTag::TT_Numerical));
+}
+
+int32 UMLDeformerMorphModel::GetNumMorphTargets(int32 LOD) const
+{
+	if (GetNumLODs() > LOD)
+	{
+		return GetMorphTargetSet(LOD).IsValid() ? GetMorphTargetSet(LOD)->MorphBuffers.GetNumMorphs() : 0;
+	}
+	return 0;
 }
 
 bool UMLDeformerMorphModel::CanDynamicallyUpdateMorphTargets() const
 {
-	return GetMorphTargetDeltas().Num() == (GetNumBaseMeshVerts() * GetNumMorphTargets());
+	const int32 LOD = 0;
+	return GetMorphTargetDeltas().Num() == (GetNumBaseMeshVerts() * GetNumMorphTargets(LOD));
 }
 
 UMLDeformerModelInstance* UMLDeformerMorphModel::CreateModelInstance(UMLDeformerComponent* Component)
@@ -106,23 +171,54 @@ void UMLDeformerMorphModel::SetMorphTargetDeltas(const TArray<FVector3f>& Deltas
 	MorphTargetDeltas = Deltas;
 }
 
-int32 UMLDeformerMorphModel::GetMorphTargetDeltaStartIndex(int32 BlendShapeIndex) const
+void UMLDeformerMorphModel::ClearMorphTargetSets()
+{
+	const int32 NumLODs = GetNumLODs();
+	for (int32 LOD = 0; LOD < NumLODs; ++LOD)
+	{
+		if (GetMorphTargetSet(LOD).IsValid())
+		{
+			FMorphTargetVertexInfoBuffers& MorphBuffer = GetMorphTargetSet(LOD)->MorphBuffers;
+			if (MorphBuffer.IsRHIIntialized() && MorphBuffer.IsInitialized())
+			{
+				ReleaseResourceAndFlush(&MorphBuffer);
+			}
+		}
+	}
+
+	MorphTargetSets.Empty();
+}
+
+void UMLDeformerMorphModel::AddMorphSets(int32 NumToAdd)
+{
+	for (int32 Index = 0; Index < NumToAdd; ++Index)
+	{
+		TSharedPtr<FExternalMorphSet> NewSet = MakeShared<FExternalMorphSet>();
+		NewSet->Name = GetClass()->GetFName();
+		MorphTargetSets.Add(NewSet);
+	}
+}
+
+int32 UMLDeformerMorphModel::GetMorphTargetDeltaStartIndex(int32 MorphTargetIndex) const
 {
 	if (MorphTargetDeltas.Num() == 0)
 	{
 		return INDEX_NONE;
 	}
 
-	return GetNumBaseMeshVerts() * BlendShapeIndex;
+	return GetNumBaseMeshVerts() * MorphTargetIndex;
 }
 
 void UMLDeformerMorphModel::BeginDestroy()
 {
-	if (MorphTargetSet)
+	for (int32 LOD = 0; LOD < GetNumLODs(); ++LOD)
 	{
-		BeginReleaseResource(&MorphTargetSet->MorphBuffers);
-		RenderCommandFence.BeginFence();
+		if (GetMorphTargetSet(LOD).IsValid())
+		{
+			BeginReleaseResource(&GetMorphTargetSet(LOD)->MorphBuffers);
+		}
 	}
+	RenderCommandFence.BeginFence();
 	Super::BeginDestroy();
 }
 
@@ -140,8 +236,12 @@ void UMLDeformerMorphModel::SetMorphTargetsErrorOrder(const TArray<int32>& Morph
 
 void UMLDeformerMorphModel::UpdateStatistics()
 {
-	NumMorphTargets = MorphTargetSet.IsValid() ? MorphTargetSet->MorphBuffers.GetNumMorphs() : 0;
-	CompressedMorphDataSizeInBytes = MorphTargetSet.IsValid() ? MorphTargetSet->MorphBuffers.GetMorphDataSizeInBytes() : 0;
+	CompressedMorphDataSizeInBytes = 0;
+	const int32 NumLODs = GetNumLODs();
+	for (int32 LOD = 0; LOD < NumLODs; ++LOD)
+	{
+		CompressedMorphDataSizeInBytes += GetMorphTargetSet(LOD).IsValid() ? GetMorphTargetSet(LOD)->MorphBuffers.GetMorphDataSizeInBytes() : 0;		
+	}
 	UncompressedMorphDataSizeInBytes = GetMorphTargetDeltas().Num() * GetMorphTargetDeltas().GetTypeSize();
 }
 
@@ -190,12 +290,12 @@ TArrayView<const int32> UMLDeformerMorphModel::GetMorphTargetErrorOrder() const
 
 TArrayView<const FMLDeformerMorphModelQualityLevel> UMLDeformerMorphModel::GetQualityLevels() const
 {
-	return QualityLevels;
+	return QualityLevels_DEPRECATED;
 }
 
 TArray<FMLDeformerMorphModelQualityLevel>& UMLDeformerMorphModel::GetQualityLevelsArray()
 {
-	return QualityLevels;
+	return QualityLevels_DEPRECATED;
 }
 
 float UMLDeformerMorphModel::GetMorphTargetError(int32 MorphIndex) const
@@ -210,14 +310,7 @@ void UMLDeformerMorphModel::SetMorphTargetError(int32 MorphIndex, float Error)
 
 int32 UMLDeformerMorphModel::GetNumActiveMorphs(int32 QualityLevel) const
 {
-	if (QualityLevels.IsEmpty() || MorphTargetErrorOrder.IsEmpty() || MorphTargetErrors.IsEmpty())
-	{
-		return FMath::Max<int32>(0, NumMorphTargets - 1);	// -1 Because this number includes the means morph target.
-	}
-
-	const int32 ClampedQualityLevel = FMath::Clamp<int32>(QualityLevel, 0, QualityLevels.Num() - 1);
-	const int32 NumActiveMorphs = FMath::Clamp<int32>(QualityLevels[ClampedQualityLevel].GetMaxActiveMorphs(), 0, NumMorphTargets - 1);	// -1 Because we want to exclude the means morph target.
-	return NumActiveMorphs;
+	return 0;
 }
 
 #if WITH_EDITOR

@@ -296,7 +296,7 @@ UE_TRACE_EVENT_BEGIN(Animation, Inertialization)
 UE_TRACE_EVENT_END()
 
 FAutoConsoleVariable CVarRecordExternalMorphTargets(
-	TEXT("RecordExternalMorphTargets"),
+	TEXT("a.RecordExternalMorphTargets"),
 	false,
 	TEXT("Record the external morph target weights inside animation insights. On default this is disabled, because it can slow down recording."),
 	ECVF_Default

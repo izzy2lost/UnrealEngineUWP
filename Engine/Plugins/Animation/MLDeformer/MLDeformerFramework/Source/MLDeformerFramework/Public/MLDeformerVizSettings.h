@@ -73,7 +73,6 @@ public:
 	void SetTrainingFrameNumber(int32 FrameNumber)			{ TrainingFrameNumber = FrameNumber; }
 	void SetTestingFrameNumber(int32 FrameNumber)			{ TestingFrameNumber = FrameNumber; }
 	void SetWeight(float InWeight)							{ Weight = InWeight; }
-	void SetQualityLevel(int32 InQualityLevel)				{ QualityLevel = FMath::Max<int32>(InQualityLevel, 0); }
 
 	FVector GetMeshSpacingOffsetVector() const				{ return FVector(MeshSpacing, 0.0f, 0.0f); }
 	float GetMeshSpacing() const							{ return MeshSpacing; }
@@ -99,10 +98,16 @@ public:
 	float GetWeight() const									{ return Weight; }
 	bool GetXRayDeltas() const								{ return bXRayDeltas; }
 	bool GetDrawVertexDeltas() const						{ return bDrawDeltas; }
-	int32 GetQualityLevel() const							{ return QualityLevel; }
 	const TArray<FMLDeformerCompareActor>& GetCompareActors() const { return CompareActors; }
 	TArray<FMLDeformerCompareActor>& GetCompareActors()		{ return CompareActors; }
 	FColor GetDebugBoundsColor() const						{ return DebugBoundsColor; }
+
+
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	void SetQualityLevel(int32 InQualityLevel)				{ QualityLevel_DEPRECATED = FMath::Max<int32>(InQualityLevel, 0); }
+
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	int32 GetQualityLevel() const							{ return QualityLevel_DEPRECATED; }
 
 	// Get property names.
 	static FName GetVisualizationModePropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, VisualizationMode); }
@@ -127,9 +132,11 @@ public:
 	static FName GetWeightPropertyName()					{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, Weight); }
 	static FName GetXRayDeltasPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bXRayDeltas); }
 	static FName GetDrawVertexDeltasPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, bDrawDeltas); }
-	static FName GetQualityLevelPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, QualityLevel); }
 	static FName GetCompareActorsPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, CompareActors); }
 	static FName GetDebugBoundsColorPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, DebugBoundsColor); }
+
+	UE_DEPRECATED(5.4, "This method will be removed.")
+	static FName GetQualityLevelPropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerVizSettings, QualityLevel_DEPRECATED); }
 #endif
 
 protected:
@@ -181,13 +188,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Live Settings", meta = (ClampMin = "0"))
 	int32 TestingFrameNumber = 0;
 
-	/*
-	 * The ML Deformer LOD value. This is a continuous value between 0 and 1, where 0 means maximum quality and 1 means the lowest quality.
-	 * Morph based models will disable certain morph targets when increasing this value, which will lead to lower quality, but better GPU performance.
-	 * Each model can decide how to use this value. Some models might not support this.
-	 */
-	UPROPERTY(EditAnywhere, Transient, Category = "Live Settings", meta = (ClampMin = "0"))
-	int32 QualityLevel = 0;
+	/** Deprecated quality level property, deprecated in 5.4. */
+	UPROPERTY(Transient)
+	int32 QualityLevel_DEPRECATED = 0;
 
 	/** Specify whether the heatmap is enabled or not. */
 	UPROPERTY(EditAnywhere, Category = "Live Settings")

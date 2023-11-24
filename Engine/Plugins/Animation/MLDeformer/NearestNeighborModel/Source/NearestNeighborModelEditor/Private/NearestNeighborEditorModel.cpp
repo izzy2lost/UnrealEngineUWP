@@ -59,7 +59,7 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::Init(const InitSettings& InitSettings)
 	{
-		FMLDeformerGeomCacheEditorModel::Init(InitSettings);
+		FMLDeformerMorphModelEditorModel::Init(InitSettings);
 		InitInputInfo(Model->GetInputInfo());
 		VertexMapSelector = MakeUnique<FVertexMapSelector>();
 		VertexMapSelector->Update(Model->GetSkeletalMesh());
@@ -188,7 +188,7 @@ namespace UE::NearestNeighborModel
 			}
 			ResetMorphTargets();
 		}
-		FMLDeformerGeomCacheEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
+		FMLDeformerMorphModelEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
 	}
 
 	FMLDeformerTrainingInputAnim* FNearestNeighborEditorModel::GetTrainingInputAnim(int32 Index) const
@@ -295,7 +295,7 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
 	{
-		FMLDeformerGeomCacheEditorModel::Render(View, Viewport, PDI);
+		FMLDeformerMorphModelEditorModel::Render(View, Viewport, PDI);
 		const FMLDeformerSampler* Sampler = GetSamplerForActiveAnim();
 		if (!Sampler || !Sampler->IsInitialized())
 		{
@@ -524,7 +524,8 @@ namespace UE::NearestNeighborModel
 			return UpdateResult;
 		}
 		InitEngineMorphTargets(NearestNeighborModel->GetMorphTargetDeltas());
-		const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet();
+		const int32 LOD = 0;
+		const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet(LOD);
 		if (MorphSet.IsValid() && MorphSet->MorphBuffers.IsMorphResourcesInitialized())
 		{
 			NearestNeighborModel->UpdateMorphTargetsLastWriteTime();
@@ -709,10 +710,14 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::ResetMorphTargets()
 	{
-		const TSharedPtr<FExternalMorphSet> MorphSet = GetMorphModel()->GetMorphTargetSet();
-		if (MorphSet.IsValid())
+		const int32 NumLODs = GetMorphModel()->GetNumLODs();
+		for (int32 LOD = 0; LOD < NumLODs; ++LOD)
 		{
-			MorphSet->MorphBuffers = FMorphTargetVertexInfoBuffers();
+			const TSharedPtr<FExternalMorphSet> MorphSet = GetMorphModel()->GetMorphTargetSet(LOD);
+			if (MorphSet.IsValid())
+			{
+				MorphSet->MorphBuffers = FMorphTargetVertexInfoBuffers();
+			}
 		}
 	}
 

@@ -104,7 +104,7 @@ namespace UE::MLDeformer
 				ParallelFor(NumBatches, [&](int32 BatchIndex)
 				{
 					const int32 StartVertex = BatchIndex * BatchSize;
-					if (StartVertex >= MeshInfo.NumVertices)
+					if (StartVertex >= MeshInfo.NumVertices || VertexDeltas.IsEmpty())
 					{
 						return;
 					}

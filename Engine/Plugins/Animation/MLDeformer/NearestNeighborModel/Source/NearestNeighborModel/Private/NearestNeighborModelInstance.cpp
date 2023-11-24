@@ -97,7 +97,7 @@ void UNearestNeighborModelInstance::Tick(float DeltaTime, float ModelWeight)
 		PostMLDeformerComponentInit();
 	}
 
-	bool bCalledExecute = false;
+	bool bExecuteCalled = false;
 	if (ModelWeight > 0.0001f && HasValidTransforms() && SetupInputs())
 	{
 		// Execute the model instance.
@@ -105,15 +105,15 @@ void UNearestNeighborModelInstance::Tick(float DeltaTime, float ModelWeight)
 		// calculate the network outputs and possibly use them, depending on how the model works.
 		Execute(ModelWeight);
 		RunNearestNeighborModel(DeltaTime, ModelWeight);
-		bCalledExecute = true;
+		bExecuteCalled = true;
 	}
 	else
 	{
 		HandleZeroModelWeight();
 	}
 
-	// Do some things afterards, such as copying over debug actor data.
-	PostTick(bCalledExecute);
+	// Do some things afterwards, such as copying over debug actor data.
+	PostTick(bExecuteCalled);
 }
 
 int64 UNearestNeighborModelInstance::SetBoneTransforms(float* OutputBuffer, int64 OutputBufferSize, int64 StartIndex)
@@ -355,7 +355,7 @@ void UNearestNeighborModelInstance::RunNearestNeighborModel(float DeltaTime, flo
 
 	// Grab the weight data for this morph set.
 	// This could potentially fail if we are applying this deformer to the wrong skeletal mesh component.
-	const int LOD = 0;	// For now we only support LOD 0, as we can't setup an ML Deformer per LOD yet.
+	const int32 LOD = SkeletalMeshComponent->GetPredictedLODLevel();
 	FExternalMorphSetWeights* const WeightData = FindWeightData(LOD);
 	if (WeightData == nullptr)
 	{

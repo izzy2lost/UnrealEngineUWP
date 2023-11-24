@@ -6,6 +6,7 @@
 #include "NeuralMorphNetwork.h"
 #include "MLDeformerAsset.h"
 #include "MLDeformerComponent.h"
+#include "MLDeformerObjectVersion.h"
 #include "UObject/UObjectGlobals.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NeuralMorphModel)
@@ -50,6 +51,8 @@ UMLDeformerInputInfo* UNeuralMorphModel::CreateInputInfo()
 
 void UNeuralMorphModel::Serialize(FArchive& Archive)
 {
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
+
 	if (Archive.IsSaving())
 	{
 		UpdateMissingGroupNames();

@@ -281,9 +281,10 @@ namespace UE::NearestNeighborModel
 			LOCTEXT("MorphTargetsStateName", "Morph Targets State"),
 			Private::FGetTextDelegate::CreateLambda([this]
 			{
+				const int32 LOD = 0;
 				if (const UNearestNeighborModel* const NearestNeighborModel = GetCastModel())
 				{
-					const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet();
+					const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet(LOD);
 					if (MorphSet.IsValid() && MorphSet->MorphBuffers.IsMorphResourcesInitialized())
 					{
 						if (NearestNeighborModel->IsBeforeCustomVersionWasAdded())

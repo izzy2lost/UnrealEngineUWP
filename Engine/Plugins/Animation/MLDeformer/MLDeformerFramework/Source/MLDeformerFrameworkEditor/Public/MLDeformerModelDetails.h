@@ -122,5 +122,8 @@ namespace UE::MLDeformer
 
 		/** The training settings category. You most likely add your model properties to this. */
 		IDetailCategoryBuilder* TrainingSettingsCategoryBuilder = nullptr;
+
+		/** The LOD generation category. This category can be hidden, based on whether the model supports LOD or not. */
+		IDetailCategoryBuilder* LODSettingsCategoryBuilder = nullptr;
 	};
 }	// namespace UE::MLDeformer

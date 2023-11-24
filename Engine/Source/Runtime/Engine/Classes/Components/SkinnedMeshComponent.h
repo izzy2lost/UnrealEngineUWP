@@ -429,6 +429,7 @@ public:
 
 	/** Get the external morph sets for a given LOD. */
 	const FExternalMorphSets& GetExternalMorphSets(int32 LOD) const { return ExternalMorphSets[LOD]; }
+	FExternalMorphSets& GetExternalMorphSets(int32 LOD) { return ExternalMorphSets[LOD]; }
 
 	/** Get the array of external morph target sets. It is an array, one entry for each LOD. */
 	const TArray<FExternalMorphSets>& GetExternalMorphSetsArray() const { return ExternalMorphSets; }

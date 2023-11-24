@@ -73,6 +73,8 @@ void UMLDeformerModel::Init(UMLDeformerAsset* InDeformerAsset)
 
 void UMLDeformerModel::Serialize(FArchive& Archive)
 {
+	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
+
 	#if WITH_EDITOR
 		if (Archive.IsSaving())
 		{
@@ -163,6 +165,7 @@ void UMLDeformerModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 	OutTags.Add(FAssetRegistryTag("MLDeformer.NumBaseMeshVerts", FString::FromInt(NumBaseMeshVerts), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.NumTargetMeshVerts", FString::FromInt(NumTargetMeshVerts), FAssetRegistryTag::TT_Numerical));
 	OutTags.Add(FAssetRegistryTag("MLDeformer.SkeletalMesh", SkeletalMesh ? FAssetData(SkeletalMesh).ToSoftObjectPath().ToString() : TEXT("None"), FAssetRegistryTag::TT_Alphabetical));
+	OutTags.Add(FAssetRegistryTag("MLDeformer.MaxNumLODs", FString::FromInt(GetMaxNumLODs()), FAssetRegistryTag::TT_Numerical));
 
 	#if WITH_EDITORONLY_DATA
 		OutTags.Add(FAssetRegistryTag("MLDeformer.NumBones", FString::FromInt(BoneIncludeList.Num()), FAssetRegistryTag::TT_Numerical));
@@ -254,6 +257,7 @@ bool UMLDeformerModel::IsCompatibleDebugActor(const AActor* Actor, UMLDeformerCo
 
 	return false;
 }
+
 
 #if WITH_EDITOR
 	void UMLDeformerModel::UpdateNumTargetMeshVertices()
