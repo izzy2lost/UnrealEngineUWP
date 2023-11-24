@@ -1129,11 +1129,44 @@ bool USourceControlHelpers::ApplyOperationAndReloadPackages(const TArray<FString
 	// Hot-reload the new packages...
 	if (LoadedPackages.Num() > 0)
 	{
-		FText OutReloadErrorMsg;
-		UPackageTools::ReloadPackages(LoadedPackages, OutReloadErrorMsg, bInteractive ? EReloadPackagesInteractionMode::Interactive : EReloadPackagesInteractionMode::AssumePositive);
-		if (!OutReloadErrorMsg.IsEmpty())
+		// Split into world and non-world packages and reload them separately.
+		TArray<UPackage*> LoadedWorldPackages;
+		TArray<UPackage*> LoadedNonWorldPackages;
+		LoadedWorldPackages.Reserve(LoadedPackages.Num());
+		LoadedNonWorldPackages.Reserve(LoadedPackages.Num());
+
+		for (UPackage* Package : LoadedPackages)
 		{
-			UE_LOG(LogSourceControl, Warning, TEXT("%s"), *OutReloadErrorMsg.ToString());
+			if (UWorld::FindWorldInPackage(Package))
+			{
+				LoadedWorldPackages.Add(Package);
+			}
+			else
+			{
+				LoadedNonWorldPackages.Add(Package);
+			}
+		}
+
+		// Reload non world package(s).
+		if (LoadedNonWorldPackages.Num() > 0)
+		{
+			FText OutReloadErrorMsg;
+			UPackageTools::ReloadPackages(LoadedNonWorldPackages, OutReloadErrorMsg, bInteractive ? EReloadPackagesInteractionMode::Interactive : EReloadPackagesInteractionMode::AssumePositive);
+			if (!OutReloadErrorMsg.IsEmpty())
+			{
+				UE_LOG(LogSourceControl, Warning, TEXT("%s"), *OutReloadErrorMsg.ToString());
+			}
+		}
+
+		// Reload world package(s).
+		if (LoadedWorldPackages.Num() > 0)
+		{
+			FText OutReloadErrorMsg;
+			UPackageTools::ReloadPackages(LoadedWorldPackages, OutReloadErrorMsg, bInteractive ? EReloadPackagesInteractionMode::Interactive : EReloadPackagesInteractionMode::AssumePositive);
+			if (!OutReloadErrorMsg.IsEmpty())
+			{
+				UE_LOG(LogSourceControl, Warning, TEXT("%s"), *OutReloadErrorMsg.ToString());
+			}
 		}
 	}
 
