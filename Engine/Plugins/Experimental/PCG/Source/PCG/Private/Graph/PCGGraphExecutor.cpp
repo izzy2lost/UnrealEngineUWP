@@ -69,7 +69,7 @@ static TAutoConsoleVariable<bool> CVarStripEmptyPointData(
 
 FPCGGraphExecutor::FPCGGraphExecutor(UObject* InOwner)
 	: GraphCompiler(MakeUnique<FPCGGraphCompiler>())
-	, GraphCache(InOwner, &DataRootSet)
+	, GraphCache(InOwner)
 #if WITH_EDITOR
 	, GenerationProgressNotification(GetNotificationTextFormat())
 #endif
@@ -81,7 +81,6 @@ FPCGGraphExecutor::~FPCGGraphExecutor()
 	// We don't really need to do this here (it would be done in the destructor of these both)
 	// but this is to clarify/ensure the order in which this happens
 	GraphCache.ClearCache();
-	DataRootSet.Clear();
 
 #if WITH_EDITOR
 	// Cleanup + clear notification
@@ -720,8 +719,6 @@ void FPCGGraphExecutor::Execute()
 					{
 						ActiveTask.bIsBypassed = true;
 						ActiveTask.Context->OutputData = CachedOutput;
-						// Since we've copied the output data, we need to make sure to add count ref in the root set since it'll be removed once the task is executed
-						ActiveTask.Context->OutputData.AddToRootSet(DataRootSet);
 					}
 #endif
 
@@ -779,8 +776,6 @@ void FPCGGraphExecutor::Execute()
 					check(!ActiveTask.Element->CanExecuteOnlyOnMainThread(ActiveTask.Context.Get()));
 					ActiveTask.Context->AsyncState.EndTime = EndTime;
 					ActiveTask.Context->AsyncState.bIsRunningOnMainThread = false;
-					// Remove the precreated data so we properly count in the root set
-					ActiveTask.Context->OutputData.RemoveFromRootSet(DataRootSet);
 
 					Futures.Emplace(ExecutionIndex, Async(EAsyncExecution::ThreadPool, [&ActiveTask]()
 					{
@@ -857,13 +852,6 @@ void FPCGGraphExecutor::Execute()
 			QueueNextTasks(ActiveTask.NodeId);
 			bAnyTaskEnded = true;
 
-			// Un-root temporary input data
-			if (FPCGDataCollection* TemporaryInput = InputTemporaryData.Find(ActiveTask.NodeId))
-			{
-				TemporaryInput->RemoveFromRootSet(DataRootSet);
-				InputTemporaryData.Remove(ActiveTask.NodeId);
-			}
-
 			// Remove current active task from list
 			ActiveTasks.RemoveAtSwap(TaskIndex);
 		};
@@ -879,8 +867,6 @@ void FPCGGraphExecutor::Execute()
 				check(!MainThreadTask.Context->bIsPaused);
 				MainThreadTask.Context->AsyncState.EndTime = EndTime;
 				MainThreadTask.Context->AsyncState.bIsRunningOnMainThread = true;
-				// Remove the precreated data so we properly count in the root set
-				MainThreadTask.Context->OutputData.RemoveFromRootSet(DataRootSet);
 
 #if WITH_EDITOR
 				if(MainThreadTask.bIsBypassed || MainThreadTask.bWasCancelled || MainThreadTask.Element->Execute(MainThreadTask.Context.Get()))
@@ -910,22 +896,12 @@ void FPCGGraphExecutor::Execute()
 					{
 						PostTaskExecute(ExecutionIndex);
 					}
-					else
-					{
-						// Task isn't done, but we need to make sure the data isn't garbage collected
-						ActiveTasks[ExecutionIndex].Context->OutputData.AddToRootSet(DataRootSet);
-					}
 				}
 			}
 
 			if (bMainTaskDone)
 			{
 				PostTaskExecute(0);
-			}
-			else if (!ActiveTasks.IsEmpty())
-			{
-				// Task isn't done, make sure we don't garbage collected the precreated data
-				ActiveTasks[0].Context->OutputData.AddToRootSet(DataRootSet);
 			}
 		}
 
@@ -1238,17 +1214,12 @@ void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& I
 		}
 
 		// Add to the root set since we created a new object, that needs to be kept alive for the duration of the task.
-		DataRootSet.Add(CombinedParamData);
 		FPCGTaggedData CombineParams{};
 		CombineParams.Data = CombinedParamData;
 		CombineParams.Pin = PCGPinConstants::DefaultParamsLabel;
 		TempTaggedData.Add(CombineParams);
 
 		InTaskInput.TaggedData = std::move(TempTaggedData);
-
-		// Also store it into the TemporaryMap to track it down
-		FPCGDataCollection& TemporaryInput = InputTemporaryData.FindOrAdd(InTaskId);
-		TemporaryInput.TaggedData.Add(CombineParams);
 	}
 }
 
@@ -1258,9 +1229,6 @@ void FPCGGraphExecutor::StoreResults(FPCGTaskId InTaskId, const FPCGDataCollecti
 
 	// Store output in map
 	OutputData.Add(InTaskId, InTaskOutput);
-
-	// Root any non-rooted results, otherwise they'll get garbage-collected
-	InTaskOutput.AddToRootSet(DataRootSet);
 }
 
 void FPCGGraphExecutor::ClearResults()
@@ -1273,19 +1241,36 @@ void FPCGGraphExecutor::ClearResults()
 		NextTaskId = 0;
 	}
 
-	for (const TPair<FPCGTaskId, FPCGDataCollection>& TaskTemporaryInput : InputTemporaryData)
-	{
-		TaskTemporaryInput.Value.RemoveFromRootSet(DataRootSet);
-	}
-	InputTemporaryData.Reset();
-
-	for (const TPair<FPCGTaskId, FPCGDataCollection>& TaskOutput : OutputData)
-	{
-		TaskOutput.Value.RemoveFromRootSet(DataRootSet);
-	}
 	OutputData.Reset();
 
 	ScheduleLock.Unlock();
+}
+
+void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::AddReferencedObjects);
+
+	// Go through all data in the cached output map
+	for (auto& OutputDataEntry : OutputData)
+	{
+		OutputDataEntry.Value.AddReferences(Collector);
+	}
+
+	// Go through ready tasks, active tasks and sleeping tasks contexts
+	auto AddReferences = [&Collector](auto& TaskContainer)
+	{
+		for (auto& Task : TaskContainer)
+		{
+			if (Task.Context)
+			{
+				Task.Context->AddStructReferencedObjects(Collector);
+			}
+		}
+	};
+
+	AddReferences(ReadyTasks);
+	AddReferences(ActiveTasks);
+	AddReferences(SleepingTasks);
 }
 
 FPCGElementPtr FPCGGraphExecutor::GetFetchInputElement()

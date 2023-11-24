@@ -21,65 +21,6 @@ static TAutoConsoleVariable<bool> CVarCachePropagateCrcThroughBooleanData(
 	false,
 	TEXT("Whether intersection, union, difference combine Crc values from operands. If false they fall back to using data UID."));
 
-void FPCGRootSet::Clear()
-{
-	for (TPair<UObject*, int32>& Entry : RootSet)
-	{
-		Entry.Key->RemoveFromRoot();
-	}
-
-	RootSet.Reset();
-}
-
-void FPCGRootSet::Add(UObject* InObject)
-{
-	check(InObject);
-	AddInternal(InObject);
-}
-
-void FPCGRootSet::AddInternal(UObject* InObject)
-{
-	check(InObject && !InObject->IsA<UPackage>());
-
-	if (int32* Found = RootSet.Find(InObject))
-	{
-		(*Found)++;
-	}
-	else if (!InObject->IsRooted() && InObject->GetPackage() == GetTransientPackage())
-	{
-		InObject->AddToRoot();
-		RootSet.Emplace(InObject, 1);
-	}
-}
-
-void FPCGRootSet::Remove(UObject* InObject)
-{
-	if (!InObject)
-	{
-		UE_LOG(LogPCG, Warning, TEXT("Trying to remove a null object from the rootset"));
-		return;
-	}
-
-	RemoveInternal(InObject);
-}
-
-void FPCGRootSet::RemoveInternal(UObject* InObject)
-{
-	check(InObject && !InObject->IsA<UPackage>());
-
-	if (int32* Found = RootSet.Find(InObject))
-	{
-		check(InObject->IsRooted());
-		(*Found)--;
-
-		if (*Found == 0)
-		{
-			InObject->RemoveFromRoot();
-			RootSet.Remove(InObject);
-		}
-	}
-}
-
 UPCGData::UPCGData(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -440,24 +381,13 @@ bool FPCGDataCollection::operator!=(const FPCGDataCollection& Other) const
 	return !operator==(Other);
 }
 
-void FPCGDataCollection::AddToRootSet(FPCGRootSet& RootSet) const
+void FPCGDataCollection::AddReferences(FReferenceCollector& Collector)
 {
-	for (const FPCGTaggedData& Data : TaggedData)
+	for (FPCGTaggedData& Data : TaggedData)
 	{
 		if (Data.Data)
 		{
-			RootSet.Add(const_cast<UPCGData*>(Data.Data.Get()));
-		}
-	}
-}
-
-void FPCGDataCollection::RemoveFromRootSet(FPCGRootSet& RootSet) const
-{
-	for (const FPCGTaggedData& Data : TaggedData)
-	{
-		if (Data.Data)
-		{
-			RootSet.Remove(const_cast<UPCGData*>(Data.Data.Get()));
+			Collector.AddReferencedObject(Data.Data);
 		}
 	}
 }

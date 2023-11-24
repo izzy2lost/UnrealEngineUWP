@@ -6,6 +6,7 @@
 #include "PCGData.h"
 
 #include "Containers/LruCache.h"
+#include "UObject/GCObject.h"
 
 class IPCGElement;
 class UPCGComponent;
@@ -60,9 +61,9 @@ private:
 * In cases where we have some subgraph reuse. Under that premise, we can then
 * instead store by element, as we will never recreate elements (except for arbitrary tasks)
 */
-struct FPCGGraphCache
+struct FPCGGraphCache : public FGCObject
 {
-	FPCGGraphCache(TWeakObjectPtr<UObject> InOwner, FPCGRootSet* InRootSet);
+	explicit FPCGGraphCache(TWeakObjectPtr<UObject> InOwner);
 	~FPCGGraphCache();
 
 	/** Returns true if data was found from the cache, in which case the outputs are written in OutOutput. InNode is optional and for logging only. */
@@ -88,6 +89,11 @@ struct FPCGGraphCache
 	uint32 GetGraphCacheEntryCount(IPCGElement* InElement) const;
 #endif
 
+	//~Begin FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FPCGGraphCache"); }
+	//~End FGCObject interface
+
 private:
 	// Grow cache entry capacity, preserving current entries.
 	void GrowCache_Unsafe();
@@ -102,9 +108,6 @@ private:
 	// We will have to serialize on a node id basis most likely
 	TLruCache<FPCGCacheEntryKey, FPCGDataCollection> CacheData;
 	TWeakObjectPtr<UObject> Owner = nullptr;
-
-	/** To prevent garbage collection on data in the cache, we'll need to root some data */
-	FPCGRootSet* RootSet = nullptr;
 
 	/** Map from data UIDs to records. Provides ref counting and caches memory size. */
 	TMap<uint64, FCachedMemoryRecord> MemoryRecords;

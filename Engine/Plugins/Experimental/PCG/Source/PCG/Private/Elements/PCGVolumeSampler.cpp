@@ -200,7 +200,7 @@ namespace PCGVolumeSamplerHelpers
 			OutState.BoundingShape = Context->InputData.GetSpatialUnionOfInputsByPin(PCGVolumeSamplerConstants::BoundingShapeLabel, bUnionWasCreated);
 			if (OutState.BoundingShape && bUnionWasCreated)
 			{
-				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(OutState.BoundingShape));
+				Context->TrackObject(OutState.BoundingShape);
 			}
 
 			if (!OutState.BoundingShape && Context->SourceComponent.IsValid())

@@ -6,6 +6,8 @@
 #include "PCGNode.h" // IWYU pragma: keep
 #include "Helpers/PCGAsyncState.h"
 
+#include "UObject/GCObject.h"
+
 #include "PCGContext.generated.h"
 
 class UPCGComponent;
@@ -47,7 +49,7 @@ struct PCG_API FPCGContext
 {
 	GENERATED_BODY()
 
-	virtual ~FPCGContext();
+	virtual ~FPCGContext() {}
 
 	FPCGDataCollection InputData;
 	FPCGDataCollection OutputData;
@@ -61,9 +63,6 @@ struct PCG_API FPCGContext
 	FPCGTaskId TaskId = InvalidPCGTaskId;
 	FPCGTaskId CompiledTaskId = InvalidPCGTaskId;
 	bool bIsPaused = false;
-
-	// Used to prevent settings override being deleted, needs to be false when going through blueprint calls with a context
-	bool bShouldUnrootSettingsOnDelete = true;
 
 	EPCGExecutionPhase CurrentPhase = EPCGExecutionPhase::NotExecuted;
 	int32 BypassedOutputCount = 0;
@@ -112,9 +111,15 @@ struct PCG_API FPCGContext
 	bool HasVisualLogs() const;
 #endif // WITH_EDITOR
 
+	/** Gathers references to objects to prevent them from being garbage collected. Extend resources to be collected with AddExtractStructReferencedObjects. */
+	// Implementation note: this is NOT the same as a struct using WithAddStructReferencedObjects since we are not holding contexts
+	//  in properties in any case. This will be called from the graph executor when needed and is implemented to look like normal reference traversal.
+	void AddStructReferencedObjects(FReferenceCollector& Collector);
+
 protected:
 	virtual UObject* GetExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) {}
 
 private:
 	template<typename SettingsType>

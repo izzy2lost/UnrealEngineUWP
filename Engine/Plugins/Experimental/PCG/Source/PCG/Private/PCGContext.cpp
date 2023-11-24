@@ -22,16 +22,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGContext"
 
-FPCGContext::~FPCGContext()
-{
-	if (SettingsWithOverride && bShouldUnrootSettingsOnDelete)
-	{
-		SettingsWithOverride->RemoveFromRoot();
-		SettingsWithOverride->MarkAsGarbage();
-		SettingsWithOverride = nullptr;
-	}
-}
-
 FString FPCGContext::GetTaskName() const
 {
 	if (Node)
@@ -132,7 +122,6 @@ void FPCGContext::InitializeSettings()
 			{
 				SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObject(NodeSettings, GetTransientPackage()));
 				SettingsWithOverride->SetFlags(RF_Transient);
-				SettingsWithOverride->AddToRoot();
 
 				// Force seed copy to prevent issue due to delta serialization vs. Seed being initialized in the constructor only for new nodes
 				SettingsWithOverride->Seed = NodeSettings->Seed;
@@ -301,5 +290,18 @@ bool FPCGContext::HasVisualLogs() const
 	return false;
 }
 #endif // WITH_EDITOR
+
+void FPCGContext::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	InputData.AddReferences(Collector);
+	OutputData.AddReferences(Collector);
+
+	if (SettingsWithOverride)
+	{
+		Collector.AddReferencedObject(SettingsWithOverride);
+	}
+
+	AddExtraStructReferencedObjects(Collector);
+}
 
 #undef LOCTEXT_NAMESPACE

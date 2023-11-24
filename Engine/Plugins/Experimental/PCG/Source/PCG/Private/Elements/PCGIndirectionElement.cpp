@@ -168,19 +168,16 @@ bool FPCGIndirectionElement::CanExecuteOnlyOnMainThread(FPCGContext* InContext) 
 
 FPCGIndirectionContext::~FPCGIndirectionContext()
 {
-	if (bNeedsToUnrootInnerSettings)
-	{
-		const UPCGIndirectionSettings* Settings = GetInputSettings<UPCGIndirectionSettings>();
-		check(Settings);
-
-		if (UPCGSettings* InnerSettings = Settings->Settings.Get())
-		{
-			InnerSettings->RemoveFromRoot();
-		}
-	}
-
 	delete InnerContext;
 	InnerContext = nullptr;
+}
+
+void FPCGIndirectionContext::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
+{
+	if (InnerSettings)
+	{
+		Collector.AddReferencedObject(InnerSettings);
+	}
 }
 
 FPCGContext* FPCGIndirectionElement::CreateContext()
@@ -196,7 +193,9 @@ bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const
 	const UPCGIndirectionSettings* Settings = Context->GetInputSettings<UPCGIndirectionSettings>();
 	check(Settings);
 
-	if (UPCGSettings* InnerSettings = Settings->Settings.LoadSynchronous())
+	Context->InnerSettings = Settings->Settings.LoadSynchronous();
+
+	if(UPCGSettings* InnerSettings = Context->InnerSettings)
 	{
 		if (Settings->ProxyInterfaceMode == EPCGProxyInterfaceMode::ByNativeElement)
 		{
@@ -219,14 +218,6 @@ bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const
 				return true;
 			}
 		} 
-
-		// TODO: while we can root it here, if this node or multiple indirection node were to execute in parallel,
-		// the lifetime of the inner settings would be a bit unclear - we need to improve this.
-		if (!InnerSettings->IsRooted())
-		{
-			InnerSettings->AddToRoot();
-			Context->bNeedsToUnrootInnerSettings = true;
-		}
 
 		Context->InnerElement = InnerSettings->GetElement();
 		check(Context->InnerElement);

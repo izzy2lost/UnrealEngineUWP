@@ -157,8 +157,13 @@ protected:
 */
 struct FPCGMeshSamplerContext : public FPCGContext
 {
+public:
 	~FPCGMeshSamplerContext();
+
+protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 	
+public:
 	// Dynamic mesh. Will be added to root.
 	TObjectPtr<UDynamicMesh> DynamicMesh;
 

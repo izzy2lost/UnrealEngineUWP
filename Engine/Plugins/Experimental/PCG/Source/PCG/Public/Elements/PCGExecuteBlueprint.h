@@ -382,11 +382,10 @@ protected:
 
 struct FPCGBlueprintExecutionContext : public FPCGContext
 {
-	virtual ~FPCGBlueprintExecutionContext();
-
-	UPCGBlueprintElement* BlueprintElementInstance = nullptr;
+	TObjectPtr<UPCGBlueprintElement> BlueprintElementInstance = nullptr;
 
 protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 	virtual UObject* GetExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) override { return BlueprintElementInstance; }
 };
 

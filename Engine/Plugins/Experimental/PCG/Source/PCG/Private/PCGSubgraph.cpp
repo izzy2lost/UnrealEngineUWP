@@ -642,7 +642,7 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 FPCGInputForwardingElement::FPCGInputForwardingElement(const FPCGDataCollection& InputToForward)
 	: Input(InputToForward)
 {
-	// Root any previously unrooted data, so we don't need to make sure the caller is still around until this is executed
+	// Root any previously unrooted data, needed here because the context does not exist yet and we need to ensure that the input is not garbage collected
 	for (const FPCGTaggedData& TaggedData : Input.TaggedData)
 	{
 		if (TaggedData.Data && !TaggedData.Data->IsRooted())
@@ -656,7 +656,7 @@ FPCGInputForwardingElement::FPCGInputForwardingElement(const FPCGDataCollection&
 
 bool FPCGInputForwardingElement::ExecuteInternal(FPCGContext* Context) const
 {
-	// Remove from rootset during the execution; data will be re-rooted by the normal process in the graph executor
+	// Remove from rootset during the execution if we had previously done so. After execution, the graph cache will keep track of these references
 	for (UPCGData* DataToUnroot : RootedData)
 	{
 		ensure(DataToUnroot->IsRooted());

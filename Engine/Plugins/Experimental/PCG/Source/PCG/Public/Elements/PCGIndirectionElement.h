@@ -62,12 +62,18 @@ public:
 
 struct FPCGIndirectionContext : public FPCGContext
 {
+public:
 	virtual ~FPCGIndirectionContext();
 
+protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
+
+public:
 	FPCGElementPtr InnerElement;
 	FPCGContext* InnerContext = nullptr;
-	bool bNeedsToUnrootInnerSettings = false;
-	bool bShouldActAsPassthrough = false;
+	bool bShouldActAsPassthrough = false;	
+
+	TObjectPtr<UPCGSettings> InnerSettings = nullptr;
 };
 
 class FPCGIndirectionElement : public IPCGElement

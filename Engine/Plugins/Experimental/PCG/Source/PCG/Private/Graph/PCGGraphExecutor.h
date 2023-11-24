@@ -8,6 +8,8 @@
 #include "Graph/PCGGraphCache.h"
 #include "Graph/PCGStackContext.h"
 
+#include "UObject/GCObject.h"
+
 #if WITH_EDITOR
 #include "AsyncCompilationHelpers.h"
 #include "WorldPartition/WorldPartitionHandle.h" // Needed for FWorldPartitionReference
@@ -82,10 +84,10 @@ struct FPCGGraphActiveTask
 	TSharedPtr<const FPCGStackContext> StackContext;
 };
 
-class FPCGGraphExecutor
+class FPCGGraphExecutor : public FGCObject
 {
 public:
-	FPCGGraphExecutor(UObject* InOwner);
+	explicit FPCGGraphExecutor(UObject* InOwner);
 	~FPCGGraphExecutor();
 
 	/** Compile (and cache) a graph for later use. This call is threadsafe */
@@ -155,6 +157,11 @@ public:
 	/** True if graph cache debugging is enabled. */
 	bool IsGraphCacheDebuggingEnabled() const { return GraphCache.IsDebuggingEnabled(); }
 
+	//~Begin FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FPCGGraphExecutor"); }
+	//~End FGCObject interface
+
 private:
 	TSet<UPCGComponent*> Cancel(TFunctionRef<bool(TWeakObjectPtr<UPCGComponent>)> CancelFilter);
 	void ClearAllTasks();
@@ -180,9 +187,6 @@ private:
 	/** Graph compiler that turns a graph into tasks */
 	TUniquePtr<FPCGGraphCompiler> GraphCompiler;
 
-	/** Rootset to hold temporary results (for current computation) + graph cache */
-	FPCGRootSet DataRootSet;
-
 	/** Graph results cache */
 	FPCGGraphCache GraphCache;
 
@@ -200,8 +204,6 @@ private:
 	/** Map of node instances to their output, could be cleared once execution is done */
 	/** Note: this should at some point unload based on loaded/unloaded proxies, otherwise memory cost will be unbounded */
 	TMap<FPCGTaskId, FPCGDataCollection> OutputData;
-	/** Map of node instances to their temporary input, could be cleared once execution is done */
-	TMap<FPCGTaskId, FPCGDataCollection> InputTemporaryData;
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
 

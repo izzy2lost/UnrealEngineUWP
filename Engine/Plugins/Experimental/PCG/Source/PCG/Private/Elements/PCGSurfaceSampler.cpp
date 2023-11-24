@@ -353,8 +353,7 @@ namespace PCGSurfaceSamplerHelpers
 			OutState.BoundingShape = FindBoundingShape(Context, bUnionWasCreated);
 			if (OutState.BoundingShape && bUnionWasCreated)
 			{
-				// Must cast away const to root the union object
-				Context->RootAndTrackObject(const_cast<UPCGSpatialData*>(OutState.BoundingShape));
+				Context->TrackObject(OutState.BoundingShape);
 			}
 
 			if (OutState.BoundingShape)

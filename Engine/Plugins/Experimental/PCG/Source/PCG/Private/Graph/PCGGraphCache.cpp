@@ -27,12 +27,11 @@ static TAutoConsoleVariable<bool> CVarCacheMemoryBudgetEnabled(
 // Initial max number of entries graph cache
 static const int32 GPCGGraphCacheInitialCapacity = 65536;
 
-FPCGGraphCache::FPCGGraphCache(TWeakObjectPtr<UObject> InOwner, FPCGRootSet* InRootSet)
+FPCGGraphCache::FPCGGraphCache(TWeakObjectPtr<UObject> InOwner)
 	: CacheData(GPCGGraphCacheInitialCapacity)
 	, Owner(InOwner)
-	, RootSet(InRootSet)
 {
-	check(InOwner.Get() && InRootSet);
+	check(InOwner.Get());
 }
 
 FPCGGraphCache::~FPCGGraphCache()
@@ -103,8 +102,6 @@ void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& I
 		FPCGCacheEntryKey CacheKey(InElement, InDependenciesCrc);
 		CacheData.Add(CacheKey, InOutput);
 		
-		InOutput.AddToRootSet(*RootSet);
-
 		AddDataToAccountedMemory(InOutput);
 	}
 }
@@ -112,12 +109,6 @@ void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& I
 void FPCGGraphCache::ClearCache()
 {
 	FWriteScopeLock ScopedWriteLock(CacheLock);
-
-	// Unroot all previously rooted data
-	for (FPCGDataCollection CacheEntry : CacheData)
-	{
-		CacheEntry.RemoveFromRootSet(*RootSet);
-	}
 
 	MemoryRecords.Empty();
 	TotalMemoryUsed = 0;
@@ -147,7 +138,6 @@ bool FPCGGraphCache::EnforceMemoryBudget()
 		while (TotalMemoryUsed > MemoryBudget && CacheData.Num() > 0)
 		{
 			FPCGDataCollection RemovedData = CacheData.RemoveLeastRecent();
-			RemovedData.RemoveFromRootSet(*RootSet);
 			RemoveFromMemoryTotal(RemovedData);
 		}
 	}
@@ -184,8 +174,6 @@ void FPCGGraphCache::CleanFromCache(const IPCGElement* InElement, const UPCGSett
 			if (const FPCGDataCollection* Data = CacheData.Find(Key))
 			{
 				RemoveFromMemoryTotal(*Data);
-				Data->RemoveFromRootSet(*RootSet);
-				
 				CacheData.Remove(Key);
 			}
 		}
@@ -213,6 +201,17 @@ uint32 FPCGGraphCache::GetGraphCacheEntryCount(IPCGElement* InElement) const
 	return Count;
 }
 #endif // WITH_EDITOR
+
+void FPCGGraphCache::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::AddReferencedObjects);
+	FReadScopeLock ScopedReadLock(CacheLock);
+
+	for (FPCGDataCollection& CacheEntry : CacheData)
+	{
+		CacheEntry.AddReferences(Collector);
+	}
+}
 
 void FPCGGraphCache::GrowCache_Unsafe()
 {

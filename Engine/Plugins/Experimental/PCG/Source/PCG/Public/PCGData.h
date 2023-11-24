@@ -103,19 +103,6 @@ struct PCG_API FPCGTaggedData
 	bool operator!=(const FPCGTaggedData& Other) const;
 };
 
-struct FPCGRootSet
-{
-	~FPCGRootSet() { Clear(); }
-	void Clear();
-	void Add(UObject* InObject);
-	void Remove(UObject* InObject);
-
-	TMap<UObject*, int32> RootSet;
-private:
-	void AddInternal(UObject* InObject);
-	void RemoveInternal(UObject* InObject);
-};
-
 USTRUCT(BlueprintType)
 struct PCG_API FPCGDataCollection
 {
@@ -174,8 +161,7 @@ struct PCG_API FPCGDataCollection
 
 	bool operator==(const FPCGDataCollection& Other) const;
 	bool operator!=(const FPCGDataCollection& Other) const;
-	void AddToRootSet(FPCGRootSet& RootSet) const;
-	void RemoveFromRootSet(FPCGRootSet& RootSet) const;
+	void AddReferences(FReferenceCollector& Collector);
 
 	/** Computes Crc for this data. */
 	FPCGCrc ComputeCrc(bool bFullDataCrc);

@@ -86,12 +86,13 @@ FPCGMeshSamplerContext::~FPCGMeshSamplerContext()
 		StopSampling = true;
 		SamplingFuture.Wait();
 	}
+}
 
-	// DynamicMesh needs to be removed from root, as we added it to root when we created it to avoid getting GC between executions.
+void FPCGMeshSamplerContext::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
+{
 	if (DynamicMesh)
 	{
-		DynamicMesh->RemoveFromRoot();
-		DynamicMesh->MarkAsGarbage();
+		Collector.AddReferencedObject(DynamicMesh);
 	}
 }
 
@@ -126,8 +127,6 @@ bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 	}
 
 	Context->DynamicMesh = NewObject<UDynamicMesh>();
-	// Need to add to root to make sure we don't delete it. Will be removed from root in the context destructor.
-	Context->DynamicMesh->AddToRoot();
 
 	EGeometryScriptOutcomePins Outcome;
 

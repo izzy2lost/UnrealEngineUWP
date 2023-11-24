@@ -14,7 +14,7 @@
  * Override the element type with TTimeSlicedPCGElement with two template arguments, the first being the static struct,and the second being the "per-iteration"
  * Pass a function or lambda matching the correct signature to InitializePerExecutionState and initialize the static struct within
  * Do the same for InitializePerIterationStates, but also pass the number of iterations. This will iterate through a state initialization for each iteration
- * [Optional] If needed, mark UObjects that need to bypass GC with RootAndTrackObject or RootAndTrackObjectByName if you need to retrieve it later. The objects will be garbage collected at the end of the context lifetime
+ * [Optional] If needed, mark UObjects with TrackObject or TrackObjectByName if you need to retrieve it later and to prevent their garbage collection.
  * DataIsPrepared SHOULD BE used to verify initialization was successful, such as in the ExecuteInternal if data was previously initialized in PrepareDataInternal
  * Call ExecuteSlice with an execution function or lambda that returns a boolean that is true once the full execution is completed, or false otherwise
  *
@@ -46,8 +46,6 @@ namespace PCGTimeSlice
 template <typename PerExecutionStateT = PCGTimeSlice::FEmptyStruct, typename PerIterationStateT = PCGTimeSlice::FEmptyStruct>
 struct TPCGTimeSlicedContext : public FPCGContext
 {
-	virtual ~TPCGTimeSlicedContext() override;
-
 	virtual bool TimeSliceIsEnabled() const override final { return bTimeSliceIsEnabled; }
 	void SetTimeSliceIsEnabled(const bool bEnableTimeSlice = true) { bTimeSliceIsEnabled = bEnableTimeSlice; }
 
@@ -104,8 +102,11 @@ struct TPCGTimeSlicedContext : public FPCGContext
 		return true;
 	}
 
-	/** Fire and forget function to root a UObject for the duration of the Context, and then mark for garbage collection at context lifecycle end. */
-	void RootAndTrackObject(UObject* Object);
+	/** Fire and forget function to make sure a UObject will not be GC'ed for the duration of the Context. */
+	void TrackObject(const UObject* Object);
+
+protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 
 private:
 	// Allow exposure to iteration index, etc
@@ -135,7 +136,7 @@ private:
 	TArray<PerIterationStateT> PerIterationStateArray;
 
 	/** Tracks rooted UObjects that need to avoid garbage collection during the lifetime of the context */
-	TArray<UObject*> RootedAndTrackedObjectArray;
+	TArray<TObjectPtr<const UObject>> TrackedObjectArray;
 };
 
 /**
@@ -163,22 +164,9 @@ public:
 };
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
-TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::~TPCGTimeSlicedContext()
+void TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
 {
-	for (UObject* Object : RootedAndTrackedObjectArray)
-	{
-		// Sanity check
-		check(Object);
-		if (!ensure(IsValid(Object) && Object->IsRooted()))
-		{
-			continue;
-		}
-
-		Object->RemoveFromRoot();
-		Object->MarkAsGarbage();
-	}
-
-	RootedAndTrackedObjectArray.Empty();
+	Collector.AddReferencedObjects(TrackedObjectArray);
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
@@ -232,11 +220,10 @@ const TArray<EPCGTimeSliceInitResult>& TPCGTimeSlicedContext<PerExecutionStateT,
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
-void TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::RootAndTrackObject(UObject* Object)
+void TPCGTimeSlicedContext<PerExecutionStateT, PerIterationStateT>::TrackObject(const UObject* Object)
 {
-	check(Object && IsValid(Object) && !Object->IsRooted());
-	Object->AddToRoot();
-	RootedAndTrackedObjectArray.AddUnique(Object);
+	check(Object && IsValid(Object));
+	TrackedObjectArray.AddUnique(Object);
 }
 
 template <typename PerExecutionStateT, typename PerIterationStateT>
