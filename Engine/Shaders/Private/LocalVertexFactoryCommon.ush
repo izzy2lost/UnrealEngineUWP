@@ -41,11 +41,10 @@ struct FVertexFactoryInterpolantsVSToPS
 		nointerpolation uint CustomDataOffset : CUSTOM_DATA_OFFSET;
 		nointerpolation uint CustomDataCount : CUSTOM_DATA_COUNT;
 	#endif
-	#if USES_PER_INSTANCE_RANDOM
-		nointerpolation float PerInstanceRandom : PER_INSTANCE_RANDOM;
-	#endif
 #endif
-
+#if NEEDS_PER_INSTANCE_RANDOM_PS
+	nointerpolation float PerInstanceRandom : PER_INSTANCE_RANDOM;
+#endif
 
 #if HAIR_STRAND_MESH_FACTORY
 	nointerpolation uint HairControlPointId			: HAIR_PRIMITIVE_ID;	// Control point ID

@@ -3,10 +3,6 @@
 // Just used to trigger shader recompiles, guid should be regenerated on merge conflicts
 #pragma message("UESHADERMETADATA_VERSION DC8F4920-57F0-41EF-ACC0-B6643D1D80C7")
 
-// TODO: should this be 1 by default so compute always has access to it?
-#ifndef USES_PER_INSTANCE_RANDOM
-	#define USES_PER_INSTANCE_RANDOM 1
-#endif
 #ifndef ENABLE_PER_INSTANCE_CUSTOM_DATA
 	#define ENABLE_PER_INSTANCE_CUSTOM_DATA 1
 #endif

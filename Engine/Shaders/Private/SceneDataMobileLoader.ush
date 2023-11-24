@@ -202,10 +202,8 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 	{
 		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0);
 		InstanceData.InvNonUniformScale = Data.xyz;
-		
-		#if USES_PER_INSTANCE_RANDOM || USE_DITHERED_LOD_TRANSITION
 		InstanceData.RandomID = Data.w;
-		#endif
+
 		// Computing it from InvScale should be fine?
 		InstanceData.NonUniformScale.xyz = rcp(InstanceData.InvNonUniformScale);
 		InstanceData.NonUniformScale.w	= max3(InstanceData.NonUniformScale.x, InstanceData.NonUniformScale.y, InstanceData.NonUniformScale.z);

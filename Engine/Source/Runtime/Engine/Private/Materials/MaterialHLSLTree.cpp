@@ -302,9 +302,6 @@ bool FExpressionExternalInput::PrepareValue(FEmitContext& Context, FEmitScope& S
 		{
 			switch (ResolvedInputType)
 			{
-			case EExternalInput::PerInstanceRandom:
-				Context.MaterialCompilationOutput->bUsesPerInstanceRandom = true;
-				break;
 			case EExternalInput::SkyAtmosphereViewLuminance:
 			case EExternalInput::SkyAtmosphereDistantLightScatteredLuminance:
 				Context.bUsesSkyAtmosphere = true;

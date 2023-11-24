@@ -713,7 +713,6 @@ public:
 		bUsesPixelDepthOffset(false),
 		bUsesDistanceCullFade(false),
 		bUsesPerInstanceCustomData(false),
-		bUsesPerInstanceRandom(false),
 		bUsesVertexInterpolator(false),
 		bHasRuntimeVirtualTextureOutputNode(false),
 		bUsesAnisotropy(false),
@@ -825,9 +824,6 @@ public:
 
 	/** true if the material uses per-instance custom data */
 	LAYOUT_BITFIELD(uint8, bUsesPerInstanceCustomData, 1);
-
-	/** true if the material uses per-instance random */
-	LAYOUT_BITFIELD(uint8, bUsesPerInstanceRandom, 1);
 
 	/** true if the material uses vertex interpolator */
 	LAYOUT_BITFIELD(uint8, bUsesVertexInterpolator, 1);

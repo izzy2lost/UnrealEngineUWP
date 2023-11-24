@@ -572,7 +572,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 	Result.CustomDataCount  = Interpolants.CustomDataCount;
 #endif
 
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
+#if NEEDS_PER_INSTANCE_RANDOM_PS
 	Result.PerInstanceRandom = Interpolants.PerInstanceRandom;
 #endif
 
@@ -637,6 +637,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.InstanceId = GetInstanceId(Input.InstanceId); 
 	Result.InstanceOffset = InstanceOffset;
 	Result.PrevFrameLocalToWorld = LWCMultiply(GetInstancePrevTransform(Intermediates), PrimitiveData.PreviousLocalToWorld);
+	Result.PerInstanceRandom = GetInstanceRandom(Intermediates);
 
 	// Calculate derived world to local
 	{
@@ -671,9 +672,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 		Result.CustomDataOffset = InstanceData.CustomDataOffset;
 		Result.CustomDataCount = InstanceData.CustomDataCount;
 	#endif
-	#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
-		Result.PerInstanceRandom = InstanceData.RandomID;
-	#endif
+	Result.PerInstanceRandom = InstanceData.RandomID;
 #endif
 
 	Result.PreSkinnedPosition = Intermediates.PreSkinPosition.xyz;
@@ -1116,8 +1115,12 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	Interpolants.CustomDataCount  = InstanceData.CustomDataCount;
 #endif
 
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
-	Interpolants.PerInstanceRandom = InstanceData.RandomID;
+#if NEEDS_PER_INSTANCE_RANDOM_PS
+	#if USE_INSTANCING
+		Interpolants.PerInstanceRandom = GetInstanceRandom(Intermediates);
+	#else
+		Interpolants.PerInstanceRandom = InstanceData.RandomID;
+	#endif
 #endif
 
 #if INSTANCED_STEREO
@@ -1255,7 +1258,7 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 		O.InterpolantsVSToPS.CustomDataCount  = a.InterpolantsVSToPS.CustomDataCount;
 #endif
 
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
+#if NEEDS_PER_INSTANCE_RANDOM_PS
 		O.InterpolantsVSToPS.PerInstanceRandom = a.InterpolantsVSToPS.PerInstanceRandom;
 #endif
 

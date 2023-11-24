@@ -431,9 +431,7 @@ struct FMaterialPixelParameters
 	float2	LightmapUVs_DDY;
 #endif
 
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
 	half PerInstanceRandom;
-#endif
 
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_NANITE_PASS
 	float4 PerInstanceParams;
@@ -579,10 +577,7 @@ struct FMaterialVertexParameters
 	uint CustomDataCount;
 #endif
 
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
 	float PerInstanceRandom;
-#endif
-
 	
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY || IS_NANITE_PASS
 	FLWCMatrix InstanceLocalToWorld;
@@ -1412,21 +1407,13 @@ float3 GetObjectTranslatedWorldPosition(FMaterialVertexParameters Parameters)
 /** Get the per-instance random value when instancing */
 float GetPerInstanceRandom(FMaterialVertexParameters Parameters)
 {
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
 	return Parameters.PerInstanceRandom;
-#else
-	return 0.0;
-#endif
 }
 
 /** Get the per-instance random value when instancing */
 float GetPerInstanceRandom(FMaterialPixelParameters Parameters)
 {
-#if USES_PER_INSTANCE_RANDOM && VF_USE_PRIMITIVE_SCENE_DATA
 	return Parameters.PerInstanceRandom;
-#else
-	return 0.0;
-#endif
 }
 
 /** Get the per-instance fade-out amount when instancing */

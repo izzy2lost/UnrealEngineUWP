@@ -380,6 +380,8 @@ protected:
 	uint32 bUsesInstanceLocalToWorldPS : 1;
 	/** true if the material reads per instance world to local in the pixel shader. */
 	uint32 bUsesInstanceWorldToLocalPS : 1;
+	/** true if the material uses per instance random in the pixel shader. */
+	uint32 bUsesPerInstanceRandomPS : 1;
 
 	/** true if the material uses any type of vertex position */
 	uint32 bUsesVertexPosition : 1;

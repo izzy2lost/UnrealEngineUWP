@@ -638,6 +638,7 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	bUsesParticleWorldToLocal(false)
 ,	bUsesInstanceLocalToWorldPS(false)
 ,	bUsesInstanceWorldToLocalPS(false)
+,	bUsesPerInstanceRandomPS(false)
 ,	bUsesVertexPosition(false)
 ,	bUsesTransformVector(false)
 ,	bCompilingPreviousFrame(false)
@@ -2696,7 +2697,6 @@ void FHLSLMaterialTranslator::GetMaterialEnvironmentOld(EShaderPlatform InPlatfo
 	}
 
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_CUSTOM_DATA"), MaterialCompilationOutput.bUsesPerInstanceCustomData && Material->IsUsedWithInstancedStaticMeshes());
-	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_RANDOM"), MaterialCompilationOutput.bUsesPerInstanceRandom && Material->IsUsedWithInstancedStaticMeshes());
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_FADE_AMOUNT"), bUsesPerInstanceFadeAmount && Material->IsUsedWithInstancedStaticMeshes());
 	OutEnvironment.SetDefine(TEXT("USES_VERTEX_INTERPOLATOR"), MaterialCompilationOutput.bUsesVertexInterpolator);
 
@@ -2707,6 +2707,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironmentOld(EShaderPlatform InPlatfo
 	OutEnvironment.SetDefine(TEXT("NEEDS_PARTICLE_WORLD_TO_LOCAL"), bUsesParticleWorldToLocal);
 	OutEnvironment.SetDefine(TEXT("NEEDS_INSTANCE_LOCAL_TO_WORLD_PS"), bUsesInstanceLocalToWorldPS);
 	OutEnvironment.SetDefine(TEXT("NEEDS_INSTANCE_WORLD_TO_LOCAL_PS"), bUsesInstanceWorldToLocalPS);
+	OutEnvironment.SetDefine(TEXT("NEEDS_PER_INSTANCE_RANDOM_PS"), bUsesPerInstanceRandomPS && Material->IsUsedWithInstancedStaticMeshes());
 	OutEnvironment.SetDefine(TEXT("USES_TRANSFORM_VECTOR"), bUsesTransformVector);
 	OutEnvironment.SetDefine(TEXT("WANT_PIXEL_DEPTH_OFFSET"), bUsesPixelDepthOffset);
 	
@@ -14675,7 +14676,7 @@ int32 FHLSLMaterialTranslator::PerInstanceRandom()
 	}
 	else
 	{
-		MaterialCompilationOutput.bUsesPerInstanceRandom = true;
+		bUsesPerInstanceRandomPS |= (ShaderFrequency == SF_Pixel);
 		return AddInlinedCodeChunkZeroDeriv(MCT_Float, TEXT("GetPerInstanceRandom(Parameters)"));
 	}
 }
