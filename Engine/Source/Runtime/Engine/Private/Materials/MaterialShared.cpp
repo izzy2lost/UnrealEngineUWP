@@ -4355,7 +4355,7 @@ bool FMaterial::GetMaterialExpressionSource( FString& OutSource )
 					const FMaterialUniformPreshaderField& PreshaderField = NewCompilationOutput.UniformExpressionSet.UniformPreshaderFields[PreshaderIndex];
 
 					UE::Shader::FPreshaderDataContext PreshaderContext(PreshaderContextBase, PreshaderHeader.OpcodeOffset, PreshaderHeader.OpcodeSize);
-					FString PreshaderDebug = PreshaderGenerateDebugString(&NewCompilationOutput.UniformExpressionSet, MaterialContext, PreshaderContext, &ParameterReferences);
+					FString PreshaderDebug = PreshaderGenerateDebugString(NewCompilationOutput.UniformExpressionSet, MaterialContext, PreshaderContext, &ParameterReferences);
 
 					// If this is a numeric field, add a swizzle for it
 					const TCHAR* SwizzleSuffix = TEXT("");
@@ -4432,7 +4432,7 @@ void FMaterial::GetPreshaderStats(uint32& TotalParameters, uint32& TotalOps) con
 		for (const FMaterialUniformPreshaderHeader& PreshaderHeader : UniformExpressionSet.UniformPreshaders)
 		{
 			UE::Shader::FPreshaderDataContext PreshaderContext(PreshaderContextBase, PreshaderHeader.OpcodeOffset, PreshaderHeader.OpcodeSize);
-			PreshaderComputeDebugStats(&UniformExpressionSet, MaterialContext, PreshaderContext, TotalParameters, TotalOps);
+			PreshaderComputeDebugStats(UniformExpressionSet, MaterialContext, PreshaderContext, TotalParameters, TotalOps);
 		}
 	}
 #else

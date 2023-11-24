@@ -693,13 +693,6 @@ static void EvaluateParameter(FPreshaderDebugStack& Stack, const FUniformExpress
 
 	if (Stack.bGenerateString)
 	{
-		if (!UniformExpressionSet)
-		{
-			// return 0 for parameters if we don't have UniformExpressionSet
-			Stack.Push(TEXT("0.0"), EPreshaderDebugStackType::Singular);
-			return;
-		}
-
 		Stack.Push(FString::Printf(TEXT("Param[\"%s\"]"), *ParameterName), EPreshaderDebugStackType::Singular);
 	}
 }
@@ -1497,20 +1490,20 @@ static void EvaluatePreshaderDebug(const FUniformExpressionSet* UniformExpressio
 #undef EvaluateBinaryOpInPlace
 #undef EvaluateTernaryOp
 
-FString PreshaderGenerateDebugString(const FUniformExpressionSet* UniformExpressionSet, const FMaterialRenderContext& Context, FPreshaderDataContext& RESTRICT Data, TMap<FString, uint32>* ParameterReferences)
+FString PreshaderGenerateDebugString(const FUniformExpressionSet& UniformExpressionSet, const FMaterialRenderContext& Context, FPreshaderDataContext& RESTRICT Data, TMap<FString, uint32>* ParameterReferences)
 {
 	FPreshaderDebugStack Stack;
 	Stack.ParameterReferences = ParameterReferences;
-	EvaluatePreshaderDebug(UniformExpressionSet, Context, Stack, Data);
+	EvaluatePreshaderDebug(&UniformExpressionSet, Context, Stack, Data);
 
 	return Stack.Elements.Pop().Text;
 }
 
-void PreshaderComputeDebugStats(const FUniformExpressionSet* UniformExpressionSet, const FMaterialRenderContext& Context, FPreshaderDataContext& RESTRICT Data, uint32& TotalParameters, uint32& TotalOps)
+void PreshaderComputeDebugStats(const FUniformExpressionSet& UniformExpressionSet, const FMaterialRenderContext& Context, FPreshaderDataContext& RESTRICT Data, uint32& TotalParameters, uint32& TotalOps)
 {
 	FPreshaderDebugStack Stack;
 	Stack.bGenerateString = false;
-	EvaluatePreshaderDebug(UniformExpressionSet, Context, Stack, Data);
+	EvaluatePreshaderDebug(&UniformExpressionSet, Context, Stack, Data);
 
 	TotalParameters += Stack.ParameterCount;
 	TotalOps += Stack.OpCount;
