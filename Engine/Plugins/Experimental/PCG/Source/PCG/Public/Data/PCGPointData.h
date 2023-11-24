@@ -122,6 +122,9 @@ public:
 
 	bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata, bool bUseBounds) const;
 
+	/** Get the dirty status of the Octree. Note that the Octree can be rebuilt from another thread, so this info can be invalidated at anytime. */
+	bool IsOctreeDirty() const { return bOctreeIsDirty; }
+
 protected:
 	void RebuildOctree() const;
 	void RecomputeBounds() const;

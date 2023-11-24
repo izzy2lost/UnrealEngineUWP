@@ -121,7 +121,7 @@ namespace PCGSelfPruningElement
 
 		while (IterationState.CurrentPointIndex < IterationState.SortedPoints.Num())
 		{
-			// Don't check too many times.
+			// Don't check too many times. Pre-increment will make sure we always at least process "TimeSliceFrequencyCheck" elements at each iteration.
 			if (++CheckTimeSlicingCount >= TimeSliceFrequencyCheck)
 			{
 				if (ShouldStop(InOptionalContext))
@@ -164,7 +164,7 @@ namespace PCGSelfPruningElement
 
 		while (IterationState.CurrentPointIndex < IterationState.SortedPoints.Num())
 		{
-			// Don't check too many times.
+			// Don't check too many times. Pre-increment will make sure we always at least process "TimeSliceFrequencyCheck" elements at each iteration.
 			if (++CheckTimeSlicingCount >= TimeSliceFrequencyCheck)
 			{
 				if (ShouldStop(InOptionalContext))
@@ -261,9 +261,10 @@ namespace PCGSelfPruningElement
 		const FVector::FReal SquaredRadiusEquality = FMath::Square(RadiusEquality);
 		const TArray<FPCGPoint>& Points = InState.InputPointData->GetPoints();
 
-		// Force octree computation, and check if we need to stop after that
+		// Force octree computation, and check if we need to stop after that if it was dirty in the first place.
+		const bool bOctreeWasDirty = InState.InputPointData->IsOctreeDirty();
 		const UPCGPointData::PointOctree& Octree = InState.InputPointData->GetOctree();
-		if (ShouldStop(InOptionalContext))
+		if (bOctreeWasDirty && ShouldStop(InOptionalContext))
 		{
 			return false;
 		}
