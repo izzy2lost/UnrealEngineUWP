@@ -35,7 +35,7 @@ public class Nftables
 	/// <summary>
 	/// Prefix the invocation of 'nft' executable with 'sudo'
 	/// </summary>
-	public bool RunAsSudo { get; set; } = true;
+	public bool RunWithSudo { get; set; } = true;
 	
 	private readonly ILogger<Nftables> _logger;
 	private int? _configurableExitCode; 
@@ -94,7 +94,7 @@ public class Nftables
 	{
 		string executable = NftablesExecutable;
 		List<string> argumentsCopy = new (arguments);
-		if (RunAsSudo)
+		if (RunWithSudo)
 		{
 			executable = "sudo";
 			argumentsCopy.Insert(0, NftablesExecutable);
@@ -153,14 +153,22 @@ public class Nftables
 				PortProtocol.Udp => "udp",
 				_ => "tcp"
 			};
-			return $"{protocol} dport {port.RelayPort} dnat to {mapping.AgentIp.ToString()}:{port.AgentPort} comment \"leaseId={mapping.LeaseId}\"";
+
+			string sourceIps = "";
+			if (mapping.AllowedSourceIps.Count > 0)
+			{
+				sourceIps = "ip saddr { " + String.Join(", ", mapping.AllowedSourceIps) + " } ";
+			}
+			
+			return $"{sourceIps}{protocol} dport {port.RelayPort} dnat to {mapping.AgentIp.ToString()}:{port.AgentPort} comment \"leaseId={mapping.LeaseId}\"";
 		}).ToList();
 	}
 
 	internal static string GenerateNftFile(List<PortMapping> leaseMappings)
 	{
 		StringBuilder sb = new();
-		sb.Append("flush ruleset\n");
+		sb.Append("table ip horde\n");
+		sb.Append("delete table ip horde\n");
 		sb.Append("table ip horde {\n");
 		sb.Append("  chain prerouting {\n");
 		sb.Append("    type nat hook prerouting priority -100; policy accept;\n");
