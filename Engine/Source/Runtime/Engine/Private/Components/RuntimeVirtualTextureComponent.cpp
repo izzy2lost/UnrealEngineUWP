@@ -8,6 +8,8 @@
 #include "Engine/World.h"
 #include "Logging/MessageLog.h"
 #include "GameFramework/Actor.h"
+#include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/MapErrors.h"
 #include "SceneInterface.h"
@@ -16,6 +18,7 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "VT/VirtualTextureBuilder.h"
 #include "RenderUtils.h"
+#include "RHIGlobals.h"
 #include "SceneUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RuntimeVirtualTextureComponent)
@@ -30,6 +33,7 @@ static TAutoConsoleVariable<int32> CVarRVTEnableVolumes(
 
 URuntimeVirtualTextureComponent::URuntimeVirtualTextureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, EnableInGamePerPlatform(true)
 	, SceneProxy(nullptr)
 {
 	Mobility = EComponentMobility::Stationary;
@@ -94,10 +98,10 @@ void URuntimeVirtualTextureComponent::GetHidePrimitiveSettings(bool& OutHidePrim
 	HidePrimitivesDelegate.Broadcast(OutHidePrimitiveEditor, OutHidePrimitiveGame);
 }
 
-bool URuntimeVirtualTextureComponent::IsVisible() const
+bool URuntimeVirtualTextureComponent::ShouldCreateRenderState() const
 {
 	// Make sure to have the component do nothing if VT is disabled or if the world is not compatible with RVT
-	return Super::IsVisible() && IsActiveInWorld() && CVarRVTEnableVolumes.GetValueOnGameThread() != 0 && UseVirtualTexturing(GetScene()->GetShaderPlatform());
+	return Super::ShouldCreateRenderState() && IsActiveInWorld() && CVarRVTEnableVolumes.GetValueOnGameThread() != 0 && UseVirtualTexturing(GetScene()->GetShaderPlatform());
 }
 
 void URuntimeVirtualTextureComponent::ApplyWorldOffset(const FVector& InOffset, bool bWorldShift)
@@ -109,8 +113,7 @@ void URuntimeVirtualTextureComponent::ApplyWorldOffset(const FVector& InOffset, 
 
 void URuntimeVirtualTextureComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
 {
-	// Make sure not to create a render state if the world is not compatible with RVT :
-	if (IsActiveInWorld() && ShouldRender() && VirtualTexture != nullptr)
+	if (VirtualTexture != nullptr)
 	{
 		// This will modify the URuntimeVirtualTexture and allocate its VT
 		GetScene()->AddRuntimeVirtualTexture(this);
@@ -121,11 +124,8 @@ void URuntimeVirtualTextureComponent::CreateRenderState_Concurrent(FRegisterComp
 
 void URuntimeVirtualTextureComponent::SendRenderTransform_Concurrent()
 {
-	// We don't have a render state if the world is not compatible with RVT :
-	if (IsActiveInWorld() && ShouldRender() && VirtualTexture != nullptr)
+	if (IsRenderStateCreated())
 	{
-		checkf(IsActiveInWorld(), TEXT("ShouldRender should never return true for a world where we're inactive"));
-
 		// We do a full recreate of the URuntimeVirtualTexture here which can cause a visual glitch.
 		// We do this because, for an arbitrary transform, there is no way to only modify the transform and maintain the VT contents.
 		// Possibly, with some work, the contents could be maintained for any transform change that is an exact multiple of the page size in world space.
@@ -137,18 +137,44 @@ void URuntimeVirtualTextureComponent::SendRenderTransform_Concurrent()
 
 void URuntimeVirtualTextureComponent::DestroyRenderState_Concurrent()
 {
-	if (IsActiveInWorld())
-	{
-		// This will modify the URuntimeVirtualTexture and free its VT
-		GetScene()->RemoveRuntimeVirtualTexture(this);
-	}
+	// This will modify the URuntimeVirtualTexture and free its VT
+	GetScene()->RemoveRuntimeVirtualTexture(this);
 
 	Super::DestroyRenderState_Concurrent();
 }
 
+bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE)
+		{
+#if WITH_EDITOR
+			if (!EnableInGamePerPlatform.GetValueForPlatform(*GetTargetPlatformManagerRef().GetRunningTargetPlatform()->IniPlatformName()))
+			{
+				return false;
+			}
+#else
+			if (!EnableInGamePerPlatform.GetValue())
+			{
+				return false;
+			}
+#endif
+		}
+
+		const bool bUseNanite = UseNanite(GetFeatureLevelShaderPlatform(World->GetFeatureLevel()));
+		if (bEnableForNaniteOnly && !bUseNanite)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void URuntimeVirtualTextureComponent::Invalidate(FBoxSphereBounds const& InWorldBounds)
 {
-	if (IsActiveInWorld() && (GetScene() != nullptr))
+	if (GetScene() != nullptr)
 	{
 		GetScene()->InvalidateRuntimeVirtualTexture(this, InWorldBounds);
 	}
@@ -296,6 +322,7 @@ static void GetLayerFormatSettings(FTextureFormatSettings& OutFormatSettings, EP
 	OutFormatSettings.CompressionYCoCg = IsLayerYCoCg;
 	OutFormatSettings.SRGB = IsLayerSRGB;
 }
+
 void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath ShadingPath, uint32 InSizeX, uint32 InSizeY, uint8* InData)
 {
 	// We need an existing StreamingTexture object to update.

@@ -46,88 +46,97 @@ FRuntimeVirtualTextureSceneProxy::FRuntimeVirtualTextureSceneProxy(URuntimeVirtu
 
 	if (InComponent->GetVirtualTexture() != nullptr)
 	{
-		// We store a ProducerId here so that we will be able to find our SceneIndex from the Producer during rendering.
-		// We will need the SceneIndex to determine which primitives should render to this Producer.
-		ProducerId = ProducerIdGenerator++;
-
-		URuntimeVirtualTexture::FInitSettings InitSettings;
-		InitSettings.TileCountBias = InComponent->IsScalable() ? VirtualTextureScalability::GetRuntimeVirtualTextureSizeBias(InComponent->GetScalabilityGroup()) : 0;
-
-		VirtualTexture = InComponent->GetVirtualTexture();
-		Transform = InComponent->GetComponentTransform();
-		const FBox Bounds = InComponent->Bounds.GetBox();
-
-		// The producer description is calculated using the transform to determine the aspect ratio
-		FVTProducerDescription ProducerDesc;
-		VirtualTexture->GetProducerDescription(ProducerDesc, InitSettings, Transform);
-		VirtualTextureSize = FIntPoint(ProducerDesc.BlockWidthInTiles * ProducerDesc.TileSize, ProducerDesc.BlockHeightInTiles * ProducerDesc.TileSize);
-		// We only need to dirty flush up to the producer description MaxLevel which accounts for the RemoveLowMips
-		MaxDirtyLevel = ProducerDesc.MaxLevel;
-
-		const ERuntimeVirtualTextureMaterialType MaterialType = VirtualTexture->GetMaterialType();
-		const bool bClearTextures = VirtualTexture->GetClearTextures();
-		FSceneInterface* SceneInterface = InComponent->GetScene();
-		const EShadingPath ShadingPath = SceneInterface ? SceneInterface->GetShadingPath() : EShadingPath::Deferred;
-
-		// The producer object created here will be passed into the virtual texture system which will take ownership.
-		IVirtualTexture* Producer = new FRuntimeVirtualTextureProducer(ProducerDesc, ProducerId, MaterialType, bClearTextures, SceneInterface, Transform, Bounds);
-		
-		// Create a producer for the streaming low mips. 
-		// This is bound with the main producer so that one allocated VT can use both runtime or streaming producers dependent on mip level.
-		if (InComponent->IsStreamingLowMips(ShadingPath))
+		if (InComponent->IsEnabledInScene())
 		{
-			if (CVarVTStreamingMips.GetValueOnAnyThread() == 0)
+			// We store a ProducerId here so that we will be able to find our SceneIndex from the Producer during rendering.
+			// We will need the SceneIndex to determine which primitives should render to this Producer.
+			ProducerId = ProducerIdGenerator++;
+
+			URuntimeVirtualTexture::FInitSettings InitSettings;
+			InitSettings.TileCountBias = InComponent->IsScalable() ? VirtualTextureScalability::GetRuntimeVirtualTextureSizeBias(InComponent->GetScalabilityGroup()) : 0;
+
+			VirtualTexture = InComponent->GetVirtualTexture();
+			Transform = InComponent->GetComponentTransform();
+			const FBox Bounds = InComponent->Bounds.GetBox();
+
+			// The producer description is calculated using the transform to determine the aspect ratio
+			FVTProducerDescription ProducerDesc;
+			VirtualTexture->GetProducerDescription(ProducerDesc, InitSettings, Transform);
+			VirtualTextureSize = FIntPoint(ProducerDesc.BlockWidthInTiles * ProducerDesc.TileSize, ProducerDesc.BlockHeightInTiles * ProducerDesc.TileSize);
+			// We only need to dirty flush up to the producer description MaxLevel which accounts for the RemoveLowMips
+			MaxDirtyLevel = ProducerDesc.MaxLevel;
+
+			const ERuntimeVirtualTextureMaterialType MaterialType = VirtualTexture->GetMaterialType();
+			const bool bClearTextures = VirtualTexture->GetClearTextures();
+			FSceneInterface* SceneInterface = InComponent->GetScene();
+			const EShadingPath ShadingPath = SceneInterface ? SceneInterface->GetShadingPath() : EShadingPath::Deferred;
+
+			// The producer object created here will be passed into the virtual texture system which will take ownership.
+			IVirtualTexture* Producer = new FRuntimeVirtualTextureProducer(ProducerDesc, ProducerId, MaterialType, bClearTextures, SceneInterface, Transform, Bounds);
+		
+			// Create a producer for the streaming low mips. 
+			// This is bound with the main producer so that one allocated VT can use both runtime or streaming producers dependent on mip level.
+			if (InComponent->IsStreamingLowMips(ShadingPath))
 			{
-#if !UE_BUILD_SHIPPING
-				// Notify that streaming texture is turned off.
-				OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([](FCoreDelegates::FSeverityMessageMap& OutMessages)
+				if (CVarVTStreamingMips.GetValueOnAnyThread() == 0)
 				{
-					OutMessages.Add(
-						FCoreDelegates::EOnScreenMessageSeverity::Warning,
-						LOCTEXT("SVTDisabled", "Runtime Virtual Texture streaming mips disabled."));
-				});
-#endif
-			}
-			else if (InComponent->IsStreamingTextureInvalid(ShadingPath))
-			{
 #if !UE_BUILD_SHIPPING
-				// Notify that streaming texture is invalid since this can cause performance regression.
-				const FString Name = InComponent->GetPathName();
-				OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([Name](FCoreDelegates::FSeverityMessageMap& OutMessages)
-				{
-					OutMessages.Add(
-						FCoreDelegates::EOnScreenMessageSeverity::Warning,
-						FText::Format(LOCTEXT("SVTInvalid", "Runtime Virtual Texture '{0}' streaming mips needs to be rebuilt."), FText::FromString(Name)));
-				});
+					// Notify that streaming texture is turned off.
+					OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([](FCoreDelegates::FSeverityMessageMap& OutMessages)
+					{
+						OutMessages.Add(
+							FCoreDelegates::EOnScreenMessageSeverity::Warning,
+							LOCTEXT("SVTDisabled", "Runtime Virtual Texture streaming mips disabled."));
+					});
 #endif
+				}
+				else if (InComponent->IsStreamingTextureInvalid(ShadingPath))
+				{
+#if !UE_BUILD_SHIPPING
+					// Notify that streaming texture is invalid since this can cause performance regression.
+					const FString Name = InComponent->GetPathName();
+					OnScreenWarningDelegateHandle = FRendererOnScreenNotification::Get().AddLambda([Name](FCoreDelegates::FSeverityMessageMap& OutMessages)
+					{
+						OutMessages.Add(
+							FCoreDelegates::EOnScreenMessageSeverity::Warning,
+							FText::Format(LOCTEXT("SVTInvalid", "Runtime Virtual Texture '{0}' streaming mips needs to be rebuilt."), FText::FromString(Name)));
+					});
+#endif
+				}
+				else
+				{
+					UVirtualTexture2D* StreamingTexture = InComponent->GetStreamingTexture()->GetVirtualTexture(ShadingPath);
+
+					FVTProducerDescription StreamingProducerDesc;
+					IVirtualTexture* StreamingProducer = RuntimeVirtualTexture::CreateStreamingTextureProducer(StreamingTexture, ProducerDesc, StreamingProducerDesc);
+
+					ensure(ProducerDesc.MaxLevel >= StreamingProducerDesc.MaxLevel);
+					const int32 TransitionLevel = ProducerDesc.MaxLevel - StreamingProducerDesc.MaxLevel;
+
+					Producer = RuntimeVirtualTexture::BindStreamingTextureProducer(Producer, StreamingProducer, TransitionLevel);
+
+					// Any dirty flushes don't need to flush the streaming mips (they only change with a build step).
+					MaxDirtyLevel = TransitionLevel - 1;
+				}
 			}
-			else
-			{
-				UVirtualTexture2D* StreamingTexture = InComponent->GetStreamingTexture()->GetVirtualTexture(ShadingPath);
 
-				FVTProducerDescription StreamingProducerDesc;
-				IVirtualTexture* StreamingProducer = RuntimeVirtualTexture::CreateStreamingTextureProducer(StreamingTexture, ProducerDesc, StreamingProducerDesc);
+			// The Initialize() call will allocate the virtual texture by spawning work on the render thread.
+			VirtualTexture->Initialize(Producer, ProducerDesc, Transform, Bounds);
 
-				ensure(ProducerDesc.MaxLevel >= StreamingProducerDesc.MaxLevel);
-				const int32 TransitionLevel = ProducerDesc.MaxLevel - StreamingProducerDesc.MaxLevel;
-
-				Producer = RuntimeVirtualTexture::BindStreamingTextureProducer(Producer, StreamingProducer, TransitionLevel);
-
-				// Any dirty flushes don't need to flush the streaming mips (they only change with a build step).
-				MaxDirtyLevel = TransitionLevel - 1;
-			}
+			// Store the ProducerHandle and SpaceID immediately after virtual texture is initialized.
+			ENQUEUE_RENDER_COMMAND(GetProducerHandle)(
+				[this, VirtualTexturePtr = VirtualTexture](FRHICommandList& RHICmdList)
+				{
+					ProducerHandle = VirtualTexturePtr->GetProducerHandle();
+					SpaceID = VirtualTexturePtr->GetAllocatedVirtualTexture()->GetSpaceID();
+				});
 		}
-
-		// The Initialize() call will allocate the virtual texture by spawning work on the render thread.
-		VirtualTexture->Initialize(Producer, ProducerDesc, Transform, Bounds);
-
-		// Store the ProducerHandle and SpaceID immediately after virtual texture is initialized.
-		ENQUEUE_RENDER_COMMAND(GetProducerHandle)(
-			[this, VirtualTexturePtr = VirtualTexture](FRHICommandList& RHICmdList)
-			{
-				ProducerHandle = VirtualTexturePtr->GetProducerHandle();
-				SpaceID = VirtualTexturePtr->GetAllocatedVirtualTexture()->GetSpaceID();
-			});
+		else
+		{
+			// When not enabled, ensure that the RVT asset has no allocated VT.
+			// In PIE this handles removing the RVT from the editor scene.
+			InComponent->GetVirtualTexture()->Release();
+		}
 	}
 }
 

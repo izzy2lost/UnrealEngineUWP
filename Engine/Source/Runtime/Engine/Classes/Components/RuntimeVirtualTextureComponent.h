@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TextureDefines.h"
+#include "PerPlatformProperties.h"
 #include "RenderCommandFence.h"
 #include "SceneComponent.h"
 #include "RuntimeVirtualTextureComponent.generated.h"
@@ -35,6 +36,14 @@ protected:
 	/** The virtual texture object to use. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, TextExportTransient, Category = VirtualTexture)
 	TObjectPtr<URuntimeVirtualTexture> VirtualTexture = nullptr;
+
+	/** Per platform overrides for enabling the virtual texture. Only affects In-Game and PIE. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = VirtualTexture)
+	FPerPlatformBool EnableInGamePerPlatform;
+
+	/** Enable the virtual texture only when Nanite is enabled. Can be used for a Displacement virtual texture with Nanite tessellation. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = VirtualTexture)
+	bool bEnableForNaniteOnly = false;
 
 	/** Set to true to enable scalability settings for the virtual texture. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = VirtualTexture, meta = (InlineEditConditionToggle))
@@ -102,6 +111,9 @@ public:
 	/** Get the runtime virtual texture object on this component. */
 	URuntimeVirtualTexture* GetVirtualTexture() const { return VirtualTexture; }
 
+	/** Get if the runtime virtual texture should be fully instantiated by it's render proxy. */
+	ENGINE_API bool IsEnabledInScene() const;
+
 	/** Get if scalability settings are enabled. */
 	bool IsScalable() const { return bEnableScalability; }
 
@@ -163,6 +175,7 @@ protected:
 	//~ End UObject Interface
 
 	//~ Begin UActorComponent Interface
+	ENGINE_API virtual bool ShouldCreateRenderState() const override;
 	ENGINE_API virtual void CreateRenderState_Concurrent(FRegisterComponentContext* Context) override;
 	ENGINE_API virtual void SendRenderTransform_Concurrent() override;
 	ENGINE_API virtual void DestroyRenderState_Concurrent() override;
@@ -176,7 +189,6 @@ protected:
 	ENGINE_API virtual void OnRegister() override;
 	ENGINE_API virtual void OnUnregister() override;
 #endif
-	ENGINE_API virtual bool IsVisible() const override;
 	ENGINE_API virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	//~ End USceneComponent Interface
 
