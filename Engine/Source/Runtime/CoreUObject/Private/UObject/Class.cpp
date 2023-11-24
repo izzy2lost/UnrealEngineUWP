@@ -1571,7 +1571,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						}
 					}
 				}
-				else if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+				else if (FPropertyBag* PropertyBag = TryFindPropertyBag(); PropertyBag && LoadContext)
 				{
 					// TODO: Might we find defaults in a property bag for Defaults?
 					FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
