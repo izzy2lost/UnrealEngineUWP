@@ -365,10 +365,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 		NewFrame.RootState = FStateTreeStateHandle::Root;
 		NewFrame.ActiveStates = {};
 		
-		if (Exec.TreeRunStatus == EStateTreeRunStatus::Running)
-		{
-			ExitState(Transition);
-		}
+		ExitState(Transition);
 
 		// Stop evaluators and global tasks.
 		StopEvaluatorsAndGlobalTasks(CompletionStatus);
