@@ -373,7 +373,7 @@ namespace Horde.Server.Server
 					_mongoOutputTask = null;
 				}
 
-				_mongoProcess.WaitForExit();
+				await _mongoProcess.WaitForExitAsync();
 				_mongoProcess.Dispose();
 				_mongoProcess = null;
 			}
