@@ -604,6 +604,11 @@ bool UControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigElemen
 		TMap<FRigElementKey, FRigElementKey> ConnectionMap;
 		for(const FRigModuleConnector& Connector : Connectors)
 		{
+			if (Connector.Settings.bOptional)
+			{
+				continue;
+			}
+			
 			const FRigElementKey ConnectorKey(*Connector.Name, ERigElementType::Connector);
 			if(const FCachedRigElement* Cache = ElementKeyRedirector.Find(ConnectorKey))
 			{

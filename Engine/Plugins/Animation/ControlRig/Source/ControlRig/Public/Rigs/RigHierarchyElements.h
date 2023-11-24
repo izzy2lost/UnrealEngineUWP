@@ -1653,6 +1653,15 @@ public:
 	const URigHierarchy* TargetHierarchy; 
 };
 
+UENUM(BlueprintType)
+enum class EConnectorType : uint8
+{
+	Primary, // Single primary connector, non-optional and always visible. When dropped on another element, this connector will resolve to that element.
+	
+	Secondary, // Could be multiple, can auto-solve (visible if not solved), can be optional
+};
+
+
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigConnectorSettings
 {
@@ -1667,6 +1676,12 @@ struct CONTROLRIG_API FRigConnectorSettings
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FString Description;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	EConnectorType Type;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	bool bOptional;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	TArray<FRigConnectionRuleStash> Rules;

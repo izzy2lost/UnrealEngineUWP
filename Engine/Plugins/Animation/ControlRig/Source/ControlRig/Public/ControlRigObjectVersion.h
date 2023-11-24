@@ -95,6 +95,9 @@ struct CONTROLRIG_API FControlRigObjectVersion
 		// Element metadata is now stored on URigHierarchy, rather than FRigBaseElement
 		RigHierarchyStoresElementMetadata,
 
+		// Add type (primary, secondary) and optional bool to FRigConnectorSettings
+		ConnectorsWithType,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

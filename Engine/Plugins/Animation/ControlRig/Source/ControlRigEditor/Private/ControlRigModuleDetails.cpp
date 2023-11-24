@@ -494,7 +494,7 @@ void FRigModuleInstanceDetails::OnElementNameChanged(TSharedPtr<FString> InItem,
 				}
 
 				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-				Controller->ConnectModuleToElement(NamespacedConnector, *TargetKey);
+				Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
 			}
 		}
 	}
@@ -514,7 +514,7 @@ void FRigModuleInstanceDetails::OnElementTypeChanged(ERigElementType InElementTy
 				TargetKey->Type = InElementType;
 
 				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-				Controller->ConnectModuleToElement(NamespacedConnector, *TargetKey);
+				Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
 			}
 		}
 	}
@@ -537,7 +537,7 @@ FReply FRigModuleInstanceDetails::OnGetSelectedClicked(FRigElementKey Connector)
 		if (Selected.Num() > 0)
 		{
 			FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *PerModuleInfos[0].GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-			Blueprint->GetModularRigController()->ConnectModuleToElement(NamespacedConnector, Selected[0]);
+			Blueprint->GetModularRigController()->ConnectConnectorToElement(NamespacedConnector, Selected[0]);
 		}
 	}
 	return FReply::Handled();

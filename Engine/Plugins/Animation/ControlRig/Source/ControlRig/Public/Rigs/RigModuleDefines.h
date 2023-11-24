@@ -33,14 +33,10 @@ struct CONTROLRIG_API FRigModuleConnector
 	GENERATED_BODY()
 	
 	FRigModuleConnector()
-		: bIsRoot(false)
 	{}
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FString Name;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
-	bool bIsRoot;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FRigConnectorSettings Settings;

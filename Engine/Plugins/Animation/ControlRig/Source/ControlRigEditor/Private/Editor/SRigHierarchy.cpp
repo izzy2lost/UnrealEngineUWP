@@ -48,6 +48,7 @@
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "Algo/MinElement.h"
 #include "Algo/MaxElement.h"
+#include "DragAndDrop/AssetDragDropOp.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
 
@@ -2030,7 +2031,7 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						Settings.MaximumValue = ValueToSet;
 
 						NewItemKey = Controller->AddControl(NewElementName, ParentKey, Settings, Settings.GetIdentityValue(), FTransform::Identity, FTransform::Identity, true, true);
-					}						
+					}
 					break;
 				}
 				case ERigElementType::Null:
@@ -2063,7 +2064,9 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						}
 					}
 
-					NewItemKey = Controller->AddConnector(NewElementName, FRigConnectorSettings(), true);
+					FRigConnectorSettings Settings;
+					Settings.Type = Hierarchy->GetConnectorKeys(false).Num() == 0 ? EConnectorType::Primary : EConnectorType::Secondary;
+					NewItemKey = Controller->AddConnector(NewElementName, Settings, true);
 					(void)ResolveConnector(NewItemKey, ParentKey);
 					break;
 				}
@@ -2635,6 +2638,61 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 		}
 	}
 
+	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
+	if (AssetDragDropOp.IsValid())
+	{
+		for (const FAssetData& AssetData : AssetDragDropOp->GetAssets())
+		{
+			static const UEnum* ControlTypeEnum = StaticEnum<EControlRigType>();
+			const FString ControlRigTypeStr = AssetData.GetTagValueRef<FString>(TEXT("ControlRigType"));
+			if (ControlRigTypeStr.IsEmpty())
+			{
+				return InvalidDropZone;
+			}
+
+			const EControlRigType ControlRigType = (EControlRigType)(ControlTypeEnum->GetValueByName(*ControlRigTypeStr));
+			if (ControlRigType != EControlRigType::RigModule)
+			{
+				return InvalidDropZone;
+			}
+
+			if(UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
+			{
+				if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+				{
+					FRigModuleConnector* PrimaryConnector = nullptr;
+					for (FRigModuleConnector& Connector : AssetBlueprint->RigModuleSettings.ExposedConnectors)
+					{
+						if (Connector.Settings.Type == EConnectorType::Primary)
+						{
+							PrimaryConnector = &Connector;
+							break;
+						}
+					}
+					if (!PrimaryConnector)
+					{
+						return InvalidDropZone;
+					}
+
+					FRigElementKey TargetKey;
+					if (TargetItem.IsValid())
+					{
+						TargetKey = TargetItem->Key;
+					}
+					FText ErrorMessage;
+					if (Controller->CanConnectConnectorToElement(*PrimaryConnector, TargetKey, ErrorMessage))
+					{
+						ReturnDropZone = DropZone;
+					}
+					else
+					{
+						return InvalidDropZone;
+					}
+				}
+			}
+		}
+	}
+
 	return ReturnDropZone;
 }
 
@@ -2717,6 +2775,48 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 				return ResolveConnector(DraggedKey, TargetItem->Key);
 			}
 			return ResolveConnector(DraggedKey, FRigElementKey());
+		}
+	}
+
+	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
+	if (AssetDragDropOp.IsValid())
+	{
+		for (const FAssetData& AssetData : AssetDragDropOp->GetAssets())
+		{
+			UClass* AssetClass = AssetData.GetClass();
+			if (!AssetClass->IsChildOf(UControlRigBlueprint::StaticClass()))
+			{
+				continue;
+			}
+
+			if(UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
+			{
+				if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+				{
+					const FName ModuleName = Controller->GetSafeNewName(AssetBlueprint->RigModuleSettings.Identifier.Name);
+					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
+					if(TargetItem.IsValid() && !ModulePath.IsEmpty())
+					{
+						FRigElementKey PrimaryConnectorKey;
+						TArray<FRigConnectorElement*> Connectors = GetHierarchy()->GetElementsOfType<FRigConnectorElement>();
+						for (FRigConnectorElement* Connector : Connectors)
+						{
+							if (Connector->Settings.Type == EConnectorType::Primary)
+							{
+								FString Path, Name;
+								Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+								if (Path == ModulePath)
+								{
+									PrimaryConnectorKey = Connector->GetKey();
+									break;
+								}
+							}
+						}
+						return ResolveConnector(PrimaryConnectorKey, TargetItem->Key);
+					}
+				}
+				return FReply::Handled();
+			}
 		}
 	}
 

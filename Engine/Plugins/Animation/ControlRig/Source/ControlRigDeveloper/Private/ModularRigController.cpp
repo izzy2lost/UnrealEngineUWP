@@ -21,19 +21,19 @@ UModularRigController::UModularRigController(const FObjectInitializer& ObjectIni
 {
 }
 
-bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo)
+FString UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo)
 {
 	if (!InClass)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Invalid InClass"));
-		return false;
+		return FString();
 	}
 
 	UControlRig* ClassDefaultObject = InClass->GetDefaultObject<UControlRig>();
 	if (!ClassDefaultObject->IsRigModule())
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Class %s is not a rig module"), *InClass->GetClassPathName().ToString());
-		return false;
+		return FString();
 	}
 
 #if WITH_EDITOR
@@ -55,7 +55,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 		{
 			if (Module->Name.ToString() == InModuleName)
 			{
-				return false;
+				return FString();
 			}
 		}
 
@@ -68,7 +68,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 		{
 			if (Module->Name.ToString() == InModuleName)
 			{
-				return false;
+				return FString();
 			}
 		}
 
@@ -81,7 +81,7 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 	if (!NewModule)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Error while creating module %s"), *InModuleName.ToString());
-		return false;
+		return FString();
 	}
 
 	Notify(EModularRigNotification::ModuleAdded, NewModule);
@@ -89,8 +89,8 @@ bool UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<UCo
 #if WITH_EDITOR
 	TransactionPtr.Reset();
 #endif
-	
-	return true;
+
+	return NewModule->GetPath();
 }
 
 FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
@@ -125,7 +125,13 @@ FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 	return *Cur;
 }
 
-bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
+bool UModularRigController::CanConnectConnectorToElement(const FRigModuleConnector& InConnector, const FRigElementKey& InTargetKey, FText& OutErrorMessage)
+{
+	// TODO: Check rules are satisfied
+	return true;
+}
+
+bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
 {
 	FString ConnectorParentPath, ConnectorName;
 	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorParentPath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
@@ -138,6 +144,32 @@ bool UModularRigController::ConnectModuleToElement(const FRigElementKey& InConne
 	if (!Module)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ConnectorParentPath);
+		return false;
+	}
+
+	UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>();
+	if (!RigCDO)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Invalid rig module class %s"), *Module->Class->GetPathName());
+		return false;
+	}
+
+	const FRigModuleConnector* ModuleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
+		[ConnectorName](FRigModuleConnector& Connector)
+		{
+			return Connector.Name == ConnectorName;
+		});
+	if (!ModuleConnector)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s in class %s"), *ConnectorName, *Module->Class->GetPathName());
+		return false;
+	}
+
+	FText ErrorMessage;
+	if (!CanConnectConnectorToElement(*ModuleConnector, InTargetKey, ErrorMessage))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Cannot connect connector %s to target %s: %s"),
+			*InConnectorKey.Name.ToString(), *InTargetKey.ToString(), *ErrorMessage.ToString());
 		return false;
 	}
 

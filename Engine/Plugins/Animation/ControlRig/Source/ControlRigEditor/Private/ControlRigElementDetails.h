@@ -290,6 +290,7 @@ public:
 	bool IsAnyControlOfValueType(ERigControlType InType) const;
 	bool IsAnyControlNotOfValueType(ERigControlType InType) const;
 	bool IsAnyElementProcedural() const;
+	bool IsAnyConnectorImported() const;
 	bool GetCommonElementType(ERigElementType& OutElementType) const;
 	bool GetCommonControlType(ERigControlType& OutControlType) const;
 	bool GetCommonAnimationType(ERigControlAnimationType& OutAnimationType) const;

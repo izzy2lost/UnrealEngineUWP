@@ -4218,6 +4218,14 @@ void URigHierarchy::SetConnectorSettings(FRigConnectorElement* InConnectorElemen
 		return;
 	}
 
+	if (InSettings.Type == EConnectorType::Primary)
+	{
+		if (InSettings.bOptional)
+		{
+			return;
+		}
+	}
+
 	if(bSetupUndo && !HasAnyFlags(RF_Transient))
 	{
 		Modify();

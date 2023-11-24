@@ -948,11 +948,11 @@ void UControlRigBlueprint::UpdateExposedModuleConnectors() const
 	{
 		FRigModuleConnector ExposedConnector;
 		ExposedConnector.Name = ConnectorElement->GetName();
-		ExposedConnector.bIsRoot = MutableThis->Hierarchy->GetNumberOfParents(ConnectorElement) == 0;
 		ExposedConnector.Settings = ConnectorElement->Settings;
 		MutableThis->RigModuleSettings.ExposedConnectors.Add(ExposedConnector);
 		return true;
 	});
+	PropagateHierarchyFromBPToInstances();
 }
 
 bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, const FRigElementKey& TargetKey, bool bSetupUndoRedo)
@@ -975,7 +975,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 		// Add connection to the model
 		if (UModularRigController* Controller = GetModularRigController())
 		{
-			Controller->ConnectModuleToElement(DraggedKey, TargetKey, bSetupUndoRedo);
+			Controller->ConnectConnectorToElement(DraggedKey, TargetKey, bSetupUndoRedo);
 		}
 	}
 	else

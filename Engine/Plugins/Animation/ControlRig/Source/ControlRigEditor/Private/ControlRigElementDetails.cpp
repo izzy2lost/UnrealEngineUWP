@@ -1122,6 +1122,14 @@ bool FRigBaseElementDetails::IsAnyElementProcedural() const
 	});
 }
 
+bool FRigBaseElementDetails::IsAnyConnectorImported() const
+{
+	return ContainsElementByPredicate([](const FPerElementInfo& Info)
+	{
+		return Info.Element.GetKey().Name.ToString().Contains(UModularRig::NamespaceSeparator);
+	});
+}
+
 bool FRigBaseElementDetails::GetCommonElementType(ERigElementType& OutElementType) const
 {
 	OutElementType = ERigElementType::None;
@@ -5210,6 +5218,10 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 
 	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 
+	SettingsCategory
+		.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, bOptional)))
+		.IsEnabled(!IsAnyConnectorImported());
+
 	bool bHideRules = false;
 	uint32 FirstHash = UINT32_MAX;
 	for (const FPerElementInfo& Info : PerElementInfos)
@@ -5240,7 +5252,7 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 	{
 		SettingsCategory
 			.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, Rules)))
-			.IsEnabled(!IsAnyElementProcedural());
+			.IsEnabled(!IsAnyConnectorImported());
 	}
 }
 

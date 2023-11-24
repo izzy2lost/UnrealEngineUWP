@@ -3477,12 +3477,21 @@ void FControlRigEditor::OnHierarchyModified_AnyThread(ERigHierarchyNotification 
 							}
 						}
 					}
-				}						
+				}
 				break;
 			}
 			case ERigHierarchyNotification::ElementAdded:
 			case ERigHierarchyNotification::ElementRemoved:
 			case ERigHierarchyNotification::ElementRenamed:
+			{
+				if (Key.IsValid() && Key.Type == ERigElementType::Connector)
+				{
+					UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint();
+					check(RigBlueprint);
+					RigBlueprint->UpdateExposedModuleConnectors();
+				}
+				// Fallthrough to next case
+			}
 			case ERigHierarchyNotification::ParentChanged:
             case ERigHierarchyNotification::HierarchyReset:
 			{
@@ -3528,6 +3537,14 @@ void FControlRigEditor::OnHierarchyModified_AnyThread(ERigHierarchyNotification 
 						RigBlueprint->MarkPackageDirty();
 					}
 				}
+				break;
+			}
+			case ERigHierarchyNotification::ConnectorSettingChanged:
+			{
+				UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint();
+				check(RigBlueprint);
+				RigBlueprint->UpdateExposedModuleConnectors();
+				RigBlueprint->RecompileModularRig();
 				break;
 			}
 			default:

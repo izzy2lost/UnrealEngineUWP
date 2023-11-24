@@ -1427,6 +1427,8 @@ FRigConnectionInfo::FRigConnectionInfo(const FRigElementKeyRedirector* InRedirec
 ////////////////////////////////////////////////////////////////////////////////
 
 FRigConnectorSettings::FRigConnectorSettings()
+	: Type(EConnectorType::Primary)
+	, bOptional(false)
 {
 }
 
@@ -1435,6 +1437,12 @@ void FRigConnectorSettings::Save(FArchive& Ar)
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
 
 	Ar << Description;
+
+	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::ConnectorsWithType)
+	{
+		Ar << Type;
+		Ar << bOptional;
+	}
 
 	int32 NumRules = Rules.Num();
 	Ar << NumRules;
@@ -1451,12 +1459,17 @@ void FRigConnectorSettings::Load(FArchive& Ar)
 
 	Ar << Description;
 
+	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::ConnectorsWithType)
+	{
+		Ar << Type;
+		Ar << bOptional;
+	}
+
 	int32 NumRules = 0;
 	Ar << NumRules;
 	Rules.SetNumZeroed(NumRules);
 	for(int32 Index = 0; Index < NumRules; Index++)
 	{
-
 		Rules[Index].Load(Ar);
 	}
 }
@@ -1464,6 +1477,14 @@ void FRigConnectorSettings::Load(FArchive& Ar)
 bool FRigConnectorSettings::operator==(const FRigConnectorSettings& InOther) const
 {
 	if(!Description.Equals(InOther.Description, ESearchCase::CaseSensitive))
+	{
+		return false;
+	}
+	if(Type != InOther.Type)
+	{
+		return false;
+	}
+	if(bOptional != InOther.bOptional)
 	{
 		return false;
 	}
@@ -1493,7 +1514,9 @@ uint32 FRigConnectorSettings::GetRulesHash() const
 
 uint32 GetTypeHash(const FRigConnectorSettings& Settings)
 {
-	return Settings.GetRulesHash();
+	uint32 Hash = HashCombine(GetTypeHash(Settings.Type), Settings.GetRulesHash());
+	Hash = HashCombine(Hash, GetTypeHash(Settings.bOptional));
+	return Hash;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
