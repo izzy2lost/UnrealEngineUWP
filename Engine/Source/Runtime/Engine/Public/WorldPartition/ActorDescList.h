@@ -20,6 +20,7 @@ class FActorDescList
 	};
 
 	using FGuidActorDescMap = TMap<FGuid, TUniquePtr<FWorldPartitionActorDesc>*, FDefaultSetAllocator, FActorGuidKeyFuncs>;
+	using FActorDescArray = TChunkedArray<TUniquePtr<FWorldPartitionActorDesc>>;
 
 public:
 	FActorDescList() {}
@@ -69,14 +70,22 @@ public:
 		}
 
 		/**
-		 * Iterates to next suitable actor desc.
+		 * Iterates to next suitable actor desc
 		 */
-		void operator++()
+		FORCEINLINE void operator++()
 		{
 			do
 			{
 				++ActorsIterator;
 			} while (ShouldSkip());
+		}
+
+		/**
+		 * Removes the current iterator element
+		 */
+		FORCEINLINE void RemoveCurrent()
+		{
+			ActorsIterator.RemoveCurrent();
 		}
 
 		/**
@@ -111,7 +120,7 @@ public:
 		}
 
 		/**
-		 * Returns the actor class on which the iterator iterates on.
+		 * Returns the actor class on which the iterator iterates on
 		 *
 		 * @return the actor class
 		 */
@@ -119,7 +128,7 @@ public:
 
 	protected:
 		/**
-		 * Determines whether the iterator currently points to a valid actor desc or not.
+		 * Determines whether the iterator currently points to a valid actor desc or not
 		 * @return true if we should skip the actor desc
 		 */
 		FORCEINLINE bool ShouldSkip() const
@@ -162,11 +171,9 @@ public:
 	ENGINE_API void RemoveActorDescriptor(FWorldPartitionActorDesc* ActorDesc);
 
 protected:
-
 	ENGINE_API TUniquePtr<FWorldPartitionActorDesc>* GetActorDescriptor(const FGuid& ActorGuid);
 
-	TChunkedArray<TUniquePtr<FWorldPartitionActorDesc>> ActorDescList;
-
+	FActorDescArray ActorDescList;
 	FGuidActorDescMap ActorsByGuid;
 #endif
 };

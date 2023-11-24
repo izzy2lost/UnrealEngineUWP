@@ -11,6 +11,7 @@
 #include "SWorldPartitionViewportWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "SViewportToolBar.h"
+#include "WorldPartition/ActorDescList.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 
 class SWorldPartitionEditorGrid2D : public SWorldPartitionEditorGrid
@@ -229,5 +230,11 @@ protected:
 	TSharedPtr<STextBlock> TextRulerWidget;
 
 	// List of actors without an actor descriptor
-	TSet<TWeakObjectPtr<AActor>> NewlyAddedUnsavedActors;
+	class FNewlyAddedUnsavedActorDescsDescRegistry : public FActorDescList
+	{
+	public:
+		void OnActorAdded(AActor* Actor);
+	};
+
+	FNewlyAddedUnsavedActorDescsDescRegistry NewlyAddedUnsavedActorDescs;
 };

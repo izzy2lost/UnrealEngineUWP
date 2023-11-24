@@ -34,6 +34,7 @@
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescView.h"
+#include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "WorldPartition/WorldPartitionEditorHash.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
@@ -235,6 +236,21 @@ public:
 	AActor* GetActor() const
 	{
 		return bUseActor ? ActorDesc->GetActor(false) : nullptr;
+	}
+
+	FName GetActorLabel() const
+	{
+		FName ActorLabel = ActorDesc->GetActorLabel();
+		
+		if (ActorLabel.IsNone() && bUseActor)
+		{
+			if (AActor* Actor = GetActor())
+			{
+				ActorLabel = *Actor->GetActorLabel(false);
+			}
+		}
+
+		return ActorLabel;
 	}
 
 	bool bUseActor;
@@ -973,9 +989,9 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 
 void SWorldPartitionEditorGrid2D::OnActorAdded(AActor* Actor)
 {
-	if (Actor->IsPackageExternal())
+	if (!Actor->GetWorld()->IsGameWorld() && Actor->IsPackageExternal() && !Actor->IsChildActor())
 	{
-		NewlyAddedUnsavedActors.Add(Actor);
+		NewlyAddedUnsavedActorDescs.OnActorAdded(Actor);
 	}
 }
 
@@ -1286,15 +1302,13 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 
 	// Also include transient actor loader adapters that might have been spawned by blutilities, etc. Since these actors can't be saved because they are transient,
 	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
-	for (auto It = NewlyAddedUnsavedActors.CreateIterator(); It; ++It)
+	for (FActorDescList::TIterator<> ActorDescIterator(&NewlyAddedUnsavedActorDescs); ActorDescIterator; ++ActorDescIterator)
 	{
-		if (It->IsValid())
+		if (AActor* NewlyAddedUnsavedActor = ActorDescIterator->GetActor())
 		{
-			AActor* NewlyAddedUnsavedActor = It->Get();
-
 			if (!NewlyAddedUnsavedActor->GetPackage()->IsDirty())
 			{
-				It.RemoveCurrent();
+				ActorDescIterator.RemoveCurrent();
 			}
 			else
 			{
@@ -1305,11 +1319,13 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 						ShownLoaderInterfaces.Add(NewlyAddedUnsavedActor);
 					}
 				}
+
+				ShownActorGuids.Add(NewlyAddedUnsavedActor->GetActorGuid());
 			}
 		}
-		else if (!It->IsValid(true))
+		else if (!ActorDescIterator->GetActor(true))
 		{
-			It.RemoveCurrent();
+			ActorDescIterator.RemoveCurrent();
 		}
 	}
 
@@ -1413,6 +1429,10 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 		if (const FWorldPartitionActorDesc* ActorDesc = ThisWorldPartition->GetActorDesc(ActorGuid))
 		{
 			ActorDescList.Emplace(ActorDesc, DirtyActorGuids.Contains(ActorGuid));
+		}
+		else if (const FWorldPartitionActorDesc* NewlyAddedUnsavedActorDesc = NewlyAddedUnsavedActorDescs.GetActorDesc(ActorGuid))
+		{
+			ActorDescList.Emplace(NewlyAddedUnsavedActorDesc, true);
 		}
 	}
 
@@ -2314,6 +2334,18 @@ void SWorldPartitionEditorGrid2D::ClearSelection()
 	SelectedLoaderInterfaces.Empty();
 	SelectBox.Init();
 	SelectBoxGridSnapped.Init();
+}
+
+void SWorldPartitionEditorGrid2D::FNewlyAddedUnsavedActorDescsDescRegistry::OnActorAdded(AActor* Actor)
+{
+	if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(Actor->GetActorGuid()))
+	{
+		FWorldPartitionActorDescUtils::UpdateActorDescriptorFromActor(Actor, *ExistingActorDesc);
+	}
+	else
+	{
+		AddActor(Actor);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
