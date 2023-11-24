@@ -492,18 +492,18 @@ public:
 	}
 }; // class FTemporalSuperResolutionShader
 
-class FTSRComputeMoireLumaCS : public FTSRShader
+class FTSRMeasureFlickeringLumaCS : public FTSRShader
 {
-	DECLARE_GLOBAL_SHADER(FTSRComputeMoireLumaCS);
-	SHADER_USE_PARAMETER_STRUCT(FTSRComputeMoireLumaCS, FTSRShader);
+	DECLARE_GLOBAL_SHADER(FTSRMeasureFlickeringLumaCS);
+	SHADER_USE_PARAMETER_STRUCT(FTSRMeasureFlickeringLumaCS, FTSRShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, InputInfo)
 		SHADER_PARAMETER(float, PerceptionAdd)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneColorTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, MoireLumaOutput)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, FlickeringLumaOutput)
 	END_SHADER_PARAMETER_STRUCT()
-}; // class FTSRComputeMoireLumaCS
+}; // class FTSRMeasureFlickeringLumaCS
 
 class FTSRClearPrevTexturesCS : public FTSRShader
 {
@@ -1033,7 +1033,7 @@ class FTSRVisualizeCS : public FTSRShader
 	END_SHADER_PARAMETER_STRUCT()
 }; // class FTSRVisualizeCS
 
-IMPLEMENT_GLOBAL_SHADER(FTSRComputeMoireLumaCS,      "/Engine/Private/TemporalSuperResolution/TSRComputeMoireLuma.usf",      "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FTSRMeasureFlickeringLumaCS, "/Engine/Private/TemporalSuperResolution/TSRMeasureFlickeringLuma.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRClearPrevTexturesCS,     "/Engine/Private/TemporalSuperResolution/TSRClearPrevTextures.usf",     "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRForwardScatterDepthCS,   "/Engine/Private/TemporalSuperResolution/TSRForwardScatterDepth.usf",   "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRDilateVelocityCS,        "/Engine/Private/TemporalSuperResolution/TSRDilateVelocity.usf",        "MainCS", SF_Compute);
@@ -1211,12 +1211,12 @@ bool IsVisualizeTSREnabled(const FViewInfo& View)
 }
 #endif
 
-FScreenPassTexture AddTSRComputeMoireLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor)
+FScreenPassTexture AddTSRMeasureFlickeringLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor)
 {
 	check(SceneColor.Texture)
 	RDG_GPU_STAT_SCOPE(GraphBuilder, TemporalSuperResolution);
 
-	FScreenPassTexture MoireLuma;
+	FScreenPassTexture FlickeringLuma;
 	{
 		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 			SceneColor.Texture->Desc.Extent,
@@ -1224,26 +1224,26 @@ FScreenPassTexture AddTSRComputeMoireLuma(FRDGBuilder& GraphBuilder, FGlobalShad
 			FClearValueBinding::None,
 			/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV);
 
-		MoireLuma.Texture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Moire.Luma"));
-		MoireLuma.ViewRect = SceneColor.ViewRect;
+		FlickeringLuma.Texture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Flickering.Luminance"));
+		FlickeringLuma.ViewRect = SceneColor.ViewRect;
 	}
 
-	FTSRComputeMoireLumaCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRComputeMoireLumaCS::FParameters>();
+	FTSRMeasureFlickeringLumaCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRMeasureFlickeringLumaCS::FParameters>();
 	PassParameters->InputInfo = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(
 		SceneColor.Texture->Desc.Extent, SceneColor.ViewRect));
 	PassParameters->PerceptionAdd = FMath::Pow(0.5f, CVarTSRShadingExposureOffset.GetValueOnRenderThread());
 	PassParameters->SceneColorTexture = SceneColor.Texture;
-	PassParameters->MoireLumaOutput = GraphBuilder.CreateUAV(MoireLuma.Texture);
+	PassParameters->FlickeringLumaOutput = GraphBuilder.CreateUAV(FlickeringLuma.Texture);
 
-	TShaderMapRef<FTSRComputeMoireLumaCS> ComputeShader(ShaderMap);
+	TShaderMapRef<FTSRMeasureFlickeringLumaCS> ComputeShader(ShaderMap);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("TSR ComputeMoireLuma %dx%d", SceneColor.ViewRect.Width(), SceneColor.ViewRect.Height()),
+		RDG_EVENT_NAME("TSR MeasureFlickeringLuma %dx%d", SceneColor.ViewRect.Width(), SceneColor.ViewRect.Height()),
 		ComputeShader,
 		PassParameters,
-		FComputeShaderUtils::GetGroupCount(MoireLuma.ViewRect.Size(), 8 * 2));
+		FComputeShaderUtils::GetGroupCount(FlickeringLuma.ViewRect.Size(), 8 * 2));
 
-	return MoireLuma;
+	return FlickeringLuma;
 }
 
 FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
@@ -2146,10 +2146,10 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->PerceptionAdd = FMath::Pow(0.5f, CVarTSRShadingExposureOffset.GetValueOnRenderThread());
 
 		PassParameters->InputTexture = PassInputs.SceneColor.Texture;
-		if (PassInputs.MoireInputTexture.IsValid())
+		if (PassInputs.FlickeringInputTexture.IsValid())
 		{
-			ensure(InputRect == PassInputs.MoireInputTexture.ViewRect);
-			PassParameters->InputMoireLumaTexture = PassInputs.MoireInputTexture.Texture;
+			ensure(InputRect == PassInputs.FlickeringInputTexture.ViewRect);
+			PassParameters->InputMoireLumaTexture = PassInputs.FlickeringInputTexture.Texture;
 		}
 		else
 		{

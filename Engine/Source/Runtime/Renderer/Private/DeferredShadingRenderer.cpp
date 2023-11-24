@@ -4085,7 +4085,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			ReconstructVolumetricRenderTarget(GraphBuilder, Views, SceneTextures.Depth.Resolve, HalfResolutionDepthCheckerboardMinMaxTexture, bAsyncComputeVolumetricCloud);
 		}
 
-		TArray<FScreenPassTexture, TInlineAllocator<4>> TSRMoireInputTextures;
+		TArray<FScreenPassTexture, TInlineAllocator<4>> TSRFlickeringInputTextures;
 		if (!bHasRayTracedOverlay)
 		{
 			// Extract TSR's moire heuristic luminance before rendering translucency into the scene color.
@@ -4094,12 +4094,12 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				FViewInfo& View = Views[ViewIndex];
 				if (NeedTSRMoireLuma(View))
 				{
-					if (TSRMoireInputTextures.Num() == 0)
+					if (TSRFlickeringInputTextures.Num() == 0)
 					{
-						TSRMoireInputTextures.SetNum(Views.Num());
+						TSRFlickeringInputTextures.SetNum(Views.Num());
 					}
 
-					TSRMoireInputTextures[ViewIndex] = AddTSRComputeMoireLuma(GraphBuilder, View.ShaderMap, FScreenPassTexture(SceneTextures.Color.Target, View.ViewRect));
+					TSRFlickeringInputTextures[ViewIndex] = AddTSRMeasureFlickeringLuma(GraphBuilder, View.ShaderMap, FScreenPassTexture(SceneTextures.Color.Target, View.ViewRect));
 				}
 			}
 		}
@@ -4562,10 +4562,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 						const bool bAnyLumenActive = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen;
 						const bool bLumenGIEnabled = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen;
 
-						FScreenPassTexture TSRMoireInput;
-						if (ViewIndex < TSRMoireInputTextures.Num())
+						FScreenPassTexture TSRFlickeringInput;
+						if (ViewIndex < TSRFlickeringInputTextures.Num())
 						{
-							TSRMoireInput = TSRMoireInputTextures[ViewIndex];
+							TSRFlickeringInput = TSRFlickeringInputTextures[ViewIndex];
 						}
 
 						AddPostProcessingPasses(
@@ -4581,7 +4581,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 							&VirtualShadowMapArray,
 							LumenFrameTemporaries,
 							SceneWithoutWaterTextures,
-							TSRMoireInput);
+							TSRFlickeringInput);
 					}
 				}
 			}

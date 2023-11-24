@@ -179,8 +179,8 @@ bool NeedTSRMoireLuma(const FViewInfo& View);
 /** Returns whether TSR internal visualization is enabled on the view. */
 bool IsVisualizeTSREnabled(const FViewInfo& View);
 
-/** Measure luminance of the scene color for moire anti-flickering. */
-FScreenPassTexture AddTSRComputeMoireLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor);
+/** Measure luminance of the scene color for anti-flickering. */
+FScreenPassTexture AddTSRMeasureFlickeringLuma(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap, FScreenPassTexture SceneColor);
 
 
 EMainTAAPassConfig GetMainTAAPassConfig(const FViewInfo& View);
@@ -200,7 +200,7 @@ struct FDefaultTemporalUpscaler
 		FScreenPassTexture SceneDepth;
 		FScreenPassTexture SceneVelocity;
 		FTranslucencyPassResources PostDOFTranslucencyResources;
-		FScreenPassTexture MoireInputTexture;
+		FScreenPassTexture FlickeringInputTexture;
 	};
 
 	struct FOutputs

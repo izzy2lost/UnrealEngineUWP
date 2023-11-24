@@ -158,11 +158,11 @@ FScreenPassTexture AddVisualizeTemporalUpscalerPass(FRDGBuilder& GraphBuilder, c
 		if (Inputs.TAAConfig == EMainTAAPassConfig::TSR)
 		{
 			FVisualizeBufferTile& Tile = Tiles[4 * 1 + 3];
-			if (Inputs.Inputs.MoireInputTexture.IsValid())
+			if (Inputs.Inputs.FlickeringInputTexture.IsValid())
 			{
-				Tile.Input = Inputs.Inputs.MoireInputTexture;
+				Tile.Input = Inputs.Inputs.FlickeringInputTexture;
 				Tile.Input.ViewRect = CropViewRectToCenter(View.ViewRect);
-				Tile.Label = VisualizeTextureLabel(Inputs.Inputs.MoireInputTexture.Texture);
+				Tile.Label = VisualizeTextureLabel(Inputs.Inputs.FlickeringInputTexture.Texture);
 			}
 			else
 			{

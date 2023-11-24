@@ -15,7 +15,7 @@
 float PerceptionAdd;
 
 Texture2D<tsr_half3> SceneColorTexture;
-RWTexture2D<tsr_half> MoireLumaOutput;
+RWTexture2D<tsr_half> FlickeringLumaOutput;
 
 
 //------------------------------------------------------- ENTRY POINT
@@ -62,7 +62,7 @@ void MainCS(
 
 				InputPixelPos.x = select(all(InputPixelPos < InputInfo_ViewportMax), InputPixelPos.x, uint(~0));
 				
-				MoireLumaOutput[InputPixelPos] = dot(Color, kMoireLumaWeights);
+				FlickeringLumaOutput[InputPixelPos] = dot(Color, kMoireLumaWeights);
 			}
 		}
 	}
