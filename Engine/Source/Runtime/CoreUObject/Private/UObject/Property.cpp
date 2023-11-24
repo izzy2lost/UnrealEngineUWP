@@ -2037,12 +2037,27 @@ FName FProperty::FindRedirectedPropertyName(const UStruct* ObjectStruct, FName O
 	FCoreRedirectObjectName OldRedirectName(OldName, OuterName, PackageName);
 	FCoreRedirectObjectName NewRedirectName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Property, OldRedirectName);
 
-	if (NewRedirectName != OldRedirectName)
+	if (NewRedirectName == OldRedirectName)
 	{
-		return NewRedirectName.ObjectName;
+		return NAME_None;
 	}
 
-	return NAME_None;
+	if ((!NewRedirectName.PackageName.IsNone() && NewRedirectName.PackageName != PackageName) ||
+		(!NewRedirectName.OuterName.IsNone() && NewRedirectName.OuterName != OuterName))
+	{
+		// We don't handle changing PackageName and OuterName this in general, but we do handle it in the case
+		// that the redirected field name is a field from a superclass. So if the new ObjectName exists on the struct,
+		// allow the redirect to that ObjectName and ignore the new PackageName and OuterName.
+		if (!ObjectStruct->FindPropertyByName(NewRedirectName.ObjectName))
+		{
+			// If it doesn't exist then give a warning and ignore the redirect.
+			UE_LOG(LogProperty, Warning, TEXT("FindRedirectedPropertyName failed for %s -> %s. Changing Package or Outer is not supported. Redirect will be ignored."),
+				*OldRedirectName.ToString(), *NewRedirectName.ToString());
+			return NAME_None;
+		}
+	}
+		
+	return NewRedirectName.ObjectName;
 }
 
 /**

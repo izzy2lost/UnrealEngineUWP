@@ -564,6 +564,8 @@ public:
 	 * Locates package index for a UPackage import
 	 */
 	COREUOBJECT_API bool FindImportPackage(FName PackageName, FPackageIndex& PackageIdx);
+	/* Locates package index for a given name in an outer. */
+	COREUOBJECT_API bool FindImport(FPackageIndex OuterIndex, FName ObjectName, FPackageIndex& OutObjectIndex);
 
 	/**
 	 * Locates the class adjusted index and its package adjusted index for a given class name in the import map

@@ -234,7 +234,7 @@ FString FFieldPathProperty::RedirectFieldPathName(const FString& InPathName)
 			const FCoreRedirect* FoundValueRedirect = nullptr;
 			if (FCoreRedirects::RedirectNameAndValues(RedirectFlags, OldRedirectName, NewObjectName, &FoundValueRedirect))
 			{
-				const FString NewPathName = FString::Printf(TEXT("%s.%s:%s"), *NewObjectName.PackageName.ToString(), *NewObjectName.OuterName.ToString(), *NewObjectName.ObjectName.ToString());
+				const FString NewPathName = NewObjectName.ToString();
 				UE_LOG(LogCoreRedirects, Verbose, TEXT("FFieldPathProperty: Redirected '%s' -> '%s'"), *InPathName, *NewPathName);
 				return NewPathName;
 			}
@@ -248,7 +248,7 @@ FString FFieldPathProperty::RedirectFieldPathName(const FString& InPathName)
 			const FCoreRedirect* FoundValueRedirect = nullptr;
 			if (FCoreRedirects::RedirectNameAndValues(RedirectFlags, OldRedirectName, NewObjectName, &FoundValueRedirect))
 			{
-				const FString NewPathName = FString::Printf(TEXT("%s.%s:%s"), *NewObjectName.PackageName.ToString(), *NewObjectName.ObjectName.ToString(), *OldFieldName);
+				const FString NewPathName = FPackageName::ObjectPathCombine(NewObjectName.ToString(), OldFieldName);
 				UE_LOG(LogCoreRedirects, Verbose, TEXT("FFieldPathProperty: Redirected '%s' -> '%s'"), *InPathName, *NewPathName);
 				return NewPathName;
 			}

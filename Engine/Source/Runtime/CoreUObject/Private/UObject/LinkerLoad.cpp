@@ -1947,151 +1947,167 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::FixupImportMap()
 		{
 			static const FName NAME_BlueprintGeneratedClass(TEXT("BlueprintGeneratedClass"));
 
-			TArray<int32> PackageIndexesToClear;
-
-			bool bDone = false;
-			while (!bDone)
-			{
-				TArray<FName> NewPackageImports;
-
-				bDone = true;
-				for( int32 i=0; i<ImportMap.Num(); i++ )
+			auto AddNewPackageImport = [this](FObjectImport*& CurrentImport, int32 CurrentIndex, FName NewPackageName)
 				{
-					FObjectImport& Import = ImportMap[i];
+					int32 NewImportIndex = ImportMap.Num();
+					FObjectImport& NewImport = ImportMap.AddDefaulted_GetRef();
+					// Adding to ImportMap may have reallocated, so reassign CurrentImport
+					CurrentImport = &ImportMap[CurrentIndex];
+					NewImport.ClassName = NAME_Package;
+					NewImport.ClassPackage = GLongCoreUObjectPackageName;
+					NewImport.ObjectName = NewPackageName;
+					NewImport.OuterIndex = FPackageIndex();
+					NewImport.XObject = nullptr;
+					NewImport.SourceLinker = nullptr;
+					NewImport.SourceIndex = -1;
+					return FPackageIndex::FromImport(NewImportIndex);
+				};
+			auto AddNewObjectImport = [this](FObjectImport*& CurrentImport, int32 CurrentIndex,
+				FPackageIndex NewImportOuter, FName NewImportName)
+				{
+					int32 NewImportIndex = ImportMap.Num();
+					FObjectImport& NewImport = ImportMap.AddDefaulted_GetRef();
+					// Adding to ImportMap may have reallocated, so reassign CurrentImport
+					CurrentImport = &ImportMap[CurrentIndex];
+					NewImport.ClassName = NAME_Object; // Don't know the class, but we won't need it. Set it to UObject
+					NewImport.ClassPackage = GLongCoreUObjectPackageName;
+					NewImport.ObjectName = NewImportName;
+					NewImport.OuterIndex = NewImportOuter;
+					NewImport.XObject = nullptr;
+					NewImport.SourceLinker = nullptr;
+					NewImport.SourceIndex = -1;
+					return FPackageIndex::FromImport(NewImportIndex);
+				};
 
-					// Compute class name first, as instance can override it
-					const FCoreRedirect* ClassValueRedirect = nullptr;
-					FCoreRedirectObjectName OldClassName(Import.ClassName, NAME_None, Import.ClassPackage), NewClassName;
+			TArray<int32> PackageIndexesToClear;
+			for (int32 i=0; i<ImportMap.Num(); i++)
+			{
+				FObjectImport* Import = &ImportMap[i];
 
-					FCoreRedirects::RedirectNameAndValues(ECoreRedirectFlags::Type_Class, OldClassName, NewClassName, &ClassValueRedirect);
+				// Compute class name first, as instance can override it
+				const FCoreRedirect* ClassValueRedirect = nullptr;
+				FCoreRedirectObjectName OldClassName(Import->ClassName, NAME_None, Import->ClassPackage), NewClassName;
 
-					if (ClassValueRedirect)
+				FCoreRedirects::RedirectNameAndValues(ECoreRedirectFlags::Type_Class, OldClassName, NewClassName, &ClassValueRedirect);
+
+				if (ClassValueRedirect)
+				{
+					// Apply class value redirects before other redirects, to mirror old subobject order
+					const FString* NewInstanceName = ClassValueRedirect->ValueChanges.Find(Import->ObjectName.ToString());
+					if (NewInstanceName)
 					{
-						// Apply class value redirects before other redirects, to mirror old subobject order
-						const FString* NewInstanceName = ClassValueRedirect->ValueChanges.Find(Import.ObjectName.ToString());
-						if (NewInstanceName)
+						// Rename this import directly
+						FString Was = GetImportFullName(i);
+						Import->ObjectName = FName(**NewInstanceName);
+
+						if (Import->ObjectName != NAME_None)
 						{
-							// Rename this import directly
-							FString Was = GetImportFullName(i);
-							Import.ObjectName = FName(**NewInstanceName);
-
-							if (Import.ObjectName != NAME_None)
-							{
-								FString Now = GetImportFullName(i);
-								UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Renamed object from %s   to   %s"), *Was, *Now);
-							}
-							else
-							{
-								UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Removed object %s"), *Was);
-							}
-						}
-					}
-
-					FCoreRedirectObjectName OldObjectName(GetImportPathName(i)), NewObjectName;
-					ECoreRedirectFlags ObjectRedirectFlags = FCoreRedirects::GetFlagsForTypeName(Import.ClassPackage, Import.ClassName);
-					const FCoreRedirect* ValueRedirect = nullptr;
-					
-					FCoreRedirects::RedirectNameAndValues(ObjectRedirectFlags, OldObjectName, NewObjectName, &ValueRedirect);
-
-					if (ValueRedirect && ValueRedirect->OverrideClassName.IsValid())
-					{
-						// Override class name if found, even if the name didn't actually change
-						NewClassName = ValueRedirect->OverrideClassName;
-					}
-
-					if (NewObjectName != OldObjectName)
-					{
-						if (Import.OuterIndex.IsNull())
-						{
-							// If this has no outer it's a package and we don't want to rename it, the subobject renames will handle creating the new package import
-							// We do need to clear these at the end so it doesn't try to load nonexistent packages
-							PackageIndexesToClear.Add(i);
+							FString Now = GetImportFullName(i);
+							UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Renamed object from %s   to   %s"), *Was, *Now);
 						}
 						else
 						{
-							// If right below package and package has changed, need to swap outer
-							if (NewObjectName.OuterName == NAME_None && NewObjectName.PackageName != OldObjectName.PackageName)
-							{
-								FPackageIndex NewPackageIndex;
-
-								if (FindImportPackage(NewObjectName.PackageName, NewPackageIndex))
-								{
-									// Already in import table, set it
-									Import.OuterIndex = NewPackageIndex;
-								}
-								else
-								{
-									// Need to add package import and try again
-									NewPackageImports.AddUnique(NewObjectName.PackageName);
-									bDone = false;
-									break;
-								}
-							}
-#if WITH_EDITOR
-							// If this is a class, set old name here 
-							if (ObjectRedirectFlags == ECoreRedirectFlags::Type_Class)
-							{
-								Import.OldClassName = Import.ObjectName;
-							}
-
-#endif
-							// Change object name
-							Import.ObjectName = NewObjectName.ObjectName;
-
-							UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Pkg<%s> - Renamed Object %s -> %s"), *LinkerRoot->GetName(), *OldObjectName.ToString(), *NewObjectName.ToString());
+							UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Removed object %s"), *Was);
 						}
 					}
+				}
 
-					if (NewClassName != OldClassName)
+				FCoreRedirectObjectName OldObjectName(GetImportPathName(i)), NewObjectName;
+				ECoreRedirectFlags ObjectRedirectFlags = FCoreRedirects::GetFlagsForTypeName(Import->ClassPackage, Import->ClassName);
+				const FCoreRedirect* ValueRedirect = nullptr;
+					
+				FCoreRedirects::RedirectNameAndValues(ObjectRedirectFlags, OldObjectName, NewObjectName, &ValueRedirect);
+
+				if (ValueRedirect && ValueRedirect->OverrideClassName.IsValid())
+				{
+					// Override class name if found, even if the name didn't actually change
+					NewClassName = ValueRedirect->OverrideClassName;
+				}
+
+				if (NewObjectName != OldObjectName)
+				{
+					if (Import->OuterIndex.IsNull())
 					{
-						// Swap class if needed
-						if (Import.ClassPackage != NewClassName.PackageName && !IsCoreUObjectPackage(NewClassName.PackageName))
+						// If this has no outer it's a package and we don't want to rename it, the subobject renames will handle creating the new package import
+						// We do need to clear these at the end so it doesn't try to load nonexistent packages
+						PackageIndexesToClear.Add(i);
+					}
+					else
+					{
+						FPackageIndex NewPackageIndex;
+						if (!FindImportPackage(NewObjectName.PackageName, NewPackageIndex))
 						{
-							FPackageIndex NewPackageIndex;
+							NewPackageIndex = AddNewPackageImport(Import, i, NewObjectName.PackageName);
+						}
 
-							if (!FindImportPackage(NewClassName.PackageName, NewPackageIndex))
+						FPackageIndex OuterIndex = NewPackageIndex;
+						if (!NewObjectName.OuterName.IsNone())
+						{
+							TStringBuilder<256> OuterNameBuffer;
+							OuterNameBuffer << NewObjectName.OuterName;
+							FStringView OuterName(OuterNameBuffer);
+							while (!OuterName.IsEmpty())
 							{
-								// Need to add package import and try again
-								NewPackageImports.AddUnique(NewClassName.PackageName);
-								bDone = false;
-								break;
+								FStringView FirstOuter;
+								FStringView Remainder;
+								FPackageName::ObjectPathSplitFirstName(OuterName, FirstOuter, Remainder);
+								FPackageIndex NewOuterIndex;
+								FName FirstOuterName(FirstOuter);
+								if (!FindImport(OuterIndex, FirstOuterName, NewOuterIndex))
+								{
+									NewOuterIndex = AddNewObjectImport(Import, i, OuterIndex, FirstOuterName);
+								}
+								OuterName = Remainder;
+								OuterIndex = NewOuterIndex;
 							}
 						}
+
+						Import->OuterIndex = OuterIndex;
 #if WITH_EDITOR
-						Import.OldClassName = Import.ClassName;
-#endif
-						// Change class name/package
-						Import.ClassPackage = NewClassName.PackageName;
-						Import.ClassName = NewClassName.ObjectName;
-
-						// Also change CDO name if needed
-						FString NewDefaultObjectName = Import.ObjectName.ToString();
-
-						if (NewDefaultObjectName.StartsWith(DEFAULT_OBJECT_PREFIX))
+						// If this is a class, set old name here 
+						if (ObjectRedirectFlags == ECoreRedirectFlags::Type_Class)
 						{
-							NewDefaultObjectName = FString(DEFAULT_OBJECT_PREFIX);
-							NewDefaultObjectName += NewClassName.ObjectName.ToString();
-							Import.ObjectName = FName(*NewDefaultObjectName);
+							Import->OldClassName = Import->ObjectName;
 						}
+#endif
+						// Change object name
+						Import->ObjectName = NewObjectName.ObjectName;
 
-						UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Pkg<%s> - Renamed Class %s -> %s"), *LinkerRoot->GetName(), *OldClassName.ToString(), *NewClassName.ToString());
-					}	
+						UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Pkg<%s> - Renamed Object %s -> %s"), *LinkerRoot->GetName(), *OldObjectName.ToString(), *NewObjectName.ToString());
+					}
 				}
 
-				// Add new packages, after loop iteration for safety
-				for (FName NewPackage : NewPackageImports)
+				if (NewClassName != OldClassName)
 				{
-					// We are adding a new import to the map as we need the new package dependency added to the works
-					FObjectImport& NewImport = ImportMap.AddDefaulted_GetRef();
+					// Swap class if needed
+					if (Import->ClassPackage != NewClassName.PackageName && !IsCoreUObjectPackage(NewClassName.PackageName))
+					{
+						FPackageIndex NewPackageIndex;
 
-					NewImport.ClassName = NAME_Package;
-					NewImport.ClassPackage = GLongCoreUObjectPackageName;
-					NewImport.ObjectName = NewPackage;
-					NewImport.OuterIndex = FPackageIndex();
-					NewImport.XObject = 0;
-					NewImport.SourceLinker = 0;
-					NewImport.SourceIndex = -1;
-				}
+						if (!FindImportPackage(NewClassName.PackageName, NewPackageIndex))
+						{
+							NewPackageIndex = AddNewPackageImport(Import, i, NewClassName.PackageName);
+						}
+					}
+#if WITH_EDITOR
+					Import->OldClassName = Import->ClassName;
+#endif
+					// Change class name/package
+					Import->ClassPackage = NewClassName.PackageName;
+					Import->ClassName = NewClassName.ObjectName;
+
+					// Also change CDO name if needed
+					FString NewDefaultObjectName = Import->ObjectName.ToString();
+
+					if (NewDefaultObjectName.StartsWith(DEFAULT_OBJECT_PREFIX))
+					{
+						NewDefaultObjectName = FString(DEFAULT_OBJECT_PREFIX);
+						NewDefaultObjectName += NewClassName.ObjectName.ToString();
+						Import->ObjectName = FName(*NewDefaultObjectName);
+					}
+
+					UE_LOG(LogLinker, Verbose, TEXT("FLinkerLoad::FixupImportMap() - Pkg<%s> - Renamed Class %s -> %s"), *LinkerRoot->GetName(), *OldClassName.ToString(), *NewClassName.ToString());
+				}	
 			}
 
 			// Clear any packages that got renamed, once all children have been fixed up
@@ -6147,6 +6163,21 @@ bool FLinkerLoad::FindImportPackage(FName PackageName, FPackageIndex& PackageIdx
 		}
 	}
 
+	return false;
+}
+
+bool FLinkerLoad::FindImport(FPackageIndex OuterIndex, FName ObjectName, FPackageIndex& OutObjectIndex)
+{
+	for (int32 ImportMapIdx = 0; ImportMapIdx < ImportMap.Num(); ImportMapIdx++)
+	{
+		if (ImportMap[ImportMapIdx].ObjectName == ObjectName && ImportMap[ImportMapIdx].OuterIndex == OuterIndex)
+		{
+			OutObjectIndex = FPackageIndex::FromImport(ImportMapIdx);
+			return true;
+		}
+	}
+
+	OutObjectIndex = FPackageIndex();
 	return false;
 }
 
