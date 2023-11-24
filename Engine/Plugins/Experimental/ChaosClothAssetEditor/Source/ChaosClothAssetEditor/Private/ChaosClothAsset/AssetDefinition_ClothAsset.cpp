@@ -59,19 +59,6 @@ namespace ClothAssetDefinitionHelpers
 		// Notify the asset registry
 		FAssetRegistryModule::AssetCreated(NewAsset);
 
-		// Save the package
-		TArray<UPackage*> PackagesToSave;
-		PackagesToSave.Add(NewAsset->GetOutermost());
-		constexpr bool bCheckDirty = false;
-		constexpr bool bPromptToSave = false;
-		FEditorFileUtils::EPromptReturnCode ReturnCode = FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, bCheckDirty, bPromptToSave);
-
-		if (ReturnCode != FEditorFileUtils::EPromptReturnCode::PR_Success)
-		{
-			OutDataflowAsset = nullptr;
-			return false;
-		}
-
 		OutDataflowAsset = NewAsset;
 		return true;
 	}
