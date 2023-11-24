@@ -331,7 +331,8 @@ void SNiagaraGraphNode::UpdateGraphNodeCompact()
 	.AllowPinning( true )
 	.EnableTitleBarBubble( true )
 	.EnableBubbleCtrls( true )
-	.GraphLOD( this, &SGraphNode::GetCurrentLOD );
+	.GraphLOD( this, &SGraphNode::GetCurrentLOD )
+	.IsGraphNodeHovered(this, &SGraphNode::IsHovered);
 
 	GetOrAddSlot( ENodeZone::TopCenter )
 	.SlotOffset( TAttribute<FVector2D>( CommentBubble.Get(), &SCommentBubble::GetOffset ))
