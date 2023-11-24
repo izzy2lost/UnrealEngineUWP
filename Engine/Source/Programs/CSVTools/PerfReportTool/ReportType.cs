@@ -18,12 +18,18 @@ namespace PerfReportTool
 
 	class ReportTypeInfo
 	{
-		public ReportTypeInfo(XElement element, Dictionary<string, XElement> sharedSummaries, string baseXmlDirectory, XmlVariableMappings inVariableMappings)
+		public ReportTypeInfo(XElement element, Dictionary<string, XElement> sharedSummaries, string baseXmlDirectory, XmlVariableMappings inVariableMappings, CsvMetadata csvMetadata )
 		{
 			graphs = new List<ReportGraph>();
 			summaries = new List<Summary>();
 
 			vars = inVariableMappings;
+
+			// Apply local variable sets
+			foreach (XElement variableSetEl in element.Elements("variableSet"))
+			{
+				vars.ApplyVariableSet(variableSetEl, csvMetadata);
+			}
 
 			name = element.GetRequiredAttribute<string>(vars, "name");
 			title = element.GetRequiredAttribute<string>(vars, "title");

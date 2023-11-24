@@ -8,7 +8,6 @@ using System.Xml.Linq;
 using CSVStats;
 using PerfSummaries;
 using System.Globalization;
-using System.Runtime.InteropServices;
 
 namespace PerfReportTool
 {
@@ -146,6 +145,8 @@ namespace PerfReportTool
 			{
 				throw new Exception("No reporttypes element found in report XML " + reportTypeXmlFilename);
 			}
+
+			globalVariableSetElement = rootElement.Element("globalVariableSet");
 
 			// Read the graph XML
 			string graphsXMLFilename;
@@ -328,6 +329,11 @@ namespace PerfReportTool
 					vars.SetVariable("meta." + key, metadataDict[key]);
 				}
 			}
+			if (globalVariableSetElement != null)
+			{
+				// Apply the global variable set
+				vars.ApplyVariableSet(globalVariableSetElement, csvFile.metadata);
+			}
 
 			ReportTypeInfo reportTypeInfo = null;
 			if (reportType == "")
@@ -340,7 +346,7 @@ namespace PerfReportTool
 
 					if (bReportTypeSupportsAutodetect && IsReportTypeXMLCompatibleWithStats(element, csvFile.dummyCsvStats, vars))
 					{
-						reportTypeInfo = new ReportTypeInfo(element, sharedSummaries, baseXmlDirectory, vars);
+						reportTypeInfo = new ReportTypeInfo(element, sharedSummaries, baseXmlDirectory, vars, csvFile.metadata);
 						break;
 					}
 
@@ -361,7 +367,7 @@ namespace PerfReportTool
 						throw new Exception("Default report type " + defaultReportTypeName + " was not compatible with CSV " + csvFile.filename);
 					}
 					Console.Out.WriteLine("Falling back to default report type: " + defaultReportTypeName);
-					reportTypeInfo = new ReportTypeInfo(defaultReportTypeElement, sharedSummaries, baseXmlDirectory, vars);
+					reportTypeInfo = new ReportTypeInfo(defaultReportTypeElement, sharedSummaries, baseXmlDirectory, vars, csvFile.metadata);
 				}
 				else if (reportTypeInfo == null)
 				{
@@ -394,7 +400,7 @@ namespace PerfReportTool
 						throw new Exception("Report type " + reportType + " is not compatible with CSV " + csvFile.filename);
 					}
 				}
-				reportTypeInfo = new ReportTypeInfo(foundReportTypeElement, sharedSummaries, baseXmlDirectory, vars);
+				reportTypeInfo = new ReportTypeInfo(foundReportTypeElement, sharedSummaries, baseXmlDirectory, vars, csvFile.metadata);
 			}
 
 			// Load the graphs
@@ -534,6 +540,7 @@ namespace PerfReportTool
 		XElement rootElement;
 		XElement graphGroupsElement;
 		XElement summaryTablesElement;
+		XElement globalVariableSetElement;
 		string defaultReportTypeName;
 		Dictionary<string, XElement> sharedSummaries;
 		Dictionary<string, GraphSettings> graphs;
@@ -591,6 +598,28 @@ namespace PerfReportTool
 			}
 			return attributeValue;
 		}
+
+		public void ApplyVariableSet(XElement variableSetElement, CsvMetadata csvMetadata)
+		{
+			string metadataQuery = variableSetElement.GetSafeAttribute<string>(this, "metadataQuery");
+
+			if ( metadataQuery == null || ( csvMetadata != null && CsvStats.DoesMetadataMatchFilter(csvMetadata, metadataQuery) ) )
+			{
+				// We match, so apply all variables and then apply all recursive variablesets
+				foreach (XElement variable in variableSetElement.Elements("var"))
+				{
+					string name = variable.FirstAttribute.Name.ToString();
+					string value = ResolveVariables(variable.FirstAttribute.Value);
+					SetVariable(name, value);
+				}
+
+				foreach (XElement childVariableSet in variableSetElement.Elements("variableSet"))
+				{
+					ApplyVariableSet(childVariableSet, csvMetadata);
+				}
+			}
+		}
+
 		Dictionary<string, string> vars = new Dictionary<string, string>();
 	}
 	
