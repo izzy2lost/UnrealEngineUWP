@@ -12,7 +12,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
 			}
-			);	
+		);
 		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
@@ -29,6 +29,7 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"DataflowEngine",
 				"DatasmithCore",
 				"DatasmithImporter",
+				"DesktopWidgets",  // For SFilePathPicker
 				"DetailCustomizations",
 				"DynamicMesh",
 				"Engine",
@@ -44,8 +45,13 @@ public class ChaosClothAssetDataflowNodes : ModuleRules
 				"SlateCore",
 				"StaticMeshDescription",
 				"UnrealEd",
-				// ... add private dependencies that you statically link with here ...	
+				"UnrealUSDWrapper",
+				"USDSchemas",
+				"USDStage",
+				"USDStageImporter",
+				"USDUtilities",
+				// ... add private dependencies that you statically link with here ...
 			}
-			);
+		);
 	}
 }

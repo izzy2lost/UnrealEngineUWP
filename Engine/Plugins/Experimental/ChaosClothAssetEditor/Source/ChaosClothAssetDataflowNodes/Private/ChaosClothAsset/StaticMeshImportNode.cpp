@@ -3,18 +3,13 @@
 #include "ChaosClothAsset/StaticMeshImportNode.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
-#include "ChaosClothAsset/ClothAsset.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Engine/StaticMesh.h"
-#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "SkeletalMeshAttributes.h"
-#include "Rendering/SkeletalMeshLODImporterData.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Materials/MaterialInterface.h"
-#include "MeshUtilities.h"
-#include "Modules/ModuleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshImportNode)
 
@@ -22,102 +17,30 @@
 
 namespace UE::Chaos::ClothAsset::Private
 {
-
-void CopyBuildSettings(
-	const FMeshBuildSettings& InStaticMeshBuildSettings,
-	FSkeletalMeshBuildSettings& OutSkeletalMeshBuildSettings
-)
-{
-	OutSkeletalMeshBuildSettings.bRecomputeNormals = InStaticMeshBuildSettings.bRecomputeNormals;
-	OutSkeletalMeshBuildSettings.bRecomputeTangents = InStaticMeshBuildSettings.bRecomputeTangents;
-	OutSkeletalMeshBuildSettings.bUseMikkTSpace = InStaticMeshBuildSettings.bUseMikkTSpace;
-	OutSkeletalMeshBuildSettings.bComputeWeightedNormals = InStaticMeshBuildSettings.bComputeWeightedNormals;
-	OutSkeletalMeshBuildSettings.bRemoveDegenerates = InStaticMeshBuildSettings.bRemoveDegenerates;
-	OutSkeletalMeshBuildSettings.bUseHighPrecisionTangentBasis = InStaticMeshBuildSettings.bUseHighPrecisionTangentBasis;
-	OutSkeletalMeshBuildSettings.bUseFullPrecisionUVs = InStaticMeshBuildSettings.bUseFullPrecisionUVs;
-	OutSkeletalMeshBuildSettings.bUseBackwardsCompatibleF16TruncUVs = InStaticMeshBuildSettings.bUseBackwardsCompatibleF16TruncUVs;
-	// The rest we leave at defaults.
-}
-
-bool BuildSkeletalMeshModelFromMeshDescription(const FMeshDescription* const InMeshDescription, const FMeshBuildSettings& InBuildSettings, FSkeletalMeshLODModel& SkeletalMeshModel)
-{
-	// This is following StaticToSkeletalMeshConverter.cpp::AddLODFromStaticMeshSourceModel
-	FSkeletalMeshBuildSettings BuildSettings;
-	CopyBuildSettings(InBuildSettings, BuildSettings);
-	FMeshDescription SkeletalMeshGeometry = *InMeshDescription;
-	FSkeletalMeshAttributes SkeletalMeshAttributes(SkeletalMeshGeometry);
-	SkeletalMeshAttributes.Register();
-
-	// Full binding to the root bone.
-	constexpr int32 RootBoneIndex = 0;
-	FSkinWeightsVertexAttributesRef SkinWeights = SkeletalMeshAttributes.GetVertexSkinWeights();
-	UE::AnimationCore::FBoneWeight RootInfluence(RootBoneIndex, 1.0f);
-	UE::AnimationCore::FBoneWeights RootBinding = UE::AnimationCore::FBoneWeights::Create({ RootInfluence });
-
-	for (const FVertexID VertexID : SkeletalMeshGeometry.Vertices().GetElementIDs())
+	static bool InitializeDataFromMeshDescription(
+		const UStaticMesh* const StaticMesh,
+		const FMeshDescription* const InMeshDescription,
+		const FMeshBuildSettings& InBuildSettings,
+		const TArray<FStaticMaterial>& StaticMaterials,
+		const TSharedRef<FManagedArrayCollection>& ClothCollection)
 	{
-		SkinWeights.Set(VertexID, RootBinding);
-	}
-
-	FSkeletalMeshImportData SkeletalMeshImportGeometry = FSkeletalMeshImportData::CreateFromMeshDescription(SkeletalMeshGeometry);
-	// Data needed by BuildSkeletalMesh
-	TArray<FVector3f> LODPoints;
-	TArray<SkeletalMeshImportData::FMeshWedge> LODWedges;
-	TArray<SkeletalMeshImportData::FMeshFace> LODFaces;
-	TArray<SkeletalMeshImportData::FVertInfluence> LODInfluences;
-	TArray<int32> LODPointToRawMap;
-	SkeletalMeshImportGeometry.CopyLODImportData(LODPoints, LODWedges, LODFaces, LODInfluences, LODPointToRawMap);
-	IMeshUtilities::MeshBuildOptions BuildOptions;
-	BuildOptions.TargetPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
-	BuildOptions.FillOptions(BuildSettings);
-
-	static const FString SkeletalMeshName("ClothAssetStaticMeshImportConvert"); // This is only used by warning messages in the mesh builder.
-	// Build a RefSkeleton with just a root bone. The BuildSkeletalMesh code expects you have a reference skeleton with at least one bone to work.
-	FReferenceSkeleton RootBoneRefSkeleton;
-	FReferenceSkeletonModifier SkeletonModifier(RootBoneRefSkeleton, nullptr);
-	FMeshBoneInfo RootBoneInfo;
-	RootBoneInfo.Name = FName("Root");
-	SkeletonModifier.Add(RootBoneInfo, FTransform());
-	RootBoneRefSkeleton.RebuildRefSkeleton(nullptr, true);
-
-	IMeshUtilities& MeshUtilities = FModuleManager::Get().LoadModuleChecked<IMeshUtilities>("MeshUtilities");
-	TArray<FText> WarningMessages;
-	if (!MeshUtilities.BuildSkeletalMesh(SkeletalMeshModel, SkeletalMeshName, RootBoneRefSkeleton, LODInfluences, LODWedges, LODFaces, LODPoints, LODPointToRawMap, BuildOptions, &WarningMessages))
-	{
-		for (const FText& Message : WarningMessages)
+		FSkeletalMeshLODModel SkeletalMeshModel;
+		if (FClothDataflowTools::BuildSkeletalMeshModelFromMeshDescription(InMeshDescription, InBuildSettings, SkeletalMeshModel))
 		{
-			UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *Message.ToString());
+			FStaticMeshConstAttributes MeshAttributes(*InMeshDescription);
+			TPolygonGroupAttributesConstRef<FName> MaterialSlotNames = MeshAttributes.GetPolygonGroupMaterialSlotNames();
+			for (int32 SectionIndex = 0; SectionIndex < SkeletalMeshModel.Sections.Num(); ++SectionIndex)
+			{
+				// Section MaterialIndex refers to the polygon group index. Look up which material this corresponds with.
+				const FName& MaterialSlotName = MaterialSlotNames[SkeletalMeshModel.Sections[SectionIndex].MaterialIndex];
+				const int32 MaterialIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName(MaterialSlotName);
+				const FString RenderMaterialPathName = StaticMaterials.IsValidIndex(MaterialIndex)&& StaticMaterials[MaterialIndex].MaterialInterface ? StaticMaterials[MaterialIndex].MaterialInterface->GetPathName() : "";
+				FClothDataflowTools::AddRenderPatternFromSkeletalMeshSection(ClothCollection, SkeletalMeshModel, SectionIndex, RenderMaterialPathName);
+			}
+			return true;
 		}
 		return false;
 	}
-	return true;
-}
-
-bool InitializeDataFromMeshDescription(
-	const UStaticMesh* const StaticMesh,
-	const FMeshDescription* const InMeshDescription,
-	const FMeshBuildSettings& InBuildSettings,
-	const TArray<FStaticMaterial>& StaticMaterials,
-	const TSharedRef<FManagedArrayCollection>& ClothCollection)
-{
-	FSkeletalMeshLODModel SkeletalMeshModel;
-	if (BuildSkeletalMeshModelFromMeshDescription(InMeshDescription, InBuildSettings, SkeletalMeshModel))
-	{
-		FStaticMeshConstAttributes MeshAttributes(*InMeshDescription);
-		TPolygonGroupAttributesConstRef<FName> MaterialSlotNames = MeshAttributes.GetPolygonGroupMaterialSlotNames();
-		for (int32 SectionIndex = 0; SectionIndex < SkeletalMeshModel.Sections.Num(); ++SectionIndex)
-		{
-			// Section MaterialIndex refers to the polygon group index. Look up which material this corresponds with.
-			const FName& MaterialSlotName = MaterialSlotNames[SkeletalMeshModel.Sections[SectionIndex].MaterialIndex];
-			const int32 MaterialIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName(MaterialSlotName);
-			const FString RenderMaterialPathName = StaticMaterials.IsValidIndex(MaterialIndex)&& StaticMaterials[MaterialIndex].MaterialInterface ? StaticMaterials[MaterialIndex].MaterialInterface->GetPathName() : "";
-			FClothDataflowTools::AddRenderPatternFromSkeletalMeshSection(ClothCollection, SkeletalMeshModel, SectionIndex, RenderMaterialPathName);
-		}
-		return true;
-	}
-	return false;
-}
-
 } // namespace UE::Chaos::ClothAsset::Private
 
 FChaosClothAssetStaticMeshImportNode::FChaosClothAssetStaticMeshImportNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)

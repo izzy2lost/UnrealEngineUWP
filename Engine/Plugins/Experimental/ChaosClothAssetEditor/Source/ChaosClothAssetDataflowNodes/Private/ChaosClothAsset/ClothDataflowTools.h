@@ -6,6 +6,8 @@
 #include "Logging/LogMacros.h"
 
 struct FManagedArrayCollection;
+struct FMeshBuildSettings;
+struct FMeshDescription;
 struct FDataflowNode;
 class FSkeletalMeshLODModel;
 class FString;
@@ -30,6 +32,8 @@ namespace UE::Chaos::ClothAsset
 		 * It will also have all leading underscore removed, as these names are reserved for internal use.
 		 */
 		static void MakeCollectionName(FString& InOutString);
+
+		static bool BuildSkeletalMeshModelFromMeshDescription(const FMeshDescription* const InMeshDescription, const FMeshBuildSettings& InBuildSettings, FSkeletalMeshLODModel& SkeletalMeshModel);
 	};
 }  // End namespace UE::Chaos::ClothAsset
 
