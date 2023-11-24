@@ -116,7 +116,7 @@ void FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(const AActor* I
 
 			FARFilter Filter;
 			Filter.bIncludeOnlyOnDiskAssets = true;
-			Filter.PackageNames.Add(InActor->GetPackage()->GetFName());
+			Filter.PackageNames.Add(InActor->GetPackage()->GetLoadedPath().GetPackageFName());
 
 			TArray<FAssetData> Assets;
 			AssetRegistry.GetAssets(Filter, Assets);
