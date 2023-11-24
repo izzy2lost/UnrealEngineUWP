@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class StorageClientTests
 	{
-		[NodeType("{99601905-A089-4F6E-87F1-D603EEAF1B71}", 1)]
+		[BlobType("{99601905-4F6E-A089-03D6-F187711BAFEE}", 1)]
 		class TestNode : Node
 		{
 			public int Value { get; }

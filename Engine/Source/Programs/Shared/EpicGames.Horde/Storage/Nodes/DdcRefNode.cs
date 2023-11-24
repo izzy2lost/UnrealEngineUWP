@@ -9,7 +9,7 @@ namespace Horde.Server.Ddc
 	/// <summary>
 	/// A node containing ref data
 	/// </summary>
-	[NodeType("{0C7E5F25-454B-4B55-9B4A-F4635106D074}", 1)]
+	[BlobType("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}", 1)]
 	public class DdcRefNode : Node
 	{
 		/// <summary>

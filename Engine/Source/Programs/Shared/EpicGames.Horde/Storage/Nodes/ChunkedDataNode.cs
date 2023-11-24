@@ -163,7 +163,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// File node that contains a chunk of data
 	/// </summary>
-	[NodeType("{B27AFB68-9E20-4A4B-A4D8-788A4098D439}", 1)]
+	[BlobType("{B27AFB68-4A4B-9E20-8A78-D8A439D49840}", 1)]
 	public sealed class LeafChunkedDataNode : ChunkedDataNode
 	{
 		/// <summary>
@@ -386,7 +386,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// An interior file node
 	/// </summary>
-	[NodeType("{F4DEDDBC-70CB-4C7A-8347-F011AFCCCDB9}", 2)]
+	[BlobType("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}", 2)]
 	public class InteriorChunkedDataNode : ChunkedDataNode
 	{
 		/// <summary>

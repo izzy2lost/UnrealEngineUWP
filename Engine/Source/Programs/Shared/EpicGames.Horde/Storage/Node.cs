@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -14,7 +15,7 @@ namespace EpicGames.Horde.Storage
 	/// Attribute used to define a factory for a particular node type
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class)]
-	public sealed class NodeTypeAttribute : Attribute // TODO: THIS SHOULD BE NODEATTRIBUTE, not NODETYPEATTRIBUTE
+	public sealed class BlobTypeAttribute : Attribute
 	{
 		/// <summary>
 		/// Name of the type to store in the bundle header
@@ -29,7 +30,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public NodeTypeAttribute(string guid, int version = 1)
+		public BlobTypeAttribute(string guid, int version = 1)
 		{
 			Guid = guid;
 			Version = version;
@@ -73,15 +74,15 @@ namespace EpicGames.Horde.Storage
 		static readonly ConcurrentDictionary<Guid, Type> s_guidToType = new ConcurrentDictionary<Guid, Type>();
 		static readonly ConcurrentDictionary<Guid, Func<BlobData, Node>> s_guidToDeserializer = new ConcurrentDictionary<Guid, Func<BlobData, Node>>();
 
-		static BlobType CreateNodeType(NodeTypeAttribute attribute)
+		static BlobType CreateNodeType(BlobTypeAttribute attribute)
 		{
-			return new BlobType(Guid.Parse(attribute.Guid), attribute.Version);
+			return new BlobType(attribute.Guid, attribute.Version);
 		}
 
 		/// <summary>
 		/// Attempts to get the concrete type with the given node. The type must have been registered via a previous call to <see cref="RegisterType(Type)"/>.
 		/// </summary>
-		/// <param name="guid">Guid specified in the <see cref="NodeTypeAttribute"/></param>
+		/// <param name="guid">Guid specified in the <see cref="BlobTypeAttribute"/></param>
 		/// <param name="type">On success, receives the C# type associated with this GUID</param>
 		/// <returns>True if the type was found</returns>
 		public static bool TryGetConcreteType(Guid guid, [NotNullWhen(true)] out Type? type) => s_guidToType.TryGetValue(guid, out type);
@@ -100,10 +101,10 @@ namespace EpicGames.Horde.Storage
 				{
 					if (!s_typeToNodeType.TryGetValue(type, out nodeType))
 					{
-						NodeTypeAttribute? attribute = type.GetCustomAttribute<NodeTypeAttribute>();
+						BlobTypeAttribute? attribute = type.GetCustomAttribute<BlobTypeAttribute>();
 						if (attribute == null)
 						{
-							throw new InvalidOperationException($"Missing {nameof(NodeTypeAttribute)} from type {type.Name}");
+							throw new InvalidOperationException($"Missing {nameof(BlobTypeAttribute)} from type {type.Name}");
 						}
 						nodeType = s_typeToNodeType.GetOrAdd(type, CreateNodeType(attribute));
 					}
@@ -151,10 +152,10 @@ namespace EpicGames.Horde.Storage
 		/// <exception cref="NotImplementedException"></exception>
 		public static void RegisterType(Type type)
 		{
-			NodeTypeAttribute? attribute = type.GetCustomAttribute<NodeTypeAttribute>();
+			BlobTypeAttribute? attribute = type.GetCustomAttribute<BlobTypeAttribute>();
 			if (attribute == null)
 			{
-				throw new InvalidOperationException($"Missing {nameof(NodeTypeAttribute)} from type {type.Name}");
+				throw new InvalidOperationException($"Missing {nameof(BlobTypeAttribute)} from type {type.Name}");
 			}
 			RegisterType(type, attribute);
 		}
@@ -166,7 +167,7 @@ namespace EpicGames.Horde.Storage
 		public static void RegisterType<T>() where T : Node => RegisterType(typeof(T));
 
 		/// <summary>
-		/// Register all node types with the <see cref="NodeTypeAttribute"/> from the given assembly
+		/// Register all node types with the <see cref="BlobTypeAttribute"/> from the given assembly
 		/// </summary>
 		/// <param name="assembly">Assembly to register types from</param>
 		public static void RegisterTypesFromAssembly(Assembly assembly)
@@ -178,7 +179,7 @@ namespace EpicGames.Horde.Storage
 				{
 					if (type.IsClass)
 					{
-						NodeTypeAttribute? attribute = type.GetCustomAttribute<NodeTypeAttribute>();
+						BlobTypeAttribute? attribute = type.GetCustomAttribute<BlobTypeAttribute>();
 						if (attribute != null)
 						{
 							RegisterType(type, attribute);
@@ -188,7 +189,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		static void RegisterType(Type type, NodeTypeAttribute attribute)
+		static void RegisterType(Type type, BlobTypeAttribute attribute)
 		{
 			BlobType nodeType = CreateNodeType(attribute);
 			s_typeToNodeType.TryAdd(type, nodeType);

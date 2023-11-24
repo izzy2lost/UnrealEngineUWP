@@ -9,7 +9,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node containing arbitrary compact binary data
 	/// </summary>
-	[NodeType("{34A0793F-8364-42F4-8632-98A71C843229}", 1)]
+	[BlobType("{34A0793F-42F4-8364-A798-32862932841C}", 1)]
 	public class CbNode : Node
 	{
 		class HandleMapper

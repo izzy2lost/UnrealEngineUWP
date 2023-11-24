@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public void TestTypes()
 		{
-			Guid guid = Guid.Parse("{30F2CA83-B5D4-494C-8802-0661454CCD58}");
+			Guid guid = Guid.Parse("{30F2CA83-494C-B5D4-6106-028858CD4C45}");
 
 			// Write out some data
 			BlobType blobType1 = new BlobType(guid, 1);

@@ -32,7 +32,7 @@ namespace EpicGames.Horde.Logs
 	/// <summary>
 	/// Represents an entire log
 	/// </summary>
-	[NodeType("{274DF8F7-9E87-4B4F-8AD5-318CDB25AD33}", 1)]
+	[BlobType("{274DF8F7-4B4F-9E87-8C31-D58A33AD25DB}", 1)]
 	public class LogNode : Node
 	{
 		/// <summary>

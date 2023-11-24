@@ -201,12 +201,23 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Reads a GUID from the memory buffer
+		/// Reads a GUID from the memory buffer using NET-ordered serialization.
 		/// </summary>
 		/// <param name="reader">Reader to deserialize from</param>
-		public static Guid ReadGuid(this IMemoryReader reader)
+		public static Guid ReadGuidNetOrder(this IMemoryReader reader)
 		{
 			Guid guid = new Guid(reader.GetMemory(16).Slice(0, 16).Span);
+			reader.Advance(16);
+			return guid;
+		}
+
+		/// <summary>
+		/// Reads a GUID from the memory buffer using UE-ordered serialization.
+		/// </summary>
+		/// <param name="reader">Reader to deserialize from</param>
+		public static Guid ReadGuidUnrealOrder(this IMemoryReader reader)
+		{
+			Guid guid = GuidUtils.ReadGuidUnrealOrder(reader.GetSpan(16));
 			reader.Advance(16);
 			return guid;
 		}

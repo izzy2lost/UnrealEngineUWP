@@ -18,10 +18,10 @@ namespace Horde.Server.Tests
 			StorageService storageService = ServiceProvider.GetRequiredService<StorageService>();
 			using IStorageClient client = storageService.CreateClient(new NamespaceId("memory"));
 
-			BlobType type1 = new BlobType(Guid.Parse("{11C2D886-3349-4164-946F-E9D10BD12E3D}"), 0);
+			BlobType type1 = new BlobType(Guid.Parse("{11C2D886-4164-3349-D1E9-6F943D2ED10B}"), 0);
 			byte[] data1 = new byte[] { 1, 2, 3 };
 
-			BlobType type2 = new BlobType(Guid.Parse("{6CB3A005-26BA-4787-86D2-793ED13771CB}"), 0);
+			BlobType type2 = new BlobType(Guid.Parse("{6CB3A005-4787-26BA-3E79-D286CB7137D1}"), 0);
 			byte[] data2 = new byte[] { 4, 5, 6 };
 
 			IBlobHandle handle1a;

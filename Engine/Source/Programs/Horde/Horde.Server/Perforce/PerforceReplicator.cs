@@ -37,7 +37,7 @@ namespace Horde.Server.Perforce
 	/// </summary>
 	class PerforceReplicator
 	{
-		[NodeType("{8C874966-2E89-4273-A4AB-AC9F5491C86D}")]
+		[BlobType("{8C874966-4273-2E89-9FAC-ABA46DC89154}")]
 		class SyncNode : Node
 		{
 			public int Change { get; }

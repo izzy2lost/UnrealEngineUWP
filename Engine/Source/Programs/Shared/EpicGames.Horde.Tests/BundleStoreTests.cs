@@ -32,7 +32,7 @@ namespace EpicGames.Horde.Tests
 			Assert.IsTrue(a.SequenceEqual(b));
 		}
 
-		[NodeType("{F63606D4-5DBB-4061-A655-6F444F65229E}")]
+		[BlobType("{F63606D4-4061-5DBB-446F-55A69E22654F}")]
 		class TextNode : Node
 		{
 			public string Text { get; }
@@ -77,9 +77,9 @@ namespace EpicGames.Horde.Tests
 			byte[] payload = payloadWriter.WrittenMemory.ToArray();
 
 			List<BlobType> types = new List<BlobType>();
-			types.Add(new BlobType(Guid.Parse("F63606D4-5DBB-4061-A655-6F444F65229E"), 1));
+			types.Add(new BlobType("{F63606D4-4061-5DBB-446F-55A69E22654F}", 1));
 
-			List<BundleExport> exports = new List<BundleExport>();
+			List <BundleExport> exports = new List<BundleExport>();
 			exports.Add(new BundleExport(0, 0, 0, payload.Length, Array.Empty<BundleExportRef>()));
 
 			List<BundlePacket> packets = new List<BundlePacket>();
@@ -121,7 +121,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, blobStore.Refs.Count);
 		}
 
-		[NodeType("{F63606D4-5DBB-4061-A655-6F444F65229F}")]
+		[BlobType("{F63606D4-4061-5DBB-446F-55A69F22654F}")]
 		class SimpleNode : Node
 		{
 			public ReadOnlySequence<byte> Data { get; }

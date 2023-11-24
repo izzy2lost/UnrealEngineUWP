@@ -5,7 +5,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node containing arbitrary compact binary data
 	/// </summary>
-	[NodeType("{BE09E54F-7A6B-47CA-BCAF-972A38153B18}", 1)]
+	[BlobType("{BE09E54F-47CA-7A6B-2A97-AFBC183B1538}", 1)]
 	public class RedirectNode : Node 
 	{
 		/// <summary>

@@ -140,7 +140,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A directory node
 	/// </summary>
-	[NodeType("{0714EC11-291A-4D07-867F-E78AD6809979}", 1)]
+	[BlobType("{0714EC11-4D07-291A-8AE7-7F86799980D6}", 1)]
 	public class DirectoryNode : Node
 	{
 		readonly SortedDictionary<string, FileEntry> _nameToFileEntry = new SortedDictionary<string, FileEntry>(StringComparer.Ordinal);

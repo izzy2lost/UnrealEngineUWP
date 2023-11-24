@@ -123,7 +123,7 @@ namespace UnrealBuildTool.Artifacts
 	/// <summary>
 	/// Horde node that represents a collection of action nodes 
 	/// </summary>
-	[NodeType("{E8DBCD77-861D-4CAE-B77F-5807D26E2533}")]
+	[BlobType("{E8DBCD77-4CAE-861D-0758-7FB733256ED2}")]
 	class ArtifactActionCollectionNode : Node
 	{
 

@@ -28,7 +28,7 @@ namespace EpicGames.Horde.Logs
 	/// Since alignment of ngrams may not match alignment of ngrams in the search term, we offset the search term by
 	/// 1-4 bytes and include the union of blocks matching at any offset.
 	/// </summary>
-	[NodeType("{BAE1A00E-FD63-474E-A804-8081E20134F9}", 1)]
+	[BlobType("{BAE1A00E-474E-FD63-8180-04A8F93401E2}", 1)]
 	public class LogIndexNode : Node
 	{
 		/// <summary>

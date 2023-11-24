@@ -17,7 +17,7 @@ namespace EpicGames.Horde.Storage
 		BlobType Type { get; }
 
 		/// <summary>
-		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
+		/// Version of the current node, as specified via <see cref="BlobTypeAttribute"/>
 		/// </summary>
 		int Version { get; }
 
@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage
 		public BlobType Type => _blobData.Type;
 
 		/// <summary>
-		/// Version of the current node, as specified via <see cref="NodeTypeAttribute"/>
+		/// Version of the current node, as specified via <see cref="BlobTypeAttribute"/>
 		/// </summary>
 		public int Version => Type.Version;
 

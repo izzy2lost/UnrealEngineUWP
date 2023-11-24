@@ -834,17 +834,28 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Writes a Guid to the memory writer
+		/// Writes a Guid to the memory writer using NET order serialization.
 		/// </summary>
 		/// <param name="writer">Writer to serialize to</param>
 		/// <param name="guid">Value to write</param>
-		public static void WriteGuid(this IMemoryWriter writer, Guid guid)
+		public static void WriteGuidNetOrder(this IMemoryWriter writer, Guid guid)
 		{
 			Memory<byte> buffer = writer.GetMemory(16);
 			if (!guid.TryWriteBytes(buffer.Slice(0, 16).Span))
 			{
 				throw new InvalidOperationException("Unable to write guid to buffer");
 			}
+			writer.Advance(16);
+		}
+
+		/// <summary>
+		/// Writes a Guid to the memory writer (uses UE rather than NET serialization order).
+		/// </summary>
+		/// <param name="writer">Writer to serialize to</param>
+		/// <param name="guid">Value to write</param>
+		public static void WriteGuidUnrealOrder(this IMemoryWriter writer, Guid guid)
+		{
+			GuidUtils.WriteGuidUnrealOrder(writer.GetSpan(16), guid);
 			writer.Advance(16);
 		}
 

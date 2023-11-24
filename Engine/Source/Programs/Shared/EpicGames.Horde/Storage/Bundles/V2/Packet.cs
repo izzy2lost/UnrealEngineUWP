@@ -56,7 +56,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Type for packet blobs
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType(Guid.Parse("{CD9A04EF-CAC1-47D3-A605-2A498130E651}"), 1);
+		public static BlobType BlobType { get; } = new BlobType("{CD9A04EF-47D3-CAC1-492A-05A651E63081}", 1);
 
 		class DebugProxy
 		{

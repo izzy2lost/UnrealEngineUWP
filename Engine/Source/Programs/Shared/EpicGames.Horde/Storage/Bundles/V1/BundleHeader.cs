@@ -305,7 +305,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			for (int typeIdx = 0; typeIdx < numTypes; typeIdx++)
 			{
-				Guid guid = reader.ReadGuid();
+				Guid guid = reader.ReadGuidUnrealOrder();
 				int serializerVersion = (int)reader.ReadUnsignedVarInt();
 
 				types.Add(new BlobType(guid, serializerVersion));

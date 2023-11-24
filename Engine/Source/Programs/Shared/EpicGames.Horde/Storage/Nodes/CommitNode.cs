@@ -9,7 +9,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node representing commit metadata
 	/// </summary>
-	[NodeType("{64D50724-6B22-41C0-A890-B51CD6241817}", 1)]
+	[BlobType("{64D50724-41C0-6B22-1CB5-90A8171824D6}", 1)]
 	public class CommitNode : Node
 	{
 		/// <summary>
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			Message = reader.ReadString();
 			Time = reader.ReadDateTime();
 			Contents = new DirectoryNodeRef(reader);
-			Metadata = reader.ReadDictionary(() => reader.ReadGuid(), () => reader.ReadHashedNodeRef());
+			Metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadHashedNodeRef());
 		}
 
 		/// <inheritdoc/>
@@ -111,7 +111,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteString(Message);
 			writer.WriteDateTime(Time);
 			writer.WriteHashedNodeRef(Contents);
-			writer.WriteDictionary(Metadata, key => writer.WriteGuid(key), value => writer.WriteHashedNodeRef(value));
+			writer.WriteDictionary(Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteHashedNodeRef(value));
 		}
 	}
 }

@@ -14,7 +14,7 @@ namespace EpicGames.Horde.Logs
 	/// <summary>
 	/// Read-only buffer for log text, with indexed line offsets.
 	/// </summary>
-	[NodeType("{7020B6CA-0F72-4174-B6AA-06AA60A3EF30}", 1)]
+	[BlobType("{7020B6CA-4174-0F72-AA06-AAB630EFA360}", 1)]
 	public class LogChunkNode : Node
 	{
 		/// <summary>

@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers.Binary;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -20,14 +21,22 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Blob type used to indicate a leaf node. Data is an opaque blob and has no references.
 		/// </summary>
-		public static BlobType Leaf { get; } = new BlobType(Guid.Parse("{1080B643-8015-4A4D-ADBB-C2FB586C8D81}"), 1);
+		public static BlobType Leaf { get; } = new BlobType("{1080B643-4A4D-8015-FBC2-BBAD818D6C58}", 1);
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public BlobType(string guid, int version)
+			: this(Guid.Parse(guid), version)
+		{
+		}
 
 		/// <summary>
 		/// Deserialize a type from a byte span
 		/// </summary>
 		public static BlobType Read(ReadOnlySpan<byte> span)
 		{
-			Guid guid = new Guid(span.Slice(0, 16));
+			Guid guid = GuidUtils.ReadGuidUnrealOrder(span);
 			int version = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(16));
 
 			return new BlobType(guid, version);
@@ -38,7 +47,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public readonly void Write(Span<byte> data)
 		{
-			Guid.TryWriteBytes(data.Slice(0, 16));
+			GuidUtils.WriteGuidUnrealOrder(data, Guid);
 			BinaryPrimitives.WriteInt32LittleEndian(data.Slice(16), Version);
 		}
 
