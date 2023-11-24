@@ -677,7 +677,16 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 #endif
 
 	Result.PreSkinnedPosition = Intermediates.PreSkinPosition.xyz;
-	Result.PreSkinnedNormal = TangentToLocal[2]; //TangentBias(Input.TangentZ.xyz);
+#if SUPPORT_GPUSKIN_PASSTHROUGH
+	if (IsGPUSkinPassThrough())
+	{
+		Result.PreSkinnedNormal = LocalVFLooseParameters.GPUSkinPassThroughPreSkinnedTangentBuffer[Input.VertexId * 2 + 1].xyz;
+	}
+	else
+#endif
+	{
+		Result.PreSkinnedNormal = TangentToLocal[2]; //TangentBias(Input.TangentZ.xyz);
+	}
 
 #if MANUAL_VERTEX_FETCH && NUM_MATERIAL_TEXCOORDS_VERTEX
 		const uint NumFetchTexCoords = LocalVF.VertexFetch_Parameters[VF_NumTexcoords_Index];

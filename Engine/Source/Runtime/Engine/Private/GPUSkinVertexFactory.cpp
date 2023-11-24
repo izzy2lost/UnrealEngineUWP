@@ -1346,6 +1346,7 @@ void FGPUSkinPassthroughVertexFactory::CreateLooseUniformBuffer(FRHICommandListB
 	Parameters.FrameNumber = InFrameNumber;
 	Parameters.GPUSkinPassThroughPositionBuffer = PositionSRV;
 	Parameters.GPUSkinPassThroughPreviousPositionBuffer = PrevPositionSRV;
+	Parameters.GPUSkinPassThroughPreSkinnedTangentBuffer = InSourceVertexFactory->GetTangentsSRV();
 	LooseParametersUniformBuffer.UpdateUniformBufferImmediate(RHICmdList, Parameters);
 }
 

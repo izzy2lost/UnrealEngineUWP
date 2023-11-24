@@ -31,6 +31,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLocalVertexFactoryLooseParameters,)
 	SHADER_PARAMETER(uint32, FrameNumber)
 	SHADER_PARAMETER_SRV(Buffer<float>, GPUSkinPassThroughPositionBuffer)
 	SHADER_PARAMETER_SRV(Buffer<float>, GPUSkinPassThroughPreviousPositionBuffer)
+	SHADER_PARAMETER_SRV(Buffer<float4>, GPUSkinPassThroughPreSkinnedTangentBuffer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 extern ENGINE_API TUniformBufferRef<FLocalVertexFactoryUniformShaderParameters> CreateLocalVFUniformBuffer(
