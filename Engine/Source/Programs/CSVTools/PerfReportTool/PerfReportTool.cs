@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.220.0";
+        private static string VersionString = "4.221.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1207,8 +1207,6 @@ namespace PerfReportTool
 		CsvStats ReadCsvStats(CachedCsvFile csvFile, int minX, int maxX)
 		{
 			CsvStats csvStats = csvFile.GetFinalCsv();
-			reportXML.ApplyDerivedMetadata(csvStats.metaData);
-
 			if (csvStats.metaData == null)
 			{
 				csvStats.metaData = new CsvMetadata();

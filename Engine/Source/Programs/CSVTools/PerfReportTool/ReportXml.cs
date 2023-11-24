@@ -19,17 +19,45 @@ namespace PerfReportTool
 
 	class DerivedMetadataEntry
 	{
-		public DerivedMetadataEntry(string inSourceName, string inSourceValue, string inDestName, string inDestValue)
+		public DerivedMetadataEntry(XElement derivedMetadataEntry)
 		{
-			sourceName = inSourceName;
-			sourceValue = inSourceValue;
-			destName = inDestName;
-			destValue = inDestValue;
+			metadataQuery = derivedMetadataEntry.GetSafeAttribute<string>("metadataQuery");
+			if (metadataQuery == null)
+			{
+				// Back-compat: support sourceName/destName if metadataQuery isn't provided
+				string sourceName = derivedMetadataEntry.GetSafeAttribute<string>("sourceName");
+				if (sourceName != null)
+				{
+					string sourceValue = derivedMetadataEntry.GetRequiredAttribute<string>("sourceValue");
+					if (sourceValue != null)
+					{
+						metadataQuery = sourceName + "=" + sourceValue;
+					}
+				}
+			}
+			destName = derivedMetadataEntry.GetRequiredAttribute<string>("destName");
+			destValue = derivedMetadataEntry.GetRequiredAttribute<string>("destValue");
+			bHasVariables = (destName.Contains("${") || destValue.Contains("${") || (metadataQuery != null && metadataQuery.Contains("${")));
 		}
-		public string sourceName;
-		public string sourceValue;
+		private DerivedMetadataEntry()
+		{
+		}
+		public DerivedMetadataEntry ApplyVariableMappings(XmlVariableMappings vars)
+		{
+			if (vars == null || !bHasVariables)
+			{
+				return this;
+			}
+			DerivedMetadataEntry newEntry = new DerivedMetadataEntry();
+			newEntry.metadataQuery = metadataQuery != null ? vars.ResolveVariables(metadataQuery) : null;
+			newEntry.destName = vars.ResolveVariables(destName);
+			newEntry.destValue = vars.ResolveVariables(destValue);
+			return newEntry;
+		}
+		public string metadataQuery;
 		public string destName;
 		public string destValue;
+		public bool bHasVariables;
 	};
 
 	class DerivedMetadataMappings
@@ -38,19 +66,27 @@ namespace PerfReportTool
 		{
 			entries = new List<DerivedMetadataEntry>();
 		}
-		public void ApplyMapping(CsvMetadata csvMetadata)
+		public void ApplyMapping(CsvMetadata csvMetadata, XmlVariableMappings vars)
 		{
 			if (csvMetadata != null)
 			{
-				foreach (DerivedMetadataEntry entry in entries)
+				List<KeyValuePair<string, string>> valuesToAdd = new List<KeyValuePair<string, string>>();
+				foreach (DerivedMetadataEntry rawEntry in entries)
 				{
-					if (csvMetadata.Values.ContainsKey(entry.sourceName.ToLowerInvariant()))
+					DerivedMetadataEntry entry = rawEntry.ApplyVariableMappings(vars);
+
+					// Only override if the key is not already in the CSV metadata
+					if (!csvMetadata.Values.ContainsKey(entry.destName.ToLowerInvariant()))
 					{
-						if (csvMetadata.Values[entry.sourceName].ToLowerInvariant() == entry.sourceValue.ToLowerInvariant())
+						if (entry.metadataQuery == null || CsvStats.DoesMetadataMatchFilter(csvMetadata, entry.metadataQuery)) 
 						{
-							csvMetadata.Values.Add(entry.destName.ToLowerInvariant(), entry.destValue);
+							valuesToAdd.Add(new KeyValuePair<string, string>(entry.destName.ToLowerInvariant(), entry.destValue));
 						}
 					}
+				}
+				foreach (KeyValuePair<string,string> pair in valuesToAdd)
+				{
+					csvMetadata.Values[pair.Key] = pair.Value;
 				}
 			}
 		}
@@ -233,15 +269,7 @@ namespace PerfReportTool
 			{
 				foreach (XElement mapping in derivedMetadataMappingsElement.Elements("mapping"))
 				{
-					string sourceName = mapping.GetSafeAttribute<string>("sourceName");
-					string sourceValue = mapping.GetSafeAttribute<string>("sourceValue");
-					string destName = mapping.GetSafeAttribute<string>("destName");
-					string destValue = mapping.GetSafeAttribute<string>("destValue");
-					if (sourceName == null || sourceValue == null || destName == null || destValue == null)
-					{
-						throw new Exception("Derivedmetadata mapping is missing a required attribute!\nRequired attributes: sourceName, sourceValue, destName, destValue.\nXML: " + mapping.ToString());
-					}
-					derivedMetadataMappings.entries.Add(new DerivedMetadataEntry(sourceName, sourceValue, destName, destValue));
+					derivedMetadataMappings.entries.Add(new DerivedMetadataEntry(mapping));
 				}
 			}
 
@@ -319,22 +347,12 @@ namespace PerfReportTool
 
 		public ReportTypeInfo GetReportTypeInfo(string reportType, CachedCsvFile csvFile, bool bBulkMode, bool forceReportType)
 		{
-			// Setup the variable mappings
-			XmlVariableMappings vars = new XmlVariableMappings();
-			if (csvFile.metadata != null)
-			{
-				Dictionary<string, string> metadataDict = csvFile.metadata.Values;
-				foreach (string key in metadataDict.Keys)
-				{
-					vars.SetVariable("meta." + key, metadataDict[key]);
-				}
-			}
+			XmlVariableMappings vars = csvFile.xmlVariableMappings;
+			// Apply the global variable set
 			if (globalVariableSetElement != null)
 			{
-				// Apply the global variable set
 				vars.ApplyVariableSet(globalVariableSetElement, csvFile.metadata);
 			}
-
 			ReportTypeInfo reportTypeInfo = null;
 			if (reportType == "")
 			{
@@ -524,11 +542,6 @@ namespace PerfReportTool
 			return csvEventsToStrip;
 		}
 
-		public void ApplyDerivedMetadata(CsvMetadata csvMetadata)
-		{
-			derivedMetadataMappings.ApplyMapping(csvMetadata);
-		}
-
 		public List<string> GetSummaryTableNames()
 		{
 			return summaryTables.Keys.ToList();
@@ -558,6 +571,15 @@ namespace PerfReportTool
 		public void SetVariable(string Name, string Value)
 		{
 			vars[Name] = Value;
+		}
+
+		public void SetMetadataVariables(CsvMetadata csvMetadata)
+		{
+			Dictionary<string, string> metadataDict = csvMetadata.Values;
+			foreach (string key in metadataDict.Keys)
+			{
+				SetVariable("meta." + key, metadataDict[key]);
+			}
 		}
 
 		public string ResolveVariables(string attributeValue)
