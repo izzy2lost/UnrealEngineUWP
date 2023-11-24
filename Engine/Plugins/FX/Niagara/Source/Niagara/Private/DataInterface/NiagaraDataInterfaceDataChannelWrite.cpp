@@ -7,10 +7,10 @@
 #include "NiagaraCommon.h"
 #include "NiagaraShared.h"
 
+#include "NiagaraSimCache.h"
 #include "NiagaraSystem.h"
 #include "NiagaraWorldManager.h"
 #include "NiagaraSystemInstance.h"
-
 
 #include "NiagaraDataChannel.h"
 #include "NiagaraDataChannelHandler.h"
