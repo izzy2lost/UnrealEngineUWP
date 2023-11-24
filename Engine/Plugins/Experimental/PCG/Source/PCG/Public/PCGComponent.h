@@ -270,7 +270,9 @@ public:
 	FPCGTaskId GetGenerationTaskId() const { return CurrentGenerationTask; }
 
 #if WITH_EDITOR
-	void Refresh(bool bStructural = false);
+	/** Schedules refresh of the component. If bCancelExistingRefresh is true, any existing refresh is cancelled and a new one is scheduled. */
+	void Refresh(bool bStructural = false, bool bCancelExistingRefresh = false);
+
 	void OnRefresh(bool bForceRefresh);
 
 	void StartGenerationInProgress();
