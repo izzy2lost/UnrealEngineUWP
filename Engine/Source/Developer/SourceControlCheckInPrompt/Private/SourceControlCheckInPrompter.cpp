@@ -16,6 +16,7 @@
 static const FTimespan IntervalNoCheckins = FTimespan::FromDays(1);
 static const FTimespan IntervalBetweenPrompts = FTimespan::FromDays(1);
 static const FTimespan IntervalBetweenGetSubmittedChangelists = FTimespan::FromMinutes(10);
+static const FTimespan IntervalSessionLength = FTimespan::FromMinutes(30);
 
 extern TAutoConsoleVariable<bool> CVarSourceControlEnablePeriodicCheckInPrompt;
 
@@ -51,6 +52,22 @@ FSourceControlCheckInPrompter::~FSourceControlCheckInPrompter()
 void FSourceControlCheckInPrompter::Init()
 {
 	UPackage::PackageSavedWithContextEvent.AddRaw(this, &FSourceControlCheckInPrompter::OnPackageSaved);
+
+	// Set a ticker to periodically check if there have been any project changes.
+	FTSTicker::GetCoreTicker().AddTicker(
+		FTickerDelegate::CreateSPLambda(this,
+			[this] (float DeltaTime)
+			{
+				FString SourceControlProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
+				if (ProjectDirectory != SourceControlProjectDir)
+				{
+					ProjectDirectory = SourceControlProjectDir;
+					ProjectActivationTime = FDateTime::UtcNow();
+				}
+
+				return true;
+			}
+	), 60.f);
 }
 
 // Step 1: Initiate the periodic prompt flow whenever a package is saved.
@@ -161,6 +178,12 @@ bool FSourceControlCheckInPrompter::IsPromptAllowed() const
 	// Ensure there's a world in the editor.
 	UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
 	if (EditorWorld == nullptr)
+	{
+		return false;
+	}
+
+	// Ensure the user has been active in that world for a sufficient amount of time.
+	if (FDateTime::UtcNow() - IntervalSessionLength < ProjectActivationTime)
 	{
 		return false;
 	}

@@ -62,4 +62,10 @@ private:
 	/** Time the last get submitted changelists operation was performed by map name */
 	TMap<FString, FDateTime> TimeGetSubmittedChangelistsExecuted;
 
+	/** The project directory user is working in */
+	FString ProjectDirectory;
+
+	/** The project activation time (eg: when was it opened) */
+	FDateTime ProjectActivationTime;
+
 };
