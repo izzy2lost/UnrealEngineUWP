@@ -28,6 +28,10 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Output")
 	bool bInvertAlpha = true;
 
+	/** If checked, the texture will be shared across different GPUs. Disable if not needed for faster performance */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Output")
+	bool bCrossGpu = true;
+
 public:
 	
 	//~ Begin UMediaOutput interface

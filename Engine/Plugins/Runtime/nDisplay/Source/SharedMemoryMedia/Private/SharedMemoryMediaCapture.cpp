@@ -32,7 +32,7 @@ bool USharedMemoryMediaCapture::InitializeCapture()
 
 	if (!SharedMemoryMediaOutput)
 	{
-		UE_LOG(LogSharedMemoryMedia, Error, TEXT("Invalid MediaOutput, cannot InitializeCapture"));
+		UE_LOG(LogSharedMemoryMedia, Error, TEXT("Invalid MediaOutput for '%s', cannot InitializeCapture"), *GetName());
 		return false;
 	}
 
@@ -101,7 +101,9 @@ bool USharedMemoryMediaCapture::InitializeCapture()
 				FSharedMemoryMediaFrameMetadata* Data = static_cast<FSharedMemoryMediaFrameMetadata*>(SharedMemoryRegion->GetAddress());
 				Data->Receiver.FrameNumberAcked = ~0;
 
-				UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("Created SharedMemoryRegion[%d] = %s"), BufferIdx, *SharedMemoryRegionName);
+				UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("Created SharedMemoryRegion[%d] = %s for UniqueName '%s'"), 
+					BufferIdx, *SharedMemoryRegionName, *SharedMemoryMediaOutput->UniqueName
+				);
 			}
 		}
 
@@ -171,7 +173,7 @@ void USharedMemoryMediaCapture::StopCaptureImpl(bool bAllowPendingFrameToBeProce
 
 		if (PlatformData.IsValid())
 		{
-			PlatformData->ReleaseSharedCrossGpuTexture(BufferIdx);
+			PlatformData->ReleaseSharedTexture(BufferIdx);
 		}
 
 		SharedCrossGpuTextureGuids[BufferIdx] = FGuid();
@@ -210,6 +212,10 @@ void USharedMemoryMediaCapture::OnCustomCapture_RenderingThread(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SharedMemory_Capture)
 	TRACE_CPUPROFILER_EVENT_SCOPE(USharedMemoryMediaCapture::OnCustomCapture_RenderingThread);
 
+	// We'll be needing the output options.
+	const USharedMemoryMediaOutput* SharedMemoryMediaOutput = Cast<USharedMemoryMediaOutput>(MediaOutput);
+	check(SharedMemoryMediaOutput);
+
 	// Initialize shared gpu textures if needed.
 
 	check(PlatformData.IsValid());
@@ -220,34 +226,37 @@ void USharedMemoryMediaCapture::OnCustomCapture_RenderingThread(
 		{
 			const FGuid Guid = FGuid::NewGuid();
 						
-			SharedCrossGpuTextures[Idx] = PlatformData->CreateSharedCrossGpuTexture(
+			SharedCrossGpuTextures[Idx] = PlatformData->CreateSharedTexture(
 				InSourceTexture->Desc.Format,
 				EnumHasAnyFlags(InSourceTexture->Desc.Flags, TexCreate_SRGB),
 				CopyInfo.Size.X, 
 				CopyInfo.Size.Y, 
 				Guid, 
-				Idx
+				Idx,
+				SharedMemoryMediaOutput->bCrossGpu
 			);
 
 			if (!SharedCrossGpuTextures[Idx].IsValid())
 			{
-				UE_LOG(LogSharedMemoryMedia, Error, TEXT("Unable to create cross GPU texture of the requested type."));
+				UE_LOG(LogSharedMemoryMedia, Error, TEXT("Unable to create cross GPU texture of the requested type for Unique Name '%s'"), 
+					*SharedMemoryMediaOutput->UniqueName
+				);
 
 				SetState(EMediaCaptureState::Error);
 				return;
 			}
 
 			SharedCrossGpuTextureGuids[Idx] = Guid;
-			UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("Created SharedGpuTextureGuid[%d] = %s"), Idx, *SharedCrossGpuTextureGuids[Idx].ToString());
+
+			UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("Created SharedGpuTextureGuid[%d] = %s for UniqueName '%s'"), 
+				Idx, *SharedCrossGpuTextureGuids[Idx].ToString(), *SharedMemoryMediaOutput->UniqueName
+			);
 		}
 	}
 
 	FRDGTextureRef SourceTexture = InSourceTexture;
 
 	// When enabled, add pass to invert alpha
-
-	const USharedMemoryMediaOutput* SharedMemoryMediaOutput = Cast<USharedMemoryMediaOutput>(MediaOutput);
-	check(SharedMemoryMediaOutput);
 
 	if (SharedMemoryMediaOutput->bInvertAlpha)
 	{
@@ -348,7 +357,9 @@ void USharedMemoryMediaCapture::AddCopyToSharedGpuTexturePass(FRDGBuilder& Graph
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(SharedMemMediaOutputFenceBusy);
 
-				UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("bTextureReadyFenceBusy[%d] for frame %d was busy, so we wait"), SharedTextureIdx, GFrameCounterRenderThread);
+				UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("bTextureReadyFenceBusy[%d] for frame %d was busy, so we wait"),
+					SharedTextureIdx, GFrameCounterRenderThread
+				);
 
 				while (bTextureReadyFenceBusy[SharedTextureIdx])
 				{
@@ -377,7 +388,7 @@ void USharedMemoryMediaCapture::AddCopyToSharedGpuTexturePass(FRDGBuilder& Graph
 					RunningTasksCount--;
 				};
 
-				const FString CopyThreadName = FString::Printf(TEXT("SharedMemMediaOutputGpuTextureInTransitForFrame_%d"), FrameNumber);
+				const FString CopyThreadName = FString::Printf(TEXT("SharedMemMediaOutputGpuTextureInTransitForFrame_%d"), FrameNumber % 100);
 				TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*CopyThreadName);
 
 				// Wait for fence that indicates that the gpu texture has the data

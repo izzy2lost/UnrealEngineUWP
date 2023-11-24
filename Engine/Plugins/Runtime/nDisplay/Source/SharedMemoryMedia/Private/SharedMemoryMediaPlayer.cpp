@@ -366,7 +366,7 @@ void FSharedMemoryMediaPlayer::TickFetch(FTimespan DeltaTime, FTimespan Timecode
 
 		// Now that we have the shared texture guid from the sender, use it to open the associated texture
 
-		SharedCrossGpuTextures[MemIdx] = PlatformData->OpenSharedCrossGpuTextureByGuid(SharedGpuTextureGuid, SharedCrossGpuTextureDescriptions[MemIdx]);
+		SharedCrossGpuTextures[MemIdx] = PlatformData->OpenSharedTextureByGuid(SharedGpuTextureGuid, SharedCrossGpuTextureDescriptions[MemIdx]);
 
 		if (!SharedCrossGpuTextures[MemIdx].IsValid())
 		{
