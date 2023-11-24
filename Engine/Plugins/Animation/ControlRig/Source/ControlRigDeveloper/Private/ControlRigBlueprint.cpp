@@ -2353,7 +2353,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 							FString OldConnectorNamespace, ShortName;
 							OldConnectorName.Split(UModularRig::NamespaceSeparator, &OldConnectorNamespace, &ShortName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 							OldConnectorNamespace.Append(UModularRig::NamespaceSeparator);
-							if (OldConnectorNamespace == OldNamespace)
+							if (OldConnectorNamespace.StartsWith(OldNamespace))
 							{
 								ConnectionInfo& Info = RenamedConnectors.FindOrAdd(Connector);
 								Info.NewPath = OldConnectorName.Replace(*OldNamespace, *NewNamespace);
