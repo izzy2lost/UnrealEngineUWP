@@ -194,16 +194,17 @@ void FLiveLinkUAssetRecorder::SaveRecording()
 	UPackage* NewPackage = CreatePackage(*PackageName);
 
 	ULiveLinkUAssetRecording* NewRecording = NewObject<ULiveLinkUAssetRecording>(NewPackage, *NewAssetName, RF_Public | RF_Standalone);
-	NewRecording->LengthInSeconds = TimeRecordingEnded - TimeRecordingStarted;
-	NewRecording->RecordingPreset->BuildFromClient();
-	NewRecording->RecordingData = MoveTemp(*CurrentRecording);
-
 	if (NewRecording)
 	{
+		NewRecording->LengthInSeconds = TimeRecordingEnded - TimeRecordingStarted;
+		NewRecording->RecordingPreset->BuildFromClient();
+		NewRecording->RecordingData = MoveTemp(*CurrentRecording);
 		NewRecording->MarkPackageDirty();
+
 		//FAssetRegistryModule::AssetCreated(NewPreset);  Disabled for now since unsure if needed.
 		UEditorLoadingAndSavingUtils::SavePackages({ NewPackage }, false);
 	}
+
 	return;
 }
 

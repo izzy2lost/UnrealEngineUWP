@@ -104,3 +104,5 @@ public:
 		
 	}
 };
+
+#undef LOCTEXT_NAMESPACE /*LiveLinkHub.RecordingListView*/
