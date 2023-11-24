@@ -6,6 +6,7 @@
 #include "Misc/LargeWorldRenderPosition.h"
 #include "NiagaraConstants.h"
 #include "NiagaraComponent.h"
+#include "NiagaraCustomVersion.h"
 #include "NiagaraDataInterfaceUtilities.h"
 #include "NiagaraDataSetReadback.h"
 #include "NiagaraEmitterInstance.h"
@@ -20,6 +21,8 @@
 
 UNiagaraSimCache::FOnCacheBeginWrite	UNiagaraSimCache::OnCacheBeginWrite;
 UNiagaraSimCache::FOnCacheEndWrite		UNiagaraSimCache::OnCacheEndWrite;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FNiagaraSimCacheFeedbackContext::~FNiagaraSimCacheFeedbackContext()
 {
@@ -37,6 +40,9 @@ FNiagaraSimCacheFeedbackContext::~FNiagaraSimCacheFeedbackContext()
 	}
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 int32 FNiagaraSimCacheDataBuffersLayout::IndexOfCacheVariable(const FNiagaraVariableBase& InVariable) const
 {
 	return Variables.IndexOfByPredicate(
@@ -53,8 +59,213 @@ const FNiagaraSimCacheVariable* FNiagaraSimCacheDataBuffersLayout::FindCacheVari
 	return Index != INDEX_NONE ? &Variables[Index] : nullptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct FNiagaraSimCacheBuffersSetup
+{
+	explicit FNiagaraSimCacheBuffersSetup(const FNiagaraSimCacheDataBuffersLayout& CacheLayout, const FNiagaraSimCacheDataBuffers& DataBuffer)
+	{
+		FloatDataNum			= CacheLayout.FloatCount * DataBuffer.NumInstances;
+		HalfDataNum				= CacheLayout.HalfCount * DataBuffer.NumInstances;
+		Int32DataNum			= CacheLayout.Int32Count * DataBuffer.NumInstances;
+		IDToIndexTableNum		= DataBuffer.IDToIndexTableElements;
+		InterpMappingNum		= CacheLayout.bAllowInterpolation ? DataBuffer.NumInstances : 0;
+
+		FloatDataOffset			= 0;
+		HalfDataOffset			= Align(FloatDataOffset + (FloatDataNum * sizeof(float)), sizeof(FFloat16));
+		Int32DataOffset			= Align(HalfDataOffset + (HalfDataNum * sizeof(FFloat16)), sizeof(int32));
+		IDToIndexTableOffset	= Align(Int32DataOffset + (Int32DataNum * sizeof(int32)), sizeof(int32));
+		InterpMappingOffset		= Align(IDToIndexTableOffset + (IDToIndexTableNum * sizeof(int32)), sizeof(uint32));
+		BufferSize				= InterpMappingOffset + (InterpMappingNum * sizeof(int32));
+	}
+
+	bool SetArrayViews(FNiagaraSimCacheDataBuffers& DataBuffer) const
+	{
+		const TArrayView64<uint8> DataBufferView = DataBuffer.DataBuffer.GetView();
+		if (DataBufferView.Num() != BufferSize)
+		{
+			DataBuffer.NumInstances		= 0;
+			DataBuffer.FloatData		= TArrayView<uint8>();
+			DataBuffer.HalfData			= TArrayView<uint8>();
+			DataBuffer.Int32Data		= TArrayView<uint8>();
+			DataBuffer.IDToIndexTable	= TArrayView<int32>();
+			DataBuffer.InterpMapping	= TArrayView<uint32>();
+			return false;
+		}
+		else
+		{
+			uint8* BaseData				= DataBufferView.GetData();
+			DataBuffer.FloatData		= TArrayView<uint8>(BaseData + FloatDataOffset, FloatDataNum * sizeof(float));
+			DataBuffer.HalfData			= TArrayView<uint8>(BaseData + HalfDataOffset, HalfDataNum * sizeof(FFloat16));
+			DataBuffer.Int32Data		= TArrayView<uint8>(BaseData + Int32DataOffset, Int32DataNum * sizeof(int32));
+			DataBuffer.IDToIndexTable	= TArrayView<int32>(reinterpret_cast<int32*>(BaseData + IDToIndexTableOffset), IDToIndexTableNum);
+			DataBuffer.InterpMapping	= TArrayView<uint32>(reinterpret_cast<uint32*>(BaseData + InterpMappingOffset), InterpMappingNum);
+			return true;
+		}
+	}
+
+	int64 FloatDataNum = 0;
+	int64 HalfDataNum = 0;
+	int64 Int32DataNum = 0;
+	int64 IDToIndexTableNum = 0;
+	int64 InterpMappingNum = 0;
+
+	int64 FloatDataOffset = 0;
+	int64 HalfDataOffset = 0;
+	int64 Int32DataOffset = 0;
+	int64 IDToIndexTableOffset = 0;
+	int64 InterpMappingOffset = 0;
+	int64 BufferSize = 0;
+};
+
+void FNiagaraSimCacheDataBuffers::SetupForWrite(const FNiagaraSimCacheDataBuffersLayout& CacheLayout)
+{
+	const FNiagaraSimCacheBuffersSetup BufferSetup(CacheLayout, *this);
+
+	BulkData.RemoveBulkData();
+	DataBuffer.Reset(static_cast<uint8*>(FMemory::Malloc(BufferSetup.BufferSize)), BufferSetup.BufferSize);
+	const bool bSuccess = BufferSetup.SetArrayViews(*this);
+	checkf(bSuccess == true, TEXT("Cache Write setup can not fail."));
+}
+
+bool FNiagaraSimCacheDataBuffers::SetupForRead(const FNiagaraSimCacheDataBuffersLayout& CacheLayout)
+{
+	const FNiagaraSimCacheBuffersSetup BufferSetup(CacheLayout, *this);
+
+	if (DataBuffer.GetView().Num() != BufferSetup.BufferSize)
+	{
+		DataBuffer = BulkData.GetCopyAsBuffer(0, true);
+		BulkData.UnloadBulkData();
+	}
+
+	return BufferSetup.SetArrayViews(*this);
+}
+
+bool FNiagaraSimCacheDataBuffers::SerializeAsArray(FArchive& Ar, UObject* OwnerObject, const FNiagaraSimCacheDataBuffersLayout& CacheLayout)
+{
+	TArray<uint8> TransientArray;
+	TransientArray = DataBuffer.GetView();
+
+	Ar << TransientArray;
+
+	if (Ar.IsLoading())
+	{
+		uint8* DataBufferMemory = nullptr;
+		if (TransientArray.Num() > 0)
+		{
+			DataBufferMemory = static_cast<uint8*>(FMemory::Malloc(TransientArray.Num()));
+			FMemory::Memcpy(DataBufferMemory, TransientArray.GetData(), TransientArray.Num());
+		}
+		DataBuffer.Reset(DataBufferMemory, TransientArray.Num());
+	}
+
+	return SetupForRead(CacheLayout);
+}
+
+bool FNiagaraSimCacheDataBuffers::SerializeAsBulkData(FArchive& Ar, UObject* OwnerObject, const FNiagaraSimCacheDataBuffersLayout& CacheLayout)
+{
+	if (Ar.IsSaving())
+	{
+		TArrayView64<uint8> DataBufferView = DataBuffer.GetView();
+		if (DataBufferView.Num() > 0)
+		{
+			BulkData.Lock(LOCK_READ_WRITE);
+			{
+				uint8* NewBulkData = BulkData.Realloc(DataBufferView.Num());
+				FMemory::Memcpy(NewBulkData, DataBufferView.GetData(), DataBufferView.Num());
+			}
+			BulkData.Unlock();
+		}
+		else
+		{
+			BulkData.RemoveBulkData();
+		}
+	}
+
+	BulkData.Serialize(Ar, OwnerObject);
+
+	return SetupForRead(CacheLayout);
+}
+
+bool FNiagaraSimCacheDataBuffers::operator==(const FNiagaraSimCacheDataBuffers& Other) const
+{
+	bool bMatches;
+	bMatches = NumInstances == Other.NumInstances;
+	bMatches &= IDAcquireTag == Other.IDAcquireTag;
+	bMatches &= FloatData.Num() == Other.FloatData.Num();
+	bMatches &= HalfData.Num() == Other.HalfData.Num();
+	bMatches &= Int32Data.Num() == Other.Int32Data.Num();
+	bMatches &= IDToIndexTable.Num() == Other.IDToIndexTable.Num();
+	bMatches &= InterpMapping.Num() == Other.InterpMapping.Num();
+
+	TConstArrayView<uint8> ThisDataBuffer = DataBuffer.GetView();
+	TConstArrayView<uint8> OtherDataBuffer = Other.DataBuffer.GetView();
+	bMatches &= ThisDataBuffer.Num() == OtherDataBuffer.Num();
+	if (bMatches)
+	{
+		bMatches &= FMemory::Memcmp(ThisDataBuffer.GetData(), OtherDataBuffer.GetData(), ThisDataBuffer.Num()) != 0;
+	}
+
+	return bMatches;
+}
+
+bool FNiagaraSimCacheDataBuffers::operator!=(const FNiagaraSimCacheDataBuffers& Other) const
+{
+	return !(*this == Other);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 UNiagaraSimCache::UNiagaraSimCache(const FObjectInitializer& ObjectInitializer)
 {
+}
+
+void UNiagaraSimCache::Serialize(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FNiagaraCustomVersion::GUID);
+
+	Super::Serialize(Ar);
+
+	// Early out if we aren't using bulk data, these caches will no longer be supported
+	const int32 NiagaraVersion = Ar.CustomVer(FNiagaraCustomVersion::GUID);
+	if (NiagaraVersion < FNiagaraCustomVersion::SimCache_BulkDataVersion1)
+	{
+		UE_LOG(LogNiagara, Warning, TEXT("SimCache needs to be regenerated as this version is no longer supported."));
+		SoftNiagaraSystem.Reset();
+		return;
+	}
+
+	bool bIsCacheValid = true;
+	if ( CreateParameters.bAllowSerializeLargeCache )
+	{
+		for (FNiagaraSimCacheFrame& CacheFrame : CacheFrames)
+		{
+			bIsCacheValid &= CacheFrame.SystemData.SystemDataBuffers.SerializeAsBulkData(Ar, this, CacheLayout.SystemLayout);
+			for (int32 iEmitter = 0; iEmitter < CacheLayout.EmitterLayouts.Num(); ++iEmitter)
+			{
+				FNiagaraSimCacheEmitterFrame& EmitterData = CacheFrame.EmitterData[iEmitter];
+				bIsCacheValid &= EmitterData.ParticleDataBuffers.SerializeAsBulkData(Ar, this, CacheLayout.EmitterLayouts[iEmitter]);
+			}
+		}
+	}
+	else
+	{
+		for (FNiagaraSimCacheFrame& CacheFrame : CacheFrames)
+		{
+			bIsCacheValid &= CacheFrame.SystemData.SystemDataBuffers.SerializeAsArray(Ar, this, CacheLayout.SystemLayout);
+			for (int32 iEmitter = 0; iEmitter < CacheLayout.EmitterLayouts.Num(); ++iEmitter)
+			{
+				FNiagaraSimCacheEmitterFrame& EmitterData = CacheFrame.EmitterData[iEmitter];
+				bIsCacheValid &= EmitterData.ParticleDataBuffers.SerializeAsArray(Ar, this, CacheLayout.EmitterLayouts[iEmitter]);
+			}
+		}
+	}
+
+	if (!bIsCacheValid)
+	{
+		UE_LOG(LogNiagara, Warning, TEXT("SimCache buffer serialization failed, likely due to bulk data not being supported, cache is invalid."));
+		SoftNiagaraSystem.Reset();
+	}
 }
 
 bool UNiagaraSimCache::IsReadyForFinishDestroy()
@@ -738,7 +949,6 @@ bool UNiagaraSimCache::ReadFrame(int32 FrameIndex, float FrameFraction, FNiagara
 		RebaseTransform = RebaseTransform * CacheFrame.LocalToWorld.Inverse();
 	}
 
-
 	const int32 NextFrameIndex = FMath::Min(FrameIndex + 1, CacheFrames.Num() - 1);
 	const float FrameDeltaSeconds = CacheFrames[NextFrameIndex].SimulationAge - CacheFrame.SimulationAge;
 	const float SimDeltaSeconds = Helper.SystemInstance->CachedDeltaSeconds;
@@ -1111,23 +1321,6 @@ void UNiagaraSimCache::ReadQuatAttributeWithRebase(TArray<FQuat>& OutValues, FQu
 	}
 }
 
-bool FNiagaraSimCacheDataBuffers::operator==(const FNiagaraSimCacheDataBuffers& Other) const
-{
-	bool InstanceCountSame = NumInstances == Other.NumInstances;
-	bool SameAquireTag = IDAcquireTag == Other.IDAcquireTag;
-	bool FloatDataSame = FloatData == Other.FloatData;
-	bool HalfDataSame = HalfData == Other.HalfData;
-	bool IntDataSame = Int32Data == Other.Int32Data;
-	bool IndexTableSame = IDToIndexTable == Other.IDToIndexTable;
-	bool MappingSame = InterpMapping == Other.InterpMapping;
-	return InstanceCountSame && SameAquireTag && FloatDataSame && HalfDataSame
-		&& IntDataSame && IndexTableSame && MappingSame;
-}
-bool FNiagaraSimCacheDataBuffers::operator!=(const FNiagaraSimCacheDataBuffers& Other) const
-{
-	return !(*this == Other);
-}
-
 namespace CacheCompare
 {
 	constexpr int32 ErrorStrLen = 8000;
@@ -1236,16 +1429,35 @@ bool UNiagaraSimCache::IsDataEqual(const UNiagaraSimCache& OtherCache, float Err
 			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.NumInstances different - frame ") + Frame + TEXT(": expected ") + FString::FromInt(ExpectedFrame.SystemData.SystemDataBuffers.NumInstances) + TEXT(", got ") + FString::FromInt(OtherFrame.SystemData.SystemDataBuffers.NumInstances) + '\n');
 			bEqual = false;
 		}
-		if (OtherFrame.SystemData.SystemDataBuffers.Int32Data != ExpectedFrame.SystemData.SystemDataBuffers.Int32Data)
+
+		if (OtherFrame.SystemData.SystemDataBuffers.Int32Data.Num() == ExpectedFrame.SystemData.SystemDataBuffers.Int32Data.Num())
 		{
-			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.Int32Data different - frame ") + Frame + '\n');
+			if (FMemory::Memcmp(OtherFrame.SystemData.SystemDataBuffers.Int32Data.GetData(), ExpectedFrame.SystemData.SystemDataBuffers.Int32Data.GetData(), ExpectedFrame.SystemData.SystemDataBuffers.Int32Data.Num()) != 0)
+			{
+				CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.Int32Data different - frame ") + Frame + '\n');
+				bEqual = false;
+			}
+		}
+		else
+		{
+			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.Int32Data count different - frame ") + Frame + '\n');
 			bEqual = false;
 		}
-		if (OtherFrame.SystemData.SystemDataBuffers.IDToIndexTable != ExpectedFrame.SystemData.SystemDataBuffers.IDToIndexTable)
+
+		if (OtherFrame.SystemData.SystemDataBuffers.IDToIndexTable.Num() == ExpectedFrame.SystemData.SystemDataBuffers.IDToIndexTable.Num())
 		{
-			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.IDToIndexTable different - frame ") + Frame + '\n');
+			if (FMemory::Memcmp(OtherFrame.SystemData.SystemDataBuffers.IDToIndexTable.GetData(), ExpectedFrame.SystemData.SystemDataBuffers.IDToIndexTable.GetData(), ExpectedFrame.SystemData.SystemDataBuffers.IDToIndexTable.Num()) != 0)
+			{
+				CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.IDToIndexTable different - frame ") + Frame + '\n');
+				bEqual = false;
+			}
+		}
+		else
+		{
+			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.IDToIndexTable count different - frame ") + Frame + '\n');
 			bEqual = false;
 		}
+
 		if (OtherFrame.SystemData.SystemDataBuffers.FloatData.Num() == ExpectedFrame.SystemData.SystemDataBuffers.FloatData.Num())
 		{
 			for (int i = 0; i < OtherFrame.SystemData.SystemDataBuffers.FloatData.Num(); i += sizeof(float))
@@ -1265,6 +1477,7 @@ bool UNiagaraSimCache::IsDataEqual(const UNiagaraSimCache& OtherCache, float Err
 			CacheCompare::AddError(Errors, TEXT("SystemDataBuffers.FloatData count different - frame ") + Frame + '\n');
 			bEqual = false;
 		}
+
 		if (OtherFrame.SystemData.SystemDataBuffers.HalfData.Num() == ExpectedFrame.SystemData.SystemDataBuffers.HalfData.Num())
 		{
 			for (int i = 0; i < OtherFrame.SystemData.SystemDataBuffers.HalfData.Num(); i += sizeof(FFloat16))

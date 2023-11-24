@@ -4,9 +4,14 @@
 
 #include "NiagaraCommon.h"
 #include "NiagaraScript.h"
+
+#include "Serialization/BulkData.h"
+#include "Serialization/BulkDataBuffer.h"
+
 #include "NiagaraSimCache.generated.h"
 
 class UNiagaraComponent;
+struct FNiagaraSimCacheDataBuffersLayout;
 
 UENUM(BlueprintType)
 enum class ENiagaraSimCacheAttributeCaptureMode : uint8
@@ -38,14 +43,6 @@ struct FNiagaraSimCacheCreateParameters
 {
 	GENERATED_BODY()
 
-	FNiagaraSimCacheCreateParameters()
-		: bAllowRebasing(true)
-		, bAllowDataInterfaceCaching(true)
-		, bAllowInterpolation(false)
-		, bAllowVelocityExtrapolation(false)
-	{
-	}
-
 	/**
 	How do we want to capture attributes for the simulation cache.
 	The mode selected depends on what situations the cache can be used in.
@@ -58,14 +55,14 @@ struct FNiagaraSimCacheCreateParameters
 	i.e. World space emitters can be moved to the new component's location
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SimCache")
-	uint32 bAllowRebasing : 1;
+	uint32 bAllowRebasing : 1 = true;
 
 	/**
 	When enabled Data Interface data will be stored in the SimCache.
 	This can result in a large increase to the cache size, depending on what Data Interfaces are used
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SimCache")
-	uint32 bAllowDataInterfaceCaching : 1;
+	uint32 bAllowDataInterfaceCaching : 1 = true;
 
 	/**
 	When enabled we allow the cache to be generated for interpolation.
@@ -73,14 +70,20 @@ struct FNiagaraSimCacheCreateParameters
 	By default we will capture and interpolate all Position & Quat types, you can adjust this using the include / exclude list.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SimCache")
-	uint32 bAllowInterpolation : 1;
+	uint32 bAllowInterpolation : 1 = false;
 
 	/**
 	When enabled we allow the cache to be generated for extrapolation.
 	This will force the velocity attribute to be maintained.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SimCache")
-	uint32 bAllowVelocityExtrapolation : 1;
+	uint32 bAllowVelocityExtrapolation : 1 = true;
+
+	/**
+	When enabled the cache will support serializing large amounts of cache data.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SimCache")
+	uint32 bAllowSerializeLargeCache : 1 = true;
 
 	/**
 	List of Attributes to force include in the SimCache rebase, they should be the full path to the attribute
@@ -127,23 +130,26 @@ struct FNiagaraSimCacheDataBuffers
 	uint32 NumInstances = 0;
 
 	UPROPERTY()
-	TArray<uint8> FloatData;
-
-	UPROPERTY()
-	TArray<uint8> HalfData;
-
-	UPROPERTY()
-	TArray<uint8> Int32Data;
-
-	UPROPERTY()
-	TArray<int32> IDToIndexTable;
-
-	UPROPERTY()
 	uint32 IDAcquireTag = 0;
 
 	UPROPERTY()
-	TArray<uint32> InterpMapping;
-	
+	uint32 IDToIndexTableElements = 0;
+
+	TArrayView<uint8> FloatData;
+	TArrayView<uint8> HalfData;
+	TArrayView<uint8> Int32Data;
+	TArrayView<int32> IDToIndexTable;
+	TArrayView<uint32> InterpMapping;
+
+	FBulkDataBuffer<uint8> DataBuffer;
+	FByteBulkData BulkData;
+
+	void SetupForWrite(const FNiagaraSimCacheDataBuffersLayout& CacheLayout);
+	bool SetupForRead(const FNiagaraSimCacheDataBuffersLayout& CacheLayout);
+
+	bool SerializeAsArray(FArchive& Ar, UObject* OwnerObject, const FNiagaraSimCacheDataBuffersLayout& CacheLayout);
+	bool SerializeAsBulkData(FArchive& Ar, UObject* OwnerObject, const FNiagaraSimCacheDataBuffersLayout& CacheLayout);
+
 	bool operator==(const FNiagaraSimCacheDataBuffers& Other) const;
 	bool operator!=(const FNiagaraSimCacheDataBuffers& Other) const;
 };
@@ -378,6 +384,7 @@ public:
 	static constexpr float CacheAgeResolution = 10000.0f;
 
 	// UObject Interface
+	NIAGARA_API virtual void Serialize(FArchive& Ar) override;
 	NIAGARA_API virtual bool IsReadyForFinishDestroy() override;
 	// UObject Interface
 

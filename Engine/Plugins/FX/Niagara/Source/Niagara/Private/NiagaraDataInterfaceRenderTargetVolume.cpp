@@ -12,6 +12,7 @@
 #include "NiagaraDataInterfaceRenderTargetCommon.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraSettings.h"
+#include "NiagaraSimCache.h"
 #include "NiagaraSVTShaders.h"
 #include "NiagaraSystemInstance.h"
 #include "NiagaraStats.h"

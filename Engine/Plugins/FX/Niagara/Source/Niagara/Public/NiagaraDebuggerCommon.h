@@ -10,7 +10,6 @@ All common code shared between the editor side debugger and debugger clients run
 #include "Misc/NotifyHook.h"
 #include "NiagaraTypes.h"
 #include "NiagaraCommon.h"
-#include "NiagaraSimCache.h"
 #include "NiagaraDebuggerCommon.generated.h"
 
 //////////////////////////////////////////////////////////////////////////

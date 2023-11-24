@@ -624,53 +624,52 @@ struct FNiagaraSimCacheHelper
 		}
 
 		CacheBuffer.NumInstances = NumInstances;
+		CacheBuffer.IDToIndexTableElements = DataBuffer.GetIDTable().Num();
+		CacheBuffer.SetupForWrite(CacheLayout);
 
 		int32 iComponent = 0;
 
 		// Copy Float
-		CacheBuffer.FloatData.AddDefaulted(CacheLayout.FloatCount * NumInstances * sizeof(float));
 		for ( uint32 i=0; i < CacheLayout.FloatCount; ++i )
 		{
 			const uint32 Component = CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[iComponent++];
 			const uint8* Source = DataBuffer.GetComponentPtrFloat(Component) + (FirstInstance * sizeof(float));
 			uint8* Dest = CacheBuffer.FloatData.GetData() + (i * NumInstances * sizeof(float));
 			CheckedMemcpy(CacheBuffer.FloatData, Dest, DataBuffer.GetFloatBuffer(), Source, sizeof(float) * NumInstances);
-			//FMemory::Memcpy(Dest, Source, sizeof(float) * NumInstances);
 		}
 		
 		// Copy Half
-		CacheBuffer.HalfData.AddDefaulted(CacheLayout.HalfCount * NumInstances * sizeof(FFloat16));
 		for (uint32 i = 0; i < CacheLayout.HalfCount; ++i)
 		{
 			const uint32 Component = CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[iComponent++];
 			const uint8* Source = DataBuffer.GetComponentPtrHalf(Component) + (FirstInstance * sizeof(FFloat16));
 			uint8* Dest = CacheBuffer.HalfData.GetData() + (i * NumInstances * sizeof(FFloat16));
 			CheckedMemcpy(CacheBuffer.HalfData, Dest, DataBuffer.GetHalfBuffer(), Source, sizeof(FFloat16) * NumInstances);
-			//FMemory::Memcpy(Dest, Source, sizeof(FFloat16) * NumInstances);
 		}
 
 		// Copy Int32
-		CacheBuffer.Int32Data.AddDefaulted(CacheLayout.Int32Count * NumInstances * sizeof(int32));
 		for (uint32 i = 0; i < CacheLayout.Int32Count; ++i)
 		{
 			const uint32 Component = CacheLayout.CacheBufferWriteInfo.ComponentMappingsFromDataBuffer[iComponent++];
 			const uint8* Source = DataBuffer.GetComponentPtrInt32(Component) + (FirstInstance * sizeof(int32));
 			uint8* Dest = CacheBuffer.Int32Data.GetData() + (i * NumInstances * sizeof(int32));
 			CheckedMemcpy(CacheBuffer.Int32Data, Dest, DataBuffer.GetInt32Buffer(), Source, sizeof(int32) * NumInstances);
-			//FMemory::Memcpy(Dest, Source, sizeof(int32) * NumInstances);
 		}
 
 		// Copy ID to Index Table
-		CacheBuffer.IDToIndexTable = DataBuffer.GetIDTable();
+		if (CacheBuffer.IDToIndexTable.Num() > 0)
+		{
+			check(CacheBuffer.IDToIndexTable.Num() == DataBuffer.GetIDTable().Num());
+			FMemory::Memcpy(CacheBuffer.IDToIndexTable.GetData(), DataBuffer.GetIDTable().GetData(), CacheBuffer.IDToIndexTable.Num() * sizeof(int32));
+		}
 		CacheBuffer.IDAcquireTag = DataBuffer.GetIDAcquireTag();
 
 		// Generate a interp mapping (if we have enabled it)
 		if (CacheLayout.bAllowInterpolation)
 		{
-			//-TODO: Persistent ID mapping
-			CacheBuffer.InterpMapping.SetNumUninitialized(DataBuffer.GetNumInstances());
+			check(NumInstances == DataBuffer.GetNumInstances());
 			const uint8* UniqueIDs = DataBuffer.GetComponentPtrInt32(CacheLayout.CacheBufferWriteInfo.ComponentUniqueID);
-			FMemory::Memcpy(CacheBuffer.InterpMapping.GetData(), UniqueIDs, DataBuffer.GetNumInstances() * sizeof(int32));
+			FMemory::Memcpy(CacheBuffer.InterpMapping.GetData(), UniqueIDs, NumInstances * sizeof(int32));
 		}
 	}
 
