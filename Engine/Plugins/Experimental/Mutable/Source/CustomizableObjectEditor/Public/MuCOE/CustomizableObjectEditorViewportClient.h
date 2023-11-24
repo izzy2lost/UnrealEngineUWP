@@ -253,9 +253,6 @@ public:
 	/** Setter of viewport's environment visibility */
 	void SetEnvironmentMeshVisibility(uint32 Value);
 
-	/** Get associated texture parameter names for the material given as parameter */
-	TArray<FName> GetTextureParameterNames(UMaterial* Material);
-
 	/** Returns camera mode */
 	bool IsOrbitalCameraActive() const; 
 

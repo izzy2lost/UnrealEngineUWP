@@ -13,11 +13,17 @@
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceConstant.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Factories/MaterialInstanceConstantFactoryNew.h"
+#include "Materials/MaterialExpressionTextureBase.h"
 
 #include "TextureResource.h"
 
-
-UObject* FUnrealBakeHelpers::BakeHelper_DuplicateAsset(UObject* Object, const FString& ObjName, const FString& PkgName, bool ResetDuplicatedFlags, TMap<UObject*, UObject*>& ReplacementMap, bool OverwritePackage)
+UObject* FUnrealBakeHelpers::BakeHelper_DuplicateAsset(UObject* Object, const FString& ObjName, const FString& PkgName, bool ResetDuplicatedFlags, 
+													   TMap<UObject*, UObject*>& ReplacementMap, bool OverwritePackage, 
+													   const bool bGenerateConstantMaterialInstances)
 {
 	FString FinalObjName = ObjName;
 	FString FinalPkgName = PkgName;
@@ -33,7 +39,47 @@ UObject* FUnrealBakeHelpers::BakeHelper_DuplicateAsset(UObject* Object, const FS
 
 	FObjectDuplicationParameters Params = InitStaticDuplicateObjectParams(Object, Package, *FinalObjName, RF_AllFlags, nullptr, EDuplicateMode::Normal);
 
-	UObject* DupObject = StaticDuplicateObjectEx(Params);
+	UObject* DupObject = nullptr;
+	UMaterialInterface* MatInterface = Cast<UMaterialInterface>(Object);
+	// Only generate constant material instances if the original material is actually an instance, so check it here. 
+	// Otherwise just duplicate
+	UMaterialInstance* MatInstance = Cast<UMaterialInstance>(Object);
+	
+	if (bGenerateConstantMaterialInstances && MatInterface && MatInstance)
+	{
+		UMaterialInterface* ParentInterface = MatInterface;
+
+		UMaterialInstanceDynamic* InstanceDynamic = Cast<UMaterialInstanceDynamic>(Object);
+
+		if (InstanceDynamic)
+		{
+			ParentInterface = InstanceDynamic->Parent;
+		}
+		else
+		{
+			UMaterialInstanceConstant* InstanceConstant = Cast<UMaterialInstanceConstant>(Object);
+
+			if (InstanceConstant)
+			{
+				ParentInterface = InstanceConstant->Parent;
+			}
+		}
+
+		UMaterialInstanceConstantFactoryNew* MaterialFactory = NewObject<UMaterialInstanceConstantFactoryNew>();
+		MaterialFactory->InitialParent = ParentInterface;
+		FString MaterialInstanceName = FinalObjName;
+		DupObject = (UMaterialInstanceConstant*)MaterialFactory->FactoryCreateNew(UMaterialInstanceConstant::StaticClass(),
+			Package, FName(MaterialInstanceName), RF_NoFlags, NULL, GWarn);
+		ensure(DupObject);
+
+		TMap<int, UTexture*> EmptyTextureReplacementMap;
+		FUnrealBakeHelpers::CopyAllMaterialParameters(DupObject, MatInterface, EmptyTextureReplacementMap);
+	}
+	else
+	{
+		DupObject = StaticDuplicateObjectEx(Params);
+	}
+
 	if (DupObject)
 	{
 		DupObject->SetFlags(RF_Public | RF_Standalone);
@@ -57,6 +103,7 @@ UObject* FUnrealBakeHelpers::BakeHelper_DuplicateAsset(UObject* Object, const FS
 
 	return DupObject;
 }
+
 
 namespace
 {
@@ -86,7 +133,7 @@ UTexture2D* FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(UTexture2D* SrcTex
 	const bool bIsMutableTexture = !SrcTex->Source.IsValid();
 	if (!bIsMutableTexture)
 	{
-		return Cast<UTexture2D>(BakeHelper_DuplicateAsset(SrcTex, TexObjName, TexPkgName, ResetDuplicatedFlags, ReplacementMap, OverwritePackage));
+		return Cast<UTexture2D>(BakeHelper_DuplicateAsset(SrcTex, TexObjName, TexPkgName, ResetDuplicatedFlags, ReplacementMap, OverwritePackage, false));
 	}
 
 	int32 sx = SrcTex->GetPlatformData()->SizeX;
@@ -237,4 +284,116 @@ UTexture2D* FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(UTexture2D* SrcTex
 	DupTex->UpdateResource();
 
 	return DupTex;
+}
+
+
+void FUnrealBakeHelpers::CopyAllMaterialParameters(UObject* DestMaterial, UMaterialInterface* OriginMaterial, const TMap<int, UTexture*>& TextureReplacementMap)
+{
+	UMaterial* Material = OriginMaterial ? OriginMaterial->GetMaterial() : nullptr;
+	UMaterialInterface* DupMaterialInterface = Cast<UMaterialInterface>(DestMaterial);
+	UMaterial* DupMaterial = DupMaterialInterface ? DupMaterialInterface->GetMaterial() : nullptr;
+	UMaterialInstanceConstant* DupMaterialInstanceConstant = Cast<UMaterialInstanceConstant>(DestMaterial);
+
+	if (Material && DupMaterial)
+	{
+		TArray<FMaterialParameterInfo> parametersInfo;
+		TArray<FGuid> parametersGuids;
+
+		// copy scalar parameters
+		TArray<FMaterialParameterInfo> ScalarParameterInfoArray;
+		TArray<FGuid> GuidArray;
+		OriginMaterial->GetAllScalarParameterInfo(ScalarParameterInfoArray, GuidArray);
+		for (const FMaterialParameterInfo& Param : ScalarParameterInfoArray)
+		{
+			float Value = 0.f;
+			if (OriginMaterial->GetScalarParameterValue(Param, Value))
+			{
+				if (DupMaterialInstanceConstant)
+				{
+					DupMaterialInstanceConstant->SetScalarParameterValueEditorOnly(Param.Name, Value);
+				}
+				else
+				{
+					DupMaterial->SetScalarParameterValueEditorOnly(Param.Name, Value);
+				}
+			}
+		}
+
+		// copy vector parameters
+		TArray<FMaterialParameterInfo> VectorParameterInfoArray;
+		OriginMaterial->GetAllVectorParameterInfo(VectorParameterInfoArray, GuidArray);
+		for (const FMaterialParameterInfo& Param : VectorParameterInfoArray)
+		{
+			FLinearColor Value;
+			if (OriginMaterial->GetVectorParameterValue(Param, Value))
+			{
+				if (DupMaterialInstanceConstant)
+				{
+					DupMaterialInstanceConstant->SetVectorParameterValueEditorOnly(Param.Name, Value);
+				}
+				else
+				{
+					DupMaterial->SetVectorParameterValueEditorOnly(Param.Name, Value);
+				}
+			}
+		}
+
+		// copy switch parameters								
+		TArray<FMaterialParameterInfo> StaticSwitchParameterInfoArray;
+		OriginMaterial->GetAllStaticSwitchParameterInfo(StaticSwitchParameterInfoArray, GuidArray);
+		for (int i = 0; i < StaticSwitchParameterInfoArray.Num(); ++i)
+		{
+			bool Value = false;
+			if (OriginMaterial->GetStaticSwitchParameterValue(StaticSwitchParameterInfoArray[i].Name, Value, GuidArray[i]))
+			{
+				DupMaterial->SetStaticSwitchParameterValueEditorOnly(StaticSwitchParameterInfoArray[i].Name, Value, GuidArray[i]);
+			}
+		}
+
+		// Replace Textures
+		TArray<FName> ParameterNames = GetTextureParameterNames(Material);
+		for (const TPair<int, UTexture*>& it : TextureReplacementMap)
+		{
+			if (ParameterNames.IsValidIndex(it.Key))
+			{
+				DupMaterial->SetTextureParameterValueEditorOnly(ParameterNames[it.Key], it.Value);
+			}
+		}
+
+		// Fix potential errors compiling materials due to Sampler Types
+		for (const TObjectPtr<UMaterialExpression>& Expression : DupMaterial->GetExpressions())
+		{
+			if (UMaterialExpressionTextureBase* MatExpressionTexBase = Cast<UMaterialExpressionTextureBase>(Expression))
+			{
+				MatExpressionTexBase->AutoSetSampleType();
+			}
+		}
+
+		DestMaterial->PreEditChange(NULL);
+		DestMaterial->PostEditChange();
+	}
+	else
+	{
+		ensure(false);
+	}
+}
+
+
+TArray<FName> FUnrealBakeHelpers::GetTextureParameterNames(UMaterial* Material)
+{
+	TArray<FGuid> Guids;
+	TArray<FName> ParameterNames;
+
+	TArray<FMaterialParameterInfo> OutParameterInfo;
+	Material->GetAllTextureParameterInfo(OutParameterInfo, Guids);
+
+	const int32 MaxIndex = OutParameterInfo.Num();
+	ParameterNames.SetNum(MaxIndex);
+
+	for (int32 i = 0; i < MaxIndex; i++)
+	{
+		ParameterNames[i] = OutParameterInfo[i].Name;
+	}
+
+	return ParameterNames;
 }
