@@ -22,7 +22,6 @@ struct FPCGMatchAndSetAttributesExecutionState
 struct FPCGMatchAndSetAttributesIterationState
 {
 	int CurrentPointIndex = 0;
-	FPCGTaggedData InputData;
 	const UPCGPointData* InPointData = nullptr;
 	UPCGPointData* OutPointData = nullptr;
 };
