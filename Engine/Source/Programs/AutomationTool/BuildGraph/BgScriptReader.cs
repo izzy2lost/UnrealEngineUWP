@@ -1701,7 +1701,7 @@ namespace AutomationTool
 				}
 
 				// Add the users to the list of reports
-				if (reportNames != null)
+				if (reportNames != null && users != null)
 				{
 					foreach (string reportName in reportNames)
 					{
