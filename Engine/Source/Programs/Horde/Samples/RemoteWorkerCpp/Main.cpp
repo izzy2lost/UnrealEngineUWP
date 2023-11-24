@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "CoreMinimal.h"
 #include "Compute/ComputeChannel.h"
 #include "Compute/ComputeBuffer.h"
 #include "Compute/ComputeSocket.h"
@@ -8,9 +9,12 @@
 #include <thread>
 #include <assert.h>
 
+extern TCHAR GInternalProjectName[64] = { 0, };
+extern const TCHAR* GForeignEngineDir = nullptr;
+
 int main(int argc, const char* argv[])
 {
-	if (argc >= 2 && !FComputePlatform::Stricmp(argv[1], "-Test"))
+	if (argc >= 2 && !FCStringAnsi::Stricmp(argv[1], "-Test"))
 	{
 		void RunTests();
 		RunTests();
@@ -26,7 +30,7 @@ int main(int argc, const char* argv[])
 		return 1;
 	}
 
-	std::shared_ptr<FComputeChannel> Channel = Socket.CreateChannel(ChannelId);
+	TSharedPtr<FComputeChannel> Channel = Socket.CreateChannel(ChannelId);
 	if(!Channel->IsValid())
 	{
 		std::cout << "Unable to create channel to initiator" << std::endl;
