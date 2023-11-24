@@ -158,6 +158,7 @@ using WIDECHAR = char16_t;
 #define UE_LOG(...)
 #define check(x)						do { if (!(x)) __debugbreak(); } while (0)
 #define checkf(x, ...)					check(x)
+#define verify(x)						do { if (!(x)) __debugbreak(); } while (0)
 
 #if !defined(UE_BUILD_SHIPPING)
 #	define UE_BUILD_SHIPPING			1
@@ -489,6 +490,35 @@ struct FPlatformAtomics
 	}
 };
 
+template<typename CharType>
+struct TCString
+{
+	static FORCEINLINE CharType* Strcpy(CharType* Dest, SIZE_T DestCount, const CharType* Src);
+
+	template<SIZE_T DestCount>
+	static FORCEINLINE CharType* Strcpy(CharType(&Dest)[DestCount], const CharType* Src)
+	{
+		return Strcpy(Dest, DestCount, Src);
+	}
+
+	static int32 Stricmp(const CharType* String1, const CharType* String2);
+};
+
+typedef TCString<char> FCStringAnsi;
+
+template<> 
+inline char* TCString<char>::Strcpy(char* Dest, size_t DestCount, const char* Src)
+{
+	strcpy_s(Dest, DestCount, Src);
+	return Dest;
+}
+
+template<>
+inline int32 TCString<char>::Stricmp(const char* String1, const char* String2)
+{
+	return _stricmp(String1, String2);
+}
+
 namespace UECompat
 {
 
@@ -538,7 +568,6 @@ namespace UECompat
 
 namespace Algo = UECompat;
 namespace FMath = UECompat;
-namespace FCStringAnsi = UECompat;
 namespace FMemory = UECompat;
 
 #endif // TRACE_UE_COMPAT_LAYER

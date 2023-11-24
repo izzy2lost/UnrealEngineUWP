@@ -2,6 +2,7 @@
 
 #include "Compute/AgentMessage.h"
 #include "Compute/ComputePlatform.h"
+#include "../HordePlatform.h"
 
 //// FAgentMessageChannel ////
 
@@ -258,7 +259,7 @@ size_t FAgentMessageChannel::MeasureUnsignedVarInt(size_t Value)
 	}
 	else
 	{
-		return (FComputePlatform::FloorLog2((unsigned int)Value) / 7) + 1;
+		return (FHordePlatform::FloorLog2((unsigned int)Value) / 7) + 1;
 	}
 }
 
@@ -283,7 +284,7 @@ size_t FAgentMessageChannel::ReadUnsignedVarInt(const unsigned char** Pos)
 	const unsigned char* Data = *Pos;
 
 	unsigned char FirstByte = Data[0];
-	size_t NumBytes = FComputePlatform::CountLeadingZeros(0xFF & (~(unsigned int)FirstByte)) + 1 - 24; // Note byte -> int conversion here, hence ignoring subtracting 24 bits
+	size_t NumBytes = FHordePlatform::CountLeadingZeros(0xFF & (~(unsigned int)FirstByte)) + 1 - 24; // Note byte -> int conversion here, hence ignoring subtracting 24 bits
 
 	size_t value = (size_t)(FirstByte & (0xff >> NumBytes));
 	for (size_t Idx = 1; Idx < NumBytes; Idx++)

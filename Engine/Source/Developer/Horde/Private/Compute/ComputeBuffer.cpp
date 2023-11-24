@@ -2,6 +2,7 @@
 
 #include "Compute/ComputeBuffer.h"
 #include "Compute/ComputePlatform.h"
+#include "../HordePlatform.h"
 #include <assert.h>
 #include <iostream>
 #include <assert.h>
@@ -313,7 +314,7 @@ struct FComputeBufferDetail
 		static_assert(sizeof(FChunkStatePtr) == sizeof(long long), "Incorrect size of FChunkStatePtr; check union is declared correctly.");
 		static_assert(sizeof(FWriterStatePtr) == sizeof(long long), "Incorrect size of FWriterStatePtr; check union is declared correctly.");
 
-		FComputePlatform::Strcpy(Name, FComputeBuffer::MaxNameLength, InName);
+		FCStringAnsi::Strcpy(Name, FComputeBuffer::MaxNameLength, InName);
 	}
 
 	~FComputeBufferDetail()
@@ -343,7 +344,7 @@ struct FComputeBufferDetail
 		char BaseNameBuffer[FComputeBuffer::MaxNameLength];
 		if (Name == nullptr)
 		{
-			FComputePlatform::CreateUniqueName(BaseNameBuffer, FComputeBuffer::MaxNameLength);
+			FHordePlatform::CreateUniqueName(BaseNameBuffer, FComputeBuffer::MaxNameLength);
 			Name = BaseNameBuffer;
 		}
 

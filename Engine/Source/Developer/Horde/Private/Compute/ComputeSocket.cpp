@@ -10,6 +10,7 @@
 #include <thread>
 #include <mutex>
 #include <chrono>
+#include "../HordePlatform.h"
 
 FComputeSocket::FComputeSocket()
 {
@@ -72,7 +73,7 @@ void FWorkerComputeSocket::StartCommunication()
 bool FWorkerComputeSocket::Open()
 {
 	char EnvVar[FComputeBuffer::MaxNameLength];
-	if (!FComputePlatform::GetEnvironmentVariable(IpcEnvVar, EnvVar, sizeof(EnvVar) / sizeof(EnvVar[0])))
+	if (!FHordePlatform::GetEnvironmentVariable(IpcEnvVar, EnvVar, sizeof(EnvVar) / sizeof(EnvVar[0])))
 	{
 		return false;
 	}
@@ -182,7 +183,7 @@ void FWorkerComputeSocket::RunServer(FComputeBufferReader& CommandBufferReader, 
 
 size_t FWorkerComputeSocket::ReadVarUInt(const unsigned char* Pos, unsigned int* OutValue)
 {
-	size_t ByteCount = FComputePlatform::CountLeadingZeros((unsigned char)(~*static_cast<const unsigned char*>(Pos))) - 23;
+	size_t ByteCount = FHordePlatform::CountLeadingZeros((unsigned char)(~*static_cast<const unsigned char*>(Pos))) - 23;
 
 	unsigned int Value = *Pos++ & (unsigned char)(0xff >> ByteCount);
 	switch (ByteCount - 1)
@@ -208,7 +209,7 @@ size_t FWorkerComputeSocket::ReadString(const unsigned char* Pos, char* OutText,
 	unsigned int TextLen;
 
 	size_t Len = ReadVarUInt(Pos, &TextLen);
-	FComputePlatform::Strcpy(OutText, OutTextMaxLen, (const char*)Pos + Len);
+	FCStringAnsi::Strcpy(OutText, OutTextMaxLen, (const char*)Pos + Len);
 
 	return Len + TextLen;
 }
@@ -217,7 +218,7 @@ size_t FWorkerComputeSocket::WriteVarUInt(unsigned char* Pos, unsigned int Value
 {
 	// Use BSR to return the log2 of the integer
 	// return 0 if value is 0
-	unsigned int ByteCount = (unsigned int)(int(FComputePlatform::FloorLog2(Value)) / 7 + 1);
+	unsigned int ByteCount = (unsigned int)(int(FHordePlatform::FloorLog2(Value)) / 7 + 1);
 
 	unsigned char* OutBytes = Pos + ByteCount - 1;
 	switch (ByteCount - 1)
