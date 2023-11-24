@@ -25,7 +25,6 @@ namespace Insights
 struct FStoreBrowserTraceInfo
 {
 	uint32 TraceId = 0;
-	int32 TraceIndex = -1;
 
 	uint64 ChangeSerial = 0;
 

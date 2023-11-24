@@ -68,8 +68,9 @@ ENUM_CLASS_FLAGS(ETraceDirOperations);
 
 struct FTraceViewModel
 {
-	uint32 TraceId = 0;
-	int32 TraceIndex = -1; // debug
+	static constexpr uint32 InvalidTraceId = 0;
+
+	uint32 TraceId = InvalidTraceId;
 
 	uint64 ChangeSerial = 0;
 
@@ -91,7 +92,6 @@ struct FTraceViewModel
 
 	bool bIsMetadataUpdated = false;
 	bool bIsRenaming = false;
-	bool bWasJustRenamed = false;
 	bool bIsLive = false;
 	uint32 IpAddress = 0;
 
@@ -296,9 +296,22 @@ private:
 
 	TSharedPtr<SWidget> TraceList_GetMenuContent();
 
-	bool CanEditTraceFile() const;
-	void RenameTraceFile();
-	void DeleteTraceFile();
+	bool CanRenameSelectedTrace() const;
+	void RenameSelectedTrace();
+
+	bool CanDeleteSelectedTraces() const;
+	void DeleteSelectedTraces();
+	bool DeleteTrace(const TSharedPtr<FTraceViewModel>& TraceToDelete);
+
+	bool CanCopyTraceId() const;
+	void CopyTraceId();
+
+	bool CanCopyFullPath() const;
+	void CopyFullPath();
+
+	bool CanOpenContainingFolder() const;
+	void OpenContainingFolder();
+
 	bool HasAnyLiveTrace() const;
 
 	//////////////////////////////////////////////////
@@ -353,6 +366,8 @@ private:
 	void RefreshTraceList();
 	void UpdateTrace(FTraceViewModel& InOutTrace, const Insights::FStoreBrowserTraceInfo& InSourceTrace);
 	void OnTraceListChanged();
+
+	TSharedPtr<FTraceViewModel> GetSingleSelectedTrace() const;
 
 	void TraceList_OnSelectionChanged(TSharedPtr<FTraceViewModel> InTrace, ESelectInfo::Type SelectInfo);
 	void TraceList_OnMouseButtonDoubleClick(TSharedPtr<FTraceViewModel> InTrace);
@@ -545,7 +560,6 @@ private:
 	TSharedPtr<STableViewBase> WatchDirsListView;
 	TSharedPtr<SListView<TSharedPtr<FTraceViewModel>>> TraceListView;
 
-	TSharedPtr<FTraceViewModel> SelectedTrace;
 	bool bIsUserSelectedTrace = false;
 
 	//////////////////////////////////////////////////
