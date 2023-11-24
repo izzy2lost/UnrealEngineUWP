@@ -358,8 +358,9 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.InSizeY = InSizeY;
 		BuildDesc.InData = InData;
 
-		StreamingTexture->Modify();
 		StreamingTexture->BuildTexture(ShadingPath, BuildDesc);
+		StreamingTexture->EnableCookPerPlatform = EnableInGamePerPlatform;
+		StreamingTexture->Modify();
 	}
 }
 
