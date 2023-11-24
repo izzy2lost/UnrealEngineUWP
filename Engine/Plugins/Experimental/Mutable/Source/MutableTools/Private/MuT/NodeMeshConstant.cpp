@@ -27,32 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshConstant::GetInputCount() const
-	{
-		return m_pD->m_layouts.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshConstant::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<m_pD->m_layouts.Num() );
-		return m_pD->m_layouts[i].get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshConstant::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<m_pD->m_layouts.Num() );
-
-		m_pD->m_layouts[i] = dynamic_cast<NodeLayout*>( pNode.get() );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	MeshPtr NodeMeshConstant::GetValue() const

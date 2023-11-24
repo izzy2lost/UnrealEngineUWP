@@ -28,47 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeColourSampleImage::GetInputCount() const
-	{
-		return 3;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeColourSampleImage::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0: pResult = m_pD->m_pImage.get(); break;
-		case 1: pResult = m_pD->m_pX.get(); break;
-		case 2: pResult = m_pD->m_pY.get(); break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeColourSampleImage::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-
-		switch (i)
-		{
-		case 0: m_pD->m_pImage = dynamic_cast<NodeImage*>(pNode.get()); break;
-		case 1: m_pD->m_pX = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		case 2: m_pD->m_pY = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	NodeScalarPtr NodeColourSampleImage::GetX() const

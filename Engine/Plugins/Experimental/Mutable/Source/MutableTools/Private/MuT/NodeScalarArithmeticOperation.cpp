@@ -40,45 +40,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeScalarArithmeticOperation::GetInputCount() const
-	{
-		return 2;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeScalarArithmeticOperation::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0: pResult = m_pD->m_pA.get(); break;
-		case 1: pResult = m_pD->m_pB.get(); break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeScalarArithmeticOperation::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-
-		switch (i)
-		{
-        case 0: m_pD->m_pA = dynamic_cast<NodeScalar*>(pNode.get()); break;
-        case 1: m_pD->m_pB = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeScalarArithmeticOperation::OPERATION NodeScalarArithmeticOperation::GetOperation() const

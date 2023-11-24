@@ -27,32 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeModifierMeshClipMorphPlane::GetInputCount() const
-	{
-		return 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeModifierMeshClipMorphPlane::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-		return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeModifierMeshClipMorphPlane::SetInputNode( int i, NodePtr )
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     void NodeModifierMeshClipMorphPlane::SetPlane( float centerX, float centerY, float centerZ,

@@ -28,36 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshTangents::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshTangents::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-		return m_pD->m_pSource.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshTangents::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-        if (i==0)
-		{
-			m_pD->m_pSource = dynamic_cast<NodeMesh*>( pNode.get() );
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	NodeMeshPtr NodeMeshTangents::GetSource() const

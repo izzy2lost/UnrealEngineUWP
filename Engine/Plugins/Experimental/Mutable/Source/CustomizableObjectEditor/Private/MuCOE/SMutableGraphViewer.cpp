@@ -12,12 +12,22 @@
 #include "MuCOE/CustomizableObjectEditorStyle.h"
 #include "MuCOE/SMutableCodeViewer.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
-#include "MuT/Streams.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Views/STreeView.h"
 #include "ScopedTransaction.h"
+#include "MuT/Streams.h"
+
+// This is necessary because of problems with rtti information in other platforms. In any case, this part of the debugger is only useful in the standard editor.
+#if PLATFORM_WINDOWS
+#include "MuT/NodeObjectNewPrivate.h"
+#include "MuT/NodeObjectGroupPrivate.h"
+#include "MuT/NodeSurfaceNewPrivate.h"
+#include "MuT/NodeSurfaceEditPrivate.h"
+#include "MuT/NodeSurfaceSwitchPrivate.h"
+#include "MuT/NodeSurfaceVariationPrivate.h"
+#endif
 
 class FExtender;
 class FReferenceCollector;
@@ -47,7 +57,11 @@ public:
 
 		const char* TypeName = RowItem->MutableNode->GetType()->m_strName;
 
-		FText MainLabel = FText::FromString(StringCast<TCHAR>(TypeName).Get());
+		FString LabelString = RowItem->Prefix.IsEmpty() 
+			? StringCast<TCHAR>(TypeName).Get() 
+			: FString::Printf( TEXT("%s : %s"), *RowItem->Prefix, StringCast<TCHAR>(TypeName).Get() );
+
+		FText MainLabel = FText::FromString(LabelString);
 		if (RowItem->DuplicatedOf)
 		{
 			MainLabel = FText::FromString( FString::Printf(TEXT("%s (Duplicated)"), StringCast<TCHAR>(TypeName).Get()));
@@ -389,6 +403,8 @@ TSharedRef<ITableRow> SMutableGraphViewer::GenerateRowForNodeTree(TSharedPtr<FMu
 
 void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement> InInfo, TArray<TSharedPtr<FMutableGraphTreeElement>>& OutChildren)
 {
+// This is necessary because of problems with rtti information in other platforms. In any case, this part of the debugger is only useful in the standard editor.
+#if PLATFORM_WINDOWS
 	if (!InInfo->MutableNode)
 	{
 		return;
@@ -400,14 +416,14 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		return;
 	}
 
-	// Generic node case
-	int32 InputCount = InInfo->MutableNode->GetInputCount();
-	for (int32 InputIndex=0; InputIndex<InputCount; ++InputIndex)
+	mu::Node* ParentNode = InInfo->MutableNode.get();
+	uint32 InputIndex = 0;
+
+	auto AddChildFunc = [this, ParentNode, &InputIndex, &OutChildren](mu::Node* ChildNode, const FString& Prefix)
 	{
-		mu::NodePtr ChildNode = InInfo->MutableNode->GetInputNode( InputIndex );
 		if (ChildNode)
 		{
-			FItemCacheKey Key = { InInfo->MutableNode.get(),ChildNode.get(), uint32(InputIndex) };
+			FItemCacheKey Key = { ParentNode, ChildNode, InputIndex };
 			TSharedPtr<FMutableGraphTreeElement>* CachedItem = ItemCache.Find(Key);
 
 			if (CachedItem)
@@ -416,18 +432,130 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 			}
 			else
 			{
-				TSharedPtr<FMutableGraphTreeElement>* MainItemPtr = MainItemPerNode.Find(ChildNode.get());
-				TSharedPtr<FMutableGraphTreeElement> Item = MakeShareable(new FMutableGraphTreeElement(ChildNode, MainItemPtr));
+				TSharedPtr<FMutableGraphTreeElement>* MainItemPtr = MainItemPerNode.Find(ChildNode);
+				TSharedPtr<FMutableGraphTreeElement> Item = MakeShareable(new FMutableGraphTreeElement(ChildNode, MainItemPtr, Prefix));
 				OutChildren.Add(Item);
 				ItemCache.Add(Key, Item);
 
 				if (!MainItemPtr)
 				{
-					MainItemPerNode.Add(ChildNode.get(),Item);
+					MainItemPerNode.Add(ChildNode, Item);
 				}
 			}
 		}
+		++InputIndex;
+	};
+
+	if (ParentNode->GetType() == mu::NodeObjectNew::GetStaticType())
+	{
+		mu::NodeObjectNew* ObjectNew = reinterpret_cast<mu::NodeObjectNew*>(ParentNode);
+		mu::NodeObjectNew::Private* Private = ObjectNew->GetPrivate();
+		for (int32 l = 0; l < Private->m_lods.Num(); ++l)
+		{
+			AddChildFunc(Private->m_lods[l].get(), TEXT("LOD") );
+		}
+
+		for (int32 l = 0; l < Private->m_children.Num(); ++l)
+		{
+			AddChildFunc(Private->m_children[l].get(), TEXT("CHILD"));
+		}
 	}
+
+	else if (ParentNode->GetType() == mu::NodeObjectGroup::GetStaticType())
+	{
+		mu::NodeObjectGroup* ObjectGroup = reinterpret_cast<mu::NodeObjectGroup*>(ParentNode);
+		mu::NodeObjectGroup::Private* Private = ObjectGroup->GetPrivate();
+		for (int32 l = 0; l < Private->m_children.Num(); ++l)
+		{
+			AddChildFunc(Private->m_children[l].get(), TEXT("CHILD"));
+		}
+	}
+
+	else if (ParentNode->GetType() == mu::NodeSurfaceNew::GetStaticType())
+	{
+		mu::NodeSurfaceNew* SurfaceNew = reinterpret_cast<mu::NodeSurfaceNew*>(ParentNode);
+		mu::NodeSurfaceNew::Private* Private = SurfaceNew->GetPrivate();
+		for (int32 l = 0; l < Private->m_meshes.Num(); ++l)
+		{
+			AddChildFunc(Private->m_meshes[l].m_pMesh.get(), TEXT("MESH"));
+		}
+
+		for (int32 l = 0; l < Private->m_images.Num(); ++l)
+		{
+			AddChildFunc(Private->m_images[l].m_pImage.get(), FString::Printf(TEXT("IMAGE [%s]"), *Private->m_images[l].m_name));
+		}
+
+		for (int32 l = 0; l < Private->m_vectors.Num(); ++l)
+		{
+			AddChildFunc(Private->m_vectors[l].m_pVector.get(), FString::Printf(TEXT("VECTOR [%s]"), *Private->m_vectors[l].m_name));
+		}
+
+		for (int32 l = 0; l < Private->m_scalars.Num(); ++l)
+		{
+			AddChildFunc(Private->m_scalars[l].m_pScalar.get(), FString::Printf(TEXT("SCALAR [%s]"), *Private->m_scalars[l].m_name));
+		}
+	}
+
+	else if (ParentNode->GetType() == mu::NodeSurfaceEdit::GetStaticType())
+	{
+		mu::NodeSurfaceEdit* SurfaceEdit = reinterpret_cast<mu::NodeSurfaceEdit*>(ParentNode);
+		mu::NodeSurfaceEdit::Private* Private = SurfaceEdit->GetPrivate();
+		AddChildFunc(Private->m_pMesh.get(), TEXT("MESH"));
+		AddChildFunc(Private->m_pMorph.get(), TEXT("MORPH"));
+		AddChildFunc(Private->m_pFactor.get(), TEXT("MORPH_FACTOR"));
+
+		for (int32 l = 0; l < Private->m_textures.Num(); ++l)
+		{
+			AddChildFunc(Private->m_textures[l].m_pExtend.get(), FString::Printf(TEXT("EXTEND [%d]"), l));
+			AddChildFunc(Private->m_textures[l].m_pPatch.get(), FString::Printf(TEXT("PATCH [%d]"), l));
+		}
+	}
+
+	else if (ParentNode->GetType() == mu::NodeSurfaceSwitch::GetStaticType())
+	{
+		mu::NodeSurfaceSwitch* SurfaceSwitch = reinterpret_cast<mu::NodeSurfaceSwitch*>(ParentNode);
+		mu::NodeSurfaceSwitch::Private* Private = SurfaceSwitch->GetPrivate();
+		AddChildFunc(Private->Parameter.get(), TEXT("PARAM"));
+
+		for (int32 l = 0; l < Private->Options.Num(); ++l)
+		{
+			AddChildFunc(Private->Options[l].get(), FString::Printf(TEXT("OPTION [%d]"), l));
+		}
+	}
+
+	else if (ParentNode->GetType() == mu::NodeSurfaceVariation::GetStaticType())
+	{
+		mu::NodeSurfaceVariation* SurfaceVar = reinterpret_cast<mu::NodeSurfaceVariation*>(ParentNode);
+		mu::NodeSurfaceVariation::Private* Private = SurfaceVar->GetPrivate();
+		for (int32 l = 0; l < Private->m_defaultSurfaces.Num(); ++l)
+		{
+			AddChildFunc(Private->m_defaultSurfaces[l].get(), FString::Printf(TEXT("DEF SURF [%d]"), l));
+		}
+		for (int32 l = 0; l < Private->m_defaultModifiers.Num(); ++l)
+		{
+			AddChildFunc(Private->m_defaultModifiers[l].get(), FString::Printf(TEXT("DEF MOD [%d]"), l));
+		}
+
+		for (int32 v = 0; v < Private->m_variations.Num(); ++v)
+		{
+			const mu::NodeSurfaceVariation::Private::FVariation Var = Private->m_variations[v];
+			for (int32 l = 0; l < Var.m_surfaces.Num(); ++l)
+			{
+				AddChildFunc(Var.m_surfaces[l].get(), FString::Printf(TEXT("VAR [%s] SURF [%d]"), *Var.m_tag, l));
+			}
+			for (int32 l = 0; l < Var.m_modifiers.Num(); ++l)
+			{
+				AddChildFunc(Var.m_modifiers[l].get(), FString::Printf(TEXT("VAR [%s] MOD [%d]"), *Var.m_tag, l));
+			}
+		}
+	}
+
+	else
+	{
+		// This node type has not been implemented, so its children won't be added to the tree.
+		ensure(false);
+	}
+#endif
 }
 
 

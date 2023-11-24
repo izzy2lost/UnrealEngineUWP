@@ -30,55 +30,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeScalarSwitch::GetInputCount() const
-	{
-		return 1 + (int)m_pD->m_options.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeScalarSwitch::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0:
-			pResult = m_pD->m_pParameter.get();
-			break;
-
-		default:
-			pResult = m_pD->m_options[i-1].get();
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeScalarSwitch::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0:
-			m_pD->m_pParameter = dynamic_cast<NodeScalar*>(pNode.get());
-			break;
-
-		default:
-            m_pD->m_options[i-1] = dynamic_cast<NodeScalar*>(pNode.get());
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeScalarPtr NodeScalarSwitch::GetParameter() const

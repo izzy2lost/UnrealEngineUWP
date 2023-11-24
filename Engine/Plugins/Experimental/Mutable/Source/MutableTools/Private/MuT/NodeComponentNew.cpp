@@ -28,43 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeComponentNew::GetInputCount() const
-	{
-        return m_pD->m_surfaces.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeComponentNew::GetInputNode( int i ) const
-	{
-        check( i >=0 && i < GetInputCount() );
-
-		NodePtr pResult;
-
-        if ( i<m_pD->m_surfaces.Num() )
-		{
-            pResult = m_pD->m_surfaces[i];
-		}
-
-		return pResult.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeComponentNew::SetInputNode( int i, NodePtr pNode )
-	{
-        check( i >=0 && i < GetInputCount() );
-
-        if ( i<m_pD->m_surfaces.Num() )
-		{
-            m_pD->m_surfaces[ i ] = dynamic_cast<NodeSurface*>(pNode.get());
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	const FString& NodeComponentNew::GetName() const

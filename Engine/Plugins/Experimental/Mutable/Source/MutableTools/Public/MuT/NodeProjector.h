@@ -96,14 +96,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -160,19 +154,12 @@ namespace mu
 		static void Serialise( const NodeProjectorParameter* pNode, OutputArchive& arch );
 		static NodeProjectorParameterPtr StaticUnserialise( InputArchive& arch );
 
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

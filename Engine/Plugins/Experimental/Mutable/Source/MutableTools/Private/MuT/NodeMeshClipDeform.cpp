@@ -28,49 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshClipDeform::GetInputCount() const
-	{
-		return 2;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshClipDeform::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = nullptr;
-
-		switch (i)
-		{
-		case 0: pResult = m_pD->m_pBaseMesh.get(); break;
-		case 1: pResult = m_pD->m_pClipShape.get(); break;
-		default:
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshClipDeform::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0: m_pD->m_pBaseMesh = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		case 1: m_pD->m_pClipShape = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		default:
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	const Ptr<NodeMesh>& NodeMeshClipDeform::GetBaseMesh() const

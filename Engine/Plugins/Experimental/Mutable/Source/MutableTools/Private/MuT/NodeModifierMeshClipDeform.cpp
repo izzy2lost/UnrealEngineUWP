@@ -28,32 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeModifierMeshClipDeform::GetInputCount() const
-	{
-		return 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeModifierMeshClipDeform::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-		(void)i;
-		return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeModifierMeshClipDeform::SetInputNode( int32 i, NodePtr )
-	{
-		check( i>=0 && i< GetInputCount());
-		(void)i;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipDeform::SetClipMesh(NodeMesh* ClipMesh)

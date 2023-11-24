@@ -10,36 +10,7 @@
 
 namespace mu
 {
-
-	// Forward definitions
-	class NodeBool;
-    using NodeBoolPtr = Ptr<NodeBool>;
-    using NodeBoolPtrConst = Ptr<const NodeBool>;
-
-	class NodeBoolConstant;
-    using NodeBoolConstantPtr = Ptr<NodeBoolConstant>;
-    using NodeBoolConstantPtrConst = Ptr<const NodeBoolConstant>;
-
-	class NodeBoolParameter;
-    using NodeBoolParameterPtr = Ptr<NodeBoolParameter>;
-    using NodeBoolParameterPtrConst = Ptr<const NodeBoolParameter>;
-
-	class NodeBoolIsNull;
-    using NodeBoolIsNullPtr = Ptr<NodeBoolIsNull>;
-    using NodeBoolIsNullPtrConst = Ptr<const NodeBoolIsNull>;
-
-	class NodeBoolNot;
-    using NodeBoolNotPtr = Ptr<NodeBoolNot>;
-    using NodeBoolNotPtrConst = Ptr<const NodeBoolNot>;
-
-	class NodeBoolAnd;
-    using NodeBoolAndPtr = Ptr<NodeBoolAnd>;
-    using NodeBoolAndPtrConst = Ptr<const NodeBoolAnd>;
-
-    class NodeRange;
-    using NodeRangePtr = Ptr<NodeRange>;
-    using NodeRangePtrConst = Ptr<const NodeRange>;
-
+	class NodeRange;
 
 	//---------------------------------------------------------------------------------------------
     //! %Base class of any node that outputs a Bool value.
@@ -66,7 +37,7 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 
 		static void Serialise( const NodeBool* pNode, OutputArchive& arch );
-		static NodeBoolPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBool> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
@@ -109,7 +80,7 @@ namespace mu
 
 		static void Serialise( const NodeBoolConstant* pNode, OutputArchive& arch );
 		void SerialiseWrapper(OutputArchive& arch) const override;
-		static NodeBoolConstantPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBoolConstant> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
@@ -118,10 +89,6 @@ namespace mu
 
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        virtual int GetInputCount() const override;
-        virtual Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -168,7 +135,7 @@ namespace mu
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
 		static void Serialise( const NodeBoolParameter* pNode, OutputArchive& arch );
-		static NodeBoolParameterPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBoolParameter> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
@@ -177,10 +144,6 @@ namespace mu
 
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -195,7 +158,7 @@ namespace mu
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.
         void SetRangeCount( int i );
-        void SetRange( int i, NodeRangePtr pRange );
+        void SetRange( int i, Ptr<NodeRange> );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
@@ -233,21 +196,15 @@ namespace mu
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
 		static void Serialise( const NodeBoolIsNull* pNode, OutputArchive& arch );
-		static NodeBoolIsNullPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBoolIsNull> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -288,29 +245,23 @@ namespace mu
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
 		static void Serialise( const NodeBoolNot* pNode, OutputArchive& arch );
-		static NodeBoolNotPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBoolNot> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 		
 		//! Input
-		NodeBoolPtr GetInput() const;
-		void SetInput( NodeBoolPtr );
+		Ptr<NodeBool> GetInput() const;
+		void SetInput( Ptr<NodeBool> );
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
@@ -347,32 +298,26 @@ namespace mu
 
 		void SerialiseWrapper(OutputArchive& arch) const override;
 		static void Serialise( const NodeBoolAnd* pNode, OutputArchive& arch );
-		static NodeBoolAndPtr StaticUnserialise( InputArchive& arch );
+		static Ptr<NodeBoolAnd> StaticUnserialise( InputArchive& arch );
 
 
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        
-
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------
 		
 		//! Inputs
-		NodeBoolPtr GetA() const;
-		void SetA( NodeBoolPtr );
+		Ptr<NodeBool> GetA() const;
+		void SetA(Ptr<NodeBool>);
 
-		NodeBoolPtr GetB() const;
-		void SetB( NodeBoolPtr );
+		Ptr<NodeBool> GetB() const;
+		void SetB(Ptr<NodeBool>);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern

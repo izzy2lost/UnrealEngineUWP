@@ -23,7 +23,7 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-        NodeBoolPtr m_parameter;
+        Ptr<NodeBool> m_parameter;
         NodeImagePtr m_true;
         NodeImagePtr m_false;
 

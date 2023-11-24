@@ -27,33 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeModifierMeshClipWithUVMask::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeModifierMeshClipWithUVMask::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-        return m_pD->ClipMask.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeModifierMeshClipWithUVMask::SetInputNode( int i, Ptr<Node> Input )
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-		m_pD->ClipMask = dynamic_cast<NodeImage*>(Input.get());
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipWithUVMask::SetClipMask(NodeImage* InClipMask)

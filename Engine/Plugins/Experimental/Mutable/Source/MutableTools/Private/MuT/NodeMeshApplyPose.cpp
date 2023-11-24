@@ -29,61 +29,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeMeshApplyPose::GetInputCount() const
-	{
-        return 2;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeMeshApplyPose::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0:
-            pResult = m_pD->m_pBase.get();
-            break;
-        case 1:
-            pResult = m_pD->m_pPose.get();
-			break;
-        default:
-            check(false);
-            break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeMeshApplyPose::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0:
-            m_pD->m_pBase = dynamic_cast<NodeMesh*>(pNode.get());
-            break;
-
-		case 1:
-            m_pD->m_pPose = dynamic_cast<NodeMesh*>(pNode.get());
-			break;
-
-        default:
-            check(false);
-            break;
-        }
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeMeshPtr NodeMeshApplyPose::GetBase() const

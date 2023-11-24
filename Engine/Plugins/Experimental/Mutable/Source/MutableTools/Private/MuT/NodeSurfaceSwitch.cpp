@@ -27,55 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeSurfaceSwitch::GetInputCount() const
-	{
-		return 1 + m_pD->Options.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeSurfaceSwitch::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0:
-			pResult = m_pD->Parameter.get();
-			break;
-
-		default:
-			pResult = m_pD->Options[i-1].get();
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeSurfaceSwitch::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0:
-			m_pD->Parameter = dynamic_cast<NodeScalar*>(pNode.get());
-			break;
-
-		default:
-			m_pD->Options[i-1] = dynamic_cast<NodeSurface*>(pNode.get());
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	NodeScalarPtr NodeSurfaceSwitch::GetParameter() const

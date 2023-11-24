@@ -27,55 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodePatchMesh::GetInputCount() const
-	{
-		return 2;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodePatchMesh::GetInputNode( int i ) const
-	{
-		Node* pResult = 0;
-
-		if( i==0 )
-		{
-			pResult = m_pD->m_pRemove.get();
-		}
-		else if (i==1)
-		{
-			pResult = m_pD->m_pAdd.get();
-		}
-		else
-		{
-			check( false );
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodePatchMesh::SetInputNode( int i, NodePtr pNode )
-	{
-		if( i==0 )
-		{
-			m_pD->m_pRemove = dynamic_cast<NodeMesh*>( pNode.get() );
-		}
-		else if (i==1)
-		{
-			m_pD->m_pAdd = dynamic_cast<NodeMesh*>( pNode.get() );
-		}
-		else
-		{
-			check( false );
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeMesh* NodePatchMesh::GetRemove() const

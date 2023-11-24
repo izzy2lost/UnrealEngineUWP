@@ -26,30 +26,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeExtensionDataConstant::GetInputCount() const
-	{
-		return 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeExtensionDataConstant::GetInputNode(int i) const
-	{
-		check(false);
-		return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeExtensionDataConstant::SetInputNode(int i, NodePtr pNode)
-	{
-		check(false);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	ExtensionDataPtrConst NodeExtensionDataConstant::GetValue() const
@@ -58,7 +34,6 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	void NodeExtensionDataConstant::SetValue(ExtensionDataPtrConst Value)
 	{
 		m_pD->Value = Value;

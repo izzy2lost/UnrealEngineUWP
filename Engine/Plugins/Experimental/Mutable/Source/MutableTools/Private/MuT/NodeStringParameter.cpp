@@ -28,53 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeStringParameter::GetInputCount() const
-	{
-        return int( m_pD->m_additionalImages.Num()
-                    +
-                    m_pD->m_ranges.Num() );
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeStringParameter::GetInputNode( int i ) const
-	{
-        check( i<GetInputCount() );
-
-        int imageCount = int(m_pD->m_additionalImages.Num());
-        int rangeCount = int(m_pD->m_ranges.Num());
-        if (i<imageCount)
-        {
-            return m_pD->m_additionalImages[i].get();
-        }
-        else if ( i < imageCount + rangeCount )
-        {
-            int r = i - imageCount;
-            return m_pD->m_ranges[r].get();
-        }
-        return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeStringParameter::SetInputNode( int i, NodePtr n )
-	{
-        check( i<GetInputCount() );
-        int imageCount = int(m_pD->m_additionalImages.Num());
-        int rangeCount = int(m_pD->m_ranges.Num());
-        if (i<imageCount)
-        {
-            m_pD->m_additionalImages[i] = dynamic_cast<NodeImage*>(n.get());
-        }
-        else if ( i < imageCount + rangeCount )
-        {
-            int r = i - imageCount;
-            m_pD->m_ranges[r] = dynamic_cast<NodeRange*>(n.get());
-        }
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeStringParameter::SetName( const FString& Name )
 	{
 		m_pD->m_name = Name;

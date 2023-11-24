@@ -27,37 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeImageSwizzle::GetInputCount() const
-	{
-		return (int)m_pD->m_sources.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeImageSwizzle::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		pResult = m_pD->m_sources[i].get();
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeImageSwizzle::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		m_pD->m_sources[i] = dynamic_cast<NodeImage*>(pNode.get());
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	EImageFormat NodeImageSwizzle::GetFormat() const

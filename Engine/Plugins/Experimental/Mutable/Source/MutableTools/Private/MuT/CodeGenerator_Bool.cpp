@@ -26,7 +26,7 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateBool(FBoolGenerationResult& result, const NodeBoolPtrConst& untyped)
+	void CodeGenerator::GenerateBool(FBoolGenerationResult& result, const Ptr<const NodeBool>& untyped)
 	{
 		if (!untyped)
 		{

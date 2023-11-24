@@ -30,53 +30,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshGeometryOperation::GetInputCount() const
-	{
-		return 4;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshGeometryOperation::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = nullptr;
-
-		switch (i)
-		{
-		case 0: pResult = m_pD->m_pMeshA.get(); break;
-		case 1: pResult = m_pD->m_pMeshB.get(); break;
-		case 2: pResult = m_pD->m_pScalarA.get(); break;
-		case 3: pResult = m_pD->m_pScalarB.get(); break;
-		default:
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshGeometryOperation::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0: m_pD->m_pMeshA = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		case 1: m_pD->m_pMeshB = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		case 2: m_pD->m_pScalarA = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		case 3: m_pD->m_pScalarB = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		default:
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	const NodeScalarPtr& NodeMeshGeometryOperation::GetScalarA() const

@@ -42,11 +42,6 @@ namespace mu
 		virtual const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
-		virtual int GetInputCount() const override;
-		virtual Node* GetInputNode( int i ) const override;
-		virtual void SetInputNode( int i, NodePtr pNode ) override;
-
-
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------

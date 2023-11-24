@@ -27,34 +27,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeModifierMeshClipWithMesh::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeModifierMeshClipWithMesh::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-        return m_pD->ClipMesh.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeModifierMeshClipWithMesh::SetInputNode( int i, Ptr<Node> Input )
-	{
-		check( i>=0 && i< GetInputCount());
-        (void)i;
-		m_pD->ClipMesh = dynamic_cast<NodeMesh*>(Input.get());
-
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipWithMesh::SetClipMesh(NodeMesh* clipMesh)

@@ -127,9 +127,10 @@ private:
 class FMutableGraphTreeElement : public TSharedFromThis<FMutableGraphTreeElement>
 {
 public:
-	FMutableGraphTreeElement(const mu::NodePtr& InNode, TSharedPtr<FMutableGraphTreeElement>* InDuplicatedOf=nullptr )
+	FMutableGraphTreeElement(const mu::NodePtr& InNode, TSharedPtr<FMutableGraphTreeElement>* InDuplicatedOf=nullptr, const FString& InPrefix=FString() )
 	{
 		MutableNode = InNode;
+		Prefix = InPrefix;
 		if (InDuplicatedOf)
 		{
 			DuplicatedOf = *InDuplicatedOf;
@@ -144,4 +145,6 @@ public:
 	/** If this tree element is a duplicated of another node, this is the node. */
 	TSharedPtr<FMutableGraphTreeElement> DuplicatedOf;
 
+	/** Optional label prefix */
+	FString Prefix;
 };

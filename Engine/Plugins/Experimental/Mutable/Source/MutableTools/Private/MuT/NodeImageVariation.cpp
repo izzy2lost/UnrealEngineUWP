@@ -26,71 +26,28 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    int NodeImageVariation::GetInputCount() const { return 1 + int( m_pD->m_variations.Num() ); }
-
-
-    //---------------------------------------------------------------------------------------------
-    Node* NodeImageVariation::GetInputNode( int i ) const
-    {
-        check( i >= 0 && i < GetInputCount() );
-
-        if ( i == 0 )
-        {
-            return m_pD->m_defaultImage.get();
-        }
-        i -= 1;
-
-        if ( i < int( m_pD->m_variations.Num() ) )
-        {
-            return m_pD->m_variations[i].m_image.get();
-        }
-        i -= int( m_pD->m_variations.Num() );
-
-        return nullptr;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodeImageVariation::SetInputNode( int i, NodePtr pNode )
-    {
-        check( i >= 0 && i < GetInputCount() );
-
-        if ( i == 0 )
-        {
-            m_pD->m_defaultImage = dynamic_cast<NodeImage*>( pNode.get() );
-            return;
-        }
-
-        i -= 1;
-        if ( i < int( m_pD->m_variations.Num() ) )
-        {
-
-            m_pD->m_variations[i].m_image = dynamic_cast<NodeImage*>( pNode.get() );
-            return;
-        }
-        i -= (int)m_pD->m_variations.Num();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
     // Own Interface
     //---------------------------------------------------------------------------------------------
-    void NodeImageVariation::SetDefaultImage( NodeImage* p ) { m_pD->m_defaultImage = p; }
+    void NodeImageVariation::SetDefaultImage( NodeImage* p ) 
+	{ 
+		m_pD->m_defaultImage = p; 
+	}
 
 
-    //---------------------------------------------------------------------------------------------
-    int NodeImageVariation::GetVariationCount() const { return int( m_pD->m_variations.Num() ); }
+	int NodeImageVariation::GetVariationCount() const 
+	{ 
+		return int( m_pD->m_variations.Num() ); 
+	}
 
 
-    //---------------------------------------------------------------------------------------------
     void NodeImageVariation::SetVariationCount( int num )
     {
         check( num >= 0 );
         m_pD->m_variations.SetNum( num );
     }
 
-    //---------------------------------------------------------------------------------------------
-    void NodeImageVariation::SetVariationTag( int index, const FString& Tag )
+
+	void NodeImageVariation::SetVariationTag( int index, const FString& Tag )
     {
         check( index >= 0 && index < (int)m_pD->m_variations.Num() );
 
@@ -98,7 +55,6 @@ namespace mu
     }
 
 
-    //---------------------------------------------------------------------------------------------
     void NodeImageVariation::SetVariationImage( int index, NodeImage* pNode )
     {
         check( index >= 0 && index < (int)m_pD->m_variations.Num() );

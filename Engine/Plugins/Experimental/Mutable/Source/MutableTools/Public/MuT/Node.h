@@ -99,11 +99,6 @@ namespace mu
         virtual const NODE_TYPE* GetType() const;
 		static const NODE_TYPE* GetStaticType();
 
-		//! Generic access to graph connections
-        virtual int GetInputCount() const = 0;
-		virtual Node* GetInputNode( int i ) const = 0;
-        virtual void SetInputNode( int i, NodePtr pNode ) = 0;
-
 		//! Set the opaque context returned in messages in the compiler log.
 		void SetMessageContext( const void* context );
 

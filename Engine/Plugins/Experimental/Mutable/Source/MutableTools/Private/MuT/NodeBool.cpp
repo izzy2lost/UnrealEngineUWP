@@ -31,7 +31,7 @@ namespace mu
 
         
 	//---------------------------------------------------------------------------------------------
-	NodeBoolPtr NodeBool::StaticUnserialise( InputArchive& arch )
+	Ptr<NodeBool> NodeBool::StaticUnserialise( InputArchive& arch )
 	{
         uint32_t ver;
 		arch >> ver;

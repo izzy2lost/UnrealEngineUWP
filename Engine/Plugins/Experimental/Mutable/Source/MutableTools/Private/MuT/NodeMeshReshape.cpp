@@ -29,51 +29,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshReshape::GetInputCount() const
-	{
-		return 3;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshReshape::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = nullptr;
-
-		switch (i)
-		{
-		case 0: pResult = m_pD->BaseMesh.get(); break;
-		case 1: pResult = m_pD->BaseShape.get(); break;
-		case 2: pResult = m_pD->TargetShape.get(); break;
-		default:
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshReshape::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0: m_pD->BaseMesh = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		case 1: m_pD->BaseShape = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		case 2: m_pD->TargetShape = dynamic_cast<NodeMesh*>(pNode.get()); break;
-		default:
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	const Ptr<NodeMesh>& NodeMeshReshape::GetBaseMesh() const

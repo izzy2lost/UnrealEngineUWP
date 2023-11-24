@@ -28,43 +28,6 @@ namespace mu
     MUTABLE_IMPLEMENT_NODE( NodeComponentEdit, EType::Edit, Node, Node::EType::Component)
 
 
-    //---------------------------------------------------------------------------------------------
-    // Node Interface
-    //---------------------------------------------------------------------------------------------
-    int NodeComponentEdit::GetInputCount() const
-    {
-        return m_pD->m_surfaces.Num();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    Node* NodeComponentEdit::GetInputNode( int i ) const
-    {
-        check( i >=0 && i < GetInputCount() );
-
-        NodePtr pResult;
-
-        if ( i<m_pD->m_surfaces.Num() )
-        {
-            pResult = m_pD->m_surfaces[i];
-        }
-
-        return pResult.get();
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodeComponentEdit::SetInputNode( int i, NodePtr pNode )
-    {
-        check( i >=0 && i < GetInputCount() );
-
-        if ( i<m_pD->m_surfaces.Num() )
-        {
-            m_pD->m_surfaces[ i ] = dynamic_cast<NodeSurface*>(pNode.get());
-        }
-    }
-
-
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------

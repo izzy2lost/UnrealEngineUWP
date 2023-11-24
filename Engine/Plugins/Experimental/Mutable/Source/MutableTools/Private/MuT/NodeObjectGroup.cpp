@@ -34,43 +34,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeObjectGroup::GetInputCount() const
-	{
-		return m_pD->m_children.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeObjectGroup::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		if ( i<m_pD->m_children.Num() )
-		{
-			pResult = m_pD->m_children[i].get();
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeObjectGroup::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		if ( i<m_pD->m_children.Num() )
-		{
-			m_pD->m_children[i] = dynamic_cast<NodeObject*>( pNode.get() );
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	const FString& NodeObjectGroup::GetName() const

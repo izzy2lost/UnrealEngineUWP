@@ -28,39 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeScalarParameter::GetInputCount() const
-	{
-        return m_pD->m_ranges.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeScalarParameter::GetInputNode( int i ) const
-	{
-        check( i<GetInputCount() );
-
-        int rangeCount = int(m_pD->m_ranges.Num());
-		if ( i < rangeCount )
-        {
-            return m_pD->m_ranges[i].get();
-        }
-        return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeScalarParameter::SetInputNode( int i, NodePtr n )
-	{
-        check( i<GetInputCount() );
-        int rangeCount = int(m_pD->m_ranges.Num());
-        if ( i < rangeCount )
-        {
-            m_pD->m_ranges[i] = dynamic_cast<NodeRange*>(n.get());
-        }
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	void NodeScalarParameter::SetName( const FString& Name )
 	{
 		m_pD->m_name = Name;

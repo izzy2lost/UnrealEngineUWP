@@ -28,38 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeMeshMakeMorph::GetInputCount() const
-	{
-		return 2;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeMeshMakeMorph::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-		return i == 0 ? m_pD->m_pBase.get() : m_pD->m_pTarget.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeMeshMakeMorph::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-		if (i==0)
-		{
-			m_pD->m_pBase = dynamic_cast<NodeMesh*>( pNode.get() );
-		}
-		else
-		{
-			m_pD->m_pTarget = dynamic_cast<NodeMesh*>( pNode.get() );
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeMeshPtr NodeMeshMakeMorph::GetBase() const

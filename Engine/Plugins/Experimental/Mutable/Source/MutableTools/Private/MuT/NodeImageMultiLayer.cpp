@@ -26,49 +26,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeImageMultiLayer::GetInputCount() const
-	{
-		return 4;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeImageMultiLayer::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-        case 0: pResult = m_pD->m_pBase.get(); break;
-        case 1: pResult = m_pD->m_pMask.get(); break;
-        case 2: pResult = m_pD->m_pBlended.get(); break;
-        case 3: pResult = m_pD->m_pRange.get(); break;
-        }
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeImageMultiLayer::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-
-		switch (i)
-		{
-        case 0: m_pD->m_pBase = dynamic_cast<NodeImage*>( pNode.get() ); break;
-        case 1: m_pD->m_pMask = dynamic_cast<NodeImage*>( pNode.get() ); break;
-        case 2: m_pD->m_pBlended = dynamic_cast<NodeImage*>( pNode.get() ); break;
-        case 3: m_pD->m_pRange = dynamic_cast<NodeRange*>( pNode.get() ); break;
-        }
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeImagePtr NodeImageMultiLayer::GetBase() const

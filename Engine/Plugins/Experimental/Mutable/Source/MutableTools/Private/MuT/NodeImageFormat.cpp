@@ -26,35 +26,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeImageFormat::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeImageFormat::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-        (void)i;
-
-		return m_pD->m_source.get();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeImageFormat::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-        (void)i;
-
-		m_pD->m_source = dynamic_cast<NodeImage*>(pNode.get());
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	EImageFormat NodeImageFormat::GetFormat() const

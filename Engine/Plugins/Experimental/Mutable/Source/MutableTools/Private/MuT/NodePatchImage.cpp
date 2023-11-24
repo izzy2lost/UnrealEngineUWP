@@ -31,51 +31,6 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    // Node Interface
-    //---------------------------------------------------------------------------------------------
-    int NodePatchImage::GetInputCount() const
-    {
-        return 2;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    Node* NodePatchImage::GetInputNode( int i ) const
-    {
-        check( i >=0 && i < GetInputCount());
-
-        Node* pResult = 0;
-
-        if ( i==0 )
-        {
-            pResult = m_pD->m_pImage.get();
-        }
-        else
-        {
-            pResult = m_pD->m_pMask.get();
-        }
-
-        return pResult;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void NodePatchImage::SetInputNode( int i, NodePtr pNode )
-    {
-        check( i >=0 && i < GetInputCount());
-
-        if ( i==0 )
-        {
-            m_pD->m_pImage = dynamic_cast<NodeImage*>( pNode.get() );
-        }
-        else
-        {
-            m_pD->m_pMask = dynamic_cast<NodeImage*>( pNode.get() );
-        }
-    }
-
-
-    //---------------------------------------------------------------------------------------------
     // Own Interface
     //---------------------------------------------------------------------------------------------
     void NodePatchImage::SetImage( NodeImagePtr pImage )

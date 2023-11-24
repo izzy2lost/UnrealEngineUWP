@@ -25,28 +25,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeImageConstant::GetInputCount() const
-	{
-		return 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeImageConstant::GetInputNode(int) const
-	{
-		check(false);
-		return 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeImageConstant::SetInputNode(int, NodePtr)
-	{
-		check(false);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	ImagePtrConst NodeImageConstant::GetValue() const
 	{
 		Ptr<const Image> pImage;

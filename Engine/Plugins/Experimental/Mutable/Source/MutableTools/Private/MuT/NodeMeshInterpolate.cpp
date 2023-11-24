@@ -29,55 +29,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshInterpolate::GetInputCount() const
-	{
-		return 1 + m_pD->m_targets.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshInterpolate::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		Node* pResult = 0;
-
-		switch (i)
-		{
-		case 0:
-			pResult = m_pD->m_pFactor.get();
-			break;
-
-		default:
-			pResult = m_pD->m_targets[i-1].get();
-			break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshInterpolate::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0:
-			m_pD->m_pFactor = dynamic_cast<NodeScalar*>(pNode.get());
-			break;
-
-		default:
-			m_pD->m_targets[i-1] = dynamic_cast<NodeMesh*>(pNode.get());
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	NodeScalarPtr NodeMeshInterpolate::GetFactor() const

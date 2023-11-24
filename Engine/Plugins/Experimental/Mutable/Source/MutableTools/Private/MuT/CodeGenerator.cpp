@@ -2130,7 +2130,7 @@ namespace mu
         m_pErrorLog->GetPrivate()->Add( Msg, ELMT_ERROR, errorContext );
 
         // Create a constant node
-        NodeBoolConstantPtr pNode = new NodeBoolConstant();
+        Ptr<NodeBoolConstant> pNode = new NodeBoolConstant();
         pNode->SetValue( value );
 
         Ptr<ASTOp> result = Generate( pNode );

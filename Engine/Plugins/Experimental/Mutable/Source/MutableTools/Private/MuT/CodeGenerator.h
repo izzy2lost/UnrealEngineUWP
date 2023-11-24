@@ -652,7 +652,7 @@ namespace mu
 		typedef TMap<FVisitedKeyMap, FBoolGenerationResult> GeneratedBoolsMap;
 		GeneratedBoolsMap m_generatedBools;
 
-		void GenerateBool(FBoolGenerationResult&, const NodeBoolPtrConst&);
+		void GenerateBool(FBoolGenerationResult&, const Ptr<const NodeBool>&);
 		void GenerateBool_Constant(FBoolGenerationResult&, const Ptr<const NodeBoolConstant>&);
 		void GenerateBool_Parameter(FBoolGenerationResult&, const Ptr<const NodeBoolParameter>&);
 		void GenerateBool_IsNull(FBoolGenerationResult&, const Ptr<const NodeBoolIsNull>&);

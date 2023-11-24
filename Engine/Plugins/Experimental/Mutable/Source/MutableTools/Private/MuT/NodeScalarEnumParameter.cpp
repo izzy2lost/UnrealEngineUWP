@@ -26,36 +26,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	int NodeScalarEnumParameter::GetInputCount() const
-	{
-        return m_pD->m_ranges.Num();
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeScalarEnumParameter::GetInputNode( int i ) const
-	{
-        check( i<GetInputCount() );
-        if (i<GetInputCount())
-        {
-            return m_pD->m_ranges[i].get();
-        }
-        return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeScalarEnumParameter::SetInputNode( int i, NodePtr n )
-	{
-        check( i<GetInputCount() );
-        if (i<GetInputCount())
-        {
-            m_pD->m_ranges[i] = dynamic_cast<NodeRange*>(n.get());
-        }
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	const FString& NodeScalarEnumParameter::GetName() const
 	{
 		return m_pD->m_name;

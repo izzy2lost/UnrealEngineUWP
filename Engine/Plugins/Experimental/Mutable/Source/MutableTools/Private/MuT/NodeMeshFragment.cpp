@@ -28,46 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeMeshFragment::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeMeshFragment::GetInputNode( int i ) const
-	{
-		check( i>=0 && i<GetInputCount() );
-        (void)i;
-
-		Node* pResult = 0;
-
-		pResult = m_pD->m_pMesh.get();
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshFragment::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i<GetInputCount() );
-
-		switch (i)
-		{
-		case 0:
-			m_pD->m_pMesh = dynamic_cast<NodeMesh*>(pNode.get());
-			break;
-
-		default:
-			break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
     NodeMeshFragment::FRAGMENT_TYPE NodeMeshFragment::GetFragmentType() const

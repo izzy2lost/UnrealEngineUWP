@@ -18,87 +18,32 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	MUTABLE_IMPLEMENT_NODE(NodeExtensionDataVariation, EType::Variation, Node, Node::EType::ExtensionData);
 
-	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-
-	//---------------------------------------------------------------------------------------------
-	int NodeExtensionDataVariation::GetInputCount() const
-	{
-		return 1 + m_pD->Variations.Num();
-	}
-
-	//---------------------------------------------------------------------------------------------
-	Node* NodeExtensionDataVariation::GetInputNode(int i) const
-	{
-		check(i >= 0 && i < GetInputCount());
-
-		if (i == 0)
-		{
-			return m_pD->DefaultValue.get();
-		}
-
-		i -= 1;
-
-		if (m_pD->Variations.IsValidIndex(i))
-		{
-			return m_pD->Variations[i].Value.get();
-		}
-
-		return nullptr;
-	}
-
-	//---------------------------------------------------------------------------------------------
-	void NodeExtensionDataVariation::SetInputNode(int i, NodePtr pNode)
-	{
-		check(i >= 0 && i < GetInputCount());
-
-		if (i == 0)
-		{
-			m_pD->DefaultValue = dynamic_cast<NodeExtensionData*>(pNode.get());
-			return;
-		}
-
-		i -= 1;
-
-		if (m_pD->Variations.IsValidIndex(i))
-		{
-			m_pD->Variations[i].Value = dynamic_cast<NodeExtensionData*>(pNode.get());
-			return;
-		}
-	}
 
 	//---------------------------------------------------------------------------------------------
 	// Own Interface
-	//---------------------------------------------------------------------------------------------
-
 	//---------------------------------------------------------------------------------------------
 	void NodeExtensionDataVariation::SetDefaultValue(NodeExtensionDataPtr InValue)
 	{
 		m_pD->DefaultValue = InValue;
 	}
 
-	//---------------------------------------------------------------------------------------------
 	void NodeExtensionDataVariation::SetVariationCount(int InCount)
 	{
 		check(InCount >= 0);
 		m_pD->Variations.SetNum(InCount);
 	}
 
-	//---------------------------------------------------------------------------------------------
 	int NodeExtensionDataVariation::GetVariationCount() const
 	{
 		return m_pD->Variations.Num();
 	}
 
-	//---------------------------------------------------------------------------------------------
 	void NodeExtensionDataVariation::SetVariationTag(int InIndex, const FString& Tag)
 	{
 		check(m_pD->Variations.IsValidIndex(InIndex));
 
 		m_pD->Variations[InIndex].Tag = Tag;
 	}
-
 	//---------------------------------------------------------------------------------------------
 	void NodeExtensionDataVariation::SetVariationValue(int InIndex, NodeExtensionDataPtr InValue)
 	{

@@ -32,38 +32,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-	int NodeBoolParameter::GetInputCount() const
-	{
-        return int( m_pD->m_ranges.Num() );
-    }
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeBoolParameter::GetInputNode( int i ) const
-	{
-        check( i<GetInputCount() );
-        if (i<GetInputCount())
-        {
-            return m_pD->m_ranges[i].get();
-        }
-        return nullptr;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeBoolParameter::SetInputNode( int i , NodePtr n )
-	{
-        check( i<GetInputCount() );
-        if (i<GetInputCount())
-        {
-            m_pD->m_ranges[i] = dynamic_cast<NodeRange*>(n.get());
-        }
-    }
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	void NodeBoolParameter::SetName( const FString& strName )

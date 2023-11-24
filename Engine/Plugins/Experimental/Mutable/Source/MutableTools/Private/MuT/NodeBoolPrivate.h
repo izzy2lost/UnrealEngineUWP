@@ -34,7 +34,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
 			arch << m_value;
@@ -43,7 +43,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
 			check(ver==0);
 
@@ -71,7 +71,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 3;
+            uint32 ver = 3;
 			arch << ver;
 
 			arch << m_defaultValue;
@@ -83,7 +83,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver>=2 && ver<=3);
 
@@ -122,7 +122,7 @@ namespace mu
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
 			arch << m_pSource;
@@ -131,7 +131,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver<=0);
 
@@ -150,12 +150,12 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		NodeBoolPtr m_pSource;
+		Ptr<NodeBool> m_pSource;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
 			arch << m_pSource;
@@ -164,7 +164,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver<=0);
 
@@ -183,13 +183,13 @@ namespace mu
 
 		static NODE_TYPE s_type;
 
-		NodeBoolPtr m_pA;
-		NodeBoolPtr m_pB;
+		Ptr<NodeBool> m_pA;
+		Ptr<NodeBool> m_pB;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 0;
+            uint32 ver = 0;
 			arch << ver;
 
 			arch << m_pA;
@@ -199,7 +199,7 @@ namespace mu
 		//!
 		void Unserialise( InputArchive& arch )
 		{
-            uint32_t ver;
+            uint32 ver;
 			arch >> ver;
             check(ver<=0);
 

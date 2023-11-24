@@ -28,43 +28,6 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	// Node Interface
-	//---------------------------------------------------------------------------------------------
-    int NodeRangeFromScalar::GetInputCount() const
-	{
-		return 1;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Node* NodeRangeFromScalar::GetInputNode( int i ) const
-	{
-		check( i>=0 && i< GetInputCount());
-
-        Node* pResult = nullptr;
-
-		switch (i)
-		{
-        case 0: pResult = m_pD->m_pSize.get(); break;
-		}
-
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-    void NodeRangeFromScalar::SetInputNode( int i, NodePtr pNode )
-	{
-		check( i>=0 && i< GetInputCount());
-
-		switch (i)
-		{
-        case 0: m_pD->m_pSize = dynamic_cast<NodeScalar*>(pNode.get()); break;
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
 	Ptr<NodeScalar> NodeRangeFromScalar::GetSize() const

@@ -45,11 +45,6 @@ namespace mu
 		const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
 
-        int GetInputCount() const override;
-        Node* GetInputNode( int i ) const override;
-		void SetInputNode( int i, NodePtr pNode ) override;
-
-
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
 		//-----------------------------------------------------------------------------------------

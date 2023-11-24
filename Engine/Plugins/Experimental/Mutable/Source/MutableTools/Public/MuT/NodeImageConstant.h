@@ -38,17 +38,12 @@ namespace mu
 		static void Serialise( const NodeImageConstant* pNode, OutputArchive& arch );
 		static NodeImageConstantPtr StaticUnserialise( InputArchive& arch );
 
-
 		//-----------------------------------------------------------------------------------------
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
         const NODE_TYPE* GetType() const override;
 		static const NODE_TYPE* GetStaticType();
-
-        virtual int GetInputCount() const override;
-        virtual Node* GetInputNode( int i ) const override;
-        void SetInputNode( int i, NodePtr pNode ) override;
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
