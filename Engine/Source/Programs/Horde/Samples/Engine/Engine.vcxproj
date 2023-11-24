@@ -145,6 +145,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Private\HordePlatform.h" />
     <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\AgentMessage.h" />
     <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeBuffer.h" />
     <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeChannel.h" />
@@ -160,6 +161,7 @@
     <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputePlatform.cpp" />
     <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeSocket.cpp" />
     <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeTransport.cpp" />
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\HordePlatform.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

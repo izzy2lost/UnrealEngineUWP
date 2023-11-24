@@ -22,6 +22,9 @@
     <ClInclude Include="..\..\..\..\Developer\Horde\Public\Compute\ComputeTransport.h">
       <Filter>Horde\Public\Compute</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\Developer\Horde\Private\HordePlatform.h">
+      <Filter>Horde\Private</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Core">
@@ -64,6 +67,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\Developer\Horde\Private\Compute\ComputeTransport.cpp">
       <Filter>Horde\Private\Compute</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\Developer\Horde\Private\HordePlatform.cpp">
+      <Filter>Horde\Private</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
