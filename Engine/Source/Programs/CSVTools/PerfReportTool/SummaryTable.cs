@@ -911,7 +911,7 @@ namespace PerfSummaries
 
 				if (forceNumericFormat != null)
 				{
-					if (forceNumericFormat == "date")
+					if (forceNumericFormat == "date" && val != double.MaxValue)
 					{
 						DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds((long)val);
 						TimeSpan timeZoneOffset = formatInfo.dateTimeZone.GetUtcOffset(dateTimeOffset);
@@ -1903,8 +1903,12 @@ namespace PerfSummaries
 							if (column.isNumeric && column.formatInfo != null && column.formatInfo.IsDate())
 							{
 								// For dates use a standard UTC timestamp for the tooltip
-								DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds((long)column.GetValue(rowIndex));
-								toolTip = dateTimeOffset.ToString("yyyy-MM-dd HH:mm:ss (UTC)");
+								double val = column.GetValue(rowIndex);
+								if (val < double.MaxValue )
+								{
+									DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds((long)val);
+									toolTip = dateTimeOffset.ToString("yyyy-MM-dd HH:mm:ss (UTC)");
+								}
 							}
 							else
 							{
