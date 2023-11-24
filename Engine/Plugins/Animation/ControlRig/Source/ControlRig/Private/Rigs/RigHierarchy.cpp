@@ -168,7 +168,6 @@ void URigHierarchy::AddReferencedObjects(UObject* InpThis, FReferenceCollector& 
 	Super::AddReferencedObjects(InpThis, Collector);
 
 	URigHierarchy* pThis = static_cast<URigHierarchy*>(InpThis);
-	FReferenceCollectorArchive Ar(pThis, Collector);
 	FScopeLock Lock(&pThis->ElementsLock);
 	for (FRigBaseElement* Element : pThis->Elements)
 	{

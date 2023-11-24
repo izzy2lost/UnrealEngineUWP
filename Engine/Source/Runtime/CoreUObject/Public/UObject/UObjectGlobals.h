@@ -2219,7 +2219,7 @@ private:
 	bool					bExactClass;
 };
 
-/** Base class for reference serialization archives */
+/** Reference collecting archive created by FReferenceCollector::GetVerySlowReferenceCollectorArchive() */
 class FReferenceCollectorArchive : public FArchiveUObject
 {
 	/** Object which is performing the serialization. */
@@ -2236,7 +2236,8 @@ protected:
 	}
 
 public:
-	COREUOBJECT_API FReferenceCollectorArchive(const UObject* InSerializingObject, FReferenceCollector& InCollector);
+	// Constructor not COREUOBJECT-exported because constructing this class is for internal use only
+	FReferenceCollectorArchive(const UObject* InSerializingObject, FReferenceCollector& InCollector);
 
 	void SetSerializingObject(const UObject* InSerializingObject)
 	{
