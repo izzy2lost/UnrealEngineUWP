@@ -839,7 +839,7 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 		return CurrentlyProcessedSharedInstanceStorage->GetMutableStruct(Handle.GetIndex());
 	case EStateTreeDataSourceType::SharedInstanceDataObject:
 		check(CurrentlyProcessedSharedInstanceStorage);
-		return CurrentlyProcessedSharedInstanceStorage->GetMutableStruct(Handle.GetIndex());
+		return CurrentlyProcessedSharedInstanceStorage->GetMutableObject(Handle.GetIndex());
 
 	case EStateTreeDataSourceType::ContextData:
 		return ContextDataViews[Handle.GetIndex()];
