@@ -233,8 +233,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			_nameToFileEntry.Clear();
 			_nameToDirectoryEntry.Clear();
-
-			MarkAsDirty();
 		}
 
 		/// <summary>
@@ -253,7 +251,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		public void AddFile(FileEntry entry)
 		{
 			_nameToFileEntry[entry.Name] = entry;
-			MarkAsDirty();
 		}
 
 		/// <summary>
@@ -316,15 +313,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the entry to delete</param>
 		/// <returns>True if the entry was found, false otherwise</returns>
-		public bool DeleteFile(string name)
-		{
-			if (_nameToFileEntry.Remove(name))
-			{
-				MarkAsDirty();
-				return true;
-			}
-			return false;
-		}
+		public bool DeleteFile(string name) => _nameToFileEntry.Remove(name);
 
 		/// <summary>
 		/// Attempts to get a file entry from a path
@@ -438,7 +427,6 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 
 			_nameToDirectoryEntry.Add(entry.Name, entry);
-			MarkAsDirty();
 		}
 
 		/// <summary>
@@ -495,15 +483,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="name">Name of the entry to delete</param>
 		/// <returns>True if the entry was found, false otherwise</returns>
-		public bool DeleteDirectory(string name)
-		{
-			if (_nameToDirectoryEntry.Remove(name))
-			{
-				MarkAsDirty();
-				return true;
-			}
-			return false;
-		}
+		public bool DeleteDirectory(string name) => _nameToDirectoryEntry.Remove(name);
 
 		#endregion
 

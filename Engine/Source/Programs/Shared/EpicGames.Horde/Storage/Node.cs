@@ -42,23 +42,9 @@ namespace EpicGames.Horde.Storage
 	public abstract class Node
 	{
 		/// <summary>
-		/// Revision number of the node. Incremented whenever the node is modified, and used to track whether nodes are modified between 
-		/// writes starting and completing.
-		/// </summary>
-		public uint Revision { get; private set; }
-
-		/// <summary>
 		/// Accessor for the bundle type definition associated with this node
 		/// </summary>
 		public BlobType NodeType => GetNodeType(GetType());
-
-		/// <summary>
-		/// Mark this node as dirty
-		/// </summary>
-		protected void MarkAsDirty()
-		{
-			Revision++;
-		}
 
 		/// <summary>
 		/// Serialize the contents of this node
