@@ -1,9 +1,9 @@
 setlocal
 set FLEX=win_flex.exe
 set BISON=win_bison.exe
-set SRCDIR=../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib
+set SRCDIR=../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib
 
-pushd ..\..\..\..\Extras\NotForLicensees\FlexAndBison\
+pushd ..\..\..\..\Restricted\NotForLicensees\Extras\FlexAndBison\
 
 %FLEX% --nounistd -o%SRCDIR%/glcpp-lex.inl %SRCDIR%/glcpp-lex.l
 %BISON% -v -o "%SRCDIR%/glcpp-parse.inl" --defines=%SRCDIR%/glcpp-parse.h %SRCDIR%/glcpp-parse.y
