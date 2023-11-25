@@ -501,7 +501,7 @@ TObjectPtr<UIKRetargetBoneDetails> FIKRetargetEditorController::GetOrCreateBoneD
 	}
 
 	// create and store a new one
-	UIKRetargetBoneDetails* NewBoneDetails = NewObject<UIKRetargetBoneDetails>(AssetController->GetAsset(), FName(BoneName), RF_Standalone | RF_Transient );
+	UIKRetargetBoneDetails* NewBoneDetails = NewObject<UIKRetargetBoneDetails>(AssetController->GetAsset(), FName(BoneName), RF_Transient );
 	NewBoneDetails->SelectedBone = BoneName;
 	NewBoneDetails->EditorController = SharedThis(this);
 
@@ -921,7 +921,7 @@ void FIKRetargetEditorController::EditChainSelection(
 	const TArray<TObjectPtr<URetargetChainSettings>>& AllChainSettings = AssetController->GetAsset()->GetAllChainSettings();
 	for (const TObjectPtr<URetargetChainSettings>& ChainSettings : AllChainSettings)
 	{
-		if (ChainSettings->EditorController.Get() != this)
+		if (ChainSettings->EditorController.Pin().Get() != this)
 		{
 			ChainSettings->EditorController = SharedThis(this);	
 		}
@@ -1643,7 +1643,7 @@ void FIKRetargetEditorController::OnPoseSelected(TSharedPtr<FName> InPose, ESele
 void FIKRetargetEditorController::ShowGlobalSettings()
 {
 	UIKRetargetGlobalSettings* GlobalSettings = AssetController->GetAsset()->GetGlobalSettingsUObject();
-	if (GlobalSettings->EditorController.Get() != this)
+	if (GlobalSettings->EditorController.Pin().Get() != this)
 	{
 		GlobalSettings->EditorController = SharedThis(this);
 	}
@@ -1654,7 +1654,7 @@ void FIKRetargetEditorController::ShowGlobalSettings()
 void FIKRetargetEditorController::ShowPostPhaseSettings()
 {
 	URetargetOpStack* PostSettings = AssetController->GetAsset()->GetPostSettingsUObject();
-	if (PostSettings->EditorController.Get() != this)
+	if (PostSettings->EditorController.Pin().Get() != this)
 	{
 		PostSettings->EditorController = SharedThis(this);
 	}
@@ -1665,7 +1665,7 @@ void FIKRetargetEditorController::ShowPostPhaseSettings()
 void FIKRetargetEditorController::ShowRootSettings()
 {
 	URetargetRootSettings* RootSettings = AssetController->GetAsset()->GetRootSettingsUObject();
-	if (RootSettings->EditorController.Get() != this)
+	if (RootSettings->EditorController.Pin().Get() != this)
 	{
 		RootSettings->EditorController = SharedThis(this);	
 	}

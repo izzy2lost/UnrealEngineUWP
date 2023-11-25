@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -76,7 +76,7 @@ public:
 	SLATE_BEGIN_ARGS(SRetargetOpStack) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TSharedPtr<FIKRetargetEditorController>& InEditorController);
+	void Construct(const FArguments& InArgs, const TWeakPtr<FIKRetargetEditorController>& InEditorController);
 
 	int32 GetSelectedItemIndex() const;
 

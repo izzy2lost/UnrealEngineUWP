@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RetargetEditor/SRetargetOpStack.h"
 
@@ -183,7 +183,7 @@ URetargetOpBase* SRetargetOpStackItem::GetRetargetOp() const
 
 void SRetargetOpStack::Construct(
 	const FArguments& InArgs,
-	const TSharedPtr<FIKRetargetEditorController>& InEditorController)
+	const TWeakPtr<FIKRetargetEditorController>& InEditorController)
 {
 	EditorController = InEditorController;
 	EditorController.Pin()->SetOpStackView(SharedThis(this));

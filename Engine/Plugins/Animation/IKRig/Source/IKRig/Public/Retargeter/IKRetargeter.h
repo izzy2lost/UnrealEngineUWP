@@ -100,7 +100,7 @@ public:
 
 	// pointer to editor for details customization
 	#if WITH_EDITOR
-	TSharedPtr<FIKRetargetEditorController> EditorController;
+	TWeakPtr<FIKRetargetEditorController> EditorController;
 	#endif
 };
 
@@ -121,7 +121,7 @@ public:
 
 	// pointer to editor for details customization
 	#if WITH_EDITOR
-	TSharedPtr<FIKRetargetEditorController> EditorController;
+	TWeakPtr<FIKRetargetEditorController> EditorController;
 	#endif
 
 private:
@@ -156,7 +156,7 @@ public:
 
 	// pointer to editor for details customization
 	#if WITH_EDITOR
-	TSharedPtr<FIKRetargetEditorController> EditorController;
+	TWeakPtr<FIKRetargetEditorController> EditorController;
 	#endif
 };
 

@@ -20,7 +20,6 @@ namespace IKRigEditorModes
 class FIKRigEditorToolkit :
 	public FPersonaAssetEditorToolkit,
 	public IHasPersonaToolkit,
-	public FGCObject,
 	public FSelfRegisteringEditorUndoClient,
 	public FTickableEditorObject
 {
@@ -44,11 +43,6 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	/** END FAssetEditorToolkit interface */
-	
-	/** FGCObject interface */
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override { return TEXT("FIKRigEditorToolkit"); }
-	/** END FGCObject interface */
 
 	//** FTickableEditorObject Interface
 	virtual void Tick(float DeltaTime) override {};

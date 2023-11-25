@@ -510,12 +510,6 @@ FString FIKRetargetEditor::GetWorldCentricTabPrefix() const
 	return TEXT("IKRetargetEditor");
 }
 
-void FIKRetargetEditor::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	// hold the asset we are working on
-	Collector.AddReferencedObject(EditorController->AssetController->GetAssetPtr());
-}
-
 void FIKRetargetEditor::Tick(float DeltaTime)
 {
 	// update with latest offsets

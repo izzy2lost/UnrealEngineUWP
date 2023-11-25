@@ -205,12 +205,6 @@ FString FIKRigEditorToolkit::GetWorldCentricTabPrefix() const
 	return TEXT("IKRigEditor");
 }
 
-void FIKRigEditorToolkit::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	// hold the asset we are working on
-	Collector.AddReferencedObject(EditorController->AssetController->GetAssetPtr());
-}
-
 TStatId FIKRigEditorToolkit::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FIKRigEditorToolkit, STATGROUP_Tickables);

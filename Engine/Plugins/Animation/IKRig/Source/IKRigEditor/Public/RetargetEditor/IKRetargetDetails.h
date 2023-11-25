@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -41,7 +41,7 @@ public:
 	UPROPERTY()
 	FTransform ReferenceTransform;
 	
-	TSharedPtr<FIKRetargetEditorController> EditorController;
+	TWeakPtr<FIKRetargetEditorController> EditorController;
 
 #if WITH_EDITOR
 
@@ -186,6 +186,7 @@ private:
 
 	void AddSettingsSection(
 		const IDetailLayoutBuilder& DetailBuilder,
+		const FIKRetargetEditorController* Controller,
 		IDetailCategoryBuilder& SettingsCategory,
 		const FString& StructPropertyName,
 		const FName& GroupName,
@@ -196,7 +197,6 @@ private:
 		const FText& DisabledMessage) const;
 	
 	TArray<TWeakObjectPtr<URetargetChainSettings>> ChainSettingsObjects;
-	TSharedPtr<FIKRetargetEditorController> Controller;
 	TArray<TSharedPtr<FString>> SourceChainOptions;
 };
 
@@ -217,7 +217,7 @@ public:
 private:
 
 	TWeakObjectPtr<URetargetRootSettings> RootSettingsObject;
-	TSharedPtr<FIKRetargetEditorController> Controller;
+	TWeakPtr<FIKRetargetEditorController> Controller;
 };
 
 /** ------------------------------------- BEGIN GLOBAL DETAILS CUSTOMIZATION -------------*/
@@ -237,7 +237,7 @@ public:
 private:
 
 	TWeakObjectPtr<UIKRetargetGlobalSettings> GlobalSettingsObject;
-	TSharedPtr<FIKRetargetEditorController> Controller;
+	TWeakPtr<FIKRetargetEditorController> Controller;
 
 	TArray<TSharedPtr<FString>> TargetChainOptions;
 };
@@ -263,5 +263,5 @@ private:
 	void AddNewRetargetOp(UClass* Class);
 	
 	TWeakObjectPtr<URetargetOpStack> RetargetOpStackObject;
-	TSharedPtr<FIKRetargetEditorController> Controller;
+	TWeakPtr<FIKRetargetEditorController> Controller;
 };

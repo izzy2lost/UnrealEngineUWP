@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -61,6 +61,6 @@ public:
 
 	// pointer to editor for details customization
 #if WITH_EDITOR
-	TSharedPtr<FIKRetargetEditorController> EditorController;
+	TWeakPtr<FIKRetargetEditorController> EditorController;
 #endif
 };

@@ -295,6 +295,14 @@ void UIKRigDefinition::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FIKRigObjectVersion::GUID);
 }
 
+void UIKRigDefinition::PostLoad()
+{
+	Super::PostLoad();
+	
+	// very early versions of the asset may not have been set as standalone
+	SetFlags(RF_Standalone);
+}
+
 const FBoneChain* UIKRigDefinition::GetRetargetChainByName(FName ChainName) const
 {
 	for (const FBoneChain& Chain : RetargetDefinition.BoneChains)

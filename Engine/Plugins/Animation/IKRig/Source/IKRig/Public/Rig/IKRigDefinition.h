@@ -211,6 +211,7 @@ public:
 	/** UObject */
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostLoad() override;
 	/** END UObject */
 	
 	/** IInterface_PreviewMeshProvider interface */

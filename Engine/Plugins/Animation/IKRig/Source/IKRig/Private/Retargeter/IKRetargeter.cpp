@@ -116,6 +116,9 @@ void UIKRetargeter::PostLoad()
 {
 	Super::PostLoad();
 
+	// very early versions of the asset may not have been set as standalone
+	SetFlags(RF_Standalone);
+
 	// load deprecated chain mapping (pre UStruct to UObject refactor)
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!ChainMapping_DEPRECATED.IsEmpty())
