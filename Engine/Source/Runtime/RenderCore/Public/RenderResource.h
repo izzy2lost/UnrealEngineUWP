@@ -385,7 +385,7 @@ public:
 	 * This was only ever checked in the Canvas renderer, not the standard Material shader path.
 	 * It is no longer set or checked.
 	 */
-	UE_DEPRECATED(5.5,"bIgnoreGammaConversions should not be used")
+	//UE_DEPRECATED(5.5,"bIgnoreGammaConversions should not be used")
 	bool				bIgnoreGammaConversions = false;
 
 	/** 
