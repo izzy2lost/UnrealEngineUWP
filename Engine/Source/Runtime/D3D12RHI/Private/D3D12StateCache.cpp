@@ -588,7 +588,7 @@ void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType 
 		{
 			CmdContext.GraphicsCommandList()->SetComputeRoot32BitConstants(RootConstantsSlot, 4, &UERootConstants[0], 0);
 		}
-		else if (PipelineType == ED3D12PipelineType::Graphics)
+		else if (PipelineType == ED3D12PipelineType::Graphics) //-V547
 		{
 			CmdContext.GraphicsCommandList()->SetGraphicsRoot32BitConstants(RootConstantsSlot, 4, &UERootConstants[0], 0);
 		}
