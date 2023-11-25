@@ -455,16 +455,6 @@ namespace ParallelForImpl
 		FParallelExecutor LocalExecutor(MoveTemp(Data), NumWorkers, Priority);
 		const bool bFinishedLast = LocalExecutor(true, DebugName);
 
-		// Cancel tasks that have not yet launched since they will otherwise waste time on worker threads
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(ParallelFor.Cancel);
-			for (FTracedTask& TracedTask : LocalExecutor.GetData()->Tasks)
-			{
-				// Task is still required to run some cleanup when successfully cancelled, so do it here to avoid enqueuing in the global queue for cancelled tasks.
-				TracedTask.Task.TryCancel(LowLevelTasks::ECancellationFlags::PrelaunchCancellation | LowLevelTasks::ECancellationFlags::TryLaunchOnSuccess);
-			}
-		}
-
 		if(!bFinishedLast)
 		{
 			const bool bPumpRenderingThread  = (Flags & EParallelForFlags::PumpRenderingThread) != EParallelForFlags::None;
