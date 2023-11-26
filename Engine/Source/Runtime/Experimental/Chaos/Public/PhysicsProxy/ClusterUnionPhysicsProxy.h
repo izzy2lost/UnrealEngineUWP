@@ -44,10 +44,10 @@ namespace Chaos
 	struct FClusterUnionSyncedData
 	{
 		// Whether the cluster is anchored or not.
-		bool bIsAnchored;
+		bool bIsAnchored = true;
 
 		// Whether we assigned new geometry from the PT in PullFromPhysicsState
-		bool bDidSyncGeometry;
+		bool bDidSyncGeometry = false;
 
 		// Data on every child particle in the cluster union.
 		TArray<FClusterUnionChildData> ChildParticles;

@@ -127,7 +127,7 @@ struct FClusterUnionReplicatedData
 	uint8 ObjectState = 0;
 
 	UPROPERTY()
-	bool bIsAnchored = false;
+	bool bIsAnchored = true;
 
 	FClusterUnionReplicatedData& operator=(const FClusterUnionReplicatedData&) = default;
 	bool operator==(const FClusterUnionReplicatedData&) const = default;
