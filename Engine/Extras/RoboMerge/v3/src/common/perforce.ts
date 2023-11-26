@@ -640,7 +640,7 @@ export class PerforceContext {
 				throw err
 			}
 
-			const errorMsg = `Attempted to find workspaces for invalid user ${user || this.username}}`
+			const errorMsg = `Attempted to find workspaces for invalid user ${user || this.username}`
 			this.logger.error(errorMsg)
 			postToRobomergeAlerts(errorMsg)
 		}
