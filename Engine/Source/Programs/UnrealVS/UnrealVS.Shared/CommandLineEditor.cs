@@ -434,7 +434,8 @@ namespace UnrealVS
 										activeDebugProfile = null;
 									}
 
-									string launchSettingsPath = Path.Combine(Path.GetDirectoryName(SelectedStartupProject.FileName), "Properties", "launchSettings.json");
+									string launchSettingsDir = Path.Combine(Path.GetDirectoryName(SelectedStartupProject.FileName), "Properties");
+									string launchSettingsPath = Path.Combine(launchSettingsDir, "launchSettings.json");
 									LaunchSettingsJson settings = null;
 									if (File.Exists(launchSettingsPath))
 									{
@@ -481,6 +482,8 @@ namespace UnrealVS
 									{
 										WriteIndented = true,
 									});
+
+									Directory.CreateDirectory(launchSettingsDir);
 									File.WriteAllText(launchSettingsPath, json);
 								}
 							}

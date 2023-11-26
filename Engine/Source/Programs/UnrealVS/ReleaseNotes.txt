@@ -1,3 +1,6 @@
+1.84.3.5
+* Fix null reference exception when setting command line for C# project without a Properties directory
+
 1.84.3.4
 * Bug fix for incorrect paths when compiling a single file
 * Open .asm after generating assembly
