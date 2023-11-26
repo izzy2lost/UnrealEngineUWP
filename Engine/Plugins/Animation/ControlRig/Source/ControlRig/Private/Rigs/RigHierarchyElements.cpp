@@ -767,7 +767,8 @@ void FRigControlSettings::Save(FArchive& Ar)
 		ControlEnumPathName = ControlEnum->GetPathName();
 		if (Ar.IsObjectReferenceCollector())
 		{
-			Ar << ControlEnum;
+			FSoftObjectPath DeclareControlEnumToCooker(ControlEnumPathName);
+			Ar << DeclareControlEnumToCooker;
 		}
 	}
 
