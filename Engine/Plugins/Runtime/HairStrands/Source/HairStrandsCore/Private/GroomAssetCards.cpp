@@ -18,27 +18,16 @@ FHairGroupsCardsSourceDescription::FHairGroupsCardsSourceDescription()
 
 void FHairGroupCardsTextures::SetTexture(EHairAtlasTextureType SlotID, UTexture2D* Texture)
 {
+	Layout = EHairTextureLayout::Layout0; // Default hair card layout for now
+	Textures.SetNum(6);
 	switch (SlotID)
 	{
-	case EHairAtlasTextureType::Depth:
-		DepthTexture = Texture;
-		break;
-
-	case EHairAtlasTextureType::Coverage:
-		CoverageTexture = Texture;
-		break;
-
-	case EHairAtlasTextureType::Tangent:
-		TangentTexture = Texture;
-		break;
-
-	case EHairAtlasTextureType::Attribute:
-		AttributeTexture = Texture;
-		break;
-
-	case EHairAtlasTextureType::AuxilaryData:
-		AuxilaryDataTexture = Texture;
-		break;
+	case EHairAtlasTextureType::Depth: 			Textures[0] = Texture; break;
+	case EHairAtlasTextureType::Coverage:		Textures[1] = Texture; break;
+	case EHairAtlasTextureType::Tangent:		Textures[2] = Texture; break;
+	case EHairAtlasTextureType::Attribute:		Textures[3] = Texture; break;
+	case EHairAtlasTextureType::AuxilaryData:	Textures[4] = Texture; break;
+	case EHairAtlasTextureType::Material:		Textures[5] = Texture; break;
 	};
 }
 
@@ -97,4 +86,14 @@ UStaticMesh* FHairGroupsCardsSourceDescription::GetMesh() const
 #endif
 }
 
-
+uint32 GetHairTextureLayoutTextureCount(EHairTextureLayout In)
+{
+	switch (In)
+	{
+		case EHairTextureLayout::Layout0: return 6u;
+		case EHairTextureLayout::Layout1: return 6u;
+		case EHairTextureLayout::Layout2: return 4u;
+		case EHairTextureLayout::Layout3: return 4u;
+	}
+	return 0;
+}

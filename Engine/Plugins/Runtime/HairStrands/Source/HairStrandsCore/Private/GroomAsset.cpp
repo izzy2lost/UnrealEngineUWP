@@ -409,53 +409,48 @@ void UpdateHairStrandsVerbosity(IConsoleVariable* InCVarVerbosity)
 /////////////////////////////////////////////////////////////////////////////////////////
 
 template<typename ResourceType>
-static void InitAtlasTexture(ResourceType* InResource, UTexture2D* InTexture, EHairAtlasTextureType InType)
+static void InitAtlasTexture(ResourceType* InResource, const FHairGroupCardsTextures& In)
 {
-	if (InTexture == nullptr || InResource == nullptr)
+	if (InResource == nullptr)
 	{
 		return;
 	}
 
-	InTexture->ConditionalPostLoad();
+	const TArray<UTexture2D*>& InTextures = In.Textures;
+	const uint32 InLayoutIndex = uint32(In.Layout);
 
-	ENQUEUE_RENDER_COMMAND(HairStrandsCardsTextureCommand)(
-	[InResource, InTexture, InType](FRHICommandListImmediate& RHICmdList)
+	bool bHasValidTextures = false;
+	for (UTexture2D* T : InTextures)
 	{
-		FSamplerStateRHIRef DefaultSampler = TStaticSamplerState<SF_AnisotropicLinear, AM_Clamp, AM_Clamp, AM_Clamp, 0, 8/*MaxAnisotropy*/>::GetRHI();
-		switch (InType)
+		if (T)
 		{
-		case EHairAtlasTextureType::Depth:
-		{
-			InResource->DepthTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->DepthSampler = DefaultSampler;
-		} break;
-		case EHairAtlasTextureType::Tangent:
-		{
-			InResource->TangentTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->TangentSampler = DefaultSampler;
-		} break;
-		case EHairAtlasTextureType::Attribute:
-		{
-			InResource->AttributeTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->AttributeSampler = DefaultSampler;
-		} break;
-		case EHairAtlasTextureType::Coverage:
-		{
-			InResource->CoverageTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->CoverageSampler = DefaultSampler;
-		} break;
-		case EHairAtlasTextureType::AuxilaryData:
-		{
-			InResource->AuxilaryDataTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->AuxilaryDataSampler = DefaultSampler;
-		} break;
-		case EHairAtlasTextureType::Material:
-		{
-			InResource->MaterialTexture = InTexture->TextureReference.TextureReferenceRHI;
-			InResource->MaterialSampler = DefaultSampler;
-		} break;
+			T->ConditionalPostLoad();
+			bHasValidTextures = true;
 		}
-	});
+	}
+
+	if (bHasValidTextures)
+	{
+		ENQUEUE_RENDER_COMMAND(HairStrandsCardsTextureCommand)(
+			[InResource, InTextures, InLayoutIndex](FRHICommandListImmediate& RHICmdList)
+		{
+			FSamplerStateRHIRef DefaultSampler = TStaticSamplerState<SF_AnisotropicLinear, AM_Clamp, AM_Clamp, AM_Clamp, 0, 8/*MaxAnisotropy*/>::GetRHI();
+
+			const uint32 TextureCount = InTextures.Num();
+			InResource->Textures.SetNum(TextureCount);
+			InResource->Samplers.SetNum(TextureCount);
+			InResource->LayoutIndex = InLayoutIndex;
+
+			for (uint32 TextureIt=0;TextureIt<TextureCount;++TextureIt)
+			{
+				if (UTexture2D* Texture = InTextures[TextureIt])
+				{
+					InResource->Textures[TextureIt] = Texture->TextureReference.TextureReferenceRHI;
+				}
+				InResource->Samplers[TextureIt] = DefaultSampler;
+			}
+		});
+	}
 }
 
 template<typename T>
@@ -1296,9 +1291,10 @@ void UGroomAsset::PostLoad()
 		}
 	}
 
-	// Convert old procedural cards to import cards
+	// Convert cards
 	for (FHairGroupsCardsSourceDescription& Group : GetHairGroupsCards())
 	{
+		// Convert old procedural cards to import cards
 		if (Group.SourceType_DEPRECATED == EHairCardsSourceType::Procedural)
 		{
 			Group.bInvertUV = true;
@@ -1306,6 +1302,36 @@ void UGroomAsset::PostLoad()
 			Group.ImportedMesh = Group.ProceduralMesh_DEPRECATED;
 			Group.ProceduralMesh_DEPRECATED = nullptr;
 			Group.ImportedMeshKey = FString();
+		}
+
+		// Convert old textures
+		if (Group.Textures.Textures.Num() == 0)
+		{
+			Group.Textures.Layout = EHairTextureLayout::Layout0;
+			Group.Textures.Textures.Reserve(6);
+			Group.Textures.Textures.Add(Group.Textures.DepthTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.CoverageTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.TangentTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.AttributeTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.MaterialTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.AuxilaryDataTexture_DEPRECATED);
+		}
+	}
+
+	// Convert meshes
+	for (FHairGroupsMeshesSourceDescription& Group : GetHairGroupsMeshes())
+	{
+		// Convert old textures
+		if (Group.Textures.Textures.Num() == 0)
+		{
+			Group.Textures.Layout = EHairTextureLayout::Layout1;
+			Group.Textures.Textures.Reserve(6);
+			Group.Textures.Textures.Add(Group.Textures.DepthTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.CoverageTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.TangentTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.AttributeTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.MaterialTexture_DEPRECATED);
+			Group.Textures.Textures.Add(Group.Textures.AuxilaryDataTexture_DEPRECATED);
 		}
 	}
 
@@ -1559,12 +1585,8 @@ void UGroomAsset::BeginDestroy()
 static bool IsCardsTextureResources(const FName PropertyName)
 {
 	return
-		   PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, DepthTexture)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, CoverageTexture)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, TangentTexture)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, AttributeTexture)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, AuxilaryDataTexture)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, MaterialTexture);
+		   PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, Layout)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, Textures);
 }
 static void InitCardsTextureResources(UGroomAsset* GroomAsset);
 
@@ -1677,6 +1699,19 @@ void UGroomAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 	if (bNeedRebuildDerivedData)
 	{
 		CacheDerivedDatas();
+	}
+
+	// Update cards/meshes texture array according to the layout prior to reload the UI
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(FHairGroupCardsTextures, Layout))
+	{
+		for (auto& Group : GetHairGroupsCards())
+		{
+			Group.Textures.Textures.SetNum(GetHairTextureLayoutTextureCount(Group.Textures.Layout));
+		}
+		for (auto& Group : GetHairGroupsMeshes())
+		{
+			Group.Textures.Textures.SetNum(GetHairTextureLayoutTextureCount(Group.Textures.Layout));
+		}
 	}
 
 	const bool bHairStrandsRaytracingRadiusChanged = PropertyName == GET_MEMBER_NAME_CHECKED(FHairShadowSettings, HairRaytracingRadiusScale);
@@ -2969,13 +3004,13 @@ bool UGroomAsset::BuildCardsData(uint32 GroupIndex)
 				// content is up to date with what has been saved.
 				if (IsInGameThread())
 				{
-					FHairGroupCardsTextures& Textures = GetHairGroupsCards()[SourceIt].Textures;
-					if (Textures.DepthTexture != nullptr)		Textures.DepthTexture->UpdateResource();
-					if (Textures.TangentTexture != nullptr)		Textures.TangentTexture->UpdateResource();
-					if (Textures.AttributeTexture != nullptr)	Textures.AttributeTexture->UpdateResource();
-					if (Textures.CoverageTexture != nullptr)	Textures.CoverageTexture->UpdateResource();
-					if (Textures.AuxilaryDataTexture != nullptr)Textures.AuxilaryDataTexture->UpdateResource();
-					if (Textures.MaterialTexture != nullptr)	Textures.MaterialTexture->UpdateResource();
+					for (UTexture2D* Tex : GetHairGroupsCards()[SourceIt].Textures.Textures)
+					{
+						if (Tex != nullptr)
+						{
+							Tex->UpdateResource();
+						}
+					}
 				}
 			}
 		}
@@ -3051,12 +3086,7 @@ bool UGroomAsset::BuildCardsData(uint32 GroupIndex)
 				BeginInitResource(LOD.RestResource); // Immediate allocation, as needed for the vertex factory, input stream building
 
 				// 2.1 Load atlas textures
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.DepthTexture, EHairAtlasTextureType::Depth);
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.TangentTexture, EHairAtlasTextureType::Tangent);
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.AttributeTexture, EHairAtlasTextureType::Attribute);
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.CoverageTexture, EHairAtlasTextureType::Coverage);
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.AuxilaryDataTexture, EHairAtlasTextureType::AuxilaryData);
-				InitAtlasTexture(LOD.RestResource, Desc->Textures.MaterialTexture, EHairAtlasTextureType::Material);
+				InitAtlasTexture(LOD.RestResource, Desc->Textures);
 				LOD.RestResource->bInvertUV = Desc->bInvertUV;
 				
 				// 2.2 Load interoplatino resources
@@ -3212,13 +3242,13 @@ bool UGroomAsset::BuildMeshesData(uint32 GroupIndex)
 				// content is up to date with what has been saved.
 				if (IsInGameThread())
 				{
-					FHairGroupCardsTextures& Textures = GetHairGroupsMeshes()[SourceIt].Textures;
-					if (Textures.DepthTexture != nullptr)		Textures.DepthTexture->UpdateResource();
-					if (Textures.TangentTexture != nullptr)		Textures.TangentTexture->UpdateResource();
-					if (Textures.AttributeTexture != nullptr)	Textures.AttributeTexture->UpdateResource();
-					if (Textures.CoverageTexture != nullptr)	Textures.CoverageTexture->UpdateResource();
-					if (Textures.AuxilaryDataTexture != nullptr)Textures.AuxilaryDataTexture->UpdateResource();
-					if (Textures.MaterialTexture != nullptr)	Textures.MaterialTexture->UpdateResource();
+					for (UTexture2D* Texture : GetHairGroupsMeshes()[SourceIt].Textures.Textures)
+					{
+						if (Texture != nullptr)
+						{
+							Texture->UpdateResource();
+						}
+					}
 				}
 			}
 		}
@@ -3458,12 +3488,7 @@ static void InitCardsTextureResources(UGroomAsset* GroomAsset)
 			{
 				if (Desc)
 				{
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.DepthTexture, EHairAtlasTextureType::Depth);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.TangentTexture, EHairAtlasTextureType::Tangent);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AttributeTexture, EHairAtlasTextureType::Attribute);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.CoverageTexture, EHairAtlasTextureType::Coverage);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AuxilaryDataTexture, EHairAtlasTextureType::AuxilaryData);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.MaterialTexture, EHairAtlasTextureType::Material);
+					InitAtlasTexture(LOD.RestResource, Desc->Textures);
 					if (LOD.RestResource)
 					{
 						LOD.RestResource->bInvertUV = Desc->bInvertUV; // Should fix procedural texture so that this does not happen
@@ -3518,12 +3543,7 @@ void UGroomAsset::InitCardsResources()
 
 				if (Desc)
 				{
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.DepthTexture, EHairAtlasTextureType::Depth);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.TangentTexture, EHairAtlasTextureType::Tangent);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AttributeTexture, EHairAtlasTextureType::Attribute);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.CoverageTexture, EHairAtlasTextureType::Coverage);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AuxilaryDataTexture, EHairAtlasTextureType::AuxilaryData);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.MaterialTexture, EHairAtlasTextureType::Material);
+					InitAtlasTexture(LOD.RestResource, Desc->Textures);
 					LOD.RestResource->bInvertUV = Desc->bInvertUV; // Should fix procedural texture so that this does not happen
 				}
 			}
@@ -3568,15 +3588,9 @@ void UGroomAsset::InitMeshesResources()
 				LOD.RestResource = new FHairMeshesRestResource(LOD.BulkData, FHairResourceName(GetFName(), GroupIndex, LODIt), GetAssetPathName(LODIt));
 				BeginInitResource(LOD.RestResource); // Immediate allocation, as needed for the vertex factory, input stream building
 
-
 				if (Desc)
 				{
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.DepthTexture, EHairAtlasTextureType::Depth);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.TangentTexture, EHairAtlasTextureType::Tangent);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AttributeTexture, EHairAtlasTextureType::Attribute);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.CoverageTexture, EHairAtlasTextureType::Coverage);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.AuxilaryDataTexture, EHairAtlasTextureType::AuxilaryData);
-					InitAtlasTexture(LOD.RestResource, Desc->Textures.MaterialTexture, EHairAtlasTextureType::Material);
+					InitAtlasTexture(LOD.RestResource, Desc->Textures);
 				}
 			}
 		}

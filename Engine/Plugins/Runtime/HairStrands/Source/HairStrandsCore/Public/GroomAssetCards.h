@@ -28,6 +28,18 @@ enum class EHairCardsGuideType : uint8
 	GuideBased UMETA(DisplayName = "Guide-Based"),
 };
 
+UENUM(BlueprintType)
+enum class EHairTextureLayout : uint8
+{
+	Layout0 UMETA(DisplayName = "Card Default"),
+	Layout1 UMETA(DisplayName = "Mesh Default"),
+	Layout2 UMETA(DisplayName = "Card Compact"),
+	Layout3 UMETA(DisplayName = "Mesh Compact"),
+};
+
+// Returns the number of textures used for a particular layout
+HAIRSTRANDSCORE_API uint32 GetHairTextureLayoutTextureCount(EHairTextureLayout In);
+
 USTRUCT(BlueprintType)
 struct HAIRSTRANDSCORE_API FHairGroupCardsInfo
 {
@@ -46,23 +58,28 @@ struct HAIRSTRANDSCORE_API FHairGroupCardsTextures
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, Category = "CardsTextures")
-	TObjectPtr<UTexture2D> DepthTexture = nullptr;
+	EHairTextureLayout Layout = EHairTextureLayout::Layout0;
 
 	UPROPERTY(EditAnywhere, Category = "CardsTextures")
-	TObjectPtr<UTexture2D> CoverageTexture = nullptr;
+	TArray<TObjectPtr<UTexture2D>> Textures;
 
-	UPROPERTY(EditAnywhere, Category = "CardsTextures")
-	TObjectPtr<UTexture2D> TangentTexture = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> DepthTexture_DEPRECATED = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "CardsAttributes")
-	TObjectPtr<UTexture2D> AttributeTexture = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> CoverageTexture_DEPRECATED = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "CardsAttributes")
-	TObjectPtr<UTexture2D> AuxilaryDataTexture = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> TangentTexture_DEPRECATED = nullptr;
 
-	/* This texture is only used by hair meshes and can be generated through the hair-textures option on Groom Asset. */
-	UPROPERTY(EditAnywhere, Category = "CardsAttributes")
-	TObjectPtr<UTexture2D> MaterialTexture = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTexture2D> AttributeTexture_DEPRECATED = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> AuxilaryDataTexture_DEPRECATED = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> MaterialTexture_DEPRECATED = nullptr;
 
 	void SetTexture(EHairAtlasTextureType SlotID, UTexture2D* Texture);
 

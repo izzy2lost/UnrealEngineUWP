@@ -24,6 +24,8 @@ enum class EGroomViewMode : uint8;
 //  * 12 bits for cards count -> 4000 cards for a hair group
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FHairCardsVertexFactoryUniformShaderParameters, HAIRSTRANDSCORE_API)
 	SHADER_PARAMETER(uint32, Flags)
+	SHADER_PARAMETER(uint32, LayoutIndex)
+	SHADER_PARAMETER(uint32, TextureCount)
 	SHADER_PARAMETER(uint32, AttributeTextureIndex)
 	SHADER_PARAMETER(uint32, AttributeChannelIndex)
 	SHADER_PARAMETER(uint32, MaxVertexCount)

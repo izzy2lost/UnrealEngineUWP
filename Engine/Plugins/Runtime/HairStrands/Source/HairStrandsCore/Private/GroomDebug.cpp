@@ -551,18 +551,8 @@ static void AddDrawDebugCardsAtlasPass(
 		return;
 	}
 
-	FTextureReferenceRHIRef AtlasTexture = nullptr;
-
-	const int32 DebugMode = FMath::Clamp(GHairCardsAtlasDebug, 1, 6);
-	switch (DebugMode)
-	{
-	case 1: AtlasTexture = Instance->Cards.LODs[LODIndex].RestResource->DepthTexture; break;
-	case 2: AtlasTexture = Instance->Cards.LODs[LODIndex].RestResource->CoverageTexture; break;
-	case 3: AtlasTexture = Instance->Cards.LODs[LODIndex].RestResource->TangentTexture; break;
-	case 4:
-	case 5:
-	case 6: AtlasTexture = Instance->Cards.LODs[LODIndex].RestResource->AttributeTexture; break;
-	}
+	const int32 DebugMode = FMath::Clamp(GHairCardsAtlasDebug, 1, Instance->Cards.LODs[LODIndex].RestResource->Textures.Num()-1);
+	FTextureReferenceRHIRef AtlasTexture = Instance->Cards.LODs[LODIndex].RestResource->Textures.IsValidIndex(DebugMode) ? Instance->Cards.LODs[LODIndex].RestResource->Textures[DebugMode] : nullptr;
 
 	if (AtlasTexture != nullptr)
 	{

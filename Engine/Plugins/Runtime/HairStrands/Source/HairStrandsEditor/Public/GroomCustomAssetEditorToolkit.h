@@ -179,7 +179,7 @@ private:
 
 	bool bIsTabManagerInitialized = false;
 	int32 ActiveGroomBindingIndex = -1;
-	FDelegateHandle PropertyListenDelegate;
+	TArray<FDelegateHandle> PropertyListenDelegates;
 	TWeakObjectPtr<UGroomAsset> GroomAsset;
 	TWeakObjectPtr<UGroomBindingAsset> GroomBindingAsset;
 	TWeakObjectPtr<UGroomBindingAssetList> GroomBindingAssetList;

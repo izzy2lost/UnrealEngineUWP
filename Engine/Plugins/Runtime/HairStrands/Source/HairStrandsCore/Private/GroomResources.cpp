@@ -861,13 +861,6 @@ void FHairCardsRestResource::InternalAllocate()
 	CreateBuffer<FHairCardsNormalFormat>(RHICmdList, BulkData.Normals, NormalsBuffer, ToHairResourceDebugName(TEXT("Hair.CardsRest_NormalBuffer"), ResourceName), OwnerName);
 	CreateBuffer<FHairCardsUVFormat>(RHICmdList, BulkData.UVs, UVsBuffer, ToHairResourceDebugName(TEXT("Hair.CardsRest_UVBuffer"), ResourceName), OwnerName);
 	CreateBuffer<FHairCardsMaterialFormat>(RHICmdList, BulkData.Materials, MaterialsBuffer, ToHairResourceDebugName(TEXT("Hair.CardsRest_MaterialBuffer"), ResourceName), OwnerName);
-
-	FSamplerStateRHIRef DefaultSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-	DepthSampler = DefaultSampler;
-	TangentSampler = DefaultSampler;
-	CoverageSampler = DefaultSampler;
-	AttributeSampler = DefaultSampler;
-	MaterialSampler = DefaultSampler;
 }
 
 void FHairCardsRestResource::InternalRelease()

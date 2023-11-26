@@ -302,10 +302,17 @@ void FGroomCustomAssetEditorToolkit::InitPreviewComponents()
 
 void FGroomCustomAssetEditorToolkit::OnClose() 
 {
-	//FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PropertyListenDelegate);
-	if (GroomAsset.IsValid() && PropertyListenDelegate.IsValid())
+	// Remove all delegates
+	if (GroomAsset.IsValid() && PropertyListenDelegates.Num() > 0)
 	{
-		GroomAsset->GetOnGroomAssetResourcesChanged().Remove(PropertyListenDelegate);
+		for (FDelegateHandle Handle : PropertyListenDelegates)
+		{
+			if (Handle.IsValid())
+			{
+				GroomAsset->GetOnGroomAssetResourcesChanged().Remove(Handle);
+			}
+		}
+		PropertyListenDelegates.Empty();
 	}
 
 	PropertiesTab.Reset();
@@ -656,7 +663,9 @@ void FGroomCustomAssetEditorToolkit::InitCustomAssetEditor(const EToolkitMode::T
 			LocalToolKit->DetailView_MaterialProperties->ForceRefresh();
 			LocalToolKit->DetailView_BindingProperties->ForceRefresh();
 		};
-		PropertyListenDelegate = GroomAsset->GetOnGroomAssetResourcesChanged().AddLambda(InvalidateDetailViews);
+
+		PropertyListenDelegates.Add(GroomAsset->GetOnGroomAssetResourcesChanged().AddLambda(InvalidateDetailViews));
+		PropertyListenDelegates.Add(GroomAsset->GetOnGroomAssetChanged().AddLambda(InvalidateDetailViews));
 	}
 }
 

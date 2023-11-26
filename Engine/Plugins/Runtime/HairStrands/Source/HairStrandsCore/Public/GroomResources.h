@@ -647,19 +647,9 @@ struct FHairCardsRestResource : public FHairCommonResource
 	FHairCardsVertexBuffer UVsBuffer;
 	FHairCardsVertexBuffer MaterialsBuffer;
 
-	FSamplerStateRHIRef DepthSampler = nullptr;
-	FSamplerStateRHIRef TangentSampler = nullptr;
-	FSamplerStateRHIRef CoverageSampler = nullptr;
-	FSamplerStateRHIRef AttributeSampler = nullptr;
-	FSamplerStateRHIRef AuxilaryDataSampler = nullptr;
-	FSamplerStateRHIRef MaterialSampler = nullptr;
-
-	FTextureReferenceRHIRef	DepthTexture = nullptr;
-	FTextureReferenceRHIRef	CoverageTexture = nullptr;
-	FTextureReferenceRHIRef	TangentTexture = nullptr;
-	FTextureReferenceRHIRef	AttributeTexture = nullptr;
-	FTextureReferenceRHIRef	AuxilaryDataTexture = nullptr;
-	FTextureReferenceRHIRef	MaterialTexture = nullptr;
+	TArray<FSamplerStateRHIRef> Samplers;
+	TArray<FTextureReferenceRHIRef> Textures;
+	uint32 LayoutIndex = 0;
 
 	/* Reference to the hair strands render data */
 	const FHairCardsBulkData& BulkData;
@@ -773,19 +763,9 @@ struct FHairMeshesRestResource : public FHairCommonResource
 	FHairCardsVertexBuffer NormalsBuffer;
 	FHairCardsVertexBuffer UVsBuffer;
 
-	FSamplerStateRHIRef DepthSampler = nullptr;
-	FSamplerStateRHIRef TangentSampler = nullptr;
-	FSamplerStateRHIRef CoverageSampler = nullptr;
-	FSamplerStateRHIRef AttributeSampler = nullptr;
-	FSamplerStateRHIRef AuxilaryDataSampler = nullptr;
-	FSamplerStateRHIRef MaterialSampler = nullptr;
-
-	FTextureReferenceRHIRef	DepthTexture = nullptr;
-	FTextureReferenceRHIRef	CoverageTexture = nullptr;
-	FTextureReferenceRHIRef	TangentTexture = nullptr;
-	FTextureReferenceRHIRef	AttributeTexture = nullptr;
-	FTextureReferenceRHIRef	AuxilaryDataTexture = nullptr;
-	FTextureReferenceRHIRef	MaterialTexture = nullptr;
+	TArray<FSamplerStateRHIRef> Samplers;
+	TArray<FTextureReferenceRHIRef>	Textures;
+	uint32 LayoutIndex = 0;
 
 	/* Reference to the hair strands render data */
 	const FHairMeshesBulkData& BulkData;
