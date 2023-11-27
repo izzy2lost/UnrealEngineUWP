@@ -1714,14 +1714,14 @@ FText FSourceCodeNavigation::GetSuggestedSourceCodeIDE(bool bShortIDEName)
 FSlateIcon FSourceCodeNavigation::GetOpenSourceCodeIDEIcon()
 {
 	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessModule.GetAccessor().GetOpenIconName());
+	return FSlateIcon(SourceCodeAccessModule.GetAccessor().GetStyleSet(), SourceCodeAccessModule.GetAccessor().GetOpenIconName());
 }
 
 
 FSlateIcon FSourceCodeNavigation::GetRefreshSourceCodeIDEIcon()
 {
 	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
-	return FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessModule.GetAccessor().GetRefreshIconName());
+	return FSlateIcon(SourceCodeAccessModule.GetAccessor().GetStyleSet(), SourceCodeAccessModule.GetAccessor().GetRefreshIconName());
 }
 
 FString FSourceCodeNavigation::GetSuggestedSourceCodeIDEDownloadURL()

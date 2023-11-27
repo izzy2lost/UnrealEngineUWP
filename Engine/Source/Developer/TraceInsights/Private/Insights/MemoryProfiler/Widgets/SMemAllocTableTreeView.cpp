@@ -1632,7 +1632,7 @@ void SMemAllocTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 				ItemToolTip,
 				FNewMenuDelegate::CreateSP(this, &SMemAllocTableTreeView::BuildOpenSourceSubMenu, true),
 				false,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName())
+				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
 			);
 
 			ItemLabel = FText::Format(LOCTEXT("ContextMenu_Open_SubMenu_Free", "Open in {0} | Free Callstack"), SourceCodeAccessor.GetNameText());
@@ -1645,7 +1645,7 @@ void SMemAllocTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 				ItemToolTip,
 				FNewMenuDelegate::CreateSP(this, &SMemAllocTableTreeView::BuildOpenSourceSubMenu, false),
 				false,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName())
+				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
 			);
 		}
 		MenuBuilder.EndSection();
@@ -1667,7 +1667,7 @@ void SMemAllocTableTreeView::ExtendMenu(FMenuBuilder& MenuBuilder)
 			(
 				ItemLabel,
 				ItemToolTip,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName()),
+				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()),
 				Action_OpenIDE,
 				NAME_None,
 				EUserInterfaceActionType::Button

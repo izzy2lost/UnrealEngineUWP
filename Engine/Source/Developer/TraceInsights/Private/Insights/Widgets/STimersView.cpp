@@ -629,7 +629,7 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 				NAME_None,
 				ItemLabel,
 				ItemToolTip,
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), SourceCodeAccessor.GetOpenIconName())
+				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
 			);
 		}
 	}

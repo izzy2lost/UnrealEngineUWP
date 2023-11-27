@@ -40,8 +40,6 @@ public class Core : ModuleRules
 
 		if (Target.bBuildEditor == true)
 		{
-			DynamicallyLoadedModuleNames.Add("SourceCodeAccess");
-
 			PrivateIncludePathModuleNames.Add("DirectoryWatcher");
 			DynamicallyLoadedModuleNames.Add("DirectoryWatcher");
 		}
