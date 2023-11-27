@@ -32,12 +32,16 @@ public:
 	// SWidget interface
 	SLATE_BEGIN_ARGS(SMutableGraphViewer) {}
 
-	/** User-visible tag to indentify the source of the data shwon. */
+	/** User-visible tag to indentify the source of the data shown. */
 	SLATE_ARGUMENT(FString, DataTag)
+
+	SLATE_ARGUMENT(TArray<TSoftObjectPtr<UTexture>>, ReferencedRuntimeTextures)
+	SLATE_ARGUMENT(TArray<TSoftObjectPtr<UTexture>>, ReferencedCompileTextures)
 
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, const TArray<TSoftObjectPtr<UTexture>>& ReferencedTextures, const FCompilationOptions& InCompileOptions,
+	void Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode, 
+		const FCompilationOptions& InCompileOptions,
 		TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId);
 
 	// SWidget interface
@@ -57,7 +61,8 @@ private:
 	mu::NodePtr RootNode;
 
 	/** Array of external referenced textures in MutableModel, indexed by id. */
-	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+	TArray<TSoftObjectPtr<UTexture>> ReferencedRuntimeTextures;
+	TArray<TSoftObjectPtr<UTexture>> ReferencedCompileTextures;
 
 	/** Compilation options to use in the debugger operations. */
 	FCompilationOptions CompileOptions;

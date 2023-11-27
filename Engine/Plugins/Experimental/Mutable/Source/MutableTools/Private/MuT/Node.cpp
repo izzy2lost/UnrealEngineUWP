@@ -23,10 +23,6 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeString.h"
 #include "MuT/NodeSurface.h"
-#include "map"
-
-#include <stdint.h>
-#include <utility>
 
 
 namespace mu

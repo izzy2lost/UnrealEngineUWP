@@ -1305,7 +1305,9 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 }
 
 
-mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures)
+mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, 
+	TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures,
+	TArray<TSoftObjectPtr<UTexture>>& OutCompilerReferencedTextures )
 {
 	UE_LOG(LogMutable, Log, TEXT("Started Customizable Object Export %s."), *Object->GetName());
 
@@ -1346,6 +1348,13 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 	{
 		check(Pair.Value.ID == OutRuntimeReferencedTextures.Num());
 		OutRuntimeReferencedTextures.Add(Pair.Key);
+	}
+
+	OutCompilerReferencedTextures.Empty();
+	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
+	{
+		check(Pair.Value.ID == OutCompilerReferencedTextures.Num());
+		OutCompilerReferencedTextures.Add(Pair.Key);
 	}
 
 	return MutableRoot;

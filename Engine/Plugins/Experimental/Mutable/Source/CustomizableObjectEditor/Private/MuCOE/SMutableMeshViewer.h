@@ -78,9 +78,6 @@ private:
 	/** Data backend for the widget. It represents the mesh that is being "displayed" */
 	mu::MeshPtrConst MutableMesh = nullptr;
 
-	/** Is true, mesh has changed and we need to update. */
-	bool bIsPendingUpdate = false;
-
 	/** Splitter used to separate the two sides of the slate (tables and viewport) */
 	TSharedPtr<SSplitter> SpaceSplitter;
 

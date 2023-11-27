@@ -1798,7 +1798,7 @@ namespace mu
 	bool FImageInvertTask::Prepare(CodeRunner* Runner, bool& bOutFailed)
 	{
 		// This runs in the mutable Runner thread
-		MUTABLE_CPUPROFILER_SCOPE(FImageLayerTask_Prepare);
+		MUTABLE_CPUPROFILER_SCOPE(FImageInvertTask_Prepare);
 		bOutFailed = false;
 
 		Ptr<const Image> Source = Runner->LoadImage({ Args.base, Op.ExecutionIndex, Op.ExecutionOptions });
@@ -1858,7 +1858,7 @@ namespace mu
 	bool FImageComposeTask::Prepare(CodeRunner* Runner, bool& bOutFailed)
 	{
 		// This runs in the mutable Runner thread
-		MUTABLE_CPUPROFILER_SCOPE(FImageLayerTask_Prepare);
+		MUTABLE_CPUPROFILER_SCOPE(FImageComposeTask_Prepare);
 		bOutFailed = false;
 
 		ImageCompressionQuality = Runner->m_pSettings->ImageCompressionQuality;

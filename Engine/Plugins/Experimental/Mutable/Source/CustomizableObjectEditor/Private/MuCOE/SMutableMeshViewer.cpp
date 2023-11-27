@@ -203,7 +203,6 @@ void SMutableMeshViewer::SetMesh(const mu::MeshPtrConst& InMesh)
 	if (InMesh != MutableMesh)
 	{
 		MutableMesh = InMesh;
-		bIsPendingUpdate = true;
 
 		if (MutableMesh)
 		{

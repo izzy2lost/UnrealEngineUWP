@@ -131,14 +131,14 @@ FString SMutableGraphViewer::GetReferencerName() const
 
 
 void SMutableGraphViewer::Construct(const FArguments& InArgs, const mu::NodePtr& InRootNode,
-	const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures,
 	const FCompilationOptions& InCompileOptions,
 	TWeakPtr<FTabManager> InParentTabManager, const FName& InParentNewTabId)
 {
 	DataTag = InArgs._DataTag;
+	ReferencedRuntimeTextures = InArgs._ReferencedRuntimeTextures;
+	ReferencedCompileTextures = InArgs._ReferencedCompileTextures;
 	RootNode = InRootNode;
-	ReferencedTextures = InReferencedTextures;
-	CompileOptions = InCompileOptions;	
+	CompileOptions = InCompileOptions;
 	ParentTabManager = InParentTabManager;
 	ParentNewTabId = InParentNewTabId;
 
@@ -273,6 +273,7 @@ void SMutableGraphViewer::CompileMutableCodePressed()
 	// Do the compilation to Mutable Code synchronously.
 	TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(RootNode));
 	CompileTask->Options = CompileOptions;
+	CompileTask->ReferencedTextures = ReferencedCompileTextures;
 	CompileTask->Init();
 	CompileTask->Run();
 
@@ -281,7 +282,7 @@ void SMutableGraphViewer::CompileMutableCodePressed()
 	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableCode", "Mutable Code"))
 		[
-			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedTextures)
+			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedRuntimeTextures)
 			.DataTag(NewDataTag)
 		];
 

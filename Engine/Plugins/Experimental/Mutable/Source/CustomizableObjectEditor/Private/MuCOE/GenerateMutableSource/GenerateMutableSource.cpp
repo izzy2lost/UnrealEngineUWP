@@ -1712,9 +1712,10 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 		Entry.ID = TextureMap.Num()-1;
 	}
 
-	// Create a descriptor for the image but fill it only if it is not a true passthrough image. Otherwise we want it empty.
+	// Create a descriptor for the image.
+	// \TODO: If passthrough (bIsReference) we should apply lod bias, and max texture size to this desc.
+	// For now it is not a problem because passthrough textures shouldn't mix with any other operations.
 	mu::FImageDesc ImageDesc;
-	if (bForceLoad)
 	{
 		ImageDesc.m_size[0] = Texture->Source.GetSizeX();
 		ImageDesc.m_size[1] = Texture->Source.GetSizeY();

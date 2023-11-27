@@ -1274,7 +1274,7 @@ namespace mu
 					if (desc.m_size[0] == 0 || desc.m_size[1] == 0)
 					{
 						int currentLOD = m_currentParents.Last().m_lod;
-						FString Msg = FString::Printf( TEXT("An image block for [%s] [%s] [%s] at lod [%d] has zero size and will not be generated. "),
+						FString Msg = FString::Printf( TEXT("An image for [%s] [%s] [%s] at lod [%d] has zero size and will not be generated. "),
 							*node.m_images[t].m_name,
 							*node.m_images[t].m_materialName,
 							*node.m_images[t].m_materialParameterName,

@@ -215,8 +215,9 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 void SMutableObjectViewer::GenerateMutableGraphPressed()
 {
 	// Convert from Unreal graph to Mutable graph.
-	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
-	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
+	TArray<TSoftObjectPtr<UTexture>> RuntimeTextures;
+	TArray<TSoftObjectPtr<UTexture>> CompilerTextures;
+	mu::Ptr<mu::Node> RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
 	if (!RootNode)
 	{
 		// TODO: Show errors
@@ -228,8 +229,10 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 	TSharedPtr<SDockTab> NewMutableGraphTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableGraph", "Mutable Graph"))
 		[
-			SNew(SMutableGraphViewer, RootNode, ReferencedTextures, CompileOptions, ParentTabManager, ParentNewTabId)
+			SNew(SMutableGraphViewer, RootNode, CompileOptions, ParentTabManager, ParentNewTabId)
 			.DataTag(DataTag)
+			.ReferencedRuntimeTextures(RuntimeTextures)
+			.ReferencedCompileTextures(CompilerTextures)
 		];
 
 	TSharedPtr<FTabManager> TabManager = ParentTabManager.Pin();
@@ -240,7 +243,8 @@ void SMutableObjectViewer::GenerateMutableGraphPressed()
 
 void SMutableObjectViewer::CompileMutableCodePressed()
 {
-	TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+	TArray<TSoftObjectPtr<UTexture>> RuntimeTextures;
+	TArray<TSoftObjectPtr<UTexture>> CompilerTextures;
 	if (CompileOptions.bForceLargeLODBias)
 	{
 		// Debug compile with many different biasses
@@ -249,7 +253,9 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 		{
 			CompileOptions.DebugBias = Bias;
 
-			mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
+			RuntimeTextures.Empty();
+			CompilerTextures.Empty();
+			mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
 			if (!RootNode)
 			{
 				// TODO: Show errors
@@ -260,6 +266,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 			// Do the compilation to Mutable Code synchronously.
 			TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(RootNode));
 			CompileTask->Options = CompileOptions;
+			CompileTask->ReferencedTextures = CompilerTextures;
 			CompileTask->Init();
 			CompileTask->Run();
 		}
@@ -267,7 +274,9 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	}
 
 	// Convert from Unreal graph to Mutable graph.
-	mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, ReferencedTextures);
+	RuntimeTextures.Empty();
+	CompilerTextures.Empty();
+	mu::NodePtr RootNode = Compiler.Export(CustomizableObject, CompileOptions, RuntimeTextures, CompilerTextures);
 	if (!RootNode)
 	{
 		// TODO: Show errors
@@ -278,7 +287,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	// Do the compilation to Mutable Code synchronously.
 	TSharedPtr<FCustomizableObjectCompileRunnable> CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(RootNode));
 	CompileTask->Options = CompileOptions;
-	CompileTask->ReferencedTextures = ReferencedTextures;
+	CompileTask->ReferencedTextures = CompilerTextures;
 	CompileTask->Init();
 	CompileTask->Run();
 
@@ -287,7 +296,7 @@ void SMutableObjectViewer::CompileMutableCodePressed()
 	TSharedPtr<SDockTab> NewMutableCodeTab = SNew(SDockTab)
 		.Label(LOCTEXT("MutableCode", "Mutable Code"))
 		[
-			SNew(SMutableCodeViewer, CompileTask->Model, ReferencedTextures)
+			SNew(SMutableCodeViewer, CompileTask->Model, RuntimeTextures)
 			.DataTag(DataTag)
 		];
 
