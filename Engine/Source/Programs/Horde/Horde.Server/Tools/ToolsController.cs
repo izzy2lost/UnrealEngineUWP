@@ -495,25 +495,32 @@ namespace Horde.Server.Tools
 				return Ok(response);
 			}
 
-			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
-
-			DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
-
-			if (node.Directories.Count == 0 && node.Files.Count == 1 && action != GetToolAction.Zip)
+			IStorageClient client = _toolCollection.CreateStorageClient(tool);
+			try
 			{
-				FileEntry entry = node.Files.First();
+				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
 
-				string? contentType;
-				if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
+				if (node.Directories.Count == 0 && node.Files.Count == 1 && action != GetToolAction.Zip)
 				{
-					contentType = "application/octet-stream";
+					FileEntry entry = node.Files.First();
+
+					string? contentType;
+					if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
+					{
+						contentType = "application/octet-stream";
+					}
+
+					return new FileStreamResult(entry.OpenAsStream(), contentType) { FileDownloadName = entry.Name.ToString() };
 				}
 
-				return new FileStreamResult(entry.OpenAsStream(), contentType) { FileDownloadName = entry.Name.ToString() };
+				Stream stream = node.AsZipStream().WrapOwnership(client);
+				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
 			}
-
-			Stream stream = node.AsZipStream();
-			return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
+			catch
+			{
+				client.Dispose();
+				throw;
+			}
 		}
 
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)

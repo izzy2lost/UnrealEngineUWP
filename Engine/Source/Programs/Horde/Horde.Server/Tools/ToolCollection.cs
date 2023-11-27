@@ -442,20 +442,19 @@ namespace Horde.Server.Tools
 		/// <returns>Stream for the data</returns>
 		public async Task<Stream> GetDeploymentZipAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			using IStorageClient client = CreateStorageClient(tool);
-
-			if (tool.Id == new ToolId("horde-agent-canary"))
+#pragma warning disable CA2000
+			IStorageClient client = CreateStorageClient(tool);
+			try
 			{
 				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
-				_logger.LogInformation("Tool {ToolId} has {NumDirectories}, {NumFiles}, total size {NumBytes}", tool.Id, node.NameToFile.Count, node.NameToDirectory.Count, node.Length);
-				return node.AsZipStream(logger: _logger);
+				return node.AsZipStream().WrapOwnership(client);
 			}
-			else
+			catch
 			{
-				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
-
-				return node.AsZipStream();
+				client.Dispose();
+				throw;
 			}
+#pragma warning restore CA2000
 		}
 	}
 }

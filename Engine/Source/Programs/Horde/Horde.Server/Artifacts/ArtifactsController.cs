@@ -321,11 +321,21 @@ namespace Horde.Server.Artifacts
 				filter = new FileFilter(fileFilter);
 			}
 
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
-			DirectoryNode directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken);
+#pragma warning disable CA2000
+			IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+			try
+			{
+				DirectoryNode directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken);
 
-			Stream stream = directory.AsZipStream(filter);
-			return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };
+				Stream stream = directory.AsZipStream(filter).WrapOwnership(storageClient);
+				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };
+			}
+			catch
+			{
+				storageClient.Dispose();
+				throw;
+			}
+#pragma warning restore CA2000
 		}
 
 		/// <summary>
