@@ -22,18 +22,18 @@ namespace StructSerializer
 	template <>
 	struct TScriptHelper_InContainer<FMapProperty> { using Type = FScriptMapHelper_InContainer; };
 
-	FStructSerializerState CreateItemState(FScriptArrayHelper& InHelper, FArrayProperty* InArrayProperty, int32 InValidatedInternalElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
+	FStructSerializerState CreateItemState(FScriptArrayHelper& InHelper, FArrayProperty* InArrayProperty, int32 InElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
 	{
-		return FStructSerializerState(InHelper.GetRawPtr(InValidatedInternalElementIndex), InArrayProperty->Inner, InFlags);
+		return FStructSerializerState(InHelper.GetRawPtr(InElementIndex), InArrayProperty->Inner, InFlags);
 	};
 
-	FStructSerializerState CreateItemState(FScriptMapHelper& InHelper, FMapProperty* InMapProperty, int32 InValidatedInternalElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
+	FStructSerializerState CreateItemState(FScriptMapHelper& InHelper, FMapProperty* InMapProperty, int32 InElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
 	{
-		FStructSerializerState State = FStructSerializerState(InHelper.GetPairPtr(InValidatedInternalElementIndex), InMapProperty->ValueProp, InFlags);
+		FStructSerializerState State = FStructSerializerState(InHelper.GetPairPtr(InElementIndex), InMapProperty->ValueProp, InFlags);
 
 		if (Policies.MapSerialization == EStructSerializerMapPolicies::KeyValuePair)
 		{
-			State.KeyData = InHelper.GetPairPtr(InValidatedInternalElementIndex);
+			State.KeyData = InHelper.GetPairPtr(InElementIndex);
 			State.ValueData = State.KeyData;
 			State.KeyProperty = InMapProperty->KeyProp;
 		}
@@ -41,9 +41,9 @@ namespace StructSerializer
 		return State;
 	}
 
-	FStructSerializerState CreateItemState(FScriptSetHelper& InHelper, FSetProperty* InSetProperty, int32 InValidatedInternalElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
+	FStructSerializerState CreateItemState(FScriptSetHelper& InHelper, FSetProperty* InSetProperty, int32 InElementIndex, const FStructSerializerPolicies& Policies, EStructSerializerStateFlags InFlags)
 	{
-		return FStructSerializerState(InHelper.GetElementPtr(InValidatedInternalElementIndex), InSetProperty->ElementProp, InFlags);
+		return FStructSerializerState(InHelper.GetElementPtr(InElementIndex), InSetProperty->ElementProp, InFlags);
 	}
 
 	bool IsArrayLike(FProperty* Property, const FStructSerializerPolicies& Policies)

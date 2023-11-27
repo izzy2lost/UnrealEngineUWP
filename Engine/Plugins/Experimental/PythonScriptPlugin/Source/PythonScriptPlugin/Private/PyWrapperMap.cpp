@@ -222,17 +222,17 @@ struct FPyWrapperMapItemIterator : public TPyWrapperMapIterator<FPyWrapperMapIte
 		return &PyWrapperMapItemIteratorType;
 	}
 
-	static PyObject* GetItem(FPyWrapperMapItemIterator* InSelf, FScriptMapHelper& InScriptMapHelper, const int32 InValidatedInternalIndex)
+	static PyObject* GetItem(FPyWrapperMapItemIterator* InSelf, FScriptMapHelper& InScriptMapHelper, int32 InElementIndex)
 	{
 		FPyObjectPtr PyKeyObj;
-		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetKeyProperty(), InScriptMapHelper.GetKeyPtr(InValidatedInternalIndex), PyKeyObj.Get()))
+		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetKeyProperty(), InScriptMapHelper.GetKeyPtr(InElementIndex), PyKeyObj.Get()))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert key property '%s' (%s)"), *InScriptMapHelper.GetKeyProperty()->GetName(), *InScriptMapHelper.GetKeyProperty()->GetClass()->GetName()));
 			return nullptr;
 		}
 
 		FPyObjectPtr PyValueObj;
-		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetValueProperty(), InScriptMapHelper.GetValuePtr(InValidatedInternalIndex), PyValueObj.Get()))
+		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetValueProperty(), InScriptMapHelper.GetValuePtr(InElementIndex), PyValueObj.Get()))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert value property '%s' (%s)"), *InScriptMapHelper.GetValueProperty()->GetName(), *InScriptMapHelper.GetValueProperty()->GetClass()->GetName()));
 			return nullptr;
@@ -250,10 +250,10 @@ struct FPyWrapperMapKeyIterator : public TPyWrapperMapIterator<FPyWrapperMapKeyI
 		return &PyWrapperMapKeyIteratorType;
 	}
 
-	static PyObject* GetItem(FPyWrapperMapKeyIterator* InSelf, FScriptMapHelper& InScriptMapHelper, const int32 InValidatedInternalIndex)
+	static PyObject* GetItem(FPyWrapperMapKeyIterator* InSelf, FScriptMapHelper& InScriptMapHelper, int32 InElementIndex)
 	{
 		PyObject* PyItemObj = nullptr;
-		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetKeyProperty(), InScriptMapHelper.GetKeyPtr(InValidatedInternalIndex), PyItemObj))
+		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetKeyProperty(), InScriptMapHelper.GetKeyPtr(InElementIndex), PyItemObj))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert key property '%s' (%s)"), *InScriptMapHelper.GetKeyProperty()->GetName(), *InScriptMapHelper.GetKeyProperty()->GetClass()->GetName()));
 			return nullptr;
@@ -270,10 +270,10 @@ struct FPyWrapperMapValueIterator : public TPyWrapperMapIterator<FPyWrapperMapVa
 		return &PyWrapperMapValueIteratorType;
 	}
 
-	static PyObject* GetItem(FPyWrapperMapValueIterator* InSelf, FScriptMapHelper& InScriptMapHelper, const int32 InValidatedInternalIndex)
+	static PyObject* GetItem(FPyWrapperMapValueIterator* InSelf, FScriptMapHelper& InScriptMapHelper, int32 InElementIndex)
 	{
 		PyObject* PyItemObj = nullptr;
-		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetValueProperty(), InScriptMapHelper.GetValuePtr(InValidatedInternalIndex), PyItemObj))
+		if (!PyConversion::PythonizeProperty(InScriptMapHelper.GetValueProperty(), InScriptMapHelper.GetValuePtr(InElementIndex), PyItemObj))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert value property '%s' (%s)"), *InScriptMapHelper.GetValueProperty()->GetName(), *InScriptMapHelper.GetValueProperty()->GetClass()->GetName()));
 			return nullptr;
@@ -661,38 +661,47 @@ FPyWrapperMap* FPyWrapperMap::CastPyObject(PyObject* InPyObject, PyTypeObject* I
 
 		// Attempt to convert the entries in the map to the native format of the new map
 		{
-			const FScriptMapHelper SelfScriptMapHelper(Self->MapProp, Self->MapInstance);
+			FScriptMapHelper SelfScriptMapHelper(Self->MapProp, Self->MapInstance);
 			FScriptMapHelper NewScriptMapHelper(NewMap->MapProp, NewMap->MapInstance);
+
+			const int32 ElementCount = SelfScriptMapHelper.Num();
 
 			FString ExportedKey;
 			FString ExportedValue;
-			for (FScriptMapHelper::FIterator It(SelfScriptMapHelper); It; ++It)
+			for (int32 ElementIndex = 0, SparseIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
 			{
-				ExportedKey.Reset();
-				if (!SelfScriptMapHelper.GetKeyProperty()->ExportText_Direct(ExportedKey, SelfScriptMapHelper.GetKeyPtr(It), SelfScriptMapHelper.GetKeyPtr(It), nullptr, PPF_None))
+				if (!SelfScriptMapHelper.IsValidIndex(SparseIndex))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for key property '%s' (%s) at index %d"), *SelfScriptMapHelper.GetKeyProperty()->GetName(), *SelfScriptMapHelper.GetKeyProperty()->GetClass()->GetName(), It.GetLogicalIndex()));
+					continue;
+				}
+
+				ExportedKey.Reset();
+				if (!SelfScriptMapHelper.GetKeyProperty()->ExportText_Direct(ExportedKey, SelfScriptMapHelper.GetKeyPtr(SparseIndex), SelfScriptMapHelper.GetKeyPtr(SparseIndex), nullptr, PPF_None))
+				{
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for key property '%s' (%s) at index %d"), *SelfScriptMapHelper.GetKeyProperty()->GetName(), *SelfScriptMapHelper.GetKeyProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
 
 				ExportedValue.Reset();
-				if (!SelfScriptMapHelper.GetValueProperty()->ExportText_Direct(ExportedValue, SelfScriptMapHelper.GetValuePtr(It), SelfScriptMapHelper.GetValuePtr(It), nullptr, PPF_None))
+				if (!SelfScriptMapHelper.GetValueProperty()->ExportText_Direct(ExportedValue, SelfScriptMapHelper.GetValuePtr(SparseIndex), SelfScriptMapHelper.GetValuePtr(SparseIndex), nullptr, PPF_None))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for value property '%s' (%s) at index %d"), *SelfScriptMapHelper.GetValueProperty()->GetName(), *SelfScriptMapHelper.GetValueProperty()->GetClass()->GetName(), It.GetLogicalIndex()));
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for value property '%s' (%s) at index %d"), *SelfScriptMapHelper.GetValueProperty()->GetName(), *SelfScriptMapHelper.GetValueProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
 
 				const int32 NewElementIndex = NewScriptMapHelper.AddDefaultValue_Invalid_NeedsRehash();
 				if (!NewScriptMapHelper.GetKeyProperty()->ImportText_Direct(*ExportedKey, NewScriptMapHelper.GetKeyPtr(NewElementIndex), nullptr, PPF_None))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' key for property '%s' (%s) at index %d"), *ExportedKey, *NewScriptMapHelper.GetKeyProperty()->GetName(), *NewScriptMapHelper.GetKeyProperty()->GetClass()->GetName(), NewElementIndex));
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' key for property '%s' (%s) at index %d"), *ExportedKey, *NewScriptMapHelper.GetKeyProperty()->GetName(), *NewScriptMapHelper.GetKeyProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
 				if (!NewScriptMapHelper.GetValueProperty()->ImportText_Direct(*ExportedValue, NewScriptMapHelper.GetValuePtr(NewElementIndex), nullptr, PPF_None))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' value for property '%s' (%s) at index %d"), *ExportedValue, *NewScriptMapHelper.GetValueProperty()->GetName(), *NewScriptMapHelper.GetValueProperty()->GetClass()->GetName(), NewElementIndex));
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' value for property '%s' (%s) at index %d"), *ExportedValue, *NewScriptMapHelper.GetValueProperty()->GetName(), *NewScriptMapHelper.GetValueProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
+
+				++ElementIndex;
 			}
 
 			NewScriptMapHelper.Rehash();
@@ -1032,29 +1041,40 @@ PyObject* FPyWrapperMap::PopItem(FPyWrapperMap* InSelf)
 	}
 
 	FScriptMapHelper SelfScriptMapHelper(InSelf->MapProp, InSelf->MapInstance);
-	const FScriptMapHelper::FIterator It(SelfScriptMapHelper);
-	if (It)
+	const int32 SelfElementCount = SelfScriptMapHelper.Num();
+
+	if (SelfElementCount == 0)
 	{
+		PyUtil::SetPythonError(PyExc_KeyError, InSelf, TEXT("Cannot pop from an empty map"));
+		return nullptr;
+	}
+
+	for (int32 SelfSparseIndex = 0; ; ++SelfSparseIndex)
+	{
+		if (!SelfScriptMapHelper.IsValidIndex(SelfSparseIndex))
+		{
+			continue;
+		}
+
 		FPyObjectPtr PyReturnKey;
-		if (!PyConversion::PythonizeProperty(SelfScriptMapHelper.GetKeyProperty(), SelfScriptMapHelper.GetKeyPtr(It), PyReturnKey.Get()))
+		if (!PyConversion::PythonizeProperty(SelfScriptMapHelper.GetKeyProperty(), SelfScriptMapHelper.GetKeyPtr(SelfSparseIndex), PyReturnKey.Get()))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert key property '%s' (%s) at index 0"), *SelfScriptMapHelper.GetKeyProperty()->GetName(), *SelfScriptMapHelper.GetKeyProperty()->GetClass()->GetName()));
 			return nullptr;
 		}
 
 		FPyObjectPtr PyReturnValue;
-		if (!PyConversion::PythonizeProperty(SelfScriptMapHelper.GetValueProperty(), SelfScriptMapHelper.GetValuePtr(It), PyReturnValue.Get()))
+		if (!PyConversion::PythonizeProperty(SelfScriptMapHelper.GetValueProperty(), SelfScriptMapHelper.GetValuePtr(SelfSparseIndex), PyReturnValue.Get()))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert value property '%s' (%s) at index 0"), *SelfScriptMapHelper.GetValueProperty()->GetName(), *SelfScriptMapHelper.GetValueProperty()->GetClass()->GetName()));
 			return nullptr;
 		}
 
-		SelfScriptMapHelper.RemoveAt(It.GetInternalIndex());
+		SelfScriptMapHelper.RemoveAt(SelfSparseIndex);
 		
 		return PyTuple_Pack(2, PyReturnKey.Get(), PyReturnValue.Get());
 	}
 
-	PyUtil::SetPythonError(PyExc_KeyError, InSelf, TEXT("Cannot pop from an empty map"));
 	return nullptr;
 }
 
@@ -1075,11 +1095,17 @@ int FPyWrapperMap::Update(FPyWrapperMap* InSelf, PyObject* InOther)
 	}
 
 	FScriptMapHelper SelfScriptMapHelper(InSelf->MapProp, InSelf->MapInstance);
-	const FScriptMapHelper OtherScriptMapHelper(Other->MapProp, Other->MapInstance);
+	FScriptMapHelper OtherScriptMapHelper(Other->MapProp, Other->MapInstance);
 
-	for (FScriptMapHelper::FIterator It(OtherScriptMapHelper); It; ++It)
+	const int32 OtherSparseCount = OtherScriptMapHelper.Num();
+	for (int32 OtherSparseIndex = 0; OtherSparseIndex < OtherSparseCount; ++OtherSparseIndex)
 	{
-		SelfScriptMapHelper.AddPair(OtherScriptMapHelper.GetKeyPtr(It), OtherScriptMapHelper.GetValuePtr(It));
+		if (!OtherScriptMapHelper.IsValidIndex(OtherSparseIndex))
+		{
+			continue;
+		}
+
+		SelfScriptMapHelper.AddPair(OtherScriptMapHelper.GetKeyPtr(OtherSparseIndex), OtherScriptMapHelper.GetValuePtr(OtherSparseIndex));
 	}
 
 	return 0;
@@ -1214,18 +1240,25 @@ PyTypeObject InitializePyWrapperMapType()
 				return nullptr;
 			}
 
-			const FScriptMapHelper SelfScriptMapHelper(InSelf->MapProp, InSelf->MapInstance);
+			FScriptMapHelper SelfScriptMapHelper(InSelf->MapProp, InSelf->MapInstance);
+			const int32 ElementCount = SelfScriptMapHelper.Num();
 
 			FString ExportedMap;
-			for (FScriptMapHelper::FIterator It(SelfScriptMapHelper); It; ++It)
+			for (int32 ElementIndex = 0, SparseIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
 			{
-				if (It.GetLogicalIndex() > 0)
+				if (!SelfScriptMapHelper.IsValidIndex(SparseIndex))
+				{
+					continue;
+				}
+
+				if (ElementIndex > 0)
 				{
 					ExportedMap += TEXT(", ");
 				}
-				ExportedMap += PyUtil::GetFriendlyPropertyValue(SelfScriptMapHelper.GetKeyProperty(), SelfScriptMapHelper.GetKeyPtr(It), PPF_Delimited | PPF_IncludeTransient);
+				ExportedMap += PyUtil::GetFriendlyPropertyValue(SelfScriptMapHelper.GetKeyProperty(), SelfScriptMapHelper.GetKeyPtr(SparseIndex), PPF_Delimited | PPF_IncludeTransient);
 				ExportedMap += TEXT(": ");
-				ExportedMap += PyUtil::GetFriendlyPropertyValue(SelfScriptMapHelper.GetValueProperty(), SelfScriptMapHelper.GetValuePtr(It), PPF_Delimited | PPF_IncludeTransient);
+				ExportedMap += PyUtil::GetFriendlyPropertyValue(SelfScriptMapHelper.GetValueProperty(), SelfScriptMapHelper.GetValuePtr(SparseIndex), PPF_Delimited | PPF_IncludeTransient);
+				++ElementIndex;
 			}
 			return PyUnicode_FromFormat("{%s}", TCHAR_TO_UTF8(*ExportedMap));
 		}

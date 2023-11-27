@@ -129,10 +129,15 @@ int32 FLinkerPlaceholderObjectImpl::ResolvePlaceholderValues(const TArray<FField
 			// because we can't know which set entry was set with a reference 
 			// to this object, we have to comb through them all
 			FScriptSetHelper SetHelper(SetProperty, ValueAddress);
-			for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+			int32 Num = SetHelper.Num();
+			for (int32 SetIndex = 0; Num; ++SetIndex)
 			{
-				uint8* ElementAddress = SetHelper.GetElementPtr(It);
-				ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, ElementAddress, OldValue, ReplacementValue);
+				if (SetHelper.IsValidIndex(SetIndex))
+				{
+					--Num;
+					uint8* ElementAddress = SetHelper.GetElementPtr(SetIndex);
+					ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, ElementAddress, OldValue, ReplacementValue);
+				}
 			}
 
 			// the above recursive call chewed through the rest of the
@@ -153,17 +158,23 @@ int32 FLinkerPlaceholderObjectImpl::ResolvePlaceholderValues(const TArray<FField
 			// because we can't know which map entry was set with a reference 
 			// to this object, we have to comb through them all
 			FScriptMapHelper MapHelper(MapProperty, ValueAddress);
-			for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+			int32 Num = MapHelper.Num();
+			for (int32 MapIndex = 0; Num; ++MapIndex)
 			{
-				if (NextProperty == MapProperty->KeyProp)
+				if (MapHelper.IsValidIndex(MapIndex))
 				{
-					uint8* KeyAddress = MapHelper.GetKeyPtr(It);
-					ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, KeyAddress, OldValue, ReplacementValue);
-				}
-				else if (NextProperty == MapProperty->ValueProp)
-				{
-					uint8* MapValueAddress = MapHelper.GetValuePtr(It);
-					ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, MapValueAddress, OldValue, ReplacementValue);
+					--Num;
+
+					if (NextProperty == MapProperty->KeyProp)
+					{
+						uint8* KeyAddress = MapHelper.GetKeyPtr(MapIndex);
+						ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, KeyAddress, OldValue, ReplacementValue);
+					}
+					else if (NextProperty == MapProperty->ValueProp)
+					{
+						uint8* MapValueAddress = MapHelper.GetValuePtr(MapIndex);
+						ReplacementCount += ResolvePlaceholderValues(PropertyChain, PropertyIndex - 1, MapValueAddress, OldValue, ReplacementValue);
+					}
 				}
 			}
 

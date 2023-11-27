@@ -19,41 +19,45 @@ namespace UEMapProperty_Private
 	/**
 	 * Checks if any of the pairs in the map compare equal to the one passed.
 	 *
-	 * @param  MapHelper    The map to search through.
-	 * @param  LogicalIndex The index in the map to start searching from.
-	 * @param  Num          The number of elements to compare.
+	 * @param  MapHelper  The map to search through.
+	 * @param  Index      The index in the map to start searching from.
+	 * @param  Num        The number of elements to compare.
 	 */
-	bool AnyEqual(const FScriptMapHelper& MapHelper, const int32 LogicalIndex, int32 Num, const uint8* PairToCompare, const uint32 PortFlags)
+	bool AnyEqual(const FScriptMapHelper& MapHelper, int32 Index, int32 Num, const uint8* PairToCompare, uint32 PortFlags)
 	{
-		const FProperty* KeyProp   = MapHelper.GetKeyProperty();
-		const FProperty* ValueProp = MapHelper.GetValueProperty();
-		const int32 ValueOffset = MapHelper.MapLayout.ValueOffset;
+		FProperty* KeyProp   = MapHelper.GetKeyProperty();
+		FProperty* ValueProp = MapHelper.GetValueProperty();
 
-		FScriptMapHelper::FIterator IteratorA(MapHelper, LogicalIndex);
-		for (; IteratorA && Num; --Num, ++IteratorA)
+		int32 ValueOffset = MapHelper.MapLayout.ValueOffset;
+
+		for (; Num; --Num)
 		{
-			if (KeyProp->Identical(MapHelper.GetPairPtr(IteratorA), PairToCompare, PortFlags) && ValueProp->Identical(MapHelper.GetPairPtr(IteratorA) + ValueOffset, PairToCompare + ValueOffset, PortFlags))
+			while (!MapHelper.IsValidIndex(Index))
+			{
+				++Index;
+			}
+
+			if (KeyProp->Identical(MapHelper.GetPairPtr(Index), PairToCompare, PortFlags) && ValueProp->Identical(MapHelper.GetPairPtr(Index) + ValueOffset, PairToCompare + ValueOffset, PortFlags))
 			{
 				return true;
 			}
+
+			++Index;
 		}
 
 		return false;
 	}
 
-	bool RangesContainSameAmountsOfVal(const FScriptMapHelper& MapHelperA, const int32 LogicalIndexA, const FScriptMapHelper& MapHelperB, const int32 LogicalIndexB, int32 Num, const uint8* PairToCompare, const uint32 PortFlags)
+	bool RangesContainSameAmountsOfVal(const FScriptMapHelper& MapHelperA, int32 IndexA, const FScriptMapHelper& MapHelperB, int32 IndexB, int32 Num, const uint8* PairToCompare, uint32 PortFlags)
 	{
-		const FProperty* KeyProp   = MapHelperA.GetKeyProperty();
-		const FProperty* ValueProp = MapHelperA.GetValueProperty();
+		FProperty* KeyProp   = MapHelperA.GetKeyProperty();
+		FProperty* ValueProp = MapHelperA.GetValueProperty();
 
 		// Ensure that both maps are the same type
 		check(KeyProp   == MapHelperB.GetKeyProperty());
 		check(ValueProp == MapHelperB.GetValueProperty());
 
-		const int32 ValueOffset = MapHelperA.MapLayout.ValueOffset;
-
-		FScriptMapHelper::FIterator IteratorA(MapHelperA, LogicalIndexA);
-		FScriptMapHelper::FIterator IteratorB(MapHelperB, LogicalIndexB);
+		int32 ValueOffset = MapHelperA.MapLayout.ValueOffset;
 
 		int32 CountA = 0;
 		int32 CountB = 0;
@@ -64,8 +68,18 @@ namespace UEMapProperty_Private
 				return CountA == CountB;
 			}
 
-			const uint8* PairA = MapHelperA.GetPairPtr(IteratorA);
-			const uint8* PairB = MapHelperB.GetPairPtr(IteratorB);
+			while (!MapHelperA.IsValidIndex(IndexA))
+			{
+				++IndexA;
+			}
+
+			while (!MapHelperB.IsValidIndex(IndexB))
+			{
+				++IndexB;
+			}
+
+			const uint8* PairA = MapHelperA.GetPairPtr(IndexA);
+			const uint8* PairB = MapHelperB.GetPairPtr(IndexB);
 			if (PairA == PairToCompare || (KeyProp->Identical(PairA, PairToCompare, PortFlags) && ValueProp->Identical(PairA + ValueOffset, PairToCompare + ValueOffset, PortFlags)))
 			{
 				++CountA;
@@ -76,16 +90,16 @@ namespace UEMapProperty_Private
 				++CountB;
 			}
 
-			++IteratorA;
-			++IteratorB;
+			++IndexA;
+			++IndexB;
 			--Num;
 		}
 	}
 
-	bool IsPermutation(const FScriptMapHelper& MapHelperA, const FScriptMapHelper& MapHelperB, const uint32 PortFlags)
+	bool IsPermutation(const FScriptMapHelper& MapHelperA, const FScriptMapHelper& MapHelperB, uint32 PortFlags)
 	{
-		const FProperty* KeyProp   = MapHelperA.GetKeyProperty();
-		const FProperty* ValueProp = MapHelperA.GetValueProperty();
+		FProperty* KeyProp   = MapHelperA.GetKeyProperty();
+		FProperty* ValueProp = MapHelperA.GetValueProperty();
 
 		// Ensure that both maps are the same type
 		check(KeyProp   == MapHelperB.GetKeyProperty());
@@ -97,11 +111,11 @@ namespace UEMapProperty_Private
 			return false;
 		}
 
-		const int32 ValueOffset = MapHelperA.MapLayout.ValueOffset;
+		int32 ValueOffset = MapHelperA.MapLayout.ValueOffset;
 
 		// Skip over common initial sequence
-		FScriptMapHelper::FIterator IteratorA(MapHelperA);
-		FScriptMapHelper::FIterator IteratorB(MapHelperB);
+		int32 IndexA = 0;
+		int32 IndexB = 0;
 		for (;;)
 		{
 			if (Num == 0)
@@ -109,8 +123,18 @@ namespace UEMapProperty_Private
 				return true;
 			}
 
-			const uint8* PairA = MapHelperA.GetPairPtr(IteratorA);
-			const uint8* PairB = MapHelperB.GetPairPtr(IteratorB);
+			while (!MapHelperA.IsValidIndex(IndexA))
+			{
+				++IndexA;
+			}
+
+			while (!MapHelperB.IsValidIndex(IndexB))
+			{
+				++IndexB;
+			}
+
+			const uint8* PairA = MapHelperA.GetPairPtr(IndexA);
+			const uint8* PairB = MapHelperB.GetPairPtr(IndexB);
 			if (!KeyProp->Identical(PairA, PairB, PortFlags))
 			{
 				break;
@@ -121,17 +145,17 @@ namespace UEMapProperty_Private
 				break;
 			}
 
-			++IteratorA;
-			++IteratorB;
+			++IndexA;
+			++IndexB;
 			--Num;
 		}
 
-		const int32 FirstIndexA = IteratorA.GetLogicalIndex();
-		const int32 FirstIndexB = IteratorB.GetLogicalIndex();
-		const int32 FirstNum    = Num;
+		int32 FirstIndexA = IndexA;
+		int32 FirstIndexB = IndexB;
+		int32 FirstNum    = Num;
 		for (;;)
 		{
-			const uint8* PairA = MapHelperA.GetPairPtr(IteratorA);
+			const uint8* PairA = MapHelperA.GetPairPtr(IndexA);
 			if (!AnyEqual(MapHelperA, FirstIndexA, FirstNum - Num, PairA, PortFlags) && !RangesContainSameAmountsOfVal(MapHelperA, FirstIndexA, MapHelperB, FirstIndexB, FirstNum, PairA, PortFlags))
 			{
 				return false;
@@ -143,7 +167,11 @@ namespace UEMapProperty_Private
 				return true;
 			}
 
-			++IteratorA;
+			++IndexA;
+			while (!MapHelperA.IsValidIndex(IndexA))
+			{
+				++IndexA;
+			}
 		}
 	}
 }
@@ -464,12 +492,18 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		// Determine how many keys are missing from the object
 		if (Defaults)
 		{
-			for (FScriptMapHelper::FIterator Iterator(DefaultsHelper); Iterator; ++Iterator)
+			for (int32 Index = 0, Count = DefaultsHelper.Num(); Count; ++Index)
 			{
-				uint8* DefaultPairPtr = DefaultsHelper.GetPairPtr(Iterator);
-				if (!MapHelper.FindMapPairPtrWithKey(DefaultPairPtr))
+				uint8* DefaultPairPtr = DefaultsHelper.GetPairPtrWithoutCheck(Index);
+
+				if (DefaultsHelper.IsValidIndex(Index))
 				{
-					Indices.Add(Iterator.GetInternalIndex());
+					if (!MapHelper.FindMapPairPtrWithKey(DefaultPairPtr))
+					{
+						Indices.Add(Index);
+					}
+
+					--Count;
 				}
 			}
 		}
@@ -489,14 +523,19 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		if (Defaults)
 		{
 			Indices.Empty(Indices.Num());
-			for (FScriptMapHelper::FIterator Iterator(MapHelper); Iterator; ++Iterator)
+			for (int32 Index = 0, Count = MapHelper.Num(); Count; ++Index)
 			{
-				uint8* ValuePairPtr   = MapHelper.GetPairPtr(Iterator);
-				uint8* DefaultPairPtr = DefaultsHelper.FindMapPairPtrWithKey(ValuePairPtr);
-
-				if (!DefaultPairPtr || !ValueProp->Identical(ValuePairPtr + MapLayout.ValueOffset, DefaultPairPtr + MapLayout.ValueOffset))
+				if (MapHelper.IsValidIndex(Index))
 				{
-					Indices.Add(Iterator.GetInternalIndex());
+					uint8* ValuePairPtr   = MapHelper.GetPairPtrWithoutCheck(Index);
+					uint8* DefaultPairPtr = DefaultsHelper.FindMapPairPtrWithKey(ValuePairPtr);
+
+					if (!DefaultPairPtr || !ValueProp->Identical(ValuePairPtr + MapLayout.ValueOffset, DefaultPairPtr + MapLayout.ValueOffset))
+					{
+						Indices.Add(Index);
+					}
+
+					--Count;
 				}
 			}
 
@@ -523,18 +562,24 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			int32 Num = MapHelper.Num();
 			FStructuredArchive::FArray EntriesArray = Record.EnterArray(TEXT("Entries"), Num);
 
-			for (FScriptMapHelper::FIterator Iterator(MapHelper); Iterator; ++Iterator)
+			for (int32 Index = 0; Num; ++Index)
 			{
-				FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
+				if (MapHelper.IsValidIndex(Index))
+				{
+					FStructuredArchive::FRecord EntryRecord = EntriesArray.EnterElement().EnterRecord();
 
-				uint8* ValuePairPtr = MapHelper.GetPairPtr(Iterator);
-				{
-					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
-					KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), ValuePairPtr);
-				}
-				{
-					FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
-					ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePairPtr + MapLayout.ValueOffset);
+					uint8* ValuePairPtr = MapHelper.GetPairPtrWithoutCheck(Index);
+
+					{
+						FSerializedPropertyScope SerializedProperty(UnderlyingArchive, KeyProp, this);
+						KeyProp->SerializeItem(EntryRecord.EnterField(TEXT("Key")), ValuePairPtr);
+					}
+					{
+						FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ValueProp, this);
+						ValueProp->SerializeItem(EntryRecord.EnterField(TEXT("Value")), ValuePairPtr + MapLayout.ValueOffset);
+					}
+
+					--Num;
 				}
 			}
 		}
@@ -978,7 +1023,7 @@ bool FMapProperty::PassCPPArgsByRef() const
  * 
  * @param	Data				pointer to the address of the instanced object referenced by this UComponentProperty
  * @param	DefaultData			pointer to the address of the default value of the instanced object referenced by this UComponentProperty
- * @param	InOwner				the object that contains this property's data
+ * @param	Owner				the object that contains this property's data
  * @param	InstanceGraph		contains the mappings of instanced objects and components to their templates
  */
 void FMapProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObject* InOwner, FObjectInstancingGraph* InstanceGraph)
@@ -988,8 +1033,8 @@ void FMapProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObje
 		return;
 	}
 
-	const bool bInstancedKey   = KeyProp  ->ContainsInstancedObjectProperty();
-	const bool bInstancedValue = ValueProp->ContainsInstancedObjectProperty();
+	bool bInstancedKey   = KeyProp  ->ContainsInstancedObjectProperty();
+	bool bInstancedValue = ValueProp->ContainsInstancedObjectProperty();
 
 	if (!bInstancedKey && !bInstancedValue)
 	{
@@ -1001,36 +1046,48 @@ void FMapProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObje
 	if (DefaultData)
 	{
 		FScriptMapHelper DefaultMapHelper(this, DefaultData);
-		for (FScriptMapHelper::FIterator It(MapHelper.CreateIterator()); It; ++It)
+		int32            DefaultNum = DefaultMapHelper.Num();
+
+		for (int32 Index = 0, Num = MapHelper.Num(); Num; ++Index)
 		{
-			uint8* PairPtr = MapHelper.GetPairPtr(It);
-			const uint8* DefaultPairPtr = DefaultMapHelper.FindMapPairPtrWithKey(PairPtr, /*IndexHint*/ It.GetLogicalIndex());
-
-			if (bInstancedKey)
+			if (MapHelper.IsValidIndex(Index))
 			{
-				KeyProp->InstanceSubobjects(PairPtr, DefaultPairPtr, InOwner, InstanceGraph);
-			}
+				uint8* PairPtr        = MapHelper.GetPairPtr(Index);
+				uint8* DefaultPairPtr = DefaultMapHelper.FindMapPairPtrWithKey(PairPtr, Index);
 
-			if (bInstancedValue)
-			{
-				ValueProp->InstanceSubobjects(PairPtr + MapLayout.ValueOffset, DefaultPairPtr ? DefaultPairPtr + MapLayout.ValueOffset : nullptr, InOwner, InstanceGraph);
+				if (bInstancedKey)
+				{
+					KeyProp->InstanceSubobjects(PairPtr, DefaultPairPtr, InOwner, InstanceGraph);
+				}
+
+				if (bInstancedValue)
+				{
+					ValueProp->InstanceSubobjects(PairPtr + MapLayout.ValueOffset, DefaultPairPtr ? DefaultPairPtr + MapLayout.ValueOffset : nullptr, InOwner, InstanceGraph);
+				}
+
+				--Num;
 			}
 		}
 	}
 	else
 	{
-		for (FScriptMapHelper::FIterator It(MapHelper.CreateIterator()); It; ++It)
+		for (int32 Index = 0, Num = MapHelper.Num(); Num; ++Index)
 		{
-			uint8* PairPtr = MapHelper.GetPairPtr(It);
-
-			if (bInstancedKey)
+			if (MapHelper.IsValidIndex(Index))
 			{
-				KeyProp->InstanceSubobjects(PairPtr, nullptr, InOwner, InstanceGraph);
-			}
+				uint8* PairPtr = MapHelper.GetPairPtr(Index);
 
-			if (bInstancedValue)
-			{
-				ValueProp->InstanceSubobjects(PairPtr + MapLayout.ValueOffset, nullptr, InOwner, InstanceGraph);
+				if (bInstancedKey)
+				{
+					KeyProp->InstanceSubobjects(PairPtr, nullptr, InOwner, InstanceGraph);
+				}
+
+				if (bInstancedValue)
+				{
+					ValueProp->InstanceSubobjects(PairPtr + MapLayout.ValueOffset, nullptr, InOwner, InstanceGraph);
+				}
+
+				--Num;
 			}
 		}
 	}
@@ -1293,20 +1350,29 @@ void FMapProperty::GetInnerFields(TArray<FField*>& OutFields)
 	}
 }
 
-void* FMapProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, const int32 LogicalIndex) const
+void* FMapProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 Index) const
 {
+	FScriptMapHelper MapHelper(this, InValueAddress);
 	checkf(Inner == KeyProp || Inner == ValueProp, TEXT("Inner property must be either KeyProp or ValueProp"));
 
-	FScriptMapHelper MapHelper(this, InValueAddress);
-	const int32 InternalIndex = MapHelper.FindInternalIndex(LogicalIndex);
-	if (InternalIndex != INDEX_NONE)
+	for (int32 MapIndex = 0, Num = MapHelper.Num(), LocalIndex = Index; LocalIndex >= 0 && Num > 0; ++MapIndex)
 	{
-		if (Inner == KeyProp)
+		if (MapHelper.IsValidIndex(MapIndex))
 		{
-			return MapHelper.GetKeyPtr(InternalIndex);
+			if (LocalIndex == 0)
+			{
+				if (Inner == KeyProp)
+				{
+					return MapHelper.GetKeyPtr(MapIndex);
+				}
+				else
+				{
+					return MapHelper.GetValuePtr(MapIndex);
+				}
+			}
+			LocalIndex--;
+			Num--;
 		}
-
-		return MapHelper.GetValuePtr(InternalIndex);
 	}
 	return nullptr;
 }

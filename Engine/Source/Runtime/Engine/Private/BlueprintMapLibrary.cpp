@@ -61,11 +61,17 @@ void UBlueprintMapLibrary::GenericMap_Keys(const void* TargetMap, const FMapProp
 		FScriptArrayHelper ArrayHelper(ArrayProperty, TargetArray);
 		ArrayHelper.EmptyValues();
 
-		const FProperty* InnerProp = ArrayProperty->Inner;
-		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+		FProperty* InnerProp = ArrayProperty->Inner;
+
+		int32 Size = MapHelper.Num();
+		for( int32 I = 0; Size; ++I )
 		{
-			const int32 LastIndex = ArrayHelper.AddValue();
-			InnerProp->CopySingleValueToScriptVM(ArrayHelper.GetRawPtr(LastIndex), MapHelper.GetKeyPtr(It));
+			if(MapHelper.IsValidIndex(I))
+			{
+				int32 LastIndex = ArrayHelper.AddValue();
+				InnerProp->CopySingleValueToScriptVM(ArrayHelper.GetRawPtr(LastIndex), MapHelper.GetKeyPtr(I));
+				--Size;
+			}
 		}
 	}
 }
@@ -78,11 +84,17 @@ void UBlueprintMapLibrary::GenericMap_Values(const void* TargetMap, const FMapPr
 		FScriptArrayHelper ArrayHelper(ArrayProperty, TargetArray);
 		ArrayHelper.EmptyValues();
 
-		const FProperty* InnerProp = ArrayProperty->Inner;
-		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+		FProperty* InnerProp = ArrayProperty->Inner;
+		
+		int32 Size = MapHelper.Num();
+		for( int32 I = 0; Size; ++I )
 		{
-			const int32 LastIndex = ArrayHelper.AddValue();
-			InnerProp->CopySingleValueToScriptVM(ArrayHelper.GetRawPtr(LastIndex), MapHelper.GetValuePtr(It));
+			if(MapHelper.IsValidIndex(I))
+			{
+				int32 LastIndex = ArrayHelper.AddValue();
+				InnerProp->CopySingleValueToScriptVM(ArrayHelper.GetRawPtr(LastIndex), MapHelper.GetValuePtr(I));
+				--Size;
+			}
 		}
 	}
 }

@@ -381,22 +381,31 @@ FPyWrapperSet* FPyWrapperSet::CastPyObject(PyObject* InPyObject, PyTypeObject* I
 			FScriptSetHelper SelfScriptSetHelper(Self->SetProp, Self->SetInstance);
 			FScriptSetHelper NewScriptSetHelper(NewSet->SetProp, NewSet->SetInstance);
 
+			const int32 ElementCount = SelfScriptSetHelper.Num();
+
 			FString ExportedEntry;
-			for (FScriptSetHelper::FIterator It(SelfScriptSetHelper); It; ++It)
+			for (int32 ElementIndex = 0, SparseIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
 			{
-				ExportedEntry.Reset();
-				if (!SelfScriptSetHelper.GetElementProperty()->ExportText_Direct(ExportedEntry, SelfScriptSetHelper.GetElementPtr(It), SelfScriptSetHelper.GetElementPtr(It), nullptr, PPF_None))
+				if (!SelfScriptSetHelper.IsValidIndex(SparseIndex))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for element property '%s' (%s) at index %d"), *SelfScriptSetHelper.GetElementProperty()->GetName(), *SelfScriptSetHelper.GetElementProperty()->GetClass()->GetName(), It.GetLogicalIndex()));
+					continue;
+				}
+
+				ExportedEntry.Reset();
+				if (!SelfScriptSetHelper.GetElementProperty()->ExportText_Direct(ExportedEntry, SelfScriptSetHelper.GetElementPtr(SparseIndex), SelfScriptSetHelper.GetElementPtr(SparseIndex), nullptr, PPF_None))
+				{
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to export text for element property '%s' (%s) at index %d"), *SelfScriptSetHelper.GetElementProperty()->GetName(), *SelfScriptSetHelper.GetElementProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
 
 				const int32 NewElementIndex = NewScriptSetHelper.AddDefaultValue_Invalid_NeedsRehash();
 				if (!NewScriptSetHelper.GetElementProperty()->ImportText_Direct(*ExportedEntry, NewScriptSetHelper.GetElementPtr(NewElementIndex), nullptr, PPF_None))
 				{
-					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' element for property '%s' (%s) at index %d"), *ExportedEntry, *NewScriptSetHelper.GetElementProperty()->GetName(), *NewScriptSetHelper.GetElementProperty()->GetClass()->GetName(), NewElementIndex));
+					PyUtil::SetPythonError(PyExc_Exception, Self, *FString::Printf(TEXT("Failed to import text '%s' element for property '%s' (%s) at index %d"), *ExportedEntry, *NewScriptSetHelper.GetElementProperty()->GetName(), *NewScriptSetHelper.GetElementProperty()->GetClass()->GetName(), ElementIndex));
 					return nullptr;
 				}
+
+				++ElementIndex;
 			}
 
 			NewScriptSetHelper.Rehash();
@@ -554,22 +563,33 @@ PyObject* FPyWrapperSet::Pop(FPyWrapperSet* InSelf)
 	}
 
 	FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
-	const FScriptSetHelper::FIterator It(SelfScriptSetHelper);
-	if (It)
+	const int32 SelfElementCount = SelfScriptSetHelper.Num();
+
+	if (SelfElementCount == 0)
 	{
+		PyUtil::SetPythonError(PyExc_KeyError, InSelf, TEXT("Cannot pop from an empty set"));
+		return nullptr;
+	}
+
+	for (int32 SelfSparseIndex = 0; ; ++SelfSparseIndex)
+	{
+		if (!SelfScriptSetHelper.IsValidIndex(SelfSparseIndex))
+		{
+			continue;
+		}
+
 		PyObject* PyReturnValue = nullptr;
-		if (!PyConversion::PythonizeProperty(SelfScriptSetHelper.GetElementProperty(), SelfScriptSetHelper.GetElementPtr(It), PyReturnValue))
+		if (!PyConversion::PythonizeProperty(SelfScriptSetHelper.GetElementProperty(), SelfScriptSetHelper.GetElementPtr(SelfSparseIndex), PyReturnValue))
 		{
 			PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert element property '%s' (%s) at index 0"), *SelfScriptSetHelper.GetElementProperty()->GetName(), *SelfScriptSetHelper.GetElementProperty()->GetClass()->GetName()));
 			return nullptr;
 		}
 
-		SelfScriptSetHelper.RemoveAt(It.GetInternalIndex());
+		SelfScriptSetHelper.RemoveAt(SelfSparseIndex);
 
 		return PyReturnValue;
 	}
 
-	PyUtil::SetPythonError(PyExc_KeyError, InSelf, TEXT("Cannot pop from an empty set"));
 	return nullptr;
 }
 
@@ -621,10 +641,17 @@ int FPyWrapperSet::DifferenceUpdate(FPyWrapperSet* InSelf, PyObject* InOthers)
 			return false;
 		}
 
-		const FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
-		for (FScriptSetHelper::FIterator It(OtherScriptSetHelper); It; ++It)
+		FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+		const int32 OtherSparseCount = OtherScriptSetHelper.GetMaxIndex();
+
+		for (int32 OtherSparseIndex = 0; OtherSparseIndex < OtherSparseCount; ++OtherSparseIndex)
 		{
-			const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(It);
+			if (!OtherScriptSetHelper.IsValidIndex(OtherSparseIndex))
+			{
+				continue;
+			}
+
+			const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(OtherSparseIndex);
 			SelfScriptSetHelper.RemoveElement(OtherElementPtr);
 		}
 
@@ -770,12 +797,18 @@ int FPyWrapperSet::SymmetricDifferenceUpdate(FPyWrapperSet* InSelf, PyObject* In
 		return -1;
 	}
 
-	const FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+	FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+	const int32 OtherSparseCount = OtherScriptSetHelper.GetMaxIndex();
 
 	// We need to go through the other set and remove any values from Self that are present in Other, and add any values from Other that aren't present in Self
-	for (FScriptSetHelper::FIterator It(OtherScriptSetHelper); It; ++It)
+	for (int32 OtherSparseIndex = 0; OtherSparseIndex < OtherSparseCount; ++OtherSparseIndex)
 	{
-		const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(It);
+		if (!OtherScriptSetHelper.IsValidIndex(OtherSparseIndex))
+		{
+			continue;
+		}
+
+		const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(OtherSparseIndex);
 		if (SelfScriptSetHelper.FindElementIndexFromHash(OtherElementPtr) == INDEX_NONE)
 		{
 			SelfScriptSetHelper.AddElement(OtherElementPtr);
@@ -824,10 +857,17 @@ int FPyWrapperSet::Update(FPyWrapperSet* InSelf, PyObject* InOthers)
 			return false;
 		}
 
-		const FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
-		for (FScriptSetHelper::FIterator It(OtherScriptSetHelper); It; ++It)
+		FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+		const int32 OtherSparseCount = OtherScriptSetHelper.GetMaxIndex();
+
+		for (int32 OtherSparseIndex = 0; OtherSparseIndex < OtherSparseCount; ++OtherSparseIndex)
 		{
-			const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(It);
+			if (!OtherScriptSetHelper.IsValidIndex(OtherSparseIndex))
+			{
+				continue;
+			}
+
+			const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(OtherSparseIndex);
 			SelfScriptSetHelper.AddElement(OtherElementPtr);
 		}
 
@@ -896,12 +936,19 @@ int FPyWrapperSet::IsSubset(FPyWrapperSet* InSelf, PyObject* InOther)
 		return -1;
 	}
 
-	const FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
-	const FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+	FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
+	const int32 SelfSparseCount = SelfScriptSetHelper.Num();
 
-	for (FScriptSetHelper::FIterator It(SelfScriptSetHelper); It; ++It)
+	FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+
+	for (int32 SelfSparseIndex = 0; SelfSparseIndex < SelfSparseCount; ++SelfSparseIndex)
 	{
-		const void* SelfElementPtr = SelfScriptSetHelper.GetElementPtr(It);
+		if (!SelfScriptSetHelper.IsValidIndex(SelfSparseIndex))
+		{
+			continue;
+		}
+
+		const void* SelfElementPtr = SelfScriptSetHelper.GetElementPtr(SelfSparseIndex);
 		if (OtherScriptSetHelper.FindElementIndexFromHash(SelfElementPtr) == INDEX_NONE)
 		{
 			return 0;
@@ -926,12 +973,19 @@ int FPyWrapperSet::IsSuperset(FPyWrapperSet* InSelf, PyObject* InOther)
 		return -1;
 	}
 
-	const FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
-	const FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+	FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
 
-	for (FScriptSetHelper::FIterator It(OtherScriptSetHelper); It; ++It)
+	FScriptSetHelper OtherScriptSetHelper(Other->SetProp, Other->SetInstance);
+	const int32 OtherSparseCount = OtherScriptSetHelper.Num();
+
+	for (int32 OtherSparseIndex = 0; OtherSparseIndex < OtherSparseCount; ++OtherSparseIndex)
 	{
-		const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(It);
+		if (!OtherScriptSetHelper.IsValidIndex(OtherSparseIndex))
+		{
+			continue;
+		}
+
+		const void* OtherElementPtr = OtherScriptSetHelper.GetElementPtr(OtherSparseIndex);
 		if (SelfScriptSetHelper.FindElementIndexFromHash(OtherElementPtr) == INDEX_NONE)
 		{
 			return 0;
@@ -982,16 +1036,23 @@ PyTypeObject InitializePyWrapperSetType()
 				return nullptr;
 			}
 
-			const FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
+			FScriptSetHelper SelfScriptSetHelper(InSelf->SetProp, InSelf->SetInstance);
+			const int32 ElementCount = SelfScriptSetHelper.Num();
 
 			FString ExportedSet;
-			for (FScriptSetHelper::FIterator It(SelfScriptSetHelper); It; ++It)
+			for (int32 ElementIndex = 0, SparseIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
 			{
-				if (It.GetLogicalIndex() > 0)
+				if (!SelfScriptSetHelper.IsValidIndex(SparseIndex))
+				{
+					continue;
+				}
+
+				if (ElementIndex > 0)
 				{
 					ExportedSet += TEXT(", ");
 				}
-				ExportedSet += PyUtil::GetFriendlyPropertyValue(SelfScriptSetHelper.GetElementProperty(), SelfScriptSetHelper.GetElementPtr(It), PPF_Delimited | PPF_IncludeTransient);
+				ExportedSet += PyUtil::GetFriendlyPropertyValue(SelfScriptSetHelper.GetElementProperty(), SelfScriptSetHelper.GetElementPtr(SparseIndex), PPF_Delimited | PPF_IncludeTransient);
+				++ElementIndex;
 			}
 			return PyUnicode_FromFormat("set([%s])", TCHAR_TO_UTF8(*ExportedSet));
 		}

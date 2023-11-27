@@ -109,15 +109,23 @@ void StabilizeLocalizationKeys::StabilizeLocalizationKeysForProperty(FProperty* 
 		{
 			FScriptSetHelper ScriptSetHelper(SetProp, InPropData);
 
-			for (FScriptSetHelper::FIterator It(ScriptSetHelper); It; ++It)
+			const int32 ElementCount = ScriptSetHelper.Num();
+			for (int32 RawIndex = 0, ElementIndex = 0; ElementIndex < ElementCount; ++RawIndex)
 			{
+				if (!ScriptSetHelper.IsValidIndex(RawIndex))
+				{
+					continue;
+				}
+
 				StabilizeLocalizationKeysForProperty(
 					SetProp->ElementProp,
-					ScriptSetHelper.GetElementPtr(It),
+					ScriptSetHelper.GetElementPtr(RawIndex),
 					InNamespace,
-					FString::Printf(TEXT("%s_Index%d"), *PropKeyRoot, It.GetLogicalIndex()),
+					FString::Printf(TEXT("%s_Index%d"), *PropKeyRoot, ElementIndex),
 					/*bAppendPropertyNameToKey*/false
 					);
+
+				++ElementIndex;
 			}
 
 			ScriptSetHelper.Rehash();
@@ -131,15 +139,21 @@ void StabilizeLocalizationKeys::StabilizeLocalizationKeysForProperty(FProperty* 
 		{
 			FScriptMapHelper ScriptMapHelper(MapProp, InPropData);
 
-			for (FScriptMapHelper::FIterator It(ScriptMapHelper); It; ++It)
+			const int32 ElementCount = ScriptMapHelper.Num();
+			for (int32 RawIndex = 0, ElementIndex = 0; ElementIndex < ElementCount; ++RawIndex)
 			{
+				if (!ScriptMapHelper.IsValidIndex(RawIndex))
+				{
+					continue;
+				}
+
 				if (ShouldStabilizeInnerProperty(MapProp->KeyProp))
 				{
 					StabilizeLocalizationKeysForProperty(
 						MapProp->KeyProp,
-						ScriptMapHelper.GetKeyPtr(It),
+						ScriptMapHelper.GetKeyPtr(RawIndex),
 						InNamespace,
-						FString::Printf(TEXT("%s_KeyIndex%d"), *PropKeyRoot, It.GetLogicalIndex()),
+						FString::Printf(TEXT("%s_KeyIndex%d"), *PropKeyRoot, ElementIndex),
 						/*bAppendPropertyNameToKey*/false
 						);
 				}
@@ -148,12 +162,14 @@ void StabilizeLocalizationKeys::StabilizeLocalizationKeysForProperty(FProperty* 
 				{
 					StabilizeLocalizationKeysForProperty(
 						MapProp->ValueProp,
-						ScriptMapHelper.GetValuePtr(It),
+						ScriptMapHelper.GetValuePtr(RawIndex),
 						InNamespace,
-						FString::Printf(TEXT("%s_ValueIndex%d"), *PropKeyRoot, It.GetLogicalIndex()),
+						FString::Printf(TEXT("%s_ValueIndex%d"), *PropKeyRoot, ElementIndex),
 						/*bAppendPropertyNameToKey*/false
 						);
 				}
+
+				++ElementIndex;
 			}
 
 			if (ShouldStabilizeInnerProperty(MapProp->KeyProp))

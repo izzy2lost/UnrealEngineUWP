@@ -241,14 +241,17 @@ FProperty* FComponentEditorUtils::GetPropertyForEditableNativeComponent(const UA
 				}
 
 				FScriptMapHelper MapHelper(TestProperty, MapPropInstAddress);
-				for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+				for (int32 MapSparseIndex = 0; MapSparseIndex < MapHelper.GetMaxIndex(); ++MapSparseIndex)
 				{
 					// For each value in the map (don't bother checking the keys, they won't be what the user can edit in this case)
-					const uint8* MapValueData = MapHelper.GetValuePtr(It);
-					UObject* ValueElement = MapValProp->GetObjectPropertyValue(MapValueData);
-					if (ValueElement != nullptr && ValueElement->GetFName() == NativeComponent->GetFName())
+					if (MapHelper.IsValidIndex(MapSparseIndex))
 					{
-						return MapValProp;
+						const uint8* MapValueData = MapHelper.GetValuePtr(MapSparseIndex);						
+						UObject* ValueElement = MapValProp->GetObjectPropertyValue(MapValueData);
+						if (ValueElement != nullptr && ValueElement->GetFName() == NativeComponent->GetFName())
+						{
+							return MapValProp;
+						}
 					}
 				}
 			}
@@ -268,14 +271,17 @@ FProperty* FComponentEditorUtils::GetPropertyForEditableNativeComponent(const UA
 				
 				// For each item in the set
 				FScriptSetHelper SetHelper(TestProperty, SetPropInstAddress);
-				for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+				for (int32 i = 0; i < SetHelper.Num(); ++i)
 				{
-					const uint8* SetValData = SetHelper.GetElementPtr(It);
-					UObject* SetValueElem = SetValProp->GetObjectPropertyValue(SetValData);
-
-					if (SetValueElem != nullptr && SetValueElem->GetFName() == NativeComponent->GetFName())
+					if (SetHelper.IsValidIndex(i))
 					{
-						return SetValProp;
+						const uint8* SetValData = SetHelper.GetElementPtr(i);
+						UObject* SetValueElem = SetValProp->GetObjectPropertyValue(SetValData);
+						
+						if (SetValueElem != nullptr && SetValueElem->GetFName() == NativeComponent->GetFName())
+						{
+							return SetValProp;
+						}
 					}
 				}
 			}

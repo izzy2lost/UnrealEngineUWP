@@ -345,9 +345,13 @@ void FPyReferenceCollector::AddReferencedObjectsFromPropertyInternal(FReferenceC
 		{
 			bool bSetValuesChanged = false;
 			FScriptSetHelper_InContainer ScriptSetHelper(CastProp, InBaseAddr, ArrIndex);
-			for (FScriptSetHelper::FIterator It(ScriptSetHelper); It; ++It)
+
+			for (int32 SparseElementIndex = 0; SparseElementIndex < ScriptSetHelper.GetMaxIndex(); ++SparseElementIndex)
 			{
-				AddReferencedObjectsFromPropertyInternal(InCollector, ScriptSetHelper.GetElementProperty(), ScriptSetHelper.GetElementPtr(It), InFlags, bSetValuesChanged);
+				if (ScriptSetHelper.IsValidIndex(SparseElementIndex))
+				{
+						AddReferencedObjectsFromPropertyInternal(InCollector, ScriptSetHelper.GetElementProperty(), ScriptSetHelper.GetElementPtr(SparseElementIndex), InFlags, bSetValuesChanged);
+				}
 			}
 
 			if (bSetValuesChanged)
@@ -370,11 +374,14 @@ void FPyReferenceCollector::AddReferencedObjectsFromPropertyInternal(FReferenceC
 			bool bMapValuesChanged = false;
 			FScriptMapHelper_InContainer ScriptMapHelper(CastProp, InBaseAddr, ArrIndex);
 
-			for (FScriptMapHelper::FIterator It(ScriptMapHelper); It; ++It)
+			for (int32 SparseElementIndex = 0; SparseElementIndex < ScriptMapHelper.GetMaxIndex(); ++SparseElementIndex)
 			{
+				if (ScriptMapHelper.IsValidIndex(SparseElementIndex))
+				{
 					// Note: We use the pair pointer below as AddReferencedObjectsFromPropertyInternal expects a base address and the key/value property will apply the correct offset from the base
-					AddReferencedObjectsFromPropertyInternal(InCollector, ScriptMapHelper.GetKeyProperty(), ScriptMapHelper.GetPairPtr(It), InFlags, bMapKeysChanged);
-					AddReferencedObjectsFromPropertyInternal(InCollector, ScriptMapHelper.GetValueProperty(), ScriptMapHelper.GetPairPtr(It), InFlags, bMapValuesChanged);
+					AddReferencedObjectsFromPropertyInternal(InCollector, ScriptMapHelper.GetKeyProperty(), ScriptMapHelper.GetPairPtr(SparseElementIndex), InFlags, bMapKeysChanged);
+					AddReferencedObjectsFromPropertyInternal(InCollector, ScriptMapHelper.GetValueProperty(), ScriptMapHelper.GetPairPtr(SparseElementIndex), InFlags, bMapValuesChanged);
+				}
 			}
 
 			if (bMapKeysChanged || bMapValuesChanged)

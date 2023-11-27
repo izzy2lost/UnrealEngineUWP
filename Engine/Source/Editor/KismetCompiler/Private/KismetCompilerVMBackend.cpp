@@ -1018,10 +1018,15 @@ public:
 				Writer << InnerProp;
 				Writer << ElementNum;
 
-				for (FScriptSetHelper::FIterator It(ScriptSetHelper); It; ++It)
+				for (int32 ElemIdx = 0, SparseIndex = 0; ElemIdx < ElementNum; ++SparseIndex)
 				{
-					uint8* RawElemData = ScriptSetHelper.GetElementPtr(It);
-					EmitInnerElementExpr(Term, InnerProp, RawElemData);
+					if (ScriptSet.IsValidIndex(SparseIndex))
+					{
+						uint8* RawElemData = ScriptSetHelper.GetElementPtr(SparseIndex);
+						EmitInnerElementExpr(Term, InnerProp, RawElemData);
+
+						++ElemIdx;
+					}
 				}
 				Writer << EX_EndSetConst;
 			}
@@ -1042,10 +1047,15 @@ public:
 				Writer << ValProp;
 				Writer << ElementNum;
 
-				for (FScriptMapHelper::FIterator It(ScriptMapHelper); It; ++It)
+				for (int32 ElemIdx = 0, SparseIndex = 0; ElemIdx < ElementNum; ++SparseIndex)
 				{
-					EmitInnerElementExpr(Term, KeyProp, ScriptMapHelper.GetKeyPtr(It));
-					EmitInnerElementExpr(Term, ValProp, ScriptMapHelper.GetValuePtr(It));
+					if (ScriptMap.IsValidIndex(SparseIndex))
+					{
+						EmitInnerElementExpr(Term, KeyProp, ScriptMapHelper.GetKeyPtr(SparseIndex));
+						EmitInnerElementExpr(Term, ValProp, ScriptMapHelper.GetValuePtr(SparseIndex));
+
+						++ElemIdx;
+					}
 				}
 				Writer << EX_EndMapConst;
 			}

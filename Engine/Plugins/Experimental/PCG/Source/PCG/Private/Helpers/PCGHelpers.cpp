@@ -378,22 +378,34 @@ namespace PCGHelpers
 		else if (FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 		{
 			FScriptMapHelper_InContainer Helper(MapProperty, InContainer);
-			for (FScriptMapHelper::FIterator It(Helper); It; ++It)
+			int32 Num = Helper.Num();
+			for (int32 DynamicIndex = 0; Num; ++DynamicIndex)
 			{
+				if (Helper.IsValidIndex(DynamicIndex))
+				{
 					// Key and Value are stored next to each other in memory.
 					// ValueProp has an offset, so we should use the same starting address for both.
-					const void* PairKeyValuePtr = Helper.GetKeyPtr(It);
+					const void* PairKeyValuePtr = Helper.GetKeyPtr(DynamicIndex);
 					GatherDependencies(MapProperty->KeyProp, PairKeyValuePtr, OutDependencies, MaxDepth, InExcludedClasses);
 					GatherDependencies(MapProperty->ValueProp, PairKeyValuePtr, OutDependencies, MaxDepth, InExcludedClasses);
+
+					--Num;
+				}
 			}
 		}
 		else if (FSetProperty* SetProperty = CastField<FSetProperty>(Property))
 		{
 			FScriptSetHelper_InContainer Helper(SetProperty, InContainer);
-			for (FScriptSetHelper::FIterator It(Helper); It; ++It)
+			int32 Num = Helper.Num();
+			for (int32 DynamicIndex = 0; Num; ++DynamicIndex)
 			{
-				const void* ValuePtr = Helper.GetElementPtr(It);
-				GatherDependencies(SetProperty->ElementProp, ValuePtr, OutDependencies, MaxDepth, InExcludedClasses);
+				if (Helper.IsValidIndex(DynamicIndex))
+				{
+					const void* ValuePtr = Helper.GetElementPtr(DynamicIndex);
+					GatherDependencies(SetProperty->ElementProp, ValuePtr, OutDependencies, MaxDepth, InExcludedClasses);
+
+					--Num;
+				}
 			}
 		}
 	}

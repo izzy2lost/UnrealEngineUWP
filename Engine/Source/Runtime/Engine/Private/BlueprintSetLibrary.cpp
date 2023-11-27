@@ -64,9 +64,15 @@ void UBlueprintSetLibrary::GenericSet_ToArray(const void* TargetSet, const FSetP
 	if (TargetSet && TargetArray)
 	{
 		FScriptSetHelper SetHelper(SetProperty, TargetSet);
-		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+
+		int32 Size = SetHelper.Num();
+		for (int32 I = 0; Size; ++I)
 		{
-			UKismetArrayLibrary::GenericArray_Add(TargetArray, ArrayProperty, SetHelper.GetElementPtr(It));
+			if(SetHelper.IsValidIndex(I))
+			{
+				UKismetArrayLibrary::GenericArray_Add(TargetArray, ArrayProperty, SetHelper.GetElementPtr(I));
+				--Size;
+			}
 		}
 	}
 }
@@ -136,12 +142,18 @@ void UBlueprintSetLibrary::GenericSet_Intersect(const void* SetA, const FSetProp
 		FScriptSetHelper SetHelperResult(SetPropertyResult, SetResult);
 		
 		SetHelperResult.EmptyElements();
-		for (FScriptSetHelper::FIterator It(SetHelperA); It; ++It)
+
+		int32 Size = SetHelperA.Num();
+		for (int32 I = 0; Size; ++I)
 		{
-			const void* EntryInA = SetHelperA.GetElementPtr(It);
-			if (SetHelperB.FindElementIndexFromHash(EntryInA) != INDEX_NONE)
+			if(SetHelperA.IsValidIndex(I))
 			{
-				SetHelperResult.AddElement(EntryInA);
+				const void* EntryInA = SetHelperA.GetElementPtr(I);
+				if (SetHelperB.FindElementIndexFromHash(EntryInA) != INDEX_NONE)
+				{
+					SetHelperResult.AddElement(EntryInA);
+				}
+				--Size;
 			}
 		}
 	}
@@ -157,14 +169,24 @@ void UBlueprintSetLibrary::GenericSet_Union(const void* SetA, const FSetProperty
 		
 		SetHelperResult.EmptyElements();
 
-		for (FScriptSetHelper::FIterator It(SetHelperA); It; ++It)
+		int32 SizeA = SetHelperA.Num();
+		for (int32 I = 0; SizeA; ++I)
 		{
-			SetHelperResult.AddElement(SetHelperA.GetElementPtr(It));
+			if(SetHelperA.IsValidIndex(I))
+			{
+				SetHelperResult.AddElement(SetHelperA.GetElementPtr(I));
+				--SizeA;
+			}
 		}
 
-		for (FScriptSetHelper::FIterator It(SetHelperB); It; ++It)
+		int32 SizeB = SetHelperB.Num();
+		for (int32 I = 0; SizeB; ++I)
 		{
-			SetHelperResult.AddElement(SetHelperB.GetElementPtr(It));
+			if(SetHelperB.IsValidIndex(I))
+			{
+				SetHelperResult.AddElement(SetHelperB.GetElementPtr(I));
+				--SizeB;
+			}
 		}
 	}
 }
@@ -179,12 +201,17 @@ void UBlueprintSetLibrary::GenericSet_Difference(const void* SetA, const FSetPro
 
 		SetHelperResult.EmptyElements();
 
-		for (FScriptSetHelper::FIterator It(SetHelperA); It; ++It)
+		int32 Size = SetHelperA.Num();
+		for (int32 I = 0; Size; ++I)
 		{
-			const void* EntryInA = SetHelperA.GetElementPtr(It);
-			if (SetHelperB.FindElementIndexFromHash(EntryInA) == INDEX_NONE)
+			if(SetHelperA.IsValidIndex(I))
 			{
-				SetHelperResult.AddElement(EntryInA);
+				const void* EntryInA = SetHelperA.GetElementPtr(I);
+				if (SetHelperB.FindElementIndexFromHash(EntryInA) == INDEX_NONE)
+				{
+					SetHelperResult.AddElement(EntryInA);
+				}
+				--Size;
 			}
 		}
 	}

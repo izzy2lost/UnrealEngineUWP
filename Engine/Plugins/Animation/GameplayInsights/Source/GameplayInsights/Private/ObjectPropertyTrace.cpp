@@ -130,24 +130,31 @@ namespace ObjectPropertyTrace
 			
 			InFunction(InProperty->GetCPPType(), SizeString, MapRootId, InParentId, InPropertyNameBuilder);
 			
-			for (FScriptMapHelper::FIterator It(Helper); It; ++It)
+			int32 Num = Helper.Num();
+			int32 MapIndex = 0;
+			for (int32 DynamicIndex = 0; Num; ++DynamicIndex)
 			{
-				int32 MapEntryId = ++InId;
-				FString KeyString = FString::Printf(TEXT("[%d]"), It.GetLogicalIndex());
-				FString TypeString = FString::Printf(TEXT("{%s, %s}"), *MapProperty->KeyProp->GetCPPType(), *MapProperty->ValueProp->GetCPPType());
+				if (Helper.IsValidIndex(DynamicIndex))
+				{
+					int32 MapEntryId = ++InId;
+					FString KeyString = FString::Printf(TEXT("[%d]"), MapIndex++);
+					FString TypeString = FString::Printf(TEXT("{%s, %s}"), *MapProperty->KeyProp->GetCPPType(), *MapProperty->ValueProp->GetCPPType());
 
-				// Build pair parent name id
-				FScopedPropertyName ScopedParentPairName(InPropertyNameBuilder);
-				ScopedParentPairName.Builder.AppendChar(TEXT('.'));
-				ScopedParentPairName.Builder.Append(KeyString);
+					// Build pair parent name id
+					FScopedPropertyName ScopedParentPairName(InPropertyNameBuilder);
+					ScopedParentPairName.Builder.AppendChar(TEXT('.'));
+					ScopedParentPairName.Builder.Append(KeyString);
+					
+					InFunction(TypeString, TEXT("{...}"), MapEntryId, MapRootId, InPropertyNameBuilder);
+					
+					const void* PairPtr = Helper.GetPairPtr(DynamicIndex);
 
-				InFunction(TypeString, TEXT("{...}"), MapEntryId, MapRootId, InPropertyNameBuilder);
+					IteratePropertiesRecursive(MapProperty->KeyProp, PairPtr, MapProperty->KeyProp->GetName(), InFunction, InId, MapEntryId, InPropertyNameBuilder);
 
-				const void* PairPtr = Helper.GetPairPtr(It);
+					IteratePropertiesRecursive(MapProperty->ValueProp, PairPtr, MapProperty->ValueProp->GetName(), InFunction, InId, MapEntryId, InPropertyNameBuilder);
 
-				IteratePropertiesRecursive(MapProperty->KeyProp, PairPtr, MapProperty->KeyProp->GetName(), InFunction, InId, MapEntryId, InPropertyNameBuilder);
-
-				IteratePropertiesRecursive(MapProperty->ValueProp, PairPtr, MapProperty->ValueProp->GetName(), InFunction, InId, MapEntryId, InPropertyNameBuilder);
+					--Num;
+				}
 			}
 		}
 		else if (const FSetProperty* SetProperty = CastField<FSetProperty>(InProperty))
@@ -166,12 +173,19 @@ namespace ObjectPropertyTrace
 			InFunction(InProperty->GetCPPType(), SizeString, SetRootId, InParentId, InPropertyNameBuilder);
 
 			// Trace container items
-			for (FScriptSetHelper::FIterator It(Helper); It; ++It)
+			int32 Num = Helper.Num();
+			int32 SetIndex = 0;
+			for (int32 DynamicIndex = 0; Num; ++DynamicIndex)
 			{
-				const void* ValuePtr = Helper.GetElementPtr(It);
-				FString KeyString = FString::Printf(TEXT("[%d]"), It.GetLogicalIndex());
+				if (Helper.IsValidIndex(DynamicIndex))
+				{
+					const void* ValuePtr = Helper.GetElementPtr(DynamicIndex);
+					FString KeyString = FString::Printf(TEXT("[%d]"), SetIndex++);
+					
+					IteratePropertiesRecursive(SetProperty->ElementProp, ValuePtr, KeyString, InFunction, InId, SetRootId, InPropertyNameBuilder);
 
-				IteratePropertiesRecursive(SetProperty->ElementProp, ValuePtr, KeyString, InFunction, InId, SetRootId, InPropertyNameBuilder);
+					--Num;
+				}
 			}
 		}
 		else if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
