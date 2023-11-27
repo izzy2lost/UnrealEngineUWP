@@ -111,6 +111,11 @@ bool UContextualAnimSceneActorComponent::IsOwnerLocallyControlled() const
 	return false;
 }
 
+bool UContextualAnimSceneActorComponent::IsInActiveScene() const
+{
+	return (Bindings.IsValid() && Bindings.FindBindingByActor(GetOwner()) != nullptr);
+}
+
 void UContextualAnimSceneActorComponent::PlayAnimation_Internal(UAnimSequenceBase* Animation, float StartTime, bool bSyncPlaybackTime)
 {
 	// Replaced TGuardValue with this one frame delay because for some reason, apparently random (needs more investigation), in standalone OnMontageBlendingOut event is queued instead of triggered inline, 

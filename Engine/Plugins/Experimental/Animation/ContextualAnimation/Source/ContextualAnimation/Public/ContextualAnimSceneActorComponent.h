@@ -180,6 +180,9 @@ public:
 
 	const FContextualAnimSceneBindings& GetBindings() const { return Bindings; };
 
+	UFUNCTION(BlueprintPure, Category = "Contextual Anim|Scene Actor Component")
+	bool IsInActiveScene() const;
+
 	/** Called when the actor owner of this component joins an scene */
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	void OnJoinedScene(const FContextualAnimSceneBindings& InBindings);
