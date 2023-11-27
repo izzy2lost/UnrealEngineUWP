@@ -77,7 +77,7 @@ bool UWorldPartitionSmartObjectCollectionBuilder::PreRun(UWorld* World, FPackage
 	TArray<USmartObjectComponent*> ExistingSOComponents;
 	FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, AActor::StaticClass(), [this, WorldPartition, &ExistingSOComponents](const FWorldPartitionActorDesc* ActorDesc)
 	{
-		if (ActorDesc->GetTags().Contains(UE::SmartObjects::WithSmartObjectTag)
+		if (ActorDesc->GetTags().Contains(UE::SmartObject::WithSmartObjectTag)
 			&& ActorDesc->GetDataLayers().Num() > 0)
 		{
 			FWorldPartitionReference& ActorReference = SmartObjectReferences.Emplace_GetRef(WorldPartition, ActorDesc->GetGuid());

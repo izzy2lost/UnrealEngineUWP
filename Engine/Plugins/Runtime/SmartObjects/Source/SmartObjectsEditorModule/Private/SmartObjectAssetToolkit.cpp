@@ -81,7 +81,7 @@ public:
 };
 
 
-namespace UE::SmartObjects::Editor
+namespace UE::SmartObject::Editor
 {
 TSharedPtr<FSmartObjectOutlinerItem> FindItem(const FGuid ItemToFind, TConstArrayView<TSharedPtr<FSmartObjectOutlinerItem>> Items)
 {
@@ -120,7 +120,7 @@ void FlattenItemList(TArray<TSharedPtr<FSmartObjectOutlinerItem>>& InItems, TArr
 	}
 	InItems.Reset();
 }
-}; // UE::SmartObjects::Editor
+}; // UE::SmartObject::Editor
 
 //----------------------------------------------------------------------//
 // FSmartObjectAssetToolkit
@@ -691,7 +691,7 @@ void FSmartObjectAssetToolkit::HandleSelectionChanged(TConstArrayView<FGuid> InS
 	Selection.Reserve(InSelection.Num());
 	for (const FGuid& Item : InSelection)
 	{
-		TSharedPtr<FSmartObjectOutlinerItem> OutlinerItem = UE::SmartObjects::Editor::FindItem(Item, ItemList);
+		TSharedPtr<FSmartObjectOutlinerItem> OutlinerItem = UE::SmartObject::Editor::FindItem(Item, ItemList);
 		if (OutlinerItem.IsValid())
 		{
 			Selection.Add(OutlinerItem);
@@ -928,7 +928,7 @@ void FSmartObjectAssetToolkit::UpdateItemList()
 
 	// Flatten old items to make it easy to reuse them.
 	TArray<TSharedPtr<FSmartObjectOutlinerItem>> OldItemList;
-	UE::SmartObjects::Editor::FlattenItemList(ItemList, OldItemList);
+	UE::SmartObject::Editor::FlattenItemList(ItemList, OldItemList);
 
 	// Creates item by recycling old items. Recycling allows selections to persist across updates.
 	auto CreateItem = [&OldItemList](const FGuid ID, const ESmartObjectSlotItemType Type, TSharedPtr<FSmartObjectOutlinerItem> Parent) -> TSharedPtr<FSmartObjectOutlinerItem>

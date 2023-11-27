@@ -17,7 +17,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectPersistentCollection)
 
-namespace UE::SmartObjects
+namespace UE::SmartObject
 {
 	struct FEntryFinder
 	{
@@ -255,7 +255,7 @@ FSmartObjectCollectionEntry* FSmartObjectContainer::AddSmartObject(USmartObjectC
 	}
 	else if (SOComponent.GetRegisteredHandle().IsValid())
 	{
-		FSmartObjectCollectionEntry* Entry = CollectionEntries.FindByPredicate(UE::SmartObjects::FEntryFinder(SOComponent.GetRegisteredHandle()));
+		FSmartObjectCollectionEntry* Entry = CollectionEntries.FindByPredicate(UE::SmartObject::FEntryFinder(SOComponent.GetRegisteredHandle()));
 		
 		UE_CVLOG_UELOG(Entry == nullptr, Owner, LogSmartObject, Warning, TEXT("%s: Attempting to add '%s' to collection '%s', but it already seems registered with a different container. Adding a single SmartObjectComponent to multiple collections is not supported.")
 			, ANSI_TO_TCHAR(__FUNCTION__), *GetFullNameSafe(&SOComponent), *GetFullNameSafe(Owner));
@@ -273,7 +273,7 @@ FSmartObjectCollectionEntry* FSmartObjectContainer::AddSmartObject(USmartObjectC
 		ensureMsgf(*ExistingSmartObjectPath == SmartObjectPath, TEXT("There's already an entry for a given handle that points to a different SmartObject. New SmartObject %s, Existing one %s")
 			, *ExistingSmartObjectPath->ToString(), *SmartObjectPath.ToString());
 
-		FSmartObjectCollectionEntry* Entry = CollectionEntries.FindByPredicate(UE::SmartObjects::FEntryFinder(Handle));
+		FSmartObjectCollectionEntry* Entry = CollectionEntries.FindByPredicate(UE::SmartObject::FEntryFinder(Handle));
 
 		if (ensureMsgf(Entry, TEXT("An Entry is expected to be found since the handle has already been found in the RegisteredIdToObjectMap")))
 		{
@@ -346,7 +346,7 @@ bool FSmartObjectContainer::UpdateSmartObject(const USmartObjectComponent& SOCom
 		return false;
 	}
 
-	FSmartObjectCollectionEntry* UpdatedEntry = CollectionEntries.FindByPredicate(UE::SmartObjects::FEntryFinder(SOHandle));
+	FSmartObjectCollectionEntry* UpdatedEntry = CollectionEntries.FindByPredicate(UE::SmartObject::FEntryFinder(SOHandle));
 
 	if (!ensureMsgf(UpdatedEntry, TEXT("FSmartObjectContainer.RegisteredIdToObjectMap contains the handle, but there's no entry for it. This is pretty serious.")))
 	{
@@ -691,7 +691,7 @@ void ASmartObjectPersistentCollection::AppendToCollection(const TConstArrayView<
 				UE_VLOG_UELOG(Owner, LogSmartObject, Warning, TEXT("%s: found '%s' duplicates while adding component array to %s.")
 					, ANSI_TO_TCHAR(__FUNCTION__), *GetFullNameSafe(Component), *GetFullName());
 			}
-			else if (SmartObjectContainer.CollectionEntries.ContainsByPredicate(UE::SmartObjects::FEntryFinder(Component->GetRegisteredHandle())))
+			else if (SmartObjectContainer.CollectionEntries.ContainsByPredicate(UE::SmartObject::FEntryFinder(Component->GetRegisteredHandle())))
 			{
 				// When populated by World building commandlet same actor can be loaded multiple time so simply use a verbose log when it happens
 				UE_VLOG_UELOG(Owner, LogSmartObject, Verbose, TEXT("%s: Attempting to add '%s' to collection '%s', but it has already been added previously.")

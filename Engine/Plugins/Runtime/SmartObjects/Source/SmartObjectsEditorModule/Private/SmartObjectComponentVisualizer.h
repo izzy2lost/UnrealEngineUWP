@@ -32,11 +32,11 @@ struct SMARTOBJECTSEDITORMODULE_API HSmartObjectItemProxy : public HComponentVis
 /**
  * Helper functions to draw Smart Object definition visualization.
  */
-namespace UE::SmartObjects::Editor
+namespace UE::SmartObject::Editor
 {
 	void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FPrimitiveDrawInterface& PDI, const UWorld& World, const AActor* PreviewActor);
 	void DrawCanvas(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FCanvas& Canvas, const UWorld& World, const AActor* PreviewActor);
-}; // UE::SmartObjects::Editor
+}; // UE::SmartObject::Editor
 
 
 /**

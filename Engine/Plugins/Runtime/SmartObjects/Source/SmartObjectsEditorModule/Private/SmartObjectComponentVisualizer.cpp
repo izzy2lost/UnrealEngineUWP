@@ -12,7 +12,7 @@
 IMPLEMENT_HIT_PROXY(HSmartObjectItemProxy, HComponentVisProxy);
 
 
-namespace UE::SmartObjects::Editor
+namespace UE::SmartObject::Editor
 {
 
 void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selection, const FTransform& OwnerLocalToWorld, const FSceneView& View, FPrimitiveDrawInterface& PDI, const UWorld& World, const AActor* PreviewActor)
@@ -158,7 +158,7 @@ void DrawCanvas(const USmartObjectDefinition& Definition, TConstArrayView<FGuid>
 	}
 }
 
-}; // UE::SmartObjects::Editor
+}; // UE::SmartObject::Editor
 
 void FSmartObjectComponentVisualizer::DrawVisualization( const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI )
 {
@@ -181,7 +181,7 @@ void FSmartObjectComponentVisualizer::DrawVisualization( const UActorComponent* 
 
 	const FTransform OwnerLocalToWorld = SOComp->GetComponentTransform();
 
-	UE::SmartObjects::Editor::Draw(*Definition, {}, OwnerLocalToWorld, *View, *PDI, *Component->GetWorld(), Component->GetOwner());
+	UE::SmartObject::Editor::Draw(*Definition, {}, OwnerLocalToWorld, *View, *PDI, *Component->GetWorld(), Component->GetOwner());
 }
 
 
@@ -206,5 +206,5 @@ void FSmartObjectComponentVisualizer::DrawVisualizationHUD(const UActorComponent
 
 	const FTransform OwnerLocalToWorld = SOComp->GetComponentTransform();
 
-	UE::SmartObjects::Editor::DrawCanvas(*Definition, {}, OwnerLocalToWorld, *View, *Canvas, *Component->GetWorld(), Component->GetOwner());
+	UE::SmartObject::Editor::DrawCanvas(*Definition, {}, OwnerLocalToWorld, *View, *Canvas, *Component->GetWorld(), Component->GetOwner());
 }

@@ -21,7 +21,7 @@ class USmartObjectSlotValidationFilter;
 
 SMARTOBJECTSMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogSmartObject, Warning, All);
 
-namespace UE::SmartObjects
+namespace UE::SmartObject
 {
 #if WITH_EDITORONLY_DATA
 	inline const FName WithSmartObjectTag = FName("WithSmartObject");

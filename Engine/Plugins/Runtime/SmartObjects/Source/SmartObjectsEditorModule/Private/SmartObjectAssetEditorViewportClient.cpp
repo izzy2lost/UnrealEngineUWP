@@ -45,7 +45,7 @@ void FSmartObjectAssetEditorViewportClient::Draw(const FSceneView* View, FPrimit
 		// Draw slots and annotations.
 		if (const USmartObjectDefinition* Definition = SmartObjectDefinition.Get())
 		{
-			UE::SmartObjects::Editor::Draw(*Definition, GetSelection(), FTransform::Identity, *View, *PDI, *PreviewScene->GetWorld(), PreviewActor.Get());
+			UE::SmartObject::Editor::Draw(*Definition, GetSelection(), FTransform::Identity, *View, *PDI, *PreviewScene->GetWorld(), PreviewActor.Get());
 		}
 
 		// Draw the object origin.
@@ -61,7 +61,7 @@ void FSmartObjectAssetEditorViewportClient::DrawCanvas(FViewport& InViewport, FS
 	// Draw slots and annotations.
 	if (const USmartObjectDefinition* Definition = SmartObjectDefinition.Get())
 	{
-		UE::SmartObjects::Editor::DrawCanvas(*Definition, GetSelection(), FTransform::Identity, View, Canvas, *PreviewScene->GetWorld(), PreviewActor.Get());
+		UE::SmartObject::Editor::DrawCanvas(*Definition, GetSelection(), FTransform::Identity, View, Canvas, *PreviewScene->GetWorld(), PreviewActor.Get());
 	}
 }
 

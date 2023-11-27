@@ -40,9 +40,9 @@ void USmartObjectComponent::PostInitProperties()
 			// tagging owner actors since the tags get included in FWorldPartitionActorDesc 
 			// and that's the only way we can tell a given actor has a SmartObjectComponent 
 			// until it's fully loaded
-			if (Actor->Tags.Contains(UE::SmartObjects::WithSmartObjectTag) == false)
+			if (Actor->Tags.Contains(UE::SmartObject::WithSmartObjectTag) == false)
 			{
-				Actor->Tags.AddUnique(UE::SmartObjects::WithSmartObjectTag);
+				Actor->Tags.AddUnique(UE::SmartObject::WithSmartObjectTag);
 				Actor->MarkPackageDirty();
 			}
 		}
