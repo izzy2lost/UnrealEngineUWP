@@ -570,11 +570,10 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				// handle set element
 				FSetProperty* SetProperty = CastField<FSetProperty>(CurrentState.Property);
 				FScriptSetHelper SetHelper(SetProperty, CurrentState.Data);
-				const int32 InternalIndex = SetHelper.FindInternalIndex(CurrentState.ArrayIndex);
-				if (InternalIndex != INDEX_NONE)
+				FProperty* Property = SetProperty->ElementProp;
+				if (SetHelper.IsValidIndex(CurrentState.ArrayIndex))
 				{
-					uint8* ElementPtr = SetHelper.GetElementPtr(InternalIndex);
-					FProperty* Property = SetProperty->ElementProp;
+					uint8* ElementPtr = SetHelper.GetElementPtr(CurrentState.ArrayIndex);
 					constexpr int32 ReadIndex = 0; //Pointer is offset so reading index is 0
 					if (!Backend.ReadProperty(Property, CurrentState.Property, ElementPtr, ReadIndex))
 					{
@@ -595,13 +594,12 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				// handle map element
 				FMapProperty* MapProperty = CastField<FMapProperty>(CurrentState.Property);
 				FScriptMapHelper MapHelper(MapProperty, CurrentState.Data);
+				FProperty* Property = MapProperty->ValueProp;
 
 				//When written as array, maps won't include the key, only values
-				const int32 InternalIndex = MapHelper.FindInternalIndex(CurrentState.ArrayIndex);
-				if (InternalIndex != INDEX_NONE)
+				if (MapHelper.IsValidIndex(CurrentState.ArrayIndex))
 				{
-					uint8* PairPtr = MapHelper.GetPairPtr(InternalIndex);
-					FProperty* Property = MapProperty->ValueProp;
+					uint8* PairPtr = MapHelper.GetPairPtr(CurrentState.ArrayIndex);
 					constexpr int32 ReadIndex = 0; //Pointer is offset so reading index is 0
 					if (!Backend.ReadProperty(Property, CurrentState.Property, PairPtr, ReadIndex))
 					{
@@ -696,13 +694,12 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						FScriptSetHelper SetHelper(SetProperty, SetProperty->ContainerPtrToValuePtr<void>(CurrentState.Data));
 
 						//If a specific index is asked and it's not valid, skip the property
-						const int32 InternalIndex = SetHelper.FindInternalIndex(CurrentState.ArrayIndex);
-						if (InternalIndex != INDEX_NONE)
+						if (SetHelper.IsValidIndex(CurrentState.ArrayIndex))
 						{
 							Property = SetProperty->ElementProp;
 
 							//Offset the pointer directly and give index 0 to be read so no offsetting is done during deserialization
-							CurrentState.Data = SetHelper.GetElementPtr(InternalIndex);
+							CurrentState.Data = SetHelper.GetElementPtr(CurrentState.ArrayIndex);
 							CurrentState.ArrayIndex = 0;
 
 							if (!Backend.ReadProperty(Property, nullptr, CurrentState.Data, CurrentState.ArrayIndex))
@@ -727,13 +724,12 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						FScriptMapHelper MapHelper(MapProperty, MapProperty->ContainerPtrToValuePtr<void>(CurrentState.Data));
 
 						//If a specific index is asked and it's not valid, skip the property
-						const int32 InternalIndex = MapHelper.FindInternalIndex(CurrentState.ArrayIndex);
-						if (InternalIndex != INDEX_NONE)
+						if (MapHelper.IsValidIndex(CurrentState.ArrayIndex))
 						{
 							Property = MapProperty->ValueProp;
 
 							//Offset the pointer directly and give index 0 to be read so no offsetting is done during deserialization
-							CurrentState.Data = MapHelper.GetPairPtr(InternalIndex);
+							CurrentState.Data = MapHelper.GetPairPtr(CurrentState.ArrayIndex);
 							CurrentState.ArrayIndex = 0;
 
 							if (!Backend.ReadProperty(Property, nullptr, CurrentState.Data, CurrentState.ArrayIndex))
@@ -838,11 +834,10 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				if (FSetProperty* SetProperty = CastField<FSetProperty>(CurrentState.Property))
 				{
 					FScriptSetHelper SetHelper(SetProperty, CurrentState.Data);
-					const int32 InternalIndex = SetHelper.FindInternalIndex(CurrentState.ArrayIndex);
-					if (InternalIndex != INDEX_NONE)
+					if (SetHelper.IsValidIndex(CurrentState.ArrayIndex))
 					{
 						NewState.Property = SetProperty->ElementProp;
-						NewState.Data = SetHelper.GetElementPtr(InternalIndex);
+						NewState.Data = SetHelper.GetElementPtr(CurrentState.ArrayIndex);
 						NewState.ArrayIndex = 0;
 						++CurrentState.ArrayIndex;
 					}
@@ -857,11 +852,10 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				else if (FMapProperty* MapProperty = CastField<FMapProperty>(CurrentState.Property))
 				{
 					FScriptMapHelper MapHelper(MapProperty, CurrentState.Data);
-					const int32 InternalIndex = MapHelper.FindInternalIndex(CurrentState.ArrayIndex);
-					if (InternalIndex != INDEX_NONE)
+					if (MapHelper.IsValidIndex(CurrentState.ArrayIndex))
 					{
 						NewState.Property = MapProperty->ValueProp;
-						NewState.Data = MapHelper.GetValuePtr(InternalIndex);
+						NewState.Data = MapHelper.GetValuePtr(CurrentState.ArrayIndex);
 						NewState.ArrayIndex = 0;
 						++CurrentState.ArrayIndex;
 					}
@@ -937,15 +931,14 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 					if (FStructProperty* SetStructProperty = CastField<FStructProperty>(MapProperty->ValueProp))
 					{
 						FScriptMapHelper MapHelper(MapProperty, MapProperty->ContainerPtrToValuePtr<void>(CurrentState.Data));
-						
+
 						//If a specific index is asked and it's not valid, skip the property
-						const int32 InternalIndex = MapHelper.FindInternalIndex(CurrentState.ArrayIndex);
-						if (InternalIndex != INDEX_NONE)
+						if (MapHelper.IsValidIndex(CurrentState.ArrayIndex))
 						{
 							//We're skipping a level directly so CurrentState becomes the outer (set) and NewState the inner (Element prop)
 							CurrentState.Property = NewState.Property;
 							NewState.Property = SetStructProperty;
-							NewState.Data = MapHelper.GetValuePtr(InternalIndex);
+							NewState.Data = MapHelper.GetValuePtr(CurrentState.ArrayIndex);
 							NewState.ArrayIndex = 0;
 						}
 						else
@@ -963,15 +956,14 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 					if (FStructProperty* SetStructProperty = CastField<FStructProperty>(SetProperty->ElementProp))
 					{
 						FScriptSetHelper SetHelper(SetProperty, SetProperty->ContainerPtrToValuePtr<void>(CurrentState.Data));
-						const int32 InternalIndex = SetHelper.FindInternalIndex(CurrentState.ArrayIndex);
 
 						//If a specific index is asked and it's not valid, skip the property
-						if (InternalIndex != INDEX_NONE)
+						if (SetHelper.IsValidIndex(CurrentState.ArrayIndex))
 						{
 							//We're skipping a level directly so CurrentState becomes the outer (set) and NewState the inner (Element prop)
 							CurrentState.Property = NewState.Property;
 							NewState.Property = SetProperty->ElementProp;
-							NewState.Data = SetHelper.GetElementPtr(InternalIndex);
+							NewState.Data = SetHelper.GetElementPtr(CurrentState.ArrayIndex);
 							NewState.ArrayIndex = 0;
 						}
 						else

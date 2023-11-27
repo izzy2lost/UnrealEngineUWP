@@ -141,9 +141,9 @@ void AWaterBodyIsland::PostLoad()
 						if (FMapProperty* OldLayerWeightmapSettingsMapProperty = CastField<FMapProperty>(BPProperty))
 						{
 							FScriptMapHelper MapHelper(OldLayerWeightmapSettingsMapProperty, OldLayerWeightmapSettingsMapProperty->ContainerPtrToValuePtr<void>(this));
-							for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+							for (int32 I = 0; I < MapHelper.Num(); ++I)
 							{
-								uint8* PairPtr = MapHelper.GetPairPtr(It);
+								uint8* PairPtr = MapHelper.GetPairPtr(I);
 								const FName* Key = MapHelper.GetKeyProperty()->ContainerPtrToValuePtr<FName>(PairPtr);
 								const FWaterBodyWeightmapSettings* Value = MapHelper.GetValueProperty()->ContainerPtrToValuePtr<FWaterBodyWeightmapSettings>(PairPtr);
 								WaterWeightmapSettings.FindOrAdd(*Key) = *Value;

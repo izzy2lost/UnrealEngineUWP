@@ -495,11 +495,14 @@ TSharedPtr<FJsonValue> FEditorConfig::WriteSet(const FSetProperty* SetProperty, 
 	TArray<TSharedPtr<FJsonValue>> JsonValuesArray;
 	JsonValuesArray.Reserve(SetHelper.Num());
 
-	for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+	for (int32 Idx = 0; Idx < SetHelper.Num(); ++Idx)
 	{
-		TSharedPtr<FJsonValue> ElementValue = WriteValue(InnerProperty, SetHelper.GetElementPtr(It), nullptr);
-		check(ElementValue.IsValid());
-		JsonValuesArray.Add(ElementValue);
+		if (SetHelper.IsValidIndex(Idx))
+		{
+			TSharedPtr<FJsonValue> ElementValue = WriteValue(InnerProperty, SetHelper.GetElementPtr(Idx), nullptr);
+			check(ElementValue.IsValid());
+			JsonValuesArray.Add(ElementValue);
+		}
 	}
 
 	return MakeShared<FJsonValueArray>(JsonValuesArray);
@@ -526,15 +529,18 @@ TSharedPtr<FJsonValue> FEditorConfig::WriteMap(const FMapProperty* MapProperty, 
 		TArray<TSharedPtr<FJsonValue>> JsonValuesArray;
 		JsonValuesArray.Reserve(MapHelper.Num());
 
-		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+		for (int32 Idx = 0; Idx < MapHelper.Num(); ++Idx)
 		{
-			TSharedPtr<FJsonValue> JsonKey = WriteValue(KeyProperty, MapHelper.GetKeyPtr(It), nullptr);
-			check(JsonKey.IsValid());
-			JsonKeysArray.Add(JsonKey);
+			if (MapHelper.IsValidIndex(Idx))
+			{
+				TSharedPtr<FJsonValue> JsonKey = WriteValue(KeyProperty, MapHelper.GetKeyPtr(Idx), nullptr);
+				check(JsonKey.IsValid());
+				JsonKeysArray.Add(JsonKey);
 
-			TSharedPtr<FJsonValue> JsonValue = WriteValue(ValueProperty, MapHelper.GetValuePtr(It), nullptr);
-			check(JsonValue.IsValid());
-			JsonValuesArray.Add(JsonValue);
+				TSharedPtr<FJsonValue> JsonValue = WriteValue(ValueProperty, MapHelper.GetValuePtr(Idx), nullptr);
+				check(JsonValue.IsValid());
+				JsonValuesArray.Add(JsonValue);
+			}
 		}
 
 		// maps can either be stored as $key, $value pairs or, if the keys can be stringified, as a JSON object

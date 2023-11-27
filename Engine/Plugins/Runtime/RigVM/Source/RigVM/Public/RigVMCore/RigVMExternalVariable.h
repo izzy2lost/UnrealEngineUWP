@@ -218,10 +218,10 @@ struct RIGVM_API FRigVMExternalVariable : public FRigVMExternalVariableDef
 		{
 			FScriptMapHelper MapHelper(MapProperty, InMemory);
 			int32 Hash = ::GetTypeHash(MapHelper.Num());
-			for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
+			for (int32 Index = 0; Index < MapHelper.Num(); Index++)
 			{
-				Hash = HashCombine(Hash, GetPropertyTypeHash(MapProperty->KeyProp, MapHelper.GetKeyPtr(It)));
-				Hash = HashCombine(Hash, GetPropertyTypeHash(MapProperty->ValueProp, MapHelper.GetValuePtr(It)));
+				Hash = HashCombine(Hash, GetPropertyTypeHash(MapProperty->KeyProp, MapHelper.GetKeyPtr(Index)));
+				Hash = HashCombine(Hash, GetPropertyTypeHash(MapProperty->ValueProp, MapHelper.GetValuePtr(Index)));
 			}
 			return Hash;
 		}
@@ -229,9 +229,9 @@ struct RIGVM_API FRigVMExternalVariable : public FRigVMExternalVariableDef
 		{
 			FScriptSetHelper SetHelper(SetProperty, InMemory);
 			int32 Hash = ::GetTypeHash(SetHelper.Num());
-			for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+			for (int32 Index = 0; Index < SetHelper.Num(); Index++)
 			{
-				Hash = HashCombine(Hash, GetPropertyTypeHash(SetProperty->ElementProp, SetHelper.GetElementPtr(It)));
+				Hash = HashCombine(Hash, GetPropertyTypeHash(SetProperty->ElementProp, SetHelper.GetElementPtr(Index)));
 			}
 			return Hash;
 		}

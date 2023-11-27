@@ -252,14 +252,17 @@ struct FUnversionedPropertyTest : public FUnversionedPropertyTestInput
 			return false;
 		}
 
-		for (FScriptSetHelper::FIterator It(HelperA); It; ++It)
+		for (int32 Num = HelperA.Num(), IndexA = 0; IndexA < Num; ++IndexA)
 		{
-			const uint8* ElemA = HelperA.GetElementPtr(It);
-			const uint8* ElemB = FindElementPtr(HelperB, ElemA, OutDiff);
-
-			if (!ElemB)
+			if (HelperA.IsValidIndex(IndexA))
 			{
-				return false;
+				const uint8* ElemA = HelperA.GetElementPtr(IndexA);
+				const uint8* ElemB = FindElementPtr(HelperB, ElemA, OutDiff);
+		
+				if (!ElemB)
+				{
+					return false;
+				} 
 			}
 		}
 
@@ -288,19 +291,22 @@ struct FUnversionedPropertyTest : public FUnversionedPropertyTestInput
 			return false;
 		}
 		
-		for (FScriptMapHelper::FIterator It(HelperA); It; ++It)
+		for (int32 Num = HelperA.Num(), IndexA = 0; IndexA < Num; ++IndexA)
 		{
-			const uint8* PairA = HelperA.GetPairPtr(It);
-			const uint8* PairB = FindPairPtr(HelperB, PairA, OutDiff);
-
-			if (!PairB)
+			if (HelperA.IsValidIndex(IndexA))
 			{
-				return false;
-			}
+				const uint8* PairA = HelperA.GetPairPtr(IndexA);
+				const uint8* PairB = FindPairPtr(HelperB, PairA, OutDiff);
+		
+				if (!PairB)
+				{
+					return false;
+				} 
 
-			if (!Equals(ValueProp, PairA + ValueOffset, PairB + ValueOffset, OutDiff))
-			{
-				return false;
+				if (!Equals(ValueProp, PairA + ValueOffset, PairB + ValueOffset, OutDiff))
+				{
+					return false;
+				}
 			}
 		}
 

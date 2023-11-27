@@ -194,11 +194,26 @@ bool ReKeyTextProperty(UStruct* InOuterType, void* InAddrToUpdate, const TArray<
 
 						FScriptMapHelper ScriptMapHelper(MapProp, AddrToUpdate);
 
-						// ContainerIndex is the element index, but we need the sparse index which is computed by the iterator.
-						const int32 InternalIndex = ScriptMapHelper.FindInternalIndex(ContainerIndex);
-						if (InternalIndex != INDEX_NONE)
+						// ContainerIndex is the element index, but we need the sparse index
+						int32 SparseIndex = 0;
 						{
-							AddrToUpdate = ScriptMapHelper.GetPairPtr(InternalIndex) + MapProp->MapLayout.ValueOffset;
+							const int32 ElementCount = ScriptMapHelper.Num();
+							for (int32 ElementIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
+							{
+								if (ScriptMapHelper.IsValidIndex(SparseIndex))
+								{
+									if (ElementIndex == ContainerIndex)
+									{
+										break;
+									}
+									++ElementIndex;
+								}
+							}
+						}
+
+						if (ScriptMapHelper.IsValidIndex(SparseIndex))
+						{
+							AddrToUpdate = ScriptMapHelper.GetPairPtr(SparseIndex) + MapProp->MapLayout.ValueOffset;
 
 							// Is this a complex property? If so, we need to recurse into it
 							if (FStructProperty* StructProp = CastField<FStructProperty>(MapProp->ValueProp))
@@ -216,11 +231,26 @@ bool ReKeyTextProperty(UStruct* InOuterType, void* InAddrToUpdate, const TArray<
 
 						FScriptSetHelper ScriptSetHelper(SetProp, AddrToUpdate);
 
-						// ContainerIndex is the element index, but we need the sparse index which is computed by the iterator.
-						const int32 InternalIndex = ScriptSetHelper.FindInternalIndex(ContainerIndex);
-						if (InternalIndex != INDEX_NONE)
+						// ContainerIndex is the element index, but we need the sparse index
+						int32 SparseIndex = 0;
 						{
-							AddrToUpdate = ScriptSetHelper.GetElementPtr(InternalIndex);
+							const int32 ElementCount = ScriptSetHelper.Num();
+							for (int32 ElementIndex = 0; ElementIndex < ElementCount; ++SparseIndex)
+							{
+								if (ScriptSetHelper.IsValidIndex(SparseIndex))
+								{
+									if (ElementIndex == ContainerIndex)
+									{
+										break;
+									}
+									++ElementIndex;
+								}
+							}
+						}
+
+						if (ScriptSetHelper.IsValidIndex(SparseIndex))
+						{
+							AddrToUpdate = ScriptSetHelper.GetElementPtr(SparseIndex);
 
 							// Is this a complex property? If so, we need to recurse into it
 							if (FStructProperty* StructProp = CastField<FStructProperty>(SetProp->ElementProp))
@@ -240,12 +270,9 @@ bool ReKeyTextProperty(UStruct* InOuterType, void* InAddrToUpdate, const TArray<
 						AddrToUpdate = MangledPropToUpdate->ContainerPtrToValuePtr<void>(AddrToUpdate);
 
 						FScriptMapHelper ScriptMapHelper(MapProp, AddrToUpdate);
-
-						// ContainerIndex is the element index, but we need the sparse index to get the element.
-						const int32 InternalIndex = ScriptMapHelper.FindInternalIndex(ContainerIndex);
-						if (InternalIndex != INDEX_NONE)
+						if (ScriptMapHelper.IsValidIndex(ContainerIndex))
 						{
-							AddrToUpdate = ScriptMapHelper.GetPairPtr(InternalIndex);
+							AddrToUpdate = ScriptMapHelper.GetPairPtr(ContainerIndex);
 
 							// Is this a complex property? If so, we need to recurse into it
 							if (FStructProperty* StructProp = CastField<FStructProperty>(MapProp->KeyProp))

@@ -107,13 +107,18 @@ TSharedPtr<FJsonValue> ConvertScalarFPropertyToJsonValue(FProperty* Property, co
 	{
 		TArray< TSharedPtr<FJsonValue> > Out;
 		FScriptSetHelper Helper(SetProperty, Value);
-		for (FScriptSetHelper::FIterator It(Helper); It; ++It)
+		for ( int32 i=0, n=Helper.Num(); n; ++i )
 		{
-			TSharedPtr<FJsonValue> Elem = FJsonObjectConverter::UPropertyToJsonValue(SetProperty->ElementProp, Helper.GetElementPtr(It), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, SetProperty);
-			if (Elem.IsValid())
+			if ( Helper.IsValidIndex(i) )
 			{
-				// add to the array
-				Out.Push(Elem);
+				TSharedPtr<FJsonValue> Elem = FJsonObjectConverter::UPropertyToJsonValue(SetProperty->ElementProp, Helper.GetElementPtr(i), CheckFlags & ( ~CPF_ParmFlags ), SkipFlags, ExportCb, SetProperty);
+				if ( Elem.IsValid() )
+				{
+					// add to the array
+					Out.Push(Elem);
+				}
+
+				--n;
 			}
 		}
 		return MakeShared<FJsonValueArray>(Out);
@@ -123,33 +128,38 @@ TSharedPtr<FJsonValue> ConvertScalarFPropertyToJsonValue(FProperty* Property, co
 		TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
 
 		FScriptMapHelper Helper(MapProperty, Value);
-		for (FScriptMapHelper::FIterator It(Helper); It; ++It)
+		for ( int32 i=0, n = Helper.Num(); n; ++i )
 		{
-			TSharedPtr<FJsonValue> KeyElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->KeyProp, Helper.GetKeyPtr(It), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, MapProperty, ConversionFlags);
-			TSharedPtr<FJsonValue> ValueElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->ValueProp, Helper.GetValuePtr(It), CheckFlags & (~CPF_ParmFlags), SkipFlags, ExportCb, MapProperty, ConversionFlags);
-			if (KeyElement.IsValid() && ValueElement.IsValid())
+			if ( Helper.IsValidIndex(i) )
 			{
-				FString KeyString;
-				if (!KeyElement->TryGetString(KeyString))
+				TSharedPtr<FJsonValue> KeyElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->KeyProp, Helper.GetKeyPtr(i), CheckFlags & ( ~CPF_ParmFlags ), SkipFlags, ExportCb, MapProperty, ConversionFlags);
+				TSharedPtr<FJsonValue> ValueElement = FJsonObjectConverter::UPropertyToJsonValue(MapProperty->ValueProp, Helper.GetValuePtr(i), CheckFlags & ( ~CPF_ParmFlags ), SkipFlags, ExportCb, MapProperty, ConversionFlags);
+				if ( KeyElement.IsValid() && ValueElement.IsValid() )
 				{
-					MapProperty->KeyProp->ExportTextItem_Direct(KeyString, Helper.GetKeyPtr(It), nullptr, nullptr, 0);
-					if (KeyString.IsEmpty())
+					FString KeyString;
+					if (!KeyElement->TryGetString(KeyString))
 					{
-						UE_LOG(LogJson, Error, TEXT("Unable to convert key to string for property %s."), *MapProperty->GetAuthoredName())
-						KeyString = FString::Printf(TEXT("Unparsed Key %d"), It.GetLogicalIndex());
+						MapProperty->KeyProp->ExportTextItem_Direct(KeyString, Helper.GetKeyPtr(i), nullptr, nullptr, 0);
+						if (KeyString.IsEmpty())
+						{
+							UE_LOG(LogJson, Error, TEXT("Unable to convert key to string for property %s."), *MapProperty->GetAuthoredName())
+							KeyString = FString::Printf(TEXT("Unparsed Key %d"), i);
+						}
 					}
+
+					// Coerce camelCase map keys for Enum/FName properties
+					if (CastField<FEnumProperty>(MapProperty->KeyProp) ||
+						CastField<FNameProperty>(MapProperty->KeyProp))
+					{
+						if (!EnumHasAnyFlags(ConversionFlags, EJsonObjectConversionFlags::SkipStandardizeCase))
+						{
+							KeyString = FJsonObjectConverter::StandardizeCase(KeyString);
+						}
+					}
+					Out->SetField(KeyString, ValueElement);
 				}
 
-				// Coerce camelCase map keys for Enum/FName properties
-				if (CastField<FEnumProperty>(MapProperty->KeyProp) ||
-					CastField<FNameProperty>(MapProperty->KeyProp))
-				{
-					if (!EnumHasAnyFlags(ConversionFlags, EJsonObjectConversionFlags::SkipStandardizeCase))
-					{
-						KeyString = FJsonObjectConverter::StandardizeCase(KeyString);
-					}
-				}
-				Out->SetField(KeyString, ValueElement);
+				--n;
 			}
 		}
 

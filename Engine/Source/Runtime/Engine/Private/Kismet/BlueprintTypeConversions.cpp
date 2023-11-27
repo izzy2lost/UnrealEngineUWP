@@ -291,16 +291,18 @@ DEFINE_FUNCTION(UBlueprintTypeConversions::execConvertSetType)
 	FScriptSetHelper SourceSet(SourceSetProperty, SourceSetAddr);
 	FScriptSetHelper DestSet(DestSetProperty, DestSetAddr);
 
-	DestSet.EmptyElements(SourceSet.Num());
+	int SourceSetSize = SourceSet.Num();
+	DestSet.EmptyElements(SourceSetSize);
 
 	BlueprintTypeConversions::ConversionFunctionT ConversionFunction = 
 		BlueprintTypeConversions::Internal::FindConversionFunction(SourceSetProperty->ElementProp, DestSetProperty->ElementProp);
 	check(ConversionFunction);
 
-	for (FScriptSetHelper::FIterator It(SourceSet); It; ++It)
+	for (int i = 0; i < SourceSetSize; ++i)
 	{
-		const void* SrcData = SourceSet.GetElementPtr(It);
-		const int32 NewIndex = DestSet.AddDefaultValue_Invalid_NeedsRehash();
+		const void* SrcData = SourceSet.GetElementPtr(i);
+
+		int32 NewIndex = DestSet.AddDefaultValue_Invalid_NeedsRehash();
 		void* DestData = DestSet.GetElementPtr(NewIndex);
 		(*ConversionFunction)(SrcData, DestData);
 	}
@@ -325,18 +327,19 @@ DEFINE_FUNCTION(UBlueprintTypeConversions::execConvertMapType)
 	FScriptMapHelper SourceMap(SourceMapProperty, SourceMapAddr);
 	FScriptMapHelper DestMap(DestMapProperty, DestMapAddr);
 
-	DestMap.EmptyValues(SourceMap.Num());
+	int SourceMapSize = SourceMap.Num();
+	DestMap.EmptyValues(SourceMapSize);
 
 	BlueprintTypeConversions::ConversionFunctionT KeyConversionFunction = 
 		BlueprintTypeConversions::Internal::FindConversionFunction(SourceMapProperty->KeyProp, DestMapProperty->KeyProp);
 	BlueprintTypeConversions::ConversionFunctionT ValueConversionFunction = 
 		BlueprintTypeConversions::Internal::FindConversionFunction(SourceMapProperty->ValueProp, DestMapProperty->ValueProp);
 
-	for (FScriptMapHelper::FIterator It(SourceMap); It; ++It)
+	for (int i = 0; i < SourceMapSize; ++i)
 	{
-		const int32 NewIndex = DestMap.AddDefaultValue_Invalid_NeedsRehash();
+		int32 NewIndex = DestMap.AddDefaultValue_Invalid_NeedsRehash();
 
-		const void* SourceKeyRawData = SourceMap.GetKeyPtr(It);
+		const void* SourceKeyRawData = SourceMap.GetKeyPtr(i);
 		void* DestinationKeyRawData = DestMap.GetKeyPtr(NewIndex);
 
 		if (KeyConversionFunction)
@@ -348,7 +351,7 @@ DEFINE_FUNCTION(UBlueprintTypeConversions::execConvertMapType)
 			SourceMapProperty->KeyProp->CopySingleValue(DestinationKeyRawData, SourceKeyRawData);
 		}
 
-		const void* SourceValueRawData = SourceMap.GetValuePtr(It);
+		const void* SourceValueRawData = SourceMap.GetValuePtr(i);
 		void* DestinationValueRawData = DestMap.GetValuePtr(NewIndex);
 
 		if (ValueConversionFunction)
