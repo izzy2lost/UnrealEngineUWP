@@ -681,10 +681,10 @@ struct FPropertyAccessSystem
 		FScriptMapHelper DestinationMapHelper(DestinationMapProperty, DestinationAddress);
 
 		DestinationMapHelper.EmptyValues();
-		for (int32 i = 0; i < SourceMapHelper.Num(); ++i)
+		for (FScriptMapHelper::FIterator It(SourceMapHelper); It; ++It)
 		{
-			const void* KeyData = SourceMapHelper.GetKeyPtr(i);
-			const SourceType* SourceValueData = reinterpret_cast<const SourceType*>(SourceMapHelper.GetValuePtr(i));
+			const void* KeyData = SourceMapHelper.GetKeyPtr(It);
+			const SourceType* SourceValueData = reinterpret_cast<const SourceType*>(SourceMapHelper.GetValuePtr(It));
 			DestinationType CastedType = static_cast<DestinationType>(*SourceValueData);
 			DestinationMapHelper.AddPair(KeyData, &CastedType);
 		}

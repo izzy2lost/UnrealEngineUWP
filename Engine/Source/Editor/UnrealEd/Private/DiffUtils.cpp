@@ -505,63 +505,41 @@ FPropertyPath FPropertySoftPath::ResolvePath(const UObject* Object) const
 		}
 		else if( const FSetProperty* SetProperty = CastField<FSetProperty>(ResolvedProperty) )
 		{
-			if(PropertyIndex != INDEX_NONE)
+			FScriptSetHelper SetHelper(SetProperty, SetProperty->ContainerPtrToValuePtr<const void*>( ContainerAddress ));
+			if (SetHelper.IsValidIndex(PropertyIndex))
 			{
-				FScriptSetHelper SetHelper(SetProperty, SetProperty->ContainerPtrToValuePtr<const void*>( ContainerAddress ));
+				const int32 InternalIndex = SetHelper.FindInternalIndex(PropertyIndex);
+				UpdateContainerAddress( SetProperty->ElementProp, SetHelper.GetElementPtr(InternalIndex), ContainerAddress, ContainerStruct );
 
-				// Figure out the real index in this instance of the set (sets have gaps in them):
-				int32 RealIndex = -1;
-				for( int32 J = 0; PropertyIndex >= 0; ++J)
-				{
-					++RealIndex;
-					if(SetHelper.IsValidIndex(J))
-					{
-						--PropertyIndex;
-					}
-				}
-
-				UpdateContainerAddress( SetProperty->ElementProp, SetHelper.GetElementPtr(RealIndex), ContainerAddress, ContainerStruct );
-
-				FPropertyInfo SetInfo(SetProperty->ElementProp, RealIndex);
+				FPropertyInfo SetInfo(SetProperty->ElementProp, PropertyIndex);
 				Ret.AddProperty(SetInfo);
 			}
 		}
 		else if( const FMapProperty* MapProperty = CastField<FMapProperty>(ResolvedProperty) )
 		{
-			if(PropertyIndex != INDEX_NONE)
+			FScriptMapHelper MapHelper(MapProperty, MapProperty->ContainerPtrToValuePtr<const void*>( ContainerAddress ));
+			if (MapHelper.IsValidIndex(PropertyIndex))
 			{
-				FScriptMapHelper MapHelper(MapProperty, MapProperty->ContainerPtrToValuePtr<const void*>( ContainerAddress ));
-				
-				// Figure out the real index in this instance of the map (map have gaps in them):
-				int32 RealIndex = -1;
-				for( int32 J = 0; PropertyIndex >= 0; ++J)
-				{
-					++RealIndex;
-					if(MapHelper.IsValidIndex(J))
-					{
-						--PropertyIndex;
-					}
-				}
-
+				const int32 InternalIndex = MapHelper.FindInternalIndex(PropertyIndex);
 				// we have an index, but are we looking into a key or value? Peek ahead to find out:
-				if(ensure(I + 1 < PropertyChain.Num()))
+				if(ensure((I + 1 < PropertyChain.Num())))
 				{
 					if(PropertyChain[I+1].PropertyName == MapProperty->KeyProp->GetFName())
 					{
 						++I;
 
-						UpdateContainerAddress( MapProperty->KeyProp, MapHelper.GetKeyPtr(RealIndex), ContainerAddress, ContainerStruct );
+						UpdateContainerAddress( MapProperty->KeyProp, MapHelper.GetKeyPtr(InternalIndex), ContainerAddress, ContainerStruct );
 
-						FPropertyInfo MakKeyInfo(MapProperty->KeyProp, RealIndex);
+						FPropertyInfo MakKeyInfo(MapProperty->KeyProp, PropertyIndex);
 						Ret.AddProperty(MakKeyInfo);
 					}
 					else if(ensure( PropertyChain[I+1].PropertyName == MapProperty->ValueProp->GetFName() ))
 					{	
 						++I;
 
-						UpdateContainerAddress( MapProperty->ValueProp, MapHelper.GetValuePtr(RealIndex), ContainerAddress, ContainerStruct );
-						
-						FPropertyInfo MapValueInfo(MapProperty->ValueProp, RealIndex);
+						UpdateContainerAddress( MapProperty->ValueProp, MapHelper.GetValuePtr(InternalIndex), ContainerAddress, ContainerStruct );
+
+						FPropertyInfo MapValueInfo(MapProperty->ValueProp, PropertyIndex);
 						Ret.AddProperty(MapValueInfo);
 					}
 				}
@@ -798,25 +776,6 @@ void DiffUtils::CompareUnrelatedSCS(const UBlueprint* Old, const TArray< FSCSRes
 	}
 }
 
-static void AdvanceSetIterator( FScriptSetHelper& SetHelper, int32& Index)
-{
-	do
-	{
-		++Index;
-	}
-	while(Index < SetHelper.GetMaxIndex() && !SetHelper.IsValidIndex(Index));
-}
-
-static void AdvanceMapIterator( FScriptMapHelper& MapHelper, int32& Index)
-{
-	do
-	{
-		++Index;
-	}
-	while(Index < MapHelper.GetMaxIndex() && !MapHelper.IsValidIndex(Index));
-}
-
-
 static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProperty, const void* AValue, const void* BValue,
 	const UObject* OwningOuterA, const UObject* OwningOuterB, const FPropertySoftPath& RootPath,
 	TArray<FPropertySoftPath>& DifferingSubProperties, bool bStaticArrayHandled = false)
@@ -924,25 +883,14 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 			}
 
 			// note any differences in contained elements:
-			const int32 SetSizeA = SetHelperA.Num();
-			const int32 SetSizeB = SetHelperB.Num();
-			
-			int32 SetIndexA = -1;
-			int32 SetIndexB = -1;
-
-			AdvanceSetIterator(SetHelperA, SetIndexA);
-			AdvanceSetIterator(SetHelperB, SetIndexB);
-
-			for (int32 VirtualIndex = 0; VirtualIndex < SetSizeA && VirtualIndex < SetSizeB; ++VirtualIndex)
+			FScriptSetHelper::FIterator IteratorA(SetHelperA);
+			FScriptSetHelper::FIterator IteratorB(SetHelperB);
+			for (; IteratorA && IteratorB; ++IteratorA, ++IteratorB)
 			{
-				const void* SubValueA = SetHelperA.GetElementPtr(SetIndexA);
-				const void* SubValueB = SetHelperB.GetElementPtr(SetIndexB);
+				const void* SubValueA = SetHelperA.GetElementPtr(IteratorA);
+				const void* SubValueB = SetHelperB.GetElementPtr(IteratorB);
 				IdenticalHelper(APropAsSet->ElementProp, BPropAsSet->ElementProp, SubValueA, SubValueB,
-					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, VirtualIndex), DifferingSubProperties);
-
-				// advance iterators in step:
-				AdvanceSetIterator(SetHelperA, SetIndexA);
-				AdvanceSetIterator(SetHelperB, SetIndexB);
+					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, IteratorA.GetLogicalIndex()), DifferingSubProperties);
 			}
 		}
 		else
@@ -957,7 +905,6 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 		{
 			FScriptMapHelper MapHelperA(APropAsMap, AValue);
 			FScriptMapHelper MapHelperB(BPropAsMap, BValue);
-
 			if (MapHelperA.Num() != MapHelperB.Num())
 			{
 				// API not robust enough to indicate changes made to # of set elements, would
@@ -965,24 +912,15 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 				DifferingSubProperties.Push(RootPath);
 			}
 
-			int32 MapSizeA = MapHelperA.Num();
-			int32 MapSizeB = MapHelperB.Num();
-			
-			int32 MapIndexA = -1;
-			int32 MapIndexB = -1;
-
-			AdvanceMapIterator(MapHelperA, MapIndexA);
-			AdvanceMapIterator(MapHelperB, MapIndexB);
-			
-			for (int32 VirtualIndex = 0; VirtualIndex < MapSizeA && VirtualIndex < MapSizeB; ++VirtualIndex)
+			FScriptMapHelper::FIterator IteratorA(MapHelperA);
+			FScriptMapHelper::FIterator IteratorB(MapHelperB);
+			for (; IteratorA && IteratorB; ++IteratorA, ++IteratorB)
 			{
-				IdenticalHelper(APropAsMap->KeyProp, BPropAsMap->KeyProp, MapHelperA.GetKeyPtr(MapIndexA), MapHelperB.GetKeyPtr(MapIndexB),
-					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, VirtualIndex), DifferingSubProperties);
-				IdenticalHelper(APropAsMap->ValueProp, BPropAsMap->ValueProp, MapHelperA.GetValuePtr(MapIndexA), MapHelperB.GetValuePtr(MapIndexB),
-					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, VirtualIndex), DifferingSubProperties);
+				IdenticalHelper(APropAsMap->KeyProp, BPropAsMap->KeyProp, MapHelperA.GetKeyPtr(IteratorA), MapHelperB.GetKeyPtr(IteratorB),
+					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, IteratorA.GetLogicalIndex()), DifferingSubProperties);
+				IdenticalHelper(APropAsMap->ValueProp, BPropAsMap->ValueProp, MapHelperA.GetValuePtr(IteratorA), MapHelperB.GetValuePtr(IteratorB),
+					OwningOuterA, OwningOuterB, FPropertySoftPath(RootPath, IteratorA.GetLogicalIndex()), DifferingSubProperties);
 
-				AdvanceMapIterator(MapHelperA, MapIndexA);
-				AdvanceMapIterator(MapHelperB, MapIndexB);
 			}
 		}
 		else

@@ -4880,34 +4880,27 @@ template<EPropertyCollectFlags CollectFlags>
 static void CollectMapReferences(FReferenceCollector& Collector, FMapProperty& Property, void* Instance, const UObject* Referencer)
 {
 	FScriptMapHelper MapHelper(&Property, Instance);
-	const int32 Num = MapHelper.Num();
-	const bool bCollectKeys = MayContainStrongReference(*MapHelper.GetKeyProperty());
-	const bool bCollectValues = MayContainStrongReference(*MapHelper.GetValueProperty());
 
-	if (Num == 0)
+	if (MapHelper.Num() == 0)
 	{
-		return;	
+		return;
 	}
 
+	const bool bCollectKeys = MayContainStrongReference(*MapHelper.GetKeyProperty());
 	if (bCollectKeys)
 	{
-		for (int32 Idx = 0; Idx < Num; ++Idx)
+		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 		{
-			if (MapHelper.IsValidIndex(Idx))
-			{
-				CollectPropertyReferences<CollectFlags>(Collector, *MapHelper.GetKeyProperty(), MapHelper.GetPairPtr(Idx), Referencer);
-			}
+			CollectPropertyReferences<CollectFlags>(Collector, *MapHelper.GetKeyProperty(), MapHelper.GetPairPtr(It), Referencer);
 		}
 	}
 
+	const bool bCollectValues = MayContainStrongReference(*MapHelper.GetValueProperty());
 	if (bCollectValues)
 	{
-		for (int32 Idx = 0; Idx < Num; ++Idx)
+		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 		{
-			if (MapHelper.IsValidIndex(Idx))
-			{
-				CollectPropertyReferences<CollectFlags>(Collector, *MapHelper.GetValueProperty(), MapHelper.GetPairPtr(Idx), Referencer);
-			}
+			CollectPropertyReferences<CollectFlags>(Collector, *MapHelper.GetValueProperty(), MapHelper.GetPairPtr(It), Referencer);
 		}
 	}
 }
@@ -4918,12 +4911,9 @@ void CollectSetReferences(FReferenceCollector& Collector, FSetProperty& Property
 	FScriptSetHelper SetHelper(&Property, Instance);
 	if (MayContainStrongReference(*SetHelper.GetElementProperty()))
 	{
-		for (int32 Idx = 0, Num = SetHelper.Num(); Idx < Num; ++Idx)
-		{	
-			if (SetHelper.IsValidIndex(Idx))
-			{
-				CollectPropertyReferences<CollectFlags>(Collector, *SetHelper.GetElementProperty(), SetHelper.GetElementPtr(Idx), Referencer);
-			}
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
+		{
+			CollectPropertyReferences<CollectFlags>(Collector, *SetHelper.GetElementProperty(), SetHelper.GetElementPtr(It), Referencer);
 		}
 	}
 }
