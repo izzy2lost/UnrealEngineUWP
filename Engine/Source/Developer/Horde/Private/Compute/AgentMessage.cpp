@@ -211,6 +211,7 @@ void FAgentMessageChannel::CreateMessage(EAgentMessageType Type, size_t MaxLengt
 {
 	RequestData = ChannelBuffers->Writer.WaitToWrite(MessageHeaderLength + MaxLength);
 	RequestData[0] = (unsigned char)Type;
+	MaxRequestSize = MaxLength;
 }
 
 void FAgentMessageChannel::FlushMessage()
