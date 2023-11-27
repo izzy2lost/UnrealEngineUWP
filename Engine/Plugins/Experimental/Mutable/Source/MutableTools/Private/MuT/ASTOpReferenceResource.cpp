@@ -72,8 +72,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	FImageDesc ASTOpReferenceResource::GetImageDesc(bool, class FGetImageDescContext*) const
 	{
-		FImageDesc res;
-		return res;
+		return ImageDesc;
 	}
 
 

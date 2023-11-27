@@ -197,7 +197,9 @@ namespace mu
 			Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
 			ReferenceOp->type = OP_TYPE::IM_REFERENCE;
 			ReferenceOp->ID = pImage->GetReferencedTexture();
-			ReferenceOp->bForceLoad = pImage->IsForceLoad();
+			ReferenceOp->bForceLoad = pImage->IsForceLoad(); 
+			ReferenceOp->ImageDesc = FImageDesc(
+					FImageSize(pImage->GetSizeX(), pImage->GetSizeY()), pImage->GetFormat(), pImage->GetLODCount());
 			Result.op = ReferenceOp;
 		}
 		else
