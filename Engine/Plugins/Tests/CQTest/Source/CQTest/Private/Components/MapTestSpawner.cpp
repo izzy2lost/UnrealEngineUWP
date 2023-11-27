@@ -10,8 +10,11 @@
 #include "Misc/Paths.h"
 #include "Editor.h"
 #include "HAL/FileManager.h"
+#include "LevelEditor.h"
 #include "LevelEditorSubsystem.h"
 #include "Tests/AutomationEditorCommon.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogMapTest, Log, All);
 
 namespace {
 
@@ -40,6 +43,13 @@ void CleanupTempResources()
 }
 
 } //anonymous
+
+FMapTestSpawner::FMapTestSpawner(const FString& MapDirectory, const FString& MapName) : MapDirectory(MapDirectory) , MapName(MapName)
+{
+	// Register Map Change Events
+	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	MapChangedHandle = LevelEditor.OnMapChanged().AddRaw(this, &FMapTestSpawner::OnMapChanged);
+}
 
 TUniquePtr<FMapTestSpawner> FMapTestSpawner::CreateFromTempLevel(FTestCommandBuilder& InCommandBuilder)
 {
@@ -92,6 +102,19 @@ UWorld* FMapTestSpawner::CreateWorld()
 APawn* FMapTestSpawner::FindFirstPlayerPawn()
 {
 	return GetWorld().GetFirstPlayerController()->GetPawn();
+}
+
+void FMapTestSpawner::OnMapChanged(UWorld* World, EMapChangeType ChangeType)
+{
+	if (PieWorld && ChangeType == EMapChangeType::TearDownWorld)
+	{
+		UE_LOG(LogMapTest, Verbose, TEXT("Map used by the Spawner has been changed."));
+		GameWorld = nullptr;
+		PieWorld = nullptr;
+
+		FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+		LevelEditor.OnMapChanged().Remove(MapChangedHandle);
+	}
 }
 
 #endif // ENABLE_MAPSPAWNER_TEST
