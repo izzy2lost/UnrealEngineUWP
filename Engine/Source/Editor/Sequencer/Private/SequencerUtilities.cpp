@@ -2558,7 +2558,7 @@ FGuid CreateGenericBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, 
 		FMovieScenePossessable* NewPossessable = OwnerMovieScene->FindPossessable(NewID);
 
 		// If the object is a spawnable, try and bind to that first
-		if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), CurrentObject, &Sequencer.Get()))
+		if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), CurrentObject, Sequencer->GetSharedPlaybackState()))
 		{
 			FUniversalObjectLocator Locator;
 			if (!OwnerSequence->MakeLocatorForObject(CurrentObject, Context, Locator) || Locator.IsEmpty())

@@ -442,7 +442,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 						}
 						else
 						{
-							Sequence->LocateBoundObjects(InGuid, ResolutionContext, FoundObjects);
+							Sequence->LocateBoundObjects(InGuid, UE::UniversalObjectLocator::FResolveParams(ResolutionContext), FoundObjects);
 						}
 					}
 					
@@ -485,7 +485,7 @@ void FMovieSceneObjectCache::UpdateBindings(const FGuid& InGuid, TSharedRef<cons
 					}
 					else
 					{
-						Sequence->LocateBoundObjects(InGuid, ResolutionContext, FoundObjects);
+						Sequence->LocateBoundObjects(InGuid, UE::UniversalObjectLocator::FResolveParams(ResolutionContext), FoundObjects);
 					}
 				}
 				
