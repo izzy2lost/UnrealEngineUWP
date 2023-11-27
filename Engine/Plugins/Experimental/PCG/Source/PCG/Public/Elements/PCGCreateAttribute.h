@@ -34,8 +34,14 @@ public:
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif // WITH_EDITOR
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
+
+protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override { return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic; }
+#endif
 	//~End UPCGSettings interface
 
+public:
 	virtual FName GetOutputAttributeName(const FPCGAttributePropertyInputSelector* InSource, const UPCGData* InSourceData) const PURE_VIRTUAL(UPCGCreateAttributeBaseSettings::GetOutputAttributeName, return NAME_None;);
 
 	// This can be set false by inheriting nodes to hide the 'From Source Param' property.
@@ -125,10 +131,15 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif // WITH_EDITOR
-
 	virtual FName AdditionalTaskName() const override;
+
+protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override { return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic; }
+#endif
 	//~End UPCGSettings interface
 
+public:
 	//~Begin UPCGCreateAttributeBaseSettings interface
 	virtual FName GetOutputAttributeName(const FPCGAttributePropertyInputSelector* InSource, const UPCGData* InSourceData) const { return OutputTarget.CopyAndFixSource(InSource, InSourceData).GetName(); }
 	//~End UPCGCreateAttributeBaseSettings interface
@@ -166,8 +177,14 @@ public:
 	virtual bool HasDynamicPins() const override { return false; }
 #endif
 	virtual FName AdditionalTaskName() const override;
+
+protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override { return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic; }
+#endif
 	//~End UPCGSettings interface
 
+public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_DiscardPropertySelection, PCG_DiscardExtraSelection, PCG_Overridable))
 	FPCGAttributePropertyOutputNoSourceSelector OutputTarget;
 

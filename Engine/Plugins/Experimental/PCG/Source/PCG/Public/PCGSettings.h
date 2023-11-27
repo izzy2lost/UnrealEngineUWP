@@ -293,7 +293,7 @@ public:
 
 	/* Perform post-operations when an editor node is copied */
 	virtual void PostPaste();
-#endif
+#endif // WITH_EDITOR
 
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) {}
 
@@ -366,7 +366,12 @@ protected:
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	UE_DEPRECATED(5.4, "IsStructuralProperty is deprecated, return EPCGChangeType::Structural from GetChangeTypeForProperty instead.")
 	virtual bool IsStructuralProperty(const FName& InPropertyName) const { return false; }
+
+	/** Gets the change impact for a given property. Can be used to signal structural or cosmetic node changes for example. */
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const;
 
 	/** Method that can be called to dirty the cache data from this settings objects if the operator== does not allow to detect changes */
 	void DirtyCache();

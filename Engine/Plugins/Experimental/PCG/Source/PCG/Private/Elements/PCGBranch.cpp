@@ -27,6 +27,20 @@ FText UPCGBranchSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("NodeTooltip", "Control flow node that will route the input to either Output A or Output B, based on the 'Output To B' property - which can also be overridden.");
 }
+
+EPCGChangeType UPCGBranchSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic;
+
+	// Grid sizes are processed during graph compilation and is part of the graph structure.
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bEnabled)
+		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
+}
 #endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGBranchSettings::OutputPinProperties() const
@@ -50,16 +64,6 @@ FPCGElementPtr UPCGBranchSettings::CreateElement() const
 {
 	return MakeShared<FPCGBranchElement>();
 }
-
-#if WITH_EDITOR
-bool UPCGBranchSettings::IsStructuralProperty(const FName& InPropertyName) const
-{
-	// Static branches are processed during graph compilation and are part of the graph structure.
-	return InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bEnabled)
-		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB)
-		|| Super::IsStructuralProperty(InPropertyName);
-}
-#endif
 
 bool UPCGBranchSettings::IsDynamicBranch() const
 {

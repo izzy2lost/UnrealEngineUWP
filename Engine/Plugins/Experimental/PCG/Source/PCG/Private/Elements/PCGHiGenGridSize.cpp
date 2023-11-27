@@ -96,11 +96,18 @@ FName UPCGHiGenGridSizeSettings::AdditionalTaskName() const
 }
 
 #if WITH_EDITOR
-bool UPCGHiGenGridSizeSettings::IsStructuralProperty(const FName& InPropertyName) const
+EPCGChangeType UPCGHiGenGridSizeSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic;
+
 	// Grid sizes are processed during graph compilation and is part of the graph structure.
-	return InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, bEnabled)
-		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, HiGenGridSize);
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, bEnabled)
+		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, HiGenGridSize))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
 }
 #endif
 

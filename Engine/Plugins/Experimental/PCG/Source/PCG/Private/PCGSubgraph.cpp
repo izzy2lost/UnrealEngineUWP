@@ -137,7 +137,7 @@ void UPCGBaseSubgraphSettings::PostEditUndo()
 
 void UPCGBaseSubgraphSettings::PreEditChange(FProperty* PropertyAboutToChange)
 {
-	if (PropertyAboutToChange && IsStructuralProperty(PropertyAboutToChange->GetFName()))
+	if (PropertyAboutToChange && !!(GetChangeTypeForProperty(PropertyAboutToChange->GetFName()) & EPCGChangeType::Structural))
 	{
 		TeardownCallbacks();
 	}
@@ -149,7 +149,7 @@ void UPCGBaseSubgraphSettings::PostEditChangeProperty(struct FPropertyChangedEve
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.Property && IsStructuralProperty(PropertyChangedEvent.Property->GetFName()))
+	if (PropertyChangedEvent.Property && !!(GetChangeTypeForProperty(PropertyChangedEvent.Property->GetFName()) & EPCGChangeType::Structural))
 	{
 		SetupCallbacks();
 	}
@@ -163,9 +163,16 @@ void UPCGBaseSubgraphSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettin
 	}
 }
 
-bool UPCGBaseSubgraphSettings::IsStructuralProperty(const FName& InPropertyName) const
+EPCGChangeType UPCGBaseSubgraphSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
-	return InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled) || Super::IsStructuralProperty(InPropertyName);
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic;
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
 }
 
 void UPCGBaseSubgraphSettings::OnSubgraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
@@ -321,10 +328,17 @@ UObject* UPCGSubgraphSettings::GetJumpTargetForDoubleClick() const
 	return Cast<UObject>(GetSubgraph());
 }
 
-bool UPCGSubgraphSettings::IsStructuralProperty(const FName& InPropertyName) const
+EPCGChangeType UPCGSubgraphSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
+
 	// Force structural if name is none. We are probably in a undo/redo situation
-	return (InPropertyName == NAME_None) || (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSubgraphSettings, SubgraphInstance)) || Super::IsStructuralProperty(InPropertyName);
+	if ((InPropertyName == NAME_None) || (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSubgraphSettings, SubgraphInstance)))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+
+	return ChangeType;
 }
 #endif
 

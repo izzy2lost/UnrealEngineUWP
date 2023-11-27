@@ -26,16 +26,16 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::HierarchicalGeneration; }
 	virtual bool HasDynamicPins() const override { return true; }
 #endif
+	virtual FName AdditionalTaskName() const override;
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
+#endif
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
-	virtual FName AdditionalTaskName() const override;
-#if WITH_EDITOR
-	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
-#endif
 	//~End UPCGSettings interface
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)

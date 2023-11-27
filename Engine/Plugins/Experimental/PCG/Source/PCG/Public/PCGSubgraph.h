@@ -46,10 +46,7 @@ protected:
 
 	//~Begin UPCGSettings interface
 	virtual void GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
-	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
-
-	void SetupCallbacks();
-	void TeardownCallbacks();
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
 #endif
 
 	TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -59,6 +56,9 @@ protected:
 	virtual void SetSubgraphInternal(UPCGGraphInterface* InGraph) {}
 
 #if WITH_EDITOR
+	void SetupCallbacks();
+	void TeardownCallbacks();
+
 	void OnSubgraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 #endif
 
@@ -101,6 +101,9 @@ public:
 	virtual FName AdditionalTaskName() const override;
 
 protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
+#endif
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface implementation
 
@@ -110,9 +113,6 @@ public:
 	virtual bool IsDynamicGraph() const override;
 protected:
 	virtual void SetSubgraphInternal(UPCGGraphInterface* InGraph) override;
-#if WITH_EDITOR
-	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
-#endif
 	//~End UPCGBaseSubgraphSettings interface
 
 public:

@@ -26,11 +26,11 @@ public:
 	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
 
 protected:
+#if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
+#endif
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
-#if WITH_EDITOR
-	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
-#endif
 	//~End UPCGSettings interface
 
 	/** Branch is dynamic if selection value is overridden / cannot be determined prior to execution. */

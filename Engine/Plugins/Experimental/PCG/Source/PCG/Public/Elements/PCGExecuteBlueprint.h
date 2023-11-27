@@ -318,6 +318,7 @@ public:
 protected:
 	virtual FPCGElementPtr CreateElement() const override;
 #if WITH_EDITOR
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override { return Super::GetChangeTypeForProperty(InPropertyName) | EPCGChangeType::Cosmetic; }
 	virtual TArray<FPCGSettingsOverridableParam> GatherOverridableParams() const override;
 #endif // WITH_EDITOR
 	virtual void FixingOverridableParamPropertyClass(FPCGSettingsOverridableParam& Param) const override;

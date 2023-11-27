@@ -238,12 +238,18 @@ void UPCGSpawnActorSettings::PostLoad()
 }
 
 #if WITH_EDITOR
-bool UPCGSpawnActorSettings::IsStructuralProperty(const FName& InPropertyName) const
+EPCGChangeType UPCGSpawnActorSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
-	return InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSpawnActorSettings, TemplateActorClass) || 
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSpawnActorSettings, TemplateActorClass) ||
 		InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSpawnActorSettings, Option) ||
-		InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSpawnActorSettings, bSpawnByAttribute) ||
-		Super::IsStructuralProperty(InPropertyName);
+		InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGSpawnActorSettings, bSpawnByAttribute))
+	{
+		ChangeType |= EPCGChangeType::Structural;
+	}
+	
+	return ChangeType;
 }
 #endif // WITH_EDITOR
 

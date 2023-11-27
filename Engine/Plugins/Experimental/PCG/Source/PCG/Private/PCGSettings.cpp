@@ -154,8 +154,8 @@ void UPCGSettingsInterface::SetEnabled(bool bInEnabled)
 #if WITH_EDITOR
 		if (UPCGSettings* Settings = GetSettings())
 		{
-			const bool bIsStructuralChange = Settings->IsStructuralProperty(GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled));
-			OnSettingsChangedDelegate.Broadcast(Settings, (bIsStructuralChange ? EPCGChangeType::Structural : EPCGChangeType::None) | EPCGChangeType::Settings);
+			const EPCGChangeType ChangeType = Settings->GetChangeTypeForProperty(GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled));
+			OnSettingsChangedDelegate.Broadcast(Settings, ChangeType);
 		}
 #endif
 	}
@@ -542,10 +542,17 @@ void UPCGSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 
 	if (PropertyChangedEvent.GetPropertyName() != GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings))
 	{
-		OnSettingsChangedDelegate.Broadcast(this, IsStructuralProperty(PropertyChangedEvent.GetPropertyName()) ? EPCGChangeType::Structural : EPCGChangeType::Settings);
+		OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(PropertyChangedEvent.GetPropertyName()));
 	}
 
 	CacheCrc();
+}
+
+EPCGChangeType UPCGSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return EPCGChangeType::Settings | (IsStructuralProperty(InPropertyName) ? EPCGChangeType::Structural : EPCGChangeType::None);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UPCGSettings::DirtyCache()

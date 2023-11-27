@@ -116,6 +116,9 @@ public:
 #endif
 
 protected:
+#if WITH_EDITOR	
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
+#endif
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return DefaultPointInputPinProperties(); }
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return DefaultPointOutputPinProperties(); }
 	virtual FPCGElementPtr CreateElement() const override;
@@ -131,7 +134,6 @@ public:
 
 protected:
 #if WITH_EDITOR
-	virtual bool IsStructuralProperty(const FName& InPropertyName) const override;
 	//~End UPCGBaseSubgraphSettings interface
 
 	void SetupBlueprintEvent();
