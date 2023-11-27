@@ -1,7 +1,7 @@
 {
 	"TargetPlatformName": "Linux",
 	"SharedLibraryExtension": "so",
-	"ModelCompilationCommand": "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Linux/x86_64/iree-compile",
+	"ModelCompilationCommand": "${PLUGIN_DIR}/Source/ThirdParty/IREE/Bin/Linux/iree-compile",
 	"ModelCompilationArguments": "--iree-input-type=auto --iree-llvmcpu-target-triple=x86_64-unknown-linux-gnu --iree-hal-target-backends=llvm-cpu --iree-llvmcpu-link-embedded=false --iree-llvmcpu-link-static --iree-llvmcpu-static-library-output-path=\"${OBJECT_PATH}\" --output-format=vm-bytecode -o \"${ADDITIONAL_OUTPUT_PATH}\" \"${INPUT_PATH}\"",
 	"SharedLibraryCompilationCommand": "${LINUX_COMPILER}",
 	"SharedLibraryCompilationArguments": "-shared -Wl,--export-dynamic -o \"${SHARED_LIB_PATH}\" \"${OBJECT_PATH}\""

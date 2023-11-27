@@ -66,5 +66,11 @@ public class NNERuntimeIREE : ModuleRules
 			PrivateDefinitions.Add("NNE_RUNTIME_IREE_LINUX_COMPILER=\"" + UEBuildPlatformSDK.GetSDKForPlatform("Linux").GetInternalSDKPath().Replace("\\", "/") + "/bin/clang++\"");
 			PrivateDefinitions.Add("NNE_RUNTIME_IREE_USE_COMBINED_LIB_PATH");
 		}
+		else if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			SetupNNERuntimeIREE("Mac", "Mac", "dylib");
+
+			PrivateDefinitions.Add("NNE_RUNTIME_IREE_USE_COMBINED_LIB_PATH");
+		}
 	}
 }
