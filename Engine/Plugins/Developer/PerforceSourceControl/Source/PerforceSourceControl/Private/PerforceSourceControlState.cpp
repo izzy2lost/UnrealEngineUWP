@@ -3,8 +3,11 @@
 #include "PerforceSourceControlState.h"
 #include "PerforceSourceControlRevision.h"
 #include "Misc/EngineVersion.h"
-#include "Styling/AppStyle.h"
+
+#if SOURCE_CONTROL_WITH_SLATE
+#include "Textures/SlateIcon.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
+#endif //SOURCE_CONTROL_WITH_SLATE
 
 #define LOCTEXT_NAMESPACE "PerforceSourceControl.State"
 

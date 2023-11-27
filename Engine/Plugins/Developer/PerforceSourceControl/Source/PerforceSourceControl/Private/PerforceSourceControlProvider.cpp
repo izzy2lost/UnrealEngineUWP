@@ -3,6 +3,7 @@
 #include "PerforceSourceControlProvider.h"
 
 #include "Algo/Transform.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "ISourceControlLabel.h"
 #include "ISourceControlModule.h"
@@ -19,7 +20,6 @@
 #include "ScopedSourceControlProgress.h"
 #include "SourceControlHelpers.h"
 #include "SourceControlOperations.h"
-#include "Widgets/DeclarativeSyntaxSupport.h"
 
 static FName ProviderName("Perforce");
 

@@ -2,6 +2,8 @@
 
 #include "SPerforceSourceControlSettings.h"
 
+#if SOURCE_CONTROL_WITH_SLATE
+
 #include "ISourceControlModule.h"
 #include "PerforceSourceControlInternalOperations.h"
 #include "PerforceSourceControlPrivate.h"
@@ -476,3 +478,5 @@ FPerforceSourceControlProvider& SPerforceSourceControlSettings::GetSCCProvider()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+#endif //SOURCE_CONTROL_WITH_SLATE

@@ -12,13 +12,22 @@ public class PerforceSourceControl : ModuleRules
 			new string[] {
 				"Core",
 				"CoreUObject",
-				"InputCore",
-				"Slate",
-				"SlateCore",
 				"SourceControl",
 				"TypedElementFramework",
 			}
 		);
+
+		// See SOURCE_CONTROL_WITH_SLATE in SourceControl.Build.cs
+		if (Target.bUsesSlate)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"InputCore",
+					"Slate",
+					"SlateCore"
+				}
+			);
+		}
 
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "Perforce");
 
