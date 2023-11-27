@@ -3,12 +3,11 @@
 #pragma once
 
 // Change this to force recompilation of all Stochastic Shadows shaders
-#pragma message("UESHADERMETADATA_VERSION 1A63AC4B-2335-2AD1-2CAB-82295C72AFFC")
+#pragma message("UESHADERMETADATA_VERSION 1A63AC4B-2335-2AD1-2CAB-82295C72CAFC")
 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_IES_PROFILE 0
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0
-#define USE_SOURCE_TEXTURE 0
 #include "../DeferredLightingCommon.ush"
 #include "../SceneData.ush"
 #include "../Hash.ush"

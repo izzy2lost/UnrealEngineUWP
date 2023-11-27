@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #define STOCHASTIC_SHADOWS 1
-#define NON_DIRECTIONAL_DIRECT_LIGHTING 1
-#define SUPPORT_CONTACT_SHADOWS 0
 
 #ifndef NUM_SAMPLES_PER_PIXEL_1D
 	#error NUM_SAMPLES_PER_PIXEL_1D must be defined
