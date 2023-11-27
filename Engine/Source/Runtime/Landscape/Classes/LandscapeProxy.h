@@ -406,6 +406,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
 	float NaniteSkirtDepth = 0.1f;
+	
+	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
+	int32 NanitePositionPrecision = 0;
+	
 #endif // WITH_EDITORONLY_DATA
 
 public:
@@ -911,6 +915,7 @@ public:
 	virtual int32 GetNaniteLODIndex() const { return NaniteLODIndex; }
 	virtual bool IsNaniteSkirtEnabled() const { return bNaniteSkirtEnabled; }
 	virtual float GetNaniteSkirtDepth() const { return NaniteSkirtDepth;  }
+	virtual int32 GetNanitePositionPrecision() const { return NanitePositionPrecision;  }
 	virtual UE::Landscape::EOutdatedDataFlags GetOutdatedDataFlags() const;
 
 	void UpdateNaniteSharedPropertiesFromActor();
