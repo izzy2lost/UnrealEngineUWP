@@ -2474,10 +2474,11 @@ private:
 				}
 
 				bDone = false;
-				Predicate(FDoneDelegate::CreateSP(this, &FUntilDoneLatentCommand::Done));
 				bIsRunning = true;
 				StartedRunning = FDateTime::UtcNow();
 			}
+
+			Predicate(FDoneDelegate::CreateSP(this, &FUntilDoneLatentCommand::Done));
 
 			if (bDone)
 			{
