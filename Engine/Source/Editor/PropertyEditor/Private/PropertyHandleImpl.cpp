@@ -366,18 +366,13 @@ FPropertyAccess::Result FPropertyValueImpl::ImportText( const TArray<FObjectBase
 							ElementProp->DestroyAndFreeValue(TempElementStorage);
 						};
 
-						for (int32 Index = 0, ItemsLeft = Helper.Num(); ItemsLeft > 0; ++Index)
+						for (FScriptSetHelper::FIterator It(Helper); It; ++It)
 						{
-							if (Helper.IsValidIndex(Index))
+							const uint8* Element = Helper.GetElementPtr(It);
+
+							if (Element != InBaseAddress && ElementProp->ImportText_Direct(*InElementValue, TempElementStorage, nullptr, 0) && ElementProp->Identical(Element, TempElementStorage))
 							{
-								--ItemsLeft;
-
-								const uint8* Element = Helper.GetElementPtr(Index);
-
-								if (Element != InBaseAddress && ElementProp->ImportText_Direct(*InElementValue, TempElementStorage, nullptr, 0) && ElementProp->Identical(Element, TempElementStorage))
-								{
-									return true;
-								}
+								return true;
 							}
 						}
 
@@ -422,19 +417,14 @@ FPropertyAccess::Result FPropertyValueImpl::ImportText( const TArray<FObjectBase
 							KeyProp->DestroyAndFreeValue(TempKeyStorage);
 						};
 
-						for (int32 Index = 0, ItemsLeft = Helper.Num(); ItemsLeft > 0; ++Index)
+						for (FScriptMapHelper::FIterator It(Helper); It; ++It)
 						{
-							if (Helper.IsValidIndex(Index))
+							const uint8* PairPtr = Helper.GetPairPtr(It);
+							const uint8* KeyPtr = KeyProp->ContainerPtrToValuePtr<const uint8>(PairPtr);
+
+							if (KeyPtr != InBaseAddress && KeyProp->ImportText_Direct(*InKeyValue, TempKeyStorage, nullptr, 0) && KeyProp->Identical(KeyPtr, TempKeyStorage))
 							{
-								--ItemsLeft;
-
-								const uint8* PairPtr = Helper.GetPairPtr(Index);
-								const uint8* KeyPtr = KeyProp->ContainerPtrToValuePtr<const uint8>(PairPtr);
-
-								if (KeyPtr != InBaseAddress && KeyProp->ImportText_Direct(*InKeyValue, TempKeyStorage, nullptr, 0) && KeyProp->Identical(KeyPtr, TempKeyStorage))
-								{
-									return true;
-								}
+								return true;
 							}
 						}
 
@@ -1339,20 +1329,13 @@ void FPropertyValueImpl::ClearChildren()
 							FObjectProperty* ElementObjectProperty = CastField<FObjectProperty>(SetProperty->ElementProp);
 							if (ShouldOwnInstance(ElementObjectProperty, PropertyNodePin.Get()))
 							{
-								int32 ElementsToRemove = SetHelper.Num();
-								int32 Index = 0;
-								while (ElementsToRemove > 0)
+								for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
 								{
-									if (SetHelper.IsValidIndex(Index))
+									if (UObject* InstancedObject = *reinterpret_cast<UObject**>(SetHelper.GetElementPtr(It)))
 									{
-										if (UObject* InstancedObject = *reinterpret_cast<UObject**>(SetHelper.GetElementPtr(Index)))
-										{
-											InstancedObject->Modify();
-											InstancedObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
-										}
-										--ElementsToRemove;
+										InstancedObject->Modify();
+										InstancedObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 									}
-									++Index;
 								}
 							}
 
@@ -1367,20 +1350,13 @@ void FPropertyValueImpl::ClearChildren()
 							FObjectProperty* ValueObjectProperty = CastField<FObjectProperty>(MapProperty->ValueProp);
 							if (ShouldOwnInstance(ValueObjectProperty, PropertyNodePin.Get()))
 							{
-								int32 ElementsToRemove = MapHelper.Num();
-								int32 Index = 0;
-								while (ElementsToRemove > 0)
+								for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 								{
-									if (MapHelper.IsValidIndex(Index))
+									if (UObject* InstancedObject = *reinterpret_cast<UObject**>(MapHelper.GetValuePtr(It)))
 									{
-										if (UObject* InstancedObject = *reinterpret_cast<UObject**>(MapHelper.GetValuePtr(Index)))
-										{
-											InstancedObject->Modify();
-											InstancedObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
-										}
-										--ElementsToRemove;
+										InstancedObject->Modify();
+										InstancedObject->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 									}
-									++Index;
 								}
 							}
 

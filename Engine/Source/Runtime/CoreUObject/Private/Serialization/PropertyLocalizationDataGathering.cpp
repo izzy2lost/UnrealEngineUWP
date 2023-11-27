@@ -443,15 +443,9 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 
 			// Iterate over all elements of the map.
 			FScriptMapHelper ScriptMapHelper(MapProperty, ElementValueAddress);
-			const int32 ElementCount = ScriptMapHelper.Num();
-			for(int32 j = 0, ElementIndex = 0; ElementIndex < ElementCount; ++j)
+			for (FScriptMapHelper::FIterator It(ScriptMapHelper); It; ++It)
 			{
-				if (!ScriptMapHelper.IsValidIndex(j))
-				{
-					continue;
-				}
-
-				const uint8* MapPairPtr = ScriptMapHelper.GetPairPtr(j);
+				const uint8* MapPairPtr = ScriptMapHelper.GetPairPtr(It);
 
 				if (bGatherMapKey)
 				{
@@ -460,7 +454,7 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 						PathToInnerElement.Reserve(PathToElement.Len() + 20); // +20 for some slack for the number, braces, and description
 						PathToInnerElement += PathToElement;
 						PathToInnerElement += TEXT('(');
-						PathToInnerElement.AppendInt(ElementIndex);
+						PathToInnerElement.AppendInt(It.GetLogicalIndex());
 						PathToInnerElement += TEXT(" - Key)");
 					}
 
@@ -475,15 +469,13 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 						PathToInnerElement.Reserve(PathToElement.Len() + 20); // +20 for some slack for the number, braces, and description
 						PathToInnerElement += PathToElement;
 						PathToInnerElement += TEXT('(');
-						PathToInnerElement.AppendInt(ElementIndex);
+						PathToInnerElement.AppendInt(It.GetLogicalIndex());
 						PathToInnerElement += TEXT(" - Value)");
 					}
 
 					const uint8* MapValuePtr = MapPairPtr + MapProperty->MapLayout.ValueOffset;
 					GatherLocalizationDataFromChildTextProperties(PathToInnerElement, MapProperty->ValueProp, MapValuePtr, nullptr, ElementChildPropertyGatherTextFlags);
 				}
-
-				++ElementIndex;
 			}
 		}
 		// Property is a set property.
@@ -491,26 +483,19 @@ void FPropertyLocalizationDataGatherer::GatherLocalizationDataFromChildTextPrope
 		{
 			// Iterate over all elements of the Set.
 			FScriptSetHelper ScriptSetHelper(SetProperty, ElementValueAddress);
-			const int32 ElementCount = ScriptSetHelper.Num();
-			for(int32 j = 0, ElementIndex = 0; ElementIndex < ElementCount; ++j)
+			for (FScriptSetHelper::FIterator It(ScriptSetHelper); It; ++It)
 			{
-				if (!ScriptSetHelper.IsValidIndex(j))
-				{
-					continue;
-				}
-
 				FString PathToInnerElement;
 				{
 					PathToInnerElement.Reserve(PathToElement.Len() + 10); // +10 for some slack for the number and braces
 					PathToInnerElement += PathToElement;
 					PathToInnerElement += TEXT('(');
-					PathToInnerElement.AppendInt(ElementIndex);
+					PathToInnerElement.AppendInt(It.GetLogicalIndex());
 					PathToInnerElement += TEXT(')');
 				}
 
-				const uint8* ElementPtr = ScriptSetHelper.GetElementPtr(j);
+				const uint8* ElementPtr = ScriptSetHelper.GetElementPtr(It);
 				GatherLocalizationDataFromChildTextProperties(PathToInnerElement, SetProperty->ElementProp, ElementPtr, nullptr, ElementChildPropertyGatherTextFlags);
-				++ElementIndex;
 			}
 		}
 		// Property is a struct property.

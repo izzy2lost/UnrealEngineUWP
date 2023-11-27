@@ -2315,16 +2315,13 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 				: TEXT("[");
 			{
 				FScriptSetHelper ScriptSetHelper(SetProperty, PropArrValue);
-				for (int32 SparseElementIndex = 0, ElementIndex = 0; SparseElementIndex < ScriptSetHelper.GetMaxIndex(); ++SparseElementIndex)
+				for (FScriptSetHelper::FIterator It(ScriptSetHelper); It; ++It)
 				{
-					if (ScriptSetHelper.IsValidIndex(SparseElementIndex))
+					if (It.GetLogicalIndex() > 0)
 					{
-						if (ElementIndex++ > 0)
-						{
-							OutPythonDefaultValue += TEXT(", ");
-						}
-						PythonizeValueImpl(ScriptSetHelper.GetElementProperty(), ScriptSetHelper.GetElementPtr(SparseElementIndex), InFlags, OutPythonDefaultValue);
+						OutPythonDefaultValue += TEXT(", ");
 					}
+					PythonizeValueImpl(ScriptSetHelper.GetElementProperty(), ScriptSetHelper.GetElementPtr(It), InFlags, OutPythonDefaultValue);
 				}
 			}
 			OutPythonDefaultValue += bUseStrictTyping
@@ -2338,18 +2335,15 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 				: TEXT("{");
 			{
 				FScriptMapHelper ScriptMapHelper(MapProperty, PropArrValue);
-				for (int32 SparseElementIndex = 0, ElementIndex = 0; SparseElementIndex < ScriptMapHelper.GetMaxIndex(); ++SparseElementIndex)
+				for (FScriptMapHelper::FIterator It(ScriptMapHelper); It; ++It)
 				{
-					if (ScriptMapHelper.IsValidIndex(SparseElementIndex))
+					if (It.GetLogicalIndex() > 0)
 					{
-						if (ElementIndex++ > 0)
-						{
-							OutPythonDefaultValue += TEXT(", ");
-						}
-						PythonizeValueImpl(ScriptMapHelper.GetKeyProperty(), ScriptMapHelper.GetKeyPtr(SparseElementIndex), InFlags, OutPythonDefaultValue);
-						OutPythonDefaultValue += TEXT(": ");
-						PythonizeValueImpl(ScriptMapHelper.GetValueProperty(), ScriptMapHelper.GetValuePtr(SparseElementIndex), InFlags, OutPythonDefaultValue);
+						OutPythonDefaultValue += TEXT(", ");
 					}
+					PythonizeValueImpl(ScriptMapHelper.GetKeyProperty(), ScriptMapHelper.GetKeyPtr(It), InFlags, OutPythonDefaultValue);
+					OutPythonDefaultValue += TEXT(": ");
+					PythonizeValueImpl(ScriptMapHelper.GetValueProperty(), ScriptMapHelper.GetValuePtr(It), InFlags, OutPythonDefaultValue);
 				}
 			}
 			OutPythonDefaultValue += bUseStrictTyping

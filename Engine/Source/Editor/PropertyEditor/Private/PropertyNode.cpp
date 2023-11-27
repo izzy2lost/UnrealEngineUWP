@@ -2114,19 +2114,12 @@ private:
 		if (MapProp != NULL)
 		{
 			FScriptMapHelper MapHelper(MapProp, PropertyValueAddress);
-
-			int32 ItemsLeft = MapHelper.Num();
-			for (int32 Index = 0; ItemsLeft > 0; ++Index)
+			for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 			{
-				if (MapHelper.IsValidIndex(Index))
-				{
-					--ItemsLeft;
+				uint8* Data = MapHelper.GetPairPtr(It);
 
-					uint8* Data = MapHelper.GetPairPtr(Index);
-
-					ProcessProperty(MapProp->KeyProp, MapProp->KeyProp->ContainerPtrToValuePtr<uint8>(Data));
-					ProcessProperty(MapProp->ValueProp, MapProp->ValueProp->ContainerPtrToValuePtr<uint8>(Data));
-				}
+				ProcessProperty(MapProp->KeyProp, MapProp->KeyProp->ContainerPtrToValuePtr<uint8>(Data));
+				ProcessProperty(MapProp->ValueProp, MapProp->ValueProp->ContainerPtrToValuePtr<uint8>(Data));
 			}
 
 			bResult = true;
