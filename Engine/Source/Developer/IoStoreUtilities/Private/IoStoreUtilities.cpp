@@ -9252,6 +9252,13 @@ bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& Upload
 		if (FParse::Value(FCommandLine::Get(), TEXT("DistributionUrl="), DistributionUrl))
 		{
 			Sb << TEXT("DistributionUrl=\"") << DistributionUrl << TEXT("\"\r\n");
+
+			FString FallbackUrl;
+			if (FParse::Value(FCommandLine::Get(), TEXT("FallbackUrl="), FallbackUrl))
+			{
+				Sb << TEXT("FallbackUrl=\"") << FallbackUrl << TEXT("\"\r\n");
+			}
+			
 			Sb << TEXT("TocPath=\"") << UploadResult.TocPath << TEXT("\"\r\n");
 		}
 		else

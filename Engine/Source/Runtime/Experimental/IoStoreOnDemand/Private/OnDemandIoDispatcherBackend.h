@@ -17,10 +17,34 @@ enum class EOnDemandEndpointType
 	ZEN
 };
 
+struct FDistributedEndpointUrl
+{
+	FString EndpointUrl;
+	FString FallbackUrl;
+
+	bool IsValid() const
+	{
+		return !EndpointUrl.IsEmpty();
+	}
+
+	bool HasFallbackUrl() const
+	{
+		return !FallbackUrl.IsEmpty();
+	}
+
+	void Reset()
+	{
+		EndpointUrl.Empty();
+		FallbackUrl.Empty();
+	}
+};
+
 struct FOnDemandEndpoint
 {
 	EOnDemandEndpointType EndpointType;
 	FString DistributionUrl;
+	FString FallbackUrl;
+
 	TArray<FString> ServiceUrls;
 	FString TocPath;
 

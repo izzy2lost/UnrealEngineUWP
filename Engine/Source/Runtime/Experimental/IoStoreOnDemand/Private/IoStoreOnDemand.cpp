@@ -57,6 +57,14 @@ static FAutoConsoleVariableRef CVar_SuspendSystemEnabled(
 	ECVF_ReadOnly
 );
 
+/** Temp cvar to allow the fallback url to be hotfixed in case of problems */
+static FString GDistributedEndpointFallbackUrl;
+static FAutoConsoleVariableRef CVar_DistributedEndpointFallbackUrl(
+	TEXT("ias.DistributedEndpointFallbackUrl"),
+	GDistributedEndpointFallbackUrl,
+	TEXT("CDN url to be used if a distributed endpoint cannot be reached (overrides IoStoreOnDemand.ini)")
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 static int64 ParseSizeParam(FStringView Value)
 {
@@ -139,6 +147,16 @@ static bool TryParseConfigContent(const FString& ConfigContent, const FString& C
 	Config.ProcessInputFileContents(ConfigContent, ConfigFileName);
 
 	Config.GetString(TEXT("Endpoint"), TEXT("DistributionUrl"), OutEndpoint.DistributionUrl);
+	if (!OutEndpoint.DistributionUrl.IsEmpty())
+	{
+		Config.GetString(TEXT("Endpoint"), TEXT("FallbackUrl"), OutEndpoint.FallbackUrl);
+
+		if (!GDistributedEndpointFallbackUrl.IsEmpty())
+		{
+			OutEndpoint.FallbackUrl = GDistributedEndpointFallbackUrl;
+		}
+	}
+	
 	Config.GetArray(TEXT("Endpoint"), TEXT("ServiceUrl"), OutEndpoint.ServiceUrls);
 	Config.GetString(TEXT("Endpoint"), TEXT("TocPath"), OutEndpoint.TocPath);
 

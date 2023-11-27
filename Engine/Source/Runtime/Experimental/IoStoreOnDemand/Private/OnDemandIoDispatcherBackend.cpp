@@ -229,6 +229,13 @@ static FAutoConsoleVariableRef CVar_DistributedEndpointRetryWaitTime(
 	TEXT("How long to wait (in seconds) after failing to resolve a distributed endpoint before retrying")
 );
 
+static int32 GDistributedEndpointAttemptCount = 5;
+static FAutoConsoleVariableRef CVar_DistributedEndpointAttemptCount(
+	TEXT("ias.DistributedEndpointAttemptCount"),
+	GDistributedEndpointAttemptCount,
+	TEXT("Number of times we should try to resolve a distributed endpoint befor eusing the fallback url (if there is one)")
+);
+
 #if !UE_BUILD_SHIPPING
 static FAutoConsoleCommand CVar_IasAbandonCache(
 	TEXT("Ias.AbandonCache"),
@@ -1576,7 +1583,7 @@ private:
 	FIoStatus ApplyGeneratedOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 
-	bool ResolveDistributedEndpoint(const FString& Url);
+	bool ResolveDistributedEndpoint(const FDistributedEndpointUrl& Url);
 	void InitializePrimaryEndpoint();
 
 	/** Mode to control which types of .iochunktoc are flush */
@@ -1616,7 +1623,7 @@ private:
 	FOnDemandIoBackendStats Stats;
 	FBackendStatus BackendStatus;
 	FAvailableEps AvailableEps;
-	FString DistributionUrl;
+	FDistributedEndpointUrl DistributionUrl;
 	FEventRef DistributedEndpointEvent;
 
 	mutable FRWLock Lock;
@@ -2092,11 +2099,11 @@ FIoStatus FOnDemandIoBackend::DownloadoadOnDemandToc(const FString& CdnUrl, cons
 	}
 }
 
-bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FString& DistributedEndpointUrl)
+bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FDistributedEndpointUrl& DistributedEndpointUrl)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::ResolveDistributedEndpoint);
 
-	check(!DistributedEndpointUrl.IsEmpty());
+	check(DistributedEndpointUrl.IsValid());
 
 	// We need to resolve the end point in this method which occurs after the config system has initialized
 	// rather than in ::Mount which can occur before that.
@@ -2104,12 +2111,14 @@ bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FString& DistributedEn
 	// to resolve and the OnDemand system will not recover.
 	check(GConfig->IsReadyForUse());
 
+	int32 NumAttempts = 0;
+
 	while (!bStopRequested)
 	{
 		TArray<FString> ServiceUrls;
 
 		FDistributionEndpoints Resolver;
-		FDistributionEndpoints::EResult Result = Resolver.ResolveEndpoints(DistributedEndpointUrl, ServiceUrls, *DistributedEndpointEvent.Get());
+		FDistributionEndpoints::EResult Result = Resolver.ResolveEndpoints(DistributedEndpointUrl.EndpointUrl, ServiceUrls, *DistributedEndpointEvent.Get());
 		if (Result == FDistributionEndpoints::EResult::Success)
 		{
 			FWriteScopeLock _(Lock);
@@ -2118,6 +2127,17 @@ bool FOnDemandIoBackend::ResolveDistributedEndpoint(const FString& DistributedEn
 				AvailableEps.Urls.Add(Url.Replace(TEXT("https"), TEXT("http")));
 			}
 
+			return true;
+		}
+
+		if (DistributedEndpointUrl.HasFallbackUrl() && ++NumAttempts == GDistributedEndpointAttemptCount)
+		{
+			FString FallbackUrl = DistributedEndpointUrl.FallbackUrl.Replace(TEXT("https"), TEXT("http"));
+			UE_LOG(LogIas, Warning, TEXT("Failed to resolve the distributed endpoint %d times. Fallback CDN '%s' will be used instead"), GDistributedEndpointAttemptCount , *FallbackUrl);
+			
+			FWriteScopeLock _(Lock);
+			AvailableEps.Urls.Emplace(MoveTemp(FallbackUrl));
+		
 			return true;
 		}
 
@@ -2249,9 +2269,9 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 			{
 				if (AvailableEps.HasCurrent() == false)
 				{
-					if (DistributionUrl.IsEmpty())
+					if (!DistributionUrl.IsValid())
 					{
-						DistributionUrl = Endpoint.DistributionUrl;
+						DistributionUrl = { Endpoint.DistributionUrl, Endpoint.FallbackUrl };
 					}
 					DeferredTocs.Add(FTocParams{Endpoint.TocPath, Endpoint.bForceTocDownload});
 					return;
@@ -2478,13 +2498,16 @@ bool FOnDemandIoBackend::SetupHttpThread()
 
 	// Note that the following method will block until the distributed endpoint (if we have one) has
 	// been resolved as the thread cannot function without it.
-	if (!DistributionUrl.IsEmpty())
+	if (DistributionUrl.IsValid())
 	{
-		if (!ResolveDistributedEndpoint(DistributionUrl))
+		const bool bResult = ResolveDistributedEndpoint(DistributionUrl);
+		DistributionUrl.Reset();
+
+		if (!bResult)
 		{
 			return false;
 		}
-		DistributionUrl.Reset();
+		
 	}
 
 	InitializePrimaryEndpoint();
