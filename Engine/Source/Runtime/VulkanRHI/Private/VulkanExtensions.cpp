@@ -878,7 +878,7 @@ public:
 	{
 #if VULKAN_HAS_DEBUGGING_ENABLED
 		const int32 VulkanValidationOption = GValidationCvar.GetValueOnAnyThread();
-		bEnabledInCode = bEnabledInCode && ((GRenderDocFound || VulkanValidationOption == 0) || FVulkanPlatform::ForceEnableDebugMarkers());
+		bEnabledInCode = bEnabledInCode && (GRenderDocFound || VulkanValidationOption != 0);
 #endif
 	}
 

@@ -539,7 +539,7 @@ void FVulkanDevice::SetupDrawMarkers()
 	}
 	else
 #endif	// VULKAN_SUPPORTS_DEBUG_UTILS
-	if (bDebugMarkersFound || FVulkanPlatform::ForceEnableDebugMarkers())
+	if (bDebugMarkersFound)
 	{
 		DebugMarkers.CmdBegin = (PFN_vkCmdDebugMarkerBeginEXT)(void*)VulkanRHI::vkGetDeviceProcAddr(Device, "vkCmdDebugMarkerBeginEXT");
 		DebugMarkers.CmdEnd = (PFN_vkCmdDebugMarkerEndEXT)(void*)VulkanRHI::vkGetDeviceProcAddr(Device, "vkCmdDebugMarkerEndEXT");

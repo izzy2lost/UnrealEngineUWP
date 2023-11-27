@@ -501,8 +501,18 @@ void FVulkanDeviceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions>
 	// Verify that all requested debugging device-layers are available. Skip validation layers under RenderDoc
 	if (!GRenderDocFound && GRHIGlobals.IsDebugLayerEnabled && (GStandardValidationCvar.GetValueOnAnyThread() != 0))
 	{
-		// Path for older drivers
-		AddRequestedLayer(STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers);
+		switch (GStandardValidationCvar.GetValueOnAnyThread())
+		{
+		case 1:
+			AddRequestedLayer(STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers);
+			break;
+		case 2:
+			AddRequestedLayer(KHRONOS_STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers);
+			break;
+		default:
+			break;
+		}
+		
 	}
 #endif	// VULKAN_HAS_DEBUGGING_ENABLED
 }

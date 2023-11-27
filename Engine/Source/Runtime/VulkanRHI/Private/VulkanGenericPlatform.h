@@ -69,8 +69,6 @@ public:
 	// Some platforms have issues with the access flags for the Present layout
 	static bool RequiresPresentLayoutFix() { return false; }
 
-	static bool ForceEnableDebugMarkers() { return false; }
-
 	static bool SupportsDeviceLocalHostVisibleWithNoPenalty(EGpuVendorId VendorId) { return false; }
 
 	static bool HasUnifiedMemory() { return false; }
