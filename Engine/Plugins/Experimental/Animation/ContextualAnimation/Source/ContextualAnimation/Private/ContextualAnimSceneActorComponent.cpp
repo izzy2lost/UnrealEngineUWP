@@ -326,10 +326,17 @@ void UContextualAnimSceneActorComponent::LateJoinScene(const FContextualAnimScen
 
 		AddOrUpdateWarpTargets(SectionIdx, AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
-		SetCollisionState();
+		SetCollisionState(*Binding);
 
-		SetMovementState(AnimTrack->bRequireFlyingMode);
+		SetMovementState(*Binding, AnimTrack->MovementMode);
+
+		OnLateJoinScene(*Binding, SectionIdx, AnimSetIdx);
 	}
+}
+
+void UContextualAnimSceneActorComponent::OnLateJoinScene(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx)
+{
+	// For derived classes to override.
 }
 
 void UContextualAnimSceneActorComponent::OnRep_LateJoinData()
@@ -489,11 +496,26 @@ void UContextualAnimSceneActorComponent::HandleTransitionSelf(int32 NewSectionId
 	Bindings.TransitionTo(NewSectionIdx, NewAnimSetIdx);
 
 	// Play animation
-	//@TODO: Add support for dynamic montage
-	const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(*Bindings.FindBindingByActor(GetOwner()));
+	const FContextualAnimSceneBinding& Binding = *Bindings.FindBindingByActor(GetOwner());
+	const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(Binding);
 	PlayAnimation_Internal(AnimTrack.Animation, 0.f, true);
 
 	AddOrUpdateWarpTargets(NewSectionIdx, NewAnimSetIdx, WarpPoints, ExternalWarpTargets);
+
+	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
+	{
+		if (MovementComp->MovementMode != AnimTrack.MovementMode)
+		{
+			MovementComp->SetMovementMode(AnimTrack.MovementMode);
+		}
+	}
+
+	OnTransitionScene(Binding, NewSectionIdx, NewAnimSetIdx);
+}
+
+void UContextualAnimSceneActorComponent::OnTransitionScene(const FContextualAnimSceneBinding& Binding, int32 NewSectionIdx, int32 NewAnimSetIdx)
+{
+	// For derived classes to override.
 }
 
 bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets)
@@ -541,6 +563,16 @@ bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx,
 
 				AddOrUpdateWarpTargets(SectionIdx, AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
+				if (UCharacterMovementComponent* MovementComp = OwnerBinding->GetCharacterMovementComponent())
+				{
+					if (MovementComp->MovementMode != AnimTrack->MovementMode)
+					{
+						MovementComp->SetMovementMode(AnimTrack->MovementMode);
+					}
+				}
+
+				OnTransitionSingleActor(*OwnerBinding, SectionIdx, AnimSetIdx);
+
 				RepTransitionSingleActorData.Id = Bindings.GetID();
 				RepTransitionSingleActorData.SectionIdx = SectionIdx;
 				RepTransitionSingleActorData.AnimSetIdx = AnimSetIdx;
@@ -556,6 +588,11 @@ bool UContextualAnimSceneActorComponent::TransitionSingleActor(int32 SectionIdx,
 	}
 
 	return false;
+}
+
+void UContextualAnimSceneActorComponent::OnTransitionSingleActor(const FContextualAnimSceneBinding& Binding, int32 NewSectionIdx, int32 NewAnimSetIdx)
+{
+	// For derived classes to override.
 }
 
 void UContextualAnimSceneActorComponent::OnRep_RepTransitionSingleActor()
@@ -580,6 +617,16 @@ void UContextualAnimSceneActorComponent::OnRep_RepTransitionSingleActor()
 					PlayAnimation_Internal(AnimTrack->Animation, 0.f, false);
 
 					AddOrUpdateWarpTargets(RepTransitionSingleActorData.SectionIdx, RepTransitionSingleActorData.AnimSetIdx, RepTransitionSingleActorData.WarpPoints, RepTransitionSingleActorData.ExternalWarpTargets);
+
+					if (UCharacterMovementComponent* MovementComp = OwnerBinding->GetCharacterMovementComponent())
+					{
+						if (MovementComp->MovementMode != AnimTrack->MovementMode)
+						{
+							MovementComp->SetMovementMode(AnimTrack->MovementMode);
+						}
+					}
+
+					OnTransitionSingleActor(*OwnerBinding, RepTransitionSingleActorData.SectionIdx, RepTransitionSingleActorData.AnimSetIdx);
 				}
 			}
 		}
@@ -738,11 +785,18 @@ bool UContextualAnimSceneActorComponent::ServerEarlyOutContextualAnimScene_Valid
 void UContextualAnimSceneActorComponent::OnRep_TransitionData()
 {
 	UE_LOG(LogContextualAnim, Verbose, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_TransitionData Actor: %s SectionIdx: %d AnimsetIdx: %d RepCounter: %d"),
-		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()),
-		RepTransitionData.SectionIdx, RepTransitionData.AnimSetIdx, RepTransitionData.RepCounter);
+		*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()), RepTransitionData.SectionIdx, RepTransitionData.AnimSetIdx, RepTransitionData.RepCounter);
 
 	if (!RepTransitionData.IsValid())
 	{
+		return;
+	}
+
+	if (!Bindings.IsValid())
+	{
+		UE_LOG(LogContextualAnim, Warning, TEXT("%-21s UContextualAnimSceneActorComponent::OnRep_TransitionData Actor: %s Current bindings INVALID"),
+			*UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetOwner()->GetLocalRole()), *GetNameSafe(GetOwner()));
+
 		return;
 	}
 
@@ -834,7 +888,7 @@ void UContextualAnimSceneActorComponent::SetIgnoreCollisionWithOtherActors(bool 
 	}
 }
 
-void UContextualAnimSceneActorComponent::SetCollisionState()
+void UContextualAnimSceneActorComponent::SetCollisionState(const FContextualAnimSceneBinding& Binding)
 {
 	if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
 	{
@@ -847,19 +901,16 @@ void UContextualAnimSceneActorComponent::SetCollisionState()
 		{
 			if (UPrimitiveComponent* RootPrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 			{
-				if (const FContextualAnimSceneBinding* Binding = Bindings.FindBindingByActor(GetOwner()))
+				const TArray<TEnumAsByte<ECollisionChannel>>& ChannelsToIgnore = Asset->GetCollisionChannelsToIgnoreForRole(Bindings.GetRoleFromBinding(Binding));
+				if (ChannelsToIgnore.Num() > 0)
 				{
-					const TArray<TEnumAsByte<ECollisionChannel>>& ChannelsToIgnore = Asset->GetCollisionChannelsToIgnoreForRole(Bindings.GetRoleFromBinding(*Binding));
-					if (ChannelsToIgnore.Num() > 0)
+					CharacterPropertiesBackup.CollisionResponses.Reset(ChannelsToIgnore.Num());
+					for (ECollisionChannel Channel : ChannelsToIgnore)
 					{
-						CharacterPropertiesBackup.CollisionResponses.Reset(ChannelsToIgnore.Num());
-						for (ECollisionChannel Channel : ChannelsToIgnore)
-						{
-							ECollisionResponse Response = RootPrimitiveComponent->GetCollisionResponseToChannel(Channel);
-							CharacterPropertiesBackup.CollisionResponses.Add(MakeTuple(Channel, Response));
+						ECollisionResponse Response = RootPrimitiveComponent->GetCollisionResponseToChannel(Channel);
+						CharacterPropertiesBackup.CollisionResponses.Add(MakeTuple(Channel, Response));
 
-							RootPrimitiveComponent->SetCollisionResponseToChannel(Channel, ECR_Ignore);
-						}
+						RootPrimitiveComponent->SetCollisionResponseToChannel(Channel, ECR_Ignore);
 					}
 				}
 			}
@@ -867,7 +918,7 @@ void UContextualAnimSceneActorComponent::SetCollisionState()
 	}
 }
 
-void UContextualAnimSceneActorComponent::RestoreCollisionState()
+void UContextualAnimSceneActorComponent::RestoreCollisionState(const FContextualAnimSceneBinding& Binding)
 {
 	if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
 	{
@@ -920,12 +971,19 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 
 		AddOrUpdateWarpTargets(AnimTrack.SectionIdx, AnimTrack.AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
-		SetCollisionState();
+		SetCollisionState(*Binding);
 
-		SetMovementState(AnimTrack.bRequireFlyingMode);
+		SetMovementState(*Binding, AnimTrack.MovementMode);
+
+		OnJoinScene(*Binding);
 
 		OnJoinedSceneDelegate.Broadcast(this);
 	}
+}
+
+void UContextualAnimSceneActorComponent::OnJoinScene(const FContextualAnimSceneBinding& Binding)
+{
+	// For derived classes to override.
 }
 
 void UContextualAnimSceneActorComponent::LeaveScene()
@@ -957,10 +1015,11 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 			SkelMeshComp->OnTickPose.RemoveAll(this);
 		}
 		
-		RestoreCollisionState();
+		RestoreCollisionState(*Binding);
 
-		const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(*Binding);
-		RestoreMovementState(AnimTrack.bRequireFlyingMode);
+		RestoreMovementState(*Binding);
+
+		OnLeaveScene(*Binding);
 
 		OnLeftSceneDelegate.Broadcast(this);
 
@@ -968,15 +1027,21 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 	}
 }
 
-void UContextualAnimSceneActorComponent::SetMovementState(bool bRequireFlyingMode)
+void UContextualAnimSceneActorComponent::OnLeaveScene(const FContextualAnimSceneBinding& Binding)
 {
-	if (UCharacterMovementComponent* MovementComp = GetOwner()->FindComponentByClass<UCharacterMovementComponent>())
+	// For derived classes to override.
+}
+
+void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode)
+{
+	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
 		// Save movement state before the interaction starts so we can restore it when it ends
 		CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection = MovementComp->bIgnoreClientMovementErrorChecksAndCorrection;
 		CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion = MovementComp->bAllowPhysicsRotationDuringAnimRootMotion;
 		CharacterPropertiesBackup.bUseControllerDesiredRotation = MovementComp->bUseControllerDesiredRotation;
 		CharacterPropertiesBackup.bOrientRotationToMovement = MovementComp->bOrientRotationToMovement;
+		CharacterPropertiesBackup.MovementMode = MovementComp->MovementMode;
 
 		// Disable movement correction.
 		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
@@ -986,30 +1051,29 @@ void UContextualAnimSceneActorComponent::SetMovementState(bool bRequireFlyingMod
 		MovementComp->bUseControllerDesiredRotation = false;
 		MovementComp->bOrientRotationToMovement = false;
 
-		//@TODO: Temp solution that assumes these interactions are not locally predicted and that is ok to be in flying mode during the entire animation
-		if (bRequireFlyingMode && MovementComp->MovementMode != MOVE_Flying)
+		if (MovementComp->MovementMode != DesiredMoveMode)
 		{
-			MovementComp->SetMovementMode(MOVE_Flying);
+			MovementComp->SetMovementMode(DesiredMoveMode);
 		}
 	}
 }
 
-void UContextualAnimSceneActorComponent::RestoreMovementState(bool bRequireFlyingMode)
+void UContextualAnimSceneActorComponent::RestoreMovementState(const FContextualAnimSceneBinding& Binding)
 {
-	if (UCharacterMovementComponent* MovementComp = GetOwner()->FindComponentByClass<UCharacterMovementComponent>())
+	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
 		// Restore movement state
 		MovementComp->bIgnoreClientMovementErrorChecksAndCorrection = CharacterPropertiesBackup.bIgnoreClientMovementErrorChecksAndCorrection;
 		MovementComp->bAllowPhysicsRotationDuringAnimRootMotion = CharacterPropertiesBackup.bAllowPhysicsRotationDuringAnimRootMotion;
 		MovementComp->bUseControllerDesiredRotation = CharacterPropertiesBackup.bUseControllerDesiredRotation;
 		MovementComp->bOrientRotationToMovement = CharacterPropertiesBackup.bOrientRotationToMovement;
-
-		//@TODO: Temp solution that assumes these interactions are not locally predicted and that is ok to be in flying mode during the entire animation
-		if (bRequireFlyingMode && MovementComp->MovementMode == MOVE_Flying)
-		{
-			MovementComp->SetMovementMode(MOVE_Walking);
-		}
+		MovementComp->SetMovementMode(CharacterPropertiesBackup.MovementMode);
 	}
+}
+
+bool UContextualAnimSceneActorComponent::CanLeaveScene(const FContextualAnimSceneBinding& Binding)
+{
+	return true;
 }
 
 void UContextualAnimSceneActorComponent::OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted)

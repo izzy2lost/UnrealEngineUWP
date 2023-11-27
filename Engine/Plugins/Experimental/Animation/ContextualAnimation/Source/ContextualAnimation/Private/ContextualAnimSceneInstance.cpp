@@ -102,13 +102,9 @@ float UContextualAnimSceneInstance::Join(FContextualAnimSceneBinding& Binding)
 			}
 		}
 
-		//@TODO: Temp, until we have a way to switch between movement mode using AnimNotifyState
-		if (Bindings.GetAnimTrackFromBinding(Binding).bRequireFlyingMode)
+		if (UCharacterMovementComponent* CharacterMovementComp = Actor->FindComponentByClass<UCharacterMovementComponent>())
 		{
-			if (UCharacterMovementComponent* CharacterMovementComp = Actor->FindComponentByClass<UCharacterMovementComponent>())
-			{
-				CharacterMovementComp->SetMovementMode(MOVE_Flying);
-			}
+			CharacterMovementComp->SetMovementMode(Bindings.GetAnimTrackFromBinding(Binding).MovementMode);
 		}
 	}
 
@@ -290,12 +286,9 @@ void UContextualAnimSceneInstance::OnMontageBlendingOut(UAnimMontage* Montage, b
 					AnimInstance->OnPlayMontageNotifyEnd.RemoveDynamic(this, &UContextualAnimSceneInstance::OnNotifyEndReceived);
 					AnimInstance->OnMontageBlendingOut.RemoveDynamic(this, &UContextualAnimSceneInstance::OnMontageBlendingOut);
 
-					if (AnimTrack.bRequireFlyingMode)
+					if (UCharacterMovementComponent* CharacterMovementComp = Actor->FindComponentByClass<UCharacterMovementComponent>())
 					{
-						if (UCharacterMovementComponent* CharacterMovementComp = Actor->FindComponentByClass<UCharacterMovementComponent>())
-						{
-							CharacterMovementComp->SetMovementMode(MOVE_Walking);
-						}
+						CharacterMovementComp->SetMovementMode(MOVE_Walking);
 					}
 				}
 

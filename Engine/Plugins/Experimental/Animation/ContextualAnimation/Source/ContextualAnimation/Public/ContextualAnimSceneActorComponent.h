@@ -183,7 +183,7 @@ public:
 	/** Called when the actor owner of this component joins an scene */
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	void OnJoinedScene(const FContextualAnimSceneBindings& InBindings);
-	
+
 	/** Called from the scene instance when the actor owner of this component leave an scene */
 	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	void OnLeftScene();
@@ -213,6 +213,7 @@ public:
 	bool TransitionSingleActor(int32 SectionIdx, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
 	bool TransitionSingleActor(int32 SectionIdx, int32 AnimSetIdx, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
 
+	UFUNCTION(BlueprintCallable, Category = "Contextual Anim|Scene Actor Component")
 	void EarlyOutContextualAnimScene();
 
 	bool IsOwnerLocallyControlled() const;
@@ -252,6 +253,7 @@ protected:
 		bool bAllowPhysicsRotationDuringAnimRootMotion = false;
 		bool bUseControllerDesiredRotation = false;
 		bool bOrientRotationToMovement = false;
+		EMovementMode MovementMode = EMovementMode::MOVE_Walking;
 		TArray<TTuple<ECollisionChannel, ECollisionResponse>> CollisionResponses;
 	};
 	FCharacterProperties CharacterPropertiesBackup;
@@ -278,11 +280,12 @@ protected:
 	void OnRep_TransitionData();
 
 	void SetIgnoreCollisionWithOtherActors(bool bValue) const;
-	void SetCollisionState();
-	void RestoreCollisionState();
+	
+	virtual void SetCollisionState(const FContextualAnimSceneBinding& Binding);
+	virtual void RestoreCollisionState(const FContextualAnimSceneBinding& Binding);
 
-	void SetMovementState(bool bRequireFlyingMode);
-	void RestoreMovementState(bool bRequireFlyingMode);
+	void SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode);
+	void RestoreMovementState(const FContextualAnimSceneBinding& Binding);
 
 	UFUNCTION()
 	void OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted);
@@ -295,9 +298,17 @@ protected:
 
 	void JoinScene(const FContextualAnimSceneBindings& InBindings, const TArray<FContextualAnimWarpPoint> WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
 
+	virtual void OnJoinScene(const FContextualAnimSceneBinding& Binding);
+
 	void LeaveScene();
 
+	virtual bool CanLeaveScene(const FContextualAnimSceneBinding& Binding);
+
+	virtual void OnLeaveScene(const FContextualAnimSceneBinding& Binding);
+
 	void LateJoinScene(const FContextualAnimSceneBindings& InBindings, int32 SectionIdx, int32 AnimSetIdx, const TArray<FContextualAnimWarpPoint>& WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
+
+	virtual void OnLateJoinScene(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
 
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerStartContextualAnimScene(const FContextualAnimSceneBindings& InBindings);
@@ -312,6 +323,10 @@ protected:
 	void HandleTransitionSelf(int32 NewSectionIdx, int32 NewAnimSetIdx, const TArray<FContextualAnimWarpPoint>& WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
 
 	void HandleTransitionEveryone(int32 NewSectionIdx, int32 NewAnimSetIdx, const TArray<FContextualAnimWarpPoint>& WarpPoints, const TArray<FContextualAnimWarpTarget>& ExternalWarpTargets);
+
+	virtual void OnTransitionScene(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
+
+	virtual void OnTransitionSingleActor(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
 
 private:
 

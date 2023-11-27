@@ -11,6 +11,7 @@
 #include "ContextualAnimSceneActorComponent.h"
 #include "ContextualAnimSceneAsset.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContextualAnimTypes)
 
@@ -278,6 +279,19 @@ USkeletalMeshComponent* FContextualAnimSceneBindingContext::GetSkeletalMeshCompo
 	}
 
 	return CachedSkeletalMesh.Get();
+}
+
+UCharacterMovementComponent* FContextualAnimSceneBindingContext::GetCharacterMovementComponent() const
+{
+	if (!CachedMovementComp.IsValid() || CachedMovementComp->GetOwner() != GetActor())
+	{
+		if (Actor.IsValid())
+		{
+			CachedMovementComp = Actor->FindComponentByClass<UCharacterMovementComponent>();
+		}
+	}
+
+	return CachedMovementComp.Get();
 }
 
 // FContextualAnimSceneBinding

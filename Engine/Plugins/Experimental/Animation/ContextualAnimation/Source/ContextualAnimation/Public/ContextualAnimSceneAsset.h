@@ -22,11 +22,26 @@ struct FContextualAnimIgnoreChannelsParam
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "Defaults")
+	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (GetOptions = "GetRoles"))
 	FName Role = NAME_None;
 
 	UPROPERTY(EditAnywhere, Category = "Defaults")
 	TArray<TEnumAsByte<ECollisionChannel>> Channels;
+};
+
+USTRUCT()
+struct FContextualAnimAttachmentParams
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (GetOptions = "GetRoles"))
+	FName Role = NAME_None;
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	FName SocketName = NAME_None;
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	FTransform RelativeTransform = FTransform::Identity;
 };
 
 UCLASS(Blueprintable)
@@ -222,6 +237,11 @@ public:
 	FORCEINLINE bool ShouldPrecomputeAlignmentTracks() const { return bPrecomputeAlignmentTracks; }
 
 	const TArray<TEnumAsByte<ECollisionChannel>>& GetCollisionChannelsToIgnoreForRole(FName Role) const;
+	
+	const FContextualAnimAttachmentParams* GetAttachmentParamsForRole(FName Role) const
+	{
+		return AttachmentParams.FindByPredicate([Role](const FContextualAnimAttachmentParams& Item) { return Item.Role == Role; });
+	}
 
 	bool HasValidData() const { return RolesAsset != nullptr && Sections.Num() > 0 && Sections[0].AnimSets.Num() > 0; }
 
@@ -324,6 +344,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "CollisionBehavior==EContextualAnimCollisionBehavior::IgnoreChannels", EditConditionHides))
 	TArray<FContextualAnimIgnoreChannelsParam> CollisionChannelsToIgnoreParams;
+
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	TArray<FContextualAnimAttachmentParams> AttachmentParams;
 
 	/** Whether we should extract and cache alignment tracks off line. */
 	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay)

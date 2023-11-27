@@ -285,8 +285,7 @@ AActor* FContextualAnimViewModel::SpawnPreviewActor(const FContextualAnimTrack& 
 				CharacterMovementComp->bUseControllerDesiredRotation = false;
 				CharacterMovementComp->RotationRate = FRotator(0.f, 540.0, 0.f);
 				CharacterMovementComp->bRunPhysicsWithNoController = true;
-
-				CharacterMovementComp->SetMovementMode(AnimTrack.bRequireFlyingMode ? EMovementMode::MOVE_Flying : EMovementMode::MOVE_Walking);
+				CharacterMovementComp->SetMovementMode(AnimTrack.MovementMode);
 			}
 
 			UMotionWarpingComponent* MotionWarpingComp = NewObject<UMotionWarpingComponent>(PreviewCharacter);
@@ -575,7 +574,7 @@ void FContextualAnimViewModel::AddNewAnimSet(const FContextualAnimNewAnimSetPara
 		FContextualAnimTrack AnimTrack;
 		AnimTrack.Role = Data.RoleName;
 		AnimTrack.Animation = Data.Animation;
-		AnimTrack.bRequireFlyingMode = Data.bRequiresFlyingMode;
+		AnimTrack.MovementMode = Data.MovementMode;
 		AnimTrack.bOptional = Data.bOptional;
 		AnimSet.Tracks.Add(AnimTrack);
 		AnimSet.RandomWeight = Params.RandomWeight;
