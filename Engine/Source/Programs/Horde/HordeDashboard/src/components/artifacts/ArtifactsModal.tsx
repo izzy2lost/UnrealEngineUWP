@@ -569,7 +569,7 @@ const JobDetailArtifactsInner: React.FC<{ jobId: string; stepId: string, artifac
          return undefined;
       }
 
-      const path = encodeURI(handler.path + "/" + item.text);
+      const path = encodeURI((handler.path ? handler.path + "/" : "") + item.text);
       const server = backend.serverUrl;
       return `${server}/api/v2/artifacts/${handler.artifact!.id}/file?path=${path}`;
       
