@@ -750,13 +750,9 @@ FORCENOINLINE void FDebug::DumpStackTraceToLog(const TCHAR* Heading, const ELogV
 }
 
 #if DO_ENSURE && !USING_CODE_ANALYSIS
-bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(bool& InOutExecuted, bool Always, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, ...)
+bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, va_list Args)
 {
-	InOutExecuted = true;
-	va_list Args;
-	va_start(Args, Format);
 	FDebug::OptionallyLogFormattedEnsureMessageReturningFalse(true, Expr, File, Line, ProgramCounter, Format, Args);
-	va_end(Args);
 
 	if (!FPlatformMisc::IsDebuggerPresent())
 	{
@@ -769,6 +765,37 @@ bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(bool& InOutExecuted, bool Always, 
 #else
 	return !GIgnoreDebugger;
 #endif
+}
+
+bool UE_DEBUG_SECTION UE::Assert::Private::ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr)
+{
+	if ((bAlways || !bExecuted.load(std::memory_order_relaxed)) && FPlatformMisc::IsEnsureAllowed())
+	{
+		if (bExecuted.exchange(true, std::memory_order_release) && !bAlways)
+		{
+			return false;
+		}
+
+		va_list Args = {};
+		return CheckVerifyImpl(bExecuted, bAlways, File, Line, PLATFORM_RETURN_ADDRESS(), Expr, TEXT(""), Args);
+	}
+
+	return false;
+}
+
+bool UE_DEBUG_SECTION VARARGS UE::Assert::Private::EnsureFailed(const FStaticEnsureRecord* Ensure, ...)
+{
+	if (Ensure->bExecuted.exchange(true, std::memory_order_release) && !Ensure->bAlways)
+	{
+		return false;
+	}
+
+	va_list Args;
+	va_start(Args, Ensure);
+	const bool bResult = CheckVerifyImpl(Ensure->bExecuted, Ensure->bAlways, Ensure->File, Ensure->Line, PLATFORM_RETURN_ADDRESS(), Ensure->Expression, Ensure->Format, Args);
+	va_end(Args);
+
+	return bResult;
 }
 #endif
 
