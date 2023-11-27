@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleFaderBase.h"
 
+#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "Oscillators/DMXControlConsoleFloatOscillator.h"
 
@@ -14,6 +15,12 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleFaderBase::GetOwnerFaderGroupChe
 	checkf(Outer, TEXT("Invalid outer for '%s', cannot get fader owner correctly."), *GetName());
 
 	return *Outer;
+}
+
+UDMXControlConsoleElementController* UDMXControlConsoleFaderBase::GetElementController()
+{
+	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
+	return OwnerFaderGroup.GetControllerByElement(this);
 }
 
 UDMXControlConsoleFaderBase::UDMXControlConsoleFaderBase()

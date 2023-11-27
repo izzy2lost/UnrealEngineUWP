@@ -10,6 +10,7 @@ struct FDMXAttributeName;
 struct FDMXCell;
 struct FDMXFixtureFunction;
 class IDMXControlConsoleFaderGroupElement;
+class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderBase;
 class UDMXControlConsoleFaderGroupRow;
 class UDMXControlConsoleFixturePatchFunctionFader;
@@ -52,8 +53,29 @@ public:
 	/** Gets the Elements array of this Fader Group */
 	TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> GetElements(bool bSortByUniverseAndAddress = false) const;
 
-	/** Gets all single faders from Faders array Fader Group */
+	/** Gets all single faders from the Faders array of this Fader Group */
 	TArray<UDMXControlConsoleFaderBase*> GetAllFaders() const;
+
+	/** Creates a Controller for the given Element */
+	UDMXControlConsoleElementController* CreateElementController(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement, const FString& ControllerName = "");
+
+	/** Creates a Controller for the given array of Elements */
+	UDMXControlConsoleElementController* CreateElementController(const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> InElements, const FString& ControllerName = "");
+
+	/** Deletes the given Element Controller */
+	void DeleteElementController(UDMXControlConsoleElementController* ElementController);
+
+	/** Gets the array of Element Controllers for this Fader Group */
+	TArray<UDMXControlConsoleElementController*> GetElementControllers() const { return ElementControllers; }
+
+	/** Gets all single (even nested) Element Controllers for this Fader Group */
+	TArray<UDMXControlConsoleElementController*> GetAllElementControllers() const;
+
+	/** Gets the Controller for the given Element, if valid */
+	UDMXControlConsoleElementController* GetControllerByElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element) const;
+
+	/** Sorts the array of Elements by their starting address */
+	void SortElementsByStartingAddress() const;
 
 	/** Gets this Fader Group's index according to its Fader Group Row owner */
 	int32 GetIndex() const;
@@ -165,6 +187,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 	// Property Name getters
+	FORCEINLINE static FName GetElementControllersPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, ElementControllers); }
 	FORCEINLINE static FName GetElementsPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, Elements); }
 	FORCEINLINE static FName GetFaderGroupNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, FaderGroupName); }
 	FORCEINLINE static FName GetSoftFixturePatchPtrPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, SoftFixturePatchPtr); }
@@ -199,6 +222,9 @@ private:
 	/** Updates MatrixCells properties according to the given FixturePatch */
 	void UpdateFixturePatchMatrixCells(UDMXEntityFixturePatch* InFixturePatch);
 
+	/** Updates the Element Controllers array to ensure that each Element has its own Controller */
+	void UpdateElementControllers();
+
 	/** Subscribes this Fader Group to Fixture Patch delegates */
 	void SubscribeToFixturePatchDelegates();
 
@@ -230,6 +256,10 @@ private:
 	/** Cached fixture patch for faster access */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UDMXEntityFixturePatch> CachedWeakFixturePatch;
+
+	/** The array of Controllers for the Elements in this Fader Group */
+	UPROPERTY()
+	TArray<TObjectPtr<UDMXControlConsoleElementController>> ElementControllers;
 
 	/** Elements in this Fader Group */
 	UPROPERTY()

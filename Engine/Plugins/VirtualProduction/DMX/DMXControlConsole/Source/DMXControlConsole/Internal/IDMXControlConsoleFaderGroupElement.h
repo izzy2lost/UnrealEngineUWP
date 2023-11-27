@@ -7,6 +7,7 @@
 
 #include "IDMXControlConsoleFaderGroupElement.generated.h"
 
+class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderBase;
 
 
@@ -29,6 +30,9 @@ class DMXCONTROLCONSOLE_API IDMXControlConsoleFaderGroupElement
 public:
 	/** Returns the Fader Group this Element resides in */
 	virtual UDMXControlConsoleFaderGroup& GetOwnerFaderGroupChecked() const = 0;
+
+	/** Returns the Element Controller of this Element */
+	virtual UDMXControlConsoleElementController* GetElementController() = 0;
 
 	/** Returns the index of the Element in the Fader Group */
 	virtual int32 GetIndex() const = 0;

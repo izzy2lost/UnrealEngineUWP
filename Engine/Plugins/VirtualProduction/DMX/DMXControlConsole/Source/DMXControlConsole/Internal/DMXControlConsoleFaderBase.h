@@ -29,6 +29,7 @@ public:
 
 	//~ Being IDMXControlConsoleFaderGroupElement interface
 	virtual UDMXControlConsoleFaderGroup& GetOwnerFaderGroupChecked() const override;
+	virtual UDMXControlConsoleElementController* GetElementController() override;
 	virtual int32 GetIndex() const override;
 	virtual const TArray<UDMXControlConsoleFaderBase*>& GetFaders() const override { return ThisFaderAsArray; }
 	virtual int32 GetUniverseID() const override { return UniverseID; }
