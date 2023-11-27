@@ -7,6 +7,11 @@
 #include "Scheduler/AnimNextSchedulerEntry.h"
 #include "Scheduler/AnimNextSchedulePort.h"
 #include "AnimNextStats.h"
+#include "Param/ExternalParameterRegistry.h"
+#include "Param/IParameterSourceFactory.h"
+#include "Param/ParameterBlockProxy.h"
+#include "Param/PropertyBagProxy.h"
+#include "Scheduler/AnimNextScheduleExternalParamTask.h"
 
 DEFINE_STAT(STAT_AnimNext_CreateInstanceData);
 
@@ -21,9 +26,24 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 
 	// Preallocate data for all scopes & graphs in the schedule
 	ScopeCaches.SetNum(InSchedule->ParamScopeEntryTasks.Num());
-	GraphInstanceData.SetNum(InSchedule->Tasks.Num());
-	GraphInputLayers.SetNum(InSchedule->Tasks.Num());
+	GraphCaches.SetNum(InSchedule->GraphTasks.Num());
+	ExternalParamCaches.SetNum(InSchedule->ExternalParamTasks.Num());
+	
+	for(int32 ScopeIndex = 0; ScopeIndex < ScopeCaches.Num(); ++ScopeIndex)
+	{
+		FScopeCache& ScopeCache = ScopeCaches[ScopeIndex];
+		ScopeCache.ParameterSources.Reserve(InSchedule->ParamScopeEntryTasks[ScopeIndex].ParameterBlocks.Num());
+		for(UAnimNextParameterBlock* ParameterBlock : InSchedule->ParamScopeEntryTasks[ScopeIndex].ParameterBlocks)
+		{
+			if(ParameterBlock)
+			{
+				ScopeCache.ParameterSources.Emplace(MakeUnique<FParameterBlockProxy>(ParameterBlock));
+			}
+		}
 
+		ScopeCache.PushedLayers.Reserve(ScopeCache.ParameterSources.Num() + 1); // +1 for any user handles added dynamically
+	}
+	
 	// Setup param stack graph
 	RootParamStack = InCurrentEntry->RootParamStack;
 	ParamStacks.SetNum(InSchedule->NumParameterScopes);
@@ -32,7 +52,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 		ParamStack = MakeShared<FParamStack>();
 	}
 
-	for (const FAnimNextScheduleGraphTask& Task : InSchedule->Tasks)
+	for (const FAnimNextScheduleGraphTask& Task : InSchedule->GraphTasks)
 	{
 		const TSharedPtr<FParamStack> ParentStack = Task.ParamParentScopeIndex != MAX_uint32 ? ParamStacks[Task.ParamParentScopeIndex] : RootParamStack;
 		ParamStacks[Task.ParamScopeIndex]->SetParent(ParentStack);
@@ -50,27 +70,51 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 		ParamStacks[ScopeEntryTask.ParamScopeIndex]->SetParent(ParentStack);
 	}
 
+	// Set up external parameters
+	FExternalParameterContext ExternalParameterContext;
+	ExternalParameterContext.Object = Entry->WeakObject.Get();
+
+	for(int32 ExternalParamSourceIndex = 0; ExternalParamSourceIndex < ExternalParamCaches.Num(); ++ExternalParamSourceIndex)
+	{
+		FExternalParamCache& ExternalParamCache = ExternalParamCaches[ExternalParamSourceIndex];
+
+		for(const FAnimNextScheduleExternalParameterSource& ParameterSource : InSchedule->ExternalParamTasks[ExternalParamSourceIndex].ParameterSources)
+		{
+			if(TUniquePtr<IParameterSource> NewParameterSource = FExternalParameterRegistry::CreateParameterSource(ExternalParameterContext, ParameterSource.ParameterSource, ParameterSource.Parameters))
+			{
+				// Initial update is required to populate the cache
+				// TODO: This needs to move outside this function once we run initialization off the game thread, depending on thread-safety
+				NewParameterSource->Update();
+
+				// External parameter layer is always pushed
+				RootParamStack->PushLayer(NewParameterSource->GetLayerHandle());
+				ExternalParamCache.ParameterSources.Add(MoveTemp(NewParameterSource));
+			}
+		}
+	}
+
 	// Duplicate intermediate data area
 	IntermediatesData = InSchedule->IntermediatesData;
 
 	// Make a hosting layer for the intermediates
 	IntermediatesLayer = FParamStack::MakeReferenceLayer(IntermediatesData);
 
-	// Resize remapped intermediate data layers for graph and port tasks, they will be allocated lazily later
-	GraphTermLayers.SetNum(InSchedule->Tasks.Num());
+	// Resize remapped intermediate data layers for port tasks, they will be allocated lazily later
 	PortTermLayers.SetNum(InSchedule->Ports.Num());
 }
 
+FScheduleInstanceData::~FScheduleInstanceData() = default;
+
 void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (TPair<FName, FAnimNextParameterCollection>& ParamPair : UserScopes)
+	for (TPair<FName, TUniquePtr<FPropertyBagProxy>>& ParamPair : UserScopes)
 	{
-		Collector.AddPropertyReferencesWithStructARO(FAnimNextParameterCollection::StaticStruct(), &ParamPair.Value);
+		ParamPair.Value->AddReferencedObjects(Collector);
 	}
 
-	for (FAnimNextGraphInstance& GraphInstance : GraphInstanceData)
+	for (FGraphCache& GraphCache : GraphCaches)
 	{
-		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstance::StaticStruct(), &GraphInstance);
+		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstance::StaticStruct(), &GraphCache.GraphInstanceData);
 	}
 }
 

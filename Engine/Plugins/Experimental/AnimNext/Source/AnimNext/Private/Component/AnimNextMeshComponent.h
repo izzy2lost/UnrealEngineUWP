@@ -5,6 +5,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "AnimNextMeshComponent.generated.h"
 
+struct FAnimNextGraphReferencePose;
 class UAnimNextSchedulePort_AnimNextMeshComponentPose;
 
 // Mesh component for use with AnimNext
@@ -21,4 +22,8 @@ class UAnimNextMeshComponent : public USkeletalMeshComponent
 
 	// Converts local to component space, flips buffers, updates bounds and dispatches to renderer
 	void CompleteAndDispatch(TConstArrayView<FBoneIndexType> InParentIndices, TConstArrayView<FBoneIndexType> InRequiredBoneIndices, TConstArrayView<FTransform> InLocalSpaceTransforms);
+
+	// Access the ref pose of the component
+	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly, meta=(BlueprintThreadSafe))
+	FAnimNextGraphReferencePose GetReferencePose();
 };

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿	// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SParameterPickerCombo.h"
 #include "SParameterPicker.h"
@@ -34,8 +34,14 @@ void SParameterPickerCombo::Construct(const FArguments& InArgs)
 		SNew(SComboButton)
 		.OnGetMenuContent_Lambda([PickerArgs, this]()
 		{
-			return SNew(SParameterPicker)
-				.Args(PickerArgs);
+			return
+				SNew(SBox)
+				.WidthOverride(300.0f)
+				.HeightOverride(300.0f)
+				[
+					SNew(SParameterPicker)
+					.Args(PickerArgs)
+				];
 		})
 		.ButtonContent()
 		[

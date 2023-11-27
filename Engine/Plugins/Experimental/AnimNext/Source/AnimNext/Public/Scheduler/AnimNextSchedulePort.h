@@ -6,6 +6,7 @@
 #include "IAnimNextScheduleTermInterface.h"
 #include "AnimNextSchedulePort.generated.h"
 
+class UAnimNextSchedule;
 struct FAnimNextSchedulePortTask;
 
 namespace UE::AnimNext
@@ -19,8 +20,12 @@ class ANIMNEXT_API UAnimNextSchedulePort : public UObject, public IAnimNextSched
 	GENERATED_BODY()
 
 private:
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct FAnimNextSchedulePortTask;
 
 	// Run the port's logic
 	virtual void Run(const UE::AnimNext::FScheduleTermContext& InContext) const PURE_VIRTUAL(UAnimNextSchedulePort::Run, )
+
+	// Get any required parameters for this port
+	virtual TConstArrayView<FName> GetRequiredParameters() const PURE_VIRTUAL(UAnimNextSchedulePort::GetRequiredParameters, return TConstArrayView<FName>(); )
 };

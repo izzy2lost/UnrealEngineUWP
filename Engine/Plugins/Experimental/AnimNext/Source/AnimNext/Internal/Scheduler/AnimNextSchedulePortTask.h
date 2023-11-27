@@ -18,6 +18,11 @@ namespace UE::AnimNext
 	struct FScheduleInstanceData;
 }
 
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
+}
+
 USTRUCT()
 struct FAnimNextSchedulePortTask
 {
@@ -25,7 +30,7 @@ struct FAnimNextSchedulePortTask
 
 	friend struct UE::AnimNext::FScheduleTask;
 	friend struct UE::AnimNext::FScheduleTickFunction;
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct UE::AnimNext::FScheduleInstanceData;
 
 	FAnimNextSchedulePortTask() = default;

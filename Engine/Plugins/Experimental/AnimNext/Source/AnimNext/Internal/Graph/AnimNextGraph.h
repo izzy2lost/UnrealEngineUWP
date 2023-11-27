@@ -20,6 +20,7 @@ class UAnimNextGraph;
 class UAnimGraphNode_AnimNextGraph;
 struct FAnimNode_AnimNextGraph;
 struct FRigUnit_AnimNextGraphEvaluator;
+class UAnimNextSchedule;
 
 namespace UE::AnimNext
 {
@@ -151,6 +152,9 @@ class ANIMNEXT_API UAnimNextGraph :  public URigVMHost, public IAnimNextSchedule
 	GENERATED_BODY()
 
 public:
+	static const UE::AnimNext::FParamId DefaultReferencePoseId;
+	static const UE::AnimNext::FParamId DefaultCurrentLODId;
+
 	UAnimNextGraph(const FObjectInitializer& ObjectInitializer);
 
 	// UObject interface
@@ -192,7 +196,8 @@ protected:
 	friend struct FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
 	friend UE::AnimNext::FExecutionContext;
-
+	friend class UAnimNextSchedule;
+	
 #if WITH_EDITORONLY_DATA
 	mutable FRWLock GraphInstancesLock;
 
@@ -235,11 +240,11 @@ protected:
 
 	// The parameter to use to access the reference pose
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))
-	FName ReferencePose = TEXT("UE_AnimNextMeshComponent_ReferencePose");
+	FName ReferencePose = DefaultReferencePoseId.GetName();
 
 	// The parameter to use to access the current LOD
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "int32"))
-	FName CurrentLOD = TEXT("UE_AnimNextMeshComponent_PredictedLODLevel");
+	FName CurrentLOD = DefaultCurrentLODId.GetName();
 
 	UE::AnimNext::FParamId ReferencePoseId = UE::AnimNext::FParamId(ReferencePose);
 	UE::AnimNext::FParamId CurrentLODId = UE::AnimNext::FParamId(CurrentLOD);

@@ -49,6 +49,7 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 	
 	const FProperty* Property = GetMetadataProperty(InPropertyHandle->GetProperty());
 	const FString ParamTypeString = Property->GetMetaData("AllowedParamType");
+	const bool bAllowNone = Property->HasMetaData("AllowNone");
 	FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
 	
 	FParameterPickerArgs PickerArgs;
@@ -73,6 +74,7 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 			Refresh();
 		}
 	});
+	PickerArgs.bAllowNone = bAllowNone;
 	
 	InHeaderRow
 	.NameContent()

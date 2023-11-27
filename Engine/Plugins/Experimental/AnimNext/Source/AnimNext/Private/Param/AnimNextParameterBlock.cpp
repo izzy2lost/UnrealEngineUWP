@@ -39,29 +39,6 @@ void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& 
 	}
 }
 
-UE::AnimNext::FParamStackLayerHandle UAnimNextParameterBlock::CacheLayer() const
-{
-	return UE::AnimNext::FParamStack::MakeValueLayer(PropertyBag);
-}
-
-bool UAnimNextParameterBlock::ShouldCacheLayer(const UE::AnimNext::FParamStackLayerHandle& InHandle) const
-{
-	if(!InHandle.IsValid())
-	{
-		return true;
-	}
-
-#if WITH_EDITOR	// Layout should only be changing in editor
-	const FInstancedPropertyBag* HandlePropertyBag = InHandle.As<FInstancedPropertyBag>();
-	if(HandlePropertyBag == nullptr || HandlePropertyBag->GetPropertyBagStruct() != PropertyBag.GetPropertyBagStruct())
-	{
-		return true;
-	}
-#endif
-
-	return false;
-}
-
 void UAnimNextParameterBlock::BeginDestroy()
 {
 	Super::BeginDestroy();

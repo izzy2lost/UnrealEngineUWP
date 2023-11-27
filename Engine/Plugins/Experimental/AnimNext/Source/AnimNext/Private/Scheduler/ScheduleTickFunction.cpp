@@ -15,8 +15,6 @@ namespace UE::AnimNext
 
 void FScheduleBeginTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	Entry.LazyAllocateInstanceData();
-
 	Entry.ResolvedObject = Entry.WeakObject.Get();
 	Entry.DeltaTime = DeltaTime;
 }
@@ -116,13 +114,13 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 		const FAnimNextScheduleInstruction& Instruction = InInstructions[InstructionIndex];
 		switch (Instruction.Opcode)
 		{
-		case EAnimNextScheduleScheduleOpcode::RunTask:
+		case EAnimNextScheduleScheduleOpcode::RunGraphTask:
 			{
-				uint32 TaskIndex = Instruction.Operand;
+				uint32 GraphTaskIndex = Instruction.Operand;
 				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
-				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->Tasks[TaskIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
+				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->GraphTasks[GraphTaskIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
-				Schedule->Tasks[TaskIndex].RunGraph(ScheduleContext);
+				Schedule->GraphTasks[GraphTaskIndex].RunGraph(ScheduleContext);
 
 				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;
@@ -187,6 +185,17 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 				Schedule->ParamScopeExitTasks[ScopeExitIndex].RunParamScopeExit(ScheduleContext);
 
 				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
+				break;
+			}
+		case EAnimNextScheduleScheduleOpcode::RunExternalParamTask:
+			{
+				uint32 ExternalParamIndex = Instruction.Operand;
+				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FParamStack::AttachToCurrentThread(InstanceData.RootParamStack);
+
+				Schedule->ExternalParamTasks[ExternalParamIndex].UpdateExternalParams(ScheduleContext);
+
+				FParamStack::DetachFromCurrentThread();
 				break;
 			}
 		default:

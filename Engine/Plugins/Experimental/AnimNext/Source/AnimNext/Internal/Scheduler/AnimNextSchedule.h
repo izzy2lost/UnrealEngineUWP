@@ -7,6 +7,7 @@
 #include "Scheduler/AnimNextSchedulePortTask.h"
 #include "Scheduler/AnimNextScheduleExternalTask.h"
 #include "Scheduler/AnimNextScheduleParamScopeTask.h"
+#include "Scheduler/AnimNextScheduleExternalParamTask.h"
 #include "Tasks/Task.h"
 #include "Scheduler/IAnimNextScheduleTermInterface.h"
 #include "AnimNextSchedule.generated.h"
@@ -26,6 +27,12 @@ namespace UE::AnimNext
 	struct FScheduleContext;
 	struct FScheduleInstanceData;
 	struct FScheduleTickFunction;
+}
+
+namespace UE::AnimNext::UncookedOnly
+{
+	class FModule;
+	struct FUtils;
 }
 
 USTRUCT()
@@ -51,47 +58,48 @@ struct FAnimNextScheduleEntryTerm
 	EScheduleTermDirection Direction = EScheduleTermDirection::Input;
 };
 
-UCLASS(EditInlineNew, Abstract)
+UCLASS(MinimalAPI, EditInlineNew, Abstract)
 class UAnimNextScheduleEntry : public UObject
 {
 	GENERATED_BODY()
-
-private:
-	friend class UAnimNextSchedule;
 };
 
-UCLASS(DisplayName="Graph")
+UCLASS(MinimalAPI, DisplayName="Graph")
 class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
 	// The graph to run by default
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
 
 	// Parameter to get the graph from dynamically
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextGraph>"))
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UAnimNextGraph>", AllowNone))
 	FName DynamicGraph;
 
 	// An optional entry point to use when running the supplied graph
-	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName"))
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName", AllowedParamType = "FName", AllowNone))
 	FName EntryPoint;
+
+	// All parameters that are required by this graph to run (only required if dynamic as static graph params can be discovered by the compiler)
+	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName"))
+	TArray<FName> RequiredParameters;
 
 	// The intermediate terms used by the graph
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	TArray<FAnimNextScheduleEntryTerm> Terms;
 };
 
-UCLASS(DisplayName="Port")
+UCLASS(MinimalAPI, DisplayName="Port")
 class UAnimNextScheduleEntry_Port : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
 	// The type of the port to use
 	UPROPERTY(EditAnywhere, Category = "Port", meta = (ShowDisplayNames))
@@ -102,30 +110,26 @@ private:
 	TArray<FAnimNextScheduleEntryTerm> Terms;
 };
 
-UCLASS(DisplayName="External")
+UCLASS(MinimalAPI, DisplayName="External")
 class UAnimNextScheduleEntry_ExternalTask : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
-	// The tick function that this external task should wrap
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FTickFunction"))
-	FName TickFunction;
-
-	// The object that the tick function is present on
-	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "TObjectPtr<UObject>"))
-	FName Object;
+	// The external task we wrap
+	UPROPERTY(EditAnywhere, Category = "External Task", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextExternalTaskBinding"))
+	FName ExternalTask;
 };
 
-UCLASS(DisplayName="Scope")
+UCLASS(MinimalAPI, DisplayName="Scope")
 class UAnimNextScheduleEntry_ParamScope : public UAnimNextScheduleEntry
 {
 	GENERATED_BODY()
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
 	// The scope to use
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
@@ -140,22 +144,43 @@ private:
 	TArray<TObjectPtr<UAnimNextScheduleEntry>> SubEntries;
 };
 
+// This entry is inserted only by the compilation machinery
+UCLASS(MinimalAPI, DisplayName="External Parameters [INTERNAL]")
+class UAnimNextScheduleEntry_ExternalParams : public UAnimNextScheduleEntry
+{
+	GENERATED_BODY()
+
+private:
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
+	
+	// Parameter sources to use
+	UPROPERTY()
+	TArray<FAnimNextScheduleExternalParameterSource> ParameterSources;
+
+	// Whether the task can run on a worker thread
+	UPROPERTY()
+	bool bThreadSafe = false;
+
+};
+
 // TEMP: opcode in schedule
 UENUM()
 enum class EAnimNextScheduleScheduleOpcode : uint8
 {
 	None,
-	RunTask,				// Operand = Task Index
+	RunGraphTask,			// Operand = Task Index
 	BeginRunExternalTask,	// Operand = Task Index
 	EndRunExternalTask,		// Operand = Task Index
 	RunPort,				// Operand = Port Index
 	RunParamScopeEntry,		// Operand = Scope Index
 	RunParamScopeExit,		// Operand = Scope Index
+	RunExternalParamTask,	// Operand = Task Index
 	PrerequisiteTask,		// Operand = Task Index
 	PrerequisiteBeginExternalTask, // Operand = Task Index
 	PrerequisiteEndExternalTask, // Operand = Task Index
 	PrerequisiteScopeEntry,	// Operand = Scope Index
 	PrerequisiteScopeExit,	// Operand = Scope Index
+	PrerequisiteExternalParamTask, // Operand = Task Index
 	Exit,					// Operand = 0
 };
 
@@ -202,6 +227,8 @@ private:
 	friend struct FAnimNextSchedulerEntry;
 	friend class UAnimNextComponent;
 	friend class UAnimNextSchedulerWorldSubsystem;
+	friend class UE::AnimNext::UncookedOnly::FModule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
 	// UObject interface
 	virtual void PostLoad() override;
@@ -214,6 +241,9 @@ private:
 #endif
 
 #if WITH_EDITORONLY_DATA
+	// Function hook used to compile in editor/cooker
+	static TUniqueFunction<void(UAnimNextSchedule*)> CompileFunction;
+
 	// Editor only
 	// TODO: move this into an editor only subobject
 	// TODO: this is currently only a linear list, we want it to be a graph
@@ -227,7 +257,7 @@ private:
 
 	// TEMP: Tasks derived from the entries above
 	UPROPERTY(NonTransactional)
-	TArray<FAnimNextScheduleGraphTask> Tasks;
+	TArray<FAnimNextScheduleGraphTask> GraphTasks;
 
 	// TEMP: Ports derived from the entries above
 	UPROPERTY(NonTransactional)
@@ -245,6 +275,10 @@ private:
 	UPROPERTY(NonTransactional)
 	TArray<FAnimNextScheduleParamScopeExitTask> ParamScopeExitTasks;
 
+	// TEMP: External parameter tasks derived from the entries above
+	UPROPERTY(NonTransactional)
+	TArray<FAnimNextScheduleExternalParamTask> ExternalParamTasks;
+	
 	// TEMP: Data for intermediates, defined as a property bag
 	UPROPERTY(NonTransactional)
 	FInstancedPropertyBag IntermediatesData;

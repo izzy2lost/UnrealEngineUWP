@@ -4,7 +4,6 @@
 #include "ScheduleInstanceData.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Param/ParamDefinition.h"
-#include "Param/Params.h"
 #include "Engine/World.h"
 
 namespace UE::AnimNext

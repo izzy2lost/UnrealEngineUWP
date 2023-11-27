@@ -14,6 +14,11 @@ namespace UE::AnimNext
 	struct FScheduleInstanceData;
 }
 
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
+}
+
 UENUM()
 enum class EScheduleTermDirection : uint8
 {
@@ -52,7 +57,7 @@ class IAnimNextScheduleTermInterface
 	GENERATED_BODY()
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct FAnimNextSchedulePortTask;
 

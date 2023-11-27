@@ -3,8 +3,7 @@
 #include "AnimNextComponent.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/ScheduleContext.h"
-#include "Param/AnimNextParameterSourceRef.h"
-#include "Param/Params.h"
+#include "Param/PropertyBagProxy.h"
 
 void UAnimNextComponent::OnRegister()
 {
@@ -109,11 +108,11 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 
 	Stack.StepCompiledIn<FProperty>(nullptr);
 	const FProperty* ValueProp = CastField<FProperty>(Stack.MostRecentProperty);
-	const void* ValuePtr = Stack.MostRecentPropertyAddress;
+	const void* ContainerPtr = Stack.MostRecentPropertyContainer;
 
 	P_FINISH;
 
-	if (!ValueProp || !ValuePtr)
+	if (!ValueProp || !ContainerPtr)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::AbortExecution,
@@ -135,17 +134,19 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	{
 		P_NATIVE_BEGIN;
 
-		FAnimNextParameterSourceRef ParamSource;
-		ParamSource.Type = EAnimNextParameterSourceRefType::Inline;
-		ParamSource.InlineParameters.AddProperty(Name, ValueProp);
-		ParamSource.InlineParameters.SetValue(Name, ParamSource.InlineParameters.GetPropertyBagStruct()->FindPropertyByName(Name), ValuePtr);
-
-		FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, ParamSource = MoveTemp(ParamSource)](const FScheduleContext& InContext)
+		TUniquePtr<FInstancedPropertyBag> PropertyBag = MakeUnique<FInstancedPropertyBag>();
+		PropertyBag->AddProperty(Name, ValueProp);
+		FProperty* NewProperty = PropertyBag->GetPropertyBagStruct()->FindPropertyByName(Name);
+		PropertyBag->SetValue(Name, NewProperty, ContainerPtr);
+		
+		FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag)](const FScheduleContext& InContext) mutable
 		{
-			FAnimNextParameterCollection& Collection = InContext.GetInstanceData().UserScopes.FindOrAdd(Scope);
+			TUniquePtr<FPropertyBagProxy>& ScopeSources = InContext.GetInstanceData().UserScopes.FindOrAdd(Scope);
 
 			// TODO: pre/post scope distinction
-			Collection.Parameters.Insert(ParamSource, 0);
+
+			// Copy property to local bag
+			ScopeSources->AddPropertyAndValue(Name, NewProperty, PropertyBag->GetValue().GetMemory());
 		});
 		
 		P_NATIVE_END;

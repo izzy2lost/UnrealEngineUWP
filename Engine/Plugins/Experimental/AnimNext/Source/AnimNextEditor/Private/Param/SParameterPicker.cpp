@@ -16,11 +16,11 @@
 #include "String/ParseTokens.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Images/SImage.h"
-#include "Param/Params.h"
 #include "Widgets/Input/SButton.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
 #include "SSimpleButton.h"
+#include "Param/ExternalParameterRegistry.h"
 
 #define LOCTEXT_NAMESPACE "SParameterPicker"
 
@@ -302,6 +302,11 @@ void SParameterPicker::RefreshEntries()
 
 	TSet<TTuple<FName, FAssetData>> BoundParameters;
 
+	if(Args.bAllowNone)
+	{
+		Entries.Add(MakeShared<FParameterPickerEntry>(FParameterBindingReference(NAME_None), FAnimNextParamType()));
+	}
+	
 	// Find all blocks and their bound parameters
 	if(Args.bShowBoundParameters)
 	{
@@ -365,14 +370,14 @@ void SParameterPicker::RefreshEntries()
 
 	if (Args.bShowBuiltInParameters)
 	{
-		FParams::ForEachBuiltInParameter([this](const FParamDefinition& InDefinition)
+		FExternalParameterRegistry::ForEachParameter([this](FName InParameterName, const IParameterSourceFactory::FParameterInfo& InInfo)
 		{
-			FParameterBindingReference NewReference(InDefinition.GetName());
+			FParameterBindingReference NewReference(InParameterName);
 			if (!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 			{
-				if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(InDefinition.GetType()) == EFilterParameterResult::Include)
+				if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(InInfo.Type) == EFilterParameterResult::Include)
 				{
-					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference, InDefinition.GetType()));
+					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference, InInfo.Type));
 				}
 			}
 		});
@@ -642,7 +647,7 @@ void SParameterPicker::HandleSelectionChanged(TSharedPtr<FParameterPickerEntry> 
 		TArray<TSharedRef<FParameterPickerEntry>> SelectedEntries;
 		EntriesList->GetSelectedItems(SelectedEntries);
 
-		if(SelectedEntries[0]->ParamType.IsValid())
+		if(SelectedEntries[0]->ParamType.IsValid() || Args.bAllowNone)
 		{
 			Args.OnParameterPicked.ExecuteIfBound(SelectedEntries[0]->Binding);
 		}

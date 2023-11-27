@@ -38,9 +38,6 @@ struct FAnimNextSchedulerEntry
 	// Clears the bTickEvenWhenPaused flags of the entries' tick functions
 	void ClearTickFunctionPauseFlags();
 
-	// Allocate instance data if required
-	void LazyAllocateInstanceData();
-
 	UPROPERTY(Transient)
 	TObjectPtr<const UAnimNextSchedule> Schedule = nullptr;
 

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "PropertyBag.h"
 #include "RigVMCore/RigVMExecuteContext.h"
-#include "Param/IAnimNextParameterSourceInterface.h"
+#include "Param/IParameterSource.h"
 #include "RigVMHost.h"
 #include "AnimNextParameterBlock.generated.h"
 
@@ -16,6 +16,7 @@ struct FAnimNextScheduleParamScopeTask;
 namespace UE::AnimNext
 {
 	struct FContext;
+	struct FParameterBlockProxy;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -34,7 +35,7 @@ namespace UE::AnimNext::Editor
 
 /** An asset used to define AnimNext parameters and their bindings */
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSourceInterface
+class UAnimNextParameterBlock : public URigVMHost
 {
 	GENERATED_BODY()
 
@@ -51,11 +52,9 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 	friend struct FAnimNextScheduleParamScopeEntryTask;
 	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
+	friend struct UE::AnimNext::FParameterBlockProxy;
 
-	// IAnimNextParameterSourceInterface interface
-	virtual void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
-	virtual UE::AnimNext::FParamStackLayerHandle CacheLayer() const override;
-	virtual bool ShouldCacheLayer(const UE::AnimNext::FParamStackLayerHandle& InHandle) const override;
+	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const;
 
 	// UObject interface
 	virtual void BeginDestroy() override;
@@ -64,12 +63,10 @@ class UAnimNextParameterBlock : public URigVMHost, public IAnimNextParameterSour
 
 	FInstancedPropertyBag& GetPropertyBag() { return PropertyBag; }
 
-
 	FRigVMExtendedExecuteContext BaseRigVMContext;
 
 	UPROPERTY()
 	TObjectPtr<URigVM> RigVM;
-
 
 	UPROPERTY()
 	FInstancedPropertyBag PropertyBag;

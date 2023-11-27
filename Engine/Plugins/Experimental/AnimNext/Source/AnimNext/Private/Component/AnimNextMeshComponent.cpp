@@ -3,6 +3,8 @@
 #include "AnimNextMeshComponent.h"
 #include "GenerationTools.h"
 #include "Engine/World.h"
+#include "Graph/AnimNext_LODPose.h"
+#include "ReferencePose.h"
 
 UAnimNextMeshComponent::UAnimNextMeshComponent()
 {
@@ -36,4 +38,11 @@ void UAnimNextMeshComponent::CompleteAndDispatch(TConstArrayView<FBoneIndexType>
 		// Send updated transforms to the renderer
 		SendRenderDynamicData_Concurrent();
 	}
+}
+
+FAnimNextGraphReferencePose UAnimNextMeshComponent::GetReferencePose()
+{
+	UE::AnimNext::FDataHandle RefPoseHandle = UE::AnimNext::FDataRegistry::Get()->GetOrGenerateReferencePose(this);
+	const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
+	return FAnimNextGraphReferencePose(&RefPose);
 }

@@ -194,16 +194,10 @@ public:
 	// Push a layer
 	ANIMNEXT_API FPushedLayerHandle PushLayer(const FParamStackLayerHandle& InLayerHandle);
 
-	// Create a cached parameter layer from a class. This layer will own an object used to represent the layer.
-	static ANIMNEXT_API FParamStackLayerHandle MakeValueLayer(const UClass* InClass);
-
-	// Create a cached parameter layer from an object. This layer will weakly reference the supplied object.
-	static ANIMNEXT_API FParamStackLayerHandle MakeReferenceLayer(UObject* InObject);
-
 	// Create a cached parameter layer from an instanced property bag. This layer will own a copy of the property bag used to represent the layer.
 	static ANIMNEXT_API FParamStackLayerHandle MakeValueLayer(const FInstancedPropertyBag& InInstancedPropertyBag);
 
-	// Create a cached parameter layer from an instanced property bag. This layer will reference the suppled propery bag and does not transfer ownership.
+	// Create a cached parameter layer from an instanced property bag. This layer will reference the supplied property bag and does not transfer ownership.
 	static ANIMNEXT_API FParamStackLayerHandle MakeReferenceLayer(FInstancedPropertyBag& InInstancedPropertyBag);
 
 	// Create a cached parameter layer by remapping the entries from another layer

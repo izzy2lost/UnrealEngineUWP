@@ -10,7 +10,6 @@ enum class EAnimNextScheduleInitMethod : uint8;
 class UAnimNextGraph;
 class UAnimNextParameterBlock;
 class UAnimNextSchedule;
-struct FAnimNextParameterCollection;
 
 namespace UE::AnimNext
 {

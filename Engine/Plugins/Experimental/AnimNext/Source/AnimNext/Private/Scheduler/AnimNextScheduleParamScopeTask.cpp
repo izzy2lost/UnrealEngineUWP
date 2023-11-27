@@ -1,11 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Scheduler/AnimNextScheduleParamScopeTask.h"
-#include "Param/AnimNextParameterBlock.h"
 #include "Scheduler/ScheduleContext.h"
-#include "Scheduler/AnimNextSchedulerEntry.h"
-#include "Param/AnimNextParameterSourceRef.h"
+#include "Param/IParameterSource.h"
 #include "AnimNextStats.h"
+#include "Param/PropertyBagProxy.h"
 
 DEFINE_STAT(STAT_AnimNext_Task_ScopeEntry);
 DEFINE_STAT(STAT_AnimNext_Task_ScopeExit);
@@ -20,76 +19,25 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 
 	FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 	FScheduleInstanceData::FScopeCache& ScopeCache = InstanceData.ScopeCaches[TaskIndex];
-	ScopeCache.PushedLayers.Reset();
+	check(ScopeCache.PushedLayers.Num() == 0);
 
-	const FAnimNextParameterCollection* FoundUserScope = InstanceData.UserScopes.Find(Scope);
-	if(FoundUserScope)
+	// Update & push user params
+	if (TUniquePtr<FPropertyBagProxy>* FoundUserScope = InstanceData.UserScopes.Find(Scope))
 	{
-		ScopeCache.PushedLayers.Reserve(ParameterBlocks.Num() + FoundUserScope->Parameters.Num());
-	}
-	else
-	{
-		ScopeCache.PushedLayers.Reserve(ParameterBlocks.Num());
-	}
-
-	// Resize layer handles appropriately & cache layer
-	if (ScopeCache.StaticHandles.Num() != ParameterBlocks.Num())
-	{
-		ScopeCache.StaticHandles.SetNum(ParameterBlocks.Num());
-		for (int32 LayerHandleIndex = 0; LayerHandleIndex < ScopeCache.StaticHandles.Num(); ++LayerHandleIndex)
-		{
-			if(ParameterBlocks[LayerHandleIndex])
-			{
-				ScopeCache.StaticHandles[LayerHandleIndex] = ParameterBlocks[LayerHandleIndex]->CacheLayer();
-			}
-		}
-	}
-
-	if (FoundUserScope)
-	{
-		const UObject* ObjectContext = InstanceData.Entry->ResolvedObject;
-
-		// Resize user scope data appropriately
-		if (ScopeCache.UserHandles.Num() != FoundUserScope->Parameters.Num())
-		{
-			ScopeCache.UserHandles.SetNum(FoundUserScope->Parameters.Num());
-		}
-
-		// Cache any layers if required
-		for (int32 LayerHandleIndex = 0; LayerHandleIndex < ScopeCache.UserHandles.Num(); ++LayerHandleIndex)
-		{
-			if(const IAnimNextParameterSourceInterface* ParameterSource = FoundUserScope->Parameters[LayerHandleIndex].Get(ObjectContext))
-			{
-				if(ParameterSource->ShouldCacheLayer(ScopeCache.UserHandles[LayerHandleIndex]))
-				{
-					ScopeCache.UserHandles[LayerHandleIndex] = ParameterSource->CacheLayer();
-				}
-			}
-		}
-
-		for (int32 ParamBlockIndex = 0; ParamBlockIndex < FoundUserScope->Parameters.Num(); ++ParamBlockIndex)
-		{
-			if(const IAnimNextParameterSourceInterface* ParameterSource = FoundUserScope->Parameters[ParamBlockIndex].Get(ObjectContext))
-			{
-				FParamStackLayerHandle& LayerHandle = ScopeCache.UserHandles[ParamBlockIndex];
-				ParameterSource->UpdateLayer(LayerHandle);
-				ScopeCache.PushedLayers.Add(ParamStack.PushLayer(LayerHandle));
-			}
-		}
+		FPropertyBagProxy& UserParameterSource = *FoundUserScope->Get();
+		UserParameterSource.Update();
+		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
 	}
 
 	// TODO: Pre/post scope support
 
 	// Update & push static params
-	for (int32 ParamBlockIndex = 0; ParamBlockIndex < ParameterBlocks.Num(); ++ParamBlockIndex)
+	for (int32 ParameterSourceIndex = 0; ParameterSourceIndex < ScopeCache.ParameterSources.Num(); ++ParameterSourceIndex)
 	{
-		if(const UAnimNextParameterBlock* ParameterBlock = ParameterBlocks[ParamBlockIndex])
-		{
-			FParamStackLayerHandle& LayerHandle = ScopeCache.StaticHandles[ParamBlockIndex];
+		TUniquePtr<IParameterSource>& StaticParameterSource = ScopeCache.ParameterSources[ParameterSourceIndex];
 
-			ParameterBlock->UpdateLayer(LayerHandle);
-			ScopeCache.PushedLayers.Add(ParamStack.PushLayer(LayerHandle));
-		}
+		StaticParameterSource->Update();
+		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(StaticParameterSource->GetLayerHandle()));
 	}
 }
 

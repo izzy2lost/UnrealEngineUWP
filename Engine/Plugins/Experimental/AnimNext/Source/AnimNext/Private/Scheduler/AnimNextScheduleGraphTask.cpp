@@ -14,14 +14,8 @@
 
 DEFINE_STAT(STAT_AnimNext_Task_Graph);
 
-void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& InContext) const
+UAnimNextGraph* FAnimNextScheduleGraphTask::GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const
 {
-	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Task_Graph);
-
-	using namespace UE::AnimNext;
-
-	FParamStack& ParamStack = FParamStack::Get();
-
 	UAnimNextGraph* GraphToRun = Graph;
 	if (GraphToRun == nullptr && DynamicGraph != NAME_None)
 	{
@@ -31,24 +25,37 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 		}
 	}
 
+	return GraphToRun;
+}
+
+void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& InContext) const
+{
+	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Task_Graph);
+
+	using namespace UE::AnimNext;
+
+	FParamStack& ParamStack = FParamStack::Get();
+
+	UAnimNextGraph* GraphToRun = GetGraphToRun(ParamStack);
 	if(GraphToRun == nullptr)
 	{
 		return;
 	}
 
 	FScheduleInstanceData& InstanceData = InContext.GetInstanceData();
+	FScheduleInstanceData::FGraphCache& GraphCache = InstanceData.GraphCaches[TaskIndex];
 
 	// Check if we are running the correct graph and release (and any term mapping layers) it if not
-	if(InstanceData.GraphInstanceData[TaskIndex].IsValid() && !InstanceData.GraphInstanceData[TaskIndex].UsesGraph(GraphToRun))
+	if(GraphCache.GraphInstanceData.IsValid() && !GraphCache.GraphInstanceData.UsesGraph(GraphToRun))
 	{
-		InstanceData.GraphInstanceData[TaskIndex].Release();
-		InstanceData.GraphTermLayers[TaskIndex].Invalidate();
+		GraphCache.GraphInstanceData.Release();
+		GraphCache.GraphTermLayer.Invalidate();
 	}
 
 	// Allocate our graph instance data
-	if (!InstanceData.GraphInstanceData[TaskIndex].IsValid())
+	if (!GraphCache.GraphInstanceData.IsValid())
 	{
-		GraphToRun->AllocateInstance(InstanceData.GraphInstanceData[TaskIndex]);
+		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData);
 	}
 
 	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(GraphToRun->GetReferencePoseParam());
@@ -64,8 +71,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	}
 
 	// Check and allocate remapped term layer
-	FParamStackLayerHandle& TermLayerHandle = InstanceData.GraphTermLayers[TaskIndex];
-	if(!TermLayerHandle.IsValid())
+	if(!GraphCache.GraphTermLayer.IsValid())
 	{
 		TConstArrayView<FScheduleTerm> GraphTerms = GraphToRun->GetTerms();
 		check(Terms.Num() == GraphTerms.Num());
@@ -79,11 +85,11 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 			Mapping.Add(PropertyDesc.Name, GraphTerms[TermIndex].GetName());
 		}
 
-		TermLayerHandle = FParamStack::MakeRemappedLayer(InstanceData.IntermediatesLayer, Mapping);
+		GraphCache.GraphTermLayer = FParamStack::MakeRemappedLayer(InstanceData.IntermediatesLayer, Mapping);
 	}
 
 	// TODO: This should not be fixed at arg 0, we should define this in the graph asset
-	FAnimNextGraphLODPose* OutputPose = TermLayerHandle.GetMutableParamPtr<FAnimNextGraphLODPose>(GraphToRun->GetTerms()[0].GetId());
+	FAnimNextGraphLODPose* OutputPose = GraphCache.GraphTermLayer.GetMutableParamPtr<FAnimNextGraphLODPose>(GraphToRun->GetTerms()[0].GetId());
 	if(OutputPose == nullptr)
 	{
 		return;
@@ -98,9 +104,6 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 
 	check(OutputPose->LODPose.LODLevel == *GraphLODLevel);
 
-	// Push parameter layers that translate schedule data to graph inputs
-	FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushLayer(InstanceData.GraphInputLayers[TaskIndex]);
-
 	// Internally we use memstack allocation, so we need a mark here
 	FMemStack& MemStack = FMemStack::Get();
 	FMemMark MemMark(MemStack);
@@ -109,10 +112,10 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	UE::AnimNext::UpdateGraph(InstanceData.GraphInstanceData[TaskIndex], InContext.GetDeltaTime());
+	UE::AnimNext::UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
 
 	{
-		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(InstanceData.GraphInstanceData[TaskIndex]);
+		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphCache.GraphInstanceData);
 
 		FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePose->ReferencePose, *GraphLODLevel);
 		bool bHasValidOutput = false;
@@ -136,6 +139,4 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 			OutputPose->LODPose.CopyFrom(ReferenceKeyframe.Pose);
 		}
 	}
-
-	ParamStack.PopLayer(LayerHandle);
 }

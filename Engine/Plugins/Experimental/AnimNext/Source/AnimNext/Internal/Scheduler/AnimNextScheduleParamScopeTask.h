@@ -17,6 +17,11 @@ namespace UE::AnimNext
 	struct FScheduleTickFunction;
 }
 
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
+}
+
 USTRUCT()
 struct FAnimNextScheduleParamScopeEntryTask
 {
@@ -28,7 +33,7 @@ private:
 	void RunParamScopeEntry(const UE::AnimNext::FScheduleContext& InScheduleContext) const;
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UAnimNextSchedulerWorldSubsystem;
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct UE::AnimNext::FScheduleTickFunction;
@@ -50,7 +55,7 @@ private:
 	UPROPERTY()
 	FName Scope;
 
-	/** Parameters to apply in this scope */
+	// Parameters to apply in this scope
 	UPROPERTY()
 	TArray<TObjectPtr<UAnimNextParameterBlock>> ParameterBlocks;
 };
@@ -66,7 +71,7 @@ private:
 	void RunParamScopeExit(const UE::AnimNext::FScheduleContext& InScheduleContext) const;
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct UE::AnimNext::FScheduleTickFunction;
 
 	UPROPERTY()

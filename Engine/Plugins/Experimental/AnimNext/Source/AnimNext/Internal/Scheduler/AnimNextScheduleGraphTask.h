@@ -14,6 +14,12 @@ namespace UE::AnimNext
 	struct FScheduleContext;
 	struct FScheduleInstanceData;
 	struct FScheduleTickFunction;
+	struct FParamStack;
+}
+
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
 }
 
 USTRUCT()
@@ -25,11 +31,13 @@ struct FAnimNextScheduleGraphTask
 
 private:
 	friend class UAnimNextComponent;
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct UE::AnimNext::FScheduleInstanceData;
 	friend struct UE::AnimNext::FScheduleTickFunction;
 
 	void RunGraph(const UE::AnimNext::FScheduleContext& InContext) const;
+
+	UAnimNextGraph* GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const;
 
 private:
 	UPROPERTY()

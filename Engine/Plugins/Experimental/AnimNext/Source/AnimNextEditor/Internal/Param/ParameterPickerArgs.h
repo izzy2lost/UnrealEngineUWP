@@ -119,6 +119,9 @@ struct FParameterPickerArgs
 
 	// Whether the search box should be focussed on widget creation
 	bool bFocusSearchWidget = true;
+
+	// Whether 'none' can be selected
+	bool bAllowNone = false;
 };
 
 }

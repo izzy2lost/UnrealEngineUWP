@@ -7,12 +7,6 @@
 #include "Param/ParamType.h"
 #include "Param/ParamTypeHandle.h"
 
-namespace UE::AnimNext
-{
-	struct FParams;
-	struct FParamAdapter;
-}
-
 namespace UE::AnimNext::UncookedOnly
 {
 	struct FUtils;
@@ -107,8 +101,6 @@ struct FParamDefinition
 
 private:
 	friend struct FParamId;
-	friend struct FParams;
-	friend struct FParamAdapter;
 	friend struct UncookedOnly::FUtils;
 
 	FParamId Id;

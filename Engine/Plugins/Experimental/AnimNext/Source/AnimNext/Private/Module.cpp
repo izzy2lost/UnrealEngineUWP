@@ -14,8 +14,8 @@
 #include "RigVMRuntimeDataRegistry.h"
 #include "Animation/AnimSequence.h"
 #include "Scheduler/Scheduler.h"
-#include "Param/Params.h"
-#include "Components/SkeletalMeshComponent.h"
+#include "Param/ExternalParameterRegistry.h"
+#include "Param/ObjectProxyFactory.h"
 
 namespace UE::AnimNext
 {
@@ -37,8 +37,8 @@ public:
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);
 
-		FParamId::Init();
-
+		FObjectProxyFactory::Init();
+		FExternalParameterRegistry::Init();
 		FDataRegistry::Init();
 		FDecoratorRegistry::Init();
 		FNodeTemplateRegistry::Init();
@@ -53,8 +53,8 @@ public:
 		FNodeTemplateRegistry::Destroy();
 		FDecoratorRegistry::Destroy();
 		FDataRegistry::Destroy();
-
-		FParamId::Destroy();
+		FObjectProxyFactory::Destroy();
+		FExternalParameterRegistry::Destroy();
 	}
 };
 

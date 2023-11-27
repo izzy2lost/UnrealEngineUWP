@@ -5,7 +5,6 @@
 #include "Param/ParamHelpers.h"
 #include "PropertyBag.h"
 #include "EngineLogs.h"
-#include "Param/ParamAdapter.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 #include "Param/ParamStackLayer.h"
@@ -20,41 +19,6 @@ DEFINE_STAT(STAT_AnimNext_ParamStack_Decoalesce);
 
 namespace UE::AnimNext
 {
-	
-// Stack layer that can own its own data as a UObject or reference an externally owned object
-struct FUObjectLayer : FParamStackLayer
-{
-	FUObjectLayer() = delete;
-
-	explicit FUObjectLayer(UObject* InObject, bool bInMutable)
-		: FParamStackLayer(32)
-	{
-		Object = InObject;
-
-		const UClass* Class = InObject->GetClass();
-		
-		for (TFieldIterator<FProperty> PropIt(Class, EFieldIteratorFlags::IncludeSuper); PropIt; ++PropIt)
-		{
-			FParamTypeHandle ParamTypeHandle = FParamTypeHandle::FromProperty(*PropIt);
-			if(ParamTypeHandle.IsValid())
-			{
-				const FProperty* Property = *PropIt;
-				FParamId ParamId(PropIt->GetFName());
-				uint8* DataPtr = Property->ContainerPtrToValuePtr<uint8>(InObject);
-				uint32 ParamIndex = Params.Emplace(ParamId, ParamTypeHandle, TArrayView<uint8>(DataPtr, Property->GetSize()), true, bInMutable);
-				HashTable.Add(ParamId.GetHash(), ParamIndex);
-			}
-		}
-	}
-
-	// FParamStackLayer interface
-	virtual UObject* AsUObject() override
-	{
-		return Object.Get();
-	}
-
-	TWeakObjectPtr<UObject> Object;
-};
 
 // Stack layer that can own its own data or reference an external FInstancedPropertyBag
 struct FInstancedPropertyBagLayer : FParamStackLayer, FGCObject
@@ -338,23 +302,6 @@ void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 	}
 }
 
-FParamStackLayerHandle FParamStack::MakeValueLayer(const UClass* InClass)
-{
-	check(InClass != nullptr);
-
-	UObject* OwnedObject = NewObject<UObject>(GetTransientPackage(), InClass);
-	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FUObjectLayer>(OwnedObject, true);
-	return FParamStackLayerHandle(MoveTemp(Layer));
-}
-
-FParamStackLayerHandle FParamStack::MakeReferenceLayer(UObject* InObject)
-{
-	check(InObject != nullptr);
-
-	TUniquePtr<FParamStackLayer> Layer = MakeUnique<FUObjectLayer>(InObject, true);
-	return FParamStackLayerHandle(MoveTemp(Layer));
-}
-
 FParamStackLayerHandle FParamStack::MakeValueLayer(const FInstancedPropertyBag& InPropertyBag)
 {
 	FInstancedPropertyBag OwnedPropertyBag = InPropertyBag;
@@ -389,7 +336,7 @@ FParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHan
 FParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHandle, TConstArrayView<uint8>& OutParamData, FParamTypeHandle& OutParamTypeHandle, FParamCompatibility InRequiredCompatibility) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamStack_GetParam);
-	
+
 	const FParamResult Result = GetParamDataInternal(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 	if (Result.IsInScope())
 	{
@@ -403,14 +350,6 @@ FParamResult FParamStack::GetParamData(FParamId InId, FParamTypeHandle InTypeHan
 			return ParentStack->GetParamData(InId, InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 		}
 	}
-	
-	// Check if we have a built in adapter to fall back on
-	if(const FParamAdapter* Adapter = InId.GetAdapter(InId))
-	{
-		SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamStack_Adapter);
-		
-		return Adapter->GetParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
-	}
 
 	return EParamResult::NotInScope;
 }
@@ -422,7 +361,7 @@ FParamResult FParamStack::GetParamDataInternal(FParamId InId, FParamTypeHandle I
 	{
 		return EParamResult::NotInScope;
 	}
-	
+
 	const FParamResult Result = ParamPtr->GetParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 	if(Result.IsInScope())
 	{
@@ -461,14 +400,6 @@ FParamResult FParamStack::GetMutableParamData(FParamId InId, FParamTypeHandle In
 				return ParentResult.Result & EParamResult::MutabilityError;
 			}
 		}
-	}
-
-	// Check if we have a built in adapter to fall back on
-	if(const FParamAdapter* Adapter = InId.GetAdapter(InId))
-	{
-		SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamStack_Adapter);
-		
-		return Adapter->GetMutableParamData(InTypeHandle, OutParamData, OutParamTypeHandle, InRequiredCompatibility);
 	}
 
 	return EParamResult::NotInScope;
@@ -622,6 +553,7 @@ void FParamStack::Coalesce()
 		}
 
 		CoalesceLayerHandles.Reserve(NumCoalescedLayers);
+		Layers.Reserve(Layers.Num() + NumCoalescedLayers);
 		for(int32 StackIndex = Stacks.Num() - 1; StackIndex >= 0; --StackIndex)
 		{
 			const FParamStack* Stack = Stacks[StackIndex];

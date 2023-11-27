@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Param/AnimNextObjectAdapterConfig.h"
+#include "Param/AnimNextObjectAccessorConfig.h"
 #include "AnimNextConfig.generated.h"
 
 namespace UE::AnimNext
 {
-	struct FParamId;
+	class FObjectProxyFactory;
 }
 
 UCLASS(Config=AnimNext)
@@ -22,9 +22,9 @@ private:
 #endif
 
 private:
-	friend struct UE::AnimNext::FParamId;
+	friend class UE::AnimNext::FObjectProxyFactory;
 
 	/** The classes that are exposed to AnimNext systems */
 	UPROPERTY(Config, EditAnywhere, Category = "Exposed Classes")
-	TArray<FAnimNextObjectAdapterConfig> ExposedClasses;
+	TArray<FAnimNextObjectAccessorConfig> ExposedClasses;
 };

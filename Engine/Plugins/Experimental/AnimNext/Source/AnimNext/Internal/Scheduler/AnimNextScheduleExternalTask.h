@@ -15,6 +15,11 @@ namespace UE::AnimNext
 	struct FScheduleTickFunction;
 }
 
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
+}
+
 USTRUCT()
 struct FAnimNextScheduleExternalTask
 {
@@ -23,7 +28,7 @@ struct FAnimNextScheduleExternalTask
 	FAnimNextScheduleExternalTask() = default;
 
 private:
-	friend class UAnimNextSchedule;
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UAnimNextComponent;
 	friend struct FAnimNextSchedulerEntry;
 	friend struct UE::AnimNext::FScheduleTickFunction;
@@ -38,11 +43,6 @@ private:
 	UPROPERTY()
 	uint32 ParamParentScopeIndex = MAX_uint32;
 
-	/** The name of the external task parameter */
 	UPROPERTY()
-	FName TickFunction;
-
-	/** The name of the external task's object parameter */
-	UPROPERTY()
-	FName Object;
+	FName ExternalTask;
 };

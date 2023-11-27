@@ -13,6 +13,9 @@
 
 DEFINE_STAT(STAT_AnimNext_Port_SkeletalMeshComponent);
 
+UE::AnimNext::FParamId UAnimNextSchedulePort_AnimNextMeshComponentPose::ComponentParamId("UE_AnimNextMeshComponent");
+UE::AnimNext::FParamId UAnimNextSchedulePort_AnimNextMeshComponentPose::ReferencePoseParamId("UE_AnimNextMeshComponent_ReferencePose");
+
 void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FScheduleTermContext& InContext) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Port_SkeletalMeshComponent);
@@ -21,7 +24,6 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 
 	const FParamStack& ParamStack = FParamStack::Get();
 
-	static FParamId ComponentParamId("UE_AnimNextMeshComponent");
 	const TObjectPtr<UAnimNextMeshComponent>* ComponentPtr = ParamStack.GetParamPtr<TObjectPtr<UAnimNextMeshComponent>>(ComponentParamId);
 	if(ComponentPtr == nullptr)
 	{
@@ -39,7 +41,6 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 		return;
 	}
 
-	static const FParamId ReferencePoseParamId("UE_AnimNextMeshComponent_ReferencePose");
 	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(ReferencePoseParamId);
 	if(GraphReferencePose == nullptr)
 	{
@@ -81,4 +82,17 @@ TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextSchedulePort_AnimNextMeshC
 	};
 
 	return Terms;
+}
+
+TConstArrayView<FName> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetRequiredParameters() const
+{
+	using namespace UE::AnimNext;
+
+	static const FName ParamNames[] =
+	{
+		ComponentParamId.GetName(),
+		ReferencePoseParamId.GetName()
+	};
+
+	return ParamNames;
 }

@@ -3,10 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "LODPose.h"
 #include "ScheduleHandle.h"
-#include "Param/AnimNextParameterCollection.h"
 #include "Graph/AnimNextGraph.h"
+#include "Param/ParamStack.h"
 
 struct FAnimNextGraphInstance;
 class UAnimNextSchedule;
@@ -16,6 +15,8 @@ namespace UE::AnimNext
 {
 	struct FParamStack;
 	struct FParamStackLayerHandle;
+	class IParameterSource;
+	struct FPropertyBagProxy;
 }
 
 namespace UE::AnimNext
@@ -26,6 +27,8 @@ struct FScheduleInstanceData : public FGCObject
 {
 	FScheduleInstanceData(const FScheduleContext& InScheduleContext, const UAnimNextSchedule* InSchedule, FScheduleHandle InHandle, FAnimNextSchedulerEntry* InCurrentEntry);
 
+	~FScheduleInstanceData();
+	
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override;
@@ -40,16 +43,13 @@ struct FScheduleInstanceData : public FGCObject
 	FAnimNextSchedulerEntry* Entry = nullptr;
 
 	// Set of dynamic parameter scopes supplied by the user
-	TMap<FName, FAnimNextParameterCollection> UserScopes;
+	TMap<FName, TUniquePtr<FPropertyBagProxy>> UserScopes;
 
 	// Cached data for each parameter scope
 	struct FScopeCache
 	{
-		// Cached handles for scheduled parameter blocks
-		TArray<FParamStackLayerHandle> StaticHandles;
-
-		// Cached handles for user-defined parameter blocks hooked to a scope
-		TArray<FParamStackLayerHandle> UserHandles;
+		// Parameter sources at this scope
+		TArray<TUniquePtr<IParameterSource>> ParameterSources;
 
 		// Pushed layers, popped when scope exits
 		TArray<FParamStack::FPushedLayerHandle> PushedLayers;
@@ -67,23 +67,35 @@ struct FScheduleInstanceData : public FGCObject
 	// User handles initialized at startup, always pushed
 	TArray<FParamStackLayerHandle> StaticUserHandles;
 
-	// Graph instance data for each graph task
-	TArray<FAnimNextGraphInstance> GraphInstanceData;
-
-	// Layer handles for translating schedule terms to graph inputs
-	TArray<FParamStackLayerHandle> GraphInputLayers;
-
 	// Intermediate data area
 	FInstancedPropertyBag IntermediatesData;
 
 	// Layer for intermediates data
 	FParamStackLayerHandle IntermediatesLayer;
 
-	// Remapped data layers for each graph
-	TArray<FParamStackLayerHandle> GraphTermLayers;
-
 	// Remapped data layers for each port
 	TArray<FParamStackLayerHandle> PortTermLayers;
+
+	// Cached data for each graph
+	struct FGraphCache
+	{
+		// Graph instance data
+		FAnimNextGraphInstance GraphInstanceData;
+
+		// Remapped data layers for input terms (from schedule)
+		FParamStackLayerHandle GraphTermLayer;
+	};
+
+	TArray<FGraphCache> GraphCaches;
+
+	// Cached data for each external param task
+	struct FExternalParamCache
+	{
+		// Parameter sources at this scope
+		TArray<TUniquePtr<IParameterSource>> ParameterSources;
+	};
+
+	TArray<FExternalParamCache> ExternalParamCaches;
 };
 
 }

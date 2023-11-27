@@ -10,6 +10,7 @@
 
 #include "UncookedOnlyUtils.generated.h"
 
+class UAnimNextSchedule;
 class UAnimNextGraph;
 class UAnimNextGraph_EditorData;
 class UAnimNextGraph_EdGraph;
@@ -180,6 +181,9 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	// If the name cannot be found, the returned type will be invalid
 	// Note that this is expensive and can query the asset registry
 	static FAnimNextParamType GetParameterTypeFromName(FName InName);
+
+	// Compiles a schedule
+	static void CompileSchedule(UAnimNextSchedule* InSchedule);
 };
 
 }

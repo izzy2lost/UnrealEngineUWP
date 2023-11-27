@@ -2,16 +2,19 @@
 
 #include "Graph/AnimGraph/AnimNode_AnimNextParameters.h"
 #include "Param/ParamStack.h"
-#include "Param/IAnimNextParameterSourceInterface.h"
+#include "Param/AnimNextParameterBlock.h"
 #include "AnimGraphParamStackScope.h"
+#include "Param/ParameterBlockProxy.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextParameters)
+
+FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters() = default;
 
 FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters(const FAnimNode_AnimNextParameters& InOther)
 	: Source(InOther.Source)
 	, Parameters(InOther.Parameters)
 	, PreviousParameters(nullptr)
-	, ParamLayerHandle()
+	, ParametersProxy(nullptr)
 {
 }
 
@@ -20,7 +23,7 @@ FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(const FAni
 	Source = InOther.Source;
 	Parameters = InOther.Parameters;
 	PreviousParameters = nullptr;
-	ParamLayerHandle.Invalidate();
+	ParametersProxy.Reset();
 	return *this;
 }
 
@@ -29,7 +32,7 @@ FAnimNode_AnimNextParameters::FAnimNode_AnimNextParameters(FAnimNode_AnimNextPar
 	Source = InOther.Source;
 	Parameters = InOther.Parameters;
 	PreviousParameters = nullptr;
-	ParamLayerHandle.Invalidate();
+	ParametersProxy.Reset();
 }
 
 FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(FAnimNode_AnimNextParameters&& InOther) noexcept
@@ -37,9 +40,11 @@ FAnimNode_AnimNextParameters& FAnimNode_AnimNextParameters::operator=(FAnimNode_
 	Source = InOther.Source;
 	Parameters = InOther.Parameters;
 	PreviousParameters = nullptr;
-	ParamLayerHandle.Invalidate();
+	ParametersProxy.Reset();
 	return *this;
 }
+
+FAnimNode_AnimNextParameters::~FAnimNode_AnimNextParameters() = default;
 
 void FAnimNode_AnimNextParameters::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
@@ -52,16 +57,16 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	IAnimNextParameterSourceInterface* CurrentParameters = Parameters ? Parameters.GetInterface() : nullptr;
+	UAnimNextParameterBlock* CurrentParameters = Parameters;
 
 	// Reconstruct param block's cached layer if required
-	if (CurrentParameters != PreviousParameters || !ParamLayerHandle.IsValid())
+	if (CurrentParameters != PreviousParameters || !ParametersProxy.IsValid())
 	{
-		ParamLayerHandle.Invalidate();
+		ParametersProxy.Reset();
 
 		if (CurrentParameters)
 		{
-			ParamLayerHandle = CurrentParameters->CacheLayer();
+			ParametersProxy = MakeUnique<FParameterBlockProxy>(CurrentParameters);
 		}
 
 		PreviousParameters = CurrentParameters;
@@ -72,10 +77,10 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle PushedLayerHandle;
-		if (CurrentParameters && ParamLayerHandle.IsValid())
+		if (CurrentParameters && ParametersProxy.IsValid())
 		{
-			CurrentParameters->UpdateLayer(ParamLayerHandle);
-			PushedLayerHandle = ParamStack.PushLayer(ParamLayerHandle);
+			ParametersProxy->Update();
+			PushedLayerHandle = ParamStack.PushLayer(ParametersProxy->GetLayerHandle());
 		}
 
 		Source.Update(Context);

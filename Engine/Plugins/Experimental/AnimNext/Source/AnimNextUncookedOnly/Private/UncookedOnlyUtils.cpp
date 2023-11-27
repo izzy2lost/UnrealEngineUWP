@@ -31,13 +31,14 @@
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/Decorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
-#include "Param/Params.h"
 #include "Serialization/MemoryReader.h"
 #include "RigVMRuntimeDataRegistry.h"
 #include "Param/RigVMDispatch_GetLayerParameter.h"
-
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
+#include "Param/ExternalParameterRegistry.h"
+#include "Scheduler/AnimNextSchedule.h"
+#include "Scheduler/AnimNextSchedulePort.h"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -1148,9 +1149,10 @@ FText FUtils::GetParameterDisplayNameText(FName InParameterName)
 FAnimNextParamType FUtils::GetParameterTypeFromName(FName InName)
 {
 	// Check built-in params first as they are cheaper
-	if(const FParamDefinition* FoundDefinition = FParams::FindBuiltInParameter(InName))
+	IParameterSourceFactory::FParameterInfo Info;
+	if(FExternalParameterRegistry::FindParameterInfo(InName, Info))
 	{
-		return FoundDefinition->Type;
+		return Info.Type;
 	}
 
 	// Query the asset registry for other params
@@ -1255,4 +1257,563 @@ void FUtils::GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProv
 		}
 	}
 }
+
+void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
+{
+	using namespace UE::AnimNext;
+
+	InSchedule->Instructions.Empty();
+	InSchedule->GraphTasks.Empty();
+	InSchedule->Ports.Empty();
+	InSchedule->ExternalTasks.Empty();
+	InSchedule->ParamScopeEntryTasks.Empty();
+	InSchedule->ParamScopeExitTasks.Empty();
+	InSchedule->ExternalParamTasks.Empty();
+	InSchedule->IntermediatesData.Reset();
+	InSchedule->NumParameterScopes = 0;
+	InSchedule->NumTickFunctions = 0;
+
+	EAnimNextScheduleScheduleOpcode LastOpCode = EAnimNextScheduleScheduleOpcode::None;
+
+	auto Emit = [InSchedule, &LastOpCode](EAnimNextScheduleScheduleOpcode InOpCode, int32 InOperand = 0)
+	{
+		FAnimNextScheduleInstruction Instruction;
+		Instruction.Opcode = InOpCode;
+		Instruction.Operand = InOperand;
+		InSchedule->Instructions.Add(Instruction);
+
+		LastOpCode = InOpCode;
+	};
+
+	auto EmitPrerequisite = [InSchedule, &Emit, &LastOpCode]()
+	{
+		switch (LastOpCode)
+		{
+		case EAnimNextScheduleScheduleOpcode::RunGraphTask:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteTask, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::BeginRunExternalTask:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteBeginExternalTask, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::EndRunExternalTask:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteEndExternalTask, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::RunParamScopeEntry:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteScopeEntry, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::RunParamScopeExit:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteScopeExit, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::RunExternalParamTask:
+			Emit(EAnimNextScheduleScheduleOpcode::PrerequisiteExternalParamTask, InSchedule->NumTickFunctions - 1);
+			break;
+		case EAnimNextScheduleScheduleOpcode::None:
+			break;
+		default:
+			checkNoEntry();
+			break;
+		}
+	};
+
+	// MAX_uint32 means 'global scope' in this context
+	uint32 ParentScopeIndex = MAX_uint32;
+
+	TArray<FAnimNextScheduleEntryTerm> IntermediateTerms;
+	TMap<FName, uint32> IntermediateMap;
+
+	TFunction<void(TArrayView<TObjectPtr<UAnimNextScheduleEntry>>)> EmitEntries;
+
+	// Iterate over all entries, recursing into scopes
+	EmitEntries = [InSchedule, &EmitEntries, &Emit, &EmitPrerequisite, &ParentScopeIndex, &IntermediateTerms, &IntermediateMap](TArrayView<TObjectPtr<UAnimNextScheduleEntry>> InEntries)
+	{
+		for (int32 EntryIndex = 0; EntryIndex < InEntries.Num(); ++EntryIndex)
+		{
+			UAnimNextScheduleEntry* Entry = InEntries[EntryIndex];
+
+			auto CheckTermDirectionCompatibility = [](FName InName, EScheduleTermDirection InExistingDirection, EScheduleTermDirection InNewDirection)
+			{
+				switch(InExistingDirection)
+				{
+				case EScheduleTermDirection::Input:
+					// Input before output: error
+					UE_LOG(LogAnimation, Error, TEXT("Term '%s' was used as an input before it was output"), *InName.ToString());
+					return false;
+				case EScheduleTermDirection::Output:
+					return true;
+				}
+
+				return false;
+			};
+
+			if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
+			{
+				bool bValid = true;
+
+				if(PortEntry->Port == nullptr)
+				{
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid port class found"));
+					bValid = false;
+				}
+				else
+				{
+					UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
+					check(CDO);
+
+					TConstArrayView<FScheduleTerm> Terms = CDO->GetTerms();
+					if(PortEntry->Terms.Num() != Terms.Num())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for port: %d"), PortEntry->Terms.Num());
+						bValid = false;
+					}
+
+					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
+					{
+						FName TermName = PortEntry->Terms[TermIndex].Name;
+						if(!PortEntry->Terms[TermIndex].Type.IsValid())
+						{
+							UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing port term, ignored: '%s'"), *TermName.ToString());
+							bValid = false;
+						}
+						else
+						{
+							const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
+							if(ExistingIntermediateIndexPtr != nullptr)
+							{
+								const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
+								if(IntermediateTerm.Type != Terms[TermIndex].GetType())
+								{
+									UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing port term, ignored: '%s'"), *TermName.ToString());
+									bValid = false;
+								}
+
+								if(!CheckTermDirectionCompatibility(TermName, IntermediateTerm.Direction, Terms[TermIndex].Direction))
+								{
+									bValid = false;
+								}
+							}
+						}
+					}
+				}
+
+				if(bValid)
+				{
+					EmitPrerequisite();
+
+					FAnimNextSchedulePortTask PortTask;
+					PortTask.TaskIndex = InSchedule->Ports.Num();
+					PortTask.ParamScopeIndex = ParentScopeIndex;
+					PortTask.Port = PortEntry->Port;
+
+					for(int32 TermIndex = 0; TermIndex < PortEntry->Terms.Num(); ++TermIndex)
+					{
+						FName TermName = PortEntry->Terms[TermIndex].Name;
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
+						if(ExistingIntermediateIndexPtr == nullptr)
+						{
+							uint32 IntermediateIndex = IntermediateTerms.Emplace(TermName, PortEntry->Terms[TermIndex].Type, PortEntry->Terms[TermIndex].Direction);
+							IntermediateMap.Add(TermName, IntermediateIndex);
+							PortTask.Terms.Add(IntermediateIndex);
+						}
+						else
+						{
+							PortTask.Terms.Add(*ExistingIntermediateIndexPtr);
+						}
+					}
+
+					int32 PortIndex = InSchedule->Ports.Add(PortTask);
+
+					InSchedule->NumTickFunctions++;
+
+					Emit(EAnimNextScheduleScheduleOpcode::RunPort, PortIndex);
+				}
+			}
+			else if (UAnimNextScheduleEntry_AnimNextGraph* GraphEntry = Cast<UAnimNextScheduleEntry_AnimNextGraph>(Entry))
+			{
+				bool bValid = true;
+
+				if(GraphEntry->Graph == nullptr && GraphEntry->DynamicGraph == NAME_None)
+				{
+					UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid graph or no parameter supplied"));
+					bValid = false;
+				}
+				else if(GraphEntry->Graph != nullptr)
+				{
+					TConstArrayView<FScheduleTerm> Terms = GraphEntry->Graph->GetTerms();
+					if(GraphEntry->Terms.Num() != Terms.Num())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Incorrect term count for graph: %d"), GraphEntry->Terms.Num());
+						bValid = false;
+					}
+					else
+					{
+						// Validate graph terms match schedule-expected terms
+						for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+						{
+							FName TermName = GraphEntry->Terms[TermIndex].Name;
+							if(Terms[TermIndex].Direction != GraphEntry->Terms[TermIndex].Direction)
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched direction when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+							
+							if(Terms[TermIndex].GetType() != GraphEntry->Terms[TermIndex].Type)
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+						}
+					}
+				}
+
+				// Validate terms and check against priors
+				for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+				{
+					FName TermName = GraphEntry->Terms[TermIndex].Name;
+					if(!GraphEntry->Terms[TermIndex].Type.IsValid())
+					{
+						UE_LOG(LogAnimation, Error, TEXT("AnimNext: Invalid type when processing graph term, ignored: '%s'"), *TermName.ToString());
+						bValid = false;
+					}
+					else
+					{
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
+						if(ExistingIntermediateIndexPtr != nullptr)
+						{
+							const FAnimNextScheduleEntryTerm& IntermediateTerm = IntermediateTerms[*ExistingIntermediateIndexPtr];
+							if(IntermediateTerm.Type != GraphEntry->Terms[TermIndex].Type)
+							{
+								UE_LOG(LogAnimation, Error, TEXT("AnimNext: Mismatched types when processing graph term, ignored: '%s'"), *TermName.ToString());
+								bValid = false;
+							}
+
+							if(!CheckTermDirectionCompatibility(TermName, IntermediateTerm.Direction, GraphEntry->Terms[TermIndex].Direction))
+							{
+								bValid = false;
+							}
+						}
+					}
+				}
+
+				if(bValid)
+				{
+					EmitPrerequisite();
+
+					FAnimNextScheduleGraphTask GraphTask;
+					GraphTask.TaskIndex = InSchedule->GraphTasks.Num();
+					GraphTask.ParamScopeIndex = InSchedule->NumParameterScopes++;
+					GraphTask.ParamParentScopeIndex = ParentScopeIndex;
+					GraphTask.EntryPoint = GraphEntry->EntryPoint;
+					GraphTask.Graph = GraphEntry->Graph;
+					GraphTask.DynamicGraph = GraphEntry->DynamicGraph;
+
+					for(int32 TermIndex = 0; TermIndex < GraphEntry->Terms.Num(); ++TermIndex)
+					{
+						FName TermName = GraphEntry->Terms[TermIndex].Name;
+						const uint32* ExistingIntermediateIndexPtr = IntermediateMap.Find(TermName);
+						if(ExistingIntermediateIndexPtr == nullptr)
+						{
+							uint32 IntermediateIndex = IntermediateTerms.Emplace(TermName, GraphEntry->Terms[TermIndex].Type, GraphEntry->Terms[TermIndex].Direction);
+							IntermediateMap.Add(TermName, IntermediateIndex);
+							GraphTask.Terms.Add(IntermediateIndex);
+						}
+						else
+						{
+							GraphTask.Terms.Add(*ExistingIntermediateIndexPtr);
+						}
+					}
+
+					int32 TaskIndex = InSchedule->GraphTasks.Add(GraphTask);
+
+					InSchedule->NumTickFunctions++;
+
+					Emit(EAnimNextScheduleScheduleOpcode::RunGraphTask, TaskIndex);
+				}
+			}
+			else if (UAnimNextScheduleEntry_ExternalTask* ExternalTaskEntry = Cast<UAnimNextScheduleEntry_ExternalTask>(Entry))
+			{
+				EmitPrerequisite();
+
+				FAnimNextScheduleExternalTask ExternalTask;
+				ExternalTask.TaskIndex = InSchedule->ExternalTasks.Num();
+				ExternalTask.ParamScopeIndex = InSchedule->NumParameterScopes++;
+				ExternalTask.ParamParentScopeIndex = ParentScopeIndex;
+				ExternalTask.ExternalTask = ExternalTaskEntry->ExternalTask;
+				int32 ExternalTaskIndex = InSchedule->ExternalTasks.Add(ExternalTask);
+
+				// Emit the external task
+				Emit(EAnimNextScheduleScheduleOpcode::BeginRunExternalTask, ExternalTaskIndex);
+				InSchedule->NumTickFunctions++;
+
+				EmitPrerequisite();
+
+				Emit(EAnimNextScheduleScheduleOpcode::EndRunExternalTask, ExternalTaskIndex);
+				InSchedule->NumTickFunctions++;
+			}
+			else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
+			{
+				EmitPrerequisite();
+
+				FAnimNextScheduleParamScopeEntryTask ParamScopeEntryTask;
+				ParamScopeEntryTask.TaskIndex = InSchedule->ParamScopeEntryTasks.Num();
+				const uint32 ParamScopeIndex = InSchedule->NumParameterScopes++;
+				ParamScopeEntryTask.ParamScopeIndex = ParamScopeIndex;
+				ParamScopeEntryTask.ParamParentScopeIndex = ParentScopeIndex;
+				ParamScopeEntryTask.TickFunctionIndex = InSchedule->NumTickFunctions;
+				ParamScopeEntryTask.Scope = ParamScopeTaskEntry->Scope;
+				ParamScopeEntryTask.ParameterBlocks = ParamScopeTaskEntry->ParameterBlocks;
+				int32 ParamScopeTaskEntryIndex = InSchedule->ParamScopeEntryTasks.Add(ParamScopeEntryTask);
+
+				Emit(EAnimNextScheduleScheduleOpcode::RunParamScopeEntry, ParamScopeTaskEntryIndex);
+				InSchedule->NumTickFunctions++;
+
+				// Enter new scope
+				uint32 PreviousParentScope = ParentScopeIndex;
+				ParentScopeIndex = ParamScopeIndex;
+
+				// Emit the subentries
+				EmitEntries(ParamScopeTaskEntry->SubEntries);
+
+				// Exit scope
+				ParentScopeIndex = PreviousParentScope;
+
+				EmitPrerequisite();
+
+				FAnimNextScheduleParamScopeExitTask ParamScopeExitTask;
+				ParamScopeExitTask.TaskIndex = InSchedule->ParamScopeExitTasks.Num();
+				ParamScopeExitTask.ParamScopeIndex = ParamScopeIndex;
+				ParamScopeExitTask.Scope = ParamScopeTaskEntry->Scope;
+				int32 ParamScopeExitTaskIndex = InSchedule->ParamScopeExitTasks.Add(ParamScopeExitTask);
+
+				Emit(EAnimNextScheduleScheduleOpcode::RunParamScopeExit, ParamScopeExitTaskIndex);
+				InSchedule->NumTickFunctions++;
+			}
+			else if(UAnimNextScheduleEntry_ExternalParams* ExternalParamsTaskEntry = Cast<UAnimNextScheduleEntry_ExternalParams>(Entry))
+			{
+				EmitPrerequisite();
+
+				FAnimNextScheduleExternalParamTask ExternalParamTask;
+				ExternalParamTask.TaskIndex = InSchedule->ExternalParamTasks.Num();
+				ExternalParamTask.ParameterSources = ExternalParamsTaskEntry->ParameterSources;
+				ExternalParamTask.bThreadSafe = ExternalParamsTaskEntry->bThreadSafe;
+				int32 ExternalParamTaskEntryIndex = InSchedule->ExternalParamTasks.Add(ExternalParamTask);
+
+				Emit(EAnimNextScheduleScheduleOpcode::RunExternalParamTask, ExternalParamTaskEntryIndex);
+				InSchedule->NumTickFunctions++;
+			}
+		}
+	};
+
+	auto GenerateExternalParameters = [](TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries)
+	{
+		struct FParameterTracker
+		{
+			FName SourceName;
+			TArray<TObjectPtr<UAnimNextScheduleEntry>>* BestContainer = nullptr;
+			TSet<FName> ThreadSafeParameters;
+			TSet<FName> NonThreadSafeParameters;
+			uint32 BestDistance = MAX_uint32;
+			uint32 BestArrayIndex = MAX_uint32;
+		};
+
+		// We need to find the task that is 'earliest' in the DAG for each external parameter, so we track that with this map
+		TMap<FName, FParameterTracker> TrackerMap;
+		auto TrackExternalParameters = [&TrackerMap](TConstArrayView<FName> InParameterNames, uint32 InDistance, UAnimNextScheduleEntry* InEntry, TArray<TObjectPtr<UAnimNextScheduleEntry>>* InContainer, int32 InArrayIndex, bool bInUpdateDependent)
+		{
+			bool bHasExternal = false;
+			for(FName ParameterName : InParameterNames)
+			{
+				// Only add if the parameter name is 'external'
+				FName ParameterSourceName = FExternalParameterRegistry::FindSourceForParameter(ParameterName);
+				if(ParameterSourceName != NAME_None)
+				{
+					bHasExternal = true;
+					FParameterTracker& Tracker = TrackerMap.FindOrAdd(ParameterSourceName);
+
+					Tracker.SourceName = ParameterSourceName;
+
+					// Only track array index if this param is update dependent
+					if(bInUpdateDependent && InDistance < Tracker.BestDistance)
+					{
+						Tracker.BestDistance = InDistance;
+						Tracker.BestContainer = InContainer;
+						Tracker.BestArrayIndex = InArrayIndex == 0 ? 0 : InArrayIndex - 1;
+					}
+
+					IParameterSourceFactory::FParameterInfo Info;
+					ensure(FExternalParameterRegistry::FindParameterInfo(ParameterName, Info));
+
+					if(Info.bThreadSafe)
+					{
+						Tracker.ThreadSafeParameters.Add(ParameterName);
+					}
+					else
+					{
+						Tracker.NonThreadSafeParameters.Add(ParameterName);
+					}
+				}
+			}
+			return bHasExternal;
+		};
+
+		TFunction<void(TArray<TObjectPtr<UAnimNextScheduleEntry>>&, uint32)> PopulateExternalParameters;
+		PopulateExternalParameters = [&PopulateExternalParameters, &TrackExternalParameters](TArray<TObjectPtr<UAnimNextScheduleEntry>>& InEntries, uint32 InDistance)
+		{
+			// First populate internal parameters for all those tasks entries that reference them
+			int32 ArrayIndex = 0;
+			for(UAnimNextScheduleEntry* Entry : InEntries)
+			{
+				if (UAnimNextScheduleEntry_AnimNextGraph* GraphEntry = Cast<UAnimNextScheduleEntry_AnimNextGraph>(Entry))
+				{
+					if(GraphEntry->Graph)
+					{
+						FAnimNextParameterProviderAssetRegistryExports Exports;
+						if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(GraphEntry->Graph), Exports))
+						{
+							TArray<FName> RequiredParameters;
+							RequiredParameters.Reserve(Exports.Parameters.Num());
+							for(const FAnimNextParameterAssetRegistryExportEntry& ExportedParameter : Exports.Parameters)
+							{
+								RequiredParameters.Add(ExportedParameter.Name);
+							}
+							TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
+						}
+					}
+
+					TrackExternalParameters(GraphEntry->RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
+
+					// All graphs require access to LOD and ref pose
+					// TODO: need to not require defaults here - use static graph params. In fact, these params should probably be defined at the schedule level.
+					TrackExternalParameters({ UAnimNextGraph::DefaultCurrentLODId.GetName(), UAnimNextGraph::DefaultReferencePoseId.GetName() }, InDistance, Entry, &InEntries, ArrayIndex, true);
+				}
+				else if (UAnimNextScheduleEntry_Port* PortEntry = Cast<UAnimNextScheduleEntry_Port>(Entry))
+				{
+					if(PortEntry->Port)
+					{
+						UAnimNextSchedulePort* CDO = PortEntry->Port->GetDefaultObject<UAnimNextSchedulePort>();
+						TConstArrayView<FName> RequiredParameters = CDO->GetRequiredParameters();
+						TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
+					}
+				}
+				else if (UAnimNextScheduleEntry_ExternalTask* ExternalTaskEntry = Cast<UAnimNextScheduleEntry_ExternalTask>(Entry))
+				{
+					// Note: external task params are not update dependent as this would cause external param updates to occur before tick functions
+					TrackExternalParameters({ ExternalTaskEntry->ExternalTask }, InDistance, Entry, &InEntries, ArrayIndex, false);
+				}
+				else if (UAnimNextScheduleEntry_ParamScope* ParamScopeTaskEntry = Cast<UAnimNextScheduleEntry_ParamScope>(Entry))
+				{
+					for(UAnimNextParameterBlock* ParameterBlock : ParamScopeTaskEntry->ParameterBlocks)
+					{
+						if(ParameterBlock)
+						{
+							FAnimNextParameterProviderAssetRegistryExports Exports;
+							if(UncookedOnly::FUtils::GetExportedParametersForAsset(FAssetData(ParameterBlock), Exports))
+							{
+								TArray<FName> RequiredParameters;
+								RequiredParameters.Reserve(Exports.Parameters.Num());
+								for(const FAnimNextParameterAssetRegistryExportEntry& ExportedParameter : Exports.Parameters)
+								{
+									RequiredParameters.Add(ExportedParameter.Name);
+								}
+								TrackExternalParameters(RequiredParameters, InDistance, Entry, &InEntries, ArrayIndex, true);
+							}
+						}
+					}
+
+					// Recurse into sub-entries
+					PopulateExternalParameters(ParamScopeTaskEntry->SubEntries, InDistance);
+				}
+
+				InDistance++;
+				ArrayIndex++;
+			}
+		};
+
+		// First populate internal parameter lists and tracker map
+		PopulateExternalParameters(InEntries, 0);
+
+		// Unique location: container, index and thread safe flag
+		using FInsertionLocation = TTuple<TArray<TObjectPtr<UAnimNextScheduleEntry>>*, uint32, bool>;
+
+		// Build sources that need to run (thread-safe or not) at each index
+		TMap<FInsertionLocation, TArray<FAnimNextScheduleExternalParameterSource>> InsertionMap;
+		for(const TPair<FName, FParameterTracker>& TrackedParameterPair : TrackerMap)
+		{
+			// If an index/container was not set up, then the update of the set of parameters is not a pre-requisite of a task, so we just insert the task at the
+			// start of the schedule as the only requirement is that the parameters exist 
+			TArray<TObjectPtr<UAnimNextScheduleEntry>>* Container = TrackedParameterPair.Value.BestContainer != nullptr ? TrackedParameterPair.Value.BestContainer : &InEntries;
+			uint32 ArrayIndex = TrackedParameterPair.Value.BestArrayIndex != MAX_uint32 ? TrackedParameterPair.Value.BestArrayIndex : 0;
+			
+			if(TrackedParameterPair.Value.ThreadSafeParameters.Num() > 0)
+			{
+				TArray<FAnimNextScheduleExternalParameterSource>& ParameterSources = InsertionMap.FindOrAdd({ Container, ArrayIndex, true });
+				FAnimNextScheduleExternalParameterSource& NewSource = ParameterSources.AddDefaulted_GetRef();
+				NewSource.ParameterSource = TrackedParameterPair.Value.SourceName;
+				NewSource.Parameters = TrackedParameterPair.Value.ThreadSafeParameters.Array();
+			}
+
+			if(TrackedParameterPair.Value.NonThreadSafeParameters.Num() > 0)
+			{
+				TArray<FAnimNextScheduleExternalParameterSource>& ParameterSources = InsertionMap.FindOrAdd({ Container, ArrayIndex, false });
+				FAnimNextScheduleExternalParameterSource& NewSource = ParameterSources.AddDefaulted_GetRef();
+				NewSource.ParameterSource = TrackedParameterPair.Value.SourceName;
+				NewSource.Parameters = TrackedParameterPair.Value.NonThreadSafeParameters.Array();
+			}
+		}
+
+		// Sort sources map by insertion index
+		InsertionMap.KeySort([](const FInsertionLocation& InLHS, const FInsertionLocation& InRHS)
+		{
+			return InLHS.Get<1>() > InRHS.Get<1>();
+		});
+
+		// Now insert a task to fetch the parameters at the recorded index/container
+		// NOTE: here we just insert the task before the earliest usage of the external parameter source we found, but in the case of a full DAG
+		// schedule, we would need to add a prerequisite for ALL tasks that use the external parameters
+		for(const TPair<FInsertionLocation, TArray<FAnimNextScheduleExternalParameterSource>>& InsertionLocationPair : InsertionMap)
+		{
+			// Add a new external param entry
+			UAnimNextScheduleEntry_ExternalParams* NewParamEntry = NewObject<UAnimNextScheduleEntry_ExternalParams>();
+			NewParamEntry->bThreadSafe = InsertionLocationPair.Key.Get<2>();
+			NewParamEntry->ParameterSources = InsertionLocationPair.Value;
+			InsertionLocationPair.Key.Get<0>()->Insert(NewParamEntry, InsertionLocationPair.Key.Get<1>());
+		}
+	};
+
+	// Duplicate the entries, we are going to rewrite them
+	TArray<TObjectPtr<UAnimNextScheduleEntry>> NewEntries;
+	for(UAnimNextScheduleEntry* Entry : InSchedule->Entries)
+	{
+		if(Entry)
+		{
+			NewEntries.Add(CastChecked<UAnimNextScheduleEntry>(StaticDuplicateObject(Entry, GetTransientPackage())));
+		}
+	}
+
+	// Push required parameters up scopes
+	GenerateExternalParameters(NewEntries);
+
+	// Emit the schedule 'bytecode'
+	EmitEntries(NewEntries);
+
+	Emit(EAnimNextScheduleScheduleOpcode::Exit);
+
+	// Process intermediates
+	if(IntermediateMap.Num() > 0)
+	{
+		check(IntermediateMap.Num() == IntermediateTerms.Num());
+		
+		TArray<FPropertyBagPropertyDesc> PropertyDescs;
+		PropertyDescs.Reserve(IntermediateTerms.Num());
+		 
+		for(const TPair<FName, uint32>& IntermediatePair : IntermediateMap)
+		{
+			const FAnimNextParamType& IntermediateType = IntermediateTerms[IntermediatePair.Value].Type;
+			check(IntermediateType.IsValid());
+			PropertyDescs.Emplace(IntermediatePair.Key, IntermediateType.GetContainerType(), IntermediateType.GetValueType(), IntermediateType.GetValueTypeObject());
+		}
+
+		InSchedule->IntermediatesData.AddProperties(PropertyDescs);
+	}
+}
+
 }

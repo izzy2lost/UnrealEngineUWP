@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNodeBase.h"
-#include "Param/ParamStackLayerHandle.h"
 #include "AnimNode_AnimNextParameters.generated.h"
 
-class IAnimNextParameterSourceInterface;
-class UAnimNextParameters;
+namespace UE::AnimNext
+{
+	struct FParameterBlockProxy;
+}
+
+class UAnimNextParameterBlock;
 
 USTRUCT(BlueprintInternalUseOnly)
 struct FAnimNode_AnimNextParameters : public FAnimNode_Base
@@ -17,25 +20,25 @@ struct FAnimNode_AnimNextParameters : public FAnimNode_Base
 
 	friend class UAnimGraphNode_AnimNextParameters;
 
-	FAnimNode_AnimNextParameters() = default;
+	ANIMNEXT_API FAnimNode_AnimNextParameters();
 	FAnimNode_AnimNextParameters(const FAnimNode_AnimNextParameters& InOther);
 	FAnimNode_AnimNextParameters& operator=(const FAnimNode_AnimNextParameters& InOther);
 	FAnimNode_AnimNextParameters(FAnimNode_AnimNextParameters&& InOther) noexcept;
 	FAnimNode_AnimNextParameters& operator=(FAnimNode_AnimNextParameters&& InOther) noexcept;
-	virtual ~FAnimNode_AnimNextParameters() override = default;
+	ANIMNEXT_API virtual ~FAnimNode_AnimNextParameters() override;
 
 private:
 	UPROPERTY(EditAnywhere, Category = Links)
 	FPoseLink Source;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
-	TScriptInterface<IAnimNextParameterSourceInterface> Parameters;
+	TObjectPtr<UAnimNextParameterBlock> Parameters;
 
 	// Cache previous param block so we know when it changes via pin
-	IAnimNextParameterSourceInterface* PreviousParameters = nullptr;
+	TObjectPtr<UAnimNextParameterBlock> PreviousParameters;
 
-	// Cached layer
-	UE::AnimNext::FParamStackLayerHandle ParamLayerHandle;
+	// Cached proxy
+	TUniquePtr<UE::AnimNext::FParameterBlockProxy> ParametersProxy;
 
 private:
 	// FAnimNode_Base

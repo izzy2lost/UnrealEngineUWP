@@ -2,16 +2,17 @@
 
 #include "Param/AnimNextParameterBlockParameter.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/Params.h"
+#include "Param/ExternalParameterRegistry.h"
 
 FAnimNextParamType UAnimNextParameterBlockParameter::GetParamType() const
 {
 	using namespace UE::AnimNext;
 
 	// Look in built-in parameters
-	if(const FParamDefinition* ParamDefinition = FParams::FindBuiltInParameter(ParameterName))
+	IParameterSourceFactory::FParameterInfo Info;
+	if(FExternalParameterRegistry::FindParameterInfo(ParameterName, Info))
 	{
-		return ParamDefinition->GetType();
+		return Info.Type;
 	}
 
 	return Type;
@@ -54,5 +55,13 @@ FText UAnimNextParameterBlockParameter::GetDisplayName() const
 
 FText UAnimNextParameterBlockParameter::GetDisplayNameTooltip() const
 {
+	using namespace UE::AnimNext;
+
+	IParameterSourceFactory::FParameterInfo Info;
+	if(FExternalParameterRegistry::FindParameterInfo(ParameterName, Info))
+	{
+		return Info.Tooltip;
+	}
+	
 	return FText::FromName(ParameterName);
 }
