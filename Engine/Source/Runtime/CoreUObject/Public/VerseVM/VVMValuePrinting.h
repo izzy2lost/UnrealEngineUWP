@@ -8,6 +8,7 @@
 
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
+#include "Misc/EnumClassFlags.h"
 
 class FString;
 
