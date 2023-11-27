@@ -186,6 +186,8 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
 
 	// Attach ourself to Level cleanup to do our own cleanup
 	OnCleanupLevelDelegateHandle = RuntimeLevel->OnCleanupLevel.AddUObject(this, &UWorldPartitionLevelStreamingDynamic::OnCleanupLevel);
+
+	LevelColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(GetName()));
 }
 
 /**

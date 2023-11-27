@@ -5608,9 +5608,6 @@ void USkeletalMeshSocket::Serialize(FArchive& Ar)
 /*-----------------------------------------------------------------------------
 FSkeletalMeshSceneProxy
 -----------------------------------------------------------------------------*/
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkeletalMesh)
 
 const FQuat SphylBasis(FVector(1.0f / FMath::Sqrt(2.0f), 0.0f, 1.0f / FMath::Sqrt(2.0f)), UE_PI);
@@ -5767,17 +5764,6 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 	}
 
 	bCastDynamicShadow = bCastDynamicShadow && bAnySectionCastsShadow;
-
-	// Try to find a color for level coloration.
-	if( Owner )
-	{
-		ULevel* Level = Owner->GetLevel();
-		ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-		if ( LevelStreaming )
-		{
-			SetLevelColor(LevelStreaming->LevelColor);
-		}
-	}
 
 	// Get a color for property coloration
 	FColor NewPropertyColor;

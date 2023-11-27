@@ -8,7 +8,9 @@
 #include "PrimitiveSceneProxyDesc.h"
 #include "PrimitiveViewRelevance.h"
 #include "UObject/Package.h"
+#include "LevelUtils.h"
 #include "Engine/Engine.h"
+#include "Engine/LevelStreaming.h"
 #include "EngineUtils.h"
 #include "Components/BrushComponent.h"
 #include "PrimitiveSceneInfo.h"
@@ -413,7 +415,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InProxyDesc, FName InResourceName) :
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	WireframeColor(FLinearColor::White)
-,	LevelColor(FLinearColor::White)
 ,	PropertyColor(FLinearColor::White)
 ,	
 #endif
@@ -551,6 +552,13 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 		{
 			SetForceHidden(!Level->bIsVisible);
 		}
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		if (ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level))
+		{
+			SetLevelColor(LevelStreaming->LevelColor);
+		}
+#endif
 	}
 
 #if STATS

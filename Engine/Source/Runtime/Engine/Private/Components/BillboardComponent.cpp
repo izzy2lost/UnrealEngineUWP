@@ -11,8 +11,6 @@
 #include "SceneManagement.h"
 #include "Engine/Light.h"
 #include "Engine/Engine.h"
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "TextureResource.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BillboardComponent)
@@ -103,14 +101,6 @@ public:
 #else // WITH_EDITORONLY_DATA
 			bIsActorLocked = false;
 #endif // WITH_EDITORONLY_DATA
-
-			// Level colorization
-			ULevel* Level = Owner->GetLevel();
-			if (ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level))
-			{
-				// Selection takes priority over level coloration.
-				SetLevelColor(LevelStreaming->LevelColor);
-			}
 		}
 
 		FColor NewPropertyColor;

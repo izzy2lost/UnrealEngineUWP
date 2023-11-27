@@ -10,8 +10,6 @@
 #include "RayTracingInstance.h"
 #include "SceneManagement.h"
 #include "Engine/Engine.h"
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "DynamicMeshBuilder.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -67,19 +65,6 @@ namespace
 			: FPrimitiveSceneProxy(InComponent)
 			, VertexFactory(GetScene().GetFeatureLevel(), "FImagePlateSceneProxy")
 		{
-			AActor* Owner = InComponent->GetOwner();
-			if (Owner)
-			{
-				// Level colorization
-				ULevel* Level = Owner->GetLevel();
-				ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-				if ( LevelStreaming )
-				{
-					// Selection takes priority over level coloration.
-					SetLevelColor(LevelStreaming->LevelColor);
-				}
-			}
-
 			Material = InComponent->GetPlate().DynamicMaterial ? InComponent->GetPlate().DynamicMaterial : InComponent->GetPlate().Material;
 			if (Material)
 			{

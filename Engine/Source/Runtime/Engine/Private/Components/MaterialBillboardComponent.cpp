@@ -9,8 +9,6 @@
 #include "SceneInterface.h"
 #include "SceneManagement.h"
 #include "Engine/Engine.h"
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "PrimitiveSceneProxy.h"
 #include "StaticMeshResources.h"
 #include "PSOPrecache.h"
@@ -64,19 +62,6 @@ public:
 	, BaseColor(FColor::White)
 	, VertexFactory(GetScene().GetFeatureLevel(), "FMaterialSpriteSceneProxy")
 	{
-		AActor* Owner = InComponent->GetOwner();
-		if (Owner)
-		{
-			// Level colorization
-			ULevel* Level = Owner->GetLevel();
-			ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-			if ( LevelStreaming )
-			{
-				// Selection takes priority over level coloration.
-				SetLevelColor(LevelStreaming->LevelColor);
-			}
-		}
-
 		for (int32 ElementIndex = 0; ElementIndex < Elements.Num(); ElementIndex++)
 		{
 			UMaterialInterface* Material = Elements[ElementIndex].Material;

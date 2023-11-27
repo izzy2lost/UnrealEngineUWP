@@ -17,8 +17,6 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "Engine/Engine.h"
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "HModel.h"
 #include "Components/ModelComponent.h"
 #include "Engine/Brush.h"
@@ -263,18 +261,6 @@ public:
 		}
 
 		bGoodCandidateForCachedShadowmap = CacheShadowDepthsFromPrimitivesUsingWPO() || (!MaterialRelevance.bUsesWorldPositionOffset && !MaterialRelevance.bUsesDisplacement);
-
-		// Try to find a color for level coloration.
-		UObject* ModelOuter = InComponent->GetModel()->GetOuter();
-		ULevel* Level = Cast<ULevel>( ModelOuter );
-		if ( Level )
-		{
-			ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-			if ( LevelStreaming )
-			{
-				SetLevelColor(LevelStreaming->LevelColor);
-			}
-		}
 
 		// Get a color for property coloration.
 		FColor NewPropertyColor;

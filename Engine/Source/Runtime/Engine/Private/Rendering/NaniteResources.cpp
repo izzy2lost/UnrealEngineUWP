@@ -717,7 +717,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	InstanceWPODisableDistance = ProxyDesc.WorldPositionOffsetDisableDistance;
 
-	SetLevelColor(FLinearColor::White);
 	SetPropertyColor(FLinearColor::White);
 	SetWireframeColor(ProxyDesc.GetWireframeColor());
 

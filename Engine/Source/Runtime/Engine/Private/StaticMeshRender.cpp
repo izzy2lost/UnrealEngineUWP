@@ -24,8 +24,6 @@
 #include "StaticMeshSceneProxy.h"
 #include "PhysicalMaterials/PhysicalMaterialMask.h"
 
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "DistanceFieldAtlas.h"
 #include "MeshCardRepresentation.h"
 #include "Components/BrushComponent.h"
@@ -295,7 +293,6 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	ClampedMinLOD = FMath::Clamp(EffectiveMinLOD, FirstAvailableLOD, RenderData->LODResources.Num() - 1);
 
 	SetWireframeColor(InProxyDesc.GetWireframeColor());
-	SetLevelColor(FLinearColor(1,1,1));
 	SetPropertyColor(FLinearColor(1,1,1));
 
 	// Copy the pointer to the volume data, async building of the data may modify the one on FStaticMeshLODResources while we are rendering
@@ -378,17 +375,6 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	if( GIsEditor )
 	{
-		// Try to find a color for level coloration.
-		ULevel* Level = InProxyDesc.GetComponentLevel();
-		if (Level)
-		{
-			ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-			if ( LevelStreaming )
-			{
-				SetLevelColor(LevelStreaming->LevelColor);
-			}
-		}
-
 		// Get a color for property coloration.
 		FColor TempPropertyColor;
 		if (GEngine->GetPropertyColorationColor( InProxyDesc.GetObjectForPropertyColoration(), TempPropertyColor ))

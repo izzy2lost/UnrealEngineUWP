@@ -36,6 +36,7 @@ enum class EDebugViewMode : uint8
 	Wireframe = 1,
 	ShaderComplexity = 2,
 	LightmapDensity = 3,
+	LevelColor = 4,
 };
 
 void RenderDebugViewMode(

@@ -22,8 +22,6 @@ LandscapeRender.cpp: New terrain rendering
 #include "ShaderParameterUtils.h"
 #include "LandscapeEdit.h"
 #include "Engine/Level.h"
-#include "Engine/LevelStreaming.h"
-#include "LevelUtils.h"
 #include "Materials/MaterialExpressionTextureSample.h"
 #include "LandscapeMaterialInstanceConstant.h"
 #include "Engine/ShadowMapTexture2D.h"
@@ -1234,8 +1232,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 	LODIndexToMaterialIndex = InComponent->LODIndexToMaterialIndex;
 	check(LODIndexToMaterialIndex.Num() == MaxLOD + 1);
 
-	SetLevelColor(FLinearColor(1.f, 1.f, 1.f));
-			
 	HeightmapSubsectionOffsetU = 0;
 	HeightmapSubsectionOffsetV = 0;
 	if (HeightmapTexture)
@@ -1419,22 +1415,6 @@ FLandscapeComponentSceneProxy::FLandscapeComponentSceneProxy(ULandscapeComponent
 
 	Algo::Transform(AvailableMaterialInterfaces, MaterialRelevances, [FeatureLevel](UMaterialInterface* InMaterialInterface) { check(InMaterialInterface != nullptr); return InMaterialInterface->GetRelevance_Concurrent(FeatureLevel); });
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || (UE_BUILD_SHIPPING && WITH_EDITOR)
-	if (GIsEditor)
-	{
-		// Try to find a color for level coloration.
-		if (Proxy)
-		{
-			ULevel* Level = Proxy->GetLevel();
-			ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level);
-			if (LevelStreaming)
-			{
-				SetLevelColor(LevelStreaming->LevelColor);
-			}
-		}
-	}
-#endif
-	
 	const int8 SubsectionSizeLog2 = static_cast<int8>(FMath::CeilLogTwo(InComponent->SubsectionSizeQuads + 1));
 	SharedBuffersKey = (SubsectionSizeLog2 & 0xf) | ((NumSubsections & 0xf) << 4) |	(XYOffsetmapTexture == nullptr ? 0 : 1 << 31);
 
