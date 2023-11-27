@@ -665,12 +665,12 @@ void FMobileSceneRenderer::InitViews(
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
 
-		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue);
+		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), ExternalAccessQueue);
 		for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
 		{
 			FViewInfo& View = *AllViews[ViewIndex];
-			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *Scene, View);
-			Scene->GPUScene.DebugRender(GraphBuilder, *Scene, GetSceneUniforms(), View);
+			Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, View);
+			Scene->GPUScene.DebugRender(GraphBuilder, GetSceneUniforms(), View);
 		}
 	}
 
@@ -917,7 +917,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
 	// Establish scene primitive count (must be done after UpdateAllPrimitiveSceneInfos)
-	FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(Scene->GPUScene, GPUSceneDynamicContext, Scene);
+	FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(Scene->GPUScene, GPUSceneDynamicContext);
 
 	if (bRendererOutputFinalSceneColor)
 	{

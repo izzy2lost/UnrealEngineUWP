@@ -650,21 +650,14 @@ FGPUScene::~FGPUScene()
 #endif
 }
 
-void FGPUScene::BeginRender(const FScene* InScene, FGPUSceneDynamicContext &GPUSceneDynamicContext)
+void FGPUScene::BeginRender(FGPUSceneDynamicContext &GPUSceneDynamicContext)
 {
 	ensure(!bInBeginEndBlock);
 	ensure(CurrentDynamicContext == nullptr);
-	// TODO: IS the scene being null a case that exists???
-	if (InScene != nullptr)
-	{
-		check(InScene == &Scene);
-		ensure(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
-		NumScenePrimitives = Scene.Primitives.Num();
-	}
-	else
-	{
-		NumScenePrimitives = 0;
-	}
+
+	ensure(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
+	NumScenePrimitives = Scene.Primitives.Num();
+
 	CurrentDynamicContext = &GPUSceneDynamicContext;
 	DynamicPrimitivesOffset = Scene.GetMaxPersistentPrimitiveIndex();
 	bInBeginEndBlock = true;
@@ -681,10 +674,8 @@ void FGPUScene::EndRender()
 	ShaderParameters = {};
 }
 
-void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, FScene& InScene, const UE::Tasks::FTask& PrerequisiteTask)
+void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTask& PrerequisiteTask)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
 	FRDGUploadData<FLightSceneData> LightData(GraphBuilder, FMath::Max(1, Scene.Lights.GetMaxIndex()));
 
 	GraphBuilder.AddSetupTask([this, LightData]
@@ -745,11 +736,8 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.LightTypeAndShadowMapChannelMaskPacked = LightInfo.PackLightTypeAndShadowMapChannelMask(bAllowStaticLighting);
 }
 
-void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& InScene, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
+void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	check(bInBeginEndBlock);
@@ -825,7 +813,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 	check(!BufferState.IsValid());
 
 	FUploadDataSourceAdapterScenePrimitives& Adapter = *GraphBuilder.AllocObject<FUploadDataSourceAdapterScenePrimitives>(Scene, SceneFrameNumber, MoveTemp(PrimitivesToUpdate), MoveTemp(PrimitiveDirtyState));
-	UpdateBufferState(GraphBuilder, SceneUB, Scene, Adapter, true);
+	UpdateBufferState(GraphBuilder, SceneUB, Adapter, true);
 
 	// Run a pass that clears (Sets ID to invalid) any instances that need it
 	AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
@@ -847,17 +835,15 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateGPUScene);
 		SCOPE_CYCLE_COUNTER(STAT_UpdateGPUSceneTime);
 
-		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, Scene, &ExternalAccessQueue, Adapter, PrerequisiteAsyncTask);
+		UploadGeneral<FUploadDataSourceAdapterScenePrimitives>(GraphBuilder, &ExternalAccessQueue, Adapter, PrerequisiteAsyncTask);
 
-		UpdateGPULights(GraphBuilder, Scene, PrerequisiteAsyncTask);
+		UpdateGPULights(GraphBuilder, PrerequisiteAsyncTask);
 	}
 }
 
 template<typename FUploadDataSourceAdapter>
-void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& InScene, const FUploadDataSourceAdapter& UploadDataSourceAdapter, bool bIsMainUpdate)
+void FGPUScene::UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, const FUploadDataSourceAdapter& UploadDataSourceAdapter, bool bIsMainUpdate)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	check(bInBeginEndBlock);
@@ -1009,11 +995,8 @@ struct FInstanceBatcher
 };
 
 template<typename FUploadDataSourceAdapter>
-void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGExternalAccessQueue* ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter, const UE::Tasks::FTask& PrerequisiteTask)
+void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue* ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter, const UE::Tasks::FTask& PrerequisiteTask)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	ensure(bIsEnabled == UseGPUScene(GMaxRHIShaderPlatform, Scene.GetFeatureLevel()));
@@ -1098,7 +1081,7 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, FScene& InScene, FRDGEx
 		TaskContext.bUseNaniteMaterialUploaders = true;
 	}
 
-	GraphBuilder.AddCommandListSetupTask([&TaskContext, &UploadDataSourceAdapter, &InScene, bNaniteEnabled, bExecuteInParallel, FeatureLevel = FeatureLevel](FRHICommandListBase& RHICmdList)
+	GraphBuilder.AddCommandListSetupTask([&TaskContext, &UploadDataSourceAdapter, bNaniteEnabled, bExecuteInParallel, FeatureLevel = FeatureLevel](FRHICommandListBase& RHICmdList)
 	{
 		SCOPED_NAMED_EVENT(UpdateGPUScene_Primitives, FColor::Green);
 
@@ -1581,11 +1564,8 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	TArray<uint32, SceneRenderingAllocator> PrimitivesIds;
 };
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FScene& InScene, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	LLM_SCOPE_BYTAG(GPUScene);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "GPUScene.UploadDynamicPrimitiveShaderDataForView");
@@ -1649,12 +1629,12 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 			Collector.UploadData->InstancePayloadDataOffset,
 			SceneFrameNumber);
 
-		UpdateBufferState(GraphBuilder, View.GetSceneUniforms(), Scene, UploadAdapter, false);
+		UpdateBufferState(GraphBuilder, View.GetSceneUniforms(), UploadAdapter, false);
 
 		// Run a pass that clears (Sets ID to invalid) any instances that need it.
 		AddClearInstancesPass(GraphBuilder, Scene.InstanceCullingOcclusionQueryRenderer);
 
-		UploadGeneral<FUploadDataSourceAdapterDynamicPrimitives>(GraphBuilder, Scene, nullptr, UploadAdapter, UE::Tasks::FTask{});
+		UploadGeneral<FUploadDataSourceAdapterDynamicPrimitives>(GraphBuilder, nullptr, UploadAdapter, UE::Tasks::FTask{});
 	}
 
 	FSceneUniformBuffer& SceneUniforms = View.GetSceneUniforms();
@@ -1775,31 +1755,25 @@ void FGPUScene::AddPrimitiveToUpdate(FPersistentPrimitiveIndex PersistentPrimiti
 }
 
 
-void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FScene& InScene, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
+void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
 		ensure(bInBeginEndBlock);
 		
-		UpdateInternal(GraphBuilder, SceneUB, Scene, ExternalAccessQueue, VisibilityTaskData);
+		UpdateInternal(GraphBuilder, SceneUB, ExternalAccessQueue, VisibilityTaskData);
 	}
 }
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FScene& InScene, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, Scene, View, bIsShadowView);
+		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, bIsShadowView);
 	}
 }
 
@@ -1934,11 +1908,8 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FGPUSceneDebugRenderCS, "/Engine/Private/GPUSceneDebugRender.usf", "GPUSceneDebugRenderCS", SF_Compute);
 
-void FGPUScene::DebugRender(FRDGBuilder& GraphBuilder, FScene& InScene, FSceneUniformBuffer& SceneUniformBuffer, FViewInfo& View)
+void FGPUScene::DebugRender(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, FViewInfo& View)
 {
-	// TODO: remove scene as parameter
-	check(&InScene == &Scene);
-
 	int32 DebugMode = CVarGPUSceneDebugMode.GetValueOnRenderThread();
 	if (DebugMode > 0)
 	{
@@ -1964,17 +1935,20 @@ void FGPUScene::DebugRender(FRDGBuilder& GraphBuilder, FScene& InScene, FSceneUn
 			uint32 SelectedCount = 0;
 			TArray<uint32> SelectedPrimitiveFlags;
 			const int32 BitsPerWord = (sizeof(uint32) * 8U);
-			SelectedPrimitiveFlags.Init(0U, FMath::DivideAndRoundUp(Scene.Primitives.Num(), BitsPerWord));
-			for (int32 PrimitiveID = 0; PrimitiveID < Scene.PrimitiveSceneProxies.Num(); ++PrimitiveID)
+			SelectedPrimitiveFlags.Init(0U, FMath::DivideAndRoundUp(Scene.GetMaxPersistentPrimitiveIndex(), BitsPerWord));
+			for (int32 PackedIndex = 0; PackedIndex < Scene.PrimitiveSceneProxies.Num(); ++PackedIndex)
 			{
-				if (Scene.PrimitiveSceneProxies[PrimitiveID]->IsSelected())
+				if (Scene.PrimitiveSceneProxies[PackedIndex]->IsSelected())
 				{
-					SelectedPrimitiveFlags[PrimitiveID / BitsPerWord] |= 1U << uint32(PrimitiveID % BitsPerWord);
+					FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[PackedIndex];
+					FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitiveSceneInfo->GetPersistentIndex();
+
+					SelectedPrimitiveFlags[PersistentPrimitiveIndex.Index / BitsPerWord] |= 1U << uint32(PersistentPrimitiveIndex.Index % BitsPerWord);
 
 					// Collect Names
 					if (SelectedNameInfos.Num() < MaxPrimitiveNameCount)
 					{
-						const FString OwnerName = Scene.Primitives[PrimitiveID]->GetFullnameForDebuggingOnly();
+						const FString OwnerName = PrimitiveSceneInfo->GetFullnameForDebuggingOnly();
 						const uint32 NameOffset = SelectedNames.Num();
 						const uint32 NameLength = OwnerName.Len();
 						for (TCHAR C : OwnerName)
@@ -1983,7 +1957,7 @@ void FGPUScene::DebugRender(FRDGBuilder& GraphBuilder, FScene& InScene, FSceneUn
 						}
 
 						FPrimitiveSceneDebugNameInfo& NameInfo = SelectedNameInfos.AddDefaulted_GetRef();
-						NameInfo.PrimitiveID= PrimitiveID;
+						NameInfo.PrimitiveID= PersistentPrimitiveIndex.Index;
 						NameInfo.Length		= NameLength;
 						NameInfo.Offset		= NameOffset;
 						++SelectedCount;

@@ -3700,13 +3700,13 @@ public:
 	 * Thus, AddedLightIds is not valid in the change set as the added lights do not have assigned IDs yet.
 	 * IF using this to drive an async task, care must be taken as the (light) scene will be modified directly after.
 	 */
-	FSceneLightSceneInfoUpdateDelegate OnPreLigtSceneInfoUpdate;
+	FSceneLightSceneInfoUpdateDelegate OnPreLightSceneInfoUpdate;
 	/**
 	 * This delegate is invoked during the scene update phase _after_ all light changes are applied.
 	 * Thus, RemovedLightIds may contain ID's that are no longer valid or are now referencing newly added lights.
 	 * IF using this to drive an async task, the core light scene info may be used, but primitive scene updates will still be ongoing (e.g., light/primitive interactions may change).
 	 */
-	FSceneLightSceneInfoUpdateDelegate OnPostLigtSceneInfoUpdate;
+	FSceneLightSceneInfoUpdateDelegate OnPostLightSceneInfoUpdate;
 protected:
 
 private:

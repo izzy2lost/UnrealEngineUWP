@@ -1569,11 +1569,11 @@ namespace RuntimeVirtualTexture
 		InDesc.Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder);
 
 		// Call to let GPU-Scene determine if it is active and record scene primitive count
-		FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(InDesc.Scene->GPUScene, GPUSceneDynamicContext, InDesc.Scene);
+		FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(InDesc.Scene->GPUScene, GPUSceneDynamicContext);
 
 		FSceneUniformBuffer SceneUB {};
 		FRDGExternalAccessQueue ExternalAccessQueue;
-		InDesc.Scene->GPUScene.Update(GraphBuilder, SceneUB, *InDesc.Scene, ExternalAccessQueue);
+		InDesc.Scene->GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue);
 		if (InDesc.Scene->SplineMeshSceneResources)
 		{
 			InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);

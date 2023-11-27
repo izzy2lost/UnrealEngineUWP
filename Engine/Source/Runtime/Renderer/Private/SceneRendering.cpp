@@ -5125,10 +5125,10 @@ public:
 		ViewFamily.SetSceneRenderer(&Renderer);
 
 		Scene.UpdateAllPrimitiveSceneInfos(GraphBuilder);
-		GPUScene.BeginRender(&Scene, GPUSceneDynamicContext);
+		GPUScene.BeginRender(GPUSceneDynamicContext);
 
 		FRDGExternalAccessQueue ExternalAccessQueue;
-		Scene.GPUScene.Update(GraphBuilder, Renderer.GetSceneUniforms(), Scene, ExternalAccessQueue);
+		Scene.GPUScene.Update(GraphBuilder, Renderer.GetSceneUniforms(), ExternalAccessQueue);
 		ExternalAccessQueue.Submit(GraphBuilder);
 	}
 

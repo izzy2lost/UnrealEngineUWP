@@ -5310,7 +5310,7 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
 		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
 
-		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), *Scene, ExternalAccessQueue, TaskDatas.VisibilityTaskData);
+		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), ExternalAccessQueue, TaskDatas.VisibilityTaskData);
 	}
 
 	// This must happen before we start initialising and using views.
