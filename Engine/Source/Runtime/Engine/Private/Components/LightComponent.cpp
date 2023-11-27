@@ -1433,6 +1433,11 @@ void ULightComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* InMate
 	}
 }
 
+void ULightComponent::PushSelectionToProxy()
+{
+	MarkRenderStateDirty();
+}
+
 /** Stores a light and a channel it has been assigned to. */
 struct FLightAndChannel
 {

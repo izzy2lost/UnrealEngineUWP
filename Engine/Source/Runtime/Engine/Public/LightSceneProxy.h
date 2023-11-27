@@ -212,6 +212,8 @@ public:
 	inline uint8 GetLightingChannelMask() const { return LightingChannelMask; }
 	inline FName GetComponentFName() const { return ComponentName; }
 
+	inline bool IsSelected() const { return bSelected; }
+
 	/**
 	 * Use to get the owning actor label (or component name as fallback, if the owner is null or ENABLE_DEBUG_LABELS is off) for diagnostic messages, debug or profiling.
 	 * The actor label is what is shown in the UI (as opposed to the the FName).
@@ -427,6 +429,8 @@ protected:
 
 	/** Whether to render csm shadows for movable objects only (mobile). */
 	uint8 bUseWholeSceneCSMForMovableObjects : 1;
+
+	const uint8 bSelected : 1;
 
 	/** The index of the atmospheric light. Multiple lights can be considered when computing the sky/atmospheric scattering. */
 	const uint8 AtmosphereSunLightIndex;

@@ -50,6 +50,7 @@
 #endif // UE_WITH_IRIS
 #include "LevelUtils.h"
 #include "Components/DecalComponent.h"
+#include "Components/LightComponent.h"
 #include "GameFramework/InputSettings.h"
 #include "Algo/AnyOf.h"
 #include "PrimitiveSceneProxy.h"
@@ -5203,6 +5204,11 @@ void AActor::PushSelectionToProxies()
 			if(UDecalComponent* DecalComponent = Cast<UDecalComponent>(Component))
 			{
 				DecalComponent->PushSelectionToProxy();
+			}
+
+			if (ULightComponent* LightComponent = Cast<ULightComponent>(Component))
+			{
+				LightComponent->PushSelectionToProxy();
 			}
 		}
 	}

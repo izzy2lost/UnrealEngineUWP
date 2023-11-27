@@ -324,6 +324,11 @@ public:
 	/** The light's scene info. */
 	class FLightSceneProxy* SceneProxy;
 
+	/**
+	 * Pushes new selection state to the render thread light proxy
+	 */
+	ENGINE_API void PushSelectionToProxy();
+
 	FStaticShadowDepthMap StaticShadowDepthMap;
 
 	/** Fence used to track progress of render resource destruction. */
