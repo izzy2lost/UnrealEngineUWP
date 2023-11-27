@@ -2079,6 +2079,23 @@ void FGroomBuilder::BuildData(FHairStrandsDatas& OutStrands)
 }
 
 void FGroomBuilder::BuildData(
+	const FHairDescriptionGroup& InHairDescriptionGroup,
+	const FHairGroupsInterpolation& InSettings,
+	FHairStrandsDatas& OutRen,
+	FHairStrandsDatas& OutSim,
+	bool bAllowCurveReordering)
+{
+	FHairGroupInfo DummyGroupInfo;
+	BuildData(
+		InHairDescriptionGroup, 
+		InSettings, 
+		DummyGroupInfo, 
+		OutRen,
+		OutSim,
+		bAllowCurveReordering);
+}
+
+void FGroomBuilder::BuildData(
 	const FHairDescriptionGroup& InHairDescriptionGroup, 
 	const FHairGroupsInterpolation& InSettings, 
 	FHairGroupInfo& OutGroupInfo, 

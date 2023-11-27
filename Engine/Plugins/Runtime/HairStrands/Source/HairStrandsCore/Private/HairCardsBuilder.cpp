@@ -66,7 +66,7 @@ namespace FHairCardsBuilder
 FString GetVersion()
 {
 	// Important to update the version when cards building or importing changes
-	return TEXT("9m");
+	return TEXT("10");
 }
 
 bool InternalCreateCardsGuides(
