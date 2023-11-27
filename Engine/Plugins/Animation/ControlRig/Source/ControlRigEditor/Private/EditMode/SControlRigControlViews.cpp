@@ -568,12 +568,25 @@ FReply SControlRigPoseView::OnSelectControls()
 
 void SControlRigPoseView::OnPoseBlendChanged(float ChangedVal)
 {
+	auto ControlRigContainsControls = [this] (const UControlRig* InControlRig)
+	{
+		TArray<FName> ControlNames = PoseAsset->GetControlNames();
+		for (FName ControlName : ControlNames)
+		{
+			if (InControlRig->FindControl(ControlName))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	
 	if (PoseAsset.IsValid())
 	{
 		TArray<UControlRig*> ControlRigs = GetControlRigs();
 		for (UControlRig* ControlRig : ControlRigs)
 		{
-			if (ControlRig)
+			if (ControlRig && ControlRigContainsControls(ControlRig))
 			{
 				PoseBlendValue = ChangedVal;
 				if (!bIsBlending)
