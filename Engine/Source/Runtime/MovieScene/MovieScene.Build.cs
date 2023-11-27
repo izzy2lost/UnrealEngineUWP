@@ -18,7 +18,8 @@ public class MovieScene : ModuleRules
 				"CoreUObject",
                 "InputCore",
                 "Engine",
-				"TimeManagement"
+				"TimeManagement",
+				"UniversalObjectLocator"
 			}
 		);
 		SetupIrisSupport(Target);

@@ -3,14 +3,18 @@
 #include "LevelSequenceActor.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/Texture2D.h"
+#include "Engine/Level.h"
 #include "Components/BillboardComponent.h"
 #include "LevelSequenceBurnIn.h"
 #include "DefaultLevelSequenceInstanceData.h"
 #include "Engine/ActorChannel.h"
+#include "Engine/LevelStreaming.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
 #include "Net/UnrealNetwork.h"
 #include "LevelSequenceModule.h"
+#include "UniversalObjectLocators/ActorLocatorFragment.h"
+#include "WorldPartition/WorldPartitionLevelHelper.h"
 #include "MovieSceneSequenceTickManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceActor)
@@ -150,6 +154,57 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS // make SequencePlayer protected and remove 
 	DOREPLIFETIME(ALevelSequenceActor, SequencePlayer);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DOREPLIFETIME(ALevelSequenceActor, LevelSequenceAsset);
+}
+
+void ALevelSequenceActor::PreInitializeComponents()
+{
+	Super::PreInitializeComponents();
+
+	UWorld* StreamingWorld = nullptr;
+	FTopLevelAssetPath StreamedLevelAssetPath;
+
+	// Initialize the level streaming asset path for this actor if possible/necessary
+	if (ULevel* Level = GetLevel())
+	{
+		// Default to owning world (to resolve AlwaysLoaded actors not part of a Streaming Level and Disabled Streaming World Partitions)
+		StreamingWorld = Level->OwningWorld;
+
+		// Construct the path to the level asset that the streamed level relates to
+		ULevelStreaming* LevelStreaming = ULevelStreaming::FindStreamingLevel(Level);
+		if (LevelStreaming)
+		{
+			// Sub world partitions as always loaded cells + traditional level streaming
+			if (Level->IsWorldPartitionRuntimeCell())
+			{
+				StreamingWorld = LevelStreaming->GetStreamingWorld();
+				check(StreamingWorld);
+
+				LevelStreaming = ULevelStreaming::FindStreamingLevel(StreamingWorld->PersistentLevel);
+			}
+			else
+			{
+				StreamingWorld = Level->GetTypedOuter<UWorld>();
+			}
+		}
+
+		if (LevelStreaming)
+		{
+			// StreamedLevelPackage is a package name of the form /Game/Folder/MapName, not a full asset path
+			FString StreamedLevelPackage = ((LevelStreaming->PackageNameToLoad == NAME_None) ? LevelStreaming->GetWorldAssetPackageFName() : LevelStreaming->PackageNameToLoad).ToString();
+
+			int32 SlashPos = 0;
+			if (StreamedLevelPackage.FindLastChar('/', SlashPos) && SlashPos < StreamedLevelPackage.Len() - 1)
+			{
+				StreamedLevelAssetPath = FTopLevelAssetPath(*StreamedLevelPackage, &StreamedLevelPackage[SlashPos + 1]);
+			}
+		}
+	}
+
+	GetSequencePlayer()->SetSourceActorContext(
+		StreamingWorld,
+		WorldPartitionResolveData.ContainerID,
+		WorldPartitionResolveData.SourceWorldAssetPath.IsValid() ? WorldPartitionResolveData.SourceWorldAssetPath : StreamedLevelAssetPath
+	);
 }
 
 void ALevelSequenceActor::PostInitializeComponents()

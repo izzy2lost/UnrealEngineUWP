@@ -5,6 +5,7 @@
 #include "Evaluation/MovieSceneEvaluationCustomVersion.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "MovieScene.h"
+#include "MovieSceneBindingReferences.h"
 #include "UObject/EditorObjectVersion.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/ObjectSaveContext.h"
@@ -17,6 +18,7 @@
 #include "EntitySystem/MovieSceneEntityManager.h"
 #include "EntitySystem/IMovieSceneEntityProvider.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
+#include "UniversalObjectLocator.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequence)
 
@@ -38,6 +40,43 @@ UMovieSceneSequence::UMovieSceneSequence(const FObjectInitializer& Init)
 		UMovieSceneCompiledDataManager::GetPrecompiledData(EMovieSceneServerClientMask::Client);
 		UMovieSceneCompiledDataManager::GetPrecompiledData(EMovieSceneServerClientMask::Server);
 #endif
+	}
+}
+
+bool UMovieSceneSequence::MakeLocatorForObject(UObject* Object, UObject* Context, FUniversalObjectLocator& OutLocator) const
+{
+	if (CanPossessObject(*Object, Context))
+	{
+		OutLocator.Reset(Object, Context);
+		return true;
+	}
+
+	return false;
+}
+
+const FMovieSceneBindingReferences* UMovieSceneSequence::GetBindingReferences() const
+{
+	return nullptr;
+}
+
+FMovieSceneBindingReferences* UMovieSceneSequence::GetBindingReferences()
+{
+	const FMovieSceneBindingReferences* Result = const_cast<const UMovieSceneSequence*>(this)->GetBindingReferences();
+	return const_cast<FMovieSceneBindingReferences*>(Result);
+}
+
+void UMovieSceneSequence::LocateBoundObjects(const FGuid& ObjectId, const UE::UniversalObjectLocator::FResolveParams& ResolveParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+{
+	const FMovieSceneBindingReferences* Refs = GetBindingReferences();
+	if (Refs)
+	{
+		Refs->ResolveBinding(ObjectId, ResolveParams, OutObjects);
+	}
+	else
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		LocateBoundObjects(ObjectId, const_cast<UObject*>(ResolveParams.Context), OutObjects);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -302,16 +341,19 @@ FGuid UMovieSceneSequence::FindPossessableObjectId(UObject& Object, UObject* Con
 	class FTransientPlayer : public IMovieScenePlayer
 	{
 	public:
+		UObject* PlaybackContext;
 		FMovieSceneRootEvaluationTemplateInstance Template;
 		virtual FMovieSceneRootEvaluationTemplateInstance& GetEvaluationTemplate() override { return Template; }
 		virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) override {}
 		virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const override {}
 		virtual EMovieScenePlayerStatus::Type GetPlaybackStatus() const { return EMovieScenePlayerStatus::Stopped; }
 		virtual void SetPlaybackStatus(EMovieScenePlayerStatus::Type InPlaybackStatus) override {}
+		virtual UObject* GetPlaybackContext() const override { return PlaybackContext;  }
 	} Player;
 
 	UMovieSceneSequence* ThisSequence = const_cast<UMovieSceneSequence*>(this);
 	Player.State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, Player);
+	Player.PlaybackContext = Context;
 
 	FGuid ExistingID = Player.FindObjectId(Object, MovieSceneSequenceID::Root);
 	return ExistingID;

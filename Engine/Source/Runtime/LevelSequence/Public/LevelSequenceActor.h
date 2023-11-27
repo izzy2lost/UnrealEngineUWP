@@ -273,6 +273,7 @@ protected:
 	//~ End UObject interface
 
 	//~ Begin AActor interface
+	LEVELSEQUENCE_API virtual void PreInitializeComponents() override;
 	LEVELSEQUENCE_API virtual void PostInitializeComponents() override;
 	LEVELSEQUENCE_API virtual void BeginPlay() override;
 	LEVELSEQUENCE_API virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -284,6 +285,7 @@ protected:
 	//~ End AActor interface
 
 public:
+
 	const FWorldPartitionResolveData& GetWorldPartitionResolveData() const
 	{
 		return WorldPartitionResolveData;

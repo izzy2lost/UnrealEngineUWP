@@ -41,7 +41,8 @@
 #include "SequencerUtilities.h"
 #include "FileHelpers.h"
 #include "LevelSequence.h"
-
+#include "ActorObjectSchema.h"
+#include "SkeletalMeshComponentSchema.h"
 
 #include "Misc/CoreDelegates.h"
 #include "UnrealEdGlobals.h"
@@ -346,6 +347,12 @@ public:
 		}));
 	}
 
+	void RegisterObjectSchemas()
+	{
+		RegisterObjectSchema(MakeShared<UE::Sequencer::FActorSchema>());
+		RegisterObjectSchema(MakeShared<UE::Sequencer::FSkeletalMeshComponentSchema>());
+	}
+
 	virtual void StartupModule() override
 	{
 		using namespace UE::Sequencer;
@@ -378,6 +385,8 @@ public:
 			MuteOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FMuteOutlinerColumn::CreateOutlinerColumn));
 			LockOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FLockOutlinerColumn::CreateOutlinerColumn));
 			SoloOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FSoloOutlinerColumn::CreateOutlinerColumn));
+
+			RegisterObjectSchemas();
 		}
 
 		FSequenceModel::CreateExtensionsEvent.AddLambda(
@@ -486,6 +495,34 @@ public:
 
 	virtual TSharedPtr<FSequencerCustomizationManager> GetSequencerCustomizationManager() const override { return SequencerCustomizationManager; }
 
+	virtual void RegisterObjectSchema(TSharedPtr<UE::Sequencer::IObjectSchema> InSchema) override
+	{
+		ObjectSchemas.Add(InSchema);
+	}
+
+	virtual void UnregisterObjectSchema(TSharedPtr<UE::Sequencer::IObjectSchema> InSchema) override
+	{
+		ObjectSchemas.Remove(InSchema);
+	}
+
+	virtual TSharedPtr<UE::Sequencer::IObjectSchema> FindObjectSchema(const UObject* Object) const override
+	{
+		using namespace UE::Sequencer;
+
+		FObjectSchemaRelevancy Relevancy;
+		TSharedPtr<IObjectSchema> RelevantSchema;
+
+		for (const TSharedPtr<IObjectSchema>& Schema : ObjectSchemas)
+		{
+			FObjectSchemaRelevancy ThisRelevancy = Schema->GetRelevancy(Object);
+			if (ThisRelevancy > Relevancy)
+			{
+				Relevancy = ThisRelevancy;
+				RelevantSchema = Schema;
+			}
+		}
+		return RelevantSchema;
+	}
 
 	virtual FDelegateHandle RegisterMovieRenderer(TUniquePtr<IMovieRendererInterface>&& InMovieRenderer) override
 	{
@@ -522,6 +559,11 @@ public:
 		return MovieRendererNames;
 	}
 
+	TArrayView<const TSharedPtr<UE::Sequencer::IObjectSchema>> GetObjectSchemas() const override
+	{
+		return ObjectSchemas;
+	}
+
 private:
 
 	TSet<FAnimatedPropertyKey> PropertyAnimators;
@@ -537,6 +579,8 @@ private:
 
 	/** List of outliner column creators */
 	TArray<FOnCreateOutlinerColumn> OutlinerColumnDelegates;
+
+	TArray<TSharedPtr<UE::Sequencer::IObjectSchema>> ObjectSchemas;
 
 	/** Global details row extension delegate; */
 	FDelegateHandle OnGetGlobalRowExtensionHandle;

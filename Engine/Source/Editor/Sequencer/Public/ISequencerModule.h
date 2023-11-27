@@ -25,7 +25,11 @@ class IToolkitHost;
 class UMovieSceneSequence;
 struct FSequencerInitParams;
 
-namespace UE { namespace Sequencer { class FTrackModel; } }
+namespace UE::Sequencer
+{
+	class FTrackModel;
+	class IObjectSchema;
+} // namespace UE::Sequencer
 
 enum class ECurveEditorTreeFilterType : uint32;
 
@@ -348,6 +352,26 @@ public:
 	 * the currently focused sequence type and other dynamic criteria.
 	 */
 	virtual TSharedPtr<FSequencerCustomizationManager> GetSequencerCustomizationManager() const = 0;
+
+	/**
+	 * Register a new object schema defining how an object is able to be animated through Sequencer
+	 */
+	virtual void RegisterObjectSchema(TSharedPtr<UE::Sequencer::IObjectSchema> InObjectSchema) = 0;
+
+	/**
+	 * Unregister a new object schema defining how an object is able to be animated through Sequencer
+	 */
+	virtual void UnregisterObjectSchema(TSharedPtr<UE::Sequencer::IObjectSchema> InSchema) = 0;
+
+	/**
+	 * Retrieve all the currently registered object schemas
+	 */
+	virtual TArrayView<const TSharedPtr<UE::Sequencer::IObjectSchema>> GetObjectSchemas() const = 0;
+
+	/**
+	 * Find an object schema for the specified object
+	 */
+	virtual TSharedPtr<UE::Sequencer::IObjectSchema> FindObjectSchema(const UObject* Object) const = 0;
 
 	/**
 	 * Register a sequencer channel type using a default channel interface.

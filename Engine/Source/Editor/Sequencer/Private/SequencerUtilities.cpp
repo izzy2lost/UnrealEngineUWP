@@ -53,6 +53,7 @@
 #include "UnrealExporter.h"
 #include "UObject/Package.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "ISequencerObjectSchema.h"
 #include "FileHelpers.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "LevelSequence.h"
@@ -598,6 +599,7 @@ TArray<FGuid> ExpandMultiplePossessableBindings(TSharedRef<ISequencer> Sequencer
 			if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), FoundObject, Sequencer->GetSharedPlaybackState()))
 			{
 				Sequence->BindPossessableObject(NewPossessableGuid, *FoundObject, BindingContext);
+				NewPossessable->FixupPossessedObjectClass(Sequence, BindingContext);
 			}
 
 			NewPossessableGuids.Add(NewPossessableGuid);
@@ -813,7 +815,7 @@ FGuid FSequencerUtilities::CreateCamera(TSharedRef<ISequencer> Sequencer, const 
 	{
 		FActorLabelUtilities::SetActorLabelUnique(OutActor, ACineCameraActor::StaticClass()->GetName());
 
-		CameraGuid = CreateBinding(Sequencer, *OutActor, OutActor->GetActorLabel());
+		CameraGuid = CreateBinding(Sequencer, *OutActor);
 	}
 
 	if (!CameraGuid.IsValid())
@@ -861,7 +863,7 @@ FGuid FSequencerUtilities::CreateCameraWithRig(TSharedRef<ISequencer> Sequencer,
 	// Create a cine camera actor
 	UWorld* PlaybackContext = Cast<UWorld>(Sequencer->GetPlaybackContext());
 	OutActor = PlaybackContext->SpawnActor<ACineCameraActor>();
-	CameraGuid = CreateBinding(Sequencer, *OutActor, OutActor->GetActorLabel());
+	CameraGuid = CreateBinding(Sequencer, *OutActor);
 
 	if (RailActor)
 	{
@@ -982,7 +984,7 @@ TArray<FGuid> FSequencerUtilities::AddActors(TSharedRef<ISequencer> Sequencer, c
 			FGuid ExistingGuid = Sequencer->FindObjectId(*Actor, Sequencer->GetFocusedTemplateID());
 			if (!ExistingGuid.IsValid())
 			{
-				FGuid PossessableGuid = CreateBinding(Sequencer, *Actor, Actor->GetActorLabel());
+				FGuid PossessableGuid = CreateBinding(Sequencer, *Actor);
 				PossessableGuids.Add(PossessableGuid);
 
 				if (ACameraActor* CameraActor = Cast<ACameraActor>(Actor))
@@ -1206,7 +1208,7 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToPossessable(TSharedRef<ISe
 	// The transform needs to be set again for deferred construction and dynamic root components. Until the fix for: UE-67537
 	PossessedActor->SetActorTransform(DefaultTransform);
 
-	const FGuid NewPossessableGuid = CreateBinding(Sequencer, *PossessedActor, PossessedActor->GetActorLabel());
+	const FGuid NewPossessableGuid = CreateBinding(Sequencer, *PossessedActor);
 	const FGuid OldSpawnableGuid = Spawnable->GetGuid();
 
 	FMovieScenePossessable* Possessable = MovieScene->FindPossessable(NewPossessableGuid);
@@ -2098,7 +2100,7 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 
 	UMovieScene* RootMovieScene = Sequencer->GetRootMovieSceneSequence()->GetMovieScene();
 
-	UWorld* World = Cast<UWorld>(Sequencer->GetPlaybackContext());
+	UWorld* World = Sequencer->GetPlaybackContext()->GetWorld();
 
 	const FScopedTransaction Transaction(LOCTEXT("PasteBindings", "Paste Bindings"));
 
@@ -2483,17 +2485,138 @@ TArray<FString> FSequencerUtilities::GetPasteBindingsObjectNames(TSharedRef<ISeq
 	return ObjectNames;
 }
 
-FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, const FString& InName)
+FGuid CreateGenericBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, FMovieSceneBindingReferences* BindingReferences, const UE::Sequencer::FCreateBindingParams& InParams)
 {
-	const FScopedTransaction Transaction(LOCTEXT("CreateBinding", "Create New Binding"));
+	using namespace UE::Sequencer;
 
-	UMovieSceneSequence* OwnerSequence = Sequencer->GetFocusedMovieSceneSequence();
-	UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
+	UMovieSceneSequence* OwnerSequence   = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene*         OwnerMovieScene = OwnerSequence->GetMovieScene();
 
-	OwnerSequence->Modify();
-	OwnerMovieScene->Modify();
+	ISequencerModule& Module = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 
-	const FGuid PossessableGuid = OwnerMovieScene->AddPossessable(InName, InObject.GetClass());
+	TArray<TPair<UObject*, FString>> ObjectsToPossess;
+
+	// Build up the list of child->parent bindings required for this object
+	{
+		UObject* CurrentObject = &InObject;
+		while (CurrentObject)
+		{
+			TSharedPtr<IObjectSchema> Schema = Module.FindObjectSchema(CurrentObject);
+			if (Schema)
+			{
+				if (ObjectsToPossess.Num() == 0 && InParams.BindingNameOverride.Len() != 0)
+				{
+					ObjectsToPossess.Add(MakeTuple(CurrentObject, InParams.BindingNameOverride));
+				}
+				else
+				{
+					ObjectsToPossess.Add(MakeTuple(CurrentObject, Schema->GetPrettyName(CurrentObject).ToString()));
+				}
+				
+				CurrentObject = Schema->GetParentObject(CurrentObject);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
+	// Nothing to possess?
+	if (ObjectsToPossess.Num() == 0)
+	{
+		return FGuid();
+	}
+
+	const bool bParentContextsAreSignificant = OwnerSequence->AreParentContextsSignificant();
+
+	UObject* Context = Sequencer->GetPlaybackContext();
+
+	FGuid ParentID;
+
+	// Iterate in reverse (parent -> child)
+	for (int32 Index = ObjectsToPossess.Num()-1; Index >= 0; --Index)
+	{
+		UObject* CurrentObject = ObjectsToPossess[Index].Key;
+		FGuid    ObjectGuid    = Sequencer->GetHandleToObject(CurrentObject, false);
+
+		// If the object already has a binding, use that and move on
+		if (ObjectGuid.IsValid())
+		{
+			ParentID = ObjectGuid;
+			if (bParentContextsAreSignificant)
+			{
+				Context = CurrentObject;
+			}
+			continue;
+		}
+
+		// Create a new binding for this object
+		FString CurrentName = MoveTemp(ObjectsToPossess[Index].Value);
+		FGuid   NewID       = OwnerMovieScene->AddPossessable(CurrentName, CurrentObject->GetClass());
+
+		FMovieScenePossessable* NewPossessable = OwnerMovieScene->FindPossessable(NewID);
+
+		// If the object is a spawnable, try and bind to that first
+		if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), CurrentObject, &Sequencer.Get()))
+		{
+			FUniversalObjectLocator Locator;
+			if (!OwnerSequence->MakeLocatorForObject(CurrentObject, Context, Locator) || Locator.IsEmpty())
+			{
+				// Unable to possess this object
+				return FGuid();
+			}
+
+			BindingReferences->AddBinding(NewID, MoveTemp(Locator));
+		}
+
+		if (ParentID.IsValid())
+		{
+			NewPossessable->SetParent(ParentID, OwnerMovieScene);
+
+			FMovieSceneSpawnable* ParentSpawnable = OwnerMovieScene->FindSpawnable(ParentID);
+			if (ParentSpawnable)
+			{
+				ParentSpawnable->AddChildPossessable(NewID);
+			}
+		}
+
+		ParentID = NewID;
+
+		if (AActor* Actor = Cast<AActor>(CurrentObject))
+		{
+			Sequencer->OnActorAddedToSequencer().Broadcast(Actor, ParentID);
+		}
+
+		// If this is the last one
+		if (Index == 0)
+		{
+			Sequencer->OnAddBinding(NewID, OwnerMovieScene);
+			return NewID;
+		}
+
+		if (bParentContextsAreSignificant)
+		{
+			Context = CurrentObject;
+		}
+	}
+
+	// Should never get here - we should always hit the Index == 0 condition inside the loop
+	return FGuid();
+}
+
+FGuid CreateImplementationDefinedBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams)
+{
+	UMovieSceneSequence* OwnerSequence   = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene*         OwnerMovieScene = OwnerSequence->GetMovieScene();
+
+	AActor* Actor = Cast<AActor>(&InObject);
+
+	FString Name = InParams.BindingNameOverride.Len() > 0
+		? InParams.BindingNameOverride
+		: (Actor != nullptr ? Actor->GetActorLabel() : InObject.GetName());
+
+	FGuid PossessableGuid = OwnerMovieScene->AddPossessable(Name, InObject.GetClass());
 
 	// Attempt to use the parent as a context if necessary
 	UObject* ParentObject = OwnerSequence->GetParentObject(&InObject);
@@ -2534,7 +2657,8 @@ FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObje
 		}
 	}
 
-	if (!OwnerMovieScene->FindPossessable(PossessableGuid)->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), &InObject, Sequencer->GetSharedPlaybackState()))
+	FMovieScenePossessable* NewPossessable = OwnerMovieScene->FindPossessable(PossessableGuid);
+	if (!NewPossessable->BindSpawnableObject(Sequencer->GetFocusedTemplateID(), &InObject, Sequencer->GetSharedPlaybackState()))
 	{
 		OwnerSequence->BindPossessableObject(PossessableGuid, InObject, BindingContext);
 	}
@@ -2544,9 +2668,71 @@ FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObje
 	{
 		Sequencer->OnActorAddedToSequencer().Broadcast(ParentActorAdded, ParentGuid);
 	}
+	Sequencer->OnAddBinding(PossessableGuid, OwnerMovieScene);
+	return PossessableGuid;
+}
+
+FGuid FSequencerUtilities::CreateBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, const UE::Sequencer::FCreateBindingParams& InParams)
+{
+	const FScopedTransaction Transaction(LOCTEXT("CreateBinding", "Create New Binding"));
+
+	UMovieSceneSequence* OwnerSequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieScene* OwnerMovieScene = OwnerSequence->GetMovieScene();
+
+	OwnerSequence->Modify();
+	OwnerMovieScene->Modify();
+
+	FMovieSceneBindingReferences* BindingReferences = OwnerSequence->GetBindingReferences();
+
+	FGuid PossessableGuid = BindingReferences
+		? CreateGenericBinding(Sequencer, InObject, BindingReferences, InParams)
+		: CreateImplementationDefinedBinding(Sequencer, InObject, InParams);
+
+	if (!PossessableGuid.IsValid())
+	{
+		return FGuid();
+	}
+
+	if (InParams.DesiredFolder != NAME_None)
+	{
+		// Find the outermost object and put it in a folder of the specified name
+		FGuid RootObjectGuid = PossessableGuid;
+		while (true)
+		{
+			FMovieScenePossessable* Possessable = OwnerMovieScene->FindPossessable(RootObjectGuid);
+			if (!Possessable || !Possessable->GetParent().IsValid())
+			{
+				break;
+			}
+			RootObjectGuid = Possessable->GetParent();
+		}
+
+		UMovieSceneFolder* DestinationFolder = nullptr;
+		for (UMovieSceneFolder* Folder : OwnerMovieScene->GetRootFolders())
+		{
+			if (Folder->GetFolderName() == InParams.DesiredFolder)
+			{
+				DestinationFolder = Folder;
+				break;
+			}
+		}
+
+		// If we didn't find a folder with the desired name then we create a new folder as a sibling of the existing folders.
+		if (DestinationFolder == nullptr)
+		{
+			DestinationFolder = NewObject<UMovieSceneFolder>(OwnerMovieScene, NAME_None, RF_Transactional);
+			DestinationFolder->SetFolderName(InParams.DesiredFolder);
+
+			OwnerMovieScene->AddRootFolder(DestinationFolder);
+			DestinationFolder->AddChildObjectBinding(RootObjectGuid);
+		}
+		else
+		{
+			DestinationFolder->AddChildObjectBinding(RootObjectGuid);
+		}
+	}
 
 	Sequencer->OnAddBinding(PossessableGuid, OwnerMovieScene);
-
 	return PossessableGuid;
 }
 

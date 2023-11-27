@@ -30,6 +30,9 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "LevelSequenceModule.h"
 #include "Generators/MovieSceneEasingCurves.h"
+#include "UniversalObjectLocatorResolveParams.h"
+#include "UniversalObjectLocators/ActorLocatorFragment.h"
+#include "UniversalObjectLocatorResolveParameterBuffer.inl"
 #include "Evaluation/CameraCutPlaybackCapability.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequencePlayer)
@@ -89,47 +92,9 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InLevelSequence, ULevel* I
 {
 	using namespace UE::MovieScene;
 
-	// Never use the level to resolve bindings unless we're playing back within a streamed or instanced level
-	StreamedLevelAssetPath = FTopLevelAssetPath();
-
 	World = InLevel->OwningWorld;
 	Level = InLevel;
 	CameraSettings = InCameraSettings;
-	// Default to owning world (to resolve AlwaysLoaded actors not part of a Streaming Level and Disabled Streaming World Partitions)
-	StreamingWorld = World;
-	// Construct the path to the level asset that the streamed level relates to
-	ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(InLevel);
-	if (LevelStreaming)
-	{
-		// If we are streaming the persistent level of a World Partition
-		if (UWorldPartition* WorldPartition = InLevel->GetWorldPartition())
-		{
-			StreamingWorld = InLevel->GetTypedOuter<UWorld>();
-		}
-		else
-		{
-			// All ULevelStreaming objects live in the owning world but if we are streaming a World Partition persistent level it will be returned as the StreamingWorld for all it's 
-			// ULevelStreaming cells. This streaming world should be used to resolve bindings.
-			StreamingWorld = LevelStreaming->GetStreamingWorld();
-			if (StreamingWorld.IsValid() && (StreamingWorld != World))
-			{
-				Level = StreamingWorld->PersistentLevel;
-				LevelStreaming = FLevelUtils::FindStreamingLevel(Level.Get());
-			}
-		}
-	}
-		
-	if (LevelStreaming)
-	{
-		// StreamedLevelPackage is a package name of the form /Game/Folder/MapName, not a full asset path
-		FString StreamedLevelPackage = ((LevelStreaming->PackageNameToLoad == NAME_None) ? LevelStreaming->GetWorldAssetPackageFName() : LevelStreaming->PackageNameToLoad).ToString();
-
-		int32 SlashPos = 0;
-		if (StreamedLevelPackage.FindLastChar('/', SlashPos) && SlashPos < StreamedLevelPackage.Len()-1)
-		{
-			StreamedLevelAssetPath = FTopLevelAssetPath(*StreamedLevelPackage, &StreamedLevelPackage[SlashPos+1]);
-		}
-	}
 
 	SpawnRegister = MakeShareable(new FLevelSequenceSpawnRegister);
 
@@ -151,35 +116,25 @@ void ULevelSequencePlayer::Initialize(ULevelSequence* InLevelSequence, ULevel* I
 	}
 }
 
+void ULevelSequencePlayer::SetSourceActorContext(UWorld* InStreamingWorld, FActorContainerID InContainerID, FTopLevelAssetPath InSourceAssetPath)
+{
+	WeakStreamingWorld = InStreamingWorld;
+	ContainerID = InContainerID;
+	SourceAssetPath = InSourceAssetPath;
+}
+
 void ULevelSequencePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
+	using namespace UE::UniversalObjectLocator;
+
 	bool bAllowDefault = PlaybackClient ? PlaybackClient->RetrieveBindingOverrides(InBindingId, SequenceID, OutObjects) : true;
 
 	if (bAllowDefault)
 	{
-		if (StreamedLevelAssetPath.IsValid() && ResolutionContext && ResolutionContext->IsA<UWorld>())
-		{
-			ResolutionContext = Level.Get();
-		}
+		TResolveParamsWithBuffer<128> ResolveParams(ResolutionContext);
+		ResolveParams.AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
 
-		if (ULevelSequence* LevelSequence = Cast<ULevelSequence>(&InSequence))
-		{
-			FLevelSequenceBindingReference::FResolveBindingParams Params;
-			Params.StreamedLevelAssetPath = StreamedLevelAssetPath;
-			
-			if (ALevelSequenceActor* LevelSequenceActor = GetTypedOuter<ALevelSequenceActor>(); LevelSequenceActor && LevelSequenceActor->GetWorldPartitionResolveData().IsValid())
-			{
-				Params.WorldPartitionResolveData = &LevelSequenceActor->GetWorldPartitionResolveData();
-				check(StreamingWorld.IsValid());
-				Params.StreamingWorld = StreamingWorld.Get();
-			}
-			
-			LevelSequence->LocateBoundObjects(InBindingId, ResolutionContext, Params, OutObjects);
-		}
-		else
-		{
-			InSequence.LocateBoundObjects(InBindingId, ResolutionContext, OutObjects);
-		}
+		InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
 	}
 }
 
@@ -261,6 +216,10 @@ void ULevelSequencePlayer::OnCameraCutUpdated(const UE::MovieScene::FOnCameraCut
 
 UObject* ULevelSequencePlayer::GetPlaybackContext() const
 {
+	if (ALevelSequenceActor* LevelSequenceActor = GetTypedOuter<ALevelSequenceActor>())
+	{
+		return LevelSequenceActor;
+	}
 	return World.Get();
 }
 

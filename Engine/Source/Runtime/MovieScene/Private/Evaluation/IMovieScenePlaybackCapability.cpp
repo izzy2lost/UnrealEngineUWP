@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Evaluation/IMovieScenePlaybackCapability.h"
+#include <limits.h>
 
 namespace UE::MovieScene
 {

@@ -6,6 +6,7 @@
 #include "EntitySystem/MovieSceneSequenceInstance.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "IMovieScenePlaybackClient.h"
+#include "UniversalObjectLocatorResolveParams.h"
 #include "Misc/ScopeRWLock.h"
 #include "MovieSceneFwd.h"
 #include "MovieSceneSequence.h"
@@ -106,7 +107,8 @@ void IMovieScenePlayer::PopulateUpdateFlags(UE::MovieScene::ESequenceInstanceUpd
 
 void IMovieScenePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	Sequence.LocateBoundObjects(InBindingId, ResolutionContext, OutObjects);
+	UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
+	Sequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
 }
 
 TArrayView<TWeakObjectPtr<>> IMovieScenePlayer::FindBoundObjects(const FGuid& ObjectBindingID, FMovieSceneSequenceIDRef SequenceID)

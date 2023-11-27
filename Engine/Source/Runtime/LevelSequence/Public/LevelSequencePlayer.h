@@ -15,6 +15,7 @@
 #include "Misc/QualifiedFrameTime.h"
 #include "LevelSequence.h"
 #include "LevelSequenceCameraSettings.h"
+#include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "LevelSequencePlayer.generated.h"
 
 class AActor;
@@ -97,6 +98,8 @@ public:
 	 */
 	LEVELSEQUENCE_API void Initialize(ULevelSequence* InLevelSequence, ULevel* InLevel, const FLevelSequenceCameraSettings& InCameraSettings);
 
+	LEVELSEQUENCE_API void SetSourceActorContext(UWorld* InStreamingWorld, FActorContainerID InContainerID, FTopLevelAssetPath InSourceAssetPath);
+
 public:
 
 	/**
@@ -166,12 +169,6 @@ private:
 	/** The world this player will spawn actors in, if needed */
 	TWeakObjectPtr<ULevel> Level;
 
-	/** The full asset path (/Game/Folder/MapName.MapName) of the streaming level this player resides within. Bindings to actors with the same FSoftObjectPath::GetAssetPath are resolved within the cached level, rather than globally.. */
-	FTopLevelAssetPath StreamedLevelAssetPath;
-
-	/** The world to use for resolving FWorldPartitionResolveData */
-	TWeakObjectPtr<UWorld> StreamingWorld;
-
 	/** The camera settings to use when playing the sequence */
 	FLevelSequenceCameraSettings CameraSettings;
 
@@ -184,4 +181,11 @@ protected:
 private:
 
 	TOptional<FLevelSequencePlayerSnapshot> PreviousSnapshot;
+
+	/** Optional streaming world that should be used primarily for resolving actor references. Used for locating actors within World Partition runtime cells. */
+	TWeakObjectPtr<UWorld> WeakStreamingWorld;
+	/** Source asset path denoting the level asset path that has been streamed in. */
+	FTopLevelAssetPath SourceAssetPath;
+	/** World Partition container ID for the world that should be added to any actor locaters when being resolved within the same world. */
+	FActorContainerID ContainerID;
 };

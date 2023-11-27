@@ -1283,7 +1283,7 @@ void FSequencer::SuppressAutoEvaluation(UMovieSceneSequence* Sequence, const FGu
 
 FGuid FSequencer::CreateBinding(UObject& InObject, const FString& InName)
 {
-    return FSequencerUtilities::CreateBinding(AsShared(), InObject, InName);
+    return FSequencerUtilities::CreateBinding(AsShared(), InObject, UE::Sequencer::FCreateBindingParams().Name(CopyTemp(InName)));
 }
 
 UObject* FSequencer::GetPlaybackContext() const
@@ -3736,12 +3736,12 @@ FGuid FindUnspawnedObjectGuid(UObject& InObject, UMovieSceneSequence& Sequence)
 
 		if (ParentSpawnable)
 		{
-			UObject* ParentContext = ParentSpawnable->GetObjectTemplate();
+			UE::UniversalObjectLocator::FResolveParams ResolveParams(ParentSpawnable->GetObjectTemplate());
 
 			// The only way to find the object now is to resolve all the child bindings, and see if they are the same
 			for (const FGuid& ChildGuid : ParentSpawnable->GetChildPossessables())
 			{
-				const bool bHasObject = Sequence.LocateBoundObjects(ChildGuid, ParentContext).Contains(&InObject);
+				const bool bHasObject = Sequence.LocateBoundObjects(ChildGuid, ResolveParams).Contains(&InObject);
 				if (bHasObject)
 				{
 					return ChildGuid;
@@ -3869,75 +3869,30 @@ FGuid FSequencer::GetHandleToObject( UObject* Object, bool bCreateHandleIfMissin
 		return ObjectGuid;
 	}
 
-	UObject* PlaybackContext = PlaybackContextAttribute.Get(nullptr);
-
-	// If the object guid was not found attempt to add it
-	// Note: Only possessed actors can be added like this
-	if (FocusedMovieSceneSequence->CanPossessObject(*Object, PlaybackContext) && bCreateHandleIfMissing)
+	if (bCreateHandleIfMissing)
 	{
-		AActor* PossessedActor = Cast<AActor>(Object);
-
-		ObjectGuid = FSequencerUtilities::CreateBinding(AsShared(), *Object, PossessedActor != nullptr ? PossessedActor->GetActorLabel() : Object->GetName());
-
-		AActor* OwningActor = PossessedActor;
-		FGuid OwningObjectGuid = ObjectGuid;
-		if (!OwningActor)
+		UObject* PlaybackContext = PlaybackContextAttribute.Get(nullptr);
+		if (FocusedMovieSceneSequence->CanPossessObject(*Object, PlaybackContext))
 		{
-			// We can only add Object Bindings for actors to folders, but this function can be called on a component of an Actor.
-			// In this case, we attempt to find the Actor who owns the component and then look up the Binding Guid for that actor
-			// so that we add that actor to the folder as expected.
-			OwningActor = Object->GetTypedOuter<AActor>();
-			if (OwningActor)
+			ObjectGuid = FSequencerUtilities::CreateBinding(AsShared(), *Object);
+
+			if (CreatedFolderName != NAME_None)
 			{
-				OwningObjectGuid = FocusedMovieSceneSequence->FindPossessableObjectId(*OwningActor, PlaybackContext);
-			}
-		}
-
-		if (OwningActor && OwningActor != Object)
-		{
-			GetHandleToObject(OwningActor);
-		}
-
-		// Some sources that create object bindings may want to group all of these objects together for organizations sake.
-		if (OwningActor && CreatedFolderName != NAME_None)
-		{
-			TArray<FName> SubfolderHierarchy;
-			if (OwningActor->GetFolderPath() != NAME_None)
-			{
-				TArray<FString> FolderPath;
-				OwningActor->GetFolderPath().ToString().ParseIntoArray(FolderPath, TEXT("/"));
-				for (FString FolderStr : FolderPath)
+				// Find the outermost object and put it in a 
+				FMovieScenePossessable* Possessable = FocusedMovieScene->FindPossessable(ObjectGuid);
+				if (!Possessable || !Possessable->GetParent().IsValid())
 				{
-					SubfolderHierarchy.Add(FName(*FolderStr));
+					UMovieSceneFolder* Folder = FSequencer::CreateFoldersRecursively(TArray<FName>{ CreatedFolderName }, 0, FocusedMovieScene, nullptr, FocusedMovieScene->GetRootFolders());
+					if (Folder)
+					{
+						Folder->AddChildObjectBinding(ObjectGuid);
+					}
 				}
 			}
 
-			// Add the desired sub-folder as the root of the hierarchy so that the Actor's World Outliner folder structure is replicated inside of the desired folder name.
-			// This has to come after the ParseIntoArray call as that will wipe the array.
-			SubfolderHierarchy.Insert(CreatedFolderName, 0); 
-
-			UMovieSceneFolder* TailFolder = FSequencer::CreateFoldersRecursively(SubfolderHierarchy, 0, FocusedMovieScene, nullptr, FocusedMovieScene->GetRootFolders());
-			if (TailFolder)
-			{
-				TailFolder->AddChildObjectBinding(OwningObjectGuid);
-			}
-
-			// We have to build a new expansion state path since we created them in sub-folders.
-			// We have to recursively build an expansion state as well so that nestled objects get auto-expanded.
-			FString NewPath; 
-			for (int32 Index = 0; Index < SubfolderHierarchy.Num(); Index++)
-			{
-				NewPath += SubfolderHierarchy[Index].ToString();
-				FocusedMovieScene->GetEditorData().ExpansionStates.FindOrAdd(NewPath) = FMovieSceneExpansionState(true);
-				
-				// Expansion States are delimited by periods.
-				NewPath += TEXT(".");
-			}
+			NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 		}
-
-		NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 	}
-	
 	return ObjectGuid;
 }
 
@@ -4468,7 +4423,8 @@ UObject* FSequencer::FindSpawnedObjectOrTemplate(const FGuid& BindingId)
 			UObject* ParentObject = ParentSpawnable->GetObjectTemplate();
 			if (ParentObject)
 			{
-				for (UObject* Obj : Sequence->LocateBoundObjects(BindingId, ParentObject))
+				UE::UniversalObjectLocator::FResolveParams ResolveParams(ParentObject);
+				for (UObject* Obj : Sequence->LocateBoundObjects(BindingId, ResolveParams))
 				{
 					return Obj;
 				}
@@ -5616,7 +5572,7 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 		{
 			if (AActor* NewActor = Actor)
 			{
-				FGuid PossessableGuid = FSequencerUtilities::CreateBinding(AsShared(), *NewActor, NewActor->GetActorLabel());
+				FGuid PossessableGuid = FSequencerUtilities::CreateBinding(AsShared(), *NewActor);
 				FGuid NewGuid = PossessableGuid;
 
 				OnActorAddedToSequencerEvent.Broadcast(NewActor, PossessableGuid);
@@ -10207,7 +10163,7 @@ void FSequencer::RebindPossessableReferences()
 		const FMovieScenePossessable& Possessable = FocusedMovieScene->GetPossessable(Index);
 
 		TArray<UObject*, TInlineAllocator<1>>& References = AllObjects.FindOrAdd(Possessable.GetGuid());
-		FocusedSequence->LocateBoundObjects(Possessable.GetGuid(), PlaybackContext, References);
+		FocusedSequence->LocateBoundObjects(Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(PlaybackContext), References);
 	}
 
 	for (auto& Pair : AllObjects)

@@ -18,6 +18,7 @@
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "Evaluation/MovieSceneSequenceWeights.h"
+#include "UniversalObjectLocatorResolveParams.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Algo/BinarySearch.h"
@@ -186,7 +187,7 @@ void UMovieSceneSequencePlayer::ResolveBoundObjects(const FGuid& InBindingId, FM
 
 	if (bAllowDefault)
 	{
-		InSequence.LocateBoundObjects(InBindingId, ResolutionContext, OutObjects);
+		InSequence.LocateBoundObjects(InBindingId, UE::UniversalObjectLocator::FResolveParams(ResolutionContext), OutObjects);
 	}
 }
 

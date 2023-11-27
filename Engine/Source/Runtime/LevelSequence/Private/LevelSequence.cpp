@@ -5,6 +5,13 @@
 #include "MovieSceneMetaData.h"
 #include "Engine/EngineTypes.h"
 #include "HAL/IConsoleManager.h"
+#include "UniversalObjectLocator.h"
+#include "UniversalObjectLocatorFragmentType.h"
+#include "UniversalObjectLocatorResolveParameterBuffer.inl"
+#include "UniversalObjectLocators/ActorLocatorFragment.h"
+#include "WorldPartition/IWorldPartitionObjectResolver.h"
+#include "LegacyLazyObjectPtrFragment.h"
+#include "SubObjectLocator.h"
 #include "Components/ActorComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Actor.h"
@@ -37,6 +44,7 @@
 #include "LevelSequencePlayer.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
+#include "UniversalObjectLocators/AnimInstanceLocatorFragment.h"
 #include "Engine/AssetUserData.h"
 #include "Misc/App.h"
 #include "Misc/DateTime.h"
@@ -354,6 +362,24 @@ void ULevelSequence::PostLoad()
 			}
 		}
 	}
+
+	for (TPair<FGuid, FLevelSequenceLegacyObjectReference>& Pair : ObjectReferences_DEPRECATED.Map)
+	{
+		if (Pair.Value.ObjectId.IsValid())
+		{
+			FUniversalObjectLocator NewLocator;
+			NewLocator.AddFragment<FLegacyLazyObjectPtrFragment>(Pair.Value.ObjectId.GetGuid());
+			BindingReferences.FMovieSceneBindingReferences::AddBinding(Pair.Key, MoveTemp(NewLocator));
+		}
+		else if (Pair.Value.ObjectPath.Len() > 0)
+		{
+			FUniversalObjectLocator NewLocator;
+			NewLocator.AddFragment<FSubObjectLocator>(Pair.Value.ObjectPath);
+			BindingReferences.FMovieSceneBindingReferences::AddBinding(Pair.Key, MoveTemp(NewLocator));
+		}
+	}
+	ObjectReferences_DEPRECATED.Map.Empty();
+
 #endif
 }
 
@@ -402,27 +428,6 @@ bool ULevelSequence::Rename(const TCHAR* NewName, UObject* NewOuter, ERenameFlag
 	return bRetVal;
 }
 
-void ULevelSequence::ConvertPersistentBindingsToDefault(UObject* FixupContext)
-{
-	if (PossessedObjects_DEPRECATED.Num() == 0)
-	{
-		return;
-	}
-
-	MarkPackageDirty();
-	for (auto& Pair : PossessedObjects_DEPRECATED)
-	{
-		UObject* Object = Pair.Value.GetObject();
-		if (Object)
-		{
-			FGuid ObjectId;
-			FGuid::Parse(Pair.Key, ObjectId);
-			BindingReferences.AddBinding(ObjectId, Object, FixupContext);
-		}
-	}
-	PossessedObjects_DEPRECATED.Empty();
-}
-
 void ULevelSequence::BindPossessableObject(const FGuid& ObjectId, UObject& PossessedObject, UObject* Context)
 {
 	if (Context)
@@ -433,24 +438,22 @@ void ULevelSequence::BindPossessableObject(const FGuid& ObjectId, UObject& Posse
 
 bool ULevelSequence::CanPossessObject(UObject& Object, UObject* InPlaybackContext) const
 {
-	return Object.IsA<AActor>() || Object.IsA<UActorComponent>() || Object.IsA<UAnimInstance>();
-}
-
-void ULevelSequence::LocateBoundObjects(const FGuid& ObjectId, UObject* Context, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
-{
-	LocateBoundObjects(ObjectId, Context, FLevelSequenceBindingReference::FResolveBindingParams(), OutObjects);
+	return true;
 }
 
 void ULevelSequence::LocateBoundObjects(const FGuid& ObjectId, UObject* Context, const FLevelSequenceBindingReference::FResolveBindingParams& InResolveBindingParams, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	// Handle legacy object references
-	UObject* Object = Context ? ObjectReferences.ResolveBinding(ObjectId, Context) : nullptr;
-	if (Object)
-	{
-		OutObjects.Add(Object);
-	}
+	using namespace UE::UniversalObjectLocator;
 
-	BindingReferences.ResolveBinding(ObjectId, Context, InResolveBindingParams, OutObjects);
+	TResolveParamsWithBuffer<128> ResolveParams;
+
+	ResolveParams.AddParameter(FActorLocatorFragmentResolveParameter::ParameterType,
+		InResolveBindingParams.StreamingWorld,
+		InResolveBindingParams.WorldPartitionResolveData ? InResolveBindingParams.WorldPartitionResolveData->ContainerID : FActorContainerID(),
+		InResolveBindingParams.WorldPartitionResolveData ? InResolveBindingParams.WorldPartitionResolveData->SourceWorldAssetPath : InResolveBindingParams.StreamedLevelAssetPath
+		);
+
+	LocateBoundObjects(ObjectId, ResolveParams, OutObjects);
 }
 
 FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, UObject* Context) const
@@ -460,14 +463,28 @@ FGuid ULevelSequence::FindBindingFromObject(UObject* InObject, UObject* Context)
 
 void ULevelSequence::GatherExpiredObjects(const FMovieSceneObjectCache& InObjectCache, TArray<FGuid>& OutInvalidIDs) const
 {
-	for (const FGuid& ObjectId : BindingReferences.GetBoundAnimInstances())
+	using namespace UE::UniversalObjectLocator;
+
+	TArrayView<const FMovieSceneBindingReference> References = BindingReferences.GetAllReferences();
+	for (int32 Index = 0; Index < References.Num(); ++Index)
 	{
-		for (TWeakObjectPtr<> WeakObject : InObjectCache.IterateBoundObjects(ObjectId))
+		const FMovieSceneBindingReference& Reference = References[Index];
+		
+		if (Reference.Locator.GetLastFragmentTypeHandle() == FAnimInstanceLocatorFragment::FragmentType)
 		{
-			UAnimInstance* AnimInstance = Cast<UAnimInstance>(WeakObject.Get());
-			if (!AnimInstance || !AnimInstance->GetOwningComponent() || AnimInstance->GetOwningComponent()->GetAnimInstance() != AnimInstance)
+			for (TWeakObjectPtr<> WeakObject : InObjectCache.IterateBoundObjects(Reference.ID))
 			{
-				OutInvalidIDs.Add(ObjectId);
+				UAnimInstance* AnimInstance = Cast<UAnimInstance>(WeakObject.Get());
+				if (!AnimInstance || !AnimInstance->GetOwningComponent() || AnimInstance->GetOwningComponent()->GetAnimInstance() != AnimInstance)
+				{
+					OutInvalidIDs.Add(Reference.ID);
+				}
+			}
+
+			// Skip over subsequent matched IDs
+			while (Index < References.Num()-1 && References[Index+1].ID == Reference.ID)
+			{
+				++Index;
 			}
 		}
 	}
@@ -515,9 +532,6 @@ bool ULevelSequence::CanRebindPossessable(const FMovieScenePossessable& InPosses
 void ULevelSequence::UnbindPossessableObjects(const FGuid& ObjectId)
 {
 	BindingReferences.RemoveBinding(ObjectId);
-
-	// Legacy object references
-	ObjectReferences.Map.Remove(ObjectId);
 }
 
 void ULevelSequence::UnbindObjects(const FGuid& ObjectId, const TArray<UObject*>& InObjects, UObject* InContext)
@@ -528,6 +542,11 @@ void ULevelSequence::UnbindObjects(const FGuid& ObjectId, const TArray<UObject*>
 void ULevelSequence::UnbindInvalidObjects(const FGuid& ObjectId, UObject* InContext)
 {
 	BindingReferences.RemoveInvalidObjects(ObjectId, InContext);
+}
+
+const FMovieSceneBindingReferences* ULevelSequence::GetBindingReferences() const
+{
+	return &BindingReferences;
 }
 
 #if WITH_EDITOR

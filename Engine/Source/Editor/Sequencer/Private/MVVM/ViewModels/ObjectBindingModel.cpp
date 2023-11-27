@@ -16,6 +16,7 @@
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/Extensions/IRecyclableExtension.h"
 #include "MVVM/Extensions/IBindingLifetimeExtension.h"
+#include "ISequencerObjectSchema.h"
 #include "Algo/Sort.h"
 #include "AnimatedRange.h"
 #include "ClassViewerModule.h"
@@ -32,6 +33,7 @@
 #include "MovieScene.h"
 #include "MovieSceneBinding.h"
 #include "MovieSceneDynamicBindingCustomization.h"
+#include "UniversalObjectLocator.h"
 #include "MovieSceneFolder.h"
 #include "ObjectBindingTagCache.h"
 #include "ObjectEditorUtils.h"
@@ -534,9 +536,28 @@ TSharedRef<SWidget> FObjectBindingModel::GetAddTrackMenuContent()
 	}
 
 	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>( "Sequencer" );
-	TSharedRef<FUICommandList> CommandList(new FUICommandList);
+	TSharedRef<FUICommandList> CommandList = MakeShared<FUICommandList>();
 
 	TSharedRef<FExtender> Extender = SequencerModule.GetAddTrackMenuExtensibilityManager()->GetAllExtenders(CommandList, TArrayBuilder<UObject*>().Add(BoundObject)).ToSharedRef();
+
+	TArray<TSharedPtr<FExtender>> AllExtenders;
+	AllExtenders.Add(Extender);
+
+	TArrayView<UObject* const>                   ContextObjects = BoundObject ? MakeArrayView(&BoundObject, 1) : TArrayView<UObject* const>();
+	TMap<const IObjectSchema*, TArray<UObject*>> Map            = IObjectSchema::ComputeRelevancy(ContextObjects);
+
+	for (const TPair<const IObjectSchema*, TArray<UObject*>>& Pair : Map)
+	{
+		TSharedPtr<FExtender> NewExtension = Pair.Key->ExtendObjectBindingMenu(CommandList, Sequencer, Pair.Value);
+		if (NewExtension)
+		{
+			AllExtenders.Add(NewExtension);
+		}
+	}
+	if (AllExtenders.Num())
+	{
+		Extender = FExtender::Combine(AllExtenders);
+	}
 
 	const UClass* ObjectClass = UClass::FindCommonBase(ObjectClasses);
 
@@ -947,7 +968,7 @@ void FObjectBindingModel::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder)
 
 	FOutlinerItemModel::BuildOrganizeContextMenu(MenuBuilder);
 }
-	
+
 void FObjectBindingModel::AddDynamicBindingMenu(FMenuBuilder& MenuBuilder, FMovieSceneDynamicBinding& DynamicBinding)
 {
 	FDetailsViewArgs DetailsViewArgs;

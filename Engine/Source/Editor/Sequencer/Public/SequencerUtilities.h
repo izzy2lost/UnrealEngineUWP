@@ -25,6 +25,36 @@ struct FNotificationInfo;
 class ULevelSequence;
 enum class EMovieSceneBlendType : uint8;
 
+namespace UE::Sequencer
+{
+
+struct FCreateBindingParams
+{
+	UE_DEPRECATED(5.4, "Please use FSequencerUtilitiesCreateBindingParams directly.")
+	FCreateBindingParams(const FString& InBindingNameOverride)
+		: BindingNameOverride(InBindingNameOverride)
+	{}
+
+	FCreateBindingParams()
+	{}
+	
+	FCreateBindingParams& Name(FString&& InName)
+	{
+		BindingNameOverride = MoveTemp(InName);
+		return *this;
+	}
+	FCreateBindingParams& Folder(const FName& InFolder)
+	{
+		DesiredFolder = InFolder;
+		return *this;
+	}
+
+	FString BindingNameOverride;
+	FName DesiredFolder;
+};
+
+} // namespace UE::Sequencer
+
 /* Paste folders params */
 USTRUCT(BlueprintType)
 struct FMovieScenePasteFoldersParams
@@ -182,7 +212,7 @@ struct SEQUENCER_API FSequencerUtilities
 	static TArray<FString> GetPasteBindingsObjectNames(TSharedRef<ISequencer> Sequencer, const FString& TextToImport);
 
 	/** Utility functions for managing bindings */
-	static FGuid CreateBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, const FString& InName);
+	static FGuid CreateBinding(TSharedRef<ISequencer> Sequencer, UObject& InObject, const UE::Sequencer::FCreateBindingParams& Params = UE::Sequencer::FCreateBindingParams());
 	static void UpdateBindingIDs(TSharedRef<ISequencer> Sequencer, FGuid OldGuid, FGuid NewGuid);
 	static FGuid AssignActor(TSharedRef<ISequencer> Sequencer, AActor* Actor, FGuid InObjectBinding);
 	static void AddActorsToBinding(TSharedRef<ISequencer> Sequencer, const TArray<AActor*>& Actors, const FMovieSceneBindingProxy& ObjectBinding);

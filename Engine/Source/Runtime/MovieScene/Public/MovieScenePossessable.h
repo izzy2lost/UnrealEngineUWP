@@ -123,6 +123,11 @@ public:
 		PossessedObjectClass = InClass;
 	}
 
+	/**
+	 * Fixup the possessed object class by resolving the possessable and determining the most common class
+	 */
+	MOVIESCENE_API void FixupPossessedObjectClass(UMovieSceneSequence* InSequence, UObject* Context);
+
 #endif
 
 	/**

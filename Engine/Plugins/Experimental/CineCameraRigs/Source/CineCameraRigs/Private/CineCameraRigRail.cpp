@@ -561,7 +561,7 @@ UMovieSceneFloatTrack* ACineCameraRigRail::FindPositionTrack(const UMovieSceneSe
 	for (const FMovieSceneBinding& Binding : Bindings)
 	{
 		TArray<UObject*, TInlineAllocator<1>> BoundObjects;
-		InSequence->LocateBoundObjects(Binding.GetObjectGuid(), nullptr, BoundObjects);
+		InSequence->LocateBoundObjects(Binding.GetObjectGuid(), UE::UniversalObjectLocator::FResolveParams(GetWorld()), BoundObjects);
 		if (BoundObjects.IsEmpty() || BoundObjects[0] != this)
 		{
 			continue;
