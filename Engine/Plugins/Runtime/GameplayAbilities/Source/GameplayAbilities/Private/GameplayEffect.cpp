@@ -2501,8 +2501,9 @@ void FActiveGameplayEffect::PostReplicatedAdd(const struct FActiveGameplayEffect
 
 	UE_VLOG_UELOG(InArray.Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("%s (Non-Auth): %s. Pending( OnActive: %d WhileActive: %d )"), ANSI_TO_TCHAR(__func__), *GetDebugString(), bPendingRepOnActiveGC, bPendingRepWhileActiveGC);
 
-	// Do stuff for adding GEs (add mods, tags, *invoke callbacks*
-	const_cast<FActiveGameplayEffectsContainer&>(InArray).InternalOnActiveGameplayEffectAdded(*this);	// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
+	// Do stuff for adding GEs (add mods, tags, *invoke callbacks*).  But do NOT invoke the GameplayCues as we don't know if this GE ends up inhibited or not (thus the bPendingRepOnActiveGC variables).
+	constexpr bool bInvokeGameplayCueEvents = false;
+	const_cast<FActiveGameplayEffectsContainer&>(InArray).InternalOnActiveGameplayEffectAdded(*this, bInvokeGameplayCueEvents);	// Const cast is ok. It is there to prevent mutation of the GameplayEffects array, which this wont do.
 	
 }
 
@@ -3926,14 +3927,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	else
 	{
 		UE_VLOG_UELOG(OwnerActor, LogGameplayEffects, Verbose, TEXT("Adding GE: %s. Auth: %d. ReplicationID: %d. ReplicationKey: %d."), *AppliedActiveGE->GetDebugString(), IsNetAuthority(), AppliedActiveGE->ReplicationID, AppliedActiveGE->ReplicationKey);
-		InternalOnActiveGameplayEffectAdded(*AppliedActiveGE);
+
+		// Since we are applying it locally (and possibly predictively) invoke the cues.  Unless it's an Instant Cue, in which case we're not invoking the OnActive/WhileActive cues.
+		const bool bInvokeGameplayCueEvents = (Spec.Def->DurationPolicy != EGameplayEffectDurationType::Instant);
+		InternalOnActiveGameplayEffectAdded(*AppliedActiveGE, bInvokeGameplayCueEvents);
 	}
 
 	return AppliedActiveGE;
 }
 
 /** This is called anytime a new ActiveGameplayEffect is added, on both client and server in all cases */
-void FActiveGameplayEffectsContainer::InternalOnActiveGameplayEffectAdded(FActiveGameplayEffect& Effect)
+void FActiveGameplayEffectsContainer::InternalOnActiveGameplayEffectAdded(FActiveGameplayEffect& Effect, const bool bInvokeGameplayCueEvents)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OnActiveGameplayEffectAdded);
 
@@ -3955,9 +3959,8 @@ void FActiveGameplayEffectsContainer::InternalOnActiveGameplayEffectAdded(FActiv
 	const bool bActive = EffectDef->OnAddedToActiveContainer(*this, Effect);
 	Effect.bIsInhibited = true; // Effect has to start inhibited, so our call to Inhibit will trigger if we should be active
 
-	constexpr bool bInvokeCuesIfEnabled = false;
 	FActiveGameplayEffectHandle EffectHandle = Effect.Handle;
-	Owner->SetActiveGameplayEffectInhibit(MoveTemp(EffectHandle), !bActive, bInvokeCuesIfEnabled);
+	Owner->SetActiveGameplayEffectInhibit(MoveTemp(EffectHandle), !bActive, bInvokeGameplayCueEvents);
 }
 
 void FActiveGameplayEffectsContainer::AddActiveGameplayEffectGrantedTagsAndModifiers(FActiveGameplayEffect& Effect, bool bInvokeGameplayCueEvents)
@@ -4064,21 +4067,26 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		for (const FGameplayEffectCue& Cue : Effect.Spec.Def->GameplayCues)
 		{
-			Owner->UpdateTagMap(Cue.GameplayCueTags, 1);
-
-			if (bInvokeGameplayCueEvents)
-			{
-				Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::OnActive);
-				Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::WhileActive);
-			}
-
-			if (ShouldUseMinimalReplication())
+			// If we use Minimal/Mixed Replication, then this path will AddCue and broadcast the RPC that calls EGameplayCueEvent::OnActive (and WhileActive)
+			// Note: This is going to ignore bInvokeGameplayCueEvents and invoke them anyway (with a bunch of caveats e.g. you're the server and ignoring them)
+			if (ShouldUseMinimalReplication()) // This can only be true on Authority
 			{
 				for (const FGameplayTag& CueTag : Cue.GameplayCueTags)
 				{
 					// We are now replicating the EffectContext in minimally replicated cues. It may be worth allowing this be determined on a per cue basis one day.
 					// (not sending the EffectContext can make things wrong. E.g, the EffectCauser becomes the target of the GE rather than the source)
 					Owner->AddGameplayCue_MinimalReplication(CueTag, Effect.Spec.GetEffectContext());
+				}
+			}
+			else // ActiveGameplayEffects are replicating to everyone (this path can also execute on client)
+			{
+				// Do a pseudo-AddGameplayCue (but don't add to ActiveGameplayCues so it doesn't replicate in addition to the AGE we're replicating).
+				Owner->UpdateTagMap(Cue.GameplayCueTags, 1);
+
+				if (bInvokeGameplayCueEvents)
+				{
+					Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::OnActive);
+					Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::WhileActive);
 				}
 			}
 		}
@@ -4197,21 +4205,21 @@ bool FActiveGameplayEffectsContainer::InternalRemoveActiveGameplayEffect(int32 I
 		}
 		
 		// Invoke Remove GameplayCue event
-		bool ShouldInvokeGameplayCueEvent = true;
+		bool bShouldInvokeGameplayCueEvent = true;
 		if (!bIsNetAuthority && Effect.PredictionKey.IsLocalClientKey() && Effect.PredictionKey.WasReceived() == false)
 		{
 			// This was an effect that we predicted. Don't invoke GameplayCue event if we have another GameplayEffect that shares the same predictionkey and was received from the server
 			if (HasReceivedEffectWithPredictedKey(Effect.PredictionKey))
 			{
-				ShouldInvokeGameplayCueEvent = false;
+				bShouldInvokeGameplayCueEvent = false;
 			}
 		}
 
 		// Don't invoke the GC event if the effect is inhibited, and thus the GC is already not active
-		ShouldInvokeGameplayCueEvent &= !Effect.bIsInhibited;
+		bShouldInvokeGameplayCueEvent &= !Effect.bIsInhibited;
 
 		// Mark the effect pending remove, and remove all side effects from the effect
-		InternalOnActiveGameplayEffectRemoved(Effect, ShouldInvokeGameplayCueEvent, GameplayEffectRemovalInfo);
+		InternalOnActiveGameplayEffectRemoved(Effect, bShouldInvokeGameplayCueEvent, GameplayEffectRemovalInfo);
 
 		// Check world validity in case RemoveActiveGameplayEffect is called during world teardown
 		if (UWorld* World = Owner->GetWorld())
@@ -4362,18 +4370,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		for (const FGameplayEffectCue& Cue : Effect.Spec.Def->GameplayCues)
 		{
-			Owner->UpdateTagMap(Cue.GameplayCueTags, -1);
-
-			if (bInvokeGameplayCueEvents)
-			{
-				Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::Removed);
-			}
-
+			// If we use Minimal/Mixed Replication, then this will cause EGameplayCueEvent::Removed
 			if (ShouldUseMinimalReplication())
 			{
 				for (const FGameplayTag& CueTag : Cue.GameplayCueTags)
 				{
 					Owner->RemoveGameplayCue_MinimalReplication(CueTag);
+				}
+			}
+			else
+			{
+				// Perform pseudo-RemoveCue (without affecting ActiveGameplayCues, as we were not inserted there - see AddActiveGameplayEffectGrantedTagsAndModifiers)
+				Owner->UpdateTagMap(Cue.GameplayCueTags, -1);
+
+				if (bInvokeGameplayCueEvents)
+				{
+					Owner->InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::Removed);
 				}
 			}
 		}

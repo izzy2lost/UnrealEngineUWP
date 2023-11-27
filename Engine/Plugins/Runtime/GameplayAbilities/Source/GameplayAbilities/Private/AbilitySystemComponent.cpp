@@ -905,33 +905,23 @@ FActiveGameplayEffectHandle UAbilitySystemComponent::ApplyGameplayEffectSpecToSe
 	// Update (not push) the global spec being applied [we want to switch it to our copy, from the const input copy)
 	UAbilitySystemGlobals::Get().SetCurrentAppliedGE(OurCopyOfSpec);
 
-	// We still probably want to apply tags and stuff even if instant?
-	// If bSuppressStackingCues is set for this GameplayEffect, only add the GameplayCue if this is the first instance of the GameplayEffect
-	if (!bSuppressGameplayCues && bInvokeGameplayCueApplied && AppliedEffect && !AppliedEffect->bIsInhibited && 
-		(!bFoundExistingStackableGE || !Spec.Def->bSuppressStackingCues))
+	// UE5.4: We are following the same previous implementation that there is a special case for Gameplay Cues here (caveat: may not be true):
+	// We are Stacking an existing Gameplay Effect.  That means the GameplayCues should already be Added/WhileActive and we do not have a proper
+	// way to replicate the fact that it's been retriggered, hence the RPC here.  I say this may not be true because any number of things could have
+	// removed the GameplayCue by the time we getting a Stacking GE (e.g. RemoveGameplayCue).
+	if (!bSuppressGameplayCues && !Spec.Def->bSuppressStackingCues && bFoundExistingStackableGE && AppliedEffect && !AppliedEffect->bIsInhibited)
 	{
-		// We both added and activated the GameplayCue here.
-		// On the client, which will invoke the gameplay cue from an OnRep, it will need to look at the StartTime to determine
-		// if the Cue was actually added+activated or just added (due to relevancy)
-
-		// Fixme: what if we wanted to scale Cue magnitude based on damage? E.g, scale an cue effect when the GE is buffed?
-
-		if (OurCopyOfSpec->GetStackCount() > Spec.GetStackCount())
+		ensureMsgf(OurCopyOfSpec, TEXT("OurCopyOfSpec will always be valid if bFoundExistingStackableGE"));
+		if (OurCopyOfSpec && OurCopyOfSpec->GetStackCount() > Spec.GetStackCount())
 		{
 			// Because PostReplicatedChange will get called from modifying the stack count
 			// (and not PostReplicatedAdd) we won't know which GE was modified.
 			// So instead we need to explicitly RPC the client so it knows the GC needs updating
 			UAbilitySystemGlobals::Get().GetGameplayCueManager()->InvokeGameplayCueAddedAndWhileActive_FromSpec(this, *OurCopyOfSpec, PredictionKey);
 		}
-		else
-		{
-			// Otherwise these will get replicated to the client when the GE gets added to the replicated array
-			InvokeGameplayCueEvent(*OurCopyOfSpec, EGameplayCueEvent::OnActive);
-			InvokeGameplayCueEvent(*OurCopyOfSpec, EGameplayCueEvent::WhileActive);
-		}
 	}
 	
-	// Execute the GE at least once (if instant, this will execute once and be done. If persistent, it was added to ActiveGameplayEffects above)
+	// Execute the GE at least once (if instant, this will execute once and be done. If persistent, it was added to ActiveGameplayEffects in ApplyGameplayEffectSpec)
 	
 	// Execute if this is an instant application effect
 	if (bTreatAsInfiniteDuration)
@@ -1312,7 +1302,7 @@ void UAbilitySystemComponent::AddGameplayCue_Internal(const FGameplayTag Gamepla
 {
 	if (IsOwnerActorAuthoritative())
 	{
-		bool bWasInList = HasMatchingGameplayTag(GameplayCueTag);
+		const bool bWasInList = GameplayCueContainer.HasCue(GameplayCueTag);
 
 		ForceReplication();
 		GameplayCueContainer.AddCue(GameplayCueTag, ScopedPredictionKey, GameplayCueParameters);
@@ -1379,7 +1369,7 @@ void UAbilitySystemComponent::RemoveGameplayCue_Internal(const FGameplayTag Game
 {
 	if (IsOwnerActorAuthoritative())
 	{
-		bool bWasInList = HasMatchingGameplayTag(GameplayCueTag);
+		const bool bWasInList = GameplayCueContainer.HasCue(GameplayCueTag);
 
 		// Force replication so GameplayCue removals are properly replicated to all clients during Mixed and Minimal replication modes
 		ForceReplication();
@@ -1782,7 +1772,7 @@ void UAbilitySystemComponent::ReinvokeActiveGameplayCues()
 {
 	for (const FActiveGameplayEffect& Effect : &ActiveGameplayEffects)
 	{
-		if (Effect.bIsInhibited == false)
+		if (Effect.bIsInhibited == false && Effect.Spec.Def && Effect.Spec.Def->DurationPolicy != EGameplayEffectDurationType::Instant)
 		{
 			InvokeGameplayCueEvent(Effect.Spec, EGameplayCueEvent::WhileActive);
 		}

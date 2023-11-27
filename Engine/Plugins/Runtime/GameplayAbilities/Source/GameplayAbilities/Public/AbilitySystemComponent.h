@@ -932,6 +932,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksCompo
 	virtual void HandleDeferredGameplayCues(const FActiveGameplayEffectsContainer* GameplayEffectsContainer);
 
 	/** Invokes the WhileActive event for all GCs on active, non inhibited, GEs. This would typically be used on "respawn" or something where the mesh/avatar has changed */
+	UE_DEPRECATED(5.4, "ReinvokeActiveGameplayCues was unused and had logic inconsistent with predicting Gameplay Effects.  You can implement it in your own project if desired.")
 	virtual void ReinvokeActiveGameplayCues();
 
 	/**
@@ -1845,11 +1846,11 @@ protected:
 	UPROPERTY(Replicated)
 	FActiveGameplayEffectsContainer ActiveGameplayEffects;
 
-	/** List of all active gameplay cues, including ones applied manually */
+	/** List of all active gameplay cues (executed outside of Gameplay Effects) */
 	UPROPERTY(Replicated)
 	FActiveGameplayCueContainer ActiveGameplayCues;
 
-	/** Replicated gameplaycues when in minimal replication mode. These are cues that would come normally come from ActiveGameplayEffects */
+	/** Replicated gameplaycues when in minimal replication mode. These are cues that would come normally come from ActiveGameplayEffects (but since we do not replicate AGE in minimal mode, they must be replicated through here) */
 	UPROPERTY(Replicated)
 	FActiveGameplayCueContainer MinimalReplicationGameplayCues;
 
