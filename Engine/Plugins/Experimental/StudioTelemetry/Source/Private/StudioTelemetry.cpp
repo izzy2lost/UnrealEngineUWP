@@ -98,7 +98,8 @@ void FStudioTelemetry::StartSession()
 
 		const FString UserID = FPlatformProcess::UserName(false);
 		const FString ProjectName = FApp::GetProjectName();
-
+		FString ComputerName = FPlatformProcess::ComputerName();
+		
 		FString ProjectIDString;
 		GConfig->GetString(TEXT("/Script/EngineSettings.GeneralProjectSettings"), TEXT("ProjectID"), ProjectIDString, GGameIni);
 
@@ -112,6 +113,7 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("ProjectID"), ProjectID);
 		DefaultEventAttributes.Emplace(TEXT("User_ID"), UserID);
 		DefaultEventAttributes.Emplace(TEXT("Application_Commandline"), FCommandLine::Get());
+		DefaultEventAttributes.Emplace(TEXT("ComputerName"), ComputerName.ToLower());
 
 		DefaultEventAttributes.Emplace(TEXT("Session_Label"), SessionLabel);
 		DefaultEventAttributes.Emplace(TEXT("Session_StartUTC"), FDateTime::UtcNow().ToUnixTimestampDecimal());
@@ -135,14 +137,18 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("Config_IsRunningCommandlet"), IsRunningCommandlet());
 
 #if WITH_EDITOR
-		DefaultEventAttributes.Emplace(TEXT("Horde_TemplateID"), FHorde::GetTemplateId());
-		DefaultEventAttributes.Emplace(TEXT("Horde_TemplateName"), FHorde::GetTemplateName());
-		DefaultEventAttributes.Emplace(TEXT("Horde_JobURL"), FHorde::GetJobURL());
-		DefaultEventAttributes.Emplace(TEXT("Horde_JobID"), FHorde::GetJobId());
-		DefaultEventAttributes.Emplace(TEXT("Horde_StepName"), FHorde::GetStepName());
-		DefaultEventAttributes.Emplace(TEXT("Horde_StepID"), FHorde::GetStepId());
-		DefaultEventAttributes.Emplace(TEXT("Horde_StepURL"), FHorde::GetStepURL());
-		DefaultEventAttributes.Emplace(TEXT("Horde_BatchID"), FHorde::GetBatchId());
+		if (!FHorde::GetJobId().IsEmpty())
+		{
+			// Only send Horde data if applicable
+			DefaultEventAttributes.Emplace(TEXT("Horde_TemplateID"), FHorde::GetTemplateId());
+			DefaultEventAttributes.Emplace(TEXT("Horde_TemplateName"), FHorde::GetTemplateName());
+			DefaultEventAttributes.Emplace(TEXT("Horde_JobURL"), FHorde::GetJobURL());
+			DefaultEventAttributes.Emplace(TEXT("Horde_JobID"), FHorde::GetJobId());
+			DefaultEventAttributes.Emplace(TEXT("Horde_StepName"), FHorde::GetStepName());
+			DefaultEventAttributes.Emplace(TEXT("Horde_StepID"), FHorde::GetStepId());
+			DefaultEventAttributes.Emplace(TEXT("Horde_StepURL"), FHorde::GetStepURL());
+			DefaultEventAttributes.Emplace(TEXT("Horde_BatchID"), FHorde::GetBatchId());
+		}
 #endif
 
 		// Set up the analytics provider
