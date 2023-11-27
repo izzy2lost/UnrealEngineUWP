@@ -147,10 +147,15 @@ void FSkeletalMeshComponentSchema::BindAnimationInstance(TWeakPtr<ISequencer> We
 	FScopedTransaction Transaction(LOCTEXT("BindAnimInstance", "Add Anim Instance to Sequencer"));
 
 	UMovieSceneSequence*          Sequence          = Sequencer->GetFocusedMovieSceneSequence();
-	UMovieScene*                  MovieScene        = Sequence ? Sequence->GetMovieScene() : nullptr;;
+	if (!Sequence)
+	{
+		return;
+	}
+
+	UMovieScene*                  MovieScene        = Sequence->GetMovieScene();
 	FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
 
-	if (!Sequence || !MovieScene || !BindingReferences)
+	if (!MovieScene || !BindingReferences)
 	{
 		return;
 	}
