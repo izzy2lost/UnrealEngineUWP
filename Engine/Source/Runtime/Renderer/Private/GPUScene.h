@@ -27,6 +27,7 @@ class FScenePreUpdateChangeSet;
 class FScenePostUpdateChangeSet;
 class FPrimitiveSceneProxy;
 class IVisibilityTaskData;
+struct FLightSceneChangeSet;
 
 DECLARE_GPU_STAT_NAMED_EXTERN(GPUSceneUpdate, TEXT("GPUSceneUpdate"))
 
@@ -172,24 +173,6 @@ private:
 	FGPUScene& GPUScene;
 };
 
-// Buffers used by GPU-Scene, since they can be resized during updates AND the render passes must retain the 
-// right copy (this is chiefly because the init of shadow views after pre-pass means we need to be able to set 
-// up GPU-Scene before pre-pass, but then may discover new primitives etc. As there is no way to know how many
-// dynamic primitives will turn up after Pre-pass, we can't guarantee a resize won't happen).
-struct FGPUSceneBufferState
-{
-	bool IsValid() const { return PrimitiveBuffer != nullptr; }
-
-	FRDGBuffer* PrimitiveBuffer = nullptr;
-	FRDGBuffer* InstanceSceneDataBuffer = nullptr;
-	uint32 InstanceSceneDataSOAStride = 1; // Distance between arrays in float4s
-	FRDGBuffer* InstancePayloadDataBuffer = nullptr;
-	FRDGBuffer* LightmapDataBuffer = nullptr;
-	uint32 LightMapDataBufferSize = 0;
-
-	FRDGBuffer* LightDataBuffer = nullptr;
-};
-
 struct FGPUSceneInstanceRange
 {
 	uint32 InstanceSceneDataOffset;
@@ -209,7 +192,7 @@ public:
 	 * and prepare for dynamic primitive allocations.
 	 * Scene may be NULL which means there are zero scene primitives (but there may be dynamic ones added later).
 	 */
-	void BeginRender(FGPUSceneDynamicContext &GPUSceneDynamicContext);
+	void BeginRender(FRDGBuilder& GraphBuilder, FGPUSceneDynamicContext &GPUSceneDynamicContext);
 	inline bool IsRendering() const { return bInBeginEndBlock; }
 	void EndRender();
 
@@ -282,7 +265,7 @@ public:
 	/**
 	 * Return the GPU scene resource
 	 */
-	FGPUSceneResourceParameters GetShaderParameters() const { check(ShaderParameters.GPUScenePrimitiveSceneData != nullptr); return ShaderParameters; }
+	FGPUSceneResourceParameters GetShaderParameters(FRDGBuilder& GraphBuilder) const;
 
 	/**
 	 * Draw GPU-Scene debug info, such as bounding boxes. Call once per view at some point in the frame after GPU scene has been updated fully.
@@ -312,6 +295,10 @@ public:
 	 * Called by FScene::UpdateAllPrimimitiveSceneInfos after the scene is udated.
 	 */
 	void OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData);
+
+	/**
+	 */
+	void OnPostLightSceneInfoUpdate(FRDGBuilder& OnPostLightSceneInfoUpdate, const FLightSceneChangeSet& LightsPostUpdateData);
 
 	bool bUpdateAllPrimitives;
 
@@ -344,6 +331,27 @@ public:
 	SIZE_T GetAllocatedSize() const;
 
 private:
+	static constexpr int32 InitialBufferSize = 256;
+
+	TRefCountPtr<FRDGPooledBuffer> LightDataBuffer;
+
+	// Buffers used by GPU-Scene, since they can be resized during updates AND the render passes must retain the 
+	// right copy (this is chiefly because the init of shadow views after pre-pass means we need to be able to set 
+	// up GPU-Scene before pre-pass, but then may discover new primitives etc. As there is no way to know how many
+	// dynamic primitives will turn up after Pre-pass, we can't guarantee a resize won't happen).
+	struct FRegisteredBuffers
+	{
+		bool IsValid() const { return PrimitiveBuffer != nullptr; }
+
+		FRDGBuffer* PrimitiveBuffer = nullptr;
+		FRDGBuffer* InstanceSceneDataBuffer = nullptr;
+		FRDGBuffer* InstancePayloadDataBuffer = nullptr;
+		FRDGBuffer* LightmapDataBuffer = nullptr;
+		FRDGBuffer* LightDataBuffer = nullptr;
+	};
+
+
+
 	FScene &Scene;
 	FSpanAllocator		           InstanceSceneDataAllocator;
 
@@ -360,8 +368,7 @@ private:
 	/** Indices of primitives that need to be updated in GPU Scene */
 	TArray<FPersistentPrimitiveIndex> PrimitivesToUpdate;
 
-	FGPUSceneBufferState BufferState;
-	FGPUSceneResourceParameters ShaderParameters;
+	FRegisteredBuffers CachedRegisteredBuffers;
 
 	TArray<EPrimitiveDirtyState> PrimitiveDirtyState;
 
@@ -400,14 +407,19 @@ private:
 	ERHIFeatureLevel::Type FeatureLevel;
 
 	template<typename FUploadDataSourceAdapter>
-	void UpdateBufferState(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, const FUploadDataSourceAdapter& UploadDataSourceAdapter, bool bIsMainUpdate = false);
+	FRegisteredBuffers UpdateBufferAllocations(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, const FUploadDataSourceAdapter& UploadDataSourceAdapter);
+
+	/**
+	 * Register the external buffers with the graphbuilder.
+	 */
+	FRegisteredBuffers RegisterBuffers(FRDGBuilder& GraphBuilder) const;
 
 	/**
 	 * Generalized upload that uses an adapter to abstract the data souce. Enables uploading scene primitives & dynamic primitives using a single path.
 	 * @parameter Scene may be null, as it is only needed for the Nanite material table update (which is coupled to the Scene at the moment).
 	 */
 	template<typename FUploadDataSourceAdapter>
-	void UploadGeneral(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue* ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter, const UE::Tasks::FTask& PrerequisiteTask);
+	void UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffers& BufferState, FRDGExternalAccessQueue* ExternalAccessQueue, const FUploadDataSourceAdapter& UploadDataSourceAdapter, const UE::Tasks::FTask& PrerequisiteTask);
 
 	/**
 	 * Upload scene light data to gpu
@@ -436,10 +448,10 @@ private:
 class FGPUSceneScopeBeginEndHelper
 {
 public:
-	FGPUSceneScopeBeginEndHelper(FGPUScene& InGPUScene, FGPUSceneDynamicContext &GPUSceneDynamicContext) :
+	FGPUSceneScopeBeginEndHelper(FRDGBuilder& GraphBuilder, FGPUScene& InGPUScene, FGPUSceneDynamicContext &GPUSceneDynamicContext) :
 		GPUScene(InGPUScene)
 	{
-		GPUScene.BeginRender(GPUSceneDynamicContext);
+		GPUScene.BeginRender(GraphBuilder, GPUSceneDynamicContext);
 	}
 
 	~FGPUSceneScopeBeginEndHelper()

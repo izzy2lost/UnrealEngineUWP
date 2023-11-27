@@ -532,7 +532,7 @@ uint32 FInstanceCullingOcclusionQueryRenderer::Render(
 
 	const FIntVector HZBSize = HZBTexture->Desc.GetSize();
 
-	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters();
+	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters(GraphBuilder);
 
 	const FIntPoint ViewRectSize = View.ViewRect.Size();
 
@@ -856,7 +856,7 @@ void FInstanceCullingOcclusionQueryRenderer::RenderDebug(FRDGBuilder& GraphBuild
 	const FIntVector HZBSize = HZBTexture->Desc.GetSize();
 
 	const int32 NumInstances = GPUScene.GetNumInstances();
-	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters();
+	const FGPUSceneResourceParameters GPUSceneParameters = GPUScene.GetShaderParameters(GraphBuilder);
 
 	FOcclusionInstanceCullingDebugParameters* PassParameters = GraphBuilder.AllocParameters<FOcclusionInstanceCullingDebugParameters>();
 

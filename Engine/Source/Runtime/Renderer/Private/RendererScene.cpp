@@ -5219,6 +5219,7 @@ FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 	}
 
 	OnPostLightSceneInfoUpdate.Broadcast(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds });
+	GPUScene.OnPostLightSceneInfoUpdate(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds });
 
 	SceneLightInfoUpdates->Reset();
 
@@ -6509,6 +6510,18 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		}
 
 		PrimitiveOcclusionBounds[SceneInfo->PackedIndex] = NewOccBounds.ExpandBy(OCCLUSION_SLOP + OccSlackDelta.Value);
+	}
+
+	{
+		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
+		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
+
+		FRDGExternalAccessQueue ExternalAccessQueue;
+
+		// Process GPU scene prior to visibility to maximize overlap.
+		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, nullptr);
+
+		ExternalAccessQueue.Submit(GraphBuilder);
 	}
 
 	// Need to do this here since we delete the proxy next 

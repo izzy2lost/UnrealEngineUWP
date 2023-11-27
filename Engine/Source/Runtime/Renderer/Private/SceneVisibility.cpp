@@ -5305,14 +5305,6 @@ void FDeferredShadingSceneRenderer::BeginInitViews(
 
 	LumenScenePDIVisualization();
 
-	// Process GPU scene prior to visibility to maximize overlap.
-	{
-		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
-		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
-
-		Scene->GPUScene.Update(GraphBuilder, GetSceneUniforms(), ExternalAccessQueue, TaskDatas.VisibilityTaskData);
-	}
-
 	// This must happen before we start initialising and using views.
 	UpdateSkyIrradianceGpuBuffer(GraphBuilder, ViewFamily.EngineShowFlags, Scene->SkyLight, Scene->SkyIrradianceEnvironmentMap);
 

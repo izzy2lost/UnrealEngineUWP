@@ -1563,23 +1563,19 @@ namespace RuntimeVirtualTexture
 
 	void RenderPagesStandAlone(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
 	{
-		// This is required to collect dynamic primitives from the views (not used here, but we must provide one).
-		FGPUSceneDynamicContext GPUSceneDynamicContext(InDesc.Scene->GPUScene);
-
 		InDesc.Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder);
 
+		// This is required to collect dynamic primitives from the views (not used here, but we must provide one).
+		FGPUSceneDynamicContext GPUSceneDynamicContext(InDesc.Scene->GPUScene);
 		// Call to let GPU-Scene determine if it is active and record scene primitive count
-		FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(InDesc.Scene->GPUScene, GPUSceneDynamicContext);
+		FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(GraphBuilder, InDesc.Scene->GPUScene, GPUSceneDynamicContext);
 
 		FSceneUniformBuffer SceneUB {};
-		FRDGExternalAccessQueue ExternalAccessQueue;
-		InDesc.Scene->GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue);
+		InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
 		if (InDesc.Scene->SplineMeshSceneResources)
 		{
 			InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);
 		}
-		ExternalAccessQueue.Submit(GraphBuilder);
-
 		RenderPagesInternal(GraphBuilder, InDesc, SceneUB);
 	}
 
