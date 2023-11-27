@@ -338,24 +338,18 @@ UMovieSceneCompiledData* UMovieSceneSequence::GetOrCreateCompiledData()
 
 FGuid UMovieSceneSequence::FindPossessableObjectId(UObject& Object, UObject* Context) const
 {
-	class FTransientPlayer : public IMovieScenePlayer
-	{
-	public:
-		UObject* PlaybackContext;
-		FMovieSceneRootEvaluationTemplateInstance Template;
-		virtual FMovieSceneRootEvaluationTemplateInstance& GetEvaluationTemplate() override { return Template; }
-		virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) override {}
-		virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const override {}
-		virtual EMovieScenePlayerStatus::Type GetPlaybackStatus() const { return EMovieScenePlayerStatus::Stopped; }
-		virtual void SetPlaybackStatus(EMovieScenePlayerStatus::Type InPlaybackStatus) override {}
-		virtual UObject* GetPlaybackContext() const override { return PlaybackContext;  }
-	} Player;
+	using namespace UE::MovieScene;
 
+	FSharedPlaybackStateCreateParams CreateParams;
+	CreateParams.PlaybackContext = Context;
 	UMovieSceneSequence* ThisSequence = const_cast<UMovieSceneSequence*>(this);
-	Player.State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, Player);
-	Player.PlaybackContext = Context;
+	TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*ThisSequence, CreateParams);
 
-	FGuid ExistingID = Player.FindObjectId(Object, MovieSceneSequenceID::Root);
+	FMovieSceneEvaluationState State;
+	TransientPlaybackState->AddCapabilityRaw(&State);
+	State.AssignSequence(MovieSceneSequenceID::Root, *ThisSequence, TransientPlaybackState);
+
+	FGuid ExistingID = State.FindObjectId(Object, MovieSceneSequenceID::Root, TransientPlaybackState);
 	return ExistingID;
 }
 
