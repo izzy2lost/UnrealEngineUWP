@@ -11,6 +11,7 @@ uint4 TensorInfo[NUM_DIMENSION];
 uint4 SpatialInfo[NUM_SPATIAL_DIMENSIONS];
 uint Num;
 uint ThreadCountX;
+uint KernelVolume;
 
 #define OUTPUT_STRIDE 0
 #define INPUT_STRIDE 1
@@ -19,6 +20,9 @@ uint ThreadCountX;
 #define SPATIAL_STRIDE 0
 #define SPATIAL_KERNEL 1
 #define SPATIAL_PAD_START 2
+
+#define MAX_POOL 0
+#define AVERAGE_POOL 1
 
 [numthreads(THREADGROUP_SIZE_X, 1, 1)]
 void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
@@ -54,8 +58,9 @@ void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		uint SpatialDimIterator[NUM_SPATIAL_DIMENSIONS];
 
 		//Apply pooling, looping other the input for all spatial dimensions of the input kernel
-		float MaxValue;
-		bool IsInit = true;
+		float PooledValue = 0;
+		int Count = 0;
+		
 		for (SpatialDimIterator[0] = SpatialDimStarts[0]; SpatialDimIterator[0] < SpatialDimEnds[0]; ++SpatialDimIterator[0])
 		{
 		#if (NUM_SPATIAL_DIMENSIONS > 1)
@@ -86,8 +91,12 @@ void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 				InputIndex += TensorInfo[spatialDim+2][INPUT_STRIDE] * SpatialDimIterator[spatialDim];
 			}
 			float CurrentValue = Input[InputIndex];
-			MaxValue = IsInit ? CurrentValue : max(MaxValue, CurrentValue);
-			IsInit = false;
+			#if (POOL_OPERATOR_TYPE == MAX_POOL)
+				PooledValue = (Count == 0) ? CurrentValue : max(PooledValue, CurrentValue);
+			#else //POOL_OPERATOR_TYPE == AVERAGE_POOL
+				PooledValue += CurrentValue;
+			#endif 
+			++Count;
 
 		#if (NUM_SPATIAL_DIMENSIONS > 5)
 		}
@@ -106,6 +115,10 @@ void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		#endif
 		}
 
-		Output[Index] = MaxValue;
+		#if (POOL_OPERATOR_TYPE == AVERAGE_POOL)
+			PooledValue /= (KernelVolume == 0) ? (float)Count : (float)KernelVolume;
+		#endif
+
+		Output[Index] = PooledValue;
 	}
 }

@@ -8,6 +8,13 @@
 
 namespace UE::NNEHlslShaders::Internal
 {
+	enum class EPoolOperatorType : uint8
+	{
+		MAX_POOL,
+		AVERAGE_POOL,
+		MAX
+	};
+
 	class FPoolConstants
 	{
 	public:
@@ -23,7 +30,8 @@ namespace UE::NNEHlslShaders::Internal
 		SHADER_USE_PARAMETER_STRUCT(FPoolCS, FHlslShaderBase)
 
 		class FPoolNumSpatialDimensions : SHADER_PERMUTATION_RANGE_INT("NUM_SPATIAL_DIMENSIONS", 1, FPoolConstants::MAX_NUM_SPATIAL_DIMENSIONS);
-		using FPermutationDomain = TShaderPermutationDomain<FPoolNumSpatialDimensions>;
+		class FPoolType : SHADER_PERMUTATION_ENUM_CLASS("POOL_OPERATOR_TYPE", EPoolOperatorType);
+		using FPermutationDomain = TShaderPermutationDomain<FPoolNumSpatialDimensions, FPoolType>;
 
 	public:
 
@@ -34,6 +42,7 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER_ARRAY(FUintVector4, SpatialInfo, [FPoolConstants::MAX_NUM_SPATIAL_DIMENSIONS])
 			SHADER_PARAMETER(uint32, Num)
 			SHADER_PARAMETER(uint32, ThreadCountX)
+			SHADER_PARAMETER(uint32, KernelVolume)
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
