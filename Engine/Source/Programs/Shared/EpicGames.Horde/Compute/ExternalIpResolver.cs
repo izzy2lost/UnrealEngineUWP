@@ -30,6 +30,11 @@ public class ExternalIpResolverException : Exception
 /// </summary>
 public class ExternalIpResolver
 {
+	/// <summary>
+	/// Cache of last resolved IP address. Once resolved, the address is cached for the lifetime of this class.
+	/// </summary>
+	private IPAddress? _resolvedIp;
+	
 	private readonly HttpClient _httpClient;
 	private readonly List<string> _ipLookupUrls = new()
 	{
@@ -51,15 +56,21 @@ public class ExternalIpResolver
 	/// <param name="cancellationToken">Cancellation token</param>
 	/// <returns>External IP address</returns>
 	/// <exception cref="ExternalIpResolverException">If unable to resolve</exception>
-	public Task<IPAddress> GetExternalIpAddressAsync(CancellationToken cancellationToken = default)
+	public async Task<IPAddress> GetExternalIpAddressAsync(CancellationToken cancellationToken = default)
 	{
+		if (_resolvedIp != null)
+		{
+			return _resolvedIp;
+		}
+		
 		ExternalIpResolverException? lastException = null;
 		foreach (string lookupUrl in _ipLookupUrls)
 		{
 			Uri url = new(lookupUrl);
 			try
 			{
-				return GetExternalIpAddressAsync(url, cancellationToken);
+				_resolvedIp = await GetExternalIpAddressAsync(url, cancellationToken);
+				return _resolvedIp;
 			}
 			catch (ExternalIpResolverException e)
 			{
