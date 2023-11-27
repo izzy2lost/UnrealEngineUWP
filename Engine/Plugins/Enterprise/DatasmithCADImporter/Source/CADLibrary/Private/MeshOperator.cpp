@@ -342,14 +342,7 @@ void MeshOperator::ResolveTJunctions(FMeshDescription& MeshDescription, double T
 	}
 
 	// Check if there are boundary edges
-	int32 BoundaryEdgeCount = 0;
-	for (int32 eid : DynamicMesh.BoundaryEdgeIndicesItr())
-	{
-		BoundaryEdgeCount++;
-		break;
-	}
-
-	if (BoundaryEdgeCount == 0)
+	if (auto It(DynamicMesh.BoundaryEdgeIndicesItr()); It.begin() == It.end())
 	{
 		return;
 	}
@@ -364,7 +357,6 @@ void MeshOperator::ResolveTJunctions(FMeshDescription& MeshDescription, double T
 		MergeCoincidentEdges.MergeVertexTolerance = Tolerance;
 		MergeCoincidentEdges.MergeSearchTolerance = 2 * Tolerance;
 		MergeCoincidentEdges.Apply();
-		BoundaryEdgeCount = MergeCoincidentEdges.FinalNumBoundaryEdges;
 	}
 
 	CADLibrary::FMeshDescriptionDataCache MeshDescriptionDataCache(MeshDescription);
