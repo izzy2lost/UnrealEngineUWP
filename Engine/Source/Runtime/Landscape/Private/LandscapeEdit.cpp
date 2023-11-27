@@ -5696,11 +5696,22 @@ void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 			// Lock X and Y scaling to the same value
 			if (SubPropertyName == FName("Y"))
 			{
-				ModifiedScale.X = FMath::Abs(OriginalScale.Y)*FMath::Sign(ModifiedScale.X);
+				ModifiedScale.X = FMath::Abs(OriginalScale.Y) * FMath::Sign(ModifiedScale.X);
 			}
 			else if (SubPropertyName == FName("X"))
 			{
-				ModifiedScale.Y = FMath::Abs(OriginalScale.X)*FMath::Sign(ModifiedScale.Y);
+				ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(ModifiedScale.Y);
+			}
+			else if (SubPropertyName != FName("Z"))
+			{
+				// When changing all axis values at once (e.g. when copy/pasting the scale), we receive only one event and the sub-property is not set :
+				check(SubPropertyName == PropertyName); // Any other combination of property / sub-property is invalid				
+				if (!FMath::IsNearlyEqual(ModifiedScale.X, ModifiedScale.Y))
+				{
+					UE_LOG(LogLandscape, Warning, TEXT("Non-uniform XY scale for landscape (%f, %f) : scale will be forced to (%f, %f)"), ModifiedScale.X, ModifiedScale.Y, ModifiedScale.X, ModifiedScale.X);
+					// Arbitrarily favor the X axis as the uniform scale value (but retain the sign) : 
+					ModifiedScale.Y = FMath::Abs(OriginalScale.X) * FMath::Sign(ModifiedScale.Y);
+				}
 			}
 
 			ULandscapeInfo* Info = GetLandscapeInfo();
