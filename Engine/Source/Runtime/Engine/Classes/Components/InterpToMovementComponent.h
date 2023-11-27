@@ -175,6 +175,12 @@ class UInterpToMovementComponent : public UMovementComponent
 	float MaxSimulationTimeStep;
 
 	/**
+	 * Change the speed of movement.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Simulation)
+	float SpeedMultiplier;
+
+	/**
 	 * Max number of iterations used for each discrete simulation step.
 	 * Increasing this value can address issues with fast-moving objects or complex collision scenarios, at the cost of performance.
 	 *
