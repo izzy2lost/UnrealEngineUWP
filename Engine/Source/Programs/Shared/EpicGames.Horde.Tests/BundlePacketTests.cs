@@ -29,13 +29,8 @@ namespace EpicGames.Horde.Tests
 				_fragment = fragment;
 			}
 
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-
-			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
-			{
-				throw new NotImplementedException();
-			}
 
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
