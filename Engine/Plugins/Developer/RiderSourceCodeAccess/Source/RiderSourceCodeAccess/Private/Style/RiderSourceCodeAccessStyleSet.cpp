@@ -1,4 +1,6 @@
-﻿#include "RiderSourceCodeAccessStyleSet.h"
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "RiderSourceCodeAccessStyleSet.h"
 
 #include "Interfaces/IPluginManager.h"
 #include "Styling/SlateStyleRegistry.h"
