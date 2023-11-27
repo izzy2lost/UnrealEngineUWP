@@ -27,7 +27,7 @@ FWorldGridPreviewer::FWorldGridPreviewer(UWorld* InWorld, bool bInIs2D)
 	
 	PostProcessVolume = World->SpawnActor<APostProcessVolume>(SpawnParameters);
 	Material = PostProcessVolume.IsValid() ? LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/WorldGridPreviewMaterial")) : nullptr;
-	MaterialInstance = NewObject<UMaterialInstanceConstant>(PostProcessVolume.Get());
+	MaterialInstance = NewObject<UMaterialInstanceConstant>();
 	MaterialInstance->Parent = Material;
 
 	if (MaterialInstance)
