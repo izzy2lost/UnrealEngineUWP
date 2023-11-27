@@ -21,6 +21,12 @@ class FPCGEditorGraphDebugObjectItem : public TSharedFromThis<FPCGEditorGraphDeb
 {
 public:
 	FPCGEditorGraphDebugObjectItem() = default;
+
+	explicit FPCGEditorGraphDebugObjectItem(bool bInGrayedOut)
+		: bGrayedOut(bInGrayedOut)
+	{
+	}
+	
 	virtual ~FPCGEditorGraphDebugObjectItem() = default;
 
 	void AddChild(TSharedRef<FPCGEditorGraphDebugObjectItem> InChild);
@@ -30,6 +36,8 @@ public:
 
 	bool IsExpanded() const { return bIsExpanded; }
 	void SetExpanded(bool bInIsExpanded) { bIsExpanded = bInIsExpanded; }
+
+	bool IsGrayedOut() const { return bGrayedOut; }
 
 	/** Optional sort priority, if returns INDEX_NONE then sort will fall back to alphabetical. */
 	virtual int32 GetSortPriority() const { return INDEX_NONE; }
@@ -46,13 +54,15 @@ protected:
 	TWeakPtr<FPCGEditorGraphDebugObjectItem> Parent;
 	TSet<TSharedPtr<FPCGEditorGraphDebugObjectItem>> Children;
 	bool bIsExpanded = false;
+	bool bGrayedOut = false;
 };
 
 class FPCGEditorGraphDebugObjectItem_Actor : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_Actor(TWeakObjectPtr<AActor> InActor)
-		: Actor(InActor)
+	explicit FPCGEditorGraphDebugObjectItem_Actor(TWeakObjectPtr<AActor> InActor, bool bInHasInspectionData)
+		: FPCGEditorGraphDebugObjectItem(bInHasInspectionData)
+		, Actor(InActor)
 	{
 		PCGStack.PushFrame(InActor.Get());
 	}
@@ -71,12 +81,14 @@ protected:
 class FPCGEditorGraphDebugObjectItem_PCGComponent : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGComponent(
+	explicit FPCGEditorGraphDebugObjectItem_PCGComponent(
 		TWeakObjectPtr<UPCGComponent> InPCGComponent,
 		TWeakObjectPtr<const UPCGGraph> InPCGGraph,
 		const FPCGStack& InPCGStack,
-		bool bInIsDebuggable)
-		: PCGComponent(InPCGComponent)
+		bool bInIsDebuggable,
+		bool bInHasInspectionData)
+		: FPCGEditorGraphDebugObjectItem(bInHasInspectionData)
+		, PCGComponent(InPCGComponent)
 		, PCGGraph(InPCGGraph)
 		, PCGStack(InPCGStack)
 		, bIsDebuggable(bInIsDebuggable)
@@ -99,12 +111,14 @@ protected:
 class FPCGEditorGraphDebugObjectItem_PCGSubgraph : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGSubgraph(
+	explicit FPCGEditorGraphDebugObjectItem_PCGSubgraph(
 		TWeakObjectPtr<const UPCGNode> InPCGNode,
 		TWeakObjectPtr<const UPCGGraph> InPCGGraph,
 		const FPCGStack& InPCGStack,
-		bool bInIsDebuggable)
-		: PCGNode(InPCGNode)
+		bool bInIsDebuggable,
+		bool bInHasInspectionData)
+		: FPCGEditorGraphDebugObjectItem(bInHasInspectionData)
+		, PCGNode(InPCGNode)
 		, PCGGraph(InPCGGraph)
 		, PCGStack(InPCGStack)
 		, bIsDebuggable(bInIsDebuggable)
@@ -127,12 +141,14 @@ protected:
 class FPCGEditorGraphDebugObjectItem_PCGLoopIndex : public FPCGEditorGraphDebugObjectItem
 {
 public:
-	FPCGEditorGraphDebugObjectItem_PCGLoopIndex(
+	explicit FPCGEditorGraphDebugObjectItem_PCGLoopIndex(
 		int32 InLoopIndex,
 		TWeakObjectPtr<const UObject> InLoopedPCGGraph,
 		const FPCGStack& InPCGStack,
-		bool bInIsDebuggable)
-		: LoopIndex(InLoopIndex)
+		bool bInIsDebuggable,
+		bool bInHasInspectionData)
+		: FPCGEditorGraphDebugObjectItem(bInHasInspectionData)
+		, LoopIndex(InLoopIndex)
 		, LoopedPCGGraph(InLoopedPCGGraph)
 		, PCGStack(InPCGStack)
 		, bIsDebuggable(bInIsDebuggable)
@@ -193,7 +209,9 @@ public:
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	void RequestRefresh() { bNeedsRefresh = true; }
+	void RequestRefresh() { bNeedsRefresh = true; };
+
+	void SetNodeBeingInspected(const UPCGNode* InPCGNode);
 
 	void SetDebugObjectSelection(const FPCGStack& FullStack);
 
@@ -243,4 +261,6 @@ private:
 
 	/** Used to retain item selection state across tree refreshes. */
 	FPCGStack SelectedStack;
+
+	const UPCGNode* PCGNodeBeingInspected = nullptr;
 };

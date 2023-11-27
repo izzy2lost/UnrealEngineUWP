@@ -1455,7 +1455,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 			CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/ false);
 		}
 
-		InspectionCache.Empty();
+		ClearInspectionData();
 		return;
 	}
 #endif
@@ -1837,53 +1837,97 @@ void UPCGComponent::DisableInspection()
 	
 	if (InspectionCounter == 0)
 	{
-		InspectionCache.Empty();
+		ClearInspectionData();
 	}
 };
 
 void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData)
 {
-	if (!IsInspecting() || !InNode || !ensure(InStack))
+	if (!InNode || !ensure(InStack))
 	{
 		return;
 	}
 
-	auto StorePinInspectionData = [InStack, InNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+	if (!InOutputData.TaggedData.IsEmpty())
 	{
-		for (const UPCGPin* Pin : InPins)
+		FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
+
+		NodeToStacksThatProducedData.FindOrAdd(InNode).Add(*InStack);
+	}
+	else
+	{
+		FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
+
+		if (TSet<FPCGStack>* Stacks = NodeToStacksThatProducedData.Find(InNode))
 		{
-			FPCGStack Stack = *InStack;
-
-			// Append the Node and Pin to the current Stack to uniquely identify each DataCollection
-			TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
-			StackFrames.Reserve(StackFrames.Num() + 2);
-			StackFrames.Emplace(InNode);
-			StackFrames.Emplace(Pin);
-
-			FPCGDataCollection PinDataCollection;
-			PinDataCollection.TaggedData = InData.GetInputsByPin(Pin->Properties.Label);
-			// The data collection for each pin is given the Crc from the data collection. This is to enable inspecting the normal node output Crc
-			// when cache debugging is enabled.
-			PinDataCollection.Crc = InData.Crc;
-
-			if (!PinDataCollection.TaggedData.IsEmpty())
-			{
-				InOutInspectionCache.Add(Stack, PinDataCollection);
-			}
-			else
-			{
-				InOutInspectionCache.Remove(Stack);
-			}
+			Stacks->Remove(*InStack);
 		}
-	};
+	}
 
-	StorePinInspectionData(InNode->GetInputPins(), InInputData, InspectionCache);
-	StorePinInspectionData(InNode->GetOutputPins(), InOutputData, InspectionCache);
+	if (IsInspecting())
+	{
+		auto StorePinInspectionData = [InStack, InNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+		{
+			for (const UPCGPin* Pin : InPins)
+			{
+				FPCGStack Stack = *InStack;
+
+				// Append the Node and Pin to the current Stack to uniquely identify each DataCollection
+				TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
+				StackFrames.Reserve(StackFrames.Num() + 2);
+				StackFrames.Emplace(InNode);
+				StackFrames.Emplace(Pin);
+
+				FPCGDataCollection PinDataCollection;
+				PinDataCollection.TaggedData = InData.GetInputsByPin(Pin->Properties.Label);
+				// The data collection for each pin is given the Crc from the data collection. This is to enable inspecting the normal node output Crc
+				// when cache debugging is enabled.
+				PinDataCollection.Crc = InData.Crc;
+
+				if (!PinDataCollection.TaggedData.IsEmpty())
+				{
+					InOutInspectionCache.Add(Stack, PinDataCollection);
+				}
+				else
+				{
+					InOutInspectionCache.Remove(Stack);
+				}
+			}
+		};
+
+		FWriteScopeLock Lock(InspectionCacheLock);
+
+		StorePinInspectionData(InNode->GetInputPins(), InInputData, InspectionCache);
+		StorePinInspectionData(InNode->GetOutputPins(), InOutputData, InspectionCache);
+	}
 }
 
 const FPCGDataCollection* UPCGComponent::GetInspectionData(const FPCGStack& InStack) const
 {
+	FReadScopeLock Lock(InspectionCacheLock);
 	return InspectionCache.Find(InStack);
+}
+
+void UPCGComponent::ClearInspectionData()
+{
+	{
+		FWriteScopeLock Lock(InspectionCacheLock);
+		InspectionCache.Reset();
+	}
+
+	{
+		FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
+		NodeToStacksThatProducedData.Reset();
+	}
+}
+
+bool UPCGComponent::HasNodeProducedData(const UPCGNode* InNode, const FPCGStack& Stack) const
+{
+	FReadScopeLock Lock(NodeToStacksThatProducedDataLock);
+
+	const TSet<FPCGStack>* StacksThatProducedData = NodeToStacksThatProducedData.Find(InNode);
+
+	return StacksThatProducedData && StacksThatProducedData->Contains(Stack);
 }
 
 void UPCGComponent::Refresh(bool bStructural, bool bCancelExistingRefresh)

@@ -56,6 +56,9 @@ public:
 	/** Clear all errors and warnings that occurred while executing stacks beginning with the given stack. */
 	void ClearLogs(const FPCGStack& InPCGStack);
 
+	/** Clear all errors and warnings corresponding to the given component. */
+	void ClearLogs(const UPCGComponent* InComponent);
+
 private:
 	const int MaxLogsInSummary = 8;
 

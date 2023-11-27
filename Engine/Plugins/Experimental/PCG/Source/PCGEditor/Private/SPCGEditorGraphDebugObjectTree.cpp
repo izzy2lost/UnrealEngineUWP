@@ -133,6 +133,8 @@ void SPCGEditorGraphDebugObjectItemRow::Construct(const FArguments& InArgs, cons
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(Item->GetLabel()))
+			// Highlight effect applied if user is inspecting a node
+			.ColorAndOpacity(Item->IsGrayedOut() ? FColor(75, 75, 75) : FColor::White)
 		]
 		+SHorizontalBox::Slot()
 		.AutoWidth()
@@ -360,6 +362,13 @@ void SPCGEditorGraphDebugObjectTree::SetDebugObjectSelection(const FPCGStack& Fu
 	bDisableDebugObjectChangeNotification = false;
 }
 
+void SPCGEditorGraphDebugObjectTree::SetNodeBeingInspected(const UPCGNode* InPCGNode)
+{
+	PCGNodeBeingInspected = InPCGNode;
+
+	RequestRefresh();
+}
+
 void SPCGEditorGraphDebugObjectTree::SelectedDebugObject_OnClicked() const
 {
 	if (UPCGComponent* PCGComponent = PCGEditor.Pin()->GetPCGComponentBeingInspected())
@@ -504,7 +513,8 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 	TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr>& InOutStackToItem)
 {
 	const UPCGGraph* GraphBeingEdited = GetPCGGraph();
-	if (!GraphBeingEdited)
+	UPCGSubsystem* Subsystem = PCGEditor.Pin()->GetSubsystem();
+	if (!GraphBeingEdited || !Subsystem)
 	{
 		return;
 	}
@@ -543,6 +553,9 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 			continue;
 		}
 
+		// If we're inspecting a node which has not logged inspection data in a previous execution, display grayed out.
+		const bool bDisplayGrayedOut = PCGNodeBeingInspected && !PCGComponent->HasNodeProducedData(PCGNodeBeingInspected, Stack);
+
 		AActor* Actor = PCGComponent->GetOwner();
 		if (!Actor)
 		{
@@ -557,7 +570,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 		}
 		else
 		{
-			ActorItem = InOutActorItems.Emplace(Actor, MakeShared<FPCGEditorGraphDebugObjectItem_Actor>(Actor));
+			ActorItem = InOutActorItems.Emplace(Actor, MakeShared<FPCGEditorGraphDebugObjectItem_Actor>(Actor, bDisplayGrayedOut));
 			AllGraphItems.Add(ActorItem);
 		}
 
@@ -589,7 +602,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 					{
 						FPCGEditorGraphDebugObjectItemPtr TopGraphItem = InOutStackToItem.Emplace(
 							GraphStack,
-							MakeShared<FPCGEditorGraphDebugObjectItem_PCGComponent>(PCGComponent, StackGraph, GraphStack, bIsDebuggable));
+							MakeShared<FPCGEditorGraphDebugObjectItem_PCGComponent>(PCGComponent, StackGraph, GraphStack, bIsDebuggable, bDisplayGrayedOut));
 
 						AllGraphItems.Add(TopGraphItem);
 
@@ -606,7 +619,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 					{
 						FPCGEditorGraphDebugObjectItemPtr GraphItem = InOutStackToItem.Emplace(
 							GraphStack,
-							MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(SubgraphNode, StackGraph, GraphStack, bIsDebuggable));
+							MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(SubgraphNode, StackGraph, GraphStack, bIsDebuggable, bDisplayGrayedOut));
 
 						AllGraphItems.Add(GraphItem);
 
@@ -637,7 +650,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 						{
 							FPCGEditorGraphDebugObjectItemPtr LoopGraphItem = InOutStackToItem.Emplace(
 								LoopGraphStack,
-								MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(LoopSubgraphNode, StackGraph, LoopGraphStack, /*bIsDebuggable=*/false));
+								MakeShared<FPCGEditorGraphDebugObjectItem_PCGSubgraph>(LoopSubgraphNode, StackGraph, LoopGraphStack, /*bIsDebuggable=*/false, false));
 
 							AllGraphItems.Add(LoopGraphItem);
 
@@ -662,7 +675,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 						{
 							FPCGEditorGraphDebugObjectItemPtr LoopIterationItem = InOutStackToItem.Emplace(
 								LoopIterationStack,
-								MakeShared<FPCGEditorGraphDebugObjectItem_PCGLoopIndex>(PreviousStackFrame.LoopIndex, StackGraph, LoopIterationStack, bIsDebuggable));
+								MakeShared<FPCGEditorGraphDebugObjectItem_PCGLoopIndex>(PreviousStackFrame.LoopIndex, StackGraph, LoopIterationStack, bIsDebuggable, bDisplayGrayedOut));
 
 							AllGraphItems.Add(LoopIterationItem);
 
@@ -881,12 +894,9 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 		return;
 	}
 
-	if (UPCGComponent* PCGComponent = InItem->GetPCGComponent())
+	if (const FPCGStack* PCGStack = InItem->GetPCGStack())
 	{
-		if (const FPCGStack* PCGStack = InItem->GetPCGStack())
-		{
-			PCGEditor.Pin()->SetStackBeingInspected(*PCGStack, FPCGDebugObjectSelectionMethod::DebugObjectTree);
-		}
+		PCGEditor.Pin()->SetStackBeingInspected(*PCGStack, FPCGDebugObjectSelectionMethod::DebugObjectTree);
 	}
 }
 

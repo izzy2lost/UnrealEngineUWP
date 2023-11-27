@@ -238,6 +238,10 @@ public:
 	/** Notify that we exited the Landscape edit mode. */
 	void NotifyLandscapeEditModeExited() { ActorAndComponentMapping.NotifyLandscapeEditModeExited(); }
 
+	/** Clear any data collected during execution, normally called prior to generating the component. */
+	void ClearExecutionMetadata(const FPCGStack& BaseStack);
+	void ClearExecutionMetadata(UPCGComponent* InComponent);
+
 	/** Get a list of stacks that were executed during the last execution. */
 	TArray<FPCGStack> GetExecutedStacks(const UPCGComponent* InComponent, const UPCGGraph* InSubgraph);
 	void ClearExecutedStacks(FPCGStack BeginningWithStack);

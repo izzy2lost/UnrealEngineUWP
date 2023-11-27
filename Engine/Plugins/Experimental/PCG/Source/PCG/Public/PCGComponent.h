@@ -11,6 +11,7 @@
 #include "ComponentInstanceDataCache.h"
 #include "Components/ActorComponent.h"
 #include "Containers/Map.h"
+#include "UObject/ObjectKey.h"
 
 #include "PCGComponent.generated.h"
 
@@ -293,6 +294,10 @@ public:
 	void DisableInspection();
 	void StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData);
 	const FPCGDataCollection* GetInspectionData(const FPCGStack& InStack) const;
+	void ClearInspectionData();
+
+	/** Did the given node produce one or more data items in the given stack in a previous execution. */
+	bool HasNodeProducedData(const UPCGNode* InNode, const FPCGStack& Stack) const;
 
 	bool IsActorTracked(AActor* InActor, bool& bOutIsCulled) const;
 
@@ -518,6 +523,14 @@ private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
 	TMap<FPCGStack, FPCGDataCollection> InspectionCache;
+#endif
+
+#if WITH_EDITOR
+	mutable FRWLock InspectionCacheLock;
+
+	/** Map from nodes to all stacks for which the node produced at least one data item. */
+	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksThatProducedData;
+	mutable FRWLock NodeToStacksThatProducedDataLock;
 #endif
 
 	mutable FCriticalSection GeneratedResourcesLock;

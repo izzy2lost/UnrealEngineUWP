@@ -1239,6 +1239,8 @@ void FPCGEditor::OnToggleInspected()
 
 	OnInspectedNodeChangedDelegate.Broadcast(PCGGraphNodeBeingInspected);
 	GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID);
+
+	DebugObjectTreeWidget->SetNodeBeingInspected(PCGGraphNodeBeingInspected ? PCGNode : nullptr);
 }
 
 bool FPCGEditor::CanToggleInspected() const

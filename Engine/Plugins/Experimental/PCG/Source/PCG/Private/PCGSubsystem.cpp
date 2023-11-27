@@ -426,6 +426,10 @@ void UPCGSubsystem::OnOriginalComponentUnregistered(UPCGComponent* InComponent)
 	{
 		RuntimeGenScheduler->OnOriginalComponentUnregistered(InComponent);
 	}
+
+#if WITH_EDITOR
+	ClearExecutionMetadata(InComponent);
+#endif
 }
 
 #if WITH_EDITOR
@@ -443,7 +447,7 @@ void UPCGSubsystem::OnScheduleGraph(const FPCGStackContext& StackContext)
 	{
 		if (BaseStack->IsCurrentFrameInRootGraph())
 		{
-			ClearExecutedStacks(*BaseStack);
+			ClearExecutionMetadata(*BaseStack);
 		}
 	}
 
@@ -1505,6 +1509,25 @@ bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackC
 uint32 UPCGSubsystem::GetGraphCacheEntryCount(IPCGElement* InElement) const
 {
 	return GraphExecutor ? GraphExecutor->GetGraphCacheEntryCount(InElement) : 0;
+}
+
+void UPCGSubsystem::ClearExecutionMetadata(const FPCGStack& BaseStack)
+{
+	ClearExecutedStacks(BaseStack);
+
+	if (UPCGComponent* Component = const_cast<UPCGComponent*>(BaseStack.GetRootComponent()))
+	{
+		Component->ClearInspectionData();
+
+		NodeVisualLogs.ClearLogs(Component);
+	}
+}
+
+void UPCGSubsystem::ClearExecutionMetadata(UPCGComponent* InComponent)
+{
+	FPCGStack Stack;
+	Stack.PushFrame(InComponent);
+	ClearExecutionMetadata(Stack);
 }
 
 TArray<FPCGStack> UPCGSubsystem::GetExecutedStacks(const UPCGComponent* InComponent, const UPCGGraph* InSubgraph)

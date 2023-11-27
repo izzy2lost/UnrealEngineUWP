@@ -219,6 +219,13 @@ void FPCGNodeVisualLogs::ClearLogs(const FPCGStack& InPCGStack)
 	}
 }
 
+void FPCGNodeVisualLogs::ClearLogs(const UPCGComponent* InComponent)
+{
+	FPCGStack Stack;
+	Stack.PushFrame(InComponent);
+	ClearLogs(Stack);
+}
+
 #endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
