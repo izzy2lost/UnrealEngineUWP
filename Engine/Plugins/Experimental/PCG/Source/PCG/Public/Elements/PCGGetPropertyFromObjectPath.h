@@ -76,6 +76,8 @@ struct FPCGGetPropertyFromObjectPathContext : public FPCGContext
 
 class FPCGGetPropertyFromObjectPathElement : public IPCGElement
 {
+public:
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const { return false; }
 protected:
 	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
