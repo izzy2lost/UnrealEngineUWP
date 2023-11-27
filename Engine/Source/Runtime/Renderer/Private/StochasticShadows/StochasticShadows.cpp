@@ -84,6 +84,13 @@ static TAutoConsoleVariable<int32> CVarStochasticShadowsDebug(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarStochasticShadowsDebugLightId(
+	TEXT("r.StochasticShadows.Debug.LightId"),
+	-1,
+	TEXT("Which light to show debug info for. When set to -1, uses the currently selected light in editor."),
+	ECVF_RenderThreadSafe
+);
+
 int32 GStochasticShadowsReset = 0;
 FAutoConsoleVariableRef CVarStochasticShadowsReset(
 	TEXT("r.StochasticShadows.Reset"),
@@ -685,13 +692,31 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
 		StochasticShadowsParameters.TemporalMaxFramesAccumulated = CVarStochasticShadowsTemporalMaxFramesAccumulated.GetValueOnRenderThread();
 		StochasticShadowsParameters.TemporalStdDevOffset = CVarStochasticShadowsTemporalStdDevOffset.GetValueOnRenderThread();
-		StochasticShadowsParameters.DebugMode = CVarStochasticShadowsDebug.GetValueOnRenderThread();
+		StochasticShadowsParameters.DebugMode = StochasticShadows::GetDebugMode();
+		StochasticShadowsParameters.DebugLightId = INDEX_NONE;
 
 		if (bDebug)
 		{
 			ShaderPrint::SetEnabled(true);
 			ShaderPrint::RequestSpaceForLines(1024);
 			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, StochasticShadowsParameters.ShaderPrintUniformBuffer);
+
+			StochasticShadowsParameters.DebugLightId = CVarStochasticShadowsDebugLightId.GetValueOnRenderThread();
+
+			if (StochasticShadowsParameters.DebugLightId < 0)
+			{
+				for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+				{
+					const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
+					const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
+
+					if (LightSceneInfo->Proxy->IsSelected())
+					{
+						StochasticShadowsParameters.DebugLightId = LightSceneInfo->Id;
+						break;
+					}
+				}
+			}
 		}
 	}
 

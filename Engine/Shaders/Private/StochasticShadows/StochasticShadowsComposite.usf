@@ -16,6 +16,7 @@ Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 uint TemporalMaxFramesAccumulated;
 float TemporalStdDevOffset;
 uint2 NumSamplesPerPixel;
+uint DebugLightId;
 
 RWTexture2D<uint> RWShadowMaskTileAtlas;
 
@@ -100,7 +101,7 @@ void CompositeShadowMaskTracesCS(
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == 1;
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == DebugLightId;
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.05, 0.3));
 
 	if (bDebug)
