@@ -65,7 +65,7 @@ struct FAnimNextParameterAssetRegistryExportEntry
 	FAssetData ReferencingAsset;
 
 	UPROPERTY()
-	EAnimNextParameterFlags Flags;
+	EAnimNextParameterFlags Flags = EAnimNextParameterFlags::NoFlags;
 };
 
 USTRUCT()
