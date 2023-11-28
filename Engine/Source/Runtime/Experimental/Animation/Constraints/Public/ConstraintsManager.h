@@ -131,7 +131,7 @@ public:
 	bool Active = true;
 
 	UPROPERTY()
-	bool bValid = true;
+	bool bValid = false;
 
 
 	/** Unique id to be used to fine constraint in a particular world, may be shared*/

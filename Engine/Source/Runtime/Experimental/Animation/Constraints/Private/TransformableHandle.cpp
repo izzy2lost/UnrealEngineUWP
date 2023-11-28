@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/Engine.h"
 #include "MovieSceneSection.h"
+#include "TransformableHandleUtils.h"
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Channels/MovieSceneDoubleChannel.h"
 #include "Channels/MovieSceneChannelProxy.h"
@@ -26,6 +27,20 @@ UTransformableHandle::~UTransformableHandle()
 UTransformableHandle::FHandleModifiedEvent& UTransformableHandle::HandleModified()
 {
 	return OnHandleModified;
+}
+
+void UTransformableHandle::Notify(EHandleEvent InEvent, const bool bPreTickTarget) const
+{
+	if (!bNotifying && OnHandleModified.IsBound())
+	{
+		TGuardValue<bool> ReentrantGuardSelf(bNotifying, true);
+		if (bPreTickTarget)
+		{
+			TickTarget();
+		}
+		
+		OnHandleModified.Broadcast(const_cast<UTransformableHandle*>(this), InEvent);
+	}
 }
 
 bool UTransformableHandle::HasBoundObjects() const
@@ -67,33 +82,15 @@ bool UTransformableComponentHandle::IsValid(const bool bDeepCheck) const
 }
 
 //need to tick any skelmesh component, sibling or parent
-void UTransformableComponentHandle::TickForBaking() const
+void UTransformableComponentHandle::TickTarget() const
 {
 	if (!Component.IsValid())
 	{
 		return;
 	}
-
-	const AActor* Parent = Component->GetOwner();
-	while (Parent)
-	{
-		TArray<USkeletalMeshComponent*> MeshComps;
-		Parent->GetComponents(MeshComps, true);
-
-		for (USkeletalMeshComponent* MeshComp : MeshComps)
-		{
-			MeshComp->TickAnimation(0.03f, false);
-			MeshComp->RefreshBoneTransforms();
-			MeshComp->RefreshFollowerComponents();
-			MeshComp->UpdateComponentToWorld();
-			MeshComp->FinalizeBoneTransform();
-			MeshComp->MarkRenderTransformDirty();
-			MeshComp->MarkRenderDynamicDataDirty();
-		}
-
-		Parent = Parent->GetAttachParentActor();
-	}
+	TransformableHandleUtils::TickDependantComponents(Component.Get());
 }
+
 void UTransformableComponentHandle::SetGlobalTransform(const FTransform& InGlobal) const
 {
 	if (Component.IsValid())
@@ -308,10 +305,7 @@ void UTransformableComponentHandle::OnActorMoving(AActor* InActor)
 		return;
 	}
 
-	if(OnHandleModified.IsBound())
-	{
-		OnHandleModified.Broadcast(this, EHandleEvent::GlobalTransformUpdated);
-	}
+	Notify(EHandleEvent::GlobalTransformUpdated);
 }
 
 void UTransformableComponentHandle::OnPostPropertyChanged(
@@ -358,10 +352,7 @@ void UTransformableComponentHandle::OnPostPropertyChanged(
 		return;
 	}
 
-	if(OnHandleModified.IsBound())
-	{
-		OnHandleModified.Broadcast(this, EHandleEvent::GlobalTransformUpdated);
-	}
+	Notify(EHandleEvent::GlobalTransformUpdated);
 }
 
 void UTransformableComponentHandle::OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstances)

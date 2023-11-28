@@ -511,14 +511,14 @@ void UTickableTransformConstraint::Evaluate(bool bTickHandlesAlso) const
 	{
 		if (ParentTRSHandle)
 		{
-			ParentTRSHandle->TickForBaking();
+			ParentTRSHandle->TickTarget();
 		}
 
 		Super::Evaluate();
 		//todo test this more may be able to remove it
 		if (ChildTRSHandle)
 		{
-			ChildTRSHandle->TickForBaking();
+			ChildTRSHandle->TickTarget();
 		}
 	}
 	else
@@ -601,7 +601,7 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 			const FConstraintTickFunction* ConstraintTick = ConstraintTicks.Find(World->GetCurrentLevel());
 			if (IsFullyActive() && ConstraintTick->IsTickFunctionRegistered() && ConstraintTick->IsTickFunctionEnabled())
 			{
-				Evaluate();
+				Evaluate(true);
 			}
 			return;
 		}
@@ -754,13 +754,16 @@ FConstraintTickFunction::ConstraintFunction UTickableTranslationConstraint::GetF
 		}
 
 		AxisFilter.FilterVector(NewTranslation, ChildTranslation);
-		
-		Transform.SetLocation(NewTranslation);
-			
-		SetChildGlobalTransform(Transform);
-		if (ChildTRSHandle)
+
+		if (!NewTranslation.Equals(ChildTranslation))
 		{
-			ChildTRSHandle->TickForBaking();
+			Transform.SetLocation(NewTranslation);
+			
+			SetChildGlobalTransform(Transform);
+			if (ChildTRSHandle)
+			{
+				ChildTRSHandle->TickTarget();
+			}
 		}
 	};
 }
@@ -895,13 +898,17 @@ FConstraintTickFunction::ConstraintFunction UTickableRotationConstraint::GetFunc
 		}
 
 		AxisFilter.FilterQuat(NewRotation, ChildRotation);
-		
-		Transform.SetRotation(NewRotation);
-		
-		SetChildGlobalTransform(Transform);
-		if (ChildTRSHandle)
+
+		if (!NewRotation.Equals(ChildRotation))
 		{
-			ChildTRSHandle->TickForBaking();
+			Transform.SetRotation(NewRotation);
+		
+			SetChildGlobalTransform(Transform);
+
+			if (ChildTRSHandle)
+			{
+				ChildTRSHandle->TickTarget();
+			}
 		}
 	};
 }
@@ -1040,13 +1047,16 @@ FConstraintTickFunction::ConstraintFunction UTickableScaleConstraint::GetFunctio
 		}
 
 		AxisFilter.FilterVector(NewScale, ChildScale);
-		
-		Transform.SetScale3D(NewScale);
-			
-		SetChildGlobalTransform(Transform);
-		if (ChildTRSHandle)
+
+		if (!NewScale.Equals(ChildScale))
 		{
-			ChildTRSHandle->TickForBaking();
+			Transform.SetScale3D(NewScale);
+			
+			SetChildGlobalTransform(Transform);
+			if (ChildTRSHandle)
+			{
+				ChildTRSHandle->TickTarget();
+			}
 		}
 	};
 }
@@ -1206,11 +1216,14 @@ FConstraintTickFunction::ConstraintFunction UTickableParentConstraint::GetFuncti
 		{
 			TargetTransform.SetScale3D(ChildGlobalTransform.GetScale3D());
 		}
-		
-		SetChildGlobalTransform(TargetTransform);
-		if (ChildTRSHandle)
+
+		if (!ChildGlobalTransform.Equals(TargetTransform))
 		{
-			ChildTRSHandle->TickForBaking();
+			SetChildGlobalTransform(TargetTransform);
+			if (ChildTRSHandle)
+			{
+				ChildTRSHandle->TickTarget();
+			}
 		}
 	};
 }
@@ -1362,7 +1375,7 @@ FConstraintTickFunction::ConstraintFunction UTickableLookAtConstraint::GetFuncti
 				SetChildGlobalTransform(Transform);
 				if (ChildTRSHandle)
 				{
-					ChildTRSHandle->TickForBaking();
+					ChildTRSHandle->TickTarget();
 				}
 			}
 		}

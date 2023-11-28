@@ -8,6 +8,7 @@
 #include "ControlRigComponent.h"
 #include "ControlRig.h"
 #include "IControlRigObjectBinding.h"
+#include "TransformableHandleUtils.h"
 #include "Rigs/RigHierarchyElements.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sections/MovieScene3DTransformSection.h"
@@ -56,30 +57,11 @@ bool UTransformableControlHandle::IsValid(const bool bDeepCheck) const
 	return true;
 }
 
-void UTransformableControlHandle::TickForBaking() const
+void UTransformableControlHandle::TickTarget() const
 {
 	if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh())
 	{
-		const AActor* Parent = SkeletalMeshComponent->GetOwner();
-		while (Parent)
-		{
-			TArray<USkeletalMeshComponent*> MeshComps;
-			Parent->GetComponents(MeshComps, true);
-
-			for (USkeletalMeshComponent* MeshComp : MeshComps)
-			{
-				MeshComp->TickAnimation(0.03f, false);
-				MeshComp->RefreshBoneTransforms();
-				MeshComp->RefreshFollowerComponents();
-				MeshComp->UpdateComponentToWorld();
-				MeshComp->FinalizeBoneTransform();
-				MeshComp->MarkRenderTransformDirty();
-				MeshComp->MarkRenderDynamicDataDirty();
-			}
-
-			Parent = Parent->GetAttachParentActor();
-		}
-		return;
+		return TransformableHandleUtils::TickDependantComponents(SkeletalMeshComponent);
 	}
 
 	if (UControlRigComponent* ControlRigComponent = GetControlRigComponent())
@@ -420,31 +402,32 @@ void UTransformableControlHandle::OnControlModified(
 		return;
 	}
 
+	if (bNotifying)
+	{
+		return;
+	}
+
 	if (!ControlRig.IsValid() || ControlName == NAME_None)
 	{
 		return;
 	}
 
-	if (OnHandleModified.IsBound() && (ControlRig == InControlRig))
+	if (HandleModified().IsBound() && (ControlRig == InControlRig))
 	{
 		const EHandleEvent Event = InContext.bConstraintUpdate ?
 			EHandleEvent::GlobalTransformUpdated : EHandleEvent::LocalTransformUpdated;
 
 		if (InControl->GetFName() == ControlName)
-		{	// if that handle is wrapping InControl  
-			OnHandleModified.Broadcast(this, Event);
+		{	// if that handle is wrapping InControl
+			Notify(Event);
 		}
 		else if (Event == EHandleEvent::GlobalTransformUpdated)
 		{
+			// the control being modified is not the one wrapped by this handle 
 			if (const FRigControlElement* Control = ControlRig->FindControl(ControlName))
-			{	// if that handle control's transform has been dirtied
-				const bool bIsTransformDirty =
-					Control->Pose.IsDirty(ERigTransformType::CurrentLocal) ||
-					Control->Pose.IsDirty(ERigTransformType::CurrentGlobal);
-				if (bIsTransformDirty)
-				{
-					OnHandleModified.Broadcast(this, EHandleEvent::UpperDependencyUpdated);
-				}
+			{
+				static constexpr  bool bPreTick = true;
+				Notify(EHandleEvent::UpperDependencyUpdated, bPreTick);
 			}
 		}
 	}
@@ -485,7 +468,7 @@ void UTransformableControlHandle::OnObjectBoundToControlRig(UObject* InObject)
 		const UWorld* ThisWorld = GetWorld();
 		if (ThisWorld && InObject->GetWorld() == ThisWorld)
 		{
-			OnHandleModified.Broadcast(this, EHandleEvent::ComponentUpdated);
+			Notify(EHandleEvent::ComponentUpdated);
 		}
 	}
 }

@@ -71,8 +71,8 @@ public:
 	/** Make a duplicate of myself with this outer*/
 	virtual UTransformableHandle* Duplicate(UObject* NewOuter) const override;
 
-	/** tick things when baking*/ 
-	virtual void TickForBaking() const override;
+	/** Tick any skeletal mesh related to the bound component. */ 
+	virtual void TickTarget() const override;
 
 	/** Registers/Unregisters useful delegates to track changes in the control's transform. */
 	void UnregisterDelegates() const;
