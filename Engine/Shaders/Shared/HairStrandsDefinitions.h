@@ -97,3 +97,5 @@
 #define HAIR_POINT_LOD_COUNT_PER_UINT_DIV_AS_SHIFT 3
 
 #define HAIR_RBF_ENTRY_COUNT(InSampleCount)	((InSampleCount)+4u)
+
+#define HAIR_CARDS_MAX_TEXTURE_COUNT 6

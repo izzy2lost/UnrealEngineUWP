@@ -39,6 +39,7 @@ enum class EHairTextureLayout : uint8
 
 // Returns the number of textures used for a particular layout
 HAIRSTRANDSCORE_API uint32 GetHairTextureLayoutTextureCount(EHairTextureLayout In);
+HAIRSTRANDSCORE_API const TCHAR* GetHairTextureLayoutTextureName(EHairTextureLayout InLayout, uint32 InIndex, bool bDetail);
 
 USTRUCT(BlueprintType)
 struct HAIRSTRANDSCORE_API FHairGroupCardsInfo

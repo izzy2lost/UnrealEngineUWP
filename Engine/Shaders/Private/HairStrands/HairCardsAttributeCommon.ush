@@ -2,10 +2,6 @@
 
 #pragma once
 
-#if HAIR_CARD_MESH_FACTORY
-
-#include "/Engine/Private/HairStrands/HairStrandsVertexFactoryCommon.ush"
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Vertex factory Flags
@@ -29,65 +25,73 @@
 #define EHairCardsVFAttribute_Coverage     8
 #define EHairCardsVFAttribute_Auxilary     9
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// Helper functions for fetching attributes
+#define LAYOUT_VALUES(LayoutIdx, L0, L1, L2, L3) \
+	(LayoutIdx == 0 ? L0 :  \
+	(LayoutIdx == 1 ? L1 :  \
+	(LayoutIdx == 2 ? L2 : L3)))
 
-#define LAYOUT_VALUES(L0, L1, L2, L3) \
-	(HairCardsVF.LayoutIndex == 0 ? L0 :  \
-	(HairCardsVF.LayoutIndex == 1 ? L1 :  \
-	(HairCardsVF.LayoutIndex == 2 ? L2 : L3)))
-
-#define HAIRCARDSVF_USE_LEGACY_LAYOUT 1
-#if HAIRCARDSVF_USE_LEGACY_LAYOUT
-uint GetHairCardTextureIndex(uint In) 
+uint GetHairCardTextureIndex(uint InLayoutIndex, uint InAttribute) 
 { 
-	// See GroomAssetDetails.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details. (9 = not present/not available)
-	switch (In)
+	// See GroomAssetCards.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details. (9 = not present/not available)
+	switch (InAttribute)
 	{
-		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(0, 0, 1, 2);
-		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(3, 3, 1, 2);
-		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(3, 3, 0, 1);
-		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(9, 4, 9, 1); // Only used for mesh, not for cards
-		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(9, 9, 9, 3);
-		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(9, 3, 9, 1);
-		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(9, 4, 9, 3);
-		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(2, 2, 0, 0);
-		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(1, 1, 1, 2);
-		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(5, 5, 9, 9); 
+		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 2);
+		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 1, 2);
+		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 1);
+		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 9, 4, 9, 1); // Only used for mesh, not for cards
+		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 9, 9, 9, 3);
+		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(InLayoutIndex, 9, 3, 9, 1);
+		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 9, 4, 9, 3);
+		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 0, 0);
+		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(InLayoutIndex, 1, 1, 1, 2);
+		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(InLayoutIndex, 5, 5, 9, 9); 
 	}
 	return 0;
 }
+
+bool IsHairCardTextureIndexValid(uint InLayoutIndex, uint InAttribute)
+{
+	return GetHairCardTextureIndex(InLayoutIndex, InAttribute) < HAIR_CARDS_MAX_TEXTURE_COUNT;
+}
+
+uint GetHairCardChannelIndex(uint InLayoutIndex, uint InAttribute) 
+{ 
+	// See GroomAssetCards.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details
+	switch (InAttribute)
+	{
+		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 1);
+		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 2, 2);
+		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 3, 1);
+		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 2);
+		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 3, 0, 3, 3);
+		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0); 
+	}
+	return 0;
+}
+
+#if HAIR_CARD_MESH_FACTORY
+
+#include "/Engine/Private/HairStrands/HairStrandsVertexFactoryCommon.ush"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Helper functions for fetching attributes
+
+// If we need custom dynamic layout:
+// uint GetHairCardTextureIndex(uint In)	{ return ((HairCards.AttributeTextureIndex) >> (In*3u) & 0x7u); }
+// uint GetHairCardChannelIndex(uint In)	{ return ((HairCards.AttributeChannelIndex) >> (In*2u) & 0x3u); }
+
+float2 GetAtlasUV(float2 In) 				{ return float2(In.x, (HairCardsVF.Flags & EHairCardsVFlags_InvertedUV) ? 1 - In.y : In.y); }
 
 bool HasTextureBound(uint In)
 {
 	// HairCardsVF.Flags stores InverttUV on the first bit, texture bound after
-	const uint TextureIndex = GetHairCardTextureIndex(In);
+	const uint TextureIndex = GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In);
 	return (TextureIndex < HairCardsVF.TextureCount) && (HairCardsVF.Flags & (1u << (TextureIndex + 1))) != 0;
 }
-
-uint GetHairCardChannelIndex(uint In) 
-{ 
-	// See GroomAssetDetails.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details
-	switch (In)
-	{
-		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(0, 0, 1, 1);
-		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(3, 3, 2, 2);
-		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(2, 2, 3, 1);
-		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(3, 3, 0, 2);
-		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(3, 0, 3, 3);
-		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(0, 0, 0, 0);
-		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(0, 0, 0, 0);
-		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(0, 0, 0, 0);
-		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(0, 0, 0, 0);
-		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(0, 0, 0, 0); 
-	}
-	return 0;
-}
-#else	
-uint GetHairCardTextureIndex(uint In)	{ return ((HairCards.AttributeTextureIndex) >> (In*3u) & 0x7u); }
-uint GetHairCardChannelIndex(uint In)	{ return ((HairCards.AttributeChannelIndex) >> (In*2u) & 0x3u); }
-#endif
-float2 GetAtlasUV(float2 In) 			{ return float2(In.x, (HairCardsVF.Flags & EHairCardsVFlags_InvertedUV) ? 1 - In.y : In.y); }
 
 // Generic attribute texture fetches
 float4 FetchAttributeTexture(uint InTextureIndex, float2 InAtlasUV, float InBias)
@@ -115,11 +119,11 @@ float4 FetchAttributeTexture(uint InTextureIndex, float2 InAtlasUV)
 }
 
 // Generic attribute fetch functions
-float  FetchAttribute1(uint In, float2 InAtlasUV, float InBias) { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(In), InAtlasUV, InBias); return Value[GetHairCardChannelIndex(In)];                     }
-float  FetchAttribute1(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(In), InAtlasUV);         return Value[GetHairCardChannelIndex(In)];                     }
-float2 FetchAttribute2(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(In), InAtlasUV);         return GetHairCardChannelIndex(In) == 0 ? Value.xy : Value.zw; } // float2 alignemnt is forced onto .xy or .zw
-float3 FetchAttribute3(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(In), InAtlasUV);         return Value.xyz;                                              } // float3 alignemnt forced onto .xyz
-float4 FetchAttribute4(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(In), InAtlasUV);         return Value;                                                  }
+float  FetchAttribute1(uint In, float2 InAtlasUV, float InBias) { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In), InAtlasUV, InBias); return Value[GetHairCardChannelIndex(HairCardsVF.LayoutIndex, In)];                     }
+float  FetchAttribute1(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In), InAtlasUV);         return Value[GetHairCardChannelIndex(HairCardsVF.LayoutIndex, In)];                     }
+float2 FetchAttribute2(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In), InAtlasUV);         return GetHairCardChannelIndex(HairCardsVF.LayoutIndex, In) == 0 ? Value.xy : Value.zw; } // float2 alignemnt is forced onto .xy or .zw
+float3 FetchAttribute3(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In), InAtlasUV);         return Value.xyz;                                                                       } // float3 alignemnt forced onto .xyz
+float4 FetchAttribute4(uint In, float2 InAtlasUV)               { const float4 Value = FetchAttributeTexture(GetHairCardTextureIndex(HairCardsVF.LayoutIndex, In), InAtlasUV);         return Value;                                                                           }
 
 // Special attribute fetch functions
 float  GetDepthOffset (float2 InAtlasUV)                        { float  Out = 0;         if (HasTextureBound(EHairCardsVFAttribute_Depth))		 { Out = FetchAttribute1(EHairCardsVFAttribute_Depth,     InAtlasUV);                          } return Out; }

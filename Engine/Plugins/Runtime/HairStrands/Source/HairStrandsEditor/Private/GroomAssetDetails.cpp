@@ -1516,43 +1516,9 @@ void FGroomRenderingDetails::OnGenerateElementForHairGroup(TSharedRef<IPropertyH
 					// Textures
 					const uint32 TextureCount = GroomAsset->GetHairGroupsCards()[GroupIndex].Textures.Textures.Num();
 					TSharedPtr<IPropertyHandle> TextureArrayHandle = ChildHandle->GetChildHandle(1);
-					switch (LayoutType)
+					for (uint32 TextureIt = 0; TextureIt < TextureCount; ++TextureIt)
 					{
-						case EHairTextureLayout::Layout0:
-						{
-							check(TextureCount == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout0));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(0).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_0", "Depth\n R8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(1).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_1", "Coverage\n R8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(2).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_2", "Tangent\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(3).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_3", "Attributes\n RootUV | CoordU | Seed\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(4).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_4", "Material\n Color | Roughess\n RBGA8 ")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(5).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout0_5", "Auxiliary\n RGBA8")));
-						} break;
-						case EHairTextureLayout::Layout1:
-						{
-							check(TextureCount == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout1));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(0).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_0", "Depth\n R8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(1).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_1", "Coverage\n R8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(2).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_2", "Tangent\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(3).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_3", "Attributes\n RootUV | CoordU | Seed\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(4).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_4", "Material\n Color | GroupID\n RBGA8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(5).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout1_5", "Auxiliary\n RGBA8")));
-						} break;
-						case EHairTextureLayout::Layout2:
-						{
-							check(TextureCount == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout2));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(0).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout2_0", "Tangent | CoordU\n RGBA8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(2).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout2_1", "Coverage | Depth | Seed\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(3).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout2_2", "Color | Roughness\n RGBA8")));
-						} break;
-						case EHairTextureLayout::Layout3:
-						{
-							check(TextureCount == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout3));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(0).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout3_0", "Tangent\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(1).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout3_1", "RooUV | CoordU | GroupID\n RGBA8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(2).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout3_2", "Coverage | Depth | Seed\n RGB8")));
-							TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(3).ToSharedRef()).DisplayName(FText(LOCTEXT("Layout3_3", "Color | Roughness\n RGBA8")));
-						} break;
+						TextureGroup.AddPropertyRow(TextureArrayHandle->GetChildHandle(TextureIt).ToSharedRef()).DisplayName(FTextStringHelper::CreateFromBuffer(GetHairTextureLayoutTextureName(LayoutType, TextureIt, true /*bDetail*/)));
 					}
 				}
 			}

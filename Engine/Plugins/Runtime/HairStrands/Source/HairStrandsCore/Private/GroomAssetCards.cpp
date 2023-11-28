@@ -88,12 +88,71 @@ UStaticMesh* FHairGroupsCardsSourceDescription::GetMesh() const
 
 uint32 GetHairTextureLayoutTextureCount(EHairTextureLayout In)
 {
+	uint32 OutCount = 0;
 	switch (In)
 	{
-		case EHairTextureLayout::Layout0: return 6u;
-		case EHairTextureLayout::Layout1: return 6u;
-		case EHairTextureLayout::Layout2: return 4u;
-		case EHairTextureLayout::Layout3: return 4u;
+		case EHairTextureLayout::Layout0: OutCount = 6u; break;
+		case EHairTextureLayout::Layout1: OutCount = 6u; break;
+		case EHairTextureLayout::Layout2: OutCount = 4u; break;
+		case EHairTextureLayout::Layout3: OutCount = 4u; break;
 	}
-	return 0;
+	check(OutCount <= HAIR_CARDS_MAX_TEXTURE_COUNT);
+	return OutCount;
+}
+
+const TCHAR* GetHairTextureLayoutTextureName(EHairTextureLayout InLayout, uint32 InIndex, bool bDetail)
+{
+	switch (InLayout)
+	{
+		case EHairTextureLayout::Layout0:
+		{
+			check(6 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout0));
+			switch (InIndex)
+			{
+				case 0: return bDetail ? TEXT("Depth\n R8")									: TEXT("Depth");
+				case 1: return bDetail ? TEXT("Coverage\n R8")								: TEXT("Coverage");
+				case 2: return bDetail ? TEXT("Tangent\n RGB8")								: TEXT("Tangent");
+				case 3: return bDetail ? TEXT("Attributes\n RootUV | CoordU | Seed\n RGB8")	: TEXT("Attributes");
+				case 4: return bDetail ? TEXT("Material\n Color | Roughess\n RBGA8 ")		: TEXT("Material");
+				case 5: return bDetail ? TEXT("Auxiliary\n RGBA8")							: TEXT("Auxiliary");
+			}
+		} break;
+		case EHairTextureLayout::Layout1:
+		{
+			check(6 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout1));
+			switch (InIndex)
+			{
+				case 0: return bDetail ? TEXT("Depth\n R8") 								: TEXT("Depth");
+				case 1: return bDetail ? TEXT("Coverage\n R8") 								: TEXT("Coverage");
+				case 2: return bDetail ? TEXT("Tangent\n RGB8") 							: TEXT("Tangent");
+				case 3: return bDetail ? TEXT("Attributes\n RootUV | CoordU | Seed\n RGB8") : TEXT("Attributes");
+				case 4: return bDetail ? TEXT("Material\n Color | GroupID\n RBGA8") 		: TEXT("Material");
+				case 5: return bDetail ? TEXT("Auxiliary\n RGBA8") 							: TEXT("Auxiliary");
+			}
+		} break;
+		case EHairTextureLayout::Layout2:
+		{
+			check(3 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout2));
+			switch (InIndex)
+			{
+				case 0: return bDetail ? TEXT("Tangent | CoordU\n RGBA8")					: TEXT("TangentCoordU");
+				case 1: return bDetail ? TEXT("Coverage | Depth | Seed\n RGB8")				: TEXT("CoverageDepthSeed");
+				case 2: return bDetail ? TEXT("Color | Roughness\n RGBA8")					: TEXT("ColorRoughness");
+			}
+		} break;
+		case EHairTextureLayout::Layout3:
+		{
+			check(4 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout3));
+			switch (InIndex)
+			{
+				case 0: return bDetail ? TEXT("Tangent\n RGB8")								: TEXT("Tangent");
+				case 1: return bDetail ? TEXT("RooUV | CoordU | GroupID\n RGBA8")			: TEXT("RooUVCoordUGroupID");
+				case 2: return bDetail ? TEXT("Coverage | Depth | Seed\n RGB8")				: TEXT("CoverageDepthSeed");
+				case 3: return bDetail ? TEXT("Color | Roughness\n RGBA8")					: TEXT("ColorRoughness");
+			}
+		} break;
+	}
+
+	check(false);
+	return TEXT("Unknown");
 }
