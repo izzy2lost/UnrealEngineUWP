@@ -595,6 +595,11 @@ namespace UnrealBuildTool
 				Arguments.Add("/fastfail");
 			}
 
+			if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bVCExtendedWarningInfo)
+			{
+				Arguments.Add("/d2ExtendedWarningInfo");
+			}
+
 			// Address sanitizer
 			if (Target.WindowsPlatform.bEnableAddressSanitizer)
 			{
@@ -1287,6 +1292,11 @@ namespace UnrealBuildTool
 			if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bVCFastFail && !LinkEnvironment.bPGOOptimize && !LinkEnvironment.bPGOProfile)
 			{
 				Arguments.Add("/fastfail");
+			}
+
+			if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bVCExtendedWarningInfo)
+			{
+				Arguments.Add("/d2:-ExtendedWarningInfo");
 			}
 
 			// Allow for PDBs larger than 4GB

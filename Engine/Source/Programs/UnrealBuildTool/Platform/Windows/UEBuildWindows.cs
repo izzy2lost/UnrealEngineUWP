@@ -308,6 +308,14 @@ namespace UnrealBuildTool
 		public bool bVCFastFail = false;
 
 		/// <summary>
+		/// True if /d2ExtendedWarningInfo should be passed to the compiler and /d2:-ExtendedWarningInfo to the linker
+		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bVCExtendedWarningInfo")]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-VCExtendedWarningInfo")]
+		public bool bVCExtendedWarningInfo = false;
+
+		/// <summary>
 		/// True if optimizations to reduce the size of debug information should be disabled
 		/// See https://clang.llvm.org/docs/UsersManual.html#cmdoption-fstandalone-debug for more information
 		/// </summary>
@@ -794,6 +802,8 @@ namespace UnrealBuildTool
 
 		public bool bVCFastFail => Inner.bVCFastFail;
 
+		public bool bVCExtendedWarningInfo => Inner.bVCExtendedWarningInfo;
+
 		public bool bClangStandaloneDebug => Inner.bClangStandaloneDebug;
 
 		public bool bAllowClangLinker => Inner.bAllowClangLinker;
@@ -1102,6 +1112,9 @@ namespace UnrealBuildTool
 			{
 				Target.bDisableLinking = true;
 				Target.bIgnoreBuildOutputs = true;
+
+				// Enable extended warnings when analyzing
+				Target.WindowsPlatform.bVCExtendedWarningInfo = true;
 			}
 
 			// Disable PCHs for PVS studio analyzer.
