@@ -1,4 +1,4 @@
-
+// Copyright Epic Games, Inc. All Rights Reserved.
 /*=============================================================================
 	ClusteredDeferredShadingPixelShader - applies all local lights in the
 	LightGrid in a full-screen pass, not directional ones as they are done

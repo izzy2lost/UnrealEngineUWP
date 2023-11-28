@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 /*=============================================================================
 	ShaderPrint.ush:
 	Include this to be able to use ShaderPrint with the global uniforms and buffers.

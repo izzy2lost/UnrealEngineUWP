@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 /*=============================================================================
 	ShaderPrintCommon.ush:
 	Include this to be able to call ShaderPrint() from arbitrary shaders.

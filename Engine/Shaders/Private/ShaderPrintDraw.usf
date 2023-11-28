@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 /*=============================================================================
 	ShaderPrintDraw.usf:
 	Shaders to gather contents of the debug value buffer, convert it to 

@@ -1,3 +1,4 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
 #define EYE_ADAPTATION_LOOSE_PARAMETERS 1

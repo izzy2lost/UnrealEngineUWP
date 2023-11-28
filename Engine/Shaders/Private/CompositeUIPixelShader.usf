@@ -1,4 +1,4 @@
-
+// Copyright Epic Games, Inc. All Rights Reserved.
 /*=============================================================================
 CompositeUIPixelShader.usf: Filter pixel shader source.
 =============================================================================*/

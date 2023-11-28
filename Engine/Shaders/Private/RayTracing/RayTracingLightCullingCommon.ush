@@ -1,4 +1,4 @@
-
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================================
 	RayTracingLightCullingCommon.ush: Common functions for culling lights.
