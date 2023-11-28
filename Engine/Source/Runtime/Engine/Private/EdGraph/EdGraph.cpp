@@ -252,6 +252,7 @@ void UEdGraph::SelectNodeSet(TSet<const UEdGraphNode*> NodeSelection, bool bFrom
 
 	SelectionAction.Graph = this;
 	SelectionAction.Nodes = NodeSelection;
+	SelectionAction.bUserInvoked = bFromUI;
 
 	NotifyGraphChanged(SelectionAction);
 }

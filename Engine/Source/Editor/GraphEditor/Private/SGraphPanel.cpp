@@ -2210,17 +2210,17 @@ void SGraphPanel::Update()
 			}
 		}
 
-		// find the last selection action, and execute it
-		for (int32 ActionIndex = UserActions.Num() - 1; ActionIndex >= 0; --ActionIndex)
+		// check the last selection action, and execute it
+		if (!UserSelectedNodes.IsEmpty())
 		{
-			if (UserActions[ActionIndex].Action & GRAPHACTION_SelectNode)
+			DeferredSelectionTargetObjects.Empty();
+			for (TWeakObjectPtr<UEdGraphNode>& NodePtr : UserSelectedNodes)
 			{
-				DeferredSelectionTargetObjects.Empty();
-				for (const UEdGraphNode* Node : UserActions[ActionIndex].Nodes)
+				if (NodePtr.IsValid())
 				{
+					UEdGraphNode* Node = NodePtr.Get();
 					DeferredSelectionTargetObjects.Add(Node);
 				}
-				break;
 			}
 		}
 	}
@@ -2230,8 +2230,8 @@ void SGraphPanel::Update()
 	}
 
 	// Clean out set of added nodes
-	UserAddedNodes.Empty();
-	UserActions.Empty();
+	UserAddedNodes.Reset();
+	UserSelectedNodes.Reset();
 
 	// Invoke any delegate methods
 	OnUpdateGraphPanel.ExecuteIfBound();
@@ -2348,28 +2348,51 @@ void SGraphPanel::OnEndPIE( const bool bIsSimulating )
 
 void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 {
-	const bool bWillPurge = GraphObj->GetSchema()->ShouldAlwaysPurgeOnModification();
-	if (bWillPurge)
+	const bool bShouldPurge = GraphObj->GetSchema()->ShouldAlwaysPurgeOnModification();
+	if (bShouldPurge || EditAction.Action == GRAPHACTION_Default)
 	{
+		if (!bVisualUpdatePending)
+		{
+			PurgeVisualRepresentation();
+
+			const auto RefreshPanelDelegateWrapper = [](double, float, TSharedRef<SGraphPanel> Parent) -> EActiveTimerReturnType
+			{
+				Parent->Update();
+				return EActiveTimerReturnType::Stop;
+			};
+
+			// Trigger the refresh
+			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(RefreshPanelDelegateWrapper, StaticCastSharedRef<SGraphPanel>(AsShared())));
+		}
+
 		if ((EditAction.Graph == GraphObj) &&
 			(EditAction.Nodes.Num() > 0) &&
 			EditAction.bUserInvoked)
 		{
-			int32 ActionIndex = UserActions.Num();
 			if (EditAction.Action & GRAPHACTION_AddNode)
 			{
+				UserAddedNodes.Append(EditAction.Nodes);
+			}
+			if (EditAction.Action & GRAPHACTION_SelectNode)
+			{
+				UserSelectedNodes.Reset();
 				for (const UEdGraphNode* Node : EditAction.Nodes)
 				{
-					UserAddedNodes.Add(Node, ActionIndex);
+					TWeakObjectPtr<UEdGraphNode> NodePtr = MakeWeakObjectPtr(const_cast<UEdGraphNode*>(Node));
+					UserSelectedNodes.Add(NodePtr);
 				}
 			}
-			UserActions.Add(EditAction);
 		}
 	}
 	else if ((EditAction.Graph == GraphObj) && (EditAction.Nodes.Num() > 0) )
 	{
+		// Ensure that any new non-default action(s) get handled here
+		constexpr int32 HandledActionsMask = (GRAPHACTION_AddNode | GRAPHACTION_EditNode | GRAPHACTION_SelectNode | GRAPHACTION_RemoveNode);
+		ensureMsgf((EditAction.Action & ~HandledActionsMask) == 0, TEXT("Unhandled actions: %08x"), EditAction.Action & ~HandledActionsMask);
+
 		// Remove action handled immediately by SGraphPanel::OnGraphChanged
 		const bool bWasAddAction = (EditAction.Action & GRAPHACTION_AddNode) != 0;
+		const bool bWasEditAction = (EditAction.Action & GRAPHACTION_EditNode) != 0;
 		const bool bWasSelectAction = (EditAction.Action & GRAPHACTION_SelectNode) != 0;
 		const bool bWasRemoveAction = (EditAction.Action & GRAPHACTION_RemoveNode) != 0;
 
@@ -2383,7 +2406,7 @@ void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 		// that the timer system requires (and we don't leverage):
 		if (bWasRemoveAction)
 		{
-			const auto RemoveNodeDelegateWrapper = [](double, float, SGraphPanel* Parent, TWeakObjectPtr<UEdGraphNode> NodePtr) -> EActiveTimerReturnType
+			const auto RemoveNodeDelegateWrapper = [](double, float, TSharedRef<SGraphPanel> Parent, TWeakObjectPtr<UEdGraphNode> NodePtr) -> EActiveTimerReturnType
 			{
 				if (NodePtr.IsValid())
 				{
@@ -2396,44 +2419,66 @@ void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 			for (const UEdGraphNode* Node : EditAction.Nodes)
 			{
 				TWeakObjectPtr<UEdGraphNode> NodePtr = MakeWeakObjectPtr(const_cast<UEdGraphNode*>(Node));
-				RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(RemoveNodeDelegateWrapper, this, NodePtr));
+				RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(RemoveNodeDelegateWrapper, StaticCastSharedRef<SGraphPanel>(AsShared()), NodePtr));
 			}
 		}
 		if (bWasAddAction)
 		{
-			const auto AddNodeDelegateWrapper = [](double, float, SGraphPanel* Parent, TWeakObjectPtr<UEdGraphNode> NodePtr, bool bForceUserAdded) -> EActiveTimerReturnType
+			const auto AddNodeDelegateWrapper = [](double, float, TSharedRef<SGraphPanel> Parent, TWeakObjectPtr<UEdGraphNode> NodePtr, bool bForceUserAdded) -> EActiveTimerReturnType
 			{
 				if (NodePtr.IsValid())
 				{
 					UEdGraphNode* Node = NodePtr.Get();
 					if(IsValid(Node))
 					{
-						Parent->RemoveNode(Node);
-						Parent->AddNode(Node, bForceUserAdded ? WasUserAdded : NotUserAdded);
+						if (Parent->bVisualUpdatePending)
+						{
+							if (bForceUserAdded)
+							{
+								Parent->UserAddedNodes.Add(Node);
+							}
+						}
+						else
+						{
+							Parent->RemoveNode(Node);
+							Parent->AddNode(Node, bForceUserAdded ? WasUserAdded : NotUserAdded);
+						}
 					}
 				}
 				return EActiveTimerReturnType::Stop;
 			};
 
+			TSharedRef<SGraphPanel> SharedThis = StaticCastSharedRef<SGraphPanel>(AsShared());
 			for (const UEdGraphNode* Node : EditAction.Nodes)
 			{
 				TWeakObjectPtr<UEdGraphNode> NodePtr = MakeWeakObjectPtr(const_cast<UEdGraphNode*>(Node));
-				RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(AddNodeDelegateWrapper, this, NodePtr, EditAction.bUserInvoked));
+				RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(AddNodeDelegateWrapper, SharedThis, NodePtr, EditAction.bUserInvoked));
 			}
 		}
 		if (bWasSelectAction)
 		{
-			const auto SelectNodeDelegateWrapper = [](double, float, SGraphPanel* Parent, TSet< TWeakObjectPtr<UEdGraphNode> > NodePtrs) -> EActiveTimerReturnType
+			const auto SelectNodeDelegateWrapper = [](double, float, TSharedRef<SGraphPanel> Parent, TSet< TWeakObjectPtr<UEdGraphNode> > NodePtrs, bool bForceUserAdded) -> EActiveTimerReturnType
 			{
-				Parent->DeferredSelectionTargetObjects.Empty();
-				for (TWeakObjectPtr<UEdGraphNode>& NodePtr : NodePtrs)
+				if (Parent->bVisualUpdatePending)
 				{
-					if (NodePtr.IsValid())
+					if (bForceUserAdded)
 					{
-						UEdGraphNode* Node = NodePtr.Get();
-						Parent->DeferredSelectionTargetObjects.Add(Node);
+						Parent->UserSelectedNodes = NodePtrs;
 					}
 				}
+				else
+				{
+					Parent->DeferredSelectionTargetObjects.Empty();
+					for (TWeakObjectPtr<UEdGraphNode>& NodePtr : NodePtrs)
+					{
+						if (NodePtr.IsValid())
+						{
+							UEdGraphNode* Node = NodePtr.Get();
+							Parent->DeferredSelectionTargetObjects.Add(Node);
+						}
+					}
+				}
+				
 				return EActiveTimerReturnType::Stop;
 			};
 
@@ -2444,7 +2489,14 @@ void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 				NodePtrSet.Add(NodePtr);
 			}
 
-			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(SelectNodeDelegateWrapper, this, NodePtrSet));
+			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateStatic(SelectNodeDelegateWrapper, StaticCastSharedRef<SGraphPanel>(AsShared()), NodePtrSet, EditAction.bUserInvoked));
+		}
+		if (bWasEditAction)
+		{
+			for (const UEdGraphNode* Node : EditAction.Nodes)
+			{
+				RefreshNode(const_cast<UEdGraphNode&>(*Node));
+			}
 		}
 	}
 }

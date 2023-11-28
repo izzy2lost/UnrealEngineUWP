@@ -343,11 +343,11 @@ protected:
 	TAttribute<bool> ShowGraphStateOverlay;
 
 private:
-	/** Ordered list of user actions, as they came in */
-	TArray<FEdGraphEditAction> UserActions;
+	/** Set of nodes selected by the user, tracked while a visual update is pending */
+	TSet<TWeakObjectPtr<class UEdGraphNode>> UserSelectedNodes;
 
-	/** Map of recently added nodes for the panel (maps from added nodes to UserActions indices) */
-	TMap<const class UEdGraphNode*, int32> UserAddedNodes;
+	/** Set of user-added nodes for the panel, tracked while a visual update is pending */
+	TSet<const class UEdGraphNode*> UserAddedNodes;
 
 	/** Should the graph display all nodes in a read-only state (grayed)? This does not affect functionality of using them (IsEditable) */
 	TAttribute<bool> DisplayAsReadOnly;
