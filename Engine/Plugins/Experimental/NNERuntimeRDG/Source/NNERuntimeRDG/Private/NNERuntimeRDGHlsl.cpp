@@ -34,6 +34,7 @@
 #include "Hlsl/NNERuntimeRDGShape.h"
 #include "Hlsl/NNERuntimeRDGSize.h"
 #include "Hlsl/NNERuntimeRDGSlice.h"
+#include "Hlsl/NNERuntimeRDGSoftmax.h"
 #include "Hlsl/NNERuntimeRDGSqueeze.h"
 #include "Hlsl/NNERuntimeRDGTranspose.h"
 #include "Hlsl/NNERuntimeRDGUnsqueeze.h"
@@ -47,34 +48,35 @@ int32 UNNERuntimeRDGHlslImpl::Version = 0x00000004;
 
 bool UNNERuntimeRDGHlslImpl::Init()
 {
-	FOperatorRegistryHlsl* registry = FOperatorRegistryHlsl::Get();
-	check(registry != nullptr);
+	FOperatorRegistryHlsl* Registry = FOperatorRegistryHlsl::Get();
+	check(Registry != nullptr);
 
-	RegisterBatchNormalizationOperator(*registry);
-	RegisterCastOperator(*registry);
-	RegisterConvOperator(*registry);
-	RegisterConcatOperator(*registry);
-	RegisterConvTransposeOperator(*registry);
-	RegisterDropoutOperator(*registry);
-	RegisterElementWiseBinaryOperators(*registry);
-	RegisterElementWiseUnaryOperators(*registry);
-	RegisterElementWiseVariadicOperators(*registry);
-	RegisterFlattenOperator(*registry);
-	RegisterGatherOperator(*registry);
-	RegisterGemmOperator(*registry);
-	RegisterIdentityOperator(*registry);
-	RegisterInstanceNormalizationOperator(*registry);
-	RegisterPadOperator(*registry);
-	RegisterPoolOperators(*registry);
-	RegisterReshapeOperator(*registry);
-	RegisterShapeOperator(*registry);
-	RegisterSizeOperator(*registry);
-	RegisterSliceOperator(*registry);
-	RegisterSqueezeOperator(*registry);
-	RegisterTransposeOperator(*registry);
-	RegisterUnsqueezeOperator(*registry);
-	RegisterUpsampleOperator(*registry);
-	RegisterMatMulOperator(*registry);
+	RegisterBatchNormalizationOperator(*Registry);
+	RegisterCastOperator(*Registry);
+	RegisterConvOperator(*Registry);
+	RegisterConcatOperator(*Registry);
+	RegisterConvTransposeOperator(*Registry);
+	RegisterDropoutOperator(*Registry);
+	RegisterElementWiseBinaryOperators(*Registry);
+	RegisterElementWiseUnaryOperators(*Registry);
+	RegisterElementWiseVariadicOperators(*Registry);
+	RegisterFlattenOperator(*Registry);
+	RegisterGatherOperator(*Registry);
+	RegisterGemmOperator(*Registry);
+	RegisterIdentityOperator(*Registry);
+	RegisterInstanceNormalizationOperator(*Registry);
+	RegisterPadOperator(*Registry);
+	RegisterPoolOperators(*Registry);
+	RegisterReshapeOperator(*Registry);
+	RegisterShapeOperator(*Registry);
+	RegisterSizeOperator(*Registry);
+	RegisterSliceOperator(*Registry);
+	RegisterSoftmaxOperator(*Registry);
+	RegisterSqueezeOperator(*Registry);
+	RegisterTransposeOperator(*Registry);
+	RegisterUnsqueezeOperator(*Registry);
+	RegisterUpsampleOperator(*Registry);
+	RegisterMatMulOperator(*Registry);
 
 	return true;
 }
