@@ -1238,12 +1238,10 @@ void UObject::ConditionalPostLoad()
 {
 	LLM_SCOPE(ELLMTag::UObject);
 
-	check(!GEventDrivenLoaderEnabled || !HasAnyFlags(RF_NeedLoad)); //@todoio Added this as "nicks rule"
-									  // PostLoad only if the object needs it and has already been serialized
-	//@todoio note this logic should be unchanged compared to main
+	ensureAlways((GetLoaderType() != ELoaderType::ZenLoader) || !HasAnyFlags(RF_NeedLoad));
+
 	if (HasAnyFlags(RF_NeedPostLoad))
 	{
-
 		check(IsInGameThread() || HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject) || IsPostLoadThreadSafe() || IsA(UClass::StaticClass()))
 		UE_TRACK_REFERENCING_PACKAGE_SCOPED(this, PackageAccessTrackingOps::NAME_PostLoad);
 
