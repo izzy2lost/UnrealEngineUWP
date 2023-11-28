@@ -54,7 +54,7 @@ public class DisplayClusterProjection : ModuleRules
 
 	public void AddThirdPartyDependencies(ReadOnlyTargetRules ROTargetRules)
 	{
-		string ThirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "../../ThirdParty/"));
+		string ThirdPartyPath = Path.Combine(PluginDirectory, "Source", "ThirdParty");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{

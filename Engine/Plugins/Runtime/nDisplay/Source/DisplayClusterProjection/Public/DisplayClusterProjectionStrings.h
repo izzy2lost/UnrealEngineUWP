@@ -165,18 +165,6 @@ namespace DisplayClusterProjectionStrings
 		}
 	}
 
-	namespace ThirdParty
-	{
-		static constexpr const TCHAR* PluginName = TEXT("nDisplay");
-
-		namespace VIOSO
-		{
-			static constexpr const TCHAR* Path = TEXT("ThirdParty/VIOSO/DLL");
-			static constexpr const TCHAR* DLL = TEXT("ViosoWarpBlend64.dll");
-		}
-
-	}
-
 	namespace projection
 	{
 		static constexpr const TCHAR* Camera         = TEXT("camera");

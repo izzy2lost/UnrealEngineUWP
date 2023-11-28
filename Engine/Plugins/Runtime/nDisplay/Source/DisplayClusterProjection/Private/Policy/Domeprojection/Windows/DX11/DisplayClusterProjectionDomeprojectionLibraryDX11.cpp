@@ -68,7 +68,7 @@ bool DisplayClusterProjectionDomeprojectionLibraryDX11::Initialize()
 			bInitializeOnce = true;
 
 			const FString PluginDir = IPluginManager::Get().FindPlugin(TEXT("nDisplay"))->GetBaseDir();
-			const FString DllPath = FPaths::Combine(PluginDir, TEXT("ThirdParty/Domeprojection/DLL"));
+			const FString DllPath = FPaths::Combine(PluginDir, TEXT("Source/ThirdParty/Domeprojection/DLL"));
 
 			const FString LibName   = TEXT("dpLib.dll");
 			

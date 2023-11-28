@@ -61,8 +61,8 @@ void FDisplayClusterProjectionVIOSOLibrary::ReleaseDLL()
 
 FDisplayClusterProjectionVIOSOLibrary::FDisplayClusterProjectionVIOSOLibrary()
 {
-	const FString PluginDir = IPluginManager::Get().FindPlugin(DisplayClusterProjectionStrings::ThirdParty::PluginName)->GetBaseDir();
-	const FString DllPath   = FPaths::Combine(PluginDir, DisplayClusterProjectionStrings::ThirdParty::VIOSO::Path, DisplayClusterProjectionStrings::ThirdParty::VIOSO::DLL);
+	const FString PluginDir = IPluginManager::Get().FindPlugin(TEXT("nDisplay"))->GetBaseDir();
+	const FString DllPath   = FPaths::Combine(PluginDir, TEXT("Source/ThirdParty"), TEXT("VIOSO/DLL/ViosoWarpBlend64.dll"));
 	
 	VIOSO_DLL_Handler = FPlatformProcess::GetDllHandle(*DllPath);
 	if (VIOSO_DLL_Handler)

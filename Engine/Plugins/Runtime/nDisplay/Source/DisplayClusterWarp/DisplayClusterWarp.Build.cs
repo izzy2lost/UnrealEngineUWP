@@ -46,14 +46,14 @@ public class DisplayClusterWarp : ModuleRules
 
 	public void AddThirdPartyDependencies(ReadOnlyTargetRules ROTargetRules)
 	{
-		string ThirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "../../ThirdParty/"));
+		string ThirdPartyPath = Path.Combine(PluginDirectory, "Source", "ThirdParty");
 
 		string PathLib = string.Empty;
 		string PathInc = string.Empty;
 
 		// MPCDI
-		PathLib = Path.Combine(ThirdPartyPath, "MPCDI/Lib");
-		PathInc = Path.Combine(ThirdPartyPath, "MPCDI/Include");
+		PathLib = Path.Combine(ThirdPartyPath, "MPCDI", "Lib");
+		PathInc = Path.Combine(ThirdPartyPath, "MPCDI", "Include");
 
 		// Libs
 		if (Target.Platform == UnrealTargetPlatform.Win64)

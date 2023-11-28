@@ -65,7 +65,7 @@ bool DisplayClusterProjectionEasyBlendLibraryDX11::Initialize()
 
 			const FString LibName   = TEXT("mplEasyBlendSDKDX1164.dll");
 			const FString PluginDir = IPluginManager::Get().FindPlugin(TEXT("nDisplay"))->GetBaseDir();
-			const FString DllPath   = FPaths::Combine(PluginDir, TEXT("ThirdParty/EasyBlend/DLL"), LibName);
+			const FString DllPath   = FPaths::Combine(PluginDir, TEXT("Source/ThirdParty/EasyBlend/DLL"), LibName);
 			
 			// Try to load DLL
 			DllHandle = FPlatformProcess::GetDllHandle(*DllPath);
