@@ -972,6 +972,8 @@ void BuildVertexBuffer(
 
 	float VertexComparisonThreshold = BuildSettings.bRemoveDegenerates ? THRESH_POINTS_ARE_SAME : 0.0f;
 
+	bool bUseLegacyTangentScaling = StaticMesh->GetLegacyTangentScaling();
+
 	int32 WedgeIndex = 0;
 	for (const FTriangleID TriangleID : MeshDescription.Triangles().GetElementIDs())
 	{
@@ -1011,8 +1013,18 @@ void BuildVertexBuffer(
 			PendingVertex.Position = VertexPosition * BuildScale;
 			if (bNeedTangents)
 			{
-				PendingVertex.TangentX = VertexInstanceTangent / BuildScale;
-				PendingVertex.TangentY = ( (VertexInstanceNormal ^ VertexInstanceTangent) * VertexInstanceBinormalSign ) / BuildScale;
+				if (bUseLegacyTangentScaling)
+				{
+					// Apply incorrect inverse scale to tangents to match an old bug, for legacy assets only
+					PendingVertex.TangentX = VertexInstanceTangent / BuildScale;
+					PendingVertex.TangentY = ((VertexInstanceNormal ^ VertexInstanceTangent) * VertexInstanceBinormalSign) / BuildScale;
+				}
+				else
+				{
+					// Tangents should transform by directly applying the same scale as the geometry; it's only the normal that needs an inverse scale
+					PendingVertex.TangentX = VertexInstanceTangent * BuildScale;
+					PendingVertex.TangentY = ((VertexInstanceNormal ^ VertexInstanceTangent) * VertexInstanceBinormalSign) * BuildScale;
+				}
 				PendingVertex.TangentX.Normalize();
 				PendingVertex.TangentY.Normalize();
 			}

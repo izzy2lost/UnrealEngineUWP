@@ -22,6 +22,7 @@
 #include "UObject/DevObjectVersion.h"
 #include "UObject/DebugSerializationFlags.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UObjectAnnotation.h"
 #include "EngineUtils.h"
 #include "Engine/AssetUserData.h"
@@ -2693,9 +2694,14 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 	}
 
 	int32 NumLODs = Mesh->GetNumSourceModels();
+	bool bHasNonUniformBuildScale = false;
 	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
 		FStaticMeshSourceModel& SrcModel = Mesh->GetSourceModel(LODIndex);
+		if (!SrcModel.BuildSettings.BuildScale3D.AllComponentsEqual())
+		{
+			bHasNonUniformBuildScale = true;
+		}
 		
 		check(SrcModel.RawMeshBulkData->IsEmpty());
 		if (!SrcModel.GetMeshDescriptionBulkData()->IsEmpty())
@@ -2729,6 +2735,15 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 			ByteToHex(SettingsAsBytes[ByteIndex], KeySuffix);
 		}
 	}
+
+	// Note: this ifdef is for consistency/generality but this whole function is part of a giant multi-thousand-line editor-only block
+#if WITH_EDITORONLY_DATA
+	if (bHasNonUniformBuildScale) // intentionally only affect key suffix if there is actual non-uniform scaling; otherwise legacy tangent scaling has no effect
+	{
+		KeySuffix += "LTS";
+		KeySuffix.AppendChar(Mesh->GetLegacyTangentScaling() ? TEXT('1') : TEXT('0'));
+	}
+#endif
 
 	// Add hi-res mesh description into DDC key
 	if (!Mesh->GetHiResSourceModel().GetMeshDescriptionBulkData()->IsEmpty())
@@ -3333,6 +3348,7 @@ UStaticMesh::UStaticMesh(const FObjectInitializer& ObjectInitializer)
 	NumStreamedLODs.Default = -1;
 	GetHiResSourceModel().StaticMeshDescriptionBulkData = CreateDefaultSubobject<UStaticMeshDescriptionBulkData>(TEXT("HiResMeshDescription"));
 	GetHiResSourceModel().StaticMeshDescriptionBulkData->SetFlags(RF_Transactional);
+	SetLegacyTangentScaling(false);
 #endif // #if WITH_EDITORONLY_DATA
 	SetLightMapResolution(4);
 	SetMinLOD(0);
@@ -5558,6 +5574,7 @@ void UStaticMesh::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FReleaseObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
 	FStripDataFlags StripFlags( Ar );
 
@@ -5833,6 +5850,24 @@ void UStaticMesh::Serialize(FArchive& Ar)
 		}
 	}
 #endif // WITH_EDITOR
+
+#if WITH_EDITORONLY_DATA
+	if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::FixedTangentTransformForNonuniformBuildScale)
+	{
+		bool bHasNonUniformSourceModel = false;
+		int32 NumSourceModels = GetNumSourceModels();
+		for (int32 LODIndex = 0; LODIndex < NumSourceModels; ++LODIndex)
+		{
+			const FStaticMeshSourceModel& SourceModel = GetSourceModel(LODIndex);
+			if (!SourceModel.BuildSettings.BuildScale3D.AllComponentsEqual())
+			{
+				bHasNonUniformSourceModel = true;
+			}
+		}
+		// Only set the flag to use incorrect tangents if the asset had non-uniform scaling on a source model
+		SetLegacyTangentScaling(bHasNonUniformSourceModel);
+	}
+#endif // WITH_EDITORONLY_DATA
 }
 
 bool UStaticMesh::IsPostLoadThreadSafe() const

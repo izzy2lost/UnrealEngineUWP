@@ -393,6 +393,9 @@ struct FFortniteMainBranchObjectVersion
 		// Add anim notify rate scaling, defaults to on for new content, off for old content
 		AnimNotifyAddRateScale,
 
+		// Fix tangents for non-uniform build scales, and add a flag to optionally match the previous (incorrect) tangents
+		FixedTangentTransformForNonuniformBuildScale,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

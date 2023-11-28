@@ -72,6 +72,7 @@ enum class EStaticMeshAsyncProperties : uint32
 	LightMapCoordinateIndex = 1 << 16,
 	LightMapResolution      = 1 << 17,
 	HiResSourceModel		= 1 << 18,
+	UseLegacyTangentScaling = 1 << 19,
 
 	All                     = MAX_uint32
 };
@@ -118,6 +119,8 @@ inline const TCHAR* ToString(EStaticMeshAsyncProperties Value)
 			return TEXT("LightMapResolution");
 		case EStaticMeshAsyncProperties::HiResSourceModel:
 			return TEXT("HiResSourceModel");
+		case EStaticMeshAsyncProperties::UseLegacyTangentScaling:
+			return TEXT("UseLegacyTangentScaling");
 		default: 
 			check(false); 
 			return TEXT("Unknown");
@@ -1071,6 +1074,31 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh)
 	uint8 bSupportPhysicalMaterialMasks : 1;
+
+#if WITH_EDITORONLY_DATA
+private:
+	// If true, will incorrectly scale tangents when applying a non-uniform BuildScale to match what legacy code did. Only use for consistency on old assets.
+	UE_DEPRECATED(5.4, "Please do not access this member directly; use UStaticMesh::GetLegacyTangentScaling() or UStaticMesh::SetLegacyTangentScaling().")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh)
+	uint8 bUseLegacyTangentScaling : 1;
+public:
+
+	bool GetLegacyTangentScaling() const
+	{
+		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::UseLegacyTangentScaling);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return bUseLegacyTangentScaling;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	void SetLegacyTangentScaling(bool bInUseLegacyTangentScaling)
+	{
+		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::UseLegacyTangentScaling);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		bUseLegacyTangentScaling = bInUseLegacyTangentScaling;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+#endif // WITH_EDITORONLY_DATA
 
 	/**
 	 * If true, a ray tracing acceleration structure will be built for this mesh and it may be used in ray tracing effects
