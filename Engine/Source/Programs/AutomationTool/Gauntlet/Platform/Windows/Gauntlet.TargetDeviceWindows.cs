@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using AutomationTool;
 using UnrealBuildTool;
 using System.Text.RegularExpressions;
@@ -13,321 +10,40 @@ using static AutomationTool.ProcessResult;
 
 namespace Gauntlet
 {
-
-	public abstract class LocalAppProcess : IAppInstance
-	{
-		public IProcessResult ProcessResult { get; private set; }
-
-		public bool HasExited { get { return ProcessResult.HasExited; } }
-
-		public bool WasKilled { get; protected set; }
-
-		public string StdOut { get { return string.IsNullOrEmpty(ProcessLogFile) ? ProcessResult.Output : ProcessLogOutput; } }
-
-		public int ExitCode { get { return ProcessResult.ExitCode; } }
-
-		public string CommandLine { get; private set; }
-
-		public LocalAppProcess(IProcessResult InProcess, string InCommandLine, string InProcessLogFile = null)
-		{
-			this.CommandLine = InCommandLine;
-			this.ProcessResult = InProcess;
-			this.ProcessLogFile = InProcessLogFile;
-
-			// start reader thread if logging to a file
-			if (!string.IsNullOrEmpty(InProcessLogFile))
-			{
-				new System.Threading.Thread(LogFileReaderThread).Start();
-			}
-		}
-
-		public int WaitForExit()
-		{
-			if (!HasExited)
-			{
-				ProcessResult.WaitForExit();
-			}
-
-			return ExitCode;
-		}
-
-		virtual public void Kill()
-		{
-			if (!HasExited)
-			{
-				WasKilled = true;
-				ProcessResult.ProcessObject.Kill(true);
-			}
-		}
-
-		/// <summary>
-		/// Reader thread when logging to file
-		/// </summary>
-		void LogFileReaderThread()
-		{
-			// Wait for the processes log file to be created
-			while (!File.Exists(ProcessLogFile) && !HasExited)
-			{
-				Thread.Sleep(2000);
-			}
-
-			// Check whether the process exited before log file was created (this can happen for example if a server role exits and forces client to shutdown)
-			if (!File.Exists(ProcessLogFile))
-			{
-				ProcessLogOutput += "Process exited before log file created";
-				return;
-			}
-
-			Thread.Sleep(1000);
-
-			using (FileStream ProcessLog = File.Open(ProcessLogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-			{
-				StreamReader LogReader = new StreamReader(ProcessLog);
-				// Read until the process has exited
-				do
-				{
-					Thread.Sleep(250);
-
-					while (!LogReader.EndOfStream)
-					{
-						string Output = LogReader.ReadToEnd();
-
-						if (!string.IsNullOrEmpty(Output))
-						{
-							ProcessLogOutput += Output;
-						}
-					}
-				}
-				while (!HasExited);
-
-				LogReader.Close();
-				ProcessLog.Close();
-				ProcessLog.Dispose();
-			}
-		}
-
-
-		public abstract string ArtifactPath { get; }
-
-		public abstract ITargetDevice Device { get; }
-
-		string ProcessLogFile;
-		string ProcessLogOutput = "";		
-	}
-
-	class WindowsAppInstance : LocalAppProcess
-	{
-		protected WindowsAppInstall Install;
-
-		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
-			: base(InProcess, InInstall.CommandArguments, ProcessLogFile)
-		{
-			Install = InInstall;
-		}
-
-		public override string ArtifactPath
-		{
-			get
-			{
-				return Install.ArtifactPath;
-			}
-		}
-
-		public override ITargetDevice Device
-		{
-			get
-			{
-				return Install.Device;
-			}
-		}
-	}
-
-
-	public class WindowsAppInstall : IAppInstall, IAppInstall.IDynamicCommandLine
-	{
-		public string Name { get; private set; }
-
-		public string WorkingDirectory;
-
-		public string ExecutablePath;
-
-		public bool CanAlterCommandArgs = true;
-
-		public string CommandArguments
-		{
-			get { return CommandArgumentsPrivate; }
-			set
-			{
-				if (CanAlterCommandArgs || string.IsNullOrEmpty(CommandArgumentsPrivate))
-				{
-					CommandArgumentsPrivate = value;
-				}
-				else
-				{
-					Log.Info("Skipped setting command AppInstall line when CanAlterCommandArgs = false");
-				}
-			}
-		}
-		private string CommandArgumentsPrivate;
-
-		public string ArtifactPath;
-
-		public string ProjectName;
-
-		public TargetDeviceWindows WinDevice { get; private set; }
-
-		public ITargetDevice Device { get { return WinDevice; } }
-
-		public CommandUtils.ERunOptions RunOptions { get; set; }
-
-		public WindowsAppInstall(string InName, string InProjectName, TargetDeviceWindows InDevice)
-		{
-			Name = InName;
-			ProjectName = InProjectName;
-			WinDevice = InDevice;
-			CommandArguments = "";
-			this.RunOptions = CommandUtils.ERunOptions.NoWaitForExit;
-		}
-
-		public IAppInstance Run()
-		{
-			return Device.Run(this);
-		}
-
-		public void AppendCommandline(string AdditionalCommandline)
-		{
-			CommandArguments += AdditionalCommandline;
-		}
-
-		public bool ForceCleanDeviceArtifacts()
-		{
-			DirectoryInfo ClientTempDirInfo = new DirectoryInfo(ArtifactPath) { Attributes = FileAttributes.Normal };
-			Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Setting files in device artifacts {0} to have normal attributes (no longer read-only).", ArtifactPath);
-			foreach (FileSystemInfo info in ClientTempDirInfo.GetFileSystemInfos("*", SearchOption.AllDirectories))
-			{
-				info.Attributes = FileAttributes.Normal;
-			}
-			try
-			{
-				Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Clearing device artifact path {0} (force)", ArtifactPath);
-				Directory.Delete(ArtifactPath, true);
-			}
-			catch (Exception Ex)
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to force delete artifact path {File}. {Exception}", ArtifactPath, Ex.Message);
-				return false;
-			}
-			return true;
-		}
-
-		public virtual void CleanDeviceArtifacts()
-		{
-			if (!string.IsNullOrEmpty(ArtifactPath) && Directory.Exists(ArtifactPath))
-			{
-				try
-				{
-					Log.Info("Clearing device artifacts path {0} for {1}", ArtifactPath, Device.Name);
-					Directory.Delete(ArtifactPath, true);
-				}
-				catch (Exception Ex)
-				{
-					Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "First attempt at clearing artifact path {0} failed - trying again", ArtifactPath);
-					if (!ForceCleanDeviceArtifacts())
-					{
-						Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to delete {File}. {Exception}", ArtifactPath, Ex.Message);
-					}
-				}
-			}
-		}
-	}
-
-	public interface IWindowsSelfInstallingBuild
-	{
-		WindowsAppInstall Install(TargetDeviceWindows TargetDevice, UnrealAppConfig AppConfig, out string BasePath);
-	}
-
-	public class Win64DeviceFactory : IDeviceFactory
-	{
-		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
-		{
-			return Platform == UnrealTargetPlatform.Win64;
-		}
-
-		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam = null)
-		{
-			return new TargetDeviceWindows(InRef, InCachePath);
-		}
-	}
-
 	/// <summary>
 	/// Win32/64 implementation of a device to run applications
 	/// </summary>
-	public class TargetDeviceWindows : ITargetDevice
+	public class TargetDeviceWindows : TargetDeviceDesktopCommon
 	{
-		public string Name { get; protected set; }
-
-		protected string UserDir { get; set; }
-
-		/// <summary>
-		/// Our mappings of Intended directories to where they actually represent on this platform.
-		/// </summary>
-		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings { get; set; }
-
 		public TargetDeviceWindows(string InName, string InCacheDir)
+			: base(InName, InCacheDir)
 		{
-			Name = InName;
-			LocalCachePath = InCacheDir;
+			Platform = UnrealTargetPlatform.Win64;
 			RunOptions = CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.NoLoggingOfRunCommand;
-
-			UserDir = Path.Combine(LocalCachePath, "UserDir");
-            LocalDirectoryMappings = new Dictionary<EIntendedBaseCopyDirectory, string>();
 		}
 
-		#region IDisposable Support
-		private bool disposedValue = false; // To detect redundant calls
-
-		protected virtual void Dispose(bool disposing)
+		public override IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
-			if (!disposedValue)
+			switch (AppConfig.Build)
 			{
-				if (disposing)
-				{
-					// TODO: dispose managed state (managed objects).
-				}
+				case NativeStagedBuild:
+					return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
 
-				// TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-				// TODO: set large fields to null.
+				case StagedBuild:
+					return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
 
-				disposedValue = true;
+				case EditorBuild:
+					return InstallEditorBuild(AppConfig, AppConfig.Build as EditorBuild);
+
+				case IWindowsSelfInstallingBuild:
+					return InstallSelfInstallingBuild(AppConfig, AppConfig.Build as IWindowsSelfInstallingBuild);
+
+				default:
+					throw new AutomationException("{0} is an invalid build type!", AppConfig.Build.ToString());
 			}
 		}
 
-		// This code added to correctly implement the disposable pattern.
-		public void Dispose()
-		{
-			// Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-			Dispose(true);
-			// TODO: uncomment the following line if the finalizer is overridden above.
-			// GC.SuppressFinalize(this);
-		}
-		#endregion
-
-		public CommandUtils.ERunOptions RunOptions { get; set; }
-
-        // We care about UserDir in windows as some of the roles may require files going into user instead of build dir.
-        public void PopulateDirectoryMappings(string BasePath, string UserDir)
-		{
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Build, Path.Combine(BasePath, "Build"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Binaries, Path.Combine(BasePath, "Binaries"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Config, Path.Combine(BasePath, "Saved", "Config"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Content, Path.Combine(BasePath, "Content"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Demos, Path.Combine(UserDir, "Saved", "Demos"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.PersistentDownloadDir, Path.Combine(BasePath, "Saved", "PersistentDownloadDir"));
-			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Profiling, Path.Combine(BasePath, "Saved", "Profiling"));
-            LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, Path.Combine(BasePath, "Saved"));
-		}
-
-        public IAppInstance Run(IAppInstall App)
+		public override IAppInstance Run(IAppInstall App)
 		{
 			WindowsAppInstall WinApp = App as WindowsAppInstall;
 
@@ -410,7 +126,7 @@ namespace Gauntlet
 				Result = CommandUtils.Run(WinApp.ExecutablePath,
 					CmdLine,
 					Options: FinalRunOptions,
-					SpewFilterCallback: new SpewFilterCallbackType(M => { return ProcessLogFile == null ? M : null ; }) /* make sure stderr does not spew in the stdout */,
+					SpewFilterCallback: new SpewFilterCallbackType(M => { return ProcessLogFile == null ? M : null; }) /* make sure stderr does not spew in the stdout */,
 					WorkingDir: WinApp.WorkingDirectory);
 
 				if (Result.HasExited && Result.ExitCode != 0)
@@ -424,39 +140,7 @@ namespace Gauntlet
 			return new WindowsAppInstance(WinApp, Result, ProcessLogFile);
 		}
 
-		private void CopyAdditionalFiles(UnrealAppConfig AppConfig)
-		{
-			if (AppConfig.FilesToCopy != null)
-			{
-				foreach (UnrealFileToCopy FileToCopy in AppConfig.FilesToCopy)
-				{
-					string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
-					if (File.Exists(FileToCopy.SourceFileLocation))
-					{
-						FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
-						SrcInfo.IsReadOnly = false;
-						string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
-						if (!Directory.Exists(DirectoryToCopyTo))
-						{
-							Directory.CreateDirectory(DirectoryToCopyTo);
-						}
-						if (File.Exists(PathToCopyTo))
-						{
-							FileInfo ExistingFile = new FileInfo(PathToCopyTo);
-							ExistingFile.IsReadOnly = false;
-						}
-						SrcInfo.CopyTo(PathToCopyTo, true);
-						Log.Info("Copying {0} to {1}", FileToCopy.SourceFileLocation, PathToCopyTo);
-					}
-					else
-					{
-						Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
-					}
-				}
-			}
-		}
-
-		protected IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
+		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
 		{
 			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 			WinApp.CanAlterCommandArgs = AppConfig.CanAlterCommandArgs;
@@ -479,11 +163,11 @@ namespace Gauntlet
 			return WinApp;
 		}
 
-		protected IAppInstall InstallStagedBuild(UnrealAppConfig AppConfig, StagedBuild InBuild)
+		protected override IAppInstall InstallStagedBuild(UnrealAppConfig AppConfig, StagedBuild InBuild)
 		{
 			string BuildPath = InBuild.BuildPath;
 
-			if (CanRunFromPath(BuildPath) == false)
+			if (Utils.SystemHelpers.IsNetworkPath(BuildPath))
 			{
 				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
 				string BasePath = string.IsNullOrEmpty(AppConfig.DestLocalInstallDir) ? this.LocalCachePath : AppConfig.DestLocalInstallDir;
@@ -527,14 +211,14 @@ namespace Gauntlet
 			// clear artifact path
 			WinApp.CleanDeviceArtifacts();
 
-            if (LocalDirectoryMappings.Count == 0)
-            {
-                PopulateDirectoryMappings(Path.Combine(BuildPath, AppConfig.ProjectName), UserDir);
-            }
+			if (LocalDirectoryMappings.Count == 0)
+			{
+				PopulateDirectoryMappings(Path.Combine(BuildPath, AppConfig.ProjectName));
+			}
 
 			CopyAdditionalFiles(AppConfig);
 
-            if (Path.IsPathRooted(InBuild.ExecutablePath))
+			if (Path.IsPathRooted(InBuild.ExecutablePath))
 			{
 				WinApp.ExecutablePath = InBuild.ExecutablePath;
 			}
@@ -569,9 +253,26 @@ namespace Gauntlet
 			return WinApp;
 		}
 
-		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
+		protected override IAppInstall InstallEditorBuild(UnrealAppConfig AppConfig, EditorBuild Build)
 		{
+			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 
+			WinApp.WorkingDirectory = Path.GetDirectoryName(Build.ExecutablePath);
+			WinApp.RunOptions = RunOptions;
+
+			// Force this to stop logs and other artifacts going to different places
+			WinApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
+			WinApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
+			WinApp.ExecutablePath = Build.ExecutablePath;
+
+			if (LocalDirectoryMappings.Count == 0)
+			{
+				PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
+			}
+
+			CopyAdditionalFiles(AppConfig);
+
+			return WinApp;
 		}
 
 		protected IAppInstall InstallSelfInstallingBuild(UnrealAppConfig AppConfig, IWindowsSelfInstallingBuild Build)
@@ -597,90 +298,68 @@ namespace Gauntlet
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
-				PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName), UserDir);
+				PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName));
 			}
 
 			CopyAdditionalFiles(AppConfig);
 			return WinApp;
 		}
+	}
 
+	public class WindowsAppInstall : DesktopCommonAppInstall<TargetDeviceWindows>, IAppInstall.IDynamicCommandLine
+	{
+		public bool CanAlterCommandArgs;
 
-		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
+		[Obsolete("Will be removed in a future release. Use 'DesktopDevice' instead.")]
+		public TargetDeviceWindows WinDevice => DesktopDevice;
+
+		public override string CommandArguments
 		{
-			if (AppConfig.Build is NativeStagedBuild)
+			get { return CommandArgumentsPrivate; }
+			set
 			{
-				return InstallNativeStagedBuild(AppConfig, AppConfig.Build as NativeStagedBuild);
+				if (CanAlterCommandArgs || string.IsNullOrEmpty(CommandArgumentsPrivate))
+				{
+					CommandArgumentsPrivate = value;
+				}
+				else
+				{
+					Log.Info("Skipped setting command AppInstall line when CanAlterCommandArgs = false");
+				}
 			}
-			else if (AppConfig.Build is StagedBuild)
-			{
-				return InstallStagedBuild(AppConfig, AppConfig.Build as StagedBuild);
-			}
-			else if (AppConfig.Build is IWindowsSelfInstallingBuild)
-			{
-				return InstallSelfInstallingBuild(AppConfig, AppConfig.Build as IWindowsSelfInstallingBuild);
-			}
-
-			EditorBuild EditorBuild = AppConfig.Build as EditorBuild;
-
-			if (EditorBuild == null)
-			{
-				throw new AutomationException("Invalid build type!");
-			}
-
-			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
-
-			WinApp.WorkingDirectory = Path.GetDirectoryName(EditorBuild.ExecutablePath);
-			WinApp.RunOptions = RunOptions;
-
-			// Force this to stop logs and other artifacts going to different places
-			WinApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
-			WinApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
-			WinApp.ExecutablePath = EditorBuild.ExecutablePath;
-
-			if (LocalDirectoryMappings.Count == 0)
-			{
-				PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName, AppConfig.ProjectFile.Directory.FullName);
-			}
-
-			CopyAdditionalFiles(AppConfig);
-
-			return WinApp;
 		}
 
-		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
-		{
+		private string CommandArgumentsPrivate;
 
+		public WindowsAppInstall(string InName, string InProjectName, TargetDeviceWindows InDevice)
+			: base(InName, InProjectName, InDevice)
+		{
+			CanAlterCommandArgs = true;
 		}
 
-		public bool CanRunFromPath(string InPath)
+		public void AppendCommandline(string AdditionalCommandline)
 		{
-			return !Utils.SystemHelpers.IsNetworkPath(InPath);
+			CommandArguments += AdditionalCommandline;
+		}
+	}
+
+	public class WindowsAppInstance : DesktopCommonAppInstance<WindowsAppInstall, TargetDeviceWindows>
+	{
+		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
+			: base(InInstall, InProcess, ProcessLogFile)
+		{ }
+	}
+
+	public class Win64DeviceFactory : IDeviceFactory
+	{
+		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
+		{
+			return Platform == UnrealTargetPlatform.Win64;
 		}
 
-		public UnrealTargetPlatform? Platform { get { return UnrealTargetPlatform.Win64; } }
-
-		public string LocalCachePath { get; private set; }
-		public bool IsAvailable { get { return true; } }
-		public bool IsConnected { get { return true; } }
-		public bool IsOn { get { return true; } }
-		public bool PowerOn() { return true; }
-		public bool PowerOff() { return true; }
-		public bool Reboot() { return true; }
-		public bool Connect() { return true; }
-		public bool Disconnect(bool bForce = false) { return true; }
-
-		public override string ToString()
+		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam = null)
 		{
-			return Name;
-		}
-
-		public Dictionary<EIntendedBaseCopyDirectory, string> GetPlatformDirectoryMappings()
-		{
-			if (LocalDirectoryMappings.Count == 0)
-			{
-				Log.Warning("Platform directory mappings have not been populated for this platform! This should be done within InstallApplication()");
-			}
-			return LocalDirectoryMappings;
+			return new TargetDeviceWindows(InRef, InCachePath);
 		}
 	}
 }

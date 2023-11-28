@@ -225,8 +225,8 @@ namespace Gauntlet.SelfTest
 
 			TargetDeviceWindows ClientDevice = (TargetDeviceWindows)Session.UnrealDeviceReservation.ReservedDevices[0];
 			TargetDeviceWindows ServerDevice = (TargetDeviceWindows)Session.UnrealDeviceReservation.ReservedDevices[1];
-			ClientDevice.PopulateDirectoryMappings(Path.Combine(BuildPath, "WindowsClient", ProjectName), Path.Combine(ClientDevice.LocalCachePath, "UserDir"));
-			ServerDevice.PopulateDirectoryMappings(Path.Combine(BuildPath, "WindowsServer", ProjectName), Path.Combine(ServerDevice.LocalCachePath, "UserDir"));
+			ClientDevice.PopulateDirectoryMappings(Path.Combine(BuildPath, "WindowsClient", ProjectName));
+			ServerDevice.PopulateDirectoryMappings(Path.Combine(BuildPath, "WindowsServer", ProjectName));
 
 			// SessionInstance
 			UnrealSessionInstance.RoleInstance ClientRoleInstance = new(Client, GetAppInstanceForDevice(ClientDevice, Build.BuildName));
