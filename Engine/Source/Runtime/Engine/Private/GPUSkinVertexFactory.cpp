@@ -404,10 +404,19 @@ bool FGPUBaseSkinVertexFactory::UseUnlimitedBoneInfluences(uint32 MaxBoneInfluen
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	if (TargetPlatform)
 	{
-		TSharedPtr<IConsoleVariable> VariablePtr = CVarUnlimitedBoneInfluencesThreshold->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
-		if (VariablePtr.IsValid())
+		const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+		const bool bIsRunningPlatform = RunningPlatform == TargetPlatform;
+		if (bIsRunningPlatform)
 		{
-			UnlimitedBoneInfluencesThreshold = (uint32)VariablePtr->GetInt();
+			UnlimitedBoneInfluencesThreshold = CVarUnlimitedBoneInfluencesThreshold->GetInt();
+		}
+		else
+		{
+			TSharedPtr<IConsoleVariable> VariablePtr = CVarUnlimitedBoneInfluencesThreshold->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
+			if (VariablePtr.IsValid())
+			{
+				UnlimitedBoneInfluencesThreshold = (uint32)VariablePtr->GetInt();
+			}
 		}
 	}
 #endif
@@ -420,10 +429,19 @@ bool FGPUBaseSkinVertexFactory::GetUnlimitedBoneInfluences(const ITargetPlatform
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	if (TargetPlatform)
 	{
-		TSharedPtr<IConsoleVariable> VariablePtr = CVarUnlimitedBoneInfluences->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
-		if (VariablePtr.IsValid())
+		const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+		const bool bIsRunningPlatform = RunningPlatform == TargetPlatform;
+		if (bIsRunningPlatform)
 		{
-			return VariablePtr->GetBool();
+			return CVarUnlimitedBoneInfluences->GetBool();
+		}
+		else
+		{
+			TSharedPtr<IConsoleVariable> VariablePtr = CVarUnlimitedBoneInfluences->GetPlatformValueVariable(*TargetPlatform->IniPlatformName());
+			if (VariablePtr.IsValid())
+			{
+				return VariablePtr->GetBool();
+			}
 		}
 	}
 #endif
