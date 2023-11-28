@@ -4,6 +4,15 @@
 #include "TelemetryUtils.h"
 #include "Misc/ScopeRWLock.h"
 
+#if DO_CHECK
+thread_local bool TelemetryRouterReentrancyGuard = false;
+#endif
+
+void FTelemetryRouter::CheckNotReentrant()
+{
+    check(TelemetryRouterReentrancyGuard == 0);
+}
+
 FTelemetryRouter::FTelemetryRouter()
 {
 }
@@ -19,8 +28,11 @@ FTelemetryRouter& FTelemetryRouter::Get()
 
 void FTelemetryRouter::ProvideTelemetryInternal(FGuid Key, FMemoryView Data) 
 {
+    CheckNotReentrant();
     FReadScopeLock Lock(SinkLock);
-    //TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
+#if DO_CHECK
+    TGuardValue Guard(TelemetryRouterReentrancyGuard, true);
+#endif
     FSinkSet* Sinks = KeyToSinks.Find(Key);
     if (Sinks)
     {
@@ -43,8 +55,11 @@ void FTelemetryRouter::ProvideTelemetryInternal(FGuid Key, FMemoryView Data)
 
 void FTelemetryRouter::RegisterTelemetrySinkInternal(FGuid Key, SIZE_T Size, FDelegateHandle InHandle, TFunction<bool(FMemoryView)> Sink)
 {
+    CheckNotReentrant();
     FWriteScopeLock Lock(SinkLock);
-    //TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
+#if DO_CHECK
+    TGuardValue Guard(TelemetryRouterReentrancyGuard, true);
+#endif
     FTelemetryRouter::FSinkSet* Sinks = KeyToSinks.Find(Key);
     if (!Sinks)
     {
@@ -60,8 +75,11 @@ void FTelemetryRouter::RegisterTelemetrySinkInternal(FGuid Key, SIZE_T Size, FDe
 
 void FTelemetryRouter::UnregisterTelemetrySinkInternal(FGuid Key, FDelegateHandle InHandle)
 {
+    CheckNotReentrant();
     FWriteScopeLock Lock(SinkLock);
-    //TGuardValue Guard(ReentrancyGuard, FPlatformTLS::GetCurrentThreadId());
+#if DO_CHECK
+    TGuardValue Guard(TelemetryRouterReentrancyGuard, true);
+#endif
     FTelemetryRouter::FSinkSet* Sinks = KeyToSinks.Find(Key);
     if (Sinks)
     {
