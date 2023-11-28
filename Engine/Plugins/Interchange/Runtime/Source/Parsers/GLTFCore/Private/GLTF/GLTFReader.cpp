@@ -1337,6 +1337,8 @@ namespace GLTF
 			}
 			
 			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("The same Joint(s) are used in multiple Skins with multiple different InverseBindMatrix values, which is not supported. Ignoring InverseBindMatrices for the entire Import. Offending Joints' Names: %s."), *OffendingJointsNamesString));
+			
+			Asset->HasAbnormalInverseBindMatrices = true;
 
 			return;
 		}

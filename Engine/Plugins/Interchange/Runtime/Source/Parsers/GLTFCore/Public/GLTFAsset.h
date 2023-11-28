@@ -108,6 +108,7 @@ namespace GLTF
 		TSet<EExtension> ProcessedExtensions;
 		FMetadata        Metadata;
 
+		bool             HasAbnormalInverseBindMatrices = false; //True: in cases where at least 1 Joint node has multiple InverseBindMatrices that do not equal.
 
 		/**
 		 * Will clear the asset's buffers.
