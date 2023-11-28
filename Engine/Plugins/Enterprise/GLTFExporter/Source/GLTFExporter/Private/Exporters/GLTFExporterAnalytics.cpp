@@ -110,21 +110,14 @@ void FGLTFExporterAnalytics::GetAttributesFromProperty(const FProperty* Property
 	else if (const FMapProperty* MapProperty = CastField<FMapProperty>(Property))
 	{
 		FScriptMapHelper Helper(MapProperty, ValuePtr);
-		int32 RemainingPairs = Helper.Num();
+		OutAttributes.Emplace(AttributeName, Helper.Num() > 0);
 
-		OutAttributes.Emplace(AttributeName, RemainingPairs > 0);
-
-		for (int32 Index = 0; RemainingPairs > 0; ++Index)
+		for (FScriptMapHelper::FIterator It(Helper); It; ++It)
 		{
-			if (Helper.IsValidIndex(Index))
-			{
-				FString KeyString;
-				MapProperty->KeyProp->ExportTextItem_Direct(KeyString, Helper.GetKeyPtr(Index), nullptr, nullptr, PPF_None);
+			FString KeyString;
+			MapProperty->KeyProp->ExportTextItem_Direct(KeyString, Helper.GetKeyPtr(It), nullptr, nullptr, PPF_None);
 
-				GetAttributesFromProperty(MapProperty->ValueProp, Helper.GetValuePtr(Index), AttributeName + TEXT(".") + KeyString, OutAttributes);
-
-				--RemainingPairs;
-			}
+			GetAttributesFromProperty(MapProperty->ValueProp, Helper.GetValuePtr(It), AttributeName + TEXT(".") + KeyString, OutAttributes);
 		}
 	}
 	else if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))

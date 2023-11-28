@@ -160,26 +160,20 @@ void FFindInstancedReferenceSubobjectHelper::ForEachInstancedSubObject(FInstance
 			return;
 		}
 
-		int32 LogicalIndex = 0;
 		FScriptMapHelper MapHelper(MapProperty, ContainerAddress);
-		for (int32 ElementIndex = 0; ElementIndex < MapHelper.GetMaxIndex(); ++ElementIndex)
+		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 		{
-			if (MapHelper.IsValidIndex(ElementIndex))
-			{
-				T KeyAddress = MapHelper.GetKeyPtr(ElementIndex);
-				T ValueAddress = MapHelper.GetValuePtr(ElementIndex);
+			T KeyAddress = MapHelper.GetKeyPtr(It);
+			T ValueAddress = MapHelper.GetValuePtr(It);
 
-				// Note: Keep these as the logical (Nth) index in case the map changes internally after we construct the path or in case we resolve using a different object.
-				PropertyPath.Push(MapProperty->KeyProp, LogicalIndex);
-				ForEachInstancedSubObject(PropertyPath, KeyAddress, ObjRefFunc);
-				PropertyPath.Pop();
+			// Note: Keep these as the logical (Nth) index in case the map changes internally after we construct the path or in case we resolve using a different object.
+			PropertyPath.Push(MapProperty->KeyProp, It.GetLogicalIndex());
+			ForEachInstancedSubObject(PropertyPath, KeyAddress, ObjRefFunc);
+			PropertyPath.Pop();
 
-				PropertyPath.Push(MapProperty->ValueProp, LogicalIndex, true);
-				ForEachInstancedSubObject(PropertyPath, ValueAddress, ObjRefFunc);
-				PropertyPath.Pop();
-
-				++LogicalIndex;
-			}
+			PropertyPath.Push(MapProperty->ValueProp, It.GetLogicalIndex(), true);
+			ForEachInstancedSubObject(PropertyPath, ValueAddress, ObjRefFunc);
+			PropertyPath.Pop();
 		}
 	}
 	else if (const FSetProperty* SetProperty = CastField<const FSetProperty>(TargetProp))
@@ -190,21 +184,15 @@ void FFindInstancedReferenceSubobjectHelper::ForEachInstancedSubObject(FInstance
 			return;
 		}
 
-		int32 LogicalIndex = 0;
 		FScriptSetHelper SetHelper(SetProperty, ContainerAddress);
-		for (int32 ElementIndex = 0; ElementIndex < SetHelper.GetMaxIndex(); ++ElementIndex)
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
 		{
-			if (SetHelper.IsValidIndex(ElementIndex))
-			{
-				T ValueAddress = SetHelper.GetElementPtr(ElementIndex);
+			T ValueAddress = SetHelper.GetElementPtr(It);
 
-				// Note: Keep this as the logical (Nth) index in case the set changes internally after we construct the path or in case we resolve using a different object.
-				PropertyPath.Push(SetProperty->ElementProp, LogicalIndex);
-				ForEachInstancedSubObject(PropertyPath, ValueAddress, ObjRefFunc);
-				PropertyPath.Pop();
-
-				++LogicalIndex;
-			}
+			// Note: Keep this as the logical (Nth) index in case the set changes internally after we construct the path or in case we resolve using a different object.
+			PropertyPath.Push(SetProperty->ElementProp, It.GetLogicalIndex());
+			ForEachInstancedSubObject(PropertyPath, ValueAddress, ObjRefFunc);
+			PropertyPath.Pop();
 		}
 	}
 	else if (const FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(TargetProp))

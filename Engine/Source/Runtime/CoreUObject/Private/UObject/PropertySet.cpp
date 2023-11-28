@@ -17,38 +17,35 @@ namespace UESetProperty_Private
 	/**
 	 * Checks if any of the elements in the set compare equal to the one passed.
 	 *
-	 * @param  SetHelper  The set to search through.
-	 * @param  Index      The index in the set to start searching from.
-	 * @param  Num        The number of elements to compare.
+	 * @param  SetHelper    The set to search through.
+	 * @param  LogicalIndex The index in the set to start searching from.
+	 * @param  Num          The number of elements to compare.
 	 */
-	bool AnyEqual(const FScriptSetHelper& SetHelper, int32 Index, int32 Num, const uint8* ElementToCompare, uint32 PortFlags)
+	bool AnyEqual(const FScriptSetHelper& SetHelper, const int32 LogicalIndex, int32 Num, const uint8* ElementToCompare, uint32 PortFlags)
 	{
-		FProperty* ElementProp = SetHelper.GetElementProperty();
+		const FProperty* ElementProp = SetHelper.GetElementProperty();
 
-		for (; Num; --Num)
+		FScriptSetHelper::FIterator Iterator(SetHelper, LogicalIndex);
+		for (; Iterator && Num; --Num, ++Iterator)
 		{
-			while (!SetHelper.IsValidIndex(Index))
-			{
-				++Index;
-			}
-
-			if (ElementProp->Identical(SetHelper.GetElementPtr(Index), ElementToCompare, PortFlags))
+			if (ElementProp->Identical(SetHelper.GetElementPtr(Iterator), ElementToCompare, PortFlags))
 			{
 				return true;
 			}
-
-			++Index;
 		}
 
 		return false;
 	}
 
-	bool RangesContainSameAmountsOfVal(const FScriptSetHelper& SetHelperA, int32 IndexA, const FScriptSetHelper& SetHelperB, int32 IndexB, int32 Num, const uint8* ElementToCompare, uint32 PortFlags)
+	bool RangesContainSameAmountsOfVal(const FScriptSetHelper& SetHelperA, const int32 LogicalIndexA, const FScriptSetHelper& SetHelperB, const int32 LogicalIndexB, int32 Num, const uint8* ElementToCompare, uint32 PortFlags)
 	{
-		FProperty* ElementProp = SetHelperA.GetElementProperty();
+		const FProperty* ElementProp = SetHelperA.GetElementProperty();
 
 		// Ensure that both sets are the same type
 		check(ElementProp == SetHelperB.GetElementProperty());
+
+		FScriptSetHelper::FIterator IteratorA(SetHelperA, LogicalIndexA);
+		FScriptSetHelper::FIterator IteratorB(SetHelperB, LogicalIndexB);
 
 		int32 CountA = 0;
 		int32 CountB = 0;
@@ -59,18 +56,8 @@ namespace UESetProperty_Private
 				return CountA == CountB;
 			}
 
-			while (!SetHelperA.IsValidIndex(IndexA))
-			{
-				++IndexA;
-			}
-
-			while (!SetHelperB.IsValidIndex(IndexB))
-			{
-				++IndexB;
-			}
-
-			const uint8* ElementA = SetHelperA.GetElementPtr(IndexA);
-			const uint8* ElementB = SetHelperB.GetElementPtr(IndexB);
+			const uint8* ElementA = SetHelperA.GetElementPtr(IteratorA);
+			const uint8* ElementB = SetHelperB.GetElementPtr(IteratorB);
 			if (ElementProp->Identical(ElementA, ElementToCompare, PortFlags))
 			{
 				++CountA;
@@ -81,15 +68,15 @@ namespace UESetProperty_Private
 				++CountB;
 			}
 
-			++IndexA;
-			++IndexB;
+			++IteratorA;
+			++IteratorB;
 			--Num;
 		}
 	}
 
-	bool IsPermutation(const FScriptSetHelper& SetHelperA, const FScriptSetHelper& SetHelperB, uint32 PortFlags)
+	bool IsPermutation(const FScriptSetHelper& SetHelperA, const FScriptSetHelper& SetHelperB, const uint32 PortFlags)
 	{
-		FProperty* ElementProp = SetHelperA.GetElementProperty();
+		const FProperty* ElementProp = SetHelperA.GetElementProperty();
 
 		// Ensure that both maps are the same type
 		check(ElementProp == SetHelperB.GetElementProperty());
@@ -101,8 +88,8 @@ namespace UESetProperty_Private
 		}
 
 		// Skip over common initial sequence
-		int32 IndexA = 0;
-		int32 IndexB = 0;
+		FScriptSetHelper::FIterator IteratorA(SetHelperA);
+		FScriptSetHelper::FIterator IteratorB(SetHelperB);
 		for (;;)
 		{
 			if (Num == 0)
@@ -110,34 +97,24 @@ namespace UESetProperty_Private
 				return true;
 			}
 
-			while (!SetHelperA.IsValidIndex(IndexA))
-			{
-				++IndexA;
-			}
-
-			while (!SetHelperB.IsValidIndex(IndexB))
-			{
-				++IndexB;
-			}
-
-			const uint8* ElementA = SetHelperA.GetElementPtr(IndexA);
-			const uint8* ElementB = SetHelperB.GetElementPtr(IndexB);
+			const uint8* ElementA = SetHelperA.GetElementPtr(IteratorA);
+			const uint8* ElementB = SetHelperB.GetElementPtr(IteratorB);
 			if (!ElementProp->Identical(ElementA, ElementB, PortFlags))
 			{
 				break;
 			}
 
-			++IndexA;
-			++IndexB;
+			++IteratorA;
+			++IteratorB;
 			--Num;
 		}
 
-		int32 FirstIndexA = IndexA;
-		int32 FirstIndexB = IndexB;
-		int32 FirstNum    = Num;
+		const int32 FirstIndexA = IteratorA.GetLogicalIndex();
+		const int32 FirstIndexB = IteratorB.GetLogicalIndex();
+		const int32 FirstNum    = Num;
 		for (;;)
 		{
-			const uint8* ElementA = SetHelperA.GetElementPtr(IndexA);
+			const uint8* ElementA = SetHelperA.GetElementPtr(IteratorA);
 			if (!AnyEqual(SetHelperA, FirstIndexA, FirstNum - Num, ElementA, PortFlags) && !RangesContainSameAmountsOfVal(SetHelperA, FirstIndexA, SetHelperB, FirstIndexB, FirstNum, ElementA, PortFlags))
 			{
 				return false;
@@ -149,12 +126,7 @@ namespace UESetProperty_Private
 				return true;
 			}
 
-			++IndexA;
-			while (!SetHelperA.IsValidIndex(IndexA))
-			{
-				++IndexA;
-			}
-
+			++IteratorA;
 		}
 	}
 }
@@ -432,18 +404,12 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		// Determine how many keys are missing from the object
 		if (Defaults)
 		{
-			for (int32 Index = 0, Count = DefaultsHelper.Num(); Count; ++Index)
+			for (FScriptSetHelper::FIterator Iterator(DefaultsHelper); Iterator; ++Iterator)
 			{
-				uint8* DefaultElementPtr = DefaultsHelper.GetElementPtrWithoutCheck(Index);
-
-				if (DefaultsHelper.IsValidIndex(Index))
+				const uint8* DefaultElementPtr = DefaultsHelper.GetElementPtr(Iterator);
+				if (SetHelper.FindElementIndex(DefaultElementPtr) == INDEX_NONE)
 				{
-					if (SetHelper.FindElementIndex(DefaultElementPtr) == INDEX_NONE)
-					{
-						Indices.Add(Index);
-					}
-
-					--Count;
+					Indices.Add(Iterator.GetInternalIndex());
 				}
 			}
 		}
@@ -464,19 +430,14 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		if (Defaults)
 		{
 			Indices.Reset();
-			for (int32 Index = 0, Count = SetHelper.Num(); Count; ++Index)
+			for (FScriptSetHelper::FIterator Iterator(SetHelper); Iterator; ++Iterator)
 			{
-				if (SetHelper.IsValidIndex(Index))
+				const uint8* ValueElement = SetHelper.GetElementPtr(Iterator);
+				const uint8* DefaultElement = DefaultsHelper.FindElementPtr(ValueElement);
+
+				if (!DefaultElement)
 				{
-					uint8* ValueElement   = SetHelper.GetElementPtrWithoutCheck(Index);
-					uint8* DefaultElement = DefaultsHelper.FindElementPtr(ValueElement);
-
-					if (!DefaultElement)
-					{
-						Indices.Add(Index);
-					}
-
-					--Count;
+					Indices.Add(Iterator.GetInternalIndex());
 				}
 			}
 
@@ -498,16 +459,11 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			FStructuredArchive::FArray ElementsArray = Record.EnterArray(TEXT("Elements"), Num);
 
 			FSerializedPropertyScope SerializedProperty(UnderlyingArchive, ElementProp, this);
-			for (int32 Index = 0; Num; ++Index)
+
+			for (FScriptSetHelper::FIterator Iterator(SetHelper); Iterator; ++Iterator)
 			{
-				if (SetHelper.IsValidIndex(Index))
-				{
-					uint8* ElementPtr = SetHelper.GetElementPtrWithoutCheck(Index);
-
-					ElementProp->SerializeItem(ElementsArray.EnterElement(), ElementPtr);
-
-					--Num;
-				}
+				uint8* ElementPtr = SetHelper.GetElementPtr(Iterator);
+				ElementProp->SerializeItem(ElementsArray.EnterElement(), ElementPtr);
 			}
 		}
 	}
@@ -903,31 +859,20 @@ void FSetProperty::InstanceSubobjects(void* Data, void const* DefaultData, UObje
 	{
 		FScriptSetHelper DefaultSetHelper(this, DefaultData);
 
-		for (int32 Index = 0, Num = SetHelper.Num(); Num; ++Index)
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
 		{
-			if (SetHelper.IsValidIndex(Index))
-			{
-				uint8* ElementPtr        = SetHelper.GetElementPtr(Index);
-				uint8* DefaultElementPtr = DefaultSetHelper.FindElementPtr(ElementPtr, Index);
+			uint8* ElementPtr = SetHelper.GetElementPtr(It);
+			const uint8* DefaultElementPtr = DefaultSetHelper.FindElementPtr(ElementPtr, It.GetLogicalIndex());
 
-				ElementProp->InstanceSubobjects(ElementPtr, DefaultElementPtr, InOwner, InstanceGraph);
-
-				--Num;
-			}
+			ElementProp->InstanceSubobjects(ElementPtr, DefaultElementPtr, InOwner, InstanceGraph);
 		}
 	}
 	else
 	{
-		for (int32 Index = 0, Num = SetHelper.Num(); Num; ++Index)
+		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
 		{
-			if (SetHelper.IsValidIndex(Index))
-			{
-				uint8* ElementPtr = SetHelper.GetElementPtr(Index);
-
-				ElementProp->InstanceSubobjects(ElementPtr, nullptr, InOwner, InstanceGraph);
-
-				--Num;
-			}
+			uint8* ElementPtr = SetHelper.GetElementPtr(It);
+			ElementProp->InstanceSubobjects(ElementPtr, nullptr, InOwner, InstanceGraph);
 		}
 	}
 }
@@ -1124,22 +1069,16 @@ void FSetProperty::GetInnerFields(TArray<FField*>& OutFields)
 	}
 }
 
-void* FSetProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 Index) const
+void* FSetProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, const int32 LogicalIndex) const
 {
-	FScriptSetHelper SetHelper(this, InValueAddress);
 	checkf(Inner == ElementProp, TEXT("Inner property must be identical to ElementProp"));
 
-	for (int32 SetIndex = 0, Num = SetHelper.Num(), LocalIndex = Index; LocalIndex >= 0 && Num > 0; ++SetIndex)
+	FScriptSetHelper SetHelper(this, InValueAddress);
+	const int32 InternalIndex = SetHelper.FindInternalIndex(LogicalIndex);
+	if (InternalIndex != INDEX_NONE)
 	{
-		if (SetHelper.IsValidIndex(SetIndex))
-		{
-			if (LocalIndex == 0)
-			{
-				return SetHelper.GetElementPtr(SetIndex);
-			}
-			LocalIndex--;
-			Num--;
-		}
+		return SetHelper.GetElementPtrWithoutCheck(InternalIndex);
 	}
+
 	return nullptr;
 }
