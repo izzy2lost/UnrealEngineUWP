@@ -980,7 +980,11 @@ public:
 		FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 		TShaderMapRef<FIcvfxWarpVS> VertexShader(ShaderMap, RenderPassData.VSPermutationVector);
 		TShaderMapRef<FIcvfxPassthroughPS> PixelShader(ShaderMap);
-
+		if (!VertexShader.IsValid() || !PixelShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return false;
+		}
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		// Set the graphic pipeline state.

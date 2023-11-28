@@ -90,8 +90,11 @@ public:
 			return;
 		}
 
-		Shaders.TryGetVertexShader(PassShaders.VertexShader);
-		Shaders.TryGetPixelShader(PassShaders.PixelShader);
+		if (!Shaders.TryGetVertexShader(PassShaders.VertexShader) || !Shaders.TryGetPixelShader(PassShaders.PixelShader))
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
 
 		FMeshDrawingPolicyOverrideSettings OverrideSettings = GetMeshOverrideSettings(MeshBatch);
 		ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(*Material, OverrideSettings);
@@ -189,8 +192,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5)
-			&& Parameters.VertexFactoryType == FindVertexFactoryType(TEXT("FLocalVertexFactory"));
+		return Parameters.VertexFactoryType == FindVertexFactoryType(TEXT("FLocalVertexFactory"));
 	}
 
 	void GetShaderBindings(
@@ -242,8 +244,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5)
-			&& Parameters.VertexFactoryType == FindVertexFactoryType(TEXT("FLocalVertexFactory"));
+		return Parameters.VertexFactoryType == FindVertexFactoryType(TEXT("FLocalVertexFactory"));
 	}
 
 	void GetShaderBindings(
@@ -410,13 +411,13 @@ class FMeshProjectionHitProxyPS : public FMeshMaterialShader
 public:
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 	{
-		// Only compile the hit proxy shader on desktop editor platforms
-		return IsPCPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData)
+		// Only compile the hit proxy shader on editor platforms
+		return EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData)
 			// and only compile for default materials or materials that are masked.
-			&& (Parameters.MaterialParameters.bIsSpecialEngineMaterial ||
-				!Parameters.MaterialParameters.bWritesEveryPixel ||
-				Parameters.MaterialParameters.bMaterialMayModifyMeshPosition ||
-				Parameters.MaterialParameters.bIsTwoSided);
+			&&
+			( !Parameters.MaterialParameters.bWritesEveryPixel
+			|| Parameters.MaterialParameters.bMaterialMayModifyMeshPosition
+			|| Parameters.MaterialParameters.bIsTwoSided);
 	}
 
 	FMeshProjectionHitProxyPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer):
@@ -527,7 +528,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsPCPlatform(Parameters.Platform) && IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		return true;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -580,7 +581,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsPCPlatform(Parameters.Platform) && IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		return true;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -613,7 +614,7 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return IsPCPlatform(Parameters.Platform) && IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		return true;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -651,8 +652,8 @@ public:
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		// Only PC platforms render editor primitives.
-		return IsPCPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		// Compile the selection outline shader only on editor platforms
+		return EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
 	}
 };
 
@@ -1013,6 +1014,11 @@ void FDisplayClusterMeshProjectionRenderer::RenderColorOutput(FRDGBuilder& Graph
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(View->FeatureLevel);
 		TShaderMapRef<FScreenPassVS> ScreenPassVS(GlobalShaderMap);
 		TShaderMapRef<FCopyRectPS> CopyPixelShader(GlobalShaderMap);
+		if (!ScreenPassVS.IsValid() || !CopyPixelShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
 
 		FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
 		const FScreenPassTextureViewport RegionViewport(OutputRenderTargetBinding.GetTexture());
@@ -1044,8 +1050,6 @@ void FDisplayClusterMeshProjectionRenderer::RenderHitProxyOutput(FRDGBuilder& Gr
 	FRenderTargetBinding& OutputRenderTargetBinding,
 	FHitProxyConsumer* HitProxyConsumer)
 {
-
-
 	FRDGTextureDesc Desc(FRDGTextureDesc::Create2D(OutputRenderTargetBinding.GetTexture()->Desc.Extent, PF_B8G8R8A8, FClearValueBinding::Black, TexCreate_RenderTargetable | TexCreate_ShaderResource));
 	FRDGTextureRef HitProxyTexture = GraphBuilder.CreateTexture(Desc, TEXT("DisplayClusterMeshProjection.HitProxyTexture"));
 
@@ -1067,6 +1071,11 @@ void FDisplayClusterMeshProjectionRenderer::RenderHitProxyOutput(FRDGBuilder& Gr
 		FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(View->FeatureLevel);
 		TShaderMapRef<FScreenPassVS> ScreenPassVS(GlobalShaderMap);
 		TShaderMapRef<FCopyRectPS> CopyPixelShader(GlobalShaderMap);
+		if (!ScreenPassVS.IsValid() || !CopyPixelShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
 
 		FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
 		const FScreenPassTextureViewport RegionViewport(OutputRenderTargetBinding.GetTexture());
@@ -1269,6 +1278,11 @@ void AddSeparableFilterPass(FRDGBuilder& GraphBuilder,
 	}
 
 	TShaderMapRef<FMeshProjectionNormalsFilterCS<FilterType>> ComputeShader(GlobalShaderMap);
+	if (!ComputeShader.IsValid())
+	{
+		// Always check if shaders are available on the current platform and hardware
+		return;
+	}
 
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
@@ -1345,6 +1359,11 @@ void FDisplayClusterMeshProjectionRenderer::AddNormalsFilterPass(FRDGBuilder& Gr
 		PassParameters->NormalCorrectionMatrix = NormalCorrectionMatrix;
 
 		TShaderMapRef<FMeshProjectionNormalsCreateRWTexturesCS> ComputeShader(GlobalShaderMap);
+		if (!ComputeShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -1387,6 +1406,11 @@ void FDisplayClusterMeshProjectionRenderer::AddNormalsFilterPass(FRDGBuilder& Gr
 
 		TShaderMapRef<FScreenPassVS> ScreenPassVS(GlobalShaderMap);
 		TShaderMapRef<FMeshProjectionNormalsOutputPS> OutputNormalsPS(GlobalShaderMap);
+		if (!ScreenPassVS.IsValid() || !OutputNormalsPS.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return;
+		}
 
 		FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
 
@@ -1463,6 +1487,11 @@ void FDisplayClusterMeshProjectionRenderer::AddSelectionOutlineScreenPass(FRDGBu
 
 	TShaderMapRef<FScreenPassVS> ScreenPassVS(GlobalShaderMap);
 	TShaderMapRef<FMeshProjectionSelectionOutlinePS> SelectionOutlinePS(GlobalShaderMap);
+	if (!ScreenPassVS.IsValid() || !SelectionOutlinePS.IsValid())
+	{
+		// Always check if shaders are available on the current platform and hardware
+		return;
+	}
 
 	FRHIBlendState* DefaultBlendState = FScreenPassPipelineState::FDefaultBlendState::GetRHI();
 

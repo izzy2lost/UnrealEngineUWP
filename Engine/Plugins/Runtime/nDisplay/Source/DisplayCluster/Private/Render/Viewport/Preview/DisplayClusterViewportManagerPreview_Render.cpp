@@ -58,23 +58,24 @@ int32 FDisplayClusterViewportManagerPreview::RenderClusterNodePreview(const int3
 			FSceneViewFamily& ViewFamily = *ViewportsViewFamily[0];
 
 			if (InSceneCanvas)
-	{
+			{
 				GetRendererModule().BeginRenderingViewFamily(InSceneCanvas, &ViewFamily);
-		}
+			}
 			else
 			{
-				FCanvas Canvas((FRenderTarget*)ViewportsViewFamily[0]->RenderTarget, nullptr, CurrentWorld, ERHIFeatureLevel::SM5, FCanvas::CDM_DeferDrawing /*FCanvas::CDM_ImmediateDrawing*/, 1.0f);
+				const ERHIFeatureLevel::Type FeatureLevel = CurrentWorld ? CurrentWorld->GetFeatureLevel() : GMaxRHIFeatureLevel;
+				FCanvas Canvas((FRenderTarget*)ViewportsViewFamily[0]->RenderTarget, nullptr, CurrentWorld, FeatureLevel, FCanvas::CDM_DeferDrawing /*FCanvas::CDM_ImmediateDrawing*/, 1.0f);
 				Canvas.Clear(FLinearColor::Black);
 
 				GetRendererModule().BeginRenderingViewFamily(&Canvas, &ViewFamily);
 			}
 
 			if (GNumExplicitGPUsForRendering > 1)
-		{
+			{
 				const FRHIGPUMask SubmitGPUMask = ViewFamily.Views.Num() == 1 ? ViewFamily.Views[0]->GPUMask : FRHIGPUMask::All();
 				ENQUEUE_RENDER_COMMAND(UDisplayClusterViewportClient_SubmitCommandList)(
 					[SubmitGPUMask](FRHICommandListImmediate& RHICmdList)
-			{
+					{
 						SCOPED_GPU_MASK(RHICmdList, SubmitGPUMask);
 						RHICmdList.SubmitCommandsHint();
 					});
@@ -83,11 +84,11 @@ int32 FDisplayClusterViewportManagerPreview::RenderClusterNodePreview(const int3
 			ViewportsViewFamily.RemoveAt(0);
 			OutViewportsAmount--;
 
-			}
+		}
 
 		// After all viewports we render compose
 		if (OutViewportsAmount > 0)
-			{
+		{
 			OutViewportsAmount--;
 
 			// Handle special viewports game-thread logic at frame end
@@ -102,7 +103,7 @@ int32 FDisplayClusterViewportManagerPreview::RenderClusterNodePreview(const int3
 
 			// Send event about cluster node rendering is finished
 			OnClusterNodePreviewGenerated.ExecuteIfBound(Configuration->GetClusterNodeId());
-			}
+		}
 	}
 
 	return OutViewportsAmount;

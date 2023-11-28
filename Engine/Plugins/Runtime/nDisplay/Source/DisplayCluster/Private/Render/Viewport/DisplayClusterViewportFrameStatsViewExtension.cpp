@@ -113,7 +113,10 @@ FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPa
 
 	// Render frame stats to a small render target to minimize shader costs
 	// Note: As a further optimization, this could be renderered once per view family.
+	if(VertexShader.IsValid())
 	{
+		// Always check if shaders are available on the current platform and hardware
+
 		const FScreenPassTextureViewport Viewport(TextureFrameStats);
 		FRenderTargetBinding FrameStatsRenderTargetBinding(TextureFrameStats, ERenderTargetLoadAction::EClear);
 
@@ -133,12 +136,18 @@ FScreenPassTexture FDisplayClusterViewportFrameStatsViewExtension::PostProcessPa
 		Output = FScreenPassRenderTarget::CreateFromInput(GraphBuilder, SceneColor, View.GetOverwriteLoadAction(), TEXT("DisplayCluster.FrameStatsOutput"));
 	}
 
+	TShaderMapRef<FDisplayClusterFrameStatsOutputShader> OutputPixelShader(ShaderMap);
+	if (!VertexShader.IsValid() || !OutputPixelShader.IsValid())
+	{
+		// Always check if shaders are available on the current platform and hardware
+		return Output;
+	}
+
 	// Render output composited with frame stats texture
 	{
 		const FScreenPassTextureViewport InputViewport(SceneColor);
 		const FScreenPassTextureViewport OutputViewport(Output);
 
-		TShaderMapRef<FDisplayClusterFrameStatsOutputShader> OutputPixelShader(ShaderMap);
 		FDisplayClusterFrameStatsOutputShaderParameters* Parameters = GraphBuilder.AllocParameters<FDisplayClusterFrameStatsOutputShaderParameters>();
 		Parameters->InputTexture = SceneColor.Texture;
 		Parameters->InputTextureSampler = TStaticSamplerState<>::GetRHI();

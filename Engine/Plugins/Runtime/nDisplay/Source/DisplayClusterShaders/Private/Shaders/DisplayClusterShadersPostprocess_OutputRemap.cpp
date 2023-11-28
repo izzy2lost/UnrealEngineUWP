@@ -172,6 +172,11 @@ bool FDisplayClusterShadersPostprocess_OutputRemap::RenderPostprocess_OutputRema
 
 		TShaderMapRef<FOutputRemapVS> VertexShader(GlobalShaderMap);
 		TShaderMapRef<FOutputRemapPS> PixelShader(GlobalShaderMap);
+		if (!VertexShader.IsValid() || !PixelShader.IsValid())
+		{
+			// Always check if shaders are available on the current platform and hardware
+			return false;
+		}
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
 		// Set the graphic pipeline state.

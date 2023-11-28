@@ -171,6 +171,11 @@ namespace UE::DisplayCluster::ViewportProxy
 			FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 			TShaderMapRef<FScreenVS> VertexShader(ShaderMap);
 			TShaderMapRef<TScreenPixelShader> PixelShader(ShaderMap);
+			if (!VertexShader.IsValid() || !PixelShader.IsValid())
+			{
+				// Always check if shaders are available on the current platform and hardware
+				return;
+			}
 
 			GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
 			GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
