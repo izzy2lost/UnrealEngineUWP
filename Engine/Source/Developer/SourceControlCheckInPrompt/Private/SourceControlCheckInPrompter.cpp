@@ -182,6 +182,13 @@ bool FSourceControlCheckInPrompter::IsPromptAllowed() const
 		return false;
 	}
 
+	// Ensure the project activation time applies to the current project.
+	FString SourceControlProjectDir = ISourceControlModule::Get().GetSourceControlProjectDir();
+	if (ProjectDirectory != SourceControlProjectDir)
+	{
+		return false;
+	}
+
 	// Ensure the user has been active in that world for a sufficient amount of time.
 	if (FDateTime::UtcNow() - IntervalSessionLength < ProjectActivationTime)
 	{
