@@ -1426,9 +1426,12 @@ void FCustomizableObjectCompiler::ForceFinishCompilation()
 {
 	if (CompileTask.IsValid())
 	{
-		if (CompileThread.IsValid())
+		// Compilation needs game thread tasks every now and then. Wait for compilation to finish while
+		// giving execution time for these tasks.
+		// TODO: interruptible compilations?
+		while (!CompileTask->IsCompleted())
 		{
-			CompileThread->WaitForCompletion();
+			FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
 		}
 
 		CleanCachedReferencers();
