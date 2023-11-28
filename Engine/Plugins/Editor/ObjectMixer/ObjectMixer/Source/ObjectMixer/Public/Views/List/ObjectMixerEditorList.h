@@ -175,7 +175,7 @@ public:
 	
 	/** Represents the collections the user has selected in the UI. If empty, "All" is considered as selected. */
 	UE_NODISCARD const TSet<FName>& GetSelectedCollections() const;
-	UE_NODISCARD bool IsCollectionSelected(const FName& CollectionName);
+	UE_NODISCARD bool IsCollectionSelected(const FName& CollectionName) const;
 	void SetSelectedCollections(const TSet<FName> InSelectedCollections);
 	void SetCollectionSelected(const FName& CollectionName, const bool bNewSelected);
 
