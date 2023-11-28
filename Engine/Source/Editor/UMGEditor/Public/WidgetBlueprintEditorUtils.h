@@ -49,6 +49,8 @@ public:
 
 	static TArray<UWidget*> DuplicateWidgets(TSharedRef<FWidgetBlueprintEditor> BlueprintEditor, UWidgetBlueprint* BP, TSet<FWidgetReference> Widgets);
 
+	static bool IsAnySelectedWidgetLocked(TSet<FWidgetReference> SelectedWidgets);
+
 	static UWidget* GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp);
 
 	static bool IsBindWidgetProperty(const FProperty* InProperty);

@@ -68,7 +68,7 @@ public:
 	virtual void SetIsVisible(bool IsVisible) { }
 
 	virtual bool CanControlLockedInDesigner() const { return false; }
-	virtual bool IsLockedInDesigner() { return false; }
+	virtual bool IsLockedInDesigner() const { return false; }
 	virtual void SetIsLockedInDesigner(bool NewIsLocked, bool bRecursive)
 	{
 		if (bRecursive)
@@ -291,7 +291,7 @@ public:
 		return true;
 	}
 
-	virtual bool IsLockedInDesigner() override
+	virtual bool IsLockedInDesigner() const override
 	{
 		UWidget* TemplateWidget = Item.GetTemplate();
 		if (TemplateWidget)

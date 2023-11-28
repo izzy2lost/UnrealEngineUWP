@@ -472,19 +472,22 @@ void FWidgetBlueprintEditorUtils::CreateWidgetContextMenu(FMenuBuilder& MenuBuil
 				)
 			);
 
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("WidgetTree_WrapWith", "Wrap With..."),
-			LOCTEXT("WidgetTree_WrapWithToolTip", "Wraps the currently selected widgets inside of another container widget"),
-			FNewMenuDelegate::CreateStatic(&FWidgetBlueprintEditorUtils::BuildWrapWithMenu, BlueprintEditor, BP, Widgets)
-			);
-
-		if ( Widgets.Num() == 1 )
+		if (!FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(Widgets))
 		{
 			MenuBuilder.AddSubMenu(
-				LOCTEXT("WidgetTree_ReplaceWith", "Replace With..."),
-				LOCTEXT("WidgetTree_ReplaceWithToolTip", "Replaces the currently selected widget, with another widget"),
-				FNewMenuDelegate::CreateStatic(&FWidgetBlueprintEditorUtils::BuildReplaceWithMenu, BlueprintEditor, BP, Widgets)
+				LOCTEXT("WidgetTree_WrapWith", "Wrap With..."),
+				LOCTEXT("WidgetTree_WrapWithToolTip", "Wraps the currently selected widgets inside of another container widget"),
+				FNewMenuDelegate::CreateStatic(&FWidgetBlueprintEditorUtils::BuildWrapWithMenu, BlueprintEditor, BP, Widgets)
+			);
+
+			if (Widgets.Num() == 1)
+			{
+				MenuBuilder.AddSubMenu(
+					LOCTEXT("WidgetTree_ReplaceWith", "Replace With..."),
+					LOCTEXT("WidgetTree_ReplaceWithToolTip", "Replaces the currently selected widget, with another widget"),
+					FNewMenuDelegate::CreateStatic(&FWidgetBlueprintEditorUtils::BuildReplaceWithMenu, BlueprintEditor, BP, Widgets)
 				);
+			}
 		}
 	}
 	MenuBuilder.EndSection();
@@ -1502,6 +1505,19 @@ TArray<UWidget*> FWidgetBlueprintEditorUtils::DuplicateWidgets(TSharedRef<FWidge
 
 	return DuplicatedWidgets;
 }
+
+bool FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(TSet<FWidgetReference> SelectedWidgets)
+{
+	for (const FWidgetReference& Widget : SelectedWidgets)
+	{
+		if (Widget.GetPreview()->IsLockedInDesigner())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp)
 {
 	UWidget* Widget = nullptr;

@@ -203,8 +203,16 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 			DecoratedDragDropOp->ResetToDefaultToolTip();
 		}
 
+		// Are we adding to a locked widget?
+		if ( TargetItem.IsValid() && TargetItem.GetPreview()->IsLockedInDesigner() )
+		{
+			if (DecoratedDragDropOp.IsValid())
+			{
+				DecoratedDragDropOp->CurrentHoverText = LOCTEXT("LockedWidget", "Widget is locked.");
+			}
+		}
 		// Are we adding to the root?
-		if ( !TargetItem.IsValid() && Blueprint->WidgetTree->RootWidget == nullptr )
+		else if ( !TargetItem.IsValid() && Blueprint->WidgetTree->RootWidget == nullptr )
 		{
 			// TODO UMG Allow showing a preview of this.
 			if ( bIsDrop )
@@ -304,6 +312,13 @@ TOptional<EItemDropZone> ProcessHierarchyDragDrop(const FDragDropEvent& DragDrop
 			if ( bIsDraggedObject )
 			{
 				HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+				return TOptional<EItemDropZone>();
+			}
+
+			if (TargetItem.GetPreview()->IsLockedInDesigner())
+			{
+				HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+				HierarchyDragDropOp->CurrentHoverText = LOCTEXT("LockedWidget", "Widget is locked.");
 				return TOptional<EItemDropZone>();
 			}
 
@@ -491,7 +506,7 @@ TOptional<EItemDropZone> FHierarchyModel::HandleCanAcceptDrop(const FDragDropEve
 
 FReply FHierarchyModel::HandleDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (!IsRoot())
+	if (!IsRoot() && !IsLockedInDesigner())
 	{
 		TArray<FWidgetReference> DraggedItems;
 
@@ -1399,7 +1414,7 @@ void FHierarchyWidget::UpdateSelection()
 
 bool FHierarchyWidget::CanRename() const
 {
-	return true;
+	return !IsLockedInDesigner();
 }
 
 void FHierarchyWidget::RequestBeginRename()

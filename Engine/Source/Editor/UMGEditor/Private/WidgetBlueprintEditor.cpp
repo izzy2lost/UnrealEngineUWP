@@ -769,7 +769,7 @@ void FWidgetBlueprintEditor::OnObjectsReplaced(const TMap<UObject*, UObject*>& R
 bool FWidgetBlueprintEditor::CanDeleteSelectedWidgets()
 {
 	TSet<FWidgetReference> Widgets = GetSelectedWidgets();
-	return Widgets.Num() > 0;
+	return Widgets.Num() > 0 && !FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(Widgets);
 }
 
 void FWidgetBlueprintEditor::DeleteSelectedWidgets()
@@ -797,7 +797,7 @@ void FWidgetBlueprintEditor::CopySelectedWidgets()
 bool FWidgetBlueprintEditor::CanCutSelectedWidgets()
 {
 	TSet<FWidgetReference> Widgets = GetSelectedWidgets();
-	return Widgets.Num() > 0;
+	return Widgets.Num() > 0 && !FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(Widgets);
 }
 
 void FWidgetBlueprintEditor::CutSelectedWidgets()
@@ -814,6 +814,12 @@ const UWidgetAnimation* FWidgetBlueprintEditor::RefreshCurrentAnimation()
 bool FWidgetBlueprintEditor::CanPasteWidgets()
 {
 	TSet<FWidgetReference> Widgets = GetSelectedWidgets();
+
+	if (FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(Widgets))
+	{
+		return false;
+	}
+
 	if ( Widgets.Num() == 1 )
 	{
 		// Always return true here now since we want to support pasting widgets as siblings
