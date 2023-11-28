@@ -155,7 +155,10 @@ void UDynamicMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 
 void UDynamicMeshComponent::SetMesh(UE::Geometry::FDynamicMesh3&& MoveMesh)
 {
-	MeshObject->SetMesh(MoveTemp(MoveMesh));
+	if (ensureMsgf(IsEditable(), TEXT("Attempted to modify the internal mesh of a UDynamicMeshComponent that is not editable")))
+	{
+		MeshObject->SetMesh(MoveTemp(MoveMesh));
+	}
 }
 
 
@@ -169,10 +172,13 @@ void UDynamicMeshComponent::ProcessMesh(
 void UDynamicMeshComponent::EditMesh(TFunctionRef<void(UE::Geometry::FDynamicMesh3&)> EditFunc,
 										   EDynamicMeshComponentRenderUpdateMode UpdateMode )
 {
-	MeshObject->EditMesh(EditFunc);
-	if (UpdateMode != EDynamicMeshComponentRenderUpdateMode::NoUpdate)
+	if (ensureMsgf(IsEditable(), TEXT("Attempted to modify the internal mesh of a UDynamicMeshComponent that is not editable")))
 	{
-		NotifyMeshUpdated();
+		MeshObject->EditMesh(EditFunc);
+		if (UpdateMode != EDynamicMeshComponentRenderUpdateMode::NoUpdate)
+		{
+			NotifyMeshUpdated();
+		}
 	}
 }
 
@@ -223,17 +229,20 @@ const FDynamicMesh3* UDynamicMeshComponent::GetRenderMesh() const
 
 void UDynamicMeshComponent::ApplyTransform(const FTransform3d& Transform, bool bInvert)
 {
-	MeshObject->EditMesh([&](FDynamicMesh3& EditMesh)
+	if (ensureMsgf(IsEditable(), TEXT("Attempted to modify the internal mesh of a UDynamicMeshComponent that is not editable")))
 	{
-		if (bInvert)
+		MeshObject->EditMesh([&](FDynamicMesh3& EditMesh)
 		{
-			MeshTransforms::ApplyTransformInverse(EditMesh, Transform, true);
-		}
-		else
-		{
-			MeshTransforms::ApplyTransform(EditMesh, Transform, true);
-		}
-	}, EDynamicMeshChangeType::DeformationEdit);
+			if (bInvert)
+			{
+				MeshTransforms::ApplyTransformInverse(EditMesh, Transform, true);
+			}
+			else
+			{
+				MeshTransforms::ApplyTransform(EditMesh, Transform, true);
+			}
+		}, EDynamicMeshChangeType::DeformationEdit);
+	}
 }
 
 
