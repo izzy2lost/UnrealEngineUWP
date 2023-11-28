@@ -4,25 +4,9 @@
 
 #if WITH_EDITOR
 #include "WorldPartition/HLOD/HLODActor.h"
+#include "Serialization/ArchiveCrc32.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #endif
-
-
-#if WITH_EDITOR
-
-static uint32 GetHLODHash(const TArray<FHLODSubActor>& InSubActors)
-{
-	uint32 HLODHash = 0;
-
-	for (const FHLODSubActor& HLODSubActor : InSubActors)
-	{
-		HLODHash = HashCombine(GetTypeHash(HLODSubActor), HLODHash);
-	}
-
-	return HLODHash;
-}
-
-#endif // #if WITH_EDITOR
 
 UWorldPartitionHLODSourceActorsFromCell::UWorldPartitionHLODSourceActorsFromCell(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -38,30 +22,10 @@ ULevelStreaming* UWorldPartitionHLODSourceActorsFromCell::LoadSourceActors(bool&
 	bOutDirty = false;
 	AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(GetOuter());
 	UWorld* World = HLODActor->GetWorld();
-	UWorldPartition* WorldPartition = World->GetWorldPartition();
-	check(WorldPartition);
 
-	const FTopLevelAssetPath WorldPartitionHLODNativeClass(AWorldPartitionHLOD::StaticClass()->GetPathName());
 	const FName LevelStreamingName = FName(*FString::Printf(TEXT("HLODLevelStreaming_%s"), *HLODActor->GetName()));
-	TArray<FWorldPartitionRuntimeCellObjectMapping> Mappings;
-	Mappings.Reserve(Actors.Num());
-	Algo::Transform(Actors, Mappings, [World, HLODActor, &WorldPartitionHLODNativeClass](const FHLODSubActor& SubActor)
-	{		
-		return FWorldPartitionRuntimeCellObjectMapping(
-			SubActor.ActorPackage,
-			SubActor.ActorPath,
-			FTopLevelAssetPath(),
-			WorldPartitionHLODNativeClass,
-			SubActor.ContainerID,
-			SubActor.ContainerTransform,
-			SubActor.ContainerPackage,
-			World->GetPackage()->GetFName(),
-			SubActor.ActorGuid,
-			false
-		);
-	});
 
-	UWorldPartitionLevelStreamingDynamic* LevelStreaming = UWorldPartitionLevelStreamingDynamic::LoadInEditor(World, LevelStreamingName, Mappings);
+	UWorldPartitionLevelStreamingDynamic* LevelStreaming = UWorldPartitionLevelStreamingDynamic::LoadInEditor(World, LevelStreamingName, Actors);
 	check(LevelStreaming);
 
 	if (!LevelStreaming->GetLoadSucceeded())
@@ -72,24 +36,33 @@ ULevelStreaming* UWorldPartitionHLODSourceActorsFromCell::LoadSourceActors(bool&
 	return LevelStreaming;
 }
 
+uint32 UWorldPartitionHLODSourceActorsFromCell::GetHLODHash(const TArray<FWorldPartitionRuntimeCellObjectMapping>& InSourceActors)
+{
+	TArray<FWorldPartitionRuntimeCellObjectMapping>& MutableSourceActors(const_cast<TArray<FWorldPartitionRuntimeCellObjectMapping>&>(InSourceActors));
+
+	FArchiveCrc32 Ar;
+	Ar << MutableSourceActors;
+	return Ar.GetCrc();
+}
+
 uint32 UWorldPartitionHLODSourceActorsFromCell::GetHLODHash() const
 {
 	uint32 HLODHash = Super::GetHLODHash();
 
-	// Sub Actors
-	uint32 SubActorsHash = ::GetHLODHash(Actors);
-	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - Sub Actors (%d actors) = %x"), Actors.Num(), SubActorsHash);
-	HLODHash = HashCombine(HLODHash, SubActorsHash);
+	// Source Actors
+	uint32 SourceActorsHash = GetHLODHash(Actors);
+	UE_LOG(LogHLODHash, VeryVerbose, TEXT(" - Source Actors (%d actors) = %x"), Actors.Num(), SourceActorsHash);
+	HLODHash = HashCombine(HLODHash, SourceActorsHash);
 
 	return HLODHash;
 }
 
-void UWorldPartitionHLODSourceActorsFromCell::SetActors(const TArray<FHLODSubActor>& InSourceActors)
+void UWorldPartitionHLODSourceActorsFromCell::SetActors(const TArray<FWorldPartitionRuntimeCellObjectMapping>&& InSourceActors)
 {
 	Actors = InSourceActors;
 }
 
-const TArray<FHLODSubActor>& UWorldPartitionHLODSourceActorsFromCell::GetActors() const
+const TArray<FWorldPartitionRuntimeCellObjectMapping>& UWorldPartitionHLODSourceActorsFromCell::GetActors() const
 {
 	return Actors;
 }

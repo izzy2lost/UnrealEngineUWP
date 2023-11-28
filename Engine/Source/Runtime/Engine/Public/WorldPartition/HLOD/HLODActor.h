@@ -7,7 +7,6 @@
 #include "Containers/Set.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
-#include "WorldPartition/HLOD/HLODSubActor.h"
 #include "WorldPartition/HLOD/HLODStats.h"
 #include "HLODActor.generated.h"
 
@@ -126,7 +125,7 @@ private:
 	FName SourceCellName_DEPRECATED;
 
 	UPROPERTY()
-	TArray<FHLODSubActor> HLODSubActors_DEPRECATED;
+	TArray<FWorldPartitionRuntimeCellObjectMapping> HLODSubActors_DEPRECATED;
 
 	UPROPERTY()
 	TObjectPtr<const UHLODLayer> SubActorsHLODLayer_DEPRECATED;

@@ -14,7 +14,6 @@
 #include "WorldPartition/HLOD/HLODModifier.h"
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
 #include "WorldPartition/HLOD/HLODStats.h"
-#include "WorldPartition/HLOD/HLODSubActor.h"
 #include "WorldPartition/HLOD/HLODInstancedStaticMeshComponent.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderInstancing.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshMerge.h"
@@ -79,31 +78,66 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	return Ar.GetCrc();
 }
 
-void AddSubActor(const FWorldPartitionActorDescView& ActorDescView, const IStreamingGenerationContext::FActorInstance& ActorInstance, TSet<FHLODSubActor>& SubActors)
+void AddSourceActor(const FWorldPartitionActorDescView& ActorDescView, const IStreamingGenerationContext::FActorInstance& ActorInstance, const FName WorldPackageName, TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SourceActors)
 {
 	const FName ActorPath = *ActorDescView.GetActorSoftPath().ToString();
 
-	// Add the actor
-	bool bIsAlreadyInSet = false;
 	const UActorDescContainer* ActorDescContainer = ActorDescView.GetActorDesc()->GetContainer();
-	FHLODSubActor SubActor(ActorDescView.GetGuid(), ActorDescView.GetActorPackage(), ActorPath, ActorInstance.GetContainerID(), ActorDescContainer->GetContainerPackage(), ActorInstance.GetTransform());
-	SubActors.Add(SubActor, &bIsAlreadyInSet);
 
-	if (!bIsAlreadyInSet)
+	FGuid ActorInstanceGuid = ActorInstance.GetContainerID().GetActorGuid(ActorDescView.GetGuid());	
+	FWorldPartitionRuntimeCellObjectMapping& ActorMapping = SourceActors.FindOrAdd(ActorInstanceGuid);
+	if (!ActorMapping.ActorInstanceGuid.IsValid())
 	{
-		// Add its references
+		ActorMapping = FWorldPartitionRuntimeCellObjectMapping(
+			ActorDescView.GetActorPackage(),
+			*ActorDescView.GetActorSoftPath().ToString(),
+			ActorDescView.GetBaseClass(),
+			ActorDescView.GetNativeClass(),
+			ActorInstance.GetContainerID(),
+			ActorInstance.GetTransform(),
+			ActorDescContainer->GetContainerPackage(),
+			WorldPackageName,
+			ActorInstanceGuid,
+			false);
+
+		// Add its runtime references, recursively
 		const FActorDescViewMap* ActorDescViewMap = ActorInstance.ActorSetInstance->ContainerInstance->ActorDescViewMap;
 		for (const FGuid& ReferenceGuid : ActorDescView.GetReferences())
 		{
 			const FWorldPartitionActorDescView& RefActorDescView = ActorDescViewMap->FindByGuidChecked(ReferenceGuid);
-			AddSubActor(RefActorDescView, ActorInstance, SubActors);
+			AddSourceActor(RefActorDescView, ActorInstance, WorldPackageName, SourceActors);
+		}
+
+		// Add its editor references
+		for (const FGuid& EditorReferenceGuid : ActorDescView.GetEditorReferences())
+		{
+			const FWorldPartitionActorDesc& ReferenceActorDesc = ActorDescContainer->GetActorDescChecked(EditorReferenceGuid);
+			FGuid EditorRefInstanceGuid = ActorInstance.GetContainerID().GetActorGuid(EditorReferenceGuid);
+			FWorldPartitionRuntimeCellObjectMapping& EditorRefMapping = SourceActors.FindOrAdd(EditorRefInstanceGuid);
+			if (!EditorRefMapping.ActorInstanceGuid.IsValid())
+			{
+				EditorRefMapping = FWorldPartitionRuntimeCellObjectMapping(
+					ReferenceActorDesc.GetActorPackage(),
+					*ReferenceActorDesc.GetActorSoftPath().ToString(),
+					ReferenceActorDesc.GetBaseClass(),
+					ReferenceActorDesc.GetNativeClass(),
+					ActorInstance.GetContainerID(),
+					ActorInstance.GetTransform(),
+					ActorDescContainer->GetContainerPackage(),
+					WorldPackageName,
+					EditorRefInstanceGuid,
+					true
+				);
+			}
 		}
 	}
 }
 
 TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLODCreationContext& InCreationContext, const FHLODCreationParams& InCreationParams, const TArray<IStreamingGenerationContext::FActorInstance>& InActors)
 {
-	TMap<UHLODLayer*, TSet<FHLODSubActor>> SubActorsPerHLODLayer;
+	TMap<UHLODLayer*, TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>> SourceActorsPerHLODLayer;
+
+	FName WorldPackageName = InCreationParams.WorldPartition->GetWorld()->GetPackage()->GetFName();
 
 	for (const IStreamingGenerationContext::FActorInstance& ActorInstance : InActors)
 	{
@@ -119,18 +153,18 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 
 			if (UHLODLayer* HLODLayer = Cast<UHLODLayer>(ActorDescView.GetHLODLayer().TryLoad()))
 			{
-				TSet<FHLODSubActor>& SubActors = SubActorsPerHLODLayer.FindOrAdd(HLODLayer);
-				AddSubActor(ActorDescView, ActorInstance, SubActors);
+				TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SubActors = SourceActorsPerHLODLayer.FindOrAdd(HLODLayer);
+				AddSourceActor(ActorDescView, ActorInstance, WorldPackageName, SubActors);
 			}
 		}
 	}
 
 	TArray<AWorldPartitionHLOD*> HLODActors;
-	for (const auto& Pair : SubActorsPerHLODLayer)
+	for (auto& Pair : SourceActorsPerHLODLayer)
 	{
 		const UHLODLayer* HLODLayer = Pair.Key;
-		const TSet<FHLODSubActor>& SubActors = Pair.Value;
-		check(!SubActors.IsEmpty());
+		TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SourceActorsMap = Pair.Value;
+		check(!SourceActorsMap.IsEmpty());
 
 		auto ComputeHLODActorUniqueHash = [](const UHLODLayer* HLODLayer, const FGuid CellGuid)
 		{
@@ -197,22 +231,24 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		}
 		check(HLODSourceActors->GetHLODLayer() == HLODLayer);
 
-		// Sub actors
+		// Assign source actors
 		{
-			bool bSubActorsChanged = HLODSourceActors->GetActors().Num() != SubActors.Num();
-			if (!bSubActorsChanged)
+			TArray<FWorldPartitionRuntimeCellObjectMapping> SourceActorsArray;
+			SourceActorsMap.KeySort(TLess<FGuid>());
+			SourceActorsMap.GenerateValueArray(SourceActorsArray);
+
+			bool bSourceActorsChanged = HLODSourceActors->GetActors().Num() != SourceActorsArray.Num();
+			if (!bSourceActorsChanged)
 			{
-				TArray<FHLODSubActor> A = HLODSourceActors->GetActors();
-				TArray<FHLODSubActor> B = SubActors.Array();
-				A.Sort();
-				B.Sort();
-				bSubActorsChanged = A != B;
+				const uint32 NewHash = UWorldPartitionHLODSourceActorsFromCell::GetHLODHash(SourceActorsArray);
+				const uint32 PreviousHash = UWorldPartitionHLODSourceActorsFromCell::GetHLODHash(HLODSourceActors->GetActors());
+				bSourceActorsChanged = NewHash != PreviousHash;
 			}
 
-			if (bSubActorsChanged)
+			if (bSourceActorsChanged)
 			{
-				HLODSourceActors->SetActors(SubActors.Array());
-				DirtyReason = TEXT("SubActors");
+				HLODSourceActors->SetActors(MoveTemp(SourceActorsArray));
+				DirtyReason = TEXT("SourceActors");
 			}
 		}
 

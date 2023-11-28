@@ -10,7 +10,6 @@
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/DataLayer/DataLayersID.h"
 #include "WorldPartition/HLOD/HLODStats.h"
-#include "WorldPartition/HLOD/HLODSubActor.h"
 
 class UHLODLayer;
 class AWorldPartitionHLOD;

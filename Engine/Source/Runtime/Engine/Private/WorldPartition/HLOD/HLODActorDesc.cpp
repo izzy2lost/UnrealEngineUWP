@@ -34,14 +34,14 @@ void FHLODActorDesc::Init(const AActor* InActor)
 
 	if (HLODCellSourceActors && WorldPartition)
 	{
-		for (const FHLODSubActor& SubActor : HLODCellSourceActors->GetActors())
+		for (const FWorldPartitionRuntimeCellObjectMapping& SubActor : HLODCellSourceActors->GetActors())
 		{
 			if (SubActor.ContainerID.IsMainContainer())
 			{
-				const FWorldPartitionActorDesc* SubActorDesc = WorldPartition->GetActorDesc(SubActor.ActorGuid);
+				const FWorldPartitionActorDesc* SubActorDesc = WorldPartition->GetActorDesc(SubActor.ActorInstanceGuid);
 				if (SubActorDesc && SubActorDesc->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
 				{
-					ChildHLODActors.Add(SubActor.ActorGuid);
+					ChildHLODActors.Add(SubActor.ActorInstanceGuid);
 				}
 			}
 		}

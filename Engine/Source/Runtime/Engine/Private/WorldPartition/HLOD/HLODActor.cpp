@@ -136,7 +136,7 @@ void AWorldPartitionHLOD::Serialize(FArchive& Ar)
 		{
 			check(!SourceActors)
 			UWorldPartitionHLODSourceActorsFromCell* SourceActorsFromCell = NewObject<UWorldPartitionHLODSourceActorsFromCell>(this);
-			SourceActorsFromCell->SetActors(HLODSubActors_DEPRECATED);
+			SourceActorsFromCell->SetActors(MoveTemp(HLODSubActors_DEPRECATED));
 			SourceActorsFromCell->SetHLODLayer(SubActorsHLODLayer_DEPRECATED);
 			SourceActors = SourceActorsFromCell;
 		}
