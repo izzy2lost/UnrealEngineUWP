@@ -43,6 +43,7 @@ void UOptimusNode_GetVariable::PreDuplicateRequirementActions(
 	bool bFoundDuplicate = false;
 	do
 	{
+		bFoundDuplicate = false;
 		for (const UOptimusVariableDescription* ExistingVariableDesc: Deformer->GetVariables())
 		{
 			if (ExistingVariableDesc->VariableName == DuplicationInfo.VariableName)

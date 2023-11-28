@@ -105,7 +105,7 @@ void UOptimusNodeGraph::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 				ConnectedPinsMap.Add(Pin->GetFName(), Pin->GetConnectedPins());
 			}
 
-			FName NodeName = ConstantNode->GetNodeName();
+			FName NodeName = ConstantNode->GetFName();
 			
 			RemoveNodeDirect(ConstantNode, false /* remove all links as well */);
 
