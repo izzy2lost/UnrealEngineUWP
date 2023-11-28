@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace UE::MultiUserClient
@@ -29,12 +30,14 @@ namespace UE::MultiUserClient
 	 * This policy accumulates all changes until the end of frame and then sends them. This means multiple changes are made in the same frame,
 	 * only one request will be sent containing all changes.
 	 */
-	class FAutoSubmissionPolicy : public FNoncopyable
+	class FAutoSubmissionPolicy
+		: public FNoncopyable
+		, FSelfUnregisteringDeferredSubmitter
 	{
 	public:
 		
 		FAutoSubmissionPolicy(
-			ISubmissionWorkflow& InSubmissionWorkflow,
+			FSubmissionQueue& InSubmissionQueue,
 			const FChangeRequestBuilder& InRequestBuilder,
 			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 			FAuthorityChangeTracker& InAuthorityChangeTracker
@@ -47,7 +50,7 @@ namespace UE::MultiUserClient
 	private:
 
 		/** Handles performing the submission */
-		ISubmissionWorkflow& SubmissionWorkflow;
+		FSubmissionQueue& SubmissionQueue;
 		/** Used to building the requests that are passed to SubmissionWorkflow. */
 		const FChangeRequestBuilder& RequestBuilder;
 
@@ -58,9 +61,11 @@ namespace UE::MultiUserClient
 
 		/** Whether any changes were made. */
 		bool bIsDirty = false;
-		
-		void SubmitChanges();
-		
+
+		//~ Begin FSelfUnregisteringDeferredSubmitter Interface
+		virtual void PerformSubmission_GameThread(ISubmissionWorkflow& Workflow) override;
+		//~ End FSelfUnregisteringDeferredSubmitter Interface
+
 		void OnObjectsChanged(TArrayView<UObject* const>, TArrayView<const FSoftObjectPath>, ConcertClientSharedSlate::EReplicatedObjectChangeReason) { OnChangesDetected(); }
 		void OnChangesDetected();
 	};

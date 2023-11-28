@@ -25,6 +25,7 @@ namespace UE::MultiUserClient
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, SubmissionWorkflow(MoveTemp(InSubmissionWorkflow))
+		, SubmissionQueue(*SubmissionWorkflow)
 		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(
 			*ClientContentStorage->Stream,
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute()
@@ -36,7 +37,7 @@ namespace UE::MultiUserClient
 			)
 		, LocalAuthorityDiffer(EndpointId, *AuthoritySynchronizer, InAuthorityCache)
 		, ChangeRequestBuilder(EndpointId, InAuthorityCache, *StreamSynchronizer, LocalClientStreamDiffer, LocalAuthorityDiffer)
-		, AutoSubmissionPolicy(*SubmissionWorkflow.Get(), ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer)
+		, AutoSubmissionPolicy(SubmissionQueue, ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer)
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);

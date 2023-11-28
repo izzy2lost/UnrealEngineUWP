@@ -21,6 +21,6 @@ namespace UE::MultiUserClient
 			MoveTemp(InStreamSynchronizer),
 			MakeUnique<FAuthoritySynchronizer_LocalClient>(InClient),
 			MakeUnique<FSubmissionWorkflow_LocalClient>(MoveTemp(InClient)))
-		, RemoteSubmissionListener(InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), GetStreamSynchronizer(), GetSubmissionWorkflow())
+		, RemoteSubmissionListener(InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), GetStreamSynchronizer(), GetSubmissionQueue())
 	{}
 }

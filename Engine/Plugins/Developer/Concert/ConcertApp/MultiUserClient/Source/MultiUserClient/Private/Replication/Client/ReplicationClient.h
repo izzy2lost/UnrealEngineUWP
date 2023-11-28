@@ -9,6 +9,7 @@
 #include "Replication/Submission/AutoSubmissionPolicy.h"
 #include "Replication/Submission/ChangeRequestBuilder.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
+#include "Replication/Submission/Queue/SubmissionQueue.h"
 
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
@@ -54,9 +55,11 @@ namespace UE::MultiUserClient
 		
 		const FAuthorityChangeTracker& GetAuthorityDiffer() const { return LocalAuthorityDiffer; }
 		FAuthorityChangeTracker& GetAuthorityDiffer() { return LocalAuthorityDiffer; }
-		
-		const ISubmissionWorkflow& GetSubmissionWorkflow() const { return *SubmissionWorkflow; }
+
+		/** @return The object with which you can submit changes. You can use it to listen to general events. If you want to submit changes, you should prefer to use the SubmissionQueue. */
 		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
+		/** @return Implements simple game-thread based queue for SubmissionWorkflow. Only one submission can be in progress at any given time. */
+		FSubmissionQueue& GetSubmissionQueue() { return SubmissionQueue; }
 
 		/** @return The endpoint ID of this client in the Concert session. */
 		const FGuid& GetEndpointId() const { return EndpointId; }
@@ -88,6 +91,9 @@ namespace UE::MultiUserClient
 		TUniquePtr<IClientAuthoritySynchronizer> AuthoritySynchronizer;
 		/** Handles the logic of submitting and reverting for this client. */
 		TUniquePtr<ISubmissionWorkflow> SubmissionWorkflow;
+
+		/** Allows systems to queue pending submissions to SubmissionWorkflow in case a submission is in progress. */
+		FSubmissionQueue SubmissionQueue;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.

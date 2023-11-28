@@ -8,6 +8,7 @@
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Submission/ISubmissionOperation.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
+#include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient
@@ -15,11 +16,12 @@ namespace UE::MultiUserClient
 	FRemoteSubmissionListener::FRemoteSubmissionListener(
 		TSharedRef<IConcertClientSession> InConcertSession,
 		IClientStreamSynchronizer& InStreamSynchronizer,
-		ISubmissionWorkflow& InSubmissionWorkflow
+		FSubmissionQueue& InSubmissionQueue
 		)
-		: ConcertSession(MoveTemp(InConcertSession))
+		: FSelfUnregisteringDeferredSubmitter(InSubmissionQueue)
+		, ConcertSession(MoveTemp(InConcertSession))
 		, StreamSynchronizer(InStreamSynchronizer)
-		, SubmissionWorkflow(InSubmissionWorkflow)
+		, SubmissionQueue(InSubmissionQueue)
 	{
 		ConcertSession->RegisterCustomRequestHandler<FMultiUser_ChangeRemote_Request, FMultiUser_ChangeRemote_Response>(this, &FRemoteSubmissionListener::HandleChangeRemoteRequest);
 	}
@@ -27,7 +29,6 @@ namespace UE::MultiUserClient
 	FRemoteSubmissionListener::~FRemoteSubmissionListener()
 	{
 		ConcertSession->UnregisterCustomRequestHandler<FMultiUser_ChangeRemote_Request>();
-		SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().RemoveAll(this);
 	}
 
 	EConcertSessionResponseCode FRemoteSubmissionListener::HandleChangeRemoteRequest(
@@ -52,26 +53,11 @@ namespace UE::MultiUserClient
 		}
 		
 		InProgressOperation = { Request, Context.SourceEndpointId };
-		SubmitNowOrWaitUntilReady();
+		SubmissionQueue.SubmitNowOrEnqueue_GameThread(*this);
 		return EConcertSessionResponseCode::Success;
 	}
 
-	void FRemoteSubmissionListener::SubmitNowOrWaitUntilReady(int32 NumTriesSoFar)
-	{
-		if (SubmissionWorkflow.GetUploadability() == EChangeUploadability::Ready)
-		{
-			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().RemoveAll(this);
-			SubmitRequest();
-		}
-		else if (ensureMsgf(SubmissionWorkflow.GetUploadability() == EChangeUploadability::InProgress, TEXT("Unsupported state")))
-		{
-			++NumTriesSoFar;
-			UE_LOG(LogConcert, Log, TEXT("Post-boning requested remote update since a local change is already in progress (%dth try)"), NumTriesSoFar);
-			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().AddRaw(this, &FRemoteSubmissionListener::SubmitNowOrWaitUntilReady, NumTriesSoFar);
-		}
-	}
-
-	void FRemoteSubmissionListener::SubmitRequest()
+	void FRemoteSubmissionListener::PerformSubmission_GameThread(ISubmissionWorkflow& Workflow)
 	{
 		using namespace ConcertSyncClient::Replication;
 
@@ -92,7 +78,7 @@ namespace UE::MultiUserClient
 			return;
 		}
 		
-		const TSharedPtr<ISubmissionOperation> Operation = SubmissionWorkflow.SubmitChanges({
+		const TSharedPtr<ISubmissionOperation> Operation = Workflow.SubmitChanges({
 			FChangeStreamRequest { RequestData.StreamChangeRequest }, FAuthorityChangeRequest{ RequestData.AuthorityRequest } }
 			);
 		if (!ensure(Operation))

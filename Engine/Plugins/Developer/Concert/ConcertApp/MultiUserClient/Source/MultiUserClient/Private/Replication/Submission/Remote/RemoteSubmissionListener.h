@@ -4,13 +4,11 @@
 
 #include "RemoteSubmissionMessages.h"
 #include "Replication/IToken.h"
+#include "Replication/Submission/Queue/DeferredSubmitter.h"
+
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
-{
-	class IClientStreamSynchronizer;
-}
 
 class IConcertClientSession;
 
@@ -20,9 +18,9 @@ struct FConcertSessionContext;
 
 namespace UE::MultiUserClient
 {
+	class IClientStreamSynchronizer;
 	struct FSubmitAuthorityChangesResponse;
 	struct FSubmitStreamChangesResponse;
-	class ISubmissionWorkflow;
 	
 	/**
 	 * Handles stream and authority requests made by other clients towards the local client.
@@ -36,11 +34,13 @@ namespace UE::MultiUserClient
 	 *
 	 * @see FSubmissionWorkflow_RemoteClient
 	 */
-	class FRemoteSubmissionListener : public FNoncopyable
+	class FRemoteSubmissionListener
+		: public FNoncopyable
+		, FSelfUnregisteringDeferredSubmitter
 	{
 	public:
 		
-		FRemoteSubmissionListener(TSharedRef<IConcertClientSession> InConcertSession, IClientStreamSynchronizer& InStreamSynchronizer, ISubmissionWorkflow& InSubmissionWorkflow);
+		FRemoteSubmissionListener(TSharedRef<IConcertClientSession> InConcertSession, IClientStreamSynchronizer& InStreamSynchronizer, FSubmissionQueue& InSubmissionQueue);
 		~FRemoteSubmissionListener();
 
 	private:
@@ -54,7 +54,7 @@ namespace UE::MultiUserClient
 		/** Used to validate a request against the client's server state. */
 		IClientStreamSynchronizer& StreamSynchronizer;
 		/** Used to serve the incoming change requests. */
-		ISubmissionWorkflow& SubmissionWorkflow;
+		FSubmissionQueue& SubmissionQueue;
 
 		struct FOperationData
 		{
@@ -72,6 +72,11 @@ namespace UE::MultiUserClient
 		
 		/** Checks whether the local submit operation is ready. If not, we subscribe to it finishing and try again. */
 		void SubmitNowOrWaitUntilReady(int32 NumTriesSoFar = 0);
+
+		//~ Begin IDeferredSubmission Interface
+		virtual void PerformSubmission_GameThread(ISubmissionWorkflow& Workflow) override;
+		//~ End IDeferredSubmission Interface
+
 		/** The submission workflow is ready for submission. Do the submission. */
 		void SubmitRequest();
 

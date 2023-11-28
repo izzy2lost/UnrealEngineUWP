@@ -6,16 +6,18 @@
 #include "ISubmissionWorkflow.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Submission/Queue/SubmissionQueue.h"
 
 namespace UE::MultiUserClient
 {
 	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
-		ISubmissionWorkflow& InSubmissionWorkflow,
+		FSubmissionQueue& InSubmissionQueue,
 		const FChangeRequestBuilder& InRequestBuilder,
 		ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 		FAuthorityChangeTracker& InAuthorityChangeTracker
 		)
-		: SubmissionWorkflow(InSubmissionWorkflow)
+		: FSelfUnregisteringDeferredSubmitter(InSubmissionQueue)
+		, SubmissionQueue(InSubmissionQueue)
 		, RequestBuilder(InRequestBuilder)
 		, StreamEditorModel(InStreamEditorModel)
 		, AuthorityChangeTracker(InAuthorityChangeTracker)
@@ -34,23 +36,13 @@ namespace UE::MultiUserClient
 
 	void FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit()
 	{
-		if (!bIsDirty)
+		if (bIsDirty)
 		{
-			return;
-		}
-		
-		if (SubmissionWorkflow.CanSubmit())
-		{
-			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().RemoveAll(this);
-			SubmitChanges();
-		}
-		else if (!SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().IsBoundToObject(this))
-		{
-			SubmissionWorkflow.OnSubmitOperationCompleted_AnyThread().AddRaw(this, &FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit);
+			SubmissionQueue.SubmitNowOrEnqueue_GameThread(*this);
 		}
 	}
 
-	void FAutoSubmissionPolicy::SubmitChanges()
+	void FAutoSubmissionPolicy::PerformSubmission_GameThread(ISubmissionWorkflow& Workflow)
 	{
 		using namespace UE::ConcertSyncClient::Replication;
 		bIsDirty = false;
@@ -62,7 +54,7 @@ namespace UE::MultiUserClient
 			
 		if (AuthorityChangeRequest || StreamRequest)
 		{
-			SubmissionWorkflow.SubmitChanges({ StreamRequest, AuthorityChangeRequest });
+			Workflow.SubmitChanges({ StreamRequest, AuthorityChangeRequest });
 		}
 	}
 
