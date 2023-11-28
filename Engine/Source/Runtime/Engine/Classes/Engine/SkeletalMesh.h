@@ -62,6 +62,8 @@ class FSkinnedAssetPostLoadContext;
 class USkeletalMeshLODSettings;
 class USkeleton;
 class UThumbnailInfo;
+class FEvent;
+class USkeletalMesh;
 struct FMeshUVChannelInfo;
 struct FSkeletalMaterial;
 struct FSkinWeightProfileInfo;
@@ -410,6 +412,22 @@ namespace NSSkeletalMeshSourceFileLabels
 }
 #endif
 
+/* Scoped SkeletalMeshRenderData
+ * All to get access to SkeletalMeshRenderData for a given platform an ensuring the data are thread-safe during the entire scope
+ */
+struct FScopedSkeletalMeshRenderData
+{
+public:
+	FScopedSkeletalMeshRenderData(USkeletalMesh* Mesh);
+	~FScopedSkeletalMeshRenderData();
+	const FSkeletalMeshRenderData* GetData() const;
+private:
+	FEvent* Lock = nullptr;
+	USkeletalMesh* Mesh = nullptr;
+	FSkeletalMeshRenderData* Data = nullptr;
+
+	friend class USkeletalMesh;
+};
 
 /**
  * SkeletalMesh is geometry bound to a hierarchical skeleton of bones which can be animated for the purpose of deforming the mesh.
@@ -2612,6 +2630,9 @@ public:
 
 	/** Generate the derived data key used to fetch derived data */
 	ENGINE_API FString GetDerivedDataKey();
+
+	/** Get a skeletal mesh render data for requested platform. */
+	ENGINE_API static void GetPlatformSkeletalMeshRenderData(const ITargetPlatform* Platform, FScopedSkeletalMeshRenderData& Out);
 #endif 
 
 private:

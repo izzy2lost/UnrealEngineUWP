@@ -1507,6 +1507,46 @@ static FSkeletalMeshRenderData& GetPlatformSkeletalMeshRenderData(USkeletalMesh*
 	check(PlatformRenderData);
 	return *PlatformRenderData;
 }
+
+FScopedSkeletalMeshRenderData::FScopedSkeletalMeshRenderData(USkeletalMesh* Mesh)
+{
+	if (Mesh)
+	{
+		// Lock the skeletalmesh properties since we call USkeletalMesh::Cache() function (through GetPlatformSkeletalMeshRenderData -> CachePlatform -> Cache) 
+		// and which could be called by other threads at the same time
+		Lock = FPlatformProcess::GetSynchEventFromPool();
+		Mesh->LockPropertiesUntil(Lock);
+	}
+}
+
+FScopedSkeletalMeshRenderData::~FScopedSkeletalMeshRenderData()
+{
+	if (Mesh)
+	{
+		check(Lock);
+
+		Lock->Trigger();
+		FPlatformProcess::ReturnSynchEventToPool(Lock);
+		Data = nullptr;
+		Mesh = nullptr;
+		Lock = nullptr;
+	}
+}
+
+const FSkeletalMeshRenderData* FScopedSkeletalMeshRenderData::GetData() const
+{
+	return Data;
+}
+
+void USkeletalMesh::GetPlatformSkeletalMeshRenderData(const ITargetPlatform* TargetPlatform, FScopedSkeletalMeshRenderData& Out)
+{
+	check(Out.Mesh);
+	check(Out.Lock);
+
+	// Copy the return FSkeletalMeshRenderData to ensure it won't be modified externally
+	constexpr bool bIsSerializeSaving = false;
+	Out.Data = &::GetPlatformSkeletalMeshRenderData(Out.Mesh, TargetPlatform, bIsSerializeSaving);
+}
 #endif
 
 LLM_DEFINE_TAG(SkeletalMesh_Serialize); // This is an important test case for LLM_DEFINE_TAG
@@ -1596,13 +1636,13 @@ void USkeletalMesh::Serialize( FArchive& Ar )
 					constexpr bool bIsSerializeSaving = true;
 					if (ArchiveCookingTarget)
 					{
-						LocalSkeletalMeshRenderData = &GetPlatformSkeletalMeshRenderData(this, ArchiveCookingTarget, bIsSerializeSaving);
+						LocalSkeletalMeshRenderData = &::GetPlatformSkeletalMeshRenderData(this, ArchiveCookingTarget, bIsSerializeSaving);
 					}
 					else
 					{
 						//Fall back in case we use an archive that the cooking target has not been set (i.e. Duplicate archive)
 						check(RunningPlatform != NULL);
-						LocalSkeletalMeshRenderData = &GetPlatformSkeletalMeshRenderData(this, RunningPlatform, bIsSerializeSaving);
+						LocalSkeletalMeshRenderData = &::GetPlatformSkeletalMeshRenderData(this, RunningPlatform, bIsSerializeSaving);
 					}
 #endif
 					int32 MaxBonesPerChunk = LocalSkeletalMeshRenderData->GetMaxBonesPerSection();
@@ -4379,7 +4419,7 @@ void USkeletalMesh::BeginCacheForCookedPlatformData(const ITargetPlatform* Targe
 	LLM_SCOPE(ELLMTag::SkeletalMesh);
 	// Make sure to cache platform data so it doesn't happen lazily during serialization of the skeletal mesh
 	constexpr bool bIsSerializeSaving = false;
-	GetPlatformSkeletalMeshRenderData(this, TargetPlatform, bIsSerializeSaving);
+	::GetPlatformSkeletalMeshRenderData(this, TargetPlatform, bIsSerializeSaving);
 	ValidateBoneWeights(TargetPlatform);
 }
 
