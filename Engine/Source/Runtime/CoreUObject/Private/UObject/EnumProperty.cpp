@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/EnumProperty.h"
+#include "UObject/Package.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/PropertyTag.h"
@@ -546,4 +547,34 @@ uint64 FEnumProperty::GetMaxNetSerializeBits() const
 	const uint64 DesiredBits = FMath::CeilLogTwo64(Enum->GetMaxEnumValue() + 1);
 	
 	return FMath::Min(DesiredBits, MaxBits);
+}
+
+bool FEnumProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	// Update FByteProperty when making changes here.
+	return false;
+}
+
+void FEnumProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	if (const UEnum* LocalEnum = Enum)
+	{
+		// RobM: Ugly hack so that we can avoid content changes in most of the packages
+		// Update FByteProperty when making changes here.
+		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
+		{				
+			Tag.EnumName = LocalEnum->GetFName();
+		}
+		else
+		{
+			Tag.EnumName = FName(*LocalEnum->GetPathName());
+		}
+	}
 }

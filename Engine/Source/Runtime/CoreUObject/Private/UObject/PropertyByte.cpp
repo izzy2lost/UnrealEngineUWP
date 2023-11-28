@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/Class.h"
+#include "UObject/Package.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UnrealTypePrivate.h"
@@ -509,4 +510,34 @@ uint64 FByteProperty::GetMaxNetSerializeBits() const
 	const uint64 DesiredBits = Enum ? FMath::CeilLogTwo64(Enum->GetMaxEnumValue() + 1) : MaxBits;
 
 	return FMath::Min(DesiredBits, MaxBits);
+}
+
+bool FByteProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	// Update FEnumProperty when making changes here.
+	return Tag.EnumName.IsNone();
+}
+
+void FByteProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	if (const UEnum* LocalEnum = Enum)
+	{
+		// RobM: Ugly hack so that we can avoid content changes in most of the packages
+		// Update FEnumProperty when making changes here.
+		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
+		{				
+			Tag.EnumName = LocalEnum->GetFName();
+		}
+		else
+		{
+			Tag.EnumName = FName(*LocalEnum->GetPathName());
+		}
+	}
 }

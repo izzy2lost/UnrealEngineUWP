@@ -1082,3 +1082,22 @@ void* FSetProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* 
 
 	return nullptr;
 }
+
+bool FSetProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	return false;
+}
+
+void FSetProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	const FProperty* LocalElementProp = ElementProp;
+	check(LocalElementProp);
+	Tag.InnerType = LocalElementProp->GetID();
+}

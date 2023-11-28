@@ -78,6 +78,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+	COREUOBJECT_API virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	COREUOBJECT_API virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	/**

@@ -2103,6 +2103,19 @@ UPropertyWrapper* FProperty::GetUPropertyWrapper()
 }
 #endif //  WITH_EDITORONLY_DATA
 
+bool FProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	checkf(GetID() == Tag.Type, TEXT("Failed to load property '%s' of type '%s' from tag of type '%s'"),
+		*WriteToString<64>(GetFName()), *WriteToString<64>(GetID()), *WriteToString<64>(Tag.Type));
+	return true;
+}
+
+void FProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Tag.Prop = this;
+	Tag.Type = GetID();
+	Tag.Name = GetFName();
+}
 
 FProperty* UStruct::FindPropertyByName(FName InName) const
 {

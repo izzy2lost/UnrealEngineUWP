@@ -1048,6 +1048,18 @@ public:
 	}
 
 	/**
+	 * Loads types and other details of the property from the tag. Must be a compatible type.
+	 *
+	 * @return true if this property is usable after loading from the tag.
+	 */
+	COREUOBJECT_API virtual bool LoadFromTag(const FPropertyTag& Tag);
+
+	/**
+	 * Saves types and other details of the property to the tag.
+	 */
+	COREUOBJECT_API virtual void SaveToTag(FPropertyTag& Tag);
+
+	/**
 	 * Returns the first FProperty in this property's Outer chain that does not have a FProperty for an Outer
 	 */
 	FProperty* GetOwnerProperty()
@@ -1963,6 +1975,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	// FNumericProperty interface.
@@ -3669,6 +3683,8 @@ public:
 	}
 
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 Index) const override;
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerTypeText, const FString& InInnerExtendedTypeText) const;
@@ -3800,6 +3816,8 @@ public:
 	virtual bool SameType(const FProperty* Other) const override;
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 LogicalIndex) const override;
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& KeyTypeText, const FString& InKeyExtendedTypeText, const FString& ValueTypeText, const FString& InValueExtendedTypeText) const;
@@ -3926,6 +3944,8 @@ public:
 	virtual bool SameType(const FProperty* Other) const override;
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual void* GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InValueAddress, int32 LogicalIndex) const override;
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	FString GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& ElementTypeText, const FString& InElementExtendedTypeText) const;
@@ -6040,6 +6060,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	bool UseBinaryOrNativeSerialization(const FArchive& Ar) const;
@@ -6358,6 +6380,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// FProperty interface
 	virtual void SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const override;
 	virtual const TCHAR* ImportText_Internal(const TCHAR* Buffer, void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, UObject* OwnerObject, int32 PortFlags, FOutputDevice* ErrorText) const override;
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	// FMulticastDelegateProperty interface

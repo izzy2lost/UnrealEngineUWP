@@ -916,3 +916,22 @@ void* FArrayProperty::GetValueAddressAtIndex_Direct(const FProperty* InInner, vo
 		return nullptr;
 	}
 }
+
+bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	return false;
+}
+
+void FArrayProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	const FProperty* LocalInner = Inner;
+	check(LocalInner);
+	Tag.InnerType = LocalInner->GetID();
+}

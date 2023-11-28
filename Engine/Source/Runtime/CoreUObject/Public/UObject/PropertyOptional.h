@@ -228,5 +228,7 @@ public:
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override;
 	virtual uint32 GetValueTypeHashInternal(const void* Src) const override;
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
+	virtual void SaveToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 };

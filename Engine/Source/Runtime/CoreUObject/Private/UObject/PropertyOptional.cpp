@@ -525,3 +525,22 @@ uint32 FOptionalProperty::GetValueTypeHashInternal(const void* Src) const
 		return 0;
 	}
 }
+
+bool FOptionalProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	return false;
+}
+
+void FOptionalProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	const FProperty* LocalValueProperty = ValueProperty;
+	check(LocalValueProperty);
+	Tag.InnerType = LocalValueProperty->GetID();
+}

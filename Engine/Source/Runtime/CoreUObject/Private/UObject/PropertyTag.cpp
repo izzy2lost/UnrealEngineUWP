@@ -6,77 +6,20 @@
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
-#include "UObject/EnumProperty.h"
 #include "UObject/BlueprintsObjectVersion.h"
-#include "UObject/PropertyOptional.h"
 
 /*-----------------------------------------------------------------------------
 FPropertyTag
 -----------------------------------------------------------------------------*/
 
 FPropertyTag::FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults )
-	: Prop      (Property)
-	, Type      (Property->GetID())
-	, Name      (Property->GetFName())
-	, ArrayIndex(InIndex)
+	: ArrayIndex(InIndex)
 {
 	check(!InSaveAr.GetArchiveState().UseUnversionedPropertySerialization());
-	if (Property)
+	Property->SaveToTag(*this);
+	if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
 	{
-		// RobM: Ugly hack so that we can avoid content changes in most of the packages
-		auto GetEnumName = [](UEnum* InEnum)
-		{
-			if (InEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
-			{				
-				return InEnum->GetFName();
-			}
-			else
-			{
-				return FName(*InEnum->GetPathName());
-			}
-		};
-
-		// Handle structs.
-		if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-		{
-			StructName = StructProperty->Struct->GetFName();
-			StructGuid = StructProperty->Struct->GetCustomGuid();
-		}
-		else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
-		{
-			if (UEnum* Enum = EnumProp->GetEnum())
-			{
-				EnumName = GetEnumName(Enum);
-			}
-		}
-		else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
-		{
-			if (ByteProp->Enum != nullptr)
-			{
-				EnumName = GetEnumName(ByteProp->Enum);
-			}
-		}
-		else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
-		{
-			InnerType = ArrayProp->Inner->GetID();
-		}
-		else if (FSetProperty* SetProp = CastField<FSetProperty>(Property))
-		{
-			InnerType = SetProp->ElementProp->GetID();
-		}
-		else if (FMapProperty* MapProp = CastField<FMapProperty>(Property))
-		{
-			InnerType = MapProp->KeyProp->GetID();
-			ValueType = MapProp->ValueProp->GetID();
-		}
-		else if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
-		{
-			BoolVal = Bool->GetPropertyValue(Value);
-		}
-		else if (FOptionalProperty* OptionalProp = CastField<FOptionalProperty>(Property))
-		{
-			InnerType = OptionalProp->GetValueProperty()->GetID();
-		}
+		BoolVal = Bool->GetPropertyValue(Value);
 	}
 }
 

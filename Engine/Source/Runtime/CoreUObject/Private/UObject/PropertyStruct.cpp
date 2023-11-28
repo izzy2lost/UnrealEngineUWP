@@ -465,3 +465,23 @@ void FStructProperty::AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) c
 	}
 }
 #endif
+
+bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	return false;
+}
+
+void FStructProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	const UScriptStruct* LocalStruct = Struct;
+	check(LocalStruct);
+	Tag.StructName = LocalStruct->GetFName();
+	Tag.StructGuid = LocalStruct->GetCustomGuid();
+}

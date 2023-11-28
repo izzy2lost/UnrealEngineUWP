@@ -1310,3 +1310,25 @@ void* FMapProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* 
 	}
 	return nullptr;
 }
+
+bool FMapProperty::LoadFromTag(const FPropertyTag& Tag)
+{
+	if (!Super::LoadFromTag(Tag))
+	{
+		return false;
+	}
+
+	return false;
+}
+
+void FMapProperty::SaveToTag(FPropertyTag& Tag)
+{
+	Super::SaveToTag(Tag);
+
+	const FProperty* LocalKeyProp = KeyProp;
+	const FProperty* LocalValueProp = ValueProp;
+	check(LocalKeyProp);
+	check(LocalValueProp);
+	Tag.InnerType = LocalKeyProp->GetID();
+	Tag.ValueType = LocalValueProp->GetID();
+}
