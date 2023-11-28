@@ -73,7 +73,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnViewerRemoved, FMassViewerHandle Viewe
  * Manager responsible to manage and synchronized available viewers
  */
 UCLASS(config = Mass, defaultconfig)
-class MASSLOD_API UMassLODSubsystem : public UMassTickableSubsystemBase
+class MASSLOD_API UMassLODSubsystem : public UMassSubsystemBase
 {
 	GENERATED_BODY()
 
@@ -123,8 +123,6 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	// USubsystem END
-
-	virtual TStatId GetStatId() const override;
 
 	/** Called at the start of the PrePhysics mass processing phase and calls SynchronizeViewers */ 
 	void OnPrePhysicsPhaseStarted(float DeltaTime);

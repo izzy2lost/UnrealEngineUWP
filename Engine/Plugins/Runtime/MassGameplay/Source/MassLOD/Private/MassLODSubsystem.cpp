@@ -105,11 +105,6 @@ void UMassLODSubsystem::OnPrePhysicsPhaseStarted(float DeltaTime)
 	SynchronizeViewers();
 }
 
-TStatId UMassLODSubsystem::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(UMassLODSubsystem, STATGROUP_Tickables);
-}
-
 void UMassLODSubsystem::Deinitialize()
 {
 	// Remove all viewers from the viewer info list

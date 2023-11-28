@@ -58,6 +58,8 @@ bool UMassSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const
 
 void UMassSubsystemBase::Initialize(FSubsystemCollectionBase& Collection)
 {
+	Super::Initialize(Collection);
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bInitializeCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bInitializeCalled = true;
@@ -65,6 +67,8 @@ void UMassSubsystemBase::Initialize(FSubsystemCollectionBase& Collection)
 
 void UMassSubsystemBase::PostInitialize()
 {
+	Super::PostInitialize();
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bPostInitializeCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bPostInitializeCalled = true;
@@ -73,10 +77,14 @@ void UMassSubsystemBase::PostInitialize()
 void UMassSubsystemBase::Deinitialize()
 {
 	InitializationState = UE::Mass::Subsystems::FInitializationState();
+
+	Super::Deinitialize();
 }
 
 void UMassSubsystemBase::OnWorldBeginPlay(UWorld& InWorld)
 {
+	Super::OnWorldBeginPlay(InWorld);
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bOnWorldBeginPlayCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bOnWorldBeginPlayCalled = true;
@@ -97,6 +105,8 @@ bool UMassTickableSubsystemBase::ShouldCreateSubsystem(UObject* Outer) const
 
 void UMassTickableSubsystemBase::Initialize(FSubsystemCollectionBase& Collection)
 {
+	Super::Initialize(Collection);
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bInitializeCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bInitializeCalled = true;
@@ -104,6 +114,8 @@ void UMassTickableSubsystemBase::Initialize(FSubsystemCollectionBase& Collection
 
 void UMassTickableSubsystemBase::PostInitialize()
 {
+	Super::PostInitialize();
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bPostInitializeCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bPostInitializeCalled = true;
@@ -112,10 +124,14 @@ void UMassTickableSubsystemBase::PostInitialize()
 void UMassTickableSubsystemBase::Deinitialize()
 {
 	InitializationState = UE::Mass::Subsystems::FInitializationState();
+
+	Super::Deinitialize();
 }
 
 void UMassTickableSubsystemBase::OnWorldBeginPlay(UWorld& InWorld)
 {
+	Super::OnWorldBeginPlay(InWorld);
+
 	// This ensure is here to make sure we handle HandleLateCreation() gracefully, we dont expect it to ever trigger unless users start to manually call the functions
 	ensureMsgf(InitializationState.bOnWorldBeginPlayCalled == false, TEXT("%hs called multiple times"), __FUNCTION__);
 	InitializationState.bOnWorldBeginPlayCalled = true;
