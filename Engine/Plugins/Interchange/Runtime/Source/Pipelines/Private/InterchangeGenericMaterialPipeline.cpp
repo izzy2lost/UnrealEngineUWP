@@ -2691,7 +2691,14 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<float>(DefaultValueMemberName.ToString(), UMaterialExpressionScalarParameter::StaticClass(), DefaultValueMemberName);
 	}
 
-	MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+	if(FString DisplayLabel = ShaderNode->GetDisplayLabel(); DisplayLabel.IsEmpty())
+	{
+		MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+	}
+	else
+	{
+		MaterialExpressionFactoryNode->SetDisplayLabel(DisplayLabel);
+	}
 
 	return MaterialExpressionFactoryNode;
 }
@@ -2735,7 +2742,14 @@ UInterchangeMaterialExpressionFactoryNode* UInterchangeGenericMaterialPipeline::
 		MaterialExpressionFactoryNode->AddApplyAndFillDelegates<FLinearColor>(DefaultValueName.ToString(), UMaterialExpressionVectorParameter::StaticClass(), DefaultValueName);
 	}
 
-	MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+	if(FString DisplayLabel = ShaderNode->GetDisplayLabel(); DisplayLabel.IsEmpty())
+	{
+		MaterialExpressionFactoryNode->SetDisplayLabel(InputName);
+	}
+	else
+	{
+		MaterialExpressionFactoryNode->SetDisplayLabel(DisplayLabel);
+	}
 
 	return MaterialExpressionFactoryNode;
 }
