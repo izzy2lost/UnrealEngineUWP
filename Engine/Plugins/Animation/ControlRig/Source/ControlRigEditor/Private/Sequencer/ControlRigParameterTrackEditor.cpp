@@ -1431,9 +1431,12 @@ void FControlRigParameterTrackEditor::HandleAddControlRigSubMenu(FMenuBuilder& M
 		{
 			if (UControlRig* ControlRig = Track->GetControlRig())
 			{
-				if (ControlRig->GetObjectBinding()->GetBoundObject() == SkeletalMeshComponent)
+				if (TSharedPtr<IControlRigObjectBinding> ObjectBinding = ControlRig->GetObjectBinding())
 				{
-					ExistingRigs.Add(ControlRig->GetClass());
+					if (ObjectBinding.IsValid() && ObjectBinding->GetBoundObject() == SkeletalMeshComponent)
+					{
+						ExistingRigs.Add(ControlRig->GetClass());
+					}
 				}
 			}
 			return true;
@@ -1667,8 +1670,7 @@ static void EvaluateThisControl(UMovieSceneControlRigParameterSection* Section, 
 					RigHierarchy->SwitchToWorldSpace(ControlElement->GetKey());
 					break;
 				case EMovieSceneControlRigSpaceType::ControlRig:
-					URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-					RigHierarchy->SwitchToParent(ControlElement->GetKey(), SpaceKey.GetValue().ControlRigElement, false, true, Dependencies, nullptr);
+					ControlRig->SwitchToParent(ControlElement->GetKey(), SpaceKey.GetValue().ControlRigElement, false, true);
 					break;
 				}
 			}

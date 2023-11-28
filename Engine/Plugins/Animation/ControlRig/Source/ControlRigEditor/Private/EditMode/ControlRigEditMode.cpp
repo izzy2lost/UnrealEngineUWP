@@ -2834,10 +2834,22 @@ void FControlRigEditMode::OpenSpacePickerWidget()
 		}
 		else
 		{
-			const FTransform Transform = InHierarchy->GetGlobalTransform(InControlKey);
-			URigHierarchy::TElementDependencyMap Dependencies = InHierarchy->GetDependenciesForVM(RuntimeRig->GetVM());
-			InHierarchy->SwitchToParent(InControlKey, InSpaceKey, false, true, Dependencies, nullptr);
-			InHierarchy->SetGlobalTransform(InControlKey, Transform);
+			if (RuntimeRig->IsAdditive())
+			{
+				const FTransform Transform = RuntimeRig->GetControlGlobalTransform(InControlKey.Name);
+			   RuntimeRig->SwitchToParent(InControlKey, InSpaceKey, false, true);
+			   RuntimeRig->Evaluate_AnyThread();
+			   FRigControlValue ControlValue = RuntimeRig->GetControlValueFromGlobalTransform(InControlKey.Name, Transform, ERigTransformType::CurrentGlobal);
+			   RuntimeRig->SetControlValue(InControlKey.Name, ControlValue);
+			   RuntimeRig->Evaluate_AnyThread();
+			}
+			else
+			{
+				const FTransform Transform = InHierarchy->GetGlobalTransform(InControlKey);
+				URigHierarchy::TElementDependencyMap Dependencies = InHierarchy->GetDependenciesForVM(RuntimeRig->GetVM());
+				InHierarchy->SwitchToParent(InControlKey, InSpaceKey, false, true, Dependencies, nullptr);
+				InHierarchy->SetGlobalTransform(InControlKey, Transform);
+			}
 		}
 		
 	})

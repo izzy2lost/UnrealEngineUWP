@@ -262,6 +262,8 @@ public:
 	virtual void SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify = true,
 		const FRigControlModifiedContext& Context = FRigControlModifiedContext(), bool bSetupUndo = true, bool bPrintPythonCommnds = false, bool bFixEulerFlips = false);
 
+	void SwitchToParent(const FRigElementKey& InElementKey, const FRigElementKey& InNewParentKey, bool bInitial, bool bAffectChildren);
+
 	FTransform GetInitialLocalTransform(const FRigElementKey &InKey)
 	{
 		if (bIsAdditive)
@@ -660,9 +662,16 @@ protected:
 		bool bPrintPythonCommnds;
 		bool bFixEulerFlips;
 	};
+	struct FRigSwitchParentInfo
+	{
+		FRigElementKey NewParent;
+		bool bInitial;
+		bool bAffectChildren;
+	};
 	FRigPose PoseBeforeBackwardsSolve;
 	FRigPose ControlsAfterBackwardsSolve;
-	TMap<FRigElementKey, FRigSetControlValueInfo> ControlValues; // Additive values in local space (to add after backwards solve)
+	TMap<FRigElementKey, FRigSetControlValueInfo> ControlValues; // Layered Rigs: Additive values in local space (to add after backwards solve)
+	TMap<FRigElementKey, FRigSwitchParentInfo> SwitchParentValues; // Layered Rigs: Parent switching values to perform after backwards solve
 
 
 private:

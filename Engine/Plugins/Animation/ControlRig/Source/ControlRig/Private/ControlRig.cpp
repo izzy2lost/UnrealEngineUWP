@@ -376,13 +376,17 @@ void UControlRig::Evaluate_AnyThread()
 
 		URigHierarchy* Hierarchy = GetHierarchy();
 
-		// Reset all control local transforms to initial
+		// Reset all control local transforms to initial, and switch to default parents
 		Hierarchy->ForEach([Hierarchy](FRigBaseElement* Element) -> bool
 		{
 			if (FRigControlElement* Control = Cast<FRigControlElement>(Element))
 			{
 				if (Control->Settings.ControlType != ERigControlType::Bool)
 				{
+					if (Hierarchy->GetActiveParent(Control->GetKey()) != URigHierarchy::GetDefaultParentKey())
+					{
+						Hierarchy->SwitchToDefaultParent(Control);
+					}
 					Hierarchy->SetTransform(Control, Hierarchy->GetTransform(Control, ERigTransformType::InitialLocal), ERigTransformType::CurrentLocal, true);
 				}
 			}
@@ -406,7 +410,25 @@ void UControlRig::Evaluate_AnyThread()
 			Execute(FRigUnit_InverseExecution::EventName);
 		}
 
+		// Switch parents
+		for (TPair<FRigElementKey, FRigSwitchParentInfo>& Pair : SwitchParentValues)
+		{
+			if (FRigBaseElement* Element = Hierarchy->Find(Pair.Key))
+			{
+				if (FRigBaseElement* NewParent = Hierarchy->Find(Pair.Value.NewParent))
+				{
+#if WITH_EDITOR
+					URigHierarchy::TElementDependencyMap DependencyMap = Hierarchy->GetDependenciesForVM(GetVM());
+					Hierarchy->SwitchToParent(Element, NewParent, Pair.Value.bInitial, Pair.Value.bAffectChildren, DependencyMap, nullptr);
+#else
+					Hierarchy->SwitchToParent(Element, NewParent, Pair.Value.bInitial, Pair.Value.bAffectChildren);
+#endif
+				}
+			}
+		}
+
 		// Store control pose after backwards solve to figure out additive local transforms based on animation
+		// This needs to happen after the switch parents
 		ControlsAfterBackwardsSolve = Hierarchy->GetPose(false, ERigElementType::Control, TArrayView<const FRigElementKey>());
 
 		if (PreAdditiveValuesApplicationEvent.IsBound())
@@ -1953,6 +1975,37 @@ void UControlRig::SetControlValueImpl(const FName& InControlName, const FRigCont
 		{
 			OnControlModified.Broadcast(this, ControlElement, Context);
 		}
+	}
+}
+
+void UControlRig::SwitchToParent(const FRigElementKey& InElementKey, const FRigElementKey& InNewParentKey, bool bInitial, bool bAffectChildren)
+{
+	FRigBaseElement* Element = DynamicHierarchy->Find<FRigBaseElement>(InElementKey);
+	if(Element == nullptr)
+	{
+		return;
+	}
+	FRigBaseElement* Parent = DynamicHierarchy->Find<FRigBaseElement>(InNewParentKey);
+	if(Parent == nullptr)
+	{
+		return;
+	}
+	if (bIsAdditive)
+	{
+		FRigSwitchParentInfo Info;
+		Info.NewParent = InNewParentKey;
+		Info.bInitial = bInitial;
+		Info.bAffectChildren = bAffectChildren;
+		SwitchParentValues.Add(InElementKey, Info);
+	}
+	else
+	{
+#if WITH_EDITOR
+		URigHierarchy::TElementDependencyMap Dependencies = DynamicHierarchy->GetDependenciesForVM(GetVM());
+		DynamicHierarchy->SwitchToParent(InElementKey, InNewParentKey, bInitial, bAffectChildren, Dependencies, nullptr);
+#else
+		DynamicHierarchy->SwitchToParent(InElementKey, InNewParentKey, bInitial, bAffectChildren);
+#endif
 	}
 }
 

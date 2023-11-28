@@ -453,6 +453,11 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 
 			Context.LocalTime = TickResolution.AsSeconds(FFrameTime(Time - 1));
 			ControlRig->SetControlGlobalTransform(ControlKey.Name, ControlWorldTransforms[0], true, Context, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
+			if (ControlRig->IsAdditive())
+			{
+				// We need to evaluate in order to trigger a notification
+				ControlRig->Evaluate_AnyThread();
+			}
 
 			//need to do this after eval
 			FChannelMapInfo* pChannelIndex = nullptr;
@@ -469,8 +474,7 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 		}
 
 		// effectively switch to new space
-		URigHierarchy::TElementDependencyMap Dependencies = ControlRig->GetHierarchy()->GetDependenciesForVM(ControlRig->GetVM());
-		ControlRig->GetHierarchy()->SwitchToParent(ControlKey, SpaceKey, false, true, Dependencies, nullptr);
+		ControlRig->SwitchToParent(ControlKey, SpaceKey, false, true);
 		// add new keys in the new space context
 		int32 FramesIndex = 0;
 		for (const FFrameNumber& Frame : Frames)
@@ -484,7 +488,12 @@ FKeyHandle FControlRigSpaceChannelHelpers::SequencerKeyControlRigSpaceChannel(UC
 			ControlRig->Evaluate_AnyThread();
 			Context.LocalTime = TickResolution.AsSeconds(FFrameTime(Frame));
 			ControlRig->SetControlGlobalTransform(ControlKey.Name, ControlWorldTransforms[FramesIndex], true, Context, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
-
+			if (ControlRig->IsAdditive())
+			{
+				// We need to evaluate in order to trigger a notification
+				ControlRig->Evaluate_AnyThread();
+			}
+			
 			//need to do this after eval
 			FChannelMapInfo* pChannelIndex = nullptr;
 			FRigControlElement* ControlElement = nullptr;
@@ -700,8 +709,7 @@ void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UControlRi
 				RigHierarchy->SwitchToWorldSpace(ControlKey);
 				break;
 			case EMovieSceneControlRigSpaceType::ControlRig:
-				URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-				RigHierarchy->SwitchToParent(ControlKey, PreviousValue.ControlRigElement, false, true, Dependencies, nullptr);
+				ControlRig->SwitchToParent(ControlKey, PreviousValue.ControlRigElement, false, true);
 				break;
 			}
 			ControlRig->Evaluate_AnyThread();
@@ -1073,8 +1081,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 			FRigControlModifiedContext Context;
 			Context.SetKey = EControlRigSetKey::Always;
 			Context.KeyMask = (uint32)EControlRigContextChannelToKey::AllTransform;
-			URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-			RigHierarchy->SwitchToParent(ControlKey, Settings.TargetSpace, false, true, Dependencies, nullptr);
+			ControlRig->SwitchToParent(ControlKey, Settings.TargetSpace, false, true);
 			ControlRig->Evaluate_AnyThread();
 
 			FMovieSceneSequenceTransform RootToLocalTransform = Sequencer->GetFocusedMovieSceneSequenceTransform();
@@ -1120,7 +1127,7 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 					RigHierarchy->SwitchToWorldSpace(ControlKey);
 					break;
 				case EMovieSceneControlRigSpaceType::ControlRig:
-					RigHierarchy->SwitchToParent(ControlKey, EndFrameValue.ControlRigElement, false, true, Dependencies, nullptr);
+					ControlRig->SwitchToParent(ControlKey, EndFrameValue.ControlRigElement, false, true);
 					break;
 				}
 
@@ -1337,8 +1344,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 									RigHierarchy->SwitchToWorldSpace(Control->GetKey());
 									break;
 								case EMovieSceneControlRigSpaceType::ControlRig:
-									URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-									RigHierarchy->SwitchToParent(Control->GetKey(), PreviousValue.ControlRigElement, false, true, Dependencies, nullptr);
+									ControlRig->SwitchToParent(Control->GetKey(), PreviousValue.ControlRigElement, false, true);
 									break;
 							}
 							

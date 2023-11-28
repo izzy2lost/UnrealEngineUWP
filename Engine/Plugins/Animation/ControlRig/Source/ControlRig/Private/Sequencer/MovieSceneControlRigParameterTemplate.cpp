@@ -795,8 +795,7 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 								case EMovieSceneControlRigSpaceType::ControlRig:
 								{
 #if WITH_EDITOR
-									URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-									RigHierarchy->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true, Dependencies, nullptr);
+									ControlRig->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true);
 #else
 									RigHierarchy->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement);
 #endif
@@ -1327,18 +1326,17 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 								switch (SpaceNameAndValue.Value.SpaceType)
 								{
 									case EMovieSceneControlRigSpaceType::Parent:
-										RigHierarchy->SwitchToDefaultParent(ControlKey);
+										ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 										break;
 									case EMovieSceneControlRigSpaceType::World:
-										RigHierarchy->SwitchToWorldSpace(ControlKey);
+										ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 										break;
 									case EMovieSceneControlRigSpaceType::ControlRig:
 										{
 #if WITH_EDITOR
-											URigHierarchy::TElementDependencyMap Dependencies = RigHierarchy->GetDependenciesForVM(ControlRig->GetVM());
-											RigHierarchy->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true, Dependencies, nullptr);
+											ControlRig->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true);
 #else
-											RigHierarchy->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement);
+											ControlRig->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true);
 #endif	
 										}
 										break;
