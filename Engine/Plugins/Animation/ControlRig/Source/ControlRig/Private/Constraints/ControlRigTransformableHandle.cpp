@@ -31,15 +31,9 @@ void UTransformableControlHandle::PostLoad()
 	RegisterDelegates();
 }
 
-bool UTransformableControlHandle::IsValid() const
+bool UTransformableControlHandle::IsValid(const bool bDeepCheck) const
 {
 	if (!ControlRig.IsValid() || ControlName == NAME_None)
-	{
-		return false;
-	}
-
-	const USceneComponent* BoundComponent = GetBoundComponent();
-	if (!BoundComponent)
 	{
 		return false;
 	}
@@ -48,6 +42,15 @@ bool UTransformableControlHandle::IsValid() const
 	if (!ControlElement)
 	{
 		return false;
+	}
+
+	if (bDeepCheck)
+	{
+		const USceneComponent* BoundComponent = GetBoundComponent();
+		if (!BoundComponent)
+		{
+			return false;
+		}
 	}
 	
 	return true;

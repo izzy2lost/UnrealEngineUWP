@@ -31,7 +31,7 @@ public:
 	virtual void PostLoad() override;
 	
 	/** Sanity check to ensure that ControlRig and ControlName are safe to use. */
-	virtual bool IsValid() const override;
+	virtual bool IsValid(const bool bDeepCheck = true) const override;
 
 	/** Sets the global transform of the control. */
 	virtual void SetGlobalTransform(const FTransform& InGlobal) const override;

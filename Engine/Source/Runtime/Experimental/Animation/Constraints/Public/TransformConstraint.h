@@ -47,7 +47,7 @@ public:
 	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player,UObject* SubObject) override;
 
 	/** Whether or not it's valid for example it may not be fully loaded*/
-	virtual bool IsValid() const override;
+	virtual bool IsValid(const bool bDeepCheck = true) const override;
 
 	/** If Active and the handles and targets are valid, and tick function is registered*/
 	CONSTRAINTS_API virtual bool IsFullyActive() const override;

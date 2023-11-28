@@ -47,8 +47,13 @@ public:
 	
 	CONSTRAINTS_API virtual ~UTransformableHandle();
 	
-	/** Sanity check to ensure the handle is safe to use. */
-	CONSTRAINTS_API virtual bool IsValid() const PURE_VIRTUAL(IsValid, return false;);
+	/** Sanity check to ensure the handle is safe to use.
+	 * @param bDeepCheck to check that the transformable object it wraps is valid AND can be transformed. Default is true.
+	 * Some handles, such as control handles, will only be bound to a skeletal mesh once the level sequence has been opened, but their control rig
+	 * pointer and control name are valid, so they must be fully loaded so that the constraint can be updated later. bDeepCheck = false will be used
+	 * for that purpose.
+	 */
+	CONSTRAINTS_API virtual bool IsValid(const bool bDeepCheck = true) const PURE_VIRTUAL(IsValid, return false;);
 	
 	/** Sets the global transform of the underlying transformable object. */
 	CONSTRAINTS_API virtual void SetGlobalTransform(const FTransform& InGlobal) const PURE_VIRTUAL(SetGlobalTransform, );
@@ -62,7 +67,7 @@ public:
 	/** If true it contains objects bound to an external system, like sequencer so we don't do certain things, like remove constraints when they don't resolve*/
 	CONSTRAINTS_API virtual bool HasBoundObjects() const;
 
-	/** Resolve the bound objects so that any object it references are resovled and correctly set up*/
+	/** Resolve the bound objects so that any object it references are resolved and correctly set up*/
 	CONSTRAINTS_API virtual void ResolveBoundObjects(FMovieSceneSequenceID LocalSequenceID, IMovieScenePlayer& Player, UObject* SubObject = nullptr) PURE_VIRTUAL(ResolveBoundObjects);
 
 	/** Make a duplicate of myself with this outer*/
@@ -139,7 +144,7 @@ public:
 	CONSTRAINTS_API virtual void PostLoad() override;
 	
 	/** Sanity check to ensure that Component. */
-	CONSTRAINTS_API virtual bool IsValid() const override;
+	CONSTRAINTS_API virtual bool IsValid(const bool bDeepCheck = true) const override;
 	
 	/** Sets the global transform of Component. */
 	CONSTRAINTS_API virtual void SetGlobalTransform(const FTransform& InGlobal) const override;

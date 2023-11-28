@@ -61,7 +61,7 @@ void UTransformableComponentHandle::PostLoad()
 	RegisterDelegates();
 }
 
-bool UTransformableComponentHandle::IsValid() const
+bool UTransformableComponentHandle::IsValid(const bool bDeepCheck) const
 {
 	return Component.IsValid();
 }

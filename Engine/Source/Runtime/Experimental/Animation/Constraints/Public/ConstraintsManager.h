@@ -84,7 +84,7 @@ public:
 	CONSTRAINTS_API virtual void Evaluate(bool bTickHandlesAlso = false) const;
 
 	/** Whether or not it's valid for example it may not be fully loaded, missing handles or set to not be valid*/
-	virtual bool IsValid() const PURE_VIRTUAL(IsValid, return false;);
+	virtual bool IsValid(const bool bDeepCheck = true) const PURE_VIRTUAL(IsValid, return false;);
 	/** Sets the Active value and enable/disable the tick function. */
 	CONSTRAINTS_API virtual void SetActive(const bool bIsActive);
 

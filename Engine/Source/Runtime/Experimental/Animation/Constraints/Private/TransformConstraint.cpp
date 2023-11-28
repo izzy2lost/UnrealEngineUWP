@@ -619,10 +619,13 @@ void UTickableTransformConstraint::OnHandleModified(UTransformableHandle* InHand
 	}
 }
 
-bool UTickableTransformConstraint::IsValid() const
+bool UTickableTransformConstraint::IsValid(const bool bDeepCheck) const
 {
-	return (bValid && ::IsValid(ChildTRSHandle) && ChildTRSHandle->IsValid()
-		&& ::IsValid(ParentTRSHandle) && ParentTRSHandle->IsValid());
+	const bool bAreHandlesValid =
+		::IsValid(ChildTRSHandle) && ChildTRSHandle->IsValid(bDeepCheck) &&
+		::IsValid(ParentTRSHandle) && ParentTRSHandle->IsValid(bDeepCheck); 
+	
+	return bDeepCheck ? bAreHandlesValid && bValid : bAreHandlesValid;
 }
 
 bool UTickableTransformConstraint::IsFullyActive() const

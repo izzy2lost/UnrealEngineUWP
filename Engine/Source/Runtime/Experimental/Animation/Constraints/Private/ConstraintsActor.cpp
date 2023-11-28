@@ -70,14 +70,14 @@ void AConstraintsActor::RegisterConstraintsTickFunctions() const
 	{
 		if (ConstraintsManager)
 		{
-			// remove invalid pointers
-			ConstraintsManager->Constraints.RemoveAll( [](const TObjectPtr<UTickableConstraint>& InConstraint)
+			// remove invalid constraints (meaning that both handle's components are invalid, unbound controls are valid)
+			static constexpr bool bDeepValidityCheck = false;
+			ConstraintsManager->Constraints.RemoveAll([](const TObjectPtr<UTickableConstraint>& InConstraint)
 			{
-				return !IsValid(InConstraint) || !InConstraint->IsValid();
+				return !IsValid(InConstraint) || !InConstraint->IsValid(bDeepValidityCheck);
 			});
 			
-			// ensure registration, we now do this by adding it to the controller (which registers and sets it with the
-			//subsystem
+			// ensure registration, we now do this by adding it to the controller (which registers and sets it with the subsystem)
 			FConstraintsManagerController& Controller = FConstraintsManagerController::Get(GetWorld());
 			for (const TObjectPtr<UTickableConstraint>& ConstPtr: ConstraintsManager->Constraints)
 			{
