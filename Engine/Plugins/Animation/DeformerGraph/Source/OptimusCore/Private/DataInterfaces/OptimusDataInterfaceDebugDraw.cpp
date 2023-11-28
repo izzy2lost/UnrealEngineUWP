@@ -14,6 +14,14 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceDebugDraw)
 
 
+UOptimusDebugDrawDataInterface::UOptimusDebugDrawDataInterface()
+{
+	if (ShaderPrint::IsSupported(GMaxRHIShaderPlatform))
+	{
+		bIsSupported = true;
+	}
+}
+
 FString UOptimusDebugDrawDataInterface::GetDisplayName() const
 {
 	return TEXT("Debug Draw");
@@ -151,6 +159,11 @@ bool FOptimusDebugDrawDataProviderProxy::IsValid(FValidationData const& InValida
 		return false;
 	}
 
+	if (!ShaderPrint::IsSupported(GMaxRHIShaderPlatform))
+	{
+		return false;
+	}
+	
 	return true;
 }
 
