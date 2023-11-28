@@ -319,8 +319,13 @@ public:
 		}
 
 		// Note: Setting the graph preset will transition the job to use a graph-based configuration
-		UMovieGraphConfig* NewGraph = NewObject<UMovieGraphConfig>(Job);
-		Job->SetGraphConfig(NewGraph);
+		// Use the default graph specified in Project Settings.
+		const UMovieRenderPipelineProjectSettings* ProjectSettings = GetDefault<UMovieRenderPipelineProjectSettings>();
+		const TSoftObjectPtr<UMovieGraphConfig> ProjectDefaultGraph = ProjectSettings->DefaultGraph;
+		if (const UMovieGraphConfig* DefaultGraph = ProjectDefaultGraph.LoadSynchronous())
+		{
+			Job->SetGraphPreset(DefaultGraph);
+		}
 	}
 
 	void OnCreateNewGraphAndAssign() const
@@ -1004,8 +1009,13 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 		}
 
 		// Note: Setting the graph preset will transition the job to use a graph-based configuration
-		UMovieGraphConfig* NewGraph = NewObject<UMovieGraphConfig>(Shot);
-		Shot->SetGraphConfig(NewGraph);
+		// Use the default graph specified in Project Settings.
+		const UMovieRenderPipelineProjectSettings* ProjectSettings = GetDefault<UMovieRenderPipelineProjectSettings>();
+		const TSoftObjectPtr<UMovieGraphConfig> ProjectDefaultGraph = ProjectSettings->DefaultGraph;
+		if (const UMovieGraphConfig* DefaultGraph = ProjectDefaultGraph.LoadSynchronous())
+		{
+			Shot->SetGraphPreset(DefaultGraph);
+		}
 	}
 
 	void OnCreateNewGraphAndAssign() const

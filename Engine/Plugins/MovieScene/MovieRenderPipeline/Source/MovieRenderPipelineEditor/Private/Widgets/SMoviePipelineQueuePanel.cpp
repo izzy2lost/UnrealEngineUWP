@@ -387,7 +387,7 @@ void SMoviePipelineQueuePanel::OnEditJobConfigRequested(TWeakObjectPtr<UMoviePip
 	}
 	else if (InJob.IsValid() && InJob->IsUsingGraphConfiguration())
 	{
-		GraphToEdit = (InJob->GetGraphPreset() != nullptr) ? InJob->GetGraphPreset() : InJob->GetGraphConfig();
+		GraphToEdit = InJob->GetGraphPreset();
 	}
 
 	if (GraphToEdit)

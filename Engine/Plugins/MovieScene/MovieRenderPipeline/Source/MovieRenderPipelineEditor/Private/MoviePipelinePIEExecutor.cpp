@@ -223,8 +223,8 @@ void UMoviePipelinePIEExecutor::OnPIEStartupFinished(bool)
 		return;
 	}
 
-	UMoviePipelineExecutorJob* CurrentJob = Queue->GetJobs()[CurrentPipelineIndex];
-	if (CurrentJob->GetGraphConfig())
+	const UMoviePipelineExecutorJob* CurrentJob = Queue->GetJobs()[CurrentPipelineIndex];
+	if (CurrentJob->IsUsingGraphConfiguration())
 	{
 		PipelineClass = UMovieGraphPipeline::StaticClass();
 	}

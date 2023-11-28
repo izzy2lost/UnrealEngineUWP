@@ -47,7 +47,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 		return;
 	}
 
-	if (!ensureAlwaysMsgf(InJob->GetGraphConfig(), TEXT("MoviePipeline cannot be initialized with a null job configuration. Make sure you've created a Graph Config for this job (or use the regular UMoviePipeline instead of UMovieGraphPipeline). Aborting.")))
+	if (!ensureAlwaysMsgf(InJob->GetGraphPreset(), TEXT("MoviePipeline cannot be initialized with a null job configuration. Make sure you've created a Graph Config for this job (or use the regular UMoviePipeline instead of UMovieGraphPipeline). Aborting.")))
 	{
 		//Shutdown(true);
 		return;
@@ -1308,10 +1308,6 @@ UMovieGraphConfig* UMovieGraphPipeline::GetRootGraphForShot(UMoviePipelineExecut
 				{
 					return Shot->GetGraphPreset();
 				}
-				else if (Shot->GetGraphConfig())
-				{
-					return Shot->GetGraphConfig();
-				}
 			}
 
 		}
@@ -1320,10 +1316,6 @@ UMovieGraphConfig* UMovieGraphPipeline::GetRootGraphForShot(UMoviePipelineExecut
 		if (GetCurrentJob()->GetGraphPreset())
 		{
 			return GetCurrentJob()->GetGraphPreset();
-		}
-		else if (GetCurrentJob()->GetGraphConfig())
-		{
-			return GetCurrentJob()->GetGraphConfig();
 		}
 	}
 

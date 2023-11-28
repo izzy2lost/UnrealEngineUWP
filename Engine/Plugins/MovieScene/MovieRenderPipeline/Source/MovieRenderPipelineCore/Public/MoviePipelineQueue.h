@@ -142,7 +142,6 @@ public:
 
 	/**
 	 * Gets the graph-style preset that this job is using. If the job is not using a graph-style preset, returns nullptr.
-	 * @see GetGraphConfig()
 	 */
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	UMovieGraphConfig* GetGraphPreset() const
@@ -151,19 +150,8 @@ public:
 	}
 
 	/**
-	 * Gets the graph-style config that this job is using. If the job is not using a graph-style config, returns nullptr.
-	 * @see GetGraphPreset()
-	 */
-	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
-	UMovieGraphConfig* GetGraphConfig() const
-	{
-		return GraphConfig;
-	}
-
-	/**
 	 * Sets the graph-style preset that this job will use. Note that this will cause the graph to switch over to using
 	 * graph-style configuration if it is not already using it.
-	 * @see SetGraphConfig()
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
@@ -174,17 +162,6 @@ public:
 #if WITH_EDITOR
 		VariableAssignments->UpdateGraphVariableOverrides();
 #endif
-	}
-
-	/**
-	 * Sets the graph-style config that this job will use. Note that this will cause the graph to switch over to using
-	 * graph-style configuration if it is not already using it.
-	 * @see SetGraphPreset()
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphConfig(UMovieGraphConfig* InGraphConfig)
-	{
-		GraphConfig = InGraphConfig;
 	}
 
 	/** Returns whether this should should be rendered */
@@ -255,10 +232,6 @@ private:
 
 	UPROPERTY()
 	TSoftObjectPtr<UMoviePipelineShotConfig> ShotOverridePresetOrigin;
-
-	/** The graph-based configuration that this shot is using; Can be nullptr. */
-	UPROPERTY()
-	TObjectPtr<UMovieGraphConfig> GraphConfig;
 
 	/** The graph-based configuration preset that this shot is using. Can be nullptr. */
 	UPROPERTY()
@@ -446,7 +419,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	bool IsUsingGraphConfiguration() const
 	{
-		return GraphPreset.IsValid() || GraphConfig != nullptr;
+		return GraphPreset.IsValid();
 	}
 
 	/**
@@ -460,19 +433,8 @@ public:
 	}
 
 	/**
-	 * Gets the graph-style config that this job is using. If the job is not using a graph-style config, returns nullptr.
-	 * @see GetGraphPreset()
-	 */
-	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
-	UMovieGraphConfig* GetGraphConfig() const
-	{
-		return GraphConfig;
-	}
-
-	/**
 	 * Sets the graph-style preset that this job will use. Note that this will cause the graph to switch over to using
 	 * graph-style configuration if it is not already using it.
-	 * @see SetGraphConfig()
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
@@ -483,17 +445,6 @@ public:
 #if WITH_EDITOR
 		VariableAssignments->UpdateGraphVariableOverrides();
 #endif
-	}
-
-	/**
-	 * Sets the graph-style config that this job will use. Note that this will cause the graph to switch over to using
-	 * graph-style configuration if it is not already using it.
-	 * @see SetGraphPreset()
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphConfig(UMovieGraphConfig* InGraphConfig)
-	{
-		GraphConfig = InGraphConfig;
 	}
 
 	UFUNCTION(BlueprintSetter, Category = "Movie Render Pipeline")
@@ -587,10 +538,6 @@ private:
 	/** Whether this job is enabled and should be rendered. */
 	UPROPERTY()
 	bool bEnabled;
-
-	/** The graph-based configuration that this job is using; this graph has not been saved as an asset. Can be nullptr.  */
-	UPROPERTY()
-	TObjectPtr<UMovieGraphConfig> GraphConfig;
 
 	/** The graph-based configuration preset that this job is using. Can be nullptr. */
 	UPROPERTY()

@@ -117,7 +117,7 @@ void UMoviePipelineInProcessExecutor::OnMapLoadFinished(UWorld* NewWorld)
 	}
 
 	// Temporary
-	if (CurrentJob->GetGraphConfig())
+	if (CurrentJob->IsUsingGraphConfiguration())
 	{
 		MoviePipelineClass = UMovieGraphPipeline::StaticClass();
 	}

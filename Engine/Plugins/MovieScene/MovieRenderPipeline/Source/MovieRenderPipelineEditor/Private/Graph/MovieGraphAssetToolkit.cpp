@@ -19,6 +19,7 @@
 #include "Graph/Nodes/MovieGraphSelectNode.h"
 #include "MovieEdGraphNode.h"
 #include "MovieGraphSchema.h"
+#include "MovieRenderPipelineSettings.h"
 #include "SMovieGraphActiveRenderSettingsTabContent.h"
 #include "SMovieGraphMembersTabContent.h"
 
@@ -207,6 +208,12 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphEditor(const F
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				GetDefaultGraphEditWarning()
+			]
+			
+			+ SVerticalBox::Slot()
 			[
 				SAssignNew(MovieGraphWidget, SMoviePipelineGraphPanel)
 				.Graph(InitialGraph)
@@ -385,6 +392,46 @@ void FMovieGraphAssetToolkit::PersistEditorOnlyNodes() const
 
 		InitialGraph->SetEditorOnlyNodes(EditorOnlyNodes);
 	}
+}
+
+TSharedRef<SWidget> FMovieGraphAssetToolkit::GetDefaultGraphEditWarning() const
+{
+	// Determine if the default graph is being edited
+	bool bIsDefaultGraphBeingEdited = false;
+	const UMovieRenderPipelineProjectSettings* ProjectSettings = GetDefault<UMovieRenderPipelineProjectSettings>();
+	const TSoftObjectPtr<UMovieGraphConfig> ProjectDefaultGraph = ProjectSettings->DefaultGraph;
+	if (const UMovieGraphConfig* DefaultGraph = ProjectDefaultGraph.LoadSynchronous())
+	{
+		bIsDefaultGraphBeingEdited = (DefaultGraph == InitialGraph.Get());
+	}
+	
+	return SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("Brushes.Warning"))
+		.BorderBackgroundColor_Lambda([]()
+		{
+			FLinearColor WarningColor = FAppStyle::GetSlateColor("Colors.Warning").GetSpecifiedColor();
+			WarningColor.A = 0.3;
+			return WarningColor;
+		})
+		.Padding(5.f)
+		.Visibility(bIsDefaultGraphBeingEdited ? EVisibility::Visible : EVisibility::Collapsed)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(0, 0, 5.f, 0)
+			.AutoWidth()
+			[
+				SNew(SImage)
+				.Image(FAppStyle::Get().GetBrush("Icons.WarningWithColor"))
+			]
+
+			+ SHorizontalBox::Slot()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("GraphTab_EditingDefaultGraphWarning", "The default graph asset is being edited. 'Save As' to save a new graph asset."))
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+			]
+		];
 }
 
 FName FMovieGraphAssetToolkit::GetToolkitFName() const

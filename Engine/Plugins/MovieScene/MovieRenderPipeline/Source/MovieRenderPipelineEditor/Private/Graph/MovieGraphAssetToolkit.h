@@ -45,6 +45,9 @@ private:
 	/** Copies editor-only nodes to the underlying runtime graph so they can be restored later. */
 	void PersistEditorOnlyNodes() const;
 
+	/** Generate the widget that displays a warning banner if the default graph is being edited. */
+	TSharedRef<SWidget> GetDefaultGraphEditWarning() const;
+
 private:
 	/** The details panel for the selected object(s) in the graph */
 	TSharedPtr<IDetailsView> SelectedGraphObjectsDetailsWidget;
