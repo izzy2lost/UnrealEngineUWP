@@ -191,7 +191,7 @@ namespace Horde.Server.Compute
 			await base.OnLeaseFinishedAsync(agent, leaseId, payload, outcome, output, logger);
 
 			// Remove any port mapping associated with this lease ID (as of now, only compute tasks can be relayed)
-			await _agentRelay.RemovePortMappingAsync(leaseId.ToString());
+			await _agentRelay.RemovePortMappingAsync(leaseId);
 		}
 
 		async Task<AgentLease?> WaitInternalAsync(IAgent agent, CancellationToken cancellationToken)

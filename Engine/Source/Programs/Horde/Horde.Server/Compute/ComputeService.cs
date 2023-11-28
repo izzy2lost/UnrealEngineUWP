@@ -610,7 +610,9 @@ namespace Horde.Server.Compute
 					})
 					.OrderBy(x => x.AgentPort)
 					.ToList();
-				PortMappingResult pmResult = await _agentRelayService.RequestPortMappingAsync(arp.ClusterId.ToString(), leaseId.ToString(), agentIp.ToString(), relayPorts);
+				
+				IPAddress? clientPublicIp = arp.RequesterPublicIp == null ? null : IPAddress.Parse(arp.RequesterPublicIp);
+				PortMappingResult pmResult = await _agentRelayService.RequestPortMappingAsync(arp.ClusterId, leaseId, clientPublicIp, agentIp, relayPorts);
 
 				IPAddress relayIp = FindBestRelayIp(arp.RequesterIp, null, pmResult.IpAddresses);
 				Dictionary<string, ComputeResourcePort> ports = new();

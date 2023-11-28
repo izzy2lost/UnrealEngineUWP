@@ -293,8 +293,8 @@ namespace Horde.Server.Tests.Compute
 				Ports = ports ?? new Dictionary<string, int>(),
 				UsePublicIp = usePublicIp
 			};
-			string[] defaultRelayIps = { "192.168.1.1" };
-			await AgentRelayService.UpdateAgentHeartbeatAsync(_cluster1.ToString(), "myrelay", relayIps ?? defaultRelayIps);
+			IPAddress[] defaultRelayIps = { IPAddress.Parse("192.168.1.1") };
+			await AgentRelayService.UpdateAgentHeartbeatAsync(_cluster1, "myrelay", relayIps?.Select(IPAddress.Parse) ?? defaultRelayIps);
 			return await cs.TryAllocateResourceAsync(arp, CancellationToken.None);
 		}
 		

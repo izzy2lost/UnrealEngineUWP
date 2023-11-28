@@ -13,6 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Compute;
 using Google.Protobuf;
 using Horde.Common.Rpc;
 using Horde.Server.Acls;
@@ -389,14 +391,19 @@ namespace Horde.Server.Server
 		/// </summary>
 		[HttpGet]
 		[Route("/api/v1/debug/relay/add-port")]
-		public async Task<ActionResult<object>> AddPortMappingAsync([FromQuery] string? agentIp = null, [FromQuery] int? agentPort = null)
+		public async Task<ActionResult<object>> AddPortMappingAsync([FromQuery] string? clientIpStr = null, [FromQuery] string? agentIpStr = null, [FromQuery] int? agentPort = null)
 		{
 			if (!_globalConfig.Value.Authorize(ServerAclAction.Debug, User))
 			{
 				return Forbid(ServerAclAction.Debug);
 			}
 
-			if (agentIp == null || !IPAddress.TryParse(agentIp, out IPAddress? _))
+			if (clientIpStr == null || !IPAddress.TryParse(clientIpStr, out IPAddress? clientIp))
+			{
+				return BadRequest("Unable to read or convert query parameter 'clientIp'");
+			}
+			
+			if (agentIpStr == null || !IPAddress.TryParse(agentIpStr, out IPAddress? agentIp))
 			{
 				return BadRequest("Unable to read or convert query parameter 'agentIp'");
 			}
@@ -411,7 +418,8 @@ namespace Horde.Server.Server
 			{
 				new Port { RelayPort = -1, AgentPort = agentPort.Value, Protocol = PortProtocol.Tcp }
 			};
-			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync("default", bogusLeaseId, agentIp, ports);
+			
+			PortMapping portMapping = await _agentRelayService.AddPortMappingAsync(new ClusterId("default"), LeaseId.Parse(bogusLeaseId), clientIp, agentIp, ports);
 			return JsonFormatter.Default.Format(portMapping);
 		}
 

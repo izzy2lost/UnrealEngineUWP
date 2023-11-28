@@ -5,8 +5,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Compute;
 using EpicGames.Redis;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
@@ -72,17 +75,17 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	
 	private const string RedisChannelUpdate = "relay/update";
 	private static string KeyClusters() => "relay/clusters";
-	private static string KeyPortMappings(string clusterId) => $"relay/port-mappings/{clusterId}";
-	private static string KeyPortMappingRevision(string clusterId) => $"relay/port-mappings-revision/{clusterId}";
-	private static string KeyUsedPorts(string clusterId) => $"relay/used-ports/{clusterId}";
-	private static string KeyAgents(string clusterId) => $"relay/agents/{clusterId}";
+	private static string KeyPortMappings(ClusterId clusterId) => $"relay/port-mappings/{clusterId}";
+	private static string KeyPortMappingRevision(ClusterId clusterId) => $"relay/port-mappings-revision/{clusterId}";
+	private static string KeyUsedPorts(ClusterId clusterId) => $"relay/used-ports/{clusterId}";
+	private static string KeyAgents(ClusterId clusterId) => $"relay/agents/{clusterId}";
 
 	private readonly RedisService _redis;
 	private readonly IClock _clock;
 	private readonly ILogger<AgentRelayService> _logger;
 	private readonly object _lock = new();
 	private TaskCompletionSource _onPortMappingUpdated = new();
-	private readonly ConcurrentDictionary<string, PortMappingsInfo> _clusterPortMappings = new();
+	private readonly ConcurrentDictionary<ClusterId, PortMappingsInfo> _clusterPortMappings = new();
 	private TimeSpan _longPollTimeout = TimeSpan.FromSeconds(20);
 	private TimeSpan _agentExpirationTimeout;
 	private IAsyncDisposable? _redisSubscription;
@@ -123,11 +126,11 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// Get a list of all cluster IDs having registered a port mapping
 	/// </summary>
 	/// <returns>List of cluster IDs</returns>
-	public async Task<HashSet<string>> GetClustersAsync()
+	public async Task<HashSet<ClusterId>> GetClustersAsync()
 	{
 		IDatabase redis = _redis.GetDatabase();
 		HashEntry[] entries = await redis.HashGetAllAsync(KeyClusters());
-		return new HashSet<string>(entries.Select(e => e.Name.ToString()));
+		return new HashSet<ClusterId>(entries.Select(e => new ClusterId(e.Name.ToString())));
 	}
 	
 	/// <summary>
@@ -136,10 +139,10 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// <param name="clusterId">Cluster ID</param>
 	/// <param name="leaseId">Lease ID</param>
 	/// <returns>The port mapping, or null if not found</returns>
-	public async Task<PortMapping?> GetPortMappingAsync(string clusterId, string leaseId)
+	public async Task<PortMapping?> GetPortMappingAsync(ClusterId clusterId, LeaseId leaseId)
 	{
 		IDatabase redis = _redis.GetDatabase();
-		RedisValue value = await redis.HashGetAsync(KeyPortMappings(clusterId), leaseId);
+		RedisValue value = await redis.HashGetAsync(KeyPortMappings(clusterId), leaseId.ToString());
 		return value.IsNullOrEmpty ? null : PortMapping.Parser.ParseFrom(value);
 	}
 	
@@ -148,7 +151,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// </summary>
 	/// <param name="clusterId">Cluster ID</param>
 	/// <returns>List of all port mappings</returns>
-	public async Task<(int revision, List<PortMapping> portMappings)> GetPortMappingsAsync(string clusterId)
+	public async Task<(int revision, List<PortMapping> portMappings)> GetPortMappingsAsync(ClusterId clusterId)
 	{
 		IDatabase redis = _redis.GetDatabase();
 		ITransaction transaction = redis.CreateTransaction();
@@ -170,12 +173,13 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// </summary>
 	/// <param name="clusterId">Cluster ID this mapping is for</param>
 	/// <param name="leaseId">Lease ID this mapping is for</param>
+	/// <param name="clientIp">Source IP for requester. Used for access filtering. Null allow any IP to access forwarded ports</param>
 	/// <param name="agentIp">What agent IP to forward all traffic to</param>
 	/// <param name="ports">Ports agent is listening</param>
 	/// <param name="numRetries">Number of retries before giving up</param>
 	/// <returns>A port mapping with listen ports assigned</returns>
 	/// <exception cref="Exception"></exception>
-	public async Task<PortMapping> AddPortMappingAsync(string clusterId, string leaseId, string agentIp, IList<Port> ports, int numRetries = 10)
+	public async Task<PortMapping> AddPortMappingAsync(ClusterId clusterId, LeaseId leaseId, IPAddress? clientIp, IPAddress agentIp, IList<Port> ports, int numRetries = 10)
 	{
 		IDatabase redis = _redis.GetDatabase();
 
@@ -199,8 +203,13 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 				.OrderBy(x => x)
 				.Zip(ports, (newRelayPort, port) => new Port { RelayPort = newRelayPort, AgentPort = port.AgentPort, Protocol = port.Protocol });
 			
-			PortMapping newPortMapping = new () { LeaseId = leaseId, AgentIp = agentIp };
+			PortMapping newPortMapping = new () { LeaseId = leaseId.ToString(), AgentIp = agentIp.ToString() };
 			newPortMapping.Ports.AddRange(newPorts);
+
+			if (clientIp != null)
+			{
+				newPortMapping.AllowedSourceIps.Add(clientIp.ToString());	
+			}
 
 			ITransaction transaction = redis.CreateTransaction();
 			RedisValue[] portRangeRedis = portRange.Select(x => Convert.ToString(x)).Select(x => new RedisValue(x)).ToArray();
@@ -216,7 +225,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			bool isSuccessful = await transaction.ExecuteAsync();
 			if (isSuccessful)
 			{
-				await PublishUpdateEventAsync(clusterId);
+				await PublishUpdateEventAsync(clusterId.ToString());
 				return newPortMapping;
 			}
 		}
@@ -230,7 +239,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// <param name="clusterId">Cluster ID</param>
 	/// <param name="leaseId">Lease ID to remove</param>
 	/// <returns>True if successful</returns>
-	public async Task<bool> RemovePortMappingAsync(string clusterId, string leaseId)
+	public async Task<bool> RemovePortMappingAsync(ClusterId clusterId, LeaseId leaseId)
 	{
 		PortMapping? portMapping = await GetPortMappingAsync(clusterId, leaseId);
 		if (portMapping == null)
@@ -241,7 +250,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		RedisValue[] ports = portMapping.Ports.Select(x => new RedisValue(Convert.ToString(x.RelayPort))).ToArray();
 		ITransaction transaction = _redis.GetDatabase().CreateTransaction();
 		_ = transaction.SetRemoveAsync(KeyUsedPorts(clusterId), ports);
-		_ = transaction.HashDeleteAsync(KeyPortMappings(clusterId), leaseId);
+		_ = transaction.HashDeleteAsync(KeyPortMappings(clusterId), leaseId.ToString());
 		_ = transaction.StringIncrementAsync(KeyPortMappingRevision(clusterId));
 		
 		return await transaction.ExecuteAsync();
@@ -252,11 +261,11 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// </summary>
 	/// <param name="leaseId">Lease ID to remove</param>
 	/// <returns>True if successful</returns>
-	public async Task<bool> RemovePortMappingAsync(string leaseId)
+	public async Task<bool> RemovePortMappingAsync(LeaseId leaseId)
 	{
-		ISet<string> clusterIds = await GetClustersAsync();
+		ISet<ClusterId> clusterIds = await GetClustersAsync();
 		bool success = false;
-		foreach (string clusterId in clusterIds)
+		foreach (ClusterId clusterId in clusterIds)
 		{
 			success = success || await RemovePortMappingAsync(clusterId, leaseId);
 		}
@@ -267,13 +276,14 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	/// <summary>
 	/// Request a port mapping for a given lease and agent
 	/// </summary>
-	/// <param name="clusterId"></param>
-	/// <param name="leaseId"></param>
-	/// <param name="agentIp"></param>
-	/// <param name="ports"></param>
+	/// <param name="clusterId">Cluster ID this mapping is for</param>
+	/// <param name="leaseId">Lease ID this mapping is for</param>
+	/// <param name="clientIp">Source IP for requester. Used for access filtering. Null allow any IP to access forwarded ports</param>
+	/// <param name="agentIp">Destination IP for agent to forward traffic to</param>
+	/// <param name="ports">List of ports to map</param>
 	/// <returns>A result describing the port mapping</returns>
 	/// <exception cref="AgentRelayException"></exception>
-	public async Task<PortMappingResult> RequestPortMappingAsync(string clusterId, string leaseId, string agentIp, IList<Port> ports)
+	public async Task<PortMappingResult> RequestPortMappingAsync(ClusterId clusterId, LeaseId leaseId, IPAddress? clientIp, IPAddress agentIp, IList<Port> ports)
 	{
 		List<RelayAgentInfo> agents = await GetAvailableRelayAgentsAsync(clusterId);
 		if (agents.Count == 0)
@@ -281,13 +291,13 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			throw new AgentRelayException($"No relay agents available for cluster {clusterId}");
 		}
 
-		PortMapping portMapping = await AddPortMappingAsync(clusterId, leaseId, agentIp, ports);
+		PortMapping portMapping = await AddPortMappingAsync(clusterId, leaseId, clientIp, agentIp, ports);
 
 		List<string> ipAddresses = agents.SelectMany(x => x.IpAddresses.ToList()).ToList();
 		return new PortMappingResult(ipAddresses, portMapping.Ports);
 	}
 	
-	internal async Task<List<RelayAgentInfo>> GetAvailableRelayAgentsAsync(string clusterId)
+	internal async Task<List<RelayAgentInfo>> GetAvailableRelayAgentsAsync(ClusterId clusterId)
 	{
 		List<RelayAgentInfo> agents = await GetRelayAgentsAsync(clusterId);
 		List<RelayAgentInfo> validAgents = new();
@@ -307,16 +317,16 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		return validAgents;
 	}
 	
-	private async Task<List<RelayAgentInfo>> GetRelayAgentsAsync(string clusterId)
+	private async Task<List<RelayAgentInfo>> GetRelayAgentsAsync(ClusterId clusterId)
 	{
 		HashEntry[] entries = await _redis.GetDatabase().HashGetAllAsync(KeyAgents(clusterId));
 		return entries.Select(x => RelayAgentInfo.Parser.ParseFrom(x.Value)).ToList();
 	}
 
-	internal async Task UpdateAgentHeartbeatAsync(string clusterId, string agentRelayId, IEnumerable<string> ipAddresses)
+	internal async Task UpdateAgentHeartbeatAsync(ClusterId clusterId, string agentRelayId, IEnumerable<IPAddress> ipAddresses)
 	{
 		RelayAgentInfo info = new() { AgentId = agentRelayId, LastUpdate = Timestamp.FromDateTime(_clock.UtcNow) };
-		info.IpAddresses.AddRange(ipAddresses);
+		info.IpAddresses.AddRange(ipAddresses.Select(x => x.ToString()));
 		await _redis.GetDatabase().HashSetAsync(KeyAgents(clusterId), agentRelayId, info.ToByteArray());
 	}
 
@@ -330,10 +340,11 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		return await _redis.GetDatabase().Multiplexer.SubscribeAsync(RedisChannelUpdate, onUpdate);
 	}
 	
-	private async void OnPortMappingUpdateAsync(string clusterId)
+	private async void OnPortMappingUpdateAsync(string clusterIdStr)
 	{
 		try
 		{
+			ClusterId clusterId = new (clusterIdStr);
 			(int revision, List<PortMapping> portMappings) = await GetPortMappingsAsync(clusterId);
 			lock (_lock)
 			{
@@ -394,9 +405,10 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		
 		try
 		{
-			await UpdateAgentHeartbeatAsync(request.ClusterId, request.AgentId, request.IpAddresses);
+			ClusterId clusterId = new (request.ClusterId);
+			await UpdateAgentHeartbeatAsync(clusterId, request.AgentId, request.IpAddresses.Select(IPAddress.Parse));
 			
-			(int revisionCount, List<PortMapping> portMappings) = await GetPortMappingsAsync(request.ClusterId);
+			(int revisionCount, List<PortMapping> portMappings) = await GetPortMappingsAsync(clusterId);
 			if (request.RevisionCount == revisionCount || request.RevisionCount == -1)
 			{
 				// Client is in sync with latest revision server has or explicitly requested long-polling by setting revision to -1
@@ -407,9 +419,9 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 				if (result == mappingUpdatedTask)
 				{
 					// Port mappings are updated. Fetch from in-memory cache to avoid every client re-reading from Redis again.
-					if (!_clusterPortMappings.TryGetValue(request.ClusterId, out PortMappingsInfo? pmi))
+					if (!_clusterPortMappings.TryGetValue(clusterId, out PortMappingsInfo? pmi))
 					{
-						(revisionCount, portMappings) = await GetPortMappingsAsync(request.ClusterId);
+						(revisionCount, portMappings) = await GetPortMappingsAsync(clusterId);
 						pmi = new PortMappingsInfo(revisionCount, portMappings);
 					}
 					    
