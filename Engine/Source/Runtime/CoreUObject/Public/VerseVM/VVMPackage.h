@@ -6,80 +6,31 @@
 #error In order to use VerseVM, WITH_VERSE_VM must be set
 #endif
 
-#include "Containers/StringView.h"
-#include "VerseVM/Inline/VVMMutableArrayInline.h"
-#include "VerseVM/Inline/VVMValueInline.h"
-#include "VerseVM/VVMMutableArray.h"
-#include "VerseVM/VVMUTF8String.h"
+#include "VVMCell.h"
+#include "VerseVM/VVMNameValueMap.h"
 
 namespace Verse
 {
+enum class EDigestVariant : uint8
+{
+	PublicAndEpicInternal = 0,
+	PublicOnly = 1,
+};
+
 struct VPackage : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	// We keep names at 2*Index and definitions at 2*Index+1
-	TWriteBarrier<VMutableArray> NameAndDefinitions;
+	TWriteBarrier<VUTF8String> DigestCode[2]; // One for each variant
 
-	uint32 Num() const
-	{
-		return NameAndDefinitions->Num() / 2;
-	}
-
-	const VUTF8String& GetName(FAllocationContext Context, uint32 Index) const
-	{
-		checkSlow(Index < static_cast<int32>(Num()));
-		VValue Value = NameAndDefinitions->GetValue(2 * Index);
-		check(Value.IsCell());
-		check(Value.AsCell().IsA<VUTF8String>());
-		return Value.AsCell().StaticCast<VUTF8String>();
-	}
-
-	VValue GetDefinition(FAllocationContext Context, uint32 Index) const
-	{
-		checkSlow(Index < static_cast<int32>(Num()));
-		return NameAndDefinitions->GetValue(2 * Index + 1);
-	}
-
-	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition)
-	{
-		NameAndDefinitions->AddValue(Context, VValue(VUTF8String::New(Context, Name)));
-		NameAndDefinitions->AddValue(Context, Definition);
-	}
-
-	void AddDefinition(FAllocationContext Context, VUTF8String& Name, VValue Definition)
-	{
-		NameAndDefinitions->AddValue(Context, VValue(Name));
-		NameAndDefinitions->AddValue(Context, Definition);
-	}
-
-	VValue Lookup(FAllocationContext Context, FUtf8StringView Name) const
-	{
-		for (uint32 Index = 0, End = Num(); Index < End; ++Index)
-		{
-			if (GetName(Context, Index).Equals(Name))
-			{
-				return GetDefinition(Context, Index);
-			}
-		}
-		return VValue();
-	}
-
+	uint32 Num() const { return Map.Num(); }
+	const VUTF8String& GetName(uint32 Index) const { return Map.GetName(Index); }
+	VValue GetDefinition(uint32 Index) const { return Map.GetValue(Index); }
+	void AddDefinition(FAllocationContext Context, FUtf8StringView Name, VValue Definition) { Map.AddValue(Context, Name, Definition); }
+	VValue LookupDefinition(FUtf8StringView Name) const { return Map.Lookup(Name); }
 	template <typename CellType>
-	CellType* LookupCell(FAllocationContext Context, FUtf8StringView Name) const
-	{
-		VValue Value = Lookup(Context, Name);
-		if (Value.IsCell())
-		{
-			VCell& Cell = Value.AsCell();
-			if (Cell.IsA<CellType>())
-			{
-				return &Cell.StaticCast<CellType>();
-			}
-		}
-		return nullptr;
-	}
+	CellType* LookupDefinition(FUtf8StringView Name) const { return Map.LookupCell<CellType>(Name); }
 
 	static VPackage& New(FAllocationContext Context, uint32 Capacity)
 	{
@@ -89,8 +40,10 @@ struct VPackage : VCell
 private:
 	VPackage(FAllocationContext Context, uint32 Capacity)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
-		, NameAndDefinitions(Context, &VMutableArray::New(Context, Capacity))
+		, Map(Context, Capacity)
 	{
 	}
+
+	VNameValueMap Map;
 };
 } // namespace Verse

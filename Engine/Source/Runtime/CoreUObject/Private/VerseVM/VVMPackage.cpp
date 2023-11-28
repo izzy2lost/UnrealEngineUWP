@@ -15,7 +15,9 @@ TGlobalTrivialEmergentTypePtr<&VPackage::StaticCppClassInfo> VPackage::GlobalTri
 template <typename TVisitor>
 void VPackage::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(NameAndDefinitions, "NameAndDefinitions");
+	Map.VisitReferencesImpl(Visitor, "DefinitionMap");
+	Visitor.Visit(DigestCode[(int)EDigestVariant::PublicAndEpicInternal], "PublicAndEpicInternalDigest");
+	Visitor.Visit(DigestCode[(int)EDigestVariant::PublicOnly], "PublicOnlyDigest");
 }
 
 } // namespace Verse
