@@ -225,6 +225,13 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 			}
 		}
 	}
+
+	// Serialize tag extensions
+	if (UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
+	{
+		EPropertyTagExtension PropertyTagExtensions = EPropertyTagExtension::NoExtension;
+		Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
+	}
 }
 
 // Property serializer.

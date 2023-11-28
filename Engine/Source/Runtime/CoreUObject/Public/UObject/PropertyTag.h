@@ -15,6 +15,25 @@ class FArchive;
 class FProperty;
 
 /**
+ *  Enum flags that indicate that additional data was serialized for that property tag
+ *	Registered flag should be serialized in ascending order 
+ */
+enum class EPropertyTagExtension : uint8
+{
+	NoExtension					= 0x00,
+	ReserveForFutureUse			= 0x01, // Can be use to add a next group of extension
+
+	////////////////////////////////////////////////
+	// First extension group
+	OverridableOperation		= 0x02,
+
+	//
+	// Add more extension for the first group here
+	//
+};
+ENUM_CLASS_FLAGS(EPropertyTagExtension);
+
+/**
  *  A tag describing a class property, to aid in serialization.
  */
 struct FPropertyTag

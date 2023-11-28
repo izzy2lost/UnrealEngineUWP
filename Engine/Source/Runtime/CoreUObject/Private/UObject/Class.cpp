@@ -1305,13 +1305,44 @@ const FBlake3Hash& UStruct::GetSchemaHash(bool bSkipEditorOnly) const
 }
 #endif
 
+
+/**
+ *  Enum flags that indicate that additional data may be serialized prior to actual tagged property serialization
+ *	Those extensions are used to store additional function to control how TPS will resolved. i.e use overridable serialization for example
+ *	Registered flag should be serialized in ascending order
+ *  @Note: do not use lightly
+ */
+enum class EClassSerializationControlExtension : uint8
+{
+	NoExtension					= 0x00,
+	ReserveForFutureUse			= 0x01, // Can be use to add a next group of extension
+
+	////////////////////////////////////////////////
+	// First extension group
+	OverridableSerialization	= 0x02,
+
+	//
+	// Add more extension for the first group here
+	//
+};
+ENUM_CLASS_FLAGS(EClassSerializationControlExtension);
+
 void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
 	using namespace UE;
+	checkf(Data, TEXT("Expecting a non null data ptr"));
 
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 	FUObjectSerializeContext* LoadContext = UnderlyingArchive.GetSerializeContext();
 	//SCOPED_LOADTIMER(SerializeTaggedPropertiesTime);
+
+	// Setup tagged property serialization control data extensions, this is serialized only on root i.e. UObject and not structs
+	const bool bIsUClass = IsA<UClass>();
+	EClassSerializationControlExtension SerializationControl = EClassSerializationControlExtension::NoExtension;
+	if (bIsUClass && UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
+	{
+		Slot << SA_ATTRIBUTE(TEXT("SerializationControlExtensions"), SerializationControl);
+	}
 
 	// Determine if this struct supports optional property guid's (UBlueprintGeneratedClasses Only)
 	const bool bArePropertyGuidsAvailable = (UnderlyingArchive.UEVer() >= VER_UE4_PROPERTY_GUID_IN_PROPERTY_TAG) && (!FPlatformProperties::RequiresCookedData() || UnderlyingArchive.IsSaveGame()) && ArePropertyGuidsAvailable();

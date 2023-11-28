@@ -1013,7 +1013,7 @@ FNiagaraVMExecutableDataId& UNiagaraScript::GetLastGeneratedVMId(const FGuid& Ve
 //	-graph specific information (node guids) used in serialized errors/warnings for backtracking to the source in the UI
 FString UNiagaraScript::BuildNiagaraDDCKeyString(const FNiagaraVMExecutableDataId& CompileId, const FString& ScriptPath)
 {
-	enum { UE_NIAGARA_COMPILATION_DERIVEDDATA_VER = 2 };
+	enum { UE_NIAGARA_COMPILATION_DERIVEDDATA_VER = 3 };
 
 	FString KeyString;
 	KeyString.Reserve(1024);

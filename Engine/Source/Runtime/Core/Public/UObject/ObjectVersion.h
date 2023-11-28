@@ -76,6 +76,11 @@ enum class EUnrealEngineObjectUE5Version : uint32
 	// Added script property serialization offset to export table entries for saved, versioned packages
 	SCRIPT_SERIALIZATION_OFFSET,
 
+	// Adding property tag extension,
+	// Support for overridable serialization on UObject,
+	// Support for overridable logic in containers
+	PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION,
+
 	// -----<new versions can be added before this line>-------------------------------------------------
 	// - this needs to be the last line (see note below)
 	AUTOMATIC_VERSION_PLUS_ONE,
