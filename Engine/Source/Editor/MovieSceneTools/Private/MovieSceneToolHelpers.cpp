@@ -1279,7 +1279,7 @@ void MovieSceneToolHelpers::LockCameraActorToViewport(const TSharedPtr<ISequence
 	Sequencer->SetPerspectiveViewportCameraCutEnabled(false);
 
 	// Lock the viewport to this camera
-	if (CameraActor && CameraActor->GetLevel())
+	if (GCurrentLevelEditingViewportClient && CameraActor && CameraActor->GetLevel())
 	{
 		GCurrentLevelEditingViewportClient->SetCinematicActorLock(nullptr);
 		GCurrentLevelEditingViewportClient->SetActorLock(CameraActor);
