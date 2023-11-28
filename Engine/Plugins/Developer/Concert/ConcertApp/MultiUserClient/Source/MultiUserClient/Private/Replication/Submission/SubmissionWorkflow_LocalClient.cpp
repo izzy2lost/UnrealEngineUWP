@@ -147,7 +147,10 @@ namespace UE::MultiUserClient
 
 	void FSubmissionWorkflow_LocalClient::CleanUpSubmissionOperation()
 	{
+		const TSharedRef<FSingleClientSubmissionOperation> Operation = InProgressOperation->Operation;
 		InProgressOperation.Reset();
+		
+		Operation->EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode::Processed);
 		OnSubmitOperationCompletedDelegate.Broadcast();
 	}
 }

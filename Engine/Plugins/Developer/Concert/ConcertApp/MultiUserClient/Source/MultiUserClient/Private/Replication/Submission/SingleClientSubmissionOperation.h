@@ -34,6 +34,10 @@ namespace UE::MultiUserClient
 			{
 				AuthorityChangeResponsePromise.EmplaceValue(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::Cancelled });
 			}
+			if (!bCompleteOperationPromiseWasSet)
+			{
+				CompleteOperationPromise.EmplaceValue(ESubmissionOperationCompletedCode::Cancelled);
+			}
 		}
 
 		void EmplaceStreamPromise(FSubmitStreamChangesResponse Result)
@@ -51,16 +55,23 @@ namespace UE::MultiUserClient
 			bAuthorityResponsePromiseWasSet = true;
 			AuthorityChangeResponsePromise.EmplaceValue(MoveTemp(Result));
 		}
+		void EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode Result)
+		{
+			bAuthorityResponsePromiseWasSet = true;
+			CompleteOperationPromise.EmplaceValue(Result);
+		}
 
 		bool HasSetStreamPromise() const { return bStreamPromiseWasSet; }
 		bool HasSetAuthorityRequestPromise() const { return bAuthorityRequestPromiseWasSet; }
 		bool HasSetAuthorityResponsePromise() const { return bAuthorityResponsePromiseWasSet; }
+		bool HasSetCompleteOperationPromise() const { return bCompleteOperationPromiseWasSet; }
 		
 		//~ Begin ISubmissionOperation Interface
 		virtual bool IsModifyingStreams() const override { return bModifiesStreams; }
-		virtual TFuture<FSubmitStreamChangesResponse> OnStreamChangesSubmittedFuture() override { return StreamChangesPromise.GetFuture();  }
-		virtual TFuture<FSubmitAuthorityChangesRequest> OnAuthorityChangeRequestedFuture() override { return AuthorityChangeRequestPromise.GetFuture(); }
-		virtual TFuture<FSubmitAuthorityChangesResponse> OnAuthorityChangeResponseReceivedFuture() override { return AuthorityChangeResponsePromise.GetFuture(); }
+		virtual TFuture<FSubmitStreamChangesResponse> OnCompleteStreamChangesFuture() override { return StreamChangesPromise.GetFuture();  }
+		virtual TFuture<FSubmitAuthorityChangesRequest> OnRequestAuthorityChangeFuture() override { return AuthorityChangeRequestPromise.GetFuture(); }
+		virtual TFuture<FSubmitAuthorityChangesResponse> OnCompleteAuthorityChangeFuture() override { return AuthorityChangeResponsePromise.GetFuture(); }
+		virtual TFuture<ESubmissionOperationCompletedCode> OnCompletedOperation() override { return CompleteOperationPromise.GetFuture(); }
 		//~ End ISubmissionOperation Interface
 
 	private:
@@ -70,10 +81,12 @@ namespace UE::MultiUserClient
 		bool bStreamPromiseWasSet = false;
 		bool bAuthorityRequestPromiseWasSet = false;
 		bool bAuthorityResponsePromiseWasSet = false;
+		bool bCompleteOperationPromiseWasSet = false;
 		
 		// All fulfilled by the owning FSingleClientSubmissionWorkflow
 		TPromise<FSubmitStreamChangesResponse> StreamChangesPromise;
 		TPromise<FSubmitAuthorityChangesRequest> AuthorityChangeRequestPromise;
 		TPromise<FSubmitAuthorityChangesResponse> AuthorityChangeResponsePromise;
+		TPromise<ESubmissionOperationCompletedCode> CompleteOperationPromise;
 	};
 }
