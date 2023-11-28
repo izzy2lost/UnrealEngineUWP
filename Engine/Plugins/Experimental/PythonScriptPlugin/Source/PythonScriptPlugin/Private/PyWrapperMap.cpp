@@ -1074,8 +1074,6 @@ PyObject* FPyWrapperMap::PopItem(FPyWrapperMap* InSelf)
 		
 		return PyTuple_Pack(2, PyReturnKey.Get(), PyReturnValue.Get());
 	}
-
-	return nullptr;
 }
 
 int FPyWrapperMap::Update(FPyWrapperMap* InSelf, PyObject* InOther)
