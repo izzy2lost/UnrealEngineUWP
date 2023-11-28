@@ -2095,7 +2095,7 @@ void FAssetDataDiscovery::TickInternal(bool bTickAll)
 			}
 
 			Data.bScanned = true;
-		});
+		}, EParallelForFlags::BackgroundPriority);
 
 		if (Cache.IsWriteEnabled() != EFeatureEnabled::Never)
 		{
