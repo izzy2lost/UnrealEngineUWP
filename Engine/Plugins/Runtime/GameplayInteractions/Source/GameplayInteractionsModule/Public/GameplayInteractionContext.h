@@ -23,6 +23,7 @@ struct FGameplayInteractionContext
 	GENERATED_BODY()
 
 public:
+	const FSmartObjectClaimHandle& GetClaimedHandle() const { return ClaimedHandle; }
 	void SetClaimedHandle(const FSmartObjectClaimHandle& InClaimedHandle) { ClaimedHandle = InClaimedHandle; }
 
 	void SetSlotEntranceHandle(const FSmartObjectSlotEntranceHandle InSlotEntranceHandle) { SlotEntranceHandle = InSlotEntranceHandle; }
