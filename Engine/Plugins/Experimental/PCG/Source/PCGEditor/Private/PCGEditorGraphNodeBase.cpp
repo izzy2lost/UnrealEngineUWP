@@ -461,6 +461,12 @@ bool UPCGEditorGraphNodeBase::ShouldDrawCompact() const
 	return Settings && Settings->ShouldDrawNodeCompact();
 }
 
+bool UPCGEditorGraphNodeBase::GetCompactNodeIcon(FName& OutCompactNodeIcon) const
+{
+	UPCGSettings* Settings = PCGNode ? PCGNode->GetSettings() : nullptr;
+	return Settings && Settings->GetCompactNodeIcon(OutCompactNodeIcon);
+}
+
 void UPCGEditorGraphNodeBase::EnterRenamingMode()
 {
 	bCanRenameNode = true;

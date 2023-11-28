@@ -75,6 +75,9 @@ public:
 	/** Puts node title on node body, reducing overall node size */
 	bool ShouldDrawCompact() const;
 
+	/** Returns custom compact node icon if available */
+	bool GetCompactNodeIcon(FName& OutCompactNodeIcon) const;
+
 	// Highlighted nodes draw with a light tint. Currently used to indicate nodes from hi-gen grids that are available for use.
 	void SetIsHighlighted(bool bInIsHighlighted) { bIsHighlighted = bInIsHighlighted; }
 	bool IsHighlighted() const { return bIsHighlighted; }

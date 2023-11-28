@@ -108,6 +108,15 @@ namespace Icons
 }
 }
 
+namespace PCGNodeConstants
+{
+namespace Icons
+{
+	const FName CompactNodeConvert = TEXT("PCG.Node.Compact.Convert");
+	const FName CompactNodeFilter = TEXT("PCG.Node.Compact.Filter");
+}
+}
+
 // Metadata used by PCG
 namespace PCGObjectMetadata
 {

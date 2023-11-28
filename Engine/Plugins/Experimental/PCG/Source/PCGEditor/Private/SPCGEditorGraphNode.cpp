@@ -10,6 +10,7 @@
 #include "PCGSettingsWithDynamicInputs.h"
 
 #include "GraphEditorSettings.h"
+#include "IDocumentation.h"
 #include "SCommentBubble.h"
 #include "SGraphPin.h"
 #include "SLevelOfDetailBranchNode.h"
@@ -601,6 +602,12 @@ void SPCGEditorGraphNode::UpdateCompactNode()
 	RightNodeBox.Reset();
 	LeftNodeBox.Reset();
 
+	if (!SWidget::GetToolTip().IsValid())
+	{
+		TSharedRef<SToolTip> DefaultToolTip = IDocumentation::Get()->CreateToolTip(TAttribute< FText >(this, &SGraphNode::GetNodeTooltip), NULL, GraphNode->GetDocumentationLink(), GraphNode->GetDocumentationExcerptName());
+		SetToolTip(DefaultToolTip);
+	}
+
 	// Setup a meta tag for this node
 	FGraphNodeMetaData TagMeta(TEXT("Graphnode"));
 	PopulateMetaTag(&TagMeta);
@@ -627,29 +634,46 @@ void SPCGEditorGraphNode::UpdateCompactNode()
 		];
 	}
 
-	NodeOverlay->AddSlot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.Padding(45.f, 0.f, 45.f, 0.f)
-		[
-			// MIDDLE
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
+	FName CompactBodyIcon = NAME_None;
+	check(PCGEditorGraphNode);
+	if (PCGEditorGraphNode->GetCompactNodeIcon(CompactBodyIcon))
+	{
+		NodeOverlay->AddSlot()
 			.HAlign(HAlign_Center)
-			.AutoHeight()
+			.VAlign(VAlign_Center)
+			.Padding(45.f, 0.f, 45.f, 0.f)
 			[
-				SNew(STextBlock)
-					.TextStyle(FAppStyle::Get(), "Graph.Node.NodeTitle" )
-					.Text( NodeTitle.Get(), &SNodeTitle::GetHeadTitle )
-					.WrapTextAt(128.0f)
+				SNew(SImage)
+					.Image(FPCGEditorStyle::Get().GetBrush(CompactBodyIcon))
 					.ColorAndOpacity(this, &SGraphNode::GetNodeTitleIconColor)
-			]
-			+SVerticalBox::Slot()
-			.AutoHeight()
+			];
+	}
+	else
+	{
+		NodeOverlay->AddSlot()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(45.f, 0.f, 45.f, 0.f)
 			[
-				NodeTitle.ToSharedRef()
-			]
-		];
+				// MIDDLE
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				.HAlign(HAlign_Center)
+				.AutoHeight()
+				[
+					SNew(STextBlock)
+						.TextStyle(FAppStyle::Get(), "Graph.Node.NodeTitle" )
+						.Text( NodeTitle.Get(), &SNodeTitle::GetHeadTitle )
+						.WrapTextAt(128.0f)
+						.ColorAndOpacity(this, &SGraphNode::GetNodeTitleIconColor)
+				]
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					NodeTitle.ToSharedRef()
+				]
+			];
+	}
 	
 	NodeOverlay->AddSlot()
 		.HAlign(HAlign_Left)

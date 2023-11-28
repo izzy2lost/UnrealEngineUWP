@@ -250,6 +250,8 @@ public:
 #if WITH_EDITOR
 	/** Puts node title on node body, reducing overall node size */
 	virtual bool ShouldDrawNodeCompact() const { return false; }
+	/** Returns the icon to use instead of text in compact node form */
+	virtual bool GetCompactNodeIcon(FName& OutCompactNodeIcon) const { return false; }
 
 	/** UpdatePins will kick off invalid edges, so this is useful for moving edges around in case of pin changes. */
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins);

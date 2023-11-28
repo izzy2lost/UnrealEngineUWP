@@ -8,6 +8,14 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGConvertToAttributeSet)
 
+#if WITH_EDITOR
+bool UPCGConvertToAttributeSetSettings::GetCompactNodeIcon(FName& OutCompactNodeIcon) const
+{
+	OutCompactNodeIcon = PCGNodeConstants::Icons::CompactNodeConvert;
+	return true;
+}
+#endif
+
 TArray<FPCGPinProperties> UPCGConvertToAttributeSetSettings::InputPinProperties() const
 {
 	return Super::DefaultPointInputPinProperties();

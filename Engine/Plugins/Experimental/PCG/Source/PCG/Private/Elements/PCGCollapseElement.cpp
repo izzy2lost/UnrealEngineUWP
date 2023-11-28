@@ -9,6 +9,14 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCollapseElement)
 
+#if WITH_EDITOR
+bool UPCGCollapseSettings::GetCompactNodeIcon(FName& OutCompactNodeIcon) const
+{
+	OutCompactNodeIcon = PCGNodeConstants::Icons::CompactNodeConvert;
+	return true;
+}
+#endif
+
 TArray<FPCGPinProperties> UPCGCollapseSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

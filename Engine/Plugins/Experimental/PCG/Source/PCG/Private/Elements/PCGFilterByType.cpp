@@ -25,7 +25,13 @@ FText UPCGFilterByTypeSettings::GetNodeTooltipText() const
 {
 	return LOCTEXT("FilterByTypeNodeTooltip", "Filters data in the collection according to data type");
 }
-#endif
+
+bool UPCGFilterByTypeSettings::GetCompactNodeIcon(FName& OutCompactNodeIcon) const
+{
+	OutCompactNodeIcon = PCGNodeConstants::Icons::CompactNodeFilter;
+	return true;
+}
+#endif // WITH_EDITOR
 
 EPCGDataType UPCGFilterByTypeSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {
