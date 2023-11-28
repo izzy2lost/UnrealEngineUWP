@@ -670,8 +670,14 @@ int32 SRetainerWidget::OnPaint(const FPaintArgs& Args, const FGeometry& Allotted
 				);
 			}
 
+			const bool bInheritedHittestability = Args.GetInheritedHittestability();
+			const bool bOutgoingHittestability = bInheritedHittestability && GetVisibility().AreChildrenHitTestVisible();
+
 			// add our widgets to the root hit test grid
-			Args.GetHittestGrid().AddGrid(HittestGrid);
+			if (bOutgoingHittestability)
+			{
+				Args.GetHittestGrid().AddGrid(HittestGrid);
+			}
 
 			return GetCachedMaxLayerId();
 		}
