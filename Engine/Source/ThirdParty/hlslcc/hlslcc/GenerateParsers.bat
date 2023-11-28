@@ -3,7 +3,7 @@ set FLEX=win_flex.exe
 set BISON=win_bison.exe
 set SRCDIR=../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib
 
-pushd ..\..\..\..\Restricted\NotForLicensees\Extras\FlexAndBison\
+pushd ..\..\..\..\Restricted\NotForLicensees\Extras\ThirdPartyNotUE\FlexAndBison\
 
 %FLEX% --nounistd -o%SRCDIR%/glcpp-lex.inl %SRCDIR%/glcpp-lex.l
 %BISON% -v -o "%SRCDIR%/glcpp-parse.inl" --defines=%SRCDIR%/glcpp-parse.h %SRCDIR%/glcpp-parse.y
