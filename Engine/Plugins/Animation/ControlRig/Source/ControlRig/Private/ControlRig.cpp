@@ -187,22 +187,16 @@ void UControlRig::Initialize(bool bRequestInit)
 	GetDataSourceRegistry();
 
 	// Create the Hierarchy Controller here to avoid UObject creation from Non-Game Threads
-	if(!IsRigModuleInstance())
-	{
-		GetHierarchy()->GetController(true);
-	}
+	GetHierarchy()->GetController(true);
 	
 	// should refresh mapping 
 	RequestConstruction();
-
-	if(!IsRigModuleInstance())
-	{
-		GetHierarchy()->OnModified().RemoveAll(this);
-		GetHierarchy()->OnModified().AddUObject(this, &UControlRig::HandleHierarchyModified);
-		GetHierarchy()->OnEventReceived().RemoveAll(this);
-		GetHierarchy()->OnEventReceived().AddUObject(this, &UControlRig::HandleHierarchyEvent);
-		GetHierarchy()->UpdateVisibilityOnProxyControls();
-	}
+	
+	GetHierarchy()->OnModified().RemoveAll(this);
+	GetHierarchy()->OnModified().AddUObject(this, &UControlRig::HandleHierarchyModified);
+	GetHierarchy()->OnEventReceived().RemoveAll(this);
+	GetHierarchy()->OnEventReceived().AddUObject(this, &UControlRig::HandleHierarchyEvent);
+	GetHierarchy()->UpdateVisibilityOnProxyControls();
 }
 
 void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults)
@@ -1444,20 +1438,6 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 	if(!SupportsEvent(InEventName))
 	{
 		return false;
-	}
-
-	// make sure to initialize here as well - just in case this gets
-	// called without a call to ::Execute. This is already tackled by
-	// the UModularRig::ExecuteQueue, but added it here as well nevertheless
-	// to avoid crashes in the future.
-	if(bRequiresInitExecution)
-	{
-		const TGuardValue<float> AbsoluteTimeGuard(AbsoluteTime, AbsoluteTime);
-		const TGuardValue<float> DeltaTimeGuard(DeltaTime, DeltaTime);
-		if(!InitializeVM(InEventName))
-		{
-			return false;
-		}
 	}
 	
 	if(IsRigModule())
@@ -3296,18 +3276,12 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			}
 		}
 
-		if(!IsRigModuleInstance())
-		{
-			DynamicHierarchy = NewObject<URigHierarchy>(this, TEXT("DynamicHierarchy"), SubObjectFlags);
-		}
+		DynamicHierarchy = NewObject<URigHierarchy>(this, TEXT("DynamicHierarchy"), SubObjectFlags);
 	}
 
 #if WITH_EDITOR
-	if(!IsRigModuleInstance())
-	{
 		const TWeakObjectPtr<UControlRig> WeakThis = this;
 		DynamicHierarchy->OnUndoRedo().AddStatic(&UControlRig::OnHierarchyTransformUndoRedoWeak, WeakThis);
-	}
 #endif
 
 	if(!HasAnyFlags(RF_ClassDefaultObject))
@@ -3320,10 +3294,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 				VM = InCDO->GetVM();
 			}
 
-			if(!IsRigModuleInstance())
-			{
-				DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
-			}
+			DynamicHierarchy->CopyHierarchy(CastChecked<UControlRig>(InCDO)->GetHierarchy());
 		}
 	}
 	else // we are the CDO
@@ -3346,11 +3317,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 		if(GetClass()->IsNative())
 		{
 			VM->AddToRoot();
-
-			if(!IsRigModuleInstance())
-			{
-				DynamicHierarchy->AddToRoot();
-			}
+			DynamicHierarchy->AddToRoot();
 		}
 	}
 

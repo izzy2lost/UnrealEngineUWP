@@ -196,13 +196,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RigVM")
 	virtual void RequestInit();
 
-	/** Returns true if this host requires the VM memory to be initialized */
-	UFUNCTION(BlueprintPure, Category = "RigVM")
-	virtual bool IsInitRequired() const
-	{
-		return bRequiresInitExecution;
-	} 
-
 	/** Requests to run an event once */
 	UFUNCTION(BlueprintCallable, Category = "RigVM")
 	void RequestRunOnceEvent(const FName& InEventName, int32 InEventIndex = -1);

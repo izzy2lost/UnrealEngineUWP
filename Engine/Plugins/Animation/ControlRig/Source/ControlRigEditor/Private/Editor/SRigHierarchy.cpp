@@ -20,7 +20,6 @@
 #include "Graph/ControlRigGraph.h"
 #include "Graph/ControlRigGraphNode.h"
 #include "Graph/ControlRigGraphSchema.h"
-#include "ModularRig.h"
 #include "GraphEditorModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "AnimationRuntime.h"

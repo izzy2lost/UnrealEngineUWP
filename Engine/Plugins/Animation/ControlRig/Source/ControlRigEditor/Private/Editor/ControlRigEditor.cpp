@@ -1202,7 +1202,7 @@ void FControlRigEditor::SetDetailViewForRigModules(const TArray<FString> InKeys)
 			continue;
 		}
 
-		if(UControlRig* ModuleInstance = Element->GetRig())
+		if(UControlRig* ModuleInstance = Element->Rig.Get())
 		{
 			Objects.Add(ModuleInstance);
 		}

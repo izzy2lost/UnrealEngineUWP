@@ -47,7 +47,7 @@ CONTROLRIG_API DECLARE_LOG_CATEGORY_EXTERN(LogControlRig, Log, All);
 
 /** Runs logic for mapping input data to transforms (the "Rig") */
 UCLASS(Blueprintable, Abstract, editinlinenew)
-class CONTROLRIG_API UControlRig : public URigVMHost, public INodeMappingProviderInterface, public IRigHierarchyProvider
+class CONTROLRIG_API UControlRig : public URigVMHost, public INodeMappingProviderInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -169,7 +169,7 @@ public:
 		return DynamicHierarchy;
 	}
 	
-	virtual URigHierarchy* GetHierarchy() const override
+	URigHierarchy* GetHierarchy() const
 	{
 		return DynamicHierarchy;
 	}
@@ -832,6 +832,7 @@ private:
 	UPROPERTY()
 	TSubclassOf<UControlRig> InteractionRigClass_DEPRECATED;
 #endif
+	
 
 	friend class FControlRigBlueprintCompilerContext;
 	friend struct FRigHierarchyRef;

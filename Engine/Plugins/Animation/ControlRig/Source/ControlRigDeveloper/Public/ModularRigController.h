@@ -2,15 +2,36 @@
 
 #pragma once
 
-#include "ModularRigModel.h"
+#include "ControlRig.h"
 #include "ModularRigController.generated.h"
 
 struct FRigModuleReference;
+struct FModularRigModel;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FModularRigModifiedEvent, EModularRigNotification /* type */, const FRigModuleReference* /* element */);
 
+
+UENUM()
+enum class EModularRigNotification : uint8
+{
+	ModuleAdded,
+
+	ModuleRenamed,
+
+	ModuleRemoved,
+
+	ModuleReparented,
+
+	ConnectionChanged,
+
+	ModuleConfigValueChanged,
+
+	/** MAX - invalid */
+	Max UMETA(Hidden),
+};
+
 UCLASS(BlueprintType)
-class CONTROLRIG_API UModularRigController : public UObject
+class CONTROLRIGDEVELOPER_API UModularRigController : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
@@ -21,8 +42,11 @@ class CONTROLRIG_API UModularRigController : public UObject
 	}
 
 	FModularRigModel* Model;
+
 	FModularRigModifiedEvent ModifiedEvent;
+
 	bool bSuspendNotifications;
+
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	FString AddModule(const FName& InModuleName, TSubclassOf<UControlRig> InClass, const FString& InParentModulePath, bool bSetupUndo = true);
@@ -54,7 +78,11 @@ class CONTROLRIG_API UModularRigController : public UObject
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo = true);
 	
+
+
 	FName GetSafeNewName(const FString& InModuleDesiredPath);
+
+
 	void SetModel(FModularRigModel* InModel) { Model = InModel; }
 	FRigModuleReference* FindModule(const FString& InPath);
 	FModularRigModifiedEvent& OnModified() { return ModifiedEvent; }

@@ -2,7 +2,7 @@
 
 #pragma once
 #include "ControlRig.h"
-#include "ModularRigModel.h"
+
 #include "ModularRig.generated.h"
 
 struct FRigModuleInstance;
@@ -16,8 +16,8 @@ public:
 		, Path()
 	{}
 
-	FModuleInstanceHandle(const UModularRig* InModularRig, const FString& InPath);
-	FModuleInstanceHandle(const UModularRig* InModularRig, const FRigModuleInstance* InElement);
+	FModuleInstanceHandle(UModularRig* InModularRig, const FString& InPath);
+	FModuleInstanceHandle(UModularRig* InModularRig, const FRigModuleInstance* InElement);
 
 	bool IsValid() const { return Get() != nullptr; }
 	operator bool() const { return IsValid(); }
@@ -41,11 +41,9 @@ struct CONTROLRIG_API FRigModuleInstance
 {
 	GENERATED_USTRUCT_BODY()
 
-public:
-	
 	FRigModuleInstance()
 	: Name(NAME_None)
-	, RigPtr(nullptr)
+	, Rig(nullptr)
 	, ParentPath(FString())
 	{
 	}
@@ -53,13 +51,9 @@ public:
 	UPROPERTY()
 	FName Name;
 
-private:
+	UPROPERTY()
+	TSoftObjectPtr<UControlRig> Rig;
 
-	UPROPERTY(transient)
-	mutable UControlRig* RigPtr;
-
-public:
-	
 	UPROPERTY()
 	FString ParentPath;
 
@@ -70,9 +64,6 @@ public:
 
 	FString GetPath() const;
 	FString GetNamespace() const;
-	UControlRig* GetRig() const;
-	void SetRig(UControlRig* InRig);
-	bool ContainsRig(const UControlRig* InRig) const;
 };
 
 USTRUCT(BlueprintType)
@@ -120,6 +111,7 @@ class CONTROLRIG_API UModularRig : public UControlRig
 public:
 
 	// BEGIN ControlRig
+	virtual void Initialize(bool bRequestInit) override;
 	virtual void InitializeVMs(bool bRequestInit = true) override;
 	virtual bool InitializeVMs(const FName& InEventName) override;
 	virtual void InitializeVMsFromCDO() override { URigVMHost::InitializeFromCDO(); }
@@ -131,9 +123,6 @@ public:
 	virtual bool SupportsEvent(const FName& InEventName) const override { return SupportedEvents.Contains(InEventName); }
 	virtual const TArray<FName>& GetSupportedEvents() const override { return SupportedEvents; }
 	// END ControlRig
-
-	UPROPERTY()
-	FModularRigModel ModularRigModel;
 
 	UPROPERTY()
 	TArray<FRigModuleExecutionElement> ExecutionQueue;
@@ -149,14 +138,13 @@ public:
 
 	void ResetModules();
 
-	const FModularRigModel& GetModularRigModel() const;
-	void UpdateModuleHierarchyFromCDO();
 	void UpdateCachedChildren();
 	void UpdateSupportedEvents();
 
 	/** Adds a module to the rig*/
 	bool AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
 	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings);
+	FRigModuleInstance* AddModuleInstance(const FRigModuleInstance* InOtherModule);
 
 	const FRigModuleInstance* FindModule(const FString& InPath) const;
 	const FRigModuleInstance* FindModule(const UControlRig* InModuleInstance) const;
@@ -166,8 +154,8 @@ public:
 	void ForEachModule(TFunctionRef<bool(const FRigModuleInstance*)> PerModuleFunction) const;
 
 	/**
-	 * Returns a handle to an existing module
-	 * @param InPath The path of the module to retrieve a handle for.
+	 * Returns a handle to an existing element
+	 * @param InKey The key of the handle to retrieve.
 	 * @return The retrieved handle (may be invalid)
 	 */
 	FModuleInstanceHandle GetHandle(const FString& InPath) const

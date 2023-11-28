@@ -4,7 +4,9 @@
 
 #include "ControlRig.h"
 #include "ModularRig.h"
+#include "ControlRigBlueprint.h"
 #include "ModularRigModel.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/DefaultValueHelper.h"
 #include "Rigs/RigHierarchyController.h"
 
@@ -12,13 +14,10 @@
 
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
-#include "Kismet2/BlueprintEditorUtils.h"
 #endif
 
 UModularRigController::UModularRigController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, Model(nullptr)
-	, bSuspendNotifications(false)
 {
 }
 
@@ -42,7 +41,7 @@ FString UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "AddModuleTransaction", "Add Module"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -174,9 +173,8 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 		return false;
 	}
 
-	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
-	const IRigHierarchyProvider* HierarchyProvider = CastChecked<IRigHierarchyProvider>(Blueprint);
-	const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(HierarchyProvider->GetHierarchy()->Find(InConnectorKey));
+	UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter());
+	FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Blueprint->Hierarchy->Find(InConnectorKey));
 	if (!Connector)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s"), *InConnectorKey.ToString());
@@ -233,7 +231,6 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 		return false;
 	}
 
-#if WITH_EDITOR
 	TArray<uint8, TAlignedHeapAllocator<16>> TempStorage;
 	TempStorage.AddZeroed(Property->GetSize());
 	uint8* TempMemory = TempStorage.GetData();
@@ -245,11 +242,12 @@ bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, 
 		return false;
 	}
 
+#if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConfigureModuleValueTransaction", "Configure Module Value"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -293,9 +291,9 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 	}
 
 	// Add possible blueprint variables
-	if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+	if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 	{
-		TArray<FRigVMExternalVariable> Variables = Blueprint->GeneratedClass->GetDefaultObject<UControlRig>()->GetExternalVariables();
+		TArray<FRigVMExternalVariable> Variables = Blueprint->GetControlRigClass()->GetDefaultObject<UControlRig>()->GetExternalVariables();
 		for (const FRigVMExternalVariable& Variable : Variables)
 		{
 			FText ErrorMessage;
@@ -386,9 +384,9 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 	}
 	else
 	{
-		if(const UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
-			SourceProperty = Blueprint->GeneratedClass->FindPropertyByName(*SourceVariableName);
+			SourceProperty = Blueprint->GetControlRigClass()->FindPropertyByName(*SourceVariableName);
 		}
 	}
 	if (!SourceProperty)
@@ -436,9 +434,9 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	}
 	else
 	{
-		if(const UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
-			SourceProperty = Blueprint->GeneratedClass->FindPropertyByName(*SourceVariableName);
+			SourceProperty = Blueprint->GetControlRigClass()->FindPropertyByName(*SourceVariableName);
 		}
 	}
 
@@ -449,7 +447,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -488,7 +486,7 @@ bool UModularRigController::UnBindModuleVariable(const FString& InModulePath, co
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "BindModuleVariableTransaction", "Bind Module Variable"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -520,7 +518,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -590,7 +588,7 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -690,7 +688,7 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 	if (bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
-		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
 		}
@@ -712,7 +710,6 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 		SubTree[Index]->ParentPath.ReplaceInline(*OldPath, *NewPath);
 		SubTree.Append(SubTree[Index]->CachedChildren);
 	}
-
 
 	Model->UpdateCachedChildren();
 
