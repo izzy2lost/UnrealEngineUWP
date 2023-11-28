@@ -495,10 +495,6 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 #if WITH_EDITOR
 	InOriginalGraph->NotifyGraphChanged(EPCGChangeType::Structural);
 	NewPCGGraph->NotifyGraphChanged(EPCGChangeType::Structural);
-	for (UPCGNode* TouchedNode : TouchedNodes)
-	{
-		TouchedNode->OnNodeChangedDelegate.Broadcast(TouchedNode, EPCGChangeType::Node);
-	}
 #endif // WITH_EDITOR
 
 	return NewPCGGraph;
