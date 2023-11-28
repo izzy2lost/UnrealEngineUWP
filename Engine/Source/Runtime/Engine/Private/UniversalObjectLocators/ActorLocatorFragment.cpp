@@ -188,11 +188,11 @@ UE::UniversalObjectLocator::FInitializeResult FActorLocatorFragment::Initialize(
 
 uint32 FActorLocatorFragment::ComputePriority(const UObject* ObjectToReference, const UObject* Context)
 {
-	// Can only reference actors and components
+	// Can only reference actors
 	if (ObjectToReference->IsA<AActor>())
 	{
-		// Let internal references be used first if possible
-		return 100;
+		// This locator should always be used over subobject locators in order to ensure they are used even if the context is a level
+		return 2000;
 	}
 	return 0;
 }

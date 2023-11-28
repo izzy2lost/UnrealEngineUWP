@@ -61,7 +61,7 @@ uint32 FSubObjectLocator::ComputePriority(const UObject* ObjectToReference, cons
 	// Can only reference objects that are relative to the context
 	if (Context && ObjectToReference->IsIn(Context))
 	{
-		return 2000;
+		return 1000;
 	}
 
 	// We can't use this at all
