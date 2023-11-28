@@ -1508,12 +1508,14 @@ TSharedRef<class SControlRigPoseView> SControlRigBaseListWidget::CreatePoseView(
 
 TSharedRef<class SControlRigPoseView> SControlRigBaseListWidget::CreateAnimationView(UObject* InObject)
 {
-	return SNew(SControlRigPoseView);
+	return SNew(SControlRigPoseView)
+		.OwningWidget(SharedThis(this));
 }
 
 TSharedRef<class SControlRigPoseView> SControlRigBaseListWidget::CreateSelectionSetView(UObject* InObject)
 {
-	return SNew(SControlRigPoseView);
+	return SNew(SControlRigPoseView)
+		.OwningWidget(SharedThis(this));
 }
 
 #undef LOCTEXT_NAMESPACE

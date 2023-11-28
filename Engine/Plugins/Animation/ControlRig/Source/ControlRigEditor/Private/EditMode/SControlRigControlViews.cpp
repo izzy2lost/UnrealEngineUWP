@@ -677,25 +677,28 @@ TSharedRef<SWidget> SControlRigPoseView::GetThumbnailWidget()
 
 TArray<UControlRig*> SControlRigPoseView::GetControlRigs()
 {
-	FControlRigEditMode* EditMode = OwningWidget->GetEditMode();
 	TArray<UControlRig*> NewControlRigs;
-	if (EditMode)
+	if (OwningWidget.IsValid())
 	{
-		NewControlRigs =  EditMode->GetControlRigsArray(false /*bIsVisible*/);
-	}
-	for (TWeakObjectPtr<UControlRig> ControlRigPtr : CurrentControlRigs)
-	{
-		if (ControlRigPtr.IsValid())
+		FControlRigEditMode* EditMode = OwningWidget->GetEditMode();
+		if (EditMode)
 		{
-			if (NewControlRigs.Contains(ControlRigPtr.Get()) == false)
+			NewControlRigs =  EditMode->GetControlRigsArray(false /*bIsVisible*/);
+		}
+		for (TWeakObjectPtr<UControlRig> ControlRigPtr : CurrentControlRigs)
+		{
+			if (ControlRigPtr.IsValid())
 			{
-				(ControlRigPtr.Get())->ControlSelected().RemoveAll(this);
+				if (NewControlRigs.Contains(ControlRigPtr.Get()) == false)
+				{
+					(ControlRigPtr.Get())->ControlSelected().RemoveAll(this);
+				}
 			}
 		}
-	}
-	if (EditMode)
-	{
-		CurrentControlRigs = EditMode->GetControlRigs();
+		if (EditMode)
+		{
+			CurrentControlRigs = EditMode->GetControlRigs();
+		}
 	}
 	
 	return NewControlRigs;
