@@ -325,7 +325,7 @@ void FWorkspaceEditor::SaveAsset_Execute()
 
 void FWorkspaceEditor::OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* Graph, UObject* Subject)
 {
-	if (Type == ERigVMGraphNotifType::PinDefaultValueChanged)
+	if (Type == ERigVMGraphNotifType::InteractionBracketClosed)
 	{
 		if (DetailsView.IsValid())
 		{
@@ -337,9 +337,12 @@ void FWorkspaceEditor::OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* G
 void FWorkspaceEditor::SetFocusedGraphEditor(TSharedPtr<SGraphEditor> InGraphEditor)
 {
 	// Update the graph editor that is currently focused
-	FocusedGraphEdPtr = InGraphEditor;
+	if (FocusedGraphEdPtr != InGraphEditor)
+	{
+		FocusedGraphEdPtr = InGraphEditor;
 
-	SetSelectedObjects({});
+		SetSelectedObjects({});
+	}
 }
 
 UEdGraph* FWorkspaceEditor::GetFocusedGraph() const
