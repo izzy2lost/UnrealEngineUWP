@@ -55,6 +55,15 @@ void FOnlineUserPresenceSteam::Update(const FUniqueNetIdSteam& FriendId)
 		SessionId = FUniqueNetIdSteam::Create(FriendInfo.m_steamIDLobby); 
 		bIsPlayingThisGame = (FriendInfo.m_gameID.AppID() == SteamUtils()->GetAppID());
 	}
+	else
+	{
+		bIsPlaying = false;
+		SessionId = nullptr;
+		bIsPlayingThisGame = false;
+	}
+
+	bIsJoinable = false;
+	bHasVoiceSupport = false;
 
 	// Processing presence
 	for (int32 RPIdx = 0; RPIdx < SteamFriendPtr->GetFriendRichPresenceKeyCount(FriendId); ++RPIdx)
@@ -66,12 +75,20 @@ void FOnlineUserPresenceSteam::Update(const FUniqueNetIdSteam& FriendId)
 		if (Key == DefaultSteamConnectionKey)
 		{
 			bIsJoinable = true;
+			continue;
 		}
 
 		// This key has it's own entry, there's no need to push it to the property field
 		if (Key == DefaultSteamPresenceKey)
 		{
 			Status.StatusStr = Value;
+			continue;
+		}
+
+		// Determine if the user has voice support
+		if (Key == "HasVoice" && Value == "true")
+		{
+			bHasVoiceSupport = true;
 			continue;
 		}
 
