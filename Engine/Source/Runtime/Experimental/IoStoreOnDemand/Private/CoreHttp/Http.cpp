@@ -3856,7 +3856,7 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 		FConnectionPool Pool(Params);
 		for (int32 j = 0; j < i; ++j)
 		{
-			FRequest Request = Loop.Get(BuildUrl("/data"), Pool);
+			FRequest Request = Loop.Get("/data", Pool);
 			Loop.Send(MoveTemp(Request), HashSink);
 		}
 		WaitForLoopIdle();
@@ -3882,13 +3882,21 @@ IOSTOREONDEMAND_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 			check(IsFailTimeout == bExpectFailTimeout);
 		};
 
+		auto ErrorSink = [] (const FTicketStatus& Status)
+		{
+			check(Status.GetId() == FTicketStatus::EId::Error);
+		};
+
 		FConnectionPool::FParams Params;
 		Params.SetHostFromUrl(BuildUrl("", 9494));
 		FConnectionPool Pool(Params);
 
 		FEventLoop Loop2;
 		Loop2.Send(Loop2.Get("/data?stall", Pool), Sink);
-		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
+
+		// Requests are pipelined. The second one will get went during the stall so
+		// we expect it to fail. The subsequent ones are expected to succeed.
+		Loop2.Send(Loop2.Get("/data", Pool), ErrorSink);
 		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
 		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
 
