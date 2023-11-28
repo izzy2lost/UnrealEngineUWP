@@ -81,19 +81,22 @@ void FWaterViewExtension::UpdateGPUBuffers()
 		FWaterBodyManager* WaterBodyManager = UWaterSubsystem::GetWaterBodyManager(WorldPtr);
 		check(WaterBodyManager);
 
-		// Shrink the water manager storage to avoid over-preallocating in the WaterIndirectionBuffer.
+		// Shrink the water manager storage to avoid over-preallocating in the WaterBodyDataBuffer.
 		WaterBodyManager->Shrink();
 
 
-		struct FWaterIndirection
+		struct FWaterBodyData
 		{
 			float WaterZoneIndex;
 			float WaveDataIndex;
-			float WaterBodyDataIndex;
-
-			float _Padding; // Unused 
+			float NumWaves;
+			float TargetWaveMaskDepth;
+			float FixedVelocityXY; // Packed as two 16 bit floats. X is in the lower 16 bits.
+			float FixedVelocityZ;
+			float FixedZHeight;
+			float FixedWaterDepth;
 		};
-		static_assert(sizeof(FWaterIndirection) == 1 * sizeof(FVector4f));
+		static_assert(sizeof(FWaterBodyData) == 2 * sizeof(FVector4f));
 
 		struct FWaterZoneData
 		{
@@ -123,23 +126,14 @@ void FWaterViewExtension::UpdateGPUBuffers()
 		};
 		static_assert(sizeof(FGerstnerWaveData) == 2 * sizeof(FVector4f));
 
-		struct FWaterBodyData
-		{
-			float NumWaves;
-			float TargetWaveMaskDepth;
-			
-			float _Padding[2]; // Unused;
-		};
-		static_assert(sizeof(FWaterBodyData) == sizeof(FVector4f));
-
-		// Water Indirection Buffer layout:
+		// Water Body Data Buffer layout:
 		// -------------------------------------------------------------------------------
-		// || WaterZoneIndex | WaveDataIndex | WaterBodyDataIndex | *Unused* ||   ...   ||
+		// || WaterZoneIndex | WaveDataIndex | NumWaves | (Other members) ||   ...   ||
 		// -------------------------------------------------------------------------------
 		//
-		// Water Data Buffer layout:
+		// Water Aux Data Buffer layout:
 		// -----------------------------------------------------------------------------
-		// ||| WaterZone Data | ..  || GerstnerWaveData | ... || WaterBodyData | ... |||
+		// ||| WaterZone Data | ... || GerstnerWaveData | ... |||
 		// -----------------------------------------------------------------------------
 		//
 
@@ -162,28 +156,29 @@ void FWaterViewExtension::UpdateGPUBuffers()
 		}
 
 
-		TArray<FWaterIndirection> WaterIndirection;
-		TArray<FGerstnerWaveData> WaveData;
 		TArray<FWaterBodyData> WaterBodyData;
+		TArray<FGerstnerWaveData> WaveData;
 		{
 			const int32 NumWaterBodies =  WaterBodyManager->NumWaterBodies();
 			// Pre-set up to the max water body index. Some entries may be empty and NumWaterBodies != MaxIndex
-			WaterIndirection.SetNumZeroed(WaterBodyManager->MaxWaterBodyIndex());
-			WaterBodyData.Reserve(NumWaterBodies);
+			WaterBodyData.SetNumZeroed(WaterBodyManager->MaxWaterBodyIndex());
 
 			TMap<const UGerstnerWaterWaves*, int32> GerstnerWavesIndices;
 
-			WaterBodyManager->ForEachWaterBodyComponent([&WaterIndirection, &WaveData, &WaterBodyData, &GerstnerWavesIndices](UWaterBodyComponent* WaterBodyComponent)
+			WaterBodyManager->ForEachWaterBodyComponent([&WaterBodyData, &WaveData, &GerstnerWavesIndices](UWaterBodyComponent* WaterBodyComponent)
 			{
 				const int32 WaterZoneIndex = WaterBodyComponent->GetWaterZone() ? WaterBodyComponent->GetWaterZone()->GetWaterZoneIndex() : -1;
 
-				check(WaterBodyComponent->GetWaterBodyIndex() < WaterIndirection.Num());
-				FWaterIndirection& WaterIndirectionEntry = WaterIndirection[WaterBodyComponent->GetWaterBodyIndex()];
-				WaterIndirectionEntry.WaterZoneIndex = WaterZoneIndex;
-				WaterIndirectionEntry.WaterBodyDataIndex = WaterBodyData.Num();
+				const FVector FixedVelocity = WaterBodyComponent->GetConstantVelocity();
 
-				FWaterBodyData& WaterBodyDataEntry = WaterBodyData.AddZeroed_GetRef();
+				check(WaterBodyComponent->GetWaterBodyIndex() < WaterBodyData.Num());
+				FWaterBodyData& WaterBodyDataEntry = WaterBodyData[WaterBodyComponent->GetWaterBodyIndex()];
+				WaterBodyDataEntry.WaterZoneIndex = WaterZoneIndex;
 				WaterBodyDataEntry.TargetWaveMaskDepth = WaterBodyComponent->TargetWaveMaskDepth;
+				WaterBodyDataEntry.FixedVelocityXY = FMath::AsFloat(static_cast<uint32>(FFloat16(FixedVelocity.X).Encoded) | static_cast<uint32>(FFloat16(FixedVelocity.Y).Encoded) << 16u);
+				WaterBodyDataEntry.FixedVelocityZ = static_cast<float>(FixedVelocity.Z);
+				WaterBodyDataEntry.FixedZHeight = WaterBodyComponent->GetConstantSurfaceZ();
+				WaterBodyDataEntry.FixedWaterDepth = WaterBodyComponent->GetConstantDepth();
 
 				if (WaterBodyComponent->HasWaves())
 				{
@@ -220,7 +215,7 @@ void FWaterViewExtension::UpdateGPUBuffers()
 
 						check(WaveDataIndex);
 
-						WaterIndirectionEntry.WaveDataIndex = *WaveDataIndex;
+						WaterBodyDataEntry.WaveDataIndex = *WaveDataIndex;
 						WaterBodyDataEntry.NumWaves = Waves.Num();
 					}
 				}
@@ -228,15 +223,15 @@ void FWaterViewExtension::UpdateGPUBuffers()
 			});
 		}
 
-		TResourceArray<FVector4f> WaterIndirectionBuffer;
-		TResourceArray<FVector4f> WaterDataBuffer;
+		TResourceArray<FVector4f> WaterBodyDataBuffer;
+		TResourceArray<FVector4f> WaterAuxDataBuffer;
 
 		// The first element of the WaterDataBuffer contains the offsets to each of the sub-buffers.
 		// X = WaterZoneDataOffset
 		// Y = WaterWaveDataOffset
-		// Z = WaterBodyDataOffset
+		// Z = Unused
 		// W = Unused
-		WaterDataBuffer.AddZeroed();
+		WaterAuxDataBuffer.AddZeroed();
 
 		// Transform the individual arrays into the single buffer:
 		{
@@ -253,37 +248,36 @@ void FWaterViewExtension::UpdateGPUBuffers()
 				return StartOffset;
 			};
 
-			AppendDataToFloat4Buffer(WaterIndirectionBuffer, WaterIndirection);
+			AppendDataToFloat4Buffer(WaterBodyDataBuffer, WaterBodyData);
 
-			const int32 ZoneDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaterZoneData);
-			const int32 WaveDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaveData);
-			const int32 WaterBodyDataOffset = AppendDataToFloat4Buffer(WaterDataBuffer, WaterBodyData);
+			const int32 ZoneDataOffset = AppendDataToFloat4Buffer(WaterAuxDataBuffer, WaterZoneData);
+			const int32 WaveDataOffset = AppendDataToFloat4Buffer(WaterAuxDataBuffer, WaveData);
 
 			// Store the offsets to each sub-buffer in the first entry.
 			// If this layout ever changes, corresponding decode functions must be updated in GerstnerWaveFunctions.ush!
-			FVector4f& OffsetData = WaterDataBuffer[0];
+			FVector4f& OffsetData = WaterAuxDataBuffer[0];
 			OffsetData.X = ZoneDataOffset;
 			OffsetData.Y = WaveDataOffset;
-			OffsetData.Z = WaterBodyDataOffset;
-			OffsetData.W = 0.f;
+			OffsetData.Z = 0.0f;
+			OffsetData.W = 0.0f;
 		}
 
-		if (WaterIndirectionBuffer.Num() == 0)
+		if (WaterBodyDataBuffer.Num() == 0)
 		{
-			WaterIndirectionBuffer.AddZeroed();
+			WaterBodyDataBuffer.AddZeroed();
 		}
 
 		ENQUEUE_RENDER_COMMAND(AllocateWaterInstanceDataBuffer)
 		(
-			[WaterGPUData=WaterGPUData, WaterDataBuffer, WaterIndirectionBuffer](FRHICommandListImmediate& RHICmdList) mutable
+			[WaterGPUData=WaterGPUData, WaterAuxDataBuffer, WaterBodyDataBuffer](FRHICommandListImmediate& RHICmdList) mutable
 			{
-				FRHIResourceCreateInfo CreateInfoData(TEXT("WaterDataBuffer"), &WaterDataBuffer);
-				WaterGPUData->DataBuffer = RHICmdList.CreateBuffer(WaterDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, CreateInfoData);
-				WaterGPUData->DataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->DataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
+				FRHIResourceCreateInfo AuxDataCreateInfo(TEXT("WaterAuxDataBuffer"), &WaterAuxDataBuffer);
+				WaterGPUData->AuxDataBuffer = RHICmdList.CreateBuffer(WaterAuxDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, AuxDataCreateInfo);
+				WaterGPUData->AuxDataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->AuxDataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
 
-				FRHIResourceCreateInfo CreateInfoIndirection(TEXT("WaterIndirectionBuffer"), &WaterIndirectionBuffer);
-				WaterGPUData->IndirectionBuffer = RHICmdList.CreateBuffer(WaterIndirectionBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, CreateInfoIndirection);
-				WaterGPUData->IndirectionSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->IndirectionBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
+				FRHIResourceCreateInfo WaterBodyDataCreateInfo(TEXT("WaterBodyDataBuffer"), &WaterBodyDataBuffer);
+				WaterGPUData->WaterBodyDataBuffer = RHICmdList.CreateBuffer(WaterBodyDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, WaterBodyDataCreateInfo);
+				WaterGPUData->WaterBodyDataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->WaterBodyDataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
 			}
 		);
 
@@ -413,10 +407,11 @@ void FWaterViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBui
 
 void FWaterViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
 {
-	if (WaterGPUData->DataSRV && WaterGPUData->IndirectionSRV)
+	if (WaterGPUData->WaterBodyDataSRV && WaterGPUData->AuxDataSRV)
 	{
-		InView.WaterDataBuffer = WaterGPUData->DataSRV;
-		InView.WaterIndirectionBuffer = WaterGPUData->IndirectionSRV;
+		// TODO: Rename members on FSceneView in a separate CL. This will invalidate almost all shaders.
+		InView.WaterDataBuffer = WaterGPUData->AuxDataSRV;
+		InView.WaterIndirectionBuffer = WaterGPUData->WaterBodyDataSRV;
 	}
 }
 

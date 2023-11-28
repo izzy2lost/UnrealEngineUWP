@@ -286,8 +286,8 @@ float3 FinalizeNormalNew(float3 inNormal)
 
 FWaveParams GetWaveDataByWaveIndexNew(int InWaterBodyIndex, int InWaveIndex)
 {
-	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
-	return GetWaveDataNew(InWaveIndex, WaterBodyHeader);
+	const FWaterBodyData WaterBodyData = GetWaterBodyData(InWaterBodyIndex);
+	return GetWaveDataNew(InWaveIndex, WaterBodyData);
 }
 
 float3 PackNormalAndWPONew(WaveOutput inWave)
@@ -300,11 +300,11 @@ float3 PackNormalAndWPONew(WaveOutput inWave)
 	return packedoutput;
 }
 
-WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyHeader InWaterBodyHeader, float InTime, FLWCVector2 InWorldPos)
+WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyData InWaterBodyData, float InTime, FLWCVector2 InWorldPos)
 {
 	WaveOutput OutWave = (WaveOutput)0;
 		
-	FWaveParams CurrentWave = GetWaveDataNew(InWaveIndex, InWaterBodyHeader);
+	FWaveParams CurrentWave = GetWaveDataNew(InWaveIndex, InWaterBodyData);
 		
 	float Dispersion = 2 * PI / CurrentWave.Wavelength;
 	float2 WaveVector = CurrentWave.Direction * Dispersion;
@@ -359,13 +359,13 @@ WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FLWCVector
 {		
 	WaveOutput OutWaves = (WaveOutput)0;
 	WaveOutput CurrentWave = (WaveOutput)0;
-		
-	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
-	const int NumWaves = GetWaterBodyData(InWaterBodyIndex).NumWaves;
+	
+	const FWaterBodyData WaterBodyData = GetWaterBodyData(InWaterBodyIndex);
+	const int NumWaves = WaterBodyData.NumWaves;
 
 	for (int i = 0; i < NumWaves; i++)
 	{
-		CurrentWave = GetSingleGerstnerWaveNew(i, WaterBodyHeader, InTime, InWorldPos);
+		CurrentWave = GetSingleGerstnerWaveNew(i, WaterBodyData, InTime, InWorldPos);
 		OutWaves = AddWavesNew(OutWaves, CurrentWave);
 	}
 		
@@ -379,15 +379,15 @@ WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int 
 	WaveOutput OutWaves = (WaveOutput)0;
 	WaveOutput CurrentWave = (WaveOutput)0;
 		
-	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
-	const int NumWaves = GetWaterBodyData(InWaterBodyIndex).NumWaves;
+	const FWaterBodyData WaterBodyData = GetWaterBodyData(InWaterBodyIndex);
+	const int NumWaves = WaterBodyData.NumWaves;
 
 	const int MaxWaveRange = min(InMaxWaveIndex + 1, NumWaves);
 	const int MinWaveRange = max(0, InMinWaveIndex);
 
 	for (int i = MinWaveRange; i < MaxWaveRange; i++)
 	{
-		CurrentWave = GetSingleGerstnerWaveNew(i, WaterBodyHeader, InTime, InWorldPos);
+		CurrentWave = GetSingleGerstnerWaveNew(i, WaterBodyData, InTime, InWorldPos);
 		OutWaves = AddWavesNew(OutWaves, CurrentWave);
 	}
 		

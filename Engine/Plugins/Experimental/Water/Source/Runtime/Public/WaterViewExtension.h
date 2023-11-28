@@ -42,11 +42,11 @@ private:
 
 	struct FWaterGPUResources
 	{
-		FBufferRHIRef DataBuffer;
-		FShaderResourceViewRHIRef DataSRV;
+		FBufferRHIRef WaterBodyDataBuffer;
+		FShaderResourceViewRHIRef WaterBodyDataSRV;
 
-		FBufferRHIRef IndirectionBuffer;
-		FShaderResourceViewRHIRef IndirectionSRV;
+		FBufferRHIRef AuxDataBuffer;
+		FShaderResourceViewRHIRef AuxDataSRV;
 	};
 
 	TSharedRef<FWaterGPUResources, ESPMode::ThreadSafe> WaterGPUData;

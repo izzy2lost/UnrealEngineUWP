@@ -566,14 +566,7 @@ public:
 	static const FName WaterBodyZOffsetParamName;
 	static const FName WaterVelocityAndHeightName;
 	static const FName GlobalOceanHeightName;
-	static const FName FixedZHeightName;
-	static const FName FixedVelocityName;
-	static const FName FixedWaterDepthName;
-	static const FName WaterAreaParamName;
 	static const FName MaxFlowVelocityParamName;
-	static const FName WaterZMinParamName;
-	static const FName WaterZMaxParamName;
-	static const FName GroundZMinParamName;
 
 	UPROPERTY(EditDefaultsOnly, Category = Collision, meta = (EditCondition = "bGenerateCollisions"))
 	TObjectPtr<UPhysicalMaterial> PhysicalMaterial;

@@ -5,10 +5,10 @@
 
 #define PER_WAVE_DATA_SIZE 2
 #define PER_WATERZONE_DATA_SIZE 2
-#define PER_WATERBODY_DATA_SIZE 1
+#define PER_WATERBODY_DATA_SIZE 2
 
-/** Struct containing the decoded water body header data  */	
-struct FWaterBodyHeader
+/** Struct containing the decoded water body data  */	
+struct FWaterBodyData
 {
 	// Index of the water zone which owns this body. Points to the position of the water zone in the zone sub-buffer.
 	int WaterZoneIndex;
@@ -16,8 +16,15 @@ struct FWaterBodyHeader
 	// Index into the wave data sub-buffer.
 	int WaveDataIndex;
 
-	// Index into the water body data sub-buffer
-	int WaterBodyDataIndex;
+	// Number of waves to be read from the wave data buffer
+	int NumWaves;
+
+	// Target Wave Mask Depth
+	float TargetWaveMaskDepth;
+	
+	float3 FixedVelocity;
+	float FixedZHeight;
+	float FixedWaterDepth;
 };
 
 /** Struct containing the decoded per-water zone data. */
@@ -27,16 +34,6 @@ struct FWaterZoneData
 	float2 Extent;
 	float2 HeightExtent;
 	float GroundZMin;
-};
-
-/** Struct containing the decoded per-water body data. */
-struct FWaterBodyData
-{
-	// Number of waves to be read from the wave data buffer
-	int NumWaves;
-	
-	// Target Wave Mask Depth
-	float TargetWaveMaskDepth;
 };
 
 struct FWaveParams
@@ -57,20 +54,28 @@ int GetWaveDataOffset()
 	return (int)View.WaterData[0].y;
 }
 
-int GetWaterBodyDataOffset()
+/** Function to decode the raw data from the water indirection buffer */
+FWaterBodyData DecodeWaterBodyData(float4 InDataToDecode0, float4 InDataToDecode1)
 {
-	return (int)View.WaterData[0].z;
+	FWaterBodyData OutWaterBodyData = (FWaterBodyData)0;
+	OutWaterBodyData.WaterZoneIndex = InDataToDecode0.x;
+	OutWaterBodyData.WaveDataIndex = InDataToDecode0.y;
+	OutWaterBodyData.NumWaves = InDataToDecode0.z;
+	OutWaterBodyData.TargetWaveMaskDepth = InDataToDecode0.w;
+	OutWaterBodyData.FixedVelocity = float3(f16tof32(asuint(InDataToDecode1.x)), f16tof32(asuint(InDataToDecode1.x) >> 16u), InDataToDecode1.y);
+	OutWaterBodyData.FixedZHeight = InDataToDecode1.z;
+	OutWaterBodyData.FixedWaterDepth = InDataToDecode1.w;
+	
+	return OutWaterBodyData;
 }
 
-/** Function to decode the raw data from the water indirection buffer */
-FWaterBodyHeader DecodeWaterBodyHeader(float4 InDataToDecode)
+FWaterBodyData GetWaterBodyData(int InWaterBodyIndex)
 {
-	FWaterBodyHeader OutWaterBodyHeader = (FWaterBodyHeader)0;
-	OutWaterBodyHeader.WaterZoneIndex = InDataToDecode.x;
-	OutWaterBodyHeader.WaveDataIndex = InDataToDecode.y;
-	OutWaterBodyHeader.WaterBodyDataIndex = InDataToDecode.z;
-	
-	return OutWaterBodyHeader;
+	const int WaterBodyOffset = InWaterBodyIndex * PER_WATERBODY_DATA_SIZE;
+	const float4 Data0 = View.WaterIndirection[WaterBodyOffset];
+	const float4 Data1 = View.WaterIndirection[WaterBodyOffset + 1];
+
+	return DecodeWaterBodyData(Data0, Data1);
 }
 
 /** Function to decode the data for an individual gerstner wave from the water data buffer */
@@ -85,34 +90,14 @@ FWaveParams DecodeWaveParams(float4 InDataToDecode0, float4 InDataToDecode1)
 	return OutWaveParams;
 }
 
-FWaveParams GetWaveDataNew(int InWaveIndex, FWaterBodyHeader InWaterBodyHeader)
+FWaveParams GetWaveDataNew(int InWaveIndex, FWaterBodyData InWaterBodyData)
 {
 	const int WaveDataOffset = GetWaveDataOffset();
-	const int AbsoluteWaveDataIndex = WaveDataOffset + (InWaterBodyHeader.WaveDataIndex + InWaveIndex) * PER_WAVE_DATA_SIZE;
-
-	float4 Data0 = View.WaterData[AbsoluteWaveDataIndex];
-	float4 Data1 = View.WaterData[AbsoluteWaveDataIndex + 1];
+	const int AbsoluteWaveDataIndex = WaveDataOffset + (InWaterBodyData.WaveDataIndex + InWaveIndex) * PER_WAVE_DATA_SIZE;
+	const float4 Data0 = View.WaterData[AbsoluteWaveDataIndex];
+	const float4 Data1 = View.WaterData[AbsoluteWaveDataIndex + 1];
 		
 	return DecodeWaveParams(Data0, Data1);
-}
-
-FWaterBodyData DecodeWaterBodyData(float4 Data)
-{
-	FWaterBodyData OutWaterBodyData = (FWaterBodyData)0;
-	OutWaterBodyData.NumWaves = Data.x;
-	OutWaterBodyData.TargetWaveMaskDepth = Data.y;
-
-	return OutWaterBodyData;
-}
-
-FWaterBodyData GetWaterBodyData(int InWaterBodyIndex)
-{
-	const int WaterBodyDataBufferOffset = GetWaterBodyDataOffset();
-	const FWaterBodyHeader WaterBodyHeader = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]);
-
-	float4 Data = View.WaterData[WaterBodyDataBufferOffset + WaterBodyHeader.WaterBodyDataIndex];
-
-	return DecodeWaterBodyData(Data);
 }
 
 FWaterZoneData DecodeWaterZoneData(float4 Data0, float4 Data1)
@@ -131,15 +116,15 @@ FWaterZoneData GetWaterZoneData(int InWaterZoneIndex)
 	const int WaterZoneDataBufferOffset = GetWaterZoneDataOffset();
 	const int WaterZoneOffset = WaterZoneDataBufferOffset + (InWaterZoneIndex * PER_WATERZONE_DATA_SIZE);
 
-	float4 Data0 = View.WaterData[WaterZoneOffset];
-	float4 Data1 = View.WaterData[WaterZoneOffset + 1];
+	const float4 Data0 = View.WaterData[WaterZoneOffset];
+	const float4 Data1 = View.WaterData[WaterZoneOffset + 1];
 
 	return DecodeWaterZoneData(Data0, Data1);
 }
 
 FWaterZoneData GetWaterZoneDataForWaterBody(int InWaterBodyIndex)
 {
-	const int WaterZoneIndex = DecodeWaterBodyHeader(View.WaterIndirection[InWaterBodyIndex]).WaterZoneIndex;
+	const int WaterZoneIndex = GetWaterBodyData(InWaterBodyIndex).WaterZoneIndex;
 
 	return GetWaterZoneData(WaterZoneIndex);
 }

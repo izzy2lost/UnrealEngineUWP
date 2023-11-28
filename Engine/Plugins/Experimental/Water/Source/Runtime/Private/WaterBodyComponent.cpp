@@ -71,14 +71,7 @@ const FName UWaterBodyComponent::WaterZoneIndexParamName(TEXT("WaterZoneIndex"))
 const FName UWaterBodyComponent::WaterBodyZOffsetParamName(TEXT("WaterBodyZOffset"));
 const FName UWaterBodyComponent::WaterVelocityAndHeightName(TEXT("WaterVelocityAndHeight"));
 const FName UWaterBodyComponent::GlobalOceanHeightName(TEXT("GlobalOceanHeight"));
-const FName UWaterBodyComponent::FixedZHeightName(TEXT("FixedZHeight"));
-const FName UWaterBodyComponent::FixedVelocityName(TEXT("FixedVelocity"));
-const FName UWaterBodyComponent::FixedWaterDepthName(TEXT("FixedWaterDepth"));
-const FName UWaterBodyComponent::WaterAreaParamName(TEXT("WaterArea"));
 const FName UWaterBodyComponent::MaxFlowVelocityParamName(TEXT("MaxFlowVelocity"));
-const FName UWaterBodyComponent::WaterZMinParamName(TEXT("WaterZMin"));
-const FName UWaterBodyComponent::WaterZMaxParamName(TEXT("WaterZMax"));
-const FName UWaterBodyComponent::GroundZMinParamName(TEXT("GroundZMin"));
 
 UWaterBodyComponent::UWaterBodyComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -1763,10 +1756,6 @@ bool UWaterBodyComponent::SetDynamicParametersOnMID(UMaterialInstanceDynamic* In
 	const float GlobalOceanHeight = WaterSubsystem->GetOceanTotalHeight();
 	InMID->SetScalarParameterValue(WaterBodyIndexParamName, WaterBodyIndex);
 	InMID->SetScalarParameterValue(GlobalOceanHeightName, GlobalOceanHeight);
-	InMID->SetScalarParameterValue(FixedZHeightName, GetConstantSurfaceZ());
-	InMID->SetScalarParameterValue(FixedWaterDepthName, GetConstantDepth());
-
-	InMID->SetVectorParameterValue(FixedVelocityName, GetConstantVelocity());
 
 	if (const AWaterZone* WaterZone = GetWaterZone())
 	{
