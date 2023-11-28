@@ -108,6 +108,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		CustomizableObjectNodeHasSeparateNeverStreamFlag,
 
+		AddedColumnIdDataToTableNodePins,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

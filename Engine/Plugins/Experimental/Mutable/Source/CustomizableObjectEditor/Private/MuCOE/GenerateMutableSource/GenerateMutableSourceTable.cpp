@@ -9,6 +9,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2DArray.h"
 #include "GameplayTagContainer.h"
+#include "Kismet2/StructureEditorUtils.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
@@ -60,8 +61,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			// Getting Animation Blueprint and Animation Slot
 			FString AnimBP, AnimSlot, GameplayTag, AnimBPAssetTag;
 			TArray<FGameplayTag> GameplayTags;
+			FGuid ColumnPropertyId = FStructureEditorUtils::GetGuidForProperty(ColumnProperty);
 
-			TableNode->GetAnimationColumns(ColumnName, AnimBP, AnimSlot, GameplayTag);
+			TableNode->GetAnimationColumns(ColumnPropertyId, AnimBP, AnimSlot, GameplayTag);
 
 			if (!AnimBP.IsEmpty())
 			{

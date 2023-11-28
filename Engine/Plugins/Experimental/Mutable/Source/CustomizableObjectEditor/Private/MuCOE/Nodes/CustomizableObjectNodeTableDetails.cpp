@@ -340,16 +340,19 @@ void FCustomizableObjectNodeTableDetails::GenerateAnimInstanceComboBoxOptions()
 	AnimSlotComboBox->ClearSelection();
 	AnimTagsComboBox->ClearSelection();
 
-	FString ColumnName;
-
-	if (AnimMeshColumnComboBox.IsValid())
-	{
-		ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
-	}
-
 	const UScriptStruct* TableStruct = Node->GetTableNodeStruct();
 
-	if(!TableStruct)
+	FString ColumnName;
+	FTableNodeColumnData* MeshColumnData = nullptr;
+
+	if (TableStruct && AnimMeshColumnComboBox.IsValid())
+	{
+		ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
+		FGuid ColumnId = Node->GetColumnIdByName(FName(*ColumnName));
+
+		MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
+	}
+	else
 	{
 		return;
 	}
@@ -366,34 +369,24 @@ void FCustomizableObjectNodeTableDetails::GenerateAnimInstanceComboBoxOptions()
 					TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
 					AnimOptionNames.Add(Option);
 
-					for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+					if (MeshColumnData && MeshColumnData->AnimInstanceColumnName == *Option)
 					{
-						const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(Node->GetPinData(*Pin));
-
-						if (PinData && PinData->ColumnName == ColumnName && PinData->AnimInstanceColumnName == *Option)
-						{
-							AnimComboBox->SetSelectedItem(Option);
-							break;
-						}
+						AnimComboBox->SetSelectedItem(Option);
 					}
 				}
 			}
+
 			else if (CastField<FIntProperty>(ColumnProperty) || CastField<FNameProperty>(ColumnProperty))
 			{
 				TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
 				AnimSlotOptionNames.Add(Option);
 
-				for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+				if (MeshColumnData && MeshColumnData->AnimSlotColumnName == *Option)
 				{
-					const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(Node->GetPinData(*Pin));
-
-					if (PinData && PinData->ColumnName == ColumnName && PinData->AnimSlotColumnName == *Option)
-					{
-						AnimSlotComboBox->SetSelectedItem(Option);
-						break;
-					}
+					AnimSlotComboBox->SetSelectedItem(Option);
 				}
 			}
+
 			else if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
 			{
 				if (StructProperty->Struct == TBaseStructure<FGameplayTagContainer>::Get())
@@ -401,15 +394,9 @@ void FCustomizableObjectNodeTableDetails::GenerateAnimInstanceComboBoxOptions()
 					TSharedPtr<FString> Option = MakeShareable(new FString(DataTableUtils::GetPropertyExportName(ColumnProperty)));
 					AnimTagsOptionNames.Add(Option);
 
-					for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+					if (MeshColumnData && MeshColumnData->AnimTagColumnName == *Option)
 					{
-						const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(Node->GetPinData(*Pin));
-
-						if (PinData && PinData->ColumnName == ColumnName && PinData->AnimTagColumnName == *Option)
-						{
-							AnimTagsComboBox->SetSelectedItem(Option);
-							break;
-						}
+						AnimTagsComboBox->SetSelectedItem(Option);
 					}
 				}
 			}
@@ -463,18 +450,22 @@ void FCustomizableObjectNodeTableDetails::OnLayoutMeshColumnComboBoxSelectionCha
 
 void FCustomizableObjectNodeTableDetails::OnAnimInstanceComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
-	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid())
+	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid() && SelectInfo != ESelectInfo::Direct)
 	{
 		FString ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
-
-		for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+		FGuid ColumnId = Node->GetColumnIdByName(FName(*ColumnName));
+		FTableNodeColumnData* MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
+		
+		if (MeshColumnData)
 		{
-			UCustomizableObjectNodeTableMeshPinData* PinData = Cast< UCustomizableObjectNodeTableMeshPinData>(Node->GetPinData(*Pin));
+			MeshColumnData->AnimInstanceColumnName = *Selection;
+		}
+		else if(ColumnId.IsValid())
+		{
+			FTableNodeColumnData NewMeshColumnData;
+			NewMeshColumnData.AnimInstanceColumnName = *Selection;
 
-			if (PinData && PinData->ColumnName == ColumnName)
-			{
-				PinData->AnimInstanceColumnName = *Selection;
-			}
+			Node->ColumnDataMap.Add(ColumnId, NewMeshColumnData);
 		}
 
 		Node->MarkPackageDirty();
@@ -484,18 +475,22 @@ void FCustomizableObjectNodeTableDetails::OnAnimInstanceComboBoxSelectionChanged
 
 void FCustomizableObjectNodeTableDetails::OnAnimSlotComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
-	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid())
+	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid() && SelectInfo != ESelectInfo::Direct)
 	{
 		FString ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
+		FGuid ColumnId = Node->GetColumnIdByName(FName(*ColumnName));
+		FTableNodeColumnData* MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
 
-		for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+		if (MeshColumnData)
 		{
-			UCustomizableObjectNodeTableMeshPinData* PinData = Cast< UCustomizableObjectNodeTableMeshPinData>(Node->GetPinData(*Pin));
+			MeshColumnData->AnimSlotColumnName = *Selection;
+		}
+		else if (ColumnId.IsValid())
+		{
+			FTableNodeColumnData NewMeshColumnData;
+			NewMeshColumnData.AnimSlotColumnName = *Selection;
 
-			if (PinData && PinData->ColumnName == ColumnName)
-			{
-				PinData->AnimSlotColumnName = *Selection;
-			}
+			Node->ColumnDataMap.Add(ColumnId, NewMeshColumnData);
 		}
 
 		Node->MarkPackageDirty();
@@ -505,18 +500,24 @@ void FCustomizableObjectNodeTableDetails::OnAnimSlotComboBoxSelectionChanged(TSh
 
 void FCustomizableObjectNodeTableDetails::OnAnimTagsComboBoxSelectionChanged(TSharedPtr<FString> Selection, ESelectInfo::Type SelectInfo)
 {
-	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid())
+	if (Selection.IsValid() && AnimMeshColumnComboBox->GetSelectedItem().IsValid() && SelectInfo != ESelectInfo::Direct)
 	{
 		FString ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
+		FGuid ColumnId = Node->GetColumnIdByName(FName(*ColumnName));
+		FTableNodeColumnData* MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
 
-		for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+		MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
+
+		if (MeshColumnData)
 		{
-			UCustomizableObjectNodeTableMeshPinData* PinData = Cast< UCustomizableObjectNodeTableMeshPinData>(Node->GetPinData(*Pin));
+			MeshColumnData->AnimTagColumnName = *Selection;
+		}
+		else if (ColumnId.IsValid())
+		{
+			FTableNodeColumnData NewMeshColumnData;
+			NewMeshColumnData.AnimTagColumnName = *Selection;
 
-			if (PinData && PinData->ColumnName == ColumnName)
-			{
-				PinData->AnimTagColumnName = *Selection;
-			}
+			Node->ColumnDataMap.Add(ColumnId, NewMeshColumnData);
 		}
 
 		Node->MarkPackageDirty();
@@ -535,46 +536,41 @@ void FCustomizableObjectNodeTableDetails::OnNodePinValueChanged()
 
 FReply FCustomizableObjectNodeTableDetails::OnClearButtonPressed()
 {
-	bool bCleared = false;
-
-	if (AnimMeshColumnComboBox->GetSelectedItem().IsValid())
+	if (!AnimMeshColumnComboBox->GetSelectedItem().IsValid())
 	{
-		FString ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
+		return FReply::Unhandled();
+	}
+		
+	FString ColumnName = *AnimMeshColumnComboBox->GetSelectedItem();
+	FGuid ColumnId = Node->GetColumnIdByName(FName(*ColumnName));
+	FTableNodeColumnData* MeshColumnData = Node->ColumnDataMap.Find(ColumnId);
 
-		for (const UEdGraphPin* Pin : Node->GetAllNonOrphanPins())
+	if (MeshColumnData)
+	{
+		MeshColumnData->AnimInstanceColumnName.Reset();
+		MeshColumnData->AnimSlotColumnName.Reset();
+		MeshColumnData->AnimTagColumnName.Reset();
+
+		if (AnimComboBox.IsValid())
 		{
-			UCustomizableObjectNodeTableMeshPinData* PinData = Cast< UCustomizableObjectNodeTableMeshPinData>(Node->GetPinData(*Pin));
-
-			if (PinData && PinData->ColumnName == ColumnName)
-			{
-				PinData->AnimInstanceColumnName.Reset();
-				PinData->AnimSlotColumnName.Reset();
-				PinData->AnimTagColumnName.Reset();
-
-				bCleared = true;
-			}
+			AnimComboBox->ClearSelection();
 		}
 
-		if (bCleared)
+		if (AnimSlotComboBox.IsValid())
 		{
-			if (AnimComboBox.IsValid())
-			{
-				AnimComboBox->ClearSelection();
-			}
-			
-			if (AnimSlotComboBox.IsValid())
-			{
-				AnimSlotComboBox->ClearSelection();
-			}
-			
-			if (AnimTagsComboBox.IsValid())
-			{
-				AnimTagsComboBox->ClearSelection();
-			}
+			AnimSlotComboBox->ClearSelection();
 		}
+
+		if (AnimTagsComboBox.IsValid())
+		{
+			AnimTagsComboBox->ClearSelection();
+		}
+
+		Node->MarkPackageDirty();
+		return FReply::Handled();
 	}
 
-	return bCleared ? FReply::Handled() : FReply::Unhandled();
+	return FReply::Unhandled();
 }
 
 

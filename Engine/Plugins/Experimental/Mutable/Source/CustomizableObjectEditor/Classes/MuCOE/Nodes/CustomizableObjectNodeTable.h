@@ -52,6 +52,25 @@ enum class ETableDataGatheringSource : uint8
 };
 
 
+USTRUCT()
+struct FTableNodeColumnData
+{
+	GENERATED_USTRUCT_BODY()
+
+	/** Anim Instance Column name related to this Mesh pin */
+	UPROPERTY()
+	FString AnimInstanceColumnName = "";
+
+	/** Anim Slot Column name related to this Mesh pin */
+	UPROPERTY()
+	FString AnimSlotColumnName = "";
+
+	/** Anim Tag Column name related to this Mesh pin */
+	UPROPERTY()
+	FString AnimTagColumnName = "";
+};
+
+
 /** Base class for all Table Pins. */
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableObjectPinData : public UCustomizableObjectNodePinData
@@ -59,6 +78,10 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableObjectPinData : p
 	GENERATED_BODY()
 
 public:
+
+	/** Id of the property associated to a struct column */
+	UPROPERTY()
+	FGuid StructColumnId;
 
 	/** Name of the data table column related to the pin */
 	UPROPERTY()
@@ -103,18 +126,18 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableMeshPinData : pub
 	GENERATED_BODY()
 
 public:
-	
+
 	/** Anim Instance Column name related to this Mesh pin */
 	UPROPERTY()
-	FString AnimInstanceColumnName = "";
+	FString AnimInstanceColumnName_DEPRECATED = "";
 
 	/** Anim Slot Column name related to this Mesh pin */
 	UPROPERTY()
-	FString AnimSlotColumnName = "";
+	FString AnimSlotColumnName_DEPRECATED = "";
 
 	/** Anim Tag Column name related to this Mesh pin */
 	UPROPERTY()
-	FString AnimTagColumnName = "";
+	FString AnimTagColumnName_DEPRECATED = "";
 
 	UPROPERTY()
 	FString MutableColumnName = "";
@@ -190,6 +213,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
 
+	/** Map to relate a Structure Column with its Data */
+	UPROPERTY()
+	TMap<FGuid, FTableNodeColumnData> ColumnDataMap;
+
+public:
+
 	// UObject interface
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -236,7 +265,7 @@ public:
 	void GetPinLODAndSection(const UEdGraphPin* Pin, int32& LODIndex, int32& SectionIndex) const;
 
 	// Get the anim blueprint and anim slot columns related to a mesh
-	void GetAnimationColumns(const FString& ColumnName, FString& AnimBPColumnName, FString& AnimSlotColumnName, FString& AnimTagColumnName) const;
+	void GetAnimationColumns(const FGuid& ColumnId, FString& AnimBPColumnName, FString& AnimSlotColumnName, FString& AnimTagColumnName) const;
 
 	/** Callback called when the Table property or its contents has changed. */
 	void OnTableChanged();
@@ -356,6 +385,10 @@ public:
 	/** Returns the column property where PropertyName matches the name of the column property. Returns nullptr if no match is found or the match is not a supported table property */
 	FProperty* FindTableProperty(const UScriptStruct* ScriptStruct, const FName& PropertyName) const;
 
+	/** Returns the column id */
+	FGuid GetColumnIdByName(const FName& ColumnName) const;
+
+
 private:
 
 	/** Number of properties to know when the node needs an update */
@@ -365,10 +398,9 @@ private:
 	FDelegateHandle OnTableChangedDelegateHandle;
 	
 	// Generates a mesh pin for each LOD and Material Surface of the reference SkeletalMesh
-	void GenerateMeshPins(UObject* Mesh, const FString& Name);
+	void GenerateMeshPins(UObject* Mesh, const FString& ColumnName, const FGuid& ColumnId);
 
 	// Checks if a pin already exists and if it has the same type as before the node refresh
 	bool CheckPinUpdated(const FString& PinName, const FName& PinType) const;
-
 
 };
