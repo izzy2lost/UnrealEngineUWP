@@ -6561,7 +6561,7 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 
 	case WPT_ExcludeAllShaderOffsets:
 		{
-			bNeedsWorldPositionExcludingShaderOffsets = true;
+			bNeedsWorldPositionExcludingShaderOffsets |= (ShaderFrequency == SF_Pixel);
 			FunctionNamePattern = TEXT("Get<PREV>WorldPosition<NO_MATERIAL_OFFSETS>");
 			Type = MCT_LWCVector3;
 			break;
@@ -6576,7 +6576,7 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 
 	case WPT_CameraRelativeNoOffsets:
 		{
-			bNeedsWorldPositionExcludingShaderOffsets = true;
+			bNeedsWorldPositionExcludingShaderOffsets |= (ShaderFrequency == SF_Pixel);
 			FunctionNamePattern = TEXT("Get<PREV>TranslatedWorldPosition<NO_MATERIAL_OFFSETS>");
 			Type = MCT_Float3;
 			break;

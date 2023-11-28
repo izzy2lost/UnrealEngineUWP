@@ -399,10 +399,10 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 
 	const bool bNeedsWorldPositionExcludingShaderOffsets =
 		EmitContext.bUsesWorldPositionExcludingShaderOffsets || 
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::WorldPosition_NoOffsets) ||
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::TranslatedWorldPosition_NoOffsets) ||
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PrevWorldPosition_NoOffsets) ||
-		EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PrevTranslatedWorldPosition_NoOffsets);
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::WorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::TranslatedWorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevWorldPosition_NoOffsets) ||
+		EmitMaterialData.IsExternalInputUsed(SF_Pixel, Material::EExternalInput::PrevTranslatedWorldPosition_NoOffsets);
 
 	if (bNeedsWorldPositionExcludingShaderOffsets)
 	{
