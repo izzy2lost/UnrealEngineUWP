@@ -20,19 +20,19 @@
 #include "MassEntityUtils.h"
 
 
-int16 UMassRepresentationSubsystem::FindOrAddStaticMeshDesc(const FStaticMeshInstanceVisualizationDesc& Desc)
+FStaticMeshInstanceVisualizationDescHandle UMassRepresentationSubsystem::FindOrAddStaticMeshDesc(const FStaticMeshInstanceVisualizationDesc& Desc)
 {
 	check(VisualizationComponent);
 	return VisualizationComponent->FindOrAddVisualDesc(Desc);
 }
 
-int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
+FStaticMeshInstanceVisualizationDescHandle UMassRepresentationSubsystem::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
 {
 	check(VisualizationComponent);
 	return VisualizationComponent->AddVisualDescWithISMComponent(Desc, ISMComponent);
 }
 
-int16 UMassRepresentationSubsystem::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
+FStaticMeshInstanceVisualizationDescHandle UMassRepresentationSubsystem::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
 {
 	check(VisualizationComponent);
 	return VisualizationComponent->AddVisualDescWithISMComponents(Desc, ISMComponents);
@@ -52,10 +52,10 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void UMassRepresentationSubsystem::RemoveVisualDescByIndex(const int32 VisualizationIndex)
+void UMassRepresentationSubsystem::RemoveVisualDesc(const FStaticMeshInstanceVisualizationDescHandle VisualizationHandle)
 {
 	check(VisualizationComponent);
-	return VisualizationComponent->RemoveVisualDescByIndex(VisualizationIndex);
+	return VisualizationComponent->RemoveVisualDesc(VisualizationHandle);
 }
 
 FMassInstancedStaticMeshInfoArrayView UMassRepresentationSubsystem::GetMutableInstancedStaticMeshInfos()

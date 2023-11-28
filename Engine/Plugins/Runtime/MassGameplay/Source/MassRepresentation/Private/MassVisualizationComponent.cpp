@@ -46,27 +46,30 @@ void UMassVisualizationComponent::PostInitProperties()
 	}
 }
 
-int32 UMassVisualizationComponent::AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc)
+FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc)
 {
-	int32 Index = INDEX_NONE;
+	FStaticMeshInstanceVisualizationDescHandle Handle;
 	if (InstancedStaticMeshInfosFreeIndices.Num() > 0)
 	{
-		Index = InstancedStaticMeshInfosFreeIndices.Pop(/*bAllowShrinking=*/false);
-		new(&InstancedStaticMeshInfos[Index]) FMassInstancedStaticMeshInfo(Desc);
+		Handle = InstancedStaticMeshInfosFreeIndices.Pop(/*bAllowShrinking=*/false);
+		new(&InstancedStaticMeshInfos[Handle.ToIndex()]) FMassInstancedStaticMeshInfo(Desc);
 	}
 	else
 	{
-		Index = InstancedStaticMeshInfos.Emplace(Desc);
+		int32 AddedInfoIndex = InstancedStaticMeshInfos.Emplace(Desc);
+		Handle = FStaticMeshInstanceVisualizationDescHandle(AddedInfoIndex);
 	}
 
-	return Index;
+	return Handle;
 }
 
-int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc)
+FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
-	int32 VisualIndex = InstancedStaticMeshInfos.IndexOfByPredicate([&Desc](const FMassInstancedStaticMeshInfo& Info) { return Info.GetDesc() == Desc; });
-	if (VisualIndex == INDEX_NONE)
+	// First check to see if we already have a matching Desc already and reuse / return that
+	// Note: FStaticMeshInstanceVisualizationDescHandle(int32) handles the INDEX_NONE case here, generating an invalid handle in this case
+	FStaticMeshInstanceVisualizationDescHandle VisualDescHandle(InstancedStaticMeshInfos.IndexOfByPredicate([&Desc](const FMassInstancedStaticMeshInfo& Info) { return Info.GetDesc() == Desc; }));
+	if (!VisualDescHandle.IsValid())
 	{
 		bool bValidDescription = false;
 
@@ -81,29 +84,30 @@ int16 UMassVisualizationComponent::FindOrAddVisualDesc(const FStaticMeshInstance
 
 		if (bValidDescription)
 		{
-			VisualIndex = AddInstancedStaticMeshInfo(Desc);
-			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex]);
+			VisualDescHandle = AddInstancedStaticMeshInfo(Desc);
+			BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualDescHandle.ToIndex()]);
 
-			InstancedSMComponentsRequiringConstructing.Add(VisualIndex);
+			InstancedSMComponentsRequiringConstructing.Add(VisualDescHandle);
 		}
 	}
-	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
-	return (int16)VisualIndex;
+
+	check(VisualDescHandle.IsValid());
+	return VisualDescHandle;
 }
 
-int16 UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
+FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent)
 {
 	TObjectPtr<UInstancedStaticMeshComponent> AsObjectPtr = ISMComponent;
 	return AddVisualDescWithISMComponents(Desc, MakeArrayView(&AsObjectPtr, 1));
 }
 
-int16 UMassVisualizationComponent::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
+FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents)
 {
 	check(Desc.Meshes.Num() == ISMComponents.Num());
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
-	int32 VisualIndex = INDEX_NONE;
+	FStaticMeshInstanceVisualizationDescHandle VisualHandle;
 	TArray<uint32> ISMComponentPathHashes;
 
 	for (int32 EntryIndex = 0; EntryIndex < Desc.Meshes.Num(); ++EntryIndex)
@@ -116,26 +120,26 @@ int16 UMassVisualizationComponent::AddVisualDescWithISMComponents(const FStaticM
 			continue;
 		}
 	
-		if (VisualIndex == INDEX_NONE)
+		if (!VisualHandle.IsValid())
 		{
-			VisualIndex = AddInstancedStaticMeshInfo(Desc);
+			VisualHandle = AddInstancedStaticMeshInfo(Desc);
+			check(VisualHandle.IsValid());
 		}
 
 		const uint32 ISMComponentPathHash = GetTypeHash(ISMComponents[EntryIndex]->GetPathName());
 		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
-		InstancedStaticMeshInfos[VisualIndex].AddISMComponent(NewData);
+		InstancedStaticMeshInfos[VisualHandle.ToIndex()].AddISMComponent(NewData);
 		ISMComponentPathHashes.Add(ISMComponentPathHash);
 	
-		ISMComponentMap.Add(ISMComponentPathHash, VisualIndex);
+		ISMComponentMap.Add(ISMComponentPathHash, VisualHandle);
 	}
 
-	if (VisualIndex != INDEX_NONE)
+	if (VisualHandle.IsValid())
 	{
-		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualIndex], ISMComponentPathHashes);
+		BuildLODSignificanceForInfo(InstancedStaticMeshInfos[VisualHandle.ToIndex()], ISMComponentPathHashes);
 	}
 
-	checkf(VisualIndex < INT16_MAX, TEXT("%hs resulting VisualIndex is out of expected bounds"), __FUNCTION__);
-	return (int16)VisualIndex;
+	return VisualHandle;
 }
 
 const FMassISMCSharedData* UMassVisualizationComponent::GetISMCSharedDataForDescriptionIndex(const int32 DescriptionIndex) const
@@ -143,24 +147,24 @@ const FMassISMCSharedData* UMassVisualizationComponent::GetISMCSharedDataForDesc
 	return ISMCSharedData.GetDataForIndex(DescriptionIndex);
 }
 
-void UMassVisualizationComponent::RemoveVisualDescByIndex(const int32 VisualizationIndex)
+void UMassVisualizationComponent::RemoveVisualDesc(const FStaticMeshInstanceVisualizationDescHandle VisualizationHandle)
 {
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
-
-	if (ensure(InstancedStaticMeshInfos.IsValidIndex(VisualizationIndex))
-		&& ensureMsgf(InstancedStaticMeshInfos[VisualizationIndex].IsValid(), TEXT("Trying to remove visualization data that has already been cleaned")))
+	
+	if (ensure(InstancedStaticMeshInfos.IsValidIndex(VisualizationHandle.ToIndex()))
+		&& ensureMsgf(InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].IsValid(), TEXT("Trying to remove visualization data that has already been cleaned")))
 	{
-		for (TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent : InstancedStaticMeshInfos[VisualizationIndex].InstancedStaticMeshComponents)
+		for (TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent : InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].InstancedStaticMeshComponents)
 		{
 			const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
-			const int32 StoredVisualizationIndex = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
-			ensure(StoredVisualizationIndex == VisualizationIndex);
+			const FStaticMeshInstanceVisualizationDescHandle StoredVisualizationDescHandle = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
+			ensure(StoredVisualizationDescHandle == VisualizationHandle);
 		
 			ISMCSharedData.Remove(ISMComponentPathHash);
 		}
 		
-		InstancedStaticMeshInfos[VisualizationIndex].Reset();
-		InstancedStaticMeshInfosFreeIndices.Add(VisualizationIndex);
+		InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].Reset();
+		InstancedStaticMeshInfosFreeIndices.Add(VisualizationHandle);
 	}
 }
 
@@ -170,16 +174,16 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 	check(ActorOwner);
 	
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
-	for (const int32 VisualIndex : InstancedSMComponentsRequiringConstructing)
+	for (const FStaticMeshInstanceVisualizationDescHandle VisualDescHandle : InstancedSMComponentsRequiringConstructing)
 	{
-		if (!ensureMsgf(InstancedStaticMeshInfos.IsValidIndex(VisualIndex)
-			, TEXT("InstancedStaticMeshInfos (size: %d) is never expected to shrink, so VisualIndex (value: %d) being invalid indicates it was wrong from the start.")
-			, InstancedStaticMeshInfos.Num(), VisualIndex))
+		if (!ensureMsgf(InstancedStaticMeshInfos.IsValidIndex(VisualDescHandle.ToIndex())
+			, TEXT("InstancedStaticMeshInfos (size: %d) is never expected to shrink, so VisualDescHandle (value: %u) being invalid indicates it was wrong from the start.")
+			, InstancedStaticMeshInfos.Num(), VisualDescHandle.ToIndex()))
 		{
 			continue;
 		}
 
-		FMassInstancedStaticMeshInfo& Info = InstancedStaticMeshInfos[VisualIndex];
+		FMassInstancedStaticMeshInfo& Info = InstancedStaticMeshInfos[VisualDescHandle.ToIndex()];
 
 		// Check if it is already created
 		if (!Info.InstancedStaticMeshComponents.IsEmpty())
@@ -232,7 +236,7 @@ void UMassVisualizationComponent::ConstructStaticMeshComponents()
 
 				const uint32 ISMComponentPathHash = GetTypeHash(ISMC->GetPathName());
 				ensureMsgf(ISMComponentMap.Find(ISMComponentPathHash) == nullptr, TEXT("We've just created the ISMC that's being used here, so this check failing indicates hash-clash."));
-				ISMComponentMap.Add(ISMComponentPathHash, VisualIndex); 
+				ISMComponentMap.Add(ISMComponentPathHash, VisualDescHandle); 
 			}
 
 			check(SharedData);
@@ -725,10 +729,14 @@ void UMassVisualizationComponent::RemoveISMComponent(UInstancedStaticMeshCompone
 	UE_MT_SCOPED_WRITE_ACCESS(InstancedStaticMeshInfosDetector);
 
 	const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
-	const int32* VisualIndexPtr = ISMComponentMap.Find(ISMComponentPathHash);
-	if (VisualIndexPtr)
+	const FStaticMeshInstanceVisualizationDescHandle* VisualDescHandlePtr = ISMComponentMap.Find(ISMComponentPathHash);
+	if (VisualDescHandlePtr)
 	{
-		RemoveVisualDescByIndex(*VisualIndexPtr);
+		RemoveVisualDesc(*VisualDescHandlePtr);
 	}
 }
 
+void UMassVisualizationComponent::RemoveVisualDescByIndex(const int32 VisualizationIndex)
+{
+	RemoveVisualDesc(FStaticMeshInstanceVisualizationDescHandle(VisualizationIndex));
+}

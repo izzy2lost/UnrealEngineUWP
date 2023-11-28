@@ -27,20 +27,20 @@ public:
 	 * @param Desc is the information for the visual that will be instantiated later via AddVisualInstance()
 	 * @return The index of the visual type 
 	 */
-	int16 FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
+	FStaticMeshInstanceVisualizationDescHandle FindOrAddVisualDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
 
 	/** 
 	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
 	 * @note this is a helper function for a common "single ISMComponent" case. Calls AddVisualDescWithISMComponents under the hood.
 	 * @return The index of the visual type 
 	 */
-	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
+	FStaticMeshInstanceVisualizationDescHandle AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
 
 	/**
 	 * Creates a dedicated visual type described by host Desc and ties given ISMComponents to it.
 	 * @return The index of the visual type
 	 */
-	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
+	FStaticMeshInstanceVisualizationDescHandle AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/**
 	 * Fetches FMassISMCSharedData indicated by DescriptionIndex, or nullptr if it's not a valid index
@@ -53,14 +53,21 @@ public:
 	 * associated with the index. Note that this is safe to do only when there are no entities relying on this data. 
 	 * No entity data patching will take place. 
 	 */
-	UE_DEPRECATED(5.4, "RemoveISMComponent has been deprecated in favor of RemoveVisualDescByIndex. Please use that instead.")
+	UE_DEPRECATED(5.4, "RemoveISMComponent has been deprecated in favor of RemoveVisualDesc. Please use that instead.")
 	void RemoveISMComponent(UInstancedStaticMeshComponent& ISMComponent);
 
 	/**
 	 * Removes all data associated with a given VisualizationIndex. Note that this is safe to do only if there are no
 	 * entities relying on this index. No entity data patching will take place.
 	 */
+	UE_DEPRECATED(5.4, "RemoveVisualDescByIndex has been deprecated in favor of RemoveVisualDesc. Please use that instead.")
 	void RemoveVisualDescByIndex(const int32 VisualizationIndex);
+
+	/**
+	 * Removes all data associated with a given VisualizationIndex. Note that this is safe to do only if there are no
+	 * entities relying on this index. No entity data patching will take place.
+	 */
+	void RemoveVisualDesc(const FStaticMeshInstanceVisualizationDescHandle VisualizationHandle);
 
 	/** Get the array of all visual instance informations */
 	FMassInstancedStaticMeshInfoArrayView GetMutableVisualInfos()
@@ -107,7 +114,7 @@ protected:
 	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, TConstArrayView<uint32> ForcedStaticMeshRefKeys = TConstArrayView<uint32>());
 
 	/** Either adds an element to InstancedStaticMeshInfos or reuses an existing entry based on InstancedStaticMeshInfosFreeIndices*/
-	int32 AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc);
+	FStaticMeshInstanceVisualizationDescHandle AddInstancedStaticMeshInfo(const FStaticMeshInstanceVisualizationDesc& Desc);
 
 	/** The information of all the instanced static meshes. Make sure to use AddInstancedStaticMeshInfo to add elements to it */
 	UPROPERTY(Transient)
@@ -115,15 +122,15 @@ protected:
 	UE_MT_DECLARE_RW_RECURSIVE_ACCESS_DETECTOR(InstancedStaticMeshInfosDetector);
 
 	/** Indices to InstancedStaticMeshInfos that have been released and can be reused */
-	TArray<int32> InstancedStaticMeshInfosFreeIndices;
+	TArray<FStaticMeshInstanceVisualizationDescHandle> InstancedStaticMeshInfosFreeIndices;
 
-	/** Mapping from ISMComponent object path to corresponding VisualIndex */
-	TMap<uint32, int32> ISMComponentMap;
+	/** Mapping from ISMComponent object path hash to corresponding VisualDescHandle */
+	TMap<uint32, FStaticMeshInstanceVisualizationDescHandle> ISMComponentMap;
 
 	FMassISMCSharedDataMap ISMCSharedData;
 
 	/** Indicies to InstancedStaticMeshInfos that need their SMComponent constructed */
-	TArray<int32> InstancedSMComponentsRequiringConstructing;
+	TArray<FStaticMeshInstanceVisualizationDescHandle> InstancedSMComponentsRequiringConstructing;
 
 	UE_DEPRECATED(5.4, "This flavor of BuildLODSignificanceForInfo is no longer supported. Use the other one instead.")
 	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey);

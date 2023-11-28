@@ -41,7 +41,7 @@ void UMassStationaryISMRepresentationFragmentDestructor::Execute(FMassEntityMana
 			FMassRepresentationFragment& Representation = RepresentationList[EntityIdx];
 			if (Representation.CurrentRepresentation == EMassRepresentationType::StaticMeshInstance)
 			{
-				FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescIndex];
+				FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescHandle.ToIndex()];
 				if (FMassLODSignificanceRange* OldRange = ISMInfo.GetLODSignificanceRange(Representation.PrevLODSignificance))
 				{
 					const FMassEntityHandle EntityHandle = Context.GetEntity(EntityIdx);

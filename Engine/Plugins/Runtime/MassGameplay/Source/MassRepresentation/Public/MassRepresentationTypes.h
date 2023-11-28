@@ -143,6 +143,67 @@ struct FStaticMeshInstanceVisualizationDesc : public FTableRowBase
 	}
 };
 
+/** Handle for FStaticMeshInstanceVisualizationDesc's registered with UMassRepresentationSubsystem */
+USTRUCT()
+struct alignas(2) FStaticMeshInstanceVisualizationDescHandle
+{
+	GENERATED_BODY()
+
+	static constexpr uint16 InvalidIndex = TNumericLimits<uint16>::Max();
+
+	FStaticMeshInstanceVisualizationDescHandle() = default;
+
+	explicit FStaticMeshInstanceVisualizationDescHandle(uint16 InIndex)
+	: Index(InIndex)
+	{}
+
+	explicit FStaticMeshInstanceVisualizationDescHandle(int32 InIndex) 
+	{
+		// Handle special case INDEX_NONE = InvalidIndex
+		if (InIndex == INDEX_NONE)
+		{
+			Index = InvalidIndex;
+		}
+		else
+		{
+			checkf(InIndex < static_cast<int32>(InvalidIndex), TEXT("Visualization description index InIndex %d is out of expected bounds (< %u)"), InIndex, InvalidIndex);
+			Index = static_cast<uint16>(InIndex);
+		}
+	}
+
+	FORCEINLINE int32 ToIndex() const
+	{
+		return IsValid() ? Index : INDEX_NONE;
+	}
+
+	bool IsValid() const
+	{
+		return Index != InvalidIndex;
+	}
+
+	bool operator==(const FStaticMeshInstanceVisualizationDescHandle& Other) const = default;
+
+	UE_DEPRECATED(5.4, "Referring to registered FStaticMeshInstanceVisualizationDesc's by raw int16 index has been deprecated. Please use strictly typed FStaticMeshInstanceVisualizationDescHandle instead.")
+	operator int16() const
+	{
+		if (!IsValid())
+		{
+			return INDEX_NONE;
+		}
+		return ensure(Index < TNumericLimits<int16>::Max()) ? static_cast<int16>(Index) : INDEX_NONE; 
+	}
+
+private:
+
+	UPROPERTY()
+	uint16 Index = InvalidIndex;
+
+	// @todo: Add a version / serial number to protect against recycled handle reuse. Leaving this out for now to keep size down due to 
+	// prevalent use in FMassRepresentationFragment. Perhaps serial number could be formed from the referenced 
+	// FStaticMeshInstanceVisualizationDesc's hash.
+};
+static_assert(sizeof(FStaticMeshInstanceVisualizationDescHandle) == sizeof(uint16), TEXT("FStaticMeshInstanceVisualizationDescHandle must be uint16 sized to ensure FMassRepresentationFragment memory isn't unexpectedly bloated"));
+
 class UInstancedStaticMeshComponent;
 
 

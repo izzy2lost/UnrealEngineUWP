@@ -63,12 +63,12 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 			continue;
 		}
 
-		if (!ensureMsgf(Representation.StaticMeshDescIndex != INDEX_NONE && ISMInfosView.IsValidIndex(Representation.StaticMeshDescIndex)
-						, TEXT("Invalid index %d for ISMInfosView"), Representation.StaticMeshDescIndex))
+		if (!ensureMsgf(Representation.StaticMeshDescHandle.IsValid() && ISMInfosView.IsValidIndex(Representation.StaticMeshDescHandle.ToIndex())
+						, TEXT("Invalid handle index %u for ISMInfosView"), Representation.StaticMeshDescHandle.ToIndex()))
 		{
 			continue;
 		}
-		FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescIndex];
+		FMassInstancedStaticMeshInfo& ISMInfo = ISMInfosView[Representation.StaticMeshDescHandle.ToIndex()];
 
 		if (Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance
 			&& Representation.CurrentRepresentation != EMassRepresentationType::StaticMeshInstance)

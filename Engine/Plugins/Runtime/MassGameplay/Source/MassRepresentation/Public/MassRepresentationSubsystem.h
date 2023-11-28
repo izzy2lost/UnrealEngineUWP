@@ -35,20 +35,20 @@ public:
 	 * @param Desc is the information for the static mesh that will be instantiated later via AddStaticMeshInstance()
 	 * @return The index of the static mesh type 
 	 */
-	int16 FindOrAddStaticMeshDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
+	FStaticMeshInstanceVisualizationDescHandle FindOrAddStaticMeshDesc(const FStaticMeshInstanceVisualizationDesc& Desc);
 
 	/**
 	 * Creates a dedicated visual type described by host Desc and ties ISMComponent to it.
 	 * @note this is a helper function for a common "single ISMComponent" case. Calls AddVisualDescWithISMComponents under the hood.
 	 * @return The index of the visual type
 	 */
-	int16 AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
+	FStaticMeshInstanceVisualizationDescHandle AddVisualDescWithISMComponent(const FStaticMeshInstanceVisualizationDesc& Desc, UInstancedStaticMeshComponent& ISMComponent);
 
 	/**
 	 * Creates a dedicated visual type described by host Desc and ties given ISMComponents to it.
 	 * @return The index of the visual type
 	 */
-	int16 AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
+	FStaticMeshInstanceVisualizationDescHandle AddVisualDescWithISMComponents(const FStaticMeshInstanceVisualizationDesc& Desc, TArrayView<TObjectPtr<UInstancedStaticMeshComponent>> ISMComponents);
 
 	/**
 	 * Fetches FMassISMCSharedData indicated by DescriptionIndex, or nullptr if it's not a valid index
@@ -68,7 +68,7 @@ public:
 	 * Removes all data associated with a given VisualizationIndex. Note that this is safe to do only if there are no
 	 * entities relying on this index. No entity data patching will take place.
 	 */
-	void RemoveVisualDescByIndex(const int32 VisualizationIndex);
+	void RemoveVisualDesc(const FStaticMeshInstanceVisualizationDescHandle VisualizationHandle);
 
 	/** 
 	 * @return the array of all the static mesh instance component information

@@ -63,7 +63,7 @@ struct MASSREPRESENTATION_API FMassRepresentationFragment : public FMassFragment
 	int16 LowResTemplateActorIndex = INDEX_NONE;
 
 	UPROPERTY()
-	int16 StaticMeshDescIndex = INDEX_NONE;
+	FStaticMeshInstanceVisualizationDescHandle StaticMeshDescHandle;
 
 	UPROPERTY()
 	FMassActorSpawnRequestHandle ActorSpawnRequestHandle;
