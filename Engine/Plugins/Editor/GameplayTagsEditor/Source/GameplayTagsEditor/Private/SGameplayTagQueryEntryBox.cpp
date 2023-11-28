@@ -6,6 +6,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"
 #include "ScopedTransaction.h"
+#include "SGameplayTagQueryWidget.h"
 #include "Editor.h"
 #include "GameplayTagEditorUtilities.h"
 #include "GameplayTagsManager.h"

@@ -6,10 +6,10 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "GameplayTagContainer.h"
-#include "SGameplayTagQueryWidget.h"
 
 class IPropertyHandle;
 class SHorizontalBox;
+class SGameplayTagQueryWidget;
 
 /**
  * Widget for editing a Gameplay Tag Query.
