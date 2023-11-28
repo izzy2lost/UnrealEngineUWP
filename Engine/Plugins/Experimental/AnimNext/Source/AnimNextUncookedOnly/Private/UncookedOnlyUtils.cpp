@@ -537,7 +537,10 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 
 void FUtils::RecreateVM(UAnimNextGraph* InGraph)
 {
-	InGraph->VM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
+	if (InGraph->VM == nullptr)
+	{
+		InGraph->VM = NewObject<URigVM>(InGraph, TEXT("VM"), RF_NoFlags);
+	}
 	InGraph->VM->Reset(InGraph->ExtendedExecuteContext);
 	InGraph->RigVM = InGraph->VM; // Local serialization
 }
@@ -788,7 +791,10 @@ void FUtils::Compile(UAnimNextParameterBlock* InParameterBlock)
 
 void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 {
-	InParameterBlock->VM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
+	if(InParameterBlock->VM == nullptr)
+	{
+		InParameterBlock->VM = NewObject<URigVM>(InParameterBlock, TEXT("VM"), RF_NoFlags);
+	}
 	InParameterBlock->VM->Reset(InParameterBlock->GetRigVMExtendedExecuteContext());
 	InParameterBlock->RigVM = InParameterBlock->VM; // Local serialization
 }

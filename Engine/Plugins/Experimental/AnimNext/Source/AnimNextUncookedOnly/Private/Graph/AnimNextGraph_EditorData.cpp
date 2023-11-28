@@ -167,6 +167,11 @@ void UAnimNextGraph_EditorData::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UAnimNextGraph_EditorData::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Initialize(/*bRecompileVM*/true);
+}
+
 #if WITH_EDITOR
 void UAnimNextGraph_EditorData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {

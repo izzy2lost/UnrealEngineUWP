@@ -563,6 +563,11 @@ void UAnimNextParameterBlock_EditorData::PostLoad()
 #endif // WITH_EDITOR
 }
 
+void UAnimNextParameterBlock_EditorData::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Initialize(/*bRecompileVM*/true);
+}
+
 void UAnimNextParameterBlock_EditorData::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 {
 	Super::PostTransacted(TransactionEvent);

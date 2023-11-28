@@ -132,6 +132,7 @@ class UAnimNextParameterBlock_EditorData : public UObject, public IRigVMClientHo
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual bool IsEditorOnly() const override { return true; }
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
