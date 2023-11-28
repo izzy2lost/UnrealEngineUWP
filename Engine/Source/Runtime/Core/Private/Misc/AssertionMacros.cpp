@@ -783,16 +783,16 @@ bool UE_DEBUG_SECTION UE::Assert::Private::ExecCheckImplInternal(std::atomic<boo
 	return false;
 }
 
-bool UE_DEBUG_SECTION VARARGS UE::Assert::Private::EnsureFailed(const FStaticEnsureRecord* Ensure, ...)
+bool UE_DEBUG_SECTION VARARGS UE::Assert::Private::EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...)
 {
-	if (Ensure->bExecuted.exchange(true, std::memory_order_release) && !Ensure->bAlways)
+	if (bExecuted.exchange(true, std::memory_order_release) && !Ensure->bAlways)
 	{
 		return false;
 	}
 
 	va_list Args;
 	va_start(Args, Ensure);
-	const bool bResult = CheckVerifyImpl(Ensure->bExecuted, Ensure->bAlways, Ensure->File, Ensure->Line, PLATFORM_RETURN_ADDRESS(), Ensure->Expression, Ensure->Format, Args);
+	const bool bResult = CheckVerifyImpl(bExecuted, Ensure->bAlways, Ensure->File, Ensure->Line, PLATFORM_RETURN_ADDRESS(), Ensure->Expression, Ensure->Format, Args);
 	va_end(Args);
 
 	return bResult;
