@@ -1831,15 +1831,16 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 		
 		
 		//Step 14: Merge all the statistically common pairs of instructions
+#		define VVMDeclareRegs()					uint16* Ins0Regs = OptContext->Intermediate.RegisterUsageBuffer + Ins0->RegPtrOffset;                                 \
+												uint16* Ins1Regs = OptContext->Intermediate.RegisterUsageBuffer + Ins1->RegPtrOffset;                                 \
+												uint16* Ins0SSA = OptContext->Intermediate.SSARegisterUsageBuffer + Ins0->RegPtrOffset;                               \
+												uint16* Ins1SSA = OptContext->Intermediate.SSARegisterUsageBuffer + Ins1->RegPtrOffset;                               \
+												uint8* Ins0Type = OptContext->Intermediate.RegisterUsageType + Ins0->RegPtrOffset;                                    \
+												uint8* Ins1Type = OptContext->Intermediate.RegisterUsageType + Ins1->RegPtrOffset;
 #		define VVMCreateNewRegVars(NumNewRegs)	VVMEnsureRegAlloced(OptContext, true, &NumRegisterUsageAlloced, (NumNewRegs));                                        \
-												uint16 *Ins0Regs       = OptContext->Intermediate.RegisterUsageBuffer + Ins0->RegPtrOffset;                           \
-												uint16 *Ins1Regs       = OptContext->Intermediate.RegisterUsageBuffer + Ins1->RegPtrOffset;                           \
+												VVMDeclareRegs();                                                                                                     \
 												uint16 *NewRegs        = OptContext->Intermediate.RegisterUsageBuffer + OptContext->Intermediate.NumRegistersUsed;    \
-												uint16 *Ins0SSA        = OptContext->Intermediate.SSARegisterUsageBuffer + Ins0->RegPtrOffset;                        \
-												uint16 *Ins1SSA        = OptContext->Intermediate.SSARegisterUsageBuffer + Ins1->RegPtrOffset;                        \
 												uint16 *NewSSA         = OptContext->Intermediate.SSARegisterUsageBuffer + OptContext->Intermediate.NumRegistersUsed; \
-												uint8 *Ins0Type        = OptContext->Intermediate.RegisterUsageType + Ins0->RegPtrOffset;                             \
-												uint8 *Ins1Type        = OptContext->Intermediate.RegisterUsageType + Ins1->RegPtrOffset;                             \
 												uint8 *NewType         = OptContext->Intermediate.RegisterUsageType + OptContext->Intermediate.NumRegistersUsed;      \
 												uint16 NewRegPtrOffset = OptContext->Intermediate.NumRegistersUsed;                                                   \
 												OptContext->Intermediate.NumRegistersUsed += (NumNewRegs);
@@ -2136,19 +2137,22 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				if (Ins1->OpCode == EVectorVMOp::mad)
 				{
 					//we only have a merged op if the output from the add is the input to the add op, if the op of ins0 is the mul operand from ins1, it's not statistically relevant in Fortnite so there's no instruction for it
-					if (OptContext->Intermediate.SSARegisterUsageBuffer[Ins0->RegPtrOffset + 2] == OptContext->Intermediate.SSARegisterUsageBuffer[Ins1->RegPtrOffset + 2] && 
-						OptContext->Intermediate.RegisterUsageType[Ins0->RegPtrOffset + 2] == OptContext->Intermediate.RegisterUsageType[Ins1->RegPtrOffset + 2])
 					{
-						if (!RegDupeCheck(OptContext, Ins0, 2, Ins1, 0, 2))
+						VVMDeclareRegs();
+						if (!VVMRegMatch(2 /*Output of the add*/, 2 /*add operand*/))
 						{
-							VVMCreateNewRegVars(5);
-							VVMSetRegsFrom0(0, 0);
-							VVMSetRegsFrom0(1, 1);
-							VVMSetRegsFrom1(2, 0);
-							VVMSetRegsFrom1(3, 1);
-							VVMSetRegsFrom1(4, 3);
-							VVMSetMergedIns(EVectorVMOp::add_mad1, 4, 1);
+							break;
 						}
+					}
+					if (!RegDupeCheck(OptContext, Ins0, 2, Ins1, 0, 2))
+					{
+						VVMCreateNewRegVars(5);
+						VVMSetRegsFrom0(0, 0);
+						VVMSetRegsFrom0(1, 1);
+						VVMSetRegsFrom1(2, 0);
+						VVMSetRegsFrom1(3, 1);
+						VVMSetRegsFrom1(4, 3);
+						VVMSetMergedIns(EVectorVMOp::add_mad1, 4, 1);
 					}
 				}
 				else if (Ins1->OpCode == EVectorVMOp::add)
@@ -2207,15 +2211,24 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 				switch (Ins1->OpCode) {
 					case EVectorVMOp::mad:
 					{
+						// we only support merging div/mad when the result of the div is one of the operands to the mul portion of the mad
+						{
+							VVMDeclareRegs();
+							if (!(VVMRegMatch(2 /*Output of the div*/, 0 /*mul operand 0*/) || VVMRegMatch(2 /*Output of the div*/, 1 /*mul operand 1*/)))
+							{
+								break;
+							}
+						}
 						VVMCreateNewRegVars(5);
 						VVMSetRegsFrom0(0, 0);
 						VVMSetRegsFrom0(1, 1);
-						if (VVMRegMatch(2, 0)) {
+						if (VVMRegMatch(2, 0))
+						{
 							VVMSetRegsFrom1(2, 1);
-						} else if (VVMRegMatch(2, 1)) {
+						}
+						else
+						{
 							VVMSetRegsFrom1(2, 0);
-						} else {
-							break;
 						}
 						VVMSetRegsFrom1(3, 2);
 						VVMSetRegsFrom1(4, 3);
@@ -2540,6 +2553,7 @@ uint32 OptimizeVectorVMScript(const uint8 *InBytecode, int InBytecodeLen, FVecto
 			}
 		}	
 
+#		undef VVMDeclareRegs
 #		undef VVMCreateNewRegVars
 #		undef VVMSetRegsFrom0
 #		undef VVMSetRegsFrom1
