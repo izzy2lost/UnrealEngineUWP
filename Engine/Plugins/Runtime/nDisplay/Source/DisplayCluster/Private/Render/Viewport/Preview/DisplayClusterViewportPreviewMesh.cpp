@@ -11,20 +11,6 @@
 
 namespace UE::DisplayCluster::ViewportPreviewMesh
 {
-	/** Return ptr on UObject if it is still valid. */
-	template<class T>
-	static inline T* GetExistingObject(const TObjectPtr<T>& InProperty)
-	{
-		if (InProperty == nullptr
-			|| InProperty->GetName().Find(TEXT("TRASH_")) != INDEX_NONE
-			|| InProperty->HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed))
-		{
-			return nullptr;
-		}
-
-		return InProperty;
-	}
-
 	/** Reset the mesh material to default values from its archetype. */
 	static inline bool RestoreMeshMaterialsFromArchetype(UMeshComponent* InMeshComponent)
 	{
@@ -48,12 +34,12 @@ namespace UE::DisplayCluster::ViewportPreviewMesh
 		TObjectPtr<UMaterial> OutMaterial = nullptr;
 
 		// First get the material from the ViewPoint component (WarpPolicy)
-		OutMaterial = GetExistingObject(ViewPointComponent ? ViewPointComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr);
+		OutMaterial = ViewPointComponent ? ViewPointComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr;
 
 		// Finally, get the material from the DisplayDevice
 		if (!OutMaterial)
 		{
-			OutMaterial = GetExistingObject(InDisplayDeviceComponent ? InDisplayDeviceComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr);
+			OutMaterial = InDisplayDeviceComponent ? InDisplayDeviceComponent->GetDisplayDeviceMaterial(InMeshType, InMaterialType) : nullptr;
 		}
 
 		// Ignore deleted materials
@@ -141,6 +127,19 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewp
 
 	// Handling the material overlay logic for the preview mesh:
 	UpdateOverlayMaterial(InViewport);
+}
+
+void FDisplayClusterViewportPreviewMesh::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	TObjectPtr<UObject> OwnedObjects[] = { MeshComponentPtr, OrigOverlayMaterial, MaterialInstancePtr, CurrentMaterialPtr, DefaultMaterialPtr };
+
+	for (TObjectPtr<UObject>& OwnedObject : OwnedObjects)
+	{
+		if (OwnedObject)
+		{
+			Collector.AddReferencedObject(OwnedObject);
+		}
+	}
 }
 
 void FDisplayClusterViewportPreviewMesh::SetCustomOverlayMaterial(UMeshComponent* InMeshComponent, UMaterialInterface* InOverlayMaterial)
@@ -309,14 +308,10 @@ UMeshComponent* FDisplayClusterViewportPreviewMesh::GetOrCreatePreviewMeshCompon
 
 UMeshComponent* FDisplayClusterViewportPreviewMesh::GetMeshComponent() const
 {
-	using namespace UE::DisplayCluster::ViewportPreviewMesh;
-
-	return GetExistingObject(MeshComponentPtr);
+	return MeshComponentPtr;
 }
 
 UMaterialInstanceDynamic* FDisplayClusterViewportPreviewMesh::GetMaterialInstance() const
 {
-	using namespace UE::DisplayCluster::ViewportPreviewMesh;
-
-	return GetExistingObject(MaterialInstancePtr);
+	return MaterialInstancePtr;
 }
