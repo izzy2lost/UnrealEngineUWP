@@ -180,7 +180,8 @@ public:
 	bool bShowCollision = true;
 
 	/** Whether to show solid shapes in addition to wireframes */
-	UPROPERTY(EditAnywhere, Category = "Collision Visualization")
+	UPROPERTY(EditAnywhere, Category = "Collision Visualization", 
+		meta = (EditCondition = "bEnableShowSolid", EditConditionHides, HideEditConditionToggle))
 	bool bShowSolid = false;
 
 	/** Thickness of lines used to visualize collision shapes */
@@ -215,6 +216,10 @@ public:
 	//~Some tools will want showing collision geometry to be non-optional
 	UPROPERTY(Transient, meta=(TransientToolProperty))
 	bool bEnableShowCollision = true;
+
+	//~Some tools will not want the 'show solid' option
+	UPROPERTY(Transient, meta = (TransientToolProperty))
+	bool bEnableShowSolid = true;
 
 	bool bVisualizationDirty = false;
 };

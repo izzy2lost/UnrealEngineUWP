@@ -89,6 +89,7 @@ void UExtractCollisionGeometryTool::Setup()
 	UE::ToolTarget::SetSourceObjectVisible(Target, Settings->bShowInputMesh);
 
 	VizSettings = NewObject<UCollisionGeometryVisualizationProperties>(this);
+	VizSettings->bEnableShowSolid = false; // This solid visualization is redundant to the 'show preview' option in the general settings section of this tool
 	VizSettings->RestoreProperties(this);
 	AddToolPropertySource(VizSettings);
 	VizSettings->Initialize(this);

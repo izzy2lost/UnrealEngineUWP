@@ -298,7 +298,7 @@ void UpdatePreviewGeometryForCollision(
 		FColor TriangleColor = Settings->GetTriangleSetColor(TriColorIndex++);
 		TriangleSet->SetAllTrianglesColor(TriangleColor);
 		TriangleSet->SetAllTrianglesMaterial(Settings->GetSolidMaterial());
-		TriangleSet->SetVisibility(Settings->bShowCollision && Settings->bShowSolid);
+		TriangleSet->SetVisibility(Settings->bEnableShowSolid && Settings->bShowCollision && Settings->bShowSolid);
 	});
 }
 
@@ -337,7 +337,7 @@ void UE::PhysicsTools::InitializeCollisionGeometryVisualization(
 		0);
 	InitializePreviewGeometrySolid(
 		PhysicsData, PreviewGeom, Settings->GetSolidMaterial(), [&Settings](int SolidSetIndex) { return Settings->GetTriangleSetColor(SolidSetIndex); },
-		Settings->bShowCollision && Settings->bShowSolid,
+		Settings->bEnableShowSolid && Settings->bShowCollision && Settings->bShowSolid,
 		CircleStepResolution,
 		0);
 
@@ -387,7 +387,7 @@ void UE::PhysicsTools::PartiallyInitializeCollisionGeometryVisualization(
 
 	InitializePreviewGeometrySolid(
 		PhysicsData, PreviewGeom, Settings->GetSolidMaterial(), [&Settings](int SolidSetIndex) { return Settings->GetTriangleSetColor(SolidSetIndex); },
-		Settings->bShowCollision && Settings->bShowSolid,
+		Settings->bEnableShowSolid && Settings->bShowCollision && Settings->bShowSolid,
 		CircleStepResolution,
 		ColorIndex);
 }
