@@ -8,6 +8,7 @@
 #include "UniversalObjectLocatorParameterTypeHandle.h"
 //#include "Modules/VisualizerDebuggingState.h"
 #include "Containers/Ticker.h"
+#include "Misc/DelayedAutoRegister.h"
 
 #include "DirectPathObjectLocator.h"
 
@@ -21,16 +22,22 @@ public:
 	
 	void StartupModule() override
 	{
-		{
-			FFragmentTypeParameters FragmentTypeParams("subobj", NSLOCTEXT("SubObjectLocator", "Object", "Object"));
-			FragmentTypeParams.PrimaryEditorType = "SubObject";
-			FSubObjectLocator::FragmentType = RegisterFragmentType<FSubObjectLocator>(FragmentTypeParams);
-		}
+		// Register fragment types as soon as the object system is ready
+		FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::ObjectSystemReady,
+			[this]
+			{
+				{
+					FFragmentTypeParameters FragmentTypeParams("subobj", NSLOCTEXT("SubObjectLocator", "Object", "Object"));
+					FragmentTypeParams.PrimaryEditorType = "SubObject";
+					FSubObjectLocator::FragmentType = this->RegisterFragmentType<FSubObjectLocator>(FragmentTypeParams);
+				}
 
-		{
-			FFragmentTypeParameters FragmentTypeParams("uobj", NSLOCTEXT("DirectPathObjectLocator", "Object", "Object"));
-			FDirectPathObjectLocator::FragmentType = RegisterFragmentType<FDirectPathObjectLocator>(FragmentTypeParams);
-		}
+				{
+					FFragmentTypeParameters FragmentTypeParams("uobj", NSLOCTEXT("DirectPathObjectLocator", "Object", "Object"));
+					FDirectPathObjectLocator::FragmentType = this->RegisterFragmentType<FDirectPathObjectLocator>(FragmentTypeParams);
+				}
+			}
+		);
 
 		TickerDelegate = FTSTicker::GetCoreTicker().AddTicker(
 			FTickerDelegate::CreateRaw(this, &FUniversalObjectLocatorModule::PurgeVisualizers), 60.f);

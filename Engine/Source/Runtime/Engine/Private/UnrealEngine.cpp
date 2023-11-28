@@ -122,6 +122,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "Chaos/TriangleMeshImplicitObject.h"
 #include "HAL/PlatformMemoryHelpers.h"
 #include "RenderCore.h"
+#include "Misc/DelayedAutoRegister.h"
 #include <exception>
 
 #if UE_WITH_IRIS
@@ -273,6 +274,8 @@ void OnChangeEngineCVarRequiringRecreateRenderState(IConsoleVariable* Var)
 
 void FEngineModule::StartupModule()
 {
+	using namespace UE::UniversalObjectLocator;
+
 	// Setup delegate callback for ProfilingHelpers to access current map name
 	extern const FString GetMapNameStatic();
 	GGetMapNameDelegate.BindStatic(&GetMapNameStatic);
@@ -309,6 +312,33 @@ void FEngineModule::StartupModule()
 	FSkinWeightProfileManager::OnStartup();
 
 	UE::Anim::FSkeletonRemappingRegistry::Init();
+
+	IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<IUniversalObjectLocatorModule>("UniversalObjectLocator");
+
+	FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::ObjectSystemReady,
+		[&UolModule]
+		{
+			// Initialize built-in UOL fragment types as soon as the object system is ready
+			{
+				FFragmentTypeParameters FragmentTypeParams("actor", NSLOCTEXT("Engine", "ActorLocatorFragment", "Actor"));
+				FragmentTypeParams.PrimaryEditorType = "Actor";
+				FActorLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FActorLocatorFragment>(FragmentTypeParams);
+			}
+			{
+				FFragmentTypeParameters FragmentTypeParams("asset", NSLOCTEXT("Engine", "AssetLocatorFragment", "Asset"));
+				FragmentTypeParams.PrimaryEditorType = "Asset";
+				FAssetLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAssetLocatorFragment>(FragmentTypeParams);
+			}
+			{
+				FFragmentTypeParameters FragmentTypeParams("animinst", NSLOCTEXT("Engine", "AnimInstanceLocatorFragment", "AnimInstance"));
+				FragmentTypeParams.PrimaryEditorType = "Component";
+				FAnimInstanceLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimInstanceLocatorFragment>(FragmentTypeParams);
+			}
+			{
+				FActorLocatorFragmentResolveParameter::ParameterType = UolModule.RegisterParameterType<FActorLocatorFragmentResolveParameter>();
+			}
+		}
+	);
 }
 
 void FEngineModule::ShutdownModule()
@@ -2034,32 +2064,6 @@ void UEngine::Init(IEngineLoop* InEngineLoop)
 #endif
 
 	InitializeObjectReferences();
-
-	// Initialize built-in UOL fragment types
-	{
-		using namespace UE::UniversalObjectLocator;
-
-		IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<IUniversalObjectLocatorModule>("UniversalObjectLocator");
-
-		{
-			FFragmentTypeParameters FragmentTypeParams("actor", NSLOCTEXT("Engine", "ActorLocatorFragment", "Actor"));
-			FragmentTypeParams.PrimaryEditorType = "Actor";
-			FActorLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FActorLocatorFragment>(FragmentTypeParams);
-		}
-		{
-			FFragmentTypeParameters FragmentTypeParams("asset", NSLOCTEXT("Engine", "AssetLocatorFragment", "Asset"));
-			FragmentTypeParams.PrimaryEditorType = "Asset";
-			FAssetLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAssetLocatorFragment>(FragmentTypeParams);
-		}
-		{
-			FFragmentTypeParameters FragmentTypeParams("animinst", NSLOCTEXT("Engine", "AnimInstanceLocatorFragment", "AnimInstance"));
-			FragmentTypeParams.PrimaryEditorType = "Component";
-			FAnimInstanceLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAnimInstanceLocatorFragment>(FragmentTypeParams);
-		}
-		{
-			FActorLocatorFragmentResolveParameter::ParameterType = UolModule.RegisterParameterType<FActorLocatorFragmentResolveParameter>();
-		}
-	}
 
 	if (GConfig)
 	{
