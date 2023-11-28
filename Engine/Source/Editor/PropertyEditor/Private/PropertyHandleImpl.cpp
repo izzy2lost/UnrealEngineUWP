@@ -211,7 +211,7 @@ void FPropertyValueImpl::GenerateArrayIndexMapToObjectNode( TMap<FString,int32>&
 	if( PropertyNode )
 	{
 		OutArrayIndexMap.Empty();
-		for (FPropertyNode* IterationNode = PropertyNode; (IterationNode != nullptr) && (IterationNode->AsObjectNode() == nullptr); IterationNode = IterationNode->GetParentNode())
+		for (FPropertyNode* IterationNode = PropertyNode; (IterationNode != nullptr); IterationNode = IterationNode->GetParentNode())
 		{
 			FProperty* Property = IterationNode->GetProperty();
 			if (Property)

@@ -3052,9 +3052,12 @@ void FPropertyNode::NotifyPostChange( FPropertyChangedEvent& InPropertyChangedEv
 				auto ScopePostEditChange = [&PropertyChain, &InPropertyChangedEvent, &CurProperty, CurrentObjectIndex](UObject* Object)
 				{
 					// copy the property changed event
-					FPropertyChangedEvent ChangedEvent = CurProperty != InPropertyChangedEvent.Property ? 
-						FPropertyChangedEvent(CurProperty, InPropertyChangedEvent.ChangeType) : 
-						InPropertyChangedEvent;
+					FPropertyChangedEvent ChangedEvent = InPropertyChangedEvent;
+					if (CurProperty != InPropertyChangedEvent.Property)
+					{
+						ChangedEvent.Property = CurProperty;
+						ChangedEvent.MemberProperty = CurProperty;
+					}
 					ChangedEvent.ObjectIteratorIndex = CurrentObjectIndex;
 
 					if (PropertyChain->Num() == 0)
