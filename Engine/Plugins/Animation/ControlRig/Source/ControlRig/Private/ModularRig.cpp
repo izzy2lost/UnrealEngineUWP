@@ -76,8 +76,6 @@ FString FRigModuleInstance::GetNamespace() const
 
 UControlRig* FRigModuleInstance::GetRig() const
 {
-	// prefer the cached UObject over the soft object ptrs
-	// since the blueprint reinstancer does not reinstance soft object ptrs.
 	if(IsValid(RigPtr))
 	{
 		return RigPtr;
