@@ -2310,6 +2310,10 @@ void FD3D11DynamicRHI::InitD3DDevice()
 
 		SetupAfterDeviceCreation();
 		GRHISupportsHDROutput = SetupDisplayHDRMetaData();
+#if !WITH_EDITOR
+		// cooked game D3D11 still needs to rely on vendor extensions to trigger HDR, which will then require exclusive fullscreen state / special RT formats
+		GRHIHDRNeedsVendorExtensions = true;
+#endif
 
 		// Add device overclock state to crash context
 		const bool bIsGPUOverclocked = IsDeviceOverclocked();

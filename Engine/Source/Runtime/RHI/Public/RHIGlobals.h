@@ -633,6 +633,9 @@ struct FRHIGlobals
 
 	/** True if the RHI supports shaders with barycentrics */
 	bool SupportsBarycentricsSemantic = false;
+
+	/** True if HDR requires vendor specific extensions */
+	bool HDRNeedsVendorExtensions = false;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;
@@ -798,6 +801,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsReservedResources                          GRHIGlobals.ReservedResources.Supported UE_DEPRECATED_MACRO(5.4, "GRHISupportsReservedResources has been deprecated - please use GRHIGlobals.ReservedResources.Supported instead.")
 #define GShaderPlatformForFeatureLevel                         GRHIGlobals.ShaderPlatformForFeatureLevel
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled
+#define GRHIHDRNeedsVendorExtensions						   GRHIGlobals.HDRNeedsVendorExtensions
 
 // Utility Getters
 

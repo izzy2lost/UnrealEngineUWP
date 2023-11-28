@@ -945,7 +945,7 @@ void UGameUserSettings::EnableHDRDisplayOutputInternal(bool bEnable, int32 Displ
 		if (bEnable)
 		{
 #if PLATFORM_WINDOWS
-			if (IsRHIDeviceNVIDIA() || IsRHIDeviceAMD())
+			if (GRHIHDRNeedsVendorExtensions)
 			{
 				// Force exclusive fullscreen
 				SetPreferredFullscreenMode(0);

@@ -504,7 +504,6 @@ void FD3D12Viewport::EnsureColorSpace(EDisplayColorGamut DisplayGamut, EDisplayO
 
 	if (ColorSpace != NewColorSpace)
 	{
-		check(CurrentOutputSupportsHDR());
 		uint32 ColorSpaceSupport = 0;
 		HRESULT hr = SwapChain4->CheckColorSpaceSupport(NewColorSpace, &ColorSpaceSupport);
 		FString NewColorSpaceName = GetDXGIColorSpaceString(NewColorSpace);
