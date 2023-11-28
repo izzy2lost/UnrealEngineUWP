@@ -386,6 +386,8 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 	{
 		// TODO: Doesn't take Nanite Ray Tracing into account
 		check(CachedRayTracingGeometry->RayTracingGeometryRHI == CachedRayTracingInstance.GeometryRHI);
+		check(!CachedRayTracingGeometry->GetRequiresBuild() && !CachedRayTracingGeometry->HasPendingBuildRequest());
+
 		return CachedRayTracingGeometry->IsValid();
 	}
 

@@ -2004,9 +2004,6 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	// We only need to update ray tracing scene for the first view family, if multiple are rendered in a single scene render call.
 	if (!bShouldUpdateRayTracingScene)
 	{
-		// This needs to happen even when ray tracing is not enabled
-		// - importers might batch BVH creation requests that need to be resolved in any case
-		GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
 		// - Nanite ray tracing instances are already pointing at the new BLASes and RayTracingDataOffsets in GPUScene have been updated
 		Nanite::GRayTracingManager.ProcessBuildRequests(GraphBuilder);
 		return false;
@@ -2024,8 +2021,6 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	{
 		RayTracingSkinnedGeometryUpdateQueue->Commit(GraphBuilder);
 	}
-
-	GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
 
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
@@ -2669,6 +2664,14 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 #endif
 
 	GPU_MESSAGE_SCOPE(GraphBuilder);
+
+#if RHI_RAYTRACING
+	if (RendererOutput != FSceneRenderer::ERendererOutput::DepthPrepassOnly)
+	{
+		// TODO: should only process build requests once per frame
+		GRayTracingGeometryManager->ProcessBuildRequests(GraphBuilder.RHICmdList);
+	}
+#endif
 
 	FInitViewTaskDatas InitViewTaskDatas = OnRenderBegin(GraphBuilder);
 
