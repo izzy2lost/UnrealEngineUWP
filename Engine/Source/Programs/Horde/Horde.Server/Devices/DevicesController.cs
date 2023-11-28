@@ -799,7 +799,10 @@ namespace Horde.Server.Devices
 
 					if (requestedModels.Length > 0)
 					{
-						List<string>? models = platform.Models?.Where(x => requestedModels.Contains(x, StringComparer.OrdinalIgnoreCase)).ToList();
+						List<string> platformModels = new List<string>(platform.Models ?? new List<string>());
+						platformModels.Add("Base");
+
+						List<string> models = platformModels.Where(x => requestedModels.Contains(x, StringComparer.OrdinalIgnoreCase)).ToList();
 
 						if (models == null || models.Count == 0)
 						{

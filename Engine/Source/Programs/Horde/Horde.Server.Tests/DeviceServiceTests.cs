@@ -244,12 +244,18 @@ namespace Horde.Server.Tests
 			return job;
 		}
 
-		static LegacyCreateReservationRequest SetupReservationTestAsync(IJob job, string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1", JobStepId? stepId = null)
+		static LegacyCreateReservationRequest SetupReservationTestAsync(IJob job, string poolId = "TestDevicePool1", string deviceType = "TestDevicePlatform1", JobStepId? stepId = null, string? modelId = null)
 		{
 			if (stepId == null)
 			{
 				stepId = JobStepId.Parse("abcd");
 			}
+
+			if (modelId != null)
+			{
+				deviceType += $":{modelId}";
+			}
+
 			// Gauntlet uses the legacy v1 API
 			LegacyCreateReservationRequest request = new LegacyCreateReservationRequest();
 			request.PoolId = poolId;
@@ -268,11 +274,13 @@ namespace Horde.Server.Tests
 			await SetupDevicesAsync();
 
 			IJob job = await SetupJobAsync();
-			LegacyCreateReservationRequest request = SetupReservationTestAsync(job);
+			LegacyCreateReservationRequest request = SetupReservationTestAsync(job, modelId: "Base");
 			
 			// create a reservation
 			GetLegacyReservationResponse reservation = ResultToValue(await DeviceController!.CreateDeviceReservationV1Async(request));			
 			Assert.AreEqual(1, reservation.DeviceNames.Length);
+			Assert.AreEqual(1, reservation.DeviceModels.Length);
+			Assert.AreEqual("Base", reservation.DeviceModels[0]);
 			Assert.AreEqual("Test job", reservation.JobName);
 			Assert.AreEqual("abcd", reservation.StepId);
 
