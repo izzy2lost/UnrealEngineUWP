@@ -465,9 +465,6 @@ void UWaterBodyOceanComponent::Reset()
 void UWaterBodyOceanComponent::PostLoad()
 {
 	Super::PostLoad();
-
-#ifdef WITH_EDITORONLY_DATA
-#endif // WITH_EDITORONLY_DATA
 }
 
 void UWaterBodyOceanComponent::OnPostRegisterAllComponents()

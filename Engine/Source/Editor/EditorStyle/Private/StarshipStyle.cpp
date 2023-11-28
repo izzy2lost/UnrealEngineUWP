@@ -125,8 +125,7 @@ FStarshipEditorStyle::FStyle::FStyle( const TWeakObjectPtr< UEditorStyleSettings
 
 FStarshipEditorStyle::FStyle::~FStyle()
 {
-
-#ifdef WITH_EDITOR
+#if WITH_EDITOR
 	if (Settings.IsValid())
 	{
 		Settings->OnSettingChanged().Remove(SettingChangedHandler);
@@ -258,7 +257,7 @@ void FStarshipEditorStyle::FStyle::Initialize()
 	
 	SyncSettings();
 
-#ifdef WITH_EDITOR
+#if WITH_EDITOR
 	if (Settings.IsValid())
 	{
 		SettingChangedHandler = Settings->OnSettingChanged().AddRaw(this, &FStarshipEditorStyle::FStyle::SettingsChanged);
