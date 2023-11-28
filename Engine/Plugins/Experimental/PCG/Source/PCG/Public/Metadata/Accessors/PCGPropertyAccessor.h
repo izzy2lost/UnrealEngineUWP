@@ -392,20 +392,23 @@ private:
 /**
 * Templated accessor class for object/class ptr properties.
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
-* Will always convert to FSoftObjectPath for PCG
+* Will always convert to FSoftObjectPath/FSoftClassPath for PCG
 * Key supported: Generic object
 */
-class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>, IPCGPropertyChainAccessor
+template <typename PropertyType>
+class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor<PropertyType>>, IPCGPropertyChainAccessor
 {
 public:
-	using Type = FSoftObjectPath;
+	using Type = std::conditional_t<std::is_same_v<PropertyType, FClassProperty>, FSoftClassPath, FSoftObjectPath>;
 	using Super = IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor>;
 
-	FPCGPropertyObjectPtrAccessor(const FObjectProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
+	FPCGPropertyObjectPtrAccessor(const PropertyType* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
 		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
+		// Making sure it is the right properties.
+		static_assert(std::is_same_v<PropertyType, FClassProperty> || std::is_same_v<PropertyType, FObjectProperty>);
 		check(Property);
 	}
 
@@ -426,7 +429,7 @@ public:
 	}
 
 private:
-	const FObjectProperty* Property = nullptr;
+	const PropertyType* Property = nullptr;
 };
 
 /**

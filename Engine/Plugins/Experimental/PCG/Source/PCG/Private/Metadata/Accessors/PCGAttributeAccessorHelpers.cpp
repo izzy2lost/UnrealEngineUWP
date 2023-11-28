@@ -302,9 +302,13 @@ namespace PCGAttributeAccessorHelpers
 		{
 			return Functor(Signature<FPCGPropertySoftObjectPathAccessor>{}, SoftObjectProperty);
 		}
+		else if (const FClassProperty* ClassProperty = CastField<FClassProperty>(InProperty))
+		{
+			return Functor(Signature<FPCGPropertyObjectPtrAccessor<FClassProperty>>{}, ClassProperty);
+		}
 		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(InProperty))
 		{
-			return Functor(Signature<FPCGPropertyObjectPtrAccessor>{}, ObjectProperty);
+			return Functor(Signature<FPCGPropertyObjectPtrAccessor<FObjectProperty>>{}, ObjectProperty);
 		}
 		else if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 		{

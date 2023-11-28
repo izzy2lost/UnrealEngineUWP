@@ -4,7 +4,7 @@
 #include "GameFramework/Actor.h"
 
 
-#include "PCGPropertyToParamDataElementTest.generated.h"
+#include "PCGGetActorPropertyTest.generated.h"
 
 UENUM(meta = (Hidden))
 enum class EPCGUnitTestDummyEnum : int64

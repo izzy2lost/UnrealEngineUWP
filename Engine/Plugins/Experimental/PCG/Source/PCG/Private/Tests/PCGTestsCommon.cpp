@@ -203,13 +203,15 @@ namespace PCGTestsCommon
 	{
 		TArray<FPCGDataCollection> Data;
 
-		TMap<EPCGDataType, TFunction<UPCGData*(void)>> TypeToDataFn;
-		TypeToDataFn.Add(EPCGDataType::Point, []() { return PCGTestsCommon::CreatePointData(); });
-		TypeToDataFn.Add(EPCGDataType::PolyLine, []() { return PCGTestsCommon::CreatePolyLineData(); });
-		TypeToDataFn.Add(EPCGDataType::Surface, []() { return PCGTestsCommon::CreateSurfaceData(); });
-		TypeToDataFn.Add(EPCGDataType::Volume, []() { return PCGTestsCommon::CreateVolumeData(); });
-		TypeToDataFn.Add(EPCGDataType::Primitive, []() { return PCGTestsCommon::CreatePrimitiveData(); });
-		TypeToDataFn.Add(EPCGDataType::Param, []() { return PCGTestsCommon::CreateEmptyParamData(); });
+		static const TMap<EPCGDataType, TFunction<UPCGData* (void)>> TypeToDataFn
+		{
+			{ EPCGDataType::Point, []() { return PCGTestsCommon::CreatePointData(); }},
+			{ EPCGDataType::PolyLine, []() { return PCGTestsCommon::CreatePolyLineData(); }},
+			{ EPCGDataType::Surface, []() { return PCGTestsCommon::CreateSurfaceData(); }},
+			{ EPCGDataType::Volume, []() { return PCGTestsCommon::CreateVolumeData(); }},
+			{ EPCGDataType::Primitive, []() { return PCGTestsCommon::CreatePrimitiveData(); }},
+			{ EPCGDataType::Param, []() { return PCGTestsCommon::CreateEmptyParamData();}}
+		};
 
 		// Create empty data
 		Data.Emplace();
@@ -222,9 +224,15 @@ namespace PCGTestsCommon
 				continue;
 			}
 
+			const UPCGData* SingleData = TypeToData.Value();
+			if (!SingleData)
+			{
+				continue;
+			}
+
 			FPCGDataCollection& SingleCollection = Data.Emplace_GetRef();
 			FPCGTaggedData& SingleTaggedData = SingleCollection.TaggedData.Emplace_GetRef();
-			SingleTaggedData.Data = TypeToData.Value();
+			SingleTaggedData.Data = SingleData;
 			SingleTaggedData.Pin = PinProperties.Label;
 
 			if (!PinProperties.AllowsMultipleConnections())
@@ -239,13 +247,19 @@ namespace PCGTestsCommon
 					continue;
 				}
 
+				const UPCGData* SecondaryData = SecondaryTypeToData.Value();
+				if (!SecondaryData)
+				{
+					continue;
+				}
+
 				FPCGDataCollection& MultiCollection = Data.Emplace_GetRef();
 				FPCGTaggedData& FirstTaggedData = MultiCollection.TaggedData.Emplace_GetRef();
-				FirstTaggedData.Data = TypeToData.Value();
+				FirstTaggedData.Data = SingleData;
 				FirstTaggedData.Pin = PinProperties.Label;
 
 				FPCGTaggedData& SecondTaggedData = MultiCollection.TaggedData.Emplace_GetRef();
-				SecondTaggedData.Data = SecondaryTypeToData.Value();
+				SecondTaggedData.Data = SecondaryData;
 				SecondTaggedData.Pin = PinProperties.Label;
 			}
 		}
