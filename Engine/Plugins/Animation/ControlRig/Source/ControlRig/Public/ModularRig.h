@@ -56,7 +56,7 @@ public:
 private:
 
 	UPROPERTY(transient)
-	mutable TObjectPtr<UControlRig> RigPtr;
+	mutable UControlRig* RigPtr;
 
 public:
 	
