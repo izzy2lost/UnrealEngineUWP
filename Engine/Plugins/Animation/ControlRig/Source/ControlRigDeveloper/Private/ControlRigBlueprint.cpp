@@ -15,6 +15,7 @@
 #include "ControlRigObjectVersion.h"
 #include "BlueprintCompilationManager.h"
 #include "ModularRig.h"
+#include "ModularRigController.h"
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "Units/Execution/RigUnit_BeginExecution.h"
@@ -1117,6 +1118,8 @@ void UControlRigBlueprint::PostLoad()
 			}
 		}
 	}
+
+	UpdateModularDependencyDelegates();
 }
 
 #if WITH_EDITOR
@@ -1151,7 +1154,17 @@ void UControlRigBlueprint::HandlePackageDone()
 	PropagateHierarchyFromBPToInstances();
 
 	Super::HandlePackageDone();
-	RecompileModularRig();
+	
+	if(IsModularRig())
+	{
+		// force load all dependencies
+		ModularRigModel.ForEachModule([](const FRigModuleReference* Element) -> bool
+		{
+			(void)Element->Class.LoadSynchronous();
+			return true;
+		});
+		RecompileModularRig();
+	}
 }
 
 void UControlRigBlueprint::HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure)
@@ -1538,45 +1551,25 @@ UModularRigController* UControlRigBlueprint::GetModularRigController()
 	return ModularRigModel.GetController();
 }
 
-static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* InModule, FRigModuleInstance* InParent)
-{
-	// Make sure the inner is loaded and valid
-	{
-		if (!InModule->Class.IsValid())
-		{
-			InModule->Class.LoadSynchronous();
-		}
-		if (!InModule->Class.IsValid())
-		{
-			return;
-		}
-	}
-	
-	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections, InModule->ConfigValues, InModule->Bindings);
-	
-	for (const FRigModuleReference* ChildModule : InModule->CachedChildren)
-	{
-		AddModulesRecursively(Rig, ChildModule, NewModule);
-	}
-}
-
 void UControlRigBlueprint::RecompileModularRig()
 {
 	OnModularRigPreCompiled().Broadcast(this);
-	if (UClass* MyControlRigClass = GeneratedClass)
+	if (const UClass* MyControlRigClass = GeneratedClass)
 	{
 		if (UModularRig* DefaultObject = Cast<UModularRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
 			DefaultObject->ResetModules();
-			for (const FRigModuleReference* RootModule : ModularRigModel.RootModules)
-			{
-				AddModulesRecursively(DefaultObject, RootModule, nullptr);
-			}
-			DefaultObject->InitializeVMs(true);
+
+			// copy the model over to the CDO.
+			// non-CDO instances are going to instantiate the model into a
+			// UObject module instance tree. CDO's are data only to avoid bugs / 
+			// behaviors in the blueprint re-instancer - which is disregarding any
+			// object under a CDO.
+			DefaultObject->ModularRigModel = ModularRigModel;
 			PropagateModuleHierarchyFromBPToInstances();
 		}
 	}
-
+	UpdateModularDependencyDelegates();
 	OnModularRigCompiled().Broadcast(this);
 }
 
@@ -2055,7 +2048,10 @@ void UControlRigBlueprint::PropagatePoseFromBPToInstances() const
 				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 				{
 					InstanceRig->PostInitInstanceIfRequired();
-					InstanceRig->GetHierarchy()->CopyPose(Hierarchy, true, true, true);
+					if(!InstanceRig->IsRigModuleInstance())
+					{
+						InstanceRig->GetHierarchy()->CopyPose(Hierarchy, true, true, true);
+					}
 				}
 			}
 		}
@@ -2174,7 +2170,7 @@ void UControlRigBlueprint::PropagatePropertyFromInstanceToBP(FRigElementKey InRi
 
 void UControlRigBlueprint::PropagateModuleHierarchyFromBPToInstances() const
 {
-	if (UClass* MyControlRigClass = GeneratedClass)
+	if (const UClass* MyControlRigClass = GeneratedClass)
 	{
 		if (UControlRig* DefaultObject = Cast<UControlRig>(MyControlRigClass->GetDefaultObject(false)))
 		{
@@ -2190,6 +2186,60 @@ void UControlRigBlueprint::PropagateModuleHierarchyFromBPToInstances() const
 			}
 		}
 	}
+}
+
+void UControlRigBlueprint::UpdateModularDependencyDelegates()
+{
+	TArray<const UBlueprint*> VisitList;
+	ModularRigModel.ForEachModule([&VisitList, this](const FRigModuleReference* Element) -> bool
+	{
+		if(const UClass* Class = Element->Class.Get())
+		{
+			if(UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(Class->ClassGeneratedBy))
+			{
+				if(!VisitList.Contains(Blueprint))
+				{
+					Blueprint->OnVMCompiled().RemoveAll(this);
+					Blueprint->OnVMCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyVMCompiled);
+					Blueprint->OnModularRigCompiled().AddUObject(this, &UControlRigBlueprint::OnModularDependencyChanged);
+					VisitList.Add(Blueprint);
+				}
+			}
+		}
+		return true;
+	});
+}
+
+void UControlRigBlueprint::OnModularDependencyVMCompiled(UObject* InBlueprint, URigVM* InVM, FRigVMExtendedExecuteContext& InExecuteContext)
+{
+	if(URigVMBlueprint* RigVMBlueprint = Cast<URigVMBlueprint>(InBlueprint))
+	{
+		OnModularDependencyChanged(RigVMBlueprint);
+	}
+}
+
+void UControlRigBlueprint::OnModularDependencyChanged(URigVMBlueprint* InBlueprint)
+{
+	// the rig will perform initialize itself - but we should request construction
+	check(IsModularRig());
+	
+	const URigVMBlueprintGeneratedClass* RigClass = GetRigVMBlueprintGeneratedClass();
+	check(RigClass);
+	
+	UControlRig* CDO = Cast<UControlRig>(RigClass->GetDefaultObject(true /* create if needed */));
+
+	TArray<UObject*> ArchetypeInstances;
+	CDO->GetArchetypeInstances(ArchetypeInstances);
+
+	// visit all or our instances and request construction
+	for (UObject* Instance : ArchetypeInstances)
+	{
+		if (UModularRig* InstanceRig = Cast<UModularRig>(Instance))
+		{
+			InstanceRig->RequestConstruction();
+		}
+	}
+
 }
 
 void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
@@ -2312,6 +2362,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 						PropagateHierarchyFromBPToInstances();
 					}
 				}
+				UpdateModularDependencyDelegates();
 			}
 			break;
 		}
@@ -2422,6 +2473,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 						}
 					}
 				}
+				UpdateModularDependencyDelegates();
 			}
 			break;
 		}

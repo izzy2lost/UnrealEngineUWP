@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ModularRigModel.h"
+#include "ModularRigController.h"
 #include "ModularRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigModel)
@@ -21,18 +22,14 @@ FString FRigModuleReference::GetNamespace() const
 
 UModularRigController* FModularRigModel::GetController(bool bCreateIfNeeded)
 {
-	if (Controller)
-	{
-		return Controller;
-	}
-
-	if (bCreateIfNeeded)
+	if (bCreateIfNeeded && Controller == nullptr)
 	{
 		const FName SafeControllerName = *FString::Printf(TEXT("%s_ModularRig_Controller"), *GetOuter()->GetPathName());
-		Controller = NewObject<UModularRigController>(GetOuter(), UModularRigController::StaticClass(), SafeControllerName);
-		Controller->SetModel(this);
+		UModularRigController* NewController = NewObject<UModularRigController>(GetOuter(), UModularRigController::StaticClass(), SafeControllerName);
+		NewController->SetModel(this);
+		Controller = NewController;
 	}
-	return Controller;
+	return Cast<UModularRigController>(Controller);
 }
 
 void FModularRigModel::SetOuterClientHost(UObject* InOuterClientHost)

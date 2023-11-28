@@ -4942,3 +4942,18 @@ private:
 };
 
 #endif
+
+UINTERFACE()
+class CONTROLRIG_API URigHierarchyProvider : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class CONTROLRIG_API IRigHierarchyProvider
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual URigHierarchy* GetHierarchy() const = 0;
+};
