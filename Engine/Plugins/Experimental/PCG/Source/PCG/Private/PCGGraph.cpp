@@ -1315,18 +1315,6 @@ void UPCGGraph::OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, F
 		}
 	}
 
-	// Also if we have no more properties, just reset
-	if (UserParameters.GetNumPropertiesInBag() == 0)
-	{
-		if (!bWasModified)
-		{
-			bWasModified = true;
-			Modify();
-		}
-
-		UserParameters.Reset();
-	}
-
 #if WITH_EDITOR
 	NotifyGraphParametersChanged(InChangeType, InChangedPropertyName);
 #endif // WITH_EDITOR

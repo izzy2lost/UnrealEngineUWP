@@ -73,14 +73,12 @@ namespace PCGTests
 		check(UserParameters && UserParameters->GetPropertyBagStruct());
 
 		FProperty* ValueProperty = UserParameters->GetPropertyBagStruct()->FindPropertyByName(PropertyName);
-		FProperty* UserParametersProperty = Graph->GetClass()->FindPropertyByName(UserParametersName);
-		check(ValueProperty && UserParametersProperty);
+		check(ValueProperty);
 		Graph->PreEditChange(ValueProperty);
 
 		Callback();
 
 		FPropertyChangedEvent PropertyChangedEvent{ ValueProperty };
-		PropertyChangedEvent.MemberProperty = UserParametersProperty;
 		Graph->PostEditChangeProperty(PropertyChangedEvent);
 	}
 }
@@ -90,7 +88,8 @@ bool FPCGGraphNoUserParameters::RunTest(const FString& Parameters)
 	PCGTests::TempObject<UPCGGraph> Graph{};
 	UTEST_NOT_NULL("Graph UserParameters is not null", Graph->GetUserParametersStruct());
 
-	UTEST_FALSE("Graph UserParameters property bag is valid", Graph->GetUserParametersStruct()->IsValid());
+	// Bags are now valid (but empty) for new graphs.
+	UTEST_TRUE("Graph UserParameters property bag is valid", Graph->GetUserParametersStruct()->IsValid());
 	UTEST_EQUAL("Graph UserParameters has no property", Graph->GetUserParametersStruct()->GetNumPropertiesInBag(), 0);
 
 	return true;
