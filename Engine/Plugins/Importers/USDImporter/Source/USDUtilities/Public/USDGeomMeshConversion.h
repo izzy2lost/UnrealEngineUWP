@@ -346,6 +346,9 @@ namespace UsdUtils
 	/** Returns whether this UsdMesh can be interpreted as a LOD of a mesh with multiple LODs (i.e. if the Mesh prim is inside a LOD variant) */
 	USDUTILITIES_API bool IsGeomMeshALOD( const pxr::UsdPrim& UsdMeshPrim );
 
+	/** Returns whether this UsdPrim is a custom collision mesh */
+	USDUTILITIES_API bool IsCollisionMesh(const pxr::UsdPrim& UsdPrim);
+
 	/** Returns how many LOD variants the Prim has. Note that this will return 0 if called on one of the LOD meshes themselves, it's meant to be called on its parent */
 	USDUTILITIES_API int32 GetNumberOfLODVariants( const pxr::UsdPrim& Prim );
 

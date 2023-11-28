@@ -28,6 +28,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"GeometryCache",
+					"GeometryCore", // for FitKDOP
 					"InterchangeCore",
 					"InterchangeEngine",
 					"InterchangeFactoryNodes",
@@ -68,7 +69,7 @@ namespace UnrealBuildTool.Rules
 						"MaterialEditor",
 						"MDLImporter",
 						"MeshUtilities",
-						"PhysicsUtilities", // For generating UPhysicsAssets for SkeletalMeshes
+						"PhysicsUtilities", // For generating UPhysicsAssets for SkeletalMeshes and ConvexDecompTool
 						"PropertyEditor",
 						"UnrealEd",
 					}

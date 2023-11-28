@@ -60,6 +60,9 @@
 	#include "pxr/usd/usdGeom/sphere.h"
 	#include "pxr/usd/usdGeom/subset.h"
 	#include "pxr/usd/usdGeom/tokens.h"
+	#include "pxr/usd/usdPhysics/collisionAPI.h"
+	#include "pxr/usd/usdPhysics/meshCollisionAPI.h"
+	#include "pxr/usd/usdPhysics/tokens.h"
 	#include "pxr/usd/usdShade/material.h"
 	#include "pxr/usd/usdShade/materialBindingAPI.h"
 	#include "pxr/usd/usdShade/tokens.h"
@@ -4341,6 +4344,69 @@ bool UsdUtils::IsGeomMeshALOD( const pxr::UsdPrim& UsdMeshPrim )
 	}
 
 	return UE::UsdGeomMeshConversion::Private::DoesPrimContainMeshLODsInternal( UsdMeshPrim.GetParent() );
+}
+
+bool UsdUtils::IsCollisionMesh(const pxr::UsdPrim& UsdPrim)
+{
+	// https://openusd.org/release/api/usd_physics_page_front.html#usdPhysics_collision_shapes
+	// "Collision meshes may be specified explicitly by adding the custom collider mesh as a sibling to the
+	// original graphics mesh, UsdGeomImageable purpose to "guide" so it does not render, and apply
+	// UsdPhysicsCollisionAPI and UsdPhysicsMeshCollisionAPI to it specifying no approximation."
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdGeomMesh UsdMesh{UsdPrim};
+	if (!UsdMesh)
+	{
+		return false;
+	}
+
+	bool bIsCollisionEnabled = false;
+	if (pxr::UsdPhysicsCollisionAPI CollisionAPI{UsdPrim})
+	{
+		if (pxr::UsdAttribute CollisionAttr = CollisionAPI.GetCollisionEnabledAttr())
+		{
+			CollisionAttr.Get(&bIsCollisionEnabled);
+		}
+
+		if (!bIsCollisionEnabled)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+	if (pxr::UsdPhysicsMeshCollisionAPI MeshCollisionAPI{UsdPrim})
+	{
+		pxr::TfToken Approximation(pxr::UsdPhysicsTokens->none);
+		if (pxr::UsdAttribute ApproximationAttr = MeshCollisionAPI.GetApproximationAttr())
+		{
+			ApproximationAttr.Get(&Approximation);
+		}
+
+		if (Approximation != pxr::UsdPhysicsTokens->none)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+	if (pxr::UsdAttribute PurposeAttr = UsdMesh.GetPurposeAttr())
+	{
+		pxr::TfToken Purpose;
+		PurposeAttr.Get(&Purpose);
+		if (Purpose != pxr::UsdGeomTokens->guide)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 int32 UsdUtils::GetNumberOfLODVariants( const pxr::UsdPrim& Prim )

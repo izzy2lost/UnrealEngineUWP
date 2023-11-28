@@ -42,6 +42,10 @@
 
 #if USE_USD_SDK
 
+#include "USDIncludesStart.h"
+	#include "pxr/usd/usdPhysics/tokens.h"
+#include "USDIncludesEnd.h"
+
 namespace UE::USDStageTreeView::Private
 {
 	static const FText NoSpecOnLocalLayerStack =
@@ -943,6 +947,86 @@ TSharedPtr< SWidget > SUsdStageTreeView::ConstructPrimContextMenu()
 					this,
 					&SUsdStageTreeView::CanRemoveSchema,
 					FName{ *UsdToUnreal::ConvertToken( UnrealIdentifiers::GroomAPI ) }
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		PrimOptions.AddMenuEntry(
+			LOCTEXT("ApplyPhysicsCollisionchema", "Apply PhysicsCollision schema"),
+			LOCTEXT("ApplyPhysicsCollisionSchema_ToolTip", "Applies the PhysicsCollision schema to enable the prim as a collider"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::OnApplySchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsCollisionAPI)}
+				),
+				FCanExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::CanApplySchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsCollisionAPI)}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		PrimOptions.AddMenuEntry(
+			LOCTEXT("RemovePhysicsCollisionSchema", "Remove PhysicsCollision schema"),
+			LOCTEXT("RemovePhysicsCollisionSchema_ToolTip", "Removes the PhysicsCollision schema from the prim to disable it as a collider"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::OnRemoveSchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsCollisionAPI)}
+				),
+				FCanExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::CanRemoveSchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsCollisionAPI)}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		PrimOptions.AddMenuEntry(
+			LOCTEXT("ApplyPhysicsMeshCollisionchema", "Apply PhysicsMeshCollision schema"),
+			LOCTEXT("ApplyPhysicsMeshCollisionSchema_ToolTip", "Applies the PhysicsMeshCollision schema to control how the mesh is made into a collider"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::OnApplySchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI)}
+				),
+				FCanExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::CanApplySchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI)}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		PrimOptions.AddMenuEntry(
+			LOCTEXT("RemovePhysicsMeshCollisionSchema", "Remove PhysicsMeshCollision schema"),
+			LOCTEXT("RemovePhysicsMeshCollisionSchema_ToolTip", "Removes the PhysicsMeshCollision schema from the prim"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::OnRemoveSchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI)}
+				),
+				FCanExecuteAction::CreateSP(
+					this,
+					&SUsdStageTreeView::CanRemoveSchema,
+					FName{*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->PhysicsMeshCollisionAPI)}
 				)
 			),
 			NAME_None,

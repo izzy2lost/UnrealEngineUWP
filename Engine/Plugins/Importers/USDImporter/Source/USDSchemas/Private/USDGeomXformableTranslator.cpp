@@ -33,6 +33,7 @@
 #include "LiveLinkRole.h"
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "StaticMeshAttributes.h"
 
@@ -669,6 +670,13 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 
 				// We can't register yet, as UsdToUnreal::ConvertXformable below us may want to move the component.
 				// We'll always re-register when needed below, though.
+			}
+
+			// Update the collision settings of the component in case they changed on the static mesh
+			if (PrimStaticMesh && PrimStaticMesh->GetBodySetup())
+			{
+				StaticMeshComponent->BodyInstance.SetCollisionEnabled(PrimStaticMesh->GetBodySetup()->DefaultInstance.GetCollisionEnabled());
+				StaticMeshComponent->BodyInstance.SetCollisionProfileName(PrimStaticMesh->GetBodySetup()->DefaultInstance.GetCollisionProfileName());
 			}
 		}
 		else if (UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(SceneComponent))

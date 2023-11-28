@@ -33,6 +33,7 @@
 	#include "pxr/usd/usd/prim.h"
 	#include "pxr/usd/usd/relationship.h"
 	#include "pxr/usd/usdGeom/tokens.h"
+	#include "pxr/usd/usdPhysics/tokens.h"
 #include "USDIncludesEnd.h"
 
 #endif // #if USE_USD_SDK
@@ -97,6 +98,19 @@ TArray< TSharedPtr< FString > > FUsdObjectFieldViewModel::GetDropdownOptions() c
 			MakeShared< FString >( UsdToUnreal::ConvertToken( pxr::UsdGeomTokens->invisible ) ),
 		};
 	}
+	else if (Label == UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->physicsApproximation))
+	{
+		return TArray<TSharedPtr<FString>>
+		{
+			MakeShared<FString>(UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->none)),
+			MakeShared<FString>(UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->convexDecomposition)),
+			MakeShared<FString>(UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->convexHull)),
+			MakeShared<FString>(UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->boundingSphere)),
+			MakeShared<FString>(UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->boundingCube)),
+			// meshSimplification will get mapped functionally to convexDecomposition
+		};
+	}
+
 #endif // #if USE_USD_SDK
 
 	return {};
