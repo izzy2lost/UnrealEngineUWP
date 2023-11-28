@@ -4927,9 +4927,8 @@ int32 FHLSLMaterialTranslator::CallExpression(FMaterialExpressionKey ExpressionK
 	// Substrate BSDF expression should not be de-duplicated using expression output hash. 
 	// This is automatically handled via the compiler SubstrateTreeStack.
 	// It means that a node can be blended at multiple point of the graph (allowing acyclic graph instead of tree, e.g. a Slab can be used into multiple input).
-	// It is worth noting that only Substrate BSDF can be duplicated today according to SubstrateTreeStack.
-	const bool bExpressionIsSubstrateBSDF = ExpressionKey.Expression && ExpressionKey.Expression->IsA<UMaterialExpressionSubstrateSlabBSDF>();
-	const bool bExpressionIsSubstrateFullySimplified = CurrentSubstrateCompilationContext == ESubstrateCompilationContext::SCC_FullySimplified && ExpressionKey.Expression && ExpressionKey.Expression->IsResultSubstrateMaterial(ExpressionKey.OutputIndex);
+	// We do this for all SubstrateData which can be output from BSDF nodes (slabs) or other nodes such as material functions.
+	const bool bExpressionIsSubstrate = ExpressionKey.Expression && ExpressionKey.Expression->IsResultSubstrateMaterial(ExpressionKey.OutputIndex);
 
 	// Check if this expression has already been translated.
 	check(ShaderFrequency < SF_NumFrequencies);
@@ -4937,7 +4936,7 @@ int32 FHLSLMaterialTranslator::CallExpression(FMaterialExpressionKey ExpressionK
 	FMaterialFunctionCompileState* CurrentFunctionState = CurrentFunctionStack.Last();
 
 	static bool sDebugCacheDuplicateCode = true;
-	int32* ExistingCodeIndex = sDebugCacheDuplicateCode && !bExpressionIsSubstrateBSDF && !bExpressionIsSubstrateFullySimplified ? CurrentFunctionState->ExpressionCodeMap.Find(ExpressionKey) : nullptr;
+	int32* ExistingCodeIndex = sDebugCacheDuplicateCode && !bExpressionIsSubstrate ? CurrentFunctionState->ExpressionCodeMap.Find(ExpressionKey) : nullptr;
 	int32 Result = INDEX_NONE;
 	if (ExistingCodeIndex)
 	{
