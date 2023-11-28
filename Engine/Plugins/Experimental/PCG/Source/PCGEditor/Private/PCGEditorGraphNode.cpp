@@ -108,6 +108,7 @@ void UPCGEditorGraphNode::OnRenameNode(const FString& NewName)
 
 	if(PCGNode->GetNodeTitle().ToString() != NewName)
 	{
+		Modify();
 		PCGNode->Modify();
 		PCGNode->NodeTitle = FName(*NewName);
 	}
