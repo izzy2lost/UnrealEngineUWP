@@ -44,10 +44,17 @@ TObjectPtr<UObject> FObjectPropertyIdHandler::GetObjectPropertyDefaultValue(cons
 {
 	if (InClassToCreate)
 	{
+		if (InClassToCreate->HasAnyClassFlags(CLASS_Abstract))
+		{
+			// for now skip any AbstractClass
+			return nullptr;
+		}
+
 		if (InClassToCreate->IsChildOf(UMaterialInterface::StaticClass()))
 		{
 			return UMaterial::GetDefaultMaterial(MD_Surface);
 		}
+
 		return NewObject<UObject>(GetTransientPackage(), InClassToCreate);
 	}
 	return nullptr;
