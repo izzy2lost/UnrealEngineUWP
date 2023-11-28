@@ -577,19 +577,36 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 
 		if (!ParamData)
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoMatchData", "Must have exactly one Attribute Set to match against"));
-			return EPCGTimeSliceInitResult::AbortExecution;
+			if (Settings->bWarnIfNoMatchData)
+			{
+				PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoMatchData", "Must have exactly one Attribute Set to match against"));
+			}
+
+			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
 		OutState.Partition = new FPCGMatchAndSetPartition(Context, Settings, Context->SourceComponent.Get(), ParamData);
 		check(OutState.Partition);
 
-		return OutState.Partition->Initialize() ? EPCGTimeSliceInitResult::Success : EPCGTimeSliceInitResult::AbortExecution;
+		if (OutState.Partition->Initialize())
+		{
+			return EPCGTimeSliceInitResult::Success;
+		}
+		else
+		{
+			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
 	});
 
 	if (InitResult == EPCGTimeSliceInitResult::AbortExecution)
 	{
-		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("CouldNotInitializeExecutionState", "Could not initialize per-execution timeslice state data"));
+		// Implementation note: the previous code paths already emit necessary warnings
+		return true;
+	}
+	else if (InitResult == EPCGTimeSliceInitResult::NoOperation)
+	{
+		Outputs = Inputs;
 		return true;
 	}
 
@@ -615,6 +632,7 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 
 	if (!TimeSlicedContext->DataIsPreparedForExecution())
 	{
+		TimeSlicedContext->OutputData.TaggedData.Empty();
 		PCGE_LOG_C(Warning, GraphAndLog, InContext, LOCTEXT("CouldNotInitializeStateData", "Could not initialize timeslice state data"));
 		return true;
 	}
@@ -631,10 +649,9 @@ bool FPCGMatchAndSetAttributesElement::ExecuteInternal(FPCGContext* InContext) c
 
 	TArray<FPCGTaggedData> Inputs = InContext->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 
-	// Prepare data failed, no need to execute. Return an empty output
+	// Prepare data failed, no need to execute.
 	if (!TimeSlicedContext->DataIsPreparedForExecution())
 	{
-		TimeSlicedContext->OutputData.TaggedData.Empty();
 		return true;
 	}
 
