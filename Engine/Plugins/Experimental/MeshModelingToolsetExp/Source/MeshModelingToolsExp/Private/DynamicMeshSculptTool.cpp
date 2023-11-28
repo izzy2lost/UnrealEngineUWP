@@ -37,6 +37,9 @@
 #include "UObject/ObjectMacros.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "TargetInterfaces/DynamicMeshCommitter.h"
+#include "TargetInterfaces/DynamicMeshProvider.h"
+#include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DynamicMeshSculptTool)
 
@@ -67,6 +70,16 @@ UMeshSurfacePointTool* UDynamicMeshSculptToolBuilder::CreateNewTool(const FToolB
 	return SculptTool;
 }
 
+const FToolTargetTypeRequirements& UDynamicMeshSculptToolBuilder::GetTargetRequirements() const
+{
+	static FToolTargetTypeRequirements TypeRequirements({
+		UMaterialProvider::StaticClass(),
+		UDynamicMeshCommitter::StaticClass(),
+		UDynamicMeshProvider::StaticClass(),
+		UPrimitiveComponentBackedTarget::StaticClass()
+	});
+	return TypeRequirements;
+}
 
 
 void UDynamicSculptToolActions::DiscardAttributes()

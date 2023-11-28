@@ -37,6 +37,8 @@ class MESHMODELINGTOOLSEXP_API UMeshVertexSculptToolBuilder : public UMeshSurfac
 
 public:
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 
