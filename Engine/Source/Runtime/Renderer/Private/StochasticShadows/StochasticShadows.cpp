@@ -25,6 +25,13 @@ static TAutoConsoleVariable<int32> CVarStochasticShadowsNumSamplesPerPixel(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarStochasticShadowsMaxShadingTilesPerGridCell(
+	TEXT("r.StochasticShadows.MaxShadingTilesPerGridCell"),
+	32,
+	TEXT("Maximum number of shading tiles per grid cell."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarStochasticShadowsTemporal(
 	TEXT("r.StochasticShadows.Temporal"),
 	1,
@@ -134,9 +141,9 @@ namespace StochasticShadows
 	constexpr int32 TileSize = 8;
 	constexpr int32 ShadowMaskTileSize = 8;	// Stored downsampled
 	constexpr int32 MaxLightSceneIdXY = 16; // 16 * 16 = 256
-	constexpr int32 MaxShadingTilesPerGridCell = 32;
 	constexpr int32 ShadowMaskAtlasSizeInTiles = 512;
 	constexpr uint32 InvalidShadowMaskTileIndex = 0xFFFFFFFF;
+	constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
 
 	bool IsEnabled()
 	{
@@ -586,9 +593,15 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	const FIntPoint ShadowMaskPageTableSize = ShadowMaskPageTablePerLightSize * StochasticShadows::MaxLightSceneIdXY;
 	const FIntPoint ShadowMaskTileAtlasSize = StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskAtlasSizeInTiles;
 	const int32 MaxShadowMaskTiles = StochasticShadows::ShadowMaskAtlasSizeInTiles * StochasticShadows::ShadowMaskAtlasSizeInTiles;
+	check(MaxShadowMaskTiles == (ShadowMaskTileAtlasSize.X * ShadowMaskTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize));
 
 	const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, StochasticShadows::ShadowMaskTileSize);
 	const FIntPoint ShadingTileAtlasSize = ShadowMaskTileAtlasSize;
+	const int32 MaxShadingTiles = MaxShadowMaskTiles;
+	check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize));
+	check(MaxShadingTiles < StochasticShadows::ShadingTileIndexUnshadowed);
+
+	const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarStochasticShadowsMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
 
 	FRDGTextureRef DownsampledSceneDepth = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
@@ -682,8 +695,8 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
 		StochasticShadowsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
 		StochasticShadowsParameters.MaxShadowMaskTiles = MaxShadowMaskTiles;
-		StochasticShadowsParameters.MaxShadingTiles = (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize);
-		StochasticShadowsParameters.MaxShadingTilesPerGridCell = StochasticShadows::MaxShadingTilesPerGridCell;
+		StochasticShadowsParameters.MaxShadingTiles = MaxShadingTiles;
+		StochasticShadowsParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
 		StochasticShadowsParameters.ShadingTileGridSize = ShadingTileGridSize;
 		StochasticShadowsParameters.ShadowMaskPageTablePerLightSize = ShadowMaskPageTablePerLightSize;
 		StochasticShadowsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
@@ -926,7 +939,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		TEXT("StochasticShadows.ShadingTileGridAllocator"));
 
 	FRDGBufferRef ShadingTileGrid = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * StochasticShadows::MaxShadingTilesPerGridCell),
+		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * MaxShadingTilesPerGridCell),
 		TEXT("StochasticShadowsParameters.ShadingTileGrid"));
 
 	FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(

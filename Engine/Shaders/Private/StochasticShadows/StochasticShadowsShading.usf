@@ -94,9 +94,14 @@ void ShadeLightSamplesCS(
 					const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
 					FDeferredLightData LightData = ConvertToDeferredLight(GetLightSceneData(ShadingTile.LightSceneId));
 
-					uint2 ShadingTileAtlasCoord = GetShadingTileAtlasCoord(ShadingTile.ShadingTileIndex, CoordInShadingTile);
+					float ShadowFactor = 1.0f; // Initialize as unshadowed as tiles with index >= MaxShadingTiles are treated as fully unshadowed.
 
-					float ShadowFactor = ShadingTileAtlas[ShadingTileAtlasCoord];
+					if (ShadingTile.ShadingTileIndex < MaxShadingTiles)
+					{
+						uint2 ShadingTileAtlasCoord = GetShadingTileAtlasCoord(ShadingTile.ShadingTileIndex, CoordInShadingTile);
+
+						ShadowFactor = ShadingTileAtlas[ShadingTileAtlasCoord];
+					}
 
 					#if DEBUG_MODE
 					if (bDebug)

@@ -30,6 +30,38 @@ groupshared float SharedSceneDepth[SHARED_TILE_SIZE][SHARED_TILE_SIZE];
 groupshared uint SharedShadingTileMask;
 groupshared uint SharedShadingTileIndex[2][2];
 
+uint GetLitBitMask(uint2 ShadingTileCoord)
+{
+	const uint BitOffset = (ShadingTileCoord.x + ShadingTileCoord.y * 2);
+	return 0x1 << BitOffset;
+}
+
+uint GetShadowedBitMask(uint2 ShadingTileCoord)
+{
+	const uint BitOffset = (ShadingTileCoord.x + ShadingTileCoord.y * 2);
+	return 0x10 << BitOffset;
+}
+
+void SetSharedShadingTileMask(uint2 ShadingTileCoord, FShadowMask ShadowMask)
+{
+	uint BitMask = 0;
+
+	if (ShadowMask.IsValid() && ShadowMask.Factor > 0.0f) // lit
+	{
+		BitMask |= GetLitBitMask(ShadingTileCoord);
+	}
+
+	if (!ShadowMask.IsValid() || ShadowMask.Factor < 0.999f) // shadowed
+	{
+		BitMask |= GetShadowedBitMask(ShadingTileCoord);
+	}
+
+	if (BitMask != 0)
+	{
+		InterlockedOr(SharedShadingTileMask, BitMask);
+	}
+}
+
 void AccumulateShadowMask(uint2 SharedShadowMaskTileCoord, float UpsampleWeight, inout FShadowMaskAccumulator Accumulator)
 {
 	if (UpsampleWeight > 0.01f)
@@ -119,7 +151,6 @@ void ShadowMaskSpatialPassCS(
 	// Spatial pass
 	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize))
 	{
-		uint2 ShadowMaskTileAtlasCoord = GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
 		FShadowMaskAccumulator ShadowMaskAccumulator = InitShadowMaskAccumulator();
 
 		uint2 CenterSampleSharedTileCoord = LocalShadowMaskTileCoord + SHARED_TILE_BORDER;
@@ -166,7 +197,7 @@ void ShadowMaskSpatialPassCS(
 						Newline(Context);
 						Print(Context, TEXT("SampleShadowMask: "));
 						Print(Context, SampleShadowMask.Factor);
-						Print(Context, GBuffer.Depth);
+						Print(Context, SampleDepth);
 					}
 					#endif
 				}
@@ -197,24 +228,14 @@ void ShadowMaskSpatialPassCS(
 		// Update shared shadow mask tile with filtered results
 		SharedShadowMask[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER] = PackShadowMask(ShadowMask, /*Dither*/ 0.5f);
 
-		if (ShadowMask.IsValid() && ShadowMask.Factor > 0.0f)
-		{
-			uint2 BitCoord = LocalShadowMaskTileCoord / 4;
-			uint BitMask = 1u << (BitCoord.x + BitCoord.y * 2);
-			InterlockedOr(SharedShadingTileMask, BitMask);
-		}
+		SetSharedShadingTileMask(LocalShadowMaskTileCoord / 4, ShadowMask);
 	}
 #else
 	// Only mark sub-tiles requiring shading tiles
 	{
 		FShadowMask ShadowMask = UnpackShadowMask(SharedShadowMask[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER]);
 
-		if (ShadowMask.IsValid() && ShadowMask.Factor > 0.0f)
-		{
-			uint2 BitCoord = LocalShadowMaskTileCoord / 4;
-			uint BitMask = 1u << (BitCoord.x + BitCoord.y * 2);
-			InterlockedOr(SharedShadingTileMask, BitMask);
-		}
+		SetSharedShadingTileMask(LocalShadowMaskTileCoord / 4, ShadowMask);
 	}
 #endif
 
@@ -225,17 +246,22 @@ void ShadowMaskSpatialPassCS(
 	// Allocate shading tiles
 	if (all(ShadingTileOffset < 2))
 	{
-		uint BitMask = 1u << (ShadingTileOffset.x + ShadingTileOffset.y * 2);
-		if (BitMask & SharedShadingTileMask)
+		if (SharedShadingTileMask & GetLitBitMask(ShadingTileOffset))
 		{	
 			const uint2 ShadingTileCoord = (BaseShadowMaskScreenCoord * SHADOW_MASK_DOWNSAMPLE_FACTOR) / SHADOW_MASK_TILE_SIZE + ShadingTileOffset;
 
 			if (all(ShadingTileCoord < ShadingTileGridSize))
 			{
-				uint ShadingTileIndex = 0;
-				InterlockedAdd(RWShadingTileAllocator[0], 1u, ShadingTileIndex);
+				const uint UnshadowedTileIndex = 0xFFFFFFFF;
 
-				if (ShadingTileIndex < MaxShadingTiles)
+				uint ShadingTileIndex = UnshadowedTileIndex;
+
+				if(SharedShadingTileMask & GetShadowedBitMask(ShadingTileOffset))
+				{
+					InterlockedAdd(RWShadingTileAllocator[0], 1u, ShadingTileIndex);
+				}
+
+				if (ShadingTileIndex < MaxShadingTiles || ShadingTileIndex == UnshadowedTileIndex)
 				{
 					uint ShadingTileIndexInCell = 0;
 					InterlockedAdd(RWShadingTileGridAllocator[ShadingTileCoord], 1u, ShadingTileIndexInCell);
