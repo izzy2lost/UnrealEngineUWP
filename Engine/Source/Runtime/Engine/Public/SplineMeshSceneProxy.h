@@ -160,7 +160,6 @@ class FSplineMeshSceneProxy final : public FStaticMeshSceneProxy, public TSpline
 
 public:
 	FSplineMeshSceneProxy(USplineMeshComponent* InComponent);
-	void InitVertexFactory(USplineMeshComponent* InComponent, int32 InLODIndex, FColorVertexBuffer*);
 
 	// FPrimitiveSceneProxy interface
 	virtual SIZE_T GetTypeHash() const override;
@@ -171,7 +170,7 @@ public:
 #if RHI_RAYTRACING
 	virtual bool HasRayTracingRepresentation() const override { return true; }
 	virtual bool IsRayTracingRelevant() const override { return true; }
-	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;
+	virtual void GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances) override;	
 #endif // RHI_RAYTRACING
 	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
 
@@ -204,9 +203,15 @@ public:
 	// FPrimitiveSceneProxy interface
 	virtual SIZE_T GetTypeHash() const override;
 	virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
+#if RHI_RAYTRACING
+	virtual bool IsRayTracingStaticRelevant() const override { return false; }
+	virtual ERayTracingPrimitiveFlags GetCachedRayTracingInstance(FRayTracingInstance& OutRayTracingInstance) override;
+	virtual void SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const override;
+#endif
 };
 
 /** Helper to update the parameters of the specified spline mesh scene proxy */
 ENGINE_API void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params);
+
 
 

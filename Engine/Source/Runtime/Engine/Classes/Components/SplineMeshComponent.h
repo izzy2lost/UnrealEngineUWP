@@ -179,6 +179,8 @@ private:
 	uint8 bNeverNeedsCookedCollisionData:1;
 
 public:
+	ENGINE_API void InitVertexFactory(int32 InLODIndex, FColorVertexBuffer* InOverrideColorVertexBuffer);
+
 	//Begin UObject Interface
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR

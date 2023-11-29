@@ -979,12 +979,21 @@ FSceneProxy::~FSceneProxy()
 	{
 		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(this, StaticMesh);
 	}
+
+	ReleaseDynamicRayTracingGeometries();
 #endif
 }
 
 void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 	check(Resources->RuntimeResourceID != INDEX_NONE && Resources->HierarchyOffset != INDEX_NONE);
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
+	{
+		CreateDynamicRayTracingGeometries(RHICmdList);
+	}
+#endif
 }
 
 void FSceneProxy::OnEvaluateWorldPositionOffsetChanged_RenderThread()
@@ -1752,11 +1761,42 @@ void FSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& M
 		MeshBatch.bWireframe = false;
 		MeshBatch.SegmentIndex = SectionIndex;
 		MeshBatch.LODIndex = 0;
-#if RHI_RAYTRACING
 		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
-#endif
 		MeshBatch.Elements[0].PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
+}
+
+void FSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList)
+{
+	check(bNeedsDynamicRayTracingGeometries);
+	check(DynamicRayTracingGeometries.IsEmpty());
+
+	DynamicRayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
+
+	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
+	{
+		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry.Initializer;
+		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
+		{
+			Segment.VertexBuffer = nullptr;
+		}
+		Initializer.bAllowUpdate = true;
+		Initializer.bFastBuild = true;
+		Initializer.Type = ERayTracingGeometryInitializerType::Rendering;
+
+		DynamicRayTracingGeometries[LODIndex].SetInitializer(MoveTemp(Initializer));
+		DynamicRayTracingGeometries[LODIndex].InitResource(RHICmdList);
+	}
+}
+
+void FSceneProxy::ReleaseDynamicRayTracingGeometries()
+{
+	for (auto& Geometry : DynamicRayTracingGeometries)
+	{
+		Geometry.ReleaseResource();
+	}
+
+	DynamicRayTracingGeometries.Empty();
 }
 
 void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
@@ -1766,9 +1806,93 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 		return;
 	}
 
-	ensureMsgf(GetFirstValidRaytracingGeometryLODIndex() == INDEX_NONE,
-		TEXT("Unexpected valid raytracing geometry found. ")
-		TEXT("Cached raytracing instance should be updated after mesh is streamted in."));
+	if (GetRayTracingMode() != ERayTracingMode::Fallback)
+	{
+		// We don't currently support non-fallback dynamic instances
+		return;
+	}
+
+	// try and find the first valid RT geometry index
+	int32 ValidLODIndex = GetFirstValidRaytracingGeometryLODIndex();
+	if (ValidLODIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Setup a new instance
+	FRayTracingGeometry* DynamicGeometry = nullptr;
+	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+	const FStaticMeshLODResources& LODData = RenderData->LODResources[ValidLODIndex];
+	if (DynamicRayTracingGeometries.IsValidIndex(ValidLODIndex))
+	{
+		DynamicGeometry = &DynamicRayTracingGeometries[ValidLODIndex];
+		RayTracingInstance.Geometry = DynamicGeometry;
+	}
+	else
+	{
+		RayTracingInstance.Geometry = &LODData.RayTracingGeometry;
+	}
+
+	const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
+	const int32 InstanceCount = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 1;
+	
+	// NOTE: For now, only single-instance dynamic ray tracing is supported
+	checkf(
+		InstanceCount == 1,
+		TEXT("GetDynamicRayTracingInstances called for a Nanite scene proxy with multiple instances. ")
+		TEXT("This isn't currently supported.")
+	);
+	RayTracingInstance.InstanceTransformsView = MakeArrayView(&GetLocalToWorld(), 1);
+	RayTracingInstance.NumTransforms = 1;
+	
+	// When we are running with NaniteRT we need to force materials to come from LOD0.
+	// TODO: Figure out a better place to do it.
+	const int32 ValidLODIndexForMaterials = GetRayTracingMode() != ERayTracingMode::Fallback ? 0 : ValidLODIndex;
+	const int32 NumRayTracingMaterialEntries = RenderData->LODResources[ValidLODIndex].Sections.Num();
+
+	// Setup the cached materials again when the LOD changes
+	if (NumRayTracingMaterialEntries != CachedRayTracingMaterials.Num() || ValidLODIndex != CachedRayTracingMaterialsLODIndex)
+	{
+		CachedRayTracingMaterials.Reset();
+		CachedRayTracingMaterials.SetNum(NumRayTracingMaterialEntries);
+
+		SetupRayTracingMaterials(ValidLODIndex, CachedRayTracingMaterials, /* bUseNaniteVertexFactory */ false);
+		CachedRayTracingMaterialsLODIndex = ValidLODIndex;
+
+		// Request rebuild
+		CachedRayTracingInstanceMaskAndFlags.Mask = 0;
+	}
+
+	RayTracingInstance.MaterialsView = CachedRayTracingMaterials;
+
+	if (CachedRayTracingInstanceMaskAndFlags.Mask == 0)
+	{
+		CachedRayTracingInstanceMaskAndFlags = Context.BuildInstanceMaskAndFlags(RayTracingInstance, *this);
+	}
+	
+	// Skip computing the mask and flags in the renderer since we are using cached values.
+	RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
+	RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
+
+	if (!IsRayTracingStaticRelevant() && DynamicGeometry != nullptr)
+	{
+		// Use the shared vertex buffer - needs to be updated every frame
+		FRWBuffer* VertexBuffer = nullptr;
+
+		Context.DynamicRayTracingGeometriesToUpdate.Add(
+			FRayTracingDynamicGeometryUpdateParams
+			{
+				CachedRayTracingMaterials,
+				false,
+				(uint32)LODData.GetNumVertices(),
+				(uint32)LODData.GetNumVertices() * (uint32)sizeof(FVector3f),
+				DynamicGeometry->Initializer.TotalPrimitiveCount,
+				DynamicGeometry,
+				VertexBuffer,
+				true
+			}
+		);
+	}
 }
 
 ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& RayTracingInstance)

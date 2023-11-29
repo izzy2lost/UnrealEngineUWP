@@ -7,6 +7,7 @@
 #include "PrimitiveViewRelevance.h"
 #include "Rendering/NaniteResources.h"
 #include "RayTracingInstance.h"
+#include "RayTracingGeometry.h"
 #include "LocalVertexFactory.h"
 
 struct FPerInstanceRenderData;
@@ -433,7 +434,7 @@ protected:
 
 #if RHI_RAYTRACING
 	ENGINE_API int32 GetFirstValidRaytracingGeometryLODIndex() const;
-	ENGINE_API void SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const;
+	ENGINE_API virtual void SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const;
 #endif // RHI_RAYTRACING
 
 #if NANITE_ENABLE_DEBUG_RENDERING
@@ -470,12 +471,16 @@ protected:
 	int32 ClampedMinLOD;
 
 #if RHI_RAYTRACING
-	bool bHasRayTracingInstances = false;
+	ENGINE_API void CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdList);
+	ENGINE_API void ReleaseDynamicRayTracingGeometries();
+
+	TArray<FRayTracingGeometry, TInlineAllocator<MAX_MESH_LOD_COUNT>> DynamicRayTracingGeometries;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle = INDEX_NONE;
-	int16 CachedRayTracingMaterialsLODIndex = INDEX_NONE;
-	TArray<FMatrix> CachedRayTracingInstanceTransforms;
-	TArray<FMeshBatch> CachedRayTracingMaterials;	
+	TArray<FMeshBatch> CachedRayTracingMaterials;
 	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
+	int16 CachedRayTracingMaterialsLODIndex = INDEX_NONE;
+	bool bHasRayTracingInstances : 1 = false;
+	bool bNeedsDynamicRayTracingGeometries : 1 = false;
 #endif
 
 	TSharedPtr<FInstanceDataSceneProxy, ESPMode::ThreadSafe> InstanceDataSceneProxy; 

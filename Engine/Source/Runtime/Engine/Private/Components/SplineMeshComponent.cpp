@@ -22,6 +22,7 @@
 #include "UObject/UnrealType.h"
 #include "Materials/Material.h"
 #include "ComponentRecreateRenderStateContext.h"
+#include "Engine/World.h"
 
 #if WITH_EDITOR
 #include "IHierarchicalLODUtilities.h"
@@ -271,58 +272,6 @@ void InitSplineMeshVertexFactoryComponents(
 }
 
 //////////////////////////////////////////////////////////////////////////
-// SplineMeshSceneProxy
-
-void FSplineMeshSceneProxy::InitVertexFactory(USplineMeshComponent* InComponent, int32 InLODIndex, FColorVertexBuffer* InOverrideColorVertexBuffer)
-{
-	if (InComponent == nullptr || InComponent->GetStaticMesh() == nullptr)
-	{
-		return;
-	}
-
-	FStaticMeshLODResources* RenderData2 = &InComponent->GetStaticMesh()->GetRenderData()->LODResources[InLODIndex];
-	FStaticMeshVertexFactories* VertexFactories = &InComponent->GetStaticMesh()->GetRenderData()->LODVertexFactories[InLODIndex];
-
-	// Skip LODs that have their render data stripped (eg. platform MinLod settings)
-	if (RenderData2->VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() == 0)
-	{
-		return;
-	}
-
-	const UStaticMesh* Parent = InComponent->GetStaticMesh();
-	bool bOverrideColorVertexBuffer = !!InOverrideColorVertexBuffer;
-	const ERHIFeatureLevel::Type FeatureLevel = GetScene().GetFeatureLevel();
-
-	if ((VertexFactories->SplineVertexFactory && !bOverrideColorVertexBuffer) || (VertexFactories->SplineVertexFactoryOverrideColorVertexBuffer && bOverrideColorVertexBuffer))
-	{
-		// we already have it
-		return;
-	}
-
-	FSplineMeshVertexFactory* VertexFactory = new FSplineMeshVertexFactory(FeatureLevel);
-	if (bOverrideColorVertexBuffer)
-	{
-		VertexFactories->SplineVertexFactoryOverrideColorVertexBuffer = VertexFactory;
-	}
-	else
-	{
-		VertexFactories->SplineVertexFactory = VertexFactory;
-	}
-
-	int32 LightMapCoordinateIndex = Parent->GetLightMapCoordinateIndex();
-	// Initialize the static mesh's vertex factory.
-	ENQUEUE_RENDER_COMMAND(InitSplineMeshVertexFactory)(
-		[VertexFactory, RenderData2, bOverrideColorVertexBuffer, LightMapCoordinateIndex](FRHICommandListBase& RHICmdList)
-	{
-		FLocalVertexFactory::FDataType Data;
-		InitSplineMeshVertexFactoryComponents(RenderData2->VertexBuffers, VertexFactory, LightMapCoordinateIndex, bOverrideColorVertexBuffer, Data);
-		VertexFactory->SetData(RHICmdList, Data);
-		VertexFactory->InitResource(RHICmdList);
-	});
-}
-
-
-//////////////////////////////////////////////////////////////////////////
 // SplineMeshComponent
 
 USplineMeshComponent::USplineMeshComponent(const FObjectInitializer& ObjectInitializer)
@@ -350,6 +299,54 @@ USplineMeshComponent::USplineMeshComponent(const FObjectInitializer& ObjectIniti
 	SplineBoundaryMax = 0;
 
 	bMeshDirty = false;
+}
+
+void USplineMeshComponent::InitVertexFactory(int32 InLODIndex, FColorVertexBuffer* InOverrideColorVertexBuffer)
+{
+	UStaticMesh* Mesh = GetStaticMesh();
+	if (Mesh == nullptr)
+	{
+		return;
+	}
+
+	FStaticMeshLODResources& LODRenderData = Mesh->GetRenderData()->LODResources[InLODIndex];
+	FStaticMeshVertexFactories& VertexFactories = Mesh->GetRenderData()->LODVertexFactories[InLODIndex];
+
+	// Skip LODs that have their render data stripped (eg. platform MinLod settings)
+	if (LODRenderData.VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() == 0)
+	{
+		return;
+	}
+
+	bool bOverrideColorVertexBuffer = !!InOverrideColorVertexBuffer;
+	const ERHIFeatureLevel::Type FeatureLevel = GetWorld()->GetFeatureLevel();
+
+	if ((VertexFactories.SplineVertexFactory && !bOverrideColorVertexBuffer) || (VertexFactories.SplineVertexFactoryOverrideColorVertexBuffer && bOverrideColorVertexBuffer))
+	{
+		// we already have it
+		return;
+	}
+
+	FSplineMeshVertexFactory* VertexFactory = new FSplineMeshVertexFactory(FeatureLevel);
+	if (bOverrideColorVertexBuffer)
+	{
+		VertexFactories.SplineVertexFactoryOverrideColorVertexBuffer = VertexFactory;
+	}
+	else
+	{
+		VertexFactories.SplineVertexFactory = VertexFactory;
+	}
+
+	int32 LightMapCoordinateIndex = Mesh->GetLightMapCoordinateIndex();
+	// Initialize the static mesh's vertex factory.
+	ENQUEUE_RENDER_COMMAND(InitSplineMeshVertexFactory)(
+		[VertexFactory, &LODRenderData, bOverrideColorVertexBuffer, LightMapCoordinateIndex](FRHICommandListBase& RHICmdList)
+	{
+		FLocalVertexFactory::FDataType Data;
+		InitSplineMeshVertexFactoryComponents(LODRenderData.VertexBuffers, VertexFactory, LightMapCoordinateIndex, bOverrideColorVertexBuffer, Data);
+		VertexFactory->SetData(RHICmdList, Data);
+		VertexFactory->InitResource(RHICmdList);
+	});
 }
 
 FVector USplineMeshComponent::GetStartPosition() const

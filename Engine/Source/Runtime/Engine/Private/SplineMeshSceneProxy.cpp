@@ -112,10 +112,10 @@ FSplineMeshSceneProxy::FSplineMeshSceneProxy(USplineMeshComponent* InComponent) 
 
 	for (int32 LODIndex = 0; LODIndex < LODs.Num(); LODIndex++)
 	{
-		InitVertexFactory(InComponent, LODIndex, nullptr); // we always need this one for shadows etc
+		InComponent->InitVertexFactory(LODIndex, nullptr); // we always need this one for shadows etc
 		if (InComponent->LODData.IsValidIndex(LODIndex) && InComponent->LODData[LODIndex].OverrideVertexColors)
 		{
-			InitVertexFactory(InComponent, LODIndex, InComponent->LODData[LODIndex].OverrideVertexColors);
+			InComponent->InitVertexFactory(LODIndex, InComponent->LODData[LODIndex].OverrideVertexColors);
 		}
 	}
 }
@@ -327,6 +327,23 @@ FNaniteSplineMeshSceneProxy::FNaniteSplineMeshSceneProxy(const Nanite::FMaterial
 	SplineParams = InComponent->CalculateShaderParams();
 	SplineMeshInstanceData.Setup(SplineParams);
 	SetupInstanceSceneDataBuffers(&SplineMeshInstanceData);
+
+#if RHI_RAYTRACING
+	bNeedsDynamicRayTracingGeometries = true;
+
+	// We only need to init vertex factories for Nanite spline meshes if they can be ray traced
+	if (IsRayTracingAllowed())
+	{
+		for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
+		{
+			InComponent->InitVertexFactory(LODIndex, nullptr); // we always need this one for shadows etc
+			if (InComponent->LODData.IsValidIndex(LODIndex) && InComponent->LODData[LODIndex].OverrideVertexColors)
+			{
+				InComponent->InitVertexFactory(LODIndex, InComponent->LODData[LODIndex].OverrideVertexColors);
+			}
+		}
+	}
+#endif
 }
 
 SIZE_T FNaniteSplineMeshSceneProxy::GetTypeHash() const
@@ -343,6 +360,31 @@ void FNaniteSplineMeshSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmd
 	// NOTE: The proxy's local bounds have already been padded for WPO/Displacement
 	SplineMeshInstanceData.UpdateDefaultInstance(GetLocalToWorld(), GetLocalBounds());
 }
+
+#if RHI_RAYTRACING
+
+ERayTracingPrimitiveFlags FNaniteSplineMeshSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& OutRayTracingInstance)
+{
+	// Skip Nanite implementation and return to default implementation
+	return FPrimitiveSceneProxy::GetCachedRayTracingInstance(OutRayTracingInstance);
+}
+
+void FNaniteSplineMeshSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const
+{
+	Nanite::FSceneProxy::SetupRayTracingMaterials(LODIndex, Materials, bUseNaniteVertexFactory);
+
+	// set up the vertex factories
+	const FStaticMeshVertexFactories& VFs = RenderData->LODVertexFactories[LODIndex];
+	for (auto& MeshBatch : Materials)
+	{
+		MeshBatch.VertexFactory = MeshBatch.Elements[0].bUserDataIsColorVertexBuffer ? VFs.SplineVertexFactoryOverrideColorVertexBuffer : VFs.SplineVertexFactory;
+		check(MeshBatch.VertexFactory);
+		MeshBatch.ReverseCulling ^= (SplineParams.StartScale.X < 0) ^ (SplineParams.StartScale.Y < 0);
+	}
+}
+
+#endif // RHI_RAYTRACING
+
 
 void UpdateSplineMeshParams_RenderThread(FPrimitiveSceneProxy* SceneProxy, const FSplineMeshShaderParams& Params)
 {
