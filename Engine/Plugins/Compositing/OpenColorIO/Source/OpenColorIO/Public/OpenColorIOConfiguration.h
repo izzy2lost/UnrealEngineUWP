@@ -66,8 +66,17 @@ public:
 	*/
 	void ConfigPathChangedEvent(const TArray<FFileChangeData>& InFileChanges, const FString InFileMountPath);
 
-	/** Internal only: Replacement for previous `GetNativeConfig_Internal()`, `GetLoadedConfiguration()` and `GetLoadedConfigurationFile()` functions, returning the private implementation of the native OCIO config. */
+	/** 
+	 * Get the private wrapper implementation of the OCIO config.
+	 * Meant for internal use only, caller must have OpenColorIOWrapper module linked.
+	 */
 	FOpenColorIOWrapperConfig* GetConfigWrapper() const;
+
+	/**
+	 * Get or create the private wrapper implementation of the OCIO config.
+	 * Meant for internal use only, caller must have OpenColorIOWrapper module linked.
+	 */
+	FOpenColorIOWrapperConfig* GetOrCreateConfigWrapper();
 	
 	/** Find the color transform object that corresponds to the specified settings, nullptr if not found. */
 	TObjectPtr<const UOpenColorIOColorTransform> FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const;
@@ -105,9 +114,11 @@ public:
 	//~ End UObject interface
 
 private:
-#if WITH_EDITOR
+
+	/** Load the config file to initialize the configuration wrapper object. Automatically called internally. */
 	void LoadConfiguration();
 
+#if WITH_EDITOR
 	/** This method resets the status of Notification dialog and reacts depending on user's choice. */
 	void OnToastCallback(bool bInReloadColorspaces);
 #endif
@@ -144,10 +155,10 @@ private:
 	/** Information about the currently watched directory. Helps us manage the directory change events. */
 	FOCIOConfigWatchedDirInfo WatchedDirectoryInfo;
 
-#if WITH_EDITORONLY_DATA
 	/** Private implementation of the OpenColorIO config object. */
 	TPimplPtr<FOpenColorIOWrapperConfig> Config = nullptr;
 
+#if WITH_EDITORONLY_DATA
 	/** Hash of all of the config content, including relevant external file information. */
 	UPROPERTY()
 	FString ConfigHash;

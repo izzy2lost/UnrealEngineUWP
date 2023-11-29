@@ -13,6 +13,7 @@
 #include "OpenColorIOColorTransform.h"
 #include "OpenColorIOModule.h"
 #include "OpenColorIOSettings.h"
+#include "OpenColorIOWrapper.h"
 #include "TextureResource.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -22,9 +23,7 @@
 
 #define LOCTEXT_NAMESPACE "OCIOConfiguration"
 
-
 #if WITH_EDITOR
-#include "OpenColorIOWrapper.h"
 #include "DerivedDataCacheInterface.h"
 #include "DirectoryWatcherModule.h"
 #include "IDirectoryWatcher.h"
@@ -349,7 +348,21 @@ void UOpenColorIOConfiguration::ConfigPathChangedEvent(const TArray<FFileChangeD
 
 FOpenColorIOWrapperConfig* UOpenColorIOConfiguration::GetConfigWrapper() const
 {
-#if WITH_EDITOR
+#if WITH_OCIO
+	return Config.Get();
+#else
+	return nullptr;
+#endif
+}
+
+FOpenColorIOWrapperConfig* UOpenColorIOConfiguration::GetOrCreateConfigWrapper()
+{
+#if WITH_OCIO
+	if (!Config.IsValid())
+	{
+		LoadConfiguration();
+	}
+
 	return Config.Get();
 #else
 	return nullptr;
@@ -589,6 +602,59 @@ void UOpenColorIOConfiguration::PreSave(FObjectPreSaveContext SaveContext)
 	OpenColorIOConfiguration::SendAnalytics(TEXT("Usage.OpenColorIO.ConfigAssetSaved"), DesiredColorSpaces);
 }
 
+void UOpenColorIOConfiguration::LoadConfiguration()
+{
+	// NOTE: We loosen the editor-only restriction on this method for use
+	// by clients that already link the wrapper library in non-editor modes.
+	// Further release of such restrictions within this plugin is intended,
+	// though all the internal callers of this method remain WITH_EDITOR for now.
+#if WITH_OCIO
+	Config.Reset();
+
+	if (ConfigurationFile.FilePath.IsEmpty())
+	{
+		return;
+	}
+
+	bool bIsBuiltIn = false;
+	FString FilePath = ConfigurationFile.FilePath;
+
+	if (ConfigurationFile.FilePath.StartsWith(TEXT("ocio://")))
+	{
+		bIsBuiltIn = true;
+	}
+	else if (ConfigurationFile.FilePath.Equals(TEXT("$OCIO")) || ConfigurationFile.FilePath.Equals(TEXT("%OCIO%")))
+	{
+		FilePath = FPlatformMisc::GetEnvironmentVariable(TEXT("OCIO"));
+	}
+	else if (ConfigurationFile.FilePath.Contains(TEXT("{Engine}")))
+	{
+		FilePath = FPaths::ConvertRelativePathToFull(ConfigurationFile.FilePath.Replace(TEXT("{Engine}"), *FPaths::EngineDir()));
+	}
+	else if (FPaths::IsRelative(ConfigurationFile.FilePath))
+	{
+		const FString AbsoluteGameDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		FilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(AbsoluteGameDir, ConfigurationFile.FilePath));
+	}
+
+	Config = MakePimpl<FOpenColorIOWrapperConfig>(FilePath, FOpenColorIOWrapperConfig::WCS_AsInterchangeSpace);
+
+	if (Config->IsValid())
+	{
+		if (!bIsBuiltIn)
+		{
+			StartDirectoryWatch(FilePath);
+		}
+
+		UE_LOG(LogOpenColorIO, Verbose, TEXT("Loaded OCIO configuration file %s"), *FilePath);
+	}
+	else
+	{
+		UE_LOG(LogOpenColorIO, Error, TEXT("Could not load OCIO configuration file %s. Verify that the path is good or that the file is valid."), *FilePath);
+	}
+#endif
+}
+
 
 #if WITH_EDITOR
 
@@ -658,53 +724,6 @@ void UOpenColorIOConfiguration::PostEditChangeProperty(FPropertyChangedEvent& Pr
 		}
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-
-void UOpenColorIOConfiguration::LoadConfiguration()
-{
-	Config.Reset();
-
-	if (ConfigurationFile.FilePath.IsEmpty())
-	{
-		return;
-	}
-
-	bool bIsBuiltIn = false;
-	FString FilePath = ConfigurationFile.FilePath;
-
-	if (ConfigurationFile.FilePath.StartsWith(TEXT("ocio://")))
-	{
-		bIsBuiltIn = true;
-	}
-	else if (ConfigurationFile.FilePath.Equals(TEXT("$OCIO")) || ConfigurationFile.FilePath.Equals(TEXT("%OCIO%")))
-	{
-		FilePath = FPlatformMisc::GetEnvironmentVariable(TEXT("OCIO"));
-	}
-	else if(ConfigurationFile.FilePath.Contains(TEXT("{Engine}")))
-	{
-		FilePath = FPaths::ConvertRelativePathToFull(ConfigurationFile.FilePath.Replace(TEXT("{Engine}"), *FPaths::EngineDir()));
-	}
-	else if (FPaths::IsRelative(ConfigurationFile.FilePath))
-	{
-		const FString AbsoluteGameDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-		FilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(AbsoluteGameDir, ConfigurationFile.FilePath));
-	}
-
-	Config = MakePimpl<FOpenColorIOWrapperConfig>(FilePath, FOpenColorIOWrapperConfig::WCS_AsInterchangeSpace);
-
-	if (Config->IsValid())
-	{
-		if (!bIsBuiltIn)
-		{
-			StartDirectoryWatch(FilePath);
-		}
-
-		UE_LOG(LogOpenColorIO, Verbose, TEXT("Loaded OCIO configuration file %s"), *FilePath);
-	}
-	else
-	{
-		UE_LOG(LogOpenColorIO, Error, TEXT("Could not load OCIO configuration file %s. Verify that the path is good or that the file is valid."), *FilePath);
-	}
 }
 
 void UOpenColorIOConfiguration::OnToastCallback(bool bInReloadColorspaces)
