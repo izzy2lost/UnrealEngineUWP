@@ -63,7 +63,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LightSceneId, SampleCoord);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
 		const float LightSampleRayMinT = LightSampleRayDistance[SampleCoord];
 
 		FRayDesc Ray = (FRayDesc)0;
@@ -132,11 +132,13 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		#if DEBUG_MODE
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
-			FLightSceneData LightSceneData = GetLightSceneData(LightSample.LightSceneId);
+			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
+			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
 
 			float3 RayStart = Ray.Origin + Ray.Direction * Ray.TMin;
 			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);
-			float4 RayColor = float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f);
+			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
 			AddLineTWS(Context, RayStart, RayEnd, RayColor);
 		}

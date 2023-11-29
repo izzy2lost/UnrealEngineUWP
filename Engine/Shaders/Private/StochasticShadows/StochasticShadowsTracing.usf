@@ -115,7 +115,7 @@ void CompactLightSampleTracesCS(
 		// #sdl_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
-		if (LightSample.LightSceneId != INVALID_LIGHT_SCENE_ID && !LightSample.bCompleted)
+		if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX && !LightSample.bCompleted)
 		{
 			#if WAVE_OPS
 			{
@@ -228,7 +228,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LightSceneId, SampleCoord);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
 
 		#if DEBUG_MODE
 			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
@@ -298,11 +298,13 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		#if DEBUG_MODE
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
-			FLightSceneData LightSceneData = GetLightSceneData(LightSample.LightSceneId);
+			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
+			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
 
 			float3 RayStart = TranslatedWorldPosition;
 			float3 RayEnd = TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT);
-			float4 RayColor = float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f);
+			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
 			AddLineTWS(Context, RayStart, RayEnd, RayColor, 1.0f);
 			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
@@ -333,7 +335,7 @@ void SoftwareRayTraceLightSamplesCS(
 
 		FLightSample LightSample = UnpackLightSample(RWLightSamples[SampleCoord]);
 		const float LightSampleRayMinT = LightSampleRayDistance[SampleCoord];
-		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LightSceneId, SampleCoord);
+		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
 
 		FGlobalSDFTraceInput TraceInput = SetupGlobalSDFTraceInput(TranslatedWorldPosition, LightSampleTrace.Direction, LightSampleRayMinT, LightSampleTrace.Distance, 1.0f, 1.0f);
 

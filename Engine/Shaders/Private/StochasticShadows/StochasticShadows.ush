@@ -16,9 +16,9 @@
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
 // Limited by PackLightSample
-#define LIGHT_SCENE_ID_BITS			(14)
-#define LIGHT_SCENE_ID_MASK			((1 << LIGHT_SCENE_ID_BITS) - 1)
-#define INVALID_LIGHT_SCENE_ID		(LIGHT_SCENE_ID_MASK)
+#define LOCAL_LIGHT_INDEX_BITS		(14)
+#define LOCAL_LIGHT_INDEX_MASK		((1 << LOCAL_LIGHT_INDEX_BITS) - 1)
+#define INVALID_LOCAL_LIGHT_INDEX	(LOCAL_LIGHT_INDEX_MASK)
 
 #define TILE_SIZE						8
 #define SHADOW_MASK_TILE_SIZE			8
@@ -27,9 +27,10 @@
 #define MAX_SHADOW_MASK_HISTORY_LENGTH	7
 
 // Keep in sync with StochasticShadows.cpp
-#define MAX_LIGHT_SCENE_ID_XY		16
-#define MAX_LIGHT_SCENE_ID			(MAX_LIGHT_SCENE_ID_XY * MAX_LIGHT_SCENE_ID_XY)
-#define LIGHT_SCENE_ID_MASK_SIZE	(MAX_LIGHT_SCENE_ID / 32)
+#define MAX_LOCAL_LIGHT_INDEX_XY	16
+#define MAX_LOCAL_LIGHT_INDEX		(MAX_LOCAL_LIGHT_INDEX_XY * MAX_LOCAL_LIGHT_INDEX_XY)
+
+#define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
 #define SHADOW_MASK_ATLAS_SIZE_IN_TILES 512
 #define DOWNSAMPLE_FACTOR				2
@@ -88,8 +89,8 @@ uint2 ShadowMaskPageTablePerLightSize;
 uint2 GetShadowMaskPageTableCoord(uint LightIndex, uint2 ShadowMaskScreenCoord)
 {
 	uint2 LightOffset;
-	LightOffset.x = (LightIndex % MAX_LIGHT_SCENE_ID_XY) * ShadowMaskPageTablePerLightSize.x;
-	LightOffset.y = (LightIndex / MAX_LIGHT_SCENE_ID_XY) * ShadowMaskPageTablePerLightSize.y;
+	LightOffset.x = (LightIndex % MAX_LOCAL_LIGHT_INDEX_XY) * ShadowMaskPageTablePerLightSize.x;
+	LightOffset.y = (LightIndex / MAX_LOCAL_LIGHT_INDEX_XY) * ShadowMaskPageTablePerLightSize.y;
 
 	uint2 TileCoord = ShadowMaskScreenCoord / SHADOW_MASK_TILE_SIZE;
 
@@ -199,14 +200,14 @@ FShadowMaskAccumulator InitShadowMaskAccumulator()
 
 struct FLightSample
 {
-	uint LightSceneId;
+	uint LocalLightIndex;
 	bool bVisible;
 	bool bCompleted; // Whether tracing was completed
 };
 
 uint PackLightSample(FLightSample LightSample)
 {
-	uint PackedLightSample = LightSample.LightSceneId & LIGHT_SCENE_ID_MASK;
+	uint PackedLightSample = LightSample.LocalLightIndex & LOCAL_LIGHT_INDEX_MASK;
 	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
 	return PackedLightSample;
@@ -215,7 +216,7 @@ uint PackLightSample(FLightSample LightSample)
 FLightSample UnpackLightSample(uint PackedLightSample)
 {
 	FLightSample LightSample;
-	LightSample.LightSceneId = PackedLightSample & LIGHT_SCENE_ID_MASK;
+	LightSample.LocalLightIndex = PackedLightSample & LOCAL_LIGHT_INDEX_MASK;
 	LightSample.bVisible = PackedLightSample & 0x8000 ? true : false;
 	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
 	return LightSample;
@@ -251,43 +252,30 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	return ScreenUV;
 }
 
-uint2 PackShadowMaskTile(uint LightSceneId, uint LocalLightIndex, uint2 ShadowMaskScreenCoord)
+uint2 PackShadowMaskTile(uint LocalLightIndex, uint2 ShadowMaskScreenCoord)
 {
 	ShadowMaskScreenCoord /= SHADOW_MASK_TILE_SIZE;
 
-	checkSlow(LightSceneId <= LIGHT_SCENE_ID_MASK);
-	checkSlow(LocalLightIndex <= (0xFFFFFFFF >> MAX_LIGHT_SCENE_ID));
-
 	uint2 PackedTile;
-	PackedTile.x = (LightSceneId & LIGHT_SCENE_ID_MASK) | (LocalLightIndex << LIGHT_SCENE_ID_BITS);
+	PackedTile.x = LocalLightIndex;
 	PackedTile.y = (ShadowMaskScreenCoord.x & 0xFFFF) | ((ShadowMaskScreenCoord.y & 0xFFFF) << 16);
 	return PackedTile;
 }
 
-void UnpackShadowMaskTile(uint2 PackedTile, out uint LightSceneId, out uint LocalLightIndex, out uint2 ShadowMaskScreenCoord)
+void UnpackShadowMaskTile(uint2 PackedTile, out uint LocalLightIndex, out uint2 ShadowMaskScreenCoord)
 {
-	LightSceneId = PackedTile.x & LIGHT_SCENE_ID_MASK;
-	LocalLightIndex = PackedTile.x >> LIGHT_SCENE_ID_BITS;
+	LocalLightIndex = PackedTile.x;
 	ShadowMaskScreenCoord.x = PackedTile.y & 0xFFFF;
 	ShadowMaskScreenCoord.y = PackedTile.y >> 16;
 
 	ShadowMaskScreenCoord *= SHADOW_MASK_TILE_SIZE;
 }
 
-/**
- * Map shadow mask tile to a page table hash map entry.
- */
-uint GetShadowMaskPageTableKey(uint LightSceneId, uint2 PageTableCoord)
-{
-	uint HashedKey = MurmurMix(MurmurAdd(LightSceneId, MurmurAdd(PageTableCoord.x, PageTableCoord.y)));
-	return HashedKey;
-}
-
 Texture2D<uint> ShadowMaskPageTableHistory;
 Texture2D<uint> ShadowMaskAtlasHistory;
 int2 ShadowMaskViewSize;
 
-void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
+void AccumulateHistoryShadowMask(uint PrevLocalLightIndex, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
 {
 	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize) && Weight > 0.01f)
 	{
@@ -317,13 +305,13 @@ void AccumulateHistoryShadowMask(uint LightSceneId, uint PrevLocalLightIndex, ui
 
 struct FShadingTile
 {
-	uint LightSceneId;
+	uint LocalLightIndex;
 	uint ShadingTileIndex;
 };
 
-uint PackShadingTile(uint LightSceneId, uint ShadingTileIndex)
+uint PackShadingTile(uint LocalLightIndex, uint ShadingTileIndex)
 {
-	uint PackedShadingTile = LightSceneId & 0xFFF;
+	uint PackedShadingTile = LocalLightIndex & 0xFFF;
 	PackedShadingTile |= ShadingTileIndex << 12;
 	return PackedShadingTile;
 }
@@ -331,7 +319,7 @@ uint PackShadingTile(uint LightSceneId, uint ShadingTileIndex)
 FShadingTile UnpackShadingTile(uint PackedShadingTile)
 {
 	FShadingTile ShadingTile;
-	ShadingTile.LightSceneId = PackedShadingTile & 0xFFF;
+	ShadingTile.LocalLightIndex = PackedShadingTile & 0xFFF;
 	ShadingTile.ShadingTileIndex = PackedShadingTile >> 12;
 	return ShadingTile;
 }

@@ -33,13 +33,13 @@ groupshared uint SharedShadingTileIndex[2][2];
 uint GetLitBitMask(uint2 ShadingTileCoord)
 {
 	const uint BitOffset = (ShadingTileCoord.x + ShadingTileCoord.y * 2);
-	return 0x1 << BitOffset;
+	return 0x1u << BitOffset;
 }
 
 uint GetShadowedBitMask(uint2 ShadingTileCoord)
 {
 	const uint BitOffset = (ShadingTileCoord.x + ShadingTileCoord.y * 2);
-	return 0x10 << BitOffset;
+	return 0x10u << BitOffset;
 }
 
 void SetSharedShadingTileMask(uint2 ShadingTileCoord, FShadowMask ShadowMask)
@@ -90,10 +90,9 @@ void ShadowMaskSpatialPassCS(
 	uint ShadowMaskTileIndex = GroupId.x;
 	uint2 LocalShadowMaskTileCoord = GroupThreadId.xy;
 
-	uint LightSceneId;
 	uint LocalLightIndex;
 	uint2 BaseShadowMaskScreenCoord;	
-	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, LocalLightIndex, BaseShadowMaskScreenCoord);
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LocalLightIndex, BaseShadowMaskScreenCoord);
 
 	if (all(GroupThreadId == 0))
 	{
@@ -268,7 +267,7 @@ void ShadowMaskSpatialPassCS(
 
 					if (ShadingTileIndexInCell < MaxShadingTilesPerGridCell)
 					{
-						RWShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, ShadingTileIndexInCell)] = PackShadingTile(LightSceneId, ShadingTileIndex);
+						RWShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, ShadingTileIndexInCell)] = PackShadingTile(LocalLightIndex, ShadingTileIndex);
 						SharedShadingTileIndex[ShadingTileOffset.x][ShadingTileOffset.y] = ShadingTileIndex;
 					}
 				}

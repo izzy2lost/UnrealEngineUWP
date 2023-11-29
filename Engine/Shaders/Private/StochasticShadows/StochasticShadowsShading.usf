@@ -92,7 +92,9 @@ void ShadeLightSamplesCS(
 				{
 					const uint PackedShadingTile = ShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, IndexInCell)];
 					const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
-					FDeferredLightData LightData = ConvertToDeferredLight(GetLightSceneData(ShadingTile.LightSceneId));
+					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(ShadingTile.LocalLightIndex);
+					const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+					FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
 
 					float ShadowFactor = 1.0f; // Initialize as unshadowed as tiles with index >= MaxShadingTiles are treated as fully unshadowed.
 
@@ -107,7 +109,7 @@ void ShadeLightSamplesCS(
 					if (bDebug)
 					{
 						Newline(Context);
-						Print(Context, ShadingTile.LightSceneId);
+						Print(Context, LocalLightData.LightSceneId);
 						Print(Context, ShadowFactor);
 					}
 					#endif

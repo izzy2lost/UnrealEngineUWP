@@ -5,6 +5,7 @@
 #include "../RayTracing/RayTracingCapsuleLight.ush"
 #include "../RayTracing/RayTracingSphereLight.ush"
 #include "../RayTracing/RayTracingRectLight.ush"
+#include "../LightGridCommon.ush"
 
 uint2 NumSamplesPerPixelDivideShift;
 
@@ -81,7 +82,7 @@ struct FLightSampleTrace
 /**
  * Compute shadow ray direction and distance for a given reservoir.
  */
-FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LightSceneId, uint2 SampleCoord)
+FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord)
 {
 	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, StochasticShadowsStateFrameIndex);
 
@@ -89,11 +90,12 @@ FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint Light
 	LightSampleTrace.Direction = 0.0f;
 	LightSampleTrace.Distance = 0.0f;
 
-	if (LightSceneId != INVALID_LIGHT_SCENE_ID)
+	if (LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX)
 	{
-		FLightSceneData LightSceneData = GetLightSceneData(LightSceneId);
-		FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
-		FLightShaderParameters LightParameters = ConvertToLightShaderParameters(LightSceneData);
+		const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+		const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+		const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+		const FLightShaderParameters LightParameters = ConvertToLightShaderParameters(LightSceneData);
 
 		float3 Unused;
 		float Unused2;

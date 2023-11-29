@@ -13,6 +13,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneTextureUniformParameters, SceneTexturesStruct)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 	SHADER_PARAMETER(FIntPoint, SampleViewSize)
 	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
@@ -54,4 +55,6 @@ namespace StochasticShadows
 	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
 	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	int32 GetDebugMode();
+
+	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment);
 };

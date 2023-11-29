@@ -104,28 +104,25 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 Texture2D<float> ShadowMaskSceneDepthHistory;
 
-groupshared uint SharedLightMask[LIGHT_SCENE_ID_MASK_SIZE];
+groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
 
 #if CANDIDATE_LIGHT_MASK
-	groupshared uint SharedCandidateLightMask[LIGHT_SCENE_ID_MASK_SIZE];
+	groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
 #endif
 
-/** 
- * Adds LightSceneId to the linear probing hash table in groupshared memory in order build a compacted list of unique light ids.
- */
-void MarkLightSceneId(uint LightSceneId)
+void MarkLocalLightIndex(uint LocalLightIndex)
 {
 	// Re-distribute nearby ids to different bytes in order to balance gather workload
-	uint DWORDIndex = LightSceneId % LIGHT_SCENE_ID_MASK_SIZE;
-	uint BitMask = 1u << (LightSceneId / LIGHT_SCENE_ID_MASK_SIZE);
+	uint DWORDIndex = LocalLightIndex % SHARED_LIGHT_MASK_SIZE;
+	uint BitMask = 1u << (LocalLightIndex / SHARED_LIGHT_MASK_SIZE);
 	InterlockedOr(SharedLightMask[DWORDIndex], BitMask);
 }
 
-void WriteShadowMaskTileToPageTable(uint LightSceneId, uint LocalLightIndex, uint2 ShadowMaskScreenCoord, uint ShadowMaskTileIndex)
+void WriteShadowMaskTileToPageTable(uint LocalLightIndex, uint2 ShadowMaskScreenCoord, uint ShadowMaskTileIndex)
 {
 	uint2 ShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LocalLightIndex, ShadowMaskScreenCoord);
 
-	RWShadowMaskTileData[ShadowMaskTileIndex] = PackShadowMaskTile(LightSceneId, LocalLightIndex, ShadowMaskScreenCoord);
+	RWShadowMaskTileData[ShadowMaskTileIndex] = PackShadowMaskTile(LocalLightIndex, ShadowMaskScreenCoord);
 
 	RWShadowMaskPageTable[ShadowMaskPageTableCoord] = ShadowMaskTileIndex;
 }
@@ -146,13 +143,13 @@ void GenerateSamplesCS(
 {
 	uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
-	if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
+	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 	{
 		SharedLightMask[LinearThreadIndex] = 0;
 	}
 
 #if CANDIDATE_LIGHT_MASK
-	if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
+	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 	{
 		SharedCandidateLightMask[LinearThreadIndex] = 0;
 	}
@@ -186,7 +183,7 @@ void GenerateSamplesCS(
 				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 
-				if (LocalLightData.bStochasticShadowsSupported && LocalLightIndex < MAX_LIGHT_SCENE_ID)
+				if (LocalLightData.bStochasticShadowsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
@@ -211,7 +208,7 @@ void GenerateSamplesCS(
 			uint SelectedLights[NUM_SAMPLES_PER_PIXEL_1D];
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
-				SelectedLights[LightSampleIndex] = INVALID_LIGHT_SCENE_ID;
+				SelectedLights[LightSampleIndex] = INVALID_LOCAL_LIGHT_INDEX;
 			}
 
 			const uint2 LightSampleOffsets[4] = 
@@ -308,7 +305,7 @@ void GenerateSamplesCS(
 					Print(Context, TEXT("NumLightsInGridCell: "));
 					Print(Context, NumLightsInGridCell);
 					Print(Context, TEXT("NumLocalLights: "));
-					if (NumLocalLights <= MAX_LIGHT_SCENE_ID)
+					if (NumLocalLights <= MAX_LOCAL_LIGHT_INDEX)
 					{
 						Print(Context, NumLocalLights);
 					}
@@ -328,7 +325,7 @@ void GenerateSamplesCS(
 				float Xi[NUM_SAMPLES_PER_PIXEL_1D] = LightIndexRandom;
 
 	#if CANDIDATE_LIGHT_MASK
-				for (uint MaskIndex = 0; MaskIndex < LIGHT_SCENE_ID_MASK_SIZE; ++MaskIndex)
+				for (uint MaskIndex = 0; MaskIndex < SHARED_LIGHT_MASK_SIZE; ++MaskIndex)
 				{
 					uint CandidateLightMask = SharedCandidateLightMask[MaskIndex];
 					while (CandidateLightMask != 0)
@@ -339,8 +336,8 @@ void GenerateSamplesCS(
 
 						const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-						const uint LightSceneId = LocalLightData.LightSceneId;
-						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
 					
 						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
 
@@ -359,103 +356,10 @@ void GenerateSamplesCS(
 
 								uint PrevLocalLightIndex = LocalLightData.PrevLocalLightIndex;
 
-								AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 0), ShadowMaskHistoryWeights.x, Accumulator);
-								AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 0), ShadowMaskHistoryWeights.y, Accumulator);
-								AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 1), ShadowMaskHistoryWeights.z, Accumulator);
-								AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 1), ShadowMaskHistoryWeights.w, Accumulator);
-
-								if (Accumulator.WeightSum > 0.0f)
-								{
-									HistoryShadowMask = Accumulator.ResolveShadowMask();
-
-									float AgeCertainty = (HistoryShadowMask.Age - 1) / float(MAX_SHADOW_MASK_AGE - 1.0f);
-									ShadowFactorEstimate = lerp(HistoryShadowMask.Factor, 1.0f, saturate(AgeCertainty));
-								}
-							}
-						}
-						#endif
-
-						#if DEBUG_MODE
-						if (bDebug)
-						{
-							Newline(Context);
-							Print(Context, LightSceneId);
-							Print(Context, SampleWeight);
-							Print(Context, SampleWeight * ShadowFactorEstimate);
-							Print(Context, ShadowFactorEstimate);
-							Print(Context, HistoryShadowMask.Factor);
-							Print(Context, HistoryShadowMask.IsValid() ? 1u : 0u);
-							Print(Context, HistoryShadowMask.Age);
-							Print(Context, HistoryShadowMask.HistoryLength);
-						}
-						#endif
-
-						if (SampleWeight > SamplingMinWeight)
-						{
-							// Allocate required shadow mask tiles for this frame
-							MarkLightSceneId(LocalLightIndex);
-
-							// Apply shadowing estimate from the last frame
-							if (HistoryShadowMask.IsValid())
-							{
-								SampleWeight *= ShadowFactorEstimate;
-							}
-
-							if (SampleWeight > SamplingMinWeight)
-							{
-								float Tau = WeightSum / (WeightSum + SampleWeight);
-								WeightSum += SampleWeight;
-
-								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
-								{
-									if (Xi[LightSampleIndex] < Tau)
-									{
-										Xi[LightSampleIndex] /= Tau;
-									}
-									else
-									{
-										// Select this sample
-										Xi[LightSampleIndex] = (Xi[LightSampleIndex] - Tau) / (1.0f - Tau);
-										SelectedLights[LightSampleIndex] = LightSceneId;
-									}
-
-									Xi[LightSampleIndex] = clamp(Xi[LightSampleIndex], 0, 0.9999f);
-								}
-							}
-						}						
-					}
-				}
-
-	#else
-				for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
-				{
-					const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
-					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-
-					if (LocalLightData.bStochasticShadowsSupported)
-					{
-						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
-						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
-
-						// Simulate tonemapping
-						SampleWeight = log2(max(SampleWeight + 1.0f, 1.0f));
-
-						// Get shadow factor from the last frame
-						FShadowMask HistoryShadowMask = InitShadowMask();
-						float ShadowFactorEstimate = 1.0f;
-
-						#if SHADOW_FACTOR_ESTIMATE
-						{
-							if (any(ShadowMaskHistoryWeights > 0))
-							{
-								FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
-
-								uint PrevLocalLightIndex = LocalLightData.PrevLocalLightIndex;
-
-								AccumulateHistoryShadowMask(LocalLightData.LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 0), ShadowMaskHistoryWeights.x, Accumulator);
-								AccumulateHistoryShadowMask(LocalLightData.LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 0), ShadowMaskHistoryWeights.y, Accumulator);
-								AccumulateHistoryShadowMask(LocalLightData.LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 1), ShadowMaskHistoryWeights.z, Accumulator);
-								AccumulateHistoryShadowMask(LocalLightData.LightSceneId, PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 1), ShadowMaskHistoryWeights.w, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 0), ShadowMaskHistoryWeights.x, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 0), ShadowMaskHistoryWeights.y, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 1), ShadowMaskHistoryWeights.z, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 1), ShadowMaskHistoryWeights.w, Accumulator);
 
 								if (Accumulator.WeightSum > 0.0f)
 								{
@@ -486,7 +390,7 @@ void GenerateSamplesCS(
 						if (SampleWeight > SamplingMinWeight)
 						{
 							// Allocate required shadow mask tiles for this frame
-							MarkLightSceneId(LocalLightIndex);
+							MarkLocalLightIndex(LocalLightIndex);
 
 							// Apply shadowing estimate from the last frame
 							if (HistoryShadowMask.IsValid())
@@ -509,7 +413,101 @@ void GenerateSamplesCS(
 									{
 										// Select this sample
 										Xi[LightSampleIndex] = (Xi[LightSampleIndex] - Tau) / (1.0f - Tau);
-										SelectedLights[LightSampleIndex] = LocalLightData.LightSceneId;
+										SelectedLights[LightSampleIndex] = LocalLightIndex;
+									}
+
+									Xi[LightSampleIndex] = clamp(Xi[LightSampleIndex], 0, 0.9999f);
+								}
+							}
+						}						
+					}
+				}
+
+	#else
+				for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
+				{
+					const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
+					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+
+					if (LocalLightData.bStochasticShadowsSupported)
+					{
+						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
+
+						// Simulate tonemapping
+						SampleWeight = log2(max(SampleWeight + 1.0f, 1.0f));
+
+						// Get shadow factor from the last frame
+						FShadowMask HistoryShadowMask = InitShadowMask();
+						float ShadowFactorEstimate = 1.0f;
+
+						#if SHADOW_FACTOR_ESTIMATE
+						{
+							if (any(ShadowMaskHistoryWeights > 0))
+							{
+								FShadowMaskAccumulator Accumulator = InitShadowMaskAccumulator();
+
+								uint PrevLocalLightIndex = LocalLightData.PrevLocalLightIndex;
+
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 0), ShadowMaskHistoryWeights.x, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 0), ShadowMaskHistoryWeights.y, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(0, 1), ShadowMaskHistoryWeights.z, Accumulator);
+								AccumulateHistoryShadowMask(PrevLocalLightIndex, ShadowMaskHistoryScreenCoord00 + uint2(1, 1), ShadowMaskHistoryWeights.w, Accumulator);
+
+								if (Accumulator.WeightSum > 0.0f)
+								{
+									HistoryShadowMask = Accumulator.ResolveShadowMask();
+
+									float AgeCertainty = (HistoryShadowMask.Age - 1) / float(MAX_SHADOW_MASK_AGE - 1.0f);
+									ShadowFactorEstimate = lerp(HistoryShadowMask.Factor, 1.0f, saturate(AgeCertainty));
+								}
+							}
+						}
+						#endif
+
+						#if DEBUG_MODE
+						if (bDebug)
+						{
+							Newline(Context);
+							Print(Context, LocalLightData.LightSceneId);
+							Print(Context, SampleWeight);
+							Print(Context, SampleWeight * ShadowFactorEstimate);
+							Print(Context, ShadowFactorEstimate);
+							Print(Context, HistoryShadowMask.Factor);
+							Print(Context, HistoryShadowMask.IsValid() ? 1u : 0u);
+							Print(Context, HistoryShadowMask.Age);
+							Print(Context, HistoryShadowMask.HistoryLength);
+						}
+						#endif
+
+						if (SampleWeight > SamplingMinWeight)
+						{
+							// Allocate required shadow mask tiles for this frame
+							MarkLocalLightIndex(LocalLightIndex);
+
+							// Apply shadowing estimate from the last frame
+							if (HistoryShadowMask.IsValid())
+							{
+								SampleWeight *= ShadowFactorEstimate;
+							}
+
+							if (SampleWeight > SamplingMinWeight)
+							{
+								float Tau = WeightSum / (WeightSum + SampleWeight);
+								WeightSum += SampleWeight;
+
+								for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
+								{
+									if (Xi[LightSampleIndex] < Tau)
+									{
+										Xi[LightSampleIndex] /= Tau;
+									}
+									else
+									{
+										// Select this sample
+										Xi[LightSampleIndex] = (Xi[LightSampleIndex] - Tau) / (1.0f - Tau);
+										SelectedLights[LightSampleIndex] = LocalLightIndex;
 									}
 
 									Xi[LightSampleIndex] = clamp(Xi[LightSampleIndex], 0, 0.9999f);
@@ -556,8 +554,8 @@ void GenerateSamplesCS(
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
 				FLightSample LightSample;
-				LightSample.LightSceneId = SelectedLights[LightSampleIndex];
-				LightSample.bCompleted = LightSample.LightSceneId == INVALID_LIGHT_SCENE_ID ? true : false;
+				LightSample.LocalLightIndex = SelectedLights[LightSampleIndex];
+				LightSample.bCompleted = LightSample.LocalLightIndex == INVALID_LOCAL_LIGHT_INDEX ? true : false;
 				LightSample.bVisible = true;
 				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
 			}
@@ -567,7 +565,7 @@ void GenerateSamplesCS(
 
 		// Write out allocated shadow mask tiles
 		// #sdl_todo: process part of the list per tread
-		if (LinearThreadIndex < LIGHT_SCENE_ID_MASK_SIZE)
+		if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 		{
 			const uint LightIndex = LinearThreadIndex;
 			const uint BitMask = 1u << LightIndex;
@@ -581,9 +579,7 @@ void GenerateSamplesCS(
 				const uint NextBitMask = 1u << NextBitIndex;
 				LightMask ^= NextBitMask;
 
-				const uint LocalLightIndex = LinearThreadIndex + NextBitIndex * LIGHT_SCENE_ID_MASK_SIZE;
-				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-				const uint LightIndex = LocalLightData.LightSceneId;
+				const uint LocalLightIndex = LinearThreadIndex + NextBitIndex * SHARED_LIGHT_MASK_SIZE;
 
 				// #sdl_todo: merge allocations through groupshared and do only one atomic per group
 				uint ShadowMaskTileIndex = 0;
@@ -591,7 +587,7 @@ void GenerateSamplesCS(
 
 				if (ShadowMaskTileIndex < MaxShadowMaskTiles)
 				{
-					WriteShadowMaskTileToPageTable(LightIndex, LocalLightIndex, ShadowMaskScreenCoord, ShadowMaskTileIndex);
+					WriteShadowMaskTileToPageTable(LocalLightIndex, ShadowMaskScreenCoord, ShadowMaskTileIndex);
 				}
 			}
 		}

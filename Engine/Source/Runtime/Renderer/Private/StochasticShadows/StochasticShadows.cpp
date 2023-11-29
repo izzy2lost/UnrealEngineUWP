@@ -140,7 +140,7 @@ namespace StochasticShadows
 	// must match values in StochasticShadows.ush
 	constexpr int32 TileSize = 8;
 	constexpr int32 ShadowMaskTileSize = 8;	// Stored downsampled
-	constexpr int32 MaxLightSceneIdXY = 16; // 16 * 16 = 256
+	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
 	constexpr int32 ShadowMaskAtlasSizeInTiles = 512;
 	constexpr uint32 InvalidShadowMaskTileIndex = 0xFFFFFFFF;
 	constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
@@ -200,6 +200,11 @@ namespace StochasticShadows
 		return CVarStochasticShadowsWaveOps.GetValueOnRenderThread() != 0 
 			&& GRHISupportsWaveOperations
 			&& RHISupportsWaveOperations(ShaderPlatform);
+	}
+
+	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FForwardLightingParameters::ModifyCompilationEnvironment(Platform, OutEnvironment);
 	}
 
 	// Keep in sync with TILE_TYPE_* in shaders
@@ -323,7 +328,6 @@ class FGenerateSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint2>, RWShadowMaskTileData)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWShadowMaskPageTable)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, DownsampledTileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTableHistory)
@@ -373,7 +377,7 @@ class FGenerateSamplesCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
@@ -428,7 +432,6 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskPageTableHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadowMaskAtlasHistory)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -448,7 +451,7 @@ class FCompositeShadowMaskTracesCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
@@ -534,6 +537,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
@@ -590,7 +594,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 	const FIntPoint ShadowMaskBufferSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, ShadowMaskDownsampleFactor);
 	const FIntPoint ShadowMaskViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), ShadowMaskDownsampleFactor);
 	const FIntPoint ShadowMaskPageTablePerLightSize = FIntPoint::DivideAndRoundUp(ShadowMaskBufferSize, StochasticShadows::ShadowMaskTileSize);
-	const FIntPoint ShadowMaskPageTableSize = ShadowMaskPageTablePerLightSize * StochasticShadows::MaxLightSceneIdXY;
+	const FIntPoint ShadowMaskPageTableSize = ShadowMaskPageTablePerLightSize * StochasticShadows::MaxLocalLightIndexXY;
 	const FIntPoint ShadowMaskTileAtlasSize = StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskAtlasSizeInTiles;
 	const int32 MaxShadowMaskTiles = StochasticShadows::ShadowMaskAtlasSizeInTiles * StochasticShadows::ShadowMaskAtlasSizeInTiles;
 	check(MaxShadowMaskTiles == (ShadowMaskTileAtlasSize.X * ShadowMaskTileAtlasSize.Y) / (StochasticShadows::ShadowMaskTileSize * StochasticShadows::ShadowMaskTileSize));
@@ -683,6 +687,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		StochasticShadowsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
 		StochasticShadowsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
 		StochasticShadowsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		StochasticShadowsParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 		StochasticShadowsParameters.BlueNoise = BlueNoiseUniformBuffer;
 		StochasticShadowsParameters.DownsampledViewSize = DownsampledViewSize;
 		StochasticShadowsParameters.SampleViewSize = SampleViewSize;
@@ -847,7 +852,6 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 			PassParameters->RWLightSamples = LightSamplesUAV;
 			PassParameters->DownsampledTileAllocator = GraphBuilder.CreateSRV(DownsampledTileAllocator);
 			PassParameters->DownsampledTileData = GraphBuilder.CreateSRV(DownsampledTileData);
-			PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 			PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
 			PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
 			PassParameters->ShadowMaskTileAtlas = ShadowMaskTileAtlas;
@@ -962,7 +966,6 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 		PassParameters->ShadowMaskPageTableHistory = ShadowMaskPageTableHistory;
 		PassParameters->ShadowMaskAtlasHistory = ShadowMaskAtlasHistory;
 		PassParameters->LightSamples = LightSamples;
-		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
 
 		FCompositeShadowMaskTracesCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCompositeShadowMaskTracesCS::FTemporalAccumulation>(bTemporal);

@@ -4,6 +4,7 @@
 #include "StochasticShadowsInternal.h"
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenHardwareRayTracingCommon.h"
+#include "BasePassRendering.h"
 
 static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTraces(
 	TEXT("r.StochasticShadows.ScreenTraces"),
@@ -242,6 +243,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 	}
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
@@ -285,6 +287,7 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 
@@ -328,6 +331,7 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}

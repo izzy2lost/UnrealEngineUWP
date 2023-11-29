@@ -56,12 +56,13 @@ void CompositeShadowMaskTracesCS(
 {
 	uint ShadowMaskTileIndex = GroupId.x;
 
-	uint LightSceneId;
 	uint LocalLightIndex;
 	uint2 BaseShadowMaskScreenCoord;	
-	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LightSceneId, LocalLightIndex, BaseShadowMaskScreenCoord);
+	UnpackShadowMaskTile(ShadowMaskTileData[ShadowMaskTileIndex], LocalLightIndex, BaseShadowMaskScreenCoord);
 
 	GroupMemoryBarrierWithGroupSync();
+
+	const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 	
 	// Composite traces into SharedShadowMask
 	for (uint SharedShadowMaskY = GroupThreadId.y; SharedShadowMaskY < SHARED_TILE_SIZE; SharedShadowMaskY += THREADGROUP_SIZE)
@@ -81,7 +82,7 @@ void CompositeShadowMaskTracesCS(
 					uint2 SampleCoord = ShadowMaskScreenCoord * NumSamplesPerPixel + uint2(LocalSampleX, LocalSampleY);
 					FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
-					if (LightSample.LightSceneId == LightSceneId)
+					if (LightSample.LocalLightIndex == LocalLightIndex)
 					{
 						SampleAccumulator.SampleSum += LightSample.bVisible ? 1 : 0;
 						SampleAccumulator.SampleWeightSum += 1.0f;
@@ -101,7 +102,7 @@ void CompositeShadowMaskTracesCS(
 
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LightSceneId == DebugLightId;
+	bool bDebug = all(ShadowMaskScreenCoord == DebugScreenCoord / SHADOW_MASK_DOWNSAMPLE_FACTOR) && LocalLightData.LightSceneId == DebugLightId;
 	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.05, 0.3));
 
 	if (bDebug)
@@ -194,10 +195,10 @@ void CompositeShadowMaskTracesCS(
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 				const uint PrevLocalLightIndex = LocalLightData.PrevLocalLightIndex;
 
-				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
-				AccumulateHistoryShadowMask(LightSceneId, PrevLocalLightIndex, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
+				AccumulateHistoryShadowMask(PrevLocalLightIndex, ScreenCoord00 + uint2(0, 0), Weights.x, Accumulator);
+				AccumulateHistoryShadowMask(PrevLocalLightIndex, ScreenCoord00 + uint2(1, 0), Weights.y, Accumulator);
+				AccumulateHistoryShadowMask(PrevLocalLightIndex, ScreenCoord00 + uint2(0, 1), Weights.z, Accumulator);
+				AccumulateHistoryShadowMask(PrevLocalLightIndex, ScreenCoord00 + uint2(1, 1), Weights.w, Accumulator);
 
 				if (Accumulator.WeightSum > 0.0f)
 				{
