@@ -69,6 +69,8 @@ namespace UnrealBuildTool
 			PrivateDependencyModuleNames.AddRange(TestedModule.PrivateDependencyModuleNames);
 			PublicDependencyModuleNames.AddRange(TestedModule.PublicDependencyModuleNames);
 
+			DirectoriesForModuleSubClasses = new Dictionary<Type, DirectoryReference>();
+
 			// Tests can refer to tested module's Public and Private paths
 			string ModulePublicDir = Path.Combine(TestedModule.ModuleDirectory, "Public");
 			if (System.IO.Directory.Exists(ModulePublicDir))
