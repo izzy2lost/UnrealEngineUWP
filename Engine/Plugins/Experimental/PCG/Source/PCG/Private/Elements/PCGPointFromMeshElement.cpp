@@ -40,6 +40,11 @@ bool FPCGPointFromMeshElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGPointFromMeshSettings* Settings = Context->GetInputSettings<UPCGPointFromMeshSettings>();
 	check(Settings);
 
+	if (Settings->StaticMesh.IsNull())
+	{
+		return true;
+	}
+
 	if (!Settings->StaticMesh.LoadSynchronous())
 	{
 		PCGE_LOG(Error, GraphAndLog, LOCTEXT("LoadStaticMeshFailed", "Failed to load StaticMesh"));
