@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage.Backends
 				}
 				else
 				{
-					return _data.Slice(offset, length.Value);
+					return _data.Slice(offset, Math.Min(length.Value, _data.Length - offset));
 				}
 			}
 
