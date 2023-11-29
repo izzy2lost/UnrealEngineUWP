@@ -14,6 +14,12 @@ struct FSlateBrush;
 namespace UE::StateTree::PropertyHelpers {
 
 /**
+ * Dispatches PostEditChange to all FState
+ * Assumes property chain head is member property of Owner. 
+ */
+void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent);
+
+/**
  * Gets a struct value from property handle, checks type before access. Expects T is struct.
  * @param ValueProperty Handle to property where value is got from.
  * @return Requested value as optional, in case of multiple values the optional is unset.
@@ -118,7 +124,7 @@ FPropertyAccess::Result SetStructValue(const TSharedPtr<IPropertyHandle>& ValueP
 	return FPropertyAccess::Success;
 }
 
-} // UE::StateTree::PropertyHelpers
+}; // UE::StateTree::PropertyHelpers
 
 /**
  * Helper class to deal with relative property paths in PostEditChangeChainProperty().
@@ -145,93 +151,16 @@ public:
 	FStateTreeEditPropertyPath() = default;
 
 	/** Makes property path relative to BaseStruct. Checks if the path is not part of the type. */
-	explicit FStateTreeEditPropertyPath(const UStruct* BaseStruct, const FString& InPath)
-	{
-		TArray<FString> PathSegments;
-		InPath.ParseIntoArray(PathSegments, TEXT("."));
-
-		const UStruct* CurrBase = BaseStruct;
-		for (const FString& Segment : PathSegments)
-		{
-			const FName PropertyName(Segment);
-			if (const FProperty* Property = CurrBase->FindPropertyByName(PropertyName))
-			{
-				Path.Emplace(Property, PropertyName);
-
-				if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
-				{
-					Property = ArrayProperty->Inner;
-				}
-
-				if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-				{
-					CurrBase = StructProperty->Struct;
-				}
-				else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
-				{
-					CurrBase = ObjectProperty->PropertyClass;
-				}
-			}
-			else
-			{
-				checkf(false, TEXT("Path %s id not part of type %s."), *InPath, *GetNameSafe(BaseStruct));
-				Path.Reset();
-				break;
-			}
-		}
-	}
+	explicit FStateTreeEditPropertyPath(const UStruct* BaseStruct, const FString& InPath);
 
 	/** Makes property path from property change event. */
-	explicit FStateTreeEditPropertyPath(const FPropertyChangedChainEvent& PropertyChangedEvent)
-	{
-		FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChangedEvent.PropertyChain.GetActiveMemberNode();
-		while (PropertyNode != nullptr)
-		{
-			if (FProperty* Property = PropertyNode->GetValue())
-			{
-				const FName PropertyName = Property->GetFName(); 
-				const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(PropertyName.ToString());
-				Path.Emplace(Property, PropertyName, ArrayIndex);
-			}
-			PropertyNode = PropertyNode->GetNextNode();
-		}
-	}
+	explicit FStateTreeEditPropertyPath(const FPropertyChangedChainEvent& PropertyChangedEvent);
 
 	/** @return true if the property path contains specified path. */
-	bool ContainsPath(const FStateTreeEditPropertyPath& InPath) const
-	{
-		if (InPath.Path.Num() > Path.Num())
-    	{
-    		return false;
-    	}
-
-    	for (TConstEnumerateRef<FStateTreeEditPropertySegment> Segment : EnumerateRange(InPath.Path))
-    	{
-    		if (Segment->PropertyName != Path[Segment.GetIndex()].PropertyName)
-    		{
-    			return false;
-    		}
-    	}
-    	return true;
-	}
+	bool ContainsPath(const FStateTreeEditPropertyPath& InPath) const;
 
 	/** @return true if the property path is exactly the specified path. */
-	bool IsPathExact(const FStateTreeEditPropertyPath& InPath) const
-	{
-		if (InPath.Path.Num() != Path.Num())
-		{
-			return false;
-		}
-
-		for (TConstEnumerateRef<FStateTreeEditPropertySegment> Segment : EnumerateRange(InPath.Path))
-		{
-			if (Segment->PropertyName != Path[Segment.GetIndex()].PropertyName)
-			{
-				return false;
-			}
-		}
-		return true;
-	}
+	bool IsPathExact(const FStateTreeEditPropertyPath& InPath) const;
 
 	/** @return array index at specified property, or INDEX_NONE, if the property is not array or property not found.  */
 	int32 GetPropertyArrayIndex(const FStateTreeEditPropertyPath& InPath) const

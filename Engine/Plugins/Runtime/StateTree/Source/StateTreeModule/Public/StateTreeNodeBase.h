@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -62,6 +62,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 * @param BindingLookup Reference to binding lookup which can be used to reason about property paths.
 	 */
 	virtual void OnBindingChanged(const FGuid& ID, FStateTreeDataView InstanceData, const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath, const IStateTreeBindingLookup& BindingLookup) {}
+
+	/**
+	 * Called when a property of the node has been modified externally
+	 * @param PropertyChangedEvent The event for the changed property. PropertyChain's active properties are set relative to node.
+	 * @param InstanceData view to the instance data, can be struct or class.
+	 */
+	virtual void PostEditNodeChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) {}
+
+	/**
+	 * Called when a property of node's instance data has been modified externally
+	 * @param PropertyChangedEvent The event for the changed property. PropertyChain's active properties are set relative to instance data.
+	 * @param InstanceData view to the instance data, can be struct or class.
+	 */
+	virtual void PostEditInstanceDataChangeChainProperty(const FPropertyChangedChainEvent& PropertyChangedEvent, FStateTreeDataView InstanceDataView) {}
 #endif
 
 	/** Name of the node. */

@@ -8,6 +8,7 @@
 #include "StateTreeTaskBase.h"
 #include "Algo/LevenshteinDistance.h"
 #include "StateTreeEditorModule.h"
+#include "StateTreePropertyHelpers.h"
 
 #if WITH_EDITOR
 #include "Engine/UserDefinedStruct.h"
@@ -203,6 +204,8 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 			}
 		}
 	}
+
+	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent);
 }
 #endif // WITH_EDITOR
 
