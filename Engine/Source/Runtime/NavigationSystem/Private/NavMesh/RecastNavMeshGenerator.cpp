@@ -2468,6 +2468,8 @@ void FRecastTileGenerator::AppendGeometry(const FNavigationRelevantData& DataRef
 
 ETimeSliceWorkResult FRecastTileGenerator::GenerateTileTimeSliced()
 {
+	UE_LOG(LogNavigation, Verbose, TEXT("Building tile (time sliced): (%i,%i)"), TileX, TileY);
+
 	FNavMeshBuildContext BuildContext(*this);
 	ETimeSliceWorkResult WorkResult = ETimeSliceWorkResult::Succeeded;
 
@@ -2537,6 +2539,8 @@ bool FRecastTileGenerator::GenerateTile()
 	const double StartStamp = FPlatformTime::Seconds();
 	double PostCompressLayerStamp = StartStamp;
 #endif // RECAST_INTERNAL_DEBUG_DATA
+
+	UE_LOG(LogNavigation, Verbose, TEXT("Building tile: (%i,%i)"), TileX, TileY);
 	
 	FNavMeshBuildContext BuildContext(*this);
 	bool bSuccess = true;
@@ -3710,6 +3714,11 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 			return false;
 		}
 
+		bool bSkipContourSimplification = false;
+#if RECAST_INTERNAL_DEBUG_DATA
+		bSkipContourSimplification = IsTileDebugActive() && TileDebugSettings.bSkipContourSimplification;
+#endif
+		
 #if WITH_NAVMESH_CLUSTER_LINKS
 		GenerationContext.ClusterSet = dtAllocTileCacheClusterSet(&GenNavAllocator);
 		if (GenerationContext.ClusterSet == nullptr)
@@ -3720,11 +3729,11 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 
 		status = dtBuildTileCacheContours(&GenNavAllocator, *GenerationContext.Layer,
 			TileConfig.walkableClimb, TileConfig.maxVerticalMergeError, TileConfig.maxSimplificationError, TileConfig.simplificationElevationRatio,
-			TileConfig.cs, TileConfig.ch,*GenerationContext.ContourSet, *GenerationContext.ClusterSet);
+			TileConfig.cs, TileConfig.ch,*GenerationContext.ContourSet, *GenerationContext.ClusterSet, bSkipContourSimplification);
 #else
 		status = dtBuildTileCacheContours(&GenNavAllocator, *GenerationContext.Layer,
 			TileConfig.walkableClimb, TileConfig.maxVerticalMergeError, TileConfig.maxSimplificationError, TileConfig.simplificationElevationRatio,
-			TileConfig.cs, TileConfig.ch, *GenerationContext.ContourSet);
+			TileConfig.cs, TileConfig.ch, *GenerationContext.ContourSet, bSkipContourSimplification);
 #endif //WITH_NAVMESH_CLUSTER_LINKS
 		
 		if (dtStatusFailed(status))
@@ -3743,7 +3752,7 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (IsTileDebugActive() && TileDebugSettings.bTileCacheContours)
 	{
-		duDebugDrawTileCacheContours(&BuildContext.InternalDebugData, *GenerationContext.ContourSet, GenerationContext.Layer->header->bmin, TileConfig.cs, TileConfig.ch);
+		duDebugDrawTileCacheContours(&BuildContext.InternalDebugData, *GenerationContext.ContourSet, LayerIdx, GenerationContext.Layer->header->bmin, TileConfig.cs, TileConfig.ch);
 	}
 #endif
 

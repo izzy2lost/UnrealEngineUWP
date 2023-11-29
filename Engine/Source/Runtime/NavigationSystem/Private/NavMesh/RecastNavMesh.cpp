@@ -501,6 +501,7 @@ FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 	bCompactHeightfieldDistances = false;
 	bTileCacheLayerAreas = false;
 	bTileCacheLayerRegions = false;
+	bSkipContourSimplification = false;
 	bTileCacheContours = false;
 	bTileCachePolyMesh = false;
 	bTileCacheDetailMesh = false;

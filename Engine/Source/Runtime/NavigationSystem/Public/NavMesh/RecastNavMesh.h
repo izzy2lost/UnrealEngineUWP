@@ -504,6 +504,10 @@ struct FRecastNavMeshTileGenerationDebug
 	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bTileCacheLayerRegions : 1;
 
+	/** If set, the contour simplification step will be skipped. Beware that enabling this changes the way navmesh will generate when Tile Generation Debug is enabled. */
+	UPROPERTY(EditAnywhere, Category = Debug)
+	uint32 bSkipContourSimplification : 1;
+	
 	UPROPERTY(EditAnywhere, Category = Debug)
 	uint32 bTileCacheContours : 1;
 

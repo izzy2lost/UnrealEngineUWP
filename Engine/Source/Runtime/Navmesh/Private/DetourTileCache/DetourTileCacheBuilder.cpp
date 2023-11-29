@@ -22,6 +22,7 @@
 #include "DetourTileCache/DetourTileCacheBuilder.h"
 #include "Detour/DetourCommon.h"
 #include "Detour/DetourAssert.h"
+#include "DebugUtils/DetourDebugDraw.h"
 #include "Stats/Stats.h"
 #include <limits>
 
@@ -275,7 +276,7 @@ static void getNeighbourRegAndArea(dtTileCacheLayer& layer,
 	}
 }
 
-static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, const int maxVerticalMergeError, unsigned char* flags, dtTempContour& cont) // UE
+static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, const int maxVerticalMergeError, unsigned char* flags, dtTempContour& cont, int& contourIndex) // UE
 {
 	const int w = (int)layer.header->width;
 	const int h = (int)layer.header->height;
@@ -405,6 +406,8 @@ static bool walkContour(dtTileCacheLayer& layer, int x, int y, int idx, const in
 	}	
 //@UE END
 	
+	contourIndex++;
+
 	return true;
 }	
 
@@ -794,6 +797,7 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 #if WITH_NAVMESH_CLUSTER_LINKS
 	, dtTileCacheClusterSet& clusters
 #endif //WITH_NAVMESH_CLUSTER_LINKS
+	, const bool skipContourSimplification /*=false*/
 	//@UE END
 	)
 {
@@ -869,6 +873,7 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 	dtIntArray linksBase(maxConts);
 
 	// Find contours.
+	int contourIndex = 0;	// UE
 	for (int y = 0; y < h; ++y)
 	{
 		for (int x = 0; x < w; ++x)
@@ -883,14 +888,17 @@ dtStatus dtBuildTileCacheContours(dtTileCacheAlloc* alloc, dtTileCacheLayer& lay
 			if (ri == 0xffff || ri == 0)
 				continue;
 
-			if (!walkContour(layer, x, y, idx, maxVerticalMergeError, flags, temp)) // UE
+			if (!walkContour(layer, x, y, idx, maxVerticalMergeError, flags, temp, contourIndex)) // UE
 			{
 				// Too complex contour.
 				// Note: If you hit here often, try increasing 'maxTempVerts'.
 				return DT_FAILURE | DT_BUFFER_TOO_SMALL;
 			}
 
-			simplifyContour(layer.areas[idx], ri, temp, maxError, simplificationElevationRatio, cs, ch); // UE
+			if (!skipContourSimplification)
+			{
+				simplifyContour(layer.areas[idx], ri, temp, maxError, simplificationElevationRatio, cs, ch); // UE
+			}
 
 			// Store contour.
 			if (lcset.nconts >= maxConts)

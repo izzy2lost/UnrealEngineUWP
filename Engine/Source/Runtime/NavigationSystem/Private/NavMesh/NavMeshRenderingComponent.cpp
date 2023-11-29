@@ -1352,6 +1352,16 @@ void FNavMeshSceneProxyData::AddMeshForInternalData(const FRecastInternalDebugDa
 			}
 		}
 	}
+
+	if (InInternalData.LabelVertices.Num() > 0)
+	{
+		const TArray<FVector>& Vertices = InInternalData.LabelVertices;
+		const TArray<FString>& Labels = InInternalData.Labels;
+		for (int32 i = 0; i < Vertices.Num(); i++)
+		{
+			DebugLabels.Emplace(Vertices[i] + NavMeshDrawOffset, Labels[i]);
+		}
+	}
 }
 #endif //RECAST_INTERNAL_DEBUG_DATA
 
