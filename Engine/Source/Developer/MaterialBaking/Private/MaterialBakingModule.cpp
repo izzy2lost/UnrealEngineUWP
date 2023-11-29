@@ -34,7 +34,7 @@
 
 IMPLEMENT_MODULE(FMaterialBakingModule, MaterialBaking);
 
-DEFINE_LOG_CATEGORY_STATIC(LogMaterialBaking, All, All);
+DEFINE_LOG_CATEGORY_STATIC(LogMaterialBaking, Log, All);
 
 #define LOCTEXT_NAMESPACE "MaterialBakingModule"
 
