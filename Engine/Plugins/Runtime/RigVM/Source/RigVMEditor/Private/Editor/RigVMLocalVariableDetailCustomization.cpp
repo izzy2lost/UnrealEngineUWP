@@ -12,6 +12,7 @@
 #include "RigVMBlueprintGeneratedClass.h"
 #include "RigVMBlueprint.h"
 #include "RigVMCore/RigVM.h"
+#include "InstancedPropertyBagStructureDataProvider.h"
 
 #define LOCTEXT_NAMESPACE "LocalVariableDetails"
 
@@ -104,8 +105,7 @@ void FRigVMLocalVariableDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 				Property->ClearPropertyFlags(CPF_EditConst);
 			
 				const FName SanitizedName = FRigVMPropertyDescription::SanitizeName(*SourcePath);
-				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(LiteralMemory->GetPropertyBagStruct(), (uint8*)LiteralMemory->GetContainerPtr()));
-				IDetailPropertyRow* Row = DefaultValueCategory.AddExternalStructureProperty(StructOnScope, SanitizedName);
+				IDetailPropertyRow* Row = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(*LiteralMemory), SanitizedName);
 
 				Row->DisplayName(FText::FromName(VariableDescription.Name));
 

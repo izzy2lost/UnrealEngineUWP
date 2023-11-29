@@ -43,22 +43,17 @@ void FParameterBlockParameterCustomization::CustomizeDetails(IDetailLayoutBuilde
 
 		if (UAnimNextParameterBlock_EditorData* EditorData = Cast<UAnimNextParameterBlock_EditorData>(BlockParam->GetOuter()))
 		{
-			if (UAnimNextParameterBlock* ReferencedBlock = UE::AnimNext::UncookedOnly::FUtils::GetBlock(EditorData))
+			const FName ParameterName = BlockParam->GetParameterName();
+			if (UAnimNextParameterBlockEntry* BlockEntry = EditorData->FindBinding(ParameterName)) // filter non parameter entries
 			{
-				FSinglePropertyParams SinglePropertyArgs;
-				const FName ParameterName = BlockParam->GetParameterName();
-				TArray<IDetailPropertyRow*> DetailPropertyRows;
-
-				// FIXME: As AddExternalStructureProperty does not support IStructureDataProvider, we add all properties and only show the one we need. Icky.
-				DefaultValueCategory.AddAllExternalStructureProperties(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedBlock->GetPropertyBag()), EPropertyLocation::Default, &DetailPropertyRows);
-				for (IDetailPropertyRow* DetailPropertyRow : DetailPropertyRows)
+				if (UAnimNextParameterBlock* ReferencedBlock = UE::AnimNext::UncookedOnly::FUtils::GetBlock(EditorData))
 				{
-					if(DetailPropertyRow->GetPropertyHandle()->GetProperty()->GetFName() != ParameterName)
+					FAddPropertyParams AddPropertyParams;
+					TArray<IDetailPropertyRow*> DetailPropertyRows;
+
+					if (ReferencedBlock->GetPropertyBag().FindPropertyDescByName(ParameterName))
 					{
-						DetailPropertyRow->Visibility(EVisibility::Collapsed);
-					}
-					else
-					{
+						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedBlock->GetPropertyBag()), ParameterName, EPropertyLocation::Default, AddPropertyParams);
 						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
 						{
 							Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([this, ReferencedBlock]()

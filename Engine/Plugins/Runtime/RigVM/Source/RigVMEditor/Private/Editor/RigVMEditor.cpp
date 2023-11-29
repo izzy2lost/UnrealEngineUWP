@@ -43,6 +43,7 @@
 #include "Framework/Docking/TabManager.h"
 #include "ScopedTransaction.h"
 #include "Editor/RigVMEditorMode.h"
+#include "InstancedPropertyBagStructureDataProvider.h"
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
 
@@ -1778,10 +1779,9 @@ void FRigVMEditor::HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM
 				const TArray<FRigVMMemoryStorageStruct*> MemoryStorage = { Memory };
 				SetMemoryStorageDetails(MemoryStorage);
 			#else
-				// TODO zzz : This does not compile, IStructureDetailsView does not inherit from SCompoundWidget, like IDetailsView
+				// TODO zzz : need a way to get the IStructureDetailsView
 				TSharedRef<IStructureDetailsView> StructDetailsView = StaticCastSharedRef<IStructureDetailsView>(ActiveTab->GetContent());
-				TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
-				StructDetailsView->SetStructureData(StructOnScope);
+				StructDetailsView->SetStructureProvider(MakeShared<FInstancePropertyBagStructureDataProvider>(*Memory));
 			#endif
 			}
 		}
@@ -2666,7 +2666,7 @@ void FRigVMEditor::SetMemoryStorageDetails(const TArray<FRigVMMemoryStorageStruc
 
 	if (InStructs.Num() == 1)
 	{
-		if (const FRigVMMemoryStorageStruct* Memory = InStructs[0])
+		if (FRigVMMemoryStorageStruct* Memory = InStructs[0])
 		{
 			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -2676,9 +2676,8 @@ void FRigVMEditor::SetMemoryStorageDetails(const TArray<FRigVMMemoryStorageStruc
 
 			FStructureDetailsViewArgs StructureViewArgs;
 
-			TSharedRef<IStructureDetailsView> DetailsView = EditModule.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, TSharedPtr<FStructOnScope>());
-			TSharedPtr<FStructOnScope> StructOnScope = MakeShareable(new FStructOnScope(Memory->GetPropertyBagStruct(), (uint8*)Memory->GetContainerPtr()));
-			DetailsView->SetStructureData(StructOnScope);
+			TSharedRef<IStructureDetailsView> DetailsView = EditModule.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
+			DetailsView->SetStructureProvider(MakeShared<FInstancePropertyBagStructureDataProvider>(*Memory));
 
 			TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 				.Label(LOCTEXT("RigVMMemoryDetails", "RigVM Memory Details"))
