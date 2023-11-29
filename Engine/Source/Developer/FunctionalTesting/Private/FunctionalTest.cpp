@@ -878,6 +878,20 @@ bool AFunctionalTest::AssertEqual_Rotator(FRotator Actual, FRotator Expected, co
 	}
 }
 
+bool AFunctionalTest::AssertEqual_RotatorOrientation(FRotator Actual, FRotator Expected, const FString& What, float Tolerance, const UObject* ContextObject)
+{
+	if ( !Expected.EqualsOrientation(Actual, Tolerance) )
+	{
+		LogStep(ELogVerbosity::Error, FString::Printf(TEXT("Expected '%s' to be {%s} but it was {%s} within tolerance {%f} for context '%s'"), *What, *Expected.ToString(), *Actual.ToString(), Tolerance, ContextObject ? *ContextObject->GetName() : TEXT("")));
+		return false;
+	}
+	else
+	{
+		LogStep(ELogVerbosity::Log, FString::Printf(TEXT("Rotator assertion passed (%s)"), *What));
+		return true;
+	}
+}
+
 bool AFunctionalTest::AssertNotEqual_Rotator(FRotator Actual, FRotator NotExpected, const FString& What, const UObject* ContextObject)
 {
 	if ( NotExpected.Equals(Actual) )
