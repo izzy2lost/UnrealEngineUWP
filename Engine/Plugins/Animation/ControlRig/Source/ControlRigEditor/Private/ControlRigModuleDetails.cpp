@@ -9,6 +9,7 @@
 #include "Widgets/Input/SVectorInputBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SButton.h"
+#include "ModularRigController.h"
 #include "ControlRigBlueprint.h"
 #include "ControlRigElementDetails.h"
 #include "Graph/ControlRigGraph.h"
@@ -357,7 +358,7 @@ FText FRigModuleInstanceDetails::GetRigClassPath() const
 		bool bSame = true;
 		for (int32 i=1; i<PerModuleInfos.Num(); ++i)
 		{
-			if (PerModuleInfos[i].GetModule()->Rig->GetClass() !=  PerModuleInfos[0].GetModule()->Rig->GetClass())
+			if (PerModuleInfos[i].GetModule()->GetRig()->GetClass() !=  PerModuleInfos[0].GetModule()->GetRig()->GetClass())
 			{
 				bSame = false;
 				break;
@@ -369,14 +370,11 @@ FText FRigModuleInstanceDetails::GetRigClassPath() const
 		}
 	}
 
-	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
+	if (const FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
 	{
-		if (TSoftObjectPtr<UControlRig> Rig = Module->Rig)
+		if (const UControlRig* ModuleRig = Module->GetRig())
 		{
-			if (Rig.IsValid())
-			{
-				return FText::FromString(Module->Rig->GetClass()->GetClassPathName().ToString());
-			}
+			return FText::FromString(ModuleRig->GetClass()->GetClassPathName().ToString());
 		}
 	}
 
@@ -390,14 +388,11 @@ TArray<FRigModuleConnector> FRigModuleInstanceDetails::GetConnectors() const
 		return TArray<FRigModuleConnector>();
 	}
 
-	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
+	if (const FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
 	{
-		if (TSoftObjectPtr<UControlRig> Rig = Module->Rig)
+		if (const UControlRig* ModuleRig = Module->GetRig())
 		{
-			if (Rig.IsValid())
-			{
-				return Rig->GetRigModuleSettings().ExposedConnectors;
-			}
+			return ModuleRig->GetRigModuleSettings().ExposedConnectors;
 		}
 	}
 
@@ -411,14 +406,11 @@ FRigElementKeyRedirector FRigModuleInstanceDetails::GetConnections() const
 		return FRigElementKeyRedirector();
 	}
 
-	if (FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
+	if (const FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
 	{
-		if (TSoftObjectPtr<UControlRig> Rig = Module->Rig)
+		if (UControlRig* ModuleRig = Module->GetRig())
 		{
-			if (Rig.IsValid())
-			{
-				return Rig->GetElementKeyRedirector();
-			}
+			return ModuleRig->GetElementKeyRedirector();
 		}
 	}
 
@@ -431,10 +423,9 @@ void FRigModuleInstanceDetails::OnConfigValueChanged(const FName InVariableName)
 	{
 		if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
 		{
-			TSoftObjectPtr<UControlRig> Rig = ModuleInstance->Rig;
-			if (Rig.IsValid())
+			if (const UControlRig* ModuleRig = ModuleInstance->GetRig())
 			{
-				FString ValueStr = Rig->GetVariableAsString(InVariableName);
+				FString ValueStr = ModuleRig->GetVariableAsString(InVariableName);
 				if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
 				{
 					UModularRigController* Controller = Blueprint->GetModularRigController();

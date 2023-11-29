@@ -2,8 +2,6 @@
 
 #include "ModularRig.h"
 #include "Units/Execution/RigUnit_BeginExecution.h"
-#include "Units/Execution/RigUnit_InverseExecution.h"
-#include "Units/Execution/RigUnit_PrepareForExecution.h"
 #include "Units/Execution/RigUnit_InteractionExecution.h"
 #include "ControlRigObjectBinding.h"
 #include "Rigs/RigHierarchyController.h"
@@ -18,13 +16,13 @@ const FString UModularRig::NamespaceSeparator = TEXT(":");
 // FModuleInstanceHandle
 ////////////////////////////////////////////////////////////////////////////////
 
-FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InModularRig, const FString& InPath)
+FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FString& InPath)
 : ModularRig(InModularRig)
 , Path(InPath)
 {
 }
 
-FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InModularRig, const FRigModuleInstance* InModule)
+FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FRigModuleInstance* InModule)
 : ModularRig(InModularRig)
 , Path(InModule->GetPath())
 {
@@ -32,9 +30,9 @@ FModuleInstanceHandle::FModuleInstanceHandle(UModularRig* InModularRig, const FR
 
 const FRigModuleInstance* FModuleInstanceHandle::Get() const
 {
-	if(ModularRig.IsValid())
+	if(const UModularRig* ResolvedRig = ModularRig.Get())
 	{
-		return ModularRig->FindModule(Path);
+		return ResolvedRig->FindModule(Path);
 	}
 	return nullptr;
 }
@@ -47,18 +45,16 @@ UModularRig::UModularRig(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 #if WITH_EDITOR
-	FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UModularRig::OnObjectsReplaced);
+	FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UModularRig::OnObjectsReplaced);
 #endif
 }
 
 void UModularRig::BeginDestroy()
 {
-	ResetModules();
-	
 	Super::BeginDestroy();
 	
 #if WITH_EDITOR
-	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FCoreUObjectDelegates::OnObjectsReinstanced.RemoveAll(this);
 #endif
 }
 
@@ -76,21 +72,54 @@ FString FRigModuleInstance::GetNamespace() const
 	return FString::Printf(TEXT("%s:"), *GetPath());
 }
 
-void UModularRig::Initialize(bool bRequestInit)
+UControlRig* FRigModuleInstance::GetRig() const
 {
-	Super::Initialize(bRequestInit);
+	if(IsValid(RigPtr))
+	{
+		return RigPtr;
+	}
 
-	UpdateCachedChildren();
+	// reset the cache if it is not valid
+	return RigPtr = nullptr;
+}
+
+void FRigModuleInstance::SetRig(UControlRig* InRig)
+{
+	UControlRig* PreviousRig = GetRig();
+	if(PreviousRig && (PreviousRig != InRig))
+	{
+		// rename the previous rig.
+		// GC will pick it up eventually - since we won't have any
+		// owning pointers to it anymore.
+		PreviousRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+		PreviousRig->MarkAsGarbage();
+	}
+
+	// update the cache
+	RigPtr = InRig;
+}
+
+bool FRigModuleInstance::ContainsRig(const UControlRig* InRig) const
+{
+	if(InRig == nullptr)
+	{
+		return false;
+	}
+	if(RigPtr == InRig)
+	{
+		return true;
+	}
+	return false;
 }
 
 void UModularRig::InitializeVMs(bool bRequestInit)
 {
 	URigVMHost::Initialize(bRequestInit);
-	ForEachModule([bRequestInit](FRigModuleInstance* Module) -> bool
+	ForEachModule([bRequestInit](const FRigModuleInstance* Module) -> bool
 	{
-		if (Module->Rig.IsValid())
+		if (UControlRig* ModuleRig = Module->GetRig())
 		{
-			Module->Rig->InitializeVMs(bRequestInit);
+			ModuleRig->InitializeVMs(bRequestInit);
 		}
 		return true;
 	});
@@ -99,11 +128,13 @@ void UModularRig::InitializeVMs(bool bRequestInit)
 bool UModularRig::InitializeVMs(const FName& InEventName)
 {
 	URigVMHost::InitializeVM(InEventName);
-	ForEachModule([InEventName](FRigModuleInstance* Module) -> bool
+	UpdateModuleHierarchyFromCDO();
+
+	ForEachModule([InEventName](const FRigModuleInstance* Module) -> bool
 	{
-		if (Module->Rig.IsValid())
+		if (UControlRig* ModuleRig = Module->GetRig())
 		{
-			Module->Rig->InitializeVMs(InEventName);
+			ModuleRig->InitializeVMs(InEventName);
 		}
 		return true;
 	});
@@ -113,23 +144,68 @@ bool UModularRig::InitializeVMs(const FName& InEventName)
 void UModularRig::InitializeFromCDO()
 {
 	Super::InitializeFromCDO();
+	UpdateModuleHierarchyFromCDO();
+}
 
+static void AddModulesRecursively(UModularRig* Rig, const FRigModuleReference* InModule, FRigModuleInstance* InParent)
+{
+	// Make sure the inner is loaded and valid
+	{
+		if (!InModule->Class.IsValid())
+		{
+			(void)InModule->Class.LoadSynchronous();
+		}
+		if (!InModule->Class.IsValid())
+		{
+			return;
+		}
+	}
+	
+	FRigModuleInstance* NewModule = Rig->AddModuleInstance(InModule->Name, InModule->Class.Get(), InParent, InModule->Connections, InModule->ConfigValues);
+	if(NewModule)
+	{
+		for (const FRigModuleReference* ChildModule : InModule->CachedChildren)
+		{
+			AddModulesRecursively(Rig, ChildModule, NewModule);
+		}
+	}
+	else
+	{
+		// todooo
+	}
+}
+
+void UModularRig::UpdateModuleHierarchyFromCDO()
+{
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		const UModularRig* CDO = GetClass()->GetDefaultObject<UModularRig>();
-
-		// Generate the rig module tree based on the CDO
 		ResetModules();
-		CDO->ForEachModule([this](const FRigModuleInstance* CDOModule) -> bool
+
+		// the CDO owns the model - when we ask for the model we'll always
+		// get the model from the CDO. we'll now add UObject module instances
+		// for each module (data only) reference in the model.
+		// Note: The CDO does not contain any UObject module instances itself.
+		const FModularRigModel& Model = GetModularRigModel();
+		for (const FRigModuleReference* RootModule : Model.RootModules)
 		{
-			if (FRigModuleInstance* NewModule = AddModuleInstance(CDOModule))
+			AddModulesRecursively(this, RootModule, nullptr);
+		}
+
+		ForEachModule([this, Model](const FRigModuleInstance* Module) -> bool
+		{
+			if(const FRigModuleReference* ModuleReference = Model.FindModule(Module->GetPath()))
 			{
-				NewModule->Rig->Initialize();
+				(void)SetModuleVariableBindings(ModuleReference->GetPath(), ModuleReference->Bindings);
+			}
+			if(UControlRig* ModuleRig = Module->GetRig())
+			{
+				ModuleRig->Initialize();
 			}
 			return true;
 		});
 
-		SupportedEvents = CDO->SupportedEvents;
+		UpdateCachedChildren();
+		UpdateSupportedEvents();
 	}
 }
 
@@ -144,11 +220,9 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 
 		ForEachModule([&InEventName, this, Hierarchy, UnitContext](FRigModuleInstance* Module) -> bool
 		{
-			if (Module->Rig.IsValid())
+			if (const UControlRig* ModuleRig = Module->GetRig())
 			{
-				UControlRig* Rig = Module->Rig.Get();
-
-				if (!Rig->SupportsEvent(InEventName))
+				if (!ModuleRig->SupportsEvent(InEventName))
 				{
 					return true;
 				}
@@ -194,20 +268,18 @@ void UModularRig::ExecuteQueue()
 	while(ExecutionQueue.IsValidIndex(ExecutionQueueFront))
 	{
 		FRigModuleExecutionElement& ExecutionElement = ExecutionQueue[ExecutionQueueFront];
-		if (ExecutionElement.ModuleInstance->Rig.IsValid())
+		if (UControlRig* ModuleRig = ExecutionElement.ModuleInstance->GetRig())
 		{
-			UControlRig* Rig = ExecutionElement.ModuleInstance->Rig.Get();
-
-			if (!Rig->SupportsEvent(ExecutionElement.EventName))
+			if (!ModuleRig->SupportsEvent(ExecutionElement.EventName))
 			{
 				ExecutionQueueFront++;
 				continue;
 			}
-				
-			// Make sure the hierarchy has the correct element redirector from this module rig
-			FRigHierarchyRedirectorGuard ElementRedirectorGuard(Rig);
 
-			FRigVMExtendedExecuteContext& RigExtendedExecuteContext= Rig->GetRigVMExtendedExecuteContext();
+			// Make sure the hierarchy has the correct element redirector from this module rig
+			FRigHierarchyRedirectorGuard ElementRedirectorGuard(ModuleRig);
+
+			FRigVMExtendedExecuteContext& RigExtendedExecuteContext= ModuleRig->GetRigVMExtendedExecuteContext();
 
 			// Make sure the hierarchy has the correct execute context with the rig module namespace
 			FRigHierarchyExecuteContextBracket ExecuteContextBracket(Hierarchy, &RigExtendedExecuteContext);
@@ -216,6 +288,29 @@ void UModularRig::ExecuteQueue()
 			FControlRigExecuteContext& RigPublicContext = RigExtendedExecuteContext.GetPublicDataSafe<FControlRigExecuteContext>();
 			FRigUnitContext& RigUnitContext = RigPublicContext.UnitContext;
 			RigUnitContext = PublicContext.UnitContext;
+
+			// re-initialize the module in case only the VM side got recompiled.
+			// this happens when the user relies on auto recompilation when editing the
+			// module (dependency) graph - by changing a value, add / remove nodes or links.
+			if(ModuleRig->IsInitRequired())
+			{
+				const TGuardValue<float> AbsoluteTimeGuard(ModuleRig->AbsoluteTime, ModuleRig->AbsoluteTime);
+				const TGuardValue<float> DeltaTimeGuard(ModuleRig->DeltaTime, ModuleRig->DeltaTime);
+				if(!ModuleRig->InitializeVM(ExecutionElement.EventName))
+				{
+					ExecutionQueueFront++;
+					continue;
+				}
+
+				// put the variable defaults back
+				if(const FRigModuleReference* ModuleReference = GetModularRigModel().FindModule(ExecutionElement.ModulePath))
+				{
+					for (const TPair<FName, FString>& Variable : ModuleReference->ConfigValues)
+					{
+						ModuleRig->SetVariableFromString(Variable.Key, Variable.Value);
+					}
+				}
+			}
 
 			// Update the interaction elements to show only the ones belonging to this module
 			const FString ModuleNamespace = FString::Printf(TEXT("%s:"), *ExecutionElement.ModulePath);
@@ -238,7 +333,7 @@ void UModularRig::ExecuteQueue()
 			// - external variables
 			{
 				RigPublicContext.AssetUserData.Reset();
-				if(const TArray<UAssetUserData*>* ControlRigUserDataArray = Rig->GetAssetUserDataArray())
+				if(const TArray<UAssetUserData*>* ControlRigUserDataArray = ModuleRig->GetAssetUserDataArray())
 				{
 					for(const UAssetUserData* ControlRigUserData : *ControlRigUserDataArray)
 					{
@@ -251,7 +346,7 @@ void UModularRig::ExecuteQueue()
 			// Copy variable bindings
 			for (TPair<FName, FRigVMExternalVariable>& Pair : ExecutionElement.ModuleInstance->VariableBindings)
 			{
-				const FRigVMExternalVariable TargetVariable = ExecutionElement.ModuleInstance->Rig->GetPublicVariableByName(Pair.Key);
+				const FRigVMExternalVariable TargetVariable = ExecutionElement.ModuleInstance->GetRig()->GetPublicVariableByName(Pair.Key);
 				if(ensure(TargetVariable.Property))
 				{
 					if (RigVMTypeUtils::AreCompatible(Pair.Value.Property, TargetVariable.Property))
@@ -261,7 +356,7 @@ void UModularRig::ExecuteQueue()
 				}
 			}
 			
-			Rig->Execute_Internal(ExecutionElement.EventName);
+			ModuleRig->Execute_Internal(ExecutionElement.EventName);
 			ExecutionElement.bExecuted = true;
 		}
 		
@@ -275,18 +370,44 @@ void UModularRig::ResetExecutionQueue()
 	ExecutionQueueFront = 0;
 }
 
-
 void UModularRig::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
 {
-	for (FRigModuleInstance& ModuleInstance : Modules)
+	if(Modules.IsEmpty())
 	{
-		if (UObject*const * NewObject = OldToNewInstanceMap.Find(ModuleInstance.Rig.Get()))
+		return;
+	}
+	
+	bool bPerformedChange = false;
+	for(const TPair<UObject*, UObject*>& Pair : OldToNewInstanceMap)
+	{
+		UObject* NewObject = Pair.Value;
+		if((NewObject == nullptr) || (NewObject->GetOuter() != this) || !NewObject->IsA<UControlRig>())
 		{
-			ModuleInstance.Rig = Cast<UControlRig>(*NewObject);
+			continue;
+		}
+
+		UControlRig* NewRig = CastChecked<UControlRig>(NewObject);
+
+		// relying on GetFName since URigVMHost is overloading GetName()
+		const FString& Path = NewRig->GetFName().ToString();
+
+		// if we find a matching module update it.
+		// FRigModuleInstance::SetRig takes care of disregarding the previous module instance.
+		if(FRigModuleInstance* Module = const_cast<FRigModuleInstance*>(FindModule(Path)))
+		{
+			Module->SetRig(NewRig);
+			NewRig->bCopyHierarchyBeforeConstruction = false;
+			NewRig->SetDynamicHierarchy(GetHierarchy());
+			NewRig->Initialize(true);
+			bPerformedChange = true;
 		}
 	}
-	InitializeVMs(true);
-	UpdateSupportedEvents();
+
+	if(bPerformedChange)
+	{
+		UpdateSupportedEvents();
+		RequestInit();
+	}
 }
 
 void UModularRig::ResetModules()
@@ -294,24 +415,28 @@ void UModularRig::ResetModules()
 	for (FRigModuleInstance& Module : Modules)
 	{
 		Module.CachedChildren.Reset();
-		TSoftObjectPtr<UControlRig> Rig = Module.Rig;
-		if (Rig && Rig.IsValid())
+
+		if (const UControlRig* ModuleRig = Module.GetRig())
 		{
-			static int32 ObjectIndexToBeDestroyed = 0;
-			static constexpr TCHAR ObjectNameFormat[] = TEXT("FRigModuleInstance_ObjectToBeDestroyed_%d");
-			const FString NewObjectName = FString::Printf(ObjectNameFormat, ObjectIndexToBeDestroyed++);
-			Rig->Rename(*NewObjectName, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-			if(!Rig->IsRooted())
-			{
-				Rig->MarkAsGarbage();
-			}
-			Rig = nullptr;
+			check(ModuleRig->GetOuter() == this);
+			// takes care of renaming / moving the rig to the transient package
+			Module.SetRig(nullptr);
 		}
 	}
 	
 	RootModules.Reset();
 	Modules.Reset();
 	SupportedEvents.Reset();
+}
+
+const FModularRigModel& UModularRig::GetModularRigModel() const
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		const UModularRig* CDO = GetClass()->GetDefaultObject<UModularRig>();
+		return CDO->GetModularRigModel();
+	}
+	return ModularRigModel;
 }
 
 void UModularRig::UpdateCachedChildren()
@@ -345,9 +470,9 @@ void UModularRig::UpdateSupportedEvents()
 	SupportedEvents.Reset();
 	ForEachModule([this](const FRigModuleInstance* Module) -> bool
 	{
-		if (Module->Rig.IsValid())
+		if (const UControlRig* ModuleRig = Module->GetRig())
 		{
-			const TArray<FName>& ModuleEvents = Module->Rig->GetSupportedEvents();
+			const TArray<FName>& ModuleEvents = ModuleRig->GetSupportedEvents();
 			for (const FName& EventName : ModuleEvents)
 			{
 				SupportedEvents.AddUnique(EventName);
@@ -357,20 +482,13 @@ void UModularRig::UpdateSupportedEvents()
 	});
 }
 
-bool UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FString InParentPath,
-	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings )
-{
-	FRigModuleInstance* ParentModule = const_cast<FRigModuleInstance*>(FindModule(InParentPath));
-	return AddModuleInstance(InModuleName, InModuleClass, ParentModule, InConnectionMap, InVariableDefaultValues, InVariableBindings) != nullptr;
-}
-
 FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent,
-	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues, const TMap<FName, FString>& InVariableBindings ) 
+	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues ) 
 {
 	// Make sure there are no name clashes
 	if (InParent)
 	{
-		for (FRigModuleInstance* Child : InParent->CachedChildren)
+		for (const FRigModuleInstance* Child : InParent->CachedChildren)
 		{
 			if (Child->Name == InModuleName)
 			{
@@ -380,7 +498,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	}
 	else
 	{
-		for (FRigModuleInstance* RootModule : RootModules)
+		for (const FRigModuleInstance* RootModule : RootModules)
 		{
 			if (RootModule->Name == InModuleName)
 			{
@@ -395,17 +513,19 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		return nullptr;
 	}
 
-	FString Name = (InParent) ? InParent->Name.ToString() + NamespaceSeparator + InModuleName.ToString() : InModuleName.ToString();
 	FRigModuleInstance& NewModule = Modules.Add_GetRef(FRigModuleInstance());
-	NewModule.Rig = NewObject<UControlRig>(this, InModuleClass, *Name);
 	NewModule.Name = InModuleName;
-
 	if (InParent)
 	{
 		NewModule.ParentPath = InParent->GetPath();
 	}
+	const FString Name = NewModule.GetPath();
+	
+	UControlRig* NewModuleRig = NewObject<UControlRig>(this, InModuleClass, *Name);
+	NewModule.SetRig(NewModuleRig);
+
 	UpdateCachedChildren();
-	for (const FName& EventName : NewModule.Rig->GetSupportedEvents())
+	for (const FName& EventName : NewModule.GetRig()->GetSupportedEvents())
 	{
 		SupportedEvents.AddUnique(EventName);
 	}
@@ -413,20 +533,30 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	// Configure module
 	{
 		URigHierarchy* Hierarchy = GetHierarchy();
-		FRigVMExtendedExecuteContext& ModuleContext = NewModule.Rig->GetRigVMExtendedExecuteContext();
+		FRigVMExtendedExecuteContext& ModuleContext = NewModuleRig->GetRigVMExtendedExecuteContext();
 		FControlRigExecuteContext& ModulePublicContext = ModuleContext.GetPublicDataSafe<FControlRigExecuteContext>();
-		NewModule.Rig->bCopyHierarchyBeforeConstruction = false;
-		NewModule.Rig->SetDynamicHierarchy(Hierarchy);
+		NewModuleRig->bCopyHierarchyBeforeConstruction = false;
+		NewModuleRig->SetDynamicHierarchy(Hierarchy);
 		ModulePublicContext.Hierarchy = Hierarchy;
-		ModulePublicContext.RigModuleNameSpace = NewModule.Rig->GetRigModuleNameSpace();
+		ModulePublicContext.RigModuleNameSpace = NewModuleRig->GetRigModuleNameSpace();
 		ModulePublicContext.RigModuleNameSpaceHash = GetTypeHash(ModulePublicContext.RigModuleNameSpace);
-		NewModule.Rig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));
+		NewModuleRig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));
 
 		for (const TPair<FName, FString>& Variable : InVariableDefaultValues )
 		{
-			NewModule.Rig->SetVariableFromString(Variable.Key, Variable.Value);
+			NewModule.GetRig()->SetVariableFromString(Variable.Key, Variable.Value);
 		}
+	}
+	
+	return &NewModule;
+}
 
+bool UModularRig::SetModuleVariableBindings(const FString& InModulePath, const TMap<FName, FString>& InVariableBindings)
+{
+	if(FRigModuleInstance* Module = const_cast<FRigModuleInstance*>(FindModule(InModulePath)))
+	{
+		Module->VariableBindings.Reset();
+		
 		for (const TPair<FName, FString>& Pair : InVariableBindings)
 		{
 			FString SourceModulePath, SourceVariableName = Pair.Value;
@@ -434,84 +564,36 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 			FRigVMExternalVariable SourceVariable;
 			if (SourceModulePath.IsEmpty())
 			{
-				if (FProperty* Property = GetClass()->FindPropertyByName(*SourceVariableName))
+				if (const FProperty* Property = GetClass()->FindPropertyByName(*SourceVariableName))
 				{
 					SourceVariable = FRigVMExternalVariable::Make(Property, (UObject*)this);
 				}
 			}
 			else if(const FRigModuleInstance* SourceModule = FindModule(SourceModulePath))
 			{
-				SourceVariable = SourceModule->Rig->GetPublicVariableByName(*SourceVariableName);
+				SourceVariable = SourceModule->GetRig()->GetPublicVariableByName(*SourceVariableName);
 			}
+
+			if(SourceVariable.Property == nullptr)
+			{
+				// todo: report error
+				return false;
+			}
+			
 			SourceVariable.Name = *Pair.Value; // Adapt the name of the variable to contain the full path
-			check(SourceVariable.Property);
-			NewModule.VariableBindings.Add(Pair.Key, SourceVariable);
+			Module->VariableBindings.Add(Pair.Key, SourceVariable);
 		}
+		return true;
 	}
-	
-	return &NewModule;
-}
-
-FRigModuleInstance* UModularRig::AddModuleInstance(const FRigModuleInstance* InOtherModule)
-{
-	if (!InOtherModule->Rig.IsValid())
-	{
-		return nullptr;
-	}
-
-	// Figure out the ConnectionMap
-	const FRigElementKeyRedirector& Redirector = InOtherModule->Rig->GetElementKeyRedirector();
-	const TMap<FRigElementKey, FRigElementKey> ConnectionMap = Redirector.ExternalKeys;
-
-	// Figure out the DefaultValues (which is the current value on the CDO)
-	TMap<FName, FString> DefaultValues;
-	const TArray<FRigVMExternalVariable> Variables = InOtherModule->Rig->GetPublicVariables();
-	for (const FRigVMExternalVariable& Variable : Variables)
-	{
-		const FString Value = InOtherModule->Rig->GetVariableAsString(Variable.Name);
-		DefaultValues.Add(Variable.Name, Value);
-	}
-
-	// Figure out the variable bindings (where the source is either a root variable or a variable on another module)
-	TMap<FName, FString> VariableBindings;
-	for (const TPair<FName, FRigVMExternalVariable>& Pair : InOtherModule->VariableBindings)
-	{
-		VariableBindings.Add(Pair.Key, Pair.Value.Name.ToString());
-	}
-
-	// Figure out the parent module
-	FRigModuleInstance* ParentModule = const_cast<FRigModuleInstance*>(FindModule(InOtherModule->ParentPath));
-	
-	return AddModuleInstance(InOtherModule->Name, InOtherModule->Rig->GetClass(), ParentModule, ConnectionMap, DefaultValues, VariableBindings);
+	return false;
 }
 
 const FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
 {
-	const TArray<FRigModuleInstance*>* Children = &RootModules;
-	FString Left = InPath, Right;
-	while (Left.Split(NamespaceSeparator, &Left, &Right))
+	return Modules.FindByPredicate([InPath](const FRigModuleInstance& Module)
 	{
-		FRigModuleInstance* const * Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
-		{
-			return Module->Name == Left;
-		});
-		if (!Cur)
-		{
-			return nullptr;
-		}
-		Children = &(*Cur)->CachedChildren;
-		Left = Right;
-	}
-
-	FRigModuleInstance* const * Cur = Children->FindByPredicate([Left](FRigModuleInstance* Module)
-		{
-			return Module->Name == Left;
-		});
-	if (!Cur)
-	{
-		return nullptr;
-	}
-	return *Cur;
+		return Module.GetPath() == InPath;
+	});
 }
 
 const FRigModuleInstance* UModularRig::FindModule(const UControlRig* InModuleInstance) const
@@ -519,14 +601,11 @@ const FRigModuleInstance* UModularRig::FindModule(const UControlRig* InModuleIns
 	const FRigModuleInstance* FoundModule = nullptr;
 	ForEachModule([InModuleInstance, &FoundModule](const FRigModuleInstance* Module) -> bool
 	{
-		if (Module->Rig.IsValid())
+		if(Module->GetRig() == InModuleInstance)
 		{
-			if(Module->Rig.Get() == InModuleInstance)
-			{
-				FoundModule = Module;
-				// don't continue
-				return false;
-			}
+			FoundModule = Module;
+			// don't continue ForEachModule
+			return false;
 		}
 		return true;
 	});

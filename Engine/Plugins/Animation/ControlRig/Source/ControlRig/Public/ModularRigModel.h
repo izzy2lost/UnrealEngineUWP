@@ -3,12 +3,31 @@
 #pragma once
 
 #include "ControlRig.h"
-#include "ModularRig.h"
-#include "ModularRigController.h"
 #include "ModularRigModel.generated.h"
 
+class UModularRigController;
+
+UENUM()
+enum class EModularRigNotification : uint8
+{
+	ModuleAdded,
+
+	ModuleRenamed,
+
+	ModuleRemoved,
+
+	ModuleReparented,
+
+	ConnectionChanged,
+
+	ModuleConfigValueChanged,
+
+	/** MAX - invalid */
+	Max UMETA(Hidden),
+};
+
 USTRUCT(BlueprintType)
-struct CONTROLRIGDEVELOPER_API FRigModuleReference
+struct CONTROLRIG_API FRigModuleReference
 {
 	GENERATED_BODY()
 
@@ -65,7 +84,7 @@ struct CONTROLRIGDEVELOPER_API FRigModuleReference
 
 // A management struct containing all modules in the rig
 USTRUCT(BlueprintType)
-struct CONTROLRIGDEVELOPER_API FModularRigModel
+struct CONTROLRIG_API FModularRigModel
 {
 public:
 
@@ -77,7 +96,7 @@ public:
 	TArray<FRigModuleReference> DeletedModules;
 
 	UPROPERTY(transient)
-	TObjectPtr<UModularRigController> Controller;
+	TObjectPtr<UObject> Controller;
 
 	UModularRigController* GetController(bool bCreateIfNeeded = true);
 

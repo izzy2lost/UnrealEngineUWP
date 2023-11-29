@@ -41,7 +41,7 @@ enum class EControlRigType : uint8
 
 
 UCLASS(BlueprintType, meta=(IgnoreClassThumbnail))
-class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, public IInterface_PreviewMeshProvider
+class CONTROLRIGDEVELOPER_API UControlRigBlueprint : public URigVMBlueprint, public IInterface_PreviewMeshProvider, public IRigHierarchyProvider
 {
 	GENERATED_UCLASS_BODY()
 
@@ -145,6 +145,12 @@ public:
 	DECLARE_EVENT_OneParam(UControlRigBlueprint, FOnRigTypeChanged, UControlRigBlueprint*);
 
 	FOnRigTypeChanged& OnRigTypeChanged() { return OnRigTypeChangedDelegate; }
+
+	/// IRigHierarchyProvider interface
+	virtual URigHierarchy* GetHierarchy() const override
+	{
+		return Hierarchy;
+	}
 
 	UPROPERTY(EditAnywhere, Category = "Hierarchy")
 	FRigHierarchySettings HierarchySettings;
@@ -291,6 +297,9 @@ public:
 	void PropagatePropertyFromBPToInstances(FRigElementKey InRigElement, const FProperty* InProperty) const;
 	void PropagatePropertyFromInstanceToBP(FRigElementKey InRigElement, const FProperty* InProperty, UControlRig* InInstance) const;
 	void PropagateModuleHierarchyFromBPToInstances() const;
+	void UpdateModularDependencyDelegates();
+	void OnModularDependencyVMCompiled(UObject* InBlueprint, URigVM* InVM, FRigVMExtendedExecuteContext& InExecuteContext);
+	void OnModularDependencyChanged(URigVMBlueprint* InBlueprint);
 
 	/**
 	* Returns the modified event, which can be used to 

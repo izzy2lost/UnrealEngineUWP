@@ -603,9 +603,9 @@ TPair<const FSlateBrush*, FSlateColor> SModularRigModelItem::GetBrushForElementT
 
 	if (const FRigModuleInstance* Module = InModularRig->FindModule(InKey))
 	{
-		if (Module->Rig.IsValid())
+		if (UControlRig* ModuleRig = Module->GetRig())
 		{
-			FSoftObjectPath IconPath = Module->Rig->GetRigModuleSettings().Icon;
+			FSoftObjectPath IconPath = ModuleRig->GetRigModuleSettings().Icon;
 			Brush = IconPathToBrush.Find(IconPath);
 			if (!Brush)
 			{
