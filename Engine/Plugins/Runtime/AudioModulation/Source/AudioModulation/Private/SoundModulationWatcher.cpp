@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#include "AudioModulationDestination.h"
+#include "SoundModulationWatcher.h"
 
 #include "AudioDeviceHandle.h"
 #include "AudioModulation.h"
@@ -7,18 +7,18 @@
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/World.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(AudioModulationDestination)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(SoundModulationWatcher)
 
 
-namespace AudioModulation::DestinationPrivate
+namespace AudioModulation::WatcherPrivate
 {
-	FAudioDeviceHandle GetAudioDevice(const UAudioModulationDestination& InDestination)
+	FAudioDeviceHandle GetAudioDevice(const USoundModulationWatcher& InWatcher)
 	{
 		if (GEngine)
 		{
 			if (GEngine->UseSound())
 			{
-				UWorld* World = GEngine->GetWorldFromContextObject(&InDestination, EGetWorldErrorMode::ReturnNull);
+				UWorld* World = GEngine->GetWorldFromContextObject(&InWatcher, EGetWorldErrorMode::ReturnNull);
 				if (World && World->bAllowAudioPlayback && !World->IsNetMode(NM_DedicatedServer))
 				{
 					return World->GetAudioDevice();
@@ -33,9 +33,9 @@ namespace AudioModulation::DestinationPrivate
 		return { };
 	}
 
-	FAudioModulationManager* GetModulationManager(const UAudioModulationDestination& InDestination)
+	FAudioModulationManager* GetModulationManager(const USoundModulationWatcher& InWatcher)
 	{
-		FAudioDeviceHandle AudioDevice = DestinationPrivate::GetAudioDevice(InDestination);
+		FAudioDeviceHandle AudioDevice = WatcherPrivate::GetAudioDevice(InWatcher);
 		if (AudioDevice.IsValid() && AudioDevice->IsModulationPluginEnabled())
 		{
 			if (IAudioModulationManager* ModulationInterface = AudioDevice->ModulationInterface.Get())
@@ -46,9 +46,9 @@ namespace AudioModulation::DestinationPrivate
 
 		return nullptr;
 	}
-} // AudioModulation::DestinationPrivate
+} // AudioModulation::WatcherPrivate
 
-bool UAudioModulationDestination::ClearModulator()
+bool USoundModulationWatcher::ClearModulator()
 {
 	if (Modulator)
 	{
@@ -60,18 +60,18 @@ bool UAudioModulationDestination::ClearModulator()
 	return false;
 }
 
-const USoundModulatorBase* UAudioModulationDestination::GetModulator() const
+const USoundModulatorBase* USoundModulationWatcher::GetModulator() const
 {
 	return Modulator;
 }
 
-float UAudioModulationDestination::GetValue() const
+float USoundModulationWatcher::GetValue() const
 {
 	using namespace AudioModulation;
 
 	if (Modulator)
 	{
-		if (FAudioModulationManager* Modulation = DestinationPrivate::GetModulationManager(*this))
+		if (FAudioModulationManager* Modulation = WatcherPrivate::GetModulationManager(*this))
 		{
 			return Modulation->GetModulatorValueThreadSafe(Modulator->GetUniqueID());
 		}
@@ -80,18 +80,18 @@ float UAudioModulationDestination::GetValue() const
 	return 1.0f;
 }
 
-void UAudioModulationDestination::PostInitProperties()
+void USoundModulationWatcher::PostInitProperties()
 {
 	using namespace AudioModulation;
 
 	Super::PostInitProperties();
 
-	if (UAudioModulationDestination::StaticClass()->GetDefaultObject() == this)
+	if (USoundModulationWatcher::StaticClass()->GetDefaultObject() == this)
 	{
 		return;
 	}
 
-	FAudioDeviceHandle AudioDevice = DestinationPrivate::GetAudioDevice(*this);
+	FAudioDeviceHandle AudioDevice = WatcherPrivate::GetAudioDevice(*this);
 	if (AudioDevice.IsValid())
 	{
 		constexpr bool bIsBuffered = false;
@@ -99,7 +99,7 @@ void UAudioModulationDestination::PostInitProperties()
 	}
 }
 
-bool UAudioModulationDestination::SetModulator(const USoundModulatorBase* InModulator)
+bool USoundModulationWatcher::SetModulator(const USoundModulatorBase* InModulator)
 {
 	if (InModulator == Modulator)
 	{

@@ -6,11 +6,11 @@
 #include "AudioThread.h"
 #include "Sound/SoundModulationDestination.h"
 
-#include "AudioModulationDestination.generated.h"
+#include "SoundModulationWatcher.generated.h"
 
 
 UCLASS(config = Engine, editinlinenew, BlueprintType)
-class AUDIOMODULATION_API UAudioModulationDestination : public UObject
+class AUDIOMODULATION_API USoundModulationWatcher : public UObject
 {
 	GENERATED_BODY()
 
@@ -23,11 +23,11 @@ private:
 public:
 	virtual void PostInitProperties() override;
 
-	// Returns true if a modulator was set and has been cleared.
+	// Returns true if a modulator was being watched and has been cleared.
 	UFUNCTION(BlueprintCallable, Category = "Audio|Modulation", DisplayName = "Clear Modulator")
 	UPARAM(DisplayName = "Modulator Cleared") bool ClearModulator();
 
-	// Returns currently set modulator.
+	// Returns currently set modulator being watched.
 	UFUNCTION(BlueprintPure, Category = "Audio|Modulation")
 	UPARAM(DisplayName = "Modulator") const USoundModulatorBase* GetModulator() const;
 

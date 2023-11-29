@@ -48,7 +48,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ActivateBus(const USoundControlBus& InBus)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateBus is deprecated. Use UAudioModulationDestination API (see SetModulator) instead to enforce generator lifetime"));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateBus is deprecated. Use USoundModulationWatcher instead"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateBus(InBus);
@@ -62,7 +62,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::ActivateGenerator(const USoundModulationGenerator& InGenerator)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateGenerator is deprecated. Use UAudioModulationDestination API (see SetModulator) instead to enforce generator lifetime"));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::ActivateGenerator is deprecated. Use USoundModulationWatcher instead"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->ActivateGenerator(InGenerator);
@@ -71,7 +71,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::DeactivateBus(const USoundControlBus& InBus)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateBus is deprecated. Use UAudioModulationDestination API (see ClearModulator) instead to enforce bus lifetime."));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateBus is deprecated. Use USoundModulationWatcher instead"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->DeactivateBus(InBus);
@@ -90,7 +90,7 @@ namespace AudioModulation
 
 	void FAudioModulationManager::DeactivateGenerator(const USoundModulationGenerator& InGenerator)
 	{
-		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateGenerator is deprecated. Use UAudioModulationDestination API (see ClearModulator) instead to enforce bus lifetime"));
+		UE_LOG(LogAudioModulation, Warning, TEXT("FAudioModulationManager::DeactivateGenerator is deprecated. Use USoundModulationWatcher instead"));
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ModSystem->DeactivateGenerator(InGenerator);

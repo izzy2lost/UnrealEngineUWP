@@ -4,7 +4,6 @@
 #include "Async/Async.h"
 #include "AudioDevice.h"
 #include "AudioModulation.h"
-#include "AudioModulationDestination.h"
 #include "AudioModulationLogging.h"
 #include "AudioModulationProfileSerializer.h"
 #include "AudioModulationSystem.h"
@@ -16,6 +15,7 @@
 #include "Misc/Paths.h"
 #include "SoundControlBus.h"
 #include "SoundControlBusMix.h"
+#include "SoundModulationWatcher.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AudioModulationStatics)
 
@@ -335,20 +335,15 @@ USoundModulationGeneratorADEnvelope* UAudioModulationStatics::CreateADEnvelopeGe
 	return NewGenerator;
 }
 
-UAudioModulationDestination* UAudioModulationStatics::CreateModulationDestination(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
+USoundModulationWatcher* UAudioModulationStatics::CreateModulationWatcher(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
 {
-	if (UAudioModulationDestination* NewDestination = NewObject<UAudioModulationDestination>(WorldContextObject, Name))
+	if (USoundModulationWatcher* NewWatcher = NewObject<USoundModulationWatcher>(WorldContextObject, Name))
 	{
-		NewDestination->SetModulator(Modulator);
-		return NewDestination;
+		NewWatcher->SetModulator(Modulator);
+		return NewWatcher;
 	}
 
 	return nullptr;
-}
-
-UAudioModulationDestination* UAudioModulationStatics::CreateModulationWatcher(UObject* WorldContextObject, FName Name, USoundModulatorBase* Modulator)
-{
-	return CreateModulationDestination(WorldContextObject, Name, Modulator);
 }
 
 void UAudioModulationStatics::DeactivateBus(const UObject* WorldContextObject, USoundControlBus* Bus)
