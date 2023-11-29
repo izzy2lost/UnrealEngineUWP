@@ -11,6 +11,13 @@
 UMovieGraphCollectionNode::UMovieGraphCollectionNode()
 {
 	Collection = CreateDefaultSubobject<UMovieGraphCollection>(TEXT("Collection"));
+
+#if WITH_EDITOR
+	Collection->OnCollectionNameChangedDelegate.AddWeakLambda(this, [this](UMovieGraphCollection* ChangedCollection)
+	{
+		OnNodeChangedDelegate.Broadcast(this);
+	});
+#endif
 }
 
 #if WITH_EDITOR
@@ -44,19 +51,6 @@ FSlateIcon UMovieGraphCollectionNode::GetIconAndTint(FLinearColor& OutColor) con
 
 	OutColor = FLinearColor::White;
 	return CollectionIcon;
-}
-
-void UMovieGraphCollectionNode::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	// TODO: Ideally this only fires when the collection name changes
-	// Broadcast a node-changed delegate so that the node title's UI gets updated.
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphCollectionNode, Collection) ||
-		PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphCollectionNode, bOverride_Collection))
-	{
-		OnNodeChangedDelegate.Broadcast(this);
-	}
 }
 #endif // WITH_EDITOR
 

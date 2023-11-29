@@ -1324,6 +1324,19 @@ bool UMovieGraphCollection::MoveConditionGroupToIndex(UMovieGraphConditionGroup*
 	return true;
 }
 
+#if WITH_EDITOR
+void UMovieGraphCollection::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	// Name change delegate is broadcast here so it catches both SetCollectionName() and a direct change of the property via the details panel
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphCollection, CollectionName))
+	{
+		OnCollectionNameChangedDelegate.Broadcast(this);
+	}
+}
+#endif	// WITH_EDITOR
+
 void UMovieGraphCollection::SetCollectionName(const FString& InName)
 {
 	CollectionName = InName;

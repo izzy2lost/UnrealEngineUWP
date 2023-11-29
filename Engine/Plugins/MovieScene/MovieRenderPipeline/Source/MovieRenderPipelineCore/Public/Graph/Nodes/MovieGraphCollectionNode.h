@@ -26,10 +26,6 @@ public:
 	virtual FText GetMenuCategory() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
-
-	//~ Begin UObject interface
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	//~ End UObject interface
 #endif
 
 	virtual FString GetNodeInstanceName() const override;

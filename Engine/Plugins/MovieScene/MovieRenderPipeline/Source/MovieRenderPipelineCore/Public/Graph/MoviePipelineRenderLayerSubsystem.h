@@ -438,7 +438,16 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphCollection : public UObject
 	GENERATED_BODY()
 
 public:
+	/** Delegate which is called when the collection name changes. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FMovieGraphCollectionNameChanged, UMovieGraphCollection*)
+	
 	UMovieGraphCollection() = default;
+	
+#if WITH_EDITOR
+	//~ Begin UObject interface
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	//~ End UObject interface
+#endif
 
 	/** Sets the name of the collection as seen in the UI. */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
@@ -479,6 +488,12 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool MoveConditionGroupToIndex(UMovieGraphConditionGroup* InConditionGroup, const int32 NewIndex);
+
+public:
+#if WITH_EDITOR
+	/** Called when the collection name changes. */
+	FMovieGraphCollectionNameChanged OnCollectionNameChangedDelegate;
+#endif
 
 private:
 	/** The display name of the collection, shown in the UI. Does not need to be unique across collections. */
