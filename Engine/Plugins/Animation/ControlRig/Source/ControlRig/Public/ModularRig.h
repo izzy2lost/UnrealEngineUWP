@@ -147,17 +147,13 @@ public:
 	
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
 
-	void ResetModules();
+	void ResetModules(bool bDestroyModuleRigs = true);
 
 	const FModularRigModel& GetModularRigModel() const;
 	void UpdateModuleHierarchyFromCDO();
 	void UpdateCachedChildren();
 	void UpdateSupportedEvents();
 
-	/** Adds a module to the rig*/
-	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues);
-	bool SetModuleVariableBindings(const FString& InModulePath, const TMap<FName, FString>& InVariableBindings);
-	
 	const FRigModuleInstance* FindModule(const FString& InPath) const;
 	const FRigModuleInstance* FindModule(const UControlRig* InModuleInstance) const;
 	FString GetParentPath(const FString& InPath) const;
@@ -180,4 +176,19 @@ public:
 	}
 
 	static const FString NamespaceSeparator;
+
+private:
+
+	/** Adds a module to the rig*/
+	FRigModuleInstance* AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, const FRigModuleInstance* InParent, const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues);
+
+	/** Updates the module's variable bindings */
+	bool SetModuleVariableBindings(const FString& InModulePath, const TMap<FName, FString>& InVariableBindings);
+
+	/** Destroys / discards a module instance rig */
+	static void DiscardModuleRig(UControlRig* InControlRig);
+
+	TMap<FString, UControlRig*> PreviousModuleRigs;
+
+	friend struct FRigModuleInstance;
 };

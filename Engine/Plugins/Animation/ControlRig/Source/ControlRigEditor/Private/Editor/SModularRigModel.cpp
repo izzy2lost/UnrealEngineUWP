@@ -255,7 +255,6 @@ TArray<FString> SModularRigModel::GetSelectedKeys() const
 
 void SModularRigModel::HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint)
 {
-	ClearDetailPanel();
 }
 
 void SModularRigModel::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
@@ -561,8 +560,6 @@ void SModularRigModel::HandleRenameModule()
 
 FName SModularRigModel::HandleRenameModule(const FString& InOldPath, const FName& InNewName)
 {
-	ClearDetailPanel();
-	
 	if (ControlRigBlueprint.IsValid())
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModularRigModelRename", "Rename Module"));
@@ -628,8 +625,6 @@ void SModularRigModel::HandleDeleteModules()
 
 void SModularRigModel::HandleDeleteModules(const TArray<FString>& InPaths)
 {
-	ClearDetailPanel();
-	
 	if (ControlRigBlueprint.IsValid())
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModularRigModelDelete", "Delete Modules"));
@@ -649,8 +644,6 @@ void SModularRigModel::HandleDeleteModules(const TArray<FString>& InPaths)
 
 void SModularRigModel::HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath)
 {
-	ClearDetailPanel();
-	
 	if (ControlRigBlueprint.IsValid())
 	{
 		FScopedTransaction Transaction(LOCTEXT("ModularRigModelReparent", "Reparent Modules"));
@@ -728,14 +721,6 @@ void SModularRigModel::OnRequestDetailsInspection(const FString& InKey)
 		return;
 	}
 	ControlRigEditor.Pin()->SetDetailViewForRigModules({InKey});
-}
-
-void SModularRigModel::ClearDetailPanel() const
-{
-	if(ControlRigEditor.IsValid())
-	{
-		ControlRigEditor.Pin()->ClearDetailObject();
-	}
 }
 
 void SModularRigModel::PostRedo(bool bSuccess) 
