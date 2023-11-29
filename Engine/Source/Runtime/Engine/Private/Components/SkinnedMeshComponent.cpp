@@ -4030,6 +4030,10 @@ void USkinnedMeshComponent::RegisterLODStreamingCallback(FLODStreamingCallback&&
 {
 	if (GetSkinnedAsset())
 	{
+		if (LODIdx < 0)
+		{
+			LODIdx = GetSkinnedAsset()->GetMinLodIdx(true);
+		}
 		GetSkinnedAsset()->RegisterMipLevelChangeCallback(this, LODIdx, TimeoutSecs, bOnStreamIn, MoveTemp(Callback));
 		bMipLevelCallbackRegistered = true;
 	}
@@ -4042,6 +4046,18 @@ void USkinnedMeshComponent::RegisterLODStreamingCallback(FLODStreamingCallback&&
 		GetSkinnedAsset()->RegisterMipLevelChangeCallback(this, TimeoutStartSecs, MoveTemp(CallbackStreamingStart), TimeoutDoneSecs, MoveTemp(CallbackStreamingDone));
 		bMipLevelCallbackRegistered = true;
 	}
+}
+
+bool USkinnedMeshComponent::PrestreamMeshLODs(float Seconds)
+{
+	if (USkinnedAsset* Asset = GetSkinnedAsset())
+	{
+		static IConsoleVariable* CVarAllowFastForceResident = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streaming.AllowFastForceResident"));
+		Asset->bIgnoreStreamingMipBias = CVarAllowFastForceResident && CVarAllowFastForceResident->GetInt();
+		Asset->SetForceMipLevelsToBeResident(Seconds);
+		return IStreamingManager::Get().GetRenderAssetStreamingManager().FastForceFullyResident(Asset);
+	}
+	return false;
 }
 
 void USkinnedMeshComponent::BeginDestroy()

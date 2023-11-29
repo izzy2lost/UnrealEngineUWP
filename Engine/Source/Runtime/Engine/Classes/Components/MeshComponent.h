@@ -116,9 +116,18 @@ public:
 	ENGINE_API virtual void PrestreamTextures( float Seconds, bool bPrioritizeCharacterTextures, int32 CinematicTextureGroups = 0 );
 
 	/**
+	 *	Tell the streaming system to start streaming in all LODs for the mesh.
+	*	Note: this function may set bIgnoreStreamingMipBias on this component enable the FastForceResident system.
+	 *  @return bool							True if streaming was successfully requested
+	 *	@param Seconds							Number of seconds to force all LODs to be resident
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API virtual bool PrestreamMeshLODs( float Seconds ) { return false; }
+
+	/**
 	 * Register a one-time callback that will be called when criteria met
 	 * @param Callback
-	 * @param LODIdx		The LOD index expected
+	 * @param LODIdx		The LOD index expected. Specify -1 for the MinLOD.
 	 * @param TimeoutSecs	Timeout in seconds
 	 * @param bOnStreamIn	To get notified when the expected LOD is streamed in or out
 	 */
