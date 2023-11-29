@@ -190,7 +190,7 @@ void FLevelVisibilityTrackEditor::OnAddNewSection( UMovieSceneTrack* LevelVisibi
 
 void FLevelVisibilityTrackEditor::GetCurrentLevelVisibility(TArray<FName>& OutVisibleLevelNames, TArray<FName>& OutHiddenLevelNames)
 {
-	UWorld* World = Cast<UWorld>(GetSequencer()->GetPlaybackContext());
+	UWorld* World = GetSequencer()->GetPlaybackContext()->GetWorld();
 	if (!World)
 	{
 		return;

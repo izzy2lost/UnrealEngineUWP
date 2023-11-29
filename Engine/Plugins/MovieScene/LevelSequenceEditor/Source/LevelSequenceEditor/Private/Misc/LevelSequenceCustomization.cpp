@@ -384,7 +384,7 @@ void FLevelSequenceCustomization::AddSpawnLevelMenu(FMenuBuilder& MenuBuilder, T
 		EUserInterfaceActionType::ToggleButton
 	);
 
-	UWorld* World = Cast<UWorld>(Sequencer->GetPlaybackContext());
+	UWorld* World = Sequencer->GetPlaybackContext()->GetWorld();
 	if (!World)
 	{
 		return;

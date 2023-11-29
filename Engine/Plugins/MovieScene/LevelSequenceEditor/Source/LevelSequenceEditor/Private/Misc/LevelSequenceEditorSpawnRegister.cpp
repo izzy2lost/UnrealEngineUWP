@@ -363,7 +363,7 @@ void FLevelSequenceEditorSpawnRegister::HandleConvertPossessableToSpawnable(UObj
 		}
 
 		GEditor->SelectActor(OldActor, false, true);
-		UObject* PlaybackContext = SharedPlaybackState->GetPlaybackContext()->GetWorld();
+		UObject* PlaybackContext = SharedPlaybackState->GetPlaybackContext();
 		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
 		if (World)
 		{
