@@ -31,8 +31,11 @@ class FPropertyBag
 
 		UE_API int32 GetSize() const;
 
+		inline explicit operator bool() const { return !!Data; }
+
 		FPropertyTag Tag;
 		void* Data = nullptr;
+		bool bOwnsProperty = false;
 	};
 
 	struct FNode;
@@ -41,7 +44,8 @@ class FPropertyBag
 	struct FNode
 	{
 		FName Type;
-		TVariant<TYPE_OF_NULLPTR, FValue, FNodeMap> ValueOrNodes;
+		FValue Value;
+		FNodeMap Nodes;
 	};
 
 	FValue& FindOrCreateValue(const FPropertyPathName& Path);
@@ -89,14 +93,18 @@ public:
 	public:
 		using FNodeIterator = typename FNodeMap::TConstIterator;
 
-		UE_API explicit FConstIterator(const FNodeIterator& NodeIt);
+		inline explicit FConstIterator(const FNodeIterator& NodeIt)
+		{
+			NodeIterators.Push(NodeIt);
+			EnterNode();
+		}
 
-		UE_API FConstIterator& operator++();
+		inline FConstIterator& operator++() { EnterNode(); return *this; }
 
-		inline explicit operator bool() const { return !!NodeIterators.Last(); }
+		inline explicit operator bool() const { return !!CurrentValue; }
 
-		inline bool operator==(const FConstIterator& Rhs) const { return NodeIterators.Last() == Rhs.NodeIterators.Last(); }
-		inline bool operator!=(const FConstIterator& Rhs) const { return NodeIterators.Last() != Rhs.NodeIterators.Last(); }
+		inline bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
+		inline bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
 
 		inline const FPropertyPathName& GetPath() const { return CurrentPath; }
 		inline const FProperty* GetProperty() const { return CurrentValue->Tag.Prop; }
@@ -104,7 +112,7 @@ public:
 		inline int32 GetValueSize() const { return CurrentValue->GetSize(); }
 
 	private:
-		void EnterNode();
+		UE_API void EnterNode();
 
 		TArray<FNodeIterator, TInlineAllocator<8>> NodeIterators;
 		FPropertyPathName CurrentPath;

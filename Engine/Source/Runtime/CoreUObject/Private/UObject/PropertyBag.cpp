@@ -21,15 +21,15 @@ void FPropertyBag::Empty()
 
 void FPropertyBag::Add(const FPropertyPathName& Path, FProperty* Property, void* Data, int32 ArrayIndex)
 {
-	// TODO: NullAr is a workaround to FPropertyTag requiring an archive to assert on versioned property serialization.
-	FNullArchive NullAr;
-
 	FValue& Value = FindOrCreateValue(Path);
 
 	const bool bPropertyChanged = Value.Tag.Prop != Property;
 
 	if (bPropertyChanged)
 	{
+		// TODO: NullAr is a workaround to FPropertyTag requiring an archive to assert on versioned property serialization.
+		FNullArchive NullAr;
+
 		Value.Destroy();
 		Value.Tag = FPropertyTag(NullAr, Property, INDEX_NONE, (uint8*)Data, nullptr);
 	}
@@ -55,9 +55,9 @@ void FPropertyBag::Remove(const FPropertyPathName& Path)
 		const FPropertyPathNameSegment Segment = Path.GetSegment(SegmentIndex);
 		if (TUniquePtr<FNode>* Node = Nodes[SegmentIndex]->Find(Segment.PackNameWithIndex()))
 		{
-			if (FNodeMap* NodeMap = (*Node)->ValueOrNodes.TryGet<FNodeMap>())
+			if (FNodeMap& NodeMap = (*Node)->Nodes; !NodeMap.IsEmpty())
 			{
-				Nodes.Add(NodeMap);
+				Nodes.Add(&NodeMap);
 				continue;
 			}
 		}
@@ -100,16 +100,18 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 		Value.Tag.ArrayIndex = INDEX_NONE;
 	}
 
-	Value.AllocateAndInitializeValue();
-
+	// Serialize the value using the existing property from the tag.
 	if (FProperty* Property = Value.Tag.Prop)
 	{
+		Value.AllocateAndInitializeValue();
 		Tag.SerializeTaggedProperty(ValueSlot, Property, (uint8*)Value.Data, (const uint8*)Defaults);
+		return;
 	}
-	else
-	{
-		UnderlyingArchive.Serialize(Value.Data, Value.Tag.Size);
-	}
+
+	// Fall back to loading the serialized value.
+	// Persisting this serialized value will require capturing version information from the archive.
+	Value.AllocateAndInitializeValue();
+	UnderlyingArchive.Serialize(Value.Data, Value.Tag.Size);
 }
 
 FPropertyBag::FValue& FPropertyBag::FindOrCreateValue(const FPropertyPathName& Path)
@@ -125,12 +127,8 @@ FPropertyBag::FValue& FPropertyBag::FindOrCreateValue(const FPropertyPathName& P
 		{
 			Node = MakeUnique<FNode>();
 		}
-		if (!Node->ValueOrNodes.IsType<FNodeMap>())
-		{
-			Node->ValueOrNodes.Emplace<FNodeMap>();
-		}
 		Node->Type = Segment.Type;
-		NodeMap = &Node->ValueOrNodes.Get<FNodeMap>();
+		NodeMap = &Node->Nodes;
 	}
 
 	FPropertyPathNameSegment LastSegment = Path.GetSegment(SegmentCount - 1);
@@ -139,12 +137,8 @@ FPropertyBag::FValue& FPropertyBag::FindOrCreateValue(const FPropertyPathName& P
 	{
 		Node = MakeUnique<FNode>();
 	}
-	if (!Node->ValueOrNodes.IsType<FValue>())
-	{
-		Node->ValueOrNodes.Emplace<FValue>();
-	}
 	Node->Type = LastSegment.Type;
-	return Node->ValueOrNodes.Get<FValue>();
+	return Node->Value;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -174,17 +168,25 @@ void FPropertyBag::FValue::AllocateAndInitializeValue()
 
 void FPropertyBag::FValue::Destroy()
 {
-	if (Data)
+	if (const FProperty* Property = Tag.Prop)
 	{
-		if (const FProperty* Property = Tag.Prop)
+		if (Data)
 		{
 			// TODO: Need to destroy and free only one element for arrays.
 			Property->DestroyAndFreeValue(Data);
+			Data = nullptr;
 		}
-		else
+
+		if (bOwnsProperty)
 		{
-			FMemory::Free(Data);
+			bOwnsProperty = false;
+			delete Property;
+			Tag.Prop = nullptr;
 		}
+	}
+	else
+	{
+		FMemory::Free(Data);
 		Data = nullptr;
 	}
 }
@@ -205,20 +207,7 @@ int32 FPropertyBag::FValue::GetSize() const
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-FPropertyBag::FConstIterator::FConstIterator(const FNodeIterator& NodeIt)
-{
-	NodeIterators.Push(NodeIt);
-	EnterNode();
-}
-
-FPropertyBag::FConstIterator& FPropertyBag::FConstIterator::operator++()
-{
-	++NodeIterators.Last();
-	EnterNode();
-	return *this;
-}
-
-inline void FPropertyBag::FConstIterator::EnterNode()
+void FPropertyBag::FConstIterator::EnterNode()
 {
 	for (;;)
 	{
@@ -229,27 +218,24 @@ inline void FPropertyBag::FConstIterator::EnterNode()
 
 		if (FNodeIterator& NodeIt = NodeIterators.Last())
 		{
-			const TUniquePtr<FNode>& Node = NodeIt.Value();
+			FNode* Node = NodeIt.Value().Get();
 			CurrentPath.Push(FPropertyPathNameSegment().SetNameWithIndex(NodeIt.Key()).SetType(Node->Type));
+			++NodeIt;
 
-			if (FValue* Value = Node->ValueOrNodes.TryGet<FValue>())
+			if (!Node->Nodes.IsEmpty())
 			{
-				CurrentValue = Value;
+				NodeIterators.Push(Node->Nodes.CreateConstIterator());
+			}
+
+			if (Node->Value)
+			{
+				CurrentValue = &Node->Value;
 				return;
-			}
-			else if (const FNodeMap* NodeMap = Node->ValueOrNodes.TryGet<FNodeMap>())
-			{
-				NodeIterators.Push(NodeMap->CreateConstIterator());
-			}
-			else
-			{
-				checkNoEntry();
 			}
 		}
 		else if (NodeIterators.Num() > 1)
 		{
 			NodeIterators.Pop();
-			++NodeIterators.Last();
 		}
 		else
 		{
