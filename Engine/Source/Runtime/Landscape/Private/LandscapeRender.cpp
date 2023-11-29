@@ -75,7 +75,7 @@ static void OnLODDistributionScaleChanged(IConsoleVariable* CVar)
 #if !UE_BUILD_SHIPPING
 float GLandscapeLOD0ScreenSizeOverride = -1.f;
 FAutoConsoleVariableRef CVarLandscapeLOD0ScreenSizeOverride(
-	TEXT("r.Landscape.Override.LOD0ScreenSize"),
+	TEXT("landscape.OverrideLOD0ScreenSize"),
 	GLandscapeLOD0ScreenSizeOverride,
 	TEXT("When > 0, force override the landscape LOD0ScreenSize property on all landscapes"),
 	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
@@ -84,7 +84,7 @@ FAutoConsoleVariableRef CVarLandscapeLOD0ScreenSizeOverride(
 
 float GLandscapeLOD0DistributionOverride = -1.f;
 FAutoConsoleVariableRef CVarLandscapeLOD0DistributionOverride(
-	TEXT("r.Landscape.Override.LOD0Distribution"),
+	TEXT("landscape.OverrideLOD0Distribution"),
 	GLandscapeLOD0DistributionOverride,
 	TEXT("When > 0, force override the LOD0DistributionSetting property on all landscapes, and ignore r.LandscapeLOD0DistributionScale"),
 	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
@@ -93,7 +93,7 @@ FAutoConsoleVariableRef CVarLandscapeLOD0DistributionOverride(
 
 float GLandscapeLODDistributionOverride = -1.f;
 FAutoConsoleVariableRef CVarLandscapeLODDistributionOverride(
-	TEXT("r.Landscape.Override.LODDistribution"),
+	TEXT("landscape.OverrideLODDistribution"),
 	GLandscapeLODDistributionOverride,
 	TEXT("When > 0, force override the landscape LODDistributionSetting property on all landscapes, and ignore r.LandscapeLODDistributionScale"),
 	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
@@ -102,7 +102,7 @@ FAutoConsoleVariableRef CVarLandscapeLODDistributionOverride(
 
 float GLandscapeLODBlendRangeOverride = -1.f;
 FAutoConsoleVariableRef CVarLandscapeLODBlendRangeOverride(
-	TEXT("r.Landscape.Override.LODBlendRange"),
+	TEXT("landscape.OverrideLODBlendRange"),
 	GLandscapeLODBlendRangeOverride,
 	TEXT("When > 0, force the LODBlendRange property on all landscapes"),
 	FConsoleVariableDelegate::CreateStatic(&OnLODDistributionScaleChanged),
