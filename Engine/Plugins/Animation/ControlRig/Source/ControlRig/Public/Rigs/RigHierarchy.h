@@ -4686,6 +4686,9 @@ private:
 	void QueueNotification(ERigHierarchyNotification InNotification, const FRigBaseElement* InElement);
 	void SendQueuedNotifications();
 	void Reset_Impl(bool bResetElements);
+
+	// the currently destroyed element - used to avoid notification storms
+	const FRigBaseElement* ElementBeingDestroyed; 
 	
 	friend class URigHierarchyController;
 	friend class UControlRig;
