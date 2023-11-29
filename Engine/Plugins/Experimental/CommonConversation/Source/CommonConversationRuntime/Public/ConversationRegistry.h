@@ -93,7 +93,10 @@ public:
 	TSharedPtr<FConversationsHandle> LoadConversationsFor(const TArray<FGameplayTag>& ConversationEntryTags) const;
 
 	TArray<FPrimaryAssetId> GetPrimaryAssetIdsForEntryPoint(FGameplayTag EntryPoint) const;
-	
+
+	// If a conversation database links to other conversaton assets, the tags of those conversations can be obtained here
+	TArray<FGameplayTag> GetLinkedExitConversationEntryTags(const UConversationDatabase* ConversationDatabase) const;
+
 	UPROPERTY(Transient)
 	FNetSerializeScriptStructCache_ConvVersion ConversationChoiceDataStructCache;
 

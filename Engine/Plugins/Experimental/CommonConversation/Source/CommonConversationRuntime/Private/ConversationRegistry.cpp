@@ -358,6 +358,15 @@ TArray<FPrimaryAssetId> UConversationRegistry::GetPrimaryAssetIdsForEntryPoint(F
 	return AssetsWithTheEntryPoint;
 }
 
+TArray<FGameplayTag> UConversationRegistry::GetLinkedExitConversationEntryTags(const UConversationDatabase* ConversationDatabase) const
+{
+	if (ConversationDatabase)
+	{
+		return ConversationDatabase->ExitTags.GetGameplayTagArray();
+	}
+	return {};
+}
+
 void UConversationRegistry::BuildDependenciesGraph()
 {
 	if (bDependenciesBuilt)
