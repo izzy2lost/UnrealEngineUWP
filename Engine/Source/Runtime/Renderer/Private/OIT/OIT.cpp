@@ -20,7 +20,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Variables: sorted triangles
 
-static TAutoConsoleVariable<int32> CVarOIT_SortedTriangles_Enable(
+static TAutoConsoleVariable<int32> CVarOIT_SortedTriangles_Enable_Project(
 	TEXT("r.OIT.SortedTriangles"), 
 	1, 
 	TEXT("Enable per-instance triangle sorting to avoid invalid triangle ordering."),
@@ -48,11 +48,17 @@ static TAutoConsoleVariable<int32> CVarOIT_SortedTriangles_PoolReleaseThreshold(
 // Variables: sorted pixels
 
 // Referenced in RendererSettings.h, as it is a project settings
-static TAutoConsoleVariable<int32> CVarOIT_SortedPixels_Enable(
+static TAutoConsoleVariable<int32> CVarOIT_SortedPixels_Enable_Project(
 	TEXT("r.OIT.SortedPixels"),
 	0,
 	TEXT("Enable OIT rendering (project settings, can't be changed at runtime)"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarOIT_SortedPixels_Enable_Runtime(
+	TEXT("r.OIT.SortedPixels.Enable"),
+	1,
+	TEXT("Enable OIT rendering (runtime setting, selects shader permutation)"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarOIT_SortedPixels_PassType(
 	TEXT("r.OIT.SortedPixels.PassType"),
@@ -787,38 +793,29 @@ static void AddOITTriangleDebugPass(
 
 namespace OIT
 {
-	bool IsEnabled(EOITSortingType Type)
+	bool IsSortedTrianglesEnabled(EShaderPlatform InPlatform)
 	{
-		switch (Type)
-		{
-		case EOITSortingType::SortedTriangles: return CVarOIT_SortedTriangles_Enable.GetValueOnAnyThread() > 0;
-		case EOITSortingType::SortedPixels	 : return CVarOIT_SortedPixels_Enable.GetValueOnAnyThread() > 0;
-		}
-		return false;
+		return CVarOIT_SortedTriangles_Enable_Project.GetValueOnAnyThread() > 0;
 	}
 
-	bool IsEnabled(EOITSortingType Type, const FViewInfo& View)
+	bool IsSortedPixelsEnabledForProject(EShaderPlatform InPlatform)
 	{
-		switch (Type)
-		{
-		case EOITSortingType::SortedTriangles: return CVarOIT_SortedTriangles_Enable.GetValueOnAnyThread() > 0;
-		case EOITSortingType::SortedPixels	 : return CVarOIT_SortedPixels_Enable.GetValueOnAnyThread() > 0 && FDataDrivenShaderPlatformInfo::GetSupportsOIT(View.GetShaderPlatform());
-		}
-		return false;
-
-		
+		//const bool bMSAAEnabled = GetDefaultAntiAliasingMethod(GetMaxSupportedFeatureLevel(InPlatform)) != EAntiAliasingMethod::AAM_MSAA;
+		const bool bPixelOIT = CVarOIT_SortedPixels_Enable_Project.GetValueOnAnyThread() > 0 && FDataDrivenShaderPlatformInfo::GetSupportsOIT(EShaderPlatform(InPlatform));
+		return bPixelOIT;
 	}
 
-	bool IsEnabled(EOITSortingType Type, EShaderPlatform InPlatform)
+	bool InternalIsSortedPixelsEnabled(EShaderPlatform InPlatform, bool bMSAA)
 	{
-		const bool bMSAAEnabled = GetDefaultAntiAliasingMethod(GetMaxSupportedFeatureLevel(InPlatform)) != EAntiAliasingMethod::AAM_MSAA;
-
-		switch (Type)
-		{
-			case EOITSortingType::SortedTriangles: return CVarOIT_SortedTriangles_Enable.GetValueOnAnyThread() > 0;
-			case EOITSortingType::SortedPixels	 : return CVarOIT_SortedPixels_Enable.GetValueOnAnyThread() > 0 && FDataDrivenShaderPlatformInfo::GetSupportsOIT(EShaderPlatform(InPlatform));
-		}
-		return false;
+		return IsSortedPixelsEnabledForProject(InPlatform) && GRHISupportsRasterOrderViews && !!CVarOIT_SortedPixels_Enable_Runtime.GetValueOnRenderThread() && !bMSAA;
+	}
+	bool IsSortedPixelsEnabled(const FViewInfo& InView) 	{ return InternalIsSortedPixelsEnabled(InView.GetShaderPlatform(), InView.AntiAliasingMethod == EAntiAliasingMethod::AAM_MSAA); }
+	bool IsSortedPixelsEnabled(EShaderPlatform InPlatform)	{ return InternalIsSortedPixelsEnabled(InPlatform, false /*bMSAA*/); }
+	
+	bool IsSortedPixelsEnabledForPass(EOITPassType PassType)
+	{
+		const uint32 PassTypeBits = FMath::Clamp(CVarOIT_SortedPixels_PassType.GetValueOnRenderThread(), 0, 3);
+		return !!(PassTypeBits & PassType);
 	}
 
 	bool IsCompatible(const FMeshBatch& InMesh, ERHIFeatureLevel::Type InFeatureLevel)
@@ -835,7 +832,7 @@ namespace OIT
 
 	void AddSortTrianglesPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FOITSceneData& OITSceneData, FTriangleSortingOrder SortType)
 	{
-		if (!IsEnabled(EOITSortingType::SortedTriangles))
+		if (!IsSortedTrianglesEnabled(View.GetShaderPlatform()))
 		{
 			return;
 		}
@@ -904,10 +901,11 @@ namespace OIT
 
 	FOITData CreateOITData(FRDGBuilder& GraphBuilder, const FViewInfo& View, EOITPassType PassType)
 	{
-		const bool bOIT = IsEnabled(EOITSortingType::SortedPixels, View.GetShaderPlatform());
+		const bool bOIT = IsSortedPixelsEnabled(View);
 		const uint32 PassTypeBits = FMath::Clamp(CVarOIT_SortedPixels_PassType.GetValueOnRenderThread(), 0, 3);
 		const bool bPassValid = !!(PassTypeBits & PassType);
 		const uint32 LayerCount = 3u; /*Depth/Color/Trans*/
+
 		FOITData Out;
 		if (!bOIT || !bPassValid)
 		{

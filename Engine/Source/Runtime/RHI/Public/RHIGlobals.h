@@ -563,6 +563,9 @@ struct FRHIGlobals
 	/** True if the RHI supports setting the stencil ref at pixel granularity from the pixel shader */
 	bool SupportsStencilRefFromPixelShader = false;
 
+	/** True if the RHI supports raster order views. */
+	bool SupportsRasterOrderViews = false;
+
 	/** Whether current RHI supports overestimated conservative rasterization. */
 	bool SupportsConservativeRasterization = false;
 
@@ -787,6 +790,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsPipelineFileCache                          GRHIGlobals.SupportsPipelineFileCache
 #define GRHISupportsPSOPrecaching                              GRHIGlobals.SupportsPSOPrecaching
 #define GRHISupportsStencilRefFromPixelShader                  GRHIGlobals.SupportsStencilRefFromPixelShader
+#define GRHISupportsRasterOrderViews                           GRHIGlobals.SupportsRasterOrderViews
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
 #define GRHISupportsShaderRootConstants                        GRHIGlobals.SupportsShaderRootConstants
 #define GRHISupportsShaderBundleDispatch                       GRHIGlobals.SupportsShaderBundleDispatch

@@ -1110,7 +1110,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Sort objects' triangles
 	for (FViewInfo& View : Views)
 	{
-		if (View.ShouldRenderView() && OIT::IsEnabled(EOITSortingType::SortedTriangles, View))
+		if (View.ShouldRenderView() && OIT::IsSortedTrianglesEnabled(View.GetShaderPlatform()))
 		{
 			OIT::AddSortTrianglesPass(GraphBuilder, View, Scene->OITSceneData, FTriangleSortingOrder::BackToFront);
 		}

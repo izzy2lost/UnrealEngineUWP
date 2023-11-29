@@ -13,12 +13,6 @@ struct FMeshBatchElement;
 struct FMeshBatchElementDynamicIndexBuffer;
 class FViewInfo;
 
-enum class EOITSortingType
-{
-	SortedTriangles,
-	SortedPixels,
-};
-
 enum EOITPassType
 {
 	OITPass_None = 0,
@@ -87,12 +81,21 @@ struct FOITSceneData
 
 namespace OIT
 {
-	/* Return true if OIT techniques are enabled/supported */
-	bool IsEnabled(EOITSortingType Type, const FViewInfo& View);
-	bool IsEnabled(EOITSortingType Type, EShaderPlatform ShaderPlatform);
+	/* Return true if OIT sorted triangles is enabled/supported */
+	bool IsSortedTrianglesEnabled(EShaderPlatform InPlatform);
 
 	/* Return true if the current MeshBatch is compatible with per-instance sorted triangle */
 	bool IsCompatible(const FMeshBatch& Mesh, ERHIFeatureLevel::Type InFeatureLevel);
+
+	/* Return if OIT sorted pixel is enabled for the project*/
+	bool IsSortedPixelsEnabledForProject(EShaderPlatform InPlatform);
+
+	/* Return if OIT is enabled for the current runtime */
+	bool IsSortedPixelsEnabled(const FViewInfo& InView);
+	bool IsSortedPixelsEnabled(EShaderPlatform InPlatform); 
+
+	/* Return if OIT is enabled for the translucent pass current pass */
+	bool IsSortedPixelsEnabledForPass(EOITPassType PassType);
 
 	/* Sort triangles of all instances whose has the sorted triangle option enabled */
 	void AddSortTrianglesPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FOITSceneData& OITSceneData, FTriangleSortingOrder SortType);

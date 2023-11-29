@@ -4283,7 +4283,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// Sort objects' triangles
 			for (FViewInfo& View : Views)
 			{
-				if (OIT::IsEnabled(EOITSortingType::SortedTriangles, View))
+				if (OIT::IsSortedTrianglesEnabled(View.GetShaderPlatform()))
 				{
 					OIT::AddSortTrianglesPass(GraphBuilder, View, Scene->OITSceneData, FTriangleSortingOrder::BackToFront);
 				}

@@ -44,6 +44,11 @@ struct FSceneWithoutWaterTextures;
 class FViewInfo;
 class UMaterialExpressionSingleLayerWaterMaterialOutput;
 
+namespace OIT
+{
+	bool IsSortedPixelsEnabledForProject(EShaderPlatform InPlatform);
+}
+
 /** Whether to allow the indirect lighting cache to be applied to dynamic objects. */
 extern int32 GIndirectLightingCache;
 
@@ -560,6 +565,9 @@ template<typename LightMapPolicyType, bool bEnableSkyLight, EGBufferLayout GBuff
 class TBasePassPS : public TBasePassPixelShaderBaseType<LightMapPolicyType>
 {
 	DECLARE_SHADER_TYPE(TBasePassPS,MeshMaterial);
+
+	class FSupportOITDim : SHADER_PERMUTATION_BOOL("PERMUTATION_SUPPORTS_OIT");
+	using FPermutationDomain = TShaderPermutationDomain<FSupportOITDim>;
 public:
 
 	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
@@ -573,6 +581,16 @@ public:
 		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
 		const bool bForceAllPermutations = SupportAllShaderPermutations && SupportAllShaderPermutations->GetValueOnAnyThread() != 0;
 		const bool bProjectSupportsStationarySkylight = !SupportStationarySkylight || SupportStationarySkylight->GetValueOnAnyThread() != 0 || bForceAllPermutations;
+
+		// Only compiled OIT permutation for translucent surface, and if OIT sorted pixel is enabled for the current project
+		FPermutationDomain PermutationVector{ Parameters.PermutationId };
+		if (PermutationVector.template Get<FSupportOITDim>())
+		{
+			if (!bTranslucent || !OIT::IsSortedPixelsEnabledForProject(Parameters.Platform))
+			{
+				return false;
+			}
+		}
 
 		const bool bCacheShaders = !bEnableSkyLight
 			//translucent materials need to compile skylight support to support MOVABLE skylights also.
@@ -683,15 +701,25 @@ bool GetBasePassShader<FUniformLightMapPolicy>(
  */
 
 template <typename LightMapPolicyType, EGBufferLayout GBufferLayout>
-void AddBasePassPixelShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes)
+void AddBasePassPixelShader(bool bEnableSkyLight, FMaterialShaderTypes& OutShaderTypes, bool bIsForOITPass = false)
 {
+	int32 PermutationId = 0;
+
+	if (bIsForOITPass)
+	{
+		using FMyShader = TBasePassPS<LightMapPolicyType, true, GBufferLayout>;
+		typename FMyShader::FPermutationDomain PermutationVector;
+		PermutationVector.template Set<typename FMyShader::FSupportOITDim>(true);
+		PermutationId = PermutationVector.ToDimensionValueId();
+	}
+
 	if (bEnableSkyLight)
 	{
-		OutShaderTypes.AddShaderType<TBasePassPS<LightMapPolicyType, true, GBufferLayout>>();
+		OutShaderTypes.AddShaderType<TBasePassPS<LightMapPolicyType, true, GBufferLayout>>(PermutationId);
 	}
 	else
 	{
-		OutShaderTypes.AddShaderType<TBasePassPS<LightMapPolicyType, false, GBufferLayout>>();
+		OutShaderTypes.AddShaderType<TBasePassPS<LightMapPolicyType, false, GBufferLayout>>(PermutationId);
 	}
 }
 
@@ -705,7 +733,8 @@ bool GetBasePassShaders(
 	bool bUse128bitRT,
 	EGBufferLayout GBufferLayout,
 	TShaderRef<TBasePassVertexShaderPolicyParamType<LightMapPolicyType>>* VertexShader,
-	TShaderRef<TBasePassPixelShaderPolicyParamType<LightMapPolicyType>>* PixelShader
+	TShaderRef<TBasePassPixelShaderPolicyParamType<LightMapPolicyType>>* PixelShader,
+	bool bIsForOITPass = false
 )
 {
 	FMaterialShaderTypes ShaderTypes;
@@ -719,10 +748,10 @@ bool GetBasePassShaders(
 		switch (GBufferLayout)
 		{
 		case GBL_Default:
-			AddBasePassPixelShader<LightMapPolicyType, GBL_Default>(bEnableSkyLight, ShaderTypes);
+			AddBasePassPixelShader<LightMapPolicyType, GBL_Default>(bEnableSkyLight, ShaderTypes, bIsForOITPass);
 			break;
 		case GBL_ForceVelocity:
-			AddBasePassPixelShader<LightMapPolicyType, GBL_ForceVelocity>(bEnableSkyLight, ShaderTypes);
+			AddBasePassPixelShader<LightMapPolicyType, GBL_ForceVelocity>(bEnableSkyLight, ShaderTypes, bIsForOITPass);
 			break;
 		default:
 			check(false);
@@ -751,7 +780,8 @@ bool GetBasePassShaders<FUniformLightMapPolicy>(
 	bool bUse128bitRT,
 	EGBufferLayout GBufferLayout,
 	TShaderRef<TBasePassVertexShaderPolicyParamType<FUniformLightMapPolicy>>* VertexShader,
-	TShaderRef<TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>>* PixelShader
+	TShaderRef<TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicy>>* PixelShader,
+	bool bIsForOITPass
 	);
 
 class FBasePassMeshProcessor : public FSceneRenderingAllocatorObject<FBasePassMeshProcessor>, public FMeshPassProcessor
@@ -842,6 +872,7 @@ private:
 
 	const ETranslucencyPass::Type TranslucencyPassType;
 	const bool bTranslucentBasePass;
+	const bool bOITBasePass;
 	const bool bEnableReceiveDecalOutput;
 	EDepthDrawingMode EarlyZPassMode;
 	bool bRequiresExplicit128bitRT;

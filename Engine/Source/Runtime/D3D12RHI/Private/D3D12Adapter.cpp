@@ -1039,8 +1039,10 @@ void FD3D12Adapter::InitializeDevices()
 				RootDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &Features, sizeof(Features));
 
 				GRHISupportsStencilRefFromPixelShader = (Features.PSSpecifiedStencilRefSupported != 0);
+				GRHISupportsRasterOrderViews = (Features.ROVsSupported != 0);
 
 				UE_LOG(LogD3D12RHI, Log, TEXT("Stencil ref from pixel shader is %s"), GRHISupportsStencilRefFromPixelShader ? TEXT("supported") : TEXT("not supported"));
+				UE_LOG(LogD3D12RHI, Log, TEXT("Raster order views are %s"), GRHISupportsRasterOrderViews ? TEXT("supported") : TEXT("not supported"));
 			}
 
 			// Detect availability of shader model 6.0 wave operations

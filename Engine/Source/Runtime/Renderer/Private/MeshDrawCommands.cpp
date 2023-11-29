@@ -1095,7 +1095,17 @@ public:
 			{
 				// When per-pixel OIT is enabled, sort primitive from front to back ensure avoid 
 				// constantly resorting front-to-back samples list.
-				const bool bInverseSorting = OIT::IsEnabled(EOITSortingType::SortedPixels, Context.ShaderPlatform) && Context.View->AntiAliasingMethod != EAntiAliasingMethod::AAM_MSAA;
+				bool bInverseSorting = OIT::IsSortedPixelsEnabled(*Context.View);
+				if (Context.TranslucencyPass == ETranslucencyPass::TPT_AllTranslucency ||
+					Context.TranslucencyPass == ETranslucencyPass::TPT_TranslucencyStandard ||
+					Context.TranslucencyPass == ETranslucencyPass::TPT_TranslucencyStandardModulate)
+				{
+					bInverseSorting &= OIT::IsSortedPixelsEnabledForPass(OITPass_RegularTranslucency);
+				}
+				else
+				{
+					bInverseSorting &= OIT::IsSortedPixelsEnabledForPass(OITPass_SeperateTranslucency);
+				}
 
 				UpdateTranslucentMeshSortKeys(
 					Context.TranslucentSortPolicy,
