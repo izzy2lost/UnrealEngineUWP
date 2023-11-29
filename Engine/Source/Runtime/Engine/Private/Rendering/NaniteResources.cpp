@@ -1650,13 +1650,6 @@ bool FSceneProxy::GetCollisionMeshElement(
 
 #endif
 
-void FSceneProxy::OnTransformChanged(FRHICommandListBase& RHICmdList)
-{
-#if RHI_RAYTRACING
-	bCachedRayTracingInstanceTransformsValid = false;
-#endif
-		}
-
 bool FSceneProxy::GetInstanceDrawDistanceMinMax(FVector2f& OutDistanceMinMax) const
 {
 	if (EndCullDistance > 0)

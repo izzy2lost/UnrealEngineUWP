@@ -386,8 +386,6 @@ public:
 
 	ENGINE_API virtual int32 GetLightMapCoordinateIndex() const override;
 
-	ENGINE_API virtual void OnTransformChanged(FRHICommandListBase& RHICmdList) override;
-
 	virtual void GetNaniteResourceInfo(uint32& OutResourceID, uint32& OutHierarchyOffset, uint32& OutImposterIndex) const override
 	{
 		OutResourceID = Resources->RuntimeResourceID;
@@ -473,7 +471,6 @@ protected:
 
 #if RHI_RAYTRACING
 	bool bHasRayTracingInstances = false;
-	bool bCachedRayTracingInstanceTransformsValid = false;
 	Nanite::CoarseMeshStreamingHandle CoarseMeshStreamingHandle = INDEX_NONE;
 	int16 CachedRayTracingMaterialsLODIndex = INDEX_NONE;
 	TArray<FMatrix> CachedRayTracingInstanceTransforms;
