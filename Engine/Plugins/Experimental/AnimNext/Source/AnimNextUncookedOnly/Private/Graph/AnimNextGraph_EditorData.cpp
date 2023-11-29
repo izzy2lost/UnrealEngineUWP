@@ -151,7 +151,7 @@ void UAnimNextGraph_EditorData::PostLoad()
 	Super::PostLoad();
 	
 	Initialize(/*bRecompileVM*/false);
-	RefreshAllModels(EAnimNextGraphLoadType::PostLoad);
+	RefreshAllModels(ERigVMLoadType::PostLoad);
 
 #if WITH_EDITOR
 	FExternalPackageHelper::LoadObjectsFromExternalPackages<UAnimNextGraphEntry>(this, [this](UAnimNextGraphEntry* InLoadedEntry)
@@ -213,9 +213,9 @@ void UAnimNextGraph_EditorData::HandlePackageDone()
 	ReconstructAllNodes();
 }
 
-void UAnimNextGraph_EditorData::RefreshAllModels(EAnimNextGraphLoadType InLoadType)
+void UAnimNextGraph_EditorData::RefreshAllModels(ERigVMLoadType InLoadType)
 {
-	const bool bIsPostLoad = InLoadType == EAnimNextGraphLoadType::PostLoad;
+	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
 
 	TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
 	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
@@ -326,6 +326,99 @@ void UAnimNextGraph_EditorData::RefreshAllModels(EAnimNextGraphLoadType InLoadTy
 			Controller->RemoveUnusedOrphanedPins(ModelNode);
 		}
 	}
+}
+
+void UAnimNextGraph_EditorData::OnRigVMRegistryChanged()
+{
+	RefreshAllModels(ERigVMLoadType::PostLoad);
+	//RebuildGraphFromModel(); // TODO zzz : How we do this on AnimNext ?
+}
+
+void UAnimNextGraph_EditorData::RequestRigVMInit()
+{
+	// TODO zzz : How we do this on AnimNext ?
+}
+
+URigVMGraph* UAnimNextGraph_EditorData::GetModel(const UEdGraph* InEdGraph) const
+{
+	return RigVMClient.GetModel(InEdGraph);
+}
+
+URigVMGraph* UAnimNextGraph_EditorData::GetModel(const FString& InNodePath) const
+{
+	return RigVMClient.GetModel(InNodePath);
+}
+
+URigVMGraph* UAnimNextGraph_EditorData::GetDefaultModel() const 
+{
+	return RigVMClient.GetDefaultModel();
+}
+
+TArray<URigVMGraph*> UAnimNextGraph_EditorData::GetAllModels() const
+{
+	return RigVMClient.GetAllModels(true, true);
+}
+
+URigVMFunctionLibrary* UAnimNextGraph_EditorData::GetLocalFunctionLibrary() const
+{
+	return RigVMClient.GetFunctionLibrary();
+}
+
+URigVMGraph* UAnimNextGraph_EditorData::AddModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+	return RigVMClient.AddModel(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool UAnimNextGraph_EditorData::RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+	return RigVMClient.RemoveModel(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+FRigVMGetFocusedGraph& UAnimNextGraph_EditorData::OnGetFocusedGraph()
+{
+	return RigVMClient.OnGetFocusedGraph();
+}
+
+const FRigVMGetFocusedGraph& UAnimNextGraph_EditorData::OnGetFocusedGraph() const
+{
+	return RigVMClient.OnGetFocusedGraph();
+}
+
+URigVMGraph* UAnimNextGraph_EditorData::GetFocusedModel() const
+{
+	return RigVMClient.GetFocusedModel();
+}
+
+URigVMController* UAnimNextGraph_EditorData::GetController(const URigVMGraph* InGraph) const
+{
+	return RigVMClient.GetController(InGraph);
+};
+
+URigVMController* UAnimNextGraph_EditorData::GetControllerByName(const FString InGraphName) const
+{
+	return RigVMClient.GetControllerByName(InGraphName);
+};
+
+URigVMController* UAnimNextGraph_EditorData::GetOrCreateController(URigVMGraph* InGraph)
+{
+	return RigVMClient.GetOrCreateController(InGraph);
+};
+
+URigVMController* UAnimNextGraph_EditorData::GetController(const UEdGraph* InEdGraph) const
+{
+	return RigVMClient.GetController(InEdGraph);
+};
+
+URigVMController* UAnimNextGraph_EditorData::GetOrCreateController(const UEdGraph* InEdGraph)
+{
+	return RigVMClient.GetOrCreateController(InEdGraph);
+};
+
+TArray<FString> UAnimNextGraph_EditorData::GeneratePythonCommands(const FString InNewBlueprintName)
+{
+	return TArray<FString>();
 }
 
 void UAnimNextGraph_EditorData::GetAllGraphs(TArray<UEdGraph*>& OutGraphs) const
@@ -502,6 +595,16 @@ void UAnimNextGraph_EditorData::RequestAutoVMRecompilation()
 	{
 		RecompileVMIfRequired();
 	}
+}
+
+void UAnimNextGraph_EditorData::SetAutoVMRecompile(bool bAutoRecompile)
+{
+	bAutoRecompileVM = bAutoRecompile;
+}
+
+bool UAnimNextGraph_EditorData::GetAutoVMRecompile() const
+{
+	return bAutoRecompileVM;
 }
 
 void UAnimNextGraph_EditorData::IncrementVMRecompileBracket()

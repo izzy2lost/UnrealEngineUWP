@@ -7,6 +7,7 @@
 #include "UnrealExporter.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMModel/RigVMControllerActions.h"
+#include "EdGraph/RigVMEdGraph.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMClient)
 
@@ -163,6 +164,31 @@ URigVMGraph* FRigVMClient::GetDefaultModel() const
 	return GetModel(0);
 }
 
+URigVMGraph* FRigVMClient::GetModel(const UEdGraph* InEdGraph) const
+{
+	if (InEdGraph == nullptr)
+	{
+		return GetDefaultModel();
+	}
+
+	if (InEdGraph->GetOutermost() != GetOuter()->GetOutermost())
+	{
+		return nullptr;
+	}
+
+//#if WITH_EDITORONLY_DATA
+//	if (InEdGraph == FunctionLibraryEdGraph)
+//	{
+//		return RigVMClient.GetFunctionLibrary();
+//	}
+//#endif
+
+	const URigVMEdGraph* RigGraph = Cast< URigVMEdGraph>(InEdGraph);
+	check(RigGraph);
+	return GetModel(RigGraph->ModelNodePath);
+
+}
+
 URigVMGraph* FRigVMClient::GetModel(const FString& InNodePathOrName) const
 {
 	if(InNodePathOrName.IsEmpty())
@@ -316,6 +342,27 @@ URigVMController* FRigVMClient::GetOrCreateController(const UObject* InEditorSid
 	return nullptr;
 }
 
+URigVMController* FRigVMClient::GetControllerByName(const FString InGraphName) const
+{
+	if (InGraphName.IsEmpty())
+	{
+		if (const URigVMGraph* DefaultModel = GetDefaultModel())
+		{
+			return GetController(DefaultModel);
+		}
+	}
+
+	for (const URigVMGraph* Graph : GetAllModels(true, true))
+	{
+		if (Graph->GetName() == InGraphName || Graph->GetGraphName() == InGraphName)
+		{
+			return GetController(Graph);
+		}
+	}
+
+	return nullptr;
+}
+
 bool FRigVMClient::RemoveController(const URigVMGraph* InModel)
 {
 	const FSoftObjectPath Key(InModel);
@@ -329,6 +376,12 @@ bool FRigVMClient::RemoveController(const URigVMGraph* InModel)
 		Controller->MarkAsGarbage();
 	}
 	return bSuccess;
+}
+
+URigVMGraph* FRigVMClient::AddModel(const FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	const FString DesiredName = FString::Printf(TEXT("%s %s"), FRigVMClient::RigVMModelPrefix, *InName);
+	return AddModel(*DesiredName, bSetupUndoRedo);
 }
 
 URigVMGraph* FRigVMClient::AddModel(const FName& InName, bool bSetupUndoRedo, const FObjectInitializer* ObjectInitializer, bool bCreateController)
@@ -480,6 +533,23 @@ UScriptStruct* FRigVMClient::GetExecuteContextStruct() const
 void FRigVMClient::SetExecuteContextStruct(UScriptStruct* InExecuteContextStruct)
 {
 	GetOrCreateSchema()->SetExecuteContextStruct(InExecuteContextStruct);
+}
+
+URigVMGraph* FRigVMClient::GetFocusedModel() const
+{
+#if WITH_EDITOR
+	if (OnGetFocusedGraph().IsBound())
+	{
+		return OnGetFocusedGraph().Execute();
+	}
+#endif
+
+	return GetDefaultModel();
+}
+
+bool FRigVMClient::RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return RemoveModel(InName, bSetupUndoRedo);
 }
 
 bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoRedo)

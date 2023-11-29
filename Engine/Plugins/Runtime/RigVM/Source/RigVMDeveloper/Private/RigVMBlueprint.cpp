@@ -1354,9 +1354,9 @@ void URigVMBlueprint::DecrementVMRecompileBracket()
 	}
 }
 
-void URigVMBlueprint::RefreshAllModels(ERigVMBlueprintLoadType InLoadType)
+void URigVMBlueprint::RefreshAllModels(ERigVMLoadType InLoadType)
 {
-	const bool bIsPostLoad = InLoadType == ERigVMBlueprintLoadType::PostLoad;
+	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
 
 	// avoid any compute if the current structure hashes match with the serialized ones
 	if(CVarRigVMEnablePostLoadHashing->GetBool() && RigVMClient.GetStructureHash() == RigVMClient.GetSerializedStructureHash())
@@ -1938,26 +1938,14 @@ void URigVMBlueprint::RequestRigVMInit()
 
 URigVMGraph* URigVMBlueprint::GetModel(const UEdGraph* InEdGraph) const
 {
-	if (InEdGraph == nullptr)
-	{
-		return GetDefaultModel();
-	}
-
-	if(InEdGraph->GetOutermost() != GetOutermost())
-	{
-		return nullptr;
-	}
-
 #if WITH_EDITORONLY_DATA
-	if (InEdGraph == FunctionLibraryEdGraph)
+	if (InEdGraph != nullptr && InEdGraph == FunctionLibraryEdGraph)
 	{
 		return RigVMClient.GetFunctionLibrary();
 	}
 #endif
 
-	const URigVMEdGraph* RigGraph = Cast< URigVMEdGraph>(InEdGraph);
-	check(RigGraph);
-	return GetModel(RigGraph->ModelNodePath);
+	return RigVMClient.GetModel(InEdGraph);
 }
 
 URigVMGraph* URigVMBlueprint::GetModel(const FString& InNodePath) const
@@ -1982,28 +1970,29 @@ URigVMFunctionLibrary* URigVMBlueprint::GetLocalFunctionLibrary() const
 
 URigVMGraph* URigVMBlueprint::AddModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	const FString DesiredName = FString::Printf(TEXT("%s %s"),
-    	FRigVMClient::RigVMModelPrefix, *InName);
-
 	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
-	return RigVMClient.AddModel(*DesiredName, bSetupUndoRedo);
+	return RigVMClient.AddModel(InName, bSetupUndoRedo, bPrintPythonCommand);
 }
 
 bool URigVMBlueprint::RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
-	return RigVMClient.RemoveModel(InName, bSetupUndoRedo);
+	return RigVMClient.RemoveModel(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+FRigVMGetFocusedGraph& URigVMBlueprint::OnGetFocusedGraph()
+{
+	return RigVMClient.OnGetFocusedGraph();
+}
+
+const FRigVMGetFocusedGraph& URigVMBlueprint::OnGetFocusedGraph() const
+{
+	return RigVMClient.OnGetFocusedGraph();
 }
 
 URigVMGraph* URigVMBlueprint::GetFocusedModel() const
 {
-#if WITH_EDITOR
-	if(OnGetFocusedGraphDelegate.IsBound())
-	{
-		return OnGetFocusedGraphDelegate.Execute(); 
-	}
-#endif
-	return RigVMClient.GetDefaultModel();
+	return RigVMClient.GetFocusedModel();
 }
 
 URigVMController* URigVMBlueprint::GetController(const URigVMGraph* InGraph) const
@@ -2013,23 +2002,7 @@ URigVMController* URigVMBlueprint::GetController(const URigVMGraph* InGraph) con
 
 URigVMController* URigVMBlueprint::GetControllerByName(const FString InGraphName) const
 {
-	if(InGraphName.IsEmpty())
-	{
-		if(const URigVMGraph* DefaultModel = GetRigVMClient()->GetDefaultModel())
-		{
-			return GetController(DefaultModel);
-		}
-	}
-	
-	for (const URigVMGraph* Graph : GetAllModels())
-	{
-		if (Graph->GetName() == InGraphName || Graph->GetGraphName() == InGraphName)
-		{
-			return GetController(Graph);
-		}
-	}
-	
-	return nullptr;
+	return RigVMClient.GetControllerByName(InGraphName);
 }
 
 URigVMController* URigVMBlueprint::GetOrCreateController(URigVMGraph* InGraph)

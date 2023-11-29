@@ -547,7 +547,7 @@ void UAnimNextParameterBlock_EditorData::PostLoad()
 	Super::PostLoad();
 
 	Initialize(/*bRecompileVM*/false);
-	RefreshAllModels(EAnimNextParameterLoadType::PostLoad);
+	RefreshAllModels(ERigVMLoadType::PostLoad);
 
 #if WITH_EDITOR
 	FExternalPackageHelper::LoadObjectsFromExternalPackages<UAnimNextParameterBlockEntry>(this, [this](UAnimNextParameterBlockEntry* InLoadedEntry)
@@ -625,9 +625,9 @@ void UAnimNextParameterBlock_EditorData::HandlePackageDone()
 	ReconstructAllNodes();
 }
 
-void UAnimNextParameterBlock_EditorData::RefreshAllModels(EAnimNextParameterLoadType InLoadType)
+void UAnimNextParameterBlock_EditorData::RefreshAllModels(ERigVMLoadType InLoadType)
 {
-	const bool bIsPostLoad = InLoadType == EAnimNextParameterLoadType::PostLoad;
+	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
 
 	TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
 	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
@@ -738,6 +738,99 @@ void UAnimNextParameterBlock_EditorData::RefreshAllModels(EAnimNextParameterLoad
 			Controller->RemoveUnusedOrphanedPins(ModelNode);
 		}
 	}
+}
+
+void UAnimNextParameterBlock_EditorData::OnRigVMRegistryChanged()
+{
+	RefreshAllModels(ERigVMLoadType::PostLoad);
+	//RebuildGraphFromModel(); // TODO zzz : How we do this on AnimNext ?
+}
+
+void UAnimNextParameterBlock_EditorData::RequestRigVMInit()
+{
+	// TODO zzz : How we do this on AnimNext ?
+}
+
+URigVMGraph* UAnimNextParameterBlock_EditorData::GetModel(const UEdGraph* InEdGraph) const
+{
+	return RigVMClient.GetModel(InEdGraph);
+}
+
+URigVMGraph* UAnimNextParameterBlock_EditorData::GetModel(const FString& InNodePath) const
+{
+	return RigVMClient.GetModel(InNodePath);
+}
+
+URigVMGraph* UAnimNextParameterBlock_EditorData::GetDefaultModel() const
+{
+	return RigVMClient.GetDefaultModel();
+}
+
+TArray<URigVMGraph*> UAnimNextParameterBlock_EditorData::GetAllModels() const
+{
+	return RigVMClient.GetAllModels(true, true);
+}
+
+URigVMFunctionLibrary* UAnimNextParameterBlock_EditorData::GetLocalFunctionLibrary() const
+{
+	return RigVMClient.GetFunctionLibrary();
+}
+
+URigVMGraph* UAnimNextParameterBlock_EditorData::AddModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+	return RigVMClient.AddModel(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool UAnimNextParameterBlock_EditorData::RemoveModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+	return RigVMClient.RemoveModel(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+FRigVMGetFocusedGraph& UAnimNextParameterBlock_EditorData::OnGetFocusedGraph()
+{
+	return RigVMClient.OnGetFocusedGraph();
+}
+
+const FRigVMGetFocusedGraph& UAnimNextParameterBlock_EditorData::OnGetFocusedGraph() const
+{
+	return RigVMClient.OnGetFocusedGraph();
+}
+
+URigVMGraph* UAnimNextParameterBlock_EditorData::GetFocusedModel() const
+{
+	return RigVMClient.GetFocusedModel();
+}
+
+URigVMController* UAnimNextParameterBlock_EditorData::GetController(const URigVMGraph* InGraph) const
+{
+	return RigVMClient.GetController(InGraph);
+};
+
+URigVMController* UAnimNextParameterBlock_EditorData::GetControllerByName(const FString InGraphName) const
+{
+	return RigVMClient.GetControllerByName(InGraphName);
+};
+
+URigVMController* UAnimNextParameterBlock_EditorData::GetOrCreateController(URigVMGraph* InGraph)
+{
+	return RigVMClient.GetOrCreateController(InGraph);
+};
+
+URigVMController* UAnimNextParameterBlock_EditorData::GetController(const UEdGraph* InEdGraph) const
+{
+	return RigVMClient.GetController(InEdGraph);
+};
+
+URigVMController* UAnimNextParameterBlock_EditorData::GetOrCreateController(const UEdGraph* InEdGraph)
+{
+	return RigVMClient.GetOrCreateController(InEdGraph);
+};
+
+TArray<FString> UAnimNextParameterBlock_EditorData::GeneratePythonCommands(const FString InNewBlueprintName)
+{
+	return TArray<FString>();
 }
 
 #endif // WITH_EDITOR
@@ -947,6 +1040,17 @@ void UAnimNextParameterBlock_EditorData::RequestAutoVMRecompilation()
 		RecompileVMIfRequired();
 	}
 }
+
+void UAnimNextParameterBlock_EditorData::SetAutoVMRecompile(bool bAutoRecompile)
+{
+	bAutoRecompileVM = bAutoRecompile;
+}
+
+bool UAnimNextParameterBlock_EditorData::GetAutoVMRecompile() const
+{
+	return bAutoRecompileVM;
+}
+
 
 void UAnimNextParameterBlock_EditorData::IncrementVMRecompileBracket()
 {

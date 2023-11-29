@@ -148,7 +148,7 @@ void FRigVMEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSharedP
 	// user-defined-struct can change even after load
 	// refresh the models such that pins are updated to match
 	// the latest struct member layout
-	InRigVMBlueprint->RefreshAllModels(ERigVMBlueprintLoadType::CheckUserDefinedStructs);
+	InRigVMBlueprint->RefreshAllModels(ERigVMLoadType::CheckUserDefinedStructs);
 
 	{
 		TArray<UEdGraph*> EdGraphs;

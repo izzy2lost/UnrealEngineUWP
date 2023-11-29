@@ -28,7 +28,7 @@ namespace UE::AnimNext::Editor
 	struct FUtils;
 }
 
-enum class EAnimNextGraphLoadType : uint8
+enum class UE_DEPRECATED(5.4, "Please, use ERigVMLoadType") EAnimNextGraphLoadType : uint8
 {
 	PostLoad,
 	CheckUserDefinedStructs
@@ -115,7 +115,34 @@ public:
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) const override;
 	virtual URigVMGraph* GetRigVMGraphForEditorObject(UObject* InObject) const override;
-	
+	virtual void RecompileVM() override;
+	virtual void RecompileVMIfRequired() override;
+	virtual void RequestAutoVMRecompilation() override;
+	virtual void SetAutoVMRecompile(bool bAutoRecompile) override;
+	virtual bool GetAutoVMRecompile() const override;
+	virtual void IncrementVMRecompileBracket() override;
+	virtual void DecrementVMRecompileBracket() override;
+	virtual void RefreshAllModels(ERigVMLoadType InLoadType) override;
+	virtual void OnRigVMRegistryChanged() override;
+	virtual void RequestRigVMInit() override;
+	virtual URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const override;
+	virtual URigVMGraph* GetModel(const FString& InNodePath) const override;
+	virtual URigVMGraph* GetDefaultModel() const override;
+	virtual TArray<URigVMGraph*> GetAllModels() const override;
+	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const override;
+	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
+	virtual bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
+	virtual FRigVMGetFocusedGraph& OnGetFocusedGraph() override;
+	virtual const FRigVMGetFocusedGraph& OnGetFocusedGraph() const override;
+	virtual URigVMGraph* GetFocusedModel() const override;
+	virtual URigVMController* GetController(const URigVMGraph* InGraph = nullptr) const override;
+	virtual URigVMController* GetControllerByName(const FString InGraphName = TEXT("")) const override;
+	virtual URigVMController* GetOrCreateController(URigVMGraph* InGraph = nullptr) override;
+	virtual URigVMController* GetController(const UEdGraph* InEdGraph) const override;
+	virtual URigVMController* GetOrCreateController(const UEdGraph* InGraph) override;
+	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
+
+
 	// IRigVMGraphFunctionHost interface
 	virtual FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() override;
 	virtual const FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() const override;
@@ -132,19 +159,9 @@ public:
 
 protected:
 #if WITH_EDITOR
-	void RefreshAllModels(EAnimNextGraphLoadType InLoadType);
 	void GetAllGraphs(TArray<UEdGraph*>& Graphs) const;
 #endif
 
-	void RecompileVM();
-	
-	void RecompileVMIfRequired();
-
-	void RequestAutoVMRecompilation();
-
-	void IncrementVMRecompileBracket();
-
-	void DecrementVMRecompileBracket();
 	
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 

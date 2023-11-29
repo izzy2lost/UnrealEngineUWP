@@ -42,7 +42,7 @@ DECLARE_DELEGATE_RetVal_OneParam(TRigVMTypeIndex, FRigVMOnPinTypeSelectionReques
 DECLARE_EVENT(URigVMBlueprint, FOnRigVMBreakpointAdded);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectObject, const TArray<UObject*>& );
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRequestInspectMemoryStorage, const TArray<FRigVMMemoryStorageStruct*>&);
-DECLARE_DELEGATE_RetVal(URigVMGraph*, FRigVMBlueprintGetFocusedGraph);
+//DECLARE_DELEGATE_RetVal(URigVMGraph*, FRigVMBlueprintGetFocusedGraph);
 
 USTRUCT()
 struct RIGVMDEVELOPER_API FRigVMPythonSettings
@@ -146,7 +146,7 @@ struct RIGVMDEVELOPER_API FRigVMEdGraphDisplaySettings
 	double AggregateAverage(TArray<double>& InFrames, double InPrevious, double InNext) const;
 };
 
-enum class ERigVMBlueprintLoadType : uint8
+enum class UE_DEPRECATED(5.4, "Pease, use ERigVMLoadType") ERigVMBlueprintLoadType : uint8
 {
 	PostLoad,
 	CheckUserDefinedStructs
@@ -318,7 +318,7 @@ public:
 	/** Called during cooking. Must return all objects that will be Preload()ed when this is serialized at load time. */
 	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
-	// IRigVMClientHost interface
+	//  --- IRigVMClientHost interface Start---
 	virtual FRigVMClient* GetRigVMClient() override;
 	virtual const FRigVMClient* GetRigVMClient() const override;
 	virtual IRigVMGraphFunctionHost* GetRigVMGraphFunctionHost() override;
@@ -331,6 +331,76 @@ public:
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* ResolveUserDefinedTypeById(const FString& InTypeName) const override;
 
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual void RecompileVM() override;
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual void RecompileVMIfRequired() override;
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual void RequestAutoVMRecompilation() override;
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual void SetAutoVMRecompile(bool bAutoRecompile) override { bAutoRecompileVM = bAutoRecompile; }
+	UFUNCTION(BlueprintPure, Category = "RigVM Blueprint")
+	virtual bool GetAutoVMRecompile() const override { return bAutoRecompileVM; }
+
+	virtual void IncrementVMRecompileBracket() override;
+	virtual void DecrementVMRecompileBracket() override;
+
+	// this is needed since even after load
+	// model data can change while the RigVM BP is not opened
+	// for example, if a user defined struct changed after BP load,
+	// any pin that references the struct needs to be regenerated
+	virtual void RefreshAllModels(ERigVMLoadType InLoadType = ERigVMLoadType::PostLoad) override;
+
+	// RigVMRegistry changes can be triggered when new user defined types(structs/enums) are added/removed
+	// in which case we have to refresh the model
+	virtual void OnRigVMRegistryChanged() override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual void RequestRigVMInit() override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const override;
+	virtual URigVMGraph* GetModel(const FString& InNodePath) const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMGraph* GetDefaultModel() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual TArray<URigVMGraph*> GetAllModels() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
+
+	virtual FRigVMGetFocusedGraph& OnGetFocusedGraph() override;
+	virtual const FRigVMGetFocusedGraph& OnGetFocusedGraph() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMGraph* GetFocusedModel() const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMController* GetController(const URigVMGraph* InGraph = nullptr) const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMController* GetControllerByName(const FString InGraphName = TEXT("")) const override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMController* GetOrCreateController(URigVMGraph* InGraph = nullptr) override;
+
+	virtual URigVMController* GetController(const UEdGraph* InEdGraph) const override;
+	virtual URigVMController* GetOrCreateController(const UEdGraph* InGraph) override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
+
+	//  --- IRigVMClientHost interface End ---
+
+
 	FOnRigVMRequestInspectObject& OnRequestInspectObject() { return OnRequestInspectObjectEvent; }
 	void RequestInspectObject(const TArray<UObject*>& InObjects) { OnRequestInspectObjectEvent.Broadcast(InObjects); }
 
@@ -339,77 +409,9 @@ public:
 
 #endif	// #if WITH_EDITOR
 
-	FRigVMBlueprintGetFocusedGraph& OnGetFocusedGraph() { return OnGetFocusedGraphDelegate; }
+	
 
 	virtual bool ShouldBeMarkedDirtyUponTransaction() const override { return false; }
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	void RecompileVM();
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	void RecompileVMIfRequired();
-	
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	void RequestAutoVMRecompilation();
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	void SetAutoVMRecompile(bool bAutoRecompile) { bAutoRecompileVM = bAutoRecompile; }
-
-	UFUNCTION(BlueprintPure, Category = "RigVM Blueprint")
-	bool GetAutoVMRecompile() const { return bAutoRecompileVM; }
-
-	void IncrementVMRecompileBracket();
-	void DecrementVMRecompileBracket();
-
-	// this is needed since even after load
-	// model data can change while the RigVM BP is not opened
-	// for example, if a user defined struct changed after BP load,
-	// any pin that references the struct needs to be regenerated
-	void RefreshAllModels(ERigVMBlueprintLoadType InLoadType = ERigVMBlueprintLoadType::PostLoad);
-
-	// RigVMRegistry changes can be triggered when new user defined types(structs/enums) are added/removed
-	// in which case we have to refresh the model
-	void OnRigVMRegistryChanged();
-	
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	void RequestRigVMInit();
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const;
-	URigVMGraph* GetModel(const FString& InNodePath) const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMGraph* GetDefaultModel() const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	TArray<URigVMGraph*> GetAllModels() const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMFunctionLibrary* GetLocalFunctionLibrary() const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMGraph* GetFocusedModel() const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMController* GetController(const URigVMGraph* InGraph = nullptr) const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMController* GetControllerByName(const FString InGraphName = TEXT("")) const;
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	URigVMController* GetOrCreateController(URigVMGraph* InGraph = nullptr);
-
-	URigVMController* GetController(const UEdGraph* InEdGraph) const;
-	URigVMController* GetOrCreateController(const UEdGraph* InGraph);
-
-	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
-	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName);
 
 	URigVMGraph* GetTemplateModel(bool bIsFunctionLibrary = false);
 	URigVMController* GetTemplateController(bool bIsFunctionLibrary = false);
@@ -731,7 +733,6 @@ private:
 
 	FOnRigVMRequestInspectObject OnRequestInspectObjectEvent;
 	FOnRigVMRequestInspectMemoryStorage OnRequestInspectMemoryStorageEvent;
-	FRigVMBlueprintGetFocusedGraph OnGetFocusedGraphDelegate;
 		
 public:
 
