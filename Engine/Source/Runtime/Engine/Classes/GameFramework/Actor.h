@@ -2747,6 +2747,11 @@ public:
 	/** Update and smooth simulated physic state, replaces PostNetReceiveLocation() and PostNetReceiveVelocity() */
 	ENGINE_API virtual void PostNetReceivePhysicState();
 
+	/** Set the current state as a faked networked physics state for physics replication
+	* Limited for use with actors using EPhysicsReplicationMode::PredictiveInterpolation only.
+	* @param bShouldSleep  Should the replication force the object to sleep */
+	void SetFakeNetPhysicsState(bool bShouldSleep);
+
 protected:
 	/** Sync IsSimulatingPhysics() with ReplicatedMovement.bRepPhysics */
 	ENGINE_API void SyncReplicatedPhysicsSimulation();

@@ -871,7 +871,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 	// Note: If target is waiting, check PrevServerFrame since ServerFrame has been modified and we still want to cache the input target
 	if (PhysicsReplicationCVars::PredictiveInterpolationCVars::LegacyTargetUpdateCheck
 		? (Input.ServerFrame >= Target->PrevServerFrame) // Legacy check
-		: (Input.ServerFrame == 0 || (Target->bWaiting ? Input.ServerFrame > Target->PrevServerFrame : Input.ServerFrame > Target->ServerFrame)))
+		: (bFirstTarget || Input.ServerFrame == 0 || (Target->bWaiting ? Input.ServerFrame > Target->PrevServerFrame : Input.ServerFrame > Target->ServerFrame)))
 	{
 		const int32 PrevTickCount = Target->TickCount;
 		const int32 PrevReceiveInterval = Target->ReceiveInterval;

@@ -113,6 +113,15 @@ namespace PrimitiveComponentCVars
 	static FAutoConsoleVariableRef CVarEnableFastOverlapCheck(TEXT("p.EnableFastOverlapCheck"), bEnableFastOverlapCheck, TEXT("Enable fast overlap check against sweep hits, avoiding UpdateOverlaps (for the swept component)."));
 }
 
+namespace PhysicsReplicationCVars
+{
+	namespace PredictiveInterpolationCVars
+	{
+		static bool bFakeTargetOnClientWakeUp = false;
+		static FAutoConsoleVariableRef CVarFakeTargetOnClientWakeUp(TEXT("np2.PredictiveInterpolation.FakeTargetOnClientWakeUp"), bFakeTargetOnClientWakeUp, TEXT("When true, predictive interpolation will fake a replication target at the current transform marked as asleep, this target only apply if the client doesn't receive targets from the server. This stops the client from desyncing from the server if being woken up by mistake"));
+	}
+}
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 int32 CVarShowInitialOverlaps = 0;
 FAutoConsoleVariableRef CVarRefShowInitialOverlaps(
@@ -2956,6 +2965,18 @@ void UPrimitiveComponent::DispatchWakeEvents(ESleepEvent WakeEvent, FName BoneNa
 				{
 					PrimComp->DispatchWakeEvents(WakeEvent, BoneName);	
 				}
+			}
+		}
+	}
+
+	if (PhysicsReplicationCVars::PredictiveInterpolationCVars::bFakeTargetOnClientWakeUp)
+	{
+		if (WakeEvent == ESleepEvent::SET_Wakeup && IsSimulatingPhysics())
+		{
+			AActor* Owner = GetOwner();
+			if (Owner && Owner->GetRootComponent() == this)
+			{
+				Owner->SetFakeNetPhysicsState(/*bShouldSleep*/ true);
 			}
 		}
 	}

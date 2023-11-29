@@ -309,6 +309,45 @@ void AActor::PostNetReceivePhysicState()
 	}
 }
 
+void AActor::SetFakeNetPhysicsState(bool bShouldSleep)
+{
+	if (!IsNetMode(ENetMode::NM_Client))
+	{
+		return;
+	}
+
+	if (!IsReplicatingMovement())
+	{
+		return;
+	}
+
+	if (GetPhysicsReplicationMode() != EPhysicsReplicationMode::PredictiveInterpolation)
+	{
+		return;
+	}
+
+	UPrimitiveComponent* RootPrimComp = Cast<UPrimitiveComponent>(RootComponent);
+	if (RootPrimComp)
+	{
+		FRigidBodyState RBState;
+		RootPrimComp->GetRigidBodyState(RBState);
+
+		RBState.Flags |= ERigidBodyFlags::NeedsUpdate;
+		RBState.Flags |= ERigidBodyFlags::RepPhysics;
+
+		if (bShouldSleep)
+		{
+			RBState.Flags |= ERigidBodyFlags::Sleeping;
+
+			// Force no velocity for sleeping objects else it won't be able to go to sleep
+			RBState.AngVel = FVector::ZeroVector;
+			RBState.LinVel = FVector::ZeroVector;
+		}
+
+		RootPrimComp->SetRigidBodyReplicatedTarget(RBState, NAME_None, /*ServerFrame*/ INDEX_NONE, INDEX_NONE);
+	}
+}
+
 void AActor::SyncReplicatedPhysicsSimulation()
 {
 	const FRepMovement& LocalRepMovement = GetReplicatedMovement();
