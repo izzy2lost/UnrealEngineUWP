@@ -99,7 +99,7 @@ bool USharedMemoryMediaCapture::InitializeCapture()
 
 				// Except some special data
 				FSharedMemoryMediaFrameMetadata* Data = static_cast<FSharedMemoryMediaFrameMetadata*>(SharedMemoryRegion->GetAddress());
-				Data->Receiver.FrameNumberAcked = ~0;
+				Data->Initialize();
 
 				UE_LOG(LogSharedMemoryMedia, Verbose, TEXT("Created SharedMemoryRegion[%d] = %s for UniqueName '%s'"), 
 					BufferIdx, *SharedMemoryRegionName, *SharedMemoryMediaOutput->UniqueName
@@ -413,31 +413,34 @@ void USharedMemoryMediaCapture::AddCopyToSharedGpuTexturePass(FRDGBuilder& Graph
 					FMemory::Memcpy(&SharedMemoryData->Sender, &SenderMetadata, sizeof(FSharedMemoryMediaFrameMetadata::FSender));
 				}
 
-				// Wait for FrameNumber ack
-
-				if (SharedMemoryData->Receiver.KeepAliveShiftRegister)
+				// Wait for FrameNumber ack. Since we may have more than one receiver, we must wait until 
+				// all active receivers have acked a frame number equal or greater than FrameNumber.
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(WaitForGpuTextureAck)
 
 					const double StartTimeSeconds = FPlatformTime::Seconds();
 					constexpr double TimeoutSeconds = 0.5;
 
-					while (SharedMemoryData->Receiver.FrameNumberAcked < FrameNumber && SharedMemoryData->Receiver.KeepAliveShiftRegister)
+					while (!SharedMemoryData->AllReceiversAckedFrameNumber(FrameNumber))
 					{
 						FPlatformProcess::SleepNoStats(SpinWaitTimeSeconds);
 
 						if ((FPlatformTime::Seconds() - StartTimeSeconds) > TimeoutSeconds)
 						{
-							// @todo use proper log category
-							UE_LOG(LogSharedMemoryMedia, Warning, TEXT("FSharedMemoryMediaCapture timed out waiting for its receiver to ack frame %d"), FrameNumber);
+							UE_LOG(LogSharedMemoryMedia, Warning, 
+								TEXT("FSharedMemoryMediaCapture timed out waiting for its receiver to ack frame %d"), FrameNumber
+							);
 
+							// We break this while loop because we will not be waiting any longer, 
+							// even if receivers haven't acked the frame.
+							// This includes any newly connected receivers that may have joined during this time.
 							break;
 						}
-					};
+					}
 				}
 
-				// Shift the keep alive. The bit depth of the keep alive is the number of frames the receiver has to re-set it before it expires.
-				SharedMemoryData->Receiver.KeepAliveShiftRegister >>= 1;
+				// Decrement the keep alive. The receiver must keep resetting it to avoid letting it expire.
+				SharedMemoryData->DecrementKeepAlives();
 
 				// Clear fence and flag that we're ready for a new frame
 
