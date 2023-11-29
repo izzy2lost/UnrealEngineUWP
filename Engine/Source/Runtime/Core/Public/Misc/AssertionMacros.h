@@ -358,48 +358,7 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
  */
 
 #if DO_ENSURE && !USING_CODE_ANALYSIS // The Visual Studio 2013 analyzer doesn't understand these complex conditionals
-
-	namespace UE::Assert::Private
-	{
-
-	/** Data about an ensure that is constant for every occurrence. */
-	struct FStaticEnsureRecord
-	{
-		const TCHAR* Format = nullptr;
-		const ANSICHAR* Expression = nullptr;
-		const ANSICHAR* File = nullptr;
-		int32 Line = 0;
-		bool bAlways = false;
-
-		// Workaround for https://developercommunity.visualstudio.com/t/Incorrect-warning-C4700-with-unrelated-s/10285950
-		constexpr FStaticEnsureRecord(
-			const TCHAR* InFormat,
-			const ANSICHAR* InExpression,
-			const ANSICHAR* InFile,
-			int32 InLine,
-			bool bInAlways)
-			: Format(InFormat)
-			, Expression(InExpression)
-			, File(InFile)
-			, Line(InLine)
-			, bAlways(bInAlways)
-		{
-		}
-	};
-
-	CORE_API bool UE_DEBUG_SECTION VARARGS EnsureFailed(std::atomic<bool>& bExecuted, const FStaticEnsureRecord* Ensure, ...);
-	
-	CORE_API bool UE_DEBUG_SECTION ExecCheckImplInternal(std::atomic<bool>& bExecuted, bool bAlways, const ANSICHAR* File, int32 Line, const ANSICHAR* Expr);
-
-	FORCEINLINE bool DebugBreak()
-	{
-		PLATFORM_BREAK();
-		return false;
-	}
-
-	} // UE::Assert::Private
-
-	struct UE_DEPRECATED(5.4, "Do not use directly. This internal type is being removed.") FValidateArgsInternal
+	struct FValidateArgsInternal
 	{
 		template <typename... Types>
 		FValidateArgsInternal(Types... Args)
@@ -408,23 +367,26 @@ RetType FORCENOINLINE UE_DEBUG_SECTION DispatchCheckVerify(InnerType&& Inner, Ar
 		}
 	};
 
-	#define UE_ENSURE_IMPL(Always, InExpression) \
-		(LIKELY(!!(InExpression)) \
-			|| (::UE::Assert::Private::ExecCheckImplInternal([]() UE_DEBUG_SECTION -> std::atomic<bool>& { static std::atomic<bool> bExecuted = false; return bExecuted; } (), Always, __FILE__, __LINE__, #InExpression) \
-			&& ::UE::Assert::Private::DebugBreak()))
+	CORE_API bool UE_DEBUG_SECTION VARARGS CheckVerifyImpl(bool& InOutExecuted, bool Always, const ANSICHAR* File, int32 Line, void* ProgramCounter, const ANSICHAR* Expr, const TCHAR* Format, ...);
+
+	#define UE_ENSURE_IMPL(Capture, Always, InExpression, InFormat) \
+			(LIKELY(!!(InExpression)) || (DispatchCheckVerify<bool>([Capture] () UE_DEBUG_SECTION \
+			{ \
+				static bool bExecuted = false; \
+				return (!bExecuted || Always) && FPlatformMisc::IsEnsureAllowed() && CheckVerifyImpl(bExecuted, Always, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), #InExpression, InFormat); \
+			}) && [] () { PLATFORM_BREAK(); return false; } ()))
 
 	#define UE_ENSURE_IMPL2(Capture, Always, InExpression, InFormat, ...) \
-		(LIKELY(!!(InExpression)) || ([Capture] () UE_DEBUG_SECTION \
-		{ \
-			UE_VALIDATE_FORMAT_STRING(InFormat, ##__VA_ARGS__); \
-			static std::atomic<bool> bExecuted = false; \
-			static constexpr ::UE::Assert::Private::FStaticEnsureRecord ENSURE_Static(InFormat, #InExpression, __builtin_FILE(), __builtin_LINE(), Always); \
-			return (Always || !bExecuted.load(std::memory_order_relaxed)) && FPlatformMisc::IsEnsureAllowed() && ::UE::Assert::Private::EnsureFailed(bExecuted, &ENSURE_Static, ##__VA_ARGS__); \
-		}() && ::UE::Assert::Private::DebugBreak()))
+			(LIKELY(!!(InExpression)) || (DispatchCheckVerify<bool>([Capture] () UE_DEBUG_SECTION \
+			{ \
+				static bool bExecuted = false; \
+				UE_VALIDATE_FORMAT_STRING(InFormat, ##__VA_ARGS__); \
+				return (!bExecuted || Always) && FPlatformMisc::IsEnsureAllowed() && CheckVerifyImpl(bExecuted, Always, __FILE__, __LINE__, PLATFORM_RETURN_ADDRESS(), #InExpression, InFormat, ##__VA_ARGS__); \
+			}) && [] () { PLATFORM_BREAK(); return false; } ()))
 
-	#define ensure(           InExpression                ) UE_ENSURE_IMPL (   false, InExpression)
+	#define ensure(           InExpression                ) UE_ENSURE_IMPL ( , false, InExpression, TEXT(""))
 	#define ensureMsgf(       InExpression, InFormat, ... ) UE_ENSURE_IMPL2(&, false, InExpression, InFormat, ##__VA_ARGS__)
-	#define ensureAlways(     InExpression                ) UE_ENSURE_IMPL (   true,  InExpression)
+	#define ensureAlways(     InExpression                ) UE_ENSURE_IMPL ( , true,  InExpression, TEXT(""))
 	#define ensureAlwaysMsgf( InExpression, InFormat, ... ) UE_ENSURE_IMPL2(&, true,  InExpression, InFormat, ##__VA_ARGS__)
 
 #else	// DO_ENSURE
