@@ -385,7 +385,59 @@ bool Compression::CompressAnimationDataTracks(TArray<FRawAnimSequenceTrack>& Raw
 			if (RawData.ScaleKeys.Num() > 0)
 			{
 				// if scale key exists, see if we can just empty it
-				if ((RawData.ScaleKeys.Num() > 1) || (RawData.ScaleKeys[0].Equals(FVector3f::OneVector) == false))
+				const bool bHaveMultipleKeys = RawData.ScaleKeys.Num() > 1;
+				const bool bHaveNonIdentityKey = !RawData.ScaleKeys[0].Equals(FVector3f::OneVector);
+				if (bHaveMultipleKeys|| bHaveNonIdentityKey)
+				{
+					bCompressScaleKeys = true;
+					break;
+				}
+			}
+		}
+
+		// if we don't have scale, we should delete all scale keys
+		// if you have one track that has scale, we still should support scale, so compress scale
+		if (!bCompressScaleKeys)
+		{
+			// then remove all scale keys
+			for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
+			{
+				FRawAnimSequenceTrack& RawData = RawAnimationData[TrackIndex];
+				RawData.ScaleKeys.Empty();
+			}
+		}
+	}
+#endif
+	return bRemovedKeys;
+}
+
+bool Compression::CompressAnimationDataTracks(const USkeleton* Skeleton, const TArray<FTrackToSkeletonMap>& TrackToSkeleton, TArray<FRawAnimSequenceTrack>& RawAnimationData, int32 NumberOfKeys, FName ErrorName, float MaxPosDiff /*= 0.0001f*/, float MaxAngleDiff /*= 0.0003f*/)
+{
+	bool bRemovedKeys = false;
+
+#if WITH_EDITORONLY_DATA
+	if (ensureMsgf(RawAnimationData.Num() > 0, TEXT("%s is trying to compress while raw animation is missing"), * ErrorName.ToString()))
+	{
+		// This removes trivial keys, and this has to happen before the removing tracks
+		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
+		{
+			bRemovedKeys |= CompressRawAnimSequenceTrack(RawAnimationData[TrackIndex], NumberOfKeys, ErrorName, MaxPosDiff, MaxAngleDiff);
+		}
+
+		bool bCompressScaleKeys = false;
+		// go through remove keys if not needed
+		for (int32 TrackIndex = 0; TrackIndex < RawAnimationData.Num(); TrackIndex++)
+		{
+			FRawAnimSequenceTrack const& RawData = RawAnimationData[TrackIndex];
+			if (RawData.ScaleKeys.Num() > 0)
+			{
+				// if scale key exists, see if we can just empty it
+				const bool bHaveMultipleKeys = RawData.ScaleKeys.Num() > 1;
+				const bool bHaveNonIdentityKey = !RawData.ScaleKeys[0].Equals(FVector3f::OneVector);
+				const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
+				const int32 TrackBoneIndex = TrackToSkeleton[TrackIndex].BoneTreeIndex;				
+				const bool bHaveNonRefPoseKey = ReferenceSkeleton.IsValidIndex(TrackBoneIndex) && !RawData.ScaleKeys[0].Equals(FVector3f(ReferenceSkeleton.GetRefBonePose()[TrackBoneIndex].GetScale3D()));
+				if (bHaveMultipleKeys|| bHaveNonIdentityKey || bHaveNonRefPoseKey)
 				{
 					bCompressScaleKeys = true;
 					break;
