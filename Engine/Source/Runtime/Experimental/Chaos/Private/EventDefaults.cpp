@@ -339,10 +339,11 @@ namespace Chaos
 				for (int32 Idx = 0; Idx < AllClusterBreakings.Num(); ++Idx)
 				{					
 					const FBreakingData& ClusterBreaking = AllClusterBreakings[Idx];
-					if (!SolverBreakingEventFilter->Enabled() || SolverBreakingEventFilter->Pass(ClusterBreaking))
+					IPhysicsProxyBase* Proxy = AllClusterBreakings[Idx].Proxy;
+					if (!Proxy->GetMarkedDeleted() && (!SolverBreakingEventFilter->Enabled() || SolverBreakingEventFilter->Pass(ClusterBreaking)))
 					{
 						const int32 NewIndex = FilteredBreakingDataArray.Emplace(ClusterBreaking);
-						FilteredBreakingIndicesByPhysicsProxy.FindOrAdd(ClusterBreaking.Proxy).Add(FEventManager::EncodeCollisionIndex(NewIndex, false));
+						FilteredBreakingIndicesByPhysicsProxy.FindOrAdd(Proxy).Add(FEventManager::EncodeCollisionIndex(NewIndex, false));
 						BreakingEventData.BreakingData.bHasGlobalEvent |= (ClusterBreaking.EmitterFlag & EventEmitterFlag::GlobalDispatcher) != 0;
 					}
 				}
@@ -518,16 +519,18 @@ namespace Chaos
 				
 				for (int32 Idx = 0; Idx < AllRemovalsArray.Num(); ++Idx)
 				{
-					FRemovalData RemovalData;
-					RemovalData.Location = AllRemovalsArray[Idx].Location;
-					RemovalData.Mass = AllRemovalsArray[Idx].Mass;
-					RemovalData.Proxy = AllRemovalsArray[Idx].Proxy;
-					RemovalData.BoundingBox = AllRemovalsArray[Idx].BoundingBox;
+					IPhysicsProxyBase* Proxy = AllRemovalsArray[Idx].Proxy;
+					if (!Proxy->GetMarkedDeleted())
+					{
+						FRemovalData RemovalData;
+						RemovalData.Location = AllRemovalsArray[Idx].Location;
+						RemovalData.Mass = AllRemovalsArray[Idx].Mass;
+						RemovalData.Proxy = Proxy;
+						RemovalData.BoundingBox = AllRemovalsArray[Idx].BoundingBox;
 
-					int32 NewIdx = AllRemovalDataArray.Add(FRemovalData());
-					FRemovalData& RemovalDataArrayItem = AllRemovalDataArray[NewIdx];
-					RemovalDataArrayItem = RemovalData;
-					AllRemovalIndicesByPhysicsProxy.FindOrAdd(RemovalData.Proxy).Add(FEventManager::EncodeCollisionIndex(NewIdx, false));
+						const int32 NewIdx = AllRemovalDataArray.Add(RemovalData);
+						AllRemovalIndicesByPhysicsProxy.FindOrAdd(Proxy).Add(FEventManager::EncodeCollisionIndex(NewIdx, false));
+					}
 				}
 			});
 	}
