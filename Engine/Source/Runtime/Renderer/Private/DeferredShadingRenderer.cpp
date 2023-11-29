@@ -4169,9 +4169,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			// Or composite the off screen buffer over the scene.
 			if (bVolumetricRenderTargetRequired)
 			{
+				const bool bComposeWithWater = bIsCameraUnderWater ? false : bShouldRenderSingleLayerWater;
 				ComposeVolumetricRenderTargetOverScene(
 					GraphBuilder, Views, SceneTextures.Color.Target, SceneTextures.Depth.Target,
-					bIsCameraUnderWater ? false : bShouldRenderSingleLayerWater,
+					bComposeWithWater,
 					SceneWithoutWaterTextures, SceneTextures);
 			}
 		};
