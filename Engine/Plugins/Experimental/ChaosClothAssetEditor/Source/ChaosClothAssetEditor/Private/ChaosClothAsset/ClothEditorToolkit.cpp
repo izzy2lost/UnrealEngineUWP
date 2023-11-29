@@ -282,6 +282,10 @@ void FChaosClothAssetEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode*
 		FChaosClothAssetEditorModeToolkit* ClothModeToolkit = static_cast<FChaosClothAssetEditorModeToolkit*>(ModeToolkit.Get());
 		ClothModeToolkit->SetRestSpaceViewportWidget(RestSpaceViewportWidget);
 		ClothModeToolkit->SetPreviewViewportWidget(PreviewViewportWidget);
+
+		FName ParentToolbarName;
+		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
+		ClothModeToolkit->BuildEditorToolBar(ToolBarName);
 	}
 }
 

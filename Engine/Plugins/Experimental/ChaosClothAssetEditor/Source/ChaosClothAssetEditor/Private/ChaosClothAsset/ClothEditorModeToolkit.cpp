@@ -140,18 +140,23 @@ void FChaosClothAssetEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& Ini
 	];
 }
 
-
-void FChaosClothAssetEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBuilder& ToolbarBuilder)
+void FChaosClothAssetEditorModeToolkit::BuildEditorToolBar(const FName& EditorToolBarName)
 {
-	const FChaosClothAssetEditorCommands& Commands = FChaosClothAssetEditorCommands::Get();
+	check(EditorToolBarName != FName());
 
-	// TODO: make separate palettes to split up the tools tab
-	if (PaletteIndex == FBaseCharacterFXEditorModeToolkit::ToolsTabName)
-	{
-		ToolbarBuilder.AddToolBarButton(Commands.AddWeightMapNode);
-		ToolbarBuilder.AddToolBarButton(Commands.AddMeshSelectionNode);
-		ToolbarBuilder.AddToolBarButton(Commands.AddTransferSkinWeightsNode);
-	}
+	const TSharedRef<const FUICommandList> EdModeToolkitCommands = GetToolkitCommands();
+
+	UToolMenu* const ToolBarMenu = UToolMenus::Get()->ExtendMenu(EditorToolBarName);
+	FToolMenuSection& Section = ToolBarMenu->FindOrAddSection("ClothTools");
+
+	FToolMenuEntry& WeightMapButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddWeightMapNode));
+	WeightMapButtonEntry.SetCommandList(EdModeToolkitCommands);
+
+	FToolMenuEntry& SkinWeightsButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddTransferSkinWeightsNode));
+	SkinWeightsButtonEntry.SetCommandList(EdModeToolkitCommands);
+
+	FToolMenuEntry& SelectionButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FChaosClothAssetEditorCommands::Get().AddMeshSelectionNode));
+	SelectionButtonEntry.SetCommandList(EdModeToolkitCommands);
 }
 
 const FSlateBrush* FChaosClothAssetEditorModeToolkit::GetActiveToolIcon(const FString& ActiveToolIdentifier) const

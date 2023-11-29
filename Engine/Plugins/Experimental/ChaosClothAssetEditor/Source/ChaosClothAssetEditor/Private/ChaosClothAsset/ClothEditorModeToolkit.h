@@ -23,8 +23,9 @@ public:
 
 	void Init(const TSharedPtr<IToolkitHost>& InitToolkitHost, TWeakObjectPtr<UEdMode> InOwningMode);
 
-    /** For a specific tool palette category, construct and fill ToolbarBuilder with the category's tools **/
-	virtual void BuildToolPalette(FName PaletteName, class FToolBarBuilder& ToolbarBuilder) override;
+	// Add buttons to the toolbar with the specified name
+	// Note: Most FModeToolkits would define BuildToolPalette, but we are putting buttons in the top toolbar instead
+	void BuildEditorToolBar(const FName& EditorToolBarName);
 
 	virtual const FSlateBrush* GetActiveToolIcon(const FString& Identifier) const override;
 
@@ -41,6 +42,7 @@ public:
 private:
 
 	// Get the viewport widget associated with the given manager
+	// TODO: This should not be necessary any more as we do not run tools in the Cloth Preview Viewport (JIRA UE-201248)
 	SBaseCharacterFXEditorViewport* GetViewportWidgetForManager(UInteractiveToolManager* Manager);
 
 	UEditorInteractiveToolsContext* GetCurrentToolsContext();
