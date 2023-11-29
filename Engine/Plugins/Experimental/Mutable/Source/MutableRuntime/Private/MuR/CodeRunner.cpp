@@ -3811,6 +3811,21 @@ namespace mu
 							pMax = Resized;
 						}
 
+						// Be defensive: ensure format matches.
+						if (pNew->GetFormat() != pMax->GetFormat())
+						{
+							MUTABLE_CPUPROFILER_SCOPE(Format_ForInterpolate);
+
+							Ptr<Image> Formatted = CreateImage(pMax->GetSizeX(), pMax->GetSizeY(), pMax->GetLODCount(), pNew->GetFormat(), EInitializationType::NotInitialized);
+							
+							bool bSuccess = false;
+							ImOp.ImagePixelFormat(bSuccess, m_pSettings->ImageCompressionQuality, Formatted.get(), pMax.get());
+							check(bSuccess);
+							
+							Release(pMax);
+							pMax = Formatted;
+						}
+
 						if (pNew->GetLODCount() != LevelCount)
 						{
 							MUTABLE_CPUPROFILER_SCOPE(Mipmap_ForInterpolate);
