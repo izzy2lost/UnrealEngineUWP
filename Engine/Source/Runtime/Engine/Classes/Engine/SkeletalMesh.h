@@ -415,7 +415,7 @@ namespace NSSkeletalMeshSourceFileLabels
 /* Scoped SkeletalMeshRenderData
  * All to get access to SkeletalMeshRenderData for a given platform an ensuring the data are thread-safe during the entire scope
  */
-struct FScopedSkeletalMeshRenderData
+struct ENGINE_API FScopedSkeletalMeshRenderData
 {
 public:
 	FScopedSkeletalMeshRenderData(USkeletalMesh* Mesh);
