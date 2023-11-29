@@ -1,15 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using Gauntlet;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using UnrealBuildTool;
+using UnrealBuildBase;
 
 namespace Gauntlet.SelfTest
 {
@@ -65,12 +62,14 @@ namespace Gauntlet.SelfTest
 
 		public TestUnrealBase()
 		{
-			ProjectName = "FortniteGame";
-			ProjectFile = new FileReference("FortniteGame/FortniteGame.uproject");
-			UsesSharedBuildType = false;
-			DevkitName = "Default";
-
+			ProjectName = Gauntlet.Globals.Params.ParseValue("ProjectName", "FortniteGame");
 			BuildPath = Gauntlet.Globals.Params.ParseValue("Build", null);
+			DevkitName = Gauntlet.Globals.Params.ParseValue("Device", "Default");
+			UnrealPath = Unreal.RootDirectory;
+			UsesSharedBuildType = false;
+
+			string Project = Gauntlet.Globals.Params.ParseValue("ProjectFile", "FortniteGame/FortniteGame.uproject");
+			ProjectFile = new FileReference(Project);
 
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
 			{

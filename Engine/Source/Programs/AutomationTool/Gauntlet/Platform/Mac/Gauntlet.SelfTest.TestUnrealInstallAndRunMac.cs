@@ -4,32 +4,11 @@ using UnrealBuildTool;
 
 namespace Gauntlet.SelfTest
 {
-	class TestUnrealInstallThenRunMac : TestUnrealInstallAndRunBase<TargetDeviceMac>
+	class TestUnrealInstallAndRunMac : TestUnrealInstallAndRunDesktop
 	{
-		public TestUnrealInstallThenRunMac()
+		public TestUnrealInstallAndRunMac()
 		{
 			Platform = UnrealTargetPlatform.Mac;
-		}
-
-		protected override bool PerformFullDeviceClean()
-		{
-			return true;
-		}
-
-		protected override bool TestClearSavedDirectory()
-		{
-			return true;
-		}
-
-		protected override bool TestInstallApplication(out IAppInstall Install)
-		{
-			Install = null;
-			return true;
-		}
-
-		protected override bool TestCopyAppConfigurationFiles()
-		{
-			return true;
 		}
 	}
 }
