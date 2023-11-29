@@ -937,7 +937,6 @@ bool CompileAndProcessD3DShaderDXC(
 
 		bool bGlobalUniformBufferUsed = false;
 		bool bDiagnosticBufferUsed = false;
-		bool bRootConstants = false;
 		uint32 NumInstructions = 0;
 		uint32 NumSamplers = 0;
 		uint32 NumSRVs = 0;
@@ -957,11 +956,6 @@ bool CompileAndProcessD3DShaderDXC(
 		DxcBuffer ReflBuffer = { 0 };
 		ReflBuffer.Ptr = ReflectionBlob->GetBufferPointer();
 		ReflBuffer.Size = ReflectionBlob->GetBufferSize();
-
-		if (Input.Environment.CompilerFlags.Contains(CFLAG_RootConstants))
-		{
-			bRootConstants = true;
-		}
 
 		bool bHasNoDerivativeOps = false;
 
@@ -1147,17 +1141,17 @@ bool CompileAndProcessD3DShaderDXC(
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::GlobalUniformBuffer;
 			}
 
-			if (bRootConstants)
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_RootConstants))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::RootConstants;
 			}
 
-			if (ShaderRequiresFlags & D3D_SHADER_REQUIRES_RESOURCE_DESCRIPTOR_HEAP_INDEXING)
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessResources))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessResources;
 			}
 
-			if (ShaderRequiresFlags & D3D_SHADER_REQUIRES_SAMPLER_DESCRIPTOR_HEAP_INDEXING)
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_BindlessSamplers))
 			{
 				PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
 			}
