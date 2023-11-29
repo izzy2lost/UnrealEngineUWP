@@ -439,6 +439,19 @@ namespace PerfSummaries
 			return (int)dict["framecount"].numericValue;
 		}
 
+		public bool Contains(string key)
+		{
+			return dict.ContainsKey(key);
+		}
+		public SummaryTableElement Get(string key)
+		{
+			if ( dict.TryGetValue(key, out SummaryTableElement elementOut) )
+			{
+				return elementOut;
+			}
+			return null;
+		}
+
 		public void RemoveSafe(string name)
 		{
 			string key = name.ToLower();
