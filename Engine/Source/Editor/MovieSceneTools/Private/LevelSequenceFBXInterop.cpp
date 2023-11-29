@@ -211,7 +211,7 @@ void FLevelSequenceFBXInterop::ExportFBXInternal(const FString& ExportFilename, 
 	if (!ExportCancel)
 	{
 		UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-		UWorld* World = Cast<UWorld>(Sequencer->GetPlaybackContext());
+		UWorld* World = Sequencer->GetPlaybackContext()->GetWorld();
 		FMovieSceneSequenceIDRef Template = Sequencer->GetFocusedTemplateID();
 		UnFbx::FFbxExporter::FLevelSequenceNodeNameAdapter NodeNameAdapter(MovieScene, Sequencer.Get(), Template);
 
