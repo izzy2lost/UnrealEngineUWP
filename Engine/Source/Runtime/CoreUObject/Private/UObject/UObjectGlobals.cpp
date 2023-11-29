@@ -32,6 +32,7 @@
 #include "UObject/Class.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/FastReferenceCollector.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
 #include "Templates/Casts.h"
@@ -3614,6 +3615,8 @@ void UObject::PostInitProperties()
 #if USE_UBER_GRAPH_PERSISTENT_FRAME
 	GetClass()->CreatePersistentUberGraphFrame(this, true);
 #endif
+
+	FOverridableManager::Get().ClearOverrides(*this);
 }
 
 UObject::UObject()
@@ -4100,6 +4103,8 @@ void FObjectInitializer::InitProperties(UObject* Obj, UClass* DefaultsClass, UOb
 	SCOPE_CYCLE_COUNTER(STAT_InitProperties);
 
 	check(DefaultsClass && Obj);
+
+	FOverridableManager::Get().InheritEnabledFrom(*Obj, DefaultData);
 
 	UClass* Class = Obj->GetClass();
 

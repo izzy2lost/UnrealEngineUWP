@@ -11,6 +11,7 @@
 #include "Serialization/StructuredArchive.h"
 #include "UObject/NameTypes.h"
 
+enum class EOverriddenPropertyOperation : uint8;
 class FArchive;
 class FProperty;
 
@@ -25,7 +26,7 @@ enum class EPropertyTagExtension : uint8
 
 	////////////////////////////////////////////////
 	// First extension group
-	OverridableOperation		= 0x02,
+	OverridableInformation		= 0x02,
 
 	//
 	// Add more extension for the first group here
@@ -55,9 +56,11 @@ struct FPropertyTag
 	FGuid	StructGuid;
 	uint8	HasPropertyGuid = 0;
 	FGuid	PropertyGuid;
+	EOverriddenPropertyOperation OverrideOperation; // Overridable serialization state reconstruction 
+	bool	bExperimentalOverridableLogic = false; // Remember if property had CPF_ExperimentalOverridableLogic when saved
 
 	// Constructors.
-	FPropertyTag() {}
+	FPropertyTag();
 	FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults );
 
 	// Set optional property guid
@@ -70,6 +73,29 @@ struct FPropertyTag
 	// Property serializer.
 	void SerializeTaggedProperty( FArchive& Ar, FProperty* Property, uint8* Value, const uint8* Defaults ) const;
 	void SerializeTaggedProperty(FStructuredArchive::FSlot Slot, FProperty* Property, uint8* Value, const uint8* Defaults) const;
+};
+
+struct FPropertyTagScope
+{
+	FPropertyTagScope(const FPropertyTag* InCurrentPropertyTag)
+	: PropertyTagToRestore(CurrentPropertyTag)
+	{
+		CurrentPropertyTag = InCurrentPropertyTag;
+	}
+
+	~FPropertyTagScope()
+	{
+		CurrentPropertyTag = PropertyTagToRestore;
+	}
+
+	static FORCEINLINE const FPropertyTag* GetCurrentPropertyTag()
+	{
+		return CurrentPropertyTag;
+	}
+private:
+	const FPropertyTag* PropertyTagToRestore;
+
+	static thread_local const FPropertyTag* CurrentPropertyTag;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

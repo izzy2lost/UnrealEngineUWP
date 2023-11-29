@@ -107,6 +107,10 @@ public:
 #endif
 	}
 
+	FORCEINLINE TArray<class FProperty*, TInlineAllocator<8>>::TConstIterator GetRootIterator() const
+	{
+		return SerializedPropertyChain.CreateConstIterator();
+	}
 private:
 	void IncrementUpdateCount()
 	{

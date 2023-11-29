@@ -7,20 +7,27 @@
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
 #include "UObject/BlueprintsObjectVersion.h"
+#include "UObject/OverriddenPropertySet.h"
+
+thread_local const FPropertyTag* FPropertyTagScope::CurrentPropertyTag = nullptr;
 
 /*-----------------------------------------------------------------------------
 FPropertyTag
 -----------------------------------------------------------------------------*/
+FPropertyTag::FPropertyTag()
+: OverrideOperation(EOverriddenPropertyOperation::None)
+{}
 
 FPropertyTag::FPropertyTag( FArchive& InSaveAr, FProperty* Property, int32 InIndex, uint8* Value, const uint8* Defaults )
 	: ArrayIndex(InIndex)
+	, OverrideOperation(EOverriddenPropertyOperation::None)
 {
 	check(!InSaveAr.GetArchiveState().UseUnversionedPropertySerialization());
 	Property->SaveToTag(*this);
 	if (FBoolProperty* Bool = CastField<FBoolProperty>(Property))
-	{
-		BoolVal = Bool->GetPropertyValue(Value);
-	}
+		{
+			BoolVal = Bool->GetPropertyValue(Value);
+		}
 }
 
 // Set optional property guid
@@ -169,11 +176,31 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		}
 	}
 
-	// Serialize tag extensions
+	// Serialize tag extensions, consider doing a init function and context as `EClassSerializationControlExtension` if we add more extensions
 	if (UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
 	{
 		EPropertyTagExtension PropertyTagExtensions = EPropertyTagExtension::NoExtension;
+
+		if (UnderlyingArchive.IsSaving())
+		{
+			// Overridable information extension
+			const FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
+			Tag.bExperimentalOverridableLogic = Tag.Prop->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic);
+			if (OverriddenProperties || Tag.bExperimentalOverridableLogic)
+			{
+				Tag.OverrideOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), Tag.Prop) : EOverriddenPropertyOperation::None;
+				PropertyTagExtensions |= EPropertyTagExtension::OverridableInformation;
+			}
+		}
+
 		Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
+
+		// Overridable information extension
+		if (EnumHasAnyFlags(PropertyTagExtensions,EPropertyTagExtension::OverridableInformation))
+		{
+			Slot << SA_ATTRIBUTE(TEXT("OverriddenPropertyOperation"), Tag.OverrideOperation);
+			Slot << SA_ATTRIBUTE(TEXT("ExperimentalOverridableLogic"), Tag.bExperimentalOverridableLogic);
+		}
 	}
 }
 
@@ -210,6 +237,7 @@ void FPropertyTag::SerializeTaggedProperty(FStructuredArchive::FSlot Slot, FProp
 		FArchive::FScopeAddDebugData A(UnderlyingArchive, Property->GetFName());
 #endif
 		FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Property);
+		FPropertyTagScope CurrentPropertyTagScope(this);
 
 		Property->SerializeItem(Slot, Value, Defaults);
 	}

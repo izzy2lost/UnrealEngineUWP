@@ -67,6 +67,8 @@
 #include "String/ParseTokens.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "Serialization/TestUndeclaredScriptStructObjectReferences.h"
+#include "UObject/OverridableManager.h"
+#include "UObject/OverriddenPropertySet.h"
 
 // This flag enables some expensive class tree validation that is meant to catch mutations of 
 // the class tree outside of SetSuperStruct. It has been disabled because loading blueprints 
@@ -1319,13 +1321,35 @@ enum class EClassSerializationControlExtension : uint8
 
 	////////////////////////////////////////////////
 	// First extension group
-	OverridableSerialization	= 0x02,
+	OverridableSerializationInformation	= 0x02,
 
 	//
 	// Add more extension for the first group here
 	//
 };
 ENUM_CLASS_FLAGS(EClassSerializationControlExtension);
+
+struct FSerializationControlExtensionContext
+{
+	uint8* Data = nullptr;
+	bool bEnableOverridableSerialization = false;
+	FOverriddenPropertySet* OverriddenProperties = nullptr;
+
+	EClassSerializationControlExtension InitializeSerializationControlExtensions()
+	{
+		EClassSerializationControlExtension SerializationExtension = EClassSerializationControlExtension::NoExtension;
+	
+		// Overridable serialization information initialization
+		if (FOverriddenPropertySet* ObjectOverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*(UObject*)Data))
+		{
+			SerializationExtension |= EClassSerializationControlExtension::OverridableSerializationInformation;
+			bEnableOverridableSerialization = true;
+			OverriddenProperties = ObjectOverriddenProperties;
+		}
+	
+		return SerializationExtension;
+	}
+};
 
 void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
@@ -1336,13 +1360,36 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 	FUObjectSerializeContext* LoadContext = UnderlyingArchive.GetSerializeContext();
 	//SCOPED_LOADTIMER(SerializeTaggedPropertiesTime);
 
-	// Setup tagged property serialization control data extensions, this is serialized only on root i.e. UObject and not structs
+	// Setup serialization control data extensions, this is serialized only on root i.e. UObject and not structs!
 	const bool bIsUClass = IsA<UClass>();
-	EClassSerializationControlExtension SerializationControl = EClassSerializationControlExtension::NoExtension;
+	FSerializationControlExtensionContext ControlContext{ Data };
 	if (bIsUClass && UnderlyingArchive.UEVer() >= EUnrealEngineObjectUE5Version::PROPERTY_TAG_EXTENSION_AND_OVERRIDABLE_SERIALIZATION)
 	{
+		EClassSerializationControlExtension SerializationControl = EClassSerializationControlExtension::NoExtension;
+		if (UnderlyingArchive.IsSaving())
+		{
+			SerializationControl = ControlContext.InitializeSerializationControlExtensions();
+		}
+
 		Slot << SA_ATTRIBUTE(TEXT("SerializationControlExtensions"), SerializationControl);
+
+		// Overridable serialization information serialization
+		if (EnumHasAnyFlags(SerializationControl, EClassSerializationControlExtension::OverridableSerializationInformation))
+		{
+			checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Overridable serialization does not support custom property list"))
+			EOverriddenPropertyOperation Operation = UnderlyingArchive.IsSaving() ? ControlContext.OverriddenProperties->GetOverriddenPropertyOperation(/*CurrentPropertyChain*/nullptr, /*Property*/nullptr) : EOverriddenPropertyOperation::None;
+			Slot << SA_ATTRIBUTE(TEXT("OverridableOperation"), Operation);
+
+			if (UnderlyingArchive.IsLoading())
+			{
+				ControlContext.bEnableOverridableSerialization = true;
+				ControlContext.OverriddenProperties = &FOverridableManager::Get().SetOverriddenProperties(*(UObject*)Data, Operation);
+			}
+		}
 	}
+
+	// Scope that enables the overridable serialization for this object
+	FEnableOverridableSerializationScope OverridableSerializationScope(ControlContext.bEnableOverridableSerialization, ControlContext.OverriddenProperties);
 
 	// Determine if this struct supports optional property guid's (UBlueprintGeneratedClasses Only)
 	const bool bArePropertyGuidsAvailable = (UnderlyingArchive.UEVer() >= VER_UE4_PROPERTY_GUID_IN_PROPERTY_TAG) && (!FPlatformProperties::RequiresCookedData() || UnderlyingArchive.IsSaveGame()) && ArePropertyGuidsAvailable();
@@ -1555,6 +1602,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					{
 						FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
 
+						// The operation was set part of the tag, now that we know the associated property, restore the overridden operation on the object
+						if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
+						{
+							OverriddenProperties->SetOverriddenPropertyOperation(Tag.OverrideOperation, UnderlyingArchive.GetSerializedPropertyChain(), Property);
+						}
+
 						switch (Property->ConvertFromType(Tag, ValueSlot, Data, DefaultsStruct, Defaults))
 						{
 							case EConvertFromTypeResult::Converted:
@@ -1648,6 +1701,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 		}
 
 		// Save tagged properties.
+		const bool bDoDeltaSerialization = UnderlyingArchive.DoDelta() && !UnderlyingArchive.IsTransacting() && (Defaults || bIsUClass);
 
 		// Iterate over properties in the order they were linked and serialize them.
 		const FCustomPropertyListNode* CustomPropertyNode = UnderlyingArchive.ArUseCustomPropertyList ? UnderlyingArchive.ArCustomPropertyList : nullptr;
@@ -1671,7 +1725,9 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				{
 					uint8* DataPtr      = Property->ContainerPtrToValuePtr           <uint8>(Data, Idx);
 					uint8* DefaultValue = Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Idx);
-					if (StaticArrayContainer.IsSet() || CustomPropertyNode || !UnderlyingArchive.DoDelta() || UnderlyingArchive.IsTransacting() || (!Defaults && !dynamic_cast<const UClass*>(this)) || !Property->Identical(DataPtr, DefaultValue, UnderlyingArchive.GetPortFlags()))
+					if (StaticArrayContainer.IsSet() || CustomPropertyNode || !bDoDeltaSerialization ||
+						(FOverridableSerializationLogic::IsEnabled() && FOverridableSerializationLogic::GetOverriddenPropertyOperation(UnderlyingArchive, Property) != EOverriddenPropertyOperation::None) ||
+						(!FOverridableSerializationLogic::IsEnabled() && !Property->Identical(DataPtr, DefaultValue, UnderlyingArchive.GetPortFlags())))
 					{
 						if (bUseAtomicSerialization)
 						{

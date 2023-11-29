@@ -11,6 +11,7 @@
 #include "UObject/LinkerLoad.h"
 #include "UObject/PropertyHelper.h"
 #include "UObject/UObjectThreadContext.h"
+#include "UObject/OverriddenPropertySet.h"
 
 /*-----------------------------------------------------------------------------
 	FArrayProperty.
@@ -123,7 +124,8 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	check(Inner);
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 	const bool bIsTextFormat = UnderlyingArchive.IsTextFormat();
-	const bool bUPS = Slot.GetArchiveState().UseUnversionedPropertySerialization();
+	const bool bUPS = UnderlyingArchive.UseUnversionedPropertySerialization();
+	bool bExperimentalOverridableLogic = HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic);
 	TOptional<FPropertyTag> MaybeInnerTag;
 
 	// Ensure that the Inner itself has been loaded before calling SerializeItem() on it
@@ -133,7 +135,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	int32		n		= ArrayHelper.Num();
 
 	// Custom branch for UPS to try and take advantage of bulk serialization
-	if (bUPS)
+	if (bUPS && !bExperimentalOverridableLogic)
 	{
 		checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Custom property lists are not supported with UPS"));
 		checkf(!bIsTextFormat, TEXT("Text-based archives are not supported with UPS"));
@@ -185,31 +187,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("InnerStructGuid"), MaybeInnerTag.GetValue().StructGuid, FGuid());
 	}
 
-	FStructuredArchiveArray Array = Slot.EnterArray(n);
-
-	if( UnderlyingArchive.IsLoading() )
-	{
-		// If using a custom property list, don't empty the array on load. Not all indices may have been serialized, so we need to preserve existing values at those slots.
-		if (UnderlyingArchive.ArUseCustomPropertyList)
-		{
-			const int32 OldNum = ArrayHelper.Num();
-			if (n > OldNum)
-			{
-				ArrayHelper.AddValues(n - OldNum);
-			}
-			else if (n < OldNum)
-			{
-				ArrayHelper.RemoveValues(n, OldNum - n);
-			}
-		}
-		else
-		{
-			ArrayHelper.EmptyAndAddValues(n);
-		}
-	}
-	ArrayHelper.CountBytes( UnderlyingArchive );
-
-
 	TOptional<FPropertyTag> SerializeFromMismatchedTag;
 
 	// TODO: Should work for maps + sets too.
@@ -236,6 +213,335 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			
 		Inner->SerializeItem(Slot, Item);
 	};
+	
+	// Make sure the container is reloading accordingly to the value set in the property tag if any
+	if (!bUPS && UnderlyingArchive.IsLoading() && FPropertyTagScope::GetCurrentPropertyTag())
+	{
+		bExperimentalOverridableLogic = FPropertyTagScope::GetCurrentPropertyTag()->bExperimentalOverridableLogic;
+	}
+
+	// *** Experimental *** Special serialization path for array with overridable serialization
+	if(bExperimentalOverridableLogic)
+	{
+		checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Using custom property list is not supported by overridable serialization"));
+
+		FStructuredArchive::FRecord Record = Slot.EnterRecord();
+		if (UnderlyingArchive.IsLoading())
+		{
+			int32 NumReplaced = 0;
+			FStructuredArchive::FArray ReplacedArray = Record.EnterArray(TEXT("Replaced"), NumReplaced);
+			if (NumReplaced != INDEX_NONE)
+			{
+				ArrayHelper.EmptyAndAddValues(NumReplaced);
+				for (int32 i = 0; i < NumReplaced; i++)
+				{
+					SerializeContainerItem(ReplacedArray.EnterElement(), ArrayHelper.GetRawPtr(i));
+				}
+			}
+			else
+			{
+				// Only Array of Instanced subobject are handled here as sort of a set where the matching key is done using the archetype
+				const FObjectProperty* InnerObjectProperty = CastFieldChecked<FObjectProperty>(Inner);
+				checkf(InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Only supported code path here is the instanced subobjects"));
+
+				FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
+
+				checkf(Defaults, TEXT("Expecting overridable serialization to have defaults to compare to"));
+
+				FScriptArrayHelper DefaultsArrayHelper(this, Defaults);
+
+				auto FindObject = [InnerObjectProperty](UObject* Object, UObject* Object2, FScriptArrayHelper& ArrayHelper) -> int32
+				{
+					if (Object)
+					{
+						const int32 ArrayNum = ArrayHelper.Num();
+						for (int i = 0; i < ArrayNum; ++i)
+						{
+							UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(i));
+							if (CurrentObject == Object || (Object2 && CurrentObject == Object2))
+							{
+								return i;
+							}
+						}
+					}
+					return INDEX_NONE;
+				};
+
+				uint8* TempValueStorage = nullptr;
+				ON_SCOPE_EXIT
+				{
+					if (TempValueStorage)
+					{
+						InnerObjectProperty->DestroyValue(TempValueStorage);
+						FMemory::Free(TempValueStorage);
+					}
+				};
+
+				int32 NumRemoved = 0;
+				FStructuredArchive::FArray RemovedArray = Record.EnterArray(TEXT("Removed"), NumRemoved);
+				if(NumRemoved != 0)
+				{
+					TArray<int32> IndicesToRemove;
+					TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+					InnerObjectProperty->InitializeValue(TempValueStorage);
+
+					for (int32 i = 0; i < NumRemoved; ++i)
+					{
+						{
+							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Inner, this);
+							SerializeContainerItem(RemovedArray.EnterElement(), TempValueStorage);
+						}
+
+						if (UObject* RemovedSubObject = InnerObjectProperty->GetObjectPropertyValue(TempValueStorage) )
+						{
+							int32 Index = FindObject(RemovedSubObject, nullptr, DefaultsArrayHelper);
+							if (Index != INDEX_NONE)
+							{
+								IndicesToRemove.Add(Index);
+							}
+
+							// Need to fetch the ArrayOverriddenPropertyNode every loop as the previous iteration might have reallocated the node.
+							if (FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
+							{
+								// Rebuild the overridden info
+								const FName RemovedSubObjectID = RemovedSubObject->GetFName();
+								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *ArrayOverriddenPropertyNode, RemovedSubObjectID);
+							}
+						}
+					}
+
+					IndicesToRemove.Sort(TGreater<>());
+					for(int32 IndexToRemove : IndicesToRemove)
+					{
+						ArrayHelper.RemoveValues(IndexToRemove);
+					}
+				}
+
+				int32 NumModified = 0;
+				FStructuredArchive::FArray ModifiedArray = Record.EnterArray(TEXT("Modified"), NumModified);
+				if (NumModified != 0)
+				{
+					if (!TempValueStorage)
+					{
+						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+						InnerObjectProperty->InitializeValue(TempValueStorage);
+					}
+
+					for (int32 i = 0; i < NumModified; ++i)
+					{
+						{
+							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Inner, this);
+							SerializeContainerItem(ModifiedArray.EnterElement(), TempValueStorage);
+						}
+
+						if (UObject* ModifiedObject = InnerObjectProperty->GetObjectPropertyValue(TempValueStorage))
+						{
+							int32 Index = FindObject(ModifiedObject->GetArchetype(), ModifiedObject, ArrayHelper);
+							if (Index != INDEX_NONE)
+							{
+								InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), ModifiedObject);
+							}
+						}
+					}
+				}
+
+				int32 NumAdded = 0;
+				FStructuredArchive::FArray AddedArray = Record.EnterArray(TEXT("Added"), NumAdded);
+				if (NumAdded != 0)
+				{
+					if (!TempValueStorage)
+					{
+						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+						InnerObjectProperty->InitializeValue(TempValueStorage);
+					}
+
+					int32 AddIndex = ArrayHelper.Num();
+					for (int32 i = 0; i < NumAdded; ++i)
+					{
+						{
+							FSerializedPropertyScope SerializedProperty(UnderlyingArchive, Inner, this);
+							SerializeContainerItem(AddedArray.EnterElement(), TempValueStorage);
+						}
+
+						if (UObject* AddedSubObject = InnerObjectProperty->GetObjectPropertyValue(TempValueStorage))
+						{
+							int32 Index = FindObject(AddedSubObject->GetArchetype(), AddedSubObject, ArrayHelper);
+							if (Index == INDEX_NONE)
+							{
+								ArrayHelper.AddValue();
+								Index = AddIndex++;
+							}
+							InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), AddedSubObject);
+
+							// Need to fetch the ArrayOverriddenPropertyNode every loop as the previous iteration might have reallocated the node.
+							if (FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
+							{
+								// Rebuild the overridden info
+								const FName AddedSubObjectID = AddedSubObject->GetFName();
+								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *ArrayOverriddenPropertyNode, AddedSubObjectID);
+							}
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			// Container for temporarily tracking some indices
+			TArray<int32> RemovedIndices;
+			TArray<int32> ModifiedIndices;
+			TArray<int32> AddedIndices;
+
+			bool bReplaceArray = false;
+			if (!Defaults)
+			{
+				bReplaceArray = true;
+			}
+			else
+			{
+				const FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(Inner);
+				EOverriddenPropertyOperation ArrayOverrideOp = EOverriddenPropertyOperation::None;
+				FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
+				if (OverriddenProperties)
+				{
+					ArrayOverrideOp = OverriddenProperties->GetOverriddenPropertyOperation(UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr);
+					bReplaceArray = ArrayOverrideOp == EOverriddenPropertyOperation::Replace;
+				}
+				else
+				{
+					bReplaceArray = !InnerObjectProperty || !InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance);
+				}
+
+				if (!bReplaceArray)
+				{
+					// Only array of instanced subobjects are handled here as sort of a set where the matching key is done using the archetype
+					checkf(InnerObjectProperty&& InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Expecting only arrays of instanced subobjects"));
+
+					// We need to always serialize instanced subobjects to know if they have overridden values.
+					const int32 ArrayNum = ArrayHelper.Num();
+					for (int i = 0; i < ArrayNum; i++)
+					{
+						ModifiedIndices.Add(i);
+					}
+
+					if (OverriddenProperties && ArrayOverrideOp != EOverriddenPropertyOperation::None)
+					{
+
+						auto FindObject = [InnerObjectProperty](const FName ObjectToFind, FScriptArrayHelper& ArrayHelper) -> int32
+						{
+							const int32 ArrayNum = ArrayHelper.Num();
+							for (int i = 0; i < ArrayNum; ++i)
+							{
+								UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(i));
+								if (CurrentObject && CurrentObject->GetName() == ObjectToFind)
+								{
+									return i;
+								}
+							}
+							return INDEX_NONE;
+						};
+
+						FScriptArrayHelper DefaultsArrayHelper(this, Defaults);
+
+						if (const FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties->GetOverriddenPropertyNode(UnderlyingArchive.GetSerializedPropertyChain()))
+						{
+							for (const auto& Pair : ArrayOverriddenPropertyNode->SubPropertyNodeKeys)
+							{
+								const EOverriddenPropertyOperation OverrideOp = OverriddenProperties->GetSubPropertyOperation(Pair.Value);
+								switch (OverrideOp)
+								{
+								case EOverriddenPropertyOperation::Remove:
+									{
+										const int32 DefaultIndex = FindObject(Pair.Key, DefaultsArrayHelper);
+										if (DefaultIndex != INDEX_NONE)
+										{
+											RemovedIndices.Add(DefaultIndex);
+										}
+										break;
+									}
+								case EOverriddenPropertyOperation::Add:
+									{
+										const int32 Index = FindObject(Pair.Key, ArrayHelper);
+										if(Index != INDEX_NONE)
+										{
+											AddedIndices.Add(Index);
+											ModifiedIndices.Remove(Index);
+										}
+										break;
+									}
+								default:
+									checkf(false, TEXT("Unsupported operation type"));
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			int32 NumReplaced = bReplaceArray ? ArrayHelper.Num() : INDEX_NONE;
+			FStructuredArchive::FArray ReplacedArray = Record.EnterArray(TEXT("Replaced"), NumReplaced);
+			if(bReplaceArray)
+			{
+				const int32 ArrayNum = ArrayHelper.Num();
+				for (int32 i =0; i < ArrayNum; ++i)
+				{
+					SerializeContainerItem(ReplacedArray.EnterElement(), ArrayHelper.GetRawPtr(i));
+				}
+			}
+			else
+			{
+				checkf(Defaults, TEXT("Expecting overridable serialization to have defaults to compare to"));
+				FScriptArrayHelper DefaultsArrayHelper(this, Defaults);
+
+				int32 NumRemoved = RemovedIndices.Num();
+				FStructuredArchive::FArray RemovedArray = Record.EnterArray(TEXT("Removed"), NumRemoved);
+				for (int32 i : RemovedIndices)
+				{
+					SerializeContainerItem(RemovedArray.EnterElement(), DefaultsArrayHelper.GetRawPtr(i));
+				}
+
+				int32 NumModified = ModifiedIndices.Num();
+				FStructuredArchive::FArray ModifiedArray = Record.EnterArray(TEXT("Modified"), NumModified);
+				for (int32 i : ModifiedIndices)
+				{
+					SerializeContainerItem(ModifiedArray.EnterElement(), ArrayHelper.GetRawPtr(i));
+				}
+
+				int32 NumAdded = AddedIndices.Num();
+				FStructuredArchive::FArray AddedArray = Record.EnterArray(TEXT("Added"), NumAdded);
+				for (int32 i : AddedIndices)
+				{
+					SerializeContainerItem(AddedArray.EnterElement(), ArrayHelper.GetRawPtr(i));
+				}
+			}
+		}
+		return;
+	}
+
+	FStructuredArchiveArray Array = Slot.EnterArray(n);
+
+	if( UnderlyingArchive.IsLoading() )
+	{
+		// If using a custom property list, don't empty the array on load. Not all indices may have been serialized, so we need to preserve existing values at those slots.
+		if (UnderlyingArchive.ArUseCustomPropertyList)
+		{
+			const int32 OldNum = ArrayHelper.Num();
+			if (n > OldNum)
+			{
+				ArrayHelper.AddValues(n - OldNum);
+			}
+			else if (n < OldNum)
+			{
+				ArrayHelper.RemoveValues(n, OldNum - n);
+			}
+		}
+		else
+		{
+			ArrayHelper.EmptyAndAddValues(n);
+		}
+	}
+	ArrayHelper.CountBytes( UnderlyingArchive );
 	
 	// Serialize a PropertyTag for the inner property of this array, allows us to validate the inner struct to see if it has changed
 	if (UnderlyingArchive.UEVer() >= VER_UE4_INNER_ARRAY_TAG_INFO && Inner->IsA<FStructProperty>())

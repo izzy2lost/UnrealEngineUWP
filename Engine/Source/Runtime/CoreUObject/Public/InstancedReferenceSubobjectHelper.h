@@ -52,7 +52,7 @@ public:
 	}
 
 	//--------------------------------------------------------------------------
-	ENGINE_API UObject* Resolve(const UObject* Container) const;
+	COREUOBJECT_API UObject* Resolve(const UObject* Container) const;
 
 private:
 	TArray<FPropertyLink> PropertyChain;
@@ -136,8 +136,7 @@ public:
 		}
 	}
 
-
-	static ENGINE_API void Duplicate(
+	static COREUOBJECT_API void Duplicate(
 		UObject* OldObject, 
 		UObject* NewObject, 
 		TMap<UObject*, UObject*>& ReferenceReplacementMap, 

@@ -39,6 +39,7 @@
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/UObjectAnnotation.h"
 #include "UObject/ReferenceChainSearch.h"
+#include "UObject/OverridableManager.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "Serialization/ArchiveShowReferences.h"
 #include "Serialization/ArchiveFindCulprit.h"
@@ -471,6 +472,8 @@ void UObject::PreEditChange( FEditPropertyChain& PropertyAboutToChange )
 		GetArchetypeInstances(Objects);
 		PropagatePreEditChange(Objects, PropertyAboutToChange);
 	}
+
+	FOverridableManager::Get().PreOverrideProperty(*this, PropertyAboutToChange);
 }
 
 
@@ -542,6 +545,8 @@ void UObject::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyCh
 	}
 
 	PostEditChangeProperty(PropertyEvent);
+
+	FOverridableManager::Get().PostOverrideProperty(*this, PropertyChangedEvent, PropertyChangedEvent.PropertyChain);
 }
 
 bool UObject::CanEditChange( const FProperty* InProperty ) const
@@ -557,6 +562,13 @@ bool UObject::CanEditChange(const FEditPropertyChain& PropertyChain) const
 
 void UObject::PropagatePreEditChange( TArray<UObject*>& AffectedObjects, FEditPropertyChain& PropertyAboutToChange )
 {
+	// This feature is not essential for overridable serialization
+	// Disable it until we fix the fact that do it will create overrides on all the instances
+	if (FOverridableManager::Get().IsEnabled(*this))
+	{
+		return;
+	}
+
 	TArray<UObject*> Instances;
 
 	for ( int32 i = 0; i < AffectedObjects.Num(); i++ )
@@ -642,6 +654,13 @@ void UObject::PropagatePreEditChange( TArray<UObject*>& AffectedObjects, FEditPr
 
 void UObject::PropagatePostEditChange( TArray<UObject*>& AffectedObjects, FPropertyChangedChainEvent& PropertyChangedEvent )
 {
+	// This feature is not essential for overridable serialization
+	// Disable it until we fix the fact that do it will create overrides on all the instances
+	if (FOverridableManager::Get().IsEnabled(*this))
+	{
+		return;
+	}
+
 	TArray<UObject*> Instances;
 
 	for ( int32 i = 0; i < AffectedObjects.Num(); i++ )
@@ -1625,6 +1644,12 @@ void UObject::Serialize(FStructuredArchive::FRecord Record)
 		// Handle derived UClass objects (exact UClass objects are native only and shouldn't be touched)
 		if (ObjClass != UClass::StaticClass())
 		{
+			if (UnderlyingArchive.IsTransacting())
+			{
+				// Serialize the overriden property inside the transaction buffer
+				FOverridableManager::Get().SerializeOverriddenProperties(*this, Record);
+			}
+
 			SerializeScriptProperties(Record.EnterField(TEXT("Properties")));
 		}
 
@@ -3865,6 +3890,7 @@ COREUOBJECT_API TArray<const TCHAR*> ParsePropertyFlags(EPropertyFlags InFlags)
 		TEXT("CPF_NativeAccessSpecifierProtected"),
 		TEXT("CPF_NativeAccessSpecifierPrivate"),
 		TEXT("CPF_SkipSerialization"),
+		TEXT("CPF_ExperimentalOverridableLogic"),
 	};
 
 	uint64 Flags = InFlags;
