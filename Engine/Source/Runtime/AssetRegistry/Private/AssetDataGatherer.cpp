@@ -4109,6 +4109,15 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 	}
 
 	// For all the files not found in the cache, read them from their package files on disk; the file reads are done in parallel
+	static const EParallelForFlags ParallelFlags = []()
+		{
+			EParallelForFlags ReturnFlags = EParallelForFlags::Unbalanced;
+			if (!IsRunningCommandlet())
+			{
+				ReturnFlags |= EParallelForFlags::BackgroundPriority;
+			}
+			return ReturnFlags;
+		}();
 	ParallelFor(ReadContexts.Num(),
 		[this, &ReadContexts](int32 Index)
 		{
@@ -4121,7 +4130,7 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 			UE_SCOPED_IO_ACTIVITY(*WriteToString<512>(TEXT("Loading Asset"), ReadContext.PackageName.ToString()));
 			ReadContext.bResult = ReadAssetFile(ReadContext.AssetFileData.LongPackageName, ReadContext.AssetFileData.LocalAbsPath, ReadContext.AssetDataFromFile, ReadContext.DependencyData, ReadContext.CookedPackageNamesWithoutAssetData, ReadContext.bCanAttemptAssetRetry);
 		},
-		EParallelForFlags::Unbalanced | EParallelForFlags::BackgroundPriority
+		ParallelFlags
 	);
 
 	// Accumulate the results
