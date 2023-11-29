@@ -440,7 +440,7 @@ void UGameplayEffect::ConvertCustomCanApplyComponent()
 	if (bChanged && UE::GameplayEffect::EditorOnly::ShouldUpgradeVersion(GetVersion(), EGameplayEffectVersion::Modular53))
 	{
 		UCustomCanApplyGameplayEffectComponent& ApplicationComponent = FindOrAddComponent<UCustomCanApplyGameplayEffectComponent>();
-		ApplicationComponent.ApplicationRequirements.Append(ApplicationRequirements_DEPRECATED);
+		ApplicationComponent.ApplicationRequirements = ApplicationRequirements_DEPRECATED;
 	}
 
 	// Keep backwards compatibility (at least in terms of reading from the data)
