@@ -381,16 +381,6 @@ bool UPackage::IsPostLoadThreadSafe() const
 	return true;
 }
 
-// UE-21181 - Tracking where the loaded editor level's package gets flagged as a PIE object
-#if WITH_EDITOR
-UPackage* UPackage::EditorPackage = nullptr;
-void UPackage::SetPackageFlagsTo( uint32 NewFlags )
-{
-	PackageFlagsPrivate = NewFlags;
-	ensure(((NewFlags & PKG_PlayInEditor) == 0) || (this != EditorPackage));
-}
-#endif
-
 #if WITH_EDITORONLY_DATA
 void FixupPackageEditorOnlyFlag(FName PackageThatGotEditorOnlyFlagCleared, bool bRecursive);
 

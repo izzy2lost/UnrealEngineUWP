@@ -639,11 +639,6 @@ public:
 		return HasAnyPackageFlags(PKG_RequiresLocalizationGather);
 	}
 
-	// UE-21181 - trying to track when a flag gets set on a package due to PIE
-#if WITH_EDITOR
-	static UPackage* EditorPackage;
-	void SetPackageFlagsTo( uint32 NewFlags );
-#else
 	/**
 	* Sets all package flags to the specified values.
 	*
@@ -653,7 +648,6 @@ public:
 	{
 		PackageFlagsPrivate = NewFlags;
 	}
-#endif
 
 	/**
 	* Set the specified flags to true. Does not affect any other flags.

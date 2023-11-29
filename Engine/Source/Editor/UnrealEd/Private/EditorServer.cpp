@@ -2615,9 +2615,6 @@ bool UEditorEngine::Map_Load(const TCHAR* Str, FOutputDevice& Ar)
 				Context.SetCurrentWorld(World);
 				GWorld = World;
 
-				// UE-21181 - Tracking where the loaded editor level's package gets flagged as a PIE object
-				UPackage::EditorPackage = WorldPackage;
-
 				World->WorldType = EWorldType::Editor;
 
 				Context.World()->PersistentLevel->HandleLegacyMapBuildData();
