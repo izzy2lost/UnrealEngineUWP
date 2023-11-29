@@ -75,6 +75,10 @@ protected:
 
 	/** Should we early out in ReconstructNode(), skipping restoring the connections to other nodes. Set during Copy/Paste. */
 	bool bDisableReconstructNode = false;
+
+	/** The graph that this node originated from during a copy/paste operation. This value should never be used outside of copy/paste logic. */
+	UPROPERTY(SkipSerialization)
+	FSoftObjectPath OriginGraph;
 };
 
 UCLASS()

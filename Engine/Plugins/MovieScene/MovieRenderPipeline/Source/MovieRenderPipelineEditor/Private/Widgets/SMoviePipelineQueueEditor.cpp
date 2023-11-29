@@ -977,10 +977,19 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 		// Close the dropdown menu that showed them the assets to pick from.
 		FSlateApplication::Get().DismissAllMenus();
 
-		UMoviePipelineExecutorShot* Shot = WeakShot.Get();
-		if (Shot)
+		if (UMoviePipelineExecutorShot* Shot = WeakShot.Get())
 		{
-			Shot->SetShotOverridePresetOrigin(CastChecked<UMoviePipelineShotConfig>(AssetData.GetAsset()));
+			FScopedTransaction Transaction(LOCTEXT("PickShotPresetAsset_Transaction", "Set Shot Configuration Asset"));
+			Shot->Modify();
+
+			if (Shot->IsUsingGraphConfiguration())
+			{
+				Shot->SetGraphPreset(CastChecked<UMovieGraphConfig>(AssetData.GetAsset()));
+			}
+			else
+			{
+				Shot->SetShotOverridePresetOrigin(CastChecked<UMoviePipelineShotConfig>(AssetData.GetAsset()));
+			}
 		}
 
 		OnChosePresetCallback.ExecuteIfBound(WeakJob, WeakShot);
@@ -1048,8 +1057,11 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 
 	TSharedRef<SWidget> OnGenerateShotConfigPresetPickerMenu()
 	{
+		const UMoviePipelineExecutorShot* Shot = WeakShot.Get();
+		UClass* ConfigType = Shot && Shot->IsUsingGraphConfiguration() ? UMovieGraphConfig::StaticClass() : UMoviePipelinePrimaryConfig::StaticClass();
+		
 		return FMoviePipelineQueueJobTreeItem::OnGenerateConfigPresetPickerMenuFromClass(
-			UMoviePipelineShotConfig::StaticClass(),
+			ConfigType,
 			WeakJob,
 			FOnAssetSelected::CreateRaw(this, &FMoviePipelineShotItem::OnPickShotPresetFromAsset),
 			FExecuteAction::CreateRaw(this, &FMoviePipelineShotItem::OnPickNewShotPreset),

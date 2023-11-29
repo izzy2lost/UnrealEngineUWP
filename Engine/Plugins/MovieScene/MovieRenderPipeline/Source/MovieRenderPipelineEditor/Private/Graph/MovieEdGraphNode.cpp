@@ -504,6 +504,12 @@ void UMoviePipelineEdGraphNodeBase::PrepareForCopying()
 		// This is restored in PostCopy
 		RuntimeNode->Rename(nullptr, this, REN_DontCreateRedirectors | REN_DoNotDirty);
 	}
+
+	const UMoviePipelineEdGraph* MovieGraphEditorGraph = CastChecked<UMoviePipelineEdGraph>(GetGraph());
+	const UMovieGraphConfig* RuntimeGraph = MovieGraphEditorGraph->GetPipelineGraph();
+
+	// Track where this node came from for copy/paste purposes
+	OriginGraph = RuntimeGraph->GetPathName();
 }
 
 void UMoviePipelineEdGraphNodeBase::PostCopy()
