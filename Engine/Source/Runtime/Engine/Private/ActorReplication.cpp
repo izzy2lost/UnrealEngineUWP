@@ -396,9 +396,7 @@ void AActor::GatherCurrentMovement()
 		UPrimitiveComponent* RootPrimComp = Cast<UPrimitiveComponent>(GetRootComponent());
 		if (RootPrimComp && RootPrimComp->IsSimulatingPhysics())
 		{
-#if UE_WITH_IRIS
 			const bool bPrevRepPhysics = ReplicatedMovement.bRepPhysics;
-#endif // UE_WITH_IRIS
 
 			const bool bShouldUsePhysicsReplicationCache = GetPhysicsReplicationMode() != EPhysicsReplicationMode::Default;
 			bool bFoundInCache = false;
@@ -409,9 +407,13 @@ void AActor::GatherCurrentMovement()
 			{
 				if (FPhysScene_Chaos* Scene = static_cast<FPhysScene_Chaos*>(World->GetPhysicsScene()))
 				{
-					if (const FRigidBodyState* FoundState = Scene->GetStateFromReplicationCache(RootPrimComp, ServerFrame))
+					if (const FRigidBodyState* FoundState = Scene->GetStateFromReplicationCache(RootPrimComp, /*OUT*/ServerFrame))
 					{
-						ReplicatedMovement.FillFrom(*FoundState, this, Scene->ReplicationCache.ServerFrame);
+						if (ReplicatedMovement.ServerFrame != ServerFrame)
+						{
+							ReplicatedMovement.FillFrom(*FoundState, this, ServerFrame);
+							bWasRepMovementModified = true;
+						}
 						bFoundInCache = true;
 					}
 				}
@@ -423,22 +425,21 @@ void AActor::GatherCurrentMovement()
 				FRigidBodyState RBState;
 				RootPrimComp->GetRigidBodyState(RBState);
 				ReplicatedMovement.FillFrom(RBState, this, ServerFrame);
+				bWasRepMovementModified = true;
 			}
 
 			// Don't replicate movement if we're welded to another parent actor.
 			// Their replication will affect our position indirectly since we are attached.
 			ReplicatedMovement.bRepPhysics = !RootPrimComp->IsWelded();
-			
-			// Technically, the values might have stayed the same, but we'll just assume they've changed.
-			bWasRepMovementModified = true;
 
-#if UE_WITH_IRIS
 			// If RepPhysics has changed value then notify the ReplicationSystem
 			if (bPrevRepPhysics != ReplicatedMovement.bRepPhysics)
 			{
+#if UE_WITH_IRIS
 				UpdateReplicatePhysicsCondition();
-			}
 #endif // UE_WITH_IRIS
+				bWasRepMovementModified = true;
+			}
 		}
 		else if (RootComponent != nullptr)
 		{
