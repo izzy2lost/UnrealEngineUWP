@@ -196,6 +196,12 @@ static FAutoConsoleVariableRef CVarCullIntermediateUniformExpressions(
 	GCullIntermediateUniformExpressions,
 	TEXT("Enables culling of intermediate uniform expressions, reducing preshader count, saving performance"));
 
+static int32 GPreshaderGapInterval = 32;
+static FAutoConsoleVariableRef CVarPreshaderGapInterval(
+	TEXT("r.Material.PreshaderGapInterval"),
+	GPreshaderGapInterval,
+	TEXT("Insert an empty element in the preshader buffer every specified number of elements in the buffer.  Workaround for a shader compiler bug."));
+
 /* Controls whether to use the new GetMaterialShaderCode() and GetMaterialEnvironment() implementations. */
 static bool GUseMaterialTranslationResultsGrouping = true;
 
@@ -4514,6 +4520,18 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 			{
 				// If this uniform would span multiple registers, align offset to the next register to avoid this
 				UniformPreshaderOffset = Align(UniformPreshaderOffset, 4u);
+			}
+
+			// Optionally insert an empty vector element (gap) at the given interval, to work around a platform specific shader compiler bug
+			if (GPreshaderGapInterval > 0)
+			{
+				// Check if we are on the vector element that is the end of the gap interval, or we will pass the end of the gap interval if the
+				// preshader is larger than a single vector.  The divides will change value when a modulus gap interval boundary is crossed.
+				uint32 PreshaderGapOffset = FMath::Max(4u, bIsLWC ? NumComponents * 2u : NumComponents);
+				if (UniformPreshaderOffset / (GPreshaderGapInterval*4) != (UniformPreshaderOffset + PreshaderGapOffset) / (GPreshaderGapInterval*4))
+				{
+					UniformPreshaderOffset += 4u;
+				}
 			}
 
 			const UE::Shader::EValueComponentType ComponentType = bIsLWC ? UE::Shader::EValueComponentType::Double : UE::Shader::EValueComponentType::Float;
