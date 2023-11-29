@@ -165,6 +165,13 @@ private:
 	/** Called when we set bTickingAsyncRequests to false, at this point it's safe to perform any queued operations on the Async Requests Array */
 	void OnFinishedTickingAsyncRequests();
 
+	/** Internal method to clear all async requests and release all references */
+	void ClearAsyncRequests();
+
+	/** Called when switching maps. Allows to release references that would otherwise prevent cleaning up an old world */
+	void HandlePreLoadMap(const FString& MapName);
+
+
 	/** The set of target requests queued up for async processing */
 	UPROPERTY(Transient)
 	TArray<FTargetingRequestHandle> AsyncTargetingRequests;

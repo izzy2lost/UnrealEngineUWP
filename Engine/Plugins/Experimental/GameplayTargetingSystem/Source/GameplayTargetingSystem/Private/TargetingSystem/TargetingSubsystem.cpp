@@ -143,17 +143,13 @@ void UTargetingSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollec
 
 void UTargetingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-
+	FCoreUObjectDelegates::PreLoadMap.AddUObject(this, &UTargetingSubsystem::HandlePreLoadMap);
 }
 
 void UTargetingSubsystem::Deinitialize()
 {
-	for (FTargetingRequestHandle AsyncHandle : AsyncTargetingRequests)
-	{
-		ReleaseTargetRequestHandle(AsyncHandle);
-	}
-
-	AsyncTargetingRequests.Empty();
+	ClearAsyncRequests();
+	FCoreUObjectDelegates::PreLoadMap.RemoveAll(this);
 }
 
 bool UTargetingSubsystem::Exec_Runtime(UWorld* Inworld, const TCHAR* Cmd, FOutputDevice& Ar)
@@ -755,6 +751,21 @@ UTargetingTask* UTargetingSubsystem::FindCurrentExecutingTask(FTargetingRequestH
 	return nullptr;
 }
 
+void UTargetingSubsystem::HandlePreLoadMap(const FString& MapName)
+{
+	/* clean up all async requests which will remove all references keeping the old world from being cleaned up */
+	ClearAsyncRequests();
+}
+
+void UTargetingSubsystem::ClearAsyncRequests()
+{
+	for (FTargetingRequestHandle AsyncHandle : AsyncTargetingRequests)
+	{
+		ReleaseTargetRequestHandle(AsyncHandle);
+	}
+
+	AsyncTargetingRequests.Empty();
+}
 
 #if ENABLE_DRAW_DEBUG
 
