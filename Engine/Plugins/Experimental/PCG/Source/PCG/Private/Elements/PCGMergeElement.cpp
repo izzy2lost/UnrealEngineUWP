@@ -48,7 +48,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 
 	const bool bMergeMetadata = Settings->bMergeMetadata;
 
-	TArray<FPCGTaggedData> Sources = Context->InputData.GetInputs();
+	TArray<FPCGTaggedData> Sources = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	if (Sources.IsEmpty())
@@ -87,7 +87,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 			}
 			
 			check(TargetTaggedData);
-			TargetTaggedData->Tags.Append(Source.Tags); // TODO: only unique? if yes, fix union too
+			TargetTaggedData->Tags.Append(Source.Tags);
 		}
 	}
 

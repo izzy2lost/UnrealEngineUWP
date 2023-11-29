@@ -443,16 +443,16 @@ public:
 	/** Adds the value, returns the value key for the given value */
 	PCGMetadataValueKey AddValue(const T& InValue)
 	{
-		PCGMetadataValueKey FoundValue = FindValue(InValue);
+		PCGMetadataValueKey FoundValueKey = FindValue(InValue);
 
-		if (FoundValue == PCGDefaultValueKey)
+		if (FoundValueKey == PCGNotFoundValueKey)
 		{
 			FWriteScopeLock ScopeLock(ValueLock);
 			return Values.Add(InValue) + ValueKeyOffset;
 		}
 		else
 		{
-			return FoundValue;
+			return FoundValueKey;
 		}
 	}
 
@@ -505,8 +505,13 @@ public:
 	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
 	PCGMetadataValueKey FindValue(const T& InValue) const
 	{
-		PCGMetadataValueKey ParentValueKey = (GetParent() ? GetParent()->FindValue(InValue) : PCGDefaultValueKey);
-		if (ParentValueKey != PCGDefaultValueKey)
+		if (InValue == DefaultValue)
+		{
+			return PCGDefaultValueKey;
+		}
+
+		PCGMetadataValueKey ParentValueKey = (GetParent() ? GetParent()->FindValue(InValue) : PCGNotFoundValueKey);
+		if (ParentValueKey != PCGNotFoundValueKey)
 		{
 			return ParentValueKey;
 		}
@@ -522,7 +527,7 @@ public:
 			}
 			else
 			{
-				return ParentValueKey;
+				return PCGNotFoundValueKey;
 			}
 		}
 	}
@@ -530,7 +535,7 @@ public:
 	template<typename IT = T, typename TEnableIf<!PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
 	PCGMetadataValueKey FindValue(const T& InValue) const
 	{
-		return PCGDefaultValueKey;
+		return PCGNotFoundValueKey;
 	}
 
 	void SetDefaultValue(const T& Value)

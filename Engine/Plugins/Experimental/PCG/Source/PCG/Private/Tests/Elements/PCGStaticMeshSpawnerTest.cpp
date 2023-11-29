@@ -96,7 +96,7 @@ void ValidateOutPointData(
 	}
 
 	const FPCGMetadataAttribute<FString>* OutAttribute = static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase);
-	const FString& MeshPath = FSoftObjectPath(ISMC->GetStaticMesh()).ToString();
+	const FString MeshPath = ISMC->GetStaticMesh().GetPath();
 	const PCGMetadataValueKey MeshValueKey = OutAttribute->FindValue(MeshPath);
 
 	if (MeshValueKey == PCGDefaultValueKey)

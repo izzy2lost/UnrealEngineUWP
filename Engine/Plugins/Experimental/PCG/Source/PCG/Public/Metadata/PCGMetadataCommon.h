@@ -11,6 +11,7 @@ typedef int32 PCGMetadataValueKey;
 
 const PCGMetadataEntryKey PCGInvalidEntryKey = -1;
 const PCGMetadataValueKey PCGDefaultValueKey = -1;
+const PCGMetadataValueKey PCGNotFoundValueKey = -2;
 
 UENUM()
 enum class EPCGMetadataOp : uint8

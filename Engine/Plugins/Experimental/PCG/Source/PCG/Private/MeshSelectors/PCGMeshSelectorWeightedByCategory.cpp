@@ -82,10 +82,9 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 				continue;
 			}
 
-			PCGMetadataValueKey ValueKey = Attribute->FindValue<FString>(Entry.CategoryEntry);
+			PCGMetadataValueKey ValueKey = Attribute->FindValue(Entry.CategoryEntry);
 
-			// DefaultValueKey is only an invalid ValueKey when the CategoryEntry is not the AttributeDefaultValue
-			if (ValueKey == PCGDefaultValueKey && !Entry.CategoryEntry.Equals(AttributeDefaultValue))
+			if (ValueKey == PCGNotFoundValueKey)
 			{
 				PCGE_LOG_C(Verbose, LogOnly, &Context, FText::Format(LOCTEXT("UnusedCategory", "Unused category '{0}'. Not a valid value for attribute '{1}'."), 
 					FText::FromString(Entry.CategoryEntry), FText::FromName(CategoryAttribute)));
