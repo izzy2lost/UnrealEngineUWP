@@ -1607,18 +1607,12 @@ void UPCGGraphInstance::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
 
 bool UPCGGraphInstance::CanEditChange(const FProperty* InProperty) const
 {
-	// Graph can only be changed if it is in a PCGComponent (not local) or a PCGSubgraphSettings
+	// Graph can only be changed if it is not in a local PCGComponent
 	if (InProperty && InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Graph))
 	{
-		UObject* Outer = this->GetOuter();
-
-		if (UPCGComponent* Component = Cast<UPCGComponent>(Outer))
+		if (UPCGComponent* Component = Cast<UPCGComponent>(GetOuter()))
 		{
 			return !Component->IsLocalComponent();
-		}
-		else
-		{
-			return Outer && Outer->IsA<UPCGSubgraphSettings>();
 		}
 	}
 

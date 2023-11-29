@@ -51,5 +51,5 @@ UObject* UPCGGraphInstanceFactory::FactoryCreateNew(UClass* InClass, UObject* In
 
 bool UPCGGraphInstanceFactory::ShouldShowInNewMenu() const
 {
-	return false;
+	return true;
 }
