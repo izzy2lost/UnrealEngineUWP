@@ -443,6 +443,69 @@ FName FNiagaraAttributeTrimmerHelper<GraphBridge>::FindAttributeForRead(const FP
 	return NAME_None;
 }
 
+// for a given pin search through the variables of the parameter map and try to resolve any potential ambiguity with module namespaces
+template<typename GraphBridge>
+FName FNiagaraAttributeTrimmerHelper<GraphBridge>::FindParameterMapVariable(const FParamMapHistory& ParamMap, const FModuleScopedPin& Pin)
+{
+	auto FindVariableName = [&ParamMap](FName NameToEvaluate, FName& OutVariableName) -> bool
+	{
+		if (ParamMap.FindVariableByName(NameToEvaluate) != INDEX_NONE)
+		{
+			OutVariableName = NameToEvaluate;
+			return true;
+		}
+
+		// we also need to check to see if the attribute has resolved namespaces (i.e. Particles.Module.MyAttribute or StackContext.MyAttribute)
+		// for which we'll just search through the parameter maps variables directly
+		const int32 AliasedIndex = ParamMap.VariablesWithOriginalAliasesIntact.IndexOfByPredicate([&](const FNiagaraVariable& Variable)
+		{
+			return Variable.GetName() == NameToEvaluate;
+		});
+
+		if (ParamMap.Variables.IsValidIndex(AliasedIndex))
+		{
+			OutVariableName = ParamMap.Variables[AliasedIndex].GetName();
+			return true;
+		}
+
+		return false;
+	};
+
+	FName FoundVariableName;
+
+	// try the pin name
+	if (FindVariableName(Pin.Pin->PinName, FoundVariableName))
+	{
+		return FoundVariableName;
+	}
+	else if (Pin.ModuleName != NAME_None)
+	{
+		FNameBuilder ModuleNameString(Pin.ModuleName);
+
+		// check if we need to replace an explicit module name with 'Module'
+		FString GenericPinName = Pin.Pin->PinName.ToString();
+		if (GenericPinName.ReplaceInline(*ModuleNameString, *FNiagaraConstants::ModuleNamespaceString))
+		{
+			if (FindVariableName(*GenericPinName, FoundVariableName))
+			{
+				return FoundVariableName;
+			}
+		}
+
+		// try replacing 'Module' with the explicit ModuleName
+		FString ExplicitPinName = Pin.Pin->PinName.ToString();
+		if (ExplicitPinName.ReplaceInline(*FNiagaraConstants::ModuleNamespaceString, *ModuleNameString))
+		{
+			if (FindVariableName(*ExplicitPinName, FoundVariableName))
+			{
+				return FoundVariableName;
+			}
+		}
+	}
+
+	return NAME_None;
+}
+
 // given the set of expressions (as defined in FindDependencies above) we resolve the named attribute aggregating the dependent reads and custom nodes
 template<typename GraphBridge>
 void FNiagaraAttributeTrimmerHelper<GraphBridge>::ResolveDependencyChain(const FParamMapHistory& ParamMap, const FDependencyMap& DependencyData, const FName& AttributeName, FDependencyChain& ResolvedDependencies)
@@ -651,30 +714,12 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 			{
 				// see if this variable corresponds to something in our parameter map's list of variables
 				// if it does then we need to mark it as something that needs to be preserved
-				// Note that we need to resolve the Pin name's module namespace before we actually search for it
-				// as a variable
-				FString VariableNameString = DependentPin.Pin->PinName.ToString();
-				VariableNameString.ReplaceInline(*DependentPin.ModuleName.ToString(), *FNiagaraConstants::ModuleNamespace.ToString());
-
-				const FName VariableName = *VariableNameString;
-
-				if (ParamMap->FindVariableByName(VariableName) != INDEX_NONE)
+				// Note that the parameter map can have the variable represented with either an explicit namespace
+				// or the generic Module, so we need to try both.
+				const FName MatchingVariableName = FindParameterMapVariable(*ParamMap, DependentPin);
+				if (MatchingVariableName != NAME_None)
 				{
-					AttributesToPreserve.Add(VariableName);
-				}
-				else
-				{
-					// we also need to check to see if the attribute has resolved namespaces (i.e. Particles.Module.MyAttribute or StackContext.MyAttribute)
-					// for which we'll just search through the parameter maps variables directly
-					const int32 AliasedIndex = ParamMap->VariablesWithOriginalAliasesIntact.IndexOfByPredicate([&](const FNiagaraVariable& Variable)
-						{
-							return Variable.GetName() == VariableName;
-						});
-
-					if (ParamMap->Variables.IsValidIndex(AliasedIndex))
-					{
-						AttributesToPreserve.Add(ParamMap->Variables[AliasedIndex].GetName());
-					}
+					AttributesToPreserve.Add(MatchingVariableName);
 				}
 			}
 		}
