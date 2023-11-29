@@ -39,6 +39,7 @@ namespace Horde.Server.Jobs
 			public LogId? LogId { get; set; }
 			public PoolId? PoolId { get; set; }
 			public AgentId? AgentId { get; set; }
+			public JobStepState? State { get; set; }
 			public JobStepOutcome? Outcome { get; set; }
 
 			[BsonIgnoreIfNull]
@@ -76,7 +77,7 @@ namespace Horde.Server.Jobs
 			bool IJobStepRef.UpdateIssues => UpdateIssues ?? false;			
 			IReadOnlyList<int>? IJobStepRef.IssueIds => IssueIds;			
 
-			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
+			public JobStepRef(JobStepRefId id, string jobName, string nodeName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepState? state, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float batchWaitTime, float batchInitTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
 			{
 				Id = id;
 				JobName = jobName;
@@ -87,6 +88,7 @@ namespace Horde.Server.Jobs
 				LogId = logId;
 				PoolId = poolId;
 				AgentId = agentId;
+				State = state;
 				Outcome = outcome;
 				UpdateIssues = updateIssues;
 				LastSuccess = lastSuccess;
@@ -117,9 +119,9 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJobStepRef> InsertOrReplaceAsync(JobStepRefId id, string jobName, string stepName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float waitTime, float initTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
+		public async Task<IJobStepRef> InsertOrReplaceAsync(JobStepRefId id, string jobName, string stepName, StreamId streamId, TemplateId templateId, int change, LogId? logId, PoolId? poolId, AgentId? agentId, JobStepState? state, JobStepOutcome? outcome, bool updateIssues, int? lastSuccess, int? lastWarning, float waitTime, float initTime, DateTime jobStartTimeUtc, DateTime startTimeUtc, DateTime? finishTimeUtc)
 		{
-			JobStepRef newJobStepRef = new JobStepRef(id, jobName, stepName, streamId, templateId, change, logId, poolId, agentId, outcome, updateIssues, lastSuccess, lastWarning, waitTime, initTime, jobStartTimeUtc, startTimeUtc, finishTimeUtc);
+			JobStepRef newJobStepRef = new JobStepRef(id, jobName, stepName, streamId, templateId, change, logId, poolId, agentId, state, outcome, updateIssues, lastSuccess, lastWarning, waitTime, initTime, jobStartTimeUtc, startTimeUtc, finishTimeUtc);
 			await _jobStepRefs.ReplaceOneAsync(Builders<JobStepRef>.Filter.Eq(x => x.Id, newJobStepRef.Id), newJobStepRef, new ReplaceOptions { IsUpsert = true });
 
 			if (_telemetrySink.Enabled)
@@ -139,6 +141,7 @@ namespace Horde.Server.Jobs
 					JobName = jobName,
 					JobStartTime = jobStartTimeUtc,
 					StepName = stepName,
+					State = state,
 					Outcome = outcome,
 					PoolId = poolId,
 					StartTime = startTimeUtc,
