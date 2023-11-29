@@ -12,6 +12,8 @@
 #include "GlobalShader.h"
 #include "Misc/ScopedSlowTask.h"
 #include "GroomRBFDeformer.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
+#include "Interfaces/ITargetPlatform.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -58,7 +60,7 @@ static FAutoConsoleVariableRef CVarHairStrandsBindingBuilderWarningEnable(TEXT("
 FString FGroomBindingBuilder::GetVersion()
 {
 	// Important to update the version when groom building changes
-	return TEXT("3p");
+	return TEXT("3p_7");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -293,15 +295,15 @@ private:
 class FSkeletalMeshData : public IMeshData
 {
 public:
-	FSkeletalMeshData(USkeletalMesh* InSkeletalMesh) 
+	FSkeletalMeshData(const USkeletalMesh* InSkeletalMesh, const FSkeletalMeshRenderData* InRenderData) 
 	{
 		SkeletalMesh = InSkeletalMesh;
+		MeshData = InRenderData;
 		if (SkeletalMesh)
 		{
-			MeshData = SkeletalMesh->GetResourceForRendering();
 			if (MeshData)
 			{
-				const uint32 LODCount = SkeletalMesh->GetLODNum();
+				LODCount = SkeletalMesh->GetLODNum();
 				MeshesLODData.Reserve(LODCount);
 				for (uint32 LODIt=0; LODIt<LODCount; ++LODIt)
 				{
@@ -322,7 +324,7 @@ public:
 
 	virtual uint32 GetNumLODs() const override
 	{
-		return SkeletalMesh->GetLODNum();
+		return LODCount;
 	}
 
 	virtual const IMeshLODData& GetMeshLODData(uint32 InLODIndex) const override
@@ -332,6 +334,7 @@ public:
 	}
 
 private:
+	uint32 LODCount = 0;
 	const USkeletalMesh* SkeletalMesh = nullptr;
 	const FSkeletalMeshRenderData* MeshData = nullptr;
 	TArray<FSkeletalMeshLODData> MeshesLODData;
@@ -1439,6 +1442,7 @@ namespace GroomBinding_RootProjection
 
 			// Update the root mesh projection data with unique valid mesh section IDs, based on the projection data
 			OutRootData.MeshProjectionLODs[LODIt].UniqueSectionIds = UniqueSectionId;
+			OutRootData.MeshProjectionLODs[LODIt].MeshSectionCount = SectionCount;
 		}
 
 		return true;
@@ -2001,6 +2005,7 @@ static void BuildRootBulkData(
 		Out.Header.LODs[MeshLODIt].SampleCount 			= bHasValidSamples ? In.MeshProjectionLODs[MeshLODIt].SampleCount : 0u;
 		Out.Header.LODs[MeshLODIt].UniqueTriangleCount 	= In.MeshProjectionLODs[MeshLODIt].UniqueTriangleIndexBuffer.Num();
 		Out.Header.LODs[MeshLODIt].UniqueSectionIndices = In.MeshProjectionLODs[MeshLODIt].UniqueSectionIds;
+		Out.Header.LODs[MeshLODIt].MeshSectionCount		= In.MeshProjectionLODs[MeshLODIt].MeshSectionCount;
 	}
 
 	// Data
@@ -2051,6 +2056,7 @@ static void BuildRootData(
 		Out.MeshProjectionLODs[MeshLODIt].LODIndex = In.Header.LODs[MeshLODIt].LODIndex;
 		Out.MeshProjectionLODs[MeshLODIt].SampleCount = bHasValidSamples ? In.Header.LODs[MeshLODIt].SampleCount : 0u;
 		Out.MeshProjectionLODs[MeshLODIt].UniqueSectionIds = In.Header.LODs[MeshLODIt].UniqueSectionIndices;
+		Out.MeshProjectionLODs[MeshLODIt].MeshSectionCount = In.Header.LODs[MeshLODIt].MeshSectionCount;
 
 		CopyFromBulkData<FHairStrandsUniqueTriangleIndexFormat>(Out.MeshProjectionLODs[MeshLODIt].UniqueTriangleIndexBuffer, In.Data.LODs[MeshLODIt].UniqueTriangleIndexBuffer);
 		CopyFromBulkData<FHairStrandsRootToUniqueTriangleIndexFormat>(Out.MeshProjectionLODs[MeshLODIt].RootToUniqueTriangleIndexBuffer, In.Data.LODs[MeshLODIt].RootToUniqueTriangleIndexBuffer);
@@ -2096,13 +2102,10 @@ static void BuildRootBulkData(
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Main entry (CPU path)
-static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 InGroupIndex)
+static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uint32 InGroupIndex, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& OutPlatformData)
 {
 #if WITH_EDITORONLY_DATA
-	if (!BindingAsset ||
-		!BindingAsset->GetGroom() ||
-		!BindingAsset->HasValidTarget() ||
-		BindingAsset->GetGroom()->GetNumHairGroups() == 0)
+	if (!In.GroomAsset || !In.bHasValidTarget || In.GroomAsset->GetNumHairGroups() == 0)
 	{
 		UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset cannot be created/rebuilt."));
 		return false;
@@ -2111,38 +2114,73 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 	// 1. Build groom root data
 	FHairRootGroupData OutData;
 	{
-		BindingAsset->GetGroom()->ConditionalPostLoad();
+		In.GroomAsset->ConditionalPostLoad();
 
-		const int32 NumInterpolationPoints = BindingAsset->GetNumInterpolationPoints();
-		UGroomAsset* GroomAsset = BindingAsset->GetGroom();
-
-		TUniquePtr<GroomBinding_Mesh::IMeshData> SourceMeshData;
-		TUniquePtr<GroomBinding_Mesh::IMeshData> TargetMeshData;
-		if (BindingAsset->GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh)
+		// Ensure the skeletal meshes / geom caches are built
+		if (In.BindingType == EGroomBindingMeshType::SkeletalMesh)
 		{
-			check(!BindingAsset->GetTargetSkeletalMesh()->IsCompiling());
-			check(BindingAsset->GetTargetSkeletalMesh()->IsAsyncTaskComplete());
-			BindingAsset->GetTargetSkeletalMesh()->ConditionalPostLoad();
-			if (BindingAsset->GetSourceSkeletalMesh())
+			check(!In.TargetSkeletalMesh->IsCompiling());
+			check(In.TargetSkeletalMesh->IsAsyncTaskComplete());
+			In.TargetSkeletalMesh->ConditionalPostLoad();
+			if (In.SourceSkeletalMesh)
 			{
-				check(!BindingAsset->GetSourceSkeletalMesh()->IsCompiling());
-				check(BindingAsset->GetSourceSkeletalMesh()->IsAsyncTaskComplete());
-				BindingAsset->GetSourceSkeletalMesh()->ConditionalPostLoad();
+				check(!In.SourceSkeletalMesh->IsCompiling());
+				check(In.SourceSkeletalMesh->IsAsyncTaskComplete());
+				In.SourceSkeletalMesh->ConditionalPostLoad();
 			}
-
-			SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(BindingAsset->GetSourceSkeletalMesh()));
-			TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(BindingAsset->GetTargetSkeletalMesh()));
 		}
 		else
 		{
-			BindingAsset->GetTargetGeometryCache()->ConditionalPostLoad();
-			if (BindingAsset->GetSourceGeometryCache())
+			In.TargetGeometryCache->ConditionalPostLoad();
+			if (In.SourceGeometryCache)
 			{
-				BindingAsset->GetSourceGeometryCache()->ConditionalPostLoad();
+				In.SourceGeometryCache->ConditionalPostLoad();
+			}
+		}
+
+		// * Only for SkeletalMesh: Take scoped lock on the skeletal render mesh data during the entire groom binding building
+		// * Then use an async build scope to allow accessing skeletal mesh property safely.
+		//   If skel.meshes are nullptr, this will act as a NOP
+		USkeletalMesh* InSourceSkeletalMesh = In.SourceSkeletalMesh == In.TargetSkeletalMesh ? nullptr : In.SourceSkeletalMesh;
+		FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(InSourceSkeletalMesh);
+		FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(In.TargetSkeletalMesh);
+
+		TUniquePtr<GroomBinding_Mesh::IMeshData> SourceMeshData;
+		TUniquePtr<GroomBinding_Mesh::IMeshData> TargetMeshData;
+		if (In.BindingType == EGroomBindingMeshType::SkeletalMesh)
+		{
+			if (InSourceSkeletalMesh)
+			{
+				FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
+				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
+				SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(InSourceSkeletalMesh, SourceSkeletalMeshScopedData.GetData()));
+			}
+			else
+			{
+				SourceMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(nullptr, nullptr));
 			}
 
-			SourceMeshData = TUniquePtr<GroomBinding_Mesh::FGeometryCacheData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FGeometryCacheData(BindingAsset->GetSourceGeometryCache()));
-			TargetMeshData = TUniquePtr<GroomBinding_Mesh::FGeometryCacheData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FGeometryCacheData(BindingAsset->GetTargetGeometryCache()));
+			if (In.TargetSkeletalMesh)
+			{
+				FSkinnedAssetAsyncBuildScope AsyncBuildScope(In.TargetSkeletalMesh);
+				USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
+				TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(In.TargetSkeletalMesh, TargetSkeletalMeshScopedData.GetData()));
+			}
+			else
+			{
+				TargetMeshData = TUniquePtr<GroomBinding_Mesh::FSkeletalMeshData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FSkeletalMeshData(nullptr, nullptr));
+			}
+		}
+		else
+		{
+			In.TargetGeometryCache->ConditionalPostLoad();
+			if (In.SourceGeometryCache)
+			{
+				In.SourceGeometryCache->ConditionalPostLoad();
+			}
+
+			SourceMeshData = TUniquePtr<GroomBinding_Mesh::FGeometryCacheData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FGeometryCacheData(In.SourceGeometryCache));
+			TargetMeshData = TUniquePtr<GroomBinding_Mesh::FGeometryCacheData, TDefaultDelete<GroomBinding_Mesh::IMeshData>>(new GroomBinding_Mesh::FGeometryCacheData(In.TargetGeometryCache));
 		}
 
 		if (!TargetMeshData->IsValid())
@@ -2150,14 +2188,14 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 			UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset could not be built. Target mesh is not valid."));
 			return false;
 		}
-		const uint32 GroupCount = GroomAsset->GetNumHairGroups();
+		const uint32 GroupCount = In.GroomAsset->GetNumHairGroups();
 		const uint32 MeshLODCount = TargetMeshData->GetNumLODs();
 
-		check(InGroupIndex < uint32(GroomAsset->GetHairGroupsPlatformData().Num()));
+		check(InGroupIndex < uint32(In.GroomAsset->GetHairGroupsPlatformData().Num()));
 
 		// Check if root data are needs for strands
 		bool bNeedStrandsRoot = false;
-		for (const FHairLODSettings& LODSettings : GroomAsset->GetHairGroupsLOD()[InGroupIndex].LODs)
+		for (const FHairLODSettings& LODSettings : In.GroomAsset->GetHairGroupsLOD()[InGroupIndex].LODs)
 		{
 			if (LODSettings.GeometryType == EGroomGeometryType::Strands)
 			{
@@ -2169,18 +2207,18 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 		// 1.1 Build guide/strands data
 		FHairStrandsDatas StrandsData;
 		FHairStrandsDatas GuidesData;
-		GroomAsset->GetHairStrandsDatas(InGroupIndex, StrandsData, GuidesData);
+		In.GroomAsset->GetHairStrandsDatas(InGroupIndex, StrandsData, GuidesData);
 
 		// 1.2 Init root data for guides/strands/cards
-		const FHairGroupPlatformData& GroupData = GroomAsset->GetHairGroupsPlatformData()[InGroupIndex];
+		const FHairGroupPlatformData& GroupData = In.GroomAsset->GetHairGroupsPlatformData()[InGroupIndex];
 		{
 			// Guides
-			InitHairStrandsRootData(OutData.SimRootData, &GuidesData, MeshLODCount, NumInterpolationPoints);
+			InitHairStrandsRootData(OutData.SimRootData, &GuidesData, MeshLODCount, In.NumInterpolationPoints);
 
 			// Strands
 			if (bNeedStrandsRoot)
 			{
-				InitHairStrandsRootData(OutData.RenRootData, &StrandsData, MeshLODCount, NumInterpolationPoints);
+				InitHairStrandsRootData(OutData.RenRootData, &StrandsData, MeshLODCount, In.NumInterpolationPoints);
 			}
 
 			// Cards
@@ -2191,10 +2229,10 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 				if (GroupData.Cards.IsValid(CardsLODIt))
 				{
 					FHairStrandsDatas LODGuidesData;
-					const bool bIsValid = GroomAsset->GetHairCardsGuidesDatas(InGroupIndex, CardsLODIt, LODGuidesData);
+					const bool bIsValid = In.GroomAsset->GetHairCardsGuidesDatas(InGroupIndex, CardsLODIt, LODGuidesData);
 					if (bIsValid)
 					{
-						InitHairStrandsRootData(OutData.CardsRootData[CardsLODIt], &LODGuidesData, MeshLODCount, NumInterpolationPoints);
+						InitHairStrandsRootData(OutData.CardsRootData[CardsLODIt], &LODGuidesData, MeshLODCount, In.NumInterpolationPoints);
 					}
 				}
 			}
@@ -2225,7 +2263,7 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 			if (!GroomBinding_Transfer::Transfer(
 				SourceMeshData.Get(),
 				TargetMeshData.Get(),
-				TransferredPositions, BindingAsset->GetMatchingSection()))
+				TransferredPositions, In.MatchingSection))
 			{
 				UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset could not be built. Positions transfer between source and target mesh failed."));
 				return false;
@@ -2268,10 +2306,10 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 			const uint32 CardsLODCount = OutData.CardsRootData.Num();
 			for (uint32 CardsLODIt = 0; CardsLODIt < CardsLODCount; ++CardsLODIt)
 			{
-				if (BindingAsset->GetGroom()->GetHairGroupsPlatformData()[InGroupIndex].Cards.IsValid(CardsLODIt))
+				if (In.GroomAsset->GetHairGroupsPlatformData()[InGroupIndex].Cards.IsValid(CardsLODIt))
 				{
 					FHairStrandsDatas LODGuidesData;
-					const bool bIsValid = GroomAsset->GetHairCardsGuidesDatas(InGroupIndex, CardsLODIt, LODGuidesData);
+					const bool bIsValid = In.GroomAsset->GetHairCardsGuidesDatas(InGroupIndex, CardsLODIt, LODGuidesData);
 					if (bIsValid)
 					{
 						if (!GroomBinding_RootProjection::Project(
@@ -2291,59 +2329,36 @@ static bool InternalBuildBinding_CPU(UGroomBindingAsset* BindingAsset, uint32 In
 		
 		// 1.5 RBF building
 		{
-			GroomBinding_RBFWeighting::ComputeInterpolationWeights(OutData, bNeedStrandsRoot, BindingAsset->GetNumInterpolationPoints(), BindingAsset->GetMatchingSection(), TargetMeshData.Get(), TransferredPositions);
+			GroomBinding_RBFWeighting::ComputeInterpolationWeights(OutData, bNeedStrandsRoot, In.NumInterpolationPoints, In.MatchingSection, TargetMeshData.Get(), TransferredPositions);
 			SlowTask.EnterProgressFrame();
 		}
 	}
 
-	// 2. Release existing resources data
-	UGroomBindingAsset::FHairGroupResources& OutHairGroupResources = BindingAsset->GetHairGroupResources();
-	if (OutHairGroupResources.Num() > 0)
-	{
-		for (UGroomBindingAsset::FHairGroupResource& GroupResources : OutHairGroupResources)
-		{
-			BindingAsset->AddHairGroupResourcesToDelete(GroupResources);
-		}
-		OutHairGroupResources.Empty();
-	}
-	check(OutHairGroupResources.Num() == 0);
-
 	// 3. Convert data to bulk data
-	GroomBinding_BulkCopy::BuildRootBulkData(BindingAsset->GetHairGroupsPlatformData()[InGroupIndex], OutData);
-
-	BindingAsset->QueryStatus = UGroomBindingAsset::EQueryStatus::Completed;
+	GroomBinding_BulkCopy::BuildRootBulkData(OutPlatformData, OutData);
 #endif
 	return true;
 }
-void UpdateGroomBindingAssetInfos(UGroomBindingAsset* In);
 
-bool FGroomBindingBuilder::BuildBinding(UGroomBindingAsset* BindingAsset, uint32 InGroupIndex)
+bool FGroomBindingBuilder::BuildBinding(const FGroomBindingBuilder::FInput& In, uint32 InGroupIndex, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& Out)
 {
-	return InternalBuildBinding_CPU(BindingAsset, InGroupIndex);
+	return InternalBuildBinding_CPU(In, InGroupIndex, TargetPlatform, Out);
 }
 
-bool FGroomBindingBuilder::BuildBinding(UGroomBindingAsset* BindingAsset, bool bInitResources)
+bool FGroomBindingBuilder::BuildBinding(class UGroomBindingAsset* BindingAsset, bool bInitResource)
 {
-	bool bOutValid = true;
+#if WITH_EDITORONLY_DATA
+	BindingAsset->CacheDerivedDatas();
+#endif
+	return true;
+}
 
-	// 1. Build binding asset
-	const uint32 GroupCount = BindingAsset->GetHairGroupsPlatformData().Num();
-	BindingAsset->GetGroupInfos().SetNum(GroupCount);
-	for (uint32 InGroupIndex = 0; InGroupIndex < GroupCount; ++InGroupIndex)
-	{
-		bOutValid = InternalBuildBinding_CPU(BindingAsset, InGroupIndex) && bOutValid;
-	}
-
-	// 2. Optionnally update resources
-	if (bOutValid && bInitResources)
-	{
-		BindingAsset->InitResource();
-	}
-
-	// 3. Update GroomBindingAsset infos
-	UpdateGroomBindingAssetInfos(BindingAsset);
-
-	return bOutValid;
+bool FGroomBindingBuilder::BuildBinding(class UGroomBindingAsset* BindingAsset, uint32 InGroupIndex)
+{
+#if WITH_EDITORONLY_DATA
+	BindingAsset->CacheDerivedDatas();
+#endif
+	return true;
 }
 
 void FGroomBindingBuilder::GetRootData(

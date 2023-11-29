@@ -791,6 +791,9 @@ struct FHairStrandsRootData
 
 		/* Store the mesh section indices which are relevant for this root LOD data */
 		TArray<uint32> UniqueSectionIds;
+
+		/* Number of render section of the target mesh */
+		uint32 MeshSectionCount = 0;
 	};
 
 	/* Number of roots */
@@ -840,6 +843,7 @@ struct FHairStrandsRootBulkData : FHairStrandsBulkCommon
 			int32  LODIndex = -1;
 			uint32 UniqueTriangleCount = 0;			
 			uint32 SampleCount = 0; 				// Number of samples used for the mesh interpolation
+			uint32 MeshSectionCount = 0;			// Number of section of the target mesh
 			TArray<uint32> UniqueSectionIndices; 	// Store the mesh section indices which are relevant for this root LOD data
 		};
 

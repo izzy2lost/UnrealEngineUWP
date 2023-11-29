@@ -876,6 +876,7 @@ void FHairStrandsRootBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 		Ar << Header.LODs[LODIt].UniqueTriangleCount;
 		Ar << Header.LODs[LODIt].SampleCount;
 		Ar << Header.LODs[LODIt].UniqueSectionIndices;
+		Ar << Header.LODs[LODIt].MeshSectionCount;
 	}
 }
 

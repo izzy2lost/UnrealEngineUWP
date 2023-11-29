@@ -237,14 +237,6 @@ public:
 	
 #endif // WITH_EDITOR
 
-	enum class EQueryStatus
-	{
-		None,
-		Submitted,
-		Completed
-	};
-	volatile EQueryStatus QueryStatus = EQueryStatus::None;
-
 	/** Initialize resources. */
 	void InitResource();
 
@@ -269,10 +261,22 @@ public:
 	void Build();
 
 	void CacheDerivedDatas();
-	void CacheDerivedDatas(uint32 InGroupIndex, const FString KeySuffix, bool& bOutValid, bool& bOutReloadResource);
+
+	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform);
+	virtual void ClearAllCachedCookedPlatformData();
+	TArray<FHairGroupPlatformData>* GetCachedCookedPlatformData(const ITargetPlatform* TargetPlatform);
 
 	void InvalidateBinding();
 	void InvalidateBinding(class USkeletalMesh*);
+
+	struct FCachedCookedPlatformData
+	{
+		TArray<FString> GroupDerivedDataKeys;
+		TArray<FHairGroupPlatformData> GroupPlatformDatas;
+	};
+private:
+	TArray<FCachedCookedPlatformData*> CachedCookedPlatformDatas;
+
 	bool bRegisterSourceMeshCallback = false;
 	bool bRegisterTargetMeshCallback = false;
 	bool bRegisterGroomAssetCallback = false;
