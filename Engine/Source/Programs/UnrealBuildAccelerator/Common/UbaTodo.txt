@@ -1,0 +1,28 @@
+Fixes/Features
+
+* Add support for running separate process handling storage. Agents should be able to connect to both session server and storage.
+    * SessionServer (named memory communication to storage) <-> StorageServer.
+	* This would enable so multiple agents can run on the same machine.. to split up cores with higher granularity.. say 8 cores each
+
+* Fix StorageProxy logic
+    * First Agent on a remote network gets to spawn a StorageProxy.exe and connect to it.
+	* 
+
+* Add timers for sys calls (and longest to see stalls)
+* Add visual studio panel
+* Add logging to Session
+* Try building without writing to output
+* Create sparse files based on need. This is to avoid contention (and deadlocks). It is fine to have 200 sparse files if needed
+* Add date/time to trace dump and show in Visualizer when opening files
+* Show more info in visualizer about the machine building
+* Startup from non-graceful shutdown needs to be faster.
+* Show loading cas table time in Visualizer!
+* Should fileindex be a rolling number instead?
+* Keep rsp in memory
+* Add "racing" where Executor starts taking on jobs when it is stuck depending on work being handled by remotes. Executor needs to make a judgement when to start the race
+* Build all remotely (pch, linking etc etc)
+* Pch caching for clang! (don't know why this does not work)
+* Let casfiles use hardlinks in WriteCasFileNoCheck
+
+Cleanup
+* Make private/protected

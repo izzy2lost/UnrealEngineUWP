@@ -1,0 +1,855 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "UbaNetworkBackendTcp.h"
+#include "UbaEvent.h"
+#include "UbaHash.h"
+#include "UbaPlatform.h"
+#include "UbaStringBuffer.h"
+#include "UbaTimer.h"
+
+#if PLATFORM_LINUX
+#include <netinet/tcp.h>
+#endif
+
+#if PLATFORM_WINDOWS
+#include "iphlpapi.h"
+#pragma comment (lib, "Netapi32.lib")
+#pragma comment (lib, "Ws2_32.lib")
+#pragma comment(lib, "IPHLPAPI.lib") // For GetAdaptersInfo
+#else
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#define TIMEVAL timeval
+#define SOCKET_ERROR -1
+#define SOCKET int
+#define INVALID_SOCKET -1
+#define SD_BOTH SHUT_RDWR
+#define WSAHOST_NOT_FOUND 0
+#define closesocket(a) close(a)
+#define addrinfoW addrinfo
+#define GetAddrInfoW getaddrinfo
+#define FreeAddrInfoW freeaddrinfo
+#define WSAGetLastError() errno
+#endif
+
+namespace uba
+{
+	struct NetworkBackendTcp::ListenEntry
+	{
+		StringBuffer<128> ip;
+		u16 port;
+		Thread thread;
+		Event listening;
+		SOCKET socket = INVALID_SOCKET;
+		SOCKET socketToClose = INVALID_SOCKET;
+	};
+
+	struct NetworkBackendTcp::Connection
+	{
+		Connection(SOCKET s) : socket(s), ready(true) {}
+
+		SOCKET socket;
+		Event ready;
+		u32 headerSize = 0;
+		u32 recvTimeoutMs = 0;
+
+		void* recvContext = nullptr;
+		RecvHeaderCallback* headerCallback = nullptr;
+		RecvBodyCallback* bodyCallback = nullptr;
+		const tchar* recvHint = TC("");
+
+		void* dataSentContext = nullptr;
+		DataSentCallback* dataSentCallback = nullptr;
+
+		void* disconnectContext = nullptr;
+		DisconnectCallback* disconnectCallback = nullptr;
+
+		#if !PLATFORM_WINDOWS
+		ReaderWriterLock sendLock;
+		#endif
+
+		Thread recvThread;
+
+		CriticalSection shutdownLock;
+	};
+
+	bool SetKeepAlive(Logger& logger, SOCKET socket);
+	bool SetBlocking(Logger& logger, SOCKET socket, bool blocking);
+	bool DisableNagle(Logger& logger, SOCKET socket);
+	bool SendSocket(Logger& logger, SOCKET socket, const void* b, u64 bufferLen);
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall);
+
+	bool NetworkBackendTcp::EnsureInitialized(Logger& logger)
+	{
+		#if PLATFORM_WINDOWS
+		WSADATA wsaData;
+		if (!m_wsaInitDone)
+			if (int res = WSAStartup(MAKEWORD(2, 2), &wsaData))
+				return logger.Error(TC("WSAStartup failed (%d)"), res);
+		m_wsaInitDone = true;
+		#endif
+		return true;
+	}
+
+
+
+	NetworkBackendTcp::NetworkBackendTcp(LogWriter& writer, const tchar* prefix)
+		: m_logger(writer, prefix)
+	{
+	}
+
+	NetworkBackendTcp::~NetworkBackendTcp()
+	{
+		StopListen();
+
+		ScopedWriteLock lock(m_connectionsLock);
+		for (auto& conn : m_connections)
+		{
+			ScopedCriticalSection lock2(conn.shutdownLock);
+			if (conn.socket == INVALID_SOCKET)
+				continue;
+			SOCKET s = conn.socket;
+			conn.socket = INVALID_SOCKET;
+			shutdown(s, SD_BOTH);
+			lock2.Leave();
+			conn.recvThread.Wait();
+			closesocket(s);
+		}
+		m_connections.clear();
+
+		#if PLATFORM_WINDOWS
+		if (m_wsaInitDone)
+			WSACleanup();
+		#endif
+	}
+
+	void NetworkBackendTcp::Shutdown(void* connection)
+	{
+		auto& conn = *(Connection*)connection;
+		ScopedCriticalSection lock(conn.shutdownLock);
+		if (conn.socket == INVALID_SOCKET)
+			return;
+		shutdown(conn.socket, SD_BOTH);
+	}
+
+	void NetworkBackendTcp::Close(void* connection)
+	{
+		auto& conn = *(Connection*)connection;
+		ScopedCriticalSection lock(conn.shutdownLock);
+		if (conn.socket == INVALID_SOCKET)
+			return;
+		SOCKET s = conn.socket;
+		conn.socket = INVALID_SOCKET;
+		closesocket(s);
+		lock.Leave();
+		conn.recvThread.Wait();
+	}
+
+	bool NetworkBackendTcp::Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext)
+	{
+		auto& conn = *(Connection*)connection;
+		sendContext.isUsed = true;
+
+		#if !PLATFORM_WINDOWS
+		ScopedWriteLock lock(conn.sendLock);
+		#endif
+
+		bool res = SendSocket(logger, conn.socket, data, dataSize);
+
+		#if !PLATFORM_WINDOWS
+		lock.Leave();
+		#endif
+
+		sendContext.isFinished = true;
+		if (auto c = conn.dataSentCallback)
+			c(conn.dataSentContext, dataSize);
+		return res;
+	}
+
+	void NetworkBackendTcp::SetDataSentCallback(void* connection, void* context, DataSentCallback* callback)
+	{
+		auto& conn = *(Connection*)connection;
+		conn.dataSentCallback = callback;
+		conn.dataSentContext = context;
+	}
+
+	void NetworkBackendTcp::SetRecvCallbacks(void* connection, void* context, u32 headerSize, RecvHeaderCallback* h, RecvBodyCallback* b, const tchar* recvHint)
+	{
+		UBA_ASSERT(h);
+		UBA_ASSERT(headerSize <= 16);
+		auto& conn = *(Connection*)connection;
+		conn.recvContext = context;
+		conn.headerSize = headerSize;
+		conn.headerCallback = h;
+		conn.bodyCallback = b;
+		conn.recvHint = recvHint;
+		conn.ready.Set();
+	}
+
+	void NetworkBackendTcp::SetRecvTimeout(void* connection, u32 timeoutMs)
+	{
+		auto& conn = *(Connection*)connection;
+		conn.recvTimeoutMs = timeoutMs;
+	}
+
+	void NetworkBackendTcp::SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback)
+	{
+		auto& conn = *(Connection*)connection;
+		ScopedCriticalSection lock(conn.shutdownLock);
+		conn.disconnectCallback = callback;
+		conn.disconnectContext = context;
+	}
+
+	bool NetworkBackendTcp::StartListen(Logger& logger, u16 port, const tchar* ip, const ListenConnectedFunc& connectedFunc)
+	{
+		if (!EnsureInitialized(logger))
+			return false;
+
+		auto AddAddr = [&](const tchar* addr)
+			{
+				m_listenEntries.push_back({});
+				auto& entry = m_listenEntries.back();
+				entry.ip.Append(addr);
+				entry.port = port;
+			};
+
+		if (ip && *ip)
+		{
+			AddAddr(ip);
+		}
+		else
+		{
+			TraverseNetworkAddresses(logger, [&](const StringBufferBase& addr)
+				{
+					AddAddr(addr.data);
+					return true;
+				});
+			AddAddr(TC("127.0.0.1"));
+		}
+
+		if (m_listenEntries.empty())
+		{
+			logger.Warning(TC("No host addresses found for UbaServer. Will not be able to use remote workers"));
+			return false;
+		}
+
+		m_connectedFunc = connectedFunc;
+
+		for (auto& e : m_listenEntries)
+		{
+			e.listening.Create(true);
+			e.thread.Start([this, &logger, &e]
+				{
+					ThreadListen(logger, e);
+					return 0;
+				});
+		}
+
+		bool success = true;
+		for (auto& e : m_listenEntries)
+		{
+			if (!e.listening.IsSet(4000))
+				success = false;
+			if (e.socket == INVALID_SOCKET)
+				success = false;
+			e.listening.Destroy();
+		}
+		return success;
+	}
+
+	void NetworkBackendTcp::StopListen()
+	{
+		for (auto& e : m_listenEntries)
+		{
+			e.socketToClose = e.socket;
+			e.socket = INVALID_SOCKET;
+			shutdown(e.socketToClose, SD_BOTH);
+		}
+		for (auto& e : m_listenEntries)
+		{
+			e.thread.Wait();
+			closesocket(e.socketToClose);
+		}
+		m_listenEntries.clear();
+	}
+
+	void NetworkBackendTcp::ThreadListen(Logger& logger, ListenEntry& entry)
+	{
+		addrinfoW hints;
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET; //AF_UNSPEC; (Skip AF_INET6)
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+		hints.ai_flags = AI_PASSIVE;
+
+		// Resolve the server address and port
+		struct addrinfoW* result = NULL;
+		StringBuffer<32> portStr;
+		portStr.AppendValue(entry.port);
+		int res = GetAddrInfoW(entry.ip.data, portStr.data, &hints, &result);
+
+		auto listenEv = MakeGuard([&]() { entry.listening.Set(); });
+
+		if (res != 0)
+		{
+			logger.Error(TC("getaddrinfo failed (%d)"), res);
+			return;
+		}
+		UBA_ASSERT(result);
+		auto addrGuard = MakeGuard([result]() { FreeAddrInfoW(result); });
+
+		// Create a socket for listening to connections
+		SOCKET listenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+		if (listenSocket == INVALID_SOCKET)
+		{
+			logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
+			return;
+		}
+		auto listenSocketCleanup = MakeGuard([&]() { closesocket(listenSocket); listenSocket = INVALID_SOCKET; });
+
+		// This is here to be able to iterate fast when doing development.. seems like socket ends up in TIME_WAIT state after close and it takes some time to be able to use socket again
+		#if !PLATFORM_WINDOWS && UBA_DEBUG
+		int optval = 1;
+		::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof optval);
+		#endif
+
+		// Setup the TCP listening socket
+		res = bind(listenSocket, result->ai_addr, (socklen_t)result->ai_addrlen);
+
+		if (res == SOCKET_ERROR)
+		{
+			logger.Error(TC("bind %s:%hu failed (%s)"), entry.ip.data, entry.port, LastErrorToText(WSAGetLastError()).data);
+			return;
+		}
+
+		addrGuard.Execute();
+
+		res = listen(listenSocket, SOMAXCONN);
+		if (res == SOCKET_ERROR)
+		{
+			logger.Error(TC("Listen failed (%s)"), LastErrorToText(WSAGetLastError()).data);
+			return;
+		}
+
+		if (!SetKeepAlive(logger, listenSocket))
+			return;
+
+
+		listenSocketCleanup.Cancel();
+
+		logger.Info(TC("Listening on %s:%hu"), entry.ip.data, entry.port);
+		entry.socket = listenSocket;
+
+		listenEv.Execute();
+
+		fd_set set;
+		fd_set read_fds; // temp file descriptor list for select()
+		int fdmax = 1; // maximum file descriptor number
+
+		struct timeval timeout;
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		FD_ZERO(&set);
+		FD_ZERO(&read_fds);
+
+		FD_SET(listenSocket, &set);
+
+		#if !PLATFORM_WINDOWS
+		fdmax = listenSocket + 1;
+		#endif
+
+		while (entry.socket != INVALID_SOCKET)
+		{
+			read_fds = set;
+
+			// [honk] TODO: There was a new hang here that has never happened before so brought back this code
+			#if PLATFORM_WINDOWS
+			FD_ZERO(&read_fds);
+			FD_SET(listenSocket, &read_fds);
+			#endif
+
+			int ret = select(fdmax, &read_fds, NULL, NULL, &timeout);
+
+			if (ret == 0)
+				continue;
+
+			if (ret == -1)
+			{
+				if (entry.socket != INVALID_SOCKET)
+					logger.Info(TC("Select (for accept) failed with WSA error: %s"), LastErrorToText(WSAGetLastError()).data);
+				break;
+			}
+
+			sockaddr remoteSockAddr = { 0 }; // for TCP/IP
+			socklen_t remoteSockAddrLen = sizeof(remoteSockAddr);
+			SOCKET clientSocket = accept(listenSocket, (sockaddr*)&remoteSockAddr, &remoteSockAddrLen);
+			FD_SET(clientSocket, &set);
+
+			if (clientSocket == INVALID_SOCKET)
+			{
+				if (entry.socket != INVALID_SOCKET)
+					logger.Info(TC("Accept failed with WSA error: %s"), LastErrorToText(WSAGetLastError()).data);
+				break;
+			}
+
+			auto socketClose = MakeGuard([&]() { closesocket(clientSocket); });
+
+			if (!DisableNagle(logger, clientSocket))
+				continue;
+			if (!SetKeepAlive(logger, clientSocket))
+				continue;
+
+			ScopedWriteLock lock(m_connectionsLock);
+			auto it = m_connections.emplace(m_connections.end(), clientSocket);
+			auto& conn = *it;
+			conn.recvThread.Start([this, &conn] { ThreadRecv(conn); return 0; });
+			lock.Leave();
+
+			if (!m_connectedFunc(&conn, remoteSockAddr))
+			{
+				conn.socket = INVALID_SOCKET;
+				socketClose.Execute();
+				conn.ready.Set();
+				ScopedWriteLock lock2(m_connectionsLock);
+				m_connections.erase(it);
+				continue;
+			}
+
+			socketClose.Cancel();
+		}
+	}
+
+	void NetworkBackendTcp::ThreadRecv(Connection& connection)
+	{
+		if (connection.ready.IsSet(2000))
+		{
+			Guid connectionUid;
+			CreateGuid(connectionUid);
+
+			bool isFirst = true;
+			while (connection.socket != INVALID_SOCKET)
+			{
+				void* bodyContext = nullptr;
+				u8* bodyData = nullptr;
+				u32 bodySize = 0;
+
+				u8 headerData[16];
+				if (!RecvSocket(m_logger, connection.socket, headerData, connection.headerSize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC(""), isFirst))
+					break;
+				isFirst = false;
+
+				if (!connection.headerCallback(connection.recvContext, headerData, bodyContext, bodyData, bodySize))
+					break;
+				if (!bodySize)
+					continue;
+
+				bool success = RecvSocket(m_logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC("Body"), false);
+				if (!connection.bodyCallback(connection.recvContext, !success, headerData, bodyContext, bodyData, bodySize))
+					break;
+				if (!success)
+					break;
+			}
+		}
+		else
+		{
+			m_logger.Error(TC("Timed out waiting for recv thread to be ready"));
+		}
+
+		ScopedCriticalSection lock2(connection.shutdownLock);
+		SOCKET s = connection.socket;
+		connection.socket = INVALID_SOCKET;
+
+		if (connection.disconnectCallback)
+		{
+			auto cb = connection.disconnectCallback;
+			auto context = connection.disconnectContext;
+			connection.disconnectCallback = nullptr;
+			connection.disconnectContext = nullptr;
+			cb(context, &connection);
+		}
+		if (s == INVALID_SOCKET)
+			return;
+		shutdown(s, SD_BOTH);
+		closesocket(s);
+	}
+
+	bool NetworkBackendTcp::Connect(Logger& logger, const tchar* ip, const ConnectedFunc& connectedFunc, u16 port, bool* timedOut)
+	{
+		if (!EnsureInitialized(logger))
+			return false;
+
+		u64 startTime = GetTime();
+
+		if (timedOut)
+			*timedOut = false;
+
+		bool connected = false;
+		bool success = true;
+		TraverseRemoteAddresses(logger, ip, port, [&](const sockaddr& remoteSockaddr)
+			{
+				bool timedOut2 = false;
+				connected = Connect(logger, remoteSockaddr, connectedFunc, &timedOut2, ip);
+				if (connected)
+					return false;
+				if (timedOut2)
+					return true;
+				success = false;
+				return false;
+			});
+
+		if (connected)
+			return true;
+
+		if (!success)
+			return false;
+
+		if (timedOut)
+			*timedOut = true;
+		int connectTimeMs = int(TimeToMs(GetTime() - startTime));
+		int timeoutMs = 2000;
+		if (connectTimeMs < timeoutMs)
+			Sleep(u32(timeoutMs - connectTimeMs));
+		return false;
+	}
+
+	bool NetworkBackendTcp::Connect(Logger& logger, const sockaddr& remoteSocketAddr, const ConnectedFunc& connectedFunc, bool* timedOut, const tchar* nameHint)
+	{
+		// Create a socket for connecting to server
+
+		//TODO: Wrap this up in a better function
+#if PLATFORM_WINDOWS
+		SOCKET socketFd = WSASocketW(remoteSocketAddr.sa_family, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+#else
+		SOCKET socketFd = socket(remoteSocketAddr.sa_family, SOCK_STREAM, IPPROTO_TCP);
+#endif
+		if (socketFd == INVALID_SOCKET)
+			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
+
+		// Create guard in case we fail to connect (will be cancelled further down if we succeed)
+		auto socketClose = MakeGuard([&]() { closesocket(socketFd); });
+
+		// Set to non-blocking just for the connect call (we want to control the connect timeout after connect using select instead)
+		if (!SetBlocking(logger, socketFd, false))
+			return false;
+
+		// Connect to server.
+		int res = ::connect(socketFd, &remoteSocketAddr, sizeof(remoteSocketAddr));
+
+#if PLATFORM_WINDOWS
+		if (res == SOCKET_ERROR)
+			if (WSAGetLastError() != WSAEWOULDBLOCK)
+				return false;
+#else
+		if (res != 0)
+			if (errno != EINPROGRESS)
+				return false;
+#endif
+
+		// Return to blocking since we want select to block
+		if (!SetBlocking(logger, socketFd, true))
+			return false;
+
+		int timeoutMs = 2000;
+		TIMEVAL timeval = { 1, 0 };
+		//		timeval.tv_sec = 1;
+		timeval.tv_usec = timeoutMs * 100;
+
+		fd_set write, err;
+		FD_ZERO(&write);
+		FD_ZERO(&err);
+		FD_SET(socketFd, &write);
+		FD_SET(socketFd, &err);
+
+		int maxFds = 0;
+		#if !PLATFORM_WINDOWS
+		maxFds = socketFd + 1;
+		#endif
+		// check if the socket is ready
+		res = select(maxFds, NULL, &write, &err, &timeval);
+		if (res == SOCKET_ERROR)
+			return logger.Error(TC("select failed (%s)"), LastErrorToText(WSAGetLastError()).data);
+
+		if (res == 0)
+		{
+			if (timedOut)
+				*timedOut = true;
+			return false;
+		}
+
+		if (FD_ISSET(socketFd, &err))
+		{
+			// When running in wine we end up in this if host is not listening. (it returns immediately instead of 2000ms timeout on select)
+			// "Connection refused") is the response
+			//int resLen = sizeof(res);
+			//getsockopt(s, SOL_SOCKET, SO_ERROR, (void*)&res, &resLen);
+
+			if (timedOut)
+				*timedOut = true;
+			//logger.Info(TC("Error %s"), LastErrorToText(res));
+			return false;
+		}
+
+		if (!FD_ISSET(socketFd, &write))
+		{
+			if (timedOut)
+				*timedOut = true;
+			return false;
+		}
+
+
+#if !PLATFORM_WINDOWS
+		int sent = (int)send(socketFd, nullptr, 0, 0);
+		if (sent == SOCKET_ERROR)
+		{
+			if (errno == ECONNREFUSED || errno == EPIPE)
+			{
+				if (timedOut)
+					*timedOut = true;
+				return false;
+			}
+			return false;
+		}
+#endif
+
+		// Socket is good, cancel the socket close scope and break out of the loop.
+		if (!DisableNagle(logger, socketFd))
+			return false;
+
+		if (!SetKeepAlive(logger, socketFd))
+			return false;
+
+		ScopedWriteLock lock(m_connectionsLock);
+		auto it = m_connections.emplace(m_connections.end(), socketFd);
+		auto& conn = *it;
+		conn.recvThread.Start([this, &conn] { ThreadRecv(conn); return 0; });
+		lock.Leave();
+
+		if (!connectedFunc(&conn, remoteSocketAddr, timedOut))
+		{
+			conn.socket = INVALID_SOCKET;
+			socketClose.Execute();
+			conn.ready.Set();
+			ScopedWriteLock lock2(m_connectionsLock);
+			m_connections.erase(it);
+			return false;
+		}
+
+		//char* ip = inet_ntoa(((sockaddr_in*)const_cast<sockaddr*>(&remoteSocketAddr))->sin_addr);
+		if (nameHint)
+			logger.Info(TC("Connected to %s:%u"), nameHint, ((sockaddr_in&)remoteSocketAddr).sin_port);
+		else
+			logger.Info(TC("Connected using sockaddr"));
+
+		socketClose.Cancel();
+
+		return true;
+	}
+
+	bool SetBlocking(Logger& logger, SOCKET socket, bool blocking)
+	{
+#if PLATFORM_WINDOWS
+		u_long value = blocking ? 0 : 1;
+		if (ioctlsocket(socket, FIONBIO, &value) == SOCKET_ERROR)
+			return logger.Error(TC("Setting non blocking socket failed (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+#else
+		int flags = fcntl(socket, F_GETFL, 0);
+		if (flags == -1) return false;
+		flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+		if (fcntl(socket, F_SETFL, flags) != 0)
+			return logger.Error(TC("Setting non blocking socket failed (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+#endif
+		return true;
+	}
+
+	bool DisableNagle(Logger& logger, SOCKET socket)
+	{
+#if !PLATFORM_MAC
+		u32 value = 1;
+		if (setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (const char*)&value, sizeof(value)) == SOCKET_ERROR)
+			return logger.Error(TC("setsockopt TCP_NODELAY error: (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+#endif
+		return true;
+	}
+
+	bool SetKeepAlive(Logger& logger, SOCKET socket)
+	{
+		u32 value = 1;
+		if (setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (const char*)&value, sizeof(value)) == SOCKET_ERROR)
+			return logger.Error(TC("setsockopt SO_KEEPALIVE (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+		return true;
+	}
+
+	bool SendSocket(Logger& logger, SOCKET socket, const void* b, u64 bufferLen)
+	{
+		u64 left = bufferLen;
+		while (left)
+		{
+			int sent = (int)send(socket, (char*)b, u32(bufferLen), 0);
+			if (sent == SOCKET_ERROR)
+			{
+				#ifdef _DEBUG
+				logger.Warning(TC("ERROR sending socket (error: %s)"), LastErrorToText(WSAGetLastError()).data);
+				#endif
+				return false;
+			}
+
+			left -= sent;
+
+			#if PLATFORM_WINDOWS
+			UBA_ASSERTF(left == 0, L"Failed to send all data in one call. Wanted to send %llu, sent %i", bufferLen, sent);
+			#endif
+		}
+		return true;
+	}
+
+	bool RecvSocket(Logger& logger, SOCKET socket, void* b, u32 bufferLen, u32 timeoutMs, const Guid& connection, const tchar* hint1, const tchar* hint2, bool isFirstCall)
+	{
+		u8* buffer = (u8*)b;
+		u32 recvLeft = bufferLen;
+		while (recvLeft)
+		{
+#if PLATFORM_WINDOWS
+			if (timeoutMs)
+			{
+				WSAPOLLFD p;
+				p.fd = socket;
+				p.revents = 0;
+				p.events = POLLRDNORM;
+				int res = WSAPoll(&p, 1, int(timeoutMs));
+				if (!res)
+				{
+					logger.Info(TC("WSAPoll returned timeout for connection %s after %s (%s%s)"), GuidToString(connection).str, TimeToText(MsToTime(timeoutMs)).str, hint1, hint2);
+					return false;
+				}
+				if (res == SOCKET_ERROR)
+				{
+#ifdef _DEBUG
+					// When cancelling all kinds of errors can happen..
+					int lastError = WSAGetLastError();
+					if (lastError != WSAEINTR && lastError != WSAESHUTDOWN && lastError != WSAECONNABORTED && lastError != WSAECONNRESET) // Interrupted by cancel
+						logger.Warning(TC("WSAPoll returned an error for connection %s: %s (%s%s)"), GuidToString(connection).str, LastErrorToText(lastError).data, hint1, hint2);
+#endif
+				}
+			}
+#endif
+
+			int read = (int)recv(socket, (char*)buffer, recvLeft, 0);
+			if (read == 0)
+			{
+				//#ifdef _DEBUG
+				//logger.Warning(TC("Socket closed while in recv"));
+				//#endif
+				return false;
+			}
+
+			if (read == SOCKET_ERROR)
+			{
+#if PLATFORM_WINDOWS
+#ifdef _DEBUG
+				// When cancelling all kinds of errors can happen..
+				int lastError = WSAGetLastError();
+				if (lastError != WSAEINTR && lastError != WSAESHUTDOWN && lastError != WSAECONNABORTED && lastError != WSAECONNRESET) // Interrupted by cancel
+					logger.Warning(TC("ERROR receiving socket: %s (%s%s)"), LastErrorToText(lastError).data, hint1, hint2);
+#endif
+#else
+				if (!isFirstCall || errno != ECONNRESET)
+					logger.Error(TC("ERROR receiving socket %i after %u bytes (%s%s) (%s)"), socket, bufferLen, hint1, hint2, strerror(errno));
+#endif
+				return false;
+			}
+			recvLeft -= (u32)read;
+			buffer += read;
+		}
+		return true;
+	}
+
+	void TraverseNetworkAddresses(Logger& logger, const Function<bool(const StringBufferBase& addr)>& func)
+	{
+#if PLATFORM_WINDOWS
+		// Fallback code for some cloud setups where we can't use the dns to find out ip addresses. (note it always work by providing the adapter we want to listen on)
+		IP_ADAPTER_INFO info[16];
+		ULONG bufLen = sizeof(info);
+		if (GetAdaptersInfo(info, &bufLen) != ERROR_SUCCESS)
+		{
+			logger.Info(TC("GetAdaptersInfo failed (%s)"), LastErrorToText(WSAGetLastError()).data);
+			return;
+		}
+		for (IP_ADAPTER_INFO* it = info; it; it = it->Next)
+		{
+			if (it->Type != MIB_IF_TYPE_ETHERNET)
+				continue;
+			for (IP_ADDR_STRING* s = &it->IpAddressList; s; s = s->Next)
+			{
+				StringBuffer<128> ip;
+				ip.Appendf(TC("%hs"), s->IpAddress.String);
+				if (ip.Equals(L"0.0.0.0"))
+					continue;
+				if (!func(ip))
+					return;
+			}
+		}
+#else
+		struct ifaddrs* ifaddr;
+		if (getifaddrs(&ifaddr) == -1)
+		{
+			logger.Info("getifaddrs failed");
+			return;
+		}
+		auto g = MakeGuard([ifaddr]() { freeifaddrs(ifaddr); });
+
+		for (struct ifaddrs* ifa = ifaddr; ifa; ifa = ifa->ifa_next)
+		{
+			if (ifa->ifa_addr == nullptr)
+				continue;
+
+			int family = ifa->ifa_addr->sa_family;
+			if (family != AF_INET)
+				continue;
+
+			StringBuffer<NI_MAXHOST> ip;
+			int s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), ip.data, ip.capacity, NULL, 0, NI_NUMERICHOST);
+			if (s != 0)
+				continue;
+			ip.count = strlen(ip.data);
+			if (ip.StartsWith("169.254") || ip.Equals("127.0.0.1"))
+				continue;
+			if (!func(ip))
+				return;
+		}
+#endif
+	}
+
+	bool TraverseRemoteAddresses(Logger& logger, const tchar* addr, u16 port, const Function<bool(const sockaddr& remoteSockaddr)>& func)
+	{
+		addrinfoW  hints;
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET; //AF_UNSPEC; (Skip AF_INET6)
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		StringBuffer<32> portStr;
+		portStr.AppendValue(port);
+
+		// Resolve the server address and port
+		addrinfoW* remoteAddrInfo = nullptr;
+		int res = GetAddrInfoW(addr, portStr.data, &hints, &remoteAddrInfo);
+		if (res != 0)
+		{
+			if (res == WSAHOST_NOT_FOUND)
+				return logger.Error(TC("Invalid server address '%s'"), addr);
+			//logger.Error(TC("GetAddrInfoW failed with error: %s"), getErrorText(res).c_str());
+			return false;
+		}
+
+		auto addrCleanup = MakeGuard([&]() { if (remoteAddrInfo) FreeAddrInfoW(remoteAddrInfo); });
+
+		auto addrInfoIt = remoteAddrInfo;
+		// Loop through and attempt to connect to an address until one succeeds
+		for (; addrInfoIt != NULL; addrInfoIt = addrInfoIt->ai_next)
+			if (!func(*addrInfoIt->ai_addr))
+				return true;
+		return true;
+	}
+}

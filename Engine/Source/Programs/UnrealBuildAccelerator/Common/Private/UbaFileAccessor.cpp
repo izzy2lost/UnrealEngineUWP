@@ -1,0 +1,330 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "UbaFileAccessor.h"
+#include "UbaFile.h"
+#include "UbaStats.h"
+
+namespace uba
+{
+	#if PLATFORM_WINDOWS
+	void GetProcessHoldingFile(StringBufferBase& out, const tchar* fileName);
+	HANDLE asHANDLE(FileHandle fh);
+	#else
+	int asFileDescriptor(FileHandle fh);
+	#endif
+		
+	bool SetDeleteOnClose(Logger& logger, const tchar* fileName, FileHandle& handle, bool value)
+	{
+#if PLATFORM_WINDOWS
+		ExtendedTimerScope ts(SystemStats::GetCurrent().setFileInfo);
+		FILE_DISPOSITION_INFO info;
+		info.DeleteFile = value;
+		if (!::SetFileInformationByHandle(asHANDLE(handle), FileDispositionInfo, &info, sizeof(info)))
+			return logger.Error(TC("SetFileInformationByHandle (FileDispositionInfo) failed on %llu %s (%s)"), uintptr_t(handle), fileName, LastErrorToText().data);
+		return true;
+#else
+		if (value)
+			(u64&)handle = handle | DeleteOnCloseFlag;
+		else
+			(u64&)handle = handle & ~DeleteOnCloseFlag;
+		return true;
+#endif
+	}
+
+	FileAccessor::FileAccessor(Logger& logger, const tchar* fileName)
+	:	m_logger(logger)
+	,	m_fileName(fileName)
+	{
+	}
+
+	FileAccessor::~FileAccessor()
+	{
+		InternalClose(false, nullptr);
+	}
+
+	bool FileAccessor::CreateWrite(bool allowRead, u32 flagsAndAttributes, u64 fileSize)
+	{
+		UBA_ASSERT(flagsAndAttributes != 0);
+		m_size = fileSize;
+
+		u32 createDisp = CREATE_ALWAYS;
+		u32 dwDesiredAccess = GENERIC_WRITE | DELETE;
+		if (allowRead)
+			dwDesiredAccess |= GENERIC_READ;
+		u32 dwShareMode = 0;// FILE_SHARE_READ | FILE_SHARE_WRITE;
+		m_fileHandle = uba::CreateFileW(m_fileName, dwDesiredAccess, dwShareMode, createDisp, flagsAndAttributes);
+		if (m_fileHandle == InvalidFileHandle)
+		{
+			u32 lastError = GetLastError();
+			StringBuffer<256> additionalInfo;
+#if PLATFORM_WINDOWS
+			if (lastError == ERROR_SHARING_VIOLATION)
+				GetProcessHoldingFile(additionalInfo, m_fileName);
+#endif
+			return m_logger.Error(TC("ERROR opening file %s for write (%s%s)"), m_fileName, LastErrorToText(lastError).data, additionalInfo.data);
+		}
+
+		if (!SetDeleteOnClose(m_logger, m_fileName, m_fileHandle, true))
+			return false;
+
+#if PLATFORM_WINDOWS
+		if (flagsAndAttributes & FILE_FLAG_OVERLAPPED)
+		{
+			if (fileSize != ~u64(0))
+			{
+				DWORD dwTemp;
+				if (!::DeviceIoControl(asHANDLE(m_fileHandle), FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &dwTemp, NULL))
+				{
+					DWORD lastError = GetLastError();
+					if (lastError != ERROR_INVALID_FUNCTION) // Some file systems don't support this
+						return m_logger.Error(TC("Failed to make file %s sparse (%s)"), m_fileName, LastErrorToText(lastError).data);
+				}
+				SetEndOfFile(m_logger, m_fileName, m_fileHandle, fileSize);
+			}
+			(u64&)m_fileHandle |= OverlappedIoFlag;
+		}
+#endif
+		m_isWrite = true;
+		return true;
+	}
+
+	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size)
+	{
+		m_size = size;
+
+		UBA_ASSERT(flagsAndAttributes != 0);
+		if (!CreateWrite(allowRead, flagsAndAttributes, size))
+			return false;
+
+		m_mappingHandle = uba::CreateFileMappingW(m_fileHandle, PAGE_READWRITE, size);
+		if (!m_mappingHandle.IsValid())
+			return m_logger.Error(TC("Failed to create memory map %s (%s)"), m_fileName, LastErrorToText().data);
+
+		m_data = MapViewOfFile(m_mappingHandle, FILE_MAP_WRITE, 0, size);
+		if (!m_data)
+			return m_logger.Error(TC("Failed to map view of file %s with size %llu, for write (%s)"), m_fileName, size, LastErrorToText().data);
+
+		return true;
+	}
+
+	bool FileAccessor::Close(u64* lastWriteTime)
+	{
+		return InternalClose(true, lastWriteTime);
+	}
+
+	bool FileAccessor::Write(const void* data, u64 dataLen, u64 offset)
+	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().writeFile);
+
+		if (!m_isWrite)
+			return false;
+
+#if 0
+		u8 writeThroughBuffer[4 * 1024];
+		bool setFileSize = false;
+#endif
+
+#if PLATFORM_WINDOWS
+		if ((u64)m_fileHandle & OverlappedIoFlag)
+		{
+			constexpr u64 BlockSize = 1024 * 1024;
+			constexpr u64 BlockCount = 256;
+			OVERLAPPED ol[BlockCount];
+			Event ev[BlockCount];
+			u64 writeLeft = dataLen;
+			u8* pos = (u8*)data;
+			u64 i = 0;
+
+			auto eg = MakeGuard([&]()
+				{
+					u64 index = i % BlockCount;
+					if (i > BlockCount)
+						for (u64 j = index; j != BlockCount; ++j)
+							ev[j].IsSet();
+					for (u64 j = 0; j != index; ++j)
+						ev[j].IsSet();
+				});
+
+			while (writeLeft)
+			{
+				u64 index = i % BlockCount;
+
+				if (i < BlockCount)
+					ev[i].Create(false);
+				else
+					ev[index].IsSet();
+
+				u64 toWrite = Min(writeLeft, BlockSize);
+				u64 toActuallyWrite = toWrite;
+
+#if 0
+				if (useWriteThrough)
+				{
+					if (toWrite < BlockSize)
+					{
+						toActuallyWrite = (toWrite / 4096) * 4096;
+						if (!toActuallyWrite)
+						{
+							memcpy(writeThroughBuffer, pos, toWrite);
+							toActuallyWrite = 4096;
+							setFileSize = true;
+						}
+						else
+							toWrite = toActuallyWrite;
+					}
+				}
+#endif
+
+				ol[index] = {};
+				ol[index].hEvent = ev[index].GetHandle();
+				ol[index].Offset = ToLow(offset + i * BlockSize);
+				ol[index].OffsetHigh = ToHigh(offset + i * BlockSize);
+
+				if (!::WriteFile(asHANDLE(m_fileHandle), pos, u32(toActuallyWrite), NULL, ol + index))
+				{
+					u32 lastError = GetLastError();
+					if (lastError != ERROR_IO_PENDING)
+						return m_logger.Error(L"FAILED!: %ls", LastErrorToText(lastError).data);
+				}
+				++i;
+				pos += toWrite;
+				writeLeft -= toWrite;
+			}
+
+#if 0
+			eg.Execute();
+			if (setFileSize)
+				SetEndOfFile(logger, fileName, m_fileHandle, bufferLen);
+#endif
+			return true;
+		}
+#endif
+
+		u64 writeLeft = dataLen;
+		u8* pos = (u8*)data;
+		while (writeLeft)
+		{
+			u32 toWrite = u32(Min(writeLeft, 1024llu * 1024 * 1024));
+			u32 toActuallyWrite = toWrite;
+
+#if 0
+			u8 writeThroughBuffer[4 * 1024];
+			if (useWriteThrough)
+			{
+				toActuallyWrite = (toWrite / 4096) * 4096;
+				if (!toActuallyWrite)
+				{
+					memcpy(writeThroughBuffer, pos, toWrite);
+					toActuallyWrite = 4096;
+					setFileSize = true;
+				}
+			}
+#endif
+
+#if PLATFORM_WINDOWS
+			DWORD written;
+			if (!::WriteFile(asHANDLE(m_fileHandle), pos, toActuallyWrite, &written, NULL))
+			{
+				DWORD lastError = GetLastError();
+				m_logger.Error(TC("ERROR writing file %s writing %u bytes (%llu bytes written out of %llu) (%s)"), m_fileName, toWrite, (dataLen - writeLeft), dataLen, LastErrorToText(lastError).data);
+
+				if (lastError == ERROR_DISK_FULL)
+					ExitProcess(ERROR_DISK_FULL);
+
+				return false;
+			}
+			if (written > toWrite)
+				written = toWrite;
+#else
+			ssize_t written = write(asFileDescriptor(m_fileHandle), pos, toActuallyWrite);
+			if (written == -1)
+			{
+				UBA_ASSERTF(false, TC("WriteFile error handling not implemented for %i (%s)"), errno, strerror(errno));
+				return false;
+			}
+#endif
+			writeLeft -= written;
+			pos += written;
+		}
+
+#if 0
+		if (setFileSize)
+			SetEndOfFile(logger, fileName, m_fileHandle, bufferLen);
+#endif
+
+		return true;
+	}
+
+	bool FileAccessor::OpenRead()
+	{
+		UBA_ASSERT(false);
+		return false;
+	}
+
+	bool FileAccessor::OpenMemoryRead(u64 offset)
+	{
+		if (!OpenFileSequentialRead(m_logger, m_fileName, m_fileHandle))
+			return m_logger.Error(TC("Failed to open file %s for read"), m_fileName);
+
+		FileInformation info;
+		if (!GetFileInformationByHandle(info, m_logger, m_fileName, m_fileHandle))
+			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), m_fileName);
+
+		m_size = info.size;
+#if PLATFORM_WINDOWS
+		if (m_size)
+			m_mappingHandle = uba::CreateFileMappingW(m_fileHandle, PAGE_READONLY, m_size);
+		else
+			m_mappingHandle = uba::CreateFileMappingW(InvalidFileHandle, PAGE_READONLY, 1);
+
+		if (!m_mappingHandle.IsValid())
+			return m_logger.Error(TC("Failed to create mapping handle for %s (%s)"), m_fileName, LastErrorToText().data);
+#else
+		m_mappingHandle = { asFileDescriptor(m_fileHandle) };
+		if (offset == m_size)
+			return true;
+#endif
+		m_data = MapViewOfFile(m_mappingHandle, FILE_MAP_READ, offset, m_size);
+		if (!m_data)
+			return m_logger.Error(TC("%s - MapViewOfFile failed (%s)"), m_fileName, LastErrorToText().data);
+
+		return true;
+	}
+
+
+	bool FileAccessor::InternalClose(bool success, u64* lastWriteTime)
+	{
+		if (m_data)
+		{
+			if (!UnmapViewOfFile(m_data, m_size))
+				return m_logger.Error(TC("Failed to unmap memory for %s (%s)"), m_fileName, LastErrorToText().data);
+			m_data = nullptr;
+		}
+
+		if (m_mappingHandle.IsValid())
+		{
+			if (!CloseFileMapping(m_mappingHandle))
+				return m_logger.Error(TC("Failed to close file mapping for %s (%s)"), m_fileName, LastErrorToText().data);
+			m_mappingHandle = {};
+		}
+
+		if (m_fileHandle != InvalidFileHandle)
+		{
+			if (success && m_isWrite)
+			{
+				if (!SetDeleteOnClose(m_logger, m_fileName, m_fileHandle, false))
+					return m_logger.Error(TC("Failed to remove delete on close for file %s (%s)"), m_fileName, LastErrorToText().data);
+				if (lastWriteTime)
+				{
+					*lastWriteTime = 0;
+					if (!GetFileLastWriteTime(*lastWriteTime, m_fileHandle))
+						m_logger.Warning(TC("Failed to get file time for %s (%s)"), m_fileName, LastErrorToText().data);
+				}
+			}
+			if (!CloseFile(m_fileName, m_fileHandle))
+				return m_logger.Error(TC("Failed to close file %s (%s)"), m_fileName, LastErrorToText().data);
+			m_fileHandle = InvalidFileHandle;
+		}
+		return true;
+	}
+}

@@ -1,0 +1,765 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+using EpicGames.Core;
+using EpicGames.Horde.Common;
+using EpicGames.Horde.Compute;
+using EpicGames.Horde.Compute.Clients;
+using EpicGames.UBA;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using UnrealBuildBase;
+using UnrealBuildTool.Artifacts;
+
+namespace UnrealBuildTool
+{
+	/// <summary>
+	/// Configuration for Unreal Build Accelerator
+	/// </summary>
+	class UnrealBuildAcceleratorConfig
+	{
+		/// <summary>
+		/// When set to true, UBA will not use any remote help
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxDisableRemote")]
+		[CommandLine("-UBADisableRemote")]
+		public bool bDisableRemote = false;
+
+		/// <summary>
+		/// When set to true, UBA will force all actions that can be built remotely to be built remotely. This will hang if there are no remote agents available
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxForceRemote")]
+		[CommandLine("-UBAForceRemote")]
+		public bool bForceBuildAllRemote = false;
+
+		/// <summary>
+		/// When set to true, actions that fail locally with UBA will be retried without UBA.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxForcedRetry")]
+		[CommandLine("-UBAForcedRetry")]
+		public bool bForcedRetry = false;
+
+		/// <summary>
+		/// When set to true, all errors and warnings from UBA will be output at the appropriate severity level to the log (rather than being output as 'information' and attempting to continue regardless).
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxStrict")]
+		[CommandLine("-UBAStrict")]
+		public bool bStrict = false;
+
+		/// <summary>
+		/// If UBA should store cas compressed or raw
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxStoreRaw")]
+		[CommandLine("-UBAStoreRaw")]
+		public bool bStoreRaw = false;
+
+		/// <summary>
+		/// If UBA should distribute linking to remote workers. This needs bandwidth but can be an optimization
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxLinkRemote")]
+		[CommandLine("-UBALinkRemote")]
+		public bool bLinkRemote = false;
+
+		/// <summary>
+		/// The amount of gigabytes UBA is allowed to use to store workset and cached data. It is a good idea to have this >10gb
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxStoreCapacityGb")]
+		[CommandLine("-UBAStoreCapacityGb")]
+		public int StoreCapacityGb = 40;
+
+		/// <summary>
+		/// Max number of worker threads that can handle messages from remotes. 
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxMaxWorkers")]
+		[CommandLine("-UBAMaxWorkers")]
+		public int MaxWorkers = 192;
+
+		/// <summary>
+		/// Max size of each message sent from server to client
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxSendSize")]
+		[CommandLine("-UBASendSize")]
+		public int SendSize = 256 * 1024;
+
+		/// <summary>
+		/// Which ip UBA server should listen to for connections
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxHost")]
+		[CommandLine("-UBAHost")]
+		public string Host = String.Empty;
+
+		/// <summary>
+		/// Which port UBA server should listen to for connections.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxPort")]
+		[CommandLine("-UBAPort")]
+		public int Port = 1345;
+
+		/// <summary>
+		/// Which directory to store files for UBA.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxRootDir")]
+		[CommandLine("-UBARootDir")]
+		public string? RootDir = null;
+
+		/// <summary>
+		/// Use Quic protocol instead of Tcp (experimental)
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxQuic", Value = "true")]
+		[CommandLine("-UBAQuic", Value = "true")]
+		public bool bUseQuic = false;
+
+		/// <summary>
+		/// Enable logging of UBA processes
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxLog", Value = "true")]
+		[CommandLine("-UBALog", Value = "true")]
+		public bool bLogEnabled = false;
+
+		/// <summary>
+		/// Prints summary of UBA stats at end of build
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxPrintSummary", Value = "true")]
+		[CommandLine("-UBAPrintSummary", Value = "true")]
+		public bool bPrintSummary = false;
+
+		/// <summary>
+		/// Launch visualizer application which shows build progress
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxVisualizer", Value = "true")]
+		[CommandLine("-UBAVisualizer", Value = "true")]
+		public bool bLaunchVisualizer = false;
+
+		/// <summary>
+		/// Resets the cas cache
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxResetCas", Value = "true")]
+		[CommandLine("-UBAResetCas", Value = "true")]
+		public bool bResetCas = false;
+
+		/// <summary>
+		/// Provide custom path for trace output file
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxTraceOutputFile")]
+		[CommandLine("-UBATraceOutputFile")]
+		public string TraceFile = String.Empty;
+
+		/// <summary>
+		/// Add verbose details to the UBA trace
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxDetailedTrace", Value = "true")]
+		[CommandLine("-UBADetailedTrace", Value = "true")]
+		public bool bDetailedTrace;
+
+		/// <summary>
+		/// Disable UBA waiting on available memory before spawning new processes
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBADisableWaitOnMem", Value = "true")]
+		public bool bDisableWaitOnMem;
+
+		/// <summary>
+		/// Let UBA kill running processes when close to out of memory
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxAllowKillOnMem", Value = "true")]
+		[CommandLine("-UBAAllowKillOnMem", Value = "true")]
+		public bool bAllowKillOnMem;
+
+		/// <summary>
+		/// Threshold for when executor should output logging for the process. Defaults to never
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxOutputStatsThresholdMs")]
+		[CommandLine("-UBAOutputStatsThresholdMs")]
+		public int OutputStatsThresholdMs = int.MaxValue;
+
+		/// <summary>
+		/// Skip writing intermediate and output files to disk. Useful for validation builds where we don't need the output
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxNoWrite", Value = "false")]
+		[CommandLine("-UBANoWrite", Value = "false")]
+		public bool bWriteToDisk = true;
+
+		/// <summary>
+		/// Set to true to disable mimalloc and detouring of memory allocations.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxNoCustoMalloc", Value = "true")]
+		[CommandLine("-UBANoCustoMalloc", Value = "true")]
+		public bool bDisableCustomAlloc = false;
+
+		/// <summary>
+		/// The zone to use for UBA.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxZone=")]
+		[CommandLine("-UBAZone=")]
+		public string Zone = String.Empty;
+
+		/// <summary>
+		/// Set to true to enable encryption when transfering files over the network.
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-BoxCrypto", Value = "true")]
+		[CommandLine("-UBACrypto", Value = "true")]
+		public bool bUseCrypto = false;
+	}
+
+	class UBAExecutor : ParallelExecutor
+	{
+		public UnrealBuildAcceleratorConfig UBAConfig { get; init; } = new();
+		public UnrealBuildAcceleratorHordeConfig HordeConfig { get; init; } = new();
+
+		public string Crypto { get; private set; } = String.Empty;
+		public IServer? Server { get; private set; }
+		ISessionServer? Session;
+		DirectoryReference? RootDirRef;
+		bool IsCancelled;
+		bool IsRemoteActionsAllowed = true;
+		readonly object ActionsChangedLock = new();
+		bool ActionsChanged = true;
+		uint ActionsQueuedThatCanRunRemotely = uint.MaxValue;
+		readonly ThreadedLogger ThreadedLogger;
+
+		// Tracking for LinkedActions that failed remotely that should be retried locally
+		readonly ConcurrentDictionary<LinkedAction, bool> LocalRetryActions = new();
+		// Tracking for LinkedActions that failed locally that should be retried without UBA
+		readonly ConcurrentDictionary<LinkedAction, bool> ForcedRetryActions = new();
+
+		public override string Name => "Unreal Build Accelerator";
+
+		public new static bool IsAvailable()
+		{
+			return EpicGames.UBA.Utils.IsAvailable();
+		}
+
+		public UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
+			: this(maxLocalActions, bAllCores, bCompactOutput, new ThreadedLogger(logger))
+		{
+			XmlConfig.ApplyTo(this);
+			XmlConfig.ApplyTo(UBAConfig);
+			XmlConfig.ApplyTo(HordeConfig);
+			CommandLine.ParseArguments(Environment.GetCommandLineArgs(), this, logger);
+			additionalArguments?.ApplyTo(this);
+			additionalArguments?.ApplyTo(UBAConfig);
+			additionalArguments?.ApplyTo(HordeConfig);
+
+			// Sentry is currently unsupported for non-Windows and non-x64
+			if (!OperatingSystem.IsWindows() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
+			{
+				HordeConfig.UBASentryUrl = null;
+			}
+		}
+
+		private UBAExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, ThreadedLogger logger)
+			: base(maxLocalActions, bAllCores, bCompactOutput, logger)
+		{
+			ThreadedLogger = logger;
+		}
+
+		private void PrintConfiguration()
+		{
+			ThreadedLogger.LogInformation("  Storage capacity {StoreCapacityGb}Gb", UBAConfig.StoreCapacityGb);
+		}
+
+		public static string CreateCrypto()
+		{
+			byte[] Bytes = new byte[16];
+			System.Security.Cryptography.RandomNumberGenerator.Create().GetBytes(Bytes);
+			return BitConverter.ToString(Bytes).Replace("-", "").ToLowerInvariant(); // "1234567890abcdef1234567890abcdef";
+		}
+
+		public override async Task<bool> ExecuteActionsAsync(IEnumerable<LinkedAction> inputActions, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
+		{
+			if (!inputActions.Any())
+			{
+				return true;
+			}
+
+			if (inputActions.Count() < NumParallelProcesses && !UBAConfig.bForceBuildAllRemote)
+			{
+				UBAConfig.bDisableRemote = true;
+			}
+
+			PrintConfiguration();
+
+			logger = ThreadedLogger;
+
+			if (UBAConfig.bUseCrypto)
+			{
+				Crypto = CreateCrypto();
+			}
+
+			if (!string.IsNullOrEmpty(UBAConfig.RootDir))
+			{
+				RootDirRef = DirectoryReference.FromString(UBAConfig.RootDir);
+			}
+			else
+			{
+				RootDirRef = DirectoryReference.FromString(Environment.GetEnvironmentVariable("UBA_ROOT") ?? Environment.GetEnvironmentVariable("BOX_ROOT"));
+			}
+
+			using CancellationTokenSource cancellationTokenSource = new();
+			using Task<UBAHordeSession?> hordeSessionTask = !UBAConfig.bDisableRemote ? UBAHordeSession.TryCreateHordeSession(HordeConfig, this, UBAConfig.bStrict, cancellationTokenSource.Token, logger) : Task.FromResult<UBAHordeSession?>(null);
+
+			if (!UBAConfig.bDisableRemote && RootDirRef == null)
+			{
+				DirectoryReference? hordeSharedDir = DirectoryReference.FromString(Environment.GetEnvironmentVariable("UE_HORDE_SHARED_DIR"));
+				if (hordeSharedDir != null)
+				{
+					RootDirRef = DirectoryReference.Combine(hordeSharedDir, "UbaHost");
+				}
+			}
+
+			if (RootDirRef == null)
+			{
+				if (OperatingSystem.IsWindows())
+				{
+					RootDirRef = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData)!, "Epic", "UnrealBuildAccelerator");
+				}
+				else
+				{
+					RootDirRef = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile)!, ".epic", "UnrealBuildAccelerator");
+				}
+			}
+
+			DirectoryReference.CreateDirectory(RootDirRef);
+
+			FileReference ubaTraceFile;
+			if (!string.IsNullOrEmpty(UBAConfig.TraceFile))
+			{
+				ubaTraceFile = new FileReference(UBAConfig.TraceFile);
+			}
+			else if (Unreal.IsBuildMachine())
+			{
+				ubaTraceFile = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "AutomationTool", "Saved", "Logs", "Trace.uba");
+			}
+			else if (Log.OutputFile != null)
+			{
+				ubaTraceFile = Log.OutputFile.ChangeExtension(".uba");
+			}
+			else
+			{
+				ubaTraceFile = FileReference.Combine(Unreal.EngineProgramSavedDirectory, "UnrealBuildTool", "Trace.uba");
+			}
+
+			DirectoryReference.CreateDirectory(ubaTraceFile.Directory);
+			Log.BackupLogFile(ubaTraceFile);
+
+			IStorageServer? ubaStorage = null;
+			void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+			{
+				IsCancelled = true;
+				Session?.CancelAll();
+				ubaStorage?.SaveCasTable();
+			}
+
+			try
+			{
+				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger);
+				using (Server = IServer.CreateServer(UBAConfig.MaxWorkers, UBAConfig.SendSize, ubaLogger, UBAConfig.bUseQuic))
+				{
+					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(RootDirRef, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
+					using (Session = ISessionServer.CreateSessionServer(ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(RootDirRef, ubaTraceFile, UBAConfig.bDisableCustomAlloc, UBAConfig.bLaunchVisualizer, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem))))
+					{
+
+						ubaStorage = ubaStorageServer;
+						Console.CancelKeyPress += CancelKeyPress;
+
+						if (!UBAConfig.bDisableRemote)
+						{
+							Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
+						}
+
+						bool success = ExecuteActionsInternal(inputActions, Session, hordeSessionTask, cancellationTokenSource, logger, actionArtifactCache);
+
+						if (!UBAConfig.bDisableRemote)
+						{
+							Server.StopServer();
+						}
+
+						if (UBAConfig.bPrintSummary)
+						{
+							Session.PrintSummary();
+						}
+
+						return success;
+					}
+				}
+			}
+			finally
+			{
+				if (ubaStorage != null)
+				{
+					Console.CancelKeyPress -= CancelKeyPress;
+					ubaStorage = null;
+				}
+
+				cancellationTokenSource.Cancel();
+
+				await ThreadedLogger.FinishAsync();
+			}
+		}
+
+		public override bool VerifyOutputs => UBAConfig.bWriteToDisk;
+
+		/// <summary>
+		/// Executes the provided actions
+		/// </summary>
+		/// <returns>True if all the tasks successfully executed, or false if any of them failed.</returns>
+		bool ExecuteActionsInternal(IEnumerable<LinkedAction> inputActions, ISessionServer session, Task<UBAHordeSession?> hordeSessionTask, CancellationTokenSource hordeRequestCancellationSource, Microsoft.Extensions.Logging.ILogger logger, IActionArtifactCache? actionArtifactCache)
+		{
+			using ImmediateActionQueue queue = CreateActionQueue(inputActions, actionArtifactCache, logger);
+			int actionLimit = Math.Min(NumParallelProcesses, queue.TotalActions);
+			queue.CreateAutomaticRunner(action => RunActionLocal(queue, action), bUseActionWeights, actionLimit, NumParallelProcesses);
+			ImmediateActionQueueRunner _remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
+
+			// Setup a notification that alerts uba when an artifact has been read from the cache
+			queue.OnArtifactsRead = (Action) =>
+			{
+				HashSet<DirectoryItem> refreshedDirectories = new();
+				foreach (FileItem output in Action.ProducedItems)
+				{
+					if (refreshedDirectories.Add(output.Directory))
+					{
+						session.RefreshDirectories(output.Directory.Location);
+					}
+				}
+			};
+
+			// Start the queue
+			queue.Start();
+
+			// Handle process available from remote
+			session!.RemoteProcessSlotAvailable += (sender, args) =>
+			{
+				if (!queue.TryStartOneAction(_remoteRunner) && (IsRemoteActionsAllowed && !UBAConfig.bForceBuildAllRemote))
+				{
+					uint count = ActionsLeftThatCanRunRemotely(queue);
+
+					// We didn't find an action to start, let's check how many queued items are left.. if there are less than NumParallelProcesses, then disconnect
+					if (count <= NumParallelProcesses)
+					{
+						IsRemoteActionsAllowed = false;
+						hordeRequestCancellationSource.Cancel();
+						session!.DisableRemoteExecution();
+					}
+					else
+					{
+						// Tell UBA session max number of remote processes left. Providing this information makes it possible for UBA session to start disconnecting clients
+						session!.SetMaxRemoteProcessCount(count);
+					}
+				}
+			};
+
+			session!.RemoteProcessReturned += (sender, args) =>
+			{
+				args.Process.Cancel(true);
+				LinkedAction action = (LinkedAction)args.Process.UserData!;
+				//logger.LogInformation("REQUEUING " + action.ProducedItems.FirstOrDefault()!.Name);
+				queue.RequeueAction(action);
+			};
+
+			// Add all actions we can add
+			queue.StartManyActions();
+
+			int timerPeriod = 5000;
+
+			bool shownNoAgentsFoundMessage = false;
+			Timer? hordeTimer = null;
+			try
+			{
+				hordeTimer = new(async (_) =>
+				{
+					hordeTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+					UBAHordeSession? hordeSession = await hordeSessionTask;
+
+					if (queue.IsDone || hordeSession == null || !IsRemoteActionsAllowed)
+					{
+						return;
+					}
+
+					hordeSession.RemoveCompleteWorkers();
+
+					// We are assuming all active logical cores are already being used.. so queueWeight is essentially work that could be executed but can't because of bandwidth
+					double queueThreshold = UBAConfig.bForceBuildAllRemote ? 0 : 5;
+
+					try
+					{
+						double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => CanRunRemotely(x)).Sum(x => x.Weight);
+
+						queueWeight -= hordeSession.QueuedUpCores();
+						while (true)
+						{
+							int currentLogicalCores = hordeSession.NumLogicalCores;
+
+							if (queueWeight <= queueThreshold || currentLogicalCores >= HordeConfig.HordeMaxCores)
+							{
+								break;
+							}
+
+							Requirements requirements = new()
+							{
+								Exclusive = true
+							};
+
+							if (!String.IsNullOrEmpty(HordeConfig.HordePool))
+							{
+								requirements.Pool = HordeConfig.HordePool;
+							}
+
+							if (HordeConfig.HordeCondition != null)
+							{
+								requirements.Condition = Condition.Parse(HordeConfig.HordeCondition);
+							}
+
+							if (!await hordeSession.AddWorkerAsync(requirements, hordeRequestCancellationSource.Token))
+							{
+								logger.LogDebug("No additional workers available");
+								break;
+							}
+							int coresAdded = hordeSession.NumLogicalCores - currentLogicalCores;
+							queueWeight -= coresAdded;
+						}
+					}
+					catch (NoComputeAgentsFoundException ex)
+					{
+						if (!shownNoAgentsFoundMessage)
+						{
+							logger.Log(UBAConfig.bStrict ? LogLevel.Warning : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "No agents found matching requirements (cluster: {ClusterId}, requirements: {requirements})", ex.ClusterId, ex.Requirements);
+							shownNoAgentsFoundMessage = true;
+						}
+					}
+					catch (Exception ex)
+					{
+						if (!hordeRequestCancellationSource.IsCancellationRequested)
+						{
+							logger.Log(UBAConfig.bStrict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
+						}
+					}
+
+					hordeTimer?.Change(timerPeriod, Timeout.Infinite);
+				}, null, HordeConfig.HordeDelay * 1000, timerPeriod);
+
+				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
+				hordeRequestCancellationSource.Cancel();
+				return res;
+			}
+			finally
+			{
+				hordeTimer?.Dispose();
+			}
+		}
+
+		/// <summary>
+		/// Determine if an action is able to be run remotely
+		/// </summary>
+		/// <param name="action">The action to check</param>
+		/// <returns>If this action can be run remotely</returns>
+		bool CanRunRemotely(LinkedAction action) => action.bCanExecuteInUBA && action.bCanExecuteRemotely && !LocalRetryActions.ContainsKey(action) && !ForcedRetryActions.ContainsKey(action) && (UBAConfig.bLinkRemote || action.ActionType != ActionType.Link);
+
+		ProcessStartInfo GetActionStartInfo(LinkedAction action, out FileItem? pchItem)
+		{
+			ProcessStartInfo startInfo = new()
+			{
+				Application = action.CommandPath,
+				WorkingDirectory = action.WorkingDirectory,
+				Arguments = action.CommandArguments,
+				Priority = ProcessPriority,
+				OutputStatsThresholdMs = (uint)UBAConfig.OutputStatsThresholdMs,
+				UserData = action,
+				Description = action.StatusDescription,
+				Configuration = action.bIsGCCCompiler ? EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileClang : EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileMsvc,
+				LogFile = UBAConfig.bLogEnabled ? action.Inner.ProducedItems.First().Location.GetFileName() : null,
+			};
+
+			bool usingLtcg = true; // ltcg linking checks what pch was used and it seems like it needs to be identical in other ways than timestamp
+			pchItem = action.Inner.ProducedItems.FirstOrDefault(Item => Item.Name.EndsWith(".pch"));
+			if (pchItem != null)
+			{
+				startInfo.Priority = System.Diagnostics.ProcessPriorityClass.AboveNormal;
+				if (!usingLtcg && action.ArtifactMode.HasFlag(ArtifactMode.PropagateInputs))
+				{
+					startInfo.TrackInputs = true;
+				}
+				else
+				{
+					pchItem = null;
+				}
+			}
+
+			return startInfo;
+		}
+
+		Func<Task>? RunActionLocal(ImmediateActionQueue queue, LinkedAction action)
+		{
+			if (UBAConfig.bForceBuildAllRemote && CanRunRemotely(action))
+			{
+				return null;
+			}
+
+			if (!action.bCanExecuteInUBA || ForcedRetryActions.ContainsKey(action))
+			{
+				return async () =>
+				{
+					uint processId = Session!.BeginExternalProcess(action.StatusDescription + " (External)");
+					ExecuteResults result = await RunAction(action, queue.ProcessGroup, queue.CancellationToken, "(UBA disabled)");
+
+					if (result.ExitCode == 0)
+					{
+						Session!.RegisterNewFiles(action.ProducedItems.Select(x => x.Location).ToArray());
+					}
+					Session!.EndExternalProcess(processId, (uint)result.ExitCode);
+
+					ActionFinished(queue, result, action, null, null);
+				};
+			}
+
+			return () =>
+			{
+				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
+				IProcess process = Session!.RunProcess(startInfo, false, null);
+				if (process.ExitCode != 0 && UBAConfig.bForcedRetry)
+				{
+					ThreadedLogger.LogWarning("{Description} {StatusDescription}: Exited with error code {exitCode}. This action will retry witout UBA", action.CommandDescription, action.StatusDescription, process.ExitCode);
+					ForcedRetryActions.AddOrUpdate(action, false, (k, v) => false);
+					queue.RequeueAction(action);
+					return Task.CompletedTask;
+				}
+				TimeSpan processorTime = process.TotalProcessorTime;
+				TimeSpan executionTime = process.TotalWallTime;
+				List<string> logLines = process.LogLines;
+				logLines.RemoveAll((line) => line.StartsWith("   Creating library ") && line.EndsWith(".exp") || line.EndsWith("file(s) copied."));
+				ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime), action, pchItem, process);
+				return Task.CompletedTask;
+			};
+		}
+
+		Func<Task>? RunActionRemote(ImmediateActionQueue queue, LinkedAction action)
+		{
+			if (!CanRunRemotely(action))
+			{
+				return null;
+			}
+
+			return () =>
+			{
+				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
+				Session!.RunProcessRemote(startInfo, (s, e) =>
+				{
+					if (e.ExitCode != 0 && !e.LogLines.Any())
+					{
+						RemoteActionFailedNoOutput(queue, action, e.ExitCode, e.ExecutingHost ?? "Unknown");
+						return;
+					}
+
+					string additionalDescription = $"[RemoteExecutor: {e.ExecutingHost}]";
+					TimeSpan processorTime = e.TotalProcessorTime;
+					TimeSpan executionTime = e.TotalWallTime;
+					List<string> logLines = e.LogLines;
+					logLines.RemoveAll((line) => line.StartsWith("   Creating library ") && line.EndsWith(".exp"));
+					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, s as IProcess);
+				}, action.Weight);
+				return Task.CompletedTask;
+			};
+		}
+
+		uint ActionsLeftThatCanRunRemotely(ImmediateActionQueue queue)
+		{
+			lock (ActionsChangedLock)
+			{
+				if (ActionsChanged)
+				{
+					ActionsQueuedThatCanRunRemotely = queue.GetQueuedActionsCount(CanRunRemotely);
+					ActionsChanged = false;
+				}
+				return ActionsQueuedThatCanRunRemotely;
+			}
+		}
+
+		protected void ActionFinished(ImmediateActionQueue queue, ExecuteResults results, LinkedAction action, FileItem? pchItem = null, IProcess? process = null)
+		{
+			if (IsCancelled)
+			{
+				return;
+			}
+
+			bool success = results.ExitCode == 0;
+			if (pchItem != null && process != null && success)
+			{
+				Session!.SetCustomCasKeyFromTrackedInputs(pchItem.Location, action.WorkingDirectory, process);
+			}
+
+			queue.OnActionCompleted(action, success, results);
+
+			lock (ActionsChangedLock)
+			{
+				ActionsChanged = true;
+			}
+		}
+
+		void RemoteActionFailedNoOutput(ImmediateActionQueue queue, LinkedAction action, int exitCode, string executingHost)
+		{
+			if (IsCancelled)
+			{
+				return;
+			}
+
+			ThreadedLogger.LogWarning("{Description} {StatusDescription} [RemoteExecutor: {executingHost}]: Exited with error code {exitCode} with no output. This action will retry locally", action.CommandDescription, action.StatusDescription, executingHost, exitCode);
+			LocalRetryActions.AddOrUpdate(action, false, (k, v) => false);
+			queue.RequeueAction(action);
+
+			lock (ActionsChangedLock)
+			{
+				ActionsChanged = true;
+			}
+		}
+	}
+
+	/// <summary>
+	/// UBAExecutor, but force local only compiles regardless of other settings
+	/// </summary>
+	class UBALocalExecutor : UBAExecutor
+	{
+		public override string Name => "Unreal Build Accelerator local";
+
+		public new static bool IsAvailable()
+		{
+			return EpicGames.UBA.Utils.IsAvailable();
+		}
+
+		public UBALocalExecutor(int maxLocalActions, bool bAllCores, bool bCompactOutput, Microsoft.Extensions.Logging.ILogger logger, CommandLineArguments? additionalArguments = null)
+			: base(maxLocalActions, bAllCores, bCompactOutput, logger, additionalArguments)
+		{
+			UBAConfig.bDisableRemote = true;
+			UBAConfig.bForceBuildAllRemote = false;
+		}
+	}
+}

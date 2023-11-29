@@ -77,8 +77,6 @@ elif [ -f ../Intermediate/Build/AutomationToolLastBuildTime ]; then
   UPDATED_DEP_FILES="$(find \
     ../Binaries/Linux* \
     ../Binaries/Mac \
-    ../Restricted/**/Binaries/Linux* \
-    ../Restricted/**/Binaries/Mac \
     -maxdepth 2 \
     -type f \
     \( -iname \*Uba* \) \

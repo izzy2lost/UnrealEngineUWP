@@ -1,0 +1,529 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "UbaFileMapping.h"
+#include "UbaPlatform.h"
+#include "UbaProcessStats.h"
+#include "UbaTimer.h"
+#include "UbaFile.h"
+
+namespace uba
+{
+#if PLATFORM_WINDOWS
+	ReaderWriterLock g_createFileHandleLock;
+
+	HANDLE asHANDLE(FileHandle fh);
+
+	HANDLE InternalCreateFileMappingW(HANDLE hFile, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCWSTR lpName)
+	{
+		if (flProtect != PAGE_READWRITE)
+			return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
+
+		// Experiment to try to prevent lock happening on AWS servers when lots of helpers are sending back obj files.
+		ScopedWriteLock lock(g_createFileHandleLock);
+		return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
+	}
+#else
+	int asFileDescriptor(FileHandle fh);
+#endif
+
+	Atomic<u64> g_mappingUidCounter = 12345;
+
+	FileMappingHandle CreateMemoryMappingW(u32 flProtect, u64 maxSize, const tchar* name)
+	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+#if PLATFORM_WINDOWS
+		return { InternalCreateFileMappingW(INVALID_HANDLE_VALUE, flProtect, (DWORD)ToHigh(maxSize), ToLow(maxSize), name) };
+#else
+		UBA_ASSERT(!name);
+		UBA_ASSERT((flProtect & (~u32(PAGE_READWRITE | SEC_RESERVE))) == 0);
+
+		int oflags = O_CREAT | O_RDWR | O_NOFOLLOW | O_EXCL;
+		//		int oflags = O_CREAT | O_RDWR | O_EXCL;
+
+		u64 uid = ++g_mappingUidCounter;
+		int fd;
+		while (true)
+		{
+			StringBuffer<64> uidName;
+			GetMappingHandleName(uidName, uid);
+
+			fd = shm_open(uidName.data, oflags, S_IRUSR | S_IWUSR);
+			if (fd != -1)
+				break;
+			if (errno == EEXIST)
+			{
+				if (shm_unlink(uidName.data) == -1)
+				{
+					printf("Failed to shm_unlink %s (%s)\n", uidName.data, strerror(errno));
+					uid = ++g_mappingUidCounter;
+				}
+				continue;
+			}
+			UBA_ASSERTF(false, "Failed to create filemapping with name %hs - %hs", uidName.data, strerror(errno));
+			return {};
+		}
+		//shm_unlink("/myregionTest");
+
+		if (maxSize != 0)
+			if (ftruncate(fd, (s64)maxSize) == -1)
+				UBA_ASSERTF(false, "Failed to truncate file mapping '%s' to size %llu (%s)" , name, maxSize, strerror(errno));
+
+		return { fd, uid };
+#endif
+	}
+
+	FileMappingHandle CreateFileMappingW(FileHandle hFile, u32 flProtect, u64 maxSize)
+	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
+#if PLATFORM_WINDOWS
+		return { InternalCreateFileMappingW(asHANDLE(hFile), flProtect, (DWORD)ToHigh(maxSize), ToLow(maxSize), NULL) };
+#else
+		FileMappingHandle h;
+		h.fd = asFileDescriptor(hFile);
+		lseek(h.fd, maxSize-1, SEEK_SET);
+		write(h.fd, "", 1);
+		return h;
+#endif
+	}
+
+	u8* MapViewOfFile(FileMappingHandle hFileMappingObject, u32 desiredAccess, u64 offset, u64 bytesToMap)
+	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().mapViewOfFile);
+#if PLATFORM_WINDOWS
+		return (u8*)::MapViewOfFile(hFileMappingObject.handle, desiredAccess, (DWORD)ToHigh(offset), ToLow(offset), bytesToMap);
+#else
+		int prot = 0;
+		if (desiredAccess & FILE_MAP_READ)
+			prot |= PROT_READ;
+		if (desiredAccess & FILE_MAP_WRITE)
+			prot |= PROT_WRITE;
+		UBA_ASSERT(hFileMappingObject.IsValid());
+		int fd = hFileMappingObject.fd;
+		void* rptr = mmap(NULL, bytesToMap, prot, MAP_SHARED, fd, s64(offset));
+		if (rptr != MAP_FAILED)
+			return (u8*)rptr;
+		//UBA_ASSERTF(false, "Failed to map file with fd %i, desiredAccess %u offset %llu, bytesToMap %llu (%s)", fd, desiredAccess, offset, bytesToMap, strerror(errno));
+		SetLastError(errno);
+		return nullptr;
+#endif
+	}
+
+	bool MapViewCommit(void* address, u64 size)
+	{
+#if PLATFORM_WINDOWS
+		return ::VirtualAlloc(address, size, MEM_COMMIT, PAGE_READWRITE);
+#else
+		return true;
+#endif
+	}
+
+	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap)
+	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().unmapViewOfFile);
+#if PLATFORM_WINDOWS
+		(void)bytesToUnmap; return ::UnmapViewOfFile(lpBaseAddress);
+#else
+		UBA_ASSERT(bytesToUnmap);
+		if (munmap((void*)lpBaseAddress, bytesToUnmap) == 0)
+			return true;
+		UBA_ASSERT(false);
+		return false;
+#endif
+	}
+
+	bool CloseFileMapping(FileMappingHandle h)
+	{
+#if PLATFORM_WINDOWS
+		return CloseHandle(h.handle);
+#else
+		if (h.fd == -1)
+			return true;
+		if (h.uid != ~u64(0))
+		{
+			if (close(h.fd) != 0)
+				UBA_ASSERT(false);
+
+			StringBuffer<64> uidName;
+			GetMappingHandleName(uidName, h.uid);
+			if (shm_unlink(uidName.data) != 0)
+			{
+				UBA_ASSERTF(false, "Failed to unlink %s (%s)", uidName.data, strerror(errno));
+				return false;
+			}
+		}
+		return true;
+#endif
+	}
+
+	bool DuplicateFileMapping(ProcHandle hSourceProcessHandle, FileMappingHandle hSourceHandle, ProcHandle hTargetProcessHandle, FileMappingHandle* lpTargetHandle, u32 dwDesiredAccess, bool bInheritHandle, u32 dwOptions)
+	{
+#if PLATFORM_WINDOWS
+		return DuplicateHandle((HANDLE)hSourceProcessHandle, hSourceHandle.handle, (HANDLE)hTargetProcessHandle, &lpTargetHandle->handle, dwDesiredAccess, bInheritHandle, dwOptions);
+#else
+		UBA_ASSERT(false);
+		return false;
+#endif
+	}
+
+	FileMappingBuffer::FileMappingBuffer(Logger& logger)
+	:	m_logger(logger)
+	{
+		m_pageSize = 64*1024;
+	}
+
+	FileMappingBuffer::~FileMappingBuffer()
+	{
+		CloseMappingStorage(m_storage[MappedView_Transient]);
+		CloseMappingStorage(m_storage[MappedView_Persistent]);
+	}
+
+	bool FileMappingBuffer::AddTransient(const tchar* name)
+	{
+		MappingStorage& storage = m_storage[MappedView_Transient];
+		for (u32 i = 0; i != sizeof_array(storage.files); ++i)
+		{
+			File& file = storage.files[sizeof_array(storage.files) - (++storage.fileCount)];
+			file.name = name;
+			storage.availableFiles[storage.availableFilesCount++] = &file;
+		}
+		return true;
+	}
+
+	bool FileMappingBuffer::AddPersistent(const tchar* name, FileHandle fileHandle, u64 size, u64 capacity)
+	{
+		FileMappingHandle sparseMemoryHandle = uba::CreateFileMappingW(fileHandle, PAGE_READWRITE, capacity);
+		if (!sparseMemoryHandle.IsValid())
+		{
+			m_logger.Error(TC("Failed to create file mapping (%s)"), LastErrorToText().data);
+			return false;
+		}
+
+
+		MappingStorage& storage = m_storage[MappedView_Persistent];
+		File& f = storage.files[storage.fileCount++];
+		f.name = name;
+		f.file = fileHandle;
+		f.handle = sparseMemoryHandle;
+		f.size = size;
+		f.capacity = capacity;
+
+		PushFile(storage, &f);
+		return true;
+	}
+
+	void FileMappingBuffer::CloseDatabase()
+	{
+		CloseMappingStorage(m_storage[MappedView_Persistent]);
+	}
+
+	MappedView FileMappingBuffer::AllocAndMapView(FileMappingType type, u64 size, u64 alignment, const tchar* hint, bool allowShrink)
+	{
+		MappingStorage& storage = m_storage[type];
+		File* file = PopFile(storage, size, alignment);
+
+		if (allowShrink)
+			return AllocAndMapViewNoLock(*file, size, alignment, hint);
+
+		MappedView res = AllocAndMapViewNoLock(*file, size, alignment, hint);
+
+		PushFile(storage, file);
+		return res;
+	}
+
+	MappedView FileMappingBuffer::AllocAndMapViewNoLock(File& f, u64 size, u64 alignment, const tchar* hint)
+	{
+		MappedView res;
+
+		u64 offset = AlignUp(f.size, alignment);
+		u64 alignedOffsetStart = AlignUp(offset - (m_pageSize - 1), m_pageSize);
+
+		u64 newOffset = offset + size;
+		u64 alignedOffsetEnd = AlignUp(newOffset, m_pageSize);
+		
+		if (alignedOffsetEnd > f.capacity)
+		{
+			m_logger.Error(TC("%s - AllocAndMapView has reached max capacity %llu trying to allocate %llu for %s"), f.name, f.capacity, size, hint);
+			return res;
+		}
+
+		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
+		u8* data = MapViewOfFile(f.handle, FILE_MAP_WRITE, alignedOffsetStart, mapSize);
+		if (!data)
+		{
+			m_logger.Error(TC("%s - AllocAndMapView failed to map view of file for %s with size %llu and offset %llu (%s)"), f.name, hint, size, alignment, LastErrorToText().data);
+			return res;
+		}
+
+		u64 committedBefore = AlignUp(offset, m_pageSize);
+		u64 commitedAfter = AlignUp(newOffset, m_pageSize);
+
+		if (f.commitOnAlloc && committedBefore != commitedAfter)
+		{
+			u64 commitStart = committedBefore - alignedOffsetStart;
+			u64 commitSize = commitedAfter - committedBefore;
+			if (!MapViewCommit(data + commitStart, commitSize))
+			{
+				UnmapViewOfFile(data, mapSize);
+				m_logger.Error(TC("%s - Failed to allocate memory for %s (%s)"), f.name, hint, LastErrorToText().data);
+				return res;
+			}
+		}
+
+		f.size = newOffset;
+		++f.activeMapCount;
+
+		res.handle = f.handle;
+		res.offset = offset;
+		res.size = size;
+		res.memory = data + (offset - alignedOffsetStart);
+		return res;
+	}
+
+	FileMappingBuffer::File& FileMappingBuffer::GetFile(FileMappingHandle handle, u8& outStorageIndex)
+	{
+		for (u8 storageI = 0; storageI != 2; ++storageI)
+		{
+			MappingStorage& storage = m_storage[storageI];
+			for (u32 i = 0; i != storage.fileCount; ++i)
+				if (storage.files[i].handle == handle)
+				{
+					outStorageIndex = storageI;
+					return storage.files[i];
+				}
+		}
+		UBA_ASSERT(false);
+		static FileMappingBuffer::File error;
+		return error;
+	}
+
+	FileMappingBuffer::File* FileMappingBuffer::PopFile(MappingStorage& storage, u64 size, u64 alignment)
+	{
+		while (true)
+		{
+			ScopedWriteLock lock(storage.availableFilesLock);
+			for (u32 i = storage.availableFilesCount; i!=0; --i)
+			{
+				u32 index = i - 1;
+				auto file = storage.availableFiles[index];
+				
+				if (!file->handle.IsValid())
+				{
+					UBA_ASSERT(&storage == &m_storage[MappedView_Transient]);
+					u64 capacity = (IsWindows ? 32ull : 8ull) * 1024 * 1024 * 1024; // Linux can't have larger than 8gb
+					file-> handle = uba::CreateMemoryMappingW(PAGE_READWRITE | SEC_RESERVE, capacity);
+					if (!file->handle.IsValid())
+					{
+						m_logger.Error(TC("%s - Failed to create memory map (%s)"), file->name, LastErrorToText().data);
+						return nullptr;
+					}
+					file->commitOnAlloc = true;
+					file->capacity = capacity;
+				}
+				else
+				{
+					u64 newSize = AlignUp(file->size, alignment) + size;
+					if (newSize > file->capacity)
+						continue;
+				}
+
+				storage.availableFiles[index] = storage.availableFiles[storage.availableFilesCount - 1];
+				--storage.availableFilesCount;
+				return file;
+			}
+			lock.Leave();
+			storage.availableFilesEvent.IsSet();
+		}
+		return nullptr;
+	}
+
+	void FileMappingBuffer::PushFile(MappingStorage& storage, File* file)
+	{
+		ScopedWriteLock lock(storage.availableFilesLock);
+		storage.availableFiles[storage.availableFilesCount++] = file;
+		storage.availableFilesEvent.Set();
+	}
+
+	void FileMappingBuffer::CloseMappingStorage(MappingStorage& storage)
+	{
+		u32 locksTaken = 0;
+		while (locksTaken < storage.fileCount)
+		{
+			ScopedWriteLock lock(storage.availableFilesLock);
+			if (storage.availableFilesCount == 0)
+			{
+				lock.Leave();
+				storage.availableFilesEvent.IsSet();
+			}
+			++locksTaken;
+		}
+
+		for (u32 i=0; i!=storage.fileCount; ++i)
+		{
+			//UBA_ASSERT(!storage.files[i].activeMapCount);
+			CloseFileMapping(storage.files[i].handle);
+			CloseFile(nullptr, storage.files[i].file);
+		}
+		storage.fileCount = 0;
+		storage.availableFilesCount = 0;
+	}
+
+	MappedView FileMappingBuffer::MapView(FileMappingHandle handle, u64 offset, u64 size, const tchar* hint)
+	{
+		UBA_ASSERT(handle.IsValid());// && (handle == m_files[0].handle || handle == m_files[1].handle));
+		u8 storageIndex = 255;
+		File& file = GetFile(handle, storageIndex);
+
+		u64 alignedOffsetStart = AlignUp(offset - (m_pageSize - 1), m_pageSize);
+
+		u64 newOffset = offset + size;
+		u64 alignedOffsetEnd = AlignUp(newOffset, m_pageSize);
+
+		MappedView res;
+
+		u8* data = MapViewOfFile(handle, FILE_MAP_WRITE, alignedOffsetStart, alignedOffsetEnd - alignedOffsetStart);
+		if (!data)
+		{
+			m_logger.Error(TC("%s - MapView failed to map view of file for %s with size %llu and offset %llu (%s)"), file.name, hint, size, offset, LastErrorToText().data);
+			return res;
+		}
+
+		++file.activeMapCount;
+
+		res.handle = handle;
+		res.offset = offset;
+		res.size = size;
+		res.memory = data + (offset - alignedOffsetStart);
+		return res;
+	}
+
+	void FileMappingBuffer::UnmapView(MappedView view, const tchar* hint, u64 newSize)
+	{
+		if (!view.handle.IsValid())
+			return;
+		u8 storageIndex = 255;
+		File& file = GetFile(view.handle, storageIndex);
+
+		u64 alignedOffsetStart = AlignUp(view.offset - (m_pageSize - 1), m_pageSize);
+		u64 alignedOffsetEnd = AlignUp(view.offset + view.size, m_pageSize);
+
+		u8* memory = view.memory - (view.offset - alignedOffsetStart);
+		u64 mapSize = alignedOffsetEnd - alignedOffsetStart;
+		if (!UnmapViewOfFile(memory, mapSize))
+		{
+			m_logger.Error(TC("%s - Failed to unmap view on address %llx (offset %llu) - %s (%s)"), file.name, u64(memory), view.offset, hint, LastErrorToText().data);
+		}
+
+		if (newSize != InvalidValue)
+		{
+			if (newSize != view.size)
+			{
+				UBA_ASSERT(!file.commitOnAlloc);
+				UBA_ASSERTF(newSize < view.size, TC("%s - Reserved too little memory. Reserved %llu, needed %llu for %s"), file.name, view.size, newSize, hint);
+				file.size -= view.size - newSize;
+			}
+
+			MappingStorage& storage = m_storage[storageIndex];
+			PushFile(storage, &file);
+		}
+
+		--file.activeMapCount;
+	}
+
+	void FileMappingBuffer::GetSizeAndCount(FileMappingType type, u64& outSize, u32& outCount)
+	{
+		MappingStorage& storage = m_storage[type];
+		outSize = 0;
+		outCount = 0;
+		for (u32 i = 0; i != storage.fileCount; ++i)
+		{
+			if (storage.files[i].handle.IsValid())
+				++outCount;
+			outSize += storage.files[i].size;
+		}
+	}
+
+
+
+
+
+
+
+
+	FileMappingAllocator::FileMappingAllocator(Logger& logger, const tchar* name)
+	:	m_logger(logger)
+	,	m_name(name)
+	{
+	}
+
+	FileMappingAllocator::~FileMappingAllocator()
+	{
+		if (m_mappingHandle.IsValid())
+			CloseFileMapping(m_mappingHandle);
+	}
+
+	bool FileMappingAllocator::Init(u64 blockSize, u64 capacity)
+	{
+		m_mappingHandle = uba::CreateMemoryMappingW(PAGE_READWRITE|SEC_RESERVE, capacity);
+		if (!m_mappingHandle.IsValid())
+		{
+			m_logger.Error(TC("%s - Failed to create memory map (%s)"), m_name, LastErrorToText().data);
+			return false;
+		}
+
+		m_blockSize = blockSize;
+		m_pageSize = 64*1024;
+		m_capacity = capacity;
+		return true;
+	}
+
+	FileMappingAllocator::Allocation FileMappingAllocator::Alloc(const tchar* hint)
+	{
+		ScopedWriteLock lock(m_mappingLock);
+
+		u64 index = m_mappingCount;
+		bool needCommit = false;
+		if (!m_availableBlocks.empty())
+		{
+			auto it = m_availableBlocks.begin();
+			index = *it;
+			m_availableBlocks.erase(it);
+		}
+		else
+		{
+			++m_mappingCount;
+			needCommit = true;
+		}
+		lock.Leave();
+
+		u64 offset = index*m_blockSize;
+		u8* data = MapViewOfFile(m_mappingHandle, FILE_MAP_READ|FILE_MAP_WRITE, offset, m_blockSize);
+		if (!data)
+		{
+			if (m_capacity < m_mappingCount*m_blockSize)
+				m_logger.Error(TC("%s - Out of capacity (%llu) need to bump capacity for %s (%s)"), m_name, m_capacity, hint, LastErrorToText().data);
+			else
+				m_logger.Error(TC("%s - Alloc failed to map view of file for %s (%s)"), m_name, hint, LastErrorToText().data);
+			return { {}, 0, 0 };
+		}
+
+		if (needCommit)
+		{
+			if (!MapViewCommit(data, m_blockSize))
+			{
+				m_logger.Error(TC("%s - Failed to allocate memory for %s (%s)"), m_name, hint, LastErrorToText().data);
+				return { {}, 0, 0 };
+			}
+		}
+		return {m_mappingHandle, offset, data};
+	}
+
+	void FileMappingAllocator::Free(Allocation allocation)
+	{
+		UBA_ASSERT(allocation.handle == m_mappingHandle);
+		if (!UnmapViewOfFile(allocation.memory, m_blockSize))
+			m_logger.Error(TC("%s - Failed to unmap view of file (%s)"), m_name, LastErrorToText().data);
+		u64 index = allocation.offset / m_blockSize;
+		ScopedWriteLock lock(m_mappingLock);
+		m_availableBlocks.insert(index);
+	}
+}

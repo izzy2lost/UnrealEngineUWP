@@ -36,7 +36,7 @@
     </Compile>
   </ItemGroup>
 
-  <Import Condition="Exists('..\..\..\..\Restricted\NotForLicensees\Source\Programs\Shared\EpicGames.UBA\Project.props')" Project="..\..\..\..\Restricted\NotForLicensees\Source\Programs\Shared\EpicGames.UBA\Project.props" />
+  <Import Project="Library.props" />
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />

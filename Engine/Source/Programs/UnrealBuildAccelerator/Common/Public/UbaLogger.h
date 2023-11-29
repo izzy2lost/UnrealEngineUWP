@@ -1,0 +1,95 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "UbaBase.h"
+#include <stdarg.h>
+
+namespace uba
+{
+	enum LogEntryType : u8
+	{
+		LogEntryType_Error = 0,
+		LogEntryType_Warning = 1,
+		LogEntryType_Info = 2,
+		LogEntryType_Detail = 3,
+		LogEntryType_Debug = 4,
+	};
+
+	struct LogEntry
+	{
+		LogEntryType type;
+		const tchar* string;
+	};
+
+	class LogWriter
+	{
+	public:
+		virtual ~LogWriter() = default;
+		virtual void BeginScope() = 0;
+		virtual void EndScope() = 0;
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) = 0;
+	};
+
+	class Logger
+	{
+	public:
+		Logger() {}
+		bool Error(const tchar* format, ...);
+		void Warning(const tchar* format, ...);
+		void Info(const tchar* format, ...);
+		void Detail(const tchar* format, ...);
+		void Debug(const tchar* format, ...);
+		void Logf(LogEntryType type, const tchar* format, ...);
+		void LogArg(LogEntryType type, const tchar* format, va_list& args);
+
+		virtual void BeginScope() = 0;
+		virtual void EndScope() = 0;
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) = 0;
+		virtual ~Logger() {}
+	};
+
+	class LoggerWithWriter : public Logger
+	{
+	public:
+		LoggerWithWriter(LogWriter& writer, const tchar* prefix = nullptr);
+		virtual void BeginScope() { m_writer.BeginScope(); }
+		virtual void EndScope() { m_writer.EndScope(); }
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) { m_writer.Log(type, str, strLen, m_prefix, m_prefixLen); }
+
+		LogWriter& m_writer;
+		const tchar* m_prefix;
+		u32 m_prefixLen;
+	};
+
+	struct MutableLogger : public LoggerWithWriter
+	{
+		MutableLogger(LogWriter& writer, const tchar* prefix) : LoggerWithWriter(writer, prefix) {}
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen) override { if (!isMuted) LoggerWithWriter::Log(type, str, strLen); }
+		bool isMuted = false;
+	};
+
+
+	class FilteredLogWriter : public LogWriter
+	{
+	public:
+		FilteredLogWriter(LogWriter& writer, LogEntryType level = LogEntryType_Detail) : m_writer(writer), m_level(level) {}
+		virtual void BeginScope() override { m_writer.BeginScope(); }
+		virtual void EndScope() override { m_writer.EndScope(); }
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) override;
+	private:
+		LogWriter& m_writer;
+		LogEntryType m_level;
+	};
+
+	extern LogWriter& g_consoleLogWriter;
+	extern LogWriter& g_nullLogWriter;
+
+
+	struct BytesToText
+	{
+		BytesToText(u64 bytes);
+		operator const tchar* () const { return str; };
+		tchar str[32];
+	};
+}

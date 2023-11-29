@@ -386,12 +386,10 @@ namespace UnrealBuildTool
 					}
 				case "UBA":
 					{
-#if __UBAEXECUTOR_AVAILABLE__
 						if (BuildConfiguration.bAllowUBAExecutor && UBAExecutor.IsAvailable())
 						{
 							return new UBAExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
 						}
-#endif // #if __UBAEXECUTOR_AVAILABLE__
 						return null;
 					}
 				default:
@@ -419,12 +417,10 @@ namespace UnrealBuildTool
 				}
 			}
 
-#if __UBAEXECUTOR_AVAILABLE__
 			if (BuildConfiguration.bAllowUBALocalExecutor && UBALocalExecutor.IsAvailable())
 			{
 				return new UBALocalExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger, TargetDescriptors.FirstOrDefault()?.AdditionalArguments);
 			}
-#endif // #if __UBAEXECUTOR_AVAILABLE__
 
 			return new ParallelExecutor(BuildConfiguration.MaxParallelActions, BuildConfiguration.bAllCores, BuildConfiguration.bCompactOutput, Logger);
 		}

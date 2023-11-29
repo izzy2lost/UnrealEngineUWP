@@ -82,14 +82,6 @@ for /d %%D in (..\Restricted\*) do (
 		 %%D\Source\Programs\UnrealBuildTool\*.csproj ^
 		 | %FIND% ".cs" >> ..\Intermediate\Build\AutomationToolFiles.txt
 	) 2>nul
-	if exist %%D\Binaries\Win64\UnrealBuildAccelerator (
-		dir /s ^
-		 %%D\Binaries\Win64\UnrealBuildAccelerator\*.dll ^
-		 | %FIND% ".dll" >> ..\Intermediate\Build\AutomationToolFiles.txt
-		dir /s ^
-		 %%D\Binaries\Win64\UnrealBuildAccelerator\*.exe ^
-		 | %FIND% ".exe" >> ..\Intermediate\Build\AutomationToolFiles.txt
-	) 2>nul
 )
 :NoRestricted
 
