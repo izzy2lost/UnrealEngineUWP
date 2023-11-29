@@ -838,6 +838,17 @@ namespace UnrealBuildTool
 				.Arg("Values", Role.Use, Arity.Variadic)
 				.Suspends();
 
+			Inst("NewMutableMap")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Keys", Role.Use, Arity.Variadic)
+				.Arg("Values", Role.Use, Arity.Variadic)
+				.Suspends();
+
+			Inst("NewMutableMapWithCapacity")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Size", Role.Use)
+				.Suspends();
+
 			Inst("MapKey")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Map", Role.Use)

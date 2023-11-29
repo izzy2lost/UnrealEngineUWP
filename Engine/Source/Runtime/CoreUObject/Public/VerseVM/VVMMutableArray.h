@@ -27,7 +27,7 @@ public:
 	void AddValue(FAllocationContext Context, VValue Value);
 	void Append(FAllocationContext Context, VArrayBase& Array);
 
-	void InPlaceMakeImmutable(FRunningContext Context)
+	void InPlaceMakeImmutable(FAllocationContext Context)
 	{
 		static_assert(std::is_base_of_v<VArrayBase, VArray>);
 		static_assert(sizeof(VArray) == sizeof(VArrayBase));

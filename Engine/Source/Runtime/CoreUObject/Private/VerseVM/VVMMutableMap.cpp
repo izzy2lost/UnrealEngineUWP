@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-#include "VerseVM/VVMMap.h"
+#include "VerseVM/VVMMutableMap.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
@@ -10,11 +10,11 @@
 namespace Verse
 {
 
-DEFINE_DERIVED_VCPPCLASSINFO(VMap);
-TGlobalTrivialEmergentTypePtr<&VMap::StaticCppClassInfo> VMap::GlobalTrivialEmergentType;
+DEFINE_DERIVED_VCPPCLASSINFO(VMutableMap);
+TGlobalTrivialEmergentTypePtr<&VMutableMap::StaticCppClassInfo> VMutableMap::GlobalTrivialEmergentType;
 
 template <typename TVisitor>
-inline void VMap::VisitReferencesImpl(TVisitor& Visitor)
+inline void VMutableMap::VisitReferencesImpl(TVisitor& Visitor)
 {
 }
 

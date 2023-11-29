@@ -29,6 +29,7 @@
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMMap.h"
 #include "VerseVM/VVMMutableArray.h"
+#include "VerseVM/VVMMutableMap.h"
 #include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMOption.h"
@@ -975,9 +976,9 @@ class FInterpreter
 		REQUIRE_CONCRETE(Map);
 		REQUIRE_CONCRETE(Index);
 
-		if (Map.IsCellOfType<VMap>() && Index.IsInt())
+		if (Map.IsCellOfType<VMapBase>() && Index.IsInt())
 		{
-			DEF(Op.Dest, Map.StaticCast<VMap>().GetKey(Index.AsInt32()));
+			DEF(Op.Dest, Map.StaticCast<VMapBase>().GetKey(Index.AsInt32()));
 		}
 		else
 		{
@@ -994,9 +995,9 @@ class FInterpreter
 		REQUIRE_CONCRETE(Map);
 		REQUIRE_CONCRETE(Index);
 
-		if (Map.IsCellOfType<VMap>() && Index.IsInt())
+		if (Map.IsCellOfType<VMapBase>() && Index.IsInt())
 		{
-			DEF(Op.Dest, Map.StaticCast<VMap>().GetValue(Index.AsInt32()));
+			DEF(Op.Dest, Map.StaticCast<VMapBase>().GetValue(Index.AsInt32()));
 		}
 		else
 		{
@@ -1016,7 +1017,7 @@ class FInterpreter
 		{
 			DEF(Op.Dest, VInt{static_cast<int32>(Array->Num())});
 		}
-		else if (const VMap* Map = Container.DynamicCast<VMap>())
+		else if (const VMapBase* Map = Container.DynamicCast<VMapBase>())
 		{
 			DEF(Op.Dest, VInt{static_cast<int32>(Map->Num())});
 		}
@@ -1071,7 +1072,7 @@ class FInterpreter
 				FAIL();
 			}
 		}
-		else if (VMap* Map = Container.DynamicCast<VMap>())
+		else if (VMutableMap* Map = Container.DynamicCast<VMutableMap>())
 		{
 			Map->Add(Context, Index, ValueToSet);
 		}
@@ -1197,6 +1198,11 @@ class FInterpreter
 			Container.StaticCast<VMutableArray>().InPlaceMakeImmutable(Context);
 			checkSlow(Container.IsCellOfType<VArray>() && !Container.IsCellOfType<VMutableArray>());
 		}
+		else if (Container.IsCellOfType<VMutableMap>())
+		{
+			Container.StaticCast<VMutableMap>().InPlaceMakeImmutable(Context);
+			checkSlow(Container.IsCellOfType<VMap>() && !Container.IsCellOfType<VMutableMap>());
+		}
 		else
 		{
 			V_DIE("Unimplemented type passed to VM `InPlaceMakeImmutable` operation!");
@@ -1221,13 +1227,39 @@ class FInterpreter
 		const uint32 NumKeys = Op.Keys.Num();
 		V_DIE_UNLESS(NumKeys == static_cast<uint32>(Op.Values.Num()));
 
-		VMap& NewMap = VMap::New(Context);
+		VMap& NewMap = VMap::New(Context, NumKeys, [this, &Op](uint32 Index) {
+			return TPair<VValue, VValue>(GetOperand(Op.Keys[Index]), GetOperand(Op.Values[Index]));
+		});
+
+		DEF(Op.Dest, NewMap);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewMutableMapImpl(OpType& Op)
+	{
+		const uint32 NumKeys = Op.Keys.Num();
+		V_DIE_UNLESS(NumKeys == static_cast<uint32>(Op.Values.Num()));
+
+		VMutableMap& NewMap = VMutableMap::New(Context);
 		for (uint32 Index = 0; Index < NumKeys; ++Index)
 		{
 			VValue NewKey = GetOperand(Op.Keys[Index]);
 			VValue NewValue = GetOperand(Op.Values[Index]);
 			NewMap.Add(Context, NewKey, NewValue);
 		}
+		DEF(Op.Dest, NewMap);
+
+		return {FOpResult::Normal};
+	}
+
+	template <typename OpType>
+	FOpResult NewMutableMapWithCapacityImpl(OpType& Op)
+	{
+		const VValue Size = GetOperand(Op.Size);
+		REQUIRE_CONCRETE(Size); // Must be an Int32 (although UInt32 is better)
+		VMutableMap& NewMap = VMutableMap::New(Context, static_cast<uint32>(Size.AsInt32()));
 		DEF(Op.Dest, NewMap);
 
 		return {FOpResult::Normal};
@@ -1673,6 +1705,8 @@ class FInterpreter
 				OP_IMPL_THREAD_EFFECTS(ArrayAdd)
 				OP_IMPL(InPlaceMakeImmutable)
 				OP_IMPL(NewMap)
+				OP_IMPL(NewMutableMap)
+				OP_IMPL(NewMutableMapWithCapacity)
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
 				OP_IMPL(NewClass)
