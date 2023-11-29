@@ -1,0 +1,63 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Public/Platform.ush"
+
+#define WORK_TYPE float
+#define BUFFER_TYPE float
+#define READ(x) x
+#define WRITE(x) x
+
+Buffer<WORK_TYPE> Input;
+RWBuffer<WORK_TYPE> Output;
+int NumElemBeforeAxis;
+int AxisSize;
+int NumElemAfterAxis;
+
+groupshared WORK_TYPE SharedMemorySum[THREADGROUP_SIZE];
+
+[numthreads(THREADGROUP_SIZE, 1, 1)]
+void Reduce(in const uint3 DispatchThreadID : SV_DispatchThreadID, in const uint3 GroupThreadID : SV_GroupThreadID)
+{
+	const uint IdxAfterAxis = DispatchThreadID.y;
+	const uint IdxBeforeAxis = DispatchThreadID.z;
+	const int InputStartIdx = (IdxBeforeAxis * AxisSize * NumElemAfterAxis) + IdxAfterAxis;
+	const int OutputIdx     = (IdxBeforeAxis * 1        * NumElemAfterAxis) + IdxAfterAxis;
+
+	// Reduction using sharedmem and THREADGROUP_SIZE threads along the reduced dimension
+	{
+		WORK_TYPE Sum = 0;
+
+		for (int AxisIdx = GroupThreadID.x; AxisIdx < AxisSize; AxisIdx += THREADGROUP_SIZE)
+		{
+			WORK_TYPE Value = READ(Input[(AxisIdx * NumElemAfterAxis) + InputStartIdx]);
+			Sum += Value;
+		}
+
+		SharedMemorySum[GroupThreadID.x] = Sum;
+	}
+
+	// Wait until all threads wrote result to shared memory
+	GroupMemoryBarrierWithGroupSync();
+
+	// Use one thread to calculate final result
+	if (GroupThreadID.x == 0)
+	{
+		WORK_TYPE Sum = 0;
+
+		UNROLL
+		for (int Idx = 0; Idx < THREADGROUP_SIZE; Idx++)
+		{
+			WORK_TYPE CurrSum = SharedMemorySum[Idx];
+			Sum += CurrSum;
+		}
+
+		SharedMemorySum[0] = Sum;
+	}
+
+	// Wait until first thread wrote result to shared memory
+	GroupMemoryBarrierWithGroupSync();
+
+	// Write reduced result
+	WORK_TYPE Sum = SharedMemorySum[0];
+	Output[OutputIdx] = Sum;
+}
