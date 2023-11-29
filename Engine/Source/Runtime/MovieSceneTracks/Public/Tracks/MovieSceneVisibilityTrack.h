@@ -23,6 +23,7 @@ public:
 	virtual void PostLoad() override;
 	virtual bool SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const override;
 	virtual UMovieSceneSection* CreateNewSection() override;
+	virtual void Serialize(FArchive& Ar) override;
 
 #if WITH_EDITORONLY_DATA
 	virtual FText GetDisplayName() const override;

@@ -51,6 +51,24 @@ void UMovieSceneVisibilityTrack::PostLoad()
 	Super::PostLoad();
 }
 
+void UMovieSceneVisibilityTrack::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	// Preload BoolSections for PostLoad upgrade if necessary
+	if (Ar.IsLoading())
+	{
+		for (int32 Index = 0; Index < Sections.Num(); ++Index)
+		{
+			UMovieSceneBoolSection* BoolSection = ExactCast<UMovieSceneBoolSection>(Sections[Index]);
+			if (BoolSection)
+			{
+				Ar.Preload(BoolSection);		
+			}
+		}
+	}
+}
+
 bool UMovieSceneVisibilityTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
 	return SectionClass == UMovieSceneVisibilitySection::StaticClass();
