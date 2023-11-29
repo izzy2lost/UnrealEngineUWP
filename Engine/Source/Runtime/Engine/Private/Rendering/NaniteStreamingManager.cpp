@@ -135,6 +135,19 @@ static FAutoConsoleVariableRef CVarNaniteStreamingPrefetch(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarNaniteStreamingTranscodeWaveSize(
+	TEXT("r.Nanite.Streaming.TranscodeWaveSize"), 0,
+	TEXT("Overrides the wave size to use for transcoding.\n")
+	TEXT(" 0: Automatic (default);\n")
+	TEXT(" 4: Wave size 4;\n")
+	TEXT(" 8: Wave size 8;\n")
+	TEXT(" 16: Wave size 16;\n")
+	TEXT(" 32: Wave size 32;\n")
+	TEXT(" 64: Wave size 64;\n")
+	TEXT(" 128: Wave size 128;\n"),
+	ECVF_RenderThreadSafe
+);
+
 static int32 GNaniteStreamingDynamicPageUploadBuffer = 0;
 static FAutoConsoleVariableRef CVarNaniteStreamingDynamicPageUploadBuffer(
 	TEXT("r.Nanite.Streaming.DynamicPageUploadBuffer"),
@@ -388,6 +401,27 @@ static void AddPass_UpdateClusterLeafFlags(FRDGBuilder& GraphBuilder, FRDGBuffer
 		);
 }
 
+static int32 SelectTranscodeWaveSize()
+{
+	const int32 WaveSizeOverride = CVarNaniteStreamingTranscodeWaveSize.GetValueOnRenderThread();
+
+	int32 WaveSize = 0;
+	if (WaveSizeOverride != 0 && WaveSizeOverride >= GRHIMinimumWaveSize && WaveSizeOverride <= GRHIMaximumWaveSize && FMath::IsPowerOfTwo(WaveSizeOverride))
+	{
+		WaveSize = WaveSizeOverride;
+	}
+	else if (IsRHIDeviceIntel() && 16 >= GRHIMinimumWaveSize && 16 <= GRHIMaximumWaveSize)
+	{
+		WaveSize = 16;
+	}
+	else
+	{
+		WaveSize = GRHIMaximumWaveSize;
+	}
+	
+	return WaveSize;
+}
+
 struct FPackedClusterInstallInfo
 {
 	uint32 LocalPageIndex_LocalClusterIndex;
@@ -593,7 +627,7 @@ public:
 		
 		check(GRHISupportsWaveOperations);
 
-		const uint32 PreferredGroupSize = GRHIMaximumWaveSize;
+		const uint32 PreferredGroupSize = (uint32)SelectTranscodeWaveSize();
 
 		FTranscodePageToGPU_CS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FTranscodePageToGPU_CS::FGroupSizeDim>(PreferredGroupSize);
@@ -615,7 +649,7 @@ public:
 			
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("TranscodePageToGPU Independent (ClusterCount: %u)", NextClusterIndex),
+				RDG_EVENT_NAME("TranscodePageToGPU Independent (ClusterCount: %u, GroupSize: %u)", NextClusterIndex, PreferredGroupSize),
 				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
 				ComputeShader,
 				PassParameters,
@@ -645,7 +679,7 @@ public:
 			
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("TranscodePageToGPU Dependent (ClusterOffset: %u, ClusterCount: %u)", StartClusterIndex, PassInfo.NumClusters),
+				RDG_EVENT_NAME("TranscodePageToGPU Dependent (ClusterOffset: %u, ClusterCount: %u, GroupSize: %u)", StartClusterIndex, PassInfo.NumClusters, PreferredGroupSize),
 				bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
 				ComputeShader,
 				PassParameters,
