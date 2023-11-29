@@ -7723,6 +7723,9 @@ FAsyncArchive::FAsyncArchive(const FPackagePath& InPackagePath, FLinkerLoad* InO
 	, SummaryReadyCallback(Forward<TFunction<void()>>(InSummaryReadyCallback))
 	, OwnerLinker(InOwner)
 {
+	// Set the Archive flags for code that uses this as an FArchive
+	SetIsLoading(true);
+
 	LogItem(TEXT("Open"));
 	FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Header);
 	Handle = OpenResult.Handle.Release();
