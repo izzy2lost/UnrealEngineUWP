@@ -25,18 +25,6 @@ enum class EBlueprintCompileReinstancerFlags
 
 ENUM_CLASS_FLAGS(EBlueprintCompileReinstancerFlags)
 
-class FReinstanceFinalizer;
-
-struct FRecreateUberGraphFrameScope
-{
-private:
-	TArray<UObject*> Objects;
-	UClass* RecompiledClass;
-public:
-	UNREALED_API FRecreateUberGraphFrameScope(UClass* InClass, bool bRecreate);
-	UNREALED_API ~FRecreateUberGraphFrameScope();
-};
-
 struct FReplaceInstancesOfClassParameters
 {
 	UE_NONCOPYABLE(FReplaceInstancesOfClassParameters)

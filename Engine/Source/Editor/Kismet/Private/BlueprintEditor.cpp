@@ -4113,8 +4113,6 @@ void FBlueprintEditor::Compile()
 		FCompilerResultsLog LogResults;
 		LogResults.SetSourcePath(BlueprintObj->GetPathName());
 		LogResults.BeginEvent(TEXT("Compile"));
-		LogResults.bLogDetailedResults = GetDefault<UBlueprintEditorSettings>()->bShowDetailedCompileResults;
-		LogResults.EventDisplayThresholdMs = GetDefault<UBlueprintEditorSettings>()->CompileEventDisplayThresholdMs;
 		EBlueprintCompileOptions CompileOptions = EBlueprintCompileOptions::None;
 		if( bSaveIntermediateBuildProducts )
 		{

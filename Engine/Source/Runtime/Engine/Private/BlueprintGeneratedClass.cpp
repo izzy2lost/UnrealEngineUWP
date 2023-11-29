@@ -727,8 +727,6 @@ struct FConditionalRecompileClassHepler
 	}
 };
 
-extern UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
-
 void UBlueprintGeneratedClass::ConditionalRecompileClass(FUObjectSerializeContext* InLoadContext)
 {
 	FBlueprintCompilationManager::FlushCompilationQueue(InLoadContext);

@@ -52,8 +52,6 @@ DECLARE_CYCLE_STAT(TEXT("Update Bytecode References"), EKismetReinstancerStats_U
 DECLARE_CYCLE_STAT(TEXT("Recompile Child Classes"), EKismetReinstancerStats_RecompileChildClasses, STATGROUP_KismetReinstancer );
 DECLARE_CYCLE_STAT(TEXT("Replace Classes Without Reinstancing"), EKismetReinstancerStats_ReplaceClassNoReinsancing, STATGROUP_KismetReinstancer );
 DECLARE_CYCLE_STAT(TEXT("Reinstance Objects"), EKismetCompilerStats_ReinstanceObjects, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Refresh Dependent Blueprints In Reinstancer"), EKismetCompilerStats_RefreshDependentBlueprintsInReinstancer, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Recreate UberGraphPersistentFrame"), EKismetCompilerStats_RecreateUberGraphPersistentFrame, STATGROUP_KismetCompiler);
 
 bool GUseLegacyAnimInstanceReinstancingBehavior = false;
 static FAutoConsoleVariableRef CVarUseLegacyAnimInstanceReinstancingBehavior(
@@ -942,12 +940,8 @@ void FBlueprintCompileReinstancer::BlueprintWasRecompiled(UBlueprint* BP, bool b
 {
 }
 
-extern UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
-
 void FBlueprintCompileReinstancer::ReinstanceObjects(bool bForceAlwaysReinstance)
 {
-	FSecondsCounterScope Timer(BlueprintCompileAndLoadTimerData);
-
 	BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_ReinstanceObjects);
 	
 	// Make sure we only reinstance classes once!
@@ -3135,35 +3129,6 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(c
 					PreCreateSubObjectsForReinstantiation(OldToNewClassMap, OldSubObject, NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
 				}
 			}
-		}
-	}
-}
-
-FRecreateUberGraphFrameScope::FRecreateUberGraphFrameScope(UClass* InClass, bool bRecreate)
-	: RecompiledClass(InClass)
-{
-	if (bRecreate && ensure(RecompiledClass))
-	{
-		BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_RecreateUberGraphPersistentFrame);
-
-		const bool bIncludeDerivedClasses = true;
-		GetObjectsOfClass(RecompiledClass, Objects, bIncludeDerivedClasses, RF_NoFlags);
-
-		for (UObject* Obj : Objects)
-		{
-			RecompiledClass->DestroyPersistentUberGraphFrame(Obj);
-		}
-	}
-}
-
-FRecreateUberGraphFrameScope::~FRecreateUberGraphFrameScope()
-{
-	BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_RecreateUberGraphPersistentFrame);
-	for (UObject* Obj : Objects)
-	{
-		if (IsValid(Obj))
-		{
-			RecompiledClass->CreatePersistentUberGraphFrame(Obj, false);
 		}
 	}
 }

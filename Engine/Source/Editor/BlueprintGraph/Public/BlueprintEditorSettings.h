@@ -252,12 +252,10 @@ public:
 
 	// Perf Settings
 public:
-	/** If enabled, additional details will be displayed in the Compiler Results tab after compiling a blueprint. */
-	UPROPERTY(EditAnywhere, config, Category = Performance)
+	UE_DEPRECATED(5.4, "BP-specific perf tracking has been removed, use Insights")
 	bool bShowDetailedCompileResults;
 
-	/** Minimum event time threshold used as a filter when additional details are enabled for display in the Compiler Results tab. A value of zero means that all events will be included in the final summary. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, config, Category = Performance, DisplayName = "Compile Event Results Threshold (ms)", meta = (ClampMin = "0", UIMin = "0"))
+	UE_DEPRECATED(5.4, "BP-specific perf tracking has been removed, use Insights")
 	int32 CompileEventDisplayThresholdMs;
 
 	/** The node template cache is used to speed up blueprint menuing. This determines the peak data size for that cache. */

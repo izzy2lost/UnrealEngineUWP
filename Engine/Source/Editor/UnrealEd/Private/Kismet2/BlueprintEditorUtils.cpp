@@ -1476,13 +1476,11 @@ void FBlueprintEditorUtils::PropagateParentBlueprintDefaults(UClass* ClassToProp
 	}
 }
 
-UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
-
 uint32 FBlueprintDuplicationScopeFlags::bStaticFlags = FBlueprintDuplicationScopeFlags::NoFlags;
 
 void FBlueprintEditorUtils::PostDuplicateBlueprint(UBlueprint* Blueprint, bool bDuplicateForPIE)
 {
-	FSecondsCounterScope Timer(BlueprintCompileAndLoadTimerData); 
+	TRACE_CPUPROFILER_EVENT_SCOPE(PostDuplicateBlueprint);
 	
 	// Only recompile after duplication if this isn't PIE
 	if (!bDuplicateForPIE)
@@ -1810,8 +1808,6 @@ void FBlueprintEditorUtils::UpdateDelegatesInBlueprint(UBlueprint* Blueprint)
 // Blueprint has materially changed.  Recompile the skeleton, notify observers, and mark the package as dirty.
 void FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(UBlueprint* Blueprint)
 {
-	FSecondsCounterScope Timer(BlueprintCompileAndLoadTimerData);
-
 	// The Blueprint has been structurally modified and this means that some node titles will need to be refreshed
 	GetDefault<UEdGraphSchema_K2>()->ForceVisualizationCacheClear();
 

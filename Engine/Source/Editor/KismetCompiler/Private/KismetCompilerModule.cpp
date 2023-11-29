@@ -29,9 +29,6 @@
 #include "Engine/Engine.h"
 
 DEFINE_LOG_CATEGORY(LogK2Compiler);
-DECLARE_CYCLE_STAT(TEXT("Compile Time"), EKismetCompilerStats_CompileTime, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Compile Skeleton Class"), EKismetCompilerStats_CompileSkeletonClass, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Compile Generated Class"), EKismetCompilerStats_CompileGeneratedClass, STATGROUP_KismetCompiler);
 
 #define LOCTEXT_NAMESPACE "KismetCompiler"
 
@@ -90,12 +87,10 @@ public:
 
 void FKismet2CompilerModule::CompileStructure(UUserDefinedStruct* Struct, FCompilerResultsLog& Results)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FKismet2CompilerModule::CompileStructure);
 	Results.SetSourcePath(Struct->GetPathName());
-	BP_SCOPED_COMPILER_EVENT_STAT(EKismetCompilerStats_CompileTime);
 	FUserDefinedStructureCompilerUtils::CompileStruct(Struct, Results, true);
 }
-
-extern UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
 
 void FKismet2CompilerModule::RefreshVariables(UBlueprint* Blueprint)
 {

@@ -86,13 +86,6 @@
 #include "ToolMenus.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
-DECLARE_CYCLE_STAT(TEXT("Compile Blueprint"), EKismetCompilerStats_CompileBlueprint, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Broadcast Precompile"), EKismetCompilerStats_BroadcastPrecompile, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Update Search Metadata"), EKismetCompilerStats_UpdateSearchMetaData, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Garbage Collection"), EKismetCompilerStats_GarbageCollection, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Refresh Dependent Blueprints"), EKismetCompilerStats_RefreshDependentBlueprints, STATGROUP_KismetCompiler);
-DECLARE_CYCLE_STAT(TEXT("Validate Generated Class"), EKismetCompilerStats_ValidateGeneratedClass, STATGROUP_KismetCompiler);
-
 #define LOCTEXT_NAMESPACE "UnrealEd.Editor"
 
 //////////////////////////////////////////////////////////////////////////
@@ -412,8 +405,6 @@ void FKismetEditorUtilities::CreateDefaultEventGraphs(UBlueprint* Blueprint)
 	Blueprint->LastEditedDocuments.AddUnique(Ubergraph);
 }
 
-extern UNREALED_API FSecondsCounterData BlueprintCompileAndLoadTimerData;
-
 /** Create a new Blueprint and initialize it to a valid state but uses the associated blueprint types. */
 UBlueprint* FKismetEditorUtilities::CreateBlueprint(UClass* ParentClass, UObject* Outer, const FName NewBPName,	EBlueprintType BlueprintType, FName CallingContext)
 {
@@ -428,7 +419,7 @@ UBlueprint* FKismetEditorUtilities::CreateBlueprint(UClass* ParentClass, UObject
 /** Create a new Blueprint and initialize it to a valid state. */
 UBlueprint* FKismetEditorUtilities::CreateBlueprint(UClass* ParentClass, UObject* Outer, const FName NewBPName, EBlueprintType BlueprintType, TSubclassOf<UBlueprint> BlueprintClassType, TSubclassOf<UBlueprintGeneratedClass> BlueprintGeneratedClassType, FName CallingContext)
 {
-	FSecondsCounterScope Timer(BlueprintCompileAndLoadTimerData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(CreateBlueprint);
 	check(FindObject<UBlueprint>(Outer, *NewBPName.ToString()) == NULL); 
 
 	// Not all types are legal for all parent classes, if the parent class is const then the blueprint cannot be an ubergraph-bearing one
@@ -789,7 +780,6 @@ void FKismetEditorUtilities::CompileBlueprint(UBlueprint* BlueprintObj, EBluepri
 bool FKismetEditorUtilities::GenerateBlueprintSkeleton(UBlueprint* BlueprintObj, bool bForceRegeneration)
 {
 	bool bRegeneratedSkeleton = false;
-	FSecondsCounterScope Timer(BlueprintCompileAndLoadTimerData); 
 	check(BlueprintObj);
 
 	if( BlueprintObj->SkeletonGeneratedClass == NULL || bForceRegeneration )

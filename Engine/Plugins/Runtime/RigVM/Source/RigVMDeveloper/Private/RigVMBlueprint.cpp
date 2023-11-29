@@ -202,8 +202,6 @@ URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 		CompileLog.bSilentMode = true;
 	}
 	CompileLog.SetSourcePath(GetPathName());
-	CompileLog.bLogDetailedResults = false;
-	CompileLog.EventDisplayThresholdMs = false;
 #endif
 
 	if(GetClass() == URigVMBlueprint::StaticClass())

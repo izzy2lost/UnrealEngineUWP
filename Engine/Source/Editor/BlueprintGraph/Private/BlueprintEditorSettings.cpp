@@ -67,8 +67,6 @@ UBlueprintEditorSettings::UBlueprintEditorSettings(const FObjectInitializer& Obj
 	// Developer Settings
 	, bShowActionMenuItemSignatures(false)
 	// Perf Settings
-	, bShowDetailedCompileResults(false)
-	, CompileEventDisplayThresholdMs(5)
 	, NodeTemplateCacheCapMB(20.f)
 	// No category
 	, bShowInheritedVariables(false)
