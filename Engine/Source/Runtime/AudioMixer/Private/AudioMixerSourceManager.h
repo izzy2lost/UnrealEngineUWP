@@ -421,7 +421,7 @@ namespace Audio
 		// A command queue to execute commands from audio thread (or game thread) to audio mixer device thread.
 		struct FCommands
 		{
-			int32 NumTimesOvergrown = 0;
+			FThreadSafeCounter NumTimesOvergrown = 0;
 			TArray<FAudioMixerThreadCommand> SourceCommandQueue;
 		};
 		
