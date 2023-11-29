@@ -16,9 +16,11 @@
 #include "WorldPartition/WorldPartitionHelpers.h"
 
 #if WITH_EDITOR
+#include "Components/StaticMeshComponent.h"
 #include "Editor.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/ArchiveMD5.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "WorldPartition/HLOD/HLODActorDesc.h"
@@ -249,6 +251,47 @@ void AWorldPartitionHLOD::PostLoad()
 #endif
 }
 
+#if WITH_EDITOR
+void AWorldPartitionHLOD::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	// Always disable collisions on HLODs
+	SetActorEnableCollision(false);
+
+	ForEachComponent<UPrimitiveComponent>(false, [this, &ObjectSaveContext](UPrimitiveComponent* PrimitiveComponent)
+	{
+		// Disable collision on HLOD components
+		PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		// When cooking, get rid of collision data
+		if (ObjectSaveContext.IsCooking())
+		{
+			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(PrimitiveComponent))
+			{
+				if (UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh())
+				{
+					// If the HLOD process did create this static mesh
+					if (StaticMesh->GetPackage() == GetPackage())
+					{
+						if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
+						{
+ 							// To ensure a deterministic cook, save the current GUID and restore it below
+							FGuid PreviousBodySetupGuid = BodySetup->BodySetupGuid;
+							BodySetup->DefaultInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+							BodySetup->bNeverNeedsCookedCollisionData = true;
+							BodySetup->bHasCookedCollisionData = false;
+							BodySetup->InvalidatePhysicsData();
+							BodySetup->BodySetupGuid = PreviousBodySetupGuid;
+						}
+					}
+				}
+			}
+		}
+	});
+}
+#endif
+
 void AWorldPartitionHLOD::PreRegisterAllComponents()
 {
 	Super::PreRegisterAllComponents();
@@ -260,6 +303,25 @@ void AWorldPartitionHLOD::PreRegisterAllComponents()
 			PrimitiveComponent->SetCastShadow(false);
 		});
 	}
+
+#if WITH_EDITOR
+	// In editor, turn on collision on HLODs in order to enable some useful editor features on HLODs (Actor placement, Play from here, Go Here, etc)
+	// In PIE, collisions should be disabled
+	if (GetWorld() && !IsRunningCommandlet() && !FApp::IsUnattended())
+	{
+		bool bShouldEnableCollision = !GetWorld()->IsGameWorld();
+		if (GetActorEnableCollision() != bShouldEnableCollision)
+		{
+			SetActorEnableCollision(bShouldEnableCollision);
+			ForEachComponent<UPrimitiveComponent>(false, [bShouldEnableCollision](UPrimitiveComponent* PrimitiveComponent)
+			{
+				PrimitiveComponent->SetCollisionEnabled(bShouldEnableCollision ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Visibility, bShouldEnableCollision ? ECR_Block : ECR_Ignore);
+				PrimitiveComponent->SetCollisionResponseToChannel(ECC_Camera, bShouldEnableCollision ? ECR_Block : ECR_Ignore);
+			});
+		}
+	}	
+#endif
 
 	// If world is instanced, we need to recompute our bounds since they are in the instanced-world space
 	if (UWorldPartition* WorldPartition = FWorldPartitionHelpers::GetWorldPartition(this))

@@ -45,7 +45,7 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	FArchiveCrc32 Ar;
 
 	// Base key, changing this will force a rebuild of all HLODs
-	FString HLODBaseKey = "DFCCA659C5964FB29D31A4DF2682D4D6";
+	FString HLODBaseKey = "75D23ACFD6C549069945B08D2A977661";
 	Ar << HLODBaseKey;
 
 	// HLOD Source Actors
@@ -820,12 +820,23 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 								StaticMeshComponent->bRayTracingFarField = true;
 							}
 
-							// Disable collisions
+							// Disable navigation data on HLODs
 							StaticMesh->MarkAsNotHavingNavigationData();
-							if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
+
+							// Ensure we can perform line trace on HLOD static meshes. This is useful for all kind of editor features on HLODs (Actor placement, Play from here, Go Here, etc)
+							// Collision data will be stripped at cook.
+							StaticMesh->CreateBodySetup();
+							UBodySetup* BodySetup = StaticMesh->GetBodySetup();
+							BodySetup->DefaultInstance.SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+							BodySetup->DefaultInstance.SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+							for (int32 LODIndex = 0; LODIndex < StaticMesh->GetNumLODs(); ++LODIndex)
 							{
-								BodySetup->DefaultInstance.SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-								BodySetup->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+								for (int32 SectionIndex = 0; SectionIndex < StaticMesh->GetNumSections(LODIndex); ++SectionIndex)
+								{
+									FMeshSectionInfo MeshSectionInfo = StaticMesh->GetSectionInfoMap().Get(LODIndex, SectionIndex);
+									MeshSectionInfo.bEnableCollision = true;
+									StaticMesh->GetSectionInfoMap().Set(LODIndex, SectionIndex, MeshSectionInfo);
+								}
 							}
 
 							// Rename owned static mesh

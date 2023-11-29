@@ -8,6 +8,11 @@
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/HLOD/HLODStats.h"
+
+#if WITH_EDITOR
+#include "UObject/ObjectSaveContext.h"
+#endif // WITH_EDITOR
+
 #include "HLODActor.generated.h"
 
 class UHLODLayer;
@@ -65,6 +70,7 @@ protected:
 	ENGINE_API virtual bool NeedsLoadForServer() const override;
 	ENGINE_API virtual void PostLoad() override;
 #if WITH_EDITOR
+	ENGINE_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	ENGINE_API virtual void RerunConstructionScripts() override;
 	virtual bool CanEditChange(const FProperty* InProperty) const override { return false; }
 	virtual bool CanEditChangeComponent(const UActorComponent* Component, const FProperty* InProperty) const override { return false; }
