@@ -890,6 +890,7 @@ public:
 	const FMeshBatch& GetGrassMeshBatch() const { return GrassMeshBatch; }
 
 	// FLandcapeSceneProxy
+	UE_DEPRECATED(5.4, "This function has been deprecated, use ComponentScreenSizeToUseSubSections on ALandscapeProxy instead")
 	LANDSCAPE_API void ChangeComponentScreenSizeToUseSubSections_RenderThread(float InComponentScreenSizeToUseSubSections);
 
 	LANDSCAPE_API virtual bool HeightfieldHasPendingStreaming() const override;

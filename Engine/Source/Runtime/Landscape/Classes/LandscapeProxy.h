@@ -850,7 +850,7 @@ public:
 	virtual void ChangeLODDistanceFactor(float InLODDistanceFactor);
 
 	/** Change ComponentScreenSizeToUseSubSections value on the render proxy.*/
-	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DeprecatedFunction, DeprecationMessage = "This value can't be changed anymore, you should edit the property ComponentScreenSizeToUseSubSections of the Landscape"))
 	virtual void ChangeComponentScreenSizeToUseSubSections(float InComponentScreenSizeToUseSubSections);
 
 	/* Setter for LandscapeMaterial. Has no effect outside the editor. */

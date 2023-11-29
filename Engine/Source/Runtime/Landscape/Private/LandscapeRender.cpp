@@ -4112,33 +4112,7 @@ void ULandscapeComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCont
 
 void ALandscapeProxy::ChangeComponentScreenSizeToUseSubSections(float InComponentScreenSizeToUseSubSections)
 {
-	ComponentScreenSizeToUseSubSections = FMath::Clamp<float>(InComponentScreenSizeToUseSubSections, 0.01f, 1.0f);
-
-	if (LandscapeComponents.Num() > 0)
-	{
-		int32 ComponentCount = LandscapeComponents.Num();
-		FLandscapeComponentSceneProxy** RenderProxies = new FLandscapeComponentSceneProxy * [ComponentCount];
-		for (int32 Idx = 0; Idx < ComponentCount; ++Idx)
-		{
-			RenderProxies[Idx] = (FLandscapeComponentSceneProxy*)(LandscapeComponents[Idx]->SceneProxy);
-		}
-
-		float ComponentScreenSizeToUseSubSectionsLocal = ComponentScreenSizeToUseSubSections;
-		ENQUEUE_RENDER_COMMAND(LandscapeChangeComponentScreenSizeToUseSubSectionsCommand)(
-			[RenderProxies, ComponentCount, ComponentScreenSizeToUseSubSectionsLocal](FRHICommandListImmediate& RHICmdList)
-		{
-			for (int32 Idx = 0; Idx < ComponentCount; ++Idx)
-			{
-				if (RenderProxies[Idx] != nullptr)
-				{
-					RenderProxies[Idx]->ChangeComponentScreenSizeToUseSubSections_RenderThread(ComponentScreenSizeToUseSubSectionsLocal);
-				}
-			}
-
-			delete[] RenderProxies;
-		}
-		);
-	}
+	// Deprecated
 }
 
 void ALandscapeProxy::ChangeLODDistanceFactor(float InLODDistanceFactor)
@@ -4148,6 +4122,7 @@ void ALandscapeProxy::ChangeLODDistanceFactor(float InLODDistanceFactor)
 
 void FLandscapeComponentSceneProxy::ChangeComponentScreenSizeToUseSubSections_RenderThread(float InComponentScreenSizeToUseSubSections)
 {
+	// Deprecated
 	ComponentSquaredScreenSizeToUseSubSections = FMath::Square(InComponentScreenSizeToUseSubSections);
 }
 
