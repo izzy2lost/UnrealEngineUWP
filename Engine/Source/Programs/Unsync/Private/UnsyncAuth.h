@@ -49,6 +49,8 @@ struct FAuthDesc
 	std::string Audience;
 	std::string Callback;	// OAuth flow redirection URL
 
+	FPath TokenPath; // Optional explicit storage location for the auth token
+
 	// Check that mandatory fields have values
 	bool IsValid() const
 	{

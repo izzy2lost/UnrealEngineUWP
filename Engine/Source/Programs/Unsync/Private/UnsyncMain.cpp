@@ -80,6 +80,7 @@ InnerMain(int Argc, char** Argv)
 	std::string				 P4HavePathUtf8;
 	std::string				 StorePathUtf8;
 	std::string				 SnapshotNameUtf8;
+	std::string				 AuthTokenPathUtf8;
 	bool					 bRunP4Have			 = false;
 	bool					 bForceOperation	 = false;
 	bool					 bAllowInsecureTls	 = false;
@@ -310,6 +311,7 @@ InnerMain(int Argc, char** Argv)
 	SubSync->add_flag("--no-space-validation", bNoSpaceValidation, "Skip checking available disk space before sync (DANGEROUS)");
 	SubSync->add_option("--scavenge", ScavengeRootUtf8, "Search for unsync manifests and reusable blocks in this directory (EXPERIMENTAL)");
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
+	SubSync->add_option("--token", AuthTokenPathUtf8, "Explicit path to the authentication token file to use");
 	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
 
 	CLI::Option* BackgroundMemoryBudgetOption = SubSync->add_option("--background-task-memory",
@@ -867,6 +869,8 @@ InnerMain(int Argc, char** Argv)
 			{
 				AuthDesc = AuthDescResult.GetData();
 
+				AuthDesc.TokenPath = NormalizeFilenameUtf8(AuthTokenPathUtf8);
+
 				// Note: since tokens can expire during a long operation,
 				// we can only save the auth descriptor and re-authenticate later if necessary
 				TResult<FAuthToken> AuthTokenResult = Authenticate(AuthDesc, 5 * 60);
@@ -905,6 +909,10 @@ InnerMain(int Argc, char** Argv)
 				uint32 InstalledMemoryGB = CheckedNarrow(MemoryInfo.InstalledPhysicalMemory >> 30);
 				UNSYNC_VERBOSE2(L"Detected memory: %llu GB", InstalledMemoryGB);
 				BackgroundTaskMemoryBudgetGB = std::max<uint32>(2, InstalledMemoryGB / 4);
+			}
+			else
+			{
+				UNSYNC_VERBOSE2(L"Could not detect system memory size");
 			}
 
 			UNSYNC_VERBOSE2(L"Using automatic background task memory budget: %llu GB", BackgroundTaskMemoryBudgetGB);

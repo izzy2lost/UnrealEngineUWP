@@ -727,6 +727,11 @@ RefreshOrAcquireToken(const FAuthDesc& AuthDesc, const FOpenIdConfig& OpenIdConf
 TResult<FPath>
 GetTokenCachePath(const FAuthDesc& AuthDesc)
 {
+	if (!AuthDesc.TokenPath.empty())
+	{
+		return ResultOk(AuthDesc.TokenPath);
+	}
+
 	FPath UserHomePath = GetUserHomeDirectory();
 	if (UserHomePath.empty())
 	{
