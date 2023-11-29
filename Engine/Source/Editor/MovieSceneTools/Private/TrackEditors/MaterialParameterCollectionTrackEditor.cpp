@@ -323,7 +323,7 @@ void FMaterialParameterCollectionTrackEditor::AddScalarParameter(UMovieSceneMate
 	}
 
 	float Value = Parameter.DefaultValue;
-	if (UWorld* World = Cast<UWorld>(GetSequencer()->GetPlaybackContext()))
+	if (UWorld* World = GetSequencer()->GetPlaybackContext()->GetWorld())
 	{
 		if (UMaterialParameterCollectionInstance* Instance = World->GetParameterCollectionInstance(Track->MPC))
 		{
@@ -348,7 +348,7 @@ void FMaterialParameterCollectionTrackEditor::AddVectorParameter(UMovieSceneMate
 	}
 
 	FLinearColor Value = Parameter.DefaultValue;
-	if (UWorld* World = Cast<UWorld>(GetSequencer()->GetPlaybackContext()))
+	if (UWorld* World = GetSequencer()->GetPlaybackContext()->GetWorld())
 	{
 		if (UMaterialParameterCollectionInstance* Instance = World->GetParameterCollectionInstance(Track->MPC))
 		{

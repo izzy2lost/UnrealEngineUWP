@@ -1411,8 +1411,7 @@ void ULevelSequenceEditorSubsystem::FixActorReferences()
 		return;
 	}
 
-	UWorld* PlaybackContext = Cast<UWorld>(Sequencer->GetPlaybackContext());
-
+	UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
 	if (!PlaybackContext)
 	{
 		return;

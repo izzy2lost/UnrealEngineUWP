@@ -861,7 +861,7 @@ FGuid FSequencerUtilities::CreateCameraWithRig(TSharedRef<ISequencer> Sequencer,
 	}
 
 	// Create a cine camera actor
-	UWorld* PlaybackContext = Cast<UWorld>(Sequencer->GetPlaybackContext());
+	UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
 	OutActor = PlaybackContext->SpawnActor<ACineCameraActor>();
 	CameraGuid = CreateBinding(Sequencer, *OutActor);
 
@@ -1192,7 +1192,7 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToPossessable(TSharedRef<ISe
 	SpawnInfo.bDeferConstruction = true;
 	SpawnInfo.Template = SpawnableActorTemplate;
 
-	UWorld* PlaybackContext = Cast<UWorld>(Sequencer->GetPlaybackContext());
+	UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
 	AActor* PossessedActor = PlaybackContext->SpawnActor(Spawnable->GetObjectTemplate()->GetClass(), &DefaultTransform, SpawnInfo);
 
 	if (!PossessedActor)
@@ -2315,7 +2315,7 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 	for (int32 PossessableGuidIndex = 0; PossessableGuidIndex < PossessableGuids.Num(); ++PossessableGuidIndex)
 	{
 		FMovieScenePossessable* Possessable = MovieScene->FindPossessable(PossessableGuids[PossessableGuidIndex]);
-		UWorld* PlaybackContext = Cast<UWorld>(Sequencer->GetPlaybackContext());
+		UWorld* PlaybackContext = Sequencer->GetPlaybackContext()->GetWorld();
 		if (Possessable && PlaybackContext)
 		{
 			for (TActorIterator<AActor> ActorItr(PlaybackContext); ActorItr; ++ActorItr)
