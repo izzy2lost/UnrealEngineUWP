@@ -12,6 +12,21 @@
 
 #define LOCTEXT_NAMESPACE "PCGCreatePointsGridElement"
 
+void UPCGCreatePointsGridSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (GridPivot_DEPRECATED != EPCGGridPivot::Global)
+	{
+		CoordinateSpace = static_cast<EPCGCoordinateSpace>(static_cast<int8>(GridPivot_DEPRECATED));
+		GridPivot_DEPRECATED = EPCGGridPivot::Global;
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+}
+
 TArray<FPCGPinProperties> UPCGCreatePointsGridSettings::InputPinProperties() const
 {
 	return TArray<FPCGPinProperties>();
@@ -26,35 +41,36 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCreatePointsGridElement::Execute);
 	
-	check(Context);
+	check(Context && Context->SourceComponent.Get());
 
 	const UPCGCreatePointsGridSettings* Settings = Context->GetInputSettings<UPCGCreatePointsGridSettings>();
 	check(Settings);
 
-	UPCGComponent* PCGComponent = nullptr;
-	check(Context->SourceComponent.Get());
+	// Used for culling, regardless of generation coordinate space
+	const UPCGSpatialData* CullingShape = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData()) : nullptr;
 
-	if (Settings->GridPivot == EPCGGridPivot::OriginalComponent)
+	// Early out if the culling shape isn't valid
+	if (!CullingShape && Settings->bCullPointsOutsideVolume)
 	{
-		PCGComponent = Context->SourceComponent->GetOriginalComponent();
-	}
-	else if (Settings->GridPivot == EPCGGridPivot::LocalComponent)
-	{
-		PCGComponent = Context->SourceComponent.Get();
+		PCGE_LOG(Error, GraphAndLog, LOCTEXT("CannotCullWithoutAShape", "Unable to cull since the supporting actor has no data."));
+		return true;
 	}
 
-	FTransform OriginalComponentTransform = FTransform();
-	FTransform ComponentTransformScaleOne = FTransform();
-	const UPCGSpatialData* Target = nullptr;
+	FTransform LocalTransform = FTransform::Identity;
 
-	if (PCGComponent)
+	if (Settings->CoordinateSpace == EPCGCoordinateSpace::OriginalComponent)
 	{
-		check(PCGComponent->GetOwner());
-
-		OriginalComponentTransform = PCGComponent->GetOwner()->GetActorTransform();
-		ComponentTransformScaleOne = FTransform(OriginalComponentTransform.Rotator(), OriginalComponentTransform.GetLocation(), FVector::One());
-		Target = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(PCGComponent->GetActorPCGData()) : nullptr;
+		check(Context->SourceComponent->GetOriginalComponent() && Context->SourceComponent->GetOriginalComponent()->GetOwner());
+		LocalTransform = Context->SourceComponent->GetOriginalComponent()->GetOwner()->GetActorTransform();
 	}
+	else if (Settings->CoordinateSpace == EPCGCoordinateSpace::LocalComponent)
+	{
+		check(Context->SourceComponent->GetOwner());
+		LocalTransform = Context->SourceComponent->GetOwner()->GetActorTransform();
+	}
+
+	// Reset the scale on the local transform since we don't want to derive the points scale from the referential
+	LocalTransform.SetScale3D(FVector::One());
 
 	if (Settings->CellSize.X <= 0.0 || Settings->CellSize.Y <= 0.0 || Settings->CellSize.Z <= 0.0)
 	{
@@ -73,10 +89,10 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 
 	int32 PointCountX = FMath::TruncToInt((2 * GridExtents.X) / CellSize.X);
 	int32 PointCountY = FMath::TruncToInt((2 * GridExtents.Y) / CellSize.Y);
-	int32 PointCountZ = FMath::TruncToInt((2 * GridExtents.Z) / CellSize.Z);
+	int32 PointCountZ = FMath::TruncToInt((2 * GridExtents.Z) / CellSize.Z); 
 
 	if (Settings->PointPosition == EPCGPointPosition::CellCorners)
-	{ 
+	{
 		PointCountX++;
 		PointCountY++;
 		PointCountZ++;
@@ -120,12 +136,54 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 		GridExtents.Z = GridExtents.Z - FMath::Fmod(GridExtents.Z, CellSize.Z / 2);
 	}
 
-	const int64 NumIterations64 = static_cast<int64>(PointCountX) * static_cast<int64>(PointCountY) * static_cast<int64>(PointCountZ);
+	int64 NumIterations64 = static_cast<int64>(PointCountX) * static_cast<int64>(PointCountY) * static_cast<int64>(PointCountZ);
 
 	if (NumIterations64 <= 0)
 	{
 		PCGE_LOG(Error, GraphAndLog, LOCTEXT("InvalidNumberOfIterations", "The number of iterations produced cannot be less than or equal to 0."));
 		return true;
+	}
+
+	// Adjust point count/offset with respect to the Culling Shape bounding box if any.
+	int32 PointOffsetX = 0;
+	int32 PointOffsetY = 0;
+	int32 PointOffsetZ = 0;
+
+	if (CullingShape)
+	{
+		// Get target bounds in world space
+		FBox TargetBounds = CullingShape->GetBounds();
+
+		// Move bounds to coordinate space
+		TargetBounds = TargetBounds.InverseTransformBy(LocalTransform);
+
+		// Discretize target bounds to the cell size
+		TargetBounds.Min /= CellSize;
+		TargetBounds.Max /= CellSize;
+		
+		FIntVector DiscreteMin(FMath::FloorToInt(TargetBounds.Min.X), FMath::FloorToInt(TargetBounds.Min.Y), FMath::FloorToInt(TargetBounds.Min.Z));
+		FIntVector DiscreteMax(FMath::CeilToInt(TargetBounds.Max.X), FMath::CeilToInt(TargetBounds.Max.Y), FMath::CeilToInt(TargetBounds.Max.Z));
+
+		// Grid is built from -GridExtents to +GridExtents, so intuitively we'll do this:
+		//PointOffset = (PointCount / 2) + FMath::Max(-PointCount / 2, DiscreteMin);
+		//PointCount = (PointCount / 2) + FMath::Min(+PointCount / 2, DiscreteMax) - PointOffset;
+		PointOffsetX = FMath::Max(0, PointCountX / 2 + DiscreteMin.X);
+		PointOffsetY = FMath::Max(0, PointCountY / 2 + DiscreteMin.Y);
+		PointOffsetZ = FMath::Max(0, PointCountZ / 2 + DiscreteMin.Z);
+
+		// Implementation note: the +1 here is to make sure we properly manage the case where PointCount isn't even
+		PointCountX = FMath::Min(PointCountX, (PointCountX+1) / 2 + DiscreteMax.X) - PointOffsetX;
+		PointCountY = FMath::Min(PointCountY, (PointCountY+1) / 2 + DiscreteMax.Y) - PointOffsetY;
+		PointCountZ = FMath::Min(PointCountZ, (PointCountZ+1) / 2 + DiscreteMax.Z) - PointOffsetZ;
+
+		// Update iteration count
+		NumIterations64 = static_cast<int64>(PointCountX) * static_cast<int64>(PointCountY) * static_cast<int64>(PointCountZ);
+
+		// If it is now equal to zero, return quietly as we might have culled completely
+		if (NumIterations64 <= 0)
+		{
+			return true;
+		}
 	}
 
 	if (NumIterations64 >= MAX_int32)
@@ -151,13 +209,13 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGPoint>& OutputPoints = PtData->GetMutablePoints();
 	Output.Data = PtData;
 
-	FPCGAsync::AsyncPointProcessing(Context, NumIterations, OutputPoints, [Settings, Target, &PointCountX, &PointCountY, &CellSize, &GridExtents, &ComponentTransformScaleOne](int32 Index, FPCGPoint& OutPoint)
+	FPCGAsync::AsyncPointProcessing(Context, NumIterations, OutputPoints, [Settings, CullingShape, &PointCountX, &PointCountY, &PointOffsetX, &PointOffsetY, &PointOffsetZ, &CellSize, &GridExtents, &LocalTransform](int32 Index, FPCGPoint& OutPoint)
 	{
 		OutPoint = FPCGPoint();
 
-		double XCoordinate = Index % PointCountX;
-		double YCoordinate = (Index / PointCountX) % PointCountY;
-		double ZCoordinate = Index / (PointCountX * PointCountY);
+		double XCoordinate = (Index % PointCountX) + PointOffsetX;
+		double YCoordinate = ((Index / PointCountX) % PointCountY) + PointOffsetY;
+		double ZCoordinate = (Index / (PointCountX * PointCountY)) + PointOffsetZ;
 
 		if (Settings->PointPosition == EPCGPointPosition::CellCenter)
 		{
@@ -181,26 +239,24 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 			ZCoordinate = 0.0;
 		}
 
-		const FVector GridTransformLocation((CellSize.X * XCoordinate) - GridExtents.X, (CellSize.Y * YCoordinate) - GridExtents.Y, (CellSize.Z * ZCoordinate) - GridExtents.Z);
+		FTransform PointTransform = FTransform(FVector((CellSize.X * XCoordinate) - GridExtents.X, (CellSize.Y * YCoordinate) - GridExtents.Y, (CellSize.Z * ZCoordinate) - GridExtents.Z));
 
-		if (Settings->GridPivot == EPCGGridPivot::LocalComponent || Settings->GridPivot == EPCGGridPivot::OriginalComponent)
+		if (Settings->CoordinateSpace == EPCGCoordinateSpace::LocalComponent || Settings->CoordinateSpace == EPCGCoordinateSpace::OriginalComponent)
 		{
-			OutPoint.Transform = FTransform(FRotator::ZeroRotator, GridTransformLocation, FVector::One()) * ComponentTransformScaleOne;
+			PointTransform *= LocalTransform;
 		}
-		else
-		{
-			OutPoint.Transform.SetLocation(GridTransformLocation);
-		}
+
+		OutPoint.Transform = PointTransform;
 
 		if (Settings->bSetPointsBounds)
 		{
 			OutPoint.SetExtents(CellSize * 0.5);
 		}
 
-		OutPoint.Seed = PCGHelpers::ComputeSeed(OutPoint.Transform.GetLocation().X, OutPoint.Transform.GetLocation().Y, OutPoint.Transform.GetLocation().Z);
+		OutPoint.Seed = PCGHelpers::ComputeSeedFromPosition(PointTransform.GetLocation());
 
 		// Discards points outside of the volume
-		return !Target || (Target->GetDensityAtPosition(OutPoint.Transform.GetLocation()) > 0.0f);
+		return !CullingShape || (CullingShape->GetDensityAtPosition(PointTransform.GetLocation()) > 0.0f);
 	});
 
 	return true;
@@ -213,15 +269,15 @@ void FPCGCreatePointsGridElement::GetDependenciesCrc(const FPCGDataCollection& I
 	
 	if (const UPCGCreatePointsGridSettings* Settings = Cast<UPCGCreatePointsGridSettings>(InSettings))
 	{
-		int GridPivot = static_cast<int>(EPCGGridPivot::Global);
+		int CoordinateSpace = static_cast<int>(EPCGCoordinateSpace::World);
 		bool bCullPointsOutsideVolume = false;
-		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(UPCGCreatePointsGridSettings, GridPivot), static_cast<int>(Settings->GridPivot), GridPivot);
+		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(UPCGCreatePointsGridSettings, CoordinateSpace), static_cast<int>(Settings->CoordinateSpace), CoordinateSpace);
 		PCGSettingsHelpers::GetOverrideValue(InInput, Settings, GET_MEMBER_NAME_CHECKED(UPCGCreatePointsGridSettings, bCullPointsOutsideVolume), Settings->bCullPointsOutsideVolume, bCullPointsOutsideVolume);
 		
 		// We're using the bounds of the pcg volume, so we extract the actor data here
-		EPCGGridPivot EnumGridPivot = static_cast<EPCGGridPivot>(GridPivot);
+		EPCGCoordinateSpace EnumCoordinateSpace = static_cast<EPCGCoordinateSpace>(CoordinateSpace);
 
-		if ((EnumGridPivot == EPCGGridPivot::OriginalComponent || EnumGridPivot == EPCGGridPivot::LocalComponent || bCullPointsOutsideVolume) && InComponent)
+		if ((EnumCoordinateSpace == EPCGCoordinateSpace::OriginalComponent || EnumCoordinateSpace == EPCGCoordinateSpace::LocalComponent || bCullPointsOutsideVolume) && InComponent)
 		{
 			if (const UPCGData* Data = InComponent->GetActorPCGData())
 			{

@@ -6,6 +6,7 @@
 #include "PCGContext.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGBlueprintHelpers.h"
+#include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
 #include "GameFramework/Actor.h"
@@ -16,6 +17,21 @@ UPCGCreatePointsSettings::UPCGCreatePointsSettings()
 {
 	// Add one default point in the array
 	PointsToCreate.Add(FPCGPoint());
+}
+
+void UPCGCreatePointsSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (GridPivot_DEPRECATED != EPCGLocalGridPivot::Global)
+	{
+		CoordinateSpace = static_cast<EPCGCoordinateSpace>(static_cast<uint8>(GridPivot_DEPRECATED));
+		GridPivot_DEPRECATED = EPCGLocalGridPivot::Global;
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 }
 
 TArray<FPCGPinProperties> UPCGCreatePointsSettings::InputPinProperties() const
@@ -32,76 +48,91 @@ bool FPCGCreatePointsElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCreatePointsElement::Execute);
 	
-	check(Context);
+	check(Context && Context->SourceComponent.Get());
 
 	const UPCGCreatePointsSettings* Settings = Context->GetInputSettings<UPCGCreatePointsSettings>();
 	check(Settings);
 
-	UPCGComponent* PCGComponent = nullptr;
-	check(Context->SourceComponent.Get());
+	// Used for culling, regardless of generation coordinate space
+	const UPCGSpatialData* CullingShape = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(Context->SourceComponent->GetActorPCGData()) : nullptr;
 
-	if (Settings->GridPivot == EPCGLocalGridPivot::OriginalComponent)
+	// Early out if the culling shape isn't valid
+	if (!CullingShape && Settings->bCullPointsOutsideVolume)
 	{
-		PCGComponent = Context->SourceComponent->GetOriginalComponent();
-	}
-	else if (Settings->GridPivot == EPCGLocalGridPivot::LocalComponent)
-	{
-		PCGComponent = Context->SourceComponent.Get();
+		PCGE_LOG(Error, GraphAndLog, LOCTEXT("CannotCullWithoutAShape", "Unable to cull since the supporting actor has no data."));
+		return true;
 	}
 
-	FTransform OriginalComponentTransform = FTransform();
-	FTransform ComponentTransformScaleOne = FTransform();
-	const UPCGSpatialData* Target = nullptr;
+	FTransform LocalTransform = FTransform::Identity;
 
-	if (PCGComponent)
+	if(Settings->CoordinateSpace == EPCGCoordinateSpace::OriginalComponent)
 	{
-		check(PCGComponent->GetOwner());
-
-		OriginalComponentTransform = PCGComponent->GetOwner()->GetActorTransform();
-		ComponentTransformScaleOne = FTransform(OriginalComponentTransform.Rotator(), OriginalComponentTransform.GetLocation(), FVector::One());
-		Target = Settings->bCullPointsOutsideVolume ? Cast<UPCGSpatialData>(PCGComponent->GetActorPCGData()) : nullptr;
+		check(Context->SourceComponent->GetOriginalComponent() && Context->SourceComponent->GetOriginalComponent()->GetOwner());
+		LocalTransform = Context->SourceComponent->GetOriginalComponent()->GetOwner()->GetActorTransform();
+	}
+	else if (Settings->CoordinateSpace == EPCGCoordinateSpace::LocalComponent)
+	{
+		check(Context->SourceComponent->GetOwner());
+		LocalTransform = Context->SourceComponent->GetOwner()->GetActorTransform();
 	}
 
-	TArray<FPCGPoint> PointsToLoopOn = Settings->PointsToCreate;
+	// Reset scale as we are not going to derive the points size from it
+	LocalTransform.SetScale3D(FVector::One());
+
+	const TArray<FPCGPoint>& PointsToLoopOn = Settings->PointsToCreate;
 	
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 
-	UPCGPointData* PtData = NewObject<UPCGPointData>();
-	check(PtData); 
+	UPCGPointData* PointData = NewObject<UPCGPointData>();
+	check(PointData); 
 
-	TArray<FPCGPoint>& OutputPoints = PtData->GetMutablePoints();
-	Output.Data = PtData;
+	TArray<FPCGPoint>& OutputPoints = PointData->GetMutablePoints();
+	Output.Data = PointData;
 
-	if (Settings->GridPivot == EPCGLocalGridPivot::Global && !Settings->bCullPointsOutsideVolume)
+	if (Settings->CoordinateSpace == EPCGCoordinateSpace::World)
 	{
-		for (auto& Points : PointsToLoopOn)
+		if (CullingShape)
 		{
-			if (Points.Seed == 0)
+			OutputPoints.Reserve(PointsToLoopOn.Num());
+
+			for (const FPCGPoint& Point : PointsToLoopOn)
 			{
-				// If the seed is the default value, generate a new seed based on the its transform
-				Points.Seed = UPCGBlueprintHelpers::ComputeSeedFromPosition(Points.Transform.GetLocation());
+				if (CullingShape->GetDensityAtPosition(Point.Transform.GetLocation()) > 0)
+				{
+					OutputPoints.Add(Point);
+				}
 			}
 		}
-
-		PtData->SetPoints(PointsToLoopOn);
+		else
+		{
+			OutputPoints = PointsToLoopOn;
+		}
+		
+		for (FPCGPoint& Point : OutputPoints)
+		{
+			if (Point.Seed == 0)
+			{
+				// If the seed is the default value, generate a new seed based on the its transform
+				Point.Seed = UPCGBlueprintHelpers::ComputeSeedFromPosition(Point.Transform.GetLocation());
+			}
+		}
 	}
 	else
 	{
-		FPCGAsync::AsyncPointProcessing(Context, PointsToLoopOn.Num(), OutputPoints, [&PointsToLoopOn, Settings, &ComponentTransformScaleOne, Target](int32 Index, FPCGPoint& OutPoint)
+		check(Settings->CoordinateSpace == EPCGCoordinateSpace::LocalComponent || Settings->CoordinateSpace == EPCGCoordinateSpace::OriginalComponent);
+
+		FPCGAsync::AsyncPointProcessing(Context, PointsToLoopOn.Num(), OutputPoints, [&PointsToLoopOn, &LocalTransform, CullingShape](int32 Index, FPCGPoint& OutPoint)
 		{
 			const FPCGPoint& InPoint = PointsToLoopOn[Index];
 			OutPoint = InPoint;
+			OutPoint.Transform *= LocalTransform;
 
-			if (Settings->GridPivot == EPCGLocalGridPivot::LocalComponent || Settings->GridPivot == EPCGLocalGridPivot::OriginalComponent)
-			{
-				OutPoint.Transform *= ComponentTransformScaleOne;
-			}
-
-			OutPoint.Seed = UPCGBlueprintHelpers::ComputeSeedFromPosition(OutPoint.Transform.GetLocation());
+			const int SeedFromPosition = UPCGBlueprintHelpers::ComputeSeedFromPosition(OutPoint.Transform.GetLocation());
+			OutPoint.Seed = (InPoint.Seed == 0 ? SeedFromPosition : PCGHelpers::ComputeSeed(InPoint.Seed, SeedFromPosition));
 
 			// Discards all points that are outside the volume
-			return !Target || (Target->GetDensityAtPosition(OutPoint.Transform.GetLocation()) > 0.0f);
+			return !CullingShape || (CullingShape->GetDensityAtPosition(OutPoint.Transform.GetLocation()) > 0.0f);
 		});
 	}
 
@@ -112,7 +143,7 @@ bool FPCGCreatePointsElement::IsCacheable(const UPCGSettings* InSettings) const
 {
 	const UPCGCreatePointsSettings* Settings = Cast<const UPCGCreatePointsSettings>(InSettings);
 
-	return Settings && Settings->GridPivot == EPCGLocalGridPivot::Global;
+	return Settings && Settings->CoordinateSpace == EPCGCoordinateSpace::World;
 }
 
 #undef LOCTEXT_NAMESPACE

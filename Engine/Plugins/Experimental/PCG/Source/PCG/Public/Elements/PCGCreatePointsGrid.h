@@ -14,7 +14,7 @@ enum class EPCGPointPosition : uint8
 };
 
 UENUM()
-enum class EPCGGridPivot : uint8
+enum class UE_DEPRECATED(5.4, "Not used anymore, replaced by EPCGCoordinateSpace.") EPCGGridPivot : uint8
 {
 	Global,
 	OriginalComponent,
@@ -30,6 +30,10 @@ class UPCGCreatePointsGridSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	//~End UObject interface
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CreatePointsGrid")); }
@@ -51,9 +55,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, ClampMin = "0.0", UIMin = "0.0"))
 	FVector CellSize = FVector(100.0, 100.0, 100.0);
 
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Sets the points transform to world or local space*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	EPCGGridPivot GridPivot = EPCGGridPivot::Global;
+	UPROPERTY()
+	EPCGGridPivot GridPivot_DEPRECATED = EPCGGridPivot::Global;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+	/** Sets the generation referential of the points */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases="GridPivot"))
+	EPCGCoordinateSpace CoordinateSpace = EPCGCoordinateSpace::World;
 
 	/** If true, the bounds of the points are set to 50.0, if false, 1.0 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))

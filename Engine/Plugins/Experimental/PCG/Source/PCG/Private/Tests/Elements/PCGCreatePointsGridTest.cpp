@@ -17,7 +17,7 @@ namespace CreatePointsGridCommonTests
 		PCGTestsCommon::GenerateSettings<UPCGCreatePointsGridSettings>(TestData);
 		UPCGCreatePointsGridSettings* Settings = CastChecked<UPCGCreatePointsGridSettings>(TestData.Settings);
 		Settings->PointPosition = Position;
-		Settings->GridPivot = EPCGGridPivot::Global;
+		Settings->CoordinateSpace = EPCGCoordinateSpace::World;
 		Settings->GridExtents = GridSize;
 		Settings->CellSize = Cell;
 
@@ -30,13 +30,13 @@ namespace CreatePointsGridCommonTests
 		return Context;
 	}
 
-	PCGTestsCommon::FTestData GenerateTestData(EPCGPointPosition Position, EPCGGridPivot Pivot)
+	PCGTestsCommon::FTestData GenerateTestData(EPCGPointPosition Position, EPCGCoordinateSpace CoordinateSpace)
 	{
 		PCGTestsCommon::FTestData TestData(42, nullptr, APCGVolume::StaticClass());
 		PCGTestsCommon::GenerateSettings<UPCGCreatePointsGridSettings>(TestData);
 		UPCGCreatePointsGridSettings* Settings = CastChecked<UPCGCreatePointsGridSettings>(TestData.Settings);
 		Settings->PointPosition = Position;
-		Settings->GridPivot = Pivot;
+		Settings->CoordinateSpace = CoordinateSpace;
 		Settings->GridExtents = FVector(100.0, 100.0, 50.0);
 		Settings->CellSize = FVector(100.0);
 
@@ -322,7 +322,7 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCenter, FP
 
 bool FPCGCreatePointsGridTest_LocalCenter::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData = CreatePointsGridCommonTests::GenerateTestData(EPCGPointPosition::CellCenter, EPCGGridPivot::LocalComponent);
+	PCGTestsCommon::FTestData TestData = CreatePointsGridCommonTests::GenerateTestData(EPCGPointPosition::CellCenter, EPCGCoordinateSpace::LocalComponent);
 
 	// Creating the volume and proper bounds
 	AActor* TestActor = TestData.TestActor;
@@ -367,7 +367,7 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGCreatePointsGridTest_LocalCorner, FP
 
 bool FPCGCreatePointsGridTest_LocalCorner::RunTest(const FString& Parameters)
 {
-	PCGTestsCommon::FTestData TestData = CreatePointsGridCommonTests::GenerateTestData(EPCGPointPosition::CellCorners, EPCGGridPivot::LocalComponent);
+	PCGTestsCommon::FTestData TestData = CreatePointsGridCommonTests::GenerateTestData(EPCGPointPosition::CellCorners, EPCGCoordinateSpace::LocalComponent);
 
 	// Creating the volume and proper bounds
 	AActor* TestActor = TestData.TestActor;

@@ -3,11 +3,13 @@
 
 #include "PCGSettings.h"
 
+#include "PCGCommon.h"
 #include "Data/PCGPointData.h"
+
 #include "PCGCreatePoints.generated.h"
 
 UENUM()
-enum class EPCGLocalGridPivot : uint8
+enum class UE_DEPRECATED(5.4, "Not used anymore, replaced by EPCGCoordinateSpace.") EPCGLocalGridPivot : uint8
 {
 	Global,
 	OriginalComponent,
@@ -24,6 +26,11 @@ class UPCGCreatePointsSettings : public UPCGSettings
 
 public:
 	UPCGCreatePointsSettings();
+
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	//~End UObject interface
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CreatePoints")); }
@@ -42,9 +49,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	TArray<FPCGPoint> PointsToCreate;
 
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Sets the points transform to world or local space*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
-	EPCGLocalGridPivot GridPivot = EPCGLocalGridPivot::Global;
+	UPROPERTY()
+	EPCGLocalGridPivot GridPivot_DEPRECATED = EPCGLocalGridPivot::Global;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+	/** Sets the generation referential of the points */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases="GridPivot"))
+	EPCGCoordinateSpace CoordinateSpace = EPCGCoordinateSpace::World;
 
 	/** If true, points are removed if they are outside of the volume */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))

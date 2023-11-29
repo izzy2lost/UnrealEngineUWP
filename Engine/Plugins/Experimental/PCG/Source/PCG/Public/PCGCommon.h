@@ -151,6 +151,15 @@ namespace PCGFeatureSwitches
 	extern PCG_API TAutoConsoleVariable<bool> CVarCheckSamplerMemory;
 }
 
+/** Describes space referential for operations that create data */
+UENUM(BlueprintType)
+enum class EPCGCoordinateSpace : uint8
+{
+	World UMETA(DisplayName = "Global"),
+	OriginalComponent,
+	LocalComponent
+};
+
 /** Describes one or more target execution grids. */
 UENUM(meta = (Bitflags))
 enum class EPCGHiGenGrid : uint32
