@@ -215,11 +215,16 @@ void USmartObjectComponent::OnRuntimeInstanceUnbound(FSmartObjectRuntime& Runtim
 
 bool USmartObjectComponent::SetSmartObjectEnabled(const bool bEnable) const
 {
+	return SetSmartObjectEnabledForReason(UE::SmartObject::EnabledReason::Gameplay, bEnable);
+}
+
+bool USmartObjectComponent::SetSmartObjectEnabledForReason(const FGameplayTag ReasonTag, const bool bEnabled) const
+{
 	if (GetRegisteredHandle().IsValid())
 	{
 		if (USmartObjectSubsystem* const Subsystem = USmartObjectSubsystem::GetCurrent(GetWorld()))
 		{
-			Subsystem->SetEnabled(GetRegisteredHandle(), bEnable);
+			Subsystem->SetEnabledForReason(GetRegisteredHandle(), ReasonTag, bEnabled);
 
 			return true;
 		}
@@ -237,7 +242,20 @@ bool USmartObjectComponent::IsSmartObjectEnabled() const
 			return Subsystem->IsEnabled(GetRegisteredHandle());
 		}
 	}
-	
+
+	return false;
+}
+
+bool USmartObjectComponent::IsSmartObjectEnabledForReason(const FGameplayTag ReasonTag) const
+{
+	if (GetRegisteredHandle().IsValid())
+	{
+		if (const USmartObjectSubsystem* const Subsystem = USmartObjectSubsystem::GetCurrent(GetWorld()))
+		{
+			return Subsystem->IsEnabledForReason(GetRegisteredHandle(), ReasonTag);
+		}
+	}
+
 	return false;
 }
 

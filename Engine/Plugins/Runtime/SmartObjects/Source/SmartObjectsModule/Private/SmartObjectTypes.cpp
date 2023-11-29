@@ -2,7 +2,9 @@
 
 #include "SmartObjectTypes.h"
 #include "AI/Navigation/NavAgentInterface.h"
+#include "GameplayTagsManager.h"
 #include "NavigationSystem.h"
+
 #include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectTypes)
@@ -12,6 +14,30 @@ DEFINE_LOG_CATEGORY(LogSmartObject);
 const FSmartObjectUserHandle FSmartObjectUserHandle::Invalid;
 const FSmartObjectHandle FSmartObjectHandle::Invalid;
 
+namespace UE::SmartObject::EnabledReason
+{
+
+FGameplayTag Gameplay;
+
+struct FNativeGameplayTags : FGameplayTagNativeAdder
+{
+	virtual ~FNativeGameplayTags() {}
+
+	virtual void AddTags() override
+	{
+		UGameplayTagsManager& Manager = UGameplayTagsManager::Get();
+		Gameplay = Manager.AddNativeGameplayTag(TEXT("SmartObject.EnabledReason.Gameplay"));
+	}
+
+	static const FNativeGameplayTags& Get()
+	{
+		return StaticInstance;
+	}
+	static FNativeGameplayTags StaticInstance;
+};
+FNativeGameplayTags FNativeGameplayTags::StaticInstance;
+
+} // UE::SmartObject::EnabledReason
 
 //----------------------------------------------------------------------//
 // FSmartObjectUserCapsuleParams

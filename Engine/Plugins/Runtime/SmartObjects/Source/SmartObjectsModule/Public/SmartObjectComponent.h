@@ -59,13 +59,36 @@ public:
 	void OnRuntimeInstanceBound(FSmartObjectRuntime& RuntimeInstance);
 	void OnRuntimeInstanceUnbound(FSmartObjectRuntime& RuntimeInstance);
 
-	/** Enables or disables the smart object. Returns false if it was not possible to enable it (ie. if it's not registered or there is no smart object subsystem). */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	/**
+	 * Enables or disables the smart object using the default reason (i.e. Gameplay).
+	 * @return false if it was not possible to change the enabled state (ie. if it's not registered or there is no smart object subsystem).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Set SmartObject Enabled (default reason: Gameplay)", ReturnDisplayName="Status changed"))
 	bool SetSmartObjectEnabled(const bool bEnable) const;
-	
-	/** Returns the enabled state of the smart object. */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+
+	/**
+	 * Enables or disables the smart object for the specified reason.
+	 * @param ReasonTag Valid Tag to specify the reason for changing the enabled state of the object. Method will ensure if not valid (i.e. None).
+	 * @param bEnabled If true enables the smart object, disables otherwise.
+	 * @return false if it was not possible to change the enabled state (ie. if it's not registered or there is no smart object subsystem).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Set SmartObject Enabled (specific reason)", ReturnDisplayName="Status changed"))
+	bool SetSmartObjectEnabledForReason(FGameplayTag ReasonTag, const bool bEnabled) const;
+
+	/**
+	 * Returns the enabled state of the smart object regardless of the disabled reason.
+	 * @return True when associated smart object is set to be enabled. False otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Is SmartObject Enabled (for any reason)", ReturnDisplayName="Enabled"))
 	bool IsSmartObjectEnabled() const;
+
+	/**
+	 * Returns the enabled state of the smart object based on a specific reason.
+	 * @param ReasonTag Valid Tag to test if enabled for a specific reason. Method will ensure if not valid (i.e. None).
+	 * @return True when associated smart object is set to be enabled. False otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Is SmartObject Enabled (for specific reason)", ReturnDisplayName="Enabled"))
+	bool IsSmartObjectEnabledForReason(FGameplayTag ReasonTag) const;
 
 	FSmartObjectComponentEventNativeSignature& GetOnSmartObjectEventNative() { return OnSmartObjectEventNative; }
 

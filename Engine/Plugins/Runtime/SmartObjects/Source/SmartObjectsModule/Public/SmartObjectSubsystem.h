@@ -397,22 +397,42 @@ public:
 	FSmartObjectContainer& GetMutableSmartObjectContainer() { return SmartObjectContainer; }
 
 	/**
-	 * Enables or disables the entire smart object represented by the provided handle.
+	 * Enables or disables the entire smart object represented by the provided handle using the default reason (i.e. Gameplay)..
 	 * Delegate 'OnEvent' is broadcasted with ESmartObjectChangeReason::OnEnabled/ESmartObjectChangeReason::OnDisabled if state changed.
 	 * @param Handle Handle to the smart object.
 	 * @param bEnabled If true enables the smart object, disables otherwise.
 	 * @return True when associated smart object is found and set (or already set) to desired state; false otherwise.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Set SmartObject Enabled (default reason: Gameplay)", ReturnDisplayName="Status changed"))
 	bool SetEnabled(const FSmartObjectHandle Handle, const bool bEnabled);
 
 	/**
-	 * Returns the enabled state of the smart object represented by the provided handle.
+	 * Enables or disables the entire smart object represented by the provided handle using the specified reason.
+	 * Delegate 'OnEvent' is broadcasted with ESmartObjectChangeReason::OnEnabled/ESmartObjectChangeReason::OnDisabled if state changed.
+	 * @param Handle Handle to the smart object.
+	 * @param ReasonTag Valid Tag to specify the reason for changing the enabled state of the object. Method will ensure if not valid (i.e. None).
+	 * @param bEnabled If true enables the smart object, disables otherwise.
+	 * @return True when associated smart object is found and set (or already set) to desired state; false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Set SmartObject Enabled (specific reason)", ReturnDisplayName="Status changed"))
+	bool SetEnabledForReason(const FSmartObjectHandle Handle, FGameplayTag ReasonTag, const bool bEnabled);
+
+	/**
+	 * Returns the enabled state of the smart object represented by the provided handle regardless of the disabled reason.
 	 * @param Handle Handle to the smart object.
 	 * @return True when associated smart object is found and set to be enabled. False otherwise.
 	 */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject", meta=(DisplayName="Is SmartObject Enabled (for any reason)", ReturnDisplayName="Enabled"))
 	bool IsEnabled(const FSmartObjectHandle Handle) const;
+
+	/**
+	 * Returns the enabled state of the smart object represented by the provided handle based on a specific reason.
+	 * @param Handle Handle to the smart object.
+	 * @param ReasonTag Valid Tag to test if enabled for a specific reason. Method will ensure if not valid (i.e. None).
+	 * @return True when associated smart object is found and set to be enabled. False otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="SmartObject", meta=(DisplayName="Is SmartObject Enabled (for specific reason)", ReturnDisplayName="Enabled"))
+	bool IsEnabledForReason(const FSmartObjectHandle Handle, FGameplayTag ReasonTag) const;
 
 	/**
 	 * Enables or disables all smart objects associated to the provided actor (multiple components).

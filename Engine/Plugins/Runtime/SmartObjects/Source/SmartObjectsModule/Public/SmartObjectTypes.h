@@ -28,6 +28,11 @@ namespace UE::SmartObject
 #endif // WITH_EDITORONLY_DATA
 }
 
+namespace UE::SmartObject::EnabledReason
+{
+SMARTOBJECTSMODULE_API extern FGameplayTag Gameplay;
+}
+
 /** Indicates how Tags from slots and parent object are combined to be evaluated by a TagQuery from a find request. */
 UENUM()
 enum class ESmartObjectTagMergingPolicy : uint8

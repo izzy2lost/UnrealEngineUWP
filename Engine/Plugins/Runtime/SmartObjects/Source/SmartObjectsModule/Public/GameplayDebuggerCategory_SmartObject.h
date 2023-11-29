@@ -20,6 +20,10 @@ public:
 
 protected:
 	virtual void CollectData(APlayerController* OwnerPC, AActor* DebugActor) override;
+	virtual void DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext) override;
+
+private:
+	void ToggleInstanceTags();
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG

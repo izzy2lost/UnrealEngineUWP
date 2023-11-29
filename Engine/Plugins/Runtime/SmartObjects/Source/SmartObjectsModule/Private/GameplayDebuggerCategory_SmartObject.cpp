@@ -9,14 +9,38 @@
 
 #if WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG
 
+namespace UE::SmartObject::Debug
+{
+
+enum class EDrawFlags : uint8
+{
+	None = 0,
+	InstanceTags = 1 << 0
+};
+ENUM_CLASS_FLAGS(EDrawFlags);
+
+EDrawFlags DrawFlags = EDrawFlags::None;
+
+} // UE::SmartObject::Debug
+
 FGameplayDebuggerCategory_SmartObject::FGameplayDebuggerCategory_SmartObject()
 {
 	bShowOnlyWithDebugActor = false;
+
+	const FGameplayDebuggerInputHandlerConfig InstanceTagsKeyConfig(TEXT("ToggleInstanceTags"), EKeys::Add.GetFName(), FGameplayDebuggerInputModifier::Shift);
+	BindKeyPress(InstanceTagsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags);
 }
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_SmartObject::MakeInstance()
 {
 	return MakeShareable(new FGameplayDebuggerCategory_SmartObject());
+}
+
+void FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags()
+{
+	UE::SmartObject::Debug::DrawFlags ^= UE::SmartObject::Debug::EDrawFlags::InstanceTags;
+
+	MarkRenderStateDirty();
 }
 
 void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* OwnerPC, AActor* DebugActor)
@@ -57,11 +81,15 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 		}
 
 		// Instance tags
-		FString TagsAsString = Instance.GetTags().ToStringSimple();
-		if (!TagsAsString.IsEmpty())
+		const bool bDisplayInstanceTags(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags));
+		if (bDisplayInstanceTags)
 		{
-			// Using small dummy shape to display tags
-			AddShape(FGameplayDebuggerShape::MakePoint(Location, /*Radius*/ 1.0f, FColorList::White, TagsAsString));
+			FString TagsAsString = Instance.GetTags().ToStringSimple();
+			if (!TagsAsString.IsEmpty())
+			{
+				// Using small dummy shape to display tags
+				AddShape(FGameplayDebuggerShape::MakePoint(Location, /*Radius*/ 1.0f, FColorList::White, TagsAsString));
+			}
 		}
 	}
 
@@ -76,10 +104,11 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 	const FColor ObjectDisabledColor = FColorList::Black;
 
 	const TMap<FSmartObjectHandle, FSmartObjectRuntime>& RuntimeSmartObjects = Subsystem->DebugGetRuntimeObjects();
+	
+	const bool bDisplayInstanceTags(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags));
 
 	for (auto& RuntimeSmartObjectEntry : RuntimeSmartObjects)
 	{
-		const FSmartObjectHandle SmartObjectHandle = RuntimeSmartObjectEntry.Key;
 		const FSmartObjectRuntime& SmartObjectRuntime = RuntimeSmartObjectEntry.Value;
 
 		for (TConstEnumerateRef<FSmartObjectRuntimeSlot> RuntimeSlot : EnumerateRange(SmartObjectRuntime.GetSlots()))
@@ -110,7 +139,20 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			FColor StateColor = FColor::Silver;
 			if (!RuntimeSlot->IsEnabled())
 			{
-				StateColor = !SmartObjectRuntime.IsEnabled() ? ObjectDisabledColor : SlotDisabledColor;
+				if (SmartObjectRuntime.IsEnabled())
+				{
+					// Slot is disabled but not the parent object 
+					StateColor = SlotDisabledColor;
+				}
+				else
+				{
+					// Parent is disabled
+					StateColor = ObjectDisabledColor;
+					
+					// Using small dummy shape to display tags
+					FString DisableFlagsAsString(SmartObjectRuntime.DebugGetDisableFlagsString());
+					AddShape(FGameplayDebuggerShape::MakePoint(Pos, /*Radius*/ 1.0f, FColorList::White, DisableFlagsAsString));
+				}
 			}
 			else
 			{
@@ -144,12 +186,15 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			}
 			
 			AddShape(FGameplayDebuggerShape::MakeArrow(Pos, Pos + Dir * 2.0f * SlotSize, DebugArrowHeadSize, DebugArrowThickness, DebugColor));
-			
-			FString TagsAsString = RuntimeSlot->GetTags().ToStringSimple();
-			if (!TagsAsString.IsEmpty())
+
+			if (bDisplayInstanceTags)
 			{
-				// Using small dummy shape to display tags
-				AddShape(FGameplayDebuggerShape::MakePoint(Pos, /*Radius*/ 1.0f, FColorList::White, TagsAsString));
+				FString TagsAsString = RuntimeSlot->GetTags().ToStringSimple();
+				if (!TagsAsString.IsEmpty())
+				{
+					// Using small dummy shape to display tags
+					AddShape(FGameplayDebuggerShape::MakePoint(Pos, /*Radius*/ 1.0f, FColorList::White, TagsAsString));
+				}
 			}
 
 			// Let annotations debug draw too
@@ -179,6 +224,17 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			}
 		}
 	}
+}
+
+void FGameplayDebuggerCategory_SmartObject::DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext)
+{
+	FGameplayDebuggerCategory::DrawData(OwnerPC, CanvasContext);
+	
+		CanvasContext.Printf(TEXT("Display: [{yellow}%s{white}]:{%s}Instance Tags\n"),
+			*GetInputHandlerDescription(0),
+			!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags)
+			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
+			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled);
 }
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG

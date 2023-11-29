@@ -8,6 +8,11 @@
 
 class USmartObjectComponent;
 
+namespace UE::SmartObject
+{
+uint16 GetMaskForEnabledReasonTag(const FGameplayTag Tag);
+}
+
 /** Delegate fired when a given tag is added or removed. Tags on smart object are not using reference counting so count will be 0 or 1 */
 UE_DEPRECATED(5.2, "Tag changes are now broadcasted using FOnSmartObjectEvent.")
 DECLARE_DELEGATE_TwoParams(FOnSmartObjectTagChanged, const FGameplayTag, int32);
@@ -226,7 +231,7 @@ struct FSmartObjectRuntime
 public:
 	/* Provide default constructor to be able to compile template instantiation 'UScriptStruct::TCppStructOps<FSmartObjectRuntime>' */
 	/* Also public to pass void 'UScriptStruct::TCppStructOps<FSmartObjectRuntime>::ConstructForTests(void *)' */
-	FSmartObjectRuntime() : bEnabled(true) {}
+	FSmartObjectRuntime() {}
 
 	FSmartObjectHandle GetRegisteredHandle() const { return RegisteredHandle; }
 	const FTransform& GetTransform() const { return Transform; }
@@ -241,19 +246,34 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FOnSmartObjectTagChanged& GetTagChangedDelegate() { return OnTagChangedDelegate; }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-
 	/** @return reference to the Smart Object event delegate. */
 	const FOnSmartObjectEvent& GetEventDelegate() const { return OnEvent; }
 
 	/** @return mutable reference to the Smart Object event delegate. */
 	FOnSmartObjectEvent& GetMutableEventDelegate() { return OnEvent; }
-	
-	/** Indicates that this instance is still part of the simulation (space partition) but should not be considered valid by queries */
-	UE_DEPRECATED(5.1, "Use IsEnabled instead.")
-	bool IsDisabled() const { return !bEnabled; }
 
-	/** @return True of the Smart Object is enabled. */
-	bool IsEnabled() const { return bEnabled; }
+	/**
+	 * Indicates if the Smart Object is enabled regardless of the reason.
+	 * @return True of the Smart Object is enabled.
+	 */
+	bool IsEnabled() const
+	{
+		return DisableFlags == 0;
+	}
+
+	/**
+	 * Indicates if the Smart Object is enabled based on a specific reason.
+	 * @param ReasonTag Valid Tag to specify the reason for changing the enabled state of the object. Method will ensure if not valid (i.e. None).
+	 * @return True of the Smart Object is enabled.
+	 */
+	bool IsEnabledForReason(FGameplayTag ReasonTag) const;
+
+	/**
+	 * Enables or disables the entire smart object.
+	 * @param ReasonTag Valid Tag to specify the reason for changing the enabled state of the object. Method will ensure if not valid (i.e. None).
+	 * @param bEnabled Flag indicating if the object should be enable or not.
+	 */
+	void SetEnabled(FGameplayTag ReasonTag, bool bEnabled);
 
 	/** @return Pointer to owner actor if present. */
 	AActor* GetOwnerActor() const;
@@ -280,6 +300,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return {};
 	}
 
+#if WITH_SMARTOBJECT_DEBUG
+	FString DebugGetDisableFlagsString() const;
+#endif // WITH_SMARTOBJECT_DEBUG
+
 private:
 	/** Struct could have been nested inside the subsystem but not possible with USTRUCT */
 	friend class USmartObjectSubsystem;
@@ -289,6 +313,13 @@ private:
 	void SetTransform(const FTransform& Value) { Transform = Value; }
 
 	void SetRegisteredHandle(const FSmartObjectHandle Value) { RegisteredHandle = Value; }
+
+	/**
+	 * Enables or disables the entire smart object using the bit mask from a reason tag.
+	 * @param bEnabled Flag indicating if the object should be enable or not. 
+	 * @param ReasonMask Bit mask associated to the reason for disabling the object.
+	 */
+	void SetEnabled(bool bEnabled, uint16 ReasonMask);
 
 	/** World condition runtime state. */
 	UPROPERTY(Transient)
@@ -334,9 +365,15 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FBox Bounds = FBox(EForceInit::ForceInit);
 #endif
 
-	/** Each slot has its own disable state but keeping it also in the parent instance allow faster validation in some cases. */
+	/** 
+	 * Each slot has its own enabled state but the parent instance also have a more high level state that could be split into different reasons.
+	 * Note: The enabled state is stored as disable bits to make it easier to check for "is the object disabled for a given or any reason".
+	 */
 	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
-	uint8 bEnabled : 1;
+	uint16 DisableFlags = 0;
+
+public:
+	static constexpr int32 MaxNumDisableFlags = sizeof(DisableFlags) * 8;
 };
 
 USTRUCT()

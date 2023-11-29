@@ -424,6 +424,56 @@ struct FBoundToSimulation : FSmartObjectTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FBoundToSimulation, "System.AI.SmartObjects.Add to/Remove from simulation");
 
+struct FEnabledReasons : FSmartObjectTestBase
+{
+	virtual bool InstantTest() override
+	{
+		const USmartObjectComponent* SmartObjectComponent = SOList[0];
+		const FSmartObjectHandle Handle = SmartObjectComponent->GetRegisteredHandle();
+
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabled(Handle, false);
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, UE::SmartObject::EnabledReason::Gameplay));
+
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag1));
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag2));
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag3));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag1, false);
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag1));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag2, false);
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag2));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag3, false);
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag3));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabled(Handle, true);
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag1, true);
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag1));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag2, true);
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag2));
+		AITEST_FALSE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		Subsystem->SetEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag3, true);
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabledForReason(Handle, FNativeGameplayTags::Get().TestTag3));
+
+		AITEST_TRUE("SmartObjectComponent is enabled", Subsystem->IsEnabled(Handle));
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FEnabledReasons, "System.AI.SmartObjects.Enabled Reasons");
+
 struct FActivityTagsMergingPolicy : FSmartObjectTestBase
 {
 	virtual bool SetupDefinition() override

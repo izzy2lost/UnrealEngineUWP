@@ -843,12 +843,12 @@ bool USmartObjectSubsystem::SetSmartObjectActorEnabled(const AActor& SmartObject
 	TArray<USmartObjectComponent*> Components;
 	SmartObjectActor.GetComponents(Components);
 	UE_CVLOG_UELOG(Components.Num() == 0, this, LogSmartObject, Log,
-		TEXT("Failed to change SmartObject components enable state for %s. No components found."), *SmartObjectActor.GetFullName());
+		TEXT("Failed to change SmartObject components enabled state for %s. No components found."), *SmartObjectActor.GetFullName());
 
 	int32 NumSuccess = 0;
 	for (const USmartObjectComponent* SOComponent : Components)
 	{
-		if (SetEnabled(SOComponent->GetRegisteredHandle(), bEnabled))
+		if (SetEnabledForReason(SOComponent->GetRegisteredHandle(), UE::SmartObject::EnabledReason::Gameplay, bEnabled))
 		{
 			NumSuccess++;
 		}
@@ -859,22 +859,48 @@ bool USmartObjectSubsystem::SetSmartObjectActorEnabled(const AActor& SmartObject
 
 bool USmartObjectSubsystem::SetEnabled(const FSmartObjectHandle Handle, const bool bEnabled)
 {
+	return SetEnabledForReason(Handle, UE::SmartObject::EnabledReason::Gameplay, bEnabled);
+}
+
+bool USmartObjectSubsystem::SetEnabledForReason(const FSmartObjectHandle Handle, const FGameplayTag ReasonTag, const bool bEnabled)
+{
+	if (!ensureMsgf(ReasonTag.IsValid(), TEXT("All code paths are expected to provide a specific reason tag.")))
+	{
+		return false;
+	}
+
 	FSmartObjectRuntime* SmartObjectRuntime = GetRuntimeInstance(Handle);
 	if (SmartObjectRuntime == nullptr)
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log,
-			TEXT("Failed to change SmartObject enable state for %s. No associated runtime instance found."), *LexToString(Handle));
+			TEXT("Failed to change SmartObject enabled state for %s. No associated runtime instance found."), *LexToString(Handle));
 
 		return false;
 	}
-	
-	if (SmartObjectRuntime->bEnabled == bEnabled)
+
+	UE_VLOG_UELOG(this, LogSmartObject, VeryVerbose,
+		TEXT("%s Tag %s"), bEnabled ? TEXT("Removing") : TEXT("Adding"), *ReasonTag.ToString());
+
+	// Keep track of our previous state
+	const uint16 OldFlags = SmartObjectRuntime->DisableFlags;
+	const uint16 ReasonFlag = UE::SmartObject::GetMaskForEnabledReasonTag(ReasonTag);
+	const bool bWasEnabled = !(OldFlags & ReasonFlag); 
+
+	if (bWasEnabled == bEnabled)
 	{
 		// Already in the proper state, nothing to notify
+		UE_VLOG_UELOG(this, LogSmartObject, Log,
+			TEXT("Object is already in the desired state for Tag %s. That might indicates assymetrical calls to SetEnabledForReason(..., ReasonX, true|false)"), *ReasonTag.ToString());
 		return true;
 	}
 
-	SmartObjectRuntime->bEnabled = bEnabled;
+	// Apply the mask
+	SmartObjectRuntime->SetEnabled(bEnabled, ReasonFlag);
+	if (!OldFlags == !SmartObjectRuntime->DisableFlags)
+	{
+		// Already in the proper state for other reasons, nothing to notify
+		return true;
+	}
 
 	// Notify if needed
 	if (SmartObjectRuntime->OnEvent.IsBound())
@@ -885,7 +911,7 @@ bool USmartObjectSubsystem::SetEnabled(const FSmartObjectHandle Handle, const bo
 		SmartObjectRuntime->OnEvent.Broadcast(Data);
 	}
 	
-	// Propagate object enable state to slots and notify if needed.
+	// Propagate object enabled state to slots and notify if needed.
 	for (TEnumerateRef<FSmartObjectRuntimeSlot> RuntimeSlot : EnumerateRange(SmartObjectRuntime->Slots))
 	{
 		const FSmartObjectSlotHandle SlotHandle(Handle, RuntimeSlot.GetIndex());
@@ -910,9 +936,18 @@ bool USmartObjectSubsystem::IsEnabled(const FSmartObjectHandle Handle) const
 {
 	const FSmartObjectRuntime* SmartObjectRuntime = GetRuntimeInstance(Handle);
 	UE_CVLOG_UELOG(SmartObjectRuntime == nullptr, this, LogSmartObject, Log,
-		TEXT("Failed to get the SmartObject enable state for %s. No associated runtime instance found."), *LexToString(Handle));
+		TEXT("Failed to get the SmartObject enabled state for %s. No associated runtime instance found."), *LexToString(Handle));
 	
-	return SmartObjectRuntime && SmartObjectRuntime->bEnabled;
+	return SmartObjectRuntime && SmartObjectRuntime->IsEnabled();
+}
+
+bool USmartObjectSubsystem::IsEnabledForReason(const FSmartObjectHandle Handle, const FGameplayTag ReasonTag) const
+{
+	const FSmartObjectRuntime* SmartObjectRuntime = GetRuntimeInstance(Handle);
+	UE_CVLOG_UELOG(SmartObjectRuntime == nullptr, this, LogSmartObject, Log,
+		TEXT("Failed to get the SmartObject enabled state for %s. No associated runtime instance found."), *LexToString(Handle));
+	
+	return SmartObjectRuntime && SmartObjectRuntime->IsEnabledForReason(ReasonTag);
 }
 
 void USmartObjectSubsystem::SetupConditionContextCommonData(FWorldConditionContextData& ContextData, const FSmartObjectRuntime& SmartObjectRuntime) const
@@ -996,7 +1031,7 @@ bool USmartObjectSubsystem::EvaluateSlotConditions(
 	const FWorldConditionContext Context(SmartObjectRuntime.Slots[SlotHandle.GetSlotIndex()].PreconditionState, ConditionContextData);
 	if (!Context.IsTrue())
 	{
-		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Preconditions for slot %s failed."), *LexToString(SlotHandle));
+		UE_VLOG_UELOG(this, LogSmartObject, VeryVerbose, TEXT("Preconditions for slot %s failed."), *LexToString(SlotHandle));
 		return false;
 	}
 
