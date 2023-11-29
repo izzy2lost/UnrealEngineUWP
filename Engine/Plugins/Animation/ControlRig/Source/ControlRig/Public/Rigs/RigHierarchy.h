@@ -4687,6 +4687,10 @@ private:
 	void SendQueuedNotifications();
 	void Reset_Impl(bool bResetElements);
 
+#if WITH_EDITOR
+	void ForEachListeningHierarchy(TFunctionRef<void(const FRigHierarchyListener&)> PerListeningHierarchyFunction);
+#endif
+
 	// the currently destroyed element - used to avoid notification storms
 	const FRigBaseElement* ElementBeingDestroyed; 
 	
