@@ -199,37 +199,20 @@ namespace VirtualTextureScalability
 
 		if (bUpdate)
 		{
-			// Temporarily release runtime virtual textures
-			for (TObjectIterator<URuntimeVirtualTexture> It(RF_ClassDefaultObject, false, EInternalObjectFlags::Garbage); It; ++It)
-			{
-				It->Release();
-			}
+			// Release all VT render resources here.
+			// Assuming all virtual textures are released, then virtual texture pools will reach a zero ref count and release, which is needed for any pool size scale to be effective.
+			// Note that for pool size scale changes, there will be a transition period (with high memory watermark) where new pools are created before old pools are released.
 
-			// Release streaming virtual textures
-			TArray<UTexture2D*> ReleasedVirtualTextures;
+			// Reinit streaming virtual textures.
 			for (TObjectIterator<UTexture2D> It(RF_ClassDefaultObject, false, EInternalObjectFlags::Garbage); It; ++It)
 			{
 				if (It->IsCurrentlyVirtualTextured() && It->GetResource() != nullptr)
 				{
-					ReleasedVirtualTextures.Add(*It);
-					BeginReleaseResource(It->GetResource());
+					BeginUpdateResourceRHI(It->GetResource());
 				}
 			}
 
-			// Force garbage collect of pools
-			ENQUEUE_RENDER_COMMAND(VirtualTextureScalability_Release)([](FRHICommandList& RHICmdList)
-			{
-				GetRendererModule().ReleaseVirtualTexturePendingResources();
-			});
-
-			// Now all pools should be flushed...
-			// Reinit streaming virtual textures
-			for (UTexture2D* Texture : ReleasedVirtualTextures)
-			{
-				BeginInitResource(Texture->GetResource());
-			}
-
-			// Reinit runtime virtual textures
+			// Reinit runtime virtual textures.
 			for (TObjectIterator<URuntimeVirtualTextureComponent> It(RF_ClassDefaultObject, false, EInternalObjectFlags::Garbage); It; ++It)
 			{
 				It->MarkRenderStateDirty();

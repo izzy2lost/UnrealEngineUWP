@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VirtualTextureProducer.h"
-#include "VirtualTextureSystem.h"
-#include "VirtualTexturePhysicalSpace.h"
+
+#include "VT/VirtualTexturePhysicalSpace.h"
+#include "VT/VirtualTextureScalability.h"
+#include "VT/VirtualTextureSystem.h"
 
 FVirtualTextureProducer::~FVirtualTextureProducer()
 {
@@ -71,6 +73,7 @@ FVirtualTextureProducerHandle FVirtualTextureProducerCollection::RegisterProduce
 	Entry.DestroyedCallbacksIndex = AcquireCallback();
 
 	FVTPhysicalSpaceDescription PhysicalSpaceDesc;
+	PhysicalSpaceDesc.PoolSettingsHash = VirtualTextureScalability::GetPhysicalPoolSettingsHash();
 	PhysicalSpaceDesc.Dimensions = InDesc.Dimensions;
 	PhysicalSpaceDesc.TileSize = InDesc.TileSize + InDesc.TileBorderSize * 2u;
 	PhysicalSpaceDesc.bContinuousUpdate = InDesc.bContinuousUpdate;

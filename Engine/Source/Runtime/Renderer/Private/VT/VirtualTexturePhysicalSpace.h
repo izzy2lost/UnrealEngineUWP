@@ -12,6 +12,7 @@
 
 struct FVTPhysicalSpaceDescription
 {
+	uint32 PoolSettingsHash;
 	uint32 TileSize;
 	uint8 Dimensions;
 	uint8 NumLayers;
@@ -22,7 +23,8 @@ struct FVTPhysicalSpaceDescription
 
 inline bool operator==(const FVTPhysicalSpaceDescription& Lhs, const FVTPhysicalSpaceDescription& Rhs)
 {
-	if (Lhs.TileSize != Rhs.TileSize || 
+	if (Lhs.PoolSettingsHash != Rhs.PoolSettingsHash ||
+		Lhs.TileSize != Rhs.TileSize ||
 		Lhs.NumLayers != Rhs.NumLayers || 
 		Lhs.Dimensions != Rhs.Dimensions || 
 		Lhs.bContinuousUpdate != Rhs.bContinuousUpdate)
@@ -51,7 +53,8 @@ inline bool operator!=(const FVTPhysicalSpaceDescription& Lhs, const FVTPhysical
 
 inline uint32 GetTypeHash(const FVTPhysicalSpaceDescription& Desc)
 {
-	uint32 Hash = GetTypeHash(Desc.TileSize);
+	uint32 Hash = Desc.PoolSettingsHash;
+	Hash = HashCombine(Hash, GetTypeHash(Desc.TileSize));
 	Hash = HashCombine(Hash, GetTypeHash(Desc.Dimensions));
 	Hash = HashCombine(Hash, GetTypeHash(Desc.NumLayers));
 	Hash = HashCombine(Hash, GetTypeHash(Desc.bContinuousUpdate));

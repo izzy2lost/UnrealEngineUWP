@@ -3424,6 +3424,7 @@ static void OnVirtualTextureDestroyed(const FVirtualTextureProducerHandle& InHan
 {
 	FLightmapResourceCluster* Cluster = static_cast<FLightmapResourceCluster*>(Baton);
 	Cluster->ReleaseAllocatedVT();
+	Cluster->ConditionalCreateAllocatedVT();
 	Cluster->UpdateUniformBuffer();
 }
 
