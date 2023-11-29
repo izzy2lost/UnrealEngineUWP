@@ -188,12 +188,13 @@ void FMotionTrajectoryLibrary::UpdateHistory_TransformHistory(FPoseSearchQueryTr
 		for (int32 Index = 0; Index < SamplingData.NumHistorySamples - 1; ++Index)
 		{
 			Trajectory.Samples[Index].AccumulatedSeconds = Trajectory.Samples[Index + 1].AccumulatedSeconds;
-			TranslationHistory[Index] = TranslationHistory[Index + 1];
-			TranslationHistory[Index] += CurrentTranslation;
+			TranslationHistory[Index] = TranslationHistory[Index + 1] + CurrentTranslation;
+			Trajectory.Samples[Index].Facing = Trajectory.Samples[Index + 1].Facing;
 		}
 
 		Trajectory.Samples[SamplingData.NumHistorySamples - 1].AccumulatedSeconds = 0.f;
 		TranslationHistory[SamplingData.NumHistorySamples - 1] = CurrentTranslation;
+		Trajectory.Samples[SamplingData.NumHistorySamples - 1].Facing = CharacterTrajectoryData.Facing;
 	}
 	else
 	{
@@ -208,9 +209,6 @@ void FMotionTrajectoryLibrary::UpdateHistory_TransformHistory(FPoseSearchQueryTr
 	{
 		Trajectory.Samples[Index].AccumulatedSeconds -= DeltaSeconds;
 		Trajectory.Samples[Index].Position = CharacterTrajectoryData.Position - TranslationHistory[Index];
-
-		// @todo: Handle facing. We currently don't use facing for history in any of our content. We will need the rotation intent of the character.
-		Trajectory.Samples[Index].Facing = FQuat::Identity;
 	}
 }
 

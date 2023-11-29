@@ -16,11 +16,11 @@ public:
 	
 	// The maximum amount of poses that can be stored
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="2"))
-	int32 PoseCount = 64;
+	int32 PoseCount = 2;
 	
-	// The time horizon for how long a pose will be stored in seconds
+	// how often in seconds poses are collected
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001"))
-	float PoseDuration = 1.5f;
+	float SamplingInterval = UE::PoseSearch::FiniteDelta;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TArray<FBoneReference> CollectedBones;

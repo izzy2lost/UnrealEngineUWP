@@ -59,9 +59,8 @@ typedef TArray<FPoseHistoryEntry> FPoseHistoryFutureEntries;
 
 struct FPoseHistory : public IPoseHistory
 {
-	void Init(int32 InNumPoses, float InTimeHorizon, const TArray<FBoneIndexType>& RequiredBones);
+	void Init(int32 InNumPoses, float InSamplingInterval, const TArray<FBoneIndexType>& RequiredBones);
 	void Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales);
-	float GetTimeHorizon() const { return TimeHorizon; }
 
 	const FBoneToTransformMap& GetBoneToTransformMap() const { return BoneToTransformMap; }
 	const FPoseHistoryEntries& GetEntries() const { return Entries; }
@@ -90,7 +89,7 @@ private:
 
 	// ring buffer of collected bones
 	FPoseHistoryEntries Entries;
-	float TimeHorizon = 0.f;
+	float SamplingInterval = 0.f;
 };
 
 struct FExtendedPoseHistory : public IPoseHistory

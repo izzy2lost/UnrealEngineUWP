@@ -70,7 +70,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 		}
 	}
 
-	PoseHistory.Init(PoseCount, PoseDuration, RequiredBones);
+	PoseHistory.Init(PoseCount, SamplingInterval, RequiredBones);
 
 	if (bInitializeWithRefPose)
 	{
@@ -86,6 +86,8 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 
 void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
+	GetEvaluateGraphExposedInputs().Execute(Context);
+
 	const bool bNeedsReset =
 		bResetOnBecomingRelevant &&
 		UpdateCounter.HasEverBeenUpdated() &&

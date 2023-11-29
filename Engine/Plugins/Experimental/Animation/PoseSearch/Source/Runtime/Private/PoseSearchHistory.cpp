@@ -132,10 +132,10 @@ FTransform FPoseHistoryEntry::GetComponentSpaceTransform(int32 Index) const
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseHistory
-void FPoseHistory::Init(int32 InNumPoses, float InTimeHorizon, const TArray<FBoneIndexType>& RequiredBones)
+void FPoseHistory::Init(int32 InNumPoses, float InSamplingInterval, const TArray<FBoneIndexType>& RequiredBones)
 {
-	check(InNumPoses >= 2 && InTimeHorizon > UE_KINDA_SMALL_NUMBER);
-	TimeHorizon = InTimeHorizon;
+	check(InNumPoses >= 2 && InSamplingInterval > UE_KINDA_SMALL_NUMBER);
+	SamplingInterval = InSamplingInterval;
 
 	BoneToTransformMap.Reset();
 	if (!RequiredBones.IsEmpty())
@@ -297,32 +297,16 @@ void FPoseHistory::Update(float SecondsElapsed, FCSPose<FCompactPose>& Component
 		Entry.Time += SecondsElapsed;
 	}
 
-	const int32 EntriesMax = Entries.Max();
-	if (Entries.Num() != EntriesMax)
+	if (Entries.Num() != Entries.Max())
 	{
 		// Consume every pose until the queue is full
 		Entries.Emplace();
 	}
-	else
+	else if (Entries[Entries.Num() - 2].Time >= SamplingInterval)
 	{
-		// Exercise pose retention policy. We must guarantee there is always one additional pose
-		// beyond the time horizon so we can compute derivatives at the time horizon. We also
-		// want to evenly distribute poses across the entire history buffer so we only push additional
-		// poses when enough time has elapsed.
-
-		check(EntriesMax >= 2 && TimeHorizon > UE_KINDA_SMALL_NUMBER);
-		// Reserve one pose for computing derivatives at the time horizon
-		const float SampleInterval = TimeHorizon / (EntriesMax - 1);
-
-		bool bCanEvictOldest = Entries[1].Time >= TimeHorizon + SampleInterval;
-		bool bShouldPushNewest = Entries[Entries.Num() - 2].Time >= SampleInterval;
-
-		if (bCanEvictOldest && bShouldPushNewest)
-		{
-			FPoseHistoryEntry EntryTemp = MoveTemp(Entries.First());
-			Entries.PopFront();
-			Entries.Emplace(MoveTemp(EntryTemp));
-		}
+		FPoseHistoryEntry EntryTemp = MoveTemp(Entries.First());
+		Entries.PopFront();
+		Entries.Emplace(MoveTemp(EntryTemp));
 	}
 
 	// Regardless of the retention policy, we always update the most recent Entry
