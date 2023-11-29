@@ -430,6 +430,8 @@
           "Microsoft.Extensions.Configuration": "5.0.0",
           "Microsoft.Extensions.Configuration.Binder": "5.0.0",
           "Microsoft.Extensions.Configuration.Json": "5.0.0",
+          "Microsoft.Extensions.DependencyInjection": "5.0.2",
+          "Microsoft.Extensions.Options.DataAnnotations": "5.0.0",
           "Microsoft.Win32.Registry": "5.0.0"
         },
         "runtime": {

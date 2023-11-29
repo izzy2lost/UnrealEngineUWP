@@ -45,7 +45,7 @@ namespace EpicGames.OIDC
 				OidcTokenClient? client;
 				if (!_tokenClients.TryGetValue(name, out client))
 				{
-					client = new OidcTokenClient(name, providerInfo, _tokenStore);
+					client = new OidcTokenClient(name, providerInfo, TimeSpan.FromMinutes(20), _tokenStore);
 					_tokenClients.Add(name, client);
 				}
 				return client;
@@ -72,7 +72,7 @@ namespace EpicGames.OIDC
 					continue;
 				}
 
-				OidcTokenClient tokenClient = ActivatorUtilities.CreateInstance<OidcTokenClient>(provider, key, providerInfo);
+				OidcTokenClient tokenClient = ActivatorUtilities.CreateInstance<OidcTokenClient>(provider, key, providerInfo, settings.CurrentValue.LoginTimeout);
 
 				if (refreshTokens.TryGetValue(key, out string? refreshToken))
 				{
@@ -113,7 +113,7 @@ namespace EpicGames.OIDC
 					continue;
 				}
 
-				OidcTokenClient tokenClient = new OidcTokenClient(key, providerInfo, _tokenStore);
+				OidcTokenClient tokenClient = new OidcTokenClient(key, providerInfo, options.LoginTimeout, _tokenStore);
 
 				if (refreshTokens.TryGetValue(key, out string? refreshToken))
 				{
@@ -182,6 +182,7 @@ namespace EpicGames.OIDC
 
 		private readonly string _name;
 		private readonly ProviderInfo _providerInfo;
+		private readonly TimeSpan _loginTimeout;
 		private readonly ITokenStore _tokenStore;
 		private readonly Uri _authorityUri;
 		private readonly string _clientId;
@@ -193,10 +194,11 @@ namespace EpicGames.OIDC
 
 		private readonly List<Uri> _redirectUris;
 
-		public OidcTokenClient(string name, ProviderInfo providerInfo, ITokenStore tokenStore)
+		public OidcTokenClient(string name, ProviderInfo providerInfo, TimeSpan loginTimeout, ITokenStore tokenStore)
 		{
 			_name = name;
 			_providerInfo = providerInfo;
+			_loginTimeout = loginTimeout;
 			_tokenStore = tokenStore;
 
 			_authorityUri = providerInfo.ServerUri;
@@ -277,7 +279,17 @@ namespace EpicGames.OIDC
 						{
 							try
 							{
-								loginResult = await ProcessHttpRequest(http, loginState, oidcClient);
+								Task<LoginResult> processHttpTask = ProcessHttpRequest(http, loginState, oidcClient);
+								Task finishedTask = await Task.WhenAny(Task.Delay(_loginTimeout, cancellationToken), processHttpTask);
+								if (finishedTask == processHttpTask)
+								{
+									loginResult = await processHttpTask;
+								}
+								else
+								{
+									// timed out
+									loginResult = new LoginResult($"Login timed out after: {_loginTimeout.TotalMinutes} minutes");
+								}
 							}
 							catch when (cancellationToken.IsCancellationRequested)
 							{
@@ -609,6 +621,8 @@ namespace EpicGames.OIDC
 	public class OidcTokenOptions
 	{
 		public Dictionary<string, ProviderInfo> Providers { get; set; } = new Dictionary<string, ProviderInfo>();
+
+		public TimeSpan LoginTimeout { get; set; } = TimeSpan.FromMinutes(20);
 
 		public static OidcTokenOptions Bind(IConfiguration config)
 		{
