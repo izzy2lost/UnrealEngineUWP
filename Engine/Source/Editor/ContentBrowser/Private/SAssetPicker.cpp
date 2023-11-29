@@ -85,6 +85,8 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 	CurrentSourcesData = FSourcesData(InArgs._AssetPickerConfig.Filter.PackagePaths, InArgs._AssetPickerConfig.Collections);
 	CurrentBackendFilter = InArgs._AssetPickerConfig.Filter;
 	CurrentBackendFilter.PackagePaths.Reset();
+
+	bAllowRename = InArgs._AssetPickerConfig.bAllowRename;
 	
 	FOnGetContentBrowserItemContextMenu OnGetItemContextMenu;
 	if (OnGetAssetContextMenu.IsBound() || OnGetFolderContextMenu.IsBound())
@@ -698,6 +700,10 @@ void SAssetPicker::OnRenameRequested() const
 
 bool SAssetPicker::CanExecuteRenameRequested()
 {
+	if(!bAllowRename)
+	{
+		return false;
+	}
 	return ContentBrowserUtils::CanRenameFromAssetView(AssetViewPtr);
 }
 

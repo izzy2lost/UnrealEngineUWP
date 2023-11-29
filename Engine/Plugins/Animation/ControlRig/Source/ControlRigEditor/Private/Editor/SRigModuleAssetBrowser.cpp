@@ -5,6 +5,7 @@
 #include "ContentBrowserModule.h"
 #include "ControlRigBlueprint.h"
 #include "IContentBrowserSingleton.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 
 #include "ControlRigEditor.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
@@ -45,6 +46,10 @@ void SRigModuleAssetBrowser::RefreshView()
 	AssetPickerConfig.GetCurrentSelectionDelegates.Add(&GetCurrentSelectionDelegate);
 	AssetPickerConfig.bAllowNullSelection = false;
 	AssetPickerConfig.bFocusSearchBoxWhenOpened = false;
+	AssetPickerConfig.bAllowDragging = true;
+	AssetPickerConfig.bAllowRename = false;
+	AssetPickerConfig.bForceShowPluginContent = true;
+	AssetPickerConfig.bForceShowEngineContent = true;
 
 	// hide all asset registry columns by default (we only really want the name and path)
 	TArray<UObject::FAssetRegistryTag> AssetRegistryTags;
@@ -57,6 +62,9 @@ void SRigModuleAssetBrowser::RefreshView()
 	// Also hide the type column by default (but allow users to enable it, so don't use bShowTypeInColumnView)
 	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Class"));
 	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Has Virtualized Data"));
+
+	// allow to open the rigs directly on double click
+	AssetPickerConfig.OnAssetDoubleClicked = FOnAssetDoubleClicked::CreateSP(this, &SRigModuleAssetBrowser::OnAssetDoubleClicked);
 
 	const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	AssetBrowserBox->SetContent(ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig));
@@ -119,6 +127,14 @@ bool SRigModuleAssetBrowser::OnShouldFilterAsset(const struct FAssetData& AssetD
 
 	const EControlRigType ControlRigType = (EControlRigType)(ControlTypeEnum->GetValueByName(*ControlRigTypeStr));
 	return ControlRigType != EControlRigType::RigModule;
+}
+
+void SRigModuleAssetBrowser::OnAssetDoubleClicked(const FAssetData& AssetData)
+{
+	if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+	{
+		EditorSubsystem->OpenEditorForAsset(AssetData.ToSoftObjectPath());
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

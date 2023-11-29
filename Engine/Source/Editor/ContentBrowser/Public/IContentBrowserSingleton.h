@@ -266,6 +266,9 @@ struct FAssetPickerConfig
 	/** Whether to allow dragging of items */
 	bool bAllowDragging;
 
+	/** Whether to allow renaming of items */
+	bool bAllowRename;
+
 	/** Indicates if this view is allowed to show classes */
 	bool bCanShowClasses;
 
@@ -316,6 +319,7 @@ struct FAssetPickerConfig
 		, bShowBottomToolbar(true)
 		, bAutohideSearchBar(false)
 		, bAllowDragging(true)
+		, bAllowRename(true)
 		, bCanShowClasses(true)
 		, bCanShowFolders(false)
 		, bCanShowReadOnlyFolders(true)

@@ -203,4 +203,7 @@ private:
 
 	/** If set, view settings will be saved and loaded for the asset view using this name in ini files */
 	FString SaveSettingsName;
+
+	/** Wether to allow renaming of items */
+	bool bAllowRename;
 };
