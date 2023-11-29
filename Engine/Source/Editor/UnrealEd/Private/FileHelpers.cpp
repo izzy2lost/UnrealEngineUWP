@@ -908,7 +908,7 @@ static bool SaveWorld(UWorld* World,
 
 		SlowTask.EnterProgressFrame(50);
 
-		if (!bAutosaving && !FEditorFileUtils::ShouldSkipExternalObjectSave())
+		if (!bAutosaving && (!FEditorFileUtils::ShouldSkipExternalObjectSave() || bNewlyCreated))
 		{
 			if (bSuccess)
 			{
@@ -3907,7 +3907,7 @@ bool FEditorFileUtils::SaveLevel(ULevel* Level, const FString& DefaultFilename, 
 	return bLevelWasSaved;
 }
 
-bool FEditorFileUtils::SaveDirtyPackages(const bool bPromptUserToSave, const bool bSaveMapPackages, const bool bSaveContentPackages, const bool bFastSave, const bool bNotifyNoPackagesSaved, const bool bCanBeDeclined, bool* bOutPackagesNeededSaving, const FShouldIgnorePackageFunctionRef& ShouldIgnorePackageFunction)
+bool FEditorFileUtils::SaveDirtyPackages(const bool bPromptUserToSave, const bool bSaveMapPackages, const bool bSaveContentPackages, const bool bFastSave, const bool bNotifyNoPackagesSaved, const bool bCanBeDeclined, bool* bOutPackagesNeededSaving, const FShouldIgnorePackageFunctionRef& ShouldIgnorePackageFunction, bool bInSkipExternalObjectSave)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEditorFileUtils::SaveDirtyPackages);
 
@@ -3938,6 +3938,7 @@ bool FEditorFileUtils::SaveDirtyPackages(const bool bPromptUserToSave, const boo
 			*bOutPackagesNeededSaving = true;
 		}
 
+		TGuardValue<bool> SkipExternalObjectSaveGuard(bSkipExternalObjectSave, bInSkipExternalObjectSave);
 		const bool bCheckDirty = true;
 		bReturnCode = InternalSavePackages(PackagesToSave, bPromptUserToSave, bFastSave, bCanBeDeclined, bCheckDirty);
 	}
@@ -4065,8 +4066,8 @@ bool FEditorFileUtils::SaveCurrentLevel()
 		{
 			TGuardValue<bool> IsExplicitSaveGuard(EditorFileUtils::bIsExplicitSave, true);
 
-			// If Level gets saved we don't want it to save its external packages because we've already filtered out the ones that need saving and they are part of the PackagesToSave array (unless level is PKG_NewlyCreated then we should save all actors)
-			TGuardValue<bool> GuardValue(bSkipExternalObjectSave, !LevelPackage->HasAnyPackageFlags(PKG_NewlyCreated));
+			// If Level gets saved we don't want it to save its external packages because we've already filtered out the ones that need saving and they are part of the PackagesToSave array (Worlds in package with PKG_NewlyCreated will ignore this flag)
+			TGuardValue<bool> GuardValue(bSkipExternalObjectSave, true);
 
 			const bool bPromptUserToSave = false;
 			const bool bFastSave = false;
