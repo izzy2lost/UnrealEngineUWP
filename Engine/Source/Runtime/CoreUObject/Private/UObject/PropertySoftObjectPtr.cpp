@@ -30,6 +30,19 @@ FString FSoftObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 
 	ensure(!InnerNativeTypeName.IsEmpty());
 	return FString::Printf(TEXT("TSoftObjectPtr<%s>"), *InnerNativeTypeName);
 }
+
+FString FSoftObjectProperty::GetCPPType(FString* ExtendedTypeText, uint32 CPPExportFlags) const
+{
+	if (ensureMsgf(PropertyClass, TEXT("Soft object property missing PropertyClass: %s"), *GetFullNameSafe(this)))
+	{
+		return Super::GetCPPType(ExtendedTypeText, CPPExportFlags);
+	}
+	else
+	{
+		return TEXT("TSoftObjectPtr<UObject>");
+	}
+}
+
 FString FSoftObjectProperty::GetCPPMacroType( FString& ExtendedTypeText ) const
 {
 	ExtendedTypeText = FString::Printf(TEXT("TSoftObjectPtr<%s%s>"), PropertyClass->GetPrefixCPP(), *PropertyClass->GetName());
