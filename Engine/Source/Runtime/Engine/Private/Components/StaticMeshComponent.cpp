@@ -2355,10 +2355,8 @@ bool UStaticMeshComponent::SetStaticMesh(UStaticMesh* NewMesh)
 	// Mark cached material parameter names dirty
 	MarkCachedMaterialParameterNameIndicesDirty();
 
-#if WITH_EDITOR
 	// Broadcast that the static mesh has changed
 	OnStaticMeshChangedEvent.Broadcast(this);
-#endif
 
 #if WITH_EDITORONLY_DATA
 	if (GetStaticMesh())

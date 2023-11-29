@@ -792,16 +792,13 @@ public:
 	virtual FOnGetNaniteResources& OnGetNaniteResources() { return OnGetNaniteResourcesEvent; }
 	virtual const FOnGetNaniteResources& OnGetNaniteResources() const { return OnGetNaniteResourcesEvent; }
 
-#if WITH_EDITOR
 	/** Called when the static mesh changes  */
 	DECLARE_EVENT_OneParam(UStaticMeshComponent, FOnStaticMeshChanged, UStaticMeshComponent*);
 	virtual FOnStaticMeshChanged& OnStaticMeshChanged() { return OnStaticMeshChangedEvent; }
-#endif
 
 private:
-#if WITH_EDITOR
 	FOnStaticMeshChanged OnStaticMeshChangedEvent;
-#endif
+
 	FOnGetNaniteResources OnGetNaniteResourcesEvent;
 
 	friend class FStaticMeshComponentRecreateRenderStateContext;
