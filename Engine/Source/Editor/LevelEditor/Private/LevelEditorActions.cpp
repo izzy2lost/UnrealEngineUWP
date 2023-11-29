@@ -313,7 +313,12 @@ void FLevelEditorActionCallbacks::OpenRecentFile( int32 RecentFileIndex )
 			// Prompt the user to save any outstanding changes.
 			if( FEditorFileUtils::SaveDirtyPackages(true, true, false) )
 			{
-				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(NewPackageName, EAssetTypeActivationOpenedMethod::Edit);
+				FString NewFilename;
+				if (FPackageName::TryConvertLongPackageNameToFilename(NewPackageName, NewFilename, FPackageName::GetMapPackageExtension()))
+				{
+					// Load the requested level.
+					FEditorFileUtils::LoadMap(NewFilename);
+				}
 			}
 		}
 	}
@@ -341,8 +346,13 @@ void FLevelEditorActionCallbacks::OpenFavoriteFile( int32 FavoriteFileIndex )
 		// Prompt the user to save any outstanding changes
 		if( FEditorFileUtils::SaveDirtyPackages(true, true, false) )
 		{
-			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(PackageName, EAssetTypeActivationOpenedMethod::Edit);
-			
+			FString FileName;
+			if (FPackageName::TryConvertLongPackageNameToFilename(PackageName, FileName, FPackageName::GetMapPackageExtension()))
+			{
+				// Load the requested level.
+				FEditorFileUtils::LoadMap(FileName);
+			}
+
 			// Move the item to the head of the list
 			MRUFavoritesList->MoveFavoritesItemToHead(PackageName);
 		}
