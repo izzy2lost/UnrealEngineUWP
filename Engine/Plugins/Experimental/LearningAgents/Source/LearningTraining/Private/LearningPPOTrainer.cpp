@@ -34,6 +34,7 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 {
 	UE_LOG(LogLearning, Display, TEXT("Running PPO Training Server Commandlet..."));
 
+#if WITH_EDITOR
 	TArray<FString> Tokens;
 	TArray<FString> Switches;
 	TMap<FString, FString> Params;
@@ -48,19 +49,11 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 	const FString* PortParam = Params.Find(TEXT("Port"));
 	const FString* LogSettingsParam = Params.Find(TEXT("LogSettings"));
 
-#if WITH_EDITOR
 	const FString PythonExecutiblePath = PythonExecutiblePathParam ? *PythonExecutiblePathParam : UE::Learning::Trainer::GetPythonExecutablePath(FPaths::EngineDir());
 	const FString SitePackagesPath = SitePackagesPathParam ? *SitePackagesPathParam : UE::Learning::Trainer::GetSitePackagesPath(FPaths::EngineDir());
 	const FString PythonContentPath = PythonContentPathParam ? *PythonContentPathParam : UE::Learning::Trainer::GetPythonContentPath(FPaths::EngineDir());
 	const FString IntermediatePath = IntermediatePathParam ? *IntermediatePathParam : UE::Learning::Trainer::GetIntermediatePath(FPaths::EngineDir());
-#else
-	UE_LEARNING_NOT_IMPLEMENTED();
-	const FString PythonExecutiblePath = TEXT("");
-	const FString SitePackagesPath = TEXT("");
-	const FString PythonContentPath = TEXT("");
-	const FString IntermediatePath = TEXT("");
-	return 0;
-#endif
+
 	const TCHAR* IpAddress = IpAddressParam ? *(*IpAddressParam) : UE::Learning::Trainer::DefaultIp;
 	const uint32 Port = PortParam ? FCString::Atoi(*(*PortParam)) : UE::Learning::Trainer::DefaultPort;
 	
@@ -105,6 +98,10 @@ int32 ULearningSocketPPOTrainerServerCommandlet::Main(const FString& Commandline
 	{
 		FPlatformProcess::Sleep(0.01f);
 	}
+
+#else
+	UE_LEARNING_NOT_IMPLEMENTED();
+#endif
 
 	return 0;
 }

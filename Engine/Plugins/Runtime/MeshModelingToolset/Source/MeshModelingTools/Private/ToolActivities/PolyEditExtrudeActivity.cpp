@@ -592,7 +592,6 @@ FVector3d UPolyEditExtrudeActivity::GetExtrudeDirection() const
 	case EPolyEditExtrudeDirection::LocalZ:
 		return FTransformSRT3d(ActivityContext->Preview->PreviewMesh->GetTransform()).GetRotation().AxisZ();
 	}
-	return ActiveSelectionFrameWorld.Z();
 }
 
 void UPolyEditExtrudeActivity::Render(IToolsContextRenderAPI* RenderAPI)

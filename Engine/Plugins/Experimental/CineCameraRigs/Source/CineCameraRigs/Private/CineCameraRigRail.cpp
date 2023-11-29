@@ -327,7 +327,6 @@ FVector ACineCameraRigRail::GetVelocityAtPosition(const float InPosition, const 
 		FVector const P1 = CineSplineComponent->GetLocationAtDistanceAlongSpline(t1 * SplineLen, ESplineCoordinateSpace::World);
 		return (P1 - P0) / (t1 - t0) * TimeMultiplier;
 	}
-	return FVector::ZeroVector;
 }
 
 void ACineCameraRigRail::OnSplineEdited()
