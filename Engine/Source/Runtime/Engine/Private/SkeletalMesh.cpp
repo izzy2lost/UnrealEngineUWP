@@ -3846,18 +3846,7 @@ USkeletalMeshSocket* USkeletalMesh::FindSocketAndIndex(FName InSocketName, int32
 		return nullptr;
 	}
 
-#if !WITH_EDITOR
-	check(!HasAnyFlags(RF_NeedPostLoad));
-
-	const FSocketInfo* FoundSocketInfo = SocketMap.Find(InSocketName);
-	if (FoundSocketInfo)
-	{
-		OutIndex = FoundSocketInfo->SocketIndex;
-		return FoundSocketInfo->Socket;
-	}
-	return nullptr;
-#endif
-
+#if WITH_EDITOR
 	for (int32 i = 0; i < Sockets.Num(); i++)
 	{
 		USkeletalMeshSocket* Socket = Sockets[i];
@@ -3878,6 +3867,16 @@ USkeletalMeshSocket* USkeletalMesh::FindSocketAndIndex(FName InSocketName, int32
 		}
 		return SkeletonSocket;
 	}
+#else
+	check(!HasAnyFlags(RF_NeedPostLoad));
+
+	const FSocketInfo* FoundSocketInfo = SocketMap.Find(InSocketName);
+	if (FoundSocketInfo)
+	{
+		OutIndex = FoundSocketInfo->SocketIndex;
+		return FoundSocketInfo->Socket;
+	}
+#endif
 
 	return nullptr;
 }
@@ -3893,20 +3892,7 @@ USkeletalMeshSocket* USkeletalMesh::FindSocketInfo(FName InSocketName, FTransfor
 		return nullptr;
 	}
 
-#if !WITH_EDITOR
-	check(!HasAnyFlags(RF_NeedPostLoad));
-
-	const FSocketInfo* FoundSocketInfo = SocketMap.Find(InSocketName);
-	if (FoundSocketInfo)
-	{
-		OutTransform = FoundSocketInfo->SocketLocalTransform;
-		OutIndex = FoundSocketInfo->SocketIndex;
-		OutBoneIndex = FoundSocketInfo->SocketBoneIndex;
-		return FoundSocketInfo->Socket;
-	}
-	return nullptr;
-#endif
-
+#if WITH_EDITOR
 	for (int32 i = 0; i < Sockets.Num(); i++)
 	{
 		USkeletalMeshSocket* Socket = Sockets[i];
@@ -3931,6 +3917,18 @@ USkeletalMeshSocket* USkeletalMesh::FindSocketInfo(FName InSocketName, FTransfor
 		}
 		return SkeletonSocket;
 	}
+#else
+	check(!HasAnyFlags(RF_NeedPostLoad));
+
+	const FSocketInfo* FoundSocketInfo = SocketMap.Find(InSocketName);
+	if (FoundSocketInfo)
+	{
+		OutTransform = FoundSocketInfo->SocketLocalTransform;
+		OutIndex = FoundSocketInfo->SocketIndex;
+		OutBoneIndex = FoundSocketInfo->SocketBoneIndex;
+		return FoundSocketInfo->Socket;
+	}
+#endif
 
 	return nullptr;
 }

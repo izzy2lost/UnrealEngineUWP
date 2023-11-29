@@ -1461,8 +1461,6 @@ FNiagaraTypeDefinition FNiagaraTypeDefinition::GetNumericOutputType(TConstArrayV
 	{
 		return SortedTypeDefinitions[0];
 	}
-
-	return FNiagaraTypeDefinition::GetGenericNumericDef();
 }
 
 bool FNiagaraTypeDefinition::Serialize(FArchive& Ar)

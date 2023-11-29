@@ -7453,19 +7453,22 @@ bool UStaticMesh::ContainsPhysicsTriMeshDataCheckComplex(bool bInUseAllTriData, 
 	{
 		// Get the LOD level to use for collision
 		const FStaticMeshLODResources& LOD = GetRenderData()->LODResources[UseLODIndex];
+#if WITH_EDITORONLY_DATA
 		for (int32 SectionIndex = 0; SectionIndex < LOD.Sections.Num(); ++SectionIndex)
 		{
 			const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
-#if WITH_EDITORONLY_DATA
 			// we can only use GetSectionInfoMap() in WITH_EDITORONLY_DATA mode, otherwise, assume bInUseAllTriData :
 			if ((bInUseAllTriData || GetSectionInfoMap().Get(UseLODIndex, SectionIndex).bEnableCollision) && Section.NumTriangles > 0)
 			{
 				return true;
 			}
-#else // #if WITH_EDITORONLY_DATA
-			return true;
-#endif // #if WITH_EDITORONLY_DATA
 		}
+#else // #if WITH_EDITORONLY_DATA
+		if (LOD.Sections.Num() > 0)
+		{
+			return true;
+		}
+#endif // #if WITH_EDITORONLY_DATA
 	}
 	return false; 
 }
