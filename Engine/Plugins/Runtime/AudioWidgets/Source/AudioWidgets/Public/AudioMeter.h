@@ -155,20 +155,21 @@ namespace AudioWidgets
 	class AUDIOWIDGETS_API FAudioMeter
 	{
 	public:
-		FAudioMeter();
+		FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr); // OPTIONAL PARAM InExternalAudioBus: An audio meter can be constructed from this audio bus.
+		~FAudioMeter();
 
 		UAudioBus* GetAudioBus() const;
 
 		TSharedRef<SAudioMeter> GetWidget() const;
 
-		void Teardown();
-
-		void Init(int32 InNumChannels, UWorld& InWorld);
+		void Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 
 	protected:
 		void OnMeterOutput(UMeterAnalyzer* InMeterAnalyzer, int32 ChannelIndex, const FMeterResults& InMeterResults);
 
 	private:
+		void Teardown();
+
 		/** Metasound analyzer object. */
 		TStrongObjectPtr<UMeterAnalyzer> Analyzer;
 
@@ -188,5 +189,7 @@ namespace AudioWidgets
 		TSharedPtr<SAudioMeter> Widget;
 
 		TWeakObjectPtr<UWorld> WorldPtr;
+
+		bool bUseExternalAudioBus = false;
 	};
 } // namespace AudioWidgets

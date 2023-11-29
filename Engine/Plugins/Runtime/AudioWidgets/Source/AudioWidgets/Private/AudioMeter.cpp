@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AudioMeter.h"
+
+#include "AudioBusSubsystem.h"
+#include "AudioMixerDevice.h"
 #include "SAudioMeter.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -158,7 +161,7 @@ const FText UAudioMeter::GetPaletteCategory()
 
 namespace AudioWidgets
 {
-	FAudioMeter::FAudioMeter()
+	FAudioMeter::FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
 		: Widget(SNew(SAudioMeter)
 			.Orientation(EOrientation::Orient_Vertical)
 			.BackgroundColor(FLinearColor::Transparent)
@@ -172,6 +175,12 @@ namespace AudioWidgets
 			.MeterScaleLabelColor(FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f))
 		)
 	{
+		Init(InNumChannels, InWorld, InExternalAudioBus);
+	}
+
+	FAudioMeter::~FAudioMeter()
+	{
+		Teardown();
 	}
 
 	UAudioBus* FAudioMeter::GetAudioBus() const
@@ -184,7 +193,7 @@ namespace AudioWidgets
 		return StaticCastSharedRef<SAudioMeter>(Widget->AsShared());
 	}
 
-	void FAudioMeter::Init(int32 InNumChannels, UWorld& InWorld)
+	void FAudioMeter::Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
 	{
 		check(InNumChannels > 0);
 
@@ -196,7 +205,9 @@ namespace AudioWidgets
 		Analyzer = TStrongObjectPtr(NewObject<UMeterAnalyzer>());
 		Analyzer->Settings = Settings.Get();
 
-		AudioBus = TStrongObjectPtr(NewObject<UAudioBus>());
+		bUseExternalAudioBus = InExternalAudioBus != nullptr;
+
+		AudioBus = bUseExternalAudioBus ? TStrongObjectPtr(InExternalAudioBus.Get()) : TStrongObjectPtr(NewObject<UAudioBus>());
 		AudioBus->AudioBusChannels = EAudioBusChannels(InNumChannels - 1);
 
 		ResultsDelegateHandle = Analyzer->OnLatestPerChannelMeterResultsNative.AddRaw(this, &FAudioMeter::OnMeterOutput);
@@ -240,17 +251,23 @@ namespace AudioWidgets
 
 	void FAudioMeter::Teardown()
 	{
-		if (Analyzer.IsValid() && ResultsDelegateHandle.IsValid())
+		if (Analyzer.IsValid() && Analyzer->IsValidLowLevel())
 		{
 			Analyzer->StopAnalyzing();
-			Analyzer->OnLatestPerChannelMeterResultsNative.Remove(ResultsDelegateHandle);
+			if (ResultsDelegateHandle.IsValid())
+			{
+				Analyzer->OnLatestPerChannelMeterResultsNative.Remove(ResultsDelegateHandle);
+			}
+
 			Analyzer.Reset();
-			ResultsDelegateHandle.Reset();
 		}
 
+		ResultsDelegateHandle.Reset();
 		AudioBus.Reset();
 		ChannelInfo.Reset();
 		Settings.Reset();
+
+		bUseExternalAudioBus = false;
 	}
 } // namespace AudioWidgets
 #undef LOCTEXT_NAMESPACE

@@ -1162,17 +1162,15 @@ namespace Metasound
 		{
 			if (UMetaSoundSource* MetaSoundSource = Cast<UMetaSoundSource>(Metasound))
 			{
-				if (!OutputMeter.IsValid())
-				{
-					OutputMeter = MakeShared<AudioWidgets::FAudioMeter>();
-				}
-
 				if (ensure(GEditor))
 				{
 					UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
 					if (ensure(EditorWorld))
 					{
-						OutputMeter->Init(MetaSoundSource->NumChannels, *EditorWorld);
+						if (!OutputMeter.IsValid())
+						{
+							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, *EditorWorld);
+						}
 
 						const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
 
@@ -1220,33 +1218,19 @@ namespace Metasound
 							OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
 						}
 
+						return;
 					}
 				}
 			}
-			else
-			{
-				OutputMeter.Reset();
-				OutputOscilloscope.Reset();
-				OutputVectorscope.Reset();
-			}
+
+			DestroyAnalyzers();
 		}
 
 		void FEditor::DestroyAnalyzers()
 		{
-			if (OutputMeter.IsValid())
-			{
-				OutputMeter->Teardown();
-			}
-
-			if (OutputOscilloscope.IsValid())
-			{
-				OutputOscilloscope->StopProcessing();
-			}
-
-			if (OutputVectorscope.IsValid())
-			{
-				OutputVectorscope->StopProcessing();
-			}
+			OutputMeter.Reset();
+			OutputOscilloscope.Reset();
+			OutputVectorscope.Reset();
 		}
 
 		void FEditor::ExtendToolbar()
