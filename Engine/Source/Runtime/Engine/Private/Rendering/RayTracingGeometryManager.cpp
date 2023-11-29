@@ -57,7 +57,7 @@ static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBui
 	}
 }
 
-FRayTracingGeometryManager::BuildRequestIndex FRayTracingGeometryManager::RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
+FRayTracingGeometryManager::BuildRequestIndex FRayTracingGeometryManager::RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
 {
 	BuildRequest Request;
 	Request.BuildPriority = GetInitialBuildPriority(InPriority);

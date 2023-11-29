@@ -300,6 +300,6 @@ void FSkeletalMeshDeformerHelpers::ResetVertexFactoryBufferOverrides(FSkeletalMe
 
 	TArray<FBufferRHIRef> VertexBuffers;
 	VertexBuffers.Init(VertexBuffer, NumSections);
-	MeshObjectGPU->UpdateRayTracingGeometry(FRHICommandList::Get(RHICmdList), LODModel, LODIndex, VertexBuffers);
+	MeshObjectGPU->UpdateRayTracingGeometry(RHICmdList, LODModel, LODIndex, VertexBuffers);
 #endif // RHI_RAYTRACING
 }

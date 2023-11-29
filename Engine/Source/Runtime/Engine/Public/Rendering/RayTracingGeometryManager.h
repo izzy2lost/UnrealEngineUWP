@@ -17,7 +17,7 @@ public:
 
 	ENGINE_API virtual ~FRayTracingGeometryManager();
 
-	ENGINE_API virtual BuildRequestIndex RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode) override;
+	ENGINE_API virtual BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode) override;
 
 	ENGINE_API virtual void RemoveBuildRequest(BuildRequestIndex InRequestIndex) override;
 	ENGINE_API virtual void BoostPriority(BuildRequestIndex InRequestIndex, float InBoostValue) override;

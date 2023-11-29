@@ -23,23 +23,11 @@ public:
 
 	virtual ~IRayTracingGeometryManager() = default;
 
-	RENDERCORE_API virtual BuildRequestIndex RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode) = 0;
+	RENDERCORE_API virtual BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode) = 0;
 
-	BuildRequestIndex RequestBuildAccelerationStructure(FRHICommandList& RHICmdList, FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority)
-	{
-		return RequestBuildAccelerationStructure(RHICmdList, InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
-	}
-
-	UE_DEPRECATED(5.4, "RequestBuildAccelerationStructure requires a command list.")
 	BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority)
 	{
-		return RequestBuildAccelerationStructure(FRHICommandListImmediate::Get(), InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
-	}
-
-	UE_DEPRECATED(5.4, "RequestBuildAccelerationStructure requires a command list.")
-	BuildRequestIndex RequestBuildAccelerationStructure(FRayTracingGeometry* InGeometry, ERTAccelerationStructureBuildPriority InPriority, EAccelerationStructureBuildMode InBuildMode)
-	{
-		return RequestBuildAccelerationStructure(FRHICommandListImmediate::Get(), InGeometry, InPriority, InBuildMode);
+		return RequestBuildAccelerationStructure(InGeometry, InPriority, EAccelerationStructureBuildMode::Build);
 	}
 
 	RENDERCORE_API virtual void RemoveBuildRequest(BuildRequestIndex InRequestIndex) = 0;

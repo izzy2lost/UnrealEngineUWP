@@ -109,15 +109,12 @@ public:
 	UE_DEPRECATED(5.4, "Use FStaticMeshStreamIn::FIntermediateRayTracingGeometry instead.")
 	RENDERCORE_API void CreateRayTracingGeometryFromCPUData(TResourceArray<uint8>& OfflineData);
 
-	RENDERCORE_API void RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
-
-	UE_DEPRECATED(5.4, "RequestBuildIfNeeded now requires a command list.")
 	RENDERCORE_API void RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority);
 
 	UE_DEPRECATED(5.4, "InitRHIForDynamicRayTracing now requires a command list and was renamed to MakeResident().")
 	RENDERCORE_API void InitRHIForDynamicRayTracing();
 
-	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
+	RENDERCORE_API void CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority);
 
 	UE_DEPRECATED(5.4, "CreateRayTracingGeometry now requires a command list.")
 	RENDERCORE_API void CreateRayTracingGeometry(ERTAccelerationStructureBuildPriority InBuildPriority);

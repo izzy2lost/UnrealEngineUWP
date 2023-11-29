@@ -395,7 +395,7 @@ public:
 	 * VSinCS path is still required for world position offset materials but this can still use 
 	 * the updated vertex buffers from here with a passthrough vertex factory.
 	 */
-	ENGINE_API void UpdateRayTracingGeometry(FRHICommandList& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers);
+	ENGINE_API void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers);
 
 #endif // RHI_RAYTRACING
 

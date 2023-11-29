@@ -83,20 +83,15 @@ void FRayTracingGeometry::CreateRayTracingGeometryFromCPUData(TResourceArray<uin
 	SetRequiresBuild(Initializer.OfflineData == nullptr || RayTracingGeometryRHI->IsCompressed());
 }
 
-void FRayTracingGeometry::RequestBuildIfNeeded(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
+void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	RayTracingGeometryRHI->SetInitializer(Initializer);
 
 	if (GetRequiresBuild())
 	{
-		RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+		RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(this, InBuildPriority);
 		SetRequiresBuild(false);
 	}
-}
-
-void FRayTracingGeometry::RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority InBuildPriority)
-{
-	RequestBuildIfNeeded(FRHICommandListImmediate::Get(), InBuildPriority);
 }
 
 void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
@@ -133,7 +128,7 @@ void FRayTracingGeometry::MakeResident(FRHICommandList& RHICmdList)
 			// We need to do it before we build the current geometry (also on RHI thread).
 		}
 
-		RequestBuildIfNeeded(RHICmdList, ERTAccelerationStructureBuildPriority::Normal);
+		RequestBuildIfNeeded(ERTAccelerationStructureBuildPriority::Normal);
 	}
 	else
 	{
@@ -156,7 +151,7 @@ void FRayTracingGeometry::Evict()
 	EnumAddFlags(GeometryState, EGeometryStateFlags::Evicted);
 }
 
-void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
+void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandListBase& RHICmdList, ERTAccelerationStructureBuildPriority InBuildPriority)
 {
 	// Release previous RHI object if any
 	ReleaseRHI();
@@ -208,7 +203,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 			{
 				if (RayTracingGeometryRHI)
 				{
-					RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+					RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(this, InBuildPriority);
 				}
 				SetRequiresBuild(false);
 			}
@@ -221,7 +216,7 @@ void FRayTracingGeometry::CreateRayTracingGeometry(FRHICommandList& RHICmdList, 
 		{
 			if (RayTracingGeometryRHI && RayTracingGeometryRHI->IsCompressed())
 			{
-				RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(RHICmdList, this, InBuildPriority);
+				RayTracingBuildRequestIndex = GRayTracingGeometryManager->RequestBuildAccelerationStructure(this, InBuildPriority);
 			}
 
 			SetRequiresBuild(false);
@@ -276,7 +271,7 @@ void FRayTracingGeometry::InitRHI(FRHICommandListBase& RHICmdList)
 	ERTAccelerationStructureBuildPriority BuildPriority = Initializer.Type != ERayTracingGeometryInitializerType::Rendering
 		? ERTAccelerationStructureBuildPriority::Skip
 		: ERTAccelerationStructureBuildPriority::Normal;
-	CreateRayTracingGeometry(FRHICommandList::Get(RHICmdList), BuildPriority);
+	CreateRayTracingGeometry(RHICmdList, BuildPriority);
 }
 
 void FRayTracingGeometry::ReleaseRHI()
