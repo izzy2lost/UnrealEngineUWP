@@ -93,26 +93,31 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CreateBuffer(FRHICommandLi
 		return true;
 	}
 
-	const EBufferUsageFlags CommonFlags = BUF_ReservedResource | BUF_ImmediateCommit;
+	// Simply try to create reserved buffers of different types and sizes to see if we hit any unexpected paths in the RHI
 
 	{
 		FRHIResourceCreateInfo CreateInfo(TEXT("TestSmallReservedVertexBuffer"));
-		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32768, CommonFlags | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32768, BUF_ReservedResource | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
+	}
+
+	{
+		FRHIResourceCreateInfo CreateInfo(TEXT("TestSmallReservedUAV"));
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32768, BUF_ReservedResource | BUF_UnorderedAccess | BUF_ShaderResource, 4, ERHIAccess::UAVGraphics, CreateInfo);
 	}
 
 	{
 		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedVertexBuffer"));
-		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, BUF_ReservedResource | BUF_VertexBuffer, 4, ERHIAccess::CopyDest, CreateInfo);
 	}
 
 	{
 		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedAccelerationStructureBuffer"));
-		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_AccelerationStructure, 4, ERHIAccess::BVHWrite, CreateInfo);
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, BUF_ReservedResource | BUF_AccelerationStructure, 4, ERHIAccess::BVHWrite, CreateInfo);
 	}
 
 	{
 		FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedRayTracingScratchBuffer"));
-		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, CommonFlags | BUF_RayTracingScratch, 4, ERHIAccess::UAVCompute, CreateInfo);
+		FBufferRHIRef Buffer = RHICmdList.CreateBuffer(32 * 1024 * 1024, BUF_ReservedResource | BUF_RayTracingScratch, 4, ERHIAccess::UAVCompute, CreateInfo);
 	}
 
 	return true;
@@ -185,7 +190,8 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer(FRHICommandLi
 				}
 			}
 
-			uint64 ExpectedTailValue = 0;
+			// We follow the D3D convention for unmapped page access: writes are no-op, reads return 0
+			const uint64 ExpectedTailValue = 0;
 			for (uint32 i = CommittedSizeInElements; i < TotalSizeInElements; ++i)
 			{
 				if (BufferData[i] != ExpectedTailValue)

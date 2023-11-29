@@ -146,7 +146,6 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 
 		if (EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ReservedResource))
 		{
-			checkf(!EnumHasAllFlags(Desc.Usage, EBufferUsageFlags::ImmediateCommit), TEXT("ImmediateCommit is not supported in FRDGBufferPool"));
 			PooledBuffer->CommittedSizeInBytes = 0;
 		}
 

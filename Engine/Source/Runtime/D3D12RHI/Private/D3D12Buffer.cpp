@@ -563,7 +563,7 @@ FD3D12Buffer* FD3D12DynamicRHI::CreateD3D12Buffer(class FRHICommandListBase* RHI
 
 	if (EnumHasAnyFlags(BufferDesc.Usage, BUF_ReservedResource))
 	{
-		checkf(!bHasInitialData || EnumHasAllFlags(BufferDesc.Usage, BUF_ImmediateCommit), TEXT("Reserved resources with initial data must be committed at creation"));
+		checkf(!bHasInitialData, TEXT("Reserved resources may not have initial data"));
 		checkf(!bIsDynamic, TEXT("Reserved resources may not be dynamic"));
 		checkf(!ResourceAllocator, TEXT("Reserved resources may not use a custom resource allocator"));
 	}

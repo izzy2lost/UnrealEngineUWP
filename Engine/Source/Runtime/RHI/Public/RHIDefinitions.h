@@ -783,7 +783,7 @@ enum class EBufferUsageFlags : uint32
 	/**
 	 * Buffer contains opaque ray tracing acceleration structure data.
 	 * Resources with this flag can't be bound directly to any shader stage and only can be used with ray tracing APIs.
-	 * This flag is mutually exclusive with all other buffer flags except Static, ReservedResource and ImmediateCommit.
+	 * This flag is mutually exclusive with all other buffer flags except Static and ReservedResource.
 	*/
 	AccelerationStructure   = 1 << 13,
 
@@ -818,9 +818,6 @@ enum class EBufferUsageFlags : uint32
 	*/
 	ReservedResource = 1 << 22,
 
-	/** EXPERIMENTAL: Used with ReservedResource flag to immediately allocate and commit memory on creation. May use N small physical memory allocations instead of a single large one. */
-	ImmediateCommit = 1 << 23,
-
 	// Helper bit-masks
 	AnyDynamic = (Dynamic | Volatile),
 };
@@ -851,7 +848,6 @@ ENUM_CLASS_FLAGS(EBufferUsageFlags);
 #define BUF_NullResource           EBufferUsageFlags::NullResource
 #define BUF_UniformBuffer          EBufferUsageFlags::UniformBuffer
 #define BUF_ReservedResource       EBufferUsageFlags::ReservedResource
-#define BUF_ImmediateCommit        EBufferUsageFlags::ImmediateCommit
 
 enum class EGpuVendorId : uint32
 {
@@ -1066,7 +1062,7 @@ ENUM_CLASS_FLAGS(ETextureCreateFlags);
 #define TexCreate_ReduceMemoryWithTilingMode     ETextureCreateFlags::ReduceMemoryWithTilingMode
 #define TexCreate_Transient                      ETextureCreateFlags::Transient
 #define TexCreate_AtomicCompatible               ETextureCreateFlags::AtomicCompatible
-#define TexCreate_External               		 ETextureCreateFlags::External
+#define TexCreate_External                       ETextureCreateFlags::External
 #define TexCreate_MultiGPUGraphIgnore            ETextureCreateFlags::MultiGPUGraphIgnore
 #define TexCreate_ReservedResource               ETextureCreateFlags::ReservedResource
 #define TexCreate_ImmediateCommit                ETextureCreateFlags::ImmediateCommit

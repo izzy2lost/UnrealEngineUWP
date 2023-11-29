@@ -1537,14 +1537,6 @@ void FD3D12DefaultBufferAllocator::AllocDefaultResource(D3D12_HEAP_TYPE InHeapTy
 
 		ResourceLocation.AsStandAlone(NewResource, InResourceDesc.Width);
 
-		if (EnumHasAnyFlags(InBufferUsage, BUF_ImmediateCommit))
-		{
-			// NOTE: Accessing the queue from this thread is OK, as D3D12 runtime acquires a lock around all command queue APIs.
-			// https://microsoft.github.io/DirectX-Specs/d3d/CPUEfficiency.html#threading
-			FD3D12Queue& Queue = GetParentDevice()->GetQueue(ED3D12QueueType::Direct);
-			NewResource->CommitReservedResource(Queue.D3DCommandQueue, UINT64_MAX /*commit entire resource*/);
-		}
-
 		return;
 	}
 
