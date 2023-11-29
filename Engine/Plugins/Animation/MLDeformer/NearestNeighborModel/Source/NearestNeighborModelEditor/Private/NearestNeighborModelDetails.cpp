@@ -284,20 +284,23 @@ namespace UE::NearestNeighborModel
 				const int32 LOD = 0;
 				if (const UNearestNeighborModel* const NearestNeighborModel = GetCastModel())
 				{
-					const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet(LOD);
-					if (MorphSet.IsValid() && MorphSet->MorphBuffers.IsMorphResourcesInitialized())
+					if (NearestNeighborModel->GetNumLODs() > 0)
 					{
-						if (NearestNeighborModel->IsBeforeCustomVersionWasAdded())
+						const TSharedPtr<const FExternalMorphSet> MorphSet = NearestNeighborModel->GetMorphTargetSet(LOD);
+						if (MorphSet.IsValid() && MorphSet->MorphBuffers.IsMorphResourcesInitialized())
 						{
-							return FText::FromString(TEXT("Loaded from previous version."));
-						}
-						else
-						{
-							const FDateTime Time = NearestNeighborModel->GetMorphTargetsLastWriteTime();
-							if (Time != FDateTime::MinValue())
+							if (NearestNeighborModel->IsBeforeCustomVersionWasAdded())
 							{
-								const FDateTime LocalTime = Private::ToLocalTime(Time);
-								return FText::FromString(FString::Printf(TEXT("Last written: %s"), *Private::ToString(LocalTime)));
+								return FText::FromString(TEXT("Loaded from previous version."));
+							}
+							else
+							{
+								const FDateTime Time = NearestNeighborModel->GetMorphTargetsLastWriteTime();
+								if (Time != FDateTime::MinValue())
+								{
+									const FDateTime LocalTime = Private::ToLocalTime(Time);
+									return FText::FromString(FString::Printf(TEXT("Last written: %s"), *Private::ToString(LocalTime)));
+								}
 							}
 						}
 					}

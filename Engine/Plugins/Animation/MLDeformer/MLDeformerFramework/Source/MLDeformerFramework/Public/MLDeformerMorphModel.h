@@ -215,7 +215,7 @@ public:
 	 */
 	UE_DEPRECATED(5.4, "This method has been deprecated, please use the GetMorphTargetSet that takes a LOD level parameter.")
 	TSharedPtr<FExternalMorphSet> GetMorphTargetSet() const				{ return MorphTargetSet_DEPRECATED; }
-	TSharedPtr<FExternalMorphSet> GetMorphTargetSet(int32 LOD) const	{ return MorphTargetSets.IsValidIndex(LOD) ? MorphTargetSets[LOD] : MorphTargetSets.Last(); }
+	TSharedPtr<FExternalMorphSet> GetMorphTargetSet(int32 LOD) const	{ return MorphTargetSets.IsValidIndex(LOD) ? MorphTargetSets[LOD] : TSharedPtr<FExternalMorphSet>(); }
 
 	/** Get the number of LOD levels that we have deltas for. */
 	int32 GetNumLODs() const											{ return MorphTargetSets.Num(); }
