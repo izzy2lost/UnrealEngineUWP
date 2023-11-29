@@ -651,7 +651,7 @@ struct FTriangleMeshOverlapVisitorNoMTD<TBox<FReal, 3>>
 	{
 		if (bIsAxisAligned)
 		{
-			Box.AABBSimd = FAABBSimd(WorldScaleQueryTM, InQueryGeom);
+			Box.AABBSimd = FAABBSimd(WorldScaleQueryTM.GetTranslation(), InQueryGeom);
 		}
 		else
 		{
@@ -716,7 +716,7 @@ struct FTriangleMeshOverlapVisitorNoMTD<TImplicitObjectScaled<TBox<FReal, 3>>>
 	{
 		if (bIsAxisAligned)
 		{
-			Box.AABBSimd = FAABBSimd(WorldScaleQueryTM, InQueryGeom);
+			Box.AABBSimd = FAABBSimd(WorldScaleQueryTM.GetTranslation(), InQueryGeom);
 		}
 		else
 		{
@@ -1135,7 +1135,7 @@ bool FTriangleMeshImplicitObject::OverlapGeomImp(const QueryGeomType& QueryGeom,
 			FAABB3 GeometryAABB = WorldScaleQueryGeom.BoundingBox();
 			GeometryAABB.ThickenSymmetrically(FVec3(Thickness));
 			// The geometry is not necessarily in the center of its translation. (cf: a capsule can be create with two points away from its own transform)
-			TriMeshToGeomNoScale.SetTranslation(TriMeshToGeomNoScale.GetTranslation() + GeometryAABB.Center());
+			TriMeshToGeomNoScale.SetTranslation(TriMeshToGeomNoScale.TransformPositionNoScale(GeometryAABB.Center()));
 			Private::FOBBVectorized QueryObb(TriMeshToGeomNoScale, (GeometryAABB.Max() - GeometryAABB.Min()) * 0.5, InvTriMeshScale);
 			TRigidTransform<FReal, 3> WorldScaleQueryTM;
 			ScaleTransformHelper(TriMeshScale, QueryTM, WorldScaleQueryTM);

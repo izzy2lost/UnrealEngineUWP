@@ -1065,6 +1065,52 @@ namespace ChaosTest
 					EXPECT_EQ(bResult, bResultMTD);
 				}
 			}
+
+			{
+				// Regression test: Box with centre not at the local origin
+								
+				// Rotated UnScaled box
+				const TBox<FReal, 3> BoxUnscaled = TBox<FReal, 3>({ -5.0f, -6.0f, 0.0f }, { 5.0f, 6.0f, 10.0f });
+				{
+					FRigidTransform3 QueryTM(FVec3(0, 0.0, 11.0), FQuat{ 1, 0, 0, 0 }); // Pi rotation around x axis
+					bool bResult = TriangleMesh->OverlapGeom(BoxUnscaled, QueryTM, 0.0, nullptr);
+					EXPECT_EQ(bResult, true);
+					bool bResultMTD = TriangleMesh->OverlapGeom(BoxUnscaled, QueryTM, 0.0, &MTDInfo);
+					EXPECT_EQ(bResult, bResultMTD);
+				}
+
+				// Rotated Scaled box
+				FBoxPtr BoxSafe(new TBox<FReal, 3>(FVec3(-10.0, -10.0, 0.0), FVec3(10.0, 10.0, 10.0)));
+				FVec3 TriMeshScale = { 5.0f, 6.0f, 10.0f };
+				FVec3 BoxScale = { 5.0f, 6.0f, 10.0f };
+				TImplicitObjectScaled<TBox<FReal, 3>> ScaledBox = TImplicitObjectScaled<TBox<FReal, 3>>(BoxSafe, BoxScale);
+				{
+					FRigidTransform3 QueryTM(FVec3(0, 0.0, 110.0), FQuat{1, 0, 0, 0}); // Pi rotation around x axis
+					bool bResult = TriangleMesh->OverlapGeom(ScaledBox, QueryTM, 0.0, nullptr, TriMeshScale);
+					EXPECT_EQ(bResult, true);
+					bool bResultMTD = TriangleMesh->OverlapGeom(ScaledBox, QueryTM, 0.0, &MTDInfo, TriMeshScale);
+					EXPECT_EQ(bResult, bResultMTD);					
+				}
+
+				// Unrotated unscaled box
+				{
+					FRigidTransform3 QueryTM(FVec3(0, 0.0, 11.0), FQuat::Identity);
+					bool bResult = TriangleMesh->OverlapGeom(BoxUnscaled, QueryTM, 0.0, nullptr);
+					EXPECT_EQ(bResult, false);
+					bool bResultMTD = TriangleMesh->OverlapGeom(BoxUnscaled, QueryTM, 0.0, &MTDInfo);
+					EXPECT_EQ(bResult, bResultMTD);
+				}
+
+				// Unrotated scaled box
+				{
+					FRigidTransform3 QueryTM(FVec3(0, 0.0, 110.0), FQuat::Identity);
+					bool bResult = TriangleMesh->OverlapGeom(ScaledBox, QueryTM, 0.0, nullptr, TriMeshScale);
+					EXPECT_EQ(bResult, false);
+					bool bResultMTD = TriangleMesh->OverlapGeom(ScaledBox, QueryTM, 0.0, &MTDInfo, TriMeshScale);
+					EXPECT_EQ(bResult, bResultMTD);
+				}
+			}
+
 			{
 				// Non uniform test with box not being a cube
 				FBoxPtr BigBoxSafe( new TBox<FReal, 3>(FVec3(-1.0, -5.0, -1.0), FVec3(1.0, 5.0, 1.0)));
