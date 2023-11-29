@@ -7320,12 +7320,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DeferredPostLoadExportBundle
 	check(InExportBundleIndex < Package->Data.TotalExportBundleCount);
 	EEventLoadNodeExecutionResult LoadingState = EEventLoadNodeExecutionResult::Complete;
 
-	if (Package->bLoadHasFailed)
-	{
-		FSoftObjectPath::InvalidateTag();
-		FUniqueObjectGuid::InvalidateTag();
-	}
-	else
+	if (!Package->bLoadHasFailed)
 	{
 		SCOPED_LOADTIMER(PostLoadDeferredObjectsTime);
 		TRACE_LOADTIME_POSTLOAD_SCOPE;
@@ -7740,9 +7735,6 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 					Result = EAsyncPackageState::TimeOut;
 				}
 			}
-
-			FSoftObjectPath::InvalidateTag();
-			FUniqueObjectGuid::InvalidateTag();
 
 			// push stats so that we don't overflow number of tags per thread during blocking loading
 			LLM_PUSH_STATS_FOR_ASSET_TAGS();

@@ -178,7 +178,6 @@ void FLazyObjectPtr::PossiblySerializeObjectGuid(UObject *Object, FStructuredArc
 					{
 						GuidAnnotation.AddAnnotation(Object, Guid);
 					}
-					FUniqueObjectGuid::InvalidateTag();
 				}
 			}
 		}

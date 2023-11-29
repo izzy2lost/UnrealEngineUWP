@@ -1244,9 +1244,6 @@ void FAssetRenameManager::RenameReferencingSoftObjectPaths(const TArray<UPackage
 			}
 		}
 	}
-
-	// Invalidate the soft object tag as we have created new valid paths
-	FSoftObjectPath::InvalidateTag();
 }
 
 void FAssetRenameManager::OnMarkPackageDirty(UPackage* Pkg, bool bWasDirty)

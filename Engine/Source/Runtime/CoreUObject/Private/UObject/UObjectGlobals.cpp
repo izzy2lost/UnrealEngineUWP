@@ -2388,9 +2388,6 @@ void EndLoad(FUObjectSerializeContext* LoadContext, TArray<UPackage*>* OutLoaded
 		check(GGameThreadLoadCounter >= 0);
 	}
 
-	// Loaded new objects, so allow reaccessing asset ptrs
-	FSoftObjectPath::InvalidateTag();
-
 #if WITH_EDITOR
 	// Now call asset loaded callbacks for anything that was loaded. We do this at the very end so any nested objects will load properly
 	// Useful for updating UI such as ContentBrowser's loaded status.

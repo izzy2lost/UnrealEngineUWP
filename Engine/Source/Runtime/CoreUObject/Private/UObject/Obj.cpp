@@ -1678,12 +1678,6 @@ void UObject::Serialize(FStructuredArchive::FRecord Record)
 		// Serialize a GUID if this object has one mapped to it
 		FLazyObjectPtr::PossiblySerializeObjectGuid(this, Record);
 
-		// Invalidate asset pointer caches when loading a new object
-		if (UnderlyingArchive.IsLoading())
-		{
-			FSoftObjectPath::InvalidateTag();
-		}
-
 		// Keep track of sparse class data for undo/redo
 		if (UnderlyingArchive.IsTransacting() && HasAnyFlags(RF_ClassDefaultObject))
 		{
