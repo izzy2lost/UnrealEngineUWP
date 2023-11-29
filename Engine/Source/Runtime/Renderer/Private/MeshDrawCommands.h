@@ -7,7 +7,7 @@ MeshDrawCommands.h: Mesh draw commands.
 #pragma once
 
 #include "MeshPassProcessor.h"
-#include "TranslucencyPass.h"
+#include "TranslucentPassResource.h"
 #include "InstanceCulling/InstanceCullingContext.h"
 #include "InstanceCulling/InstanceCullingManager.h"
 #include "ScenePrivateBase.h"

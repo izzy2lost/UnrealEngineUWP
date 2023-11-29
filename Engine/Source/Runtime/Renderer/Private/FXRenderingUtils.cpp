@@ -18,6 +18,7 @@ TConstStridedView<FSceneView> UE::FXRenderingUtils::ConvertViewArray(TConstArray
 
 FIntRect UE::FXRenderingUtils::GetRawViewRectUnsafe(const FSceneView& View)
 {
+	check(View.bIsViewInfo);
 	return static_cast<const FViewInfo&>(View).ViewRect;
 }
 

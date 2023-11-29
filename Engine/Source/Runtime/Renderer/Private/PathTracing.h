@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "PathTracingResources.h"
 #include "ShaderParameterMacros.h"
 
 // this struct holds skylight parameters
@@ -30,19 +31,6 @@ RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultOpaqueHitShader(const F
 RENDERER_API FRHIRayTracingShader* GetGPULightmassDefaultHiddenHitShader(const FGlobalShaderMap* ShaderMap);
 
 void PreparePathTracingRTPSO();
-
-class FRDGTexture;
-
-struct FPathTracingResources
-{
-	FRDGTexture* DenoisedRadiance = nullptr;
-	FRDGTexture* Radiance = nullptr;
-	FRDGTexture* Albedo = nullptr;
-	FRDGTexture* Normal = nullptr;
-	FRDGTexture* Variance = nullptr;
-	
-	bool bPostProcessEnabled = false;
-};
 
 namespace PathTracing
 {
