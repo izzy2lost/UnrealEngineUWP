@@ -144,6 +144,12 @@ FAutoConsoleVariableRef CVarGeometryCollectionUseRootBrokenFlag(
 	bGeometryCollectionUseRootBrokenFlag,
 	TEXT("If enabled, check if the root transform is broken in the proxy and disable the GT particle if so. Should be enabled - cvar is a failsafe to revert behaviour"));
 
+bool bGeometryCollectionScaleClusterGeometry = true;
+FAutoConsoleVariableRef CVarGeometryCollectionScaleClusterGeometry(
+	TEXT("p.GeometryCollection.ScaleClusterGeometry"),
+	bGeometryCollectionScaleClusterGeometry,
+	TEXT("If enabled, update the cluster geometry if the scale has changed"));
+
 enum EOverrideGCCollisionSetupForTraces
 {
 	GCCSFT_Property   = -1,  // Default: do what property says
@@ -3198,9 +3204,25 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_External(const FTransfor
 
 		ExecuteOnPhysicsThread(*this,
 			[this, WorldTransform]()
-			{
+			{	
 				SetWorldTransform_Internal(WorldTransform);
 			});
+	}
+}
+
+void FGeometryCollectionPhysicsProxy::ScaleClusterGeometry_Internal(const FVector& WorldScale)
+{
+	const int32 NumTransforms = PhysicsThreadCollection.NumElements(FGeometryCollection::TransformGroup);
+	for (int32 TransformGroupIndex = 0; TransformGroupIndex < NumTransforms; ++TransformGroupIndex)
+	{
+		if (Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle = SolverParticleHandles[TransformGroupIndex])
+		{
+			// Scale the geometry if necessary
+			BuildScaledGeometry(ParticleHandle, ParticleHandle->GetGeometry(), WorldScale);
+
+			// Update acceleration structure, bounds and collision flags
+			UpdateCollisionFlags(ParticleHandle, false);
+		}
 	}
 }
 
@@ -3286,6 +3308,14 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 		if (bIsAuthority && ClusterUnionIndex != INDEX_NONE && !DeferredClusterUnionParticleUpdates.IsEmpty() && !DeferredClusterUnionChildToParentUpdates.IsEmpty())
 		{
 			ClusterUnionManager.UpdateClusterUnionParticlesChildToParent(ClusterUnionIndex, DeferredClusterUnionParticleUpdates, DeferredClusterUnionChildToParentUpdates, false);
+		}
+	}
+	if (bGeometryCollectionScaleClusterGeometry)
+	{
+		const FVector ScaleRatio = Parameters.WorldTransform.GetScale3D() / Parameters.PrevWorldTransform.GetScale3D();
+		if (!ScaleRatio.Equals(FVector::OneVector))
+		{
+			ScaleClusterGeometry_Internal(ScaleRatio);
 		}
 	}
 }

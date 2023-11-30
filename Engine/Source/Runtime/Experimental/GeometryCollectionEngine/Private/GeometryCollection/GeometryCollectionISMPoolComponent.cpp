@@ -494,26 +494,27 @@ void FGeometryCollectionISMPool::UpdateAbsoluteTransforms(const FTransform& Base
 		const bool bReverseCulling = (GcIsm.MeshInstance.Desc.Flags & FISMComponentDescription::ReverseCulling) != 0;
 		check(GcIsm.MeshInstance.Desc.Position == FVector::ZeroVector);
 		
-		UInstancedStaticMeshComponent* Ism = GcIsm.ISMComponent;
-
-		if(bReverseCulling)
-		{
-			// As in InitISM we need to apply the inverted X scale for reverse culling.
-			// Just copy the transform and set an inverted scale to apply to the ISM
-			FVector BaseScale = BaseTransform.GetScale3D();
-			BaseScale.X = -BaseScale.X;
-			FTransform Flipped = BaseTransform;
-			Flipped.SetScale3D(BaseScale);
+		if(UInstancedStaticMeshComponent* Ism = GcIsm.ISMComponent)
+		{ 
+			if(bReverseCulling)
+			{
+				// As in InitISM we need to apply the inverted X scale for reverse culling.
+				// Just copy the transform and set an inverted scale to apply to the ISM
+				FVector BaseScale = BaseTransform.GetScale3D();
+				BaseScale.X = -BaseScale.X;
+				FTransform Flipped = BaseTransform;
+				Flipped.SetScale3D(BaseScale);
 			
-			Ism->SetComponentToWorld(Flipped);
-		}
-		else
-		{
-			Ism->SetComponentToWorld(BaseTransform);
-		}
+				Ism->SetComponentToWorld(Flipped);
+			}
+			else
+			{
+				Ism->SetComponentToWorld(BaseTransform);
+			}
 
-		Ism->UpdateComponentTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
-		Ism->MarkRenderTransformDirty();
+			Ism->UpdateComponentTransform(UpdateTransformFlags | EUpdateTransformFlags::SkipPhysicsUpdate, Teleport);
+			Ism->MarkRenderTransformDirty();
+		}
 	}
 }
 

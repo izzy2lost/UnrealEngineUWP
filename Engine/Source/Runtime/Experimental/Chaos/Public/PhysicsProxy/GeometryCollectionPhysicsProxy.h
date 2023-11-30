@@ -557,6 +557,8 @@ protected:
 
 	CHAOS_API void UpdateDamageThreshold_Internal();
 
+	/** Scale the cluster particles geometry (creates if necessary an additional TImplicitObjectScaled object into the implicits hierarchy) */
+	CHAOS_API void ScaleClusterGeometry_Internal(const FVector& WorldScale);
 
 	CHAOS_API void SetWorldTransform_Internal(const FTransform& WorldTransform);
 	CHAOS_API void SetFilterData_Internal(const FCollisionFilterData& NewSimFilter, const FCollisionFilterData& NewQueryFilter);

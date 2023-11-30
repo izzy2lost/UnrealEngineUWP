@@ -42,6 +42,12 @@ namespace Chaos
 		const FRigidClustering::FClusterMap& ChildrenMap,
 		const Chaos::FImplicitObjectPtr& ProxyGeometry,
 		const FClusterCreationParameters& Parameters);
+	
+	// Scale proxy geometry and set the result to the particle handle
+	void CHAOS_API BuildScaledGeometry(Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle, const Chaos::FImplicitObjectPtr& ProxyGeometry, const FVector& WorldScale);
+
+	// Update the collision acceleration structure and flags
+	void CHAOS_API UpdateCollisionFlags(Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle, const bool bUseParticleImplicit);
 
 	UE_DEPRECATED(5.4, "Use UpdateGeometry with FImplicitObjectPtr instead")
 	FORCEINLINE void CHAOS_API UpdateGeometry(

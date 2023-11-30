@@ -1009,7 +1009,7 @@ public:
 	virtual Chaos::FImplicitObjectPtr CopyGeometryWithScale(const FVec3& Scale) const override
 	{
 		TImplicitObjectScaled<TConcrete, bInstanced>* Obj = CopyHelper(this);
-		Obj->SetScale(Scale);
+		Obj->SetScale(Obj->GetScale() * Scale);
 		return Chaos::FImplicitObjectPtr(Obj);
 	}
 
