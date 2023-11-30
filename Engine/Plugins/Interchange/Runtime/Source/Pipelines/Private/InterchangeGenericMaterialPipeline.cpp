@@ -600,6 +600,9 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 	{
 		return;
 	}
+	
+	MaterialNodes.Empty();
+	MaterialFactoryNodes.Empty();
 
 	//Find all translated node we need for this pipeline
 	BaseNodeContainer->IterateNodes([this](const FString& NodeUid, UInterchangeBaseNode* Node)
