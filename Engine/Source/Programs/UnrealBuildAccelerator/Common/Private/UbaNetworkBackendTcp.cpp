@@ -69,9 +69,9 @@ namespace uba
 		ReaderWriterLock sendLock;
 		#endif
 
-		Thread recvThread;
-
 		CriticalSection shutdownLock;
+
+		Thread recvThread;
 	};
 
 	bool SetKeepAlive(Logger& logger, SOCKET socket);

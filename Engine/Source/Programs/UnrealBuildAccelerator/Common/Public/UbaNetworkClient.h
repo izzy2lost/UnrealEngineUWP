@@ -61,6 +61,7 @@ namespace uba
 		const Guid& GetUid() { return m_uid; }
 		LogWriter& GetLogWriter() { return m_logWriter; }
 		NetworkBackendTcp& GetTcpBackend() { return *m_tcpBackend; }
+		u32 GetConnectionCount() { return m_connectionCount; }
 
 	private:
 		struct Connection
@@ -80,7 +81,6 @@ namespace uba
 		void ConnectedCallback(NetworkBackend& backend, void* backendConnection);
 		static bool ReceiveResponseHeader(void* context, u8* headerData, void*& outBodyContext, u8*& outBodyData, u32& outBodySize);
 		static bool ReceiveResponseBody(void* context, bool recvError, u8* headerData, void* bodyContext, u8* bodyData, u32 bodySize);
-		void ThreadReceive(Connection& connection);
 		void OnDisconnected(Connection& connection, bool calledFromReceive);
 		bool Send(NetworkMessage& message, void* response, u32 responseCapacity, bool async);
 		void ReturnMessageId(u16 id);

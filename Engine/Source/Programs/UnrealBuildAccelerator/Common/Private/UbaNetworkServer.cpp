@@ -628,17 +628,24 @@ namespace uba
 				return false;
 		}
 
-		m_addConnections.emplace_back([this, &backend, ip2 = TString(ip), port, cryptoKey]()
+		Event done(true);
+		bool success = false;
+
+		m_addConnections.emplace_back([this, &success , &done, &backend, ip2 = TString(ip), port, cryptoKey]()
 			{
-				bool success = backend.Connect(m_logger, ip2.c_str(), [this, &backend, cryptoKey](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
+				// TODO: Should this retry?
+				success = backend.Connect(m_logger, ip2.c_str(), [this, &backend, cryptoKey](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
 					{
 						return AddConnection(backend, connection, remoteSocketAddr, cryptoKey);
 					}, port, nullptr);
 				if (!success)
 					Crypto::DestroyKey(cryptoKey);
+				done.Set();
 				return 0;
 			});
-		return true;
+
+		done.IsSet();
+		return success;
 	}
 
 	void NetworkServer::PrintSummary(Logger& logger)

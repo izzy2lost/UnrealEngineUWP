@@ -91,4 +91,48 @@ namespace uba
 		logger.Info(TC("Got value %u"), value);
 		return true;
 	}
+
+	bool TestClientServer2(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		auto& logWriter = logger.m_writer;
+		NetworkBackendTcp serverTcp(logWriter, TC("ServerTcp"));
+		NetworkBackendTcp clientTcp(logWriter, TC("ClientTcp"));
+
+		bool ctorSuccess = true;
+		NetworkServer server(ctorSuccess, logWriter);
+		NetworkClient client(ctorSuccess, logWriter);
+
+		server.RegisterService(1, [&](const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
+			{
+				logger.Info(TC("Got ping!"));
+				UBA_ASSERT(messageType == SessionMessageType_Ping);
+				writer.WriteByte(42);
+				return true;
+			});
+
+		if (!client.StartListen(clientTcp, 1239))
+			return logger.Error(TC("Client failed to listen"));
+		Sleep(100);
+		if (!server.AddClient(serverTcp, TC("127.0.0.1"), 1239))
+			return logger.Error(TC("Server failed to connect"));
+
+		u64 time = GetTime();
+		while (!client.GetConnectionCount())
+		{
+			if (TimeToMs(GetTime() - time) > 4000)
+				return logger.Error(TC("Client failed to establish connection"));
+			Sleep(100);
+		}
+
+		StackBinaryWriter<128> writer;
+		NetworkMessage msg(client, 1, SessionMessageType_Ping, writer);
+		writer.WriteU32(32);
+		StackBinaryReader<32> reader;
+		if (!msg.Send(reader))
+			return logger.Error(TC("Failed to get message"));
+
+		u8 value = reader.ReadByte();
+		logger.Info(TC("Got value %u"), value);
+		return true;
+	}
 }

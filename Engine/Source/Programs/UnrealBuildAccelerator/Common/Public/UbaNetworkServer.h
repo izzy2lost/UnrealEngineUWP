@@ -44,7 +44,7 @@ namespace uba
 		void DisallowNewClients();	// Disallow new clients to connect but old clients can still create more connections
 		void StopAll();				// Stops all listen and disconnect all active connections
 
-		bool AddClient(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, const u8* cryptoKey128 = nullptr); // Adds a client that server will create one or more connections to
+		bool AddClient(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, const u8* cryptoKey128 = nullptr); // Adds a client that server will create one or more connections to (note this will return before we know if it was a success or not)
 
 		void PrintSummary(Logger& logger);
 
