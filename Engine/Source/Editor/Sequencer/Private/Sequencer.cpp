@@ -8590,7 +8590,7 @@ void FSequencer::OnLoadRecordedData()
 				NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 
 			}; //callback
-			UWorld* PlaybackContext = Cast<UWorld>(GetPlaybackContext());
+			UWorld* PlaybackContext = GetPlaybackContext()->GetWorld();
 			for (const FString& FileName : OpenFilenames)
 			{
 				Recorder->LoadRecordedSequencerFile(FocusedMovieSceneSequence, PlaybackContext, FileName, OnReadComplete);
