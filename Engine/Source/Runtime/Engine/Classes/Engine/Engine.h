@@ -2334,6 +2334,7 @@ public:
 	ENGINE_API bool HandleConfigHashCommand( const TCHAR* Cmd, FOutputDevice& Ar );						
 	ENGINE_API bool HandleConfigMemCommand( const TCHAR* Cmd, FOutputDevice& Ar );	
 	ENGINE_API bool HandleGetIniCommand(const TCHAR* Cmd, FOutputDevice& Ar);
+	ENGINE_API bool HandleRedirectOutputCommand(const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld);
 #endif // !UE_BUILD_SHIPPING
 
 	/** Update everything. */
