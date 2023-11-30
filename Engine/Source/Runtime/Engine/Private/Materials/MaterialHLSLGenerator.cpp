@@ -567,7 +567,13 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireExpression(UE::H
 	else
 	{
 		check(!Expression);
-		Expression = GetTree().NewExpression<UE::HLSLTree::FExpressionError>(AcquireError());
+		FStringView CurrentError = AcquireError();
+		if (!CurrentError.IsEmpty())
+		{
+			// if we have an error, generate an error expression
+			// if not, continue to return nullptr so caller can default missing inputs
+			Expression = GetTree().NewExpression<UE::HLSLTree::FExpressionError>(CurrentError);
+		}
 	}
 
 	return Expression;

@@ -1311,10 +1311,9 @@ static void EvaluateJumpIfFalse(FPreshaderDebugStack& Stack, FPreshaderDataConte
 	// It's complicated to include conditional jumps in a stack evaluator.  Ideally we'd want to evaluate and display both
 	// branches, but that requires evaluating both branches forward to where the branches reach the same instruction
 	// again, then converting stack entries that diverge between the two code paths to include a conditional expression.
-	// I don't have any examples of bytecode with conditional branches to be able to test an implementation of that (I
-	// think only the new translator generates these), so we'll just ignore the condition completely for now, and it won't
-	// show up in the debug expression.
-	FString ConditionValue = Stack.Elements.Pop().Text;
+
+	// The new translator can generate conditionals, until as above is implemented, ignore the conditional.
+	// This may elevate the reported count as actually exclusive branches may both be debug evaluated.
 }
 
 FPreshaderValue EvaluatePreshader(const FUniformExpressionSet* UniformExpressionSet, const FMaterialRenderContext& Context, FPreshaderStack& Stack, FPreshaderDataContext& RESTRICT Data)
