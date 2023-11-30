@@ -74,7 +74,14 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
 			{
                 if(this->AppliedConfig.Width == PendingConfig.Width
                     && this->AppliedConfig.Height == PendingConfig.Height
-                    && this->AppliedConfig.Codec == PendingConfig.Codec)
+                    && this->AppliedConfig.Codec == PendingConfig.Codec
+                    && this->AppliedConfig.RateControlMode == PendingConfig.RateControlMode
+                    && this->AppliedConfig.KeyframeInterval == PendingConfig.KeyframeInterval
+                    && this->AppliedConfig.Profile == PendingConfig.Profile
+                    && this->AppliedConfig.PixelFormat == PendingConfig.PixelFormat
+                    && this->AppliedConfig.EntropyCodingMode == PendingConfig.EntropyCodingMode
+                    && this->AppliedConfig.MinQP == PendingConfig.MinQP
+                    && this->AppliedConfig.MaxQP == PendingConfig.MaxQP)
                 {
                     // Only bitrates can be configured on the fly
                     SetEncoderBitrate(PendingConfig);
@@ -113,25 +120,25 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
                 CONDITIONAL_RELEASE(IOSurfaceValue);
                 CONDITIONAL_RELEASE(PixelFormat);
 
-                CFMutableDictionaryRef EncoderSpecification = CFDictionaryCreateMutable(kCFAllocatorDefault, 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+                CFMutableDictionaryRef EncoderSpecification = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
                 
-                if(PendingConfig.Codec == kCMVideoCodecType_H264)
-                {
-                    // TODO (belchy06): Not all encoders are real-time. This should be moved to the config
-                    CFDictionarySetValue(EncoderSpecification, kVTVideoEncoderSpecification_EnableLowLatencyRateControl, kCFBooleanTrue);
-                }
-                else if(PendingConfig.Codec == kCMVideoCodecType_HEVC)
-                {
-                    CFDictionarySetValue(EncoderSpecification, kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
-                }
+                // We explicitly state here that we want a hardware encoder. If it's optional, replace with kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder
+                CFDictionarySetValue(EncoderSpecification, kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
                 
-                OSStatus Result = VTCompressionSessionCreate(kCFAllocatorDefault, PendingConfig.Width, PendingConfig.Height, PendingConfig.Codec, EncoderSpecification, SourceAttributes, NULL /* Default Compressed Data Allocator */, Internal::VTCompressionOutputCallback, this, &Encoder);
+                OSStatus Result = VTCompressionSessionCreate(kCFAllocatorDefault, PendingConfig.Width, PendingConfig.Height, PendingConfig.Codec, EncoderSpecification, SourceAttributes, nullptr /* Default Compressed Data Allocator */, Internal::VTCompressionOutputCallback, this, &Encoder);
                     
                 if(Result != 0)
                 {
-                    FAVResult::Log(EAVResult::ErrorCreating, TEXT("Failed to create VTCompressionSession"), TEXT("VT"), Result);
+                    CONDITIONAL_RELEASE(SourceAttributes);
+                    CONDITIONAL_RELEASE(EncoderSpecification);
+                    return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to create VTCompressionSession"), TEXT("VT"), Result);
                 }
 
+                CFBooleanRef bIsUsingHardwareEncoder;
+                Result = VTSessionCopyProperty(Encoder, kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, NULL, &bIsUsingHardwareEncoder);
+                FAVResult::Log(EAVResult::Unknown, FString::Printf(TEXT("Created compression session. UsingHardwareEncoder: %s"), (Result == 0 && CFBooleanGetValue(bIsUsingHardwareEncoder) ? TEXT("TRUE") : TEXT("FALSE"))), TEXT("VT"));
+
+                CONDITIONAL_RELEASE(bIsUsingHardwareEncoder);
                 CONDITIONAL_RELEASE(SourceAttributes);
                 CONDITIONAL_RELEASE(EncoderSpecification);
 
@@ -147,21 +154,27 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
 
 template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::ConfigureCompressionSession(FVideoEncoderConfigVT const& Config)  
-{
+{   
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_RealTime, true);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_ProfileLevel, Config.Profile);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowFrameReordering, false);
+    
+    SetEncoderBitrate(Config);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, Config.KeyframeInterval);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, Config.KeyframeInterval * Config.FrameRate);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MinAllowedFrameQP, Config.MinQP);
+    
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxAllowedFrameQP, Config.MaxQP);
     
     if(Config.Codec == kCMVideoCodecType_H264)
     {
-        VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_ProfileLevel, Config.Profile);
+        VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_H264EntropyMode, Config.EntropyCodingMode);
     }
-    
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowFrameReordering, false);
-
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, Config.KeyframeInterval);
-
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_ExpectedFrameRate, Config.FrameRate);
-
-    SetEncoderBitrate(Config);
     
     OSStatus Status = VTCompressionSessionPrepareToEncodeFrames(Encoder);
     if(Status != 0)
@@ -175,37 +188,29 @@ FAVResult TVideoEncoderVT<TResource>::ConfigureCompressionSession(FVideoEncoderC
 template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::SetEncoderBitrate(FVideoEncoderConfigVT const& Config)
 {
-    // CBR not supported by encoders in their current configuration
-    // if(Config.RateControlMode == ERateControlMode::CBR)
-    // {
-    //     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_ConstantBitRate, Config.TargetBitrate);
-    // }
-    // else
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AverageBitRate, Config.TargetBitrate);
+
+    // Bits to bytes conversion
+    int64_t BytesPerSecondValue = static_cast<int64_t>(Config.MaxBitrate >> 3);
+    CFNumberRef BytesPerSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &BytesPerSecondValue);
+    
+    int64_t OneSecondValue = 1;
+    CFNumberRef OneSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &OneSecondValue);
+    
+    const void* Nums[2] = { BytesPerSecond, OneSecond };
+    CFArrayRef DataRateLimits = CFArrayCreate(nullptr, Nums, 2, &kCFTypeArrayCallBacks);
+    
+    OSStatus Result = VTSessionSetProperty(Encoder, kVTCompressionPropertyKey_DataRateLimits, DataRateLimits);
+    
+    CONDITIONAL_RELEASE(BytesPerSecond);
+    CONDITIONAL_RELEASE(OneSecond);
+    CONDITIONAL_RELEASE(DataRateLimits);
+    
+    if(Result != 0)
     {
-        VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AverageBitRate, Config.TargetBitrate);
-
-        int64_t DataLimitBytesPerSecondValue = static_cast<int64_t>(Config.MaxBitrate * 1.5f / 8);
-
-        CFNumberRef BytesPerSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &DataLimitBytesPerSecondValue);
-        
-        int64_t OneSecondValue = 1;
-        CFNumberRef OneSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &OneSecondValue);
-    
-        const void* Nums[2] = { BytesPerSecond, OneSecond };
-    
-        CFArrayRef DataRateLimits = CFArrayCreate(nullptr, Nums, 2, &kCFTypeArrayCallBacks);
-    
-        OSStatus Result = VTSessionSetProperty(Encoder, kVTCompressionPropertyKey_DataRateLimits, DataRateLimits);
-
-        if(Result != 0)
-        {
-            FAVResult::Log(EAVResult::Error, TEXT("Failed to set kVTCompressionPropertyKey_DataRateLimits"), TEXT("VT"), Result);
-        }
-
-        CONDITIONAL_RELEASE(BytesPerSecond);
-        CONDITIONAL_RELEASE(OneSecond);
-        CONDITIONAL_RELEASE(DataRateLimits);
+        return FAVResult(EAVResult::Error, TEXT("Failed to set kVTCompressionPropertyKey_DataRateLimits"), TEXT("VT"), Result);
     }
+    
 
     return EAVResult::Success;
 }

@@ -27,6 +27,9 @@ public:
 	CMVideoCodecType Codec;
 	CFStringRef Profile;
     EVideoFormat PixelFormat;
+    CFStringRef EntropyCodingMode;
+    int32 MinQP;
+    int32 MaxQP;
 
 	FVideoEncoderConfigVT()
 		: FAVConfig()
@@ -60,7 +63,10 @@ public:
 				this->KeyframeInterval == Other.KeyframeInterval &&
 				this->Preset == Other.Preset &&
 				this->TargetBitrate == Other.TargetBitrate &&
-                this->PixelFormat == Other.PixelFormat;
+                this->PixelFormat == Other.PixelFormat &&
+                this->EntropyCodingMode == Other.EntropyCodingMode &&
+                this->MinQP == Other.MinQP &&
+                this->MaxQP == Other.MaxQP;
 	}
 
 	bool operator!=(FVideoEncoderConfigVT const& Other) const
