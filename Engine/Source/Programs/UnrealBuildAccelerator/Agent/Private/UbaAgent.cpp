@@ -85,6 +85,7 @@ namespace uba
 		logger.Info(TC("  -named=<name>           Use named events and file mappings by providing the base name in this option"));
 		logger.Info(TC("  -nopoll                 Does not keep polling for work; attempts to connect once then exits"));
 		logger.Info(TC("  -nostore                Does not use storage to store files (with a few exceptions such as binaries)"));
+		logger.Info(TC("  -resetstore             Delete all cas"));
 		logger.Info(TC("  -quiet                  Does not output any logging in console"));
 		logger.Info(TC("  -maxidle=<seconds>      Max time agent will idle before disconnecting. Ignored if -nopoll is not set"));
 		logger.Info(TC("  -binasversion           Will use binaries as version. This will cause updates everytime binaries change on host side"));
@@ -399,6 +400,7 @@ namespace uba
 		bool useQuic = false;
 		bool poll = true;
 		bool useStorage = true;
+		bool resetStore = false;
 		bool quiet = false;
 		bool verbose = false;
 		bool printSummary = false;
@@ -540,6 +542,10 @@ namespace uba
 			else if (name.Equals(TC("-nostore")))
 			{
 				useStorage = false;
+			}
+			else if (name.Equals(TC("-resetstore")))
+			{
+				resetStore = true;
 			}
 			else if (name.Equals(TC("-binasversion")))
 			{
@@ -711,7 +717,12 @@ namespace uba
 			info.casCapacityBytes = storageCapacity;
 			info.storeCompressed = storeCompressed;
 			StorageImpl storage(info);
-			if (!storage.LoadCasTable(false))
+			if (resetStore)
+			{
+				if (!storage.Reset())
+					return -1;
+			}
+			else if (!storage.LoadCasTable(false))
 				return -1;
 		}
 

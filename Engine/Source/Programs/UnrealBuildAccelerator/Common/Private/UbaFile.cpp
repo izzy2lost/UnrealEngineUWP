@@ -302,11 +302,11 @@ namespace uba
 				{
 					if (!DeleteFileW(fullPath.data))
 					{
-						if (count)
-							++(*count);
 						logger.Warning(TC("Failed to delete file %s (%s)"), fullPath.data, LastErrorToText().data);
 						success = false;
 					}
+					else if (count)
+						++(*count);
 				}
 			});
 

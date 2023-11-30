@@ -1476,6 +1476,27 @@ namespace uba
 	bool StorageImpl::DeleteAllCas()
 	{
 		u32 deleteCount = 0;
+
+		WorkManagerImpl workManager(GetLogicalProcessorCount());
+		{
+			Atomic<u32> atomicDeleteCount;
+			TraverseDir(m_logger, m_rootDir.data, [&](const DirectoryEntry& e)
+				{
+					if (!IsDirectory(e.attributes))
+						return;
+					workManager.AddWork([&, name = TString(e.name)]()
+						{
+							StringBuffer<> fullPath;
+							fullPath.Append(m_rootDir).Append(name);
+							u32 deleteCountTemp = 0;
+							DeleteAllFiles(m_logger, fullPath.data, true, &deleteCountTemp);
+							atomicDeleteCount += deleteCountTemp;
+						}, 1, TC(""));
+				});
+			workManager.Wait();
+			deleteCount += atomicDeleteCount;
+		}
+
 		bool res = DeleteAllFiles(m_logger, m_rootDir.data, false, &deleteCount);
 		m_logger.Info(TC("Deleted %u cas files"), deleteCount);
 		m_createdDirs.clear();
