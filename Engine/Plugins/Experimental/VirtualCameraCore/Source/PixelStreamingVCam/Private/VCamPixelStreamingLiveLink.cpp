@@ -4,7 +4,6 @@
 #include "ILiveLinkClient.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Roles/LiveLinkTransformTypes.h"
-#include "IPixelStreamingStats.h"
 
 #define LOCTEXT_NAMESPACE "PixelStreamingLiveLinkSource"
 
@@ -110,18 +109,6 @@ void FPixelStreamingLiveLinkSource::PushTransformForSubject(FName SubjectName, F
 		TransformFrameData->MetaData.SceneTime = FQualifiedFrameTime(NumberOfFrames, FFrameRate(60,1));
 
 		LiveLinkClient->PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(FrameDataStruct));
-
-		// Graph the number of transforms sent to livelink
-		uint64 NowCycles = FPlatformTime::Cycles64();
-		double SecondsDelta = FGenericPlatformTime::ToSeconds64(NowCycles - LastTransformGraphedCycles);
-		if(SecondsDelta > 1.0f)
-		{
-			FName GraphName = FName(*(FString(TEXT("NTransformsSentSec_")) + SubjectName.ToString()));
-			IPixelStreamingStats::Get().GraphValue(GraphName, NTransformsPushed, 60, 0, 300);
-			NTransformsPushed = 0;
-			LastTransformGraphedCycles = NowCycles;
-		}
-
 	}
 }
 

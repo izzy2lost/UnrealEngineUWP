@@ -11,6 +11,7 @@
 #include "Async/Async.h"
 #include "Containers/UnrealString.h"
 #include "Editor/EditorPerformanceSettings.h"
+#include "IPixelStreamingStats.h"
 #include "IPixelStreamingModule.h"
 #include "IPixelStreamingInputModule.h"
 #include "IPixelStreamingEditorModule.h"
@@ -42,7 +43,7 @@ namespace UE::PixelStreamingVCam::Private
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
+		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 
 		if (!This->IsInitialized())
 		{
@@ -76,9 +77,9 @@ namespace UE::PixelStreamingVCam::Private
 		if (MediaOutput == nullptr || !MediaOutput->IsValid() || MediaOutput->GetStreamer()->GetId() != This->StreamerId)
 		{
 			MediaOutput = UPixelStreamingMediaOutput::Create(GetTransientPackage(), This->StreamerId);
-			MediaOutput->OnRemoteResolutionChanged().AddSP(this, &FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged, WeakThisPtr);
-			MediaOutput->GetStreamer()->OnPreConnection().AddSP(this, &FVCamPixelStreamingSessionLogic::OnPreStreaming, WeakThisPtr);
-			MediaOutput->GetStreamer()->OnStreamingStarted().AddSP(this, &FVCamPixelStreamingSessionLogic::OnStreamingStarted, WeakThisPtr);
+			MediaOutput->OnRemoteResolutionChanged().AddSP(this, &FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged, WeakThisUObjectPtr);
+			MediaOutput->GetStreamer()->OnPreConnection().AddSP(this, &FVCamPixelStreamingSessionLogic::OnPreStreaming, WeakThisUObjectPtr);
+			MediaOutput->GetStreamer()->OnStreamingStarted().AddSP(this, &FVCamPixelStreamingSessionLogic::OnStreamingStarted, WeakThisUObjectPtr);
 			MediaOutput->GetStreamer()->OnStreamingStopped().AddSP(this, &FVCamPixelStreamingSessionLogic::OnStreamingStopped);
 		}
 
@@ -138,9 +139,9 @@ namespace UE::PixelStreamingVCam::Private
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
-		SetupCapture(WeakThisPtr);
+		SetupCapture(WeakThisUObjectPtr);
 	}
 
 	void FVCamPixelStreamingSessionLogic::StopStreaming()
@@ -153,13 +154,14 @@ namespace UE::PixelStreamingVCam::Private
 		MediaOutput->StopStreaming();
 	}
 
-	void FVCamPixelStreamingSessionLogic::OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
-
+		SetupARKitResponseTimer(WeakThisUObjectPtr);
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnStreamingStopped(IPixelStreamingStreamer* StartedStreamer)
 	{
+		StopARKitResponseTimer();
 		StopCapture();
 	}
 
@@ -245,7 +247,7 @@ namespace UE::PixelStreamingVCam::Private
 		});
 	}
 
-	void FVCamPixelStreamingSessionLogic::SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
 		UE_LOG(LogPixelStreamingVCam, Log, TEXT("Create new media capture for Pixel Streaming VCam."));
 
@@ -256,8 +258,8 @@ namespace UE::PixelStreamingVCam::Private
 
 		// Create a capturer that will capture frames from viewport and send them to streamer
 		MediaCapture = Cast<UPixelStreamingMediaIOCapture>(MediaOutput->CreateMediaCapture());
-		MediaCapture->OnStateChangedNative.AddSP(this, &FVCamPixelStreamingSessionLogic::OnCaptureStateChanged, WeakThisPtr);
-		StartCapture(WeakThisPtr);
+		MediaCapture->OnStateChangedNative.AddSP(this, &FVCamPixelStreamingSessionLogic::OnCaptureStateChanged, WeakThisUObjectPtr);
+		StartCapture(WeakThisUObjectPtr);
 
 		// Creating media capture will have created a video input, set that on streamer
 		UpdateVideoInput();
@@ -288,9 +290,9 @@ namespace UE::PixelStreamingVCam::Private
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
-		if (!WeakThisPtr.IsValid() || !MediaCapture)
+		if (!WeakThisUObjectPtr.IsValid() || !MediaCapture)
 		{
 			return;
 		}
@@ -301,7 +303,7 @@ namespace UE::PixelStreamingVCam::Private
 		Options.ResizeMethod = EMediaCaptureResizeMethod::ResizeSource;
 
 		// If we are rendering from a ComposureOutputProvider, get the requested render target and use that instead of the viewport
-		if (UVCamOutputComposure* ComposureProvider = Cast<UVCamOutputComposure>(WeakThisPtr->GetOtherOutputProviderByIndex(WeakThisPtr->FromComposureOutputProviderIndex)))
+		if (UVCamOutputComposure* ComposureProvider = Cast<UVCamOutputComposure>(WeakThisUObjectPtr->GetOtherOutputProviderByIndex(WeakThisUObjectPtr->FromComposureOutputProviderIndex)))
 		{
 			if (ComposureProvider->FinalOutputRenderTarget)
 			{
@@ -315,7 +317,7 @@ namespace UE::PixelStreamingVCam::Private
 		}
 		else
 		{
-			TWeakPtr<FSceneViewport> SceneViewport = WeakThisPtr->GetTargetSceneViewport();
+			TWeakPtr<FSceneViewport> SceneViewport = WeakThisUObjectPtr->GetTargetSceneViewport();
 			if (TSharedPtr<FSceneViewport> PinnedSceneViewport = SceneViewport.Pin())
 			{
 				MediaCapture->CaptureSceneViewport(PinnedSceneViewport, Options);
@@ -377,10 +379,12 @@ namespace UE::PixelStreamingVCam::Private
 																							// Timestamp
 																							EType::Double });
 
-			const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
-			const IPixelStreamingInputHandler::MessageHandlerFn ARKitHandler = [WeakThisPtr](FString PlayerId, FMemoryReader Ar)
+			const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
+			const IPixelStreamingInputHandler::MessageHandlerFn ARKitHandler = [this, WeakThisUObjectPtr](FString PlayerId, FMemoryReader Ar)
 			{
-				if (!WeakThisPtr.IsValid() || !WeakThisPtr->EnableARKitTracking)
+				NumARKitEvents++;
+
+				if (!WeakThisUObjectPtr.IsValid() || !WeakThisUObjectPtr->EnableARKitTracking)
 				{
 					return;
 				}
@@ -402,9 +406,9 @@ namespace UE::PixelStreamingVCam::Private
 				double Timestamp;
 				Ar << Timestamp;
 
-				if (const TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource = UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(WeakThisPtr.Get()))
+				if (const TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource = UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(WeakThisUObjectPtr.Get()))
 				{
-					LiveLinkSource->PushTransformForSubject(WeakThisPtr->GetFName(), FTransform(ARKitMatrix), Timestamp);
+					LiveLinkSource->PushTransformForSubject(WeakThisUObjectPtr->GetFName(), FTransform(ARKitMatrix), Timestamp);
 				}
 			};
 
@@ -420,7 +424,7 @@ namespace UE::PixelStreamingVCam::Private
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
 		if (!MediaCapture)
 		{
@@ -437,7 +441,7 @@ namespace UE::PixelStreamingVCam::Private
 			{
 				UE_LOG(LogPixelStreamingVCam, Log, TEXT("Pixel Streaming VCam capture was stopped due to resize, going to restart capture."));
 				// If it was stopped and viewport resized we assume resize caused the stop, so try a restart of capture here.
-				SetupCapture(WeakThisPtr);
+				SetupCapture(WeakThisUObjectPtr);
 			}
 			else
 			{
@@ -452,23 +456,23 @@ namespace UE::PixelStreamingVCam::Private
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr)
+	void FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
 	{
 		// Early out if match remote resolution is not enabled.
-		if (!ensure(WeakThisPtr.IsValid()) || !WeakThisPtr->bMatchRemoteResolution)
+		if (!ensure(WeakThisUObjectPtr.IsValid()) || !WeakThisUObjectPtr->bMatchRemoteResolution)
 		{
 			return;
 		}
 
 		// Ensure override resolution is being used
-		if (!WeakThisPtr->bUseOverrideResolution)
+		if (!WeakThisUObjectPtr->bUseOverrideResolution)
 		{
-			WeakThisPtr->bUseOverrideResolution = true;
+			WeakThisUObjectPtr->bUseOverrideResolution = true;
 		}
 
 		// Set the override resolution on the output provider base, this will trigger a resize
-		WeakThisPtr->OverrideResolution = RemoteResolution;
-		WeakThisPtr->ReapplyOverrideResolution();
+		WeakThisUObjectPtr->OverrideResolution = RemoteResolution;
+		WeakThisUObjectPtr->ReapplyOverrideResolution();
 	}
 
 	void FVCamPixelStreamingSessionLogic::ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const
@@ -477,6 +481,35 @@ namespace UE::PixelStreamingVCam::Private
 		if (This->bAutoSetLiveLinkSubject && IsValid(VCamComponent) && This->IsActive())
 		{
 			VCamComponent->SetLiveLinkSubobject(This->GetFName());
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
+	{
+		if (GWorld && !GWorld->GetTimerManager().IsTimerActive(ARKitResponseTimer))
+		{
+			const auto SendARKitResponseFunction = [this, WeakThisUObjectPtr]() {
+				if(!MediaOutput || !WeakThisUObjectPtr.IsValid())
+				{
+					return;
+				}
+				
+				MediaOutput->GetStreamer()->SendPlayerMessage(FPixelStreamingInputProtocol::FromStreamerProtocol.Find("Response")->GetID(), FString::FromInt((int)NumARKitEvents));
+
+				FName GraphName = FName(*(FString(TEXT("NTransformsSentSec_")) + WeakThisUObjectPtr->GetFName().ToString()));
+				IPixelStreamingStats::Get().GraphValue(GraphName, NumARKitEvents, 60, 0, 300);
+				NumARKitEvents = 0;
+			};
+
+			GWorld->GetTimerManager().SetTimer(ARKitResponseTimer, SendARKitResponseFunction, 1.0f, true);
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::StopARKitResponseTimer()
+	{
+		if (GWorld)
+		{
+			GWorld->GetTimerManager().ClearTimer(ARKitResponseTimer);
 		}
 	}
 }

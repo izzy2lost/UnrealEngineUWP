@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Engine/EngineTypes.h"
 #include "Engine/HitResult.h"
 #include "IOutputProviderLogic.h"
 #include "UObject/ObjectPtr.h"
@@ -48,24 +49,32 @@ namespace UE::PixelStreamingVCam::Private
 		void SetupSignallingServer();
 		void StopSignallingServer();
 
-		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
-		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
+		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopCapture();
 		void UpdateVideoInput();
 
-		void OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void OnPreStreaming(IPixelStreamingStreamer* PreConnectionStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StopStreaming();
-		void OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void OnStreamingStopped(IPixelStreamingStreamer* StoppedStreamer);
 		void StopEverything();
 
 		void SetupCustomInputHandling(UVCamPixelStreamingSession* This);
 
-		void OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
-		void OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr);
+		void OnCaptureStateChanged(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
+		void OnRemoteResolutionChanged(const FIntPoint& RemoteResolution, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 
 		/** Sets the owning VCam's live link subject to this the subject created by this session, if this behaviour is enabled. */
 		void ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const;
+
+		void SetupARKitResponseTimer(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
+		void StopARKitResponseTimer();
+
+private:
+		/** Handle for ARKit stats timer */
+		FTimerHandle ARKitResponseTimer; 
+		size_t NumARKitEvents = 0;
 	};
 }
 
