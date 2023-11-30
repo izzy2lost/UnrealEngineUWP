@@ -9726,7 +9726,6 @@ void UCharacterMovementComponent::ServerMove_Implementation(
 }
 
 
-///// DEPRECATED /////
 void UCharacterMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLoc, UPrimitiveComponent* ClientMovementBase, FName ClientBaseBoneName, uint8 ClientMovementMode)
 {
 	if (!ShouldUsePackedMovementRPCs())
