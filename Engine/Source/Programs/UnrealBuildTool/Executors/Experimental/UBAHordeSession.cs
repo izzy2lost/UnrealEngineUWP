@@ -28,6 +28,7 @@ namespace UnrealBuildTool
 	/// <summary>
 	/// Configuration for Unreal Build Accelerator Horde session
 	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "UnrealBuildTool naming style")]
 	class UnrealBuildAcceleratorHordeConfig
 	{
 		/// <summary>
@@ -36,7 +37,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "Server")]
 		[CommandLine("-BoxHorde=")]
 		[CommandLine("-UBAHorde=")]
-		public string? HordeServer;
+		public string? HordeServer { get; set; }
 
 		/// <summary>
 		/// Uri of the Horde server
@@ -44,7 +45,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "Token")]
 		[CommandLine("-BoxHordeToken=")]
 		[CommandLine("-UBAHordeToken=")]
-		public string? HordeToken;
+		public string? HordeToken { get; set; }
 
 		/// <summary>
 		/// OIDC id for the login to use
@@ -52,7 +53,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "OidcProvider")]
 		[CommandLine("-BoxHordeOidc=")]
 		[CommandLine("-UBAHordeOidc=")]
-		public string? HordeOidcProvider;
+		public string? HordeOidcProvider { get; set; }
 
 		/// <summary>
 		/// Pool for the Horde agent to assign
@@ -60,7 +61,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "Pool")]
 		[CommandLine("-BoxHordePool=")]
 		[CommandLine("-UBAHordePool=")]
-		public string? HordePool;
+		public string? HordePool { get; set; }
 
 		/// <summary>
 		/// Requirements for the Horde agent to assign
@@ -68,7 +69,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "Requirements")]
 		[CommandLine("-BoxHordeRequirements=")]
 		[CommandLine("-UBAHordeRequirements=")]
-		public string? HordeCondition;
+		public string? HordeCondition { get; set; }
 
 		/// <summary>
 		/// Which ip UBA server should give to agents. This will invert so host listens and agents connect
@@ -76,7 +77,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "LocalHost")]
 		[CommandLine("-BoxHordeHost")]
 		[CommandLine("-UBAHordeHost")]
-		public string HordeHost = String.Empty;
+		public string HordeHost { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Max cores allowed to be used by build session
@@ -84,7 +85,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-BoxHordeMaxCores")]
 		[CommandLine("-UBAHordeMaxCores")]
-		public int HordeMaxCores = 576;
+		public int HordeMaxCores { get; set; } = 576;
 
 		/// <summary>
 		/// How long UBT should wait to ask for help. Useful in build configs where machine can delay remote work and still get same wall time results (pch dependencies etc)
@@ -92,7 +93,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-BoxHordeDelay")]
 		[CommandLine("-UBAHordeDelay")]
-		public int HordeDelay = 0;
+		public int HordeDelay { get; set; } = 0;
 
 		/// <summary>
 		/// Allow use of Wine. Only applicable to Horde agents running Linux. Can still be ignored if Wine executable is not set on agent.
@@ -100,7 +101,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-BoxHordeAllowWine", Value = "true")]
 		[CommandLine("-UBAHordeAllowWine", Value = "true")]
-		public bool bHordeAllowWine = true;
+		public bool bHordeAllowWine { get; set; } = true;
 
 		/// <summary>
 		/// Connection mode for agent/compute communication
@@ -109,7 +110,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde", Name = "ConnectionMode")]
 		[CommandLine("-BoxHordeConnectionMode=")]
 		[CommandLine("-UBAHordeConnectionMode=")]
-		public string? HordeConnectionMode;
+		public string? HordeConnectionMode { get; set; }
 
 		/// <summary>
 		/// Sentry URL to send box data to. Optional.
@@ -117,7 +118,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "Horde")]
 		[CommandLine("-BoxSentryUrl=")]
 		[CommandLine("-UBASentryUrl=")]
-		public string? UBASentryUrl;
+		public string? UBASentryUrl { get; set; }
 
 		/// <summary>
 		/// Disable horde all together
@@ -125,7 +126,7 @@ namespace UnrealBuildTool
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-BoxDisableHorde")]
 		[CommandLine("-UBADisableHorde")]
-		public bool bDisableHorde = false;
+		public bool bDisableHorde { get; set; } = false;
 	}
 
 	class UBAHordeSession : IAsyncDisposable
@@ -158,13 +159,13 @@ namespace UnrealBuildTool
 
 		public struct Worker
 		{
-			public Task BackgroundTask;
-			public int NumLogicalCores;
-			public Stopwatch StartTime;
-			public bool Started;
-			public string Ip;
-			public ConnectionMetadataPort Port;
-			public ConnectionMetadataPort ProxyPort;
+			public Task BackgroundTask { get; set; }
+			public int NumLogicalCores { get; set; }
+			public Stopwatch StartTime { get; set; }
+			public bool Started { get; set; }
+			public string Ip { get; set; }
+			public ConnectionMetadataPort Port { get; set; }
+			public ConnectionMetadataPort ProxyPort { get; set; }
 		}
 
 		readonly List<Worker> _workers = new();
@@ -191,7 +192,7 @@ namespace UnrealBuildTool
 			services.AddHttpClient<HordeHttpClient>(ConfigureHttpClient);
 			_serviceProvider = services.BuildServiceProvider();
 
-			if (connectionMode == ConnectionMode.Relay && _crypto == String.Empty)
+			if (connectionMode == ConnectionMode.Relay && String.IsNullOrEmpty(_crypto))
 			{
 				_crypto = UBAExecutor.CreateCrypto();
 			}
@@ -220,6 +221,8 @@ namespace UnrealBuildTool
 
 			await _serviceProvider.DisposeAsync();
 			_cancellationTokenSource.Dispose();
+
+			_storage.Dispose();
 		}
 
 		public async Task InitAsync(bool useSentry, CancellationToken cancellationToken)
@@ -294,7 +297,7 @@ namespace UnrealBuildTool
 			return handle.GetLocator();
 		}
 
-		public int NumLogicalCores = 0;
+		public int NumLogicalCores { get; private set; } = 0;
 
 		public async void RemoveCompleteWorkers()
 		{
@@ -379,13 +382,13 @@ namespace UnrealBuildTool
 				string computeIp = String.Empty;
 				foreach (string property in lease.Properties)
 				{
-					int equalsIdx = property.IndexOf('=');
+					int equalsIdx = property.IndexOf('=', StringComparison.OrdinalIgnoreCase);
 					StringView propertyName = new(property, 0, equalsIdx);
 					if (s_logProperties.Contains(propertyName))
 					{
 						_logger.LogInformation("  {Property}", property);
 
-						if (propertyName == ResourceLogicalCores && int.TryParse(property.AsSpan(equalsIdx + 1), out int value))
+						if (propertyName == ResourceLogicalCores && Int32.TryParse(property.AsSpan(equalsIdx + 1), out int value))
 						{
 							numLogicalCores = value;
 						}
@@ -452,7 +455,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public static async Task<UBAHordeSession?> TryCreateHordeSession(UnrealBuildAcceleratorHordeConfig hordeConfig, UBAExecutor executor, bool bStrictErrors, CancellationToken cancellationToken, ILogger logger)
+		public static async Task<UBAHordeSession?> TryCreateHordeSession(UnrealBuildAcceleratorHordeConfig hordeConfig, UBAExecutor executor, bool bStrictErrors, ILogger logger, CancellationToken cancellationToken = default)
 		{
 			if (hordeConfig.bDisableHorde)
 			{
@@ -489,7 +492,7 @@ namespace UnrealBuildTool
 			{
 				if (String.IsNullOrEmpty(token) && hasOidcProvider)
 				{
-					token = await GetOidcBearerTokenAsync(null, oidcProvider!, cancellationToken, logger);
+					token = await GetOidcBearerTokenAsync(null, oidcProvider!, logger, cancellationToken);
 				}
 
 				AuthenticationHeaderValue? authHeader = null;
@@ -498,9 +501,9 @@ namespace UnrealBuildTool
 					authHeader = new AuthenticationHeaderValue("Bearer", token);
 				}
 
-				bool AllowWine = hordeConfig.bHordeAllowWine && OperatingSystem.IsWindows();
+				bool allowWine = hordeConfig.bHordeAllowWine && OperatingSystem.IsWindows();
 
-				UBAHordeSession session = new(executor, new Uri(server), authHeader, hordeConfig.HordePool, AllowWine, hordeConfig.HordeMaxCores, bStrictErrors, connectionMode, logger);
+				UBAHordeSession session = new(executor, new Uri(server), authHeader, hordeConfig.HordePool, allowWine, hordeConfig.HordeMaxCores, bStrictErrors, connectionMode, logger);
 				await session.InitAsync(useSentry: !String.IsNullOrEmpty(hordeConfig.UBASentryUrl), cancellationToken);
 				return session;
 			}
@@ -515,7 +518,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		static async Task<string> GetOidcBearerTokenAsync(DirectoryReference? projectDir, string oidcProvider, CancellationToken cancellationToken, ILogger logger)
+		static async Task<string> GetOidcBearerTokenAsync(DirectoryReference? projectDir, string oidcProvider, ILogger logger, CancellationToken cancellationToken = default)
 		{
 			logger.LogInformation("Performing OIDC token refresh...");
 
@@ -572,7 +575,9 @@ namespace UnrealBuildTool
 
 						string hordeHost = _owner.UBAConfig.Host;
 						if (!String.IsNullOrEmpty(_owner.HordeConfig.HordeHost))
+						{
 							hordeHost = _owner.HordeConfig.HordeHost;
+						}
 
 						bool useListen = !String.IsNullOrEmpty(_owner.HordeConfig.HordeHost);
 						List<string> arguments = new();
