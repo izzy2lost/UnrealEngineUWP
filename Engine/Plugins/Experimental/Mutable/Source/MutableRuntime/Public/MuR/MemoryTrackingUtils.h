@@ -33,6 +33,8 @@ namespace mu
 		 static void Restore();
 		 static SSIZE_T GetPeak();
 		 static SSIZE_T GetCounter();
+		 static SSIZE_T GetAbsolutePeak();
+		 static SSIZE_T GetAbsoluteCounter();
 	};
 #else
 	struct MUTABLERUNTIME_API FGlobalMemoryCounter
@@ -42,6 +44,8 @@ namespace mu
 		 static void Restore();
 		 static SSIZE_T GetPeak();
 		 static SSIZE_T GetCounter();
+		 static SSIZE_T GetAbsolutePeak();
+		 static SSIZE_T GetAbsoluteCounter();
 	};
 #endif
 }
