@@ -2,17 +2,10 @@
   
 #include "../Common.ush"
 #include "../MonteCarlo.ush"
-#include "../DeferredShadingCommon.ush"  
-#include "../SceneTextureParameters.ush"
+#include "../DeferredShadingCommon.ush"
 #include "../PositionReconstructionCommon.ush"
-#include "../HairShadingCommon.ush"
-#include "../HairBsdf.ush"
-#include "HairStrandsCommon.ush"
-#include "HairStrandsVisibilityCommon.ush"
-#include "HairStrandsVoxelPageCommon.ush"
 #include "HairStrandsEnvironmentLightingCommon.ush"
-
-#include "../ShaderPrint.ush"
+#include "../Substrate/Substrate.ush"
 
 #define VOXEL_TRAVERSAL_TYPE VOXEL_TRAVERSAL_LINEAR_MIPMAP
 #define VOXEL_TRAVERSAL_DEBUG 0 
@@ -117,8 +110,7 @@ float TraceAO(float3 TranslatedWorldPosition, float3 WorldNormal, float2 SvPosit
 
 void MainPS(
 	in float4 SvPosition : SV_Position,
-	out float4 OutAO : SV_Target0
-)
+	out float4 OutAO : SV_Target0)
 {
 	const bool bHalfRes = true; // Output_bHalfRes > 0;
 	float2 BufferUV = SvPositionToBufferUV(SvPosition);
@@ -127,20 +119,30 @@ void MainPS(
 		BufferUV = SvPosition.xy * Output_InvResolution;
 	}
 
-	const FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
+	const uint2 PixelCoord = floor(SvPosition.xy);
+#if SUBSTRATE_ENABLED
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(PixelCoord, 0)));
+	const bool bIsValid = SubstratePixelHeader.ClosureCount > 0;
+	const float3 WorldNormal = TopLayerData.WorldNormal;
 
-	OutAO = 1;
-
+#else
 	// Trace AO for all pixel which are partially covered or not covered at all.
 	// Fully covered pixel are marked as unlit
-	const uint2 PixelCoord = floor(SvPosition.xy);
+	const FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
 	const bool bIsValid = GBuffer.ShadingModelID != SHADINGMODELID_UNLIT;
+	const float3 WorldNormal = GBuffer.WorldNormal;
+#endif
 
+	OutAO = 1;
 	if (bIsValid)
 	{
-		const float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDepth(BufferUV, GBuffer.Depth);
-		const float PixelRadius = GBuffer.Depth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
-		OutAO = TraceAO(TranslatedWorldPosition, GBuffer.WorldNormal, SvPosition.xy, PixelRadius);
+		const float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
+		const float SceneDepth = ConvertFromDeviceZ(DeviceZ);
+		const float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDepth(BufferUV, SceneDepth);
+		const float PixelRadius = SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
+		OutAO = TraceAO(TranslatedWorldPosition, WorldNormal, SvPosition.xy, PixelRadius);
 	}
 	else
 	{
