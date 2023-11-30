@@ -1051,6 +1051,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			{
 				ComputeLightGrid(GraphBuilder, bEnableClusteredLocalLights, SortedLightSet);
 			}
+
+			LightFunctionAtlas.RenderLightFunctionAtlas(GraphBuilder, Views);
 		}
 		else
 		{
