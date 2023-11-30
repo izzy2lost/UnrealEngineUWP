@@ -1471,7 +1471,7 @@ TArray<FRichCurve> UnFbx::FFbxImporter::ResolveWeightsForBlendShapeCurve(FRichCu
 		const float SourceTime = SourceKey.Time;
 		const float SourceValue = SourceKey.Value;
 
-		float ResolvedPrimarySample;
+		float ResolvedPrimarySample = 0.0f;
 
 		ResolveWeightsForBlendShape(InbetweenFullWeights,SourceValue, ResolvedPrimarySample, ResolvedInbetweenWeightsSample);
 
