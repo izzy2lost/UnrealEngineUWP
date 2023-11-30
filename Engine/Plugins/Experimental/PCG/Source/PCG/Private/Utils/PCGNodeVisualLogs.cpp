@@ -142,11 +142,16 @@ FText FPCGNodeVisualLogs::GetLogsSummaryText(const UPCGNode* InNode, ELogVerbosi
 	return Summary;
 }
 
-FText FPCGNodeVisualLogs::GetLogsSummaryText(const FPCGStack& InBaseStack) const
+FText FPCGNodeVisualLogs::GetLogsSummaryText(const FPCGStack& InBaseStack, ELogVerbosity::Type* OutMinimumVerbosity) const
 {
 	FReadScopeLock ScopedReadLock(LogsLock);
 
-	FText ResultText = FText::GetEmpty();
+	FText Summary = FText::GetEmpty();
+
+	if (OutMinimumVerbosity)
+	{
+		*OutMinimumVerbosity = ELogVerbosity::All;
+	}
 
 	int32 LogCounter = 0;
 
@@ -159,27 +164,32 @@ FText FPCGNodeVisualLogs::GetLogsSummaryText(const FPCGStack& InBaseStack) const
 
 		const FPCGPerNodeVisualLogs& NodeLogs = Entry.Value;
 
-		for (int32 i = 0; i < NodeLogs.Num(); ++i)
+		for (int32 LogIndex = 0; LogIndex < NodeLogs.Num(); ++LogIndex)
 		{
 			++LogCounter;
 
 			if (LogCounter > MaxLogsInSummary)
 			{
-				ResultText = FText::Format(FText::FromString(TEXT("{0}\n...")), ResultText);
-				return ResultText;
+				Summary = FText::Format(FText::FromString(TEXT("{0}\n...")), Summary);
+				return Summary;
 			}
 
 			if (LogCounter > 1)
 			{
-				ResultText = FText::Format(FText::FromString(TEXT("{0}\n")), ResultText);
+				Summary = FText::Format(FText::FromString(TEXT("{0}\n")), Summary);
 			}
 
-			const FText MessageVerbosity = NodeLogs[i].Verbosity == ELogVerbosity::Warning ? FText::FromString(TEXT("Warning")) : FText::FromString(TEXT("Error"));
-			ResultText = FText::Format(LOCTEXT("NodeTooltipLog", "{0}{1}: {2}"), ResultText, /*i + 1, NodeLogs.Num(),*/ MessageVerbosity, NodeLogs[i].Message);
+			if (OutMinimumVerbosity)
+			{
+				*OutMinimumVerbosity = FMath::Min(*OutMinimumVerbosity, NodeLogs[LogIndex].Verbosity);
+			}
+
+			const FText MessageVerbosity = NodeLogs[LogIndex].Verbosity == ELogVerbosity::Warning ? FText::FromString(TEXT("Warning")) : FText::FromString(TEXT("Error"));
+			Summary = FText::Format(LOCTEXT("NodeTooltipLog", "{0}{1}: {2}"), Summary, MessageVerbosity, NodeLogs[LogIndex].Message);
 		}
 	}
 
-	return ResultText;
+	return Summary;
 }
 
 void FPCGNodeVisualLogs::ClearLogs(const FPCGStack& InPCGStack)

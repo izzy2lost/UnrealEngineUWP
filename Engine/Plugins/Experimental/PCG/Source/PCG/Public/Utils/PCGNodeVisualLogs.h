@@ -45,7 +45,7 @@ public:
 	bool HasLogsOfVerbosity(const FPCGStack& InPCGStack, ELogVerbosity::Type InVerbosity) const;
 
 	/** Summary text of all visual logs produced while executing the provided base stack, appropriate for display in graph editor tooltip. */
-	FText GetLogsSummaryText(const FPCGStack& InBaseStack) const;
+	FText GetLogsSummaryText(const FPCGStack& InBaseStack, ELogVerbosity::Type* OutMinimumVerbosity = nullptr) const;
 
 	/**
 	* Returns summary text of visual logs from recent execution, appropriate for display in graph editor tooltip. Writes the minimum encountered verbosity
