@@ -2050,7 +2050,7 @@ public:
 		{
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Elements[InElementIndex]))
 			{
-				return GetControlValue(ControlElement, InValueType);
+				return GetControlValue(ControlElement, InValueType, bUsePreferredEulerAngles);
 			}
 		}
 		return FRigControlValue();
@@ -2141,7 +2141,12 @@ public:
 	{
 		if(InControlElement)
 		{
-			return InControlElement->PreferredEulerAngles.GetRotator(bInitial);
+			if (bUsePreferredEulerAngles)
+			{
+				return InControlElement->PreferredEulerAngles.GetRotator(bInitial);
+			}
+			const ERigTransformType::Type Type = bInitial ? ERigTransformType::InitialLocal : ERigTransformType::CurrentLocal;
+			return GetControlValue(InControlElement->GetKey()).GetAsTransform(InControlElement->Settings.ControlType, InControlElement->Settings.PrimaryAxis).Rotator();
 		}
 		return FRotator::ZeroRotator;
 	}
@@ -4621,7 +4626,7 @@ protected:
 
 	mutable TMap<FRigElementKey, FRigElementKey> DefaultParentPerElement;
 
-	bool bUpdatePreferredEulerAngleWhenSettingTransform;
+	bool bUsePreferredEulerAngles;
 	mutable bool bAllowNameSpaceWhenSanitizingName;
 
 private:

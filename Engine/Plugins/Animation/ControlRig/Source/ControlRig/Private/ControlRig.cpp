@@ -475,7 +475,6 @@ void UControlRig::Evaluate_AnyThread()
 
 						const bool bSetupUndo = false; // Rely on the sequencer track to handle undo/redo
 						Hierarchy->SetControlValue(Control, FinalValue, ERigControlValueType::Current, bSetupUndo, false, Info.bPrintPythonCommnds, false);
-						Hierarchy->SetPreferredEulerAnglesFromValue(Control, AdditiveValue, ERigControlValueType::Current, Info.bFixEulerFlips);
 					}
 
 					if (Info.bNotify && OnControlModified.IsBound())
@@ -1757,6 +1756,8 @@ void UControlRig::PostLoad()
 		NewInfluences.FindOrAdd(EventName).Merge(Map, true);
 	}
 	Influences = NewInfluences;
+
+	GetHierarchy()->bUsePreferredEulerAngles = !bIsAdditive;
 }
 
 const FRigModuleSettings& UControlRig::GetRigModuleSettings() const
@@ -1960,7 +1961,7 @@ FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, con
 			
 			// return local space control value (the one to be added after backwards solve)
 			const FRigPoseElement& AnimPose = ControlsAfterBackwardsSolve[ControlIndex];
-			const FRigControlValue& CurrentValue = GetHierarchy()->GetControlValue(InControl, InValueType);
+			const FRigControlValue& CurrentValue = GetHierarchy()->GetControlValue(InControl, InValueType, false);
 			const FTransform FinalTransform = CurrentValue.GetAsTransform(InControl->Settings.ControlType, InControl->Settings.PrimaryAxis);
 			const FTransform AdditiveTransform = FinalTransform * AnimPose.LocalTransform.Inverse();
 			FRigControlValue AdditiveValue;

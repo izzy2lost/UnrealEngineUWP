@@ -119,7 +119,7 @@ URigHierarchy::URigHierarchy()
 #endif
 , bEnableCacheValidityCheck(bEnableValidityCheckbyDefault)
 , HierarchyForCacheValidation()
-, bUpdatePreferredEulerAngleWhenSettingTransform(true)
+, bUsePreferredEulerAngles(true)
 , bAllowNameSpaceWhenSanitizingName(false)
 , ExecuteContext(nullptr)
 #if WITH_EDITOR
@@ -3404,7 +3404,7 @@ void URigHierarchy::SetTransform(FRigTransformElement* InTransformElement, const
 	{
 		ControlElement->Shape.MarkDirty(MakeGlobal(InTransformType));
 
-		if(bUpdatePreferredEulerAngleWhenSettingTransform && ERigTransformType::IsLocal(InTransformType))
+		if(bUsePreferredEulerAngles && ERigTransformType::IsLocal(InTransformType))
 		{
 			const bool bInitial = ERigTransformType::IsInitial(InTransformType);
 			ControlElement->PreferredEulerAngles.SetRotator(InTransform.Rotator(), bInitial, true);
@@ -4065,7 +4065,7 @@ void URigHierarchy::SetControlValue(FRigControlElement* InControlElement, const 
 				FRigControlValue Value = InValue;
 				InControlElement->Settings.ApplyLimits(Value);
 
-				TGuardValue<bool> DontSetPreferredEulerAngle(bUpdatePreferredEulerAngleWhenSettingTransform, false);
+				TGuardValue<bool> DontSetPreferredEulerAngle(bUsePreferredEulerAngles, false);
 				SetTransform(
 					InControlElement,
 					Value.GetAsTransform(
@@ -4089,7 +4089,7 @@ void URigHierarchy::SetControlValue(FRigControlElement* InControlElement, const 
 				FRigControlValue Value = InValue;
 				InControlElement->Settings.ApplyLimits(Value);
 
-				TGuardValue<bool> DontSetPreferredEulerAngle(bUpdatePreferredEulerAngleWhenSettingTransform, false);
+				TGuardValue<bool> DontSetPreferredEulerAngle(bUsePreferredEulerAngles, false);
 				SetTransform(
 					InControlElement,
 					Value.GetAsTransform(

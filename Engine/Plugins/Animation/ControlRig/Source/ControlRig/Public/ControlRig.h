@@ -691,6 +691,7 @@ public:
 	void SetIsAdditive(const bool bInIsAdditive)
 	{
 		bIsAdditive = bInIsAdditive;
+		GetHierarchy()->bUsePreferredEulerAngles = !bIsAdditive;
 	}
 
 private:
