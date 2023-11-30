@@ -1024,6 +1024,7 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 			PermutationVector.Set<FDistanceFieldSkyOcclusion>(false);
 			PermutationVector.Set<FCloudTransmittance>(false);
 			PermutationVector.Set<FTemporalReprojection>(false);
+			PermutationVector.Set<FSampleLightFunctionAtlas>(false);
 		}
 
 		if (!FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(ShaderPlatform))
@@ -1305,7 +1306,6 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 	}
 
 	const FExponentialHeightFogSceneInfo& FogInfo = Scene->ExponentialFogs[0];
-	const bool bUseLightFunctionAtlas = Scene->LightFunctionAtlasSceneData.GetVolumetricFogUsesLightFunctionAtlas();
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FSceneRenderer::ComputeVolumetricFog);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_VolumetricFog);
@@ -1334,6 +1334,9 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 		{
 			IntegrationData.FrameJitterOffsetValues[FrameOffsetIndex] = VolumetricFogTemporalRandom(View.Family->FrameNumber - FrameOffsetIndex);
 		}
+
+		// Mobile has limited capacities with SRV binding so do not enable atlas sampling on there.
+		const bool bUseLightFunctionAtlas = Scene->LightFunctionAtlasSceneData.GetVolumetricFogUsesLightFunctionAtlas() && !IsMobilePlatform(View.GetShaderPlatform());
 
 		const bool bUseTemporalReprojection =
 			GVolumetricFogTemporalReprojection

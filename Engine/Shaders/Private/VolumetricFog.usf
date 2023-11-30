@@ -326,9 +326,11 @@ int VirtualShadowMapId;
 #define HISTORY_MISS_SUPER_SAMPLE_COUNT 1
 #endif
 
+#if USE_LIGHT_FUNCTION_ATLAS || USE_LIGHT_FUNCTION
 #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+#endif
 
-#if	USE_LIGHT_FUNCTION
+#if	USE_LIGHT_FUNCTION // Used when injecting light with with shadow, unbatched
 
 /** Matrix can be either WorldToShadow or WorldToLight depending on light type. */
 float4x4 LocalLightFunctionMatrix;
@@ -670,7 +672,7 @@ uint DirectionalLightFunctionAtlasLightIndex;
 
 float GetDirectionalLightFunction(float3 TranslatedWorldPosition) // directional light
 {
-#if USE_LIGHT_FUNCTION_ATLAS
+#if USE_LIGHT_FUNCTION_ATLAS  // Used when injecting lights from the light grid
 	if (DirectionalApplyLightFunctionFromAtlas > 0)
 	{
 		return GetLocalLightFunctionCommon(TranslatedWorldPosition, DirectionalLightFunctionAtlasLightIndex);
