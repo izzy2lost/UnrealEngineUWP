@@ -46,6 +46,13 @@ public:
 
 	virtual void ShowChangelistsTab() = 0;
 	virtual bool CanShowChangelistsTab() const = 0;
+
+	virtual void ShowSnapshotHistoryTab() = 0;
+	virtual bool CanShowSnapshotHistoryTab() const = 0;
+
+	virtual void ShowConflictResolutionTab() = 0;
+	virtual bool CanShowConflictResolutionTab() const = 0;
+
 	virtual void SelectFiles(const TArray<FString>& Filenames) = 0;
 
 	DECLARE_EVENT_OneParam(ISourceControlWindowsModule, FChangelistFileDoubleClickedEvent, const FString&);

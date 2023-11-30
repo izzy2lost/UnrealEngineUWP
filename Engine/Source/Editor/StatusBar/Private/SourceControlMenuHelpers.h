@@ -26,8 +26,11 @@ private:
 	static void ConnectToSourceControl_Clicked();
 	static bool ViewChangelists_CanExecute();
 	static bool ViewChangelists_IsVisible();
+	static bool ViewSnapshotHistory_CanExecute();
+	static bool ViewSnapshotHistory_IsVisible();
 	static bool SubmitContent_IsVisible();
 	static void ViewChangelists_Clicked();
+	static void ViewSnapshotHistory_Clicked();
 	static bool CheckOutModifiedFiles_CanExecute();
 	static void CheckOutModifiedFiles_Clicked();
 	static bool RevertAllModifiedFiles_CanExecute();
@@ -40,6 +43,7 @@ public:
 	TSharedPtr< FUICommandInfo > ConnectToSourceControl;
 	TSharedPtr< FUICommandInfo > ChangeSourceControlSettings;
 	TSharedPtr< FUICommandInfo > ViewChangelists;
+	TSharedPtr< FUICommandInfo > ViewSnapshotHistory;
 	TSharedPtr< FUICommandInfo > SubmitContent;
 	TSharedPtr< FUICommandInfo > CheckOutModifiedFiles;
 	TSharedPtr< FUICommandInfo > RevertAll;
@@ -80,10 +84,6 @@ private:
 
 	static FReply OnSourceControlSyncClicked();
 	static FReply OnSourceControlCheckInChangesClicked();
-
-	/** Callbacks */
-	static void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
-	static void OnSourceControlStateChanged();
 
 private:
 	/** Delegate handles */

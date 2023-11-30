@@ -51,6 +51,7 @@ void FSourceControlCommands::RegisterCommands()
 	UI_COMMAND(ConnectToSourceControl, "Connect to Revision Control...", "Connect to a revision control system for tracking changes to your content and levels.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ChangeSourceControlSettings, "Change Revision Control Settings...", "Opens a dialog to change revision control settings.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ViewChangelists, "View Changes", "Opens a dialog displaying current changes.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ViewSnapshotHistory, "View Snapshot History", "Opens a dialog to switch between source control revisions.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(SubmitContent, "Submit Content", "Opens a dialog with check in options for content and levels.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(CheckOutModifiedFiles, "Check Out Modified Files", "Opens a dialog to check out any assets which have been modified.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RevertAll, "Revert All Files", "Opens a dialog to revert any assets which have been modified.", EUserInterfaceActionType::Button, FInputChord());
@@ -70,7 +71,15 @@ void FSourceControlCommands::RegisterCommands()
 		FExecuteAction::CreateStatic(&FSourceControlCommands::ViewChangelists_Clicked),
 		FCanExecuteAction::CreateStatic(&FSourceControlCommands::ViewChangelists_CanExecute),
 		FIsActionChecked::CreateLambda([]() { return false; }),
-		FIsActionButtonVisible::CreateStatic(&FSourceControlCommands::ViewChangelists_IsVisible)		
+		FIsActionButtonVisible::CreateStatic(&FSourceControlCommands::ViewChangelists_IsVisible)
+	);
+
+	ActionList->MapAction(
+		ViewSnapshotHistory,
+		FExecuteAction::CreateStatic(&FSourceControlCommands::ViewSnapshotHistory_Clicked),
+		FCanExecuteAction::CreateStatic(&FSourceControlCommands::ViewSnapshotHistory_CanExecute),
+		FIsActionChecked::CreateLambda([]() { return false; }),
+		FIsActionButtonVisible::CreateStatic(&FSourceControlCommands::ViewSnapshotHistory_IsVisible)
 	);
 
 	ActionList->MapAction(
@@ -111,6 +120,16 @@ bool FSourceControlCommands::ViewChangelists_IsVisible()
 	return ISourceControlModule::Get().GetProvider().UsesChangelists() || ISourceControlModule::Get().GetProvider().UsesUncontrolledChangelists();
 }
 
+bool FSourceControlCommands::ViewSnapshotHistory_CanExecute()
+{
+	return ISourceControlWindowsModule::Get().CanShowSnapshotHistoryTab();
+}
+
+bool FSourceControlCommands::ViewSnapshotHistory_IsVisible()
+{
+	return ISourceControlModule::Get().GetProvider().GetName() == TEXT("Unreal Revision Control");
+}
+
 bool FSourceControlCommands::SubmitContent_IsVisible()
 {
 	if (FSourceControlMenuHelpers::GetSourceControlCheckInStatusVisibility() == EVisibility::Visible)
@@ -129,6 +148,11 @@ bool FSourceControlCommands::SubmitContent_IsVisible()
 void FSourceControlCommands::ViewChangelists_Clicked()
 {
 	ISourceControlWindowsModule::Get().ShowChangelistsTab();
+}
+
+void FSourceControlCommands::ViewSnapshotHistory_Clicked()
+{
+	ISourceControlWindowsModule::Get().ShowSnapshotHistoryTab();
 }
 
 bool FSourceControlCommands::CheckOutModifiedFiles_CanExecute()
@@ -227,6 +251,13 @@ TSharedRef<SWidget> FSourceControlMenuHelpers::GenerateSourceControlMenuContent(
 		TAttribute<FText>(),
 		TAttribute<FText>(),
 		FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.ChangelistsTab")
+	);
+
+	Section.AddMenuEntry(
+		FSourceControlCommands::Get().ViewSnapshotHistory,
+		TAttribute<FText>(),
+		TAttribute<FText>(),
+		FSlateIcon(FRevisionControlStyleManager::GetStyleSetName(), "RevisionControl.Actions.Rewind")
 	);
 
 	Section.AddMenuEntry(
