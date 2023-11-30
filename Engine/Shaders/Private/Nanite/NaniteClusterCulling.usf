@@ -288,6 +288,9 @@ bool SmallEnoughToDraw(
 
 #if NANITE_HIERARCHY_TRAVERSAL
 
+MAX_OCCUPANCY
+DISABLE_TARGET_OCCUPANCY_WARNING
+
 struct FNaniteTraversalClusterCullCallback
 {
 	uint ChildIndex;
@@ -739,9 +742,11 @@ struct FNaniteTraversalClusterCullCallback
 
 					StoreCandidateCluster(MainAndPostCandididateClusters, (MaxCandidateClusters - 1) - OccludedClusterOffset, VisibleCluster);
 
+#if CULLING_TYPE == NANITE_CULLING_TYPE_PERSISTENT_NODES_AND_CLUSTERS
 					DeviceMemoryBarrier();
 					const uint BatchIndex = OccludedClusterOffset / NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE;
 					::AddToClusterBatch(MainAndPostNodesAndClusterBatches, BatchIndex, 1, true);
+#endif
 				}
 			}
 #endif
@@ -863,7 +868,6 @@ void InitArgs()
 		OutQueueState[0].PassState[i].ClusterWriteOffset		= 0;
 		OutQueueState[0].PassState[i].NodeReadOffset			= 0;
 		OutQueueState[0].PassState[i].NodeWriteOffset			= 0;
-		OutQueueState[0].PassState[i].NodePrevWriteOffset		= 0;
 		OutQueueState[0].PassState[i].NodeCount					= 0;
 	}
 
@@ -890,36 +894,52 @@ void InitArgs()
 #endif
 }
 
-
-RWBuffer< uint > OutCullArgs;
-
 uint InitIsPostPass;
 
+RWBuffer< uint > OutClusterCullArgs;
+
 [numthreads(1, 1, 1)]
-void InitCullArgs()
+void InitClusterCullArgs()
 {
-#if CULLING_TYPE == NANITE_CULLING_TYPE_NODES
-	// Update read offset by setting it to previous write offset
-	const uint NodeReadOffset	= OutQueueState[0].PassState[InitIsPostPass].NodePrevWriteOffset;
-	
-	const uint NodeWriteOffset	= OutQueueState[0].PassState[InitIsPostPass].NodeWriteOffset;
-	const uint NumNodesInPass	= min(NodeWriteOffset, MaxNodes) - min(NodeReadOffset, MaxNodes);
-
-	OutCullArgs[0] = (NumNodesInPass + NANITE_MAX_BVH_NODES_PER_GROUP - 1) / NANITE_MAX_BVH_NODES_PER_GROUP;
-	OutCullArgs[1] = 1;
-	OutCullArgs[2] = 1;
-
-	OutQueueState[0].PassState[InitIsPostPass].NodeReadOffset = NodeReadOffset;
-
-	DeviceMemoryBarrierWithGroupSync();
-
-	OutQueueState[0].PassState[InitIsPostPass].NodePrevWriteOffset = NodeWriteOffset;
-#elif CULLING_TYPE == NANITE_CULLING_TYPE_CLUSTERS
 	const uint NumCandidateClusters = min(OutQueueState[0].PassState[InitIsPostPass].ClusterWriteOffset, MaxCandidateClusters);
-	OutCullArgs[0] = (NumCandidateClusters + NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE - 1) / NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE;
-	OutCullArgs[1] = 1;
-	OutCullArgs[2] = 1;
-#endif
+	OutClusterCullArgs[0] = (NumCandidateClusters + NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE - 1) / NANITE_PERSISTENT_CLUSTER_CULLING_GROUP_SIZE;
+	OutClusterCullArgs[1] = 1;
+	OutClusterCullArgs[2] = 1;
+}
+
+RWBuffer< uint > OutNodeCullArgs0;
+RWBuffer< uint > OutNodeCullArgs1;
+
+[numthreads(NANITE_MAX_CLUSTER_HIERARCHY_DEPTH + 1, 1, 1)]
+void InitNodeCullArgs(uint GroupID : SV_GroupID, uint GroupIndex : SV_GroupIndex)
+{
+	const uint Offset = GroupIndex * NANITE_NODE_CULLING_ARG_COUNT;
+	if (GroupID == 0)
+	{
+		uint NumNodes = 0;
+		uint NumGroups = 0;
+
+		if (GroupIndex == 0)
+		{
+			const uint NodeWriteOffset = OutQueueState[0].PassState[InitIsPostPass].NodeWriteOffset;
+			NumNodes	= min(NodeWriteOffset, MaxNodes);
+			NumGroups	= (NumNodes + NANITE_MAX_BVH_NODES_PER_GROUP - 1) / NANITE_MAX_BVH_NODES_PER_GROUP;
+		}
+
+		OutNodeCullArgs0[Offset + 0] = NumGroups;		// ThreadGroupCountX
+		OutNodeCullArgs0[Offset + 1] = 1;				// ThreadGroupCountY
+		OutNodeCullArgs0[Offset + 2] = 1;				// ThreadGroupCountZ
+		OutNodeCullArgs0[Offset + 3] = NumNodes;		// NumNodes
+		OutNodeCullArgs0[Offset + 4] = 0;				// LevelStartIndex
+	}
+	else
+	{
+		OutNodeCullArgs1[Offset + 0] = 0;				// ThreadGroupCountX
+		OutNodeCullArgs1[Offset + 1] = 1;				// ThreadGroupCountY
+		OutNodeCullArgs1[Offset + 2] = 1;				// ThreadGroupCountZ
+		OutNodeCullArgs1[Offset + 3] = 0;				// NumNodes
+		OutNodeCullArgs0[Offset + 4] = 0;				// LevelStartIndex
+	}
 }
 
 Buffer<uint> InMainRasterizerArgsSWHW;

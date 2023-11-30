@@ -223,7 +223,9 @@
 #define NANITE_SHADING_BIN_VALIDATE		3
 
 // 3x for SW, 1x for padding, 4x for HW
-#define NANITE_RASTERIZER_ARG_COUNT 8u
+// These need to be po2 aligned to make sure we don't violate PLATFORM_DISPATCH_INDIRECT_ARGUMENT_BOUNDARY_SIZE
+#define NANITE_RASTERIZER_ARG_COUNT		8u
+#define NANITE_NODE_CULLING_ARG_COUNT	8u
 
 // Debug Visualization Modes
 #define NANITE_VISUALIZE_OVERVIEW							0u
