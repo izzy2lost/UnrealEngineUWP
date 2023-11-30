@@ -1521,7 +1521,7 @@ void FEDLCookChecker::Verify(const UE::SavePackageUtilities::FEDLMessageCallback
 				}
 				else
 				{
-					ReasonExportIsMissing = TEXT("the target package was not cooked");
+					ReasonExportIsMissing = TEXT("the target package was marked NeverCook or is not cookable for the target platform");
 				}
 
 				for (FName PackageName : NodeData.ImportingPackagesSorted)
