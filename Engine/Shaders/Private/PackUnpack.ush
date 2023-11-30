@@ -165,6 +165,20 @@ uint4 UnpackUintToUint4(uint In)
 }
 
 //
+//	float <-> unorm
+//
+
+uint PackUnorm10(float Value)
+{
+	return uint(saturate(Value) * 1023.0f);
+}
+
+float UnpackUnorm10(uint In)
+{
+	return float(In & 0x3FF) * (1.0f / 1023.0f);
+}
+
+//
 //	float <-> f10
 //
 
