@@ -7,7 +7,7 @@ class FRHITexture;
 class FRDGBuilder;
 class FRDGTexture;
 class FRDGPooledBuffer;
-class FViewInfo;
+class FSceneView;
 struct FShaderPrintData;
 
 class FWaterQuadTreeGPU
@@ -53,15 +53,6 @@ public:
 		float CaptureDepthRange = 1.0f;
 	};
 
-	struct FPerViewInfo
-	{
-		FMatrix44f TranslatedWorldToClip = FMatrix44f::Identity;
-		FMatrix44f ViewToClip = FMatrix44f::Identity;
-		FVector3f QuadTreePositionTranslatedWorldSpace = FVector3f::ZeroVector;
-		FVector3f ObserverPositionTranslatedWorldSpace = FVector3f::ZeroVector;
-		const FViewInfo* ViewInfo = nullptr;
-	};
-
 	struct FTraverseParams
 	{
 		FRDGPooledBuffer* OutIndirectArgsBuffer = nullptr;
@@ -69,7 +60,8 @@ public:
 		FRDGPooledBuffer* OutInstanceData0Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData1Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData2Buffer = nullptr;
-		TArray<FPerViewInfo> PerViewInfo;
+		TArray<const FSceneView*> Views;
+		FVector QuadTreePosition;
 		FBox2D CullingBounds = FBox2D(ForceInit);
 		uint32 NumDensities = 0;
 		uint32 NumMaterials = 0;

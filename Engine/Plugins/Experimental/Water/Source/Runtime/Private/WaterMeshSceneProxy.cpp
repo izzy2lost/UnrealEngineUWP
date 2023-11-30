@@ -358,9 +358,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 	{
 		bool bEncounteredISRView = false;
 		int32 InstanceFactor = 1;
-		int32 NumVisibleViews = 0;
-
-		TArray<FWaterQuadTreeGPU::FPerViewInfo> PerViewInfoArray;
+		TArray<const FSceneView*> VisibleViews;
 
 		// Gather per view data for all renderable views
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -375,21 +373,11 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			// skip gathering visible tiles from instanced right eye views
 			if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || View->IsPrimarySceneView()))
 			{
-				const FVector QuadTreePosition = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
-				const FVector PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
-				const FViewInfo* ViewInfo = View->bIsViewInfo ? reinterpret_cast<const FViewInfo*>(View) : nullptr;
-
-				FWaterQuadTreeGPU::FPerViewInfo& PerViewInfo = PerViewInfoArray.AddDefaulted_GetRef();
-				PerViewInfo.QuadTreePositionTranslatedWorldSpace = FVector3f(QuadTreePosition + PreViewTranslation);
-				PerViewInfo.ObserverPositionTranslatedWorldSpace = FVector3f(View->ViewMatrices.GetViewOrigin() + PreViewTranslation);
-				PerViewInfo.TranslatedWorldToClip = FMatrix44f(View->ViewMatrices.GetTranslatedViewProjectionMatrix());
-				PerViewInfo.ViewToClip = FMatrix44f(View->ViewMatrices.GetProjectionMatrix());
-				PerViewInfo.ViewInfo = ViewInfo;
-				
-				++NumVisibleViews;
+				VisibleViews.Add(View);
 			}
 		}
 
+		const int32 NumVisibleViews = VisibleViews.Num();
 		const int32 NumIndirectDrawCalls = NumBuckets * NumVisibleViews;
 		const int32 NumInstances = WaterQuadTree.GetMaxLeafCount() * NumVisibleViews;
 
@@ -422,7 +410,8 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			WaterQuadTreeGPUTraverseParams.OutInstanceData0Buffer = IndirectDrawResources.InstanceData0;
 			WaterQuadTreeGPUTraverseParams.OutInstanceData1Buffer = IndirectDrawResources.InstanceData1;
 			WaterQuadTreeGPUTraverseParams.OutInstanceData2Buffer = IndirectDrawResources.InstanceData2;
-			WaterQuadTreeGPUTraverseParams.PerViewInfo = MoveTemp(PerViewInfoArray);
+			WaterQuadTreeGPUTraverseParams.Views = MoveTemp(VisibleViews);
+			WaterQuadTreeGPUTraverseParams.QuadTreePosition = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
 			WaterQuadTreeGPUTraverseParams.CullingBounds = WaterInfoBounds.ShiftBy(-WaterQuadTree.GetTileRegion().Min);
 			WaterQuadTreeGPUTraverseParams.NumDensities = DensityCount;
 			WaterQuadTreeGPUTraverseParams.NumMaterials = NumWaterMaterials;

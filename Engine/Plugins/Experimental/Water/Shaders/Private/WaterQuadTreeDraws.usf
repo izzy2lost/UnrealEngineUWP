@@ -141,8 +141,6 @@ RWStructuredBuffer<FWaterTileDrawIndexedIndirectArgs> OcclusionQueryIndirectArgs
 Texture2D<float4> QuadTreeTexture;
 Texture2D<float4> WaterZBoundsTexture;
 StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
-float4x4 TranslatedWorldToClip;
-float4x4 ViewToClip;
 float4 CullingBoundsAABB;
 float3 QuadTreePosition;
 float3 ObserverPosition;
@@ -211,6 +209,8 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 		return;
 	}
 
+	ResolvedView = ResolveView();
+
 	// Compute which LOD level this thread belongs to and then find the node index relative to that LOD level
 	uint3 NodeCoord = 0;
 	{
@@ -250,8 +250,8 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 		const float3 NodeCenter = (NodeAABBMin + NodeAABBMax) * 0.5f;
 		const float3 NodeExtent = float3((NodeAABBMax.xy - NodeAABBMin.xy) * 0.5f, (NodeAABBMax.z - NodeAABBMin.z) * 0.5f + 1e-5f);
 	
-		const bool bIsOrtho = IsOrthoProjection(ViewToClip);
-		FFrustumCullData Cull = BoxCullFrustum(NodeCenter, NodeExtent, TranslatedWorldToClip, ViewToClip, bIsOrtho, true /* near clip */, false /* skip culling */);
+		const bool bIsOrtho = IsOrthoProjection(ResolvedView.ViewToClip);
+		FFrustumCullData Cull = BoxCullFrustum(NodeCenter, NodeExtent, ResolvedView.TranslatedWorldToClip, ResolvedView.ViewToClip, bIsOrtho, true /* near clip */, false /* skip culling */);
 
 		if (bHZBOcclusionCullingEnabled && !Cull.bCrossesNearPlane)
 		{
@@ -357,7 +357,6 @@ void MainCS(uint3 DispatchThreadID : SV_DispatchThreadID)
 #ifdef OCCLUSION_QUERY_RASTER_VS
 
 Buffer<float4> OcclusionQueryBoxes;
-float4x4 ViewProjection;
 
 void MainVS(
 	in float3 InPosition : ATTRIBUTE0,
@@ -366,6 +365,8 @@ void MainVS(
 	out float4 OutPosition : SV_Position
 )
 {
+	ResolvedView = ResolveView();
+
 	OutQueryIndex = InInstanceId;
 
 	const float4 CenterAndCrossesNearPlane = OcclusionQueryBoxes[InInstanceId * 2 + 0];
@@ -376,7 +377,7 @@ void MainVS(
 		const float3 Center = CenterAndCrossesNearPlane.xyz;
 		const float3 Extent = OcclusionQueryBoxes[InInstanceId * 2 + 1].xyz;
 		const float3 TranslatedWorldPosition = (InPosition * Extent) + Center;
-		OutPosition = mul(float4(TranslatedWorldPosition, 1.0f), ViewProjection);
+		OutPosition = mul(float4(TranslatedWorldPosition, 1.0f), ResolvedView.TranslatedWorldToClip);
 	}
 	else
 	{
@@ -397,14 +398,7 @@ void MainPS(
 	out float4 OutColor : SV_Target0
 )
 {
-#if COMPILER_SUPPORTS_WAVE_VOTE
-	if (WaveIsFirstLane()) // Try to reduce the number of threads writing the same value to the same location.
-	{
-		Visibility[InQueryIndex] = 1;
-	}
-#else
 	Visibility[InQueryIndex] = 1;
-#endif
 	OutColor = float4(1.0f, 0.0f, 0.0f, 1.0f);
 }
 

@@ -169,6 +169,7 @@ public:
 	using FPermutationDomain = TShaderPermutationDomain<FPreciseOcclusionQueries>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, PackedNodes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryBoxes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionVisibility)
@@ -178,8 +179,6 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, WaterBodyRenderData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HZBTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, HZBSampler)
-		SHADER_PARAMETER(FMatrix44f, TranslatedWorldToClip)
-		SHADER_PARAMETER(FMatrix44f, ViewToClip)
 		SHADER_PARAMETER(FVector4f, CullingBoundsAABB)
 		SHADER_PARAMETER(FVector2f, HZBSize)
 		SHADER_PARAMETER(FVector2f, HZBViewSize)
@@ -214,8 +213,8 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FWaterQuadTreeOcclusionQueryVS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, OcclusionQueryBoxes)
-		SHADER_PARAMETER(FMatrix44f, ViewProjection)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -633,7 +632,12 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 	// Iterate over all views for which to create indirect water draws
 	for (uint32 ViewIndex = 0; ViewIndex < Params.NumViews; ++ViewIndex)
 	{
-		const FPerViewInfo& PerViewInfo = Params.PerViewInfo[ViewIndex];
+		const FSceneView* View = Params.Views[ViewIndex];
+		const FViewInfo* ViewInfo = View->bIsViewInfo ? reinterpret_cast<const FViewInfo*>(View) : nullptr;
+
+		const FVector PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
+		const FVector3f QuadTreePositionTranslatedWorldSpace = FVector3f(Params.QuadTreePosition + PreViewTranslation);
+		const FVector3f ObserverPositionTranslatedWorldSpace = FVector3f(View->ViewMatrices.GetViewOrigin() + PreViewTranslation);
 
 		const uint32 MaxNumDraws = QuadTreeResolution.X * QuadTreeResolution.Y;
 		FRDGBuffer* PackedNodes = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc((1 + MaxNumDraws) * sizeof(uint32)), TEXT("WaterQuadTree.PackedNodes"));
@@ -643,13 +647,15 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		FRDGBufferSRV* PackedNodesSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(PackedNodes, PF_R32_UINT));
 		FRDGBufferSRV* BucketCountsSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(BucketCounts, PF_R32_UINT));
 
+		const bool bPixelPreciseOQForThisView = bPixelPreciseOcclusionQueries && View->bIsViewInfo;
+
 		FRDGBuffer* OcclusionQueryBoxes = nullptr;
 		FRDGBuffer* OcclusionQueryResults = nullptr;
 		FRDGBufferUAV* OcclusionQueryBoxesUAV = nullptr;
 		FRDGBufferUAV* OcclusionQueryResultsUAV = nullptr;
 		FRDGBufferSRV* OcclusionQueryBoxesSRV = nullptr;
 		FRDGBufferSRV* OcclusionQueryResultsSRV = nullptr;
-		if (bPixelPreciseOcclusionQueries)
+		if (bPixelPreciseOQForThisView)
 		{
 			OcclusionQueryBoxes = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(float) * 4, MaxNumDraws * 2), TEXT("WaterQuadTree.OcclusionQueryBoxes"));
 			OcclusionQueryResults = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), MaxNumDraws), TEXT("WaterQuadTree.OcclusionQueryResults"));
@@ -667,7 +673,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		// Traverse quadtree
 		{
 			FWaterQuadTreeTraverseCS::FPermutationDomain PermutationDomain;
-			PermutationDomain.Set<FWaterQuadTreeTraverseCS::FPreciseOcclusionQueries>(bPixelPreciseOcclusionQueries);
+			PermutationDomain.Set<FWaterQuadTreeTraverseCS::FPreciseOcclusionQueries>(bPixelPreciseOQForThisView);
 			TShaderMapRef<FWaterQuadTreeTraverseCS> ComputeShader(ShaderMap, PermutationDomain);
 
 			const uint32 NumMipLevels = QuadTreeTextureRDG->Desc.NumMips;
@@ -679,6 +685,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			}
 
 			FWaterQuadTreeTraverseCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeTraverseCS::FParameters>();
+			PassParameters->View = GetShaderBinding(View->ViewUniformBuffer);
 			PassParameters->PackedNodes = PackedNodesUAV;
 			PassParameters->OcclusionQueryBoxes = OcclusionQueryBoxesUAV;
 			PassParameters->OcclusionVisibility = OcclusionQueryResultsUAV;
@@ -686,15 +693,13 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->QuadTreeTexture = QuadTreeTextureRDG;
 			PassParameters->WaterZBoundsTexture = WaterZBoundsTextureRDG;
 			PassParameters->WaterBodyRenderData = WaterBodyRenderDataBufferSRV;
-			PassParameters->HZBTexture = (PerViewInfo.ViewInfo && PerViewInfo.ViewInfo->HZB) ? PerViewInfo.ViewInfo->HZB : GSystemTextures.GetBlackDummy(GraphBuilder);
+			PassParameters->HZBTexture = (ViewInfo && ViewInfo->HZB) ? ViewInfo->HZB : GSystemTextures.GetBlackDummy(GraphBuilder);
 			PassParameters->HZBSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-			PassParameters->TranslatedWorldToClip = PerViewInfo.TranslatedWorldToClip;
-			PassParameters->ViewToClip = PerViewInfo.ViewToClip;
 			PassParameters->CullingBoundsAABB = FVector4f(Params.CullingBounds.Min.X, Params.CullingBounds.Min.Y, Params.CullingBounds.Max.X, Params.CullingBounds.Max.Y);
-			PassParameters->HZBSize = PerViewInfo.ViewInfo ? FVector2f(PerViewInfo.ViewInfo->ViewRect.Size()) : FVector2f::ZeroVector;
-			PassParameters->HZBViewSize = PerViewInfo.ViewInfo ? FVector2f(PerViewInfo.ViewInfo->HZBMipmap0Size) : FVector2f::ZeroVector;
-			PassParameters->QuadTreePosition = PerViewInfo.QuadTreePositionTranslatedWorldSpace;
-			PassParameters->ObserverPosition = PerViewInfo.ObserverPositionTranslatedWorldSpace;
+			PassParameters->HZBSize = ViewInfo ? FVector2f(ViewInfo->HZBMipmap0Size) : FVector2f::ZeroVector;
+			PassParameters->HZBViewSize = ViewInfo ? FVector2f(ViewInfo->ViewRect.Size()) : FVector2f::ZeroVector;
+			PassParameters->QuadTreePosition = QuadTreePositionTranslatedWorldSpace;
+			PassParameters->ObserverPosition = ObserverPositionTranslatedWorldSpace;
 			PassParameters->QuadTreeResolutionX = QuadTreeResolution.X;
 			PassParameters->QuadTreeResolutionY = QuadTreeResolution.Y;
 			PassParameters->NumDensities = Params.NumDensities;
@@ -706,27 +711,27 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->ForceCollapseDensityLevel = -1; // Params.ForceCollapseDensityLevel; // TODO: Properly implement support for this parameter
 			PassParameters->NumLODs = NumMipLevels;
 			PassParameters->NumDispatchedThreads = NumTexelsTotal;
-			PassParameters->bHZBOcclusionCullingEnabled = bHZBOcclusionQueries && (PerViewInfo.ViewInfo && PerViewInfo.ViewInfo->HZB);
+			PassParameters->bHZBOcclusionCullingEnabled = bHZBOcclusionQueries && (ViewInfo && ViewInfo->HZB);
 
 			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("WaterQuadTreeTraverse(View: %i)", ViewIndex), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumTexelsTotal, 64));
 		}
 
 		// Raster occlusion queries
-		if (bPixelPreciseOcclusionQueries)
+		if (bPixelPreciseOQForThisView)
 		{
 			TShaderMapRef<FWaterQuadTreeOcclusionQueryVS> VertexShader(ShaderMap);
 			TShaderMapRef<FWaterQuadTreeOcclusionQueryPS> PixelShader(ShaderMap);
 
-			FRDGTextureRef DepthTexture = PerViewInfo.ViewInfo->GetSceneTextures().Depth.Target;
+			FRDGTextureRef DepthTexture = ViewInfo->GetSceneTextures().Depth.Target;
 
 			FWaterQuadTreeOcclusionQueryParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeOcclusionQueryParameters>();
 			PassParameters->IndirectDrawArgsBuffer = OcclusionQueryIndirectArgsBuffer;
+			PassParameters->VS.View = GetShaderBinding(View->ViewUniformBuffer);
 			PassParameters->VS.OcclusionQueryBoxes = OcclusionQueryBoxesSRV;
-			PassParameters->VS.ViewProjection = PerViewInfo.TranslatedWorldToClip;
 			PassParameters->PS.Visibility = OcclusionQueryResultsUAV;
 			PassParameters->PS.RenderTargets.DepthStencil = FDepthStencilBinding(DepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthRead_StencilNop);
 
-			const FIntVector4 ViewRect = FIntVector4(PerViewInfo.ViewInfo->ViewRect.Min.X, PerViewInfo.ViewInfo->ViewRect.Min.Y, PerViewInfo.ViewInfo->ViewRect.Max.X, PerViewInfo.ViewInfo->ViewRect.Max.Y);
+			const FIntVector4 ViewRect = FIntVector4(ViewInfo->ViewRect.Min.X, ViewInfo->ViewRect.Min.Y, ViewInfo->ViewRect.Max.X, ViewInfo->ViewRect.Max.Y);
 
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("WaterQuadTreeOcclusionCulling(View: %i)", ViewIndex),
@@ -742,7 +747,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 					GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI();
+					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_CCW>::GetRHI();
 					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
 					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
@@ -761,7 +766,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		// Compute bucket counts
 		{
 			FWaterQuadTreeBucketCountsCS::FPermutationDomain PermutationDomain;
-			PermutationDomain.Set<FWaterQuadTreeBucketCountsCS::FPreciseOcclusionQueries>(bPixelPreciseOcclusionQueries);
+			PermutationDomain.Set<FWaterQuadTreeBucketCountsCS::FPreciseOcclusionQueries>(bPixelPreciseOQForThisView);
 			TShaderMapRef<FWaterQuadTreeBucketCountsCS> ComputeShader(ShaderMap, PermutationDomain);
 
 			FWaterQuadTreeBucketCountsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeBucketCountsCS::FParameters>();
@@ -795,7 +800,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		// Generate instance data and fill indirect args
 		{
 			FWaterQuadTreeGenerateInstanceDataCS::FPermutationDomain PermutationDomain;
-			PermutationDomain.Set<FWaterQuadTreeGenerateInstanceDataCS::FPreciseOcclusionQueries>(bPixelPreciseOcclusionQueries);
+			PermutationDomain.Set<FWaterQuadTreeGenerateInstanceDataCS::FPreciseOcclusionQueries>(bPixelPreciseOQForThisView);
 			TShaderMapRef<FWaterQuadTreeGenerateInstanceDataCS> ComputeShader(ShaderMap, PermutationDomain);
 
 			FWaterQuadTreeGenerateInstanceDataCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeGenerateInstanceDataCS::FParameters>();
@@ -809,8 +814,8 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->PackedNodes = PackedNodesSRV;
 			PassParameters->InstanceDataOffsets = InstanceDataOffsetsBufferSRV;
 			PassParameters->OcclusionResults = OcclusionQueryResultsSRV;
-			PassParameters->QuadTreePosition = PerViewInfo.QuadTreePositionTranslatedWorldSpace;
-			PassParameters->ObserverPosition = PerViewInfo.ObserverPositionTranslatedWorldSpace;
+			PassParameters->QuadTreePosition = QuadTreePositionTranslatedWorldSpace;
+			PassParameters->ObserverPosition = ObserverPositionTranslatedWorldSpace;
 			PassParameters->QuadTreeResolutionX = QuadTreeResolution.X;
 			PassParameters->QuadTreeResolutionY = QuadTreeResolution.Y;
 			PassParameters->NumDensities = Params.NumDensities;
@@ -832,10 +837,10 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		{
 			ShaderPrint::SetEnabled(true);
 
-			const bool bEnableShaderPrint = PerViewInfo.ViewInfo
+			const bool bEnableShaderPrint = ViewInfo != nullptr
 				&& ShaderPrint::IsEnabled()
-				&& ShaderPrint::IsEnabled(PerViewInfo.ViewInfo->ShaderPrintData)
-				&& ShaderPrint::IsValid(PerViewInfo.ViewInfo->ShaderPrintData)
+				&& ShaderPrint::IsEnabled(ViewInfo->ShaderPrintData)
+				&& ShaderPrint::IsValid(ViewInfo->ShaderPrintData)
 				&& ShaderPrint::IsSupported(GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel));
 
 			if (bEnableShaderPrint)
@@ -844,17 +849,17 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 				ShaderPrint::RequestSpaceForLines(12 * MaxNumDraws);
 
 				FWaterQuadTreeDebugCS::FPermutationDomain PermutationDomain;
-				PermutationDomain.Set<FWaterQuadTreeDebugCS::FPreciseOcclusionQueries>(bPixelPreciseOcclusionQueries);
+				PermutationDomain.Set<FWaterQuadTreeDebugCS::FPreciseOcclusionQueries>(bPixelPreciseOQForThisView);
 				TShaderMapRef<FWaterQuadTreeDebugCS> ComputeShader(ShaderMap, PermutationDomain);
 
 				FWaterQuadTreeDebugCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeDebugCS::FParameters>();
-				ShaderPrint::SetParameters(GraphBuilder, PerViewInfo.ViewInfo->ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
+				ShaderPrint::SetParameters(GraphBuilder, ViewInfo->ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
 				PassParameters->QuadTreeTexture = QuadTreeTextureRDG;
 				PassParameters->WaterZBoundsTexture = WaterZBoundsTextureRDG;
 				PassParameters->WaterBodyRenderData = WaterBodyRenderDataBufferSRV;
 				PassParameters->PackedNodes = PackedNodesSRV;
 				PassParameters->OcclusionResults = OcclusionQueryResultsSRV;
-				PassParameters->QuadTreePosition = PerViewInfo.QuadTreePositionTranslatedWorldSpace;
+				PassParameters->QuadTreePosition = QuadTreePositionTranslatedWorldSpace;
 				PassParameters->NumDispatchedThreads = FMath::Min(FMath::DivideAndRoundUp(MaxNumDraws, 64u), 65535u) * 64u; // The maximum number of dispatched groups is 64k
 				PassParameters->LeafSize = Params.LeafSize;
 				PassParameters->CaptureDepthRange = CaptureDepthRange;
