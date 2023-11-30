@@ -111,6 +111,10 @@ TSharedPtr<IPropertyHandle> FDetailItemNode::CreatePropertyHandle() const
 			return Handles[0];
 		}
 	}
+	else if (Customization.HasCustomBuilder())
+	{
+		return Customization.CustomBuilderRow->GetPropertyHandle();
+	}
 
 	return nullptr;
 }
@@ -847,6 +851,11 @@ FPropertyPath FDetailItemNode::GetPropertyPath() const
 				}
 			}
 		}
+	}
+
+	if (const TSharedPtr<IPropertyHandle> PropertyHandle = CreatePropertyHandle())
+	{
+		return *PropertyHandle->CreateFPropertyPath();
 	}
 	return Ret;
 }

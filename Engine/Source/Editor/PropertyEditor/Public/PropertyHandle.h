@@ -78,6 +78,11 @@ public:
 	virtual FStringView GetPropertyPath() const = 0;
 
 	/**
+	 * Helper to fetch a PropertyPath 
+	 */
+	virtual TSharedPtr<FPropertyPath> CreateFPropertyPath() const = 0;
+
+	/**
 	 * Helper to fetch the ArrayIndex
 	 */
 	virtual int32 GetArrayIndex() const = 0;
@@ -903,6 +908,11 @@ public:
 	 * @return The number of elements in the map
 	 */
 	virtual FPropertyAccess::Result GetNumElements(uint32& OutNumElements) = 0;
+
+	/**
+	 * @return a handle to the element at the specified index
+	 */
+	virtual TSharedRef<IPropertyHandle> GetElement(int32 Index) const = 0;
 
 	/**
 	 * Sets a delegate to call when the number of elements changes

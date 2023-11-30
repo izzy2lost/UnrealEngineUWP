@@ -810,6 +810,10 @@ public:
 			{
 				FPropertyInfo NewPropInfo;
 				NewPropInfo.Property = CurrentNode->GetProperty();
+				if (!NewPropInfo.Property.IsValid())
+				{
+					return MakeShareable(new FPropertyPath());
+				}
 				NewPropInfo.ArrayIndex = CurrentNode->GetArrayIndex();
 
 				Properties.Add(NewPropInfo);

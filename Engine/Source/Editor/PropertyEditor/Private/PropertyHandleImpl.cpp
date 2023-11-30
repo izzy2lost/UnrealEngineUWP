@@ -2278,6 +2278,15 @@ FStringView FPropertyHandleBase::GetPropertyPath() const
 	return FStringView();
 }
 
+TSharedPtr<FPropertyPath> FPropertyHandleBase::CreateFPropertyPath() const
+{
+	if (Implementation->GetPropertyNode().IsValid())
+ 	{
+ 		return FPropertyNode::CreatePropertyPath(Implementation->GetPropertyNode().ToSharedRef());
+ 	}
+	return TSharedPtr<FPropertyPath>();
+}
+
 int32 FPropertyHandleBase::GetArrayIndex() const
 {
 	if (Implementation->GetPropertyNode().IsValid())
@@ -5587,6 +5596,12 @@ FPropertyAccess::Result FPropertyHandleMap::GetNumElements(uint32& OutNumChildre
 {
 	OutNumChildren = Implementation->GetNumChildren();
 	return FPropertyAccess::Success;
+}
+
+TSharedRef<IPropertyHandle> FPropertyHandleMap::GetElement(int32 Index) const
+{
+	TSharedPtr<FPropertyNode> PropertyNode = Implementation->GetChildNode(Index);
+	return PropertyEditorHelpers::GetPropertyHandle(PropertyNode.ToSharedRef(), Implementation->GetNotifyHook(), Implementation->GetPropertyUtilities()).ToSharedRef();
 }
 
 FDelegateHandle FPropertyHandleMap::SetOnNumElementsChanged( const FSimpleDelegate& OnChildrenChanged )

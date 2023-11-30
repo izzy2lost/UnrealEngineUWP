@@ -513,6 +513,7 @@ public:
 	virtual FName GetDefaultCategoryName() const override;
 	virtual FText GetDefaultCategoryText() const override;
 	virtual FStringView GetPropertyPath() const override;
+	virtual TSharedPtr<FPropertyPath> CreateFPropertyPath() const override;
 	virtual int32 GetArrayIndex() const override;
 	virtual void RequestRebuildChildren() override;
 	virtual bool IsFavorite() const override;
@@ -777,6 +778,7 @@ public:
 	virtual FPropertyAccess::Result Empty() override;
 	virtual FPropertyAccess::Result DeleteItem(int32 Index) override;
 	virtual FPropertyAccess::Result GetNumElements(uint32& OutNumElements) override;
+	virtual TSharedRef<IPropertyHandle> GetElement(int32 Index) const override;
 	virtual FDelegateHandle SetOnNumElementsChanged( const FSimpleDelegate& InOnNumElementsChanged ) override;
 	virtual void UnregisterOnNumElementsChanged(FDelegateHandle Handle) override;
 	virtual bool HasDocumentation() override { return true; }
