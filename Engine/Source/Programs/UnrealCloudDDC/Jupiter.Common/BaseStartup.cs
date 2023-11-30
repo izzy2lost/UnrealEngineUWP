@@ -724,5 +724,10 @@ namespace Jupiter
 		/// Assumes that any local connection should have full access, this is used only for tests
 		/// </summary>
 		public bool AssumeLocalConnectionsHasFullAccess { get; set; }
+
+		/// <summary>
+		/// Set this to increase the max number of TCP connections that are allowed to be queued.
+		/// </summary>
+		public int? PendingConnectionMax { get; set; }
 	}
 }

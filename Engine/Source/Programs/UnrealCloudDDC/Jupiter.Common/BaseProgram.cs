@@ -108,12 +108,22 @@ namespace Jupiter
 						Log4net.Appender.Serilog.Configuration.Configure();
 					});*/
 					// remove the server header from kestrel
+
+					JupiterSettings settings = new JupiterSettings();
+					Configuration.GetSection("Jupiter").Bind(settings);
+
+					if (settings.PendingConnectionMax.HasValue)
+					{
+						webBuilder.UseSockets(options =>
+						{
+							options.Backlog = settings.PendingConnectionMax.Value;
+						});
+					}
+
 					webBuilder.ConfigureKestrel(options =>
 					{
 						options.AddServerHeader = false;
 
-						JupiterSettings settings = new JupiterSettings();
-						Configuration.GetSection("Jupiter").Bind(settings);
 						string socketsRoot = settings.DomainSocketsRoot;
 
 						if (settings.UseDomainSockets)
