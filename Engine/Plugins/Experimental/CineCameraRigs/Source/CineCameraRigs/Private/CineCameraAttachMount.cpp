@@ -96,6 +96,7 @@ void ACineCameraAttachMount::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	}
 }
 
+#if WITH_EDITOR
 void ACineCameraAttachMount::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -105,6 +106,7 @@ void ACineCameraAttachMount::PostEditChangeChainProperty(FPropertyChangedChainEv
 		SetAxisFilter();
 	}
 }
+#endif
 
 void ACineCameraAttachMount::SetAxisFilter()
 {
