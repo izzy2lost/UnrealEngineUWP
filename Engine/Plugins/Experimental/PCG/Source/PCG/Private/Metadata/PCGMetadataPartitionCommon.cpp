@@ -114,6 +114,24 @@ namespace PCGMetadataPartitionCommon
 			}
 		}
 
+		// Since we partition on the value array, it is not guarenteed that the values appears in the same order than the entries.
+		// So sort the final array using the first index as a sort criteria. Empty partitions will be at the beginning too.
+		PartitionedData.Sort([](const TArray<int32>& LHS, const TArray<int32>& RHS) -> bool
+		{ 
+			if (LHS.IsEmpty())
+			{
+				return true;
+			}
+			else if (RHS.IsEmpty())
+			{
+				return false;
+			}
+			else
+			{
+				return LHS[0] < RHS[0];
+			}
+		});
+
 		return PartitionedData;
 	}
 
