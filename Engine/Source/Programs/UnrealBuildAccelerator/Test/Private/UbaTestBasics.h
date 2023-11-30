@@ -2,6 +2,8 @@
 
 #pragma once
 
+#define Local_GetLongPathNameW uba::GetLongPathNameW
+
 #include "UbaBinaryReaderWriter.h"
 #include "UbaFileAccessor.h"
 #include "UbaPathUtils.h"

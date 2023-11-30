@@ -433,7 +433,7 @@ BOOLEAN Detoured_RtlFreeHeap(PVOID HeapHandle, ULONG Flags, PVOID BaseAddress)
 
 NTSTATUS Detoured_RtlAnsiStringToUnicodeString(PUNICODE_STRING DestinationString, PCANSI_STRING SourceString, BOOLEAN AllocateDestinationString)
 {
-#if defined(BOX_USE_MIMALLOC)
+#if defined(UBA_USE_MIMALLOC)
 	if (AllocateDestinationString)
 	{
 		DestinationString->MaximumLength = SourceString->MaximumLength * 2;
@@ -447,7 +447,7 @@ NTSTATUS Detoured_RtlAnsiStringToUnicodeString(PUNICODE_STRING DestinationString
 
 NTSTATUS Detoured_RtlUnicodeStringToAnsiString(PANSI_STRING DestinationString, PCUNICODE_STRING SourceString, BOOLEAN AllocateDestinationString)
 {
-#if defined(BOX_USE_MIMALLOC)
+#if defined(UBA_USE_MIMALLOC)
 	if (AllocateDestinationString)
 	{
 		DestinationString->MaximumLength = SourceString->MaximumLength / 2;

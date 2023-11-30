@@ -14,7 +14,7 @@ set config=%1
 echo.
 echo === Building Targets ===
 pushd "../../../../../.."
-call Engine/Build/BatchFiles/RunUBT.bat -NoBox -NoBoxLocal -NoSNDBS -NoXGE -Architectures=x64 ^
+call Engine/Build/BatchFiles/RunUBT.bat -NoUba -NoUbaLocal -NoSNDBS -NoXGE -Architectures=x64 ^
 	-Target="UbaAgent Win64 %config%" ^
 	-Target="UbaCli Win64 %config%" ^
 	-Target="UbaDetours Win64 %config%" ^

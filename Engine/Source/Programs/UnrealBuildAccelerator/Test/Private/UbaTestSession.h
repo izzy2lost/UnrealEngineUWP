@@ -169,6 +169,7 @@ namespace uba
 		processInfo.application = clangPath;
 		processInfo.arguments = TC("-o code Code.cpp");
 		processInfo.workingDir = workingDir;
+		//processInfo.logFile = TC("/home/honk/RunClang.log");
 		ProcessHandle process = runProcess(processInfo);
 		if (!process.WaitForExit(40000))
 			return logger.Error(TC("clang++ timed out"));
