@@ -529,7 +529,8 @@ bool UStateTree::PatchBindings()
 	for (const FCompactStateTreeState& State : States)
 	{
 		if (State.Type == EStateTreeStateType::Subtree
-			||State.Type == EStateTreeStateType::Linked)
+			|| State.Type == EStateTreeStateType::Linked
+			|| State.Type == EStateTreeStateType::LinkedAsset)
 		{
 			if (!State.ParameterTemplateIndex.IsValid())
 			{
@@ -579,6 +580,19 @@ bool UStateTree::PatchBindings()
 				return false;
 			}
 		}
+		else if (State.Type == EStateTreeStateType::LinkedAsset && State.LinkedAsset)
+		{
+			// Check that the bag in linked state matches.
+			const FInstancedPropertyBag& TargetTreeParameters = State.LinkedAsset->Parameters;
+			const FCompactStateTreeParameters& Params = DefaultInstanceData.GetMutableStruct(State.ParameterTemplateIndex.Get()).Get<FCompactStateTreeParameters>();
+
+			if (TargetTreeParameters.GetPropertyBagStruct() != Params.Parameters.GetPropertyBagStruct())
+			{
+				UE_LOG(LogStateTree, Error, TEXT("%s: The parameters on state '%s' does not match the linked asset parameters '%s'. Please recompile the StateTree asset."),
+					*GetFullName(), *State.Name.ToString(), *State.LinkedAsset->GetFullName());
+				return false;
+			}
+		}
 	}
 
 
@@ -598,7 +612,8 @@ bool UStateTree::PatchBindings()
 	for (FCompactStateTreeState& State : States)
 	{
 		if (State.Type == EStateTreeStateType::Subtree
-			|| State.Type == EStateTreeStateType::Linked)
+			|| State.Type == EStateTreeStateType::Linked
+			|| State.Type == EStateTreeStateType::LinkedAsset)
 		{
 			if (State.ParameterDataHandle.IsValid())
 			{
@@ -776,6 +791,7 @@ TArray<FStateTreeMemoryUsage> UStateTree::CalculateEstimatedMemoryUsage() const
 		}
 		
 		if (CompactState.Type == EStateTreeStateType::Linked
+			|| CompactState.Type == EStateTreeStateType::LinkedAsset
 			|| CompactState.Type == EStateTreeStateType::Subtree)
 		{
 			MemUsage.NodeCount++;

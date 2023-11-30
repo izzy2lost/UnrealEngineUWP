@@ -39,6 +39,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		AddedTransitionIds,
 		// Added data handles
 		AddedDataHandlesIds,
+		// Added linked asset state
+		AddedLinkedAssetState,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

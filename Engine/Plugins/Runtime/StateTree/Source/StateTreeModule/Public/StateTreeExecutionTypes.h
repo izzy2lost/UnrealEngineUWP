@@ -537,9 +537,13 @@ struct STATETREEMODULE_API FStateTreeExecutionFrame
 	UPROPERTY()
 	FStateTreeIndex16 ActiveInstanceIndexBase = FStateTreeIndex16::Invalid;
 
-	/** Index in the active instance data for the parameters of the root state. */
+	/** Handle to the state parameter data, exists in ParentFrame. */
 	UPROPERTY()
-	FStateTreeIndex16 StateParameterDataIndex = FStateTreeIndex16::Invalid;
+	FStateTreeDataHandle StateParameterDataHandle = FStateTreeDataHandle::Invalid; 
+
+	/** Handle to the global parameter data, exists in ParentFrame. */
+	UPROPERTY()
+	FStateTreeDataHandle GlobalParameterDataHandle = FStateTreeDataHandle::Invalid; 
 
 	/** If true, the global tasks of the State Tree should be handle in this frame. */
 	UPROPERTY()

@@ -898,7 +898,7 @@ EVisibility SStateTreeViewRow::GetLinkedStateVisibility() const
 {
 	if (const UStateTreeState* State = WeakState.Get())
 	{
-		return State->Type == EStateTreeStateType::Linked ? EVisibility::Visible : EVisibility::Collapsed;
+		return (State->Type == EStateTreeStateType::Linked || State->Type == EStateTreeStateType::LinkedAsset) ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 	return EVisibility::Collapsed;
 }
@@ -914,6 +914,10 @@ FText SStateTreeViewRow::GetLinkedStateDesc() const
 	if (State->Type == EStateTreeStateType::Linked)
 	{
 		return FText::FromName(State->LinkedSubtree.Name);
+	}
+	else if (State->Type == EStateTreeStateType::LinkedAsset)
+	{
+		return FText::FromString(*GetNameSafe(State->LinkedAsset));
 	}
 	
 	return FText::GetEmpty();

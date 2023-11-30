@@ -246,7 +246,7 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 	const FStateTreeBindableStructDesc ParametersDesc = {
 			TEXT("Parameters"),
 			StateTree->Parameters.GetPropertyBagStruct(),
-			FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, ContextDataIndex++),
+			FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData, ContextDataIndex++),
 			EStateTreeBindableStructSource::Parameter,
 			EditorData->RootParameters.ID
 		};
@@ -607,6 +607,7 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 
 		// Create parameters
 		if (State->Type == EStateTreeStateType::Linked
+			|| State->Type == EStateTreeStateType::LinkedAsset
 			|| State->Type == EStateTreeStateType::Subtree)
 		{
 			// Each state has their parameters as instance data.
@@ -622,7 +623,7 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			}
 			CompactState.ParameterTemplateIndex = FStateTreeIndex16(InstanceIndex);
 
-			if (State->Type == EStateTreeStateType::Linked)
+			if (State->Type == EStateTreeStateType::Linked || State->Type == EStateTreeStateType::LinkedAsset)
 			{
 				CompactState.ParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::LinkedStateParameterData, InstanceDataIndex++, CompactStateHandle);
 			}
@@ -820,6 +821,18 @@ bool FStateTreeCompiler::CreateStateTransitions()
 					*SourceState->LinkedSubtree.Name.ToString());
 				return false;
 			}
+		}
+		else if (SourceState->Type == EStateTreeStateType::LinkedAsset)
+		{
+			// Do not allow to link to the same asset (might create recursion)
+			if (SourceState->LinkedAsset == StateTree)
+			{
+				Log.Reportf(EMessageSeverity::Error,
+					TEXT("It is not allowed to link to the same tree, as it might create infinite loop."));
+				return false;
+			}
+
+			CompactState.LinkedAsset = SourceState->LinkedAsset;
 		}
 		
 		// Transitions

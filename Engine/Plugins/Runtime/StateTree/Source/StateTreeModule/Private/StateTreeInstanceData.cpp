@@ -91,6 +91,77 @@ bool FStateTreeInstanceStorage::AreAllInstancesValid() const
 	return true;
 }
 
+FStructView FStateTreeInstanceStorage::AddTemporaryInstance(UObject& InOwner, const FStateTreeExecutionFrame& Frame, const FStateTreeIndex16 OwnerNodeIndex, const FStateTreeDataHandle DataHandle, FConstStructView NewInstanceData)
+{
+	FStateTreeTemporaryInstanceData* TempInstance = TemporaryInstances.FindByPredicate([&Frame, &OwnerNodeIndex, &DataHandle](const FStateTreeTemporaryInstanceData& TempInstance)
+	{
+		return TempInstance.StateTree == Frame.StateTree
+				&& TempInstance.RootState == Frame.RootState
+				&& TempInstance.OwnerNodeIndex == OwnerNodeIndex
+				&& TempInstance.DataHandle == DataHandle;
+	});
+	
+	if (TempInstance)
+	{
+		if (TempInstance->Instance.GetScriptStruct() != NewInstanceData.GetScriptStruct())
+		{
+			TempInstance->Instance = NewInstanceData;
+		}
+	}
+	else
+	{
+		TempInstance = &TemporaryInstances.AddDefaulted_GetRef();
+		check(TempInstance);
+		TempInstance->StateTree = Frame.StateTree;
+		TempInstance->RootState = Frame.RootState;
+		TempInstance->OwnerNodeIndex = OwnerNodeIndex;
+		TempInstance->DataHandle = DataHandle;
+		TempInstance->Instance = NewInstanceData;
+	}
+
+	if (FStateTreeInstanceObjectWrapper* Wrapper = TempInstance->Instance.GetMutablePtr<FStateTreeInstanceObjectWrapper>())
+	{
+		if (Wrapper->InstanceObject)
+		{
+			Wrapper->InstanceObject = UE::StateTree::DuplicateNodeInstance(*Wrapper->InstanceObject, InOwner);
+		}
+	}
+
+	return TempInstance->Instance;
+}
+
+FStructView FStateTreeInstanceStorage::GetMutableTemporaryStruct(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle)
+{
+	FStateTreeTemporaryInstanceData* ExistingInstance = TemporaryInstances.FindByPredicate([&Frame, &DataHandle](const FStateTreeTemporaryInstanceData& TempInstance)
+	{
+		return TempInstance.StateTree == Frame.StateTree
+				&& TempInstance.RootState == Frame.RootState
+				&& TempInstance.DataHandle == DataHandle;
+	});
+	return ExistingInstance ? FStructView(ExistingInstance->Instance) : FStructView();
+}
+
+UObject* FStateTreeInstanceStorage::GetMutableTemporaryObject(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle)
+{
+	FStateTreeTemporaryInstanceData* ExistingInstance = TemporaryInstances.FindByPredicate([&Frame, &DataHandle](const FStateTreeTemporaryInstanceData& TempInstance)
+	{
+		return TempInstance.StateTree == Frame.StateTree
+				&& TempInstance.RootState == Frame.RootState
+				&& TempInstance.DataHandle == DataHandle;
+	});
+	if (ExistingInstance)
+	{
+		const FStateTreeInstanceObjectWrapper& Wrapper = ExistingInstance->Instance.Get<FStateTreeInstanceObjectWrapper>();
+		return Wrapper.InstanceObject;
+	}
+	return nullptr;
+}
+
+void FStateTreeInstanceStorage::ResetTemporaryInstances()
+{
+	TemporaryInstances.Reset();
+}
+
 
 //----------------------------------------------------------------//
 // FStateTreeInstanceData
@@ -324,6 +395,39 @@ void FStateTreeInstanceData::Append(UObject& InOwner, TConstArrayView<FConstStru
 	}
 }
 
+void FStateTreeInstanceData::Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<FInstancedStruct*> InInstancesToMove)
+{
+	check(InStructs.Num() == InInstancesToMove.Num());
+	
+	FStateTreeInstanceStorage& Storage = GetMutableStorage();
+
+	const int32 StartIndex = Storage.InstanceStructs.Num();
+	Storage.InstanceStructs.Append(InStructs);
+
+	for (int32 Index = StartIndex; Index < Storage.InstanceStructs.Num(); Index++)
+	{
+		FStructView Struct = Storage.InstanceStructs[Index];
+		FInstancedStruct* Source = InInstancesToMove[Index - StartIndex];
+
+		// The source is used to move temporary instance data into instance data. Not all entries may have it.
+		// If the source is specified, move it to the instance data. We assume that if the source is object wrapper, it is already the instance we want.
+		if (Source && Source->IsValid())
+		{
+			check(Struct.GetScriptStruct() == Source->GetScriptStruct());
+				
+			FMemory::Memswap(Struct.GetMemory(), Source->GetMutableMemory(), Struct.GetScriptStruct()->GetStructureSize());
+			Source->Reset();
+		}
+		else if (FStateTreeInstanceObjectWrapper* Wrapper = Storage.InstanceStructs[Index].GetPtr<FStateTreeInstanceObjectWrapper>())
+		{
+			if (Wrapper->InstanceObject)
+			{
+				Wrapper->InstanceObject = UE::StateTree::DuplicateNodeInstance(*Wrapper->InstanceObject, InOwner);
+			}
+		}
+	}
+}
+
 void FStateTreeInstanceData::ShrinkTo(const int32 NumStructs)
 {
 	FStateTreeInstanceStorage& Storage = GetMutableStorage();
@@ -341,5 +445,6 @@ void FStateTreeInstanceData::Reset()
 	FStateTreeInstanceStorage& Storage = GetMutableStorage();
 	Storage.InstanceStructs.Reset();
 	Storage.EventQueue.Reset();
-	ExecutionState.Reset();
+	Storage.ExecutionState.Reset();
+	Storage.TemporaryInstances.Reset();
 }

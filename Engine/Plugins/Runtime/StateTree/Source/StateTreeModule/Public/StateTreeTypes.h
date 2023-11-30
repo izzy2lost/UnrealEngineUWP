@@ -13,6 +13,8 @@ STATETREEMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogStateTree, Warning, All);
 #define WITH_STATETREE_DEBUG (!(UE_BUILD_SHIPPING || UE_BUILD_SHIPPING_WITH_EDITOR || UE_BUILD_TEST) && 1)
 #endif // WITH_STATETREE_DEBUG
 
+class UStateTree;
+
 namespace UE::StateTree
 {
 	inline constexpr int32 MaxConditionIndent = 4;
@@ -72,7 +74,10 @@ enum class EStateTreeStateType : uint8
 	
 	/** A State that is linked to another state in the tree (the execution continues on the linked state). */
 	Linked,
-	
+
+	/** A State that is linked to another StateTree asset (the execution continues on the Root state of the linked asset). */
+	LinkedAsset,
+
 	/** A subtree that can be linked to. */
 	Subtree,
 };
@@ -235,6 +240,9 @@ enum class EStateTreeDataSourceType : uint8
 	/** Context Data, External Data, Tree Parameters */
 	ContextData,
 
+	/** Global parameters */
+	GlobalParameterData,
+
 	/** Subtree parameters */
 	SubtreeParameterData,
 
@@ -349,12 +357,11 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 	
 	FString Describe() const
 	{
+
 		switch (Source)
 		{
 		case EStateTreeDataSourceType::None:
 			return TEXT("None");
-		case EStateTreeDataSourceType::ContextData:
-			return FString::Printf(TEXT("Context[%d]"), Index);
 		case EStateTreeDataSourceType::GlobalInstanceData:
 			return FString::Printf(TEXT("Global[%d]"), Index);
 		case EStateTreeDataSourceType::GlobalInstanceDataObject:
@@ -367,6 +374,14 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 			return FString::Printf(TEXT("Shared[%d]"), Index);
 		case EStateTreeDataSourceType::SharedInstanceDataObject:
 			return FString::Printf(TEXT("SharedO[%d]"), Index);
+		case EStateTreeDataSourceType::ContextData:
+			return FString::Printf(TEXT("Context[%d]"), Index);
+		case EStateTreeDataSourceType::GlobalParameterData:
+			return FString::Printf(TEXT("GlobalParam[%d]"), Index);
+		case EStateTreeDataSourceType::SubtreeParameterData:
+			return FString::Printf(TEXT("SubtreeParam[%d]"), Index);
+		case EStateTreeDataSourceType::LinkedStateParameterData:
+			return FString::Printf(TEXT("LinkedParam[%d]"), Index);
 		default:
 			return TEXT("---");
 		}
@@ -541,6 +556,9 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	FStateTreeStateHandle LinkedState = FStateTreeStateHandle::Invalid; 
 
+	UPROPERTY()
+	TObjectPtr<UStateTree> LinkedAsset = nullptr;
+	
 	/** Parent state handle, invalid if root state. */
 	UPROPERTY()
 	FStateTreeStateHandle Parent = FStateTreeStateHandle::Invalid;

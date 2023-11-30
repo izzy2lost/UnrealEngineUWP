@@ -753,7 +753,9 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	if (bContinue)
 	{
 		// Bindable state parameters
-		if (State.Type == EStateTreeStateType::Linked && State.Parameters.Parameters.IsValid())
+		if ((State.Type == EStateTreeStateType::Linked
+				|| State.Type == EStateTreeStateType::LinkedAsset)
+			&& State.Parameters.Parameters.IsValid())
 		{
 			if (InFunc(&State, State.Parameters.ID, State.Name, EStateTreeNodeType::StateParameters, nullptr, State.Parameters.Parameters.GetPropertyBagStruct()) == EStateTreeVisitor::Break)
 			{
@@ -774,7 +776,8 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	{
 		// Bindable state parameters for subtree or linked tree.
 		if ((State.Type == EStateTreeStateType::Subtree
-				|| State.Type == EStateTreeStateType::Linked)
+				|| State.Type == EStateTreeStateType::Linked
+				|| State.Type == EStateTreeStateType::LinkedAsset)
 			&& State.Parameters.Parameters.IsValid())
 		{
 			FStateTreeBindableStructDesc Desc;

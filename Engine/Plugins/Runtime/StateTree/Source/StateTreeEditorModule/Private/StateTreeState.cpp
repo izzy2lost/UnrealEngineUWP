@@ -36,7 +36,25 @@ UStateTreeState::UStateTreeState(const FObjectInitializer& ObjectInitializer)
 	Parameters.ID = FGuid::NewGuid();
 }
 
-#if WITH_EDITOR
+UStateTreeState::~UStateTreeState()
+{
+	UE::StateTree::Delegates::OnPostCompile.RemoveAll(this);
+}
+
+void UStateTreeState::PostInitProperties()
+{
+	Super::PostInitProperties();
+	
+	UE::StateTree::Delegates::OnPostCompile.AddUObject(this, &UStateTreeState::OnTreeCompiled);
+}
+
+void UStateTreeState::OnTreeCompiled(const UStateTree& StateTree)
+{
+	if (&StateTree == LinkedAsset)
+	{
+		UpdateParametersFromLinkedSubtree();
+	}
+}
 
 void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
@@ -63,6 +81,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	static const FStateTreeEditPropertyPath StateTypePath(UStateTreeState::StaticClass(), TEXT("Type"));
 	static const FStateTreeEditPropertyPath SelectionBehaviorPath(UStateTreeState::StaticClass(), TEXT("SelectionBehavior"));
 	static const FStateTreeEditPropertyPath StateLinkedSubtreePath(UStateTreeState::StaticClass(), TEXT("LinkedSubtree"));
+	static const FStateTreeEditPropertyPath StateLinkedAssetPath(UStateTreeState::StaticClass(), TEXT("LinkedAsset"));
 	static const FStateTreeEditPropertyPath StateParametersPath(UStateTreeState::StaticClass(), TEXT("Parameters"));
 	static const FStateTreeEditPropertyPath StateTasksPath(UStateTreeState::StaticClass(), TEXT("Tasks"));
 	static const FStateTreeEditPropertyPath StateEnterConditionsPath(UStateTreeState::StaticClass(), TEXT("EnterConditions"));
@@ -94,7 +113,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	if (ChangePropertyPath.IsPathExact(StateTypePath))
 	{
 		// Remove any tasks and evaluators when they are not used.
-		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked)
+		if (Type == EStateTreeStateType::Group || Type == EStateTreeStateType::Linked || Type == EStateTreeStateType::LinkedAsset)
 		{
 			Tasks.Reset();
 		}
@@ -104,8 +123,13 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		{
 			LinkedSubtree = FStateTreeStateLink();
 		}
+		if (Type != EStateTreeStateType::LinkedAsset)
+		{
+			LinkedAsset = nullptr;
+		}
 
-		if (Type == EStateTreeStateType::Linked)
+		if (Type == EStateTreeStateType::Linked
+			|| Type == EStateTreeStateType::LinkedAsset)
 		{
 			// Linked parameter layout is fixed, and copied from the linked target state.
 			Parameters.bFixedLayout = true;
@@ -128,6 +152,14 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	if (ChangePropertyPath.IsPathExact(StateLinkedSubtreePath))
 	{
 		if (Type == EStateTreeStateType::Linked)
+		{
+			UpdateParametersFromLinkedSubtree();
+		}
+	}
+	
+	if (ChangePropertyPath.IsPathExact(StateLinkedAssetPath))
+	{
+		if (Type == EStateTreeStateType::LinkedAsset)
 		{
 			UpdateParametersFromLinkedSubtree();
 		}
@@ -289,18 +321,6 @@ void UStateTreeState::PostLoad()
 	}
 
 #if WITH_EDITORONLY_DATA
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	// Move deprecated evaluators to editor data.
-	if (Evaluators_DEPRECATED.Num() > 0)
-	{
-		if (UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
-		{
-			TreeData->Evaluators.Append(Evaluators_DEPRECATED);
-			Evaluators_DEPRECATED.Reset();
-		}		
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	const int32 CurrentVersion = GetLinkerCustomVersion(FStateTreeCustomVersion::GUID);
 	if (CurrentVersion < FStateTreeCustomVersion::AddedTransitionIds)
 	{
@@ -317,21 +337,30 @@ void UStateTreeState::PostLoad()
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()
 {
-	if (const UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
+	if (Type == EStateTreeStateType::Linked)
 	{
-		if (const UStateTreeState* LinkTargetState = TreeData->GetStateByID(LinkedSubtree.ID))
+		if (const UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
 		{
-			Parameters.Parameters.MigrateToNewBagInstance(LinkTargetState->Parameters.Parameters);
-		}
-		else
-		{
-			// No state selected, reset. 
-			Parameters.Parameters.Reset();
+			if (const UStateTreeState* LinkTargetState = TreeData->GetStateByID(LinkedSubtree.ID))
+			{
+				Parameters.Parameters.MigrateToNewBagInstance(LinkTargetState->Parameters.Parameters);
+			}
+			else
+			{
+				// No state selected, reset. 
+				Parameters.Parameters.Reset();
+			}
 		}
 	}
+	else if (Type == EStateTreeStateType::LinkedAsset)
+	{
+		if (LinkedAsset)
+		{
+			Parameters.Parameters.MigrateToNewBagInstance(LinkedAsset->GetDefaultParameters());
+		}
+		
+	}
 }
-
-#endif
 
 const UStateTreeState* UStateTreeState::GetRootState() const
 {

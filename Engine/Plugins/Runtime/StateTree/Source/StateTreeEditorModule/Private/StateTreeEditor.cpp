@@ -735,7 +735,8 @@ namespace UE::StateTree::Editor::Internal
 
 		TreeData->VisitHierarchy([](UStateTreeState& State, UStateTreeState* /*ParentState*/)
 		{
-			if (State.Type == EStateTreeStateType::Linked)
+			if (State.Type == EStateTreeStateType::Linked
+				|| State.Type == EStateTreeStateType::LinkedAsset)
 			{
 				State.Modify();
 				State.UpdateParametersFromLinkedSubtree();

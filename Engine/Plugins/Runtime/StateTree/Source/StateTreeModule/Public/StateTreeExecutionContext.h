@@ -251,16 +251,16 @@ public:
 	template <typename T>
 	T* GetInstanceDataPtr(const FStateTreeNodeBase& Node) const
 	{
-		check(CurrentlyProcessedFrame)
-		return GetDataView(*CurrentlyProcessedFrame, Node.InstanceDataHandle).template GetMutablePtr<T>();
+		check(CurrentNodeDataHandle == Node.InstanceDataHandle);
+		return CurrentNodeInstanceData.template GetMutablePtr<T>();
 	}
 
 	/** @returns reference to the instance data of specified node. */
 	template <typename T>
 	T& GetInstanceData(const FStateTreeNodeBase& Node) const
 	{
-		check(CurrentlyProcessedFrame);
-		return GetDataView(*CurrentlyProcessedFrame, Node.InstanceDataHandle).template GetMutable<T>();
+		check(CurrentNodeDataHandle == Node.InstanceDataHandle);
+		return CurrentNodeInstanceData.template GetMutable<T>();
 	}
 
 	/** @returns reference to the instance data of specified node. Infers the instance data type from the node's FInstanceDataType. */
@@ -268,8 +268,8 @@ public:
 	typename T::FInstanceDataType& GetInstanceData(const T& Node) const
 	{
 		static_assert(TIsDerivedFrom<T, FStateTreeNodeBase>::IsDerived, "Expecting Node to derive from FStateTreeNodeBase.");
-		check(CurrentlyProcessedFrame);
-		return GetDataView(*CurrentlyProcessedFrame, Node.InstanceDataHandle).template GetMutable<typename T::FInstanceDataType>();
+		check(CurrentNodeDataHandle == Node.InstanceDataHandle);
+		return CurrentNodeInstanceData.template GetMutable<typename T::FInstanceDataType>();
 	}
 
 	/** @returns reference to instance data struct that can be passed to lambdas. See TStateTreeInstanceDataStructRef for usage. */
@@ -278,8 +278,7 @@ public:
 	{
 		static_assert(TIsDerivedFrom<T, FStateTreeNodeBase>::IsDerived, "Expecting Node to derive from FStateTreeNodeBase.");
 		check(CurrentlyProcessedFrame);
-		typename T::FInstanceDataType& Data = GetDataView(*CurrentlyProcessedFrame, Node.InstanceDataHandle).template GetMutable<typename T::FInstanceDataType>();
-		return TStateTreeInstanceDataStructRef<typename T::FInstanceDataType>(InstanceData, Data);
+		return TStateTreeInstanceDataStructRef<typename T::FInstanceDataType>(InstanceData, *CurrentlyProcessedFrame, Node.InstanceDataHandle);
 	}
 
 	/**
@@ -344,6 +343,12 @@ protected:
 	 */
 	void StopEvaluatorsAndGlobalTasks(const EStateTreeRunStatus CompletionStatus, const FStateTreeIndex16 LastInitializedTaskIndex = FStateTreeIndex16());
 
+	/** Starts temporary instances of global evaluators and tasks for a given frame. */
+	EStateTreeRunStatus StartTemporaryEvaluatorsAndGlobalTasks(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame);
+
+	/** Stops leftover global evaluators and tasks in the provided temporary instance data. */
+	void StopTemporaryEvaluatorsAndGlobalTasks(TArrayView<FStateTreeTemporaryInstanceData> TempInstances);
+
 	/**
 	 * Ticks tasks of all active states starting from current state by delta time.
 	 * @return Run status returned by the tasks.
@@ -354,7 +359,7 @@ protected:
 	 * Checks all conditions at given range
 	 * @return True if all conditions pass.
 	 */
-	bool TestAllConditions(const FStateTreeExecutionFrame& CurrentFrame, const int32 ConditionsOffset, const int32 ConditionsNum);
+	bool TestAllConditions(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const int32 ConditionsOffset, const int32 ConditionsNum);
 
 	/**
 	 * Requests transition to a specified state with specified priority.
@@ -400,8 +405,9 @@ protected:
 	 * Used internally to do the recursive part of the SelectState().
 	 */
 	bool SelectStateInternal(
+		const FStateTreeExecutionFrame* CurrentParentFrame,
 		FStateTreeExecutionFrame& CurrentFrame,
-		const FStateTreeStateHandle NextState,
+		const FStateTreeStateHandle NextStateHandle,
 		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames);
 
 	/** @return StateTree execution state from the instance storage. */
@@ -429,14 +435,27 @@ protected:
 	FString DebugGetEventsAsString() const;
 
 	/** @return data view of the specified handle relative to given frame. */
-	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
+	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
 
 	/** @return data view of the specified handle relative to given frame. */
-	bool IsHandleSourceValid(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
-	
-	bool CopyBatch(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
-	bool CopyBatchWithValidation(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
+	bool IsHandleSourceValid(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
 
+	/** @return data view of the specified handle relative to the given frame, or tries to find a matching temporary instance. */
+	FStateTreeDataView GetDataViewOrTemporary(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
+
+	/**
+	 * Adds a temporary instance that can be located using frame and data handle later.
+	 * @returns view to the newly added instance. If NewInstanceData is Object wrapper, the new object is returned.
+	 */
+	FStateTreeDataView AddTemporaryInstance(const FStateTreeExecutionFrame& Frame, const FStateTreeIndex16 OwnerNodeIndex, const FStateTreeDataHandle DataHandle, FConstStructView NewInstanceData);
+
+	/** Copies a batch of properties to the data in TargetView. Should be used only on active instances, assumes valid handles and does not consider temporary instances. */
+	bool CopyBatchOnActiveInstances(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
+
+	/** Copies a batch of properties to the data in TargetView. This version validates the data handles and looks up temporary instances. */
+	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
+
+	
 	/** Owner of the instance data. */
 	UObject& Owner;
 
@@ -462,11 +481,8 @@ protected:
 	/** Structure describing the origin of the state transition that caused the state change. */
 	FStateTreeTransitionSource NextTransitionSource;
 
-	
-	/** Index of current frame we're processing. */
-	int32 CurrentlyProcessedFrameIndex = INDEX_NONE;
-
 	/** Current frame we're processing. */
+	const FStateTreeExecutionFrame* CurrentlyProcessedParentFrame = nullptr; 
 	const FStateTreeExecutionFrame* CurrentlyProcessedFrame = nullptr; 
 
 	/** Pointer to the shared instance data of the current frame we're processing.  */
@@ -475,24 +491,24 @@ protected:
 	/** Helper struct to track currently processed frame. */
 	struct FCurrentlyProcessedFrameScope
 	{
-		FCurrentlyProcessedFrameScope(FStateTreeExecutionContext& InContext, const FStateTreeExecutionFrame& CurrentFrame, int32 FrameIndex)
+		FCurrentlyProcessedFrameScope(FStateTreeExecutionContext& InContext, const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame)
 			: Context(InContext)
 		{
 			check(CurrentFrame.StateTree);
 			FStateTreeInstanceStorage* SharedInstanceDataStorage = &CurrentFrame.StateTree->GetSharedInstanceData()->GetMutableStorage();
 
-			SavedFrameIndex = Context.CurrentlyProcessedFrameIndex;
 			SavedFrame = Context.CurrentlyProcessedFrame;
+			SavedParentFrame = Context.CurrentlyProcessedParentFrame;
 			SavedSharedInstanceDataStorage = Context.CurrentlyProcessedSharedInstanceStorage;
-			Context.CurrentlyProcessedFrameIndex = FrameIndex;
 			Context.CurrentlyProcessedFrame = &CurrentFrame;
+			Context.CurrentlyProcessedParentFrame = CurrentParentFrame;
 			Context.CurrentlyProcessedSharedInstanceStorage = SharedInstanceDataStorage;
 		}
 
 		~FCurrentlyProcessedFrameScope()
 		{
-			Context.CurrentlyProcessedFrameIndex = SavedFrameIndex;
 			Context.CurrentlyProcessedFrame = SavedFrame;
+			Context.CurrentlyProcessedParentFrame = SavedParentFrame;
 			Context.CurrentlyProcessedSharedInstanceStorage = SavedSharedInstanceDataStorage;
 		}
 
@@ -501,6 +517,7 @@ protected:
 		int32 SavedFrameIndex = 0;
 		FStateTreeInstanceStorage* SavedSharedInstanceDataStorage = nullptr;
 		const FStateTreeExecutionFrame* SavedFrame = nullptr;
+		const FStateTreeExecutionFrame* SavedParentFrame = nullptr;
 	};
 
 	
@@ -537,17 +554,45 @@ protected:
 		FAllowDirectTransitionsScope(FStateTreeExecutionContext& InContext)
 			: Context(InContext)
 		{
-			bCachedAllowDirectTransitions = Context.bAllowDirectTransitions; 
+			bSavedAllowDirectTransitions = Context.bAllowDirectTransitions; 
 			Context.bAllowDirectTransitions = true;
 		}
 
 		~FAllowDirectTransitionsScope()
 		{
-			Context.bAllowDirectTransitions = bCachedAllowDirectTransitions;
+			Context.bAllowDirectTransitions = bSavedAllowDirectTransitions;
 		}
 
 	private:
 		FStateTreeExecutionContext& Context;
-		bool bCachedAllowDirectTransitions = false;
+		bool bSavedAllowDirectTransitions = false;
+	};
+
+	/** Currently processed nodes instance data. Ideally we would pass these to the nodes directly, but do not want to change the API currently. */
+	FStateTreeDataHandle CurrentNodeDataHandle;
+	FStateTreeDataView CurrentNodeInstanceData;
+
+	/** Helper struct to set current node data. */
+	struct FNodeInstanceDataScope
+	{
+		FNodeInstanceDataScope(FStateTreeExecutionContext& InContext, const FStateTreeDataHandle InNodeDataHandle, const FStateTreeDataView InNodeInstanceData)
+			: Context(InContext)
+		{
+			SavedNodeDataHandle = Context.CurrentNodeDataHandle;
+			SavedNodeInstanceData = Context.CurrentNodeInstanceData;
+			Context.CurrentNodeDataHandle = InNodeDataHandle;
+			Context.CurrentNodeInstanceData = InNodeInstanceData;
+		}
+
+		~FNodeInstanceDataScope()
+		{
+			Context.CurrentNodeDataHandle = SavedNodeDataHandle;
+			Context.CurrentNodeInstanceData = SavedNodeInstanceData;
+		}
+
+	private:
+		FStateTreeExecutionContext& Context;
+		FStateTreeDataHandle SavedNodeDataHandle;
+		FStateTreeDataView SavedNodeInstanceData;
 	};
 };

@@ -110,12 +110,13 @@ class STATETREEEDITORMODULE_API UStateTreeState : public UObject
 
 public:
 	UStateTreeState(const FObjectInitializer& ObjectInitializer);
+	virtual ~UStateTreeState() override;
 
-#if WITH_EDITOR
+	virtual void PostInitProperties() override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostLoad() override;;
 	void UpdateParametersFromLinkedSubtree();
-#endif
+	void OnTreeCompiled(const UStateTree& StateTree);
 
 	const UStateTreeState* GetRootState() const;
 	const UStateTreeState* GetNextSiblingState() const;
@@ -207,6 +208,9 @@ public:
 	FStateTreeStateLink LinkedSubtree;
 
 	UPROPERTY(EditDefaultsOnly, Category = "State")
+	TObjectPtr<UStateTree> LinkedAsset = nullptr;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
 
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
@@ -217,12 +221,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> EnterConditions;
-
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.1, "Evaluators are moved into UStateTreeEditorData. This property will be removed for 5.1.")
-	UPROPERTY(meta = (DeprecatedProperty, BaseStruct = "/Script/StateTreeModule.StateTreeEvaluatorBase", BaseClass = "/Script/StateTreeModule.StateTreeEvaluatorBlueprintBase"))
-	TArray<FStateTreeEditorNode> Evaluators_DEPRECATED;
-#endif
 
 	UPROPERTY(EditDefaultsOnly, Category = "Tasks", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeTaskBase", BaseClass = "/Script/StateTreeModule.StateTreeTaskBlueprintBase"))
 	TArray<FStateTreeEditorNode> Tasks;

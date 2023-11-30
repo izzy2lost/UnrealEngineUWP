@@ -25,6 +25,31 @@ struct STATETREEMODULE_API FStateTreeInstanceObjectWrapper
 };
 
 /**
+ * Holds temporary instance data created during state selection.
+ * The data is identified by Frame (StateTree + RootState) and DataHandle.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreeTemporaryInstanceData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<const UStateTree> StateTree = nullptr;
+
+	UPROPERTY()
+	FStateTreeStateHandle RootState = FStateTreeStateHandle::Invalid;
+
+	UPROPERTY()
+	FStateTreeDataHandle DataHandle = FStateTreeDataHandle::Invalid;
+
+	UPROPERTY()
+	FStateTreeIndex16 OwnerNodeIndex = FStateTreeIndex16::Invalid; 
+	
+	UPROPERTY()
+	FInstancedStruct Instance;
+};
+
+/**
  * State Tree instance data is used to store the runtime state of a State Tree. It is used together with FStateTreeExecution context to tick the state tree.
  * You are supposed to use FStateTreeInstanceData as a property to store the instance data. That ensures that any UObject references will get GC'd correctly.
  *
@@ -116,6 +141,39 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 		return Wrapper.InstanceObject;
 	}
 
+	/** @return reference to StateTree execution state, or null if the instance data is not initialized. */
+	const FStateTreeExecutionState& GetExecutionState() const
+	{
+		return ExecutionState;
+	}
+
+	/** @return reference to StateTree execution state, or null if the instance data is not initialized. */
+	FStateTreeExecutionState& GetMutableExecutionState()
+	{
+		return ExecutionState;
+	}
+
+	/**
+	 * Adds temporary instance data associated with specified frame and data handle.
+	 * @returns mutable struct view to the instance.
+	 */
+	FStructView AddTemporaryInstance(UObject& InOwner, const FStateTreeExecutionFrame& Frame, const FStateTreeIndex16 OwnerNodeIndex, const FStateTreeDataHandle DataHandle, FConstStructView NewInstanceData);
+	
+	/** @returns mutable view to the specified instance data, or invalid view if not found. */
+	FStructView GetMutableTemporaryStruct(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle);
+
+	/** @returns mutable pointer to the specified instance data object, or invalid view if not found. Will check() if called on non-object data. */
+	UObject* GetMutableTemporaryObject(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle);
+
+	/** Empties the temporary instances. */
+	void ResetTemporaryInstances();
+
+	/** @return mutable array view to the temporary instances */
+	TArrayView<FStateTreeTemporaryInstanceData> GetMutableTemporaryInstances()
+	{
+		return TemporaryInstances;
+	}
+	
 	UE_DEPRECATED(5.4, "Use Num() instead.")
 	int32 NumStructs() const { return 0; }
 
@@ -129,9 +187,17 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	bool IsValid() const { return false; }
 
 protected:
+	/** Execution state of the state tree instance. */
+	UPROPERTY()
+	FStateTreeExecutionState ExecutionState;
+
 	/** Struct instances */
 	UPROPERTY()
 	FInstancedStructContainer InstanceStructs;
+
+	/** Temporary instances */
+	UPROPERTY()
+	TArray<FStateTreeTemporaryInstanceData> TemporaryInstances;
 
 	/** Events */
 	UPROPERTY()
@@ -167,6 +233,9 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	/** Appends new items to the instance. */
 	void Append(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs);
 	void Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs);
+
+	/** Appends new items to the instance, and moves existing data into the allocated instances. */
+	void Append(UObject& InOwner, TConstArrayView<FConstStructView> InStructs, TConstArrayView<FInstancedStruct*> InInstancesToMove);
 
 	/** Shrinks the array sizes to specified lengths. Sizes must be small or equal than current size. */
 	void ShrinkTo(const int32 Num);
@@ -225,12 +294,13 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	/** @return pointer to StateTree execution state, or null if the instance data is not initialized. */
 	const FStateTreeExecutionState* GetExecutionState() const
 	{
-		return &ExecutionState;
+		return &GetStorage().GetExecutionState();
 	}
 
+	/** @return mutable pointer to StateTree execution state, or null if the instance data is not initialized. */
 	FStateTreeExecutionState* GetMutableExecutionState()
 	{
-		return &ExecutionState;
+		return &GetMutableStorage().GetMutableExecutionState();
 	}
 
 	/** @return reference to the event queue. */
@@ -261,7 +331,33 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	/** Type traits */
 	bool Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const;
 
+	/**
+	 * Adds temporary instance data associated with specified frame and data handle.
+	 * @returns mutable struct view to the instance.
+	 */
+	FStructView AddTemporaryInstance(UObject& InOwner, const FStateTreeExecutionFrame& Frame, const FStateTreeIndex16 OwnerNodeIndex, const FStateTreeDataHandle DataHandle, FConstStructView NewInstanceData)
+	{
+		return GetMutableStorage().AddTemporaryInstance(InOwner, Frame, OwnerNodeIndex, DataHandle, NewInstanceData);
+	}
+	
+	/** @returns mutable view to the specified instance data, or invalid view if not found. */
+	FStructView GetMutableTemporaryStruct(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle)
+	{
+		return GetMutableStorage().GetMutableTemporaryStruct(Frame, DataHandle);
+	}
 
+	/** @returns mutable pointer to the specified instance data object, or invalid view if not found. Will check() if called on non-object data. */
+	UObject* GetMutableTemporaryObject(const FStateTreeExecutionFrame& Frame, const FStateTreeDataHandle DataHandle)
+	{
+		return GetMutableStorage().GetMutableTemporaryObject(Frame, DataHandle);
+	}
+
+	/** Empties the temporary instances. */
+	void ResetTemporaryInstances()
+	{
+		return GetMutableStorage().ResetTemporaryInstances();
+	}
+	
 	UE_DEPRECATED(5.4, "Use the structs only Init(), objects should be wrapped in FStateTreeInstanceObjectWrapper.")
 	void Init(UObject& InOwner, TConstArrayView<FInstancedStruct> InStructs, TConstArrayView<const UObject*> InObjects);
 
@@ -290,11 +386,6 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	int32 GetNumItems() const { return 0; }
 
 protected:
-
-	/** Execution state of the state tree instance. */
-	UPROPERTY()
-	FStateTreeExecutionState ExecutionState;
-	
 	/** Storage for the actual instance data, always stores FStateTreeInstanceStorage. */
 	UPROPERTY()
 	TInstancedStruct<FStateTreeInstanceStorage> InstanceStorage;
@@ -313,10 +404,10 @@ struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTrait
 /**
  * Stores indexed reference to a instance data struct.
  * The instance data structs may be relocated when the instance data composition changed. For that reason you cannot store pointers to the instance data.
- * This is often needed for example when dealing with delegate lambda's. This helper struct stores the instance data as index to the instance data array.
- * That way we can access the instance data even of the array changes.
+ * This is often needed for example when dealing with delegate lambda's. This helper struct stores data to be able to find the instance data in the instance data array.
+ * That way we can access the instance data even of the array changes, and the instance data moves in memory.
  *
- * Note that the reference is valid only during the lifetime of a task (between EnterState() and ExitState()). 
+ * Note that the reference is valid only during the lifetime of a task (between a call EnterState() and ExitState()). 
  *
  * You generally do not use this directly, but via FStateTreeExecutionContext.
  *
@@ -326,10 +417,12 @@ struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTrait
  *
  *		Context.GetWorld()->GetTimerManager().SetTimer(
  *	        InstanceData.TimerHandle,
- *	        [InstanceDataRef = Context.GetInstanceDataStructRef()]()
+ *	        [InstanceDataRef = Context.GetInstanceDataStructRef(*this)]()
  *	        {
- *	            FInstanceDataType& InstanceData = *InstanceDataRef;
- *	            ...
+ *	            if (FInstanceDataType* InstanceData = InstanceDataRef.GetPtr())
+ *				{
+ *		            ...
+ *				}
  *	        },
  *	        Delay, true);
  *
@@ -339,33 +432,90 @@ struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTrait
 template <typename T>
 struct TStateTreeInstanceDataStructRef
 {
-	TStateTreeInstanceDataStructRef(FStateTreeInstanceData& InInstanceData, const T& InstanceDataStruct)
+	TStateTreeInstanceDataStructRef(FStateTreeInstanceData& InInstanceData, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle InDataHandle)
 		: Storage(InInstanceData.GetMutableStorage())
+		, WeakStateTree(CurrentFrame.StateTree)
+		, RootState(CurrentFrame.RootState)
+		, DataHandle(InDataHandle)
 	{
-		const FConstStructView InstanceDataStructView = FConstStructView::template Make(InstanceDataStruct);
-		// Find struct in the instance data.
-		for (int32 Index = 0; Index < Storage.Num(); Index++)
-		{
-			if (Storage.GetStruct(Index) == InstanceDataStructView)
-			{
-				StructIndex = Index;
-				break;
-			}
-		}
-		check(StructIndex != INDEX_NONE);
+		checkf(InDataHandle.GetSource() == EStateTreeDataSourceType::ActiveInstanceData
+			|| InDataHandle.GetSource() == EStateTreeDataSourceType::GlobalInstanceData,
+			TEXT("TStateTreeInstanceDataStructRef supports only struct instance data."));
 	}
 
-	bool IsValid() const { return Storage.IsValidIndex(StructIndex); }
+	bool IsValid() const { return WeakStateTree.IsValid() && RootState.IsValid() && DataHandle.IsValid(); }
 
+	T* GetPtr()
+	{
+		const FStateTreeExecutionState& Exec = Storage.GetExecutionState();
+		const UStateTree* StateTree = WeakStateTree.Get();
+		
+		const FStateTreeExecutionFrame* CurrentFrame = Exec.ActiveFrames.FindByPredicate([StateTree, RootState = RootState](const FStateTreeExecutionFrame& Frame)
+		{
+			return Frame.StateTree == StateTree && Frame.RootState == RootState;
+		});
+
+		FStructView Struct;
+		if (CurrentFrame)
+		{
+			if (IsHandleSourceValid(*CurrentFrame, DataHandle))
+			{
+				Struct = GetDataView(*CurrentFrame, DataHandle);
+			}
+			else
+			{
+				Struct = Storage.GetMutableTemporaryStruct(*CurrentFrame, DataHandle);
+			}
+		}
+
+		check(Struct.GetScriptStruct() == TBaseStructure<T>::Get());
+		return reinterpret_cast<T*>(Struct.GetMemory());
+	}
+
+	UE_DEPRECATED(5.4, "Please use GetPtr(), as the ref may be invalidated while in use.")
 	T& operator*()
 	{
-		check(IsValid());
-		FStructView Struct = Storage.GetMutableStruct(StructIndex);
-		check(Struct.GetScriptStruct() == TBaseStructure<T>::Get());
-		return *reinterpret_cast<T*>(Struct.GetMemory());
+		T* Result = GetPtr();
+		check(Result);
+		return *Result;
 	}
 
 protected:
+
+	FStructView GetDataView(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
+	{
+		switch (DataHandle.GetSource())
+		{
+		case EStateTreeDataSourceType::GlobalInstanceData:
+			return Storage.GetMutableStruct(CurrentFrame.GlobalInstanceIndexBase.Get() + DataHandle.GetIndex());
+		case EStateTreeDataSourceType::ActiveInstanceData:
+			return Storage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + DataHandle.GetIndex());
+		default:
+			checkf(false, TEXT("Unhandle case %s"), *UEnum::GetValueAsString(Handle.GetSource()));
+		}
+		return {};
+	}
+	
+	bool IsHandleSourceValid(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
+	{
+		switch (Handle.GetSource())
+		{
+		case EStateTreeDataSourceType::GlobalInstanceData:
+			return CurrentFrame.GlobalInstanceIndexBase.IsValid()
+				&& Storage.IsValidIndex(CurrentFrame.GlobalInstanceIndexBase.Get() + Handle.GetIndex());
+
+		case EStateTreeDataSourceType::ActiveInstanceData:
+			return CurrentFrame.ActiveInstanceIndexBase.IsValid()
+				&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
+				&& Storage.IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
+		default:
+			checkf(false, TEXT("Unhandle case %s"), *UEnum::GetValueAsString(Handle.GetSource()));
+		}
+		return false;
+	}
+	
 	FStateTreeInstanceStorage& Storage;
-	int32 StructIndex = INDEX_NONE;
+	TWeakObjectPtr<const UStateTree> WeakStateTree = nullptr;
+	FStateTreeStateHandle RootState = FStateTreeStateHandle::Invalid;
+	FStateTreeDataHandle DataHandle = FStateTreeDataHandle::Invalid;
 };
