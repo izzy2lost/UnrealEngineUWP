@@ -231,7 +231,6 @@ public:
 
 	FORCEINLINE const FName& GetPrimaryRole() const { return PrimaryRole; }
 	FORCEINLINE EContextualAnimCollisionBehavior GetCollisionBehavior() const { return CollisionBehavior; }
-	FORCEINLINE const TSubclassOf<UContextualAnimSceneInstance>& GetSceneInstanceClass() const { return SceneInstanceClass; }
 	FORCEINLINE int32 GetSampleRate() const { return SampleRate; }
 	FORCEINLINE float GetRadius() const { return Radius; }
 	FORCEINLINE bool ShouldPrecomputeAlignmentTracks() const { return bPrecomputeAlignmentTracks; }
@@ -335,9 +334,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Radius = 0.f;
-
-	UPROPERTY(EditAnywhere, Category = "Settings")
-	TSubclassOf<UContextualAnimSceneInstance> SceneInstanceClass;
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	EContextualAnimCollisionBehavior CollisionBehavior = EContextualAnimCollisionBehavior::IgnoreActorWhenMoving;

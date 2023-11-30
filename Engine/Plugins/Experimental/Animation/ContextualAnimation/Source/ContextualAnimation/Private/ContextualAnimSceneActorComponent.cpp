@@ -7,7 +7,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "ContextualAnimSelectionCriterion.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "ContextualAnimManager.h"
 #include "ContextualAnimSceneAsset.h"
 #include "ContextualAnimUtilities.h"
 #include "AnimNotifyState_IKWindow.h"
@@ -850,30 +849,6 @@ FBoxSphereBounds UContextualAnimSceneActorComponent::CalcBounds(const FTransform
 	// The option of having an SceneAsset and draw options on this component may go away in the future anyway, replaced by smart objects.
 	const float Radius = SceneAsset && SceneAsset->HasValidData() ? SceneAsset->GetRadius() : 0.f;
 	return FBoxSphereBounds(FSphere(GetComponentTransform().GetLocation(), Radius));
-}
-
-void UContextualAnimSceneActorComponent::OnRegister()
-{
-	Super::OnRegister();
-
-	UContextualAnimManager* ContextAnimManager = UContextualAnimManager::Get(GetWorld());
-	if (ensure(!bRegistered) && ContextAnimManager)
-	{
-		ContextAnimManager->RegisterSceneActorComponent(this);
-		bRegistered = true;
-	}
-}
-
-void UContextualAnimSceneActorComponent::OnUnregister()
-{
-	Super::OnUnregister();
-
-	UContextualAnimManager* ContextAnimManager = UContextualAnimManager::Get(GetWorld());
-	if (bRegistered && ContextAnimManager)
-	{
-		ContextAnimManager->UnregisterSceneActorComponent(this);
-		bRegistered = false;
-	}
 }
 
 void UContextualAnimSceneActorComponent::SetIgnoreCollisionWithOtherActors(bool bValue) const
