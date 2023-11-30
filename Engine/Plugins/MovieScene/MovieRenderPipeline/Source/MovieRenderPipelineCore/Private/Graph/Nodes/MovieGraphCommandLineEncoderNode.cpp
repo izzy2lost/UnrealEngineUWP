@@ -5,7 +5,7 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphAudioOutputNode.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/CoreDelegates.h"
@@ -84,9 +84,8 @@ void UMovieGraphCommandLineEncoderNode::StartEncodingProcess(TArray<FMovieGraphR
 	}
 
 	// Get the base output file path; it still needs to be validated and resolved at this point
-	const UMovieGraphOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphOutputSettingNode>();
-	const FString OutputFilename = FileNameFormatOverride.Len() > 0 ? FileNameFormatOverride : OutputSettingNode->FileNameFormat;
-	FString FilePathFormatString = OutputSettingNode->OutputDirectory.Path / OutputFilename;
+	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphGlobalOutputSettingNode>();
+	FString FilePathFormatString = OutputSettingNode->OutputDirectory.Path / FileNameFormat;
 	
 	constexpr bool bTestRenderPass = false;
 	constexpr bool bTestFrameNumber = false;
@@ -238,10 +237,9 @@ void UMovieGraphCommandLineEncoderNode::OnTick()
 
 bool UMovieGraphCommandLineEncoderNode::NeedsPerShotFlushing() const
 {
-	const UMovieGraphOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphOutputSettingNode>();
+	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphGlobalOutputSettingNode>();
 	
-	const FString OutputFilename = FileNameFormatOverride.Len() > 0 ? FileNameFormatOverride : OutputSettingNode->FileNameFormat;
-	const FString FullPath = OutputSettingNode->OutputDirectory.Path / OutputFilename;
+	const FString FullPath = OutputSettingNode->OutputDirectory.Path / FileNameFormat;
 	
 	if (FullPath.Contains(TEXT("{shot_name}")) || FullPath.Contains(TEXT("{camera_name}")))
 	{
@@ -262,7 +260,7 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 	FString ExecutablePathNoQuotes = EncoderSettings->ExecutablePath.Replace(TEXT("\""), TEXT(""));
 	FPaths::NormalizeFilename(ExecutablePathNoQuotes);
 
-	UMovieGraphOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphOutputSettingNode>();
+	UMovieGraphGlobalOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphGlobalOutputSettingNode>();
 	const FFrameRate SourceFrameRate = CachedPipeline->GetDataSourceInstance()->GetDisplayRate();
 	const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSettingNode, SourceFrameRate);
 
@@ -359,6 +357,7 @@ FString UMovieGraphCommandLineEncoderNode::GetResolvedOutputFilename(const FMovi
 	ResolveParams.Job = CachedPipeline->GetCurrentJob();
 	ResolveParams.Shot = Shot.Get();
 	ResolveParams.FileNameFormatOverrides = FormatOverrides;
+	ResolveParams.FileNameOverride = FileNameFormat;
 	ResolveParams.EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
 	ResolveParams.RenderDataIdentifier = RenderIdentifier;
 	ResolveParams.Version = Shot.IsValid() ? Shot->ShotInfo.VersionNumber : UMovieGraphBlueprintLibrary::ResolveVersionNumber(ResolveParams);
@@ -388,7 +387,7 @@ FString UMovieGraphCommandLineEncoderNode::GetResolvedOutputFilename(const FMovi
 
 void UMovieGraphCommandLineEncoderNode::GenerateTemporaryEncoderInputFiles(const FEncoderParams& InParams, TArray<FString>& OutVideoInputFilePaths, TArray<FString>& OutAudioInputFilePaths) const
 {
-	UMovieGraphOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphOutputSettingNode>();
+	UMovieGraphGlobalOutputSettingNode* OutputSettingNode = GetSettingOnBranch<UMovieGraphGlobalOutputSettingNode>();
 
 	// Generate a text file for each input type which lists the files for that input type. We generate a FGuid in case there are
 	// multiple encode jobs going at once.

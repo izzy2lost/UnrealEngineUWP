@@ -10,7 +10,7 @@
 #include "MovieGraphBlueprintLibrary.generated.h"
 
 // Forward Declare
-class UMovieGraphOutputSettingNode;
+class UMovieGraphGlobalOutputSettingNode;
 class UMovieGraphPipeline;
 
 UCLASS(meta = (ScriptName = "MovieGraphLibrary"))
@@ -28,7 +28,7 @@ public:
 	* @return					- The effective frame rate (taking into account the node's desire to override it). 
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	static FFrameRate GetEffectiveFrameRate(UMovieGraphOutputSettingNode* InNode, const FFrameRate& InDefaultRate);
+	static FFrameRate GetEffectiveFrameRate(UMovieGraphGlobalOutputSettingNode* InNode, const FFrameRate& InDefaultRate);
 
 	/**
 	* Takes a Movie Graph format string (in the form of {token}), a list of parameters (which normally come from the running UMovieGraphPipeline) and

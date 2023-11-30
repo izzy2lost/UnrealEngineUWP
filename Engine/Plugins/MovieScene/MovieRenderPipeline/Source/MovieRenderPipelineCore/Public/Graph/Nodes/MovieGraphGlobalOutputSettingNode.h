@@ -7,7 +7,7 @@
 
 #include "Misc/FrameRate.h"
 
-#include "MovieGraphOutputSettingNode.generated.h"
+#include "MovieGraphGlobalOutputSettingNode.generated.h"
 
 USTRUCT(BlueprintType)
 struct FMovieGraphVersioningSettings
@@ -30,11 +30,11 @@ struct FMovieGraphVersioningSettings
 };
 
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphOutputSettingNode : public UMovieGraphSettingNode
+class MOVIERENDERPIPELINECORE_API UMovieGraphGlobalOutputSettingNode : public UMovieGraphSettingNode
 {
 	GENERATED_BODY()
 public:
-	UMovieGraphOutputSettingNode();
+	UMovieGraphGlobalOutputSettingNode();
 
 	// UMovieGraphSettingNode Interface
 	virtual void GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const override;
@@ -44,6 +44,7 @@ public:
 	virtual FText GetMenuCategory() const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const override;
+	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
 #endif
 	// ~UMovieGraphSettingNode Interface
 
@@ -52,9 +53,6 @@ public:
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OutputDirectory : 1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_FileNameFormat : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OutputResolution : 1;
@@ -80,10 +78,6 @@ public:
 	/** What directory should all of our output files be relative to. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_OutputDirectory"))
 	FDirectoryPath OutputDirectory;
-
-	/** What format string should the final files use? Can include folder prefixes, and format string ({shot_name}, etc.) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta = (EditCondition = "bOverride_FileNameFormat"))
-	FString FileNameFormat;
 
 	/** What resolution should our output files be exported at? */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta = (EditCondition = "bOverride_OutputResolution"))

@@ -2,7 +2,7 @@
 
 #include "MovieGraphImageSequenceOutputNode.h"
 
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphPipeline.h"
@@ -43,7 +43,7 @@ namespace UE::MovieGraph::Private
 		Params.RootFrameNumberRel = InTraversalContext.Time.OutputFrameNumber;
 		//Params.ShotFrameNumberRel = InTraversalContext.Time.ShotFrameNumberRel
 		//Params.FileMetadata = ToDo: Track File Metadata
-		const UMovieGraphOutputSettingNode* OutputSettingNode = InEvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(InRenderId.RootBranchName);
+		const UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName);
 		if (IsValid(OutputSettingNode))
 		{
 			Params.ZeroPadFrameNumberCount = OutputSettingNode->ZeroPadFrameNumbers;
@@ -227,14 +227,14 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	case EImageFormat::EXR: Extension = TEXT("exr"); break;
 	}
 
-	UMovieGraphOutputSettingNode* OutputSettingNode = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(InRenderData.Key.RootBranchName);
+	UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName);
 	if (!OutputSettingNode)
 	{
 		return FString();
 	}
 
 	// Generate one string that puts the directory combined with the filename format.
-	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / OutputSettingNode->FileNameFormat;
+	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / FileNameFormat;
 
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
@@ -742,14 +742,14 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	const TCHAR* Extension = TEXT("exr");
 
 	constexpr bool bIncludeCDOs = true;
-	const UMovieGraphOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(InBranchName, bIncludeCDOs);
+	const UMovieGraphGlobalOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InBranchName, bIncludeCDOs);
 	if (!ensure(OutputSettings))
 	{
 		return FString();
 	}
 	
 	// If we have more than one resolution we'll store it as "_Add" / "_Add(1)" etc via {ExtraTag}.
-	FString FileNameFormatString = OutputSettings->FileNameFormat + "{ExtraTag}";
+	FString FileNameFormatString = FileNameFormat + "{ExtraTag}";
 
 	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
 	

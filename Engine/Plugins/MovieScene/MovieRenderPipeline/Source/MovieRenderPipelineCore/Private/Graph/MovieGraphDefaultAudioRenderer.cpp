@@ -10,7 +10,7 @@
 #include "Engine/Engine.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphUtils.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "HAL/IConsoleManager.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineDataTypes.h"
@@ -112,7 +112,7 @@ void UMovieGraphDefaultAudioRenderer::ProcessAudioTick()
 		constexpr bool bIncludeCDOs = true;
 		constexpr bool bExactMatch = true;
 		const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedGraph = TimeStepInstance->GetCalculatedTimeData().EvaluatedConfig;
-		UMovieGraphOutputSettingNode* OutputSettingNode = EvaluatedGraph->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+		UMovieGraphGlobalOutputSettingNode* OutputSettingNode = EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
 
 		const FFrameRate SourceFrameRate = DataSourceInstance->GetDisplayRate();
 		const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSettingNode, SourceFrameRate);

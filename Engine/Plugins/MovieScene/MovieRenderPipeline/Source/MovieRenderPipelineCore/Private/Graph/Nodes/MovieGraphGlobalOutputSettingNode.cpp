@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/MovieGraphProjectSettings.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Styling/AppStyle.h"
 #include "Algo/Find.h"
 
-UMovieGraphOutputSettingNode::UMovieGraphOutputSettingNode()
+UMovieGraphGlobalOutputSettingNode::UMovieGraphGlobalOutputSettingNode()
 	: OutputFrameRate(FFrameRate(24, 1))
 	, bOverwriteExistingOutput(true)
 	, ZeroPadFrameNumbers(4)
@@ -36,12 +36,11 @@ UMovieGraphOutputSettingNode::UMovieGraphOutputSettingNode()
 		// We didn't find one that was 1080p, just force a custom resolution.
 		OutputResolution = UMovieGraphBlueprintLibrary::NamedResolutionFromSize(1920, 1080);
 	}
-
-	FileNameFormat = TEXT("{sequence_name}.{frame_number}");
+	
 	OutputDirectory.Path = TEXT("{project_dir}/Saved/MovieRenders/");
 }
 
-void UMovieGraphOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const
+void UMovieGraphGlobalOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolveArgs& OutMergedFormatArgs, const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier) const
 {
 	const FString ResolvedProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
 	OutMergedFormatArgs.FilenameArguments.Add(TEXT("project_dir"), ResolvedProjectDir);
@@ -61,33 +60,38 @@ void UMovieGraphOutputSettingNode::GetFormatResolveArgs(FMovieGraphResolveArgs& 
 }
 
 #if WITH_EDITOR
-FText UMovieGraphOutputSettingNode::GetNodeTitle(const bool bGetDescriptive) const
+FText UMovieGraphGlobalOutputSettingNode::GetNodeTitle(const bool bGetDescriptive) const
 {
-	static const FText OutputSettingsNodeName = NSLOCTEXT("MoviePipelineGraph", "NodeName_OutputSettings", "Output Settings");
+	static const FText OutputSettingsNodeName = NSLOCTEXT("MoviePipelineGraph", "NodeName_GlobalOutputSettings", "Global Output Settings");
 	return OutputSettingsNodeName;
 }
 
-FText UMovieGraphOutputSettingNode::GetMenuCategory() const 
+FText UMovieGraphGlobalOutputSettingNode::GetMenuCategory() const 
 {
 	return NSLOCTEXT("MoviePipelineGraph", "Settings_Category", "Settings");
 }
 
-FLinearColor UMovieGraphOutputSettingNode::GetNodeTitleColor() const 
+FLinearColor UMovieGraphGlobalOutputSettingNode::GetNodeTitleColor() const 
 {
 	static const FLinearColor OutputSettingsColor = FLinearColor(0.854f, 0.509f, 0.039f);
 	return OutputSettingsColor;
 }
 
-FSlateIcon UMovieGraphOutputSettingNode::GetIconAndTint(FLinearColor& OutColor) const 
+FSlateIcon UMovieGraphGlobalOutputSettingNode::GetIconAndTint(FLinearColor& OutColor) const 
 {
 	static const FSlateIcon SettingsIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Settings");
 
 	OutColor = FLinearColor::White;
 	return SettingsIcon;
 }
+
+EMovieGraphBranchRestriction UMovieGraphGlobalOutputSettingNode::GetBranchRestriction() const
+{
+	return EMovieGraphBranchRestriction::Globals;
+}
 #endif // WITH_EDITOR
 
-FIntPoint UMovieGraphOutputSettingNode::GetSyncedOutputResolution() const
+FIntPoint UMovieGraphGlobalOutputSettingNode::GetSyncedOutputResolution() const
 {
 	// Try to find a matching entry from Project Settings to stay in sync
 	const UMovieGraphProjectSettings* MovieGraphProjectSettings = GetDefault<UMovieGraphProjectSettings>();

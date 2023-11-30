@@ -4,15 +4,18 @@
 
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphProjectSettings.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
-#include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphCameraNode.h"
-#include "HAL/FileManager.h"
-#include "Internationalization/Regex.h"
+#include "Graph/Nodes/MovieGraphCommandLineEncoderNode.h"
+#include "Graph/Nodes/MovieGraphFileOutputNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineUtils.h"
 
-FFrameRate UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(UMovieGraphOutputSettingNode* InNode, const FFrameRate& InDefaultRate)
+#include "HAL/FileManager.h"
+#include "Internationalization/Regex.h"
+
+FFrameRate UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(UMovieGraphGlobalOutputSettingNode* InNode, const FFrameRate& InDefaultRate)
 {
 	if (InNode && InNode->bOverride_OutputFrameRate)
 	{
@@ -68,7 +71,7 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 				RenderLayerName = RenderLayerNode->GetRenderLayerName();
 			}
 
-			TObjectPtr<UMovieGraphOutputSettingNode> OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs);
+			TObjectPtr<UMovieGraphGlobalOutputSettingNode> OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
 			if(OutputSettingNode)
 			{
 				bOverwriteExisting = OutputSettingNode->bOverwriteExistingOutput;
@@ -96,7 +99,7 @@ FString UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(const FStrin
 		if (InParams.EvaluatedConfig)
 		{
 			const bool bIncludeCDOs = false;
-			UMovieGraphOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs);
+			UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs);
 			FrameRate = GetEffectiveFrameRate(OutputSettingNode, InParams.DefaultFrameRate).AsDecimal();
 		}
 
@@ -228,74 +231,100 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 
 	constexpr bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
-	const UMovieGraphOutputSettingNode* OutputSettingNode = InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode =
+		InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
 	if (!OutputSettingNode->VersioningSettings.bAutoVersioning)
 	{
 		return OutputSettingNode->VersioningSettings.VersionNumber;
 	}
 
-	// Calculate a version number by looking at the output path and then scanning for a version token.
-	const FString FileNameFormatString = InParams.FileNameOverride.Len() > 0
-		? InParams.FileNameOverride
-		: OutputSettingNode->OutputDirectory.Path / OutputSettingNode->FileNameFormat;
-
 	// Force the Version string to stay as {version} so we can substring based on it later.
 	InParams.FileNameFormatOverrides.Add(TEXT("version"), TEXT("{version}"));
 
-	FMovieGraphResolveArgs FinalFormatArgs;
-	FString FinalPath = ResolveFilenameFormatArguments(FileNameFormatString, InParams, FinalFormatArgs);
-	FinalPath = FPaths::ConvertRelativePathToFull(FinalPath);
-	FPaths::NormalizeFilename(FinalPath);
-
-	// Can't resolve a version if it's not clear from the path where the version number will be used.
-	if (!FinalPath.Contains(TEXT("{version}")))
-	{
-		return -1;
-	}
+	// Get output nodes from the evaluated graph
+	TArray<UMovieGraphSettingNode*> ResultNodes = InParams.EvaluatedConfig->GetSettingsForBranch(
+		UMovieGraphCommandLineEncoderNode::StaticClass(), InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch);
+	ResultNodes.Append(InParams.EvaluatedConfig->GetSettingsForBranch(
+		UMovieGraphFileOutputNode::StaticClass(), InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch));
 	
-	int32 HighestVersion = 0;
+	int32 HighestVersion = -1;
 
-	// FinalPath can have {version} either in a folder name or in a file name. We need to find the 'parent' of either the
-	// file or folder that contains it. We can do this by looking for {version} and then finding the last "/" character,
-	// which will be the containing folder.
-	const int32 VersionStringIndex = FinalPath.Find(TEXT("{version}"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromStart);
-	if (VersionStringIndex >= 0)
+	auto ExtrapolateHighestVersionFromResultNode = [&InParams, OutputSettingNode, &HighestVersion](const FString& FileNameFormat)
 	{
-		const int32 LastParentFolder = FinalPath.Find(TEXT("/"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromEnd, VersionStringIndex);
-		FinalPath.LeftInline(LastParentFolder + 1);
+		// Calculate a version number by looking at the output path and then scanning for a version token.
+		const FString FileNameFormatString = InParams.FileNameOverride.Len() > 0
+			? InParams.FileNameOverride
+			: OutputSettingNode->OutputDirectory.Path / FileNameFormat;
 
-		// Now that we have the parent folder of either the folder with the version token, or the file with the version
-		// token, we will look through all immediate children and scan for version tokens so we can find the highest one.
-		const FRegexPattern VersionSearchPattern(TEXT("v([0-9]{3})"));
-		constexpr bool bFindFiles = true;
-		constexpr bool bFindDirectories = true;
-		const FString SearchString = FinalPath / TEXT("*.*");
-		TArray<FString> FoundFilesAndFoldersInDirectory;
-		IFileManager& FileManager = IFileManager::Get();
-		FileManager.FindFiles(FoundFilesAndFoldersInDirectory, *SearchString, bFindFiles, bFindDirectories);
+		FMovieGraphResolveArgs FinalFormatArgs;
+		FString FinalPath = ResolveFilenameFormatArguments(FileNameFormatString, InParams, FinalFormatArgs);
+		FinalPath = FPaths::ConvertRelativePathToFull(FinalPath);
+		FPaths::NormalizeFilename(FinalPath);
 
-		for (const FString& Path : FoundFilesAndFoldersInDirectory)
+		// Can't resolve a version if it's not clear from the path where the version number will be used.
+		if (!FinalPath.Contains(TEXT("{version}")))
 		{
-			FRegexMatcher Regex(VersionSearchPattern, *Path);
-			if (Regex.FindNext())
-			{
-				FString Result = Regex.GetCaptureGroup(0);
-				if (Result.Len() > 0)
-				{
-					// Strip the "v" token off, expected pattern is vXXX
-					Result.RightChopInline(1);
-				}
+			return;
+		}
 
-				int32 VersionNumber = 0;
-				LexFromString(VersionNumber, *Result);
-				if (VersionNumber > HighestVersion)
+		// FinalPath can have {version} either in a folder name or in a file name. We need to find the 'parent' of either the
+		// file or folder that contains it. We can do this by looking for {version} and then finding the last "/" character,
+		// which will be the containing folder.
+		const int32 VersionStringIndex = FinalPath.Find(TEXT("{version}"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromStart);
+		if (VersionStringIndex >= 0)
+		{
+			const int32 LastParentFolder = FinalPath.Find(TEXT("/"), ESearchCase::Type::IgnoreCase, ESearchDir::Type::FromEnd, VersionStringIndex);
+			FinalPath.LeftInline(LastParentFolder + 1);
+
+			// Now that we have the parent folder of either the folder with the version token, or the file with the version
+			// token, we will look through all immediate children and scan for version tokens so we can find the highest one.
+			const FRegexPattern VersionSearchPattern(TEXT("v([0-9]{3})"));
+			constexpr bool bFindFiles = true;
+			constexpr bool bFindDirectories = true;
+			const FString SearchString = FinalPath / TEXT("*.*");
+			TArray<FString> FoundFilesAndFoldersInDirectory;
+			IFileManager& FileManager = IFileManager::Get();
+			FileManager.FindFiles(FoundFilesAndFoldersInDirectory, *SearchString, bFindFiles, bFindDirectories);
+
+			for (const FString& Path : FoundFilesAndFoldersInDirectory)
+			{
+				FRegexMatcher Regex(VersionSearchPattern, *Path);
+				if (Regex.FindNext())
 				{
-					HighestVersion = VersionNumber;
+					FString Result = Regex.GetCaptureGroup(0);
+					if (Result.Len() > 0)
+					{
+						// Strip the "v" token off, expected pattern is vXXX
+						Result.RightChopInline(1);
+					}
+
+					int32 VersionNumber = 0;
+					LexFromString(VersionNumber, *Result);
+					if (VersionNumber > HighestVersion)
+					{
+						HighestVersion = VersionNumber;
+					}
 				}
 			}
 		}
-	}
+	};
+	
+	for (const UMovieGraphSettingNode* ResultNode : ResultNodes)
+	{
+		FString FileNameFormat = FString();
 
+		if (const UMovieGraphFileOutputNode* FileOutputNode = Cast<UMovieGraphFileOutputNode>(ResultNode))
+		{
+			FileNameFormat = FileOutputNode->FileNameFormat;
+		}
+		else if (const UMovieGraphCommandLineEncoderNode* CommandLineEncoderNode = Cast<UMovieGraphCommandLineEncoderNode>(ResultNode))
+		{
+			FileNameFormat = CommandLineEncoderNode->FileNameFormat;
+		}
+
+		ExtrapolateHighestVersionFromResultNode(FileNameFormat);
+	}
+	
 	return HighestVersion + (bGetNextVersion ? 1 : 0);
 }
 
@@ -308,7 +337,7 @@ FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphE
 	}
 	
 	constexpr bool bIncludeCDOs = true;
-	const UMovieGraphOutputSettingNode* OutputSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphOutputSettingNode>(InBranchName, bIncludeCDOs);
+	const UMovieGraphGlobalOutputSettingNode* OutputSetting = InEvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InBranchName, bIncludeCDOs);
 	if (!ensure(OutputSetting))
 	{
 		return FIntPoint();

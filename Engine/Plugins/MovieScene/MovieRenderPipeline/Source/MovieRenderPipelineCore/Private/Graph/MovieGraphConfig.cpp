@@ -9,7 +9,7 @@
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
@@ -1066,7 +1066,7 @@ void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovie
 			}
 		}
 	}
-	else if (const UMovieGraphOutputSettingNode* SettingsNode = Cast<UMovieGraphOutputSettingNode>(InNode))
+	else if (const UMovieGraphGlobalOutputSettingNode* SettingsNode = Cast<UMovieGraphGlobalOutputSettingNode>(InNode))
 	{
 		if (OutOutputDirectory.IsEmpty() && SettingsNode->bOverride_OutputDirectory)
 		{
@@ -1098,7 +1098,7 @@ void UMovieGraphConfig::GetOutputDirectory(FString& OutOutputDirectory) const
 		if (OutOutputDirectory.IsEmpty())
 		{
 			// If we didn't find any overrides, use the CDO values
-			UMovieGraphOutputSettingNode* CDO = Cast<UMovieGraphOutputSettingNode>(UMovieGraphOutputSettingNode::StaticClass()->ClassDefaultObject);
+			UMovieGraphGlobalOutputSettingNode* CDO = Cast<UMovieGraphGlobalOutputSettingNode>(UMovieGraphGlobalOutputSettingNode::StaticClass()->ClassDefaultObject);
 			check(CDO);
 			
 			OutOutputDirectory = CDO->OutputDirectory.Path;

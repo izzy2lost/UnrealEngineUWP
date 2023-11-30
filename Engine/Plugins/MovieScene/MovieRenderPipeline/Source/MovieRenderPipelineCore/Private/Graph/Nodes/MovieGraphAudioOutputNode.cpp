@@ -6,7 +6,7 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphUtils.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "MoviePipelineUtils.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Styling/AppStyle.h"
@@ -131,9 +131,8 @@ FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDa
 	constexpr bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
-	const UMovieGraphOutputSettingNode* OutputNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
-	const FString OutputFilename = FileNameFormatOverride.Len() > 0 ? FileNameFormatOverride : OutputNode->FileNameFormat;
-	FString FileNameFormatString = OutputNode->OutputDirectory.Path / OutputFilename;
+	const UMovieGraphGlobalOutputSettingNode* OutputNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+	FString FileNameFormatString = OutputNode->OutputDirectory.Path / FileNameFormat;
 
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = false;

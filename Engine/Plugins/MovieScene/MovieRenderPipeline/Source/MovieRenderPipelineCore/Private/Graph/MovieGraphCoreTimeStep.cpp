@@ -4,7 +4,7 @@
 
 #include "Graph/MovieGraphPipeline.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphCameraNode.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -378,7 +378,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	// Calculate frame numbers and timecodes for the current sequence (root) and shot
 	{
 		constexpr bool bIncludeCDOs = true;
-		UMovieGraphOutputSettingNode* OutputSetting = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+		UMovieGraphGlobalOutputSettingNode* OutputSetting = CurrentFrameData.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
 
 		// "Closest" isn't straightforward when using temporal sub-sampling, ie: A large enough shutter angle pushes a sample over the half way point and it rounds to
 		// the wrong one. Because temporal sub-sampling isn't centered around a frame (the centering is done via the final eval time) we can just subtract TSI*TPS to get our centered value.

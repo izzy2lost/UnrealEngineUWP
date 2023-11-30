@@ -41,7 +41,7 @@ public:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_FileNameFormatOverride : 1;
+	uint8 bOverride_FileNameFormat : 1;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_Quality : 1;
@@ -82,8 +82,8 @@ public:
 	* Can be different from the main one in the Output setting so you can render out frames to individual
 	* shot folders but encode to one file.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General", meta=(EditCondition="bOverride_FileNameFormatOverride"))
-	FString FileNameFormatOverride;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General", meta=(EditCondition="bOverride_FileNameFormat"))
+	FString FileNameFormat;
 
 	/** Whether the source files should be deleted on disk after encoding. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General", meta=(EditCondition="bOverride_bDeleteSourceFiles"))

@@ -51,6 +51,13 @@ public:
 		return NSLOCTEXT("MovieGraphNodes", "FileOutputGraphNode_Category", "Output Type");
 	}
 #endif
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_FileNameFormat : 1;
+
+	/** What format string should the final files use? Can include folder prefixes, and format string ({shot_name}, etc.) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_FileNameFormat"))
+	FString FileNameFormat;
 
 protected:
 	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) {}

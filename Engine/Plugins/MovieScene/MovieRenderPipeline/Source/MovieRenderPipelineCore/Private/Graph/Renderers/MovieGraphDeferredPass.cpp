@@ -2,7 +2,6 @@
 
 #include "Graph/Renderers/MovieGraphDeferredPass.h"
 #include "Graph/Nodes/MovieGraphDeferredPassNode.h"
-#include "Graph/Nodes/MovieGraphOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphCameraNode.h"
 #include "Graph/MovieGraphDataTypes.h"
 #include "Graph/MovieGraphDefaultRenderer.h"
