@@ -171,6 +171,11 @@ namespace GeometryScriptBakeLocals
 			}
 			break;
 		}
+		case EMeshMapEvaluatorType::Constant:
+		{
+			TexType = FTexture2DBuilder::ETextureType::ColorLinear;
+			break;
+		}
 		}
 		return TexType;
 	}
@@ -469,6 +474,13 @@ namespace GeometryScriptBakeLocals
 			Result = PropertyEval;
 			break;
 		}
+		case EGeometryScriptBakeTypes::Constant:
+		{
+			FGeometryScriptBakeType_Constant* ConstantOptions = static_cast<FGeometryScriptBakeType_Constant*>(Options.Options.Get());
+			TSharedPtr<FMeshConstantMapEvaluator> ConstantEval = MakeShared<FMeshConstantMapEvaluator>(ConstantOptions->Value);
+			Result = ConstantEval;
+			break;
+		}
 		default:
 			break;
 		}
@@ -548,9 +560,15 @@ namespace GeometryScriptBakeLocals
 			Baker.SetCorrespondenceStrategy(FMeshBaseBaker::ECorrespondenceStrategy::Identity);
 		}
 
-		auto IsValidBakeType = [](EGeometryScriptBakeTypes, TArray<FGeometryScriptDebugMessage>*)
+		auto IsValidBakeType = [&BakeTexturePrefix](EGeometryScriptBakeTypes BakeType, TArray<FGeometryScriptDebugMessage>* Debug)
 		{
-			return true;
+			const bool bIsValid = BakeType != EGeometryScriptBakeTypes::None;
+			if (!bIsValid)
+			{
+				const FText BakeTypeName = FText::FromName(StaticEnum<EGeometryScriptBakeTypes>()->GetNameByIndex(static_cast<int32>(BakeType)));
+				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("BakeTexture_InvalidBakeType", "{0}: {1} bake type is not a supported RGBA evaluator."), BakeTexturePrefix, BakeTypeName));
+			}
+			return bIsValid;
 		};
 
 		FEvaluatorState EvalState;
@@ -688,10 +706,13 @@ namespace GeometryScriptBakeLocals
 				return bCanShare;
 			}, 0.0f);
 
-		if (bIsBakeToSelf)
+		if (bIsBakeToSelf || BakeTypes.OutputMode == EGeometryScriptBakeOutputMode::PerChannel)
 		{
-			// Copy source vertex colors onto new color overlay topology for identity bakes.
+			// Copy source vertex colors onto new color overlay topology for identity bakes
 			// This is necessary when sampling vertex color data.
+			//
+			// Also copy source vertex colors for PerChannel bakes so users can opt to bake
+			// a single channel of an existing vertex color dataset.
 			const FDynamicMeshColorOverlay* SourceColorOverlay = SourceMeshToUse->HasAttributes() ? SourceMeshToUse->Attributes()->PrimaryColors() : nullptr;
 			FDynamicMeshColorOverlay* TargetColorOverlay = TargetMeshRef.Attributes()->PrimaryColors(); 
 			if (SourceColorOverlay)
@@ -727,9 +748,15 @@ namespace GeometryScriptBakeLocals
 
 		if (BakeTypes.OutputMode == EGeometryScriptBakeOutputMode::RGBA)
 		{
-			auto IsValidBakeType = [](EGeometryScriptBakeTypes, TArray<FGeometryScriptDebugMessage>*)
+			auto IsValidBakeType = [&BakeVertexPrefix](EGeometryScriptBakeTypes BakeType, TArray<FGeometryScriptDebugMessage>* Debug)
 			{
-				return true;
+				const bool bIsValid = BakeType != EGeometryScriptBakeTypes::None;
+				if (!bIsValid)
+				{
+					const FText BakeTypeName = FText::FromName(StaticEnum<EGeometryScriptBakeTypes>()->GetNameByIndex(static_cast<int32>(BakeType)));
+					UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, FText::Format(LOCTEXT("BakeVertex_InvalidBakeType", "{0}: {1} bake type is not a supported RGBA evaluator."), BakeVertexPrefix, BakeTypeName));
+				}
+				return bIsValid;
 			};
 			
 			Baker.BakeMode = FMeshVertexBaker::EBakeMode::RGBA;
@@ -741,7 +768,8 @@ namespace GeometryScriptBakeLocals
 
 			auto IsValidBakeType = [&BakeVertexPrefix](EGeometryScriptBakeTypes BakeType, TArray<FGeometryScriptDebugMessage>* Debug)
 			{
-				const bool bIsValid = (BakeType == EGeometryScriptBakeTypes::AmbientOcclusion || BakeType == EGeometryScriptBakeTypes::Curvature);
+				// The None bake type is permitted for PerChannel bakes since it allows users to specify a channel that should not be overwritten.
+				const bool bIsValid = (BakeType == EGeometryScriptBakeTypes::AmbientOcclusion || BakeType == EGeometryScriptBakeTypes::Curvature || BakeType == EGeometryScriptBakeTypes::Constant || BakeType == EGeometryScriptBakeTypes::None);
 				if (!bIsValid)
 				{
 					const FText BakeTypeName = FText::FromName(StaticEnum<EGeometryScriptBakeTypes>()->GetNameByIndex(static_cast<int32>(BakeType)));
@@ -774,21 +802,67 @@ namespace GeometryScriptBakeLocals
 		return MoveTemp(Result);
 	}
 
-	bool ApplyVertexBakeToMesh(const FMeshVertexBaker* Baker, UDynamicMesh* Mesh)
+	bool ApplyVertexBakeToMesh(const FMeshVertexBaker* Baker, const FGeometryScriptBakeOutputType& BakeTypes, UDynamicMesh* Mesh)
 	{
 		if (!Baker || !Mesh)
 		{
 			return false;
 		}
 
-		FDynamicMesh3& MeshRef = Mesh->GetMeshRef();		
-		const TImageBuilder<FVector4f>* ImageResult = Baker->GetBakeResult();
-		const int NumColors = MeshRef.Attributes()->PrimaryColors()->ElementCount();
-		check(NumColors == ImageResult->GetDimensions().GetWidth());
-		for (int Idx = 0; Idx < NumColors; ++Idx)
+		if (BakeTypes.OutputMode == EGeometryScriptBakeOutputMode::PerChannel)
 		{
-			const FVector4f& Pixel = ImageResult->GetPixel(Idx);
-			MeshRef.Attributes()->PrimaryColors()->SetElement(Idx, Pixel);
+			// Precompute scale vectors for source and image pixel data to merge
+			// the data according to the populated channels.
+			FVector4f SrcScale = FVector4f::Zero();
+			FVector4f ImgScale = FVector4f::Zero();
+
+			const bool bOutputR = BakeTypes.R.BakeType != EGeometryScriptBakeTypes::None;
+			const bool bOutputG = BakeTypes.G.BakeType != EGeometryScriptBakeTypes::None;
+			const bool bOutputB = BakeTypes.B.BakeType != EGeometryScriptBakeTypes::None;
+			const bool bOutputA = BakeTypes.A.BakeType != EGeometryScriptBakeTypes::None;
+
+			SrcScale[0] = static_cast<float>(!bOutputR);
+			ImgScale[0] = static_cast<float>(bOutputR);
+
+			SrcScale[1] = static_cast<float>(!bOutputG);
+			ImgScale[1] = static_cast<float>(bOutputG);
+
+			SrcScale[2] = static_cast<float>(!bOutputB);
+			ImgScale[2] = static_cast<float>(bOutputB);
+
+			SrcScale[3] = static_cast<float>(!bOutputA);
+			ImgScale[3] = static_cast<float>(bOutputA);
+
+			FDynamicMesh3& MeshRef = Mesh->GetMeshRef();
+			const int NumColors = MeshRef.Attributes()->PrimaryColors()->ElementCount();
+			const TImageBuilder<FVector4f>* ImageResult = Baker->GetBakeResult();
+			check(NumColors == ImageResult->GetDimensions().GetWidth());
+			for (int Idx = 0; Idx < NumColors; ++Idx)
+			{
+				if (const FDynamicMeshColorOverlay* ColorOverlay = MeshRef.Attributes()->PrimaryColors())
+				{
+					FVector4f Pixel;
+					ColorOverlay->GetElement(Idx, Pixel);
+					Pixel *= SrcScale;
+
+					// Swizzle the ImageResult pixels based on the requested channels.
+					const FVector4f& ImagePixel = ImageResult->GetPixel(Idx);
+					Pixel += ImagePixel * ImgScale;
+					MeshRef.Attributes()->PrimaryColors()->SetElement(Idx, Pixel);
+				}
+			}
+		}
+		else
+		{
+			FDynamicMesh3& MeshRef = Mesh->GetMeshRef();		
+			const TImageBuilder<FVector4f>* ImageResult = Baker->GetBakeResult();
+			const int NumColors = MeshRef.Attributes()->PrimaryColors()->ElementCount();
+			check(NumColors == ImageResult->GetDimensions().GetWidth());
+			for (int Idx = 0; Idx < NumColors; ++Idx)
+			{
+				const FVector4f& Pixel = ImageResult->GetPixel(Idx);
+				MeshRef.Attributes()->PrimaryColors()->SetElement(Idx, Pixel);
+			}
 		}
 		return true;
 	}
@@ -995,6 +1069,16 @@ FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBak
 	return Output;
 }
 
+FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBakeTypeConstant(
+	float Value)
+{
+	FGeometryScriptBakeTypeOptions Output;
+	Output.BakeType = EGeometryScriptBakeTypes::Constant;
+	const TSharedPtr<FGeometryScriptBakeType_Constant> ConstantOptions = MakeShared<FGeometryScriptBakeType_Constant>();
+	ConstantOptions->Value = Value;
+	Output.Options = ConstantOptions;
+	return Output;
+}
 
 TArray<UTexture2D*> UGeometryScriptLibrary_MeshBakeFunctions::BakeTexture(
 	UDynamicMesh* TargetMesh,
@@ -1047,7 +1131,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBakeFunctions::BakeVertex(
 		Debug ? &Debug->Messages : nullptr);
 
 	// Extract the vertex bake data and apply to target mesh.
-	GeometryScriptBakeLocals::ApplyVertexBakeToMesh(Baker.Get(), TargetMesh);
+	GeometryScriptBakeLocals::ApplyVertexBakeToMesh(Baker.Get(), BakeTypes, TargetMesh);
 
 	return TargetMesh;
 }

@@ -51,6 +51,7 @@ enum class EGeometryScriptBakeFilteringType : uint8
 UENUM(BlueprintType)
 enum class EGeometryScriptBakeTypes : uint8
 {
+	None,
 	/* Normals in tangent space */
 	TangentSpaceNormal     UMETA(DisplayName = "Tangent Normal"),
 	/* Interpolated normals in object space */
@@ -73,6 +74,8 @@ enum class EGeometryScriptBakeTypes : uint8
 	VertexColor            ,
 	/* Material IDs as unique colors */
 	MaterialID             UMETA(DisplayName = "Material ID"),
+	/* Constant value */
+	Constant
 };
 
 UENUM(BlueprintType)
@@ -183,6 +186,12 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_MultiTexture : public F
 	int SourceUVLayer = 0;
 };
 
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Constant : public FGeometryScriptBakeTypes
+{
+	/** Constant value to set */
+	float Value = 0.0f;
+};
+
 /**
  * Opaque struct for storing bake type options.
  */
@@ -193,7 +202,7 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeTypeOptions
 
 	/** The bake output type to generate */
 	UPROPERTY(BlueprintReadOnly, Category = Type)
-	EGeometryScriptBakeTypes BakeType = EGeometryScriptBakeTypes::TangentSpaceNormal;
+	EGeometryScriptBakeTypes BakeType = EGeometryScriptBakeTypes::None;
 
 	TSharedPtr<FGeometryScriptBakeTypes> Options;
 };
@@ -525,6 +534,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeMaterialID();
+
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
+	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeConstant(
+		float Value = 0.0f);
 	
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Textures Out") TArray<UTexture2D*> BakeTexture(
