@@ -854,7 +854,7 @@ void FHairStrandsRootBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 		Ar << Header.Strides.RestUniqueTrianglePositionBufferStride;
 
 		Ar << Header.Strides.MeshInterpolationWeightsBufferStride;
-		Ar << Header.Strides.MeshSampleIndicesBufferStride;
+		Ar << Header.Strides.MeshSampleIndicesAndSectionsBufferStride;
 		Ar << Header.Strides.RestSamplePositionsBufferStride;
 	}
 
@@ -920,9 +920,9 @@ void FHairStrandsRootBulkData::GetResources(FQuery& Out)
 	{
 		const uint32 RBFWeightCount = FGroomRBFDeformer::GetWeightCount(HeaderLOD.SampleCount); 
 
-		Out.Add(DataLOD.MeshInterpolationWeightsBuffer, TEXT("_MeshInterpolationWeightsBuffer"), 		DataLOD.MeshInterpolationWeightsBuffer.LoadedSize, 		RBFWeightCount * Header.Strides.MeshInterpolationWeightsBufferStride); 	// Load all data
-		Out.Add(DataLOD.MeshSampleIndicesBuffer, 		TEXT("_MeshSampleIndicesBuffer"), 				DataLOD.MeshSampleIndicesBuffer.LoadedSize, 			HeaderLOD.SampleCount * Header.Strides.MeshSampleIndicesBufferStride); 	// Load all data
-		Out.Add(DataLOD.RestSamplePositionsBuffer, 		TEXT("_RestSamplePositionsBuffer"), 			DataLOD.RestSamplePositionsBuffer.LoadedSize, 			HeaderLOD.SampleCount * Header.Strides.RestSamplePositionsBufferStride);// Load all data
+		Out.Add(DataLOD.MeshInterpolationWeightsBuffer, 	TEXT("_MeshInterpolationWeightsBuffer"), 	DataLOD.MeshInterpolationWeightsBuffer.LoadedSize, 		RBFWeightCount * Header.Strides.MeshInterpolationWeightsBufferStride); 				// Load all data
+		Out.Add(DataLOD.MeshSampleIndicesAndSectionsBuffer, TEXT("_MeshSampleIndicesAndSectionsBuffer"),DataLOD.MeshSampleIndicesAndSectionsBuffer.LoadedSize, 	HeaderLOD.SampleCount * Header.Strides.MeshSampleIndicesAndSectionsBufferStride); 	// Load all data
+		Out.Add(DataLOD.RestSamplePositionsBuffer, 			TEXT("_RestSamplePositionsBuffer"), 		DataLOD.RestSamplePositionsBuffer.LoadedSize, 			HeaderLOD.SampleCount * Header.Strides.RestSamplePositionsBufferStride);			// Load all data
 	}
 }
 
@@ -950,12 +950,12 @@ void FHairStrandsRootBulkData::Reset()
 
 		// RBF
 		LOD.MeshInterpolationWeightsBuffer.RemoveBulkData();
-		LOD.MeshSampleIndicesBuffer.RemoveBulkData();
+		LOD.MeshSampleIndicesAndSectionsBuffer.RemoveBulkData();
 		LOD.RestSamplePositionsBuffer.RemoveBulkData();
 
-		LOD.MeshInterpolationWeightsBuffer 	 = FHairBulkContainer();
-		LOD.MeshSampleIndicesBuffer 		 = FHairBulkContainer();
-		LOD.RestSamplePositionsBuffer 		 = FHairBulkContainer();
+		LOD.MeshInterpolationWeightsBuffer 		 = FHairBulkContainer();
+		LOD.MeshSampleIndicesAndSectionsBuffer 	 = FHairBulkContainer();
+		LOD.RestSamplePositionsBuffer 			 = FHairBulkContainer();
 	}
 	Data.LODs.Empty();
 }
@@ -971,8 +971,8 @@ void FHairStrandsRootBulkData::ResetLoadedSize()
 		LOD.RestUniqueTrianglePositionBuffer.LoadedSize = 0;
 		      
 		// RBF
-		LOD.MeshInterpolationWeightsBuffer.LoadedSize	= 0;
-		LOD.MeshSampleIndicesBuffer.LoadedSize 			= 0;
-		LOD.RestSamplePositionsBuffer.LoadedSize 		= 0;
+		LOD.MeshInterpolationWeightsBuffer.LoadedSize	 = 0;
+		LOD.MeshSampleIndicesAndSectionsBuffer.LoadedSize= 0;
+		LOD.RestSamplePositionsBuffer.LoadedSize 		 = 0;
 	}
 }

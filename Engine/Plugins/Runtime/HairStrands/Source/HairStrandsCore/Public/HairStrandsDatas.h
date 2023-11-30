@@ -183,6 +183,17 @@ struct HAIRSTRANDSCORE_API FHairStrandsIndexFormat
 	static const EPixelFormat Format = PF_R32_UINT;
 };
 
+/** Hair strands RBF sample index format */
+struct HAIRSTRANDSCORE_API FHairStrandsRBFSampleIndexFormat
+{
+	using Type = uint32;
+	using BulkType = uint32;
+	static const uint32 ComponentCount = 1;
+	static const uint32 SizeInByte = sizeof(Type);
+	static const EVertexElementType VertexElementType = VET_UInt;
+	static const EPixelFormat Format = PF_R32_UINT;
+};
+
 /** Hair strands weights format */
 struct FHairStrandsWeightFormat
 {
@@ -784,10 +795,13 @@ struct FHairStrandsRootData
 		TArray<FHairStrandsWeightFormat::Type> MeshInterpolationWeightsBuffer;
 
 		/* Store the samples vertex indices */
-		TArray<FHairStrandsIndexFormat::Type> MeshSampleIndicesBuffer;
+		TArray<uint32> MeshSampleIndicesBuffer;
 
 		/* Store the samples rest positions */
 		TArray<FHairStrandsMeshTrianglePositionFormat::Type> RestSamplePositionsBuffer;
+
+		/* Store the samples rest section */
+		TArray<uint32> MeshSampleSectionsBuffer;
 
 		/* Store the mesh section indices which are relevant for this root LOD data */
 		TArray<uint32> UniqueSectionIds;
@@ -830,7 +844,7 @@ struct FHairStrandsRootBulkData : FHairStrandsBulkCommon
 			Total += LOD.RootBarycentricBuffer.IsBulkDataLoaded() ?				LOD.RootBarycentricBuffer.GetBulkDataSize() : 0u;
 			Total += LOD.RestUniqueTrianglePositionBuffer.IsBulkDataLoaded() ?	LOD.RestUniqueTrianglePositionBuffer.GetBulkDataSize() : 0u;
 			Total += LOD.MeshInterpolationWeightsBuffer.IsBulkDataLoaded() ?	LOD.MeshInterpolationWeightsBuffer.GetBulkDataSize() : 0u;
-			Total += LOD.MeshSampleIndicesBuffer.IsBulkDataLoaded() ?			LOD.MeshSampleIndicesBuffer.GetBulkDataSize() : 0u;
+			Total += LOD.MeshSampleIndicesAndSectionsBuffer.IsBulkDataLoaded()?	LOD.MeshSampleIndicesAndSectionsBuffer.GetBulkDataSize() : 0u;
 			Total += LOD.RestSamplePositionsBuffer.IsBulkDataLoaded() ?			LOD.RestSamplePositionsBuffer.GetBulkDataSize() : 0u;
 		}
 		return Total;
@@ -855,7 +869,7 @@ struct FHairStrandsRootBulkData : FHairStrandsBulkCommon
 			uint32 RestUniqueTrianglePositionBufferStride = 0;
 
 			uint32 MeshInterpolationWeightsBufferStride = 0;
-			uint32 MeshSampleIndicesBufferStride = 0;
+			uint32 MeshSampleIndicesAndSectionsBufferStride = 0;
 			uint32 RestSamplePositionsBufferStride = 0;
 		};
 
@@ -876,9 +890,9 @@ struct FHairStrandsRootBulkData : FHairStrandsBulkCommon
 			FHairBulkContainer RestUniqueTrianglePositionBuffer;// Rest triangle positions (per-unique-triangle)
 
 			// RBF
-			FHairBulkContainer MeshInterpolationWeightsBuffer; 	// Store the hair interpolation weights | Size = SamplesCount * SamplesCount (per-sample
-			FHairBulkContainer MeshSampleIndicesBuffer; 		// Store the samples vertex indices (per-sample)
-			FHairBulkContainer RestSamplePositionsBuffer; 		// Store the samples rest positions (per-sample)
+			FHairBulkContainer MeshInterpolationWeightsBuffer; 		// Store the hair interpolation weights | Size = SamplesCount * SamplesCount (per-sample
+			FHairBulkContainer MeshSampleIndicesAndSectionsBuffer;	// Store the samples vertex indices (per-sample)
+			FHairBulkContainer RestSamplePositionsBuffer; 			// Store the samples rest positions (per-sample)
 		};
 		TArray<FLOD> LODs;
 	} Data;

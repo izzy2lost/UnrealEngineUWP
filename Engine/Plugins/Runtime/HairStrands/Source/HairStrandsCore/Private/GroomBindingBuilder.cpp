@@ -60,7 +60,7 @@ static FAutoConsoleVariableRef CVarHairStrandsBindingBuilderWarningEnable(TEXT("
 FString FGroomBindingBuilder::GetVersion()
 {
 	// Important to update the version when groom building changes
-	return TEXT("3p_7");
+	return TEXT("3p_14");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +144,7 @@ public:
 	virtual const IMeshSectionData& GetSection(uint32 SectionIndex) const = 0;
 	virtual const FVector3f& GetVertexPosition(uint32 VertexIndex) const = 0;
 	virtual FVector2f GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const = 0;
-	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const = 0;
+	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const = 0;
 	virtual ~IMeshLODData() {}
 };
 
@@ -276,12 +276,14 @@ public:
 		return FVector2f(MeshData->LODRenderData[LODIndex].StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(InVertexIndex, InChannelIndex));
 	}
 
-	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const override
+	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const override
 	{
+		int32 OutSectionIndex = 0;
 		check(MeshData);
 		check(MeshData->LODRenderData.IsValidIndex(LODIndex));
 		int32 OutVertIndex = 0;
-		return MeshData->LODRenderData[LODIndex].GetSectionFromVertexIndex(InVertIndex, OutSectionIndex, OutVertIndex);
+		MeshData->LODRenderData[LODIndex].GetSectionFromVertexIndex(InVertIndex, OutSectionIndex, OutVertIndex);
+		return OutSectionIndex;
 	}
 
 private:
@@ -473,17 +475,17 @@ public:
 		return FVector2f(MeshData.TextureCoordinates[VertexIndex]);
 	}
 
-	virtual void GetSectionFromVertexIndex(uint32 InVertIndex, int32& OutSectionIndex) const override
+	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const override
 	{
 		for (int32 SectionIndex = 0; SectionIndex < SectionRanges.Num(); ++SectionIndex)
 		{
 			const FRange& SectionRange = SectionRanges[SectionIndex];
 			if (InVertIndex >= SectionRange.Min && InVertIndex <= SectionRange.Max)
 			{
-				OutSectionIndex = SectionIndex;
-				return;
+				return SectionIndex;
 			}
 		}
+		return 0;
 	}
 
 private:
@@ -533,8 +535,9 @@ namespace GroomBinding_RBFWeighting
 
 	void FPointsSampler::BuildPositions(const FVector3f* PointPositions)
 	{
-		SamplePositions.SetNum(SampleIndices.Num());
-		for (int32 i = 0; i < SampleIndices.Num(); ++i)
+		const int32 NumSamples = SampleIndices.Num();
+		SamplePositions.SetNum(NumSamples);
+		for (int32 i = 0; i < NumSamples; ++i)
 		{
 			SamplePositions[i] = PointPositions[SampleIndices[i]];
 		}
@@ -686,28 +689,36 @@ namespace GroomBinding_RBFWeighting
 		}
 	}
 
-	void UpdateInterpolationWeights(const FWeightsBuilder& InterpolationWeights, const FPointsSampler& PointsSampler, const uint32 LODIndex, FHairStrandsRootData& RootDatas)
+	void UpdateInterpolationWeights(
+		const FWeightsBuilder& InterpolationWeights,
+		const FPointsSampler& PointsSampler,
+		const GroomBinding_Mesh::IMeshLODData& MeshData,
+		FHairStrandsRootData::FMeshProjectionLOD& OutRootLODData)
 	{
-		FHairStrandsRootData::FMeshProjectionLOD& CPULOD = RootDatas.MeshProjectionLODs[LODIndex];
-		CPULOD.MeshSampleIndicesBuffer.SetNum(PointsSampler.SampleIndices.Num());
-		CPULOD.MeshInterpolationWeightsBuffer.SetNum(InterpolationWeights.InverseEntries.Num());
-		CPULOD.RestSamplePositionsBuffer.SetNum(PointsSampler.SampleIndices.Num());
+		OutRootLODData.MeshSampleIndicesBuffer.SetNum(PointsSampler.SampleIndices.Num());
+		OutRootLODData.MeshInterpolationWeightsBuffer.SetNum(InterpolationWeights.InverseEntries.Num());
+		OutRootLODData.RestSamplePositionsBuffer.SetNum(PointsSampler.SampleIndices.Num());
+		OutRootLODData.MeshSampleSectionsBuffer.SetNum(PointsSampler.SampleIndices.Num());
 
-		CPULOD.SampleCount = PointsSampler.SampleIndices.Num();
-		CPULOD.MeshSampleIndicesBuffer = PointsSampler.SampleIndices;
-		CPULOD.MeshInterpolationWeightsBuffer = InterpolationWeights.InverseEntries;
+		OutRootLODData.SampleCount = PointsSampler.SampleIndices.Num();
+		OutRootLODData.MeshSampleIndicesBuffer = PointsSampler.SampleIndices;
+		OutRootLODData.MeshInterpolationWeightsBuffer = InterpolationWeights.InverseEntries;
 		for (int32 i = 0; i < PointsSampler.SamplePositions.Num(); ++i)
-		{
-			CPULOD.RestSamplePositionsBuffer[i] = FVector4f(PointsSampler.SamplePositions[i], 1.0f);
+		{			
+			OutRootLODData.RestSamplePositionsBuffer[i] = FVector4f(PointsSampler.SamplePositions[i], 1.0f);
+			OutRootLODData.MeshSampleSectionsBuffer[i] = MeshData.GetSectionFromVertexIndex(PointsSampler.SampleIndices[i]);
 		}
 	}
 
-	void FillLocalValidPoints(const GroomBinding_Mesh::IMeshLODData& MeshLODData, const int32 TargetSection,
-		const FHairStrandsRootData::FMeshProjectionLOD& ProjectionLOD, TArray<bool>& ValidPoints)
+	void FillLocalValidPoints(
+		const GroomBinding_Mesh::IMeshLODData& MeshLODData, 
+		const int32 TargetSection,
+		const FHairStrandsRootData::FMeshProjectionLOD& ProjectionLOD, 
+		TArray<bool>& OutValidPoints)
 	{
 		const TArray<uint32>& TriangleIndices = MeshLODData.GetIndexBuffer();
 
-		ValidPoints.Init(false, MeshLODData.GetNumVertices());
+		OutValidPoints.Init(false, MeshLODData.GetNumVertices());
 
 		const bool ValidSection = (TargetSection >= 0 && TargetSection < MeshLODData.GetNumSections());
 
@@ -722,18 +733,18 @@ namespace GroomBinding_RBFWeighting
 				for (uint32 VertexIt = 0; VertexIt < 3; ++VertexIt)
 				{
 					const uint32 VertexIndex = TriangleIndices[Section.GetBaseIndex() + 3 * TriangleIndex + VertexIt];
-					ValidPoints[VertexIndex] = (VertexIndex >= Section.GetBaseVertexIndex()) && (VertexIndex < Section.GetBaseVertexIndex() + Section.GetNumVertices());
+					OutValidPoints[VertexIndex] = (VertexIndex >= Section.GetBaseVertexIndex()) && (VertexIndex < Section.GetBaseVertexIndex() + Section.GetNumVertices());
 				}
 			}
 		}
 	}
 
-	void FillGlobalValidPoints(const GroomBinding_Mesh::IMeshLODData& MeshLODData, const int32 TargetSection, TArray<bool>& ValidPoints)
+	void FillGlobalValidPoints(const GroomBinding_Mesh::IMeshLODData& MeshLODData, const int32 TargetSection, TArray<bool>& OutValidPoints)
 	{
 		const TArray<uint32>& TriangleIndices = MeshLODData.GetIndexBuffer(); 
 		if (TargetSection >= 0 && TargetSection < MeshLODData.GetNumSections())
 		{
-			ValidPoints.Init(false, MeshLODData.GetNumVertices());
+			OutValidPoints.Init(false, MeshLODData.GetNumVertices());
 
 			const GroomBinding_Mesh::IMeshSectionData& Section = MeshLODData.GetSection(TargetSection);
 			for (uint32 TriangleIt = 0; TriangleIt < Section.GetNumTriangles(); ++TriangleIt)
@@ -741,13 +752,13 @@ namespace GroomBinding_RBFWeighting
 				for (uint32 VertexIt = 0; VertexIt < 3; ++VertexIt)
 				{
 					const uint32 VertexIndex = TriangleIndices[Section.GetBaseIndex() + 3 * TriangleIt + VertexIt];
-					ValidPoints[VertexIndex] = true;
+					OutValidPoints[VertexIndex] = true;
 				}
 			}
 		}
 		else
 		{
-			ValidPoints.Init(true, MeshLODData.GetNumVertices());
+			OutValidPoints.Init(true, MeshLODData.GetNumVertices());
 		}
 	}
 
@@ -801,7 +812,7 @@ namespace GroomBinding_RBFWeighting
 					FWeightsBuilder InterpolationWeights(SampleCount, SampleCount, PointsSampler.SamplePositions.GetData(), PointsSampler.SamplePositions.GetData());
 
 					// Guides
-					UpdateInterpolationWeights(InterpolationWeights, PointsSampler, LODIndex, Out.SimRootData);
+					UpdateInterpolationWeights(InterpolationWeights, PointsSampler, MeshLODData, Out.SimRootData.MeshProjectionLODs[LODIndex]);
 
 					// Strands
 					// No sample data, only used/available for guides
@@ -823,7 +834,7 @@ namespace GroomBinding_RBFWeighting
 				FWeightsBuilder InterpolationWeights(SampleCount, SampleCount, PointsSampler.SamplePositions.GetData(), PointsSampler.SamplePositions.GetData());
 
 				// Guides
-				UpdateInterpolationWeights(InterpolationWeights, PointsSampler, LODIndex, Out.SimRootData);
+				UpdateInterpolationWeights(InterpolationWeights, PointsSampler, MeshLODData, Out.SimRootData.MeshProjectionLODs[LODIndex]);
 
 				// Strands 
 				// No sample data, only used/available for guides
@@ -1861,8 +1872,7 @@ namespace GroomBinding_Transfer
 			for (uint32 TargetVertexIt = 0; TargetVertexIt < TargetVertexCount; ++TargetVertexIt)
 #endif
 			{
-				int32 SectionIt = 0;
-				TargetMeshLODData.GetSectionFromVertexIndex(TargetVertexIt, SectionIt);
+				const int32 SectionIt = TargetMeshLODData.GetSectionFromVertexIndex(TargetVertexIt);
 				if (SectionIt != LocalTargetSectionId)
 				{
 					OutTransferredPositions[TargetLODIndex][TargetVertexIt] = FVector3f(0,0,0);
@@ -1990,7 +2000,7 @@ static void BuildRootBulkData(
 	Out.Header.Strides.RestUniqueTrianglePositionBufferStride 	= FHairStrandsMeshTrianglePositionFormat::SizeInByte * 3; // 3 vertices per triangle
 
 	Out.Header.Strides.MeshInterpolationWeightsBufferStride 	= FHairStrandsWeightFormat::SizeInByte;
-	Out.Header.Strides.MeshSampleIndicesBufferStride 			= FHairStrandsIndexFormat::SizeInByte;
+	Out.Header.Strides.MeshSampleIndicesAndSectionsBufferStride = FHairStrandsRBFSampleIndexFormat::SizeInByte;
 	Out.Header.Strides.RestSamplePositionsBufferStride 			= FHairStrandsMeshTrianglePositionFormat::SizeInByte;
 
 	Out.Header.LODs.SetNum(MeshLODCount);
@@ -2024,14 +2034,26 @@ static void BuildRootBulkData(
 
 		if (bHasValidSamples)
 		{
+			check(In.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer.Num() == In.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer.Num());
+
+			const uint32 SampleCount = In.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer.Num();
+			TArray<uint32> MeshSampleIndicesAndSectionBuffer;
+			MeshSampleIndicesAndSectionBuffer.SetNum(SampleCount);
+			for (uint32 SampleIt=0;SampleIt<SampleCount;++SampleIt)
+			{
+				const uint32 Index = In.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer[SampleIt];
+				const uint32 SectionIndex = In.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer[SampleIt];
+				MeshSampleIndicesAndSectionBuffer[SampleIt] = FHairStrandsRootUtils::PackTriangleIndex(Index, SectionIndex);
+			}
+
 			CopyToBulkData<FHairStrandsWeightFormat>(Out.Data.LODs[MeshLODIt].MeshInterpolationWeightsBuffer, In.MeshProjectionLODs[MeshLODIt].MeshInterpolationWeightsBuffer);
-			CopyToBulkData<FHairStrandsIndexFormat>(Out.Data.LODs[MeshLODIt].MeshSampleIndicesBuffer, In.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer);
+			CopyToBulkData<FHairStrandsRBFSampleIndexFormat>(Out.Data.LODs[MeshLODIt].MeshSampleIndicesAndSectionsBuffer, MeshSampleIndicesAndSectionBuffer);
 			CopyToBulkData<FHairStrandsMeshTrianglePositionFormat>(Out.Data.LODs[MeshLODIt].RestSamplePositionsBuffer, In.MeshProjectionLODs[MeshLODIt].RestSamplePositionsBuffer);
 		}
 		else
 		{
 			Out.Data.LODs[MeshLODIt].MeshInterpolationWeightsBuffer.RemoveBulkData();
-			Out.Data.LODs[MeshLODIt].MeshSampleIndicesBuffer.RemoveBulkData();
+			Out.Data.LODs[MeshLODIt].MeshSampleIndicesAndSectionsBuffer.RemoveBulkData();
 			Out.Data.LODs[MeshLODIt].RestSamplePositionsBuffer.RemoveBulkData();
 		}
 	}
@@ -2065,14 +2087,29 @@ static void BuildRootData(
 
 		if (bHasValidSamples)
 		{
+			TArray<uint32> MeshSampleIndicesAndSectionBuffer;
+
 			CopyFromBulkData<FHairStrandsWeightFormat>(Out.MeshProjectionLODs[MeshLODIt].MeshInterpolationWeightsBuffer, In.Data.LODs[MeshLODIt].MeshInterpolationWeightsBuffer);
-			CopyFromBulkData<FHairStrandsIndexFormat>(Out.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer, In.Data.LODs[MeshLODIt].MeshSampleIndicesBuffer);
+			CopyFromBulkData<FHairStrandsRBFSampleIndexFormat>(MeshSampleIndicesAndSectionBuffer, In.Data.LODs[MeshLODIt].MeshSampleIndicesAndSectionsBuffer);
 			CopyFromBulkData<FHairStrandsMeshTrianglePositionFormat>(Out.MeshProjectionLODs[MeshLODIt].RestSamplePositionsBuffer, In.Data.LODs[MeshLODIt].RestSamplePositionsBuffer);
+
+			// Split indices and sections
+			const uint32 SampleCount = MeshSampleIndicesAndSectionBuffer.Num();
+			Out.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer.SetNum(SampleCount);
+			Out.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer.SetNum(SampleCount);
+			for (uint32 SampleIt=0;SampleIt<SampleCount;++SampleIt)
+			{
+				FHairStrandsRootUtils::UnpackTriangleIndex(
+					MeshSampleIndicesAndSectionBuffer[SampleIt], 
+					Out.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer[SampleIt],
+					Out.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer[SampleIt]);
+			}
 		}
 		else
 		{
 			Out.MeshProjectionLODs[MeshLODIt].MeshInterpolationWeightsBuffer.Empty();
 			Out.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer.Empty();
+			Out.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer.Empty();
 			Out.MeshProjectionLODs[MeshLODIt].RestSamplePositionsBuffer.Empty();
 		}
 	}

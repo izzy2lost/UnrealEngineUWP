@@ -416,7 +416,7 @@ struct FHairStrandsRestRootResource : public FHairCommonResource
 			Total += GetBufferTotalNumBytes(LOD.RootBarycentricBuffer);
 			Total += GetBufferTotalNumBytes(LOD.RestUniqueTrianglePositionBuffer);
 			Total += GetBufferTotalNumBytes(LOD.MeshInterpolationWeightsBuffer);
-			Total += GetBufferTotalNumBytes(LOD.MeshSampleIndicesBuffer);
+			Total += GetBufferTotalNumBytes(LOD.MeshSampleIndicesAndSectionsBuffer);
 			Total += GetBufferTotalNumBytes(LOD.RestSamplePositionsBuffer);
 		}
 		return Total;
@@ -445,7 +445,7 @@ struct FHairStrandsRestRootResource : public FHairCommonResource
 		/* Strand hair mesh interpolation matrix and sample indices */
 		uint32 SampleCount = 0;
 		FRDGExternalBuffer MeshInterpolationWeightsBuffer;
-		FRDGExternalBuffer MeshSampleIndicesBuffer;
+		FRDGExternalBuffer MeshSampleIndicesAndSectionsBuffer;
 		FRDGExternalBuffer RestSamplePositionsBuffer;
 	};
 
