@@ -16900,9 +16900,10 @@ private:
 struct FCPFUOReader : public FObjectReader, public FCPFUOArchive
 {
 public:
-	FCPFUOReader(FCPFUOWriter& DataSrc, UObject* DstObject)
+	FCPFUOReader(FCPFUOWriter& DataSrc, UObject* DstObject, TMap<UObject*, UObject*>* InReferenceReplacementMap = nullptr)
 		: FObjectReader(DataSrc.SavedPropertyData)
 		, FCPFUOArchive(DataSrc)
+		, ReferenceReplacementMap(InReferenceReplacementMap)
 	{
 		ArIgnoreArchetypeRef = true;
 		ArIgnoreClassRef = true;
@@ -16929,6 +16930,86 @@ public:
 	virtual void MarkScriptSerializationStart(const UObject* Object) override { OpenTaggedDataScope(); }
 	virtual void MarkScriptSerializationEnd(const UObject* Object) override   { CloseTaggedDataScope(); }
 	// ~End FArchive Interface
+
+	TMap<UObject*, UObject*>* ReferenceReplacementMap = nullptr;
+
+	FArchive& operator<<(FWeakObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value.Get())
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
+
+	FArchive& operator<<(FSoftObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value.Get())
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
+
+	FArchive& operator<<(FSoftObjectPath& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value.ResolveObject())
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
+
+	FArchive& operator<<(FLazyObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value.Get())
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
+
+	FArchive& operator<<(FObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value.Get())
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
+
+	FArchive& operator<<(UObject*& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		if (UObject* Object = Value)
+		{
+			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+			{
+				Value = *Reference;
+			}
+		}
+		return *this;
+	}
 };
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -16943,6 +17024,8 @@ UEngine::FCopyPropertiesForUnrelatedObjectsParams::FCopyPropertiesForUnrelatedOb
 	, bSkipCompilerGeneratedDefaults(false)
 	, bNotifyObjectReplacement(false)
 	, bClearReferences(true)
+	, bDontClearReferenceIfNewerClassExists(false)
+	, bReplaceInternalReferenceUponRead(false)
 	, SourceObjectArchetype(nullptr)
 	, OptionalReplacementMappings(nullptr)
 {}
@@ -17103,12 +17186,6 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 	const bool bDoAggressiveReplacement = CVarUseAggressiveReferenceReplacement.GetValueOnAnyThread();
 
 	{
-		// Serialize in the modified properties from the old CDO to the new CDO
-		if (Writer.SavedPropertyData.Num() > 0)
-		{
-			FCPFUOReader Reader(Writer, NewObject);
-		}
-
 		CollectAllSubobjects( NewObject, ComponentsOnNewObject );
 
 		// populate the ReferenceReplacementMap 
@@ -17178,6 +17255,19 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 					// A bad thing has happened and cannot be reasonably fixed at this point
 					UE_LOG(LogEngine, Log, TEXT("Warning: The CDO '%s' references a component that does not have the CDO in its outer chain!"), *NewObject->GetFullName(), *NewInstance->GetFullName());
 				}
+			}
+		}
+
+		// Serialize in the modified properties from the old CDO to the new CDO
+		if (Writer.SavedPropertyData.Num() > 0)
+		{
+			if (Params.bReplaceInternalReferenceUponRead)
+			{
+				FCPFUOReader Reader(Writer, NewObject, Params.OptionalReplacementMappings ? Params.OptionalReplacementMappings : &ReferenceReplacementMap);
+			}
+			else
+			{
+				FCPFUOReader Reader(Writer, NewObject);
 			}
 		}
 

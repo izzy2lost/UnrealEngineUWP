@@ -9,6 +9,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/RuntimeErrors.h"
 #include "UObject/Stack.h"
+#include "UObject/OverridableManager.h"
 
 void UClassRegisterAllCompiledInClasses();
 bool IsInAsyncLoadingThreadCoreUObjectInternal();
@@ -165,6 +166,12 @@ UObject* FObjectInstancingGraph::GetInstancedSubobject( UObject* SourceSubobject
 
 		if ( bShouldInstance )
 		{
+			// If the CurrentValue is within the SourceRoot, lets use it to instantiate as it must have come from the merge result of the serialization
+			if (FOverridableManager::Get().IsEnabled(*SourceSubobject) && SourceSubobject != CurrentValue && CurrentValue->IsIn(SourceRoot))
+			{
+				SourceSubobject = CurrentValue;
+			}
+
 			// search for the unique subobject instance that corresponds to this subobject template
 			InstancedSubobject = GetDestinationObject(SourceSubobject);
 			if ( InstancedSubobject == nullptr )

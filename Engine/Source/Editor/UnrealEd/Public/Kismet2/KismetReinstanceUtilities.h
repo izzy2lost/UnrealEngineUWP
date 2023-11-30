@@ -285,6 +285,8 @@ public:
 	* @param NewObject						The new Object to copy properties to
 	* @param bClearExternalReferences		If true then attempt to replace references to old classes and instances on this object with the corresponding new ones
 	* @param bForceDeltaSerialization		If true the delta serialization will be used when copying
+	* @param bOnlyHandleDirectSubObjects	If true will only copy/handle immediate subobjects
+	* @param OldToNewInstanceMap			If != null it will be used to replace any references found in this object
 	*/
 	static UNREALED_API void CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization = false, bool bOnlyHandleDirectSubObjects = false, TMap<UObject*, UObject*>* OldToNewInstanceMap =nullptr);
 

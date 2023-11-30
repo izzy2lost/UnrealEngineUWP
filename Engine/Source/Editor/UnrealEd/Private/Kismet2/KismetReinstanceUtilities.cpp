@@ -40,6 +40,7 @@
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Engine/ScopedMovementUpdate.h"
 #include "InstancedReferenceSubobjectHelper.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/PropertyBagRepository.h"
 #include "ProfilingDebugging/LoadTimeTracker.h"
@@ -2171,6 +2172,7 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 	Options.bNotifyObjectReplacement = true;
 	Options.bSkipCompilerGeneratedDefaults = true;
 	Options.bOnlyHandleDirectSubObjects = true;
+	Options.bReplaceInternalReferenceUponRead = FOverridableManager::Get().IsEnabled(*OldObject);
 	Options.OptionalReplacementMappings = &OldToNewInstanceMap;
 	// this currently happens because of some misguided logic in UBlueprintGeneratedClass::FindArchetype that
 	// points us to a mismatched archetype, in which case delta serialization becomes unsafe.. without
@@ -2578,6 +2580,11 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 					bFixupSCS = (NewClass->IsChildOf<USceneComponent>() != OldClass->IsChildOf<USceneComponent>());
 				}
 
+				if (TMap<UObject*, UObject*>* ReplaceTemplateMapping = Params.OldToNewTemplates ? Params.OldToNewTemplates->Find(OldClass) : nullptr)
+				{
+					OldToNewInstanceMap.Append(*ReplaceTemplateMapping);
+				}
+
 				const bool bIncludeDerivedClasses = false;
 				ObjectsToReplace.Reset();
 				GetObjectsOfClass(OldClass, ObjectsToReplace, bIncludeDerivedClasses);
@@ -2663,6 +2670,11 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 					{
 						ActorAttachmentData.Add(OldObject, FActorAttachmentData(OldActor));
 					}
+				}
+
+				if (TMap<UObject*, UObject*>* ReplaceTemplateMapping = Params.OldToNewTemplates ? Params.OldToNewTemplates->Find(OldClass) : nullptr)
+				{
+					OldToNewInstanceMap.Append(*ReplaceTemplateMapping);
 				}
 
 				// Then fix 'real' (non archetype) instances of the class
@@ -3054,6 +3066,9 @@ void FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(UObject* Ol
 	Params.bNotifyObjectReplacement = true;
 	Params.OptionalReplacementMappings = OldToNewInstanceMap;
 	Params.bOnlyHandleDirectSubObjects = bOnlyHandleDirectSubObjects;
+	// Overridable serialization needs this to be able to merge back containers of subobjects.
+	Params.bReplaceInternalReferenceUponRead = FOverridableManager::Get().IsEnabled(*OldObject);
+
 	UEngine::CopyPropertiesForUnrelatedObjects(OldObject, NewObject, Params);
 }
 

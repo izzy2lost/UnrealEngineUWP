@@ -2955,7 +2955,9 @@ public:
 		bool bSkipCompilerGeneratedDefaults;
 		bool bNotifyObjectReplacement;
 		bool bClearReferences;
+		UE_DEPRECATED(5.4, "This isn't used anymore by the code.")
 		bool bDontClearReferenceIfNewerClassExists;
+		bool bReplaceInternalReferenceUponRead; // While reading back object ptr, immediately replace them if they are in the replacement map.
 
 		// In cases where the SourceObject will no longer be able to look up its correct Archetype, it can be supplied
 		UObject* SourceObjectArchetype;

@@ -46,6 +46,7 @@
 #include "Animation/AnimBlueprint.h"
 #include "Stats/StatsHierarchical.h"
 #include "UObject/PropertyBagRepository.h"
+#include "UObject/OverridableManager.h"
 
 extern UNREALED_API UUnrealEdEngine* GUnrealEd;
 
@@ -558,17 +559,26 @@ void FReinstancingJob::CalculateBPClassDependencies()
 		const UObject* OldCDO = OldToNew.Key->ClassDefaultObject;
 
 		// Gather subobjects on old CDO and remember depends BP classes
-		TArray<UObject*> ContainedOldObjects;
-		GetObjectsWithOuter(OldCDO, ContainedOldObjects);
-		for (const UObject* OldObject : ContainedOldObjects)
+		auto GatherDependentBPClasses = [this](const UObject* CDO, const auto& Recurse) -> void
 		{
-			const UClass* DependentClass = OldObject->GetClass();
-			while (DependentClass && UBlueprint::GetBlueprintFromClass(DependentClass))
+			TArray<UObject*> ContainedOldObjects;
+			GetObjectsWithOuter(CDO, ContainedOldObjects);
+			for (const UObject* OldObject : ContainedOldObjects)
 			{
-				BPClassDependencies.Add(DependentClass);
-				DependentClass = DependentClass->GetSuperClass();
+				const UClass* DependentClass = OldObject->GetClass();
+				while (DependentClass && UBlueprint::GetBlueprintFromClass(DependentClass))
+				{
+					bool bIsAlreadyInSet = false;
+					BPClassDependencies.Add(DependentClass, &bIsAlreadyInSet);
+					if(!bIsAlreadyInSet)
+					{
+						Recurse(DependentClass->ClassDefaultObject, Recurse);
+					}
+					DependentClass = DependentClass->GetSuperClass();
+				}
 			}
-		}
+		};
+		GatherDependentBPClasses(OldCDO, GatherDependentBPClasses);
 	}
 }
 
@@ -2402,11 +2412,17 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	Reinstancers.Sort(
 		[](const FReinstancingJob& ReinstancingDataA, const FReinstancingJob& ReinstancingDataB)
 		{
-			return !ReinstancingDataA.DependsOn(ReinstancingDataB) && 
-				FBlueprintCompileReinstancer::ReinstancerOrderingFunction(
+			if(ReinstancingDataA.DependsOn(ReinstancingDataB))
+			{
+				return false;
+			}
+			if(ReinstancingDataB.DependsOn(ReinstancingDataA))
+			{
+				return true;
+			}
+			return FBlueprintCompileReinstancer::ReinstancerOrderingFunction(
 					ReinstancingDataA.OldToNew.Value, 
-					ReinstancingDataB.OldToNew.Value
-				);
+					ReinstancingDataB.OldToNew.Value);
 		}
 	);
 
@@ -2415,15 +2431,36 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
 	{
 		UObject* OldCDO = nullptr;
-		if (ReinstancingJob.OldToNew.Key)
+		UClass* OldClass = ReinstancingJob.OldToNew.Key;
+
+		if (OldClass)
 		{
-			OldCDO = ReinstancingJob.OldToNew.Key->ClassDefaultObject;
+			OldCDO = OldClass->ClassDefaultObject;
 			if (OldCDO && ReinstancingJob.Reinstancer.IsValid())
 			{
-				const bool bUseDeltaSerialization = ReinstancingJob.Reinstancer.IsValid() ? ReinstancingJob.Reinstancer->bUseDeltaSerializationToCopyProperties : false;
-				UObject* NewCDO = ReinstancingJob.OldToNew.Value->GetDefaultObject(true);
+				// Object using overridable serialization need to use delta serialization for it do work appropriatly
+				// Eventually we should do this to all BP classes CDO no matter what
+				const bool bUsingOverrideSerialization = FOverridableManager::Get().IsEnabled(*OldCDO);
+				const bool bUseDeltaSerialization = bUsingOverrideSerialization ? true : (ReinstancingJob.Reinstancer.IsValid() ? ReinstancingJob.Reinstancer->bUseDeltaSerializationToCopyProperties : false);
+				UClass* NewClass = ReinstancingJob.OldToNew.Value;
 
-				UBlueprint* CompiledBlueprint = UBlueprint::GetBlueprintFromClass(ReinstancingJob.OldToNew.Key);
+				// We do not expect the CDO to be already created at this point. 
+				// Who ever bother to create it before didn't look if the parent was ready or not.
+				if (NewClass->ClassDefaultObject != nullptr && bUsingOverrideSerialization)
+				{
+					// Override serialization does not currently want to use any CDO created before this
+					// point. I do not have a test case justifying this need, but renaming the cdo here 
+					// causes various regressions for existing blueprints, because their compilers have put
+					// needed data on the generated CDO. If we want to use override serialization broadly
+					// we will have to address these shortcomings (likely by ordering compilation itself,
+					// rather than reinstancing, more carefully). Discarding the CDO here is also wasteful
+					// - if we cannot use the objects, why create them at all?
+					NewClass->ClassDefaultObject->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+					NewClass->ClassDefaultObject = nullptr;
+				}
+				UObject* NewCDO = NewClass->GetDefaultObject(true);
+
+				UBlueprint* CompiledBlueprint = UBlueprint::GetBlueprintFromClass(OldClass);
 				if (CompiledBlueprint && CompiledBlueprint->bIsRegeneratingOnLoad)
 				{
 					// This is a catch-all for any deferred dependencies that didn't get resolved during loading/linking (that system is not bulletproof for complex circular dependencies)
@@ -2435,6 +2472,10 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 				// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
 				TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
+				if (TMap<UObject*, UObject*>* OldToNewTemplateMap = OldToNewTemplates ? OldToNewTemplates->Find(OldClass->GetSuperClass()) : nullptr)
+				{
+					OldToNewInstanceMap.Append(*OldToNewTemplateMap);
+				}
 				for(const auto& Pair : CreatedInstanceMap)
 				{
 					FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap);
@@ -2442,7 +2483,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 				if (OldToNewTemplates && !OldToNewInstanceMap.IsEmpty())
 				{
-					OldToNewTemplates->FindOrAdd(ReinstancingJob.OldToNew.Key).Append(OldToNewInstanceMap);
+					OldToNewTemplates->FindOrAdd(OldClass).Append(OldToNewInstanceMap);
 				}
 
 				if (ReinstancingJob.Compiler.IsValid())
@@ -2642,6 +2683,10 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 
 					// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
 					TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
+					if (TMap<UObject*, UObject*>* OldToNewTemplateMap = OldToNewTemplates ? OldToNewTemplates->Find(OldClass->GetSuperClass()) : nullptr)
+					{
+						OldToNewInstanceMap.Append(*OldToNewTemplateMap);
+					}
 					for (const auto& Pair : CreatedInstanceMap)
 					{
 						FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap);
