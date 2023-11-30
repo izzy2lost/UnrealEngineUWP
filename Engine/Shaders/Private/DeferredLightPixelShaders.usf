@@ -55,7 +55,9 @@
 #include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"
 #endif
 
+#if USE_LIGHT_FUNCTION_ATLAS
 #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+#endif
 
 // Remap light shape permutation into light type
 #if LIGHT_SOURCE_SHAPE == 0
@@ -337,12 +339,14 @@ void DeferredLightPixelMain(
 		float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
 		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, ScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
 
+#if USE_LIGHT_FUNCTION_ATLAS
 		if (bUseLightFunctionAtlas)
 		{
 			Radiance *= GetLocalLightFunctionCommon(
 				DerivedParams.TranslatedWorldPosition,
 				LightData.LightFunctionAtlasLightIndex);
 		}
+#endif
 
 		OutColor += Radiance;
 	}
@@ -450,12 +454,14 @@ void DeferredLightPixelMain(
 
 	const float LocalCoverage = From8bitCoverage(Sample.Coverage8bit);
 
+#if USE_LIGHT_FUNCTION_ATLAS
 	if (bUseLightFunctionAtlas)
 	{
 		Attenuation *= GetLocalLightFunctionCommon(
 			TranslatedWorldPosition,
 			LightData.LightFunctionAtlasLightIndex);
 	}
+#endif
 
 	OutColor.rgb = AtmosphericTransmittance * Radiance.xyz * Attenuation * LocalCoverage * GetExposure();
 	OutColor.a = LocalCoverage;
