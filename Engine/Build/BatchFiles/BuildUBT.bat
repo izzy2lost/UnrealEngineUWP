@@ -46,12 +46,12 @@ dir /s ^
  Programs\UnrealBuildTool\*.csproj ^
  | %FIND% ".cs" > ..\Intermediate\Build\UnrealBuildToolFiles.txt
 
-if exist Binaries\Win64\UnrealBuildAccelerator (
+if exist ..\Binaries\Win64\UnrealBuildAccelerator (
 	dir /s ^
-	 Binaries\Win64\UnrealBuildAccelerator\*.dll ^
+	 ..\Binaries\Win64\UnrealBuildAccelerator\*.dll ^
 	 | %FIND% ".dll" >> ..\Intermediate\Build\UnrealBuildToolFiles.txt
 	dir /s ^
-	 Binaries\Win64\UnrealBuildAccelerator\*.exe ^
+	 ..\Binaries\Win64\UnrealBuildAccelerator\*.exe ^
 	 | %FIND% ".exe" >> ..\Intermediate\Build\UnrealBuildToolFiles.txt
 ) 2>nul
 
