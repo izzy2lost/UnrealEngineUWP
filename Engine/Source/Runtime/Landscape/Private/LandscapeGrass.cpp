@@ -990,13 +990,6 @@ void ULandscapeComponent::RemoveGrassMap()
 #if WITH_EDITOR
 	GrassData->bIsDirty = true;
 #endif // WITH_EDITOR
-
-	if (GrassTypes.IsEmpty())
-	{
-		// Mark grass data as valid but empty if it just doesn't support grass because nothing will ever trigger a RenderGrassMaps on it, which would leave NumElements unset (which is considered as invalid data) :
-		// TODO [chris.tchou]: this is not technically true with bake position offset into collision...
-		GrassData->NumElements = 0;
-	}
 }
 
 void ALandscapeProxy::UpdateGrassTypeSummary()

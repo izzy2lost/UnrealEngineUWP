@@ -138,13 +138,22 @@ private:
 		void StartUpdateTick(int32 UpdateElementCount, int32 MaxUpdatesThisFrame)
 		{
 			check(MaxUpdatesThisFrame >= 0);
-			FirstIndex = LastIndex;
-			if (FirstIndex >= UpdateElementCount)
+			if (MaxUpdatesThisFrame >= UpdateElementCount)
 			{
+				// if we are updating more than what we have, then just update everything
 				FirstIndex = 0;
+				LastIndex = UpdateElementCount;
 			}
-			check(FirstIndex >= 0);
-			LastIndex = FirstIndex + MaxUpdatesThisFrame;
+			else
+			{
+				FirstIndex = LastIndex;
+				if (FirstIndex >= UpdateElementCount)
+				{
+					FirstIndex = 0;
+				}
+				check(FirstIndex >= 0);
+				LastIndex = FirstIndex + MaxUpdatesThisFrame;
+			}
 		}
 
 		// return true if the given element should update
