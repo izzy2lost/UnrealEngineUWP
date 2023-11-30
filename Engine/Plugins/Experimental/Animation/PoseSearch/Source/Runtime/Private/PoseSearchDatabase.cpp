@@ -619,20 +619,6 @@ bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 
 void UPoseSearchDatabase::PostLoad()
 {
-#if WITH_EDITORONLY_DATA
-	for (const FPoseSearchDatabaseSequence& DatabaseSequence : Sequences_DEPRECATED)
-	{
-		AnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
-	}
-	Sequences_DEPRECATED.Empty();
-
-	for (const FPoseSearchDatabaseBlendSpace& DatabaseBlendSpace : BlendSpaces_DEPRECATED)
-	{
-		AnimationAssets.Add(FInstancedStruct::Make(DatabaseBlendSpace));
-	}
-	BlendSpaces_DEPRECATED.Empty();
-#endif // WITH_EDITORONLY_DATA
-
 #if WITH_EDITOR
 	using namespace UE::PoseSearch;
 

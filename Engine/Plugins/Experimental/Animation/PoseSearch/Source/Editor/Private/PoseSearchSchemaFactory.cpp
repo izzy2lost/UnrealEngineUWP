@@ -73,7 +73,7 @@ UObject* UPoseSearchSchemaFactory::FactoryCreateNew(UClass* Class, UObject* InPa
 
 FString UPoseSearchSchemaFactory::GetDefaultNewAssetName() const
 {
-	return FString(TEXT("NewMotionDatabaseConfig"));
+	return FString(TEXT("NewPoseSearchSchema"));
 }
 
 #undef LOCTEXT_NAMESPACE

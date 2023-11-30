@@ -22,7 +22,7 @@ enum class EDebugDrawFlags : uint32
 {
 	None = 0,
 
-	// Draw using Query colors form the schema / config
+	// Draw using Query colors form the Schema
 	DrawQuery = 1 << 1,
 };
 ENUM_CLASS_FLAGS(EDebugDrawFlags);

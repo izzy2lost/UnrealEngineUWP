@@ -131,11 +131,11 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		SearchableFrames = NumOfSearchablePoses;
 		SearchableTime = FText::Format(TimeFormat, static_cast<double>(NumOfSearchablePoses) / SampleRate);
 
-		ConfigCardinality = PoseSearchDatabase->Schema->SchemaCardinality;
+		SchemaCardinality = PoseSearchDatabase->Schema->SchemaCardinality;
 
-		if (ConfigCardinality > 0)
+		if (SchemaCardinality > 0)
 		{
-			const int32 TotalAnimationFeatureVectors = SearchIndex.GetNumValuesVectors(ConfigCardinality);
+			const int32 TotalAnimationFeatureVectors = SearchIndex.GetNumValuesVectors(SchemaCardinality);
 			PrunedFrames = TotalAnimationPosesInFrames - TotalAnimationFeatureVectors;
 		}
 		else

@@ -19,7 +19,7 @@ struct FMotionMatchingAnimNodeReference : public FAnimNodeReference
 };
 
 // Exposes operations that can be run on a Motion Matching node via Anim Node Functions such as "On Become Relevant" and "On Update".
-UCLASS(Experimental)
+UCLASS()
 class POSESEARCH_API UMotionMatchingAnimNodeLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()

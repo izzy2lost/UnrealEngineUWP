@@ -73,7 +73,7 @@ UObject* UPoseSearchDatabaseFactory::FactoryCreateNew(UClass* Class, UObject* In
 
 FString UPoseSearchDatabaseFactory::GetDefaultNewAssetName() const
 {
-	return FString(TEXT("NewMotionDatabase"));
+	return FString(TEXT("NewPoseSearchDatabase"));
 }
 
 #undef LOCTEXT_NAMESPACE

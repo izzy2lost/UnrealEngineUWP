@@ -33,11 +33,8 @@ enum class EPoseSearchMode : int32
 	// Optimized search mode: the database projects the poses into a PCA space using only the most significant "NumberOfPrincipalComponents" dimensions, and construct a kdtree to facilitate the search.
 	PCAKDTree,
 
-	// Optimized search mode using a vantage point tree (disabled/Hidden until production ready)
-	VPTree UMETA(Hidden),
-
-	Num UMETA(Hidden),
-	Invalid = Num UMETA(Hidden)
+	// Optimized search mode using a vantage point tree (Experimental)
+	VPTree
 };
 
 UENUM()
@@ -45,10 +42,7 @@ enum class EPoseSearchMirrorOption : int32
 {
 	UnmirroredOnly UMETA(DisplayName = "Original Only"),
 	MirroredOnly UMETA(DisplayName = "Mirrored Only"),
-	UnmirroredAndMirrored UMETA(DisplayName = "Original and Mirrored"),
-
-	Num UMETA(Hidden),
-	Invalid = Num UMETA(Hidden)
+	UnmirroredAndMirrored UMETA(DisplayName = "Original and Mirrored")
 };
 
 USTRUCT()
@@ -84,7 +78,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	bool bDisableReselection = false;
 
 	// This allows users to set if this animation is original only (no mirrored data), original and mirrored, or only the mirrored version of this animation.
-	// It requires the mirror table to be set up in the config file.
+	// It requires the mirror table to be set up in the database Schema.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	EPoseSearchMirrorOption MirrorOption = EPoseSearchMirrorOption::UnmirroredOnly;
 
@@ -225,14 +219,14 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 };
 
 /** A data asset for indexing a collection of animation sequences. */
-UCLASS(BlueprintType, Category = "Animation|Pose Search", Experimental, meta = (DisplayName = "Motion Database"))
+UCLASS(BlueprintType, Category = "Animation|Pose Search", meta = (DisplayName = "Pose Search Database"))
 class POSESEARCH_API UPoseSearchDatabase : public UDataAsset
 {
 	GENERATED_BODY()
 public:
 
-	// The Motion Database Config sets what channels this database will use to match against (bones, trajectory and what properties of those you’re interested in, such as position and velocity).
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Database", DisplayName="Config")
+	// The Schema sets what channels this database will use to match against (bones, trajectory and what properties of those you’re interested in, such as position and velocity).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Database")
 	TObjectPtr<const UPoseSearchSchema> Schema;
 
 	// Cost added to the continuing pose from this database. This allows users to apply a cost bias (positive or negative) to the continuing pose.
@@ -275,13 +269,6 @@ public:
 	// like only idles versus only runs animations, given that the range of movement would be dramatically different.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database")
 	TObjectPtr<const UPoseSearchNormalizationSet> NormalizationSet;
-
-	// Sequences and Blendspaces are deprecated and its data will be part of the AnimationAssets.
-	// All sequences and blend spaces will be added to the AnimationAssets in PostLoad().
-	UPROPERTY()
-	TArray<FPoseSearchDatabaseSequence> Sequences_DEPRECATED;
-	UPROPERTY()
-	TArray<FPoseSearchDatabaseBlendSpace> BlendSpaces_DEPRECATED;
 
 	// If null, the default preview mesh for the skeleton will be used. Otherwise, this will be used in preview scenes.
 	// @todo: Move this to be a setting in the Pose Search Database editor. 

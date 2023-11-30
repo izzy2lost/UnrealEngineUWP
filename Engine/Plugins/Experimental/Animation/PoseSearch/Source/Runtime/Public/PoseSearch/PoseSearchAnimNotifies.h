@@ -17,23 +17,23 @@ class POSESEARCH_API UAnimNotifyState_PoseSearchBase : public UAnimNotifyState
 
 // Use this notify state to remove animation segments from the database completely, they will never play or return from
 // a search result
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Exclude From Database"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Exclude From Database"))
 class POSESEARCH_API UAnimNotifyState_PoseSearchExcludeFromDatabase : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()
 };
 
-// A pose matching search will not return results that overlap this notify, but the animation segment can still play
+// A pose search search will not return results that overlap this notify, but the animation segment can still play
 // if a previous search result advances into it.
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Block Transition"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Block Transition"))
 class POSESEARCH_API UAnimNotifyState_PoseSearchBlockTransition : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()
 };
 
-// Pose matching cost will be affected by this, making the animation segment more or less likely to be selected based
+// Pose search cost will be affected by this, making the animation segment more or less likely to be selected based
 // on the notify parameters
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Override Base Cost Bias"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Override Base Cost Bias"))
 // @todo: rename into UAnimNotifyState_PoseSearchOverrideBaseCostBias
 class POSESEARCH_API UAnimNotifyState_PoseSearchModifyCost : public UAnimNotifyState_PoseSearchBase
 {
@@ -47,9 +47,9 @@ public:
 	float CostAddend = -1.0f;
 };
 
-// Pose matching cost for the continuing pose will be affected by this, making the animation segment more or less 
+// Pose search cost for the continuing pose will be affected by this, making the animation segment more or less 
 // likely to be continuing playing based on the notify parameters
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Override Continuing Pose Cost Bias"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Override Continuing Pose Cost Bias"))
 class POSESEARCH_API UAnimNotifyState_PoseSearchOverrideContinuingPoseCostBias : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()
@@ -64,7 +64,7 @@ public:
 
 // UPoseSearchFeatureChannel(s) can use this UAnimNotifyState_PoseSearchSamplingAttribute as animation space position, rotation, and linear velocity provider 
 // during database indexing by specifying their SamplingAttributeId property to match UAnimNotifyState_PoseSearchSamplingAttribute::SamplingAttributeId
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Sampling Attribute"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Sampling Attribute"))
 class POSESEARCH_API UAnimNotifyState_PoseSearchSamplingAttribute : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()
@@ -91,7 +91,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 };
 
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Matching: Motion Matched Branch In"))
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Motion Matched Branch In"))
 class POSESEARCH_API UAnimNotifyState_PoseSearchBranchIn : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()

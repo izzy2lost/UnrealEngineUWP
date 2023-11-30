@@ -13,7 +13,7 @@
 // -0.5 if the left foot is exactly in front of the right foot
 // close to 1 or -1 if the feet (and so the legs) are completely crossed
 // at runtime we'll match the CrashingLegsValue and also filter by discarding pose candidates that don't respect the 'AllowedTolerance' between query and database values (happening in IsFilterValid)
-UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "CrashingLegs Channel"), CollapseCategories)
+UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Crashing Legs Channel"), CollapseCategories)
 class POSESEARCH_API UPoseSearchFeatureChannel_FilterCrashingLegs : public UPoseSearchFeatureChannel
 {
 	GENERATED_BODY()

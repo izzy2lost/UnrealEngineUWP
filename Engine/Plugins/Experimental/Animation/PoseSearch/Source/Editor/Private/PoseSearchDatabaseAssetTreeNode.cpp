@@ -73,6 +73,6 @@ namespace UE::PoseSearch
 			}
 		}
 
-		return EPoseSearchMirrorOption::Invalid;
+		return EPoseSearchMirrorOption::UnmirroredOnly;
 	}
 }

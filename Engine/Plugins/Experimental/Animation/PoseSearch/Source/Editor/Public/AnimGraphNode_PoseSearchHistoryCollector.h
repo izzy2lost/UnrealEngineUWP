@@ -8,7 +8,7 @@
 #include "UObject/ObjectMacros.h"
 #include "AnimGraphNode_PoseSearchHistoryCollector.generated.h"
 
-UCLASS(Abstract, BlueprintType, Experimental)
+UCLASS(Abstract, BlueprintType)
 class UAnimGraphNode_PoseSearchHistoryCollector_Base : public UAnimGraphNode_Base
 {
 	GENERATED_BODY()
@@ -17,7 +17,7 @@ class UAnimGraphNode_PoseSearchHistoryCollector_Base : public UAnimGraphNode_Bas
 	virtual FText GetMenuCategory() const override;
 };
 
-UCLASS(MinimalAPI, Experimental)
+UCLASS(MinimalAPI)
 class UAnimGraphNode_PoseSearchHistoryCollector : public UAnimGraphNode_PoseSearchHistoryCollector_Base
 {
 	GENERATED_BODY()
@@ -28,7 +28,7 @@ class UAnimGraphNode_PoseSearchHistoryCollector : public UAnimGraphNode_PoseSear
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 };
 
-UCLASS(MinimalAPI, Experimental)
+UCLASS(MinimalAPI)
 class UAnimGraphNode_PoseSearchComponentSpaceHistoryCollector : public UAnimGraphNode_PoseSearchHistoryCollector_Base
 {
 	GENERATED_BODY()

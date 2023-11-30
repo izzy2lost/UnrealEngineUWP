@@ -10,7 +10,7 @@
 #include "AnimGraphNode_MotionMatching.generated.h"
 
 
-UCLASS(MinimalAPI, Experimental)
+UCLASS(MinimalAPI)
 class UAnimGraphNode_MotionMatching : public UAnimGraphNode_BlendStack_Base
 {
 	GENERATED_BODY()

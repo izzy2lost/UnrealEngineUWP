@@ -21,16 +21,13 @@ enum class EPoseSearchDataPreprocessor : int32
 	Normalize,
 
 	// The data will be normalized against its deviation
-	NormalizeOnlyByDeviation,
-
-	Num UMETA(Hidden),
-	Invalid = Num UMETA(Hidden)
+	NormalizeOnlyByDeviation
 };
 
 /**
 * Specifies the format of a pose search index. At runtime, queries are built according to the schema for searching.
 */
-UCLASS(BlueprintType, Category = "Animation|Pose Search", Experimental, meta = (DisplayName = "Motion Database Config"), CollapseCategories)
+UCLASS(BlueprintType, Category = "Animation|Pose Search", meta = (DisplayName = "Pose Search Schema"), CollapseCategories)
 class POSESEARCH_API UPoseSearchSchema : public UDataAsset, public IBoneReferenceSkeletonProvider
 {
 	GENERATED_BODY()
@@ -45,7 +42,7 @@ public:
 	int32 SampleRate = 30;
 
 private:
-	// Channels itemize the cost breakdown of the config in simpler parts such as position or velocity of a bones, or phase of limbs. The total cost of a query against an indexed database pose will be the sum of the combined channel costs
+	// Channels itemize the cost breakdown of the Schema in simpler parts such as position or velocity of a bones, or phase of limbs. The total cost of a query against an indexed database pose will be the sum of the combined channel costs
 	UPROPERTY(EditAnywhere, Instanced, Category = "Schema")
 	TArray<TObjectPtr<UPoseSearchFeatureChannel>> Channels;
 

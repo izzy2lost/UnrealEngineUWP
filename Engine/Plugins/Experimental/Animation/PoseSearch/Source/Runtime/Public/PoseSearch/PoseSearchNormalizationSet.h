@@ -8,7 +8,7 @@
 
 class UPoseSearchDatabase;
 
-UCLASS(BlueprintType, Category = "Animation|Pose Search", Experimental, meta = (DisplayName = "Normalization Set"))
+UCLASS(BlueprintType, Category = "Animation|Pose Search", meta = (DisplayName = "Pose Search Normalization Set"))
 class POSESEARCH_API UPoseSearchNormalizationSet : public UDataAsset
 {
 	GENERATED_BODY()

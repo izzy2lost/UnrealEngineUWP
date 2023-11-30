@@ -13,8 +13,7 @@ enum class EHeadingAxis : uint8
 	Y,
 	Z,
 
-	Num UMETA(Hidden),
-	Invalid = Num UMETA(Hidden)
+	Num UMETA(Hidden)
 };
 
 UCLASS(EditInlineNew, Blueprintable, meta = (DisplayName = "Heading Channel"), CollapseCategories)
