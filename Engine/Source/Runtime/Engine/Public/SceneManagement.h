@@ -1268,8 +1268,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightShaderParameters, ENGINE_API)
 	SHADER_PARAMETER(FVector2f, RectLightAtlasUVScale)
 	SHADER_PARAMETER(float, RectLightAtlasMaxLevel)
 
-	// UES texture slice index
+	// IES texture slice index
 	SHADER_PARAMETER(float, IESAtlasIndex)
+
+	// Index of the light function in the atlas
+	SHADER_PARAMETER(uint32, LightFunctionAtlasLightIndex)
 
 END_SHADER_PARAMETER_STRUCT()
 
@@ -1342,6 +1345,9 @@ struct FLightRenderParameters
 
 	// IES atlas slice index
 	float IESAtlasIndex;
+
+	// Index of the light in the Light function atlas data
+	uint32 LightFunctionAtlasLightIndex;
 
 	float InverseExposureBlend;
 

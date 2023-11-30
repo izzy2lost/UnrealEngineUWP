@@ -170,7 +170,7 @@ public:
 		auto DeferredLightParameter = GetUniformBufferParameter<FDeferredLightUniformStruct>();
 		if (DeferredLightParameter.IsBound())
 		{
-			SetDeferredLightParameters(BatchedParameters, DeferredLightParameter, LightSceneInfo, View);
+			SetDeferredLightParameters(BatchedParameters, DeferredLightParameter, LightSceneInfo, View, View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas());
 		}
 	}
 

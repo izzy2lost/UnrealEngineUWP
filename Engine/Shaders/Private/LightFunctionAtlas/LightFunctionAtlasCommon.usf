@@ -1,0 +1,76 @@
+/*=============================================================================
+	LightFunctionAtlasCommon.usf
+=============================================================================*/
+
+#define LIGHT_FUNCTION_ATLAS 1
+
+#include "../Common.ush"
+#include "/Engine/Shared/LightDefinitions.h"
+
+// In order to use function from that file, one must use FLightFunctionAtlasGlobalParameters
+
+float GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, uint LightFunctionAtlasLightIndex)
+{
+	if (LightFunctionAtlasLightIndex == 0)
+	{
+		// No valid light function assigned to the light.
+		return 1.0f;
+	}
+
+	float4 LightFunctionLightDataParameters = LightFunctionAtlas.LightInfoDataParameters[LightFunctionAtlasLightIndex];
+	const float  FadeDistance				= LightFunctionLightDataParameters.x;
+	const uint   PackedLightInfoDataParams	= asuint(LightFunctionLightDataParameters.y);
+	const float2 Slot_MinUV					= LightFunctionLightDataParameters.zw;
+
+	const uint   LightType					= PackedLightInfoDataParams & 0xFF;
+	const float  DisabledBrightness			= f16tof32((PackedLightInfoDataParams >> 8) & 0xFFFF);
+
+	float4x4 ActualLightFunctionMatrix = LightFunctionAtlas.LightInfoDataMatrix[LightFunctionAtlasLightIndex];
+	float4 HomogeneousShadowPosition = mul(float4(TranslatedWorldPosition, 1), ActualLightFunctionMatrix);
+
+	float2 LightFunctionUV;
+	switch (LightType)
+	{
+
+	case LIGHT_TYPE_SPOT:
+	{
+		HomogeneousShadowPosition.xyz /= HomogeneousShadowPosition.www;
+		LightFunctionUV = HomogeneousShadowPosition.xy;
+		LightFunctionUV = 1 - LightFunctionUV;
+		break;
+	}
+
+	case LIGHT_TYPE_POINT:
+	{
+		float3 LightVec = normalize(HomogeneousShadowPosition).zyx;
+		LightFunctionUV = float2((atan2Fast(LightVec.y, LightVec.x) + PI) / (2 * PI), acosFast(LightVec.z) / PI);
+		break;
+	}
+
+	//case LIGHT_TYPE_RECT:
+	//case LIGHT_TYPE_DIRECTIONAL:
+	default:
+	{
+		LightFunctionUV = frac(HomogeneousShadowPosition.zy);
+		break;
+	}
+
+	}
+
+	// Slot min uv and size already account for half texel offsets
+	float2 AtlasUV = Slot_MinUV + saturate(LightFunctionUV) * LightFunctionAtlas.Slot_UVSize.xx;
+
+	float LightFunctionValue = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).x;
+	LightFunctionValue = LightFunctionValue * LightFunctionValue; // Simple Gamma decompression
+
+	// Calculate radial view distance for stable fading
+	float ViewDistance = length(PrimaryView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	float DistanceFadeAlpha = saturate((FadeDistance - ViewDistance) / (FadeDistance * .2f));
+	// Fade to disabled based on FadeDistance
+	LightFunctionValue = lerp(DisabledBrightness, LightFunctionValue, DistanceFadeAlpha);
+	// Fade to disabled based on ShadowFadeFraction
+	const float ShadowFadeFraction = 1.0f; // Not setup
+	LightFunctionValue = LightFunctionValue; // lerp(DisabledBrightness, LightFunctionValue, ShadowFadeFraction);
+
+	return LightFunctionValue;
+}

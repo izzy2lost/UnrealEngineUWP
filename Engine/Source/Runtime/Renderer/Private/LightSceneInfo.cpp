@@ -376,13 +376,22 @@ uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLi
 		(CurrentDynamicShadowMapChannel == 2 ? 64 : 0) |
 		(CurrentDynamicShadowMapChannel == 3 ? 128 : 0);
 
-	Result |= Proxy->GetLightingChannelMask() << 8;
+	uint32 BitOffset = 8;
+
+	Result |= Proxy->GetLightingChannelMask() << BitOffset;				BitOffset += 8;					// This could be 3 bits
+
 	// pack light type in this uint32 as well
-	Result |= ((uint32)Proxy->GetLightType()) << 16;
+	Result |= ((uint32)Proxy->GetLightType()) << BitOffset;				BitOffset += LightType_NumBits;
+
 	const uint32 CastShadows = Proxy->CastsDynamicShadow() ? 1 : 0;
-	Result |= CastShadows << (16 + LightType_NumBits);
-	uint32 HasLightFunction = bLightFunction ? 1 : 0;;
-	Result |= HasLightFunction << (16 + LightType_NumBits + 1);
+	Result |= CastShadows << BitOffset;									BitOffset += 1;
+
+	uint32 HasLightFunction = bLightFunction ? 1 : 0;
+	Result |= HasLightFunction << BitOffset;							BitOffset += 1;
+
+	Result |= Proxy->LightFunctionAtlasLightIndex << (BitOffset);		BitOffset += 8;
+
+	// 28 bits used, 4 bits free
 
 	return Result;
 }

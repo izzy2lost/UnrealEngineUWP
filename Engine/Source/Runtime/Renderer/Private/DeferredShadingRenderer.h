@@ -23,6 +23,7 @@
 #include "ScreenSpaceRayTracing.h"
 #include "RenderGraphUtils.h"
 #include "SceneCulling/SceneCullingRenderer.h"
+#include "LightFunctionAtlas.h"
 
 enum class ERayTracingPrimaryRaysFlag : uint32;
 
@@ -972,7 +973,8 @@ private:
 		FRDGTextureRef ScreenShadowMaskSubPixelTexture,
 		FRDGTextureRef LightingChannelsTexture,
 		const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
-		const bool bForwardRendering);
+		const bool bForwardRendering,
+		TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlas);
 
 	/** Renders an array of simple lights using standard deferred shading. */
 	void RenderSimpleLightsStandardDeferred(

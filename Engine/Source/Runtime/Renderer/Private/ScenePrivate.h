@@ -55,6 +55,7 @@
 #include "GlobalDistanceField.h"
 #include "Algo/RemoveIf.h"
 #include "UObject/Package.h"
+#include "LightFunctionAtlas.h"
 
 /** Factor by which to grow occlusion tests **/
 #define OCCLUSION_SLOP (1.0f)
@@ -3180,6 +3181,8 @@ public:
 
 	/** Substrate data shared between all views. */
 	FSubstrateSceneData SubstrateSceneData;
+
+	FLightFunctionAtlasSceneData LightFunctionAtlasSceneData;
 
 	/** Mask used to determine whether primitives that draw to a runtime virtual texture should also be drawn in the main pass. */
 	uint8 RuntimeVirtualTexturePrimitiveHideMaskEditor;

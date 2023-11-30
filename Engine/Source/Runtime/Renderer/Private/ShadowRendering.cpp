@@ -466,7 +466,8 @@ static void BindShaderShaders(FRHICommandList& RHICmdList, FGraphicsPipelineStat
 
 	FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
 
-	PixelShader->SetParameters(BatchedParameters, ViewIndex, View, ShadowInfo);
+	const bool bUseLightFunctionAtlas = View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas();
+	PixelShader->SetParameters(BatchedParameters, ViewIndex, View, ShadowInfo, bUseLightFunctionAtlas);
 
 	if (Substrate::IsSubstrateEnabled())
 	{

@@ -350,6 +350,7 @@ void FLightRenderParameters::MakeShaderParameters(const FViewMatrices& ViewMatri
 	OutShaderParameters.RectLightAtlasUVScale = RectLightAtlasUVScale;
 	OutShaderParameters.RectLightAtlasMaxLevel = RectLightAtlasMaxLevel;
 	OutShaderParameters.IESAtlasIndex = IESAtlasIndex;
+	OutShaderParameters.LightFunctionAtlasLightIndex = LightFunctionAtlasLightIndex;
 }
 
 // match logic in EyeAdaptationInverseLookup(...)

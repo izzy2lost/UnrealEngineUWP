@@ -405,6 +405,7 @@ public:
 		LightParameters.RectLightAtlasUVScale = FVector2f::ZeroVector;
 		LightParameters.RectLightAtlasMaxLevel = FLightRenderParameters::GetRectLightAtlasInvalidMIPLevel();
 		LightParameters.IESAtlasIndex = INDEX_NONE;
+		LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
 		LightParameters.InverseExposureBlend = 0.0f;
 	}
 

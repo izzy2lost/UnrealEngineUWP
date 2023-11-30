@@ -283,6 +283,10 @@ public:
 	virtual FLinearColor GetCloudScatteredLuminanceScale() const { return FLinearColor::White; }
 	virtual bool GetUsePerPixelAtmosphereTransmittance() const { return false; }
 
+	inline void  SetLightFunctionAtlasIndices(uint8 LightIndex) { LightFunctionAtlasLightIndex = LightIndex; }
+	inline bool  HasValidLightFunctionAtlasSlot() const { return LightFunctionAtlasLightIndex != 0; }
+	inline uint8 GetLightFunctionAtlasLightIndex() const { return LightFunctionAtlasLightIndex; }
+
 protected:
 
 	friend class FScene;
@@ -294,7 +298,7 @@ protected:
 	/** The scene the primitive is in. */
 	FSceneInterface* SceneInterface;
 
-	/** The homogenous position of the light. */
+	/** The homogeneous position of the light. */
 	FVector4 Position;
 
 	/** The light color. */
@@ -471,6 +475,12 @@ protected:
 
 	/** IES texture atlas id. */
 	uint32 IESAtlasId;
+
+	/**
+	 * The light index in order to be able to read matrix and parameters when reading the light function atlas for that light.
+	 * A value of 0 means this is the default identity light function and no light function sampling will be done in shader.
+	 */
+	uint8 LightFunctionAtlasLightIndex;
 
 	/**
 	 * Updates the light proxy's cached transforms.

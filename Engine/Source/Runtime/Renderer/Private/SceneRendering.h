@@ -48,6 +48,7 @@
 #include "Async/Mutex.h"
 #include "LocalFogVolumeRendering.h"
 #include "Nanite/NaniteShared.h"
+#include "LightFunctionAtlas.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstanceBufferUtil.h"
@@ -822,22 +823,12 @@ public:
 
 	FRDGTextureRef IntegratedLightScatteringTexture = nullptr;
 
-	// TODO: right now the lightfunction atlas is dedicated to the volumetric fog.
-	// Later we could put the allocated atlas tiles on FLightSceneInfo and uploaded as light data on GPU
-	// so that the lightfunction atlas can be used for forward rendering or tiled lighting.
-	// For this to work we would also need to add the default white light functoin as an atlas item.
-	// Note: this is not a smart pointer since it is allocated using the GraphBuilder frame transient memory.
-	FTransientLightFunctionTextureAtlas* TransientLightFunctionTextureAtlas = nullptr;
-
-	TMap<FLightSceneInfo*, FVolumetricFogLocalLightFunctionInfo> LocalLightFunctionData;
-
 	FVolumetricFogViewResources()
 	{}
 
 	void Release()
 	{
 		IntegratedLightScatteringTexture = nullptr;
-		TransientLightFunctionTextureAtlas = nullptr;
 	}
 };
 
@@ -1372,6 +1363,8 @@ public:
 	FLocalFogVolumeViewData LocalFogVolumeViewData;
 
 	FHairStrandsViewData HairStrandsViewData;
+
+	FLightFunctionAtlasViewData LightFunctionAtlasViewData;
 
 	/** Parameters for exponential height fog. */
 	FVector4f ExponentialFogParameters;
@@ -2054,6 +2047,8 @@ public:
 	// TODO: Move to deferred scene renderer
 	TUniquePtr<FShadowSceneRenderer> ShadowSceneRenderer;
 
+	FLightFunctionAtlas LightFunctionAtlas;
+
 	/** If a freeze request has been made */
 	bool bHasRequestedToggleFreeze;
 
@@ -2221,11 +2216,13 @@ public:
 		float VolumetricFogMaxDistance,
 		FMatrix44f& OutLightFunctionTranslatedWorldToShadow,
 		FRDGTexture*& OutLightFunctionTexture,
-		bool& bOutUseDirectionalLightShadowing);
+		bool& bOutUseDirectionalLightShadowing,
+		FLightSceneInfo*& OutDirectionalLightSceneInfo);
 
 	void RenderLocalLightsForVolumetricFog(
 		FRDGBuilder& GraphBuilder,
 		FViewInfo& View,
+		uint32 ViewIndex,
 		bool bUseTemporalReprojection,
 		const struct FVolumetricFogIntegrationParameterData& IntegrationData,
 		const FExponentialHeightFogSceneInfo& FogInfo,

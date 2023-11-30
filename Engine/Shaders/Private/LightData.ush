@@ -128,6 +128,7 @@ struct FLightShaderParameters
 	float2 RectLightAtlasUVScale;
 	float  RectLightAtlasMaxLevel;
 	float  IESAtlasIndex;
+	uint  LightFunctionAtlasLightIndex;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +176,8 @@ struct FDeferredLightData
 	FRectLightData RectLightData;
 	/** IES data. */
 	float  IESAtlasIndex;
+	// Light function atlas index 
+	uint  LightFunctionAtlasLightIndex;
 	/** Hair transmittance data. */
 	FHairTransmittanceData HairTransmittance;
 };
@@ -225,6 +228,12 @@ bool UnpackHasLightFunction(FLocalLightData In)
 {
 	const uint LightTypeAndPackedShadowMapChannelMask = asuint(In.LightDirectionAndShadowMask.w);
 	return ((LightTypeAndPackedShadowMapChannelMask >> 19) & 0x1) != 0;
+}
+
+uint UnpackLightFunctionAtlasIndex(FLocalLightData In)
+{
+	const uint LightTypeAndPackedShadowMapChannelMask = asuint(In.LightDirectionAndShadowMask.w);
+	return ((LightTypeAndPackedShadowMapChannelMask >> 20) & 0xFF);
 }
 
 float UnpackVolumetricScatteringIntensity(FLocalLightData In)
@@ -312,6 +321,7 @@ FDeferredLightData ConvertToDeferredLight(
 									asuint(In.RectData.y),
 									asuint(In.RectData.z));
 	Out.IESAtlasIndex			= UnpackLigthIESAtlasIndex(In);
+	Out.LightFunctionAtlasLightIndex = UnpackLightFunctionAtlasIndex(In);
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 
@@ -391,6 +401,8 @@ FLightShaderParameters ConvertFromLocal(const FLocalLightData In)
 	Out.SoftSourceRadius		= UnpackLightSoftSourceRadius(In);
 	Out.SourceLength			= UnpackLightSourceLength(In);
 
+	Out.LightFunctionAtlasLightIndex = UnpackLightFunctionAtlasIndex(In);
+
 	const FRectLightData RectLightData = UnpackRectLightData(
 									asuint(In.RectData.x),
 									asuint(In.RectData.y),
@@ -468,6 +480,7 @@ FDeferredLightData ConvertToDeferredLight(FLightSceneData In)
 	Out.RectLightData.AtlasData.AtlasUVScale = In.RectLightAtlasUVScale;
 
 	Out.IESAtlasIndex = 0;
+	Out.LightFunctionAtlasLightIndex = 0;
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 
