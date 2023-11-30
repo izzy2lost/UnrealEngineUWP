@@ -148,8 +148,23 @@ public:
 	/** @return Current claim state of the slot. */
 	ESmartObjectSlotState GetState() const { return State; }
 
-	/** @return True if the slot can be claimed. */
-	bool CanBeClaimed() const { return IsEnabled() && State == ESmartObjectSlotState::Free; }
+	UE_DEPRECATED(5.4, "Use CanBeClaimed() with priority instead.")
+	bool CanBeClaimed() const
+	{
+		return CanBeClaimed(ESmartObjectClaimPriority::Normal);
+	}
+
+	/**
+	 * Sets the slot claimed.
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
+	 * @return True if the slot can be claimed. */
+	bool CanBeClaimed(ESmartObjectClaimPriority ClaimPriority) const
+	{
+		return IsEnabled()
+			&& (State == ESmartObjectSlotState::Free
+				|| (State == ESmartObjectSlotState::Claimed
+					&& ClaimedPriority < ClaimPriority));
+	}
 
 	/** @return the runtime gameplay tags of the slot. */
 	const FGameplayTagContainer& GetTags() const { return Tags; }
@@ -168,7 +183,13 @@ protected:
 	friend class USmartObjectSubsystem;
 	friend struct FSmartObjectRuntime;
 
-	bool Claim(const FSmartObjectUserHandle& InUser);
+	UE_DEPRECATED(5.4, "Use Claim() with priority instead.")
+	bool Claim(const FSmartObjectUserHandle& InUser)
+	{
+		return Claim(InUser, ESmartObjectClaimPriority::Normal);
+	}
+
+	bool Claim(const FSmartObjectUserHandle& InUser, ESmartObjectClaimPriority ClaimPriority);
 	bool Release(const FSmartObjectClaimHandle& ClaimHandle, const bool bAborted);
 
 	friend FString LexToString(const FSmartObjectRuntimeSlot& Slot)
@@ -209,6 +230,9 @@ protected:
 	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	ESmartObjectSlotState State = ESmartObjectSlotState::Free;
 
+	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
+	ESmartObjectClaimPriority ClaimedPriority = ESmartObjectClaimPriority::None;
+	
 	/** True if the slot is enabled */
 	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)
 	uint8 bSlotEnabled : 1;
@@ -518,13 +542,26 @@ public:
 		return Slot->GetState();
 	}
 
-	/** @return true of the slot can be claimed. */
+	UE_DEPRECATED(5.4, "Use CanBeClaimed() with priority instead.")
 	bool CanBeClaimed() const
 	{
-		checkf(Slot, TEXT("Claim can only be accessed through a valid SlotView"));
-		return Slot->CanBeClaimed();
+		return CanBeClaimed(ESmartObjectClaimPriority::Normal);
 	}
 
+	/** @return true of the slot can be claimed. */
+	bool CanBeClaimed(ESmartObjectClaimPriority ClaimPriority) const
+	{
+		checkf(Slot, TEXT("Claim can only be accessed through a valid SlotView"));
+		return Slot->CanBeClaimed(ClaimPriority);
+	}
+
+	/** @return true if the slot and the object is enabled. */
+	bool IsEnabled() const
+	{
+		checkf(Slot, TEXT("Enabled can only be accessed through a valid SlotView"));
+		return Slot->IsEnabled();
+	}
+	
 	/** @return runtime gameplay tags of the slot. */
 	const FGameplayTagContainer& GetTags() const
 	{

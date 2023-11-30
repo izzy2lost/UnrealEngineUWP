@@ -116,11 +116,12 @@ public:
 	 * @param WorldContextObject Object used to fetch the SmartObjectSubsystem of its associated world.
 	 * @param SlotHandle Handle to a smart object slot.
 	 * @param UserActor Actor claiming the smart object
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
 	 * @return A handle binding the claimed smart object, its slot and a user id.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (WorldContext = "WorldContextObject", ReturnDisplayName="Claim Handle"))
-	static FSmartObjectClaimHandle MarkSmartObjectSlotAsClaimed(UObject* WorldContextObject, const FSmartObjectSlotHandle SlotHandle, const AActor* UserActor = nullptr);
-	
+	static FSmartObjectClaimHandle MarkSmartObjectSlotAsClaimed(UObject* WorldContextObject, const FSmartObjectSlotHandle SlotHandle, const AActor* UserActor = nullptr, ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal);
+
 	/**
 	 * Marks a previously claimed smart object slot as occupied.
 	 * @param WorldContextObject Object used to fetch the SmartObjectSubsystem of its associated world.

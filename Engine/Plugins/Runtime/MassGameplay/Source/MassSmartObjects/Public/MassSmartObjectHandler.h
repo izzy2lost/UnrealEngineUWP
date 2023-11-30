@@ -77,9 +77,10 @@ struct MASSSMARTOBJECTS_API FMassSmartObjectHandler
 	 * @param Entity MassEntity associated to the user fragment
 	 * @param User Fragment of the user claiming
 	 * @param Candidates Candidate slots to choose from.
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
 	 * @return Whether the slot has been successfully claimed or not
 	 */
-	UE_NODISCARD FSmartObjectClaimHandle ClaimCandidate(const FMassEntityHandle Entity, FMassSmartObjectUserFragment& User, const FMassSmartObjectCandidateSlots& Candidates) const;
+	[[nodiscard]] FSmartObjectClaimHandle ClaimCandidate(const FMassEntityHandle Entity, FMassSmartObjectUserFragment& User, const FMassSmartObjectCandidateSlots& Candidates, ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal) const;
 
 	/**
 	 * Claims the first available slot holding any type of USmartObjectMassBehaviorDefinition in the smart object
@@ -87,9 +88,10 @@ struct MASSSMARTOBJECTS_API FMassSmartObjectHandler
 	 * @param Entity MassEntity associated to the user fragment
 	 * @param User Fragment of the user claiming
 	 * @param RequestResult A valid smart object request result (method will ensure otherwise)
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
 	 * @return Whether the slot has been successfully claimed or not
 	 */
-	UE_NODISCARD FSmartObjectClaimHandle ClaimSmartObject(const FMassEntityHandle Entity, FMassSmartObjectUserFragment& User, const FSmartObjectRequestResult& RequestResult) const;
+	[[nodiscard]] FSmartObjectClaimHandle ClaimSmartObject(const FMassEntityHandle Entity, FMassSmartObjectUserFragment& User, const FSmartObjectRequestResult& RequestResult, ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal) const;
 
 	/**
 	 * Activates the mass gameplay behavior associated to the previously claimed smart object.

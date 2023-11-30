@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SmartObjectTypes.h"
 #include "BehaviorTree/BTTaskNode.h"
 #include "EnvironmentQuery/EnvQueryTypes.h"
 #include "BTTask_FindAndUseGameplayBehaviorSmartObject.generated.h"
@@ -46,6 +47,9 @@ protected:
 	 *	Note that regular tag-base filtering is going to take place as well */
 	UPROPERTY(EditAnywhere, Category = SmartObjects)
 	FGameplayTagQuery ActivityRequirements;
+
+	UPROPERTY(EditAnywhere, Category = SmartObjects)
+	ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal;
 
 	UPROPERTY(EditAnywhere, Category = SmartObjects)
 	FEQSParametrizedQueryExecutionRequest EQSRequest;

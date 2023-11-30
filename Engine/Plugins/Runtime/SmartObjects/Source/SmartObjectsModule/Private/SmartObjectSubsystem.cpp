@@ -1058,6 +1058,11 @@ FSmartObjectClaimHandle USmartObjectSubsystem::Claim(const FSmartObjectHandle Ha
 
 FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData)
 {
+	return MarkSlotAsClaimed(SlotHandle, ESmartObjectClaimPriority::Normal, UserData);
+}
+
+FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, ESmartObjectClaimPriority ClaimPriority, const FConstStructView UserData)
+{
 	if (!SlotHandle.IsValid())
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log, TEXT("Claiming using an unset smart object slot handle. Returning invalid FSmartObjectClaimHandle."));
@@ -1072,22 +1077,38 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 	}
 
 	// Fast test to see if slot can be claimed (Parent smart object is enabled AND slot is free and enabled) 
-	if (!Slot->CanBeClaimed())
+	if (!Slot->CanBeClaimed(ClaimPriority))
 	{
 		UE_VLOG_UELOG(this, LogSmartObject, Log,
 			TEXT("Can't claim slot handle %s since it is, or its owning smart object %s, disabled or not free."), *LexToString(SlotHandle), *LexToString(SlotHandle.GetSmartObjectHandle()));
 		return FSmartObjectClaimHandle::InvalidHandle;
 	}
 
+	// We're overriding a claim, notify current listeners about the release.
+	bool bIsClaimOverridden = false;
+	if (Slot->GetState() == ESmartObjectSlotState::Claimed)
+	{
+		const FInstancedStruct Payload(MoveTemp(Slot->UserData));
+		const FSmartObjectClaimHandle ExistingClaim(SlotHandle.SmartObjectHandle, SlotHandle, Slot->User);
+
+		ensureMsgf(Slot->Release(ExistingClaim, /*bAborted*/ true), TEXT("Expecting the release to always succeed, since the slot can be claimed based on earlier check."));
+			
+		UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Released using handle %s due to claim override"), *LexToString(ExistingClaim));
+		UE_VLOG_LOCATION(this, LogSmartObject, Display, GetSlotLocation(ExistingClaim).GetValue(), 50.f, FColor::White, TEXT("Released (Override)"));
+		OnSlotChanged(*SmartObjectRuntime, *Slot, ExistingClaim.SlotHandle, ESmartObjectChangeReason::OnReleased, Payload);
+
+		bIsClaimOverridden = true;
+	}
+
 	const FSmartObjectUserHandle User(NextFreeUserID++);
-	const bool bClaimed = Slot->Claim(User);
+	const bool bClaimed = Slot->Claim(User, ClaimPriority);
 
 	const FSmartObjectClaimHandle ClaimHandle(SlotHandle.GetSmartObjectHandle(), SlotHandle, User);
 	UE_VLOG_UELOG(this, LogSmartObject, Verbose, TEXT("Claim %s for handle %s. Slot State is '%s'"),
 		bClaimed ? TEXT("SUCCEEDED") : TEXT("FAILED"),
 		*LexToString(ClaimHandle),
 		*UEnum::GetValueAsString(Slot->GetState()));
-	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Yellow, TEXT("Claim"));
+	UE_CVLOG_LOCATION(bClaimed, this, LogSmartObject, Display, GetSlotLocation(ClaimHandle).GetValue(), 50.f, FColor::Yellow, TEXT("Claim %s"), bIsClaimOverridden ? TEXT("[Override]") : TEXT(""));
 
 	if (bClaimed)
 	{
@@ -1099,13 +1120,13 @@ FSmartObjectClaimHandle USmartObjectSubsystem::MarkSlotAsClaimed(const FSmartObj
 	return FSmartObjectClaimHandle::InvalidHandle;
 }
 
-bool USmartObjectSubsystem::CanBeClaimed(const FSmartObjectSlotHandle SlotHandle) const
+bool USmartObjectSubsystem::CanBeClaimed(const FSmartObjectSlotHandle SlotHandle, ESmartObjectClaimPriority ClaimPriority) const
 {
 	const FSmartObjectRuntime* SmartObjectRuntime = nullptr;
 	const FSmartObjectRuntimeSlot* Slot = nullptr;
 	if (GetValidatedRuntimeAndSlot(SlotHandle, SmartObjectRuntime, Slot, ANSI_TO_TCHAR(__FUNCTION__)))
 	{
-		return Slot->CanBeClaimed();
+		return Slot->CanBeClaimed(ClaimPriority);
 	}
 	return false;
 }
@@ -2136,19 +2157,22 @@ void USmartObjectSubsystem::FindSlots(const FSmartObjectHandle Handle, const FSm
 		{
 			continue;
 		}
-		if (!Filter.bShouldIncludeClaimedSlots && RuntimeSlot.GetState() != ESmartObjectSlotState::Free)
-		{
-			continue;
-		}
-		const FSmartObjectSlotHandle SlotHandle(Handle, SlotIndex);
-		
-		// Check slot conditions.
-		if (Filter.bShouldEvaluateConditions && !EvaluateSlotConditions(ConditionContextData, SmartObjectRuntime, SlotHandle))
-		{
-			continue;
-		}
 
-		OutResults.Add(SlotHandle);
+		if (Filter.bShouldIncludeClaimedSlots
+			|| RuntimeSlot.State == ESmartObjectSlotState::Free
+			|| (RuntimeSlot.State == ESmartObjectSlotState::Claimed
+				&& RuntimeSlot.ClaimedPriority < Filter.ClaimPriority))
+		{
+			const FSmartObjectSlotHandle SlotHandle(Handle, SlotIndex);
+		
+			// Check slot conditions.
+			if (Filter.bShouldEvaluateConditions && !EvaluateSlotConditions(ConditionContextData, SmartObjectRuntime, SlotHandle))
+			{
+				continue;
+			}
+
+			OutResults.Add(SlotHandle);
+		}
 	}
 }
 

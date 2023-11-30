@@ -96,12 +96,13 @@ FString FSmartObjectRuntime::DebugGetDisableFlagsString() const
 //----------------------------------------------------------------------//
 // FSmartObjectRuntimeSlot
 //----------------------------------------------------------------------//
-bool FSmartObjectRuntimeSlot::Claim(const FSmartObjectUserHandle& InUser)
+bool FSmartObjectRuntimeSlot::Claim(const FSmartObjectUserHandle& InUser, ESmartObjectClaimPriority ClaimPriority)
 {
-	if (CanBeClaimed())
+	if (CanBeClaimed(ClaimPriority))
 	{
 		State = ESmartObjectSlotState::Claimed;
 		User = InUser;
+		ClaimedPriority = ClaimPriority;
 		return true;
 	}
 	return false;
@@ -137,6 +138,7 @@ bool FSmartObjectRuntimeSlot::Release(const FSmartObjectClaimHandle& ClaimHandle
 		State = ESmartObjectSlotState::Free;
 		User.Invalidate();
 		UserData.Reset();
+		ClaimedPriority = ESmartObjectClaimPriority::None;
 		bReleased = true;
 	}
 

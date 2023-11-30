@@ -56,6 +56,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	FGameplayTagContainer UserTags;
 
+	/** The user's claim priority. The search will contain already claimed slots at lower priority. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
+	ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal; 
+
 	/** Only return slots whose activity tags are matching this query. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SmartObject)
 	FGameplayTagQuery ActivityRequirements;
@@ -698,10 +702,12 @@ public:
 	/**
 	 * Checks whether given slot is free and can be claimed (i.e. slot and its parent are both enabled)
 	 * @note This methods doesn't evaluate the selection conditions. EvaluateSelectionConditions must be called separately.
+	 * @param SlotHandle Handle to a smart object slot.
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
 	 * @return true if the indicated slot can be claimed, false otherwise
 	 * @see EvaluateSelectionConditions
 	 */
-	[[nodiscard]] bool CanBeClaimed(const FSmartObjectSlotHandle SlotHandle) const;
+	[[nodiscard]] bool CanBeClaimed(const FSmartObjectSlotHandle SlotHandle, ESmartObjectClaimPriority ClaimPriority = ESmartObjectClaimPriority::Normal) const;
 
 	/**
 	 * Claims smart object from a request result.
@@ -713,7 +719,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (DeprecatedFunction, DeprecationMessage = "Use MarkSmartObjectSlotAsClaimed instead."))
 	FSmartObjectClaimHandle Claim(const FSmartObjectRequestResult& RequestResult, const AActor* UserActor = nullptr)
 	{
-		return MarkSlotAsClaimed(RequestResult.SlotHandle, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
+		return MarkSlotAsClaimed(RequestResult.SlotHandle, ESmartObjectClaimPriority::Normal, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
 	}
 
 	/**
@@ -725,7 +731,7 @@ public:
 	UE_DEPRECATED(5.3, "Please use MarkSlotAsClaimed instead")
 	[[nodiscard]] FSmartObjectClaimHandle Claim(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData = {})
 	{
-		return MarkSlotAsClaimed(SlotHandle, UserData);
+		return MarkSlotAsClaimed(SlotHandle, ESmartObjectClaimPriority::Normal, UserData);
 	}
 
 	/**
@@ -749,9 +755,13 @@ public:
 	/**
 	 * Marks a smart object slot as claimed.
 	 * @param SlotHandle Handle to a smart object slot.
+	 * @param ClaimPriority Claim priority, a slot claimed at lower priority can be claimed by higher priority (unless already in use).
 	 * @param UserData Instanced struct that represents the interacting agent.
 	 * @return A handle binding the claimed smart object, its slot and a user id.
 	 */
+	[[nodiscard]] FSmartObjectClaimHandle MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, ESmartObjectClaimPriority ClaimPriority, const FConstStructView UserData = {});
+
+	UE_DEPRECATED(5.4, "Please use version of MarkSlotAsClaimed() with claim priority.")
 	[[nodiscard]] FSmartObjectClaimHandle MarkSlotAsClaimed(const FSmartObjectSlotHandle SlotHandle, const FConstStructView UserData = {});
 
 	/**

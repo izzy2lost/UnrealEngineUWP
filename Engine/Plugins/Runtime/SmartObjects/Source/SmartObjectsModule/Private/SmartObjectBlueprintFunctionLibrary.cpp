@@ -105,12 +105,13 @@ bool USmartObjectBlueprintFunctionLibrary::SetSmartObjectEnabled(AActor* SmartOb
 FSmartObjectClaimHandle USmartObjectBlueprintFunctionLibrary::MarkSmartObjectSlotAsClaimed(
 	UObject* WorldContextObject,
 	const FSmartObjectSlotHandle SlotHandle,
-	const AActor* UserActor)
+	const AActor* UserActor,
+	ESmartObjectClaimPriority ClaimPriority)
 {
 	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 	if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
 	{
-		return Subsystem->MarkSlotAsClaimed(SlotHandle, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
+		return Subsystem->MarkSlotAsClaimed(SlotHandle, ClaimPriority, FConstStructView::Make(FSmartObjectActorUserData(UserActor)));
 	}
 
 	return FSmartObjectClaimHandle::InvalidHandle;

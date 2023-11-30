@@ -69,6 +69,22 @@ enum class ESmartObjectSlotNavigationLocationType : uint8
 	Exit,
 };
 
+/** Enum indicating the claim priority of a Smart Object slot. */
+UENUM(BlueprintType)
+enum class ESmartObjectClaimPriority : uint8
+{
+	None UMETA(Hidden),
+
+	Low,
+	BelowNormal,
+	Normal,
+	AboveNormal,
+	High,
+
+	MIN = None UMETA(Hidden),
+	MAX = High UMETA(Hidden)
+};
+
 /**
  * Handle to a smartobject user.
  */
