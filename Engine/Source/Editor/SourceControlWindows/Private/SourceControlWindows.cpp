@@ -163,6 +163,11 @@ bool FSourceControlWindows::ShouldChoosePackagesToCheckBeVisible()
 
 bool FSourceControlWindows::SyncLatest()
 {
+	return SyncRevision(TEXT(""));
+}
+
+bool FSourceControlWindows::SyncRevision(const FString& InRevision)
+{
 	bool bSaved = SaveDirtyPackages(/*bUseDialog=*/true);
 
 	// if not properly saved, ask for confirmation from the user before continuing.
@@ -179,7 +184,7 @@ bool FSourceControlWindows::SyncLatest()
 	// if properly saved or confirmation given, find all packages and use source control to update them.
 	if (bSaved)
 	{
-		bool bSuccess = AssetViewUtils::SyncLatestFromSourceControl();
+		bool bSuccess = AssetViewUtils::SyncRevisionFromSourceControl(InRevision);
 		if (!bSuccess)
 		{
 			FText Message(LOCTEXT("SCC_Sync_Failed", "Failed to sync files!"));

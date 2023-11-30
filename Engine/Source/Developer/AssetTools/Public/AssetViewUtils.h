@@ -218,6 +218,9 @@ namespace AssetViewUtils
 	/** Syncs the specified paths from source control. */
 	ASSETTOOLS_API bool SyncPathsFromSourceControl(const TArray<FString>& Paths);
 
+	/** Syncs a specific revision from source control. */
+	ASSETTOOLS_API bool SyncRevisionFromSourceControl(const FString& Revision);
+
 	/** Syncs latest from source control. */
 	ASSETTOOLS_API bool SyncLatestFromSourceControl();
 

@@ -1846,7 +1846,7 @@ bool AssetViewUtils::SyncPackagesFromSourceControl(const TArray<FString>& Packag
 	return true;
 }
 
-static bool SyncPathsFromSourceControl(const TArray<FString>& Paths, bool bCheckDependencies)
+static bool SyncPathsFromSourceControl(const FString& Revision, const TArray<FString>& Paths, bool bCheckDependencies)
 {
 	TArray<FString> PathsOnDisk;
 	PathsOnDisk.Reserve(Paths.Num());
@@ -1882,6 +1882,7 @@ static bool SyncPathsFromSourceControl(const TArray<FString>& Paths, bool bCheck
 
 		// Use FSyncPreview if possible.
 		TSharedRef<FSyncPreview> PreviewOperation = ISourceControlOperation::Create<FSyncPreview>();
+		PreviewOperation->SetRevision(Revision);
 		if (SCCProvider.CanExecuteOperation(PreviewOperation) &&
 			SCCProvider.Execute(PreviewOperation, PathsOnDisk) == ECommandResult::Succeeded)
 		{
@@ -1993,7 +1994,9 @@ static bool SyncPathsFromSourceControl(const TArray<FString>& Paths, bool bCheck
 		PathsToSync.Append(SourceControlHelpers::PackageFilenames(ExtraPackagesToSync));
 
 		// Sync everything...
-		ECommandResult::Type SyncResult = SCCProvider.Execute(ISourceControlOperation::Create<FSync>(), PathsToSync);
+		TSharedRef<FSync> Operation = ISourceControlOperation::Create<FSync>();
+		Operation->SetRevision(Revision);
+		ECommandResult::Type SyncResult = SCCProvider.Execute(Operation, PathsToSync);
 
 		// Syncing may have deleted some packages, so we need to unload those rather than re-load them...
 		// Note: we will store the package using weak pointers here otherwise we might have garbage collection issues after the ReloadPackages call
@@ -2056,14 +2059,24 @@ static bool SyncPathsFromSourceControl(const TArray<FString>& Paths, bool bCheck
 	return true;
 }
 
-bool AssetViewUtils::SyncLatestFromSourceControl()
+static bool SyncPathsFromSourceControl(const TArray<FString>& Paths, bool bCheckDependencies)
 {
-	return SyncPathsFromSourceControl(SourceControlHelpers::GetSourceControlLocations(), /*bCheckDependencies=*/false);
+	return SyncPathsFromSourceControl(TEXT(""), Paths, bCheckDependencies);
 }
 
 bool AssetViewUtils::SyncPathsFromSourceControl(const TArray<FString>& Paths)
 {
 	return SyncPathsFromSourceControl(Paths, /*bCheckDependencies=*/true);
+}
+
+bool AssetViewUtils::SyncRevisionFromSourceControl(const FString& Revision)
+{
+	return SyncPathsFromSourceControl(Revision, SourceControlHelpers::GetSourceControlLocations(), /*bCheckDependencies=*/false);
+}
+
+bool AssetViewUtils::SyncLatestFromSourceControl()
+{
+	return SyncRevisionFromSourceControl(TEXT(""));
 }
 
 void AssetViewUtils::ShowErrorNotifcation(const FText& InErrorMsg)

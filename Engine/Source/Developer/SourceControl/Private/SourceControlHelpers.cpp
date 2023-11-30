@@ -1316,9 +1316,7 @@ bool USourceControlHelpers::RevertAllChangesAndReloadWorld()
 	TArray<FString> PackagesToReload;
 	ListRevertablePackages(PackagesToReload);
 
-	RevertAndReloadPackages(PackagesToReload, /*bRevertAll=*/true, /*bReloadWorld=*/true);
-
-	return true;
+	return RevertAndReloadPackages(PackagesToReload, /*bRevertAll=*/true, /*bReloadWorld=*/true);
 }
 
 bool USourceControlHelpers::RevertAndReloadPackages(const TArray<FString>& InPackagesToRevert, bool bRevertAll, bool bReloadWorld)
