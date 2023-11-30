@@ -7,16 +7,16 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "MuCO/CustomizableObjectInstance.h"
-#include "MuCO/CustomizableObjectSystemPrivate.h"
-
+#include "MuR/Instance.h"
 #include "GameplayTagContainer.h"
-
 #include "UObject/Package.h"
+
 #include "CustomizableInstancePrivateData.generated.h"
 
 namespace mu 
 {
 	class PhysicsBody;
+	class Mesh;
 	typedef uint64 FResourceID;
 }
 
@@ -24,6 +24,11 @@ struct FMutableModelImageProperties;
 struct FMutableRefSkeletalMeshData;
 struct FMutableImageCacheKey;
 struct FStreamableHandle;
+struct FGeneratedMaterial;
+struct FGeneratedTexture;
+class UPhysicsAsset;
+class USkeleton;
+
 
 /** CustomizableObject Instance flags for internal use  */
 enum ECOInstanceFlags
@@ -51,42 +56,6 @@ enum ECOInstanceFlags
 };
 
 ENUM_CLASS_FLAGS(ECOInstanceFlags);
-
-
-USTRUCT()
-struct FGeneratedTexture
-{
-	GENERATED_USTRUCT_BODY();
-
-	FMutableImageCacheKey Key;
-
-	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
-	FString Name;
-
-	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
-	TObjectPtr<UTexture> Texture = nullptr;
-};
-
-
-USTRUCT()
-struct FGeneratedMaterial
-{
-	GENERATED_USTRUCT_BODY();
-
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> MaterialInterface;
-
-	UPROPERTY(Category = CustomizedMaterial, VisibleAnywhere)
-	TArray< FGeneratedTexture > Textures;
-
-	// Surface or SharedSurface Id
-	uint32 SurfaceId = 0;
-
-	// Index of the material to instantiate (UCustomizableObject::ReferencedMaterials)
-	uint32 MaterialIndex = 0;
-
-	bool operator==(const FGeneratedMaterial& Other) const { return SurfaceId == Other.SurfaceId && MaterialIndex == Other.MaterialIndex; };
-};
 
 
 USTRUCT()
@@ -270,15 +239,6 @@ public:
 
 	const TArray<FAnimInstanceOverridePhysicsAsset>* GetGeneratedPhysicsAssetsForAnimInstance(TSubclassOf<UAnimInstance> AnimInstance) const;
 
-	/** 
-	* \param OnlyLOD: If not 0, extract and convert only one single LOD from the source image.
-	* \param ExtractChannel: If different than -1, extract a single-channel image with the specified source channel data.
-	*/
-	CUSTOMIZABLEOBJECT_API static void ConvertImage(class UTexture2D* Texture, mu::ImagePtrConst MutableImage, const FMutableModelImageProperties& Props, int32 OnlyLOD=-1, int32 ExtractChannel=-1);
-
-	/** Set OnlyLOD to -1 to generate all mips */
-	CUSTOMIZABLEOBJECT_API static FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY);
-
 	/** */
 #if WITH_EDITORONLY_DATA
 	static void RegenerateImportedModel(USkeletalMesh* SkeletalMesh);
@@ -289,7 +249,7 @@ private:
 	void InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex);
 
 	bool BuildSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh& SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, UCustomizableObject& CustomizableObject, int32 ComponentIndex);
-	void BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, UCustomizableObjectInstance* CustomizableObjectInstance, mu::MeshPtrConst MutableMesh);
+	void BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, UCustomizableObjectInstance* CustomizableObjectInstance, mu::Ptr<const mu::Mesh> MutableMesh);
 	void BuildOrCopyElementData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);
 	void BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* SrcSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);
 	bool BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* SrcSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);
@@ -375,44 +335,5 @@ public:
 private:
 	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
-	
-	// Struct used by BuildMaterials() to identify common materials between LODs
-	struct FMutableMaterialPlaceholder
-	{
-		enum class EPlaceHolderParamType { Vector, Scalar, Texture };
-
-		struct FMutableMaterialPlaceHolderParam
-		{
-			FName ParamName;
-			int32 LayerIndex; // Set to -1 for non-multilayer params
-			FLinearColor Vector;
-			float Scalar;
-			FGeneratedTexture Texture;
-			EPlaceHolderParamType Type;
-
-			FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const FLinearColor& InVector)
-				: ParamName(InParamName), LayerIndex(InLayerIndex), Vector(InVector), Type(EPlaceHolderParamType::Vector) {}
-
-			FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const float InScalar)
-				: ParamName(InParamName), LayerIndex(InLayerIndex), Scalar(InScalar), Type(EPlaceHolderParamType::Scalar) {}
-
-			FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const FGeneratedTexture& InTexture)
-				: ParamName(InParamName), LayerIndex(InLayerIndex), Texture(InTexture), Type(EPlaceHolderParamType::Texture) {}
-
-			bool operator<(const FMutableMaterialPlaceHolderParam& Other) const
-			{
-				return Type < Other.Type || ParamName.CompareIndexes(Other.ParamName);
-			}
-		};
-
-		UMaterialInterface* ParentMaterial;
-		TArray<FMutableMaterialPlaceHolderParam> Params;
-		int32 MatIndex = -1;
-
-		void AddParam(const FMutableMaterialPlaceHolderParam& NewParam) { Params.Add(NewParam); }
-
-		// Return a hash of the material and its parameters
-		uint32 GetHash();
-	};
 };
 

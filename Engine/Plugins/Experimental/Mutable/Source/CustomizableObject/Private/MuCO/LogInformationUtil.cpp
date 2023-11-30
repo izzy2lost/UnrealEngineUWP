@@ -2,17 +2,19 @@
 
 #include "MuCO/LogInformationUtil.h"
 
+#include "CustomizableObjectSystemPrivate.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "TextureResource.h"
+#include "MuCO/CustomizableObject.h"
 
 int LogInformationUtil::CountLOD0 = 0;
 int LogInformationUtil::CountLOD1 = 0;
 int LogInformationUtil::CountLOD2 = 0;
 
-void LogInformationUtil::PrintGeneratedTextures(const TArray<struct FGeneratedTexture> GeneratedTextures, FString& Log, bool DoPrintInitialMessage)
+void LogInformationUtil::PrintGeneratedTextures(const TArray<FGeneratedTexture> GeneratedTextures, FString& Log, bool DoPrintInitialMessage)
 {
 	if (GeneratedTextures.Num() == 0)
 	{

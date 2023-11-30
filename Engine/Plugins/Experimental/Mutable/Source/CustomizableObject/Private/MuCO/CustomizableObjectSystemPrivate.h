@@ -25,6 +25,8 @@
 	#include "Async/TaskGraphInterfaces.h"
 #endif
 
+#include "CustomizableObjectSystemPrivate.generated.h"
+
 #if WITH_EDITORONLY_DATA
 class UEditorImageProvider;
 #endif
@@ -185,6 +187,42 @@ struct FMutableResourceCache
 		Meshes.Reset();
 		Images.Reset();
 	}
+};
+
+
+USTRUCT()
+struct FGeneratedTexture
+{
+	GENERATED_USTRUCT_BODY();
+
+	FMutableImageCacheKey Key;
+
+	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
+	FString Name;
+
+	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
+	TObjectPtr<UTexture> Texture = nullptr;
+};
+
+
+USTRUCT()
+struct FGeneratedMaterial
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> MaterialInterface;
+
+	UPROPERTY(Category = CustomizedMaterial, VisibleAnywhere)
+	TArray< FGeneratedTexture > Textures;
+
+	// Surface or SharedSurface Id
+	uint32 SurfaceId = 0;
+
+	// Index of the material to instantiate (UCustomizableObject::ReferencedMaterials)
+	uint32 MaterialIndex = 0;
+
+	bool operator==(const FGeneratedMaterial& Other) const { return SurfaceId == Other.SurfaceId && MaterialIndex == Other.MaterialIndex; };
 };
 
 
@@ -614,3 +652,6 @@ public:
 	int32 NumSkeletalMeshes = 0;
 };
 
+
+/** Set OnlyLOD to -1 to generate all mips */
+CUSTOMIZABLEOBJECT_API FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY);

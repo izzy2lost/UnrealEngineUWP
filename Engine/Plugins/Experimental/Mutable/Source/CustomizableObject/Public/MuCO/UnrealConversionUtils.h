@@ -2,14 +2,19 @@
 
 #pragma once
 
-#include "MuCO/CustomizableObjectSystemPrivate.h"
-
 //! Order of the unreal vertex buffers when in mutable data
 #define MUTABLE_VERTEXBUFFER_POSITION	0
 #define MUTABLE_VERTEXBUFFER_TANGENT	1
 #define MUTABLE_VERTEXBUFFER_TEXCOORDS	2
 
-namespace mu { class FMeshBufferSet; }
+#include "MuR/Ptr.h"
+#include "Containers/Array.h"
+
+namespace mu
+{
+	class Mesh;
+	class FMeshBufferSet;
+}
 struct FReferenceSkeleton;
 
 class FSkeletalMeshLODRenderData;
@@ -34,7 +39,7 @@ namespace UnrealConversionUtils
 	 */
 	CUSTOMIZABLEOBJECT_API void SetupRenderSections(
 		const USkeletalMesh* OutSkeletalMesh,
-		const mu::MeshPtrConst InMutableMesh,
+		const mu::Ptr<const mu::Mesh> InMutableMesh,
 		const int32 InMeshLODIndex,
 		const TArray<uint16>& InBoneMap,
 		const int32 InFirstBoneMapIndex);
@@ -47,7 +52,7 @@ namespace UnrealConversionUtils
 	 */
 	CUSTOMIZABLEOBJECT_API void CopyMutableVertexBuffers(
 		USkeletalMesh* OutSkeletalMesh,
-		const mu::MeshPtrConst InMutableMesh,
+		const mu::Ptr<const mu::Mesh> InMutableMesh,
 		const int32 InMeshLODIndex);
 
 	
@@ -57,7 +62,7 @@ namespace UnrealConversionUtils
 	 * @param OutLODModel - The LOD model to be updated.
 	 * @return True if the operation could be performed successfully, false if not.
 	 */
-	CUSTOMIZABLEOBJECT_API bool CopyMutableIndexBuffers(mu::MeshPtrConst InMutableMesh,
+	CUSTOMIZABLEOBJECT_API bool CopyMutableIndexBuffers(mu::Ptr<const mu::Mesh> InMutableMesh,
 	                                                    FSkeletalMeshLODRenderData& OutLODModel);
 	
 

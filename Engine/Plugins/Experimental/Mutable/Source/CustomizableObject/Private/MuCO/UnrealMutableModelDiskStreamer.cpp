@@ -7,12 +7,14 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuR/Model.h"
 #include "MuR/MutableTrace.h"
+#include "MuCO/LogBenchmarkUtil.h"
 
 #if WITH_EDITOR
 #include "HAL/PlatformFileManager.h"
 #endif
 
-DEFINE_STAT(STAT_MutableStreamingOps);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Streaming Ops"), STAT_MutableStreamingOps, STATGROUP_Mutable);
+
 
 //-------------------------------------------------------------------------------------------------
 #if WITH_EDITOR

@@ -6,6 +6,10 @@
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "Engine/SkeletalMesh.h"
 #include "GPUSkinVertexFactory.h"
+#include "MuCO/CustomizableObject.h"
+#include "MuR/Mesh.h"
+#include "MuR/MeshBufferSet.h"
+#include "MuR/MutableTrace.h"
 
 class USkeleton;
 

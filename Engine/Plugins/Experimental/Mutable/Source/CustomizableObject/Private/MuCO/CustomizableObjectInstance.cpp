@@ -19,6 +19,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Modules/ModuleManager.h"
 
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCO/CustomizableObjectExtension.h"
@@ -36,6 +37,7 @@
 #include "Rendering/Texture2DResource.h"
 #include "RenderingThread.h"
 #include "SkeletalMergingLibrary.h"
+#include "UnrealMutableImageProvider.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
@@ -46,6 +48,80 @@
 #include "Logging/MessageLog.h"
 #include "MessageLogModule.h"
 #endif
+
+
+// Struct used by BuildMaterials() to identify common materials between LODs
+struct FMutableMaterialPlaceholder
+{
+	enum class EPlaceHolderParamType { Vector, Scalar, Texture };
+
+	struct FMutableMaterialPlaceHolderParam
+	{
+		FName ParamName;
+		int32 LayerIndex; // Set to -1 for non-multilayer params
+		FLinearColor Vector;
+		float Scalar;
+		FGeneratedTexture Texture;
+		EPlaceHolderParamType Type;
+
+		FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const FLinearColor& InVector)
+			: ParamName(InParamName), LayerIndex(InLayerIndex), Vector(InVector), Type(EPlaceHolderParamType::Vector) {}
+
+		FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const float InScalar)
+			: ParamName(InParamName), LayerIndex(InLayerIndex), Scalar(InScalar), Type(EPlaceHolderParamType::Scalar) {}
+
+		FMutableMaterialPlaceHolderParam(const FName& InParamName, const int32 InLayerIndex, const FGeneratedTexture& InTexture)
+			: ParamName(InParamName), LayerIndex(InLayerIndex), Texture(InTexture), Type(EPlaceHolderParamType::Texture) {}
+
+		bool operator<(const FMutableMaterialPlaceHolderParam& Other) const
+		{
+			return Type < Other.Type || ParamName.CompareIndexes(Other.ParamName);
+		}
+	};
+
+	UMaterialInterface* ParentMaterial;
+	TArray<FMutableMaterialPlaceHolderParam> Params;
+	int32 MatIndex = -1;
+
+	void AddParam(const FMutableMaterialPlaceHolderParam& NewParam) { Params.Add(NewParam); }
+
+	// Return a hash of the material and its parameters
+	uint32 GetHash()
+	{
+
+		uint32 Hash = ParentMaterial ? ParentMaterial->GetUniqueID() : 0;
+
+		// Sort parameters before building the hash.
+		Params.Sort();
+
+		for (const FMutableMaterialPlaceHolderParam& Param : Params)
+		{
+			uint32 ParamHash = GetTypeHash(Param.ParamName);
+			ParamHash = HashCombineFast(ParamHash, (uint32)Param.LayerIndex);
+			ParamHash = HashCombineFast(ParamHash, (uint32)Param.Type);
+
+			switch (Param.Type)
+			{
+			case EPlaceHolderParamType::Vector:
+				ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Vector));
+				break;
+
+			case EPlaceHolderParamType::Scalar:
+				ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Scalar));
+				break;
+
+			case EPlaceHolderParamType::Texture:
+				ParamHash = HashCombineFast(ParamHash, Param.Texture.Texture->GetUniqueID());
+				break;
+			}
+
+			Hash = HashCombineFast(Hash, ParamHash);
+		}
+
+		return Hash;
+	}
+};
+
 
 UTexture2D* UCustomizableInstancePrivateData::CreateTexture()
 {
@@ -2886,7 +2962,7 @@ void UCustomizableObjectInstance::CommitMinMaxLOD()
 
 // The memory allocated in the function and pointed by the returned pointer is owned by the caller and must be freed. 
 // If assigned to a UTexture2D, it will be freed by that UTexture2D
-FTexturePlatformData* UCustomizableInstancePrivateData::MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY)
+FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> MutableImage, int32 OnlyLOD, uint16 FullSizeX, uint16 FullSizeY)
 {
 	int32 SizeX = FMath::Max(MutableImage->GetSize()[0], FullSizeX);
 	int32 SizeY = FMath::Max(MutableImage->GetSize()[1], FullSizeY);
@@ -3161,7 +3237,7 @@ FTexturePlatformData* UCustomizableInstancePrivateData::MutableCreateImagePlatfo
 
 
 
-void UCustomizableInstancePrivateData::ConvertImage(UTexture2D* Texture, mu::ImagePtrConst MutableImage, const FMutableModelImageProperties& Props, int OnlyLOD, int32 ExtractChannel )
+void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, const FMutableModelImageProperties& Props, int OnlyLOD, int32 ExtractChannel)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::ConvertImage);
 
@@ -6573,41 +6649,6 @@ TSet<UAssetUserData*> UCustomizableObjectInstance::GetMergedAssetUserData(int32 
 	}
 }
 
-
-uint32 UCustomizableInstancePrivateData::FMutableMaterialPlaceholder::GetHash()
-{
-
-	uint32 Hash = ParentMaterial ? ParentMaterial->GetUniqueID() : 0;
-
-	// Sort parameters before building the hash.
-	Params.Sort();
-
-	for (const FMutableMaterialPlaceHolderParam& Param : Params)
-	{
-		uint32 ParamHash = GetTypeHash(Param.ParamName);
-		ParamHash = HashCombineFast(ParamHash, (uint32)Param.LayerIndex);
-		ParamHash = HashCombineFast(ParamHash, (uint32)Param.Type);
-
-		switch (Param.Type)
-		{
-		case EPlaceHolderParamType::Vector:
-			ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Vector));
-			break;
-
-		case EPlaceHolderParamType::Scalar:
-			ParamHash = HashCombineFast(ParamHash, GetTypeHash(Param.Scalar));
-			break;
-
-		case EPlaceHolderParamType::Texture:
-			ParamHash = HashCombineFast(ParamHash, Param.Texture.Texture->GetUniqueID());
-			break;
-		}
-
-		Hash = HashCombineFast(Hash, ParamHash);
-	}
-
-	return Hash;
-}
 
 #if WITH_EDITORONLY_DATA
 

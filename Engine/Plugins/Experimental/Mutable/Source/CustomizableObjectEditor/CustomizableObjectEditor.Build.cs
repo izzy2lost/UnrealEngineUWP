@@ -101,7 +101,6 @@ public class CustomizableObjectEditor : ModuleRules
 			);
 
 		PrivateIncludePaths.AddRange(new string[] {
-				"CustomizableObject/Private",
 				"MutableRuntime/Private",
 				"MutableTools/Private",
 			});

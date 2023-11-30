@@ -13,6 +13,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "MuCO/CustomizableObject.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Stats/Stats.h"

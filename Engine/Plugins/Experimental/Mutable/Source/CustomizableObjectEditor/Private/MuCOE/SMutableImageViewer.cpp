@@ -3,9 +3,10 @@
 #include "MuCOE/SMutableImageViewer.h"
 
 #include "Brushes/SlateImageBrush.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuT/TypeInfo.h"
 #include "TextureResource.h"
+#include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectInstance.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
 
@@ -288,7 +289,7 @@ void SMutableImageViewer::Tick(const FGeometry& AllottedGeometry, const double I
 			Props.Filter = TF_Nearest;
 			Props.SRGB = true;
 			Props.LODBias = 0;
-			UCustomizableInstancePrivateData::ConvertImage(UnrealImage, ImageToConvert, Props, CurrentVisibleLOD, ExtractChannel);
+			ConvertImage(UnrealImage, ImageToConvert, Props, CurrentVisibleLOD, ExtractChannel);
 			UnrealImage->NeverStream = true;
 			UnrealImage->UpdateResource();
 		}

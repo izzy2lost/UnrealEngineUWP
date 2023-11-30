@@ -49,7 +49,6 @@
 #include "MuT/NodeSurfaceEdit.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PlatformInfo.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "Math/NumericLimits.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"

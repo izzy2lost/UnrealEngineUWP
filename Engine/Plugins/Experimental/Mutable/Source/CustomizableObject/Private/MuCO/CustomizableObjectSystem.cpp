@@ -30,6 +30,7 @@
 #include "ContentStreaming.h"
 #include "MuCO/EditorImageProvider.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "CustomizableObjectSystemPrivate.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -2031,7 +2032,7 @@ namespace impl
 					{
 						if (!OperationData->ImageToPlatformDataMap.Contains(Image.ImageID))
 						{
-							FTexturePlatformData* PlatformData = UCustomizableInstancePrivateData::MutableCreateImagePlatformData(MutableImage, -1, Image.FullImageSizeX, Image.FullImageSizeY);
+							FTexturePlatformData* PlatformData = MutableCreateImagePlatformData(MutableImage, -1, Image.FullImageSizeX, Image.FullImageSizeY);
 							OperationData->ImageToPlatformDataMap.Add(Image.ImageID, PlatformData);
 						}
 						else

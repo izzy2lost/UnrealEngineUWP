@@ -10,8 +10,6 @@
 #include "Streaming/TextureMipDataProvider.h"
 
 #include "DefaultImageProvider.h"
-#include "MuCO/CustomizableObjectSystemPrivate.h"
-#include "MuCO/UnrealMutableImageProvider.h"
 #include "MuR/System.h"
 
 #include "CustomizableObjectMipDataProvider.generated.h"

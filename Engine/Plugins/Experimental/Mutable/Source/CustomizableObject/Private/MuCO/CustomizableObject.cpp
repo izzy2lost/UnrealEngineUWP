@@ -50,7 +50,7 @@ static bool bUsesOnCookStart = false;
 UCustomizableObject::UCustomizableObject()
 	: UObject()
 {
-	PrivateData = TSharedPtr<FCustomizableObjectPrivateData>( new FCustomizableObjectPrivateData() );
+	PrivateData = MakeShared<FCustomizableObjectPrivateData>();
 
 #if WITH_EDITORONLY_DATA
 	const FString CVarName = TEXT("r.SkeletalMesh.MinLodQualityLevel");
@@ -1095,7 +1095,7 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 
 FCustomizableObjectPrivateData* UCustomizableObject::GetPrivate() const
 {
-	check(PrivateData)
+	check(PrivateData);
 	return PrivateData.Get();
 }
 

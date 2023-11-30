@@ -11,6 +11,7 @@
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuR/OpMeshFormat.h"
 #include "Engine/SkeletalMesh.h"
+#include "MuCO/CustomizableObject.h"
 #include "UObject/Package.h"
 
 class UMaterialInterface;

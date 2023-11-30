@@ -6,6 +6,7 @@
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuR/Model.h"
 #include "TextureResource.h"
+#include "UnrealMutableImageProvider.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectMipDataProvider)
 

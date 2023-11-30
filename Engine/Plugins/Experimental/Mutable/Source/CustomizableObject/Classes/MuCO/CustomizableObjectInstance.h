@@ -6,15 +6,22 @@
 #include "MuCO/CustomizableObjectInstanceDescriptor.h"
 #include "Templates/SubclassOf.h"
 #include "Math/RandomStream.h"
+#include "MuR/Ptr.h"
 
 #include "CustomizableObjectInstance.generated.h"
+
+struct FMutableModelImageProperties;
+
+namespace mu
+{
+	class Image;
+}
 
 class FCustomizableObjectSystemPrivate;
 class USkeletalMesh;
 class AActor;
 class FProperty;
 class UAnimInstance;
-class UCustomizableInstancePrivateData; // This is used to hide Mutable SDK members in the public headers.
 class UCustomizableObject;
 class UTexture2D;
 class FUpdateContextPrivate;
@@ -23,6 +30,7 @@ class UMaterialInterface;
 struct FFrame;
 struct FGameplayTagContainer;
 struct FPropertyChangedEvent;
+struct FTexturePlatformData;
 
 
 // Priority for the mutable update queue, Low is the normal distance-based priority, High is normally used for discards and Mid for LOD downgrades
@@ -774,6 +782,12 @@ private:
 	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
 	bool bHasBeenIssued = false;
 };
+
+
+/** 
+ * \param OnlyLOD: If not 0, extract and convert only one single LOD from the source image.
+ * \param ExtractChannel: If different than -1, extract a single-channel image with the specified source channel data. */
+CUSTOMIZABLEOBJECT_API void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, const FMutableModelImageProperties& Props, int32 OnlyLOD = -1, int32 ExtractChannel = -1);
 
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
