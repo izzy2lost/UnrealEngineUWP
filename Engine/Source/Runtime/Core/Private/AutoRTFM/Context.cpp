@@ -53,7 +53,7 @@ bool FContext::IsTransactional()
         return false;
     }
 
-    if (Context->GetStatus() != EContextStatus::Idle)
+    if ((Context->GetStatus() != EContextStatus::Idle) && (Context->GetStatus() != EContextStatus::Committing))
     {
         return true;
     }
