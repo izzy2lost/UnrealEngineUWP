@@ -10,8 +10,8 @@ FComputeChannel::FComputeChannel()
 }
 
 FComputeChannel::FComputeChannel(FComputeBufferReader InReader, FComputeBufferWriter InWriter)
-	: Reader(std::move(InReader))
-	, Writer(std::move(InWriter))
+	: Reader(MoveTemp(InReader))
+	, Writer(MoveTemp(InWriter))
 {
 }
 
