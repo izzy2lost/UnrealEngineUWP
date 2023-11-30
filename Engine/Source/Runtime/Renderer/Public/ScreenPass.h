@@ -638,6 +638,16 @@ void RENDERER_API AddDrawTexturePass(
 	FIntPoint OutputPosition = FIntPoint::ZeroValue,
 	FIntPoint Size = FIntPoint::ZeroValue);
 
+void RENDERER_API AddDrawTexturePass(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& View,
+	FRDGTextureRef InputTexture,
+	FRDGTextureRef OutputTexture,
+	FIntPoint InputPosition,
+	FIntPoint InputSize,
+	FIntPoint OutputPosition,
+	FIntPoint OutputSize);
+
 /** Helper variant which takes a shared viewport instead of unique input / output positions. */
 FORCEINLINE void AddDrawTexturePass(
 	FRDGBuilder& GraphBuilder,
