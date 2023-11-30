@@ -96,7 +96,6 @@
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
 #include "WaterInfoTextureRendering.h"
-#include "SplineMeshSceneResources.h"
 #include "PostProcess/DebugAlphaChannel.h"
 #include "StochasticShadows/StochasticShadows.h"
 #include "Rendering/CustomRenderPass.h"
@@ -3065,6 +3064,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (RendererOutput == ERendererOutput::FinalSceneColor)
 	{
 		// Notify the FX system that the scene is about to be rendered.
+		// TODO: These should probably be moved to scene extensions
 		if (FXSystem && Views.IsValidIndex(0))
 		{
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FXSystem_PreRender);
@@ -3104,6 +3104,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			Scene->UpdatePhysicsField(GraphBuilder, View);
 		}
 	}
+
+	// Allow scene extensions to affect the scene uniform buffer after GPU scene has fully updated
+	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
 	const bool bUseGBuffer = IsUsingGBuffers(ShaderPlatform);
 	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
@@ -3181,12 +3184,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Sanity check - Note: Nanite forces a Z prepass in ShouldForceFullDepthPass()
 	check(!UseNanite(ShaderPlatform) || bNeedsPrePass);
 
+	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
-
-	if (Scene->SplineMeshSceneResources)
-	{
-		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
-	}
 
 	if (DepthPass.IsComputeStencilDitherEnabled())
 	{
@@ -4604,6 +4603,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
+		GetSceneExtensionsRenderer().PostRender(GraphBuilder);
 
 #if RHI_RAYTRACING
 		ReleaseRaytracingResources(GraphBuilder, Views, Scene->RayTracingScene, bIsLastSceneRenderer);

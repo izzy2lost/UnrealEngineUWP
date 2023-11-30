@@ -8,6 +8,8 @@
 #include "RHIShaderPlatform.h"
 #include "RendererInterface.h"
 #include "Containers/Map.h"
+#include "RenderGraphResources.h"
+#include "SceneExtensions.h"
 
 class FRDGBuilder;
 class FScene;
@@ -16,9 +18,10 @@ class FScenePreUpdateChangeSet;
 class FScenePostUpdateChangeSet;
 class FPrimitiveSceneInfo;
 struct IPooledRenderTarget;
+class FSceneRendererBase;
 
 /**
- *	FSplineMeshSceneResources
+ *	FSplineMeshSceneExtension
  *
  *	This class manages a texture that is used to bake down spline position values at a fixed number of texels
  *	to lower the cost of sampling these splines when deforming spline mesh vertices. Each spline in the scene is
@@ -32,14 +35,19 @@ struct IPooledRenderTarget;
  *	- Defragmentation of the texture will occur if the texture could be 1/4 the size of the current texture
  *	  size when tightly allocated.
  */
-class FSplineMeshSceneResources
+class FSplineMeshSceneExtension : public ISceneExtension
 {
-public:
-	FSplineMeshSceneResources(FScene& InScene);
+	friend class FSplineMeshSceneUpdater;
+	friend class FSplineMeshSceneRenderer;
 
-	void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet);
-	void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet);
-	void Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms);
+	DECLARE_SCENE_EXTENSION(FSplineMeshSceneExtension);
+
+public:
+	static bool ShouldCreateExtension(FScene& InScene);
+	
+	virtual void InitExtension(FScene& InScene) override { Scene = &InScene; }
+	virtual ISceneExtensionUpdater* CreateUpdater() override;
+	virtual ISceneExtensionRenderer* CreateRenderer() override;
 
 	uint32 NumRegisteredPrimitives() const { return RegisteredPrimitives.Num(); }
 
@@ -51,36 +59,62 @@ private:
 	};
 	using FPrimitiveSlotMap = TMap<const FPrimitiveSceneInfo*, FPrimitiveSlot>;
 
-	void AddUpdatePass(
-		FRDGBuilder& GraphBuilder,
-		FRDGTextureRef PosTexture,
-		FRDGTextureRef RotTexture,
-		FSceneUniformBuffer& SceneUniforms,
-		FVector2f Extent,
-		FVector2f InvExtent,
-		bool bFullUpdate,
-		bool bForceUpdate);
-
-	void Register(const FPrimitiveSceneInfo& PrimitiveSceneInfo);
+	FPrimitiveSlot& Register(const FPrimitiveSceneInfo& PrimitiveSceneInfo);
 	void Unregister(const FPrimitiveSceneInfo& PrimitiveSceneInfo);
 	void AllocTextureSpace(const FPrimitiveSceneInfo& PrimitiveSceneInfo, uint32 NumSplines, FPrimitiveSlot& OutSlot);
 	static uint32 GetNumSplines(const FPrimitiveSceneInfo& SceneInfo);
 	void AssignCoordinates(const FPrimitiveSceneInfo& SceneInfo, const FPrimitiveSlot& Slot);
 	template<typename TSplineMeshSceneProxy>
 	void AssignCoordinates(TSplineMeshSceneProxy* SceneProxy, const FPrimitiveSlot& Slot);
-	void RequestUpdate(const FPrimitiveSlot& Slot);
 	void DefragTexture();
 	FRDGBufferSRVRef GetInstanceIdLookupSRV(FRDGBuilder& GraphBuilder, bool bForceUpdate);
+	void ClearAllCache();
 
 private:
-	FScene& Scene;
+	FScene* Scene = nullptr;
 	FPrimitiveSlotMap RegisteredPrimitives;
 	TArray<uint32> RegisteredInstanceIds;
-	TArray<uint32> UpdateRequests;
 	FSpanAllocator SlotAllocator;
 	TRefCountPtr<IPooledRenderTarget> SavedPosTexture;
 	TRefCountPtr<IPooledRenderTarget> SavedRotTexture;
 	TRefCountPtr<FRDGPooledBuffer> SavedIdLookup;
 	bool bInstanceLookupDirty = true;
 	bool bOverflowError = false;
+};
+
+/** This class performs updates to the persistent spline mesh resources. */
+class FSplineMeshSceneUpdater : public ISceneExtensionUpdater
+{
+public:
+	FSplineMeshSceneUpdater(FSplineMeshSceneExtension& InSceneData) : SceneData(&InSceneData) {}
+
+	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+	virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
+	virtual void PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;
+
+private:
+	void AddUpdatePass(
+		FRDGBuilder& GraphBuilder,
+		FSceneUniformBuffer& SceneUniforms,
+		FRDGTextureRef PosTexture,
+		FRDGTextureRef RotTexture,
+		FVector2f Extent,
+		FVector2f InvExtent,
+		bool bFullUpdate,
+		bool bForceUpdate
+	);
+
+	FSplineMeshSceneExtension* SceneData = nullptr;
+	TArray<uint32, FSceneRenderingArrayAllocator> UpdateRequests;
+};
+
+/** This class is used to insert the spline mesh scene uniforms into the scene uniform buffer for any given renderer */
+class FSplineMeshSceneRenderer : public ISceneExtensionRenderer
+{
+public:
+	FSplineMeshSceneRenderer(FSplineMeshSceneExtension& InSceneData) : SceneData(&InSceneData) {}
+	virtual void UpdateSceneUniformBuffer(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;
+
+private:
+	FSplineMeshSceneExtension* SceneData = nullptr;
 };

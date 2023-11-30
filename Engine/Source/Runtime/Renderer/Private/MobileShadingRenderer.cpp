@@ -1008,8 +1008,11 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		GraphBuilder.SetFlushResourcesRHI();
 	}
 
-	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
+	// Allow scene extensions to affect the scene uniform buffer
+	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
+	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
+	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 	
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));
 
@@ -1060,6 +1063,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		// Notify the FX system that the scene is about to be rendered.
+		// TODO: These should probably be moved to scene extensions
 		if (FXSystem)
 		{
 			FXSystem->PreRender(GraphBuilder, GetSceneViews(), GetSceneUniforms(), true /*bAllowGPUParticleUpdate*/);
@@ -1327,6 +1331,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
+	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
 
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneEnd));
 

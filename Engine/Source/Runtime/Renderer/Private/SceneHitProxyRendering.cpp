@@ -35,7 +35,6 @@
 #include "HairStrands/HairStrandsData.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshSceneProxy.h"
-#include "SplineMeshSceneResources.h"
 
 class FHitProxyShaderElementData : public FMeshMaterialShaderElementData
 {
@@ -575,7 +574,10 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	// Find the visible primitives.
 	InitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, nullptr, InitViewTaskDatas);
+	
+	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
+	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	InstanceCullingManager.FlushRegisteredViews(GraphBuilder);
@@ -584,6 +586,8 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	::DoRenderHitProxies(GraphBuilder, this, HitProxyTexture, HitProxyDepthTexture, NaniteRasterResults, InstanceCullingManager);
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
+	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
+
 #endif
 
 	OnRenderFinish(GraphBuilder, nullptr);
@@ -641,7 +645,10 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 		Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, Views[ViewIndex]);
 	}
 
+
 	EndInitViews(GraphBuilder, LumenFrameTemporaries, InstanceCullingManager, InitViewTaskDatas);
+
+	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
 	ExternalAccessQueue.Submit(GraphBuilder);
 
@@ -654,14 +661,11 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 		Nanite::GStreamingManager.EndAsyncUpdate(GraphBuilder);
 	}
 
+	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
-	if (Scene->SplineMeshSceneResources)
-	{
-		Scene->SplineMeshSceneResources->Update(GraphBuilder, GetSceneUniforms());
-	}
-
 	// Notify the FX system that the scene is about to be rendered.
+	// TODO: These should probably be moved to scene extensions
 	if (FXSystem && Views.IsValidIndex(0))
 	{
 		FGPUSortManager* GPUSortManager = FXSystem->GetGPUSortManager();
@@ -732,6 +736,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	ShaderPrint::EndViews(Views);
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
+	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
 
 	AddDispatchToRHIThreadPass(GraphBuilder);
 #endif

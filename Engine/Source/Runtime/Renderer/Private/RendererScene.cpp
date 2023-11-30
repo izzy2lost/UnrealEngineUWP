@@ -98,8 +98,6 @@
 #include "Rendering/StaticLightingSystemInterface.h"
 #endif
 
-#include "SplineMeshSceneResources.h"
-
 #define VALIDATE_PRIMITIVE_PACKED_INDEX 0
 
 /** Affects BasePassPixelShader.usf so must relaunch editor to recompile shaders. */
@@ -1638,7 +1636,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 ,	RayTracingDynamicGeometryCollection(nullptr)
 ,	RayTracingSkinnedGeometryUpdateQueue(nullptr)
 #endif
-,	SplineMeshSceneResources(nullptr)
 ,	NumVisibleLights_GameThread(0)
 ,	NumEnabledSkylights_GameThread(0)
 ,	SceneFrameNumber(0)
@@ -1718,10 +1715,8 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 	// Allocate the shadow scene, it is always present but we use a pointer such that it can be forward declared.
 	ShadowScene = new FShadowScene(*this);
 
-	if (UseSplineMeshSceneResources(GetFeatureLevelShaderPlatform(InFeatureLevel)))
-	{
-		SplineMeshSceneResources = new FSplineMeshSceneResources(*this);
-	}
+	// Make sure we initialize the SceneRenderExtensions last, when the rest of the scene is initialized
+	SceneExtensions.Init(*this);
 }
 
 FScene::~FScene()
@@ -1800,8 +1795,6 @@ FScene::~FScene()
 	checkf(RemovedPrimitiveSceneInfos.Num() == 0, TEXT("Leaking %d FPrimitiveSceneInfo instances."), RemovedPrimitiveSceneInfos.Num()); // Ensure UpdateAllPrimitiveSceneInfos() is called before destruction.
 
 	delete SceneLightInfoUpdates;
-
-	delete SplineMeshSceneResources;
 }
 
 // Helpers for internal templates
@@ -5493,19 +5486,18 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	RemovedPrimitiveSceneInfos.Empty();
 
 	RemovedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
-	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder);
-
-	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-	
-	if (SplineMeshSceneResources)
-	{
-		SplineMeshSceneResources->PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-	}
 	GPUScene.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
+	// TODO: Move this to a scene extension?
+	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder);
+	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
+	
 	// Create a SceneUB that permits access to the scene for invalidation processing.
 	FSceneUniformBuffer SceneUB;
 	GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
+
+	auto& SceneExtensionsUpdater = *GraphBuilder.AllocObject<FSceneExtensionsUpdater>(*this);
+	SceneExtensionsUpdater.PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
 	{
 		SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
@@ -6310,14 +6302,12 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	SceneCullingUpdater.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	
-	if (SplineMeshSceneResources)
-	{
-		SplineMeshSceneResources->PostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
-	}
-	GPUScene.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
+	GPUScene.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());	
 
 	UpdateCachedShadowState(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
 	ShadowScene->PostSceneUpdate(SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUpdateChangeSetStorage.GetPostUpdateSet());
+
+	SceneExtensionsUpdater.PostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
 
 	UpdateUniformExpressionsTask.Wait();
 
@@ -6520,9 +6510,11 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 		// Process GPU scene prior to visibility to maximize overlap.
 		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, nullptr);
-
+	
 		ExternalAccessQueue.Submit(GraphBuilder);
 	}
+
+	SceneExtensionsUpdater.PostGPUSceneUpdate(GraphBuilder, SceneUB);
 
 	// Need to do this here since we delete the proxy next 
 	// TODO: should refactor to add this as a dependency for a proxy-deletion task instead.

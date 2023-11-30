@@ -56,6 +56,7 @@
 #include "Algo/RemoveIf.h"
 #include "UObject/Package.h"
 #include "LightFunctionAtlas.h"
+#include "SceneExtensions.h"
 
 /** Factor by which to grow occlusion tests **/
 #define OCCLUSION_SLOP (1.0f)
@@ -93,7 +94,6 @@ class FStaticMeshBatch;
 class FShadowScene;
 class FSceneLightInfoUpdates;
 class FSceneCulling;
-class FSplineMeshSceneResources;
 
 /**
  * Describes all light modifications to the scene by recording the light scene IDs.
@@ -3206,8 +3206,8 @@ public:
 	class FRayTracingSkinnedGeometryUpdateQueue* RayTracingSkinnedGeometryUpdateQueue;
 #endif
 
-	/** Spline mesh data shared between all views. */
-	FSplineMeshSceneResources* SplineMeshSceneResources;
+	/** Collection of scene render extensions. */
+	FSceneExtensions SceneExtensions;
 
 	/** Initialization constructor. */
 	FScene(UWorld* InWorld, bool bInRequiresHitProxies,bool bInIsEditorScene, bool bCreateFXSystem, ERHIFeatureLevel::Type InFeatureLevel);

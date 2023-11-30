@@ -2503,9 +2503,9 @@ TGlobalResource<FGlobalDynamicReadBuffer> FSceneRenderer::DynamicReadBufferForSh
 	FSceneRenderer
 -----------------------------------------------------------------------------*/
 FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyConsumer* HitProxyConsumer)
-:	Scene(CheckPointer(InViewFamily->Scene)->GetRenderScene())
-,	ViewFamily(*CheckPointer(InViewFamily))
-,	VirtualShadowMapArray(*CheckPointer(Scene))
+:	FSceneRendererBase(*CheckPointer(CheckPointer(CheckPointer(InViewFamily)->Scene)->GetRenderScene()))
+,	ViewFamily(*InViewFamily)
+,	VirtualShadowMapArray(*Scene)
 ,	bHasRequestedToggleFreeze(false)
 ,	bUsedPrecomputedVisibility(false)
 ,	bGPUMasksComputed(false)
@@ -2812,6 +2812,9 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 
 	bDumpMeshDrawCommandInstancingStats = !!GDumpInstancingStats;
 	GDumpInstancingStats = 0;
+
+	// Initialize scene renderer extensions here, after the rest of the renderer has been initialized
+	InitSceneExtensionsRenderer();
 }
 
 // static
@@ -5118,13 +5121,18 @@ void FRendererModule::RenderPostResolvedSceneColorExtension(FRDGBuilder& GraphBu
 class FScenePrimitiveRenderingContext : public IScenePrimitiveRenderingContext
 {
 public:
-	FScenePrimitiveRenderingContext(FRDGBuilder& GraphBuilder, FScene& Scene, FSceneViewFamily& ViewFamily) :
+	FScenePrimitiveRenderingContext(FRDGBuilder& GraphBuilder, FScene& Scene, FSceneViewFamily* InViewFamily = nullptr) :
 		Renderer(),
 		GPUScene(Scene.GPUScene),
 		GPUSceneDynamicContext(GPUScene),
-		ViewFamily(ViewFamily)
+		ViewFamily(InViewFamily)
 	{
-		ViewFamily.SetSceneRenderer(&Renderer);
+		Renderer.Scene = &Scene;
+		Renderer.InitSceneExtensionsRenderer();
+		if (ViewFamily)
+		{
+			ViewFamily->SetSceneRenderer(&Renderer);
+		}
 
 		Scene.UpdateAllPrimitiveSceneInfos(GraphBuilder);
 		GPUScene.BeginRender(GraphBuilder, GPUSceneDynamicContext);
@@ -5133,13 +5141,21 @@ public:
 	virtual ~FScenePrimitiveRenderingContext()
 	{
 		GPUScene.EndRender();
-		ViewFamily.SetSceneRenderer(nullptr);
+		if (ViewFamily)
+		{
+			ViewFamily->SetSceneRenderer(nullptr);
+		}
+	}
+
+	virtual ISceneRenderer* GetSceneRenderer()
+	{
+		return &Renderer;
 	}
 
 	FSceneRendererBase Renderer;
 	FGPUScene& GPUScene;
 	FGPUSceneDynamicContext GPUSceneDynamicContext;
-	FSceneViewFamily& ViewFamily;
+	FSceneViewFamily* ViewFamily;
 };
 
 
@@ -5150,7 +5166,17 @@ IScenePrimitiveRenderingContext* FRendererModule::BeginScenePrimitiveRendering(F
 	FScene* Scene = ViewFamily->Scene->GetRenderScene();
 	check(Scene);
 
-	FScenePrimitiveRenderingContext* ScenePrimitiveRenderingContext = new FScenePrimitiveRenderingContext(GraphBuilder, *Scene, *ViewFamily);
+	FScenePrimitiveRenderingContext* ScenePrimitiveRenderingContext = new FScenePrimitiveRenderingContext(GraphBuilder, *Scene, ViewFamily);
+
+	return ScenePrimitiveRenderingContext;
+}
+
+IScenePrimitiveRenderingContext* FRendererModule::BeginScenePrimitiveRendering(FRDGBuilder &GraphBuilder, FSceneInterface& InScene)
+{
+	FScene* Scene = InScene.GetRenderScene();
+	check(Scene);
+
+	FScenePrimitiveRenderingContext* ScenePrimitiveRenderingContext = new FScenePrimitiveRenderingContext(GraphBuilder, *Scene);
 
 	return ScenePrimitiveRenderingContext;
 }

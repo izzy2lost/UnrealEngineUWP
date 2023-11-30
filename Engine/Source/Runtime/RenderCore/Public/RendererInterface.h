@@ -40,6 +40,7 @@ class FViewInfo;
 template<typename ShaderType, typename PointerTableType> class TShaderRefBase;
 class FSceneUniformBuffer;
 class FBatchedPrimitiveParameters;
+class ISceneRenderer;
 
 namespace Nanite
 {
@@ -650,9 +651,8 @@ public:
 class IScenePrimitiveRenderingContext
 {
 public:
-	virtual ~IScenePrimitiveRenderingContext()
-	{
-	}
+	virtual ~IScenePrimitiveRenderingContext() {}
+	virtual ISceneRenderer* GetSceneRenderer() = 0;
 };
 
 struct FScenePrimitiveRenderingContextScopeHelper
@@ -852,6 +852,7 @@ public:
 	 * The intended use is for stand-alone rendering that involves Scene proxies (that then may need the machinery to render GPU-Scene aware primitives.
 	 */
 	virtual IScenePrimitiveRenderingContext* BeginScenePrimitiveRendering(FRDGBuilder& GraphBuilder, FSceneViewFamily* ViewFamily) = 0;
+	virtual IScenePrimitiveRenderingContext* BeginScenePrimitiveRendering(FRDGBuilder& GraphBuilder, FSceneInterface& Scene) = 0;
 
 	/** Mark all the current scenes as needing to restart path tracer accumulation */
 	virtual void InvalidatePathTracedOutput() = 0;

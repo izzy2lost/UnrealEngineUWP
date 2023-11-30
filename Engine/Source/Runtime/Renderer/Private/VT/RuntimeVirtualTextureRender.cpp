@@ -21,7 +21,8 @@
 #include "RenderCaptureInterface.h"
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshBatch.h"
-#include "SplineMeshSceneResources.h"
+#include "SceneRendering.h"
+#include "EngineModule.h"
 
 namespace RuntimeVirtualTexture
 {
@@ -1353,7 +1354,7 @@ namespace RuntimeVirtualTexture
 	void RenderPage(
 		FRDGBuilder& GraphBuilder,
 		FScene* Scene,
-		FSceneUniformBuffer& SceneUB,
+		ISceneRenderer* SceneRenderer,
 		uint32 RuntimeVirtualTextureMask,
 		ERuntimeVirtualTextureMaterialType MaterialType,
 		bool bClearTextures,
@@ -1381,7 +1382,8 @@ namespace RuntimeVirtualTexture
 		//todo[vt]: Have specific shader variations and setup for different output texture configs
 		FSceneViewFamily::ConstructionValues ViewFamilyInit(nullptr, Scene, FEngineShowFlags(ESFIM_Game));
 		ViewFamilyInit.SetTime(FGameTime());
-		FSceneViewFamily& ViewFamily = *GraphBuilder.AllocObject<FViewFamilyInfo>(ViewFamilyInit);
+		FViewFamilyInfo& ViewFamily = *GraphBuilder.AllocObject<FViewFamilyInfo>(ViewFamilyInit);
+		ViewFamily.SetSceneRenderer(SceneRenderer);
 
 		FSceneViewInitOptions ViewInitOptions;
 		ViewInitOptions.ViewFamily = &ViewFamily;
@@ -1450,7 +1452,7 @@ namespace RuntimeVirtualTexture
 			ERenderTargetLoadAction LoadAction = bClearTextures ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ENoAction;
 			FShader_VirtualTextureMaterialDraw::FParameters* PassParameters = GraphBuilder.AllocParameters<FShader_VirtualTextureMaterialDraw::FParameters>();
 			PassParameters->View = View->ViewUniformBuffer;
-			PassParameters->Scene = SceneUB.GetBuffer(GraphBuilder);
+			PassParameters->Scene = SceneRenderer->GetSceneUniformBufferRef(GraphBuilder);
 			PassParameters->RenderTargets[0] = GraphSetup.RenderTexture0 ? FRenderTargetBinding(GraphSetup.RenderTexture0, LoadAction) : FRenderTargetBinding();
 			PassParameters->RenderTargets[1] = GraphSetup.RenderTexture1 ? FRenderTargetBinding(GraphSetup.RenderTexture1, LoadAction) : FRenderTargetBinding();
 			PassParameters->RenderTargets[2] = GraphSetup.RenderTexture2 ? FRenderTargetBinding(GraphSetup.RenderTexture2, LoadAction) : FRenderTargetBinding();
@@ -1527,7 +1529,7 @@ namespace RuntimeVirtualTexture
 		}
 	}
 
-	void RenderPagesInternal(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc, FSceneUniformBuffer& SceneUB)
+	void RenderPagesInternal(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc, ISceneRenderer* SceneRenderer)
 	{
 		check(InDesc.NumPageDescs <= EMaxRenderPageBatch);
 
@@ -1543,7 +1545,7 @@ namespace RuntimeVirtualTexture
 				RenderPage(
 					GraphBuilder,
 					InDesc.Scene,
-					SceneUB,
+					SceneRenderer,
 					InDesc.RuntimeVirtualTextureMask,
 					InDesc.MaterialType,
 					InDesc.bClearTextures,
@@ -1563,34 +1565,31 @@ namespace RuntimeVirtualTexture
 
 	void RenderPagesStandAlone(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
 	{
-		InDesc.Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder);
-
-		// This is required to collect dynamic primitives from the views (not used here, but we must provide one).
-		FGPUSceneDynamicContext GPUSceneDynamicContext(InDesc.Scene->GPUScene);
-		// Call to let GPU-Scene determine if it is active and record scene primitive count
-		FGPUSceneScopeBeginEndHelper GPUSceneScopeBeginEndHelper(GraphBuilder, InDesc.Scene->GPUScene, GPUSceneDynamicContext);
-
-		FSceneUniformBuffer SceneUB {};
-		InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
-		if (InDesc.Scene->SplineMeshSceneResources)
-		{
-			InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);
-		}
-		RenderPagesInternal(GraphBuilder, InDesc, SceneUB);
+		check(InDesc.Scene != nullptr);
+		FScenePrimitiveRenderingContextScopeHelper RenderingScope(GetRendererModule().BeginScenePrimitiveRendering(GraphBuilder, *InDesc.Scene));
+		RenderPagesInternal(GraphBuilder, InDesc, RenderingScope.ScenePrimitiveRenderingContext->GetSceneRenderer());
 	}
 
 	void RenderPages(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
 	{
+		check(InDesc.Scene != nullptr);
 		if (InDesc.Scene->GPUScene.IsRendering())
 		{
 			// TODO: this should be replaced by piping through a reference to the scene renderer rather than just the scene, such that we can get at the already populated scene UB.
-			FSceneUniformBuffer SceneUB{};
-			InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, SceneUB);
-			if (InDesc.Scene->SplineMeshSceneResources)
+			class FSimpleRVTRenderer : public FSceneRendererBase
 			{
-				InDesc.Scene->SplineMeshSceneResources->Update(GraphBuilder, SceneUB);
+			public:
+				FSimpleRVTRenderer(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
+					: FSceneRendererBase(*InDesc.Scene)
+				{
+					InitSceneExtensionsRenderer();
+
+					InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+					GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 			}
-			RenderPagesInternal(GraphBuilder, InDesc, SceneUB);
+			};
+			FSimpleRVTRenderer SimpleRenderer(GraphBuilder, InDesc);
+			RenderPagesInternal(GraphBuilder, InDesc, &SimpleRenderer);
 		}
 		else
 		{

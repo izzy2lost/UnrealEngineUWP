@@ -49,6 +49,7 @@
 #include "LocalFogVolumeRendering.h"
 #include "Nanite/NaniteShared.h"
 #include "LightFunctionAtlas.h"
+#include "SceneExtensions.h"
 
 #if RHI_RAYTRACING
 #include "RayTracingInstanceBufferUtil.h"
@@ -1978,6 +1979,12 @@ struct FComputeLightGridOutput
 class FSceneRendererBase : public ISceneRenderer
 {
 public:
+	/** The scene being rendered. */
+	FScene* Scene = nullptr;
+
+	FSceneRendererBase() {}
+	FSceneRendererBase(FScene& InScene) : Scene(&InScene) {}
+
 	// ISceneRenderer interface
 	const FSceneUniformBuffer& GetSceneUniforms() const final override { return SceneUniforms; }
 	FSceneUniformBuffer& GetSceneUniforms() final override { return SceneUniforms; }
@@ -1987,8 +1994,16 @@ public:
 		return GetSceneUniforms().GetBuffer(GraphBuilder);
 	}
 
+	void InitSceneExtensionsRenderer()
+	{
+		SceneExtensionsRenderer.Begin(*this);
+	}
+	FSceneExtensionsRenderer& GetSceneExtensionsRenderer() { return SceneExtensionsRenderer; }
+	const FSceneExtensionsRenderer& GetSceneExtensionsRenderer() const { return SceneExtensionsRenderer; }
+
 private:
 	FSceneUniformBuffer SceneUniforms;
+	FSceneExtensionsRenderer SceneExtensionsRenderer;
 };
 
 /**
@@ -2001,9 +2016,6 @@ class FSceneRenderer : public FSceneRendererBase
 public:
 	/** Linear bulk allocator with a lifetime tied to the scene renderer. */
 	FSceneRenderingBulkObjectAllocator Allocator;
-
-	/** The scene being rendered. */
-	FScene* Scene;
 
 	/** The view family being rendered.  This references the Views array. */
 	FViewFamilyInfo ViewFamily;
