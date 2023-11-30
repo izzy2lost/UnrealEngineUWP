@@ -138,11 +138,14 @@ namespace UE::MultiUserClient
 
 	void FSubmissionWorkflow_RemoteClient::CleanUpSubmissionProcess()
 	{
-		const TSharedRef<FSingleClientSubmissionOperation> ExposedOperation = InProgressOperation->ExposedOperation;
-		InProgressOperation.Reset();
+		if (InProgressOperation)
+		{
+			const TSharedPtr<FSingleClientSubmissionOperation> ExposedOperation = InProgressOperation->ExposedOperation;
+			InProgressOperation.Reset();
 		
-		ExposedOperation->EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode::Processed);
-		OnSubmitOperationCompletedDelegate.Broadcast();
+			ExposedOperation->EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode::Processed);
+			OnSubmitOperationCompletedDelegate.Broadcast();
+		}
 	}
 
 	void FSubmissionWorkflow_RemoteClient::OnStreamRemoteChangeEvent(const FConcertSessionContext& Context, const FMultiUser_ChangeRemote_StreamUpdatedEvent& EventData)

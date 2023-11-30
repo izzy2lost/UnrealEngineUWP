@@ -51,6 +51,7 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "MultiUserReplicationSettings.h"
+#include "MultiUserReplicationStyle.h"
 
 
 #include "Widgets/SConcertBrowser.h"
@@ -797,6 +798,7 @@ private:
 
 		// Initialize Style
 		FConcertFrontendStyle::Initialize();
+		UE::MultiUserClient::FMultiUserReplicationStyle::Initialize();
 
 		// Multi-User front end currently relies on EditorStyle being loaded
 		FModuleManager::LoadModuleChecked<IEditorStyleModule>("EditorStyle");
@@ -826,6 +828,9 @@ private:
 		UnregisterTabSpawner();
 
 #if WITH_EDITOR
+		FConcertFrontendStyle::Shutdown();
+		UE::MultiUserClient::FMultiUserReplicationStyle::Shutdown();
+		
 		UnregisterWorkspaceUI();
 		UnregisterSettings();
 		RemoveEditorToolbarButton();

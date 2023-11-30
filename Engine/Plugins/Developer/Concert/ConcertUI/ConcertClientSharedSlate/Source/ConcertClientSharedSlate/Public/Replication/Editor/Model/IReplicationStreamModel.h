@@ -134,9 +134,10 @@ namespace UE::ConcertClientSharedSlate
 		}
 
 		/** @return Gets the subobjects as an array */
-		TArray<FSoftObjectPath> GetSubobjects(const FSoftObjectPath& Parent) const
+		template<typename TAllocator = FDefaultAllocator>
+		TArray<FSoftObjectPath, TAllocator> GetSubobjects(const FSoftObjectPath& Parent) const
 		{
-			TArray<FSoftObjectPath> Subobjects;
+			TArray<FSoftObjectPath, TAllocator> Subobjects;
 			ForEachSubobject(Parent, [&Subobjects](const FSoftObjectPath& Child)
 			{
 				Subobjects.Add(Child);

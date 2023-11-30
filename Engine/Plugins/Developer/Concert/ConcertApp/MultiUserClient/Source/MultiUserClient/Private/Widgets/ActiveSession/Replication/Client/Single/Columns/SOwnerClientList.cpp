@@ -3,6 +3,7 @@
 #include "SOwnerClientList.h"
 
 #include "Replication/Util/GlobalAuthorityCache.h"
+#include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/ClientName/SHorizontalClientList.h"
 
 #include "Widgets/Layout/SBox.h"
@@ -30,8 +31,7 @@ namespace UE::MultiUserClient
 				.HAlign(HAlign_Left)
 				.Padding(5.f, 0.f, 0.f, 0.f)
 				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("NotApplicable", "-"))
+					SNew(SNoClients)
 				]
 			]
 		];

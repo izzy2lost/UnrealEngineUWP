@@ -28,6 +28,7 @@ namespace UE::MultiUserClient
 			return FLocalReplicationClient(AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
 		, SubmissionNotifier(*this)
+		, ReassignmentLogic(*this)
 	{
 		AuthorityCache.RegisterEvents();
 		InSession->OnSessionClientChanged().AddRaw(this, &FReplicationClientManager::OnSessionClientChanged);
@@ -46,12 +47,36 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	TArray<TNonNullPtr<FRemoteReplicationClient>> FReplicationClientManager::GetRemoteClients() const
+	TArray<TNonNullPtr<const FRemoteReplicationClient>> FReplicationClientManager::GetRemoteClients() const
+	{
+		TArray<TNonNullPtr<const FRemoteReplicationClient>> Result;
+		Algo::Transform(RemoteClients, Result, [](const TUniquePtr<FRemoteReplicationClient>& Client) -> TNonNullPtr<const FRemoteReplicationClient>
+		{
+			return Client.Get();
+		});
+		return Result;
+	}
+
+	TArray<TNonNullPtr<FRemoteReplicationClient>> FReplicationClientManager::GetRemoteClients()
 	{
 		TArray<TNonNullPtr<FRemoteReplicationClient>> Result;
 		Algo::Transform(RemoteClients, Result, [](const TUniquePtr<FRemoteReplicationClient>& Client) -> TNonNullPtr<FRemoteReplicationClient>
 		{
 			return Client.Get();
+		});
+		return Result;
+	}
+
+	TArray<TNonNullPtr<const FReplicationClient>> FReplicationClientManager::GetClients(TFunctionRef<bool(const FReplicationClient& Client)> Predicate) const
+	{
+		TArray<TNonNullPtr<const FReplicationClient>> Result;
+		ForEachClient([&Predicate, &Result](const FReplicationClient& Client)
+		{
+			if (Predicate(Client))
+			{
+				Result.Add(&Client);
+			}
+			return EBreakBehavior::Continue;
 		});
 		return Result;
 	}
@@ -71,7 +96,7 @@ namespace UE::MultiUserClient
 		{
 			return;
 		}
-		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : GetRemoteClients())
+		for (const TNonNullPtr<const FRemoteReplicationClient>& RemoteClient : GetRemoteClients())
 		{
 			if (ProcessClient(*RemoteClient) == EBreakBehavior::Break)
 			{

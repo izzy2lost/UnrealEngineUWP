@@ -36,15 +36,20 @@ namespace UE::MultiUserClient::ClientUtils
 	bool GetClientDisplayInfo(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId, FConcertClientInfo& OutClientInfo)
 	{
 		const TSharedPtr<IConcertClientSession> Session = InLocalClientInstance.GetCurrentSession();
-		const bool bIsLocalClient = ensure(Session) && Session->GetSessionClientEndpointId() == InClientEndpointId;
+		return GetClientDisplayInfo(*Session, InClientEndpointId, OutClientInfo);
+	}
+	
+	bool GetClientDisplayInfo(const IConcertClientSession& InSession, const FGuid& InClientEndpointId, FConcertClientInfo& OutClientInfo)
+	{
+		const bool bIsLocalClient = InSession.GetSessionClientEndpointId() == InClientEndpointId;
 		if (bIsLocalClient)
 		{
-			OutClientInfo = InLocalClientInstance.GetClientInfo();
+			OutClientInfo = InSession.GetLocalClientInfo();
 			return true;
 		}
 
 		FConcertSessionClientInfo ClientInfo;
-		if (ensure(Session) && Session->FindSessionClient(InClientEndpointId, ClientInfo))
+		if (InSession.FindSessionClient(InClientEndpointId, ClientInfo))
 		{
 			OutClientInfo = MoveTemp(ClientInfo.ClientInfo);
 			return true;
@@ -55,12 +60,17 @@ namespace UE::MultiUserClient::ClientUtils
 	
 	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FReplicationClientManager& InReplicationManager)
 	{
+		return GetSortedClientList(*InLocalClientInstance.GetCurrentSession(), InReplicationManager);
+	}
+
+	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClientSession& InSession, const FReplicationClientManager& InReplicationManager)
+	{
 		TArray<const FReplicationClient*> Result;
 		TMap<const FReplicationClient*, FConcertClientInfo> ClientToDisplayInfo;
-		for (const TNonNullPtr<FRemoteReplicationClient> RemoteClient : InReplicationManager.GetRemoteClients())
+		for (const TNonNullPtr<const FRemoteReplicationClient> RemoteClient : InReplicationManager.GetRemoteClients())
 		{
 			FConcertClientInfo Info;
-			if (GetClientDisplayInfo(InLocalClientInstance, RemoteClient->GetEndpointId(), Info))
+			if (GetClientDisplayInfo(InSession, RemoteClient->GetEndpointId(), Info))
 			{
 				Result.Add(RemoteClient);
 				ClientToDisplayInfo.Add(RemoteClient, MoveTemp(Info));

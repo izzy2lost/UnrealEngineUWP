@@ -66,6 +66,17 @@ namespace UE::MultiUserClient
 		return Result;
 	}
 
+	bool FGlobalAuthorityCache::HasAuthorityOverObject(const FSoftObjectPath& Object, const FGuid& ClientId) const
+	{
+		bool bHasAuthority = false;
+		ForEachClientWithAuthorityOverObject(Object, [&ClientId, &bHasAuthority](const FGuid& OtherClientId)
+		{
+			bHasAuthority = ClientId == OtherClientId;
+			return bHasAuthority ? EBreakBehavior::Break : EBreakBehavior::Continue;
+		});
+		return bHasAuthority;
+	}
+
 	EAuthorityMutability FGlobalAuthorityCache::CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
 	{
 		const FReplicationClient* Client = ClientManager.FindClient(ClientId);

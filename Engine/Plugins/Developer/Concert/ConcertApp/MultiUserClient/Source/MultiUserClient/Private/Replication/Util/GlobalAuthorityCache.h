@@ -26,7 +26,7 @@ namespace UE::MultiUserClient
 	 */
 	class FGlobalAuthorityCache
 		: public FNoncopyable
-		, private ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		, ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
 	{
 	public:
 
@@ -43,6 +43,8 @@ namespace UE::MultiUserClient
 		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
 		/** Util that uses ForEachClientWithAuthorityOverObject to make an array. */
 		TArray<FGuid> GetClientsWithAuthorityOverObject(const FSoftObjectPath& Object) const;
+		/** @return Returns whether the client has (partial) authority over the object. */
+		bool HasAuthorityOverObject(const FSoftObjectPath& Object, const FGuid& ClientId) const;
 		
 		/** @return Whether the given client can take authority over the object without causing any conflicts. This also considers the changes made to the stream after submission. */
 		EAuthorityMutability CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict = [](auto&, auto&){ return EBreakBehavior::Break; }) const;
@@ -93,8 +95,16 @@ namespace UE::MultiUserClient
 		void RemoveClient(const FGuid& ClientId);
 
 		// Respond to remote client registration
-		void OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteClient) { RegisterForClientEvents(RemoteClient); }
-		void OnPreRemoteClientRemoved(FRemoteReplicationClient& RemoteClient) const { UnregisterFromClientEvents(RemoteClient); }
+		void OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteClient)
+		{
+			RebuildClient(RemoteClient.GetEndpointId());
+			RegisterForClientEvents(RemoteClient);
+		}
+		void OnPreRemoteClientRemoved(FRemoteReplicationClient& RemoteClient)
+		{
+			RemoveClient(RemoteClient.GetEndpointId());
+			UnregisterFromClientEvents(RemoteClient);
+		}
 
 		// Rebuild client when their authority changes
 		void OnPostAuthorityChanged(const FGuid ClientId) { RebuildClient(ClientId); }

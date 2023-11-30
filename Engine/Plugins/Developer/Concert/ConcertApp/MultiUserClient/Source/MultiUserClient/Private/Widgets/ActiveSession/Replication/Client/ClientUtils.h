@@ -38,6 +38,7 @@ namespace UE::MultiUserClient::ClientUtils
 	 * @return Whether OutClientInfo holds a value
 	 */
 	bool GetClientDisplayInfo(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId, FConcertClientInfo& OutClientInfo);
+	bool GetClientDisplayInfo(const IConcertClientSession& InSession, const FGuid& InClientEndpointId, FConcertClientInfo& OutClientInfo);
 
 	/**
 	 * Gets all replication clients in a sorted array. The local client will always be first and then come all remote clients sorted alphabetically.
@@ -46,4 +47,5 @@ namespace UE::MultiUserClient::ClientUtils
 	 * @return Sorted client array
 	 */
 	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FReplicationClientManager& InReplicationManager);
+	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClientSession& InSession, const FReplicationClientManager& InReplicationManager);
 }

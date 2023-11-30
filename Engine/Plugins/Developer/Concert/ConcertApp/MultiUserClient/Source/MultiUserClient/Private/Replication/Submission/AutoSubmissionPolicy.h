@@ -6,11 +6,6 @@
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
-{
-	class FChangeRequestBuilder;
-}
-
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableReplicationStreamModel;
@@ -18,6 +13,7 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient
 {
+	class FChangeRequestBuilder;
 	class IClientStreamSynchronizer;
 	class ISubmissionWorkflow;
 	class FAuthorityChangeTracker;

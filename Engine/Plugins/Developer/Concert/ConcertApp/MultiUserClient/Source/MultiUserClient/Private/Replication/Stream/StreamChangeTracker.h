@@ -3,9 +3,9 @@
 #pragma once
 
 #include "IClientStreamSynchronizer.h"
-#include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Messages/ChangeStream.h"
+#include "Replication/Util/StreamRequestUtils.h"
 
 #include "Async/Future.h"
 #include "Containers/Set.h"
@@ -29,13 +29,6 @@ namespace UE::MultiUserClient
 		MissingProperties = 1 << 0
 	};
 	ENUM_CLASS_FLAGS(EObjectWarningFlags);
-	
-	/** Describes changes that MU client makes. */
-	struct FStreamChangelist
-	{
-		TSet<FObjectInStreamID> ObjectsToRemove;
-		TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
-	};
 	
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the

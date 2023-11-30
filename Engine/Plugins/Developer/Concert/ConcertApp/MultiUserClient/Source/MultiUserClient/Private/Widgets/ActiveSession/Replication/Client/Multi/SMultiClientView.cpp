@@ -76,7 +76,11 @@ namespace UE::MultiUserClient
 			.ViewerParams =
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
-				.AdditionalObjectColumns = { MultiStreamColumns::ReplicationToggle(InConcertClient, MoveTemp(ConsolidatedStreamModelAttribute), InClientManager) },
+				.AdditionalObjectColumns =
+				{
+					MultiStreamColumns::ReplicationToggle(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager),
+					MultiStreamColumns::ReassignOwnership(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+				},
 				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MoveTemp(MultiStreamEditorAttribute), InConcertClient, InClientManager) }
 			}
 		};

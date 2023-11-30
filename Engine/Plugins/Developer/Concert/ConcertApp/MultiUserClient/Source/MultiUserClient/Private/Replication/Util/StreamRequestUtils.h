@@ -11,7 +11,12 @@ namespace UE::ConcertSyncClient::Replication
 
 namespace UE::MultiUserClient
 {
-	struct FStreamChangelist;
+	/** Describes changes that MU client makes. */
+	struct FStreamChangelist
+	{
+		TSet<FObjectInStreamID> ObjectsToRemove;
+		TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
+	};
 }
 
 namespace UE::MultiUserClient::StreamRequestUtils

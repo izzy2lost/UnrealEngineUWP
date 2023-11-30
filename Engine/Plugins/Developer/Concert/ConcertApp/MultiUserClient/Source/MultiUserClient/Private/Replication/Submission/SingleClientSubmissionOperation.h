@@ -57,7 +57,7 @@ namespace UE::MultiUserClient
 		}
 		void EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode Result)
 		{
-			bAuthorityResponsePromiseWasSet = true;
+			bCompleteOperationPromiseWasSet = true;
 			CompleteOperationPromise.EmplaceValue(Result);
 		}
 

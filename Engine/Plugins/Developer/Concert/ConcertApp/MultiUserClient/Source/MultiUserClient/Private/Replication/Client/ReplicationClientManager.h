@@ -6,6 +6,7 @@
 #include "ConcertMessageData.h"
 #include "LocalReplicationClient.h"
 #include "ReplicationClient.h"
+#include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
 #include "Replication/Submission/Notification/SubmissionNotifier.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
 #include "Replication/Util/RegularQueryService.h"
@@ -51,10 +52,17 @@ namespace UE::MultiUserClient
 
 		const FLocalReplicationClient& GetLocalClient() const { return LocalClient; }
 		FLocalReplicationClient& GetLocalClient() { return LocalClient; }
-		TArray<TNonNullPtr<FRemoteReplicationClient>> GetRemoteClients() const;
+		TArray<TNonNullPtr<const FRemoteReplicationClient>> GetRemoteClients() const;
+		TArray<TNonNullPtr<FRemoteReplicationClient>> GetRemoteClients();
+
+		/** @return Gets all clients given a predicate */
+		TArray<TNonNullPtr<const FReplicationClient>> GetClients(TFunctionRef<bool(const FReplicationClient& Client)> Predicate = [](const auto&){ return true; }) const;
 		
 		const FGlobalAuthorityCache& GetAuthorityCache() const { return AuthorityCache; }
 		FGlobalAuthorityCache& GetAuthorityCache() { return AuthorityCache; }
+		
+		const FReassignObjectPropertiesLogic& GetReassignmentLogic() const { return ReassignmentLogic; }
+		FReassignObjectPropertiesLogic& GetReassignmentLogic() { return ReassignmentLogic; }
 
 		/** Util for finding a remote client by its EndpointId. */
 		const FRemoteReplicationClient* FindRemoteClient(const FGuid& EndpointId) const;
@@ -123,7 +131,6 @@ namespace UE::MultiUserClient
 		
 		/** Manages the local client */
 		FLocalReplicationClient LocalClient;
-		
 		/**
 		 * Manages remote clients. Updated when client connects or disconnects to the active session.
 		 * UI keeps references to systems inside the client so it is TSharedRef in case TArray is reallocated.
@@ -137,8 +144,14 @@ namespace UE::MultiUserClient
 		/** Called just before a remote client is about to be removed from RemoteClients. */
 		FRemoteClientDelegate OnPreRemoteClientRemovedDelegate; 
 		
-		/** Manages SNotificationItems when submission to the server fails. */
+		/**
+		 * Manages SNotificationItems when submission to the server fails.
+		 * TODO UE-200925: This should be moved to the client so we can customize messages depending on whether it is a remote or local client
+		 */
 		FSubmissionNotifier SubmissionNotifier;
+
+		/** Used for transferring ownership from multiple clients to one. Used by multi client view. */
+		FReassignObjectPropertiesLogic ReassignmentLogic;
 		
 		/** Updates RemoteClients depending on the change. */
 		void OnSessionClientChanged(IConcertClientSession&, EConcertClientStatus NewStatus, const FConcertSessionClientInfo& ClientInfo);

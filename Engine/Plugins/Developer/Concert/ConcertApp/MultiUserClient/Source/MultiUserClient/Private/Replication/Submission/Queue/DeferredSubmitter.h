@@ -31,6 +31,7 @@ namespace UE::MultiUserClient
 	/** Util for systems to auto-unregister when they are destroyed. */
 	class FSelfUnregisteringDeferredSubmitter : public IDeferredSubmitter
 	{
+	protected:
 		FSubmissionQueue& SubmissionQueue;
 	public:
 

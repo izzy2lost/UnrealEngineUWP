@@ -3,6 +3,7 @@
 #include "MultiStreamColumns.h"
 
 #include "IConcertClient.h"
+#include "MultiUserReplicationStyle.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
@@ -48,7 +49,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				return &ClientManager.GetLocalClient();
 			}
 
-			for (const TNonNullPtr<FRemoteReplicationClient> Client : ClientManager.GetRemoteClients())
+			for (const TNonNullPtr<const FRemoteReplicationClient> Client : ClientManager.GetRemoteClients())
 			{
 				if (&Client->GetClientEditModel().Get() == &StreamModel)
 				{
@@ -106,7 +107,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				.ColumnSortOrder(ColumnsSortPriority),
 			SHeaderRow::Column(AssignPropertyColumnId)
 				.DefaultLabel(LOCTEXT("Owner", "Owner"))
-				.FillSized(200.f)
+				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerColumnWidth")))
 			);
 	}
 }

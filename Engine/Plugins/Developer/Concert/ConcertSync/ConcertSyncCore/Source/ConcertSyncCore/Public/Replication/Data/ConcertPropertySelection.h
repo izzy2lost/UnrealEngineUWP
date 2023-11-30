@@ -173,18 +173,16 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 {
 	GENERATED_BODY()
 
-	/**
-	 * List of replicated objects.
-	 *
-	 * Can be actors or its subobjects.
-	 * Technically, this can also be non-UWorld objects.
-	 */
+	/** List of replicated properties. */
 	UPROPERTY()
 	TArray<FConcertPropertyChain> ReplicatedProperties;
 
 	/** @return Whether this and Other contain at least one property that is the same. */
 	bool OverlapsWith(const FConcertPropertySelection& Other) const { return EnumeratePropertyOverlaps(ReplicatedProperties, Other.ReplicatedProperties); }
 
+	/** @return Whether this includes all properties of Other */
+	bool Includes(const FConcertPropertySelection& Other) const;
+	
 	/**
 	 * Determines all properties that overlap.
 	 * This algorithm is strictly O(n^2) but runs O(n) on average.
@@ -196,7 +194,7 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 		TConstArrayView<FConcertPropertyChain> Second,
 		TFunctionRef<EBreakBehavior(const FConcertPropertyChain&)> Callback = [](const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 		);
-
+	
 	friend bool operator==(const FConcertPropertySelection& Left, const FConcertPropertySelection& Right)
 	{
 		return Left.ReplicatedProperties == Right.ReplicatedProperties;

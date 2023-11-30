@@ -22,7 +22,10 @@ namespace UE::MultiUserClient
 
 	void FSubmissionQueue::SubmitNowOrEnqueue_GameThread(IDeferredSubmitter& DeferredSubmission)
 	{
-		check(IsInGameThread());
+		if (!ensure(IsInGameThread()))
+		{
+			return;
+		}
 
 		if (Workflow.CanSubmit())
 		{
@@ -36,7 +39,15 @@ namespace UE::MultiUserClient
 
 	void FSubmissionQueue::Dequeue_GameThread(IDeferredSubmitter& DeferredSubmission)
 	{
-		check(IsInGameThread());
+		if (!IsInGameThread())
+		{
+			// It is imaginable that some async system (like a request) pushes a task to the game thread which is supposed to call Dequeue_GameThread.
+			// Since the engine is shutting down, never the task would never actually be executed.
+			// However, the underlying system is still destroyed, even if living on another thread, since the engine is shutting down.
+			ensureMsgf(IsEngineExitRequested(), TEXT("Called outside of game thread but not a problem if engine is shutting down. Check your destruction logic."));
+			return;
+		}
+		
 		Queue.RemoveNode(&DeferredSubmission);
 	}
 

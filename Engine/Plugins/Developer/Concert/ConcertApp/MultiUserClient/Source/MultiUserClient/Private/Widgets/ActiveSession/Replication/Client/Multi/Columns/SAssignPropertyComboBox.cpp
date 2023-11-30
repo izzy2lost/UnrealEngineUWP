@@ -6,6 +6,7 @@
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ClientName/SHorizontalClientList.h"
 #include "Widgets/ClientName/SLocalClientName.h"
@@ -45,11 +46,7 @@ namespace UE::MultiUserClient
 			[
 				SAssignNew(ClientListWidget, ConcertClientSharedSlate::SHorizontalClientList, ConcertClient.ToSharedRef())
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
-				.EmptyListSlot()
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("None", " - "))
-				]
+				.EmptyListSlot() [ SNew(SNoClients) ]
 			]
 			.OnGetMenuContent(this, &SAssignPropertyComboBox::GetMenuContent)
 		];

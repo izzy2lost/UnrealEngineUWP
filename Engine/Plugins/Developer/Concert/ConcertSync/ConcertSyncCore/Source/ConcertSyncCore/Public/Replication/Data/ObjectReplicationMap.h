@@ -45,6 +45,19 @@ struct FObjectReplicationMap
 	UPROPERTY()
 	TMap<FSoftObjectPath, FReplicatedObjectInfo> ReplicatedObjects;
 
+	/** @return Whether ObjectPath has any properties assigned to it. */
+	bool HasProperties(const FSoftObjectPath& ObjectPath) const
+	{
+		const FReplicatedObjectInfo* ObjectInfo = ReplicatedObjects.Find(ObjectPath);
+		return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
+	}
+
+	/** @return Whether there are any properties assigned. */
+	bool IsEmpty() const
+	{
+		return ReplicatedObjects.IsEmpty();
+	}
+
 	friend bool operator==(const FObjectReplicationMap& Left, const FObjectReplicationMap& Right)
 	{
 		return Left.ReplicatedObjects.OrderIndependentCompareEqual(Right.ReplicatedObjects);

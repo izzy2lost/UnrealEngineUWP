@@ -53,7 +53,7 @@ namespace UE::MultiUserClient
 	
 	struct FSubmitAuthorityChangesResponse
 	{
-		EAuthoritySubmissionResponseErrorCode ErrorCode;
+		EAuthoritySubmissionResponseErrorCode ErrorCode = EAuthoritySubmissionResponseErrorCode::Cancelled;
 		
 		/** Only valid if ErrorCode == EAuthoritySubmissionErrorCode::Success */
 		TOptional<ConcertSyncClient::Replication::FAuthorityChangeResponse> Response;

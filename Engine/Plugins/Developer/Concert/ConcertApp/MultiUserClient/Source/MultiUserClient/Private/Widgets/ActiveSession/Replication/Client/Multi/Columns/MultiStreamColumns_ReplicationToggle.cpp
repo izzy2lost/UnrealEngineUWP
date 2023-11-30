@@ -2,6 +2,7 @@
 
 #include "MultiStreamColumns.h"
 
+#include "MultiUserReplicationStyle.h"
 #include "SReplicationMultiToggleCheckbox.h"
 
 #include "Widgets/Layout/SBox.h"
@@ -37,7 +38,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				.ColumnSortOrder(ColumnsSortPriority),
 			SHeaderRow::Column(ReplicationToggleColumnId)
 				.DefaultLabel(FText::GetEmpty())
-				.FixedWidth(70.f)
+				.FixedWidth(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Object.ReplicationToggle")))
 			);
 	}
 }

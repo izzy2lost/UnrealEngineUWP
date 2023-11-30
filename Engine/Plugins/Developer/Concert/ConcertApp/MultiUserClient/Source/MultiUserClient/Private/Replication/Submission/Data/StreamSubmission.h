@@ -34,7 +34,7 @@ namespace UE::MultiUserClient
 	struct FSubmitStreamChangesResponse
 	{
 		/** Error code of the submission. Determines whether Response is valid. */
-		EStreamSubmissionErrorCode ErrorCode;
+		EStreamSubmissionErrorCode ErrorCode = EStreamSubmissionErrorCode::Cancelled;
 
 		/** Valid if ErrorCode == ESubmitChangesErrorCode::Success. */
 		TOptional<FCompletedChangeSubmission> SubmissionInfo;

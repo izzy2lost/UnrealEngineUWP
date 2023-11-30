@@ -11,6 +11,7 @@ class IConcertClient;
 
 namespace UE::MultiUserClient
 {
+	class FReassignObjectPropertiesLogic;
 	class FReplicationClientManager;
 }
 
@@ -24,21 +25,23 @@ namespace UE::ConcertClientSharedSlate
 namespace UE::MultiUserClient::MultiStreamColumns
 {
 	const extern FName ReplicationToggleColumnId;
+	const extern FName ReassignOwnershipColumnId;
 	const extern FName AssignPropertyColumnId;
 	
-	/* @see EReplicationPropertyColumnOrder */
+	/* @see ETopLevelColumnOrder and EReplicationPropertyColumnOrder */
 	enum class EColumnSortOrder
 	{
 		ReplicationToggle = 0,
-		AssignPropertyColumn = 30
+		AssignPropertyColumn = 30,
+		ReassignOwnership = 40
 	};
 
 	/**
 	 * Toggles replication for all clients assigned to the object (and optionally all children).
 	 * 
 	 * @param ConcertClient Used to look up client names
-	 * @param ClientManager Used to access all clients for toggling authority
 	 * @param ConsolidatedStreamModelAttribute Used to get child objects
+	 * @param ClientManager Used to access all clients for toggling authority
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 * 
 	 * @return A checkbox for controlling the authority of the object in the row
@@ -48,6 +51,23 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
 		FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReplicationToggle)
+		);
+
+	/**
+	 * A combo box which displays all current owners for an object and allows bulk reassigning properties.
+	 *
+	 * @param ConcertClient Used to look up client names
+	 * @param ConsolidatedModelAttribute Used to get child objects
+	 * @param ReassignmentLogic Performs the act of reassigning
+	 * @param ClientManager Used to access all clients for display in the combo box drop-down
+	 * @param ColumnsSortPriority The order relative to the other columns
+	 */
+	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
+		TSharedRef<IConcertClient> ConcertClient,
+		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedModelAttribute,
+		FReassignObjectPropertiesLogic& ReassignmentLogic,
+		const FReplicationClientManager& ClientManager,
+		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
 		);
 	
 	/**

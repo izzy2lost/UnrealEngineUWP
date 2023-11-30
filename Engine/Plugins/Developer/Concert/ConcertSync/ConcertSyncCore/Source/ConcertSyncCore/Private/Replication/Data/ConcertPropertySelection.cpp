@@ -5,6 +5,7 @@
 #include "ConcertLogGlobal.h"
 #include "Replication/PropertyChainUtils.h"
 
+#include "Algo/AllOf.h"
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 
 const FName FConcertPropertyChain::InternalContainerPropertyValueName(TEXT("Value"));
@@ -199,6 +200,19 @@ FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 		checkNoEntry();
 		return FName(NAME_None).ToString();
 	}
+}
+
+bool FConcertPropertySelection::Includes(const FConcertPropertySelection& Other) const
+{
+	if (ReplicatedProperties.Num() < Other.ReplicatedProperties.Num())
+	{
+		return false;
+	}
+
+	return Algo::AllOf(ReplicatedProperties, [&Other](const FConcertPropertyChain& Property)
+	{
+		return Other.ReplicatedProperties.Contains(Property);
+	});
 }
 
 bool FConcertPropertySelection::EnumeratePropertyOverlaps(
