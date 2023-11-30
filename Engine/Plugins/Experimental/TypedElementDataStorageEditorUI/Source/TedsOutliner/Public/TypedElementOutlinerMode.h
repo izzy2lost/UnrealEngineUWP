@@ -13,6 +13,9 @@ struct FTypedElementOutlinerModeParams
 	{}
 
 	SSceneOutliner* SceneOutliner;
+
+	// TODO: These queries once provided are owned and unregistered by the TEDSOutliner - they should maybe be query descriptions instead
+	// to avoid sharing ownership
 	TArray<TypedElementDataStorage::QueryHandle> RowHandleQueries;
 };
 
@@ -25,6 +28,7 @@ class TEDSOUTLINER_API FTypedElementOutlinerMode : public ISceneOutlinerMode, pu
 {
 public:
 	explicit FTypedElementOutlinerMode(const FTypedElementOutlinerModeParams& InParams);
+	virtual ~FTypedElementOutlinerMode();
 
 	/** Rebuild all mode data */
 	virtual void Rebuild() override;

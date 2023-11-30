@@ -11,6 +11,16 @@ FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutliner
 {
 }
 
+FTypedElementOutlinerMode::~FTypedElementOutlinerMode()
+{
+	// Unregister all queries
+	for(TypedElementDataStorage::QueryHandle QueryHandle : RowHandleQueries)
+	{
+		Storage->UnregisterQuery(QueryHandle);
+	}
+}
+
+
 void FTypedElementOutlinerMode::Rebuild()
 {
 	Hierarchy = CreateHierarchy();
