@@ -17,6 +17,13 @@ class FPropertyBag;
 // Singleton class tracking property bag association with objects
 class FPropertyBagRepository
 {
+	struct FPropertyBagAssociationData
+	{
+		void Destroy();
+		
+		FPropertyBag* Bag = nullptr;		// The existence of an association implies the existence of the bag. TODO: Ref bags via handle? Store as value?
+		UObject* Archetype = nullptr;
+	};
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
 	//friend UObjectBase;
 	//friend UStruct;
@@ -31,7 +38,7 @@ private:
 
 	/** Map of objects/subobjects to their top level property bag. */
 	// TODO: Currently will only exist in editor world, but could tracking per world make some sense for teardown in future? We're relying on object destruction to occur properly to free these up. 
-	TMap<const UObjectBase*, FPropertyBag*> ObjectToPropertyBagMap;	// TODO: Ref bags via handle?
+	TMap<const UObjectBase*, FPropertyBagAssociationData> AssociatedData;
 	// /** Map of subobject/container/struct/etc. paths (needs FPropertyBagPath) to their property bag. Might not want to track subobjects here (they'll be in ObjectToPropertyBagMap already). */
 	// TMap<FSoftObjectPath, FPropertyBag*> ObjectPathToPropertySubBagMap;
 	
@@ -51,7 +58,7 @@ public:
 	
 	// TODO: Restrict bag creation to actor creation and UStruct::SerializeVersionedTaggedProperties?
 	// Object owner is tracked internally
-	FPropertyBag* CreateOuterBag(UObjectBase* Owner);
+	FPropertyBag* CreateOuterBag(const UObjectBase* Owner);
 
 	// Future version for reworked archetypes - track archetype rather than bag (directly):
 	/**
@@ -62,31 +69,42 @@ public:
 	//UObject* CreateArchetype(UObjectBase* Owner);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
-	void DestroyOuterBag(UObjectBase* Owner);
+	// Removes bag, archetype, and all associated data for this object.
+	void DestroyOuterBag(const UObjectBase* Owner);
 
 	/**
 	 * ReassociateObjects
 	 * @param ReplacedObjects - old/new owner object pairs. Reassigns archetypes/bags to the new owner.
 	 */
 	COREUOBJECT_API void ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects);
+
+	/**
+	 * RequiresFixup - test if archetype properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
+	 * @param Object	- Object to test.
+	 * @return			- Does the object's archetype contain any loose properties requiring user fixup before the object may be published?
+	 */
+	COREUOBJECT_API bool RequiresFixup(const UObjectBase* Object) const;
 	
 	// Accessors
+	bool HasBag(const UObjectBase* Owner) const;
 	FPropertyBag* FindBag(const UObjectBase* Owner);
 	const FPropertyBag* FindBag(const UObjectBase* Owner) const;
-	//UObject* FindArchetype(const UObjectBase* Owner);
-	
-	bool HasBag(const UObjectBase* Owner) const;
-	
-	// TODO: Cache floating property status - within bag?
-	//EMatchStatus MatchesBag(const UObjectBase* Object) const;
-	
+
+	bool HasArchetype(const UObjectBase* Owner) const;
+	UObject* FindArchetype(const UObjectBase* Owner);
+	const UObject* FindArchetype(const UObjectBase* Owner) const;
+
 private:
 	void Lock() const { CriticalSection.Lock(); }
 	void Unlock() const { CriticalSection.Unlock(); }
 
-	// Not thread safe - internal use only.
-	FPropertyBag* FindBagUnsafe(const UObjectBase* Object);
-	const FPropertyBag* FindBagUnsafe(const UObjectBase* Object) const;
+	// Internal functions requiring the repository to be locked before being called
+
+	// Delete owner reference and disassociate all data. Returns success.
+	bool RemoveAssociationUnsafe(const UObjectBase* Owner);
+	
+	// Instantiate archetype within BagData. Returns archetype object. 
+	void CreateArchetypeUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData);
 };
 
 } // UE

@@ -45,6 +45,18 @@ public:
 	}
 };
 
+void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
+{
+	delete Bag;
+	Bag = nullptr;
+	
+	if(Archetype && Archetype->IsValidLowLevel())
+	{
+		Archetype->RemoveFromRoot();
+		Archetype = nullptr;
+	}
+}
+
 FPropertyBagRepository& FPropertyBagRepository::Get()
 {
 	static FPropertyBagRepository Repo;
@@ -54,83 +66,116 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	FPropertyBag* PropertyBag;
+	FPropertyBagAssociationData BagData;
 	for(const TPair<UObject*, UObject*>& Pair : ReplacedObjects)
 	{
-		if(ObjectToPropertyBagMap.RemoveAndCopyValue(Pair.Key, PropertyBag))
+		if(AssociatedData.RemoveAndCopyValue(Pair.Key, BagData))
 		{
 			// We may see duplicate bags generated during TPS based duplication of the old object - these can be safely deleted/replaced, although ideally we shouldn't be creating new bags during duplication.
-			if(FPropertyBag* DuplicateBag = ObjectToPropertyBagMap.FindRef(Pair.Value))
+			if(RemoveAssociationUnsafe(Pair.Value))
 			{
 				UE_LOG(LogPropertyBagRepository, Warning, TEXT("Duplicate property bag detected for %s"), *Pair.Value->GetName());
-				delete DuplicateBag;
 			}
 			//UE_LOG(LogPropertyBagRepository, Log, TEXT("Bag fixup: %s (#%08x) -> %s (#%08x)"), *Pair.Key->GetName(), uint64(Pair.Key), *Pair.Value->GetName(), uint64(Pair.Value));
-			ObjectToPropertyBagMap.Emplace(Pair.Value, PropertyBag);
+			AssociatedData.Emplace(Pair.Value, BagData);
 		}
 	}
 }
 
 // TODO: Create these by class on construction?
-FPropertyBag* FPropertyBagRepository::CreateOuterBag(UObjectBase* Owner)
+FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObjectBase* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	FPropertyBag* PropertyBag = FindBagUnsafe(Owner);
-	if(!PropertyBag)
+	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	if(!BagData)
 	{
-		PropertyBag = new FPropertyBag;
-		ObjectToPropertyBagMap.Emplace(Owner, PropertyBag);
+		FPropertyBagAssociationData NewBagData;
+		BagData = &AssociatedData.Emplace(Owner, NewBagData);
 	}
-	return PropertyBag;
+	return BagData->Bag;
 }
 
 // TODO: Remove this? Bag destruction to be handled entirely via UObject::BeginDestroy() (+ FPropertyBagProperty destructor)?
-void FPropertyBagRepository::DestroyOuterBag(UObjectBase* Owner)
+void FPropertyBagRepository::DestroyOuterBag(const UObjectBase* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	UE::FPropertyBag* PropertyBag = nullptr;
-	if(ObjectToPropertyBagMap.RemoveAndCopyValue(Owner, PropertyBag))
+	RemoveAssociationUnsafe(Owner);
+}
+
+bool FPropertyBagRepository::RequiresFixup(const UObjectBase* Object) const
+{
+	const FPropertyBag* PropertyBag = FindBag(Object);
+	return !PropertyBag || PropertyBag->IsEmpty();
+}
+
+bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObjectBase* Owner)
+{
+	FPropertyBagAssociationData OldData;
+	if(AssociatedData.RemoveAndCopyValue(Owner, OldData))
 	{
-		delete PropertyBag;
+		OldData.Destroy();
+		return true;
 	}
-}
-
-FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object)
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	return FindBagUnsafe(Object);
-}
-
-const FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object) const
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	return FindBagUnsafe(Object);
-}
-
-FPropertyBag* FPropertyBagRepository::FindBagUnsafe(const UObjectBase* Object)
-{
-	UE::FPropertyBag* PropertyBag = ObjectToPropertyBagMap.FindRef(Object);
-	// Evaluate property bag support via type traits? During Assign?
-	//UE_CLOG(!PropertyBag || Object->GetClass()->HasSerializeViaPropertyBag(), LogPropertyBagRepository, Warning, TEXT("Object %s PropertyBag is invalid: Doesn't serialize via property bags"), *static_cast<const UObjectBaseUtility*>(Object)->GetPathName());
-	return PropertyBag;
-}
-
-const FPropertyBag* FPropertyBagRepository::FindBagUnsafe(const UObjectBase* Object) const
-{
-	return const_cast<FPropertyBagRepository*>(this)->FindBagUnsafe(Object);
+	return false;
 }
 
 bool FPropertyBagRepository::HasBag(const UObjectBase* Object) const
 {
 	// TODO: Should be consistent across all objects of a given type, so handle via TStructOpsTypeTraits or similar?
+	FPropertyBagRepositoryLock LockRepo(this);
+	//return AssociatedData.Contains(Object);	// Better approach? Object data should guarantee existence of bag.
 	return FindBag(Object) != nullptr;
+}
+
+FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+	return BagData ? BagData->Bag : nullptr;
+}
+
+const FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object) const
+{
+	return const_cast<FPropertyBagRepository*>(this)->FindBag(Object);
+}
+
+bool FPropertyBagRepository::HasArchetype(const UObjectBase* Object) const
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	// May be lazily instantiated, but implied from existence of object data.
+	return AssociatedData.Contains(Object);
+}
+
+UObject* FPropertyBagRepository::FindArchetype(const UObjectBase* Object)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+	if(BagData && !BagData->Archetype)
+	{
+		CreateArchetypeUnsafe(Object, *BagData);
+	}
+	return BagData ? BagData->Archetype : nullptr;
+}
+
+const UObject* FPropertyBagRepository::FindArchetype(const UObjectBase* Object) const
+{
+	return const_cast<FPropertyBagRepository*>(this)->FindArchetype(Object);
+}
+
+void FPropertyBagRepository::CreateArchetypeUnsafe(const UObjectBase* Object, FPropertyBagAssociationData& BagData)
+{
+	check(BagData.Archetype);	// No repeated calls
+	
+	// TODO: Implementation
+	// TODO: AddReferencedObject/AddToRoot GC handling.
+	BagData.Archetype = nullptr;	// Guaranteed nullptr on failure.
 }
 
 // Not sure this is necessary.
 void FPropertyBagRepository::ShrinkMaps()
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	ObjectToPropertyBagMap.Compact();
+	AssociatedData.Compact();
 }
 
 } // UE
