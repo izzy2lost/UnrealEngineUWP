@@ -6,7 +6,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FCaptureSourceTest, "Plugin.CaptureSourceFramework.CaptureSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::MediumPriority)
+BEGIN_DEFINE_SPEC(FCaptureSourceTest, "Plugins.CaptureSourceFramework.CaptureSource", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::MediumPriority)
 
 static const FString TestCaptureSourceFactoryId;
 static const FString TestCaptureSourceName;

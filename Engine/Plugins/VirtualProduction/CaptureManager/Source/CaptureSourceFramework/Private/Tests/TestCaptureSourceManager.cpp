@@ -6,7 +6,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-BEGIN_DEFINE_SPEC(FCaptureSourceManagerTest, "Plugin.CaptureSourceFramework.CaptureSourceManager", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::MediumPriority)
+BEGIN_DEFINE_SPEC(FCaptureSourceManagerTest, "Plugins.CaptureSourceFramework.CaptureSourceManager", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::MediumPriority)
 
 class FTestCaptureSource final : public FCaptureSource
 {

@@ -18,8 +18,8 @@
 #include "TestCameraCalibrationSettings.h"
 #include "Widgets/Images/SImage.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestDistortionSpherical, "Plugin.CameraCalibration.TestDistortionSpherical", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestNodalOffset, "Plugin.CameraCalibration.TestNodalOffset", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestDistortionSpherical, "Plugins.CameraCalibration.TestDistortionSpherical", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTestNodalOffset, "Plugins.CameraCalibration.TestNodalOffset", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace UE::Private::CameraCalibration::AutomatedTests
 {

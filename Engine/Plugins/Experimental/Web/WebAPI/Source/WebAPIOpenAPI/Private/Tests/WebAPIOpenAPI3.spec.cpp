@@ -18,7 +18,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 BEGIN_DEFINE_SPEC(FWebAPIOpenAPI3Spec,
-				"Plugin.WebAPI.OpenAPI3",
+				"Plugins.WebAPI.OpenAPI3",
 				EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::ApplicationContextMask)
 
 	TSharedPtr<UE::WebAPI::OpenAPI::V3::FOpenAPIObject> InputDefinition;
