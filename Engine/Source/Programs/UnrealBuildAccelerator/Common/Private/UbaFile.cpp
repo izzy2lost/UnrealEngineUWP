@@ -437,12 +437,6 @@ namespace uba
 		if (h == InvalidFileHandle)
 			return true;
 
-		if (h & DeleteOnCloseFlag)
-		{
-			UBA_ASSERT(fileName);
-			unlink(fileName);
-		}
-
 		if (close(asFileDescriptor(h)) == 0)
 			return true;
 		UBA_ASSERTF(false, TC("CloseFile error handling not implemented"));

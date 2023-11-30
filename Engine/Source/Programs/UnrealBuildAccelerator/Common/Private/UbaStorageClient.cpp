@@ -363,7 +363,7 @@ namespace uba
 				bool useOverlap = !IsRunningWine() && isCompressed == IsCompressed(casKey) && actualSize > 1024 * 1024;
 				if (useOverlap)
 					extraFlags |= FILE_FLAG_OVERLAPPED;
-				if (!destinationFile.CreateWrite(false, extraFlags, actualSize))
+				if (!destinationFile.CreateWrite(false, extraFlags, actualSize, m_tempPath.data))
 					return false;
 			}
 #endif

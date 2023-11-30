@@ -1008,16 +1008,10 @@ namespace uba
 			m_storage.CreateDirectory(m_sessionOutputDir.data);
 		}
 
-		#if PLATFORM_WINDOWS
 		m_tempPath.Append(m_sessionDir).Append(PathSeparator).Append(TC("temp"));
 		m_storage.CreateDirectory(m_tempPath.data);
-		m_sessionDir.MakeLower();
-		m_sessionBinDir.MakeLower();
-		m_sessionOutputDir.MakeLower();
-		m_tempPath.MakeLower();
-		#else
-		m_tempPath.Append("/tmp/");
-		#endif
+		m_tempPath.EnsureEndsWithSlash();
+
 		m_sessionDir.EnsureEndsWithSlash();
 		m_sessionBinDir.EnsureEndsWithSlash();
 		m_sessionOutputDir.EnsureEndsWithSlash();
@@ -1027,7 +1021,6 @@ namespace uba
 
 		#if PLATFORM_WINDOWS
 		m_systemPath.count = GetEnvironmentVariableW(TC("SystemRoot"), m_systemPath.data, m_systemPath.capacity);
-		m_systemPath.MakeLower();
 		#else
 		m_systemPath.Append(TC("/nonexistingpath"));
 		#endif
@@ -1913,13 +1906,13 @@ namespace uba
 
 			if (useFileMapForWrite)
 			{
-				if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize))
+				if (!destinationFile.CreateMemoryWrite(false, attributes, fileSize, m_tempPath.data))
 					return false;
 				memcpy(destinationFile.GetData(), mem, fileSize);
 			}
 			else
 			{
-				if (!destinationFile.CreateWrite(false, attributes, fileSize))
+				if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
 					return false;
 				if (!destinationFile.Write(mem, fileSize))
 					return false;

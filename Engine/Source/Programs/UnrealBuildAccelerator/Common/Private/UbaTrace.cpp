@@ -95,7 +95,7 @@ namespace uba
 		if (!writeFileName || !*writeFileName)
 			return true;
 		FileAccessor traceFile(m_logger, writeFileName);
-		if (!traceFile.CreateWrite(writeFileName))
+		if (!traceFile.CreateWrite(false, DefaultAttributes(), 0, nullptr))
 			return false;
 		u64 fileSize = m_memoryPos;
 		if (!traceFile.Write(m_memoryBegin, fileSize))

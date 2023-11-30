@@ -11,25 +11,20 @@ namespace uba
 	HANDLE asHANDLE(FileHandle fh);
 	#else
 	int asFileDescriptor(FileHandle fh);
+	Atomic<u32> g_tempFileCounter;
 	#endif
 		
+#if PLATFORM_WINDOWS
 	bool SetDeleteOnClose(Logger& logger, const tchar* fileName, FileHandle& handle, bool value)
 	{
-#if PLATFORM_WINDOWS
 		ExtendedTimerScope ts(SystemStats::GetCurrent().setFileInfo);
 		FILE_DISPOSITION_INFO info;
 		info.DeleteFile = value;
 		if (!::SetFileInformationByHandle(asHANDLE(handle), FileDispositionInfo, &info, sizeof(info)))
 			return logger.Error(TC("SetFileInformationByHandle (FileDispositionInfo) failed on %llu %s (%s)"), uintptr_t(handle), fileName, LastErrorToText().data);
 		return true;
-#else
-		if (value)
-			(u64&)handle = handle | DeleteOnCloseFlag;
-		else
-			(u64&)handle = handle & ~DeleteOnCloseFlag;
-		return true;
-#endif
 	}
+#endif
 
 	FileAccessor::FileAccessor(Logger& logger, const tchar* fileName)
 	:	m_logger(logger)
@@ -42,17 +37,29 @@ namespace uba
 		InternalClose(false, nullptr);
 	}
 
-	bool FileAccessor::CreateWrite(bool allowRead, u32 flagsAndAttributes, u64 fileSize)
+	bool FileAccessor::CreateWrite(bool allowRead, u32 flagsAndAttributes, u64 fileSize, const tchar* tempPath)
 	{
 		UBA_ASSERT(flagsAndAttributes != 0);
 		m_size = fileSize;
+
+		const tchar* realFileName = m_fileName;
+
+		#if !PLATFORM_WINDOWS
+		m_tempPath = tempPath;
+		StringBuffer<> tempFile;
+		if (tempPath)
+		{
+			m_tempFileIndex = g_tempFileCounter++;
+			realFileName = tempFile.Append(tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
+		}
+		#endif
 
 		u32 createDisp = CREATE_ALWAYS;
 		u32 dwDesiredAccess = GENERIC_WRITE | DELETE;
 		if (allowRead)
 			dwDesiredAccess |= GENERIC_READ;
 		u32 dwShareMode = 0;// FILE_SHARE_READ | FILE_SHARE_WRITE;
-		m_fileHandle = uba::CreateFileW(m_fileName, dwDesiredAccess, dwShareMode, createDisp, flagsAndAttributes);
+		m_fileHandle = uba::CreateFileW(realFileName, dwDesiredAccess, dwShareMode, createDisp, flagsAndAttributes);
 		if (m_fileHandle == InvalidFileHandle)
 		{
 			u32 lastError = GetLastError();
@@ -61,13 +68,13 @@ namespace uba
 			if (lastError == ERROR_SHARING_VIOLATION)
 				GetProcessHoldingFile(additionalInfo, m_fileName);
 #endif
-			return m_logger.Error(TC("ERROR opening file %s for write (%s%s)"), m_fileName, LastErrorToText(lastError).data, additionalInfo.data);
+			return m_logger.Error(TC("ERROR opening file %s for write (%s%s)"), realFileName, LastErrorToText(lastError).data, additionalInfo.data);
 		}
 
+#if PLATFORM_WINDOWS
 		if (!SetDeleteOnClose(m_logger, m_fileName, m_fileHandle, true))
 			return false;
 
-#if PLATFORM_WINDOWS
 		if (flagsAndAttributes & FILE_FLAG_OVERLAPPED)
 		{
 			if (fileSize != ~u64(0))
@@ -77,9 +84,9 @@ namespace uba
 				{
 					DWORD lastError = GetLastError();
 					if (lastError != ERROR_INVALID_FUNCTION) // Some file systems don't support this
-						return m_logger.Error(TC("Failed to make file %s sparse (%s)"), m_fileName, LastErrorToText(lastError).data);
+						return m_logger.Error(TC("Failed to make file %s sparse (%s)"), realFileName, LastErrorToText(lastError).data);
 				}
-				SetEndOfFile(m_logger, m_fileName, m_fileHandle, fileSize);
+				SetEndOfFile(m_logger, realFileName, m_fileHandle, fileSize);
 			}
 			(u64&)m_fileHandle |= OverlappedIoFlag;
 		}
@@ -88,12 +95,12 @@ namespace uba
 		return true;
 	}
 
-	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size)
+	bool FileAccessor::CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath)
 	{
 		m_size = size;
 
 		UBA_ASSERT(flagsAndAttributes != 0);
-		if (!CreateWrite(allowRead, flagsAndAttributes, size))
+		if (!CreateWrite(allowRead, flagsAndAttributes, size, tempPath))
 			return false;
 
 		m_mappingHandle = uba::CreateFileMappingW(m_fileHandle, PAGE_READWRITE, size);
@@ -310,19 +317,43 @@ namespace uba
 
 		if (m_fileHandle != InvalidFileHandle)
 		{
-			if (success && m_isWrite)
+			const tchar* realFileName = m_fileName;
+			StringBuffer<> tempFile;
+
+			if (m_isWrite)
 			{
-				if (!SetDeleteOnClose(m_logger, m_fileName, m_fileHandle, false))
-					return m_logger.Error(TC("Failed to remove delete on close for file %s (%s)"), m_fileName, LastErrorToText().data);
-				if (lastWriteTime)
+				#if !PLATFORM_WINDOWS
+				if (m_tempPath)
+					realFileName = tempFile.Append(m_tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
+				#endif
+
+				if (success)
 				{
-					*lastWriteTime = 0;
-					if (!GetFileLastWriteTime(*lastWriteTime, m_fileHandle))
-						m_logger.Warning(TC("Failed to get file time for %s (%s)"), m_fileName, LastErrorToText().data);
+					#if PLATFORM_WINDOWS
+					if (!SetDeleteOnClose(m_logger, realFileName, m_fileHandle, false))
+						return m_logger.Error(TC("Failed to remove delete on close for file %s (%s)"), realFileName, LastErrorToText().data);
+					#else
+					if (m_tempPath && rename(realFileName, m_fileName) == -1)
+						return m_logger.Error(TC("Failed to rename temporary file %s to %s (%s)"), realFileName, m_fileName, strerror(errno));
+					#endif
+
+					if (lastWriteTime)
+					{
+						*lastWriteTime = 0;
+						if (!GetFileLastWriteTime(*lastWriteTime, m_fileHandle))
+							m_logger.Warning(TC("Failed to get file time for %s (%s)"), realFileName, LastErrorToText().data);
+					}
+				}
+				else
+				{
+					#if !PLATFORM_WINDOWS
+					if (m_tempPath && remove(realFileName) == -1)
+						return m_logger.Error(TC("Failed to remove temporary file %s (%s)"), realFileName, strerror(errno));
+					#endif
 				}
 			}
-			if (!CloseFile(m_fileName, m_fileHandle))
-				return m_logger.Error(TC("Failed to close file %s (%s)"), m_fileName, LastErrorToText().data);
+			if (!CloseFile(realFileName, m_fileHandle))
+				return m_logger.Error(TC("Failed to close file %s (%s)"), realFileName, LastErrorToText().data);
 			m_fileHandle = InvalidFileHandle;
 		}
 		return true;

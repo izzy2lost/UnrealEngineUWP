@@ -277,6 +277,7 @@ namespace uba
 		return (MutexHandle)(u64)::CreateMutexW(NULL, bInitialOwner, lpName);
 		#else
 		// TODO: This is used to check for exclusivity and also for trace streams (only created by host and read by visualizer)
+		SetLastError(ERROR_SUCCESS);
 		return ((MutexHandle)(u64)1337); // Just some random value
 		#endif
 	}

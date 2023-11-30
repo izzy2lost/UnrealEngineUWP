@@ -150,6 +150,7 @@ namespace uba
 		LoggerWithWriter m_logger;
 
 		StringBuffer<> m_rootDir;
+		StringBuffer<> m_tempPath;
 
 		ReaderWriterLock m_fileTableLookupLock;
 		struct FileEntry { ReaderWriterLock lock; CasKey casKey = CasKeyZero; u64 size = 0; u64 lastWritten = 0; bool verified = false; };

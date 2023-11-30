@@ -13,8 +13,9 @@ namespace uba
 		FileAccessor(Logger& logger, const tchar* fileName);
 		~FileAccessor();
 
-		bool CreateWrite(bool allowRead = false, u32 flagsAndAttributes = DefaultAttributes(), u64 size = 0);
-		bool CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size);
+		// tempPath is only used by posix and will create a temp file and then move it to place when done. (Since DeleteOnClose does not exist)
+		bool CreateWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath);
+		bool CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath);
 		bool Close(u64* lastWriteTime = nullptr);
 
 		bool Write(const void* data, u64 dataLen, u64 offset = 0);
@@ -37,5 +38,10 @@ namespace uba
 		u64 m_size = 0;
 		u8* m_data = nullptr;
 		bool m_isWrite = false;
+
+		#if !PLATFORM_WINDOWS
+		const tchar* m_tempPath = nullptr;
+		u32 m_tempFileIndex = 0;
+		#endif
 	};
 }

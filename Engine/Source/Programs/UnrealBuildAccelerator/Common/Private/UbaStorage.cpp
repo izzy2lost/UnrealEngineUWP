@@ -219,7 +219,7 @@ namespace uba
 
 #if !UBA_USE_SPARSEFILE
 		FileAccessor destinationFile(m_logger, to);
-		if (!destinationFile.CreateWrite(to))
+		if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 			return false;
 		if (!destinationFile.Write(&fileSize, sizeof(u64))) // Store file size first in compressed file
 			return false;
@@ -450,7 +450,7 @@ namespace uba
 				return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
 
 			FileAccessor destinationFile(m_logger, casFile);
-			if (!destinationFile.CreateWrite(casFile))
+			if (!destinationFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 				return false;
 
 			u8* slot= PopBufferSlot();
@@ -970,8 +970,14 @@ namespace uba
 		m_casCapacityBytes = info.casCapacityBytes;
 		m_storeCompressed = info.storeCompressed;
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
-		m_rootDir.EnsureEndsWithSlash();
-		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash().Append(TC("cas")).Append(PathSeparator);
+		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
+
+		m_tempPath.Append(m_rootDir).Append(TC("castemp"));
+		CreateDirectory(m_tempPath.data);
+		DeleteAllFiles(m_logger, m_tempPath.data, false);
+		m_tempPath.EnsureEndsWithSlash();
+
+		m_rootDir.Append(TC("cas")).EnsureEndsWithSlash();
 
 		m_casDataBuffer.AddTransient(TC("CasData"));
 
@@ -1018,7 +1024,7 @@ namespace uba
 		if (!wasTerminated)
 		{
 			FileAccessor isRunningFile(m_logger, isRunningName);
-			if (!isRunningFile.CreateWrite() || !isRunningFile.Close())
+			if (!isRunningFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data) || !isRunningFile.Close())
 				return m_logger.Error(TC("Failed to create temporary \".isRunning\" file"));
 		}
 
@@ -1225,7 +1231,7 @@ namespace uba
 
 		{
 			FileAccessor tempFile(m_logger, tempFileName.data);
-			if (!tempFile.CreateWrite())
+			if (!tempFile.CreateWrite(false, DefaultAttributes(), 0, m_tempPath.data))
 				return false;
 			
 			ScopedReadLock fileTableLock(m_fileTableLookupLock);
@@ -1885,7 +1891,7 @@ namespace uba
 
 				if (writeDirectlyToFile || !decompressedSize)
 				{
-					if (!destinationFile.CreateWrite(allowRead, writeFlags | fileAttributes, decompressedSize))
+					if (!destinationFile.CreateWrite(allowRead, writeFlags | fileAttributes, decompressedSize, m_tempPath.data))
 						return false;
 					if (decompressedSize)
 						if (!DecompressMemoryToFile(readData, destinationFile, decompressedSize, useNoBuffering))
@@ -1893,7 +1899,7 @@ namespace uba
 				}
 				else
 				{
-					if (!destinationFile.CreateMemoryWrite(allowRead, writeFlags | fileAttributes, decompressedSize))
+					if (!destinationFile.CreateMemoryWrite(allowRead, writeFlags | fileAttributes, decompressedSize, m_tempPath.data))
 						return false;
 
 					if (casEntry->mappingHandle.IsValid())

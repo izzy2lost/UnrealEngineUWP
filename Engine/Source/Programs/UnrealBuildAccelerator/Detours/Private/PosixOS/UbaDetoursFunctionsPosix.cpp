@@ -14,6 +14,10 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 
+#if PLATFORM_LINUX
+#include <sys/prctl.h>
+#endif
+
 namespace uba
 {
 	constexpr bool g_logToScreen = false;
@@ -1447,9 +1451,11 @@ int Internal_execve(const char* pathname, char* const _Nullable argv[], char* co
 	DEBUG_LOG_TRUE("execve", "");
 
 	bool inVfork = t_inVfork != 0;
-
 	pid_t pid;
 	int res = posix_spawn(&pid, pathname, nullptr, nullptr, argv, envp);
+	if (inVfork)
+		t_inVfork = pid;
+
 	if (res != 0)
 	{
 		UBA_ASSERTF(false, "Failed to spawn %s", pathname);
@@ -1463,9 +1469,6 @@ int Internal_execve(const char* pathname, char* const _Nullable argv[], char* co
 		UBA_ASSERT(res == pid);
 		UBA_ASSERT(WIFEXITED(status));
 	}
-
-	if (inVfork)
-		t_inVfork = pid;
 
 	{
 		TimerScope ts(g_stats.createProcess);
@@ -1509,7 +1512,10 @@ UBA_EXPORT pid_t UBA_WRAPPER(vfork)(void)
 	DEBUG_LOG_TRUE("vfork", "");
 	pid_t pid = fork();
 	if (pid == 0)
+	{
+		prctl(PR_SET_PDEATHSIG, SIGHUP, 0, 0, 0); // We want the process to die if the parent die
 		t_inVfork = 1;
+	}
 	return pid;
 }
 #endif
@@ -1621,7 +1627,10 @@ namespace uba
 	int GetProcessExecutablePath(tchar* Path, u32 PathSize)
 	{
 #if PLATFORM_LINUX
-		return TRUE_WRAPPER(readlink)("/proc/self/exe", Path, PathSize);
+		auto res = TRUE_WRAPPER(readlink)("/proc/self/exe", Path, PathSize);
+		if (res != -1)
+			Path[res] = 0;
+		return res;
 #elif PLATFORM_MAC
 		if (_NSGetExecutablePath(Path, &PathSize) == 0)
 			return strlen(Path);
@@ -1634,8 +1643,8 @@ namespace uba
 	{
 		SuppressDetourScope s;
 
-		//g_systemTemp.Append(getenv("TMPDIR"));
-		g_systemTemp.Append("/tmp/");
+		g_systemTemp.Append(getenv("TMPDIR"));
+		//g_systemTemp.Append("/tmp/");
 
 		#if PLATFORM_LINUX
 		#define DETOURED_FUNCTION(func) \

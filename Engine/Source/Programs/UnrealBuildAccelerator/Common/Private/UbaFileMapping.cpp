@@ -52,11 +52,12 @@ namespace uba
 				break;
 			if (errno == EEXIST)
 			{
-				if (shm_unlink(uidName.data) == -1)
-				{
-					printf("Failed to shm_unlink %s (%s)\n", uidName.data, strerror(errno));
-					uid = ++g_mappingUidCounter;
-				}
+				uid = ++g_mappingUidCounter;
+				//if (shm_unlink(uidName.data) == -1)
+				//{
+				//	printf("Failed to shm_unlink %s (%s)\n", uidName.data, strerror(errno));
+				//	uid = ++g_mappingUidCounter;
+				//}
 				continue;
 			}
 			UBA_ASSERTF(false, "Failed to create filemapping with name %hs - %hs", uidName.data, strerror(errno));
@@ -147,7 +148,8 @@ namespace uba
 			GetMappingHandleName(uidName, h.uid);
 			if (shm_unlink(uidName.data) != 0)
 			{
-				UBA_ASSERTF(false, "Failed to unlink %s (%s)", uidName.data, strerror(errno));
+				SetLastError(errno);
+				//UBA_ASSERTF(false, "Failed to unlink %s (%s)", uidName.data, strerror(errno));
 				return false;
 			}
 		}

@@ -38,7 +38,7 @@ namespace uba
 				u64 pos = reader.GetPosition();
 				if (pos == size)
 					break;
-				UBA_ASSERT(pos < size);
+				UBA_ASSERTF(pos < size, TC("Should never read past size (pos: %u, size: %u)"), pos, size);
 				u64 storageSize = reader.Read7BitEncoded();
 				StringKey dirKey = reader.ReadStringKey();
 				auto insres = m_lookup.try_emplace(dirKey, m_memoryBlock); // Note that this is allowed to overwrite

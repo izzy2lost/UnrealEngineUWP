@@ -29,11 +29,10 @@ namespace uba
 	#endif
 
 	inline constexpr u64 FileHandleFlagMask = 0x0000'0000'ffff'ffff;
-#if PLATFORM_WINDOWS
+
+	#if PLATFORM_WINDOWS
 	inline constexpr u64 OverlappedIoFlag = 0x0000'0001'0000'0000; // Only used by windows
-#else
-	inline constexpr u64 DeleteOnCloseFlag = 0x0000'0010'0000'0000; // Only used by non-windows
-#endif
+	#endif
 
 	struct FileInformation
 	{
