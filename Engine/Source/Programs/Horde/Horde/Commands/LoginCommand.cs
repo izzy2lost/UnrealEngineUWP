@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Net.Http.Headers;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Server;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,11 +24,16 @@ namespace Horde.Commands
 		[CommandLine("-Server=")]
 		public string? Server { get; set; }
 
+		[CommandLine("-Token")]
+		public bool Token { get; set; }
+
+		readonly IServiceProvider _serviceProvider;
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly CmdConfig _config;
 
-		public LoginCommand(IHttpClientFactory httpClientFactory, IOptions<CmdConfig> config)
+		public LoginCommand(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory, IOptions<CmdConfig> config)
 		{
+			_serviceProvider = serviceProvider;
 			_httpClientFactory = httpClientFactory;
 			_config = config.Value;
 		}
@@ -44,7 +51,18 @@ namespace Horde.Commands
 
 			GetServerInfoResponse serverInfo = await httpClient.GetServerInfoAsync();
 			logger.LogInformation("Connected to server version: {Version}", serverInfo.ServerVersion);
-			
+
+			if (Token)
+			{
+				HordeHttpAuthHandlerState state = _serviceProvider.GetRequiredService<HordeHttpAuthHandlerState>();
+
+				AuthenticationHeaderValue? header = await state.TryGetAuthHeaderAsync(CancellationToken.None);
+				if (header != null)
+				{
+					Console.WriteLine("{0} {1}", header.Scheme, header.Parameter);
+				}
+			}
+
 			return 0;
 		}
 	}
