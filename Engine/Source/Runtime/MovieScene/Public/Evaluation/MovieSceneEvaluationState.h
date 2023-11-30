@@ -302,7 +302,7 @@ struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 {
 	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
 
-	static UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState> ID;
+	MOVIESCENE_API static UE::MovieScene::TPlaybackCapabilityID<FMovieSceneEvaluationState> ID;
 
 	/**
 	 * Assign a sequence to a specific ID
@@ -477,8 +477,8 @@ struct FMovieSceneEvaluationState : public UE::MovieScene::IPlaybackCapability
 public:
 
 	/** IPlaybackCapability members */
-	virtual void Initialize(TSharedRef<const FSharedPlaybackState> Owner) override;
-	virtual void OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const UE::MovieScene::FInstanceHandle InstanceHandle) override;
+	MOVIESCENE_API virtual void Initialize(TSharedRef<const FSharedPlaybackState> Owner) override;
+	MOVIESCENE_API virtual void OnSubInstanceCreated(TSharedRef<const FSharedPlaybackState> Owner, const UE::MovieScene::FInstanceHandle InstanceHandle) override;
 
 private:
 

@@ -593,6 +593,8 @@ void ULevelSequence::OnDirectorRecompiled(UBlueprint* InCompiledBlueprint)
 
 FGuid ULevelSequence::FindOrAddBinding(UObject* InObject)
 {
+	using namespace UE::MovieScene;
+
 	UObject* PlaybackContext = InObject ? InObject->GetWorld() : nullptr;
 	if (!InObject || !PlaybackContext)
 	{
@@ -623,20 +625,15 @@ FGuid ULevelSequence::FindOrAddBinding(UObject* InObject)
 
 	// Perform a potentially slow lookup of every possessable binding in the sequence to see if we already have this
 	{
-		class FTransientPlayer : public IMovieScenePlayer
-		{
-		public:
-			FMovieSceneRootEvaluationTemplateInstance Template;
-			virtual FMovieSceneRootEvaluationTemplateInstance& GetEvaluationTemplate() override { return Template; }
-			virtual void SetViewportSettings(const TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) override {}
-			virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const override {}
-			virtual EMovieScenePlayerStatus::Type GetPlaybackStatus() const { return EMovieScenePlayerStatus::Stopped; }
-			virtual void SetPlaybackStatus(EMovieScenePlayerStatus::Type InPlaybackStatus) override {}
-		} Player;
+		FSharedPlaybackStateCreateParams CreateParams;
+		CreateParams.PlaybackContext = PlaybackContext;
+		TSharedRef<FSharedPlaybackState> TransientPlaybackState = MakeShared<FSharedPlaybackState>(*this, CreateParams);
 
-		Player.State.AssignSequence(MovieSceneSequenceID::Root, *this, Player);
+		FMovieSceneEvaluationState State;
+		TransientPlaybackState->AddCapabilityRaw(&State);
+		State.AssignSequence(MovieSceneSequenceID::Root, *this, TransientPlaybackState);
 
-		FGuid ExistingID = Player.FindObjectId(*InObject, MovieSceneSequenceID::Root);
+		FGuid ExistingID = State.FindObjectId(*InObject, MovieSceneSequenceID::Root, TransientPlaybackState);
 		if (ExistingID.IsValid())
 		{
 			return ExistingID;

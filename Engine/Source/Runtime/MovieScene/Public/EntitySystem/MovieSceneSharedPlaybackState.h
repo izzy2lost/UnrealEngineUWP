@@ -56,7 +56,7 @@ struct FSharedPlaybackStateCreateParams
 /**
  * A structure that stores playback state for an entire sequence hierarchy.
  */
-struct FSharedPlaybackState : TSharedFromThis<FSharedPlaybackState>
+struct MOVIESCENE_API FSharedPlaybackState : TSharedFromThis<FSharedPlaybackState>
 {
 public:
 
@@ -89,10 +89,10 @@ public:
 
 	// General utility methods
 
-	MOVIESCENE_API UMovieSceneEntitySystemLinker* GetLinker() const;
+	UMovieSceneEntitySystemLinker* GetLinker() const;
 
-	MOVIESCENE_API const FMovieSceneSequenceHierarchy* GetHierarchy() const;
-	MOVIESCENE_API UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
+	const FMovieSceneSequenceHierarchy* GetHierarchy() const;
+	UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
 
 public:
 
