@@ -39,14 +39,15 @@ void UXRCreativeVREditorMode::Enter()
 		return;
 	}
 
-	Super::Enter();
-
 	UXRCreativeToolset* Toolset = ToolsetClass.LoadSynchronous();
 	Avatar = Cast<AXRCreativeAvatar>(SpawnTransientSceneActor(Toolset->Avatar, "XRCreativeAvatar"));
 	Avatar->RegisterObjectForInput(this);
 	Avatar->ConfigureToolset(Toolset);
 
+	Super::Enter();
+
 	BP_OnEnter();
+	Avatar->BP_OnVRInitialize();
 }
 
 
@@ -217,15 +218,37 @@ void UXRCreativeVREditorMode::EnableStereo()
 		Viewport->EnableStereoRendering(true);
 		Viewport->SetRenderDirectlyToWindow(true);
 	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	TObjectPtr<UPlayerMappableInputConfig> InputConfig = Cast<UPlayerMappableInputConfig>(MappableInputConfig.TryLoad());
+	
 	TSet<UInputMappingContext*> Contexts;
-	for (const auto& Context : InputConfig->GetMappingContexts())
+	for (const TObjectPtr<UXRCreativeTool>& Tool : Avatar->GetTools())
 	{
-		Contexts.Add(Context.Key);
+		if (UXRCreativeBlueprintableTool* BPTool = Cast<UXRCreativeBlueprintableTool>(Tool))
+		{
+			if (UInputMappingContext* ToolIMC = BPTool->GetInputMappingContext())
+			{
+				Contexts.Add(ToolIMC);
+			}
+		}
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+
+	if (const UXRCreativeToolset* Toolset = Avatar->GetToolset())
+	{
+		if (Toolset->DefaultInputMappingContext)
+		{
+			Contexts.Add(Toolset->DefaultInputMappingContext);
+		}
+
+		if (Toolset->LeftInputMappingContext)
+		{
+			Contexts.Add(Toolset->LeftInputMappingContext);
+		}
+	}
+	
+	if (Contexts.IsEmpty())
+	{
+		UE_LOG(LogXRCreativeEditor, Warning, TEXT("No UInputMappingContexts provided in the UXRCreativeToolset. Action bindings will not be visible to the OpenXR runtime."));
+	}
+
 	UOpenXRInputFunctionLibrary::BeginXRSession(Contexts);
 }
 

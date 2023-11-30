@@ -7,6 +7,7 @@ public class VirtualScoutingEditor : ModuleRules
 	public VirtualScoutingEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		bTreatAsEngineModule = true;
 
 		PrivateIncludePaths.AddRange(
 			new string[]
@@ -26,10 +27,22 @@ public class VirtualScoutingEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"OpenXRHMD",
-				"Slate",
+				"OpenXRInput",
 				"UnrealEd",
 				"VREditor",
 				"VirtualScoutingOpenXR",
+				"EnhancedInput",
+				"HeadMountedDisplay",
+				"InputCore",
+				"InputEditor",
+				"InteractiveToolsFramework",
+				"LevelEditor",
+				"RenderCore",
+				"Slate",
+				"SlateCore",
+				"UMG",
+				"VirtualScouting",
+				"XRCreative",
 			}
 		);
 	}

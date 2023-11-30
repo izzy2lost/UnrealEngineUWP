@@ -7,6 +7,7 @@ public class VirtualScoutingOpenXR : ModuleRules
 	public VirtualScoutingOpenXR(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		bTreatAsEngineModule = true;
 
 		PublicDependencyModuleNames.AddRange(new string[]
 			{

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "XRCreativeITFComponent.h"
+#include "XRCreativeAvatar.h"
 #include "XRCreativeITFRenderComponent.h"
 #include "XRCreativeLog.h"
 #include "XRCreativePointerComponent.h"
@@ -91,6 +92,11 @@ public:
 	virtual EToolContextCoordinateSystem GetCurrentCoordinateSystem() const override
 	{
 		return ToolsComp->GetCurrentCoordinateSystem();
+	}
+
+	virtual EToolContextTransformGizmoMode GetCurrentTransformGizmoMode() const override
+	{
+		return ToolsComp->GetCurrentTransformGizmoMode();
 	}
 
 	virtual FToolContextSnappingConfiguration GetCurrentSnappingSettings() const override
@@ -356,6 +362,8 @@ UXRCreativeITFComponent::UXRCreativeITFComponent()
 
 	bAutoActivate = true;
 	bWantsInitializeComponent = true;
+
+	UnselectableActorClasses.Add(AXRCreativeAvatar::StaticClass());
 }
 
 
@@ -397,7 +405,31 @@ void UXRCreativeITFComponent::InitializeComponent()
 	// register selection interaction
 	SelectionInteraction = NewObject<UXRCreativeSelectionInteraction>(this);
 	SelectionInteraction->Initialize(GetSelectionSet(),
-		[this]() { return HaveActiveTool() == false; }
+		[this](AActor* SelectionCandidate)
+		{
+			if (HaveActiveTool())
+			{
+				return false;
+			}
+
+			if (CanSelectPredicate.IsBound())
+			{
+				return CanSelectPredicate.Execute(SelectionCandidate);
+			}
+
+			if (SelectionCandidate)
+			{
+				for (const TSubclassOf<AActor>& DisallowedClass : UnselectableActorClasses)
+				{
+					if (DisallowedClass.Get() && SelectionCandidate->IsA(DisallowedClass))
+					{
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
 	);
 	ToolsContext->InputRouter->RegisterSource(SelectionInteraction);
 
@@ -528,6 +560,7 @@ void UXRCreativeITFComponent::TickComponent(float InDeltaTime, enum ELevelTick I
 #if WITH_EDITOR
 		if (IsInEditor())
 		{
+			FEditorScriptExecutionGuard ScriptGuard;
 			EditorToolsTick(InDeltaTime);
 		}
 #endif
@@ -584,8 +617,9 @@ void UXRCreativeITFComponent::ToolsTick(float InDeltaTime)
 	ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(PC->Player);
 	FVector ViewLocation;
 	FRotator ViewRotation;
+	const int32 StereoViewIndex = GEngine->IsStereoscopic3D(Viewport) ? EStereoscopicEye::eSSE_LEFT_EYE : INDEX_NONE;
 	FSceneView* SceneView = LocalPlayer->CalcSceneView(&ViewFamily, ViewLocation, ViewRotation,
-		LocalPlayer->ViewportClient->Viewport, nullptr, EStereoscopicEye::eSSE_LEFT_EYE);
+		LocalPlayer->ViewportClient->Viewport, nullptr, StereoViewIndex);
 	if (!SceneView)
 	{
 		return;
@@ -638,8 +672,8 @@ void UXRCreativeITFComponent::ToolsTick(float InDeltaTime)
 	//InputState.Mouse.WorldRay = FRay(Origin, Direction);
 #endif // #ifdef XRCREATIVE_CALC_ITF_MOUSE_2D
 
-	InputState.Mouse.WorldRay = FRay(PointerComponent->GetComponentLocation(),
-	                                 PointerComponent->GetFilteredTraceEnd(false));
+	const FVector PointerDirection = (PointerComponent->GetFilteredTraceEnd(false) - PointerComponent->GetComponentLocation()).GetSafeNormal();
+	InputState.Mouse.WorldRay = FRay(PointerComponent->GetComponentLocation(), PointerDirection, true);
 
 	if (bPendingMouseStateChange || ToolsContext->InputRouter->HasActiveMouseCapture())
 	{
@@ -749,8 +783,8 @@ void UXRCreativeITFComponent::EditorToolsTick(float InDeltaTime)
 	//InputState.Mouse.WorldRay = FRay(RayOrigin, RayDirection);
 #endif // #ifdef XRCREATIVE_CALC_ITF_MOUSE_2D
 
-	InputState.Mouse.WorldRay = FRay(PointerComponent->GetComponentLocation(),
-	                                 PointerComponent->GetFilteredTraceEnd(false));
+	const FVector PointerDirection = (PointerComponent->GetFilteredTraceEnd(false) - PointerComponent->GetComponentLocation()).GetSafeNormal();
+	InputState.Mouse.WorldRay = FRay(PointerComponent->GetComponentLocation(), PointerDirection, true);
 
 	if (bPendingMouseStateChange || ToolsContext->InputRouter->HasActiveMouseCapture())
 	{
@@ -792,6 +826,11 @@ void UXRCreativeITFComponent::EditorToolsTick(float InDeltaTime)
 
 void UXRCreativeITFComponent::LeftMousePressed()
 {
+	if (!IsActive())
+	{
+		return;
+	}
+
 	CurrentMouseState.Mouse.Left.SetStates(true, false, false);
 	bPendingMouseStateChange = true;
 }
@@ -799,6 +838,11 @@ void UXRCreativeITFComponent::LeftMousePressed()
 
 void UXRCreativeITFComponent::LeftMouseReleased()
 {
+	if (!IsActive())
+	{
+		return;
+	}
+
 	CurrentMouseState.Mouse.Left.SetStates(false, false, true);
 	bPendingMouseStateChange = true;
 }
@@ -836,7 +880,18 @@ bool UXRCreativeITFComponent::HaveActiveTool()
 
 
 void UXRCreativeITFComponent::SetCurrentCoordinateSystem(EToolContextCoordinateSystem CoordSystem)
-{ 
-	CurrentCoordinateSystem = CoordSystem; 
-	//TransformInteraction->ForceUpdateGizmoState();
+{
+	if(IsValid(GetSelectionSet()))
+	{
+		CurrentCoordinateSystem = CoordSystem; 
+		TransformInteraction->ForceUpdateGizmoState();	
+	}
+
+}
+
+
+void UXRCreativeITFComponent::SetCurrentTransformGizmoMode(EToolContextTransformGizmoMode GizmoMode)
+{
+	CurrentTransformGizmoMode = GizmoMode;
+	TransformInteraction->ForceUpdateGizmoState();
 }

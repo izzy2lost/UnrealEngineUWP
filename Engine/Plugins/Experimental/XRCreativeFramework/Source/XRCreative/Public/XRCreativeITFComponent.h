@@ -19,6 +19,9 @@ class UXRCreativeITFRenderComponent;
 class UXRCreativePointerComponent;
 
 
+DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FCanSelectActorPredicate, AActor*, SelectionCandidate);
+
+
 UCLASS()
 class XRCREATIVE_API UXRCreativeITFComponent : public UActorComponent
 {
@@ -70,9 +73,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
 	void SetCurrentCoordinateSystem(EToolContextCoordinateSystem CoordSystem);
 
+
+	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
+	EToolContextTransformGizmoMode GetCurrentTransformGizmoMode() const { return CurrentTransformGizmoMode; }
+
+	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
+	void SetCurrentTransformGizmoMode(EToolContextTransformGizmoMode GizmoMode);
+
 protected:
 	UPROPERTY(EditAnywhere, Category="XR Creative")
 	TSubclassOf<AXRCreativeBaseTransformGizmoActor> FullTRSGizmoActorClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="XR Creative")
+	TArray<TSubclassOf<AActor>> UnselectableActorClasses;
+
+	UPROPERTY(BlueprintReadWrite, Category="XR Creative|Tools")
+	FCanSelectActorPredicate CanSelectPredicate;
 
 	UPROPERTY()
 	TObjectPtr<UXRCreativePointerComponent> PointerComponent;
@@ -94,6 +110,9 @@ protected:
 
 	UPROPERTY()
 	EToolContextCoordinateSystem CurrentCoordinateSystem = EToolContextCoordinateSystem::World;
+
+	UPROPERTY()
+	EToolContextTransformGizmoMode CurrentTransformGizmoMode = EToolContextTransformGizmoMode::Combined;
 
 protected:
 	void ToolsTick(float InDeltaTime);

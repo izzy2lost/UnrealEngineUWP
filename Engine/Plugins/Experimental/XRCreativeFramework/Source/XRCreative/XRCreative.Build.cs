@@ -7,6 +7,7 @@ public class XRCreative : ModuleRules
 	public XRCreative(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		bTreatAsEngineModule = true;
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -28,6 +29,7 @@ public class XRCreative : ModuleRules
 				"InputCore",
 				"InteractiveToolsFramework",
 				"LevelSequence",
+				"ModelViewViewModel",
 				"RenderCore", // TODO: Kill this? Only for FlushRenderingCommands
 				"Slate",
 				"SlateCore",

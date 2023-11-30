@@ -19,16 +19,17 @@ class UXRCreativeSelectionInteraction : public UObject, public IInputBehaviorSou
 	GENERATED_BODY()
 
 public:
+	using FActorPredicate = TUniqueFunction<bool(AActor*)>;
+
 	/**
 	 * Set up the Interaction, creates and registers Behaviors/etc. 
 	 * 
 	 * @param InSelectionSet the typed element selection set we maintain a weak pointer to and operate on
-	 * @param InCanChangeSelectionCallback this function will be called to determine if the current Selection is allowed to be modified (for example, when a Tool is active, we may wish to lock selection)
+	 * @param InCanSelectCallback this function will be called to determine if the selection can be changed to the specified actor (or null); when a tool is active, we may wish to lock selection
 	 */
-	void Initialize(UTypedElementSelectionSet* InSelectionSet, TUniqueFunction<bool()> InCanChangeSelectionCallback);
+	void Initialize(UTypedElementSelectionSet* InSelectionSet, FActorPredicate InCanSelectCallback);
 	void Shutdown();
 
-public:
 	// IInputBehaviorSource interface
 	virtual const UInputBehaviorSet* GetInputBehaviors() const { return BehaviorSet; }
 
@@ -57,8 +58,8 @@ protected:
 
 	TWeakObjectPtr<UTypedElementSelectionSet> WeakSelectionSet;
 
-	// default change-selection callback always allows selection change
-	TUniqueFunction<bool()> CanChangeSelectionCallback = []() { return true; };
+	// default predicate allows anything
+	FActorPredicate CanSelectCallback = [](AActor*) { return true; };
 
 	// flags used to identify behavior modifier keys/buttons
 	static const int AddToSelectionModifier = 1;

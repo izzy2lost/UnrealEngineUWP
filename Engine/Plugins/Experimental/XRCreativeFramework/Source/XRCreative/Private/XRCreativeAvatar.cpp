@@ -192,13 +192,6 @@ void AXRCreativeAvatar::ConfigureToolset(UXRCreativeToolset* InToolset)
 			Tools.Add(NewTool);
 		}
 	}
-
-	if (ensure(Toolset->Palette))
-	{
-		UXRCreativePalette* Palette = CreateWidget<UXRCreativePalette>(GetWorld(), Toolset->Palette);
-		Palette->SetOwner(this);
-		MenuWidget->SetWidget(Palette);
-	}
 }
 
 
@@ -301,7 +294,6 @@ void AXRCreativeAvatar::RemoveInputMappingContext(UInputMappingContext* InContex
 		}
 	}
 }
-
 
 //** Cues up a Haptic effect to be processed on tick in ProcessHaptics() //
 void AXRCreativeAvatar::PlayHapticEffect(UHapticFeedbackEffect_Base* HapticEffect, const int ControllerID, const EControllerHand Hand, float Scale, bool bLoop)

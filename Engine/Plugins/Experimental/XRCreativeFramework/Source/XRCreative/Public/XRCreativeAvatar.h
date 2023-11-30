@@ -49,6 +49,8 @@ public:
 	virtual void BeginPlay() override;
 
 	void ConfigureToolset(UXRCreativeToolset* InToolset);
+	const UXRCreativeToolset* GetToolset() const { return Toolset; }
+	const TArray<TObjectPtr<UXRCreativeTool>>& GetTools() const { return Tools; }
 
 	UFUNCTION(BlueprintCallable, Category="XR Creative")
 	FTransform GetHeadTransform() const;
@@ -86,6 +88,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="XR Creative")
 	void RemoveInputMappingContext(UInputMappingContext* Context);
 
+	/**
+	* Called when In-Editor VR mode is started. In-Editor equivalent to Begin Play.
+	*/
+	
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category="XR Creative", meta=(DisplayName = "On Enter VR"))
+	void BP_OnVRInitialize();
 
 	/** Play haptic feedback asset on a given hand - only left and right supported
 	 * @param HapticEffect			The haptic effect to play

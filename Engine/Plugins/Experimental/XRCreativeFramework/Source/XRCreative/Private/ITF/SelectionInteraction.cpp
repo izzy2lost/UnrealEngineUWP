@@ -13,12 +13,12 @@
 #endif
 
 
-void UXRCreativeSelectionInteraction::Initialize(UTypedElementSelectionSet* InSelectionSet, TUniqueFunction<bool()> InCanChangeSelectionCallback)
+void UXRCreativeSelectionInteraction::Initialize(UTypedElementSelectionSet* InSelectionSet, FActorPredicate InCanSelectCallback)
 {
 	ensure(InSelectionSet);
 
 	WeakSelectionSet = InSelectionSet;
-	CanChangeSelectionCallback = MoveTemp(InCanChangeSelectionCallback);
+	CanSelectCallback = MoveTemp(InCanSelectCallback);
 
 	// create click behavior and set ourselves as click target
 	ClickBehavior = NewObject<USingleClickInputBehavior>();
@@ -61,21 +61,17 @@ FInputRayHit UXRCreativeSelectionInteraction::IsHitByClick(const FInputDeviceRay
 {
 	FInputRayHit RayHit;
 
-	if (CanChangeSelectionCallback() == false)
-	{
-		return RayHit;
-	}
-
-	FCollisionObjectQueryParams QueryParams(FCollisionObjectQueryParams::AllObjects);
 	FHitResult Result;
+	FCollisionObjectQueryParams QueryParams(FCollisionObjectQueryParams::AllObjects);
 	const bool bBlockingHit = GetWorld()->LineTraceSingleByObjectType(Result,
 		ClickPos.WorldRay.Origin, ClickPos.WorldRay.PointAt(999999), QueryParams);
-	if (bBlockingHit)
+	AActor* HitActor = Result.GetActor();
+	if (bBlockingHit && CanSelectCallback(HitActor))
 	{
 		RayHit.bHit = true;
 		RayHit.HitDepth = Result.Distance;
 		RayHit.bHasHitNormal = true;
-		RayHit.SetHitObject(Result.GetActor());
+		RayHit.SetHitObject(HitActor);
 	}
 
 	return RayHit;
@@ -116,8 +112,10 @@ void UXRCreativeSelectionInteraction::OnClicked(const FInputDeviceRay& ClickPos)
 	FHitResult Result;
 	const bool bBlockingHit = GetWorld()->LineTraceSingleByObjectType(Result,
 		ClickPos.WorldRay.Origin, ClickPos.WorldRay.PointAt(999999), QueryParams);
-	if (bBlockingHit)
+	if (ensure(bBlockingHit))
 	{
+		ensure(CanSelectCallback(Result.GetActor()));
+
 		FTypedElementHandle HitActorHandle;
 
 #if WITH_EDITOR
