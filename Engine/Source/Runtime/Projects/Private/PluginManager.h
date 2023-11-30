@@ -206,7 +206,8 @@ private:
 	void DiscoverAllPlugins();
 
 	/** Reads all the plugin descriptors */
-	static void ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FString>& ExtraSearchPaths);
+	static void ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FString>& ExtraSearchPaths,
+		TArray<FString>* OutPluginSources=nullptr);
 
 	/** Reads all the plugin descriptors from disk */
 	static void ReadPluginsInDirectory(const FString& PluginsDirectory, const EPluginType Type, FDiscoveredPluginMap& Plugins, TArray<TSharedRef<FPlugin>>& ChildPlugins);
@@ -227,7 +228,8 @@ private:
 	bool ConfigureEnabledPlugins();
 
 	/** Adds a single enabled plugin, and all its dependencies */
-	bool ConfigureEnabledPluginForCurrentTarget(const FPluginReferenceDescriptor& FirstReference, TMap<FString, FPlugin*>& EnabledPlugins);
+	bool ConfigureEnabledPluginForCurrentTarget(const FPluginReferenceDescriptor& FirstReference,
+		TMap<FString, FPlugin*>& EnabledPlugins, FStringView SourceOfPluginRequest);
 
 	/** Adds a single enabled plugin and all its dependencies. */
 	static bool ConfigureEnabledPluginForTarget(const FPluginReferenceDescriptor& FirstReference, const FProjectDescriptor* ProjectDescriptor, const FString& TargetName, const FString& Platform, EBuildConfiguration Configuration, EBuildTargetType TargetType, bool bLoadPluginsForTargetPlatforms, FDiscoveredPluginMap& AllPlugins, TMap<FString, FPlugin*>& EnabledPlugins, FConfigurePluginResultInfo& OutResultInfo);
