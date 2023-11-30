@@ -199,6 +199,9 @@ private:
 		}
 	};
 	FSkeletonConflictData SkeletonConflictData;
+
+	//Make sure we notify the user only once for metadata attribute key name too long
+	bool bHasNotify_MetaDataAttributeKeyNameTooLong = false;
 };
 
 class SInterchangeGenericAssetMaterialConflictWidget : public SInterchangeBaseConflictWidget
