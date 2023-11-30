@@ -14,7 +14,6 @@ class FNVDECModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
-		// TODO (william.belcher): NVDEC decoding doesn't currently work
 		FVideoDecoder
 			::RegisterPermutationsOf<FVideoDecoderNVDEC>
 			::With<

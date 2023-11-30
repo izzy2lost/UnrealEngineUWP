@@ -53,6 +53,7 @@ FNVDEC::FNVDEC()
 			LOAD_FROM_DLL(cuvidCreateDecoder);
 			LOAD_FROM_DLL(cuvidParseVideoData);
 			LOAD_FROM_DLL(cuvidCreateVideoParser);
+			LOAD_FROM_DLL(cuvidDestroyVideoParser);
 			LOAD_FROM_DLL(cuvidCtxLockCreate);
 			LOAD_FROM_DLL(cuvidCtxLockDestroy);
 			LOAD_FROM_DLL(cuvidDecodePicture);

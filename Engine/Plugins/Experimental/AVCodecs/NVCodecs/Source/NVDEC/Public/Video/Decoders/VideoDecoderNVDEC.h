@@ -16,6 +16,8 @@ class NVDEC_API FVideoDecoderNVDEC : public TVideoDecoder<FVideoResourceCUDA, FV
 private:
 	uint8 bIsOpen : 1;
 	CUvideodecoder Decoder = nullptr;
+	CUvideoparser Parser = nullptr;
+	CUvideoctxlock CtxLock;
 
 	struct FFrame
 	{
@@ -47,4 +49,19 @@ public:
 	virtual FAVResult SendPacket(FVideoPacket const& Packet) override;
 	
 	virtual FAVResult ReceiveFrame(TResolvableVideoResource<FVideoResourceCUDA>& InOutResource) override;
+
+public:
+	int HandleVideoSequence(CUVIDEOFORMAT *VideoFormat);
+    int HandlePictureDecode(CUVIDPICPARAMS *PicParams);
+    int HandlePictureDisplay(CUVIDPARSERDISPINFO *DispInfo);
+
+private:
+	unsigned long GetNumDecodeSurfaces(cudaVideoCodec Codec, unsigned int Width, unsigned int Height);
 };
+
+namespace Internal 
+{
+    int HandleVideoSequenceCallback(void *UserData, CUVIDEOFORMAT *VideoFormat);
+	int HandlePictureDecodeCallback(void *UserData, CUVIDPICPARAMS *PicParams);
+	int HandlePictureDisplayCallback(void *UserData, CUVIDPARSERDISPINFO *DispInfo);
+}
