@@ -69,6 +69,8 @@ namespace UE::ShaderCompilerCommon
 
 	extern SHADERCOMPILERCOMMON_API bool                 ValidatePackedResourceCounts(FShaderCompilerOutput& Output, const FShaderCodePackedResourceCounts& PackedResourceCounts);
 
+	extern SHADERCOMPILERCOMMON_API void ParseRayTracingEntryPoint(const FString& Input, FString& OutMain, FString& OutAnyHit, FString& OutIntersection);
+
 	/*
 	* Parses ray tracing shader entry point specification string in one of the following formats:
 	* 1) Verbatim single entry point name, e.g. "MainRGS"
@@ -79,7 +81,7 @@ namespace UE::ShaderCompilerCommon
 	*      d) "closesthit=MainCHS intersection=MainIS"
 	*    NOTE: closesthit attribute must always be provided for complex hit group entry points
 	*/
-	extern SHADERCOMPILERCOMMON_API void ParseRayTracingEntryPoint(const FString& Input, FString& OutMain, FString& OutAnyHit, FString& OutIntersection);
+	extern SHADERCOMPILERCOMMON_API void ParseRayTracingEntryPoint(const FStringView& Input, FStringView& OutMain, FStringView& OutAnyHit, FStringView& OutIntersection);
 
 	/**
 	* Rewrites a fully preprocessed shader source code, removing any functions or structs that are not reachable from a given entry point or list of symbols.
@@ -88,6 +90,7 @@ namespace UE::ShaderCompilerCommon
 	* InOutPreprocessedShaderSource is replaced with the rewritten code on success and is kept intact on failure.
 	*/
 	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors);
+	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
 	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
 
 	struct FDebugShaderDataOptions
@@ -148,6 +151,9 @@ namespace UE::ShaderCompilerCommon
 		const FShaderPreprocessOutput& PreprocessOutput,
 		const FShaderCompilerOutput& Output,
 		const UE::ShaderCompilerCommon::FDebugShaderDataOptions& Options = FDebugShaderDataOptions());
+
+	extern SHADERCOMPILERCOMMON_API void SerializeEnvironmentFromBase64(FShaderCompilerEnvironment& Env, const FString& DebugUSF);
+	extern SHADERCOMPILERCOMMON_API FString SerializeEnvironmentToBase64(const FShaderCompilerEnvironment& Env);
 
 	/*
 	 * Constructs the modified preprocessed source that would be dumped to a .usf file via DumpDebugShaderData, including the following additions:
@@ -395,7 +401,9 @@ extern SHADERCOMPILERCOMMON_API void CompileOfflineMali(const FShaderCompilerInp
 // Cross compiler support/common functionality
 namespace CrossCompiler
 {
+	UE_DEPRECATED(5.4, "CreateResourceTableFromEnvironment is no longer used; serializing environment for SCW directcompile mode now uses a base64-encoded string containing all environment compilation dependencies.")
 	extern SHADERCOMPILERCOMMON_API FString CreateResourceTableFromEnvironment(const FShaderCompilerEnvironment& Environment);
+	UE_DEPRECATED(5.4, "CreateEnvironmentFromResourceTable is no longer used; serializing environment for SCW directcompile mode now uses a base64-encoded string containing all environment compilation dependencies.")
 	extern SHADERCOMPILERCOMMON_API void CreateEnvironmentFromResourceTable(const FString& String, FShaderCompilerEnvironment& OutEnvironment);
 
 	extern SHADERCOMPILERCOMMON_API void ParseHlslccError(TArray<FShaderCompilerError>& OutErrors, const FString& InLine, bool bUseAbsolutePaths = false);

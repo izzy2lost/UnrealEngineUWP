@@ -29,35 +29,12 @@ DECLARE_CYCLE_STAT(TEXT("VectorVM - Compiler - CrossCompilerContextRun"), STAT_V
 bool PreprocessVectorVMShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& Output)
 {
 	SCOPE_CYCLE_COUNTER(STAT_VectorVM_Compiler_CompileShader_VectorVMPreprocessShader);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-	FShaderCompilerDefinitions AdditionalDefines;
-	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
-	AdditionalDefines.SetDefine(TEXT("COMPILER_VECTORVM"), 1);
-	AdditionalDefines.SetDefine(TEXT("VECTORVM_PROFILE"), 1);
-	AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+	// disable deprecation warnings due to default-constructed FShaderCompilerDefinitions in function args.
+	// can be removed once FShaderCompilerDefinitions moves to Internal
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS 	
+	// Don't include shader definitions since it creates shader compilation errors.
+	return PreprocessShader(Output, Input, Environment, {}, EDumpShaderDefines::DontIncludeDefines);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	if (Input.bSkipPreprocessedCache)
-	{
-		if (!FFileHelper::LoadFileToString(Output.EditSource(), *Input.VirtualSourceFilePath))
-		{
-			return false;
-		}
-
-		// Remove const as we are on debug-only mode
-		CrossCompiler::CreateEnvironmentFromResourceTable(Output.GetSource(), (FShaderCompilerEnvironment&)Input.Environment);
-	}
-	else
-	{
-		// Don't include shader definitions since it creates shader compilation errors.
-		if (!PreprocessShader(Output, Input, Environment, AdditionalDefines, EDumpShaderDefines::DontIncludeDefines))
-		{
-			// The preprocessing stage will add any relevant errors.
-			return false;
-		}
-	}
-
-	return true;
 }
 
 bool CompileVectorVMShader(

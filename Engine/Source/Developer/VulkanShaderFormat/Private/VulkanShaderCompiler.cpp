@@ -8,7 +8,6 @@
 #include "ShaderCompilerCommon.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderParameterParser.h"
-#include "ShaderPreprocessor.h"
 #include "ShaderPreprocessTypes.h"
 #include "SpirvReflectCommon.h"
 #include "VulkanCommon.h"
@@ -240,8 +239,6 @@ static FString GetBindlessUBNameFromHeap(const FString& HeapName)
 	return HeapName.Mid(NameStart, HeapName.Len() - NameStart - kBindlessHeapSuffix.Len());
 }
 
-// Name of the structure in raytracing shader records in VulkanCommon.usf
-static const FString kHitGroupSystemRootConstantsSymbolName = TEXT("HitGroupSystemRootConstants");
 
 // A collection of states and data that is locked in at the top level call and doesn't change throughout the compilation process
 struct FVulkanShaderCompilerInternalState
@@ -320,38 +317,6 @@ struct FVulkanShaderCompilerInternalState
 		{
 			return Input.EntryPointName;
 		}
-	}
-	inline TArray<FStringView> GetRequiredSymbols() const
-	{
-		TArray<FStringView> RequiredSymbols;
-
-		if (bIsRayHitGroupShader)
-		{
-			check(!ClosestHitEntry.IsEmpty());
-
-			RequiredSymbols.Add(ClosestHitEntry);
-
-			if (!AnyHitEntry.IsEmpty())
-			{
-				RequiredSymbols.Add(AnyHitEntry);
-			}
-
-			if (!IntersectionEntry.IsEmpty())
-			{
-				RequiredSymbols.Add(IntersectionEntry);
-			}
-		}
-		else
-		{
-			RequiredSymbols.Add(Input.EntryPointName);
-		}
-
-		if (IsRayTracingShader())
-		{
-			RequiredSymbols.Add(kHitGroupSystemRootConstantsSymbolName);
-		}
-
-		return RequiredSymbols;
 	}
 	inline bool IsRayTracingShader() const
 	{
@@ -2099,123 +2064,68 @@ static void RemoveUnusedBindlessHeaps(FString& PreprocessedShaderSource, const T
 	}
 }
 
-
-
-bool PreprocessVulkanShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput)
+void ModifyVulkanCompilerInput(FShaderCompilerInput& Input)
 {
-	const FVulkanShaderCompilerInternalState InternalState(Input, nullptr);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-
-	FShaderCompilerDefinitions AdditionalDefines;
-	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
-	AdditionalDefines.SetDefine(TEXT("COMPILER_VULKAN"), 1);
+	FVulkanShaderCompilerInternalState InternalState(Input, nullptr);
+	Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
+	Input.Environment.SetDefine(TEXT("COMPILER_VULKAN"), 1);
 	if (InternalState.IsMobileES31())
 	{
-		AdditionalDefines.SetDefine(TEXT("ES3_1_PROFILE"), 1);
-		AdditionalDefines.SetDefine(TEXT("VULKAN_PROFILE"), 1);
+		Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), 1);
+		Input.Environment.SetDefine(TEXT("VULKAN_PROFILE"), 1);
 	}
 	else if (InternalState.IsSM6())
 	{
-		AdditionalDefines.SetDefine(TEXT("VULKAN_PROFILE_SM6"), 1);
+		Input.Environment.SetDefine(TEXT("VULKAN_PROFILE_SM6"), 1);
 	}
 	else if (InternalState.IsSM5())
 	{
-		AdditionalDefines.SetDefine(TEXT("VULKAN_PROFILE_SM5"), 1);
+		Input.Environment.SetDefine(TEXT("VULKAN_PROFILE_SM5"), 1);
 	}
-	AdditionalDefines.SetDefine(TEXT("row_major"), TEXT(""));
+	Input.Environment.SetDefine(TEXT("row_major"), TEXT(""));
 
-	AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
-	AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_DUAL_SOURCE_BLENDING_SLOT_DECORATION"), (uint32)1);
-	AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_ROV"), 0); // Disabled until DXC->SPRIV ROV support is implemented
+	Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
+	Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_DUAL_SOURCE_BLENDING_SLOT_DECORATION"), (uint32)1);
+	Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_ROV"), 0); // Disabled until DXC->SPRIV ROV support is implemented
 
-	if (Input.Environment.FullPrecisionInPS)
+	if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))
 	{
-		AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+		Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
 	}
 
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing))
 	{
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
+		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
 	}
 
 	if (Input.Environment.CompilerFlags.Contains(CFLAG_AllowRealTypes))
 	{
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"), 1);
+		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_REAL_TYPES"), 1);
 	}
 
 	// We have ETargetEnvironment::Vulkan_1_1 by default as a min spec now
 	{
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"), 1);
-		AdditionalDefines.SetDefine(TEXT("VULKAN_SUPPORTS_SUBGROUP_SIZE_CONTROL"), 1);
+		Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS"), 1);
+		Input.Environment.SetDefine(TEXT("VULKAN_SUPPORTS_SUBGROUP_SIZE_CONTROL"), 1);
 	}
 
-	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
-	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
-	AdditionalDefines.SetDefine(TEXT("VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
-	AdditionalDefines.SetDefine(TEXT("VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE"), VulkanBindless::MaxUniformBuffersPerStage);
+	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_SRV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSRVArrayPrefix);
+	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_UAV_ARRAY_PREFIX"), FShaderParameterParser::kBindlessUAVArrayPrefix);
+	Input.Environment.SetDefine(TEXT("VULKAN_BINDLESS_SAMPLER_ARRAY_PREFIX"), FShaderParameterParser::kBindlessSamplerArrayPrefix);
+	Input.Environment.SetDefine(TEXT("VULKAN_MAX_BINDLESS_UNIFORM_BUFFERS_PER_STAGE"), VulkanBindless::MaxUniformBuffersPerStage);
 
 	if (IsAndroidShaderFormat(Input.ShaderFormat))
 	{
 		// On most Android devices uint64_t is unsupported so we emulate as 2 uint32_t's 
-		AdditionalDefines.SetDefine(TEXT("EMULATE_VKDEVICEADRESS"), 1);
+		Input.Environment.SetDefine(TEXT("EMULATE_VKDEVICEADRESS"), 1);
 	}
 
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	// Preprocess the shader.
-	FString& PreprocessedShaderSource = PreprocessOutput.EditSource();
-	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
-	if (bDirectCompile)
+	if (Input.IsRayTracingShader())
 	{
-		if (!FFileHelper::LoadFileToString(PreprocessedShaderSource, *Input.VirtualSourceFilePath))
-		{
-			return false;
-		}
-
-		// Remove const as we are on debug-only mode
-		CrossCompiler::CreateEnvironmentFromResourceTable(PreprocessedShaderSource, (FShaderCompilerEnvironment&)Input.Environment);
+		// Name of the structure in raytracing shader records in VulkanCommon.usf
+		Input.RequiredSymbols.Add(TEXT("HitGroupSystemRootConstants"));
 	}
-	else
-	{
-		if (!PreprocessShader(PreprocessOutput, Input, Environment, AdditionalDefines))
-		{
-			// The preprocessing stage will add any relevant errors.
-			return false;
-		}
-	}
-
-	CleanupUniformBufferCode(Input.Environment, PreprocessedShaderSource);
-
-	// Run the shader minifier
-	if (InternalState.IsRayTracingShader() || InternalState.bUseBindlessUniformBuffer)
-	{
-		// Always needed in ray tracing shaders to ensure bindless UB count is kept low
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, InternalState.GetRequiredSymbols(), PreprocessOutput.EditErrors());
-	}
-	#if UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-	else if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
-	{
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, InternalState.GetEntryPointName(), PreprocessOutput.EditErrors());
-	}
-	#endif // UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
-	// Clean up the code a bit, it's unreadable otherwise with all the unused heaps left around
-	if (InternalState.bSupportsBindless)
-	{
-		RemoveUnusedBindlessHeaps(PreprocessedShaderSource, TEXT("SAMPLER"));
-		RemoveUnusedBindlessHeaps(PreprocessedShaderSource, TEXT("RESOURCE"));
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedShaderSource, InternalState.GetRequiredSymbols(), PreprocessOutput.EditErrors());
-
-		if (InternalState.bDebugDump)
-		{
-			DumpDebugShaderText(Input, PreprocessedShaderSource, TEXT("bindless.final.hlsl"));
-		}
-	}
-
-	return true;
 }
-
 
 // :todo-jn: TEMPORARY EXPERIMENT - will eventually move into preprocessing step
 static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
@@ -2522,6 +2432,22 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPre
 
 	FVulkanShaderCompilerInternalState InternalState(Input, &ShaderParameterParser);
 
+	//TODO: this additional step causes problems for the error remapping that occurs when the preprocessed job cache is enabled
+	// (the additional deadstripping step causes further changes to line numbers, removed blocks, etc).
+	//if (InternalState.bSupportsBindless)
+	//{
+	//	// Clean up the code a bit, it's unreadable otherwise with all the unused heaps left around
+	//	// Re-run the dead stripper after removing these unused heaps
+	//	RemoveUnusedBindlessHeaps(PreprocessedSource, TEXT("SAMPLER"));
+	//	RemoveUnusedBindlessHeaps(PreprocessedSource, TEXT("RESOURCE"));
+	//	UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedSource, Input.EntryPointName, Input.RequiredSymbols, Output.Errors);
+
+	//	if (InternalState.bDebugDump)
+	//	{
+	//		DumpDebugShaderText(Input, PreprocessedSource, TEXT("bindless.final.hlsl"));
+	//	}
+	//}
+
 	const EHlslShaderFrequency HlslFrequency = InternalState.GetHlslShaderFrequency();
 	if (HlslFrequency == HSF_InvalidFrequency)
 	{
@@ -2586,8 +2512,7 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPre
 
 	ShaderParameterParser.ValidateShaderParameterTypes(Input, InternalState.IsMobileES31(), Output);
 	
-	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
-	if (bDirectCompile)
+	if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 	{
 		for (const auto& Error : Output.Errors)
 		{

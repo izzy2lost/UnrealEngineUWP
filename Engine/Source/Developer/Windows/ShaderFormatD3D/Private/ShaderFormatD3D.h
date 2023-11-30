@@ -5,11 +5,6 @@
 #include "Windows/WindowsHWrapper.h"
 #include "ShaderCompilerCommon.h"
 
-// Controls whether r.Shaders.RemoveDeadCode should be honored
-#ifndef UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-#define UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 1
-#endif // UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
 struct FShaderTarget;
 
 enum class ED3DShaderModel

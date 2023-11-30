@@ -11,11 +11,6 @@
 #include "RHIFeatureLevel.h"
 #include "RHIShaderPlatform.h"
 
-// Controls whether r.Shaders.RemoveDeadCode should be honored
-#ifndef UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-#define UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL 1
-#endif // UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
 // IOS and TVOS use the mobile toolchain.
 enum EAppleSDKType
 {

@@ -60,6 +60,6 @@ extern SHADERPREPROCESSOR_API bool PreprocessShader(
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& MergedEnvironment,
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-	const FShaderCompilerDefinitions& AdditionalDefines,
+	const FShaderCompilerDefinitions& AdditionalDefines = FShaderCompilerDefinitions(),
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	EDumpShaderDefines DefinesPolicy = EDumpShaderDefines::DontCare);

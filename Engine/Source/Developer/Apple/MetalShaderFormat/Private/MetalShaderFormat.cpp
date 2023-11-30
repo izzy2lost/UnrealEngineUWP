@@ -37,7 +37,7 @@ extern uint64 AppendShader_Metal(class FString const& ArchivePath, const FSHAHas
 extern bool FinalizeLibrary_Metal(class FName const& Format, class FString const& ArchivePath, class FString const& LibraryPath, TSet<uint64> const& Shaders, class FString const& DebugOutputDir);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_METAL_VER = FGuid("FB0EA082-A9FC-469F-AE8F-03CFE0418EA5");
+static const FGuid UE_SHADER_METAL_VER = FGuid("222AACA0-E61A-490A-A5A3-0F3957CC248F");
 
 class FMetalShaderFormat : public IShaderFormat
 {
@@ -89,10 +89,6 @@ public:
 
 		Result = HashCombine(Result, GetTypeHash(HLSLCC_VersionMinor));
 		Result = HashCombine(Result, GetTypeHash(UE_SHADER_METAL_VER));
-
-#if UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-		Result = HashCombine(Result, 0x75E2FE85);
-#endif // UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
 		return Result;
 	}
@@ -338,6 +334,79 @@ public:
 		//Map.Format = Format.GetPlainNameString();
 	}
 
+	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
+	{
+		// Work out which standard we need, this is dependent on the shader platform.
+		// TODO: Read from toolchain class
+		const bool bIsMobile = FMetalCompilerToolchain::Get()->IsMobile((EShaderPlatform)Input.Target.Platform);
+		if (bIsMobile)
+		{
+			Input.Environment.SetDefine(TEXT("IOS"), 1);
+		}
+		else
+		{
+			Input.Environment.SetDefine(TEXT("MAC"), 1);
+		}
+
+		Input.Environment.SetDefine(TEXT("COMPILER_METAL"), 1);
+
+		if (Input.ShaderFormat == NAME_SF_METAL || Input.ShaderFormat == NAME_SF_METAL_TVOS)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_PROFILE"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_SIM)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_PROFILE"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_MRT || Input.ShaderFormat == NAME_SF_METAL_MRT_TVOS)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_MRT_PROFILE"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_MACES3_1)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_PROFILE"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_SM5)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_SM5_PROFILE"), 1);
+			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_SM6)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_SM6_PROFILE"), 1);
+			Input.Environment.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
+		}
+		else if (Input.ShaderFormat == NAME_SF_METAL_MRT_MAC)
+		{
+			Input.Environment.SetDefine(TEXT("METAL_MRT_PROFILE"), 1);
+		}
+
+		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), 2);
+
+		if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))
+		{
+			Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+		}
+
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_AvoidFlowControl)
+			|| Input.Environment.CompilerFlags.Contains(CFLAG_PreferFlowControl))
+		{
+			Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)0);
+		}
+		else
+		{
+			Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
+		}
+
+		bool bUsesInlineRayTracing = Input.Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing);
+		if (bUsesInlineRayTracing)
+		{
+			Input.Environment.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
+		}
+
+		Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_DUAL_SOURCE_BLENDING_SLOT_DECORATION"), (uint32)1);
+	}
+	
 	virtual bool CanCompileBinaryShaders() const override final
 	{
 #if PLATFORM_MAC

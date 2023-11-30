@@ -417,6 +417,12 @@ public:
 		Data = Data | FlagBit;
 	}
 
+	inline void Remove(uint32 InFlag)
+	{
+		const uint64 FlagBit = (uint64)1 << (uint64)InFlag;
+		Data = Data & ~FlagBit;
+	}
+
 	inline bool Contains(uint32 InFlag) const
 	{
 		const uint64 FlagBit = (uint64)1 << (uint64)InFlag;

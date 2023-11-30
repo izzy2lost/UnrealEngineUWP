@@ -7,7 +7,6 @@
 #include "RayTracingDefinitions.h"
 #include "Serialization/MemoryWriter.h"
 #include "ShaderFormatD3D.h"
-#include "ShaderPreprocessor.h"
 #include "ShaderCompilerCommon.h"
 #include "ShaderCompilerDefinitions.h"
 #include "ShaderMinifier.h"
@@ -1260,49 +1259,6 @@ bool CompileAndProcessD3DShaderFXC(
 	return bSuccess;
 }
 
-bool PreprocessD3DShader(
-	const FShaderCompilerInput& Input,
-	const FShaderCompilerEnvironment& Environment,
-	FShaderPreprocessOutput& Output)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-	FShaderCompilerDefinitions AdditionalDefines;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	FString& PreprocessedSource = Output.EditSource();
-	
-	if (Input.bSkipPreprocessedCache)
-	{
-		if (!FFileHelper::LoadFileToString(PreprocessedSource, *Input.VirtualSourceFilePath))
-		{
-			return false;
-		}
-
-		// Remove const as we are on debug-only mode
-		CrossCompiler::CreateEnvironmentFromResourceTable(PreprocessedSource, const_cast<FShaderCompilerEnvironment&>(Environment));
-	}
-	else
-	{
-		if (!PreprocessShader(Output, Input, Environment, AdditionalDefines))
-		{
-			// The preprocessing stage will add any relevant errors.
-			return false;
-		}
-	}
-
-	CleanupUniformBufferCode(Input.Environment, PreprocessedSource);
-
-	// Run the shader minifier
-	#if UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-	if (Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
-	{
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessedSource, Input.EntryPointName, Output.EditErrors());
-	}
-	#endif // UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
-	return true;
-}
-
 struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterParser::FPlatformConfiguration
 {
 	FD3DShaderParameterParserPlatformConfiguration()
@@ -1426,8 +1382,7 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPrepro
 
 	ShaderParameterParser.ValidateShaderParameterTypes(Input, Output);
 
-	const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
-	if (bDirectCompile)
+	if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 	{
 		for (const FShaderCompilerError& Error : Output.Errors)
 		{

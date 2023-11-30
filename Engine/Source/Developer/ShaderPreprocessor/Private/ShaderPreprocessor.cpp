@@ -6,8 +6,8 @@
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "PreprocessorPrivate.h"
+#include "ShaderCompilerCommon.h"
 #include "ShaderCompilerDefinitions.h"
-
 #include "stb_preprocess/preprocessor.h"
 #include "stb_preprocess/stb_alloc.h"
 #include "stb_preprocess/stb_ds.h"
@@ -884,16 +884,24 @@ bool PreprocessShader(
 )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(PreprocessShader);
+	Output.EditSource().Empty();
 
-	// Skip the cache system and directly load the file path (used for debugging)
-	if (Input.bSkipPreprocessedCache)
+	if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 	{
-		return FFileHelper::LoadFileToString(Output.EditSource(), *Input.VirtualSourceFilePath);
+		// the "VirtualSourceFilePath" given is actually an absolute path to a dumped debug USF file; load it directly.
+		// this occurs when running SCW in "direct compile" mode; this file will already be preprocessed.
+		bool bSuccess = FFileHelper::LoadFileToString(Output.EditSource(), *Input.VirtualSourceFilePath);
+
+		if (bSuccess)
+		{
+			// const_cast for compile environment; need to populate a subset of environment parameters from parsing comments in the preprocessed code
+			UE::ShaderCompilerCommon::SerializeEnvironmentFromBase64(const_cast<FShaderCompilerEnvironment&>(Input.Environment), Output.GetSource());
+		}
+
+		return bSuccess;
 	}
 
 	check(CheckVirtualShaderFilePath(Input.VirtualSourceFilePath));
-
-	Output.EditSource().Empty();
 
 	// List the defines used for compilation in the preprocessed shaders, especially to know which permutation vector this shader is.
 	if (DefinesPolicy == EDumpShaderDefines::AlwaysIncludeDefines || (DefinesPolicy == EDumpShaderDefines::DontCare && Input.DumpDebugInfoPath.Len() > 0))
@@ -901,5 +909,18 @@ bool PreprocessShader(
 		FShaderPreprocessorUtilities::DumpShaderDefinesAsCommentedCode(Environment, &Output.EditSource());
 	}
 
-	return InnerPreprocessShaderStb(Output, Input, Environment, AdditionalDefines);
+	bool bSuccess = InnerPreprocessShaderStb(Output, Input, Environment, AdditionalDefines);
+
+	if (bSuccess)
+	{
+		CleanupUniformBufferCode(Environment, Output.EditSource());
+
+		if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
+		{
+			const TArray<FStringView> RequiredSymbols(MakeArrayView(Input.RequiredSymbols));
+			UE::ShaderCompilerCommon::RemoveDeadCode(Output.EditSource(), Input.EntryPointName, RequiredSymbols, Output.EditErrors());
+		}
+	}
+
+	return bSuccess;
 }

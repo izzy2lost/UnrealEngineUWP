@@ -8,16 +8,16 @@
 #include "Interfaces/IShaderFormatModule.h"
 #include "hlslcc.h"
 #include "ShaderCore.h"
+#include "ShaderCompilerCommon.h"
 #include "ShaderCompilerCore.h"
+#include "ShaderParameterParser.h"
+#include "ShaderPreprocessor.h"
 #include "ShaderPreprocessTypes.h"
 #include "DXCWrapper.h"
 #include "ShaderConductorContext.h"
 #include "RHIShaderFormatDefinitions.inl"
 
-extern bool PreprocessVulkanShader(
-	const FShaderCompilerInput& Input,
-	const FShaderCompilerEnvironment& Environment,
-	FShaderPreprocessOutput& PreprocessOutput);
+extern void ModifyVulkanCompilerInput(FShaderCompilerInput& Input);
 
 extern void CompileVulkanShader(
 	const FShaderCompilerInput& Input,
@@ -30,9 +30,9 @@ extern void OutputVulkanDebugData(
 	const FShaderPreprocessOutput& PreprocessOutput, 
 	const FShaderCompilerOutput& Output);
 
-static const FGuid UE_SHADER_VULKAN_ES3_1_VER = FGuid("6D333063-D2F7-4AA5-A79D-BA73F32C898E");
-static const FGuid UE_SHADER_VULKAN_SM5_VER = FGuid("6EC81E81-BDE8-4F09-8A70-AD09A817B32A");
-static const FGuid UE_SHADER_VULKAN_SM6_VER = FGuid("C732FBB7-4CAD-4249-A760-912777047233");
+static const FGuid UE_SHADER_VULKAN_ES3_1_VER = FGuid("B84F72C8-3ECD-411E-993C-D7C7CEE26F28");
+static const FGuid UE_SHADER_VULKAN_SM5_VER = FGuid("0715D8EE-9907-4A25-93AD-A3902C8E069A");
+static const FGuid UE_SHADER_VULKAN_SM6_VER = FGuid("C5161730-83C6-40AF-A990-78CD4C1581DB");
 
 class FShaderFormatVulkan : public IShaderFormat
 {
@@ -77,10 +77,6 @@ public:
 		Version = HashCombine(Version, 0xFC0848E2);
 	#endif
 
-	#if UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-		Version = HashCombine(Version, 0x75E2FE85);
-	#endif // UE_VULKAN_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
 		return Version;
 	}
 	virtual void GetSupportedFormats(TArray<FName>& OutFormats) const
@@ -92,9 +88,14 @@ public:
 		OutFormats.Add(NAME_VULKAN_SM6);
 	}
 
+	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
+	{
+		ModifyVulkanCompilerInput(Input);
+	}
+
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const
 	{
-		return PreprocessVulkanShader(Input, Environment, PreprocessOutput);
+		return ::PreprocessShader(PreprocessOutput, Input, Environment);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override

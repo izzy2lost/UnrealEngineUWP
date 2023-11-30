@@ -1399,9 +1399,8 @@ void DoCompileMetalShader(
 	}
 	else
 	{
-		// Log errors on failed compilation in this backend only when -directcompile is specified.
-		const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
-		if (bDirectCompile)
+		// Log errors on failed compilation in this backend only when compiling from a debug dump USF.
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 		{
 			for (const FShaderCompilerError& Error : Output.Errors)
 			{

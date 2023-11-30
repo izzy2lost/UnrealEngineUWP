@@ -895,10 +895,6 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				ShaderPlatformName = FName(*Token.RightChop(19));
 			}
-			else if (Token.StartsWith(TEXT("cflags=")))
-			{
-				CFlags = FCString::Atoi64(*Token.RightChop(7));
-			}
 			else if (Token.StartsWith(TEXT("DebugInfoPath=")))
 			{
 				DumpDebugInfoPath = Token.RightChop(14);
@@ -980,12 +976,11 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 	Job.Input.VirtualSourceFilePath = InputFile;
 	Job.Input.Target.Platform =  ShaderFormatNameToShaderPlatform(FormatName);
 	Job.Input.Target.Frequency = Frequency;
-	Job.Input.bSkipPreprocessedCache = true;
 	Job.Input.DumpDebugInfoPath = DumpDebugInfoPath;
-	Job.Input.Environment.CompilerFlags = FShaderCompilerFlags(CFlags);
 	Job.Input.bCompilingForShaderPipeline = bPipeline;
 	Job.Input.bIncludeUsedOutputs = bIncludeUsedOutputs;
 	Job.Input.UsedOutputs = UsedOutputs;
+	Job.Input.DebugInfoFlags = EShaderDebugInfoFlags::CompileFromDebugUSF;
 
 	FShaderCompilerOutput Output;
 	CompileShader(GetShaderFormats(), Job, Dir, &GNumProcessedJobs);

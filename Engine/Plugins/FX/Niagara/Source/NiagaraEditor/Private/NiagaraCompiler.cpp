@@ -5,6 +5,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "EdGraphSchema_Niagara.h"
 #include "EdGraphUtilities.h"
+#include "Interfaces/IShaderFormat.h"
 #include "INiagaraEditorTypeUtilities.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PathViews.h"
@@ -1809,6 +1810,11 @@ int32 FHlslNiagaraCompiler::CompileScript(const FStringView GroupName, const FNi
 	Input.DebugExtension.Empty();
 	Input.DumpDebugInfoPath.Empty();
 
+	FName VVMFormatName = FName(TEXT("VVM_1_0"));
+	//TODO: This is normally invoked by GlobalBeginCompileShader, which is not called in this path. Should it be?
+	const IShaderFormat* VVMShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(VVMFormatName);
+	VVMShaderFormat->ModifyShaderCompilerInput(Input);
+
 	if (GShaderCompilingManager->GetDumpShaderDebugInfo() == FShaderCompilingManager::EDumpShaderDebugInfo::Always)
 	{
 		Input.DumpDebugInfoPath = GShaderCompilingManager->CreateShaderDebugInfoPath(Input);
@@ -1879,7 +1885,7 @@ int32 FHlslNiagaraCompiler::CompileScript(const FStringView GroupName, const FNi
 			{
 				TArray<FShaderCommonCompileJobPtr> NewJobs;
 				CompilationJob->ShaderCompileJob = Job;
-				Input.ShaderFormat = FName(TEXT("VVM_1_0"));
+				Input.ShaderFormat = VVMFormatName;
 				if (GNiagaraSkipVectorVMBackendOptimizations != 0)
 				{
 					Input.Environment.CompilerFlags.Add(CFLAG_SkipOptimizations);

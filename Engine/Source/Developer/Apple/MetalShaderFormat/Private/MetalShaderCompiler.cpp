@@ -763,118 +763,7 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 		return false;
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-
-	FShaderCompilerDefinitions AdditionalDefines;
-
-	// Work out which standard we need, this is dependent on the shader platform.
-	// TODO: Read from toolchain class
-	const bool bIsMobile = FMetalCompilerToolchain::Get()->IsMobile((EShaderPlatform) Input.Target.Platform);
-	if (bIsMobile)
-	{
-		AdditionalDefines.SetDefine(TEXT("IOS"), 1);
-	}
-	else
-	{
-		AdditionalDefines.SetDefine(TEXT("MAC"), 1);
-	}
-	
-	AdditionalDefines.SetDefine(TEXT("COMPILER_METAL"), 1);
-	
-	if (Input.ShaderFormat == NAME_SF_METAL || Input.ShaderFormat == NAME_SF_METAL_TVOS)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_PROFILE"), 1);
-	}
-	else if (Input.ShaderFormat == NAME_SF_METAL_SIM)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_PROFILE"), 1);
-	}
-	else if (Input.ShaderFormat == NAME_SF_METAL_MRT || Input.ShaderFormat == NAME_SF_METAL_MRT_TVOS)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_MRT_PROFILE"), 1);
-	}
-	else if (Input.ShaderFormat == NAME_SF_METAL_MACES3_1)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_PROFILE"), 1);
-	}
-	else if (Input.ShaderFormat == NAME_SF_METAL_SM5)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_SM5_PROFILE"), 1);
-		AdditionalDefines.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
-	}
-    else if (Input.ShaderFormat == NAME_SF_METAL_SM6)
-    {
-        AdditionalDefines.SetDefine(TEXT("METAL_SM6_PROFILE"), 1);
-        AdditionalDefines.SetDefine(TEXT("USING_VERTEX_SHADER_LAYER"), 1);
-    }
-	else if (Input.ShaderFormat == NAME_SF_METAL_MRT_MAC)
-	{
-		AdditionalDefines.SetDefine(TEXT("METAL_MRT_PROFILE"), 1);
-	}
-	else
-	{
-		PreprocessOutput.LogError(FString::Printf(TEXT("Invalid shader format '%s' passed to compiler."), *Input.ShaderFormat.ToString()));
-		return false;
-	}
-	
-
-	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), 2);
-
-	if (Input.Environment.FullPrecisionInPS)
-	{
-		AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
-	}
-
-	if (Environment.CompilerFlags.Contains(CFLAG_AvoidFlowControl) 
-		|| Environment.CompilerFlags.Contains(CFLAG_PreferFlowControl))
-	{
-		AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)0);
-	}
-	else
-	{
-		AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
-	}
-
-	bool bUsesInlineRayTracing = Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing);
-	if (bUsesInlineRayTracing)
-	{
-		AdditionalDefines.SetDefine(TEXT("PLATFORM_SUPPORTS_INLINE_RAY_TRACING"), 1);
-	}
-
-	AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_DUAL_SOURCE_BLENDING_SLOT_DECORATION"), (uint32)1);
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	if (Input.bSkipPreprocessedCache)
-	{
-		if (!FFileHelper::LoadFileToString(PreprocessOutput.EditSource(), *Input.VirtualSourceFilePath))
-		{
-			return false;
-		}
-
-		// Remove const as we are on debug-only mode
-		CrossCompiler::CreateEnvironmentFromResourceTable(PreprocessOutput.EditSource(), (FShaderCompilerEnvironment&)Input.Environment);
-	}
-	else
-	{
-		if (!PreprocessShader(PreprocessOutput, Input, Environment, AdditionalDefines))
-		{
-			// The preprocessing stage will add any relevant errors.
-			return false;
-		}
-	}
-
-	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
-
-	// Run the shader minifier
-	#if UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-	if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
-	{
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessOutput.EditSource(), Input.EntryPointName, PreprocessOutput.EditErrors());
-	}
-	#endif // UE_METAL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-
-	return true;
+	return PreprocessShader(PreprocessOutput, Input, Environment);
 }
 
 void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output)
@@ -1069,9 +958,9 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPrep
 		Standard = FString::Printf(TEXT("-std=%s-metal%s"), StandardPlatform, *StandardVersion);
 	}
 
-	bool const bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
-	if (bDirectCompile)
+	if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 	{
+		// force debug output on when compiling a debug dump usf
 		const_cast<FShaderCompilerInput&>(Input).DumpDebugInfoPath = FPaths::GetPath(Input.VirtualSourceFilePath);
 	}
 
@@ -1090,7 +979,7 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPrep
 
 
 	FSHAHash GUIDHash;
-	if (!bDirectCompile)
+	if (!EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 	{
 		TArray<FString> GUIDFiles;
 		GUIDFiles.Add(FPaths::ConvertRelativePathToFull(TEXT("/Engine/Public/Platform/Metal/MetalCommon.ush")));

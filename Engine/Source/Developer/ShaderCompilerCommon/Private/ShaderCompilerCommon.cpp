@@ -2,12 +2,15 @@
 
 #include "ShaderCompilerCommon.h"
 #include "ShaderParameterParser.h"
+#include "Misc/Base64.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Modules/ModuleManager.h"
 #include "HlslccDefinitions.h"
 #include "HAL/FileManager.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 #include "String/RemoveFrom.h"
 #include "ShaderPreprocessTypes.h"
 #include "ShaderSymbolExport.h"
@@ -422,29 +425,33 @@ bool UE::ShaderCompilerCommon::ValidatePackedResourceCounts(FShaderCompilerOutpu
 	return Output.bSucceeded;
 }
 
-void UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(const FString& Input, FString& OutMain, FString& OutAnyHit, FString& OutIntersection)
+void UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(const FStringView& Input, FStringView& OutMain, FStringView& OutAnyHit, FStringView& OutIntersection)
 {
-	auto ParseEntry = [&Input](const TCHAR* Marker)
+	auto ParseEntry = [&Input](const FStringView& Marker)
 	{
-		FString Result;
-		const int32 BeginIndex = Input.Find(Marker, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+		FStringView Result;
+		const int32 BeginIndex = UE::String::FindFirst(Input, Marker, ESearchCase::IgnoreCase);
 		if (BeginIndex != INDEX_NONE)
 		{
-			int32 EndIndex = Input.Find(TEXT(" "), ESearchCase::IgnoreCase, ESearchDir::FromStart, BeginIndex);
+			int32 EndIndex = UE::String::FindFirst(Input.Mid(BeginIndex), TEXTVIEW(" "), ESearchCase::IgnoreCase);
 			if (EndIndex == INDEX_NONE)
 			{
 				EndIndex = Input.Len() + 1;
 			}
-			const int32 MarkerLen = FCString::Strlen(Marker);
+			else
+			{
+				EndIndex += BeginIndex;
+			}
+			const int32 MarkerLen = Marker.Len();
 			const int32 Count = EndIndex - BeginIndex;
 			Result = Input.Mid(BeginIndex + MarkerLen, Count - MarkerLen);
 		}
 		return Result;
 	};
 
-	OutMain = ParseEntry(TEXT("closesthit="));
-	OutAnyHit = ParseEntry(TEXT("anyhit="));
-	OutIntersection = ParseEntry(TEXT("intersection="));
+	OutMain = ParseEntry(TEXTVIEW("closesthit="));
+	OutAnyHit = ParseEntry(TEXTVIEW("anyhit="));
+	OutIntersection = ParseEntry(TEXTVIEW("intersection="));
 
 	// If complex hit group entry is not specified, assume a single verbatim entry point
 	if (OutMain.IsEmpty() && OutAnyHit.IsEmpty() && OutIntersection.IsEmpty())
@@ -452,6 +459,19 @@ void UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(const FString& Input, F
 		OutMain = Input;
 	}
 }
+
+void UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(const FString& Input, FString& OutMain, FString& OutAnyHit, FString& OutIntersection)
+{
+	FStringView OutMainView;
+	FStringView OutAnyHitView;
+	FStringView OutIntersectionView;
+	ParseRayTracingEntryPoint(Input, OutMainView, OutAnyHitView, OutIntersectionView);
+
+	OutMain = OutMainView;
+	OutAnyHit = OutAnyHitView;
+	OutIntersection = OutIntersectionView;
+}
+
 
 bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
 {
@@ -483,11 +503,16 @@ bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSo
 
 bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors)
 {
+	return UE::ShaderCompilerCommon::RemoveDeadCode(InOutPreprocessedShaderSource, EntryPoint, {}, OutErrors);
+}
+
+bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> InRequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
+{
 	TArray<FStringView> RequiredSymbols;
 
-	FString EntryMain;
-	FString EntryAnyHit;
-	FString EntryIntersection;
+	FStringView EntryMain;
+	FStringView EntryAnyHit;
+	FStringView EntryIntersection;
 	UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(EntryPoint, EntryMain, EntryAnyHit, EntryIntersection);
 
 	RequiredSymbols.Add(EntryMain);
@@ -500,6 +525,11 @@ bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSo
 	if (!EntryIntersection.IsEmpty())
 	{
 		RequiredSymbols.Add(EntryIntersection);
+	}
+
+	for (FStringView Symbol : InRequiredSymbols)
+	{
+		RequiredSymbols.Add(Symbol);
 	}
 
 	return UE::ShaderCompilerCommon::RemoveDeadCode(InOutPreprocessedShaderSource, RequiredSymbols, OutErrors);
@@ -1517,9 +1547,6 @@ FString CreateShaderCompilerWorkerDirectCommandLine(const FShaderCompilerInput& 
 	Text += TEXT(" ");
 	Text += Input.DumpDebugInfoPath / Input.GetSourceFilename();
 
-	Text += TEXT(" -cflags=");
-	Text += FString::Printf(TEXT("%llu"), Input.Environment.CompilerFlags.GetData());
-
 	// When we're running in directcompile mode, we don't to spam the crash reporter
 	Text += TEXT(" -nocrashreports");
 	return Text;
@@ -1878,6 +1905,39 @@ namespace UE::ShaderCompilerCommon
 		}
 	}
 
+	static const TCHAR* Base64EnvBegin = TEXT("#if 0 /* BASE64_ENV */\n");
+	static const int32 Base64EnvBeginLen = FCString::Strlen(Base64EnvBegin);
+	static const TCHAR* Base64EnvEnd = TEXT("\n#endif /* BASE64_ENV */\n");
+	
+	FString SerializeEnvironmentToBase64(const FShaderCompilerEnvironment& Env)
+	{
+		TArray<uint8> Serialized;
+		FMemoryWriter Ar(Serialized);
+		const_cast<FShaderCompilerEnvironment&>(Env).SerializeCompilationDependencies(Ar);
+		return FString::Printf(TEXT("%s%s%s"), Base64EnvBegin, *FBase64::Encode(Serialized), Base64EnvEnd);
+	}
+
+	void SerializeEnvironmentFromBase64(FShaderCompilerEnvironment& Env, const FString& DebugShaderSource)
+	{
+		int32 BeginIndex = DebugShaderSource.Find(Base64EnvBegin, ESearchCase::CaseSensitive);
+		if (BeginIndex == INDEX_NONE)
+		{
+			return;
+		}
+		int32 EndIndex = DebugShaderSource.Find(Base64EnvEnd, ESearchCase::CaseSensitive, ESearchDir::FromStart, BeginIndex);
+		if (EndIndex == INDEX_NONE)
+		{
+			return;
+		}
+
+		FString Base64Encoded = DebugShaderSource.Left(EndIndex).Mid(BeginIndex + Base64EnvBeginLen);
+
+		TArray<uint8> Serialized;
+		FBase64::Decode(Base64Encoded, Serialized);
+		FMemoryReader Ar(Serialized);
+		Env.SerializeCompilationDependencies(Ar);
+	}
+
 	FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options)
 	{
 		FString Contents = Options.AppendPreSource ? Options.AppendPreSource() : FString();
@@ -1886,8 +1946,15 @@ namespace UE::ShaderCompilerCommon
 		{
 			Contents += Options.AppendPostSource();
 		}
+		// If preprocessed cache is enabled, debug dump occurs in the cook process rather than the workers, and
+		// in that case the env in Input.Environment has not been merged with the shared env. Do so here.
+		FShaderCompilerEnvironment MergedEnvironment(Input.Environment);
+		if (Input.bCachePreprocessed && IsValidRef(Input.SharedEnvironment))
+		{
+			MergedEnvironment.Merge(*Input.SharedEnvironment);
+		}
 		Contents += TEXT("\n");
-		Contents += CrossCompiler::CreateResourceTableFromEnvironment(Input.Environment);
+		Contents += SerializeEnvironmentToBase64(MergedEnvironment);
 		Contents += TEXT("#if 0 /*DIRECT COMPILE*/\n");
 		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input);
 		Contents += TEXT("\n#endif /*DIRECT COMPILE*/\n");

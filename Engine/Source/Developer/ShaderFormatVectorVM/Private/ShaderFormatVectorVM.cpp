@@ -63,6 +63,17 @@ public:
 		OutFormats.Add(NAME_VVM_1_0);
 	}
 
+	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
+	{
+		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), 1);
+		Input.Environment.SetDefine(TEXT("COMPILER_VECTORVM"), 1);
+		Input.Environment.SetDefine(TEXT("VECTORVM_PROFILE"), 1);
+		Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+
+		// minifier has not been tested on vector VM; it's possible this could be removed to improve deduplication rate
+		Input.Environment.CompilerFlags.Remove(CFLAG_RemoveDeadCode);
+	}
+
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
 	{
 		CheckFormat(Input.ShaderFormat);

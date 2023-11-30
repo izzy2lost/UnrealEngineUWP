@@ -2,6 +2,7 @@
 
 #include "ShaderFormatD3D.h"
 #include "ShaderCompilerCommon.h"
+#include "ShaderPreprocessor.h"
 #include "ShaderPreprocessTypes.h"
 #include "ShaderSymbolExport.h"
 #include "Modules/ModuleInterface.h"
@@ -14,10 +15,10 @@ static FName NAME_PCD3D_SM6(TEXT("PCD3D_SM6"));
 static FName NAME_PCD3D_SM5(TEXT("PCD3D_SM5"));
 static FName NAME_PCD3D_ES3_1(TEXT("PCD3D_ES31"));
 
-static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("dd4e6e76-4b48-4097-9ece-0f21118b7177");
-static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("EEDED915-D5D7-4F45-B682-2657DCA0C297");
-static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("c2f60605-b462-4449-9f76-94bd2b1cd78e");
-static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("75466d2b-e169-40d8-bac5-1e2f9d43e0bb");
+static const FGuid UE_SHADER_PCD3D_SHARED_VER = FGuid("232A2A59-A6D0-4CDB-A374-F3DB028E413E");
+static const FGuid UE_SHADER_PCD3D_SM6_VER    = FGuid("7BDBA1A9-FAEF-42A1-BCF7-1B921FDEAD9E");
+static const FGuid UE_SHADER_PCD3D_SM5_VER    = FGuid("5B377D13-C70F-40C5-80C5-C9B228783469");
+static const FGuid UE_SHADER_PCD3D_ES3_1_VER  = FGuid("952939D9-1156-4347-97E9-9FFEA1A9FE14");
 
 class FShaderFormatD3D : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
@@ -39,10 +40,6 @@ public:
 	{
 		const uint32 BaseHash = GetTypeHash(UE_SHADER_PCD3D_SHARED_VER);
 		uint32 VersionHash = GetTypeHash(InVersion);
-
-	#if UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-		VersionHash = HashCombine(VersionHash, 0x75E2FE85);
-	#endif // UE_D3D_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
 		return HashCombine(BaseHash, VersionHash);
 	}
@@ -176,7 +173,7 @@ public:
 
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& MergedEnvironment, FShaderPreprocessOutput& PreprocessOutput) const
 	{
-		return PreprocessD3DShader(Input, MergedEnvironment, PreprocessOutput);
+		return ::PreprocessShader(PreprocessOutput, Input, MergedEnvironment);
 	}
 
 	virtual void CompilePreprocessedShader(

@@ -1067,30 +1067,9 @@ static EHlslCompileTarget GetCompileTarget(GLSLVersion Version)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
-static void SetupDefines(GLSLVersion Version, FShaderCompilerDefinitions& AdditionalDefines)
-{
-	switch (Version)
-	{
-		case GLSL_ES3_1_ANDROID:
-			AdditionalDefines.SetDefine(TEXT("COMPILER_GLSL_ES3_1"), 1);
-			AdditionalDefines.SetDefine(TEXT("ES3_1_PROFILE"), 1);
-			break;
-
-		case GLSL_150_ES3_1:
-			AdditionalDefines.SetDefine(TEXT("COMPILER_GLSL"), 1);
-			AdditionalDefines.SetDefine(TEXT("ES3_1_PROFILE"), 1);
-			AdditionalDefines.SetDefine(TEXT("row_major"), TEXT(""));
-			break;
-
-		default:
-			check(0);
-	}
-	AdditionalDefines.SetDefine(TEXT("OPENGL_PROFILE"), 1);
-}
-
 void FOpenGLFrontend::SetupPerVersionCompilationEnvironment(GLSLVersion Version, FShaderCompilerDefinitions& AdditionalDefines, EHlslCompileTarget& HlslCompilerTarget)
 {
-	SetupDefines(Version, AdditionalDefines);
+	// this function is deprecated; SetupDefines is removed and all per-version defines are now set in ModifyShaderCompilerInput on the IShaderFormat implementation.
 	HlslCompilerTarget = GetCompileTarget(Version);
 }
 
@@ -3184,7 +3163,7 @@ static bool CompileToGlslWithShaderConductor(
 			{
 				// handle both the case where identifier for TextureExternal declaration immediately precedes a ; and has whitespace separating the two
 #if PLATFORM_WINDOWS
-				if (swscanf_s(&PreprocessedShader[Pos], TEXT("TextureExternal %ls %ls"), TextureExternalName, 256, NextToken, 4))
+				if (swscanf_s(&PreprocessedShader[Pos], TEXT("TextureExternal %ls %ls"), TextureExternalName, 257, NextToken, 2))
 #elif PLATFORM_MAC
 				if (sscanf(TCHAR_TO_ANSI(&PreprocessedShader[Pos]), "TextureExternal %256s %1s", TextureExternalName, NextToken))
 #else // PLATFORM_LINUX
@@ -3269,63 +3248,13 @@ static bool CompileToGlslWithShaderConductor(
 
 #endif // DXC_SUPPORTED
 
-static bool ShouldUseDXC(FShaderCompilerFlags Flags)
+bool ShouldUseDXC(FShaderCompilerFlags Flags)
 {
 #if DXC_SUPPORTED
 	return Flags.Contains(CFLAG_ForceDXC);
 #else
 	return false;
 #endif
-}
-
-bool PreprocessOpenGLShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput, GLSLVersion Version)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS // FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-	
-	FShaderCompilerDefinitions AdditionalDefines;
-	SetupDefines(Version, AdditionalDefines);
-
-	const bool bUseSC = ShouldUseDXC(Environment.CompilerFlags);
-	AdditionalDefines.SetDefine(TEXT("COMPILER_HLSLCC"), bUseSC ? 2 : 1);
-	AdditionalDefines.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
-
-	if (Input.Environment.FullPrecisionInPS)
-	{
-		AdditionalDefines.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
-	}
-
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	
-	if (Input.bSkipPreprocessedCache)
-	{
-		if (!FFileHelper::LoadFileToString(PreprocessOutput.EditSource(), *Input.VirtualSourceFilePath))
-		{
-			return false;
-		}
-
-		// Remove const as we are on debug-only mode
-		CrossCompiler::CreateEnvironmentFromResourceTable(PreprocessOutput.GetSource(), const_cast<FShaderCompilerEnvironment&>(Environment));
-	}
-	else
-	{
-		if (!PreprocessShader(PreprocessOutput, Input, Environment, AdditionalDefines))
-		{
-			// The preprocessing stage will add any relevant errors.
-			return false;
-		}
-	}
-
-	// This requires removing the HLSLCC_NoPreprocess flag later on!
-	CleanupUniformBufferCode(Input.Environment, PreprocessOutput.EditSource());
-
-	// Run the experimental shader minifier
-#if UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-	if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
-	{
-		UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessOutput.EditSource(), Input.EntryPointName, PreprocessOutput.EditErrors());
-	}
-#endif // UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-	return true;
 }
 
 /**
@@ -3431,10 +3360,10 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FString& InPre
 		}
 	}
 
-	static const bool bDirectCompile = FParse::Param(FCommandLine::Get(), TEXT("directcompile"));
 	if (bCompilationSucceeded)
 	{
-		if (bDirectCompile)
+		// print resulting glsl to debug output if compiling from a debug dumped usf file
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 		{
 			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("%s\n"), ANSI_TO_TCHAR(GlslShaderSource));
 		}
@@ -3460,7 +3389,7 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FString& InPre
 	}
 	else if (!bUseSC)
 	{
-		const bool bUseAbsolutePaths = bDirectCompile;
+		const bool bUseAbsolutePaths = EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF);
 
 		const FString Tmp = ANSI_TO_TCHAR(ErrorLog);
 		TArray<FString> ErrorLines;
@@ -3489,7 +3418,7 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FString& InPre
 void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
 {
 	FShaderPreprocessOutput PreprocessOutput;
-	PreprocessOpenGLShader(Input, Input.Environment, PreprocessOutput, Version);
+	PreprocessShader(PreprocessOutput, Input, Input.Environment);
 	CompileOpenGLShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, Version);
 }
 

@@ -4,6 +4,7 @@
 #include "ShaderFormatOpenGL.h"
 
 #include "ShaderCompilerCommon.h"
+#include "ShaderPreprocessor.h"
 #include "ShaderPreprocessTypes.h"
 #include "HAL/FileManager.h"
 #include "Modules/ModuleManager.h"
@@ -15,11 +16,7 @@
 static FName NAME_GLSL_150_ES3_1(TEXT("GLSL_150_ES31"));
 static FName NAME_GLSL_ES3_1_ANDROID(TEXT("GLSL_ES3_1_ANDROID"));
 
-extern bool PreprocessOpenGLShader(
-	const FShaderCompilerInput& Input,
-	const FShaderCompilerEnvironment& Environment,
-	FShaderPreprocessOutput& Output,
-	GLSLVersion Version);
+extern bool ShouldUseDXC(FShaderCompilerFlags Flags);
 
 extern void CompileOpenGLShader(
 	const FShaderCompilerInput& Input,
@@ -29,7 +26,7 @@ extern void CompileOpenGLShader(
 	GLSLVersion Version);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_GLSL_VER = FGuid("45CB4440-A342-475E-AAD1-4CB8E228D1C9");
+static const FGuid UE_SHADER_GLSL_VER = FGuid("15A0CD3A-20CC-4F15-95CC-04E631068DFE");
 
 class FShaderFormatGLSL : public UE::ShaderCompilerCommon::FBaseShaderFormat 
 {
@@ -52,10 +49,6 @@ public:
 
 		uint32 Version = GetTypeHash(HLSLCC_VersionMinor);
 		Version = HashCombine(Version, BaseHash);
-
-	#if UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
-		Version = HashCombine(Version, 0x75E2FE85);
-	#endif // UE_OPENGL_SHADER_COMPILER_ALLOW_DEAD_CODE_REMOVAL
 
 		return Version;
 	}
@@ -82,10 +75,41 @@ public:
 		}
 	}
 
+	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
+	{
+		GLSLVersion Version = TranslateFormatNameToEnum(Input.ShaderFormat);
+		switch (Version)
+		{
+		case GLSL_ES3_1_ANDROID:
+			Input.Environment.SetDefine(TEXT("COMPILER_GLSL_ES3_1"), 1);
+			Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), 1);
+			break;
+
+		case GLSL_150_ES3_1:
+			Input.Environment.SetDefine(TEXT("COMPILER_GLSL"), 1);
+			Input.Environment.SetDefine(TEXT("ES3_1_PROFILE"), 1);
+			Input.Environment.SetDefine(TEXT("row_major"), TEXT(""));
+			break;
+
+		default:
+			check(0);
+		}
+		Input.Environment.SetDefine(TEXT("OPENGL_PROFILE"), 1);
+
+		const bool bUseDXC = ShouldUseDXC(Input.Environment.CompilerFlags);
+		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), bUseDXC ? 2 : 1);
+		Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
+
+		if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))
+		{
+			Input.Environment.SetDefine(TEXT("FORCE_FLOATS"), (uint32)1);
+		}
+	}
+
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
 	{
 		CheckFormat(Input.ShaderFormat);
-		return PreprocessOpenGLShader(Input, Environment, PreprocessOutput, TranslateFormatNameToEnum(Input.ShaderFormat));
+		return ::PreprocessShader(PreprocessOutput, Input, Environment);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override

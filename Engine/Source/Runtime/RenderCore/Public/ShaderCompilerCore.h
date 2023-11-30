@@ -31,7 +31,7 @@ class FShaderPipelineCompileJob;
 typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStringPtr;
 
 // this is for the protocol, not the data, bump if FShaderCompilerInput or ProcessInputFromArchive changes.
-inline const int32 ShaderCompileWorkerInputVersion = 24;
+inline const int32 ShaderCompileWorkerInputVersion = 25;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
 inline const int32 ShaderCompileWorkerOutputVersion = 19;
 // this is for the protocol, not the data.
@@ -221,6 +221,7 @@ enum class EShaderDebugInfoFlags : uint8
 	Diagnostics = 1 << 2,
 	ShaderCodeBinary = 1 << 3,
 	DetailedSource = 1 << 4,
+	CompileFromDebugUSF = 1 << 5,
 };
 ENUM_CLASS_FLAGS(EShaderDebugInfoFlags)
 
@@ -238,6 +239,7 @@ struct FShaderCompilerInput
 	FString ShaderName;
 
 	// Skips the preprocessor and instead loads the usf file directly
+	UE_DEPRECATED(5.4, "bSkipPreprocessedCache member is deprecated; set EShaderDebugInfoFlags::CompileFromDebugUSF on DebugInfoFlags instead.")
 	bool bSkipPreprocessedCache;
 
 	UE_DEPRECATED(5.3, "Use DebugInfoFlags field (EDebugInfoFlags::DirectCompileCommandLine)")
@@ -255,6 +257,10 @@ struct FShaderCompilerInput
 	// as such this will only ever be set for jobs whose shader format supports independent
 	// preprocessing)
 	bool bCachePreprocessed;
+
+	// Array of symbols that should be maintained when deadstripping. If this is empty, entry
+	// point name alone will be used.
+	TArray<FString> RequiredSymbols;
 	
 	// Shader pipeline information
 	bool bCompilingForShaderPipeline;
