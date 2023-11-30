@@ -109,7 +109,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.1 Senders takes authority over an object...
 		bool bSenderReceivedResponse = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0);
@@ -122,7 +122,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.2 ... so does receiver, who fails taking authority over the same object
 		bool bReceiverReceivedResponse = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &TestObjectPath, &ReceiverStreamId, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &TestObjectPath, &ReceiverStreamId, &bReceiverReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("Rejected because Sender already has authority"), Response.RejectedObjects.Num(), 1);
@@ -145,7 +145,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.3 ... then the sender lets go of authority ...
 		bSenderReceivedResponse = false;
 		ClientReplicationManager_Sender->ReleaseAuthorityOf({ TestObjectPath })
-			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection releasing object"), Response.RejectedObjects.Num(), 0); 
@@ -158,7 +158,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.4 ... and the receiver can take authority of the object
 		bReceiverReceivedResponse = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceiverReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection because the object should not be released"), Response.RejectedObjects.Num(), 0); 
@@ -184,11 +184,11 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		bool bReceivedResponse = false;
 		const FSoftObjectPath SomePath(GetDefault<UTestReflectionObject>());
 		const FGuid StreamId = FGuid::NewGuid();
-		ConcertSyncClient::Replication::FAuthorityChangeRequest Request;
+		FConcertReplication_ChangeAuthority_Request Request;
 		Request.TakeAuthority.Add(SomePath, FConcertStreamArray{ .StreamIds = { StreamId } });
 		// Detail: Cannot use IConcertClientReplicationManager::TakeAuthority util here because it builds the request based on what streams were registered
 		ClientReplicationManager_Sender->RequestAuthorityChange(Request)
-			.Next([this, &bReceivedResponse, &SomePath, &StreamId](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceivedResponse, &SomePath, &StreamId](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceivedResponse = true;
 				TestTrue(TEXT("Cannot take authority over unregistered object"), Response.RejectedObjects.Contains(SomePath));
@@ -228,7 +228,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.1 Senders takes authority over an object...
 		bool bSenderReceivedResponse = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (sender)"), Response.RejectedObjects.Num(), 0); 
@@ -246,7 +246,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.3 which means the receiver is allowed to take authority
 		bool bReceiverReceivedResponse = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceiverReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (receiver)"), Response.RejectedObjects.Num(), 0); 
@@ -274,7 +274,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.1 Senders takes authority over an object...
 		bool bSenderReceivedResponse = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (sender)"), Response.RejectedObjects.Num(), 0); 
@@ -292,7 +292,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 2.3 which means the receiver is allowed to take authority
 		bool bReceiverReceivedResponse = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bReceiverReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceiverReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceiverReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority (receiver)"), Response.RejectedObjects.Num(), 0); 
@@ -320,7 +320,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		TestEqual(TEXT("No tracked objects"), BridgeMock_Sender->TrackedObjects.Num(), 0);
 		bool bSenderReceivedTakeResponse = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject })
-			.Next([this, &bSenderReceivedTakeResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedTakeResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedTakeResponse = true;
 				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
@@ -335,7 +335,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		// 4. Release authority
 		bool bSenderReceivedReleaseResponse = false;
 		ClientReplicationManager_Sender->ReleaseAuthorityOf({ TestObject })
-			.Next([this, &bSenderReceivedReleaseResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedReleaseResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedReleaseResponse = true;
 				TestEqual(TEXT("No rejection releasing authority"), Response.RejectedObjects.Num(), 0); 

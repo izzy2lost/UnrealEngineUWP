@@ -32,8 +32,8 @@ namespace UE::MultiUserClient
 			return nullptr;
 		}
 		
-		const TOptional<FChangeStreamRequest>& OptionalStreamRequest = Params.StreamRequest;
-		TOptional<FAuthorityChangeRequest>& OptionalAuthorityRequest = Params.AuthorityRequest;
+		const TOptional<FConcertReplication_ChangeStream_Request>& OptionalStreamRequest = Params.StreamRequest;
+		TOptional<FConcertReplication_ChangeAuthority_Request>& OptionalAuthorityRequest = Params.AuthorityRequest;
 		
 		const bool bIsStreamChangeEmpty = Params.IsStreamChangeEmpty();
 		const bool bModifyStreams = !bIsStreamChangeEmpty;
@@ -51,7 +51,7 @@ namespace UE::MultiUserClient
 		else
 		{
 			ReplicationManager->ChangeStream(*OptionalStreamRequest)
-				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), OptionalStreamRequest, AuthorityRequest = MoveTemp(OptionalAuthorityRequest)](FChangeStreamResponse&& Response) mutable
+				.Next([this, DestructionDetection = LifetimeToken->AsWeak(), OptionalStreamRequest, AuthorityRequest = MoveTemp(OptionalAuthorityRequest)](FConcertReplication_ChangeStream_Response&& Response) mutable
 				{
 					const FSubmitStreamChangesResponse SubmissionResult { EStreamSubmissionErrorCode::Success, { FCompletedChangeSubmission{*OptionalStreamRequest, Response } } };
 					// The request might execute after we're destroyed, e.g. by leaving session while request is on the way.
@@ -70,9 +70,9 @@ namespace UE::MultiUserClient
 	}
 
 	void FSubmissionWorkflow_LocalClient::OnStreamChangeCompleted(
-		const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
-		const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
-		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest
+		const FConcertReplication_ChangeStream_Request& StreamChangeRequest,
+		const FConcertReplication_ChangeStream_Response& ChangeStreamResponse,
+		TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest
 		)
 	{
 		const TSharedRef<FSingleClientSubmissionOperation> Operation = InProgressOperation->Operation;
@@ -101,7 +101,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FSubmissionWorkflow_LocalClient::HandlePendingAuthorityChangeRequest(TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest)
+	void FSubmissionWorkflow_LocalClient::HandlePendingAuthorityChangeRequest(TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest)
 	{
 		using namespace ConcertSyncClient::Replication;
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
@@ -129,7 +129,7 @@ namespace UE::MultiUserClient
 		FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::Success, AuthorityChangeRequest };
 		Operation->EmplaceAuthorityRequestPromise(Request);
 		ReplicationManager->RequestAuthorityChange(MoveTemp(*AuthorityChangeRequest))
-			.Next([this, Request = MoveTemp(Request), DestructionDetection = LifetimeToken->AsWeak()](FAuthorityChangeResponse&& Response)
+			.Next([this, Request = MoveTemp(Request), DestructionDetection = LifetimeToken->AsWeak()](FConcertReplication_ChangeAuthority_Response&& Response)
 			{
 				if (DestructionDetection.IsValid())
 				{

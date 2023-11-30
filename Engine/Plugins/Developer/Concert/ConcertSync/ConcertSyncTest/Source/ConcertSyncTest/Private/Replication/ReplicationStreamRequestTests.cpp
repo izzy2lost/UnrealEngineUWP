@@ -28,9 +28,9 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		const FGuid SenderEndpointId = Client_Sender->ClientSessionMock->GetSessionClientEndpointId();
 		const FSoftObjectPath TestObjectPath{ TestObject };
-		ConcertSyncClient::Replication::FClientQueryRequest Request;
+		FConcertReplication_QueryReplicationInfo_Request Request;
 		Request.ClientEndpointIds = { SenderEndpointId };
-		auto TestReplicationMapContent = [this, &SenderEndpointId](const ConcertSyncClient::Replication::FClientQueryResponse& Response)
+		auto TestReplicationMapContent = [this, &SenderEndpointId](const FConcertReplication_QueryReplicationInfo_Response& Response)
 		{
 			TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			
@@ -59,7 +59,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.1 Request before taking authority
 		bool bReceivedFirstQueryResponse = false;
 		ClientReplicationManager_Receiver->QueryClientInfo(Request)
-			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &bReceivedFirstQueryResponse](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
+			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &bReceivedFirstQueryResponse](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
 			{
 				bReceivedFirstQueryResponse = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -75,7 +75,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.2 Request after taking authority
 		bool bSenderReceivedResponse = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObjectPath })
-			.Next([this, &bSenderReceivedResponse](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderReceivedResponse](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderReceivedResponse = true;
 				TestEqual(TEXT("No rejection taking authority"), Response.RejectedObjects.Num(), 0); 
@@ -85,7 +85,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 
 		bool bReceivedSecondQueryResponse = false;
 		ClientReplicationManager_Receiver->QueryClientInfo(Request)
-			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &TestObjectPath, &bReceivedSecondQueryResponse](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
+			.Next([this, &SenderEndpointId, &TestReplicationMapContent, &TestObjectPath, &bReceivedSecondQueryResponse](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
 			{
 				bReceivedSecondQueryResponse = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -111,7 +111,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		bool bReceivedResponse_SkipStreamInfo = false;
 		Request.QueryFlags = EConcertQueryClientStreamFlags::SkipStreamInfo;
 		ClientReplicationManager_Receiver->QueryClientInfo(Request)
-			.Next([this, &SenderEndpointId, &bReceivedResponse_SkipStreamInfo](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
+			.Next([this, &SenderEndpointId, &bReceivedResponse_SkipStreamInfo](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
 			{
 				bReceivedResponse_SkipStreamInfo = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -126,7 +126,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		bool bReceivedResponse_SkipProperties = false;
 		Request.QueryFlags = EConcertQueryClientStreamFlags::SkipProperties;
 		ClientReplicationManager_Receiver->QueryClientInfo(Request)
-			.Next([this, &SenderEndpointId, &TestObjectPath, &bReceivedResponse_SkipProperties](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
+			.Next([this, &SenderEndpointId, &TestObjectPath, &bReceivedResponse_SkipProperties](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
 			{
 				bReceivedResponse_SkipProperties = true;
 				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
@@ -151,7 +151,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		bool bReceivedResponse_SkipAuthority = false;
 		Request.QueryFlags = EConcertQueryClientStreamFlags::SkipAuthority;
         ClientReplicationManager_Receiver->QueryClientInfo(Request)
-        	.Next([this, &SenderEndpointId, &bReceivedResponse_SkipAuthority](ConcertSyncClient::Replication::FClientQueryResponse&& Response) mutable
+        	.Next([this, &SenderEndpointId, &bReceivedResponse_SkipAuthority](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
         	{
         		bReceivedResponse_SkipAuthority = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -234,13 +234,13 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		}
 
 		/** Sends a ChangeStream request and validates that ExpectedStreams is equal to the registered streams. */
-		void ChangeStreamForSenderClientAndValidate(const FString& InTestName, const ConcertSyncClient::Replication::FChangeStreamRequest& Request, const TArray<FSharedReplicationStreamDescription>& ExpectedStreams)
+		void ChangeStreamForSenderClientAndValidate(const FString& InTestName, const FConcertReplication_ChangeStream_Request& Request, const TArray<FSharedReplicationStreamDescription>& ExpectedStreams)
 		{
 			using namespace ConcertSyncClient::Replication;
 			
 			bool bModifiedInitialStream = false;
 			ClientReplicationManager_Sender->ChangeStream(Request)
-				.Next([this, &InTestName, &bModifiedInitialStream](FChangeStreamResponse&& Response)
+				.Next([this, &InTestName, &bModifiedInitialStream](FConcertReplication_ChangeStream_Response&& Response)
 				{
 					bModifiedInitialStream = true;
 					TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -258,7 +258,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			bool bQueriedClientInfo = false;
 			const FGuid SenderId = Client_Sender->ClientSessionMock->GetSessionClientEndpointId();
 			ClientReplicationManager_Receiver->QueryClientInfo({{ { SenderId } }})
-				.Next([this, &InTestName, &bQueriedClientInfo, &Streams, &SenderId](FClientQueryResponse&& Response)
+				.Next([this, &InTestName, &bQueriedClientInfo, &Streams, &SenderId](FConcertReplication_QueryReplicationInfo_Response&& Response)
 				{
 					bQueriedClientInfo = true;
 					TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -290,23 +290,23 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.1 Modify existing stream
 		FConcertPropertySelection& ChangedInitialProperties = GetPropertySelection(InitialStream, *TestObject);
 		AddVectorProperty(ChangedInitialProperties);
-		FChangeStreamRequest ModifyRequest;
+		FConcertReplication_ChangeStream_Request ModifyRequest;
 		ModifyRequest.ObjectsToPut.Add({ InitialStreamId, TestObject }, { ChangedInitialProperties });
 		ChangeStreamForSenderClientAndValidate(TEXT("ModifyRequest"), ModifyRequest, { InitialStream.BaseDescription });
 
 		// 2.2 Add new stream
 		auto[DynamicStreamId, DynamicStream] = CreateFloatPropertyStream(*TestObject);
-		FChangeStreamRequest DynamicCreationRequest;
+		FConcertReplication_ChangeStream_Request DynamicCreationRequest;
 		DynamicCreationRequest.StreamsToAdd.Add(DynamicStream.Pack());
 		ChangeStreamForSenderClientAndValidate(TEXT("DynamicCreationRequest"), DynamicCreationRequest, { InitialStream.BaseDescription, DynamicStream.BaseDescription });
 
 		// 2.3 Remove stream
-		FChangeStreamRequest RemoveStreamRequest;
+		FConcertReplication_ChangeStream_Request RemoveStreamRequest;
 		RemoveStreamRequest.StreamsToRemove.Add(InitialStreamId);
 		ChangeStreamForSenderClientAndValidate(TEXT("RemoveStreamRequest"), RemoveStreamRequest, { DynamicStream.BaseDescription });
 
 		// 2.4 Remove object > removes stream implicitly
-		FChangeStreamRequest RemoveObjectRequest;
+		FConcertReplication_ChangeStream_Request RemoveObjectRequest;
 		RemoveObjectRequest.ObjectsToRemove.Add({ DynamicStreamId, TestObject });
 		ChangeStreamForSenderClientAndValidate(TEXT("RemoveObjectRequest"), RemoveObjectRequest, {});
 		
@@ -325,21 +325,21 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		// 2.1 Add stream with float property
 		auto[FloatStreamID, FloatStream] = CreateFloatPropertyStream(*TestObject);
-		FChangeStreamRequest CreateFloatStreamRequest;
+		FConcertReplication_ChangeStream_Request CreateFloatStreamRequest;
 		CreateFloatStreamRequest.StreamsToAdd.Add(FloatStream.Pack());
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateFloatStreamRequest"), CreateFloatStreamRequest, { FloatStream.BaseDescription });
 		// 2.2 Add a stream with vector property
 		auto[VectorFloatStreamID, VectorFloatStream] = CreateVectorPropertyStream(*TestObject);
-		FChangeStreamRequest CreateVectorFloatStreamRequest; 
+		FConcertReplication_ChangeStream_Request CreateVectorFloatStreamRequest; 
 		CreateVectorFloatStreamRequest.StreamsToAdd.Add(VectorFloatStream.Pack());
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateVectorFloatStreamRequest"), CreateVectorFloatStreamRequest, { FloatStream.BaseDescription, VectorFloatStream.BaseDescription });
 
 		// 2.3 Take authority over both streams
 		bool bTookAuthority = false;
-		FAuthorityChangeRequest TakeAuthorityRequest;
+		FConcertReplication_ChangeAuthority_Request TakeAuthorityRequest;
 		TakeAuthorityRequest.TakeAuthority.Add(TestObject, FConcertStreamArray{{ FloatStreamID, VectorFloatStreamID }});
 		ClientReplicationManager_Sender->RequestAuthorityChange({ TakeAuthorityRequest })
-			.Next([this, &bTookAuthority](FAuthorityChangeResponse&& Response)
+			.Next([this, &bTookAuthority](FConcertReplication_ChangeAuthority_Response&& Response)
 			{
 				bTookAuthority = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -348,7 +348,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		TestTrue(TEXT("Authority request > Received response"), bTookAuthority);
 
 		// 2.4 Appending the overlapping float property works
-		FChangeStreamRequest AppendFloatRequest;
+		FConcertReplication_ChangeStream_Request AppendFloatRequest;
 		FConcertPropertySelection& NewSelection = GetPropertySelection(VectorFloatStream, *TestObject);
 		AddFloatProperty(NewSelection);
 		AppendFloatRequest.ObjectsToPut.Add(FObjectInStreamID{ VectorFloatStreamID, TestObject }, FConcertReplication_ChangeStream_PutObject{ NewSelection });
@@ -372,14 +372,14 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		// 2.1 Add stream with float property
 		auto[SenderStreamID, SenderStream] = CreateFloatPropertyStream(*TestObject);
-		FChangeStreamRequest CreateFloatStreamRequest;
+		FConcertReplication_ChangeStream_Request CreateFloatStreamRequest;
 		CreateFloatStreamRequest.StreamsToAdd.Add(SenderStream.Pack());
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateFloatStreamRequest"), CreateFloatStreamRequest, { SenderStream.BaseDescription });
 
 		// 2.2 Have Sender take authority over the float property
 		bool bSenderTookAuthority = false;
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject })
-			.Next([this, &bSenderTookAuthority](const FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bSenderTookAuthority](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bSenderTookAuthority = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -389,11 +389,11 @@ namespace UE::ConcertSyncTests::Replication::Stream
 
 		// 2.3 Have Receiver create vector stream
 		auto[ReceiverStreamID, ReceiverStream] = CreateVectorPropertyStream(*TestObject);
-		FChangeStreamRequest CreateVectorStreamRequest; 
+		FConcertReplication_ChangeStream_Request CreateVectorStreamRequest; 
 		CreateVectorStreamRequest.StreamsToAdd.Add(ReceiverStream.Pack());
 		bool bAddedVectorStream = false;
 		ClientReplicationManager_Receiver->ChangeStream(CreateVectorStreamRequest)
-			.Next([this, &bAddedVectorStream](FChangeStreamResponse&& Response)
+			.Next([this, &bAddedVectorStream](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				bAddedVectorStream = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -405,7 +405,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.4 Have Receiver take authority over vector stream
 		bool bReceiverTookAuthority = false;
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObject })
-			.Next([this, &bReceiverTookAuthority](const ConcertSyncClient::Replication::FAuthorityChangeResponse& Response) mutable
+			.Next([this, &bReceiverTookAuthority](const FConcertReplication_ChangeAuthority_Response& Response) mutable
 			{
 				bReceiverTookAuthority = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -415,7 +415,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 
 		// 2.5 Receiver is rejected from modifying the stream to include the Float property because the Sender has authority over it
 		const FObjectInStreamID TestObjectInReceiverStreamId { ReceiverStreamID, TestObject };
-		FChangeStreamRequest AddFloatToStreamRequest;
+		FConcertReplication_ChangeStream_Request AddFloatToStreamRequest;
 		FConcertPropertySelection NewSelection = GetPropertySelection(ReceiverStream, *TestObject);
 		AddFloatProperty(NewSelection);
 		AddFloatToStreamRequest.ObjectsToPut.Add(TestObjectInReceiverStreamId, { NewSelection });
@@ -424,7 +424,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// Server logs a warning when rejecting - avoid the test being marked with a warning.
 		AddExpectedError(TEXT("Rejecting ChangeStream"));
 		ClientReplicationManager_Receiver->ChangeStream(AddFloatToStreamRequest)
-			.Next([this, TestObject, SenderStreamID = SenderStreamID, &TestObjectInReceiverStreamId, &bReceivedResponseAddingFloat](FChangeStreamResponse&& Response)
+			.Next([this, TestObject, SenderStreamID = SenderStreamID, &TestObjectInReceiverStreamId, &bReceivedResponseAddingFloat](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				bReceivedResponseAddingFloat = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -458,12 +458,12 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		// 2.1 Add stream with float property
 		auto[StreamId, Stream] = CreateFloatPropertyStream(*TestObject);
-		FChangeStreamRequest CreateStreamRequest;
+		FConcertReplication_ChangeStream_Request CreateStreamRequest;
 		CreateStreamRequest.StreamsToAdd.Add(Stream.Pack());
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateStreamRequest"), CreateStreamRequest, { Stream.BaseDescription });
 
 		// 2.2 Make a request that will fail and check that no changes were made to the original stream
-		FChangeStreamRequest InvalidRequest;
+		FConcertReplication_ChangeStream_Request InvalidRequest;
 		FConcertPropertySelection NewSelection = GetPropertySelection(Stream, *TestObject);
 		AddFloatProperty(NewSelection);
 		InvalidRequest.ObjectsToPut.Add(FObjectInStreamID{ StreamId, TestObject}, FConcertReplication_ChangeStream_PutObject{ NewSelection });
@@ -474,7 +474,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		bool bReceivedChangeStreamResponse = false;
 		ClientReplicationManager_Sender->ChangeStream(InvalidRequest)
-			.Next([this, &bReceivedChangeStreamResponse](FChangeStreamResponse&& Response)
+			.Next([this, &bReceivedChangeStreamResponse](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				bReceivedChangeStreamResponse = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
@@ -503,20 +503,20 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		
 		// 2.1 Sender takes authority
 		ClientReplicationManager_Sender->TakeAuthorityOver({ TestObject })
-			.Next([this](FAuthorityChangeResponse&& Response)
+			.Next([this](FConcertReplication_ChangeAuthority_Response&& Response)
 			{
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Sender > Success taking authority"), Response.RejectedObjects.IsEmpty());
 			});
 
 		// 2.2 Sender removes the object
-		FChangeStreamRequest RemoveObjectRequest;
+		FConcertReplication_ChangeStream_Request RemoveObjectRequest;
 		RemoveObjectRequest.ObjectsToRemove.Add({ SenderStreamId, TestObject });
 		ChangeStreamForSenderClientAndValidate(TEXT("Remove Object"), RemoveObjectRequest, {});
 
 		// 2.3 Receiver can now take authority since 2.2 implicitly removed authority
 		ClientReplicationManager_Receiver->TakeAuthorityOver({ TestObject })
-			.Next([this](FAuthorityChangeResponse&& Response)
+			.Next([this](FConcertReplication_ChangeAuthority_Response&& Response)
 			{
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestTrue(TEXT("Receiver > Success taking authority"), Response.RejectedObjects.IsEmpty());
@@ -540,7 +540,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 
     	// 2. Timeout request
     	ServerSession->UnregisterCustomRequestHandler<FConcertReplication_ChangeStream_Request>();
-    	ConcertSyncClient::Replication::FChangeStreamRequest Request;
+    	FConcertReplication_ChangeStream_Request Request;
     	Request.ObjectsToRemove.Add({ InitialStreamId, TestObject });
     	ClientReplicationManager_Sender->ChangeStream(Request);
 

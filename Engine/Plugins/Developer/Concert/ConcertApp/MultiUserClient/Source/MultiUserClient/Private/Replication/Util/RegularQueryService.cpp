@@ -113,7 +113,7 @@ namespace UE::MultiUserClient
 		if (!Request.ClientEndpointIds.IsEmpty())
 		{
 			ReplicationManager->QueryClientInfo({ Request })
-				.Next([this, WeakToken = Token.ToWeakPtr()](ConcertSyncClient::Replication::FClientQueryResponse&& Response)
+				.Next([this, WeakToken = Token.ToWeakPtr()](FConcertReplication_QueryReplicationInfo_Response&& Response)
 				{
 					const bool bCanProcessRequest = WeakToken.Pin().IsValid();
 					if (bCanProcessRequest)

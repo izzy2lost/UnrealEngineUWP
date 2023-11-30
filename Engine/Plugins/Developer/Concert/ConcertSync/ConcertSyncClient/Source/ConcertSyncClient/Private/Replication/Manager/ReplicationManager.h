@@ -30,9 +30,9 @@ namespace UE::ConcertSyncClient::Replication
 		virtual bool CanJoin() override;
 		virtual bool IsConnectedToReplicationSession() override;
 		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
-		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
-		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
-		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override;
+		virtual TFuture<FConcertReplication_ChangeAuthority_Response> RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args) override;
+		virtual TFuture<FConcertReplication_QueryReplicationInfo_Response> QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args) override;
+		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override;
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)>) const override;
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
 		virtual FOnPreStreamsChanged& OnPreStreamsChanged() override;

@@ -188,7 +188,7 @@ namespace UE::MultiUserClient
 		const FSubmitAuthorityChangesRequest AuthorityRequest { EAuthoritySubmissionRequestErrorCode::Success, InProgressOperation->Parameters.AuthorityRequest };
 		if (EventData.bProcessedSuccessfully)
 		{
-			const ConcertSyncClient::Replication::FAuthorityChangeResponse ReceivedResponse { EventData.AuthorityChangeResponse };
+			const FConcertReplication_ChangeAuthority_Response ReceivedResponse { EventData.AuthorityChangeResponse };
 			const FSubmitAuthorityChangesResponse AuthorityResponse { EAuthoritySubmissionResponseErrorCode::Success, ReceivedResponse };
 			Operation.EmplaceAuthorityResponsePromise(AuthorityResponse);
 			AuthorityRequestCompletedDelegate.Broadcast(AuthorityRequest, AuthorityResponse);

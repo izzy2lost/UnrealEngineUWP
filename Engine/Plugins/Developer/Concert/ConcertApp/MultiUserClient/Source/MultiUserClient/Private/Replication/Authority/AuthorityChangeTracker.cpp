@@ -88,14 +88,14 @@ namespace UE::MultiUserClient
 		return AuthorityCache.CanClientTakeAuthorityAfterSubmission(ObjectPath, ClientId);
 	}
 
-	TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> FAuthorityChangeTracker::BuildChangeRequest(const FGuid& StreamId) const
+	TOptional<FConcertReplication_ChangeAuthority_Request> FAuthorityChangeTracker::BuildChangeRequest(const FGuid& StreamId) const
 	{
 		if (NewAuthorityStates.IsEmpty())
 		{
 			return {};
 		}
 		
-		ConcertSyncClient::Replication::FAuthorityChangeRequest ChangeRequest;
+		FConcertReplication_ChangeAuthority_Request ChangeRequest;
 		for (const TPair<FSoftObjectPath, bool>& NewAuthorityState : NewAuthorityStates)
 		{
 			if (NewAuthorityState.Value)

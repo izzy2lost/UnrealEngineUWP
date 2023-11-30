@@ -26,8 +26,8 @@ namespace UE::MultiUserClient
 	/** Contains the original request and response of a completed stream change. */
 	struct FCompletedChangeSubmission
 	{
-		ConcertSyncClient::Replication::FChangeStreamRequest Request;
-		ConcertSyncClient::Replication::FChangeStreamResponse Response;
+		FConcertReplication_ChangeStream_Request Request;
+		FConcertReplication_ChangeStream_Response Response;
 	};
 
 	/** Resulting of submitting stream changes */

@@ -49,8 +49,8 @@ namespace UE::MultiUserClient
 			
 		// Even though authority request is sent after server confirms stream change, the authority request is pre-built to avoid sending changes
 		// the local client makes while we're waiting for the latent server responses.
-		TOptional<FAuthorityChangeRequest> AuthorityChangeRequest = RequestBuilder.BuildAuthorityChange();
-		TOptional<FChangeStreamRequest> StreamRequest = RequestBuilder.BuildStreamChange();
+		TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest = RequestBuilder.BuildAuthorityChange();
+		TOptional<FConcertReplication_ChangeStream_Request> StreamRequest = RequestBuilder.BuildStreamChange();
 			
 		if (AuthorityChangeRequest || StreamRequest)
 		{

@@ -23,10 +23,10 @@ namespace UE::MultiUserClient
 		, AuthorityChangeTracker(InAuthorityChangeTracker)
 	{}
 
-	TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> FChangeRequestBuilder::BuildStreamChange() const
+	TOptional<FConcertReplication_ChangeStream_Request> FChangeRequestBuilder::BuildStreamChange() const
 	{
 		using namespace UE::ConcertSyncClient::Replication;
-		TOptional<FChangeStreamRequest> StreamRequest;
+		TOptional<FConcertReplication_ChangeStream_Request> StreamRequest;
 		
 		const FStreamChangelist& Changelist = StreamChangeTracker.GetCachedDeltaChange();
 		const bool bIsChangelistEmpty = Changelist.ObjectsToPut.IsEmpty() && Changelist.ObjectsToRemove.IsEmpty();
@@ -43,7 +43,7 @@ namespace UE::MultiUserClient
 		return StreamRequest;
 	}
 
-	TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> FChangeRequestBuilder::BuildAuthorityChange() const
+	TOptional<FConcertReplication_ChangeAuthority_Request> FChangeRequestBuilder::BuildAuthorityChange() const
 	{
 		return AuthorityChangeTracker.BuildChangeRequest(GetLocalClientStreamId());
 	}

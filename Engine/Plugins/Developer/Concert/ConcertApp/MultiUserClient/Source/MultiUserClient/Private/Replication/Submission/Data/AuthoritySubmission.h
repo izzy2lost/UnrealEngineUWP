@@ -48,7 +48,7 @@ namespace UE::MultiUserClient
 		EAuthoritySubmissionRequestErrorCode ErrorCode;
 		
 		/** Only valid if ErrorCode == EAuthoritySubmissionErrorCode::Success */
-		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> Request;
+		TOptional<FConcertReplication_ChangeAuthority_Request> Request;
 	};
 	
 	struct FSubmitAuthorityChangesResponse
@@ -56,6 +56,6 @@ namespace UE::MultiUserClient
 		EAuthoritySubmissionResponseErrorCode ErrorCode = EAuthoritySubmissionResponseErrorCode::Cancelled;
 		
 		/** Only valid if ErrorCode == EAuthoritySubmissionErrorCode::Success */
-		TOptional<ConcertSyncClient::Replication::FAuthorityChangeResponse> Response;
+		TOptional<FConcertReplication_ChangeAuthority_Response> Response;
 	};
 }

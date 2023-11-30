@@ -22,7 +22,7 @@ namespace UE::MultiUserClient
 			/** Used to build the final changelist to apply to the target client. Maps ClientIds to the object data they had registered. */
 			TMap<FGuid, FObjectReplicationMap> OldRegisteredObjects;
 			/** Changes to make to all the other clients */
-			TMap<FGuid, ConcertSyncClient::Replication::FChangeStreamRequest> ReassignedClientRequests;
+			TMap<FGuid, FConcertReplication_ChangeStream_Request> ReassignedClientRequests;
 			/** Authority that the clients had before. This is used to determine whether to give the assigned to client authority once the stream changes have been made. */
 			TMap<FGuid, TArray<FSoftObjectPath>> ReassignedAuthority;
 		};
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 		{
 			FObjectReassignment Result;
 			TMap<FGuid, FObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
-			TMap<FGuid, ConcertSyncClient::Replication::FChangeStreamRequest>& ReassignedClientRequests = Result.ReassignedClientRequests;
+			TMap<FGuid, FConcertReplication_ChangeStream_Request>& ReassignedClientRequests = Result.ReassignedClientRequests;
 			TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority = Result.ReassignedAuthority;
 		
 			for (const FSoftObjectPath& ObjectPath : ObjectsToReassign)
@@ -117,13 +117,13 @@ namespace UE::MultiUserClient
 		}
 
 		/** Builds list of authority changes based on which clients we managed to change successfully. */
-		static ConcertSyncClient::Replication::FAuthorityChangeRequest MakeAuthorityRequestFrom(
+		static FConcertReplication_ChangeAuthority_Request MakeAuthorityRequestFrom(
 			const TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority, 
 			const FParallelExecutionResult& ParallelExecutionResult,
 			const FGuid& TargetStreamId
 			)
 		{
-			ConcertSyncClient::Replication::FAuthorityChangeRequest ResultRequest;
+			FConcertReplication_ChangeAuthority_Request ResultRequest;
 			for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
 			{
 				const TOptional<FCompletedChangeSubmission>& SubmissionInfo = ChangesRequestedOnRemote.Value.SubmissionInfo;
@@ -454,7 +454,7 @@ namespace UE::MultiUserClient
 			StreamSynchronizer.GetServerState(),
 			StreamId
 			);
-		ConcertSyncClient::Replication::FChangeStreamRequest AssignedToClientRequest = bIsStreamRegistered
+		FConcertReplication_ChangeStream_Request AssignedToClientRequest = bIsStreamRegistered
 			? StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(Changelist)
 			: StreamRequestUtils::BuildChangeRequest_CreateNewStream(StreamId, Changelist);
 		

@@ -27,7 +27,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	{
 		Test.SetUpClientAndServer();
 		Test.ClientReplicationManager_Sender->TakeAuthorityOver({ Test.TestObject })
-			.Next([&Test](ConcertSyncClient::Replication::FAuthorityChangeResponse&& Response)
+			.Next([&Test](FConcertReplication_ChangeAuthority_Response&& Response)
 			{
 				if (!Response.RejectedObjects.IsEmpty())
 				{
@@ -75,11 +75,11 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 		const TOptional<FConcertPropertyChain> VectorPropertyChain = FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector") });
 		VectorOnlySelection.ReplicatedProperties.Add(*VectorPropertyChain);
 		
-		ConcertSyncClient::Replication::FChangeStreamRequest Request;
+		FConcertReplication_ChangeStream_Request Request;
 		Request.ObjectsToPut.Add(FObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertReplication_ChangeStream_PutObject{ VectorOnlySelection });
 		bool bReceivedChangeStreamResponse = false;
 		Test.ClientReplicationManager_Sender->ChangeStream(Request)
-			.Next([&Test, &bReceivedChangeStreamResponse](ConcertSyncClient::Replication::FChangeStreamResponse&& Response)
+			.Next([&Test, &bReceivedChangeStreamResponse](FConcertReplication_ChangeStream_Response&& Response)
 			{
 				bReceivedChangeStreamResponse = true;
 				Test.TestTrue(TEXT("Changed Stream"), Response.IsSuccess());

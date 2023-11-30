@@ -14,22 +14,11 @@
 #include "Templates/UnrealTemplate.h"
 
 class IConcertSyncClient;
-
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FChangeStreamResponse;
-	struct FChangeStreamRequest;
-}
+struct FConcertReplication_ChangeStream_Response;
+struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient
 {
-	enum class EObjectWarningFlags
-	{
-		Ok = 0,
-		MissingProperties = 1 << 0
-	};
-	ENUM_CLASS_FLAGS(EObjectWarningFlags);
-	
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the
 	 * unconfirmed changes to the client's streams and is updates when the server confirms the change.

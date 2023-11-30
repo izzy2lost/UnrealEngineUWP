@@ -60,14 +60,14 @@ namespace UE::MultiUserClient
 		 * @param Request The request to clense
 		 * @param SendingClient The client that will send the request
 		 */
-		void CleanseConflictsFromAuthorityRequest(ConcertSyncClient::Replication::FAuthorityChangeRequest& Request, const FGuid& SendingClient) const;
+		void CleanseConflictsFromAuthorityRequest(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient) const;
 		/**
 		 * Removes entries from Request that would generate conflicts.
 		 * 
 		 * @param Request The request to clense
 		 * @param SendingClient The client that will send the request
 		 */
-		void CleanseConflictsFromStreamRequest(ConcertSyncClient::Replication::FChangeStreamRequest& Request, const FGuid& SendingClient) const;
+		void CleanseConflictsFromStreamRequest(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient) const;
 		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnCacheChanged, const FGuid& ClientId);
 		/** Called when the cache changes for a specific client. */

@@ -37,14 +37,6 @@ namespace UE::ConcertSyncClient::Replication
 			, DetailedErrorMessage(MoveTemp(DetailedErrorMessage))
 		{}
 	};
-
-	// The intention here is to wrap the request in case there is some more specific meta data we want to add in the future.
-	struct FAuthorityChangeRequest : FConcertReplication_ChangeAuthority_Request {};
-	struct FAuthorityChangeResponse : FConcertReplication_ChangeAuthority_Response {};
-	struct FClientQueryRequest : FConcertReplication_QueryReplicationInfo_Request {};
-	struct FClientQueryResponse : FConcertReplication_QueryReplicationInfo_Response {};
-	struct FChangeStreamRequest : FConcertReplication_ChangeStream_Request {};
-	struct FChangeStreamResponse : FConcertReplication_ChangeStream_Response {};
 }
 
 /**
@@ -60,7 +52,7 @@ public:
 	/**
 	 * Joins a replication session.
 	 * Subsequent calls to JoinReplicationSession will fail until either the resulting TFuture returns or LeaveReplicationSession is called.
-	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes game thread.  
+	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
 	virtual TFuture<UE::ConcertSyncClient::Replication::FJoinReplicatedSessionResult> JoinReplicationSession(UE::ConcertSyncClient::Replication::FJoinReplicatedSessionArgs Args) = 0;
 	/** Leaves the current replication session. */
@@ -79,7 +71,7 @@ public:
 	 * Iterates the streams the client has registered with the server.
 	 * It only makes sense to call this function the manager has joined a replication session.
 	 * @return Whether this manager is connected to a session (Iterated) or not (NoRegisteredStreams).
-	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes game thread.  
+	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
 	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
 	/** @return Whether this manager is has any registered streams (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
@@ -89,13 +81,13 @@ public:
 	
 	/**
 	 * Requests from the server to change the authority over some objects.
-	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes game thread.  
+	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
-	virtual TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> RequestAuthorityChange(UE::ConcertSyncClient::Replication::FAuthorityChangeRequest Args) = 0;
+	virtual TFuture<FConcertReplication_ChangeAuthority_Response> RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args) = 0;
 	/** Util function that will request authority for all streams for the given objects. */
-	TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects);
+	TFuture<FConcertReplication_ChangeAuthority_Response> TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects);
 	/** Util function that will let go over all authority of the given objects. */
-	TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects);
+	TFuture<FConcertReplication_ChangeAuthority_Response> ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects);
 
 	enum class EAuthorityEnumerationResult { NoAuthorityAvailable, Iterated };
 	/**
@@ -110,19 +102,19 @@ public:
 
 	/**
 	 * Requests replication info about other clients, including the streams registered and which objects they have authority over (i.e. are sending).
-	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes game thread.  
+	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
-	virtual TFuture<UE::ConcertSyncClient::Replication::FClientQueryResponse> QueryClientInfo(UE::ConcertSyncClient::Replication::FClientQueryRequest Args) = 0;
+	virtual TFuture<FConcertReplication_QueryReplicationInfo_Response> QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args) = 0;
 
 	/**
 	 * Requests to change the client's registered stream.
-	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes game thread.  
+	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
-	virtual TFuture<UE::ConcertSyncClient::Replication::FChangeStreamResponse> ChangeStream(UE::ConcertSyncClient::Replication::FChangeStreamRequest Args) = 0;
+	virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) = 0;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreStreamsChanged,
-		const UE::ConcertSyncClient::Replication::FChangeStreamRequest&,
-		const UE::ConcertSyncClient::Replication::FChangeStreamResponse&
+		const FConcertReplication_ChangeStream_Request&,
+		const FConcertReplication_ChangeStream_Response&
 		);
 	/** Called right before the result of GetRegisteredStreams changes. */
 	virtual FOnPreStreamsChanged& OnPreStreamsChanged() = 0;
@@ -132,8 +124,8 @@ public:
 	virtual FOnPostStreamsChanged& OnPostStreamsChanged() = 0;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPreAuthorityChanged,
-		const UE::ConcertSyncClient::Replication::FAuthorityChangeRequest&,
-		const UE::ConcertSyncClient::Replication::FAuthorityChangeResponse&
+		const FConcertReplication_ChangeAuthority_Request&,
+		const FConcertReplication_ChangeAuthority_Response&
 		);
 	/** Called right before GetClientOwnedObjects changes. */
 	virtual FOnPreAuthorityChanged& OnPreAuthorityChanged() = 0;

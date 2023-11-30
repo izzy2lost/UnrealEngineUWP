@@ -10,11 +10,6 @@
 
 struct FConcertReplication_ChangeStream_Request;
 
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FChangeStreamRequest;
-}
-
 namespace UE::MultiUserClient
 {
 	class FReplicationClientManager;
@@ -55,6 +50,6 @@ namespace UE::MultiUserClient
 	 */
 	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations);
 	/** Util for transforming into FSubmissionParams */
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, ConcertSyncClient::Replication::FChangeStreamRequest> ParallelOperations);
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations);
 }
 

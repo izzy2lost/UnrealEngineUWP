@@ -268,7 +268,7 @@ namespace UE::MultiUserClient
 		return Operation;
 	}
 
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, ConcertSyncClient::Replication::FChangeStreamRequest> ParallelOperations)
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations)
 	{
 		if (!ensure(!ParallelOperations.IsEmpty()))
 		{
@@ -277,7 +277,7 @@ namespace UE::MultiUserClient
 		
 		TMap<FGuid, FSubmissionParams> Transformed;
 		Transformed.Reserve(ParallelOperations.Num()); // check()s if Num() == 0
-		for (TPair<FGuid, ConcertSyncClient::Replication::FChangeStreamRequest>& RequestPair : ParallelOperations)
+		for (TPair<FGuid, FConcertReplication_ChangeStream_Request>& RequestPair : ParallelOperations)
 		{
 			Transformed.Emplace(RequestPair.Key, FSubmissionParams{ MoveTemp(RequestPair.Value) });
 		}

@@ -5,11 +5,8 @@
 #include "Misc/Guid.h"
 #include "Misc/Optional.h"
 
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FChangeStreamRequest;
-	struct FAuthorityChangeRequest;
-}
+struct FConcertReplication_ChangeAuthority_Request;
+struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient
 {
@@ -19,7 +16,7 @@ namespace UE::MultiUserClient
 	class FStreamChangeTracker;
 	
 	/**
-	 * Util that knows how to build FChangeStreamRequest and FAuthorityChangeRequest based on the local client's changes
+	 * Util that knows how to build FConcertReplication_ChangeStream_Request and FConcertReplication_ChangeAuthority_Request based on the local client's changes
 	 * and knowledge of other remote clients.
 	 */
 	class FChangeRequestBuilder
@@ -35,10 +32,10 @@ namespace UE::MultiUserClient
 			);
 
 		/** @return Valid request that can be sent to the server, if there are any local changes. */
-		TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> BuildStreamChange() const;
+		TOptional<FConcertReplication_ChangeStream_Request> BuildStreamChange() const;
 
 		/** @return Valid request that can be sent to the server, if there are any local changes. */
-		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> BuildAuthorityChange() const;
+		TOptional<FConcertReplication_ChangeAuthority_Request> BuildAuthorityChange() const;
 
 	private:
 

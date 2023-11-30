@@ -79,7 +79,7 @@ namespace UE::MultiUserClient
 		}
 		
 		const TSharedPtr<ISubmissionOperation> Operation = Workflow.SubmitChanges({
-			FChangeStreamRequest { RequestData.StreamChangeRequest }, FAuthorityChangeRequest{ RequestData.AuthorityRequest } }
+			FConcertReplication_ChangeStream_Request { RequestData.StreamChangeRequest }, FConcertReplication_ChangeAuthority_Request{ RequestData.AuthorityRequest } }
 			);
 		if (!ensure(Operation))
 		{

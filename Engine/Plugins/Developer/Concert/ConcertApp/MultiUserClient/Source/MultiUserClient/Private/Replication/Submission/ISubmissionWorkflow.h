@@ -9,11 +9,8 @@
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FChangeStreamRequest;
-	struct FAuthorityChangeRequest;
-}
+struct FConcertReplication_ChangeAuthority_Request;
+struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient
 {
@@ -25,8 +22,8 @@ namespace UE::MultiUserClient
 	/** At least StreamRequest or AuthorityRequest need to be valid to form a valid request */
 	struct FSubmissionParams
 	{
-		TOptional<ConcertSyncClient::Replication::FChangeStreamRequest> StreamRequest;
-		TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityRequest;
+		TOptional<FConcertReplication_ChangeStream_Request> StreamRequest;
+		TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityRequest;
 		
 		bool IsStreamChangeEmpty() const { return !StreamRequest.IsSet() || StreamRequest->IsEmpty(); }
 		bool IsAuthorityChangeEmpty() const { return !AuthorityRequest.IsSet() || AuthorityRequest->IsEmpty(); }

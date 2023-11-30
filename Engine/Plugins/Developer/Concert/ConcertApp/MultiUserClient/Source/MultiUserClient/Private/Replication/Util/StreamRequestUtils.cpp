@@ -7,11 +7,11 @@
 
 namespace UE::MultiUserClient::StreamRequestUtils
 {
-	ConcertSyncClient::Replication::FChangeStreamRequest BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist)
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist)
 	{
 		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = FromChangelist.ObjectsToPut;
 		
-		ConcertSyncClient::Replication::FChangeStreamRequest Request;
+		FConcertReplication_ChangeStream_Request Request;
 		Request.StreamsToAdd.Emplace();
 		FReplicationStreamDescription_NetPacked& NewStream = Request.StreamsToAdd[0];
 		NewStream.BaseDescription.Identifier = StreamId;
@@ -35,7 +35,7 @@ namespace UE::MultiUserClient::StreamRequestUtils
 		return Request;
 	}
 		
-	ConcertSyncClient::Replication::FChangeStreamRequest BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist)
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist)
 	{
 		return { MoveTemp(FromChangelist.ObjectsToRemove), MoveTemp(FromChangelist.ObjectsToPut) };
 	}

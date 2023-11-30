@@ -102,11 +102,11 @@ namespace UE::ConcertSyncClient::Replication
 		return EStreamEnumerationResult::Iterated;
 	}
 
-	TFuture<FAuthorityChangeResponse> FReplicationManagerState_Connected::RequestAuthorityChange(FAuthorityChangeRequest Args)
+	TFuture<FConcertReplication_ChangeAuthority_Response> FReplicationManagerState_Connected::RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args)
 	{
 		if (CVarSimulateAuthorityTimeouts.GetValueOnGameThread())
 		{
-			return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+			return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(FConcertReplication_ChangeAuthority_Response{ EReplicationResponseErrorCode::Timeout }).GetFuture();
 		}
 		if (CVarSimulateAuthorityRejection.GetValueOnGameThread())
 		{
@@ -131,35 +131,35 @@ namespace UE::ConcertSyncClient::Replication
 					ThisPin->RevertReleasingReplicatedObjects(Args);
 				}
 
-				return FAuthorityChangeResponse { MoveTemp(Response) };
+				return FConcertReplication_ChangeAuthority_Response { MoveTemp(Response) };
 			});
 	}
 
-	TFuture<FClientQueryResponse> FReplicationManagerState_Connected::QueryClientInfo(FClientQueryRequest Args)
+	TFuture<FConcertReplication_QueryReplicationInfo_Response> FReplicationManagerState_Connected::QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args)
 	{
 		if (CVarSimulateQueryTimeouts.GetValueOnGameThread())
 		{
-			return MakeFulfilledPromise<FClientQueryResponse>(FClientQueryResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+			return MakeFulfilledPromise<FConcertReplication_QueryReplicationInfo_Response>(FConcertReplication_QueryReplicationInfo_Response{ EReplicationResponseErrorCode::Timeout }).GetFuture();
 		}
 		
 		if (EnumHasAllFlags(Args.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority | EConcertQueryClientStreamFlags::SkipStreamInfo))
 		{
 			UE_LOG(LogConcert, Warning, TEXT("Request QueryClientInfo is pointless because SkipAuthority and SkipStreamInfo are both set. Returning immediately..."));
-			return MakeFulfilledPromise<FClientQueryResponse>().GetFuture();
+			return MakeFulfilledPromise<FConcertReplication_QueryReplicationInfo_Response>().GetFuture();
 		}
 		
 		return LiveSession->SendCustomRequest<FConcertReplication_QueryReplicationInfo_Request, FConcertReplication_QueryReplicationInfo_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([](FConcertReplication_QueryReplicationInfo_Response&& Response)
 			{
-				return FClientQueryResponse { MoveTemp(Response) };
+				return FConcertReplication_QueryReplicationInfo_Response { MoveTemp(Response) };
 			});
 	}
 
-	TFuture<FChangeStreamResponse> FReplicationManagerState_Connected::ChangeStream(FChangeStreamRequest Args)
+	TFuture<FConcertReplication_ChangeStream_Response> FReplicationManagerState_Connected::ChangeStream(FConcertReplication_ChangeStream_Request Args)
 	{
 		if (CVarSimulateStreamChangeTimeouts.GetValueOnGameThread())
 		{
-			return MakeFulfilledPromise<FChangeStreamResponse>(FChangeStreamResponse{ EReplicationResponseErrorCode::Timeout }).GetFuture();
+			return MakeFulfilledPromise<FConcertReplication_ChangeStream_Response>(FConcertReplication_ChangeStream_Response{ EReplicationResponseErrorCode::Timeout }).GetFuture();
 		}
 		
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
@@ -180,7 +180,7 @@ namespace UE::ConcertSyncClient::Replication
 					ThisPin->RevertRemovingReplicatedObjects(Args);
 				}
 				
-				return FChangeStreamResponse { MoveTemp(Response) };
+				return FConcertReplication_ChangeStream_Response { MoveTemp(Response) };
 			});
 	}
 
@@ -248,7 +248,7 @@ namespace UE::ConcertSyncClient::Replication
 		ReplicationApplier->ProcessObjects(TimeBudget);
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request, const FConcertReplication_ChangeStream_Response& Response)
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response)
 	{
 		OnPreStreamsChangedDelegate.Broadcast(Request, { Response });
 		ON_SCOPE_EXIT{ OnPostStreamsChangedDelegate.Broadcast(); };
@@ -285,7 +285,7 @@ namespace UE::ConcertSyncClient::Replication
 
 	namespace Private
 	{
-		static void ForEachObjectRemovedFromStreams(const FChangeStreamRequest& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
+		static void ForEachObjectRemovedFromStreams(const FConcertReplication_ChangeStream_Request& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
 		{
 			TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
 			for (const FObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
@@ -299,7 +299,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const
+	void FReplicationManagerState_Connected::HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
 	{
 		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
@@ -307,7 +307,7 @@ namespace UE::ConcertSyncClient::Replication
 		});
 	}
 
-	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FChangeStreamRequest& Request) const
+	void FReplicationManagerState_Connected::RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const
 	{
 		Private::ForEachObjectRemovedFromStreams(Request, [this](const FSoftObjectPath& Object, const TArray<FGuid>& RemovedStreams)
 		{
@@ -315,7 +315,7 @@ namespace UE::ConcertSyncClient::Replication
 		});
 	}
 
-	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
+	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const
 	{
 		OnPreAuthorityChangedDelegate.Broadcast(Request, { Response });
 		ON_SCOPE_EXIT{ OnPostAuthorityChangedDelegate.Broadcast(); };
@@ -326,7 +326,7 @@ namespace UE::ConcertSyncClient::Replication
 			// Request will be discarded so ...
 			FConcertStreamArray& ReplicatedStreams = TakeAuthority.Value;
 			
-			UE_CLOG(ReplicatedStreams.StreamIds.IsEmpty(), LogConcert, Warning, TEXT("Your FAuthorityChangeRequest::TakeAuthority request contained empty stream ID array for object %s"), *ReplicatedObject.ToString());
+			UE_CLOG(ReplicatedStreams.StreamIds.IsEmpty(), LogConcert, Warning, TEXT("Your FConcertReplication_ChangeAuthority_Request::TakeAuthority request contained empty stream ID array for object %s"), *ReplicatedObject.ToString());
 			const FConcertStreamArray* RejectedStreams = Response.RejectedObjects.Find(ReplicatedObject);
 			if (RejectedStreams)
 			{
@@ -345,7 +345,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const
+	void FReplicationManagerState_Connected::HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{
@@ -353,7 +353,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const
+	void FReplicationManagerState_Connected::RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ReleaseAuthority : Request.ReleaseAuthority)
 		{

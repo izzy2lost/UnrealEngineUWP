@@ -60,7 +60,7 @@ namespace UE::ConcertSyncClient::Replication
 			: EStreamEnumerationResult::NoRegisteredStreams;
 	}
 
-	TFuture<FAuthorityChangeResponse> FReplicationManager::RequestAuthorityChange(FAuthorityChangeRequest Args)
+	TFuture<FConcertReplication_ChangeAuthority_Response> FReplicationManager::RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args)
 	{
 		if (ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point.")))
 		{
@@ -70,18 +70,18 @@ namespace UE::ConcertSyncClient::Replication
 		return RejectAll(MoveTemp(Args));
 	}
 
-	TFuture<FClientQueryResponse> FReplicationManager::QueryClientInfo(FClientQueryRequest Args)
+	TFuture<FConcertReplication_QueryReplicationInfo_Response> FReplicationManager::QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args)
 	{
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
 			? CurrentState->QueryClientInfo(MoveTemp(Args))
-			: MakeFulfilledPromise<FClientQueryResponse>().GetFuture();
+			: MakeFulfilledPromise<FConcertReplication_QueryReplicationInfo_Response>().GetFuture();
 	}
 
-	TFuture<FChangeStreamResponse> FReplicationManager::ChangeStream(FChangeStreamRequest Args)
+	TFuture<FConcertReplication_ChangeStream_Response> FReplicationManager::ChangeStream(FConcertReplication_ChangeStream_Request Args)
 	{
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
 			? CurrentState->ChangeStream(MoveTemp(Args))
-			: MakeFulfilledPromise<FChangeStreamResponse>().GetFuture(); 
+			: MakeFulfilledPromise<FConcertReplication_ChangeStream_Response>().GetFuture(); 
 	}
 
 	IConcertClientReplicationManager::EAuthorityEnumerationResult FReplicationManager::ForEachClientOwnedObject(

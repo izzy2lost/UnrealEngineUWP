@@ -9,10 +9,10 @@
 
 namespace UE::ConcertSyncClient::Replication
 {
-	TFuture<FAuthorityChangeResponse> RejectAll(FAuthorityChangeRequest&& Args)
+	TFuture<FConcertReplication_ChangeAuthority_Response> RejectAll(FConcertReplication_ChangeAuthority_Request&& Args)
 	{
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(
-			FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled, MoveTemp(Args.TakeAuthority) }}
+		return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(
+			FConcertReplication_ChangeAuthority_Response{ EReplicationResponseErrorCode::Handled, MoveTemp(Args.TakeAuthority) }
 			).GetFuture();
 	}
 }

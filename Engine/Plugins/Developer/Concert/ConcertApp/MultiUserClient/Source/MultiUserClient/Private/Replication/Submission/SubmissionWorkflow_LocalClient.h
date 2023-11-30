@@ -53,11 +53,11 @@ namespace UE::MultiUserClient
 
 		/** Advances the request by requesting authority. */
 		void OnStreamChangeCompleted(
-			const ConcertSyncClient::Replication::FChangeStreamRequest& StreamChangeRequest,
-			const ConcertSyncClient::Replication::FChangeStreamResponse& ChangeStreamResponse,
-			TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest
+			const FConcertReplication_ChangeStream_Request& StreamChangeRequest,
+			const FConcertReplication_ChangeStream_Response& ChangeStreamResponse,
+			TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest
 			);
-		void HandlePendingAuthorityChangeRequest(TOptional<ConcertSyncClient::Replication::FAuthorityChangeRequest> AuthorityChangeRequest);
+		void HandlePendingAuthorityChangeRequest(TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest);
 
 		void CleanUpSubmissionOperation();
 	};

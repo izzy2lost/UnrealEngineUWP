@@ -42,7 +42,7 @@ TArray<FReplicationStreamDescription> IConcertClientReplicationManager::GetRegis
 	return Result;
 }
 
-TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertClientReplicationManager::TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects)
+TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::TakeAuthorityOver(TArrayView<const FSoftObjectPath> Objects)
 {
 	using namespace UE::ConcertSyncClient::Replication;
 	
@@ -51,10 +51,10 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		UE_LOG(LogConcert, Error, TEXT("Attempted to take authority while not connected!"));
 		TMap<FSoftObjectPath, FConcertStreamArray> Result;
 		Algo::Transform(Objects, Result, [](const FSoftObjectPath& Path){ return Path; });
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled ,MoveTemp(Result) }}).GetFuture();
+		return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(FConcertReplication_ChangeAuthority_Response{EReplicationResponseErrorCode::Handled ,MoveTemp(Result) }).GetFuture();
 	}
 
-	FAuthorityChangeRequest Request;
+	FConcertReplication_ChangeAuthority_Request Request;
 	Private::ForEachStreamContainingObject(Objects, *this,
 		[&Request](const FSoftObjectPath& ObjectPath, const FGuid& StreamId)
 		{
@@ -67,13 +67,13 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		// Not only does this warn about incorrect API use at runtime, this also helps debug (incorrectly written) unit tests
 		const FString ObjectsAsString = FString::JoinBy(Objects, TEXT(","), [](const FSoftObjectPath& Path){ return Path.ToString(); });
 		UE_LOG(LogConcert, Warning, TEXT("Local client did not register any stream for the given objects. This take authority request will not be sent. Objects: %s"), *ObjectsAsString);
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{}).GetFuture();
+		return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(FConcertReplication_ChangeAuthority_Response{}).GetFuture();
 	}
 	
 	return RequestAuthorityChange(MoveTemp(Request));
 }
 
-TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertClientReplicationManager::ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects)
+TFuture<FConcertReplication_ChangeAuthority_Response> IConcertClientReplicationManager::ReleaseAuthorityOf(TArrayView<const FSoftObjectPath> Objects)
 {
 	using namespace UE::ConcertSyncClient::Replication;
 	
@@ -82,10 +82,10 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		UE_LOG(LogConcert, Error, TEXT("Attempted to take authority while not connected!"));
 		TMap<FSoftObjectPath, FConcertStreamArray> Result;
 		Algo::Transform(Objects, Result, [](const FSoftObjectPath& Path){ return Path; });
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{{ EReplicationResponseErrorCode::Handled, MoveTemp(Result) }}).GetFuture();
+		return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(FConcertReplication_ChangeAuthority_Response{ EReplicationResponseErrorCode::Handled, MoveTemp(Result) }).GetFuture();
 	}
 	
-	FAuthorityChangeRequest Request;
+	FConcertReplication_ChangeAuthority_Request Request;
 	Private::ForEachStreamContainingObject(Objects, *this,
 		[&Request](const FSoftObjectPath& ObjectPath, const FGuid& StreamId)
 		{
@@ -98,7 +98,7 @@ TFuture<UE::ConcertSyncClient::Replication::FAuthorityChangeResponse> IConcertCl
 		// Not only does this warn about incorrect API use at runtime, this also helps debug (incorrectly written) unit tests
 		const FString ObjectsAsString = FString::JoinBy(Objects, TEXT(","), [](const FSoftObjectPath& Path){ return Path.ToString(); });
 		UE_LOG(LogConcert, Warning, TEXT("Local client did not register any stream for the given objects. This release authority request will not be sent. Objects: %s"), *ObjectsAsString);
-		return MakeFulfilledPromise<FAuthorityChangeResponse>(FAuthorityChangeResponse{}).GetFuture();
+		return MakeFulfilledPromise<FConcertReplication_ChangeAuthority_Response>(FConcertReplication_ChangeAuthority_Response{}).GetFuture();
 	}
 	
 	return RequestAuthorityChange(MoveTemp(Request));

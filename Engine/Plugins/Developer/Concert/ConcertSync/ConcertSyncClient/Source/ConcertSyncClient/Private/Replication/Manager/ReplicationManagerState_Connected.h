@@ -48,9 +48,9 @@ namespace UE::ConcertSyncClient::Replication
 		virtual bool CanJoin() override { return false; }
 		virtual bool IsConnectedToReplicationSession() override { return true; }
 		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
-		virtual TFuture<FAuthorityChangeResponse> RequestAuthorityChange(FAuthorityChangeRequest Args) override;
-		virtual TFuture<FClientQueryResponse> QueryClientInfo(FClientQueryRequest Args) override;
-		virtual TFuture<FChangeStreamResponse> ChangeStream(FChangeStreamRequest Args) override;
+		virtual TFuture<FConcertReplication_ChangeAuthority_Response> RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args) override;
+		virtual TFuture<FConcertReplication_QueryReplicationInfo_Response> QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args) override;
+		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override;
 		virtual EAuthorityEnumerationResult ForEachClientOwnedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, TSet<FGuid>&& OwningStreams)> Callback) const override;
 		virtual TSet<FGuid> GetClientOwnedStreamsForObject(const FSoftObjectPath& ObjectPath) const override;
 		//~ End IConcertClientReplicationManager Interface
@@ -119,9 +119,9 @@ namespace UE::ConcertSyncClient::Replication
 		void TickReceiver(float TimeBudget);
 		
 		/** Updates replicated objects affected by the change request. */
-		void UpdateReplicatedObjectsAfterStreamChange(const FChangeStreamRequest& Request, const FConcertReplication_ChangeStream_Response& Response);
-		void HandleRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
-		void RevertRemovingReplicatedObjects(const FChangeStreamRequest& Request) const;
+		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response);
+		void HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const;
+		void RevertRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request) const;
 
 		/**
 		 * Updates the objects which should be replicated after changing authority.
@@ -129,8 +129,8 @@ namespace UE::ConcertSyncClient::Replication
 		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
 		 * Since the request was already sent to the server it is assumed the request can just contain trash after.
 		 */
-		void UpdateReplicatedObjectsAfterAuthorityChange(FAuthorityChangeRequest&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
-		void HandleReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
-		void RevertReleasingReplicatedObjects(const FAuthorityChangeRequest& Request) const;
+		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
+		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
+		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
 	};
 }

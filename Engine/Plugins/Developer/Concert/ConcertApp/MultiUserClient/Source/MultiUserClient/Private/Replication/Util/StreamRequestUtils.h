@@ -4,10 +4,7 @@
 
 #include "Replication/IConcertClientReplicationManager.h"
 
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FChangeStreamRequest;
-}
+struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient
 {
@@ -26,11 +23,11 @@ namespace UE::MultiUserClient::StreamRequestUtils
 	 * @param StreamId The stream that should be modified
 	 * @param FromChangelist The changes to be made
 	 */
-	ConcertSyncClient::Replication::FChangeStreamRequest BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist);
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist);
 	
 	/**
 	 * Builds a request for updating a preexisting stream.
 	 * @param FromChangelist The changes to be made
 	 */
-	ConcertSyncClient::Replication::FChangeStreamRequest BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist);
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist);
 }
