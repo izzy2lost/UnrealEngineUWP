@@ -77,24 +77,24 @@ namespace UE::Interchange::GLTFMaterials
 
 	FString GetMaterialFunctionPath(EShadingModel ShadingModel)
 	{
-		if (ShadingModelToMaterialFunctions.Contains(ShadingModel))
+		if (ShadingModelToMaterialInformation.Contains(ShadingModel))
 		{
-			return ShadingModelToMaterialFunctions[ShadingModel].Key;
+			return ShadingModelToMaterialInformation[ShadingModel].MaterialFunctionPath;
 		}
 
 		ensure(false);
-		return ShadingModelToMaterialFunctions.begin()->Value.Key;
+		return ShadingModelToMaterialInformation.begin()->Value.MaterialFunctionPath;
 	}
 
 	TArray<FString> GetOutputs(EShadingModel ShadingModel)
 	{
-		if (ShadingModelToMaterialFunctions.Contains(ShadingModel))
+		if (ShadingModelToMaterialInformation.Contains(ShadingModel))
 		{
-			return ShadingModelToMaterialFunctions[ShadingModel].Value;
+			return ShadingModelToMaterialInformation[ShadingModel].MaterialFunctionOutputs;
 		}
 
 		ensure(false);
-		return ShadingModelToMaterialFunctions.begin()->Value.Value;
+		return ShadingModelToMaterialInformation.begin()->Value.MaterialFunctionOutputs;
 	}
 
 	//Precedence order based on the logic in the InterchangeGenericMaterialPipeline: ClearCoat > Sheen > unlit
@@ -140,23 +140,19 @@ namespace UE::Interchange::GLTFMaterials
 
 	FVector4f GetTilingMethod(const GLTF::FSampler& Sampler)
 	{
-		float TilingU = 0;
-		switch (Sampler.WrapS)
-		{
-			case GLTF::FSampler::EWrap::Repeat:         TilingU = 0; break;
-			case GLTF::FSampler::EWrap::ClampToEdge:    TilingU = 1; break;
-			case GLTF::FSampler::EWrap::MirroredRepeat: TilingU = 2; break;
-			default:                                    TilingU = 0; break;;
-		}
+		auto GetSingleChannelTilingMethod = [](GLTF::FSampler::EWrap Wrap/*TilingMethod*/)
+			{
+				switch (Wrap)
+				{
+					case GLTF::FSampler::EWrap::Repeat:         return 0;
+					case GLTF::FSampler::EWrap::ClampToEdge:    return 1;
+					case GLTF::FSampler::EWrap::MirroredRepeat: return 2;
+					default:                                    return 0;
+				}
+			};
 
-		float TilingV = 0;
-		switch (Sampler.WrapT)
-		{
-			case GLTF::FSampler::EWrap::Repeat:         TilingV = 0; break;
-			case GLTF::FSampler::EWrap::ClampToEdge:    TilingV = 1; break;
-			case GLTF::FSampler::EWrap::MirroredRepeat: TilingV = 2; break;
-			default:                                    TilingV = 0; break;;
-		}
+		float TilingU = GetSingleChannelTilingMethod(Sampler.WrapS);
+		float TilingV = GetSingleChannelTilingMethod(Sampler.WrapT);
 
 		return FVector4f(TilingU, TilingV, 0, 0);
 	}
@@ -334,8 +330,8 @@ namespace UE::Interchange::GLTFMaterials
 		void SetColor(const FString& Name, const FVector4f& Value, const FVector4f& DefaultValue)
 		{
 			{//Material specific settings:
-				SetVec3(Name + Inputs::Color_RGB, FVector3f(Value), FVector3f(DefaultValue), EProcessType::MATERIAL);
-				SetScalar(Name + Inputs::Color_A, Value.W, DefaultValue.W, EProcessType::MATERIAL);
+				SetVec3(Name + Inputs::PostFix::Color_RGB, FVector3f(Value), FVector3f(DefaultValue), EProcessType::MATERIAL);
+				SetScalar(Name + Inputs::PostFix::Color_A, Value.W, DefaultValue.W, EProcessType::MATERIAL);
 			}
 
 			{//MaterialInstance specific settings:
@@ -343,7 +339,7 @@ namespace UE::Interchange::GLTFMaterials
 			}
 		}
 
-		void SetMap(const GLTF::FTextureMap& TextureMap, const FString& Name)
+		void SetMap(const FString& Name, const GLTF::FTextureMap& TextureMap)
 		{
 			if (Textures.IsValidIndex(TextureMap.TextureIndex))
 			{
@@ -368,25 +364,25 @@ namespace UE::Interchange::GLTFMaterials
 				// [2...3) -> UV2
 				// [3...4) -> UV3
 				// else    -> UV0 (defaults to 0)
-				SetScalar(Name + TEXT("_TexCoord"), TextureMap.TexCoord, 0.f);
+				SetScalar(Name + Inputs::PostFix::TexCoord, TextureMap.TexCoord, 0.f);
 
 				//Set the TilingMethod:
-				SetVec4(Name + TEXT("_TilingMethod"), GetTilingMethod(Textures[TextureMap.TextureIndex].Sampler), FVector4f(0, 0, 0, 0));
+				SetVec4(Name + Inputs::PostFix::TilingMethod, GetTilingMethod(Textures[TextureMap.TextureIndex].Sampler), FVector4f(0, 0, 0, 0));
 			}
 
 			if (TextureMap.bHasTextureTransform)
 			{
 				{//Material specific settings:
-					SetScalar(Name + TEXT("_Offset_X"), TextureMap.TextureTransform.Offset[0], 0.f, EProcessType::MATERIAL);
-					SetScalar(Name + TEXT("_Offset_Y"), TextureMap.TextureTransform.Offset[1], 0.f, EProcessType::MATERIAL);
+					SetScalar(Name + Inputs::PostFix::OffsetX, TextureMap.TextureTransform.Offset[0], 0.f, EProcessType::MATERIAL);
+					SetScalar(Name + Inputs::PostFix::OffsetY, TextureMap.TextureTransform.Offset[1], 0.f, EProcessType::MATERIAL);
 
-					SetScalar(Name + TEXT("_Scale_X"), TextureMap.TextureTransform.Scale[0], 1.f, EProcessType::MATERIAL);
-					SetScalar(Name + TEXT("_Scale_Y"), TextureMap.TextureTransform.Scale[1], 1.f, EProcessType::MATERIAL);
+					SetScalar(Name + Inputs::PostFix::ScaleX, TextureMap.TextureTransform.Scale[0], 1.f, EProcessType::MATERIAL);
+					SetScalar(Name + Inputs::PostFix::ScaleY, TextureMap.TextureTransform.Scale[1], 1.f, EProcessType::MATERIAL);
 				}
 
 				{//MaterialInstance specific settings:
 					FVector4f OffsetScale(TextureMap.TextureTransform.Offset[0], TextureMap.TextureTransform.Offset[1], TextureMap.TextureTransform.Scale[0], TextureMap.TextureTransform.Scale[1]);
-					SetVec4(Name + TEXT("_OffsetScale"), OffsetScale, FVector4f(0, 0, 1, 1), EProcessType::MATERIALINSTANCE);
+					SetVec4(Name + Inputs::PostFix::OffsetScale, OffsetScale, FVector4f(0, 0, 1, 1), EProcessType::MATERIALINSTANCE);
 				}
 
 				if (!FMath::IsNearlyZero(TextureMap.TextureTransform.Rotation))
@@ -398,7 +394,7 @@ namespace UE::Interchange::GLTFMaterials
 						AngleRadians = TWO_PI - AngleRadians;
 					}
 
-					SetScalar(Name + TEXT("_Rotation"), AngleRadians, 0.f);
+					SetScalar(Name + Inputs::PostFix::Rotation, AngleRadians, 0.f);
 				}
 			}
 		}
@@ -418,7 +414,7 @@ namespace UE::Interchange::GLTFMaterials
 				//BaseColorTexture_OffsetScale
 				//BaseColorTExture_Rotation
 				//BaseColorTExture_TexCoord
-				SetMap(GltfMaterial.BaseColor, Inputs::BaseColorTexture);
+				SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 				//BaseColorFactor
 				SetColor(Inputs::BaseColorFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
@@ -430,7 +426,7 @@ namespace UE::Interchange::GLTFMaterials
 				//NormalTexture_OffsetScale
 				//NormalTexture_Rotation
 				//NormalTexture_TexCoord
-				SetMap(GltfMaterial.Normal, Inputs::NormalTexture);
+				SetMap(Inputs::NormalTexture, GltfMaterial.Normal);
 
 				//NormalScale
 				SetScalar(Inputs::NormalScale, GltfMaterial.NormalScale, 1.f);
@@ -442,7 +438,7 @@ namespace UE::Interchange::GLTFMaterials
 				//EmissiveTexture_OffsetScale
 				//EmissiveTexture_Rotation
 				//EmissiveTexture_TexCoord
-				SetMap(GltfMaterial.Emissive, Inputs::EmissiveTexture);
+				SetMap(Inputs::EmissiveTexture, GltfMaterial.Emissive);
 
 				//EmissiveFactor
 				SetVec3(Inputs::EmissiveFactor, GltfMaterial.EmissiveFactor, FVector3f(0, 0, 0));
@@ -456,7 +452,7 @@ namespace UE::Interchange::GLTFMaterials
 				//OcclusionTexture_OffsetScale
 				//OcclusionTexture_Rotation
 				//OcclusionTexture_TexCoord
-				SetMap(GltfMaterial.Occlusion, Inputs::OcclusionTexture);
+				SetMap(Inputs::OcclusionTexture, GltfMaterial.Occlusion);
 
 				//OcclusionStrength
 				SetScalar(Inputs::OcclusionStrength, GltfMaterial.OcclusionStrength, 1.f);
@@ -473,7 +469,7 @@ namespace UE::Interchange::GLTFMaterials
 					//DiffuseTexture_OffsetScale
 					//DiffuseTexture_Rotation
 					//DiffuseTexture_TexCoord
-					SetMap(GltfMaterial.BaseColor, Inputs::DiffuseTexture);
+					SetMap(Inputs::DiffuseTexture, GltfMaterial.BaseColor);
 
 					//DiffuseFactor
 					SetColor(Inputs::DiffuseFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
@@ -484,7 +480,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularGlossinessTexture_OffsetScale
 					//SpecularGlossinessTexture_Rotation
 					//SpecularGlossinessTexture_TexCoord
-					SetMap(GltfMaterial.SpecularGlossiness.Map, Inputs::SpecularGlossinessTexture);
+					SetMap(Inputs::SpecularGlossinessTexture, GltfMaterial.SpecularGlossiness.Map);
 
 					//SpecFactor
 					FVector3f SpecularFactor(GltfMaterial.SpecularGlossiness.SpecularFactor[0], GltfMaterial.SpecularGlossiness.SpecularFactor[1], GltfMaterial.SpecularGlossiness.SpecularFactor[2]);
@@ -503,7 +499,7 @@ namespace UE::Interchange::GLTFMaterials
 					//BaseColorTexture_OffsetScale
 					//BaseColorTexture_Rotation
 					//BaseColorTexture_TexCoord
-					SetMap(GltfMaterial.BaseColor, Inputs::BaseColorTexture);
+					SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 					//BaseColorFactor
 					SetColor(Inputs::BaseColorFactor, GltfMaterial.BaseColorFactor, FVector4f(1, 1, 1, 1));
@@ -514,7 +510,7 @@ namespace UE::Interchange::GLTFMaterials
 					//MetallicRoughnessTexture_OffsetScale
 					//MetallicRoughnessTexture_Rotation
 					//MetallicRoughnessTexture_TexCoord
-					SetMap(GltfMaterial.MetallicRoughness.Map, Inputs::MetallicRoughnessTexture);
+					SetMap(Inputs::MetallicRoughnessTexture, GltfMaterial.MetallicRoughness.Map);
 
 					//MetallicFactor
 					SetScalar(Inputs::MetallicFactor, GltfMaterial.MetallicRoughness.MetallicFactor, 1.f);
@@ -529,7 +525,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularTexture_OffsetScale
 					//SpecularTexture_Rotation
 					//SpecularTexture_TexCoord
-					SetMap(GltfMaterial.Specular.SpecularMap, Inputs::SpecularTexture);
+					SetMap(Inputs::SpecularTexture, GltfMaterial.Specular.SpecularMap);
 
 					//SpecularFactor
 					SetScalar(Inputs::SpecularFactor, GltfMaterial.Specular.SpecularFactor, 0.5); //(UE Specular default is 0.5).
@@ -553,7 +549,7 @@ namespace UE::Interchange::GLTFMaterials
 					//TransmissionTexture_OffsetScale
 					//TransmissionTexture_Rotation
 					//TransmissionTexture_TexCoord
-					SetMap(GltfMaterial.Transmission.TransmissionMap, Inputs::TransmissionTexture);
+					SetMap(Inputs::TransmissionTexture, GltfMaterial.Transmission.TransmissionMap);
 
 					//TransmissionFactor
 					SetScalar(Inputs::TransmissionFactor, GltfMaterial.Transmission.TransmissionFactor, 0.f);
@@ -569,7 +565,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatTexture_OffsetScale
 					//ClearCoatTexture_Rotation
 					//ClearCoatTexture_TexCoord
-					SetMap(GltfMaterial.ClearCoat.ClearCoatMap, Inputs::ClearCoatTexture);
+					SetMap(Inputs::ClearCoatTexture, GltfMaterial.ClearCoat.ClearCoatMap);
 
 					//ClearCoatFactor
 					SetScalar(Inputs::ClearCoatFactor, GltfMaterial.ClearCoat.ClearCoatFactor, 0.f);
@@ -580,7 +576,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatRoughnessTexture_OffsetScale
 					//ClearCoatRoughnessTexture_Rotation
 					//ClearCoatRoughnessTexture_TexCoord
-					SetMap(GltfMaterial.ClearCoat.RoughnessMap, Inputs::ClearCoatRoughnessTexture);
+					SetMap(Inputs::ClearCoatRoughnessTexture, GltfMaterial.ClearCoat.RoughnessMap);
 
 					//ClearCoatRoughnessFactor
 					SetScalar(Inputs::ClearCoatRoughnessFactor, GltfMaterial.ClearCoat.Roughness, 0.f);
@@ -591,7 +587,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatNormalTexture_OffsetScale
 					//ClearCoatNormalTexture_Rotation
 					//ClearCoatNormalTexture_TexCoord
-					SetMap(GltfMaterial.ClearCoat.NormalMap, Inputs::ClearCoatNormalTexture);
+					SetMap(Inputs::ClearCoatNormalTexture, GltfMaterial.ClearCoat.NormalMap);
 
 					//ClearCoatNormalFactor
 					SetScalar(Inputs::ClearCoatNormalScale, GltfMaterial.ClearCoat.NormalMapUVScale, 1.f);
@@ -604,7 +600,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenColorTexture_OffsetScale
 					//SheenColorTexture_Rotation
 					//SheenColorTexture_TexCoord
-					SetMap(GltfMaterial.Sheen.SheenColorMap, Inputs::SheenColorTexture);
+					SetMap(Inputs::SheenColorTexture, GltfMaterial.Sheen.SheenColorMap);
 
 					//SheenColorFactor
 					FVector3f SheenColorFactor(GltfMaterial.Sheen.SheenColorFactor[0], GltfMaterial.Sheen.SheenColorFactor[1], GltfMaterial.Sheen.SheenColorFactor[2]);
@@ -614,7 +610,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenRoughnessTexture_OffsetScale
 					//SheenRoughnessTexture_Rotation
 					//SheenRoughnessTexture_TexCoord
-					SetMap(GltfMaterial.Sheen.SheenRoughnessMap, Inputs::SheenRoughnessTexture);
+					SetMap(Inputs::SheenRoughnessTexture, GltfMaterial.Sheen.SheenRoughnessMap);
 
 					//SheenRoughnessFactor
 					SetScalar(Inputs::SheenRoughnessFactor, GltfMaterial.Sheen.SheenRoughnessFactor, 0.f);

@@ -16,6 +16,13 @@ public class GLTFExporter : ModuleRules
 				"Engine",
 			}
 		);
+		
+		PrivateIncludePathModuleNames.AddRange(
+			new string[]
+			{
+				"InterchangeImport",
+			}
+		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]

@@ -57,11 +57,25 @@ void FGLTFDelayedMaterialTask::Process()
 	}
 
 	JsonMaterial->Name = GetMaterialName();
-	JsonMaterial->AlphaCutoff = Material->GetOpacityMaskClipValue();
 	JsonMaterial->DoubleSided = Material->IsTwoSided();
-
-	ConvertShadingModel(JsonMaterial->ShadingModel);
 	ConvertAlphaMode(JsonMaterial->AlphaMode);
+
+	FString WarningMessages;
+	EMaterialShadingModel UEShadingModel = FGLTFMaterialUtilities::GetShadingModel(Material, WarningMessages);
+	if (!WarningMessages.IsEmpty())
+	{
+		Builder.LogWarning(WarningMessages);
+	}
+
+	if (HandleGLTFImported(UEShadingModel))
+	{
+		return;
+	}
+
+	JsonMaterial->AlphaCutoff = Material->GetOpacityMaskClipValue();
+
+	ConvertShadingModel(UEShadingModel, JsonMaterial->ShadingModel);
+	ApplyExportOptionsToShadingModel(JsonMaterial->ShadingModel, UEShadingModel);
 
 	if (!ensure((JsonMaterial->ShadingModel != EGLTFJsonShadingModel::None) && ((int)JsonMaterial->ShadingModel < (int)EGLTFJsonShadingModel::NumShadingModels)))
 	{
@@ -406,79 +420,101 @@ void FGLTFDelayedMaterialTask::GetProxyParameter(const FGLTFProxyMaterialTexture
 	}
 }
 
-void FGLTFDelayedMaterialTask::ConvertShadingModel(EGLTFJsonShadingModel& OutShadingModel) const
+void FGLTFDelayedMaterialTask::ConvertShadingModel(EMaterialShadingModel& UEShadingModel, EGLTFJsonShadingModel& OutGLTFShadingModel) const
 {
-	FString WarningMessage;
-	EMaterialShadingModel ShadingModel = FGLTFMaterialUtilities::GetShadingModel(Material, WarningMessage);
-
-	if (!WarningMessage.IsEmpty())
-	{
-		Builder.LogWarning(WarningMessage);
-	}
-
 	const EBlendMode BlendMode = Material->GetBlendMode();
-	if (ShadingModel == MSM_ClearCoat && BlendMode != BLEND_Opaque && BlendMode != BLEND_Masked)
+	if (UEShadingModel == MSM_ClearCoat && BlendMode != BLEND_Opaque && BlendMode != BLEND_Masked)
 	{
 		// NOTE: Unreal seems to disable clear coat when blend mode anything but opaque or masked
-		ShadingModel = MSM_DefaultLit;
+		UEShadingModel = MSM_DefaultLit;
 	}
 
-	OutShadingModel = FGLTFCoreUtilities::ConvertShadingModel(ShadingModel);
-	if (OutShadingModel == EGLTFJsonShadingModel::None)
+	OutGLTFShadingModel = FGLTFCoreUtilities::ConvertShadingModel(UEShadingModel);
+}
+
+void FGLTFDelayedMaterialTask::ApplyExportOptionsToShadingModel(EGLTFJsonShadingModel& ShadingModel, const EMaterialShadingModel& UEMaterialShadingModel) const
+{
+	switch (ShadingModel)
 	{
-		OutShadingModel = EGLTFJsonShadingModel::Default;
+		case EGLTFJsonShadingModel::Default:
+			break;
 
-		Builder.LogWarning(FString::Printf(
-			TEXT("Unsupported shading model (%s) in material %s, will export as %s"),
-			*FGLTFNameUtilities::GetName(ShadingModel),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
-		return;
-	}
+		case EGLTFJsonShadingModel::Unlit:
+			if (!Builder.ExportOptions->bExportUnlitMaterials)
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
 
-	if (OutShadingModel == EGLTFJsonShadingModel::Unlit && !Builder.ExportOptions->bExportUnlitMaterials)
-	{
-		OutShadingModel = EGLTFJsonShadingModel::Default;
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
 
-		Builder.LogWarning(FString::Printf(
-			TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
-			*FGLTFNameUtilities::GetName(ShadingModel),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
-		return;
-	}
+		case EGLTFJsonShadingModel::ClearCoat:
+			if (!Builder.ExportOptions->bExportClearCoatMaterials)
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
 
-	if (OutShadingModel == EGLTFJsonShadingModel::ClearCoat && !Builder.ExportOptions->bExportClearCoatMaterials)
-	{
-		OutShadingModel = EGLTFJsonShadingModel::Default;
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
 
-		Builder.LogWarning(FString::Printf(
-			TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
-			*FGLTFNameUtilities::GetName(ShadingModel),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
-	}
+		case EGLTFJsonShadingModel::Sheen:
+			if (ShadingModel == EGLTFJsonShadingModel::Sheen && !Builder.ExportOptions->bExportClothMaterials)
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
 
-	if (OutShadingModel == EGLTFJsonShadingModel::Sheen && !Builder.ExportOptions->bExportClothMaterials)
-	{
-		OutShadingModel = EGLTFJsonShadingModel::Default;
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
 
-		Builder.LogWarning(FString::Printf(
-			TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
-			*FGLTFNameUtilities::GetName(ShadingModel),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
-	}
+		case EGLTFJsonShadingModel::Transmission:
+			if (!Builder.ExportOptions->bExportThinTranslucentMaterials)
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
 
-	if (OutShadingModel == EGLTFJsonShadingModel::Transmission && !Builder.ExportOptions->bExportThinTranslucentMaterials)
-	{
-		OutShadingModel = EGLTFJsonShadingModel::Default;
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
 
-		Builder.LogWarning(FString::Printf(
-			TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
-			*FGLTFNameUtilities::GetName(ShadingModel),
-			*Material->GetName(),
-			*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
+		case EGLTFJsonShadingModel::SpecularGlossiness:
+			if (!Builder.ExportOptions->bExportSpecularGlossinessMaterials)
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Shading model (%s) in material %s disabled by export options, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
+
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
+
+		default:
+			{
+				Builder.LogWarning(FString::Printf(
+					TEXT("Unsupported shading model (%s) in material %s, will export as %s"),
+					*FGLTFNameUtilities::GetName(UEMaterialShadingModel),
+					*Material->GetName(),
+					*FGLTFNameUtilities::GetName(MSM_DefaultLit)));
+
+				ShadingModel = EGLTFJsonShadingModel::Default;
+			}
+			break;
 	}
 }
 
@@ -1995,3 +2031,25 @@ void FGLTFDelayedMaterialTask::CombinePixels(const TArray<FColor>& FirstPixels, 
 }
 
 #endif
+
+bool FGLTFDelayedMaterialTask::HandleGLTFImported(const EMaterialShadingModel& UEMaterialShadingModel)
+{
+	if (!Builder.ExportOptions->bExportUnlitMaterials)
+	{
+		return false;
+	}
+
+	FGLTFImportMaterialMatchMakingHelper GLTFImportedProcesser(Builder, Material, *JsonMaterial);
+
+	if (!GLTFImportedProcesser.bIsGLTFImportedMaterial)
+	{
+		return false;
+	}
+
+	ApplyExportOptionsToShadingModel(JsonMaterial->ShadingModel, UEMaterialShadingModel);
+
+	GLTFImportedProcesser.Process();
+
+	return true;
+}
+

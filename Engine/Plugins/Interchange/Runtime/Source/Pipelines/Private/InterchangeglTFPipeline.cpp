@@ -92,10 +92,10 @@ TSet<FString> UGLTFPipelineSettings::GenerateExpectedParametersList(const FStrin
 	auto AddTextureAndRelated = [&ExpectedParameters](const FString& TextureName)
 		{
 			ExpectedParameters.Add(TextureName);
-			ExpectedParameters.Add(TextureName + TEXT("_OffsetScale"));
-			ExpectedParameters.Add(TextureName + TEXT("_Rotation"));
-			ExpectedParameters.Add(TextureName + TEXT("_TexCoord"));
-			ExpectedParameters.Add(TextureName + TEXT("_TilingMethod"));
+			ExpectedParameters.Add(TextureName + Inputs::PostFix::OffsetScale);
+			ExpectedParameters.Add(TextureName + Inputs::PostFix::Rotation);
+			ExpectedParameters.Add(TextureName + Inputs::PostFix::TexCoord);
+			ExpectedParameters.Add(TextureName + Inputs::PostFix::TilingMethod);
 		};
 
 	if (Identifier.Contains(TEXT("_Unlit")))

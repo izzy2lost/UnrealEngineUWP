@@ -64,8 +64,8 @@ public:
 	FGLTFJsonTexture* AddUniqueTexture(const UTexture* Texture);
 	FGLTFJsonTexture* AddUniqueTexture(const UTexture2D* Texture);
 	FGLTFJsonTexture* AddUniqueTexture(const UTextureRenderTarget2D* Texture);
-	FGLTFJsonTexture* AddUniqueTexture(const UTexture* Texture, bool bToSRGB);
-	FGLTFJsonTexture* AddUniqueTexture(const UTexture2D* Texture, bool bToSRGB);
+	FGLTFJsonTexture* AddUniqueTexture(const UTexture* Texture, bool bToSRGB, TextureAddress TextureAddressX = TextureAddress::TA_MAX, TextureAddress TextureAddressY = TextureAddress::TA_MAX);
+	FGLTFJsonTexture* AddUniqueTexture(const UTexture2D* Texture, bool bToSRGB, TextureAddress TextureAddressX, TextureAddress TextureAddressY);
 	FGLTFJsonTexture* AddUniqueTexture(const UTextureRenderTarget2D* Texture, bool bToSRGB);
 	FGLTFJsonImage* AddUniqueImage(TGLTFSharedArray<FColor>& Pixels, FIntPoint Size, bool bIgnoreAlpha, const FString& Name);
 
