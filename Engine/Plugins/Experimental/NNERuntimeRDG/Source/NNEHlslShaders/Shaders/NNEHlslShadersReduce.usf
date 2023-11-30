@@ -13,7 +13,110 @@ int NumElemBeforeAxis;
 int AxisSize;
 int NumElemAfterAxis;
 
-groupshared WORK_TYPE SharedMemorySum[THREADGROUP_SIZE];
+// Must correspond to EReduceOperatorType defined in NNEHlslShadersReduceCS.h
+#define TYPE_AVERAGE 0
+#define TYPE_L1 1
+#define TYPE_L2 2
+#define TYPE_LOGSUMEXP 3
+#define TYPE_MAX 4
+#define TYPE_MIN 5
+#define TYPE_PROD 6
+#define TYPE_SUM 7
+#define TYPE_SUMEXP 8
+
+WORK_TYPE InitValue(WORK_TYPE FirstValue)
+{
+	#if REDUCE_OPERATOR_TYPE == TYPE_AVERAGE
+		return 0;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L1
+		return 0;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L2
+		return 0;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_LOGSUMEXP
+		return 0;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MAX
+		return FirstValue;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MIN
+		return FirstValue;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_PROD
+		return 1;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUM
+		return 0;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUMEXP
+		return 0;
+	#endif
+}
+
+WORK_TYPE ElementOp(WORK_TYPE Value)
+{
+	#if REDUCE_OPERATOR_TYPE == TYPE_AVERAGE
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L1
+		return abs(Value);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L2
+		return Value*Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_LOGSUMEXP
+		return exp(Value);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MAX
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MIN
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_PROD
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUM
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUMEXP
+		return exp(Value);
+	#endif
+}
+
+WORK_TYPE CombineOp(WORK_TYPE ValueA, WORK_TYPE ValueB)
+{
+	#if REDUCE_OPERATOR_TYPE == TYPE_AVERAGE
+		return ValueA+ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L1
+		return ValueA+ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L2
+		return ValueA+ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_LOGSUMEXP
+		return ValueA+ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MAX
+		return max(ValueA, ValueB);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MIN
+		return min(ValueA, ValueB);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_PROD
+		return ValueA*ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUM
+		return ValueA+ValueB;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUMEXP
+		return ValueA+ValueB;
+	#endif
+}
+
+WORK_TYPE FinalOp(WORK_TYPE Value)
+{
+	#if REDUCE_OPERATOR_TYPE == TYPE_AVERAGE
+		return Value/AxisSize;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L1
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_L2
+		return sqrt(Value);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_LOGSUMEXP
+		return log(Value);
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MAX
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_MIN
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_PROD
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUM
+		return Value;
+	#elif REDUCE_OPERATOR_TYPE == TYPE_SUMEXP
+		return Value;
+	#endif
+}
+
+groupshared WORK_TYPE SharedMemory[THREADGROUP_SIZE];
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void Reduce(in const uint3 DispatchThreadID : SV_DispatchThreadID, in const uint3 GroupThreadID : SV_GroupThreadID)
@@ -25,15 +128,18 @@ void Reduce(in const uint3 DispatchThreadID : SV_DispatchThreadID, in const uint
 
 	// Reduction using sharedmem and THREADGROUP_SIZE threads along the reduced dimension
 	{
-		WORK_TYPE Sum = 0;
+		WORK_TYPE FirstValue = READ(Input[InputStartIdx]);
+		WORK_TYPE Reduced = InitValue(FirstValue);
 
 		for (int AxisIdx = GroupThreadID.x; AxisIdx < AxisSize; AxisIdx += THREADGROUP_SIZE)
 		{
 			WORK_TYPE Value = READ(Input[(AxisIdx * NumElemAfterAxis) + InputStartIdx]);
-			Sum += Value;
+
+			Value = ElementOp(Value);
+			Reduced = CombineOp(Reduced, Value);
 		}
 
-		SharedMemorySum[GroupThreadID.x] = Sum;
+		SharedMemory[GroupThreadID.x] = Reduced;
 	}
 
 	// Wait until all threads wrote result to shared memory
@@ -42,22 +148,25 @@ void Reduce(in const uint3 DispatchThreadID : SV_DispatchThreadID, in const uint
 	// Use one thread to calculate final result
 	if (GroupThreadID.x == 0)
 	{
-		WORK_TYPE Sum = 0;
+		WORK_TYPE FirstCurrReduced = SharedMemory[0];
+		WORK_TYPE Reduced = InitValue(FirstCurrReduced);
 
 		UNROLL
 		for (int Idx = 0; Idx < THREADGROUP_SIZE; Idx++)
 		{
-			WORK_TYPE CurrSum = SharedMemorySum[Idx];
-			Sum += CurrSum;
+			WORK_TYPE CurrReduced = SharedMemory[Idx];
+
+			Reduced = CombineOp(Reduced, CurrReduced);
 		}
 
-		SharedMemorySum[0] = Sum;
+		SharedMemory[0] = Reduced;
 	}
 
 	// Wait until first thread wrote result to shared memory
 	GroupMemoryBarrierWithGroupSync();
 
 	// Write reduced result
-	WORK_TYPE Sum = SharedMemorySum[0];
-	Output[OutputIdx] = Sum;
+	WORK_TYPE Reduced = SharedMemory[0];
+	Reduced = FinalOp(Reduced);
+	Output[OutputIdx] = Reduced;
 }

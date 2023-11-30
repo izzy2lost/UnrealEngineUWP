@@ -34,14 +34,17 @@ namespace UE::NNEHlslShaders::Internal
 		Parameters->NumElemAfterAxis = NumElemAfterAxis;
 	}
 
-	void TReduceCS::EnqueueRDG(FRDGBuilder& GraphBuilder, TReduceCS::FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output)
+	void TReduceCS::EnqueueRDG(FRDGBuilder& GraphBuilder, TReduceCS::FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType)
 	{
 		check(Parameters);
 
 		Parameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input, PF_R32_FLOAT));
 		Parameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output, PF_R32_FLOAT));
 
-		TShaderMapRef<TReduceCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		TReduceCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<TReduceCS::FReduceType>(OperatorType);
+
+		TShaderMapRef<TReduceCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 		FIntVector ThreadGroupCount{ 1, (int32)Parameters->NumElemAfterAxis, (int32)Parameters->NumElemBeforeAxis };
 
 		FComputeShaderUtils::AddPass(

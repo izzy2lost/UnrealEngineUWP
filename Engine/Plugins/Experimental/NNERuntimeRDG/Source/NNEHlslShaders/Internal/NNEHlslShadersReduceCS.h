@@ -12,6 +12,20 @@ namespace UE::NNE::Internal { class FTensor; }
 
 namespace UE::NNEHlslShaders::Internal
 {
+	enum class EReduceOperatorType : uint8
+	{
+		Average = 0,
+		L1,
+		L2,
+		LogSumExp,
+		Max,
+		Min,
+		Prod,
+		Sum,
+		SumExp,//Should not be used for multiple axis reduction
+		MAX
+	};
+
 	class FReduceConstants
 	{
 	public:
@@ -22,6 +36,9 @@ namespace UE::NNEHlslShaders::Internal
 	{
 		DECLARE_GLOBAL_SHADER(TReduceCS);
 		SHADER_USE_PARAMETER_STRUCT(TReduceCS, FHlslShaderBase)
+
+		class FReduceType : SHADER_PERMUTATION_ENUM_CLASS("REDUCE_OPERATOR_TYPE", EReduceOperatorType);
+		using FPermutationDomain = TShaderPermutationDomain<FReduceType>;
 
 	public:
 
@@ -35,6 +52,6 @@ namespace UE::NNEHlslShaders::Internal
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 		static void FillInParameters(TConstArrayView<uint32> Shape, int32 Axis, FParameters* Parameters);
-		static void EnqueueRDG(FRDGBuilder& GraphBuilder, FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output);
+		static void EnqueueRDG(FRDGBuilder& GraphBuilder, FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType);
 	};
 } // UE::NNEHlslShaders::Internal
