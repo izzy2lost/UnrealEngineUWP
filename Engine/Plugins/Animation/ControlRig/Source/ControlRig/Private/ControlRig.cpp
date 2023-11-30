@@ -1757,7 +1757,10 @@ void UControlRig::PostLoad()
 	}
 	Influences = NewInfluences;
 
-	GetHierarchy()->bUsePreferredEulerAngles = !bIsAdditive;
+	if(DynamicHierarchy)
+	{
+		DynamicHierarchy->bUsePreferredEulerAngles = !bIsAdditive;
+	}
 }
 
 const FRigModuleSettings& UControlRig::GetRigModuleSettings() const
