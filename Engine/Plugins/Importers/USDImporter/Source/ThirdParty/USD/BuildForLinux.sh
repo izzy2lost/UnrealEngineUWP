@@ -2,24 +2,28 @@
 
 set -e
 
-USD_VERSION=23.08
+OPENUSD_VERSION=23.11
 
-# This path may be adjusted to point to wherever the USD source is located.
+# This path may be adjusted to point to wherever the OpenUSD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
-# current engine USD version:
-#     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+# current engine OpenUSD version:
+#     git clone --branch v23.11 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # We apply a patch for the usdMtlx plugin to ensure that we do not
 # bake a hard-coded path to the MaterialX standard data libraries into the
 # built plugin:
-#     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
+#     git apply OpenUSD_v2311_usdMtlx_undef_stdlib_dir.patch
+# We apply a patch to explicitly declare, define, and export a destructor for
+# SdfAssetPaths so that allocations of its member strings can be tracked and
+# deallocated using the correct deallocator:
+#     git apply OpenUSD_v2311_explicit_SdfAssetPath_dtor.patch
 # Specifically for Linux when building with clang, an additional patch is
 # needed to ensure that type comparisons work correctly across shared library
 # boundaries:
-#     git apply USD_v2308_Linux_clang_TfSafeTypeCompare.patch
-# Note also that this path may be emitted as part of USD error messages, so
+#     git apply OpenUSD_v2311_Linux_clang_TfSafeTypeCompare.patch
+# Note also that this path may be emitted as part of OpenUSD error messages, so
 # it is suggested that it not reveal any sensitive information.
-SOURCE_LOCATION="/tmp/OpenUSD_src"
+OPENUSD_SOURCE_LOCATION="/tmp/OpenUSD_src"
 
 ARCH_NAME=x86_64-unknown-linux-gnu
 
@@ -31,16 +35,16 @@ UE_THIRD_PARTY_LOCATION="$UE_ENGINE_LOCATION/Source/ThirdParty"
 TBB_LOCATION="$UE_THIRD_PARTY_LOCATION/Intel/TBB/IntelTBB-2019u8"
 TBB_INCLUDE_LOCATION="$TBB_LOCATION/include"
 TBB_LIB_LOCATION="$TBB_LOCATION/lib/Linux"
-BOOST_LOCATION="$UE_THIRD_PARTY_LOCATION/Boost/boost-1_80_0"
+BOOST_LOCATION="$UE_THIRD_PARTY_LOCATION/Boost/boost-1_82_0"
 BOOST_INCLUDE_LOCATION="$BOOST_LOCATION/include"
 BOOST_LIB_LOCATION="$BOOST_LOCATION/lib/Unix/$ARCH_NAME"
-IMATH_LOCATION="$UE_THIRD_PARTY_LOCATION/Imath/Deploy/Imath-3.1.3"
+IMATH_LOCATION="$UE_THIRD_PARTY_LOCATION/Imath/Deploy/Imath-3.1.9"
 IMATH_LIB_LOCATION="$IMATH_LOCATION/Unix/$ARCH_NAME"
 IMATH_CMAKE_LOCATION="$IMATH_LIB_LOCATION/lib/cmake/Imath"
 OPENSUBDIV_LOCATION="$UE_THIRD_PARTY_LOCATION/OpenSubdiv/Deploy/OpenSubdiv-3.5.0"
 OPENSUBDIV_INCLUDE_DIR="$OPENSUBDIV_LOCATION/include"
 OPENSUBDIV_LIB_LOCATION="$OPENSUBDIV_LOCATION/Unix/$ARCH_NAME/lib"
-ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.2"
+ALEMBIC_LOCATION="$UE_THIRD_PARTY_LOCATION/Alembic/Deploy/alembic-1.8.6"
 ALEMBIC_INCLUDE_LOCATION="$ALEMBIC_LOCATION/include"
 ALEMBIC_LIB_LOCATION="$ALEMBIC_LOCATION/Unix/$ARCH_NAME"
 MATERIALX_LOCATION="$UE_THIRD_PARTY_LOCATION/MaterialX/Deploy/MaterialX-1.38.5"
@@ -57,9 +61,9 @@ UE_MODULE_USD_LOCATION=$SCRIPT_DIR
 
 BUILD_LOCATION="$UE_MODULE_USD_LOCATION/Intermediate"
 
-# USD build products are written into a deployment directory and must then
+# OpenUSD build products are written into a deployment directory and must then
 # be manually copied from there into place.
-INSTALL_LOCATION="$BUILD_LOCATION/Deploy/USD-$USD_VERSION"
+INSTALL_LOCATION="$BUILD_LOCATION/Deploy/OpenUSD-$OPENUSD_VERSION"
 
 rm -rf $BUILD_LOCATION
 
@@ -118,13 +122,13 @@ CMAKE_ARGS=(
 
 NUM_CPU=`grep -c ^processor /proc/cpuinfo`
 
-echo Configuring build for USD version $USD_VERSION...
-cmake -G "Unix Makefiles" $SOURCE_LOCATION "${CMAKE_ARGS[@]}"
+echo Configuring build for OpenUSD version $OPENUSD_VERSION...
+cmake -G "Unix Makefiles" $OPENUSD_SOURCE_LOCATION "${CMAKE_ARGS[@]}"
 
-echo Building USD for Release...
+echo Building OpenUSD for Release...
 cmake --build . -j$NUM_CPU
 
-echo Installing USD for Release...
+echo Installing OpenUSD for Release...
 cmake --install .
 
 popd > /dev/null
@@ -135,21 +139,21 @@ INSTALL_LIB_LOCATION="$INSTALL_LOCATION/lib"
 echo Removing command-line tools...
 rm -rf "$INSTALL_BIN_LOCATION"
 
-echo Moving built-in USD plugins to UsdResources plugins directory...
+echo Moving built-in OpenUSD plugins to UsdResources plugins directory...
 INSTALL_RESOURCES_LOCATION="$INSTALL_LOCATION/Resources/UsdResources/Linux"
 INSTALL_RESOURCES_PLUGINS_LOCATION="$INSTALL_RESOURCES_LOCATION/plugins"
 mkdir -p $INSTALL_RESOURCES_LOCATION
 mv "$INSTALL_LIB_LOCATION/usd" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 
-echo Moving USD plugin shared libraries to lib directory...
+echo Moving OpenUSD plugin shared libraries to lib directory...
 INSTALL_PLUGIN_LOCATION="$INSTALL_LOCATION/plugin"
 INSTALL_PLUGIN_USD_LOCATION="$INSTALL_PLUGIN_LOCATION/usd"
 mv $INSTALL_PLUGIN_USD_LOCATION/*.so "$INSTALL_LIB_LOCATION"
 
-echo Removing top-level USD plugins plugInfo.json file...
+echo Removing top-level OpenUSD plugins plugInfo.json file...
 rm -f "$INSTALL_PLUGIN_USD_LOCATION/plugInfo.json"
 
-echo Moving USD plugin resource directories to UsdResources plugins directory
+echo Moving OpenUSD plugin resource directories to UsdResources plugins directory
 mv "$INSTALL_PLUGIN_USD_LOCATION/sdrGlslfx" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 mv "$INSTALL_PLUGIN_USD_LOCATION/usdAbc" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 mv "$INSTALL_PLUGIN_USD_LOCATION/usdShaders" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
@@ -179,8 +183,9 @@ rm -rf "$INSTALL_LOCATION/share"
 # The locations of the shared libraries where they will live when ultimately
 # deployed are used to generate relative paths for use as rpaths and as
 # LibraryPaths in plugInfo.json files.
-# The USD Python module shared libraries and USD plugins all exist at the same
-# directory level, so any of them can be used to generate a relative path.
+# The OpenUSD Python module shared libraries and OpenUSD plugins all exist at
+# the same directory level, so any of them can be used to generate a relative
+# path.
 USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Resources/UsdResources/Linux/plugins/usd"
 USD_PYTHON_MODULE_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Content/Python/Lib/Linux/site-packages/pxr/Usd"
 USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Source/ThirdParty/Linux/bin/$ARCH_NAME"
@@ -194,8 +199,8 @@ do
 done
 
 echo Cleaning @rpath entries for shared libraries...
-# The USD Python modules link first against the USD libraries within the plugin
-# directory followed by libraries in the engine binaries.
+# The OpenUSD Python modules link first against the OpenUSD libraries within
+# the plugin directory followed by libraries in the engine binaries.
 ENGINE_BINARIES_LOCATION="$UE_ENGINE_LOCATION/Binaries/Linux"
 PYTHON_TO_USD_LIBS_REL_PATH=`python -c "import os.path; print(os.path.relpath('$USD_LIBS_LOCATION', '$USD_PYTHON_MODULE_LOCATION'))"`
 PYTHON_TO_ENGINE_BINARIES_REL_PATH=`python -c "import os.path; print(os.path.relpath('$ENGINE_BINARIES_LOCATION', '$USD_PYTHON_MODULE_LOCATION'))"`
@@ -205,8 +210,8 @@ do
     patchelf --set-rpath "\$ORIGIN/$PYTHON_TO_USD_LIBS_REL_PATH:\$ORIGIN/$PYTHON_TO_ENGINE_BINARIES_REL_PATH" --force-rpath $PY_SHARED_LIB
 done
 
-# The USD libraries link first against sibling libraries in the same directory
-# followed by libraries in the engine binaries.
+# The OpenUSD libraries link first against sibling libraries in the same
+# directory followed by libraries in the engine binaries.
 USD_LIBS_TO_ENGINE_BINARIES_REL_PATH=`python -c "import os.path; print(os.path.relpath('$ENGINE_BINARIES_LOCATION', '$USD_LIBS_LOCATION'))"`
 
 for USD_SHARED_LIB in `find $INSTALL_LIB_LOCATION -name '*.so'`

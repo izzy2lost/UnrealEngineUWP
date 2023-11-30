@@ -1,20 +1,24 @@
 @echo off
 setlocal
 
-set USD_VERSION=23.08
+set OPENUSD_VERSION=23.11
 
-rem This path may be adjusted to point to wherever the USD source is located.
-rem It is typically obtained by either downloading a zip/tarball of the source
-rem code, or more commonly by cloning the GitHub repository, e.g. for the
-rem current engine USD version:
-rem     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+rem This path may be adjusted to point to wherever the OpenUSD source is
+rem located. It is typically obtained by either downloading a zip/tarball of
+rem the source code, or more commonly by cloning the GitHub repository, e.g.
+rem for the current engine OpenUSD version:
+rem     git clone --branch v23.11 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 rem We apply a patch for the usdMtlx plugin to ensure that we do not
 rem bake a hard-coded path to the MaterialX standard data libraries into the
 rem built plugin:
-rem     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
-rem Note also that this path may be emitted as part of USD error messages, so
-rem it is suggested that it not reveal any sensitive information.
-set USD_SOURCE_LOCATION=C:\OpenUSD_src
+rem     git apply OpenUSD_v2311_usdMtlx_undef_stdlib_dir.patch
+rem We apply a patch to explicitly declare, define, and export a destructor for
+rem SdfAssetPaths so that allocations of its member strings can be tracked and
+rem deallocated using the correct deallocator:
+rem     git apply OpenUSD_v2311_explicit_SdfAssetPath_dtor.patch
+rem Note also that this path may be emitted as part of OpenUSD error messages,
+rem so it is suggested that it not reveal any sensitive information.
+set OPENUSD_SOURCE_LOCATION=C:\OpenUSD_src
 
 rem Set as VS2015 for backwards compatibility even though VS2022 is used
 rem when building.
@@ -28,16 +32,16 @@ set UE_THIRD_PARTY_LOCATION=%UE_ENGINE_LOCATION%\Source\ThirdParty
 set TBB_LOCATION=%UE_THIRD_PARTY_LOCATION%\Intel\TBB\IntelTBB-2019u8
 set TBB_INCLUDE_LOCATION=%TBB_LOCATION%\include
 set TBB_LIB_LOCATION=%TBB_LOCATION%\lib\Win64\%TOOLCHAIN_NAME%
-set BOOST_LOCATION=%UE_THIRD_PARTY_LOCATION%\Boost\boost-1_80_0
+set BOOST_LOCATION=%UE_THIRD_PARTY_LOCATION%\Boost\boost-1_82_0
 set BOOST_INCLUDE_LOCATION=%BOOST_LOCATION%\include
 set BOOST_LIB_LOCATION=%BOOST_LOCATION%\lib\Win64
-set IMATH_LOCATION=%UE_THIRD_PARTY_LOCATION%\Imath\Deploy\Imath-3.1.3
+set IMATH_LOCATION=%UE_THIRD_PARTY_LOCATION%\Imath\Deploy\Imath-3.1.9
 set IMATH_LIB_LOCATION=%IMATH_LOCATION%\%COMPILER_VERSION_NAME%\%ARCH_NAME%
 set IMATH_CMAKE_LOCATION=%IMATH_LIB_LOCATION%\lib\cmake\Imath
 set OPENSUBDIV_LOCATION=%UE_THIRD_PARTY_LOCATION%\OpenSubdiv\Deploy\OpenSubdiv-3.5.0
 set OPENSUBDIV_INCLUDE_DIR=%OPENSUBDIV_LOCATION%\include
 set OPENSUBDIV_LIB_LOCATION=%OPENSUBDIV_LOCATION%\%COMPILER_VERSION_NAME%\%ARCH_NAME%\lib
-set ALEMBIC_LOCATION=%UE_THIRD_PARTY_LOCATION%\Alembic\Deploy\alembic-1.8.2
+set ALEMBIC_LOCATION=%UE_THIRD_PARTY_LOCATION%\Alembic\Deploy\alembic-1.8.6
 set ALEMBIC_INCLUDE_LOCATION=%ALEMBIC_LOCATION%\include
 set ALEMBIC_LIB_LOCATION=%ALEMBIC_LOCATION%\%COMPILER_VERSION_NAME%\%ARCH_NAME%
 set MATERIALX_LOCATION=%UE_THIRD_PARTY_LOCATION%\MaterialX\Deploy\MaterialX-1.38.5
@@ -54,9 +58,9 @@ set UE_MODULE_USD_LOCATION=%~dp0
 
 set BUILD_LOCATION=%UE_MODULE_USD_LOCATION%\Intermediate
 
-rem USD build products are written into a deployment directory and must then
-rem be manually copied from there into place.
-set INSTALL_LOCATION=%BUILD_LOCATION%\Deploy\USD-%USD_VERSION%
+rem OpenUSD build products are written into a deployment directory and must
+rem then be manually copied from there into place.
+set INSTALL_LOCATION=%BUILD_LOCATION%\Deploy\OpenUSD-%OPENUSD_VERSION%
 set INSTALL_INCLUDE_LOCATION=%INSTALL_LOCATION%\include
 
 if exist %BUILD_LOCATION% (
@@ -65,8 +69,8 @@ if exist %BUILD_LOCATION% (
 mkdir %BUILD_LOCATION%
 pushd %BUILD_LOCATION%
 
-echo Configuring build for USD version %USD_VERSION%...
-cmake -G "Visual Studio 17 2022" %USD_SOURCE_LOCATION%^
+echo Configuring build for OpenUSD version %OPENUSD_VERSION%...
+cmake -G "Visual Studio 17 2022" %OPENUSD_SOURCE_LOCATION%^
     -DCMAKE_INSTALL_PREFIX="%INSTALL_LOCATION%"^
     -DCMAKE_PREFIX_PATH="%IMATH_CMAKE_LOCATION%;%MATERIALX_CMAKE_LOCATION%"^
     -DTBB_INCLUDE_DIR="%TBB_INCLUDE_LOCATION%"^
@@ -96,11 +100,11 @@ cmake -G "Visual Studio 17 2022" %USD_SOURCE_LOCATION%^
     -DCMAKE_CXX_FLAGS="/Zm150 /DBOOST_ALL_NO_LIB"
 if %errorlevel% neq 0 exit /B %errorlevel%
 
-echo Building USD for Release...
+echo Building OpenUSD for Release...
 cmake --build . --config Release -j8
 if %errorlevel% neq 0 exit /B %errorlevel%
 
-echo Installing USD for Release...
+echo Installing OpenUSD for Release...
 cmake --install . --config Release
 if %errorlevel% neq 0 exit /B %errorlevel%
 
@@ -119,13 +123,13 @@ if exist "%INSTALL_LIB_LOCATION%\*.pdb" (
     move "%INSTALL_LIB_LOCATION%\*.pdb" "%INSTALL_BIN_LOCATION%"
 )
 
-echo Moving built-in USD plugins to UsdResources plugins directory...
+echo Moving built-in OpenUSD plugins to UsdResources plugins directory...
 set INSTALL_RESOURCES_LOCATION=%INSTALL_LOCATION%\Resources\UsdResources\Win64
 set INSTALL_RESOURCES_PLUGINS_LOCATION=%INSTALL_RESOURCES_LOCATION%\plugins
 mkdir %INSTALL_RESOURCES_LOCATION%
 move "%INSTALL_LIB_LOCATION%\usd" "%INSTALL_RESOURCES_PLUGINS_LOCATION%"
 
-echo Moving USD plugin shared libraries to bin directory...
+echo Moving OpenUSD plugin shared libraries to bin directory...
 set INSTALL_PLUGIN_LOCATION=%INSTALL_LOCATION%\plugin
 set INSTALL_PLUGIN_USD_LOCATION=%INSTALL_PLUGIN_LOCATION%\usd
 move "%INSTALL_PLUGIN_USD_LOCATION%\*.dll" "%INSTALL_BIN_LOCATION%"
@@ -133,13 +137,13 @@ if exist "%INSTALL_PLUGIN_USD_LOCATION%\*.pdb" (
     move "%INSTALL_PLUGIN_USD_LOCATION%\*.pdb" "%INSTALL_BIN_LOCATION%"
 )
 
-echo Moving USD plugin import libraries to lib directory...
+echo Moving OpenUSD plugin import libraries to lib directory...
 move "%INSTALL_PLUGIN_USD_LOCATION%\*.lib" "%INSTALL_LIB_LOCATION%"
 
-echo Removing top-level USD plugins plugInfo.json file...
+echo Removing top-level OpenUSD plugins plugInfo.json file...
 del "%INSTALL_PLUGIN_USD_LOCATION%\plugInfo.json"
 
-echo Moving USD plugin resource directories to UsdResources plugins directory
+echo Moving OpenUSD plugin resource directories to UsdResources plugins directory
 move "%INSTALL_PLUGIN_USD_LOCATION%\hdStorm" "%INSTALL_RESOURCES_PLUGINS_LOCATION%"
 move "%INSTALL_PLUGIN_USD_LOCATION%\sdrGlslfx" "%INSTALL_RESOURCES_PLUGINS_LOCATION%"
 move "%INSTALL_PLUGIN_USD_LOCATION%\usdAbc" "%INSTALL_RESOURCES_PLUGINS_LOCATION%"
