@@ -78,6 +78,7 @@ protected:
 				const uint32 ShowFlagIndex = ShowFlag.EngineShowFlagIndex;
 				
 				FlagGroup.AddWidgetRow()
+				.FilterString(ShowFlag.DisplayName)
 				.NameContent()
 				[
 					SNew(SHorizontalBox)
