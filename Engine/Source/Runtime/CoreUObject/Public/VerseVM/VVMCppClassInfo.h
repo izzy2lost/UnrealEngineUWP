@@ -98,7 +98,8 @@ public:                                                                         
 			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
 		},                                                                                                                                                                      \
 		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
-	};
+	};                                                                                                                                                                          \
+	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
 #define DEFINE_BASE_VCPPCLASSINFO(CellType) DEFINE_BASE_OR_DERIVED_VCPPCLASSINFO(CellType, nullptr)
 
@@ -151,6 +152,20 @@ struct VCppClassInfo
 	}
 
 	COREUOBJECT_API FString DebugName() const;
+};
+
+struct VCppClassInfoRegister
+{
+	VCppClassInfo* CppClassInfo;
+	VCppClassInfoRegister* Next;
+
+	VCppClassInfoRegister(VCppClassInfo* InCppClassInfo);
+	~VCppClassInfoRegister();
+};
+
+struct VCppClassInfoRegistry
+{
+	static VCppClassInfo* GetCppClassInfo(FStringView Name);
 };
 
 } // namespace Verse
