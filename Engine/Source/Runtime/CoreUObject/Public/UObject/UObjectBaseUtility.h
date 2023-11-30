@@ -873,6 +873,7 @@ public:
 			}
 			return StatID;
 		}
+		return TStatId(); // not doing stats at the moment, or ever
 #elif ENABLE_STATNAMEDEVENTS_UOBJECT
 		const TStatId& StatID = GUObjectArray.IndexToObject(InternalIndex)->StatID;
 		if (!StatID.IsValidStat() && (bForDeferredUse || GCycleStatsShouldEmitNamedEvents))
@@ -880,8 +881,9 @@ public:
 			CreateStatID();
 		}
 		return StatID;
-#endif // STATS
+#else
 		return TStatId(); // not doing stats at the moment, or ever
+#endif // STATS
 	}
 
 private:

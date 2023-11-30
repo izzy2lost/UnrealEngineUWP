@@ -84,10 +84,9 @@ private:
 					}
 				}
 			}
+			// If U is different of T, and we either can't or allow broadcast or construct from, we will fail, and return false.
+			return false;
 		}
-
-		// If U is different of T, and we either can't or allow broadcast or construct from, we will fail, and return false.
-		return false;
 	}
 
 	template<typename U>
@@ -141,10 +140,10 @@ private:
 					return This->SetRangeImpl(OutValues, Index, Keys, Flags);
 				}
 			}
+			// If U is different of T, and we either can't or allow broadcast or construct from, we will fail, and return false.
+			return false;
 		}
 
-		// If U is different of T, and we either can't or allow broadcast or construct from, we will fail, and return false.
-		return false;
 	}
 };
 

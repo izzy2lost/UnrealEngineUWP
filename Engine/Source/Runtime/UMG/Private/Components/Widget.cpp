@@ -1663,8 +1663,6 @@ FSizeParam UWidget::ConvertSerializedSizeParamToRuntime(const FSlateChildSize& I
 	case ESlateSizeRule::Fill:
 		return FStretch(Input.Value);
 	}
-
-	return FAuto();
 }
 
 UWidget* UWidget::FindChildContainingDescendant(UWidget* Root, UWidget* Descendant)

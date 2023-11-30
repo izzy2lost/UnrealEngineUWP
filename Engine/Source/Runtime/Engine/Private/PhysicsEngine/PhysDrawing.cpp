@@ -1436,10 +1436,7 @@ void FConstraintInstance::GetUsedMaterials(TArray<UMaterialInterface*>& Material
 void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollector, float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected, const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint) const
 {
 	// Do nothing if we're shipping
-#if UE_BUILD_SHIPPING
-	return;
-#endif
-
+#if !UE_BUILD_SHIPPING
 	const ESceneDepthPriorityGroup Layer = ESceneDepthPriorityGroup::SDPG_World;
 	FPrimitiveDrawInterface* PDI = PDIOrCollector.GetPDI();
 
@@ -1568,4 +1565,5 @@ void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollecto
 		bool bLinearZLimited = ( GetLinearZMotion() == LCM_Limited && GetLinearLimit() >= RB_MinSizeToLockDOF );
 		DrawLinearLimit(PDI, Con2Frame.GetTranslation(), Con2Frame.GetScaledAxis( EAxis::Z ), Con2Frame.GetScaledAxis( EAxis::X ), GetLinearLimit(), bLinearZLimited, LimitDrawScale);
 	}
+#endif
 }

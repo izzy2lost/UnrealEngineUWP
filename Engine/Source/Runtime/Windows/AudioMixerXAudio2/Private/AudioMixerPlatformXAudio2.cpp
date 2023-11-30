@@ -771,6 +771,7 @@ namespace Audio
 			return false;
 		}
 		OutNumOutputDevices = AllAudioDevices->Size;
+		return true;
 #elif PLATFORM_WINDOWS && XAUDIO_SUPPORTS_DEVICE_DETAILS
 
 		IMMDeviceEnumerator* DeviceEnumerator = nullptr;
@@ -795,8 +796,8 @@ namespace Audio
 		return SUCCEEDED(Result);
 #else
 		OutNumOutputDevices = 1;
-#endif 
 		return true;
+#endif 
 	}
 
 #if PLATFORM_WINDOWS
@@ -1223,6 +1224,7 @@ namespace Audio
 				UE_LOG(LogAudioMixer, Display, TEXT("%d: %s"), i, EAudioMixerChannel::ToString(OutInfo.OutputChannelArray[i]));
 			}
 		}
+		return true;
 #else // #elif PLATFORM_HOLOLENS // #if PLATFORM_WINDOWS
 		OutInfo.bIsSystemDefault = true;
 		OutInfo.SampleRate = 44100;
@@ -1239,8 +1241,8 @@ namespace Audio
 		OutInfo.OutputChannelArray.Add(EAudioMixerChannel::BackRight);
 		OutInfo.OutputChannelArray.Add(EAudioMixerChannel::SideLeft);
 		OutInfo.OutputChannelArray.Add(EAudioMixerChannel::SideRight);
-#endif // #else // #elif PLATFORM_HOLOLENS // #if PLATFORM_WINDOWS
 		return true;
+#endif // #else // #elif PLATFORM_HOLOLENS // #if PLATFORM_WINDOWS
 	}
 
 	bool FMixerPlatformXAudio2::GetDefaultOutputDeviceIndex(uint32& OutDefaultDeviceIndex) const

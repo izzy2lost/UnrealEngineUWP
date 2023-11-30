@@ -21,7 +21,7 @@ public:
 		return LockKey.IsValid(); 
 	}
 	
-	FORCEINLINE FFreezeFrameControlHandle Lock()
+	FFreezeFrameControlHandle Lock()
 	{ 
 		if (ensure(!IsLocked()))
 		{
