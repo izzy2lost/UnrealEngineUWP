@@ -229,8 +229,10 @@ namespace AudioModulation
 
 	void FAudioModulationSystem::SetGlobalBusMixValue(USoundControlBus& InBus, float InValue, float InFadeTime)
 	{
-		if (TObjectPtr<USoundControlBusMix> GlobalMix = ActiveGlobalBusValueMixes.FindRef(InBus.GetUniqueID()))
+		if (ActiveGlobalBusValueMixes.Contains(InBus.GetUniqueID()))
 		{
+			TObjectPtr<USoundControlBusMix> GlobalMix = ActiveGlobalBusValueMixes.FindRef(InBus.GetUniqueID());
+
 			if (ensure(!GlobalMix->MixStages.IsEmpty()))
 			{
 				GlobalMix->MixStages[0].Value.TargetValue = InValue;
