@@ -356,9 +356,12 @@ void RenderSingleScatteringWithLiveShadingCS(
 		);
 
 		// Output..
-		float3 Opacity = bApplyEmissionAndTransmittance ? 1.0 - Transmittance : 0.0;
 		RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
-		RWLightingTexture[PixelCoord].a = Luminance(Opacity);
+		if (bApplyEmissionAndTransmittance)
+		{
+			float3 Opacity = 1.0 - Transmittance;
+			RWLightingTexture[PixelCoord].a = Luminance(Opacity);
+		}
 
 		// Debug output
 		//RWDebugOutputBuffer[LinearIndex] = DebugOutput;

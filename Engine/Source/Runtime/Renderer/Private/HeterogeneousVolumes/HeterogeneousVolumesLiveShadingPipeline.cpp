@@ -702,7 +702,7 @@ static void RenderWithTransmittanceVolumePipeline(
 	int32 NumPasses = FMath::Max(LightSceneInfoCompact.Num(), 1);
 	for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
 	{
-		bool bApplyEmissionAndTransmittance = PassIndex == 0;
+		bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
 		bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
 		bool bApplyShadowTransmittance = false;
 
