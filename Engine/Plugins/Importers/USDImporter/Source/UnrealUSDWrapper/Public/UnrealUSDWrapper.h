@@ -410,6 +410,8 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API const TCHAR* Inherited;
 	extern UNREALUSDWRAPPER_API const TCHAR* IdentifierPrefix;
 
+	extern UNREALUSDWRAPPER_API const TCHAR* ExportedSkeletonPrimName;
+
 	// USceneComponent properties
 	extern UNREALUSDWRAPPER_API FName TransformPropertyName;
 	extern UNREALUSDWRAPPER_API FName HiddenInGamePropertyName;

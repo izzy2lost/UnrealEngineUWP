@@ -858,6 +858,11 @@ void FUsdGeometryCacheTranslator::CreateAssets()
 		return;
 	}
 
+	if (ShouldSkipSkinnablePrim())
+	{
+		return;
+	}
+
 	// Create the GeometryCache TaskChain
 	TSharedRef<FGeometryCacheCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeometryCacheCreateAssetsTaskChain>(Context, PrimPath);
 
@@ -876,6 +881,12 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
 	if (DrawMode == EUsdDrawMode::Default)
 	{
+		const bool bCheckForComponent = true;
+		if (ShouldSkipSkinnablePrim(bCheckForComponent))
+		{
+			return nullptr;
+		}
+
 		SceneComponent = CreateComponentsEx(
 			{Context->bIsImporting ? UGeometryCacheComponent::StaticClass() : UGeometryCacheUsdComponent::StaticClass()},
 			{}
@@ -941,7 +952,13 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 {
 	UGeometryCacheComponent* GeometryCacheComponent = Cast<UGeometryCacheComponent>(SceneComponent);
 
-	if (!IsPotentialGeometryCacheRoot() || !GeometryCacheComponent)
+	const bool bCheckForComponent = true;
+	if (!Cast<UUsdDrawModeComponent>(SceneComponent) && ShouldSkipSkinnablePrim(bCheckForComponent))
+	{
+		return;
+	}
+
+	if (!GeometryCacheComponent || !IsPotentialGeometryCacheRoot())
 	{
 		Super::UpdateComponents(SceneComponent);
 		return;
@@ -1053,18 +1070,27 @@ bool FUsdGeometryCacheTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 {
 	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
 	// of our entire subtree, which is basically the same thing as collapsing
-	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
-	if (DrawMode != EUsdDrawMode::Default)
+	if (IsPotentialGeometryCacheRoot() || UsdUtils::GetAppliedDrawMode(GetPrim()) != EUsdDrawMode::Default)
 	{
 		return true;
 	}
 
-	return IsPotentialGeometryCacheRoot() ? true : Super::CollapsesChildren(CollapsingType);
+	if (ShouldSkipSkinnablePrim())
+	{
+		return false;
+	}
+
+	return Super::CollapsesChildren(CollapsingType);
 }
 
 bool FUsdGeometryCacheTranslator::CanBeCollapsed(ECollapsingType CollapsingType) const
 {
-	return IsPotentialGeometryCacheRoot() ? false : Super::CanBeCollapsed(CollapsingType);
+	if (IsPotentialGeometryCacheRoot() || ShouldSkipSkinnablePrim())
+	{
+		return false;
+	}
+
+	return Super::CanBeCollapsed(CollapsingType);
 }
 
 TSet<UE::FSdfPath> FUsdGeometryCacheTranslator::CollectAuxiliaryPrims() const
@@ -1077,6 +1103,11 @@ TSet<UE::FSdfPath> FUsdGeometryCacheTranslator::CollectAuxiliaryPrims() const
 	if (!Context->bIsBuildingInfoCache)
 	{
 		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
+	}
+
+	if (ShouldSkipSkinnablePrim())
+	{
+		return {};
 	}
 
 	TSet<UE::FSdfPath> AuxPrims;

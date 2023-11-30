@@ -24,10 +24,11 @@
 #include "UsdWrappers/SdfPath.h"
 
 #include "USDIncludesStart.h"
-#include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/relationship.h"
-#include "pxr/usd/usdGeom/mesh.h"
-#include "pxr/usd/usdSkel/root.h"
+	#include "pxr/usd/usd/prim.h"
+	#include "pxr/usd/usd/relationship.h"
+	#include "pxr/usd/usdGeom/mesh.h"
+	#include "pxr/usd/usdSkel/root.h"
+	#include "pxr/usd/usdSkel/skeleton.h"
 #include "USDIncludesEnd.h"
 
 namespace UE::UsdGroomTranslatorUtils::Private
@@ -172,7 +173,7 @@ namespace UE::UsdGroomTranslatorUtils::Private
 
 				// Validate that the target prim and associated asset are of the expected type for the binding
 				pxr::UsdPrim TargetPrim = Prim.GetPrimAtPath(TargetPrimPath);
-				if (BindingType == EGroomBindingMeshType::SkeletalMesh && pxr::UsdSkelRoot(TargetPrim))
+				if (BindingType == EGroomBindingMeshType::SkeletalMesh && (pxr::UsdSkelRoot(TargetPrim) || pxr::UsdSkelSkeleton(TargetPrim)))
 				{
 					return InfoCache.GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{TargetPrimPath});
 				}
@@ -197,7 +198,7 @@ namespace UsdGroomTranslatorUtils
 		EObjectFlags ObjectFlags
 	)
 	{
-		// At this point, the prim (SkelRoot or GeomMesh) has already been checked to have the GroomBindingAPI,
+		// At this point, the prim (SkelRoot/Skeleton or GeomMesh) has already been checked to have the GroomBindingAPI,
 		// so we need to set up the GroomComponent and the groom binding asset to be able to bind it to the mesh
 
 		// The GroomBinding schema must specify a groom prim to bind to the mesh

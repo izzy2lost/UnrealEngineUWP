@@ -71,12 +71,6 @@
 
 #define LOCTEXT_NAMESPACE "UsdSkelRoot"
 
-static bool bGeneratePhysicsAssets = true;
-static FAutoConsoleVariableRef CVarGeneratePhysicsAssets(
-	TEXT( "USD.GeneratePhysicsAssets" ),
-	bGeneratePhysicsAssets,
-	TEXT( "Whether to automatically generate and assign PhysicsAssets to generated SkeletalMeshes." ) );
-
 namespace UsdSkelRootTranslatorImpl
 {
 #if WITH_EDITOR
@@ -1429,6 +1423,9 @@ namespace UsdSkelRootTranslatorImpl
 						SkeletalMesh->GetSkeleton()->SetPreviewMesh(SkeletalMesh);
 					}
 
+					static IConsoleVariable* PhysicsAssetsCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.GeneratePhysicsAssets"));
+					const bool bGeneratePhysicsAssets = PhysicsAssetsCvar && PhysicsAssetsCvar->GetBool();
+
 					if ( bGeneratePhysicsAssets )
 					{
 						if ( !SkeletalMesh->GetPhysicsAsset() )
@@ -1665,6 +1662,7 @@ namespace UsdSkelRootTranslatorImpl
 #endif // WITH_EDITOR
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FUsdSkelRootTranslator::CreateAssets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdSkelRootTranslator::CreateAssets);
@@ -1997,6 +1995,7 @@ TSet<UE::FSdfPath> FUsdSkelRootTranslator::CollectAuxiliaryPrims() const
 	}
 	return Result;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #undef LOCTEXT_NAMESPACE
 

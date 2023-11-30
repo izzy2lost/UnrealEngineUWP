@@ -2392,7 +2392,7 @@ bool UsdToUnreal::ConvertSkelAnim(
 		// We don't want to store just StartSeconds here, because part of that may be because the layer itself
 		// has an offset/scale within the stage. In OutStartOffsetSeconds we need to store the start of the animation
 		// in seconds *with respect to its own layer*. The layer's offset/scale can be retrieved later at any time by
-		// just looking at the FSdfLayerOffset for the SkelAnimation prim (like what is done in FUsdSkelRootTranslator::UpdateComponents)
+		// just looking at the FSdfLayerOffset for the SkelAnimation prim (like what is done in FUsdSkelSkeletonTranslator::UpdateComponents)
 		*OutStartOffsetSeconds = LayerStartSeconds;
 	}
 
@@ -2407,6 +2407,11 @@ bool UsdToUnreal::ConvertBlendShape( const pxr::UsdSkelBlendShape& UsdBlendShape
 bool UsdToUnreal::ConvertBlendShape( const pxr::UsdSkelBlendShape& UsdBlendShape, const FUsdStageInfo& StageInfo, int32 LODIndex, uint32 PointIndexOffset, TSet<FString>& UsedMorphTargetNames, UsdUtils::FBlendShapeMap& OutBlendShapes )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE( UsdToUnreal::ConvertBlendShape );
+
+	if (!UsdBlendShape)
+	{
+		return false;
+	}
 
 	FScopedUsdAllocs Allocs;
 
@@ -2769,15 +2774,24 @@ pxr::UsdSkelSkinningQuery UsdUtils::CreateSkinningQuery( const pxr::UsdGeomMesh&
 	);
 }
 
-void UsdUtils::BindAnimationSource( pxr::UsdPrim& Prim, const pxr::UsdPrim& AnimationSource )
+void UsdUtils::BindAnimationSource(pxr::UsdPrim& Prim, const pxr::UsdPrim& AnimationSource)
 {
 	FScopedUsdAllocs UsdAllocs;
 
-	pxr::UsdSkelBindingAPI SkelBindingAPI = pxr::UsdSkelBindingAPI::Apply( Prim );
-	SkelBindingAPI.CreateAnimationSourceRel().SetTargets( pxr::SdfPathVector( { AnimationSource.GetPath() } ) );
+	pxr::UsdSkelBindingAPI SkelBindingAPI = pxr::UsdSkelBindingAPI::Apply(Prim);
+	pxr::UsdRelationship AnimSourceRel = SkelBindingAPI.CreateAnimationSourceRel();
+	if (AnimationSource)
+	{
+		AnimSourceRel.SetTargets(pxr::SdfPathVector({AnimationSource.GetPath()}));
+	}
+	else
+	{
+		const bool bRemoveSpec = false;
+		AnimSourceRel.ClearTargets(bRemoveSpec);
+	}
 }
 
-UE::FUsdPrim UsdUtils::FindFirstAnimationSource( const UE::FUsdPrim& SkelRootPrim )
+UE::FUsdPrim UsdUtils::FindFirstAnimationSource(const UE::FUsdPrim& SkelRootPrim)
 {
 	if ( !SkelRootPrim )
 	{
@@ -2786,34 +2800,106 @@ UE::FUsdPrim UsdUtils::FindFirstAnimationSource( const UE::FUsdPrim& SkelRootPri
 
 	FScopedUsdAllocs UsdAllocs;
 
-	// For now we really only parse the first skeletal binding of a SkelRoot (check USDSkelRootTranslator.cpp,
+	// For now we really only parse the first skeletal binding of a SkelRoot (check USDSkelSkeletonTranslator.cpp,
 	// LoadAllSkeletalData) and its SkelAnimation, if any.
 	// Note that we don't check the SkelRoot prim directly for the SkelAnimation binding: If it has a valid one
 	// it will propagate down to child namespaces and affect our first skeletal binding anyway
 
-	if ( pxr::UsdSkelRoot SkeletonRoot{ pxr::UsdPrim{ SkelRootPrim } } )
+	if (pxr::UsdSkelRoot SkeletonRoot{pxr::UsdPrim{SkelRootPrim}})
 	{
-		std::vector< pxr::UsdSkelBinding > SkeletonBindings;
+		std::vector<pxr::UsdSkelBinding> SkeletonBindings;
 
 		pxr::UsdSkelCache SkeletonCache;
-		SkeletonCache.Populate( SkeletonRoot, pxr::UsdTraverseInstanceProxies() );
-		SkeletonCache.ComputeSkelBindings( SkeletonRoot, &SkeletonBindings, pxr::UsdTraverseInstanceProxies() );
+		SkeletonCache.Populate(SkeletonRoot, pxr::UsdTraverseInstanceProxies());
+		SkeletonCache.ComputeSkelBindings(SkeletonRoot, &SkeletonBindings, pxr::UsdTraverseInstanceProxies());
 
-		for ( const pxr::UsdSkelBinding& Binding : SkeletonBindings )
+		for (const pxr::UsdSkelBinding& Binding : SkeletonBindings)
 		{
 			const pxr::UsdSkelSkeleton& Skeleton = Binding.GetSkeleton();
-			pxr::UsdSkelSkeletonQuery SkelQuery = SkeletonCache.GetSkelQuery( Skeleton );
+			pxr::UsdSkelSkeletonQuery SkelQuery = SkeletonCache.GetSkelQuery(Skeleton);
 			pxr::UsdSkelAnimQuery AnimQuery = SkelQuery.GetAnimQuery();
-			if ( !AnimQuery )
+			if (!AnimQuery)
 			{
 				continue;
 			}
 
-			return UE::FUsdPrim{ AnimQuery.GetPrim() };
+			return UE::FUsdPrim{AnimQuery.GetPrim()};
 		}
 	}
 
 	return {};
+}
+
+UE::FUsdPrim UsdUtils::FindAnimationSource(const pxr::UsdPrim& SkelRootPrim, const pxr::UsdPrim& SkeletonPrim)
+{
+	if (!SkeletonPrim)
+	{
+		return {};
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdSkelSkeleton Skeleton{SkeletonPrim};
+	pxr::UsdSkelRoot ClosestParentSkelRoot{SkelRootPrim};
+	if (Skeleton && ClosestParentSkelRoot)
+	{
+		pxr::UsdSkelCache SkeletonCache;
+		SkeletonCache.Populate(ClosestParentSkelRoot, pxr::UsdTraverseInstanceProxies());
+
+		pxr::UsdSkelSkeletonQuery SkelQuery = SkeletonCache.GetSkelQuery(Skeleton);
+		if (pxr::UsdSkelAnimQuery AnimQuery = SkelQuery.GetAnimQuery())
+		{
+			return UE::FUsdPrim{AnimQuery.GetPrim()};
+		}
+	}
+
+	return {};
+}
+
+UE::FUsdPrim UsdUtils::GetClosestParentSkelRoot(const pxr::UsdPrim& SomePrim)
+{
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdPrim Parent = SomePrim;
+	while (Parent && !Parent.IsPseudoRoot())
+	{
+		if (Parent.IsA<pxr::UsdSkelRoot>())
+		{
+			return UE::FUsdPrim{Parent};
+		}
+
+		Parent = Parent.GetParent();
+	}
+
+	return {};
+}
+
+bool UsdUtils::GetSkelQueries(
+	const pxr::UsdSkelRoot& InSkelRootPrim,
+	const pxr::UsdSkelSkeleton& InSkeletonPrim,
+	pxr::UsdSkelBinding& OutSkelBinding,
+	pxr::UsdSkelSkeletonQuery& OutSkeletonQuery,
+	pxr::UsdSkelCache* InOutSkelCache
+)
+{
+	if (!InSkelRootPrim || !InSkeletonPrim)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	TOptional<pxr::UsdSkelCache> TempCache;
+	if (!InOutSkelCache)
+	{
+		TempCache.Emplace();
+		InOutSkelCache = &TempCache.GetValue();
+		InOutSkelCache->Populate(InSkelRootPrim, pxr::UsdTraverseInstanceProxies());
+	}
+
+	OutSkeletonQuery = InOutSkelCache->GetSkelQuery(InSkeletonPrim);
+
+	return InOutSkelCache->ComputeSkelBinding(InSkelRootPrim, InSkeletonPrim, &OutSkelBinding, pxr::UsdTraverseInstanceProxies());
 }
 
 #endif // USE_USD_SDK
@@ -2989,7 +3075,7 @@ bool UnrealToUsd::ConvertSkeletalMesh( const USkeletalMesh* SkeletalMesh, pxr::U
 	pxr::UsdSkelBindingAPI SkelBindingAPI = pxr::UsdSkelBindingAPI::Apply( SkelRootPrim );
 	{
 		pxr::UsdPrim SkeletonPrim = Stage->DefinePrim(
-			SkelRootPrim.GetPath().AppendChild( UnrealToUsd::ConvertToken(TEXT("Skel")).Get() ),
+			SkelRootPrim.GetPath().AppendChild(UnrealToUsd::ConvertToken(UnrealIdentifiers::ExportedSkeletonPrimName).Get()),
 			UnrealToUsd::ConvertToken(TEXT("Skeleton")).Get()
 		);
 		pxr::UsdSkelSkeleton SkelSkeleton{ SkeletonPrim };
@@ -3501,6 +3587,8 @@ bool UnrealToUsd::ConvertControlRigSection(
 			// We'll change the blend shape channel names, so we need to update all meshes that were using them too.
 			// For now we'll assume that they're all inside the same skel root. We could upgrade this for the stage
 			// later too, if needed
+			// TODO: This could probably be updated to just find the actual skinned meshes, and have some better parameters
+			// like skinning/skeleton queries
 			for ( UE::FUsdPrim& MeshPrim : UsdUtils::GetAllPrimsOfType( UE::FUsdPrim{ InSkelRoot }, TEXT( "UsdGeomMesh" ) ) )
 			{
 				pxr::UsdSkelBindingAPI SkelBindingAPI{ MeshPrim };

@@ -4,11 +4,9 @@
 
 #include "USDConversionUtils.h"
 #include "USDIntegrationUtils.h"
-#include "USDLog.h"
 #include "USDMemory.h"
 #include "USDTypesConversion.h"
 
-#include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
@@ -16,14 +14,12 @@
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-	#include "pxr/pxr.h"
 	#include "pxr/usd/sdf/path.h"
-	#include "pxr/usd/usd/modelAPI.h"
 	#include "pxr/usd/usd/payloads.h"
 	#include "pxr/usd/usd/prim.h"
-	#include "pxr/usd/usd/tokens.h"
 	#include "pxr/usd/usdGeom/xform.h"
 	#include "pxr/usd/usdSkel/root.h"
+	#include "pxr/usd/usdSkel/skeleton.h"
 #include "USDIncludesEnd.h"
 
 #endif // #if USE_USD_SDK
@@ -254,7 +250,7 @@ bool FUsdPrimViewModel::CanApplySchema( FName SchemaName ) const
 	pxr::UsdPrim PxrUsdPrim{ UsdPrim };
 	pxr::TfToken SchemaToken = UnrealToUsd::ConvertToken( *SchemaName.ToString() ).Get();
 
-	if ( SchemaToken == UnrealIdentifiers::ControlRigAPI && !PxrUsdPrim.IsA<pxr::UsdSkelRoot>() )
+	if (SchemaToken == UnrealIdentifiers::ControlRigAPI && !(PxrUsdPrim.IsA<pxr::UsdSkelRoot>() || PxrUsdPrim.IsA<pxr::UsdSkelSkeleton>()))
 	{
 		return false;
 	}

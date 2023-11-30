@@ -12,7 +12,6 @@
 #include "USDConversionUtils.h"
 #include "USDGeomMeshConversion.h"
 #include "USDInfoCache.h"
-#include "USDIntegrationUtils.h"
 #include "USDLog.h"
 #include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
@@ -32,8 +31,6 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
-#include "Materials/MaterialInstanceConstant.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/App.h"
 #include "Misc/SecureHash.h"
@@ -43,7 +40,6 @@
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
 #include "UObject/Package.h"
-#include "UObject/SoftObjectPath.h"
 
 #if WITH_EDITOR
 #include "ConvexDecompTool.h"
@@ -52,14 +48,16 @@
 #endif // WITH_EDITOR
 
 #include "USDIncludesStart.h"
-#include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/stage.h"
-#include "pxr/usd/usd/typed.h"
-#include "pxr/usd/usdGeom/mesh.h"
-#include "pxr/usd/usdGeom/subset.h"
-#include "pxr/usd/usdPhysics/collisionAPI.h"
-#include "pxr/usd/usdPhysics/meshCollisionAPI.h"
-#include "pxr/usd/usdPhysics/tokens.h"
+	#include "pxr/usd/usd/prim.h"
+	#include "pxr/usd/usd/stage.h"
+	#include "pxr/usd/usd/typed.h"
+	#include "pxr/usd/usdGeom/mesh.h"
+	#include "pxr/usd/usdGeom/subset.h"
+	#include "pxr/usd/usdSkel/bindingAPI.h"
+	#include "pxr/usd/usdSkel/root.h"
+	#include "pxr/usd/usdPhysics/collisionAPI.h"
+	#include "pxr/usd/usdPhysics/meshCollisionAPI.h"
+	#include "pxr/usd/usdPhysics/tokens.h"
 #include "USDIncludesEnd.h"
 
 static float GMeshNormalRepairThreshold = 0.05f;
@@ -1568,7 +1566,7 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 
 	// Create mesh descriptions (Async or ExclusiveSync)
 	Do(LaunchPolicy,
-		[this]() -> bool
+		[this, LaunchPolicy]() -> bool
 		{
 			pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
 			if (!Context->RenderContext.IsNone())
@@ -1596,7 +1594,7 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 				LODIndexToMeshDescription,
 				LODIndexToMaterialInfo,
 				Options,
-				Context->bAllowInterpretingLODs
+				Context->bAllowInterpretingLODs && LaunchPolicy == ESchemaTranslationLaunchPolicy::ExclusiveSync
 			);
 
 			// If we have at least one valid LOD, we should keep going
@@ -1635,6 +1633,11 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return;
 	}
 
+	if (ShouldSkipSkinnablePrim())
+	{
+		return;
+	}
+
 	TSharedRef< FGeomMeshCreateAssetsTaskChain > AssetsTaskChain = MakeShared< FGeomMeshCreateAssetsTaskChain >(Context, PrimPath);
 
 	Context->TranslatorTasks.Add(MoveTemp(AssetsTaskChain));
@@ -1646,11 +1649,39 @@ USceneComponent* FUsdGeomMeshTranslator::CreateComponents()
 	{
 		return nullptr;
 	}
+
+	// It's not great that we have to check for an alternate draw mode here and Super::CreateComponents will
+	// also do it, however we must check for ShouldSkipSkinnablePrim before we call Super::CreateComponents,
+	// and we need the alt draw mode check to take priority over ShouldSkipSkinnablePrim...
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	if (DrawMode == EUsdDrawMode::Default)
+	{
+		const bool bCheckForComponent = true;
+		if (ShouldSkipSkinnablePrim(bCheckForComponent))
+		{
+			return nullptr;
+		}
+	}
+
 	return Super::CreateComponents();
 }
 
 void FUsdGeomMeshTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
+	// If we're a bounds component we don't need to handle any mesh stuff, as drawMode takes priority
+	// over even checking for whether we're skinned or not
+	if (Cast<UUsdDrawModeComponent>(SceneComponent))
+	{
+		Super::UpdateComponents(SceneComponent);
+		return;
+	}
+
+	const bool bCheckForComponent = true;
+	if (ShouldSkipSkinnablePrim(bCheckForComponent))
+	{
+		return;
+	}
+
 	if (IsMeshPrim())
 	{
 		if (SceneComponent)
@@ -1673,11 +1704,6 @@ void FUsdGeomMeshTranslator::UpdateComponents(USceneComponent* SceneComponent)
 
 bool FUsdGeomMeshTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
 {
-	if (!IsMeshPrim())
-	{
-		return Super::CollapsesChildren(CollapsingType);
-	}
-
 	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
 	// of our entire subtree, which is basically the same thing as collapsing
 	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
@@ -1686,14 +1712,24 @@ bool FUsdGeomMeshTranslator::CollapsesChildren(ECollapsingType CollapsingType) c
 		return true;
 	}
 
-	// We can't claim we collapse anything here since we'll just parse the mesh for this prim and that's it,
-	// otherwise the translation context wouldn't spawn translators for our child prims.
-	// Another approach would be to actually recursively collapse our child mesh prims, but that leads to a few
-	// issues. For example this translator could end up globbing a child Mesh prim, while the translation context
-	// could simultaneously spawn other translators that could also end up accounting for that same mesh.
-	// Generally Gprims shouldn't be nested into each other anyway (see https://graphics.pixar.com/usd/release/glossary.html#usdglossary-gprim)
-	// so it's likely best to just not collapse anything here.
-	return false;
+	if (ShouldSkipSkinnablePrim())
+	{
+		return false;
+	}
+
+	if (IsMeshPrim())
+	{
+		// We can't claim we collapse anything here since we'll just parse the mesh for this prim and that's it,
+		// otherwise the translation context wouldn't spawn translators for our child prims.
+		// Another approach would be to actually recursively collapse our child mesh prims, but that leads to a few
+		// issues. For example this translator could end up globbing a child Mesh prim, while the translation context
+		// could simultaneously spawn other translators that could also end up accounting for that same mesh.
+		// Generally Gprims shouldn't be nested into each other anyway (see https://graphics.pixar.com/usd/release/glossary.html#usdglossary-gprim)
+		// so it's likely best to just not collapse anything here.
+		return false;
+	}
+
+	return Super::CollapsesChildren(CollapsingType);
 }
 
 bool FUsdGeomMeshTranslator::CanBeCollapsed(ECollapsingType CollapsingType) const
@@ -1701,6 +1737,12 @@ bool FUsdGeomMeshTranslator::CanBeCollapsed(ECollapsingType CollapsingType) cons
 	if (!IsMeshPrim())
 	{
 		return Super::CanBeCollapsed(CollapsingType);
+	}
+
+	// If we're a skinned mesh prim we're inside of a SkelRoot, that won't be collapsed anyway
+	if (ShouldSkipSkinnablePrim())
+	{
+		return false;
 	}
 
 	UE::FUsdPrim Prim = GetPrim();
@@ -1727,6 +1769,11 @@ TSet<UE::FSdfPath> FUsdGeomMeshTranslator::CollectAuxiliaryPrims() const
 	if (!IsMeshPrim())
 	{
 		return Super::CollectAuxiliaryPrims();
+	}
+
+	if (ShouldSkipSkinnablePrim())
+	{
+		return {};
 	}
 
 	if (!Context->bIsBuildingInfoCache)
@@ -1777,6 +1824,87 @@ bool FUsdGeomMeshTranslator::IsMeshPrim() const
 	if (Prim && (Prim.IsA(TEXT("Mesh")) || (Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs(Prim))))
 	{
 		return true;
+	}
+
+	return false;
+}
+
+bool FUsdGeomMeshTranslator::ShouldSkipSkinnablePrim(bool bCheckForComponent) const
+{
+	// At runtime we don't handle skinned meshes as SkeletalMeshes anyway, so early out and pretend it is not skinned
+	if (!GIsEditor)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs Allocs;
+
+	pxr::UsdPrim Prim = GetPrim();
+	if (!Prim)
+	{
+		return false;
+	}
+
+	// Search for the API schema on the mesh prims
+	bool bHasAPISchema = false;
+	if (pxr::UsdGeomMesh GeomMesh{Prim})
+	{
+		if (Prim.HasAPI<pxr::UsdSkelBindingAPI>())
+		{
+			bHasAPISchema = true;
+		}
+	}
+	// The groom translator means we could potentially have been called on an Xform LOD prim with skinned meshes in the LODs.
+	// We could even be a LOD prim setup where the SkelRoot is the "container" and the different LOD meshes are inside of it. In that
+	// particular case though then we still want to spawn/keep our SceneComponent for the SkelRoot (we always keep the SkelRoots)
+	else if (Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs(Prim))
+	{
+		pxr::UsdPrimSiblingRange PrimRange = Prim.GetChildren();
+		for (pxr::UsdPrimSiblingRange::iterator PrimRangeIt = PrimRange.begin(); PrimRangeIt != PrimRange.end(); ++PrimRangeIt)
+		{
+			const pxr::UsdPrim& Child = *PrimRangeIt;
+			if (pxr::UsdGeomMesh ChildMesh{Child})
+			{
+				if (Prim.HasAPI<pxr::UsdSkelBindingAPI>())
+				{
+					bHasAPISchema = true;
+				}
+			}
+		}
+	}
+	if (!bHasAPISchema)
+	{
+		return false;
+	}
+
+	// If we're here we know we have a valid API schema. Check for an ancestor SkelRoot then,
+	// which is required to enable skinning
+	if (pxr::UsdPrim ParentSkelRoot = UsdUtils::GetClosestParentSkelRoot(Prim))
+	{
+		// For components there is still one edge case to worry about: If the user has placed a non-skinnable
+		// prim as a child of our skinnable prim (our 'Prim' here). We'll translate this skinnable prim data when
+		// generating the SkeletalMesh for it from somewhere else, and we'll still never translate an asset for 'Prim'
+		// directly again here (e.g. as a StaticMesh), but when it comes to the *component* then we may still need to spawn it.
+		// This because the component for 'Prim' may have some transform, visibility, animation (or something) that affects
+		// its children
+		if (bCheckForComponent)
+		{
+			bool bHasRelevantChildPrim = false;
+			for (pxr::UsdPrim Child : Prim.GetChildren())
+			{
+				if (!Child.IsA<pxr::UsdGeomSubset>())
+				{
+					bHasRelevantChildPrim = true;
+					break;
+				}
+			}
+
+			return !bHasRelevantChildPrim;
+		}
+		else
+		{
+			return true;
+		}
 	}
 
 	return false;

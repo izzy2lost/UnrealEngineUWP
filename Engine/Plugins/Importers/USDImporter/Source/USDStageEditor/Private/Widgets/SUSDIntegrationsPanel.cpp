@@ -360,9 +360,10 @@ TSharedRef< SWidget > SUsdIntegrationsPanelRow::GenerateWidgetForColumn( const F
 				SLiveLinkSubjectRepresentationPicker::FLiveLinkSourceSubjectRole Result;
 				if ( AttributeCopy && *AttributeCopy )
 				{
-					Result.Role = AttributeCopy->GetPrim().IsA(TEXT("SkelRoot"))
-						? ULiveLinkAnimationRole::StaticClass()
-						: ULiveLinkTransformRole::StaticClass();
+					const UE::FUsdPrim& Prim = AttributeCopy->GetPrim();
+					Result.Role = (Prim.IsA(TEXT("SkelRoot")) || Prim.IsA(TEXT("Skeleton")))
+									  ? ULiveLinkAnimationRole::StaticClass()
+									  : ULiveLinkTransformRole::StaticClass();
 
 					UE::FVtValue Value;
 					if ( AttributeCopy->Get( Value ) )

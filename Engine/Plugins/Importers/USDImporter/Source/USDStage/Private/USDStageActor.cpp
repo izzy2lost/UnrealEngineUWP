@@ -26,7 +26,7 @@
 #include "USDProjectSettings.h"
 #include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
-#include "USDSkelRootTranslator.h"
+#include "USDSkelSkeletonTranslator.h"
 #include "USDStageModule.h"
 #include "USDTransactor.h"
 #include "USDTypesConversion.h"
@@ -2001,9 +2001,23 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 		}
 	}
 
-	// Update the prim animated status
+	// Check if the prim should have Sequencer tracks or not
+	bool bIsAnimated = false;
+	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(TwinSceneComponent))
+	{
+		if (SkeletalMeshComponent->AnimationData.AnimToPlay)
+		{
+			// We know we're animated if we have an animation of course
+			bIsAnimated = true;
+		}
+	}
+	if (!bIsAnimated)
+	{
+		bIsAnimated = UsdUtils::IsAnimated(Prim);
+	}
+
+	// Create Sequencer tracks for the prim
 	bool bHasAnimatedBounds = false;
-	bool bIsAnimated = UsdUtils::IsAnimated(Prim);
 	if (bIsAnimated)
 	{
 		if (!PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
@@ -2067,9 +2081,32 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 
 	// Setup Control Rig tracks if we need to. This must be done after adding regular skeletal animation tracks
 	// if we have any as if will properly deactivate them like the usual "Bake to Control Rig" workflow.
-	if (Prim.IsA(TEXT("SkelRoot")))
+	if (Prim.IsA(TEXT("Skeleton")))
 	{
+		UE::FUsdPrim PrimWithSchema;
 		if (UsdUtils::PrimHasSchema(Prim, UnrealIdentifiers::ControlRigAPI))
+		{
+			PrimWithSchema = Prim;
+		}
+		else if (UE::FUsdPrim ParentSkelRoot = UsdUtils::GetClosestParentSkelRoot(Prim))
+		{
+			if (UsdUtils::PrimHasSchema(ParentSkelRoot, UnrealIdentifiers::ControlRigAPI))
+			{
+				// Commenting the usual deprecation macro so that we can find this with search and replace later
+				// UE_DEPRECATED(5.4, "schemas")
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Placing integration schemas (Live Link, Control Rig, Groom Binding) on SkelRoot prims (like '%s') has been deprecated on "
+						 "version 5.4 and will be unsupported in a future release. Please place your integration schemas directly on the Skeleton "
+						 "prims instead!"),
+					*Prim.GetPrimPath().GetString()
+				);
+				PrimWithSchema = ParentSkelRoot;
+			}
+		}
+
+		if (PrimWithSchema)
 		{
 			LevelSequenceHelper.UpdateControlRigTracks(*UsdPrimTwin);
 
@@ -2536,8 +2573,6 @@ TArray<UObject*> AUsdStageActor::GetGeneratedAssets(const FString& PrimPath)
 	}
 
 	// Prefer checking the prim directly, but also check its collapsed root if it is collapsed.
-	// This because we have some exception cases like USkeleton/UAnimSequences that can be found by querying the actual
-	// Skeleton/SKelAnimation prims even though they are collapsed into the SkelRoot prim.
 	TArray<TWeakObjectPtr<UObject>> AssetsPtrs = InfoCache->GetAllAssetsForPrim(UsdPath);
 	if (AssetsPtrs.Num() == 0 && InfoCache->IsPathCollapsed(UsdPath, ECollapsingType::Assets))
 	{
@@ -2704,7 +2739,7 @@ void AUsdStageActor::OnPostPIEStarted(bool bIsSimulating)
 	}
 
 	// Setup for the very first frame when we duplicate into PIE, or else we will display skeletal mesh components on their
-	// StartTimeCode state. We have to do this here (after duplicating) as we need the calls to FUsdSkelRootTranslator::UpdateComponents
+	// StartTimeCode state. We have to do this here (after duplicating) as we need the calls to FUsdSkelSkeletonTranslator::UpdateComponents
 	// to actually animate the components, and they will only be able to do anything after they have been registered (which
 	// needs to be done by the engine when going into PIE)
 	AnimatePrims();
@@ -4435,7 +4470,7 @@ bool AUsdStageActor::HasAuthorityOverStage() const
 	return !IsTemplate();
 }
 
-void AUsdStageActor::OnSkelAnimationBaked(const FString& SkelRootPrimPath)
+void AUsdStageActor::OnSkelAnimationBaked(const FString& SkeletonPrimPath)
 {
 #if USE_USD_SDK
 	const UE::FUsdStage& CurrentStage = static_cast<const AUsdStageActor*>(this)->GetUsdStage();
@@ -4444,8 +4479,8 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkelRootPrimPath)
 		return;
 	}
 
-	UE::FUsdPrim SkelRootPrim = CurrentStage.GetPrimAtPath(UE::FSdfPath{*SkelRootPrimPath});
-	if (!SkelRootPrim || !SkelRootPrim.IsA(TEXT("SkelRoot")))
+	UE::FUsdPrim SkeletonPrim = CurrentStage.GetPrimAtPath(UE::FSdfPath{*SkeletonPrimPath});
+	if (!SkeletonPrim || !SkeletonPrim.IsA(TEXT("Skeleton")))
 	{
 		return;
 	}
@@ -4456,7 +4491,7 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkelRootPrimPath)
 		return;
 	}
 
-	UUsdPrimTwin* Twin = RootTwin->Find(SkelRootPrimPath);
+	UUsdPrimTwin* Twin = RootTwin->Find(SkeletonPrimPath);
 	if (!Twin)
 	{
 		return;
@@ -4468,14 +4503,14 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkelRootPrimPath)
 		return;
 	}
 
-	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, SkelRootPrimPath);
+	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, SkeletonPrimPath);
 	// The only way we could have baked a skel animation is via the sequencer, so we know its playing
 	TranslationContext->bSequencerIsAnimating = true;
 
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
-	if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(SkelRootPrim)))
+	if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(SkeletonPrim)))
 	{
-		if (TSharedPtr< FUsdSkelRootTranslator > SkelRootTranslator = StaticCastSharedPtr<FUsdSkelRootTranslator>(SchemaTranslator))
+		if (TSharedPtr<FUsdSkelSkeletonTranslator> SkelRootTranslator = StaticCastSharedPtr<FUsdSkelSkeletonTranslator>(SchemaTranslator))
 		{
 			// For now we're regenerating all asset types (including skeletal meshes) but we could
 			// eventually just split off the anim sequence generation and call exclusively that from

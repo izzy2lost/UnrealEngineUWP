@@ -441,7 +441,7 @@ UClass* UsdUtils::GetActorTypeForPrim( const pxr::UsdPrim& Prim )
 
 UClass* UsdUtils::GetComponentTypeForPrim( const pxr::UsdPrim& Prim )
 {
-	if ( Prim.IsA< pxr::UsdSkelRoot >() )
+	if ( Prim.IsA< pxr::UsdSkelSkeleton >() )
 	{
 		return USkeletalMeshComponent::StaticClass();
 	}
@@ -921,35 +921,24 @@ bool UsdUtils::IsAnimated(const pxr::UsdPrim& Prim)
 		}
 	}
 
-	if (pxr::UsdSkelRoot SkeletonRoot{Prim})
+	if (pxr::UsdSkelSkeleton Skeleton{Prim})
 	{
-		pxr::UsdSkelCache SkeletonCache;
-		SkeletonCache.Populate(SkeletonRoot, pxr::UsdTraverseInstanceProxies());
-
-		std::vector< pxr::UsdSkelBinding > SkeletonBindings;
-		SkeletonCache.ComputeSkelBindings(SkeletonRoot, &SkeletonBindings, pxr::UsdTraverseInstanceProxies());
-
-		for (const pxr::UsdSkelBinding& Binding : SkeletonBindings)
+		if (pxr::UsdSkelRoot ClosestParentSkelRoot = pxr::UsdSkelRoot{UsdUtils::GetClosestParentSkelRoot(Prim)})
 		{
-			const pxr::UsdSkelSkeleton& Skeleton = Binding.GetSkeleton();
+			pxr::UsdSkelCache SkeletonCache;
+			SkeletonCache.Populate(ClosestParentSkelRoot, pxr::UsdTraverseInstanceProxies());
+
 			pxr::UsdSkelSkeletonQuery SkelQuery = SkeletonCache.GetSkelQuery(Skeleton);
-			pxr::UsdSkelAnimQuery AnimQuery = SkelQuery.GetAnimQuery();
-			if (!AnimQuery)
+			if (pxr::UsdSkelAnimQuery AnimQuery = SkelQuery.GetAnimQuery())
 			{
-				continue;
+				std::vector<double> JointTimeSamples;
+				std::vector<double> BlendShapeTimeSamples;
+				if ((AnimQuery.GetJointTransformTimeSamples(&JointTimeSamples) && JointTimeSamples.size() > 0)
+					|| (AnimQuery.GetBlendShapeWeightTimeSamples(&BlendShapeTimeSamples) && BlendShapeTimeSamples.size() > 0))
+				{
+					return true;
+				}
 			}
-
-			std::vector<double> JointTimeSamples;
-			std::vector<double> BlendShapeTimeSamples;
-			if ( ( AnimQuery.GetJointTransformTimeSamples( &JointTimeSamples ) && JointTimeSamples.size() > 0 ) ||
-				 ( AnimQuery.GetBlendShapeWeightTimeSamples( &BlendShapeTimeSamples ) && BlendShapeTimeSamples.size() > 0 ) )
-			{
-				return true;
-			}
-
-			// We only parse Skeletons and SkelAnimations from the first skeletal binding of a SkelRoot, so
-			// if that one is not animated then this entire SkelRoot is not animated to us either (for now)
-			break;
 		}
 	}
 

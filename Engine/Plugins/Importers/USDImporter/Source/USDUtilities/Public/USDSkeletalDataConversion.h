@@ -21,7 +21,9 @@
 PXR_NAMESPACE_OPEN_SCOPE
 	class UsdGeomMesh;
 	class UsdSkelAnimQuery;
+	class UsdSkelBinding;
 	class UsdSkelBlendShape;
+	class UsdSkelCache;
 	class UsdSkelRoot;
 	class UsdSkelSkeleton;
 	class UsdSkelSkeletonQuery;
@@ -118,10 +120,33 @@ namespace UsdUtils
 
 	/**
 	 * Returns the SkelAnimation prim that is resolved for the first skeletal binding of SkelRootPrim, if it is a SkelRoot.
-	 * We use this as we currently only parse a single Skeleton per SkelRoot (and so a single SkelAnimation), but in the future we may
-	 * decide to do something else.
 	 */
-	USDUTILITIES_API UE::FUsdPrim FindFirstAnimationSource( const UE::FUsdPrim& SkelRootPrim );
+	USDUTILITIES_API UE::FUsdPrim FindFirstAnimationSource(const UE::FUsdPrim& InSkelRootPrim);
+
+	/**
+	 * Returns the SkelAnimation prim that is bound as animation source for the provided skeleton
+	 */
+	USDUTILITIES_API UE::FUsdPrim FindAnimationSource(const pxr::UsdPrim& InSkelRootPrim, const pxr::UsdPrim& InSkeletonPrim);
+
+	/**
+	 * Convenience function that traverses through ancestors up from SomePrim and returns the first SkelRoot prim that it finds,
+	 * returning an invalid prim in case it doesn't find anything
+	 */
+	USDUTILITIES_API UE::FUsdPrim GetClosestParentSkelRoot(const pxr::UsdPrim& SomePrim);
+
+	/**
+	 * Convenience function to use/populate a SkelCache on a SkelRoot and retrieve the SkelBinding/SkeletonQuery for a
+	 * particular InSkeletonPrim. You can retrieve the AnimQuery from the SkeletonQuery as well.
+	 * A temp SkelCache will be constructed if none is provided.
+	 * Returns true whether we managed to retrieve everything.
+	 */
+	USDUTILITIES_API bool GetSkelQueries(
+		const pxr::UsdSkelRoot& InSkelRootPrim,
+		const pxr::UsdSkelSkeleton& InSkeletonPrim,
+		pxr::UsdSkelBinding& OutSkelBinding,
+		pxr::UsdSkelSkeletonQuery& OutSkeletonQuery,
+		pxr::UsdSkelCache* InOutSkelCache = nullptr
+	);
 #endif // USE_USD_SDK
 }
 

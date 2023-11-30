@@ -102,7 +102,10 @@
 	#include "pxr/usd/usdShade/shader.h"
 	#include "pxr/usd/usdShade/tokens.h"
 	#include "pxr/usd/usdSkel/animation.h"
+	#include "pxr/usd/usdSkel/binding.h"
 	#include "pxr/usd/usdSkel/root.h"
+	#include "pxr/usd/usdSkel/skeleton.h"
+	#include "pxr/usd/usdSkel/skeletonQuery.h"
 #include "USDIncludesEnd.h"
 
 static bool GConsiderAllPrimsHaveAnimatedBounds = false;
@@ -2582,13 +2585,6 @@ bool UnrealToUsd::ConvertMeshComponent(const pxr::UsdStageRefPtr& Stage, const U
 	}
 	else if (const USkinnedMeshComponent* SkinnedMeshComponent = Cast<const USkinnedMeshComponent>(MeshComponent))
 	{
-		FScopedUsdAllocs Allocs;
-		pxr::UsdSkelRoot SkelRoot{UsdPrim};
-		if (!SkelRoot)
-		{
-			return false;
-		}
-
 		MeshAsset = SkinnedMeshComponent->GetSkinnedAsset();
 	}
 
@@ -2890,16 +2886,41 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 		}
 		const bool bHasLODs = NumLODs > 1;
 
-		FString MeshName;
-		if (!bHasLODs)
+		if (!UsdPrim.IsA<pxr::UsdSkelSkeleton>())
 		{
-			for (const pxr::UsdPrim& Child : UsdPrim.GetChildren())
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("For the skeletal case, ConvertMaterialOverrides must now receive a Skeleton prim! ('%s' was provided)"),
+				*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
+			);
+			return false;
+		}
+
+		// If performance becomes an issue we can start storing our skel caches in the info cache and optionally provide it
+		// to this function
+		pxr::UsdSkelRoot SkelRoot = pxr::UsdSkelRoot{UsdUtils::GetClosestParentSkelRoot(UsdPrim)};
+		if (!SkelRoot)
+		{
+			return false;
+		}
+		pxr::UsdSkelBinding SkelBinding;
+		pxr::UsdSkelSkeletonQuery SkeletonQuery;
+		if (!UsdUtils::GetSkelQueries(SkelRoot, pxr::UsdSkelSkeleton{UsdPrim}, SkelBinding, SkeletonQuery))
+		{
+			return false;
+		}
+
+		// Collect all skinned prim paths
+		const pxr::VtArray<pxr::UsdSkelSkinningQuery>& SkinningTargets = SkelBinding.GetSkinningTargets();
+		TSet<FString> SkinnedMeshPaths;
+		SkinnedMeshPaths.Reserve(SkinningTargets.size());
+		for (const pxr::UsdSkelSkinningQuery& SkinningTarget : SkinningTargets)
+		{
+			pxr::UsdPrim SkinnedPrim = SkinningTarget.GetPrim();
+			if (pxr::UsdGeomMesh SkinnedMesh = pxr::UsdGeomMesh{SkinnedPrim})
 			{
-				if (pxr::UsdGeomMesh Mesh{Child})
-				{
-					MeshName = UsdToUnreal::ConvertToken(Child.GetName());
-					break;
-				}
+				SkinnedMeshPaths.Add(UsdToUnreal::ConvertPath(SkinnedPrim.GetPrimPath()));
 			}
 		}
 
@@ -2943,32 +2964,54 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 					{
 						if (const FUsdPrimPathList* SourcePrimPaths = UserData->MaterialSlotToPrimPaths.Find(SectionMatIndex))
 						{
-							for (const FString& PrimPath : SourcePrimPaths->PrimPaths)
+							// The N^2 here is not great but note that "ConvertMaterialOverrides" is not exactly spammed all that much, and that
+							// these arrays will in the general case have like 3 items each
+							for (const FString& SourcePrimPath : SourcePrimPaths->PrimPaths)
 							{
-								// See comment on the analogue part for the geometry cache component
-								if (PrimPath.StartsWith(UsdPrimPath))
+								for (const FString& SkinnedMeshPath : SkinnedMeshPaths)
 								{
-									pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*PrimPath).Get();
-									pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-									UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+									// See comment on the analogue part for the geometry cache component
+									// Note we use 'StartsWith' here because our SourcePrimPath may be a UsdGeomSubset or something like that,
+									// but only the actual Mesh prim will count as a "skinned mesh"
+									if (SourcePrimPath.StartsWith(SkinnedMeshPath))
+									{
+										pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
+										pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
+										UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+										break;
+									}
 								}
 							}
 						}
 					}
+					// TODO: We really need a separate function for ConvertingMaterialOverrides (to an opened stage) and ExportingMaterialOverrides
+					// that we can use when the SkeletalMesh is not something we generated ourselves (with annotated MaterialSlotToPrimPaths).
+					// We could collect an analogue for MaterialSlotToPrimPaths during the mesh export process to accurately author these overrides too
 					else
 					{
-						pxr::SdfPath OverridePrimPath = UsdPrim.GetPath();
+						pxr::SdfPath OverridePrimPath;
 
 						// If we have only 1 LOD, the asset's DefaultPrim will be a SkelRoot, and the Mesh will be a subprim
 						// with the same name. If we have multiple LODS, the default prim is also the SkelRoot but will contain separate
 						// Mesh prims for each LOD named "LOD0", "LOD1", etc., switched via a "LOD" variant set
 						if (bHasLODs)
 						{
-							OverridePrimPath = OverridePrimPath.AppendPath(UnrealToUsd::ConvertPath(*FString::Printf(TEXT("LOD%d"), LODIndex)).Get());
+							OverridePrimPath = SkelRoot.GetPath().AppendPath(UnrealToUsd::ConvertPath(*FString::Printf(TEXT("LOD%d"), LODIndex)).Get());
 						}
 						else
 						{
-							OverridePrimPath = OverridePrimPath.AppendElementString(UnrealToUsd::ConvertString(*MeshName).Get());
+							// Here we're guessing that we're converting material overrides for our exported level, which will use our
+							// own prims from exported SkeletalMeshes that all just have a single skinned mesh anyway
+							FString MeshName;
+							if (SkinningTargets.size() > 0)
+							{
+								if (pxr::UsdPrim FirstSkinnedPrim = SkinningTargets[0].GetPrim())
+								{
+									MeshName = UsdToUnreal::ConvertString(FirstSkinnedPrim.GetName());
+								}
+							}
+
+							OverridePrimPath = SkelRoot.GetPath().AppendElementString(UnrealToUsd::ConvertString(*MeshName).Get());
 						}
 
 						// If our LOD has only one section, its material assignment will be authored directly on the Mesh prim.
@@ -3514,7 +3557,7 @@ bool UnrealToUsd::CreateComponentPropertyBaker( UE::FUsdPrim& Prim, const UScene
 	return false;
 }
 
-bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsdPrim& SkelAnimation, USkeletalMeshComponent& Component, FComponentBaker& OutBaker )
+bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkeletonPrim, UE::FUsdPrim& SkelAnimation, USkeletalMeshComponent& Component, FComponentBaker& OutBaker )
 {
 #if WITH_EDITOR
 	USkeletalMesh* SkeletalMesh = Component.GetSkeletalMeshAsset();
@@ -3525,19 +3568,29 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsd
 
 	FScopedUsdAllocs Allocs;
 
-	pxr::UsdSkelRoot UsdSkelRoot{ SkelRoot };
+	pxr::UsdSkelSkeleton UsdSkeleton{SkeletonPrim};
+	if (!UsdSkeleton)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to create skeletal animation baker: Prim '%s' must be a UsdSkeleton!"),
+			*SkeletonPrim.GetPrimPath().GetString()
+		);
+		return false;
+	}
+
 	pxr::UsdSkelAnimation UsdSkelAnimation{ SkelAnimation };
-	if ( !SkelRoot || !SkelAnimation )
+	if ( !UsdSkeleton || !SkelAnimation )
 	{
 		return false;
 	}
 
-	// Make sure that the skel root is using our animation
-	pxr::UsdPrim SkelRootPrim = UsdSkelRoot.GetPrim();
+	// Make sure that the skeleton is using our animation
 	pxr::UsdPrim SkelAnimPrim = UsdSkelAnimation.GetPrim();
-	UsdUtils::BindAnimationSource( SkelRootPrim, SkelAnimPrim );
+	UsdUtils::BindAnimationSource(SkeletonPrim, SkelAnimPrim);
 
-	FUsdStageInfo StageInfo{ SkelRoot.GetStage() };
+	FUsdStageInfo StageInfo{ SkeletonPrim.GetStage() };
 
 	pxr::UsdAttribute JointsAttr			= UsdSkelAnimation.CreateJointsAttr();
 	pxr::UsdAttribute TranslationsAttr		= UsdSkelAnimation.CreateTranslationsAttr();
@@ -3630,6 +3683,27 @@ bool UnrealToUsd::CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsd
 			}
 
 			const TArray< FTransform >& LocalBoneTransforms = Component.GetBoneSpaceTransforms();
+
+			// For whatever reason it seems that sometimes this is not ready for us, so let's force it to be recalculated
+			if (LocalBoneTransforms.Num() == 0)
+			{
+				const int32 LODIndex = 0;
+				Component.RecalcRequiredBones(LODIndex);
+			}
+			if (LocalBoneTransforms.Num() != NumBones)
+			{
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Failed to retrieve bone transforms when baking skeletal animation for component '%s' at timeCode '%f'. Expected %d transforms, received %d"),
+					*Component.GetPathName(),
+					UsdTimeCode,
+					NumBones,
+					LocalBoneTransforms.Num()
+				);
+				return;
+			}
+
 			for ( int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex )
 			{
 				FTransform BoneTransform = LocalBoneTransforms[ BoneIndex ];

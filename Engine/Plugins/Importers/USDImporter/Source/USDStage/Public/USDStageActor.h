@@ -344,7 +344,7 @@ protected:
 	void OnUsdPrimTwinDestroyed( const UUsdPrimTwin& UsdPrimTwin );
 	void OnObjectPropertyChanged( UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent );
 	void HandlePropertyChangedEvent( FPropertyChangedEvent& PropertyChangedEvent );
-	void OnSkelAnimationBaked( const FString& SkelRootPrimPath );
+	void OnSkelAnimationBaked(const FString& SkeletonPrimPath);
 
 protected:
 	friend struct FUsdStageActorImpl;

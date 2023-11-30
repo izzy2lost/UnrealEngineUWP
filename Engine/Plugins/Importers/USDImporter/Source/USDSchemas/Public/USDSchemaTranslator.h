@@ -237,7 +237,7 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis< FUs
 	 */
 	bool bAllowInterpretingLODs = true;
 
-	/** If true, we will also try creating UAnimSequence skeletal animation assets when parsing SkelRoot prims */
+	/** If true, we will also try creating UAnimSequence skeletal animation assets when parsing Skeleton prims */
 	bool bAllowParsingSkeletalAnimations = true;
 
 	/** If true, means we will try generating GroomAssets, GroomCaches and GroomBindings */

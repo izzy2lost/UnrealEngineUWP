@@ -255,7 +255,7 @@ namespace UnrealToUsd
 	 * Creates a property baker responsible for baking the joint/blend shape state of Component as a SkelAnimation,
 	 * returning true if a EBakingType::Skeletal baker was created
 	 */
-	USDUTILITIES_API bool CreateSkeletalAnimationBaker( UE::FUsdPrim& SkelRoot, UE::FUsdPrim& SkelAnimation, USkeletalMeshComponent& Component, FComponentBaker& OutBaker );
+	USDUTILITIES_API bool CreateSkeletalAnimationBaker( UE::FUsdPrim& SkeletonPrim, UE::FUsdPrim& SkelAnimation, USkeletalMeshComponent& Component, FComponentBaker& OutBaker );
 
 	/**
 	 * Struct with lambda functions that can be used to convert an UE property's value into the corresponding USD attribute values at the received UsdTimeCode.

@@ -308,11 +308,22 @@ bool UAnimSequenceExporterUSD::ExportBinary( UObject* Object, const TCHAR* Type,
 			return false;
 		}
 
-		AnimationStage.SetDefaultPrim( SkelRootPrim );
-		UsdUtils::BindAnimationSource( SkelRootPrim, SkelAnimPrim );
+		UE::FSdfPath SkeletonPath = SkelRootPath.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName);
+		UE::FUsdPrim SkeletonPrim = AnimationStage.DefinePrim(SkeletonPath, TEXT("Skeleton"));
+		if (!SkeletonPrim)
+		{
+			return false;
+		}
+
+		AnimationStage.SetDefaultPrim(SkelRootPrim);
 
 		// Add a reference to the SkelRoot of the static mesh, which will compose in the Mesh and Skeleton prims
-		UsdUtils::AddReference( SkelRootPrim, *MeshAssetFile );
+		UsdUtils::AddReference(SkelRootPrim, *MeshAssetFile);
+
+		// We bind the animation directly to the Skeleton (and not the skel root) because binding it to the SkelRoot
+		// may lead to trouble when we're exporting nested SkeletalMeshComponents, as it will be inherited by
+		// all child Skeletons (even the ones that wouldn't otherwise receive any animation)
+		UsdUtils::BindAnimationSource(SkeletonPrim, SkelAnimPrim);
 	}
 
 	// Configure stage metadata

@@ -26,7 +26,7 @@ namespace UsdUtils
 	struct FUsdPrimMaterialAssignmentInfo;
 }
 
-/** Implementation that can be shared between the SkelRoot translator and GeomMesh translators */
+/** Implementation that can be shared between the Skeleton translator and GeomMesh translators */
 namespace MeshTranslationImpl
 {
 	/** Resolves the material assignments in AssignmentInfo, returning an UMaterialInterface for each material slot */

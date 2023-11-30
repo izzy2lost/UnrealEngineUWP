@@ -15,6 +15,7 @@
 #include "USDPrimConversion.h"
 #include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
+#include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -66,6 +67,8 @@
 	#include "pxr/usd/usdShade/material.h"
 	#include "pxr/usd/usdShade/materialBindingAPI.h"
 	#include "pxr/usd/usdShade/tokens.h"
+	#include "pxr/usd/usdSkel/bindingAPI.h"
+	#include "pxr/usd/usdSkel/root.h"
 	#include "pxr/usdImaging/usdImaging/implicitSurfaceMeshUtils.h"
 #include "USDIncludesEnd.h"
 
@@ -765,7 +768,8 @@ namespace UE::UsdGeomMeshConversion::Private
 		FMeshDescription& OutMeshDescription,
 		UsdUtils::FUsdPrimMaterialAssignmentInfo& OutMaterialAssignments,
 		UsdToUnreal::FUsdMeshConversionOptions& Options,
-		bool bIsFirstPrim
+		bool bIsFirstPrim,
+		bool bIsInsideSkelRoot
 	)
 	{
 		// Ignore meshes from disabled purposes
@@ -829,7 +833,12 @@ namespace UE::UsdGeomMeshConversion::Private
 
 		if ( pxr::UsdGeomMesh Mesh = pxr::UsdGeomMesh( Prim ) )
 		{
-			bSuccess = UsdToUnreal::ConvertGeomMesh( Mesh, OutMeshDescription, OutMaterialAssignments, Options );
+			// We never want to glob up *skinned* meshes inside SkelRoots, as those presumably will be handled by the
+			// UsdSkelSkeletonTranslator and the skeletal data code path.
+			if (!GIsEditor || !bIsInsideSkelRoot || !Prim.HasAPI<pxr::UsdSkelBindingAPI>())
+			{
+				bSuccess = UsdToUnreal::ConvertGeomMesh( Mesh, OutMeshDescription, OutMaterialAssignments, Options );
+			}
 		}
 		// Check for a cube/capsule/etc. ConvertGeomPrimitive will internally check for all specific types
 		else if (pxr::UsdGeomGprim Gprim = pxr::UsdGeomGprim{Prim})
@@ -865,7 +874,8 @@ namespace UE::UsdGeomMeshConversion::Private
 					OutMeshDescription,
 					OutMaterialAssignments,
 					Options,
-					bChildIsFirstPrim
+					bChildIsFirstPrim,
+					bIsInsideSkelRoot || ChildPrim.IsA<pxr::UsdSkelRoot>()
 				);
 			}
 		}
@@ -2708,12 +2718,14 @@ bool UsdToUnreal::ConvertGeomMeshHierarchy(
 		);
 	}
 
+	const bool bIsInSkelRoot = static_cast<bool>(UsdUtils::GetClosestParentSkelRoot(Prim));
 	return UsdGeomMeshImpl::RecursivelyCollapseChildMeshes(
 		Prim,
 		OutMeshDescription,
 		OutMaterialAssignments,
 		OptionsCopy,
-		bSkipRootPrimTransformAndVisibility
+		bSkipRootPrimTransformAndVisibility,
+		bIsInSkelRoot
 	);
 }
 
@@ -3774,7 +3786,7 @@ bool UnrealToUsd::ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIn
 			VariantSet.SetVariantSelection( VariantName );
 			EditContext.Emplace( VariantSet.GetVariantEditContext() );
 		}
-		
+
 		pxr::UsdGeomMesh TargetMesh;
 		if ( bExportMultipleLODs )
 		{
@@ -4138,7 +4150,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 						}
 
 						// Since family name and type attributes must be set at time Default, set the Indices at time Default too
-						// #ueent_todo: Add support for varying geomsubsets. This can happen with animation where sections 
+						// #ueent_todo: Add support for varying geomsubsets. This can happen with animation where sections
 						// visibility are toggled on/off
 						pxr::UsdAttribute IndicesAttr = GeomSubsetSchema.CreateIndicesAttr();
 						IndicesAttr.Set(IndicesAttrValue);
@@ -4342,6 +4354,14 @@ bool UsdUtils::IsGeomMeshALOD( const pxr::UsdPrim& UsdMeshPrim )
 	{
 		return false;
 	}
+
+	// Note that we can't robustly check whether UsdMeshPrim "is inside of the LOD variant set" or not,
+	// because that can vary *per layer*... For example, a stage with layers root.usda and sub.usda can have
+	// the MeshA prim inside the LOD variant on root.usa, and MeshB prim inside the LOD variant on sub.usda.
+	// The LOD variant setup is a set of rules we specify ourselves and the users must adhere to, and one of
+	// them is to have a single Mesh prim as a child of the variant set prim. This means that as soon
+	// as the user puts more than one Mesh prim inside of the variant set prim, we're already in a "garbage in"
+	// scenario, and will likely generate some garbage in turn. We'll emit a bunch of warning for that though.
 
 	return UE::UsdGeomMeshConversion::Private::DoesPrimContainMeshLODsInternal( UsdMeshPrim.GetParent() );
 }

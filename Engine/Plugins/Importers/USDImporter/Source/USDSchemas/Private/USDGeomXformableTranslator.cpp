@@ -57,6 +57,7 @@
 	#include "pxr/usd/usdGeom/subset.h"
 	#include "pxr/usd/usdGeom/xformable.h"
 	#include "pxr/usd/usdShade/materialBindingAPI.h"
+	#include "pxr/usd/usdSkel/root.h"
 #include "USDIncludesEnd.h"
 
 static bool GCollapsePrimsWithoutKind = true;
@@ -399,10 +400,13 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 					UsdPrim.IsModel() ||
 					UsdPrim.IsGroup() ||
 					UsdUtils::HasCompositionArcs( UsdPrim ) ||
-					UsdPrim.HasAttribute( TEXT( "unrealCameraPrimName" ) );  // If we have this, then we correspond to the root component
-																			 // of an exported ACineCameraActor. Let's create an actual
-																			 // CineCameraActor here so that our child camera prim can just
-																			 // take it's UCineCameraComponent instead
+					UsdPrim.HasAttribute( TEXT( "unrealCameraPrimName" ) ) ||  // If we have this, then we correspond to the root component
+																			   // of an exported ACineCameraActor. Let's create an actual
+																			   // CineCameraActor here so that our child camera prim can just
+																			   // take it's UCineCameraComponent instead
+					UsdPrim.IsA(TEXT("SkelRoot"));  // Now that we use the UsdSkelSkeletonTranslator, UsdSkelRoots will be handled like regular
+													// Xforms. We likely always want then to show up on the outliner though, as they are important
+													// prims
 		};
 
 		bNeedsActor =
@@ -691,9 +695,9 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 			UsdToUnreal::ConvertBounds(Prim, BoundsComponent, Context->Time, PxrBBoxCache);
 		}
 
-		// Handle LiveLink, but only i we're not a skeletal mesh component: The SkelRootTranslator will deal with the
+		// Handle LiveLink, but only if we're not a skeletal case: The SkelSkeletonTranslator will deal with the
 		// skeletal version of the LiveLink configuration, we only handle setting up LiveLink for simple transforms
-		if ( !SceneComponent->IsA<USkeletalMeshComponent>() )
+		if (!Prim.IsA(TEXT("SkelRoot")) && !Prim.IsA(TEXT("Skeleton")))
 		{
 			if ( UsdUtils::PrimHasSchema( Prim, UnrealIdentifiers::LiveLinkAPI ) )
 			{
@@ -711,9 +715,29 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 		{
 			// Don't update the component's transform if this is already factored in as root motion within the AnimSequence
 			bool bConvertTransform = true;
-			if ( Prim.IsA( TEXT( "SkelRoot" ) ) && Context->RootMotionHandling == EUsdRootMotionHandling::UseMotionFromSkelRoot )
+			switch (Context->RootMotionHandling)
 			{
-				bConvertTransform = false;
+				default:
+				case EUsdRootMotionHandling::NoAdditionalRootMotion:
+				{
+					break;
+				}
+				case EUsdRootMotionHandling::UseMotionFromSkelRoot:
+				{
+					if (Prim.IsA(TEXT("SkelRoot")))
+					{
+						bConvertTransform = false;
+					}
+					break;
+				}
+				case EUsdRootMotionHandling::UseMotionFromSkeleton:
+				{
+					if (Prim.IsA(TEXT("Skeleton")))
+					{
+						bConvertTransform = false;
+					}
+					break;
+				}
 			}
 
 			UsdToUnreal::ConvertXformable( Context->Stage, pxr::UsdGeomXformable( Prim ), *SceneComponent, Context->Time, bConvertTransform );
@@ -978,6 +1002,13 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 	pxr::UsdPrim Prim = GetPrim();
 	pxr::UsdModelAPI Model{ pxr::UsdTyped( Prim ) };
 
+	// Now that we use UsdSkelSkeletonTranslator the SkelRoots will be handled by the FUsdGeomXformableTranslator (here).
+	// SkelRoots are likely going to end up with SkeletalMeshes though, so we can assume we won't be collapsing them just from that
+	if (Prim.IsA<pxr::UsdSkelRoot>())
+	{
+		return false;
+	}
+
 	if ( Model )
 	{
 		EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind( Prim );
@@ -1006,6 +1037,11 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 			TArray< TUsdStore< pxr::UsdPrim > > ChildXformPrims = UsdUtils::GetAllPrimsOfType( Prim, pxr::TfType::Find< pxr::UsdGeomXformable >() );
 			for ( const TUsdStore< pxr::UsdPrim >& ChildXformPrim : ChildXformPrims )
 			{
+				if (ChildXformPrim.Get().IsA<pxr::UsdSkelRoot>())
+				{
+					return false;
+				}
+
 				if ( TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema( Context, UE::FUsdTyped( ChildXformPrim.Get() ) ) )
 				{
 					if ( !SchemaTranslator->CanBeCollapsed( CollapsingType ) )
@@ -1032,6 +1068,7 @@ bool FUsdGeomXformableTranslator::CanBeCollapsed( ECollapsingType CollapsingType
 
 	if (UsdUtils::IsAnimated(UsdPrim) ||
 		UsdUtils::PrimHasSchema(UsdPrim, UnrealIdentifiers::LiveLinkAPI) ||
+		UsdPrim.IsA<pxr::UsdSkelRoot>() ||
 		(Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs(UsdPrim))
 	)
 	{

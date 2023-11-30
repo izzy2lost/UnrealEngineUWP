@@ -22,7 +22,7 @@
 #include "USDLuxLightTranslator.h"
 #include "USDMemory.h"
 #include "USDShadeMaterialTranslator.h"
-#include "USDSkelRootTranslator.h"
+#include "USDSkelSkeletonTranslator.h"
 #include "Custom/MaterialXUSDShadeMaterialTranslator.h"
 #include "Custom/MDLUSDShadeMaterialTranslator.h"
 #endif // #if USE_USD_SDK
@@ -64,7 +64,7 @@ public:
 		if (GIsEditor)
 		{
 			TranslatorHandles.Append({
-				Registry.Register<FUsdSkelRootTranslator>(TEXT("UsdSkelRoot")),
+				Registry.Register<FUsdSkelSkeletonTranslator>(TEXT("UsdSkelSkeleton")),
 				Registry.Register<FUsdGroomTranslator>(TEXT("UsdGeomXformable")),
 				// The GeometryCacheTranslator also works on UsdGeomXformable through the GroomTranslator
 				Registry.Register<FUsdGeometryCacheTranslator>(TEXT("UsdGeomMesh")),

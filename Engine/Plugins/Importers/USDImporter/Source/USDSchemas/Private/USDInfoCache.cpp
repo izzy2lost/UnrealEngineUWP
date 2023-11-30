@@ -31,6 +31,7 @@
 	#include "pxr/usd/usdGeom/subset.h"
 	#include "pxr/usd/usdGeom/xform.h"
 	#include "pxr/usd/usdShade/materialBindingAPI.h"
+	#include "pxr/usd/usdSkel/bindingAPI.h"
 	#include "pxr/usd/usdSkel/root.h"
 	#include "pxr/usd/usd/primRange.h"
 #include "USDIncludesEnd.h"
@@ -940,11 +941,10 @@ namespace UE::USDInfoCacheImpl::Private
 			return false;
 		}
 
-		// Only care about collapsing into a StaticMesh: We should always collapse into a SkeletalMesh as we have
-		// no real alternative for handling them
+		// We should never be able to collapse SkelRoots because the UsdSkelSkeletonTranslator doesn't collapse
 		if (UsdPrim.IsA<pxr::UsdSkelRoot>())
 		{
-			return true;
+			return false;
 		}
 
 		pxr::SdfPath UsdPrimPath = UsdPrim.GetPrimPath();
@@ -1220,7 +1220,14 @@ namespace UE::USDInfoCacheImpl::Private
 		OutState = EGeometryCachePrimState::Uncollapsible;
 	}
 
-	void RecursiveCheckForGeometryCache(const pxr::UsdPrim& UsdPrim, FUsdSchemaTranslationContext& Context, FUsdInfoCache::FUsdInfoCacheImpl& Impl, int32& OutDepth, UE::UsdInfoCache::Private::EGeometryCachePrimState& OutState)
+	void RecursiveCheckForGeometryCache(
+		const pxr::UsdPrim& UsdPrim,
+		FUsdSchemaTranslationContext& Context,
+		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		bool bIsInsideSkelRoot,
+		int32& OutDepth,
+		UE::UsdInfoCache::Private::EGeometryCachePrimState& OutState
+	)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RecursiveCheckForGeometryCache);
 
@@ -1249,10 +1256,20 @@ namespace UE::USDInfoCacheImpl::Private
 		States.SetNum(Prims.Num());
 
 		const int32 MinBatchSize = 1;
-		ParallelFor(TEXT("RecursiveCheckForGeometryCache"), Prims.Num(), MinBatchSize,
-			[&Prims, &Context, &Impl, &Depths, &States](int32 Index)
+		ParallelFor(
+			TEXT("RecursiveCheckForGeometryCache"),
+			Prims.Num(),
+			MinBatchSize,
+			[&Prims, &Context, &Impl, bIsInsideSkelRoot, &Depths, &States](int32 Index)
 			{
-				RecursiveCheckForGeometryCache(Prims[Index], Context, Impl, Depths[Index], States[Index]);
+				RecursiveCheckForGeometryCache(
+					Prims[Index],
+					Context,
+					Impl,
+					bIsInsideSkelRoot || Prims[Index].IsA<pxr::UsdSkelRoot>(),
+					Depths[Index],
+					States[Index]
+				);
 			}
 		);
 
@@ -1308,10 +1325,20 @@ namespace UE::USDInfoCacheImpl::Private
 		const bool bIsXform = !!pxr::UsdGeomXform(UsdPrim);
 		if (bIsMesh)
 		{
-			// Animated or static mesh. Static meshes could potentially be animated by transforms in their hierarchy.
-			// A mesh prim should be a leaf, but it can have GeomSubset prims as children, but those don't
-			// affect the collapsibility status.
-			PrimState = EGeometryCachePrimState::Mesh;
+			// A skinned mesh can never be considered part of a geometry cache.
+			// Now that we use the UsdSkelSkeletonTranslator instead of the old UsdSkelRootTranslator we may run into these
+			// skinned meshes that were already handled by a SkeletonTranslator elsewhere, and need to manually skip them
+			if (GIsEditor && bIsInsideSkelRoot && UsdPrim.HasAPI<pxr::UsdSkelBindingAPI>())
+			{
+				PrimState = EGeometryCachePrimState::Uncollapsible;
+			}
+			else
+			{
+				// Animated or static mesh. Static meshes could potentially be animated by transforms in their hierarchy.
+				// A mesh prim should be a leaf, but it can have GeomSubset prims as children, but those don't
+				// affect the collapsibility status.
+				PrimState = EGeometryCachePrimState::Mesh;
+			}
 		}
 		else if (bIsXform)
 		{
@@ -1432,9 +1459,11 @@ namespace UE::USDInfoCacheImpl::Private
 			return;
 		}
 
+		const bool bIsInsideSkelRoot = static_cast<bool>(UsdUtils::GetClosestParentSkelRoot(UsdPrim));
+
 		int32 Depth = -1;
 		EGeometryCachePrimState State = EGeometryCachePrimState::None;
-		RecursiveCheckForGeometryCache(UsdPrim, Context, Impl, Depth, State);
+		RecursiveCheckForGeometryCache(UsdPrim, Context, Impl, bIsInsideSkelRoot, Depth, State);
 
 		// If we end up with a positive depth, it means the check found an animated mesh somewhere
 		// but no potential root before reaching the pseudoroot, so find one

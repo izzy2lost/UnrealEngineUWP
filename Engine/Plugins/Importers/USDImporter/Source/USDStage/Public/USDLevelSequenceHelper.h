@@ -13,6 +13,7 @@ class FUsdInfoCache;
 class FUsdLevelSequenceHelperImpl;
 class ULevelSequence;
 class UUsdPrimTwin;
+enum class EUsdRootMotionHandling : uint8;
 
 namespace UE
 {
@@ -54,9 +55,21 @@ public:
 	/** Resets the helper, abandoning all managed LevelSequences */
 	void Clear();
 
-	/** Creates the time track for the StageActor */
+	/** Creates the time track for the StageActor. This will also set the root handling mode to the provided actor's, if any */
 	void BindToUsdStageActor(AUsdStageActor* StageActor);
 	void UnbindFromUsdStageActor();
+
+	/**
+	 * Gets the current root motion handling mode.
+	 * We use this to prevent animation that has already been baked into AnimSequences as root joint motion from also
+	 * being parsed as LevelSequence tracks.
+	 */
+	EUsdRootMotionHandling GetRootMotionHandling() const;
+
+	/**
+	 * Sets the current root motion handling mode.
+	 */
+	void SetRootMotionHandling(EUsdRootMotionHandling NewValue);
 
 	/**
 	 * Adds the necessary tracks for a given prim to the level sequence.
@@ -82,7 +95,7 @@ public:
 	ULevelSequence* GetMainLevelSequence() const;
 	TArray< ULevelSequence* > GetSubSequences() const;
 
-	DECLARE_EVENT_OneParam( FUsdLevelSequenceHelper, FOnSkelAnimationBaked, const FString& /*SkelRootPrimPath*/ );
+	DECLARE_EVENT_OneParam( FUsdLevelSequenceHelper, FOnSkelAnimationBaked, const FString& /*SkeletonPrimPath*/ );
 	FOnSkelAnimationBaked& GetOnSkelAnimationBaked();
 
 private:

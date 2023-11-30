@@ -16,6 +16,7 @@
 #include "USDPrimConversion.h"
 #include "USDPrimTwin.h"
 #include "USDProjectSettings.h"
+#include "USDSkeletalDataConversion.h"
 #include "USDStageActor.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
@@ -542,6 +543,8 @@ public:
 	void CreateLocalLayersSequences();
 	void BindToUsdStageActor(AUsdStageActor* InStageActor);
 	void UnbindFromUsdStageActor();
+	EUsdRootMotionHandling GetRootMotionHandling() const;
+	void SetRootMotionHandling(EUsdRootMotionHandling NewValue);
 	void OnStageActorRenamed();
 
 	ULevelSequence* GetMainLevelSequence() const { return MainLevelSequence; }
@@ -695,6 +698,7 @@ private:
 	TWeakObjectPtr<AUsdStageActor> StageActor = nullptr;
 	TSharedPtr<FUsdInfoCache> InfoCache = nullptr;  // We keep a pointer to this directly because we may be called via the USDStageImporter directly, when we don't have an available actor
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache = nullptr; // Same as for the info cache
+	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 	FGuid StageActorBinding;
 
 	// Only when this is zero we write LevelSequence object (tracks, moviescene, sections, etc.) transactions back to the USD stage
@@ -900,6 +904,7 @@ void FUsdLevelSequenceHelperImpl::BindToUsdStageActor(AUsdStageActor* InStageAct
 	StageActor = InStageActor;
 	SetInfoCache(InStageActor ? InStageActor->GetInfoCache() : nullptr);
 	SetBBoxCache(InStageActor ? InStageActor->GetBBoxCache() : nullptr);
+	SetRootMotionHandling(InStageActor ? InStageActor->RootMotionHandling : EUsdRootMotionHandling::NoAdditionalRootMotion);
 
 	if (!StageActor.IsValid() || !MainLevelSequence || !MainLevelSequence->GetMovieScene())
 	{
@@ -947,8 +952,19 @@ void FUsdLevelSequenceHelperImpl::UnbindFromUsdStageActor()
 	}
 
 	SetInfoCache(nullptr);
+	SetRootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion);
 
 	OnStageEditTargetChangedHandle.Reset();
+}
+
+EUsdRootMotionHandling FUsdLevelSequenceHelperImpl::GetRootMotionHandling() const
+{
+	return RootMotionHandling;
+}
+
+void FUsdLevelSequenceHelperImpl::SetRootMotionHandling(EUsdRootMotionHandling NewValue)
+{
+	RootMotionHandling = NewValue;
 }
 
 void FUsdLevelSequenceHelperImpl::OnStageActorRenamed()
@@ -1485,17 +1501,30 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 		}
 	}
 
-	// Check whether we should ignore the prim's local transform or not. We only do this for SkelRoots, in case we
-	// already appended their transform animations to the root bone as additional root motion
+	// Check whether we should ignore the prim's local transform or not
 	bool bIgnorePrimLocalTransform = false;
-	if (AUsdStageActor* StageActorPtr = StageActor.Get())
+	switch (GetRootMotionHandling())
 	{
-		if (StageActorPtr->RootMotionHandling == EUsdRootMotionHandling::UseMotionFromSkelRoot)
+		default:
+		case EUsdRootMotionHandling::NoAdditionalRootMotion:
+		{
+			break;
+		}
+		case EUsdRootMotionHandling::UseMotionFromSkelRoot:
 		{
 			if (Prim.IsA(TEXT("SkelRoot")))
 			{
 				bIgnorePrimLocalTransform = true;
 			}
+			break;
+		}
+		case EUsdRootMotionHandling::UseMotionFromSkeleton:
+		{
+			if (Prim.IsA(TEXT("Skeleton")))
+			{
+				bIgnorePrimLocalTransform = true;
+			}
+			break;
 		}
 	}
 
@@ -2049,9 +2078,11 @@ void FUsdLevelSequenceHelperImpl::AddSkeletalTracks(const UUsdPrimTwin& PrimTwin
 		return;
 	}
 
+	UE::FUsdPrim SkelRootPrim = UsdUtils::GetClosestParentSkelRoot(Prim);
+
 	// We'll place the skeletal animation track wherever the SkelAnimation prim is defined (not necessarily the
 	// same layer as the skel root)
-	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(Prim);
+	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindAnimationSource(SkelRootPrim, Prim);
 	if (!SkelAnimationPrim)
 	{
 		return;
@@ -2297,7 +2328,7 @@ void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVis
 	{
 		AddLightTracks(PrimTwin, UsdPrim);
 	}
-	else if (UsdPrim.IsA(TEXT("SkelRoot")))
+	else if (UsdPrim.IsA(TEXT("Skeleton")))
 	{
 		AddSkeletalTracks(PrimTwin, UsdPrim);
 	}
@@ -2413,14 +2444,12 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 		return;
 	}
 
-	UE::FSdfPath PrimPath(*PrimTwin.PrimPath);
-	UE::FUsdPrim UsdPrim(UsdStage.GetPrimAtPath(PrimPath));
-	if (!UsdPrim)
+	UE::FSdfPath PrimPath{*PrimTwin.PrimPath};
+	UE::FUsdPrim SkeletonPrim{UsdStage.GetPrimAtPath(PrimPath)};
+	if (!SkeletonPrim)
 	{
 		return;
 	}
-
-	ensure(UsdPrim.IsA(TEXT("SkelRoot")));
 
 	USkeletalMeshComponent* ComponentToBind = Cast<USkeletalMeshComponent>(PrimTwin.GetSceneComponent());
 	if (!ComponentToBind)
@@ -2433,11 +2462,23 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 	// repeatedly create Animation prims
 	FScopedBlockNoticeListening BlockNotices(StageActor.Get());
 
-	UE::FSdfLayer SkelAnimationLayer;
+	UE::FUsdPrim SkelRootPrim = UsdUtils::GetClosestParentSkelRoot(SkeletonPrim);
+	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindAnimationSource(SkelRootPrim, SkeletonPrim);
+
+	// Temporarily consider how our API schema can be applied to the Skeleton prim or a parent SkelRoot
+	UE::FUsdPrim PrimWithSchema;
+	if (UsdUtils::PrimHasSchema(SkeletonPrim, UnrealIdentifiers::ControlRigAPI))
+	{
+		PrimWithSchema = SkeletonPrim;
+	}
+	else if (SkelRootPrim && UsdUtils::PrimHasSchema(SkelRootPrim, UnrealIdentifiers::ControlRigAPI))
+	{
+		PrimWithSchema = SkelRootPrim;
+	}
 
 	// We'll place the skeletal animation track wherever the SkelAnimation prim is defined (not necessarily the
 	// same layer as the skel root)
-	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(UsdPrim);
+	UE::FSdfLayer SkelAnimationLayer;
 	if (SkelAnimationPrim)
 	{
 		SkelAnimationLayer = UsdUtils::FindLayerForPrim(SkelAnimationPrim);
@@ -2447,9 +2488,9 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 		// If this SkelRoot doesn't have any animation, lets create a new one on the current edit target
 		SkelAnimationLayer = UsdStage.GetEditTarget();
 
-		FString UniqueChildName = UsdUtils::GetValidChildName(TEXT("Animation"), UsdPrim);
+		FString UniqueChildName = UsdUtils::GetValidChildName(TEXT("Animation"), SkelRootPrim);
 		SkelAnimationPrim = UsdStage.DefinePrim(
-			UsdPrim.GetPrimPath().AppendChild(*UniqueChildName),
+			SkelRootPrim.GetPrimPath().AppendChild(*UniqueChildName),
 			TEXT("SkelAnimation")
 		);
 		if (!SkelAnimationPrim)
@@ -2457,7 +2498,9 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 			return;
 		}
 
-		UsdUtils::BindAnimationSource(UsdPrim, SkelAnimationPrim);
+		// Let's always choose to author animSource within skeletons, as it works best in setups where
+		// we have authored nested SkelRoots: The outer animSource would be inherited by the inner animSource otherwise!
+		UsdUtils::BindAnimationSource(SkeletonPrim, SkelAnimationPrim);
 	}
 	if (!SkelAnimationLayer)
 	{
@@ -2495,17 +2538,13 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 
 	const FGuid ComponentBinding = GetOrCreateComponentBinding(PrimTwin, *ComponentToBind, *SkelAnimationSequence);
 
-	// NOTE: We are fetching the first skel track we find, since we can't actually use SkelAnimationPrim.GetName() here at all!
-	// The property tracks do derive GetTrackName(), but the skeletal track doesn't, so FindTrack will never find them.
-	// This likely has no effect since we only ever spawn a single skeletal track per prim anyway, but its worth to keep in mind!
-	UMovieSceneSkeletalAnimationTrack* SkelTrack = MovieScene->FindTrack< UMovieSceneSkeletalAnimationTrack >(ComponentBinding);
 	UMovieSceneControlRigParameterTrack* ControlRigTrack = MovieScene->FindTrack< UMovieSceneControlRigParameterTrack >(ComponentBinding);
 
 	// We should be in control rig track mode but don't have any tracks yet --> Setup for Control Rig
 	if (!ControlRigTrack)
 	{
 		bool bControlRigReduceKeys = false;
-		if (UE::FUsdAttribute Attr = UsdPrim.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigReduceKeys)))
+		if (UE::FUsdAttribute Attr = PrimWithSchema.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigReduceKeys)))
 		{
 			UE::FVtValue Value;
 			if (Attr.Get(Value) && !Value.IsEmpty())
@@ -2518,7 +2557,7 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 		}
 
 		float ControlRigReduceTolerance = 0.001f;
-		if (UE::FUsdAttribute Attr = UsdPrim.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigReductionTolerance)))
+		if (UE::FUsdAttribute Attr = PrimWithSchema.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigReductionTolerance)))
 		{
 			UE::FVtValue Value;
 			if (Attr.Get(Value) && !Value.IsEmpty())
@@ -2531,7 +2570,7 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 		}
 
 		bool bIsFKControlRig = false;
-		if (UE::FUsdAttribute Attr = UsdPrim.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealUseFKControlRig)))
+		if (UE::FUsdAttribute Attr = PrimWithSchema.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealUseFKControlRig)))
 		{
 			UE::FVtValue Value;
 			if (Attr.Get(Value))
@@ -2551,7 +2590,7 @@ void FUsdLevelSequenceHelperImpl::UpdateControlRigTracks(UUsdPrimTwin& PrimTwin)
 		else
 		{
 			FString ControlRigBPPath;
-			if (UE::FUsdAttribute Attr = UsdPrim.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigPath)))
+			if (UE::FUsdAttribute Attr = PrimWithSchema.GetAttribute(*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealControlRigPath)))
 			{
 				UE::FVtValue Value;
 				if (Attr.Get(Value) && !Value.IsEmpty())
@@ -3240,7 +3279,9 @@ void FUsdLevelSequenceHelperImpl::HandleMovieSceneChange(UMovieScene& MovieScene
 					{
 						if (!MovieScene.FindTrack(UMovieSceneSkeletalAnimationTrack::StaticClass(), Guid))
 						{
-							if (UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(UsdPrim))
+							UE::FUsdPrim SkelRootPrim = UsdUtils::GetClosestParentSkelRoot(UsdPrim);
+							UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindAnimationSource(SkelRootPrim, UsdPrim);
+							if (SkelAnimationPrim)
 							{
 								if (UE::FSdfLayer SkelAnimationLayer = UsdUtils::FindLayerForPrim(SkelAnimationPrim))
 								{
@@ -3336,15 +3377,21 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 		return;
 	}
 
-	UE::FUsdPrim UsdPrim = UsdStage.GetPrimAtPath(UE::FSdfPath(*PrimTwin->PrimPath));
-	if (!UsdPrim)
+	UE::FUsdPrim SkeletonPrim = UsdStage.GetPrimAtPath(UE::FSdfPath(*PrimTwin->PrimPath));
+	if (!SkeletonPrim)
+	{
+		return;
+	}
+
+	UE::FUsdPrim SkelRootPrim = UsdUtils::GetClosestParentSkelRoot(SkeletonPrim);
+	if(!SkelRootPrim)
 	{
 		return;
 	}
 
 	// We'll place the skeletal animation track wherever the SkelAnimation prim is defined (not necessarily the
 	// same layer as the skel root)
-	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(UsdPrim);
+	UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindAnimationSource(SkelRootPrim, SkeletonPrim);
 	if (!SkelAnimationPrim)
 	{
 		return;
@@ -3425,7 +3472,7 @@ void FUsdLevelSequenceHelperImpl::HandleControlRigSectionChange(UMovieSceneContr
 		MovieScene,
 		Player,
 		Skeleton->GetReferenceSkeleton(),
-		UsdPrim,
+		SkelRootPrim,
 		SkelAnimationPrim,
 		&BlendShapeMap
 	);
@@ -3614,7 +3661,8 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 					bAllSectionsMuted &= !Section->IsActive();
 				}
 
-				if (UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindFirstAnimationSource(UsdPrim))
+				UE::FUsdPrim SkelRootPrim = UsdUtils::GetClosestParentSkelRoot(UsdPrim);
+				if (UE::FUsdPrim SkelAnimationPrim = UsdUtils::FindAnimationSource(SkelRootPrim, UsdPrim))
 				{
 					UE::FUsdAttribute TranslationsAttr = SkelAnimationPrim.GetAttribute(TEXT("translations"));
 					UE::FUsdAttribute RotationsAttr = SkelAnimationPrim.GetAttribute(TEXT("rotations"));
@@ -3830,6 +3878,8 @@ public:
 
 	void BindToUsdStageActor(AUsdStageActor* InStageActor) {}
 	void UnbindFromUsdStageActor() {}
+	EUsdRootMotionHandling GetRootMotionHandling() const {return EUsdRootMotionHandling::NoAdditionalRootMotion;}
+	void SetRootMotionHandling(EUsdRootMotionHandling NewValue){};
 	void OnStageActorRenamed() {};
 
 	void AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds) {}
@@ -3935,6 +3985,24 @@ void FUsdLevelSequenceHelper::UnbindFromUsdStageActor()
 	if (UsdSequencerImpl.IsValid())
 	{
 		UsdSequencerImpl->UnbindFromUsdStageActor();
+	}
+}
+
+EUsdRootMotionHandling FUsdLevelSequenceHelper::GetRootMotionHandling() const
+{
+	if (UsdSequencerImpl.IsValid())
+	{
+		return UsdSequencerImpl->GetRootMotionHandling();
+	}
+
+	return EUsdRootMotionHandling::NoAdditionalRootMotion;
+}
+
+void FUsdLevelSequenceHelper::SetRootMotionHandling(EUsdRootMotionHandling NewValue)
+{
+	if (UsdSequencerImpl.IsValid())
+	{
+		return UsdSequencerImpl->SetRootMotionHandling(NewValue);
 	}
 }
 

@@ -995,15 +995,29 @@ namespace UE
 							// original skeletal animation track sections as disabled, so they'd fail the "IsTrackAnimated" check above
 							else if ( Track->IsA< UMovieSceneSkeletalAnimationTrack >() || Track->IsA< UMovieSceneControlRigParameterTrack >() )
 							{
-								if ( USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>( BoundComponent ) )
+								if (USkeletalMeshComponent* SkeletalBoundComponent = Cast<USkeletalMeshComponent>(BoundComponent))
 								{
-									UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim( UE::FSdfPath{ *PrimPath }.AppendChild( TEXT( "Anim" ) ), TEXT( "SkelAnimation" ) );
-									if ( !SkelAnimPrim )
+									UE::FUsdPrim SkelAnimPrim = UsdStage.DefinePrim(
+										UE::FSdfPath{*PrimPath}.AppendChild(TEXT("Anim")),
+										TEXT("SkelAnimation")
+									);
+
+									UE::FUsdPrim SkeletonPrim = UsdStage.DefinePrim(
+										UE::FSdfPath{*PrimPath}.AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName),
+										TEXT("Skeleton")
+									);
+
+									if (!SkelAnimPrim || !SkeletonPrim)
 									{
-										UE_LOG( LogUsd, Warning, TEXT( "Failed to generate SkelAnimation prim when baking out SkelRoot '%s'" ), *PrimPath );
+										UE_LOG(
+											LogUsd,
+											Warning,
+											TEXT("Failed to generate Skeleton or SkelAnimation prim when baking out SkelRoot '%s'"),
+											*PrimPath
+										);
 										continue;
 									}
-									UnrealToUsd::CreateSkeletalAnimationBaker( Prim, SkelAnimPrim, *SkeletalBoundComponent, Baker );
+									UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, Baker);
 								}
 							}
 
