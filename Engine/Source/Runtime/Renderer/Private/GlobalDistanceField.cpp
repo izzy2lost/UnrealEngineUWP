@@ -1890,7 +1890,7 @@ class FGlobalDistanceFieldAccumulateUpdatedPagesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWPageStatsBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageComposeIndirectArgBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, PageComposeIndirectArgBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
