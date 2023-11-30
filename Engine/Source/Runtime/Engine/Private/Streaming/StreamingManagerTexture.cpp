@@ -467,7 +467,7 @@ void FRenderAssetStreamingManager::TickFastResponseAssets()
 
 		Asset.UpdateStreamingStatus(false);
 
-		if (Asset.ResidentMips != Asset.RequestedMips && Asset.ResidentMips < Asset.MaxAllowedMips)
+		if (Asset.ResidentMips < Asset.MaxAllowedMips)
 		{
 			RenderAsset->StreamIn(Asset.MaxAllowedMips, true);
 			RenderAsset->bHasStreamingUpdatePending = true;
@@ -486,6 +486,7 @@ void FRenderAssetStreamingManager::TickFastResponseAssets()
 
 			Asset.UpdateStreamingStatus(false);
 			TrackRenderAssetEvent(&Asset, RenderAsset, true, this);
+			RenderAsset->TickMipLevelChangeCallbacks(nullptr);
 		}
 	}
 }
@@ -1246,7 +1247,7 @@ void FRenderAssetStreamingManager::UpdateIndividualRenderAsset( UStreamableRende
 	StreamingRenderAsset->StreamWantedMips(*this);
 }
 
-void FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset* RenderAsset)
+bool FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset* RenderAsset)
 {
 	check(IsInGameThread());
 	TArray<FStreamingRenderAsset>& StreamingRenderAssets = GetStreamingRenderAssetsAsyncSafe();
@@ -1268,8 +1269,10 @@ void FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset
 		if (Asset.ResidentMips < Asset.MaxAllowedMips)
 		{
 			FastResponseRenderAssets.Add(Asset.RenderAsset);
+			return true;
 		}
 	}
+	return false;
 }
 
 /**
@@ -1809,6 +1812,8 @@ void FRenderAssetStreamingManager::UpdateResourceStreaming( float DeltaTime, boo
 	}
 	else if (ProcessingStage <= NumRenderAssetProcessingStages)
 	{
+		UpdatePendingStates(false);
+
 		STAT(int32 StartTime = (int32)FPlatformTime::Cycles();)
 
 		if (ProcessingStage == 1)
@@ -1847,6 +1852,8 @@ void FRenderAssetStreamingManager::UpdateResourceStreaming( float DeltaTime, boo
 	else if (AsyncWork->IsDone())
 	{
 		STAT(GatheredStats.StreamRenderAssetsCycles = -(int32)FPlatformTime::Cycles();)
+
+		UpdatePendingStates(false);
 
 		// Since this step is lightweight, tick each texture inflight here, to accelerate the state changes.
 		for (int32 TextureIndex : InflightRenderAssets)

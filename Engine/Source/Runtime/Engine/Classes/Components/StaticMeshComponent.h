@@ -190,6 +190,9 @@ protected:
 	/** Initial value of bEvaluateWorldPositionOffset when BeginPlay() was called. Can be useful if we want to reset to initial state. */
 	uint8 bInitialEvaluateWorldPositionOffset : 1;
 
+	/** Whether mip callbacks have been registered and need to be removed on destroy */
+	uint8 bMipLevelCallbackRegistered : 1;
+
 public:
 
 #if WITH_EDITORONLY_DATA
@@ -571,6 +574,12 @@ public:
 	ENGINE_API virtual HHitProxy* CreateMeshHitProxy(int32 SectionIndex, int32 MaterialIndex) const override;	
 #endif
 //~ End UPrimitiveComponent Interface.
+
+	//~ Begin UMeshComponent Interface
+	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& Callback, int32 LODIdx, float TimeoutSecs, bool bOnStreamIn) override;
+	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& CallbackStreamingStart, FLODStreamingCallback&& CallbackStreamingDone, float TimeoutStartSecs, float TimeoutDoneSecs) override;
+	ENGINE_API virtual bool PrestreamMeshLODs(float Seconds) override;
+	//~ End UMeshComponent Interface
 
 	//~ Begin INavRelevantInterface Interface.
 	ENGINE_API virtual bool IsNavigationRelevant() const override;
