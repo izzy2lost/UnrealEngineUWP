@@ -167,11 +167,15 @@ void SChaosClothAssetEditorRestSpaceViewport::OnFocusViewportToSelection()
 
 	if (ClothEdMode)
 	{
-		Client->FocusViewportOnBox(ClothEdMode->SelectionBoundingBox());
+		const FBox BoundingBox = ClothEdMode->SelectionBoundingBox();
+		if (BoundingBox.IsValid && !(BoundingBox.Min == FVector::Zero() && BoundingBox.Max == FVector::Zero()))
+		{
+			Client->FocusViewportOnBox(BoundingBox);
 
-		// Reset any changes to the clip planes by the scroll zoom behavior
-		Client->OverrideNearClipPlane(UE_KINDA_SMALL_NUMBER);
-		Client->OverrideFarClipPlane(0);
+			// Reset any changes to the clip planes by the scroll zoom behavior
+			Client->OverrideNearClipPlane(UE_KINDA_SMALL_NUMBER);
+			Client->OverrideFarClipPlane(0);
+		}
 	}
 }
 

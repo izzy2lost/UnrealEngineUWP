@@ -166,8 +166,15 @@ bool SChaosClothAssetEditor3DViewport::IsVisible() const
 
 void SChaosClothAssetEditor3DViewport::OnFocusViewportToSelection()
 {
-	const FBox PreviewBoundingBox = StaticCastSharedPtr<UE::Chaos::ClothAsset::FChaosClothAssetEditor3DViewportClient>(Client)->PreviewBoundingBox();
-	Client->FocusViewportOnBox(PreviewBoundingBox);
+	using namespace UE::Chaos::ClothAsset;
+
+	const TSharedPtr<const FChaosClothAssetEditor3DViewportClient> ViewportClient = StaticCastSharedPtr<FChaosClothAssetEditor3DViewportClient>(Client);
+	const FBox PreviewBoundingBox = ViewportClient->PreviewBoundingBox();
+
+	if (PreviewBoundingBox.IsValid && !(PreviewBoundingBox.Min == FVector::Zero() && PreviewBoundingBox.Max == FVector::Zero()))
+	{
+		Client->FocusViewportOnBox(PreviewBoundingBox);
+	}
 }
 
 TSharedRef<class SEditorViewport> SChaosClothAssetEditor3DViewport::GetViewportWidget()
