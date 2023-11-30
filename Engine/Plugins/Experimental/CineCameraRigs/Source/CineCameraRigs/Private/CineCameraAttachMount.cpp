@@ -69,6 +69,7 @@ USceneComponent* ACineCameraAttachMount::GetDefaultAttachComponent() const
 	return SpringArmComponent;
 }
 
+#if WITH_EDITOR
 void ACineCameraAttachMount::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -96,7 +97,6 @@ void ACineCameraAttachMount::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	}
 }
 
-#if WITH_EDITOR
 void ACineCameraAttachMount::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
