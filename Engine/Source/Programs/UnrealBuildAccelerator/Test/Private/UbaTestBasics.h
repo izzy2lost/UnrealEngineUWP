@@ -79,7 +79,7 @@ namespace uba
 	bool TestFiles(Logger& logger, const StringBufferBase& rootDir)
 	{
 		FileAccessor fileHandle(logger, TC("UbaTestFile"));
-		if (!fileHandle.CreateWrite(TC("UbaTestFile")))
+		if (!fileHandle.CreateWrite())
 			return logger.Error(TC("Failed to create file for write"));
 
 		u8 byte = 'H';

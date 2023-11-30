@@ -14,8 +14,8 @@ namespace uba
 		~FileAccessor();
 
 		// tempPath is only used by posix and will create a temp file and then move it to place when done. (Since DeleteOnClose does not exist)
-		bool CreateWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath);
-		bool CreateMemoryWrite(bool allowRead, u32 flagsAndAttributes, u64 size, const tchar* tempPath);
+		bool CreateWrite(bool allowRead = false, u32 flagsAndAttributes = DefaultAttributes(), u64 size = 0, const tchar* tempPath = nullptr);
+		bool CreateMemoryWrite(bool allowRead = false, u32 flagsAndAttributes = DefaultAttributes(), u64 size = 0, const tchar* tempPath = nullptr);
 		bool Close(u64* lastWriteTime = nullptr);
 
 		bool Write(const void* data, u64 dataLen, u64 offset = 0);
