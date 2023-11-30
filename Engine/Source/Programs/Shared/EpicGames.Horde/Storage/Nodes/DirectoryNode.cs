@@ -794,6 +794,13 @@ namespace EpicGames.Horde.Storage.Nodes
 				{
 					long minOffset = offset;
 					long maxOffset = (Length * (taskIdx + 1)) / numTasks;
+
+					// Entries may be zero-length, so need to make sure the last window will include everything
+					if (taskIdx == numTasks - 1)
+					{
+						maxOffset++;
+					}
+
 					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, logger, cancellationToken), cancellationToken));
 					offset = maxOffset;
 				}
