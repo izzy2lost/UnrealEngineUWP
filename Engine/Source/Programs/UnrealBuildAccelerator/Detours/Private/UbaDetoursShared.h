@@ -102,6 +102,7 @@ namespace uba
 	extern u32 g_rulesIndex;
 	extern ApplicationRules* g_rules;
 	extern bool g_runningRemote;
+	extern bool g_isChild;
 
 	#if PLATFORM_WINDOWS
 	constexpr u32 ErrorSuccess = 0;

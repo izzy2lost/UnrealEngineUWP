@@ -50,6 +50,7 @@ namespace uba
 	u32 g_rulesIndex;
 	ApplicationRules* g_rules;
 	bool g_runningRemote;
+	bool g_isChild;
 
 #if UBA_DEBUG_LOG_ENABLED
 	FileHandle g_debugFile = InvalidFileHandle;

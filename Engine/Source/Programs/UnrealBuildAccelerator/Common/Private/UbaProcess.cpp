@@ -1159,6 +1159,7 @@ namespace uba
 		payload.communicationOffset = communicationOffset;
 		payload.rulesIndex = m_rulesIndex;
 		payload.runningRemote = runningRemote;
+		payload.isChild = m_parentProcess != nullptr;
 		payload.trackInputs = m_startInfo.trackInputs;
 		payload.useCustomAllocator = m_startInfo.useCustomAllocator && g_applicationRules[m_rulesIndex].rules->AllowMiMalloc();
 		payload.isRunningWine = IsRunningWine();

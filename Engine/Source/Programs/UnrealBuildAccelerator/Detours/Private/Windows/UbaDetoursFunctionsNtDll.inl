@@ -1245,6 +1245,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 				newInfo = fi;
 				newInfo.originalName = g_memoryBlock.Strdup(fo->newName.c_str());
 				newInfo.name = newInfo.originalName;
+				newInfo.fileNameKey = fileNameKey;
 				UBA_ASSERT(!fo->deleteOnClose);
 				fi = {};
 				fi.deleted = true;

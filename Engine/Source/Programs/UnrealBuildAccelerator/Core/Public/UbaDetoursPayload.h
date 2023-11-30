@@ -21,6 +21,7 @@ namespace uba
 		bool trackInputs = false;
 		bool useCustomAllocator = true;
 		bool isRunningWine = false;
+		bool isChild = false;
 		int uiLanguage = 0;
 		StringBuffer<256> logFile;
 	};

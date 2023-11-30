@@ -558,7 +558,10 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 
 	g_stats.Write(writer);
 
-	writer.Flush(false); // This can't wait for response since the session process might move on and reuse shared memory with someone else
+	// We must flush here if this is a child because,
+	// if there is a parent process waiting for this to finish,
+	// the parent might move on before Exit message has been processed on session side
+	writer.Flush(g_isChild);
 }
 
 // Variables used to communicate state from kernelbase functions to ntdll functions
@@ -683,6 +686,7 @@ void PreInit(const DetoursPayload& payload)
 	g_rules = g_applicationRules[payload.rulesIndex].rules;
 	g_useMiMalloc = payload.useCustomAllocator;
 	g_runningRemote = payload.runningRemote;
+	g_isChild = payload.isChild;
 	g_isDetachedProcess = g_rules->AllowDetach();
 	g_isRunningWine = payload.isRunningWine;
 	g_uiLanguage = payload.uiLanguage;
