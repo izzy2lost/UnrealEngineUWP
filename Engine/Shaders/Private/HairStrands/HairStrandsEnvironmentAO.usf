@@ -4,6 +4,8 @@
 #include "../MonteCarlo.ush"
 #include "../DeferredShadingCommon.ush"
 #include "../PositionReconstructionCommon.ush"
+#include "../HairShadingCommon.ush"
+#include "../HairBsdf.ush"
 #include "HairStrandsEnvironmentLightingCommon.ush"
 #include "../Substrate/Substrate.ush"
 
