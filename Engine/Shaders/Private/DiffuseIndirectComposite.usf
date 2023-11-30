@@ -367,7 +367,7 @@ void MainPS(
 	const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Material.SceneDepth), Material.SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 
 	const float3 N = Material.WorldNormal;
-	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	const float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 	const float NoV = saturate(dot(N, V));
 
 	// Apply diffuse indirect.

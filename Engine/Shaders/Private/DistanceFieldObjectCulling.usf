@@ -49,8 +49,7 @@ void CullObjectsForViewCS(
 		FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
 		const float3 TranslatedCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PrimaryView.PreViewTranslation));
 
-		const float3 CenterToCamera = PrimaryView.TranslatedWorldCameraOrigin - TranslatedCenter;
-		float DistanceToViewSq = dot(CenterToCamera, CenterToCamera);
+		float DistanceToViewSq = GetDistanceToCameraFromViewVectorSqr(PrimaryView.TranslatedWorldCameraOrigin - TranslatedCenter);
 
 		if (DistanceToViewSq < Square(AOMaxViewDistance + DFObjectBounds.SphereRadius)
 			&& ViewFrustumIntersectSphere(TranslatedCenter, DFObjectBounds.SphereRadius + AOObjectMaxDistance))

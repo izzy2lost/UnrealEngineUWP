@@ -93,7 +93,7 @@ void IrradianceFieldGatherCS(
 		if (IsValid(Material))
 		{
 			float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-			float3 V = normalize(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
+			float3 V = -GetCameraVectorFromTranslatedWorldPosition(WorldPosition);
 			uint ClipmapIndex = GetRadianceProbeClipmap(WorldPosition, InterleavedGradientNoise(SvPosition, View.StateFrameIndexMod8));
 
 			float3 DiffuseLighting = 0;

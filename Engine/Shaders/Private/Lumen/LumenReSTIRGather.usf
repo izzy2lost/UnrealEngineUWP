@@ -908,7 +908,7 @@ void SpatialResamplingCS(
 					{
 						float3 NeighborTranslatedHitPosition = SampleTranslatedWorldPosition + NeighborReservoir.Sample.RayDirection * NeighborReservoir.Sample.TraceHitDistance;
 						float3 ShadowRayDirection = normalize(NeighborTranslatedHitPosition - TranslatedWorldPosition);
-						const float ContactShadowLengthScreenScale = GetTanHalfFieldOfView().y * SceneDepth;
+						const float ContactShadowLengthScreenScale = GetScreenRayLengthMultiplierForProjectionType(SceneDepth).y;
 						float RayLength = SpatialResamplingOcclusionScreenTraceDistance * ContactShadowLengthScreenScale;
 						float StepOffset = Noise - 0.5;
 

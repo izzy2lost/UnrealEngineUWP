@@ -50,7 +50,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenShortRangeAOHardwareRayTracing)
 	{
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Depth);
 		float3x3 TangentBasis = GetTangentBasis(WorldNormal);
-		float TraceDistance = Depth * MaxScreenTraceFraction * 2.0 * GetTanHalfFieldOfView().x;
+		float TraceDistance = MaxScreenTraceFraction * 2.0 * GetScreenRayLengthMultiplierForProjectionType(Depth).x;
 
 		float3 UnoccludedSum = 0;
 		float3 BentNormal = 0;

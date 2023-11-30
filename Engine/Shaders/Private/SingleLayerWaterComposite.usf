@@ -103,8 +103,8 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float3 Reflection = 0.0f;
 
 			// TODO MAKE COMMON WITH ReflectionEnvironment?
-			float3 WorldPosition = mul(float4(ScreenPosition * WaterDepth, WaterDepth, 1), LWCHackToFloat(PrimaryView.ScreenToWorld)).xyz;
-			float3 CameraToPixel = normalize(WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin));
+			float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), LWCHackToFloat(PrimaryView.ScreenToWorld)).xyz;
+			float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
 			float3 ReflectionVector = reflect(CameraToPixel, WorldNormal);
 			float IndirectIrradiance = 0.0;
 			float IndirectSpecularOcclusion = 1.0f;
@@ -180,7 +180,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float3 Reflection = 0.0f;
 
 			// TODO MAKE COMMON WITH ReflectionEnvironment?
-			const float3 TranslatedWorldPosition = mul(float4(ScreenPosition * GBuffer.Depth, GBuffer.Depth, 1), View.ScreenToTranslatedWorld).xyz;
+			const float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, GBuffer.Depth), GBuffer.Depth, 1), View.ScreenToTranslatedWorld).xyz;
 			float IndirectIrradiance = 0.0;// GBuffer.IndirectIrradiance;
 			float IndirectSpecularOcclusion = 1.0f;
 			float3 ExtraIndirectSpecular = 0;
@@ -200,7 +200,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 
 			//
 			float3 N = GBuffer.WorldNormal;
-			float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+			float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 			float3 R = 2 * dot(V, N) * N - V;
 			float NoV = saturate(dot(N, V));
 			// Point lobe in off-specular peak direction

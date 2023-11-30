@@ -68,7 +68,7 @@ public:
 
 	/** In case of orthographic camera, generate a fake view position that has a non-zero W component. The view position will be derived based on the view matrix. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Projection, meta = (editcondition = "ProjectionType==1"))
-	bool bUseFauxOrthoViewPos = false;
+	bool bUseFauxOrthoViewPos = true;
 
 	/** Render the scene in n frames (i.e TileCount) - Ignored in Perspective mode, works only in Orthographic mode when CaptureSource uses SceneColor (not FinalColor)
 	* If CaptureSource uses FinalColor, tiling will be ignored and a Warning message will be logged	*/

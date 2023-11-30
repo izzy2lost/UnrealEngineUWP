@@ -651,7 +651,7 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			ViewFamily,
 			CaptureComponent,
 			SceneCaptureViewInfo, CaptureComponent->MaxViewDistanceOverride,
-			/* bUseFauxOrthoViewPos = */ false, /* bCaptureSceneColor = */ true, /* bIsPlanarReflection = */ true,
+			/* bUseFauxOrthoViewPos = */ true, /* bCaptureSceneColor = */ true, /* bIsPlanarReflection = */ true,
 			&PostProcessSettings, 1.0f,
 			/*ViewActor =*/ nullptr,
 			/*CubemapFaceIndex =*/ INDEX_NONE);

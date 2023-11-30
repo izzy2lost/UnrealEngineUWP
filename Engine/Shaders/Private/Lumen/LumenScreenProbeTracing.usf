@@ -205,7 +205,7 @@ void ScreenProbeTraceScreenTexturesCS(
 				float MaxScreenTraceFraction = .2f;
 
 				// Can only get decent quality out of fixed step count screen traces by limiting the trace distance
-				float MaxWorldTraceDistance = SceneDepth * MaxScreenTraceFraction * 2.0 * GetTanHalfFieldOfView().x;
+				float MaxWorldTraceDistance = MaxScreenTraceFraction * 2.0 * GetScreenRayLengthMultiplierForProjectionType(SceneDepth).x;
 				TraceDistance = min(TraceDistance, MaxWorldTraceDistance);
 
 				uint2 NoiseCoord = ScreenProbeAtlasCoord * ProbeTracingResolution + TraceTexelCoord;
@@ -578,7 +578,7 @@ void TraceMeshSDFs(
 				bMoving = IsTraceMoving(WorldPosition, SceneDepth, ScreenProbeAtlasCoord, HitWorldPosition, TraceResult.WorldVelocity);
 			}
 
-			float DistanceFromViewpoint = length(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
+			float DistanceFromViewpoint = GetDistanceToCameraFromViewVector(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
 			float DistanceFade = saturate(6 * DistanceFromViewpoint / CardTraceEndDistanceFromCamera - 5);
 
 			float CoverageForFog = saturate(1.0 - Transparency);	// LUMEN_TODO single evaluation for now even if we can hit translucent hair above.

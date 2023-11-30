@@ -587,6 +587,11 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 	const FVector ViewRotationScaling = ViewRotationMatrix.ExtractScaling();
 	ensureMsgf(FVector::Distance(ViewRotationScaling, FVector::OneVector) < UE_KINDA_SMALL_NUMBER, TEXT("ViewRotation matrix accumulated scaling (%f, %f, %f)"), ViewRotationScaling.X, ViewRotationScaling.Y, ViewRotationScaling.Z);
 
+	// Adjust the projection matrix for the current RHI.
+	ProjectionMatrix = AdjustProjectionMatrixForRHI(Initializer.ProjectionMatrix);
+	InvProjectionMatrix = InvertProjectionMatrix(ProjectionMatrix);
+	ScreenToClipMatrix = ScreenToClipProjectionMatrix();
+
 	FVector LocalViewOrigin = Initializer.ViewOrigin;
 	if (!ViewRotationMatrix.GetOrigin().IsNearlyZero(0.0f))
 	{
@@ -594,13 +599,23 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		ViewRotationMatrix = ViewRotationMatrix.RemoveTranslation();
 	}
 
+	ViewOriginWithoutFauxOrthoPos = LocalViewOrigin;
+	if (Initializer.bUseFauxOrthoViewPos && !IsPerspectiveProjection() && Initializer.ProjectionMatrix.M[2][2] != 0)
+	{
+	 	/**
+	 	* Faux ortho is repurposed here to fake correction of the view origin, allowing ortho cameras to render 
+	 	* lighting and other passes behind their actual position.
+	 	*/
+		FVector ViewForward = (FTranslationMatrix(LocalViewOrigin) * FTranslationMatrix(-LocalViewOrigin) * ViewRotationMatrix).GetColumn(2);
+		float NearPlane = (1.0f - Initializer.ProjectionMatrix.M[3][2]) / Initializer.ProjectionMatrix.M[2][2];
+		if (NearPlane < 0)
+		{
+			LocalViewOrigin += ViewForward * NearPlane;
+		}
+	}
+
 	ViewMatrix = FTranslationMatrix(-LocalViewOrigin) * ViewRotationMatrix;
 	HMDViewMatrixNoRoll = Initializer.ViewRotationMatrix;
-
-	// Adjust the projection matrix for the current RHI.
-	ProjectionMatrix = AdjustProjectionMatrixForRHI(Initializer.ProjectionMatrix);
-	InvProjectionMatrix = InvertProjectionMatrix(ProjectionMatrix);
-	ScreenToClipMatrix = ScreenToClipProjectionMatrix();
 
 	// Compute the view projection matrix and its inverse.
 	ViewProjectionMatrix = GetViewMatrix() * GetProjectionMatrix();
@@ -615,18 +630,6 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 
 	FMatrix LocalTranslatedViewMatrix = ViewRotationMatrix;
 	FMatrix LocalInvTranslatedViewMatrix = LocalTranslatedViewMatrix.GetTransposed();
-
-	//TODO(OrthoRendering) - Review bUseFauxOrthoViewPos paths + possibly deprecate
-	if (!IsPerspectiveProjection() && Initializer.bUseFauxOrthoViewPos)
-	{
-		auto DistanceToViewOrigin = UE_OLD_WORLD_MAX;
-		ViewOrigin = FVector(InvViewMatrix.TransformVector(FVector(0, 0, -1).GetSafeNormal())) * DistanceToViewOrigin + LocalViewOrigin;
-		
-		// When the view origin is fudged for faux ortho view position the translations don't cancel out.
-		LocalTranslatedViewMatrix = FTranslationMatrix(-PreViewTranslation)
-			* FTranslationMatrix(-LocalViewOrigin) * ViewRotationMatrix;
-		LocalInvTranslatedViewMatrix = LocalTranslatedViewMatrix.Inverse();
-	}
 
 	// Compute a transform from view origin centered world-space to clip space.
 	TranslatedViewMatrix = LocalTranslatedViewMatrix;
@@ -2409,19 +2412,19 @@ void FSceneView::SetupViewRectUniformBufferParameters(FViewUniformShaderParamete
 		* the appropriate values are uploaded in the per view uniform buffer (projection matrix values for perspective, 1.0f for ortho).
 		* Doing this here avoids unnecessarily checking for perspective vs ortho in shaders at runtime.
 		*/
-
-		ViewUniformShaderParameters.TanAndInvTanHalfFOV = InViewMatrices.GetTanAndInvTanHalfFOV();
+		FVector4f TanAndInvTanFOV = InViewMatrices.GetTanAndInvTanHalfFOV();
+		ViewUniformShaderParameters.TanAndInvTanHalfFOV = TanAndInvTanFOV;
 		ViewUniformShaderParameters.PrevTanAndInvTanHalfFOV = InPrevViewMatrices.GetTanAndInvTanHalfFOV();
 
 		if (IsPerspectiveProjection())
 		{
-			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = InViewMatrices.GetTanAndInvTanHalfFOV().X / float(EffectiveViewRect.Width());
-			ViewUniformShaderParameters.PixelWorldRadiusOffset = 0;
+			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = FVector2f(TanAndInvTanFOV.X / float(EffectiveViewRect.Width()), 0.0f);
+			ViewUniformShaderParameters.ScreenRayLengthMultiplier = FVector4f(TanAndInvTanFOV.X, TanAndInvTanFOV.Y, 0, 0);
 		}
 		else
 		{
-			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = 0;
-			ViewUniformShaderParameters.PixelWorldRadiusOffset = InViewMatrices.GetTanAndInvTanHalfFOV().X / float(EffectiveViewRect.Width());
+			ViewUniformShaderParameters.WorldDepthToPixelWorldRadius = FVector2f(0.0f, TanAndInvTanFOV.X);
+			ViewUniformShaderParameters.ScreenRayLengthMultiplier = FVector4f(0,0,TanAndInvTanFOV.X, TanAndInvTanFOV.Y);
 		}
 	}
 	

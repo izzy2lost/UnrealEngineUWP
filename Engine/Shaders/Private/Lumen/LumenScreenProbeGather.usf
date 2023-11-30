@@ -1220,7 +1220,7 @@ void ScreenProbeIntegrateCS(
 			}
 			#endif // STOCHASTIC_PROBE_INTERPOLATION
 
-			float3 V = normalize(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
+			float3 V = -GetCameraVectorFromWorldPosition(WorldPosition);
 			float3 UnitBentNormal = Material.WorldNormal;
 			float AO = 1.0f;
 			float3 DiffuseLighting = 0;

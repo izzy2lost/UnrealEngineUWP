@@ -138,7 +138,9 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 
 	VirtualShadowMapId = VirtualShadowMapArray.Allocate(false, LevelCount);
 
-	WorldOrigin = CameraViewMatrices.GetViewOrigin();
+	// Orthographic cameras compensate the viewport with the view origin, but this is overcorrecting for VSMs.
+	// Use the ViewOrigin without FauxOrthoPos to resolve the clipmap view. Does not affect Perspective
+	WorldOrigin = CameraViewMatrices.GetViewOriginWithoutFauxOrthoPosition();
 
 	// TODO: We need a light/cache entry for every light/VSM now, but scene captures may not have persistent view state for indexing
 	// This is likely to all change as we refactor the multiple cache managers stuff anyways; for now this is hopefully safe since they do have separate copies

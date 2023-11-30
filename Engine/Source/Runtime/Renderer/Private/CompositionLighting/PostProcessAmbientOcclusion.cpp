@@ -369,7 +369,7 @@ static FSSAOShaderParameters GetSSAOShaderParameters(
 	float Ratio = View.UnscaledViewRect.Width() / (float)View.UnscaledViewRect.Height();
 
 	// Grab this and pass into shader so we can negate the fov influence of projection on the screen pos.
-	float InvTanHalfFov = View.ViewMatrices.GetProjectionMatrix().M[0][0];
+	float InvTanHalfFov = View.ViewMatrices.GetInvTanHalfFov().X;
 
 	float StaticFraction = FMath::Clamp(Settings.AmbientOcclusionStaticFraction, 0.0f, 1.0f);
 

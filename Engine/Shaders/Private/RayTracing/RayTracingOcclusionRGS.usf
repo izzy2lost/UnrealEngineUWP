@@ -664,7 +664,7 @@ FOcclusionResult ComputeOcclusion(
 	}
 	else if (ShadingDesc.bIsSubsurface || ShadingDesc.bIsHair)
 	{
-		float Depth = length(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+		float Depth = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
 		float Range = LODTransitionEnd - LODTransitionStart;
 		if (Depth > LODTransitionStart && Range > 0.0)
 		{

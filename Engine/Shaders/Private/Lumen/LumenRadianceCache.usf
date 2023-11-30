@@ -373,8 +373,7 @@ void GenerateProbeTraceTilesCS(
 	uint ProbeIndex;
 	GetProbeTraceData(ProbeTraceIndex, ProbeWorldCenter, Unused, ProbeIndex);
 
-	float DistanceFromCameraSq = dot(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - ProbeWorldCenter, LWCHackToFloat(PrimaryView.WorldCameraOrigin) - ProbeWorldCenter);
-
+	float DistanceFromCameraSq = GetDistanceToCameraFromViewVectorSqr(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - ProbeWorldCenter);
 
 #define DEBUG_UNIFORM_TRACES 0
 #if FORCE_UNIFORM_TRACES || DEBUG_UNIFORM_TRACES

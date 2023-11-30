@@ -237,7 +237,7 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bUseFieldOfViewForLOD(true)
 		, FOV(90.f)
 		, DesiredFOV(90.f)
-		, bUseFauxOrthoViewPos(false)
+		, bUseFauxOrthoViewPos(true)
 		, bIsSceneCapture(false)
 		, bIsSceneCaptureCube(false)
 		, bSceneCaptureUsesRayTracing(false)
@@ -289,6 +289,7 @@ struct FViewMatrices
 		ViewOrigin = FVector::ZeroVector;
 		ProjectionScale = FVector2D::ZeroVector;
 		TemporalAAProjectionJitter = FVector2D::ZeroVector;
+		ViewOriginWithoutFauxOrthoPos = FVector::ZeroVector;
 		ScreenScale = 1.f;
 	}
 
@@ -351,6 +352,11 @@ private:
 	/** Depth test scaling; differs between perspective and orthographic  */
 	float PerProjectionDepthThicknessScale;
 
+	/** 
+	* If we are using an Ortho camera, we need to compensate faux ortho camera position,
+	* However that doesn't work well with all render passes, so this needs to be stored to compensate.
+	*/
+	FVector ViewOriginWithoutFauxOrthoPos;
 	//
 	// World = TranslatedWorld - PreViewTranslation
 	// TranslatedWorld = World + PreViewTranslation
@@ -446,6 +452,11 @@ public:
 	inline const FVector& GetViewOrigin() const
 	{
 		return ViewOrigin;
+	}
+
+	inline const FVector& GetViewOriginWithoutFauxOrthoPosition() const
+	{
+		return ViewOriginWithoutFauxOrthoPos;
 	}
 
 	inline float GetScreenScale() const
@@ -925,8 +936,8 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(float, SubSurfaceColorAsTransmittanceAtDistanceInMeters) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, TanAndInvTanHalfFOV) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, PrevTanAndInvTanHalfFOV) \
-	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(float, WorldDepthToPixelWorldRadius) \
-	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(float, PixelWorldRadiusOffset) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector2f, WorldDepthToPixelWorldRadius) \
+	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, ScreenRayLengthMultiplier) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, GlintLUTParameters0) \
 	VIEW_UNIFORM_BUFFER_MEMBER_PER_VIEW(FVector4f, GlintLUTParameters1) \
 

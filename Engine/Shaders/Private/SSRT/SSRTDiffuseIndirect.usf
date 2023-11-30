@@ -398,7 +398,7 @@ void MainCS(
 			UpdateLane2DCoordinateInformations(PixelPosition, /* out */ BufferUV, /* out */ ScreenPos, /* out */ FullResPixelPosition); 
 	
 			float3 PositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(ScreenPos, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-			float3 V = normalize(View.TranslatedWorldCameraOrigin - PositionTranslatedWorld);
+			float3 V = -GetCameraVectorFromTranslatedWorldPosition(PositionTranslatedWorld);
 
 			float StepOffset = InterleavedGradientNoise(PixelPosition + 0.5, View.StateFrameIndexMod8);
 	

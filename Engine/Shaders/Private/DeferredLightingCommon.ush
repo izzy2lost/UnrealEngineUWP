@@ -145,7 +145,7 @@ void ApplyContactShadowWithShadowTerms(
 #if SUPPORT_CONTACT_SHADOWS
 
 	float ContactShadowLength = 0.0f;
-	const float ContactShadowLengthScreenScale = GetTanHalfFieldOfView().y * SceneDepth;
+	const float ContactShadowLengthScreenScale = GetScreenRayLengthMultiplierForProjectionType(SceneDepth).y;
 
 	FLATTEN
 	if (LightData.ShadowedBits > 1 && LightData.ContactShadowLength > 0)

@@ -323,7 +323,7 @@ bool SampleSceneColorAtHit(float3 HitTranslatedWorldPosition, float3 HitGeometry
 			float HitSceneDepth = ConvertFromDeviceZ(HitDeviceZ);
 			float RayHitSceneDepth = HitClipPosition.w;
 
-			float3 PixelToCameraDirection = normalize(View.TranslatedWorldCameraOrigin - HitTranslatedWorldPosition);
+			float3 PixelToCameraDirection = -GetCameraVectorFromTranslatedWorldPosition(HitTranslatedWorldPosition);
 
 			// Discard screen points which are either too far or face the other direction
 			// Also discard screen points at steep angle or facing backwards

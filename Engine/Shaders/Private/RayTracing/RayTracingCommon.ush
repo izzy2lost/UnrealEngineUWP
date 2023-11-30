@@ -406,14 +406,13 @@ void ApplyCameraRelativeDepthBias(inout float3 RayOrigin, float3 RayDirection, u
 {
 	float3 TranslatedWorldPosition = ReconstructTranslatedWorldPositionFromDeviceZ(PixelCoord, DeviceZ);
 	float3 CameraDirection = TranslatedWorldPosition - View.TranslatedWorldCameraOrigin;
-	float DistanceToCamera = length(CameraDirection);
-	CameraDirection = normalize(CameraDirection);
+	float DistanceToCamera = GetDistanceToCameraFromViewVector(CameraDirection);
 	float Epsilon = 1.0e-4;
 	float RelativeBias = DistanceToCamera * Epsilon;
 	//float ProjectedBias = RelativeBias / dot(RayDirection, WorldNormal);
 
 	float RayBias = max(RelativeBias, AbsoluteNormalBias);
-	RayOrigin -= CameraDirection * RayBias;
+	RayOrigin -= GetCameraVectorFromTranslatedWorldPosition(CameraDirection) * RayBias;
 	ApplyPositionBias(RayOrigin, RayDirection, WorldNormal, RayBias);
 }
 
