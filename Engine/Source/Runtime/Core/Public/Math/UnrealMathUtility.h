@@ -609,6 +609,8 @@ public:
 	template< class T >
 	UE_NODISCARD static constexpr FORCEINLINE T Wrap(const T X, const T Min, const T Max)
 	{
+		checkSlow(Min <= Max);
+
 		T Size = Max - Min;
 		if (Size == 0)
 		{
@@ -627,6 +629,19 @@ public:
 			EndVal -= Size;
 		}
 		return EndVal;
+	}
+
+	template <typename T>
+	UE_NODISCARD static constexpr FORCEINLINE T Modulo(T Value, T Base)
+	{
+		if constexpr (std::is_floating_point_v<T>)
+		{
+			return FMath::Fmod(Value, Base);
+		}
+		else
+		{
+			return Value % Base;
+		}
 	}
 
 	/** Snaps a value to the nearest grid multiple */
