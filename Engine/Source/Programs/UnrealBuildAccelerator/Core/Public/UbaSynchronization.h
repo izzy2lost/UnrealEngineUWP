@@ -72,8 +72,10 @@ namespace uba
 
 		#if PLATFORM_WINDOWS
 		u64 data[1];
-		#else
+		#elif PLATFORM_LINUX
 		u64 data[7];
+		#else
+		u64 data[25];
 		#endif
 
 		ReaderWriterLock(const ReaderWriterLock&) = delete;

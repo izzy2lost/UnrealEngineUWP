@@ -352,7 +352,7 @@ namespace uba
 						(u64&)outAttr.data.ftLastWriteTime = info.lastWrite;
 #else
 						outAttr.data.st_mtime = info.lastWrite;
-						outAttr.data.st_mode = info.attributes;
+						outAttr.data.st_mode = (mode_t)info.attributes;
 						outAttr.data.st_dev = info.volumeSerial;
 						outAttr.data.st_ino = info.fileIndex;
 						outAttr.data.st_size = info.size;
