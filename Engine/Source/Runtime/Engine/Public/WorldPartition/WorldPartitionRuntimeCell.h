@@ -212,6 +212,7 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	ENGINE_API virtual TArray<const UDataLayerInstance*> GetDataLayerInstances() const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const override;
+	ENGINE_API virtual bool HasContentBundle() const override;
 	virtual const TArray<FName>& GetDataLayers() const override  { return DataLayers; }
 	virtual bool HasAnyDataLayer(const TSet<FName>& InDataLayers) const override
 	{

@@ -291,9 +291,9 @@ protected:
 	// Persistent
 	FGuid							Guid;
 	FTopLevelAssetPath				BaseClass;
-	FTopLevelAssetPath				NativeClass;
-	FName							ActorPackage;
-	FSoftObjectPath					ActorPath;
+	FTopLevelAssetPath				NativeClass;	// Not serialized, comes from initialization data
+	FName							ActorPackage;	// Not serialized, comes from initialization data
+	FSoftObjectPath					ActorPath;		// Not serialized, comes from initialization data
 	FName							ActorLabel;
 	FVector							BoundsLocation;
 	FVector							BoundsExtent;

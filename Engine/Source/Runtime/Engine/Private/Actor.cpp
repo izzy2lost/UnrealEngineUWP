@@ -6218,10 +6218,9 @@ TArray<const UDataLayerInstance*> AActor::GetDataLayerInstances() const
 // to resolve valid datalayers for this particular level.
 TArray<const UDataLayerInstance*> AActor::GetDataLayerInstancesInternal(bool bUseLevelContext, bool bIncludeParentDataLayers) const
 {
-	if (UseWorldPartitionRuntimeCellDataLayers())
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		const IWorldPartitionCell* Cell = GetLevel()->GetWorldPartitionRuntimeCell();
-		return Cell ? Cell->GetDataLayerInstances() : TArray<const UDataLayerInstance*>();
+		return Cell->GetDataLayerInstances();
 	}
 
 #if WITH_EDITOR
@@ -6258,10 +6257,9 @@ TArray<const UDataLayerInstance*> AActor::GetDataLayerInstancesInternal(bool bUs
 
 bool AActor::ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const
 {
-	if (UseWorldPartitionRuntimeCellDataLayers())
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		const IWorldPartitionCell* Cell = GetLevel()->GetWorldPartitionRuntimeCell();
-		return Cell ? Cell->ContainsDataLayer(DataLayerInstance) : false;
+		return Cell->ContainsDataLayer(DataLayerInstance);
 	}
 
 #if WITH_EDITOR
@@ -6278,10 +6276,9 @@ bool AActor::ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const
 		return false;
 	}
 
-	if (UseWorldPartitionRuntimeCellDataLayers())
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		const IWorldPartitionCell* Cell = GetLevel()->GetWorldPartitionRuntimeCell();
-		return Cell ? Cell->ContainsDataLayer(DataLayerAsset) : false;
+		return Cell->ContainsDataLayer(DataLayerAsset);
 	}
 
 #if WITH_EDITOR
@@ -6301,10 +6298,9 @@ bool AActor::ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const
 
 bool AActor::HasDataLayers() const
 {
-	if (UseWorldPartitionRuntimeCellDataLayers())
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
 	{
-		const IWorldPartitionCell* Cell = GetLevel()->GetWorldPartitionRuntimeCell();
-		return Cell ? Cell->HasDataLayers() : false;
+		return Cell->HasDataLayers();
 	}
 
 #if WITH_EDITOR
@@ -6314,10 +6310,27 @@ bool AActor::HasDataLayers() const
 #endif
 }
 
-bool AActor::UseWorldPartitionRuntimeCellDataLayers() const
+bool AActor::HasContentBundle() const
 {
-	ULevel* Level = GetLevel();
-	return Level != nullptr && Level->IsWorldPartitionRuntimeCell();
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
+	{
+		return Cell->HasContentBundle();
+	}
+
+#if WITH_EDITOR
+	return GetContentBundleGuid().IsValid();
+#else
+	return false;
+#endif
+}
+
+const IWorldPartitionCell* AActor::GetWorldPartitionRuntimeCell() const
+{
+	if (ULevel* Level = GetLevel())
+	{
+		return Level->GetWorldPartitionRuntimeCell();
+	}
+	return nullptr;
 }
 
 

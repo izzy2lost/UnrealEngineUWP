@@ -178,6 +178,11 @@ bool UWorldPartitionRuntimeCell::ContainsDataLayer(const UDataLayerAsset* DataLa
 	return DataLayerInstance ? ContainsDataLayer(DataLayerInstance) : false;
 }
 
+bool UWorldPartitionRuntimeCell::HasContentBundle() const
+{
+	return GetContentBundleID().IsValid();
+}
+
 bool UWorldPartitionRuntimeCell::ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const
 {
 	return GetDataLayers().Contains(DataLayerInstance->GetDataLayerFName());

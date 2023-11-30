@@ -49,6 +49,7 @@ class UDEPRECATED_DataLayer;
 class UDataLayerAsset;
 class UDataLayerInstance;
 class AWorldDataLayers;
+class IWorldPartitionCell;
 #if UE_WITH_IRIS
 struct FActorBeginReplicationParams;
 #endif // UE_WITH_IRIS
@@ -1377,10 +1378,11 @@ public:
 	ENGINE_API bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const;
 	ENGINE_API bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const;
 	ENGINE_API bool HasDataLayers() const;
+	ENGINE_API bool HasContentBundle() const;
 
 private:
 	ENGINE_API TArray<const UDataLayerInstance*> GetDataLayerInstancesInternal(bool bUseLevelContext, bool bIncludeParentDataLayers = true) const;
-	ENGINE_API bool UseWorldPartitionRuntimeCellDataLayers() const;
+	ENGINE_API const IWorldPartitionCell* GetWorldPartitionRuntimeCell() const;
 
 	//~=============================================================================
 	// General functions.
