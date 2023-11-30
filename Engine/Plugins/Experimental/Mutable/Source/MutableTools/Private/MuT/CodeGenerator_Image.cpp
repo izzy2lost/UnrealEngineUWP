@@ -197,9 +197,15 @@ namespace mu
 			Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
 			ReferenceOp->type = OP_TYPE::IM_REFERENCE;
 			ReferenceOp->ID = pImage->GetReferencedTexture();
-			ReferenceOp->bForceLoad = pImage->IsForceLoad(); 
-			ReferenceOp->ImageDesc = FImageDesc(
-					FImageSize(pImage->GetSizeX(), pImage->GetSizeY()), pImage->GetFormat(), pImage->GetLODCount());
+			ReferenceOp->bForceLoad = pImage->IsForceLoad();
+
+			// Don't store the format. Format can vary between loaded constant image and reference and cause
+			// code optimization bugs.
+			// As it is now, reference will always have alpha channel but constant resolution can remove the 
+			// channel if not used.
+			// TODO: review this, probably the reference descriptor generation needs to check for alpha channels 
+			// as well.
+			ReferenceOp->ImageDesc = FImageDesc(pImage->GetSize(), EImageFormat::IF_NONE, pImage->GetLODCount());
 			Result.op = ReferenceOp;
 		}
 		else
