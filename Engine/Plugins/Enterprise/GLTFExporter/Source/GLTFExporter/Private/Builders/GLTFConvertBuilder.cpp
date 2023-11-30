@@ -289,22 +289,22 @@ FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTextureRenderTarg
 	return AddUniqueTexture(Texture, Texture->SRGB);
 }
 
-FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture* Texture, bool bToSRGB, TextureAddress TextureAddressX, TextureAddress TextureAddressY)
+FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture* Texture, bool bToSRGB)
 {
 	if (const UTexture2D* Texture2D = Cast<UTexture2D>(Texture))
 	{
-		return AddUniqueTexture(Texture2D, bToSRGB, TextureAddressX, TextureAddressY);
+		return AddUniqueTexture(Texture2D, bToSRGB);
 	}
 
 	if (const UTextureRenderTarget2D* RenderTarget2D = Cast<UTextureRenderTarget2D>(Texture))
 	{
-		return AddUniqueTexture(RenderTarget2D, bToSRGB, TextureAddressX, TextureAddressY);
+		return AddUniqueTexture(RenderTarget2D, bToSRGB);
 	}
 
 	return nullptr;
 }
 
-FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture2D* Texture, bool bToSRGB, TextureAddress TextureAddressX, TextureAddress TextureAddressY)
+FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture2D* Texture, bool bToSRGB)
 {
 	if (Texture == nullptr)
 	{
@@ -313,7 +313,7 @@ FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTexture2D* Textur
 
 	RecordTexture(Texture);
 
-	return Texture2DConverter->GetOrAdd(Texture, bToSRGB, TextureAddressX, TextureAddressY);
+	return Texture2DConverter->GetOrAdd(Texture, bToSRGB);
 }
 
 FGLTFJsonTexture* FGLTFConvertBuilder::AddUniqueTexture(const UTextureRenderTarget2D* Texture, bool bToSRGB)

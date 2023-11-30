@@ -264,12 +264,12 @@ TUniquePtr<IGLTFTexture2DConverter> FGLTFMaterialProxyFactory::CreateTextureConv
 
 	protected:
 
-		virtual void Sanitize(const UTexture2D*& Texture2D, bool& bToSRGB, TextureAddress& WrapS, TextureAddress& WrapT) override
+		virtual void Sanitize(const UTexture2D*& Texture2D, bool& bToSRGB) override
 		{
 			bToSRGB = false; // ignore
 		}
 
-		virtual FGLTFJsonTexture* Convert(const UTexture2D* Texture2D, bool bToSRGB, TextureAddress WrapS, TextureAddress WrapT) override
+		virtual FGLTFJsonTexture* Convert(const UTexture2D* Texture2D, bool bToSRGB) override
 		{
 			FGLTFJsonTexture* Texture = Factory.Builder.AddTexture();
 			Factory.Textures.Add(Texture, const_cast<UTexture2D*>(Texture2D));

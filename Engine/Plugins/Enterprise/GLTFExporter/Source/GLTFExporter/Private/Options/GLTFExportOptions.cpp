@@ -15,13 +15,11 @@ void UGLTFExportOptions::ResetToDefault()
 	bSkipNearDefaultValues = true;
 	bIncludeCopyrightNotice = false;
 	bExportProxyMaterials = true;
-	bUseImporterMaterialMapping = true;
 	bExportUnlitMaterials = true;
 	bExportClearCoatMaterials = true;
 	bExportClothMaterials = true;
 	bExportThinTranslucentMaterials = false;
 	bExportEmissiveStrength = true;
-	bExportSpecularGlossinessMaterials = true;
 	BakeMaterialInputs = EGLTFMaterialBakeMode::UseMeshData;
 	DefaultMaterialBakeSize = FGLTFMaterialBakeSize::Default;
 	DefaultMaterialBakeFilter = TF_Trilinear;

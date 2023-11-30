@@ -150,27 +150,6 @@ struct GLTFEXPORTER_API FGLTFJsonTransmissionExtension : IGLTFJsonObject
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
 
-struct GLTFEXPORTER_API FGLTFJsonSpecularGlossinessExtension : IGLTFJsonObject
-{
-	FGLTFJsonColor4         DiffuseFactor;
-	FGLTFJsonTextureInfo    DiffuseTexture;
-
-	FGLTFJsonColor3         SpecularFactor;
-	float                   GlossinessFactor;
-	FGLTFJsonTextureInfo    SpecularGlossinessTexture;
-
-	FGLTFJsonSpecularGlossinessExtension()
-		: DiffuseFactor(FGLTFJsonColor4::White)
-		, SpecularFactor(FGLTFJsonColor3::White)
-		, GlossinessFactor(1)
-	{
-	}
-
-	bool HasValue() const { return !DiffuseFactor.IsNearlyEqual(FGLTFJsonColor4::White) || DiffuseTexture.Index != nullptr || !SpecularFactor.IsNearlyEqual(FGLTFJsonColor3::White) || !FMath::IsNearlyEqual(GlossinessFactor, 1.0f) || SpecularGlossinessTexture.Index != nullptr; }
-
-	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
-};
-
 struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 {
 	FString Name;
@@ -178,7 +157,6 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 	EGLTFJsonShadingModel ShadingModel;
 
 	FGLTFJsonPBRMetallicRoughness PBRMetallicRoughness;
-	FGLTFJsonSpecularGlossinessExtension PBRSpecularGlossiness;
 
 	FGLTFJsonNormalTextureInfo NormalTexture;
 	FGLTFJsonOcclusionTextureInfo OcclusionTexture;

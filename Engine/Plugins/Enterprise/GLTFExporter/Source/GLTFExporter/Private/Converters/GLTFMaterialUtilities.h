@@ -94,26 +94,3 @@ private:
 	static void GetAllInputExpressionsOfType(const UMaterialInterface* Material, const FMaterialPropertyEx& Property, TArray<ExpressionType*>& OutExpressions);
 #endif
 };
-
-//Helper used to identify Interchange - glTF Importer created materials.
-// And then helps to acquire the Values set by the glTF Importer
-struct FGLTFImportMaterialMatchMakingHelper
-{
-	TMap<FString, UMaterialExpression*> Inputs;
-	FGLTFConvertBuilder& Builder;
-	FGLTFJsonMaterial& JsonMaterial;
-	const UMaterialInterface* Material;
-	bool bMaterialInstance; //uses Parameter acquisition approach if true, otherwise uses Inputs
-	bool bIsGLTFImportedMaterial;
-
-	FGLTFImportMaterialMatchMakingHelper(FGLTFConvertBuilder& InBuilder,
-		const UMaterialInterface* InMaterial,
-		FGLTFJsonMaterial& InJsonMaterial);
-
-	bool GetValue(const FString& InputKey, float& OutValue);
-	bool GetValue(const FString& InputKey, FGLTFJsonColor3& OutValue);
-	bool GetValue(const FString& InputKey, FGLTFJsonColor4& OutValue, bool HandleAsColor);
-	bool GetValue(const FString& InputKey, FGLTFJsonTextureInfo& OutValue);
-
-	void Process();
-};

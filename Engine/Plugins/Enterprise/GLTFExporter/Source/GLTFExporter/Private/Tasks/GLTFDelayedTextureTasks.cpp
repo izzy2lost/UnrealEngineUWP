@@ -47,11 +47,7 @@ void FGLTFDelayedTexture2DTask::Process()
 	const bool bIgnoreAlpha = FGLTFTextureUtilities::IsAlphaless(Texture2D->GetPixelFormat());
 
 	JsonTexture->Source = Builder.AddUniqueImage(Pixels, Size, bIgnoreAlpha, JsonTexture->Name);
-
-	if (TextureAddressX == TextureAddress::TA_MAX) TextureAddressX = Texture2D->GetTextureAddressX();
-	if (TextureAddressY == TextureAddress::TA_MAX) TextureAddressY = Texture2D->GetTextureAddressX();
-
-	JsonTexture->Sampler = Builder.AddUniqueSampler(TextureAddressX, TextureAddressY, Texture2D->Filter, Texture2D->LODGroup);
+	JsonTexture->Sampler = Builder.AddUniqueSampler(Texture2D);
 }
 
 FString FGLTFDelayedTextureRenderTarget2DTask::GetName()

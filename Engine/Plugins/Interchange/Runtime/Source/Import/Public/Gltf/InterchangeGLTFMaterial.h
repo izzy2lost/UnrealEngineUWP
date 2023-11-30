@@ -30,31 +30,14 @@ namespace UE::Interchange::GLTFMaterials
 	//Inputs/Parameters (Materials/MaterialInstances)
 	namespace Inputs
 	{
-		///PostFixes
-		namespace PostFix
-		{
-			const FString Color_RGB = TEXT("_RGB");
-			const FString Color_A = TEXT("_A");
-
-			const FString TexCoord = TEXT("_TexCoord");
-
-			const FString OffsetX = TEXT("_Offset_X");
-			const FString OffsetY = TEXT("_Offset_Y");
-			const FString ScaleX = TEXT("_Scale_X");
-			const FString ScaleY = TEXT("_Scale_Y");
-
-			const FString OffsetScale = TEXT("_OffsetScale");
-
-			const FString Rotation = TEXT("_Rotation");
-
-			const FString TilingMethod = TEXT("_TilingMethod");
-		}
+		const FString Color_RGB = TEXT("_RGB");
+		const FString Color_A = TEXT("_A");
 
 		//MetalRoughness specific:
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(BaseColor)
 		const FString BaseColorFactor = TEXT("BaseColorFactor");
-		const FString BaseColorFactor_RGB = BaseColorFactor + PostFix::Color_RGB; //Connection to inputs from BaseColorFactor.RGB
-		const FString BaseColorFactor_A = BaseColorFactor + PostFix::Color_A; //Connection to inputs from BaseColorFactor.A
+		const FString BaseColorFactor_RGB = BaseColorFactor + Color_RGB; //Connection to inputs from BaseColorFactor.RGB
+		const FString BaseColorFactor_A = BaseColorFactor + Color_A; //Connection to inputs from BaseColorFactor.A
 
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(MetallicRoughness)
 		const FString MetallicFactor = TEXT("MetallicFactor");
@@ -67,8 +50,8 @@ namespace UE::Interchange::GLTFMaterials
 		//SpecularGlossiness specific
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(Diffuse)
 		const FString DiffuseFactor = TEXT("DiffuseFactor");
-		const FString DiffuseFactor_RGB = DiffuseFactor + PostFix::Color_RGB; //Connection to inputs from BaseColorFactor.RGB
-		const FString DiffuseFactor_A = DiffuseFactor + PostFix::Color_A; //Connection to inputs from BaseColorFactor.A
+		const FString DiffuseFactor_RGB = DiffuseFactor + Color_RGB; //Connection to inputs from BaseColorFactor.RGB
+		const FString DiffuseFactor_A = DiffuseFactor + Color_A; //Connection to inputs from BaseColorFactor.A
 
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(SpecularGlossiness)
 		const FString SpecFactor = TEXT("SpecFactor");
@@ -133,28 +116,11 @@ namespace UE::Interchange::GLTFMaterials
 		Blend
 	};
 
-	struct FGLTFMaterialInformation
-	{
-		FString MaterialFunctionPath;
-		FString MaterialPath;
-		TArray<FString> MaterialFunctionOutputs;
-
-		FGLTFMaterialInformation(const FString& InMaterialFunctionPath,
-			const FString& InMaterialPath,
-			const TArray<FString>& InMaterialFunctionOutputs)
-			: MaterialFunctionPath(InMaterialFunctionPath)
-			, MaterialPath(InMaterialPath)
-			, MaterialFunctionOutputs(InMaterialFunctionOutputs)
-		{
-		}
-	};
-
-	static const TMap<EShadingModel, FGLTFMaterialInformation> ShadingModelToMaterialInformation = {
+	static TMap<EShadingModel, TPair<FString, TArray<FString>>> ShadingModelToMaterialFunctions = {
 		{EShadingModel::DEFAULT,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Default_Body.MF_Default_Body"),
-			TEXT("/Interchange/gltf/M_Default.M_Default"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_Default_Body.MF_Default_Body"),
+				TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
 					TEXT("Specular"),
@@ -163,24 +129,20 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("Opacity"),
 					TEXT("OpacityMask"),
 					TEXT("Normal"),
-					TEXT("Occlusion")})
-		},
+					TEXT("Occlusion")})},
 
 		{EShadingModel::UNLIT,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Unlit_Body.MF_Unlit_Body"),
-			TEXT("/Interchange/gltf/M_Unlit.M_Unlit"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_Unlit_Body.MF_Unlit_Body"),
+				TArray<FString>{
 					TEXT("UnlitColor"),
 					TEXT("Opacity"),
-					TEXT("OpacityMask")})
-		},
+					TEXT("OpacityMask")})},
 
 		{EShadingModel::CLEARCOAT,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_ClearCoat_Body.MF_ClearCoat_Body"),
-			TEXT("/Interchange/gltf/M_ClearCoat.M_ClearCoat"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_ClearCoat_Body.MF_ClearCoat_Body"),
+				TArray<FString>{
 					TEXT("ClearCoatNormal"),
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
@@ -192,14 +154,12 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("Normal"),
 					TEXT("ClearCoat"),
 					TEXT("ClearCoatRoughness"),
-					TEXT("Occlusion")})
-		},
+					TEXT("Occlusion")})},
 
 		{EShadingModel::SHEEN,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Sheen_Body.MF_Sheen_Body"),
-			TEXT("/Interchange/gltf/M_Sheen.M_Sheen"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_Sheen_Body.MF_Sheen_Body"),
+				TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
 					TEXT("Specular"),
@@ -210,14 +170,12 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("Normal"),
 					TEXT("SheenColor"),
 					TEXT("SheenRoughness"),
-					TEXT("Occlusion")})
-		},
+					TEXT("Occlusion")})},
 
 		{EShadingModel::TRANSMISSION,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_Transmission_Body.MF_Transmission_Body"),
-			TEXT("/Interchange/gltf/M_Transmission.M_Transmission"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_Transmission_Body.MF_Transmission_Body"),
+				TArray<FString>{
 					TEXT("TransmissionColor"),
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
@@ -226,14 +184,12 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("EmissiveColor"),
 					TEXT("Opacity"),
 					TEXT("Normal"),
-					TEXT("Occlusion")})
-		},
+					TEXT("Occlusion")})},
 
 		{EShadingModel::SPECULARGLOSSINESS,
-		FGLTFMaterialInformation(
-			TEXT("/Interchange/gltf/MaterialBodies/MF_SpecularGlossiness_Body.MF_SpecularGlossiness_Body"),
-			TEXT("/Interchange/gltf/M_SpecularGlossiness.M_SpecularGlossiness"),
-			TArray<FString>{
+			TPair<FString, TArray<FString>>(
+				TEXT("/Interchange/gltf/MaterialBodies/MF_SpecularGlossiness_Body.MF_SpecularGlossiness_Body"),
+				TArray<FString>{
 					TEXT("BaseColor"),
 					TEXT("Metallic"),
 					TEXT("Roughness"),
@@ -241,36 +197,15 @@ namespace UE::Interchange::GLTFMaterials
 					TEXT("Opacity"),
 					TEXT("OpacityMask"),
 					TEXT("Normal"),
-					TEXT("Occlusion")})
-		}
+					TEXT("Occlusion")})},
 	};
 
 	inline TArray<FString> GetRequiredMaterialFunctionPaths()
 	{
 		TArray<FString> Result;
-		for (const TPair<EShadingModel, FGLTFMaterialInformation>& Entry : ShadingModelToMaterialInformation)
+		for (const TPair<EShadingModel, TPair<FString, TArray<FString>>>& Entry : ShadingModelToMaterialFunctions)
 		{
-			Result.Add(Entry.Value.MaterialFunctionPath);
-		}
-		return Result;
-	}
-
-	inline TMap<FString, EShadingModel> GetMaterialFunctionPathsToShadingModels()
-	{
-		TMap<FString, EShadingModel> Result;
-		for (const TPair<EShadingModel, FGLTFMaterialInformation>& Entry : ShadingModelToMaterialInformation)
-		{
-			Result.Add(Entry.Value.MaterialFunctionPath, Entry.Key);
-		}
-		return Result;
-	}
-
-	inline TMap<FString, EShadingModel> GetMaterialPathsToShadingModels()
-	{
-		TMap<FString, EShadingModel> Result;
-		for (const TPair<EShadingModel, FGLTFMaterialInformation>& Entry : ShadingModelToMaterialInformation)
-		{
-			Result.Add(Entry.Value.MaterialPath, Entry.Key);
+			Result.Add(Entry.Value.Key);
 		}
 		return Result;
 	}

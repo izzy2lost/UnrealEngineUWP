@@ -11,11 +11,6 @@
 	"SupportURL": "",
 	"EnabledByDefault": true,
 	"CanContainContent": true,
-	"SupportedTargetPlatforms": [
-		"Win64",
-		"Linux",
-		"Mac"
-	],
 	"Modules": [
 		{
 			"Name": "GLTFExporter",
@@ -28,11 +23,6 @@
 		{
 			"Name": "VariantManagerContent",
 			"Enabled": true
-		},
-		{
-			"Name": "Interchange",
-			"Enabled": true,
-			"Optional": true
 		}
 	]
 }

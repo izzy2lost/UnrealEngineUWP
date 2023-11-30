@@ -177,34 +177,6 @@ void FGLTFJsonTransmissionExtension::WriteObject(IGLTFJsonWriter& Writer) const
 	}
 }
 
-void FGLTFJsonSpecularGlossinessExtension::WriteObject(IGLTFJsonWriter& Writer) const
-{
-	if (!DiffuseFactor.IsNearlyEqual(FGLTFJsonColor4::White))
-	{
-		Writer.Write(TEXT("diffuseFactor"), DiffuseFactor);
-	}
-
-	if (DiffuseTexture.Index != nullptr)
-	{
-		Writer.Write(TEXT("diffuseTexture"), DiffuseTexture);
-	}
-
-	if (!SpecularFactor.IsNearlyEqual(FGLTFJsonColor3::White))
-	{
-		Writer.Write(TEXT("specularFactor"), SpecularFactor);
-	}
-
-	if (!FMath::IsNearlyEqual(GlossinessFactor, 1.0f))
-	{
-		Writer.Write(TEXT("glossinessFactor"), GlossinessFactor);
-	}
-
-	if (SpecularGlossinessTexture.Index != nullptr)
-	{
-		Writer.Write(TEXT("specularGlossinessTexture"), SpecularGlossinessTexture);
-	}
-}
-
 void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 {
 	if (!Name.IsEmpty())
@@ -212,8 +184,7 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 		Writer.Write(TEXT("name"), Name);
 	}
 
-	if (ShadingModel != EGLTFJsonShadingModel::None &&
-		ShadingModel != EGLTFJsonShadingModel::SpecularGlossiness)
+	if (ShadingModel != EGLTFJsonShadingModel::None)
 	{
 		Writer.Write(TEXT("pbrMetallicRoughness"), PBRMetallicRoughness);
 	}
@@ -257,11 +228,11 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 	if (ShadingModel == EGLTFJsonShadingModel::Unlit ||
 		ShadingModel == EGLTFJsonShadingModel::ClearCoat ||
 		(ShadingModel == EGLTFJsonShadingModel::Transmission && Transmission.HasValue()) ||
-		(ShadingModel == EGLTFJsonShadingModel::SpecularGlossiness && PBRSpecularGlossiness.HasValue()) ||
 		HasEmissiveStrength || 
 		Specular.HasValue() || 
 		IOR.HasValue() ||
-		Sheen.HasValue())
+		Sheen.HasValue() ||
+		Transmission.HasValue())
 	{
 		Writer.StartExtensions();
 
@@ -290,13 +261,9 @@ void FGLTFJsonMaterial::WriteObject(IGLTFJsonWriter& Writer) const
 		{
 			Writer.Write(EGLTFJsonExtension::KHR_MaterialsClearCoat, ClearCoat);
 		}
-		else if (ShadingModel == EGLTFJsonShadingModel::Transmission && Transmission.HasValue())
+		else if (ShadingModel == EGLTFJsonShadingModel::Transmission)
 		{
 			Writer.Write(EGLTFJsonExtension::KHR_MaterialsTransmission, Transmission);
-		}
-		else if (ShadingModel == EGLTFJsonShadingModel::SpecularGlossiness && PBRSpecularGlossiness.HasValue())
-		{
-			Writer.Write(EGLTFJsonExtension::KHR_MaterialsSpecularGlossiness, PBRSpecularGlossiness);
 		}
 
 		if (HasEmissiveStrength)
