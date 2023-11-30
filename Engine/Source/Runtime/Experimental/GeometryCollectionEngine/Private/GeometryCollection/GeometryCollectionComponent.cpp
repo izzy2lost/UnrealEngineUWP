@@ -4363,7 +4363,8 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 
 void UGeometryCollectionComponent::RequestUpdateRepData()
 {
-	if (FPhysScene* PhysScene = GetInnerChaosScene(); PhysScene && PhysicsProxy)
+	FPhysScene* PhysScene = GetInnerChaosScene();
+	if (PhysScene && PhysicsProxy) 
 	{
 		if (Chaos::FPBDRigidsSolver* Solver = PhysicsProxy->GetSolver<Chaos::FPBDRigidsSolver>())
 		{
