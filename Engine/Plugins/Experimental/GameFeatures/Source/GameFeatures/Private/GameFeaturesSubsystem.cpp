@@ -896,14 +896,17 @@ void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* Gam
 
 void UGameFeaturesSubsystem::OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier)
 {
-	CallbackObservers(EObserverCallback::Deactivating, PluginIdentifier, &PluginName, GameFeatureData, &Context);
-
 #if !WITH_EDITOR
 	check(GameFeatureData);
 #else
 	if (GameFeatureData) // In the editor the GameFeatureData asset can be force deleted, otherwise it should exist
 #endif
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnDeactivating_CallbackObservers);
+		CallbackObservers(EObserverCallback::Deactivating, PluginIdentifier, &PluginName, GameFeatureData, &Context);
+	}
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnDeactivating_OnGameFeatureDeactivating);
 		for (UGameFeatureAction* Action : GameFeatureData->GetActions())
 		{
 			if (Action != nullptr)
