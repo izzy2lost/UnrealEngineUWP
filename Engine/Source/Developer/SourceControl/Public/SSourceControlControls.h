@@ -17,6 +17,8 @@ class SOURCECONTROL_API SSourceControlControls : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SSourceControlControls) {}
 
+		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatest)
+		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChanges)
 		SLATE_EVENT(FOnClicked, OnClickedSyncLatest)
 		SLATE_EVENT(FOnClicked, OnClickedCheckInChanges)
 		SLATE_EVENT(FOnGetContent, OnGenerateKebabMenu)
@@ -30,7 +32,8 @@ public:
 private:
 	/** Sync button */
 	bool IsAtLatestRevision() const;
-	bool CanSourceControlSync() const;
+	bool IsSourceControlSyncEnabled() const;
+	bool HasSourceControlChangesToSync() const;
 	EVisibility GetSourceControlSyncStatusVisibility() const;
 	FText GetSourceControlSyncStatusText() const;
 	FText GetSourceControlSyncStatusTooltipText() const;
@@ -39,7 +42,8 @@ private:
 
 	/** Check-in button */
 	int GetNumLocalChanges() const;
-	bool CanSourceControlCheckIn() const;
+	bool IsSourceControlCheckInEnabled() const;
+	bool HasSourceControlChangesToCheckIn() const;
 	EVisibility GetSourceControlCheckInStatusVisibility() const;
 	FText GetSourceControlCheckInStatusText() const;
 	FText GetSourceControlCheckInStatusTooltipText() const;
@@ -57,6 +61,9 @@ private:
 	
 	FOnClicked OnSyncLatestClicked;
 	FOnClicked OnCheckInChangesClicked;
+
+	TAttribute<bool> IsSyncLatestEnabled;
+	TAttribute<bool> IsCheckInChangesEnabled;
 
 	/** Is there a conflict remaining? */
 	bool bConflictsRemaining;

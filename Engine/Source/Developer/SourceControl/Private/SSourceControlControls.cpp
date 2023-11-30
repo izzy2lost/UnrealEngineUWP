@@ -24,6 +24,9 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 	OnSyncLatestClicked = InArgs._OnClickedSyncLatest;
 	OnCheckInChangesClicked = InArgs._OnClickedCheckInChanges;
 
+	IsSyncLatestEnabled = InArgs._IsEnabledSyncLatest;
+	IsCheckInChangesEnabled = InArgs._IsEnabledCheckInChanges;
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -36,7 +39,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
 			.ToolTipText(this, &SSourceControlControls::GetSourceControlCheckInStatusTooltipText)
 			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInStatusVisibility)
-			.IsEnabled_Lambda([this]() { return CanSourceControlCheckIn(); })
+			.IsEnabled(this, &SSourceControlControls::IsSourceControlCheckInEnabled)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -87,7 +90,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
 			.ToolTipText(this, &SSourceControlControls::GetSourceControlSyncStatusTooltipText)
 			.Visibility(this, &SSourceControlControls::GetSourceControlSyncStatusVisibility)
-			.IsEnabled_Lambda([this]() { return CanSourceControlSync(); })
+			.IsEnabled(this, &SSourceControlControls::IsSourceControlSyncEnabled)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -192,7 +195,17 @@ bool SSourceControlControls::IsAtLatestRevision() const
 		SourceControlModule.GetProvider().IsAtLatestRevision().GetValue();
 }
 
-bool SSourceControlControls::CanSourceControlSync() const
+bool SSourceControlControls::IsSourceControlSyncEnabled() const
+{
+	if (!HasSourceControlChangesToSync())
+	{
+		return false;
+	}
+
+	return IsSyncLatestEnabled.Get(true);
+}
+
+bool SSourceControlControls::HasSourceControlChangesToSync() const
 {
 	return !IsAtLatestRevision();
 }
@@ -223,7 +236,7 @@ EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility() const
 
 FText SSourceControlControls::GetSourceControlSyncStatusText() const
 {
-	if (CanSourceControlSync())
+	if (HasSourceControlChangesToSync())
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadText", "Sync Latest");
 	}
@@ -236,7 +249,7 @@ FText SSourceControlControls::GetSourceControlSyncStatusTooltipText() const
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
-	if (CanSourceControlSync())
+	if (HasSourceControlChangesToSync())
 	{
 		return LOCTEXT("SyncLatestButtonNotAtHeadTooltipText", "Sync to the latest Snapshot for this project");
 	}
@@ -253,7 +266,7 @@ const FSlateBrush* SSourceControlControls::GetSourceControlSyncStatusIcon() cons
 	{
 		return ConflictBrush;
 	}
-	if (CanSourceControlSync())
+	if (HasSourceControlChangesToSync())
 	{
 		return NotAtHeadBrush;
 	}
@@ -269,7 +282,7 @@ FReply SSourceControlControls::OnSourceControlSyncClicked() const
 			CObj->AsCommand()->Execute(/*Args=*/TArray<FString>(), /*InWorld=*/nullptr, *GLog);
 		}
 	}
-	else if (CanSourceControlSync())
+	else if (HasSourceControlChangesToSync())
 	{
 		if (OnSyncLatestClicked.IsBound())
 		{
@@ -294,7 +307,17 @@ int SSourceControlControls::GetNumLocalChanges() const
 	return 0;
 }
 
-bool SSourceControlControls::CanSourceControlCheckIn() const
+bool SSourceControlControls::IsSourceControlCheckInEnabled() const
+{
+	if (!HasSourceControlChangesToCheckIn())
+	{
+		return false;
+	}
+
+	return IsCheckInChangesEnabled.Get(true);
+}
+
+bool SSourceControlControls::HasSourceControlChangesToCheckIn() const
 {
 	return (GetNumLocalChanges() > 0);
 }
@@ -325,7 +348,7 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() co
 
 FText SSourceControlControls::GetSourceControlCheckInStatusText() const
 {
-	if (CanSourceControlCheckIn())
+	if (HasSourceControlChangesToCheckIn())
 	{
 		return LOCTEXT("CheckInButtonChangesText", "Check-in Changes");
 	}
@@ -339,7 +362,7 @@ FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
 	{
 		return LOCTEXT("CheckInButtonChangesTooltipTextConflict", "Some of your local changes conflict with the latest snapshot of the project. Click here to review these conflicts.");
 	}
-	if (CanSourceControlCheckIn())
+	if (HasSourceControlChangesToCheckIn())
 	{
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
 	}
@@ -356,7 +379,7 @@ const FSlateBrush* SSourceControlControls::GetSourceControlCheckInStatusIcon() c
 	{
 		return ConflictBrush;
 	}
-	if (CanSourceControlCheckIn())
+	if (HasSourceControlChangesToCheckIn())
 	{
 		return HasLocalChangesBrush;
 	}
@@ -372,7 +395,7 @@ FReply SSourceControlControls::OnSourceControlCheckInChangesClicked() const
 			CObj->AsCommand()->Execute(/*Args=*/TArray<FString>(), /*InWorld=*/nullptr, *GLog);
 		}
 	}
-	else if (CanSourceControlCheckIn())
+	else if (HasSourceControlChangesToCheckIn())
 	{
 		if (OnCheckInChangesClicked.IsBound())
 		{

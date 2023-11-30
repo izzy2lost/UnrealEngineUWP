@@ -19,6 +19,8 @@
 #include "Widgets/Images/SLayeredImage.h"
 #include "LevelEditorActions.h"
 #include "PackageTools.h"
+#include "Editor.h"
+#include "EditorModeManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
@@ -423,6 +425,23 @@ TSharedRef<SWidget> FSourceControlMenuHelpers::MakeSourceControlStatusWidget()
 		.Padding(0.f)
 		[
 			SNew(SSourceControlControls)
+			.IsEnabledSyncLatest_Lambda(
+				[] ()
+				{
+					// If there are any interactive tools active, we do not want to allow source control
+					// operations as a (possible) world reload could cause loss of work-in-progress.
+					// 
+					// Piggy-back on the CanAutoSave method here, which checks exactly that for relevant
+					// editor modes.
+					return GLevelEditorModeTools().CanAutoSave();
+				}
+			)
+			.IsEnabledCheckInChanges_Lambda(
+				[]()
+				{
+					return GLevelEditorModeTools().CanAutoSave();
+				}
+			)
 			.OnClickedSyncLatest_Static(&FSourceControlMenuHelpers::OnSourceControlSyncClicked)
 			.OnClickedCheckInChanges_Static(&FSourceControlMenuHelpers::OnSourceControlCheckInChangesClicked)
 			.OnGenerateKebabMenu_Static(&FSourceControlMenuHelpers::GenerateCheckInComboButtonContent)
