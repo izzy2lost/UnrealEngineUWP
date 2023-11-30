@@ -1069,7 +1069,6 @@ public:
 	//~ Begin UMeshComponent Interface
 	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& Callback, int32 LODIdx, float TimeoutSecs, bool bOnStreamIn) override;
 	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& CallbackStreamingStart, FLODStreamingCallback&& CallbackStreamingDone, float TimeoutStartSecs, float TimeoutDoneSecs) override;
-	ENGINE_API virtual bool PrestreamMeshLODs(float Seconds) override;
 	//~ End UMeshComponent Interface
 
 	/** Get the pre-skinning local space bounds for this component. */
