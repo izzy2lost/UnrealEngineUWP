@@ -99,7 +99,7 @@ IMPLEMENT_GLOBAL_SHADER(FPrintIlluminanceMeterPS, "/Engine/Private/ReflectionEnv
 void FScene::ProcessAndRenderIlluminanceMeter(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views, FRDGTextureRef SceneColorTexture)
 {
 	FViewInfo& MainView = Views[0];
-	if (!SkyLight || !SkyLight->bShowIlluminanceMeter || MainView.bIsSceneCapture || MainView.bIsReflectionCapture || MainView.bIsPlanarReflection ||
+	if (!SkyLight || !MainView.Family->EngineShowFlags.VisualizeSkyLightIlluminance || MainView.bIsSceneCapture || MainView.bIsReflectionCapture || MainView.bIsPlanarReflection ||
 		!CanIlluminanceMeterDisplayOnPlatform(MainView.GetShaderPlatform()))
 	{
 		return;
