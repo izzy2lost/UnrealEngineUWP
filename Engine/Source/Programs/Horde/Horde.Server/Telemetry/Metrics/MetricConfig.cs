@@ -55,6 +55,12 @@ namespace Horde.Server.Telemetry.Metrics
 		public MetricId Id { get; set; }
 
 		/// <summary>
+		/// Filter expression to evaluate to determine which events to include. This query is evaluated against an array.
+		/// </summary>
+		[JsonSchemaString]
+		public JsonPath? Filter { get; set; }
+
+		/// <summary>
 		/// Property to aggregate
 		/// </summary>
 		[JsonSchemaString]

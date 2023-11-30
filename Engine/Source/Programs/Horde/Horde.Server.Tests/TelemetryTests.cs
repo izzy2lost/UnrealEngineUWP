@@ -27,6 +27,41 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
+		public async Task FilterAsync()
+		{
+			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);
+
+			MetricConfig metricConfig = new MetricConfig();
+			metricConfig.Id = new MetricId("test-metric");
+			metricConfig.Function = AggregationFunction.Sum;
+			metricConfig.Interval = TimeSpan.FromHours(1.0);
+			metricConfig.Filter = JsonPath.Parse("$[?(@.Payload.EventName == 'Included')]");
+			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+
+			GlobalConfig globalConfig = new GlobalConfig();
+			globalConfig.Metrics.Add(metricConfig);
+			SetConfig(globalConfig);
+
+			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
+			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
+
+			// Test 1
+			{
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2 });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 3 });
+				await sink.FlushAsync(CancellationToken.None);
+				await collection.FlushAsync(CancellationToken.None);
+
+				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				Assert.AreEqual(1, metrics.Count);
+				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
+				Assert.AreEqual(3, metrics[0].Value);
+				Assert.AreEqual(2, metrics[0].Count);
+			}
+		}
+
+		[TestMethod]
 		public async Task SingleMetricAsync()
 		{
 			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);

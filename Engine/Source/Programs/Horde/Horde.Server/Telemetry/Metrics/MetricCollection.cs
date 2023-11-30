@@ -93,19 +93,37 @@ namespace Horde.Server.Telemetry.Metrics
 		/// <inheritdoc/>
 		public void AddEvent(JsonNode node)
 		{
+			JsonArray array = new JsonArray { node };
+
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 			foreach (MetricConfig metric in globalConfig.Metrics)
 			{
-				AddEvent(metric, node);
+				AddEvent(metric, node, array);
 			}
+
+			array.Remove(node);
 		}
 
-		void AddEvent(MetricConfig metric, JsonNode node)
+		void AddEvent(MetricConfig metric, JsonNode node, JsonArray array)
 		{
 			if (metric.Property == null)
 			{
 				_logger.LogWarning("Missing property parameter for metric {MetricId}", metric.Id);
 				return;
+			}
+
+			if (metric.Filter != null)
+			{
+				PathResult filterResult = metric.Filter.Evaluate(array);
+				if (filterResult.Error != null)
+				{
+					_logger.LogWarning("Error evaluating filter for metric {MetricId}: {Message}", metric.Id, filterResult.Error);
+					return;
+				}
+				if (filterResult.Matches == null || filterResult.Matches.Count == 0)
+				{
+					return;
+				}
 			}
 
 			PathResult result = metric.Property.Evaluate(node);
