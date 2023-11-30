@@ -70,7 +70,7 @@ THIRD_PARTY_INCLUDES_END
 #	elif PLATFORM_MAC
 #		define CEF3_FRAMEWORK_DIR CEF3_BIN_DIR TEXT("/Mac/Chromium Embedded Framework.framework")
 #		define CEF3_RESOURCES_DIR CEF3_FRAMEWORK_DIR TEXT("/Resources")
-#		define CEF3_SUBPROCES_EXE TEXT("Binaries/Mac/EpicWebHelper.app/Contents/MacOS/EpicWebHelper")
+#		define CEF3_SUBPROCES_EXE TEXT("Binaries/Mac/EpicWebHelper")
 #	elif PLATFORM_LINUX // @todo Linux
 #		define CEF3_RESOURCES_DIR CEF3_BIN_DIR TEXT("/Linux/Resources")
 #		define CEF3_SUBPROCES_EXE TEXT("Binaries/Linux/EpicWebHelper")

@@ -52,8 +52,7 @@
 + /Binaries/Mac/
 + /Binaries/Mac/DsymExporter.app
 + /Binaries/Mac/DsymExporter.app/***
-+ /Binaries/Mac/EpicWebHelper.app/
-+ /Binaries/Mac/EpicWebHelper.app/***
++ /Binaries/Mac/EpicWebHelper
 protect /Binaries/Mac/**
 
 # Binaries/IOS

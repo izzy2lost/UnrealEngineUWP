@@ -76,15 +76,7 @@ public class WebBrowser : ModuleRules
 
 			if (Target.Type != TargetType.Server)
 			{
-				if (Target.Platform == UnrealTargetPlatform.Mac)
-				{
-					// Add contents of EpicWebHelper.app directory as runtime dependencies
-					foreach (string FilePath in Directory.EnumerateFiles(Target.RelativeEnginePath + "/Binaries/Mac/EpicWebHelper.app", "*", SearchOption.AllDirectories))
-					{
-						RuntimeDependencies.Add(FilePath);
-					}
-				}
-				else if (Target.Platform == UnrealTargetPlatform.Linux)
+				if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.Linux)
 				{
 					RuntimeDependencies.Add("$(EngineDir)/Binaries/" + Target.Platform.ToString() + "/EpicWebHelper");
 				}
