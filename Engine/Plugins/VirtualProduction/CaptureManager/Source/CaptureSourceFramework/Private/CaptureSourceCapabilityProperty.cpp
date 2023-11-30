@@ -78,6 +78,8 @@ bool FPropertyList::CheckPropertyValueType(FPropertyDesc::EType InType, const FP
 			return InValue.IsType<TArray<FString>>();
 		case FPropertyDesc::EType::ArrayFloatingPoint:
 			return InValue.IsType<TArray<double>>();
+		case FPropertyDesc::EType::Any:
+			return true;
 		default:
 			return false;
 	}

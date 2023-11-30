@@ -20,7 +20,8 @@ struct CAPTURESOURCEFRAMEWORK_API FPropertyDesc
 		ArrayBool,
 		ArrayNumber,
 		ArrayString,
-		ArrayFloatingPoint
+		ArrayFloatingPoint,
+		Any
 	};
 
 	enum class EAccess

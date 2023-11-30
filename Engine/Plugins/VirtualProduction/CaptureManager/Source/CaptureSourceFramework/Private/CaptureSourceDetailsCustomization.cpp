@@ -403,15 +403,10 @@ TSharedPtr<SWidget> FCaptureSourceDetailsCustomization::MakeValueWidget(FCapture
 			});
 			break;
 		case FPropertyDesc::EType::ArrayBool:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayNumber:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayString:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayFloatingPoint:
+		case FPropertyDesc::EType::Any:
 		default:
 			Widget = SNullWidget::NullWidget;
 	}
@@ -473,15 +468,10 @@ TSharedPtr<SWidget> FCaptureSourceDetailsCustomization::MakeValueWidget(const FP
 			});
 			break;
 		case FPropertyDesc::EType::ArrayBool:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayNumber:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayString:
-			Widget = SNullWidget::NullWidget;
-			break;
 		case FPropertyDesc::EType::ArrayFloatingPoint:
+		case FPropertyDesc::EType::Any:
 		default:
 			Widget = SNullWidget::NullWidget;
 	}
@@ -504,12 +494,10 @@ FPropertyValue FCaptureSourceDetailsCustomization::GetDefaultValueForProperty(co
 		case FPropertyDesc::EType::String:
 			return MakePropertyValue<FString>(TEXT(""));
 		case FPropertyDesc::EType::ArrayBool:
-			return MakePropertyValue(FEmptyVariantState());
 		case FPropertyDesc::EType::ArrayNumber:
-			return MakePropertyValue(FEmptyVariantState());
 		case FPropertyDesc::EType::ArrayString:
-			return MakePropertyValue(FEmptyVariantState());
 		case FPropertyDesc::EType::ArrayFloatingPoint:
+		case FPropertyDesc::EType::Any:
 		default:
 			return MakePropertyValue(FEmptyVariantState());
 	}

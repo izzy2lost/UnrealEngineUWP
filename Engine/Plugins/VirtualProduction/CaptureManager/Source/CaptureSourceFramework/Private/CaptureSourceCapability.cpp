@@ -9,7 +9,10 @@ FCaptureSourceCapabilityDesc::FCaptureSourceCapabilityDesc(FString InName, TArra
 {
 }
 
-const FString& FCapturePropertyChangedEvent::EventName = TEXT("PropertyChanged");
+const FString FCapturePropertyChangedEvent::EventName = TEXT("PropertyChanged");
+const FString FCapturePropertyChangedEvent::Property = TEXT("Property");
+const FString FCapturePropertyChangedEvent::PropertyValue = TEXT("Value");
+
 FCapturePropertyChangedEvent::FCapturePropertyChangedEvent(const FString& InName, FPropertyValue InValue)
 	: FCaptureEvent(EventName)
 	, Name(InName)
@@ -20,7 +23,11 @@ FCapturePropertyChangedEvent::FCapturePropertyChangedEvent(const FString& InName
 FCaptureSourceCapability::FCaptureSourceCapability(FString InName)
 	: Name(MoveTemp(InName))
 {
-	RegisterEvent(FCapturePropertyChangedEvent::EventName);
+	AddEvent(FEventDesc(FCapturePropertyChangedEvent::EventName, 
+						{
+							FPropertyDesc(FCapturePropertyChangedEvent::Property, FPropertyDesc::EType::String),
+							FPropertyDesc(FCapturePropertyChangedEvent::PropertyValue, FPropertyDesc::EType::Any)
+						}));
 }
 
 void FCaptureSourceCapability::PublishPropertyChangedEvent(const FString& InName, FPropertyValue InValue)
@@ -71,6 +78,11 @@ TArray<FCommandDesc> FCaptureSourceCapability::GetCommands() const
 	return Commands.GetCommands();
 }
 
+TArray<FEventDesc> FCaptureSourceCapability::GetEvents() const
+{
+	return Events.GetEvents();
+}
+
 FString FCaptureSourceCapability::GetName() const
 {
 	return Name;
@@ -110,6 +122,13 @@ void FCaptureSourceCapability::AddProperty(FPropertyDesc InPropertyDesc)
 void FCaptureSourceCapability::AddCommand(FCommandDesc InCommand)
 {
 	Commands.AddCommand(MoveTemp(InCommand));
+}
+
+void FCaptureSourceCapability::AddEvent(FEventDesc InEvent)
+{
+	RegisterEvent(InEvent.Name);
+
+	Events.AddEvent(MoveTemp(InEvent));
 }
 
 void FCaptureSourceCapability::ExecuteCommand(TSharedPtr<FCommandBase> InCommand)

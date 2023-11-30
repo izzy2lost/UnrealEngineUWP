@@ -6,6 +6,7 @@
 
 #include "CaptureSourceCapabilityProperty.h"
 #include "CaptureSourceCapabilityCommand.h"
+#include "CaptureSourceCapabilityEvent.h"
 
 struct FCaptureSourceCapabilityDesc
 {
@@ -19,7 +20,9 @@ struct FCaptureSourceCapabilityDesc
 struct CAPTURESOURCEFRAMEWORK_API FCapturePropertyChangedEvent : public FCaptureEvent
 {
 public:
-	static const FString& EventName;
+	static const FString EventName;
+	static const FString Property;
+	static const FString PropertyValue;
 
 	FCapturePropertyChangedEvent(const FString& InName, FPropertyValue InValue);
 
@@ -35,7 +38,7 @@ public:
 	DECLARE_DELEGATE_RetVal_OneParam(FPropertyValue, FPropertyGetter, const FString&);
 	DECLARE_DELEGATE_OneParam(FCommandHandler, TSharedPtr<FCommandBase>);
 
-	virtual ~FCaptureSourceCapability() = default;
+	virtual ~FCaptureSourceCapability() override = default;
 
 	void PublishPropertyChangedEvent(const FString& InName, FPropertyValue InValue);
 
@@ -46,6 +49,7 @@ public:
 
 	TArray<FPropertyDesc> GetProperties() const;
 	TArray<FCommandDesc> GetCommands() const;
+	TArray<FEventDesc> GetEvents() const;
 
 	FString GetName() const;
 
@@ -61,11 +65,13 @@ protected:
 
 	void AddProperty(FPropertyDesc InPropertyDesc);
 	void AddCommand(FCommandDesc InCommand);
+	void AddEvent(FEventDesc InEvent);
 
 private:
 
 	FPropertyList Properties;
 	FCommandList Commands;
+	FEventList Events;
 
 	FString Name;
 
