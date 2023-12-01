@@ -290,6 +290,9 @@ namespace mu
 		//! Optimize skinning before adding a mesh to the component
 		ME_OPTIMIZESKINNING,
 
+		//! Add a set of tags to a mesh
+		ME_ADDTAGS,
+
         //-----------------------------------------------------------------------------------------
         // Instance operations
         //-----------------------------------------------------------------------------------------

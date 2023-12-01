@@ -2814,6 +2814,80 @@ namespace mu
             break;
         }
 
+        case OP_TYPE::ME_ADDTAGS:
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ME_ADDTAGS)
+
+			// Decode op
+			// TODO: Partial decode for each stage
+			const uint8* Data = pModel->GetPrivate()->m_program.GetOpArgsPointer(item.At);
+
+			OP::ADDRESS Source;
+			FMemory::Memcpy(&Source, Data, sizeof(OP::ADDRESS));
+			Data += sizeof(OP::ADDRESS);
+
+			// Schedule next stages
+			switch (item.Stage)
+			{
+			case 0:
+			{
+				if (Source)
+				{
+					// Request the source
+					AddOp(FScheduledOp(item.At, item, 1), FScheduledOp(Source, item));
+				}
+				else
+				{
+					StoreMesh(item, nullptr);
+				}
+				break;
+			}
+
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_ADDTAGS_2)
+
+				Ptr<const Mesh> SourceMesh = LoadMesh(FCacheAddress(Source, item));
+
+				if (!SourceMesh)
+				{
+					StoreMesh(item, nullptr);
+				}
+				else
+				{
+					Ptr<Mesh> Result = CloneOrTakeOver(SourceMesh);
+
+					// Decode the tags
+					uint16 TagCount;
+					FMemory::Memcpy(&TagCount, Data, sizeof(uint16));
+					Data += sizeof(uint16);
+
+					int32 FirstMeshTagIndex = Result->m_tags.Num();
+					Result->m_tags.SetNum(FirstMeshTagIndex+TagCount);
+					for (uint16 TagIndex = 0; TagIndex < TagCount; ++TagIndex)
+					{
+						OP::ADDRESS TagConstant;
+						FMemory::Memcpy(&TagConstant, Data, sizeof(OP::ADDRESS));
+						Data += sizeof(OP::ADDRESS);
+
+						check(TagConstant < (uint32)pModel->GetPrivate()->m_program.m_constantStrings.Num());
+						const FString& Name = pModel->GetPrivate()->m_program.m_constantStrings[TagConstant];
+						Result->m_tags[FirstMeshTagIndex+TagIndex] = Name;
+					}
+
+					StoreMesh(item, Result);
+				}
+
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
         case OP_TYPE::ME_PROJECT:
         {
 			OP::MeshProjectArgs args = pModel->GetPrivate()->m_program.GetOpArgs<OP::MeshProjectArgs>(item.At);

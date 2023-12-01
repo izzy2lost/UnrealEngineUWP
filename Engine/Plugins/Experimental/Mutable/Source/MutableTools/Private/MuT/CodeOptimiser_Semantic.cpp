@@ -25,12 +25,10 @@
 #include "MuT/ASTOpImageTransform.h"
 #include "MuT/ASTOpImageRasterMesh.h"
 #include "MuT/ASTOpMeshMorph.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/CodeOptimiser.h"
 #include "MuT/Table.h"
-
-#include <memory>
-#include <utility>
 
 
 namespace mu
@@ -393,6 +391,31 @@ namespace mu
 			break;
 		}
 
+		//-------------------------------------------------------------------------------------
+		case OP_TYPE::ME_MASKDIFF:
+		{
+			Ptr<ASTOp> Fragment = children[op.args.MeshMaskDiff.fragment].child();
+			OP_TYPE FragmentType = Fragment->GetOpType();
+			switch (FragmentType)
+			{
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				// Tags in the fragment can be ignored.
+				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(Fragment.get());
+
+				Ptr<ASTOpFixed> NewAt = mu::Clone<ASTOpFixed>(this);
+				NewAt->SetChild(NewAt->op.args.MeshMaskDiff.fragment, Add->Source);
+				at = NewAt;
+				break;
+			}
+
+			default:
+				break;
+			}
+
+			break;
+		}
+
         default:
             break;
         }
@@ -504,6 +527,17 @@ namespace mu
                 }
                 break;
             }
+
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				// Ignore tags for projection
+				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(sourceAt.get());
+
+				Ptr<ASTOpFixed> NewProject = mu::Clone<ASTOpFixed>(this);
+				NewProject->SetChild(NewProject->op.args.MeshProject.mesh, Add->Source);
+				at = NewProject;
+				break;
+			}
 
             default:
                 break;

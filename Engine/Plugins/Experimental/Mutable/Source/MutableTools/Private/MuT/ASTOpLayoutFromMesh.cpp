@@ -19,6 +19,7 @@
 #include "MuT/ASTOpMeshFormat.h"
 #include "MuT/ASTOpMeshApplyShape.h"
 #include "MuT/ASTOpMeshBindShape.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/ASTOpLayoutMerge.h"
 #include "MuT/StreamsPrivate.h"
@@ -188,6 +189,15 @@ namespace mu
 					const ASTOpMeshBindShape* Typed = dynamic_cast<const ASTOpMeshBindShape*>(at.get());
 					check(Typed);
 					newAt = Visit(Typed->Mesh.child(), CurrentSinkingOp);
+					break;
+				}
+
+				case OP_TYPE::ME_ADDTAGS:
+				{
+					// Sink, ignoring the op
+					const ASTOpMeshAddTags* Typed = dynamic_cast<const ASTOpMeshAddTags*>(at.get());
+					check(Typed);
+					newAt = Visit(Typed->Source.child(), CurrentSinkingOp);
 					break;
 				}
 

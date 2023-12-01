@@ -16,6 +16,7 @@
 #include "MuT/ASTOpMeshClipMorphPlane.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshMorph.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/StreamsPrivate.h"
 
@@ -252,6 +253,14 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 	{
 		auto newOp = mu::Clone<ASTOpFixed>(at);
 		newOp->SetChild(newOp->op.args.MeshSetSkeleton.source, Visit(newOp->children[newOp->op.args.MeshSetSkeleton.source].child(), currentFormatOp));
+		newAt = newOp;
+		break;
+	}
+
+	case OP_TYPE::ME_ADDTAGS:
+	{
+		Ptr<ASTOpMeshAddTags> newOp = mu::Clone<ASTOpMeshAddTags>(at);
+		newOp->Source = Visit(newOp->Source.child(), currentFormatOp);
 		newAt = newOp;
 		break;
 	}

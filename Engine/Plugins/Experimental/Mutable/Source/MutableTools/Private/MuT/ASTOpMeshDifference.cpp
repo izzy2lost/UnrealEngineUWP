@@ -10,6 +10,7 @@
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
+#include "MuT/ASTOpMeshAddTags.h"
 
 #include <memory>
 
@@ -263,6 +264,21 @@ namespace mu
 				break;
 			}
 
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				Ptr<ASTOpMeshAddTags> NewAdd = mu::Clone<ASTOpMeshAddTags>(BaseAt);
+
+				if (NewAdd->Source)
+				{
+					Ptr<ASTOpMeshDifference> NewDiff = mu::Clone<ASTOpMeshDifference>(this);
+					NewDiff->Base = NewAdd->Source.child();
+					NewAdd->Source = NewDiff;
+				}
+
+				NewOp = NewAdd;
+				break;
+			}
+
 			default:
 				break;
 
@@ -322,6 +338,17 @@ namespace mu
 				}
 
 				NewOp = NewConditional;
+				break;
+			}
+
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				// Ignore tags in this branch
+				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(TargetAt.get());
+
+				Ptr<ASTOpMeshDifference> NewDiff = mu::Clone<ASTOpMeshDifference>(this);
+				NewDiff->Target = Add->Source.child();
+				NewOp = NewDiff;
 				break;
 			}
 

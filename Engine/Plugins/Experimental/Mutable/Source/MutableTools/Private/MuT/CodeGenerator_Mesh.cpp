@@ -29,6 +29,7 @@
 #include "MuT/ASTOpMeshTransform.h"
 #include "MuT/ASTOpMeshDifference.h"
 #include "MuT/ASTOpMeshMorph.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/CodeGenerator.h"
 #include "MuT/CodeGenerator_FirstPass.h"
@@ -76,9 +77,6 @@
 #include "MuT/TablePrivate.h"
 
 #include "Spatial/PointHashGrid3.h"
-
-#include <memory>
-#include <utility>
 
 
 namespace mu
@@ -1278,6 +1276,15 @@ namespace mu
 			return;
 		}
 
+		// Separate the tags from the mesh
+		TArray<FString> Tags = pMesh->m_tags;
+		if (Tags.Num())
+		{
+			Ptr<Mesh> TaglessMesh = CloneOrTakeOver(pMesh.get());
+			TaglessMesh->m_tags.SetNum(0, false);
+			pMesh = TaglessMesh;
+		}
+
 		// Find out if we can (or have to) reuse a mesh that we have already generated.
 		MeshPtrConst DuplicateOf;
 		for (int32 i = 0; i < m_constantMeshes.Num(); ++i)
@@ -1331,6 +1338,7 @@ namespace mu
 			}
 		}
 
+		Ptr<const Mesh> FinalMesh;
 		if (DuplicateOf)
 		{
 			// Make sure the source layouts of the mesh are mapped to the layouts of the duplicated mesh.
@@ -1354,7 +1362,7 @@ namespace mu
 				}
 			}
 
-			op->SetValue(DuplicateOf, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+			FinalMesh = DuplicateOf;
 		}
 		else
 		{
@@ -1425,27 +1433,39 @@ namespace mu
 					uint32* pIdData = (uint32*)pCloned->GetVertexBuffers().GetBufferData(newBuffer);
 					for (int i = 0; i < pMesh->GetVertexCount(); ++i)
 					{
-						check(m_freeVertexIndex < std::numeric_limits<uint32>::max());
+						check(m_freeVertexIndex < TNumericLimits<uint32>::Max());
 
 						(*pIdData++) = m_freeVertexIndex++;
-						check(m_freeVertexIndex < std::numeric_limits<uint32>::max());
+						check(m_freeVertexIndex < TNumericLimits<uint32>::Max());
 					}
 				}
 			}
 
 			// Add the constant data
 			m_constantMeshes.Add(pCloned);
-			op->SetValue(pCloned.get(), m_compilerOptions->OptimisationOptions.bUseDiskCache);
+			FinalMesh = pCloned;
 		}
 
- 
+		op->SetValue(FinalMesh, m_compilerOptions->OptimisationOptions.bUseDiskCache);
+
+		Ptr<ASTOp> LastMeshOp = op;
+
+		// Add the tags operation
+		if (Tags.Num())
+		{
+			Ptr<ASTOpMeshAddTags> AddTagsOp = new ASTOpMeshAddTags;
+			AddTagsOp->Source = LastMeshOp;
+			AddTagsOp->Tags = Tags;
+			LastMeshOp = AddTagsOp;
+		}
+
 		// Apply the modifier for the pre-normal operations stage.
-		FBottomUpState temp = m_currentBottomUpState;
+		FBottomUpState TempState = m_currentBottomUpState;
 
 		bool bModifiersForBeforeOperations = true;
-		OutResult.meshOp = ApplyMeshModifiers(op, InOptions.ActiveTags, bModifiersForBeforeOperations, node.m_errorContext);
+		OutResult.meshOp = ApplyMeshModifiers(LastMeshOp, InOptions.ActiveTags, bModifiersForBeforeOperations, node.m_errorContext);
 
-		m_currentBottomUpState = temp;
+		m_currentBottomUpState = TempState;
 
     }
 

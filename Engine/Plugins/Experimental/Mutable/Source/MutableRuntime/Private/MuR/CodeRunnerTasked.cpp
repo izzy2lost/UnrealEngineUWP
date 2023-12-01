@@ -190,7 +190,8 @@ namespace mu
 		{   0, -10,   0,   0 },	// ME_CLIPDEFORM
 		{   0, -10,   0,   0 },	// ME_MORPHRESHAPE
 		{   0,   0,   0,   0 },	// ME_OPTIMIZESKINNING
-		    
+		{	0,   0,	  0,   0 },	// ME_ADDTAGS
+
 		{   0,   0,   0,   0 },	// IN_ADDMESH
 		{   0,   0,   0,   0 },	// IN_ADDIMAGE
 		{   0,   0,   0,   0 },	// IN_ADDVECTOR

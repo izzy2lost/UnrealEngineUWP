@@ -1564,6 +1564,24 @@ void SMutableCodeViewer::GenerateElementRecursive(const int32& InStateIndex, mu:
 		break;
 	}
 
+	case mu::OP_TYPE::ME_ADDTAGS:
+	{
+		const uint8* OpData = InProgram.GetOpArgsPointer(InParentAddress);
+
+		mu::OP::ADDRESS SourceAddress;
+		FMemory::Memcpy(&SourceAddress, OpData, sizeof(mu::OP::ADDRESS));
+		OpData += sizeof(mu::OP::ADDRESS);
+
+		uint16 TagCount;
+		FMemory::Memcpy(&TagCount, OpData, sizeof(uint16));
+		OpData += sizeof(uint16);
+
+		FString Caption = FString::Printf(TEXT("add %d tags to "), TagCount);
+		AddOpFunc(SourceAddress, Caption);
+
+		break;
+	}
+
 	default:
 	{
 		// Generic list of child operations

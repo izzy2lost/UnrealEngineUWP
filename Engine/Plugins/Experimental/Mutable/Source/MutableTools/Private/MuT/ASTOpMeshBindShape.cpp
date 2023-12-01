@@ -10,6 +10,7 @@
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/StreamsPrivate.h"
 
 #include <memory>
@@ -370,6 +371,20 @@ namespace mu
 				break;
 			}
 
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				Ptr<ASTOpMeshAddTags> New = mu::Clone<ASTOpMeshAddTags>(MeshAt);
+				if (New->Source)
+				{
+					Ptr<ASTOpMeshBindShape> NewBind = mu::Clone<ASTOpMeshBindShape>(this);
+					NewBind->Mesh = New->Source.child();
+					New->Source = NewBind;
+				}
+
+				NewOp = New;
+				break;
+			}
+
 			default:
 				break;
 
@@ -429,6 +444,16 @@ namespace mu
 				}
 
 				NewOp = NewConditional;
+				break;
+			}
+
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				// Ignore the tags in the shape
+				Ptr<ASTOpMeshBindShape> NewBind = mu::Clone<ASTOpMeshBindShape>(this);
+				const ASTOpMeshAddTags* New = dynamic_cast<const ASTOpMeshAddTags*>(ShapeAt.get());
+				NewBind->Shape = New->Source.child();
+				NewOp = NewBind;
 				break;
 			}
 

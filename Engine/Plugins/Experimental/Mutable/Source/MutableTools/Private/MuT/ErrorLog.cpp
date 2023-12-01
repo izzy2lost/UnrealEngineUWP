@@ -289,7 +289,7 @@ namespace mu
 
 		TEXT("ME_APPLYLAYOUT   "),
 		TEXT("ME_DIFFERENCE    "),
-		TEXT("ME_MORPH2        "),
+		TEXT("ME_MORPH         "),
 		TEXT("ME_MERGE         "),
 		TEXT("ME_INTERPOLATE   "),
 		TEXT("ME_MASKCLIPMESH  "),
@@ -310,6 +310,7 @@ namespace mu
 		TEXT("ME_CLIPDEFORM	   "),
 		TEXT("ME_MORPHRESHAPE  "),
 		TEXT("ME_OPTIMIZESKIN  "),
+		TEXT("ME_ADDTAGS       "),
 
 		TEXT("IN_ADDMESH       "),
 		TEXT("IN_ADDIMAGE      "),

@@ -7,12 +7,13 @@
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpSwitch.h"
-#include "Containers/Map.h"
-#include "HAL/PlatformMath.h"
+#include "MuT/ASTOpMeshAddTags.h"
+#include "MuT/StreamsPrivate.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
-#include "MuT/StreamsPrivate.h"
+#include "Containers/Map.h"
+#include "HAL/PlatformMath.h"
 
 
 namespace mu
@@ -261,6 +262,7 @@ namespace mu
 
 		case OP_TYPE::ME_INTERPOLATE:
 		{
+			// TODO: should be sink only if no imageAt?
 			auto typedSource = dynamic_cast<const ASTOpFixed*>(sourceAt.get());
 			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
 			rasterOp->mesh = typedSource->children[typedSource->op.args.MeshInterpolate.base].child();
@@ -270,9 +272,20 @@ namespace mu
 
 		case OP_TYPE::ME_MORPH:
 		{
+			// TODO: should be sink only if no imageAt?
 			const ASTOpMeshMorph* typedSource = dynamic_cast<const ASTOpMeshMorph*>(sourceAt.get());
 			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
 			rasterOp->mesh = typedSource->Base.child();
+			at = rasterOp;
+			break;
+		}
+
+		case OP_TYPE::ME_ADDTAGS:
+		{
+			// Ignore tags
+			const ASTOpMeshAddTags* typedSource = dynamic_cast<const ASTOpMeshAddTags*>(sourceAt.get());
+			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
+			rasterOp->mesh = typedSource->Source.child();
 			at = rasterOp;
 			break;
 		}

@@ -3,13 +3,12 @@
 #include "MuT/ASTOpMeshRemoveMask.h"
 
 #include "MuT/ASTOpMeshMorph.h"
+#include "MuT/ASTOpMeshAddTags.h"
 #include "HAL/PlatformMath.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
 #include "MuT/StreamsPrivate.h"
-
-#include <memory>
 
 
 namespace mu
@@ -176,6 +175,14 @@ namespace mu
 					break;
 				}
 
+				case OP_TYPE::ME_ADDTAGS:
+				{
+					mu::Ptr<ASTOpMeshAddTags> newOp = mu::Clone<ASTOpMeshAddTags>(at);
+					newOp->Source = Visit(newOp->Source.child());
+					newAt = newOp;
+					break;
+				}
+
 				// disabled to avoid code explosion (or bug?) TODO
 //            case OP_TYPE::ME_CONDITIONAL:
 //            {
@@ -225,6 +232,43 @@ namespace mu
 	{
 		Sink_MeshRemoveMaskAST sinker;
 		mu::Ptr<ASTOp> at = sinker.Apply(this);
+
+		// If not optimized already, see if we can optimize the "remove" branches
+		if (!at)
+		{
+			Ptr<ASTOpMeshRemoveMask> NewOp;
+
+			for (int32 RemoveIndex=0; RemoveIndex<removes.Num(); ++RemoveIndex)
+			{
+				if (!removes[RemoveIndex].Value)
+				{
+					continue;
+				}
+
+				OP_TYPE RemoveType = removes[RemoveIndex].Value->GetOpType();
+				switch (RemoveType)
+				{
+				case OP_TYPE::ME_ADDTAGS:
+				{
+					// It can be ignored.
+					if (!NewOp)
+					{
+						NewOp = mu::Clone<ASTOpMeshRemoveMask>(this);
+					}
+
+					const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(removes[RemoveIndex].Value.child().get());
+					NewOp->removes[RemoveIndex].Value = Add->Source.child();
+
+					break;
+				}
+
+				default:
+					break;
+				}
+			}
+
+			at = NewOp;
+		}
 
 		return at;
 	}

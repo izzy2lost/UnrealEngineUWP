@@ -4,13 +4,14 @@
 
 #include "MuT/ASTOpSwitch.h"
 #include "MuT/ASTOpConditional.h"
-#include "Misc/AssertionMacros.h"
+#include "MuT/ASTOpMeshAddTags.h"
+#include "MuT/ASTOpMeshMorph.h"
+#include "MuT/ASTOpMeshRemoveMask.h"
+#include "MuT/ASTOpMeshClipMorphPlane.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
-
-#include <memory>
-#include <utility>
+#include "Misc/AssertionMacros.h"
 
 namespace mu
 {
@@ -154,6 +155,77 @@ namespace mu
 			}
 
 			NewOp = NewConditional;
+			break;
+		}
+
+		case OP_TYPE::ME_ADDTAGS:
+		{
+			Ptr<ASTOpMeshAddTags> NewAddTags = mu::Clone<ASTOpMeshAddTags>(Source.child());
+
+			if (NewAddTags->Source)
+			{
+				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
+				New->Source = NewAddTags->Source.child();
+				NewAddTags->Source = New;
+			}
+
+			NewOp = NewAddTags;
+			break;
+		}
+
+		case OP_TYPE::ME_MORPH:
+		{
+			// Move the operation down the base and the target
+			Ptr<ASTOpMeshMorph> NewMorph = mu::Clone<ASTOpMeshMorph>(Source.child());
+
+			if (NewMorph->Base)
+			{
+				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
+				New->Source = NewMorph->Base.child();
+				NewMorph->Base = New;
+			}
+
+			if (NewMorph->Target)
+			{
+				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
+				New->Source = NewMorph->Target.child();
+				NewMorph->Target = New;
+			}
+
+			NewOp = NewMorph;
+			break;
+		}
+
+		case OP_TYPE::ME_REMOVEMASK:
+		{
+			// Move the operation down the base
+			// \TODO: mask too to try to make them smaller?
+			Ptr<ASTOpMeshRemoveMask> NewRemove = mu::Clone<ASTOpMeshRemoveMask>(Source.child());
+
+			if (NewRemove->source)
+			{
+				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
+				New->Source = NewRemove->source.child();
+				NewRemove->source = New;
+			}
+
+			NewOp = NewRemove;
+			break;
+		}
+
+		case OP_TYPE::ME_CLIPMORPHPLANE:
+		{
+			// Move the operation down the source
+			Ptr<ASTOpMeshClipMorphPlane> NewMorph = mu::Clone<ASTOpMeshClipMorphPlane>(Source.child());
+
+			if (NewMorph->source)
+			{
+				Ptr<ASTOpMeshExtractLayoutBlocks> New = mu::Clone<ASTOpMeshExtractLayoutBlocks>(this);
+				New->Source = NewMorph->source.child();
+				NewMorph->source = New;
+			}
+
+			NewOp = NewMorph;
 			break;
 		}
 

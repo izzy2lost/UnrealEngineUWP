@@ -2,14 +2,12 @@
 
 #include "MuT/ASTOpMeshClipMorphPlane.h"
 
-#include "HAL/PlatformMath.h"
+#include "MuT/ASTOpMeshAddTags.h"
+#include "MuT/StreamsPrivate.h"
 #include "MuR/ModelPrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
-#include "MuT/StreamsPrivate.h"
-
-#include <memory>
-#include <utility>
+#include "HAL/PlatformMath.h"
 
 
 namespace mu
@@ -111,6 +109,44 @@ namespace mu
 			AppendCode(program.m_byteCode, args);
 		}
 
+	}
+
+	mu::Ptr<ASTOp> ASTOpMeshClipMorphPlane::OptimiseSink(const FModelOptimizationOptions&, FOptimizeSinkContext&) const
+	{
+		Ptr<ASTOp> NewOp;
+
+		if (!source.child())
+		{
+			return nullptr;
+		}
+
+		OP_TYPE SourceType = source.child()->GetOpType();
+
+		// Optimize only the mesh parameter
+		switch (SourceType)
+		{
+
+		case OP_TYPE::ME_ADDTAGS:
+		{
+			Ptr<ASTOpMeshAddTags> NewAddTags = mu::Clone<ASTOpMeshAddTags>(source.child());
+
+			if (NewAddTags->Source)
+			{
+				Ptr<ASTOpMeshClipMorphPlane> New = mu::Clone<ASTOpMeshClipMorphPlane>(this);
+				New->source = NewAddTags->Source.child();
+				NewAddTags->Source = New;
+			}
+
+			NewOp = NewAddTags;
+			break;
+		}
+
+		default:
+			break;
+
+		}
+
+		return NewOp;
 	}
 
 }
