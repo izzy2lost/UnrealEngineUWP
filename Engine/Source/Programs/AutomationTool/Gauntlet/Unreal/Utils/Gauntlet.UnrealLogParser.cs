@@ -303,7 +303,7 @@ namespace Gauntlet
 					{
 						byte[] Buffer = Encoding.UTF8.GetBytes(Line);
 						JsonLogEvent JsonEvent = JsonLogEvent.Parse(Buffer);
-						Line = JsonEvent.GetRenderedMessage().ToString();
+						Line = JsonEvent.GetLegacyLogLine();
 					}
 					catch (Exception ex)
 					{

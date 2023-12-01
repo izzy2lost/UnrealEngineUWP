@@ -220,6 +220,49 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Gets the event data rendered as a legacy unreal log line of the format:
+		/// [timestamp][frame number]LogChannel: LogVerbosity: Message
+		/// </summary>
+		public string GetLegacyLogLine()
+		{
+			Utf8JsonReader reader = new Utf8JsonReader(Data.Span);
+			if (reader.Read() && reader.TokenType == JsonTokenType.StartObject)
+			{
+				Utf8String? message = null;
+				DateTime? time = null;
+				while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+				{
+					ReadOnlySpan<byte> propertyName = reader.ValueSpan;
+					if (!reader.Read())
+					{
+						break;
+					}
+					else if (propertyName.SequenceEqual(LogEventPropertyName.Time) && reader.TokenType == JsonTokenType.String)
+					{
+						time = reader.GetDateTime();
+					}
+					else if (propertyName.SequenceEqual(LogEventPropertyName.Message) && reader.TokenType == JsonTokenType.String)
+					{
+						message = new Utf8String(reader.GetUtf8String().ToArray());
+					}
+				}
+
+				if (message is not null)
+				{
+					if (time is not null)
+					{
+						return $"[{time:yyyy.MM.dd-HH.mm.ss:fff}][  0]{message}"; // Structured logs currently don't contain frame number
+					}
+					else
+					{
+						return $"{message}";
+					}
+				}
+			}
+			return String.Empty;
+		}
+
+		/// <summary>
 		/// Count the number of lines in the message field of a log event
 		/// </summary>
 		/// <returns>Number of lines in the message</returns>
