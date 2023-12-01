@@ -1176,10 +1176,17 @@ public:
 	/** Pops the LastStart bits off of the send buffer, used for merging bunches */
 	void PopLastStart();
 
+	/**
+	 * returns whether the client has initialized the given level
+	 * @return true if the client has initialized the given level, false otherwise
+	 */
+	ENGINE_API virtual bool ClientHasInitializedLevel(const ULevel* TestLevel) const;
+
 	/** 
 	 * returns whether the client has initialized the level required for the given object
 	 * @return true if the client has initialized the level the object is in or the object is not in a level, false otherwise
 	 */
+	UE_DEPRECATED(5.4, "ClientHasInitializedLevelFor is deprecated. Use ClientHasInitializedLevel and pass the actor's level (Actor->GetLevel()) instead.")
 	ENGINE_API virtual bool ClientHasInitializedLevelFor(const AActor* TestActor) const;
 
 	/**
@@ -1944,7 +1951,7 @@ public:
 	virtual void LowLevelSend(void* Data, int32 CountBits, FOutPacketTraits& Traits) override { }
 	ENGINE_API void HandleClientPlayer( APlayerController* PC, UNetConnection* NetConnection ) override;
 	virtual FString LowLevelGetRemoteAddress(bool bAppendPort=false) override { return FString(); }
-	virtual bool ClientHasInitializedLevelFor(const AActor* TestActor) const { return true; }
+	virtual bool ClientHasInitializedLevel(const ULevel* TestLevel) const override { return true; }
 
 	virtual void DestroyOwningActor() override { /* Don't destroy the OwningActor since we follow a real PlayerController*/ }
 

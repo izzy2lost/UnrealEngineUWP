@@ -627,7 +627,7 @@ void ANUTActor::ServerClientPing_Implementation()
 		{
 			// Based on UNetDriver::IsLevelInitializeForActor
 			bNotLoaded = !(CurConn->GetClientWorldPackageName() == CurWorld->GetOutermost()->GetFName() &&
-										CurConn->ClientHasInitializedLevelFor(this));
+										CurConn->ClientHasInitializedLevel(GetLevel()));
 
 			// Also trigger if there is no PlayerController yet set for the connection
 			if (CurConn->OwningActor == nullptr)

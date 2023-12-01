@@ -1786,7 +1786,7 @@ bool FReplayHelper::ReplicateActor(AActor* Actor, UNetConnection* Connection, bo
 		const bool bShouldHaveChannel =
 			Actor->bRelevantForNetworkReplays &&
 			!Actor->GetTearOff() &&
-			(!Actor->IsNetStartupActor() || Connection->ClientHasInitializedLevelFor(Actor));
+			(!Actor->IsNetStartupActor() || Connection->ClientHasInitializedLevel(Actor->GetLevel()));
 
 		UActorChannel* Channel = Connection->FindActorChannelRef(Actor);
 

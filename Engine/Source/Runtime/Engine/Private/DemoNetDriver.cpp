@@ -4971,12 +4971,12 @@ TSharedPtr<const FInternetAddr> UDemoNetConnection::GetRemoteAddr()
 	return FInternetAddrDemo::DemoInternetAddr;
 }
 
-bool UDemoNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
+bool UDemoNetConnection::ClientHasInitializedLevel(const ULevel* TestLevel) const
 {
 	// We save all currently streamed levels into the demo stream so we can force the demo playback client
 	// to stay in sync with the recording server
 	// This may need to be tweaked or re-evaluated when we start recording demos on the client
-	return (GetDriver()->GetDemoFrameNum() > 2 || Super::ClientHasInitializedLevelFor(TestActor));
+	return (GetDriver()->GetDemoFrameNum() > 2 || Super::ClientHasInitializedLevel(TestLevel));
 }
 
 TSharedPtr<FObjectReplicator> UDemoNetConnection::CreateReplicatorForNewActorChannel(UObject* Object)

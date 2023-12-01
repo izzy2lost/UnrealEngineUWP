@@ -1518,7 +1518,7 @@ FNetLevelVisibilityTransactionId UNetConnection::UpdateLevelStreamStatusChangedT
 	return TransactionId;
 }
 
-bool UNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
+bool UNetConnection::ClientHasInitializedLevel(const ULevel* TestLevel) const
 {
 	checkSlow(Driver);
 	checkSlow(Driver->IsServer());
@@ -1526,16 +1526,21 @@ bool UNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
 	// This function is called a lot, basically for every replicated actor every time it replicates, on every client connection
 	// Each client connection has a different visibility state (what levels are currently loaded for them).
 
-	const FName PackageName = TestActor->GetLevel()->GetPackage()->GetFName();
+	const FName PackageName = TestLevel->GetPackage()->GetFName();
 
 	if (const bool* bIsVisible = ClientVisibleActorOuters.Find(PackageName))
 	{
 		return *bIsVisible;
 	}
 
-	// The actor's outer was not in the acceleration map so we perform the "legacy" function and 
+	// The level was not in the acceleration map so we perform the "legacy" function and 
 	// cache the result so that we don't do this every time:
 	return UpdateCachedLevelVisibility(PackageName);
+}
+
+bool UNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
+{
+	return ClientHasInitializedLevel(TestActor->GetLevel());
 }
 
 bool UNetConnection::UpdateCachedLevelVisibility(const FName& PackageName) const
@@ -5101,7 +5106,7 @@ void UNetConnection::FlushDormancyForObject(AActor* DormantActor, UObject* Repli
 		
 		// Init using the object's current state if the client has this actor's level loaded. If the level
 		// is unloaded, we need to use the default state since the client has no current state.
-		if (bFlushDormancyUseDefaultStateForUnloadedLevels && !ClientHasInitializedLevelFor(DormantActor))
+		if (bFlushDormancyUseDefaultStateForUnloadedLevels && !ClientHasInitializedLevel(DormantActor->GetLevel()))
 		{
 			bUseDefaultState = true;
 		}

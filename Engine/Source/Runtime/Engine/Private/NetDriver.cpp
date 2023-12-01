@@ -2013,7 +2013,7 @@ bool UNetDriver::IsLevelInitializedForActor(const AActor* InActor, const UNetCon
 #endif
 
 	// we can't create channels while the client is in the wrong world
-	const bool bCorrectWorld = GetWorldPackage() != nullptr && (InConnection->GetClientWorldPackageName() == GetWorldPackage()->GetFName()) && InConnection->ClientHasInitializedLevelFor(InActor);
+	const bool bCorrectWorld = GetWorldPackage() != nullptr && (InConnection->GetClientWorldPackageName() == GetWorldPackage()->GetFName()) && InConnection->ClientHasInitializedLevel(InActor->GetLevel());
 	
 	// exception: Special case for PlayerControllers as they are required for the client to travel to the new world correctly			
 	bool bIsConnectionPC = false;
