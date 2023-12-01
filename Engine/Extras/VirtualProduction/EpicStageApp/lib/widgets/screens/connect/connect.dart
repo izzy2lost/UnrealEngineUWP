@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+import 'dart:collection';
+
 import 'package:epic_common/theme.dart';
+import 'package:epic_common/unreal_beacon.dart';
 import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -10,7 +13,6 @@ import '../../../../widgets/screens/connect/views/connection_list.dart';
 import '../../../../widgets/screens/main/toolbar/main_screen_toolbar.dart';
 import '../../../models/engine_connection.dart';
 import '../../../models/navigator_keys.dart';
-import '../../../models/unreal_engine_beacon.dart';
 import '../../../utilities/debug_utilities.dart';
 import '../../../utilities/net_utilities.dart';
 import 'mixins/connect_mixin.dart';
@@ -30,7 +32,7 @@ class ConnectScreen extends StatefulWidget {
 
 class _ConnectScreenState extends State<ConnectScreen> with WidgetsBindingObserver, ConnectMixin {
   /// Beacon which will be used to detect instances of Unreal Engine.
-  late final UnrealEngineBeacon _engineBeacon;
+  late final UnrealEngineBeacon<UnrealStageBeaconData> _engineBeacon;
 
   /// Data for the last engine we were connected to, if any.
   ConnectionData? _lastConnection;
@@ -55,8 +57,8 @@ class _ConnectScreenState extends State<ConnectScreen> with WidgetsBindingObserv
 
     _engineBeacon = UnrealEngineBeacon(
       context: context,
+      config: unrealEngineBeaconConfig,
       onBeaconFailure: _onBeaconFailure,
-      onEngineInstancesChanged: () => setState(() {}),
     );
 
     Provider.of<EngineConnectionManager>(context, listen: false)
@@ -137,19 +139,23 @@ class _ConnectScreenState extends State<ConnectScreen> with WidgetsBindingObserv
                         iconPath: 'packages/epic_common/assets/icons/unreal_u_logo.svg',
                       ),
                       Expanded(
-                        child: _engineBeacon.connections.length > 0
-                            ? ConnectionList(
-                                connections: _engineBeacon.connections,
-                              )
-                            : EmptyPlaceholder(
-                                message: AppLocalizations.of(context)!.connectScreenAllConnectionsPanelEmptyMessage,
-                                button: EpicWideButton(
-                                  text: AppLocalizations.of(context)!.connectScreenAllConnectionsPanelEmptyButtonLabel,
-                                  iconPath: 'packages/epic_common/assets/icons/plus.svg',
-                                  color: UnrealColors.highlightGreen,
-                                  onPressed: _showManualConnectDialog,
+                        child: ValueListenableBuilder<UnmodifiableListView<UnrealStageBeaconResponse>>(
+                          valueListenable: _engineBeacon.responses,
+                          builder: (_, responses, __) => responses.isNotEmpty
+                              ? ConnectionList(
+                                  connections: responses.map(ConnectionData.fromBeaconResponse).toList(growable: false),
+                                )
+                              : EmptyPlaceholder(
+                                  message: AppLocalizations.of(context)!.connectScreenAllConnectionsPanelEmptyMessage,
+                                  button: EpicWideButton(
+                                    text:
+                                        AppLocalizations.of(context)!.connectScreenAllConnectionsPanelEmptyButtonLabel,
+                                    iconPath: 'packages/epic_common/assets/icons/plus.svg',
+                                    color: UnrealColors.highlightGreen,
+                                    onPressed: _showManualConnectDialog,
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
                     ],
                   ),

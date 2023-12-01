@@ -12,7 +12,6 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/io.dart';
 
 import './navigator_keys.dart';
@@ -877,7 +876,6 @@ class EngineConnectionManager with WidgetsBindingObserver {
       ConnectionData? loadedConnectionData;
       try {
         loadedConnectionData = ConnectionData(
-          uuid: UuidValue(const Uuid().v1()),
           name: name,
           websocketAddress: InternetAddress(address),
           websocketPort: port,
