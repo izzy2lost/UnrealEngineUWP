@@ -20,7 +20,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("DuplicatePoint")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGDuplicatePointElement", "NodeTitle", "Duplicate Point"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGDuplicatePointElement", "NodeTooltip", "Creates duplicates of each point with optional transform offsets."); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:

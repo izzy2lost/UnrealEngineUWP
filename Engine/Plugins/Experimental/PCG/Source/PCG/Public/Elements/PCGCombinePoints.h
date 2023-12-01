@@ -21,7 +21,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CombinePoints")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCombinePointsElement", "NodeTitle", "Combine Points"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCombinePointsElement", "NodeTooltip", "Combines each point to share a singular bound extent."); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:

@@ -32,7 +32,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("BoundsModifier")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGBoundsModifierSettings", "NodeTitle", "Bounds Modifier"); }
 	virtual FText GetNodeTooltipText() const override;
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:

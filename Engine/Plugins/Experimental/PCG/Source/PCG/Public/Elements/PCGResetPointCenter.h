@@ -21,7 +21,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("ResetPointCenter")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGResetPointCenterElement", "NodeTitle", "Reset Point Center"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGResetPointCenterElement", "NodeTooltip", "Modify the position of a point within its bounds, while keeping its bounds the same."); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:

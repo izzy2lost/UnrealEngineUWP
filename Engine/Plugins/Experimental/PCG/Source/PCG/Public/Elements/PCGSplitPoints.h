@@ -28,7 +28,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("SplitPoints")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSplitPointsElement", "NodeTitle", "Split Points"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGSplitPointsElement", "NodeTooltip", "Splits each input point into two separate points and sets bounds based on the position and axis of the cut."); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:

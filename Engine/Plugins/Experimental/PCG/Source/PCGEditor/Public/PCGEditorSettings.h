@@ -80,6 +80,10 @@ public:
 	/** Color used for control flow operations */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	FLinearColor ControlFlowNodeColor;
+	
+	/** Color used for point operations */
+	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
+	FLinearColor PointOpsNodeColor;
 
 	/** Color used for hierarchical generation operations */
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))

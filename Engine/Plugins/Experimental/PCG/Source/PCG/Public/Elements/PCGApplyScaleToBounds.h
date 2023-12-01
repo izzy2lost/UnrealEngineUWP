@@ -20,7 +20,7 @@ public:
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("ApplyScaleToBounds")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGApplyScaleToBoundsElement", "NodeTitle", "Apply Scale To Bounds"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGApplyScaleToBoundsElement", "NodeTooltip", "Applies the scale of each point to its bounds and resets the scale."); }
-	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::PointOps; }
 #endif
 
 protected:
