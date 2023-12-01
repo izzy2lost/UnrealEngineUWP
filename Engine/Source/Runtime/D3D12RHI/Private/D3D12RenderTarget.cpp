@@ -603,7 +603,7 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 			for (uint32 X = 0; X < Width; X++)
 			{
 				uint16 Value16 = *SrcPtr;
-				float Value = Value16 / (float)(0xffff);
+				float Value = Value16 * (1.f/0xffff);
 
 				*DestPtr = FLinearColor(Value, Value, Value);
 				++SrcPtr;
@@ -620,7 +620,7 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 			FLinearColor* DestPtr = Out + Y * Width;
 			for (uint32 X = 0; X < Width; X++)
 			{
-				FColor sRGBColor = FColor(SrcPtr->B, SrcPtr->G, SrcPtr->R, SrcPtr->A);
+				FColor sRGBColor = FColor(SrcPtr->B, SrcPtr->G, SrcPtr->R, SrcPtr->A); // swap RB
 				*DestPtr = FLinearColor(sRGBColor);
 				++SrcPtr;
 				++DestPtr;
@@ -635,8 +635,7 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 			FLinearColor* DestPtr = Out + Y * Width;
 			for (uint32 X = 0; X < Width; X++)
 			{
-				FColor sRGBColor = FColor(SrcPtr->R, SrcPtr->G, SrcPtr->B, SrcPtr->A);
-				*DestPtr = FLinearColor(sRGBColor);
+				*DestPtr = FLinearColor(*SrcPtr);
 				++SrcPtr;
 				++DestPtr;
 			}
@@ -668,14 +667,12 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 		{
 			for (uint32 Y = 0; Y < Height; Y++)
 			{
-				FFloat16* SrcPtr = (FFloat16*)(In + Y * SrcPitch);
+				const FFloat16Color* SrcPtr = (FFloat16Color*)(In + Y * SrcPitch);
 				FLinearColor* DestPtr = Out + Y * Width;
 
 				for (uint32 X = 0; X < Width; X++)
 				{
-					*DestPtr = FLinearColor((float)SrcPtr[0], (float)SrcPtr[1], (float)SrcPtr[2], (float)SrcPtr[3]);
-					++DestPtr;
-					SrcPtr += 4;
+					DestPtr[X] = SrcPtr[X].GetFloats();
 				}
 			}
 		}

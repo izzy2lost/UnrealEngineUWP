@@ -594,7 +594,7 @@ void FOpenGLDynamicRHI::ReadSurfaceDataRaw(FOpenGLContextState& ContextState, FR
 		uint8* TargetPtr = TargetBuffer;
 		for( int32 DepthValueIndex = 0; DepthValueIndex < DepthValueCount; ++DepthValueIndex )
 		{
-			uint8 Value = (uint8)( *DataPtr++ * 255.0f );
+			uint8 Value = FColor::QuantizeUNormFloatTo8( *DataPtr++ );
 			*TargetPtr++ = Value;
 			*TargetPtr++ = Value;
 			*TargetPtr++ = Value;

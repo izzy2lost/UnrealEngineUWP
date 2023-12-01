@@ -582,28 +582,26 @@ public:
 
 	static uint8 QuantizeUNormFloatTo8( float UnitFloat )
 	{
-		UnitFloat = FMath::Clamp(UnitFloat,0.f,1.f);
-		return (uint8)( 0.5f + UnitFloat * 255.f );
+		return (uint8)( 0.5f + FLinearColor::Clamp01NansTo0(UnitFloat) * 255.f );
 	}
 	
 	static uint16 QuantizeUNormFloatTo16( float UnitFloat )
 	{
-		UnitFloat = FMath::Clamp(UnitFloat,0.f,1.f);
-		return (uint16)( 0.5f + UnitFloat * 65535.f );
+		return (uint16)( 0.5f + FLinearColor::Clamp01NansTo0(UnitFloat) * 65535.f );
 	}
 
 	static float DequantizeUNorm8ToFloat( int Value8 )
 	{
 		check( Value8 >= 0 && Value8 <= 255 );
 
-		return (float)Value8 / 255.f;
+		return (float)Value8 * (1.f/255.f);
 	}
 	
 	static float DequantizeUNorm16ToFloat( int Value16 )
 	{
 		check( Value16 >= 0 && Value16 <= 65535 );
 
-		return (float)Value16 / 65535.f;
+		return (float)Value16 * (1.f/65535.f);
 	}
 
 	static uint8 Requantize10to8( int Value10 )
@@ -667,7 +665,8 @@ public:
 	 */
 	FORCEINLINE FLinearColor ReinterpretAsLinear() const
 	{
-		return FLinearColor(R / 255.f, G / 255.f, B / 255.f, A / 255.f);
+		constexpr float inv255 = 1.f / 255.f;
+		return FLinearColor(R * inv255, G * inv255, B * inv255, A * inv255);
 	}
 
 	/**
