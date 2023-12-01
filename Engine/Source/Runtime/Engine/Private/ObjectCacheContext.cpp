@@ -26,7 +26,7 @@ namespace ObjectCacheContextImpl {
 EInternalObjectFlags GetObjectCacheInternalFlagsExclusion()
 {
 	// We never want to return objects that are invalid or still being worked on by other threads
-	return EInternalObjectFlags::Unreachable | EInternalObjectFlags::Garbage | EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async;
+	return UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::Garbage | EInternalObjectFlags::AsyncLoading | EInternalObjectFlags::Async;
 }
 
 } // namespace ObjectCacheContextImpl

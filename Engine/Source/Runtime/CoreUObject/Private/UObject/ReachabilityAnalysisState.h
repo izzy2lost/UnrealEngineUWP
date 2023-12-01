@@ -128,4 +128,184 @@ public:
 	void FinishIteration();
 };
 
+
+/** Settings for GatherUnreachableObjects function */
+enum class EGatherOptions : uint32
+{
+	None = 0,
+	Parallel = 1,	 // Use threading to increase performance
+};
+ENUM_CLASS_FLAGS(EGatherOptions);
+
+inline int32 GetNumThreadsForGather(const EGatherOptions Options, const int32 NumObjects)
+{
+	if (!!(Options & EGatherOptions::Parallel) && NumObjects > 0)
+	{
+		constexpr int32 MinNumObjectsPerThread = 100;
+		const int32 MaxNumThreads = FTaskGraphInterface::Get().GetNumWorkerThreads();
+		const int32 NumThreadsForNumObjects = (NumObjects + MinNumObjectsPerThread - 1) / MinNumObjectsPerThread;
+		return FMath::Min(NumThreadsForNumObjects, MaxNumThreads);
+	}
+	return 1;
+}
+
+/** Structure that holds the current state of Thread Iteration */
+template <typename PayloadType>
+struct TGatherIterator
+{
+	/** Inital start index */
+	int32 StartIndex = 0;
+	/** Current index of an object */
+	int32 Index = 0;
+	/** Estimated number of objects to process */
+	int32 Num = 0;
+	/** Last index of object to process */
+	int32 LastIndex = 0;
+	/** Data gathered by the iteration */
+	PayloadType Payload;
+};
+
+/** Helper class that holds the current state of Object Gathering phases */
+template <typename ObjectType>
+class TThreadedGather
+{
+public:
+
+	typedef TGatherIterator<TArray<ObjectType>> FIterator;
+	typedef TArray<FIterator, TInlineAllocator<32>> FThreadIterators;
+
+	FORCEINLINE FThreadIterators& GetThreadIterators()
+	{
+		return ThreadIterators;
+	}
+
+	FORCEINLINE bool IsSuspended() const
+	{
+		return ThreadIterators.Num() > 0;
+	}
+
+	FORCEINLINE bool IsPending() const
+	{
+		return bIsPending;
+	}
+
+	void Init()
+	{
+		bIsPending = true;
+	}
+
+	FORCENOINLINE void Start(const EGatherOptions Options, const int32 TotalNumObjects, const int32 FirstIndex = 0, const int32 DesiredNumThreads = 0)
+	{
+		int32 NumObjectsToProcess = TotalNumObjects - FirstIndex;
+		int32 NumThreads = DesiredNumThreads > 0 ? DesiredNumThreads : GetNumThreadsForGather(Options, NumObjectsToProcess);
+		int32 NumberOfObjectsPerThread = (NumObjectsToProcess / NumThreads) + 1;
+
+		ThreadIterators.AddDefaulted(NumThreads);
+
+		for (int32 ThreadIndex = 0; ThreadIndex < NumThreads; ++ThreadIndex)
+		{
+			FIterator& Iterator = ThreadIterators[ThreadIndex];
+			Iterator.StartIndex = ThreadIndex * NumberOfObjectsPerThread + FirstIndex;
+			Iterator.Index = Iterator.StartIndex;
+			Iterator.Num = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (TotalNumObjects - (NumThreads - 1) * NumberOfObjectsPerThread);
+			Iterator.LastIndex = FMath::Min(TotalNumObjects - 1, Iterator.Index + Iterator.Num - 1);
+		}
+	}
+
+	FORCENOINLINE void Finish(TArray<ObjectType>& OutGatheredObjects)
+	{
+		const int32 NumGatheredObjects = NumGathered();
+		if (NumGatheredObjects)
+		{
+			OutGatheredObjects.Reserve(NumGatheredObjects);
+			if (ThreadIterators.Num() == 1)
+			{
+				OutGatheredObjects = MoveTemp(ThreadIterators[0].Payload);
+			}
+			else
+			{
+				for (FIterator& Iterator : ThreadIterators)
+				{
+					OutGatheredObjects += Iterator.Payload;
+				}
+			}
+		}
+		ThreadIterators.Reset();
+		bIsPending = false;
+	}
+
+	FORCEINLINE int32 NumWorkerThreads() const
+	{
+		return ThreadIterators.Num();
+	}
+
+	int32 NumScanned() const
+	{
+		int32 NumScanned = 0;
+		for (const FIterator& ThreadState : ThreadIterators)
+		{
+			NumScanned += ThreadState.Index - ThreadState.StartIndex;
+		}
+		return NumScanned;
+	}
+
+	int32 NumGathered() const
+	{
+		int32 NumGathered = 0;
+		for (const FIterator& ThreadState : ThreadIterators)
+		{
+			NumGathered += ThreadState.Payload.Num();
+		}
+		return NumGathered;
+	}
+
+private:
+
+	FThreadIterators ThreadIterators;
+	bool bIsPending = false;
+};
+
+/** Timer that can be used with ParallelFor that distributes TimeLimit checks evenly across multiple threads */
+class FTimeSlicer
+{
+	const int32 TimeLimitPollInterval = 0;	
+	int32 TimeLimitTimePollCounter = 0;
+	const double StartTime = 0.0;
+	const double TimeLimit = 0.0;
+	std::atomic<int32>& TimeLimitFlag;
+public:
+
+	FTimeSlicer(int32 InPollInterval, int32 InitialCounter, double InStartTime, double InTimeLimit, std::atomic<int32>& InTimeLimitFlag)
+		: TimeLimitPollInterval(InPollInterval)		
+		, TimeLimitTimePollCounter(InitialCounter)
+		, StartTime(InStartTime)
+		, TimeLimit(InTimeLimit)
+		, TimeLimitFlag(InTimeLimitFlag)
+	{
+	}
+
+	FORCEINLINE bool IsTimeLimitExceeded()
+	{
+		if (TimeLimit > 0.0)
+		{
+			const bool bPollTimeLimit = ((TimeLimitTimePollCounter++) % TimeLimitPollInterval == 0);
+			if (bPollTimeLimit)
+			{
+				// It's this thread's time to check if time limit has been exceeded
+				if ((FPlatformTime::Seconds() - StartTime) >= TimeLimit)
+				{
+					TimeLimitFlag.store(1, std::memory_order_relaxed);
+					return true;
+				}
+			}
+			else
+			{
+				// Check if any other thread signaled that time limit has been exceeded
+				return !!TimeLimitFlag.load(std::memory_order_relaxed);
+			}
+		}
+		return false;
+	}
+};
+
 } // namespace UE::GC

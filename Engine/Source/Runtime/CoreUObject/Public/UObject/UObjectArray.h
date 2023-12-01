@@ -8,7 +8,7 @@
 
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
-#include "UObject/ObjectMacros.h"
+#include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/UObjectBase.h"
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
@@ -177,35 +177,35 @@ struct
 
 	FORCEINLINE void SetUnreachable()
 	{
-		ThisThreadAtomicallySetFlag(EInternalObjectFlags::Unreachable);
+		ThisThreadAtomicallySetFlag(UE::GC::GUnreachableObjectFlag);
 	}
 	FORCEINLINE void SetMaybeUnreachable()
 	{
-		ThisThreadAtomicallySetFlag(EInternalObjectFlags::MaybeUnreachable);
+		ThisThreadAtomicallySetFlag(UE::GC::GMaybeUnreachableObjectFlag);
 	}
 	FORCEINLINE void ClearUnreachable()
 	{
-		ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Unreachable);
+		ThisThreadAtomicallyClearedFlag(UE::GC::GUnreachableObjectFlag);
 	}
 	FORCEINLINE void ClearMaybeUnreachable()
 	{
-		ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::MaybeUnreachable);
+		ThisThreadAtomicallyClearedFlag(UE::GC::GMaybeUnreachableObjectFlag);
 	}
 	FORCEINLINE bool IsUnreachable() const
 	{
-		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::Unreachable));
+		return !!(GetFlagsInternal() & int32(UE::GC::GUnreachableObjectFlag));
 	}
 	FORCEINLINE bool IsMaybeUnreachable() const
 	{
-		return !!(GetFlagsInternal() & int32(EInternalObjectFlags::MaybeUnreachable));
+		return !!(GetFlagsInternal() & int32(UE::GC::GMaybeUnreachableObjectFlag));
 	}
 	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
 	{
-		return ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Unreachable);
+		return ThisThreadAtomicallyClearedFlag(UE::GC::GUnreachableObjectFlag);
 	}
 	FORCEINLINE bool ThisThreadAtomicallyClearedMaybeUnreachable()
 	{
-		return ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::MaybeUnreachable);
+		return ThisThreadAtomicallyClearedFlag(UE::GC::GMaybeUnreachableObjectFlag);
 	}
 	FORCEINLINE void SetPendingKill()
 	{
@@ -805,7 +805,7 @@ public:
 		if (ObjectItem)
 		{
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return bEvenIfPendingKill ? !ObjectItem->IsUnreachable() : !(ObjectItem->HasAnyFlags(EInternalObjectFlags::Unreachable | EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage));
+			return bEvenIfPendingKill ? !ObjectItem->IsUnreachable() : !(ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage));
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		return false;
@@ -828,7 +828,7 @@ public:
 	{
 		// This method assumes ObjectItem is valid.
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return bEvenIfPendingKill ? (ObjectItem->HasAnyFlags(EInternalObjectFlags::Unreachable | EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage)) : (ObjectItem->IsUnreachable());
+		return bEvenIfPendingKill ? (ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage)) : (ObjectItem->IsUnreachable());
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 

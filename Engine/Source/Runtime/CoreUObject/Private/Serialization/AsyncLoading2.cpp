@@ -765,17 +765,29 @@ private:
 			return nullptr;
 		}
 
-		void PinForGC()
+		[[nodiscard]] bool PinForGC(TArray<int32>& OutUnreachableObjectIndices)
 		{
-			for (int32 ObjectIndex : GetValues())
+			OutUnreachableObjectIndices.Reset();
+			for (int32& ObjectIndex : GetValues())
 			{
 				if (ObjectIndex >= 0)
 				{
-					UObject* Object = static_cast<UObject*>(GUObjectArray.IndexToObject(ObjectIndex)->Object);
-					checkf(!Object->HasAnyInternalFlags(EInternalObjectFlags::LoaderImport), TEXT("%s"), *Object->GetFullName());
-					Object->SetInternalFlags(EInternalObjectFlags::LoaderImport);
+					FUObjectItem* ObjectItem = GUObjectArray.IndexToObject(ObjectIndex);
+					if (!ObjectItem->IsUnreachable())
+					{
+						UObject* Object = static_cast<UObject*>(ObjectItem->Object);
+						checkf(!ObjectItem->HasAnyFlags(EInternalObjectFlags::LoaderImport), TEXT("%s"), *Object->GetFullName());
+						ObjectItem->SetFlags(EInternalObjectFlags::LoaderImport);
+					}
+					else
+					{
+						OutUnreachableObjectIndices.Reserve(Count);
+						OutUnreachableObjectIndices.Add(ObjectIndex);
+						ObjectIndex = -1;
+					}
 				}
 			}
+			return OutUnreachableObjectIndices.Num() == 0;
 		}
 
 		void UnpinForGC()
@@ -887,7 +899,7 @@ public:
 		}
 	}
 
-	void RemoveCompletedRenamedPackage()
+	void RemoveUnreferencedObsoletePackage()
 	{
 		check(RefCount == 0);
 		*this = FLoadedPackageRef();
@@ -969,7 +981,7 @@ public:
 		return PublicExportMap.Find(ExportHash);
 	}
 
-	void PinPublicExportsForGC()
+	void PinPublicExportsForGC(TArray<int32>& OutUnreachableObjectIndices)
 	{
 		UPackage* Package = GetPackage();
 		UE_ASYNC_UPACKAGE_DEBUG(Package);
@@ -978,7 +990,7 @@ public:
 		{
 			return;
 		}
-		PublicExportMap.PinForGC();
+		bAreAllPublicExportsLoaded = PublicExportMap.PinForGC(OutUnreachableObjectIndices);
 		checkf(!Package->HasAnyInternalFlags(EInternalObjectFlags::LoaderImport), TEXT("%s"), *Package->GetFullName());
 		Package->SetInternalFlags(EInternalObjectFlags::LoaderImport);
 	}
@@ -1116,19 +1128,24 @@ public:
 #endif
 			if (UPackage* Package = PackageRef.GetPackage())
 			{
-				if (PackageRef.GetOriginalPackageName() == Package->GetFName())
+				if (Package->IsUnreachable() || PackageRef.GetOriginalPackageName() != Package->GetFName())
 				{
-					PackageRef.PinPublicExportsForGC();
-				}
-				else
-				{
-					UE_LOG(LogStreaming, Display,
+					UE_CLOG(!Package->IsUnreachable(), LogStreaming, Display,
 						TEXT("FGlobalImportStore:AddPackageRef: Dropping renamed package %s before reloading %s (0x%llX)"),
 						*Package->GetName(),
 						*PackageRef.GetOriginalPackageName().ToString(),
 						Package->GetPackageId().ValueForDebugging());
 
-					RemoveCompletedRenamedPackage(PackageRef);
+					RemoveUnreferencedObsoletePackage(PackageRef);
+				}
+				else
+				{
+					TArray<int32> UnreachableObjectIndices;
+					PackageRef.PinPublicExportsForGC(UnreachableObjectIndices);
+					for (int32 ObjectIndex : UnreachableObjectIndices)
+					{
+						ObjectIndexToPublicExport.Remove(ObjectIndex);
+					}
 				}
 			}
 		}
@@ -1187,7 +1204,7 @@ public:
 		}
 	}
 
-	void RemoveCompletedRenamedPackage(FLoadedPackageRef& PackageRef)
+	void RemoveUnreferencedObsoletePackage(FLoadedPackageRef& PackageRef)
 	{
 		UPackage* OldPackage = PackageRef.GetPackage();
 		UE_ASYNC_UPACKAGE_DEBUG(OldPackage);
@@ -1203,9 +1220,9 @@ public:
 				ObjectIndexToPublicExport.Remove(ObjectIndex);
 			}
 		}
-		PackageRef.RemoveCompletedRenamedPackage();
-		// Update PackageId to prevent us from removing our updated package ref from GC
-		OldPackage->SetPackageId(FPackageId::FromName(OldPackage->GetFName()));
+		PackageRef.RemoveUnreferencedObsoletePackage();
+		// Reset PackageId to prevent a double remove from GC NotifyUnreachableObjects
+		OldPackage->SetPackageId(FPackageId());
 	}
 
 	void ReplaceReferencedRenamedPackage(FLoadedPackageRef& PackageRef, UPackage* NewPackage)
@@ -5686,7 +5703,7 @@ bool FAsyncPackage2::CreateLinkerLoadExports(FAsyncLoadingThreadState2& ThreadSt
 		FExportObject& ExportObject = Data.Exports[ExportIndex];
 		if (UObject* Object = LinkerLoadState->Linker->CreateExport(ExportIndex))
 		{
-			checkf(!Object->HasAnyInternalFlags(EInternalObjectFlags::Unreachable), TEXT("Trying to store an unreachable object '%s' in the import store"), *Object->GetFullName());
+			checkf(!Object->IsUnreachable(), TEXT("Trying to store an unreachable object '%s' in the import store"), *Object->GetFullName());
 			ExportObject.Object = Object;
 			ExportObject.bWasFoundInMemory = true; // Make sure that the async flags are cleared in ClearConstructedObjects
 			EInternalObjectFlags FlagsToSet = EInternalObjectFlags::Async;
@@ -6249,7 +6266,7 @@ UObject* FAsyncPackage2::EventDrivenIndexToObject(const FAsyncPackageHeaderData&
 	}
 	if (Result)
 	{
-		UE_CLOG(Result->HasAnyInternalFlags(EInternalObjectFlags::Unreachable), LogStreaming, Fatal, TEXT("Returning an object  (%s) from EventDrivenIndexToObject that is unreachable."), *Result->GetFullName());
+		UE_CLOG(Result->IsUnreachable(), LogStreaming, Fatal, TEXT("Returning an object  (%s) from EventDrivenIndexToObject that is unreachable."), *Result->GetFullName());
 	}
 #endif
 	return Result;

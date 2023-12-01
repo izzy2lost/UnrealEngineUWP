@@ -291,6 +291,26 @@ static FAutoConsoleVariableRef CVarIncrementalReachabilityTimeLimit(
 	ECVF_Default
 );
 
+static int32 GAllowIncrementalGather = 0;
+static FAutoConsoleVariableRef CVarAllowIncrementalGather(
+	TEXT("gc.AllowIncrementalGather"),
+	GAllowIncrementalGather,
+	TEXT("Set to control incremental Gather Unreachable Objects (experimental)"),
+	ECVF_Default
+);
+
+#if UE_BUILD_SHIPPING
+static constexpr float GIncrementalGatherTimeLimit = 0.0f;
+#else
+static float GIncrementalGatherTimeLimit = 0.0f;
+static FAutoConsoleVariableRef CVarIncrementalGatherTimeLimit(
+	TEXT("gc.IncrementalGatherTimeLimit"),
+	GIncrementalGatherTimeLimit,
+	TEXT("Override Incremental Gather Time Limit (in seconds)."),
+	ECVF_Default
+);
+#endif
+
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
 static int32 GVerifyNoUnreachableObjects = 0;
 static FAutoConsoleVariableRef CVarVerifyNoUnreachableObjects(
@@ -524,16 +544,33 @@ namespace UE::GC
 	{
 		Obj->MarkAsReachable();
 	}
+
+	EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge);
+	EGatherOptions GetObjectGatherOptions(bool bPerformFullPurge);
 }
 
-namespace UE::GC::Private
+namespace UE::GC
 {
-	/** List of objects marked as reachable by GC barrier (see UObject::MarkAsReachable()) */
-	static TExpandingChunkedList<UObject*> GReachableObjects;
-	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
-	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
-	bool GIsIncrementalReachabilityPending = false;
+	/** EInternalObjectFlag value representing an unreachable object */
+	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
+
+	/** EInternalObjectFlag value representing a maybe unreachable object */
+	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
+
+	namespace Private
+	{
+		/** List of objects marked as reachable by GC barrier (see UObject::MarkAsReachable()) */
+		static TExpandingChunkedList<UObject*> GReachableObjects;
+		/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
+		static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
+		bool GIsIncrementalReachabilityPending = false;
+
+		typedef TThreadedGather<FUObjectItem*> FGatherUnreachableObjectsState;
+		static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
+	}
 }
+
+static bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit = 0.0);
 
 /**
  * Helper class for destroying UObjects on a worker thread
@@ -2792,7 +2829,7 @@ constexpr FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill)
 // Return whether flag was cleared. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase.
 FORCEINLINE static bool ClearMaybeUnreachableInterlocked(int32& Flags)
 {
-	static constexpr int32 FlagToClear = int32(EInternalObjectFlags::MaybeUnreachable);
+	const int32 FlagToClear = int32(UE::GC::GMaybeUnreachableObjectFlag);
 	if (FPlatformAtomics::AtomicRead_Relaxed(&Flags) & FlagToClear)
 	{
 		int32 Old = FPlatformAtomics::InterlockedAnd(&Flags, ~FlagToClear);
@@ -3866,7 +3903,7 @@ public:
 
 					// We can't collect garbage during an async load operation and by now all unreachable objects should've been purged.
 					checkf(	bIsRerun ||
-							!ObjectItem->HasAnyFlags(EInternalObjectFlags::Unreachable|EInternalObjectFlags::PendingConstruction),
+							!ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingConstruction),
 							TEXT("Object: '%s' with ObjectFlags=0x%08x and InternalObjectFlags=0x%08x. ")
 							TEXT("State: IsEngineExitRequested=%d, GIsCriticalError=%d, GExitPurge=%d, GObjPurgeIsRequired=%d, GObjIncrementalPurgeIsInProgress=%d, GObjFinishDestroyHasBeenRoutedToAllObjects=%d, GGCObjectsPendingDestructionCount=%d"),
 							*Object->GetFullName(),
@@ -4254,6 +4291,9 @@ static bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit);
  */
 void IncrementalPurgeGarbage(bool bUseTimeLimit, double TimeLimit)
 {
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
+
 	if (GExitPurge)
 	{
 		GObjPurgeIsRequired = true;
@@ -4308,7 +4348,7 @@ void IncrementalPurgeGarbage(bool bUseTimeLimit, double TimeLimit)
 		GCStartTime = FPlatformTime::Seconds();
 		bool bTimeLimitReached = false;
 
-		if (GUnrechableObjectIndex < GUnreachableObjects.Num())
+		if (IsIncrementalUnhashPending())
 		{
 			bTimeLimitReached = UnhashUnreachableObjects(bUseTimeLimit, TimeLimit);
 
@@ -4698,89 +4738,171 @@ static FAutoConsoleVariableRef CVarFlushStreamingOnGC(
 	ECVF_Default
 	);
 
-void GatherUnreachableObjects(bool bForceSingleThreaded)
+void DissolveUnreachableClusters(UE::GC::EGatherOptions Options)
+{
+	const int32 InitialNumClusters = GUObjectClusters.GetNumAllocatedClusters();
+	if (!InitialNumClusters)
+	{
+		// Early out if clustering is disabled or there's no clusters
+		return;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(DissolveUnreachableClusters);
+	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.DissolveUnreachableClusters"), STAT_CollectGarbageInternal_DissolveUnreachableClusters, STATGROUP_GC);
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
+	typedef TThreadedGather<int32> FGatherClustersState;
+
+	std::atomic<int32> TotalClusteredObjects = 0;
+	FGatherClustersState GatherClustersState;
+	TArray<FUObjectCluster>& ClusterArray = GUObjectClusters.GetClustersUnsafe();
+	
+	// StartGathering calculates the number of threads based on the number of objects but here the objects are actually clusters
+	// that contain many more objects than the number of clusters so we want to be able to process at least two clusters per thread	
+	const int32 NumThreads = !!(Options & EGatherOptions::Parallel) ? FMath::Min(GetNumCollectReferenceWorkers(), (ClusterArray.Num() + 1) / 2) : 1;
+	GatherClustersState.Start(Options, ClusterArray.Num(), /* FirstIndex = */ 0, NumThreads);
+	FGatherClustersState::FThreadIterators& ThreadIterators = GatherClustersState.GetThreadIterators();
+
+	ParallelFor(TEXT("GC.DissolveUnreachableClusters"), GatherClustersState.NumWorkerThreads(), 1, [&ThreadIterators, &ClusterArray, &TotalClusteredObjects](int32 ThreadIndex)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(DissolveUnreachableClustersTask);
+		FGatherClustersState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+		int32 ThisThreadClusteredObjects = 0;
+
+		while (ThreadState.Index <= ThreadState.LastIndex)
+		{
+			int32 ClusterIndex = ThreadState.Index++;
+			FUObjectCluster& Cluster = ClusterArray[ClusterIndex];
+			if (Cluster.RootIndex >= 0)
+			{
+				FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[Cluster.RootIndex];
+				if (RootItem->IsUnreachable())
+				{
+					for (int32 ObjectIndex : Cluster.Objects)
+					{
+						FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
+						if (!ObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
+						{
+							ObjectItem->SetUnreachable();
+							ThisThreadClusteredObjects++;
+						}
+					}
+					ThreadState.Payload.Add(ClusterIndex);
+				}
+			}
+		}
+		TotalClusteredObjects += ThisThreadClusteredObjects;
+	}, (GatherClustersState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+	
+	TArray<int32> ClustersToDestroy;
+	GatherClustersState.Finish(ClustersToDestroy);
+
+	// @todo: if GUObjectClusters.FreeCluster() was thread safe we could do this in parallel too
+	for (int32 ClusterIndex : ClustersToDestroy)
+	{
+#if UE_GCCLUSTER_VERBOSE_LOGGING
+		UE_LOG(LogGarbage, Log, TEXT("Destroying cluster (%d) %s"), ClusterRootItem->GetClusterIndex(), *static_cast<UObject*>(ClusterRootItem->Object)->GetFullName());
+#endif
+		GUObjectClusters.FreeCluster(ClusterIndex);
+	}
+
+	UE_LOG(LogGarbage, Log, TEXT("%f ms for Dissolve Unreachable Clusters (%d/%d clusters dissolved containing %d cluster objects)"),
+		(FPlatformTime::Seconds() - StartTime) * 1000,
+		ClustersToDestroy.Num(),
+		InitialNumClusters,
+		TotalClusteredObjects.load(std::memory_order_relaxed));
+}
+
+bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /*= 0.0*/)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GatherUnreachableObjects);
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.GatherUnreachableObjects"), STAT_CollectGarbageInternal_GatherUnreachableObjects, STATGROUP_GC);
+
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
 
 	const double StartTime = FPlatformTime::Seconds();
 
 	GUnreachableObjects.Reset();
 	GUnrechableObjectIndex = 0;
 
-	int32 MaxNumberOfObjects = GUObjectArray.GetObjectArrayNum() - (GExitPurge ? 0 : GUObjectArray.GetFirstGCIndex());
-	int32 NumThreads = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
-	int32 NumberOfObjectsPerThread = (MaxNumberOfObjects / NumThreads) + 1;
+	FGatherUnreachableObjectsState::FThreadIterators& ThreadIterators = GGatherUnreachableObjectsState.GetThreadIterators();
+	if (!GGatherUnreachableObjectsState.IsSuspended())
+	{
+		const int32 FirstIndex = GExitPurge ? 0 : GUObjectArray.GetFirstGCIndex();
+		GGatherUnreachableObjectsState.Start(Options, GUObjectArray.GetObjectArrayNum(), FirstIndex);
+	}
 
-	TArray<FUObjectItem*> ClusterItemsToDestroy;
-	int32 ClusterObjects = 0;
+	std::atomic<int32> TimeLimitExceededFlag = 0;
 
 	// Iterate over all objects. Note that we iterate over the UObjectArray and usually check only internal flags which
 	// are part of the array so we don't suffer from cache misses as much as we would if we were to check ObjectFlags.
-	ParallelFor( TEXT("GC.GatherUnreachable"),NumThreads,1, [&ClusterItemsToDestroy, NumberOfObjectsPerThread, NumThreads, MaxNumberOfObjects](int32 ThreadIndex)
+	ParallelFor( TEXT("GC.GatherUnreachable"), GGatherUnreachableObjectsState.NumWorkerThreads(), 1, [&ThreadIterators, &StartTime, &TimeLimit, &TimeLimitExceededFlag](int32 ThreadIndex)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(GatherUnreachableObjectsTask);
-		int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread + (GExitPurge ? 0 : GUObjectArray.GetFirstGCIndex());
-		int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfObjects - (NumThreads - 1) * NumberOfObjectsPerThread);
-		int32 LastObjectIndex = FMath::Min(GUObjectArray.GetObjectArrayNum() - 1, FirstObjectIndex + NumObjects - 1);
-		TArray<FUObjectItem*> ThisThreadUnreachableObjects;
-		TArray<FUObjectItem*> ThisThreadClusterItemsToDestroy;
-
-		for (int32 ObjectIndex = FirstObjectIndex; ObjectIndex <= LastObjectIndex; ++ObjectIndex)
+		constexpr int32 TimeLimitPollInterval = 10;
+		FTimeSlicer Timer(TimeLimitPollInterval, ThreadIndex * TimeLimitPollInterval, StartTime, TimeLimit, TimeLimitExceededFlag);
+		FGatherUnreachableObjectsState::FIterator& Iterator = ThreadIterators[ThreadIndex];
+		
+		while (Iterator.Index <= Iterator.LastIndex)
 		{
-			FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
-			if (ObjectItem->HasAnyFlags(EInternalObjectFlags::MaybeUnreachable | EInternalObjectFlags::Unreachable))
+			FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[Iterator.Index++];
+			if (ObjectItem->IsUnreachable())
 			{
-				ObjectItem->ClearMaybeUnreachable();
-				ObjectItem->SetUnreachable();
-				ThisThreadUnreachableObjects.Add(ObjectItem);
-				if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
-				{
-					// We can't mark cluster objects as unreachable here as they may be currently being processed on another thread
-					ThisThreadClusterItemsToDestroy.Add(ObjectItem);
-				}
+				checkf(!ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot), TEXT("Unreachable cluster root found. Unreachable clusters should have been dissolved in DissolveUnreachableClusters!"));
+				Iterator.Payload.Add(ObjectItem);
+			}
+
+			if (Timer.IsTimeLimitExceeded())
+			{
+				return;
 			}
 		}
-		if (ThisThreadUnreachableObjects.Num())
-		{
-			FScopeLock UnreachableObjectsLock(&GUnreachableObjectsCritical);
-			GUnreachableObjects.Append(ThisThreadUnreachableObjects);
-			ClusterItemsToDestroy.Append(ThisThreadClusterItemsToDestroy);
-		}
-	}, bForceSingleThreaded ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+	}, (GGatherUnreachableObjectsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
 
+	// Need to grab the stats now as Finish() will reset the global state but we still want to include Finish() execution time when logging
+	const int32 NumGathered = GGatherUnreachableObjectsState.NumGathered();
+	const int32 NumScanned = GGatherUnreachableObjectsState.NumScanned();
+	const int32 NumThreads = GGatherUnreachableObjectsState.NumWorkerThreads();
+	const bool bCompleted = !TimeLimitExceededFlag.load();
+	if (bCompleted)
 	{
-		// @todo: if GUObjectClusters.FreeCluster() was thread safe we could do this in parallel too
-		for (FUObjectItem* ClusterRootItem : ClusterItemsToDestroy)
+		GGatherUnreachableObjectsState.Finish(GUnreachableObjects);
+	}
+
+	UE_LOG(LogGarbage, Log, TEXT("%f ms for Gather Unreachable Objects (%d objects collected / %d scanned with %d thread(s))"),
+		(FPlatformTime::Seconds() - StartTime) * 1000,
+		NumGathered,
+		NumScanned,
+		NumThreads);
+
+	if (bCompleted)
+	{
+		// NotifyUnreachableObjects needs to be called from within a GC lock so that Async Loading Thread does not attempt to create new exports  
+		// before it gets a chance to process all unreachable objects
+		const bool bNeedsGCLock = !FGCCSyncObject::Get().IsGCLocked();
+		if (bNeedsGCLock)
 		{
-#if UE_GCCLUSTER_VERBOSE_LOGGING
-			UE_LOG(LogGarbage, Log, TEXT("Destroying cluster (%d) %s"), ClusterRootItem->GetClusterIndex(), *static_cast<UObject*>(ClusterRootItem->Object)->GetFullName());
-#endif
-			ClusterRootItem->ClearFlags(EInternalObjectFlags::ClusterRoot);
-
-			const int32 ClusterIndex = ClusterRootItem->GetClusterIndex();
-			FUObjectCluster& Cluster = GUObjectClusters[ClusterIndex];
-			for (int32 ClusterObjectIndex : Cluster.Objects)
-			{
-				FUObjectItem* ClusterObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ClusterObjectIndex);
-				ClusterObjectItem->SetOwnerIndex(0);
-
-				if (!ClusterObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
-				{
-					ClusterObjectItem->SetUnreachable();
-					ClusterObjects++;
-					GUnreachableObjects.Add(ClusterObjectItem);
-				}
-			}
-			GUObjectClusters.FreeCluster(ClusterIndex);
+			AcquireGCLock();
+		}
+		NotifyUnreachableObjects(GUnreachableObjects);
+		if (bNeedsGCLock)
+		{
+			ReleaseGCLock();
 		}
 	}
 
-	UE_LOG(LogGarbage, Log, TEXT("%f ms for Gather Unreachable Objects (%d objects collected including %d cluster objects from %d clusters)"),
-		(FPlatformTime::Seconds() - StartTime) * 1000,
-		GUnreachableObjects.Num(),
-		ClusterObjects,
-		ClusterItemsToDestroy.Num());
+	// !bCompleted = bTimeLimitReached (to make this function return value behave like UnhashUnreachableObjects)
+	return !bCompleted;
+}
+
+void GatherUnreachableObjects(bool bForceSingleThreaded)
+{
+	using namespace UE::GC;
+	GatherUnreachableObjects(bForceSingleThreaded ? EGatherOptions::None : EGatherOptions::Parallel);
 }
 
 namespace UE::GC
@@ -4975,6 +5097,11 @@ EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
 		(UObjectBaseUtility::IsPendingKillEnabled() ? EGCOptions::WithPendingKill : EGCOptions::None) |
 		// Toggle between Incremental Reachability enabled or disabled
 		((GAllowIncrementalReachability && !bPerformFullPurge) ? EGCOptions::IncrementalReachability : EGCOptions::None);
+}
+
+EGatherOptions GetObjectGatherOptions()
+{
+	return (ShouldForceSingleThreadedGC() ? EGatherOptions::None : EGatherOptions::Parallel);
 }
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
@@ -5183,7 +5310,8 @@ void CollectGarbageImpl(EObjectFlags KeepFlags)
 template<bool bPerformFullPurge>
 void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 {
-	using namespace UE::GC::Private;
+	using namespace UE::GC;
+	using namespace UE::GC::Private;	
 
 	if (!GIsIncrementalReachabilityPending)
 	{
@@ -5202,9 +5330,12 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 
 		DumpGarbageReferencers(AllContexts);
 
-		GatherUnreachableObjects(!(GetReferenceCollectorOptions(bPerformFullPurge) & EGCOptions::Parallel));
+		Swap(GUnreachableObjectFlag, GMaybeUnreachableObjectFlag);
 
-		// This needs to happen after GatherUnreachableObjects since it can mark more objects as unreachable
+		const EGatherOptions GatherOptions = GetObjectGatherOptions();
+		DissolveUnreachableClusters(GatherOptions);
+
+		// This needs to happen after DissolveUnreachableClusters since it can mark more objects as unreachable
 		if (GReachabilityState.GetNumIterations() > 1)
 		{
 			ClearWeakReferences<true>(AllContexts);
@@ -5220,17 +5351,19 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 		{
 			ContextPool.Cleanup();
 		}
+
+		GGatherUnreachableObjectsState.Init();
+
+		if (bPerformFullPurge || !GAllowIncrementalGather)
+		{
+			GatherUnreachableObjects(GatherOptions, /*TimeLimit =*/ 0.0);
+		}
 	}
 
 	GIsGarbageCollectingAndLockingUObjectHashTables = false;
 	UnlockUObjectHashTables();
 
 	GIsGarbageCollecting = false;
-
-	if (!GIsIncrementalReachabilityPending)
-	{
-		NotifyUnreachableObjects(GUnreachableObjects);
-	}
 
 	// The hash tables lock was released when reachability analysis was done.
 	// BeginDestroy, FinishDestroy, destructors and callbacks are allowed to call functions like StaticAllocateObject and StaticFindObject.
@@ -5536,11 +5669,35 @@ double GetLastGCDuration()
 
 bool IsIncrementalUnhashPending()
 {
-	return GUnrechableObjectIndex < GUnreachableObjects.Num();
+	return GUnrechableObjectIndex < GUnreachableObjects.Num() || UE::GC::Private::GGatherUnreachableObjectsState.IsPending();
 }
 
 bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 {
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
+
+	bool bTimeLimitReached = false;
+
+	if (GGatherUnreachableObjectsState.IsPending())
+	{
+		// Incremental Gather needs to be called from UnhashUnreachableObjects to match changes in IsIncrementalUnhashPending() (and not introduce IsIncrementalGatherPending())
+		const EGatherOptions GatherOptions = GetObjectGatherOptions();
+		const double GatherTimeLimit = GIncrementalGatherTimeLimit > 0.0f ? GIncrementalGatherTimeLimit : TimeLimit;
+		bTimeLimitReached = GatherUnreachableObjects(GatherOptions, bUseTimeLimit ? GatherTimeLimit : 0.0);
+		if (!bTimeLimitReached)
+		{
+			if (bUseTimeLimit)
+			{
+				TimeLimit -= FMath::Min(TimeLimit, FPlatformTime::Seconds() - GCStartTime);
+			}
+		}
+		else
+		{
+			return bTimeLimitReached;
+		}
+	}
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(UnhashUnreachableObjects);
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UnhashUnreachableObjects"), STAT_UnhashUnreachableObjects, STATGROUP_GC);
 
@@ -5554,7 +5711,6 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 	// Unhash all unreachable objects.
 	const double StartTime = FPlatformTime::Seconds();
 	const int32 TimeLimitEnforcementGranularityForBeginDestroy = 10;
-	int32 Items = 0;
 	int32 TimePollCounter = 0;
 	const bool bFirstIteration = (GUnrechableObjectIndex == 0);
 
@@ -5572,8 +5728,6 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 				Object->ConditionalBeginDestroy();
 			}
 
-			Items++;
-
 			const bool bPollTimeLimit = ((TimePollCounter++) % TimeLimitEnforcementGranularityForBeginDestroy == 0);
 			if (bUseTimeLimit && bPollTimeLimit && ((FPlatformTime::Seconds() - StartTime) > TimeLimit))
 			{
@@ -5582,7 +5736,7 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 		}
 	}
 
-	const bool bTimeLimitReached = (GUnrechableObjectIndex < GUnreachableObjects.Num());
+	bTimeLimitReached = (GUnrechableObjectIndex < GUnreachableObjects.Num());
 
 	if (!bUseTimeLimit)
 	{

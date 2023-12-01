@@ -4,6 +4,7 @@
 
 #if WITH_EDITOR
 
+#include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectThreadContext.h"
@@ -200,7 +201,7 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 					return false;
 				}
 				return true;
-			}, true, RF_NoFlags, EInternalObjectFlags::Unreachable);
+			}, true, RF_NoFlags, UE::GC::GUnreachableObjectFlag);
 
 			if (ensure(LoadedObject))
 			{

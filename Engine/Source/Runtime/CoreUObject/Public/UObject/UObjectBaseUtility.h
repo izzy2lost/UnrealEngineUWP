@@ -19,8 +19,8 @@
 #include "Trace/Detail/Channel.h"
 #include "Trace/Detail/Channel.inl"
 #include "Trace/Trace.h"
+#include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/NameTypes.h"
-#include "UObject/ObjectMacros.h"
 #include "UObject/ObjectVersion.h"
 #include "UObject/UObjectArray.h"
 #include "UObject/UObjectBase.h"
@@ -313,7 +313,7 @@ public:
 	/** Checks if the object is unreachable. */
 	FORCEINLINE bool IsUnreachable() const
 	{
-		return GUObjectArray.IndexToObject(InternalIndex)->HasAnyFlags(EInternalObjectFlags::Unreachable);
+		return GUObjectArray.IndexToObject(InternalIndex)->IsUnreachable();
 	}
 
 	/** Checks if the object is pending kill or unreachable. INTERNAL USE ONLY! If you want to check if your object is valid use IsValid(Object)/IsValidObjectChecked(Object)/GetValid(Object) instead. */
@@ -321,7 +321,7 @@ public:
 	FORCEINLINE bool IsPendingKillOrUnreachable() const
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return GUObjectArray.IndexToObject(InternalIndex)->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable);
+		return GUObjectArray.IndexToObject(InternalIndex)->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage | UE::GC::GUnreachableObjectFlag);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 

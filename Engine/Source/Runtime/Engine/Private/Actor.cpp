@@ -733,7 +733,7 @@ void AActor::BeginDestroy()
 {
 	UnregisterAllComponents();
 	ULevel* Level = GetLevel();
-	if (Level && !Level->HasAnyInternalFlags(EInternalObjectFlags::Unreachable))
+	if (Level && !Level->IsUnreachable())
 	{
 		Level->Actors.RemoveSingleSwap(this, false);
 	}

@@ -1319,7 +1319,7 @@ FString FReferenceChainSearch::GetObjectFlags(FGCObjectInfo* InObject)
 		Flags += TEXT("(ClusterRoot) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::MaybeUnreachable))
+	if (InObject->HasAnyInternalFlags(UE::GC::GMaybeUnreachableObjectFlag))
 	{
 		Flags += TEXT("(MaybeUnreachable) ");
 	}

@@ -1213,7 +1213,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 
 		// Do not involve objects which will be destroyed in hierarchy fixups
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		constexpr EInternalObjectFlags SkipFlags = EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable;
+		const EInternalObjectFlags SkipFlags = EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage | UE::GC::GUnreachableObjectFlag;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (bDestroyingHierarchy)

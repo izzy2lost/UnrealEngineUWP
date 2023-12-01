@@ -5208,7 +5208,7 @@ public:
 				}
 				else
 				{
-					Object->SetInternalFlags(EInternalObjectFlags::Unreachable);
+					Object->SetInternalFlags(UE::GC::GUnreachableObjectFlag);
 				}
 			}
 		}
