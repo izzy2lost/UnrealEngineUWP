@@ -461,7 +461,9 @@ class MESHMODELINGTOOLS_API UEditMeshPolygonsToolCancelAction : public UEditMesh
 {
 	GENERATED_BODY()
 public:
-	UFUNCTION(CallInEditor, Category = CurrentOperation, meta = (DisplayName = "Cancel", DisplayPriority = 1))
+	// Complete the current action
+	//~ Note this function may accept or cancel depending on the tool, despite the class name and the PostAction argument
+	UFUNCTION(CallInEditor, Category = CurrentOperation, meta = (DisplayName = "Complete", DisplayPriority = 1))
 	void Done() { PostAction(EEditMeshPolygonsToolActions::CancelCurrent); }
 };
 
