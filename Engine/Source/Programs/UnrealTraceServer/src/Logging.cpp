@@ -4,6 +4,10 @@
 #include "Logging.h"
 #include "Foundation.h"
 
+#if TS_USING(TS_PLATFORM_LINUX) || TS_USING(TS_PLATFORM_MAC)
+#include <cstdarg>
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 FLogging* FLogging::Instance = nullptr;
 
