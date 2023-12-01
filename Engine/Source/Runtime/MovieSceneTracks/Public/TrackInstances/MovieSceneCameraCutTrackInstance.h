@@ -57,7 +57,6 @@ public:
 private:
 	virtual void OnInitialize() override;
 	virtual void OnAnimate() override;
-	virtual void OnInputAdded(const FMovieSceneTrackInstanceInput& InInput) override;
 	virtual void OnEndUpdateInputs() override;
 	virtual void OnDestroyed() override;
 
@@ -69,8 +68,7 @@ private:
 	struct FCameraCutCache
 	{
 		TWeakObjectPtr<> LastLockedCamera;
-		UE::MovieScene::FInstanceHandle LastInstanceHandle;
-		TObjectPtr<UMovieSceneSection> LastSection;
+		FMovieSceneTrackInstanceInput LastInput;
 	};
 
 	/**

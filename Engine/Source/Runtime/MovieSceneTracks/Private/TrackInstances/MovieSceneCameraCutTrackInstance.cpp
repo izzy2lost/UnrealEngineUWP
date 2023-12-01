@@ -107,8 +107,7 @@ struct FBlendedCameraCutEasingInfo
 /** Camera cut info struct. */
 struct FBlendedCameraCut
 {
-	FInstanceHandle InstanceHandle;
-	TObjectPtr<UMovieSceneSection> Section;
+	FMovieSceneTrackInstanceInput Input;
 
 	FMovieSceneObjectBindingID CameraBindingID;
 	FMovieSceneSequenceID OperandSequenceID;
@@ -132,8 +131,7 @@ struct FBlendedCameraCut
 	FBlendedCameraCut()
 	{}
 	FBlendedCameraCut(const FMovieSceneTrackInstanceInput& InInput, FMovieSceneObjectBindingID InCameraBindingID, FMovieSceneSequenceID InOperandSequenceID) 
-		: InstanceHandle(InInput.InstanceHandle)
-		, Section(InInput.Section)
+		: Input(InInput)
 		, CameraBindingID(InCameraBindingID)
 		, OperandSequenceID(InOperandSequenceID)
 	{}
@@ -168,15 +166,13 @@ public:
 	static bool MatchesCameraCutCache(UObject* CameraActor, const FBlendedCameraCut& Params, const FCameraCutCache& CameraCutCache)
 	{
 		return CameraActor == CameraCutCache.LastLockedCamera.Get() &&
-			Params.InstanceHandle == CameraCutCache.LastInstanceHandle &&
-			Params.Section == CameraCutCache.LastSection;
+			Params.Input.IsSameInput(CameraCutCache.LastInput);
 	}
 
 	static void UpdateCameraCutCache(UObject* CameraActor, const FBlendedCameraCut& Params, FCameraCutCache& OutCameraCutCache)
 	{
 		OutCameraCutCache.LastLockedCamera = CameraActor;
-		OutCameraCutCache.LastInstanceHandle = Params.InstanceHandle;
-		OutCameraCutCache.LastSection = Params.Section;
+		OutCameraCutCache.LastInput = Params.Input;
 	}
 	
 public:
@@ -232,6 +228,14 @@ public:
 			// We have an unresolved or incorrect binding.
 			return false;
 		}
+
+		// Save pre-animated state only now, because we don't want to start tracking this camera cut
+		// unless we know it actually resolves to a camera actor (see above) and will actually do something.
+		FScopedPreAnimatedCaptureSource CaptureSource(Linker, Params.Input);
+		FCameraCutGameHandler::CachePreAnimatedValue(Linker, SequenceInstance);
+#if WITH_EDITOR
+		FCameraCutEditorHandler::CachePreAnimatedValue(Linker, SequenceInstance);
+#endif
 
 		FMovieSceneCameraCutParams CameraCutParams;
 		CameraCutParams.bJumpCut = Context.HasJumped();
@@ -529,24 +533,9 @@ void UMovieSceneCameraCutTrackInstance::OnAnimate()
 
 	if (CameraCutParams.Num() > 0)
 	{
-		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(FinalCameraCut.InstanceHandle);
+		const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(FinalCameraCut.Input.InstanceHandle);
 		Animator.AnimateBlendedCameraCut(FinalCameraCut, Linker, SequenceInstance);
 	}
-}
-
-void UMovieSceneCameraCutTrackInstance::OnInputAdded(const FMovieSceneTrackInstanceInput& InInput)
-{
-	using namespace UE::MovieScene;
-
-	UMovieSceneEntitySystemLinker* Linker = GetLinker();
-	const FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
-	const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InInput.InstanceHandle);
-
-	FScopedPreAnimatedCaptureSource CaptureSource(Linker, InInput);
-	FCameraCutGameHandler::CachePreAnimatedValue(Linker, SequenceInstance);
-#if WITH_EDITOR
-	FCameraCutEditorHandler::CachePreAnimatedValue(Linker, SequenceInstance);
-#endif
 }
 
 void UMovieSceneCameraCutTrackInstance::OnEndUpdateInputs()
