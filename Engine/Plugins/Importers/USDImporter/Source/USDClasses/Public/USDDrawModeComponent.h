@@ -56,7 +56,7 @@ namespace UsdUtils
  * Component type that is used to draw bounds, cards and origin axes when translating a prim that has the UsdGeomModelAPI schema
  * applied.
  */
-UCLASS()
+UCLASS(ClassGroup = (USD), meta = (BlueprintSpawnableComponent))
 class USDCLASSES_API UUsdDrawModeComponent : public UPrimitiveComponent
 {
 	GENERATED_BODY()
