@@ -1291,11 +1291,6 @@ bool CanCreateConstraints()
 void SanitizeRestrictedContent(UPhysicsAsset* PhysAsset)
 {
 	check(PhysAsset);
-	if (!CanCreateConstraints())
-	{
-		// Remove constraints
-		PhysAsset->ConstraintSetup.Empty();
-	}
 }
 
 }; // namespace FPhysicsAssetUtils
