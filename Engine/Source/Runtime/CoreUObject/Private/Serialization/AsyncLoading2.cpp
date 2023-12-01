@@ -1098,7 +1098,7 @@ public:
 							);
 							
 							check(OldPackageRef->GetRefCount() == 0);
-							RemoveCompletedRenamedPackage(*OldPackageRef);
+							RemoveUnreferencedObsoletePackage(*OldPackageRef);
 							RemovePackage(OldPackageId);
 						}
 					}
