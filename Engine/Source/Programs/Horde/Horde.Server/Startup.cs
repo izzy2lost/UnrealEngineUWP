@@ -354,6 +354,14 @@ namespace Horde.Server
 			settings.Telemetry = telemetryConfigs;
 		}
 
+		public static void BindServerSettings(IConfiguration configuration, ServerSettings settings)
+		{
+			IConfigurationSection hordeSection = configuration.GetSection("Horde");
+			hordeSection.Bind(settings);
+			BindTelemetrySettings(settings, hordeSection.GetSection("Telemetry"));
+			settings.Validate();
+		}
+
 		/// <summary>
 		/// Converter to/from Redis values
 		/// </summary>
@@ -369,20 +377,12 @@ namespace Horde.Server
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
-			void BindServerSettings(ServerSettings settings)
-			{
-				IConfigurationSection hordeSection = Configuration.GetSection("Horde");
-				hordeSection.Bind(settings);
-				BindTelemetrySettings(settings, hordeSection.GetSection("Telemetry"));
-			}
-			
 			// IOptionsMonitor pattern for live updating of configuration settings
-			services.Configure<ServerSettings>(BindServerSettings);
+			services.Configure<ServerSettings>(x => BindServerSettings(Configuration, x));
 			
 			// Bind the settings again for local variable access in this method
 			ServerSettings settings = new();
-			BindServerSettings(settings);
-			settings.Validate();
+			BindServerSettings(Configuration, settings);
 
 			OpenTelemetryHelper.Configure(services, settings.OpenTelemetry);
 

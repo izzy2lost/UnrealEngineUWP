@@ -13,6 +13,7 @@ using Horde.Server.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Configuration;
 using Serilog.Exceptions;
@@ -106,7 +107,7 @@ namespace Horde.Server
 			IConfiguration config = CreateConfig(UserConfigFile);
 
 			ServerSettings hordeSettings = new ServerSettings();
-			config.GetSection("Horde").Bind(hordeSettings);
+			Startup.BindServerSettings(config, hordeSettings);
 
 			DirectoryReference logDir = AppDir;
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -133,6 +134,7 @@ namespace Horde.Server
 			services.AddLogging(builder => builder.AddSerilog());
 			services.AddSingleton<IConfiguration>(config);
 			services.AddSingleton<ServerSettings>(hordeSettings);
+			services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
 
 #pragma warning disable ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
