@@ -23,11 +23,11 @@ namespace UE::Audio::Insights
 		FAudioMeterView(FAudioAssetVariant InAudioAssetVariant);
 		virtual ~FAudioMeterView();
 
-		TSharedRef<SWidget> GetWidget() const { return SubmixViewWidget; };
+		TSharedRef<SWidget> GetWidget() const { return AudioMeterViewWidget; };
 
 	private:
 		FAudioMeterVariant MakeAudioMeterAnalyzerVariant(const FAudioAssetVariant InAudioAssetVariant);
-		TSharedRef<STextBlock> MakeSubmixNameTextBlock(const FAudioAssetVariant InAudioAssetVariant);
+		TSharedRef<STextBlock> MakeAudioAssetNameTextBlock(const FAudioAssetVariant InAudioAssetVariant);
 		TSharedRef<SWidget> MakeWidget();
 
 		TSharedRef<SWidget> GetAudioMeterAnalyzerWidget() const;
@@ -37,9 +37,9 @@ namespace UE::Audio::Insights
 		FAudioAssetVariant AudioAssetVariant;
 		FAudioMeterVariant AudioMeterAnalyzerVariant;
 
-		TSharedRef<STextBlock> SubmixNameTextBlock;
+		TSharedRef<STextBlock> AudioAssetNameTextBlock;
 
-		TSharedRef<SWidget> SubmixViewWidget;
+		TSharedRef<SWidget> AudioMeterViewWidget;
 
 		FDelegateHandle OnActiveAudioDeviceChangedHandle;
 	};
