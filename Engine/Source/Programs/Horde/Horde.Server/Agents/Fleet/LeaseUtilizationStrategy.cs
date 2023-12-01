@@ -236,10 +236,10 @@ namespace Horde.Server.Agents.Fleet
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());
 			span.SetAttribute("currentAgentCount", agents.Count);
 			
-			Dictionary<PoolId, PoolData> poolToData;
+			Dictionary<PoolId, PoolData>? poolToData;
 			
 			// Cache pool data for a short while for faster runs when many pools are scaled
-			if (!_cache.TryGetValue(CacheKey, out poolToData))
+			if (!_cache.TryGetValue(CacheKey, out poolToData) || poolToData == null)
 			{
 				// Pool sizes haven't been cached, update them (might happen from multiple tasks but that is fine)
 				poolToData = await GetPoolDataAsync();

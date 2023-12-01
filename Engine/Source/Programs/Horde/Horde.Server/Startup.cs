@@ -319,8 +319,8 @@ namespace Horde.Server
 			List<BaseTelemetryConfig> telemetryConfigs = new();
 			foreach (IConfigurationSection child in telemetrySection.GetChildren())
 			{
-				string typeStr = child.GetValue<string>("Type");
-				if (!Enum.TryParse(typeStr, true, out TelemetrySinkType sinkType))
+				string? typeStr = child.GetValue<string>("Type");
+				if (typeStr == null || !Enum.TryParse(typeStr, true, out TelemetrySinkType sinkType))
 				{
 					throw new ConfigurationException($"Unable to parse sink type '{typeStr}'");
 				}
@@ -1256,7 +1256,7 @@ namespace Horde.Server
 			}
 		}
 
-		static LogEventLevel GetRequestLoggingLevel(HttpContext context, double elapsedMs, Exception ex)
+		static LogEventLevel GetRequestLoggingLevel(HttpContext context, double elapsedMs, Exception? ex)
 		{
 			if (context.Request != null && context.Request.Path.HasValue)
 			{

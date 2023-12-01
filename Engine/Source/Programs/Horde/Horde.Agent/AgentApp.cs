@@ -105,7 +105,7 @@ namespace Horde.Agent
 
 			CommandLineArguments arguments = new CommandLineArguments(args);
 
-			Dictionary<string, string> configOverrides = new Dictionary<string, string>();
+			Dictionary<string, string?> configOverrides = new Dictionary<string, string?>();
 			if (arguments.TryGetValue("-Server=", out string? serverOverride))
 			{
 				configOverrides.Add($"{AgentSettings.SectionName}:{nameof(AgentSettings.Server)}", serverOverride);

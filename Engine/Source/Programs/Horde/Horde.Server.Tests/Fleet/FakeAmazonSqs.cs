@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon.Runtime;
+using Amazon.Runtime.Endpoints;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
@@ -58,7 +59,7 @@ public sealed class FakeAmazonSqs : IAmazonSQS
 	
 #region Not implemented
 
-public ISQSPaginatorFactory Paginators { get; } = null!;
+	public ISQSPaginatorFactory Paginators { get; } = null!;
 	public IClientConfig Config { get; } = null!;
 	
 	public Task<Dictionary<string, string>> GetAttributesAsync(string queueUrl)
@@ -240,7 +241,27 @@ public ISQSPaginatorFactory Paginators { get; } = null!;
 	{
 		throw new NotImplementedException();
 	}
-#endregion Not implemented	
+
+	public Task<CancelMessageMoveTaskResponse> CancelMessageMoveTaskAsync(CancelMessageMoveTaskRequest request, CancellationToken cancellationToken)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Task<ListMessageMoveTasksResponse> ListMessageMoveTasksAsync(ListMessageMoveTasksRequest request, CancellationToken cancellationToken)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Task<StartMessageMoveTaskResponse> StartMessageMoveTaskAsync(StartMessageMoveTaskRequest request, CancellationToken cancellationToken)
+	{
+		throw new NotImplementedException();
+	}
+
+	public Endpoint DetermineServiceOperationEndpoint(AmazonWebServiceRequest request)
+	{
+		throw new NotImplementedException();
+	}
+	#endregion Not implemented	
 }
 
 #pragma warning restore CA1054

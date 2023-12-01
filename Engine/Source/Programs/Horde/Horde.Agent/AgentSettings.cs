@@ -373,7 +373,12 @@ namespace Horde.Agent
 		/// <returns></returns>
 		public static IConfigurationSection GetCurrentServerProfile(this IConfigurationSection configSection)
 		{
-			string profileName = configSection[nameof(AgentSettings.Server)];
+			string? profileName = configSection[nameof(AgentSettings.Server)];
+			if (profileName == null)
+			{
+				throw new Exception("Server is not set");
+			}
+
 			return configSection.GetSection(nameof(AgentSettings.ServerProfiles)).GetChildren().First(x => x[nameof(ServerProfile.Name)] == profileName);
 		}
 	}

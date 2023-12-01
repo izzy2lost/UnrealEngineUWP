@@ -213,7 +213,7 @@ namespace Horde.Server.Agents.Fleet
 			DateTimeOffset minCreateTime = _clock.UtcNow - TimeSpan.FromMinutes(Settings.SamplePeriodMin);
 
 			// Cache pool queue sizes for a short while for faster runs when many pools are scaled
-			if (!_cache.TryGetValue(CacheKey, out Dictionary<PoolId, int> poolQueueSizes))
+			if (!_cache.TryGetValue(CacheKey, out Dictionary<PoolId, int>? poolQueueSizes) || poolQueueSizes == null)
 			{
 				// Pool sizes haven't been cached, update them (might happen from multiple tasks but that is fine)
 				poolQueueSizes = await GetPoolQueueSizesAsync(minCreateTime);

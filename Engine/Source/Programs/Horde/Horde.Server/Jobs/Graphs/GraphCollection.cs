@@ -442,7 +442,7 @@ namespace Horde.Server.Jobs.Graphs
 				return document;
 			}
 
-			return await _memoryCache.GetOrCreateAsync(hash, CreateCacheEntry);
+			return (await _memoryCache.GetOrCreateAsync(hash, CreateCacheEntry))!;
 		}
 
 		/// <inheritdoc/>
