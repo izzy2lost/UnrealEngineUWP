@@ -57,16 +57,19 @@ bool MoveContainerToNewOuter(
 		return false;
 	}
 
-	// Ensure the target object doesn't exist
-	check(!FindObject<UObject>(NewOuter, *Container->GetName()));
-
-	// The Rename function moves the object into the given package
-	if (!Container->Rename(nullptr, NewOuter, REN_DontCreateRedirectors))
+	if (Container->GetOuter() != NewOuter)
 	{
-		UE_LOG(LogMutable, Error, TEXT("Failed to move streamed Resource Data container %s into Outer %s"),
-			*Container->GetPathName(), *NewOuter->GetPathName());
+		// Ensure the target object doesn't exist
+		check(!FindObject<UObject>(NewOuter, *Container->GetName()));
 
-		return false;
+		// The Rename function moves the object into the given package
+		if (!Container->Rename(nullptr, NewOuter, REN_DontCreateRedirectors))
+		{
+			UE_LOG(LogMutable, Error, TEXT("Failed to move streamed Resource Data container %s into Outer %s"),
+				*Container->GetPathName(), *NewOuter->GetPathName());
+
+			return false;
+		}
 	}
 
 	OutContainer = Container;

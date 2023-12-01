@@ -168,7 +168,7 @@ int32 FMutableGraphGenerationContext::AddStreamedResource(uint32 InResourceHash,
 	int32 NewResourceIndex = StreamedResourceData.Num();
 	const FString ContainerName = GetNameSafe(Object) + FString::Printf(TEXT("_SR_%d"), NewResourceIndex);
 
-	UCustomizableObjectResourceDataContainer* ExistingContainer = Cast<UCustomizableObjectResourceDataContainer>(FindObject<UObject>(Object, *ContainerName));
+	UCustomizableObjectResourceDataContainer* ExistingContainer = FindObject<UCustomizableObjectResourceDataContainer>(Object, *ContainerName);
 	OutNewResource = ExistingContainer ? ExistingContainer : NewObject<UCustomizableObjectResourceDataContainer>(
 		Object,
 		FName(*ContainerName),

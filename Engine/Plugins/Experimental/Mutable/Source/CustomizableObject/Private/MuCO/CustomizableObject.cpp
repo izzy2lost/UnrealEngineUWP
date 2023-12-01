@@ -458,30 +458,20 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 		int32 NumStreamedResources = 0;
 		Ar << NumStreamedResources;
 
-		// Initialize if not cooking. Otherwise, resources will be initialized at this point, and only their data will be updated.
-		if (!bIsCooking) 
-		{
-			StreamedResources.SetNum(NumStreamedResources);
-		}			
-		
-		check(NumStreamedResources == StreamedResources.Num())
+		StreamedResources.SetNum(NumStreamedResources);
 
 		for (int32 ResourceIndex = 0; ResourceIndex < NumStreamedResources; ++ResourceIndex)
 		{
-			UCustomizableObjectResourceDataContainer* Container = nullptr;
+			// Override existing containers
+			UCustomizableObjectResourceDataContainer* Container = StreamedResources[ResourceIndex].GetPath().Get();
 
-			if (bIsCooking)
-			{
-				// Override existing containers
-				Container = StreamedResources[ResourceIndex].GetPath().Get();
-			}
-
-			// Generate a deterministic name to help with deterministic cooking
+			// Create a new container if none.
 			if (!Container)
 			{
+				// Generate a deterministic name to help with deterministic cooking
 				const FString ContainerName = CustomizableObjectName + FString::Printf(TEXT("SR_%d"), ResourceIndex);
 
-				UCustomizableObjectResourceDataContainer* ExistingContainer = Cast<UCustomizableObjectResourceDataContainer>(FindObject<UObject>(Object, *ContainerName));
+				UCustomizableObjectResourceDataContainer* ExistingContainer = FindObject<UCustomizableObjectResourceDataContainer>(Object, *ContainerName);
 				Container = ExistingContainer ? ExistingContainer : NewObject<UCustomizableObjectResourceDataContainer>(
 					Object,
 					FName(*ContainerName),
