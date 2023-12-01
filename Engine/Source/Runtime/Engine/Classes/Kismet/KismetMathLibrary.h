@@ -4546,6 +4546,60 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, Category="Math|Smoothing", meta=(DisplayName="Dynamic Weighted Moving Average Rotator"))
 	static ENGINE_API FRotator DynamicWeightedMovingAverage_FRotator(FRotator CurrentSample, FRotator PreviousSample, float MaxDistance, float MinWeight, float MaxWeight);
 	
+	//
+	// Multidimensional index conversions
+	// 
+
+	/**
+	 *
+	 * Maps a 1D array index to a 2D array index.
+	 * 
+	 * @param Index1D - The 1D array index
+	 * @param XSize - X dimension of the 2D array
+	 * 
+	 * @return The equivalent 2D index of the array
+	 */
+	UFUNCTION(BlueprintPure, Category="Math|Conversions|Indices", meta=(DisplayName="Convert a 1D Index to a 2D Index"))
+	static FIntPoint Convert1DTo2D(int32 Index1D, int32 XSize);
+
+	/**
+	 *
+	 * Maps a 1D array index to a 3D array index.
+	 *
+	 * @param Index1D - The 1D array index
+	 * @param XSize - X dimension of the 3D array
+	 * @param YSize - Y dimension of the 3D array
+	 *
+	 * @return The equivalent 3D index of the array
+	 */
+	UFUNCTION(BlueprintPure, Category="Math|Conversions|Indices", meta=(DisplayName="Convert a 1D Index to a 3D Index"))
+	static FIntVector Convert1DTo3D(int32 Index1D, int32 XSize, int32 YSize);
+
+	/**
+	 *
+	 * Maps a 2D array index to a 1D array index.
+	 *
+	 * @param Index2D - The 2D array index
+	 * @param XSize - X dimension of the 2D array
+	 *
+	 * @return The equivalent 1D index of the array
+	 */
+	UFUNCTION(BlueprintPure, Category="Math|Conversions|Indices", meta=(DisplayName="Convert a 2D Index to a 1D Index"))
+	static int32 Convert2DTo1D(const FIntPoint& Index2D, int32 XSize);
+
+	/**
+	 *
+	 * Maps a 3D array index to a 1D array index.
+	 *
+	 * @param Index3D - The 3D array index
+	 * @param XSize - X dimension of the 3D array
+	 * @param YSize - Y dimension of the 3D array
+	 *
+	 * @return The equivalent 1D index of the array
+	 */
+	UFUNCTION(BlueprintPure, Category="Math|Conversions|Indices", meta=(DisplayName="Convert a 3D Index to a 1D Index"))
+	static int32 Convert3DTo1D(const FIntVector& Index3D, int32 XSize, int32 YSize);
+
 	// NetQuantized vector make/breaks
 	UFUNCTION(BlueprintPure, Category = "Math|Vector", meta = (NativeMakeFunc))
 	static FVector_NetQuantize MakeVector_NetQuantize(double X, double Y, double Z) { return FVector_NetQuantize(X, Y, Z); }
