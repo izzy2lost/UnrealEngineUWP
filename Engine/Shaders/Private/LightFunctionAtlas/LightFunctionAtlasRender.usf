@@ -68,10 +68,16 @@ void Main(
 
 #endif
 
+#if COLORED_LIGHT_FUNCTION_ATLAS
+
+	LightFunction = sqrt(max(0.0f, LightFunction));	// Simple Gamma compression
+	OutColor = float4(LightFunction, 0.0f);
+
+#else
 
 	float GreyScale = dot(LightFunction, .3333f).x;
+	GreyScale = sqrt(max(0.0f, GreyScale));						// Simple Gamma compression
+	OutColor = float4(GreyScale, 0.0f, 0.0f, 0.0f);
 
-	GreyScale = sqrt(max(0.0f, GreyScale)); // Simple Gamma compression
-
-	OutColor = GreyScale;
+#endif
 }

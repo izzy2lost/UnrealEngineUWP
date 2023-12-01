@@ -1663,6 +1663,17 @@ bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
 	return false;
 }
 
+static TAutoConsoleVariable<int32> CVarLightFunctionAtlasFormat(
+	TEXT("r.LightFunctionAtlas.Format"),
+	0,
+	TEXT("0: grey scale in [0,1]. 1: colored in [0,1]"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+int32 GetLightFunctionAtlasFormat()
+{
+	return CVarLightFunctionAtlasFormat.GetValueOnAnyThread();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Substrate settings interface
 

@@ -17,6 +17,7 @@
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Containers/HashTable.h"
+#include "RenderUtils.h"
 
 DECLARE_GPU_STAT(LightFunctionAtlasGeneration);
 
@@ -581,9 +582,11 @@ void FLightFunctionAtlas::AllocateTexture2DAtlas(FRDGBuilder& GraphBuilder)
 	uint32 AtlasResolution = AtlasSlotResolution * AtlasEdgeSize;
 	const uint32 MipCount = 1;
 
+	int32 LightFunctionAtlasFormat = GetLightFunctionAtlasFormat();
+
 	RDGAtlasTexture2D = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(
 		FIntPoint(AtlasResolution, AtlasResolution),
-		PF_R8,
+		LightFunctionAtlasFormat == 0 ? PF_R8 : PF_R8G8B8A8,
 		FClearValueBinding::Black,
 		ETextureCreateFlags::UAV | ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable,
 		MipCount),

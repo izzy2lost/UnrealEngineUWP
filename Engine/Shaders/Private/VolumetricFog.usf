@@ -326,27 +326,7 @@ int VirtualShadowMapId;
 #define HISTORY_MISS_SUPER_SAMPLE_COUNT 1
 #endif
 
-#if USE_LIGHT_FUNCTION_ATLAS || USE_LIGHT_FUNCTION
 #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
-#endif
-
-#if	USE_LIGHT_FUNCTION // Used when injecting light with with shadow, unbatched
-
-/** Matrix can be either WorldToShadow or WorldToLight depending on light type. */
-float4x4 LocalLightFunctionMatrix;
-float4 LightFunctionAtlasTileMinMaxUvBound;
-
-Texture2D LightFunctionAtlasTexture;
-SamplerState LightFunctionAtlasSampler;
-
-float GetLocalLightFunction(float3 TranslatedWorldPosition, FDeferredLightData LightData)
-{
-	return GetLocalLightFunctionCommon(
-		TranslatedWorldPosition, 
-		LightData.LightFunctionAtlasLightIndex);
-}
-
-#endif // USE_LIGHT_FUNCTION
 
 Texture2D<float> ConservativeDepthTexture;
 float2 PrevConservativeDepthTextureSize;
@@ -480,11 +460,12 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 			}
 #endif
 	
+			FLightFunctionColor LightFunctionColor = 1.0f;
 #if	USE_LIGHT_FUNCTION
-			ShadowFactor *= GetLocalLightFunction(TranslatedWorldPosition, LightData);
+			LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 #endif
 
-			OutScattering.rgb += LightColor * (PhaseFunction(PhaseG, dot(L, -CameraVector)) * CombinedAttenuation * ShadowFactor * VolumetricScatteringIntensity);
+			OutScattering.rgb += LightColor * LightFunctionColor * (PhaseFunction(PhaseG, dot(L, -CameraVector)) * CombinedAttenuation * ShadowFactor * VolumetricScatteringIntensity);
 				
 			// To debug culling
 			//OutScattering.rgb += DeferredLightUniforms.Color * .0000001f;
@@ -670,7 +651,7 @@ SamplerState DirectionalLightLightFunctionSampler;
 uint DirectionalApplyLightFunctionFromAtlas;
 uint DirectionalLightFunctionAtlasLightIndex;
 
-float GetDirectionalLightFunction(float3 TranslatedWorldPosition) // directional light
+FLightFunctionColor GetDirectionalLightFunction(float3 TranslatedWorldPosition) // directional light
 {
 #if USE_LIGHT_FUNCTION_ATLAS  // Used when injecting lights from the light grid
 	if (DirectionalApplyLightFunctionFromAtlas > 0)
@@ -802,7 +783,7 @@ void LightScatteringCS(
 #endif
 			}
 
-			ShadowFactor *= GetDirectionalLightFunction(TranslatedWorldPosition);
+			FLightFunctionColor LightFunctionColor = GetDirectionalLightFunction(TranslatedWorldPosition);
 
 			float3 DirectionalLightColor = InDirectionalLightColor;
 
@@ -812,7 +793,7 @@ void LightScatteringCS(
 				DirectionalLightColor = VolumetricFog.HeightFogDirectionalLightInscatteringColor * Luminance(InDirectionalLightColor);
 			}
 
-			LightScattering += DirectionalLightColor * ShadowFactor * PhaseFunction(PhaseG, dot(InDirectionalLightDirection, -CameraVector));
+			LightScattering += DirectionalLightColor * LightFunctionColor * ShadowFactor * PhaseFunction(PhaseG, dot(InDirectionalLightDirection, -CameraVector));
 		}
 
 		FTwoBandSHVector RotatedHGZonalHarmonic;
@@ -912,13 +893,12 @@ void LightScatteringCS(
 
 				float CombinedAttenuation = Lighting * LightMask;
 
-			#if USE_LIGHT_FUNCTION_ATLAS
-				CombinedAttenuation *= GetLocalLightFunctionCommon(
-					TranslatedWorldPosition,
-					LightData.LightFunctionAtlasLightIndex);
+				FLightFunctionColor LightFunctionColor = 1.0f;
+			#if	USE_LIGHT_FUNCTION_ATLAS
+				LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 			#endif
 
-				LightScattering += LightData.Color * (PhaseFunction(PhaseG, dot(L, -CameraVector)) * CombinedAttenuation * VolumetricScatteringIntensity);
+				LightScattering += LightData.Color * LightFunctionColor * (PhaseFunction(PhaseG, dot(L, -CameraVector)) * CombinedAttenuation * VolumetricScatteringIntensity);
 
 				// To debug culling
 				//LightScattering += LocalLight.LightColorAndFalloffExponent.xyz * .0000001f;

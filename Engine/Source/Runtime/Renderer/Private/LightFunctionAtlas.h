@@ -100,7 +100,7 @@ struct FLightFunctionSlot
 // Using a constant buffer also workaround the fact that we would otherwise need another SRV in forward shaders. 
 // The light atlas texture itself already use 1 extra SRV. We could an extra SRV and have LightInfoDataXXX be in a buffer that scale with amount of light in the scene.
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, )
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, LightFunctionAtlasTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, LightFunctionAtlasTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, LightFunctionAtlasSampler)
 	SHADER_PARAMETER(float, Slot_UVSize)
 	SHADER_PARAMETER_ARRAY(FMatrix44f, LightInfoDataMatrix, [LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT])		// Light data

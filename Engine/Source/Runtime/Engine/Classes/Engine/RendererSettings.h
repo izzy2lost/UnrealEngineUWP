@@ -232,6 +232,16 @@ namespace EDefaultBackBufferPixelFormat
 	ENGINE_API EDefaultBackBufferPixelFormat::Type FromInt(int32 InDefaultBackBufferPixelFormat);
 }
 
+UENUM()
+namespace ELightFunctionAtlasPixelFormat
+{
+	enum Type : int
+	{
+		LFAPF_R8 = 0				UMETA(DisplayName = "8 bits Gray Scale"),
+		LFAPF_R8G8B8 = 1			UMETA(DisplayName = "8 bits RGB  Color")
+	};
+}
+
 /**
  * Enumerates supported shader compression formats.
  */
@@ -873,6 +883,15 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Enable cloud shadow on translucent surface not relying on the translucenct lighting volume, e.g. using Forward lighting. This is evaluated per vertex to reduce GPU cost and requires extra samplers/textures to be bound to vertex shaders. This is not implemented on mobile as VolumetricClouds are not available on these platforms.",
 		ConfigRestartRequired = true))
 		uint32 bSupportCloudShadowOnForwardLitTranslucent : 1;
+
+	/**
+	"Select the format of the light function atlas texture."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
+		ConsoleVariable = "r.LightFunctionAtlas.Format", DisplayName = "Light Function Atlas Format",
+		ToolTip = "Select the format of the light function atlas texture.",
+		ConfigRestartRequired = true))
+		TEnumAsByte<ELightFunctionAtlasPixelFormat::Type> LightFunctionAtlasPixelFormat;
 
 	/**
 	"Enable rect light evaluation on translucent materials when using the Forward Shading mode."

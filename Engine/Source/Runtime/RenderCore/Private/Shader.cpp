@@ -2074,6 +2074,14 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	}
 
 	{
+		int32 LightFunctionAtlasFormat = GetLightFunctionAtlasFormat();
+		if (LightFunctionAtlasFormat > 0)
+		{
+			KeyString += FString::Printf(TEXT("_LFAC%u"), LightFunctionAtlasFormat);
+		}
+	}
+
+	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Material.EnergyConservation"));
 		if (CVar && CVar->GetValueOnAnyThread() > 0)
 		{

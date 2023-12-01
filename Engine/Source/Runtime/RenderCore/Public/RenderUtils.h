@@ -549,6 +549,8 @@ namespace Substrate
 	RENDERCORE_API uint32 GetShadingQuality(EShaderPlatform InPlatform);
 }
 
+RENDERCORE_API int32 GetLightFunctionAtlasFormat();
+
 // LuminanceMax is the amount of light that will cause the sensor to saturate at EV100.
 //  See also https://en.wikipedia.org/wiki/Film_speed and https://en.wikipedia.org/wiki/Exposure_value for more info.
 FORCEINLINE float EV100ToLuminance(float LuminanceMax, float EV100)

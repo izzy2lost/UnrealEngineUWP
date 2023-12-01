@@ -55,9 +55,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"
 #endif
 
-#if USE_LIGHT_FUNCTION_ATLAS
 #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
-#endif
 
 // Remap light shape permutation into light type
 #if LIGHT_SOURCE_SHAPE == 0
@@ -342,9 +340,7 @@ void DeferredLightPixelMain(
 #if USE_LIGHT_FUNCTION_ATLAS
 		if (bUseLightFunctionAtlas)
 		{
-			Radiance *= GetLocalLightFunctionCommon(
-				DerivedParams.TranslatedWorldPosition,
-				LightData.LightFunctionAtlasLightIndex);
+			Radiance.rgb *= GetLocalLightFunctionCommon(DerivedParams.TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 		}
 #endif
 
@@ -454,16 +450,15 @@ void DeferredLightPixelMain(
 
 	const float LocalCoverage = From8bitCoverage(Sample.Coverage8bit);
 
-#if USE_LIGHT_FUNCTION_ATLAS
+	FLightFunctionColor LightFunctionColor = 1.0f;
+#if	USE_LIGHT_FUNCTION_ATLAS
 	if (bUseLightFunctionAtlas)
 	{
-		Attenuation *= GetLocalLightFunctionCommon(
-			TranslatedWorldPosition,
-			LightData.LightFunctionAtlasLightIndex);
+		LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 	}
 #endif
 
-	OutColor.rgb = AtmosphericTransmittance * Radiance.xyz * Attenuation * LocalCoverage * GetExposure();
+	OutColor.rgb = AtmosphericTransmittance * Radiance.xyz * LightFunctionColor * Attenuation * LocalCoverage * GetExposure();
 	OutColor.a = LocalCoverage;
 }
 #endif

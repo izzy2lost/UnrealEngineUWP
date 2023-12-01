@@ -11,7 +11,13 @@
 
 // In order to use function from that file, one must use FLightFunctionAtlasGlobalParameters
 
-float GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, uint LightFunctionAtlasLightIndex)
+#if COLORED_LIGHT_FUNCTION_ATLAS
+#define FLightFunctionColor float3
+#else
+#define FLightFunctionColor float
+#endif
+
+FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, uint LightFunctionAtlasLightIndex)
 {
 	if (LightFunctionAtlasLightIndex == 0)
 	{
@@ -62,17 +68,21 @@ float GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, uint LightFunc
 	// Slot min uv and size already account for half texel offsets
 	float2 AtlasUV = Slot_MinUV + saturate(LightFunctionUV) * LightFunctionAtlas.Slot_UVSize.xx;
 
-	float LightFunctionValue = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).x;
-	LightFunctionValue = LightFunctionValue * LightFunctionValue; // Simple Gamma decompression
+#ifdef COLORED_LIGHT_FUNCTION_ATLAS
+	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).rgb;
+#else
+	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).x;
+#endif
+	LightFunctionColor = LightFunctionColor * LightFunctionColor; // Simple Gamma decompression
 
 	// Calculate radial view distance for stable fading
 	float ViewDistance = length(PrimaryView.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 	float DistanceFadeAlpha = saturate((FadeDistance - ViewDistance) / (FadeDistance * .2f));
 	// Fade to disabled based on FadeDistance
-	LightFunctionValue = lerp(DisabledBrightness, LightFunctionValue, DistanceFadeAlpha);
+	LightFunctionColor = lerp(DisabledBrightness, LightFunctionColor, DistanceFadeAlpha);
 	// Fade to disabled based on ShadowFadeFraction
 	const float ShadowFadeFraction = 1.0f; // Not setup
-	LightFunctionValue = LightFunctionValue; // lerp(DisabledBrightness, LightFunctionValue, ShadowFadeFraction);
+	LightFunctionColor = LightFunctionColor; // lerp(DisabledBrightness, LightFunctionColor, ShadowFadeFraction);
 
-	return LightFunctionValue;
+	return LightFunctionColor;
 }
