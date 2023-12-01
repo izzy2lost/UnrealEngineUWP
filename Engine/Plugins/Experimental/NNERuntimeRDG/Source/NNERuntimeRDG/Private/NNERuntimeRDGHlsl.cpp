@@ -26,6 +26,7 @@
 #include "Hlsl/NNERuntimeRDGFlatten.h"
 #include "Hlsl/NNERuntimeRDGGather.h"
 #include "Hlsl/NNERuntimeRDGGemm.h"
+#include "Hlsl/NNERuntimeRDGGlobalPool.h"
 #include "Hlsl/NNERuntimeRDGIdentity.h"
 #include "Hlsl/NNERuntimeRDGInstanceNormalization.h"
 #include "Hlsl/NNERuntimeRDGPad.h"
@@ -64,6 +65,7 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	RegisterFlattenOperator(*Registry);
 	RegisterGatherOperator(*Registry);
 	RegisterGemmOperator(*Registry);
+	RegisterGlobalPoolOperators(*Registry);
 	RegisterIdentityOperator(*Registry);
 	RegisterInstanceNormalizationOperator(*Registry);
 	RegisterPadOperator(*Registry);
