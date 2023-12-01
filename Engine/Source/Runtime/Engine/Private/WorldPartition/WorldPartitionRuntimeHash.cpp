@@ -372,34 +372,55 @@ bool UWorldPartitionRuntimeHash::PopulateGeneratorPackageForCook(const TArray<FW
 
 void UWorldPartitionRuntimeHash::DumpStateLog(FHierarchicalLogArchive& Ar) const
 {
-	if (!GIsAutomationTesting)
+	Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
+	Ar.Printf(TEXT("%s - Persistent Level"), *GetWorld()->GetName());
+	Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
 	{
-		Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
-		Ar.Printf(TEXT("%s - Persistent Level"), *GetWorld()->GetName());
-		Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
-		{
-			FHierarchicalLogArchive::FIndentScope CellIndentScope = Ar.PrintfIndent(TEXT("Content of %s Persistent Level"), *GetWorld()->GetName());
+		FHierarchicalLogArchive::FIndentScope CellIndentScope = Ar.PrintfIndent(TEXT("Content of %s Persistent Level"), *GetWorld()->GetName());
 
-			TArray<const AActor*> Actors;
-			for (const AActor* Actor : GetWorld()->PersistentLevel->Actors)
+		TArray<TPair<FString, FString>> Actors;
+
+		if (!IsRunningCookCommandlet())
+		{
+			for (const FAlwaysLoadedActorForPIE& AlwaysLoadedActor : AlwaysLoadedActorsForPIE)
 			{
-				if (Actor)
+				if (AlwaysLoadedActor.Actor.IsValid())
 				{
-					Actors.Add(Actor);
+					Actors.Add(
+					{
+						FString::Printf(TEXT("Actor Path: %s"), *AlwaysLoadedActor.Actor->GetPathName()), 
+						FString::Printf(TEXT("Actor Package: %s"), *AlwaysLoadedActor.Actor->GetPackage()->GetName())
+					});
 				}
 			}
-
-			Actors.Sort([this](const AActor& A, const AActor& B) { return A.GetFName().LexicalLess(B.GetFName()); });
-
-			Ar.Printf(TEXT("Always loaded Actor Count: %d "), Actors.Num());
-			for (const AActor* Actor : Actors)
+		}
+		else
+		{
+			for (UWorldPartitionRuntimeCell* Cell : GetAlwaysLoadedCells())
 			{
-				Ar.Printf(TEXT("Actor Path: %s"), *Actor->GetPathName());
-				Ar.Printf(TEXT("Actor Package: %s"), *Actor->GetPackage()->GetName());
+				const UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = CastChecked<UWorldPartitionRuntimeLevelStreamingCell>(Cell);
+
+				for (const FWorldPartitionRuntimeCellObjectMapping& Package : RuntimeCell->GetPackages())
+				{
+					Actors.Add(
+					{
+						FString::Printf(TEXT("Actor Path: %s"), *Package.Path.ToString()), 
+						FString::Printf(TEXT("Actor Package: %s"), *Package.Package.ToString())
+					});
+				}
 			}
 		}
-		Ar.Printf(TEXT(""));
+
+		Actors.Sort();
+
+		Ar.Printf(TEXT("Always loaded Actor Count: %d "), Actors.Num());
+		for (const TPair<FString, FString>& Actor : Actors)
+		{
+			Ar.Print(*Actor.Key);
+			Ar.Print(*Actor.Value);
+		}
 	}
+	Ar.Printf(TEXT(""));
 }
 
 void UWorldPartitionRuntimeHash::ForceExternalActorLevelReference(bool bForceExternalActorLevelReferenceForPIE)

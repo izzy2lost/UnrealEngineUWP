@@ -1341,7 +1341,10 @@ void UWorldPartitionRuntimeSpatialHash::DumpStateLog(FHierarchicalLogArchive& Ar
 				{
 					for (const TObjectPtr<UWorldPartitionRuntimeCell>& Cell : LayerCell.GridCells)
 					{
-						Cells.Add(Cell);
+						if (!Cell->IsAlwaysLoaded())
+						{
+							Cells.Add(Cell);
+						}
 					}
 				}
 

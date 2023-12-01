@@ -258,7 +258,7 @@ void UWorldPartitionRuntimeHashSet::DumpStateLog(FHierarchicalLogArchive& Ar) co
 	Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
 
 	TArray<const UWorldPartitionRuntimeCell*> StreamingCells;
-	ForEachStreamingCells([&StreamingCells](const UWorldPartitionRuntimeCell* StreamingCell) { StreamingCells.Add(StreamingCell); return true; });
+	ForEachStreamingCells([&StreamingCells](const UWorldPartitionRuntimeCell* StreamingCell) { if (!StreamingCell->IsAlwaysLoaded()) { StreamingCells.Add(StreamingCell); } return true; });
 				
 	StreamingCells.Sort([this](const UWorldPartitionRuntimeCell& A, const UWorldPartitionRuntimeCell& B) { return A.GetFName().LexicalLess(B.GetFName()); });
 
