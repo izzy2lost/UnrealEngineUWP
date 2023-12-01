@@ -331,6 +331,7 @@ void FLandscapeGrassWeightExporter_RenderThread::RenderLandscapeComponentToTextu
 	ViewInitOptions.ViewRotationMatrix = ViewRotationMatrix;
 	ViewInitOptions.ProjectionMatrix = ProjectionMatrix;
 	ViewInitOptions.ViewFamily = &ViewFamily;
+	ViewInitOptions.bUseFauxOrthoViewPos = false;
 
 	GetRendererModule().CreateAndInitSingleView(RHICmdList, &ViewFamily, &ViewInitOptions);
 
