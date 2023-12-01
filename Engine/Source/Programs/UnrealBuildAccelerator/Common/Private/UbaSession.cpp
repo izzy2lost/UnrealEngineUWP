@@ -1025,12 +1025,12 @@ namespace uba
 		m_systemPath.Append(TC("/nonexistingpath"));
 		#endif
 
-		m_fileMappingTableHandle = uba::CreateMemoryMappingW(PAGE_READWRITE, FileMappingTableMemSize);
+		m_fileMappingTableHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, FileMappingTableMemSize);
 		UBA_ASSERT(m_fileMappingTableHandle.IsValid());
 		m_fileMappingTableMem = MapViewOfFile(m_fileMappingTableHandle, FILE_MAP_WRITE, 0, FileMappingTableMemSize);
 		UBA_ASSERT(m_fileMappingTableMem);
 
-		m_directoryTableHandle = uba::CreateMemoryMappingW(PAGE_READWRITE, DirTableMemSize);
+		m_directoryTableHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, DirTableMemSize);
 		UBA_ASSERT(m_directoryTableHandle.IsValid());
 		m_directoryTableMem = MapViewOfFile(m_directoryTableHandle, FILE_MAP_WRITE, 0, DirTableMemSize);
 		UBA_ASSERT(m_directoryTableMem);

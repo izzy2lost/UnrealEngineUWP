@@ -33,18 +33,19 @@ namespace uba
 
 	struct FileMappingHandle
 	{
-		FileMappingHandle(int fd_ = -1, u64 uid_ = ~u64(0)) : fd(fd_), uid(uid_) { };
-		FileMappingHandle(const FileMappingHandle& o) { fd = o.fd; uid = o.uid; }
-		int fd;
+		FileMappingHandle(int shmFd_ = -1, int lockFd_ = -1, u64 uid_ = ~u64(0)) : shmFd(shmFd_), lockFd(lockFd_), uid(uid_) { };
+		FileMappingHandle(const FileMappingHandle& o) { shmFd = o.shmFd; uid = o.uid; }
+		int shmFd;
+		int lockFd;
 		u64 uid;
-		bool operator==(const FileMappingHandle& o) const { return fd == o.fd; }
-		bool IsValid() const { return fd != -1; }
+		bool operator==(const FileMappingHandle& o) const { return shmFd == o.shmFd; }
+		bool IsValid() const { return shmFd != -1; }
 		u64 ToU64() const { return uid; }
 		void FromU64(u64 v) { UBA_ASSERT(false); uid = v; }
 	};
 #endif
 
-	FileMappingHandle CreateMemoryMappingW(u32 flProtect, u64 maxSize, const tchar* name = nullptr);
+	FileMappingHandle CreateMemoryMappingW(Logger& logger, u32 flProtect, u64 maxSize, const tchar* name = nullptr);
 	FileMappingHandle CreateFileMappingW(FileHandle hFile, u32 flProtect, u64 maxSize = 0);
 	u8* MapViewOfFile(FileMappingHandle hFileMappingObject, u32 dwDesiredAccess, u64 offset, u64 dwNumberOfBytesToMap);
 	bool MapViewCommit(void* address, u64 size);

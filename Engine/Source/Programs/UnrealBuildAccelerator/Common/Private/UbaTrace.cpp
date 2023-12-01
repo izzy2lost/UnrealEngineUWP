@@ -47,7 +47,7 @@ namespace uba
 	bool Trace::StartWrite(const tchar* namedTrace, u64 traceMemCapacity)
 	{
 		m_memoryCapacity = traceMemCapacity;
-		m_memoryHandle = uba::CreateMemoryMappingW(PAGE_READWRITE|SEC_RESERVE, m_memoryCapacity, namedTrace);
+		m_memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE|SEC_RESERVE, m_memoryCapacity, namedTrace);
 		if (!m_memoryHandle.IsValid())
 			return false;
 
@@ -289,7 +289,7 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		StringBuffer<245> channelMutex;
 		channelMutex.Append(TC("Uba")).Append(channelName).Append(TC("Channel"));
-		m_memHandle = uba::CreateMemoryMappingW(PAGE_READWRITE, 256, channelName);
+		m_memHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, 256, channelName);
 		if (!m_memHandle.IsValid())
 		{
 			MessageBox(NULL, TC("Failed to create file mapping for trace channel"), TC("UbaVisualizer"), 0);

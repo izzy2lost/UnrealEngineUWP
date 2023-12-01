@@ -121,7 +121,7 @@ namespace uba
 	bool TraceReader::StartReadClient(TraceView& out, NetworkClient& client)
 	{
 		u32 traceMemSize = 128 * 1024 * 1024;
-		m_memoryHandle = uba::CreateMemoryMappingW(PAGE_READWRITE, traceMemSize);
+		m_memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE, traceMemSize);
 		if (!m_memoryHandle.IsValid())
 			return false;
 		m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_ALL_ACCESS, 0, traceMemSize);
