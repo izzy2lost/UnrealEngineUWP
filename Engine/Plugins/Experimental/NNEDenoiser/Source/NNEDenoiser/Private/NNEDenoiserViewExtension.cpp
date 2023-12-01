@@ -40,7 +40,7 @@ static TAutoConsoleVariable<int32> CVarNNEDenoiserModelData(
 
 static TAutoConsoleVariable<int32> CVarNNEDenoiserRuntimeType(
 	TEXT("NNEDenoiser.Runtime.Type"),
-	0,
+	1,
 	TEXT("Defines the runtime type to run the denoiser model.\n")
 	TEXT("  0: CPU\n")
 	TEXT("  1: GPU\n")

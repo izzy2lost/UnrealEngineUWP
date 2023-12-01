@@ -16,7 +16,7 @@
 namespace UE::NNEDenoiser::Private
 {
 
-	static const FString DefaultRuntimeRDGName = TEXT("NNERuntimeRDGDml");
+	static const FString DefaultRuntimeRDGName = TEXT("NNERuntimeRDGHlsl");
 
 	TUniquePtr<FModelInstanceRDG> FModelInstanceRDG::Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
 	{
