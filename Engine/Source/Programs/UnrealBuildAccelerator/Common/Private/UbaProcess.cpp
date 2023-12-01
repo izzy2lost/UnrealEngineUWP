@@ -1291,6 +1291,8 @@ namespace uba
 			UBA_ASSERTF(res == 0, TC("posix_spawnattr_init"));
 			res = posix_spawnattr_setflags(&attr, flags);
 			UBA_ASSERTF(res == 0, TC("posix_spawnattr_setflags"));
+			res = posix_spawnattr_setpgroup(&attr, getpgrp());
+			UBA_ASSERTF(res == 0, TC("posix_spawnattr_setpgroup"));
 
 			posix_spawn_file_actions_t fileActions;
 			posix_spawn_file_actions_init(&fileActions);
