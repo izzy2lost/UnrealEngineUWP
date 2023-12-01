@@ -998,7 +998,7 @@ UMaterial::UMaterial(const FObjectInitializer& ObjectInitializer)
 	bApplyCloudFogging = false;
 	bIsSky = false;
 	bUsedWithWater = false;
-	BlendableLocation = BL_AfterTonemapping;
+	BlendableLocation = BL_SceneColorAfterTonemapping;
 	BlendablePriority = 0;
 	BlendableOutputAlpha = false;
 	bIsBlendable = true;
@@ -3570,7 +3570,7 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 			ShadingModels.ClearShadingModels();
 			ShadingModels.AddShadingModel(MSM_Unlit);
 
-			if (MaterialDomain == MD_PostProcess && !BlendableOutputAlpha)
+			if (MaterialDomain == MD_PostProcess && !IsPostProcessMaterialOutputingAlpha())
 			{
 				BlendMode = BLEND_Opaque;
 			}
@@ -4448,11 +4448,11 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 		{
 			if (bSubstrateEnabled)
 			{
-				return ((MaterialDomain != MD_PostProcess && MaterialDomain != MD_LightFunction && MaterialDomain != MD_Volume) || (MaterialDomain == MD_PostProcess && BlendableOutputAlpha));
+				return ((MaterialDomain != MD_PostProcess && MaterialDomain != MD_LightFunction && MaterialDomain != MD_Volume) || IsPostProcessMaterialOutputingAlpha());
 			}
 			else
 			{
-				return (MaterialDomain == MD_DeferredDecal || MaterialDomain == MD_Surface || MaterialDomain == MD_Volume || MaterialDomain == MD_UI || (MaterialDomain == MD_PostProcess && BlendableOutputAlpha));
+				return (MaterialDomain == MD_DeferredDecal || MaterialDomain == MD_Surface || MaterialDomain == MD_Volume || MaterialDomain == MD_UI || IsPostProcessMaterialOutputingAlpha());
 			}
 		}
 	
@@ -5136,7 +5136,7 @@ void UMaterial::RebuildShadingModelField()
 				ShadingModel = MSM_Unlit;
 				// We keep the blend mode resulting from ConvertLegacyToSubstrateBlendMode because post processes can be translucent.
 				// However, we do force opaque mode if blending has been disabled via the post-process specific BlendableOutputAlpha option.
-				if (!BlendableOutputAlpha)
+				if (!IsPostProcessMaterialOutputingAlpha())
 				{
 					BlendMode = BLEND_Opaque;
 				}
@@ -6723,6 +6723,11 @@ bool UMaterial::IsPostProcessMaterial() const
 	return MaterialDomain == MD_PostProcess;
 }
 
+bool UMaterial::IsPostProcessMaterialOutputingAlpha() const
+{
+	return UMaterial::IsPostProcessMaterial() && (BlendableOutputAlpha || BlendableLocation == BL_TranslucencyAfterDOF);
+}
+
 bool UMaterial::WritesToRuntimeVirtualTexture() const
 {
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
@@ -7121,7 +7126,7 @@ bool UMaterial::IsPropertyActiveInEditor(EMaterialProperty InProperty) const
 		BlendMode,
 		ShadingModels,
 		TranslucencyLightingMode,
-		BlendableOutputAlpha,
+		IsPostProcessMaterialOutputingAlpha(),
 		bUsesDistortion,
 		IsShadingModelFromMaterialExpression(),
 		IsTranslucencyWritingVelocity(),
@@ -7146,7 +7151,7 @@ bool UMaterial::IsPropertyActiveInDerived(EMaterialProperty InProperty, const UM
 		DerivedMaterial->GetBlendMode(),
 		DerivedMaterial->GetShadingModels(),
 		TranslucencyLightingMode,
-		BlendableOutputAlpha,
+		IsPostProcessMaterialOutputingAlpha(),
 		bUsesDistortion,
 		DerivedMaterial->IsShadingModelFromMaterialExpression(),
 		IsTranslucencyWritingVelocity(),

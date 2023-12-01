@@ -317,7 +317,7 @@ void AddPostProcessingPasses(
 	const FScreenPassTexture Velocity(SceneTextureParameters.GBufferVelocityTexture, PrimaryViewRect);
 	const FScreenPassTexture BlackDummy(GSystemTextures.GetBlackDummy(GraphBuilder));
 	
-	const FTranslucencyPassResources& PostDOFTranslucencyResources = Inputs.TranslucencyViewResourcesMap.Get(ETranslucencyPass::TPT_TranslucencyAfterDOF);
+	FTranslucencyPassResources PostDOFTranslucencyResources = Inputs.TranslucencyViewResourcesMap.Get(ETranslucencyPass::TPT_TranslucencyAfterDOF);
 	const FTranslucencyPassResources& PostMotionBlurTranslucencyResources = Inputs.TranslucencyViewResourcesMap.Get(ETranslucencyPass::TPT_TranslucencyAfterMotionBlur);
 
 	// Whether should process the alpha channel of the scene color.
@@ -626,11 +626,11 @@ void AddPostProcessingPasses(
 		const bool bBloomEnabled = View.FinalPostProcessSettings.BloomIntensity > 0.0f && !bVisualizeTSR;
 
 		// Whether separate translucency is composed in TSR.
-		bool bComposeSeparateTranslucencyInTSR = TAAConfig == EMainTAAPassConfig::TSR && ComposeSeparateTranslucencyInTSR(View);
+		bool bComposeSeparateTranslucencyInTSR = PostDOFTranslucencyResources.IsValid() && TAAConfig == EMainTAAPassConfig::TSR && ComposeSeparateTranslucencyInTSR(View);
 
 		const FIntPoint PostTAAViewSize = (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale && TAAConfig != EMainTAAPassConfig::Disabled) ? View.GetSecondaryViewRectSize() : View.ViewRect.Size();
 
-		const FPostProcessMaterialChain PostProcessMaterialAfterTonemappingChain = GetPostProcessMaterialChain(View, BL_AfterTonemapping);
+		const FPostProcessMaterialChain PostProcessMaterialAfterTonemappingChain = GetPostProcessMaterialChain(View, BL_SceneColorAfterTonemapping);
 
 		PassSequence.SetEnabled(EPass::MotionBlur, bVisualizeMotionBlur || bMotionBlurEnabled);
 		PassSequence.SetEnabled(EPass::Tonemap, bTonemapEnabled);
@@ -679,17 +679,19 @@ void AddPostProcessingPasses(
 		const bool bNeedPostMotionBlurHalfRes = !bProcessQuarterResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction > 0.25f && FFTBloomResolutionFraction <= 0.5f) || (ReflectionsMethod == EReflectionsMethod::SSR && !View.bStatePrevViewInfoIsReadOnly && GSSRHalfResSceneColor);
 		const bool bNeedPostMotionBlurQuarterRes = bProcessQuarterResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction <= 0.25f);
 
-		// Post Process Material Chain - Before Translucency
-		{
-			const FPostProcessMaterialChain MaterialChain = GetPostProcessMaterialChain(View, BL_BeforeTranslucency);
 
-			if (MaterialChain.Num())
-			{
-				SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChain);
-			}
+		const FPostProcessMaterialChain MaterialChainSceneColorBeforeDOF = GetPostProcessMaterialChain(View, BL_SceneColorBeforeDOF);
+		const FPostProcessMaterialChain MaterialChainSceneColorAfterDOF = GetPostProcessMaterialChain(View, BL_SceneColorAfterDOF);
+		const FPostProcessMaterialChain MaterialChainTranslucencyAfterDOF = GetPostProcessMaterialChain(View, BL_TranslucencyAfterDOF);
+
+		// Post Process Material Chain - BL_SceneColorBeforeDOF
+		if (MaterialChainSceneColorBeforeDOF.Num())
+		{
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorBeforeDOF);
 		}
 
 		// Diaphragm Depth of Field
+		bool bSceneColorHasPostDOFTranslucency = false;
 		{
 			FRDGTextureRef InputSceneColorTexture = SceneColor.Texture;
 
@@ -697,16 +699,51 @@ void AddPostProcessingPasses(
 			{
 				FTranslucencyPassResources DummyTranslucency;
 
+				bool bComposeTranslucency = PostDOFTranslucencyResources.IsValid() && !bComposeSeparateTranslucencyInTSR && MaterialChainTranslucencyAfterDOF.Num() == 0;
+
 				SceneColor.Texture = DiaphragmDOF::AddPasses(
 					GraphBuilder,
 					SceneTextureParameters,
 					View,
 					SceneColor.Texture,
-					bComposeSeparateTranslucencyInTSR ? DummyTranslucency : PostDOFTranslucencyResources);
+					bComposeTranslucency ? PostDOFTranslucencyResources : DummyTranslucency);
+				bSceneColorHasPostDOFTranslucency = bComposeTranslucency;
+			}
+
+			if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterSeparateTranslucent)
+			{
+				RenderHairComposition(GraphBuilder, View, SceneColor.Texture, SceneDepth.Texture, Velocity.Texture);
+			}
+		}
+
+		// Post Process Material Chain - BL_SceneColorAfterDOF
+		if (MaterialChainSceneColorAfterDOF.Num())
+		{
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorAfterDOF);
+		}
+
+		// Post Process Material Chain - BL_TranslucencyAfterDOF
+		if (bSceneColorHasPostDOFTranslucency)
+		{
+			ensure(MaterialChainTranslucencyAfterDOF.Num() == 0);
+			ensure(!bComposeSeparateTranslucencyInTSR);
+		}
+		else if (PostDOFTranslucencyResources.IsValid())
+		{
+			if (MaterialChainTranslucencyAfterDOF.Num())
+			{
+				FScreenPassTexture PostDOFTranslucency = AddPostProcessMaterialChain(
+					GraphBuilder, View,
+					GetPostProcessMaterialInputs(SceneColor),
+					MaterialChainTranslucencyAfterDOF,
+					EPostProcessMaterialInput::SeparateTranslucency);
+
+				PostDOFTranslucencyResources.ColorTexture = PostDOFTranslucency.Texture;
+				ensure(PostDOFTranslucencyResources.ViewRect == PostDOFTranslucency.ViewRect);
 			}
 
 			// DOF passes were not added, therefore need to compose Separate translucency manually.
-			if ((SceneColor.Texture == InputSceneColorTexture || bComposeSeparateTranslucencyInTSR) && PostDOFTranslucencyResources.IsValid())
+			if (!bSceneColorHasPostDOFTranslucency)
 			{
 				FTranslucencyComposition TranslucencyComposition;
 				TranslucencyComposition.Operation = FTranslucencyComposition::EOperation::ComposeToNewSceneColor;
@@ -718,23 +755,16 @@ void AddPostProcessingPasses(
 
 				SceneColor = TranslucencyComposition.AddPass(
 					GraphBuilder, View, PostDOFTranslucencyResources);
-			}
 
-			if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterSeparateTranslucent)
-			{
-				RenderHairComposition(GraphBuilder, View, SceneColor.Texture, SceneDepth.Texture, Velocity.Texture);
+				bSceneColorHasPostDOFTranslucency = !TranslucencyComposition.bApplyModulateOnly;
 			}
 		}
-
-		// Post Process Material Chain - Before Tonemapping
+		else
 		{
-			const FPostProcessMaterialChain MaterialChain = GetPostProcessMaterialChain(View, BL_BeforeTonemapping);
-
-			if (MaterialChain.Num())
-			{
-				SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChain);
-			}
+			bSceneColorHasPostDOFTranslucency = true;
 		}
+
+		ensure(bSceneColorHasPostDOFTranslucency != bComposeSeparateTranslucencyInTSR);
 
 		// Allows for the scene color to be the slice of an array between temporal upscaler and tonemaper.
 		FScreenPassTextureSlice SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, SceneColor);
@@ -2136,7 +2166,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	{
 		FPostProcessMaterialInputs PostProcessMaterialInputs;
 
-		if (BlendableLocation == BL_AfterTonemapping && PassSequence.IsEnabled(EPass::PostProcessMaterialAfterTonemapping))
+		if (BlendableLocation == BL_SceneColorAfterTonemapping && PassSequence.IsEnabled(EPass::PostProcessMaterialAfterTonemapping))
 		{
 			PassSequence.AcceptOverrideIfLastPass(EPass::PostProcessMaterialAfterTonemapping, PostProcessMaterialInputs.OverrideOutput);
 		}
@@ -2179,7 +2209,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 		bool bUseSeparateTranslucency = IsMobileSeparateTranslucencyActive(View);
 
-		const FPostProcessMaterialChain PostProcessMaterialAfterTonemappingChain = GetPostProcessMaterialChain(View, BL_AfterTonemapping);
+		const FPostProcessMaterialChain PostProcessMaterialAfterTonemappingChain = GetPostProcessMaterialChain(View, BL_SceneColorAfterTonemapping);
 
 		PassSequence.SetEnabled(EPass::Distortion, bUseDistortion);
 		PassSequence.SetEnabled(EPass::SunMask, bUseSun || bUseDof);
@@ -2209,7 +2239,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			SceneColor = AddMobileDistortionMergePass(GraphBuilder, View, DistortionMergeInputs);
 		}
 
-		AddPostProcessMaterialPass(BL_BeforeTranslucency, false);
+		AddPostProcessMaterialPass(BL_SceneColorBeforeDOF, false);
 
 		// Optional fixed pass processes
 		if (PassSequence.IsEnabled(EPass::SunMask))
@@ -2513,7 +2543,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			AddMobileSeparateTranslucencyPass(GraphBuilder, Scene, View, SeparateTranslucencyInputs);
 		}
 
-		AddPostProcessMaterialPass(BL_BeforeTonemapping, false);
+		AddPostProcessMaterialPass(BL_SceneColorAfterDOF, false);
 
 		// Temporal Anti-aliasing. Also may perform a temporal upsample from primary to secondary view rect.
 		if (PassSequence.IsEnabled(EPass::TAA))
@@ -2633,7 +2663,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 	if (IsPostProcessingEnabled(View))
 	{
-		AddPostProcessMaterialPass(BL_AfterTonemapping, true);
+		AddPostProcessMaterialPass(BL_SceneColorAfterTonemapping, true);
 
 		if (PassSequence.IsEnabled(EPass::FXAA))
 		{

@@ -11,7 +11,7 @@
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialExpressionVectorNoise.h"
-#include "Engine/BlendableInterface.h" // BL_AfterTonemapping
+#include "Engine/BlendableInterface.h" // BL_SceneColorAfterTonemapping
 #include "VT/VirtualTextureScalability.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -2312,7 +2312,7 @@ void FExpressionSceneTexture::EmitValueShader(FEmitContext& Context, FEmitScope&
 		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("MobileSceneTextureLookup(Parameters, %, %)"), (int)SceneTextureId, EmitTexCoord);
 	}
 
-	if (SceneTextureId == PPI_PostProcessInput0 && Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_AfterTonemapping)
+	if (SceneTextureId == PPI_PostProcessInput0 && Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
 	{
 		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("(float4(View.OneOverPreExposure.xxx, 1) * %)"), EmitLookup);
 	}

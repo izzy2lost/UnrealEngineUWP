@@ -80,7 +80,7 @@ static EMaterialCustomDepthPolicy GetMaterialCustomDepthPolicy(const FMaterial* 
 		{
 			UE_LOG(LogRenderer, Warning, TEXT("PostProcessMaterial uses stencil test, but stencil not allocated. Set r.CustomDepth to 3 to allocate custom stencil."));
 		}
-		else if (Material->GetBlendableLocation() == BL_AfterTonemapping)
+		else if (Material->GetBlendableLocation() == BL_SceneColorAfterTonemapping)
 		{
 			// We can't support custom stencil after tonemapping due to target size differences
 			UE_LOG(LogRenderer, Warning, TEXT("PostProcessMaterial uses stencil test, but is set to blend After Tonemapping. This is not supported."));
@@ -252,7 +252,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL"), 1);
 
 		EBlendableLocation Location = EBlendableLocation(Parameters.MaterialParameters.BlendableLocation);
-		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Location == BL_AfterTonemapping || Location == BL_ReplacingTonemapper) ? 0 : 1);
+		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Location == BL_SceneColorAfterTonemapping || Location == BL_ReplacingTonemapper) ? 0 : 1);
 		// Post process SSR is always rendered at native resolution as if it was after tone mapping, so we need to account for the fact that it is independent from DRS.
 		// SSR input should not be affected by exposure so it should be specified separately from POST_PROCESS_MATERIAL_BEFORE_TONEMAP 
 		// in order to be able to make DRS independent CameraVector and WorldPosition nodes.
@@ -260,7 +260,7 @@ public:
 
 		if (IsMobilePlatform(Parameters.Platform))
 		{
-			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Parameters.MaterialParameters.BlendableLocation != BL_AfterTonemapping) ? 1 : 0);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Parameters.MaterialParameters.BlendableLocation != BL_SceneColorAfterTonemapping) ? 1 : 0);
 		}
 
 		// PostProcessMaterial can both read & write Substrate data
@@ -681,8 +681,6 @@ FScreenPassTexture AddPostProcessMaterialPass(
 {
 	Inputs.Validate();
 
-	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
-
 	const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
 
 	const FMaterial* Material = nullptr;
@@ -691,6 +689,9 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	TShaderRef<FPostProcessMaterialVS> VertexShader;
 	TShaderRef<FPostProcessMaterialPS> PixelShader;
 	GetMaterialInfo(MaterialInterface, FeatureLevel, Inputs, Material, MaterialRenderProxy, MaterialShaderMap, VertexShader, PixelShader);
+
+	EBlendableLocation BlendableLocation = EBlendableLocation(Material->GetBlendableLocation());
+	const FScreenPassTexture SceneColor = Inputs.GetInput(BlendableLocation == BL_TranslucencyAfterDOF ? EPostProcessMaterialInput::SeparateTranslucency : EPostProcessMaterialInput::SceneColor);
 
 	check(VertexShader.IsValid());
 	check(PixelShader.IsValid());
@@ -984,15 +985,16 @@ FScreenPassTexture AddPostProcessMaterialChain(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FPostProcessMaterialInputs& InputsTemplate,
-	const FPostProcessMaterialChain& Materials)
+	const FPostProcessMaterialChain& Materials,
+	EPostProcessMaterialInput MaterialInput)
 {
-	FScreenPassTexture Outputs = InputsTemplate.GetInput(EPostProcessMaterialInput::SceneColor);
+	FScreenPassTexture Outputs = InputsTemplate.GetInput(MaterialInput);
 
 	bool bFirstMaterialInChain = true;
 	for (const UMaterialInterface* MaterialInterface : Materials)
 	{
 		FPostProcessMaterialInputs Inputs = InputsTemplate;
-		Inputs.SetInput(EPostProcessMaterialInput::SceneColor, Outputs);
+		Inputs.SetInput(MaterialInput, Outputs);
 		
 		// Only the first material in the chain needs to decode the input color
 		Inputs.bMetalMSAAHDRDecode = Inputs.bMetalMSAAHDRDecode && bFirstMaterialInChain;

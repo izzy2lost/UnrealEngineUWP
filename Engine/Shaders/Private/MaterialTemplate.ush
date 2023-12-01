@@ -2376,7 +2376,7 @@ MaterialFloat2 GetLightmapUVs_DDY(FMaterialPixelParameters Parameters)
 }
 
 //The post-process material needs to decode the scene color since it's encoded at PreTonemapMSAA if MSAA enabled on MetalMobilePlatorm 
-//The POST_PROCESS_MATERIAL_BEFORE_TONEMAP is 1 for both BL_BeforeTranslucency and BL_BeforeTonemapping post-process materials
+//The POST_PROCESS_MATERIAL_BEFORE_TONEMAP is 1 for both BL_SceneColorBeforeDOF and BL_SceneColorAfterDOF post-process materials
 #if FEATURE_LEVEL <= FEATURE_LEVEL_ES3_1 && POST_PROCESS_MATERIAL && POST_PROCESS_MATERIAL_BEFORE_TONEMAP && METAL_PROFILE
 uint bMetalMSAAHDRDecode;
 #endif

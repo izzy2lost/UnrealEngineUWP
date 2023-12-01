@@ -49,7 +49,8 @@ FScreenPassTexture AddPostProcessMaterialChain(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FPostProcessMaterialInputs& Inputs,
-	const FPostProcessMaterialChain& MaterialChain);
+	const FPostProcessMaterialChain& MaterialChain,
+	EPostProcessMaterialInput MaterialInput = EPostProcessMaterialInput::SceneColor);
 
 struct FHighResolutionScreenshotMaskInputs
 {

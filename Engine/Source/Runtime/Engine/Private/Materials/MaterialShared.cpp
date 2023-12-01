@@ -2229,7 +2229,7 @@ int32 FMaterialResource::GetBlendableLocation() const
 
 bool FMaterialResource::GetBlendableOutputAlpha() const
 {
-	return Material->BlendableOutputAlpha;
+	return Material->IsPostProcessMaterialOutputingAlpha();
 }
 
 bool FMaterialResource::IsStencilTestEnabled() const
