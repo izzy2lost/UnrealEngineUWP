@@ -80,13 +80,13 @@ namespace Impl
 		TMap<FTopLevelAssetPath, FTopLevelAssetPath> InheritanceMap;
 		/** Map from Class->(All subclasses) for all classes including native classes and blueprint classes. Updated on demand. */
 		TMap<FTopLevelAssetPath, TArray<FTopLevelAssetPath>> ReverseInheritanceMap;
-		/** Snapshot of GetRegisteredClassesVersionNumber() at the time of the last update, to invalidate on changes to classes. */
-		uint64 RegisteredClassesVersionNumber = MAX_uint64;
+		/** Snapshot of GetCurrentAllClassesVersionNumber() at the time of the last update, to invalidate on changes to classes. */
+		uint64 SavedAllClassesVersionNumber = MAX_uint64;
 		/** Dirty flag to invalidate on other changes requiring a recompute. */
 		bool bDirty = true;
 
 		/** Report whether the dirty flag and other checks indicate this buffer does not need to be updated. */
-		bool IsUpToDate(uint64 CurrentClassesVersionNumber) const;
+		bool IsUpToDate(uint64 CurrentAllClassesVersionNumber) const;
 		/** Delete data and free allocations. */
 		void Clear();
 		/** Report size of dynamic allocations. */
@@ -255,7 +255,11 @@ public:
 	bool IsInitialSearchStarted() const { return bInitialSearchStarted; }
 	bool IsSearchAllAssets() const { return bSearchAllAssets; }
 	Impl::FClassInheritanceBuffer& GetTempCachedInheritanceBuffer() { return TempCachedInheritanceBuffer; }
-	uint64 GetClassGeneratorNamesRegisteredClassesVersionNumber() const { return ClassGeneratorNamesRegisteredClassesVersionNumber; }
+	uint64 GetSavedGeneratorClassesVersionNumber() const { return SavedGeneratorClassesVersionNumber; }
+	uint64 GetSavedAllClassesVersionNumber() const { return SavedAllClassesVersionNumber; }
+	static uint64 GetCurrentGeneratorClassesVersionNumber();
+	static uint64 GetCurrentAllClassesVersionNumber();
+
 	/** Get a copy of the cached serialization options that were parsed from ini */
 	void CopySerializationOptions(FAssetRegistrySerializationOptions& OutOptions, ESerializationTarget Target) const;
 	
@@ -398,7 +402,8 @@ private:
 	/** Persistent InheritanceBuffer used when SetTemporaryCachingMode is on */
 	Impl::FClassInheritanceBuffer TempCachedInheritanceBuffer;
 
-	uint64 ClassGeneratorNamesRegisteredClassesVersionNumber;
+	uint64 SavedGeneratorClassesVersionNumber;
+	uint64 SavedAllClassesVersionNumber;
 
 	/** The tree of known cached paths that assets may reside within */
 	FPathTree CachedPathTree;

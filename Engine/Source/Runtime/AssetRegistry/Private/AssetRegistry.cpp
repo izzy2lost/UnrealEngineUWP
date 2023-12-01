@@ -867,7 +867,8 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 	bIsTempCachingEnabled = bIsTempCachingAlwaysEnabled;
 	TempCachedInheritanceBuffer.bDirty = true;
 
-	ClassGeneratorNamesRegisteredClassesVersionNumber = MAX_uint64;
+	SavedGeneratorClassesVersionNumber = MAX_uint64;
+	SavedAllClassesVersionNumber = MAX_uint64;
 
 	// By default do not double check mount points are still valid when gathering new assets
 	bVerifyMountPointAfterGather = false;
@@ -1392,28 +1393,52 @@ void InitializeSerializationOptionsFromIni(FAssetRegistrySerializationOptions& O
 
 }
 
+uint64 FAssetRegistryImpl::GetCurrentGeneratorClassesVersionNumber()
+{
+	// Generator classes can only be native, so we can use the less-frequently-updated
+	// RegisteredNativeClassesVersionNumber. In monolithic configurations, this will only be
+	// updated at program start and when enabling DLC modules.
+	return GetRegisteredNativeClassesVersionNumber();
+}
+
+uint64 FAssetRegistryImpl::GetCurrentAllClassesVersionNumber()
+{
+	return GetRegisteredClassesVersionNumber();
+}
+
 void FAssetRegistryImpl::CollectCodeGeneratorClasses()
 {
 	LLM_SCOPE(ELLMTag::AssetRegistry); // Tagged here instead of a higher level because it can occur even when reading
 	// Only refresh the list if our registered classes have changed
-	if (ClassGeneratorNamesRegisteredClassesVersionNumber == GetRegisteredClassesVersionNumber())
+	uint64 CurrentGeneratorClassesVersionNumber = GetCurrentGeneratorClassesVersionNumber();
+	if (SavedGeneratorClassesVersionNumber == CurrentGeneratorClassesVersionNumber)
 	{
 		return;
 	}
-	ClassGeneratorNamesRegisteredClassesVersionNumber = GetRegisteredClassesVersionNumber();
+	SavedGeneratorClassesVersionNumber = CurrentGeneratorClassesVersionNumber;
 
-	// Work around the fact we don't reference Engine module directly
+	TArray<UClass*> BlueprintCoreDerivedClasses;
 	FTopLevelAssetPath BlueprintCorePathName(TEXT("/Script/Engine"), TEXT("BlueprintCore"));
-	UClass* BlueprintCoreClass = FindObject<UClass>(BlueprintCorePathName);
-	if (!BlueprintCoreClass)
+	UClass* BlueprintCoreClass = nullptr;
+
 	{
-		return;
+		// FindObject and GetDerivedClasses are not legal during GarbageCollection. Note that we might be called from
+		// an async thread, in which case we might lock this thread until GC completes. This could cause a deadlock if
+		// there aren't enough async threads. But CollectCodeGeneratorClasses is not called on runtime or cooked
+		// editor because they are monolithic, and so this lock should only occur on uncooked editor platforms, which
+		// should have a high enough number of threads to not block garbage collection.
+		FGCScopeGuard NoGCScopeGuard;
+
+		// Work around the fact we don't reference Engine module directly
+		BlueprintCoreClass = FindObject<UClass>(BlueprintCorePathName);
+		if (!BlueprintCoreClass)
+		{
+			return;
+		}
+		GetDerivedClasses(BlueprintCoreClass, BlueprintCoreDerivedClasses);
 	}
 
 	ClassGeneratorNames.Add(BlueprintCoreClass->GetClassPathName());
-
-	TArray<UClass*> BlueprintCoreDerivedClasses;
-	GetDerivedClasses(BlueprintCoreClass, BlueprintCoreDerivedClasses);
 	for (UClass* BPCoreClass : BlueprintCoreDerivedClasses)
 	{
 		bool bAlreadyRecorded;
@@ -6911,7 +6936,7 @@ void FAssetRegistryImpl::UpdateInheritanceBuffer(Impl::FClassInheritanceBuffer& 
 
 	}
 
-	OutBuffer.RegisteredClassesVersionNumber = GetRegisteredClassesVersionNumber();
+	OutBuffer.SavedAllClassesVersionNumber = GetCurrentAllClassesVersionNumber();
 	OutBuffer.bDirty = false;
 }
 
@@ -6921,14 +6946,18 @@ void UAssetRegistryImpl::GetInheritanceContextWithRequiredLock(FRWScopeLock& InO
 	UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 	UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer)
 {
-	uint64 CurrentClassesVersionNumber = GetRegisteredClassesVersionNumber();
+	using namespace UE::AssetRegistry;
+
+	uint64 CurrentGeneratorClassesVersionNumber = FAssetRegistryImpl::GetCurrentGeneratorClassesVersionNumber();
+	uint64 CurrentAllClassesVersionNumber = FAssetRegistryImpl::GetCurrentAllClassesVersionNumber();
 	bool bNeedsWriteLock = false;
-	if (GuardedData.GetClassGeneratorNamesRegisteredClassesVersionNumber() != CurrentClassesVersionNumber)
+	if (GuardedData.GetSavedGeneratorClassesVersionNumber() != CurrentGeneratorClassesVersionNumber)
 	{
 		// ConditionalUpdate writes to protected data in CollectCodeGeneratorClasses, so we cannot proceed under a read lock
 		bNeedsWriteLock = true;
 	}
-	if (GuardedData.IsTempCachingEnabled() && !GuardedData.GetTempCachedInheritanceBuffer().IsUpToDate(CurrentClassesVersionNumber))
+	if (GuardedData.IsTempCachingEnabled() &&
+		!GuardedData.GetTempCachedInheritanceBuffer().IsUpToDate(CurrentAllClassesVersionNumber))
 	{
 		// Temp caching is enabled, so we will be reading the protected data in TempCachedInheritanceBuffer
 		// It's out of date, so we need to write to it first, so we cannot proceed under a read lock
@@ -6940,18 +6969,24 @@ void UAssetRegistryImpl::GetInheritanceContextWithRequiredLock(FRWScopeLock& InO
 	}
 
 	// Note that we have to reread all data since we may have dropped the lock
-	GetInheritanceContextAfterVerifyingLock(CurrentClassesVersionNumber, InheritanceContext, StackBuffer);
+	GetInheritanceContextAfterVerifyingLock(CurrentGeneratorClassesVersionNumber, CurrentAllClassesVersionNumber,
+		InheritanceContext, StackBuffer);
 }
 
 void UAssetRegistryImpl::GetInheritanceContextWithRequiredLock(FWriteScopeLock& InOutScopeLock,
 	UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 	UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer)
 {
-	uint64 CurrentClassesVersionNumber = GetRegisteredClassesVersionNumber();
-	GetInheritanceContextAfterVerifyingLock(CurrentClassesVersionNumber, InheritanceContext, StackBuffer);
+	using namespace UE::AssetRegistry;
+
+	uint64 CurrentGeneratorClassesVersionNumber = FAssetRegistryImpl::GetCurrentGeneratorClassesVersionNumber();
+	uint64 CurrentAllClassesVersionNumber = FAssetRegistryImpl::GetCurrentAllClassesVersionNumber();
+	GetInheritanceContextAfterVerifyingLock(CurrentGeneratorClassesVersionNumber, CurrentAllClassesVersionNumber,
+		InheritanceContext, StackBuffer);
 }
 
-void UAssetRegistryImpl::GetInheritanceContextAfterVerifyingLock(uint64 CurrentClassesVersionNumber,
+void UAssetRegistryImpl::GetInheritanceContextAfterVerifyingLock(uint64 CurrentGeneratorClassesVersionNumber,
+	uint64 CurrentAllClassesVersionNumber,
 	UE::AssetRegistry::Impl::FClassInheritanceContext& InheritanceContext,
 	UE::AssetRegistry::Impl::FClassInheritanceBuffer& StackBuffer)
 {
@@ -6959,12 +6994,12 @@ void UAssetRegistryImpl::GetInheritanceContextAfterVerifyingLock(uint64 CurrentC
 	// We rely on this to simplify logic and only check bIsTempCachingEnabled
 	check(!GuardedData.IsTempCachingAlwaysEnabled() || GuardedData.IsTempCachingEnabled());
 
-	bool bCodeGeneratorClassesUpToDate = GuardedData.GetClassGeneratorNamesRegisteredClassesVersionNumber() == CurrentClassesVersionNumber;
+	bool bCodeGeneratorClassesUpToDate = GuardedData.GetSavedGeneratorClassesVersionNumber() == CurrentGeneratorClassesVersionNumber;
 	if (GuardedData.IsTempCachingEnabled())
 	{
 		// Use the persistent buffer
 		UE::AssetRegistry::Impl::FClassInheritanceBuffer& TempCachedInheritanceBuffer = GuardedData.GetTempCachedInheritanceBuffer();
-		bool bInheritanceMapUpToDate = TempCachedInheritanceBuffer.IsUpToDate(CurrentClassesVersionNumber);
+		bool bInheritanceMapUpToDate = TempCachedInheritanceBuffer.IsUpToDate(CurrentAllClassesVersionNumber);
 		InheritanceContext.BindToBuffer(TempCachedInheritanceBuffer, GuardedData, bInheritanceMapUpToDate, bCodeGeneratorClassesUpToDate);
 	}
 	else
@@ -7016,9 +7051,9 @@ void FClassInheritanceBuffer::Clear()
 	ReverseInheritanceMap.Empty();
 }
 
-bool FClassInheritanceBuffer::IsUpToDate(uint64 CurrentClassesVersionNumber) const
+bool FClassInheritanceBuffer::IsUpToDate(uint64 CurrentAllClassesVersionNumber) const
 {
-	return !bDirty && RegisteredClassesVersionNumber == CurrentClassesVersionNumber;
+	return !bDirty && SavedAllClassesVersionNumber == CurrentAllClassesVersionNumber;
 }
 
 SIZE_T FClassInheritanceBuffer::GetAllocatedSize() const

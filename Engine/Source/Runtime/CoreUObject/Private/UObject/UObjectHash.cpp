@@ -15,6 +15,8 @@
 #include "HAL/LowLevelMemStats.h"
 #include "UObject/AnyPackagePrivate.h"
 
+#include <atomic>
+
 #if UE_STORE_OBJECT_LIST_INTERNAL_INDEX
 static_assert(sizeof(FName) == 4, "Internal object index optimization depends exploits 4 bytes padding after the FName");
 static_assert(sizeof(UObjectBase) == 40,
@@ -387,7 +389,8 @@ public:
 	TBucketMap<UClass*> ClassToObjectListMap;
 #endif
 	TMap<UClass*, TSet<UClass*> > ClassToChildListMap;
-	TAtomic<uint64> ClassToChildListMapVersion;
+	std::atomic<uint64> AllClassesVersion;
+	std::atomic<uint64> NativeClassesVersion;
 
 	/** Map of package to the object their contain. */
 	TBucketMap<UPackage*> PackageToObjectListMap;
@@ -395,7 +398,8 @@ public:
 	TMap<UObjectBase*, UPackage*> ObjectToPackageMap;
 
 	FUObjectHashTables()
-		: ClassToChildListMapVersion(0)
+		: AllClassesVersion(0)
+		, NativeClassesVersion(0)
 	{
 	}
 
@@ -989,8 +993,12 @@ FORCEINLINE void AddToClassMap(FUObjectHashTables& ThreadHash, UObjectBase* Obje
 			TSet<UClass*>& ChildList = ThreadHash.ClassToChildListMap.FindOrAdd(SuperClass);
 			bool bIsAlreadyInSetPtr = false;
 			ChildList.Add(Class, &bIsAlreadyInSetPtr);
-			ThreadHash.ClassToChildListMapVersion++;
 			check(!bIsAlreadyInSetPtr); // if it already exists, something is wrong with the external code
+		}
+		ThreadHash.AllClassesVersion++;
+		if (Class->IsNative())
+		{
+			ThreadHash.NativeClassesVersion++;
 		}
 	}
 }
@@ -1076,7 +1084,11 @@ FORCEINLINE void RemoveFromClassMap(FUObjectHashTables& ThreadHash, UObjectBase*
 			{
 				ThreadHash.ClassToChildListMap.Remove(SuperClass);
 			}
-			ThreadHash.ClassToChildListMapVersion++;
+		}
+		ThreadHash.AllClassesVersion++;
+		if (Class->IsNative())
+		{
+			ThreadHash.NativeClassesVersion++;
 		}
 	}
 }
@@ -1119,7 +1131,13 @@ void ShrinkUObjectHashTables()
 uint64 GetRegisteredClassesVersionNumber()
 {
 	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
-	return ThreadHash.ClassToChildListMapVersion;
+	return ThreadHash.AllClassesVersion;
+}
+
+uint64 GetRegisteredNativeClassesVersionNumber()
+{
+	FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
+	return ThreadHash.NativeClassesVersion;
 }
 
 static void ShrinkUObjectHashTablesDel(const TArray<FString>& Args)
