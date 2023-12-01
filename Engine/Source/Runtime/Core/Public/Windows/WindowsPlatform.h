@@ -207,3 +207,14 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 #ifndef ENABLE_WIN_ALLOC_TRACKING
 #define ENABLE_WIN_ALLOC_TRACKING 0
 #endif
+
+// If set, ShouldExpectLowIntegrityLevel defaults to true. This affects paths for local settings and storage.
+#ifndef WINDOWS_LOWINTEGRITYLEVEL_EXPECT_DEFAULT
+#define WINDOWS_LOWINTEGRITYLEVEL_EXPECT_DEFAULT 0
+#endif
+
+// If set, the engine will attempt to automatically migrate user data like settings from the default medium integrity ProjectUserDir path to the low integrity one.
+// Migration is only attempted if the low integrity ProjectUserDir path is empty, e.g. first run after a game update that sets WINDOWS_LOWINTEGRITYLEVEL_EXPECT_DEFAULT = 1.
+#ifndef WINDOWS_LOWINTEGRITYLEVEL_AUTOMIGRATE_USERDATA
+#define WINDOWS_LOWINTEGRITYLEVEL_AUTOMIGRATE_USERDATA 0
+#endif
