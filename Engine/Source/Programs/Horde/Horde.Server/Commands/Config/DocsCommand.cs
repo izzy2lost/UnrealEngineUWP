@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -22,9 +23,11 @@ namespace Horde.Server.Commands.Config
 	class DocsCommand : Command
 	{
 		[CommandLine]
+		[Description("Output directory for generated markdown files")]
 		public DirectoryReference OutputDir { get; set; } = DirectoryReference.Combine(ServerApp.AppDir, "Docs");
 
 		[CommandLine]
+		[Description("Path to the agent executable, for gathering agent settings.")]
 		public FileReference? Agent { get; set; }
 
 		record class PageInfo(string Title, string LinkRail, string FileName, string? Introduction = null);

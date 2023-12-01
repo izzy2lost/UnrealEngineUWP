@@ -38,6 +38,8 @@ namespace Horde.Server.Commands
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			logger.LogInformation("Server version: {Version}", ServerApp.Version);
+
 			using (X509Certificate2? grpcCertificate = ReadGrpcCertificate(_hordeSettings))
 			{
 				using IHost host = CreateHostBuilderWithCert(_args, _config, _hordeSettings, grpcCertificate).Build();

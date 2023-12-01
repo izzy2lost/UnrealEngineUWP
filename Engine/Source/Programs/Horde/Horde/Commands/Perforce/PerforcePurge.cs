@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
@@ -11,6 +12,7 @@ namespace Horde.Commands.Perforce
 	class PerforcePurge : PerforceBase
 	{
 		[CommandLine("-Size=")]
+		[Description("Maximum size of the cache")]
 		string? SizeParam { get; set; } = null;
 
 		protected override Task ExecuteAsync(IPerforceConnection perforce, ManagedWorkspace repo, ILogger logger)

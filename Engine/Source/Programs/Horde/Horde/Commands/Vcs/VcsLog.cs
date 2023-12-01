@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
 {
-	[Command("vcs", "log", "Print a history of commits")]
+	[Command("vcs", "log", "Print a history of commits", Advertise = false)]
 	class VcsLog : VcsBase
 	{
 		[CommandLine("-Count")]

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
 {
-	[Command("vcs", "branch", "Switch to a new branch")]
+	[Command("vcs", "branch", "Switch to a new branch", Advertise = false)]
 	class VcsBranch : VcsBase
 	{
 		[CommandLine(Prefix = "-Name=", Required = true)]

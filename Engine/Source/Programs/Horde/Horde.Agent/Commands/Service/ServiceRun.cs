@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,10 +17,8 @@ namespace Horde.Agent.Modes.Service
 	[Command("service", "run", "Runs the service in listen mode")]
 	class RunCommand : Command
 	{
-		/// <summary>
-		/// Log verbosity level (use normal Serilog levels such as debug, warning or info)
-		/// </summary>
 		[CommandLine("-LogLevel")]
+		[Description("Log verbosity level (use normal MS levels such as debug, warning or information)")]
 		public string LogLevelStr { get; set; } = "information";
 
 		readonly DefaultServices _defaultServices;

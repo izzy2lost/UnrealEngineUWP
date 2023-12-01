@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
 {
-	[Command("vcs", "commit", "Commits data to the VCS store")]
+	[Command("vcs", "commit", "Commits data to the VCS store", Advertise = false)]
 	class VcsCommit : VcsBase
 	{
 		[CommandLine("-User=")]

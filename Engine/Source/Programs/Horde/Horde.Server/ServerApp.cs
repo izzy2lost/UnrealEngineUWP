@@ -126,8 +126,6 @@ namespace Horde.Server
 				.ReadFrom.Configuration(config)
 				.CreateLogger();
 
-			Serilog.Log.Logger.Information("Server version: {Version}", Version);
-
 			ServiceCollection services = new ServiceCollection();
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 			services.AddLogging(builder => builder.AddSerilog());

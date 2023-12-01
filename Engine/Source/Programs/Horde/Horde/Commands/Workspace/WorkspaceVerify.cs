@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using System.Diagnostics;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,7 @@ namespace Horde.Commands.Workspace
 	class WorkspaceVerify : Command
 	{
 		[CommandLine("-Root=")]
+		[Description("Root directory for the workspace.")]
 		public DirectoryReference? RootDir { get; set; }
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

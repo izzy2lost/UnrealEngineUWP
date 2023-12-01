@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
 {
-	[Command("vcs", "clone", "Initialize a directory for VCS-like operations")]
+	[Command("vcs", "clone", "Initialize a directory for VCS-like operations", Advertise = false)]
 	class VcsClone : VcsCheckout
 	{
 		public VcsClone(IStorageClientFactory storageClientFactory)

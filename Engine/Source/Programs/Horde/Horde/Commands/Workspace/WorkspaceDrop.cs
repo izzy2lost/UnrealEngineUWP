@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
@@ -13,9 +14,11 @@ namespace Horde.Commands.Workspace
 	class WorkspaceDrop : Command
 	{
 		[CommandLine("-Root=")]
+		[Description("Root directory for the workspace.")]
 		public DirectoryReference? RootDir { get; set; }
 
 		[CommandLine("-Layer=")]
+		[Description("Name of the layer to remove.")]
 		public WorkspaceLayerId LayerId { get; set; } = WorkspaceLayerId.Default;
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

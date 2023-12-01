@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -16,21 +17,27 @@ namespace Horde.Commands.Workspace
 	class WorkspaceSync : StorageCommandBase
 	{
 		[CommandLine("-Root=")]
+		[Description("Root directory for the managed workspace.")]
 		public DirectoryReference? RootDir { get; set; }
 
 		[CommandLine("-File=")]
+		[Description("Path to a text file containing the node to extract to this workspace.")]
 		public FileReference? File { get; set; }
 
 		[CommandLine("-Ref=")]
+		[Description("Name of a ref to extract to this workspace.")]
 		public string? Ref { get; set; }
 
 		[CommandLine("-Node=")]
+		[Description("Locator for a node to extract to this workspace.")]
 		public string? Node { get; set; }
 
 		[CommandLine("-Layer=")]
+		[Description("Name of the layer to extract to.")]
 		public WorkspaceLayerId LayerId { get; set; } = WorkspaceLayerId.Default;
 
 		[CommandLine("-Stats")]
+		[Description("Outputs stats for the extraction operation.")]
 		public bool Stats { get; set; }
 
 		public WorkspaceSync(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)

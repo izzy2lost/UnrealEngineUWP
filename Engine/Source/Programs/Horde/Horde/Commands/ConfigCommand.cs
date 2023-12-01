@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -9,7 +10,8 @@ namespace Horde.Commands
 	[Command("config", "Updates the configuration for the Horde tool")]
 	class ConfigCommand : Command
 	{
-		[CommandLine("-Server=", Description = "Updates the server URL")]
+		[CommandLine("-Server=")]
+		[Description("Updates the server URL")]
 		public string? Server { get; set; }
 
 		readonly CmdConfig _config;

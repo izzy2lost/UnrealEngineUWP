@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles.V1;
@@ -11,9 +12,11 @@ namespace Horde.Commands.Bundles
 	internal class BundleDump : Command
 	{
 		[CommandLine("-Input=", Required = true)]
+		[Description("Path to the bundle to display information for.")]
 		public FileReference Input { get; set; } = null!;
 
 		[CommandLine("-Verbose")]
+		[Description("Include more detailed information about the bundle.")]
 		public bool Verbose { get; set; }
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using EpicGames.Core;
@@ -29,24 +30,31 @@ namespace Horde.Commands.Compute
 		}
 
 		[CommandLine("-Cluster")]
+		[Description("Name of the cluster to run the task on.")]
 		public string ClusterId { get; set; } = "default";
 
-		[CommandLine("-Requirements=", Description = "Match the agent to run on")]
+		[CommandLine("-Requirements=")]
+		[Description("Query string to select the agent to run on")]
 		public string? Requirements { get; set; }
 
 		[CommandLine("-Local")]
+		[Description("Uses the local compute client, which runs the remote agent in the same process without using a Horde server.")]
 		public bool Local { get; set; }
 
 		[CommandLine("-Loopback")]
+		[Description("Runs an agent on the local machine in a separate process, and connect to it on the loopback adapter.")]
 		public bool Loopback { get; set; }
 
 		[CommandLine("-InProc")]
+		[Description("If true, attempts to load and execute the compute process in the host process. The process to remote must be a .NET assembly invoked through the dotnet command.")]
 		public bool InProc { get; set; }
 
 		[CommandLine("-Sandbox=")]
+		[Description("Specifies the path to use for the remote sandbox.")]
 		public DirectoryReference SandboxDir { get; set; } = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData)!, "Horde", "Sandbox");
 
 		[CommandLine("-Task=", Required = true)]
+		[Description("Path to a JSON file describing the workload to execute. See ComputeRun.JsonComputeTask for structure of this document.")]
 		FileReference TaskFile { get; set; } = null!;
 
 		readonly IHttpClientFactory _httpClientFactory;

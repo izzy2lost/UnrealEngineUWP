@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Buffers;
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EpicGames.Core;
@@ -16,22 +17,28 @@ namespace Horde.Agent.Commands.Utilities
 	[Command("setserver", "Configures a server for this agent")]
 	class SetServerCommand : Command
 	{
-		[CommandLine("-Name=", Description = "Name of the server to use")]
+		[CommandLine("-Name=")]
+		[Description("Name of the server to use")]
 		public string Name { get; set; } = "Default";
 
-		[CommandLine("-Url=", Description = "URL of the server", Required = true)]
+		[CommandLine("-Url=", Required = true)]
+		[Description("URL of the server")]
 		public string? Url { get; set; }
 
-		[CommandLine("-Env=", Description = "Environment to configure for (Prod/Dev).")]
+		[CommandLine("-Env=")]
+		[Description("Environment to configure for (Prod/Dev).")]
 		public string? Environment { get; set; }
 
-		[CommandLine("-Token=", Description = "Token to use for initial connection")]
+		[CommandLine("-Token=")]
+		[Description("Token to use for initial connection")]
 		public string? Token { get; set; }
 
-		[CommandLine("-Thumbprint=", Description = "Optional thumbprint of the server's SSL certificate. Will bypass the CA if matched. Useful for deploying self-signed certs.")]
+		[CommandLine("-Thumbprint=")]
+		[Description("Optional thumbprint of the server's SSL certificate. Will bypass the CA if matched. Useful for deploying self-signed certs.")]
 		public string? Thumbprint { get; set; }
 
-		[CommandLine("-Default", Description = "Makes this server the default")]
+		[CommandLine("-Default")]
+		[Description("Makes this server the default")]
 		public bool Default { get; set; }
 
 		/// <inheritdoc/>

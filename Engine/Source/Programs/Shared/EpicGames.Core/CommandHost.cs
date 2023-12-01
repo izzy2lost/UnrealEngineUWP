@@ -53,6 +53,11 @@ namespace EpicGames.Core
 		public string Description { get; }
 
 		/// <summary>
+		/// Whether to include this command in help text
+		/// </summary>
+		public bool Advertise { get; }
+
+		/// <summary>
 		/// Create a command instance
 		/// </summary>
 		public ICommand CreateInstance(IServiceProvider serviceProvider);
@@ -74,6 +79,11 @@ namespace EpicGames.Core
 		/// Short description for the mode. Will be displayed in the help text.
 		/// </summary>
 		public string Description { get; }
+
+		/// <summary>
+		/// Whether to include the command in help listings
+		/// </summary>
+		public bool Advertise { get; set; } = true;
 
 		/// <summary>
 		/// Constructor
@@ -128,13 +138,15 @@ namespace EpicGames.Core
 	{
 		public IReadOnlyList<string> Names { get; }
 		public string Description { get; }
+		public bool Advertise { get; }
 
 		public Type Type { get; }
 
-		public CommandFactory(string[] names, string description, Type type)
+		public CommandFactory(string[] names, string description, bool advertise, Type type)
 		{
 			Names = names;
 			Description = description;
+			Advertise = advertise;
 			Type = type;
 		}
 
@@ -163,7 +175,7 @@ namespace EpicGames.Core
 					if (attribute != null)
 					{
 						services.AddTransient(type);
-						services.AddTransient(typeof(ICommandFactory), sp => new CommandFactory(attribute.Names, attribute.Description, type));
+						services.AddTransient(typeof(ICommandFactory), sp => new CommandFactory(attribute.Names, attribute.Description, attribute.Advertise, type));
 					}
 				}
 			}
@@ -238,7 +250,7 @@ namespace EpicGames.Core
 				}
 				else
 				{
-					HelpUtils.PrintHelp(String.Join(" ", commandFactory.Names), commandFactory.Description, command.GetParameters(args));
+					HelpUtils.PrintHelp($"Command: {String.Join(" ", commandFactory.Names)}", commandFactory.Description, command.GetParameters(args));
 				}
 				return 1;
 			}
@@ -286,7 +298,10 @@ namespace EpicGames.Core
 			List<KeyValuePair<string, string>> commands = new List<KeyValuePair<string, string>>();
 			foreach (ICommandFactory attribute in attributes)
 			{
-				commands.Add(new KeyValuePair<string, string>(String.Join(" ", attribute.Names), attribute.Description));
+				if (attribute.Advertise)
+				{
+					commands.Add(new KeyValuePair<string, string>(String.Join(" ", attribute.Names), attribute.Description));
+				}
 			}
 			HelpUtils.PrintTable(commands.OrderBy(x => x.Key).ToList(), 4, 20);
 		}

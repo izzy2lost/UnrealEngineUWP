@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
@@ -11,6 +12,7 @@ namespace Horde.Commands.Bundles
 	class ArtifactFind : Command
 	{
 		[CommandLine("-Key=")]
+		[Description("Artifact keys to search for. Multiple keys may be added to artifacts at upload time, eg. 'job:63dd5487c67f8a45453361c5/step:62ce'.")]
 		public List<string> Keys { get; } = new List<string>();
 
 		readonly HordeHttpClient _hordeHttpClient;

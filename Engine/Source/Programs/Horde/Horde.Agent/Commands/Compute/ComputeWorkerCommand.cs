@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using EpicGames.Core;
@@ -16,6 +17,7 @@ namespace Horde.Agent.Commands.Compute
 	class ComputeWorkerCommand : Command
 	{
 		[CommandLine("-Port=")]
+		[Description("Port to listen for connections on.")]
 		int Port { get; set; } = 2000;
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

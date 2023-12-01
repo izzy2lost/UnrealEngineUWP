@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Commands.Vcs
 {
-	[Command("vcs", "checkout", "Checkout a particular branch/change")]
+	[Command("vcs", "checkout", "Checkout a particular branch/change", Advertise = false)]
 	class VcsCheckout : VcsBase
 	{
 		[CommandLine("-Branch")]

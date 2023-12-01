@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.ComponentModel;
 using System.Diagnostics;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -14,18 +15,23 @@ namespace Horde.Commands.Bundles
 	internal class BundleExtract : StorageCommandBase
 	{
 		[CommandLine("-File=")]
+		[Description("Path to a text file containing the root ref to read. -File=..., -Ref=..., or -Node=... must be specified.")]
 		public FileReference? File { get; set; }
 
 		[CommandLine("-Ref=")]
+		[Description("Name of a ref to read from the default storage client. -File=..., -Ref=..., or -Node=... must be specified.")]
 		public string? Ref { get; set; }
 
 		[CommandLine("-Node=")]
+		[Description("Locator for a node to read as the root. -File=..., -Ref=..., or -Node=... must be specified.")]
 		public string? Node { get; set; }
 
 		[CommandLine("-Stats")]
+		[Description("Outputs stats about the extraction process.")]
 		public bool Stats { get; set; }
 
 		[CommandLine("-OutputDir=", Required = true)]
+		[Description("Directory to write extracted files.")]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
 		public BundleExtract(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)

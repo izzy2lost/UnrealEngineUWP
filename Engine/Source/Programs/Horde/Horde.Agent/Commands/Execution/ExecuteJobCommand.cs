@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Agent.Commands.Execution
 {
-	[Command("Execute", "Job", "Executes a job")]
+	[Command("Execute", "Job", "Executes a job", Advertise = false)]
 	class ExecuteJobCommand : Command
 	{
 		[CommandLine("-AgentId=", Required = true)]

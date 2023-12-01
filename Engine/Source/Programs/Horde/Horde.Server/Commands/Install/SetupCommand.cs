@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -20,22 +21,22 @@ namespace Horde.Server.Commands.Install
 	/// <summary>
 	/// Performs custom actions required by an MSI installation on Windows; creates a unique certificate, configures the agent to use it, and packages the agent into a bundle.
 	/// </summary>
-	[Command("setup", "Runs post-install setup actions to configure the agent bundle, etc...")]
+	[Command("setup", "Runs post-install setup actions to configure the agent bundle, etc...", Advertise = false)]
 	public class SetupCommand : Command
 	{
 		[CommandLine("-Url=")]
+		[Description("Sets the default server URL")]
 		string ServerUrl { get; set; } = "http://localhost:5000";
 
 		[CommandLine("-BaseDir")]
-		DirectoryReference BaseDir { get; set; } = ServerApp.AppDir.ParentDirectory!;
+		[Description("Directory containing the server installation to configure.")]
+		DirectoryReference ServerDir { get; set; } = ServerApp.AppDir;
 
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			DirectoryReference serverDir = DirectoryReference.Combine(BaseDir, "Server");
-
 			// Update the agent to recognize the server certificate, and give it a custom token for being able to connect
-			DirectoryReference looseAgentDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-loose");
+			DirectoryReference looseAgentDir = DirectoryReference.Combine(ServerDir, "Tools", "horde-agent-loose");
 			FileReference agentConfigFile = FileReference.Combine(looseAgentDir, "appsettings.json");
 			{
 				JsonObject agentConfig = await ReadConfigAsync(agentConfigFile);
@@ -53,7 +54,7 @@ namespace Horde.Server.Commands.Install
 			}
 
 			// Create the local agent bundle
-			DirectoryReference bundleDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent");
+			DirectoryReference bundleDir = DirectoryReference.Combine(ServerDir, "Tools", "horde-agent");
 			DirectoryReference.CreateDirectory(bundleDir);
 
 			RefName refName = new RefName("latest");
@@ -74,8 +75,8 @@ namespace Horde.Server.Commands.Install
 			}
 
 			// Create the agent installer bundle
-			DirectoryReference looseAgentInstallerDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer-loose");
-			DirectoryReference installerBundleDir = DirectoryReference.Combine(serverDir, "Tools", "horde-agent-installer");
+			DirectoryReference looseAgentInstallerDir = DirectoryReference.Combine(ServerDir, "Tools", "horde-agent-installer-loose");
+			DirectoryReference installerBundleDir = DirectoryReference.Combine(ServerDir, "Tools", "horde-agent-installer");
 			DirectoryReference.CreateDirectory(installerBundleDir);
 			await using (BundleCache bundleCache = new BundleCache())
 			{
@@ -95,7 +96,7 @@ namespace Horde.Server.Commands.Install
 			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(FileReference.Combine(looseAgentDir, "hordeagent.exe").FullName);
 
 			// Update the server config to include the bundled tool
-			FileReference serverConfigFile = FileReference.Combine(serverDir, "appsettings.json");
+			FileReference serverConfigFile = FileReference.Combine(ServerDir, "appsettings.json");
 			{
 				JsonObject serverConfig = await ReadConfigAsync(serverConfigFile);
 

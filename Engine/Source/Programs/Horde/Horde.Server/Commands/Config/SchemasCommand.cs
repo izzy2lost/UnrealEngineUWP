@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Server;
@@ -12,7 +13,8 @@ namespace Horde.Server.Commands.Config
 	[Command("config", "schemas", "Writes JSON schemas for server settings")]
 	class SchemasCommand : Command
 	{
-		[CommandLine]
+		[CommandLine("-OutputDir=")]
+		[Description("Output directory to write schemas to. Defaults to the 'Schemas' subfolder of the application directory.")]
 		DirectoryReference? _outputDir = null!;
 
 		public override Task<int> ExecuteAsync(ILogger logger)
