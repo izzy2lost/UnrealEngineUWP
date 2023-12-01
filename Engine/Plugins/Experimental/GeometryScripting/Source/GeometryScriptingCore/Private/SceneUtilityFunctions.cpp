@@ -370,6 +370,9 @@ void UGeometryScriptLibrary_SceneUtilityFunctions::DetermineMeshOcclusion(
 	const TArray<UDynamicMesh*>& SourceMeshes,
 	const TArray<FTransform>& SourceMeshTransforms,
 	TArray<bool>& OutMeshIsHidden,
+	const TArray<UDynamicMesh*>& TransparentMeshes,
+	const TArray<FTransform>& TransparentMeshTransforms,
+	TArray<bool>& OutTransparentMeshIsHidden,
 	const TArray<UDynamicMesh*>& OccludeMeshes,
 	const TArray<FTransform>& OccludeMeshTransforms,
 	const FGeometryScriptDetermineMeshOcclusionOptions& OcclusionOptions,
@@ -385,33 +388,46 @@ void UGeometryScriptLibrary_SceneUtilityFunctions::DetermineMeshOcclusion(
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_OccludeArrayMismatch", "DetermineMeshOcclusion: OccludeMeshes and OccludeMeshTransforms arrays must have same length"));
 		return;
 	}
+	if (TransparentMeshes.Num() != TransparentMeshTransforms.Num())
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_TransparentArrayMismatch", "DetermineMeshOcclusion: TransparentMeshes and TransparentMeshTransforms arrays must have same length"));
+		return;
+	}
 
 	FDetectPerDynamicMeshExteriorVisibility Occlusion;
-	for (int32 SourceMeshIndex = 0; SourceMeshIndex < SourceMeshes.Num(); ++SourceMeshIndex)
+	auto AddInstances = [](const TArray<UDynamicMesh*>& Meshes, const TArray<FTransform>& Transforms, TArray<FDetectPerDynamicMeshExteriorVisibility::FDynamicMeshInstance>& OutInstances) -> bool
 	{
-		UDynamicMesh* Mesh = SourceMeshes[SourceMeshIndex];
-		if (!Mesh)
+		for (int32 MeshIndex = 0; MeshIndex < Meshes.Num(); ++MeshIndex)
 		{
-			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidSourceMesh", "DetermineMeshOcclusion: SourceMeshes array contained null mesh"));
-			return;
+			UDynamicMesh* Mesh = Meshes[MeshIndex];
+			if (!Mesh)
+			{
+				return false;
+			}
+			OutInstances.Emplace(Mesh->GetMeshPtr(), Transforms[MeshIndex]);
 		}
-		Occlusion.Instances.Emplace(Mesh->GetMeshPtr(), SourceMeshTransforms[SourceMeshIndex]);
+		return true;
+	};
+	if (!AddInstances(SourceMeshes, SourceMeshTransforms, Occlusion.Instances))
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidSourceMesh", "DetermineMeshOcclusion: SourceMeshes array contained null mesh"));
+		return;
 	}
-	for (int32 OccludeMeshIndex = 0; OccludeMeshIndex < OccludeMeshes.Num(); ++OccludeMeshIndex)
+	if (!AddInstances(OccludeMeshes, OccludeMeshTransforms, Occlusion.OccludeInstances))
 	{
-		UDynamicMesh* Mesh = OccludeMeshes[OccludeMeshIndex];
-		if (!Mesh)
-		{
-			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidOccludeMesh", "DetermineMeshOcclusion: OccludeMeshes array contained null mesh"));
-			return;
-		}
-		Occlusion.OccludeInstances.Emplace(Mesh->GetMeshPtr(), OccludeMeshTransforms[OccludeMeshIndex]);
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidOccludeMesh", "DetermineMeshOcclusion: OccludeMeshes array contained null mesh"));
+		return;
+	}
+	if (!AddInstances(TransparentMeshes, TransparentMeshTransforms, Occlusion.TransparentInstances))
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("DetermineMeshOcclusion_InvalidTransparentMesh", "DetermineMeshOcclusion: TransparentMeshes array contained null mesh"));
+		return;
 	}
 	Occlusion.SamplingParameters.bDoubleSided = OcclusionOptions.bDoubleSided;
 	Occlusion.SamplingParameters.SamplingDensity = OcclusionOptions.SamplingDensity;
 	Occlusion.SamplingParameters.NumSearchDirections = OcclusionOptions.NumSearchDirections;
 
-	Occlusion.ComputeHidden(OutMeshIsHidden);
+	Occlusion.ComputeHidden(OutMeshIsHidden, &OutTransparentMeshIsHidden);
 }
 
 #undef LOCTEXT_NAMESPACE

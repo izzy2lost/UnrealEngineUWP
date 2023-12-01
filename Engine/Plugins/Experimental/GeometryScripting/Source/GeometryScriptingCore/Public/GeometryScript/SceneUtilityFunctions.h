@@ -121,15 +121,21 @@ public:
 	 * @param SourceMeshes			Meshes to test for occlusion. Note: The same mesh may appear multiple times in this array, if it is instanced with different transforms.
 	 * @param SourceMeshTransforms	A transform for each source mesh. Array must have the same length as SourceMeshes.
 	 * @param OutMeshIsHidden		Array will be filled with a bool per source mesh, indicating whether that mesh is hidden (true) or visible (false)
+	 * @param TransparentMeshes		Transparent source meshes, to test for occlusion but which do not occlude.
+	 * @param TransparentMeshTransforms		Array of transforms for each transparent mesh
+	 * @param OutTransparentMeshIsHidden	Array will be filled with a bool per transparent mesh, indicating whether that mesh is hidden (true) or visible (false)
 	 * @param OccludeMeshes			Array of optional meshes which can occlude SourceMeshes, but for which we will not test occlusion.
 	 * @param OccludeMeshTransforms	Array of transforms for each occlude mesh. Array must have the same length as OccludeMeshes.
 	 * @param Options				Settings to control how occlusion is tested
 	 */
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Scene", meta = (AutoCreateRefTerm = "OccludeMeshes, OccludeMeshTransforms, OcclusionOptions"))
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Scene", meta = (AutoCreateRefTerm = "SourceMeshes, SourceMeshTransforms, TransparentMeshes, TransparentMeshTransforms, OccludeMeshes, OccludeMeshTransforms, OcclusionOptions"))
 	static void DetermineMeshOcclusion(
 		const TArray<UDynamicMesh*>& SourceMeshes,
 		const TArray<FTransform>& SourceMeshTransforms,
 		TArray<bool>& OutMeshIsHidden,
+		const TArray<UDynamicMesh*>& TransparentMeshes,
+		const TArray<FTransform>& TransparentMeshTransforms,
+		TArray<bool>& OutTransparentMeshIsHidden,
 		const TArray<UDynamicMesh*>& OccludeMeshes,
 		const TArray<FTransform>& OccludeMeshTransforms,
 		const FGeometryScriptDetermineMeshOcclusionOptions& OcclusionOptions,
