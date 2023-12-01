@@ -89,7 +89,8 @@ FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObjectBase* Owner)
 	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
 	if(!BagData)
 	{
-		FPropertyBagAssociationData NewBagData;
+		FPropertyBagAssociationData NewBagData(new FPropertyBag);
+		NewBagData.Bag = new FPropertyBag;
 		BagData = &AssociatedData.Emplace(Owner, NewBagData);
 	}
 	return BagData->Bag;
