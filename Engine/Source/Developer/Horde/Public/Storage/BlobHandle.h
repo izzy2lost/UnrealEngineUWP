@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "SharedBufferView.h"
 #include "BlobType.h"
+#include "IO/IoHash.h"
 
 struct FBlob;
 class FBlobHandleData;
@@ -109,4 +110,18 @@ public:
 
 	/** Gets a handle to a nested blob object. */
 	virtual FBlobHandle GetFragmentHandle(const FUtf8StringView& Fragment) const;
+};
+
+/**
+ * Stores a blob handle along with a hash of the target node.
+ */
+struct FBlobHandleWithHash
+{
+	FBlobHandle Handle;
+	FIoHash Hash;
+
+	FBlobHandleWithHash(FBlobHandle InHandle, FIoHash InHash)
+		: Handle(MoveTemp(InHandle))
+		, Hash(InHash)
+	{ }
 };

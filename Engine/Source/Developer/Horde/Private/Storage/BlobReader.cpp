@@ -41,6 +41,17 @@ FBlobHandle FBlobReader::ReadImport()
 
 // ------------------------------------------------------------------------
 
+FBlobHandle ReadBlobHandle(FBlobReader& Reader)
+{
+	return Reader.ReadImport();
+}
+
+FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader)
+{
+	FBlobHandle Handle = Reader.ReadImport();
+	return FBlobHandleWithHash(MoveTemp(Handle), ReadIoHash(Reader));
+}
+
 int ReadInt32(FBlobReader& Reader)
 {
 	int Value = *(const int*)Reader.GetBuffer();

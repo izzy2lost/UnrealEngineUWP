@@ -44,10 +44,7 @@ class FFileEntry
 {
 public:
 	/** Handle to the root chunked data node. */
-	FBlobHandle Target;
-
-	/** Hash of the root chunked data node. */
-	FIoHash TargetHash;
+	FBlobHandleWithHash Target;
 
 	/** Name of this file. */
 	const FUtf8String Name;
@@ -64,7 +61,7 @@ public:
 	/** Custom user data for this file entry. */
 	FSharedBufferView CustomData;
 
-	FFileEntry(FBlobHandle InTarget, const FIoHash& InTargetHash, FUtf8String InName, EFileEntryFlags InFlags, int64 InLength, const FIoHash& InHash, FSharedBufferView InCustomData);
+	FFileEntry(FBlobHandleWithHash InTarget, FUtf8String InName, EFileEntryFlags InFlags, int64 InLength, const FIoHash& InHash, FSharedBufferView InCustomData);
 	~FFileEntry();
 
 	static FFileEntry Read(FBlobReader& Reader);

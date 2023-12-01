@@ -21,6 +21,17 @@ void* FBlobWriter::GetOutputBuffer(size_t Size)
 
 // ------------------------------------------------------------------------------------------
 
+void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle)
+{
+	Writer.AddImport(MoveTemp(Handle));
+}
+
+void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target)
+{
+	Writer.AddImport(MoveTemp(Target.Handle));
+	WriteIoHash(Writer, Target.Hash);
+}
+
 void WriteIoHash(FBlobWriter& Writer, const FIoHash& Hash)
 {
 	WriteFixedLengthBytes(Writer, &Hash, sizeof(Hash));

@@ -39,6 +39,8 @@ private:
 
 // ------------------------------------------------------------------------
 
+FBlobHandle ReadBlobHandle(FBlobReader& Reader);
+FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader);
 int ReadInt32(FBlobReader& Reader);
 FIoHash ReadIoHash(FBlobReader& Reader);
 FMemoryView ReadFixedLengthBytes(FBlobReader& Reader, size_t Length);

@@ -6,9 +6,8 @@
 #include "Storage/BlobWriter.h"
 #include "../../HordePlatform.h"
 
-FFileEntry::FFileEntry(FBlobHandle InTarget, const FIoHash& InTargetHash, FUtf8String InName, EFileEntryFlags InFlags, int64 InLength, const FIoHash& InHash, FSharedBufferView InCustomData)
+FFileEntry::FFileEntry(FBlobHandleWithHash InTarget, FUtf8String InName, EFileEntryFlags InFlags, int64 InLength, const FIoHash& InHash, FSharedBufferView InCustomData)
 	: Target(MoveTemp(InTarget))
-	, TargetHash(InTargetHash)
 	, Name(MoveTemp(InName))
 	, Flags(InFlags)
 	, Length(InLength)
@@ -21,8 +20,7 @@ FFileEntry::~FFileEntry()
 
 FFileEntry FFileEntry::Read(FBlobReader& Reader)
 {
-	FBlobHandle Target = Reader.ReadImport();
-	FIoHash TargetHash = ReadIoHash(Reader);
+	FBlobHandleWithHash Target = ReadBlobHandleWithHash(Reader);
 
 	FUtf8String Name = ReadString(Reader);
 	EFileEntryFlags Flags = (EFileEntryFlags)ReadUnsignedVarInt(Reader);
@@ -37,13 +35,12 @@ FFileEntry FFileEntry::Read(FBlobReader& Reader)
 //		Flags &= ~EFileEntryFlags::HasCustomData;
 	}
 
-	return FFileEntry(MoveTemp(Target), TargetHash, MoveTemp(Name), Flags, Length, Hash, MoveTemp(CustomData));
+	return FFileEntry(MoveTemp(Target), MoveTemp(Name), Flags, Length, Hash, MoveTemp(CustomData));
 }
 
 void FFileEntry::Write(FBlobWriter& Writer) const
 {
-	Writer.AddImport(Target);
-	WriteIoHash(Writer, TargetHash);
+	WriteBlobHandleWithHash(Writer, Target);
 
 	EFileEntryFlags WriteFlags = Flags; // TODO: (CustomData.Length > 0) ? (Flags | EFileEntryFlags::HasCustomData) : (Flags & ~EFileEntryFlags::HasCustomData);
 

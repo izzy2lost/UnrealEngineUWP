@@ -9,60 +9,40 @@
 #include "../BlobWriter.h"
 #include "../../SharedBufferView.h"
 #include "Hash/Blake3.h"
+#include "Hash/BuzHash.h"
 
 /**
- * Base class for chunked data nodes
+ * Options for chunking data
+ */
+struct FChunkingOptions
+{
+	static const FChunkingOptions Default;
+
+	int32 MinChunkSize = 4 * 1024;
+	int32 TargetChunkSize = 64 * 1024;
+	int32 MaxChunkSize = 128 * 1024;
+};
+
+/**
+ * Node containing a chunk of data
  */
 class FChunkNode
 {
 public:
-	virtual ~FChunkNode();
-};
+	static const FBlobType LeafBlobType;
+	static const FBlobType InteriorBlobType;
 
-/**
- * Hashed reference to a chunked data node
- */
-struct FChunkNodeRef
-{
-	FBlobHandle Handle;
-	FIoHash Hash;
+	TArray<FBlobHandleWithHash> Children;
+	FSharedBufferView Data;
 
-	FChunkNodeRef(FBlobHandle InHandle, const FIoHash& InHash);
-	~FChunkNodeRef();
-};
+	FChunkNode();
+	FChunkNode(TArray<FBlobHandleWithHash> InChildren, FSharedBufferView InData);
+	~FChunkNode();
 
-/**
- * Chunked data node containing a leaf of chunked data
- */
-class FLeafChunkNode final : public FChunkNode
-{
-public:
-	static const FBlobType BlobType;
+	static FChunkNode Read(FBlob Blob);
+	FBlobHandleWithHash Write(FBlobWriter& Writer) const;
 
-	const FSharedBufferView Buffer;
-
-	FLeafChunkNode(FSharedBufferView InBuffer);
-	virtual ~FLeafChunkNode() override;
-
-	static FLeafChunkNode Read(FBlob Blob);
-	void Write(FBlobWriter& Writer);
-};
-
-/**
- * An interior file node
- */
-class FInteriorChunkNode final : public FChunkNode
-{
-public:
-	static const FBlobType BlobType;
-
-	TArray<FChunkNodeRef> Children;
-
-	FInteriorChunkNode();
-	virtual ~FInteriorChunkNode() override;
-
-	static FInteriorChunkNode Read(FBlob Blob);
-	void Write(FBlobWriter& Writer) const;
+	static FBlobHandleWithHash Write(FBlobWriter& Writer, const TArrayView<const FBlobHandleWithHash>& Children, FMemoryView Data);
 };
 
 /**
@@ -75,11 +55,41 @@ public:
 	FChunkNodeReader(const FBlobHandle& Handle);
 	~FChunkNodeReader();
 
-	bool IsEof() const;
+	bool IsComplete() const;
 	FMemoryView GetBuffer() const;
 	void Advance(int32 Length);
+
+	operator bool() const;
 
 private:
 	struct FStackEntry;
 	TArray<FStackEntry> Stack;
+};
+
+/**
+ * Utility class for writing new data to a tree of chunk nodes
+ */
+class FChunkNodeWriter
+{
+public:
+	FChunkNodeWriter(FBlobWriter& InWriter, const FChunkingOptions& InOptions = FChunkingOptions::Default);
+	~FChunkNodeWriter();
+
+	void Write(FMemoryView Data);
+
+	FBlobHandleWithHash Flush(FIoHash& OutStreamHash);
+
+private:
+	FBlobWriter& Writer;
+	const FChunkingOptions& Options;
+
+	FBuzHash RollingHash;
+	uint32 Threshold;
+	int32 NodeLength;
+
+	FBlake3 StreamHasher;
+
+	TArray<FBlobHandleWithHash> Nodes;
+
+	void WriteNode();
 };

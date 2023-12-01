@@ -51,6 +51,9 @@ public:
 
 // ------------------------------------------------------------------------------------------
 
+void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle);
+void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target);
+
 void WriteIoHash(FBlobWriter& Writer, const struct FIoHash& Hash);
 
 void WriteFixedLengthBytes(FBlobWriter& Writer, const void* Data, size_t Length);
