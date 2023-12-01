@@ -40,39 +40,64 @@ namespace UE::MassLOD
 #if WITH_MASSGAMEPLAY_DEBUG
 	namespace Debug
 	{
+		/** Returns whether getting the UMassLODSubsystem and the bool parameter was successful */
+		bool GetSubsystemAndBoolArgument(const TArray<FString>& Args, UWorld* World, UMassLODSubsystem*& OutMassLODSubsystem, bool& bOutBool)
+		{
+			if (!World)
+			{
+				UE_LOG(LogConsoleResponse, Display, TEXT("Error: invalid world"));
+				return false;
+			}
+
+			OutMassLODSubsystem = World->GetSubsystem<UMassLODSubsystem>();
+			if (OutMassLODSubsystem == nullptr)
+			{
+				UE_LOG(LogConsoleResponse, Display, TEXT("Error: Unable to fetch MassLODSubsystem instance"));
+				return false;
+			}
+
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogConsoleResponse, Display, TEXT("Error: Expecting 1 parameter"));
+				return false;
+			}
+
+			if (!LexTryParseString<bool>(bOutBool, *Args[0]))
+			{
+				UE_LOG(LogConsoleResponse, Display, TEXT("Error: parameter must be an integer or a boolean"));
+				return false;
+			}
+
+			return true;
+		}
+
 		FAutoConsoleCommandWithWorldArgsAndOutputDevice ToggleUsePlayerLocationCmd(
 			TEXT("mass.debug.LODSubsystem.UsePlayerLocation"),
-			TEXT("Sets UMassSubsystem::bUsePlayerPawnLocationInsteadOfCamera. Note that this is a command that doesn't retain state and usually needs running both for the client and the server"),
+			TEXT("Sets UMassLODSubsystem::bUsePlayerPawnLocationInsteadOfCamera. Note that this is a command that doesn't retain state and usually needs running both for the client and the server"),
 			FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
 				{
-					if (!World)
-					{
-						UE_LOG(LogConsoleResponse, Display, TEXT("Error: invalid world"));
-						return;
-					}
-
-					UMassLODSubsystem* MassLODSubsystem = World->GetSubsystem<UMassLODSubsystem>();
-					if (MassLODSubsystem == nullptr)
-					{
-						UE_LOG(LogConsoleResponse, Display, TEXT("Error: Unable to fetch MassLODSubsystem instance"));
-						return;
-					}
-					
-					if (Args.Num() < 1)
-					{
-						UE_LOG(LogConsoleResponse, Display, TEXT("Error: Expecting 1 parameter"));
-						return;
-					}
-
+					UMassLODSubsystem* MassLODSubsystem = nullptr;
 					bool bNewValue = false;
-					if (!LexTryParseString<bool>(bNewValue, *Args[0]))
-					{
-						UE_LOG(LogConsoleResponse, Display, TEXT("Error: parameter must be an integer or a boolean"));
-						return;
-					}
 
-					MassLODSubsystem->DebugSetUsePlayerPawnLocationInsteadOfCamera(bNewValue);
+					if (GetSubsystemAndBoolArgument(Args, World, MassLODSubsystem, bNewValue))
+					{
+						MassLODSubsystem->DebugSetUsePlayerPawnLocationInsteadOfCamera(bNewValue);
+					}
 				}));
+
+		FAutoConsoleCommandWithWorldArgsAndOutputDevice ToggleGatherPlayers(
+			TEXT("mass.debug.LODSubsystem.GatherPlayers"),
+			TEXT("Sets UMassLODSubsystem::bGatherPlayerControllers. Note that this is a command that doesn't retain state and usually needs running both for the client and the server"),
+			FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+				{
+					UMassLODSubsystem* MassLODSubsystem = nullptr;
+					bool bNewValue = false;
+
+					if (GetSubsystemAndBoolArgument(Args, World, MassLODSubsystem, bNewValue))
+					{
+						MassLODSubsystem->DebugSetGatherPlayers(bNewValue);
+					}
+				})); 
 	}
 #endif // WITH_MASSGAMEPLAY_DEBUG
 }

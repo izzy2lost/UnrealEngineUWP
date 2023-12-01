@@ -114,6 +114,7 @@ public:
 	bool IsUsingPlayerPawnLocationInsteadOfCamera() const { return bUsePlayerPawnLocationInsteadOfCamera; }
 
 #if WITH_MASSGAMEPLAY_DEBUG
+	void DebugSetGatherPlayers(const bool bInValue) { bGatherPlayerControllers = bInValue; }
 	void DebugSetUsePlayerPawnLocationInsteadOfCamera(const bool bInValue) { bUsePlayerPawnLocationInsteadOfCamera = bInValue; }
 	void DebugUnregisterActorViewer();
 #endif
