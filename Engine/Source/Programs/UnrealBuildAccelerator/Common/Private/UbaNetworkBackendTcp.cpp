@@ -309,7 +309,7 @@ namespace uba
 		auto listenSocketCleanup = MakeGuard([&]() { closesocket(listenSocket); listenSocket = INVALID_SOCKET; });
 
 		// This is here to be able to iterate fast when doing development.. seems like socket ends up in TIME_WAIT state after close and it takes some time to be able to use socket again
-		#if !PLATFORM_WINDOWS && UBA_DEBUG
+		#if !PLATFORM_WINDOWS// && UBA_DEBUG
 		int optval = 1;
 		::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof optval);
 		#endif
