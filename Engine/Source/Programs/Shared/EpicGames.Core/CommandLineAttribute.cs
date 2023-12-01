@@ -38,6 +38,11 @@ namespace EpicGames.Core
 		public char ListSeparator { get; set; } = '\0';
 
 		/// <summary>
+		/// Description of the operation.
+		/// </summary>
+		public string? Description { get; set; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="prefix">Prefix for this argument</param>
