@@ -19,7 +19,10 @@ void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(ReturnEffectToken, "ReturnEffectToken");
 	Visitor.Visit(Procedure, "Procedure");
-	Visitor.Visit(ReturnSlot, "ReturnSlot");
+	if (ReturnKind == EReturnKind::Value)
+	{
+		Visitor.Visit(Return.Value, "ReturnSlot");
+	}
 	Visitor.Visit(CallerFrame, "CallerFrame");
 	Visitor.Visit(Registers, NumRegisters, "Registers");
 }

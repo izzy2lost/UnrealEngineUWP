@@ -169,8 +169,8 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 	}
 }
 
-template <typename ArgFunction>
-static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, VValue ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
+template <typename ArgFunction, typename ReturnSlotType>
+static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
@@ -1038,7 +1038,8 @@ class FInterpreter
 	{
 		VValue Var = GetOperand(Op.Var);
 		REQUIRE_CONCRETE(Var);
-		DEF(Op.Dest, Var.StaticCast<VVar>().Get(Context));
+		VValue Result = Var.StaticCast<VVar>().Get(Context);
+		DEF(Op.Dest, Result);
 		return {FOpResult::Normal};
 	}
 
@@ -1805,9 +1806,8 @@ class FInterpreter
 
 					if (VFunction* Function = Callee.DynamicCast<VFunction>())
 					{
-						// TODO: It shouldn't be hard to figure out a way to avoid the heap
-						// allocation for the return slot here when we don't encounter leniency.
-						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, GetOperand(Op.Dest), *Function, Op.Arguments.Num(),
+						VRestValue* ReturnSlot = &State.Frame->Registers[Op.Dest.Index];
+						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, ReturnSlot, *Function, Op.Arguments.Num(),
 							[&](uint32 Arg) {
 								return GetOperand(Op.Arguments[Arg]);
 							});
@@ -1834,13 +1834,27 @@ class FInterpreter
 					VValue IncomingEffectToken = EffectToken.Get(Context);
 					DEF(State.Frame->ReturnEffectToken, IncomingEffectToken); // This can't fail.
 
-					VValue ReturnSlot = State.Frame->ReturnSlot.Get();
 					VValue Value = GetOperand(Op.Value);
+					VFrame& Frame = *State.Frame;
 
 					ReturnTo(State.Frame->CallerFrame.Get(), State.Frame->CallerPC);
 
 					// TODO: Add a test where this unification fails at the top level with no return continuation.
-					DEF(ReturnSlot, Value);
+					if (Frame.ReturnKind == VFrame::EReturnKind::RestValue)
+					{
+						if (Frame.Return.RestValue)
+						{
+							DEF(*Frame.Return.RestValue, Value);
+						}
+					}
+					else
+					{
+						checkSlow(Frame.ReturnKind == VFrame::EReturnKind::Value);
+						if (Frame.Return.Value)
+						{
+							DEF(Frame.Return.Value.Get(), Value);
+						}
+					}
 				}
 				END_OP_CASE()
 
@@ -1859,7 +1873,7 @@ class FInterpreter
 					{
 						VProcedure& Procedure = *Initializers.Pop();
 						VFunction& Function = VFunction::New(Context, Procedure, *Object);
-						VValue ReturnSlot = VValue::Placeholder(VPlaceholder::New(Context, 0));
+						VRestValue* ReturnSlot = nullptr;
 						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, ReturnSlot, Function, 0,
 							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });
 						UpdateExecutionState(&NewFrame, Procedure.GetOpsBegin(), *State.FailureContext);
@@ -1984,6 +1998,7 @@ class FInterpreter
 							{
 								VFrame* CallerFrame = nullptr;
 								FOp* CallerPC = nullptr;
+
 								VFrame& NewFrame = MakeFrameForCallee(Context, CallerFrame, CallerPC, GetOperand(Op.Dest), *Function, Op.Arguments.Num(),
 									[&](uint32 Arg) {
 										return GetOperand(Op.Arguments[Arg]);
@@ -2085,7 +2100,7 @@ public:
 
 		VFrame* CallerFrame = nullptr;
 		FOp* CallerPC = nullptr;
-		VFrame& Frame = MakeFrameForCallee(Context, CallerFrame, CallerPC, ReturnSlot.Get(Context), Function, Arguments.Num(),
+		VFrame& Frame = MakeFrameForCallee(Context, CallerFrame, CallerPC, &ReturnSlot, Function, Arguments.Num(),
 			[&](uint32 Arg) {
 				return Arguments[Arg];
 			});
