@@ -232,21 +232,6 @@ FCachedGeometry GetCacheGeometryForHair(
 	return Out;
 }
 
-// Return the LOD index of the cached geometry on which the hair are bound to. 
-// Return -1 if the hair are not bound of if the underlying geometry is invalid
-static int32 GetCacheGeometryLODIndex(const FCachedGeometry& In)
-{
-	int32 MeshLODIndex = In.LODIndex;
-	for (const FCachedGeometry::Section& Section : In.Sections)
-	{
-		// Ensure all mesh's sections have the same LOD index
-		if (MeshLODIndex < 0) MeshLODIndex = Section.LODIndex;
-		check(MeshLODIndex == Section.LODIndex);
-	}
-
-	return MeshLODIndex;
-}
-
 enum class EHairInterpolationPassType
 {
 	Strands,
@@ -286,7 +271,7 @@ static void RunInternalHairInterpolation(
 	
 		check(Instance->HairGroupPublicData);
 
-		FHairStrandsProjectionMeshData::LOD MeshDataLOD;
+		FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
 		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
 		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
 		{
@@ -420,13 +405,13 @@ static void RunHairStrandsInterpolation_Guide(
 		bool bDeformationEnable = false;
 		bool bGlobalDeformationEnable = false;
 
-		FHairStrandsProjectionMeshData::LOD MeshDataLOD;
+		FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
 		FHairGroupInstance* Instance = nullptr;
 
-		bool NeedsMeshUpdate() const
+		bool NeedsMeshUpdate(bool bCheckMeshLODIndex=true) const
 		{
 			return 
-				MeshLODIndex >= 0 && 
+				(!bCheckMeshLODIndex || (bCheckMeshLODIndex && MeshLODIndex >= 0)) &&
 				(BindingType == EHairBindingType::Skinning) && 
 				(bGlobalDeformationEnable || bSimulationEnable || bDeformationEnable);
 		}
@@ -455,22 +440,26 @@ static void RunHairStrandsInterpolation_Guide(
 		InstanceData.bGlobalDeformationEnable 	= Instance->HairGroupPublicData->IsGlobalInterpolationEnable(InstanceData.HairLODIndex);
 		InstanceData.MeshLODIndex				= -1;
 
-		// Extract MeshDataLOD and compute MeshLODIndex
-		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
-		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+		if (InstanceData.NeedsMeshUpdate(false/*bCheckMeshLODIndex*/))
 		{
-			// Ensure all mesh's sections have the same LOD index
-			const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
-			if (InstanceData.MeshLODIndex < 0) InstanceData.MeshLODIndex = SectionLodIndex;
-			check(InstanceData.MeshLODIndex == SectionLodIndex);
+			// Extract MeshDataLOD and MeshLODIndex
+			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true /*bOutputTriangleData*/);
+			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+			{
+				InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+			}
+			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
 
-			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
-		}
-		Instance->Debug.MeshLODIndex = InstanceData.MeshLODIndex;
-
-		if (InstanceData.NeedsMeshUpdate())
-		{
+			// Sanity check
 			check(InstanceData.Instance->Guides.IsValid());
+		}
+		else
+		{
+			// Extract MeshLODIndex
+			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, false /*bOutputTriangleData*/);
+			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
 		}
 
 		if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Guides)  { bHasAnySimCacheInstances = true; }
@@ -763,15 +752,15 @@ static void RunHairStrandsInterpolation_Strands(
 
 		FInstanceRDGResources RDGResources;
 
-		FHairStrandsProjectionMeshData::LOD MeshDataLOD;
+		FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
 		FHairGroupInstance* Instance = nullptr;
 		FRDGHairStrandsCullingData CullingData;
 
-		bool NeedsMeshUpdate() const
+		bool NeedsMeshUpdate(bool bCheckMeshLODIndex = true) const
 		{
-			return 
-				MeshLODIndex >= 0 && 
-				(BindingType == EHairBindingType::Skinning) && 
+			return
+				(!bCheckMeshLODIndex || (bCheckMeshLODIndex && MeshLODIndex >= 0)) &&
+				(BindingType == EHairBindingType::Skinning) &&
 				(bGlobalDeformationEnable || bSimulationEnable || bDeformationEnable);
 		}
 	};
@@ -852,14 +841,10 @@ static void RunHairStrandsInterpolation_Strands(
 		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
 		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
 		{
-			// Ensure all mesh's sections have the same LOD index
-			const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
-			if (InstanceData.MeshLODIndex < 0) InstanceData.MeshLODIndex = SectionLodIndex;
-			check(InstanceData.MeshLODIndex == SectionLodIndex);
-
 			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
 		}
-		Instance->Debug.MeshLODIndex = InstanceData.MeshLODIndex;
+		InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+		Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
 		Instance->HairGroupPublicData->VFInput.Strands	= FHairGroupPublicData::FVertexFactoryInput::FStrands();
 
 		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
@@ -1714,7 +1699,7 @@ static void RunHairLODSelection(
 		check(Instance);
 		check(Instance->HairGroupPublicData);
 		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, false);
-		const int32 MeshLODIndex = GetCacheGeometryLODIndex(CachedGeometry);
+		const int32 MeshLODIndex = CachedGeometry.LODIndex;
 
 		// Perform LOD selection based on all the views	
 		// CPU LOD selection. 

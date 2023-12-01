@@ -11,7 +11,7 @@ class FGlobalShaderMap;
 class FRDGBuilder;
 class FGeometryCacheSceneProxy;
 
-FHairStrandsProjectionMeshData::Section ConvertMeshSection(FCachedGeometry const& InCachedGeometry, int32 InSectionIndex);
+FHairStrandsProjectionMeshData::FSection ConvertMeshSection(FCachedGeometry const& InCachedGeometry, int32 InSectionIndex);
 
 void BuildCacheGeometry(
 	FRDGBuilder& GraphBuilder,

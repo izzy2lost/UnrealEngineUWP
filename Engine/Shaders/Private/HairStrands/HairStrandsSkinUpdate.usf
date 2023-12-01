@@ -5,6 +5,7 @@
 #include "/Engine/Public/Platform.ush"
 #include "../GpuSkinCommon.ush"
 
+#if SHADER_SKIN_UPDATE
 //----------------------------------------------------------------------------------
 
 uint WeightIndexSize; // bone index size: 1 - 8bit or 2 - 16bit
@@ -12,7 +13,6 @@ uint SectionVertexBaseIndex;
 uint NumTotalVertices;
 uint NumVertexToProcess;
 uint WeightStride;
-uint BonesOffset;
 
 Buffer<uint> WeightLookup;
 Buffer<uint> VertexWeights;
@@ -30,7 +30,7 @@ RWBuffer<float> PrevDeformedPositions;
 
 //----------------------------------------------------------------------------------
 
-[numthreads(64,1,1)]
+[numthreads(GROUP_SIZE,1,1)]
 void UpdateSkinPositionCS(uint3 GroupID : SV_GroupID,
  uint3 DispatchThreadID : SV_DispatchThreadID,
  uint3 GroupThreadID : SV_GroupThreadID)
@@ -82,3 +82,4 @@ void UpdateSkinPositionCS(uint3 GroupID : SV_GroupID,
 	#endif
 	}
 }
+#endif // SHADER_SKIN_UPDATE

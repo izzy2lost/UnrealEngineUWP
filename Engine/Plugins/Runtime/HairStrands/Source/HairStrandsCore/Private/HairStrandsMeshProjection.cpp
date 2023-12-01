@@ -34,44 +34,6 @@ uint32 GetHairStrandsMaxTriangleCount()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-FHairStrandsProjectionMeshData ExtractMeshData(FSkeletalMeshRenderData* RenderData)
-{
-	FHairStrandsProjectionMeshData MeshData;
-	uint32 LODIndex = 0;
-	for (FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
-	{
-		FHairStrandsProjectionMeshData::LOD& LOD = MeshData.LODs.AddDefaulted_GetRef();
-		uint32 SectionIndex = 0;
-		for (FSkelMeshRenderSection& InSection : LODRenderData.RenderSections)
-		{
-			// Pick between float and halt
-			const uint32 UVSizeInByte = (LODRenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetUseFullPrecisionUVs() ? 4 : 2) * 2;
-
-			FHairStrandsProjectionMeshData::Section& OutSection = LOD.Sections.AddDefaulted_GetRef();
-			OutSection.UVsChannelOffset = 0; // Assume that we needs to pair meshes based on UVs 0
-			OutSection.UVsChannelCount = LODRenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords();
-			OutSection.UVsBuffer = LODRenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordsSRV();
-			OutSection.PositionBuffer = LODRenderData.StaticVertexBuffers.PositionVertexBuffer.GetSRV();
-			OutSection.IndexBuffer = LODRenderData.MultiSizeIndexContainer.GetIndexBuffer()->GetSRV();
-			OutSection.TotalVertexCount = LODRenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
-			OutSection.TotalIndexCount = LODRenderData.MultiSizeIndexContainer.GetIndexBuffer()->Num();
-			OutSection.NumPrimitives = InSection.NumTriangles;
-			OutSection.NumVertices = InSection.NumVertices;
-			OutSection.VertexBaseIndex = InSection.BaseVertexIndex;
-			OutSection.IndexBaseIndex = InSection.BaseIndex;
-			OutSection.SectionIndex = SectionIndex;
-			OutSection.LODIndex = LODIndex;
-
-			++SectionIndex;
-		}
-		++LODIndex;
-	}
-
-	return MeshData;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 class FSkinUpdateCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FSkinUpdateCS);
@@ -91,7 +53,6 @@ class FSkinUpdateCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, SectionVertexBaseIndex)
 		SHADER_PARAMETER(uint32, WeightIndexSize)
 		SHADER_PARAMETER(uint32, WeightStride)
-		SHADER_PARAMETER(uint32, BonesOffset)
 		SHADER_PARAMETER_SRV(Buffer<uint>, WeightLookup)
 		SHADER_PARAMETER_SRV(Buffer<float4>, BoneMatrices)
 		SHADER_PARAMETER_SRV(Buffer<float4>, PrevBoneMatrices)
@@ -102,7 +63,14 @@ class FSkinUpdateCS : public FGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
+	static uint32 GetGroupSize() { return 64; }
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform); }
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_SKIN_UPDATE"), 1);
+		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FSkinUpdateCS, "/Engine/Private/HairStrands/HairStrandsSkinUpdate.usf", "UpdateSkinPositionCS", SF_Compute);
@@ -110,41 +78,30 @@ IMPLEMENT_GLOBAL_SHADER(FSkinUpdateCS, "/Engine/Private/HairStrands/HairStrandsS
 void AddSkinUpdatePass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	uint32 SectionIndex,
-	uint32 BonesOffset,	
 	FSkeletalMeshLODRenderData& RenderData,
-	FRHIShaderResourceView* BoneMatrices,
-	FRHIShaderResourceView* PrevBoneMatrices,
-	FRDGBufferRef OutDeformedPosition,
-	FRDGBufferRef OutPrevDeformedPosition)
+	const TArray<FSkinUpdateSection>& Sections,
+	FRDGBufferRef OutDeformedPositionBuffer,
+	FRDGBufferRef OutPrevDeformedPositionBuffer)
 {
-	check(BoneMatrices);
-
-	FSkinWeightVertexBuffer* SkinWeight = &RenderData.SkinWeightVertexBuffer;
-	const FSkelMeshRenderSection& Section = RenderData.RenderSections[SectionIndex];
-	const uint32 NumVertexToProcess = Section.NumVertices;
-	const uint32 SectionVertexBaseIndex = Section.BaseVertexIndex;
-	const uint32 NumTotalVertices = RenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
-
-	const bool bPrevPosition = OutPrevDeformedPosition != nullptr && PrevBoneMatrices != nullptr;
+	check(Sections.Num() > 0);
+	const FSkinWeightVertexBuffer* SkinWeight = &RenderData.SkinWeightVertexBuffer;
+	const bool bPrevPosition = OutPrevDeformedPositionBuffer != nullptr && Sections[0].BonePrevBuffer;
 	
 	FSkinUpdateCS::FParameters* Parameters = GraphBuilder.AllocParameters<FSkinUpdateCS::FParameters>();
-	Parameters->WeightIndexSize = SkinWeight->GetBoneIndexByteSize() | (SkinWeight->GetBoneWeightByteSize() << 8);
-	Parameters->NumVertexToProcess = NumVertexToProcess;
-	Parameters->NumTotalVertices = NumTotalVertices;
-	Parameters->SectionVertexBaseIndex = SectionVertexBaseIndex;
-	Parameters->WeightStride = SkinWeight->GetConstantInfluencesVertexStride();
-	Parameters->WeightLookup = SkinWeight->GetLookupVertexBuffer()->GetSRV();
-	Parameters->BonesOffset = BonesOffset;
-	Parameters->BoneMatrices = BoneMatrices;
-	Parameters->VertexWeights = SkinWeight->GetDataVertexBuffer()->GetSRV();
-	Parameters->RestPositions = RenderData.StaticVertexBuffers.PositionVertexBuffer.GetSRV();
-	Parameters->DeformedPositions = GraphBuilder.CreateUAV(OutDeformedPosition, PF_R32_FLOAT);
+	Parameters->WeightIndexSize 		= SkinWeight->GetBoneIndexByteSize() | (SkinWeight->GetBoneWeightByteSize() << 8);
+	Parameters->NumVertexToProcess 		= 0;
+	Parameters->NumTotalVertices		= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
+	Parameters->SectionVertexBaseIndex 	= 0;
+	Parameters->WeightStride 			= SkinWeight->GetConstantInfluencesVertexStride();
+	Parameters->WeightLookup 			= SkinWeight->GetLookupVertexBuffer()->GetSRV();
+	Parameters->BoneMatrices 			= Sections[0].BoneBuffer;
+	Parameters->PrevBoneMatrices 		= Sections[0].BonePrevBuffer;
+	Parameters->VertexWeights 			= SkinWeight->GetDataVertexBuffer()->GetSRV();
+	Parameters->RestPositions 			= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetSRV();
+	Parameters->DeformedPositions 		= GraphBuilder.CreateUAV(OutDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 	if (bPrevPosition)
 	{
-		check(PrevBoneMatrices);
-		Parameters->PrevBoneMatrices = BoneMatrices;
-		Parameters->PrevDeformedPositions = GraphBuilder.CreateUAV(OutPrevDeformedPosition, PF_R32_FLOAT);
+		Parameters->PrevDeformedPositions = GraphBuilder.CreateUAV(OutPrevDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 	}
 
 	FSkinUpdateCS::FPermutationDomain PermutationVector;
@@ -153,16 +110,34 @@ void AddSkinUpdatePass(
 	PermutationVector.Set<FSkinUpdateCS::FBoneIndexUint16 >(SkinWeight->Use16BitBoneIndex());
 	PermutationVector.Set<FSkinUpdateCS::FBoneIndexUint16 >(SkinWeight->Use16BitBoneWeight());
 	PermutationVector.Set<FSkinUpdateCS::FPrevious>(bPrevPosition);
-
-	const FIntVector DispatchGroupCount = FComputeShaderUtils::GetGroupCount(NumVertexToProcess, 64);
-	check(DispatchGroupCount.X <= GRHIMaxDispatchThreadGroupsPerDimension.X);
 	TShaderMapRef<FSkinUpdateCS> ComputeShader(ShaderMap, PermutationVector);
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("HairStrands::UpdateSkinPosition(%s,Section:%d)", bPrevPosition ? TEXT("Curr,Prev") : TEXT("Curr"), SectionIndex),
-		ComputeShader,
+
+	const FShaderParametersMetadata* ParametersMetadata = FSkinUpdateCS::FParameters::FTypeInfo::GetStructMetadata();
+	ClearUnusedGraphResources(ComputeShader, ParametersMetadata, Parameters);
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("HairStrands::UpdateSkinPosition(%s)", bPrevPosition ? TEXT("Curr,Prev") : TEXT("Curr")),
+		ParametersMetadata,
 		Parameters,
-		DispatchGroupCount);
+		ERDGPassFlags::Compute,
+		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRHIComputeCommandList& RHICmdList)
+		{
+			for (uint32 SectionIt = 0, SectionCount = Sections.Num(); SectionIt < SectionCount; ++SectionIt)
+			{
+				Parameters->NumVertexToProcess 		= Sections[SectionIt].NumVertexToProcess;
+				Parameters->SectionVertexBaseIndex 	= Sections[SectionIt].SectionVertexBaseIndex;
+				Parameters->BoneMatrices 			= Sections[SectionIt].BoneBuffer;
+				check(Parameters->BoneMatrices);
+				if (bPrevPosition)
+				{
+					Parameters->PrevBoneMatrices = Sections[SectionIt].BonePrevBuffer;
+					check(Parameters->PrevBoneMatrices);
+				}
+
+				const FIntVector DispatchGroupCount = FComputeShaderUtils::GetGroupCount(Parameters->NumVertexToProcess, FSkinUpdateCS::GetGroupSize());
+				check(DispatchGroupCount.X <= GRHIMaxDispatchThreadGroupsPerDimension.X);
+				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, ParametersMetadata, *Parameters, DispatchGroupCount);
+			}
+		});
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +185,7 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const uint32 UniqueTriangleCount, 
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FRDGBufferSRVRef UniqueTriangleIndexSRV,
 	FRDGBufferUAVRef OutputCurrUAV,
 	FRDGBufferUAVRef OutputPrevUAV)
@@ -254,7 +229,7 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 	SectionDatas.SetNum(SectionCount);
 	for (uint32 SectionIt = 0; SectionIt < SectionCount; ++SectionIt)
 	{
-		const FHairStrandsProjectionMeshData::Section& MeshSectionData = MeshData.Sections[SectionIt];
+		const FHairStrandsProjectionMeshData::FSection& MeshSectionData = MeshData.Sections[SectionIt];
 		SectionDatas[SectionIt].TotalIndexCount	= MeshSectionData.TotalIndexCount;
 		SectionDatas[SectionIt].TotalVertexCount= MeshSectionData.TotalVertexCount;
 		SectionDatas[SectionIt].IndexBaseIndex	= MeshSectionData.IndexBaseIndex;
@@ -315,7 +290,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 MeshLODIndex,
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {	
@@ -527,7 +502,7 @@ void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {
@@ -642,7 +617,7 @@ void AddHairStrandUpdateMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {

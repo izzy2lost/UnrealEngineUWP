@@ -82,7 +82,7 @@ static void GetGroomInterpolationData(
 	FSceneInterface* Scene,
 	const FHairStrandsInstances& Instances,
 	const EHairStrandsProjectionMeshType MeshType,
-	FHairStrandsProjectionMeshData::LOD& OutGeometries)
+	FHairStrandsProjectionMeshData::FLOD& OutGeometries)
 {
 	for (FHairStrandsInstance* AbstractInstance : Instances)
 	{
@@ -99,7 +99,7 @@ static void GetGroomInterpolationData(
 		{
 			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
 			{
-				FHairStrandsProjectionMeshData::Section OutSection = ConvertMeshSection(CachedGeometry, SectionIndex);
+				FHairStrandsProjectionMeshData::FSection OutSection = ConvertMeshSection(CachedGeometry, SectionIndex);
 				if (MeshType == EHairStrandsProjectionMeshType::RestMesh)
 				{					
 					// If the mesh has some mesh-tranferred data, we display that otherwise we use the rest data
@@ -183,7 +183,7 @@ static void AddDebugProjectionMeshPass(
 	const FIntRect Viewport,
 	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 	const EHairStrandsProjectionMeshType MeshType,
-	FHairStrandsProjectionMeshData::Section& MeshSectionData)
+	FHairStrandsProjectionMeshData::FSection& MeshSectionData)
 {
 	if (!View || !ShaderPrint::IsSupported(View->GetShaderPlatform()))
 	{
@@ -1404,9 +1404,9 @@ void RunHairStrandsDebug(
 			{
 				auto RenderMeshProjection = [ShaderMap, LocalView, Scene, ShaderPrintData, Viewport, &ViewUniformBuffer, Instances, &GraphBuilder](FRDGBuilder& LocalGraphBuilder, EHairStrandsProjectionMeshType MeshType)
 				{
-					FHairStrandsProjectionMeshData::LOD MeshProjectionLODData;
+					FHairStrandsProjectionMeshData::FLOD MeshProjectionLODData;
 					GetGroomInterpolationData(GraphBuilder, ShaderMap, Scene, Instances, MeshType, MeshProjectionLODData);
-					for (FHairStrandsProjectionMeshData::Section& Section : MeshProjectionLODData.Sections)
+					for (FHairStrandsProjectionMeshData::FSection& Section : MeshProjectionLODData.Sections)
 					{
 						AddDebugProjectionMeshPass(LocalGraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshType, Section);
 					}

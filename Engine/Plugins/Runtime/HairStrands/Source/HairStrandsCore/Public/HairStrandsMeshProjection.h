@@ -10,6 +10,7 @@
 
 
 class FSkeletalMeshRenderData;
+class FSkeletalMeshLODRenderData;
 struct FHairStrandsRestRootResource;
 struct FHairStrandsDeformedRootResource;
 struct FHairMeshesRestResource;
@@ -20,7 +21,7 @@ struct FHairStrandsDeformedResource;
 
 struct FHairStrandsProjectionMeshData
 {
-	struct Section
+	struct FSection
 	{
 		FTransform LocalToWorld;
 		FRDGBufferSRVRef RDGPositionBuffer = nullptr;
@@ -41,11 +42,11 @@ struct FHairStrandsProjectionMeshData
 		int32 LODIndex = 0;
 	};
 
-	struct LOD
+	struct FLOD
 	{
-		TArray<Section> Sections;
+		TArray<FSection> Sections;
 	};
-	TArray<LOD> LODs;
+	TArray<FLOD> LODs;
 };
 
 // Return the max number of section/triangle a skeletal mesh can have. After this count, binding will be disabled
@@ -57,7 +58,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
@@ -66,7 +67,7 @@ void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::LOD& MeshData,
+	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
@@ -75,7 +76,7 @@ void AddHairStrandUpdateMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::LOD& ProjectionMeshData,
+	const FHairStrandsProjectionMeshData::FLOD& ProjectionMeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
@@ -107,16 +108,22 @@ void AddComputeMipsPass(
 	FGlobalShaderMap* ShaderMap,
 	FRDGTextureRef& OutTexture);
 
+struct FSkinUpdateSection
+{
+	uint32 SectionIndex = 0;
+	uint32 NumVertexToProcess = 0;
+	uint32 SectionVertexBaseIndex = 0;
+	FRHIShaderResourceView* BoneBuffer = nullptr;
+	FRHIShaderResourceView* BonePrevBuffer = nullptr;
+};
+
 void AddSkinUpdatePass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	uint32 SectionIndex,
-	uint32 BonesOffset, 
-	class FSkeletalMeshLODRenderData& RenderData,
-	FRHIShaderResourceView* BoneMatrices,
-	FRHIShaderResourceView* PrevBoneMatrices,
-	FRDGBufferRef OutDeformedosition,
-	FRDGBufferRef OutPreviousDeformedosition);
+	FSkeletalMeshLODRenderData& RenderData,
+	const TArray<FSkinUpdateSection>& Sections,
+	FRDGBufferRef OutDeformedPositionBuffer,
+	FRDGBufferRef OutPrevDeformedPositionBuffer);
 
 void AddHairMeshesRBFInterpolationPass(
 	FRDGBuilder& GraphBuilder,
@@ -152,5 +159,3 @@ void AddHairStrandUpdatePositionOffsetPass(
 	const int32 MeshLODIndex,
 	FHairStrandsDeformedRootResource* DeformedRootResources,
 	FHairStrandsDeformedResource* DeformedResources);
-
-FHairStrandsProjectionMeshData ExtractMeshData(FSkeletalMeshRenderData* RenderData);
