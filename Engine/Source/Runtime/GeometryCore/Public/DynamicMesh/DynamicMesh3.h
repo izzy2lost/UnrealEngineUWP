@@ -1174,6 +1174,11 @@ public:
 	GEOMETRYCORE_API void CompactInPlace(FCompactMaps* CompactInfo = nullptr);
 
 	/**
+	 * Remove unused vertices. Note: Does not compact the remaining vertices.
+	 */
+	GEOMETRYCORE_API void RemoveUnusedVertices();
+
+	/**
 	 * Reverse the ccw/cw orientation of all triangles in the mesh, and
 	 * optionally flip the vertex normals if they exist
 	 */

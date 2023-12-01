@@ -46,6 +46,24 @@ UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::CompactMesh(
 	return TargetMesh;
 }
 
+UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::RemoveUnusedVertices(
+	UDynamicMesh* TargetMesh,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("RemoveUnusedVertices_InvalidInput", "RemoveUnusedVertices: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh) 
+	{
+		EditMesh.RemoveUnusedVertices();
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+
+	return TargetMesh;
+}
+
 
 UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::ResolveMeshTJunctions(
 	UDynamicMesh* TargetMesh,

@@ -286,7 +286,21 @@ EMeshResult FDynamicMesh3::InsertTriangle(int tid, const FIndex3i& tv, int gid, 
 
 
 
+void FDynamicMesh3::RemoveUnusedVertices()
+{
+	for (int32 VID = 0; VID < MaxVertexID(); ++VID)
+	{
+		// If vertex exists but is not referenced by any triangles
+		if (VertexRefCounts.GetRefCount(VID) == 1)
+		{
+			VertexRefCounts.Decrement(VID);
+			checkSlow(VertexRefCounts.IsValid(VID) == false); // vertex should now not be valid
+			checkSlow(VertexEdgeLists.GetCount(VID) == 0); // vertex should not have had any edges attached
+		}
+	}
 
+	UpdateChangeStamps(true, true);
+}
 
 
 

@@ -175,6 +175,15 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Remove vertices that are not used by any triangles. Note: Does not update the IDs of any remaining vertices; use CompactMesh to do so.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Repair", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	RemoveUnusedVertices(
+		UDynamicMesh* TargetMesh,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	* Attempts to resolve T-Junctions in the mesh by addition of vertices and welding.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Repair", meta=(ScriptMethod))
