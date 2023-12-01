@@ -407,6 +407,7 @@ protected:
 	bool SelectStateInternal(
 		const FStateTreeExecutionFrame* CurrentParentFrame,
 		FStateTreeExecutionFrame& CurrentFrame,
+		const FStateTreeExecutionFrame* CurrentFrameInActiveFrames,
 		const FStateTreeStateHandle NextStateHandle,
 		TArray<FStateTreeExecutionFrame, TFixedAllocator<MaxExecutionFrames>>& OutNextActiveFrames);
 
@@ -454,7 +455,6 @@ protected:
 
 	/** Copies a batch of properties to the data in TargetView. This version validates the data handles and looks up temporary instances. */
 	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
-
 	
 	/** Owner of the instance data. */
 	UObject& Owner;
