@@ -167,7 +167,7 @@ void UDMXControlConsoleFixturePatchMatrixCell::SetPropertiesFromCell(const FDMXC
 		const int32 AbsoluteChannel = StartingChannel + RelativeChannel;
 
 		UDMXControlConsoleFixturePatchCellAttributeFader* CellAttributeFader = AddFixturePatchCellAttributeFader(CellAttribute, InUniverseID, AbsoluteChannel);
-		const FString& ControllerName = CellAttributeFader ? CellAttributeFader->GetFaderName() : "";
+		const FString ControllerName = CellAttributeFader ? CellAttributeFader->GetFaderName() : FString();
 		CreateMatrixCellController(CellAttributeFader, ControllerName);
 	}
 
@@ -419,7 +419,7 @@ void UDMXControlConsoleFixturePatchMatrixCell::UpdateFixturePatchCellAttributeFa
 		else
 		{
 			UDMXControlConsoleFixturePatchCellAttributeFader* NewCellAttributeFader = AddFixturePatchCellAttributeFader(CellAttribute, UniverseID, AbsoluteChannel);
-			const FString& ControllerName = NewCellAttributeFader ? NewCellAttributeFader->GetFaderName() : "";
+			const FString ControllerName = NewCellAttributeFader ? NewCellAttributeFader->GetFaderName() : FString();
 			CreateMatrixCellController(NewCellAttributeFader, ControllerName);
 		}
 	}

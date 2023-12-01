@@ -22,7 +22,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorView"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	void SDMXControlConsoleEditorLayoutView::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
 	{
@@ -109,11 +109,19 @@ namespace UE::DMX::ControlConsoleEditor::Private
 	void SDMXControlConsoleEditorLayoutView::PostUndo(bool bSuccess)
 	{
 		UpdateLayout();
+		if (EditorModel.IsValid())
+		{
+			EditorModel->RequestUpdateEditorModel();
+		}
 	}
 
 	void SDMXControlConsoleEditorLayoutView::PostRedo(bool bSuccess)
 	{
 		UpdateLayout();
+		if (EditorModel.IsValid())
+		{
+			EditorModel->RequestUpdateEditorModel();
+		}
 	}
 
 	void SDMXControlConsoleEditorLayoutView::UpdateLayout()

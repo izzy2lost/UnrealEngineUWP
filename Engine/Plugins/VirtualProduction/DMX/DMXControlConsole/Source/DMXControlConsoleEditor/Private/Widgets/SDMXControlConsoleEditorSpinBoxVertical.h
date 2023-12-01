@@ -46,7 +46,7 @@
   StartFractionFilled: this is the neutral value slider position with no exponent
   SliderExponent: this is the slider exponent
 */
-namespace UE::DMX::ControlConsole::SDMXControlConsoleEditorSpinBoxVertical::Private
+namespace UE::DMX::Private
 {
 	float SpinBoxVertComputeExponentSliderFraction(float FractionFilled, float StartFractionFilled, float SliderExponent);
 }
@@ -127,6 +127,8 @@ public:
 		SLATE_ATTRIBUTE( NumericType, SliderExponentNeutralValue )
 		/** Font used to display text in the slider */
 		SLATE_ATTRIBUTE( FSlateFontInfo, Font )
+		/** The value being observed by the spinbox as FText */
+		SLATE_ATTRIBUTE(FText, ValueText)
 		/** Padding to add around this widget and its internal widgets */
 		SLATE_ATTRIBUTE( FMargin, ContentPadding )
 		/** Called when the value is changed by slider or typing */
@@ -181,6 +183,8 @@ public:
 		IsActive = InArgs._IsActive;
 		SupportDynamicSliderMaxValue = InArgs._SupportDynamicSliderMaxValue;
 		SupportDynamicSliderMinValue = InArgs._SupportDynamicSliderMinValue;
+		ValueText = InArgs._ValueText;
+
 		OnDynamicSliderMaxValueChanged = InArgs._OnDynamicSliderMaxValueChanged;
 		OnDynamicSliderMinValueChanged = InArgs._OnDynamicSliderMinValueChanged;
 
@@ -305,7 +309,7 @@ public:
 					//Compute a log curve on both side of the neutral value
 					float StartFractionFilled = Fraction((double)SliderExponentNeutralValue.Get(), (double)GetMinSliderValue(), (double)GetMaxSliderValue());
 					
-					using namespace UE::DMX::ControlConsole::SDMXControlConsoleEditorSpinBoxVertical::Private;
+					using namespace UE::DMX::Private;
 					FractionFilled = SpinBoxVertComputeExponentSliderFraction(FractionFilled, StartFractionFilled, CachedSliderExponent);
 				}
 				else
@@ -534,7 +538,7 @@ public:
 							//Compute a log curve on both side of the neutral value
 							float StartFractionFilled = Fraction(SliderExponentNeutralValue.Get(), GetMinSliderValue(), GetMaxSliderValue());
 
-							using namespace UE::DMX::ControlConsole::SDMXControlConsoleEditorSpinBoxVertical::Private;
+							using namespace UE::DMX::Private;
 							FractionFilled = SpinBoxVertComputeExponentSliderFraction(FractionFilled, StartFractionFilled, CachedSliderExponent);
 						}
 						else
@@ -560,7 +564,7 @@ public:
 							//Compute a log curve on both side of the neutral value
 							float StartFractionFilled = Fraction(SliderExponentNeutralValue.Get(), GetMinSliderValue(), GetMaxSliderValue());
 
-							using namespace UE::DMX::ControlConsole::SDMXControlConsoleEditorSpinBoxVertical::Private;
+							using namespace UE::DMX::Private;
 							Percent = SpinBoxVertComputeExponentSliderFraction(Percent, StartFractionFilled, 1.0/CachedSliderExponent);
 						}
 						else
@@ -711,7 +715,7 @@ protected:
 	/** @return the value being observed by the spinbox as FText - todo: spinbox FText support (reimplement me) */
 	FText GetValueAsText() const
 	{
-		return FText::FromString(GetValueAsString());
+		return ValueText.IsSet() ? ValueText.Get() : FText::FromString(GetValueAsString());
 	}
 
 	/**
@@ -886,6 +890,7 @@ private:
 	TAttribute<bool> IsActive;
 	TAttribute<bool> SupportDynamicSliderMaxValue;
 	TAttribute<bool> SupportDynamicSliderMinValue;
+	TAttribute<FText> ValueText;
 	FOnDynamicSliderMinMaxValueChanged OnDynamicSliderMaxValueChanged;
 	FOnDynamicSliderMinMaxValueChanged OnDynamicSliderMinValueChanged;
 

@@ -12,7 +12,7 @@ class IPropertyUtilities;
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	/** Details Customization for DMX DMX Control Console */
 	class FDMXControlConsoleFaderGroupDetails

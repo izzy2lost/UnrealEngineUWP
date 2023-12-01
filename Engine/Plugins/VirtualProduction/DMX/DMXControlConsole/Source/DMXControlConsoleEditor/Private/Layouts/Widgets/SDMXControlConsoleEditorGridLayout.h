@@ -6,15 +6,16 @@
 
 struct EVisibility;
 class FReply;
-class SDMXControlConsoleEditorLayoutRowView;
 class SScrollBox;
 class SVerticalBox;
 class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleEditorGlobalLayoutRow;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
+	class SDMXControlConsoleEditorLayoutRowView;
+
 	/** A widget to describe control console grid layout sorting */
 	class SDMXControlConsoleEditorGridLayout
 		: public SDMXControlConsoleEditorLayout

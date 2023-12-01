@@ -10,7 +10,7 @@ class SDMXControlConsoleEditorFixturePatchVerticalBox;
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	/** View for displaying the dmx library handler for the edited Control Console */
 	class SDMXControlConsoleEditorDMXLibraryView

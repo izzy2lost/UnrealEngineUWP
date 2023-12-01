@@ -11,210 +11,213 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorLayoutRowView"
 
-void SDMXControlConsoleEditorLayoutRowView::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel)
+namespace UE::DMX::Private
 {
-	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, cannot create layout row view correctly.")))
+	void SDMXControlConsoleEditorLayoutRowView::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel)
 	{
-		return;
-	}
-
-	if (!ensureMsgf(InLayoutRow, TEXT("Invalid layout row, cannot create layout row view correctly.")))
-	{
-		return;
-	}
-
-	EditorModel = InEditorModel;
-	LayoutRow = InLayoutRow;
-
-	EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
-
-	ChildSlot
-		[
-			SAssignNew(FaderGroupsHorizontalBox, SHorizontalBox)
-		];
-}
-
-TSharedPtr<SDMXControlConsoleEditorFaderGroupView> SDMXControlConsoleEditorLayoutRowView::FindFaderGroupView(const UDMXControlConsoleFaderGroup* FaderGroup) const
-{
-	if (FaderGroup)
-	{
-		const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>* FaderGroupViewPtr = Algo::FindByPredicate(FaderGroupViews, [FaderGroup](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& WeakFaderGroupView)
-			{
-				return WeakFaderGroupView.IsValid() && WeakFaderGroupView.Pin()->GetFaderGroup() == FaderGroup;
-			});
-
-		if (FaderGroupViewPtr)
+		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, cannot create layout row view correctly.")))
 		{
-			return FaderGroupViewPtr->Pin();
+			return;
 		}
-	}
 
-	return nullptr;
-}
-
-void SDMXControlConsoleEditorLayoutRowView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	if (!ensureMsgf(LayoutRow.IsValid(), TEXT("Invalid layout row, cannot update fader group row view state correctly.")))
-	{
-		return;
-	}
-
-	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
-	if (FaderGroups.Num() == FaderGroupViews.Num())
-	{
-		return;
-	}
-
-	if (FaderGroups.Num() > FaderGroupViews.Num())
-	{
-		OnFaderGroupAdded();
-	}
-	else
-	{
-		OnFaderGroupRemoved();
-	}
-}
-
-void SDMXControlConsoleEditorLayoutRowView::Refresh()
-{
-	if (FaderGroupsHorizontalBox.IsValid())
-	{
-		FaderGroupsHorizontalBox->ClearChildren();
-		FaderGroupViews.Reset(FaderGroupViews.Num());
-		OnFaderGroupAdded();
-		OnFaderGroupRemoved();
-	}
-}
-
-void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupAdded()
-{
-	if (!LayoutRow.IsValid())
-	{
-		return;
-	}
-
-	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
-	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
-	{
-		if (FaderGroup.IsValid() &&
-			!ContainsFaderGroup(FaderGroup.Get()))
+		if (!ensureMsgf(InLayoutRow, TEXT("Invalid layout row, cannot create layout row view correctly.")))
 		{
-			AddFaderGroup(FaderGroup.Get());
+			return;
 		}
-	}
-}
 
-void SDMXControlConsoleEditorLayoutRowView::AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup)
-{
-	if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new fader group view correctly.")))
-	{
-		return;
-	}
+		EditorModel = InEditorModel;
+		LayoutRow = InLayoutRow;
 
-	if (!ensureMsgf(FaderGroup, TEXT("Invalid fader group, cannot add new fader group view correctly.")))
-	{
-		return;
-	}
+		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorLayoutRowView::Refresh);
 
-	if (!LayoutRow.IsValid() || !FaderGroupsHorizontalBox.IsValid())
-	{
-		return;
-	}
-
-	const int32 Index = LayoutRow->GetIndex(FaderGroup);
-
-	const TSharedRef<SDMXControlConsoleEditorFaderGroupView> FaderGroupWidget =
-		SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup, EditorModel.Get())
-		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility, FaderGroup));
-
-	if (FaderGroupViews.IsValidIndex(Index))
-	{
-		FaderGroupViews.Insert(FaderGroupWidget, Index);
-
-		FaderGroupsHorizontalBox->InsertSlot(Index)
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.Padding(8.f, 0.f)
+		ChildSlot
 			[
-				FaderGroupWidget
+				SAssignNew(FaderGroupsHorizontalBox, SHorizontalBox)
 			];
 	}
-	else
+
+	TSharedPtr<SDMXControlConsoleEditorFaderGroupView> SDMXControlConsoleEditorLayoutRowView::FindFaderGroupView(const UDMXControlConsoleFaderGroup* FaderGroup) const
 	{
-		FaderGroupViews.Add(FaderGroupWidget);
-
-		FaderGroupsHorizontalBox->AddSlot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.Padding(8.f, 0.f)
-			[
-				FaderGroupWidget
-			];
-	}
-}
-
-void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupRemoved()
-{
-	if (!LayoutRow.IsValid())
-	{
-		return;
-	}
-
-	const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
-
-	TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViewsToRemove;
-	for (const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& FaderGroupView : FaderGroupViews)
-	{
-		if (!FaderGroupView.IsValid())
+		if (FaderGroup)
 		{
-			continue;
-		}
+			const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>* FaderGroupViewPtr = Algo::FindByPredicate(FaderGroupViews, [FaderGroup](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& WeakFaderGroupView)
+				{
+					return WeakFaderGroupView.IsValid() && WeakFaderGroupView.Pin()->GetFaderGroup() == FaderGroup;
+				});
 
-		const UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupView.Pin()->GetFaderGroup();
-		if (!FaderGroup || !FaderGroups.Contains(FaderGroup))
-		{
-			FaderGroupsHorizontalBox->RemoveSlot(FaderGroupView.Pin().ToSharedRef());
-			FaderGroupViewsToRemove.Add(FaderGroupView);
-		}
-	}
-
-	FaderGroupViews.RemoveAll([&FaderGroupViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView)
-		{
-			return !FaderGroupView.IsValid() || FaderGroupViewsToRemove.Contains(FaderGroupView);
-		});
-}
-
-bool SDMXControlConsoleEditorLayoutRowView::ContainsFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup)
-{
-	if (!FaderGroup)
-	{
-		return false;
-	}
-
-	const bool bContainsFaderGroup = Algo::FindByPredicate(FaderGroupViews,
-		[FaderGroup](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView)
-		{
-			if (FaderGroupView.IsValid())
+			if (FaderGroupViewPtr)
 			{
-				const UDMXControlConsoleFaderGroup* OtherFaderGroup = FaderGroupView.Pin()->GetFaderGroup();
-				return OtherFaderGroup == FaderGroup;
+				return FaderGroupViewPtr->Pin();
+			}
+		}
+
+		return nullptr;
+	}
+
+	void SDMXControlConsoleEditorLayoutRowView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		if (!ensureMsgf(LayoutRow.IsValid(), TEXT("Invalid layout row, cannot update fader group row view state correctly.")))
+		{
+			return;
+		}
+
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
+		if (FaderGroups.Num() == FaderGroupViews.Num())
+		{
+			return;
+		}
+
+		if (FaderGroups.Num() > FaderGroupViews.Num())
+		{
+			OnFaderGroupAdded();
+		}
+		else
+		{
+			OnFaderGroupRemoved();
+		}
+	}
+
+	void SDMXControlConsoleEditorLayoutRowView::Refresh()
+	{
+		if (FaderGroupsHorizontalBox.IsValid())
+		{
+			FaderGroupsHorizontalBox->ClearChildren();
+			FaderGroupViews.Reset(FaderGroupViews.Num());
+			OnFaderGroupAdded();
+			OnFaderGroupRemoved();
+		}
+	}
+
+	void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupAdded()
+	{
+		if (!LayoutRow.IsValid())
+		{
+			return;
+		}
+
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
+		for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+		{
+			if (FaderGroup.IsValid() &&
+				!ContainsFaderGroup(FaderGroup.Get()))
+			{
+				AddFaderGroup(FaderGroup.Get());
+			}
+		}
+	}
+
+	void SDMXControlConsoleEditorLayoutRowView::AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup)
+	{
+		if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new fader group view correctly.")))
+		{
+			return;
+		}
+
+		if (!ensureMsgf(FaderGroup, TEXT("Invalid fader group, cannot add new fader group view correctly.")))
+		{
+			return;
+		}
+
+		if (!LayoutRow.IsValid() || !FaderGroupsHorizontalBox.IsValid())
+		{
+			return;
+		}
+
+		const int32 Index = LayoutRow->GetIndex(FaderGroup);
+
+		const TSharedRef<SDMXControlConsoleEditorFaderGroupView> FaderGroupWidget =
+			SNew(SDMXControlConsoleEditorFaderGroupView, FaderGroup, EditorModel.Get())
+			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility, FaderGroup));
+
+		if (FaderGroupViews.IsValidIndex(Index))
+		{
+			FaderGroupViews.Insert(FaderGroupWidget, Index);
+
+			FaderGroupsHorizontalBox->InsertSlot(Index)
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.Padding(8.f, 0.f)
+				[
+					FaderGroupWidget
+				];
+		}
+		else
+		{
+			FaderGroupViews.Add(FaderGroupWidget);
+
+			FaderGroupsHorizontalBox->AddSlot()
+				.AutoWidth()
+				.HAlign(HAlign_Left)
+				.Padding(8.f, 0.f)
+				[
+					FaderGroupWidget
+				];
+		}
+	}
+
+	void SDMXControlConsoleEditorLayoutRowView::OnFaderGroupRemoved()
+	{
+		if (!LayoutRow.IsValid())
+		{
+			return;
+		}
+
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
+
+		TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViewsToRemove;
+		for (const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& FaderGroupView : FaderGroupViews)
+		{
+			if (!FaderGroupView.IsValid())
+			{
+				continue;
 			}
 
-			return false;
-		}) != nullptr;
+			const UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupView.Pin()->GetFaderGroup();
+			if (!FaderGroup || !FaderGroups.Contains(FaderGroup))
+			{
+				FaderGroupsHorizontalBox->RemoveSlot(FaderGroupView.Pin().ToSharedRef());
+				FaderGroupViewsToRemove.Add(FaderGroupView);
+			}
+		}
 
-	return bContainsFaderGroup;
-}
-
-EVisibility SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const
-{
-	if (!FaderGroup)
-	{
-		return EVisibility::Collapsed;
+		FaderGroupViews.RemoveAll([&FaderGroupViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView)
+			{
+				return !FaderGroupView.IsValid() || FaderGroupViewsToRemove.Contains(FaderGroupView);
+			});
 	}
 
-	const bool bIsVisible = FaderGroup->IsActive() && FaderGroup->IsMatchingFilter();
-	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	bool SDMXControlConsoleEditorLayoutRowView::ContainsFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup)
+	{
+		if (!FaderGroup)
+		{
+			return false;
+		}
+
+		const bool bContainsFaderGroup = Algo::FindByPredicate(FaderGroupViews,
+			[FaderGroup](const TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView)
+			{
+				if (FaderGroupView.IsValid())
+				{
+					const UDMXControlConsoleFaderGroup* OtherFaderGroup = FaderGroupView.Pin()->GetFaderGroup();
+					return OtherFaderGroup == FaderGroup;
+				}
+
+				return false;
+			}) != nullptr;
+
+		return bContainsFaderGroup;
+	}
+
+	EVisibility SDMXControlConsoleEditorLayoutRowView::GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const
+	{
+		if (!FaderGroup)
+		{
+			return EVisibility::Collapsed;
+		}
+
+		const bool bIsVisible = FaderGroup->IsActive() && FaderGroup->IsMatchingFilter();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

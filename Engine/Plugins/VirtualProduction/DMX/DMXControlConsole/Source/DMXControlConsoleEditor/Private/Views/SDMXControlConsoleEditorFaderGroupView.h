@@ -10,156 +10,161 @@ enum class EDMXControlConsoleEditorViewMode : uint8;
 struct FOptionalSize;
 struct FSlateBrush;
 struct FSlateColor;
-class IDMXControlConsoleFaderGroupElement;
 class SDMXControlConsoleEditorExpandArrowButton;
-class SDMXControlConsoleEditorFaderGroupToolbar;
 class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleElementController;
 class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 
 
-/** A widget which gathers a collection of Faders */
-class SDMXControlConsoleEditorFaderGroupView
-	: public SCompoundWidget
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFaderGroupView)
-	{}
+	class FDMXControlConsoleElementControllerModel;
+	class SDMXControlConsoleEditorFaderGroupToolbar;
 
-	SLATE_END_ARGS()
+	/** A widget which gathers a collection of Faders */
+	class SDMXControlConsoleEditorFaderGroupView
+		: public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFaderGroupView)
+			{}
 
-	/** Constructor */
-	SDMXControlConsoleEditorFaderGroupView();
+		SLATE_END_ARGS()
 
-	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, UDMXControlConsoleFaderGroup* InFaderGroup, UDMXControlConsoleEditorModel* InEditorModel);
+		/** Constructor */
+		SDMXControlConsoleEditorFaderGroupView();
 
-	/** Gets the Fader Group this Fader Group View is based on */
-	UDMXControlConsoleFaderGroup* GetFaderGroup() const { return FaderGroup.Get(); }
+		/** Constructs the widget */
+		void Construct(const FArguments& InArgs, UDMXControlConsoleFaderGroup* InFaderGroup, UDMXControlConsoleEditorModel* InEditorModel);
 
-	/** Gets the index of this Fader Group according to the referenced Fader Group Row */
-	int32 GetIndex() const;
+		/** Gets the Fader Group this Fader Group View is based on */
+		UDMXControlConsoleFaderGroup* GetFaderGroup() const { return FaderGroup.Get(); }
 
-	/** Gets Fader Group's name */
-	FString GetFaderGroupName() const;
+		/** Gets the index of this Fader Group according to the referenced Fader Group Row */
+		int32 GetIndex() const;
 
-	/** Gets current ViewMode */
-	EDMXControlConsoleEditorViewMode GetViewMode() const { return ViewMode; }
+		/** Gets Fader Group's name */
+		FString GetFaderGroupName() const;
 
-	/** True if a new Fader Group can be added next to this */
-	bool CanAddFaderGroup() const;
+		/** Gets current ViewMode */
+		EDMXControlConsoleEditorViewMode GetViewMode() const { return ViewMode; }
 
-	/** True if a new Fader Group can be added on next row */
-	bool CanAddFaderGroupRow() const;
+		/** True if a new Fader Group can be added next to this */
+		bool CanAddFaderGroup() const;
 
-	/** True if a new Fader can be added */
-	bool CanAddFader() const;
+		/** True if a new Fader Group can be added on next row */
+		bool CanAddFaderGroupRow() const;
 
-protected:
-	//~ Begin SWidget interface
-	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	//~ End of SWidget interface
+		/** True if a new Fader can be added */
+		bool CanAddFader() const;
 
-private:
-	/** Generates ElementsHorizontalBox widget */
-	TSharedRef<SWidget> GenerateElementsWidget();
+	protected:
+		//~ Begin SWidget interface
+		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+		virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+		//~ End of SWidget interface
 
-	/** Gets wheter this Fader Group is selected or not */
-	bool IsSelected() const;
+	private:
+		/** Generates ElementControllersHorizontalBox widget */
+		TSharedRef<SWidget> GenerateElementControllersWidget();
 
-	/** Gets a reference to the toolbar's ExpandArrow button */
-	TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> GetExpandArrowButton() const;
+		/** Gets wheter this Fader Group is selected or not */
+		bool IsSelected() const;
 
-	/** Should be called when an Element was added to the Fader Group this view displays */
-	void OnElementAdded();
+		/** Gets a reference to the toolbar's ExpandArrow button */
+		TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> GetExpandArrowButton() const;
 
-	/** Adds a Element slot widget */
-	void AddElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element);
+		/** Should be called when an Element Controller was added to the Fader Group this view displays */
+		void OnElementControllerAdded();
 
-	/** Should be called when an Element was deleted from the Fader Group this view displays */
-	void OnElementRemoved();
+		/** Adds an Element Controller slot widget */
+		void AddElementController(UDMXControlConsoleElementController* ElementController);
 
-	/** Checks if Faders array contains a reference to the given Element */
-	bool ContainsElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element);
+		/** Should be called when an Element Controller was deleted from the Fader Group this view displays */
+		void OnElementControllerRemoved();
 
-	/** Updates this widget to the last saved expansion state from the model */
-	void UpdateExpansionState();
+		/** Checks if ElementControllers array contains a reference to the given Element Controller */
+		bool ContainsElementController(const UDMXControlConsoleElementController* InElementController) const;
 
-	/** Called when the Expand Arrow button is clicked */
-	void OnExpandArrowClicked(bool bExpand);
+		/** Updates this widget to the last saved expansion state from the model */
+		void UpdateExpansionState();
 
-	/** Adds a new Fader Group to the owner row */
-	void OnAddFaderGroup() const;
+		/** Called when the Expand Arrow button is clicked */
+		void OnExpandArrowClicked(bool bExpand);
 
-	/** Adds a new Fader Group Row next to the owner row */
-	void OnAddFaderGroupRow() const;
+		/** Adds a new Fader Group to the owner row */
+		void OnAddFaderGroup() const;
 
-	/** Called when Fader Group Fixture Patch has changed */
-	void OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* InFaderGroup, UDMXEntityFixturePatch* FixturePatch);
+		/** Adds a new Fader Group Row next to the owner row */
+		void OnAddFaderGroupRow() const;
 
-	/** Notifies this Fader Group's owner row to add a new Fader Group */
-	FReply OnAddFaderGroupClicked() const;
+		/** Called when Fader Group Fixture Patch has changed */
+		void OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* InFaderGroup, UDMXEntityFixturePatch* FixturePatch);
 
-	/** Notifies this Fader Group's owner row to add a new Fader Group Row */
-	FReply OnAddFaderGroupRowClicked() const;
+		/** Notifies this Fader Group's owner row to add a new Fader Group */
+		FReply OnAddFaderGroupClicked() const;
 
-	/** Notifies this Fader Group to add a new Fader */
-	FReply OnAddFaderClicked();
+		/** Notifies this Fader Group's owner row to add a new Fader Group Row */
+		FReply OnAddFaderGroupRowClicked() const;
 
-	/** Called when Fader Groups view mode is changed */
-	void OnViewModeChanged();
+		/** Notifies this Fader Group to add a new Fader */
+		FReply OnAddFaderClicked();
 
-	/** True if the given View Mode matches the current one */
-	bool IsCurrentViewMode(EDMXControlConsoleEditorViewMode InViewMode) const;
+		/** Called when Fader Groups view mode is changed */
+		void OnViewModeChanged();
 
-	/** Gets the height of the FaderGroup view according to the current Faders View Mode  */
-	FOptionalSize GetFaderGroupViewHeightByFadersViewMode() const;
+		/** True if the given View Mode matches the current one */
+		bool IsCurrentViewMode(EDMXControlConsoleEditorViewMode InViewMode) const;
 
-	/** Gets fader group view border color */
-	FSlateColor GetFaderGroupViewBorderColor() const;
+		/** Gets the height of the FaderGroup view according to the current Faders View Mode  */
+		FOptionalSize GetFaderGroupViewHeightByFadersViewMode() const;
 
-	/** Changes brush when this widget is hovered */
-	const FSlateBrush* GetFaderGroupViewBorderImage() const;
+		/** Gets fader group view border color */
+		FSlateColor GetFaderGroupViewBorderColor() const;
 
-	/** Changes background brush when this widget is hovered */
-	const FSlateBrush* GetFaderGroupViewBackgroundBorderImage() const;
+		/** Changes brush when this widget is hovered */
+		const FSlateBrush* GetFaderGroupViewBorderImage() const;
 
-	/** Gets visibility according to the given View Mode */
-	EVisibility GetViewModeVisibility(EDMXControlConsoleEditorViewMode InViewMode) const;
+		/** Changes background brush when this widget is hovered */
+		const FSlateBrush* GetFaderGroupViewBackgroundBorderImage() const;
 
-	/** Gets visibility for each Element widget in this view */
-	EVisibility GetElementWidgetVisibility(const TScriptInterface<IDMXControlConsoleFaderGroupElement> Element) const;
+		/** Gets visibility according to the given View Mode */
+		EVisibility GetViewModeVisibility(EDMXControlConsoleEditorViewMode InViewMode) const;
 
-	/** Manages horizontal Add Button widget's visibility */
-	EVisibility GetAddButtonVisibility() const;
+		/** Gets visibility for each Element Controller widget in this view */
+		EVisibility GetElementControllerWidgetVisibility(TSharedPtr<FDMXControlConsoleElementControllerModel> ElementControllerModel) const;
 
-	/** Manages vertical Add Button widget's visibility */
-	EVisibility GetAddRowButtonVisibility() const;
+		/** Manages horizontal Add Button widget's visibility */
+		EVisibility GetAddButtonVisibility() const;
 
-	/** Gets ElementsHorizontalBox widget visibility */
-	EVisibility GetElementsHorizontalBoxVisibility() const;
+		/** Manages vertical Add Button widget's visibility */
+		EVisibility GetAddRowButtonVisibility() const;
 
-	/** Gets add fader button visibility */
-	EVisibility GetAddFaderButtonVisibility() const;
+		/** Gets ElementControllersHorizontalBox widget visibility */
+		EVisibility GetElementControllersHorizontalBoxVisibility() const;
 
-	/** Current view mode */
-	EDMXControlConsoleEditorViewMode ViewMode;
+		/** Gets add fader button visibility */
+		EVisibility GetAddFaderButtonVisibility() const;
 
-	/** Horizontal Box containing the Elements in this Fader Group */
-	TSharedPtr<SDMXControlConsoleEditorFaderGroupToolbar> FaderGroupToolbar;
+		/** Current view mode */
+		EDMXControlConsoleEditorViewMode ViewMode;
 
-	/** Horizontal Box containing the Elements in this Fader Group */
-	TSharedPtr<SHorizontalBox> ElementsHorizontalBox;
+		/** Reference to the toolbar widget for this view */
+		TSharedPtr<SDMXControlConsoleEditorFaderGroupToolbar> FaderGroupToolbar;
 
-	/** Array of weak references to Element widgets */
-	TArray<TWeakPtr<SWidget>> ElementWidgets;
+		/** Horizontal Box containing the Element Controllers in this Fader Group */
+		TSharedPtr<SHorizontalBox> ElementControllersHorizontalBox;
 
-	/** Weak Reference to this Fader Group */
-	TWeakObjectPtr<UDMXControlConsoleFaderGroup> FaderGroup;
+		/** Array of weak references to Element Controller widgets */
+		TArray<TWeakPtr<SWidget>> ElementControllerWidgets;
 
-	/** Weak reference to the Control Console editor model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
-};
+		/** Weak Reference to this Fader Group */
+		TWeakObjectPtr<UDMXControlConsoleFaderGroup> FaderGroup;
+
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+	};
+}

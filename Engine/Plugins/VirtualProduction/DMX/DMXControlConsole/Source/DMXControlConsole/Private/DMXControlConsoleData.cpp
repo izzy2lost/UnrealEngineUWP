@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsole"
 
-namespace UE::DMXControlConsole::DMXControlConsoleData::Private
+namespace UE::DMX::Private
 {
 	/** Returns the absolute channel of a fixture patch */
 	int64 GetFixturePatchChannelAbsolute(const UDMXEntityFixturePatch* FixturePatch)
@@ -127,7 +127,7 @@ void UDMXControlConsoleData::GenerateFromDMXLibrary()
 			return AllFixturePatchesInUse.Contains(FixturePatch);
 		});
 
-	using namespace UE::DMXControlConsole::DMXControlConsoleData::Private;
+	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatchesInLibrary, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
 	int32 CurrentUniverseID = 0;
@@ -235,10 +235,15 @@ void UDMXControlConsoleData::ClearAll(bool bOnlyPatchedFaderGroups)
 	}
 	else
 	{
-		ClearAll();
+		Clear();
 	}
+
 	CachedWeakDMXLibrary.Reset();
 	SoftDMXLibraryPtr.Reset();
+
+#if WITH_EDITOR
+	OnDMXLibraryChanged.Broadcast();
+#endif // WITH_EDITOR
 }
 
 void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities)
@@ -259,7 +264,7 @@ void UDMXControlConsoleData::OnFixturePatchAddedToLibrary(UDMXLibrary* Library, 
 			return CastChecked<UDMXEntityFixturePatch>(Entity);
 		});
 
-	using namespace UE::DMXControlConsole::DMXControlConsoleData::Private;
+	using namespace UE::DMX::Private;
 	Algo::StableSortBy(FixturePatches, TFunction<int64(UDMXEntityFixturePatch*)>(&GetFixturePatchChannelAbsolute));
 
 	// Generate Fader Group for each new Entity in DMX Library

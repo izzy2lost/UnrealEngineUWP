@@ -26,7 +26,7 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorToolbar"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	static const FSlateIcon SendDMXIcon = FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), ("DMXControlConsole.PlayDMX"));
 	static const FSlateIcon StopSendingDMXIcon = FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), ("DMXControlConsole.StopPlayingDMX"));
@@ -96,21 +96,29 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 		ToolbarBuilder.BeginSection("Clear");
 		{
-			ToolbarBuilder.AddToolBarButton
-			(
-				FDMXControlConsoleEditorCommands::Get().ClearAll,
-				NAME_None,
-				TAttribute<FText>(),
-				TAttribute<FText>(),
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Delete"),
-				FName(TEXT("Clear All"))
-			);
+			const TSharedRef<SComboButton> ClearComboButton =
+				SNew(SComboButton)
+				.ContentPadding(0.f)
+				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+				.OnGetMenuContent(this, &FDMXControlConsoleEditorToolbar::GenerateClearMenuWidget)
+				.HasDownArrow(true)
+				.ButtonContent()
+				[
+					GenerateButtonContentLambda
+					(
+						FSlateColor::UseForeground(),
+						FAppStyle::GetBrush("Icons.Delete"),
+						LOCTEXT("ClearToolbarButtonText", "Clear")
+					)
+				];
+
+			ToolbarBuilder.AddWidget(ClearComboButton);
 		}
 		ToolbarBuilder.EndSection();
 
 		ToolbarBuilder.BeginSection("Modes");
 		{
-			// Input Mode
+			// Control Mode
 			const TSharedRef<SComboButton> ControlModeComboButton =
 				SNew(SComboButton)
 				.ContentPadding(0.f)
@@ -238,9 +246,56 @@ namespace UE::DMX::ControlConsoleEditor::Private
 		ToolbarBuilder.EndSection();
 	}
 
+	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GenerateClearMenuWidget()
+	{
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		UDMXControlConsoleEditorData* EditorData = Toolkit.IsValid() ? Toolkit->GetControlConsoleEditorData() : nullptr;
+		if (!ensureMsgf(EditorData, TEXT("Invalid control console editor data, can't generate control console toolbar correctly.")))
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		constexpr bool bShouldCloseWindowAfterClosing = false;
+		FMenuBuilder MenuBuilder(bShouldCloseWindowAfterClosing, Toolkit->GetToolkitCommands());
+
+		MenuBuilder.BeginSection("Options", LOCTEXT("ClearMenuOptionsCategory", "Options"));
+		{
+			MenuBuilder.AddMenuEntry
+			(
+				FDMXControlConsoleEditorCommands::Get().ClearAll,
+				NAME_None,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.Clear")
+			);
+
+			MenuBuilder.AddMenuEntry
+			(
+				FDMXControlConsoleEditorCommands::Get().ResetToDefault,
+				NAME_None,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.ResetToDefault")
+			);
+
+			MenuBuilder.AddMenuEntry
+			(
+				FDMXControlConsoleEditorCommands::Get().ResetToZero,
+				NAME_None,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.ResetToZero")
+			);
+		}
+		MenuBuilder.EndSection();
+
+		return MenuBuilder.MakeWidget();
+	}
+
 	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GenerateControlModeMenuWidget()
 	{
-		UDMXControlConsoleEditorData* EditorData = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetControlConsoleEditorData() : nullptr;
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		UDMXControlConsoleEditorData* EditorData = Toolkit.IsValid() ? Toolkit->GetControlConsoleEditorData() : nullptr;
 		if (!ensureMsgf(EditorData, TEXT("Invalid control console editor data, can't generate control console toolbar correctly.")))
 		{
 			return SNullWidget::NullWidget;
@@ -251,7 +306,7 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 		MenuBuilder.BeginSection("Faders", LOCTEXT("FadersControlModeCategory", "Faders"));
 		{
-			const auto AddMenuEntryLambda = [&MenuBuilder, EditorData](const FText& Label, const FText& ToolTip, EDMXControlConsoleEditorControlMode ControlMode)
+			const auto AddControlModeMenuEntryLambda = [&MenuBuilder, EditorData](const FText& Label, const FText& ToolTip, EDMXControlConsoleEditorControlMode ControlMode)
 				{
 					MenuBuilder.AddMenuEntry
 					(
@@ -269,20 +324,61 @@ namespace UE::DMX::ControlConsoleEditor::Private
 					);
 				};
 
-			AddMenuEntryLambda
+			// Add a button to select relative control mode
+			AddControlModeMenuEntryLambda
 			(
 				LOCTEXT("RelativeControlModeRadioButtonLabel", "Relative"),
 				LOCTEXT("RelativeControlModeRadioButton_ToolTip", "Values of all selected Faders are increased/decreased by the same percentage."),
 				EDMXControlConsoleEditorControlMode::Relative
 			);
 
-			AddMenuEntryLambda(
+			// Add a button to select absolute control mode
+			AddControlModeMenuEntryLambda
+			(
 				LOCTEXT("AbsoluteControlModeRadioButtonLabel", "Absolute"),
 				LOCTEXT("AbsoluteControlModeRadioButton_ToolTip", "Values of all selected Faders are set to the same percentage."),
 				EDMXControlConsoleEditorControlMode::Absolute
 			);
 
-			// Port Selector menu entry
+			MenuBuilder.AddSeparator();
+
+			const auto AddValueTypeMenuEntryLambda = [&MenuBuilder, EditorData](const FText& Label, const FText& ToolTip, EDMXControlConsoleEditorValueType ValueType)
+				{
+					MenuBuilder.AddMenuEntry
+					(
+						Label,
+						ToolTip,
+						FSlateIcon(),
+						FUIAction
+						(
+							FExecuteAction::CreateUObject(EditorData, &UDMXControlConsoleEditorData::SetValueType, ValueType),
+							FCanExecuteAction(),
+							FIsActionChecked::CreateLambda([EditorData, ValueType]() { return IsValid(EditorData) ? EditorData->GetValueType() == ValueType : false; })
+						),
+						NAME_None,
+						EUserInterfaceActionType::RadioButton
+					);
+				};
+
+			// Add a button to select byte value type
+			AddValueTypeMenuEntryLambda
+			(
+				LOCTEXT("ByteValueTypeRadioButtonLabel", "Byte"),
+				LOCTEXT("ByteValueTypeRadioButton_ToolTip", "Values are displayed as 8bit multiples."),
+				EDMXControlConsoleEditorValueType::Byte
+			);
+
+			// Add a button to select normalized value type
+			AddValueTypeMenuEntryLambda
+			(
+				LOCTEXT("NormalizedValueTypeRadioButtonLabel", "Normalized"),
+				LOCTEXT("NormalizedValueTypeRadioButton_ToolTip", "Values are displayed in a 0 to 1 range."),
+				EDMXControlConsoleEditorValueType::Normalized
+			);
+
+			MenuBuilder.AddSeparator();
+
+			// Port Selector widget menu entry
 			const TSharedRef<SWidget> PortSelectorWidget =
 				SNew(SBox)
 				.Padding(4.f, 0.f)
@@ -299,7 +395,8 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GenerateViewModeMenuWidget()
 	{
-		UDMXControlConsoleEditorData* EditorData = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetControlConsoleEditorData() : nullptr;
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		UDMXControlConsoleEditorData* EditorData = Toolkit.IsValid() ? Toolkit->GetControlConsoleEditorData() : nullptr;
 		if (!ensureMsgf(EditorData, TEXT("Invalid control console editor data, can't generate control console toolbar correctly.")))
 		{
 			return SNullWidget::NullWidget;
@@ -326,6 +423,7 @@ namespace UE::DMX::ControlConsoleEditor::Private
 					);
 				};
 
+			// Add buttons to select the view mode for fader groups
 			AddMenuEntryLambda(LOCTEXT("FaderGroupsViewModeCollapseAllButtonLabel", "Collapse All"), EDMXControlConsoleEditorViewMode::Collapsed);
 			AddMenuEntryLambda(LOCTEXT("FaderGroupsViewModeExpandAllButtonLabel", "Expand All"), EDMXControlConsoleEditorViewMode::Expanded);
 		}
@@ -351,6 +449,7 @@ namespace UE::DMX::ControlConsoleEditor::Private
 					);
 				};
 
+			// Add buttons to select the view mode for faders
 			AddMenuEntryLambda(LOCTEXT("FadersViewModeCollapsedRadioButtonLabel", "Basic"), EDMXControlConsoleEditorViewMode::Collapsed);
 			AddMenuEntryLambda(LOCTEXT("FadersViewModeExpandedRadioButtonLabel", "Advanced"), EDMXControlConsoleEditorViewMode::Expanded);
 		}
@@ -361,7 +460,8 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 	TSharedRef<SWidget> FDMXControlConsoleEditorToolbar::GenerateSelectionMenuWidget()
 	{
-		UDMXControlConsoleEditorData* EditorData = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetControlConsoleEditorData() : nullptr;
+		const TSharedPtr<FDMXControlConsoleEditorToolkit> Toolkit = WeakToolkit.Pin();
+		UDMXControlConsoleEditorData* EditorData = Toolkit.IsValid() ? Toolkit->GetControlConsoleEditorData() : nullptr;
 		if (!ensureMsgf(EditorData, TEXT("Invalid control console editor data, can't generate control console toolbar correctly.")))
 		{
 			return SNullWidget::NullWidget;
@@ -389,6 +489,7 @@ namespace UE::DMX::ControlConsoleEditor::Private
 					);
 				};
 
+			// Add buttons for handling selection actions
 			AddMenuEntryLambda(LOCTEXT("EditorViewSelectAllButtonLabel", "Select All"));
 			AddMenuEntryLambda(LOCTEXT("EditorViewSelectOnlyFilteredLabel", "Select Only Filtered"), true);
 
@@ -438,6 +539,7 @@ namespace UE::DMX::ControlConsoleEditor::Private
 					);
 				};
 
+			// Add buttons to select the layout mode
 			AddMenuEntryLambda(LOCTEXT("HorizontalSortingModeRadioButtonLabel", "Horizontal"), EDMXControlConsoleLayoutMode::Horizontal);
 			AddMenuEntryLambda(LOCTEXT("VerticalSortingModeRadioButtonLabel", "Vertical"), EDMXControlConsoleLayoutMode::Vertical);
 			AddMenuEntryLambda(LOCTEXT("GridSortingModeRadioButtonLabel", "Grid"), EDMXControlConsoleLayoutMode::Grid);

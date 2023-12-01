@@ -17,7 +17,7 @@
 #include "Models/DMXControlConsoleEditorModel.h"
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	TArray<FString> ParseStringIntoArray(const FString& InString)
 	{

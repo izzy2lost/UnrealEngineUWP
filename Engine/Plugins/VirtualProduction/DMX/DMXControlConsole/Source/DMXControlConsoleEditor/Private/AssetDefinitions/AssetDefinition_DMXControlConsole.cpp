@@ -35,7 +35,7 @@ EAssetCommandResult UAssetDefinition_DMXControlConsole::OpenAssets(const FAssetO
 {
 	for (UDMXControlConsole* DMXControlConsole : OpenArgs.LoadObjects<UDMXControlConsole>())
 	{
-		using namespace UE::DMX::ControlConsoleEditor::Private;
+		using namespace UE::DMX::Private;
 		TSharedRef<FDMXControlConsoleEditorToolkit> NewEditor(MakeShared<FDMXControlConsoleEditorToolkit>());
 		NewEditor->InitControlConsoleEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, DMXControlConsole);
 	}

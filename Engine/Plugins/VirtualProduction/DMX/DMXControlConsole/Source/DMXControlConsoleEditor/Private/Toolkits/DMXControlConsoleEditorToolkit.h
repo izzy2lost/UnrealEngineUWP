@@ -15,7 +15,7 @@ class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	class SDMXControlConsoleEditorDetailsView;
 	class SDMXControlConsoleEditorDMXLibraryView;
@@ -64,8 +64,14 @@ namespace UE::DMX::ControlConsoleEditor::Private
 		/** Removes all selected elements from DMX Control Console */
 		void RemoveAllSelectedElements();
 
-		/** Clears the DMX Control Console */
+		/** Clears the DMX Control Console and all its elements */
 		void ClearAll();
+
+		/** Resets all the elements in the Control Console to their default values */
+		void ResetToDefault();
+
+		/** Resets all the elements in the Control Console to zero */
+		void ResetToZero();
 
 		/** Name of the DMX Library View Tab */
 		static const FName DMXLibraryViewTabID;

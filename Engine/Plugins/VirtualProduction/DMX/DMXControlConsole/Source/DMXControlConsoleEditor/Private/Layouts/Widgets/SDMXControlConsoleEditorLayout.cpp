@@ -7,7 +7,7 @@
 #include "TimerManager.h"
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
 	void SDMXControlConsoleEditorLayout::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel)
 	{

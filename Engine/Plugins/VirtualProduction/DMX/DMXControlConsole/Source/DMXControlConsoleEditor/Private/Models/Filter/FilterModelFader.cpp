@@ -11,7 +11,7 @@
 #include "Library/DMXLibrary.h"
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	FFilterModelFader::FFilterModelFader(UDMXControlConsoleFaderBase* InFader)
 		: WeakFader(InFader)

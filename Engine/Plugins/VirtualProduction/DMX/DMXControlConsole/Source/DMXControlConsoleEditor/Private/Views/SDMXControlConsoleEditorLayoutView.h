@@ -9,7 +9,7 @@ class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	class SDMXControlConsoleEditorLayout;
 

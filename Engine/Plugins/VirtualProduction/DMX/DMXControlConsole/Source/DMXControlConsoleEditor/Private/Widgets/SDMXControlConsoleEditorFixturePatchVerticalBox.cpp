@@ -193,7 +193,7 @@ void SDMXControlConsoleEditorFixturePatchVerticalBox::GenerateFaderGroupFromFixt
 	}
 
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	SelectionHandler->ClearFadersSelection(FaderGroup);
+	SelectionHandler->ClearElementControllersSelection(FaderGroup);
 
 	const FScopedTransaction GenerateFaderGroupFromFixturePatchTransaction(LOCTEXT("GenerateFaderGroupFromFixturePatchTransaction", "Generate Fader Group from Fixture Patch"));
 	FaderGroup->PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetSoftFixturePatchPtrPropertyName()));

@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleFixturePatchCellAttributeFader.h"
 
+#include "Controllers/DMXControlConsoleMatrixCellController.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Library/DMXEntityFixtureType.h"
 
@@ -10,6 +11,12 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleFixturePatchCellAttributeFader::
 {
 	const UDMXControlConsoleFixturePatchMatrixCell& MatrixCellFader = GetOwnerMatrixCellChecked();
 	return MatrixCellFader.GetOwnerFaderGroupChecked();
+}
+
+UDMXControlConsoleElementController* UDMXControlConsoleFixturePatchCellAttributeFader::GetElementController()
+{
+	const UDMXControlConsoleFixturePatchMatrixCell& OwnerMatrixCell = GetOwnerMatrixCellChecked();
+	return OwnerMatrixCell.GetControllerByElement(this);
 }
 
 int32 UDMXControlConsoleFixturePatchCellAttributeFader::GetIndex() const

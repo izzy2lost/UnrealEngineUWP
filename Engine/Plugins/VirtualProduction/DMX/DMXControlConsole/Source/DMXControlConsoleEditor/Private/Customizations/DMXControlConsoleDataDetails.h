@@ -8,7 +8,7 @@
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	/** Details Customization for DMX Control Console */
 	class FDMXControlConsoleDataDetails

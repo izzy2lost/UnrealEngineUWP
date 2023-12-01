@@ -29,7 +29,7 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleFaderGroupDetails"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	FDMXControlConsoleFaderGroupDetails::FDMXControlConsoleFaderGroupDetails(const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 		: WeakEditorModel(InWeakEditorModel)

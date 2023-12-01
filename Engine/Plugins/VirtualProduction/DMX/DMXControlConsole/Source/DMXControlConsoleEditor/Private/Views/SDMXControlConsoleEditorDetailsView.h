@@ -12,7 +12,7 @@ class SDockTab;
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	/** View for displaying the details of the elements in the edited Control Console */
 	class SDMXControlConsoleEditorDetailsView
@@ -45,6 +45,9 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 		/** Shows details of the current selected Fader Groups */
 		TSharedPtr<IDetailsView> FaderGroupsDetailsView;
+
+		/** Shows details of the current selected Element Controllers */
+		TSharedPtr<IDetailsView> ElementControllersDetailsView;
 
 		/** Shows details of the current selected Faders */
 		TSharedPtr<IDetailsView> FadersDetailsView;

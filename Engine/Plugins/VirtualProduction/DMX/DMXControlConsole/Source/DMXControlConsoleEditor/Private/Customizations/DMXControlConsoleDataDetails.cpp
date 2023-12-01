@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleDataDetails"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	FDMXControlConsoleDataDetails::FDMXControlConsoleDataDetails(const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 		: WeakEditorModel(InWeakEditorModel)

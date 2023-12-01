@@ -15,7 +15,7 @@ class SSearchBox;
 class SWidget;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	class FDMXControlConsoleEditorToolkit;
 
@@ -33,6 +33,9 @@ namespace UE::DMX::ControlConsoleEditor::Private
 	private:
 		/** Callback, raised when the menu extender requests to build the toolbar */
 		void BuildToolbarCallback(FToolBarBuilder& ToolbarBuilder);
+
+		/** Generates a widget for the clear options */
+		TSharedRef<SWidget> GenerateClearMenuWidget();
 
 		/** Generates a widget to select the current control mode */
 		TSharedRef<SWidget> GenerateControlModeMenuWidget();

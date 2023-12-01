@@ -306,7 +306,7 @@ void UDMXControlConsoleFaderGroup::GenerateFromFixturePatch(UDMXEntityFixturePat
 	{
 		const FDMXFixtureFunction FixtureFunction = FunctionTuple.Value;
 		UDMXControlConsoleFaderBase* FunctionFader = AddFixturePatchFunctionFader(FixtureFunction, UniverseID, StartingChannel);
-		const FString& ControllerName = FunctionFader ? FunctionFader->GetFaderName() : "";
+		const FString ControllerName = FunctionFader ? FunctionFader->GetFaderName() : FString();
 		CreateElementController(FunctionFader, ControllerName);
 	}
 
@@ -319,7 +319,7 @@ void UDMXControlConsoleFaderGroup::GenerateFromFixturePatch(UDMXEntityFixturePat
 		for (const FDMXCell& Cell : Cells)
 		{
 			UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = AddFixturePatchMatrixCell(Cell, UniverseID, StartingChannel);
-			const FString& ControllerName = MatrixCell ? FString::FromInt(MatrixCell->GetCellID()) : "";
+			const FString ControllerName = MatrixCell ? FString::FromInt(MatrixCell->GetCellID()) : FString();
 			CreateElementController(MatrixCell, ControllerName);
 		}
 	}

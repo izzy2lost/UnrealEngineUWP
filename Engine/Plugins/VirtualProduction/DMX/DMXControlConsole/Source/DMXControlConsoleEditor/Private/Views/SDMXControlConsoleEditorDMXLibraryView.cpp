@@ -21,7 +21,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorDMXLibraryView"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	void SDMXControlConsoleEditorDMXLibraryView::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
 	{
@@ -39,7 +39,6 @@ namespace UE::DMX::ControlConsoleEditor::Private
 		FPropertyEditorModule& PropertyEditor = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		ControlConsoleDataDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 
-		using namespace UE::DMX::ControlConsoleEditor::Private;
 		const FOnGetDetailCustomizationInstance ControlConsoleCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleDataDetails::MakeInstance, EditorModel);
 		ControlConsoleDataDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleData::StaticClass(), ControlConsoleCustomizationInstance);
 		ControlConsoleDataDetailsView->OnFinishedChangingProperties().AddSP(this, &SDMXControlConsoleEditorDMXLibraryView::OnControlConsoleDataPropertyChanged);

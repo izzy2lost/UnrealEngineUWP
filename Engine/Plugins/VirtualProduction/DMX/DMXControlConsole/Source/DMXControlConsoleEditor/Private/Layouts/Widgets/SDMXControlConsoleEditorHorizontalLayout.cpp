@@ -22,7 +22,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorHorizontalLayout"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	void SDMXControlConsoleEditorHorizontalLayout::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel)
 	{

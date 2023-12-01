@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleEditorFromLegacyUpgradeHandler.h"
 
+#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
@@ -90,7 +91,8 @@ UDMXControlConsoleRawFader* FDMXControlConsoleEditorFromLegacyUpgradeHandler::Cr
 	}
 
 	UDMXControlConsoleRawFader* Fader = FaderGroup->AddRawFader();
-	if (!Fader)
+	UDMXControlConsoleElementController* FaderController = FaderGroup->CreateElementController(Fader);
+	if (!Fader || !FaderController)
 	{
 		return nullptr;
 	}
@@ -99,6 +101,13 @@ UDMXControlConsoleRawFader* FDMXControlConsoleEditorFromLegacyUpgradeHandler::Cr
 	Fader->SetUniverseID(FaderDescriptor.UniversID);
 	Fader->SetAddressRange(FaderDescriptor.StartingAddress);
 	Fader->SetValue(FaderDescriptor.Value);
+
+	FaderController->SetControllerName(FaderDescriptor.FaderName);
+
+	const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
+	const float ValueRange = FMath::Pow(2.f, 8.f * NumChannels) - 1;
+	const float NormalizedValue = FaderDescriptor.Value / ValueRange;
+	FaderController->SetValue(NormalizedValue);
 
 	return Fader;
 }

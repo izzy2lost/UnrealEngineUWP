@@ -15,7 +15,7 @@ class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
 	class FFilterModelFader;
 	class FFilterModelFaderGroup;

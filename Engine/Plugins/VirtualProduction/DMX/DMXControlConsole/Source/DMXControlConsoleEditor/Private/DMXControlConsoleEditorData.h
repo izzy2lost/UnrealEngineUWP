@@ -24,6 +24,14 @@ enum class EDMXControlConsoleEditorViewMode : uint8
 	Expanded
 };
 
+/** Enum for DMX Control Console value types */
+UENUM()
+enum class EDMXControlConsoleEditorValueType : uint8
+{
+	Byte,
+	Normalized
+};
+
 /** Control Console container class for editor data */
 UCLASS()
 class UDMXControlConsoleEditorData
@@ -49,6 +57,12 @@ public:
 
 	/** Sets the current View Mode for Faders. */
 	void SetFadersViewMode(EDMXControlConsoleEditorViewMode ViewMode);
+
+	/** Gets the current Value Type for Faders. */
+	EDMXControlConsoleEditorValueType GetValueType() const { return ValueType; }
+
+	/** Sets the current Value Type for Faders. */
+	void SetValueType(EDMXControlConsoleEditorValueType NewValueType) { ValueType = NewValueType; }
 
 	/** Gets the current auto-selection state for the activated Fader Groups. */
 	bool GetAutoSelectActivePatches() const { return bAutoSelectActivePatches; }
@@ -90,6 +104,10 @@ private:
 	/** Current view mode for Faders widgets */
 	UPROPERTY()
 	EDMXControlConsoleEditorViewMode FadersViewMode = EDMXControlConsoleEditorViewMode::Collapsed;
+	
+	/** Current value type for Faders widgets */
+	UPROPERTY()
+	EDMXControlConsoleEditorValueType ValueType = EDMXControlConsoleEditorValueType::Byte;
 
 	UPROPERTY()
 	/** True if the Fader Groups from activated Fixture Patches must be selected by default */

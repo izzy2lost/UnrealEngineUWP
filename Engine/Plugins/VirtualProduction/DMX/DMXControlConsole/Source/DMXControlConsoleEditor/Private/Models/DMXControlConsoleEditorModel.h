@@ -14,8 +14,8 @@ class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleFaderGroup;
 
-namespace UE::DMX::ControlConsoleEditor::Private { class FDMXControlConsoleEditorToolkit; }
-namespace UE::DMX::ControlConsoleEditor::Private { class FFilterModel; }
+namespace UE::DMX::Private { class FDMXControlConsoleEditorToolkit; }
+namespace UE::DMX::Private { class FFilterModel; }
 
 
 /** Model of the console currently being edited in the control console editor.  */
@@ -27,7 +27,7 @@ class UDMXControlConsoleEditorModel
 
 public:
 	/** Initializes the model */
-	void Initialize(const TSharedPtr<UE::DMX::ControlConsoleEditor::Private::FDMXControlConsoleEditorToolkit>& InToolkit);
+	void Initialize(const TSharedPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit>& InToolkit);
 
 	/** Returns the edited Control Console */
 	UDMXControlConsole* GetControlConsole() const { return ControlConsole.IsValid() ? ControlConsole.Get() : nullptr; }
@@ -45,7 +45,7 @@ public:
 	TSharedRef<FDMXControlConsoleEditorSelection> GetSelectionHandler();
 
 	/** Gets a reference to the Filter Model */
-	TSharedRef<UE::DMX::ControlConsoleEditor::Private::FFilterModel> GetFilterModel();
+	TSharedRef<UE::DMX::Private::FFilterModel> GetFilterModel();
 
 	/** Scrolls the given FaderGroup into view */
 	void ScrollIntoView(const UDMXControlConsoleFaderGroup* FaderGroup) const;
@@ -103,13 +103,13 @@ private:
 	FTimerHandle UpdateEditorModelTimerHandle;
 
 	/** The filter model for the current edited Control Console */
-	TSharedPtr<UE::DMX::ControlConsoleEditor::Private::FFilterModel> FilterModel;
+	TSharedPtr<UE::DMX::Private::FFilterModel> FilterModel;
 
 	/** Selection handler for the current edited Control Console */
 	TSharedPtr<FDMXControlConsoleEditorSelection> SelectionHandler;
 
 	/** Weak reference to the Control Console asset toolkit */
-	TWeakPtr<UE::DMX::ControlConsoleEditor::Private::FDMXControlConsoleEditorToolkit> WeakToolkit;
+	TWeakPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit> WeakToolkit;
 
 	/** Weak reference to the current edited Control Console */
 	TWeakObjectPtr<UDMXControlConsole> ControlConsole;

@@ -25,7 +25,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorGridLayout"
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	void SDMXControlConsoleEditorGridLayout::Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutBase* InLayout, UDMXControlConsoleEditorModel* InEditorModel)
 	{

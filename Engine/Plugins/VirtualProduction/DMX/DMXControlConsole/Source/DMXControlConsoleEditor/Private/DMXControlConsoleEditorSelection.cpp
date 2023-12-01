@@ -3,6 +3,7 @@
 #include "DMXControlConsoleEditorSelection.h"
 
 #include "Algo/Sort.h"
+#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
@@ -32,16 +33,16 @@ void FDMXControlConsoleEditorSelection::AddToSelection(UDMXControlConsoleFaderGr
 	}
 }
 
-void FDMXControlConsoleEditorSelection::AddToSelection(UDMXControlConsoleFaderBase* Fader, bool bNotifySelectionChange)
+void FDMXControlConsoleEditorSelection::AddToSelection(UDMXControlConsoleElementController* ElementController, bool bNotifySelectionChange)
 {
-	if (Fader && Fader->IsActive())
+	if (ElementController && ElementController->IsActive())
 	{
-		SelectedFaders.AddUnique(Fader);
+		SelectedElementControllers.AddUnique(ElementController);
 
-		UDMXControlConsoleFaderGroup& FaderGroup = Fader->GetOwnerFaderGroupChecked();
+		UDMXControlConsoleFaderGroup& FaderGroup = ElementController->GetOwnerFaderGroupChecked();
 		SelectedFaderGroups.AddUnique(&FaderGroup);
 
-		UpdateMultiSelectAnchor(UDMXControlConsoleFaderBase::StaticClass());
+		UpdateMultiSelectAnchor(UDMXControlConsoleElementController::StaticClass());
 
 		if (bNotifySelectionChange)
 		{
@@ -50,24 +51,24 @@ void FDMXControlConsoleEditorSelection::AddToSelection(UDMXControlConsoleFaderBa
 	}
 }
 
-void FDMXControlConsoleEditorSelection::AddToSelection(const TArray<UObject*> Elements, bool bNotifySelectionChange)
+void FDMXControlConsoleEditorSelection::AddToSelection(const TArray<UObject*> Objects, bool bNotifySelectionChange)
 {
-	if (Elements.IsEmpty())
+	if (Objects.IsEmpty())
 	{
 		return;
 	}
 
-	for (UObject* Element : Elements)
+	for (UObject* Object : Objects)
 	{
-		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(Element))
+		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(Object))
 		{
 			constexpr bool bNotifyFaderGroupSelectionChange = false;
 			AddToSelection(FaderGroup, bNotifyFaderGroupSelectionChange);
 		}
-		else if (UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element))
+		else if (UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Object))
 		{
 			constexpr bool bNotifyFaderSelectionChange = false;
-			AddToSelection(Fader, bNotifyFaderSelectionChange);
+			AddToSelection(ElementController, bNotifyFaderSelectionChange);
 		}
 	}
 
@@ -81,20 +82,20 @@ void FDMXControlConsoleEditorSelection::AddAllFadersFromFaderGroupToSelection(UD
 {
 	if (FaderGroup && FaderGroup->IsActive())
 	{
-		const TArray<UDMXControlConsoleFaderBase*> AllFaders = FaderGroup->GetAllFaders();
-		for (UDMXControlConsoleFaderBase* Fader : AllFaders)
+		const TArray<UDMXControlConsoleElementController*> AllElementControllers = FaderGroup->GetAllElementControllers();
+		for (UDMXControlConsoleElementController* ElementController : AllElementControllers)
 		{
-			if (!Fader || !Fader->IsActive())
+			if (!ElementController || !ElementController->IsActive())
 			{
 				continue;
 			}
 
-			if (bOnlyMatchingFilter && !Fader->IsMatchingFilter())
+			if (bOnlyMatchingFilter && !ElementController->IsMatchingFilter())
 			{
 				continue;
 			}
 
-			SelectedFaders.AddUnique(Fader);
+			SelectedElementControllers.AddUnique(ElementController);
 		}
 
 		SelectedFaderGroups.AddUnique(FaderGroup);
@@ -113,7 +114,7 @@ void FDMXControlConsoleEditorSelection::RemoveFromSelection(UDMXControlConsoleFa
 	if (FaderGroup && SelectedFaderGroups.Contains(FaderGroup))
 	{
 		constexpr bool bNotifyFadersSelectionChange = false;
-		ClearFadersSelection(FaderGroup, bNotifyFadersSelectionChange);
+		ClearElementControllersSelection(FaderGroup, bNotifyFadersSelectionChange);
 		SelectedFaderGroups.Remove(FaderGroup);
 
 		UpdateMultiSelectAnchor(UDMXControlConsoleFaderGroup::StaticClass());
@@ -125,13 +126,13 @@ void FDMXControlConsoleEditorSelection::RemoveFromSelection(UDMXControlConsoleFa
 	}
 }
 
-void FDMXControlConsoleEditorSelection::RemoveFromSelection(UDMXControlConsoleFaderBase* Fader, bool bNotifySelectionChange)
+void FDMXControlConsoleEditorSelection::RemoveFromSelection(UDMXControlConsoleElementController* ElementController, bool bNotifySelectionChange)
 {
-	if (Fader && SelectedFaders.Contains(Fader))
+	if (ElementController && SelectedElementControllers.Contains(ElementController))
 	{
-		SelectedFaders.Remove(Fader);
+		SelectedElementControllers.Remove(ElementController);
 
-		UpdateMultiSelectAnchor(UDMXControlConsoleFaderBase::StaticClass());
+		UpdateMultiSelectAnchor(UDMXControlConsoleElementController::StaticClass());
 
 		if (bNotifySelectionChange)
 		{
@@ -140,24 +141,24 @@ void FDMXControlConsoleEditorSelection::RemoveFromSelection(UDMXControlConsoleFa
 	}
 }
 
-void FDMXControlConsoleEditorSelection::RemoveFromSelection(const TArray<UObject*> Elements, bool bNotifySelectionChange)
+void FDMXControlConsoleEditorSelection::RemoveFromSelection(const TArray<UObject*> Objects, bool bNotifySelectionChange)
 {
-	if (Elements.IsEmpty())
+	if (Objects.IsEmpty())
 	{
 		return;
 	}
 
-	for (UObject* Element : Elements)
+	for (UObject* Object : Objects)
 	{
-		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(Element))
+		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(Object))
 		{
 			constexpr bool bNotifyFaderGroupSelectionChange = false;
 			RemoveFromSelection(FaderGroup, bNotifyFaderGroupSelectionChange);
 		}
-		else if (UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element))
+		else if (UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Object))
 		{
 			constexpr bool bNotifyFaderSelectionChange = false;
-			RemoveFromSelection(Fader, bNotifyFaderSelectionChange);
+			RemoveFromSelection(ElementController, bNotifyFaderSelectionChange);
 		}
 	}
 
@@ -167,10 +168,10 @@ void FDMXControlConsoleEditorSelection::RemoveFromSelection(const TArray<UObject
 	}
 }
 
-void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupObject)
+void FDMXControlConsoleEditorSelection::Multiselect(UObject* ElementControllerOrFaderGroupObject)
 {
-	const UClass* MultiSelectClass = FaderOrFaderGroupObject->GetClass();
-	if (!ensureMsgf(MultiSelectClass == UDMXControlConsoleFaderGroup::StaticClass() || FaderOrFaderGroupObject->IsA(UDMXControlConsoleFaderBase::StaticClass()), TEXT("Invalid type when trying to multiselect")))
+	const UClass* MultiSelectClass = ElementControllerOrFaderGroupObject->GetClass();
+	if (!ensureMsgf(MultiSelectClass == UDMXControlConsoleFaderGroup::StaticClass() || ElementControllerOrFaderGroupObject->IsA(UDMXControlConsoleElementController::StaticClass()), TEXT("Invalid type when trying to multiselect")))
 	{
 		return;
 	}
@@ -180,22 +181,21 @@ void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupOb
 
 	// Normal selection if nothing is selected or there's no valid anchor
 	if (!MultiSelectAnchor.IsValid() ||
-		(SelectedFaderGroups.IsEmpty() && SelectedFaders.IsEmpty()))
+		(SelectedFaderGroups.IsEmpty() && SelectedElementControllers.IsEmpty()))
 	{
-		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(FaderOrFaderGroupObject))
+		if (UDMXControlConsoleFaderGroup* FaderGroup = Cast<UDMXControlConsoleFaderGroup>(ElementControllerOrFaderGroupObject))
 		{
 			constexpr bool bNotifyFaderGroupSelectionChange = false;
 			AddToSelection(FaderGroup, bNotifyFaderGroupSelectionChange);
 		}
-		else if (UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(FaderOrFaderGroupObject))
+		else if (UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(ElementControllerOrFaderGroupObject))
 		{
 			constexpr bool bFaderSelectionChange = false;
-			AddToSelection(Fader, bFaderSelectionChange);
+			AddToSelection(ElementController, bFaderSelectionChange);
 		}
 		return;
 	}
 
-	TArray<UObject*> FadersAndFaderGroups;
 	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleLayouts)
 	{
@@ -208,6 +208,7 @@ void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupOb
 		return;
 	}
 
+	TArray<UObject*> ElementControllersAndFaderGroups;
 	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup> AnyFaderGroup : ActiveLayout->GetAllFaderGroups())
 	{
 		if (!AnyFaderGroup.IsValid())
@@ -215,18 +216,18 @@ void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupOb
 			continue;
 		}
 
-		FadersAndFaderGroups.AddUnique(AnyFaderGroup.Get());
-		for (UDMXControlConsoleFaderBase* AnyFader : AnyFaderGroup->GetAllFaders())
+		ElementControllersAndFaderGroups.AddUnique(AnyFaderGroup.Get());
+		for (UDMXControlConsoleElementController* AnyElementController : AnyFaderGroup->GetAllElementControllers())
 		{
-			FadersAndFaderGroups.AddUnique(AnyFader);
+			ElementControllersAndFaderGroups.AddUnique(AnyElementController);
 		}
 	}
 
-	const int32 IndexOfFaderGroupAnchor = FadersAndFaderGroups.IndexOfByPredicate([this](const UObject* Object)
+	const int32 IndexOfFaderGroupAnchor = ElementControllersAndFaderGroups.IndexOfByPredicate([this](const UObject* Object)
 		{
 			return MultiSelectAnchor == Object;
 		});
-	const int32 IndexOfFaderAnchor = FadersAndFaderGroups.IndexOfByPredicate([this](const UObject* Object)
+	const int32 IndexOfFaderAnchor = ElementControllersAndFaderGroups.IndexOfByPredicate([this](const UObject* Object)
 		{
 			return MultiSelectAnchor == Object;
 		});
@@ -237,40 +238,40 @@ void FDMXControlConsoleEditorSelection::Multiselect(UObject* FaderOrFaderGroupOb
 		return;
 	}
 
-	const int32 IndexOfSelection = FadersAndFaderGroups.IndexOfByKey(FaderOrFaderGroupObject);
+	const int32 IndexOfSelection = ElementControllersAndFaderGroups.IndexOfByKey(ElementControllerOrFaderGroupObject);
 
 	const int32 StartIndex = FMath::Min(IndexOfAnchor, IndexOfSelection);
 	const int32 EndIndex = FMath::Max(IndexOfAnchor, IndexOfSelection);
 
 	SelectedFaderGroups.Reset();
-	SelectedFaders.Reset();
+	SelectedElementControllers.Reset();
 	for (int32 IndexToSelect = StartIndex; IndexToSelect <= EndIndex; IndexToSelect++)
 	{
-		if (!ensureMsgf(FadersAndFaderGroups.IsValidIndex(IndexToSelect), TEXT("Invalid index when multiselecting")))
+		if (!ensureMsgf(ElementControllersAndFaderGroups.IsValidIndex(IndexToSelect), TEXT("Invalid index when multiselecting")))
 		{
 			break;
 		}
 
-		if (UDMXControlConsoleFaderGroup* FaderGroupToSelect = Cast<UDMXControlConsoleFaderGroup>(FadersAndFaderGroups[IndexToSelect]))
+		if (UDMXControlConsoleFaderGroup* FaderGroupToSelect = Cast<UDMXControlConsoleFaderGroup>(ElementControllersAndFaderGroups[IndexToSelect]))
 		{
 			if (FaderGroupToSelect  && FaderGroupToSelect->IsActive() && FaderGroupToSelect->IsMatchingFilter())
 			{
 				SelectedFaderGroups.AddUnique(FaderGroupToSelect);
 			}
 		}
-		else if (UDMXControlConsoleFaderBase* FaderToSelect = Cast<UDMXControlConsoleFaderBase>(FadersAndFaderGroups[IndexToSelect]))
+		else if (UDMXControlConsoleElementController* ElementControllerToSelect = Cast<UDMXControlConsoleElementController>(ElementControllersAndFaderGroups[IndexToSelect]))
 		{
-			if (FaderToSelect && FaderToSelect->IsActive() && FaderToSelect->IsMatchingFilter())
+			if (ElementControllerToSelect && ElementControllerToSelect->IsActive() && ElementControllerToSelect->IsMatchingFilter())
 			{
-				SelectedFaders.AddUnique(FaderToSelect);
+				SelectedElementControllers.AddUnique(ElementControllerToSelect);
 			}
 		}
 	}
-	if (!SelectedFaders.IsEmpty())
+	if (!SelectedElementControllers.IsEmpty())
 	{
-		// Always select the fader group of the first selected fader
-		UDMXControlConsoleFaderBase* FirstSelectedFader = CastChecked<UDMXControlConsoleFaderBase>(SelectedFaders[0]);
-		SelectedFaderGroups.AddUnique(&FirstSelectedFader->GetOwnerFaderGroupChecked());
+		// Always select the fader group of the first selected element controller
+		UDMXControlConsoleElementController* FirstSelectedElementController = CastChecked<UDMXControlConsoleElementController>(SelectedElementControllers[0]);
+		SelectedFaderGroups.AddUnique(&FirstSelectedElementController->GetOwnerFaderGroupChecked());
 	}
 
 	OnSelectionChanged.Broadcast();
@@ -320,31 +321,31 @@ void FDMXControlConsoleEditorSelection::ReplaceInSelection(UDMXControlConsoleFad
 	AddToSelection(NewSelectedFaderGroup.Get());
 }
 
-void FDMXControlConsoleEditorSelection::ReplaceInSelection(UDMXControlConsoleFaderBase* Fader)
+void FDMXControlConsoleEditorSelection::ReplaceInSelection(UDMXControlConsoleElementController* ElementController)
 {
-	if (!Fader || !IsSelected(Fader))
+	if (!ElementController || !IsSelected(ElementController))
 	{
 		return;
 	}
 
-	RemoveFromSelection(Fader);
+	RemoveFromSelection(ElementController);
 
-	const UDMXControlConsoleFaderGroup& FaderGroup = Fader->GetOwnerFaderGroupChecked();
-	const TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup.GetAllFaders();
-	if (Faders.Num() <= 1)
+	const UDMXControlConsoleFaderGroup& FaderGroup = ElementController->GetOwnerFaderGroupChecked();
+	const TArray<UDMXControlConsoleElementController*> AllElementControllers = FaderGroup.GetAllElementControllers();
+	if (AllElementControllers.Num() <= 1)
 	{
 		return;
 	}
 
-	const int32 IndexToReplace = Faders.IndexOfByKey(Fader);
+	const int32 IndexToReplace = AllElementControllers.IndexOfByKey(ElementController);
 	int32 NewIndex = IndexToReplace - 1;
-	if (!Faders.IsValidIndex(NewIndex))
+	if (!AllElementControllers.IsValidIndex(NewIndex))
 	{
 		NewIndex = IndexToReplace + 1;
 	}
 
-	UDMXControlConsoleFaderBase* NewSelectedFader = Faders.IsValidIndex(NewIndex) ? Faders[NewIndex] : nullptr;
-	AddToSelection(NewSelectedFader);
+	UDMXControlConsoleElementController* NewSelectedElementController = AllElementControllers.IsValidIndex(NewIndex) ? AllElementControllers[NewIndex] : nullptr;
+	AddToSelection(NewSelectedElementController);
 }
 
 bool FDMXControlConsoleEditorSelection::IsSelected(UDMXControlConsoleFaderGroup* FaderGroup) const
@@ -352,9 +353,9 @@ bool FDMXControlConsoleEditorSelection::IsSelected(UDMXControlConsoleFaderGroup*
 	return SelectedFaderGroups.Contains(FaderGroup);
 }
 
-bool FDMXControlConsoleEditorSelection::IsSelected(UDMXControlConsoleFaderBase* Fader) const
+bool FDMXControlConsoleEditorSelection::IsSelected(UDMXControlConsoleElementController* ElementController) const
 {
-	return SelectedFaders.Contains(Fader);
+	return SelectedElementControllers.Contains(ElementController);
 }
 
 void FDMXControlConsoleEditorSelection::SelectAll(bool bOnlyMatchingFilter)
@@ -389,7 +390,7 @@ void FDMXControlConsoleEditorSelection::SelectAll(bool bOnlyMatchingFilter)
 void FDMXControlConsoleEditorSelection::RemoveInvalidObjectsFromSelection(bool bNotifySelectionChange)
 {
 	SelectedFaderGroups.Remove(nullptr);
-	SelectedFaders.Remove(nullptr);
+	SelectedElementControllers.Remove(nullptr);
 
 	if (bNotifySelectionChange)
 	{
@@ -397,24 +398,24 @@ void FDMXControlConsoleEditorSelection::RemoveInvalidObjectsFromSelection(bool b
 	}
 }
 
-void FDMXControlConsoleEditorSelection::ClearFadersSelection(UDMXControlConsoleFaderGroup* FaderGroup, bool bNotifySelectionChange)
+void FDMXControlConsoleEditorSelection::ClearElementControllersSelection(UDMXControlConsoleFaderGroup* FaderGroup, bool bNotifySelectionChange)
 {
 	if (!FaderGroup || !SelectedFaderGroups.Contains(FaderGroup))
 	{
 		return;
 	}
 
-	TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup->GetAllFaders();
+	TArray<UDMXControlConsoleElementController*> AllElementControllers = FaderGroup->GetAllElementControllers();
 
-	auto IsFaderGroupOwnerLambda = [Faders](const TWeakObjectPtr<UObject> SelectedObject)
+	auto IsFaderGroupOwnerLambda = [AllElementControllers](const TWeakObjectPtr<UObject> SelectedObject)
 	{
-		const UDMXControlConsoleFaderBase* SelectedFader = Cast<UDMXControlConsoleFaderBase>(SelectedObject);
-		if (!SelectedFader)
+		const UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedObject);
+		if (!SelectedElementController)
 		{
 			return true;
 		}
 
-		if (Faders.Contains(SelectedFader))
+		if (AllElementControllers.Contains(SelectedElementController))
 		{
 			return true;
 		}
@@ -422,11 +423,11 @@ void FDMXControlConsoleEditorSelection::ClearFadersSelection(UDMXControlConsoleF
 		return false;
 	};
 
-	SelectedFaders.RemoveAll(IsFaderGroupOwnerLambda);
+	SelectedElementControllers.RemoveAll(IsFaderGroupOwnerLambda);
 
-	if (!MultiSelectAnchor.IsValid() || MultiSelectAnchor->IsA(UDMXControlConsoleFaderBase::StaticClass()))
+	if (!MultiSelectAnchor.IsValid() || MultiSelectAnchor->IsA(UDMXControlConsoleElementController::StaticClass()))
 	{
-		UpdateMultiSelectAnchor(UDMXControlConsoleFaderBase::StaticClass());
+		UpdateMultiSelectAnchor(UDMXControlConsoleElementController::StaticClass());
 	}
 
 	if (bNotifySelectionChange)
@@ -438,7 +439,7 @@ void FDMXControlConsoleEditorSelection::ClearFadersSelection(UDMXControlConsoleF
 void FDMXControlConsoleEditorSelection::ClearSelection(bool bNotifySelectionChange)
 {
 	SelectedFaderGroups.Reset();
-	SelectedFaders.Reset();
+	SelectedElementControllers.Reset();
 
 	if (bNotifySelectionChange)
 	{
@@ -483,7 +484,7 @@ UDMXControlConsoleFaderGroup* FDMXControlConsoleEditorSelection::GetFirstSelecte
 	return Cast<UDMXControlConsoleFaderGroup>(FirstFaderGroup);
 }
 
-UDMXControlConsoleFaderBase* FDMXControlConsoleEditorSelection::GetFirstSelectedFader(bool bReverse) const
+UDMXControlConsoleElementController* FDMXControlConsoleEditorSelection::GetFirstSelectedElementController(bool bReverse) const
 {
 	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
 	if (!ControlConsoleLayouts)
@@ -503,24 +504,23 @@ UDMXControlConsoleFaderBase* FDMXControlConsoleEditorSelection::GetFirstSelected
 		return nullptr;
 	}
 
-	TArray<TWeakObjectPtr<UObject>> CurrentSelectedFaders = GetSelectedFaders();
-	if (CurrentSelectedFaders.IsEmpty())
+	TArray<TWeakObjectPtr<UObject>> CurrentSelectedElementControllers = GetSelectedElementControllers();
+	if (CurrentSelectedElementControllers.IsEmpty())
 	{
 		return nullptr;
 	}
 
-	auto SortSelectedFadersLambda = [AllFaderGroups](TWeakObjectPtr<UObject> FaderObjectA, TWeakObjectPtr<UObject> FaderObjectB)
+	const auto SortSelectedElementControllerLambda = [AllFaderGroups](const TWeakObjectPtr<UObject>& ElementControllerObjectA, const TWeakObjectPtr<UObject>& ElementControllerObjectB)
 		{
-			const UDMXControlConsoleFaderBase* FaderA = Cast<UDMXControlConsoleFaderBase>(FaderObjectA);
-			const UDMXControlConsoleFaderBase* FaderB = Cast<UDMXControlConsoleFaderBase>(FaderObjectB);
-
-			if (!FaderA || !FaderB)
+			const UDMXControlConsoleElementController* ElementControllerA = Cast<UDMXControlConsoleElementController>(ElementControllerObjectA);
+			const UDMXControlConsoleElementController* ElementControllerB = Cast<UDMXControlConsoleElementController>(ElementControllerObjectB);
+			if (!ElementControllerA || !ElementControllerB)
 			{
 				return false;
 			}
 
-			const UDMXControlConsoleFaderGroup& FaderGroupA = FaderA->GetOwnerFaderGroupChecked();
-			const UDMXControlConsoleFaderGroup& FaderGroupB = FaderB->GetOwnerFaderGroupChecked();
+			const UDMXControlConsoleFaderGroup& FaderGroupA = ElementControllerA->GetOwnerFaderGroupChecked();
+			const UDMXControlConsoleFaderGroup& FaderGroupB = ElementControllerB->GetOwnerFaderGroupChecked();
 
 			const int32 FaderGroupIndexA = AllFaderGroups.IndexOfByKey(&FaderGroupA);
 			const int32 FaderGroupIndexB = AllFaderGroups.IndexOfByKey(&FaderGroupB);
@@ -530,48 +530,75 @@ UDMXControlConsoleFaderBase* FDMXControlConsoleEditorSelection::GetFirstSelected
 				return FaderGroupIndexA < FaderGroupIndexB;
 			}
 
-			const int32 IndexA = FaderGroupA.GetAllFaders().IndexOfByKey(FaderA);
-			const int32 IndexB = FaderGroupB.GetAllFaders().IndexOfByKey(FaderB);
+			const int32 IndexA = FaderGroupA.GetAllElementControllers().IndexOfByKey(ElementControllerA);
+			const int32 IndexB = FaderGroupB.GetAllElementControllers().IndexOfByKey(ElementControllerB);
 
 			return IndexA < IndexB;
 		};
 
-	Algo::Sort(CurrentSelectedFaders, SortSelectedFadersLambda);
-	const TWeakObjectPtr<UObject> FirstFader = bReverse ? CurrentSelectedFaders.Last() : CurrentSelectedFaders[0];
-	return Cast<UDMXControlConsoleFaderBase>(FirstFader);
+	Algo::Sort(CurrentSelectedElementControllers, SortSelectedElementControllerLambda);
+	const TWeakObjectPtr<UObject> FirstElementController = bReverse ? CurrentSelectedElementControllers.Last() : CurrentSelectedElementControllers[0];
+	return Cast<UDMXControlConsoleElementController>(FirstElementController);
 }
 
-TArray<UDMXControlConsoleFaderBase*> FDMXControlConsoleEditorSelection::GetSelectedFadersFromFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup) const
+TArray<UDMXControlConsoleElementController*> FDMXControlConsoleEditorSelection::GetSelectedElementControllersFromFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup) const
 {
-	TArray<UDMXControlConsoleFaderBase*> CurrentSelectedFaders;
+	TArray<UDMXControlConsoleElementController*> CurrentSelectedElementControllers;
 
 	if (!FaderGroup)
 	{
-		return CurrentSelectedFaders;
+		return CurrentSelectedElementControllers;
 	}
 
-	TArray<UDMXControlConsoleFaderBase*> Faders = FaderGroup->GetAllFaders();
-	for (UDMXControlConsoleFaderBase* Fader : Faders)
+	TArray<UDMXControlConsoleElementController*> AllElementControllers = FaderGroup->GetAllElementControllers();
+	for (UDMXControlConsoleElementController* ElementController : AllElementControllers)
 	{
-		if (!Fader)
+		if (!ElementController)
 		{
 			continue;
 		}
 
-		if (!SelectedFaders.Contains(Fader))
+		if (!SelectedElementControllers.Contains(ElementController))
 		{
 			continue;
 		}
 
-		CurrentSelectedFaders.Add(Fader);
+		CurrentSelectedElementControllers.Add(ElementController);
 	}
 
-	return CurrentSelectedFaders;
+	return CurrentSelectedElementControllers;
+}
+
+TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> FDMXControlConsoleEditorSelection::GetSelectedElements(bool bSort) const
+{
+	TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> SelectedElements;
+	for (const TWeakObjectPtr<UObject> SelectedElementControllerObject : SelectedElementControllers)
+	{
+		UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedElementControllerObject);
+		if (!SelectedElementController || !SelectedElementController->IsMatchingFilter())
+		{
+			continue;
+		}
+
+		SelectedElements.Append(SelectedElementController->GetElements());
+	}
+
+	if (bSort)
+	{
+		const auto SortElementsByStartingAddressLambda = [](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement)
+			{
+				return InElement->GetStartingAddress();
+			};
+
+		Algo::SortBy(SelectedElements, SortElementsByStartingAddressLambda);
+	}
+
+	return SelectedElements;
 }
 
 void FDMXControlConsoleEditorSelection::UpdateMultiSelectAnchor(UClass* PreferedClass)
 {
-	if (!ensureMsgf(PreferedClass == UDMXControlConsoleFaderGroup::StaticClass() || PreferedClass == UDMXControlConsoleFaderBase::StaticClass(), TEXT("Invalid class when trying to update multi select anchor")))
+	if (!ensureMsgf(PreferedClass == UDMXControlConsoleFaderGroup::StaticClass() || PreferedClass == UDMXControlConsoleElementController::StaticClass(), TEXT("Invalid class when trying to update multi select anchor")))
 	{
 		return;
 	}
@@ -580,9 +607,9 @@ void FDMXControlConsoleEditorSelection::UpdateMultiSelectAnchor(UClass* Prefered
 	{
 		MultiSelectAnchor = SelectedFaderGroups.Last();
 	}
-	else if (!SelectedFaders.IsEmpty())
+	else if (!SelectedElementControllers.IsEmpty())
 	{
-		MultiSelectAnchor = SelectedFaders.Last();
+		MultiSelectAnchor = SelectedElementControllers.Last();
 	}
 	else if (!SelectedFaderGroups.IsEmpty())
 	{

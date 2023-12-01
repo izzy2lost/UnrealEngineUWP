@@ -22,6 +22,7 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleFixturePatchCellAttributeFader
 public:
 	//~ Begin IDMXControlConsoleFaderGroupElementInterface
 	virtual UDMXControlConsoleFaderGroup& GetOwnerFaderGroupChecked() const override;
+	virtual UDMXControlConsoleElementController* GetElementController() override;
 	virtual int32 GetIndex() const override;
 #if WITH_EDITOR
 	virtual void SetIsMatchingFilter(bool bMatches) override;

@@ -2,7 +2,10 @@
 
 #include "SDMXControlConsoleEditorDetailsView.h"
 
+#include "Algo/Transform.h"
 #include "Application/ThrottleManager.h"
+#include "Controllers/DMXControlConsoleElementController.h"
+#include "Customizations/DMXControlConsoleElementControllerDetails.h"
 #include "Customizations/DMXControlConsoleFaderDetails.h"
 #include "Customizations/DMXControlConsoleFaderGroupDetails.h"
 #include "Delegates/IDelegateInstance.h"
@@ -17,6 +20,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
 #include "TimerManager.h"
+#include "UObject/WeakObjectPtr.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -26,8 +30,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorDetailsView"
 
-
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	SDMXControlConsoleEditorDetailsView::~SDMXControlConsoleEditorDetailsView()
 	{
@@ -44,7 +47,6 @@ namespace UE::DMX::ControlConsoleEditor::Private
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		SelectionHandler->GetOnSelectionChanged().AddSP(this, &SDMXControlConsoleEditorDetailsView::RequestUpdateDetailsViews);
 
-		using namespace UE::DMX::ControlConsoleEditor::Private;
 		const TSharedRef<FFilterModel> FilterModel = EditorModel->GetFilterModel();
 		FilterModel->OnFilterChanged.AddSP(this, &SDMXControlConsoleEditorDetailsView::RequestUpdateDetailsViews);
 
@@ -56,10 +58,14 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 		FPropertyEditorModule& PropertyEditor = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		FaderGroupsDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
+		ElementControllersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 		FadersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 
 		const FOnGetDetailCustomizationInstance FaderGroupsCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleFaderGroupDetails::MakeInstance, EditorModel);
 		FaderGroupsDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleFaderGroup::StaticClass(), FaderGroupsCustomizationInstance);
+
+		const FOnGetDetailCustomizationInstance ElementControllersCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleElementControllerDetails::MakeInstance, EditorModel);
+		ElementControllersDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleElementController::StaticClass(), ElementControllersCustomizationInstance);
 
 		const FOnGetDetailCustomizationInstance FadersCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleFaderDetails::MakeInstance, EditorModel);
 		FadersDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleFaderBase::StaticClass(), FadersCustomizationInstance);
@@ -72,6 +78,18 @@ namespace UE::DMX::ControlConsoleEditor::Private
 				+ SScrollBox::Slot()
 				[
 					SNew(SVerticalBox)
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						ElementControllersDetailsView.ToSharedRef()
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(SSeparator)
+					]
 
 					+ SVerticalBox::Slot()
 					.AutoHeight()
@@ -115,6 +133,8 @@ namespace UE::DMX::ControlConsoleEditor::Private
 
 		constexpr bool bForceRefresh = true;
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+
+		// Fader Groups
 		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects = SelectionHandler->GetSelectedFaderGroups();
 		SelectedFaderGroupObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
 			{
@@ -123,13 +143,28 @@ namespace UE::DMX::ControlConsoleEditor::Private
 			});
 		FaderGroupsDetailsView->SetObjects(SelectedFaderGroupObjects, bForceRefresh);
 
-		TArray<TWeakObjectPtr<UObject>> SelectedFaderObjects = SelectionHandler->GetSelectedFaders();
-		SelectedFaderObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderObject)
+		// Element Controllers
+		TArray<TWeakObjectPtr<UObject>> SelectedElementControllerObjects = SelectionHandler->GetSelectedElementControllers();
+		SelectedElementControllerObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedElementControllerObject)
 			{
-				const UDMXControlConsoleFaderBase* SelectedFader = Cast<UDMXControlConsoleFaderBase>(SelectedFaderObject);
-				return SelectedFader && !SelectedFader->IsMatchingFilter();
+				const UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedElementControllerObject);
+				return SelectedElementController && !SelectedElementController->IsMatchingFilter();
 			});
-		FadersDetailsView->SetObjects(SelectedFaderObjects, bForceRefresh);
+		ElementControllersDetailsView->SetObjects(SelectedElementControllerObjects, bForceRefresh);
+
+		//Faders
+		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> SelectedElements = SelectionHandler->GetSelectedElements();
+		TArray<TWeakObjectPtr<UObject>> SelectedElementObjects;
+		Algo::TransformIf(SelectedElements, SelectedElementObjects,
+			[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
+			{
+				return Element && IsValid(Cast<UDMXControlConsoleFaderBase>(Element.GetObject()));
+			},
+			[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
+			{
+				return Element.GetObject();
+			});
+		FadersDetailsView->SetObjects(SelectedElementObjects, bForceRefresh);
 	}
 
 	void SDMXControlConsoleEditorDetailsView::OnActiveTabChanged(TSharedPtr<SDockTab> PreviouslyActive, TSharedPtr<SDockTab> NewlyActivated)

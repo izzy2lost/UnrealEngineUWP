@@ -12,7 +12,7 @@
 #include "Library/DMXEntityFixturePatch.h"
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	void FFaderGroupFilter::Parse(const FString& InString)
 	{

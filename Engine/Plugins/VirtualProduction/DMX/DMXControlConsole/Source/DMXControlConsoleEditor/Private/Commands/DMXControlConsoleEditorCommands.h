@@ -22,6 +22,8 @@ public:
 	TSharedPtr<FUICommandInfo> RemoveElements;
 	TSharedPtr<FUICommandInfo> SelectAll;
 	TSharedPtr<FUICommandInfo> ClearAll;
+	TSharedPtr<FUICommandInfo> ResetToDefault;
+	TSharedPtr<FUICommandInfo> ResetToZero;
 
 	TSharedPtr<FUICommandInfo> Mute;
 	TSharedPtr<FUICommandInfo> MuteAll;

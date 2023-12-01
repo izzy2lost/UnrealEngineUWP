@@ -6,14 +6,15 @@
 
 struct EVisibility;
 class FReply;
-class SDMXControlConsoleEditorFaderGroupView;
 class SScrollBox;
 class SVerticalBox;
 class UDMXControlConsoleFaderGroup;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
+	class SDMXControlConsoleEditorFaderGroupView;
+
 	/** Model for control console grid layout */
 	class SDMXControlConsoleEditorVerticalLayout
 		: public SDMXControlConsoleEditorLayout

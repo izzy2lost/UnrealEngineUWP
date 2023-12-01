@@ -5,45 +5,48 @@
 #include "Widgets/SCompoundWidget.h"
 
 class SEditableTextBox;
-class SDMXControlConsoleEditorFaderGroupView;
 class UDMXControlConsoleFaderGroup;
 
-
-/** Base Fader Group UI widget */
-class SDMXControlConsoleEditorFaderGroupPanel
-	: public SCompoundWidget
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFaderGroupPanel)
-	{}
+	class SDMXControlConsoleEditorFaderGroupView;
 
-	SLATE_END_ARGS()
+	/** Base Fader Group UI widget */
+	class SDMXControlConsoleEditorFaderGroupPanel
+		: public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFaderGroupPanel)
+			{}
 
-	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView);
+		SLATE_END_ARGS()
 
-private:
-	/** Gets reference to the Fader Group */
-	UDMXControlConsoleFaderGroup* GetFaderGroup() const;
+		/** Constructs the widget */
+		void Construct(const FArguments& InArgs, const TWeakPtr<SDMXControlConsoleEditorFaderGroupView>& InFaderGroupView);
 
-	/** Gets current FaderGroupName */
-	FText OnGetFaderGroupNameText() const;
+	private:
+		/** Gets reference to the Fader Group */
+		UDMXControlConsoleFaderGroup* GetFaderGroup() const;
 
-	/** Gets current FID as text, if valid */
-	FText OnGetFaderGroupFIDText() const;
+		/** Gets current FaderGroupName */
+		FText OnGetFaderGroupNameText() const;
 
-	/** Gets current Universe ID range as text */
-	FText OnGetFaderGroupUniverseText() const;
+		/** Gets current FID as text, if valid */
+		FText OnGetFaderGroupFIDText() const;
 
-	/** Gets current Address range as text */
-	FText OnGetFaderGroupAddressText() const;
+		/** Gets current Universe ID range as text */
+		FText OnGetFaderGroupUniverseText() const;
 
-	/** Called when the fader name changes */
-	void OnFaderGroupNameCommitted(const FText& NewName, ETextCommit::Type InCommit);
+		/** Gets current Address range as text */
+		FText OnGetFaderGroupAddressText() const;
 
-	/** Shows/Modifies Fader Group Name */
-	TSharedPtr<SEditableTextBox> FaderGroupNameTextBox;
+		/** Called when the fader name changes */
+		void OnFaderGroupNameCommitted(const FText& NewName, ETextCommit::Type InCommit);
 
-	/** Weak Reference to this Fader Group Row */
-	TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView;
-};
+		/** Shows/Modifies Fader Group Name */
+		TSharedPtr<SEditableTextBox> FaderGroupNameTextBox;
+
+		/** Weak Reference to this Fader Group Row */
+		TWeakPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView;
+	};
+}

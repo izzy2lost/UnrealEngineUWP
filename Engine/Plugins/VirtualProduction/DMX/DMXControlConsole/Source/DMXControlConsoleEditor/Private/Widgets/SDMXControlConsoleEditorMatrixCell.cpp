@@ -2,355 +2,391 @@
 
 #include "SDMXControlConsoleEditorMatrixCell.h"
 
-#include "Algo/Find.h"
+#include "Algo/AnyOf.h"
+#include "Controllers/DMXControlConsoleElementController.h"
+#include "Controllers/DMXControlConsoleMatrixCellController.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderGroup.h"
-#include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Misc/Optional.h"
 #include "Models/DMXControlConsoleEditorModel.h"
+#include "Models/DMXControlConsoleElementControllerModel.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
+#include "Views/SDMXControlConsoleEditorElementControllerView.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SDMXControlConsoleEditorFader.h"
 #include "Widgets/SDMXControlConsoleEditorExpandArrowButton.h"
 #include "Widgets/Text/STextBlock.h"
 
+
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorMatrixCell"
 
-namespace UE::DMXControlConsoleEditor::DMXControlConsoleEditorMatrixCell::Private
+namespace UE::DMX::Private
 {
-	static float CollapsedViewModeHeight = 200.f;
-	static float ExpandedViewModeHeight = 280.f;
-};
-
-void SDMXControlConsoleEditorMatrixCell::Construct(const FArguments& InArgs, UDMXControlConsoleFixturePatchMatrixCell* InMatrixCell, UDMXControlConsoleEditorModel* InEditorModel)
-{
-	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct matrix cell widget correctly.")))
+	namespace DMXControlConsoleEditorMatrixCell
 	{
-		return;
+		namespace Private
+		{
+			constexpr float CollapsedViewModeHeight = 200.f;
+			constexpr float ExpandedViewModeHeight = 280.f;
+		}
 	}
 
-	if (!ensureMsgf(InMatrixCell, TEXT("Invalid fader, cannot create matrix cell widget correctly.")))
+	void SDMXControlConsoleEditorMatrixCell::Construct(const FArguments& InArgs, const TSharedPtr<FDMXControlConsoleElementControllerModel>& InElementControllerModel, UDMXControlConsoleEditorModel* InEditorModel)
 	{
-		return;
-	}
+		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct matrix cell widget correctly.")))
+		{
+			return;
+		}
 
-	EditorModel = InEditorModel;
-	MatrixCell = InMatrixCell;
+		if (!ensureMsgf(InElementControllerModel.IsValid(), TEXT("Invalid element controller model, cannot create matrix cell widget correctly.")))
+		{
+			return;
+		}
 
-	ChildSlot
-		[
-			SNew(SHorizontalBox)
-			// Matrix Cell section
-			+ SHorizontalBox::Slot()
-			.Padding(2.f, 0.f)
-			.AutoWidth()
+		EditorModel = InEditorModel;
+		ElementControllerModel = InElementControllerModel;
+
+		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorMatrixCell::OnMatrixCellControllerAdded);
+		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorMatrixCell::OnMatrixCellControllerRemoved);
+
+		ChildSlot
 			[
-				SNew(SBox)
-				.WidthOverride(20.f)
-				.HeightOverride(TAttribute<FOptionalSize>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetMatrixCellHeightByFadersViewMode))
+				SNew(SHorizontalBox)
+				// Matrix Cell section
+				+ SHorizontalBox::Slot()
+				.Padding(2.f, 0.f)
+				.AutoWidth()
 				[
-					SNew(SBorder)
-					.BorderImage(this, &SDMXControlConsoleEditorMatrixCell::GetBorderImage)
+					SNew(SBox)
+					.WidthOverride(20.f)
+					.HeightOverride(TAttribute<FOptionalSize>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetMatrixCellHeightByFadersViewMode))
 					[
-						SNew(SVerticalBox)
-						// Matrix Cell Label
-						+ SVerticalBox::Slot()
-						.Padding(0.f, 1.f, 0.f, 0.f)
-						.AutoHeight()
+						SNew(SBorder)
+						.BorderImage(this, &SDMXControlConsoleEditorMatrixCell::GetBorderImage)
 						[
-							SNew(SBox)
-							.HeightOverride(8.f)
-							.Padding(1.f)
+							SNew(SVerticalBox)
+							// Matrix Cell Label
+							+ SVerticalBox::Slot()
+							.Padding(0.f, 1.f, 0.f, 0.f)
+							.AutoHeight()
 							[
-								SNew(SImage)
-								.Image(FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.FaderGroupTag"))
-								.ColorAndOpacity(this, &SDMXControlConsoleEditorMatrixCell::GetLabelBorderColor)
+								SNew(SBox)
+								.HeightOverride(8.f)
+								.Padding(1.f)
+								[
+									SNew(SImage)
+									.Image(FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.FaderGroupTag"))
+									.ColorAndOpacity(this, &SDMXControlConsoleEditorMatrixCell::GetLabelBorderColor)
+								]
 							]
-						]
 
-						// Matrix Cell Expand button
-						+ SVerticalBox::Slot()
-						.Padding(0.f, 4.f, 0.f, 0.f)
-						.AutoHeight()
-						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-							.Text(this, &SDMXControlConsoleEditorMatrixCell::GetMatrixCellLabelText)
-							.Justification(ETextJustify::Center)
-						]
+							// Matrix Cell Expand button
+							+ SVerticalBox::Slot()
+							.Padding(0.f, 4.f, 0.f, 0.f)
+							.AutoHeight()
+							[
+								SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+								.Text(this, &SDMXControlConsoleEditorMatrixCell::GetMatrixCellLabelText)
+								.Justification(ETextJustify::Center)
+							]
 
-						// Matrix Cell Text Label
-						+ SVerticalBox::Slot()
-						.Padding(0.f, 2.f, 0.f, 0.f)
-						.AutoHeight()
-						[
-							SAssignNew(ExpandArrowButton, SDMXControlConsoleEditorExpandArrowButton)
-							.ToolTipText(LOCTEXT("MatrixCellExpandArrowButton_Tooltip", "Switch expansion state of the cell"))
+							// Matrix Cell Text Label
+							+ SVerticalBox::Slot()
+							.Padding(0.f, 2.f, 0.f, 0.f)
+							.AutoHeight()
+							[
+								SAssignNew(ExpandArrowButton, SDMXControlConsoleEditorExpandArrowButton)
+									.ToolTipText(LOCTEXT("MatrixCellExpandArrowButton_Tooltip", "Switch expansion state of the cell"))
+							]
 						]
 					]
 				]
-			]
 
-			// Matrix Cell Faders section
-			+ SHorizontalBox::Slot()
-			.Padding(2.f, 0.f)
+				// Matrix Cell Faders section
+				+ SHorizontalBox::Slot()
+				.Padding(2.f, 0.f)
+				.AutoWidth()
+				[
+					SAssignNew(ElementControllersHorizontalBox, SHorizontalBox)
+					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetElementControllersHorizontalBoxVisibility))
+				]
+			];
+	}
+
+	UDMXControlConsoleElementController* SDMXControlConsoleEditorMatrixCell::GetElementController() const
+	{
+		return ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+	}
+
+	UDMXControlConsoleFixturePatchMatrixCell* SDMXControlConsoleEditorMatrixCell::GetMatrixCell() const
+	{
+		return ElementControllerModel.IsValid() ? ElementControllerModel->GetMatrixCellElement() : nullptr;
+	}
+
+	FReply SDMXControlConsoleEditorMatrixCell::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+	{
+		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		{
+			const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+			if (!MatrixCell)
+			{
+				return FReply::Unhandled();
+			}
+
+			if (ExpandArrowButton.IsValid())
+			{
+				ExpandArrowButton->ToggleExpandArrow();
+			}
+
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
+	}
+
+	void SDMXControlConsoleEditorMatrixCell::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (!ensureMsgf(MatrixCell, TEXT("Invalid matrix cell, cannot update matrix cell widget state correctly.")))
+		{
+			return;
+		}
+
+		const TArray<UDMXControlConsoleMatrixCellController*>& MatrixCellControllers = MatrixCell->GetMatrixCellControllers();
+		if (MatrixCellControllers.Num() == ElementControllerViews.Num())
+		{
+			return;
+		}
+
+		if (MatrixCellControllers.Num() > ElementControllerViews.Num())
+		{
+			OnMatrixCellControllerAdded();
+		}
+		else
+		{
+			OnMatrixCellControllerRemoved();
+		}
+	}
+
+	void SDMXControlConsoleEditorMatrixCell::OnMatrixCellControllerAdded()
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (!ensureMsgf(MatrixCell, TEXT("Invalid matrix cell, cannot add new controller widget correctly.")))
+		{
+			return;
+		}
+
+		const TArray<UDMXControlConsoleMatrixCellController*>& MatrixCellControllers = MatrixCell->GetMatrixCellControllers();
+
+		for (UDMXControlConsoleMatrixCellController* MatrixCellController : MatrixCellControllers)
+		{
+			if (!MatrixCellController)
+			{
+				continue;
+			}
+
+			if (ContainsMatrixCellController(MatrixCellController))
+			{
+				continue;
+			}
+
+			AddMatrixCellController(MatrixCellController);
+		}
+	}
+
+	void SDMXControlConsoleEditorMatrixCell::AddMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController)
+	{
+		if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new matrix cell correctly.")))
+		{
+			return;
+		}
+
+		if (!ensureMsgf(MatrixCellController, TEXT("Invalid matrix cell controller, cannot add new controller widget correctly.")))
+		{
+			return;
+		}
+
+		if (!ElementControllersHorizontalBox.IsValid())
+		{
+			return;
+		}
+
+		const TSharedRef<FDMXControlConsoleElementControllerModel> NewElementControllerModel = MakeShared<FDMXControlConsoleElementControllerModel>(MatrixCellController);
+		const TSharedRef<SDMXControlConsoleEditorElementControllerView> ElementControllerView =
+			SNew(SDMXControlConsoleEditorElementControllerView, NewElementControllerModel, EditorModel.Get())
+			.Padding(FMargin(2.f, 0.f))
+			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetElementControllerWidgetVisibility, NewElementControllerModel.ToSharedPtr()));
+
+		ElementControllerViews.Add(ElementControllerView);
+
+		const int32 Index = MatrixCellController->GetIndex();
+		ElementControllersHorizontalBox->InsertSlot(Index)
 			.AutoWidth()
+			.HAlign(HAlign_Left)
 			[
-				SAssignNew(CellAttributeFadersHorizontalBox, SHorizontalBox)
-				.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetCellAttributeFadersHorizontalBoxVisibility))
-			]
-		];
-}
+				ElementControllerView
+			];
+	}
 
-FReply SDMXControlConsoleEditorMatrixCell::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	void SDMXControlConsoleEditorMatrixCell::OnMatrixCellControllerRemoved()
 	{
-		if (!MatrixCell.IsValid())
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (!ensureMsgf(MatrixCell, TEXT("Invalid matrix cell, cannot remove the controller widget correctly.")))
 		{
-			return FReply::Unhandled();
+			return;
 		}
 
-		if (ExpandArrowButton.IsValid())
+		const TArray<UDMXControlConsoleMatrixCellController*>& MatrixCellControllers = MatrixCell->GetMatrixCellControllers();
+
+		TArray<TWeakPtr<SDMXControlConsoleEditorElementControllerView>> ElementControllerViewsToRemove;
+		for (TWeakPtr<SDMXControlConsoleEditorElementControllerView>& ElementControllerView : ElementControllerViews)
 		{
-			ExpandArrowButton->ToggleExpandArrow();
-		}
-
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
-void SDMXControlConsoleEditorMatrixCell::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	if (!ensureMsgf(MatrixCell.IsValid(), TEXT("Invalid matrix cell fader, cannot update matrix cell fader state correctly.")))
-	{
-		return;
-	}
-
-	const TArray<UDMXControlConsoleFaderBase*>& CellAttributeFaders = MatrixCell->GetFaders();
-	if (CellAttributeFaders.Num() == CellAttributeFaderWidgets.Num())
-	{
-		return;
-	}
-
-	if (CellAttributeFaders.Num() > CellAttributeFaderWidgets.Num())
-	{
-		OnCellAttributeFaderAdded();
-	}
-	else
-	{
-		OnCellAttributeFaderRemoved();
-	}
-}
-
-void SDMXControlConsoleEditorMatrixCell::OnCellAttributeFaderAdded()
-{
-	const TArray<UDMXControlConsoleFaderBase*>& CellAttributeFaders = MatrixCell->GetFaders();
-
-	for (UDMXControlConsoleFaderBase* CellAttributeFader : CellAttributeFaders)
-	{
-		if (!CellAttributeFader)
-		{
-			continue;
-		}
-
-		if (ContainsCellAttributeFader(CellAttributeFader))
-		{
-			continue;
-		}
-
-		AddCellAttributeFader(CellAttributeFader);
-	}
-}
-
-void SDMXControlConsoleEditorMatrixCell::AddCellAttributeFader(UDMXControlConsoleFaderBase* CellAttributeFader)
-{
-	if (!ensureMsgf(EditorModel.IsValid(), TEXT("Invalid control console editor model, cannot add new matrix cell fader correctly.")))
-	{
-		return;
-	}
-
-	if (!ensureMsgf(CellAttributeFader, TEXT("Invalid cell attribute faders, cannot add new matrix cell fader correctly.")))
-	{
-		return;
-	}
-
-	if (!CellAttributeFadersHorizontalBox.IsValid())
-	{
-		return;
-	}
-
-	const int32 Index = CellAttributeFader->GetIndex();
-
-	TSharedRef<SDMXControlConsoleEditorFader> CellAttributeFaderWidget =
-		SNew(SDMXControlConsoleEditorFader, CellAttributeFader, EditorModel.Get())
-		.Padding(FMargin(2.f, 0.f))
-		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorMatrixCell::GetFaderWidgetVisibility, CellAttributeFader));
-
-	CellAttributeFaderWidgets.Insert(CellAttributeFaderWidget, Index);
-
-	CellAttributeFadersHorizontalBox->InsertSlot(Index)
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		[
-			CellAttributeFaderWidget
-		];
-}
-
-void SDMXControlConsoleEditorMatrixCell::OnCellAttributeFaderRemoved()
-{
-	const TArray<UDMXControlConsoleFaderBase*>& CellAttributeFaders = MatrixCell->GetFaders();
-
-	TArray<TWeakPtr<SDMXControlConsoleEditorFader>> CellAttributeFaderWidgetsToRemove;
-	for (TWeakPtr<SDMXControlConsoleEditorFader>& CellAttributeFaderWidget : CellAttributeFaderWidgets)
-	{
-		if (!CellAttributeFaderWidget.IsValid())
-		{
-			continue;
-		}
-
-		const UDMXControlConsoleFaderBase* CellAttributeFader = CellAttributeFaderWidget.Pin()->GetFader();
-		if (!CellAttributeFader || !CellAttributeFaders.Contains(CellAttributeFader))
-		{
-			CellAttributeFadersHorizontalBox->RemoveSlot(CellAttributeFaderWidget.Pin().ToSharedRef());
-			CellAttributeFaderWidgetsToRemove.Add(CellAttributeFaderWidget);
-		}
-	}
-
-	CellAttributeFaderWidgets.RemoveAll([&CellAttributeFaderWidgetsToRemove](const TWeakPtr<SDMXControlConsoleEditorFader> CellAttributeFaderWidget)
-		{
-			return !CellAttributeFaderWidget.IsValid() || CellAttributeFaderWidgetsToRemove.Contains(CellAttributeFaderWidget);
-		});
-}
-
-bool SDMXControlConsoleEditorMatrixCell::ContainsCellAttributeFader(UDMXControlConsoleFaderBase* CellAttributeFader)
-{
-	auto IsCellAttributeFaderInUseLambda = [CellAttributeFader](const TWeakPtr<SDMXControlConsoleEditorFader> CellAttributeFaderWidget)
-		{
-			if (!CellAttributeFaderWidget.IsValid())
+			if (!ElementControllerView.IsValid())
 			{
-				return false;
+				continue;
 			}
 
-			const TWeakObjectPtr<UDMXControlConsoleFaderBase> Other = CellAttributeFaderWidget.Pin()->GetFader();
-			if (!Other.IsValid())
+			const UDMXControlConsoleElementController* ElementController = ElementControllerView.Pin()->GetElementController();
+			if (!ElementController || !MatrixCellControllers.Contains(ElementController))
 			{
-				return false;
+				ElementControllersHorizontalBox->RemoveSlot(ElementControllerView.Pin().ToSharedRef());
+				ElementControllerViewsToRemove.Add(ElementControllerView);
 			}
+		}
 
-			return Other == CellAttributeFader;
-		};
-
-	return CellAttributeFaderWidgets.ContainsByPredicate(IsCellAttributeFaderInUseLambda);
-}
-
-bool SDMXControlConsoleEditorMatrixCell::IsSelected() const
-{
-	return IsAnyCellAttributeFaderSelected();
-}
-
-bool SDMXControlConsoleEditorMatrixCell::IsAnyCellAttributeFaderSelected() const
-{
-	if (EditorModel.IsValid() || !MatrixCell.IsValid())
-	{
-		return false;
+		ElementControllerViews.RemoveAll([&ElementControllerViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView)
+			{
+				return !ElementControllerView.IsValid() || ElementControllerViewsToRemove.Contains(ElementControllerView);
+			});
 	}
 
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	const TArray<UDMXControlConsoleFaderBase*>& Faders = MatrixCell->GetFaders();
+	bool SDMXControlConsoleEditorMatrixCell::ContainsMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController)
+	{
+		auto IsElementControllerInUseLambda = [MatrixCellController](const TWeakPtr<SDMXControlConsoleEditorElementControllerView> ElementControllerView)
+			{
+				if (!ElementControllerView.IsValid())
+				{
+					return false;
+				}
 
-	auto IsCellAttributeFaderSelectedLambda = [SelectionHandler](UDMXControlConsoleFaderBase* Fader)
+				const UDMXControlConsoleElementController* ElementController = ElementControllerView.Pin()->GetElementController();
+				if (!ElementController)
+				{
+					return false;
+				}
+
+				return ElementController == MatrixCellController;
+			};
+
+		return ElementControllerViews.ContainsByPredicate(IsElementControllerInUseLambda);
+	}
+
+	bool SDMXControlConsoleEditorMatrixCell::IsAnyElementControllerSelected() const
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (!EditorModel.IsValid() || !MatrixCell)
 		{
-			return SelectionHandler->IsSelected(Fader);
-		};
+			return false;
+		}
 
-	return Algo::FindByPredicate(Faders, IsCellAttributeFaderSelectedLambda) ? true : false;
-}
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
 
-FOptionalSize SDMXControlConsoleEditorMatrixCell::GetMatrixCellHeightByFadersViewMode() const
-{
-	using namespace UE::DMXControlConsoleEditor::DMXControlConsoleEditorMatrixCell::Private;
+		const TArray<UDMXControlConsoleMatrixCellController*>& MatrixCellControllers = MatrixCell->GetMatrixCellControllers();
+		const bool bIsAnyMatrixCellControllerSelected = Algo::AnyOf(MatrixCellControllers, 
+			[SelectedElementControllers](UDMXControlConsoleMatrixCellController* MatrixCellController)
+			{
+				return MatrixCellController && SelectedElementControllers.Contains(MatrixCellController);
+			});
 
-	const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
-	if (EditorData)
-	{
-		const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
-		return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+		return bIsAnyMatrixCellControllerSelected;
 	}
 
-	return CollapsedViewModeHeight;
-}
-
-FText SDMXControlConsoleEditorMatrixCell::GetMatrixCellLabelText() const
-{
-	if (MatrixCell.IsValid())
+	FOptionalSize SDMXControlConsoleEditorMatrixCell::GetMatrixCellHeightByFadersViewMode() const
 	{
-		return FText::FromString(FString::FromInt(MatrixCell->GetCellID()));
-	}
-
-	return FText::GetEmpty();
-}
-
-FSlateColor SDMXControlConsoleEditorMatrixCell::GetLabelBorderColor() const
-{
-	if (MatrixCell.IsValid())
-	{
-		const UDMXControlConsoleFaderGroup& FaderGroup = MatrixCell->GetOwnerFaderGroupChecked();
-		return FaderGroup.GetEditorColor();
-	}
-
-	return FSlateColor(FLinearColor::White);
-}
-
-EVisibility SDMXControlConsoleEditorMatrixCell::GetFaderWidgetVisibility(const UDMXControlConsoleFaderBase* Fader) const
-{
-	const bool bIsVisible = Fader && Fader->IsMatchingFilter();
-	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-EVisibility SDMXControlConsoleEditorMatrixCell::GetCellAttributeFadersHorizontalBoxVisibility() const
-{
-	const bool bIsVisible = ExpandArrowButton.IsValid() && ExpandArrowButton->IsExpanded();
-	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-const FSlateBrush* SDMXControlConsoleEditorMatrixCell::GetBorderImage() const
-{
-	if (!MatrixCell.IsValid())
-	{
-		return nullptr;
-	}
-
-	if (IsHovered())
-	{
-		if (IsSelected())
+		using namespace DMXControlConsoleEditorMatrixCell::Private;
+		const UDMXControlConsoleEditorData* EditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
+		if (EditorData)
 		{
-			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Highlighted");;
+			const EDMXControlConsoleEditorViewMode ViewMode = EditorData->GetFadersViewMode();
+			return ViewMode == EDMXControlConsoleEditorViewMode::Collapsed ? CollapsedViewModeHeight : ExpandedViewModeHeight;
+		}
+
+		return CollapsedViewModeHeight;
+	}
+
+	FText SDMXControlConsoleEditorMatrixCell::GetMatrixCellLabelText() const
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (MatrixCell)
+		{
+			return FText::FromString(FString::FromInt(MatrixCell->GetCellID()));
+		}
+
+		return FText::GetEmpty();
+	}
+
+	FSlateColor SDMXControlConsoleEditorMatrixCell::GetLabelBorderColor() const
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (MatrixCell)
+		{
+			const UDMXControlConsoleFaderGroup& FaderGroup = MatrixCell->GetOwnerFaderGroupChecked();
+			return FaderGroup.GetEditorColor();
+		}
+
+		return FSlateColor(FLinearColor::White);
+	}
+
+	EVisibility SDMXControlConsoleEditorMatrixCell::GetElementControllerWidgetVisibility(TSharedPtr<FDMXControlConsoleElementControllerModel> ControllerModel) const
+	{
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		const bool bIsVisible = ElementController && ElementController->IsMatchingFilter();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	EVisibility SDMXControlConsoleEditorMatrixCell::GetElementControllersHorizontalBoxVisibility() const
+	{
+		const bool bIsVisible = ExpandArrowButton.IsValid() && ExpandArrowButton->IsExpanded();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	const FSlateBrush* SDMXControlConsoleEditorMatrixCell::GetBorderImage() const
+	{
+		const UDMXControlConsoleFixturePatchMatrixCell* MatrixCell = GetMatrixCell();
+		if (!MatrixCell)
+		{
+			return nullptr;
+		}
+
+		if (IsHovered())
+		{
+			if (IsAnyElementControllerSelected())
+			{
+				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Highlighted");;
+			}
+			else
+			{
+				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Hovered");;
+			}
 		}
 		else
 		{
-			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Hovered");;
-		}
-	}
-	else
-	{
-		if (IsSelected())
-		{
-			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Selected");;
-		}
-		else
-		{
-			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader");
+			if (IsAnyElementControllerSelected())
+			{
+				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader_Selected");;
+			}
+			else
+			{
+				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.Fader");
+			}
 		}
 	}
 }
 
 #undef LOCTEXT_NAMESPACE
-

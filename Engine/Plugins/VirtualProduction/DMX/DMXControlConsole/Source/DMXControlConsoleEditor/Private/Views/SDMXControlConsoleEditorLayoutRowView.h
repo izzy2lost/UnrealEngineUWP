@@ -5,64 +5,67 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Widgets/SCompoundWidget.h"
 
-class SDMXControlConsoleEditorFaderGroupView;
 class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
 
-
-/** A widget which gathers a collection of Fader Groups */
-class SDMXControlConsoleEditorLayoutRowView
-	: public SCompoundWidget
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleEditorLayoutRowView)
-	{}
+	class SDMXControlConsoleEditorFaderGroupView;
 
-	SLATE_END_ARGS()
+	/** A widget which gathers a collection of Fader Groups */
+	class SDMXControlConsoleEditorLayoutRowView
+		: public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorLayoutRowView)
+			{}
 
-	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel);
+		SLATE_END_ARGS()
 
-	/** Gets the Layout Row this row is based on */
-	UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow() const { return LayoutRow.Get(); }
+		/** Constructs the widget */
+		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorGlobalLayoutRow* InLayoutRow, UDMXControlConsoleEditorModel* InEditorModel);
 
-	/** Finds FaderGroupView by the given FaderGroup, if valid */
-	TSharedPtr<SDMXControlConsoleEditorFaderGroupView> FindFaderGroupView(const UDMXControlConsoleFaderGroup* FaderGroup) const;
+		/** Gets the Layout Row this row is based on */
+		UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow() const { return LayoutRow.Get(); }
 
-protected:
-	//~ Begin SWidget interface
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	//~ End of SWidget interface
+		/** Finds FaderGroupView by the given FaderGroup, if valid */
+		TSharedPtr<SDMXControlConsoleEditorFaderGroupView> FindFaderGroupView(const UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-private:
-	/** Refreshes layout row */
-	void Refresh();
+	protected:
+		//~ Begin SWidget interface
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+		//~ End of SWidget interface
 
-	/** Should be called when a Fader Group was added to the Layout Row this view displays */
-	void OnFaderGroupAdded();
+	private:
+		/** Refreshes layout row */
+		void Refresh();
 
-	/** Adds a Fader Group slot widget */
-	void AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
+		/** Should be called when a Fader Group was added to the Layout Row this view displays */
+		void OnFaderGroupAdded();
 
-	/** Should be called when a Fader Group was deleted from the Layout Row this view displays */
-	void OnFaderGroupRemoved();
+		/** Adds a Fader Group slot widget */
+		void AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
 
-	/** Checks if FaderGroups array contains a reference to the given Fader Group */
-	bool ContainsFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
+		/** Should be called when a Fader Group was deleted from the Layout Row this view displays */
+		void OnFaderGroupRemoved();
 
-	/** Gets visibility for each FaderGroupView widget in this row */
-	EVisibility GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const;
+		/** Checks if FaderGroups array contains a reference to the given Fader Group */
+		bool ContainsFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
 
-	/** Reference to the container widget of this Layout Row's Fader Group slots  */
-	TSharedPtr<SHorizontalBox> FaderGroupsHorizontalBox;
+		/** Gets visibility for each FaderGroupView widget in this row */
+		EVisibility GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const;
 
-	/** Array of weak references to Fader Group widgets */
-	TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViews;
+		/** Reference to the container widget of this Layout Row's Fader Group slots  */
+		TSharedPtr<SHorizontalBox> FaderGroupsHorizontalBox;
 
-	/** Weak Reference to this Layout Row */
-	TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow;
+		/** Array of weak references to Fader Group widgets */
+		TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViews;
 
-	/** Weak reference to the Control Console editor model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
-};
+		/** Weak Reference to this Layout Row */
+		TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow;
+
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+	};
+}

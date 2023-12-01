@@ -6,6 +6,7 @@
 #include "Algo/AnyOf.h"
 #include "Algo/Copy.h"
 #include "Algo/Find.h"
+#include "Controllers/DMXControlConsoleElementController.h"
 #include "Commands/DMXControlConsoleEditorCommands.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
@@ -28,7 +29,7 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleFixturePatchList"
 
-namespace UE::DMXControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	namespace Internal
 	{
@@ -212,7 +213,7 @@ void SDMXControlConsoleFixturePatchList::ForceRefresh()
 		return;
 	}
 
-	using namespace UE::DMXControlConsoleEditor::Private;
+	using namespace UE::DMX::Private;
 	const TArray<UDMXEntityFixturePatch*> FixturePatchesToExclude = FindFixturePatchesToExclude(GetFixturePatchesInDMXLibrary(), ShowMode, EditorModel);
 
 	SetExcludedFixturePatches(FixturePatchesToExclude);
@@ -535,8 +536,8 @@ void SDMXControlConsoleFixturePatchList::OnSelectionChanged(const TSharedPtr<FDM
 			const bool bAutoSelect = EditorData && EditorData->GetAutoSelectActivePatches();
 			if (bAutoSelect)
 			{
-				const TArray<UDMXControlConsoleFaderBase*> AllFaders = FaderGroup->GetAllFaders();
-				FaderGroupsToAddToSelection.Append(AllFaders);
+				const TArray<UDMXControlConsoleElementController*> AllElementControllers = FaderGroup->GetAllElementControllers();
+				FaderGroupsToAddToSelection.Append(AllElementControllers);
 			}
 		}
 		else

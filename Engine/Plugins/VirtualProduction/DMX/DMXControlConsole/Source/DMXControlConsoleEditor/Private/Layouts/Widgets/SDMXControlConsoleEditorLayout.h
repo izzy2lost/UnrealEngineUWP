@@ -9,7 +9,7 @@
 class UDMXControlConsoleEditorModel;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
 	/** Base widget for Control Console layout */
 	class SDMXControlConsoleEditorLayout

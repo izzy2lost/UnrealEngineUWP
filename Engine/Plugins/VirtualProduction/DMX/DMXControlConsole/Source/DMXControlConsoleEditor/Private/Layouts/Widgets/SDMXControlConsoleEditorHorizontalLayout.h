@@ -5,14 +5,15 @@
 #include "Layouts/Widgets/SDMXControlConsoleEditorLayout.h"
 
 struct EVisibility;
-class SDMXControlConsoleEditorFaderGroupView;
 class SHorizontalBox;
 class SScrollBox;
 class UDMXControlConsoleFaderGroup;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 { 
+	class SDMXControlConsoleEditorFaderGroupView;
+
 	/** Model for control console grid layout */
 	class SDMXControlConsoleEditorHorizontalLayout
 		: public SDMXControlConsoleEditorLayout

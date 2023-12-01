@@ -7,87 +7,93 @@
 struct FOptionalSize;
 struct FSlateColor;
 class SDMXControlConsoleEditorExpandArrowButton;
-class SDMXControlConsoleEditorFader;
 class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
-class UDMXControlConsoleFaderBase;
+class UDMXControlConsoleElementController;
 class UDMXControlConsoleFixturePatchMatrixCell;
+class UDMXControlConsoleMatrixCellController;
 
 
-/** Individual Matrix Cell UI class */
-class SDMXControlConsoleEditorMatrixCell
-	: public SCompoundWidget
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleEditorMatrixCell)
-	{}
+	class FDMXControlConsoleElementControllerModel;
+	class SDMXControlConsoleEditorElementControllerView;
 
-	SLATE_END_ARGS()
+	/** Individual Matrix Cell UI class */
+	class SDMXControlConsoleEditorMatrixCell
+		: public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorMatrixCell)
+			{}
 
-	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, UDMXControlConsoleFixturePatchMatrixCell* InMatrixCell, UDMXControlConsoleEditorModel* InEditorModel);
+		SLATE_END_ARGS()
 
-	/** Gets a reference to the Matrix Cell showed by this widget */
-	UDMXControlConsoleFixturePatchMatrixCell* GetMatrixCell() { return MatrixCell.Get(); }
+		/** Constructs the widget */
+		void Construct(const FArguments& InArgs, const TSharedPtr<FDMXControlConsoleElementControllerModel>& InElementControllerModel, UDMXControlConsoleEditorModel* InEditorModel);
 
-	/** Gets a reference to this widget's ExpandArrow button */
-	TSharedPtr<SDMXControlConsoleEditorExpandArrowButton>& GetExpandArrowButton() { return ExpandArrowButton; }
+		/** Gets the Element Controller this widget is based on */
+		UDMXControlConsoleElementController* GetElementController() const;
 
-protected:
-	//~ Begin SWidget interface
-	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	//~ End of SWidget interface
+		/** Gets a reference to the Matrix Cell showed by this widget */
+		UDMXControlConsoleFixturePatchMatrixCell* GetMatrixCell() const;
 
-private:
-	/** Should be called when a Cell Attribute Fader was added to the Matrix Cell Fader this widget displays */
-	void OnCellAttributeFaderAdded();
+		/** Gets a reference to this widget's ExpandArrow button */
+		TSharedPtr<SDMXControlConsoleEditorExpandArrowButton>& GetExpandArrowButton() { return ExpandArrowButton; }
 
-	/** Adds a Cell Attribute Fader slot widget */
-	void AddCellAttributeFader(UDMXControlConsoleFaderBase* CellAttributeFader);
+	protected:
+		//~ Begin SWidget interface
+		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+		//~ End of SWidget interface
 
-	/** Should be called when a Cell Attribute Fader was deleted from the Matrix Cell Fader this widget displays */
-	void OnCellAttributeFaderRemoved();
+	private:
+		/** Should be called when a Matrix Cell Controller was added to the Matrix Cell this widget displays */
+		void OnMatrixCellControllerAdded();
 
-	/** Checks if the CellAttributeFaders array contains a reference to the given Cell Attribute Fader */
-	bool ContainsCellAttributeFader(UDMXControlConsoleFaderBase* CellAttributeFader);
+		/** Adds a Matrix Cell Controller slot widget */
+		void AddMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController);
 
-	/** Gets wheter this Matrix Cell Fader is selected or not */
-	bool IsSelected() const;
+		/** Should be called when a Matrix Cell Controller was deleted from the Matrix Cell this widget displays */
+		void OnMatrixCellControllerRemoved();
 
-	/** Returns true if any of this Matrix Cell's Cell Attribute Fader is selected */
-	bool IsAnyCellAttributeFaderSelected() const;
+		/** Checks if the Element Controllers array contains a reference to the given Matrix Cell Controller */
+		bool ContainsMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController);
 
-	/** Gets the height of the Matrix Cell according to the current Faders View Mode  */
-	FOptionalSize GetMatrixCellHeightByFadersViewMode() const;
+		/** Returns true if any of this Matrix Cell's Matrix Cell Controllers is selected */
+		bool IsAnyElementControllerSelected() const;
 
-	/** Gets the Matrix Cell ID as text */
-	FText GetMatrixCellLabelText() const;
+		/** Gets the height of the Matrix Cell according to the current Faders View Mode  */
+		FOptionalSize GetMatrixCellHeightByFadersViewMode() const;
 
-	/** Gets the label background color */
-	FSlateColor GetLabelBorderColor() const;
+		/** Gets the Matrix Cell ID as text */
+		FText GetMatrixCellLabelText() const;
 
-	/** Gets the visibility for each Fader widget in this view */
-	EVisibility GetFaderWidgetVisibility(const UDMXControlConsoleFaderBase* Fader) const;
+		/** Gets the label background color */
+		FSlateColor GetLabelBorderColor() const;
 
-	/** Gets the visibility of the CellAttributeFadersHorizontalBox widget */
-	EVisibility GetCellAttributeFadersHorizontalBoxVisibility() const;
+		/** Gets the visibility for each Element Controller view in the matrix */
+		EVisibility GetElementControllerWidgetVisibility(TSharedPtr<FDMXControlConsoleElementControllerModel> ControllerModel) const;
 
-	/** Gets the widget border brush */
-	const FSlateBrush* GetBorderImage() const;
+		/** Gets the visibility of the ElementControllerHorizontalBox widget */
+		EVisibility GetElementControllersHorizontalBoxVisibility() const;
 
-	/** Reference to the Cell Attribute Faders main widget */
-	TSharedPtr<SHorizontalBox> CellAttributeFadersHorizontalBox;
+		/** Gets the widget border brush */
+		const FSlateBrush* GetBorderImage() const;
 
-	/** Array of Cell Attribute Fader widgets */
-	TArray<TWeakPtr<SDMXControlConsoleEditorFader>> CellAttributeFaderWidgets;
+		/** Reference to the Matrix Element Controllers main widget */
+		TSharedPtr<SHorizontalBox> ElementControllersHorizontalBox;
 
-	/** Reference to the ExpandArrow button used to show/hide Matrix Cell */
-	TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton;
+		/** Array of Matrix Cell Controllers views */
+		TArray<TWeakPtr<SDMXControlConsoleEditorElementControllerView>> ElementControllerViews;
 
-	/** Reference to the Matrix Cell being displayed */
-	TWeakObjectPtr<UDMXControlConsoleFixturePatchMatrixCell> MatrixCell;
+		/** Reference to the ExpandArrow button used to show/hide the Matrix Cell */
+		TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton;
 
-	/** Weak reference to the Control Console editor model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
-};
+		/** Reference to the Element Controller being displayed */
+		TSharedPtr<FDMXControlConsoleElementControllerModel> ElementControllerModel;
+
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+	};
+}

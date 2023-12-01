@@ -18,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorModel"
 
-void UDMXControlConsoleEditorModel::Initialize(const TSharedPtr<UE::DMX::ControlConsoleEditor::Private::FDMXControlConsoleEditorToolkit>& InToolkit)
+void UDMXControlConsoleEditorModel::Initialize(const TSharedPtr<UE::DMX::Private::FDMXControlConsoleEditorToolkit>& InToolkit)
 {
 	checkf(InToolkit.IsValid(), TEXT("Invalid control console toolkit, can't initialize toolkit correctly."));
 	WeakToolkit = InToolkit;
@@ -55,9 +55,9 @@ TSharedRef<FDMXControlConsoleEditorSelection> UDMXControlConsoleEditorModel::Get
 	return SelectionHandler.ToSharedRef();
 }
 
-TSharedRef<UE::DMX::ControlConsoleEditor::Private::FFilterModel> UDMXControlConsoleEditorModel::GetFilterModel()
+TSharedRef<UE::DMX::Private::FFilterModel> UDMXControlConsoleEditorModel::GetFilterModel()
 {
-	using namespace UE::DMX::ControlConsoleEditor::Private;
+	using namespace UE::DMX::Private;
 	if (!FilterModel.IsValid())
 	{
 		FilterModel = MakeShared<FFilterModel>(this);

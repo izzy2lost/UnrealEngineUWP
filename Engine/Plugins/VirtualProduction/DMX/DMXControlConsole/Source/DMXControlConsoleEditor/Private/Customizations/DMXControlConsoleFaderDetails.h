@@ -11,7 +11,7 @@ class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderBase;
 
 
-namespace UE::DMX::ControlConsoleEditor::Private
+namespace UE::DMX::Private
 {
 	/** Details Customization for DMX Control Console faders */
 	class FDMXControlConsoleFaderDetails
