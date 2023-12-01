@@ -156,7 +156,7 @@ namespace uba
 				}
 			}
 
-			const int kMaxCallers = 10;// 62;
+			const int kMaxCallers = 16;// 62;
 			void* callers[kMaxCallers];
 			if (u32 count = (func)(0, kMaxCallers, callers, NULL))
 			{
