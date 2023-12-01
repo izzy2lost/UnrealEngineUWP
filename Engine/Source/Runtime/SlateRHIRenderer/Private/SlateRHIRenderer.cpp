@@ -36,7 +36,6 @@
 #include "SceneUtils.h"
 #include "TextureResource.h"
 #include "VolumeRendering.h"
-#include "ShaderCompiler.h"
 #include "PipelineStateCache.h"
 #include "EngineModule.h"
 #include "Interfaces/ISlate3DRenderer.h"
@@ -53,6 +52,10 @@
 #include "HDRHelper.h"
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
+
+#if WITH_EDITORONLY_DATA
+#include "ShaderCompiler.h"
+#endif
 
 DECLARE_CYCLE_STAT(TEXT("Slate RT: Rendering"), STAT_SlateRenderingRTTime, STATGROUP_Slate);
 

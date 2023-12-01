@@ -5,20 +5,8 @@ D3D12Commands.cpp: D3D RHI commands implementation.
 =============================================================================*/
 
 #include "D3D12RHIPrivate.h"
-#include "StaticBoundShaderState.h"
-#include "GlobalShader.h"
-#include "OneColorShader.h"
-#include "RHICommandList.h"
-#include "RHIStaticStates.h"
-#include "ShaderParameterUtils.h"
-#include "ShaderCompiler.h"
-#include "ScreenRendering.h"
-#include "ResolveShader.h"
-#include "SceneUtils.h"
-#include "RenderUtils.h"
-#include "GlobalRenderResources.h"
-#include "RHIShaderParametersShared.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "ProfilingDebugging/RealtimeGPUProfiler.h"
 
 static int32 GD3D12TransientAllocatorFullAliasingBarrier = 0;
 static FAutoConsoleVariableRef CVarD3D12TransientAllocatorFullAliasingBarrier(

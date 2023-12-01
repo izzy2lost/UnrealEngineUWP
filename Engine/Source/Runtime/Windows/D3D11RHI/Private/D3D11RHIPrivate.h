@@ -34,8 +34,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #include "RHIValidationCommon.h"
 #include "RHICoreShader.h"
 
-#include "ShaderCompiler.h"
-
 #ifndef WITH_DX_PERF
 #define WITH_DX_PERF	1
 #endif
