@@ -461,7 +461,7 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 #endif
 	
 			FLightFunctionColor LightFunctionColor = 1.0f;
-#if	USE_LIGHT_FUNCTION
+#if	USE_LIGHT_FUNCTION_ATLAS
 			LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
 #endif
 
