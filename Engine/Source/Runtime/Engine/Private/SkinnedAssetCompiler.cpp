@@ -8,8 +8,6 @@
 
 #if WITH_EDITOR
 
-#include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
 #include "EngineLogs.h"
 #include "ObjectCacheContext.h"
 #include "Settings/EditorExperimentalSettings.h"
@@ -52,7 +50,7 @@ namespace SkinnedAssetCompilingManagerImpl
 }
 
 FSkinnedAssetCompilingManager::FSkinnedAssetCompilingManager()
-	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	: Notification(GetAssetNameFormat())
 {
 	SkinnedAssetCompilingManagerImpl::EnsureInitializedCVars();
 	PostReachabilityAnalysisHandle = FCoreUObjectDelegates::PostReachabilityAnalysis.AddRaw(this, &FSkinnedAssetCompilingManager::OnPostReachabilityAnalysis);
@@ -169,7 +167,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedSkinnedAssetCompilation, TEXT("AsyncCompilation/
 void FSkinnedAssetCompilingManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedSkinnedAssetCompilation, GetNumRemainingJobs());
-	Notification->Update(GetNumRemainingJobs());
+	Notification.Update(GetNumRemainingJobs());
 }
 
 void FSkinnedAssetCompilingManager::PostCompilation(TArrayView<USkinnedAsset* const> InSkinnedAssets)

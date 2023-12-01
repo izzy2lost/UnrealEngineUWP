@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Templates/RefCounting.h"
 #include "HAL/PlatformProcess.h"
 #include "ShaderCore.h"
@@ -21,25 +22,26 @@
 #include "GBufferInfo.h"
 #include "ShaderMaterial.h"
 #include "Misc/ScopeRWLock.h"
-#include "IAssetCompilingManager.h"
+#include "AsyncCompilationHelpers.h"
+#include "AssetCompilingManager.h"
 #include "Containers/HashTable.h"
 #include "Containers/List.h"
 #include "Containers/Deque.h"
 #include "Hash/Blake3.h"
 #include "SceneTypes.h"
 
-class FAsyncCompilationNotification;
 class FCbObjectView;
 class FCbWriter;
 class FVertexFactoryType;
 class IDistributedBuildController;
 class FMaterialShaderMap;
+
+DECLARE_LOG_CATEGORY_EXTERN(LogShaderCompilers, Log, All);
+
 class FShaderCompileJob;
 class FShaderCompilerStats;
 class FShaderPipelineCompileJob;
 struct FAnalyticsEventAttribute;
-
-DECLARE_LOG_CATEGORY_EXTERN(LogShaderCompilers, Log, All);
 
 #define DEBUG_INFINITESHADERCOMPILE 0
 
@@ -723,7 +725,7 @@ private:
 	bool bAllowForIncompleteShaderMaps;
 
 	/** Used to show a notification accompanying progress. */
-	TUniquePtr<FAsyncCompilationNotification> Notification;
+	FAsyncCompilationNotification Notification;
 
 	/** Calculate NumShaderCompilingThreads, during construction or OnMachineResourcesChanged */
 	void CalculateNumberOfCompilingThreads(int32 NumberOfCores, int32 NumberOfCoresIncludingHyperthreads);
@@ -1229,9 +1231,3 @@ extern ENGINE_API void DumpShaderDDCKeyToFile(const EShaderPlatform InPlatform, 
 * @param GlobalShaderMap				Byte array that contains the serialized global shadermap from across the network.
 **/
 extern ENGINE_API void ProcessCookOnTheFlyShaders(bool bReloadGlobalShaders, const TArray<uint8>& MeshMaterialMaps, const TArray<FString>& MaterialsToLoad, const TArray<uint8>& GlobalShaderMap);
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "CoreMinimal.h"
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
-#endif

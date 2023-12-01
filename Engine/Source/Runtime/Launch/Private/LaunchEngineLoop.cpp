@@ -122,6 +122,7 @@
 	#include "Editor/UnrealEdEngine.h"
 	#include "Settings/EditorExperimentalSettings.h"
 	#include "PIEPreviewDeviceProfileSelectorModule.h"
+	#include "AssetCompilingManager.h"
 	#include "Serialization/BulkDataRegistry.h"
 	#include "ShaderCompiler.h"
 	#include "Virtualization/VirtualizationSystem.h"
@@ -136,7 +137,6 @@
 #endif //WITH_EDITOR
 
 #if WITH_ENGINE
-	#include "AssetCompilingManager.h"
 	#include "Engine/GameEngine.h"
 	#include "Engine/GameViewportClient.h"
 	#include "UnrealClient.h"

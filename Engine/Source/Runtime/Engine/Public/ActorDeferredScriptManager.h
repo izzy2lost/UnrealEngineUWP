@@ -3,11 +3,10 @@
 
 #include "UObject/WeakObjectPtr.h"
 #include "Containers/Deque.h"
-#include "IAssetCompilingManager.h"
+#include "AssetCompilingManager.h"
+#include "AsyncCompilationHelpers.h"
 
-class FAsyncCompilationNotification;
 class AActor;
-struct FAssetCompileData;
 
 #if WITH_EDITOR
 
@@ -59,7 +58,7 @@ private:
 	TArray<TWeakObjectPtr<AActor>> PendingConstructionScriptActors;
 
 	/** Notification for the amount of pending construction scripts to run */
-	TUniquePtr<FAsyncCompilationNotification> Notification;
+	FAsyncCompilationNotification Notification;
 
 	/** We need to monitor when static meshes have finished compiling to only work when necessary */
 	FDelegateHandle OnAssetChangeDelegateHandle;
@@ -74,9 +73,4 @@ private:
 	int32 NumLeftToProcess = 0;
 };
 
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
 #endif

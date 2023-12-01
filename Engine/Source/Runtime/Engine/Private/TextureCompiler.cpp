@@ -5,8 +5,6 @@
 
 #if WITH_EDITOR
 
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
 #include "Editor.h"
 #include "ObjectCacheContext.h"
 #include "EngineLogs.h"
@@ -76,7 +74,7 @@ namespace TextureCompilingManagerImpl
 }
 
 FTextureCompilingManager::FTextureCompilingManager()
-	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	: Notification(GetAssetNameFormat())
 {
 	TextureCompilingManagerImpl::EnsureInitializedCVars();
 }
@@ -192,7 +190,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedTextureCompilation, TEXT("AsyncCompilation/Queue
 void FTextureCompilingManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedTextureCompilation, GetNumRemainingTextures());
-	Notification->Update(GetNumRemainingTextures());
+	Notification.Update(GetNumRemainingTextures());
 }
 
 void FTextureCompilingManager::PostCompilation(UTexture* Texture)

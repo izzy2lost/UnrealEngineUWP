@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tests/AutomationCommon.h"
-#include "AssetCompilingManager.h"
 #include "Engine/World.h"
 #include "Misc/EngineVersion.h"
 #include "Engine/GameViewportClient.h"

@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Containers/Set.h"
-#include "IAssetCompilingManager.h"
+#include "AssetCompilingManager.h"
+#include "AsyncCompilationHelpers.h"
 
 #if WITH_EDITOR
 
-class FAsyncCompilationNotification;
 class UStaticMesh;
 class UPrimitiveComponent;
 class UStaticMeshComponent;
@@ -86,7 +87,7 @@ private:
 
 	bool bHasShutdown = false;
 	TSet<TWeakObjectPtr<UStaticMesh>> RegisteredStaticMesh;
-	TUniquePtr<FAsyncCompilationNotification> Notification;
+	FAsyncCompilationNotification Notification;
 
 	void FinishCompilationsForGame();
 	void Reschedule();
@@ -101,9 +102,3 @@ private:
 };
 
 #endif // #if WITH_EDITOR
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "CoreMinimal.h"
-#include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
-#endif

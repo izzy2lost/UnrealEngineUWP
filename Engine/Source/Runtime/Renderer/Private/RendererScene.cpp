@@ -65,7 +65,6 @@
 #include "ComputeSystemInterface.h"
 #include "DynamicShadowMapChannelBindingHelper.h"
 #include "GPUScene.h"
-#include "HAL/LowLevelMemStats.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "VT/RuntimeVirtualTextureSceneProxy.h"
 #include "VT/VirtualTextureSystem.h"

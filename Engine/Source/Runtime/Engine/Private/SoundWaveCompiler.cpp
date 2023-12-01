@@ -7,8 +7,6 @@
 
 #if WITH_EDITOR
 
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
 #include "ObjectCacheContext.h"
 #include "Settings/EditorExperimentalSettings.h"
 #include "Misc/QueuedThreadPoolWrapper.h"
@@ -58,7 +56,7 @@ namespace SoundWaveCompilingManagerImpl
 }
 
 FSoundWaveCompilingManager::FSoundWaveCompilingManager()
-	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	: Notification(GetAssetNameFormat())
 {
 	SoundWaveCompilingManagerImpl::EnsureInitializedCVars();
 }
@@ -133,7 +131,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedSoundWaveCompilation, TEXT("AsyncCompilation/Que
 void FSoundWaveCompilingManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedSoundWaveCompilation, GetNumRemainingSoundWaves());
-	Notification->Update(GetNumRemainingSoundWaves());
+	Notification.Update(GetNumRemainingSoundWaves());
 }
 
 void FSoundWaveCompilingManager::PostCompilation(USoundWave* SoundWave)

@@ -6,8 +6,6 @@
 
 #if WITH_EDITOR
 
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
 #include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
 #include "Logging/LogMacros.h"
@@ -40,7 +38,7 @@ void FActorDeferredScriptManager::Shutdown()
 }
 
 FActorDeferredScriptManager::FActorDeferredScriptManager()
-	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	: Notification(GetAssetNameFormat())
 {
 	OnWorldCleanupDelegateHandle = FWorldDelegates::OnWorldCleanup.AddRaw(this, &FActorDeferredScriptManager::OnWorldCleanup);
 }
@@ -282,7 +280,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedConstructionScripts, TEXT("AsyncCompilation/Queu
 void FActorDeferredScriptManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedConstructionScripts, GetNumRemainingAssets());
-	Notification->Update(GetNumRemainingAssets());
+	Notification.Update(GetNumRemainingAssets());
 }
 
 #undef LOCTEXT_NAMESPACE

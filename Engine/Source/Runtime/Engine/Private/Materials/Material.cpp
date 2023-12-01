@@ -87,7 +87,6 @@
 #include "BuildSettings.h"
 
 #if WITH_EDITOR
-#include "Framework/Notifications/NotificationManager.h"
 #include "MaterialCachedHLSLTree.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"

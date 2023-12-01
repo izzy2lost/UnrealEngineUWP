@@ -29,10 +29,6 @@
 #include "MaterialHLSLGenerator.h"
 #include "HLSLMaterialTranslator.h"
 
-#if WITH_EDITOR
-#include "Serialization/MemoryReader.h"
-#endif
-
 int32 GMaterialExcludeNonPipelinedShaders = 1;
 static FAutoConsoleVariableRef CVarMaterialExcludeNonPipelinedShaders(
 	TEXT("r.Material.ExcludeNonPipelinedShaders"),

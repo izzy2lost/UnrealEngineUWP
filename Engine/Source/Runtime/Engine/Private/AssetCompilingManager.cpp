@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
 
 #include "HAL/LowLevelMemStats.h" // IWYU pragma: keep
 #include "HAL/LowLevelMemTracker.h" // IWYU pragma: keep
@@ -28,7 +27,6 @@ LLM_DEFINE_TAG(AssetCompilation, NAME_None, NAME_None, GET_STATFNAME(STAT_AssetC
 #include "DerivedDataBuildSchedulerQueue.h"
 #include "DerivedDataThreadPoolTask.h"
 #include "Features/IModularFeatures.h"
-#include "Interfaces/Interface_AsyncCompilation.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AssetCompilingManager)

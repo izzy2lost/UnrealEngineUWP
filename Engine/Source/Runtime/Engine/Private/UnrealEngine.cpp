@@ -124,7 +124,6 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "RenderCore.h"
 #include "Misc/DelayedAutoRegister.h"
 #include <exception>
-#include "AssetCompilingManager.h"
 
 #if UE_WITH_IRIS
 #include "Iris/IrisConfig.h"
@@ -150,7 +149,6 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 #include "LandscapeSubsystem.h"
 #include "TextureCompiler.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
-#include "Framework/Notifications/NotificationManager.h"
 #endif
 // @todo this is here only due to circular dependency to AIModule. To be removed
 

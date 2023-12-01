@@ -4,8 +4,6 @@
 
 #if WITH_EDITOR
 
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
 #include "Algo/NoneOf.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -78,7 +76,7 @@ namespace StaticMeshCompilingManagerImpl
 }
 
 FStaticMeshCompilingManager::FStaticMeshCompilingManager()
-	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	: Notification(GetAssetNameFormat())
 {
 	StaticMeshCompilingManagerImpl::EnsureInitializedCVars();
 
@@ -210,7 +208,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedStaticMeshCompilation, TEXT("AsyncCompilation/Qu
 void FStaticMeshCompilingManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedStaticMeshCompilation, GetNumRemainingMeshes());
-	Notification->Update(GetNumRemainingMeshes());
+	Notification.Update(GetNumRemainingMeshes());
 }
 
 void FStaticMeshCompilingManager::PostCompilation(TArrayView<UStaticMesh* const> InStaticMeshes)

@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Containers/Set.h"
 #include "Tickable.h"
 #include "Stats/Stats.h"
-#include "IAssetCompilingManager.h"
+#include "AssetCompilingManager.h"
+#include "AsyncCompilationHelpers.h"
 
 #if WITH_EDITOR
 
-class FAsyncCompilationNotification;
 class USkinnedAsset;
 class UPrimitiveComponent;
 class FQueuedThreadPool;
@@ -87,7 +88,7 @@ private:
 	
 	bool bHasShutdown = false;
 	TSet<TWeakObjectPtr<USkinnedAsset>> RegisteredSkinnedAsset;
-	TUniquePtr<FAsyncCompilationNotification> Notification;
+	FAsyncCompilationNotification Notification;
 	void FinishCompilationsForGame();
 	void Reschedule();
 	void ProcessSkinnedAssets(bool bLimitExecutionTime, int32 MinBatchSize = 1);
@@ -104,9 +105,3 @@ private:
 };
 
 #endif // #if WITH_EDITOR
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
-#include "CoreMinimal.h"
-#include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
-#endif

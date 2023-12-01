@@ -28,13 +28,13 @@
 #include "ImageCoreUtils.h"
 #include "Interfaces/ITextureFormat.h"
 #include "Serialization/BulkDataRegistry.h"
-#include "Serialization/MemoryReader.h"
 #include "TextureBuildUtilities.h"
 #include "TextureCompiler.h"
 #include "TextureDerivedDataBuildUtils.h"
 #include "TextureFormatManager.h"
 #include "VT/VirtualTextureChunkDDCCache.h"
 #include "VT/VirtualTextureDataBuilder.h"
+
 
 static TAutoConsoleVariable<int32> CVarVTValidateCompressionOnLoad(
 	TEXT("r.VT.ValidateCompressionOnLoad"),

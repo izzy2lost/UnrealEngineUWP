@@ -40,7 +40,6 @@
 #include "ProfilingDebugging/CookStats.h"
 #include "UObject/ArchiveCookContext.h"
 #include "VT/LightmapVirtualTexture.h"
-#include "Serialization/MemoryWriter.h"
 #include "TextureBuildUtilities.h"
 #include "TextureCompiler.h"
 #include "TextureCompressorModule.h"

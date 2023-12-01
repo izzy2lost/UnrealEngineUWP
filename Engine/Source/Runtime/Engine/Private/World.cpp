@@ -94,7 +94,6 @@
 	#include "PieFixupSerializer.h"
 	#include "ActorFolder.h"
 	#include "ActorDeferredScriptManager.h"
-	#include "AssetCompilingManager.h"
 #endif
 
 

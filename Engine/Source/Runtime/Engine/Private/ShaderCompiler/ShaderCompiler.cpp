@@ -5,8 +5,6 @@
 =============================================================================*/
 
 #include "ShaderCompiler.h"
-#include "AsyncCompilationHelpers.h"
-#include "AssetCompilingManager.h"
 #include "AnalyticsEventAttribute.h"
 #include "Async/ParallelFor.h"
 #include "ClearReplacementShaders.h"
@@ -47,7 +45,6 @@
 #include "SceneInterface.h"
 #include "SceneManagement.h"
 #include "Serialization/CompactBinaryWriter.h"
-#include "Serialization/MemoryReader.h"
 #include "Serialization/NameAsStringProxyArchive.h"
 #include "ShaderCodeLibrary.h"
 #include "ShaderPlatformCachedIniValue.h"
@@ -5429,7 +5426,7 @@ FShaderCompilingManager::FShaderCompilingManager() :
 	BuildDistributionController(nullptr),
 	bNoShaderCompilation(false),
 	bAllowForIncompleteShaderMaps(false),
-	Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
+	Notification(GetAssetNameFormat())
 {
 	// don't perform any initialization if compiling is not allowed
 	if (!AllowShaderCompiling())
@@ -7267,7 +7264,7 @@ void FShaderCompilingManager::UpdateNumRemainingAssets()
 			}
 
 			LastNumRemainingAssets = NumRemainingAssets;
-			Notification->Update(NumRemainingAssets);
+			Notification.Update(NumRemainingAssets);
 		}
 	}
 }
