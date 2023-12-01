@@ -886,7 +886,7 @@ EVisibility SMVVMViewModelPanel::GetWarningPanelVisibility() const
 	{
 		if (UMVVMBlueprintView* WidgetBlueprint = WeakBlueprintView.Get())
 		{
-			if (WidgetBlueprint->GetNumBindings() == 0 && WidgetBlueprint->GetViewModels().Num() != 0)
+			if (WidgetBlueprint->GetNumBindings() == 0 && WidgetBlueprint->GetEvents().Num() == 0 && WidgetBlueprint->GetViewModels().Num() != 0)
 			{
 				return EVisibility::Visible;
 			}
@@ -909,7 +909,7 @@ FText SMVVMViewModelPanel::GetWarningMessage() const
 		{
 			if (WidgetBlueprint->GetNumBindings() == 0 && WidgetBlueprint->GetViewModels().Num() != 0)
 			{
-				return LOCTEXT("NoBindingWarningDescription", "No view will be created for this widget because there are no bindings. Your viewmodels won't be initialized.");
+				return LOCTEXT("NoBindingWarningDescription", "No view will be created for this widget. There are no bindings and there are no events. Your viewmodels won't be initialized.");
 			}
 			if (!WidgetBlueprint->GetSettings()->bInitializeSourcesOnConstruct || !WidgetBlueprint->GetSettings()->bInitializeBindingsOnConstruct)
 			{

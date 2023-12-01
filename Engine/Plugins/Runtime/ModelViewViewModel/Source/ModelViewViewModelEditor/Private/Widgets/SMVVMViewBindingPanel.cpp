@@ -655,7 +655,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 				.AutoWidth()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("MissingViewModel", "This editor requires a viewmodel that widgets can bind to, would you like to create a viewmodel now?"))
+					.Text(LOCTEXT("MissingViewModel", "This editor requires a viewmodel that widgets can bind to, would you like to add a viewmodel now?"))
 				]
 				+ SHorizontalBox::Slot()
 				.Padding(0, 0, 20, 0)
@@ -666,7 +666,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 					.OnClicked(this, &SBindingsPanel::HandleCreateViewModelClicked)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("CreateViewModel", "Create Viewmodel"))
+						.Text(LOCTEXT("CreateViewModel", "Add Viewmodel"))
 					]
 				]
 			]
