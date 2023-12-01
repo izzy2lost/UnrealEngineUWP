@@ -7271,7 +7271,7 @@ void FRecastNavMeshGenerator::GrabDebugSnapshot(struct FVisualLogEntry* Snapshot
 							CoordBuffer.Add(Transform.TransformPosition(Recast2UnrealPoint(&CachedGeometry.Verts[VertIdx])));
 						}
 
-						Snapshot->AddElement(CoordBuffer, Indices, CategoryName, LogVerbosity, FColorList::LightGrey.WithAlpha(255));
+						Snapshot->AddMesh(CoordBuffer, Indices, CategoryName, LogVerbosity, FColorList::LightGrey.WithAlpha(255));
 					};
 
 					if (InstanceTransforms.Num() == 0)
@@ -7304,14 +7304,14 @@ void FRecastNavMeshGenerator::GrabDebugSnapshot(struct FVisualLogEntry* Snapshot
 							FBoxNavAreaData Box;
 							AreaMod.GetBox(Box);
 
-							Snapshot->AddElement(FBox::BuildAABB(Box.Origin, Box.Extent), FMatrix::Identity, CategoryName, NavAreaVerbosity, PolygonColor.WithAlpha(255));
+							Snapshot->AddBox(FBox::BuildAABB(Box.Origin, Box.Extent), FMatrix::Identity, CategoryName, NavAreaVerbosity, PolygonColor.WithAlpha(255));
 						}
 						else if (ShapeType == ENavigationShapeType::Cylinder)
 						{
 							FCylinderNavAreaData Cylinder;
 							AreaMod.GetCylinder(Cylinder);
 
-							Snapshot->AddElement(Cylinder.Origin, Cylinder.Origin + FVector(0, 0, Cylinder.Height), Cylinder.Radius, CategoryName, NavAreaVerbosity, PolygonColor.WithAlpha(255));
+							Snapshot->AddCylinder(Cylinder.Origin, Cylinder.Origin + FVector(0, 0, Cylinder.Height), Cylinder.Radius, CategoryName, NavAreaVerbosity, PolygonColor.WithAlpha(255));
 						}
 						else if (ShapeType == ENavigationShapeType::Convex || ShapeType == ENavigationShapeType::InstancedConvex)
 						{
@@ -7325,7 +7325,7 @@ void FRecastNavMeshGenerator::GrabDebugSnapshot(struct FVisualLogEntry* Snapshot
 								if (Verts.Num())
 								{
 									const float CellHeight = NavData->GetCellHeight(ENavigationDataResolution::Default);
-									Snapshot->AddElement(
+									Snapshot->AddPulledConvex(
 										Verts,
 										InConvexNavAreaData.MinZ - CellHeight,
 										InConvexNavAreaData.MaxZ + CellHeight,

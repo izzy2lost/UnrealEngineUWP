@@ -61,13 +61,6 @@ DEFINE_STAT(STAT_VisualLog);
 	SerializeFunc; \
 	FMemory::SystemFree(AllocatedBuffer);
 
-void FVisualLogger::CategorizedLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddText(Buffer, CategoryName, Verbosity);
-	);
-}
 void FVisualLogger::CategorizedLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
@@ -75,27 +68,13 @@ void FVisualLogger::CategorizedLogfImpl(const UObject* Object, const FName& Cate
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const FColor& Color, const uint16 Thickness, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Start, End, CategoryName, Verbosity, Color, Buffer, Thickness);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const FColor& Color, const uint16 Thickness, const TCHAR* Fmt, ...)
+void FVisualLogger::SegmentLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const FColor& Color, const uint16 Thickness, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Start, End, CategoryName, Verbosity, Color, Buffer, Thickness);
+		CurrentEntry->AddSegment(Start, End, CategoryName, Verbosity, Color, Buffer, Thickness);
 	);
 }
 
-void FVisualLogger::ArrowLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName();
-	COLLAPSED_LOGF(
-		CurrentEntry->AddArrow(Start, End, CategoryName, Verbosity, Color, Buffer);
-	);
-}
 void FVisualLogger::ArrowLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const FColor& Color, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
@@ -103,13 +82,6 @@ void FVisualLogger::ArrowLogfImpl(const UObject* Object, const FName& CategoryNa
 	);
 }
 
-void FVisualLogger::CircleLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Center, const FVector& UpAxis, const float Radius, const FColor& Color, const uint16 Thickness, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName();
-	COLLAPSED_LOGF(
-		CurrentEntry->AddCircle(Center, UpAxis, Radius, CategoryName, Verbosity, Color, Buffer, Thickness);
-	);
-}
 void FVisualLogger::CircleLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Center, const FVector& UpAxis, const float Radius, const FColor& Color, const uint16 Thickness, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
@@ -117,125 +89,69 @@ void FVisualLogger::CircleLogfImpl(const UObject* Object, const FName& CategoryN
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Location, float Radius, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Location, CategoryName, Verbosity, Color, Buffer, (uint16)Radius);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Location, float Radius, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::LocationLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Location, uint16 Thickness, const FColor& Color, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Location, CategoryName, Verbosity, Color, Buffer, (uint16)Radius);
+		CurrentEntry->AddLocation(Location, CategoryName, Verbosity, Color, Buffer, Thickness);
 	);
 }
 
-void FVisualLogger::GeometryBoxLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FBox& Box, const FMatrix& Matrix, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Box, Matrix, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::GeometryBoxLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FBox& Box, const FMatrix& Matrix, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::SphereLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Center, float Radius, const FColor& Color, bool bWireframe, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Box, Matrix, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddSphere(Center, Radius, CategoryName, Verbosity, Color, Buffer, bWireframe);
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Origin, const FVector& Direction, const float Length, const float Angle, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Origin, Direction, Length, Angle, Angle, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Origin, const FVector& Direction, const float Length, const float Angle, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::BoxLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FBox& Box, const FMatrix& Matrix, const FColor& Color, bool bWireframe, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Origin, Direction, Length, Angle, Angle, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddBox(Box, Matrix, CategoryName, Verbosity, Color, Buffer, /*Thickness = */0, bWireframe);
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const float Radius, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Start, End, Radius, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const float Radius, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::ConeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Origin, const FVector& Direction, const float Length, const float Angle, const FColor& Color, bool bWireframe, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Start, End, Radius, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddCone(Origin, Direction, Length, Angle, Angle, CategoryName, Verbosity, Color, Buffer, /*Thickness = */0, bWireframe);
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const FVector& Base, float HalfHeight, float Radius, const FQuat& Rotation, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Base, HalfHeight, Radius, Rotation, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Base, float HalfHeight, float Radius, const FQuat& Rotation, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::CylinderLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Start, const FVector& End, const float Radius, const FColor& Color, bool bWireframe, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Base, HalfHeight, Radius, Rotation, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddCylinder(Start, End, Radius, CategoryName, Verbosity, Color, Buffer, /*Thickness = */0, bWireframe);
 	);
 }
 
-void FVisualLogger::NavAreaShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const TArray<FVector>& ConvexPoints, float MinZ, float MaxZ, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(ConvexPoints, MinZ, MaxZ, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::NavAreaShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& ConvexPoints, float MinZ, float MaxZ, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::CapsuleLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const FVector& Base, float HalfHeight, float Radius, const FQuat& Rotation, const FColor& Color, bool bWireframe, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(ConvexPoints, MinZ, MaxZ, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddCapsule(Base, HalfHeight, Radius, Rotation, CategoryName, Verbosity, Color, Buffer, bWireframe);
 	);
 }
 
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const TArray<FVector>& Vertices, const TArray<int32>& Indices, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Vertices, Indices, CategoryName, Verbosity, Color, Buffer);
-	);
-}
-void FVisualLogger::GeometryShapeLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& Vertices, const TArray<int32>& Indices, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::PulledConvexLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& ConvexPoints, float MinZ, float MaxZ, const FColor& Color, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
-		CurrentEntry->AddElement(Vertices, Indices, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddPulledConvex(ConvexPoints, MinZ, MaxZ, CategoryName, Verbosity, Color, Buffer);
 	);
 }
 
-void FVisualLogger::GeometryConvexLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, const TArray<FVector>& Points, const FColor& Color, const TCHAR* Fmt, ...)
+void FVisualLogger::MeshLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& Vertices, const TArray<int32>& Indices, const FColor& Color, const TCHAR* Fmt, ...)
 {
-	const FName CategoryName = Category.GetCategoryName(); 
 	COLLAPSED_LOGF(
-		CurrentEntry->AddConvexElement(Points, CategoryName, Verbosity, Color, Buffer);
+		CurrentEntry->AddMesh(Vertices, Indices, CategoryName, Verbosity, Color, Buffer);
 	);
 }
-void FVisualLogger::GeometryConvexLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& Points, const FColor& Color, const TCHAR* Fmt, ...)
+
+void FVisualLogger::ConvexLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, const TArray<FVector>& Points, const FColor& Color, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(
 		CurrentEntry->AddConvexElement(Points, CategoryName, Verbosity, Color, Buffer);
 	);
 }
 
-void FVisualLogger::HistogramDataLogfImpl(const UObject* Object, const FLogCategoryBase& Category, ELogVerbosity::Type Verbosity, FName GraphName, FName DataName, const FVector2D& Data, const FColor& Color, const TCHAR* Fmt, ...)
-{
-	const FName CategoryName = Category.GetCategoryName(); 
-	COLLAPSED_LOGF(
-		CurrentEntry->AddHistogramData(Data, CategoryName, Verbosity, GraphName, DataName);
-	);
-}
 void FVisualLogger::HistogramDataLogfImpl(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, FName GraphName, FName DataName, const FVector2D& Data, const FColor& Color, const TCHAR* Fmt, ...)
 {
 	COLLAPSED_LOGF(

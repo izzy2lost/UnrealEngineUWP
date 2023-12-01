@@ -73,7 +73,7 @@ public:
 			const FVector Direction = Transform.GetRotation().GetForwardVector();
 			if (SlotShape == ESmartObjectSlotShape::Circle)
 			{
-				Cylinders.Emplace(DebugPosition, SlotSize, DebugCylinderHalfHeight, DebugColor);
+				Cylinders.Emplace(DebugPosition, FVector::UpVector, SlotSize, DebugCylinderHalfHeight, DebugColor);
 			}
 			else if (SlotShape == ESmartObjectSlotShape::Rectangle)
 			{

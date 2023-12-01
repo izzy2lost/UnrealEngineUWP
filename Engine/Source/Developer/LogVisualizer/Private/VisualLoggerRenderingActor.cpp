@@ -182,7 +182,7 @@ void AVisualLoggerRenderingActor::AddDebugRendering()
 		const FVector End = FVector(700, 0, 128+300);
 		const float Radius = 200;
 		const float HalfHeight = 150;
-		TestDebugShapes.Cylinders.Add(FDebugRenderSceneProxy::FWireCylinder(Start + FVector(0, 0, HalfHeight), Radius, HalfHeight, FColor::Magenta));
+		TestDebugShapes.Cylinders.Add(FDebugRenderSceneProxy::FWireCylinder(Start + FVector(0, 0, HalfHeight), (End - Start).GetSafeNormal(), Radius, HalfHeight, FColor::Magenta));
 	}
 
 	{

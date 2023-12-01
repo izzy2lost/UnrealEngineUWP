@@ -117,7 +117,6 @@ void DrawTriangle(class FPrimitiveDrawInterface* PDI, const FVector& A, const FV
 	PDI->DrawLine(B, C, FColor::Yellow, DepthPriorityGroup, 1.f);
 }
 
-
 void GetBoxMesh(const FMatrix& BoxToWorld,const FVector& Radii,const FMaterialRenderProxy* MaterialRenderProxy,uint8 DepthPriorityGroup,int32 ViewIndex,FMeshElementCollector& Collector, HHitProxy* HitProxy)
 {
 	// Calculate verts for a face pointing down Z
@@ -130,45 +129,45 @@ void GetBoxMesh(const FMatrix& BoxToWorld,const FVector& Radii,const FMaterialRe
 	};
 	FVector2f UVs[4] =
 	{
-		FVector2f(0,0),
-		FVector2f(0,1),
-		FVector2f(1,1),
-		FVector2f(1,0),
+		FVector2f(0, 0),
+		FVector2f(0, 1),
+		FVector2f(1, 1),
+		FVector2f(1, 0),
 	};
 
 	// Then rotate this face 6 times
 	FRotator3f FaceRotations[6];
 	FaceRotations[0] = FRotator3f(0,		0,	0);
-	FaceRotations[1] = FRotator3f(90.f,	0,	0);
-	FaceRotations[2] = FRotator3f(-90.f,	0,  0);
+	FaceRotations[1] = FRotator3f(90.f,		0,	0);
+	FaceRotations[2] = FRotator3f(-90.f,	0,	0);
 	FaceRotations[3] = FRotator3f(0,		0,	90.f);
 	FaceRotations[4] = FRotator3f(0,		0,	-90.f);
 	FaceRotations[5] = FRotator3f(180.f,	0,	0);
 
 	FDynamicMeshBuilder MeshBuilder(Collector.GetFeatureLevel());
 
-	for(int32 f=0; f<6; f++)
+	for (int32 f = 0; f < 6; f++)
 	{
-		FMatrix44f FaceTransform = FRotationMatrix44f(FaceRotations[f]);
+		FMatrix44f FaceTransform = FRotationMatrix44f(FaceRotations[f]) * FScaleMatrix44f(FVector3f(Radii));
 
 		int32 VertexIndices[4];
-		for(int32 VertexIndex = 0;VertexIndex < 4;VertexIndex++)
+		for (int32 VertexIndex = 0; VertexIndex < 4; VertexIndex++)
 		{
 			VertexIndices[VertexIndex] = MeshBuilder.AddVertex(
 				FaceTransform.TransformPosition( Positions[VertexIndex] ),
 				UVs[VertexIndex],
-				FaceTransform.TransformVector(FVector3f(1,0,0)),
-				FaceTransform.TransformVector(FVector3f(0,1,0)),
-				FaceTransform.TransformVector(FVector3f(0,0,1)),
+				FaceTransform.TransformVector(FVector3f(1, 0, 0)),
+				FaceTransform.TransformVector(FVector3f(0, 1, 0)),
+				FaceTransform.TransformVector(FVector3f(0, 0, 1)),
 				FColor::White
 				);
 		}
 
-		MeshBuilder.AddTriangle(VertexIndices[0],VertexIndices[1],VertexIndices[2]);
-		MeshBuilder.AddTriangle(VertexIndices[0],VertexIndices[2],VertexIndices[3]);
+		MeshBuilder.AddTriangle(VertexIndices[0], VertexIndices[1], VertexIndices[2]);
+		MeshBuilder.AddTriangle(VertexIndices[0], VertexIndices[2], VertexIndices[3]);
 	}
 
-	MeshBuilder.GetMesh(FScaleMatrix(Radii) * BoxToWorld,MaterialRenderProxy,DepthPriorityGroup,false,false,true,ViewIndex,Collector,HitProxy);
+	MeshBuilder.GetMesh(BoxToWorld, MaterialRenderProxy, DepthPriorityGroup, false, false, true, ViewIndex, Collector, HitProxy);
 }
 
 void DrawBox(FPrimitiveDrawInterface* PDI,const FMatrix& BoxToWorld,const FVector& Radii,const FMaterialRenderProxy* MaterialRenderProxy,uint8 DepthPriorityGroup)
@@ -183,16 +182,16 @@ void DrawBox(FPrimitiveDrawInterface* PDI,const FMatrix& BoxToWorld,const FVecto
 	};
 	FVector2f UVs[4] =
 	{
-		FVector2f(0,0),
-		FVector2f(0,1),
-		FVector2f(1,1),
-		FVector2f(1,0),
+		FVector2f(0, 0),
+		FVector2f(0, 1),
+		FVector2f(1, 1),
+		FVector2f(1, 0),
 	};
 
 	// Then rotate this face 6 times
 	FRotator3f FaceRotations[6];
 	FaceRotations[0] = FRotator3f(0,		0,	0);
-	FaceRotations[1] = FRotator3f(90.f,	0,	0);
+	FaceRotations[1] = FRotator3f(90.f,		0,	0);
 	FaceRotations[2] = FRotator3f(-90.f,	0,  0);
 	FaceRotations[3] = FRotator3f(0,		0,	90.f);
 	FaceRotations[4] = FRotator3f(0,		0,	-90.f);
@@ -200,28 +199,27 @@ void DrawBox(FPrimitiveDrawInterface* PDI,const FMatrix& BoxToWorld,const FVecto
 
 	FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
 
-	for(int32 f=0; f<6; f++)
+	for(int32 f = 0; f < 6; f++)
 	{
-		FMatrix44f FaceTransform = FRotationMatrix44f(FaceRotations[f]);
+		FMatrix44f FaceTransform = FRotationMatrix44f(FaceRotations[f]) * FScaleMatrix44f(FVector3f(Radii));
 
 		int32 VertexIndices[4];
-		for(int32 VertexIndex = 0;VertexIndex < 4;VertexIndex++)
+		for (int32 VertexIndex = 0; VertexIndex < 4; VertexIndex++)
 		{
 			VertexIndices[VertexIndex] = MeshBuilder.AddVertex(
 				FaceTransform.TransformPosition( Positions[VertexIndex] ),
 				UVs[VertexIndex],
-				FaceTransform.TransformVector(FVector3f(1,0,0)),
-				FaceTransform.TransformVector(FVector3f(0,1,0)),
-				FaceTransform.TransformVector(FVector3f(0,0,1)),
-				FColor::White
-				);
+				FaceTransform.TransformVector(FVector3f(1, 0, 0)),
+				FaceTransform.TransformVector(FVector3f(0, 1, 0)),
+				FaceTransform.TransformVector(FVector3f(0, 0, 1)),
+				FColor::White);
 		}
 
-		MeshBuilder.AddTriangle(VertexIndices[0],VertexIndices[1],VertexIndices[2]);
-		MeshBuilder.AddTriangle(VertexIndices[0],VertexIndices[2],VertexIndices[3]);
+		MeshBuilder.AddTriangle(VertexIndices[0], VertexIndices[1], VertexIndices[2]);
+		MeshBuilder.AddTriangle(VertexIndices[0], VertexIndices[2], VertexIndices[3]);
 	}
 
-	MeshBuilder.Draw(PDI,FScaleMatrix(Radii) * BoxToWorld,MaterialRenderProxy,DepthPriorityGroup,0.f);
+	MeshBuilder.Draw(PDI, BoxToWorld, MaterialRenderProxy, DepthPriorityGroup, 0.f);
 }
 
 void GetOrientedHalfSphereMesh(const FVector& Center, const FRotator& Orientation, const FVector& Radii, int32 NumSides, int32 NumRings, float StartAngle, float EndAngle, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriority,

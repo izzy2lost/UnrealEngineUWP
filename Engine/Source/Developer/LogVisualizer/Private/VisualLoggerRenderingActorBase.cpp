@@ -200,10 +200,20 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 
 		const FVector3f CorridorOffset = (FVector3f)FDebugDrawing::NavOffset * 1.25f;
 		const FColor Color = ElementToDraw->GetFColor();
+		const EVisualLoggerShapeElement ElementType = ElementToDraw->GetType();
+		// The wire elements force the draw type : 
+		const FDebugRenderSceneProxy::EDrawType DrawTypeOverride = (
+			(ElementType == EVisualLoggerShapeElement::WireBox) 
+			|| (ElementType == EVisualLoggerShapeElement::WireSphere)
+			|| (ElementType == EVisualLoggerShapeElement::WireCapsule)
+			|| (ElementType == EVisualLoggerShapeElement::WireCone)
+			|| (ElementType == EVisualLoggerShapeElement::WireCylinder)) ? FDebugRenderSceneProxy::EDrawType::WireMesh : FDebugRenderSceneProxy::EDrawType::Invalid;
 
-		switch (ElementToDraw->GetType())
+		switch (ElementType)
 		{
 		case EVisualLoggerShapeElement::SinglePoint:
+		case EVisualLoggerShapeElement::Sphere:
+		case EVisualLoggerShapeElement::WireSphere:
 		{
 			const float Radius = float(ElementToDraw->Radius);
 			const bool bDrawLabel = (ElementToDraw->Description.IsEmpty() == false);
@@ -212,11 +222,11 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 			for (int32 Index = 0; Index < NumPoints; ++Index)
 			{
 				const FVector& Point = ElementToDraw->Points[Index];
-				DebugShapes.Points.Add(FDebugRenderSceneProxy::FSphere(Radius, Point, Color));
+				DebugShapes.Points.Add(FDebugRenderSceneProxy::FSphere(Radius, Point, Color, DrawTypeOverride));
 				if (bDrawLabel)
 				{
 					const FString PrintString = NumPoints == 1 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index);
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Point, Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Point, Color.WithAlpha(255)));
 				}
 			}
 		}
@@ -283,7 +293,7 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 				if (bDrawLabel)
 				{
 					const FString PrintString = NumPoints == 2 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index / 2);
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, (*Location + (*(Location + 1) - *Location) / 2), Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, (*Location + (*(Location + 1) - *Location) / 2), Color.WithAlpha(255)));
 				}
 			}
 		}
@@ -301,6 +311,7 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 		}
 			break;
 		case EVisualLoggerShapeElement::Box:
+		case EVisualLoggerShapeElement::WireBox:
 		{
 			const float Thickness = float(ElementToDraw->Thicknes);
 			const bool bDrawLabel = (ElementToDraw->Description.IsEmpty() == false);
@@ -311,17 +322,18 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 			for (int32 Index = 0; Index + 1 < NumPoints; Index += 2, BoxExtent += 2)
 			{
 				const FBox Box = FBox(*BoxExtent, *(BoxExtent + 1));
-				DebugShapes.Boxes.Add(FDebugRenderSceneProxy::FDebugBox(Box, Color, Transform));
+				DebugShapes.Boxes.Add(FDebugRenderSceneProxy::FDebugBox(Box, Color, Transform, DrawTypeOverride));
 
 				if (bDrawLabel)
 				{
 					const FString PrintString = NumPoints == 2 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index / 2);
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Transform.TransformPosition(Box.GetCenter()), Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Transform.TransformPosition(Box.GetCenter()), Color.WithAlpha(255)));
 				}
 			}
 		}
 			break;
 		case EVisualLoggerShapeElement::Cone:
+		case EVisualLoggerShapeElement::WireCone:
 		{
 			const float Thickness = float(ElementToDraw->Thicknes);
 			const bool bDrawLabel = ElementToDraw->Description.IsEmpty() == false;
@@ -334,16 +346,17 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 
 				FVector YAxis, ZAxis;
 				Direction.FindBestAxisVectors(YAxis, ZAxis);
-				DebugShapes.Cones.Add(FDebugRenderSceneProxy::FCone(FScaleMatrix(FVector(Length)) * FMatrix(Direction, YAxis, ZAxis, Origin), static_cast<float>(Angles.Y), static_cast<float>(Angles.Z), Color));
+				DebugShapes.Cones.Add(FDebugRenderSceneProxy::FCone(FScaleMatrix(FVector(Length)) * FMatrix(Direction, YAxis, ZAxis, Origin), static_cast<float>(Angles.Y), static_cast<float>(Angles.Z), Color, DrawTypeOverride));
 
 				if (bDrawLabel)
 				{
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Origin, Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Origin, Color.WithAlpha(255)));
 				}
 			}
 		}
 			break;
 		case EVisualLoggerShapeElement::Cylinder:
+		case EVisualLoggerShapeElement::WireCylinder:
 		{
 			const float Thickness = float(ElementToDraw->Thicknes);
 			const bool bDrawLabel = ElementToDraw->Description.IsEmpty() == false;
@@ -355,16 +368,18 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 				const float HalfHeight = FloatCastChecked<float>(0.5 * (End - Start).Size(), UE::LWC::DefaultFloatPrecision);
 				const FVector Center = 0.5 * (Start + End);
 				DebugShapes.Cylinders.Add(FDebugRenderSceneProxy::FWireCylinder(Center
+					, (End - Start).GetSafeNormal()
 					, static_cast<float>(OtherData.X)
-					, HalfHeight, Color)); // Base parameter is the center of the cylinder
+					, HalfHeight, Color, DrawTypeOverride)); // Base parameter is the center of the cylinder
 				if (bDrawLabel)
 				{
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Center, Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Center, Color.WithAlpha(255)));
 				}
 			}
 		}
 			break;
 		case EVisualLoggerShapeElement::Capsule:
+		case EVisualLoggerShapeElement::WireCapsule:
 		{
 			const float Thickness = float(ElementToDraw->Thicknes);
 			const bool bDrawLabel = ElementToDraw->Description.IsEmpty() == false;
@@ -382,10 +397,10 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 				const FVector YAxis = Axes.GetScaledAxis(EAxis::Y);
 				const FVector ZAxis = Axes.GetScaledAxis(EAxis::Z);
 
-				DebugShapes.Capsules.Add(FDebugRenderSceneProxy::FCapsule(Base, Radius, XAxis, YAxis, ZAxis, HalfHeight, Color));
+				DebugShapes.Capsules.Add(FDebugRenderSceneProxy::FCapsule(Base, Radius, XAxis, YAxis, ZAxis, HalfHeight, Color, DrawTypeOverride));
 				if (bDrawLabel)
 				{
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Base + HalfHeight * FVector::UpVector, Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(ElementToDraw->Description, Base + HalfHeight * FVector::UpVector, Color.WithAlpha(255)));
 				}
 			}
 		}
@@ -481,7 +496,7 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 				if (bDrawLabel)
 				{
 					const FString PrintString = NumPoints == 2 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index / 2);
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, (*Location + (*(Location + 1) - *Location) / 2), Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, (*Location + (*(Location + 1) - *Location) / 2), Color.WithAlpha(255)));
 				}
 			}
 		}
@@ -519,7 +534,7 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 				if (bDrawLabel)
 				{
 					const FString PrintString = NumPoints == 3 ? ElementToDraw->Description : FString::Printf(TEXT("%s_%d"), *ElementToDraw->Description, Index / 3);
-					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Center, Color));
+					DebugShapes.Texts.Add(FDebugRenderSceneProxy::FText3d(PrintString, Center, Color.WithAlpha(255)));
 				}
 			}
 		}
@@ -533,4 +548,3 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 		}
 	}
 }
-
