@@ -16,7 +16,6 @@ FMVVMBlueprintPin::FMVVMBlueprintPin(FName InPinName)
 FMVVMBlueprintPin FMVVMBlueprintPin::CreateFromPin(const UBlueprint* Blueprint, const UEdGraphPin* Pin)
 {
 	FMVVMBlueprintPin Result;
-	Result.PinId = Pin->PinId;
 	Result.PinName = Pin->PinName;
 	Result.Path = UE::MVVM::ConversionFunctionHelper::GetPropertyPathForPin(Blueprint, Pin, true);
 	Result.DefaultObject = Pin->DefaultObject;
@@ -111,7 +110,7 @@ void FMVVMBlueprintPin::CopyTo(const UBlueprint* Blueprint, UEdGraphNode* Node) 
 	Status = EMVVMBlueprintPinStatus::Orphaned;
 	if (UEdGraphPin* GraphPin = FindGraphPin(Node))
 	{
-		if (IsInputPin(GraphPin) && !GraphPin->bOrphanedPin)
+		if (IsInputPin(GraphPin))
 		{
 			Status = EMVVMBlueprintPinStatus::Valid;
 			if (bSplit && GraphPin->SubPins.Num() == 0 && GetDefault<UEdGraphSchema_K2>()->CanSplitStructPin(*GraphPin))
@@ -133,7 +132,7 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CreateFromNode(UBlueprint* Blueprin
 	Result.Reserve(GraphNode->Pins.Num());
 	for (const UEdGraphPin* GraphPin : GraphNode->Pins)
 	{
-		if (IsInputPin(GraphPin))
+		if (IsInputPin(GraphPin) && !GraphPin->bOrphanedPin)
 		{
 			Result.Add(FMVVMBlueprintPin::CreateFromPin(Blueprint, GraphPin));
 		}
@@ -143,16 +142,11 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CreateFromNode(UBlueprint* Blueprin
 
 UEdGraphPin* FMVVMBlueprintPin::FindGraphPin(UEdGraphNode* Node) const
 {
-	if (PinId.IsValid())
-	{
-		return Node->FindPinById(PinId);
-	}
 	return Node->FindPin(PinName, EGPD_Input);
 }
 
 void FMVVMBlueprintPin::Reset()
 {
-	PinId.Invalidate();
 	Path = FMVVMBlueprintPropertyPath();
 	DefaultString.Empty();
 	DefaultText = FText();

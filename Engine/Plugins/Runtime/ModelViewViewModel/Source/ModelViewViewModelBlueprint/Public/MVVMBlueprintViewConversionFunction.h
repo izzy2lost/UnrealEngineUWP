@@ -108,6 +108,10 @@ public:
 
 	/** Generates SavedPins from the wrapper graph, if it exists. */
 	void SavePinValues(UBlueprint* Blueprint);
+	/** Keep the orphaned pins. Add the missing pins. */
+	void UpdatePinValues(UBlueprint* Blueprint);
+	/** Keep the orphaned pins. Add the missing pins. */
+	bool HasOrphanedPin() const;
 
 	FSimpleMulticastDelegate OnWrapperGraphModified;
 

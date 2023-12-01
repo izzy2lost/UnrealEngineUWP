@@ -87,6 +87,10 @@ public:
 
 	/** Generates SavedPins from the wrapper graph, if it exists. */
 	void SavePinValues();
+	/** Keep the orphaned pins. Add the missing pins. */
+	void UpdatePinValues();
+	/** Keep the orphaned pins. Add the missing pins. */
+	bool HasOrphanedPin() const;
 
 	UEdGraphPin* GetOrCreateGraphPin(FName PinName);
 

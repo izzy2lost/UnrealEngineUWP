@@ -562,7 +562,7 @@ namespace Private
 		/**
 		 * 1 when the path is ObjectA.StructB.StructC.PropertyD
 		 * 2 when the path is ObjectA.StructB.ObjectC.PropertyD
-		 * Can't be INDEX_NONE if self is the container.
+		 * Can be INDEX_NONE if self is the container.
 		 */
 		int32 LocalContainerPathIndex = INDEX_NONE;
 	};
@@ -762,8 +762,8 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 
 	// Create the wrapper setter node
 	{
-		check(Fields.IsValidIndex(CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex));
 		int32 WrapperFieldIndex = CanCreateSetterGraphResult.GetValue().bSplitPin ? CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex : (CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex + 1);
+		check(Fields.IsValidIndex(WrapperFieldIndex));
 		const FMVVMConstFieldVariant& WrapperField = Fields[WrapperFieldIndex];
 
 		if (WrapperField.IsProperty())

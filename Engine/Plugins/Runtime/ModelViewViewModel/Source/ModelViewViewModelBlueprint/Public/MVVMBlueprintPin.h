@@ -30,9 +30,6 @@ struct MODELVIEWVIEWMODELBLUEPRINT_API FMVVMBlueprintPin
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	FGuid PinId;
-
-	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
 	FName PinName;
 
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")

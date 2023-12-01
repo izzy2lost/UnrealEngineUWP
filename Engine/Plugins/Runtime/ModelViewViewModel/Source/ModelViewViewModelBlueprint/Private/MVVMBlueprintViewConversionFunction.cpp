@@ -428,10 +428,33 @@ void UMVVMBlueprintViewConversionFunction::SetGraphPin(UBlueprint* Blueprint, FN
 
 void UMVVMBlueprintViewConversionFunction::SavePinValues(UBlueprint* Blueprint)
 {
+	SavedPins.Empty();
 	if (CachedWrapperNode)
 	{
 		SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
 	}
+}
+
+void UMVVMBlueprintViewConversionFunction::UpdatePinValues(UBlueprint* Blueprint)
+{
+	if (CachedWrapperNode)
+	{
+		TArray<FMVVMBlueprintPin> TmpSavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		SavedPins.RemoveAll([](const FMVVMBlueprintPin& Pin) { return Pin.GetStatus() != EMVVMBlueprintPinStatus::Orphaned; });
+		SavedPins.Append(TmpSavedPins);
+	}
+}
+
+bool UMVVMBlueprintViewConversionFunction::HasOrphanedPin() const
+{
+	for (const FMVVMBlueprintPin& Pin : SavedPins)
+	{
+		if (Pin.GetStatus() == EMVVMBlueprintPinStatus::Orphaned)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UMVVMBlueprintViewConversionFunction::LoadPinValuesInternal(UBlueprint* Blueprint)

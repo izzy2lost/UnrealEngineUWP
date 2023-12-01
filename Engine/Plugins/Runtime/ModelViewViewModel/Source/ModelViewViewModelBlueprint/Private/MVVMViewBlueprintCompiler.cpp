@@ -972,7 +972,15 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 				bIsCreateFunctionsStepValid = false;
 				continue;
 			}
-			ConversionFunction->SavePinValues(WidgetBlueprintCompilerContext.WidgetBlueprint());
+
+			ConversionFunction->UpdatePinValues(WidgetBlueprintCompilerContext.WidgetBlueprint());
+
+			if (ConversionFunction->HasOrphanedPin())
+			{
+				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunctionGraphOrphaned", "The conversion function has an orphaned pin."), EMessageType::Warning, FName());
+				bIsCreateFunctionsStepValid = false;
+				continue;
+			}
 
 			if (ConversionFunction->GetPins().Num() == 0)
 			{
@@ -1024,7 +1032,15 @@ void FMVVMViewBlueprintCompiler::CategorizeEvents(const FWidgetBlueprintCompiler
 			bIsCreateFunctionsStepValid = false;
 			continue;
 		}
-		EventPtr->SavePinValues();
+
+		EventPtr->UpdatePinValues();
+
+		if (EventPtr->HasOrphanedPin())
+		{
+			AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventGraphOrphaned", "The event has an orphaned pin."), EMessageType::Warning, FName());
+			bIsCreateFunctionsStepValid = false;
+			continue;
+		}
 
 		Event->Type = FCompilerEvent::EType::Valid;
 	}

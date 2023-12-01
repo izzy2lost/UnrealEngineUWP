@@ -125,11 +125,35 @@ UEdGraphPin* UMVVMBlueprintViewEvent::GetOrCreateGraphPin(FName PinName)
 
 void UMVVMBlueprintViewEvent::SavePinValues()
 {
+	SavedPins.Empty();
 	if (CachedWrapperNode)
 	{
 		UWidgetBlueprint* Blueprint = GetWidgetBlueprintInternal();
 		SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
 	}
+}
+
+void UMVVMBlueprintViewEvent::UpdatePinValues()
+{
+	if (CachedWrapperNode)
+	{
+		UWidgetBlueprint* Blueprint = GetWidgetBlueprintInternal();
+		TArray<FMVVMBlueprintPin> TmpSavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		SavedPins.RemoveAll([](const FMVVMBlueprintPin& Pin){ return Pin.GetStatus() != EMVVMBlueprintPinStatus::Orphaned; });
+		SavedPins.Append(TmpSavedPins);
+	}
+}
+
+bool UMVVMBlueprintViewEvent::HasOrphanedPin() const
+{
+	for (const FMVVMBlueprintPin& Pin : SavedPins)
+	{
+		if (Pin.GetStatus() == EMVVMBlueprintPinStatus::Orphaned)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 FMVVMBlueprintPropertyPath UMVVMBlueprintViewEvent::GetPinPath(FName PinName) const
