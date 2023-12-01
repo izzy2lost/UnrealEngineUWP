@@ -55,6 +55,12 @@ public:
 	const static FString ToggleConstructionViewWireframeIdentifier;
 	TSharedPtr<FUICommandInfo> ToggleConstructionViewWireframe;
 
+	const static FString ToggleConstructionViewSeamsIdentifier;
+	TSharedPtr<FUICommandInfo> ToggleConstructionViewSeams;
+
+	const static FString ToggleConstructionViewSeamsCollapseIdentifier;
+	TSharedPtr<FUICommandInfo> ToggleConstructionViewSeamsCollapse;
+
 	TSharedPtr<FUICommandInfo> SetConstructionMode2D;
 	TSharedPtr<FUICommandInfo> SetConstructionMode3D;
 	TSharedPtr<FUICommandInfo> SetConstructionModeRender;

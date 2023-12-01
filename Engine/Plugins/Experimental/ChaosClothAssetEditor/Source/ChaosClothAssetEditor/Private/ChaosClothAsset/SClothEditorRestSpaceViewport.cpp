@@ -139,7 +139,11 @@ void SChaosClothAssetEditorRestSpaceViewport::BindCommands()
 		}),
 		FCanExecuteAction::CreateLambda([this]() 
 		{ 
-			return true; 
+			if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				return ClothEdMode->CanSetConstructionViewWireframeActive();
+			}
+			return false;
 		}),
 		FIsActionChecked::CreateLambda([this]() 
 		{
@@ -150,6 +154,57 @@ void SChaosClothAssetEditorRestSpaceViewport::BindCommands()
 			return false;
 		}));
 
+	CommandList->MapAction(
+		CommandInfos.ToggleConstructionViewSeams,
+		FExecuteAction::CreateLambda([this]()
+		{
+			if (UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				ClothEdMode->ToggleConstructionViewSeams();
+			}
+		}),
+		FCanExecuteAction::CreateLambda([this]()
+		{
+			if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				return ClothEdMode->CanSetConstructionViewSeamsActive();
+			}
+			return false;
+		}),
+		FIsActionChecked::CreateLambda([this]()
+		{
+			if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				return ClothEdMode->IsConstructionViewSeamsActive();
+			}
+			return false;
+		}));
+
+	CommandList->MapAction(
+		CommandInfos.ToggleConstructionViewSeamsCollapse,
+		FExecuteAction::CreateLambda([this]()
+		{
+			if (UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				ClothEdMode->ToggleConstructionViewSeamsCollapse();
+			}
+		}),
+		FCanExecuteAction::CreateLambda([this]()
+		{
+			if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				return ClothEdMode->CanSetConstructionViewSeamsCollapse();
+			}
+			return false;
+		}),
+		FIsActionChecked::CreateLambda([this]()
+		{
+			if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+			{
+				return ClothEdMode->IsConstructionViewSeamsCollapseActive();
+			}
+			return false;
+		}));
 
 }
 

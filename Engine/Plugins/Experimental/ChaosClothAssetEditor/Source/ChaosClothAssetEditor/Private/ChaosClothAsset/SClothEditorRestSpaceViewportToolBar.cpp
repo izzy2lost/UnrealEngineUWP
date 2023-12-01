@@ -66,6 +66,8 @@ void SChaosClothAssetEditorRestSpaceViewportToolBar::Construct(const FArguments&
 
 TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::GenerateClothRestSpaceViewportOptionsMenu()
 {
+	using namespace UE::Chaos::ClothAsset;
+
 	GetInfoProvider().OnFloatingButtonClicked();
 	TSharedRef<SEditorViewport> ViewportRef = GetInfoProvider().GetViewportWidget();
 
@@ -81,6 +83,16 @@ TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::GenerateClot
 				OptionsMenuBuilder.AddWidget(GenerateFOVMenu(), LOCTEXT("FOVAngle", "Field of View (H)"));
 			}
 			OptionsMenuBuilder.AddWidget(GenerateLightMenu(), LOCTEXT("LightIntensity", "Render Light Intensity"));
+
+			OptionsMenuBuilder.AddMenuEntry(FChaosClothAssetEditorCommands::Get().ToggleConstructionViewSeams, 
+				NAME_None, 
+				LOCTEXT("ShowSeamsLabel", "Show Seams"), 
+				LOCTEXT("ShowSeamsTooltip", "Display seam information (not available for non-manifold meshes)"));
+
+			OptionsMenuBuilder.AddMenuEntry(FChaosClothAssetEditorCommands::Get().ToggleConstructionViewSeamsCollapse, 
+				NAME_None, 
+				LOCTEXT("SeamsCollapseLabel", "Collapse Seam Lines"), 
+				LOCTEXT("SeamsCollapseTooltip", "Display a single line connecting each seam, rather than all stitches"));
 		}
 		OptionsMenuBuilder.EndSection();
 

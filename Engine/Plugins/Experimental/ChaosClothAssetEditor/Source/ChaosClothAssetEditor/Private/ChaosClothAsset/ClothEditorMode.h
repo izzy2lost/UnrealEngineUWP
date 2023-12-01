@@ -38,6 +38,7 @@ class FChaosClothEditorRestSpaceViewportClient;
 }
 class IChaosClothAssetEditorToolBuilder;
 class UEdGraphNode;
+class UPreviewGeometry;
 
 /**
  * The cloth editor mode is the mode used in the cloth asset editor. It holds most of the inter-tool state.
@@ -70,6 +71,20 @@ public:
 	bool IsConstructionViewWireframeActive() const
 	{
 		return bConstructionViewWireframe;
+	}
+
+	void ToggleConstructionViewSeams();
+	bool CanSetConstructionViewSeamsActive() const;
+	bool IsConstructionViewSeamsActive() const
+	{
+		return bConstructionViewSeamsVisible;
+	}
+
+	void ToggleConstructionViewSeamsCollapse();
+	bool CanSetConstructionViewSeamsCollapse() const;
+	bool IsConstructionViewSeamsCollapseActive() const
+	{
+		return bConstructionViewSeamsCollapse;
 	}
 
 	// Simulation controls
@@ -194,7 +209,11 @@ private:
 
 	// Rest space wireframe. They have to get ticked to be able to respond to setting changes. 
 	UPROPERTY()
-	TObjectPtr<UMeshElementsVisualizer> WireframeToTick = nullptr;
+	TObjectPtr<UMeshElementsVisualizer> WireframeDraw = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UPreviewGeometry> ClothSeamDraw = nullptr;
+
 
 	// Preview Scene, here largely for convenience to avoid having to pass it around functions. Owned by the ClothEditorToolkit.
 	UE::Chaos::ClothAsset::FChaosClothPreviewScene* PreviewScene = nullptr;
@@ -235,6 +254,11 @@ private:
 
 	bool bConstructionViewWireframe = false;
 	bool bShouldRestoreConstructionViewWireframe = false;
+
+	bool bConstructionViewSeamsVisible = false;
+	bool bShouldRestoreConstructionViewSeams = false;
+	bool bConstructionViewSeamsCollapse = false;
+	void InitializeSeamDraw();
 
 	// Create dynamic mesh components from the cloth component's rest space info
 	void ReinitializeDynamicMeshComponents();

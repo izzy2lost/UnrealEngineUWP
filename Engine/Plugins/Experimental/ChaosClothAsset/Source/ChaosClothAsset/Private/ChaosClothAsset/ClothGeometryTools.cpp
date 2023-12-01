@@ -957,4 +957,82 @@ namespace UE::Chaos::ClothAsset
 			Cloth.RemoveRenderPatterns(RenderPatternsToRemove);
 		}
 	}
+
+
+	void FClothGeometryTools::BuildConnectedSeams2D(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
+		int32 SeamIndex,
+		const UE::Geometry::FDynamicMesh3& Mesh,
+		TArray<TArray<FIntVector2>>& Seams)
+	{
+		using namespace UE::Geometry;
+
+		FNonManifoldMappingSupport NonManifold(Mesh);
+		checkf(!NonManifold.IsNonManifoldVertexInSource(), TEXT("Cloth source is non-manifold. Cannot use FDynamicMesh to build connected seams"));
+
+		const FCollectionClothConstFacade ClothFacade(ClothCollection);
+		const FCollectionClothSeamConstFacade SeamFacade = ClothFacade.GetSeam(SeamIndex);
+		
+		TArray<FIntVector2> InputStitches(SeamFacade.GetSeamStitch2DEndIndices());
+
+		while (InputStitches.Num() > 0)
+		{
+			TArray<FIntVector2> Seam;
+
+			const FIntVector2 FirstStitch = InputStitches.Last();
+			Seam.Add(FirstStitch);
+			InputStitches.RemoveAt(InputStitches.Num() - 1);
+
+			FIntVector2 CurrStitch = FirstStitch;
+			bool bFoundNextStitch = true;
+			bool bReverseSearch = false;
+			while (InputStitches.Num() > 0 && (bFoundNextStitch || !bReverseSearch))
+			{
+				bFoundNextStitch = false;
+
+				for (int32 TestStitchIndex = 0; TestStitchIndex < InputStitches.Num(); ++TestStitchIndex)
+				{
+					FIntVector2 TestStitch = InputStitches[TestStitchIndex];
+
+					// Stitch (A, B) is connected to stitch (C, D) if there exist edges {(A, C), (B, D)} *or* {(A, D), (B, C)} in the given DynamicMesh.
+
+					const int32 A = CurrStitch[0];
+					const int32 B = CurrStitch[1];
+					const int32 C = TestStitch[0];
+					const int32 D = TestStitch[1];
+
+					if (Mesh.FindEdge(A, C) != FDynamicMesh3::InvalidID && Mesh.FindEdge(B, D) != FDynamicMesh3::InvalidID)
+					{
+						Seam.Add(TestStitch);
+						bFoundNextStitch = true;
+					}
+					else if (Mesh.FindEdge(A, D) != FDynamicMesh3::InvalidID && Mesh.FindEdge(B, C) != FDynamicMesh3::InvalidID)
+					{
+						Swap(TestStitch[0], TestStitch[1]);
+						Seam.Add(TestStitch);
+						bFoundNextStitch = true;
+					}
+
+					if (bFoundNextStitch)
+					{
+						InputStitches.RemoveAt(TestStitchIndex);
+						CurrStitch = TestStitch;
+						break;
+					}
+
+				}
+
+				if (!bFoundNextStitch && !bReverseSearch)
+				{
+					Algo::Reverse(Seam);
+					bReverseSearch = true;
+					bFoundNextStitch = true;
+					CurrStitch = FirstStitch;
+				}
+			}
+
+			// Finished one connected set of seam edges
+			Seams.Add(Seam);
+		}
+	}
+
 }  // End namespace UE::Chaos::ClothAsset

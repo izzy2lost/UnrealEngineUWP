@@ -65,5 +65,16 @@ namespace UE::Chaos::ClothAsset
 		* Remove any empty patterns.
 		*/
 		static void CleanupAndCompactMesh(const TSharedRef<FManagedArrayCollection>& ClothCollection);
+
+		/**
+		* Find sets of connected stitches for the given seam.
+		* Stitch (A, B) is connected to stitch (C, D) if there exist edges {(A, C), (B, D)} *or* {(A, D), (B, C)} in the given DynamicMesh.
+		* ClothCollection meshes must be manifold.
+		*/
+		static void BuildConnectedSeams2D(const TSharedRef<const FManagedArrayCollection>& ClothCollection, 
+			int32 SeamIndex,
+			const UE::Geometry::FDynamicMesh3& Mesh,
+			TArray<TArray<FIntVector2>>& Seams);
+
 	};
 }  // End namespace UE::Chaos::ClothAsset
