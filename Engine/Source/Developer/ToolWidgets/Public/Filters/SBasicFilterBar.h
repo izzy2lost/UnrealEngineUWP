@@ -1239,8 +1239,8 @@ protected:
 		RemoveAllFilters();
 	}
 
- 	/** Called to set a filter active externally */
- 	void OnSetFilterActive(bool bInActive, TWeakPtr<FFilterBase<FilterType>> InWeakFilter)
+ 	/** Called externally to check/pin a filter, and activates/deactivates it */
+ 	void OnSetFilterActive(bool bActive, TWeakPtr<FFilterBase<FilterType>> InWeakFilter)
  	{
  		TSharedPtr<FFilterBase<FilterType>> Filter = InWeakFilter.Pin();
  		if (Filter.IsValid())
@@ -1248,10 +1248,40 @@ protected:
  			if (!IsFrontendFilterInUse(Filter.ToSharedRef()))
  			{
  				TSharedRef<SFilter> NewFilter = AddFilterToBar(Filter.ToSharedRef());
- 				NewFilter->SetEnabled(bInActive);
+ 				NewFilter->SetEnabled(bActive);
+ 			}
+ 			else
+ 			{
+ 				for (const TSharedRef<SFilter>& PinnedFilter : Filters)
+ 				{
+ 					if (PinnedFilter->GetFrontendFilter() == Filter)
+ 					{
+ 						PinnedFilter->SetEnabled(bActive);
+ 						break;
+ 					}
+ 				}
  			}
  		}
  	}
+
+	/** Called externally to determine if a filter has been checked/pinned and activated */
+	bool OnIsFilterActive(TWeakPtr<FFilterBase<FilterType>> InWeakFilter)
+	{
+		TSharedPtr<FFilterBase<FilterType>> Filter = InWeakFilter.Pin();
+		if(Filter.IsValid())
+		{
+			if(!IsFrontendFilterInUse(Filter.ToSharedRef()))
+			{
+				return false;
+			}
+			else
+			{
+				return IsFilterActive(Filter);
+			}
+		}
+
+		return false;
+	}
  	
  	/** Handler for when a checkbox next to a custom text filter is clicked */
 	void CustomTextFilterClicked(ECheckBoxState CheckBoxState, TSharedRef<ICustomTextFilter<FilterType>> Filter)
@@ -1669,6 +1699,7 @@ struct FFrontendFilterExternalActivationHelper
 	{
 		TWeakPtr<FFilterBase<FilterType>> WeakFilter = InFrontendFilter;
 		InFrontendFilter->SetActiveEvent.AddSP(&InFilterList.Get(), &SBasicFilterBar<FilterType>::OnSetFilterActive, WeakFilter);
+		InFrontendFilter->IsActiveEvent.BindSP(&InFilterList.Get(), &SBasicFilterBar<FilterType>::OnIsFilterActive, WeakFilter);
 	}
 };
 
