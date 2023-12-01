@@ -68,6 +68,33 @@ void FOverridableManager::CopyOverriddenProperties(UObject& DestObject, const UO
 	}
 }
 
+EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
+{
+	if(FOverriddenPropertySet* OverriddenProperties = GetOverriddenProperties(Object))
+	{
+		const EOverriddenPropertyOperation Operation = OverriddenProperties->GetOverriddenPropertyOperation(nullptr, nullptr);
+		if (Operation != EOverriddenPropertyOperation::None)
+		{
+			return Operation == EOverriddenPropertyOperation::Replace ? EOverriddenState::AllOverridden : EOverriddenState::HasOverrides;
+		}
+
+		// Need to check subobjects to 
+		TSet<UObject*> InstancedSubObjects;
+		FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(&Object, InstancedSubObjects);
+		for (UObject* InstancedSubObject : InstancedSubObjects)
+		{
+			if (InstancedSubObject && InstancedSubObject->IsIn(&Object))
+			{
+				if (GetOverriddenState(*InstancedSubObject) != EOverriddenState::NoOverrides)
+				{
+					return EOverriddenState::HasOverrides;
+				}
+			}
+		}
+	}
+	return EOverriddenState::NoOverrides;
+}
+
 void FOverridableManager::OverrideObject(UObject& Object)
 {
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))

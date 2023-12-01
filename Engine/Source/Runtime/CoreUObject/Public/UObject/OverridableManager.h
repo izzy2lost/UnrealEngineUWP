@@ -62,6 +62,15 @@ public:
 	}
 };
 
+enum class EOverriddenState : uint8
+{
+	NoOverrides, // no on this object and any of its instanced subobjects
+	HasOverrides, // has overrides in the object properties
+	AllOverridden, // all properties are overridden for this object and its subobjects
+	SubObjectsHasOverrides, // at least one of its subobjects has overrides
+};
+
+
 /*
  *************************************************************************************
  * Overridable serialization is experimental, not supported and use at your own risk *
@@ -114,6 +123,12 @@ public:
 	 * @param DestObject copying the overridden properties to
 	 * @param SourceObject copying the overridden properties from */
 	COREUOBJECT_API void CopyOverriddenProperties(UObject& DestObject, const UObject& SourceObject);
+
+	/**
+	 * Retrieve the overridden state for the specified object
+	 * @param Object to fetch the overridden properties
+	 * @return the overridden state if the object has overridable serialization enabled */
+	COREUOBJECT_API EOverriddenState GetOverriddenState(UObject& Object);
 
 	/**
 	 * Override the entire object properties and all its instanced subobjects
