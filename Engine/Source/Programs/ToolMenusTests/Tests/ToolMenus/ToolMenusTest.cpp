@@ -58,3 +58,23 @@ TEST_CASE("Developer::ToolMenus::GenerateWidget calls dynamic section lambdas", 
 
 	CHECK(bWasLambdaCalled);
 }
+
+// Repro of UE-201151.
+TEST_CASE("Developer::ToolMenus::GenerateWidget can handle simultaneous AddReferencedObjects calls in legacy dynamic sections", "[ToolMenus]")
+{
+	UToolMenus* ToolMenus = CreateUniqueUToolMenusInstance();
+
+	UToolMenu* ToolMenu = ToolMenus->RegisterMenu("MyMenu");
+
+	REQUIRE(ToolMenu);
+
+	// This simulates the crash of UE-201151 that occurred in UToolMenus::GenerateWidget(UToolMenu*) after a complex delegate
+	// triggered a call to UToolMenus::AddReferencedObjects while the delegate was still executing.
+	ToolMenu->AddDynamicSection("MyDynamicLegacySection", FNewToolMenuDelegateLegacy::CreateLambda([ToolMenus](FMenuBuilder&, UToolMenu*) {
+		TArray<UObject*> Array;
+		FReferenceFinder Finder(Array);
+		UToolMenus::AddReferencedObjects(ToolMenus, Finder);
+	}));
+
+	ToolMenus->GenerateWidget("MyMenu", FToolMenuContext());
+}
