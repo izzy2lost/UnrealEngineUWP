@@ -47,7 +47,6 @@ public:
 	ENGINE_API virtual const TArray<FGuid>& GetEditorReferences() const override;
 	//~ End FWorldPartitionActorDescView interface
 
-	ENGINE_API bool ShouldValidateRuntimeGrid() const;
 	ENGINE_API void SetParentView(const FWorldPartitionActorDescView* InParentView);
 	ENGINE_API void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames);
 	ENGINE_API void SetForcedNonSpatiallyLoaded();

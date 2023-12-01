@@ -173,13 +173,6 @@ const TArray<FGuid>& FStreamingGenerationActorDescView::GetEditorReferences() co
 	return EditorReferences;
 }
 
-bool FStreamingGenerationActorDescView::ShouldValidateRuntimeGrid() const
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return ActorDesc->ShouldValidateRuntimeGrid();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
 void FStreamingGenerationActorDescView::SetParentView(const FWorldPartitionActorDescView* InParentView)
 {
 	check(!ParentView);
@@ -1191,37 +1184,32 @@ class FWorldPartitionStreamingGenerator
 			{
 				FContainerCollectionInstanceDescriptor::FPerInstanceData& PerInstanceData = ContainerCollectionInstanceDescriptor.GetInstanceData(ActorDescView.GetGuid());
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				if (ActorDescView.ShouldValidateRuntimeGrid())
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				if (!IsValidGrid(PerInstanceData.RuntimeGrid))
 				{
-					if (!IsValidGrid(PerInstanceData.RuntimeGrid))
+					if (PassType == EPassType::ErrorReporting)
 					{
-						if (PassType == EPassType::ErrorReporting)
-						{
-							ErrorHandler->OnInvalidRuntimeGrid(ActorDescView, PerInstanceData.RuntimeGrid);
-						}
-						else
-						{
-							PerInstanceData.RuntimeGrid = NAME_None;
-						}
-
-						NbErrorsDetected++;
+						ErrorHandler->OnInvalidRuntimeGrid(ActorDescView, PerInstanceData.RuntimeGrid);
 					}
+					else
+					{
+						PerInstanceData.RuntimeGrid = NAME_None;
+					}
+
+					NbErrorsDetected++;
+				}
 					
-					if (ActorDescView.GetHLODLayer().IsValid() && !IsValidHLODLayer(PerInstanceData.RuntimeGrid, ActorDescView.GetHLODLayer()))
+				if (ActorDescView.GetHLODLayer().IsValid() && !IsValidHLODLayer(PerInstanceData.RuntimeGrid, ActorDescView.GetHLODLayer()))
+				{
+					if (PassType == EPassType::ErrorReporting)
 					{
-						if (PassType == EPassType::ErrorReporting)
-						{
-							ErrorHandler->OnInvalidHLODLayer(ActorDescView);
-						}
-						else
-						{
-							ActorDescView.SetForcedNoHLODLayer();
-						}
-
-						NbErrorsDetected++;
+						ErrorHandler->OnInvalidHLODLayer(ActorDescView);
 					}
+					else
+					{
+						ActorDescView.SetForcedNoHLODLayer();
+					}
+
+					NbErrorsDetected++;
 				}
 
 				if (TSet<FGuid>* FilteredActors = ContainerFilteredActors.Find(ContainerCollectionInstanceDescriptor.ID))
