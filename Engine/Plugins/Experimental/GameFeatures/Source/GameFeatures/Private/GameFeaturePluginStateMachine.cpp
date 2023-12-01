@@ -77,7 +77,7 @@ namespace UE::GameFeatures
 		TEXT("Enable to force shaderlibs to be opened on the game thread"));
 
 	static TAutoConsoleVariable<bool> CVarForceSyncAssetRegistryAppend(TEXT("GameFeaturePlugin.ForceSyncAssetRegistryAppend"),
-		true,
+		false,
 		TEXT("Enable to force calls to IAssetRegistry::AppendState to happen on the game thread"));
 
 	#define GAME_FEATURE_PLUGIN_STATE_TO_STRING(inEnum, inText) case EGameFeaturePluginState::inEnum: return TEXT(#inEnum);
