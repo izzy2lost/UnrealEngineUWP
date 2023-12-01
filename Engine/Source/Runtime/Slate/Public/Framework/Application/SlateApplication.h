@@ -844,8 +844,8 @@ public:
 #if WITH_EDITOR
 	struct FScopedPreventDebuggingMode
 	{
-		FScopedPreventDebuggingMode(FText Reason);
-		~FScopedPreventDebuggingMode();
+		UE_NODISCARD_CTOR SLATE_API FScopedPreventDebuggingMode(FText Reason);
+		SLATE_API ~FScopedPreventDebuggingMode();
 	private:
 		int32 Id;
 	};

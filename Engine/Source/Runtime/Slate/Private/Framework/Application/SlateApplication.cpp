@@ -3655,7 +3655,7 @@ void FSlateApplication::EnterDebuggingMode()
 		}
 		UE_LOG(LogSlate, Warning, TEXT("Enter Debugging Mode failed."));
 
-		static bool bDoDebugBreak = true;
+		static volatile bool bDoDebugBreak = true;
 		if (bDoDebugBreak)
 		{
 			UE_DEBUG_BREAK();
