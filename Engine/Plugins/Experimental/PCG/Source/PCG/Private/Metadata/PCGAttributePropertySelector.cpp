@@ -200,7 +200,7 @@ bool FPCGAttributePropertySelector::IsValid() const
 		FPCGMetadataAttributeBase::IsValidName(ThisAttributeName);
 }
 
-bool FPCGAttributePropertySelector::Update(FString NewValue)
+bool FPCGAttributePropertySelector::Update(const FString& NewValue)
 {
 	TArray<FString> NewValues;
 	if (NewValue.IsEmpty())
@@ -212,7 +212,7 @@ bool FPCGAttributePropertySelector::Update(FString NewValue)
 		NewValue.ParseIntoArray(NewValues, PCGAttributePropertySelectorConstants::ExtraSeparator, /*InCullEmpty=*/ false);
 	}
 
-	const FString NewName = NewValues[0];
+	const FString& NewName = NewValues[0];
 	TArray<FString> ExtraNamesTemp;
 	if (NewValues.Num() > 1)
 	{
@@ -266,6 +266,30 @@ void FPCGAttributePropertySelector::AddToCrc(FArchiveCrc32& Ar) const
 		Ar << ExtraProperty;
 		break;
 	}
+}
+
+uint32 GetTypeHash(const FPCGAttributePropertySelector& Selector)
+{
+	uint32 Hash = GetTypeHash(Selector.Selection);
+	if (Selector.Selection == EPCGAttributePropertySelection::Attribute)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Selector.AttributeName));
+	}
+	else if (Selector.Selection == EPCGAttributePropertySelection::PointProperty)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Selector.PointProperty));
+	}
+	else
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Selector.ExtraProperty));
+	}
+
+	for (const FString& ExtraName : Selector.ExtraNames)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(ExtraName));
+	}
+
+	return Hash;
 }
 
 bool FPCGAttributePropertySelector::IsBasicAttribute() const

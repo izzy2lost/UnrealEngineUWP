@@ -72,7 +72,7 @@ public:
 	bool IsValid() const;
 
 	// Update the selector with an incoming string.
-	bool Update(FString NewValue);
+	bool Update(const FString& NewValue);
 
 	template <typename T>
 	static T CreateFromOtherSelector(const FPCGAttributePropertySelector& InOther)
@@ -123,6 +123,8 @@ public:
 	void ImportFromOtherSelector(const FPCGAttributePropertySelector& InOther);
 
 	virtual void AddToCrc(FArchiveCrc32& Ar) const;
+
+	friend uint32 GetTypeHash(const FPCGAttributePropertySelector& Selector);
 
 protected:
 	UPROPERTY()
