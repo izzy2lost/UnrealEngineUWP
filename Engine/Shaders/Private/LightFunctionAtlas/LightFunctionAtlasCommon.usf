@@ -4,7 +4,7 @@
 	LightFunctionAtlasCommon.usf
 =============================================================================*/
 
-#define LIGHT_FUNCTION_ATLAS 1
+#pragma once
 
 #include "../Common.ush"
 #include "/Engine/Shared/LightDefinitions.h"

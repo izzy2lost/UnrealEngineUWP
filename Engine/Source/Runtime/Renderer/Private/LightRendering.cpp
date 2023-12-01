@@ -859,7 +859,6 @@ class FDeferredLightPS : public FGlobalShader
 		// For virtual shadow map mask
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
-		SHADER_PARAMETER(int32, bUseLightFunctionAtlas)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ShadowMaskBits)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -2327,7 +2326,6 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 	Out.ShadowMaskBits = ShadowMaskBits ? ShadowMaskBits : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 
 	// If the light is not batched, it could be due to shadow, so we still specify light function atlas sampling.
-	Out.bUseLightFunctionAtlas = LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() && View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas();
 	Out.LightFunctionAtlas = LightFunctionAtlasGlobalParameters;
 
 	// PS - Render Targets
@@ -2621,7 +2619,9 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FVirtualShadowMapMask >(bUseVirtualShadowMapMask);
 		PermutationVector.Set< FDeferredLightPS::FSubstrateTileType >(0);
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
-		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(LightSceneInfo->Proxy->GetLightFunctionMaterial()!=nullptr && View.Family->EngineShowFlags.LightFunctions);
+		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
+			View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
+			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && View.Family->EngineShowFlags.LightFunctions && !View.Family->EngineShowFlags.VisualizeLightCulling);
 		if (bIsRadial)
 		{
 			PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(LightProxy->IsRectLight() ? ELightSourceShape::Rect : ELightSourceShape::Capsule);
@@ -2768,7 +2768,9 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FTransmissionDim >(false);
 	PermutationVector.Set< FDeferredLightPS::FHairLighting>(1);
 	PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance>(true);
-	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && View.Family->EngineShowFlags.LightFunctions);
+	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
+		View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
+		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && View.Family->EngineShowFlags.LightFunctions && !View.Family->EngineShowFlags.VisualizeLightCulling);
 	if (bIsDirectional)
 	{
 		PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(ELightSourceShape::Directional);

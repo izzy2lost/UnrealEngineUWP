@@ -55,8 +55,6 @@
 #include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"
 #endif
 
-#include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
-
 // Remap light shape permutation into light type
 #if LIGHT_SOURCE_SHAPE == 0
 #define CURRENT_LIGHT_TYPE LIGHT_TYPE_DIRECTIONAL
@@ -337,13 +335,6 @@ void DeferredLightPixelMain(
 		float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
 		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, ScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
 
-#if USE_LIGHT_FUNCTION_ATLAS
-		if (bUseLightFunctionAtlas)
-		{
-			Radiance.rgb *= GetLocalLightFunctionCommon(DerivedParams.TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
-		}
-#endif
-
 		OutColor += Radiance;
 	}
 
@@ -445,20 +436,12 @@ void DeferredLightPixelMain(
 
 	float SurfaceShadow = 1.0f;
 	const float4 Radiance = GetDynamicLighting(TranslatedWorldPosition, CameraVector, HairScreenSpaceData.GBuffer, HairScreenSpaceData.AmbientOcclusion, HairScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, PixelCoord, SurfaceShadow);
-	float  Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, GetDeferredLightTranslatedWorldPosition(), -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
+	const float  Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, GetDeferredLightTranslatedWorldPosition(), -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
 	const float3 AtmosphericTransmittance = GetAtmosphereAndCloudAttenuation(GetStableTranslatedLargeWorldPosition(ScreenPosition, Sample.Depth), UV);
 
 	const float LocalCoverage = From8bitCoverage(Sample.Coverage8bit);
 
-	FLightFunctionColor LightFunctionColor = 1.0f;
-#if	USE_LIGHT_FUNCTION_ATLAS
-	if (bUseLightFunctionAtlas)
-	{
-		LightFunctionColor = GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
-	}
-#endif
-
-	OutColor.rgb = AtmosphericTransmittance * Radiance.xyz * LightFunctionColor * Attenuation * LocalCoverage * GetExposure();
+	OutColor.rgb = AtmosphericTransmittance * Radiance.xyz * Attenuation * LocalCoverage * GetExposure();
 	OutColor.a = LocalCoverage;
 }
 #endif

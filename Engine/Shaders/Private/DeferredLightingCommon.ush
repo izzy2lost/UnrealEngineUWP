@@ -15,6 +15,10 @@
 #include "Substrate/Substrate.ush"
 #include "LightData.ush"
 
+#if USE_LIGHT_FUNCTION_ATLAS
+#include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+#endif
+
 // This Substrate include assumes that if inline shading is required, it needs to 
 // be defined prior to DeferredLightingCommong.ush
 // SubstrateStruct.MaterialTextureArray is only available to translucent materials or global shaders computing contact shadows.
@@ -401,7 +405,11 @@ FLightAccumulator AccumulateDynamicLighting(
 			}
 
 			Lighting.Specular *= LightData.SpecularScale;
-				
+
+		#if USE_LIGHT_FUNCTION_ATLAS
+			MaskedLightColor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
+		#endif
+
 			LightAccumulator_AddSplit( LightAccumulator, Lighting.Diffuse, Lighting.Specular, Lighting.Diffuse, MaskedLightColor * Shadow.SurfaceShadow, bNeedsSeparateSubsurfaceLightAccumulation );
 			LightAccumulator_AddSplit( LightAccumulator, Lighting.Transmission, 0.0f, Lighting.Transmission, MaskedLightColor * Shadow.TransmissionShadow, bNeedsSeparateSubsurfaceLightAccumulation );
 
