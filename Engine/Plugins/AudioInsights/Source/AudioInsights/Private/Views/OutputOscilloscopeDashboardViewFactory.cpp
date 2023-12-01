@@ -42,7 +42,9 @@ namespace UE::Audio::Insights
 		if (TWeakObjectPtr<UAudioSettings> AudioSettings = GetMutableDefault<UAudioSettings>();
 			AudioSettings.IsValid())
 		{
-			if (MainSubmix = Cast<USoundSubmix>(AudioSettings->MasterSubmix.ResolveObject()))
+			MainSubmix = Cast<USoundSubmix>(AudioSettings->MasterSubmix.ResolveObject());
+
+			if (MainSubmix)
 			{
 				OutputOscilloscopeAnalyzer = MakeShared<FAudioOscilloscopeAnalyzer>(MainSubmix);
 
