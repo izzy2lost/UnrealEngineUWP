@@ -19,14 +19,21 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyMeshFromAssetOptions
 {
 	GENERATED_BODY()
 public:
+	// Whether to apply Build Settings during the mesh copy.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bApplyBuildSettings = true;
 
+	// Whether to request tangents on the copied mesh. If tangents are not requested, tangent-related build settings will also be ignored.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bRequestTangents = true;
 
+	// Whether to ignore the 'remove degenerates' option from Build Settings. Note: Only applies if 'Apply Build Settings' is enabled.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bIgnoreRemoveDegenerates = true;
+
+	// Whether to scale the copied mesh by the Build Setting's 'Build Scale'. Note: This is considered separately from the 'Apply Build Settings' option.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bUseBuildScale = true;
 };
 
 /**
@@ -65,6 +72,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bEnableRemoveDegenerates = false;
 
+	// Whether to use the build scale on the target asset. If enabled, the inverse scale will be applied when saving to the asset, and the BuildScale will be preserved. Otherwise, BuildScale will be set to 1.0 on the asset BuildSettings.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bUseBuildScale = true;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bReplaceMaterials = false;
