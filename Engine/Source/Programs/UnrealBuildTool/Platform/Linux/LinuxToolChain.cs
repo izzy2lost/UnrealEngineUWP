@@ -964,8 +964,6 @@ namespace UnrealBuildTool
 			ArchiveAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			ArchiveAction.CommandPath = Info.Archiver;
 
-			ArchiveAction.bCanExecuteInUBA = OperatingSystem.IsWindows(); // Linker on native linux uses vfork/exec which is not handled in uba right now
-
 			// this will produce a final library
 			ArchiveAction.bProducesImportLibrary = true;
 
@@ -1038,7 +1036,6 @@ namespace UnrealBuildTool
 				PostLinkAction.StatusDescription = String.Format("{0}", Path.GetFileName(Executable.AbsolutePath));
 				PostLinkAction.CommandDescription = "FixDeps";
 				PostLinkAction.bCanExecuteRemotely = false;
-				PostLinkAction.bCanExecuteInUBA = OperatingSystem.IsWindows(); // Linker on native linux uses vfork/exec which is not handled in uba right now
 				PostLinkAction.CommandArguments = ExecuteSwitch;
 
 				PostLinkAction.CommandArguments += bUseCmdExe ? " \"" : " -c '";
@@ -1128,9 +1125,6 @@ namespace UnrealBuildTool
 
 			// Saw a 6 hour link time potentially caused by box. Will disable for now and revisit later
 			LinkAction.bCanExecuteInUBA = !LinkEnvironment.bPGOProfile && !LinkEnvironment.bPGOOptimize && !LinkEnvironment.bAllowLTCG;
-
-			if (!OperatingSystem.IsWindows())
-				LinkAction.bCanExecuteInUBA = false; // Linker on native linux uses vfork/exec which is not handled in uba right now
 
 			// because the logic choosing between lld and ld is somewhat messy atm (lld fails to link .DSO due to bugs), make the name of the linker clear
 			LinkAction.CommandDescription += (LinkCommandString.Contains("-fuse-ld=lld")) ? " (lld)" : " (ld)";
@@ -1537,7 +1531,6 @@ namespace UnrealBuildTool
 					RelinkAction.StatusDescription = LinkAction.StatusDescription;
 					RelinkAction.CommandDescription = "Relink";
 					RelinkAction.bCanExecuteRemotely = false;
-					RelinkAction.bCanExecuteInUBA = OperatingSystem.IsWindows(); // Linker on native linux uses vfork/exec which is not handled in uba right now
 					RelinkAction.ProducedItems.Clear();
 					RelinkAction.PrerequisiteItems = new SortedSet<FileItem>(LinkAction.PrerequisiteItems);
 					foreach (FileItem Dependency in EngineAndGameLibrariesFiles)

@@ -264,7 +264,7 @@ namespace UnrealBuildTool
 				agentFiles.Add("UbaAgent");
 				if (RuntimeInformation.ProcessArchitecture == Architecture.X64)
 				{
-					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Win64", "UnrealBuildAccelerator");
+					ubaDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "Linux", "UnrealBuildAccelerator");
 				}
 				else if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
 				{
