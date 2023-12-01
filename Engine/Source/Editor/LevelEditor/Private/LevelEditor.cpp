@@ -105,19 +105,11 @@ public:
 		FString ProjectNameWatermarkPrefix;
 		GConfig->GetString(TEXT("LevelEditor"), TEXT("ProjectNameWatermarkPrefix"), /*out*/ ProjectNameWatermarkPrefix, GEditorPerProjectIni);
 
-		FSlateColor BadgeBackgroundColor = FAppStyle::Get().GetSlateColor("Colors.Title");
-
-		FColor ConfigColor;
-		if (GConfig->GetColor(TEXT("LevelEditor"), TEXT("ProjectBadgeBackgroundColor"), /*out*/ ConfigColor, GEditorPerProjectIni))
-		{
-			BadgeBackgroundColor = FLinearColor(ConfigColor);
-		}
-
-		FColor BadgeTextColor = FColor(128,128,128,255);
+		FColor BadgeTextColor = FColor(128, 128, 128, 255);
 		GConfig->GetColor(TEXT("LevelEditor"), TEXT("ProjectBadgeTextColor"), /*out*/ BadgeTextColor, GEditorPerProjectIni);
 
 		const FString EngineVersionString = FEngineVersion::Current().ToString(FEngineVersion::Current().HasChangelist() ? EVersionComponent::Changelist : EVersionComponent::Patch);
-		
+
 		FFormatNamedArguments Args;
 
 		Args.Add(TEXT("ProjectNameWatermarkPrefix"), FText::FromString(ProjectNameWatermarkPrefix));
@@ -156,6 +148,7 @@ public:
 			.Text(RightContentText)
 			.Visibility(EVisibility::HitTestInvisible)
 			.TextStyle(FAppStyle::Get(), "SProjectBadge.Text")
+			.Margin(FAppStyle::Get().GetMargin("SProjectBadge.BadgePadding"))
 			.ColorAndOpacity(BadgeTextColor);
 
 		SBox::Construct(SBox::FArguments()
@@ -163,16 +156,10 @@ public:
 			.VAlign(VAlign_Top)
 			.Padding(FMargin(0.0f, 0.0f, 2.0f, 0.0f))
 			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("SProjectBadge.BadgeShape"))
-				.Padding(FAppStyle::Get().GetMargin("SProjectBadge.BadgePadding"))
-				.BorderBackgroundColor(BadgeBackgroundColor)
-				.VAlign(VAlign_Top)
-				[
-					SNew(SExtensionPanel)
-					.ExtensionPanelID("LevelEditorProjectNamePlate")
-					.DefaultWidget(DefaultNamePlate)
-				]
+				SNew(SExtensionPanel)
+				.ExtensionPanelID("LevelEditorProjectNamePlate")
+				.DefaultWidget(DefaultNamePlate)
+				.WindowZoneOverride(EWindowZone::TitleBar)
 			]);
 	}
 
