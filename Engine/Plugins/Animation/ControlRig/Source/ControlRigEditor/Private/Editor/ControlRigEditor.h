@@ -327,7 +327,8 @@ protected:
 	void OnPreConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	void OnPostConstruction_AnyThread(UControlRig* InRig, const FName& InEventName);
 	FRigPose PreConstructionPose;
-	TArray<FRigConnectorInfo> ConnectorInfos;
+	TArray<FRigSocketState> SocketStates;
+	TArray<FRigConnectorState> ConnectorStates;
 
 	bool bIsConstructionEventRunning;
 	uint32 LastHierarchyHash;

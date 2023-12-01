@@ -9,6 +9,8 @@
 #include "Widgets/Input/SVectorInputBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Colors/SColorPicker.h"
 #include "ControlRigBlueprint.h"
 #include "ModularRig.h"
 #include "Graph/ControlRigGraph.h"
@@ -884,7 +886,8 @@ void FRigBaseElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	if(!IsAnyElementOfType(ERigElementType::Bone) &&
 		!IsAnyElementOfType(ERigElementType::Control) &&
 		!IsAnyElementOfType(ERigElementType::Null) &&
-		!IsAnyElementOfType(ERigElementType::Connector))
+		!IsAnyElementOfType(ERigElementType::Connector) &&
+		!IsAnyElementOfType(ERigElementType::Socket))
 	{
 		CustomizeMetadata(DetailBuilder);
 	}
@@ -1128,6 +1131,18 @@ bool FRigBaseElementDetails::IsAnyConnectorImported() const
 	return ContainsElementByPredicate([](const FPerElementInfo& Info)
 	{
 		return Info.Element.GetKey().Name.ToString().Contains(UModularRig::NamespaceSeparator);
+	});
+}
+
+bool FRigBaseElementDetails::IsAnyConnectorPrimary() const
+{
+	return ContainsElementByPredicate([](const FPerElementInfo& Info)
+	{
+		if(const FRigConnectorElement* Connector = Info.Element.Get<FRigConnectorElement>())
+		{
+			return Connector->Settings.Type == EConnectorType::Primary;
+		}
+		return false;
 	});
 }
 
@@ -5197,8 +5212,8 @@ void FRigNullElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 void FRigConnectorElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
-	CustomizeTransform(DetailBuilder);
 	CustomizeSettings(DetailBuilder);
+	//CustomizeTransform(DetailBuilder);
 	//CustomizeMetadata(DetailBuilder);
 }
 
@@ -5220,7 +5235,12 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 
 	SettingsCategory
+		.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, Type)))
+		.IsEnabled(false);
+
+	SettingsCategory
 		.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigConnectorSettings, bOptional)))
+		.Visibility(IsAnyConnectorPrimary() ? EVisibility::Collapsed : EVisibility::Visible)
 		.IsEnabled(!IsAnyConnectorImported());
 
 	bool bHideRules = false;
@@ -5257,6 +5277,124 @@ void FRigConnectorElementDetails::CustomizeSettings(IDetailLayoutBuilder& Detail
 	}
 }
 
+void FRigSocketElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
+	CustomizeSettings(DetailBuilder);
+	CustomizeTransform(DetailBuilder);
+	CustomizeMetadata(DetailBuilder);
+}
+
+void FRigSocketElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBuilder)
+{
+	if(PerElementInfos.IsEmpty())
+	{
+		return;
+	}
+
+	if(IsAnyElementNotOfType(ERigElementType::Socket))
+	{
+		return;
+	}
+
+	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
+
+	SettingsCategory.AddCustomRow(FText::FromString(TEXT("Color")))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("Color", "Color"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	[
+		SNew(SColorBlock)
+		//.Size(FVector2D(6.0, 38.0))
+		.Color(this, &FRigSocketElementDetails::GetSocketColor) 
+		.OnMouseButtonDown(this, &FRigSocketElementDetails::SetSocketColor)
+	];
+
+	SettingsCategory.AddCustomRow(FText::FromString(TEXT("Description")))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("Description", "Description"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	[
+		SNew(SEditableText)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+		.Text(this, &FRigSocketElementDetails::GetSocketDescription)
+		.OnTextCommitted(this, &FRigSocketElementDetails::SetSocketDescription)
+	];
+}
+
+FReply FRigSocketElementDetails::SetSocketColor(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	FColorPickerArgs PickerArgs;
+	PickerArgs.bUseAlpha = false;
+	PickerArgs.DisplayGamma = TAttribute<float>::Create(TAttribute<float>::FGetter::CreateUObject(GEngine, &UEngine::GetDisplayGamma));
+	PickerArgs.InitialColor = GetSocketColor();
+	PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateSP(this, &FRigSocketElementDetails::OnSocketColorPicked);
+	OpenColorPicker(PickerArgs);
+	return FReply::Handled();
+}
+
+FLinearColor FRigSocketElementDetails::GetSocketColor() const 
+{
+	if(PerElementInfos.Num() > 1)
+	{
+		return FRigSocketElement::SocketDefaultColor;
+	}
+	URigHierarchy* Hierarchy = PerElementInfos[0].GetDefaultHierarchy();
+	const FRigSocketElement* Socket = PerElementInfos[0].GetDefaultElement<FRigSocketElement>();
+	return Socket->GetColor(Hierarchy);
+}
+
+void FRigSocketElementDetails::OnSocketColorPicked(FLinearColor NewColor)
+{
+	FScopedTransaction Transaction(LOCTEXT("SocketColorChanged", "Socket Color Changed"));
+	for(FPerElementInfo& Info : PerElementInfos)
+	{
+		URigHierarchy* Hierarchy = Info.GetDefaultHierarchy();
+		Hierarchy->Modify();
+		FRigSocketElement* Socket = Info.GetDefaultElement<FRigSocketElement>();
+		Socket->SetColor(NewColor, Hierarchy);
+	}
+}
+
+void FRigSocketElementDetails::SetSocketDescription(const FText& InDescription, ETextCommit::Type InCommitType)
+{
+	const FString Description = InDescription.ToString();
+	for(FPerElementInfo& Info : PerElementInfos)
+	{
+		URigHierarchy* Hierarchy = Info.GetDefaultHierarchy();
+		Hierarchy->Modify();
+		FRigSocketElement* Socket = Info.GetDefaultElement<FRigSocketElement>();
+		Socket->SetDescription(Description, Hierarchy);
+	}
+}
+
+FText FRigSocketElementDetails::GetSocketDescription() const
+{
+	FString FirstValue;
+	for(int32 Index = 0; Index < PerElementInfos.Num(); Index++)
+	{
+		URigHierarchy* Hierarchy = PerElementInfos[Index].GetDefaultHierarchy();
+		const FRigSocketElement* Socket = PerElementInfos[Index].GetDefaultElement<FRigSocketElement>();
+		const FString Description = Socket->GetDescription(Hierarchy);
+		if(Index == 0)
+		{
+			FirstValue = Description;
+		}
+		else if(!FirstValue.Equals(Description, ESearchCase::CaseSensitive))
+		{
+			return ControlRigDetailsMultipleValues;
+		}
+	}
+	return FText::FromString(FirstValue);
+}
 
 void FRigConnectionRuleDetails::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {

@@ -47,6 +47,7 @@ public:
 	FString GetJoinedElementNames() const;
 
 	bool IsDraggingSingleConnector() const;
+	bool IsDraggingSingleSocket() const;
 
 private:
 

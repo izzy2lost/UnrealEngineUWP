@@ -1050,33 +1050,71 @@ bool URigHierarchy::IsProcedural(const FRigBaseElement* InElement) const
 	return InElement->IsProcedural();
 }
 
-TArray<FRigConnectorInfo> URigHierarchy::GetConnectorInfos() const
+TArray<FRigSocketState> URigHierarchy::GetSocketStates() const
 {
-	const TArray<FRigElementKey> Keys = GetConnectorKeys(true);
-	TArray<FRigConnectorInfo> Infos;
-	Infos.Reserve(Keys.Num());
+	const TArray<FRigElementKey> Keys = GetSocketKeys(true);
+	TArray<FRigSocketState> States;
+	States.Reserve(Keys.Num());
 	for(const FRigElementKey& Key : Keys)
 	{
-		const FRigConnectorElement* Connector = FindChecked<FRigConnectorElement>(Key);
-		Infos.Add(Connector->GetConnectorInfo(this));
+		const FRigSocketElement* Socket = FindChecked<FRigSocketElement>(Key);
+		States.Add(Socket->GetSocketState(this));
 	}
-	return Infos;
+	return States;
 }
 
-TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromInfos(TArray<FRigConnectorInfo> InInfos, bool bSetupUndoRedo)
+TArray<FRigElementKey> URigHierarchy::RestoreSocketsFromStates(TArray<FRigSocketState> InStates, bool bSetupUndoRedo)
 {
 	TArray<FRigElementKey> Keys;
-	for(const FRigConnectorInfo& Info : InInfos)
+	for(const FRigSocketState& State : InStates)
 	{
-		FRigElementKey Key(Info.Name, ERigElementType::Connector);
+		FRigElementKey Key(State.Name, ERigElementType::Socket);
 
-		if(const FRigConnectorElement* Connector = Find<FRigConnectorElement>(Key))
+		if(FRigSocketElement* Socket = Find<FRigSocketElement>(Key))
 		{
-			SetConnectorSettings(Key, Info.Settings, bSetupUndoRedo, false, false);
+			(void)GetController()->SetParent(Key, State.Parent);
+			Socket->SetColor(State.Color, this);
+			Socket->SetDescription(State.Description, this);
+			SetInitialLocalTransform(Key, State.InitialLocalTransform);
+			SetLocalTransform(Key, State.InitialLocalTransform);
 		}
 		else
 		{
-			Key = GetController()->AddConnector(Info.Name, Info.Settings, bSetupUndoRedo, false);
+			Key = GetController()->AddSocket(State.Name, State.Parent, State.InitialLocalTransform, false, State.Color, State.Description, bSetupUndoRedo, false);
+		}
+
+		Keys.Add(Key);
+	}
+	return Keys;
+}
+
+TArray<FRigConnectorState> URigHierarchy::GetConnectorStates() const
+{
+	const TArray<FRigElementKey> Keys = GetConnectorKeys(true);
+	TArray<FRigConnectorState> States;
+	States.Reserve(Keys.Num());
+	for(const FRigElementKey& Key : Keys)
+	{
+		const FRigConnectorElement* Connector = FindChecked<FRigConnectorElement>(Key);
+		States.Add(Connector->GetConnectorState(this));
+	}
+	return States;
+}
+
+TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromStates(TArray<FRigConnectorState> InStates, bool bSetupUndoRedo)
+{
+	TArray<FRigElementKey> Keys;
+	for(const FRigConnectorState& State : InStates)
+	{
+		FRigElementKey Key(State.Name, ERigElementType::Connector);
+
+		if(const FRigConnectorElement* Connector = Find<FRigConnectorElement>(Key))
+		{
+			SetConnectorSettings(Key, State.Settings, bSetupUndoRedo, false, false);
+		}
+		else
+		{
+			Key = GetController()->AddConnector(State.Name, State.Settings, bSetupUndoRedo, false);
 		}
 
 		Keys.Add(Key);

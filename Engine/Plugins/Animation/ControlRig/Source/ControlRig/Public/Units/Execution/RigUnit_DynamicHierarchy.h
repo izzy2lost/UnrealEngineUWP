@@ -1647,6 +1647,8 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddSocket : public FRigUnit_HierarchyAdd
 		Name = TEXT("NewSocket");
 		Transform = FTransform::Identity;
 		Space = ERigVMTransformSpace::LocalSpace;
+		Color = FLinearColor::White;
+		Description = FString();
 	}
 
 	virtual ERigElementType GetElementTypeToSpawn() const override { return ERigElementType::Socket; }
@@ -1662,6 +1664,18 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddSocket : public FRigUnit_HierarchyAdd
 	 */ 
 	UPROPERTY(meta = (Input))
 	ERigVMTransformSpace Space;
+
+	/*
+	 * The color of the socket
+	 */
+	UPROPERTY(meta = (Input))
+	FLinearColor Color;
+
+	/*
+	 * The (optional) description of the socket
+	 */
+	UPROPERTY(meta = (Input))
+	FString Description;
 
 	RIGVM_METHOD()
 	virtual void Execute() override;

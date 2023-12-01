@@ -977,16 +977,28 @@ public:
 	}
 
 	/**
-	 * Returns all of the connectors' infos
+	 * Returns all of the sockets' state
 	 */
 	UFUNCTION(BlueprintPure, Category = URigHierarchy)
-	TArray<FRigConnectorInfo> GetConnectorInfos() const;
+	TArray<FRigSocketState> GetSocketStates() const;
 
 	/**
-	 * Try to restore the connectors from the info structs
+	 * Try to restore the sockets from the state structs
 	 */
 	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
-	TArray<FRigElementKey> RestoreConnectorsFromInfos(TArray<FRigConnectorInfo> InInfos, bool bSetupUndoRedo = false);
+	TArray<FRigElementKey> RestoreSocketsFromStates(TArray<FRigSocketState> InStates, bool bSetupUndoRedo = false);
+
+	/**
+	 * Returns all of the connectors' state
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	TArray<FRigConnectorState> GetConnectorStates() const;
+
+	/**
+	 * Try to restore the connectors from the state structs
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
+	TArray<FRigElementKey> RestoreConnectorsFromStates(TArray<FRigConnectorState> InStates, bool bSetupUndoRedo = false);
 
 	/**
 	 * Returns all Socket elements

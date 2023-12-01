@@ -1289,6 +1289,6 @@ FRigUnit_HierarchyAddSocket_Execute()
 	if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
 	{
 		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());
-		Item = Controller->AddSocket(Name, Parent, Transform, Space == ERigVMTransformSpace::GlobalSpace, false, false);
+		Item = Controller->AddSocket(Name, Parent, Transform, Space == ERigVMTransformSpace::GlobalSpace, Color, Description, false, false);
 	}
 }

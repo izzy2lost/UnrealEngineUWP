@@ -1657,7 +1657,6 @@ UENUM(BlueprintType)
 enum class EConnectorType : uint8
 {
 	Primary, // Single primary connector, non-optional and always visible. When dropped on another element, this connector will resolve to that element.
-	
 	Secondary, // Could be multiple, can auto-solve (visible if not solved), can be optional
 };
 
@@ -1668,6 +1667,7 @@ struct CONTROLRIG_API FRigConnectorSettings
 	GENERATED_BODY()
 
 	FRigConnectorSettings();
+	static FRigConnectorSettings DefaultSettings();
 
 	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);
@@ -1703,9 +1703,13 @@ struct CONTROLRIG_API FRigConnectorSettings
 };
 
 USTRUCT(BlueprintType)
-struct CONTROLRIG_API FRigConnectorInfo
+struct CONTROLRIG_API FRigConnectorState
 {
 	GENERATED_BODY()
+
+	FRigConnectorState()
+		: Name(NAME_None)
+	{}
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FName Name;
@@ -1749,7 +1753,7 @@ struct CONTROLRIG_API FRigConnectorElement final : public FRigBaseElement
 
 	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const;
 
-	FRigConnectorInfo GetConnectorInfo(const URigHierarchy* InHierarchy) const;
+	FRigConnectorState GetConnectorState(const URigHierarchy* InHierarchy) const;
 
 private:
 	explicit FRigConnectorElement(URigHierarchy* InOwner)
@@ -1767,6 +1771,28 @@ private:
 	friend struct FRigBaseElement;
 };
 
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigSocketState
+{
+	GENERATED_BODY()
+	
+	FRigSocketState();
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FName Name;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FRigElementKey Parent;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FTransform InitialLocalTransform;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FLinearColor Color;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
+	FString Description;
+};
 
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigSocketElement final : public FRigSingleParentElement
@@ -1775,6 +1801,10 @@ struct CONTROLRIG_API FRigSocketElement final : public FRigSingleParentElement
 	DECLARE_RIG_ELEMENT_METHODS(FRigSocketElement)
 
 	static const EElementIndex ElementTypeIndex;
+	static const FName ColorMetaName;
+	static const FName DescriptionMetaName;
+	static const FName DesiredParentMetaName;
+	static const FLinearColor SocketDefaultColor;
 
 	FRigSocketElement()
 		: FRigSocketElement(nullptr)
@@ -1784,6 +1814,14 @@ struct CONTROLRIG_API FRigSocketElement final : public FRigSingleParentElement
 	
 	virtual void Save(FArchive& A, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
+
+	FRigSocketState GetSocketState(const URigHierarchy* InHierarchy) const;
+
+	FLinearColor GetColor(const URigHierarchy* InHierarchy) const;
+	void SetColor(const FLinearColor& InColor, URigHierarchy* InHierarchy, bool bNotify = true);
+
+	FString GetDescription(const URigHierarchy* InHierarchy) const;
+	void SetDescription(const FString& InDescription, URigHierarchy* InHierarchy, bool bNotify = true);
 
 private:
 	explicit FRigSocketElement(URigHierarchy* InOwner)

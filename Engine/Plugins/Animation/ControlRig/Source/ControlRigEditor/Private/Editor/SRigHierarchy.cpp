@@ -99,6 +99,15 @@ bool FRigElementHierarchyDragDropOp::IsDraggingSingleConnector() const
 	return false;
 }
 
+bool FRigElementHierarchyDragDropOp::IsDraggingSingleSocket() const
+{
+	if(Elements.Num() == 1)
+	{
+		return Elements[0].Type == ERigElementType::Socket;
+	}
+	return false;
+}
+
 ///////////////////////////////////////////////////////////
 
 const FName SRigHierarchy::ContextMenuName = TEXT("ControlRigEditor.RigHierarchy.ContextMenu");
@@ -1845,12 +1854,11 @@ bool SRigHierarchy::IsNonProceduralElementSelected() const
 
 bool SRigHierarchy::CanAddElement(const ERigElementType ElementType) const
 {
-	// Always allow connectors 
-	if (ElementType == ERigElementType::Connector)
+	if (ElementType == ERigElementType::Connector ||
+		ElementType == ERigElementType::Socket)
 	{
-		return true;
+		return ControlRigBlueprint->IsControlRigModule();
 	}
-	
 	return !ControlRigBlueprint->IsControlRigModule();
 }
 
@@ -2073,7 +2081,7 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 				}
 				case ERigElementType::Socket:
 				{
-					NewItemKey = Controller->AddSocket(NewElementName, ParentKey, ParentTransform, true, true, true);
+					NewItemKey = Controller->AddSocket(NewElementName, ParentKey, ParentTransform, true, FRigSocketElement::SocketDefaultColor, FString(), true, true);
 					break;
 				}
 				default:
@@ -2523,7 +2531,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					return InvalidDropZone;
 				}
 
-				if(RigDragDropOp->IsDraggingSingleConnector())
+				if(RigDragDropOp->IsDraggingSingleConnector() || RigDragDropOp->IsDraggingSingleSocket())
 				{
 					if(DropZone != EItemDropZone::OntoItem)
 					{
@@ -2540,8 +2548,9 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			}
 		}
 
-		// don't allow dragging onto procedural items
-		if(TargetKey.IsValid() && !GetDefaultHierarchy()->Contains(TargetKey) && !RigDragDropOp->IsDraggingSingleConnector())
+		// don't allow dragging onto procedural items (except for connectors + sockets)
+		if(TargetKey.IsValid() && !GetDefaultHierarchy()->Contains(TargetKey) &&
+			!(RigDragDropOp->IsDraggingSingleConnector() || RigDragDropOp->IsDraggingSingleSocket()))
 		{
 			return InvalidDropZone;
 		}

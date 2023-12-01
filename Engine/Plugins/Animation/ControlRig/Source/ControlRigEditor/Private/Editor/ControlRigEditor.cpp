@@ -4804,7 +4804,8 @@ void FControlRigEditor::OnPreConstructionForUI_AnyThread(UControlRig* InRig, con
 	{
 		if(RigBlueprint->IsControlRigModule())
 		{
-			ConnectorInfos = RigBlueprint->Hierarchy->GetConnectorInfos();
+			SocketStates = InRig->GetHierarchy()->GetSocketStates();
+			ConnectorStates = RigBlueprint->Hierarchy->GetConnectorStates();
 		}
 	}
 }
@@ -4867,7 +4868,9 @@ void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const F
 	{
 		if(RigBlueprint->IsControlRigModule())
 		{
-			RigBlueprint->Hierarchy->RestoreConnectorsFromInfos(ConnectorInfos);
+			RigBlueprint->Hierarchy->RestoreSocketsFromStates(SocketStates);
+			InRig->GetHierarchy()->RestoreSocketsFromStates(SocketStates);
+			RigBlueprint->Hierarchy->RestoreConnectorsFromStates(ConnectorStates);
 		}
 	}
 	

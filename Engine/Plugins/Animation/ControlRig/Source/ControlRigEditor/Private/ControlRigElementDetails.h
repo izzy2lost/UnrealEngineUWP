@@ -291,6 +291,7 @@ public:
 	bool IsAnyControlNotOfValueType(ERigControlType InType) const;
 	bool IsAnyElementProcedural() const;
 	bool IsAnyConnectorImported() const;
+	bool IsAnyConnectorPrimary() const;
 	bool GetCommonElementType(ERigElementType& OutElementType) const;
 	bool GetCommonControlType(ERigControlType& OutControlType) const;
 	bool GetCommonAnimationType(ERigControlAnimationType& OutAnimationType) const;
@@ -824,6 +825,19 @@ public:
 	{
 		return MakeShareable(new FRigSocketElementDetails);
 	}
+
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+	void CustomizeSettings(IDetailLayoutBuilder& DetailBuilder);
+
+private:
+
+	FReply SetSocketColor(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	FLinearColor GetSocketColor() const; 
+	void OnSocketColorPicked(FLinearColor NewColor);
+	void SetSocketDescription(const FText& InDescription, ETextCommit::Type InCommitType);
+	FText GetSocketDescription() const; 
 };
 
 class FRigConnectionRuleDetails : public IPropertyTypeCustomization

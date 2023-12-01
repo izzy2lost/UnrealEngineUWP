@@ -578,6 +578,28 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigConnector
 		return FRigElementKey();
 	}
 
+	// only allow to add one primary connector
+	if(InSettings.Type == EConnectorType::Primary)
+	{
+		const TArray<FRigConnectorElement*>& Connectors = Hierarchy->GetConnectors();
+		for(const FRigConnectorElement* Connector : Connectors)
+		{
+			if(Connector->Settings.Type == EConnectorType::Primary)
+			{
+				static constexpr TCHAR Format[] = TEXT("Cannot add connector '%s' - there already is a primary connector.");
+				ReportAndNotifyErrorf(Format, *InName.ToString());
+				return FRigElementKey();
+			}
+		}
+
+		if(InSettings.bOptional)
+		{
+			static constexpr TCHAR Format[] = TEXT("Cannot add connector '%s' - primary connectors cannot be optional.");
+			ReportAndNotifyErrorf(Format, *InName.ToString());
+			return FRigElementKey();
+		}
+	}
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if(bSetupUndo)
@@ -620,41 +642,47 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigConnector
 }
 
 FRigElementKey URigHierarchyController::AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform,
-	bool bTransformInGlobal, bool bSetupUndo, bool bPrintPythonCommand)
+	bool bTransformInGlobal, const FLinearColor& InColor, const FString& InDescription, bool bSetupUndo, bool bPrintPythonCommand)
 {
 	if(!IsValid())
 	{
 		return FRigElementKey();
 	}
 
+	URigHierarchy* CurrentHierarchy = GetHierarchy();
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if(bSetupUndo)
 	{
 		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Socket", "Add Socket"));
-		Hierarchy->Modify();
+		CurrentHierarchy->Modify();
 	}
 #endif
 
 	FRigSocketElement* NewElement = MakeElement<FRigSocketElement>();
 	{
-		TGuardValue<bool> DisableCacheValidityChecks(Hierarchy->bEnableCacheValidityCheck, false);
+		TGuardValue<bool> DisableCacheValidityChecks(CurrentHierarchy->bEnableCacheValidityCheck, false);
 		NewElement->Key.Type = ERigElementType::Socket;
 		NewElement->Key.Name = GetSafeNewName(InName, NewElement->Key.Type);
-		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
+		AddElement(NewElement, CurrentHierarchy->Get(CurrentHierarchy->GetIndex(InParent)), true, InName);
 
 		if(bTransformInGlobal)
 		{
-			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialGlobal, true, false);
-			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentGlobal, true, false);
+			CurrentHierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialGlobal, true, false);
+			CurrentHierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentGlobal, true, false);
 		}
 		else
 		{
-			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialLocal, true, false);
-			Hierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentLocal, true, false);
+			CurrentHierarchy->SetTransform(NewElement, InTransform, ERigTransformType::InitialLocal, true, false);
+			CurrentHierarchy->SetTransform(NewElement, InTransform, ERigTransformType::CurrentLocal, true, false);
 		}
 
 		NewElement->Pose.Current = NewElement->Pose.Initial;
+
+		NewElement->SetColor(InColor, CurrentHierarchy);
+		NewElement->SetDescription(InDescription, CurrentHierarchy);
+		CurrentHierarchy->SetRigElementKeyMetadata(NewElement->Key, FRigSocketElement::DesiredParentMetaName, InParent);
 	}
 
 #if WITH_EDITOR
@@ -675,7 +703,7 @@ FRigElementKey URigHierarchyController::AddSocket(FName InName, FRigElementKey I
 	}
 #endif
 
-	Hierarchy->EnsureCacheValidity();
+	CurrentHierarchy->EnsureCacheValidity();
 		
 	return NewElement->Key;
 }
@@ -1810,11 +1838,15 @@ TArray<FString> URigHierarchyController::GetAddSocketPythonCommands(FRigSocketEl
 		ParentKeyStr = Socket->ParentElement->GetKey().ToPythonString();
 	}
 
-	// AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, bool bSetupUndo = false);
-	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_socket('%s', %s, %s, False)"),
+	const URigHierarchy* CurrentHierarchy = GetHierarchy();
+
+	// AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, FLinearColor Color, FString Description, bool bSetupUndo = false);
+	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_socket('%s', %s, %s, False, %s, '%s')"),
 		*Socket->GetName(),
 		*ParentKeyStr,
-		*TransformStr
+		*TransformStr,
+		*RigVMPythonUtils::LinearColorToPythonString(Socket->GetColor(CurrentHierarchy)),
+		*Socket->GetDescription(CurrentHierarchy)
 	));
 
 	return Commands;
@@ -2660,6 +2692,12 @@ bool URigHierarchyController::AddParent(FRigBaseElement* InChild, FRigBaseElemen
 		AddElementToDirty(Constraint.ParentElement, SingleParentElement);
 		SingleParentElement->ParentElement = Constraint.ParentElement;
 
+		if(Cast<FRigSocketElement>(SingleParentElement))
+		{
+			Hierarchy->SetRigElementKeyMetadata(SingleParentElement->GetKey(), FRigSocketElement::DesiredParentMetaName, Constraint.ParentElement->GetKey());
+			Hierarchy->Notify(ERigHierarchyNotification::SocketDesiredParentChanged, SingleParentElement);
+		}
+
 		Hierarchy->IncrementTopologyVersion();
 
 		if(!bMaintainGlobalTransform)
@@ -2818,6 +2856,13 @@ bool URigHierarchyController::RemoveParent(FRigBaseElement* InChild, FRigBaseEle
 			
 			// remove the previous parent
 			SingleParentElement->ParentElement = nullptr;
+
+			if(Cast<FRigSocketElement>(SingleParentElement))
+			{
+				Hierarchy->RemoveMetadata(SingleParentElement->GetKey(), FRigSocketElement::DesiredParentMetaName);
+				Hierarchy->Notify(ERigHierarchyNotification::SocketDesiredParentChanged, SingleParentElement);
+			}
+
 			RemoveElementToDirty(InParent, SingleParentElement); 
 			Hierarchy->IncrementTopologyVersion();
 
@@ -3003,6 +3048,12 @@ bool URigHierarchyController::SetParent(FRigElementKey InChild, FRigElementKey I
 	FRigBaseElement* Parent = Hierarchy->Find(InParent);
 	if(Parent == nullptr)
 	{
+		if(InChild.Type == ERigElementType::Socket)
+		{
+			Hierarchy->SetRigElementKeyMetadata(InChild, FRigSocketElement::DesiredParentMetaName, InParent);
+			Hierarchy->Notify(ERigHierarchyNotification::SocketDesiredParentChanged, Child);
+			return true;
+		}
 		ReportWarningf(TEXT("Cannot Set Parent, Parent '%s' not found."), *InParent.ToString());
 		return false;
 	}

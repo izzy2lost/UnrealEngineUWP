@@ -1433,6 +1433,13 @@ FRigConnectorSettings::FRigConnectorSettings()
 {
 }
 
+FRigConnectorSettings FRigConnectorSettings::DefaultSettings()
+{
+	FRigConnectorSettings Settings;
+	Settings.AddRule(FRigTypeConnectionRule(ERigElementType::Socket));
+	return Settings;
+}
+
 void FRigConnectorSettings::Save(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
@@ -1637,13 +1644,13 @@ bool FRigConnectorElement::CanConnect(const FRigConnectionInfo* InConnectionInfo
 	return true;
 }
 
-FRigConnectorInfo FRigConnectorElement::GetConnectorInfo(const URigHierarchy* InHierarchy) const
+FRigConnectorState FRigConnectorElement::GetConnectorState(const URigHierarchy* InHierarchy) const
 {
-	FRigConnectorInfo Info;
-	Info.Name = Key.Name;
-	Info.ResolvedTarget = InHierarchy->GetResolvedTarget(Key);
-	Info.Settings = Settings;
-	return Info;
+	FRigConnectorState State;
+	State.Name = Key.Name;
+	State.ResolvedTarget = InHierarchy->GetResolvedTarget(Key);
+	State.Settings = Settings;
+	return State;
 }
 
 void FRigConnectorElement::CopyFrom(const FRigBaseElement* InOther)
@@ -1658,7 +1665,18 @@ void FRigConnectorElement::CopyFrom(const FRigBaseElement* InOther)
 // FRigSocketElement
 ////////////////////////////////////////////////////////////////////////////////
 
+FRigSocketState::FRigSocketState()
+: Name(NAME_None)
+, InitialLocalTransform(FTransform::Identity)
+, Color(FRigSocketElement::SocketDefaultColor)
+{
+}
+
 const FRigBaseElement::EElementIndex FRigSocketElement::ElementTypeIndex = SocketElement;
+const FName FRigSocketElement::ColorMetaName = TEXT("SocketColor");
+const FName FRigSocketElement::DescriptionMetaName = TEXT("SocketDescription");
+const FName FRigSocketElement::DesiredParentMetaName = TEXT("SocketDesiredParent");
+const FLinearColor FRigSocketElement::SocketDefaultColor = FLinearColor::White;
 
 void FRigSocketElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
@@ -1668,6 +1686,63 @@ void FRigSocketElement::Save(FArchive& Ar, ESerializationPhase SerializationPhas
 void FRigSocketElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
 	Super::Load(Ar, SerializationPhase);
+}
+
+FRigSocketState FRigSocketElement::GetSocketState(const URigHierarchy* InHierarchy) const
+{
+	FRigSocketState State;
+	State.Name = GetFName();
+	State.Parent = InHierarchy->GetRigElementKeyMetadata(GetKey(), DesiredParentMetaName, FRigElementKey());
+	if(!State.Parent.IsValid())
+	{
+		State.Parent = InHierarchy->GetFirstParent(GetKey());
+	}
+	State.InitialLocalTransform = InHierarchy->GetInitialLocalTransform(GetIndex());
+	State.Color = GetColor(InHierarchy);
+	State.Description = GetDescription(InHierarchy);
+	return State;
+}
+
+FLinearColor FRigSocketElement::GetColor(const URigHierarchy* InHierarchy) const
+{
+	return InHierarchy->GetLinearColorMetadata(GetKey(), ColorMetaName, SocketDefaultColor);
+}
+
+void FRigSocketElement::SetColor(const FLinearColor& InColor, URigHierarchy* InHierarchy, bool bNotify)
+{
+	if(InHierarchy->GetLinearColorMetadata(GetKey(), ColorMetaName, SocketDefaultColor).Equals(InColor))
+	{
+		return;
+	}
+	InHierarchy->SetLinearColorMetadata(GetKey(), ColorMetaName, InColor);
+	if(bNotify)
+	{
+		InHierarchy->Notify(ERigHierarchyNotification::SocketColorChanged, this);
+	}
+}
+
+FString FRigSocketElement::GetDescription(const URigHierarchy* InHierarchy) const
+{
+	const FName Description = InHierarchy->GetNameMetadata(GetKey(), DescriptionMetaName, NAME_None);
+	if(Description.IsNone())
+	{
+		return FString();
+	}
+	return Description.ToString();
+}
+
+void FRigSocketElement::SetDescription(const FString& InDescription, URigHierarchy* InHierarchy, bool bNotify)
+{
+	const FName Description = InDescription.IsEmpty() ? FName(NAME_None) : *InDescription;
+	if(InHierarchy->GetNameMetadata(GetKey(), DescriptionMetaName, NAME_None).IsEqual(Description, ENameCase::CaseSensitive))
+	{
+		return;
+	}
+	InHierarchy->SetNameMetadata(GetKey(), DescriptionMetaName, *InDescription);
+	if(bNotify)
+	{
+		InHierarchy->Notify(ERigHierarchyNotification::SocketDescriptionChanged, this);
+	}
 }
 
 void FRigSocketElement::CopyFrom(const FRigBaseElement* InOther)

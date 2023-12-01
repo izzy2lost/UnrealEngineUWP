@@ -91,6 +91,9 @@ enum class ERigHierarchyNotification : uint8
 	InteractionBracketClosed,
 	ElementReordered,
 	ConnectorSettingChanged,
+	SocketColorChanged,
+	SocketDescriptionChanged,
+	SocketDesiredParentChanged,
 
 	/** MAX - invalid */
 	Max UMETA(Hidden),
