@@ -3,6 +3,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/Transform.h"
+#include "AudioDevice.h"
 #include "Components/AudioComponent.h"
 #include "Engine/Engine.h"
 #include "HAL/IConsoleManager.h"
@@ -1073,7 +1074,23 @@ void UMetaSoundSourceBuilder::Audition(UObject* Parent, UAudioComponent* AudioCo
 		CreateGenerator.Execute(NewHandle);
 	}
 
+	if (bLiveUpdatesEnabled)
+	{
+		LiveComponentIDs.Add(AudioComponent->GetAudioComponentID());
+		LiveComponentHandle = AudioComponent->OnAudioFinishedNative.AddUObject(this, &UMetaSoundSourceBuilder::OnLiveComponentFinished);
+	}
+
 	AudioComponent->Play();
+}
+
+void UMetaSoundSourceBuilder::OnLiveComponentFinished(UAudioComponent* AudioComponent)
+{
+	constexpr bool bAllowShrinking = false;
+	LiveComponentIDs.RemoveSwap(AudioComponent->GetAudioComponentID(), bAllowShrinking);
+	if (LiveComponentIDs.IsEmpty())
+	{
+		AudioComponent->OnAudioFinishedNative.Remove(LiveComponentHandle);
+	}
 }
 
 bool UMetaSoundSourceBuilder::ExecuteAuditionableTransaction(FAuditionableTransaction Transaction) const
@@ -1146,7 +1163,7 @@ UMetaSoundSource& UMetaSoundSourceBuilder::GetMetaSoundSource()
 	return Builder.CastDocumentObjectChecked<UMetaSoundSource>();
 }
 
-void UMetaSoundSourceBuilder::InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates) const
+void UMetaSoundSourceBuilder::InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates)
 {
 	OutDocumentDelegates.EdgeDelegates.OnEdgeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnEdgeAdded);
 	OutDocumentDelegates.EdgeDelegates.OnRemoveSwappingEdge.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingEdge);
@@ -1195,7 +1212,7 @@ TOptional<Metasound::FAnyDataReference> UMetaSoundSourceBuilder::CreateDataRefer
 	return IDataTypeRegistry::Get().CreateDataReference(DataType, AccessType, InLiteral, InOperatorSettings);
 };
 
-void UMetaSoundSourceBuilder::OnInputAdded(int32 InputIndex) const
+void UMetaSoundSourceBuilder::OnInputAdded(int32 InputIndex)
 {
 	using namespace Metasound::DynamicGraph;
 
@@ -1204,9 +1221,29 @@ void UMetaSoundSourceBuilder::OnInputAdded(int32 InputIndex) const
 		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetDocument();
+		const FMetaSoundFrontendDocumentBuilder& ConstBuilder = Builder;
+		const FMetasoundFrontendDocument& Doc = ConstBuilder.GetDocument();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassInput& NewInput = GraphClass.Interface.Inputs[InputIndex];
+
+		constexpr bool bCreateUObjectProxies = true;
+		UMetaSoundSource& Source = GetMetaSoundSource();
+		Source.RuntimeInputData.InputMap.Add(NewInput.Name, UMetaSoundSource::CreateRuntimeInput(IDataTypeRegistry::Get(), NewInput, bCreateUObjectProxies));
+
+		for (uint64 AudioComponentID : LiveComponentIDs)
+		{
+			if (UAudioComponent* AudioComponent = UAudioComponent::GetAudioComponentFromID(AudioComponentID))
+			{
+				if (FAudioDevice* AudioDevice = AudioComponent->GetAudioDevice())
+				{
+					AudioDevice->SendCommandToActiveSounds(AudioComponentID, [NewInputName = NewInput.Name](FActiveSound& ActiveSound)
+					{
+						static_cast<FMetaSoundParameterTransmitter*>(ActiveSound.GetTransmitter())->AddAvailableParameter(NewInputName);
+					});
+				}
+			}
+		}
+
 		const FLiteral NewInputLiteral = NewInput.DefaultLiteral.ToLiteral(NewInput.TypeName);
 		Transactor.AddInputDataDestination(NewInput.NodeID, NewInput.Name, NewInputLiteral, &UMetaSoundSourceBuilder::CreateDataReference);
 		return true;
@@ -1404,19 +1441,39 @@ void UMetaSoundSourceBuilder::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIn
 	});
 }
 
-void UMetaSoundSourceBuilder::OnRemovingInput(int32 InputIndex) const
+void UMetaSoundSourceBuilder::OnRemovingInput(int32 InputIndex)
 {
 	using namespace Metasound::DynamicGraph;
 
 	ExecuteAuditionableTransaction([this, InputIndex](FDynamicOperatorTransactor& Transactor)
 	{
+		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetDocument();
+		const FMetaSoundFrontendDocumentBuilder& ConstBuilder = Builder;
+		const FMetasoundFrontendDocument& Doc = ConstBuilder.GetDocument();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassInput& InputBeingRemoved = GraphClass.Interface.Inputs[InputIndex];
 
+		UMetaSoundSource& Source = GetMetaSoundSource();
+		Source.RuntimeInputData.InputMap.Remove(InputBeingRemoved.Name);
+
 		Transactor.RemoveInputDataDestination(InputBeingRemoved.Name);
+
+		for (uint64 AudioComponentID : LiveComponentIDs)
+		{
+			if (UAudioComponent* AudioComponent = UAudioComponent::GetAudioComponentFromID(AudioComponentID))
+			{
+				if (FAudioDevice* AudioDevice = AudioComponent->GetAudioDevice())
+				{
+					AudioDevice->SendCommandToActiveSounds(AudioComponentID, [InputRemoved = InputBeingRemoved.Name](FActiveSound& ActiveSound)
+						{
+							static_cast<FMetaSoundParameterTransmitter*>(ActiveSound.GetTransmitter())->RemoveAvailableParameter(InputRemoved);
+						});
+				}
+			}
+		}
+
 		return true;
 	});
 }

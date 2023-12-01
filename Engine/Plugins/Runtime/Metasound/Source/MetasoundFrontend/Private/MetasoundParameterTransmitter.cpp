@@ -258,6 +258,16 @@ namespace Metasound
 		return true;
 	}
 
+	void FMetaSoundParameterTransmitter::AddAvailableParameter(FName InName)
+	{
+		AvailableParameterNames.Add(InName);
+	}
+
+	void FMetaSoundParameterTransmitter::RemoveAvailableParameter(FName InName)
+	{
+		AvailableParameterNames.Remove(InName);
+	}
+
 	bool FMetaSoundParameterTransmitter::SetParameters(TArray<FAudioParameter>&& InParameters)
 	{
 		bool bSuccess = true;

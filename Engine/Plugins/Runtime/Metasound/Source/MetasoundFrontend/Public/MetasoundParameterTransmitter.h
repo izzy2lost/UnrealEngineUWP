@@ -123,6 +123,9 @@ namespace Metasound
 		UE_DEPRECATED(5.2, "Use ResetParameters() or OnDeleteActiveSound() instead depending on use case.")
 		bool Reset() override;
 		
+		void AddAvailableParameter(FName InName);
+		void RemoveAvailableParameter(FName InName);
+
 		/** Sets parameters using array of AudioParameter structs
 		 *
 		 * @param InParameter - Parameter to set.

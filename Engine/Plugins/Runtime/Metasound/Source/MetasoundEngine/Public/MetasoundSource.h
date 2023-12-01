@@ -23,32 +23,36 @@
 
 
 // Forward Declarations
-namespace Metasound
-{
-	struct FMetaSoundEngineAssetHelper;
-	class FMetasoundGenerator;
-	namespace SourcePrivate
-	{
-		class FParameterRouter;
-	}
-
-	namespace DynamicGraph
-	{
-		class FDynamicOperatorTransactor;
-	}
-} // namespace Metasound
+class UMetaSoundSettings;
 
 namespace Audio
 {
 	using DeviceID = uint32;
-}
-
-class UMetaSoundSettings;
+} // namespace Audio
 
 namespace Metasound
 {
+	struct FMetaSoundEngineAssetHelper;
 	struct FMetasoundGeneratorInitParams;
+
+	class FMetasoundGenerator;
+
+	namespace Frontend
+	{
+		class IDataTypeRegistry;
+	} // namespace Frontend
+
+	namespace SourcePrivate
+	{
+		class FParameterRouter;
+	} // namespace SourcePrivate
+
+	namespace DynamicGraph
+	{
+		class FDynamicOperatorTransactor;
+	} // namespace DynamicGraph
 } // namespace Metasound
+
 
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceCreated, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
 DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnGeneratorInstanceDestroyed, uint64, TSharedPtr<Metasound::FMetasoundGenerator>);
@@ -291,8 +295,8 @@ private:
 public:
 	Metasound::FMetasoundEnvironment CreateEnvironment(const FSoundGeneratorInitParams& InParams) const;
 	const TArray<Metasound::FVertexName>& GetOutputAudioChannelOrder() const;
-private:
 
+private:
 	TSharedPtr<const Metasound::IGraph> TryGetMetaSoundPresetBaseGraph() const;
 	void MergePresetOverridesAndSuppliedDefaults(const TArray<FAudioParameter>& InSuppliedDefaults, TArray<FAudioParameter>& OutMerged);
 	
@@ -304,6 +308,7 @@ private:
 	void TrackGenerator(uint64 Id, TSharedPtr<Metasound::FMetasoundGenerator> Generator);
 	void ForgetGenerator(ISoundGeneratorPtr Generator);
 
+	static FRuntimeInput CreateRuntimeInput(const Metasound::Frontend::IDataTypeRegistry& Registry, const FMetasoundFrontendClassInput& Input, bool bCreateUObjectProxies);
 	Metasound::TSortedVertexNameMap<FRuntimeInput> CreateRuntimeInputMap(bool bCreateUObjectProxies) const;
 	void CacheRuntimeInputData();
 	void InvalidateCachedRuntimeInputData();

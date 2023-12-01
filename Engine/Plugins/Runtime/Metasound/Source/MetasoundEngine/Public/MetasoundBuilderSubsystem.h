@@ -568,21 +568,25 @@ private:
 	const UMetaSoundSource& GetMetaSoundSource() const;
 	UMetaSoundSource& GetMetaSoundSource();
 
-	void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates) const;
+	void InitDelegates(Metasound::Frontend::FDocumentModifyDelegates& OutDocumentDelegates);
 
 	void OnEdgeAdded(int32 EdgeIndex) const;
-	void OnInputAdded(int32 InputIndex) const;
+	void OnInputAdded(int32 InputIndex);
+	void OnLiveComponentFinished(UAudioComponent* AudioComponent);
 	void OnNodeAdded(int32 NodeIndex) const;
 	void OnNodeInputLiteralSet(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex) const;
 	void OnOutputAdded(int32 OutputIndex) const;
 	void OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex) const;
-	void OnRemovingInput(int32 InputIndex) const;
+	void OnRemovingInput(int32 InputIndex);
 	void OnRemoveSwappingNode(int32 SwapIndex, int32 LastIndex) const;
 	void OnRemovingNodeInputLiteral(int32 NodeIndex, int32 VertexIndex, int32 LiteralIndex) const;
 	void OnRemovingOutput(int32 OutputIndex) const;
 
 	using FAuditionableTransaction = TFunctionRef<bool(Metasound::DynamicGraph::FDynamicOperatorTransactor&)>;
 	bool ExecuteAuditionableTransaction(FAuditionableTransaction Transaction) const;
+
+	TArray<uint64> LiveComponentIDs;
+	FDelegateHandle LiveComponentHandle;
 
 	friend class UMetaSoundBuilderSubsystem;
 };

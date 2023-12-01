@@ -1568,6 +1568,26 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 	return DynamicTransactor;
 }
 
+UMetaSoundSource::FRuntimeInput UMetaSoundSource::CreateRuntimeInput(const Metasound::Frontend::IDataTypeRegistry& Registry, const FMetasoundFrontendClassInput& Input, bool bCreateUObjectProxies)
+{
+	using namespace Metasound;
+	using namespace Metasound::Frontend;
+
+	bool bIsTransmittable = false;
+	if (const IDataTypeRegistryEntry* RegistryEntry = Registry.FindDataTypeRegistryEntry(Input.TypeName))
+	{
+		bIsTransmittable = RegistryEntry->GetDataTypeInfo().bIsTransmittable;
+	}
+	else
+	{
+		UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
+	}
+
+	FAudioParameter DefaultParameter = SourcePrivate::MakeAudioParameter(Registry, Input.Name, Input.TypeName, Input.DefaultLiteral, bCreateUObjectProxies);
+
+	return FRuntimeInput { Input.Name, Input.TypeName, Input.AccessType, DefaultParameter, bIsTransmittable };
+}
+
 Metasound::TSortedVertexNameMap<UMetaSoundSource::FRuntimeInput> UMetaSoundSource::CreateRuntimeInputMap(bool bCreateUObjectProxies) const
 {
 	using namespace Metasound;
@@ -1577,7 +1597,7 @@ Metasound::TSortedVertexNameMap<UMetaSoundSource::FRuntimeInput> UMetaSoundSourc
 
 	auto GetInputName = [](const FMetasoundFrontendClassInput& InInput) { return InInput.Name; };
 
-	IDataTypeRegistry& Registry = IDataTypeRegistry::Get();
+	const IDataTypeRegistry& Registry = IDataTypeRegistry::Get();
 	const FMetasoundFrontendDocument& Doc = GetConstDocument();
 
 	TArray<const IInterfaceRegistryEntry*> Interfaces;
@@ -1604,21 +1624,7 @@ Metasound::TSortedVertexNameMap<UMetaSoundSource::FRuntimeInput> UMetaSoundSourc
 	{
 		if (!PrivateInputs.Contains(Input.Name))
 		{
-			bool bIsTransmittable = false;
-			if (const IDataTypeRegistryEntry* RegistryEntry = Registry.FindDataTypeRegistryEntry(Input.TypeName))
-			{
-				bIsTransmittable = RegistryEntry->GetDataTypeInfo().bIsTransmittable;	
-			}
-			else
-			{
-				UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
-
-			}
-
-			
-			FAudioParameter DefaultParameter = SourcePrivate::MakeAudioParameter(Registry, Input.Name, Input.TypeName, Input.DefaultLiteral, bCreateUObjectProxies) ;
-
-			PublicInputs.Add(Input.Name, FRuntimeInput{Input.Name, Input.TypeName, Input.AccessType, DefaultParameter, bIsTransmittable});
+			PublicInputs.Add(Input.Name, CreateRuntimeInput(Registry, Input, bCreateUObjectProxies));
 		}
 	}
 
