@@ -9,6 +9,11 @@ using System.Threading;
 using System.Text.RegularExpressions;
 using System.Drawing;
 using System.Linq;
+using System.Text;
+using EpicGames.Core;
+using System.Text.Json;
+using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 namespace Gauntlet
 {
@@ -234,8 +239,7 @@ namespace Gauntlet
 		/// <returns></returns>
 		public UnrealLogParser(string InContent)
 		{
-			// convert linefeed to remove \r which is captured in regex's :(
-			Content = InContent.Replace(Environment.NewLine, "\n");
+			Content = SanitizeLogText(InContent);
 
 			// Search for LogFoo: <Display|Error|etc>: Message
 			// Also need to handle 'Log' not always being present, and the category being empty for a level of 'Log'
@@ -269,6 +273,61 @@ namespace Gauntlet
 			}
 
 			LogEntries = ParsedEntries;
+		}
+
+		static string SanitizeLogText(string InContent)
+		{
+			StringBuilder ContentBuilder = new StringBuilder();
+
+			for (int BaseIdx = 0; BaseIdx < InContent.Length;)
+			{
+				// Extract the next line
+				int EndIdx = InContent.IndexOf('\n', BaseIdx);
+				if (EndIdx == -1)
+				{
+					break;
+				}
+
+				// Skip over any windows CR-LF line endings
+				int LineEndIdx = EndIdx;
+				if (LineEndIdx > BaseIdx && InContent[LineEndIdx - 1] == '\r')
+				{
+					LineEndIdx--;
+				}
+
+				// Render any JSON log events
+				string Line = InContent.Substring(BaseIdx, LineEndIdx - BaseIdx);
+				if (Line.Length > 0 && Line[0] == '{')
+				{
+					try
+					{
+						byte[] Buffer = Encoding.UTF8.GetBytes(Line);
+						JsonLogEvent JsonEvent = JsonLogEvent.Parse(Buffer);
+						Line = JsonEvent.GetRenderedMessage().ToString();
+					}
+					catch (Exception ex)
+					{
+						EpicGames.Core.Log.Logger.LogInformation(ex, "Unable to parse log line: {Line}, Exception: {Ex}", Line, ex.ToString());
+
+						int MinIdx = Math.Max(BaseIdx - 2048, 0);
+						int MaxIdx = Math.Min(BaseIdx + 2048, InContent.Length);
+
+						string[] Context = InContent.Substring(MinIdx, MaxIdx - MinIdx).Split('\n');
+						for (int idx = 1; idx < Context.Length - 1; idx++)
+						{
+							EpicGames.Core.Log.Logger.LogInformation("Context {Idx}: {Line}", idx, Context[idx].TrimEnd());
+						}
+					}
+				}
+
+				ContentBuilder.Append(Line);
+				ContentBuilder.Append('\n');
+
+				// Move to the next line
+				BaseIdx = EndIdx + 1;
+			}
+
+			return ContentBuilder.ToString();
 		}
 
 		public UnrealLog GetSummary()
