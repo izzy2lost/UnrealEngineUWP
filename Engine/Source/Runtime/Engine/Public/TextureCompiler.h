@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Containers/Set.h"
-#include "AssetCompilingManager.h"
-#include "AsyncCompilationHelpers.h"
+#include "IAssetCompilingManager.h"
 
 #if WITH_EDITOR
 
+class FAsyncCompilationNotification;
 class UTexture;
 class FQueuedThreadPool;
 enum class EQueuedWorkPriority : uint8;
@@ -105,10 +104,16 @@ private:
 	bool bHasShutdown = false;
 	bool bIsRoutingPostCompilation = false;
 	TArray<TSet<TWeakObjectPtr<UTexture>>> RegisteredTextureBuckets;
-	FAsyncCompilationNotification Notification;
+	TUniquePtr<FAsyncCompilationNotification> Notification;
 
 	/** Event issued at the end of the compile process */
 	FTexturePostCompileEvent TexturePostCompileEvent;
 };
 
+#endif
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "CoreMinimal.h"
+#include "AssetCompilingManager.h"
+#include "AsyncCompilationHelpers.h"
 #endif

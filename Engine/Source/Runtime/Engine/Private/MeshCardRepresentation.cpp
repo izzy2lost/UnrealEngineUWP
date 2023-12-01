@@ -16,6 +16,8 @@
 #include "DistanceFieldAtlas.h"
 #include "Misc/QueuedThreadPoolWrapper.h"
 #include "ObjectCacheContext.h"
+#include "AsyncCompilationHelpers.h"
+#include "AssetCompilingManager.h"
 
 #if WITH_EDITOR
 #include "DerivedDataCacheInterface.h"
@@ -210,7 +212,7 @@ static FAutoConsoleVariableRef CVarCardRepresentationAsyncBuildQueue(
 	);
 
 FCardRepresentationAsyncQueue::FCardRepresentationAsyncQueue()
-	: Notification(GetAssetNameFormat())
+	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
 {
 #if WITH_EDITOR
 	MeshUtilities = NULL;
@@ -771,7 +773,7 @@ void FCardRepresentationAsyncQueue::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 	if (bMadeProgress)
 	{
-		Notification.Update(GetNumRemainingAssets());
+		Notification->Update(GetNumRemainingAssets());
 	}
 #endif
 }

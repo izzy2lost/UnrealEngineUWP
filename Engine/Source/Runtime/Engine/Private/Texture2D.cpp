@@ -7,6 +7,7 @@
 #include "Engine/Texture2D.h"
 
 #include "Algo/AnyOf.h"
+#include "AsyncCompilationHelpers.h"
 #include "Containers/ResourceArray.h"
 #include "EngineLogs.h"
 #include "UObject/Package.h"

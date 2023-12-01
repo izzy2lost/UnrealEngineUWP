@@ -5,6 +5,7 @@
 
 #if WITH_EDITOR
 
+#include "AssetCompilingManager.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/QueuedThreadPool.h"

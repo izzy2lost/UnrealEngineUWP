@@ -8,6 +8,8 @@
 
 #if WITH_EDITOR
 
+#include "AsyncCompilationHelpers.h"
+#include "AssetCompilingManager.h"
 #include "ObjectCacheContext.h"
 #include "UObject/Package.h"
 #include "Animation/Skeleton.h"
@@ -25,7 +27,7 @@ namespace UE::Anim
 	}
 
 	FAnimSequenceCompilingManager::FAnimSequenceCompilingManager()
-		: Notification(FAnimSequenceCompilingManager::GetAssetNameFormat())
+		: Notification(MakeUnique<FAsyncCompilationNotification>(FAnimSequenceCompilingManager::GetAssetNameFormat()))
 	{
 		PostReachabilityAnalysisHandle = FCoreUObjectDelegates::PostReachabilityAnalysis.AddRaw(this, &FAnimSequenceCompilingManager::OnPostReachabilityAnalysis);
 	}
@@ -319,7 +321,7 @@ namespace UE::Anim
 	void FAnimSequenceCompilingManager::UpdateCompilationNotification()
 	{
 		TRACE_COUNTER_SET(QueuedAnimationSequenceCompilation, GetNumRemainingAssets());
-		Notification.Update(GetNumRemainingAssets());
+		Notification->Update(GetNumRemainingAssets());
 	}
 
 	void FAnimSequenceCompilingManager::OnPostReachabilityAnalysis()

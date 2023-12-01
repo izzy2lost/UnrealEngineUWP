@@ -23,6 +23,10 @@
 #include "ImageCoreUtils.h"
 #include "Math/GuardedInt.h"
 
+#if WITH_EDITOR
+#include "AsyncCompilationHelpers.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VolumeTexture)
 
 #define LOCTEXT_NAMESPACE "UVolumeTexture"

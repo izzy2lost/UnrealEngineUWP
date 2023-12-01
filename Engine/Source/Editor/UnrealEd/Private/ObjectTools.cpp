@@ -105,6 +105,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "Logging/LogMacros.h"
 #include "UncontrolledChangelistsModule.h"
+#include "AssetCompilingManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogObjectTools, Log, All);
 

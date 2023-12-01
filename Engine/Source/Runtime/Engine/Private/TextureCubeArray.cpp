@@ -20,6 +20,10 @@
 #include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
 
+#if WITH_EDITOR
+#include "AsyncCompilationHelpers.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TextureCubeArray)
 
 #define LOCTEXT_NAMESPACE "UTextureCubeArray"

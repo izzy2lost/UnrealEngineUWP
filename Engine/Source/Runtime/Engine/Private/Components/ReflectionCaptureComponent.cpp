@@ -19,6 +19,7 @@
 #include "SceneManagement.h"
 #include "Engine/ReflectionCapture.h"
 #include "EngineModule.h"
+#include "Serialization/MemoryReader.h"
 #include "ShaderCompiler.h"
 #include "Engine/SphereReflectionCapture.h"
 #include "Components/SphereReflectionCaptureComponent.h"
