@@ -32,7 +32,7 @@ LightGridInjection.cpp
 #include "ShaderPrint.h"
 #include "ShaderPrintParameters.h"
 #include "RenderUtils.h"
-#include "StochasticShadows/StochasticShadows.h"
+#include "SampledDirectLighting/SampledDirectLighting.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -380,7 +380,7 @@ static void PackLocalLightData(
 	const int32 LightSceneId,
 	const int32 VirtualShadowMapId,
 	const int32 PrevLocalLightIndex,
-	const bool bHandledByStochasticShadows,
+	const bool bHandledBySampledDirectLighting,
 	const float VolumetricScatteringIntensity)
 {
 	const FVector3f LightTranslatedWorldPosition(View.ViewMatrices.GetPreViewTranslation() + LightParameters.WorldPosition);
@@ -404,11 +404,11 @@ static void PackLocalLightData(
 
 	const FVector2f LightColorPacked = PackLightColor(FVector3f(LightParameters.Color));
 
-	// Since lights don't use VSM and Stochastic Shadows simultaneously and
-	// currently PrevLocalLightIndex is only accessed by Stochastic Shadows shaders
+	// Since lights don't use VSM and Sampled Direct Lighting simultaneously and
+	// currently PrevLocalLightIndex is only accessed by Sampled Direct Lighting shaders
 	// we can store only one of the values to avoid increasing the size of the struct
 	// TODO: Improve packing to avoid this so that PrevLocalLightIndex can be accessed in other shaders as well
-	const int32 VirtualShadowMapIdOrPrevLocalLightIndex = bHandledByStochasticShadows ? PrevLocalLightIndex : VirtualShadowMapId;
+	const int32 VirtualShadowMapIdOrPrevLocalLightIndex = bHandledBySampledDirectLighting ? PrevLocalLightIndex : VirtualShadowMapId;
 
 	// NOTE: This cast of VirtualShadowMapIdOrPrevLocalLightIndex to float is not ideal, but bitcast has issues here with INDEX_NONE -> NaN
 	// and 32-bit floats have enough mantissa to cover all reasonable numbers here for now.
@@ -465,7 +465,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		// Track the end markers for different types
 		int32 SimpleLightsEnd = 0;
 		int32 ClusteredSupportedEnd = 0;
-		int32 StochasticShadowsSupportedStart = 0;
+		int32 SampledDirectLightingSupportedStart = 0;
 
 		const float Exposure = View.GetLastEyeAdaptationExposure();
 
@@ -524,7 +524,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			int32 SelectedForwardDirectionalLightPriority = -1;
 			const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 			ClusteredSupportedEnd = SimpleLightsEnd;
-			StochasticShadowsSupportedStart = MAX_int32;
+			SampledDirectLightingSupportedStart = MAX_int32;
 			// Next add all the other lights, track the end index for clustered supporting lights
 			for (int32 SortedIndex = SimpleLightsEnd; SortedIndex < SortedLights.Num(); ++SortedIndex)
 			{
@@ -574,9 +574,9 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ClusteredSupportedEnd = FMath::Max(ClusteredSupportedEnd, ForwardLocalLightData.Num());
 						}
 
-						if (SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows && StochasticShadowsSupportedStart == MAX_int32)
+						if (SortedLightInfo.SortKey.Fields.bHandledBySampledDirectLighting && SampledDirectLightingSupportedStart == MAX_int32)
 						{
-							StochasticShadowsSupportedStart = ForwardLocalLightData.Num() - 1;
+							SampledDirectLightingSupportedStart = ForwardLocalLightData.Num() - 1;
 						}
 						const float LightFade = GetLightFadeFactor(View, LightProxy);
 						LightParameters.Color *= LightFade;
@@ -597,7 +597,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							LightSceneInfo->Id,
 							VirtualShadowMapId,
 							PrevLocalLightIndex,
-							SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows,
+							SortedLightInfo.SortKey.Fields.bHandledBySampledDirectLighting,
 							VolumetricScatteringIntensity);
 
 						const FSphere BoundingSphere = LightProxy->GetBoundingSphere();
@@ -757,7 +757,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		ForwardLightData->LightGridPixelSizeShift = FMath::FloorLog2(GLightGridPixelSize);
 		ForwardLightData->SimpleLightsEndIndex = SimpleLightsEnd;
 		ForwardLightData->ClusteredDeferredSupportedEndIndex = ClusteredSupportedEnd;
-		ForwardLightData->StochasticShadowsSupportedStartIndex = FMath::Min<int32>(StochasticShadowsSupportedStart, NumLocalLightsFinal);
+		ForwardLightData->SampledDirectLightingSupportedStartIndex = FMath::Min<int32>(SampledDirectLightingSupportedStart, NumLocalLightsFinal);
 		ForwardLightData->DirectLightingShowFlag = ViewFamily.EngineShowFlags.DirectLighting ? 1 : 0;
 
 		// Clamp far plane to something reasonable
@@ -968,7 +968,7 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 	
 	const bool bCullLightsToGrid = GLightCullingQuality 
 		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || IsRayTracingEnabled() || ShouldUseClusteredDeferredShading() ||
-			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || StochasticShadows::IsEnabled());
+			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || SampledDirectLighting::IsEnabled());
 
 	// Store this flag if lights are injected in the grids, check with 'AreLightsInLightGrid()'
 	bAreLightsInLightGrid = bCullLightsToGrid;

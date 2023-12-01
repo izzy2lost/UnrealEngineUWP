@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*=============================================================================
-	DistanceFieldAmbientOcclusion.cpp
-=============================================================================*/
-
 #include "DistanceFieldAmbientOcclusion.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "DeferredShadingRenderer.h"
@@ -20,7 +16,7 @@
 #include "VisualizeTexture.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "Lumen/Lumen.h"
-#include "StochasticShadows/StochasticShadows.h"
+#include "SampledDirectLighting/SampledDirectLighting.h"
 #include "ScenePrivate.h"
 #include "Substrate/Substrate.h"
 
@@ -782,12 +778,12 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 
 	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(*Views[0].Family);
 
-	// TODO: Should check any light actually uses Stochastic Shadows
-	const bool bShouldPrepareForStochasticShadows = StochasticShadows::IsEnabled() && StochasticShadows::UseGlobalSDF();
+	// TODO: Should check any light actually uses Sampled Direct Lighting
+	const bool bShouldPrepareForSampledDirectLighting = SampledDirectLighting::IsEnabled() && SampledDirectLighting::UseGlobalSDF();
 
 	const bool bShouldPrepareForVisualization = ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
 
-	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForStochasticShadows || bShouldPrepareForVisualization) && UseGlobalDistanceField();
+	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForSampledDirectLighting || bShouldPrepareForVisualization) && UseGlobalDistanceField();
 }
 
 void FDeferredShadingSceneRenderer::RenderDFAOAsIndirectShadowing(

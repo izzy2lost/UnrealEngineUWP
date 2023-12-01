@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#define STOCHASTIC_SHADOWS 1
-
 #include "../Common.ush"
 #define DISTANCE_FIELD_IN_VIEW_UB 1
 #include "../BlueNoise.ush"
@@ -10,11 +8,8 @@
  #define HZB_TRACE_INCLUDE_FULL_RES_DEPTH 1
 #include "../Lumen/LumenScreenTracing.ush"
 #include "../SceneTexturesCommon.ush"
-#include "StochasticShadows.ush"
-#include "StochasticShadowsTracing.ush"
-#if DEBUG_MODE
-	#include "../ShaderPrint.ush"
-#endif
+#include "SampledDirectLighting.ush"
+#include "SampledDirectLightingTracing.ush"
 
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 RWBuffer<uint> RWIndirectArgs;
@@ -39,7 +34,7 @@ void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchT
 	}
 }
 
-uint StochasticShadowsStateFrameIndes;
+uint SampledDirectLightingStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
 

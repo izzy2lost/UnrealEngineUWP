@@ -9,8 +9,8 @@ namespace ECastRayTracedShadow
 	enum Type : int;
 };
 
-// Public StochasticShadows interface
-namespace StochasticShadows
+// Public SampledDirectLighting interface
+namespace SampledDirectLighting
 {
 	bool IsEnabled();
 	bool IsUsingClosestHZB();

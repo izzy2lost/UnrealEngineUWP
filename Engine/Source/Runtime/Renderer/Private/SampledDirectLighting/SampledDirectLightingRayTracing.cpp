@@ -1,89 +1,89 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StochasticShadows.h"
-#include "StochasticShadowsInternal.h"
+#include "SampledDirectLighting.h"
+#include "SampledDirectLightingInternal.h"
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "BasePassRendering.h"
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTraces(
-	TEXT("r.StochasticShadows.ScreenTraces"),
-	1,
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingScreenTraces(
+	TEXT("r.SampledDirectLighting.ScreenTraces"),
+	0,
 	TEXT("Whether to use screen space tracing for shadow rays."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTracesMaxIterations(
-	TEXT("r.StochasticShadows.ScreenTraces.MaxIterations"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingScreenTracesMaxIterations(
+	TEXT("r.SampledDirectLighting.ScreenTraces.MaxIterations"),
 	50,
 	TEXT("Max iterations for HZB tracing."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsScreenTracesMinimumOccupancy(
-	TEXT("r.StochasticShadows.ScreenTraces.MinimumOccupancy"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingScreenTracesMinimumOccupancy(
+	TEXT("r.SampledDirectLighting.ScreenTraces.MinimumOccupancy"),
 	0,
 	TEXT("Minimum number of threads still tracing before aborting the trace. Can be used for scalability to abandon traces that have a disproportionate cost."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticShadowsScreenTraceRelativeDepthThreshold(
-	TEXT("r.StochasticShadows.ScreenTraces.RelativeDepthThickness"),
+static TAutoConsoleVariable<float> CVarSampledDirectLightingScreenTraceRelativeDepthThreshold(
+	TEXT("r.SampledDirectLighting.ScreenTraces.RelativeDepthThickness"),
 	0.005f,
 	TEXT("Determines depth thickness of objects hit by HZB tracing, as a relative depth threshold."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsWorldSpaceTraces(
-	TEXT("r.StochasticShadows.WorldSpaceTraces"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingWorldSpaceTraces(
+	TEXT("r.SampledDirectLighting.WorldSpaceTraces"),
 	1,
 	TEXT("Whether to trace world space shadow rays for samples. Useful for debugging."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracing(
-	TEXT("r.StochasticShadows.HardwareRayTracing"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingHardwareRayTracing(
+	TEXT("r.SampledDirectLighting.HardwareRayTracing"),
 	1,
 	TEXT("Whether to use hardware ray tracing for shadow rays."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingInline(
-	TEXT("r.StochasticShadows.HardwareRayTracing.Inline"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingHardwareRayTracingInline(
+	TEXT("r.SampledDirectLighting.HardwareRayTracing.Inline"),
 	1,
 	TEXT("Uses hardware inline ray tracing for ray traced lighting, when available."),
 	ECVF_RenderThreadSafe | ECVF_Scalability
 );
 
-static TAutoConsoleVariable<float> CVarStochasticShadowsHardwareRayTracingBias(
-	TEXT("r.StochasticShadows.HardwareRayTracing.Bias"),
+static TAutoConsoleVariable<float> CVarSampledDirectLightingHardwareRayTracingBias(
+	TEXT("r.SampledDirectLighting.HardwareRayTracing.Bias"),
 	1.0f,
 	TEXT("Constant bias for hardware ray traced shadow rays."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticShadowsHardwareRayTracingNormalBias(
-	TEXT("r.StochasticShadows.HardwareRayTracing.NormalBias"),
+static TAutoConsoleVariable<float> CVarSampledDirectLightingHardwareRayTracingNormalBias(
+	TEXT("r.SampledDirectLighting.HardwareRayTracing.NormalBias"),
 	0.1f,
 	TEXT("Normal bias for hardware ray traced shadow rays."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticShadowsHardwareRayTracingMaxIterations(
-	TEXT("r.StochasticShadows.HardwareRayTracing.MaxIterations"),
+static TAutoConsoleVariable<int32> CVarSampledDirectLightingHardwareRayTracingMaxIterations(
+	TEXT("r.SampledDirectLighting.HardwareRayTracing.MaxIterations"),
 	8192,
 	TEXT("Limit number of ray tracing traversal iterations on supported platfoms. Improves performance, but may add over-occlusion."),
 	ECVF_RenderThreadSafe
 );
 
-namespace StochasticShadows
+namespace SampledDirectLighting
 {
 	bool UseHardwareRayTracing()
 	{
 		#if RHI_RAYTRACING
 		{
 			return IsRayTracingEnabled() 
-				&& CVarStochasticShadowsHardwareRayTracing.GetValueOnRenderThread() != 0;
+				&& CVarSampledDirectLightingHardwareRayTracing.GetValueOnRenderThread() != 0;
 		}
 		#else
 		{
@@ -98,7 +98,7 @@ namespace StochasticShadows
 		{
 			return UseHardwareRayTracing()
 				&& GRHISupportsInlineRayTracing
-				&& CVarStochasticShadowsHardwareRayTracingInline.GetValueOnRenderThread() != 0;
+				&& CVarSampledDirectLightingHardwareRayTracingInline.GetValueOnRenderThread() != 0;
 		}
 		#else
 		{
@@ -109,12 +109,12 @@ namespace StochasticShadows
 
 	bool UseGlobalSDF()
 	{
-		return CVarStochasticShadowsWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
+		return CVarSampledDirectLightingWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
 	}
 
 	bool IsUsingClosestHZB()
 	{
-		return IsEnabled() && CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0;
+		return IsEnabled() && CVarSampledDirectLightingScreenTraces.GetValueOnRenderThread() != 0;
 	}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FCompactedTraceParameters, )
@@ -131,12 +131,12 @@ namespace StochasticShadows
 		MAX = 3
 	};
 
-	FCompactedTraceParameters CompactStochasticShadowsTraces(
+	FCompactedTraceParameters CompactSampledDirectLightingTraces(
 		const FViewInfo& View,
 		FRDGBuilder& GraphBuilder,
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
-		const FStochasticShadowsParameters& StochasticShadowsParameters);
+		const FSampledDirectLightingParameters& SampledDirectLightingParameters);
 };
 
 class FCompactLightSampleTracesCS : public FGlobalShader
@@ -145,7 +145,7 @@ class FCompactLightSampleTracesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FCompactLightSampleTracesCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelData)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelAllocator)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
@@ -161,7 +161,7 @@ class FCompactLightSampleTracesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
+		return SampledDirectLighting::ShouldCompileShaders(Parameters);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -177,7 +177,7 @@ class FCompactLightSampleTracesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FCompactLightSampleTracesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "CompactLightSampleTracesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FCompactLightSampleTracesCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingTracing.usf", "CompactLightSampleTracesCS", SF_Compute);
 
 class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
 {
@@ -185,14 +185,14 @@ class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInitCompactedTraceTexelIndirectArgsCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
+		return SampledDirectLighting::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -207,7 +207,7 @@ class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "InitCompactedTraceTexelIndirectArgsCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingTracing.usf", "InitCompactedTraceTexelIndirectArgsCS", SF_Compute);
 
 #if RHI_RAYTRACING
 
@@ -216,8 +216,8 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 	DECLARE_LUMEN_RAYTRACING_SHADER(FHardwareRayTraceLightSamples, Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticShadows::FCompactedTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(SampledDirectLighting::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 		SHADER_PARAMETER(float, RayTracingBias)
@@ -236,14 +236,14 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
-		return StochasticShadows::ShouldCompileShaders(Parameters)  
+		return SampledDirectLighting::ShouldCompileShaders(Parameters)  
 			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
-		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		SampledDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 	}
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
@@ -254,8 +254,8 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 
 IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FHardwareRayTraceLightSamples)
 
-IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesRGS, "/Engine/Private/StochasticShadows/StochasticShadowsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesRGS", SF_RayGen);
+IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingHardwareRayTracing.usf", "HardwareRayTraceLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesRGS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingHardwareRayTracing.usf", "HardwareRayTraceLightSamplesRGS", SF_RayGen);
 
 #endif // RHI_RAYTRACING
 
@@ -265,8 +265,8 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FSoftwareRayTraceLightSamplesCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticShadows::FCompactedTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(SampledDirectLighting::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 	END_SHADER_PARAMETER_STRUCT()
@@ -281,13 +281,13 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
+		return SampledDirectLighting::ShouldCompileShaders(Parameters);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		SampledDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 
@@ -296,7 +296,7 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FSoftwareRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "SoftwareRayTraceLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSoftwareRayTraceLightSamplesCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingTracing.usf", "SoftwareRayTraceLightSamplesCS", SF_Compute);
 
 class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 {
@@ -304,8 +304,8 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FScreenSpaceRayTraceLightSamplesCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticShadows::FCompactedTraceParameters, CompactedTraceParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticShadowsParameters, StochasticShadowsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(SampledDirectLighting::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWLightSampleRayDistance)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHZBScreenTraceParameters, HZBScreenTraceParameters)
@@ -325,63 +325,63 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticShadows::ShouldCompileShaders(Parameters);
+		return SampledDirectLighting::ShouldCompileShaders(Parameters);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticShadows::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		SampledDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/StochasticShadows/StochasticShadowsTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
 
 #if RHI_RAYTRACING
-void FDeferredShadingSceneRenderer::PrepareStochasticShadowsLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
+void FDeferredShadingSceneRenderer::PrepareSampledDirectLightingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (StochasticShadows::IsEnabled() && StochasticShadows::UseHardwareRayTracing())
+	if (SampledDirectLighting::IsEnabled() && SampledDirectLighting::UseHardwareRayTracing())
 	{
 		FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(StochasticShadows::GetDebugMode() != 0);
+		PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(SampledDirectLighting::GetDebugMode() != 0);
 		TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
 		OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 	}
 }
 
-namespace StochasticShadows
+namespace SampledDirectLighting
 {
 	void SetHardwareRayTracingPassParameters(
 		const FViewInfo& View,
 		FRDGBuilder& GraphBuilder,
 		const FCompactedTraceParameters& CompactedTraceParameters,
-		const FStochasticShadowsParameters& StochasticShadowsParameters,
+		const FSampledDirectLightingParameters& SampledDirectLightingParameters,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
 		FHardwareRayTraceLightSamples::FParameters* PassParameters);
 };
 
-void StochasticShadows::SetHardwareRayTracingPassParameters(
+void SampledDirectLighting::SetHardwareRayTracingPassParameters(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FCompactedTraceParameters& CompactedTraceParameters,
-	const FStochasticShadowsParameters& StochasticShadowsParameters,
+	const FSampledDirectLightingParameters& SampledDirectLightingParameters,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
 	FHardwareRayTraceLightSamples::FParameters* PassParameters)
 {
 	PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-	PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+	PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 	PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 	PassParameters->LightSampleRayDistance = LightSampleRayDistance;
-	PassParameters->RayTracingBias = CVarStochasticShadowsHardwareRayTracingBias.GetValueOnRenderThread();
-	PassParameters->RayTracingNormalBias = CVarStochasticShadowsHardwareRayTracingNormalBias.GetValueOnRenderThread();
+	PassParameters->RayTracingBias = CVarSampledDirectLightingHardwareRayTracingBias.GetValueOnRenderThread();
+	PassParameters->RayTracingNormalBias = CVarSampledDirectLightingHardwareRayTracingNormalBias.GetValueOnRenderThread();
 
 	checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
 	PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
-	PassParameters->MaxTraversalIterations = FMath::Max(CVarStochasticShadowsHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+	PassParameters->MaxTraversalIterations = FMath::Max(CVarSampledDirectLightingHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
 
 	// Inline
 	PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
@@ -392,22 +392,22 @@ void StochasticShadows::SetHardwareRayTracingPassParameters(
 
 #endif
 
-StochasticShadows::FCompactedTraceParameters StochasticShadows::CompactStochasticShadowsTraces(
+SampledDirectLighting::FCompactedTraceParameters SampledDirectLighting::CompactSampledDirectLightingTraces(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
-	const FStochasticShadowsParameters& StochasticShadowsParameters)
+	const FSampledDirectLightingParameters& SampledDirectLightingParameters)
 {
 	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), SampleBufferSize.X * SampleBufferSize.Y),
-		TEXT("StochasticShadowsParameters.CompactedTraceTexelData"));
+		TEXT("SampledDirectLightingParameters.CompactedTraceTexelData"));
 
 	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
-		TEXT("StochasticShadowsParameters.CompactedTraceTexelAllocator"));
+		TEXT("SampledDirectLightingParameters.CompactedTraceTexelAllocator"));
 
 	FRDGBufferRef CompactedTraceTexelIndirectArgs = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticShadows::ECompactedTraceIndirectArgs::MAX),
-		TEXT("StochasticShadows.CompactedTraceTexelIndirectArgs"));
+		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)SampledDirectLighting::ECompactedTraceIndirectArgs::MAX),
+		TEXT("SampledDirectLighting.CompactedTraceTexelIndirectArgs"));
 
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompactedTraceTexelAllocator), 0);
 
@@ -416,10 +416,10 @@ StochasticShadows::FCompactedTraceParameters StochasticShadows::CompactStochasti
 		FCompactLightSampleTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompactLightSampleTracesCS::FParameters>();
 		PassParameters->RWCompactedTraceTexelData = GraphBuilder.CreateUAV(CompactedTraceTexelData);
 		PassParameters->RWCompactedTraceTexelAllocator = GraphBuilder.CreateUAV(CompactedTraceTexelAllocator);
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+		PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 		PassParameters->LightSamples = LightSamples;
 
-		const bool bWaveOps = StochasticShadows::UseWaveOps(View.GetShaderPlatform())
+		const bool bWaveOps = SampledDirectLighting::UseWaveOps(View.GetShaderPlatform())
 			&& GRHIMinimumWaveSize <= 32
 			&& GRHIMaximumWaveSize >= 32;
 
@@ -427,7 +427,7 @@ StochasticShadows::FCompactedTraceParameters StochasticShadows::CompactStochasti
 		PermutationVector.Set<FCompactLightSampleTracesCS::FWaveOps>(bWaveOps);
 		auto ComputeShader = View.ShaderMap->GetShader<FCompactLightSampleTracesCS>(PermutationVector);
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(StochasticShadowsParameters.SampleViewSize, FCompactLightSampleTracesCS::GetGroupSize());
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(SampledDirectLightingParameters.SampleViewSize, FCompactLightSampleTracesCS::GetGroupSize());
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -440,7 +440,7 @@ StochasticShadows::FCompactedTraceParameters StochasticShadows::CompactStochasti
 	// Setup indirect args for tracing
 	{
 		FInitCompactedTraceTexelIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompactedTraceTexelIndirectArgsCS::FParameters>();
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+		PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompactedTraceTexelIndirectArgs);
 		PassParameters->CompactedTraceTexelAllocator = GraphBuilder.CreateSRV(CompactedTraceTexelAllocator);
 
@@ -464,36 +464,36 @@ StochasticShadows::FCompactedTraceParameters StochasticShadows::CompactStochasti
 /**
  * Ray trace light samples using a variety of tracing methods depending on the feature configuration.
  */
-void StochasticShadows::RayTraceLightSamples(
+void SampledDirectLighting::RayTraceLightSamples(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
-	const FStochasticShadowsParameters& StochasticShadowsParameters)
+	const FSampledDirectLightingParameters& SampledDirectLightingParameters)
 {
-	const bool bDebug = StochasticShadows::GetDebugMode() != 0;
+	const bool bDebug = SampledDirectLighting::GetDebugMode() != 0;
 
-	if (CVarStochasticShadowsScreenTraces.GetValueOnRenderThread() != 0)
+	if (CVarSampledDirectLightingScreenTraces.GetValueOnRenderThread() != 0)
 	{
-		FCompactedTraceParameters CompactedTraceParameters = CompactStochasticShadowsTraces(
+		FCompactedTraceParameters CompactedTraceParameters = CompactSampledDirectLightingTraces(
 			View,
 			GraphBuilder,
 			SampleBufferSize,
 			LightSamples,
-			StochasticShadowsParameters);
+			SampledDirectLightingParameters);
 
 		FScreenSpaceRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FScreenSpaceRayTraceLightSamplesCS::FParameters>();
 		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-		PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+		PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 		PassParameters->RWLightSampleRayDistance = GraphBuilder.CreateUAV(LightSampleRayDistance);
 		PassParameters->HZBScreenTraceParameters = SetupHZBScreenTraceParameters(GraphBuilder, View, SceneTextures, /*bBindLumenHistory*/ false);
-		PassParameters->MaxHierarchicalScreenTraceIterations = CVarStochasticShadowsScreenTracesMaxIterations.GetValueOnRenderThread();
-		PassParameters->RelativeDepthThickness = CVarStochasticShadowsScreenTraceRelativeDepthThreshold.GetValueOnRenderThread() * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
+		PassParameters->MaxHierarchicalScreenTraceIterations = CVarSampledDirectLightingScreenTracesMaxIterations.GetValueOnRenderThread();
+		PassParameters->RelativeDepthThickness = CVarSampledDirectLightingScreenTraceRelativeDepthThreshold.GetValueOnRenderThread() * View.ViewMatrices.GetPerProjectionDepthThicknessScale();
 		PassParameters->HistoryDepthTestRelativeThickness = 0.0f;
-		PassParameters->MinimumTracingThreadOccupancy = CVarStochasticShadowsScreenTracesMinimumOccupancy.GetValueOnRenderThread();
+		PassParameters->MinimumTracingThreadOccupancy = CVarSampledDirectLightingScreenTracesMinimumOccupancy.GetValueOnRenderThread();
 
 		FScreenSpaceRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FScreenSpaceRayTraceLightSamplesCS::FDebugMode>(bDebug);
@@ -505,33 +505,33 @@ void StochasticShadows::RayTraceLightSamples(
 			ComputeShader,
 			PassParameters,
 			CompactedTraceParameters.IndirectArgs,
-			(int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTracesDiv64);
+			(int32)SampledDirectLighting::ECompactedTraceIndirectArgs::NumTracesDiv64);
 	}
 	else
 	{
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(LightSampleRayDistance), 0.0f);
 	}
 
-	if (CVarStochasticShadowsWorldSpaceTraces.GetValueOnRenderThread() != 0)
+	if (CVarSampledDirectLightingWorldSpaceTraces.GetValueOnRenderThread() != 0)
 	{
-		FCompactedTraceParameters CompactedTraceParameters = CompactStochasticShadowsTraces(
+		FCompactedTraceParameters CompactedTraceParameters = CompactSampledDirectLightingTraces(
 			View,
 			GraphBuilder,
 			SampleBufferSize,
 			LightSamples,
-			StochasticShadowsParameters);
+			SampledDirectLightingParameters);
 
-		if (StochasticShadows::UseHardwareRayTracing())
+		if (SampledDirectLighting::UseHardwareRayTracing())
 		{
 			#if RHI_RAYTRACING
-			if (StochasticShadows::UseInlineHardwareRayTracing())
+			if (SampledDirectLighting::UseInlineHardwareRayTracing())
 			{
 				FHardwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesCS::FParameters>();
-				StochasticShadows::SetHardwareRayTracingPassParameters(
+				SampledDirectLighting::SetHardwareRayTracingPassParameters(
 					View,
 					GraphBuilder,
 					CompactedTraceParameters,
-					StochasticShadowsParameters,
+					SampledDirectLightingParameters,
 					LightSamples,
 					LightSampleRayDistance,
 					PassParameters);
@@ -547,16 +547,16 @@ void StochasticShadows::RayTraceLightSamples(
 					ComputeShader,
 					PassParameters,
 					CompactedTraceParameters.IndirectArgs,
-					(int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTracesDiv32);
+					(int32)SampledDirectLighting::ECompactedTraceIndirectArgs::NumTracesDiv32);
 			}
 			else
 			{
 				FHardwareRayTraceLightSamplesRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesRGS::FParameters>();
-				StochasticShadows::SetHardwareRayTracingPassParameters(
+				SampledDirectLighting::SetHardwareRayTracingPassParameters(
 					View,
 					GraphBuilder,
 					CompactedTraceParameters,
-					StochasticShadowsParameters,
+					SampledDirectLightingParameters,
 					LightSamples,
 					LightSampleRayDistance,
 					PassParameters);
@@ -571,7 +571,7 @@ void StochasticShadows::RayTraceLightSamples(
 					RayGenerationShader,
 					PassParameters,
 					PassParameters->CompactedTraceParameters.IndirectArgs,
-					(int32)StochasticShadows::ECompactedTraceIndirectArgs::NumTraces,
+					(int32)SampledDirectLighting::ECompactedTraceIndirectArgs::NumTraces,
 					View,
 					/*bUseMinimalPayload*/ true);
 			}
@@ -579,11 +579,11 @@ void StochasticShadows::RayTraceLightSamples(
 		}
 		else
 		{
-			ensure(StochasticShadows::UseGlobalSDF());
+			ensure(SampledDirectLighting::UseGlobalSDF());
 
 			FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
 			PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-			PassParameters->StochasticShadowsParameters = StochasticShadowsParameters;
+			PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 			PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 			PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 

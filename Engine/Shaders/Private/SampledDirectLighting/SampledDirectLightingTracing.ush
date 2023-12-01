@@ -5,7 +5,6 @@
 #include "../RayTracing/RayTracingCapsuleLight.ush"
 #include "../RayTracing/RayTracingSphereLight.ush"
 #include "../RayTracing/RayTracingRectLight.ush"
-#include "../LightGridCommon.ush"
 
 uint2 NumSamplesPerPixelDivideShift;
 
@@ -84,7 +83,7 @@ struct FLightSampleTrace
  */
 FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord)
 {
-	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, StochasticShadowsStateFrameIndex);
+	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, SampledDirectLightingStateFrameIndex);
 
 	FLightSampleTrace LightSampleTrace;
 	LightSampleTrace.Direction = 0.0f;

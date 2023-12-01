@@ -1,21 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#define STOCHASTIC_SHADOWS 1
-
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../SceneTexturesCommon.ush"
-#include "StochasticShadows.ush"
-#include "StochasticShadowsTracing.ush"
+#include "SampledDirectLighting.ush"
+#include "SampledDirectLightingTracing.ush"
 #include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
-#if DEBUG_MODE
-	#include "../ShaderPrint.ush"
-#endif
 
 float RayTracingBias;
 float RayTracingNormalBias;
-uint StochasticShadowsStateFrameIndes;
+uint SampledDirectLightingStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
 uint MaxTraversalIterations;

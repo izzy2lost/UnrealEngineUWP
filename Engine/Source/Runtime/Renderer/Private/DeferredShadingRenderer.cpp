@@ -97,7 +97,7 @@
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
 #include "WaterInfoTextureRendering.h"
 #include "PostProcess/DebugAlphaChannel.h"
-#include "StochasticShadows/StochasticShadows.h"
+#include "SampledDirectLighting/SampledDirectLighting.h"
 #include "Rendering/CustomRenderPass.h"
 
 #if !UE_BUILD_SHIPPING
@@ -1942,7 +1942,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		for (const FViewInfo& View : Views)
 		{
-			PrepareStochasticShadowsLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
+			PrepareSampledDirectLightingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
 		}
 
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);
@@ -2196,7 +2196,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	for (const FViewInfo& View : Views)
 	{
 		if (Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View) 
-			|| StochasticShadows::UseInlineHardwareRayTracing())
+			|| SampledDirectLighting::UseInlineHardwareRayTracing())
 		{
 			bAnyLumenHardwareInlineRayTracingPassEnabled = true;
 		}
@@ -2207,7 +2207,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		SetupLumenHardwareRayTracingHitGroupBuffer(GraphBuilder, ReferenceView);
 	}
 
-	if (Lumen::UseHardwareRayTracing(ViewFamily) || StochasticShadows::UseHardwareRayTracing())
+	if (Lumen::UseHardwareRayTracing(ViewFamily) || SampledDirectLighting::UseHardwareRayTracing())
 	{
 		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 	}
@@ -2378,7 +2378,7 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 				bHasSSGI || bUseLumen);
 
 			ViewPipelineState.Set(&FPerViewPipelineState::bClosestHZB, 
-				bHasSSGI || bUseLumen || StochasticShadows::IsUsingClosestHZB());
+				bHasSSGI || bUseLumen || SampledDirectLighting::IsUsingClosestHZB());
 		}
 	}
 
@@ -3996,9 +3996,9 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RenderLights(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, LightingChannelsTexture, SortedLightSet);
 			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterLighting));
 
-			if (SortedLightSet.StochasticShadowsLightStart < SortedLightSet.SortedLights.Num())
+			if (SortedLightSet.SampledDirectLightingLightStart < SortedLightSet.SortedLights.Num())
 			{
-				RenderStochasticShadows(
+				RenderSampledDirectLighting(
 					GraphBuilder,
 					SceneTextures);
 			}
@@ -4666,7 +4666,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| Scene->bHasRayTracedLights
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
-		|| StochasticShadows::UseHardwareRayTracing()
+		|| SampledDirectLighting::UseHardwareRayTracing()
 		|| HasRayTracedOverlay(*View.Family);
 }
 
