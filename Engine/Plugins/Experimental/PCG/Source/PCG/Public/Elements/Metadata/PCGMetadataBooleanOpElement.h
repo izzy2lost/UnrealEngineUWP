@@ -7,7 +7,7 @@
 #include "PCGMetadataBooleanOpElement.generated.h"
 
 UENUM()
-enum class EPCGMedadataBooleanOperation : uint16
+enum class EPCGMetadataBooleanOperation : uint16
 {
 	And,
 	Not,
@@ -56,12 +56,12 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataBooleanOperation Operation = EPCGMedadataBooleanOperation::And;
+	EPCGMetadataBooleanOperation Operation = EPCGMetadataBooleanOperation::And;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMedadataBooleanOperation::Not", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMetadataBooleanOperation::Not", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
 #if WITH_EDITORONLY_DATA

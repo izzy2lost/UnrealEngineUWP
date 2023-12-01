@@ -10,13 +10,13 @@
 namespace PCGMetadataCompareSettings
 {
 	template <typename T>
-	bool ApplyCompare(const T& Input1, const T& Input2, EPCGMedadataCompareOperation Operation, double Tolerance)
+	bool ApplyCompare(const T& Input1, const T& Input2, EPCGMetadataCompareOperation Operation, double Tolerance)
 	{
-		if (Operation == EPCGMedadataCompareOperation::Equal)
+		if (Operation == EPCGMetadataCompareOperation::Equal)
 		{
 			return PCG::Private::MetadataTraits<T>::Equal(Input1, Input2);
 		}
-		else if (Operation == EPCGMedadataCompareOperation::NotEqual)
+		else if (Operation == EPCGMetadataCompareOperation::NotEqual)
 		{
 			return !PCG::Private::MetadataTraits<T>::Equal(Input1, Input2);
 		}
@@ -25,13 +25,13 @@ namespace PCGMetadataCompareSettings
 		{
 			switch (Operation)
 			{
-			case EPCGMedadataCompareOperation::Greater:
+			case EPCGMetadataCompareOperation::Greater:
 				return PCG::Private::MetadataTraits<T>::Greater(Input1, Input2);
-			case EPCGMedadataCompareOperation::GreaterOrEqual:
+			case EPCGMetadataCompareOperation::GreaterOrEqual:
 				return PCG::Private::MetadataTraits<T>::GreaterOrEqual(Input1, Input2);
-			case EPCGMedadataCompareOperation::Less:
+			case EPCGMetadataCompareOperation::Less:
 				return PCG::Private::MetadataTraits<T>::Less(Input1, Input2);
-			case EPCGMedadataCompareOperation::LessOrEqual:
+			case EPCGMetadataCompareOperation::LessOrEqual:
 				return PCG::Private::MetadataTraits<T>::LessOrEqual(Input1, Input2);
 			default:
 				return false;
@@ -84,7 +84,7 @@ uint32 UPCGMetadataCompareSettings::GetOperandNum() const
 bool UPCGMetadataCompareSettings::IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const
 {
 	bHasSpecialRequirement = false;
-	if (Operation == EPCGMedadataCompareOperation::Equal || Operation == EPCGMedadataCompareOperation::NotEqual)
+	if (Operation == EPCGMetadataCompareOperation::Equal || Operation == EPCGMetadataCompareOperation::NotEqual)
 	{
 		return PCG::Private::IsPCGType(TypeId);
 	}
@@ -119,7 +119,7 @@ uint16 UPCGMetadataCompareSettings::GetOutputType(uint16 InputTypeId) const
 
 FName UPCGMetadataCompareSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataCompareOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataCompareOperation>())
 	{
 		return FName(FString("Compare: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -142,17 +142,17 @@ FText UPCGMetadataCompareSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataCompareSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataCompareOperation>();
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataCompareOperation>();
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataCompareSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataCompareOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataCompareOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataCompareOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataCompareOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }

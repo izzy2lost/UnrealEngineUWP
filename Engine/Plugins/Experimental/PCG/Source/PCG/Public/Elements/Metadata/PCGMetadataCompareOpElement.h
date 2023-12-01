@@ -7,7 +7,7 @@
 #include "PCGMetadataCompareOpElement.generated.h"
 
 UENUM()
-enum class EPCGMedadataCompareOperation : uint16
+enum class EPCGMetadataCompareOperation : uint16
 {
 	Equal,
 	NotEqual,
@@ -58,7 +58,7 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataCompareOperation Operation = EPCGMedadataCompareOperation::Equal;
+	EPCGMetadataCompareOperation Operation = EPCGMetadataCompareOperation::Equal;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
@@ -66,7 +66,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Operation == EPCGMedadataCompareOperation::Equal || Operation == EPCGMedadataCompareOperation::NotEqual", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Operation == EPCGMetadataCompareOperation::Equal || Operation == EPCGMetadataCompareOperation::NotEqual", EditConditionHides))
 	double Tolerance = UE_DOUBLE_SMALL_NUMBER;
 
 #if WITH_EDITORONLY_DATA

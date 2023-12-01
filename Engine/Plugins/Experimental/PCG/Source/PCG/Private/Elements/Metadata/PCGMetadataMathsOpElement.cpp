@@ -11,33 +11,33 @@
 
 namespace PCGMetadataMathsSettings
 {
-	inline constexpr bool IsUnaryOp(EPCGMedadataMathsOperation Operation)
+	inline constexpr bool IsUnaryOp(EPCGMetadataMathsOperation Operation)
 	{
-		return !!(Operation & EPCGMedadataMathsOperation::UnaryOp);
+		return !!(Operation & EPCGMetadataMathsOperation::UnaryOp);
 	}
 
-	inline constexpr bool IsBinaryOp(EPCGMedadataMathsOperation Operation)
+	inline constexpr bool IsBinaryOp(EPCGMetadataMathsOperation Operation)
 	{
-		return !!(Operation & EPCGMedadataMathsOperation::BinaryOp);
+		return !!(Operation & EPCGMetadataMathsOperation::BinaryOp);
 	}
 
-	inline constexpr bool IsTernaryOp(EPCGMedadataMathsOperation Operation)
+	inline constexpr bool IsTernaryOp(EPCGMetadataMathsOperation Operation)
 	{
-		return !!(Operation & EPCGMedadataMathsOperation::TernaryOp);
+		return !!(Operation & EPCGMetadataMathsOperation::TernaryOp);
 	}
 
-	inline FName GetFirstPinLabel(EPCGMedadataMathsOperation Operation)
+	inline FName GetFirstPinLabel(EPCGMetadataMathsOperation Operation)
 	{
 		if (PCGMetadataMathsSettings::IsUnaryOp(Operation)
-			|| Operation == EPCGMedadataMathsOperation::Clamp
-			|| Operation == EPCGMedadataMathsOperation::ClampMin
-			|| Operation == EPCGMedadataMathsOperation::ClampMax)
+			|| Operation == EPCGMetadataMathsOperation::Clamp
+			|| Operation == EPCGMetadataMathsOperation::ClampMin
+			|| Operation == EPCGMetadataMathsOperation::ClampMax)
 		{
 			return PCGPinConstants::DefaultInputLabel;
 		}
 
 		if (PCGMetadataMathsSettings::IsBinaryOp(Operation)
-			|| Operation == EPCGMedadataMathsOperation::Lerp)
+			|| Operation == EPCGMetadataMathsOperation::Lerp)
 		{
 			return PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 		}
@@ -45,14 +45,14 @@ namespace PCGMetadataMathsSettings
 		return NAME_None;
 	}
 
-	inline FName GetSecondPinLabel(EPCGMedadataMathsOperation Operation)
+	inline FName GetSecondPinLabel(EPCGMetadataMathsOperation Operation)
 	{
-		if (Operation == EPCGMedadataMathsOperation::ClampMin || Operation == EPCGMedadataMathsOperation::Clamp)
+		if (Operation == EPCGMetadataMathsOperation::ClampMin || Operation == EPCGMetadataMathsOperation::Clamp)
 		{
 			return PCGMetadataSettingsBaseConstants::ClampMinLabel;
 		}
 
-		if (Operation == EPCGMedadataMathsOperation::ClampMax)
+		if (Operation == EPCGMetadataMathsOperation::ClampMax)
 		{
 			return PCGMetadataSettingsBaseConstants::ClampMaxLabel;
 		}
@@ -65,14 +65,14 @@ namespace PCGMetadataMathsSettings
 		return NAME_None;
 	}
 
-	inline FName GetThirdPinLabel(EPCGMedadataMathsOperation Operation)
+	inline FName GetThirdPinLabel(EPCGMetadataMathsOperation Operation)
 	{
-		if (Operation == EPCGMedadataMathsOperation::Clamp)
+		if (Operation == EPCGMetadataMathsOperation::Clamp)
 		{
 			return PCGMetadataSettingsBaseConstants::ClampMaxLabel;
 		}
 
-		if (Operation == EPCGMedadataMathsOperation::Lerp)
+		if (Operation == EPCGMetadataMathsOperation::Lerp)
 		{
 			return PCGMetadataSettingsBaseConstants::LerpRatioLabel;
 		}
@@ -81,27 +81,27 @@ namespace PCGMetadataMathsSettings
 	}
 
 	template <typename T>
-	T UnaryOp(const T& Value, EPCGMedadataMathsOperation Op)
+	T UnaryOp(const T& Value, EPCGMetadataMathsOperation Op)
 	{
 		switch (Op)
 		{
-		case EPCGMedadataMathsOperation::Sign:
+		case EPCGMetadataMathsOperation::Sign:
 			return PCGMetadataMaths::Sign(Value);
-		case EPCGMedadataMathsOperation::Frac:
+		case EPCGMetadataMathsOperation::Frac:
 			return PCGMetadataMaths::Frac(Value);
-		case EPCGMedadataMathsOperation::Truncate:
+		case EPCGMetadataMathsOperation::Truncate:
 			return PCGMetadataMaths::Truncate(Value);
-		case EPCGMedadataMathsOperation::Round:
+		case EPCGMetadataMathsOperation::Round:
 			return PCGMetadataMaths::Round(Value);
-		case EPCGMedadataMathsOperation::Sqrt:
+		case EPCGMetadataMathsOperation::Sqrt:
 			return PCGMetadataMaths::Sqrt(Value);
-		case EPCGMedadataMathsOperation::Abs:
+		case EPCGMetadataMathsOperation::Abs:
 			return PCGMetadataMaths::Abs(Value);
-		case EPCGMedadataMathsOperation::Floor:
+		case EPCGMetadataMathsOperation::Floor:
 			return PCGMetadataMaths::Floor(Value);
-		case EPCGMedadataMathsOperation::Ceil:
+		case EPCGMetadataMathsOperation::Ceil:
 			return PCGMetadataMaths::Ceil(Value);
-		case EPCGMedadataMathsOperation::OneMinus:
+		case EPCGMetadataMathsOperation::OneMinus:
 			return PCGMetadataMaths::OneMinus(Value);
 		default:
 			return T{};
@@ -109,31 +109,31 @@ namespace PCGMetadataMathsSettings
 	}
 
 	template <typename T>
-	T BinaryOp(const T& Value1, const T& Value2, EPCGMedadataMathsOperation Op)
+	T BinaryOp(const T& Value1, const T& Value2, EPCGMetadataMathsOperation Op)
 	{
 		switch (Op)
 		{
-		case EPCGMedadataMathsOperation::Add:
+		case EPCGMetadataMathsOperation::Add:
 			return Value1 + Value2;
-		case EPCGMedadataMathsOperation::Subtract:
+		case EPCGMetadataMathsOperation::Subtract:
 			return Value1 - Value2;
-		case EPCGMedadataMathsOperation::Multiply:
+		case EPCGMetadataMathsOperation::Multiply:
 			return Value1 * Value2;
-		case EPCGMedadataMathsOperation::Divide:
+		case EPCGMetadataMathsOperation::Divide:
 			return (Value2 != T{0}) ? (Value1 / Value2) : T{0}; // To mirror FMath
-		case EPCGMedadataMathsOperation::Max:
+		case EPCGMetadataMathsOperation::Max:
 			return PCGMetadataMaths::Max(Value1, Value2);
-		case EPCGMedadataMathsOperation::Min:
+		case EPCGMetadataMathsOperation::Min:
 			return PCGMetadataMaths::Min(Value1, Value2);
-		case EPCGMedadataMathsOperation::ClampMin:
+		case EPCGMetadataMathsOperation::ClampMin:
 			return PCGMetadataMaths::Clamp(Value1, Value2, Value1);
-		case EPCGMedadataMathsOperation::ClampMax:
+		case EPCGMetadataMathsOperation::ClampMax:
 			return PCGMetadataMaths::Clamp(Value1, Value1, Value2);
-		case EPCGMedadataMathsOperation::Pow:
+		case EPCGMetadataMathsOperation::Pow:
 			return PCGMetadataMaths::Pow(Value1, Value2);
-		case EPCGMedadataMathsOperation::Modulo:
+		case EPCGMetadataMathsOperation::Modulo:
 			return PCGMetadataMaths::Modulo(Value1, Value2);
-		case EPCGMedadataMathsOperation::Set:
+		case EPCGMetadataMathsOperation::Set:
 			return Value2;
 		default:
 			return T{};
@@ -141,13 +141,13 @@ namespace PCGMetadataMathsSettings
 	}
 
 	template <typename T>
-	T TernaryOp(const T& Value1, const T& Value2, const T& Value3, EPCGMedadataMathsOperation Op)
+	T TernaryOp(const T& Value1, const T& Value2, const T& Value3, EPCGMetadataMathsOperation Op)
 	{
 		switch (Op)
 		{
-		case EPCGMedadataMathsOperation::Clamp:
+		case EPCGMetadataMathsOperation::Clamp:
 			return PCGMetadataMaths::Clamp(Value1, Value2, Value3);
-		case EPCGMedadataMathsOperation::Lerp:
+		case EPCGMetadataMathsOperation::Lerp:
 			return PCGMetadataMaths::Lerp(Value1, Value2, Value3);
 		default:
 			return T{};
@@ -225,19 +225,19 @@ bool UPCGMetadataMathsSettings::IsSupportedInputType(uint16 TypeId, uint32 Input
 bool UPCGMetadataMathsSettings::ShouldForceOutputToInt(uint16 InputTypeId) const
 {
 	return PCG::Private::IsOfTypes<float, double>(InputTypeId) && bForceRoundingOpToInt &&
-		(Operation == EPCGMedadataMathsOperation::Round ||
-		Operation == EPCGMedadataMathsOperation::Truncate ||
-		Operation == EPCGMedadataMathsOperation::Floor ||
-		Operation == EPCGMedadataMathsOperation::Ceil);
+		(Operation == EPCGMetadataMathsOperation::Round ||
+		Operation == EPCGMetadataMathsOperation::Truncate ||
+		Operation == EPCGMetadataMathsOperation::Floor ||
+		Operation == EPCGMetadataMathsOperation::Ceil);
 }
 
 bool UPCGMetadataMathsSettings::ShouldForceOutputToDouble(uint16 InputTypeId) const
 {
 	return PCG::Private::IsOfTypes<int32, int64>(InputTypeId) && bForceOpToDouble &&
-		(Operation == EPCGMedadataMathsOperation::Divide ||
-		Operation == EPCGMedadataMathsOperation::Sqrt ||
-		Operation == EPCGMedadataMathsOperation::Pow ||
-		Operation == EPCGMedadataMathsOperation::Lerp);
+		(Operation == EPCGMetadataMathsOperation::Divide ||
+		Operation == EPCGMetadataMathsOperation::Sqrt ||
+		Operation == EPCGMetadataMathsOperation::Pow ||
+		Operation == EPCGMetadataMathsOperation::Lerp);
 }
 
 uint16 UPCGMetadataMathsSettings::GetOutputType(uint16 InputTypeId) const
@@ -275,7 +275,7 @@ FPCGAttributePropertyInputSelector UPCGMetadataMathsSettings::GetInputSource(uin
 
 FName UPCGMetadataMathsSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataMathsOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataMathsOperation>())
 	{
 		return FName(FString("Maths: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -298,17 +298,17 @@ FText UPCGMetadataMathsSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataMathsSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataMathsOperation>({ EPCGMedadataMathsOperation::UnaryOp, EPCGMedadataMathsOperation::BinaryOp, EPCGMedadataMathsOperation::TernaryOp });
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataMathsOperation>({ EPCGMetadataMathsOperation::UnaryOp, EPCGMetadataMathsOperation::BinaryOp, EPCGMetadataMathsOperation::TernaryOp });
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataMathsSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataMathsOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataMathsOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataMathsOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataMathsOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }

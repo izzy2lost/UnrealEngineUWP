@@ -7,7 +7,7 @@
 #include "PCGMetadataMathsOpElement.generated.h"
 
 UENUM(Meta=(Bitflags))
-enum class EPCGMedadataMathsOperation : uint16
+enum class EPCGMetadataMathsOperation : uint16
 {
 	// Unary op
 	UnaryOp = 1 << 10 UMETA(Hidden),
@@ -40,7 +40,7 @@ enum class EPCGMedadataMathsOperation : uint16
 	Clamp,
 	Lerp,
 };
-ENUM_CLASS_FLAGS(EPCGMedadataMathsOperation);
+ENUM_CLASS_FLAGS(EPCGMetadataMathsOperation);
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGMetadataMathsSettings : public UPCGMetadataSettingsBase
@@ -83,23 +83,23 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataMathsOperation Operation = EPCGMedadataMathsOperation::Add;
+	EPCGMetadataMathsOperation Operation = EPCGMetadataMathsOperation::Add;
 
 	/** For rounding operation, if the input type is float or double, use this option to force the output attribute to be int64. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMedadataMathsOperation::Round || Operation == EPCGMedadataMathsOperation::Truncate || Operation == EPCGMedadataMathsOperation::Floor || Operation == EPCGMedadataMathsOperation::Ceil"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMetadataMathsOperation::Round || Operation == EPCGMetadataMathsOperation::Truncate || Operation == EPCGMetadataMathsOperation::Floor || Operation == EPCGMetadataMathsOperation::Ceil"))
 	bool bForceRoundingOpToInt = false;
 
 	/** For operations that can yield floating point values, if the input type are ints, use this option to force the output attribute to be double. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMedadataMathsOperation::Divide || Operation == EPCGMedadataMathsOperation::Sqrt || Operation == EPCGMedadataMathsOperation::Pow || Operation == EPCGMedadataMathsOperation::Lerp"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditConditionHides, EditCondition = "Operation == EPCGMetadataMathsOperation::Divide || Operation == EPCGMetadataMathsOperation::Sqrt || Operation == EPCGMetadataMathsOperation::Pow || Operation == EPCGMetadataMathsOperation::Lerp"))
 	bool bForceOpToDouble = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "(Operation & '/Script/PCG.EPCGMedadataMathsOperation::BinaryOp') || (Operation & '/Script/PCG.EPCGMedadataMathsOperation::TernaryOp')", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "(Operation & '/Script/PCG.EPCGMetadataMathsOperation::BinaryOp') || (Operation & '/Script/PCG.EPCGMetadataMathsOperation::TernaryOp')", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation & '/Script/PCG.EPCGMedadataMathsOperation::TernaryOp'", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation & '/Script/PCG.EPCGMetadataMathsOperation::TernaryOp'", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource3;
 
 #if WITH_EDITORONLY_DATA

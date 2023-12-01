@@ -27,63 +27,63 @@ FRotator PCGMetadataRotatorHelpers::RLerp(const FRotator& A, const FRotator& B, 
 
 namespace PCGMetadataRotatorSettings
 {
-	inline constexpr bool IsUnaryOp(EPCGMedadataRotatorOperation Operation)
+	inline constexpr bool IsUnaryOp(EPCGMetadataRotatorOperation Operation)
 	{
-		return Operation == EPCGMedadataRotatorOperation::Invert ||
-			Operation == EPCGMedadataRotatorOperation::Normalize;
+		return Operation == EPCGMetadataRotatorOperation::Invert ||
+			Operation == EPCGMetadataRotatorOperation::Normalize;
 	}
 
-	inline constexpr bool IsTernaryOp(EPCGMedadataRotatorOperation Operation)
+	inline constexpr bool IsTernaryOp(EPCGMetadataRotatorOperation Operation)
 	{
-		return Operation == EPCGMedadataRotatorOperation::Lerp;
+		return Operation == EPCGMetadataRotatorOperation::Lerp;
 	}
 
-	inline constexpr bool IsTransfromOp(EPCGMedadataRotatorOperation Operation)
+	inline constexpr bool IsTransfromOp(EPCGMetadataRotatorOperation Operation)
 	{
-		return (uint16)Operation >= (uint16)EPCGMedadataRotatorOperation::TransformOp;
+		return (uint16)Operation >= (uint16)EPCGMetadataRotatorOperation::TransformOp;
 	}
 
-	inline FRotator ApplyRotatorOperation(const FRotator& Input1, const FRotator& Input2, double Ratio, EPCGMedadataRotatorOperation Operation)
+	inline FRotator ApplyRotatorOperation(const FRotator& Input1, const FRotator& Input2, double Ratio, EPCGMetadataRotatorOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataRotatorOperation::Combine:
+		case EPCGMetadataRotatorOperation::Combine:
 			return FRotator(Input2.Quaternion() * Input1.Quaternion());
-		case EPCGMedadataRotatorOperation::Lerp:
+		case EPCGMetadataRotatorOperation::Lerp:
 			return PCGMetadataRotatorHelpers::RLerp(Input1, Input2, Ratio, false);
-		case EPCGMedadataRotatorOperation::Invert:
+		case EPCGMetadataRotatorOperation::Invert:
 			return Input1.GetInverse();
-		case EPCGMedadataRotatorOperation::Normalize:
+		case EPCGMetadataRotatorOperation::Normalize:
 			return Input1.GetNormalized();
 		default:
 			return FRotator{};
 		}
 	}
 
-	inline FQuat ApplyRotatorOperation(const FQuat& Input1, const FQuat& Input2, double Ratio, EPCGMedadataRotatorOperation Operation)
+	inline FQuat ApplyRotatorOperation(const FQuat& Input1, const FQuat& Input2, double Ratio, EPCGMetadataRotatorOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataRotatorOperation::Combine:
+		case EPCGMetadataRotatorOperation::Combine:
 			return Input2 * Input1;
-		case EPCGMedadataRotatorOperation::Lerp:
+		case EPCGMetadataRotatorOperation::Lerp:
 			return FQuat::Slerp(Input1, Input2, Ratio);
-		case EPCGMedadataRotatorOperation::Invert:
+		case EPCGMetadataRotatorOperation::Invert:
 			return Input1.Inverse();
-		case EPCGMedadataRotatorOperation::Normalize:
+		case EPCGMetadataRotatorOperation::Normalize:
 			return Input1.GetNormalized();
 		default:
 			return FQuat{};
 		}
 	}
 
-	inline FQuat ApplyTransformOperation(const FQuat& Input, const FTransform& Transform, EPCGMedadataRotatorOperation Operation)
+	inline FQuat ApplyTransformOperation(const FQuat& Input, const FTransform& Transform, EPCGMetadataRotatorOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataRotatorOperation::TransformRotation:
+		case EPCGMetadataRotatorOperation::TransformRotation:
 			return Transform.TransformRotation(Input);
-		case EPCGMedadataRotatorOperation::InverseTransformRotation:
+		case EPCGMetadataRotatorOperation::InverseTransformRotation:
 			return Transform.InverseTransformRotation(Input);
 		default:
 			return FQuat{};
@@ -91,7 +91,7 @@ namespace PCGMetadataRotatorSettings
 	}
 
 	// In Kismet Math Library, they transform Rotators in Quaternions.
-	inline FRotator ApplyTransformOperation(const FRotator& Input, const FTransform& Transform, EPCGMedadataRotatorOperation Operation)
+	inline FRotator ApplyTransformOperation(const FRotator& Input, const FTransform& Transform, EPCGMetadataRotatorOperation Operation)
 	{
 		return FRotator(ApplyTransformOperation(Input.Quaternion(), Transform, Operation));
 	}
@@ -196,7 +196,7 @@ FPCGAttributePropertyInputSelector UPCGMetadataRotatorSettings::GetInputSource(u
 
 FName UPCGMetadataRotatorSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataRotatorOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataRotatorOperation>())
 	{
 		return FName(FString("Rotator: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -219,17 +219,17 @@ FText UPCGMetadataRotatorSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataRotatorSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataRotatorOperation>({ EPCGMedadataRotatorOperation::RotatorOp, EPCGMedadataRotatorOperation::TransformOp });
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataRotatorOperation>({ EPCGMetadataRotatorOperation::RotatorOp, EPCGMetadataRotatorOperation::TransformOp });
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataRotatorSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataRotatorOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataRotatorOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataRotatorOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataRotatorOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }

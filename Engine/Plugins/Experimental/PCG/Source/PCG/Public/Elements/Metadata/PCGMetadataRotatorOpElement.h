@@ -7,7 +7,7 @@
 #include "PCGMetadataRotatorOpElement.generated.h"
 
 UENUM()
-enum class EPCGMedadataRotatorOperation : uint16
+enum class EPCGMetadataRotatorOperation : uint16
 {
 	RotatorOp = 0 UMETA(Hidden),
 	Combine,
@@ -66,15 +66,15 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataRotatorOperation Operation = EPCGMedadataRotatorOperation::Combine;
+	EPCGMetadataRotatorOperation Operation = EPCGMetadataRotatorOperation::Combine;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMedadataRotatorOperation::Invert", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMetadataRotatorOperation::Invert", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMedadataRotatorOperation::Lerp", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMetadataRotatorOperation::Lerp", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource3;
 
 #if WITH_EDITORONLY_DATA

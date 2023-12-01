@@ -116,7 +116,7 @@ bool FPCGMetadataBooleanOpTest::RunTest(const FString& Parameters)
 	/////////////////////////////////////////
 	ParamTaggedData1.Pin = PCGPinConstants::DefaultInputLabel;
 
-	Settings->Operation = EPCGMedadataBooleanOperation::Not;
+	Settings->Operation = EPCGMetadataBooleanOperation::Not;
 
 	{
 		Settings->InputSource1.SetAttributeName(TrueAttribute);
@@ -135,7 +135,7 @@ bool FPCGMetadataBooleanOpTest::RunTest(const FString& Parameters)
 	// Validate invalid op when there is type mismatch.
 	ParamTaggedData1.Pin = PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 	ParamTaggedData2.Pin = PCGMetadataSettingsBaseConstants::DoubleInputSecondLabel;
-	Settings->Operation = EPCGMedadataBooleanOperation::And;
+	Settings->Operation = EPCGMetadataBooleanOperation::And;
 
 	AddExpectedError(TEXT("Attribute/Property 'Invalid' from pin"), EAutomationExpectedErrorFlags::Contains, 3);
 
@@ -186,7 +186,7 @@ bool FPCGMetadataBooleanOpTest::RunTest(const FString& Parameters)
 	/////////////////////////////////////////
 	// Or
 	/////////////////////////////////////////
-	Settings->Operation = EPCGMedadataBooleanOperation::Or;
+	Settings->Operation = EPCGMetadataBooleanOperation::Or;
 	{
 		Settings->InputSource1.SetAttributeName(TrueAttribute);
 		Settings->InputSource2.SetAttributeName(TrueAttribute);
@@ -214,7 +214,7 @@ bool FPCGMetadataBooleanOpTest::RunTest(const FString& Parameters)
 	/////////////////////////////////////////
 	// Xor
 	/////////////////////////////////////////
-	Settings->Operation = EPCGMedadataBooleanOperation::Xor;
+	Settings->Operation = EPCGMetadataBooleanOperation::Xor;
 	{
 		Settings->InputSource1.SetAttributeName(TrueAttribute);
 		Settings->InputSource2.SetAttributeName(TrueAttribute);

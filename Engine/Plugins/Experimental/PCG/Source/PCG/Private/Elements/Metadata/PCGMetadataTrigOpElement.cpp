@@ -9,25 +9,25 @@
 namespace PCGMetadataTrigSettings
 {
 	template <typename OutType>
-	OutType UnaryOp(const OutType& Input1, EPCGMedadataTrigOperation Operation)
+	OutType UnaryOp(const OutType& Input1, EPCGMetadataTrigOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataTrigOperation::Acos:
+		case EPCGMetadataTrigOperation::Acos:
 			return FMath::Acos(Input1);
-		case EPCGMedadataTrigOperation::Asin:
+		case EPCGMetadataTrigOperation::Asin:
 			return FMath::Asin(Input1);
-		case EPCGMedadataTrigOperation::Atan:
+		case EPCGMetadataTrigOperation::Atan:
 			return FMath::Atan(Input1);
-		case EPCGMedadataTrigOperation::Cos:
+		case EPCGMetadataTrigOperation::Cos:
 			return FMath::Cos(Input1);
-		case EPCGMedadataTrigOperation::Sin:
+		case EPCGMetadataTrigOperation::Sin:
 			return FMath::Sin(Input1);
-		case EPCGMedadataTrigOperation::Tan:
+		case EPCGMetadataTrigOperation::Tan:
 			return FMath::Tan(Input1);
-		case EPCGMedadataTrigOperation::DegToRad:
+		case EPCGMetadataTrigOperation::DegToRad:
 			return FMath::DegreesToRadians(Input1);
-		case EPCGMedadataTrigOperation::RadToDeg:
+		case EPCGMetadataTrigOperation::RadToDeg:
 			return FMath::RadiansToDegrees(Input1);
 		default:
 			return OutType{};
@@ -37,7 +37,7 @@ namespace PCGMetadataTrigSettings
 	template <typename OutType>
 	OutType BinaryOp(const OutType& Input1, const OutType& Input2)
 	{
-		// EPCGMedadataTrigOperation::Atan2:
+		// EPCGMetadataTrigOperation::Atan2:
 		return FMath::Atan2(Input1, Input2);
 	}
 }
@@ -66,7 +66,7 @@ FName UPCGMetadataTrigSettings::GetInputPinLabel(uint32 Index) const
 	switch (Index)
 	{
 	case 0:
-		return (Operation != EPCGMedadataTrigOperation::Atan2) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
+		return (Operation != EPCGMetadataTrigOperation::Atan2) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 	case 1:
 		return PCGMetadataSettingsBaseConstants::DoubleInputSecondLabel;
 	default:
@@ -76,7 +76,7 @@ FName UPCGMetadataTrigSettings::GetInputPinLabel(uint32 Index) const
 
 uint32 UPCGMetadataTrigSettings::GetOperandNum() const
 {
-	return (Operation != EPCGMedadataTrigOperation::Atan2) ? 1 : 2;
+	return (Operation != EPCGMetadataTrigOperation::Atan2) ? 1 : 2;
 }
 
 bool UPCGMetadataTrigSettings::IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const
@@ -105,7 +105,7 @@ uint16 UPCGMetadataTrigSettings::GetOutputType(uint16 InputTypeId) const
 
 FName UPCGMetadataTrigSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataTrigOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTrigOperation>())
 	{
 		return FName(FString("Trig: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -128,17 +128,17 @@ FText UPCGMetadataTrigSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataTrigSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataTrigOperation>();
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataTrigOperation>();
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataTrigSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataTrigOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTrigOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataTrigOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataTrigOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }
@@ -154,7 +154,7 @@ bool FPCGMetadataTrigElement::DoOperation(PCGMetadataOps::FOperationData& Operat
 
 	const UPCGMetadataTrigSettings* Settings = CastChecked<UPCGMetadataTrigSettings>(OperationData.Settings);
 
-	if (Settings->Operation == EPCGMedadataTrigOperation::Atan2)
+	if (Settings->Operation == EPCGMetadataTrigOperation::Atan2)
 	{
 		DoBinaryOp<double, double>(OperationData, [](const double& Value1, const double& Value2) -> double { return PCGMetadataTrigSettings::BinaryOp(Value1, Value2); });
 	}

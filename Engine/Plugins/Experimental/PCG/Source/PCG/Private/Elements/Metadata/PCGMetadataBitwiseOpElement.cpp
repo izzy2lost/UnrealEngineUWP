@@ -10,19 +10,19 @@ namespace PCGMetadataBitwiseSettings
 {
 	inline int64 UnaryOp(const int64& Value)
 	{
-		// EPCGMedadataBitwiseOperation::Not
+		// EPCGMetadataBitwiseOperation::Not
 		return ~Value;
 	}
 
-	inline int64 BinaryOp(const int64& Value1, const int64& Value2, EPCGMedadataBitwiseOperation Operation)
+	inline int64 BinaryOp(const int64& Value1, const int64& Value2, EPCGMetadataBitwiseOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataBitwiseOperation::And:
+		case EPCGMetadataBitwiseOperation::And:
 			return (Value1 & Value2);
-		case EPCGMedadataBitwiseOperation::Or:
+		case EPCGMetadataBitwiseOperation::Or:
 			return (Value1 | Value2);
-		case EPCGMedadataBitwiseOperation::Xor:
+		case EPCGMetadataBitwiseOperation::Xor:
 			return (Value1 ^ Value2);
 		default:
 			return 0;
@@ -54,7 +54,7 @@ FName UPCGMetadataBitwiseSettings::GetInputPinLabel(uint32 Index) const
 	switch (Index)
 	{
 	case 0:
-		return (Operation == EPCGMedadataBitwiseOperation::Not) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
+		return (Operation == EPCGMetadataBitwiseOperation::Not) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 	case 1:
 		return PCGMetadataSettingsBaseConstants::DoubleInputSecondLabel;
 	default:
@@ -64,7 +64,7 @@ FName UPCGMetadataBitwiseSettings::GetInputPinLabel(uint32 Index) const
 
 uint32 UPCGMetadataBitwiseSettings::GetOperandNum() const
 {
-	return (Operation == EPCGMedadataBitwiseOperation::Not) ? 1 : 2;
+	return (Operation == EPCGMetadataBitwiseOperation::Not) ? 1 : 2;
 }
 
 bool UPCGMetadataBitwiseSettings::IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const
@@ -88,7 +88,7 @@ FPCGAttributePropertyInputSelector UPCGMetadataBitwiseSettings::GetInputSource(u
 
 FName UPCGMetadataBitwiseSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = FindObject<UEnum>(nullptr, TEXT("/Script/PCG.EPCGMedadataBitwiseOperation"), true))
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBitwiseOperation>())
 	{
 		return FName(FString("Bitwise: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -111,17 +111,17 @@ FText UPCGMetadataBitwiseSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataBitwiseSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataBitwiseOperation>();
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataBitwiseOperation>();
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataBitwiseSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataBitwiseOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBitwiseOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataBitwiseOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataBitwiseOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }
@@ -142,7 +142,7 @@ bool FPCGMetadataBitwiseElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	const UPCGMetadataBitwiseSettings* Settings = CastChecked<UPCGMetadataBitwiseSettings>(OperationData.Settings);
 
-	if (Settings->Operation == EPCGMedadataBitwiseOperation::Not)
+	if (Settings->Operation == EPCGMetadataBitwiseOperation::Not)
 	{
 		DoUnaryOp<int64>(OperationData, [](const int64& Value) -> int64 { return PCGMetadataBitwiseSettings::UnaryOp(Value); });
 	}

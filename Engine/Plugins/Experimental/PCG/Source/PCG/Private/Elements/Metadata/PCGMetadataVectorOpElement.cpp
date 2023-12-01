@@ -15,29 +15,29 @@ namespace PCGMetadataVectorConstants
 
 namespace PCGMetadataVectorSettings
 {
-	inline constexpr bool IsUnaryOp(EPCGMedadataVectorOperation Operation)
+	inline constexpr bool IsUnaryOp(EPCGMetadataVectorOperation Operation)
 	{
-		return Operation == EPCGMedadataVectorOperation::Normalize || 
-			Operation == EPCGMedadataVectorOperation::Length;
+		return Operation == EPCGMetadataVectorOperation::Normalize || 
+			Operation == EPCGMetadataVectorOperation::Length;
 	}
 
-	inline constexpr bool IsTernaryOp(EPCGMedadataVectorOperation Operation)
+	inline constexpr bool IsTernaryOp(EPCGMetadataVectorOperation Operation)
 	{
-		return Operation == EPCGMedadataVectorOperation::RotateAroundAxis;
+		return Operation == EPCGMetadataVectorOperation::RotateAroundAxis;
 	}
 
-	inline constexpr bool IsTransformOp(EPCGMedadataVectorOperation Operation)
+	inline constexpr bool IsTransformOp(EPCGMetadataVectorOperation Operation)
 	{
-		return (uint16)Operation >= (uint16)EPCGMedadataVectorOperation::TransformOp;
+		return (uint16)Operation >= (uint16)EPCGMetadataVectorOperation::TransformOp;
 	}
 
 	// Mimic KismetMathLibrary
 	template <typename InType>
-	inline InType ApplyTransformOperation(const InType& Value, const FTransform& Transform, EPCGMedadataVectorOperation Operation)
+	inline InType ApplyTransformOperation(const InType& Value, const FTransform& Transform, EPCGMetadataVectorOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataVectorOperation::TransformDirection:
+		case EPCGMetadataVectorOperation::TransformDirection:
 		{
 			if constexpr (std::is_same_v<InType, FVector2D>)
 			{
@@ -54,7 +54,7 @@ namespace PCGMetadataVectorSettings
 				return Transform.TransformVectorNoScale(Value);
 			}
 		}
-		case EPCGMedadataVectorOperation::TransformLocation:
+		case EPCGMetadataVectorOperation::TransformLocation:
 		{
 			if constexpr (std::is_same_v<InType, FVector2D>)
 			{
@@ -74,7 +74,7 @@ namespace PCGMetadataVectorSettings
 			}
 			break;
 		}
-		case EPCGMedadataVectorOperation::InverseTransformDirection:
+		case EPCGMetadataVectorOperation::InverseTransformDirection:
 		{
 			if constexpr (std::is_same_v<InType, FVector2D>)
 			{
@@ -94,7 +94,7 @@ namespace PCGMetadataVectorSettings
 			}
 			break;
 		}
-		case EPCGMedadataVectorOperation::InverseTransformLocation:
+		case EPCGMetadataVectorOperation::InverseTransformLocation:
 		{
 			if constexpr (std::is_same_v<InType, FVector2D>)
 			{
@@ -122,11 +122,11 @@ namespace PCGMetadataVectorSettings
 	}
 
 	template <typename InType>
-	inline InType ApplyVectorOperation(const InType& Value1, const InType& Value2, double& DoubleValue, EPCGMedadataVectorOperation Operation)
+	inline InType ApplyVectorOperation(const InType& Value1, const InType& Value2, double& DoubleValue, EPCGMetadataVectorOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataVectorOperation::Cross:
+		case EPCGMetadataVectorOperation::Cross:
 		{
 			if constexpr (std::is_same_v<InType, FVector2D>)
 			{
@@ -138,7 +138,7 @@ namespace PCGMetadataVectorSettings
 			}
 			break;
 		}
-		case EPCGMedadataVectorOperation::Dot:
+		case EPCGMetadataVectorOperation::Dot:
 		{
 			if constexpr (std::is_same_v<FVector4, InType>)
 			{
@@ -150,10 +150,10 @@ namespace PCGMetadataVectorSettings
 			}
 			break;
 		}
-		case EPCGMedadataVectorOperation::Distance:
+		case EPCGMetadataVectorOperation::Distance:
 			DoubleValue = (Value1 - Value2).Size();
 			break;
-		case EPCGMedadataVectorOperation::RotateAroundAxis:
+		case EPCGMetadataVectorOperation::RotateAroundAxis:
 		{
 			if constexpr (std::is_same_v<FVector4, InType>)
 			{
@@ -173,7 +173,7 @@ namespace PCGMetadataVectorSettings
 			}
 			break;
 		}
-		case EPCGMedadataVectorOperation::Normalize:
+		case EPCGMetadataVectorOperation::Normalize:
 			if constexpr (std::is_same_v<FVector4, InType>)
 			{
 				double Length = Value1.Size();
@@ -193,7 +193,7 @@ namespace PCGMetadataVectorSettings
 				return Res;
 			}
 			break;
-		case EPCGMedadataVectorOperation::Length:
+		case EPCGMetadataVectorOperation::Length:
 			DoubleValue = Value1.Size();
 			break;
 		default:
@@ -237,7 +237,7 @@ FName UPCGMetadataVectorSettings::GetInputPinLabel(uint32 Index) const
 	{
 		if (PCGMetadataVectorSettings::IsUnaryOp(Operation) || 
 			PCGMetadataVectorSettings::IsTransformOp(Operation) ||
-			Operation == EPCGMedadataVectorOperation::RotateAroundAxis)
+			Operation == EPCGMetadataVectorOperation::RotateAroundAxis)
 		{
 			return PCGPinConstants::DefaultInputLabel;
 		}
@@ -248,7 +248,7 @@ FName UPCGMetadataVectorSettings::GetInputPinLabel(uint32 Index) const
 	}
 	case 1:
 	{
-		if (Operation == EPCGMedadataVectorOperation::RotateAroundAxis)
+		if (Operation == EPCGMetadataVectorOperation::RotateAroundAxis)
 		{
 			return PCGMetadataVectorConstants::AxisLabel;
 		}
@@ -288,7 +288,7 @@ bool UPCGMetadataVectorSettings::IsSupportedInputType(uint16 TypeId, uint32 Inpu
 {
 	bHasSpecialRequirement = false;
 
-	if (Operation == EPCGMedadataVectorOperation::RotateAroundAxis && InputIndex == 2)
+	if (Operation == EPCGMetadataVectorOperation::RotateAroundAxis && InputIndex == 2)
 	{
 		bHasSpecialRequirement = true;
 		return PCG::Private::IsOfTypes<double, float>(TypeId);
@@ -321,7 +321,7 @@ FPCGAttributePropertyInputSelector UPCGMetadataVectorSettings::GetInputSource(ui
 
 FName UPCGMetadataVectorSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataVectorOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataVectorOperation>())
 	{
 		return FName(FString("Vector: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -344,17 +344,17 @@ FText UPCGMetadataVectorSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataVectorSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataVectorOperation>({ EPCGMedadataVectorOperation::VectorOp, EPCGMedadataVectorOperation::TransformOp });
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataVectorOperation>({ EPCGMetadataVectorOperation::VectorOp, EPCGMetadataVectorOperation::TransformOp });
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataVectorSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataVectorOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataVectorOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataVectorOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataVectorOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }
@@ -367,10 +367,10 @@ FPCGElementPtr UPCGMetadataVectorSettings::CreateElement() const
 uint16 UPCGMetadataVectorSettings::GetOutputType(uint16 InputTypeId) const
 {
 	// Dot, Length and Cross product with Vec2 output Double values
-	if (Operation == EPCGMedadataVectorOperation::Dot ||
-		Operation == EPCGMedadataVectorOperation::Length ||
-		Operation == EPCGMedadataVectorOperation::Distance ||
-		(Operation == EPCGMedadataVectorOperation::Cross && InputTypeId == (uint16)EPCGMetadataTypes::Vector2))
+	if (Operation == EPCGMetadataVectorOperation::Dot ||
+		Operation == EPCGMetadataVectorOperation::Length ||
+		Operation == EPCGMetadataVectorOperation::Distance ||
+		(Operation == EPCGMetadataVectorOperation::Cross && InputTypeId == (uint16)EPCGMetadataTypes::Vector2))
 	{
 		return (uint16)EPCGMetadataTypes::Double;
 	}

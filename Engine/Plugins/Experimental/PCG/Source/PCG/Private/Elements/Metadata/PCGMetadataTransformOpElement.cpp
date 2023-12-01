@@ -11,14 +11,14 @@
 
 namespace PCGMetadataTransfromSettings
 {
-	inline bool IsUnaryOp(EPCGMedadataTransformOperation Operation)
+	inline bool IsUnaryOp(EPCGMetadataTransformOperation Operation)
 	{
-		return Operation == EPCGMedadataTransformOperation::Invert;
+		return Operation == EPCGMetadataTransformOperation::Invert;
 	}
 
-	inline bool IsTernaryOp(EPCGMedadataTransformOperation Operation)
+	inline bool IsTernaryOp(EPCGMetadataTransformOperation Operation)
 	{
-		return Operation == EPCGMedadataTransformOperation::Lerp;
+		return Operation == EPCGMetadataTransformOperation::Lerp;
 	}
 
 	// Taken from Kismet Math Library
@@ -56,15 +56,15 @@ namespace PCGMetadataTransfromSettings
 		}
 	}
 
-	inline FTransform ApplyTransformOperation(const FTransform& Value1, const FTransform& Value2, double Ratio, EPCGMedadataTransformOperation Operation, EPCGTransformLerpMode Mode)
+	inline FTransform ApplyTransformOperation(const FTransform& Value1, const FTransform& Value2, double Ratio, EPCGMetadataTransformOperation Operation, EPCGTransformLerpMode Mode)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataTransformOperation::Invert:
+		case EPCGMetadataTransformOperation::Invert:
 			return Value1.Inverse();
-		case EPCGMedadataTransformOperation::Compose:
+		case EPCGMetadataTransformOperation::Compose:
 			return Value1 * Value2;
-		case EPCGMedadataTransformOperation::Lerp:
+		case EPCGMetadataTransformOperation::Lerp:
 			return LerpTransform(Value1, Value2, Ratio, Mode);
 		default:
 			return FTransform{};
@@ -102,7 +102,7 @@ FName UPCGMetadataTransformSettings::GetInputPinLabel(uint32 Index) const
 	switch (Index)
 	{
 	case 0:
-		return (Operation == EPCGMedadataTransformOperation::Invert) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
+		return (Operation == EPCGMetadataTransformOperation::Invert) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 	case 1:
 		return PCGMetadataSettingsBaseConstants::DoubleInputSecondLabel;
 	case 2:
@@ -114,11 +114,11 @@ FName UPCGMetadataTransformSettings::GetInputPinLabel(uint32 Index) const
 
 uint32 UPCGMetadataTransformSettings::GetOperandNum() const
 {
-	if (Operation == EPCGMedadataTransformOperation::Invert)
+	if (Operation == EPCGMetadataTransformOperation::Invert)
 	{
 		return 1;
 	}
-	else if (Operation == EPCGMedadataTransformOperation::Lerp)
+	else if (Operation == EPCGMetadataTransformOperation::Lerp)
 	{
 		return 3;
 	}
@@ -159,7 +159,7 @@ FPCGAttributePropertyInputSelector UPCGMetadataTransformSettings::GetInputSource
 
 FName UPCGMetadataTransformSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataTransformOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTransformOperation>())
 	{
 		return FName(FString("Transform: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -182,17 +182,17 @@ FText UPCGMetadataTransformSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataTransformSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataTransformOperation>();
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataTransformOperation>();
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataTransformSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataTransformOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTransformOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataTransformOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataTransformOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }

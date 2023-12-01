@@ -7,7 +7,7 @@
 #include "PCGMetadataTrigOpElement.generated.h"
 
 UENUM()
-enum class EPCGMedadataTrigOperation : uint16
+enum class EPCGMetadataTrigOperation : uint16
 {
 	Acos,
 	Asin,
@@ -61,12 +61,12 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataTrigOperation Operation = EPCGMedadataTrigOperation::Acos;
+	EPCGMetadataTrigOperation Operation = EPCGMetadataTrigOperation::Acos;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMedadataTrigOperation::Atan2", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMetadataTrigOperation::Atan2", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
 #if WITH_EDITORONLY_DATA

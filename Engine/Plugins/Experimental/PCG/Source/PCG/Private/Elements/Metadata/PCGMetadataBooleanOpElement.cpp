@@ -10,19 +10,19 @@ namespace PCGMetadataBooleanSettings
 {
 	inline bool UnaryOp(const bool& Value)
 	{
-		// EPCGMedadataBooleanOperation::Not
+		// EPCGMetadataBooleanOperation::Not
 		return !Value;
 	}
 
-	inline bool BinaryOp(const bool& Value1, const bool& Value2, EPCGMedadataBooleanOperation Operation)
+	inline bool BinaryOp(const bool& Value1, const bool& Value2, EPCGMetadataBooleanOperation Operation)
 	{
 		switch (Operation)
 		{
-		case EPCGMedadataBooleanOperation::And:
+		case EPCGMetadataBooleanOperation::And:
 			return (Value1 && Value2);
-		case EPCGMedadataBooleanOperation::Or:
+		case EPCGMetadataBooleanOperation::Or:
 			return (Value1 || Value2);
-		case EPCGMedadataBooleanOperation::Xor:
+		case EPCGMetadataBooleanOperation::Xor:
 			return (Value1 != Value2);
 		default:
 			return false;
@@ -54,7 +54,7 @@ FName UPCGMetadataBooleanSettings::GetInputPinLabel(uint32 Index) const
 	switch (Index)
 	{
 	case 0:
-		return (Operation == EPCGMedadataBooleanOperation::Not) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
+		return (Operation == EPCGMetadataBooleanOperation::Not) ? PCGPinConstants::DefaultInputLabel : PCGMetadataSettingsBaseConstants::DoubleInputFirstLabel;
 	case 1:
 		return PCGMetadataSettingsBaseConstants::DoubleInputSecondLabel;
 	default:
@@ -64,7 +64,7 @@ FName UPCGMetadataBooleanSettings::GetInputPinLabel(uint32 Index) const
 
 uint32 UPCGMetadataBooleanSettings::GetOperandNum() const
 {
-	return (Operation == EPCGMedadataBooleanOperation::Not) ? 1 : 2;
+	return (Operation == EPCGMetadataBooleanOperation::Not) ? 1 : 2;
 }
 
 bool UPCGMetadataBooleanSettings::IsSupportedInputType(uint16 TypeId, uint32 InputIndex, bool& bHasSpecialRequirement) const
@@ -93,7 +93,7 @@ uint16 UPCGMetadataBooleanSettings::GetOutputType(uint16 InputTypeId) const
 
 FName UPCGMetadataBooleanSettings::AdditionalTaskName() const
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataBooleanOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBooleanOperation>())
 	{
 		return FName(FString("Boolean: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
 	}
@@ -116,17 +116,17 @@ FText UPCGMetadataBooleanSettings::GetDefaultNodeTitle() const
 
 TArray<FPCGPreConfiguredSettingsInfo> UPCGMetadataBooleanSettings::GetPreconfiguredInfo() const
 {
-	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMedadataBooleanOperation>();
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGMetadataBooleanOperation>();
 }
 #endif // WITH_EDITOR
 
 void UPCGMetadataBooleanSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
-	if (const UEnum* EnumPtr = StaticEnum<EPCGMedadataBooleanOperation>())
+	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBooleanOperation>())
 	{
 		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
 		{
-			Operation = EPCGMedadataBooleanOperation(PreconfiguredInfo.PreconfiguredIndex);
+			Operation = EPCGMetadataBooleanOperation(PreconfiguredInfo.PreconfiguredIndex);
 		}
 	}
 }
@@ -142,7 +142,7 @@ bool FPCGMetadataBooleanElement::DoOperation(PCGMetadataOps::FOperationData& Ope
 
 	const UPCGMetadataBooleanSettings* Settings = CastChecked<UPCGMetadataBooleanSettings>(OperationData.Settings);
 
-	if (Settings->Operation == EPCGMedadataBooleanOperation::Not)
+	if (Settings->Operation == EPCGMetadataBooleanOperation::Not)
 	{
 		DoUnaryOp<bool>(OperationData, [](const bool& Value) -> bool { return PCGMetadataBooleanSettings::UnaryOp(Value); });
 	}

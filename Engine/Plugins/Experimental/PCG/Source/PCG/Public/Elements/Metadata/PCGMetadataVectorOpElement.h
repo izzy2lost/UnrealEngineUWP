@@ -7,7 +7,7 @@
 #include "PCGMetadataVectorOpElement.generated.h"
 
 UENUM()
-enum class EPCGMedadataVectorOperation : uint16
+enum class EPCGMetadataVectorOperation : uint16
 {
 	VectorOp = 0 UMETA(Hidden),
 	Cross,
@@ -65,15 +65,15 @@ protected:
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGMedadataVectorOperation Operation = EPCGMedadataVectorOperation::Cross;
+	EPCGMetadataVectorOperation Operation = EPCGMetadataVectorOperation::Cross;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMedadataVectorOperation::Normalize && Operation != EPCGMedadataVectorOperation::Length", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation != EPCGMetadataVectorOperation::Normalize && Operation != EPCGMetadataVectorOperation::Length", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource2;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMedadataVectorOperation::RotateAroundAxis", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Input, meta = (EditCondition = "Operation == EPCGMetadataVectorOperation::RotateAroundAxis", EditConditionHides, PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputSource3;
 
 #if WITH_EDITORONLY_DATA

@@ -23,7 +23,7 @@ protected:
 	template <typename T>
 	struct TestParams
 	{
-		explicit TestParams(const EPCGMedadataMathsOperation Operation, TArray<TArray<FPCGTaggedData>>&& InputDataByPin, TArray<T>&& ExpectedDefaultValues, TArray<T>&& ExpectedResultValues, const int32 PinToForward = 0) :
+		explicit TestParams(const EPCGMetadataMathsOperation Operation, TArray<TArray<FPCGTaggedData>>&& InputDataByPin, TArray<T>&& ExpectedDefaultValues, TArray<T>&& ExpectedResultValues, const int32 PinToForward = 0) :
 			Operation(Operation),
 			InputDataByPin(std::move(InputDataByPin)),
 			ExpectedDefaultValues(ExpectedDefaultValues),
@@ -32,7 +32,7 @@ protected:
 		{
 		}
 
-		EPCGMedadataMathsOperation Operation;
+		EPCGMetadataMathsOperation Operation;
 		TArray<TArray<FPCGTaggedData>> InputDataByPin;
 		TArray<T> ExpectedDefaultValues;
 		TArray<T> ExpectedResultValues;
@@ -43,7 +43,7 @@ protected:
 	template <typename T>
 	bool ExecuteTest(TestParams<T>&& Params, const FPCGAttributePropertyInputSelector InputSelector = DefaultSelector)
 	{
-		const EPCGMedadataMathsOperation& Operation = Params.Operation;
+		const EPCGMetadataMathsOperation& Operation = Params.Operation;
 		const TArray<TArray<FPCGTaggedData>>& InputDataByPin = Params.InputDataByPin;
 		const TArray<T>& ExpectedDefaults = Params.ExpectedDefaultValues;
 		const TArray<T>& ExpectedValues = Params.ExpectedResultValues;
@@ -51,7 +51,7 @@ protected:
 
 		check(!InputDataByPin.IsEmpty() && !ExpectedDefaults.IsEmpty() && !ExpectedValues.IsEmpty());
 
-		const UEnum* EnumClass = StaticEnum<EPCGMedadataMathsOperation>();
+		const UEnum* EnumClass = StaticEnum<EPCGMetadataMathsOperation>();
 		auto FormatText = [Operation, PinToForward, EnumClass](const FString& Text) -> FString
 		{
 			return FString::Printf(TEXT("[Pin %d] %s (%s): %s."), PinToForward, *EnumClass->GetDisplayNameTextByValue(static_cast<int64>(Operation)).ToString(), *PCG::Private::GetTypeName<T>(), *Text);
@@ -190,7 +190,7 @@ bool FPCGMetadataMathsOp_OneMinus::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::OneMinus;
+	using EPCGMetadataMathsOperation::OneMinus;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(OneMinus, GenerateParamData<int32>({{5}}), TArray({1}), TArray({-4})));
@@ -219,7 +219,7 @@ bool FPCGMetadataMathsOp_Sign::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Sign;
+	using EPCGMetadataMathsOperation::Sign;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Sign, GenerateParamData<int32>({{0}}), TArray({0}), TArray({0})));
@@ -250,7 +250,7 @@ bool FPCGMetadataMathsOp_Frac::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Frac;
+	using EPCGMetadataMathsOperation::Frac;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Frac, GenerateParamData<int32>({{0}}), TArray({0}), TArray({0})));
@@ -279,7 +279,7 @@ bool FPCGMetadataMathsOp_Truncate::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Truncate;
+	using EPCGMetadataMathsOperation::Truncate;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Truncate, GenerateParamData<int32>({{0}}), TArray({0}), TArray({0})));
@@ -308,7 +308,7 @@ bool FPCGMetadataMathsOp_Add::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Add;
+	using EPCGMetadataMathsOperation::Add;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{5}, {1}}), TArray({0}), TArray({6})));
@@ -337,7 +337,7 @@ bool FPCGMetadataMathsOp_Subtract::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Subtract;
+	using EPCGMetadataMathsOperation::Subtract;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Subtract, GenerateParamData<int32>({{5}, {1}}), TArray({0}), TArray({4})));
@@ -366,7 +366,7 @@ bool FPCGMetadataMathsOp_Multiply::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Multiply;
+	using EPCGMetadataMathsOperation::Multiply;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Multiply, GenerateParamData<int32>({{5}, {1}}), TArray({0}), TArray({5})));
@@ -395,7 +395,7 @@ bool FPCGMetadataMathsOp_Divide::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Divide;
+	using EPCGMetadataMathsOperation::Divide;
 
 	// Param Data
 	bSuccess &= ExecuteTest(TestParams(Divide, GenerateParamData<int32>({{32}, {8}}), TArray({0}), TArray({4})));
@@ -424,7 +424,7 @@ bool FPCGMetadataMathsOp_MultipleInput::RunTest(const FString& Parameters)
 {
 	bool bSuccess = true;
 
-	using EPCGMedadataMathsOperation::Add;
+	using EPCGMetadataMathsOperation::Add;
 
 	// 2 x 2 - N:N
 	bSuccess &= ExecuteTest(TestParams(Add, GenerateParamData<int32>({{4, 5}, {6, 7}}), TArray({0, 0}), TArray({10, 12})));
