@@ -205,9 +205,12 @@ public:
 	/** Flip the facing for a set of input polygons. */
 	static STATICMESHDESCRIPTION_API void FlipPolygons(FMeshDescription& MeshDescription);
 
-	/** Transforms the MeshDescription data using the provided transform. */
-	static STATICMESHDESCRIPTION_API void ApplyTransform(FMeshDescription& MeshDescription, const FTransform& Transform);
-	static STATICMESHDESCRIPTION_API void ApplyTransform(FMeshDescription& MeshDescription, const FMatrix& Transform);	
+	/** 
+	 * Transforms the MeshDescription data using the provided transform.
+	 * @param bApplyCorrectNormalTransform Whether to correctly transform normals and tangents. Otherwise, will match the UE renderer and transform them without scale.
+	 */
+	static STATICMESHDESCRIPTION_API void ApplyTransform(FMeshDescription& MeshDescription, const FTransform& Transform, bool bApplyCorrectNormalTransform = false);
+	static STATICMESHDESCRIPTION_API void ApplyTransform(FMeshDescription& MeshDescription, const FMatrix& Transform, bool bApplyCorrectNormalTransform = false);
 
 	/**
 	 * Return the number of unique vertices, unique vertices are the result of welding all similar vertex instances (position, UV, tangent space, color,...)
