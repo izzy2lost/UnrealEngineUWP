@@ -205,6 +205,18 @@ void UControlRig::Initialize(bool bRequestInit)
 	}
 }
 
+void UControlRig::RestoreShapeLibrariesFromCDO()
+{
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		if(UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>())
+		{
+			ShapeLibraryNameMap.Reset();
+			ShapeLibraries = CDO->ShapeLibraries;
+		}
+	}
+}
+
 void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults)
 {
 	// don't ever change the CDO
@@ -230,8 +242,7 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 	// if we've removed all shape libraries - let's add the ones from the CDO back
 	if (ShapeLibraries.IsEmpty())
 	{
-		UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
-		ShapeLibraries = CDO->ShapeLibraries;
+		RestoreShapeLibrariesFromCDO();
 	}
 
 	// if we are supposed to replace the library and the library name is empty
@@ -249,34 +260,38 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 		LibraryName = InShapeLibrary->GetName();
 	}
 
+	// if we need to replace all existing shape libraries - we'll remove any shape library matching the library
+	// name which doesn't map to something else
+	if(bReplaceExisting)
+	{
+		TArray<FString> KeysToRemove;
+		for(const TPair<FString, FString>& Pair : ShapeLibraryNameMap)
+		{
+			if(Pair.Value.Equals(LibraryName, ESearchCase::CaseSensitive))
+			{
+				KeysToRemove.Add(Pair.Key);
+			}
+		}
+		
+		if(KeysToRemove.IsEmpty())
+		{
+			KeysToRemove.Add(InShapeLibrary->GetName());
+		}
+		
+		for(const FString& KeyToRemove : KeysToRemove)
+		{
+			ShapeLibraryNameMap.Remove(KeyToRemove);
+			ShapeLibraries.RemoveAll([KeyToRemove](const TSoftObjectPtr<UControlRigShapeLibrary>& ShapeLibrary) -> bool
+			{
+				return ShapeLibrary->GetName().Equals(KeyToRemove, ESearchCase::CaseSensitive);
+			});
+		}
+	}
+
 	if(LibraryName != InShapeLibrary->GetName())
 	{
 		ShapeLibraryNameMap.FindOrAdd(InShapeLibrary->GetName()) = LibraryName;
 	}
-
-	if(bReplaceExisting)
-	{
-		for(int32 Index = 0; Index < ShapeLibraries.Num(); Index++)
-		{
-			const TSoftObjectPtr<UControlRigShapeLibrary>& ExistingShapeLibrary = ShapeLibraries[Index];
-			if(ExistingShapeLibrary.IsNull())
-			{
-				continue;
-			}
-			FString ExistingName = ExistingShapeLibrary->GetName();
-			if (FString* MapName = ShapeLibraryNameMap.Find(ExistingName))
-			{
-				ExistingName = *MapName;
-			}
-			if(ExistingName.Equals(LibraryName, ESearchCase::IgnoreCase))
-			{
-				ShapeLibraryNameMap.Remove(ExistingShapeLibrary->GetName());
-				ShapeLibraries[Index] = InShapeLibrary;
-				break;
-			}
-		}
-	}
-
 	ShapeLibraries.AddUnique(InShapeLibrary);
 
 #if WITH_EDITOR
@@ -1021,12 +1036,7 @@ bool UControlRig::Execute(const FName& InEventName)
 						GetHierarchy()->ResetPoseToInitial(ERigElementType::All);
 					}
 
-					// clone the shape libraries again from the CDO 
-					if (!HasAnyFlags(RF_ClassDefaultObject) && ShapeLibraries.IsEmpty())
-					{
-						UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
-						ShapeLibraries = CDO->ShapeLibraries;
-					}
+					RestoreShapeLibrariesFromCDO();
 
 					if (PreConstructionEvent.IsBound())
 					{
@@ -3480,6 +3490,20 @@ UControlRig::FTransientControlScope::~FTransientControlScope()
 			);
 		}
 	}
+}
+
+uint32 UControlRig::GetShapeLibraryHash() const
+{
+	uint32 Hash = 0;
+	for(const TPair<FString, FString>& Pair : ShapeLibraryNameMap)
+	{
+		Hash = HashCombine(Hash, HashCombine(GetTypeHash(Pair.Key), GetTypeHash(Pair.Value)));
+	}
+	for(const TSoftObjectPtr<UControlRigShapeLibrary>& ShapeLibrary : ShapeLibraries)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(ShapeLibrary.GetUniqueID()));
+	}
+	return Hash;
 }
 
 #endif

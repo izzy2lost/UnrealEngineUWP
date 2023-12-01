@@ -520,6 +520,7 @@ protected:
 	void HandleHierarchyEvent(URigHierarchy* InHierarchy, const FRigEventContext& InEvent);
 	FRigEventDelegate RigEventDelegate;
 
+	void RestoreShapeLibrariesFromCDO();
 	void OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults);
 	bool OnShapeExists(const FName& InShapeName) const;
 	virtual void InitializeVMsFromCDO() { Super::InitializeFromCDO(); }
@@ -824,6 +825,8 @@ public:
 	UE_DEPRECATED(5.4, "InteractionRig is no longer used")
 	UFUNCTION(BlueprintSetter, meta = (DeprecatedFunction, DeprecationMessage = "InteractionRig is no longer used"))
 	void SetInteractionRigClass(TSubclassOf<UControlRig> InInteractionRigClass) {}
+
+	uint32 GetShapeLibraryHash() const;
 	
 private:
 #if WITH_EDITORONLY_DATA

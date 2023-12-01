@@ -491,6 +491,7 @@ private:
 
 	bool bIsConstructionEventRunning;
 	TArray<uint32> LastHierarchyHash;
+	TArray<uint32> LastShapeLibraryHash;
 
 	friend class FControlRigEditorModule;
 	friend class FControlRigEditor;

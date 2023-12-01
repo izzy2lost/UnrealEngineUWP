@@ -4087,16 +4087,19 @@ void FControlRigEditMode::OnPostConstruction_AnyThread(UControlRig* InRig, const
 	bIsConstructionEventRunning = false;
 
 	const int32 RigIndex = RuntimeControlRigs.Find(InRig);
-	if(!LastHierarchyHash.IsValidIndex(RigIndex))
+	if(!LastHierarchyHash.IsValidIndex(RigIndex) || !LastShapeLibraryHash.IsValidIndex(RigIndex))
 	{
 		return;
 	}
 	
 	const int32 HierarchyHash = InRig->GetHierarchy()->GetTopologyHash(false, true);
-	if(LastHierarchyHash[RigIndex] != HierarchyHash)
+	const int32 ShapeLibraryHash = InRig->GetShapeLibraryHash();
+	if((LastHierarchyHash[RigIndex] != HierarchyHash) ||
+		(LastShapeLibraryHash[RigIndex] != ShapeLibraryHash))
 	{
 		LastHierarchyHash[RigIndex] = HierarchyHash;
-		
+		LastShapeLibraryHash[RigIndex] = ShapeLibraryHash;
+
 		auto Task = [this, InRig]()
 		{
 			RequestToRecreateControlShapeActors(InRig);
@@ -4644,6 +4647,7 @@ void FControlRigEditMode::AddControlRigInternal(UControlRig* InControlRig)
 {
 	RuntimeControlRigs.AddUnique(InControlRig);
 	LastHierarchyHash.Add(INDEX_NONE);
+	LastShapeLibraryHash.Add(INDEX_NONE);
 
 	InControlRig->SetControlsVisible(true);
 	InControlRig->PostInitInstanceIfRequired();
@@ -4725,6 +4729,10 @@ void FControlRigEditMode::RemoveControlRig(UControlRig* InControlRig)
 	if (LastHierarchyHash.IsValidIndex(Index))
 	{
 		LastHierarchyHash.RemoveAt(Index);
+	}
+	if (LastShapeLibraryHash.IsValidIndex(Index))
+	{
+		LastShapeLibraryHash.RemoveAt(Index);
 	}
 
 	//needed for the control rig track editor delegates to get removed
