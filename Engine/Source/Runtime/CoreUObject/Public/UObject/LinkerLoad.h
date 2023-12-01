@@ -164,10 +164,6 @@ public:
 	uint32					LoadFlags;
 	/** Indicates whether the imports for this loader have been verified													*/
 	bool					bHaveImportsBeenVerified;
-	// @todo: BP2CPP_remove
-	/** Indicates that this linker was created for a dynamic class package and will not use Loader */
-	UE_DEPRECATED(5.0, "This member is no longer in use and will be removed.")
-	bool					bDynamicClassLinker;
 
 	UObject*				TemplateForGetArchetypeFromLoader;
 	bool					bForceSimpleIndexToObject;

@@ -387,7 +387,6 @@ namespace UE::Runtime::Engine::Private
 	};
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UBlueprintGeneratedClass::UBlueprintGeneratedClass(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if VALIDATE_UBER_GRAPH_PERSISTENT_FRAME
@@ -395,15 +394,12 @@ UBlueprintGeneratedClass::UBlueprintGeneratedClass(const FObjectInitializer& Obj
 #endif//VALIDATE_UBER_GRAPH_PERSISTENT_FRAME
 {
 	NumReplicatedProperties = 0;
-	// @todo: BP2CPP_remove
-	bHasNativizedParent_DEPRECATED = false;
 	bHasCookedComponentInstancingData = false;
 	bCustomPropertyListForPostConstructionInitialized = false;
 #if WITH_EDITORONLY_DATA
 	bIsSparseClassDataSerializable = false;
 #endif
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UBlueprintGeneratedClass::PostInitProperties()
 {
@@ -657,7 +653,7 @@ FPrimaryAssetId UBlueprintGeneratedClass::GetPrimaryAssetId() const
 
 UClass* UBlueprintGeneratedClass::GetAuthoritativeClass()
 {
- 	if (nullptr == ClassGeneratedBy) // to track UE-11597 and UE-11595
+ 	if (nullptr == ClassGeneratedBy)
  	{
 		// If this is a cooked blueprint, the generatedby class will have been discarded so we'll just have to assume we're authoritative!
 		if (bCooked || RootPackageHasAnyFlags(PKG_Cooked))
@@ -672,60 +668,8 @@ UClass* UBlueprintGeneratedClass::GetAuthoritativeClass()
 
 	UBlueprint* GeneratingBP = CastChecked<UBlueprint>(ClassGeneratedBy);
 
-	check(GeneratingBP);
-
 	return (GeneratingBP->GeneratedClass != NULL) ? GeneratingBP->GeneratedClass : this;
 }
-
-struct FConditionalRecompileClassHepler
-{
-	enum class ENeededAction : uint8
-	{
-		None,
-		StaticLink,
-		Recompile,
-	};
-
-	static bool HasTheSameLayoutAsParent(const UStruct* Struct)
-	{
-		const UStruct* Parent = Struct ? Struct->GetSuperStruct() : NULL;
-		return FStructUtils::TheSameLayout(Struct, Parent);
-	}
-
-	static ENeededAction IsConditionalRecompilationNecessary(const UBlueprint* GeneratingBP)
-	{
-		if (FBlueprintEditorUtils::IsInterfaceBlueprint(GeneratingBP))
-		{
-			return ENeededAction::None;
-		}
-
-		if (FBlueprintEditorUtils::IsDataOnlyBlueprint(GeneratingBP))
-		{
-			// If my parent is native, my layout wasn't changed.
-			const UClass* ParentClass = *GeneratingBP->ParentClass;
-			if (!GeneratingBP->GeneratedClass || (GeneratingBP->GeneratedClass->GetSuperClass() != ParentClass))
-			{
-				return ENeededAction::Recompile;
-			}
-
-			if (ParentClass && ParentClass->HasAllClassFlags(CLASS_Native))
-			{
-				return ENeededAction::None;
-			}
-
-			if (HasTheSameLayoutAsParent(*GeneratingBP->GeneratedClass))
-			{
-				return ENeededAction::StaticLink;
-			}
-			else
-			{
-				UE_LOG(LogBlueprint, Log, TEXT("During ConditionalRecompilation the layout of DataOnly BP should not be changed. It will be handled, but it's bad for performence. Blueprint %s"), *GeneratingBP->GetName());
-			}
-		}
-
-		return ENeededAction::Recompile;
-	}
-};
 
 void UBlueprintGeneratedClass::ConditionalRecompileClass(FUObjectSerializeContext* InLoadContext)
 {
@@ -1870,7 +1814,6 @@ uint8* UBlueprintGeneratedClass::GetPersistentUberGraphFrame(UObject* Obj, UFunc
 
 void UBlueprintGeneratedClass::CreatePersistentUberGraphFrame(UObject* Obj, bool bCreateOnlyIfEmpty, bool bSkipSuperClass, UClass* OldClass) const
 {
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 #if WITH_EDITORONLY_DATA
 	/** Macros should not create uber graph frames as they have no uber graph. If UBlueprints are cooked out the macro class probably does not exist as well */
 	UBlueprint* Blueprint = Cast<UBlueprint>(ClassGeneratedBy);
@@ -1929,12 +1872,10 @@ void UBlueprintGeneratedClass::CreatePersistentUberGraphFrame(UObject* Obj, bool
 		checkSlow(ParentClass);
 		ParentClass->CreatePersistentUberGraphFrame(Obj, bCreateOnlyIfEmpty);
 	}
-#endif // USE_UBER_GRAPH_PERSISTENT_FRAME
 }
 
 void UBlueprintGeneratedClass::DestroyPersistentUberGraphFrame(UObject* Obj, bool bSkipSuperClass) const
 {
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	ensure(!UberGraphFramePointerProperty == !UberGraphFunction);
 	if (Obj && UsePersistentUberGraphFrame() && UberGraphFramePointerProperty && UberGraphFunction)
 	{
@@ -1963,7 +1904,6 @@ void UBlueprintGeneratedClass::DestroyPersistentUberGraphFrame(UObject* Obj, boo
 		checkSlow(ParentClass);
 		ParentClass->DestroyPersistentUberGraphFrame(Obj);
 	}
-#endif // USE_UBER_GRAPH_PERSISTENT_FRAME
 }
 
 void UBlueprintGeneratedClass::GetPreloadDependencies(TArray<UObject*>& OutDeps)
@@ -2283,7 +2223,6 @@ void UBlueprintGeneratedClass::Link(FArchive& Ar, bool bRelinkExistingProperties
 {
 	Super::Link(Ar, bRelinkExistingProperties);
 
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	if (UsePersistentUberGraphFrame())
 	{
 		if (UberGraphFunction)
@@ -2301,7 +2240,6 @@ void UBlueprintGeneratedClass::Link(FArchive& Ar, bool bRelinkExistingProperties
 			checkSlow(UberGraphFramePointerProperty);
 		}
 	}
-#endif
 
 	AssembleReferenceTokenStream(true);
 }
@@ -2322,7 +2260,7 @@ void UBlueprintGeneratedClass::PurgeClass(bool bRecompilingOnLoad)
 	FastCallPairs_DEPRECATED.Empty();
 #endif
 	CalledFunctions.Empty();
-#endif //WITH_EDITOR
+#endif //WITH_EDITORONLY_DATA
 }
 
 void UBlueprintGeneratedClass::Bind()
@@ -2470,7 +2408,6 @@ void UBlueprintGeneratedClass::AddReferencedObjectsInUbergraphFrame(UObject* InT
 	
 	while (true)
 	{
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 		UFunction* UberGraphFunction = BPGC->UberGraphFunction;
 		if (BPGC->UberGraphFramePointerProperty)
 		{
@@ -2509,7 +2446,6 @@ void UBlueprintGeneratedClass::AddReferencedObjectsInUbergraphFrame(UObject* InT
 
 			}
 		}
-#endif // USE_UBER_GRAPH_PERSISTENT_FRAME
 
 		if (SuperClass->HasAllClassFlags(CLASS_Native))
 		{
@@ -2532,12 +2468,8 @@ FName UBlueprintGeneratedClass::GetUberGraphFrameName()
 
 bool UBlueprintGeneratedClass::UsePersistentUberGraphFrame()
 {
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	static const FBoolConfigValueHelper PersistentUberGraphFrame(TEXT("Kismet"), TEXT("bPersistentUberGraphFrame"), GEngineIni);
 	return PersistentUberGraphFrame;
-#else
-	return false;
-#endif
 }
 
 #if VALIDATE_UBER_GRAPH_PERSISTENT_FRAME
@@ -2626,13 +2558,6 @@ void UBlueprintGeneratedClass::Serialize(FArchive& Ar)
 			ClassFlags |= CLASS_Deprecated;
 		}
 	}
-
-#if WITH_EDITORONLY_DATA
-	if (Ar.IsLoading())
-	{
-		UberGraphFramePointerProperty_DEPRECATED = nullptr;
-	}
-#endif
 
 #if WITH_EDITORONLY_DATA
 	if (Ar.IsSaving() && Ar.IsCooking() && Ar.IsObjectReferenceCollector())

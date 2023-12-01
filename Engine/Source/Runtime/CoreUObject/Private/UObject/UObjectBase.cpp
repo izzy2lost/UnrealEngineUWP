@@ -297,14 +297,11 @@ void UObjectBase::SetClass(UClass* NewClass)
 #endif
 
 	UnhashObject(this);
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
+
 	UClass* OldClass = ClassPrivate;
 	ClassPrivate->DestroyPersistentUberGraphFrame((UObject*)this);
-#endif
 	ClassPrivate = NewClass;
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	ClassPrivate->CreatePersistentUberGraphFrame((UObject*)this, /*bCreateOnlyIfEmpty =*/false, /*bSkipSuperClass =*/false, OldClass);
-#endif
 	HashObject(this);
 }
 #endif
@@ -592,18 +589,6 @@ class UEnum *GetStaticEnum(class UEnum *(*InRegister)(), UObject* EnumOuter, con
 	NotifyRegistrationEvent(*EnumOuter->GetOutermost()->GetName(), EnumName, ENotifyRegistrationType::NRT_Enum, ENotifyRegistrationPhase::NRP_Finished, nullptr, false, Result);
 	return Result;
 }
-
-// UClass deferred registration
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer in use; will be removed later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-TMap<FName, FDynamicClassStaticData>& GetDynamicClassMap()
-{
-	static TMap<FName, FDynamicClassStaticData> DynamicClassMap;
-	return DynamicClassMap;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FName UObjectBase::GetFNameForStatID() const
 {
@@ -1170,49 +1155,4 @@ const TCHAR* DebugFullName(UObject* Object)
 	{
 		return TEXT("None");
 	}
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-UScriptStruct* FindExistingStructIfHotReloadOrDynamic(UObject* Outer, const TCHAR* StructName, SIZE_T Size, uint32 Crc, bool bIsDynamic)
-{
-	return nullptr;
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-UEnum* FindExistingEnumIfHotReloadOrDynamic(UObject* Outer, const TCHAR* EnumName, SIZE_T Size, uint32 Crc, bool bIsDynamic)
-{
-	return nullptr;
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-UObject* ConstructDynamicType(FName TypePathName, EConstructDynamicType ConstructionSpecifier)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
-	return nullptr;
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-FName GetDynamicTypeClassName(FName TypePathName)
-{
-	return NAME_None;
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-UPackage* FindOrConstructDynamicTypePackage(const TCHAR* PackageName)
-{
-	return nullptr;
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer in use; will be removed later.
-TMap<FName, FName>& GetConvertedDynamicPackageNameToTypeName()
-{
-	static TMap<FName, FName> ConvertedDynamicPackageNameToTypeName;
-	return ConvertedDynamicPackageNameToTypeName;
 }

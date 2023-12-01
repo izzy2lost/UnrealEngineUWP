@@ -2585,9 +2585,6 @@ UObject* FLinkerLoad::FindImportFast(UClass* ImportClass, UObject* ImportOuter, 
  * UObject
  ******************************************************************************/
 
-/** 
- * Returns whether this object is contained in or part of a blueprint object
- */
 bool UObject::IsInBlueprint() const
 {
 	// Exclude blueprint classes as they may be regenerated at any time
@@ -2612,20 +2609,14 @@ bool UObject::IsInBlueprint() const
 	return false;
 }
 
-/** 
- *  Destroy properties that won't be destroyed by the native destructor
- */
 void UObject::DestroyNonNativeProperties()
 {
 	// Destroy properties that won't be destroyed by the native destructor
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	GetClass()->DestroyPersistentUberGraphFrame(this);
-#endif
+
+	for (FProperty* P = GetClass()->DestructorLink; P; P = P->DestructorLinkNext)
 	{
-		for (FProperty* P = GetClass()->DestructorLink; P; P = P->DestructorLinkNext)
-		{
-			P->DestroyValue_InContainer(this);
-		}
+		P->DestroyValue_InContainer(this);
 	}
 }
 
@@ -2633,13 +2624,6 @@ void UObject::DestroyNonNativeProperties()
  * FObjectInitializer
  ******************************************************************************/
 
-/** 
- * Initializes a non-native property, according to the initialization rules. If the property is non-native
- * and does not have a zero constructor, it is initialized with the default value.
- * @param	Property			Property to be initialized
- * @param	Data				Default data
- * @return	Returns true if that property was a non-native one, otherwise false
- */
 bool FObjectInitializer::InitNonNativeProperty(FProperty* Property, UObject* Data)
 {
 	if (!Property->GetOwnerClass()->HasAnyClassFlags(CLASS_Native | CLASS_Intrinsic)) // if this property belongs to a native class, it was already initialized by the class constructor
@@ -3042,28 +3026,3 @@ void FDeferredObjInitializationHelper::ResolveDeferredInitsFromArchetype(UObject
 
 // don't want other files ending up with this internal define
 #undef DEFERRED_DEPENDENCY_CHECK
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - This type is no longer in use by the engine; remove later.
-FBlueprintDependencyObjectRef::FBlueprintDependencyObjectRef(const TCHAR* InPackageFolder
-	, const TCHAR* InShortPackageName
-	, const TCHAR* InObjectName
-	, const TCHAR* InClassPackageName
-	, const TCHAR* InClassName
-	, const TCHAR* InOuterName)
-	: PackageName(*(FString(InPackageFolder) + TEXT("/") + InShortPackageName))
-	, ObjectName(InObjectName)
-	, ClassPackageName(InClassPackageName)
-	, ClassName(InClassName)
-	, OuterName(InOuterName)
-{}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - This type is no longer in use by the engine; remove later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FConvertedBlueprintsDependencies& FConvertedBlueprintsDependencies::Get()
-{
-	static FConvertedBlueprintsDependencies ConvertedBlueprintsDependencies;
-	return ConvertedBlueprintsDependencies;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS

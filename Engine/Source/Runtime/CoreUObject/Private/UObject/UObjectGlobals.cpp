@@ -3609,10 +3609,8 @@ void UObject::PostInitProperties()
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FUObjectThreadContext::Get().PostInitPropertiesCheck.Push(this);
 #endif
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
-	GetClass()->CreatePersistentUberGraphFrame(this, true);
-#endif
 
+	GetClass()->CreatePersistentUberGraphFrame(this, true);
 	FOverridableManager::Get().ClearOverrides(*this);
 }
 
@@ -3815,8 +3813,9 @@ FObjectInitializer::~FObjectInitializer()
 	// We're not popping this initializer from the stack in the same place where we decrement IsInConstructor
 	// because we still want to be able to access the current initializer from PostConstructInit or any of its callbacks
 	if (!bIsDeferredInitializer)
-	{
 #endif // USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING		
+	{
+
 		check(ThreadContext.TopInitializer() == this);
 		ThreadContext.PopInitializer();
 	}

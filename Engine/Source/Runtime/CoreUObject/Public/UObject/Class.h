@@ -3536,57 +3536,6 @@ protected:
 	COREUOBJECT_API virtual UObject* CreateDefaultObject();
 };
 
-// @todo: BP2CPP_remove
-/**
-* Dynamic class (can be constructed after initial startup)
-*/
-class COREUOBJECT_API UE_DEPRECATED(5.0, "Dynamic class types are no longer supported.") UDynamicClass : public UClass
-{
-	DECLARE_CASTED_CLASS_INTRINSIC_NO_CTOR(UDynamicClass, UClass, 0, TEXT("/Script/CoreUObject"), CASTCLASS_None, NO_API)
-	DECLARE_WITHIN_UPACKAGE()
-
-public:
-
-	typedef void (*DynamicClassInitializerType)	(UDynamicClass*);
-
-	UDynamicClass(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get()) {}
-	explicit UDynamicClass(const FObjectInitializer& ObjectInitializer, UClass* InSuperClass) {}
-	UDynamicClass(EStaticConstructor, FName InName, uint32 InSize, uint32 InAlignment, EClassFlags InClassFlags, EClassCastFlags InClassCastFlags,
-		const TCHAR* InClassConfigName, EObjectFlags InFlags, ClassConstructorType InClassConstructor,
-		ClassVTableHelperCtorCallerType InClassVTableHelperCtorCaller,
-		FUObjectCppClassStaticFunctions&& InCppClassStaticFunctions,
-		DynamicClassInitializerType InDynamicClassInitializer)
-	{}
-
-	/** Find a struct property, called from generated code */
-	FStructProperty* FindStructPropertyChecked(const TCHAR* PropertyName) const { return nullptr; }
-
-	/** Misc objects owned by the class. */
-	TArray<UObject*> MiscConvertedSubobjects;
-
-	/** Additional converted fields, that are used by the class. */
-	TArray<UField*> ReferencedConvertedFields;
-
-	/** Outer assets used by the class */
-	TArray<UObject*> UsedAssets;
-
-	/** Specialized sub-object containers */
-	TArray<UObject*> DynamicBindingObjects;
-	TArray<UObject*> ComponentTemplates;
-	TArray<UObject*> Timelines;
-
-	/** Array of blueprint overrides of component classes in parent classes */
-	TArray<TPair<FName, const UClass*>> ComponentClassOverrides;
-
-	/** IAnimClassInterface (UAnimClassData) or null */
-	UObject* AnimClassImplementation;
-
-	DynamicClassInitializerType DynamicClassInitializer;
-
-	/** Prefix for the temporary package where the dynamic classes are stored when being generated */
-	static const FString& GetTempPackagePrefix();
-};
-
 /**
  * Helper template to call the default constructor for a class
  */

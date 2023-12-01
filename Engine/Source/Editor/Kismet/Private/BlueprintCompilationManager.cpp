@@ -745,9 +745,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 					bDefaultComponentMustBeAdded = true;
 				}
 
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 				bHasPendingUberGraphFrame = BPGC->UberGraphFramePointerProperty || BPGC->UberGraphFunction;
-#endif//USE_UBER_GRAPH_PERSISTENT_FRAME
 			}
 
 			bool bSkipCompile = false;
@@ -3613,14 +3611,6 @@ void FBlueprintCompilationManager::CompileSynchronously(const FBPCompileRequest&
 	{
 		BPCMImpl->CompileSynchronouslyImpl(Request);
 	}
-}
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer implemented or in use; will be removed later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void FBlueprintCompilationManager::CompileSynchronouslyToCpp(UBlueprint* BP, TSharedPtr<FString> OutHeaderSource, TSharedPtr<FString> OutCppSource, const FCompilerNativizationOptions& NativizationOptions)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-{
 }
 
 void FBlueprintCompilationManager::NotifyBlueprintLoaded(UBlueprint* BPLoaded)

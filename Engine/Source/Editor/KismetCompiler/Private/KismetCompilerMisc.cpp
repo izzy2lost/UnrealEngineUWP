@@ -1459,9 +1459,6 @@ FProperty* FKismetCompilerUtilities::CreatePropertyOnScope(UStruct* Scope, const
 	// Check to see if there's already a object on this scope with the same name, and throw an internal compiler error if so
 	// If this happens, it breaks the property link, which causes stack corruption and hard-to-track errors, so better to fail at this point
 	{
-#if !USE_UBER_GRAPH_PERSISTENT_FRAME
-	#error "Without the uber graph frame we will intentionally create properties with conflicting names on the same scope - disable this error at your own risk"
-#else
 		FFieldVariant ExistingObject = CheckPropertyNameOnScope(Scope, PropertyName);
 		if (ExistingObject.IsValid())
 		{
@@ -1481,7 +1478,6 @@ FProperty* FKismetCompilerUtilities::CreatePropertyOnScope(UStruct* Scope, const
 
 			ValidatedPropertyName = TestName;
 		}
-#endif
 	}
 
 	FProperty* NewProperty = nullptr;
@@ -2631,8 +2627,6 @@ FString FNetNameMapping::MakeBaseName(const UObject* Net)
 //////////////////////////////////////////////////////////////////////////
 // FKismetFunctionContext
 
-// @todo: BP2CPP_remove - remove disable/enable deprecation warning once deprecated members are removed
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FKismetFunctionContext::FKismetFunctionContext(FCompilerResultsLog& InMessageLog, const UEdGraphSchema_K2* InSchema, UBlueprintGeneratedClass* InNewClass, UBlueprint* InBlueprint)
 	: Blueprint(InBlueprint)
 	, SourceGraph(nullptr)
@@ -2664,10 +2658,7 @@ FKismetFunctionContext::FKismetFunctionContext(FCompilerResultsLog& InMessageLog
 		bCreateDebugData = false;
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-// @todo: BP2CPP_remove - remove disable/enable deprecation warning once deprecated members are removed
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FKismetFunctionContext::~FKismetFunctionContext()
 {
 	if (bAllocatedNetNameMap)
@@ -2681,7 +2672,6 @@ FKismetFunctionContext::~FKismetFunctionContext()
 		delete AllGeneratedStatements[i];
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FKismetFunctionContext::SetExternalNetNameMap(FNetNameMapping* NewMap)
 {

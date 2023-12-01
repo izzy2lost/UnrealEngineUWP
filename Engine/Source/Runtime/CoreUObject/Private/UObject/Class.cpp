@@ -7402,25 +7402,6 @@ IMPLEMENT_CORE_INTRINSIC_CLASS(USparseDelegateFunction, UDelegateFunction,
 	}
 );
 
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer in use; will be removed later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-const FString& UDynamicClass::GetTempPackagePrefix()
-{
-	static const FString PackagePrefix(TEXT("/Temp/__TEMP_BP__"));
-	return PackagePrefix;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-// @todo: BP2CPP_remove
-// [DEPRECATED] - No longer in use; will be removed later.
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-IMPLEMENT_CORE_INTRINSIC_CLASS(UDynamicClass, UClass,
-{
-	Class->CppClassStaticFunctions = UOBJECT_CPPCLASS_STATICFUNCTIONS_FORCLASS(UDynamicClass);
-}
-);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #if defined(_MSC_VER) && _MSC_VER == 1900
 	#ifdef PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS
 		PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS

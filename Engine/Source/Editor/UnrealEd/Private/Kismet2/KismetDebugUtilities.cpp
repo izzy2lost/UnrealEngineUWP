@@ -1901,7 +1901,7 @@ FKismetDebugUtilities::EWatchTextResult FKismetDebugUtilities::FindDebuggingData
 					}
 				}
 			}
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
+
 			// Try find the propertybase in the persistent ubergraph frame
 			UFunction* OuterFunction = Property->GetOwner<UFunction>();
 			if (!PropertyBase && OuterFunction)
@@ -1912,7 +1912,6 @@ FKismetDebugUtilities::EWatchTextResult FKismetDebugUtilities::FindDebuggingData
 					PropertyBase = BPGC->GetPersistentUberGraphFrame(ActiveObject, OuterFunction);
 				}
 			}
-#endif // USE_UBER_GRAPH_PERSISTENT_FRAME
 
 			// see if our WatchPin is on a animation node & if so try to get its property info
 			const UAnimBlueprintGeneratedClass* AnimBlueprintGeneratedClass = Cast<UAnimBlueprintGeneratedClass>(Blueprint->GeneratedClass);

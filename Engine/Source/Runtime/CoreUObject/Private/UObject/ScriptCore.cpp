@@ -924,12 +924,11 @@ void ProcessScriptFunction(UObject* Context, UFunction* Function, FFrame& Stack,
 
 	// Allocate any temporary memory the script may need via AllocA. This AllocA dependency, along with
 	// the desire to inline calls to our Execution function are the reason for this template function:
-	uint8* FrameMemory = nullptr;
 	FFrame NewStack(Context, Function, nullptr, &Stack, Function->ChildProperties);
 	UE_VSTACK_MAKE_FRAME(ProcessScriptFunctionBookmark, NewStack.CachedThreadVirtualStackAllocator);
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
-	FrameMemory = Function->GetOuterUClassUnchecked()->GetPersistentUberGraphFrame(Context, Function);
-#endif
+
+	uint8* FrameMemory = Function->GetOuterUClassUnchecked()->GetPersistentUberGraphFrame(Context, Function);
+
 	bool bUsePersistentFrame = (nullptr != FrameMemory);
 	if (!bUsePersistentFrame)
 	{
@@ -2054,16 +2053,15 @@ void UObject::ProcessEvent( UFunction* Function, void* Parms )
 
 	// Scope required for scoped script stats.
 	{
-		uint8* Frame = NULL;
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
+		uint8* Frame = nullptr;
 		if (Function->HasAnyFunctionFlags(FUNC_UbergraphFunction))
 		{
 			Frame = Function->GetOuterUClassUnchecked()->GetPersistentUberGraphFrame(this, Function);
 		}
-#endif
+
 		FVirtualStackAllocator* VirtualStackAllocator = FBlueprintContext::GetThreadSingleton()->GetVirtualStackAllocator();
 		UE_VSTACK_MAKE_FRAME(ProcessEventBookmark, VirtualStackAllocator);
-		const bool bUsePersistentFrame = (NULL != Frame);
+		const bool bUsePersistentFrame = (nullptr != Frame);
 		if (!bUsePersistentFrame)
 		{
 			Frame = (uint8*)UE_VSTACK_ALLOC_ALIGNED(VirtualStackAllocator, Function->PropertiesSize, Function->GetMinAlignment());
@@ -2632,7 +2630,6 @@ IMPLEMENT_VM_FUNCTION( EX_PopExecutionFlowIfNot, execPopExecutionFlowIfNot );
 
 DEFINE_FUNCTION(UObject::execLetValueOnPersistentFrame)
 {
-#if USE_UBER_GRAPH_PERSISTENT_FRAME
 	Stack.MostRecentProperty = nullptr;
 	Stack.MostRecentPropertyAddress = nullptr;
 	Stack.MostRecentPropertyContainer = nullptr;
@@ -2646,9 +2643,6 @@ DEFINE_FUNCTION(UObject::execLetValueOnPersistentFrame)
 	uint8* DestAddress = DestProperty->ContainerPtrToValuePtr<uint8>(FrameBase);
 
 	Stack.Step(Stack.Object, DestAddress);
-#else
-	checkf(false, TEXT("execLetValueOnPersistentFrame: UberGraphPersistentFrame is not supported by current build!"));
-#endif
 }
 IMPLEMENT_VM_FUNCTION(EX_LetValueOnPersistentFrame, execLetValueOnPersistentFrame);
 
