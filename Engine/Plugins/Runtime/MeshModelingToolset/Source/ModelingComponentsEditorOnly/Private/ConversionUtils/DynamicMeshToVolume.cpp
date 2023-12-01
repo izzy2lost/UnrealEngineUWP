@@ -7,6 +7,7 @@
 #include "ConstrainedDelaunay2.h"
 #include "Curve/PlanarComplex.h"
 #include "DynamicMesh/DynamicMesh3.h"
+#include "DynamicMeshEditor.h"
 #include "Engine/Polys.h"
 #include "GameFramework/Volume.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -681,6 +682,46 @@ void GetPolygonFaces(const FDynamicMesh3& InputMesh, const FMeshToVolumeOptions&
 		{
 			return;
 		}
+	}
+
+	if (Options.bCleanDegenerate)
+	{
+		// If the above simplification hasn't already switched us to local mesh, initialize local mesh
+		if (UseMesh != &LocalMesh)
+		{
+			LocalMesh = InputMesh;
+			LocalMesh.DiscardAttributes();
+		}
+		
+		// Delete remaining triangles with small area or small edges
+		TArray<int32> ToDelete;
+		for (int32 tid : LocalMesh.TriangleIndicesItr())
+		{
+			if (LocalMesh.GetTriArea(tid) < Options.MinTriangleArea)
+			{
+				ToDelete.Add(tid);
+			}
+		}
+		FDynamicMeshEditor Editor(&LocalMesh);
+		Editor.RemoveTriangles(ToDelete, true);
+		ToDelete.Reset();
+		const double MinEdgeSq = Options.MinEdgeLength * Options.MinEdgeLength;
+		for (int32 eid : LocalMesh.EdgeIndicesItr())
+		{
+			FDynamicMesh3::FEdge Edge = LocalMesh.GetEdge(eid);
+			if ( FVector::DistSquared(LocalMesh.GetVertex(Edge.Vert.A), LocalMesh.GetVertex(Edge.Vert.B)) < MinEdgeSq )
+			{
+				// Note: It's ok that triangles may be added multiple times; RemoveTriangles will just skip triangles were already deleted
+				ToDelete.Add(Edge.Tri.A);
+				if (Edge.Tri.B != IndexConstants::InvalidID)
+				{
+					ToDelete.Add(Edge.Tri.B);
+				}
+			}
+		}
+		Editor.RemoveTriangles(ToDelete, true);
+
+		UseMesh = &LocalMesh;
 	}
 
 	GetPolygonFaces(*UseMesh, FacesOut, Options.bRespectGroupBoundaries);
