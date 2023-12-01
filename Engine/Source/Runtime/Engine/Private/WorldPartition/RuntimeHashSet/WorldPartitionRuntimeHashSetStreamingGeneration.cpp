@@ -224,13 +224,13 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 				StreamingData.Name = CellDescInstance.SourcePartition->Name;
 				StreamingData.LoadingRange = CellDescInstance.SourcePartition->LoadingRange;
 
-				if (CellDescInstance.bIsSpatiallyLoaded)
+				if (RuntimeCell->IsAlwaysLoaded())
 				{
-					StreamingData.StreamingCells.Add(RuntimeCell);
+					StreamingData.NonStreamingCells.Add(RuntimeCell);
 				}
 				else
 				{
-					StreamingData.NonStreamingCells.Add(RuntimeCell);
+					StreamingData.StreamingCells.Add(RuntimeCell);
 				}
 			}
 		}
