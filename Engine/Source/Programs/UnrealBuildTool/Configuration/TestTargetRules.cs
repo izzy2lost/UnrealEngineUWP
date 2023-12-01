@@ -359,6 +359,10 @@ namespace UnrealBuildTool
 			bool IsEditorTestedTarget = (TestedTarget.Type == TargetType.Editor);
 			bBuildWithEditorOnlyData = bCompileAgainstEditor = IsEditorTestedTarget;
 			bBuildDeveloperTools = bCompileAgainstEngine && IsEditorTestedTarget;
+			
+			bUsePlatformFileStub = bCompileAgainstEngine;
+			bMockEngineDefaults = bCompileAgainstEngine;
+			bCompileWithPluginSupport = bCompileAgainstEngine;
 		}
 	}
 }

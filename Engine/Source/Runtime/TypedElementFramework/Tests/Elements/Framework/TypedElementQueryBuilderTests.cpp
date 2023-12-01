@@ -95,7 +95,7 @@ static bool TestMatching(const FQueryConditions& TestQuery, const TArray<FColumn
 		}
 	}
 
-	FAutomationTestFramework::Get().GetCurrentTest()->AddInfo(MoveTemp(Description));
+	INFO(MoveTemp(Description));
 	return (Result == Expected);
 }
 
