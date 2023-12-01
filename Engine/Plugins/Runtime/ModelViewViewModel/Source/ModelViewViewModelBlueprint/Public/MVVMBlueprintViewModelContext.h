@@ -80,6 +80,15 @@ public:
 			{
 				NotifyFieldValueClass = ViewModelClass_DEPRECATED.Get();
 			}
+			if (!bCreateSetterFunction_Deprecation)
+			{
+				bCreateSetterFunction_Deprecation = true;
+				if (CreationType == EMVVMBlueprintViewModelContextCreationType::Manual)
+				{
+					bOptional = true;
+					bCreateSetterFunction = true;
+				}
+			}
 		}
 	}
 
@@ -113,17 +122,17 @@ public:
 	EMVVMBlueprintViewModelContextCreationType CreationType = EMVVMBlueprintViewModelContextCreationType::CreateInstance;
 
 	/** Identifier of an already registered viewmodel. */
-	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay, meta = (DisplayName = "Global Viewmodel Identifier"))
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", meta = (DisplayName = "Global Viewmodel Identifier"))
 	FName GlobalViewModelIdentifier;
 
 	/** The Path to get the viewmodel instance. */
-	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay, meta = (DisplayName = "Viewmodel Property Path"))
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", meta = (DisplayName = "Viewmodel Property Path"))
 	FString ViewModelPropertyPath;
 
-	UPROPERTY(EditAnywhere, Category = "Viewmodel", Instanced, AdvancedDisplay, meta = (EditInline))
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", Instanced, meta = (EditInline))
 	TObjectPtr<UMVVMViewModelContextResolver> Resolver = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "Viewmodel", Instanced, AdvancedDisplay, NoClear, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", Instanced, NoClear, meta = (ShowOnlyInnerProperties))
 	TObjectPtr<UMVVMBlueprintInstancedViewModelBase> InstancedViewModel;
 
 	/**
@@ -132,6 +141,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay, meta = (DisplanName="Create Public Setter"))
 	bool bCreateSetterFunction = false;
+
+	/**
+	 * Generate a public getter for this viewmodel.
+	 * @note Always false when using a Instanced viewmodel.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay, meta = (DisplanName = "Create Public Getter"))
+	bool bCreateGetterFunction = true;
 
 	/**
 	 * Optional. Will not warn if the instance is not set or found.
@@ -151,6 +167,10 @@ public:
 	/** Can remove the viewmodel in the editor. */
 	UPROPERTY()
 	bool bCanRemove = true;
+
+private:
+	UPROPERTY()
+	bool bCreateSetterFunction_Deprecation = false;
 };
 
 template<>

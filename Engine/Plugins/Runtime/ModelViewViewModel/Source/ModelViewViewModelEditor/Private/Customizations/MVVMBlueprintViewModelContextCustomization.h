@@ -53,6 +53,7 @@ private:
 	FText GetExecutionTypeValueToolTip() const;
 	FText GetClassName() const;
 	void HandleClassChanged();
+	void HandleCreationTypeChanged();
 	TSharedRef<SWidget> HandleClassGetMenuContent();
 	void HandleClassCancelMenu();
 	void HandleClassCommitted(const UClass* SelectedClass);
@@ -63,6 +64,7 @@ private:
 	FViewModelPropertyAccessEditor PropertyAccessEditor;
 	TWeakPtr<FWidgetBlueprintEditor> WidgetBlueprintEditor;
 	TSharedPtr<SComboButton> NotifyFieldValueClassComboButton;
+	TSharedPtr<IPropertyHandle> ContextHandle;
 	TSharedPtr<IPropertyHandle> NotifyFieldValueClassHandle;
 	TSharedPtr<IPropertyHandle> PropertyPathHandle;
 	TSharedPtr<IPropertyHandle> CreationTypeHandle;

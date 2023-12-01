@@ -675,6 +675,8 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 		}
 
 		{
+			bool bIsPublicReadable = ViewModelContext.InstancedViewModel == nullptr && ViewModelContext.bCreateGetterFunction;
+
 			FCompilerUserWidgetProperty& SourceVariable = NeededUserWidgetProperties.AddDefaulted_GetRef();
 			SourceVariable.AuthoritativeClass = ViewModelContext.GetViewModelClass();
 			SourceVariable.Name = PropertyName;
@@ -683,7 +685,7 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 			SourceVariable.BlueprintSetter = SetterFunctionName;
 			SourceVariable.CreationType = FCompilerUserWidgetProperty::ECreationType::CreateOnlyIfDoesntExist;
 			SourceVariable.bExposeOnSpawn = bCreateSetterFunction;
-			SourceVariable.bPrivate = ViewModelContext.InstancedViewModel != nullptr;
+			SourceVariable.bPrivate = !bIsPublicReadable;
 			SourceVariable.bReadOnly = !bCreateSetterFunction;
 		}
 

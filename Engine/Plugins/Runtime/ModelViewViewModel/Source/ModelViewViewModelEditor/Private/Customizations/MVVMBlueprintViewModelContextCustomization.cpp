@@ -121,6 +121,20 @@ TSharedRef<SWidget> FViewModelPropertyAccessEditor::MakePropertyBindingWidget(TS
 /**
  * 
  */
+namespace Private
+{
+	FMVVMBlueprintViewModelContext* GetViewModelContext(TSharedRef<IPropertyHandle> PropertyHandle)
+	{
+		ensure(CastField<FStructProperty>(PropertyHandle->GetProperty()) && CastField<FStructProperty>(PropertyHandle->GetProperty())->Struct == FMVVMBlueprintViewModelContext::StaticStruct());
+		void* Buffer = nullptr;
+		if (PropertyHandle->GetValueData(Buffer) == FPropertyAccess::Success)
+		{
+			return reinterpret_cast<FMVVMBlueprintViewModelContext*>(Buffer);
+		}
+		return nullptr;
+	}
+}
+
 FBlueprintViewModelContextDetailCustomization::FBlueprintViewModelContextDetailCustomization(TWeakPtr<FWidgetBlueprintEditor> InEditor)
 	: WidgetBlueprintEditor(InEditor)
 {}
@@ -131,16 +145,8 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 	uint32 NumChildren = 0;
 	PropertyHandle->GetNumChildren(NumChildren);
 
-	FMVVMBlueprintViewModelContext* ContextPtr = nullptr;
-	{
-		ensure(CastField<FStructProperty>(PropertyHandle->GetProperty()) && CastField<FStructProperty>(PropertyHandle->GetProperty())->Struct == FMVVMBlueprintViewModelContext::StaticStruct());
-		void* Buffer = nullptr;
-		if (PropertyHandle->GetValueData(Buffer) == FPropertyAccess::Success)
-		{
-			ContextPtr = reinterpret_cast<FMVVMBlueprintViewModelContext*>(Buffer);
-		}
-	}
-
+	ContextHandle = PropertyHandle;
+	FMVVMBlueprintViewModelContext* ContextPtr = Private::GetViewModelContext(PropertyHandle);
 	if (ContextPtr == nullptr)
 	{
 		return;
@@ -169,6 +175,11 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 			PropertyAccessEditor.ClassToLookFor = ViewModelClass;
 		}
 		NotifyFieldValueClassHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FBlueprintViewModelContextDetailCustomization::HandleClassChanged));
+	}
+
+	if (ensure(CreationTypeHandle))
+	{
+		CreationTypeHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged));
 	}
 
 	if (ensure(ViewModelNameHandle))
@@ -323,26 +334,31 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 			if (ensure(CreateSetterFunctionHandle))
 			{
 				ChildBuilder.AddProperty(CreateSetterFunctionHandle.ToSharedRef())
-					.IsEnabled(bCanEdit)
-					.Visibility(MakeAttributeLambda([ContextPtr]()
+					.IsEnabled(MakeAttributeLambda([bCanEdit, ContextPtr]()
 						{
 							bool bResult = ContextPtr->CreationType != EMVVMBlueprintViewModelContextCreationType::Manual;
-							return bResult ? EVisibility::Visible : EVisibility::Collapsed;
+							return bResult && bCanEdit;
 						}));
 			}
+		}
+
+		TSharedPtr<IPropertyHandle> CreateGetterFunctionHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bCreateGetterFunction), false);
+		if (ensure(CreateGetterFunctionHandle))
+		{
+			ChildBuilder.AddProperty(CreateGetterFunctionHandle.ToSharedRef())
+				.IsEnabled(bCanEdit);
 		}
 
 		TSharedPtr<IPropertyHandle> OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
 		if (ensure(OptionalHandle))
 		{
 			ChildBuilder.AddProperty(OptionalHandle.ToSharedRef())
-				.IsEnabled(bCanEdit)
-				.Visibility(MakeAttributeLambda([ContextPtr]()
+				.IsEnabled(MakeAttributeLambda([bCanEdit, ContextPtr]()
 					{
 						bool bResult = ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::GlobalViewModelCollection
 						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath
 						 || ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver;
-						return bResult ? EVisibility::Visible : EVisibility::Collapsed;
+						return bResult && bCanEdit;
 					}));
 		}
 	}
@@ -393,6 +409,27 @@ FText FBlueprintViewModelContextDetailCustomization::GetClassName() const
 		return LOCTEXT("MultipleValues", "Multiple Values");
 	}
 	return LOCTEXT("None", "None");
+}
+
+void FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged()
+{
+	uint8 NewValue = 0;
+	if (CreationTypeHandle->GetValue(NewValue) == FPropertyAccess::Success)
+	{
+		if (FMVVMBlueprintViewModelContext* ContextPtr = Private::GetViewModelContext(ContextHandle.ToSharedRef()))
+		{
+			if ((EMVVMBlueprintViewModelContextCreationType)NewValue == EMVVMBlueprintViewModelContextCreationType::Manual)
+			{
+				ContextPtr->bOptional = true;
+				ContextPtr->bCreateSetterFunction = true;
+			}
+			else
+			{
+				ContextPtr->bOptional = false;
+				ContextPtr->bCreateSetterFunction = false;
+			}
+		}
+	}
 }
 
 TSharedRef<SWidget> FBlueprintViewModelContextDetailCustomization::CreateExecutionTypeMenuContent()
