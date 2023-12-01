@@ -81,11 +81,11 @@ namespace UE::Audio::Insights
 			const TSharedPtr<const TableProviderType> Provider = FindProvider<const TableProviderType>();
 			if (Provider.IsValid())
 			{
-				if (const TableProviderType::FDeviceData* DeviceData = Provider->FindFilteredDeviceData())
+				if (const typename TableProviderType::FDeviceData* DeviceData = Provider->FindFilteredDeviceData())
 				{
 					DataViewEntries.Reset();
 
-					auto TransformEntry = [](const TableProviderType::FEntryPair& Pair)
+					auto TransformEntry = [](const typename TableProviderType::FEntryPair& Pair)
 					{
 						return StaticCastSharedPtr<IDashboardDataViewEntry>(Pair.Value);
 					};
@@ -96,7 +96,7 @@ namespace UE::Audio::Insights
 					}
 					else
 					{
-						auto FilterEntry = [this, &IsFiltered](const TableProviderType::FEntryPair& Pair)
+						auto FilterEntry = [this, &IsFiltered](const typename TableProviderType::FEntryPair& Pair)
 						{
 							return !IsFiltered((const IDashboardDataViewEntry&)(*Pair.Value));
 						};

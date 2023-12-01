@@ -11,9 +11,9 @@ namespace UE::Audio::Insights
 	template <typename T>
 	struct TAnalyzerMessageQueue
 	{
-		const double MaxHistoryLimitSec = 5.0;
+		static constexpr double MaxHistoryLimitSec = 5.0;
 
-		TAnalyzerMessageQueue(double InHistoryLimitSec = MaxHistoryLimitSec)
+		explicit TAnalyzerMessageQueue(double InHistoryLimitSec = MaxHistoryLimitSec)
 			: HistoryLimitSec(FMath::Clamp(InHistoryLimitSec, UE_DOUBLE_KINDA_SMALL_NUMBER, MaxHistoryLimitSec))
 		{
 		}
