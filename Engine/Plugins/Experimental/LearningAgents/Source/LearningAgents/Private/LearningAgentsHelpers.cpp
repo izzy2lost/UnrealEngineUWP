@@ -54,7 +54,7 @@ FVector USplineComponentHelper::GetNearestPositionOnSpline(const int32 AgentId, 
 	{
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			SplinePosition,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT(""));
 
@@ -69,7 +69,7 @@ FVector USplineComponentHelper::GetNearestPositionOnSpline(const int32 AgentId, 
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT(""));
 	}
@@ -100,7 +100,7 @@ float USplineComponentHelper::GetDistanceAlongSplineAtPosition(const int32 Agent
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			SplinePosition,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT(""));
 
@@ -115,7 +115,7 @@ float USplineComponentHelper::GetDistanceAlongSplineAtPosition(const int32 Agent
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT(""));
 	}
@@ -144,7 +144,7 @@ FVector USplineComponentHelper::GetPositionAtDistanceAlongSpline(const int32 Age
 	{
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT("GetPositionAtDistanceAlongSpline\nAgent %i\nDistance Along Spline: [% 6.1f]\nPosition: [% 6.1f % 6.1f % 6.1f]"),
 			AgentId,
@@ -212,7 +212,7 @@ float USplineComponentHelper::GetProportionAlongSpline(const int32 AgentId, cons
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT("GetProportionAlongSpline\nAgent %i\nDistance Along Spline: [% 6.1f]\nProportion: [% 6.3f]"),
 			AgentId,
@@ -316,7 +316,7 @@ void USplineComponentHelper::GetPositionsAlongSpline(TArray<FVector>& OutPositio
 		{
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				OutPositions[PositionIdx],
-				2.5f,
+				2,
 				VisualLogColor.ToFColor(true),
 				TEXT("GetPositionsAlongSpline\nAgent: %i\nPosition: [% 6.1f % 6.1f % 6.1f]"),
 				AgentId,
@@ -599,7 +599,7 @@ void UMeshComponentHelper::GetMeshBonePositions(TArray<FVector>& OutBonePosition
 		{
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				OutBonePositions[BoneIdx],
-				2.5f,
+				2,
 				VisualLogColor.ToFColor(true),
 				TEXT("Agent %i\nBone: \"%s\"\nPosition: [% 6.1f % 6.1f % 6.1f]"),
 				AgentId,
@@ -726,7 +726,7 @@ void URayCastHelper::RayCastGridHeights(
 
 				UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 					ImpactPoint,
-					2.5f,
+					2,
 					VisualLogColor.ToFColor(true),
 					TEXT("Agent %i\nRow: %i\nCol: %i\nImpact Point: [% 6.1f % 6.1f % 6.1f]\nHeight: [% 6.1f]"),
 					AgentId,
@@ -822,7 +822,7 @@ void URayCastHelper::RayCastRadial(
 
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				ImpactPoint,
-				2.5f,
+				2,
 				VisualLogColor.ToFColor(true),
 				TEXT("Agent %i\nRay: %i\nImpact Point: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.1f]"),
 				AgentId,

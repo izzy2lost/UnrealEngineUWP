@@ -1283,7 +1283,7 @@ void UPositionObservation::VisualLog(const UE::Learning::FIndexSet Instances) co
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT("Position: [% 6.1f % 6.1f % 6.1f]\nLocal Position: [% 6.1f % 6.1f % 6.1f]"),
 			Position.X, Position.Y, Position.Z,
@@ -1365,7 +1365,7 @@ void UPositionArrayObservation::VisualLog(const UE::Learning::FIndexSet Instance
 
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				PositionView[Instance][PositionIdx],
-				10.0f,
+				10,
 				VisualLogColor.ToFColor(true),
 				TEXT("Position: [% 6.1f % 6.1f % 6.1f]\nLocal Position: [% 6.1f % 6.1f % 6.1f]"),
 				PositionView[Instance][PositionIdx].X,
@@ -1576,7 +1576,7 @@ void UPlanarPositionObservation::VisualLog(const UE::Learning::FIndexSet Instanc
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 			Position,
-			10.0f,
+			10,
 			VisualLogColor.ToFColor(true),
 			TEXT("Position: [% 6.1f % 6.1f % 6.1f]\nLocal Position: [% 6.1f % 6.1f % 6.1f]"),
 			Position.X, Position.Y, Position.Z,
@@ -1673,7 +1673,7 @@ void UPlanarPositionArrayObservation::VisualLog(const UE::Learning::FIndexSet In
 
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				PositionView[Instance][PositionIdx],
-				10.0f,
+				10,
 				VisualLogColor.ToFColor(true),
 				TEXT("Position: [% 6.1f % 6.1f % 6.1f]\nLocal Position: [% 6.1f % 6.1f % 6.1f]"),
 				PositionView[Instance][PositionIdx].X, 

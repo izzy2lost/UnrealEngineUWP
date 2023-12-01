@@ -347,7 +347,7 @@ void UPlanarPositionDifferencePenalty::VisualLog(const UE::Learning::FIndexSet I
 
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				Position0,
-				10.0f,
+				10,
 				VisualLogColor.ToFColor(true),
 				TEXT("Position0: [% 6.1f % 6.1f % 6.1f]\nPlanar Position0: [% 6.1f % 6.1f]"),
 				Position0.X, Position0.Y, Position0.Z,
@@ -363,7 +363,7 @@ void UPlanarPositionDifferencePenalty::VisualLog(const UE::Learning::FIndexSet I
 
 			UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 				Position1,
-				10.0f,
+				10,
 				VisualLogColor.ToFColor(true),
 				TEXT("Position1: [% 6.1f % 6.1f % 6.1f]\nPlanar Position1: [% 6.1f % 6.1f]"),
 				Position1.X, Position1.Y, Position1.Z,
@@ -486,7 +486,7 @@ void UPositionArraySimilarityReward::VisualLog(const UE::Learning::FIndexSet Ins
 
 				UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 					Position0,
-					10.0f,
+					10,
 					VisualLogColor.ToFColor(true),
 					TEXT("Position0: [% 6.1f % 6.1f % 6.1f]\nLocal Position0: [% 6.1f % 6.1f % 6.1f]"),
 					Position0.X, Position0.Y, Position0.Z,
@@ -494,7 +494,7 @@ void UPositionArraySimilarityReward::VisualLog(const UE::Learning::FIndexSet Ins
 
 				UE_LEARNING_AGENTS_VLOG_LOCATION(this, LogLearning, Display,
 					Position1,
-					10.0f,
+					10,
 					VisualLogColor.ToFColor(true),
 					TEXT("Position1: [% 6.1f % 6.1f % 6.1f]\nLocal Position1: [% 6.1f % 6.1f % 6.1f]"),
 					Position1.X, Position1.Y, Position1.Z,
