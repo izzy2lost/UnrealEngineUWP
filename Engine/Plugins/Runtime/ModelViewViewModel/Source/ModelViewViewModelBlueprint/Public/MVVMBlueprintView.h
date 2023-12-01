@@ -43,8 +43,9 @@ public:
 	 * If false, the user will have to initialize the sources manually.
 	 * It prevents the sources evaluating until you are ready.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Viewmodel")
+	UPROPERTY(EditAnywhere, Category = "View")
 	bool bInitializeSourcesOnConstruct = true;
+
 	/**
 	 * Auto initialize the view bindings when the Widget is constructed.
 	 * If false, the user will have to initialize the bindings manually.
@@ -53,8 +54,15 @@ public:
 	 * @note Sources needs to be initialized before initializing the bindings.
 	 * @note When Sources is manually initialized, the bindings will also be initialized if this is true.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Viewmodel", meta=(EditCondition="bInitializeSourcesOnConstruct"))
+	UPROPERTY(EditAnywhere, Category = "View", meta=(EditCondition="bInitializeSourcesOnConstruct"))
 	bool bInitializeBindingsOnConstruct = true;
+
+	/**
+	 * Auto initialize the view events when the Widget is constructed.
+	 * If false, the user will have to initialize the event manually.
+	 */
+	UPROPERTY(EditAnywhere, Category = "View")
+	bool bInitializeEventsOnConstruct = true;
 };
 
 /**

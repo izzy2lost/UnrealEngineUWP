@@ -42,17 +42,6 @@ UFunction* FMVVMVCompiledFields::GetFunction(FName FunctionName) const
 }
 
 
-UE::FieldNotification::FFieldId FMVVMVCompiledFields::GetFieldId(FName FieldName) const
-{
-	// ScriptStruct can't implements UNotifyFieldValueChanged
-	const UClass* Class = CastChecked<UClass>(ClassOrScriptStruct);
-	check(Class->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()));
-
-	TScriptInterface<INotifyFieldValueChanged> Interface = Class->GetDefaultObject();
-	return Interface->GetFieldNotificationDescriptor().GetField(Class, FieldName);
-}
-
-
 /**
  *
  */
@@ -131,7 +120,6 @@ void FMVVMCompiledBindingLibrary::Load()
 
 	ensureAlwaysMsgf(LoadedProperties.Num() == 0, TEXT("The binding library was loaded more than once."));
 	ensureAlwaysMsgf(LoadedFunctions.Num() == 0, TEXT("The binding library was loaded more than once."));
-	ensureAlwaysMsgf(LoadedFieldIds.Num() == 0, TEXT("The binding library was loaded more than once."));
 
 	for (const FMVVMVCompiledFields& Field : CompiledFields)
 	{
@@ -161,23 +149,13 @@ void FMVVMCompiledBindingLibrary::Load()
 				LoadedFunctions.Emplace(LoadedFunction); // add it even if none to keep the index valid
 			}
 		}
-		{
-			const int32 NumberOfFieldIds = Field.GetFieldIdNum();
-			for (int32 Index = 0; Index < NumberOfFieldIds; ++Index)
-			{
-				FName FieldName = Field.GetFieldIdName(CompiledFieldNames, Index);
-				UE::FieldNotification::FFieldId LoadedFieldId = Field.GetFieldId(FieldName);
-				LoadedFieldIds.Add(LoadedFieldId); // add it even if none to keep the index valid
-				ensureAlwaysMsgf(LoadedFieldId.IsValid(), TEXT("The field id '%s:%s' could not be loaded."), (Field.GetStruct() ? *Field.GetStruct()->GetName() : TEXT("None")), *FieldName.ToString());
-			}
-		}
 	}
 }
 
 
 bool FMVVMCompiledBindingLibrary::IsLoaded() const
 {
-	return LoadedProperties.Num() > 0 || LoadedFunctions.Num() > 0 || LoadedFieldIds.Num() > 0 || CompiledFields.Num() == 0;
+	return LoadedProperties.Num() > 0 || LoadedFunctions.Num() > 0 || CompiledFields.Num() == 0;
 }
 
 
@@ -185,7 +163,6 @@ void FMVVMCompiledBindingLibrary::Unload()
 {
 	LoadedProperties.Empty();
 	LoadedFunctions.Empty();
-	LoadedFieldIds.Empty();
 }
 
 
@@ -593,25 +570,6 @@ TValueOrError<FString, FString> FMVVMCompiledBindingLibrary::FieldPathToString(F
 
 		return MakeValue<FString>(StringBuilder.ToString());
 	}
-}
-
-
-TValueOrError<UE::FieldNotification::FFieldId, void> FMVVMCompiledBindingLibrary::GetFieldId(const FMVVMVCompiledFieldId& InFieldId) const
-{
-#if WITH_EDITORONLY_DATA
-	const bool bIsValidBinding = InFieldId.CompiledBindingLibraryId == CompiledBindingLibraryId;
-	if (!bIsValidBinding)
-	{
-		ensureAlwaysMsgf(false, TEXT("The binding is from a different library."));
-		return MakeError<>();
-	}
-#endif
-
-	if (LoadedFieldIds.IsValidIndex(InFieldId.FieldIdIndex))
-	{
-		return MakeValue(LoadedFieldIds[InFieldId.FieldIdIndex]);
-	}
-	return MakeError<>();
 }
 
 #undef LOCTEXT_NAMESPACE

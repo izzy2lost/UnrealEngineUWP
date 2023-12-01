@@ -99,17 +99,19 @@ private:
 	void PreCompileEvents(UWidgetBlueprintGeneratedClass* Class);
 
 	// Compile
-	void CompileViewModelCreatorContexts(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
+	void CompileSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CompileBindings(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
+	void CompileEvaluateSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 	void CompileEvents(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
+	void SortSourceFields(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 
 private:
 	/**
-	 * List of all the sources needed by the view to register the bindings.
+	 * List of all the sources needed by the view to register/execute the bindings.
 	 * They could be viewmodel, widget or any properties on the UserWidget.
 	 * They could also be a viewmodel in a long path.
 	 * It may not have an associated property (dynamicviewmodel).
-	 * It may only have OneTime binding
+	 * It may only have OneTime binding.
 	 */
 	struct FCompilerBindingSource
 	{
@@ -323,7 +325,7 @@ private:
 		TSharedPtr<FGeneratedWriteFieldPathContext> DelegateFieldPath;
 
 		FName GeneratedGraphName;
-		FName SourceName;
+		FName SourceName; // may not be in the NeededBindingSources
 		FCompiledBindingLibraryCompiler::FFieldPathHandle DelegateFieldPathHandle;
 	};
 	TArray<TSharedRef<FCompilerEvent>> ValidEvents;

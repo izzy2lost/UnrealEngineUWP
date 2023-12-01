@@ -1312,13 +1312,28 @@ bool FMVVMViewBlueprintCompiler::Compile(UWidgetBlueprintGeneratedClass* Class, 
 		WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("BindingCompilationFailed", "The binding compilation failed. {1}"), CompileResult.GetError()).ToString());
 		return false;
 	}
-	CompileViewModelCreatorContexts(CompileResult.GetValue(), Class, ViewExtension);
+	CompileSources(CompileResult.GetValue(), Class, ViewExtension);
 	CompileBindings(CompileResult.GetValue(), Class, ViewExtension);
+	CompileEvaluateSources(CompileResult.GetValue(), Class, ViewExtension);
 	CompileEvents(CompileResult.GetValue(), Class, ViewExtension);
+	SortSourceFields(CompileResult.GetValue(), Class, ViewExtension);
 
 	{
 		ViewExtension->bInitializeSourcesOnConstruct = BlueprintView->GetSettings()->bInitializeSourcesOnConstruct;
 		ViewExtension->bInitializeBindingsOnConstruct = ViewExtension->bInitializeSourcesOnConstruct ? BlueprintView->GetSettings()->bInitializeBindingsOnConstruct : false;
+		ViewExtension->bInitializeEventsOnConstruct = BlueprintView->GetSettings()->bInitializeEventsOnConstruct;
+	}
+	{
+		ViewExtension->OptionalSources = 0;
+		for (int32 Index = 0; Index < ViewExtension->Sources.Num(); ++Index)
+		{
+			const FMVVMViewClass_Source& Source = ViewExtension->Sources[Index];
+			if (Source.IsOptional())
+			{
+				FMVVMViewClass_SourceKey ClassSourceKey = FMVVMViewClass_SourceKey(Index);
+				ViewExtension->OptionalSources |= ClassSourceKey.GetBit();
+			}
+		}
 	}
 
 	bool bResult = AreStepsValid();
@@ -1329,11 +1344,12 @@ bool FMVVMViewBlueprintCompiler::Compile(UWidgetBlueprintGeneratedClass* Class, 
 #if UE_WITH_MVVM_DEBUGGING
 		if (CVarLogViewCompiledResult->GetBool())
 		{
-			FMVVMViewClass_SourceCreator::FToStringArgs CreatorsToStringArgs = FMVVMViewClass_SourceCreator::FToStringArgs::All();
-			CreatorsToStringArgs.bUseDisplayName = false;
-			FMVVMViewClass_CompiledBinding::FToStringArgs BindingToStringArgs = FMVVMViewClass_CompiledBinding::FToStringArgs::All();
-			BindingToStringArgs.bUseDisplayName = false;
-			ViewExtension->Log(CreatorsToStringArgs, BindingToStringArgs);
+			UMVVMViewClass::FToStringArgs ToStringArgs = UMVVMViewClass::FToStringArgs::All();
+			ToStringArgs.Source.bUseDisplayName = false;
+			ToStringArgs.Binding.bUseDisplayName = false;
+			ToStringArgs.Evaluate.bUseDisplayName = false;
+			ToStringArgs.Event.bUseDisplayName = false;
+			UE_LOG(LogMVVM, Log, TEXT("%s"), *ViewExtension->ToString(ToStringArgs));
 		}
 #endif
 	}
@@ -1789,13 +1805,40 @@ void FMVVMViewBlueprintCompiler::PreCompileViewModelCreatorContexts(UWidgetBluep
 }
 
 
-void FMVVMViewBlueprintCompiler::CompileViewModelCreatorContexts(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
+void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
 {
-	TArray<FMVVMViewClass_SourceCreator> UnsortedSourceCreators;
+	struct FSortData
+	{
+		FSortData() = default;
+		FName SourceName;
+		FName ParentSourceName;
+		int32 SortIndex = -1;
+
+		void CalculateSortIndex(TMap<FName, FSortData>& Map)
+		{
+			if (SortIndex < 0)
+			{
+				if (ParentSourceName.IsNone())
+				{
+					SortIndex = 0;
+				}
+				else
+				{
+					Map[ParentSourceName].CalculateSortIndex(Map);
+					// calculate the Depth recursively
+					SortIndex = Map[ParentSourceName].SortIndex + 1;
+				}
+			}
+		}
+	};
+
+	TMap<FName, FSortData> SortDatas;
+	TArray<FMVVMViewClass_Source> UnsortedSourceCreators;
+
 	for (FCompilerViewModelCreatorContext& SourceCreatorContext : ViewModelCreatorContexts)
 	{
 		const FMVVMBlueprintViewModelContext& ViewModelContext = SourceCreatorContext.ViewModelContext;
-		FMVVMViewClass_SourceCreator CompiledSourceCreator;
+		FMVVMViewClass_Source CompiledSourceCreator;
 
 		ensure(ViewModelContext.GetViewModelClass() && ViewModelContext.GetViewModelClass()->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()));
 		CompiledSourceCreator.ExpectedSourceType = ViewModelContext.GetViewModelClass();
@@ -1876,11 +1919,12 @@ void FMVVMViewBlueprintCompiler::CompileViewModelCreatorContexts(const FCompiled
 			continue;
 		}
 
+		FName ParentSourceName;
 		if (SourceCreatorContext.DynamicContext)
 		{
 			if (SourceCreatorContext.DynamicContext->ParentSource)
 			{
-				CompiledSourceCreator.ParentSourceName = SourceCreatorContext.DynamicContext->ParentSource->Name;
+				ParentSourceName = SourceCreatorContext.DynamicContext->ParentSource->Name;
 			}
 			else
 			{
@@ -1894,24 +1938,30 @@ void FMVVMViewBlueprintCompiler::CompileViewModelCreatorContexts(const FCompiled
 		}
 
 		CompiledSourceCreator.Flags = 0;
-		CompiledSourceCreator.Flags |= bCreateInstance ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::TypeCreateInstance : 0;
-		CompiledSourceCreator.Flags |= bIsUserWidgetProperty ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::IsUserWidgetProperty : 0;
-		CompiledSourceCreator.Flags |= bIsOptional ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::IsOptional : 0;
-		CompiledSourceCreator.Flags |= bCanBeSet ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::CanBeSet : 0;
-		CompiledSourceCreator.Flags |= bCanBeEvaluated ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::CanBeEvaluated : 0;
+		CompiledSourceCreator.Flags |= bCreateInstance ? (uint16)FMVVMViewClass_Source::EFlags::TypeCreateInstance : 0;
+		CompiledSourceCreator.Flags |= bIsUserWidgetProperty ? (uint16)FMVVMViewClass_Source::EFlags::IsUserWidgetProperty : 0;
+		CompiledSourceCreator.Flags |= bIsUserWidgetProperty ? (uint16)FMVVMViewClass_Source::EFlags::SetUserWidgetProperty : 0;
+		CompiledSourceCreator.Flags |= bIsOptional ? (uint16)FMVVMViewClass_Source::EFlags::IsOptional : 0;
+		CompiledSourceCreator.Flags |= bCanBeSet ? (uint16)FMVVMViewClass_Source::EFlags::CanBeSet : 0;
+		CompiledSourceCreator.Flags |= bCanBeEvaluated ? (uint16)FMVVMViewClass_Source::EFlags::CanBeEvaluated : 0;
+		CompiledSourceCreator.Flags |= (uint16)FMVVMViewClass_Source::EFlags::IsViewModel;
 
+		FSortData SortData;
+		SortData.SourceName = CompiledSourceCreator.GetName();
+		SortData.ParentSourceName = ParentSourceName;
+		SortDatas.Add(CompiledSourceCreator.GetName(), SortData);
 		UnsortedSourceCreators.Add(MoveTemp(CompiledSourceCreator));
 	}
 
 	// The other sources needed by the view
 	for (FCompilerWidgetCreatorContext& WidgetCreator : WidgetCreatorContexts)
 	{
-		FMVVMViewClass_SourceCreator CompiledSourceCreator;
+		FMVVMViewClass_Source CompiledSourceCreator;
 		ensure(WidgetCreator.Source->AuthoritativeClass&& WidgetCreator.Source->AuthoritativeClass->ImplementsInterface(UNotifyFieldValueChanged::StaticClass()));
 		CompiledSourceCreator.ExpectedSourceType = const_cast<UClass*>(WidgetCreator.Source->AuthoritativeClass);
 		CompiledSourceCreator.PropertyName = WidgetCreator.Source->Name;
 		CompiledSourceCreator.Flags = 0;
-		CompiledSourceCreator.Flags |= WidgetCreator.bSelfReference ? (uint8)FMVVMViewClass_SourceCreator::ESourceFlags::SelfReference : 0;
+		CompiledSourceCreator.Flags |= WidgetCreator.bSelfReference ? (uint16)FMVVMViewClass_Source::EFlags::SelfReference : 0;
 
 		if (!WidgetCreator.bSelfReference)
 		{
@@ -1927,64 +1977,57 @@ void FMVVMViewBlueprintCompiler::CompileViewModelCreatorContexts(const FCompiled
 			CompiledSourceCreator.FieldPath = *CompiledFieldPath;
 		}
 
+		FSortData SortData;
+		SortDatas.Add(CompiledSourceCreator.GetName(), SortData);
 		UnsortedSourceCreators.Add(MoveTemp(CompiledSourceCreator));
+	}
+
+	// Sanity check
+	{
+		// Test if all NeededBindingSources in inside the UnsortedSourceCreators
+		for (const TSharedRef<FCompilerBindingSource>& BindingSource : NeededBindingSources)
+		{
+			const FMVVMViewClass_Source* FoundClassSource = UnsortedSourceCreators.FindByPredicate([ToFindName = BindingSource->Name](const FMVVMViewClass_Source& Other){ return Other.GetName() == ToFindName; });
+			if (FoundClassSource == nullptr)
+			{
+				AddMessage(FText::Format(LOCTEXT("CompileSources_MissingSources", "Internal error. The source {0} was not compiled.."), FText::FromName(BindingSource->Name))
+					, EMessageType::Warning
+				);
+			}
+		}
+
+		ensure(SortDatas.Num() == UnsortedSourceCreators.Num());
 	}
 
 	// sort the source creators by priority and then by name
 	if (UnsortedSourceCreators.Num() > 1)
 	{
-		struct FSortData
-		{
-			FSortData() = default;
-			FName SourceName;
-			FName ParentSourceName;
-			int32 SortIndex = -1;
-
-			void CalculateSortIndex(TMap<FName, FSortData>& Map)
-			{
-				if (SortIndex < 0)
-				{
-					if (ParentSourceName.IsNone())
-					{
-						SortIndex = 0;
-					}
-					else
-					{
-						Map[ParentSourceName].CalculateSortIndex(Map);
-						// calculate the Depth recursively
-						SortIndex = Map[ParentSourceName].SortIndex + 1;
-					}
-				}
-			}
-		};
-		TMap<FName, FSortData> SortDatas;
-		SortDatas.Reserve(UnsortedSourceCreators.Num());
-		for (int32 Index = 0; Index < UnsortedSourceCreators.Num(); ++Index)
-		{
-			FSortData SortData;
-			SortData.SourceName = UnsortedSourceCreators[Index].GetSourceName();
-			SortData.ParentSourceName =UnsortedSourceCreators[Index].GetParentSourceName();
-			SortDatas.Emplace(SortData.SourceName, SortData);
-		}
 		for (auto& SortDataPair : SortDatas)
 		{
 			SortDataPair.Value.CalculateSortIndex(SortDatas);
 		}
 
-		UnsortedSourceCreators.Sort([&SortDatas](const FMVVMViewClass_SourceCreator& A, const FMVVMViewClass_SourceCreator& B)
+		UnsortedSourceCreators.Sort([&SortDatas](const FMVVMViewClass_Source& A, const FMVVMViewClass_Source& B)
 			{
-				int32 ASortIndex = SortDatas[A.GetSourceName()].SortIndex;
-				int32 BSortIndex = SortDatas[B.GetSourceName()].SortIndex;
+				int32 ASortIndex = SortDatas[A.GetName()].SortIndex;
+				int32 BSortIndex = SortDatas[B.GetName()].SortIndex;
 				if (ASortIndex == BSortIndex)
 				{
-					return A.GetSourceName().LexicalLess(B.GetSourceName());
+					return A.GetName().LexicalLess(B.GetName());
 				}
 				return ASortIndex < BSortIndex;
 			});
 	}
 
-	// Add the sorted viewmode array to the ViewExtension
-	ViewExtension->SourceCreators = MoveTemp(UnsortedSourceCreators);
+	// Add the sorted viewmodel array to the ViewExtension
+	ViewExtension->Sources = MoveTemp(UnsortedSourceCreators);
+
+	if (ViewExtension->Sources.Num() > 64)
+	{
+		// The view use a uint64 bitfield to filter which viewmodel/source is valid/initialized.
+		//You can use the MVVM.LogViewCompiledResult command to display the compile result and see the name of the sources.
+		AddMessage(LOCTEXT("TooManySources", "There is too many sources for the view. Try spliting your widget into other widgets."), EMessageType::Error);
+	}
 }
 
 
@@ -2291,176 +2334,197 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		return;
 	}
 
-	struct FSortData
+	// Sort the array to have a predictable list
 	{
-		int32 ValidBindingIndex = INDEX_NONE;
-		int32 SourceIndex = INDEX_NONE;
-		FMVVMViewClass_CompiledBinding CompiledBinding;
-	};
-	TArray<FSortData> TempBindingToSort;
-	TempBindingToSort.Reserve(ValidBindings.Num()*2);
+		UMVVMBlueprintView* LocalBlueprintView = BlueprintView.Get();
+		ValidBindings.StableSort([LocalBlueprintView](const TSharedRef<FCompilerBinding>& A, const TSharedRef<FCompilerBinding>& B)
+			{
+				const FMVVMBlueprintViewBinding& BindingA = *(LocalBlueprintView->GetBindingAt(A->Key.ViewBindingIndex));
+				const FMVVMBlueprintViewBinding& BindingB = *(LocalBlueprintView->GetBindingAt(B->Key.ViewBindingIndex));
+				return BindingA.BindingId < BindingB.BindingId;
+			});
+	}
 
+	ensure(ViewExtension->Bindings.Num() == 0);
+	ViewExtension->Bindings.Reset(ValidBindings.Num());
 	for (int32 ValidBindingIndex = 0; ValidBindingIndex < ValidBindings.Num(); ++ValidBindingIndex)
 	{
 		const TSharedRef<FCompilerBinding>& ValidBinding = ValidBindings[ValidBindingIndex];
 		const FMVVMBlueprintViewBinding& Binding = *(BlueprintView->GetBindingAt(ValidBinding->Key.ViewBindingIndex));
 
+		const FMVVMVCompiledBinding* CompiledBinding = CompileResult.Bindings.Find(ValidBinding->BindingHandle);
+		if (CompiledBinding == nullptr)
+		{
+			AddMessageForBinding(Binding, LOCTEXT("CompiledBindingNotGenerated", "Could not generate compiled binding."), EMessageType::Error, FName());
+			bIsCompileStepValid = false;
+			continue;
+		}
+
+		FMVVMViewClass_BindingKey BindingKey = FMVVMViewClass_BindingKey(ViewExtension->Bindings.AddDefaulted());
+		FMVVMViewClass_Binding& NewBinding = ViewExtension->Bindings[BindingKey.GetIndex()];
+		NewBinding.Binding = CompiledBinding ? *CompiledBinding : FMVVMVCompiledBinding();
+		NewBinding.ExecutionMode = Binding.bOverrideExecutionMode ? Binding.OverrideExecutionMode : (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();
+		NewBinding.SourceBitField = 0;
+		NewBinding.EditorId = Binding.BindingId;
+
+		NewBinding.Flags = 0;
+		NewBinding.Flags |= (!ValidBinding->bIsOneTimeBinding) ? (uint8)FMVVMViewClass_Binding::EFlags::OneWay : 0;
+		NewBinding.Flags |= (Binding.bOverrideExecutionMode) ? (uint8)FMVVMViewClass_Binding::EFlags::OverrideExecuteMode : 0;
+		NewBinding.Flags |= (ValidBinding->ReadPaths.Num() > 1) ? (uint8)FMVVMViewClass_Binding::EFlags::Shared : 0;
+		NewBinding.Flags |= (Binding.bEnabled) ? (uint8)FMVVMViewClass_Binding::EFlags::EnabledByDefault : 0;
+
+		TArray<FMVVMViewClass_SourceKey, TInlineAllocator<16>>  SharedBindings;
 		for (TSharedPtr<FGeneratedReadFieldPathContext> ReadPath : ValidBinding->ReadPaths)
 		{
 			if (ReadPath->OptionalSource == nullptr)
 			{
-				AddMessageForBinding(Binding, LOCTEXT("InvalidSourceInternal", "Internal error. The binding doesn't have a valid source."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("InvalidSourceInternal", "Internal error. The binding has an invalid source."), EMessageType::Error, FName());
 				bIsCompileStepValid = false;
 				continue;
 			}
 
-			int32 ViewExtensionSourceCreatorsIndex = ViewExtension->SourceCreators.IndexOfByPredicate([LookFor = ReadPath->OptionalSource->Name](const FMVVMViewClass_SourceCreator& Other)
+			int32 ViewExtensionSourceCreatorsIndex = ViewExtension->Sources.IndexOfByPredicate([LookFor = ReadPath->OptionalSource->Name](const FMVVMViewClass_Source& Other)
 				{
-					return Other.GetSourceName() == LookFor;
+					return Other.GetName() == LookFor;
 				});
-			if (!ViewExtension->SourceCreators.IsValidIndex(ViewExtensionSourceCreatorsIndex))
+			if (!ViewExtension->Sources.IsValidIndex(ViewExtensionSourceCreatorsIndex))
 			{
 				AddMessageForBinding(Binding, LOCTEXT("CompiledSourceCreatorNotGenerated", "Internal error. The source creator was not generated."), EMessageType::Error, FName());
 				bIsCompileStepValid = false;
 				continue;
 			}
 
-			const FMVVMVCompiledFieldId* CompiledFieldId = (ReadPath->NotificationField && !ValidBinding->bIsOneTimeBinding) ? CompileResult.FieldIds.Find(ReadPath->NotificationField->LibraryCompilerHandle) : nullptr;
+			// Add the needed source.
+			FMVVMViewClass_SourceKey FieldClassSourceKey = FMVVMViewClass_SourceKey(ViewExtensionSourceCreatorsIndex);
+			NewBinding.SourceBitField |= FieldClassSourceKey.GetBit();
 
-			const FMVVMVCompiledBinding* CompiledBinding = CompileResult.Bindings.Find(ValidBinding->BindingHandle);
-			if (CompiledBinding == nullptr)
+			// FieldId
+			const bool bHasField = (ReadPath->NotificationField && !ValidBinding->bIsOneTimeBinding);
+			const UE::FieldNotification::FFieldId* CompiledFieldId = bHasField ? CompileResult.FieldIds.Find(ReadPath->NotificationField->LibraryCompilerHandle) : nullptr;
+			if (CompiledFieldId == nullptr && bHasField)
 			{
-				AddMessageForBinding(Binding, LOCTEXT("CompiledBindingNotGenerated", "Could not generate compiled binding."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("CompiledFieldNotGenerated", "Internal error. The FieldId was not generated."), EMessageType::Error, FName());
 				bIsCompileStepValid = false;
 				continue;
 			}
 
 			bool bExecuteAtInitialization = ValidBinding->Key.bIsForwardBinding;
-			bool bIsOptional = ViewExtension->SourceCreators[ViewExtensionSourceCreatorsIndex].IsOptional();
 
-			FMVVMViewClass_CompiledBinding NewBinding;
-			NewBinding.FieldId = CompiledFieldId ? *CompiledFieldId : FMVVMVCompiledFieldId();
-			NewBinding.SourcePropertyName = ReadPath->OptionalSource->Name;
-			NewBinding.Binding = CompiledBinding ? *CompiledBinding : FMVVMVCompiledBinding();
-			NewBinding.ExecutionMode = Binding.bOverrideExecutionMode ? Binding.OverrideExecutionMode : (EMVVMExecutionMode)CVarDefaultExecutionMode->GetInt();
-			NewBinding.EvaluateSourceCreatorIndex = INDEX_NONE;;
-			NewBinding.EditorId = Binding.BindingId;
+			FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[ViewExtensionSourceCreatorsIndex];
+			FMVVMViewClass_SourceBinding& NewSourceBinding = ClassSource.Bindings.AddDefaulted_GetRef();
+			NewSourceBinding.BindingKey = BindingKey;
 
-			NewBinding.Flags = 0;
-			NewBinding.Flags |= (Binding.bEnabled) ? FMVVMViewClass_CompiledBinding::EBindingFlags::EnabledByDefault : 0;
-			NewBinding.Flags |= (bExecuteAtInitialization) ? FMVVMViewClass_CompiledBinding::EBindingFlags::ExecuteAtInitialization : 0;
-			NewBinding.Flags |= (ValidBinding->bIsOneTimeBinding) ? FMVVMViewClass_CompiledBinding::EBindingFlags::OneTime : 0;
-			NewBinding.Flags |= (bIsOptional) ? FMVVMViewClass_CompiledBinding::EBindingFlags::ViewModelOptional : 0;
-			NewBinding.Flags |= (Binding.bOverrideExecutionMode) ? FMVVMViewClass_CompiledBinding::EBindingFlags::OverrideExecuteMode : 0;
-			NewBinding.Flags |= (ReadPath->OptionalSource->Type == FCompilerBindingSource::EType::Self) ? FMVVMViewClass_CompiledBinding::EBindingFlags::SourceObjectIsSelf : 0;
+			NewSourceBinding.Flags = 0;
+			NewSourceBinding.Flags |= (bExecuteAtInitialization) ? (uint8)FMVVMViewClass_SourceBinding::EFlags::ExecuteAtInitialization : 0;
 
-			FSortData& SortData = TempBindingToSort.AddDefaulted_GetRef();
-			SortData.ValidBindingIndex = ValidBindingIndex;
-			SortData.SourceIndex = ViewExtensionSourceCreatorsIndex;
-			SortData.CompiledBinding = MoveTemp(NewBinding);
+			if (CompiledFieldId)
+			{
+				NewSourceBinding.FieldId = FFieldNotificationId(CompiledFieldId->GetName());
+				ClassSource.FieldToRegisterTo.AddUnique(FMVVMViewClass_FieldId(*CompiledFieldId));
+
+				// Count the number of shared instance of that binding. (they can come from the same Source)
+				//This flag is used at runtime to know if we should delay the binding execution.
+				//We only delay when the field changes. It should only be shared if it has field.
+				SharedBindings.Add(FieldClassSourceKey);
+			}
+		}
+
+		NewBinding.Flags |= (SharedBindings.Num() > 0) ? (uint8)FMVVMViewClass_Binding::EFlags::Shared : 0;
+
+		// Only the last binding in the complex conversion.
+		if (SharedBindings.Num() > 0)
+		{
+			SharedBindings.Sort([](const FMVVMViewClass_SourceKey& A, const FMVVMViewClass_SourceKey&B)
+				{
+					return A.GetIndex() < B.GetIndex();
+				});
+
+			//Only the last one has ExecuteAtInitialization. Remove the flag on all the others.
+			for (int32 Index = 0; Index < SharedBindings.Num() - 2; ++Index)
+			{
+				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedBindings[Index].GetIndex()];
+				for (FMVVMViewClass_SourceBinding& SourceBinding : ClassSource.Bindings)
+				{
+					if (SourceBinding.GetBindingKey() == BindingKey)
+					{
+						SourceBinding.Flags &= ~(uint8)FMVVMViewClass_SourceBinding::EFlags::ExecuteAtInitialization;
+					}
+				}
+			}
+			// keep only one ExecuteAtInitialization on the last source
+			{
+				FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[SharedBindings.Last().GetIndex()];
+				bool bFound = false;
+				for (int32 Index = ClassSource.Bindings.Num() - 1; Index >= 0; --Index)
+				{
+					FMVVMViewClass_SourceBinding& SourceBinding = ClassSource.Bindings[Index];
+					if (SourceBinding.GetBindingKey() == BindingKey)
+					{
+						if (bFound)
+						{
+							SourceBinding.Flags &= ~(uint8)FMVVMViewClass_SourceBinding::EFlags::ExecuteAtInitialization;
+						}
+						bFound = true;
+					}
+				}
+			}
 		}
 	}
+}
 
+
+void FMVVMViewBlueprintCompiler::CompileEvaluateSources(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
+{
 	for (const TSharedRef<FCompilerSourceViewModelDynamicCreatorContext>& ViewModelDynamic : SourceViewModelDynamicCreatorContexts)
 	{
-		int32 ViewExtensionSourceCreatorsIndex = ViewExtension->SourceCreators.IndexOfByPredicate([LookFor = ViewModelDynamic->Source->Name](const FMVVMViewClass_SourceCreator& Other)
+		int32 ViewExtensionSourceCreatorsIndex = ViewExtension->Sources.IndexOfByPredicate([LookFor = ViewModelDynamic->Source->Name](const FMVVMViewClass_Source& Other)
 			{
-				return Other.GetSourceName() == LookFor;
+				return Other.GetName() == LookFor;
 			});
-		if (!ViewExtension->SourceCreators.IsValidIndex(ViewExtensionSourceCreatorsIndex))
+		if (!ViewExtension->Sources.IsValidIndex(ViewExtensionSourceCreatorsIndex))
 		{
 			AddMessage(LOCTEXT("CompiledSourceCreatorNotGenerated", "Internal error. The source creator was not generated."), EMessageType::Error);
 			bIsCompileStepValid = false;
 			continue;
 		}
+		int32 ViewExtensionParentCreatorsIndex = ViewExtension->Sources.IndexOfByPredicate([LookFor = ViewModelDynamic->ParentSource->Name](const FMVVMViewClass_Source& Other)
+			{
+				return Other.GetName() == LookFor;
+			});
+		if (!ViewExtension->Sources.IsValidIndex(ViewExtensionParentCreatorsIndex))
+		{
+			AddMessage(LOCTEXT("CompiledParentSourceCreatorNotGenerated", "Internal error. The parent source creator was not generated."), EMessageType::Error);
+			bIsCompileStepValid = false;
+			continue;
+		}
 
-		const FMVVMVCompiledFieldId* CompiledFieldId = CompileResult.FieldIds.Find(ViewModelDynamic->NotificationIdLibraryCompilerHandle);
+		const UE::FieldNotification::FFieldId* CompiledFieldId = CompileResult.FieldIds.Find(ViewModelDynamic->NotificationIdLibraryCompilerHandle);
 		if (CompiledFieldId == nullptr)
 		{
 			AddMessage(LOCTEXT("CompiledFieldNotifyNotGenerated", "Internal error. The field notify was not generated."), EMessageType::Error);
 			bIsCompileStepValid = false;
 			continue;
 		}
-		
-		bool bIsOptional = ViewModelDynamic->Source->bIsOptional;
 
-		FMVVMViewClass_CompiledBinding NewBinding;
-		NewBinding.FieldId = CompiledFieldId ? *CompiledFieldId : FMVVMVCompiledFieldId();
-		NewBinding.SourcePropertyName = ViewModelDynamic->ParentSource->Name;
-		NewBinding.Binding = FMVVMVCompiledBinding();
-		NewBinding.ExecutionMode = EMVVMExecutionMode::Immediate;
-		NewBinding.EvaluateSourceCreatorIndex = ViewExtensionSourceCreatorsIndex;
-		NewBinding.EditorId = FGuid();
+		FMVVMViewClass_EvaluateSource& NewBinding = ViewExtension->EvaluateSources.AddDefaulted_GetRef();
+		NewBinding.ParentFieldId = FFieldNotificationId(CompiledFieldId->GetName());
+		NewBinding.ParentSource = FMVVMViewClass_SourceKey(ViewExtensionParentCreatorsIndex);
+		NewBinding.ToEvaluate = FMVVMViewClass_SourceKey(ViewExtensionSourceCreatorsIndex);
 
-		NewBinding.Flags = 0;
-		NewBinding.Flags |= FMVVMViewClass_CompiledBinding::EBindingFlags::EnabledByDefault;
-		NewBinding.Flags |= (bIsOptional) ? FMVVMViewClass_CompiledBinding::EBindingFlags::ViewModelOptional : 0;
-		NewBinding.Flags |= FMVVMViewClass_CompiledBinding::EBindingFlags::OverrideExecuteMode; // The mode needs to be Immediate.
-		NewBinding.Flags |= (ViewModelDynamic->ParentSource->Type == FCompilerBindingSource::EType::Self) ? FMVVMViewClass_CompiledBinding::EBindingFlags::SourceObjectIsSelf : 0;
+		FMVVMViewClass_Source& ClassSource = ViewExtension->Sources[ViewExtensionParentCreatorsIndex];
+		ClassSource.FieldToRegisterTo.AddUnique(FMVVMViewClass_FieldId(*CompiledFieldId));
 
-		FSortData& SortData = TempBindingToSort.AddDefaulted_GetRef();
-		SortData.ValidBindingIndex = INDEX_NONE;
-		SortData.SourceIndex = ViewExtensionSourceCreatorsIndex;
-		SortData.CompiledBinding = MoveTemp(NewBinding);
+		ClassSource.Flags |= (uint16)FMVVMViewClass_Source::EFlags::HasEvaluatedBindings;
 	}
 
-
-	// sort the array
-	if (ViewExtension->SourceCreators.Num() > 1)
-	{
-		// sort by source, then regular binding, then "dynamic viewmodel" at the end
-		TempBindingToSort.StableSort([](const FSortData& A, const FSortData& B)
-			{
-				if (A.SourceIndex == B.SourceIndex)
-				{
-					if (A.CompiledBinding.GetEvaluateSourceCreatorBindingIndex() == B.CompiledBinding.GetEvaluateSourceCreatorBindingIndex())
-					{
-						return A.CompiledBinding.GetSourceName().LexicalLess(B.CompiledBinding.GetSourceName());
-					}
-
-					if (A.CompiledBinding.GetEvaluateSourceCreatorBindingIndex() == INDEX_NONE)
-					{
-						return false;
-					}
-					if (B.CompiledBinding.GetEvaluateSourceCreatorBindingIndex() == INDEX_NONE)
-					{
-						return true;
-					}
-
-					return A.CompiledBinding.GetEvaluateSourceCreatorBindingIndex() < B.CompiledBinding.GetEvaluateSourceCreatorBindingIndex();
-				}
-
-				return A.SourceIndex < B.SourceIndex;
-			});
-	}
-
-	// Go backward to be able to mark only the last binding in the complex conversion.
-	TSet<int32> ComplexFunctionInitialized;
-	for (int32 Index = TempBindingToSort.Num() - 1; Index >= 0; --Index)
-	{
-		FSortData& Data = TempBindingToSort[Index];
-
-		// Only handle bindings with complex conversions.
-		if (Data.CompiledBinding.IsConversionFunctionComplex())
+	ViewExtension->EvaluateSources.StableSort([](const FMVVMViewClass_EvaluateSource& A, const FMVVMViewClass_EvaluateSource& B)
 		{
-			// The last binding keep the init flag. Remove it for the others
-			if (ComplexFunctionInitialized.Contains(Data.ValidBindingIndex))
+			if (A.GetParentSource() == B.GetParentSource())
 			{
-				Data.CompiledBinding.Flags &= ~FMVVMViewClass_CompiledBinding::EBindingFlags::ExecuteAtInitialization;
+				return A.GetFieldId().GetFieldName().Compare(B.GetFieldId().GetFieldName()) < 0;
 			}
-			else
-			{
-				ComplexFunctionInitialized.Add(Data.ValidBindingIndex);
-			}
-		}
-	}
-
-	ViewExtension->CompiledBindings.Reset(TempBindingToSort.Num());
-	for (FSortData& Data : TempBindingToSort)
-	{
-		ViewExtension->CompiledBindings.Emplace(MoveTemp(Data.CompiledBinding));
-	}
-	TempBindingToSort.Reset();
+			return A.GetParentSource().GetIndex() < B.GetParentSource().GetIndex();
+		});
 }
 
 
@@ -2584,10 +2648,41 @@ void FMVVMViewBlueprintCompiler::CompileEvents(const FCompiledBindingLibraryComp
 			continue;
 		}
 
-		FMVVMViewClass_CompiledEvent& NewBinding = ViewExtension->CompiledEvents.AddDefaulted_GetRef();
+		int32 FoundSourceIndex = INDEX_NONE;
+		if (!ValidEvent->SourceName.IsNone())
+		{
+			FoundSourceIndex = ViewExtension->Sources.IndexOfByPredicate([ToFind = ValidEvent->SourceName](const FMVVMViewClass_Source& Other)
+				{
+					return Other.GetName() == ToFind;
+				});
+		}
+
+		FMVVMViewClass_Event& NewBinding = ViewExtension->Events.AddDefaulted_GetRef();
 		NewBinding.FieldPath = *CompiledFieldPath;
-		NewBinding.FunctionName = ValidEvent->GeneratedGraphName;
-		NewBinding.SourceName = ValidEvent->SourceName;
+		NewBinding.UserWidgetFunctionName = ValidEvent->GeneratedGraphName;
+		NewBinding.SourceToReevaluate = FoundSourceIndex != INDEX_NONE ? FMVVMViewClass_SourceKey(FoundSourceIndex) : FMVVMViewClass_SourceKey();
+	}
+}
+
+
+void FMVVMViewBlueprintCompiler::SortSourceFields(const FCompiledBindingLibraryCompiler::FCompileResult& CompileResult, UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension)
+{
+	for (FMVVMViewClass_Source& Source : ViewExtension->Sources)
+	{
+		for (const FMVVMViewClass_FieldId& Field : Source.FieldToRegisterTo)
+		{
+			if (Field.GetFieldId().GetIndex() == INDEX_NONE)
+			{
+				AddMessage(LOCTEXT("SortSourceFieldsInvalidId", "Internal error. The id is invalid."), EMessageType::Error);
+				bIsCompileStepValid = false;
+				continue;
+			}
+		}
+
+		Source.FieldToRegisterTo.StableSort([](const FMVVMViewClass_FieldId& A, const FMVVMViewClass_FieldId& B)
+			{
+				return A.GetFieldId().GetIndex() < B.GetFieldId().GetIndex();
+			});
 	}
 }
 

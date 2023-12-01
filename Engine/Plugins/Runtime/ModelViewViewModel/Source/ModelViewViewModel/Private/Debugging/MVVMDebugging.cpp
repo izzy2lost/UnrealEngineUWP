@@ -12,7 +12,7 @@ namespace UE::MVVM
 {
 /** */
 FDebugging::FView::FView(const UMVVMView* InView)
-	: UserWidget(InView->GetUserWidget())
+	: UserWidget(InView->GetOuterUUserWidget())
 	, View(InView)
 {
 }
@@ -40,49 +40,26 @@ void FDebugging::BroadcastViewBeginDestruction(const UMVVMView* InView)
 }
 
 /** */
-FDebugging::FViewSourceValueArgs::FViewSourceValueArgs(const FMVVMViewSource& InViewSource)
-	: ViewSource(InViewSource)
+FDebugging::FViewSourceValueArgs::FViewSourceValueArgs(const FMVVMViewClass_SourceKey& InClass, const FMVVMView_SourceKey& InView)
+	: ClassSource(InClass)
+	, ViewSource(InView)
 {
 }
 
 FDebugging::FViewSourceValueChanged FDebugging::OnViewSourceValueChanged;
 
-void FDebugging::BroadcastViewSourceValueChanged(const UMVVMView* InView, const FMVVMViewSource& ViewSource)
+void FDebugging::BroadcastViewSourceValueChanged(const UMVVMView* InView, const FMVVMViewClass_SourceKey ClassSourceKey, const FMVVMView_SourceKey ViewSourceKey)
 {
-	OnViewSourceValueChanged.Broadcast(InView, FViewSourceValueArgs(ViewSource));
+	OnViewSourceValueChanged.Broadcast(InView, FViewSourceValueArgs(ClassSourceKey, ViewSourceKey));
 }
 
 /** */
-FDebugging::FLibraryBindingRegisteredArgs::FLibraryBindingRegisteredArgs(const FMVVMViewClass_CompiledBinding& InBinding, ERegisterLibraryBindingResult InResult)
-	: Binding(InBinding)
-	, Result(InResult)
-{
-}
-
-FDebugging::FLibraryBindingRegistered FDebugging::OnLibraryBindingRegistered;
-
-void FDebugging::BroadcastLibraryBindingRegistered(const UMVVMView* InView, const FLibraryBindingRegisteredArgs& Args)
-{
-	check(InView);
-	OnLibraryBindingRegistered.Broadcast(FView(InView), Args);
-}
-
-void FDebugging::BroadcastLibraryBindingRegistered(const UMVVMView* InView, const FMVVMViewClass_CompiledBinding& InBinding, ERegisterLibraryBindingResult InResult)
-{
-	if (OnLibraryBindingRegistered.IsBound())
-	{
-		check(InView);
-		OnLibraryBindingRegistered.Broadcast(FView(InView), FLibraryBindingRegisteredArgs(InBinding, InResult));
-	}
-}
-
-/** */
-FDebugging::FLibraryBindingExecutedArgs::FLibraryBindingExecutedArgs(const FMVVMViewClass_CompiledBinding& InBinding)
+FDebugging::FLibraryBindingExecutedArgs::FLibraryBindingExecutedArgs(FMVVMViewClass_BindingKey InBinding)
 	: Binding(InBinding)
 {
 }
 
-FDebugging::FLibraryBindingExecutedArgs::FLibraryBindingExecutedArgs(const FMVVMViewClass_CompiledBinding& InBinding, FMVVMCompiledBindingLibrary::EExecutionFailingReason InResult)
+FDebugging::FLibraryBindingExecutedArgs::FLibraryBindingExecutedArgs(FMVVMViewClass_BindingKey InBinding, FMVVMCompiledBindingLibrary::EExecutionFailingReason InResult)
 	: Binding(InBinding)
 	, FailingReason(InResult)
 {
@@ -96,7 +73,7 @@ void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, const 
 	OnLibraryBindingExecuted.Broadcast(FView(InView), Args);
 }
 
-void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, const FMVVMViewClass_CompiledBinding& InBinding)
+void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, FMVVMViewClass_BindingKey InBinding)
 {
 	if (OnLibraryBindingExecuted.IsBound())
 	{
@@ -105,7 +82,7 @@ void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, const 
 	}
 }
 
-void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, const FMVVMViewClass_CompiledBinding& InBinding, FMVVMCompiledBindingLibrary::EExecutionFailingReason InResult)
+void FDebugging::BroadcastLibraryBindingExecuted(const UMVVMView* InView, FMVVMViewClass_BindingKey InBinding, FMVVMCompiledBindingLibrary::EExecutionFailingReason InResult)
 {
 	if (OnLibraryBindingExecuted.IsBound())
 	{

@@ -4,6 +4,7 @@
 
 #include "MVVMSubsystem.h"
 #include "View/MVVMView.h"
+#include "View/MVVMViewClass.h"
 
 #include "Preview/PreviewMode.h"
 #include "WidgetBlueprintEditor.h"
@@ -102,9 +103,10 @@ void SPreviewSourcePanel::HandlePreviewWidgetChanged()
 			if (UMVVMView* View = UMVVMSubsystem::GetViewFromUserWidget(NewWidget))
 			{
 				WeakView = View;
-				for (const FMVVMViewSource& Source : View->GetSources())
+				for (const FMVVMView_Source& ViewSource : View->GetSources())
 				{
-					SourceList.Emplace(MakeShared<Private::SPreviewSourceEntry>(Source.Source, Source.SourceName));
+					FName SourceName = View->GetViewClass()->GetSource(ViewSource.ClassKey).GetName();
+					SourceList.Emplace(MakeShared<Private::SPreviewSourceEntry>(ViewSource.Source, SourceName));
 				}
 			}
 		}

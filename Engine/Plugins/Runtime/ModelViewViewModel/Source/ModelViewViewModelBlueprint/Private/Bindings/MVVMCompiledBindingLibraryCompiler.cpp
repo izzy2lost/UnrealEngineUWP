@@ -25,10 +25,7 @@ struct FRawFieldId
 {
 	const UClass* NotifyFieldValueChangedClass;
 	UE::FieldNotification::FFieldId FieldId;
-
-	int32 LoadedFieldIdIndex = INDEX_NONE;
 	FCompiledBindingLibraryCompiler::FFieldIdHandle IdHandle;
-	FMVVMVCompiledFieldId CompiledFieldId;
 };
 
 
@@ -717,29 +714,6 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 			ClassInfo.RawFieldIndex.Add(Index);
 		}
 	}
-	{
-		for (int32 Index = 0; Index < Impl->FieldIds.Num(); ++Index)
-		{
-			const Private::FRawFieldId& RawFieldId = Impl->FieldIds[Index];
-			check(RawFieldId.FieldId.IsValid());
-			check(RawFieldId.NotifyFieldValueChangedClass);
-
-			FCompiledClassInfo& ClassInfo = MapOfFieldInClass.FindOrAdd(Private::GetSavedGeneratedStruct(RawFieldId.NotifyFieldValueChangedClass));
-
-			// Test if the Field is not there more than one
-			{
-				UE::FieldNotification::FFieldId FieldIdToTest = RawFieldId.FieldId;
-				const TArray<Private::FRawFieldId>& ListOfFieldIds = Impl->FieldIds;
-				const bool bContains = ClassInfo.RawFieldIdIndex.ContainsByPredicate([FieldIdToTest, &ListOfFieldIds](int32 OtherIndex)
-					{
-						return ListOfFieldIds[OtherIndex].FieldId == FieldIdToTest;
-					});
-				check(!bContains);
-			}
-
-			ClassInfo.RawFieldIdIndex.Add(Index);
-		}
-	}
 
 	// Todo optimize that list to group common type. ie UWidget::ToolTip == UProgressBar::ToolTip. We can merge UWidget in UProgressBar.
 	//Algo: for each class entry
@@ -752,7 +726,6 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 	// Create FMVVMCompiledBindingLibrary::CompiledFields and FMVVMCompiledBindingLibrary::CompiledFieldNames
 	int32 TotalNumberOfProperties = 0;
 	int32 TotalNumberOfFunctions = 0;
-	int32 TotalNumberOfFieldIds = 0;
 	for (TPair<const UStruct*, FCompiledClassInfo>& StructCompiledFields : MapOfFieldInClass)
 	{
 		FMVVMVCompiledFields CompiledFields;
@@ -787,17 +760,6 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 			}
 		}
 
-		for (const int32 FieldIdIndex : StructCompiledFields.Value.RawFieldIdIndex)
-		{
-			check(Impl->FieldIds.IsValidIndex(FieldIdIndex));
-			Private::FRawFieldId& RawFieldId = Impl->FieldIds[FieldIdIndex];
-			
-			Result.Library.LoadedFieldIds.Add(RawFieldId.FieldId);
-			FieldIdNames.Add(RawFieldId.FieldId.GetName());
-			RawFieldId.LoadedFieldIdIndex = TotalNumberOfFieldIds;
-			++TotalNumberOfFieldIds;
-		}
-
 		if (PropertyNames.Num() > std::numeric_limits<FMVVMVCompiledBinding::IndexType>::max())
 		{
 			return MakeError(FText::Format(LOCTEXT("TooManyPropertiesBound", "There are too many properties bound to struct '{0}'"), StructCompiledFields.Key->GetDisplayNameText()));
@@ -810,12 +772,6 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 		}
 		CompiledFields.NumberOfFunctions = static_cast<int16>(FunctionNames.Num());
 
-		if (FieldIdNames.Num() > std::numeric_limits<FMVVMVCompiledBinding::IndexType>::max())
-		{
-			return MakeError(FText::Format(LOCTEXT("TooManyFieldIdsBound", "There are too many field IDs bound to struct '{0}'"), StructCompiledFields.Key->GetDisplayNameText()));
-		}
-		CompiledFields.NumberOfFieldIds = static_cast<int16>(FieldIdNames.Num());
-
 		int32 LibraryStartIndex = Result.Library.CompiledFieldNames.Num();
 		if (LibraryStartIndex > std::numeric_limits<FMVVMVCompiledBinding::IndexType>::max())
 		{
@@ -827,8 +783,6 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 		PropertyNames.Reset();
 		Result.Library.CompiledFieldNames.Append(FunctionNames);
 		FunctionNames.Reset();
-		Result.Library.CompiledFieldNames.Append(FieldIdNames);
-		FieldIdNames.Reset();
 		if (Result.Library.CompiledFieldNames.Num() > std::numeric_limits<FMVVMVCompiledBinding::IndexType>::max())
 		{
 			return MakeError(LOCTEXT("TooManyPropertiesBoundInLibrary", "There are too many properties bound in the library."));
@@ -836,10 +790,9 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 
 		Result.Library.CompiledFields.Add(CompiledFields);
 
-		check(Result.Library.LoadedProperties.Num() + Result.Library.LoadedFunctions.Num() + Result.Library.LoadedFieldIds.Num()  == Result.Library.CompiledFieldNames.Num());
+		check(Result.Library.LoadedProperties.Num() + Result.Library.LoadedFunctions.Num() == Result.Library.CompiledFieldNames.Num());
 		check(Result.Library.LoadedProperties.Num() == TotalNumberOfProperties);
 		check(Result.Library.LoadedFunctions.Num() == TotalNumberOfFunctions);
-		check(Result.Library.LoadedFieldIds.Num() == TotalNumberOfFieldIds);
 	}
 
 	// Create FMVVMCompiledBindingLibrary::FieldPaths
@@ -880,10 +833,7 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 	// Create FieldId
 	for (Private::FRawFieldId& FieldId: Impl->FieldIds)
 	{
-		FieldId.CompiledFieldId.CompiledBindingLibraryId = Result.Library.CompiledBindingLibraryId;
-		FieldId.CompiledFieldId.FieldIdIndex = FieldId.LoadedFieldIdIndex;
-
-		Result.FieldIds.Add(FieldId.IdHandle, FieldId.CompiledFieldId);
+		Result.FieldIds.Add(FieldId.IdHandle, FieldId.FieldId);
 	}
 
 	auto GetCompiledFieldPath = [this](const FFieldPathHandle Handle)
@@ -913,17 +863,24 @@ TValueOrError<FCompiledBindingLibraryCompiler::FCompileResult, FText> FCompiledB
 
 		Binding.CompiledBinding.ConversionFunctionFieldPath = GetCompiledFieldPath(Binding.ConversionFunctionPathHandle);
 
-		Binding.CompiledBinding.Flags = 0;
-		Binding.CompiledBinding.Flags |= (Binding.ConversionFunctionPathHandle.IsValid()) ? (uint8)FMVVMVCompiledBinding::EFlags::HasConversionFunction : 0;
-		Binding.CompiledBinding.Flags |= (Binding.bIsConversionFunctionComplex) ? (uint8)FMVVMVCompiledBinding::EFlags::IsConversionFunctionComplex : 0;
-		Binding.CompiledBinding.Flags |= Binding.BindingCount > 1 ? (uint8)FMVVMVCompiledBinding::EFlags::IsShared : 0;
+		if (Binding.bIsConversionFunctionComplex)
+		{
+			Binding.CompiledBinding.Type = (uint8)FMVVMVCompiledBinding::EType::HasComplexConversionFunction;
+		}
+		else if (Binding.ConversionFunctionPathHandle.IsValid())
+		{
+			Binding.CompiledBinding.Type = (uint8)FMVVMVCompiledBinding::EType::HasConversionFunction;
+		}
+		else
+		{
+			Binding.CompiledBinding.Type = (uint8)FMVVMVCompiledBinding::EType::None;
+		}
 
 		Result.Bindings.Add(Binding.BindingHandle, Binding.CompiledBinding);
 	}
 
 	Result.Library.LoadedProperties.Reset();
 	Result.Library.LoadedFunctions.Reset();
-	Result.Library.LoadedFieldIds.Reset();
 
 	Impl->bCompiled = true;
 	return MakeValue(MoveTemp(Result));

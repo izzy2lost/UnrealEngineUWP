@@ -104,6 +104,10 @@ void UMVVMWidgetBlueprintExtension_View::HandleBeginCompilation(FWidgetBlueprint
 	if (BlueprintView)
 	{
 		BlueprintView->ResetBindingMessages();
+		for (UMVVMBlueprintViewEvent* ViewEvent : BlueprintView->GetEvents())
+		{
+			ViewEvent->ResetCompilationMessages();
+		}
 		CurrentCompilerContext = MakePimpl<UE::MVVM::Private::FMVVMViewBlueprintCompiler>(InCreationContext, GetBlueprintView());
 	}
 }
@@ -174,7 +178,7 @@ void UMVVMWidgetBlueprintExtension_View::HandleFinishCompilingClass(UWidgetBluep
 			check(ViewExtension);
 
 			// Does it have any bindings
-			if (const_cast<const UMVVMViewClass*>(ViewExtension)->GetCompiledBindings().Num() > 0)
+			if (const_cast<const UMVVMViewClass*>(ViewExtension)->GetBindings().Num() > 0)
 			{
 				// Test if parent also has a view
 				if (Class->GetExtension<UMVVMViewClass>(true))

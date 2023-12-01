@@ -178,7 +178,7 @@ public:
 		FMVVMCompiledBindingLibrary Library;
 		TMap<FFieldPathHandle, FMVVMVCompiledFieldPath> FieldPaths;
 		TMap<FBindingHandle, FMVVMVCompiledBinding> Bindings;
-		TMap<FFieldIdHandle, FMVVMVCompiledFieldId> FieldIds;
+		TMap<FFieldIdHandle, UE::FieldNotification::FFieldId> FieldIds;
 	};
 
 	/** */

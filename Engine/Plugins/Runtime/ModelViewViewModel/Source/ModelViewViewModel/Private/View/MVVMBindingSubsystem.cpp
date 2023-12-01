@@ -36,13 +36,13 @@ namespace UE::MVVM::Private
 {
 struct FViewAndBinding
 {
-	FViewAndBinding(const TObjectKey<const UMVVMView>& InView, FMVVMViewDelayedBinding InBinding)
+	FViewAndBinding(const TObjectKey<const UMVVMView>& InView, FMVVMViewClass_BindingKey InBinding)
 		: View(InView)
 		, Binding(InBinding)
 	{
 	}
 	TObjectKey<const UMVVMView> View;
-	FMVVMViewDelayedBinding Binding;
+	FMVVMViewClass_BindingKey Binding;
 
 	bool operator== (const FViewAndBinding& Other) const
 	{
@@ -52,7 +52,7 @@ struct FViewAndBinding
 	friend uint32 GetTypeHash(const FViewAndBinding& Key)
 	{
 		uint32 Value1 = GetTypeHash(Key.View);
-		uint32 Value2 = GetTypeHash(Key.Binding.GetCompiledBindingIndex());
+		uint32 Value2 = GetTypeHash(Key.Binding.GetIndex());
 		return HashCombine(Value1, Value2);
 	}
 };
@@ -62,14 +62,15 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_MVVMBindingTick);
 
-	if (EveryTickBindings.Num() > 0)
+	if (ViewsWithTickBindings.Num() > 0)
 	{
 		FMemMark Mark(FMemStack::Get());
 		TArray<const UMVVMView*, TMemStackAllocator<>> ToTick;
-		ToTick.Reserve(EveryTickBindings.Num());
-		for (TWeakObjectPtr<const UMVVMView> View : EveryTickBindings)
+		ToTick.Reserve(ViewsWithTickBindings.Num());
+		for (TWeakObjectPtr<const UMVVMView> View : ViewsWithTickBindings)
 		{
-			if (const UMVVMView* ViewPtr = View.Get())
+			const UMVVMView* ViewPtr = View.Get();
+			if (ensure(ViewPtr))
 			{
 				ToTick.Add(ViewPtr);
 			}
@@ -77,7 +78,7 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 
 		for (const UMVVMView* ViewPtr : ToTick)
 		{
-			ViewPtr->ExecuteEveryTickBindings();
+			ViewPtr->ExecuteTickBindings();
 		}
 	}
 
@@ -86,8 +87,8 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 		TSet<UE::MVVM::Private::FViewAndBinding> AllDelayedBindingsExecutedThisFrame;
 		AllDelayedBindingsExecutedThisFrame.Reserve(DelayedBindings.Num());
 
-		FDelayedMap DelayedBindingsWhileTicking = MoveTemp(DelayedBindings);
-		DelayedBindings = FDelayedMap();
+		FDelayedBindingMap DelayedBindingsWhileTicking = MoveTemp(DelayedBindings);
+		DelayedBindings = FDelayedBindingMap();
 
 		do 
 		{
@@ -96,7 +97,7 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 				if (const UMVVMView* View = DelayedBindingsPair.Key.ResolveObjectPtr())
 				{
 					ensure(DelayedBindingsPair.Value.Num() > 0);
-					for (const FMVVMViewDelayedBinding& DelayedBinding : DelayedBindingsPair.Value)
+					for (const FMVVMViewClass_BindingKey& DelayedBinding : DelayedBindingsPair.Value)
 					{
 						View->ExecuteDelayedBinding(DelayedBinding);
 						UE::MVVM::Private::FViewAndBinding ViewAndBinding = UE::MVVM::Private::FViewAndBinding(DelayedBindingsPair.Key, DelayedBinding);
@@ -115,7 +116,7 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 				for (int32 DelayIndex = DelayedBindingItt.Value().Num() - 1; DelayIndex >= 0; --DelayIndex)
 				{
 					// Was it executed this frame
-					const FMVVMViewDelayedBinding& DelayedBinding = DelayedBindingItt.Value()[DelayIndex];
+					const FMVVMViewClass_BindingKey& DelayedBinding = DelayedBindingItt.Value()[DelayIndex];
 					UE::MVVM::Private::FViewAndBinding ViewAndBinding = UE::MVVM::Private::FViewAndBinding(DelayedBindingItt.Key(), DelayedBinding);
 					if (!AllDelayedBindingsExecutedThisFrame.Find(ViewAndBinding))
 					{
@@ -141,21 +142,44 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 	}
 }
 
-void UMVVMBindingSubsystem::AddViewWithEveryTickBinding(const UMVVMView* InView)
+void UMVVMBindingSubsystem::AddViewWithTickBinding(const UMVVMView* InView)
 {
-	check(!EveryTickBindings.Contains(InView));
+	check(!ViewsWithTickBindings.Contains(InView));
 	ensureMsgf(FSlateApplication::IsInitialized(), TEXT("The Slate Application is not initialized. This is probably because you are running a server. The Delayed and Tick binding will not execute."));
 
-	EveryTickBindings.Add(InView);
+	ViewsWithTickBindings.Add(InView);
 }
 
-void UMVVMBindingSubsystem::RemoveViewWithEveryTickBinding(const UMVVMView* InView)
+void UMVVMBindingSubsystem::RemoveViewWithTickBinding(const UMVVMView* InView)
 {
-	EveryTickBindings.RemoveSingleSwap(InView);
+	ViewsWithTickBindings.RemoveSingleSwap(InView);
 }
 
-void UMVVMBindingSubsystem::AddDelayedBinding(const UMVVMView* View, FMVVMViewDelayedBinding InCompiledBinding)
+void UMVVMBindingSubsystem::AddDelayedBinding(const UMVVMView* View, FMVVMViewClass_BindingKey InCompiledBinding)
 {
 	ensureMsgf(FSlateApplication::IsInitialized(), TEXT("The Slate Application is not initialized. This is probably because you are running a server. The Delayed and Tick binding will not execute."));
 	DelayedBindings.FindOrAdd(View).AddUnique(InCompiledBinding);
+}
+
+void UMVVMBindingSubsystem::RemoveDelayedBindings(const UMVVMView* View)
+{
+	ensureMsgf(FSlateApplication::IsInitialized(), TEXT("The Slate Application is not initialized. This is probably because you are running a server. The Delayed and Tick binding will not execute."));
+	DelayedBindings.Remove(View);
+}
+
+void UMVVMBindingSubsystem::RemoveDelayedBindings(const UMVVMView* View, FMVVMViewClass_SourceKey SourceKey)
+{
+	ensureMsgf(FSlateApplication::IsInitialized(), TEXT("The Slate Application is not initialized. This is probably because you are running a server. The Delayed and Tick binding will not execute."));
+	if (FDelayedBindingList* FoundView = DelayedBindings.Find(View))
+	{
+		const UMVVMViewClass* ViewClass = View->GetViewClass();
+		for (int32 Index = FoundView->Num() - 1; Index >= 0; --Index)
+		{
+			const FMVVMViewClass_Binding& Binding = ViewClass->GetBinding((*FoundView)[Index]);
+			if ((Binding.GetSources() & SourceKey.GetBit()) != 0)
+			{
+				(*FoundView).RemoveAtSwap(Index);
+			}
+		}
+	}
 }
