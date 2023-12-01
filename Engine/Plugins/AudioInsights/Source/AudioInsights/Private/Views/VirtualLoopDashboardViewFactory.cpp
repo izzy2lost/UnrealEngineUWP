@@ -170,7 +170,7 @@ namespace UE::Audio::Insights
 					const FVirtualLoopDashboardEntry& AData = VirtualLoopPrivate::CastEntry(*A.Get());
 					const FVirtualLoopDashboardEntry& BData = VirtualLoopPrivate::CastEntry(*B.Get());
 
-					return AData.GetDisplayName().CompareToCaseIgnored(BData.GetDisplayName()) < 0;
+					return BData.GetDisplayName().CompareToCaseIgnored(AData.GetDisplayName()) < 0;
 				});
 			}
 		}
@@ -239,7 +239,7 @@ namespace UE::Audio::Insights
 					const FVirtualLoopDashboardEntry& AData = VirtualLoopPrivate::CastEntry(*A.Get());
 					const FVirtualLoopDashboardEntry& BData = VirtualLoopPrivate::CastEntry(*B.Get());
 
-					return BData.UpdateInterval < BData.UpdateInterval;
+					return BData.UpdateInterval < AData.UpdateInterval;
 				});
 			}
 		}
