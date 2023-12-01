@@ -1300,7 +1300,7 @@ void FControlRigParameterTrackEditor::HandleAddTrackSubMenu(FMenuBuilder& MenuBu
 	{
 		MenuBuilder.AddMenuEntry(
 		LOCTEXT("IsLayeredControlRig", "Layered"),
-		LOCTEXT("IsLayeredControlRigTooltip", "Add an layered control rig"),
+		LOCTEXT("IsLayeredControlRigTooltip", "When checked, a layered control rig will be added"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &FControlRigParameterTrackEditor::ToggleIsAdditiveControlRig),
