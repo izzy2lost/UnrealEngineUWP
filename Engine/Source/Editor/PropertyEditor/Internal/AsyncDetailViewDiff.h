@@ -38,6 +38,12 @@ public:
 	 * @param TreeNode node from one of the two user provided trees (guaranteed not to be null)
 	*/
 	virtual bool ShouldMatchByValue(const TWeakPtr<FDetailTreeNode>& TreeNode) const;
+
+	/**
+	 * return true if TreeNode is considered equal when all it's children are equal.
+	 * This avoids an unnecessary call to AreValuesEqual
+	*/
+	virtual bool ShouldInheritEqualFromChildren(const TWeakPtr<FDetailTreeNode>& TreeNodeA, const TWeakPtr<FDetailTreeNode>& TreeNodeB) const;
 };
 
 // asynchronously update a difference tree with changes to details views

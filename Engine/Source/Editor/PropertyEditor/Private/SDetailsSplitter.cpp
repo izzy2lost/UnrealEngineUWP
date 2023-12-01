@@ -3,10 +3,14 @@
 
 #include "AsyncDetailViewDiff.h"
 #include "DetailTreeNode.h"
+#include "Editor.h"
 #include "IDetailsViewPrivate.h"
 #include "PropertyNode.h"
 #include "Styling/StyleColors.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Serialization/ObjectWriter.h"
+
+#define LOCTEXT_NAMESPACE "DetailsSplitter"
 
 namespace DetailsSplitterHelpers
 {
@@ -120,6 +124,7 @@ namespace DetailsSplitterHelpers
 	void CopyPropertyValueForInsert(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode)
 	{
 		const TSharedPtr<IPropertyHandle> DestinationHandle = DestinationDetailsNode->CreatePropertyHandle();
+		const TSharedPtr<IPropertyHandle> SourceHandle = SourceDetailsNode->CreatePropertyHandle();
 
 		// Array
 		TArray<TUniquePtr<FScriptArrayHelper>> SourceArrays;
@@ -132,6 +137,8 @@ namespace DetailsSplitterHelpers
 			if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationArrayPropertyNode, DestinationArrays, InsertIndex)))
 			{
 				ensure(SourceArrays.Num() == DestinationArrays.Num());
+				
+				GEditor->BeginTransaction(TEXT("DetailsSplitter"), FText::Format(LOCTEXT("CopyPropertyValueTransaction","Insert {0}"), SourceHandle->GetPropertyDisplayName()), nullptr);
 				DestinationHandle->NotifyPreChange();
 				for (int32 ArrayNum = 0; ArrayNum < SourceArrays.Num(); ++ ArrayNum)
 				{
@@ -145,6 +152,7 @@ namespace DetailsSplitterHelpers
 				
 				DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
 				DestinationHandle->NotifyFinishedChangingProperties();
+				GEditor->EndTransaction();
 			}
 			return;
 		}
@@ -160,6 +168,7 @@ namespace DetailsSplitterHelpers
 			if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationSets, InsertIndex)))
 			{
 				ensure(SourceSets.Num() == DestinationSets.Num());
+				GEditor->BeginTransaction(TEXT("DetailsSplitter"), FText::Format(LOCTEXT("CopyPropertyValueTransaction","Insert {0}"), SourceHandle->GetPropertyDisplayName()), nullptr);
 				DestinationHandle->NotifyPreChange();
 				for (int32 SetNum = 0; SetNum < SourceSets.Num(); ++ SetNum)
 				{
@@ -169,6 +178,7 @@ namespace DetailsSplitterHelpers
 				
 				DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
 				DestinationHandle->NotifyFinishedChangingProperties();
+				GEditor->EndTransaction();
 			}
 			return;
 		}
@@ -184,6 +194,7 @@ namespace DetailsSplitterHelpers
 			if (ensure(TryGetDestinationContainer(DestinationDetailsNode, DestinationPropertyNode, DestinationMaps, InsertIndex)))
 			{
 				ensure(SourceMaps.Num() == DestinationMaps.Num());
+				GEditor->BeginTransaction(TEXT("DetailsSplitter"), FText::Format(LOCTEXT("CopyPropertyValueTransaction","Insert {0}"), SourceHandle->GetPropertyDisplayName()), nullptr);
 				DestinationHandle->NotifyPreChange();
 				for (int32 MapNum = 0; MapNum < SourceMaps.Num(); ++ MapNum)
 				{
@@ -195,9 +206,17 @@ namespace DetailsSplitterHelpers
 				
 				DestinationHandle->NotifyPostChange(EPropertyChangeType::ArrayAdd);
 				DestinationHandle->NotifyFinishedChangingProperties();
+				GEditor->EndTransaction();
 			}
 			return;
 		}
+	}
+
+	void AssignPropertyValue(const TSharedPtr<IPropertyHandle>& SourceHandle, const TSharedPtr<IPropertyHandle>& DestinationHandle)
+	{
+		TArray<FString> SourceValues;
+		SourceHandle->GetPerObjectValues(SourceValues);
+		DestinationHandle->SetPerObjectValues(SourceValues);
 	}
 
 	void CopyPropertyValue(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode, ETreeDiffResult Diff)
@@ -221,18 +240,23 @@ namespace DetailsSplitterHelpers
 				return;
 		}
 
-		TArray<void*> SourceData;
-		TArray<void*> DestinationData;
+
 		const TSharedPtr<IPropertyHandle> SourceHandle = SourceDetailsNode->CreatePropertyHandle();
 		const TSharedPtr<IPropertyHandle> DestinationHandle = DestinationDetailsNode->CreatePropertyHandle();
 		if (!ensure(SourceHandle && DestinationHandle))
 		{
 			return;
 		}
-		if (!ensure(SourceHandle->GetProperty()->SameType(DestinationHandle->GetProperty())))
+		
+		if (!SourceHandle->GetProperty()->SameType(DestinationHandle->GetProperty()))
 		{
+			// convert types by assigning via text serialization
+			AssignPropertyValue(SourceHandle, DestinationHandle);
 			return;
 		}
+
+		TArray<void*> SourceData;
+		TArray<void*> DestinationData;
 		SourceHandle->AccessRawData(SourceData);
 		DestinationHandle->AccessRawData(DestinationData);
 		if (!ensure(SourceData.Num() == DestinationData.Num()))
@@ -240,7 +264,7 @@ namespace DetailsSplitterHelpers
 			return;
 		}
 
-		
+		GEditor->BeginTransaction(TEXT("DetailsSplitter"), FText::Format(LOCTEXT("CopyPropertyValueTransaction","Copy {0}"), SourceHandle->GetPropertyDisplayName()), nullptr);
 		DestinationHandle->NotifyPreChange();
 		for (int32 I = 0; I < SourceData.Num(); ++I)
 		{
@@ -255,6 +279,7 @@ namespace DetailsSplitterHelpers
 		}
 		DestinationHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 		DestinationHandle->NotifyFinishedChangingProperties();
+		GEditor->EndTransaction();
 	}
 
 	// note: DestinationDetailsNode is the node before the position in the tree you wish to insert
@@ -300,6 +325,23 @@ namespace DetailsSplitterHelpers
 		return false;
 	}
 
+	bool CanAssignPropertyValue(const TSharedPtr<IPropertyHandle>& SourceHandle, const TSharedPtr<IPropertyHandle>& DestinationHandle)
+	{
+		TArray<FString> SourceValues;
+		TArray<FString> OldDestinationValues;
+		SourceHandle->GetPerObjectValues(SourceValues);
+		DestinationHandle->GetPerObjectValues(OldDestinationValues);
+		
+		FPropertyAccess::Result Result = DestinationHandle->SetPerObjectValues(SourceValues, EPropertyValueSetFlags::NotTransactable);
+		TArray<FString> ChangedDestinationValues;
+		DestinationHandle->GetPerObjectValues(ChangedDestinationValues);
+
+		// revert changes and query whether anything changed
+		DestinationHandle->SetPerObjectValues(OldDestinationValues, EPropertyValueSetFlags::NotTransactable);
+		
+		return Result != FPropertyAccess::Fail && OldDestinationValues != ChangedDestinationValues;
+	}
+
 	bool CanCopyPropertyValue(const TSharedPtr<FDetailTreeNode>& SourceDetailsNode, const TSharedPtr<FDetailTreeNode>& DestinationDetailsNode, ETreeDiffResult Diff)
 	{
 		if (!SourceDetailsNode || !DestinationDetailsNode)
@@ -319,7 +361,31 @@ namespace DetailsSplitterHelpers
 		{
 		// traditional copy
 		case ETreeDiffResult::DifferentValues:
-			return true;
+		{
+			const TSharedPtr<IPropertyHandle> SourceHandle = SourceDetailsNode->CreatePropertyHandle();
+			const TSharedPtr<IPropertyHandle> DestinationHandle = DestinationDetailsNode->CreatePropertyHandle();
+			if (SourceHandle && DestinationHandle)
+			{
+				TArray<void*> SourceData;
+				TArray<void*> DestinationData;
+				SourceHandle->AccessRawData(SourceData);
+				DestinationHandle->AccessRawData(DestinationData);
+				if (SourceData == DestinationData && SourceHandle->GetProperty() == DestinationHandle->GetProperty())
+                {
+                	// disable copying a value to itself since it's a no-op
+                	return false;
+                }
+				if (SourceHandle->GetProperty()->SameType(DestinationHandle->GetProperty()))
+				{
+					return true;
+				}
+				if (CanAssignPropertyValue(SourceHandle, DestinationHandle))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
 
 		// insert
 		case ETreeDiffResult::MissingFromTree1:
@@ -925,3 +991,5 @@ void SDetailsSplitter::PaintCopyPropertyButton(FSlateWindowElementList& OutDrawE
 		ButtonColor
 	);
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -423,6 +423,11 @@ public:
 		// array elements should match by value
 		return CastField<FArrayProperty>(TreeNodeA.KeyProperty->Owner.ToField()) != nullptr;
 	}
+	
+	virtual bool ShouldInheritEqualFromChildren(const FPropertyInstance& TreeNodeA, const FPropertyInstance& TreeNodeB) const
+	{
+		return true;
+	}
 };
 
 static TAsyncTreeDifferences<FPropertyInstance> ObjectPropTreeDiff(const UObject* ObjectA, const UObject* ObjectB)
