@@ -4,7 +4,7 @@
 
 #include "Engine/Texture2DDynamic.h"
 #include "RenderTargetPool.h"
-#include "api/media_stream_interface.h"
+#include "PixelStreamingVideoSink.h"
 #include "PixelStreamingMediaTexture.generated.h"
 
 class FPixelStreamingMediaTextureResource;
@@ -13,7 +13,7 @@ class FPixelStreamingMediaTextureResource;
  * A Texture Object that can be used in materials etc. that takes updates from webrtc frames.
  */
 UCLASS(NotBlueprintType, NotBlueprintable, HideDropdown, HideCategories = (ImportSettings, Compression, Texture, Adjustments, Compositing, LevelOfDetail, Object), META = (DisplayName = "PixelStreaming Media Texture"))
-class PIXELSTREAMINGPLAYER_API UPixelStreamingMediaTexture : public UTexture2DDynamic, public rtc::VideoSinkInterface<webrtc::VideoFrame>
+class PIXELSTREAMINGPLAYER_API UPixelStreamingMediaTexture : public UTexture2DDynamic, public FPixelStreamingVideoSink
 {
 	GENERATED_UCLASS_BODY()
 
@@ -25,8 +25,8 @@ protected:
 	// UTexture implementation
 	virtual FTextureResource* CreateResource() override;
 
-	// from rtc::VideoSinkInterface<webrtc::VideoFrame>
-	virtual void OnFrame(const webrtc::VideoFrame& frame) override;
+	// FPixelStreamingVideoSink implementation
+	virtual void OnFrame(FTextureRHIRef Frame) override;
 
 private:
 	void InitializeResources();

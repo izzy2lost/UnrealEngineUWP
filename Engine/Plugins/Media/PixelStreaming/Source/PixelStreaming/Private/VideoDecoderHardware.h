@@ -4,25 +4,25 @@
 
 #include "WebRTCIncludes.h"
 
-#include "Video/Decoders/Configs/VideoDecoderConfigH265.h"
+#include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Resources/VideoResourceRHI.h"
 
 namespace UE::PixelStreaming
 {
-	class VideoDecoderH265 : public webrtc::VideoDecoder
+	class FVideoDecoderHardware : public webrtc::VideoDecoder
 	{
 	public:
-		VideoDecoderH265();
-		virtual ~VideoDecoderH265() = default;
+		FVideoDecoderHardware();
+		virtual ~FVideoDecoderHardware() = default;
 
 		virtual bool Configure(const Settings& settings) override;
 		virtual int32 Decode(const webrtc::EncodedImage& input_image, bool missing_frames, int64_t render_time_ms) override;
 		virtual int32 RegisterDecodeCompleteCallback(webrtc::DecodedImageCallback* callback) override;
 		virtual int32 Release() override;
-		virtual const char* ImplementationName() const { return "VideoDecoderH265"; }
+		virtual const char* ImplementationName() const { return "FVideoDecoderHardware"; }
 
 	private:
-		TSharedPtr<TVideoDecoder<FVideoResourceRHI, FVideoDecoderConfigH265>> Decoder;
+		TSharedPtr<TVideoDecoder<FVideoResourceRHI>> Decoder;
 
 		webrtc::DecodedImageCallback* Output = nullptr;
 

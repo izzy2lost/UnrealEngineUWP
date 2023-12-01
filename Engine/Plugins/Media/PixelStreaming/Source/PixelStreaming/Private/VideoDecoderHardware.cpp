@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VideoDecoderH265.h"
+#include "VideoDecoderHardware.h"
 
 #include "FrameBufferRHI.h"
 #include "PixelStreamingPrivate.h"
@@ -16,21 +16,21 @@ namespace UE::PixelStreaming
 		}
 	};
 
-	VideoDecoderH265::VideoDecoderH265()
+	FVideoDecoderHardware::FVideoDecoderHardware()
 	{
-		FVideoDecoderConfigH265 DecoderConfig;
+		FVideoDecoderConfigH264 DecoderConfig;
 		Decoder = FVideoDecoder::CreateChecked<FVideoResourceRHI>(FAVDevice::GetHardwareDevice(), DecoderConfig);
 	}
 
-	bool VideoDecoderH265::Configure(const Settings& settings)
+	bool FVideoDecoderHardware::Configure(const Settings& settings)
 	{
 		return true;
 	}
 
-	int32 VideoDecoderH265::Decode(const webrtc::EncodedImage& input_image, bool missing_frames, int64_t render_time_ms)
+	int32 FVideoDecoderHardware::Decode(const webrtc::EncodedImage& input_image, bool missing_frames, int64_t render_time_ms)
 	{
 		const int64 TimestampDecodeStart = rtc::TimeMillis();
-		TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("PixelStreaming Decoding H265 Video", PixelStreamingChannel);
+		TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("PixelStreaming Hardware Decoding Video", PixelStreamingChannel);
 
 		FAVResult Result = Decoder->SendPacket(FVideoPacket(
 			MakeShareable<uint8>(input_image.GetEncodedData()->data(), FFakeDeleter()),
@@ -67,24 +67,24 @@ namespace UE::PixelStreaming
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("VideoDecoderH265::Decode FAILED"));
+			UE_LOG(LogTemp, Warning, TEXT("FVideoDecoderHardware::Decode FAILED"));
 
 			return WEBRTC_VIDEO_CODEC_OK_REQUEST_KEYFRAME;
 		}
 
-		UE_LOG(LogTemp, Error, TEXT("VideoDecoderH265::Decode ERROR"));
+		UE_LOG(LogTemp, Error, TEXT("FVideoDecoderHardware::Decode ERROR"));
 
 		return WEBRTC_VIDEO_CODEC_ERROR;
 	}
 
-	int32 VideoDecoderH265::RegisterDecodeCompleteCallback(webrtc::DecodedImageCallback* callback)
+	int32 FVideoDecoderHardware::RegisterDecodeCompleteCallback(webrtc::DecodedImageCallback* callback)
 	{
 		Output = callback;
 
 		return 0;
 	}
 
-	int32 VideoDecoderH265::Release()
+	int32 FVideoDecoderHardware::Release()
 	{
 		Decoder.Reset();
 

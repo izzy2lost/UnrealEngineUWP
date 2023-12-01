@@ -3,7 +3,7 @@
 #include "Utils.h"
 #include "VideoDecoderStub.h"
 #include "VideoDecoderVPX.h"
-#include "VideoDecoderH265.h"
+#include "VideoDecoderHardware.h"
 #include "PixelStreamingPrivate.h"
 #include "Settings.h"
 
@@ -16,7 +16,7 @@
 namespace UE::PixelStreaming
 {
 	// the list of each individual codec we have decoder support for (the order of this array is preference order after the selected codec)
-	const TArray<EPixelStreamingCodec> SupportedDecoderCodecList{ EPixelStreamingCodec::VP8, EPixelStreamingCodec::VP9, /* EPixelStreamingCodec::H264, */ EPixelStreamingCodec::H265 };
+	const TArray<EPixelStreamingCodec> SupportedDecoderCodecList{ EPixelStreamingCodec::VP8, EPixelStreamingCodec::VP9, EPixelStreamingCodec::H264 };
 
 	// mapping of codec to a list of video formats
 	// done this way so we can order the list of formats based on selected codec in GetSupportedFormats
@@ -30,9 +30,8 @@ namespace UE::PixelStreaming
 
 		Codecs[EPixelStreamingCodec::VP8].push_back(webrtc::SdpVideoFormat(cricket::kVp8CodecName));
 		Codecs[EPixelStreamingCodec::VP9].push_back(webrtc::SdpVideoFormat(cricket::kVp9CodecName));
-		// Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1));
-		// Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1));
-		// Codecs[EPixelStreamingCodec::H265].push_back(webrtc::SdpVideoFormat(cricket::kH265CodecName));
+		Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileConstrainedBaseline, webrtc::H264Level::kLevel3_1));
+		Codecs[EPixelStreamingCodec::H264].push_back(CreateH264Format(webrtc::H264Profile::kProfileBaseline, webrtc::H264Level::kLevel3_1));
 
 		return Codecs;
 	}
@@ -127,12 +126,10 @@ namespace UE::PixelStreaming
 		{
 			return std::make_unique<VideoDecoderVPX>(9);
 		}
-		/*
-		else if (absl::EqualsIgnoreCase(format.name, cricket::kH265CodecName))
+		else if (absl::EqualsIgnoreCase(format.name, cricket::kH264CodecName))
 		{
-			return std::make_unique<VideoDecoderH265>();
+			return std::make_unique<FVideoDecoderHardware>();
 		}
-		*/
 		return std::make_unique<FVideoDecoderStub>();
 	}
 } // namespace UE::PixelStreaming
