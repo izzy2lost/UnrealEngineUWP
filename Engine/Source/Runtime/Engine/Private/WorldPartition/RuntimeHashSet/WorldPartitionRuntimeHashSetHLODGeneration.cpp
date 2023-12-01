@@ -55,7 +55,7 @@ public:
 
 	FBox WorldBounds;
 	FActorSetContainer ActorSetContainer;
-	FActorDescViewMap ActorDescViewMap;
+	FStreamingGenerationActorDescViewMap ActorDescViewMap;
 	FActorSetInstanceList ActorSetInstanceList;
 };
 
@@ -280,7 +280,7 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				FWorldPartitionActorDesc* HLODActorDesc = WorldPartition->GetActorDesc(HLODActorGuid);
 				check(HLODActorDesc);
 
-				FWorldPartitionActorDescView* HLODActorDescView = HLODStreamingGenerationContext->ActorDescViewMap.Emplace(HLODActorDesc);
+				FStreamingGenerationActorDescView* HLODActorDescView = HLODStreamingGenerationContext->ActorDescViewMap.Emplace(HLODActorDesc);
 				HLODStreamingGenerationContext->WorldBounds += HLODActorDescView->GetRuntimeBounds();
 			
 				// Create actor set instances
@@ -296,8 +296,11 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				ActorSetInstance.ContainerInstance = &HLODStreamingGenerationContext->ActorSetContainer;
 				ActorSetInstance.ActorSet = ActorSet;
 
+				TArray<const FWorldPartitionActorDescView*> WorldDataLayerViews;
+				Algo::Transform(MainActorSetContainer->ActorDescViewMap->FindByExactNativeClass<AWorldDataLayers>(), WorldDataLayerViews, [](const FStreamingGenerationActorDescView* ActorDescView) { return ActorDescView; });
+
 				TArray<FName> RuntimeDataLayerInstanceNames;
-				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, *MainActorSetContainer->ActorDescViewMap, RuntimeDataLayerInstanceNames))
+				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, WorldDataLayerViews, RuntimeDataLayerInstanceNames))
 				{
 					HLODActorDescView->SetRuntimeDataLayerInstanceNames(RuntimeDataLayerInstanceNames);
 					ActorSetInstance.DataLayers = DataLayerManager->GetRuntimeDataLayerInstances(RuntimeDataLayerInstanceNames);

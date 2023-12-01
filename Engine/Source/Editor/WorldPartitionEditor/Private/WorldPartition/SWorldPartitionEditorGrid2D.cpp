@@ -220,7 +220,7 @@ public:
 		, bUseActor(bInUseActor)
 	{}
 
-	FBox GetEditorBounds() const
+	virtual FBox GetEditorBounds() const override
 	{
 		if (bUseActor)
 		{
@@ -233,12 +233,12 @@ public:
 		return ActorDesc->GetEditorBounds();
 	}
 
-	AActor* GetActor() const
+	virtual AActor* GetActor() const override
 	{
 		return bUseActor ? ActorDesc->GetActor(false) : nullptr;
 	}
 
-	FName GetActorLabel() const
+	virtual FName GetActorLabel() const override
 	{
 		FName ActorLabel = ActorDesc->GetActorLabel();
 		

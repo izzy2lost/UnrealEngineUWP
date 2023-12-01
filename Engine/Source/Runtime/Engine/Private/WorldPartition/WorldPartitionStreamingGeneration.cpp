@@ -76,41 +76,193 @@ private:
 	IStreamingGenerationErrorHandler* ErrorHandler;
 };
 
-FActorDescViewMap::FActorDescViewMap()
-{}
-
-TArray<const FWorldPartitionActorDescView*> FActorDescViewMap::FindByExactNativeClass(UClass* InExactNativeClass) const
-{
-	check(InExactNativeClass->IsNative());
-	const FName NativeClassName = InExactNativeClass->GetFName();
-	TArray<const FWorldPartitionActorDescView*> Result;
-	ActorDescViewsByClass.MultiFind(NativeClassName, Result);
-	return Result;
-}
-
-FWorldPartitionActorDescView* FActorDescViewMap::Emplace(const FGuid& InGuid, const FWorldPartitionActorDescView& InActorDescView)
-{
-	FWorldPartitionActorDescView* NewActorDescView = ActorDescViewList.Emplace_GetRef(MakeUnique<FWorldPartitionActorDescView>(InActorDescView)).Get();
-	
-	const UClass* NativeClass = NewActorDescView->GetActorNativeClass();
-	const FName NativeClassName = NativeClass->GetFName();
-
-	ActorDescViewsByGuid.Emplace(InGuid, NewActorDescView);
-	ActorDescViewsByClass.Add(NativeClassName, NewActorDescView);
-
-	return NewActorDescView;
-}
-
-FWorldPartitionActorDescView* FActorDescViewMap::Emplace(const FWorldPartitionActorDesc* InActorDesc)
-{
-	return Emplace(InActorDesc->GetGuid(), FWorldPartitionActorDescView(InActorDesc));
-}
-
 UWorldPartition::FCheckForErrorsParams::FCheckForErrorsParams()
 	: ErrorHandler(nullptr)
 	, ActorDescContainerCollection(nullptr)
 	, bEnableStreaming(false)
 {}
+
+FStreamingGenerationActorDescView::FStreamingGenerationActorDescView()
+	: FWorldPartitionActorDescView(nullptr)
+{}
+
+FStreamingGenerationActorDescView::FStreamingGenerationActorDescView(const FWorldPartitionActorDesc* InActorDesc)
+	: FWorldPartitionActorDescView(InActorDesc)
+	, ParentView(nullptr)
+	, bIsForcedNonSpatiallyLoaded(false)
+	, bIsForcedNoRuntimeGrid(false)
+	, bIsForcedNoDataLayers(false)	
+	, bIsForceNoHLODLayer(false)
+{}
+
+FName FStreamingGenerationActorDescView::GetRuntimeGrid() const
+{
+	if (bIsForcedNoRuntimeGrid)
+	{
+		return NAME_None;
+	}
+
+	if (ParentView)
+	{
+		return ParentView->GetRuntimeGrid();
+	}
+
+	return FWorldPartitionActorDescView::GetRuntimeGrid();
+}
+
+bool FStreamingGenerationActorDescView::GetIsSpatiallyLoaded() const
+{
+	if (bIsForcedNonSpatiallyLoaded)
+	{
+		return false;
+	}
+
+	bool bIsSpatiallyLoaded = FWorldPartitionActorDescView::GetIsSpatiallyLoaded();
+
+	if (bIsSpatiallyLoaded && ParentView)
+	{
+		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
+	}
+
+	return bIsSpatiallyLoaded;
+}
+
+FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
+{
+	if (bIsForceNoHLODLayer)
+	{
+		return FSoftObjectPath();
+	}
+	
+	if (RuntimedHLODLayer.IsSet())
+	{
+		return RuntimedHLODLayer.GetValue();
+	}
+
+	return FWorldPartitionActorDescView::GetHLODLayer();
+}
+
+const TArray<FName>& FStreamingGenerationActorDescView::GetDataLayerInstanceNames() const
+{
+	if (bIsForcedNoDataLayers)
+	{
+		static TArray<FName> EmptyDataLayers;
+		return EmptyDataLayers;
+	}
+
+	if (ParentView)
+	{
+		return ParentView->GetDataLayerInstanceNames();
+	}
+	
+	if (ResolvedDataLayerInstanceNames.IsSet())
+	{
+		return ResolvedDataLayerInstanceNames.GetValue();
+	}
+
+	return FWorldPartitionActorDescView::GetDataLayerInstanceNames();
+}
+
+const TArray<FGuid>& FStreamingGenerationActorDescView::GetReferences() const
+{
+	return RuntimeReferences.IsSet() ? RuntimeReferences.GetValue() : FWorldPartitionActorDescView::GetReferences();
+}
+
+const TArray<FGuid>& FStreamingGenerationActorDescView::GetEditorReferences() const
+{
+	return EditorReferences;
+}
+
+bool FStreamingGenerationActorDescView::ShouldValidateRuntimeGrid() const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return ActorDesc->ShouldValidateRuntimeGrid();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void FStreamingGenerationActorDescView::SetParentView(const FWorldPartitionActorDescView* InParentView)
+{
+	check(!ParentView);
+	check(GetParentActor().IsValid());
+	ParentView = InParentView;
+}
+
+void FStreamingGenerationActorDescView::SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames)
+{
+	check(!FWorldPartitionActorDescView::HasResolvedDataLayerInstanceNames());
+	ResolvedDataLayerInstanceNames = InDataLayerInstanceNames;
+}
+
+void FStreamingGenerationActorDescView::SetForcedNonSpatiallyLoaded()
+{
+	if (!bIsForcedNonSpatiallyLoaded)
+	{
+		bIsForcedNonSpatiallyLoaded = true;
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' forced to be non-spatially loaded"), *GetActorLabelOrName().ToString());
+	}
+}
+
+void FStreamingGenerationActorDescView::SetForcedNoRuntimeGrid()
+{
+	if (!bIsForcedNoRuntimeGrid)
+	{
+		bIsForcedNoRuntimeGrid = true;	
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' runtime grid invalidated"), *GetActorLabelOrName().ToString());
+	}
+}
+
+void FStreamingGenerationActorDescView::SetForcedNoDataLayers()
+{
+	if (!bIsForcedNoDataLayers)
+	{
+		bIsForcedNoDataLayers = true;
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' data layers invalidated"), *GetActorLabelOrName().ToString());
+	}
+}
+
+void FStreamingGenerationActorDescView::SetRuntimeDataLayerInstanceNames(const TArray<FName>& InRuntimeDataLayerInstanceNames)
+{
+	RuntimeDataLayerInstanceNames = InRuntimeDataLayerInstanceNames;
+}
+
+void FStreamingGenerationActorDescView::SetRuntimeReferences(const TArray<FGuid>& InRuntimeReferences)
+{
+	RuntimeReferences = InRuntimeReferences;
+}
+
+void FStreamingGenerationActorDescView::SetEditorReferences(const TArray<FGuid>& InEditorReferences)
+{
+	EditorReferences = InEditorReferences;
+}
+
+void FStreamingGenerationActorDescView::SetForcedNoHLODLayer()
+{
+	if (!bIsForceNoHLODLayer)
+	{
+		bIsForceNoHLODLayer = true;
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Actor '%s' HLOD layer invalidated"), *GetActorLabelOrName().ToString());
+	}
+}
+
+void FStreamingGenerationActorDescView::SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer)
+{
+	RuntimedHLODLayer = InHLODLayer;
+}
+
+const TArray<FName>& FStreamingGenerationActorDescView::GetRuntimeDataLayerInstanceNames() const
+{
+	if (bIsForcedNoDataLayers || !RuntimeDataLayerInstanceNames.IsSet())
+	{
+		return FWorldPartitionActorDescView::GetRuntimeDataLayerInstanceNames();
+	}
+
+	if (ParentView)
+	{
+		return ParentView->GetRuntimeDataLayerInstanceNames();
+	}
+
+	return RuntimeDataLayerInstanceNames.GetValue();
+}
 
 class FWorldPartitionStreamingGenerator
 {
@@ -253,13 +405,13 @@ class FWorldPartitionStreamingGenerator
 		TSharedPtr<FStreamingGenerationActorDescCollection> ActorDescCollection;
 
 		/** The actor descriptor views for for this descriptor */
-		FActorDescViewMap ActorDescViewMap;
+		FStreamingGenerationActorDescViewMap ActorDescViewMap;
 
 		/** Set of editor-only actors that are not part of the actor descriptor views */
 		TSet<FGuid> EditorOnlyActorDescMap;
 
 		/** List of actor descriptor views that are containers (mainly level instances) */
-		TArray<FWorldPartitionActorDescView> ContainerCollectionInstanceViews;
+		TArray<FStreamingGenerationActorDescView> ContainerCollectionInstanceViews;
 
 		/** List of actor clusters for this descriptor */
 		TArray<TArray<FGuid>> Clusters;
@@ -338,7 +490,7 @@ class FWorldPartitionStreamingGenerator
 		TMap<FGuid, FSetElementId> PerInstanceData;
 	};
 
-	void ResolveRuntimeSpatiallyLoaded(FWorldPartitionActorDescView& ActorDescView)
+	void ResolveRuntimeSpatiallyLoaded(FStreamingGenerationActorDescView& ActorDescView)
 	{
 		if (!bEnableStreaming)
 		{
@@ -346,7 +498,7 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
-	void ResolveRuntimeGrid(FWorldPartitionActorDescView& ActorDescView)
+	void ResolveRuntimeGrid(FStreamingGenerationActorDescView& ActorDescView)
 	{
 		if (!bEnableStreaming)
 		{
@@ -354,26 +506,29 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
-	void ResolveRuntimeDataLayers(FWorldPartitionActorDescView& ActorDescView, const FActorDescViewMap& ActorDescViewMap)
+	void ResolveRuntimeDataLayers(FStreamingGenerationActorDescView& ActorDescView, const FStreamingGenerationActorDescViewMap& ActorDescViewMap)
 	{
+		TArray<const FWorldPartitionActorDescView*> WorldDataLayerViews;
+		Algo::Transform(ActorDescViewMap.FindByExactNativeClass<AWorldDataLayers>(), WorldDataLayerViews, [](const FStreamingGenerationActorDescView* ActorDescView) { return ActorDescView; });
+
 		// Resolve DataLayerInstanceNames of ActorDescView only when necessary (i.e. when container is a template)
 		if (!ActorDescView.GetActorDesc()->HasResolvedDataLayerInstanceNames())
 		{
 			// Build a WorldDataLayerActorDescs if DataLayerManager can't resolve Data Layers (i.e. when validating changelists and World is not loaded)
 			const bool bDataLayerManagerCanResolve = DataLayerManager && DataLayerManager->CanResolveDataLayers();
-			const TArray<const FWorldDataLayersActorDesc*> WorldDataLayerActorDescs = !bDataLayerManagerCanResolve ? FDataLayerUtils::FindWorldDataLayerActorDescs(ActorDescViewMap) : TArray<const FWorldDataLayersActorDesc*>();
+			const TArray<const FWorldDataLayersActorDesc*> WorldDataLayerActorDescs = !bDataLayerManagerCanResolve ? FDataLayerUtils::FindWorldDataLayerActorDescs(WorldDataLayerViews) : TArray<const FWorldDataLayersActorDesc*>();
 			const TArray<FName> DataLayerInstanceNames = FDataLayerUtils::ResolvedDataLayerInstanceNames(DataLayerManager, ActorDescView.GetActorDesc(), WorldDataLayerActorDescs);
 			ActorDescView.SetDataLayerInstanceNames(DataLayerInstanceNames);
 		}
 
 		TArray<FName> RuntimeDataLayerInstanceNames;
-		if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, ActorDescView, ActorDescViewMap, RuntimeDataLayerInstanceNames))
+		if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, ActorDescView, WorldDataLayerViews, RuntimeDataLayerInstanceNames))
 		{
 			ActorDescView.SetRuntimeDataLayerInstanceNames(RuntimeDataLayerInstanceNames);
 		}
 	}
 
-	void ResolveHLODLayer(FWorldPartitionActorDescView& ActorDescView, const FSoftObjectPath& DefaultHLODLayer)
+	void ResolveHLODLayer(FStreamingGenerationActorDescView& ActorDescView, const FSoftObjectPath& DefaultHLODLayer)
 	{
 		// Only assign the default layer to actors that don't have a valid HLOD layer set. HLOD actors will have their 
 		// parent HLOD layer set during HLOD generation.
@@ -383,7 +538,7 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
-	void ResolveParentView(FWorldPartitionActorDescView& ActorDescView, const FActorDescViewMap& ActorDescViewMap)
+	void ResolveParentView(FStreamingGenerationActorDescView& ActorDescView, const FStreamingGenerationActorDescViewMap& ActorDescViewMap)
 	{
 		if (FGuid ParentGuid = ActorDescView.GetParentActor(); ParentGuid.IsValid())
 		{
@@ -391,7 +546,7 @@ class FWorldPartitionStreamingGenerator
 		}
 	}
 
-	void CreateActorDescViewMap(const FStreamingGenerationActorDescCollection& InActorDescCollection, FActorDescViewMap& OutActorDescViewMap, TSet<FGuid>& OutEditorOnlyActorDescMap, const FActorContainerID& InContainerID, TArray<FWorldPartitionActorDescView>& OutContainerInstances)
+	void CreateActorDescViewMap(const FStreamingGenerationActorDescCollection& InActorDescCollection, FStreamingGenerationActorDescViewMap& OutActorDescViewMap, TSet<FGuid>& OutEditorOnlyActorDescMap, const FActorContainerID& InContainerID, TArray<FStreamingGenerationActorDescView>& OutContainerInstances)
 	{
 		// Should we handle unsaved or newly created actors?
 		const bool bHandleUnsavedActors = ModifiedActorsDescList && InContainerID.IsMainContainer();
@@ -441,7 +596,7 @@ class FWorldPartitionStreamingGenerator
 		};
 
 		// Register the actor descriptor view
-		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](const FGuid& ActorGuid, FWorldPartitionActorDescView& InActorDescView)
+		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](const FGuid& ActorGuid, FStreamingGenerationActorDescView& InActorDescView)
 		{
 			if (InActorDescView.IsContainerInstance())
 			{
@@ -471,14 +626,14 @@ class FWorldPartitionStreamingGenerator
 					if (bHandleUnsavedActors && (bIsTempContainerPackage || Actor->GetPackage()->IsDirty()))
 					{
 						// Dirty, unsaved actor for PIE
-						FWorldPartitionActorDescView ModifiedActorDescView = GetModifiedActorDesc(Actor, InActorDescCollection);
+						FStreamingGenerationActorDescView ModifiedActorDescView = GetModifiedActorDesc(Actor, InActorDescCollection);
 						RegisterActorDescView(ActorDescIt->GetGuid(), ModifiedActorDescView);
 						continue;
 					}
 				}
 
 				// Non-dirty actor
-				FWorldPartitionActorDescView ActorDescView(*ActorDescIt);
+				FStreamingGenerationActorDescView ActorDescView(*ActorDescIt);
 				RegisterActorDescView(ActorDescIt->GetGuid(), ActorDescView);
 			}
 			else
@@ -496,7 +651,7 @@ class FWorldPartitionStreamingGenerator
 					&& (Actor->GetContentBundleGuid() == InActorDescCollection.GetContentBundleGuid())
 					&& !InActorDescCollection.GetActorDesc(Actor->GetActorGuid()))
 				{
-					FWorldPartitionActorDescView ModifiedActorDescView = GetModifiedActorDesc(Actor, InActorDescCollection);
+					FStreamingGenerationActorDescView ModifiedActorDescView = GetModifiedActorDesc(Actor, InActorDescCollection);
 					if (ShouldRegisterActorDesc(ModifiedActorDescView.GetActorDesc(), InContainerID))
 					{
 						RegisterActorDescView(Actor->GetActorGuid(), ModifiedActorDescView);
@@ -564,7 +719,7 @@ class FWorldPartitionStreamingGenerator
 
 				// Calculate Bounds of non-container actor descriptor views
 				check(!ContainerCollectionInstanceDescriptor.Bounds.IsValid);
-				ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ContainerCollectionInstanceDescriptor](const FWorldPartitionActorDescView& ActorDescView)
+				ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ContainerCollectionInstanceDescriptor](const FStreamingGenerationActorDescView& ActorDescView)
 				{
 					if (ActorDescView.GetIsSpatiallyLoaded())
 					{
@@ -577,7 +732,7 @@ class FWorldPartitionStreamingGenerator
 			}
 
 			// Parse actor containers
-			TArray<FWorldPartitionActorDescView> ContainerCollectionInstanceViews = ContainerCollectionDescriptor.ContainerCollectionInstanceViews;
+			TArray<FStreamingGenerationActorDescView> ContainerCollectionInstanceViews = ContainerCollectionDescriptor.ContainerCollectionInstanceViews;
 			for (const FWorldPartitionActorDescView& ContainerCollectionInstanceView : ContainerCollectionInstanceViews)
 			{
 				FWorldPartitionActorDesc::FContainerInstance SubContainerInstance;
@@ -633,7 +788,7 @@ class FWorldPartitionStreamingGenerator
 
 		// Apply per-instance data
 		ContainerCollectionInstanceDescriptor.PerInstanceData.Reserve(ContainerCollectionDescriptor.ActorDescViewMap.Num());
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ContainerCollectionInstanceDescriptor, &InheritParentContainerPerInstanceData](FWorldPartitionActorDescView& ActorDescView)
+		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ContainerCollectionInstanceDescriptor, &InheritParentContainerPerInstanceData](FStreamingGenerationActorDescView& ActorDescView)
 		{
 			const FContainerCollectionInstanceDescriptor::FPerInstanceData PerInstanceData = InheritParentContainerPerInstanceData(ContainerCollectionInstanceDescriptor.InstanceData, ActorDescView);
 
@@ -691,7 +846,7 @@ class FWorldPartitionStreamingGenerator
 	 */
 	void ResolveContainerDescriptor(FContainerCollectionDescriptor& ContainerCollectionDescriptor)
 	{
-		auto ResolveActorDescView = [this, &ContainerCollectionDescriptor](FWorldPartitionActorDescView& ActorDescView)
+		auto ResolveActorDescView = [this, &ContainerCollectionDescriptor](FStreamingGenerationActorDescView& ActorDescView)
 		{
 			ResolveRuntimeSpatiallyLoaded(ActorDescView);
 			ResolveRuntimeGrid(ActorDescView);
@@ -700,12 +855,12 @@ class FWorldPartitionStreamingGenerator
 			ResolveParentView(ActorDescView, ContainerCollectionDescriptor.ActorDescViewMap);
 		};
 
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ResolveActorDescView](FWorldPartitionActorDescView& ActorDescView)
+		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ResolveActorDescView](FStreamingGenerationActorDescView& ActorDescView)
 		{
 			ResolveActorDescView(ActorDescView);
 		});
 
-		for (FWorldPartitionActorDescView& ContainerCollectionInstanceView : ContainerCollectionDescriptor.ContainerCollectionInstanceViews)
+		for (FStreamingGenerationActorDescView& ContainerCollectionInstanceView : ContainerCollectionDescriptor.ContainerCollectionInstanceViews)
 		{
 			ResolveActorDescView(ContainerCollectionInstanceView);
 		}
@@ -748,7 +903,7 @@ class FWorldPartitionStreamingGenerator
 
 			for (const FGuid& LevelScriptReferenceActorGuid : LevelScriptReferences)
 			{
-				if (FWorldPartitionActorDescView* ActorDescView = ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(LevelScriptReferenceActorGuid))
+				if (FStreamingGenerationActorDescView* ActorDescView = (FStreamingGenerationActorDescView*)ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(LevelScriptReferenceActorGuid))
 				{
 					if (ActorDescView->GetIsSpatiallyLoaded())
 					{
@@ -766,7 +921,7 @@ class FWorldPartitionStreamingGenerator
 		}
 
 		// Route standard CheckForErrors calls which should not modify actor descriptors in any ways
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this](FWorldPartitionActorDescView& ActorDescView)
+		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this](FStreamingGenerationActorDescView& ActorDescView)
 		{
 			ActorDescView.CheckForErrors(ErrorHandler);
 		});
@@ -795,7 +950,7 @@ class FWorldPartitionStreamingGenerator
 
 			NbErrorsDetected = 0;
 
-			ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor, &NbErrorsDetected, PassType](FWorldPartitionActorDescView& ActorDescView)
+			ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor, &NbErrorsDetected, PassType](FStreamingGenerationActorDescView& ActorDescView)
 			{
 				// Validate grid placement
 				auto IsReferenceGridPlacementValid = [](const FWorldPartitionActorDescView& RefererActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView)
@@ -829,9 +984,9 @@ class FWorldPartitionStreamingGenerator
 				struct FActorReferenceInfo
 				{
 					FGuid ActorGuid;
-					FWorldPartitionActorDescView* ActorDesc;
+					FStreamingGenerationActorDescView* ActorDescView;
 					FGuid ReferenceGuid;
-					FWorldPartitionActorDescView* ReferenceActorDesc;
+					FStreamingGenerationActorDescView* ReferenceActorDescView;
 				};
 
 				TArray<FActorReferenceInfo> References;
@@ -842,7 +997,7 @@ class FWorldPartitionStreamingGenerator
 					if (ReferenceGuid != ActorDescView.GetParentActor()) // References to the parent are inversed in their handling 
 					{
 						// Filter out parent back references
-						FWorldPartitionActorDescView* ReferenceActorDesc = ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ReferenceGuid);
+						FStreamingGenerationActorDescView* ReferenceActorDesc = (FStreamingGenerationActorDescView*)ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ReferenceGuid);
 						if (!ReferenceActorDesc || (ReferenceActorDesc->GetParentActor() != ActorDescView.GetGuid()))
 						{
 							References.Emplace(FActorReferenceInfo { ActorDescView.GetGuid(), &ActorDescView, ReferenceGuid, ReferenceActorDesc });
@@ -854,11 +1009,11 @@ class FWorldPartitionStreamingGenerator
 				// parent to be refering to us, not the child to be referering the parent.
 				{
 					FGuid ParentGuid = ActorDescView.GetParentActor();
-					FWorldPartitionActorDescView* TopParentDescView = nullptr;
+					FStreamingGenerationActorDescView* TopParentDescView = nullptr;
 
 					while (ParentGuid.IsValid())
 					{
-						FWorldPartitionActorDescView* ParentDescView = ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ParentGuid);
+						FStreamingGenerationActorDescView* ParentDescView = (FStreamingGenerationActorDescView*)ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ParentGuid);
 					
 						if (ParentDescView)
 						{
@@ -885,8 +1040,8 @@ class FWorldPartitionStreamingGenerator
 
 				for (FActorReferenceInfo& Info : References)
 				{
-					FWorldPartitionActorDescView* RefererActorDescView = Info.ActorDesc;
-					FWorldPartitionActorDescView* ReferenceActorDescView = Info.ReferenceActorDesc;
+					FStreamingGenerationActorDescView* RefererActorDescView = Info.ActorDescView;
+					FStreamingGenerationActorDescView* ReferenceActorDescView = Info.ReferenceActorDescView;
 
 					if (ReferenceActorDescView)
 					{
@@ -969,7 +1124,7 @@ class FWorldPartitionStreamingGenerator
 		}
 
 		// Split runtime and editor references
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor](FWorldPartitionActorDescView& ActorDescView)
+		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor](FStreamingGenerationActorDescView& ActorDescView)
 		{
 			TArray<FGuid> RuntimeReferences;
 			TArray<FGuid> EditorReferences;
@@ -979,7 +1134,7 @@ class FWorldPartitionStreamingGenerator
 
 			for (const FGuid& ReferenceGuid : ActorDescView.GetReferences())
 			{
-				if (FWorldPartitionActorDescView* ReferenceActorDescView = ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ReferenceGuid))
+				if (FStreamingGenerationActorDescView* ReferenceActorDescView = (FStreamingGenerationActorDescView*)ContainerCollectionDescriptor.ActorDescViewMap.FindByGuid(ReferenceGuid))
 				{
 					// The actor reference is not editor-only, but we are referencing it through an editor-only property
 					if (ActorDescView.IsEditorOnlyReference(ReferenceGuid))
@@ -1032,7 +1187,7 @@ class FWorldPartitionStreamingGenerator
 
 			NbErrorsDetected = 0;
 
-			ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor, &ContainerCollectionInstanceDescriptor, &NbErrorsDetected, PassType](FWorldPartitionActorDescView& ActorDescView)
+			ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([this, &ContainerCollectionDescriptor, &ContainerCollectionInstanceDescriptor, &NbErrorsDetected, PassType](FStreamingGenerationActorDescView& ActorDescView)
 			{
 				FContainerCollectionInstanceDescriptor::FPerInstanceData& PerInstanceData = ContainerCollectionInstanceDescriptor.GetInstanceData(ActorDescView.GetGuid());
 
@@ -1102,7 +1257,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		// Build clusters for this container - at this point, all actors references should be in the same data layers, grid, etc because of actor descriptors validation.
 		TArray<TPair<FGuid, TArray<FGuid>>> ActorsWithRefs;
-		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ActorsWithRefs](const FWorldPartitionActorDescView& ActorDescView) { ActorsWithRefs.Emplace(ActorDescView.GetGuid(), ActorDescView.GetReferences()); });
+		ContainerCollectionDescriptor.ActorDescViewMap.ForEachActorDescView([&ActorsWithRefs](const FStreamingGenerationActorDescView& ActorDescView) { ActorsWithRefs.Emplace(ActorDescView.GetGuid(), ActorDescView.GetReferences()); });
 		ContainerCollectionDescriptor.Clusters = GenerateObjectsClusters(ActorsWithRefs);
 	}
 
@@ -1229,7 +1384,7 @@ public:
 			{
 				UE_SCOPED_INDENT_LOG_ARCHIVE(Ar.PrintfIndent(TEXT("ActorDescs:")));
 
-				TMap<FGuid, FWorldPartitionActorDescView*> SortedActorDescViewMap = ContainerCollectionDescriptor.ActorDescViewMap.ActorDescViewsByGuid;
+				TMap<FGuid, FStreamingGenerationActorDescView*> SortedActorDescViewMap = ContainerCollectionDescriptor.ActorDescViewMap.ActorDescViewsByGuid;
 				SortedActorDescViewMap.KeySort([](const FGuid& GuidA, const FGuid& GuidB) { return GuidA < GuidB; });
 
 				for (auto& [ActorGuid, ActorDescView] : SortedActorDescViewMap)

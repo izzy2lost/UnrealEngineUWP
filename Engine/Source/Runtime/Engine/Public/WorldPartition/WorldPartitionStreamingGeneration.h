@@ -3,104 +3,8 @@
 
 #if WITH_EDITOR
 #include "CoreMinimal.h"
-#include "OverrideVoidReturnInvoker.h"
 #include "WorldPartition/ActorDescContainerCollection.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
-
-class FActorDescViewMap
-{
-	friend class FWorldPartitionStreamingGenerator;
-
-private:
-	template <class Func>
-	void ForEachActorDescView(Func InFunc)
-	{
-		TOverrideVoidReturnInvoker Invoker(true, InFunc);
-
-		for (TUniquePtr<FWorldPartitionActorDescView>& ActorDescView : ActorDescViewList)
-		{
-			if (!Invoker(*ActorDescView))
-			{
-				return;
-			}
-		}
-	}
-
-	FWorldPartitionActorDescView* FindByGuid(const FGuid& InGuid)
-	{
-		if (FWorldPartitionActorDescView** ActorDescViewPtr = ActorDescViewsByGuid.Find(InGuid))
-		{
-			return *ActorDescViewPtr;
-		}
-		return nullptr;
-	}
-
-	FWorldPartitionActorDescView& FindByGuidChecked(const FGuid& InGuid)
-	{
-		return *ActorDescViewsByGuid.FindChecked(InGuid);
-	}
-
-public:
-	ENGINE_API FActorDescViewMap();
-
-	// Non-copyable but movable
-	FActorDescViewMap(const FActorDescViewMap&) = delete;
-	FActorDescViewMap(FActorDescViewMap&&) = default;
-	FActorDescViewMap& operator=(const FActorDescViewMap&) = delete;
-	FActorDescViewMap& operator=(FActorDescViewMap&&) = default;
-
-	ENGINE_API FWorldPartitionActorDescView* Emplace(const FGuid& InActorGuid, const FWorldPartitionActorDescView& InActorDescView);
-	ENGINE_API FWorldPartitionActorDescView* Emplace(const FWorldPartitionActorDesc* InActorDesc);
-
-	FORCEINLINE int32 Num() const
-	{
-		return ActorDescViewList.Num();
-	}
-
-	template <class Func>
-	void ForEachActorDescView(Func InFunc) const
-	{
-		TOverrideVoidReturnInvoker Invoker(true, InFunc);
-
-		for (const TUniquePtr<FWorldPartitionActorDescView>& ActorDescView : ActorDescViewList)
-		{
-			if (!Invoker(*ActorDescView))
-			{
-				return;
-			}
-		}
-	}
-
-	const FWorldPartitionActorDescView* FindByGuid(const FGuid& InGuid) const
-	{
-		if (const FWorldPartitionActorDescView* const* ActorDescViewPtr = ActorDescViewsByGuid.Find(InGuid))
-		{
-			return *ActorDescViewPtr;
-		}
-		return nullptr;
-	}
-
-	const FWorldPartitionActorDescView& FindByGuidChecked(const FGuid& InGuid) const
-	{
-		return *ActorDescViewsByGuid.FindChecked(InGuid);
-	}
-
-	template <class ClassType>
-	TArray<const FWorldPartitionActorDescView*> FindByExactNativeClass() const
-	{
-		return FindByExactNativeClass(ClassType::StaticClass());
-	}
-
-	ENGINE_API TArray<const FWorldPartitionActorDescView*> FindByExactNativeClass(UClass* InExactNativeClass) const;
-
-	const TMap<FGuid, FWorldPartitionActorDescView*>& GetActorDescViewsByGuid() const { return ActorDescViewsByGuid; }
-
-protected:
-	TArray<TUniquePtr<FWorldPartitionActorDescView>> ActorDescViewList;
-
-	TMap<FGuid, FWorldPartitionActorDescView*> ActorDescViewsByGuid;
-	TMultiMap<FName, const FWorldPartitionActorDescView*> ActorDescViewsByClass;
-};
+#include "WorldPartition/WorldPartitionActorDescViewMap.h"
 
 class FStreamingGenerationActorDescCollection : public TActorDescContainerCollection<TObjectPtr<const UActorDescContainer>>
 {
@@ -127,5 +31,59 @@ private:
 	static constexpr int MainContainerIdx = 0;
 	static constexpr int ExternalDataLayerContainerStartIdx = MainContainerIdx + 1;
 };
+
+class FStreamingGenerationActorDescView : public FWorldPartitionActorDescView
+{
+public:
+	ENGINE_API FStreamingGenerationActorDescView();
+	ENGINE_API FStreamingGenerationActorDescView(const FWorldPartitionActorDesc* InActorDesc);
+
+	//~ Begin FWorldPartitionActorDescView interface
+	ENGINE_API virtual FName GetRuntimeGrid() const override;
+	ENGINE_API virtual bool GetIsSpatiallyLoaded() const override;
+	ENGINE_API virtual FSoftObjectPath GetHLODLayer() const override;
+	ENGINE_API virtual const TArray<FName>& GetDataLayerInstanceNames() const override;
+	ENGINE_API virtual const TArray<FGuid>& GetReferences() const override;
+	ENGINE_API virtual const TArray<FGuid>& GetEditorReferences() const override;
+	//~ End FWorldPartitionActorDescView interface
+
+	ENGINE_API bool ShouldValidateRuntimeGrid() const;
+	ENGINE_API void SetParentView(const FWorldPartitionActorDescView* InParentView);
+	ENGINE_API void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames);
+	ENGINE_API void SetForcedNonSpatiallyLoaded();
+	ENGINE_API void SetForcedNoRuntimeGrid();
+	ENGINE_API void SetForcedNoDataLayers();
+	ENGINE_API void SetRuntimeDataLayerInstanceNames(const TArray<FName>& InRuntimeDataLayerInstanceNames);
+	ENGINE_API void SetRuntimeReferences(const TArray<FGuid>& InRuntimeReferences);
+	ENGINE_API void SetEditorReferences(const TArray<FGuid>& InEditorReferences);		
+	ENGINE_API void SetForcedNoHLODLayer();
+	ENGINE_API void SetRuntimeHLODLayer(const FSoftObjectPath& InHLODLayer);
+
+	ENGINE_API const TArray<FName>& GetRuntimeDataLayerInstanceNames() const;
+
+	bool operator==(const FWorldPartitionActorDescView& Other) const
+	{
+		return GetGuid() == Other.GetGuid();
+	}
+
+	friend uint32 GetTypeHash(const FWorldPartitionActorDescView& Key)
+	{
+		return GetTypeHash(Key.GetGuid());
+	}
+
+protected:
+	const FWorldPartitionActorDescView* ParentView;
+	bool bIsForcedNonSpatiallyLoaded;
+	bool bIsForcedNoRuntimeGrid;
+	bool bIsForcedNoDataLayers;
+	bool bIsForceNoHLODLayer;
+	TOptional<TArray<FName>> ResolvedDataLayerInstanceNames;
+	TOptional<TArray<FName>> RuntimeDataLayerInstanceNames;
+	TOptional<TArray<FGuid>> RuntimeReferences;
+	TOptional<FSoftObjectPath> RuntimedHLODLayer;
+	TArray<FGuid> EditorReferences;
+};
+
+class FStreamingGenerationActorDescViewMap : public TActorDescViewMap<FStreamingGenerationActorDescView> {};
 
 #endif // WITH_EDITOR

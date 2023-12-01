@@ -5,7 +5,7 @@
 #include "OverrideVoidReturnInvoker.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 
-class FActorDescViewMap;
+class FStreamingGenerationActorDescViewMap;
 class FWorldPartitionStreamingGenerator;
 class FStreamingGenerationActorDescCollection;
 class FWorldPartitionActorDescView;
@@ -42,7 +42,7 @@ public:
 		FActorSetContainer(const FActorSetContainer&) = delete;
 		FActorSetContainer& operator=(const FActorSetContainer&) = delete;
 
-		const FActorDescViewMap* ActorDescViewMap;
+		const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
 		const FStreamingGenerationActorDescCollection* ActorDescCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
 		TArray<TUniquePtr<FActorSet>> ActorSets;
 	};

@@ -101,7 +101,7 @@ void AddSourceActor(const FWorldPartitionActorDescView& ActorDescView, const ISt
 			false);
 
 		// Add its runtime references, recursively
-		const FActorDescViewMap* ActorDescViewMap = ActorInstance.ActorSetInstance->ContainerInstance->ActorDescViewMap;
+		const FStreamingGenerationActorDescViewMap* ActorDescViewMap = ActorInstance.ActorSetInstance->ContainerInstance->ActorDescViewMap;
 		for (const FGuid& ReferenceGuid : ActorDescView.GetReferences())
 		{
 			const FWorldPartitionActorDescView& RefActorDescView = ActorDescViewMap->FindByGuidChecked(ReferenceGuid);
