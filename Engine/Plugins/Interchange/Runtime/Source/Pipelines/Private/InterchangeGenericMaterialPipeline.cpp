@@ -61,6 +61,10 @@
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
 
+#if UE_BUILD_DEBUG
+#include "HAL/PlatformFileManager.h"
+#endif
+
 // Material Hash Utils
 #include "Material/InterchangeMaterialFactory.h"
 

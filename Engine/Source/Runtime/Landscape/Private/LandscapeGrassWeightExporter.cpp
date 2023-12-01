@@ -15,6 +15,10 @@
 #include "RenderCaptureInterface.h"
 #include "ShaderPlatformCachedIniValue.h"
 
+#if UE_BUILD_DEBUG
+#include "Misc/FileHelper.h"
+#endif
+
 class FLandscapeGrassWeightVS;
 class FLandscapeGrassWeightPS;
 
