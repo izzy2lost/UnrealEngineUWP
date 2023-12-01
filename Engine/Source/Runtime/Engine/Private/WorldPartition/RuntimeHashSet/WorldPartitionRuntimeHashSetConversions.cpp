@@ -29,6 +29,11 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 		TMap<FName, TMap<FName, TSet<const UHLODLayer*>>> GridHLODLayersMap;
 		const UHLODLayer* DefaultHLODLayer = WorldPartition->GetDefaultHLODLayer();
 
+		for (const FSpatialHashRuntimeGrid& Grid : SpatialHash->Grids)
+		{
+			GridHLODLayersMap.Add(Grid.GridName);
+		}
+
 		StreamingGenerationContext->ForEachActorSetInstance([&GridHLODLayersMap, SpatialHash, DefaultHLODLayer](const IStreamingGenerationContext::FActorSetInstance& ActorSetInstance)
 		{
 			ActorSetInstance.ForEachActor([&GridHLODLayersMap, SpatialHash, DefaultHLODLayer, &ActorSetInstance](const FGuid& ActorGuid)
