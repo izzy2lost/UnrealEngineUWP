@@ -1515,23 +1515,21 @@ FScopedSkeletalMeshRenderData::FScopedSkeletalMeshRenderData(USkeletalMesh* InMe
 	{
 		// Lock the skeletalmesh properties since we call USkeletalMesh::Cache() function (through GetPlatformSkeletalMeshRenderData -> CachePlatform -> Cache) 
 		// and which could be called by other threads at the same time
-		Lock = FPlatformProcess::GetSynchEventFromPool();
-		Mesh->LockPropertiesUntil(Lock);
+		Lock = Mesh->LockPropertiesUntil();
 	}
 }
 
 FScopedSkeletalMeshRenderData::~FScopedSkeletalMeshRenderData()
 {
-	if (Mesh)
+	if (Lock)
 	{
-		check(Lock);
-
+		check(Mesh);
 		Lock->Trigger();
-		FPlatformProcess::ReturnSynchEventToPool(Lock);
-		Data = nullptr;
-		Mesh = nullptr;
-		Lock = nullptr;
 	}
+
+	Data = nullptr;
+	Mesh = nullptr;
+	Lock = nullptr;
 }
 
 const FSkeletalMeshRenderData* FScopedSkeletalMeshRenderData::GetData() const
@@ -1992,21 +1990,20 @@ void USkeletalMesh::FinishBuildInternal(FSkinnedAssetBuildContext& Context)
 	PostMeshCached.Broadcast(this);
 }
 
-void USkeletalMesh::LockPropertiesUntil(FEvent* Event)
+FEvent* USkeletalMesh::LockPropertiesUntil()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(USkeletalMesh::Import);
+	
+	FEvent* Event = FPlatformProcess::GetSynchEventFromPool();
+	check(Event);
+
 	if (IsCompiling())
 	{
 		FSkinnedAssetCompilingManager::Get().FinishCompilation({ this });
 	}
 
-	auto AsyncTaskFunction = [Event]()
-	{
-		Event->Wait();
-	};
-
 	//Use the async task compile to lock the properties
-	FSkinnedAsyncTaskContext Context(AsyncTaskFunction);
+	FSkinnedAsyncTaskContext Context(Event);
 	BeginAsyncTaskInternal(Context);
 	PrepareForAsyncCompilation();
 	FQueuedThreadPool* SkeletalMeshThreadPool = FSkinnedAssetCompilingManager::Get().GetThreadPool();
@@ -2015,6 +2012,7 @@ void USkeletalMesh::LockPropertiesUntil(FEvent* Event)
 	AsyncTask = MakeUnique<FSkinnedAssetAsyncBuildTask>(this, MoveTemp(Context));
 	AsyncTask->StartBackgroundTask(SkeletalMeshThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait);
 	FSkinnedAssetCompilingManager::Get().AddSkinnedAssets({ this });
+	return Event;
 }
 
 void USkeletalMesh::BeginAsyncTaskInternal(FSkinnedAsyncTaskContext& Context)
@@ -2028,7 +2026,11 @@ void USkeletalMesh::BeginAsyncTaskInternal(FSkinnedAsyncTaskContext& Context)
 
 void USkeletalMesh::ExecuteAsyncTaskInternal(FSkinnedAsyncTaskContext& Context)
 {
-	Context.AsyncTaskFunction();
+	if (ensure(Context.Event))
+	{
+		Context.Event->Wait();
+		FPlatformProcess::ReturnSynchEventToPool(Context.Event);
+	}
 }
 
 void USkeletalMesh::FinishAsyncTaskInternal(FSkinnedAsyncTaskContext& Context)

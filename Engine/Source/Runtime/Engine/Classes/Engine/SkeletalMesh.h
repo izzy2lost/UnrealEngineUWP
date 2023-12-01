@@ -2373,10 +2373,11 @@ public:
 
 	/**
 	* Lock the skeletalmesh properties until the caller trigger the Event parameter.
+	* The returned Event memory is all handle by the LockPropertiesUntil function, do not  return the event to the pool
 	* 
-	* @Param Event - When the caller will trigger the event the skeletal mesh properties will be unlocked
+	* @Return - Return the Event caller must trigger to unlock the skeletal mesh properties
 	*/
-	ENGINE_API void LockPropertiesUntil(FEvent* Event);
+	ENGINE_API FEvent* LockPropertiesUntil();
 
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 

@@ -990,8 +990,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 	//Lock the skeletalmesh properties if the skeletal mesh already exist (re-import)
 	if (ExistingAsset)
 	{
-		SkeletalMeshLockPropertiesEvent = FPlatformProcess::GetSynchEventFromPool();
-		SkeletalMesh->LockPropertiesUntil(SkeletalMeshLockPropertiesEvent);
+		SkeletalMeshLockPropertiesEvent = SkeletalMesh->LockPropertiesUntil();
 	}
 
 	ImportAssetResult.ImportedObject = SkeletalMesh;
@@ -1795,7 +1794,6 @@ void UInterchangeSkeletalMeshFactory::Cancel()
 	if (SkeletalMeshLockPropertiesEvent)
 	{
 		SkeletalMeshLockPropertiesEvent->Trigger();
-		FPlatformProcess::ReturnSynchEventToPool(SkeletalMeshLockPropertiesEvent);
 		SkeletalMeshLockPropertiesEvent = nullptr;
 	}
 }
@@ -1817,7 +1815,6 @@ void UInterchangeSkeletalMeshFactory::SetupObject_GameThread(const FSetupObjectP
 		if (SkeletalMeshLockPropertiesEvent)
 		{
 			SkeletalMeshLockPropertiesEvent->Trigger();
-			FPlatformProcess::ReturnSynchEventToPool(SkeletalMeshLockPropertiesEvent);
 			SkeletalMeshLockPropertiesEvent = nullptr;
 		}
 
