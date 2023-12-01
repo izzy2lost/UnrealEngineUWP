@@ -11,8 +11,8 @@ struct FClothingPatternData
 {
 	FTriangleMesh PatternTriangleMesh;
 
-	const TConstArrayView<FVector2f> PatternPositions;
-	const TConstArrayView<uint32> PatternToWeldedIndices;
+	TConstArrayView<FVector2f> PatternPositions;
+	TConstArrayView<uint32> PatternToWeldedIndices;
 	TArray<TVec3<FVec2f>> WeldedFaceVertexPatternPositions; // This will be empty if there are no PatternPositions
 
 	FClothingPatternData(
@@ -23,6 +23,8 @@ struct FClothingPatternData
 		const TConstArrayView<uint32>& InPatternToWeldedIndices);
 
 private:
+	void Reset();
+
 	void GenerateDerivedPatternData(
 		int32 InNumParticles,
 		const TConstArrayView<uint32>& InIndices,
