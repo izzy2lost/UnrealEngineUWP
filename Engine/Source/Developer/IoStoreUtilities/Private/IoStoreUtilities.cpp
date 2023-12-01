@@ -5959,6 +5959,28 @@ int32 ListContainer(
 	return 0;
 }
 
+bool ListIoStoreContainer(const TCHAR* CmdLine)
+{
+	FKeyChain KeyChain;
+	LoadKeyChain(CmdLine, KeyChain);
+
+	FString ContainerPathOrWildcard;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("ListContainer="), ContainerPathOrWildcard))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Missing argument -ListContainer=<ContainerFileOrWildCard>"));
+		return false;
+	}
+
+	FString CsvPath;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("csv="), CsvPath))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Missing argument -Csv=<Path>"));
+		return false;
+	}
+
+	return ListContainer(KeyChain, ContainerPathOrWildcard, CsvPath) == 0;
+}
+
 bool LegacyListIoStoreContainer(
 	const TCHAR* InContainerFilename,
 	int64 InSizeFilter,

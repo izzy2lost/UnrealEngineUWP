@@ -13,17 +13,21 @@ struct FGuid;
 struct FKeyChain;
 class FIoChunkId;
 
-IOSTOREUTILITIES_API int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine);
+#define UE_API IOSTOREUTILITIES_API
 
-IOSTOREUTILITIES_API bool DumpIoStoreContainerInfo(const TCHAR* InContainerFilename, const FKeyChain& InKeyChain);
+UE_API int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine);
 
-IOSTOREUTILITIES_API bool LegacyListIoStoreContainer(
+UE_API bool DumpIoStoreContainerInfo(const TCHAR* InContainerFilename, const FKeyChain& InKeyChain);
+
+UE_API bool LegacyListIoStoreContainer(
 	const TCHAR* InContainerFilename,
 	int64 InSizeFilter,
 	const FString& InCSVFilename,
 	const FKeyChain& InKeyChain);
 
-IOSTOREUTILITIES_API bool LegacyDiffIoStoreContainers(
+UE_API bool ListIoStoreContainer(const TCHAR* CmdLine);
+
+UE_API bool LegacyDiffIoStoreContainers(
 	const TCHAR* InContainerFilename1,
 	const TCHAR* InContainerFilename2,
 	bool bInLogUniques1,
@@ -31,7 +35,7 @@ IOSTOREUTILITIES_API bool LegacyDiffIoStoreContainers(
 	const FKeyChain& InKeyChain1,
 	const FKeyChain* InKeyChain2 = nullptr);
 
-IOSTOREUTILITIES_API bool ExtractFilesFromIoStoreContainer(
+UE_API bool ExtractFilesFromIoStoreContainer(
 	const TCHAR* InContainerFilename,
 	const TCHAR* InDestPath,
 	const FKeyChain& InKeyChain,
@@ -40,7 +44,7 @@ IOSTOREUTILITIES_API bool ExtractFilesFromIoStoreContainer(
 	TArray<FGuid>* OutUsedEncryptionKeys,
 	bool* bOutIsSigned);
 
-IOSTOREUTILITIES_API bool ProcessFilesFromIoStoreContainer(
+UE_API bool ProcessFilesFromIoStoreContainer(
 	const TCHAR* InContainerFilename,
 	const TCHAR* InDestPath,
 	const FKeyChain& InKeyChain,
@@ -51,17 +55,19 @@ IOSTOREUTILITIES_API bool ProcessFilesFromIoStoreContainer(
 	bool* bOutIsSigned,
 	int32 MaxConcurrentReaders);
 
-IOSTOREUTILITIES_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKeyHandle InSigningKey);
+UE_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKeyHandle InSigningKey);
 
-IOSTOREUTILITIES_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
+UE_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
 
-IOSTOREUTILITIES_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
+UE_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
 
-IOSTOREUTILITIES_API bool ListOnDemandTocs();
+UE_API bool ListOnDemandTocs();
 
 /**
  * Attempts to connect to the endpoint in the provided ini file, download all
  * available tocs and then download all chunks in those tocs. This will
  * pre-warm the CDN and allow testing closer to the end users experience.
  */
-IOSTOREUTILITIES_API bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
+UE_API bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
+
+#undef UE_API

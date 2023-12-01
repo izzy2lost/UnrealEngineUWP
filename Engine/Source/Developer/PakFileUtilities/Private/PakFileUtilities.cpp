@@ -5478,6 +5478,11 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			{
 				return ListOnDemandTocs();
 			}
+
+			if (FParse::Value(CmdLine, TEXT("-ListContainer="), IoStoreArg))
+			{
+				return ListIoStoreContainer(CmdLine);
+			}
 		}
 	}
 
