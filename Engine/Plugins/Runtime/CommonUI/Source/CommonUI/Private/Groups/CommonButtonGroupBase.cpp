@@ -235,6 +235,12 @@ void UCommonButtonGroupBase::OnWidgetRemoved( UWidget* OldWidget )
 
 		Buttons.RemoveAll( [Button]( TWeakObjectPtr<UCommonButtonBase> Entry ) { return Entry == Button || !Entry.IsValid(); } );
 
+		if (Button->GetSelected())
+		{
+			constexpr bool bAllowSound = false;
+			Button->SetSelectedInternal(false, bAllowSound);
+		}
+
 		if (ButtonIndex == SelectedButtonIndex)
 		{
 			SelectedButtonIndex = INDEX_NONE;
