@@ -1274,6 +1274,14 @@ void FScene::RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo)
 	PrimitiveSceneInfo.RefreshNaniteRasterBins();
 }
 
+void FScene::ReloadNaniteFixedFunctionBins()
+{
+	for (int32 NanitePass = 0; NanitePass < ENaniteMeshPass::Num; ++NanitePass)
+	{
+		NaniteRasterPipelines[NanitePass].ReloadFixedFunctionBins();
+	}
+}
+
 SIZE_T FScene::GetSizeBytes() const
 {
 	return sizeof(*this) 

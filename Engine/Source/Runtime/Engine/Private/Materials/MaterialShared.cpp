@@ -4735,6 +4735,18 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 	}
 	else if (ComponentRecreateRenderStateContext)
 	{
+		UE::RenderCommandPipe::FSyncScope SyncScope;
+
+		ENQUEUE_RENDER_COMMAND(ReloadNaniteFixedFunctionBins)(
+			[](FRHICommandListImmediate& RHICmdList) mutable
+			{
+				for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
+				{
+					Scene->ReloadNaniteFixedFunctionBins();
+				}
+			}
+		);
+
 		ComponentRecreateRenderStateContext.Reset();
 	}
 

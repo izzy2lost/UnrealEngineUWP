@@ -709,6 +709,7 @@ public:
 
 	void AllocateFixedFunctionBins();
 	void ReleaseFixedFunctionBins();
+	void ReloadFixedFunctionBins();
 
 	uint16 AllocateBin(bool bPerPixelEval);
 	void ReleaseBin(uint16 BinIndex);
@@ -746,10 +747,15 @@ private:
 	TArray<uint32> PerPixelEvalCustomPassRefCounts;
 	FNaniteRasterPipelineMap PipelineMap;
 
-	TArray<FNaniteRasterBin, TInlineAllocator<4u>> FixedFunctionBins;
-};
+	struct FFixedFunctionBin
+	{
+		FNaniteRasterBin RasterBin;
+		uint8 TwoSided : 1;
+		uint8 Spline   : 1;
+	};
 
-/// TODO: Work in progress / experimental
+	TArray<FFixedFunctionBin, TInlineAllocator<4u>> FixedFunctionBins;
+};
 
 struct FNaniteShadingBin
 {

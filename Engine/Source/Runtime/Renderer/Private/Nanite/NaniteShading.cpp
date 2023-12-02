@@ -1896,21 +1896,45 @@ void FNaniteRasterPipelines::AllocateFixedFunctionBins()
 {
 	check(FixedFunctionBins.Num() == 0);
 
-	FNaniteRasterPipeline Pipeline00 = FNaniteRasterPipeline::GetFixedFunctionPipeline(false /* Two Sided */, false /* Spline */);
-	FNaniteRasterBin Bin00 = Register(Pipeline00);
-	check(Bin00.BinIndex == NANITE_FIXED_FUNCTION_BIN);
+	FFixedFunctionBin Bin00;
+	{
+		Bin00.TwoSided = false;
+		Bin00.Spline   = false;
 
-	FNaniteRasterPipeline Pipeline01 = FNaniteRasterPipeline::GetFixedFunctionPipeline(true /* Two Sided */, false /* Spline */);
-	FNaniteRasterBin Bin01 = Register(Pipeline01);
-	check(Bin01.BinIndex == NANITE_FIXED_FUNCTION_BIN_TWOSIDED);
+		FNaniteRasterPipeline Pipeline00 = FNaniteRasterPipeline::GetFixedFunctionPipeline(Bin00.TwoSided, Bin00.Spline);
+		Bin00.RasterBin = Register(Pipeline00);
+		check(Bin00.RasterBin.BinIndex == NANITE_FIXED_FUNCTION_BIN);
+	}
 
-	FNaniteRasterPipeline Pipeline10 = FNaniteRasterPipeline::GetFixedFunctionPipeline(false /* Two Sided */, true /* Spline */);
-	FNaniteRasterBin Bin10 = Register(Pipeline10);
-	check(Bin10.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE);
+	FFixedFunctionBin Bin01;
+	{
+		Bin01.TwoSided = true;
+		Bin01.Spline   = false;
 
-	FNaniteRasterPipeline Pipeline11 = FNaniteRasterPipeline::GetFixedFunctionPipeline(true /* Two Sided */, true /* Spline */);
-	FNaniteRasterBin Bin11 = Register(Pipeline11);
-	check(Bin11.BinIndex == (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_TWOSIDED));
+		FNaniteRasterPipeline Pipeline01 = FNaniteRasterPipeline::GetFixedFunctionPipeline(Bin01.TwoSided, Bin01.Spline);
+		Bin01.RasterBin = Register(Pipeline01);
+		check(Bin01.RasterBin.BinIndex == NANITE_FIXED_FUNCTION_BIN_TWOSIDED);
+	}
+
+	FFixedFunctionBin Bin10;
+	{
+		Bin10.TwoSided = false;
+		Bin10.Spline   = true;
+
+		FNaniteRasterPipeline Pipeline10 = FNaniteRasterPipeline::GetFixedFunctionPipeline(Bin10.TwoSided, Bin10.Spline);
+		Bin10.RasterBin = Register(Pipeline10);
+		check(Bin10.RasterBin.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE);
+	}
+
+	FFixedFunctionBin Bin11;
+	{
+		Bin11.TwoSided = true;
+		Bin11.Spline   = true;
+
+		FNaniteRasterPipeline Pipeline11 = FNaniteRasterPipeline::GetFixedFunctionPipeline(Bin11.TwoSided, Bin11.Spline);
+		Bin11.RasterBin = Register(Pipeline11);
+		check(Bin11.RasterBin.BinIndex == (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_TWOSIDED));
+	}
 
 	FixedFunctionBins.Emplace(Bin00);
 	FixedFunctionBins.Emplace(Bin01);
@@ -1920,12 +1944,24 @@ void FNaniteRasterPipelines::AllocateFixedFunctionBins()
 
 void FNaniteRasterPipelines::ReleaseFixedFunctionBins()
 {
-	for (const FNaniteRasterBin& FixedFunctionBin : FixedFunctionBins)
+	for (const FFixedFunctionBin& FixedFunctionBin : FixedFunctionBins)
 	{
-		Unregister(FixedFunctionBin);
+		Unregister(FixedFunctionBin.RasterBin);
 	}
 
 	FixedFunctionBins.Reset();
+}
+
+void FNaniteRasterPipelines::ReloadFixedFunctionBins()
+{
+	for (const FFixedFunctionBin& FixedFunctionBin : FixedFunctionBins)
+	{
+		FNaniteRasterPipeline Pipeline = FNaniteRasterPipeline::GetFixedFunctionPipeline(FixedFunctionBin.TwoSided, FixedFunctionBin.Spline);
+		FNaniteRasterEntry* RasterEntry = PipelineMap.Find(Pipeline);
+		check(RasterEntry != nullptr);
+		RasterEntry->RasterPipeline = Pipeline;
+		RasterEntry->CacheMap.Reset();
+	}
 }
 
 uint16 FNaniteRasterPipelines::AllocateBin(bool bPerPixelEval)

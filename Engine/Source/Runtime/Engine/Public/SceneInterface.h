@@ -685,7 +685,8 @@ public:
 	virtual bool RequestGPUSceneUpdate(FPrimitiveSceneInfo& PrimitiveSceneInfo, EPrimitiveDirtyState PrimitiveDirtyState) { return false; }
 	virtual bool RequestUniformBufferUpdate(FPrimitiveSceneInfo& PrimitiveSceneInfo) { return false; }
 
-	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) { }
+	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) {}
+	virtual void ReloadNaniteFixedFunctionBins() {}
 
 	/** Contains settings used to construct scene view for custom render pass during the renderer construction. */
 	struct FCustomRenderPassRendererInput
