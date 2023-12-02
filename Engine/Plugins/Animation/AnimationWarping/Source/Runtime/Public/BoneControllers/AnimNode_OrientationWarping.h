@@ -63,7 +63,7 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	TEnumAsByte<EAxis::Type> RotationAxis = EAxis::Z;
 
 	// Specifies how much rotation is applied to the character body versus IK feet
-	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", ClampMax="1.0"))
+	UPROPERTY(EditAnywhere, Category=Settings, meta=(ClampMin="0.0", ClampMax="1.0", PinHiddenByDefault))
 	float DistributedBoneOrientationAlpha = 0.5f;
 
 	// Specifies the interpolation speed (in Alpha per second) towards reaching the final warped rotation angle
