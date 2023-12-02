@@ -696,7 +696,7 @@ namespace UnrealGameSync
 			}
 
 			// Build configuration
-			CompiledEditorBuildConfig = _configFile.GetEnumValue("General.BuildConfig", BuildConfig.DebugGame);
+			CompiledEditorBuildConfig = _configFile.GetEnumValue("General.BuildConfig", BuildConfig.Development);
 
 			// Tab names
 			TabLabels = _configFile.GetEnumValue("General.TabLabels", TabLabels.Stream);
