@@ -157,6 +157,26 @@ namespace PerfSummaries
 			public bool isAverageValue;
 		};
 
+		private ColourThresholdList ComputeFrameTimeColorThresholdsFromMVP( int fps )
+		{
+			ColourThresholdList mvpColorThresholdList = GetStatColourThresholdList("MVP"+ fps.ToString());
+			ColourThresholdList colorThresholdListOut = null;
+			if (mvpColorThresholdList != null && mvpColorThresholdList.Count == 4)
+			{
+				colorThresholdListOut = new ColourThresholdList();
+				double idealFrameTime = 1000.0 / (double)fps;
+				for (int i = 0; i < 4; i++)
+				{
+					// MVP = (1/idealFrameTime - 1/avgFrameTime) * idealFrameTime
+					// avgFrameTime = idealFrameTime / (1 - MVP)
+					ThresholdInfo mvpThreshold = mvpColorThresholdList.Thresholds[i];
+					double frameTimeThreshold = idealFrameTime / (1.0 - mvpThreshold.value / 100.0);
+					colorThresholdListOut.Thresholds.Add(new ThresholdInfo(frameTimeThreshold, mvpThreshold.colour));
+				}
+			}
+			return colorThresholdListOut;
+		}
+
 		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
 			System.IO.StreamWriter statsCsvFile = null;
@@ -205,7 +225,6 @@ namespace PerfSummaries
 					}
 				}
 
-				float value = 0.0f;
 				string ValueType = " Avg";
 				bool bIsAvg = false;
 				if (!csvStats.Stats.ContainsKey(baseStatName.ToLower()))
@@ -215,6 +234,7 @@ namespace PerfSummaries
 
 				bool bUnstripped = statAttributes.Contains("unstripped");
 				StatSamples stat = bUnstripped ? csvStatsUnstripped.Stats[baseStatName.ToLower()] : csvStats.Stats[baseStatName.ToLower()];
+				float value;
 				if (statAttributes.Contains("min"))
 				{
 					value = stat.ComputeMinValue();
@@ -236,7 +256,15 @@ namespace PerfSummaries
 				{
 					detailStr = "all frames";
 				}
-				Columns.Add(new ColumnInfo(baseStatName + ValueType, value, GetStatColourThresholdList(statName), detailStr, bIsAvg));
+
+				ColourThresholdList colorThresholdList = GetStatColourThresholdList(statName);
+
+				// If the frametime color thresholds are not specified then compute them based on MVP
+				if (!bIgnoreMVP && colorThresholdList == null && baseStatName.ToLower() == "frametime" && fps > 0)
+				{
+					colorThresholdList = ComputeFrameTimeColorThresholdsFromMVP(fps);
+				}
+				Columns.Add(new ColumnInfo(baseStatName + ValueType, value, colorThresholdList, detailStr, bIsAvg));
 			}
 
 			// Output summary table row data

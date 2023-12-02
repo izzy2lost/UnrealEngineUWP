@@ -591,6 +591,20 @@ namespace PerfReportTool
 			}
 		}
 
+		public void DumpToLog(bool bIncludeMetadata = false)
+		{
+			string[] keys = vars.Keys.ToArray();
+			Array.Sort(keys);
+			foreach (string key in keys)
+			{
+				if (!key.StartsWith("meta.") || bIncludeMetadata)
+				{
+					string value = vars[key].Replace(", ",",").Replace(",",", "); // Ensure padding for arrays
+					Console.WriteLine(key.PadRight(50) + value);
+				}
+			}
+		}
+
 		public string ResolveVariables(string attributeValue)
 		{
 			// Remap all variables found in the attribute name
@@ -635,7 +649,7 @@ namespace PerfReportTool
 					}
 					if (ArrayIndex < 0)
 					{
-						Console.WriteLine("[Warning] Failed to resolve variable $(" + FullVariableName + "}. Can't read array index");
+						Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Can't read array index");
 						continue;
 					}
 					VariableName = FullVariableName.Substring(0, OpenBracketIndex);
@@ -651,7 +665,7 @@ namespace PerfReportTool
 						string[] elements = attributeValue.Split(",");
 						if (ArrayIndex >= elements.Length)
 						{
-							Console.WriteLine("[Warning] Failed to resolve variable $(" + FullVariableName + "}. Array index out of range!");
+							Console.WriteLine("[Warning] Failed to resolve variable ${" + FullVariableName + "}. Array index out of range!");
 							continue;
 						}
 						attributeValue = elements[ArrayIndex];
@@ -661,29 +675,52 @@ namespace PerfReportTool
 				}
 				else
 				{
-					Console.WriteLine("[Warning] Failed to resolve variable $(" + VariableName + "}");
+					Console.WriteLine("[Warning] Failed to resolve variable ${" + VariableName + "}");
 				}
 			}
 			return attributeValue;
 		}
 
-		public void ApplyVariableSet(XElement variableSetElement, CsvMetadata csvMetadata)
+		public void ApplyVariableSet(XElement variableSetElement, CsvMetadata csvMetadata, double parentMultiplier=1.0)
 		{
 			string metadataQuery = variableSetElement.GetSafeAttribute<string>(this, "metadataQuery");
+			double multiplier = variableSetElement.GetSafeAttribute<double>(this, "multiplier", 1.0) * parentMultiplier;
 
 			if ( metadataQuery == null || ( csvMetadata != null && CsvStats.DoesMetadataMatchFilter(csvMetadata, metadataQuery) ) )
 			{
-				// We match, so apply all variables and then apply all recursive variablesets
-				foreach (XElement variable in variableSetElement.Elements("var"))
-				{
-					string name = variable.FirstAttribute.Name.ToString();
-					string value = ResolveVariables(variable.FirstAttribute.Value);
-					SetVariable(name, value);
-				}
+				// We match, so apply all variables and recursive variablesets in order
+				foreach (XElement child in variableSetElement.Elements())
+				{ 
+					if (child.Name == "var")
+					{
+						string name = child.FirstAttribute.Name.ToString();
+						string value = ResolveVariables(child.FirstAttribute.Value);
+						double variableMultiplier = child.GetSafeAttribute<double>(this, "multiplier", 1.0) * multiplier;
 
-				foreach (XElement childVariableSet in variableSetElement.Elements("variableSet"))
-				{
-					ApplyVariableSet(childVariableSet, csvMetadata);
+						// Apply the multplier if there is one before setting the variable
+						if (variableMultiplier != 1.0)
+						{
+							string[] arrayValues = value.Split(',');
+							List<string> finalValues = new List<string>();
+							foreach (string elementValue in arrayValues)
+							{
+								if (!double.TryParse(elementValue, out double doubleVal))
+								{
+									break;
+								}
+								finalValues.Add((variableMultiplier * doubleVal).ToString());
+							}
+							if (finalValues.Count == arrayValues.Length)
+							{
+								value = string.Join(',', finalValues);
+							}
+						}
+						SetVariable(name, value);
+					}
+					else if (child.Name == "variableSet")
+					{
+						ApplyVariableSet(child, csvMetadata);
+					}
 				}
 			}
 		}

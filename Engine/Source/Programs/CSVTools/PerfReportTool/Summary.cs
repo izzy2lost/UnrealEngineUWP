@@ -120,12 +120,15 @@ namespace PerfSummaries
                     }
                     string statName = child.GetRequiredAttribute<string>(vars, "stat");
 					string hitchThresholdsStr = child.GetValue(vars);
+					if (hitchThresholdsStr == "")
+					{
+						continue;
+					}
                     string[] hitchThresholdsStrList = hitchThresholdsStr.Split(',');
 					ColourThresholdList HitchThresholds = new ColourThresholdList();
 					for (int i = 0; i < hitchThresholdsStrList.Length; i++)
                     {
 						string hitchThresholdStr = hitchThresholdsStrList[i];
-						double thresholdValue = 0.0;
 						string hitchThresholdNumStr = hitchThresholdStr;
 						Colour thresholdColour = null;
 
@@ -140,7 +143,7 @@ namespace PerfSummaries
 								thresholdColour = new Colour(colourString);
 							}
 						}
-						thresholdValue = Convert.ToDouble(hitchThresholdNumStr, System.Globalization.CultureInfo.InvariantCulture);
+						double thresholdValue = Convert.ToDouble(hitchThresholdNumStr, System.Globalization.CultureInfo.InvariantCulture);
 
 						HitchThresholds.Add(new ThresholdInfo(thresholdValue, thresholdColour));
                     }
