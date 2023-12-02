@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMCppClassInfo.h"
+#include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
 #include "Containers/Map.h"
 #include "Containers/UnrealString.h"
