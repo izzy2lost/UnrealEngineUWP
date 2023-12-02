@@ -99,7 +99,9 @@ struct COMMONUI_API FUIInputConfig
 
 	bool operator==(const FUIInputConfig& Other) const
 	{
-		return InputMode == Other.InputMode
+		return bIgnoreMoveInput == Other.bIgnoreMoveInput
+			&& bIgnoreLookInput == Other.bIgnoreLookInput
+			&& InputMode == Other.InputMode
 			&& MouseCaptureMode == Other.MouseCaptureMode
 			&& MouseLockMode == Other.MouseLockMode
 			&& bHideCursorDuringViewportCapture == Other.bHideCursorDuringViewportCapture;
