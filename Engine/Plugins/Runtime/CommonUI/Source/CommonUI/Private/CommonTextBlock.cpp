@@ -407,7 +407,14 @@ void UCommonTextBlock::SynchronizeProperties()
 
 	if (bAutoCollapseWithEmptyText)
 	{
-		SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+		if (IsDesignTime())
+		{
+			SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+		}
+		else
+		{
+			SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
 
 	if (CommonUIUtils::ShouldDisplayMobileUISizes())
@@ -439,7 +446,14 @@ void UCommonTextBlock::OnTextChanged()
 	Super::OnTextChanged();
 	if (bAutoCollapseWithEmptyText)
 	{
-		SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+		if (IsDesignTime())
+		{
+			SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+		}
+		else
+		{
+			SetVisibility(GetText().IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
 }
 
