@@ -208,4 +208,23 @@ void AddBuildStrandsAccelerationStructurePass(
 	bool bNeedUpdate,
 	FRDGBufferRef Raytracing_PositionBuffer,
 	FRDGBufferRef Raytracing_IndexBuffer);
+
+void AddBuildHairCardAccelerationStructurePass(
+	FRDGBuilder& GraphBuilder,
+	FHairGroupInstance* Instance,
+	int32 HairLODIndex,
+	bool bNeedUpdate);
+
+void AddBuildHairMeshAccelerationStructurePass(
+	FRDGBuilder& GraphBuilder,
+	FHairGroupInstance* Instance,
+	int32 HairLODIndex,
+	bool bNeedUpdate);
 #endif
+
+void AddHairCardsDeformationPass(
+	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
+	const FShaderPrintData* ShaderPrintData,
+	FHairGroupInstance* Instance,
+	const int32 MeshLODIndex);

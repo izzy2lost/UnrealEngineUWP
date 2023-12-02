@@ -153,8 +153,6 @@ static bool IsInstanceFrustumCullingEnable()
 	return GHairStrands_InterpolationFrustumCullingEnable > 0;
 }
 
-bool NeedsUpdateCardsMeshTriangles();
-
 static bool IsSkeletalMeshEvaluationEnabled()
 {
 	// When deferred skel. mesh update is enabled, hair strands skeletal mesh deformation is not allowed, as skin-cached update happen after 
@@ -230,153 +228,6 @@ FCachedGeometry GetCacheGeometryForHair(
 		}
 	}
 	return Out;
-}
-
-enum class EHairInterpolationPassType
-{
-	Strands,
-	CardsAndMeshes,
-	Guides
-};
-
-static void RunInternalHairInterpolation(
-	FRDGBuilder& GraphBuilder,
-	FSceneInterface* Scene,
-	const FSceneView* View,
-	const uint32 ViewUniqueID,
-	const FHairStrandsInstances& Instances,
-	const FShaderPrintData* ShaderPrintData,
-	FGlobalShaderMap* ShaderMap, 
-	EHairInterpolationPassType PassType,
-	FHairStrandClusterData* ClusterData)
-{
-	check(IsInRenderingThread());
-
-	#if RHI_RAYTRACING
-	const uint32 ViewRayTracingMask = View->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing;
-	#else
-	const uint32 ViewRayTracingMask = 0u;
-	#endif
-
-	const EGroomViewMode ViewMode = GetGroomViewMode(*View);
-
-	// Update dynamic mesh triangles
-	for (FHairStrandsInstance* AbstractInstance : Instances)
-	{
-		FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
-
-		int32 MeshLODIndex = -1;
-		if (Instance->GeometryType == EHairGeometryType::NoneGeometry)
-			continue;
-	
-		check(Instance->HairGroupPublicData);
-
-		FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
-		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
-		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
-		{
-			// Ensure all mesh's sections have the same LOD index
-			const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
-			if (MeshLODIndex < 0) MeshLODIndex = SectionLodIndex;
-			check(MeshLODIndex == SectionLodIndex);
-
-			MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
-		}
-
-		Instance->Debug.MeshLODIndex = MeshLODIndex;
-		if (0 <= MeshLODIndex)
-		{
-			const EHairGeometryType InstanceGeometryType = Instance->GeometryType;
-			const EHairBindingType InstanceBindingType = Instance->BindingType;
-
-			const uint32 HairLODIndex = Instance->HairGroupPublicData->LODIndex;
-			const EHairBindingType BindingType = Instance->HairGroupPublicData->GetBindingType(HairLODIndex);
-			const bool bSimulationEnable = Instance->HairGroupPublicData->IsSimulationEnable(HairLODIndex);
-			const bool bDeformationEnable = Instance->HairGroupPublicData->bIsDeformationEnable;
-			const bool bGlobalDeformationEnable = Instance->HairGroupPublicData->IsGlobalInterpolationEnable(HairLODIndex);
-			check(InstanceBindingType == BindingType);
-
-			if (EHairInterpolationPassType::CardsAndMeshes == PassType)
-			{
-				if (InstanceGeometryType == EHairGeometryType::Cards)
-				{
-					if (Instance->Cards.IsValid(HairLODIndex))
-					{
-						FHairGroupInstance::FCards::FLOD& CardsInstance = Instance->Cards.LODs[HairLODIndex];
-						if (BindingType == EHairBindingType::Skinning || bGlobalDeformationEnable)
-						{
-							check(CardsInstance.Guides.IsValid());
-							check(CardsInstance.Guides.HasValidRootData());
-							check(CardsInstance.Guides.DeformedRootResource->IsValid(MeshLODIndex));
-
-							AddHairStrandUpdateMeshTrianglesPass(
-								GraphBuilder,
-								ShaderMap,
-								MeshLODIndex,
-								MeshDataLOD,
-								CardsInstance.Guides.RestRootResource,
-								CardsInstance.Guides.DeformedRootResource);
-
-							AddHairStrandUpdatePositionOffsetPass(
-								GraphBuilder,
-								ShaderMap,
-								EHairPositionUpdateType::Cards,
-								Instance->RegisteredIndex,
-								HairLODIndex,
-								MeshLODIndex,
-								CardsInstance.Guides.DeformedRootResource,
-								CardsInstance.Guides.DeformedResource);
-						}
-						else if (bSimulationEnable || bDeformationEnable)
-						{
-							check(CardsInstance.Guides.IsValid());
-							AddHairStrandUpdatePositionOffsetPass(
-								GraphBuilder,
-								ShaderMap,
-								EHairPositionUpdateType::Cards,
-								Instance->RegisteredIndex,
-								HairLODIndex,
-								MeshLODIndex,
-								nullptr,
-								CardsInstance.Guides.DeformedResource);
-						}
-					}
-				}
-				else if (InstanceGeometryType == EHairGeometryType::Meshes)
-				{
-					// Nothing to do
-				}
-			}
-		}
-	}
-
-	// Hair interpolation
-	if (EHairInterpolationPassType::CardsAndMeshes == PassType)
-	{
-		check(View);
-		const FVector& TranslatedWorldOffset = View->ViewMatrices.GetPreViewTranslation();
-		for (FHairStrandsInstance* AbstractInstance : Instances)
-		{
-			FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
-
-			const bool bGeometryCompatibleWithPassType =
-				(EHairInterpolationPassType::CardsAndMeshes == PassType && (Instance->GeometryType == EHairGeometryType::Cards || Instance->GeometryType == EHairGeometryType::Meshes));
-			if (bGeometryCompatibleWithPassType)
-			{
-				ComputeHairStrandsInterpolation(
-					GraphBuilder, 
-					ShaderMap,
-					ViewUniqueID,
-					ViewRayTracingMask,
-					ViewMode,
-					TranslatedWorldOffset,
-					ShaderPrintData,
-					Instance,
-					Instance->Debug.MeshLODIndex,
-					ClusterData);
-			}
-		}
-	}
 }
 
 static void RunHairStrandsInterpolation_Guide(
@@ -857,7 +708,7 @@ static void RunHairStrandsInterpolation_Strands(
 		{
 			check(Instance->Strands.HasValidData());
 		}
-	}	
+	}
 
 	FRDGExternalAccessQueue ExternalAccessQueue;
 	const EGroomViewMode ViewMode = GetGroomViewMode(*View);
@@ -1350,7 +1201,7 @@ static void RunHairStrandsInterpolation_Strands(
 					InstanceData.Instance->Guides.RestResource->GetPointCount(),
 					InstanceData.Instance->HairGroupPublicData,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)),
-					RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->TangentBuffer));					
+					RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->TangentBuffer));
 			}
 			InstanceData.Instance->HairGroupPublicData->VFInput = InternalComputeHairStrandsVertexInputData(&GraphBuilder, InstanceData.Instance, ViewMode);
 		}
@@ -1369,6 +1220,15 @@ static void RunHairStrandsInterpolation_Strands(
 	ExternalAccessQueue.Submit(GraphBuilder);
 }
 
+enum class EHairCardsSimulationType
+{
+	None,
+	Guide,
+	RBF
+};
+
+uint32 GetHairCardsInterpolationType();
+
 static void RunHairStrandsInterpolation_Cards(
 	FRDGBuilder& GraphBuilder,
 	FSceneInterface* Scene,
@@ -1379,24 +1239,373 @@ static void RunHairStrandsInterpolation_Cards(
 	const FShaderPrintData* ShaderPrintData,
 	FGlobalShaderMap* ShaderMap)
 {
-	if (Instances.IsEmpty()) { return; }
+	const bool bCardSupported = IsHairStrandsEnabled(EHairStrandsShaderType::Cards, Scene->GetShaderPlatform());
+	const bool bMeshSupported = IsHairStrandsEnabled(EHairStrandsShaderType::Meshes, Scene->GetShaderPlatform());
 
+	if (Instances.IsEmpty() || (!bCardSupported && !bMeshSupported)) { return; }
 	check(IsInRenderingThread());
+	check(View);
 
 	DECLARE_GPU_STAT(HairCardsInterpolation);
 	RDG_EVENT_SCOPE(GraphBuilder, "HairCardsInterpolation");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairCardsInterpolation);
 
-	RunInternalHairInterpolation(
-		GraphBuilder,
-		Scene,
-		View,
-		ViewUniqueID,
-		Instances,
-		ShaderPrintData,
-		ShaderMap,
-		EHairInterpolationPassType::CardsAndMeshes,
-		nullptr);
+	struct FInstanceData
+	{
+		uint32 RegisteredIndex = ~0;
+		int32 HairLODIndex = -1;
+		int32 MeshLODIndex = -1;
+		EHairBindingType BindingType = EHairBindingType::NoneBinding;
+		bool bSimulationEnable = false;
+		bool bDeformationEnable = false;
+		bool bGlobalDeformationEnable = false;
+		bool bValidGuide = false;
+		bool bHasSkinning = false;
+		bool bNeedDeformation = false;
+		EHairCardsSimulationType CardsSimulationType = EHairCardsSimulationType::None;
+		FHairGroupInstance::FCards::FLOD*  CardInstance = nullptr;
+		FHairGroupInstance::FMeshes::FLOD* MeshInstance = nullptr;
+		FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
+		FHairGroupInstance* Instance = nullptr;
+	};
+
+	// Gather all strands instances
+	TArray<FInstanceData> InstanceDatas;
+	TArray<uint32> MeshInstances;
+	TArray<uint32> CardInstances;
+	MeshInstances.Reserve(Instances.Num());
+	CardInstances.Reserve(Instances.Num());
+	for (FHairStrandsInstance* AbstractInstance : Instances)
+	{
+		FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
+		check(Instance->HairGroupPublicData);
+		
+		if (Instance->GeometryType == EHairGeometryType::Cards || Instance->GeometryType == EHairGeometryType::Meshes)
+		{
+			const uint32 HairLODIndex = Instance->HairGroupPublicData->LODIndex;
+			if (Instance->GeometryType == EHairGeometryType::Cards  && (!bCardSupported || !Instance->Cards.IsValid(HairLODIndex)))  { continue; }
+			if (Instance->GeometryType == EHairGeometryType::Meshes && (!bMeshSupported || !Instance->Meshes.IsValid(HairLODIndex))) { continue; }
+
+			if (Instance->GeometryType == EHairGeometryType::Cards)
+			{	
+				CardInstances.Add(InstanceDatas.Num());
+			}
+			else if (Instance->GeometryType == EHairGeometryType::Meshes)
+			{	
+				MeshInstances.Add(InstanceDatas.Num());
+			}
+
+			// Common instance parameters
+			FInstanceData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
+			InstanceData.RegisteredIndex			= Instance->RegisteredIndex;
+			InstanceData.Instance 					= Instance;
+			InstanceData.BindingType 				= Instance->BindingType;
+			InstanceData.HairLODIndex 				= HairLODIndex;
+			InstanceData.bSimulationEnable 			= Instance->HairGroupPublicData->IsSimulationEnable(HairLODIndex);
+			InstanceData.bDeformationEnable 		= Instance->HairGroupPublicData->bIsDeformationEnable;
+			InstanceData.bGlobalDeformationEnable 	= Instance->HairGroupPublicData->IsGlobalInterpolationEnable(HairLODIndex);
+			InstanceData.MeshLODIndex				= -1;
+
+			// Binding surface parameters (skel.mesh/geom. cache)
+			FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
+			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
+			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+			{	
+				InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+			}
+			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
+
+			// Card or Mesh specific parameters
+			if (Instance->GeometryType == EHairGeometryType::Cards)
+			{
+				InstanceData.CardInstance 			= &Instance->Cards.LODs[InstanceData.HairLODIndex];
+				InstanceData.bValidGuide			= InstanceData.Instance->Guides.bIsSimulationEnable || InstanceData.Instance->Guides.bHasGlobalInterpolation || InstanceData.Instance->Guides.bIsDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable;
+				InstanceData.bHasSkinning			= InstanceData.BindingType == EHairBindingType::Skinning && InstanceData.MeshLODIndex >= 0;
+				InstanceData.bNeedDeformation		= InstanceData.bValidGuide || InstanceData.bHasSkinning;
+				InstanceData.CardsSimulationType 	= EHairCardsSimulationType::None;
+				if (InstanceData.bHasSkinning || InstanceData.bValidGuide)
+				{
+					switch (GetHairCardsInterpolationType())
+					{
+						case 0 : InstanceData.CardsSimulationType = EHairCardsSimulationType::None; break;
+						case 1 : InstanceData.CardsSimulationType = EHairCardsSimulationType::Guide; break;
+						case 2 : InstanceData.CardsSimulationType = EHairCardsSimulationType::RBF;  break;
+					}
+				}
+
+				if (InstanceData.bNeedDeformation)
+				{
+					check(InstanceData.CardInstance->Guides.Data);
+				}
+				if (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable)
+				{
+					check(InstanceData.CardInstance->Guides.IsValid());
+				}
+				if (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable)
+				{
+					check(InstanceData.CardInstance->Guides.IsValid());
+					check(InstanceData.CardInstance->Guides.HasValidRootData());
+					check(InstanceData.CardInstance->Guides.DeformedRootResource->IsValid(InstanceData.MeshLODIndex));
+				}
+			}
+			else if (Instance->GeometryType == EHairGeometryType::Meshes)
+			{
+				check(Instance->Meshes.IsValid(InstanceData.HairLODIndex));
+				InstanceData.bNeedDeformation 	= Instance->Meshes.LODs[InstanceData.HairLODIndex].DeformedResource != nullptr;
+				InstanceData.MeshInstance 		= &Instance->Meshes.LODs[InstanceData.HairLODIndex];
+				if (InstanceData.bNeedDeformation)
+				{
+					check(Instance->BindingType == EHairBindingType::Skinning);
+					check(Instance->Guides.IsValid());
+					check(Instance->Guides.HasValidRootData());
+					check(Instance->Guides.DeformedRootResource);
+					// MeshLODIndex -1 indicates that skin cache is disabled and this is a workaround to prevent the editor from crashing 
+					// An editor setting guildeline popup exists to inform the user that the skin cache should be enabled. 
+					check(InstanceData.MeshLODIndex == -1 || Instance->Guides.DeformedRootResource->IsValid(InstanceData.MeshLODIndex)); 
+				}
+			}
+
+			// Prepare VF input
+			InstanceData.Instance->HairGroupPublicData->VFInput.Cards  					= FHairGroupPublicData::FVertexFactoryInput::FCards();
+			InstanceData.Instance->HairGroupPublicData->VFInput.Meshes 					= FHairGroupPublicData::FVertexFactoryInput::FMeshes();
+			InstanceData.Instance->HairGroupPublicData->VFInput.GeometryType 			= InstanceData.Instance->GeometryType;
+			InstanceData.Instance->HairGroupPublicData->VFInput.LocalToWorldTransform 	= Instance->GetCurrentLocalToWorld();
+			InstanceData.Instance->HairGroupPublicData->bSupportVoxelization 			= false;
+		}
+	}
+
+	// Cards only - Update dynamic mesh triangles
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
+		{
+			AddHairStrandUpdateMeshTrianglesPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.MeshLODIndex,
+				InstanceData.MeshDataLOD,
+				InstanceData.CardInstance->Guides.RestRootResource,
+				InstanceData.CardInstance->Guides.DeformedRootResource);
+		}
+	}
+
+	// Cards only - Update position offset (GPU)
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable))
+		{
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				EHairPositionUpdateType::Cards,
+				InstanceData.RegisteredIndex,
+				InstanceData.HairLODIndex,
+				InstanceData.MeshLODIndex,
+				InstanceData.CardInstance->Guides.DeformedRootResource,
+				InstanceData.CardInstance->Guides.DeformedResource);
+		}
+	}
+
+	// Cards only - Update position offset (CPU)
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		if (InstanceData.MeshLODIndex >= 0 && InstanceData.BindingType != EHairBindingType::Skinning && !InstanceData.bGlobalDeformationEnable && (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable))
+		{
+			AddHairStrandUpdatePositionOffsetPass(
+				GraphBuilder,
+				ShaderMap,
+				EHairPositionUpdateType::Cards,
+				InstanceData.RegisteredIndex,
+				InstanceData.HairLODIndex,
+				InstanceData.MeshLODIndex,
+				nullptr,
+				InstanceData.CardInstance->Guides.DeformedResource);
+		}
+	}
+
+	FRDGExternalAccessQueue ExternalAccessQueue;
+
+	// Cards only - Deform guide with skinning and/or simulation
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		FHairGroupInstance::FCards::FLOD& LOD = *InstanceData.CardInstance;
+
+		if (InstanceData.bNeedDeformation)
+		{
+			// 1. Cards are deformed based on guides motion (simulation or RBF applied on guides)
+			if (InstanceData.CardsSimulationType == EHairCardsSimulationType::Guide)
+			{
+				FRDGBufferUAVRef Guides_DeformedPositionUAV = RegisterAsUAV(GraphBuilder, LOD.Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current));
+
+				const bool bUseSingleGuide = LOD.Guides.InterpolationResource->UseSingleGuide();
+
+				FRDGHairStrandsCullingData CullingData;
+				AddHairStrandsInterpolationPass(
+					GraphBuilder,
+					ShaderMap,
+					ShaderPrintData,
+					InstanceData.Instance,
+					LOD.Guides.RestResource->GetPointCount(),
+					InstanceData.MeshLODIndex,
+					1.0f,
+					LOD.Guides.HairInterpolationType,
+					EHairGeometryType::Cards,
+					CullingData,
+					LOD.Guides.RestResource->GetPositionOffset(),
+					InstanceData.bValidGuide ? InstanceData.Instance->Guides.RestResource->GetPositionOffset() : FVector::ZeroVector,
+					RegisterAsSRV(GraphBuilder, LOD.Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
+					InstanceData.bHasSkinning ? LOD.Guides.RestRootResource : nullptr ,
+					InstanceData.bHasSkinning && InstanceData.bValidGuide ? InstanceData.Instance->Guides.RestRootResource : nullptr,
+					InstanceData.bHasSkinning ? LOD.Guides.DeformedRootResource : nullptr,
+					InstanceData.bHasSkinning && InstanceData.bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
+					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PointToCurveBuffer),
+					bUseSingleGuide,
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->InterpolationBuffer) : nullptr,
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
+					RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->SimRootPointIndexBuffer),
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
+					nullptr,
+					Guides_DeformedPositionUAV,
+					FHairStrandsDeformedRootResource::FLOD::Current); // <- this should be optional
+			}
+		}
+	}
+
+	// Cards only - Deform final cards geometry (using guides)
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		FHairGroupInstance::FCards::FLOD& LOD = *InstanceData.CardInstance;
+
+		if (InstanceData.bNeedDeformation)
+		{
+			// 1. Cards are deformed based on guides motion (simulation or RBF applied on guides)
+			if (InstanceData.CardsSimulationType == EHairCardsSimulationType::Guide)
+			{
+				AddHairCardsDeformationPass(
+					GraphBuilder,
+					ShaderMap,
+					ShaderPrintData,
+					InstanceData.Instance,
+					InstanceData.MeshLODIndex);
+			}
+		}
+	}
+
+	// Cards only - Deform final cards geometry (using RBF)
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		FHairGroupInstance::FCards::FLOD& LOD = *InstanceData.CardInstance;
+
+		if (InstanceData.bNeedDeformation)
+		{
+			// 2. Cards are deformed only based on skel. mesh RBF data)
+			if (InstanceData.CardsSimulationType == EHairCardsSimulationType::RBF)
+			{
+				AddHairCardsRBFInterpolationPass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.MeshLODIndex,
+					LOD.RestResource,
+					LOD.DeformedResource,
+					InstanceData.Instance->Guides.RestRootResource,
+					InstanceData.Instance->Guides.DeformedRootResource);
+			}
+		}
+	}
+
+	for (uint32 InstanceIndex : CardInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		FHairGroupInstance::FCards::FLOD& LOD = *InstanceData.CardInstance;
+
+		if (InstanceData.bNeedDeformation)
+		{		
+			// 2. Cards are deformed only based on skel. mesh RBF data)
+			if (InstanceData.CardsSimulationType == EHairCardsSimulationType::RBF)
+			{
+				AddHairCardsRBFInterpolationPass(
+					GraphBuilder,
+					ShaderMap,
+					InstanceData.MeshLODIndex,
+					LOD.RestResource,
+					LOD.DeformedResource,
+					InstanceData.Instance->Guides.RestRootResource,
+					InstanceData.Instance->Guides.DeformedRootResource);
+			}
+
+			if (LOD.DeformedResource)
+			{
+				ExternalAccessQueue.Add(Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
+				ExternalAccessQueue.Add(Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Previous), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
+			}
+		}
+	}
+
+	// Cards only - Build/update RT geometry
+	#if RHI_RAYTRACING
+	if (IsRayTracingEnabled())
+	{
+		for (uint32 InstanceIndex : CardInstances)
+		{
+			FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+			if (InstanceData.CardInstance->RaytracingResource)
+			{
+				AddBuildHairCardAccelerationStructurePass(
+					GraphBuilder,
+					InstanceData.Instance,
+					InstanceData.HairLODIndex,
+					InstanceData.bNeedDeformation);
+			}
+		}
+	}
+	#endif
+
+	// Meshes only - Deform final mesh geometry (using RBF)
+	for (uint32 InstanceIndex : MeshInstances)
+	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		AddHairMeshesRBFInterpolationPass(
+			GraphBuilder,
+			ShaderMap,
+			InstanceData.MeshLODIndex,
+			InstanceData.MeshInstance->RestResource,
+			InstanceData.MeshInstance->DeformedResource,
+			InstanceData.Instance->Guides.RestRootResource,
+			InstanceData.Instance->Guides.DeformedRootResource);
+
+		ExternalAccessQueue.Add(Register(GraphBuilder, InstanceData.MeshInstance->DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
+	}
+
+	// Meshes only - Build/update RT geometry
+	#if RHI_RAYTRACING
+	if (IsRayTracingEnabled())
+	{
+		for (uint32 InstanceIndex : MeshInstances)
+		{
+			FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+			if (InstanceData.MeshInstance->RaytracingResource)
+			{
+				AddBuildHairMeshAccelerationStructurePass(
+					GraphBuilder,
+					InstanceData.Instance,
+					InstanceData.HairLODIndex,
+					InstanceData.bNeedDeformation);
+			}
+		}
+	}
+	#endif
+
+	ExternalAccessQueue.Submit(GraphBuilder);
 }
 
 // Return the LOD which should be used for a given screen size and LOD bias value

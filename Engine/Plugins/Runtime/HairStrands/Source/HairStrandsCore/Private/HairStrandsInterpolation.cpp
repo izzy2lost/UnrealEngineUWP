@@ -53,12 +53,10 @@ static FAutoConsoleVariableRef CVarHairRTGeomForceRebuild(TEXT("r.HairStrands.St
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class EHairCardsSimulationType
+uint32 GetHairCardsInterpolationType()
 {
-	None,
-	Guide,
-	RBF
-};
+	return FMath::Clamp(GHairCardsInterpolationType, 0, 2);
+}
 
 bool IsHairStrandsTransferPositionOnLODChange()
 {
@@ -68,18 +66,6 @@ bool IsHairStrandsTransferPositionOnLODChange()
 bool IsHairStrandsForceRebuildBVH()
 {
 	return GHairStrands_Raytracing_ForceRebuildBVH > 0;
-}
-
-EHairCardsSimulationType GetHairCardsSimulationType()
-{
-	return GHairCardsInterpolationType >= 2 ? 
-		EHairCardsSimulationType::RBF : 
-		(GHairCardsInterpolationType >= 1 ? EHairCardsSimulationType::Guide : EHairCardsSimulationType::None);
-}
-
-bool NeedsUpdateCardsMeshTriangles()
-{
-	return GetHairCardsSimulationType() == EHairCardsSimulationType::Guide;
 }
 
 uint32 GetHairRaytracingProceduralSplits()
@@ -941,7 +927,7 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FHairCardsDeformationCS, "/Engine/Private/HairStrands/HairCardsDeformation.usf", "MainCS", SF_Compute);
 
-static void AddHairCardsDeformationPass(
+void AddHairCardsDeformationPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const FShaderPrintData* ShaderPrintData,
@@ -1502,6 +1488,89 @@ void AddBuildStrandsAccelerationStructurePass(
 		});
 }
 
+void AddBuildHairCardAccelerationStructurePass(
+	FRDGBuilder& GraphBuilder,
+	FHairGroupInstance* Instance,
+	int32 HairLODIndex,
+	bool bNeedUpdate)
+{
+	check(Instance);
+	check(Instance->Cards.LODs.IsValidIndex(HairLODIndex));
+
+	FHairGroupInstance::FCards::FLOD& LOD = Instance->Cards.LODs[HairLODIndex];
+	FCardsOrMeshesResourceBLASParameters* Parameters = GraphBuilder.AllocParameters<FCardsOrMeshesResourceBLASParameters>();
+	Parameters->PositionBuffer = LOD.DeformedResource ? Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer : nullptr;
+
+	// * When cards are dynamic, RT geometry is built once and then update.
+	// * When cards are static (i.e., no sim, not attached to  skinning()), in which case RT geometry needs only to be built once. This static geometry is shared between all the instances, 
+	//   and owned by the asset, rathter than the component. In this case the RT geometry will be built only once for all the instances
+	const bool bNeedBuild = !LOD.RaytracingResource->bIsRTGeometryInitialized;
+	if (bNeedBuild || bNeedUpdate)
+	{
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("HairStrands::UpdateBLAS(Cards)"),
+			Parameters,
+			ERDGPassFlags::NeverCull | ERDGPassFlags::Compute,
+			[Instance, HairLODIndex, bNeedUpdate](FRHICommandListImmediate& RHICmdList)
+		{
+			SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
+
+			FHairGroupInstance::FCards::FLOD& LocalLOD = Instance->Cards.LODs[HairLODIndex];
+
+			const bool bLocalNeedBuild = !LocalLOD.RaytracingResource->bIsRTGeometryInitialized;
+			if (bLocalNeedBuild)
+			{
+				BuildHairAccelerationStructure_Cards(RHICmdList, LocalLOD.RestResource, LocalLOD.DeformedResource, &LocalLOD.RaytracingResource->RayTracingGeometry, Instance->Debug.GroomAssetName, Instance->Debug.MeshComponentName, HairLODIndex);
+				LocalLOD.RaytracingResource->bIsRTGeometryInitialized = true;
+			}
+			else if (bNeedUpdate)
+			{
+				// TODO: evaluate perf tradeoff of rebuild vs refit
+				UpdateHairAccelerationStructure(RHICmdList, &LocalLOD.RaytracingResource->RayTracingGeometry, EAccelerationStructureBuildMode::Update);
+			}
+		});
+	}
+}
+
+void AddBuildHairMeshAccelerationStructurePass(
+	FRDGBuilder& GraphBuilder,
+	FHairGroupInstance* Instance,
+	int32 HairLODIndex,
+	bool bNeedUpdate)
+{
+	check(Instance);
+	check(Instance->Meshes.LODs.IsValidIndex(HairLODIndex));
+
+	FHairGroupInstance::FMeshes::FLOD& LOD = Instance->Meshes.LODs[HairLODIndex];
+	FCardsOrMeshesResourceBLASParameters* Parameters = GraphBuilder.AllocParameters<FCardsOrMeshesResourceBLASParameters>();
+	Parameters->PositionBuffer = LOD.DeformedResource ? Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer : nullptr;
+
+	const bool bNeedBuid = !LOD.RaytracingResource->bIsRTGeometryInitialized;
+	if (bNeedBuid || bNeedUpdate)
+	{
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("HairStrands::UpdateBLAS(Meshes)"),
+			Parameters,
+			ERDGPassFlags::NeverCull | ERDGPassFlags::Compute,
+			[Instance, HairLODIndex, bNeedUpdate](FRHICommandListImmediate& RHICmdList)
+			{
+				SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
+
+				FHairGroupInstance::FMeshes::FLOD& LocalLOD = Instance->Meshes.LODs[HairLODIndex];	
+				const bool bLocalNeedBuild = !LocalLOD.RaytracingResource->bIsRTGeometryInitialized;
+				if (bLocalNeedBuild)
+				{
+					BuildHairAccelerationStructure_Meshes(RHICmdList, LocalLOD.RestResource, LocalLOD.DeformedResource,  &LocalLOD.RaytracingResource->RayTracingGeometry, Instance->Debug.GroomAssetName, HairLODIndex);
+					LocalLOD.RaytracingResource->bIsRTGeometryInitialized = true;
+				}
+				else if (bNeedUpdate)
+				{
+					// TODO: evaluate perf tradeoff of rebuild vs refit
+					UpdateHairAccelerationStructure(RHICmdList, &LocalLOD.RaytracingResource->RayTracingGeometry, EAccelerationStructureBuildMode::Update);
+				}
+			});
+	}
+}
 #endif // RHI_RAYTRACING
 
 static void ConvertHairStrandsVFParameters(
@@ -1673,237 +1742,4 @@ EGroomCacheType GetHairInstanceCacheType(const FHairGroupInstance* Instance)
 		Instance->Debug.GroomCacheBuffers->GetCurrentFrameBuffer().GroupsData.IsValidIndex(Instance->Debug.GroupIndex) && 
 		Instance->Debug.GroomCacheBuffers->GetNextFrameBuffer().GroupsData.IsValidIndex(Instance->Debug.GroupIndex);
 	return bHasValidGroomCacheBuffers ? Instance->Debug.GroomCacheType : EGroomCacheType::None;
-}
-
-void ComputeHairStrandsInterpolation(
-	FRDGBuilder& GraphBuilder,
-	FGlobalShaderMap* ShaderMap,
-	const uint32 ViewUniqueID,
-	const uint32 ViewRayTracingMask,
-	const EGroomViewMode ViewMode,
-	const FVector& TranslatedWorldOffset,
-	const FShaderPrintData* ShaderPrintData,
-	FHairGroupInstance* Instance,
-	int32 MeshLODIndex,
-	FHairStrandClusterData* InClusterData)
-{	
-	if (!Instance)
-	{
-		return;
-	}
-
-	// Reset
-	Instance->HairGroupPublicData->VFInput.Strands	= FHairGroupPublicData::FVertexFactoryInput::FStrands();
-	Instance->HairGroupPublicData->VFInput.Cards	= FHairGroupPublicData::FVertexFactoryInput::FCards();
-	Instance->HairGroupPublicData->VFInput.Meshes	= FHairGroupPublicData::FVertexFactoryInput::FMeshes();
-	const EHairGeometryType InstanceGeometryType	= Instance->GeometryType;
-
-	FRDGExternalAccessQueue ExternalAccessQueue;
-
-	if (InstanceGeometryType == EHairGeometryType::Cards)
-	{	
-		DECLARE_GPU_STAT(HairCardsInterpolation);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairInterpolation(Cards)");
-		RDG_GPU_STAT_SCOPE(GraphBuilder, HairCardsInterpolation);
-
-		const uint32 HairLODIndex = Instance->HairGroupPublicData->GetIntLODIndex();
-		const bool bIsCardsValid = Instance->Cards.IsValid(HairLODIndex);
-		if (bIsCardsValid)
-		{
-			const bool bValidGuide = Instance->Guides.bIsSimulationEnable || Instance->Guides.bHasGlobalInterpolation || Instance->Guides.bIsDeformationEnable || Instance->Guides.bIsSimulationCacheEnable;
-			const bool bHasSkinning = Instance->BindingType == EHairBindingType::Skinning && MeshLODIndex >= 0;
-			const bool bNeedDeformation = bValidGuide || bHasSkinning;
-
-			FHairGroupInstance::FCards::FLOD& LOD = Instance->Cards.LODs[HairLODIndex];
-
-			if (bNeedDeformation)
-			{
-				check(LOD.Guides.Data);
-
-				const EHairCardsSimulationType CardsSimulationType = 
-					bHasSkinning || bValidGuide ?
-					GetHairCardsSimulationType() :
-					EHairCardsSimulationType::None;
-
-				// 1. Cards are deformed based on guides motion (simulation or RBF applied on guides)
-				if (CardsSimulationType == EHairCardsSimulationType::Guide)
-				{
-					FRDGBufferUAVRef Guides_DeformedPositionUAV = RegisterAsUAV(GraphBuilder, LOD.Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current));
-
-					const bool bUseSingleGuide = LOD.Guides.InterpolationResource->UseSingleGuide();
-
-					FRDGHairStrandsCullingData CullingData;
-					AddHairStrandsInterpolationPass(
-						GraphBuilder,
-						ShaderMap,
-						ShaderPrintData,
-						Instance,
-						LOD.Guides.RestResource->GetPointCount(),
-						MeshLODIndex,
-						1.0f,
-						LOD.Guides.HairInterpolationType,
-						InstanceGeometryType,
-						CullingData,
-						LOD.Guides.RestResource->GetPositionOffset(),
-						bValidGuide ? Instance->Guides.RestResource->GetPositionOffset() : FVector::ZeroVector,
-						RegisterAsSRV(GraphBuilder, LOD.Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)),
-						bValidGuide ? RegisterAsSRV(GraphBuilder, Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-						bHasSkinning ? LOD.Guides.RestRootResource : nullptr ,
-						bHasSkinning && bValidGuide ? Instance->Guides.RestRootResource : nullptr,
-						bHasSkinning ? LOD.Guides.DeformedRootResource : nullptr,
-						bHasSkinning && bValidGuide ? Instance->Guides.DeformedRootResource : nullptr,
-						RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PositionBuffer),
-						RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PointToCurveBuffer),
-						bUseSingleGuide,
-						bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->InterpolationBuffer) : nullptr,
-						bValidGuide ? RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PositionBuffer) : nullptr,
-						bValidGuide ? RegisterAsSRV(GraphBuilder, Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-						RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->SimRootPointIndexBuffer),
-						bValidGuide ? RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
-						nullptr,
-						Guides_DeformedPositionUAV,
-						FHairStrandsDeformedRootResource::FLOD::Current); // <- this should be optional
-
-					AddHairCardsDeformationPass(
-						GraphBuilder,
-						ShaderMap,
-						ShaderPrintData,
-						Instance,
-						MeshLODIndex);
-				}
-				// 2. Cards are deformed only based on skel. mesh RBF data)
-				else if (CardsSimulationType == EHairCardsSimulationType::RBF)
-				{
-					AddHairCardsRBFInterpolationPass(
-						GraphBuilder,
-						ShaderMap,
-						MeshLODIndex,
-						LOD.RestResource,
-						LOD.DeformedResource,
-						Instance->Guides.RestRootResource,
-						Instance->Guides.DeformedRootResource);
-				}
-
-				if (LOD.DeformedResource)
-				{
-					ExternalAccessQueue.Add(Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
-					ExternalAccessQueue.Add(Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Previous), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
-				}
-			}
-
-			#if RHI_RAYTRACING
-			if (LOD.RaytracingResource && IsRayTracingEnabled())
-			{
-				FCardsOrMeshesResourceBLASParameters* Parameters = GraphBuilder.AllocParameters<FCardsOrMeshesResourceBLASParameters>();
-				Parameters->PositionBuffer = LOD.DeformedResource ? Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairCardsDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer : nullptr;
-
-				// * When cards are dynamic, RT geometry is built once and then update.
-				// * When cards are static (i.e., no sim, not attached to  skinning()), in which case RT geometry needs only to be built once. This static geometry is shared between all the instances, 
-				//   and owned by the asset, rathter than the component. In this case the RT geometry will be built only once for all the instances
-				const bool bNeedUpdate = bNeedDeformation;
-				const bool bNeedBuild = !LOD.RaytracingResource->bIsRTGeometryInitialized;
-				if (bNeedBuild || bNeedUpdate)
-				{
-					GraphBuilder.AddPass(
-						RDG_EVENT_NAME("HairStrands::UpdateBLAS(Cards)"),
-						Parameters,
-						ERDGPassFlags::NeverCull | ERDGPassFlags::Compute,
-						[Instance, HairLODIndex, bNeedUpdate](FRHICommandListImmediate& RHICmdList)
-					{
-						SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
-
-						FHairGroupInstance::FCards::FLOD& LocalLOD = Instance->Cards.LODs[HairLODIndex];
-
-						const bool bLocalNeedBuild = !LocalLOD.RaytracingResource->bIsRTGeometryInitialized;
-						if (bLocalNeedBuild)
-						{
-							BuildHairAccelerationStructure_Cards(RHICmdList, LocalLOD.RestResource, LocalLOD.DeformedResource, &LocalLOD.RaytracingResource->RayTracingGeometry, Instance->Debug.GroomAssetName, Instance->Debug.MeshComponentName, HairLODIndex);
-							LocalLOD.RaytracingResource->bIsRTGeometryInitialized = true;
-						}
-						else if (bNeedUpdate)
-						{
-							// TODO: evaluate perf tradeoff of rebuild vs refit
-							UpdateHairAccelerationStructure(RHICmdList, &LocalLOD.RaytracingResource->RayTracingGeometry, EAccelerationStructureBuildMode::Update);
-						}
-					});
-				}
-			}
-			#endif
-		}
-	}
-	else if (InstanceGeometryType == EHairGeometryType::Meshes)
-	{
-		DECLARE_GPU_STAT(HairMeshesInterpolation);
-		RDG_EVENT_SCOPE(GraphBuilder, "HairInterpolation(Meshes)");
-		RDG_GPU_STAT_SCOPE(GraphBuilder, HairMeshesInterpolation);
-
-		const uint32 HairLODIndex = Instance->HairGroupPublicData->GetIntLODIndex();
-		if (Instance->Meshes.IsValid(HairLODIndex))
-		{
-			const bool bNeedDeformation = Instance->Meshes.LODs[HairLODIndex].DeformedResource != nullptr;
-			if (bNeedDeformation)
-			{
-				FHairGroupInstance::FMeshes::FLOD& MeshesInstance = Instance->Meshes.LODs[HairLODIndex];
-
-				check(Instance->BindingType == EHairBindingType::Skinning)
-				check(Instance->Guides.IsValid());
-				check(Instance->Guides.HasValidRootData());
-				check(Instance->Guides.DeformedRootResource);
-				check(MeshLODIndex == -1 || Instance->Guides.DeformedRootResource->IsValid(MeshLODIndex)); //MeshLODIndex -1 indicates that skin cache is disabled and this is a workaround to prevent the editor from crashing - an editor setting guildeline popup exists to inform the user that the skin cache should be enabled. 
-
-				AddHairMeshesRBFInterpolationPass(
-					GraphBuilder,
-					ShaderMap,
-					MeshLODIndex,
-					MeshesInstance.RestResource,
-					MeshesInstance.DeformedResource,
-					Instance->Guides.RestRootResource,
-					Instance->Guides.DeformedRootResource);
-
-				ExternalAccessQueue.Add(Register(GraphBuilder, MeshesInstance.DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
-			}
-
-			#if RHI_RAYTRACING
-			FHairGroupInstance::FMeshes::FLOD& LOD = Instance->Meshes.LODs[HairLODIndex];
-			if (LOD.RaytracingResource && IsRayTracingEnabled())
-			{
-				FCardsOrMeshesResourceBLASParameters* Parameters = GraphBuilder.AllocParameters<FCardsOrMeshesResourceBLASParameters>();
-				Parameters->PositionBuffer = LOD.DeformedResource ? Register(GraphBuilder, LOD.DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer : nullptr;
-
-				const bool bNeedUpdate = bNeedDeformation;
-				const bool bNeedBuid = !LOD.RaytracingResource->bIsRTGeometryInitialized;
-				if (bNeedBuid || bNeedUpdate)
-				{
-					GraphBuilder.AddPass(
-						RDG_EVENT_NAME("HairStrands::UpdateBLAS(Meshes)"),
-						Parameters,
-						ERDGPassFlags::NeverCull | ERDGPassFlags::Compute,
-						[Instance, HairLODIndex, bNeedUpdate](FRHICommandListImmediate& RHICmdList)
-					{
-						SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
-
-						FHairGroupInstance::FMeshes::FLOD& LocalLOD = Instance->Meshes.LODs[HairLODIndex];				
-						const bool bLocalNeedBuild = !LocalLOD.RaytracingResource->bIsRTGeometryInitialized;
-						if (bLocalNeedBuild)
-						{
-							BuildHairAccelerationStructure_Meshes(RHICmdList, LocalLOD.RestResource, LocalLOD.DeformedResource,  &LocalLOD.RaytracingResource->RayTracingGeometry, Instance->Debug.GroomAssetName, HairLODIndex);
-							LocalLOD.RaytracingResource->bIsRTGeometryInitialized = true;
-						}
-						else if (bNeedUpdate)
-						{
-							// TODO: evaluate perf tradeoff of rebuild vs refit
-							UpdateHairAccelerationStructure(RHICmdList, &LocalLOD.RaytracingResource->RayTracingGeometry, EAccelerationStructureBuildMode::Update);
-						}
-					});
-				}
-			}
-			#endif
-		}
-	}
-
-	Instance->HairGroupPublicData->VFInput.GeometryType = InstanceGeometryType;
-	Instance->HairGroupPublicData->VFInput.LocalToWorldTransform = Instance->GetCurrentLocalToWorld();
-	Instance->HairGroupPublicData->bSupportVoxelization = Instance->Strands.Modifier.bSupportVoxelization && Instance->bCastShadow;
-
-	ExternalAccessQueue.Submit(GraphBuilder);
 }
