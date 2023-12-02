@@ -45,7 +45,7 @@ namespace Horde.Server.Utilities
 		{
 			IBsonSerializerRegistry serializerRegistry = BsonSerializer.SerializerRegistry;
 			IBsonSerializer<T> documentSerializer = serializerRegistry.GetSerializer<T>();
-			return filter.Render(documentSerializer, serializerRegistry);
+			return filter.Render(documentSerializer, serializerRegistry, MongoDB.Driver.Linq.LinqProvider.V2);
 		}
 
 		/// <summary>
@@ -55,7 +55,7 @@ namespace Horde.Server.Utilities
 		{
 			IBsonSerializerRegistry serializerRegistry = BsonSerializer.SerializerRegistry;
 			IBsonSerializer<T> documentSerializer = serializerRegistry.GetSerializer<T>();
-			return update.Render(documentSerializer, serializerRegistry);
+			return update.Render(documentSerializer, serializerRegistry, MongoDB.Driver.Linq.LinqProvider.V2);
 		}
 
 		/// <summary>

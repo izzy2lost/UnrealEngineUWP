@@ -52,7 +52,7 @@ namespace Horde.Server.Utilities
 
 		public async Task<List<TDocument>> FindAsync(FilterDefinition<TDocument> filter, int index, int count)
 		{
-			BsonDocument rendered = filter.Render(BsonSerializer.LookupSerializer<TDocument>(), BsonSerializer.SerializerRegistry);
+			BsonDocument rendered = filter.Render(BsonSerializer.LookupSerializer<TDocument>(), BsonSerializer.SerializerRegistry, MongoDB.Driver.Linq.LinqProvider.V2);
 			BsonDocument document = new BsonDocument { new BsonElement("filter", rendered), new BsonElement("index", index), new BsonElement("count", count) };
 
 			string filterKey = document.ToString();
