@@ -336,7 +336,7 @@ FTexturePlatformData* UTexture2D::GetPlatformData()
 // placeholders value to ensure rendering works as expected and that
 // there are no thread-unsafe access to the platform data being built.
 // Any process requiring a fully up-to-date platform data is expected to
-// call FTextureCompiler:Get().FinishCompilation on UTexture first.
+// call FTextureCompilingManager:Get().FinishCompilation on UTexture first.
 int32 UTexture2D::GetSizeX() const
 {
 	if (PrivatePlatformData)
