@@ -232,6 +232,9 @@ public:
 	 * @param InParams		Params about how to set up the texture.
 	 * @return				Returns a pointer to the constructed 2D texture object.
 	 *
+	 * this fills a TextureSource , and will then Build a Platform texture from that
+	 * can be used WITH_EDITOR only
+	 * contrast to CreateTexture2DFromImage
 	 */
 	ENGINE_API static UTexture2D* CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const TArray<FColor> &SrcData, UObject* Outer, const FString& Name, const EObjectFlags &Flags, const FCreateTexture2DParameters& InParams);
 	
@@ -240,6 +243,9 @@ public:
 	 * 
 	 * @param Image			Image that will be copied into a Texture
 	 * @return				Returns a pointer to the constructed 2D texture object.
+	 *
+	 * NOTE: this makes a Transient texture with the Image in the PlatformData
+	 * this is different than making a Texture via TextureSource.Init(Image)
 	 */	
 	ENGINE_API static UTexture2D* CreateTexture2DFromImage(const FImageView & Image);
 
@@ -253,6 +259,7 @@ public:
 	 * @param SrcData			Raw image array.
 	 * @param DstData			compressed image array.
 	 *
+	 * DEPRECATED, avoid this, uses the bad image resize
 	 */
 	ENGINE_API static void CropAndScaleImage( int32 SrcWidth, int32 SrcHeight, int32 DesiredWidth, int32 DesiredHeight, const TArray<FColor> &SrcData, TArray<FColor> &DstData  );
 
@@ -385,11 +392,17 @@ public:
 
 	/**
 	 * Imports a texture file from disk and creates Texture2D from it
+	 *
+	 * note this make a Transient / PlatformData only Texture (no TextureSource)
+	 *
 	 */
 	ENGINE_API static UTexture2D* ImportFileAsTexture2D(const FString& Filename);
 
 	/**
 	 * Imports a texture a buffer and creates Texture2D from it
+	 *
+	 * note this make a Transient / PlatformData only Texture (no TextureSource)
+	 *
 	 */
 	ENGINE_API static UTexture2D* ImportBufferAsTexture2D(TArrayView64<const uint8> Buffer);
 	ENGINE_API static UTexture2D* ImportBufferAsTexture2D(const TArray<uint8>& Buffer);
@@ -416,8 +429,7 @@ public:
 	*/
 	ENGINE_API static bool ExportTextureCubeAsHDR(UTextureCube* TexRT, FArchive& Ar);
 
-	// Should be removed from public API.
-	//  Move out of header.
+	UE_DEPRECATED(5.5, "Use GetRenderTargetImage")
 	ENGINE_API static bool GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& RawData);
 	
 	/**

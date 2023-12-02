@@ -93,15 +93,19 @@ public:
 	* @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
 	* @param InSrcRect - InSrcRect not specified means the whole rect
 	* @return True if the read succeeded.
+	*
+	* This will convert whatever the pixel format is to FColor
 	*/
 	ENGINE_API virtual bool ReadPixels(TArray<FColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
 	/**
 	* Reads the render target's displayed pixels into a preallocated color buffer.
 	* @param OutImageBytes - RGBA8 values will be stored in this buffer.  Buffer must be preallocated with the correct size!
-	* * @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
+	* @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
 	* @param InSrcRect - InSrcRect not specified means the whole rect
 	* @return True if the read succeeded.
+	*
+	* Ptr variant of this API just does an extra memcpy; prefer the TArray variant
 	*/
 	ENGINE_API bool ReadPixelsPtr(FColor* OutImageBytes, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -119,17 +123,10 @@ public:
 	 * @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
+	 *
+	 * this only works if surface is PF_FloatRGBA exactly ; it does not convert
 	 */
 	ENGINE_API virtual bool ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
-
-	/**
-	* Reads the render target's displayed pixels into a preallocated color buffer.
-	* @param OutImageBytes - RGBA16F values will be stored in this buffer.  Buffer must be preallocated with the correct size!
-	* @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
-	* @param InSrcRect - InSrcRect not specified means the whole rect
-	* @return True if the read succeeded.
-	*/
-	ENGINE_API bool ReadFloat16PixelsPtr(FFloat16Color* OutImageBytes, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
 	/**
 	 * Reads the render target's displayed pixels into the given color buffer.
@@ -137,6 +134,8 @@ public:
 	 * @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
+	 *
+	 * This will convert whatever the pixel format is to FLinearColor
 	 */
 	ENGINE_API virtual bool ReadLinearColorPixels(TArray<FLinearColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_MinMax, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -146,6 +145,8 @@ public:
 	 * @param InFlags - Additional information about how to to read the surface data (cube face, slice index, etc.)
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
+	 *
+	 * Ptr variant of this API just does an extra memcpy; prefer the TArray variant
 	 */
 	ENGINE_API bool ReadLinearColorPixelsPtr(FLinearColor* OutImageBytes, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_MinMax, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 

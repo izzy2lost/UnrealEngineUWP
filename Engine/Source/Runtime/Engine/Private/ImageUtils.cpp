@@ -314,83 +314,114 @@ bool FImageUtils::ExportTextureSourceToDDS(TArray64<uint8> & OutData, UTexture *
 #endif
 }
 
-/**
- * Returns data containing the pixmap of the passed in rendertarget.
- * @param TexRT - The 2D rendertarget from which to read pixmap data.
- * @param RawData - an array to be filled with pixel data.
- * @return true if RawData has been successfully filled.
- */
 bool FImageUtils::GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& RawData)
 {
-	FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
-	EPixelFormat Format = TexRT->GetFormat();
+	// DEPRECATED , use GetRenderTargetImage
 
-	int32 ImageBytes = CalculateImageBytes(TexRT->SizeX, TexRT->SizeY, 0, Format);
-	RawData.AddUninitialized(ImageBytes);
-	bool bReadSuccess = false;
-	switch (Format)
+	RawData.Empty();
+
+	FImage Image;
+	if ( ! GetRenderTargetImage(TexRT,Image) )
 	{
-	case PF_FloatRGBA:
-		{
-		TArray<FFloat16Color> FloatColors;
-		bReadSuccess = RenderTarget->ReadFloat16Pixels(FloatColors);
-		FMemory::Memcpy(RawData.GetData(), FloatColors.GetData(), ImageBytes);
-		}
-		break;
-	case PF_B8G8R8A8:
-		bReadSuccess = RenderTarget->ReadPixelsPtr((FColor*)RawData.GetData());
-		break;
-	default:
-		// bReadSuccess == false
-		UE_LOG(LogImageUtils,Warning,TEXT("RenderTarget GetRawData PixelFormat no supported : %s") , *(StaticEnum<EPixelFormat>()->GetDisplayNameTextByValue(Format).ToString()) );
-		break;
+		return false;
 	}
-	if (bReadSuccess == false)
-	{
-		RawData.Empty();
-	}
-	return bReadSuccess;
+
+	RawData = MoveTemp(Image.RawData);
+	return true;
+}
+
+static int GetBitsPerComponent(EPixelFormat Format)
+{
+	if ( Format == PF_A2B10G10R10 ) return 10; // doesn't handle heterogenous bit counts well
+
+	const FPixelFormatInfo & Info = GPixelFormats[Format];
+	// rounds down
+	int BitsPerComponent = ( Info.BlockBytes * 8 ) / ( Info.BlockSizeX * Info.BlockSizeY * Info.BlockSizeZ * Info.NumComponents );
+	return BitsPerComponent;
 }
 
 bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image)
 {
 	Image = FImage();
 	
-	// see ETextureRenderTargetFormat
-	// for allowed formats
+	FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
+	EPixelFormat RTFormat = TexRT->GetFormat();
 
-	TArray64<uint8> RawData;
-	if ( ! GetRawData(TexRT,RawData) )
+	bool Use8Bit;
+	
+	if ( GetBitsPerComponent(RTFormat) <= 8 )
 	{
-		return false;
+		Use8Bit = true;
+	}
+	else if ( IsFloatFormat(RTFormat) || IsHDR(RTFormat) )
+	{
+		Use8Bit = false;
+	}
+	else if ( IsDepthOrStencilFormat(RTFormat) )
+	{
+		Use8Bit = false;
+	}
+	else
+	{
+		// eg. 16-bit integer
+		Use8Bit = false;
 	}
 	
-	// @todo Oodle : in theory the RenderTarget knows its gamma
-	//   but from what I've seen it's usually wrong?
-	// TexRT->GetDisplayGamma() or TexRT->SRGB or TexRT->IsSRGB() , OMG
-
-	Image.RawData = MoveTemp(RawData);
-	Image.SizeX = TexRT->SizeX;
-	Image.SizeY = TexRT->SizeY;
-	Image.NumSlices = 1;
-	
-	EPixelFormat PixelFormat = TexRT->GetFormat();
-	switch(PixelFormat)
+	if ( RTFormat == PF_FloatRGBA )
 	{
-	case PF_FloatRGBA:
-		Image.Format = ERawImageFormat::RGBA16F;
-		Image.GammaSpace = EGammaSpace::Linear;
-		break;	
-	case PF_B8G8R8A8:
-		Image.Format = ERawImageFormat::BGRA8;
-		Image.GammaSpace = EGammaSpace::sRGB;
-		break;
-	default:
-		// should not get here because GetRawData would have returned false
-		check(0);
-		return false;
-	}
+		// ReadFloat16Pixels does no conversions
+		//	must be used only exactly with FloatRGBA type
 
+		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
+		
+		TArray<FFloat16Color> Colors;
+		if ( ! RenderTarget->ReadFloat16Pixels(Colors) )
+		{
+			return false;
+		}
+
+		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+	}
+	else if ( Use8Bit )
+	{
+		// ?? not clear TexRT->IsSRGB is right , see other notes on various issues there
+		//	mainly we are trying to catch the check for whether the _SRGB or non _SRGB BGRA8 format as chosen
+		EGammaSpace GammaSpace = TexRT->IsSRGB() ? EGammaSpace::sRGB : EGammaSpace::Linear;
+		
+		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::BGRA8,GammaSpace);
+		
+		FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
+
+		InFlags.SetLinearToGamma( GammaSpace == EGammaSpace::sRGB );
+
+		TArray<FColor> Colors;
+		if ( ! RenderTarget->ReadPixels(Colors,InFlags) )
+		{
+			return false;
+		}
+
+		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+	}
+	else // use F32
+	{
+		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+		
+		FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
+
+		InFlags.SetLinearToGamma( false );
+
+		TArray<FLinearColor> Colors;
+		if ( ! RenderTarget->ReadLinearColorPixels(Colors,InFlags) )
+		{
+			return false;
+		}
+
+		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+	}	
+	
 	return true;
 }
 
@@ -686,6 +717,9 @@ UTexture2D* FImageUtils::CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const 
 
 void FImageUtils::CropAndScaleImage( int32 SrcWidth, int32 SrcHeight, int32 DesiredWidth, int32 DesiredHeight, const TArray<FColor> &SrcData, TArray<FColor> &DstData  )
 {
+	// DEPRECATED , uses the bad ImageResize
+	//	this is used by the old Thumbnail code, not the new paths
+
 	// Get the aspect ratio, and calculate the dimension of the image to crop
 	float DesiredAspectRatio = (float)DesiredWidth/(float)DesiredHeight;
 
@@ -952,122 +986,13 @@ UVolumeTexture* FImageUtils::CreateCheckerboardVolumeTexture(FColor ColorOne, FC
 HDR file format helper.
 ------------------------------------------------------------------------------*/
 // DEPRECATED
+// only used for cube maps for GenerateLongLatUnwrap
 // do not use HDR for exports, it is very lossy, use EXR instead for float output
 // if you need HDR, do not use this export code
 // instead use HdrImageWrapper via FImageUtils::CompressImage
 class FHDRExportHelper
 {
 public:
-	/**
-	* Writes HDR format image to an FArchive
-	* @param TexRT - A 2D source render target to read from.
-	* @param Ar - Archive object to write HDR data to.
-	* @return true on successful export.
-	*/
-	bool ExportHDR(UTextureRenderTarget2D* TexRT, FArchive& Ar)
-	{
-		check(TexRT != nullptr);
-		FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
-		Size = RenderTarget->GetSizeXY();
-		Format = TexRT->GetFormat();
-
-		TArray64<uint8> RawData;
-		bool bReadSuccess = FImageUtils::GetRawData(TexRT, RawData);
-		if (bReadSuccess)
-		{
-			WriteHDRImage(RawData, Ar);
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	* Writes HDR format image to an FArchive
-	* @param TexRT - A 2D source render target to read from.
-	* @param Ar - Archive object to write HDR data to.
-	* @return true on successful export.
-	*/
-	bool ExportHDR(UTexture2D* Texture, FArchive& Ar)
-	{
-		check(Texture != nullptr);
-		bool bReadSuccess = true;
-		TArray64<uint8> RawData;
-
-#if WITH_EDITORONLY_DATA
-		Size = FIntPoint(Texture->Source.GetSizeX(), Texture->Source.GetSizeY());
-
-		bReadSuccess = Texture->Source.GetMipData(RawData, 0);
-		const ETextureSourceFormat NewFormat = Texture->Source.GetFormat();
-
-		// DEPRECATED
-		// not a general purpose HDR exporter
-		// can't write F32 or BGRE8
-		// do not use this except for longlat cubemaps
-		if (NewFormat == TSF_BGRA8)
-		{
-			Format = PF_B8G8R8A8;
-		}
-		else if (NewFormat == TSF_RGBA16F)
-		{
-			Format = PF_FloatRGBA;
-		}
-		else
-		{
-			bReadSuccess = false;			
-			FMessageLog("ImageUtils").Warning(LOCTEXT("ExportHDRUnsupportedSourceTextureFormat", "Unsupported source texture format provided."));
-		}
-#else
-		TArray<uint8*> RawData2;
-		Size = Texture->GetImportedSize();
-		RawData2.AddZeroed(Texture->GetNumMips());
-		// this is PlatformData GetMipData , not Source :
-		Texture->GetMipData(0, (void**)RawData2.GetData());
-		const EPixelFormat NewFormat = Texture->GetPixelFormat();
-
-		if (Texture->GetPlatformData()->Mips.Num() == 0)
-		{
-			bReadSuccess = false;
-			FMessageLog("ImageUtils").Warning(FText::Format(LOCTEXT("ExportHDRFailedToReadMipData", "Failed to read Mip Data in: '{0}'"), FText::FromString(Texture->GetName())));
-		}
-
-		if (NewFormat == PF_B8G8R8A8)
-		{
-			Format = PF_B8G8R8A8;
-		}
-		else if (NewFormat == PF_FloatRGBA)
-		{
-			Format = PF_FloatRGBA;
-		}
-		else
-		{
-			bReadSuccess = false;
-			FMessageLog("ImageUtils").Warning(LOCTEXT("ExportHDRUnsupportedTextureFormat", "Unsupported texture format provided."));
-		}
-
-		//Put first mip data into usable array
-		if (bReadSuccess)
-		{
-			const uint32 TotalSize = Texture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
-			RawData.AddZeroed(TotalSize);
-			FMemory::Memcpy(RawData.GetData(), RawData2[0], TotalSize);
-		}
-
-		//Deallocate the mip data
-		for (auto MipData : RawData2)
-		{
-			FMemory::Free(MipData);
-		}
-
-#endif // WITH_EDITORONLY_DATA
-
-		if (bReadSuccess)
-		{
-			WriteHDRImage(RawData, Ar);
-			return true;
-		}
-
-		return false;
-	}
 
 	/**
 	* Writes HDR format image to an FArchive
@@ -1250,8 +1175,6 @@ private:
 
 bool FImageUtils::ExportRenderTarget2DAsHDR(UTextureRenderTarget2D* TexRT, FArchive& Ar)
 {
-	UE_LOG(LogImageUtils, Warning, TEXT("HDR file format is very lossy, use EXR or PNG instead.") );
-
 	FImage Image;
 	if ( ! GetRenderTargetImage(TexRT,Image) )
 	{
@@ -1307,6 +1230,27 @@ bool FImageUtils::ExportRenderTarget2DAsEXR(UTextureRenderTarget2D* TexRT, FArch
 	return true;
 }
 
+bool FImageUtils::ExportTexture2DAsHDR(UTexture2D* Tex, FArchive& Ar)
+{
+	UE_LOG(LogImageUtils, Warning, TEXT("HDR file format is very lossy, use EXR or PNG instead.") );
+	
+	FImage Image;
+	if ( ! GetTexture2DSourceImage(Tex,Image) )
+	{
+		return false;
+	}
+
+	TArray64<uint8> CompressedData;
+	if ( ! CompressImage(CompressedData,TEXT("HDR"),Image) )
+	{
+		return false;
+	}
+
+	Ar.Serialize((void*)CompressedData.GetData(), CompressedData.GetAllocatedSize());
+
+	return true;
+}
+
 // if Texture source is available, get it as an FImage
 bool FImageUtils::GetTexture2DSourceImage(UTexture2D* Texture, FImage & OutImage)
 {
@@ -1338,28 +1282,13 @@ bool FImageUtils::GetTexture2DSourceImage(UTexture2D* Texture, FImage & OutImage
 #endif
 }
 
-bool FImageUtils::ExportTexture2DAsHDR(UTexture2D* TexRT, FArchive& Ar)
-{
-	UE_LOG(LogImageUtils, Warning, TEXT("HDR file format is very lossy, use EXR or PNG instead.") );
-
-	// could use GetTexture2DSourceImage
-	// then CompressImage
-	// for arbitrary format exports
-	// but just leave it alone for now
-
-	// this is only used by UKismetRenderingLibrary::ExportTexture2D
-	//	so we should take filename as input to auto-detect format
-
-	FHDRExportHelper Exporter;
-	return Exporter.ExportHDR(TexRT, Ar);
-}
-
 UTexture2D* FImageUtils::ImportFileAsTexture2D(const FString& Filename)
 {
 	UTexture2D* NewTexture = nullptr;
 	TArray64<uint8> Buffer;
 	if (FFileHelper::LoadFileToArray(Buffer, *Filename))
 	{
+		// note this make a Transient / PlatformData only Texture (no TextureSource)
 		NewTexture = FImageUtils::ImportBufferAsTexture2D(Buffer);
 
 		if(!NewTexture)
@@ -1384,6 +1313,7 @@ UTexture2D* FImageUtils::ImportBufferAsTexture2D(TArrayView64<const uint8> Buffe
 		return nullptr;
 	}
 
+	// note this make a Transient / PlatformData only Texture (no TextureSource)
 	return CreateTexture2DFromImage(Image);
 }
 
@@ -1406,6 +1336,7 @@ UTexture2D* FImageUtils::CreateTexture2DFromImage(const FImageView & Image)
 	int64 MipDataSize = NewTexture->GetPlatformData()->Mips[0].BulkData.GetBulkDataSize();
 
 	FImageView MipImage(MipData,Image.SizeX,Image.SizeY,1,PixelFormatRawFormat,Image.GammaSpace);
+	check( MipImage.GetImageSizeBytes() <= MipDataSize ); // is it exactly == ?
 
 	// copy into texture and convert if necessary :
 	FImageCore::CopyImage(Image,MipImage);

@@ -426,7 +426,7 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 	int32 TileWidth = InTileWidth;
 	int32 TileHeight = InTileHeight;
 	int32 BytesPerPixel = RawData.Num() / (Width * Height);
-	int32 BytesPerPixelPerChannel = 16 / 8;
+	int32 BytesPerPixelPerChannel = 16 / 8; // <- 2 bytes per channel, assumes RGBA16F
 	int32 NumChannels = BytesPerPixel / BytesPerPixelPerChannel;
 	int32 DestNumChannels = NumChannels;
 
@@ -931,10 +931,15 @@ void SImgMediaProcessEXR::HandleProcessing()
 					DrawTextureToRenderTarget();
 
 					// Process this render.
-					TArray64<uint8> RawData;
-					bool bReadSuccess = FImageUtils::GetRawData(RenderTarget, RawData);
+					FImage Image;
+					bool bReadSuccess = FImageUtils::GetRenderTargetImage(RenderTarget, Image);
+
 					if (bReadSuccess)
 					{
+						Image.ChangeFormat(ERawImageFormat::RGBA16F,EGammaSpace::Linear);
+						// "Image" is not used in following code, just Image.RawData as uint8
+						//	this file is hard-coded to assume 16F pixels
+
 						int32 Width = RenderTarget->GetSurfaceWidth();
 						int32 Height = RenderTarget->GetSurfaceHeight();
 						int32 InTileWidth = Options->bEnableTiling ? Options->TileSizeX : 0;
@@ -946,7 +951,7 @@ void SImgMediaProcessEXR::HandleProcessing()
 						FString FileName = FString::Printf(TEXT("image%05d.exr"), CurrentFrameIndex);
 						FString Name = FPaths::Combine(OutPath, FileName);
 
-						Async(EAsyncExecution::Thread, [this, RawData = MoveTemp(RawData), Width, Height,
+						Async(EAsyncExecution::Thread, [this, RawData = MoveTemp(Image.RawData), Width, Height,
 							InTileWidth, InTileHeight, TileBorder, bEnableMips, Name]() mutable
 						{
 							ProcessImageCustomRawData(RawData, Width, Height,

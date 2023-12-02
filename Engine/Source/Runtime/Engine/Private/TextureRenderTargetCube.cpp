@@ -54,6 +54,9 @@ void UTextureRenderTargetCube::Init(uint32 InSizeX, EPixelFormat InFormat)
 
 void UTextureRenderTargetCube::InitAutoFormat(uint32 InSizeX)
 {
+	// ?? looks like this is missing :
+	//OverrideFormat = PF_Unknown;
+
 	check(InSizeX > 0);
 	check(!(InSizeX % GPixelFormats[GetFormat()].BlockSizeX));
 	check(FTextureRenderTargetResource::IsSupportedFormat(GetFormat()));

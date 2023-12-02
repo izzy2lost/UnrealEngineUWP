@@ -13,6 +13,7 @@
 #include "RenderUtils.h"
 #include "TextureCompiler.h"
 #include "Logging/MessageLog.h"
+#include "Hash/xxhash.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TextureRenderTarget)
 
@@ -23,8 +24,9 @@ UTextureRenderTarget
 UTextureRenderTarget::UTextureRenderTarget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	TargetGamma = 0.f; // 0 means inherit from resource which is 2.2
 	NeverStream = true;
-	SRGB = true;
+	SRGB = true; // <- odd, not usually what you want; often replaced with IsSRGB()
 	LODGroup = TEXTUREGROUP_RenderTarget;	
 	bNeedsTwoCopies = false;
 	bCanCreateUAV = false;
@@ -93,6 +95,7 @@ ETextureSourceFormat UTextureRenderTarget::ValidateTextureFormatForConversionToT
 
 	// Return what ETextureSourceFormat corresponds to this EPixelFormat (must match the conversion capabilities of UTextureRenderTarget::UpdateTexture) : 
 	ETextureSourceFormat TextureFormat = TSF_Invalid;
+	// @todo Oodle : just support all formats and remove this
 	switch (InFormat)
 	{
 	case PF_B8G8R8A8:
@@ -170,7 +173,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 		return false;
 	}
 
-	TextureCompressionSettings CompressionSettingsForTexture = (PixelFormat == EPixelFormat::PF_FloatRGBA) ? TC_HDR : TC_Default;
+	TextureCompressionSettings CompressionSettingsForTexture = IsHDR(PixelFormat) ? TC_HDR : TC_Default;
 
 	const int32 NumMips = 1; // There's only support for mip 0 ATM
 
@@ -183,7 +186,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	bTextureChanging |= InTexture->Source.GetFormat() != TextureSourceFormat;
 	bTextureChanging |= InTexture->CompressionSettings != CompressionSettingsForTexture;
 
-	uint32 OldDataHash = 0;
+	FXxHash64 OldDataHash;
 
 	// Hashing the content is only really useful if none of the other texture settings have changed.
 	const bool bHashContent = !bTextureChanging;
@@ -191,7 +194,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	{
 		const uint8* OldData = InTexture->Source.LockMipReadOnly(0);
 		const int32 OldDataSize = InTexture->Source.CalcMipSize(0);
-		OldDataHash = FCrc::MemCrc32(OldData, OldDataSize);
+		OldDataHash = FXxHash64::HashBuffer(OldData, OldDataSize);
 		InTexture->Source.UnlockMip(0);
 	}
 
@@ -206,6 +209,8 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 
 	TArray<uint8> NewData;
 	NewData.SetNumUninitialized(DestinationSize);
+
+	// @todo Oodle : make this more generic like ImageUtils::GetRenderTargetImage
 
 	// Read the data surface by surface (i.e. for a 2D array or a volume: slice by slice, for a cubemap: face by face and for a cubemap array: face by face, slice by slice
 	for (int32 SurfaceIndex = 0; SurfaceIndex < NumSurfaces; ++SurfaceIndex)
@@ -256,7 +261,10 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 		{
 			TArray<FFloat16Color> NewDataFloat16Color;
 			check(NumBytesPerPixel == sizeof(FFloat16Color));
+
+			// ReadFloat16Pixels is only allowed if PF is exactly FloatRGBA
 			RenderTarget->ReadFloat16Pixels(NewDataFloat16Color, ReadSurfaceDataFlags);
+
 			check(NewDataFloat16Color.Num() == NumPixelsPerSurface);
 			const int32 NumBytes = NewDataFloat16Color.Num() * NewDataFloat16Color.GetTypeSize();
 			check(NumBytes == SurfaceByteData.Num());
@@ -273,18 +281,22 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 			}
 			else if (InFlags & CTF_RemapAlphaAsMasked)
 			{
+				// ?? unclear this path makes any sense on Float16
+				FFloat16 F16Zero; F16Zero.SetZero();
+				FFloat16 F16One; F16One.SetOne();
+
 				// if the target was rendered with a masked texture, then the depth will probably have been written instead of 0/255 for the
 				// alpha, and the depth when unwritten will be 255, so remap 255 to 0 (masked out area) and anything else as 255 (written to area)
 				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
 				{
-					SurfaceFloat16ColorData[PixelIndex].A = (SurfaceFloat16ColorData[PixelIndex].A == 255) ? 0 : 255;
+					SurfaceFloat16ColorData[PixelIndex].A = (SurfaceFloat16ColorData[PixelIndex].A >= 1.f) ? F16Zero : F16One;
 				}
 			}
 			else if (InFlags & CTF_ForceOpaque)
 			{
 				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
 				{
-					SurfaceFloat16ColorData[PixelIndex].A = 255;
+					SurfaceFloat16ColorData[PixelIndex].A.SetOne();
 				}
 			}
 		}
@@ -308,7 +320,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 
 	if (bHashContent)
 	{
-		uint32 NewDataHash = FCrc::MemCrc32(NewData.GetData(), NewData.Num());
+		FXxHash64 NewDataHash = FXxHash64::HashBuffer(NewData.GetData(), NewData.Num());
 		bTextureChanging = OldDataHash != NewDataHash;
 	}
 
@@ -405,11 +417,20 @@ UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString
  */
 bool FTextureRenderTargetResource::IsSupportedFormat( EPixelFormat Format )
 {
+	// this should at least support all the formats in GetPixelFormatFromRenderTargetFormat
+
 	switch( Format )
 	{
+	case PF_G8:
+	case PF_R8G8:
 	case PF_B8G8R8A8:
 	case PF_R8G8B8A8:
 	case PF_A16B16G16R16:
+	case PF_R16F:
+	case PF_G16R16F:
+	case PF_R32_FLOAT:
+	case PF_G32R32F:
+	case PF_A32B32G32R32F:
 	case PF_FloatRGB:
 	case PF_FloatRGBA: // for exporting materials to .obj/.mtl
 	case PF_FloatR11G11B10: //Pixel inspector for Reading HDR Color
@@ -437,6 +458,7 @@ const FTextureRHIRef& FTextureRenderTargetResource::GetShaderResourceTexture() c
 */
 float FTextureRenderTargetResource::GetDisplayGamma() const
 {
+	// when we say we want a 2.2 gamma, what we actually mean is that we want SRGB conversion in most cases
 	return 2.2f;  
 }
 

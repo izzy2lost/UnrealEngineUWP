@@ -91,6 +91,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FRenderTarget::ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InSrcRect)
 {
+	// if the RenderTarget is not EXACTLY PF_FloatRGBA , this will check down in the RHI
+	// (eg. PF_FloatRGB will fail)
+	check( GetShaderResourceTexture()->GetDesc().Format == PF_FloatRGBA );
+
 	if (InSrcRect == FIntRect(0, 0, 0, 0))
 	{
 		InSrcRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);

@@ -344,6 +344,17 @@ bool FTextureRenderTargetVolumeResource::ReadFloat16Pixels(TArray<FFloat16Color>
 	{
 		InSrcRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
 	}
+	
+	/**
+
+	deep inside RHI this will crash unless the format is one of these :
+	no checks are done in outer code
+
+	bool bIsRGBAFmt = TextureDesc.Format == GPixelFormats[PF_FloatRGBA].PlatformFormat;
+	bool bIsR16FFmt = TextureDesc.Format == GPixelFormats[PF_R16F].PlatformFormat;
+	bool bIsR32FFmt = TextureDesc.Format == GPixelFormats[PF_R32_FLOAT].PlatformFormat;
+	check(bIsRGBAFmt || bIsR16FFmt || bIsR32FFmt);
+	**/
 
 	OutImageData.Reset();
 

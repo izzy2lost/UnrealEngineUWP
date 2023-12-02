@@ -246,6 +246,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool IsSRGB() const
 	{
+		// ?? note: UTextureRenderTarget::TargetGamma is ignored here
+
+		// ?? note: GetDisplayGamma forces linear for some float formats, but this doesn't
+
 		if (OverrideFormat == PF_Unknown)
 		{
 			return RenderTargetFormat == RTF_RGBA8_SRGB;

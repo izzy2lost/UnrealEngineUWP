@@ -43,10 +43,15 @@ UTextureRenderTarget2D::UTextureRenderTarget2D(const FObjectInitializer& ObjectI
 	NumMips = 0;
 	ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
-	bForceLinearGamma = true;
+	bForceLinearGamma = true; // <<-- if you set RTF_RGBA8_SRGB, this is turned off
 	MipsSamplerFilter = Filter;
 	MipsAddressU = TA_Clamp;
 	MipsAddressV = TA_Clamp;
+
+	// note UTextureRenderTarget::UTextureRenderTarget set SRGB = true
+	// later SRGB may be set = IsSRGB();
+
+	// see also UTextureRenderTarget::TargetGamma
 }
 
 FTextureResource* UTextureRenderTarget2D::CreateResource()
@@ -126,6 +131,10 @@ void UTextureRenderTarget2D::InitCustomFormat( uint32 InSizeX, uint32 InSizeY, E
 void UTextureRenderTarget2D::InitAutoFormat(uint32 InSizeX, uint32 InSizeY)
 {
 	check(InSizeX > 0 && InSizeY > 0);
+
+	// ?? missing ?
+	//OverrideFormat = PF_Unknown;
+	//bForceLinearGamma = true;
 
 	// set required size
 	SizeX = InSizeX;
@@ -358,6 +367,7 @@ bool UTextureRenderTarget2D::CanConvertToTexture(ETextureSourceFormat& OutTextur
 {
 	const EPixelFormat LocalFormat = GetFormat();
 	// These are the formats currently available for conversion to texture for UTextureRenderTarget2D : 
+	// @todo Oodle : get rid of this, support all
 	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(LocalFormat, { PF_G8, PF_R8G8, PF_B8G8R8A8, PF_FloatRGBA }, OutErrorMessage);
 	if (TextureSourceFormat == TSF_Invalid)
 	{
@@ -642,9 +652,12 @@ float FTextureRenderTarget2DResource::GetDisplayGamma() const
 	{
 		return Owner->TargetGamma;
 	}
+	// ?? special casing just two of the float PixelFormats to force 1.0 gamma here is inconsistent
+	//		(there are lots of other float formats)
 	if (Format == PF_FloatRGB || Format == PF_FloatRGBA || Owner->bForceLinearGamma )
 	{
 		return 1.0f;
 	}
+	// ignores Owner->IsSRGB() ?
 	return FTextureRenderTargetResource::GetDisplayGamma();
 }

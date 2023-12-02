@@ -5063,6 +5063,16 @@ URenderTargetExporterPNG::URenderTargetExporterPNG(const FObjectInitializer& Obj
 	FormatDescription.Add(TEXT("PNG"));
 }
 
+static int GetBitsPerComponent(EPixelFormat Format)
+{
+	if ( Format == PF_A2B10G10R10 ) return 10; // doesn't handle heterogenous bit counts well
+
+	const FPixelFormatInfo & Info = GPixelFormats[Format];
+	// rounds down
+	int BitsPerComponent = ( Info.BlockBytes * 8 ) / ( Info.BlockSizeX * Info.BlockSizeY * Info.BlockSizeZ * Info.NumComponents );
+	return BitsPerComponent;
+}
+
 bool URenderTargetExporterPNG::SupportsObject(UObject* Object) const
 {
 	if (Super::SupportsObject(Object))
@@ -5073,7 +5083,7 @@ bool URenderTargetExporterPNG::SupportsObject(UObject* Object) const
 		{
 			EPixelFormat PixelFormat = TexRT2D->GetFormat();
 
-			return PixelFormat == PF_B8G8R8A8;
+			return GetBitsPerComponent(PixelFormat) <= 8;
 		}
 	}
 	return false;
@@ -5102,8 +5112,8 @@ bool URenderTargetExporterEXR::SupportsObject(UObject* Object) const
 		if (TexRT2D)
 		{
 			EPixelFormat PixelFormat = TexRT2D->GetFormat();
-
-			return PixelFormat == PF_FloatRGBA;
+			
+			return GetBitsPerComponent(PixelFormat) > 8;
 		}
 	}
 	return false;
