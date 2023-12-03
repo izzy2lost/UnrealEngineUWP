@@ -71,9 +71,10 @@ enum class HairStrandsTriangleType
 
 FCachedGeometry GetCacheGeometryForHair(
 	FRDGBuilder& GraphBuilder,
+	FGlobalShaderMap* ShaderMap,
 	FSceneInterface* Scene,
 	FHairGroupInstance* Instance,
-	FGlobalShaderMap* ShaderMap,
+	const FHairStrandsRootBulkData* RootBulkData,
 	const bool bOutputTriangleData);
 
 static void GetGroomInterpolationData(
@@ -89,21 +90,42 @@ static void GetGroomInterpolationData(
 		FHairGroupInstance* Instance = static_cast<FHairGroupInstance*>(AbstractInstance);
 
 		if (!Instance)
+		{
 			continue;
+		}
 
-		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
+		const FHairStrandsRestRootResource* RestRootResource = nullptr;
+		if (Instance->GetHairGeometry() == EHairGeometryType::Strands)
+		{
+			RestRootResource = Instance->Strands.RestRootResource;
+		}
+		else if (Instance->GetHairGeometry() == EHairGeometryType::Cards)
+		{
+			const int32 LODIndex = Instance->HairGroupPublicData->GetIntLODIndex();
+			if (Instance->Cards.IsValid(LODIndex))
+			{
+				RestRootResource = Instance->Cards.LODs[LODIndex].Guides.RestRootResource;
+			}
+		}
+
+		if (!RestRootResource)
+		{
+			continue;
+		}
+
+		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, &RestRootResource->BulkData, true);
 		if (CachedGeometry.Sections.Num() == 0)
 			continue;
 
 		if (MeshType == EHairStrandsProjectionMeshType::DeformedMesh || MeshType == EHairStrandsProjectionMeshType::RestMesh)
 		{
-			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+			for (const FCachedGeometry::Section& CachedGeometrySection : CachedGeometry.Sections)
 			{
-				FHairStrandsProjectionMeshData::FSection OutSection = ConvertMeshSection(CachedGeometry, SectionIndex);
+				FHairStrandsProjectionMeshData::FSection OutSection = ConvertMeshSection(CachedGeometry, CachedGeometrySection);
 				if (MeshType == EHairStrandsProjectionMeshType::RestMesh)
 				{					
 					// If the mesh has some mesh-tranferred data, we display that otherwise we use the rest data
-					const int32 SectionLodIndex = CachedGeometry.Sections[SectionIndex].LODIndex;
+					const int32 SectionLodIndex = CachedGeometrySection .LODIndex;
 					const bool bHasTransferData = SectionLodIndex < Instance->Debug.TransferredPositions.Num();
 					if (bHasTransferData)
 					{

@@ -60,7 +60,7 @@ static FAutoConsoleVariableRef CVarHairStrandsBindingBuilderWarningEnable(TEXT("
 FString FGroomBindingBuilder::GetVersion()
 {
 	// Important to update the version when groom building changes
-	return TEXT("3p_14");
+	return TEXT("3p_15");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2044,6 +2044,11 @@ static void BuildRootBulkData(
 				const uint32 Index = In.MeshProjectionLODs[MeshLODIt].MeshSampleIndicesBuffer[SampleIt];
 				const uint32 SectionIndex = In.MeshProjectionLODs[MeshLODIt].MeshSampleSectionsBuffer[SampleIt];
 				MeshSampleIndicesAndSectionBuffer[SampleIt] = FHairStrandsRootUtils::PackTriangleIndex(Index, SectionIndex);
+
+				// Update the unique section indices with section containing RBF samples
+				// This allows faster update at runtime when not using skin cache
+				// This is done only for guides, which is the only root data containing RBF data
+				Out.Header.LODs[MeshLODIt].UniqueSectionIndices.AddUnique(SectionIndex);
 			}
 
 			CopyToBulkData<FHairStrandsWeightFormat>(Out.Data.LODs[MeshLODIt].MeshInterpolationWeightsBuffer, In.MeshProjectionLODs[MeshLODIt].MeshInterpolationWeightsBuffer);

@@ -121,15 +121,15 @@ void AddSkinUpdatePass(
 		ERDGPassFlags::Compute,
 		[ParametersMetadata, Parameters, ComputeShader, Sections, bPrevPosition](FRHIComputeCommandList& RHICmdList)
 		{
-			for (uint32 SectionIt = 0, SectionCount = Sections.Num(); SectionIt < SectionCount; ++SectionIt)
+			for (const FSkinUpdateSection& Section : Sections)
 			{
-				Parameters->NumVertexToProcess 		= Sections[SectionIt].NumVertexToProcess;
-				Parameters->SectionVertexBaseIndex 	= Sections[SectionIt].SectionVertexBaseIndex;
-				Parameters->BoneMatrices 			= Sections[SectionIt].BoneBuffer;
+				Parameters->NumVertexToProcess 		= Section.NumVertexToProcess;
+				Parameters->SectionVertexBaseIndex 	= Section.SectionVertexBaseIndex;
+				Parameters->BoneMatrices 			= Section.BoneBuffer;
 				check(Parameters->BoneMatrices);
 				if (bPrevPosition)
 				{
-					Parameters->PrevBoneMatrices = Sections[SectionIt].BonePrevBuffer;
+					Parameters->PrevBoneMatrices = Section.BonePrevBuffer;
 					check(Parameters->PrevBoneMatrices);
 				}
 
@@ -185,15 +185,16 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const uint32 UniqueTriangleCount, 
+	const uint32 TotalSectionCount, // Total section count of the underlying mesh
 	const FHairStrandsProjectionMeshData::FLOD& MeshData,
 	FRDGBufferSRVRef UniqueTriangleIndexSRV,
 	FRDGBufferUAVRef OutputCurrUAV,
 	FRDGBufferUAVRef OutputPrevUAV)
 {
-	const uint32 SectionCount = MeshData.Sections.Num();
+	const uint32 EffectiveSectionCount 	= MeshData.Sections.Num(); // Section count which are valid & used by groom data
 
 	// If a skel. mesh is not streaming yet, its SRV will be null
-	const bool bValid = SectionCount > 0 && SectionCount < GetHairStrandsMaxSectionCount();
+	const bool bValid = EffectiveSectionCount > 0 && TotalSectionCount < GetHairStrandsMaxSectionCount();
 	const bool bReady = MeshData.Sections[0].IndexBuffer != nullptr && MeshData.Sections[0].UVsBuffer != nullptr && (MeshData.Sections[0].RDGPositionBuffer != nullptr || MeshData.Sections[0].PositionBuffer != nullptr);
 	if (!bReady || !bValid)
 	{
@@ -202,7 +203,7 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 
 	FHairUpdateMeshTriangleCS::FParameters CommonParameters;
 	CommonParameters.MaxUniqueTriangleCount 		= UniqueTriangleCount;
-	CommonParameters.MaxSectionCount 				= SectionCount;
+	CommonParameters.MaxSectionCount 				= TotalSectionCount;
 	CommonParameters.RDGMeshPositionBuffer			= MeshData.Sections[0].RDGPositionBuffer;
 	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshData.Sections[0].RDGPreviousPositionBuffer;
 	CommonParameters.MeshPositionBuffer				= MeshData.Sections[0].PositionBuffer;
@@ -225,29 +226,39 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 		uint32 bIsSwapped : 8;
 		uint32 Pad : 8;
 	};
+
+	FSectionData Default;
+	Default.TotalIndexCount = 0;
+	Default.TotalVertexCount = 0;
+	Default.IndexBaseIndex = 0;
+	Default.UVsChannelOffset  = 0;
+	Default.UVsChannelCount  = 0;
+	Default.bIsSwapped = 0;
+	Default.Pad = 0;
+
+	// Allocate data for *all* sections, but only fill in the used/valid sections
 	TArray<FSectionData> SectionDatas;
-	SectionDatas.SetNum(SectionCount);
-	for (uint32 SectionIt = 0; SectionIt < SectionCount; ++SectionIt)
+	SectionDatas.Init(Default, TotalSectionCount); 
+	for (const FHairStrandsProjectionMeshData::FSection& MeshSectionData : MeshData.Sections)
 	{
-		const FHairStrandsProjectionMeshData::FSection& MeshSectionData = MeshData.Sections[SectionIt];
-		SectionDatas[SectionIt].TotalIndexCount	= MeshSectionData.TotalIndexCount;
-		SectionDatas[SectionIt].TotalVertexCount= MeshSectionData.TotalVertexCount;
-		SectionDatas[SectionIt].IndexBaseIndex	= MeshSectionData.IndexBaseIndex;
-		SectionDatas[SectionIt].UVsChannelOffset= MeshSectionData.UVsChannelOffset;
-		SectionDatas[SectionIt].UVsChannelCount	= MeshSectionData.UVsChannelCount;
-		SectionDatas[SectionIt].Pad				= 0u;
-		SectionDatas[SectionIt].bIsSwapped		= bUseRDGPositionBuffer ? 
-			(MeshData.Sections[SectionIt].RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer ? 1u : 0u) : 
-			(MeshData.Sections[SectionIt].PositionBuffer != CommonParameters.MeshPositionBuffer ? 1u : 0u);
+		const uint32 SectionIndex = MeshSectionData.SectionIndex;
+		SectionDatas[SectionIndex].TotalIndexCount	= MeshSectionData.TotalIndexCount;
+		SectionDatas[SectionIndex].TotalVertexCount	= MeshSectionData.TotalVertexCount;
+		SectionDatas[SectionIndex].IndexBaseIndex	= MeshSectionData.IndexBaseIndex;
+		SectionDatas[SectionIndex].UVsChannelOffset	= MeshSectionData.UVsChannelOffset;
+		SectionDatas[SectionIndex].UVsChannelCount	= MeshSectionData.UVsChannelCount;
+		SectionDatas[SectionIndex].Pad				= 0u;
+		SectionDatas[SectionIndex].bIsSwapped		= bUseRDGPositionBuffer ? 
+			(MeshSectionData.RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer ? 1u : 0u) :
+			(MeshSectionData.PositionBuffer    != CommonParameters.MeshPositionBuffer    ? 1u : 0u);
 
 		// Sanity check
-		check(MeshSectionData.SectionIndex == SectionIt);
 		check(MeshSectionData.UVsChannelOffset < 255);
 		check(MeshSectionData.UVsChannelCount < 255);
-		check(CommonParameters.RDGMeshPositionBuffer == MeshData.Sections[SectionIt].RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer == MeshData.Sections[SectionIt].RDGPreviousPositionBuffer);
-		check(CommonParameters.MeshPositionBuffer    == MeshData.Sections[SectionIt].PositionBuffer    || CommonParameters.MeshPositionBuffer    == MeshData.Sections[SectionIt].PreviousPositionBuffer);
-		check(CommonParameters.MeshIndexBuffer		 == MeshData.Sections[SectionIt].IndexBuffer);
-		check(CommonParameters.MeshUVsBuffer		 == MeshData.Sections[SectionIt].UVsBuffer);
+		check(CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPreviousPositionBuffer);
+		check(CommonParameters.MeshPositionBuffer    == MeshSectionData.PositionBuffer    || CommonParameters.MeshPositionBuffer    == MeshSectionData.PreviousPositionBuffer);
+		check(CommonParameters.MeshIndexBuffer		 == MeshSectionData.IndexBuffer);
+		check(CommonParameters.MeshUVsBuffer		 == MeshSectionData.UVsBuffer);
 	}
 
 	// If no previous position buffer available, reusing the current position buffers
@@ -303,6 +314,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	check(RestLODData.LODIndex == MeshLODIndex);
 	check(RestResources->BulkData.Header.LODs.IsValidIndex(MeshLODIndex));
 	const uint32 UniqueTriangleCount = RestResources->BulkData.Header.LODs[MeshLODIndex].UniqueTriangleCount;
+	const uint32 TotalMeshSectionCount = RestResources->BulkData.Header.LODs[MeshLODIndex].MeshSectionCount;
 	if (UniqueTriangleCount == 0)
 	{
 		return;
@@ -317,13 +329,14 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	}
 
 	if (AddHairStrandUpdateMeshTrianglesPass(
-		GraphBuilder,
-		ShaderMap,
-		UniqueTriangleCount,
-		MeshData,
-		RegisterAsSRV(GraphBuilder, RestLODData.UniqueTriangleIndexBuffer),
-		OutputCurrBuffer.UAV,
-		OutputPrevBuffer.UAV))
+			GraphBuilder,
+			ShaderMap,
+			UniqueTriangleCount,
+			TotalMeshSectionCount,
+			MeshData,
+			RegisterAsSRV(GraphBuilder, RestLODData.UniqueTriangleIndexBuffer),
+			OutputCurrBuffer.UAV,
+			OutputPrevBuffer.UAV))
 	{
 
 		GraphBuilder.SetBufferAccessFinal(OutputCurrBuffer.Buffer, ERHIAccess::SRVMask);
@@ -514,8 +527,9 @@ void AddHairStrandInitMeshSamplesPass(
 	FHairStrandsRestRootResource::FLOD& RestLODData = RestResources->LODs[LODIndex];
 	check(RestLODData.LODIndex == LODIndex);
 
-	const uint32 SectionCount = MeshData.Sections.Num();
-	if (SectionCount == 0 || RestLODData.SampleCount == 0)
+	const uint32 TotalSectionCount = RestResources->BulkData.Header.LODs[LODIndex].MeshSectionCount;
+	const uint32 EffectiveSectionCount = MeshData.Sections.Num();
+	if (EffectiveSectionCount == 0 || RestLODData.SampleCount == 0)
 	{
 		return;
 	}
@@ -524,7 +538,7 @@ void AddHairStrandInitMeshSamplesPass(
 	
 	FHairInitMeshSamplesCS::FParameters CommonParameters;
 	CommonParameters.MaxSampleCount 				= RestLODData.SampleCount;
-	CommonParameters.MaxSectionCount 				= MeshData.Sections.Num();
+	CommonParameters.MaxSectionCount 				= TotalSectionCount;
 	CommonParameters.MaxVertexCount 				= MeshData.Sections[0].TotalVertexCount;
 	CommonParameters.RDGMeshPositionBuffer0			= MeshData.Sections[0].RDGPositionBuffer;
 	CommonParameters.RDGMeshPositionBuffer1		 	= MeshData.Sections[0].RDGPreviousPositionBuffer;
@@ -538,21 +552,21 @@ void AddHairStrandInitMeshSamplesPass(
 	// Create buffer with section data for look up in shader
 	struct FSectionData
 	{
-		uint32 bIsSwapped;
+		uint32 bIsSwapped = 0;
 	};
 	TArray<FSectionData> SectionDatas;
-	SectionDatas.SetNum(SectionCount);
-	for (uint32 SectionIt = 0; SectionIt < SectionCount; ++SectionIt)
+	SectionDatas.Init(FSectionData(), TotalSectionCount);
+	for (const FHairStrandsProjectionMeshData::FSection& Section : MeshData.Sections)
 	{
-		SectionDatas[SectionIt].bIsSwapped = 
+		const uint32 SectionIndex = Section.SectionIndex;
+		SectionDatas[SectionIndex].bIsSwapped = 
 			bUseRDGPositionBuffer ?
-			(MeshData.Sections[SectionIt].RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer0 ? 1u : 0u):
-			(MeshData.Sections[SectionIt].PositionBuffer    != CommonParameters.MeshPositionBuffer0    ? 1u : 0u);
+			(Section.RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer0 ? 1u : 0u) :
+			(Section.PositionBuffer    != CommonParameters.MeshPositionBuffer0    ? 1u : 0u);
 
 		// Sanity check
-		check(MeshData.Sections[SectionIt].SectionIndex == SectionIt);
-		check(CommonParameters.RDGMeshPositionBuffer0 == MeshData.Sections[SectionIt].RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer0 == MeshData.Sections[SectionIt].RDGPreviousPositionBuffer);
-		check(CommonParameters.MeshPositionBuffer0    == MeshData.Sections[SectionIt].PositionBuffer    || CommonParameters.MeshPositionBuffer0    == MeshData.Sections[SectionIt].PreviousPositionBuffer);
+		check(CommonParameters.RDGMeshPositionBuffer0 == Section.RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer0 == Section.RDGPreviousPositionBuffer);
+		check(CommonParameters.MeshPositionBuffer0    == Section.PositionBuffer    || CommonParameters.MeshPositionBuffer0    == Section.PreviousPositionBuffer);
 	}
 	CommonParameters.MeshSectionBuffer = GraphBuilder.CreateSRV(CreateStructuredBuffer(GraphBuilder, TEXT("Hair.SkelMeshSectionBuffer"), sizeof(FSectionData),  SectionDatas.Num(), SectionDatas.GetData(), sizeof(FSectionData) * SectionDatas.Num()));
 

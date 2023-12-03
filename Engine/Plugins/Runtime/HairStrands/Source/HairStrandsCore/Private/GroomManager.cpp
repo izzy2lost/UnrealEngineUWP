@@ -191,9 +191,10 @@ static const FPrimitiveSceneInfo* GetMeshSceneInfo(FSceneInterface* Scene, FHair
 // Returns the cached geometry of the underlying geometry on which a hair instance is attached to
 FCachedGeometry GetCacheGeometryForHair(
 	FRDGBuilder& GraphBuilder, 
+	FGlobalShaderMap* ShaderMap,
 	FSceneInterface* Scene,
 	FHairGroupInstance* Instance, 
-	FGlobalShaderMap* ShaderMap,
+	const FHairStrandsRootBulkData* RootBulkData,
 	const bool bOutputTriangleData)
 {
 	FCachedGeometry Out;
@@ -211,7 +212,7 @@ FCachedGeometry GetCacheGeometryForHair(
 					{
 						//#hair_todo: Need to have a (frame) cache to insure that we don't recompute the same projection several time
 						// Actual populate the cache with only the needed part based on the groom projection data. At the moment it recompute everything ...
-						BuildCacheGeometry(GraphBuilder, ShaderMap, SceneProxy, bOutputTriangleData, Out);
+						BuildCacheGeometry(GraphBuilder, ShaderMap, SceneProxy, RootBulkData, bOutputTriangleData, Out);
 					}
 				}
 			}
@@ -294,10 +295,11 @@ static void RunHairStrandsInterpolation_Guide(
 		if (InstanceData.NeedsMeshUpdate(false/*bCheckMeshLODIndex*/))
 		{
 			// Extract MeshDataLOD and MeshLODIndex
-			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true /*bOutputTriangleData*/);
-			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+			check(Instance->Guides.RestRootResource);
+			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, &Instance->Guides.RestRootResource->BulkData, true /*bOutputTriangleData*/);
+			for (const FCachedGeometry::Section& CachedGeometrySection : CachedGeometry.Sections)
 			{
-				InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+				InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, CachedGeometrySection));
 			}
 			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
 			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
@@ -308,7 +310,7 @@ static void RunHairStrandsInterpolation_Guide(
 		else
 		{
 			// Extract MeshLODIndex
-			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, false /*bOutputTriangleData*/);
+			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, nullptr, false /*bOutputTriangleData*/);
 			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
 			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
 		}
@@ -689,10 +691,10 @@ static void RunHairStrandsInterpolation_Strands(
 		if (InstanceData.ActiveGroomCacheType == EGroomCacheType::Strands) { bHasAnyRenCacheInstances = true; }
 
 		// Extract MeshDataLOD and compute MeshLODIndex
-		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
-		for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
+		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, &Instance->Strands.RestRootResource->BulkData, true);
+		for (const FCachedGeometry::Section& CachedGeometrySection : CachedGeometry.Sections)
 		{
-			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+			InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, CachedGeometrySection));
 		}
 		InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
 		Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
@@ -1307,18 +1309,35 @@ static void RunHairStrandsInterpolation_Cards(
 			InstanceData.MeshLODIndex				= -1;
 
 			// Binding surface parameters (skel.mesh/geom. cache)
-			FHairStrandsProjectionMeshData::FLOD MeshDataLOD;
-			const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, true);
-			for (int32 SectionIndex = 0; SectionIndex < CachedGeometry.Sections.Num(); ++SectionIndex)
-			{	
-				InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, SectionIndex));
+			// This is only needed for card geometry. Mesh geometry only uses RBF deformation, which are initalized by the guide pass.
+			if (Instance->GeometryType == EHairGeometryType::Cards)
+			{				
+				const bool bNeedSurfaceUpdate = InstanceData.BindingType == EHairBindingType::Skinning || InstanceData.bGlobalDeformationEnable || InstanceData.bDeformationEnable;
+				if (bNeedSurfaceUpdate)
+				{	
+					// Extract MeshDataLOD and MeshLODIndex
+					check(Instance->Cards.LODs.IsValidIndex(InstanceData.HairLODIndex));
+					const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, &Instance->Cards.LODs[InstanceData.HairLODIndex].Guides.RestRootResource->BulkData, true /*bOutputTriangleData*/);
+					for (const FCachedGeometry::Section& CachedGeometrySection : CachedGeometry.Sections)
+					{
+						InstanceData.MeshDataLOD.Sections.Add(ConvertMeshSection(CachedGeometry, CachedGeometrySection));
+					}
+					InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+					Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
+				}
+				else
+				{
+					// Extract MeshLODIndex
+					const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, nullptr, false /*bOutputTriangleData*/);
+					InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
+					Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
+				}
 			}
-			InstanceData.MeshLODIndex    = CachedGeometry.LODIndex;
-			Instance->Debug.MeshLODIndex = CachedGeometry.LODIndex;
 
 			// Card or Mesh specific parameters
 			if (Instance->GeometryType == EHairGeometryType::Cards)
 			{
+				check(Instance->Cards.LODs.IsValidIndex(InstanceData.HairLODIndex));
 				InstanceData.CardInstance 			= &Instance->Cards.LODs[InstanceData.HairLODIndex];
 				InstanceData.bValidGuide			= InstanceData.Instance->Guides.bIsSimulationEnable || InstanceData.Instance->Guides.bHasGlobalInterpolation || InstanceData.Instance->Guides.bIsDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable;
 				InstanceData.bHasSkinning			= InstanceData.BindingType == EHairBindingType::Skinning && InstanceData.MeshLODIndex >= 0;
@@ -1354,6 +1373,7 @@ static void RunHairStrandsInterpolation_Cards(
 				check(Instance->Meshes.IsValid(InstanceData.HairLODIndex));
 				InstanceData.bNeedDeformation 	= Instance->Meshes.LODs[InstanceData.HairLODIndex].DeformedResource != nullptr;
 				InstanceData.MeshInstance 		= &Instance->Meshes.LODs[InstanceData.HairLODIndex];
+				InstanceData.MeshLODIndex 		= Instance->Debug.MeshLODIndex; // Debug.MeshLODIndex is initialized during the guide pass (if guides are needed updated)
 				if (InstanceData.bNeedDeformation)
 				{
 					check(Instance->BindingType == EHairBindingType::Skinning);
@@ -1362,7 +1382,7 @@ static void RunHairStrandsInterpolation_Cards(
 					check(Instance->Guides.DeformedRootResource);
 					// MeshLODIndex -1 indicates that skin cache is disabled and this is a workaround to prevent the editor from crashing 
 					// An editor setting guildeline popup exists to inform the user that the skin cache should be enabled. 
-					check(InstanceData.MeshLODIndex == -1 || Instance->Guides.DeformedRootResource->IsValid(InstanceData.MeshLODIndex)); 
+					check(InstanceData.MeshLODIndex == -1 || Instance->Guides.DeformedRootResource->IsValid(InstanceData.MeshLODIndex));
 				}
 			}
 
@@ -1573,17 +1593,19 @@ static void RunHairStrandsInterpolation_Cards(
 	// Meshes only - Deform final mesh geometry (using RBF)
 	for (uint32 InstanceIndex : MeshInstances)
 	{
-		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
-		AddHairMeshesRBFInterpolationPass(
-			GraphBuilder,
-			ShaderMap,
-			InstanceData.MeshLODIndex,
-			InstanceData.MeshInstance->RestResource,
-			InstanceData.MeshInstance->DeformedResource,
-			InstanceData.Instance->Guides.RestRootResource,
-			InstanceData.Instance->Guides.DeformedRootResource);
-
-		ExternalAccessQueue.Add(Register(GraphBuilder, InstanceData.MeshInstance->DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
+		{
+			FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+			AddHairMeshesRBFInterpolationPass(
+				GraphBuilder,
+				ShaderMap,
+				InstanceData.Instance->Debug.MeshLODIndex,
+				InstanceData.MeshInstance->RestResource,
+				InstanceData.MeshInstance->DeformedResource,
+				InstanceData.Instance->Guides.RestRootResource,
+				InstanceData.Instance->Guides.DeformedRootResource);
+	
+			ExternalAccessQueue.Add(Register(GraphBuilder, InstanceData.MeshInstance->DeformedResource->GetBuffer(FHairMeshesDeformedResource::Current), ERDGImportedBufferFlags::None).Buffer, ERHIAccess::SRVMask);
+		}
 	}
 
 	// Meshes only - Build/update RT geometry
@@ -1907,7 +1929,7 @@ static void RunHairLODSelection(
 
 		check(Instance);
 		check(Instance->HairGroupPublicData);
-		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, Scene, Instance, ShaderMap, false);
+		const FCachedGeometry CachedGeometry = GetCacheGeometryForHair(GraphBuilder, ShaderMap, Scene, Instance, nullptr, false);
 		const int32 MeshLODIndex = CachedGeometry.LODIndex;
 
 		// Perform LOD selection based on all the views	
