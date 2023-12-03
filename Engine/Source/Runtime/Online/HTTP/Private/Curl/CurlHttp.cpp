@@ -1151,6 +1151,12 @@ void FCurlHttpRequest::BroadcastNewlyReceivedHeader(const FString& HeaderKey, co
 	OnHeaderReceived().ExecuteIfBound(SharedThis(this), HeaderKey, HeaderValue);
 }
 
+void FCurlHttpRequest::MarkAsCompleted(CURLcode InCurlCompletionResult)
+{
+	CurlCompletionResult = InCurlCompletionResult;
+	bCurlRequestCompleted = true;
+}
+
 void FCurlHttpRequest::FinishRequest()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_FinishRequest);

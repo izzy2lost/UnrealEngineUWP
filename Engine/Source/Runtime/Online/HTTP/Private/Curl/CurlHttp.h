@@ -203,11 +203,7 @@ public:
 	 *
 	 * @param CurlCompletionResult Operation result code as returned by libcurl
 	 */
-	inline void MarkAsCompleted(CURLcode InCurlCompletionResult)
-	{
-		CurlCompletionResult = InCurlCompletionResult;
-		bCurlRequestCompleted = true;
-	}
+	void MarkAsCompleted(CURLcode InCurlCompletionResult);
 	
 	/** 
 	 * Set the result for adding the easy handle to curl multi
