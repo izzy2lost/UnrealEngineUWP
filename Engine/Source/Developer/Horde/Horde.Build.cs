@@ -7,6 +7,6 @@ public class Horde : ModuleRules
 {
 	public Horde(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateDependencyModuleNames.AddRange(new string[] { "Core", "HTTP", "Json", "DesktopPlatform" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Core" });
 	}
 }
