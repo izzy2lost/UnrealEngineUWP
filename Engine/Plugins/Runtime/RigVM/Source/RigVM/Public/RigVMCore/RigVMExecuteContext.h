@@ -37,6 +37,7 @@ class URigVM;
 struct FRigVMDispatchFactory;
 struct FRigVMExecuteContext;
 struct FRigVMExtendedExecuteContext;
+struct FRigVMLogSettings;
 
 USTRUCT()
 struct RIGVM_API FRigVMSlice
