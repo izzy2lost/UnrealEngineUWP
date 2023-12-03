@@ -3835,6 +3835,14 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API FString SelectString(const FString& A, const FString& B, bool bPickA);
 
 	/** If bPickA is true, A is returned, otherwise B is */
+	UFUNCTION(BlueprintPure, Category="Utilities|String")
+	static ENGINE_API FText SelectText(const FText A, const FText B, bool bPickA);
+
+	/** If bPickA is true, A is returned, otherwise B is */
+	UFUNCTION(BlueprintPure, Category="Utilities|String")
+	static ENGINE_API FName SelectName(const FName A, const FName B, bool bPickA);
+
+	/** If bPickA is true, A is returned, otherwise B is */
 	UFUNCTION(BlueprintPure, Category="Math|Integer")
 	static ENGINE_API int32 SelectInt(int32 A, int32 B, bool bPickA);
 
