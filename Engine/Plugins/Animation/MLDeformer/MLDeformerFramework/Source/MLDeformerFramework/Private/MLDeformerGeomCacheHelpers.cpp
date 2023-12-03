@@ -368,7 +368,7 @@ namespace UE::MLDeformer
 					FText::AsNumber(NumGeomCacheFrames));
 			}
 
-			if (FMath::Abs(AnimSeqDuration - GeomCacheDuration) > 0.0001f)
+			if (FMath::Abs(AnimSeqDuration - GeomCacheDuration) > 0.001f)
 			{
 				FNumberFormattingOptions Options;
 				Options.SetUseGrouping(false);

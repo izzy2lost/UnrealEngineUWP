@@ -31,7 +31,7 @@ namespace UE::VertexDeltaModel
 		return TrainModel<UVertexDeltaTrainingModel>(this);
 	}
 
-	TObjectPtr<UNNEModelData>  FVertexDeltaEditorModel::LoadNeuralNetworkFromOnnx(const FString& Filename) const
+	TObjectPtr<UNNEModelData> FVertexDeltaEditorModel::LoadNeuralNetworkFromOnnx(const FString& Filename) const
 	{
 		const FString OnnxFile = FPaths::ConvertRelativePathToFull(Filename);
 		if (FPaths::FileExists(OnnxFile))
@@ -42,11 +42,9 @@ namespace UE::VertexDeltaModel
 	
 			if (bIsModelInMem)
 			{
-				TObjectPtr<UNNEModelData> ModelData = NewObject<UNNEModelData>();
-
+				TObjectPtr<UNNEModelData> ModelData = NewObject<UNNEModelData>(Model);
 				ModelData->Init(FString("onnx"), RawModelData);
-				// TODO - add some real verification
-				UE_LOG(LogVertexDeltaModel, Display, TEXT("Successfully loaded Onnx file '%s'..."), *OnnxFile);
+				UE_LOG(LogVertexDeltaModel, Display, TEXT("Finished loading Onnx file '%s'..."), *OnnxFile);
 				return ModelData;
 			}
 			else
@@ -65,10 +63,10 @@ namespace UE::VertexDeltaModel
 	bool FVertexDeltaEditorModel::LoadTrainedNetwork() const
 	{
 		const FString OnnxFile = GetTrainedNetworkOnnxFile();
-		TObjectPtr<UNNEModelData> ModelData = LoadNeuralNetworkFromOnnx(OnnxFile);
-		if (ModelData)
+		TObjectPtr<UNNEModelData> LoadedModelData = LoadNeuralNetworkFromOnnx(OnnxFile);
+		if (LoadedModelData)
 		{
-			GetVertexDeltaModel()->SetNNEModelData(ModelData);
+			GetVertexDeltaModel()->SetNNEModelData(LoadedModelData);
 			return true;
 		}
 

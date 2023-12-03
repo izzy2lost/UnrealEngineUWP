@@ -5,6 +5,7 @@
 #include "VertexDeltaModelInstance.h"
 #include "MLDeformerComponent.h"
 #include "MLDeformerAsset.h"
+#include "MLDeformerObjectVersion.h"
 #include "NNE.h"
 #include "NNEModelData.h"
 #include "NNERuntimeRDG.h"
@@ -60,11 +61,6 @@ FString UVertexDeltaModel::GetDefaultDeformerGraphAssetPath() const
 bool UVertexDeltaModel::IsTrained() const
 {
 	return NNEModel.Get() != nullptr;
-}
-
-void UVertexDeltaModel::PostLoad()
-{
-	Super::PostLoad();
 }
 
 void UVertexDeltaModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const

@@ -29,7 +29,6 @@ public:
 	UVertexDeltaModel(const FObjectInitializer& ObjectInitializer);
 
 	// UObject overrides.
-	virtual void PostLoad() override;
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	// ~END UObject overrides.
 
@@ -48,13 +47,14 @@ public:
 	int32 GetBatchSize() const								{ return BatchSize; }
 	float GetLearningRate() const							{ return LearningRate; }
 #endif
-	void SetNNEModelData(TObjectPtr<UNNEModelData> ModelData);
-	const FString GetNNERuntimeName() const { return TEXT("NNERuntimeRDGDml"); }
-public:
 
+	void SetNNEModelData(TObjectPtr<UNNEModelData> ModelData);
+	const FString GetNNERuntimeName() const					{ return TEXT("NNERuntimeRDGDml"); }
+
+public:
 	/** The NNE neural network model. */
 	UPROPERTY()
-	TObjectPtr<UNNEModelData> NNEModel; 
+	TObjectPtr<UNNEModelData> NNEModel;
 
 #if WITH_EDITORONLY_DATA
 	/** The number of hidden layers that the neural network model will have.\nHigher numbers will slow down performance but can deal with more complex deformations. */
@@ -77,5 +77,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "0.000001", ClampMax = "1.0"))
 	float LearningRate = 0.001f;
 #endif // WITH_EDITORONLY_DATA
-
 };
