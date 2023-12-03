@@ -75,4 +75,23 @@ namespace uba
 		SendContext(u8 sendFlags = 0) : flags(sendFlags) { *data = 0; }
 		~SendContext() { }//UBA_ASSERT(isFinished); }
 	};
+
+	class HttpConnection
+	{
+	public:
+		HttpConnection();
+		~HttpConnection();
+		bool Get(Logger& logger, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path);
+
+	private:
+		bool Connect(Logger& logger, const char* host);
+
+		char m_host[256];
+		#if PLATFORM_WINDOWS
+		u64 m_socket;
+		bool m_wsaInitDone = false;
+		#else
+		int m_socket;
+		#endif
+	};
 }

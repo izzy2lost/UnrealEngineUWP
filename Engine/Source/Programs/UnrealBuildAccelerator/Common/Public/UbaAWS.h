@@ -2,186 +2,56 @@
 
 #pragma once
 
-#if PLATFORM_WINDOWS
-
-#include "UbaPlatform.h"
+#include "UbaNetworkBackend.h"
 #include "UbaStringBuffer.h"
-#include "UbaLogger.h"
-
-#include <winhttp.h> 
-#pragma comment (lib, "Winhttp.lib")
 
 #define UBA_USE_AWS
 
 namespace uba
 {
-	struct HttpRequest
-	{
-		bool Init(Logger& logger, HINTERNET connection, const wchar_t* verb, const wchar_t* objectName)
-		{
-			m_connection = connection;
-			m_verb = verb;
-			m_objectName = objectName;
-			m_request = WinHttpOpenRequest(m_connection, verb, objectName, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_REFRESH);
-
-			return m_request != NULL;
-		}
-
-		~HttpRequest()
-		{
-			if (m_request)
-				WinHttpCloseHandle(m_request);
-		}
-
-		bool Send(Logger& logger, StringBufferBase& outContent, const wchar_t* headers = nullptr, u32* outStatusCode = nullptr)
-		{
-			if (!m_request)
-				return false;
-
-			if (!WinHttpSendRequest(m_request, headers ? headers : WINHTTP_NO_ADDITIONAL_HEADERS, headers ? u32(wcslen(headers)) : 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0))
-			{
-				DWORD err = GetLastError();
-
-				WinHttpCloseHandle(m_request);
-				m_request = NULL;
-
-				if (err == ERROR_WINHTTP_CANNOT_CONNECT || err == ERROR_WINHTTP_TIMEOUT)
-					return false;
-
-				if (!Init(logger, m_connection, m_verb, m_objectName))
-					return logger.Error(L"HttpOpenRequestW reinit error: %ls", LastErrorToText().data);
-
-				if (!WinHttpSendRequest(m_request, headers ? headers : WINHTTP_NO_ADDITIONAL_HEADERS, headers ? u32(wcslen(headers)) : 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0))
-				{
-					err = GetLastError();
-					if (err != ERROR_WINHTTP_CANNOT_CONNECT && err != ERROR_WINHTTP_TIMEOUT)
-						if (headers) // hack to prevent log for non-aws machines
-							logger.Info(L"WinHttpSendRequest error: %ls", LastErrorToText().data);
-
-					WinHttpCloseHandle(m_request);
-					m_request = NULL;
-					return false;
-				}
-			}
-
-			if (!WinHttpReceiveResponse(m_request, NULL))
-			{
-				WinHttpCloseHandle(m_request);
-				m_request = NULL;
-				return false;
-			}
-
-			if (outStatusCode)
-			{
-				DWORD bufferLen = sizeof(u32);
-				if (!WinHttpQueryHeaders(m_request, WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, outStatusCode, &bufferLen, WINHTTP_NO_HEADER_INDEX))
-					return logger.Error(L"Error %u in WinHttpQueryHeaders", GetLastError());
-			}
-
-			for (u32 i=0; i!=100; ++i)
-			{
-				// Check for available data.
-				DWORD dwSize = 0;
-				if (!WinHttpQueryDataAvailable(m_request, &dwSize))
-					return logger.Error(L"Error %u in WinHttpQueryDataAvailable", GetLastError());
-
-				if (dwSize == 0)
-					return true;
-
-				CHAR szBuffer[4097];
-				DWORD dwDownloaded = 0;
-				if (!WinHttpReadData(m_request, (LPVOID)szBuffer, dwSize, &dwDownloaded))
-					return logger.Error(L"Error %u in WinHttpReadData", GetLastError());
-				szBuffer[dwDownloaded] = 0;
-				outContent.Appendf(L"%hs", szBuffer);
-			}
-			return logger.Error(L"Unknown error reading http query data", GetLastError());
-		}
-
-		HINTERNET m_connection = NULL;
-		HINTERNET m_request = NULL;
-		const wchar_t* m_verb = nullptr;
-		const wchar_t* m_objectName = nullptr;
-	};
-
 	class AWS
 	{
 	public:
-		~AWS()
+
+		static constexpr char g_imdsHost[]						= "169.254.169.254";
+		static constexpr char g_imdsInstanceId[]				= "latest/meta-data/instance-id";
+		static constexpr char g_imdsInstanceLifeCycle[]			= "latest/meta-data/instance-life-cycle";
+		static constexpr char g_imdsAutoScalingLifeCycleState[] = "latest/meta-data/autoscaling/target-lifecycle-state";
+		static constexpr char g_imdsInstanceAvailabilityZone[]	= "latest/meta-data/placement/availability-zone";
+		static constexpr char g_imdsSpotInstanceAction[]		= "latest/meta-data/spot/instance-action";
+
+
+		bool InitCore(Logger& logger, const tchar* application)
 		{
-			if (m_connection)
-				WinHttpCloseHandle(m_connection);
-			if (m_session)
-				WinHttpCloseHandle(m_session);
-		}
-
-		bool InitCore(Logger& logger, const wchar_t* application)
-		{
-			m_session = WinHttpOpen(L"AWS", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-			if (!m_session)
-				return logger.Error(L"WinHttpOpen failed: %ls", LastErrorToText().data);
-			auto internetGuard = MakeGuard([&]() { WinHttpCloseHandle(m_session); m_session = NULL; });
-
-			if (!WinHttpSetTimeouts(m_session, 100, 100, 100, 100))
-				return logger.Error(L"WinHttpSetTimeouts failed: %ls", LastErrorToText().data);
-
-			m_connection = WinHttpConnect(m_session, L"169.254.169.254", INTERNET_DEFAULT_HTTP_PORT, 0);
-			if (!m_connection)
-				return logger.Error(L"WinHttpConnect failed: %ls", LastErrorToText().data);
-			auto connectionGuard = MakeGuard([&]() { WinHttpCloseHandle(m_connection); m_connection = NULL; });
-
-			HttpRequest tokenPut;
-			if (!tokenPut.Init(logger, m_connection, L"PUT", L"latest/api/token"))
-				return false;
-			StringBuffer<512> awsToken;
-			awsToken.Append(L"X-aws-ec2-metadata-token: ");
-			if (!tokenPut.Send(logger, awsToken, L"X-aws-ec2-metadata-token-ttl-seconds: 21600")) // Expires after 6 hours
-				return false;
-			if (awsToken.IsEmpty())
-				return false;
-
-			connectionGuard.Cancel();
-			internetGuard.Cancel();
-
-			WinHttpSetTimeouts(m_session, 1000, 1000, 1000, 1000);
-
-			m_awsToken = awsToken.data;
 			return true;
 		}
 
-		bool Init(Logger& logger, StringBufferBase& outExtraInfo, const wchar_t* application)
+		bool Init(Logger& logger, StringBufferBase& outExtraInfo, const tchar* application)
 		{
 			if (!InitCore(logger, application))
 				return false;
 
-			HttpRequest instanceIdReq;
-			if (instanceIdReq.Init(logger, m_connection, L"GET", L"latest/meta-data/instance-id"))
+			HttpConnection http;
+
+			u32 statusCode = 0;
+
+			StringBuffer<128> instanceId;
+			if (!http.Get(logger, instanceId, statusCode, g_imdsHost, g_imdsInstanceId))
+				return false;
+			outExtraInfo.Append(TC(", AWS: ")).Append(instanceId);
+
+			StringBuffer<32> instanceLifeCycle;
+			if (http.Get(logger, instanceLifeCycle, statusCode, g_imdsHost, g_imdsInstanceLifeCycle))
 			{
-				outExtraInfo.Append(L", AWS: ");
-				if (!instanceIdReq.Send(logger, outExtraInfo, m_awsToken.c_str()))
-					outExtraInfo.Clear();
+				outExtraInfo.Append(' ').Append(instanceLifeCycle);
+				m_isSpot = instanceLifeCycle.Contains(TC("spot"));
 			}
 
-			HttpRequest lifeCycleReq;
-			if (lifeCycleReq.Init(logger, m_connection, L"GET", L"latest/meta-data/instance-life-cycle"))
+			StringBuffer<32> autoscaling;
+			if (http.Get(logger, autoscaling, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState) && statusCode == 200)
 			{
-				StringBuffer<32> instanceLifeCycle;
-				if (lifeCycleReq.Send(logger, instanceLifeCycle, m_awsToken.c_str()))
-				{
-					outExtraInfo.Append(' ').Append(instanceLifeCycle);
-					m_isSpot = instanceLifeCycle.Contains(L"spot");
-				}
-			}
-
-			if (m_autoscalingRequest.Init(logger, m_connection, L"GET", L"latest/meta-data/autoscaling/target-lifecycle-state"))
-			{
-				StringBuffer<32> instanceLifeCycle;
-				u32 statusCode = 0;
-				if (m_autoscalingRequest.Send(logger, instanceLifeCycle, m_awsToken.c_str(), &statusCode) && statusCode == 200)
-				{
-					outExtraInfo.Append(m_isSpot ? '/' : ' ').Append(L"autoscale");
-					m_isAutoscaling = true;
-				}
+				outExtraInfo.Append(m_isSpot ? '/' : ' ').Append(TC("autoscale"));
+				m_isAutoscaling = true;
 			}
 
 			if (!InitAvailabilityZone(logger))
@@ -192,11 +62,11 @@ namespace uba
 
 		bool InitAvailabilityZone(Logger& logger)
 		{
-			HttpRequest availabilityZoneReq;
-			if (!availabilityZoneReq.Init(logger, m_connection, L"GET", L"latest/meta-data/placement/availability-zone"))
-				return false;
-			StringBuffer<256> availabilityZone;
-			if (!availabilityZoneReq.Send(logger, availabilityZone, m_awsToken.c_str()))
+			HttpConnection http;
+
+			StringBuffer<128> availabilityZone;
+			u32 statusCode = 0;
+			if (!http.Get(logger, availabilityZone, statusCode, g_imdsHost, g_imdsInstanceAvailabilityZone))
 				return false;
 			m_availabilityZone = availabilityZone.data;
 			return true;
@@ -204,21 +74,21 @@ namespace uba
 
 		bool InitPolling(Logger& logger)
 		{
-			if (m_isSpot)
-				m_instanceActionRequest.Init(logger, m_connection, L"GET", L"latest/meta-data/spot/instance-action");
 			return true;
 		}
 
 		bool IsTerminating(Logger& logger, StringBufferBase& outReason, u64& outTerminationTimeMs)
 		{
+			HttpConnection http;
+
 			outTerminationTimeMs = 0;
 			if (m_isSpot)
 			{
 				StringBuffer<1024> content;
 				u32 statusCode = 0;
-				if (m_instanceActionRequest.Send(logger, content, m_awsToken.c_str(), &statusCode) && statusCode == 200)
+				if (http.Get(logger, content, statusCode, g_imdsHost, g_imdsSpotInstanceAction) && statusCode == 200)
 				{
-					outReason.Append(L"AWS spot instance interruption");
+					outReason.Append(TC("AWS spot instance interruption"));
 					return true;
 				}
 			}
@@ -227,17 +97,17 @@ namespace uba
 			{
 				StringBuffer<1024> content;
 				u32 statusCode = 0;
-				if (m_autoscalingRequest.Send(logger, content, m_awsToken.c_str(), &statusCode) && statusCode == 200)
+				if (http.Get(logger, content, statusCode, g_imdsHost, g_imdsAutoScalingLifeCycleState) && statusCode == 200)
 				{
 					//if (!content.Equals(L"InService"))
 					//{
 					//	wprintf(L"AWSACTION: AUTOSCALE: %ls\n", content.data);
 					//}
 
-					if (!content.Contains(L"InService")) // AWS can return "InServiceI" as well?
+					if (!content.Contains(TC("InService"))) // AWS can return "InServiceI" as well?
 					{
 						//wprintf(L"AWSACTION: AUTOSCALE REBALANCING!!!! (%ls)\n", content.data);
-						outReason.Append(L"AWS autoscale rebalancing");
+						outReason.Append(TC("AWS autoscale rebalancing"));
 						return true;
 					}
 				}
@@ -245,22 +115,13 @@ namespace uba
 			return false;
 		}
 
-		const wchar_t* GetAvailabilityZone()
+		const tchar* GetAvailabilityZone()
 		{
 			return m_availabilityZone.c_str();
 		}
 
-	private:
-		HINTERNET m_session = NULL;
-		HINTERNET m_connection = NULL;
-		TString m_awsToken;
 		TString m_availabilityZone;
-		HttpRequest m_autoscalingRequest;
-		HttpRequest m_instanceActionRequest;
-
 		bool m_isSpot = false;
 		bool m_isAutoscaling = false;
 	};
 }
-
-#endif // PLATFORM_WINDOWS

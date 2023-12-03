@@ -7,6 +7,8 @@
 #include "UbaPlatform.h"
 #include "UbaVersion.h"
 
+#include "UbaAWS.h"
+
 #if PLATFORM_WINDOWS
 #include <dbghelp.h>
 #include <io.h>
@@ -55,6 +57,7 @@ namespace uba
 		logger.Info(TC("   -loop=<count>           Loop the commandline <count> number of times. Will exit when/if it fails"));
 		logger.Info(TC("   -workdir=<dir>          Working directory"));
 		logger.Info(TC("   -checkcas               Check so all cas entries are correct"));
+		logger.Info(TC("   -checkaws               Check if we are inside aws and output information about aws"));
 		logger.Info(TC("   -getcas                 Will print hash of application"));
 		logger.Info(TC("   -summary                Print summary at the end of a session"));
 		logger.Info(TC("   -nocustomalloc          Disable custom allocator for processes. If you see odd crashes this can be tested"));
@@ -128,6 +131,7 @@ namespace uba
 		bool disableCustomAllocator = false;
 		bool quiet = false;
 		bool checkCas = false;
+		bool checkAws = false;
 		bool getCas = false;
 		bool printSummary = false;
 		u32 loopCount = 1;
@@ -236,6 +240,10 @@ namespace uba
 			{
 				checkCas = true;
 			}
+			else if (name.Equals(TC("-checkaws")))
+			{
+				checkAws = true;
+			}
 			else if (name.Equals(TC("-getcas")))
 			{
 				getCas = true;
@@ -277,6 +285,24 @@ namespace uba
 			StorageImpl storage(storageInfo);
 			bool success = storage.CheckCasContent(DefaultProcessorCount);
 			return success ? 0 : -1;
+		}
+
+		if (checkAws)
+		{
+			AWS aws;
+			StringBuffer<> info;
+			if (aws.Init(logger, info, TC("UbaCli")))
+			{
+				logger.Info(TC("We are inside AWS: %s (%s)"), info.data, aws.GetAvailabilityZone());
+				
+				StringBuffer<> reason;
+				u64 terminateTime;
+				if (aws.IsTerminating(logger, reason, terminateTime))
+					logger.Info(TC(".. and are being terminated: %s"), reason.data);
+			}
+			else
+				logger.Info(TC("Seems like we are not running inside aws."));
+			return 0;
 		}
 
 		if (commandType == CommandType_NotSet)

@@ -9,6 +9,7 @@
 
 #if PLATFORM_LINUX
 #include <netinet/tcp.h>
+#define strcpy_s(a, b, c) strcpy(a, c)
 #endif
 
 #if PLATFORM_WINDOWS
@@ -850,6 +851,134 @@ namespace uba
 		for (; addrInfoIt != NULL; addrInfoIt = addrInfoIt->ai_next)
 			if (!func(*addrInfoIt->ai_addr))
 				return true;
+		return true;
+	}
+
+	HttpConnection::HttpConnection()
+	{
+		m_socket = INVALID_SOCKET;
+		*m_host = 0;
+	}
+
+	HttpConnection::~HttpConnection()
+	{
+		#if PLATFORM_WINDOWS
+		if (m_wsaInitDone)
+			WSACleanup();
+		#endif
+		if (m_socket != INVALID_SOCKET)
+			closesocket(m_socket);
+	}
+
+	bool HttpConnection::Connect(Logger& logger, const char* host)
+	{
+		#if PLATFORM_WINDOWS
+		WSADATA wsaData;
+		if (!m_wsaInitDone)
+			if (int res = WSAStartup(MAKEWORD(2, 2), &wsaData))
+				return logger.Error(TC("WSAStartup failed (%d)"), res);
+		m_wsaInitDone = true;
+		#endif
+
+		protoent* protoent = getprotobyname("tcp");
+		if (protoent == NULL)
+			return logger.Error(TC("HttpRequest: socket error"));
+
+		SOCKET sock = socket(AF_INET, SOCK_STREAM, protoent->p_proto);
+		if (sock == -1)
+			return logger.Error(TC("HttpRequest: socket error"));
+		auto socketClose = MakeGuard([sock]() { closesocket(sock); });
+
+		hostent* hostent = gethostbyname(host);
+		if (hostent == NULL)
+			return logger.Error(TC("HttpRequest: gethostbyname error"));
+
+		unsigned long in_addr = inet_addr(inet_ntoa(*(struct in_addr*)*(hostent->h_addr_list)));
+		if (in_addr == INADDR_NONE)
+			return logger.Error(TC("HttpRequest: inet_addr error"));
+
+		sockaddr_in sockaddr_in;
+		sockaddr_in.sin_addr.s_addr = in_addr;
+		sockaddr_in.sin_family = AF_INET;
+		sockaddr_in.sin_port = htons(80);
+
+		if (connect(sock, (struct sockaddr*)&sockaddr_in, sizeof(sockaddr_in)) == -1)
+			return false;// logger.Error(TC("HttpRequest: connect error"));
+
+		socketClose.Cancel();
+
+		strcpy_s(m_host, sizeof_array(m_host), host);
+		m_socket = sock;
+		return true;
+	}
+
+	bool HttpConnection::Get(Logger& logger, StringBufferBase& outResponse, u32& outStatusCode, const char* host, const char* path)
+	{
+		// TODO: Fix so we reuse socket connection for multiple queries
+		if (*m_host)// && _stricmp(m_host, host) != 0)
+		{
+			closesocket(m_socket);
+			m_socket = INVALID_SOCKET;
+			*m_host = 0;
+		}
+
+		if (m_socket == INVALID_SOCKET)
+			if (!Connect(logger, host))
+				return false;
+
+		char request[512];
+		int requestLen = snprintf(request, 512, "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n", path, m_host);
+
+		int totalBytesSent = 0;
+		while (totalBytesSent < requestLen) {
+			int bytesSent = send(m_socket, request + totalBytesSent, requestLen - totalBytesSent, 0);
+			if (bytesSent == -1)
+				return logger.Error(TC("HttpRequest: send error"));
+			totalBytesSent += bytesSent;
+		}
+
+#if PLATFORM_WINDOWS
+#pragma warning(push)
+#pragma warning(disable:6386) // analyzer claims that buf can have buffer overrun.. but can't see how that can happen
+#endif
+
+		u32 readPos = 0;
+		char buf[4*1024];
+		int bytesRead = 0;
+		while ((bytesRead = recv(m_socket, buf + readPos, sizeof(buf) - readPos, 0)) > 0)
+			readPos += bytesRead;
+
+		if (bytesRead == -1)
+			return logger.Error(TC("HttpRequest: recv error"));
+
+		if (readPos == sizeof(buf))
+			return logger.Error(TC("HttpRequest: buffer overflow"));
+
+		buf[readPos] = 0;
+
+#if PLATFORM_WINDOWS
+#pragma warning(pop)
+#endif
+
+		char* firstSpace = strchr(buf, ' '); // After version (where status code starts)
+		if (!firstSpace)
+			return logger.Error(TC("HttpRequest: first space not found (read %u)"), readPos);
+		char* secondSpace = strchr(firstSpace + 1, ' '); // after status code
+		if (!secondSpace)
+			return logger.Error(TC("HttpRequest: second space not found"));
+		*secondSpace = 0;
+		outStatusCode = strtoul(firstSpace + 1, nullptr, 10);
+
+		char* bodyStart = strstr(secondSpace + 1, "\r\n\r\n");
+		if (!bodyStart)
+			return logger.Error(TC("HttpRequest: no body found"));
+
+		#if PLATFORM_WINDOWS
+		outResponse.Appendf(L"%S", bodyStart + 4);
+		#else
+		outResponse.Append(bodyStart + 4);
+		#endif
+
 		return true;
 	}
 }
