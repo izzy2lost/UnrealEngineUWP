@@ -33,8 +33,8 @@ namespace Horde.Server.Tests
 			
 			ActionResult<List<object>> res = await LeasesController.FindLeasesAsync(null, null, null, null, minTime, maxTime);
 			Assert.AreEqual(2, res.Value!.Count);
-			Assert.AreEqual(lease2.Id.ToString(), (res.Value[0] as GetAgentLeaseResponse)!.Id);
-			Assert.AreEqual(lease1.Id.ToString(), (res.Value[1] as GetAgentLeaseResponse)!.Id);
+			Assert.AreEqual(lease2.Id, (res.Value[0] as GetAgentLeaseResponse)!.Id);
+			Assert.AreEqual(lease1.Id, (res.Value[1] as GetAgentLeaseResponse)!.Id);
 		}
 
 		private async Task<ILease> CreateLeaseAsync(DateTime startTime, TimeSpan duration)
