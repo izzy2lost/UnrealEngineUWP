@@ -505,7 +505,7 @@ namespace uba
 					if (memAvail)
 						text.Appendf(L" Mem: %ls/%ls", BytesToText(session.memTotal - memAvail).str, BytesToText(session.memTotal).str);
 					if (ping)
-						text.Appendf(L" Ping: %ls", TimeToText(ping).str);
+						text.Appendf(L" Ping: %ls", TimeToText(ping, false, m_traceView.frequency).str);
 				}
 				else
 					text.Append(L" - Disconnected");
@@ -1175,7 +1175,7 @@ namespace uba
 			logger.SetColor(m_sendColor).Info(L"  Recv: %ls/s", BytesToText(m_stats.recvBytesPerSecond).str);
 			logger.SetColor(m_recvColor).Info(L"  Send: %ls/s", BytesToText(m_stats.sendBytesPerSecond).str);
 			if (m_stats.ping)
-				logger.Info(L"  Ping: %ls", TimeToText(m_stats.ping).str);
+				logger.Info(L"  Ping: %ls", TimeToText(m_stats.ping, false, m_traceView.frequency).str);
 		}
 		else if (m_buttonSelected != ~0u)
 		{

@@ -50,9 +50,10 @@ namespace uba
 		#endif
 	}
 
-	TimeToText::TimeToText(u64 time, bool allowMinutes)
+	TimeToText::TimeToText(u64 time, bool allowMinutes) : TimeToText(time, allowMinutes, GetFrequency()) {}
+	TimeToText::TimeToText(u64 time, bool allowMinutes, u64 frequency)
 	{
-		u64 ms = TimeToMs(time);
+		u64 ms = TimeToMs(time, frequency);
 		if (ms == 0 && time != 0)
 			TStrcpy_s(str, 32, TC("<1ms"));
 		else if (ms < 1000)

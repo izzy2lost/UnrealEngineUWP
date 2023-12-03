@@ -63,6 +63,7 @@ namespace uba
 	struct TimeToText
 	{
 		TimeToText(u64 time, bool allowMinutes = false);
+		TimeToText(u64 time, bool allowMinutes, u64 frequency);
 		operator const tchar*() const { return str; };
 		tchar str[32];
 	};

@@ -53,8 +53,8 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		//UBA_TEST(TestRemoteDetouredTestApp)
-		UBA_TESTS
+		UBA_TEST(TestDetouredTestApp)
+		//UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));
 		Sleep(3000);
