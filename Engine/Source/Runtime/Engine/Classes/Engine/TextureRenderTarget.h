@@ -73,7 +73,13 @@ class UTextureRenderTarget : public UTexture
 	 */
 	ENGINE_API virtual TSubclassOf<UTexture> GetTextureUClass() const PURE_VIRTUAL(UTextureRenderTarget, return nullptr;);
 
+	// get the variant of ReadPixels call that should be used
+	//	either BGRA8,RGBA32F,or RGBA16F
+	//	for FColor,FLinearColor, or Float16
+	static ERawImageFormat::Type GetReadPixelsFormat(EPixelFormat PF,bool bIsVolume);
+
 #if WITH_EDITOR
+
 	/**
 	 * Utility for updating an existing UTexture from a TextureRenderTarget
 	 * @param InTexture - Texture which will contain the content of this render target after the call.

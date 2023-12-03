@@ -147,14 +147,18 @@ TSubclassOf<UTexture> UTextureRenderTargetVolume::GetTextureUClass() const
 bool UTextureRenderTargetVolume::CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const
 {
 	const EPixelFormat LocalFormat = GetFormat();
-	// These are the formats currently available for conversion to texture for UTextureRenderTargetVolume : 
-	// PF_R32_FLOAT and PF_FloatRGBA are supported by FTextureRenderTargetVolumeResource::ReadFloat16Pixels
-	// TODO [jonathan.bard] : PF_R16F is also supported by by FTextureRenderTargetVolumeResource::ReadFloat16Pixels so it could be added to the list
-	ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(GetFormat(), { PF_R32_FLOAT, PF_FloatRGBA }, OutErrorMessage);
+
+	// Formats limited by support in Read3DSurfaceFloatData (see FTextureRenderTargetVolumeResource::ReadFloat16Pixels) :
+	ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(LocalFormat, 
+		{ PF_R32_FLOAT, PF_FloatRGBA, PF_R16F }, OutErrorMessage);
 	if (TextureSourceFormat == TSF_Invalid)
 	{
 		return false;
 	}
+
+	// this is not actually required, TextureSourceFormat is a free choice
+	// volumes will always use the 16F read path, that comes from GetReadPixelsFormat()
+	TextureSourceFormat = TSF_RGBA16F;
 
 	if ((SizeX <= 0) || (SizeY <= 0) || (SizeZ <= 0))
 	{
@@ -207,8 +211,8 @@ void FTextureRenderTargetVolumeResource::InitRHI(FRHICommandListBase& RHICmdList
 
 	if((Owner->SizeX > 0) && (Owner->SizeY > 0) && (Owner->SizeZ > 0))
 	{
+		// ?? Volume's version of IsSRGB() here :
 		bool bIsSRGB = true;
-
 		// if render target gamma used was 1.0 then disable SRGB for the static texture
 		if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
 		{
@@ -320,11 +324,14 @@ FIntPoint FTextureRenderTargetVolumeResource::GetSizeXY() const
 
 float FTextureRenderTargetVolumeResource::GetDisplayGamma() const
 {
+	// code dupe ; move this up to the top level, it's duped everywhere
+
 	if(Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
 		return Owner->TargetGamma;
 	}
 	EPixelFormat Format = Owner->GetFormat();
+	// ?? hard-coding a few formats but not others, likely wrong
 	if(Format == PF_R32_FLOAT || Format == PF_FloatRGBA || Owner->bForceLinearGamma)
 	{
 		return 1.0f;
@@ -345,16 +352,23 @@ bool FTextureRenderTargetVolumeResource::ReadFloat16Pixels(TArray<FFloat16Color>
 		InSrcRect = FIntRect(0, 0, GetSizeXY().X, GetSizeXY().Y);
 	}
 	
-	/**
+	check( Owner->GetFormat() == GetRenderTargetTexture()->GetFormat() );
+	EPixelFormat PF = GetRenderTargetTexture()->GetFormat();
 
-	deep inside RHI this will crash unless the format is one of these :
-	no checks are done in outer code
+	if ( PF != PF_FloatRGBA && PF != PF_R16F && PF != PF_R32_FLOAT )
+	{
+		/**
 
-	bool bIsRGBAFmt = TextureDesc.Format == GPixelFormats[PF_FloatRGBA].PlatformFormat;
-	bool bIsR16FFmt = TextureDesc.Format == GPixelFormats[PF_R16F].PlatformFormat;
-	bool bIsR32FFmt = TextureDesc.Format == GPixelFormats[PF_R32_FLOAT].PlatformFormat;
-	check(bIsRGBAFmt || bIsR16FFmt || bIsR32FFmt);
-	**/
+		deep inside RHI this will crash unless the format is one of these :
+
+		bool bIsRGBAFmt = TextureDesc.Format == GPixelFormats[PF_FloatRGBA].PlatformFormat;
+		bool bIsR16FFmt = TextureDesc.Format == GPixelFormats[PF_R16F].PlatformFormat;
+		bool bIsR32FFmt = TextureDesc.Format == GPixelFormats[PF_R32_FLOAT].PlatformFormat;
+		check(bIsRGBAFmt || bIsR16FFmt || bIsR32FFmt);
+		**/
+
+		return false;
+	}
 
 	OutImageData.Reset();
 

@@ -17,7 +17,7 @@ struct FPropertyChangedEvent;
  * for rendering as well as rendered as a regular cube texture resource.
  *
  */
-UCLASS(hidecategories=Object, hidecategories=Texture, MinimalAPI)
+UCLASS(hidecategories=Object, hidecategories=Texture, hidecategories=Compression, hidecategories=Adjustments, hidecategories=Compositing, MinimalAPI)
 class UTextureRenderTargetCube : public UTextureRenderTarget
 {
 	GENERATED_UCLASS_BODY()
@@ -30,12 +30,13 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	UPROPERTY()
 	FLinearColor ClearColor;
 
-	/** The format of the texture data.											*/
-	/** Normally the format is derived from bHDR, this allows code to set the format explicitly. */
+	/** The format of the texture data.											
+	* Normally the format is derived from bHDR, this allows code to set the format explicitly. */
 	UPROPERTY()
 	TEnumAsByte<enum EPixelFormat> OverrideFormat;
 
-	/** Whether to support storing HDR values, which requires more memory. */
+	/** If OverrideFormat is not set, bHDR chooses the format of the RT.
+	With bHDR on it is RGBA16F , off is BGRA8 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTargetCube, AssetRegistrySearchable)
 	uint8 bHDR:1;
 

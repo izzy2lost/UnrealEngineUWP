@@ -330,16 +330,6 @@ bool FImageUtils::GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& Raw
 	return true;
 }
 
-static int GetBitsPerComponent(EPixelFormat Format)
-{
-	if ( Format == PF_A2B10G10R10 ) return 10; // doesn't handle heterogenous bit counts well
-
-	const FPixelFormatInfo & Info = GPixelFormats[Format];
-	// rounds down
-	int BitsPerComponent = ( Info.BlockBytes * 8 ) / ( Info.BlockSizeX * Info.BlockSizeY * Info.BlockSizeZ * Info.NumComponents );
-	return BitsPerComponent;
-}
-
 bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image)
 {
 	Image = FImage();
@@ -347,27 +337,9 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 	FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
 	EPixelFormat RTFormat = TexRT->GetFormat();
 
-	bool Use8Bit;
-	
-	if ( GetBitsPerComponent(RTFormat) <= 8 )
-	{
-		Use8Bit = true;
-	}
-	else if ( IsFloatFormat(RTFormat) || IsHDR(RTFormat) )
-	{
-		Use8Bit = false;
-	}
-	else if ( IsDepthOrStencilFormat(RTFormat) )
-	{
-		Use8Bit = false;
-	}
-	else
-	{
-		// eg. 16-bit integer
-		Use8Bit = false;
-	}
-	
-	if ( RTFormat == PF_FloatRGBA )
+	ERawImageFormat::Type ReadFormat = UTextureRenderTarget::GetReadPixelsFormat(RTFormat,false);
+		
+	if ( ReadFormat == ERawImageFormat::RGBA16F )
 	{
 		// ReadFloat16Pixels does no conversions
 		//	must be used only exactly with FloatRGBA type
@@ -383,7 +355,7 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
 		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
 	}
-	else if ( Use8Bit )
+	else if ( ReadFormat == ERawImageFormat::BGRA8 )
 	{
 		// ?? not clear TexRT->IsSRGB is right , see other notes on various issues there
 		//	mainly we are trying to catch the check for whether the _SRGB or non _SRGB BGRA8 format as chosen
@@ -404,7 +376,7 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
 		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
 	}
-	else // use F32
+	else if ( ReadFormat == ERawImageFormat::RGBA32F )
 	{
 		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
 		
@@ -420,7 +392,11 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 
 		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
 		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
-	}	
+	}
+	else
+	{
+		check(0); // unexpected ReadFormat
+	}
 	
 	return true;
 }

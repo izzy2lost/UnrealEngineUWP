@@ -168,8 +168,8 @@ TSubclassOf<UTexture> UTextureRenderTargetCube::GetTextureUClass() const
 bool UTextureRenderTargetCube::CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const
 {
 	const EPixelFormat LocalFormat = GetFormat();
-	// These are the formats currently available for conversion to texture for UTextureRenderTargetCube : 
-	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(GetFormat(), { PF_B8G8R8A8, PF_FloatRGBA }, OutErrorMessage);
+
+	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(LocalFormat, { }, OutErrorMessage);
 	if (TextureSourceFormat == TSF_Invalid)
 	{
 		return false;
@@ -224,6 +224,8 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 
 	if(Owner->SizeX > 0)
 	{
+		// compare with IsSRGB() call on RenderTarget2D
+		//	also "bool SRGB" should be set = bIsSRGB, but isn't
 		bool bIsSRGB = true;
 		// if render target gamma used was 1.0 then disable SRGB for the static texture
 		if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
@@ -371,6 +373,8 @@ FIntPoint FTextureRenderTargetCubeResource::GetSizeXY() const
 
 float FTextureRenderTargetCubeResource::GetDisplayGamma() const
 {
+	// code dupe of RenderTarget2D
+
 	if(Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
 		return Owner->TargetGamma;

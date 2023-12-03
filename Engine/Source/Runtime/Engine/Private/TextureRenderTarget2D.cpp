@@ -366,12 +366,12 @@ TSubclassOf<UTexture> UTextureRenderTarget2D::GetTextureUClass() const
 bool UTextureRenderTarget2D::CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const
 {
 	const EPixelFormat LocalFormat = GetFormat();
-	// These are the formats currently available for conversion to texture for UTextureRenderTarget2D : 
-	// @todo Oodle : get rid of this, support all
-	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(LocalFormat, { PF_G8, PF_R8G8, PF_B8G8R8A8, PF_FloatRGBA }, OutErrorMessage);
+
+	// empty array means all formats supported
+	const ETextureSourceFormat TextureSourceFormat = ValidateTextureFormatForConversionToTextureInternal(LocalFormat, { }, OutErrorMessage);
 	if (TextureSourceFormat == TSF_Invalid)
 	{
-		return TSF_Invalid;
+		return false;
 	}
 
 	if ((SizeX <= 0) || (SizeY <= 0))
@@ -424,7 +424,7 @@ FTextureRenderTarget2DResource::FTextureRenderTarget2DResource(const class UText
 	,	TargetSizeX(Owner->SizeX)
 	,	TargetSizeY(Owner->SizeY)
 {
-	
+	// note: Resource has a bSRGB field which is not set or checked in the RenderTarget code
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -648,16 +648,19 @@ FIntPoint FTextureRenderTarget2DResource::GetSizeXY() const
 */
 float FTextureRenderTarget2DResource::GetDisplayGamma() const
 {
+	// if TargetGamma is set (not zero), it overrides everything else
 	if (Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
 		return Owner->TargetGamma;
 	}
+
 	// ?? special casing just two of the float PixelFormats to force 1.0 gamma here is inconsistent
 	//		(there are lots of other float formats)
+	// ignores Owner->IsSRGB() ? it's similar but not quite the same
 	if (Format == PF_FloatRGB || Format == PF_FloatRGBA || Owner->bForceLinearGamma )
 	{
 		return 1.0f;
 	}
-	// ignores Owner->IsSRGB() ?
-	return FTextureRenderTargetResource::GetDisplayGamma();
+
+	return FTextureRenderTargetResource::GetDisplayGamma(); // hard-coded 2.2 , actually means SRGB
 }

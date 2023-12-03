@@ -760,6 +760,9 @@ void FD3D11DynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI,FIntRect 
 
 static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Width, uint32 Height, uint8 *In, uint32 SrcPitch, FLinearColor* Out, FReadSurfaceDataFlags InFlags)
 {
+	// @@ missing formats I added to D3D12RenderTarget
+	//	factor out and share code!
+
 	bool bLinearToGamma = InFlags.GetLinearToGamma();
 	if (Format == PF_R16F || Format == PF_R16F_FILTER)
 	{

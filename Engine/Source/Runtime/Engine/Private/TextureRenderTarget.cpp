@@ -14,6 +14,7 @@
 #include "TextureCompiler.h"
 #include "Logging/MessageLog.h"
 #include "Hash/xxhash.h"
+#include "ImageCoreUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TextureRenderTarget)
 
@@ -77,7 +78,8 @@ bool UTextureRenderTarget::CanConvertToTexture(FText* OutErrorMessage) const
 
 ETextureSourceFormat UTextureRenderTarget::ValidateTextureFormatForConversionToTextureInternal(EPixelFormat InFormat, const TArrayView<const EPixelFormat>& InCompatibleFormats, FText* OutErrorMessage) const
 {
-	if (!InCompatibleFormats.Contains(InFormat))
+	// InCompatibleFormats can be empty, meaning anything works
+	if ( InCompatibleFormats.Num() != 0 && !InCompatibleFormats.Contains(InFormat))
 	{
 		if (OutErrorMessage != nullptr)
 		{
@@ -94,34 +96,50 @@ ETextureSourceFormat UTextureRenderTarget::ValidateTextureFormatForConversionToT
 	}
 
 	// Return what ETextureSourceFormat corresponds to this EPixelFormat (must match the conversion capabilities of UTextureRenderTarget::UpdateTexture) : 
-	ETextureSourceFormat TextureFormat = TSF_Invalid;
-	// @todo Oodle : just support all formats and remove this
-	switch (InFormat)
-	{
-	case PF_B8G8R8A8:
-	case PF_R8G8: // Will produce 2 useless channels as it will be expanded to a TSF_BGRA8 texture source but there's no 2 channel ETextureSourceFormat
-		TextureFormat = TSF_BGRA8;
-		break;
-	case PF_R32_FLOAT: // Narrowed down to 16bits float (if available by the FRenderTarget::ReadFloat16Pixels implementation and corresponding RHI implementation)
-	case PF_FloatRGBA:
-		TextureFormat = TSF_RGBA16F;
-		break;
-	case PF_G8:
-		TextureFormat = TSF_G8;
-		break;
-	default:
-	{
-		checkf(false, TEXT("Only some select texture formats are currently supported by UTextureRenderTarget::UpdateTexture. Please update this switch if you add conversion code."));
-	}
-	}
+	ERawImageFormat::Type RawFormat = FImageCoreUtils::GetRawImageFormatForPixelFormat(InFormat);
+	ETextureSourceFormat TextureFormat = FImageCoreUtils::ConvertToTextureSourceFormat(RawFormat);
 
 	return TextureFormat;
+}
+
+// there are three different RHI APIs to read pixels from render targets
+// they correspond to FColor, FLinearColor, and FFloat16
+// choose which of the three to use for this RT
+ERawImageFormat::Type UTextureRenderTarget::GetReadPixelsFormat(EPixelFormat PF,bool bIsVolume)
+{
+	if ( bIsVolume )
+	{
+		// volumes are different, must always use 16F path
+		return ERawImageFormat::RGBA16F;
+	}
+	else if ( PF == PF_FloatRGBA )
+	{
+		// for non-volumes, only exact match 16F is supported
+		return ERawImageFormat::RGBA16F;
+	}
+	else
+	{
+		// either 8-bit FColor or 32F FLinearColor path
+
+		ERawImageFormat::Type RF = FImageCoreUtils::GetRawImageFormatForPixelFormat(PF);
+
+		if ( RF == ERawImageFormat::BGRA8 || RF == ERawImageFormat::G8 )
+		{
+			return ERawImageFormat::BGRA8; // use FColor
+		}
+		else
+		{
+			return ERawImageFormat::RGBA32F; // use FLinearColor
+		}
+	}
 }
 
 #if WITH_EDITOR
 
 bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureFlags InFlags, const TArray<uint8>* InAlphaOverride, FOnTextureChangingDelegate InOnTextureChangingDelegate, FText* OutErrorMessage)
 {
+	// InTexture will be filled from the RT
+	// InTexture must already be set up as the right type of texture
 
 	if (InTexture == nullptr)
 	{
@@ -146,12 +164,13 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 		return false;
 	}
 
-	ETextureSourceFormat TextureSourceFormat = TSF_Invalid;
+	ETextureSourceFormat OutTextureSourceFormat = TSF_Invalid;
 	EPixelFormat PixelFormat = PF_Unknown; 
-	if (!CanConvertToTexture(TextureSourceFormat, PixelFormat, OutErrorMessage))
+	if (!CanConvertToTexture(OutTextureSourceFormat, PixelFormat, OutErrorMessage))
 	{
 		return false;
 	}
+	check( OutTextureSourceFormat != TSF_Invalid );
 
 	// Note : use UTexture's GetTextureClass() here, as URenderTarget's GetTextureClass() unconveniently returns ETextureClass::RenderTarget :
 	ETextureClass TextureClass = InTexture->GetTextureClass();
@@ -183,7 +202,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	bTextureChanging |= InTexture->Source.GetVolumeSizeZ() != SizeZ;
 	// Note : for FTextureSource, NumSlices means NumSurfaces (e.g. 6 * GetNumSlices() for a cube map array) : 
 	bTextureChanging |= InTexture->Source.GetNumSlices() != NumSurfaces;
-	bTextureChanging |= InTexture->Source.GetFormat() != TextureSourceFormat;
+	bTextureChanging |= InTexture->Source.GetFormat() != OutTextureSourceFormat;
 	bTextureChanging |= InTexture->CompressionSettings != CompressionSettingsForTexture;
 
 	FXxHash64 OldDataHash;
@@ -199,10 +218,27 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	}
 
 	// Temp storage that will be used for the texture init.
+	ERawImageFormat::Type ReadFormat = GetReadPixelsFormat(PixelFormat,bIsVolume);
+
+	check( ReadFormat == ERawImageFormat::BGRA8 ||
+		ReadFormat == ERawImageFormat::RGBA32F ||
+		ReadFormat == ERawImageFormat::RGBA16F );
+
+	EGammaSpace ReadGammaSpace = EGammaSpace::Linear;
+	bool bSRGB = RenderTarget->GetDisplayGamma() > 1.5f; // @@ no way to call IsSRGB() , no uniform query on RenderTarget
+	if ( ERawImageFormat::GetFormatNeedsGammaSpace(ReadFormat) && bSRGB )
+	{
+		ReadGammaSpace = EGammaSpace::sRGB;
+	}
+
+	FImage ReadImage;
+	ReadImage.Init(SizeX,SizeY,NumSurfaces,ReadFormat,ReadGammaSpace);
+
 	const int32 NumPixelsPerSurface = SizeX * SizeY;
-	const int32 NumBytesPerPixel = GTextureSourceFormats[TextureSourceFormat].BytesPerPixel;
-	const int32 DestinationSurfaceMipSize = NumPixelsPerSurface * NumBytesPerPixel;
-	const int32 DestinationSize = NumPixelsPerSurface * NumSurfaces * NumBytesPerPixel;
+	const int32 NumBytesPerPixel = ReadImage.GetBytesPerPixel();
+	const int64 DestinationSurfaceMipSize = ReadImage.GetSliceSizeBytes();
+	const int64 DestinationSize = ReadImage.GetImageSizeBytes();
+
 	check(NumBytesPerPixel > 0);
 	checkf((InAlphaOverride == nullptr) || (NumPixelsPerSurface == InAlphaOverride->Num()), TEXT("If InAlphaOverride is specified, it must have the same number of pixels as a single slice (currently, render target has %d pixels per slice, AlphaOverride: %d). It is also expected to be 1-byte encoded (1 element per pixel)."),
 		NumPixelsPerSurface, InAlphaOverride->Num());
@@ -210,28 +246,28 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	TArray<uint8> NewData;
 	NewData.SetNumUninitialized(DestinationSize);
 
-	// @todo Oodle : make this more generic like ImageUtils::GetRenderTargetImage
-
 	// Read the data surface by surface (i.e. for a 2D array or a volume: slice by slice, for a cubemap: face by face and for a cubemap array: face by face, slice by slice
 	for (int32 SurfaceIndex = 0; SurfaceIndex < NumSurfaces; ++SurfaceIndex)
 	{
-		TArrayView<uint8> SurfaceByteData = MakeArrayView(NewData.GetData() + SurfaceIndex * DestinationSurfaceMipSize, DestinationSurfaceMipSize);
 		FReadSurfaceDataFlags ReadSurfaceDataFlags(RCM_UNorm, bIsCube ? static_cast<ECubeFace>(SurfaceIndex % 6) : CubeFace_MAX);
 		ReadSurfaceDataFlags.SetArrayIndex(bIsCube ? SurfaceIndex / 6 : SurfaceIndex);
-		switch (TextureSourceFormat)
+
+		void * ReadIntoSlice = ReadImage.GetPixelPointer(0,0,SurfaceIndex);
+
+		switch (ReadFormat)
 		{
-		case TSF_BGRA8:
+		case ERawImageFormat::BGRA8: // FColor
 		{
 			TArray<FColor> NewDataColor;
 			RenderTarget->ReadPixels(NewDataColor, ReadSurfaceDataFlags);
 			check(NewDataColor.Num() == NumPixelsPerSurface);
 
 			const int32 NumBytes = NewDataColor.Num() * NewDataColor.GetTypeSize();
-			check(NumBytes == SurfaceByteData.Num());
-			FMemory::Memcpy(SurfaceByteData.GetData(), NewDataColor.GetData(), NumBytes);
+			check(NumBytes == DestinationSurfaceMipSize);
+			FMemory::Memcpy(ReadIntoSlice, NewDataColor.GetData(), NumBytes);
 
 			// override the alpha if desired
-			TArrayView<FColor> SurfaceColorData = MakeArrayView(reinterpret_cast<FColor*>(SurfaceByteData.GetData()), NumPixelsPerSurface);
+			TArrayView<FColor> SurfaceColorData = MakeArrayView(reinterpret_cast<FColor*>(ReadIntoSlice), NumPixelsPerSurface);
 			if (InAlphaOverride != nullptr)
 			{
 				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
@@ -257,7 +293,46 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 			}
 		}
 		break;
-		case TSF_RGBA16F:
+		
+		case ERawImageFormat::RGBA32F: // FLinearColor
+		{
+			TArray<FLinearColor> NewDataColor;
+			RenderTarget->ReadLinearColorPixels(NewDataColor, ReadSurfaceDataFlags);
+			check(NewDataColor.Num() == NumPixelsPerSurface);
+
+			const int32 NumBytes = NewDataColor.Num() * NewDataColor.GetTypeSize();
+			check(NumBytes == DestinationSurfaceMipSize);
+			FMemory::Memcpy(ReadIntoSlice, NewDataColor.GetData(), NumBytes);
+
+			// override the alpha if desired
+			TArrayView<FLinearColor> SurfaceColorData = MakeArrayView(reinterpret_cast<FLinearColor*>(ReadIntoSlice), NumPixelsPerSurface);
+			if (InAlphaOverride != nullptr)
+			{
+				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
+				{
+					SurfaceColorData[PixelIndex].A = (*InAlphaOverride)[PixelIndex] * (1.f/255.f);
+				}
+			}
+			else if (InFlags & CTF_RemapAlphaAsMasked)
+			{
+				// if the target was rendered with a masked texture, then the depth will probably have been written instead of 0/255 for the
+				// alpha, and the depth when unwritten will be 255, so remap 255 to 0 (masked out area) and anything else as 255 (written to area)
+				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
+				{
+					SurfaceColorData[PixelIndex].A = (SurfaceColorData[PixelIndex].A >= 1.f) ? 0.f : 1.f;
+				}
+			}
+			else if (InFlags & CTF_ForceOpaque)
+			{
+				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
+				{
+					SurfaceColorData[PixelIndex].A = 1.f;
+				}
+			}
+		}
+		break;
+
+		case ERawImageFormat::RGBA16F:
 		{
 			TArray<FFloat16Color> NewDataFloat16Color;
 			check(NumBytesPerPixel == sizeof(FFloat16Color));
@@ -267,16 +342,16 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 
 			check(NewDataFloat16Color.Num() == NumPixelsPerSurface);
 			const int32 NumBytes = NewDataFloat16Color.Num() * NewDataFloat16Color.GetTypeSize();
-			check(NumBytes == SurfaceByteData.Num());
-			FMemory::Memcpy(SurfaceByteData.GetData(), NewDataFloat16Color.GetData(), NumBytes);
+			check(NumBytes == DestinationSurfaceMipSize);
+			FMemory::Memcpy(ReadIntoSlice, NewDataFloat16Color.GetData(), NumBytes);
 
 			// override the alpha if desired
-			TArrayView<FFloat16Color> SurfaceFloat16ColorData = MakeArrayView(reinterpret_cast<FFloat16Color*>(SurfaceByteData.GetData()), NumPixelsPerSurface);
+			TArrayView<FFloat16Color> SurfaceFloat16ColorData = MakeArrayView(reinterpret_cast<FFloat16Color*>(ReadIntoSlice), NumPixelsPerSurface);
 			if (InAlphaOverride != nullptr)
 			{
 				for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; ++PixelIndex)
 				{
-					SurfaceFloat16ColorData[PixelIndex].A = (*InAlphaOverride)[PixelIndex];
+					SurfaceFloat16ColorData[PixelIndex].A = (*InAlphaOverride)[PixelIndex] * (1.f/255.f);
 				}
 			}
 			else if (InFlags & CTF_RemapAlphaAsMasked)
@@ -301,26 +376,30 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 			}
 		}
 		break;
-		case TSF_G8:
-		{
-			
-			TArray<FColor> NewDataColor;
-			RenderTarget->ReadPixels(NewDataColor, ReadSurfaceDataFlags);
-			check(NewDataColor.Num() == NumPixelsPerSurface);
-			for (int32 PixelIndex = 0; PixelIndex < NumPixelsPerSurface; PixelIndex++)
-			{
-				SurfaceByteData[PixelIndex] = NewDataColor[PixelIndex].R;
-			}
-		}
-		break;
+
 		default:
-			checkf(false, TEXT("Unsupported format, it needs to be added to CanConvertToTexture and UpdateTexture"));
+			checkf(false, TEXT("Unexpected ReadFormat"));
 		}
+	}
+
+	// ReadFormat is one of the three primary color types
+	// OutTextureSourceFormat is the closest TSF to our PF
+	if ( OutTextureSourceFormat != FImageCoreUtils::ConvertToTextureSourceFormat(ReadFormat) )
+	{
+		// convert image to OutTextureSourceFormat
+		ReadFormat = FImageCoreUtils::ConvertToRawImageFormat(OutTextureSourceFormat);
+		
+		ReadGammaSpace = EGammaSpace::Linear;
+		if ( ERawImageFormat::GetFormatNeedsGammaSpace(ReadFormat) && bSRGB )
+		{
+			ReadGammaSpace = EGammaSpace::sRGB;
+		}
+		ReadImage.ChangeFormat(ReadFormat,ReadGammaSpace);
 	}
 
 	if (bHashContent)
 	{
-		FXxHash64 NewDataHash = FXxHash64::HashBuffer(NewData.GetData(), NewData.Num());
+		FXxHash64 NewDataHash = FXxHash64::HashBuffer(ReadImage.RawData.GetData(), ReadImage.RawData.Num());
 		bTextureChanging = OldDataHash != NewDataHash;
 	}
 
@@ -332,8 +411,9 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 		FTextureCompilingManager::Get().FinishCompilation({ InTexture });
 
 		// init to the same size as the render target
-		InTexture->Source.Init(SizeX, SizeY, NumSurfaces, NumMips, TextureSourceFormat, NewData.GetData());
+		InTexture->Source.Init(ReadImage);
 		InTexture->CompressionSettings = CompressionSettingsForTexture;
+		InTexture->SRGB = ReadImage.GammaSpace == EGammaSpace::sRGB;
 	}
 
 	return true;

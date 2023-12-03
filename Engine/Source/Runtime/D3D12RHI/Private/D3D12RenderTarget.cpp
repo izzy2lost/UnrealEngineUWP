@@ -592,9 +592,11 @@ static void ConvertDXGIToFColor(DXGI_FORMAT Format, uint32 Width, uint32 Height,
 
 static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Width, uint32 Height, uint8 *In, uint32 SrcPitch, FLinearColor* Out, FReadSurfaceDataFlags InFlags)
 {
-	if (Format == PF_R16F || Format == PF_R16F_FILTER)
+	// @todo Oodle : need to factor this out of here to somewhere generic and share it with all the RHI's
+	// also get the UNorm/MinMax stuff out of the inner loops here, do that as a post-process
+
+	if (Format == PF_R16_UINT )
 	{
-		// e.g. shadow maps
 		for (uint32 Y = 0; Y < Height; Y++)
 		{
 			uint16* SrcPtr = (uint16*)(In + Y * SrcPitch);
@@ -605,6 +607,22 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 				uint16 Value16 = *SrcPtr;
 				float Value = Value16 * (1.f/0xffff);
 
+				*DestPtr = FLinearColor(Value, Value, Value); // G (gray) not R
+				++SrcPtr;
+				++DestPtr;
+			}
+		}
+	}
+	else if (Format == PF_R16F || Format == PF_R16F_FILTER)
+	{
+		for (uint32 Y = 0; Y < Height; Y++)
+		{
+			FFloat16 * SrcPtr = (FFloat16*)(In + Y * SrcPitch);
+			FLinearColor* DestPtr = Out + Y * Width;
+
+			for (uint32 X = 0; X < Width; X++)
+			{
+				float Value = SrcPtr->GetFloat();
 				*DestPtr = FLinearColor(Value, Value, Value);
 				++SrcPtr;
 				++DestPtr;
@@ -863,6 +881,55 @@ static void ConvertRAWSurfaceDataToFLinearColor(EPixelFormat Format, uint32 Widt
 					(float)SrcPtr->R / 65535.0f,
 					(float)SrcPtr->G / 65535.0f,
 					0);
+				++SrcPtr;
+				++DestPtr;
+			}
+		}
+	}
+	else if (Format == PF_G16R16F)
+	{
+		// Read the data out of the buffer, converting it to FLinearColor.
+		for (uint32 Y = 0; Y < Height; Y++)
+		{
+			FFloat16 * SrcPtr = (FFloat16*)(In + Y * SrcPitch);
+			FLinearColor* DestPtr = Out + Y * Width;
+			for (uint32 X = 0; X < Width; X++)
+			{
+				*DestPtr = FLinearColor( SrcPtr[0].GetFloat(), SrcPtr[1].GetFloat(), 0.f,1.f);
+				SrcPtr += 2;
+				++DestPtr;
+			}
+		}
+	}
+	else if (Format == PF_G32R32F)
+	{
+		// not doing MinMax/Unorm remap here
+	
+		// Read the data out of the buffer, converting it to FLinearColor.
+		for (uint32 Y = 0; Y < Height; Y++)
+		{
+			float * SrcPtr = (float *)(In + Y * SrcPitch);
+			FLinearColor* DestPtr = Out + Y * Width;
+			for (uint32 X = 0; X < Width; X++)
+			{
+				*DestPtr = FLinearColor( SrcPtr[0], SrcPtr[1], 0.f, 1.f );
+				SrcPtr += 2;
+				++DestPtr;
+			}
+		}
+	}
+	else if (Format == PF_R32_FLOAT)
+	{
+		// not doing MinMax/Unorm remap here
+	
+		// Read the data out of the buffer, converting it to FLinearColor.
+		for (uint32 Y = 0; Y < Height; Y++)
+		{
+			float * SrcPtr = (float *)(In + Y * SrcPitch);
+			FLinearColor* DestPtr = Out + Y * Width;
+			for (uint32 X = 0; X < Width; X++)
+			{
+				*DestPtr = FLinearColor( SrcPtr[0], 0.f, 0.f, 1.f );
 				++SrcPtr;
 				++DestPtr;
 			}
