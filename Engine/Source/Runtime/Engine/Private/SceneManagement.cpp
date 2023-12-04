@@ -1035,7 +1035,7 @@ FLODMask ComputeLODForMeshes(const TArray<class FStaticMeshBatchRelevance>& Stat
 {
 	if (ForcedLODLevel >= 0 || InstanceSphereRadius <= 0.f)
 	{
-		return ComputeLODForMeshes(StaticMeshRelevances, View, BoundsOrigin, BoundsSphereRadius, ForcedLODLevel, OutScreenRadiusSquared, CurFirstLODIdx, ScreenSizeScale, false);
+		return ComputeLODForMeshes(StaticMeshRelevances, View, BoundsOrigin, BoundsSphereRadius, ForcedLODLevel, OutScreenRadiusSquared, CurFirstLODIdx, ScreenSizeScale);
 	}
 
 	// The bounds origin and radius are for a group of instances.
