@@ -5,7 +5,7 @@
 	in the traditional deferred passes.
 =============================================================================*/
 
-// Following the lead of Tiled Deferred
+// Following the lead of Tiled Deferred 
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_IES_PROFILE 0
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0

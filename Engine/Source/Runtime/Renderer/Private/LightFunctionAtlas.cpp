@@ -44,15 +44,10 @@ How to use the Atlas:
  - Call GetLocalLightFunctionCommon(DerivedParams.TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex); where LightData is a FDeferredLightData recovered from uniform or the light grid.
 
  What is next:
- - Atlas debug
- - RGB option on project + shader changes with defined type
- - Forward shading option
  - Super sample CVAR
  - Convert systems:
     - Lumen
     - Path tracer
-    - Clustered shading
-    - SLW
     - Check those path with Substrate
 
 */
