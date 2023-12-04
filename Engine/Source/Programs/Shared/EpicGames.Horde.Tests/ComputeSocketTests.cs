@@ -82,23 +82,48 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestAgentMessageLoopTcpAsync()
 		{
-			const int Port = 9990;
-			TcpListener listener = new TcpListener(IPAddress.Loopback, Port);
-			listener.Start();
+			using CancellationTokenSource cts = new (5000);
+			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
 
-			using Socket clientSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-			Task clientConnectTask = clientSocket.ConnectAsync(IPAddress.Loopback, Port, CancellationToken.None).AsTask();
+			await using RemoteComputeSocket localSocket = new (new TcpTransport(clientSocket), new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (new TcpTransport(serverSocket), new TestLogger());
 
-			using Socket serverSocket = await listener.AcceptSocketAsync(CancellationToken.None);
-			await clientConnectTask;
-
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new TcpTransport(clientSocket), new TestLogger());
-			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new TcpTransport(serverSocket), new TestLogger());
-
-			await RunAgentTestsAsync(localSocket, agentSocket);
+			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
+		}
+		
+		[TestMethod]
+		public async Task TestAgentMessageLoopTcpSslAsync()
+		{
+			using CancellationTokenSource cts = new (5000);
+			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
+			
+			byte[] certData = TcpSslTransport.GenerateCert();
+			using TcpSslTransport clientTransport = new (clientSocket, certData, false);
+			using TcpSslTransport serverTransport = new (serverSocket, certData, true);
+			
+			Task t1 = clientTransport.AuthenticateAsync(cts.Token);
+			Task t2 = serverTransport.AuthenticateAsync(cts.Token);
+			await t2;
+			await t1;
+			
+			await using RemoteComputeSocket localSocket = new (clientTransport, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (serverTransport, new TestLogger());
+			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
 
-		static async Task RunAgentTestsAsync(RemoteComputeSocket localSocket, RemoteComputeSocket agentSocket)
+		private static async Task<(Socket client, Socket server)> CreateSocketsAsync(CancellationToken cancellationToken)
+		{
+			int port = GetAvailablePort();
+			TcpListener listener = new (IPAddress.Loopback, port);
+			listener.Start();
+			Socket clientSocket = new (SocketType.Stream, ProtocolType.Tcp);
+			Task clientConnectTask = clientSocket.ConnectAsync(IPAddress.Loopback, port, cancellationToken).AsTask();
+			Socket serverSocket = await listener.AcceptSocketAsync(cancellationToken);
+			await clientConnectTask;
+			return (clientSocket, serverSocket);
+		}
+
+		static async Task RunAgentTestsAsync(RemoteComputeSocket localSocket, RemoteComputeSocket agentSocket, CancellationToken cancellationToken = default)
 		{
 			DirectoryReference tempDir = new DirectoryReference("test-temp");
 			await using (BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(agentSocket, tempDir, ctx)))
@@ -106,17 +131,17 @@ namespace EpicGames.Horde.Tests
 				const int PrimaryChannelId = 0;
 				using (AgentMessageChannel channel = localSocket.CreateAgentMessageChannel(PrimaryChannelId, 4 * 1024 * 1024))
 				{
-					await channel.WaitForAttachAsync();
+					await channel.WaitForAttachAsync(cancellationToken);
 
-					await channel.PingAsync();
-					using (AgentMessage message = await channel.ReceiveAsync(CancellationToken.None))
+					await channel.PingAsync(cancellationToken);
+					using (AgentMessage message = await channel.ReceiveAsync(cancellationToken))
 					{
 						Assert.AreEqual(AgentMessageType.Ping, message.Type);
 						Assert.IsTrue(message.Data.Span.SequenceEqual(ReadOnlySpan<byte>.Empty));
 					}
 
-					await channel.SendXorRequestAsync(new byte[] { 1, 2, 3 }, 44);
-					using (AgentMessage message = await channel.ReceiveAsync(CancellationToken.None))
+					await channel.SendXorRequestAsync(new byte[] { 1, 2, 3 }, 44, cancellationToken);
+					using (AgentMessage message = await channel.ReceiveAsync(cancellationToken))
 					{
 						Assert.AreEqual(AgentMessageType.XorResponse, message.Type);
 						Assert.IsTrue(message.Data.Span.SequenceEqual(new byte[] { 1 ^ 44, 2 ^ 44, 3 ^ 44 }));
@@ -125,18 +150,18 @@ namespace EpicGames.Horde.Tests
 					const int SecondaryChannelId = 1;
 					using (AgentMessageChannel channel2 = localSocket.CreateAgentMessageChannel(SecondaryChannelId, 4 * 1024 * 1024))
 					{
-						await channel.ForkAsync(SecondaryChannelId, 4 * 1024 * 1024);
+						await channel.ForkAsync(SecondaryChannelId, 4 * 1024 * 1024, cancellationToken);
 
-						await channel2.WaitForAttachAsync();
+						await channel2.WaitForAttachAsync(cancellationToken);
 
-						await channel2.SendXorRequestAsync(new byte[] { 1, 2, 3 }, 44);
-						using (AgentMessage message = await channel2.ReceiveAsync(CancellationToken.None))
+						await channel2.SendXorRequestAsync(new byte[] { 1, 2, 3 }, 44, cancellationToken);
+						using (AgentMessage message = await channel2.ReceiveAsync(cancellationToken))
 						{
 							Assert.AreEqual(AgentMessageType.XorResponse, message.Type);
 							Assert.IsTrue(message.Data.Span.SequenceEqual(new byte[] { 1 ^ 44, 2 ^ 44, 3 ^ 44 }));
 						}
 
-						await channel2.CloseAsync();
+						await channel2.CloseAsync(cancellationToken);
 					}
 
 					using MemoryStorageClient memoryStorage = new MemoryStorageClient();
@@ -153,27 +178,27 @@ namespace EpicGames.Horde.Tests
 						byte[] data = Encoding.UTF8.GetBytes("Hello world");
 
 						using ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions());
-						ChunkedData chunkedData = await writer.CreateAsync(data, CancellationToken.None);
+						ChunkedData chunkedData = await writer.CreateAsync(data, cancellationToken);
 
 						DirectoryNode directory = new DirectoryNode();
 						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, chunkedData);
 
-						HashedNodeRef<DirectoryNode> directoryRef = await treeWriter.WriteHashedNodeAsync(directory);
+						HashedNodeRef<DirectoryNode> directoryRef = await treeWriter.WriteHashedNodeAsync(directory, cancellationToken);
 
 						DirectoryNode root = new DirectoryNode();
 						root.AddDirectory(new DirectoryEntry("subdir", directory.Length, directoryRef));
 
-						IBlobHandle handle = await treeWriter.FlushAsync(root);
-						await channel.UploadFilesAsync("", handle.GetLocator(), storage);
+						IBlobHandle handle = await treeWriter.FlushAsync(root, cancellationToken);
+						await channel.UploadFilesAsync("", handle.GetLocator(), storage, cancellationToken);
 
 						Assert.IsTrue(FileReference.Exists(file));
-						byte[] readData = await FileReference.ReadAllBytesAsync(file);
+						byte[] readData = await FileReference.ReadAllBytesAsync(file, cancellationToken);
 						Assert.IsTrue(readData.SequenceEqual(data));
 
-						await channel.DeleteFilesAsync(new[] { "subdir/hello.txt" }, CancellationToken.None);
+						await channel.DeleteFilesAsync(new[] { "subdir/hello.txt" }, cancellationToken);
 
-						await channel.PingAsync();
-						using (AgentMessage message = await channel.ReceiveAsync(CancellationToken.None))
+						await channel.PingAsync(cancellationToken);
+						using (AgentMessage message = await channel.ReceiveAsync(cancellationToken))
 						{
 							Assert.AreEqual(AgentMessageType.Ping, message.Type);
 							Assert.IsTrue(message.Data.Span.SequenceEqual(ReadOnlySpan<byte>.Empty));
@@ -187,11 +212,28 @@ namespace EpicGames.Horde.Tests
 			await localSocket.CloseAsync(CancellationToken.None);
 			await agentSocket.CloseAsync(CancellationToken.None);
 		}
+		
+		static int GetAvailablePort()
+		{
+			TcpListener listener = new(IPAddress.Loopback, 0);
+			listener.Start();
+			int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+			listener.Stop();
+			return port;
+		}
 
 		static async Task RunAgentAsync(ComputeSocket socket, DirectoryReference tempDir, CancellationToken cancellationToken)
 		{
-			AgentMessageHandler handler = new AgentMessageHandler(tempDir, null, true, null, NullLogger.Instance);
-			await handler.RunAsync(socket, cancellationToken);
+			try
+			{
+				AgentMessageHandler handler = new AgentMessageHandler(tempDir, null, true, null, NullLogger.Instance);
+				await handler.RunAsync(socket, cancellationToken);
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Exception when running agent:\n" + e);
+				throw;
+			}
 		}
 	}
 }
