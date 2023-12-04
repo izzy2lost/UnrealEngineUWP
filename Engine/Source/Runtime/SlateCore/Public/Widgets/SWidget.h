@@ -817,14 +817,16 @@ public:
 			}
 			return StatID;
 		}
+		return TStatId(); // not doing stats at the moment, or ever
 #elif ENABLE_STATNAMEDEVENTS
 		if (!StatID.IsValidStat() && GCycleStatsShouldEmitNamedEvents)
 		{
 			CreateStatID();
 		}
 		return StatID;
-#endif
+#else
 		return TStatId(); // not doing stats at the moment, or ever
+#endif
 	}
 
 	UE_DEPRECATED(4.24, "GetRelativeLayoutScale(int32 ChildIndex, float LayoutScaleMultiplier), your widget will also need to set bHasRelativeLayoutScale in their Construct/ctor.")

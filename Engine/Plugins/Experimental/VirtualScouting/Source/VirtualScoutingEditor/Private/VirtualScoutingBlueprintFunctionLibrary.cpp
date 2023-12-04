@@ -11,12 +11,11 @@
 
 bool UVirtualScoutingBlueprintFunctionLibrary::CheckIsWithEditor()
 {
-
 #if WITH_EDITOR
 	return true;
-#endif
-	
+#else
 	return false;
+#endif
 }
 
 bool UVirtualScoutingBlueprintFunctionLibrary::DeleteActors(const TArray<AActor*>& InActorsToDelete)
