@@ -3433,6 +3433,8 @@ void AUsdStageActor::PostTransacted(const FTransactionObjectEvent& TransactionEv
 {
 	const TArray<FName>& ChangedProperties = TransactionEvent.GetChangedProperties();
 
+	// TODO: This check is broken... we care whether the stage actor has had a pending kill change,
+	// but we are checking whether *anything* has a pending kill change
 	if (TransactionEvent.HasPendingKillChange())
 	{
 		// Fires when being deleted in editor, redo delete
