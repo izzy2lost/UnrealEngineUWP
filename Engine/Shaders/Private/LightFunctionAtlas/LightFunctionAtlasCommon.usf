@@ -74,7 +74,7 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 	// Slot min uv and size already account for half texel offsets
 	float2 AtlasUV = Slot_MinUV + saturate(LightFunctionUV) * LightFunctionAtlas.Slot_UVSize.xx;
 
-#ifdef COLORED_LIGHT_FUNCTION_ATLAS
+#if COLORED_LIGHT_FUNCTION_ATLAS
 	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).rgb;
 #else
 	FLightFunctionColor LightFunctionColor = Texture2DSampleLevel(LightFunctionAtlas.LightFunctionAtlasTexture, LightFunctionAtlas.LightFunctionAtlasSampler, AtlasUV, 0).x;
