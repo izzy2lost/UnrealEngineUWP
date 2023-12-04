@@ -379,7 +379,7 @@ namespace WebRemoteControlInternalUtils
 	 * @param Access The access mode to use for this operation.
 	 */
 	template <typename RequestType>
-	bool ModifyPropertyUsingPayload(FRemoteControlProperty& Property, const RequestType& Request, const TArrayView<uint8>& Payload, const FGuid& ClientId, FWebSocketMessageHandler& WebSocketHandler, ERCAccess Access)
+	bool ModifyPropertyUsingPayload(FRemoteControlProperty& Property, const RequestType& Request, const TArrayView<uint8>& Payload, const FGuid& ClientId, FWebSocketMessageHandler& WebSocketHandler, ERCAccess Access, FString* OutError = nullptr)
 	{
 		FRCObjectReference ObjectRef;
 
@@ -407,7 +407,7 @@ namespace WebRemoteControlInternalUtils
 
 		for (UObject* Object : Property.GetBoundObjects())
 		{
-			IRemoteControlModule::Get().ResolveObjectProperty(ObjectRef.Access, Object, Property.FieldPathInfo.ToString(), ObjectRef);
+			IRemoteControlModule::Get().ResolveObjectProperty(ObjectRef.Access, Object, Property.FieldPathInfo.ToString(), ObjectRef, OutError);
 
 			// Notify the handler before the change to ensure that the notification triggered by PostEditChange is ignored by the handler 
 			// if the client does not want remote change notifications.

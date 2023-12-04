@@ -563,7 +563,18 @@ public:
 	/**
 	 * Returns whether the property can be modified through SetObjectProperties when running without an editor.
 	 */
+	UE_DEPRECATED(5.4, "This function is deprecated, please use PropertySupportsRawModification.")
 	virtual bool PropertySupportsRawModificationWithoutEditor(FProperty* Property, UClass* OwnerClass = nullptr) const = 0;
+
+	/**
+	 * Returns whether the property can be modified through SetObjectProperties or read through ResolveObjectProperties when running with or without an editor.
+	 * @param InProperty Property to check
+	 * @param InObject Object that owns the property
+	 * @param bInWithEditor True if it should check if the property is supported in Editor, false to check for Packaged
+	 * @param OutError Will contain the error in case it is not supported
+	 * @return True if the property is supported both for read and write, false otherwise
+	 */
+	virtual bool PropertySupportsRawModification(FProperty* InProperty, const UObject* InObject, const bool bInWithEditor, FString* OutError = nullptr) const = 0;
 
 	/**
 	 * Register factory 

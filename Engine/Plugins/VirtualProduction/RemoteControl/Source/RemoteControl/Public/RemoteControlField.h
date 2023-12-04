@@ -208,7 +208,10 @@ public:
 	void EnableEditCondition();
 	
 	/** Returns whether the property is editable in a packaged build. */
-	bool IsEditableInPackaged() const;
+	bool IsEditableInPackaged(FString* OutError = nullptr) const;
+
+	/** Returns whether the property is editable in the Editor. */
+	bool IsEditableInEditor(FString* OutError = nullptr) const;
 
 	bool Serialize(FArchive& Ar);
 	void PostSerialize(const FArchive& Ar);

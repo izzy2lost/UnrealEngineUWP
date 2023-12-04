@@ -67,6 +67,7 @@ public:
 	virtual bool RegisterDefaultEntityMetadata(FName MetadataKey, FEntityMetadataInitializer MetadataInitializer) override;
 	virtual void UnregisterDefaultEntityMetadata(FName MetadataKey) override;
 	virtual bool PropertySupportsRawModificationWithoutEditor(FProperty* Property, UClass* OwnerClass = nullptr) const override;
+	virtual bool PropertySupportsRawModification(FProperty* InProperty, const UObject* InObject, const bool bInWithEditor, FString* OutError = nullptr) const override;
 	virtual void RegisterEntityFactory( const FName InFactoryName, const TSharedRef<IRemoteControlPropertyFactory>& InFactory) override;
 	virtual void UnregisterEntityFactory( const FName InFactoryName ) override;
 	virtual FGuid BeginManualEditorTransaction(const FText& InDescription, uint32 TypeHash) override;
@@ -94,9 +95,6 @@ private:
 
 	/** Destroy a transient preset using an object reference. */
 	bool DestroyTransientPreset(URemoteControlPreset* Preset);
-
-	/** Determines if a property modification should use a setter or default to deserializing directly onto an object. */
-	static bool PropertyModificationShouldUseSetter(UObject* Object, FProperty* Property);
 
 	/**
 	 * Deserialize data for a non-EQUAL modification request and apply the operation to the resulting data.

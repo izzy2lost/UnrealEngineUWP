@@ -540,18 +540,26 @@ TSharedRef<SWidget> SRCPanelExposedField::MakeFieldWidget(const TSharedRef<SWidg
 
 	FText WarningMessage;
 
-	if (GetDefault<URemoteControlSettings>()->bDisplayInEditorOnlyWarnings)
+	if (const TSharedPtr<FRemoteControlField> RCField = GetRemoteControlField().Pin())
 	{
 		bool bIsEditorOnly = false,
             bIsEditableInPackaged = true,
-            bIsCallableInPackaged = true;
+            bIsCallableInPackaged = true,
+			bIsEditableInEditor = true;
 
-		if (const TSharedPtr<FRemoteControlField> RCField = GetRemoteControlField().Pin())
+		FString ErrorTextInEditor;
+		if (RCField->FieldType == EExposedFieldType::Property)
+		{
+			bIsEditableInEditor = StaticCastSharedPtr<FRemoteControlProperty>(RCField)->IsEditableInEditor(&ErrorTextInEditor);
+		}
+
+		FString ErrorTextInPackage;
+		if (GetDefault<URemoteControlSettings>()->bDisplayInEditorOnlyWarnings)
 		{
 			bIsEditorOnly = RCField->IsEditorOnly();
 			if (RCField->FieldType == EExposedFieldType::Property)
 			{
-				bIsEditableInPackaged = StaticCastSharedPtr<FRemoteControlProperty>(RCField)->IsEditableInPackaged();
+				bIsEditableInPackaged = StaticCastSharedPtr<FRemoteControlProperty>(RCField)->IsEditableInPackaged(&ErrorTextInPackage);
 			}
 			else
 			{
@@ -565,9 +573,38 @@ TSharedRef<SWidget> SRCPanelExposedField::MakeFieldWidget(const TSharedRef<SWidg
 			Builder.AppendLine(LOCTEXT("EditorOnlyWarning", "This field will be unavailable in packaged projects."));
 		}
 
+		bool bEditorAndPackagedErrorEquals = false;
 		if (!bIsEditableInPackaged)
 		{
-			Builder.AppendLine(LOCTEXT("NotEditableInPackagedWarning", "This property will not be editable in packaged projects."));
+			if (!bIsEditableInEditor)
+			{
+				const FName PackagedWarning = FName(ErrorTextInPackage);
+				const FName EditorWarning = FName(ErrorTextInEditor);
+				if (PackagedWarning.IsEqual(EditorWarning))
+				{
+					Builder.AppendLine(LOCTEXT("NonEditableInPackagedAndEditorWarning", "Packaged and Editor:"));
+					bEditorAndPackagedErrorEquals = true;
+				}
+			}
+
+			if (!bEditorAndPackagedErrorEquals)
+			{
+				Builder.AppendLine(LOCTEXT("NonEditableInPackagedWarning", "Packaged:"));
+			}
+
+			Builder.AppendLine(ErrorTextInPackage);
+		}
+
+		if (!bIsEditableInEditor && !bEditorAndPackagedErrorEquals)
+		{
+			if (!bIsEditableInPackaged)
+			{
+				// put an empty line between the last error and this
+				Builder.AppendLine();
+			}
+
+			Builder.AppendLine(LOCTEXT("NonEditableInEditorWarning", "Editor:"));
+			Builder.AppendLine(ErrorTextInEditor);
 		}
 
 		if (!bIsCallableInPackaged)

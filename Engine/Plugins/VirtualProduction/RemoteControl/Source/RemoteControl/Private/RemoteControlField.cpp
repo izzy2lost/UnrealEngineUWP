@@ -311,9 +311,14 @@ void FRemoteControlProperty::EnableEditCondition()
 #endif
 }
 
-bool FRemoteControlProperty::IsEditableInPackaged() const
+bool FRemoteControlProperty::IsEditableInPackaged(FString* OutError) const
 {
-	return bIsEditableInPackaged || IRemoteControlModule::Get().PropertySupportsRawModificationWithoutEditor(GetProperty(), GetSupportedBindingClass());
+	return bIsEditableInPackaged || IRemoteControlModule::Get().PropertySupportsRawModification(GetProperty(), GetBoundObject(), false, OutError);
+}
+
+bool FRemoteControlProperty::IsEditableInEditor(FString* OutError) const
+{
+	return IRemoteControlModule::Get().PropertySupportsRawModification(GetProperty(), GetBoundObject(), true, OutError);
 }
 
 bool FRemoteControlProperty::Serialize(FArchive& Ar)

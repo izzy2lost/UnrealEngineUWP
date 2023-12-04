@@ -558,6 +558,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 			.Visibility(!OptionalWarningMessage.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed)
             .TextStyle(FRemoteControlPanelStyle::Get(), "RemoteControlPanel.Button.TextStyle")
             .Font(FAppStyle::Get().GetFontStyle("FontAwesome.10"))
+            .ColorAndOpacity(FSlateColor(FLinearColor::Yellow))
             .ToolTipText(OptionalWarningMessage)
             .Text(FEditorFontGlyphs::Exclamation_Triangle)
 		]

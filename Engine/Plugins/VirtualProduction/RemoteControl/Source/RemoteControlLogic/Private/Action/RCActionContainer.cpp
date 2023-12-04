@@ -158,11 +158,18 @@ URCPropertyAction* URCActionContainer::AddPropertyAction(const TSharedRef<const 
 
 	if(!bFoundMatchingContainer)
 	{
+		// Check both Reading and Writing since if one of the two is not valid then the action won't work
+		FRCObjectReference ObjectRefReading;
+		const bool bResolveForReading = IRemoteControlModule::Get().ResolveObjectProperty(ERCAccess::READ_ACCESS, InRemoteControlProperty->GetBoundObjects()[0], InRemoteControlProperty->FieldPathInfo.ToString(), ObjectRefReading);
+
+		FRCObjectReference ObjectRefWriting;
+		const bool bResolveForWriting = IRemoteControlModule::Get().ResolveObjectProperty(ERCAccess::WRITE_ACCESS, InRemoteControlProperty->GetBoundObjects()[0], InRemoteControlProperty->FieldPathInfo.ToString(), ObjectRefWriting);
+
 		// Create an input field for the Action by duplicating the Remote Control Property associated with it
-		if (FRCObjectReference ObjectRef; IRemoteControlModule::Get().ResolveObjectProperty(ERCAccess::READ_ACCESS, InRemoteControlProperty->GetBoundObjects()[0], InRemoteControlProperty->FieldPathInfo.ToString(), ObjectRef))
+		if (bResolveForReading && bResolveForWriting)
 		{
 			const FName& PropertyName = InRemoteControlProperty->GetProperty()->GetFName();
-			NewPropertyAction->PropertySelfContainer->DuplicatePropertyWithCopy(PropertyName, InRemoteControlProperty->GetProperty(), (uint8*)ObjectRef.ContainerAdress);
+			NewPropertyAction->PropertySelfContainer->DuplicatePropertyWithCopy(PropertyName, InRemoteControlProperty->GetProperty(), (uint8*)ObjectRefReading.ContainerAdress);
 		}
 	}
 
