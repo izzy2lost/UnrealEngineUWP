@@ -80,6 +80,13 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 		RUN_TEST(FRHIBufferTests::Test_RHICreateBuffer_Parallel(RHICmdList));
 	}
 
+	// ------------------------------------------------
+	// RT Operations
+	// ------------------------------------------------
+	{
+		RUN_TEST(FRHITextureTests::Test_ClearRenderTargets(RHICmdList));
+	}
+
 	// @todo - add more tests
 	return bResult;
 }

@@ -51,6 +51,12 @@ void FAutomationRHITest::Define()
 			bool bResult = RunOnRenderThreadSynchronous(FRHITextureTests::Test_RHIClearUAV_Texture3D);
 			TestEqual("Clear Texture3D failed", bResult, 1);
 		});
+
+		It("RHI Clear Render Targets", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHITextureTests::Test_ClearRenderTargets);
+			TestEqual("Clear Render Targets failed", bResult, 1);
+		});
 	});
 
 	Describe("Test RHI Pixel Format", [this]()
