@@ -1066,15 +1066,13 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 		}
 	}
 
-	if (bOnlyUpdateIfNotGenerated &&
-		bIsGenerated)
-	{
-		return EUpdateRequired::NoUpdate;
-	}
-
 	const bool bShouldUpdateLODs = Private->HasCOInstanceFlags(PendingLODsUpdate);
-	if (bOnlyUpdateIfLODs &&
-		!bShouldUpdateLODs)
+
+	const bool bNoUpdateLODs = bOnlyUpdateIfLODs && !bShouldUpdateLODs;
+	const bool bNoInitialUpdate = bOnlyUpdateIfNotGenerated && bIsGenerated;
+
+	if (bNoUpdateLODs &&
+		bNoInitialUpdate)
 	{
 		return EUpdateRequired::NoUpdate;
 	}
