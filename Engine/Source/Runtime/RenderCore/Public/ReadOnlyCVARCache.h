@@ -20,8 +20,8 @@ struct FReadOnlyCVARCache
 	// Mobile specific
 	static bool MobileHDR();
 	static bool MobileSupportsGPUScene();
-	static bool MobileDeferredShading(const FStaticShaderPlatform Platform);
-	static bool MobileEnableMovableSpotlightsShadow(const FStaticShaderPlatform Platform);
+	static bool MobileDeferredShading(EShaderPlatform Platform);
+	static bool MobileEnableMovableSpotlightsShadow(EShaderPlatform Platform);
 
 	RENDERCORE_API static bool MobileAllowMovableDirectionalLights();
 	RENDERCORE_API static bool MobileAllowDistanceFieldShadows();
@@ -29,8 +29,8 @@ struct FReadOnlyCVARCache
 	RENDERCORE_API static bool MobileEnableMovableLightCSMShaderCulling();
 	RENDERCORE_API static int32 MobileSkyLightPermutation();
 	RENDERCORE_API static bool MobileEnableNoPrecomputedLightingCSMShader();
-	RENDERCORE_API static int32 MobileEarlyZPass(const FStaticShaderPlatform Platform);
-	RENDERCORE_API static int32 MobileForwardLocalLights(const FStaticShaderPlatform Platform);
+	RENDERCORE_API static int32 MobileEarlyZPass(EShaderPlatform Platform);
+	RENDERCORE_API static int32 MobileForwardLocalLights(EShaderPlatform Platform);
 
 private:
 	static bool bInitialized;

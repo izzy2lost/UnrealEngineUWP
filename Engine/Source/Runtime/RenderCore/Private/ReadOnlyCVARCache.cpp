@@ -9,19 +9,19 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #endif
 
-static int32 MobileEarlyZPassIniValue(const FStaticShaderPlatform Platform)
+static int32 MobileEarlyZPassIniValue(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.EarlyZPass"));
 	return CVar.Get(Platform);
 }
 
-static int32 MobileForwardLocalLightsIniValue(const FStaticShaderPlatform Platform)
+static int32 MobileForwardLocalLightsIniValue(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.Forward.EnableLocalLights"));
 	return CVar.Get(Platform);
 }
 
-static bool MobileDeferredShadingIniValue(const FStaticShaderPlatform Platform)
+static bool MobileDeferredShadingIniValue(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
 	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
@@ -30,7 +30,7 @@ static bool MobileDeferredShadingIniValue(const FStaticShaderPlatform Platform)
 	return MobileShadingPathIniValue.Get(Platform) && bSupportedPlatform;
 }
 
-static bool MobileEnableMovableSpotlightsShadowIniValue(const FStaticShaderPlatform Platform)
+static bool MobileEnableMovableSpotlightsShadowIniValue(EShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> CVar(TEXT("r.Mobile.EnableMovableSpotlightsShadow"));
 	return CVar.Get(Platform);
@@ -172,7 +172,7 @@ bool FReadOnlyCVARCache::MobileAllowDistanceFieldShadows()
 	return bMobileAllowDistanceFieldShadows;
 }
 
-int32 FReadOnlyCVARCache::MobileEarlyZPass(const FStaticShaderPlatform Platform)
+int32 FReadOnlyCVARCache::MobileEarlyZPass(EShaderPlatform Platform)
 {
 #if WITH_EDITOR
 	return MobileEarlyZPassIniValue(Platform);
@@ -181,7 +181,7 @@ int32 FReadOnlyCVARCache::MobileEarlyZPass(const FStaticShaderPlatform Platform)
 #endif
 }
 
-int32 FReadOnlyCVARCache::MobileForwardLocalLights(const FStaticShaderPlatform Platform)
+int32 FReadOnlyCVARCache::MobileForwardLocalLights(EShaderPlatform Platform)
 {
 #if WITH_EDITOR
 	return MobileForwardLocalLightsIniValue(Platform);
@@ -190,7 +190,7 @@ int32 FReadOnlyCVARCache::MobileForwardLocalLights(const FStaticShaderPlatform P
 #endif
 }
 
-bool FReadOnlyCVARCache::MobileDeferredShading(const FStaticShaderPlatform Platform)
+bool FReadOnlyCVARCache::MobileDeferredShading(EShaderPlatform Platform)
 {
 #if WITH_EDITOR
 	return MobileDeferredShadingIniValue(Platform);
@@ -199,7 +199,7 @@ bool FReadOnlyCVARCache::MobileDeferredShading(const FStaticShaderPlatform Platf
 #endif
 }
 
-bool FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(const FStaticShaderPlatform Platform)
+bool FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(EShaderPlatform Platform)
 {
 #if WITH_EDITOR
 	return MobileEnableMovableSpotlightsShadowIniValue(Platform);

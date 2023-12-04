@@ -1358,20 +1358,17 @@ static void UpdateEarlyZPassModeCVarSinkFunction()
 	static int32 CachedMSAACount = CVarMSAACount->GetValueOnGameThread();
 	static int32 CachedEarlyZPass = CVarEarlyZPass.GetValueOnGameThread();
 	static int32 CachedBasePassWriteDepthEvenWithFullPrepass = CVarBasePassWriteDepthEvenWithFullPrepass.GetValueOnGameThread();
-	static int32 CachedMobileEarlyZPass = FReadOnlyCVARCache::MobileEarlyZPass(GMaxRHIShaderPlatform);
 
 	const int32 AntiAliasingMethod = CVarAntiAliasingMethod->GetValueOnGameThread();
 	const int32 MSAACount = CVarMSAACount->GetValueOnGameThread();
 	const int32 EarlyZPass = CVarEarlyZPass.GetValueOnGameThread();
 	const int32 BasePassWriteDepthEvenWithFullPrepass = CVarBasePassWriteDepthEvenWithFullPrepass.GetValueOnGameThread();
-	const int32 MobileEarlyZPass = FReadOnlyCVARCache::MobileEarlyZPass(GMaxRHIShaderPlatform);
 
 	// Switching between MSAA and another AA in forward shading mode requires EarlyZPassMode to update.
 	if (AntiAliasingMethod != CachedAntiAliasingMethod
 		|| MSAACount != CachedMSAACount
 		|| EarlyZPass != CachedEarlyZPass
-		|| BasePassWriteDepthEvenWithFullPrepass != CachedBasePassWriteDepthEvenWithFullPrepass
-		|| MobileEarlyZPass != CachedMobileEarlyZPass)
+		|| BasePassWriteDepthEvenWithFullPrepass != CachedBasePassWriteDepthEvenWithFullPrepass)
 	{
 		for (TObjectIterator<UWorld> It; It; ++It)
 		{
@@ -1387,7 +1384,6 @@ static void UpdateEarlyZPassModeCVarSinkFunction()
 		CachedMSAACount = MSAACount;
 		CachedEarlyZPass = EarlyZPass;
 		CachedBasePassWriteDepthEvenWithFullPrepass = BasePassWriteDepthEvenWithFullPrepass;
-		CachedMobileEarlyZPass = MobileEarlyZPass;
 	}
 }
 
