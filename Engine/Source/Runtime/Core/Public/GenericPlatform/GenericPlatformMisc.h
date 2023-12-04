@@ -1674,6 +1674,15 @@ public:
 	static CORE_API FString GetEpicAccountId();
 
 	/**
+	 * Get Device Tag of the device running the session.
+	 *
+	 * Note: Gets from DeviceTag command line argument 
+	 *
+	 * @return empty string or the value from DeviceTag argument.
+	 */
+	static CORE_API FString GetDeviceTag();
+
+	/**
 	 * Gets a globally unique ID the represents a particular operating system install.
 	 * @returns an opaque string representing the ID, or an empty string if the platform doesn't support one.
 	 */

@@ -1816,6 +1816,14 @@ FGuid FGenericPlatformMisc::GetMachineId()
 	return MachineId;
 }
 
+FString FGenericPlatformMisc::GetDeviceTag()
+	{
+		FString DeviceTag = TEXT("");
+		FParse::Value( FCommandLine::Get(), TEXT("DeviceTag="), DeviceTag );
+
+		return DeviceTag;
+	}
+
 FString FGenericPlatformMisc::GetLoginId()
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS

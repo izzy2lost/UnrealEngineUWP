@@ -2809,7 +2809,12 @@ FCsvProfiler::FCsvProfiler()
 	// for privacy, personal and free text fields are not allowed in shipping
 	SetMetadataInternal(TEXT("Commandline"), *CommandlineStr, false);
 	SetMetadataInternal(TEXT("LoginID"), *FPlatformMisc::GetLoginId());
-
+	FString DeviceTag = FPlatformMisc::GetDeviceTag();
+    if (!DeviceTag.IsEmpty())
+    {
+    	SetMetadataInternal(TEXT("DeviceTag"), *DeviceTag);
+    }
+	
 	// Set the device ID if the platform supports it
 	FString DeviceID = FPlatformMisc::GetDeviceId();
 	if (!DeviceID.IsEmpty())
