@@ -166,7 +166,7 @@ namespace PerfSummaries
 		public static Colour Red = new Colour(1.0f, 0.4f, 0.4f);
 		public static Colour Orange = new Colour(1.0f, 0.7f, 0.4f, 1.0f);
 		public static Colour Yellow = new Colour(1.0f, 1.0f, 0.5f);
-		public static Colour Green = new Colour(0.4f, 0.82f, 0.45f);
+		public static Colour Green = new Colour(0.53f, 0.83f, 0.53f);
 
 		public float r, g, b;
 		public float alpha;

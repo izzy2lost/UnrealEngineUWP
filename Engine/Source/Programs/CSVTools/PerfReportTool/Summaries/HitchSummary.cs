@@ -16,7 +16,7 @@ namespace PerfSummaries
 		{
 			ReadStatsFromXML(element, vars);
 
-			string[] hitchThresholds = element.Element("hitchThresholds").Value.Split(',');
+			string[] hitchThresholds = element.Element("hitchThresholds").GetValue(vars).Split(',');
 			HitchThresholds = new double[hitchThresholds.Length];
 			for (int i = 0; i < hitchThresholds.Length; i++)
 			{
