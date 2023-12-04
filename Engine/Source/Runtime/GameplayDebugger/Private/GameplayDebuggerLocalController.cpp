@@ -603,6 +603,11 @@ void UGameplayDebuggerLocalController::ToggleActivation()
 				GAreScreenMessagesEnabled = false;
 				DebugActorCandidate = nullptr;
 				OnSelectActorTick();
+
+				if (!DebugActorCandidate)
+				{
+					OnSelectLocalPlayer();
+				}
 			}
 			else
 			{
