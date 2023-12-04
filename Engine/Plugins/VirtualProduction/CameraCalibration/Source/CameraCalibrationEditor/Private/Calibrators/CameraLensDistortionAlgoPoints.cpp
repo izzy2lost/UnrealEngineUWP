@@ -382,28 +382,31 @@ bool UCameraLensDistortionAlgoPoints::GetLensDistortion(
 		return false;
 	}
 
-	TArray<TArray<FVector>> Samples3d;
-	TArray<TArray<FVector2f>> Samples2d;
+	TArray<FObjectPoints> Samples3d;
+	TArray<FImagePoints> Samples2d;
+	Samples3d.Reserve(CalibrationRows.Num());
+	Samples2d.Reserve(CalibrationRows.Num());
 
 	TArray<FTransform> CameraPoses;
 
 	uint32 NextPatternIndex = 0;
 	for (int32 RowIndex = 0; RowIndex < CalibrationRows.Num(); ++RowIndex)
 	{
-		TArray<FVector> Points3d;
-		TArray<FVector2f> Points2d;
-
+		FObjectPoints Points3d;
+		FImagePoints Points2d;
 		while (RowIndex < CalibrationRows.Num() && CalibrationRows[RowIndex]->PatternIndex == NextPatternIndex)
 		{
 			const TSharedPtr<FLensDistortionPointsRowData>& Row = CalibrationRows[RowIndex];
 
-			Points3d.Add(Row->CalibratorPointData.Point3d);
-			Points2d.Add(Row->CalibratorPointData.Point2d);
+			Points3d.Points.Add(Row->CalibratorPointData.Point3d);
+
+			const FVector2f& Point2d = Row->CalibratorPointData.Point2d;
+			Points2d.Points.Add(FVector2D(Point2d.X, Point2d.Y));
 
 			++RowIndex;
 		}
 
-		if (Points3d.Num() > 0)
+		if (Points3d.Points.Num() > 0)
 		{
 			Samples3d.Add(Points3d);
 			Samples2d.Add(Points2d);
@@ -422,10 +425,10 @@ bool UCameraLensDistortionAlgoPoints::GetLensDistortion(
 	}
 
 	// Validate that each pattern has the same number of points
-	const int32 NumPointsInPattern = Samples3d[0].Num();
+	const int32 NumPointsInPattern = Samples3d[0].Points.Num();
 	for (int32 PatternIndex = 1; PatternIndex < Samples3d.Num(); ++PatternIndex)
 	{
-		if (Samples3d[PatternIndex].Num() != NumPointsInPattern)
+		if (Samples3d[PatternIndex].Points.Num() != NumPointsInPattern)
 		{
 			OutErrorMessage = LOCTEXT("DifferentNumPointsInPattern", "Every calibration pattern must have the same number of points");
 			return false;

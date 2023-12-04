@@ -23,8 +23,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogCameraCalibrationSolver, Log, All);
 
 double FCameraCalibrationSolver::CalibrateCamera(
 	const TSubclassOf<ULensModel> LensModel,
-	const TArray<TArray<FVector>>& InObjectPoints,
-	const TArray<TArray<FVector2f>>& InImagePoints,
+	const TArray<FObjectPoints>& InObjectPointsArray,
+	const TArray<FImagePoints>& InImagePointsArray,
 	const FIntPoint ImageSize,
 	FVector2D& InOutFocalLength,
 	FVector2D& InOutImageCenter,
@@ -34,7 +34,7 @@ double FCameraCalibrationSolver::CalibrateCamera(
 	ECalibrationFlags SolverFlags)
 {
 #if WITH_OPENCV
-	const int NumImages = InObjectPoints.Num();
+	const int NumImages = InObjectPointsArray.Num();
 
 	// Create an array to store the number of points in each image
 	cv::Mat NumPointsMat = cv::Mat(1, NumImages, CV_32S);
@@ -43,7 +43,7 @@ double FCameraCalibrationSolver::CalibrateCamera(
 	int MaxPoints = 0;
 	for (int ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 	{
-		const int NumPointsInImage = InObjectPoints[ImageIndex].Num();
+		const int NumPointsInImage = InObjectPointsArray[ImageIndex].Points.Num();
 
 		NumPointsMat.at<int>(ImageIndex) = NumPointsInImage;
 		NumTotalPoints += NumPointsInImage;
@@ -51,29 +51,11 @@ double FCameraCalibrationSolver::CalibrateCamera(
 		MaxPoints = MAX(MaxPoints, NumPointsInImage);
 	}
 
-	// Convert the object points from Unreal's coordinate system to OpenCV's
-	TArray<TArray<FVector>> CvObjectPoints;
-	CvObjectPoints.Reserve(NumImages);
-	for (int ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
-	{
-		const TArray<FVector>& ObjectPointsForImage = InObjectPoints[ImageIndex];
-
-		TArray<FVector> CvObjectPointsForImage;
-		CvObjectPointsForImage.Reserve(ObjectPointsForImage.Num());
-
-		for (const FVector& Point : ObjectPointsForImage)
-		{
-			CvObjectPointsForImage.Add(FOpenCVHelper::ConvertUnrealToOpenCV(Point));
-		}
-
-		CvObjectPoints.Add(CvObjectPointsForImage);
-	}
-
 	cv::Mat ObjectPointsMat = cv::Mat(1, NumTotalPoints, CV_64FC3);
 	cv::Mat ImagePointsMat = cv::Mat(1, NumTotalPoints, CV_64FC2);
 
 	// Reorganize the 3D and 2D points from the input arrays or arrays to be laid out linearly in memory in two cv::Mat objects
-	GatherPoints(CvObjectPoints, InImagePoints, ObjectPointsMat, ImagePointsMat);
+	GatherPoints(InObjectPointsArray, InImagePointsArray, ObjectPointsMat, ImagePointsMat);
 
 	double RMSE = 0.0;
 
@@ -114,28 +96,29 @@ double FCameraCalibrationSolver::CalibrateCamera(
 		std::vector<std::vector<cv::Point2f>> Samples2d;
 		std::vector<std::vector<cv::Point3f>> Samples3d;
 
-		Samples2d.reserve(InImagePoints.Num());
-		Samples3d.reserve(CvObjectPoints.Num());
+		Samples2d.reserve(InImagePointsArray.Num());
+		Samples3d.reserve(InObjectPointsArray.Num());
 
-		for (const TArray<FVector>& Image : CvObjectPoints)
+		for (const FObjectPoints& PointsInImage : InObjectPointsArray)
 		{
 			std::vector<cv::Point3f> Points3d;
-			Points3d.reserve(Image.Num());
+			Points3d.reserve(PointsInImage.Points.Num());
 
-			for (const FVector& Point3d : Image)
+			for (const FVector& Point3d : PointsInImage.Points)
 			{
-				Points3d.push_back(cv::Point3f(Point3d.X, Point3d.Y, Point3d.Z));
+				const FVector Point3dCV = FOpenCVHelper::ConvertUnrealToOpenCV(Point3d);
+				Points3d.push_back(cv::Point3f(Point3dCV.X, Point3dCV.Y, Point3dCV.Z));
 			}
 
 			Samples3d.push_back(Points3d);
 		}
 
-		for (const TArray<FVector2f>& Image : InImagePoints)
+		for (const FImagePoints& PointsInImage : InImagePointsArray)
 		{
 			std::vector<cv::Point2f> Points2d;
-			Points2d.reserve(Image.Num());
+			Points2d.reserve(PointsInImage.Points.Num());
 
-			for (const FVector2f& Point2d : Image)
+			for (const FVector2D& Point2d : PointsInImage.Points)
 			{
 				Points2d.push_back(cv::Point2f(Point2d.X, Point2d.Y));
 			}
@@ -1387,8 +1370,8 @@ void FCameraCalibrationSolver::ProjectPointsSpherical(
 }
 
 void FCameraCalibrationSolver::GatherPoints(
-	const TArray<TArray<FVector>>& ObjectPoints,
-	const TArray<TArray<FVector2f>>& ImagePoints,
+	const TArray<FObjectPoints>& InObjectPointsArray,
+	const TArray<FImagePoints>& InImagePointsArray,
 	cv::Mat& ObjectPointsMat,
 	cv::Mat& ImagePointsMat)
 {
@@ -1397,19 +1380,21 @@ void FCameraCalibrationSolver::GatherPoints(
 
 	int TotalPointIndex = 0;
 
-	const int NumImages = ObjectPoints.Num();
+	const int NumImages = InObjectPointsArray.Num();
 
 	for (int ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 	{
-		const TArray<FVector>& CurrentObjectPoints = ObjectPoints[ImageIndex];
-		const TArray<FVector2f>& CurrentImagePoints = ImagePoints[ImageIndex];
+		const FObjectPoints& CurrentObjectPoints = InObjectPointsArray[ImageIndex];
+		const FImagePoints& CurrentImagePoints = InImagePointsArray[ImageIndex];
 
-		const int NumPointsInImage = CurrentObjectPoints.Num();
+		const int NumPointsInImage = CurrentObjectPoints.Points.Num();
 
 		for (int PointIndex = 0; PointIndex < NumPointsInImage; ++PointIndex)
 		{
-			ObjectPointsMatData[TotalPointIndex + PointIndex] = cv::Point3d(CurrentObjectPoints[PointIndex].X, CurrentObjectPoints[PointIndex].Y, CurrentObjectPoints[PointIndex].Z);
-			ImagePointsMatData[TotalPointIndex + PointIndex] = cv::Point2d(CurrentImagePoints[PointIndex].X, CurrentImagePoints[PointIndex].Y);
+			const FVector ObjectPointCV = FOpenCVHelper::ConvertUnrealToOpenCV(CurrentObjectPoints.Points[PointIndex]);
+			ObjectPointsMatData[TotalPointIndex + PointIndex] = cv::Point3d(ObjectPointCV.X, ObjectPointCV.Y, ObjectPointCV.Z);
+
+			ImagePointsMatData[TotalPointIndex + PointIndex] = cv::Point2d(CurrentImagePoints.Points[PointIndex].X, CurrentImagePoints.Points[PointIndex].Y);
 		}
 
 		TotalPointIndex += NumPointsInImage;

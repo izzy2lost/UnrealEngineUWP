@@ -191,12 +191,12 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 
 		// Introduce some random noise to the 3D points. The checkerboard is a rigid object, so the individual 3D positions of each corner cannot change randomly with respect to one another.
 		// However, the entire board could have the wrong pose if, for example, the tracking data is noisy, or if the tracked rigid-body pose sent to UE from the tracking system is not precise.
-		TArray<TArray<FVector>> NoisyObjectPoints;
+		TArray<FObjectPoints> NoisyObjectPoints;
 		NoisyObjectPoints.Reserve(ObjectPoints.Num());
 		for (const TArray<FVector>& Object : ObjectPoints)
 		{
-			TArray<FVector> NoisyPoints;
-			NoisyPoints.Reserve(Object.Num());
+			FObjectPoints NoisyPoints;
+			NoisyPoints.Points.Reserve(Object.Num());
 
 			const double NoiseScale = TestSettings->ObjectPointNoiseScale;
 			const double NoiseX = (FMath::SRand() - 0.5) * (NoiseScale * 2);
@@ -205,7 +205,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 
 			for (const FVector& Point : Object)
 			{
-				NoisyPoints.Add(Point + FVector(NoiseX, NoiseY, NoiseZ));
+				NoisyPoints.Points.Add(Point + FVector(NoiseX, NoiseY, NoiseZ));
 			}
 
 			NoisyObjectPoints.Add(NoisyPoints);
@@ -213,12 +213,12 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 
 		// Introduce some random noise to the 2D points. This simulates poor checkerboard detection, which could occur if the checkerboard is not perfectly in-focus, if the image resolution is too low,
 		// or if there is some other imprecision in the corner detection algorithm. 
-		TArray<TArray<FVector2f>> NoisyImagePoints;
+		TArray<FImagePoints> NoisyImagePoints;
 		NoisyImagePoints.Reserve(ImagePoints.Num());
 		for (const TArray<FVector2f>& Image : ImagePoints)
 		{
-			TArray<FVector2f> NoisyPoints;
-			NoisyPoints.Reserve(Image.Num());
+			FImagePoints NoisyPoints;
+			NoisyPoints.Points.Reserve(Image.Num());
 
 			// Unlike the 3D points, the 2D image points could all be randomly noisy compared to one another
 			for (const FVector2f& Point : Image)
@@ -227,7 +227,8 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 				const double NoiseX = (FMath::SRand() - 0.5) * (NoiseScale * 2);
 				const double NoiseY = (FMath::SRand() - 0.5) * (NoiseScale * 2);
 
-				NoisyPoints.Add(Point + FVector2f(NoiseX, NoiseY));
+				const FVector2f PointWithNoise = Point + FVector2f(NoiseX, NoiseY);
+				NoisyPoints.Points.Add(FVector2D(PointWithNoise.X, PointWithNoise.Y));
 			}
 
 			NoisyImagePoints.Add(NoisyPoints);

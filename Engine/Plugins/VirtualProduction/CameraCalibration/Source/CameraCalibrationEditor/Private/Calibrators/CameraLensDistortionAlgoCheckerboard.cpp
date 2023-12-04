@@ -41,6 +41,7 @@ static TAutoConsoleVariable<bool> CVarUseIntrinsicsGuess(TEXT("LensDistortionChe
 static TAutoConsoleVariable<bool> CVarFixExtrinsics(TEXT("LensDistortionCheckerboard.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixZeroDistortion(TEXT("LensDistortionCheckerboard.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuess(TEXT("LensDistortionCheckerboard.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
+static TAutoConsoleVariable<bool> CVarUseNeuralNetSolver(TEXT("LensDistortionCheckerboard.UseNeuralNetSolver"), false, TEXT("If true, the neural network based solver will solver for distortion and camera intrinsics. Otherwise, the traditional OpenCV solver will be used."));
 #endif
 
 const int UCameraLensDistortionAlgoCheckerboard::DATASET_VERSION = 1;
@@ -609,24 +610,15 @@ bool UCameraLensDistortionAlgoCheckerboard::ValidateNewRow(TSharedPtr<FLensDisto
 	return true;
 }
 
-bool UCameraLensDistortionAlgoCheckerboard::GetLensDistortion(
-	float& OutFocus,
-	float& OutZoom,
-	FDistortionInfo& OutDistortionInfo,
-	FFocalLengthInfo& OutFocalLengthInfo,
-	FImageCenterInfo& OutImageCenterInfo,
-	TSubclassOf<ULensModel>& OutLensModel,
-	double& OutError,
-	FText& OutErrorMessage)
+FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibration()
 {
-	// Sanity checks
-	//
+	FDistortionCalibrationTask CalibrationTask = {};
 
-	// Enough points
+	// Validate that enough points were gathered to attempt a calibration
 	if (CalibrationRows.Num() < 1)
 	{
-		OutErrorMessage = LOCTEXT("NotEnoughSamples", "At least 1 calibration row is required");
-		return false;
+		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. At least 1 calibration row is required."));
+		return CalibrationTask;
 	}
 
 	// All points are valid
@@ -634,38 +626,31 @@ bool UCameraLensDistortionAlgoCheckerboard::GetLensDistortion(
 	{
 		if (!ensure(Row.IsValid()))
 		{
-			return false;
+			return CalibrationTask;
 		}
 	}
 
-	if (!ensure(Tool.IsValid()))
+	ULensDistortionTool* LensDistortionTool = Tool.Get();
+	if (!LensDistortionTool)
 	{
-		return false;
+		return CalibrationTask;
 	}
 
-	FCameraCalibrationStepsController* StepsController = Tool->GetCameraCalibrationStepsController();
-
-	if (!ensure(StepsController))
+	FCameraCalibrationStepsController* StepsController = LensDistortionTool->GetCameraCalibrationStepsController();
+	if (!StepsController)
 	{
-		return false;
+		return CalibrationTask;
 	}
 
 	ULensFile* LensFile = StepsController->GetLensFile();
-
-	if (!ensure(LensFile))
+	if (!LensFile)
 	{
-		OutErrorMessage = LOCTEXT("LensFileNotFound", "LensFile not found");
-		return false;
+		return CalibrationTask;
 	}
 
-	const TSharedPtr<FLensDistortionCheckerboardRowData>& LastRow = CalibrationRows.Last();
-
-	// Only parameters data mode supported at the moment
-	if (LensFile->DataMode != ELensDataMode::Parameters)
-	{
-		OutErrorMessage = LOCTEXT("OnlyParametersDataModeSupported", "Only Parameters Data Mode supported");
-		return false;
-	}
+	// The evaluation focus and zoom values should not change during data collection, so all rows should have the same values.
+	const float Focus = CalibrationRows[0]->CameraData.InputFocus;
+	const float Zoom = CalibrationRows[0]->CameraData.InputZoom;
 
 	const FIntPoint ImageSize = LensFile->CameraFeedInfo.GetDimensions();
 
@@ -673,8 +658,8 @@ bool UCameraLensDistortionAlgoCheckerboard::GetLensDistortion(
 
 	if (FMath::IsNearlyZero(PixelAspect))
 	{
-		OutErrorMessage = LOCTEXT("PixelAspectNearlyZero", "The pixel aspect in the Lens Information is zero, which is invalid.");
-		return false;
+		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The pixel aspect ratio of the CineCamera is zero, which is invalid."));
+		return CalibrationTask;
 	}
 
 	const float PhysicalSensorWidth = StepsController->GetLensFileEvaluationInputs().Filmback.SensorWidth;
@@ -682,123 +667,136 @@ bool UCameraLensDistortionAlgoCheckerboard::GetLensDistortion(
 
 	if (FMath::IsNearlyZero(DesqueezeSensorWidth))
 	{
-		OutErrorMessage = LOCTEXT("SensorWidthNearlyZero", "The sensor width of the CineCamera is zero, which is invalid.");
-		return false;
+		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The sensor width of the CineCamera is zero, which is invalid."));
+		return CalibrationTask;
 	}
 
 	const double Fx = (FocalLengthEstimate / DesqueezeSensorWidth) * ImageSize.X;
 
 	// When operating on a desqueezed image, we expect our pixel aspect to be square, so horizontal and vertical field of view are assumed to be equal (i.e. Fx == Fy)
-	FVector2D FocalLength = FVector2D(Fx, Fx); 
+	FVector2D FocalLength = FVector2D(Fx, Fx);
 	FVector2D ImageCenter = FVector2D((ImageSize.X - 1) * 0.5, (ImageSize.Y - 1) * 0.5);
 
-	TArray<TArray<FVector2f>> Samples2d;
-	TArray<TArray<FVector>> Samples3d;
+	TArray<FObjectPoints> Samples3d;
+	TArray<FImagePoints> Samples2d;
+	Samples3d.Reserve(CalibrationRows.Num());
+	Samples2d.Reserve(CalibrationRows.Num());
 
 	TArray<FTransform> CameraPoses;
+	CameraPoses.Reserve(CalibrationRows.Num());
 
 	for (const TSharedPtr<FLensDistortionCheckerboardRowData>& Row : CalibrationRows)
 	{
-		Samples2d.Add(Row->Points2d);
-		Samples3d.Add(Row->Points3d);
+		FObjectPoints Points3d;
+		Points3d.Points = Row->Points3d;
 
+		FImagePoints Points2d;
+		Points2d.Points.Reserve(Row->Points2d.Num());
+		for (const FVector2f& Point2d : Row->Points2d)
+		{
+			Points2d.Points.Add(FVector2D(Point2d.X, Point2d.Y));
+		}
+
+		Samples3d.Add(Points3d);
+		Samples2d.Add(Points2d);
 		CameraPoses.Add(Row->CameraData.Pose);
 	}
 
-	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
+	const bool bUseNeuralNetSolver = CVarUseNeuralNetSolver.GetValueOnAnyThread();
 
-	if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
+	if (!bUseNeuralNetSolver)
 	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
-	}
+		ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 
-	if (CVarUseIntrinsicsGuess.GetValueOnGameThread())
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
-	}
-
-	if (CVarFixExtrinsics.GetValueOnGameThread())
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
-	}
-
-	if (CVarFixZeroDistortion.GetValueOnGameThread())
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
-	}
-
-	if (bFixFocalLength)
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
-	}
-
-	if (bFixImageCenter)
-	{
-		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
-	}
-
-	TArray<float> DistortionCoefficients;
-
-	OutError = FCameraCalibrationSolver::CalibrateCamera(
-		LensFile->LensInfo.LensModel,
-		Samples3d,
-		Samples2d,
-		ImageSize,
-		FocalLength,
-		ImageCenter,
-		DistortionCoefficients,
-		CameraPoses,
-		PixelAspect,
-		SolverFlags
-	);
-
-	OutLensModel = LensFile->LensInfo.LensModel;
-
-	OutDistortionInfo.Parameters = DistortionCoefficients;
-
-	OutFocalLengthInfo.FxFy = FocalLength / ImageSize;
-
-	OutImageCenterInfo.PrincipalPoint = ImageCenter / ImageSize;
-
-	// FZ inputs to LUT
-	OutFocus = LastRow->CameraData.InputFocus;
-	OutZoom = LastRow->CameraData.InputZoom;
-
-	if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
-	{
-		// See if the camera already had an offset applied, in which case we need to account for it.
-		FTransform ExistingOffset = FTransform::Identity;
-
-		if (CalibrationRows[0]->CameraData.bWasNodalOffsetApplied)
+		if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
 		{
-			FNodalPointOffset NodalPointOffset;
+			EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
+		}
 
-			if (LensFile->EvaluateNodalPointOffset(OutFocus, OutZoom, NodalPointOffset))
+		if (CVarUseIntrinsicsGuess.GetValueOnGameThread())
+		{
+			EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
+		}
+
+		if (CVarFixExtrinsics.GetValueOnGameThread())
+		{
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
+		}
+
+		if (CVarFixZeroDistortion.GetValueOnGameThread())
+		{
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+		}
+
+		if (bFixFocalLength)
+		{
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
+		}
+
+		if (bFixImageCenter)
+		{
+			EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
+		}
+
+		const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
+
+		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 			{
-				ExistingOffset.SetTranslation(NodalPointOffset.LocationOffset);
-				ExistingOffset.SetRotation(NodalPointOffset.RotationOffset);
-			}
-		}
+				FDistortionCalibrationResult Result;
 
-		TArray<FNodalPointOffset> NewNodalOffsets;
-		NewNodalOffsets.Reserve(CameraPoses.Num());
+				Result.ReprojectionError = FCameraCalibrationSolver::CalibrateCamera(
+					Model,
+					Samples3d,
+					Samples2d,
+					ImageSize,
+					FocalLength,
+					ImageCenter,
+					Result.Parameters.Parameters,
+					CameraPoses,
+					PixelAspect,
+					SolverFlags
+				);
 
-		for (int32 RowIndex = 0; RowIndex < CalibrationRows.Num(); ++RowIndex)
+				// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
+				Result.FocalLength.FxFy = FocalLength / ImageSize;
+				Result.ImageCenter.PrincipalPoint = ImageCenter / ImageSize;
+
+				// FZ inputs to LUT
+				Result.EvaluatedFocus = Focus;
+				Result.EvaluatedZoom = Zoom;
+
+				return Result;
+			});
+	}
+	else
+	{
+		// ULensDistortionSolver is the base class for the python implementation of the neural network solver.
+		// The intent is for there to be only one derived class, but to be sure, the name is checked to match
+		// the derived class that is expected to be found.
+		TArray<UClass*> DerivedSolverClasses;
+		GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
+
+		if (DerivedSolverClasses.Num() == 0)
 		{
-			const FTransform DesiredCameraTransform = CameraPoses[RowIndex];
-			const FTransform DesiredOffset = DesiredCameraTransform * CalibrationRows[RowIndex]->CameraData.Pose.Inverse() * ExistingOffset;
-
-			FNodalPointOffset NewNodalOffset;
-			NewNodalOffset.LocationOffset = DesiredOffset.GetLocation();
-			NewNodalOffset.RotationOffset = DesiredOffset.GetRotation();
-
-			NewNodalOffsets.Add(NewNodalOffset);
+			UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. No solver class was found."));
+			return CalibrationTask;
 		}
 
-		LensFile->AddNodalOffsetPoint(OutFocus, OutZoom, NewNodalOffsets[0]);
+		ULensDistortionSolver* TestSolver = Cast<ULensDistortionSolver>(DerivedSolverClasses.Last()->GetDefaultObject());
+
+		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TestSolver, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, Focus, Zoom]()
+			{ 
+				FDistortionCalibrationResult Result = TestSolver->Solve(Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter);
+
+				// FZ inputs to LUT
+				Result.EvaluatedFocus = Focus;
+				Result.EvaluatedFocus = Zoom;
+
+				return Result;
+			});
 	}
 
-	return true;
+	return CalibrationTask;
 }
 
 TSharedRef<SWidget> UCameraLensDistortionAlgoCheckerboard::BuildCalibrationDevicePickerWidget()

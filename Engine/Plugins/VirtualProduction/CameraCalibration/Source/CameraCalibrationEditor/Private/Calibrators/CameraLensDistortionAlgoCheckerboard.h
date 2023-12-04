@@ -133,16 +133,8 @@ public:
 	virtual UMaterialInterface* GetOverlayMaterial() const override;
 	virtual bool IsOverlayEnabled() const override { return bShouldShowOverlay; };
 	virtual void OnDistortionSavedToLens() override;
-	virtual bool GetLensDistortion(
-		float& OutFocus,
-		float& OutZoom,
-		FDistortionInfo& OutDistortionInfo,
-		FFocalLengthInfo& OutFocalLengthInfo,
-		FImageCenterInfo& OutImageCenterInfo,
-		TSubclassOf<ULensModel>& OutLensModel,
-		double& OutError,
-		FText& OutErrorMessage
-	) override;
+	virtual FDistortionCalibrationTask BeginCalibration() override;
+	virtual bool SupportsAsyncCalibration() override { return true; };
 	virtual bool HasCalibrationData() const override;
 	virtual void PreImportCalibrationData() override;
 	virtual int32 ImportCalibrationRow(const TSharedRef<FJsonObject>& CalibrationRowObject, const FImage& RowImage) override;

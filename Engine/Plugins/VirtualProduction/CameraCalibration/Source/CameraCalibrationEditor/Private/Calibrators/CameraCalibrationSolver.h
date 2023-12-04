@@ -13,6 +13,55 @@
 
 #endif	// WITH_OPENCV
 
+#include "CameraCalibrationSolver.generated.h"
+
+/** 
+ * An array of 3D object points associated with a single calibration image.
+ * Structure is needed because Blueprints and Python do not support arrays of arrays.
+ */
+USTRUCT(BlueprintType)
+struct FObjectPoints
+{
+	GENERATED_BODY()
+
+	/** 3D object points in an image */
+	UPROPERTY(BlueprintReadWrite, Category = "Calibration")
+	TArray<FVector> Points;
+};
+
+/** 
+ * An array of 2D image points associated with a single calibration image 
+ * Structure is needed because Blueprints and Python do not support arrays of arrays.
+ */
+USTRUCT(BlueprintType)
+struct FImagePoints
+{
+	GENERATED_BODY()
+
+	/** 2D image points in an image */
+	UPROPERTY(BlueprintReadWrite, Category = "Calibration")
+	TArray<FVector2D> Points;
+};
+
+/** 
+ * Base lens distortion solver class that can be inherited from in Blueprints or Python 
+ */
+UCLASS(Blueprintable)
+class ULensDistortionSolver : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Calibrate camera intrinsics and distortion from a set of input 3D-2D point correspondences and initial camera intrinsics guess. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Calibration")
+	FDistortionCalibrationResult Solve(
+		const TArray<FObjectPoints>& ObjectPointArray,
+		const TArray<FImagePoints>& ImagePointArray,
+		const FIntPoint ImageSize,
+		const FVector2D& FocalLength,
+		const FVector2D& ImageCenter) const;
+};
+
 /**
   * Flags used to modify the execution of the calibration solver
   */
@@ -40,8 +89,8 @@ public:
 	  */
 	static double CalibrateCamera(
 		const TSubclassOf<ULensModel> LensModel,
-		const TArray<TArray<FVector>>& InObjectPoints,
-		const TArray<TArray<FVector2f>>& InImagePoints,
+		const TArray<FObjectPoints>& InObjectPointsArray,
+		const TArray<FImagePoints>& InImagePointsArray,
 		const FIntPoint ImageSize,
 		FVector2D& InOutFocalLength,
 		FVector2D& InOutImageCenter,
@@ -130,8 +179,8 @@ private:
 
 	/** Copy the input 3D and 2D points to OpenCV matrices for ease of use with the solver */
 	static void GatherPoints(
-		const TArray<TArray<FVector>>& ObjectPoints,
-		const TArray<TArray<FVector2f>>& ImagePoints,
+		const TArray<FObjectPoints>& InObjectPointsArray,
+		const TArray<FImagePoints>& InImagePointsArray,
 		cv::Mat& ObjectPointsMat,
 		cv::Mat& ImagePointsMat);
 
