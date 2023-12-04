@@ -23,7 +23,7 @@ namespace UE::Audio::Insights
 
 	FText FOutputOscilloscopeDashboardViewFactory::GetDisplayName() const
 	{
-		return LOCTEXT("AudioDashboard_DashboardsTab_DisplayName", "Output Oscilloscope");
+		return LOCTEXT("AudioDashboard_DashboardsOscilloscopeTab_DisplayName", "Output Oscilloscope");
 	}
 
 	EDefaultDashboardTabStack FOutputOscilloscopeDashboardViewFactory::GetDefaultTabStack() const

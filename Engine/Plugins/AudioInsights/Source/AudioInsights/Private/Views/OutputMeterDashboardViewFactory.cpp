@@ -25,7 +25,7 @@ namespace UE::Audio::Insights
 
 	FText FOutputMeterDashboardViewFactory::GetDisplayName() const
 	{
-		return LOCTEXT("AudioDashboard_DashboardsTab_DisplayName", "Output Meter");
+		return LOCTEXT("AudioDashboard_DashboardsAudioMeterTab_DisplayName", "Output Meter");
 	}
 
 	EDefaultDashboardTabStack FOutputMeterDashboardViewFactory::GetDefaultTabStack() const

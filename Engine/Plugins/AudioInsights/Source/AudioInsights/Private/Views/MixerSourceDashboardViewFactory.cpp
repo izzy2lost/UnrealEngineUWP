@@ -912,7 +912,7 @@ namespace UE::Audio::Insights
 				SAssignNew(SoloToggleButton, SCheckBox)
 				.HAlign(EHorizontalAlignment::HAlign_Center)
 				.Style(&SoloToggleButtonStyle)
-				.ToolTip(FSlateApplicationBase::Get().MakeToolTip(LOCTEXT("TableDashboardView_MuteButtonTooltipText", "Enabled/Disable Solo on all the items in the list.")))
+				.ToolTip(FSlateApplicationBase::Get().MakeToolTip(LOCTEXT("TableDashboardView_SoloButtonTooltipText", "Enabled/Disable Solo on all the items in the list.")))
 				.IsChecked(ECheckBoxState::Unchecked)
 				.OnCheckStateChanged(this, &FMixerSourceDashboardViewFactory::ToggleSoloForAllItems)
 				[
