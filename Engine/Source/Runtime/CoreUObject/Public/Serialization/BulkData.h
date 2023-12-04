@@ -9,6 +9,7 @@
 #include "Containers/Map.h"
 #include "Containers/SortedMap.h"
 #include "Containers/StringView.h"
+#include "Containers/StringFwd.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
 #include "CoreTypes.h"
@@ -172,6 +173,9 @@ enum EBulkDataFlags : uint32
 	/** Assigned at runtime to indicate that the BulkData object should be considered for discard even if it cannot load from disk. */
 	BULKDATA_AlwaysAllowDiscard = 1 << 28,
 };
+
+COREUOBJECT_API FStringBuilderBase& LexToString(EBulkDataFlags Flags, FStringBuilderBase& Sb);
+COREUOBJECT_API FString LexToString(EBulkDataFlags Flags);
 
 /**
  * Allows FArchive to serialize EBulkDataFlags, this will not be required once EBulkDataFlags is promoted

@@ -26,8 +26,10 @@
 #include "Misc/WildcardString.h"
 #include "Modules/ModuleManager.h"
 #include "Serialization/Archive.h"
+#include "Serialization/BulkData.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "Serialization/BufferWriter.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/MemoryReader.h"
@@ -75,6 +77,7 @@
 #include "Misc/PathViews.h"
 #include "HAL/FileManagerGeneric.h"
 #include "Serialization/CompactBinarySerialization.h"
+#include "Serialization/ZenPackageHeader.h"
 
 IMPLEMENT_MODULE(FDefaultModuleImpl, IoStoreUtilities);
 
@@ -5979,6 +5982,237 @@ bool ListIoStoreContainer(const TCHAR* CmdLine)
 	}
 
 	return ListContainer(KeyChain, ContainerPathOrWildcard, CsvPath) == 0;
+}
+
+bool ListContainerBulkData(
+	const FKeyChain& KeyChain,
+	const FString& ContainerPathOrWildcard,
+	const FString& OutFile)
+{
+	struct FPackageData
+	{
+		FPackageId Id;
+		FString Filename;
+		TArray<FBulkDataMapEntry> BulkDataMap;
+	};
+
+	struct FContainerData
+	{
+		FString Name;
+		FString Path;
+		TArray<FPackageData> Packages;
+	};
+
+	TArray<FContainerData> Containers;
+	TArray<FString> ContainerFilePaths;
+
+	if (IFileManager::Get().FileExists(*ContainerPathOrWildcard))
+	{
+		ContainerFilePaths.Add(ContainerPathOrWildcard);
+	}
+	else if (IFileManager::Get().DirectoryExists(*ContainerPathOrWildcard))
+	{
+		FString Directory = ContainerPathOrWildcard;
+		FPaths::NormalizeDirectoryName(Directory);
+
+		TArray<FString> FoundContainerFiles;
+		IFileManager::Get().FindFiles(FoundContainerFiles, *(Directory / TEXT("*.utoc")), true, false);
+
+		for (const FString& Filename : FoundContainerFiles)
+		{
+			ContainerFilePaths.Emplace(Directory / Filename);
+		}
+	}
+	else
+	{
+		FString Directory = FPaths::GetPath(ContainerPathOrWildcard);
+		FPaths::NormalizeDirectoryName(Directory);
+
+		TArray<FString> FoundContainerFiles;
+		IFileManager::Get().FindFiles(FoundContainerFiles, *ContainerPathOrWildcard, true, false);
+
+		for (const FString& Filename : FoundContainerFiles)
+		{
+			ContainerFilePaths.Emplace(Directory / Filename);
+		}
+	}
+
+	if (ContainerFilePaths.Num() == 0)
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Container '%s' doesn't exist and no container matches wildcard."), *ContainerPathOrWildcard);
+		return false;
+	}
+
+	for (const FString& ContainerFilePath : ContainerFilePaths)
+	{
+		FString ContainerName = FPaths::GetBaseFilename(ContainerFilePath);
+		if (ContainerName == TEXT("global"))
+		{
+			continue;
+		}
+
+		TUniquePtr<FIoStoreReader> Reader = CreateIoStoreReader(*ContainerFilePath, KeyChain);
+		if (!Reader.IsValid())
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Failed to read container '%s'"), *ContainerFilePath);
+			continue;
+		}
+
+		TMap<FIoChunkId, FString> FilenameByChunkId;
+		Reader->GetDirectoryIndexReader().IterateDirectoryIndex(FIoDirectoryIndexHandle::RootDirectory(), TEXT(""),
+			[&FilenameByChunkId, &Reader](FStringView Filename, uint32 TocEntryIndex) -> bool
+			{
+				TIoStatusOr<FIoStoreTocChunkInfo> ChunkInfo = Reader->GetChunkInfo(TocEntryIndex);
+				if (ChunkInfo.IsOk())
+				{
+					FilenameByChunkId.Add(ChunkInfo.ValueOrDie().Id, FString(Filename));
+				}
+				return true;
+			});
+
+		UE_LOG(LogIoStore, Display, TEXT("Listing bulk data in container '%s'"), *ContainerFilePath);
+		FIoChunkId ChunkId = CreateIoChunkId(Reader->GetContainerId().Value(), 0, EIoChunkType::ContainerHeader);
+		TIoStatusOr<FIoBuffer> Status = Reader->Read(ChunkId, FIoReadOptions());
+
+		if (!Status.IsOk())
+		{
+			UE_LOG(LogIoStore, Display, TEXT("Failed to read container header '%s', reason '%s'"),
+				*ContainerFilePath, *Status.Status().ToString());
+			continue;
+		}
+
+		FIoContainerHeader ContainerHeader;
+		{
+			FIoBuffer Chunk = Status.ValueOrDie();
+			FMemoryReaderView Ar(MakeArrayView(Chunk.Data(), Chunk.GetSize()));
+			Ar << ContainerHeader;
+		}
+
+		FContainerData& Container = Containers.AddDefaulted_GetRef();
+		Container.Path = ContainerFilePath;
+		Container.Name = MoveTemp(ContainerName);
+
+		for (const FPackageId& PackageId : ContainerHeader.PackageIds)
+		{
+			ChunkId = CreatePackageDataChunkId(PackageId);
+			Status = Reader->Read(ChunkId, FIoReadOptions());
+			if (!Status.IsOk())
+			{
+				UE_LOG(LogIoStore, Display, TEXT("Failed to package data"));
+				continue;
+			}
+
+			FIoBuffer Chunk = Status.ValueOrDie();
+			FZenPackageHeader PkgHeader = FZenPackageHeader::MakeView(Chunk.GetView());
+			FPackageData& Pkg = Container.Packages.AddDefaulted_GetRef();
+			Pkg.Id = PackageId;
+			Pkg.BulkDataMap = PkgHeader.BulkDataMap;
+			if (FString* Filename = FilenameByChunkId.Find(ChunkId))
+			{
+				Pkg.Filename = *Filename;
+			}
+		}
+	}
+
+	const FString Ext = FPaths::GetExtension(OutFile);
+	if (Ext == TEXT("json"))
+	{
+		using FWriter = TSharedPtr<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>>; 
+		using FWriterFactory = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>;
+
+		FString Json;
+		FWriter Writer = FWriterFactory::Create(&Json);
+		Writer->WriteArrayStart();
+		
+		TStringBuilder<512> Sb;
+		for (const FContainerData& Container: Containers)
+		{
+			Writer->WriteObjectStart();
+			Writer->WriteValue(TEXT("Container"), Container.Name);
+			Writer->WriteArrayStart(TEXT("Packages"));
+			for (const FPackageData& Pkg : Container.Packages)
+			{
+				if (Pkg.BulkDataMap.IsEmpty())
+				{
+					continue;
+				}
+
+				Writer->WriteObjectStart();
+				Writer->WriteValue(TEXT("PackageId"), FString::Printf(TEXT("0x%llX"), Pkg.Id.Value()));
+				Writer->WriteValue(TEXT("Filename"), Pkg.Filename);
+				Writer->WriteArrayStart(TEXT("BulkData"));
+				for (const FBulkDataMapEntry& Entry : Pkg.BulkDataMap)
+				{
+					Sb.Reset();
+					LexToString(static_cast<EBulkDataFlags>(Entry.Flags), Sb);
+					Writer->WriteObjectStart();
+					Writer->WriteValue(TEXT("Offset"), Entry.SerialOffset);
+					Writer->WriteValue(TEXT("Size"), Entry.SerialSize);
+					Writer->WriteValue(TEXT("Flags"), Sb.ToString());
+					Writer->WriteObjectEnd();
+				}
+				Writer->WriteArrayEnd();
+				Writer->WriteObjectEnd();
+			}
+			Writer->WriteArrayEnd();
+			Writer->WriteObjectEnd();
+		}
+
+		Writer->WriteArrayEnd();
+		Writer->Close();
+
+		UE_LOG(LogIoStore, Display, TEXT("Saving '%s'"), *OutFile);
+		if (!FFileHelper::SaveStringToFile(Json, *OutFile))
+		{
+			return false;
+		}
+	}
+	else
+	{
+		TUniquePtr<FArchive> CsvAr(IFileManager::Get().CreateFileWriter(*OutFile));
+		CsvAr->Logf(TEXT("Container,Filename,PackageId,Offset,Size,Flags"));
+
+		TStringBuilder<512> Sb;
+		for (const FContainerData& Container: Containers)
+		{
+			for (const FPackageData& Pkg : Container.Packages)
+			{
+				for (const FBulkDataMapEntry& Entry : Pkg.BulkDataMap)
+				{
+					Sb.Reset();
+					LexToString(static_cast<EBulkDataFlags>(Entry.Flags), Sb);
+					CsvAr->Logf(TEXT("%s,%s,0x%llX,%lld,%lld,%s"),
+						*Container.Name, *Pkg.Filename, Pkg.Id.Value(), Entry.SerialOffset, Entry.SerialSize, Sb.ToString());
+				}
+			}
+		}
+
+		UE_LOG(LogIoStore, Display, TEXT("Saving '%s'"), *OutFile);
+	}
+
+	return true;
+}
+
+bool ListIoStoreContainerBulkData(const TCHAR* CmdLine)
+{
+	FKeyChain KeyChain;
+	LoadKeyChain(CmdLine, KeyChain);
+
+	FString ContainerPathOrWildcard;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("ListContainerBulkData="), ContainerPathOrWildcard))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Missing argument -ListContainerBulkData=<ContainerFileOrWildCard>"));
+		return false;
+	}
+
+	FString OutFile;
+	if (!FParse::Value(FCommandLine::Get(), TEXT("Out="), OutFile))
+	{
+		UE_LOG(LogIoStore, Error, TEXT("Missing argument -Out=<Path.[json|csv]>"));
+		return false;
+	}
+
+	return ListContainerBulkData(KeyChain, ContainerPathOrWildcard, OutFile) == 0;
 }
 
 bool LegacyListIoStoreContainer(

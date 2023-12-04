@@ -30,6 +30,61 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
+FStringBuilderBase& LexToString(EBulkDataFlags Flags, FStringBuilderBase& Sb)
+{
+	#define TEST_AND_ADD_FLAG(Sb, Flags, Contains)\
+	{\
+		if ((uint32(Flags) & uint32(Contains)) == uint32(Contains))\
+		{\
+			if (Sb.Len())\
+			{\
+				Sb.Append(TEXT("|"));\
+			}\
+			Sb.Append(TEXT(#Contains));\
+		}\
+	}
+
+	if (uint32(Flags) == BULKDATA_None)
+	{
+		Sb.Append("BULKDATA_None");
+		return Sb;
+	}
+
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_PayloadAtEndOfFile);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_SerializeCompressedZLIB);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_ForceSingleElementSerialization);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_SingleUse);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_ForceInlinePayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_SerializeCompressed);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_PayloadInSeperateFile);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_Force_NOT_InlinePayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_OptionalPayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_MemoryMappedPayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_Size64Bit);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_DuplicateNonOptionalPayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_NoOffsetFixUp);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_WorkspaceDomainPayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_LazyLoadable);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_UsesIoDispatcher);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_DataIsMemoryMapped);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_HasAsyncReadPending);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_AlwaysAllowDiscard);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_BadDataVersion);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_ForceStreamPayload);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_SerializeCompressedBitWindow);
+	TEST_AND_ADD_FLAG(Sb, Flags, BULKDATA_Unused);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	return Sb;
+}
+
+FString LexToString(EBulkDataFlags Flags)
+{
+	TStringBuilder<256> Sb;
+	return LexToString(Flags, Sb).ToString();
+}
+
 const FIoFilenameHash FALLBACK_IO_FILENAME_HASH = INVALID_IO_FILENAME_HASH - 1;
 
 FIoFilenameHash MakeIoFilenameHash(const FPackagePath& PackagePath)
