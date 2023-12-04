@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.224.0";
+        private static string VersionString = "4.224.1";
 
         public static string Get() { return VersionString; }
     };
@@ -100,7 +100,7 @@ namespace PerfReportTool
 			"     Not available in bulk mode.\n" +
 			"  -noSmooth : disable smoothing on all graphs\n" +
 			"  -listSummaryTables: lists available summary tables from the current report XML\n" +
-			"  -dumpVariables: dumps all variables to the log for each CSV\n" +
+			"  -dumpVariables | -dumpVariablesAll : dumps variables to the log for each CSV (all includes metadata)\n" +
 			"\n" +
 			"Performance args:\n" +
 			"  -perfLog : output performance logging information\n" +
@@ -587,10 +587,10 @@ namespace PerfReportTool
 								GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, bReadAllStats || bWriteToSummaryTableCache, cachedCsvFile.reportTypeInfo, csvDir);
 								perfLog.LogTiming("  GenerateReport");
 
-								if (GetBoolArg("dumpVariables") && cachedCsvFile.xmlVariableMappings != null)
+								if ( ( GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll") ) && cachedCsvFile.xmlVariableMappings != null)
 								{
 									Console.WriteLine("\nDumping variables for " + cachedCsvFile.filename + "\n");
-									cachedCsvFile.xmlVariableMappings.DumpToLog();
+									cachedCsvFile.xmlVariableMappings.DumpToLog(GetBoolArg("dumpVariablesAll"));
 								}
 
 								if (rowData != null && bWriteToSummaryTableCache)

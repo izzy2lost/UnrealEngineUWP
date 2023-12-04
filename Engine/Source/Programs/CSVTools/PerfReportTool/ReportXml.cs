@@ -80,7 +80,11 @@ namespace PerfReportTool
 					{
 						if (entry.metadataQuery == null || CsvStats.DoesMetadataMatchFilter(csvMetadata, entry.metadataQuery)) 
 						{
-							valuesToAdd.Add(new KeyValuePair<string, string>(entry.destName.ToLowerInvariant(), entry.destValue));
+							string key = entry.destName.ToLowerInvariant();
+							valuesToAdd.Add(new KeyValuePair<string, string>(key, entry.destValue));
+
+							// Add the derived metadata value to variables
+							vars.SetVariable("meta." + key, entry.destValue);
 						}
 					}
 				}
