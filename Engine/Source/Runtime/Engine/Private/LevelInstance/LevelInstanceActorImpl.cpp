@@ -325,7 +325,7 @@ bool FLevelInstanceActorImpl::IsLockedActor() const
 
 bool FLevelInstanceActorImpl::ShouldExport() const
 {
-	return !IsLockedActor();
+	return true;
 }
 
 bool FLevelInstanceActorImpl::IsUserManaged() const
