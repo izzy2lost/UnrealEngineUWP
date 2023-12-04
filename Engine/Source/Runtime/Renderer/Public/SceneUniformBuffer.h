@@ -25,7 +25,7 @@ public:
 	class FImpl;
 
 	// Must be called during static initialization
-	static FMemberId RegisterMember(
+	RENDERER_API static FMemberId RegisterMember(
 		const TCHAR* Name,
 		const FShaderParametersMetadata& StructMetadata,
 		// Used to set default values for this member if no value is set explicitly
@@ -46,15 +46,18 @@ public:
 	FShaderParameterStructConstructor DefaultValueConstructor;
 
 protected:
-	static TArray<FSceneUniformBufferMemberRegistration*>& GetInstances();
+	RENDERER_API static void Register(FSceneUniformBufferMemberRegistration& Entry);
 
 	// Called during static initialization
 	FSceneUniformBufferMemberRegistration(const TCHAR* Name)
 		: Name(Name)
 	{
-		GetInstances().Add(this);
+		Register(*this);
 	}
 	virtual ~FSceneUniformBufferMemberRegistration() = default;
+
+private:
+	static TArray<FSceneUniformBufferMemberRegistration*>& GetInstances();
 };
 
 template<typename TMember>
