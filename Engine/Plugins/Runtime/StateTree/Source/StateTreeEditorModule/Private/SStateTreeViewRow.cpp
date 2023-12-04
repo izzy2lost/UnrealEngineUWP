@@ -917,7 +917,7 @@ FText SStateTreeViewRow::GetLinkedStateDesc() const
 	}
 	else if (State->Type == EStateTreeStateType::LinkedAsset)
 	{
-		return FText::FromString(*GetNameSafe(State->LinkedAsset));
+		return FText::FromString(GetNameSafe(State->LinkedAsset.Get()));
 	}
 	
 	return FText::GetEmpty();
