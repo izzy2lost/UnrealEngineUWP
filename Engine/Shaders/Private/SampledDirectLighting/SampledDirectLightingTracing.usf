@@ -45,8 +45,6 @@ float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
 
 Texture2D<uint> LightSamples;
-RWTexture2D<uint> RWLightSamples;
-RWTexture2D<float> RWLightSampleRayDistance;
 Texture2D<uint> RWTraceTile;
 
 RWStructuredBuffer<uint> RWCompactedTraceTexelData;
@@ -188,6 +186,9 @@ void CompactLightSampleTracesCS(
 	#endif
 }
 
+RWTexture2D<uint> RWLightSamples;
+RWTexture2D<float> RWLightSampleRayDistance;
+
 StructuredBuffer<uint> CompactedTraceTexelData;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
@@ -324,6 +325,12 @@ void SoftwareRayTraceLightSamplesCS(
 		uint2 ScreenCoord = SampleCoordToScreenCoord(SampleCoord);
 		uint2 DownsampledScreenCoord = SampleCoordToDownsampledScreenCoord(SampleCoord);
 
+#if DEBUG_MODE
+		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.45));
+		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+		bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
+#endif
+
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float SceneDepth = DownsampledSceneDepth[DownsampledScreenCoord];
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
@@ -345,7 +352,23 @@ void SoftwareRayTraceLightSamplesCS(
 		if (bHit)
 		{
 			LightSample.bVisible = false;
+			LightSample.bCompleted = true;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
+
+		#if DEBUG_MODE
+		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
+		{
+			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
+			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+
+			float3 RayStart = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * TraceInput.MinTraceDistance;
+			float3 RayEnd = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * (bHit ? SDFResult.HitTime : TraceInput.MaxTraceDistance);
+			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
+
+			AddLineTWS(Context, RayStart, RayEnd, RayColor);
+		}
+		#endif
 	}
 }

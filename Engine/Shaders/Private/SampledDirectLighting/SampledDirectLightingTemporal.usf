@@ -3,89 +3,68 @@
 #include "../Common.ush"
 #include "SampledDirectLighting.ush"
 
-struct FNeighborStatistics
+struct FNeighborhoodClamp
 {
-	float3 Mean;
-	float3 Variance;
-	float3 StdDev;
 	float3 Min;
 	float3 Max;
-	float3 HistoryClampMin;
-	float3 HistoryClampMax;
 };
 
-// Note: corners need to be first for GetNeighborStatistics
-static const int2 kOffsets3x3[8] =
-{
-	int2(-1, -1),
-	int2( 1, -1),
-	int2(-1,  1),
-	int2( 1,  1),
-	int2( 0, -1),
-	int2(-1,  0),
-	int2( 1,  0),
-	int2( 0,  1),
-};
-
-FNeighborStatistics GetNeighborStatistics(
+FNeighborhoodClamp GetNeighborhoodClamp(
 	uint2 ScreenCoord, 
-	Texture2D LightingTexture,
-	float3 NewLighting)
+	Texture2D SampleTexture,
+	float3 CenterSample)
 {
-	FNeighborStatistics Result = (FNeighborStatistics)0;
+	float3 SampleSum = CenterSample;
+	float3 SampleSqSum = Pow2(CenterSample);
 
-	int Count = 1;
-	float3 M1 = NewLighting;
-	float3 M2 = (float3)0;
-
-	Result.Min = NewLighting;
-	Result.Max = NewLighting;
-
-	UNROLL
-	for(uint NeighborId = 0; NeighborId < 8; NeighborId++)
+	// #sdl_todo: optimize using groupshared and cross-lane ops
+	const int KernelSize = 1;
+	for (int SampleOffsetY = -KernelSize; SampleOffsetY <= KernelSize; ++SampleOffsetY)
 	{
-		int2 SampleOffset = kOffsets3x3[NeighborId];
-
-		uint2 NeighborScreenCoord = clamp(ScreenCoord + SampleOffset, 0u, View.ViewRectMinAndSize.zw - 1);
-
-		float3 Sample = LightingTexture[NeighborScreenCoord].xyz;
-
-		Result.Min = min(Result.Min, Sample);
-		Result.Max = max(Result.Max, Sample);
-
-		// Welford's online algorithm for variance.
-		// More numerically stable than accumulating squares.
-		// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-		Count += 1;
-		float3 Delta1 = Sample - M1;
-		M1 += Delta1 / Count;
-		float3 Delta2 = Sample - M1;
-		M2 += Delta1 * Delta2;
+		for (int SampleOffsetX = -KernelSize; SampleOffsetX <= KernelSize; ++SampleOffsetX)
+		{
+			if (!(SampleOffsetX == 0 && SampleOffsetY == 0))
+			{
+				uint2 SampleScreenCoord = clamp(ScreenCoord + int2(SampleOffsetX, SampleOffsetY), 0u, View.ViewRectMinAndSize.zw - 1);
+				float3 Sample = SampleTexture[SampleScreenCoord].xyz;
+				
+				SampleSum += Sample;
+				SampleSqSum += Pow2(Sample);
+			}
+		}
 	}
 
-	Result.Mean = M1;
-	Result.Variance = M2 / (Count - 1);
-	Result.StdDev = sqrt(Result.Variance);
-	Result.HistoryClampMin = Result.Mean - Result.StdDev;
-	Result.HistoryClampMax = Result.Mean + Result.StdDev;
+	float NumSamples = Pow2(2.0f * KernelSize + 1.0f);
+	float3 M1 = SampleSum / NumSamples;
+	float3 M2 = SampleSqSum / NumSamples;
+	float3 Variance = max(M2 - Pow2(M1), 0.0f);
+	float3 StdDev = sqrt(Variance);
 
-	return Result;
+	FNeighborhoodClamp NeighborhoodClamp = (FNeighborhoodClamp)0;
+	NeighborhoodClamp.Min = M1 - TemporalNeighborhoodClampScale * StdDev;
+	NeighborhoodClamp.Max = M1 + TemporalNeighborhoodClampScale * StdDev;
+	return NeighborhoodClamp;
 }
 
-Texture2D DiffuseLightingTexture;
-Texture2D SpecularLightingTexture;
+Texture2D ResolvedDiffuseLighting;
+Texture2D ResolvedSpecularLighting;
+Texture2D ResolvedLuminanceMoments;
 Texture2D SampledDirectLightingDepthHistory;
 Texture2D DiffuseLightingHistoryTexture;
 Texture2D SpecularLightingHistoryTexture;
+Texture2D LuminanceMomentsHistoryTexture;
+Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
 
 float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 float PrevSceneColorPreExposureCorrection;
-int TemporalMaxFramesAccumulated;
-float TemporalStdDevOffset;
+float TemporalMaxFramesAccumulated;
+float TemporalNeighborhoodClampScale;
 
-RWTexture2D<float4> RWDiffuseLightingTexture;
-RWTexture2D<float4> RWSpecularLightingTexture;
+RWTexture2D<float4> RWDiffuseLighting;
+RWTexture2D<float4> RWSpecularLighting;
+RWTexture2D<float4> RWLuminanceMoments;
+RWTexture2D<UNORM float> RWNumFramesAccumulated;
 RWTexture2D<float> RWSceneDepth;
 RWTexture2D<float4> RWSceneColor;
 
@@ -111,10 +90,14 @@ void SampledDirectLightingTemporalAccumulationCS(
 		const float DeviceZ = SceneDepthTexture[ScreenCoord].x;
 		GBuffer.Depth = ConvertFromDeviceZ(DeviceZ);
 
-		if (GBuffer.Depth > 0.0f)
+		if (GBuffer.Depth > 0.0f && GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
 		{
-			float3 DiffuseLighting = DiffuseLightingTexture[ScreenCoord].xyz;
-			float3 SpecularLighting = SpecularLightingTexture[ScreenCoord].xyz;
+			float3 DiffuseLighting = ResolvedDiffuseLighting[ScreenCoord].xyz;
+			float3 SpecularLighting = ResolvedSpecularLighting[ScreenCoord].xyz;
+			float4 LuminanceMoments = ResolvedLuminanceMoments[ScreenCoord].xyzw;
+			float2 DiffuseLumimanceMoments = LuminanceMoments.xy;
+			float2 SpecularLumimanceMoments = LuminanceMoments.zw;
+			float NumFramesAccumulated = 0.0f;
 
 			#if VALID_HISTORY
 			{
@@ -177,12 +160,29 @@ void SampledDirectLightingTemporalAccumulationCS(
 						SpecularLightingHistory.z = dot(SpecularLightingHistoryTexture.GatherBlue(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
 						SpecularLightingHistory = SpecularLightingHistory / dot(HistoryWeights, 1.0f);
 
-						float Alpha = 1.0f / (1.0f + TemporalMaxFramesAccumulated);
+						float4 LuminanceMomentsHistory = 0.0f;
+						LuminanceMomentsHistory.x = dot(LuminanceMomentsHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
+						LuminanceMomentsHistory.y = dot(LuminanceMomentsHistoryTexture.GatherGreen(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
+						LuminanceMomentsHistory.z = dot(LuminanceMomentsHistoryTexture.GatherBlue(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);						
+						LuminanceMomentsHistory.w = dot(LuminanceMomentsHistoryTexture.GatherAlpha(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
+						LuminanceMomentsHistory = LuminanceMomentsHistory / dot(HistoryWeights, 1.0f);
+
+						// Reproject and rescale normalized NumFramesAccumulated
+						float NumFramesAccumulatedHistory = 0.0f;
+						NumFramesAccumulatedHistory = dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) * TemporalMaxFramesAccumulated;
+						NumFramesAccumulatedHistory = NumFramesAccumulatedHistory / dot(HistoryWeights, 1.0f);
+						NumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, TemporalMaxFramesAccumulated);
+
+						float Alpha = 1.0f / (1.0f + NumFramesAccumulated);
 						DiffuseLighting = lerp(DiffuseLightingHistory, DiffuseLighting, Alpha);
 						SpecularLighting = lerp(SpecularLightingHistory, SpecularLighting, Alpha);
+						LuminanceMoments = lerp(LuminanceMomentsHistory, LuminanceMoments, Alpha);
 
-						FNeighborStatistics SpecularNeighborStatistics = GetNeighborStatistics(ScreenCoord, SpecularLightingTexture, SpecularLighting);
-						SpecularLighting = clamp(SpecularLighting, SpecularNeighborStatistics.HistoryClampMin, SpecularNeighborStatistics.HistoryClampMax);
+						FNeighborhoodClamp DiffuseNeighborhoodClamp = GetNeighborhoodClamp(ScreenCoord, ResolvedDiffuseLighting, DiffuseLighting);
+						DiffuseLighting = clamp(DiffuseLighting, DiffuseNeighborhoodClamp.Min, DiffuseNeighborhoodClamp.Max);
+
+						FNeighborhoodClamp SpecularNeighborhoodClamp = GetNeighborhoodClamp(ScreenCoord, ResolvedSpecularLighting, SpecularLighting);
+						SpecularLighting = clamp(SpecularLighting, SpecularNeighborhoodClamp.Min, SpecularNeighborhoodClamp.Max);
 					}
 				}
 			}
@@ -191,8 +191,10 @@ void SampledDirectLightingTemporalAccumulationCS(
 			DiffuseLighting = MakeFinite(DiffuseLighting);
 			SpecularLighting = MakeFinite(SpecularLighting);
 
-			RWDiffuseLightingTexture[ScreenCoord] = float4(DiffuseLighting, 0.0f);
-			RWSpecularLightingTexture[ScreenCoord] = float4(SpecularLighting, 0.0f);
+			RWDiffuseLighting[ScreenCoord] = float4(DiffuseLighting, 0.0f);
+			RWSpecularLighting[ScreenCoord] = float4(SpecularLighting, 0.0f);
+			RWLuminanceMoments[ScreenCoord] = float4(DiffuseLumimanceMoments, SpecularLumimanceMoments);
+			RWNumFramesAccumulated[ScreenCoord] = (NumFramesAccumulated + 0.5f) / TemporalMaxFramesAccumulated;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);
 			const float3 N = GBuffer.WorldNormal;
@@ -203,12 +205,20 @@ void SampledDirectLightingTemporalAccumulationCS(
 			// Add to scene color and output separately to history
 			float3 Irradiance = GBuffer.DiffuseColor * DiffuseLighting + SpecularLighting * EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
 
-			#if DEBUG_MODE 
+			float DiffuseVariance = max(DiffuseLumimanceMoments.y - Pow2(DiffuseLumimanceMoments.x), 0.0f);
+			float SpecularVariance = max(SpecularLumimanceMoments.y - Pow2(SpecularLumimanceMoments.x), 0.0f);
+
+			#if DEBUG_MODE
 			if (bDebug)
 			{
 				Newline(Context);
 				Print(Context, TEXT("Irradiance: "));
 				Print(Context, Irradiance);
+				Newline(Context);
+				Print(Context, TEXT("Variance: "));
+				Newline(Context);
+				Print(Context, DiffuseVariance);
+				Print(Context, SpecularVariance);
 			}
 			#endif
 

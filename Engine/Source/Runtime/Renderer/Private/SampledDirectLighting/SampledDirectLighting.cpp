@@ -46,10 +46,10 @@ static TAutoConsoleVariable<int32> CVarSampledDirectLightingTemporalMaxFramesAcc
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarSampledDirectLightingTemporalStdDevOffset(
-	TEXT("r.SampledDirectLighting.Temporal.StdDevOffset"),
-	0.1f,
-	TEXT("Increases standard deviation in neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
+static TAutoConsoleVariable<float> CVarSampledDirectLightingTemporalNeighborhoodClampScale(
+	TEXT("r.SampledDirectLighting.Temporal.NeighborhoodClampScale"),
+	1.0f,
+	TEXT("Scales how permissive is neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -428,6 +428,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWSpecularLighting)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWLuminanceMoments)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadingTileAllocator)
@@ -470,16 +471,21 @@ class FSampledDirectLightingTemporalAccumulationCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSampledDirectLightingParameters, SampledDirectLightingParameters)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, SpecularLightingTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingHistoryTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, SpecularLightingHistoryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, ResolvedDiffuseLighting)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, ResolvedSpecularLighting)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedLuminanceMoments)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, DiffuseLightingHistoryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SpecularLightingHistoryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, LuminanceMomentsHistoryTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SampledDirectLightingDepthHistory)
 		SHADER_PARAMETER(FVector4f, HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(float, PrevSceneColorPreExposureCorrection)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDiffuseLightingTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWSpecularLightingTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDiffuseLighting)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWSpecularLighting)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWLuminanceMoments)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float>, RWNumFramesAccumulated)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 	END_SHADER_PARAMETER_STRUCT()
@@ -505,7 +511,7 @@ class FSampledDirectLightingTemporalAccumulationCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FSampledDirectLightingTemporalAccumulationCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingDenoising.usf", "SampledDirectLightingTemporalAccumulationCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSampledDirectLightingTemporalAccumulationCS, "/Engine/Private/SampledDirectLighting/SampledDirectLightingTemporal.usf", "SampledDirectLightingTemporalAccumulationCS", SF_Compute);
 
 /**
  * Single pass batched light rendering using ray tracing (distance field or triangle) for shadowing.
@@ -584,7 +590,9 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 	FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	FRDGTextureRef DiffuseLightingHistory = nullptr;
 	FRDGTextureRef SpecularLightingHistory = nullptr;
+	FRDGTextureRef LuminanceMomentsHistory = nullptr;
 	FRDGTextureRef SceneDepthHistory = nullptr;
+	FRDGTextureRef NumFramesAccumulatedHistory = nullptr;
 
 	if (View.ViewState)
 	{
@@ -597,14 +605,18 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 
 			if (LightingViewState.DiffuseLightingHistory
 				&& LightingViewState.SpecularLightingHistory
+				&& LightingViewState.LuminanceMomentsHistory
 				&& LightingViewState.SceneDepthHistory
+				&& LightingViewState.NumFramesAccumulatedHistory
 				&& LightingViewState.DiffuseLightingHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
 				&& LightingViewState.SpecularLightingHistory->GetDesc().Extent == View.GetSceneTexturesConfig().Extent
 				&& LightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
 			{
 				DiffuseLightingHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.DiffuseLightingHistory);
 				SpecularLightingHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SpecularLightingHistory);
+				LuminanceMomentsHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.LuminanceMomentsHistory);
 				SceneDepthHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.SceneDepthHistory);
+				NumFramesAccumulatedHistory = GraphBuilder.RegisterExternalTexture(LightingViewState.NumFramesAccumulatedHistory);
 			}
 		}
 	}
@@ -647,8 +659,8 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		SampledDirectLightingParameters.SamplingMinWeight = FMath::Max(CVarSampledDirectLightingSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
 		SampledDirectLightingParameters.TileDataStride = TileDataStride;
 		SampledDirectLightingParameters.DownsampledTileDataStride = DownsampledTileDataStride;
-		SampledDirectLightingParameters.TemporalMaxFramesAccumulated = CVarSampledDirectLightingTemporalMaxFramesAccumulated.GetValueOnRenderThread();
-		SampledDirectLightingParameters.TemporalStdDevOffset = CVarSampledDirectLightingTemporalStdDevOffset.GetValueOnRenderThread();
+		SampledDirectLightingParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarSampledDirectLightingTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
+		SampledDirectLightingParameters.TemporalNeighborhoodClampScale = CVarSampledDirectLightingTemporalNeighborhoodClampScale.GetValueOnRenderThread();
 		SampledDirectLightingParameters.DebugMode = SampledDirectLighting::GetDebugMode();
 		SampledDirectLightingParameters.DebugLightId = INDEX_NONE;
 
@@ -863,7 +875,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 
 	FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(ShadingTileAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("SampledDirectLighting.ShadingTileAtlas"));
+		TEXT("SampledDirectLighting	.ShadingTileAtlas"));
 
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
@@ -902,6 +914,10 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("SampledDirectLighting.ResolvedSpecularLighting"));
 
+	FRDGTextureRef ResolvedLuminanceMoments = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("SampledDirectLighting.ResolvedLuminanceMoments"));
+
 	// Shade light samples
 	{
 		FRDGTextureUAVRef SceneColorUAV = GraphBuilder.CreateUAV(SceneTextures.Color.Target, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -911,6 +927,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 			FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
 			PassParameters->RWDiffuseLighting = GraphBuilder.CreateUAV(ResolvedDiffuseLighting);
 			PassParameters->RWSpecularLighting = GraphBuilder.CreateUAV(ResolvedSpecularLighting);
+			PassParameters->RWLuminanceMoments = GraphBuilder.CreateUAV(ResolvedLuminanceMoments);
 			PassParameters->IndirectArgs = TileIndirectArgs;
 			PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
 			PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
@@ -946,24 +963,37 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("SampledDirectLighting.SpecularLighting"));
 
+	FRDGTextureRef LuminanceMoments = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("SampledDirectLighting.LuminanceMoments"));
+
 	FRDGTextureRef SceneDepthCopy = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(SceneTextures.Depth.Resolve->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 		TEXT("SampledDirectLighting.DepthHistory"));
+
+	FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("SampledDirectLighting.NumFramesAccumulated"));
 
 	// Temporal accumulation
 	{
 		FSampledDirectLightingTemporalAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSampledDirectLightingTemporalAccumulationCS::FParameters>();
 		PassParameters->SampledDirectLightingParameters = SampledDirectLightingParameters;
-		PassParameters->DiffuseLightingTexture = ResolvedDiffuseLighting;
-		PassParameters->SpecularLightingTexture = ResolvedSpecularLighting;
+		PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
+		PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
+		PassParameters->ResolvedLuminanceMoments = ResolvedLuminanceMoments;
 		PassParameters->DiffuseLightingHistoryTexture = DiffuseLightingHistory;
 		PassParameters->SpecularLightingHistoryTexture = SpecularLightingHistory;
+		PassParameters->LuminanceMomentsHistoryTexture = LuminanceMomentsHistory;
+		PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
 		PassParameters->SampledDirectLightingDepthHistory = SceneDepthHistory;
 		PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
 		PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 		PassParameters->HistoryUVMinMax = HistoryUVMinMax;
-		PassParameters->RWDiffuseLightingTexture = GraphBuilder.CreateUAV(DiffuseLighting);
-		PassParameters->RWSpecularLightingTexture = GraphBuilder.CreateUAV(SpecularLighting);
+		PassParameters->RWDiffuseLighting = GraphBuilder.CreateUAV(DiffuseLighting);
+		PassParameters->RWSpecularLighting = GraphBuilder.CreateUAV(SpecularLighting);
+		PassParameters->RWLuminanceMoments = GraphBuilder.CreateUAV(LuminanceMoments);
+		PassParameters->RWNumFramesAccumulated = GraphBuilder.CreateUAV(NumFramesAccumulated);
 		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 
@@ -996,17 +1026,21 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 			(View.ViewRect.Max.X - 1.0f) * InvBufferSize.X,
 			(View.ViewRect.Max.Y - 1.0f) * InvBufferSize.Y);
 
-		if (DiffuseLighting && SpecularLighting && SceneDepthCopy && bTemporal)
+		if (DiffuseLighting && SpecularLighting && LuminanceMomentsHistory && SceneDepthCopy && NumFramesAccumulated && bTemporal)
 		{
 			GraphBuilder.QueueTextureExtraction(DiffuseLighting, &LightingViewState.DiffuseLightingHistory);
 			GraphBuilder.QueueTextureExtraction(SpecularLighting, &LightingViewState.SpecularLightingHistory);
+			GraphBuilder.QueueTextureExtraction(LuminanceMomentsHistory, &LightingViewState.LuminanceMomentsHistory);
 			GraphBuilder.QueueTextureExtraction(SceneDepthCopy, &LightingViewState.SceneDepthHistory);
+			GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &LightingViewState.NumFramesAccumulatedHistory);
 		}
 		else
 		{
 			LightingViewState.DiffuseLightingHistory = nullptr;
 			LightingViewState.SpecularLightingHistory = nullptr;
+			LightingViewState.LuminanceMomentsHistory = nullptr;
 			LightingViewState.SceneDepthHistory = nullptr;
+			LightingViewState.NumFramesAccumulatedHistory = nullptr;
 		}
 	}
 }

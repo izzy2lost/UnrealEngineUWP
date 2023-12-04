@@ -120,6 +120,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		if (Payload.IsHit())
 		{
+			LightSample.bCompleted = true;
 			LightSample.bVisible = false;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
