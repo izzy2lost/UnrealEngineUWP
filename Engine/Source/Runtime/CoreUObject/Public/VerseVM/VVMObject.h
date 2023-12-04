@@ -43,6 +43,9 @@ struct VObject : VHeapValue
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
 
 private:
+	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API uint32 GetTypeHashImpl();
+
 	VObject(FAllocationContext Context, VEmergentType& InEmergentType);
 
 	/*

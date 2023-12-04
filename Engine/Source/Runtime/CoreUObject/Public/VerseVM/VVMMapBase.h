@@ -74,6 +74,8 @@ protected:
 		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
 	}
 
+	// TODO: When constructing with duplicate keys, we should forget the earlier
+	// key ever existed, and it shouldn't change the order.
 	VMapBase(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList, VEmergentType* Type)
 		: VHeapValue(Context, Type)
 	{

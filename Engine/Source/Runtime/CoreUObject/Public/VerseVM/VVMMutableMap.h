@@ -26,6 +26,8 @@ struct VMutableMap : VMapBase
 		SetEmergentType(Context, &VMap::GlobalTrivialEmergentType.Get(Context));
 	}
 
+	// TODO: When constructing a map as the result of a for loop, figure out what
+	// to do with duplicate keys. Or can we even have duplicate keys in such a scenario?
 	void Add(FAllocationContext Context, VValue Key, VValue Value)
 	{
 		Super::Add(Context, Key, Value);

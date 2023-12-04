@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
@@ -68,6 +69,18 @@ VObject& VObject::New(
 	}
 
 	return NewObject;
+}
+
+bool VObject::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+{
+	// TODO: Should be different for structs that are comparable.
+	return this == Other;
+}
+
+uint32 VObject::GetTypeHashImpl()
+{
+	// TODO: Should be different for structs that are comparable.
+	return PointerHash(this);
 }
 
 } // namespace Verse

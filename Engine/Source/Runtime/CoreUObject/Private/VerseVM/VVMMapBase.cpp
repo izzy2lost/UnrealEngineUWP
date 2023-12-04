@@ -40,6 +40,9 @@ void VMapBase::Add(FAllocationContext Context, VValue Key, VValue Value)
 	InternalMap.Add(NewKey, NewValue);
 }
 
+// TODO: Using the empty value to indicate not found
+// won't work if we have a map of [t]void and use VValue()
+// to represent void.
 VValue VMapBase::Find(const VValue Key)
 {
 	TWriteBarrier<VValue>* Result = InternalMap.FindByHash(GetTypeHash(Key), Key);
@@ -88,6 +91,7 @@ bool VMapBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<
 	{
 		return false;
 	}
+	// TODO: This should be an ordered compare
 	for (VMapBaseInternal::TConstIterator LhsIt = InternalMap.CreateConstIterator(); LhsIt; ++LhsIt)
 	{
 		const VValue RhsValue = OtherMap.Find(LhsIt.Key().Get());

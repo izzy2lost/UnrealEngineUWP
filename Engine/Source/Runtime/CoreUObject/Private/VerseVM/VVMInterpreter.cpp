@@ -1127,6 +1127,19 @@ class FInterpreter
 					FAIL();
 				}
 			}
+			else if (VMapBase* Map = Callee.DynamicCast<VMapBase>())
+			{
+				// TODO SOL-5621: We need to ensure the entire Key structure is concrete, not just the top-level.
+				REQUIRE_CONCRETE(Argument);
+				if (VValue Result = Map->Find(Argument))
+				{
+					DEF(Op.Dest, Result);
+				}
+				else
+				{
+					FAIL();
+				}
+			}
 			else
 			{
 				V_DIE("Unknown callee");
