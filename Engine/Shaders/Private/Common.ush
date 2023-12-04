@@ -366,6 +366,10 @@ MaterialFloat4 Texture3DSampleGrad(Texture3D Tex, SamplerState Sampler, float3 U
 {
 	return Tex.SampleGrad(Sampler, UV, DDX, DDY);
 }
+MaterialFloat4 Texture2DArraySampleLevel(Texture2DArray Tex, SamplerState Sampler, float3 UV, MaterialFloat Mip)
+{
+	return Tex.SampleLevel(Sampler, UV, Mip);
+}
 MaterialFloat4 TextureCubeSampleLevel(TextureCube Tex, SamplerState Sampler, float3 UV, MaterialFloat Mip)
 {
 	return Tex.SampleLevel(Sampler, UV, Mip);
@@ -459,10 +463,6 @@ MaterialFloat4 TextureExternalSample_Decal(TextureExternal Tex, SamplerState Sam
 #endif
 }
 
-MaterialFloat4 Texture2DArraySampleLevel(Texture2DArray Tex, SamplerState Sampler, float3 UV, MaterialFloat Mip)
-{
-	return Tex.SampleLevel(Sampler, UV, Mip);
-}
 MaterialFloat4 Texture2DArraySampleBias(Texture2DArray Tex, SamplerState Sampler, float3 UV, MaterialFloat MipBias)
 {
 #if USE_FORCE_TEXTURE_MIP
