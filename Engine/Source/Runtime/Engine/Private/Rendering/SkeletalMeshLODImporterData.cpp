@@ -28,9 +28,6 @@ void FSkeletalMeshImportData::CopyDataNeedByMorphTargetImport(FSkeletalMeshImpor
 	Other.Points = Points;
 	//PointToRawMap should not be save when saving morph target data, we only need it temporary to gather the point from the fbx shape
 	Other.PointToRawMap = PointToRawMap;
-	Other.bDiffPose = bDiffPose;
-	Other.bUseT0AsRefPose = bUseT0AsRefPose;
-	Other.bKeepSectionsSeparate = bKeepSectionsSeparate;
 }
 
 void FSkeletalMeshImportData::KeepAlternateSkinningBuildDataOnly()
@@ -159,7 +156,6 @@ bool FSkeletalMeshImportData::ReplaceSkeletalMeshGeometryImportData(const USkele
 	ImportData->bHasTangents = OriginalSkeletalMeshImportData.bHasTangents;
 	ImportData->bHasVertexColors = OriginalSkeletalMeshImportData.bHasVertexColors;
 	ImportData->NumTexCoords = OriginalSkeletalMeshImportData.NumTexCoords;
-	ImportData->bKeepSectionsSeparate = OriginalSkeletalMeshImportData.bKeepSectionsSeparate;
 
 	ImportData->Materials.Reset();
 	ImportData->Points.Reset();
@@ -214,10 +210,6 @@ bool FSkeletalMeshImportData::ReplaceSkeletalMeshRigImportData(const USkeletalMe
 	//Load the original skeletal mesh import data
 	FSkeletalMeshImportData OriginalSkeletalMeshImportData;
 	SkeletalMesh->LoadLODImportedData(LodIndex, OriginalSkeletalMeshImportData);
-
-	ImportData->bDiffPose = OriginalSkeletalMeshImportData.bDiffPose;
-	ImportData->bUseT0AsRefPose = OriginalSkeletalMeshImportData.bUseT0AsRefPose;
-	ImportData->bKeepSectionsSeparate = OriginalSkeletalMeshImportData.bKeepSectionsSeparate;
 
 	ImportData->RefBonesBinary.Reset();
 	ImportData->RefBonesBinary += OriginalSkeletalMeshImportData.RefBonesBinary;
@@ -687,12 +679,13 @@ FArchive& operator<<(FArchive& Ar, FSkeletalMeshImportData& RawMesh)
 	* Serialization should use the raw mesh version not the archive version.
 	* Additionally, stick to serializing basic types and arrays of basic types.
 	*/
+	bool bDummyFlag1 = false, bDummyFlag2 = false;
 
-	Ar << RawMesh.bDiffPose;
+	Ar << bDummyFlag1;
 	Ar << RawMesh.bHasNormals;
 	Ar << RawMesh.bHasTangents;
 	Ar << RawMesh.bHasVertexColors;
-	Ar << RawMesh.bUseT0AsRefPose;
+	Ar << bDummyFlag2;
 	Ar << RawMesh.MaxMaterialIndex;
 	Ar << RawMesh.NumTexCoords;
 	
@@ -766,11 +759,8 @@ FArchive& operator<<(FArchive& Ar, FSkeletalMeshImportData& RawMesh)
 
 	if (Version >= RAW_SKELETAL_MESH_BULKDATA_VER_Keep_Sections_Separate)
 	{
-		Ar << RawMesh.bKeepSectionsSeparate;
-	}
-	else if (Ar.IsLoading())
-	{
-		RawMesh.bKeepSectionsSeparate = false;
+		bool bDummyFlag3 = false;
+		Ar << bDummyFlag3;
 	}
 
 	return Ar;

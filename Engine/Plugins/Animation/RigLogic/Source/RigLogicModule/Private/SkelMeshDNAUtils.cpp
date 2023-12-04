@@ -587,8 +587,6 @@ void USkelMeshDNAUtils::UpdateSourceData(USkeletalMesh* InSkelMesh)
 				// Add Morph target name.
 				ImportData.MorphTargetNames.Add(MorphTarget->GetName());
 				FSkeletalMeshImportData MorphTargetImportDeltas;
-				MorphTargetImportDeltas.bDiffPose = ImportData.bDiffPose;
-				MorphTargetImportDeltas.bUseT0AsRefPose = ImportData.bUseT0AsRefPose;
 
 				FMorphTargetLODModel& MorphLODModel = MorphTarget->GetMorphLODModels()[LODIndex];
 

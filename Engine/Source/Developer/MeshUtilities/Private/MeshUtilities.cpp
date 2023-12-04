@@ -6015,12 +6015,9 @@ void FMeshUtilities::CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh) c
 		}
 
 		FSkeletalMeshImportData ImportData;
-		ImportData.bDiffPose = false;
 		ImportData.bHasNormals = true;
 		ImportData.bHasTangents = true;
-		ImportData.bUseT0AsRefPose = false;
 		ImportData.bHasVertexColors = SkeletalMesh->GetHasVertexColors();
-		ImportData.bKeepSectionsSeparate = false;
 
 		TArray<FSkeletalMaterial>& SKMaterials = SkeletalMesh->GetMaterials();
 		ImportData.Materials.Reserve(SkeletalMesh->GetMaterials().Num());

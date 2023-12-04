@@ -706,6 +706,7 @@ UObject* UFbxFactory::FactoryCreateFile
 								}
 							}
 							FSkeletalMeshImportData OutData;
+							bool bMapMorphTargetToTimeZero = false;
 							if (LODIndex == 0 && SkelMeshNodeArray.Num() != 0)
 							{
 								FName OutputName = NAME_None;
@@ -758,6 +759,7 @@ UObject* UFbxFactory::FactoryCreateFile
 										// Reapply the transforms for the rest of the import
 										FbxImporter->ApplyTransformSettingsToFbxNode(RootNodeToImport, ImportUI->SkeletalMeshImportData);
 									}
+									bMapMorphTargetToTimeZero = ImportSkeletalMeshArgs.bMapMorphTargetToTimeZero;
 									ImportedSuccessfulLodIndex = SuccessfulLodIndex;
 									//Increment the LOD index
 									SuccessfulLodIndex++;
@@ -797,6 +799,7 @@ UObject* UFbxFactory::FactoryCreateFile
 									FSkeletalMeshLODInfo* LODInfo = BaseSkeletalMesh->GetLODInfo(SuccessfulLodIndex);
 									LODInfo->bImportWithBaseMesh = true;
 									LODInfo->SourceImportFilename = FString(TEXT(""));
+									bMapMorphTargetToTimeZero = ImportSkeletalMeshArgs.bMapMorphTargetToTimeZero;
 									ImportedSuccessfulLodIndex = SuccessfulLodIndex;
 									SuccessfulLodIndex++;
 								}
@@ -817,7 +820,7 @@ UObject* UFbxFactory::FactoryCreateFile
 								uint32 bImportTextures = ImportOptions->bImportTextures;
 								ImportOptions->bImportTextures = 0;
 
-								FbxImporter->ImportFbxMorphTarget(SkelMeshNodeArray, BaseSkeletalMesh, ImportedSuccessfulLodIndex, OutData);
+								FbxImporter->ImportFbxMorphTarget(SkelMeshNodeArray, BaseSkeletalMesh, ImportedSuccessfulLodIndex, OutData, bMapMorphTargetToTimeZero);
 								bOperationCanceled |= FbxImporter->GetImportOperationCancelled();
 							
 								ImportOptions->bImportMaterials = !!bImportMaterials;
