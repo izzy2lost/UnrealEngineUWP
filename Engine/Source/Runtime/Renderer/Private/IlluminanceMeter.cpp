@@ -110,7 +110,7 @@ void FScene::ProcessAndRenderIlluminanceMeter(FRDGBuilder& GraphBuilder, TArrayV
 
 	// 0- Get source cubemap and allocate cube map transient resources
 
-	FTextureRHIRef SkyLightTextureRHI = GBlackTextureCube->TextureRHI;;
+	FTextureRHIRef SkyLightTextureRHI = GBlackTextureCube->TextureRHI;
 	if (SkyLight->bRealTimeCaptureEnabled && ConvolvedSkyRenderTargetReadyIndex >= 0)
 	{
 		// Cannot blend with this capture mode as of today.
