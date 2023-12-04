@@ -9,7 +9,9 @@ public class HordeTest : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
-				"Horde"
+				"Horde",
+				"DesktopPlatform",
+				"HTTP"
 			}
 		);
 	}

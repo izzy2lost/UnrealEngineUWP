@@ -21,7 +21,6 @@ public class HordeTestTarget : TargetRules
 		// Compile out references from Core to the rest of the engine
 		bCompileAgainstEngine = false;
 		bCompileAgainstCoreUObject = false;
-		bCompileAgainstApplicationCore = false;
 
 		// Logs are still useful to print the results
 		bUseLoggingInShipping = true;

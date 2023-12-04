@@ -23,7 +23,7 @@
 #endif
 
 #if UE_COMPUTE_PLATFORM_WINDOWS
-	#include <Windows.h>
+	#include "Windows/WindowsHWrapper.h"
 	#undef min
 	#undef max
 	#undef GetEnvironmentVariable
@@ -64,7 +64,7 @@ bool FComputeEvent::Create(const char* Name)
 	Close();
 
 #if UE_COMPUTE_PLATFORM_WINDOWS
-	Handle = CreateEventA(NULL, FALSE, FALSE, Name);
+	Handle = CreateEventA(NULL, false, false, Name);
 	return Handle != nullptr;
 #else
 	sem_t* Value = sem_open(Name, O_CREAT | O_EXCL, 0666, 1);
@@ -82,7 +82,7 @@ bool FComputeEvent::OpenExisting(const char* Name)
 	Close();
 
 #if UE_COMPUTE_PLATFORM_WINDOWS
-	Handle = OpenEventA(SYNCHRONIZE | EVENT_MODIFY_STATE, TRUE, Name);
+	Handle = OpenEventA(SYNCHRONIZE | EVENT_MODIFY_STATE, true, Name);
 	return Handle != nullptr;
 #else
 	sem_t* Value = sem_open(Name, 0);
@@ -251,7 +251,7 @@ bool FComputeMemoryMappedFile::OpenExisting(const char* Name)
 	Close();
 
 #if UE_COMPUTE_PLATFORM_WINDOWS
-	Handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, TRUE, Name);
+	Handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, true, Name);
 	if (Handle == nullptr)
 	{
 		return false;
