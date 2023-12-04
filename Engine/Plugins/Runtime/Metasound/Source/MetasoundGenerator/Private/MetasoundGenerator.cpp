@@ -33,6 +33,7 @@ namespace Metasound
 		static bool bEnableAsyncMetaSoundGeneratorBuilder = true;
 		static bool bEnableExperimentalOneShotOperatorPool = false;
 		static bool bEnableExperimentalOperatorPool = false;
+		static bool bEnableExperimentalOperatorPoolManualPrecache = true;
 		static bool bEnableResetOnOperatorPoolInsertion = true;
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
 		static bool bEnableMetaSoundGeneratorNonFiniteLogging = false;
@@ -209,6 +210,13 @@ FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPool(
 	Metasound::ConsoleVariables::bEnableExperimentalOperatorPool,
 	TEXT("Enables caching of all MetaSound operators.\n")
 	TEXT("Default: false"),
+	ECVF_Default);
+
+FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPoolManualPrecache(
+	TEXT("au.MetaSound.Experimental.EnableOperatorPoolManualPrecache"),
+	Metasound::ConsoleVariables::bEnableExperimentalOperatorPoolManualPrecache,
+	TEXT("Enables manual pre-caching of explicit MetaSound asset operators.\n")
+	TEXT("Default: true"),
 	ECVF_Default);
 
 FAutoConsoleVariableRef CVarMetaSoundEnableResetOnOperatorPoolInsertion(
@@ -680,6 +688,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	double FMetasoundGenerator::GetCPUCoreUtilization() const
 	{
 		return RenderTime;
+	}
+
+	bool FMetasoundGenerator::GetManualPrecacheEnabled()
+	{
+		return ConsoleVariables::bEnableExperimentalOperatorPoolManualPrecache;
 	}
 
 	int32 FMetasoundGenerator::FillWithBuffer(const Audio::FAlignedFloatBuffer& InBuffer, float* OutAudio, int32 MaxNumOutputSamples)

@@ -86,6 +86,11 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 	using namespace Audio;
 	using namespace Metasound;
 
+	if (!FMetasoundGenerator::GetManualPrecacheEnabled())
+	{
+		return;
+	}
+
 	TSharedPtr<FOperatorPool> OperatorPool;
 	IMetasoundGeneratorModule* Module = FModuleManager::GetModulePtr<IMetasoundGeneratorModule>("MetasoundGenerator");
 	if (!ensure(Module))
