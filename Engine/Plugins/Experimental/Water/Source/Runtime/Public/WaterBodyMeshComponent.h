@@ -32,6 +32,8 @@ protected:
 
 #if WITH_EDITOR
 	virtual void PostLoad() override;
+	virtual void PostStaticMeshCompilation() override;
+	void FixupCollisionOnBodySetup();
 #endif
 };
 
