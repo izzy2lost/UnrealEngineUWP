@@ -85,4 +85,9 @@ bool UPixelStreamingMediaIOCapture::PostInitializeCaptureViewport(TSharedPtr<FSc
 void UPixelStreamingMediaIOCapture::ViewportResized(FViewport* Viewport, uint32 ResizeCode)
 {
 	bViewportResized = true;
+	if(GetState() == EMediaCaptureState::Capturing)
+	{
+		UE_LOG(LogPixelStreaming, Warning, TEXT("Stopping PixelStreaming MediaIO capture because viewport was resized."));
+		StopCapture(false);
+	}
 }
