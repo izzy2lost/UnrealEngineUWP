@@ -130,7 +130,7 @@ int32 FindGBufferTargetByName(const FGBufferInfo& GBufferInfo, const FString& Na
 	return -1;
 }
 
-FGBufferBinding FindGBufferBindingByName(const FGBufferInfo& GBufferInfo, const FString& Name)
+FGBufferBinding FindGBufferBindingByName(const FGBufferInfo& GBufferInfo, const FString& Name, EShaderPlatform ShaderPlatform)
 {
 	const int32 Index = FindGBufferTargetByName(GBufferInfo, Name);
 
@@ -183,7 +183,7 @@ FGBufferBinding FindGBufferBindingByName(const FGBufferInfo& GBufferInfo, const 
 			Binding.Flags |= TexCreate_SRGB;
 		}
 
-		if (NaniteComputeMaterialsSupported())
+		if (DoesPlatformSupportNanite(ShaderPlatform, true) && NaniteComputeMaterialsSupported())
 		{
 			Binding.Flags |= TexCreate_UAV;
 
@@ -594,4 +594,3 @@ FGBufferInfo RENDERCORE_API FetchFullGBufferInfo(const FGBufferParams& Params)
 		return FetchLegacyGBufferInfo(Params);
 	}
 }
-
