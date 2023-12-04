@@ -770,7 +770,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		switch (Context->UpdateResult)
 		{
 		case EUpdateResult::Success:
-			PrivateInstance->SetSkeletalMeshStatus(ESkeletalMeshStatus::Success);
+			PrivateInstance->SkeletalMeshStatus = ESkeletalMeshStatus::Success;
 
 			PrivateInstance->DescriptorRuntimeHash = Context->InstanceDescriptorRuntimeHash;
 
@@ -787,7 +787,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 
 		case EUpdateResult::Error: 
 		case EUpdateResult::Error16BitBoneIndex:
-			PrivateInstance->SetSkeletalMeshStatus(ESkeletalMeshStatus::Error);
+			PrivateInstance->SkeletalMeshStatus = ESkeletalMeshStatus::Error;
 			break;
 			
 		case EUpdateResult::ErrorReplaced:
@@ -917,7 +917,6 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 		}
 	}
 
-	CustomizableObjectInstancePrivateData->SetCOInstanceFlags(Generated);
 	CustomizableObjectInstancePrivateData->ClearCOInstanceFlags(CreatingSkeletalMesh);
 
 	CustomizableObjectInstance->bEditorPropertyChanged = false;
@@ -1027,18 +1026,17 @@ bool FCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageC
 }
 
 
-EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bIgnoreCloseDist) const
+EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bOnlyUpdateIfLODs, bool bIgnoreCloseDist) const
 {
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	const UCustomizableInstancePrivateData* const Private = Instance.GetPrivate();
 	
-	const UCustomizableObject* CustomizableObject = Instance.GetCustomizableObject();
 	if (!Instance.CanUpdateInstance())
 	{
 		return EUpdateRequired::NoUpdate;
 	}
 
-	const bool bIsGenerated = Private->HasCOInstanceFlags(Generated);
+	const bool bIsGenerated = Private->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
 	const int32 NumGeneratedInstancesLimit = System->GetInstanceLODManagement()->GetNumGeneratedInstancesLimitFullLODs();
 	const int32 NumGeneratedInstancesLimitLOD1 = System->GetInstanceLODManagement()->GetNumGeneratedInstancesLimitLOD1();
 	const int32 NumGeneratedInstancesLimitLOD2 = System->GetInstanceLODManagement()->GetNumGeneratedInstancesLimitLOD2();
@@ -1049,8 +1047,6 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 	{
 		return EUpdateRequired::NoUpdate;
 	}
-
-	const bool bShouldUpdateLODs = Private->HasCOInstanceFlags(PendingLODsUpdate);
 
 	const bool bDiscardByDistance = Private->LastMinSquareDistFromComponentToPlayer > FMath::Square(System->GetInstanceLODManagement()->GetOnlyUpdateCloseCustomizableObjectsDist());
 	const bool bLODManagementDiscard = System->GetInstanceLODManagement()->IsOnlyUpdateCloseCustomizableObjectsEnabled() &&
@@ -1070,9 +1066,15 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 		}
 	}
 
-	if (bIsGenerated &&
-		!bShouldUpdateLODs &&
-		bOnlyUpdateIfNotGenerated)
+	if (bOnlyUpdateIfNotGenerated &&
+		bIsGenerated)
+	{
+		return EUpdateRequired::NoUpdate;
+	}
+
+	const bool bShouldUpdateLODs = Private->HasCOInstanceFlags(PendingLODsUpdate);
+	if (bOnlyUpdateIfLODs &&
+		!bShouldUpdateLODs)
 	{
 		return EUpdateRequired::NoUpdate;
 	}
@@ -1085,7 +1087,7 @@ EQueuePriorityType FCustomizableObjectSystemPrivate::GetUpdatePriority(const UCu
 {
 	const UCustomizableInstancePrivateData* InstancePrivate = Instance.GetPrivate();
 		
-	const bool bIsGenerated = InstancePrivate->HasCOInstanceFlags(Generated);
+	const bool bNotGenerated = InstancePrivate->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated;
 	const bool bShouldUpdateLODs = InstancePrivate->HasCOInstanceFlags(PendingLODsUpdate);
 	const bool bIsDowngradeLODUpdate = InstancePrivate->HasCOInstanceFlags(PendingLODsDowngrade);
 	const bool bIsPlayerOrNearIt = InstancePrivate->HasCOInstanceFlags(UsedByPlayerOrNearIt);
@@ -1095,7 +1097,7 @@ EQueuePriorityType FCustomizableObjectSystemPrivate::GetUpdatePriority(const UCu
 	{
 		Priority = EQueuePriorityType::High;
 	}
-	else if (!bIsGenerated || !Instance.HasAnySkeletalMesh())
+	else if (bNotGenerated || !Instance.HasAnySkeletalMesh())
 	{
 		Priority = EQueuePriorityType::Med;
 	}
@@ -1145,7 +1147,7 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 
-	const EUpdateRequired UpdateRequired = IsUpdateRequired(*Instance, Context->bOnlyUpdateIfNotGenerated, Context->bIgnoreCloseDist);
+	const EUpdateRequired UpdateRequired = IsUpdateRequired(*Instance, Context->bOnlyUpdateIfNotGenerated, false, Context->bIgnoreCloseDist);
 	switch (UpdateRequired)
 	{
 	case EUpdateRequired::NoUpdate:

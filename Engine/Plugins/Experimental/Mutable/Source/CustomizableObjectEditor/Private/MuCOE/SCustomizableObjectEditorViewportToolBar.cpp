@@ -210,7 +210,7 @@ FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() con
 
 	const UCustomizableInstancePrivateData* PrivateInstance = Instance->GetPrivate();
 	
-	switch (PrivateInstance->GetSkeletalMeshStatus())
+	switch (PrivateInstance->SkeletalMeshStatus)
 	{
 	case ESkeletalMeshStatus::NotGenerated:
 		return LOCTEXT("NoSkeletalMeshGenerated", "No Skeletal Mesh Generated");

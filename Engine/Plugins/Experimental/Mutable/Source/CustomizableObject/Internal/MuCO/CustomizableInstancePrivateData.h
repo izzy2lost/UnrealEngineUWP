@@ -37,7 +37,6 @@ enum ECOInstanceFlags
 
 	// Update process
 	CreatingSkeletalMesh			= 1 << 1,	//
-	Generated						= 1 << 2,	//
 	ReuseTextures					= 1 << 3, 	// 
 	ReplacePhysicsAssets			= 1 << 4,	// Merge active PhysicsAssets and replace the base physics asset
 
@@ -272,10 +271,6 @@ private:
 	void SetLastMeshId(int32 ComponentIndex, int32 LODIndex, mu::FResourceID MeshId);
 
 public:
-	CUSTOMIZABLEOBJECT_API ESkeletalMeshStatus GetSkeletalMeshStatus() const;
-
-	void SetSkeletalMeshStatus(ESkeletalMeshStatus Status);
-	
 	// If any components are using this instance, they will store the min of their distances to the player here every frame for LOD purposes
 	float MinSquareDistFromComponentToPlayer;
 	float LastMinSquareDistFromComponentToPlayer; // The same as the previous dist for last frame
@@ -332,7 +327,6 @@ public:
 	/** Hash of the UCustomizableObjectInstance::Descriptor on the last successful update. */
 	FDescriptorRuntimeHash DescriptorRuntimeHash;
 
-private:
 	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 };

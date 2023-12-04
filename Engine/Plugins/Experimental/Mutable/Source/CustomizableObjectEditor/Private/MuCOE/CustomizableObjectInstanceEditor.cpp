@@ -437,7 +437,7 @@ void FCustomizableObjectInstanceEditor::OnAssetRegistryLoadComplete()
 
 void FCustomizableObjectInstanceEditor::UpdatePreviewVisibility()
 {
-	const bool bEnableVisibility = CustomizableObjectInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success;
+	const bool bEnableVisibility = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;
 	for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
 	{
 		PreviewSkeletalMeshComponent->SetVisibility(bEnableVisibility, true);

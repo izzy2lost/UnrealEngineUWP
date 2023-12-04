@@ -62,9 +62,9 @@ enum class EUpdateResult : uint8
 /** Indicates the status of the generated Skeletal Mesh. */
 enum class ESkeletalMeshStatus : uint8
 {
-	NotGenerated,
-	Success,
-	Error
+	NotGenerated, // Set only when loading the Instance for the first time or after compiling. Any generation, successful or not, can not end up in this state.
+	Success, // Generated successfully.
+	Error // Generated with errors.
 };
 
 

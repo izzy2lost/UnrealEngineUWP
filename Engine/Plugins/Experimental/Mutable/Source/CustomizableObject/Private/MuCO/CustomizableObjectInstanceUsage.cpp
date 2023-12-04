@@ -524,7 +524,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 
 		USkeletalMesh* SkeletalMesh = nullptr;
 
-		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success;		
+		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;		
 		if (bInstanceGenerated)
 		{
 			// Generated SkeletalMesh to set, can be null if the component is empty

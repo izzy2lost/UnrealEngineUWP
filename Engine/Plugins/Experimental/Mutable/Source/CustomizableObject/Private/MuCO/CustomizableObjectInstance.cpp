@@ -167,27 +167,16 @@ void UCustomizableInstancePrivateData::SetLastMeshId(int32 ComponentIndex, int32
 }
 
 
-ESkeletalMeshStatus UCustomizableInstancePrivateData::GetSkeletalMeshStatus() const
-{
-	return SkeletalMeshStatus;
-}
-
-
-void UCustomizableInstancePrivateData::SetSkeletalMeshStatus(ESkeletalMeshStatus Status)
-{
-	SkeletalMeshStatus = Status;
-}
-
-
 void UCustomizableInstancePrivateData::InvalidateGeneratedData()
 {
+	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
+
 	// Init Component Data
 	FCustomizableInstanceComponentData TemplateComponentData;
 	TemplateComponentData.LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 	ComponentsData.Init(TemplateComponentData, ComponentsData.Num());
 
 	GeneratedMaterials.Empty();
-	ClearCOInstanceFlags(Generated);
 }
 
 
@@ -784,7 +773,7 @@ void UCustomizableInstancePrivateData::TickUpdateCloseCustomizableObjects(UCusto
 
 	const FCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();	
 
-	const EUpdateRequired UpdateRequired = SystemPrivate->IsUpdateRequired(Public, true, false);
+	const EUpdateRequired UpdateRequired = SystemPrivate->IsUpdateRequired(Public, true, true, false);
 	if (UpdateRequired != EUpdateRequired::NoUpdate) // Since this is done in the tick, avoid starting an update that we know for sure that would not be performed. Once started it has some performance implications that we want to avoid.
 	{
 		if (UpdateRequired == EUpdateRequired::Discard)
@@ -829,7 +818,7 @@ void UCustomizableInstancePrivateData::TickUpdateCloseCustomizableObjects(UCusto
 
 void UCustomizableInstancePrivateData::UpdateInstanceIfNotGenerated(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates)
 {
-	if (HasCOInstanceFlags(Generated))
+	if (SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated)
 	{
 		return;
 	}
@@ -1847,7 +1836,7 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 
 		InvalidateGeneratedData();
 
-		SetCOInstanceFlags(Generated);
+		OperationData->UpdateResult = EUpdateResult::Error;
 
 		return false;
 	}
@@ -1855,7 +1844,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 	// None of the current meshes requires a mesh update. Continue to BuildMaterials
 	if (!bUpdateMeshes)
 	{
-		SetCOInstanceFlags(Generated);
 		return true;
 	}
 
@@ -2153,7 +2141,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 		}
 	}
 
-	SetCOInstanceFlags(Generated);
 	ClearCOInstanceFlags(CreatingSkeletalMesh); // TODO MTBL-391: Review
 
 	if (!bSuccess)
@@ -2805,7 +2792,7 @@ bool UCustomizableObjectInstance::IsSelectedParameterProfileDirty() const
 
 void UCustomizableInstancePrivateData::DiscardResourcesAndSetReferenceSkeletalMesh(UCustomizableObjectInstance* Instance)
 {
-	if (HasCOInstanceFlags(Generated))
+	if (SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 	{
 		for (int32 Component = 0; Component < Instance->SkeletalMeshes.Num(); ++Component)
 		{
@@ -2818,9 +2805,6 @@ void UCustomizableInstancePrivateData::DiscardResourcesAndSetReferenceSkeletalMe
 
 		ReleaseMutableResources(false, *Instance);
 	}
-
-	ClearCOInstanceFlags(Generated);
-	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 	
 	InvalidateGeneratedData();
 	
@@ -6197,7 +6181,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 
 	if (CVarPreserveUserLODsOnFirstGeneration.GetValueOnGameThread() &&
 		GetCustomizableObject()->IsPreserveUserLODsOnFirstGeneration() &&
-		GetPrivate()->GetSkeletalMeshStatus() != ESkeletalMeshStatus::Success)
+		GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
 	{
 		return;
 	}

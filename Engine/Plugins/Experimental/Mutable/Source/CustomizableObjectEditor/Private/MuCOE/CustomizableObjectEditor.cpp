@@ -2492,7 +2492,7 @@ void FCustomizableObjectEditor::UpdatePreviewVisibility()
 	{
 		if (PreviewSkeletalMeshComponent)
 		{
-			if (PreviewInstance->GetPrivate()->GetSkeletalMeshStatus() == ESkeletalMeshStatus::Success)
+			if (PreviewInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 			{
 				PreviewSkeletalMeshComponent->SetVisibility(true, true);
 			}
