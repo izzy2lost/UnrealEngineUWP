@@ -33,6 +33,13 @@ namespace UE::Net::Private
 		bIrisSaturateBandwidth,
 		TEXT("Whether to saturate the bandwidth or not. Default is false."
 		));
+
+	static int32 IrisPacketSequenceSafetyMargin = 4;
+	static FAutoConsoleVariableRef CVarIrisPacketSequenceSafetyMargin(
+		TEXT("net.Iris.PacketSequenceSafetyMargin"),
+		IrisPacketSequenceSafetyMargin,
+		TEXT("How many packets to spare before considering packet sequence full. This allows a few non-DataStreamChannel packets to be sent without messing up packet acking."
+		));
 }
 
 UDataStreamChannel::UDataStreamChannel(const FObjectInitializer& ObjectInitializer)
@@ -421,14 +428,17 @@ void UDataStreamChannel::ReceivedNak(int32 PacketId)
 #endif // UE_WITH_IRIS
 }
 
-//
+// Some DataStreams require perfect acking. If the ack sequence window is full we would get NAKs for packets thay may have been received.
 bool UDataStreamChannel::IsPacketWindowFull() const
 {
-#if UE_WITH_IRIS
-	return WriteRecords.Count() == WriteRecords.AllocatedCapacity();
-#else
-	return false;
-#endif // UE_WITH_IRIS
+	const uint32 IrisPacketSequenceSafetyMarginUnsigned = static_cast<uint32>(FPlatformMath::Max(0, UE::Net::Private::IrisPacketSequenceSafetyMargin));
+	if (Connection->IsPacketSequenceWindowFull(IrisPacketSequenceSafetyMarginUnsigned))
+	{
+		UE_LOG(LogIris, Verbose, TEXT("Packet window full."));
+		return true;
+	}
+
+	return WriteRecords.Count() >= WriteRecords.AllocatedCapacity();
 }
 
 void UDataStreamChannel::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)
@@ -442,7 +452,7 @@ void UDataStreamChannel::AddReferencedObjects(UObject* Object, FReferenceCollect
 	Super::AddReferencedObjects(Channel, Collector);
 }
 
-void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch *>& OutExportBunches)
+void UDataStreamChannel::AppendExportBunches(TArray<FOutBunch*>& OutExportBunches)
 {
 }
 

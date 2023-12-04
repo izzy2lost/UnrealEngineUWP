@@ -2209,7 +2209,6 @@ void UNetConnection::FlushNet(bool bIgnoreSimulation)
 		OutLagTime[Index]				= PacketSentTimeInS;
 		OutBytesPerSecondHistory[Index]	= FMath::Min(OutBytesPerSecond / 1024, 255);
 		
-
 		// Increase outgoing sequence number
 		if (!IsInternalAck())
 		{
@@ -2387,6 +2386,11 @@ int32 UNetConnection::IsNetReady(bool Saturate)
 	}
 
 	return QueuedBits + SendBuffer.GetNumBits() <= 0;
+}
+
+bool UNetConnection::IsPacketSequenceWindowFull(uint32 SafetyMargin)
+{
+	return PacketNotify.IsSequenceWindowFull(SafetyMargin);
 }
 
 void UNetConnection::ReadInput( float DeltaSeconds )
@@ -2824,6 +2828,9 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 
 	const FEngineNetworkCustomVersion::Type PacketEngineNetVer = static_cast<FEngineNetworkCustomVersion::Type>(Reader.EngineNetVer());
 
+	// If we choose to not process this packet we need to restore it
+	const int32 OldInPacketId = InPacketId;
+
 	if (IsInternalAck())
 	{
 		++InPacketId;
@@ -2930,6 +2937,49 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 				return;
 			}
 
+			// Process acks
+			// Lambda to dispatch delivery notifications, 
+			auto HandlePacketNotification = [&Header, &ChannelsToClose, this](FNetPacketNotify::SequenceNumberT AckedSequence, bool bDelivered)
+			{
+				// Increase LastNotifiedPacketId, this is a full packet Id
+				++LastNotifiedPacketId;
+				++OutTotalNotifiedPackets;
+				Driver->IncreaseOutTotalNotifiedPackets();
+
+				// Sanity check
+				if (FNetPacketNotify::SequenceNumberT(LastNotifiedPacketId) != AckedSequence)
+				{
+					UE_LOG(LogNet, Warning, TEXT("LastNotifiedPacketId != AckedSequence"));
+
+					Close(ENetCloseResult::AckSequenceMismatch);
+
+					return;
+				}
+
+				if (bDelivered)
+				{
+					ReceivedAck(LastNotifiedPacketId, ChannelsToClose);
+				}
+				else
+				{
+					ReceivedNak(LastNotifiedPacketId);
+				};
+			};
+
+			// Update incoming sequence data and deliver packet notifications
+			// Packet is only accepted if both the incoming sequence number and incoming ack data are valid		
+			const int32 UpdatedPacketSequenceDelta = PacketNotify.Update(Header, HandlePacketNotification);
+			if (PacketNotify.IsWaitingForSequenceHistoryFlush())
+			{
+				// Mark acks dirty
+				++HasDirtyAcks;
+
+				// Since we did not necessarily ack or nack all packets we need to update the InPacketId to reflect this.
+				InPacketId = OldInPacketId + UpdatedPacketSequenceDelta;
+
+				return;
+			}
+
 			if (MissingPacketCount > 10)
 			{
 				UE_LOG(LogNetTraffic, Verbose, TEXT("High single frame packet loss. PacketsLost: %i %s" ), MissingPacketCount, *Describe());
@@ -2940,6 +2990,8 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 			Driver->InPacketsLost += MissingPacketCount;
 			Driver->InTotalPacketsLost += MissingPacketCount;
 			InPacketId += PacketSequenceDelta;
+
+			check(FNetPacketNotify::SequenceNumberT(InPacketId).Get() == Header.Seq.Get());
 
 			PacketAnalytics.TrackInPacket(InPacketId, MissingPacketCount);
 		}
@@ -2970,38 +3022,6 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 			// which protects everything in one fell swoop
 			return;
 		}
-
-		// Lambda to dispatch delivery notifications, 
-		auto HandlePacketNotification = [&Header, &ChannelsToClose, this](FNetPacketNotify::SequenceNumberT AckedSequence, bool bDelivered)
-		{
-			// Increase LastNotifiedPacketId, this is a full packet Id
-			++LastNotifiedPacketId;
-			++OutTotalNotifiedPackets;
-			Driver->IncreaseOutTotalNotifiedPackets();
-
-			// Sanity check
-			if (FNetPacketNotify::SequenceNumberT(LastNotifiedPacketId) != AckedSequence)
-			{
-				UE_LOG(LogNet, Warning, TEXT("LastNotifiedPacketId != AckedSequence"));
-
-				Close(ENetCloseResult::AckSequenceMismatch);
-
-				return;
-			}
-
-			if (bDelivered)
-			{
-				ReceivedAck(LastNotifiedPacketId, ChannelsToClose);
-			}
-			else
-			{
-				ReceivedNak(LastNotifiedPacketId);
-			};
-		};
-
-		// Update incoming sequence data and deliver packet notifications
-		// Packet is only accepted if both the incoming sequence number and incoming ack data are valid
-		PacketNotify.Update(Header, HandlePacketNotification);
 
 		// Extra information associated with the header (read only after acks have been processed)
 		if (PacketSequenceDelta > 0 && !ReadPacketInfo(Reader, bHasPacketInfoPayload, PacketEngineNetVer))
@@ -3065,22 +3085,22 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 	}
 
 	// Acknowledge the packet.
-	if ( !bSkipAck )
+	if (!bSkipAck)
 	{
 		LastGoodPacketRealtime = PostReceiveTime;
 	}
 
-	if( !IsInternalAck() )
+	if(!IsInternalAck())
 	{
 		// We always call AckSequence even if we are explicitly rejecting the packet as this updates the expected InSeq used to drive future acks.
-		if ( bSkipAck )
+		if (bSkipAck)
 		{
 			// Explicit Nak, we treat this packet as dropped but we still report it to the sending side as quickly as possible
-			PacketNotify.NakSeq( InPacketId );
+			PacketNotify.NakSeq(InPacketId);
 		}
 		else
 		{
-			PacketNotify.AckSeq( InPacketId );
+			PacketNotify.AckSeq(InPacketId);
 
 			// Keep stats happy
 			++OutTotalAcks;
@@ -3090,20 +3110,6 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 		// We do want to let the other side know about the ack, so even if there are no other outgoing data when we tick the connection we will send an ackpacket.
 		TimeSensitive = 1;
 		++HasDirtyAcks;
-
-		// This is to allow us to recover from hitches were we process more than FNetPacketNotify::SequenceHistoryLength packets in a row withouht sending out any packets.
-		// In most cases this allows us to recover smoothly without reporting any pessimistic naks which will be the case if we overshoot the ack history.
-		// Note: This should only occur if we are running with no timeouts!
-		if (HasDirtyAcks >= FNetPacketNotify::MaxSequenceHistoryLength)
-		{
-			UE_LOG(LogNet, Warning, TEXT("UNetConnection::ReceivedPacket - Too many received packets to ack (%u) since last sent packet. InSeq: %u %s NextOutGoingSeq: %u"), HasDirtyAcks, PacketNotify.GetInSeq().Get(), *Describe(), PacketNotify.GetOutSeq().Get());
-
-			FlushNet();
-			if (HasDirtyAcks) // if acks still are dirty, flush again
-			{
-				FlushNet();
-			}
-		}
 	}
 
 	// Flush trace content collector
@@ -4109,7 +4115,7 @@ int32 UNetConnection::SendRawBunch(FOutBunch& Bunch, bool InAllowMerge, const FN
 	PrepareWriteBitsToSendBuffer(BunchHeaderBits, BunchBits);
 
 	// We want to mark the packet in which we write the data as TimeSensitive
-	// Note: we want to mark the packet as TimeSensitive here, as PrepareWriteBitsToSendBuffer migth flush the packet
+	// Note: we want to mark the packet as TimeSensitive here, as PrepareWriteBitsToSendBuffer might flush the packet
 	TimeSensitive = 1;
 
 	// Report bunch

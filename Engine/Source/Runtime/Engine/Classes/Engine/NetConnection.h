@@ -980,8 +980,14 @@ public:
 	/** Poll the connection. If it is timed out, close it. */
 	ENGINE_API virtual void Tick(float DeltaSeconds);
 
-	/** Return whether this channel is ready for sending. */
+	/** Return whether this connection is ready for sending. */
 	ENGINE_API virtual int32 IsNetReady( bool Saturate );
+
+	/**
+	 * Return whether this connection can send packets without exhausting the packet sequence history window, as it could cause packets to be NAKed even when they've been received by the remote peer. 
+	 * @param SafetyMargin A small number representing how many packets you would like to keep as a safety margin for heart beats or other important packets.
+	 */
+	ENGINE_API bool IsPacketSequenceWindowFull(uint32 SafetyMargin=0U);
 
 	/** 
 	 * Handle the player controller client
