@@ -2621,7 +2621,7 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
 		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 			View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && View.Family->EngineShowFlags.LightFunctions && !View.Family->EngineShowFlags.VisualizeLightCulling);
+			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 		if (bIsRadial)
 		{
 			PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(LightProxy->IsRectLight() ? ELightSourceShape::Rect : ELightSourceShape::Capsule);
@@ -2770,7 +2770,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance>(true);
 	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
 		View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
-		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && View.Family->EngineShowFlags.LightFunctions && !View.Family->EngineShowFlags.VisualizeLightCulling);
+		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 	if (bIsDirectional)
 	{
 		PermutationVector.Set< FDeferredLightPS::FSourceShapeDim >(ELightSourceShape::Directional);

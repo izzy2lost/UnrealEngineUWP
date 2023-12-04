@@ -212,8 +212,7 @@ static void InternalAddClusteredDeferredShadingPass(
 		PermutationVector.Set<FClusteredShadingPS::FVisualizeLightCullingDim>(View.Family->EngineShowFlags.VisualizeLightCulling);
 		PermutationVector.Set<FClusteredShadingPS::FHairStrandsLighting>(bHairStrands);
 		PermutationVector.Set<FClusteredShadingPS::FSubstrateTileType>(bSubstrate ? TileType : 0);
-		PermutationVector.Set<FClusteredShadingPS::FLightFunctionAtlasDim>(
-			View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && View.Family->EngineShowFlags.LightFunctions);
+		PermutationVector.Set<FClusteredShadingPS::FLightFunctionAtlasDim>(View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas());
 		TShaderMapRef<FClusteredShadingPS> PixelShader(View.ShaderMap, PermutationVector);
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
