@@ -82,6 +82,7 @@ static TAutoConsoleVariable<int32> CVarLightFunctionAtlasSize(
 //////////////////////////////////////////////////////////////////////////
 
 // The CVars here represent systems that can request the creation/sampling of the light function atlas.
+// They do not require shader recompilation since they are handled via permutations
 
 // Volumetric fog always generate a light function for the directional light.
 // So this alias really only controls the use of the LightFunctionAtlas on the local lights.
@@ -221,13 +222,33 @@ void FLightFunctionAtlas::UpdateRegisterLightSceneInfo(FLightSceneInfo* LightSce
 	}
 }
 
-void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
+void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData)
 {
 	RegisteredLights.Empty(64);
-
-	// Reset UBs
+	DefaultLightFunctionAtlasGlobalParameters = nullptr;
 	DefaultLightFunctionAtlasGlobalParametersUB = nullptr;
+	ViewLightFunctionAtlasGlobalParametersArray.Empty(4);
 	ViewLightFunctionAtlasGlobalParametersUBArray.Empty(4);
+
+	bLightFunctionAtlasEnabled = false;
+	if (LightFunctionAtlasSceneData)
+	{
+		LightFunctionAtlasSceneData->SetData(
+			this,
+			bLightFunctionAtlasEnabled,
+			bLightFunctionAtlasEnabled,
+			bLightFunctionAtlasEnabled);
+	}
+
+	if (View && LightFunctionAtlasSceneData)
+	{
+		View->LightFunctionAtlasViewData = FLightFunctionAtlasViewData(LightFunctionAtlasSceneData);
+	}
+}
+
+void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
+{
+	ClearEmptySceneFrame();
 
 	// Now lets check if we need to generate the atlas for this frame
 	bLightFunctionAtlasEnabled = CVarLightFunctionAtlas.GetValueOnRenderThread() > 0 && ViewFamily.EngineShowFlags.LightFunctions > 0;
@@ -241,7 +262,9 @@ void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FV
 
 		DeferredlightingRequestsLightFunctionAtlas = GDeferredUsesLightFunctionAtlas > 0;
 
-		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && (VolumetricFogRequestsLightFunctionAtlas || DeferredlightingRequestsLightFunctionAtlas); 
+		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
+			(VolumetricFogRequestsLightFunctionAtlas || DeferredlightingRequestsLightFunctionAtlas ||
+			 GetSingleLayerWaterUsesLightFunctionAtlas() || GetTranslucentUsesLightFunctionAtlas()); 
 	}
 
 	// We propagate bLightFunctionAtlasEnabled to all the views to ease later shader parameter decision and binding for lighting, shadow or volumetric fog for instance (avoid sending lots of parameters all over the place)
@@ -429,6 +452,23 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 	// TODO we could do all the constant buffer setup inline above (done in RenderAtlasSlots right now) if we would send a GraphBuilder here.
 }
 
+FLightFunctionAtlasGlobalParameters* FLightFunctionAtlas::GetLightFunctionAtlasGlobalParametersStruct(uint32 ViewIndex, FRDGBuilder& GraphBuilder)
+{
+	if (!IsLightFunctionAtlasEnabled())
+	{
+		return GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
+	}
+
+	const bool bViewIndexIsValid = ViewIndex < uint32(ViewLightFunctionAtlasGlobalParametersUBArray.Num());
+	check(bViewIndexIsValid);
+	if (bViewIndexIsValid)
+	{
+		return ViewLightFunctionAtlasGlobalParametersArray[ViewIndex];
+	}
+
+	return GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
+}
+
 TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder)
 {
 	if (!IsLightFunctionAtlasEnabled())
@@ -446,15 +486,24 @@ TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::G
 	return GetDefaultLightFunctionAtlasGlobalParameters(GraphBuilder);
 }
 
+FLightFunctionAtlasGlobalParameters* FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder)
+{
+	if (DefaultLightFunctionAtlasGlobalParameters == nullptr) // Only create the default buffer once per frame
+	{
+		DefaultLightFunctionAtlasGlobalParameters = GraphBuilder.AllocParameters<FLightFunctionAtlasGlobalParameters>();
+		DefaultLightFunctionAtlasGlobalParameters->LightFunctionAtlasTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
+		DefaultLightFunctionAtlasGlobalParameters->LightFunctionAtlasSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+		DefaultLightFunctionAtlasGlobalParameters->Slot_UVSize = 1.0f;
+	}
+	return DefaultLightFunctionAtlasGlobalParameters;
+}
+
 TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder)
 {
 	if (DefaultLightFunctionAtlasGlobalParametersUB == nullptr) // Only create the default buffer once per frame
 	{
-		FLightFunctionAtlasGlobalParameters* LightFunctionAtlasGlobalParams = GraphBuilder.AllocParameters<FLightFunctionAtlasGlobalParameters>();
-		LightFunctionAtlasGlobalParams->LightFunctionAtlasTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
-		LightFunctionAtlasGlobalParams->LightFunctionAtlasSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-		LightFunctionAtlasGlobalParams->Slot_UVSize = 1.0f;
-		DefaultLightFunctionAtlasGlobalParametersUB = GraphBuilder.CreateUniformBuffer(LightFunctionAtlasGlobalParams);
+		FLightFunctionAtlasGlobalParameters* DefaultLightFunctionAtlasGlobalParametersStruct = GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
+		DefaultLightFunctionAtlasGlobalParametersUB = GraphBuilder.CreateUniformBuffer(DefaultLightFunctionAtlasGlobalParametersStruct);
 	}
 	return DefaultLightFunctionAtlasGlobalParametersUB;
 }
@@ -571,6 +620,7 @@ void FLightFunctionAtlas::RenderLightFunctionAtlas(FRDGBuilder& GraphBuilder, TA
 			LightIndex++;
 		}
 
+		ViewLightFunctionAtlasGlobalParametersArray.Add(LightFunctionAtlasGlobalParameters);
 		ViewLightFunctionAtlasGlobalParametersUBArray.Add(GraphBuilder.CreateUniformBuffer(LightFunctionAtlasGlobalParameters));
 	}
 }

@@ -2079,6 +2079,19 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		{
 			KeyString += FString::Printf(TEXT("_LFAC%u"), LightFunctionAtlasFormat);
 		}
+
+		bool bSingleLayerWaterUsesLightFunctionAtlas = GetSingleLayerWaterUsesLightFunctionAtlas();
+		if (bSingleLayerWaterUsesLightFunctionAtlas)
+		{
+			KeyString += FString::Printf(TEXT("_SLWLFA"));
+		}
+
+		bool bTranslucentUsesLightFunctionAtlas = GetTranslucentUsesLightFunctionAtlas();
+		if (bTranslucentUsesLightFunctionAtlas)
+		{
+			KeyString += FString::Printf(TEXT("_FWDLFA"));
+		}
+
 	}
 
 	{

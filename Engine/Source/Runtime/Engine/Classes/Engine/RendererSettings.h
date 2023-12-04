@@ -887,11 +887,29 @@ class URendererSettings : public UDeveloperSettings
 	/**
 	"Select the format of the light function atlas texture."
 	*/
-	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
+	UPROPERTY(config, EditAnywhere, Category = LightFunctionAtlas, meta = (
 		ConsoleVariable = "r.LightFunctionAtlas.Format", DisplayName = "Light Function Atlas Format",
 		ToolTip = "Select the format of the light function atlas texture.",
 		ConfigRestartRequired = true))
 		TEnumAsByte<ELightFunctionAtlasPixelFormat::Type> LightFunctionAtlasPixelFormat;
+
+	/**
+	"Enable support for light function on Single Layer Water when the light function atlas is enabled."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = LightFunctionAtlas, meta = (
+		ConsoleVariable = "r.SingleLayerWater.UsesLightFunctionAtlas", DisplayName = "Single Layer Water Uses Light Function Atlas.",
+		ToolTip = "Enable support for light function on Single Layer Water when the light function atlas is enabled.",
+		ConfigRestartRequired = true))
+		uint32 bSingleLayerWaterUsesLightFunctionAtlas : 1;
+
+	/**
+	"Enable support for light function on Translucent material using Forward Shading mode, when the light function atlas is enabled."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = LightFunctionAtlas, meta = (
+		ConsoleVariable = "r.Translucent.UsesLightFunctionAtlas", DisplayName = "Translucent Uses Light Function Atlas.",
+		ToolTip = "Enable support for light function on Translucent material using Forward Shading mode, when the light function atlas is enabled.",
+		ConfigRestartRequired = true))
+		uint32 bTranslucentUsesLightFunctionAtlas : 1;
 
 	/**
 	"Enable rect light evaluation on translucent materials when using the Forward Shading mode."

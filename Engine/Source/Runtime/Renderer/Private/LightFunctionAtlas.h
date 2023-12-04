@@ -32,7 +32,7 @@ struct FLightFunctionAtlasSceneData
 		bDeferredlightingUsesLightFunctionAtlas = bInDeferredlightingUsesLightFunctionAtlas;
 	}
 
-	const FLightFunctionAtlas* GetLightFunctionAtlas()  const { return LightFunctionAtlas; }
+	FLightFunctionAtlas* GetLightFunctionAtlas()		const { return LightFunctionAtlas; }
 	bool GetLightFunctionAtlasEnabled()					const { return bLightFunctionAtlasEnabled; }
 	bool GetVolumetricFogUsesLightFunctionAtlas()		const { return bVolumetricFogUsesLightFunctionAtlas; }
 	bool GetDeferredlightingUsesLightFunctionAtlas()	const { return bDeferredlightingUsesLightFunctionAtlas; }
@@ -49,7 +49,8 @@ struct FLightFunctionAtlasViewData
 	FLightFunctionAtlasViewData() : SceneData(nullptr) {}
 	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData) : SceneData(InSceneData) {}
 
-	bool GetLightFunctionAtlasEnabled()					const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled()				: false; }
+	FLightFunctionAtlas* GetLightFunctionAtlas()		const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
+	bool GetLightFunctionAtlasEnabled()					const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
 	bool GetVolumetricFogUsesLightFunctionAtlas()		const { return SceneData ? SceneData->GetVolumetricFogUsesLightFunctionAtlas()		: false; }
 	bool GetDeferredlightingUsesLightFunctionAtlas()	const { return SceneData ? SceneData->GetDeferredlightingUsesLightFunctionAtlas()	: false; }
 
@@ -117,6 +118,8 @@ struct FLightFunctionAtlas
 
 	bool IsLightFunctionAtlasEnabled() const { return bLightFunctionAtlasEnabled; }
 
+	void ClearEmptySceneFrame(FViewInfo* View = nullptr, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData = nullptr);
+
 	void BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog);
 
 	void UpdateRegisterLightSceneInfo(FLightSceneInfo* LightSceneInfo);
@@ -128,8 +131,10 @@ struct FLightFunctionAtlas
 
 	FScreenPassTexture AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor)  const;
 
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
+	FLightFunctionAtlasGlobalParameters*						GetLightFunctionAtlasGlobalParametersStruct(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
+	FLightFunctionAtlasGlobalParameters*						GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
 
 private:
 
@@ -167,6 +172,9 @@ private:
 	};
 	TArray<EffectiveLocalLightSlot> EffectiveLocalLightSlotArray;
 
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	DefaultLightFunctionAtlasGlobalParametersUB;
-	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>> ViewLightFunctionAtlasGlobalParametersUBArray;
+	FLightFunctionAtlasGlobalParameters*								DefaultLightFunctionAtlasGlobalParameters = nullptr;
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>			DefaultLightFunctionAtlasGlobalParametersUB;
+
+	TArray<FLightFunctionAtlasGlobalParameters*>							ViewLightFunctionAtlasGlobalParametersArray;
+	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>>	ViewLightFunctionAtlasGlobalParametersUBArray;
 };

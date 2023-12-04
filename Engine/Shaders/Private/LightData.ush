@@ -62,6 +62,7 @@ struct FDirectionalLightData
 	float  DirectionalLightSourceRadius;
 	float  DirectionalLightSoftSourceRadius;
 	float  DirectionalLightSpecularScale;
+	uint  LightFunctionAtlasLightIndex;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -434,6 +435,7 @@ FDeferredLightData ConvertToDeferredLight(
 	Out.HairTransmittance	= InitHairTransmittanceData();
 	Out.SourceRadius		= In.DirectionalLightSourceRadius;
 	Out.SoftSourceRadius	= In.DirectionalLightSoftSourceRadius;
+	Out.LightFunctionAtlasLightIndex = In.LightFunctionAtlasLightIndex;
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 

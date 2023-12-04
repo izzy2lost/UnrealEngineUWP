@@ -1669,9 +1669,31 @@ static TAutoConsoleVariable<int32> CVarLightFunctionAtlasFormat(
 	TEXT("0: grey scale in [0,1]. 1: colored in [0,1]"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarSingleLayerWaterUsesLightFunctionAtlas(
+	TEXT("r.SingleLayerWater.UsesLightFunctionAtlas"),
+	0,
+	TEXT("Enable sampling of the light function atlas on SingleLAyer Water mateirals."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarTranslucentUsesLightFunctionAtlas(
+	TEXT("r.Translucent.UsesLightFunctionAtlas"),
+	0,
+	TEXT("Enable sampling of the light function atlas on translucent materials using forward shading."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 int32 GetLightFunctionAtlasFormat()
 {
 	return CVarLightFunctionAtlasFormat.GetValueOnAnyThread();
+}
+
+bool GetSingleLayerWaterUsesLightFunctionAtlas()
+{
+	return CVarSingleLayerWaterUsesLightFunctionAtlas.GetValueOnAnyThread() > 0;
+}
+
+bool GetTranslucentUsesLightFunctionAtlas()
+{
+	return CVarTranslucentUsesLightFunctionAtlas.GetValueOnAnyThread() > 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

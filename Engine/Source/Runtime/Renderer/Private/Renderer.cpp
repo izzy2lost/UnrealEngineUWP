@@ -47,6 +47,7 @@
 #include "LocalFogVolumeRendering.h"
 #include "Rendering/RayTracingGeometryManager.h"
 #include "PathTracing.h"
+#include "LightFunctionAtlas.h"
 
 DEFINE_LOG_CATEGORY(LogRenderer);
 
@@ -336,6 +337,11 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		View.InitRHIResources();
 		View.ForwardLightingResources.SetUniformBuffer(CreateDummyForwardLightUniformBuffer(GraphBuilder, View.GetShaderPlatform()));
 		SetDummyLocalFogVolumeForView(GraphBuilder, View);
+
+		// Create a disabled LightFunctionAtlas to be able to render base pass.
+		FLightFunctionAtlas LightFunctionAtlas;
+		FLightFunctionAtlasSceneData LightFunctionAtlasSceneData;
+		LightFunctionAtlas.ClearEmptySceneFrame(&View, &LightFunctionAtlasSceneData);
 
 		TUniformBufferRef<FReflectionCaptureShaderData> EmptyReflectionCaptureUniformBuffer;
 

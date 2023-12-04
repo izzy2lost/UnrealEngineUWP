@@ -11,6 +11,12 @@
 
 // In order to use function from that file, one must use FLightFunctionAtlasGlobalParameters
 
+// Trick so that we can sample from LightFunctionAtlas when it is a global UB or when it is a Struct part of another UB.
+#ifdef LightFunctionAtlasStruct
+#undef  LightFunctionAtlas
+#define LightFunctionAtlas LightFunctionAtlasStruct
+#endif
+
 #if COLORED_LIGHT_FUNCTION_ATLAS
 #define FLightFunctionColor float3
 #else

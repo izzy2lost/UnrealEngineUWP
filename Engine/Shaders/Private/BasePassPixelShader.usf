@@ -22,10 +22,12 @@
 	#define UseBasePassSkylight TranslucentBasePass.Shared.UseBasePassSkylight
 	#define SubstrateStruct TranslucentBasePass.Substrate
 	#define BlueNoise TranslucentBasePass.BlueNoise
+	#define LightFunctionAtlasStruct TranslucentBasePass.Shared.LightFunctionAtlas
 #else
 	#define EyeAdaptationStruct OpaqueBasePass
 	#define UseBasePassSkylight OpaqueBasePass.Shared.UseBasePassSkylight
 	#define SubstrateStruct OpaqueBasePass.Substrate
+	#define LightFunctionAtlasStruct OpaqueBasePass.Shared.LightFunctionAtlas
 #endif
 
 // Material setting to allow forward shading (including mobile) to use preintegrated GF lut for simple IBL.
@@ -1481,7 +1483,11 @@ void FPixelShaderInOut_MainPS(
 			Specular, SingleLayerWater.DistortionParams,
 			SunIlluminance, WaterDiffuseIndirectIlluminance, EnvBrdf,
 			CameraIsUnderWater, WaterVisibility, EyeIndex,
-			bSeparateWaterMainDirLightLuminance, SeparatedWaterMainDirLightLuminance).Luminance;
+			bSeparateWaterMainDirLightLuminance, SeparatedWaterMainDirLightLuminance).Luminance
+	#if USE_LIGHT_FUNCTION_ATLAS
+			* GetLocalLightFunctionCommon(SvPositionToResolvedTranslatedWorld(In.SvPosition), GetDirectionalLightData(EyeIndex).LightFunctionAtlasLightIndex)
+	#endif
+		;
 #endif
 	}
 #endif // MATERIAL_SHADINGMODEL_SINGLELAYERWATER

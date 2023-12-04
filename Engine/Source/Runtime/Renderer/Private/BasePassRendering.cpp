@@ -701,6 +701,7 @@ extern void SetupDummyForwardLightUniformParameters(FRDGBuilder& GraphBuilder, F
 void SetupSharedBasePassParameters(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	const int32 ViewIndex,
 	bool bLumenGIEnabled,
 	FSharedBasePassUniformParameters& SharedParameters)
 {
@@ -736,6 +737,9 @@ void SetupSharedBasePassParameters(
 
 	SharedParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
+	FLightFunctionAtlas* LightFunctionAtlas = View.LightFunctionAtlasViewData.GetLightFunctionAtlas();
+	SharedParameters.LightFunctionAtlas = *LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(ViewIndex, GraphBuilder);
+
 	const FScene* Scene = View.Family->Scene ? View.Family->Scene->GetRenderScene() : nullptr;
 	const FPlanarReflectionSceneProxy* ReflectionSceneProxy = Scene ? Scene->GetForwardPassGlobalPlanarReflection() : nullptr;
 
@@ -756,7 +760,7 @@ TRDGUniformBufferRef<FOpaqueBasePassUniformParameters> CreateOpaqueBasePassUnifo
 	bool bLumenGIEnabled)
 {
 	FOpaqueBasePassUniformParameters& BasePassParameters = *GraphBuilder.AllocParameters<FOpaqueBasePassUniformParameters>();
-	SetupSharedBasePassParameters(GraphBuilder, View, bLumenGIEnabled, BasePassParameters.Shared);
+	SetupSharedBasePassParameters(GraphBuilder, View, ViewIndex, bLumenGIEnabled, BasePassParameters.Shared);
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 

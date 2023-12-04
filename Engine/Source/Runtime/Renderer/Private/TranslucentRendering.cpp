@@ -823,7 +823,7 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 		return GraphBuilder.RegisterExternalTexture(PooledRenderTarget, Flags);
 	};
 
-	SetupSharedBasePassParameters(GraphBuilder, View, bLumenGIEnabled, BasePassParameters.Shared);
+	SetupSharedBasePassParameters(GraphBuilder, View, ViewIndex, bLumenGIEnabled, BasePassParameters.Shared);
 	SetupSceneTextureUniformParameters(GraphBuilder, View.GetSceneTexturesChecked(), View.FeatureLevel, SceneTextureSetupMode, BasePassParameters.SceneTextures);
 	Substrate::BindSubstrateForwardPasslUniformParameters(GraphBuilder, View, BasePassParameters.Substrate);
 

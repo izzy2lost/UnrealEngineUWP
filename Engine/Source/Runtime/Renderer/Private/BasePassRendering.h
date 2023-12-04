@@ -34,6 +34,8 @@
 #include "Nanite/NaniteMaterials.h"
 #include "BlueNoise.h"
 #include "LocalFogVolumeRendering.h"
+#include "LightFunctionAtlas.h"
+#include "RenderUtils.h"
 
 class FScene;
 
@@ -79,6 +81,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSharedBasePassUniformParameters,)
 	SHADER_PARAMETER_STRUCT(FFogUniformParameters, Fog)
 	SHADER_PARAMETER_STRUCT(FFogUniformParameters, FogISR)
 	SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
+	SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
 	SHADER_PARAMETER(uint32, UseBasePassSkylight)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -141,6 +144,7 @@ DECLARE_GPU_STAT_NAMED_EXTERN(NaniteBasePass, TEXT("Nanite BasePass"));
 extern void SetupSharedBasePassParameters(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	const int32 ViewIndex,
 	bool bLumenGIEnabled,
 	FSharedBasePassUniformParameters& BasePassParameters);
 
@@ -466,6 +470,12 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADED"), 1);
 
+		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
+		const bool bIsSingleLayerWater = Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater);
+		const bool bSingleLayerWaterUsesLightFunctionAtlas = bIsSingleLayerWater && GetSingleLayerWaterUsesLightFunctionAtlas();
+		const bool bTranslucentUsesLightFunctionAtlas = bTranslucent && GetTranslucentUsesLightFunctionAtlas();
+		OutEnvironment.SetDefine(TEXT("USE_LIGHT_FUNCTION_ATLAS"), (bSingleLayerWaterUsesLightFunctionAtlas || bTranslucentUsesLightFunctionAtlas) ? TEXT("1") : TEXT("0"));
+
 		TBasePassComputeShaderBaseType<LightMapPolicyType>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 	}
 	
@@ -617,6 +627,11 @@ public:
 				OutEnvironment.SetDefine(TEXT("SINGLE_LAYER_WATER_NO_DISCARD"), TEXT("1"));
 			}
 		}
+
+		const bool bTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
+		const bool bSingleLayerWaterUsesLightFunctionAtlas = bIsSingleLayerWater && GetSingleLayerWaterUsesLightFunctionAtlas();
+		const bool bTranslucentUsesLightFunctionAtlas = bTranslucent && GetTranslucentUsesLightFunctionAtlas();
+		OutEnvironment.SetDefine(TEXT("USE_LIGHT_FUNCTION_ATLAS"), (bSingleLayerWaterUsesLightFunctionAtlas || bTranslucentUsesLightFunctionAtlas) ? TEXT("1") : TEXT("0"));
 
 		TBasePassPixelShaderBaseType<LightMapPolicyType>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 	}
