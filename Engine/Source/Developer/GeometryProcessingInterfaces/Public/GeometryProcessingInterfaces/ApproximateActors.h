@@ -89,7 +89,8 @@ public:
 	enum class ETextureSizePolicy : uint8
 	{
 		TextureSize = 0,
-		TexelDensity = 1
+		TexelDensity = 1,
+		CustomTextureSize = 2
 	};
 
 	enum class ENaniteFallbackTarget : uint8
@@ -195,16 +196,22 @@ public:
 		UMaterialInterface* BakeMaterial = nullptr;		// if null, will use /MeshModelingToolsetExp/Materials/FullMaterialBakePreviewMaterial_PackedMRS instead
 		FName BaseColorTexParamName = FName("BaseColor");
 		bool bBakeBaseColor = true;
+		int32 CustomTextureSizeBaseColor = 1024;
 		FName RoughnessTexParamName = FName("Roughness");
 		bool bBakeRoughness = true;
+		int32 CustomTextureSizeRoughness = 1024;
 		FName MetallicTexParamName = FName("Metallic");
 		bool bBakeMetallic = true;
+		int32 CustomTextureSizeMetallic = 1024;
 		FName SpecularTexParamName = FName("Specular");
 		bool bBakeSpecular = true;
+		int32 CustomTextureSizeSpecular = 1024;
 		FName EmissiveTexParamName = FName("Emissive");
 		bool bBakeEmissive = true;
+		int32 CustomTextureSizeEmissive = 1024;
 		FName NormalTexParamName = FName("NormalMap");
 		bool bBakeNormalMap = true;
+		int32 CustomTextureSizeNormalMap = 1024;
 		
 		bool bUsePackedMRS = true;
 		FName PackedMRSTexParamName = FName("PackedMRS");
