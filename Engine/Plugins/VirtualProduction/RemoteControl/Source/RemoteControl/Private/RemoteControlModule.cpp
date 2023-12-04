@@ -159,8 +159,12 @@ namespace RemoteControlUtil
 		const bool bPropertyIsValid = InProperty != nullptr;
 		if (!bPropertyIsValid)
 		{
-			Error.AppendLine(FText::Format(LOCTEXT("RCPropertyNotValid", "{0} is not valid."), PreError));
-			*OutError = Error.ToText().ToString();
+			if (OutError)
+			{
+				Error.AppendLine(FText::Format(LOCTEXT("RCPropertyNotValid", "{0} is not valid."), PreError));
+				*OutError = Error.ToText().ToString();
+			}
+
 			return false;
 		}
 #if WITH_EDITOR
@@ -273,7 +277,10 @@ namespace RemoteControlUtil
 		const bool bIsAccessible = bObjectInGamePackage? bIsAccessibleInGamePackage : bIsAccessibleInNonGamePackage;
 
 		// Assign the error to be propagated after this call in case it failed
-		*OutError = Error.ToText().ToString();
+		if (OutError)
+		{
+			*OutError = Error.ToText().ToString();
+		}
 
 		return (bPropertyIsValid &&
 #if WITH_EDITOR

@@ -151,7 +151,7 @@ void FMediaOutputSynchronizationPolicyRivermaxHandler::Synchronize()
 	if (UE::RivermaxSync::GbTriggerRandomDesync)
 	{
 		FRandomStream RandomStream(FPlatformTime::Cycles64());
-		const bool bTriggerDesync = (RandomStream.RandRange(0.0, 1.0) > 0.7) ? true : false;
+		const bool bTriggerDesync = (RandomStream.FRandRange(0.0, 1.0) > 0.7) ? true : false;
 		if (bTriggerDesync)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(RmaxSync::ForceBadSync);
