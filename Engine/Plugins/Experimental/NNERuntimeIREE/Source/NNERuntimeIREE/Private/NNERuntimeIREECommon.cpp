@@ -151,7 +151,7 @@ namespace UE::NNERuntimeIREE
 
 	FString GetTargetPlatformDisplayName(const ITargetPlatform* TargetPlatform)
 	{
-		return TargetPlatform ? TargetPlatform->DisplayName().ToString() : UGameplayStatics::GetPlatformName();
+		return TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
 	}
 
 	class FIREEInstance

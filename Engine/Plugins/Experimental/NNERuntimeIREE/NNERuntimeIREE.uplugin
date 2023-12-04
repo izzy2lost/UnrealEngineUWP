@@ -25,13 +25,5 @@
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
-	],
-	"PreBuildSteps": {
-		"Win64": [
-			"if exist \"$(PluginDir)\\Intermediate\\Build\\ObjectFiles\\\" rmdir /S /Q \"$(PluginDir)\\Intermediate\\Build\\ObjectFiles\""
-		],
-		"Linux": [
-			"if [ -d \"$(PluginDir)/Intermediate/Build/ObjectFiles\" ]; then rm -R -f \"$(PluginDir)/Intermediate/Build/ObjectFiles\" ; fi"
-		]
-	}
+	]
 }

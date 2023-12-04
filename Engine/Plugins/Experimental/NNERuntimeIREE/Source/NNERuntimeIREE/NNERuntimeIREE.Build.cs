@@ -16,41 +16,36 @@ public class NNERuntimeIREE : ModuleRules
 		PrivateDefinitions.Add("NNE_RUNTIME_IREE_PLATFORM_NAME=\"" + PlatformName + "\"");
 		PrivateDefinitions.Add("NNE_RUNTIME_IREE_PLATFORM_DISPLAY_NAME=\"" + PlatformDisplayName + "\"");
 		PrivateDefinitions.Add("NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION=\"" + SharedLibExtension + "\"");
-
-		// Use the non-remapping RuntimeDependencies.Add function so that the file does not get copied immediately but at staging time
-		string SharedLibPath = Path.Combine(PluginDirectory, "Binaries", PlatformName, SharedLibName + "." + SharedLibExtension);
-		Directory.CreateDirectory(Path.GetDirectoryName(SharedLibPath));
-		File.Create(SharedLibPath).Close();
-		RuntimeDependencies.Add(SharedLibPath, StagedFileType.NonUFS);
 	}
 
 	public NNERuntimeIREE(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.Add("Core");
-
 		PrivateDependencyModuleNames.AddRange
 		(
 			new string[]
 			{
+				"Core",
 				"CoreUObject",
 				"Engine",
 				"IREE",
-				"Json",
-				"NNE",
-				"Slate",
-				"SlateCore",
-				"Projects"
+				"NNE"
 			}
 		);
 
 		if (Target.Type == TargetType.Editor)
 		{
-			PrivateDependencyModuleNames.Add("DerivedDataCache");
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"DerivedDataCache",
+					"Json",
+					"Projects",
+					"TargetPlatform"
+				}
+			);
 		}
-
-		PrivateDefinitions.Add("NNE_RUNTIME_IREE_SHARED_LIB_NAME=\"" + SharedLibName + "\"");
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{

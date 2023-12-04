@@ -7,7 +7,6 @@
 #include "EngineAnalytics.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
 #include "HAL/PlatformFileManager.h"
-#include "Interfaces/IPluginManager.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "IO/IoHash.h"
 #include "Kismet/GameplayStatics.h"
@@ -24,8 +23,10 @@
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #include "Dom/JsonObject.h"
+#include "Interfaces/IPluginManager.h"
 #include "Internationalization/TextLocalizationResource.h"
 #include "Memory/SharedBuffer.h"
+#include "Misc/App.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonSerializerMacros.h"
@@ -170,8 +171,7 @@ namespace UE::NNERuntimeIREECpu::Private
 		{
 			FPaths::Combine(FPaths::ConvertRelativePathToFull(*IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME)->GetBaseDir()), "Config", InBuildConfigFileName),
 			FPaths::Combine(FPaths::ConvertRelativePathToFull(*FPaths::EngineDir()), "Platforms", InTargetPlatformDisplayName, "Plugins", UE_PLUGIN_NAME, "Config", InBuildConfigFileName),
-			FPaths::Combine(FPaths::ConvertRelativePathToFull(*FPaths::EngineDir()), "Platforms", InTargetPlatformDisplayName, "Plugins", "Experimental", UE_PLUGIN_NAME, "Config", InBuildConfigFileName),
-			FPaths::Combine(FPaths::ConvertRelativePathToFull(*FPaths::ProjectDir()), "Platforms", InTargetPlatformDisplayName, "Plugins", UE_PLUGIN_NAME, "Config", InBuildConfigFileName)
+			FPaths::Combine(FPaths::ConvertRelativePathToFull(*FPaths::EngineDir()), "Platforms", InTargetPlatformDisplayName, "Plugins", "Experimental", UE_PLUGIN_NAME, "Config", InBuildConfigFileName)
 		};
 
 		FString BuildConfigFileString = "";
@@ -217,26 +217,22 @@ namespace UE::NNERuntimeIREECpu::Private
 	}
 #endif // WITH_EDITOR
 
-	FString GetIntermediateBuildDirPath()
-	{
-		FString PluginDir = FPaths::ConvertRelativePathToFull(*IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME)->GetBaseDir());
-		return FPaths::Combine(PluginDir, "Intermediate", "Build");
-	}
-
-	FString GetIntermediateModeslDirPath(const FString& PlatformName)
-	{
-		return FPaths::Combine(GetIntermediateBuildDirPath(), PlatformName, "Models");
-	}
-
 	FString GetIntermediateModelDirPath(const FString& PlatformName, const FString& FileIdString)
 	{
-		return FPaths::Combine(GetIntermediateModeslDirPath(PlatformName), FileIdString);
+		FString IntermediateDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectIntermediateDir());
+		return FPaths::Combine(IntermediateDir, "Build", PlatformName, UE_PLUGIN_NAME, FileIdString);
 	}
 
-	FString GetAssembledSharedLibDirPath(const FString& PlatformName)
+	FString GetCookedModelDirPath(const FString& PlatformDisplayName)
 	{
-		FString PluginDir = FPaths::ConvertRelativePathToFull(*IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME)->GetBaseDir());
-		return FPaths::Combine(PluginDir, "Binaries", PlatformName);
+		FString SavedDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectSavedDir());
+		return FPaths::Combine(SavedDir, "Cooked", PlatformDisplayName, "Engine", "Plugins", UE_PLUGIN_NAME, "Binaries");
+	}
+
+	FString GetPackagedModelDirPath(const FString& PlatformName)
+	{
+		FString ProjectDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectDir());
+		return FPaths::Combine(ProjectDir, "Binaries", PlatformName, UE_PLUGIN_NAME);
 	}
 
 	FString GetModelCpuDataIdentifier(const FString& FileIdString, const FString& PlatformDisplayName)
@@ -358,47 +354,17 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(FStrin
 			return TSharedPtr<UE::NNE::FSharedModelData>();
 		}
 
+		FString CookedModelPath = FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetCookedModelDirPath(TargetPlatformDisplayName), SharedLibName);
+		IFileManager::Get().Copy(*CookedModelPath, *SharedLibPath);
+
 		TArray<uint8> SharedLibData;
-		if (!FFileHelper::LoadFileToArray(SharedLibData, *SharedLibPath))
+		if (!FFileHelper::LoadFileToArray(SharedLibData, *CookedModelPath) || SharedLibData.Num() < 1)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not read the shared library \"%s\""), *SharedLibPath);
+			UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not read the shared library \"%s\""), *CookedModelPath);
 			return TSharedPtr<UE::NNE::FSharedModelData>();
 		}
 		FSharedBuffer SharedBuffer = MakeSharedBufferFromArray(MoveTemp(SharedLibData));
 		UE::NNERuntimeIREECpu::Private::PutIntoDDC(FileId, GetRuntimeName(), UE::NNERuntimeIREECpu::Private::GetModelCpuDataIdentifier(FileIdString, TargetPlatformDisplayName), SharedBuffer);
-
-		// Scoped file lock
-		{
-			TUniquePtr<IFileHandle> LockFileHandle;
-			while (!(LockFileHandle = TUniquePtr<IFileHandle>(PlatformFile.OpenWrite(*FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetIntermediateModeslDirPath(BuildConfig.TargetPlatformName), ".lock")))).IsValid())
-			{
-				FPlatformProcess::Sleep(0.005);
-			}
-			checkf(!TUniquePtr<IFileHandle>(PlatformFile.OpenWrite(*FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetIntermediateModeslDirPath(BuildConfig.TargetPlatformName), ".lock"))).IsValid(), TEXT("NNERuntimeIREE file lock failed"));
-
-			IFileManager::Get().Copy(*FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetIntermediateBuildDirPath(), "ObjectFiles", FileIdString + ".o"), *ObjectPath);
-			FJsonSerializableArray FilePaths;
-			PlatformFile.FindFiles(FilePaths, *FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetIntermediateBuildDirPath(), "ObjectFiles"), TEXT(".o"));
-			FString ObjectPaths = "";
-			for (int32 i = 0; i < FilePaths.Num(); i++)
-			{
-				ObjectPaths += FilePaths[i];
-				if (i < FilePaths.Num() - 1)
-				{
-					ObjectPaths += "\" \"";
-				}
-			}
-			FString CompleteSharedLibPath = FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetAssembledSharedLibDirPath(BuildConfig.TargetPlatformName), FString(NNE_RUNTIME_IREE_SHARED_LIB_NAME) + "." + BuildConfig.SharedLibraryExtension);
-			FString CompleteFinalSharedLibraryCompilationArguments = SharedLibraryCompilationArguments.Replace(*FString("${OBJECT_PATH}"), *ObjectPaths).Replace(*FString("${SHARED_LIB_PATH}"), *CompleteSharedLibPath);
-			FProcHandle CompleteSharedLibraryCompilationProcHandle = FPlatformProcess::CreateProc(*SharedLibraryCompilationCommand, *CompleteFinalSharedLibraryCompilationArguments, false, true, true, nullptr, 0, nullptr, nullptr, nullptr);
-			FPlatformProcess::WaitForProc(CompleteSharedLibraryCompilationProcHandle);
-			if (!PlatformFile.FileExists(*CompleteSharedLibPath))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu failed to compile the shared library for the objects \"%s\" using the command:"), *ObjectPaths);
-				UE_LOG(LogTemp, Warning, TEXT("\"%s\" %s"), *SharedLibraryCompilationCommand, *CompleteFinalSharedLibraryCompilationArguments);
-				return TSharedPtr<UE::NNE::FSharedModelData>();
-			}
-		}
 	}
 
 	FString HeaderPath = FPaths::Combine(IntermediateModelDir, FileIdString + ".h");
@@ -532,8 +498,8 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	FString SharedLibDirPath = UE::NNERuntimeIREECpu::Private::GetIntermediateModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME, FileIdString);
 	FString SharedLibName = FileIdString + "." + NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION;
 #else
-	FString SharedLibDirPath = UE::NNERuntimeIREECpu::Private::GetAssembledSharedLibDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME);
-	FString SharedLibName = FString(NNE_RUNTIME_IREE_SHARED_LIB_NAME) + "." + NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION;
+	FString SharedLibDirPath = UE::NNERuntimeIREECpu::Private::GetPackagedModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME);
+	FString SharedLibName = FileIdString + "." + NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION;
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
