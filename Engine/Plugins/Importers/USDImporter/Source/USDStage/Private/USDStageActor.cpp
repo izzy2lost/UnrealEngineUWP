@@ -3170,6 +3170,12 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 
 void AUsdStageActor::UnloadUsdStage()
 {
+	// No point doing any of this if we're unloading because we're exiting the engine altogether
+	if (IsEngineExitRequested())
+	{
+		return;
+	}
+
 	const bool bMarkDirty = false;
 	Modify(bMarkDirty);
 

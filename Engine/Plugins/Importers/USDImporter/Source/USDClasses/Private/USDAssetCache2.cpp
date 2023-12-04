@@ -58,7 +58,14 @@ namespace UE::AssetCache::Private
 		{
 			return false;
 		}
+
+		// Note we may fail to find a class even if the name is correct if we're running this on
+		// engine exit
 		UClass* AssetClass = FindClass(ClassName);
+		if (!AssetClass)
+		{
+			return false;
+		}
 
 		static TArray<const UClass*> AllowedPersistentClasses = {
 			UTexture2D::StaticClass(),
