@@ -667,8 +667,8 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 
 		// Clear counts and packed nodes counter
 		// TODO: only clear the counter at index 0, not the entire buffer
-		FComputeShaderUtils::ClearUAV(GraphBuilder, ShaderMap, BucketCountsUAV, 0);
-		FComputeShaderUtils::ClearUAV(GraphBuilder, ShaderMap, PackedNodesUAV, 0);
+		AddClearUAVPass(GraphBuilder, BucketCountsUAV, 0);
+		AddClearUAVPass(GraphBuilder, PackedNodesUAV, 0);
 
 		// Traverse quadtree
 		{
