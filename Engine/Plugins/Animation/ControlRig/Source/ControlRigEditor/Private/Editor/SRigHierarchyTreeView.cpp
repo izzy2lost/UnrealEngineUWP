@@ -972,6 +972,16 @@ bool SRigHierarchyItem::OnVerifyNameChanged(const FText& InText, FText& OutError
 
 TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType(const URigHierarchy* InHierarchy, const FRigElementKey& InKey)
 {
+	static const FSlateBrush* ProxyControlBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.ProxyControl"); 
+	static const FSlateBrush* ControlBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Control");
+	static const FSlateBrush* NullBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Null");
+	static const FSlateBrush* BoneImportedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneImported");
+	static const FSlateBrush* BoneUserBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneUser");
+	static const FSlateBrush* RigidBodyBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
+	static const FSlateBrush* SocketOpenBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Open");
+	static const FSlateBrush* SocketClosedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Closed");
+	static const FSlateBrush* ConnectorBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Connector");
+	
 	const FSlateBrush* Brush = nullptr;
 	FSlateColor Color = FSlateColor::UseForeground();
 	switch (InKey.Type)
@@ -986,11 +996,11 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 				{
 					if(Control->Settings.AnimationType == ERigControlAnimationType::ProxyControl)
 					{
-						Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.ProxyControl");
+						Brush = ProxyControlBrush;
 					}
 					else
 					{
-						Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Control");
+						Brush = ControlBrush;
 					}
 					ShapeColor = Control->Settings.ShapeColor;
 				}
@@ -1007,13 +1017,13 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 			}
 			else
 			{
-				Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Control");
+				Brush = ControlBrush;
 			}
 			break;
 		}
 		case ERigElementType::Null:
 		{
-			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Null");
+			Brush = NullBrush;
 			break;
 		}
 		case ERigElementType::Bone:
@@ -1033,13 +1043,13 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 			{
 				case ERigBoneType::Imported:
 				{
-					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneImported");
+					Brush = BoneImportedBrush;
 					break;
 				}
 				case ERigBoneType::User:
 				default:
 				{
-					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneUser");
+					Brush = BoneUserBrush;
 					break;
 				}
 			}
@@ -1048,18 +1058,34 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 		}
 		case ERigElementType::RigidBody:
 		{
-			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
+			Brush = RigidBodyBrush;
 			break;
 		}
 		case ERigElementType::Reference:
 		case ERigElementType::Socket:
 		{
-			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket");
+			Brush = SocketOpenBrush;
+
+			if(UControlRig* ControlRig = Cast<UControlRig>(InHierarchy->GetOuter()))
+			{
+				if(const FRigElementKey* ConnectorKey = ControlRig->GetElementKeyRedirector().FindReverse(InKey))
+				{
+					if(ConnectorKey->Type == ERigElementType::Connector)
+					{
+						Brush = SocketClosedBrush;
+					}
+				}
+			}
+
+			if(const FRigSocketElement* Socket = InHierarchy->Find<FRigSocketElement>(InKey))
+			{
+				Color = Socket->GetColor(InHierarchy);
+			}
 			break;
 		}
 		case ERigElementType::Connector:
 		{
-			Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Connector");
+			Brush = ConnectorBrush;
 			break;
 		}
 		default:

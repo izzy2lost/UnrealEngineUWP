@@ -77,6 +77,8 @@ public:
 		return Key;
 	}
 
+	const FRigElementKey& GetResolvedKey() const;
+
 	const FRigBaseElement* GetElement() const
 	{
 		return Element;

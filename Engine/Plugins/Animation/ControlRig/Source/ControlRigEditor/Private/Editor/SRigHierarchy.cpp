@@ -826,9 +826,13 @@ void SRigHierarchy::OnHierarchyModified(ERigHierarchyNotification InNotif, URigH
 		}
 		case ERigHierarchyNotification::ControlSettingChanged:
 		case ERigHierarchyNotification::ConnectorSettingChanged:
+		case ERigHierarchyNotification::SocketColorChanged:
 		{
 			// update color and other settings of the item
-			if(InElement && ((InElement->GetType() == ERigElementType::Control) || (InElement->GetType() == ERigElementType::Connector)))
+			if(InElement && (
+				(InElement->GetType() == ERigElementType::Control) ||
+				(InElement->GetType() == ERigElementType::Connector) ||
+				(InElement->GetType() == ERigElementType::Socket)))
 			{
 				for (int32 RootIndex = 0; RootIndex < TreeView->RootElements.Num(); ++RootIndex)
 				{
@@ -1854,10 +1858,14 @@ bool SRigHierarchy::IsNonProceduralElementSelected() const
 
 bool SRigHierarchy::CanAddElement(const ERigElementType ElementType) const
 {
-	if (ElementType == ERigElementType::Connector ||
-		ElementType == ERigElementType::Socket)
+	if (ElementType == ERigElementType::Connector)
 	{
 		return ControlRigBlueprint->IsControlRigModule();
+	}
+	if (ElementType == ERigElementType::Socket)
+	{
+		return ControlRigBlueprint->IsControlRigModule() ||
+			ControlRigBlueprint->IsModularRig();
 	}
 	return !ControlRigBlueprint->IsControlRigModule();
 }

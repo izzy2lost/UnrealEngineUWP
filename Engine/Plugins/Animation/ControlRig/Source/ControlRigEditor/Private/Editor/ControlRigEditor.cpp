@@ -2128,6 +2128,24 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 						SNew(SBox)
 						.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
 						.WidthOverride(100.0f)
+						.IsEnabled(this, &FControlRigEditor::IsToolbarDrawSocketsEnabled)
+						[
+							SNew(SCheckBox)
+							.IsChecked(this, &FControlRigEditor::GetToolbarDrawSockets)
+							.OnCheckStateChanged(this, &FControlRigEditor::OnToolbarDrawSocketsChanged)
+							.ToolTipText(LOCTEXT("ControlRigDrawSocketsToolTip", "If checked all sockets are drawn."))
+						]
+					],
+					LOCTEXT("ControlRigDisplaySockets", "Display Sockets")
+				);
+
+				InMenuBuilder.AddWidget(
+					SNew(SBox)
+					.HAlign(HAlign_Right)
+					[
+						SNew(SBox)
+						.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+						.WidthOverride(100.0f)
 						[
 							SNew(SCheckBox)
 							.IsChecked(this, &FControlRigEditor::GetToolbarDrawAxesOnSelection)
@@ -2294,6 +2312,35 @@ void FControlRigEditor::OnToolbarDrawNullsChanged(ECheckBoxState InNewValue)
 	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
 	{
 		Settings->bDisplayNulls = InNewValue == ECheckBoxState::Checked;
+	}
+}
+
+bool FControlRigEditor::IsToolbarDrawSocketsEnabled() const
+{
+	if (const UControlRig* ControlRig = GetControlRig())
+	{
+		if (!ControlRig->IsConstructionModeEnabled())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+ECheckBoxState FControlRigEditor::GetToolbarDrawSockets() const
+{
+	if (const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>())
+	{
+		return Settings->bDisplaySockets ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void FControlRigEditor::OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue)
+{
+	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
+	{
+		Settings->bDisplaySockets = InNewValue == ECheckBoxState::Checked;
 	}
 }
 
@@ -4855,6 +4902,12 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 						}
 					}
 				}
+
+				if(RigBlueprint->IsControlRigModule())
+				{
+					RigBlueprint->Hierarchy->RestoreSocketsFromStates(SocketStates);
+					InRig->GetHierarchy()->RestoreSocketsFromStates(SocketStates);
+				}
 			}
 		}
 	}
@@ -4868,8 +4921,6 @@ void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const F
 	{
 		if(RigBlueprint->IsControlRigModule())
 		{
-			RigBlueprint->Hierarchy->RestoreSocketsFromStates(SocketStates);
-			InRig->GetHierarchy()->RestoreSocketsFromStates(SocketStates);
 			RigBlueprint->Hierarchy->RestoreConnectorsFromStates(ConnectorStates);
 		}
 	}

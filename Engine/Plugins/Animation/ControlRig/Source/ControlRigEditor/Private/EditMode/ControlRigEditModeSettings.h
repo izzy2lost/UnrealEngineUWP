@@ -18,6 +18,7 @@ class UControlRigEditModeSettings : public UObject
 	UControlRigEditModeSettings()
 		: bDisplayHierarchy(false)
 		, bDisplayNulls(false)
+		, bDisplaySockets(true)
 		, bHideControlShapes(false)
 		, bShowAllProxyControls(false)
 		, bShowControlsAsOverlay(false)
@@ -47,6 +48,10 @@ public:
 	/** Whether to show all nulls in the hierarchy */
 	UPROPERTY(config, EditAnywhere, Category = "Animation Settings")
 	bool bDisplayNulls;
+
+	/** Should we show sockets in the viewport */
+	UPROPERTY(config, EditAnywhere, Category = "Animation Settings")
+	bool bDisplaySockets;
 
 	/** Should we always hide control shapes in viewport */
 	UPROPERTY(config, EditAnywhere, Category = "Animation Settings")

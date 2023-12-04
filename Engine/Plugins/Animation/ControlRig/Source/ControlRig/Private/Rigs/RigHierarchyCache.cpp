@@ -5,6 +5,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigHierarchyCache)
 
+const FRigElementKey& FCachedRigElement::GetResolvedKey() const
+{
+	if(Element)
+	{
+		return Element->GetKey();
+	}
+	static FRigElementKey InvalidKey;
+	return InvalidKey;
+}
+
 bool FCachedRigElement::UpdateCache(const URigHierarchy* InHierarchy)
 {
 	if(InHierarchy)

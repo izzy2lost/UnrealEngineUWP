@@ -1058,7 +1058,10 @@ TArray<FRigSocketState> URigHierarchy::GetSocketStates() const
 	for(const FRigElementKey& Key : Keys)
 	{
 		const FRigSocketElement* Socket = FindChecked<FRigSocketElement>(Key);
-		States.Add(Socket->GetSocketState(this));
+		if(!Socket->IsProcedural())
+		{
+			States.Add(Socket->GetSocketState(this));
+		}
 	}
 	return States;
 }
@@ -1096,7 +1099,10 @@ TArray<FRigConnectorState> URigHierarchy::GetConnectorStates() const
 	for(const FRigElementKey& Key : Keys)
 	{
 		const FRigConnectorElement* Connector = FindChecked<FRigConnectorElement>(Key);
-		States.Add(Connector->GetConnectorState(this));
+		if(!Connector->IsProcedural())
+		{
+			States.Add(Connector->GetConnectorState(this));
+		}
 	}
 	return States;
 }

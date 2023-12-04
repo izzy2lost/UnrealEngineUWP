@@ -316,7 +316,10 @@ bool UControlRigBlueprint::TurnIntoControlRigModule(bool InAutoConvertHierarchy,
 			if(Hierarchy->Num(ERigElementType::Connector) == 0)
 			{
 				static const FName RootName = TEXT("Root");
-				Controller->AddConnector(RootName);
+				static const FString RootDescription = TEXT("This is the default temporary socket used for the root connection.");
+				const FRigElementKey ConnectorKey = Controller->AddConnector(RootName);
+				const FRigElementKey SocketKey = Controller->AddSocket(RootName, FRigElementKey(), FTransform::Identity, false, FRigSocketElement::SocketDefaultColor, RootDescription, false);
+				(void)ResolveConnector(ConnectorKey, SocketKey);
 			}
 		}
 	}

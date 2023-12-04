@@ -923,6 +923,38 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 					}
 				}
 
+				// temporary implementation to draw sockets in 3D
+				if (bIsAssetEditor && (Settings->bDisplaySockets || ControlRig->IsConstructionModeEnabled()))
+				{
+					Hierarchy->ForEach<FRigSocketElement>([this, Hierarchy, PDI](FRigSocketElement* Socket)
+					{
+						const FLinearColor Color = Socket->GetColor(Hierarchy);
+						const uint32 ColorHash = GetTypeHash(Color.ToFColor(true));
+
+						const FMaterialRenderProxy* MaterialProxy;
+						if(const TStrongObjectPtr<UMaterialInstanceDynamic>* ExistingMaterialPtr = SocketMaterials.Find(ColorHash))
+						{
+							MaterialProxy = (*ExistingMaterialPtr)->GetRenderProxy();
+						}
+						else
+						{
+							UMaterial* MaterialBase = GEngine->ArrowMaterial;
+							UMaterialInstanceDynamic* SocketMaterial = UMaterialInstanceDynamic::Create(MaterialBase, NULL);
+							SocketMaterial->SetVectorParameterValue("GizmoColor", Color);
+							SocketMaterials.Add(ColorHash, TStrongObjectPtr<UMaterialInstanceDynamic>(SocketMaterial));
+							MaterialProxy = SocketMaterial->GetRenderProxy();
+						}
+
+						DrawSphere(PDI,
+							Hierarchy->GetGlobalTransform(Socket->GetIndex()).GetLocation(), 
+							FRotator::ZeroRotator,
+							FVector::OneVector * 4.f,
+							8, 8,
+							MaterialProxy,
+							SDPG_Foreground);
+						return true;
+					});
+				}
 				ControlRig->DrawIntoPDI(PDI, ComponentTransform);
 			}
 		}

@@ -232,6 +232,9 @@ private:
 	bool IsToolbarDrawNullsEnabled() const;
 	ECheckBoxState GetToolbarDrawNulls() const;
 	void OnToolbarDrawNullsChanged(ECheckBoxState InNewValue);
+	bool IsToolbarDrawSocketsEnabled() const;
+	ECheckBoxState GetToolbarDrawSockets() const;
+	void OnToolbarDrawSocketsChanged(ECheckBoxState InNewValue);
 	ECheckBoxState GetToolbarDrawAxesOnSelection() const;
 	void OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNewValue);
 	TOptional<float> GetToolbarAxesScale() const;

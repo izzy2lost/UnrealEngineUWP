@@ -2577,11 +2577,6 @@ bool URigHierarchyController::AddParent(FRigBaseElement* InChild, FRigBaseElemen
 		return false;
 	}
 
-	if(InParent->GetType() == ERigElementType::Socket)
-	{
-		return false;
-	}
-
 	// single parent children can't be parented multiple times
 	if(FRigSingleParentElement* SingleParentElement = Cast<FRigSingleParentElement>(InChild))
 	{
@@ -3029,12 +3024,6 @@ bool URigHierarchyController::SetParent(FRigElementKey InChild, FRigElementKey I
 {
 	if(!IsValid())
 	{
-		return false;
-	}
-
-	if(InParent.Type == ERigElementType::Socket)
-	{
-		ReportWarningf(TEXT("Cannot parent Child '%s' under a Socket parent."), *InChild.ToString());
 		return false;
 	}
 

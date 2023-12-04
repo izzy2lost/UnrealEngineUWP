@@ -22,7 +22,7 @@ FRigUnit_HierarchyGetParent_Execute()
 
 		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
 		{
-			Parent = ExecuteContext.Hierarchy->GetFirstParent(Child);
+			Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedChild.GetResolvedKey());
 			if(Parent.IsValid())
 			{
 				CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy);
@@ -57,7 +57,7 @@ FRigUnit_HierarchyGetParentsItemArray_Execute()
 		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
 		{
 			TArray<FRigElementKey> Keys;
-			FRigElementKey Parent = Child;
+			FRigElementKey Parent = CachedChild.GetResolvedKey();
 			do
 			{
 				if(bIncludeChild || Parent != Child)
@@ -89,15 +89,16 @@ FRigUnit_HierarchyGetChildren_Execute()
 
 		if(CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy))
 		{
+			const FRigElementKey ResolvedParent = CachedParent.GetResolvedKey();
+
 			TArray<FRigElementKey> Keys;
 
 			if(bIncludeParent)
 			{
-				Keys.Add(Parent);
+				Keys.Add(ResolvedParent);
 			}
 
-			
-			Keys.Append(ExecuteContext.Hierarchy->GetChildren(Parent, bRecursive));
+			Keys.Append(ExecuteContext.Hierarchy->GetChildren(ResolvedParent, bRecursive));
 
 			CachedChildren = FRigElementKeyCollection(Keys);
 		}
@@ -141,7 +142,7 @@ FRigUnit_HierarchyGetSiblingsItemArray_Execute()
 		{
 			TArray<FRigElementKey> Keys;
 
-			FRigElementKey Parent = ExecuteContext.Hierarchy->GetFirstParent(Item);
+			FRigElementKey Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedItem.GetResolvedKey());
 			if(Parent.IsValid())
 			{
 				TArray<FRigElementKey> Children = ExecuteContext.Hierarchy->GetChildren(Parent, false);
