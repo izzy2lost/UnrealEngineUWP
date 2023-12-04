@@ -169,6 +169,9 @@ namespace UE::RivermaxCore::Private
 		/** Next alignment point frame number treated to detect missed frames */
 		uint64 NextAlignmentPointFrameNumber = 0;
 
+		/** Last alignment point frame number we have processed*/
+		uint64 LastAlignmentPointFrameNumber = 0;
+
 		/** Timestamp at which we started commiting a frame */
 		uint64 LastSendStartTimeNanoSec = 0;
 		
@@ -222,6 +225,7 @@ namespace UE::RivermaxCore::Private
 		virtual bool PushVideoFrame(const FRivermaxOutputVideoFrameInfo& NewFrame) override;
 		virtual bool IsGPUDirectSupported() const override;
 		virtual bool ReserveFrame(uint32 FrameIdentifier) const override;
+		virtual void GetLastPresentedFrame(FPresentedFrameInfo& OutFrameInfo) const override;
 		//~ End IRivermaxOutputStream interface
 
 		void Process_AnyThread();
@@ -342,6 +346,9 @@ namespace UE::RivermaxCore::Private
 		/** Go through all chunks of current frame and commit them to Rivermax to send them at the next desired time */
 		void SendFrame();
 
+		/** When a frame has been sent (after frame interval), we update last presented frame tracking and optionally release it in the presentation queue */
+		void CompleteCurrentFrame(bool bReleaseFrame);
+
 	private:
 
 		/** Options related to this stream. i.e resolution, frame rate, etc... */
@@ -358,9 +365,6 @@ namespace UE::RivermaxCore::Private
 
 		/** Stream id returned by rmax library */
 		rmx_stream_id StreamId = 0;
-
-		/** Critical section to protect frames access */
-		mutable FCriticalSection FrameCriticalSection;
 
 		/** Current frame being sent */
 		TSharedPtr<FRivermaxOutputFrame> CurrentFrame;
@@ -417,6 +421,12 @@ namespace UE::RivermaxCore::Private
 		const UE::RivermaxCore::Private::RIVERMAX_API_FUNCTION_LIST* CachedAPI = nullptr;
 		/** Whether to trigger a delay in the output thread loop next time it ticks */
 		bool bTriggerRandomDelay = false;
+
+		/** Critical section to access data of last presented frame */
+		mutable FCriticalSection PresentedFrameCS;
+
+		/** Info of last presented frame */
+		FPresentedFrameInfo LastPresentedFrame;
 
 		friend struct FRTPHeaderPrefiller;
 	};

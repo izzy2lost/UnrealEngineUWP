@@ -107,6 +107,21 @@ FString FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandle
 	return MediaDeviceId;
 }
 
+IDisplayClusterGenericBarriersClient* const FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::GetBarrierClient() const
+{
+	return EthernetBarrierClient.Get();
+}
+
+const FString& FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::GetBarrierId() const
+{
+	return BarrierId;
+}
+
+const FString& FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::GetThreadMarker() const
+{
+	return ThreadMarker;
+}
+
 void FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::SyncThreadOnBarrier()
 {
 	// Sync on the barrier if everything is good

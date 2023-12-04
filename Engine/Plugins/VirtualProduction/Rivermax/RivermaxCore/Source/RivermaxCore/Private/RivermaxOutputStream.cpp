@@ -124,6 +124,13 @@ namespace UE::RivermaxCore::Private
 		TEXT("Multiplier applied to desired output frame rate in order to reduce time it takes to send out a frame and slowly correct misalignment that could happen."),
 		ECVF_Default);
 
+	static bool GbTriggerRandomTimingIssue = false;
+	FAutoConsoleVariableRef CVarTriggerRandomTimingIssue(
+		TEXT("Rivermax.Sync.TriggerRandomTimingIssue")
+		, UE::RivermaxCore::Private::GbTriggerRandomTimingIssue
+		, TEXT("Randomly triggers a timing issue to test self repair."), ECVF_Cheat);
+
+
 	bool FindPayloadSize(const FRivermaxOutputStreamOptions& InOptions, uint32 InBytesPerLine, const FVideoFormatInfo& FormatInfo, uint16& OutPayloadSize)
 	{
 		using namespace UE::RivermaxCore::Private::Utils;
@@ -780,9 +787,9 @@ namespace UE::RivermaxCore::Private
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(RmaxOut::WrappingUp);
 				if (CurrentFrame)
-				{
-					FrameManager->MarkAsSent(CurrentFrame);
-					CurrentFrame.Reset();
+				{	
+					constexpr bool bReleaseFrame = true;
+					CompleteCurrentFrame(bReleaseFrame);
 				}
 
 				// Make the next frame to send the current one and update its state
@@ -1482,7 +1489,8 @@ namespace UE::RivermaxCore::Private
 		// In frame creation alignment, we always release the last frame sent
 		if (CurrentFrame.IsValid())
 		{
-			FrameManager->MarkAsSent(CurrentFrame);
+			constexpr bool bReleaseFrame = true;
+			CompleteCurrentFrame(bReleaseFrame);
 		}
 
 		// Make the next frame to send the current one and update its state
@@ -1515,8 +1523,8 @@ namespace UE::RivermaxCore::Private
 		{
 			if (CurrentFrame)
 			{
-				FrameManager->MarkAsSent(CurrentFrame);
-				CurrentFrame.Reset();
+				constexpr bool bReleaseFrame = true;
+				CompleteCurrentFrame(bReleaseFrame);
 			}
 
 			// Make the next frame to send the current one and update its state
@@ -1529,6 +1537,10 @@ namespace UE::RivermaxCore::Private
 		}
 		else
 		{
+			// We finished sending a frame so complete it but don't release it as we will repeat it
+			constexpr bool bReleaseFrame = false;
+			CompleteCurrentFrame(bReleaseFrame);
+
 			// We will resend the last one so just reinitialize it to resend
 			InitializeNextFrame(CurrentFrame);
 			
@@ -1827,6 +1839,7 @@ namespace UE::RivermaxCore::Private
 		// Add Tro offset to next alignment point and configurable offset
 		StreamData.NextAlignmentPointNanosec = NextAlignmentNano;
 		StreamData.NextScheduleTimeNanosec = NextAlignmentNano + TransmitOffsetNanosec + CVarRivermaxScheduleOffset.GetValueOnAnyThread();
+		StreamData.LastAlignmentPointFrameNumber = StreamData.NextAlignmentPointFrameNumber;
 		StreamData.NextAlignmentPointFrameNumber = NextFrameNumber;
 
 		StreamData.bHasValidNextFrameNumber = bFoundValidTimings;
@@ -2057,6 +2070,19 @@ namespace UE::RivermaxCore::Private
 					// We skip an interval instead but it is quite drastic.
 					const bool bIsChunkOnTime = IsChunkOnTime();
 					CurrentFrame->bCaughtTimingIssue = !bIsChunkOnTime;
+
+					if (UE::RivermaxCore::Private::GbTriggerRandomTimingIssue)
+					{
+						FRandomStream RandomStream(FPlatformTime::Cycles64());
+						const bool bTriggerDesync = (RandomStream.RandRange(0.0, 1.0) > 0.7) ? true : false;
+						if (bTriggerDesync)
+						{
+							TRACE_CPUPROFILER_EVENT_SCOPE(RmaxOut::ForceTimingIssue);
+							CurrentFrame->bCaughtTimingIssue = true;
+						}
+
+						UE::RivermaxCore::Private::GbTriggerRandomTimingIssue = false;
+					}
 				}
 
 				CommitNextChunks();
@@ -2097,5 +2123,29 @@ namespace UE::RivermaxCore::Private
 		}
 	}
 
+	void FRivermaxOutputStream::GetLastPresentedFrame(FPresentedFrameInfo& OutFrameInfo) const
+	{
+		FScopeLock Lock(&PresentedFrameCS);
+		OutFrameInfo = LastPresentedFrame;
+	}
+
+	void FRivermaxOutputStream::CompleteCurrentFrame(bool bReleaseFrame)
+	{
+		if (ensure(CurrentFrame))
+		{
+			{
+				FScopeLock Lock(&PresentedFrameCS);
+				LastPresentedFrame.RenderedFrameNumber = CurrentFrame->FrameIdentifier;
+				LastPresentedFrame.PresentedFrameBoundaryNumber = StreamData.LastAlignmentPointFrameNumber;
+			}
+			
+			// We don't release when there is no new frame, so we keep a hold on it to repeat it.
+			if (bReleaseFrame)
+			{
+				FrameManager->MarkAsSent(CurrentFrame);
+				CurrentFrame.Reset();
+			}
+		}
+	}
 }
 

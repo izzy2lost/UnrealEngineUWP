@@ -126,6 +126,14 @@ UE::RivermaxCore::FRivermaxOutputStreamOptions URivermaxMediaCapture::GetOutputS
 	return Options;
 }
 
+void URivermaxMediaCapture::GetLastPresentedFrameInformation(UE::RivermaxCore::FPresentedFrameInfo& OutFrameInfo) const
+{
+	if (RivermaxStream)
+	{
+		RivermaxStream->GetLastPresentedFrame(OutFrameInfo);
+	}
+}
+
 bool URivermaxMediaCapture::ValidateMediaOutput() const
 {
 	URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaOutput);

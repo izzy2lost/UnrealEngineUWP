@@ -26,6 +26,9 @@ public:
 	/** Rivermax capture specific API to provide stream options access */
 	UE::RivermaxCore::FRivermaxOutputStreamOptions GetOutputStreamOptions() const;
 
+	/** Returns information about last presented frame on the output stream */
+	void GetLastPresentedFrameInformation(UE::RivermaxCore::FPresentedFrameInfo& OutFrameInfo) const;
+
 public:
 
 	//~ Begin UMediaCapture interface
