@@ -188,16 +188,6 @@ bool UWorldPartitionRuntimeHashSet::IsValidHLODLayer(FName GridName, const FSoft
 	return false;
 }
 
-TArray<UWorldPartitionRuntimeCell*> UWorldPartitionRuntimeHashSet::GetAlwaysLoadedCells() const
-{
-	TArray<UWorldPartitionRuntimeCell*> AlwaysLoadedCells;
-	ForEachStreamingData([&AlwaysLoadedCells](const FRuntimePartitionStreamingData& StreamingData)
-	{
-		AlwaysLoadedCells.Append(StreamingData.NonStreamingCells);
-	});
-	return AlwaysLoadedCells;
-}
-
 bool UWorldPartitionRuntimeHashSet::ParseGridName(FName GridName, TArray<FName>& MainPartitionTokens, TArray<FName>& HLODPartitionTokens)
 {
 	// If the grid name is none, it directly maps to the main partition
