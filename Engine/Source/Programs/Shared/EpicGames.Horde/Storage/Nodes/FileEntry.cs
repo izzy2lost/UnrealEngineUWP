@@ -169,7 +169,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					}
 				}
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
 				throw new Exception($"Unable to extract file {file.FullName}", ex);
 			}
