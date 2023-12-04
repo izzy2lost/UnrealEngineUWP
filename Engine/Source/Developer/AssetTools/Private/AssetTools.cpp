@@ -2245,6 +2245,7 @@ TMap<FString, FString> GenerateAdditionalAssetMappings(const TMap<FString, FStri
 		if (SrcPackageName != DstPackageName)
 		{
 			Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
+			Result.Add({ FString(SrcPackageName) + TEXT("_C"), FString(DstPackageName) + TEXT("_C") }); // catch compiled blueprint names
 		}
 	}
 
