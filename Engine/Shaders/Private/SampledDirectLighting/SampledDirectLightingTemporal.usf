@@ -3,6 +3,28 @@
 #include "../Common.ush"
 #include "SampledDirectLighting.ush"
 
+Texture2D ResolvedDiffuseLighting;
+Texture2D ResolvedSpecularLighting;
+Texture2D ResolvedLuminanceMoments;
+Texture2D SampledDirectLightingDepthHistory;
+Texture2D DiffuseLightingHistoryTexture;
+Texture2D SpecularLightingHistoryTexture;
+Texture2D LuminanceMomentsHistoryTexture;
+Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
+
+float4 HistoryScreenPositionScaleBias;
+float4 HistoryUVMinMax;
+float PrevSceneColorPreExposureCorrection;
+float TemporalMaxFramesAccumulated;
+float TemporalNeighborhoodClampScale;
+
+RWTexture2D<float4> RWDiffuseLighting;
+RWTexture2D<float4> RWSpecularLighting;
+RWTexture2D<float4> RWLuminanceMoments;
+RWTexture2D<UNORM float> RWNumFramesAccumulated;
+RWTexture2D<float> RWSceneDepth;
+RWTexture2D<float4> RWSceneColor;
+
 struct FNeighborhoodClamp
 {
 	float3 Min;
@@ -45,28 +67,6 @@ FNeighborhoodClamp GetNeighborhoodClamp(
 	NeighborhoodClamp.Max = M1 + TemporalNeighborhoodClampScale * StdDev;
 	return NeighborhoodClamp;
 }
-
-Texture2D ResolvedDiffuseLighting;
-Texture2D ResolvedSpecularLighting;
-Texture2D ResolvedLuminanceMoments;
-Texture2D SampledDirectLightingDepthHistory;
-Texture2D DiffuseLightingHistoryTexture;
-Texture2D SpecularLightingHistoryTexture;
-Texture2D LuminanceMomentsHistoryTexture;
-Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
-
-float4 HistoryScreenPositionScaleBias;
-float4 HistoryUVMinMax;
-float PrevSceneColorPreExposureCorrection;
-float TemporalMaxFramesAccumulated;
-float TemporalNeighborhoodClampScale;
-
-RWTexture2D<float4> RWDiffuseLighting;
-RWTexture2D<float4> RWSpecularLighting;
-RWTexture2D<float4> RWLuminanceMoments;
-RWTexture2D<UNORM float> RWNumFramesAccumulated;
-RWTexture2D<float> RWSceneDepth;
-RWTexture2D<float4> RWSceneColor;
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void SampledDirectLightingTemporalAccumulationCS(
