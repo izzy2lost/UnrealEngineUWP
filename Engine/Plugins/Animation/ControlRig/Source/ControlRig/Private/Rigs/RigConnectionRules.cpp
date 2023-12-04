@@ -92,32 +92,16 @@ bool FRigConnectionRuleStash::operator==(const FRigConnectionRuleStash& InOther)
 		ExportedText.Equals(InOther.ExportedText, ESearchCase::CaseSensitive);
 }
 
-void FRigConnectionRuleStash::AppendAdditionalConnectors(TArray<FRigElementKey>& OutConnectors) const
-{
-	TSharedPtr<FStructOnScope> Storage;
-	if(const FRigConnectionRule* Rule = Get(Storage))
-	{
-		TArray<FRigElementKey> AdditionalConnectors = Rule->GetAdditionalConnectors();
-		for(const FRigElementKey& AdditionalConnector : AdditionalConnectors)
-		{
-			OutConnectors.AddUnique(AdditionalConnector);
-		}
-	}
-}
-
 uint32 GetTypeHash(const FRigConnectionRuleStash& InRuleStash)
 {
 	return HashCombine(GetTypeHash(InRuleStash.ScriptStructPath), GetTypeHash(InRuleStash.ExportedText));
 }
 
+/*
+
 ////////////////////////////////////////////////////////////////////////////////
 // FRigConnectionRule
 ////////////////////////////////////////////////////////////////////////////////
-
-TArray<FRigElementKey> FRigConnectionRule::GetAdditionalConnectors() const
-{
-	return TArray<FRigElementKey>();
-}
 
 bool FRigConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
 {
@@ -178,16 +162,6 @@ bool FRigConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, 
 // FRigAndConnectionRule
 ////////////////////////////////////////////////////////////////////////////////
 
-TArray<FRigElementKey> FRigAndConnectionRule::GetAdditionalConnectors() const
-{
-	TArray<FRigElementKey> AdditionalConnectors;
-	for(const FRigConnectionRuleStash& ChildRule : ChildRules)
-	{
-		ChildRule.AppendAdditionalConnectors(AdditionalConnectors);
-	}
-	return AdditionalConnectors;
-}
-
 bool FRigAndConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
 {
 	if(!Super::CanConnect(InConnectionInfo, OutFailureReason))
@@ -213,16 +187,6 @@ bool FRigAndConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInf
 ////////////////////////////////////////////////////////////////////////////////
 // FRigOrConnectionRule
 ////////////////////////////////////////////////////////////////////////////////
-
-TArray<FRigElementKey> FRigOrConnectionRule::GetAdditionalConnectors() const
-{
-	TArray<FRigElementKey> AdditionalConnectors;
-	for(const FRigConnectionRuleStash& ChildRule : ChildRules)
-	{
-		ChildRule.AppendAdditionalConnectors(AdditionalConnectors);
-	}
-	return AdditionalConnectors;
-}
 
 bool FRigOrConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
 {
@@ -300,11 +264,6 @@ bool FRigTagConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInf
 ////////////////////////////////////////////////////////////////////////////////
 // FRigChainConnectionRule
 ////////////////////////////////////////////////////////////////////////////////
-
-TArray<FRigElementKey> FRigChainConnectionRule::GetAdditionalConnectors() const
-{
-	return {RootConnector};
-}
 
 bool FRigChainConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const
 {
@@ -390,4 +349,4 @@ bool FRigChainConnectionRule::CanConnect(const FRigConnectionInfo* InConnectionI
 	return true;
 }
 
-
+*/

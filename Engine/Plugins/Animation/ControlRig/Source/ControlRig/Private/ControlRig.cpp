@@ -699,13 +699,6 @@ bool UControlRig::AllConnectorsAreResolved(FString* OutFailureReason, FRigElemen
 				return false;
 			}
 		}
-
-		// now that we have the connection try if we can connect this way
-		const FRigConnectionInfo ConnectionInfo(ConnectionMap, Hierarchy, Hierarchy);
-		if(!Hierarchy->CanConnect(&ConnectionInfo, OutFailureReason, OutConnector))
-		{
-			return false;
-		}
 	}
 	return true;
 }

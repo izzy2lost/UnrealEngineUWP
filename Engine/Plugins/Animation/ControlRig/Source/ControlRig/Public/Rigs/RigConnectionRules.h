@@ -18,8 +18,6 @@ struct CONTROLRIG_API FRigConnectionRuleStash
 	FRigConnectionRuleStash();
 	FRigConnectionRuleStash(const FRigConnectionRule* InRule);
 
-	// todo: copy content from FRigVMActionKey
-
 	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);
 	
@@ -36,8 +34,6 @@ struct CONTROLRIG_API FRigConnectionRuleStash
 	{
 		return !(*this == InOther);
 	}
-
-	void AppendAdditionalConnectors(TArray<FRigElementKey>& OutConnectors) const;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Rule)
 	FString ScriptStructPath;
@@ -57,16 +53,6 @@ public:
 	virtual ~FRigConnectionRule() {}
 
 	virtual UScriptStruct* GetScriptStruct() const { return FRigConnectionRule::StaticStruct(); }
-
-	/** If the rule requires additional connectors for validation return them here */
-	virtual TArray<FRigElementKey> GetAdditionalConnectors() const;
-
-	/**
-	 * Validate if the rule permits the link.
-	 * Provided are the connectors keys and their hierarchy,
-	 * as well as the desired target keys and their hierarchy.
-	 */
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const;
 };
 
 USTRUCT(BlueprintType, DisplayName="And Rule")
@@ -89,9 +75,6 @@ public:
 	virtual ~FRigAndConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigAndConnectionRule::StaticStruct(); }
-	virtual TArray<FRigElementKey> GetAdditionalConnectors() const override;
-
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	TArray<FRigConnectionRuleStash> ChildRules;
@@ -117,9 +100,6 @@ public:
 	virtual ~FRigOrConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigOrConnectionRule::StaticStruct(); }
-	virtual TArray<FRigElementKey> GetAdditionalConnectors() const override;
-
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	TArray<FRigConnectionRuleStash> ChildRules;
@@ -144,8 +124,6 @@ public:
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigTypeConnectionRule::StaticStruct(); }
 
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	ERigElementType ElementType;
 };
@@ -168,8 +146,6 @@ public:
 	virtual ~FRigTagConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigTagConnectionRule::StaticStruct(); }
-
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	FName Tag;
@@ -198,8 +174,6 @@ public:
 	virtual ~FRigChainConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigChainConnectionRule::StaticStruct(); }
-	virtual TArray<FRigElementKey> GetAdditionalConnectors() const override;
-	virtual bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	FRigElementKey RootConnector;

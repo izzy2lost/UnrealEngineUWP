@@ -1751,8 +1751,6 @@ struct CONTROLRIG_API FRigConnectorElement final : public FRigBaseElement
 	virtual void Save(FArchive& A, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
-	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason) const;
-
 	FRigConnectorState GetConnectorState(const URigHierarchy* InHierarchy) const;
 
 private:

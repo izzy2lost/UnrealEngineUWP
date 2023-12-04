@@ -126,12 +126,6 @@ FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 	return *Cur;
 }
 
-bool UModularRigController::CanConnectConnectorToElement(const FRigModuleConnector& InConnector, const FRigElementKey& InTargetKey, FText& OutErrorMessage)
-{
-	// TODO: Check rules are satisfied
-	return true;
-}
-
 bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
 {
 	FString ConnectorParentPath, ConnectorName;
@@ -166,6 +160,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 		return false;
 	}
 
+	/*
 	FText ErrorMessage;
 	if (!CanConnectConnectorToElement(*ModuleConnector, InTargetKey, ErrorMessage))
 	{
@@ -173,6 +168,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 			*InConnectorKey.Name.ToString(), *InTargetKey.ToString(), *ErrorMessage.ToString());
 		return false;
 	}
+	*/
 
 	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
 	const IRigHierarchyProvider* HierarchyProvider = CastChecked<IRigHierarchyProvider>(Blueprint);

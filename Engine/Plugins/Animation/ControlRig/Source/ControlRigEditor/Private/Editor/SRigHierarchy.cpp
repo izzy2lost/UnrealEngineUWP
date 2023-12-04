@@ -2697,6 +2697,8 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					{
 						TargetKey = TargetItem->Key;
 					}
+
+					/*
 					FText ErrorMessage;
 					if (Controller->CanConnectConnectorToElement(*PrimaryConnector, TargetKey, ErrorMessage))
 					{
@@ -2706,6 +2708,8 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					{
 						return InvalidDropZone;
 					}
+					*/
+					ReturnDropZone = DropZone;
 				}
 			}
 		}

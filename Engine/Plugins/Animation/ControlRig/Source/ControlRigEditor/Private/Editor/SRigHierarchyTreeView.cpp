@@ -929,6 +929,7 @@ void SRigHierarchyTreeView::AddConnectorResolveWarningTag(TSharedPtr<FRigTreeEle
 FText SRigHierarchyTreeView::GetConnectorWarningMessage(TSharedPtr<FRigTreeElement> InTreeElement,
 	TWeakObjectPtr<UControlRig> InControlRigPtr, const FRigElementKey InConnectorKey) const
 {
+	/*
 	if(UControlRig* ControlRig = InControlRigPtr.Get())
 	{
 		URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
@@ -960,6 +961,7 @@ FText SRigHierarchyTreeView::GetConnectorWarningMessage(TSharedPtr<FRigTreeEleme
 			return NotResolvedWarning;
 		}
 	}
+	*/
 	return FText();
 }
 

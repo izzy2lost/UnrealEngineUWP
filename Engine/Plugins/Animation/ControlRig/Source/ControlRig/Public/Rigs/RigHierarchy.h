@@ -3328,17 +3328,6 @@ public:
 	void Traverse(TFunction<void(FRigBaseElement*, bool& /* continue */)> PerElementFunction, bool bTowardsChildren = true) const;
 
 	/**
-	 * Returns true if a hierarchy can be linked into another hierarchy. This relies on Connector elements
-	 * as the relevant landmarks providing rules for validation.
-	 */
-	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Can Link", ScriptName = "CanConnect"))
-	bool CanConnect_ForBlueprint(FRigConnectionInfo InConnectionInfo) const
-	{
-		return CanConnect(&InConnectionInfo);
-	}
-	bool CanConnect(const FRigConnectionInfo* InConnectionInfo, FString* OutFailureReason = nullptr, FRigElementKey* OutConnector = nullptr) const;
-
-	/**
 	 * Returns the currently resolved target for given connector key
 	 */
 	const FRigElementKey& GetResolvedTarget(const FRigElementKey& InConnectorKey) const;
