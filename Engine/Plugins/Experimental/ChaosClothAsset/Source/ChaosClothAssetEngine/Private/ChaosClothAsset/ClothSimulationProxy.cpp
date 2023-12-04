@@ -265,10 +265,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Update particle counts (could have changed if lod changed)
 		NumKinematicParticles = 0;
 		NumDynamicParticles = 0;
+		int32 FirstActiveClothParticleRangeId = INDEX_NONE;
 		for (const TUniquePtr<FClothingSimulationCloth>& Cloth : Cloths)
 		{
 			NumKinematicParticles += Cloth->GetNumActiveKinematicParticles();
 			NumDynamicParticles += Cloth->GetNumActiveDynamicParticles();
+			if (FirstActiveClothParticleRangeId == INDEX_NONE && Cloth->GetNumActiveDynamicParticles() > 0)
+			{
+				FirstActiveClothParticleRangeId = Cloth->GetParticleRangeId(Solver.Get ());
+			}
+		}
+		if (FirstActiveClothParticleRangeId != INDEX_NONE)
+		{
+			LastLinearSolveError = Solver->GetLinearSolverError(FirstActiveClothParticleRangeId);
+			LastLinearSolveIterations = Solver->GetNumLinearSolverIterations(FirstActiveClothParticleRangeId);
+		}
+		else
+		{
+			LastLinearSolveError = 0.f;
+			LastLinearSolveIterations = 0;
 		}
 
 		// Visualization

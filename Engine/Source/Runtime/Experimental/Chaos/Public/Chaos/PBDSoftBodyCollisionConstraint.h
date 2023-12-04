@@ -31,6 +31,7 @@ public:
 		FSolverReal InCollisionThickness,
 		FSolverReal InFrictionCoefficient,
 		bool bInUseCCD,
+		FSolverReal InProximityStiffness,
 		TArray<bool>* InCollisionParticleCollided = nullptr,
 		TArray<FSolverVec3>* InContacts = nullptr,
 		TArray<FSolverVec3>* InNormals = nullptr,
@@ -40,6 +41,7 @@ public:
 		, CollisionThickness(InCollisionThickness)
 		, FrictionCoefficient(InFrictionCoefficient)
 		, bUseCCD(bInUseCCD)
+		, ProximityStiffness(InProximityStiffness)
 		, CollisionParticleCollided(InCollisionParticleCollided)
 		, Contacts(InContacts)
 		, Normals(InNormals)
@@ -50,12 +52,13 @@ public:
 
 	CHAOS_API void Apply(FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles) const;
 
+	CHAOS_API void UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles, FEvolutionLinearSystem& LinearSystem) const;
+
 private:
 	template<bool bLockAndWriteContacts, bool bWithFriction>
 	void ApplyInternal(FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles) const;
 	template<bool bLockAndWriteContacts, bool bWithFriction>
 	void ApplyInternalCCD(FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles) const;
-
 	template<bool bWithFriction>
 	void ApplyInternalISPC(FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles) const;
 
@@ -64,6 +67,7 @@ protected:
 	FSolverReal CollisionThickness;
 	FSolverReal FrictionCoefficient;
 	bool bUseCCD;
+	FSolverReal ProximityStiffness; // Used by force-based solver
 
 	/**  Used for writing debug contacts */
 	bool bWriteDebugContacts = false;
@@ -83,6 +87,7 @@ class FPBDSoftBodyCollisionConstraint : public FPBDSoftBodyCollisionConstraintBa
 public:
 	static constexpr FSolverReal DefaultCollisionThickness = (FSolverReal)1.;
 	static constexpr FSolverReal DefaultFrictionCoefficient = (FSolverReal)0.8;
+	static constexpr FSolverReal DefaultProximityStiffness = (FSolverReal)100.;
 
 	FPBDSoftBodyCollisionConstraint(
 		const TArray<FSolverRigidTransform3>& InLastCollisionTransforms,
@@ -96,11 +101,13 @@ public:
 			InMeshScale * GetCollisionThickness(PropertyCollection, DefaultCollisionThickness),
 			GetFrictionCoefficient(PropertyCollection, DefaultFrictionCoefficient),
 			GetUseCCD(PropertyCollection, false),
+			GetProximityStiffness(PropertyCollection, DefaultProximityStiffness),
 			InCollisionParticleCollided, InContacts, InNormals, InPhis)
 		, MeshScale(InMeshScale)
 		, CollisionThicknessIndex(PropertyCollection)
 		, FrictionCoefficientIndex(PropertyCollection)
 		, UseCCDIndex(PropertyCollection)
+		, ProximityStiffnessIndex(PropertyCollection)
 	{}
 
 	CHAOS_API void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection);
@@ -110,6 +117,7 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(CollisionThickness, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(FrictionCoefficient, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseCCD, bool);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(ProximityStiffness, float);
 };
 
 }  // End namespace Chaos::Softs

@@ -494,8 +494,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }  // End namespace Chaos
 
-// Use this macro to add shorthands for property getters and direct access through the declared key index
-#define UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
+// Use this macro to add shorthands for property getters without a key index
+#define UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
 	inline static const FName PropertyName##Name = TEXT(#PropertyName); \
 	UE_DEPRECATED(5.3, "PropertyName##String is to be removed as to not be confused with GetPropertyName##String().") \
 	static FString PropertyName##String() { return PropertyName##Name.ToString(); } \
@@ -537,7 +537,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 PRAGMA_DISABLE_DEPRECATION_WARNINGS \
 	return PropertyCollection.GetFlags(PropertyName##Name.ToString(), Default); \
 PRAGMA_ENABLE_DEPRECATION_WARNINGS \
-	} \
+	}
+
+// Use this macro to add shorthands for property getters and direct access through the declared key index
+#define UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(PropertyName, Type) \
 	Type GetLow##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection) const \
 	{ \
 		checkSlow(PropertyName##Index == PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())); \
@@ -621,3 +625,4 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 		explicit F##PropertyName##Index(const FCollectionPropertyConstFacade& PropertyCollection) : Index(PropertyCollection.GetKeyIndex(PropertyName##Name.ToString())) {} \
 		operator int32() const { return Index; } \
 	} PropertyName##Index;
+

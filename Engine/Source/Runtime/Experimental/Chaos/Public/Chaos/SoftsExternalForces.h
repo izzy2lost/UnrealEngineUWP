@@ -3,6 +3,7 @@
 
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsEvolutionLinearSystem.h"
 #include "Chaos/SoftsSolverParticlesRange.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
@@ -58,6 +59,45 @@ public:
 						Acceleration[Index] += VelocityDelta * ScaleFactor;
 					}
 				}
+			}
+		}
+	}
+
+	void UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, FEvolutionLinearSystem& LinearSystem) const
+	{
+		const FSolverReal* const InvM = Particles.GetInvM().GetData();
+		const FSolverReal* const M = Particles.GetM().GetData();
+		const FSolverVec3* const X = Particles.XArray().GetData();
+		const FSolverVec3* const V = Particles.GetV().GetData();
+		const FSolverVec3* const N = Particles.GetConstArrayView(Normals).GetData();
+
+		const bool bHasFictitiousForces = !FictitiousAngularDisplacement.IsNearlyZero();
+		const FSolverVec3 W = FictitiousAngularDisplacement / Dt;
+
+		for (int32 Index = 0; Index < Particles.GetRangeSize(); ++Index)
+		{
+			if (InvM[Index] != (FSolverReal)0.)
+			{
+				FSolverVec3 Force = Gravity * M[Index];
+
+				if (bHasFictitiousForces)
+				{
+					// Centrifugal force (*InvM to get acceleration)
+					Force -= FSolverVec3::CrossProduct(W, FSolverVec3::CrossProduct(W, X[Index] - ReferenceSpaceLocation)) * M[Index];
+				}
+				if (bUsePointBasedWindModel)
+				{
+					const FSolverVec3 VelocityDelta = PointBasedWind - V[Index];
+					FSolverVec3 Direction = VelocityDelta;
+					if (Direction.Normalize())
+					{
+						// Scale by angle
+						const FReal DirectionDot = FVec3::DotProduct(Direction, N[Index]);
+						const FReal ScaleFactor = FMath::Min(1.f, FMath::Abs(DirectionDot) * LegacyWindAdaptation);
+						Force += VelocityDelta * ScaleFactor * M[Index];
+					}
+				}
+				LinearSystem.AddForce(Particles, Force, Index, Dt);
 			}
 		}
 	}

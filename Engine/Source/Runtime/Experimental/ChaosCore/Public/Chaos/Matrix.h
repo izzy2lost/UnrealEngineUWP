@@ -795,6 +795,20 @@ namespace Chaos
 				&& (FMath::Abs(Other.M[2][2] - M[2][2]) <= Tolerance);
 		}
 
+		// M[i][j] = x[i] * y[j]
+		static PMatrix<FRealDouble, 3, 3> OuterProduct(const TVector<FRealDouble, 3>& X, const TVector<FRealDouble, 3>& Y)
+		{
+			return PMatrix<FRealDouble, 3, 3>(
+				X[0] * Y[0],
+				X[1] * Y[0],
+				X[2] * Y[0],
+				X[0] * Y[1],
+				X[1] * Y[1],
+				X[2] * Y[1],
+				X[0] * Y[2],
+				X[1] * Y[2],
+				X[2] * Y[2]);
+		}
 
 		static const PMatrix<FRealDouble, 3, 3> Zero;
 		static const PMatrix<FRealDouble, 3, 3> Identity;
@@ -1220,6 +1234,21 @@ namespace Chaos
 				&& (FMath::Abs(Other.M[2][0] - M[2][0]) <= Tolerance)
 				&& (FMath::Abs(Other.M[2][1] - M[2][1]) <= Tolerance)
 				&& (FMath::Abs(Other.M[2][2] - M[2][2]) <= Tolerance);
+		}
+
+		// M[i][j] = x[i] * y[j]
+		static PMatrix<FRealSingle, 3, 3> OuterProduct(const TVector<FRealSingle, 3>& X, const TVector<FRealSingle, 3>& Y)
+		{
+			return PMatrix<FRealSingle, 3, 3>(
+				X[0] * Y[0],
+				X[1] * Y[0],
+				X[2] * Y[0],
+				X[0] * Y[1],
+				X[1] * Y[1],
+				X[2] * Y[1],
+				X[0] * Y[2],
+				X[1] * Y[2],
+				X[2] * Y[2]);
 		}
 
 

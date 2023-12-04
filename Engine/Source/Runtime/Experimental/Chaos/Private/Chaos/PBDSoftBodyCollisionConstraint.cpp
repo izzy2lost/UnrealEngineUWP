@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Chaos/PBDSoftBodyCollisionConstraint.h"
-#include "Chaos/WeightedLatticeImplicitObject.h"
 #include "Chaos/Levelset.h"
+#include "Chaos/SoftsEvolutionLinearSystem.h"
+#include "Chaos/WeightedLatticeImplicitObject.h"
 #include "ChaosStats.h"
 #include "HAL/IConsoleManager.h"
 #include "Chaos/Framework/Parallel.h"
@@ -302,7 +303,7 @@ void FPBDSoftBodyCollisionConstraintBase::ApplyInternal(FSolverParticlesRange& P
 					FWeightedLatticeImplicitObject::FEmbeddingCoordinate SurfaceCoord;
 					Phi = (FSolverReal)LevelSet->PhiWithNormalAndSurfacePoint(RigidSpacePosition, ImplicitNormal, SurfaceCoord);
 					Penetration = CollisionThickness - Phi; // This is related to the Normal impulse
-					if (Penetration > (FSolverReal)0.)
+					if (bWithFriction && Penetration > (FSolverReal)0.)
 					{
 						const int32 StrongestBone = SurfaceCoord.GreatestInfluenceBone(LevelSet->GetBoneData());
 						if (StrongestBone != INDEX_NONE)
@@ -403,44 +404,47 @@ void FPBDSoftBodyCollisionConstraintBase::ApplyInternalCCD(FSolverParticlesRange
 					const FSolverReal Penetration = FMath::Max((FSolverReal)0., FSolverVec3::DotProduct(NormalWorld, Direction)) + (FSolverReal)UE_THRESH_POINT_ON_PLANE;
 
 					PAndInvM[Index].P += Penetration * NormalWorld;
-
-					// Friction
-					int32 VelocityBone = CollisionIndex;
-					if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticlesRange.GetGeometry(CollisionIndex)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
+					
+					if constexpr (bWithFriction)
 					{
-						TArray<FWeightedLatticeImplicitObject::FEmbeddingCoordinate> Coordinates;
-						LevelSet->GetEmbeddingCoordinates(PointPair.First, Coordinates, false);
-						int32 ClosestCoordIndex = INDEX_NONE;
-						double ClosestCoordPhi = UE_BIG_NUMBER;
-						for (int32 CoordIndex = 0; CoordIndex < Coordinates.Num(); ++CoordIndex)
+						// Friction
+						int32 VelocityBone = CollisionIndex;
+						if (const TWeightedLatticeImplicitObject<FLevelSet>* LevelSet = CollisionParticlesRange.GetGeometry(CollisionIndex)->GetObject< TWeightedLatticeImplicitObject<FLevelSet> >())
 						{
-							FVec3 NormalUnused;
-							const double CoordPhi = FMath::Abs(LevelSet->GetEmbeddedObject()->PhiWithNormal(Coordinates[CoordIndex].UndeformedPosition(LevelSet->GetGrid()), NormalUnused));
-							if (CoordPhi < ClosestCoordPhi)
+							TArray<FWeightedLatticeImplicitObject::FEmbeddingCoordinate> Coordinates;
+							LevelSet->GetEmbeddingCoordinates(PointPair.First, Coordinates, false);
+							int32 ClosestCoordIndex = INDEX_NONE;
+							double ClosestCoordPhi = UE_BIG_NUMBER;
+							for (int32 CoordIndex = 0; CoordIndex < Coordinates.Num(); ++CoordIndex)
 							{
-								ClosestCoordIndex = CoordIndex;
-								ClosestCoordPhi = CoordPhi;
+								FVec3 NormalUnused;
+								const double CoordPhi = FMath::Abs(LevelSet->GetEmbeddedObject()->PhiWithNormal(Coordinates[CoordIndex].UndeformedPosition(LevelSet->GetGrid()), NormalUnused));
+								if (CoordPhi < ClosestCoordPhi)
+								{
+									ClosestCoordIndex = CoordIndex;
+									ClosestCoordPhi = CoordPhi;
+								}
+							}
+							if (ClosestCoordIndex != INDEX_NONE)
+							{
+								const int32 StrongestBone = Coordinates[ClosestCoordIndex].GreatestInfluenceBone(LevelSet->GetBoneData());
+								if (StrongestBone != INDEX_NONE)
+								{
+									VelocityBone = LevelSet->GetSolverBoneIndices()[StrongestBone];
+								}
 							}
 						}
-						if (ClosestCoordIndex != INDEX_NONE)
-						{
-							const int32 StrongestBone = Coordinates[ClosestCoordIndex].GreatestInfluenceBone(LevelSet->GetBoneData());
-							if (StrongestBone != INDEX_NONE)
-							{
-								VelocityBone = LevelSet->GetSolverBoneIndices()[StrongestBone];
-							}
-						}
-					}
 
-					const FSolverVec3 VectorToPoint = PAndInvM[Index].P - CollisionParticlesRange.X(VelocityBone);
-					const FSolverVec3 RelativeDisplacement = (PAndInvM[Index].P - X[Index]) - (CollisionParticlesRange.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticlesRange.W(VelocityBone), VectorToPoint)) * Dt;  // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
-					const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - FSolverVec3::DotProduct(RelativeDisplacement, NormalWorld) * NormalWorld;  // Project displacement into the tangential plane
-					const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Size();
-					if (RelativeDisplacementTangentLength >= UE_SMALL_NUMBER)
-					{
-						const FSolverReal PositionCorrection = FMath::Min<FSolverReal>(Penetration * FrictionCoefficient, RelativeDisplacementTangentLength);
-						const FSolverReal CorrectionRatio = PositionCorrection / RelativeDisplacementTangentLength;
-						PAndInvM[Index].P -= CorrectionRatio * RelativeDisplacementTangent;
+						const FSolverVec3 VectorToPoint = PAndInvM[Index].P - CollisionParticlesRange.X(VelocityBone);
+						const FSolverVec3 RelativeDisplacement = (PAndInvM[Index].P - X[Index]) - (CollisionParticlesRange.V(VelocityBone) + FSolverVec3::CrossProduct(CollisionParticlesRange.W(VelocityBone), VectorToPoint)) * Dt;  // This corresponds to the tangential velocity multiplied by dt (friction will drive this to zero if it is high enough)
+						const FSolverVec3 RelativeDisplacementTangent = RelativeDisplacement - FSolverVec3::DotProduct(RelativeDisplacement, NormalWorld) * NormalWorld;  // Project displacement into the tangential plane
+						const FSolverReal RelativeDisplacementTangentLength = RelativeDisplacementTangent.Size();
+						if (RelativeDisplacementTangentLength >= UE_SMALL_NUMBER)
+						{
+							const FSolverReal PositionCorrection = FMath::Min<FSolverReal>(Penetration * FrictionCoefficient, RelativeDisplacementTangentLength);
+							const FSolverReal CorrectionRatio = PositionCorrection / RelativeDisplacementTangentLength;
+							PAndInvM[Index].P -= CorrectionRatio * RelativeDisplacementTangent;
+						}
 					}
 				}
 			}
@@ -507,6 +511,73 @@ void FPBDSoftBodyCollisionConstraintBase::ApplyInternalISPC(FSolverParticlesRang
 #endif  // #if INTEL_ISPC
 }
 
+void FPBDSoftBodyCollisionConstraintBase::UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, const TArray<FSolverCollisionParticlesRange>& CollisionParticles, FEvolutionLinearSystem& LinearSystem) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPBDSoftBodyCollisionConstraint_UpdateLinearSystem);
+
+	if (CollisionParticles.IsEmpty() || ProximityStiffness == (FSolverReal)0.f)
+	{
+		return;
+	}
+
+	// Just going to allocate enough space for all possible collisions. 
+	LinearSystem.ReserveForParallelAdd(Particles.GetRangeSize(), 0);
+
+	// Just proximity forces for now
+	const FPAndInvM* const PAndInvM = Particles.GetPAndInvM().GetData();
+	const FSolverReal ClampedFriction = FMath::Clamp(FrictionCoefficient, (FSolverReal)0., (FSolverReal)1.);
+	PhysicsParallelFor(Particles.GetRangeSize(), [this, Dt, ClampedFriction, &Particles, &PAndInvM, &CollisionParticles, &LinearSystem](int32 Index)
+	{
+		if (PAndInvM[Index].InvM == (FSolverReal)0.)
+		{
+			return;
+		}
+
+		bool bAddForce = false;
+		FSolverVec3 Force(0.f);
+		FSolverMatrix33 DfDx(0.f);
+		for (const FSolverCollisionParticlesRange& CollisionParticlesRange : CollisionParticles)
+		{
+			for (int32 CollisionIndex = 0; CollisionIndex < CollisionParticlesRange.GetRangeSize(); ++CollisionIndex)
+			{
+				if (CollisionParticlesRange.GetGeometry(CollisionIndex)->GetType() == Chaos::ImplicitObjectType::WeightedLatticeBone)
+				{
+					continue;
+				}
+
+				const FSolverRigidTransform3 Frame(CollisionParticlesRange.X(CollisionIndex), CollisionParticlesRange.R(CollisionIndex));
+				const FVec3 RigidSpacePosition(Frame.InverseTransformPosition(PAndInvM[Index].P));  // PhiWithNormal requires FReal based arguments
+				FVec3 ImplicitNormal;                                                                // since implicits don't use FSolverReal
+				const FSolverReal Phi = (FSolverReal)CollisionParticlesRange.GetGeometry(CollisionIndex)->PhiWithNormal(RigidSpacePosition, ImplicitNormal);
+				const FSolverReal Penetration = CollisionThickness - Phi; // This is related to the Normal impulse
+				const FSolverVec3 Normal(ImplicitNormal);
+
+				if (Penetration > (FSolverReal)0.)
+				{
+					bAddForce = true;
+
+					const FSolverVec3 NormalWorld = Frame.TransformVector(Normal);
+
+					// Repulsion force
+					Force += ProximityStiffness * Penetration * NormalWorld;
+
+					// Blend between a zero-length spring (stiction) and repulsion force based on friction
+					// DfDx = -ProximityStiffness * ((1-FrictionCoefficient)*OuterProduct(N,N) + FrictionCoefficient * Identity)
+					// Nothing here to match velocities... not sure if it's necessary, but this is a very stable force at least unlike any velocity-based thing.
+
+					DfDx += -ProximityStiffness * (((FSolverReal)1. - ClampedFriction) * FSolverMatrix33::OuterProduct(NormalWorld, NormalWorld) + FSolverMatrix33(ClampedFriction, ClampedFriction, ClampedFriction));
+				}
+			}
+		}
+
+		if (bAddForce)
+		{
+			LinearSystem.AddForce(Particles, Force, Index, Dt);
+			LinearSystem.AddSymmetricForceDerivative(Particles, &DfDx, nullptr, Index, Index, Dt);
+		}
+	});
+}
+
 void FPBDSoftBodyCollisionConstraint::SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
 {
 	if (IsCollisionThicknessMutable(PropertyCollection))
@@ -520,6 +591,10 @@ void FPBDSoftBodyCollisionConstraint::SetProperties(const FCollectionPropertyCon
 	if (IsUseCCDMutable(PropertyCollection))
 	{
 		bUseCCD = GetUseCCD(PropertyCollection);
+	}
+	if (IsProximityStiffnessMutable(PropertyCollection))
+	{
+		ProximityStiffness = GetProximityStiffness(PropertyCollection);
 	}
 }
 

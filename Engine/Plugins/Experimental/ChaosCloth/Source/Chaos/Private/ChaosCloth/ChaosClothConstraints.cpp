@@ -124,6 +124,8 @@ FClothConstraints::FClothConstraints()
 	, NumExternalForceRules(0)
 	, NumPreSubstepConstraintRules(0)
 	, NumCollisionConstraintRules(0)
+	, NumUpdateLinearSystemRules(0)
+	, NumUpdateLinearSystemCollisionsRules(0)
 
 	, OldAnimationPositions_Deprecated(nullptr)
 	, ConstraintInitOffset(INDEX_NONE)
@@ -559,7 +561,6 @@ void FClothConstraints::CreateGSRules()
 	}
 
 #endif
-
 }
 
 void FClothConstraints::AddRules(
@@ -664,6 +665,7 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			NumParticles,
 			TriangleMesh,
 			ConfigProperties);
+		++NumConstraintInits;
 
 		SelfCollisionConstraints = MakeShared<Softs::FPBDCollisionSpringConstraints>(
 			ParticleOffset,
@@ -672,23 +674,23 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			AnimationPositions,
 			MoveTemp(DisabledCollisionElements),
 			ConfigProperties);
-
-		++NumConstraintInits;
 		++NumPostCollisionConstraintRules;
 
 		SelfIntersectionConstraints = MakeShared<Softs::FPBDTriangleMeshIntersections>(
 			ParticleOffset,
 			NumParticles,
 			TriangleMesh);
+		++NumPostprocessingConstraintRules;
+
 		if (Evolution)
 		{
-			++NumPreSubstepConstraintRules;
+			++NumPreSubstepConstraintRules; // Contour minimization
+			++NumUpdateLinearSystemRules;
 		}
 		else
 		{
-			++NumConstraintInits;
+			++NumConstraintInits; // Contour minimization
 		}
-		++NumPostprocessingConstraintRules;
 	}
 	else if (Softs::FPBDSelfCollisionSphereConstraints::IsEnabled(ConfigProperties))
 	{
@@ -746,6 +748,7 @@ void FClothConstraints::CreateStretchConstraints(
 				WeightMaps,
 				ConfigProperties,
 				/*bTrimKinematicConstraints =*/ true);
+			++NumUpdateLinearSystemRules;
 		}
 		else
 		{
@@ -759,7 +762,7 @@ void FClothConstraints::CreateStretchConstraints(
 				/*bTrimKinematicConstraints =*/ true);
 		}
 
-		++NumConstraintInits;  // Uses init to update the property tables
+		++NumConstraintInits;
 		++NumConstraintRules;
 	}
 	else if (Softs::FPBDEdgeSpringConstraints::IsEnabled(ConfigProperties))
@@ -889,6 +892,7 @@ void FClothConstraints::CreateBendingConstraints(
 				WeightMaps,
 				ConfigProperties,
 				/*bTrimKinematicConstraints =*/ true);
+			++NumUpdateLinearSystemRules;
 		}
 		else
 		{
@@ -901,7 +905,7 @@ void FClothConstraints::CreateBendingConstraints(
 				/*bTrimKinematicConstraints =*/ true);
 		}
 
-		++NumConstraintInits;  // Uses init to update the property tables
+		++NumConstraintInits;
 		++NumConstraintRules;
 	}
 	else if (Softs::FPBDBendingSpringConstraints::IsEnabled(ConfigProperties))
@@ -962,7 +966,7 @@ void FClothConstraints::CreateAreaConstraints(
 				/*bTrimKinematicConstraints =*/ true);
 		}
 
-		++NumConstraintInits;  // Uses init to update the property tables
+		++NumConstraintInits;
 		++NumConstraintRules;
 	}
 	else if (Softs::FPBDAreaSpringConstraints::IsEnabled(ConfigProperties))
@@ -1146,6 +1150,7 @@ void FClothConstraints::CreateExternalForces(
 			);
 
 		++NumExternalForceRules;
+		++NumUpdateLinearSystemRules;
 	}
 }
 
@@ -1167,44 +1172,53 @@ void FClothConstraints::CreateCollisionConstraint(
 			CollisionPhis
 			);
 		++NumCollisionConstraintRules;
+		++NumUpdateLinearSystemCollisionsRules;
 	}
 }
 
 void FClothConstraints::CreateForceBasedRules()
 {
 	Evolution->AllocatePreSubstepParallelInitRange(ParticleRangeId, NumPreSubstepInits);
-	Evolution->AllocateExternalForceRulesRange(ParticleRangeId, NumExternalForceRules);
-	Evolution->AllocateConstraintParallelInitsRange(ParticleRangeId, NumConstraintInits);
+	Evolution->AllocatePBDExternalForceRulesRange(ParticleRangeId, NumExternalForceRules);
+	Evolution->AllocatePostInitialGuessParallelInitRange(ParticleRangeId, NumConstraintInits);
 	Evolution->AllocatePreSubstepConstraintRulesRange(ParticleRangeId, NumPreSubstepConstraintRules);
-	Evolution->AllocatePerIterationConstraintRulesRange(ParticleRangeId, NumConstraintRules);
-	Evolution->AllocatePerIterationCollisionConstraintRulesRange(ParticleRangeId, NumCollisionConstraintRules);
-	Evolution->AllocatePerIterationPostCollisionsConstraintRulesRange(ParticleRangeId, NumPostCollisionConstraintRules);
+	Evolution->AllocatePerIterationPBDConstraintRulesRange(ParticleRangeId, NumConstraintRules);
+	Evolution->AllocatePerIterationCollisionPBDConstraintRulesRange(ParticleRangeId, NumCollisionConstraintRules);
+	Evolution->AllocatePerIterationPostCollisionsPBDConstraintRulesRange(ParticleRangeId, NumPostCollisionConstraintRules);
+	Evolution->AllocateUpdateLinearSystemRulesRange(ParticleRangeId, NumUpdateLinearSystemRules);
+	Evolution->AllocateUpdateLinearSystemCollisionsRulesRange(ParticleRangeId, NumUpdateLinearSystemCollisionsRules);
 	Evolution->AllocatePostSubstepConstraintRulesRange(ParticleRangeId, NumPostprocessingConstraintRules);
 
-	TArrayView<Softs::FEvolution::PreSubstepParallelInitFunc> PreSubstepParallelInits =
+	TArrayView<Softs::FEvolution::ParallelInitFunc> PreSubstepParallelInits =
 		Evolution->GetPreSubstepParallelInitRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ExternalForceRuleFunc> ExternalForceRules =
-		Evolution->GetExternalForceRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ConstraintParallelInitFunc> ConstraintParallelInits =
-		Evolution->GetConstraintParallelInitsRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> ExternalForceRules =
+		Evolution->GetPBDExternalForceRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::ParallelInitFunc> PostInitialGuessParallelInits =
+		Evolution->GetPostInitialGuessParallelInitRange(ParticleRangeId);
 	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PreSubstepConstraintRules =
 		Evolution->GetPreSubstepConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PerIterationConstraintRules =
-		Evolution->GetPerIterationConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::CollisionConstraintRuleFunc> PerIterationCollisionConstraintRules =
-		Evolution->GetPerIterationCollisionConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PerIterationPostCollisionsConstraintRules =
-		Evolution->GetPerIterationPostCollisionsConstraintRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationConstraintRules =
+		Evolution->GetPerIterationPBDConstraintRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::PBDCollisionConstraintRuleFunc> PerIterationCollisionConstraintRules =
+		Evolution->GetPerIterationCollisionPBDConstraintRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationPostCollisionsConstraintRules =
+		Evolution->GetPerIterationPostCollisionsPBDConstraintRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::UpdateLinearSystemFunc> UpdateLinearSystemRules =
+		Evolution->GetUpdateLinearSystemRulesRange(ParticleRangeId);
+	TArrayView<Softs::FEvolution::UpdateLinearSystemCollisionsFunc> UpdateLinearSystemCollisionsRules =
+		Evolution->GetUpdateLinearSystemCollisionsRulesRange(ParticleRangeId);
 	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PostSubstepConstraintRules =
 		Evolution->GetPostSubstepConstraintRulesRange(ParticleRangeId);
 
 	int32 PreSubstepInitsIndex = 0;
 	int32 ExternalForceRulesIndex = 0;
-	int32 ConstraintInitsIndex = 0;
+	int32 PostInitialGuessInitsIndex = 0;
 	int32 PreSubstepConstraintRulesIndex = 0;
 	int32 ConstraintRuleIndex = 0;
 	int32 CollisionConstraintRulesIndex = 0;
 	int32 PostCollisionConstraintRulesIndex = 0;
+	int32 UpdateLinearSystemRulesIndex = 0;
+	int32 UpdateLinearSystemCollisionsRulesIndex = 0;
 	int32 PostprocessingConstraintRulesIndex = 0;
 
 	if (ExternalForces)
@@ -1214,12 +1228,17 @@ void FClothConstraints::CreateForceBasedRules()
 		{
 			ExternalForces->Apply(Particles, Dt);
 		};
+		UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =
+			[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			ExternalForces->UpdateLinearSystem(Particles, Dt, LinearSystem);
+		};
 	}
 
 	if (VelocityAndPressureField)
 	{
 		PreSubstepParallelInits[PreSubstepInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			VelocityAndPressureField->UpdateForces(Particles, Dt);
 		};
@@ -1229,6 +1248,8 @@ void FClothConstraints::CreateForceBasedRules()
 		{
 			VelocityAndPressureField->Apply(Particles, Dt);
 		};
+
+		// TODO Linear System
 	}
 
 	if (PerSolverField)
@@ -1264,176 +1285,112 @@ void FClothConstraints::CreateForceBasedRules()
 				}
 			}
 		};
-	}
-	if (XStretchBiasConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			XStretchBiasConstraints->Init();
-			XStretchBiasConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
 
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XStretchBiasConstraints->Apply(Particles, Dt);
-		};
+		// TODO: Linear System
 	}
-	if (XEdgeConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			XEdgeConstraints->Init();
-			XEdgeConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
 
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XEdgeConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (EdgeConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			EdgeConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			EdgeConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (XBendingConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			XBendingConstraints->Init();
-			XBendingConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XBendingConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (BendingConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			BendingConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			BendingConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (BendingElementConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			BendingElementConstraints->Init(Particles);
-			BendingElementConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			BendingElementConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (XBendingElementConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XBendingElementConstraints->Init(Particles);
-			XBendingElementConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XBendingElementConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (XAnisoBendingElementConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XAnisoBendingElementConstraints->Init(Particles);
-			XAnisoBendingElementConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XAnisoBendingElementConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (XAreaConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			XAreaConstraints->Init();
-			XAreaConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			XAreaConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (AreaConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			AreaConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			AreaConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (MaximumDistanceConstraints)
-	{
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			MaximumDistanceConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (BackstopConstraints)
-	{
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			BackstopConstraints->Apply(Particles, Dt);
-		};
-	}
-	if (AnimDriveConstraints)
-	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt)
-		{
-			AnimDriveConstraints->ApplyProperties(Dt, Evolution->GetIterations());
-		};
+#define UE_CHAOS_XPBD_INIT_VOID(Constraint)\
+	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
+		[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
+	{\
+		Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
+		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
+		{\
+			Constraint->Init(); \
+		}\
+	};
+#define UE_CHAOS_XPBD_INIT_PARTICLES(Constraint)\
+	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
+		[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
+	{\
+		Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
+		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
+		{\
+			Constraint->Init(Particles); \
+		}\
+	};
+#define UE_CHAOS_PBD_INIT(Constraint)\
+	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
+		[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
+	{\
+		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
+		{\
+			Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
+		}\
+	};
+#define UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	PerIterationConstraintRules[ConstraintRuleIndex++] = \
+		[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)\
+	{\
+		Constraint->Apply(Particles, Dt); \
+	}; 
+#define UE_CHAOS_UPDATE_LINEAR_SYSTEM(Constraint)\
+	UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =\
+		[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)\
+	{\
+		Constraint->UpdateLinearSystem(Particles, Dt, LinearSystem);\
+	};
 
-		PerIterationConstraintRules[ConstraintRuleIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			AnimDriveConstraints->Apply(Particles, Dt);
-		};
+#define UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(Constraint) \
+	if (Constraint)\
+	{\
+		UE_CHAOS_XPBD_INIT_VOID(Constraint)\
+		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
 	}
+
+#define UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(Constraint) \
+	if (Constraint)\
+	{\
+		UE_CHAOS_XPBD_INIT_PARTICLES(Constraint)\
+		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	}
+
+#define UE_CHAOS_ADD_XPBD_CONSTRAINT(Constraint) \
+	if (Constraint)\
+	{\
+		UE_CHAOS_XPBD_INIT_VOID(Constraint)\
+		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+		UE_CHAOS_UPDATE_LINEAR_SYSTEM(Constraint)\
+	}
+
+#define UE_CHAOS_ADD_PBD_CONSTRAINT(Constraint) \
+	if (Constraint)\
+	{\
+		UE_CHAOS_PBD_INIT(Constraint)\
+		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	}
+
+#define UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(Constraint) \
+	if (Constraint)\
+	{\
+		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	}
+	
+	UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(XStretchBiasConstraints);
+	UE_CHAOS_ADD_XPBD_CONSTRAINT(XEdgeConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT(EdgeConstraints);
+	UE_CHAOS_ADD_XPBD_CONSTRAINT(XBendingConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT(BendingConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT(BendingElementConstraints);
+	UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(XBendingElementConstraints);
+	UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(XAnisoBendingElementConstraints);
+	UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(XAreaConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT(AreaConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(MaximumDistanceConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(BackstopConstraints);
+	UE_CHAOS_ADD_PBD_CONSTRAINT(AnimDriveConstraints);
+
+#undef UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES
+#undef UE_CHAOS_ADD_PBD_CONSTRAINT
+#undef UE_CHAOS_ADD_XPBD_CONSTRAINT
+#undef UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM
+#undef UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM
+#undef UE_CHAOS_UPDATE_LINEAR_SYSTEM
+#undef UE_CHAOS_APPLY_CONSTRAINT
+#undef UE_CHAOS_PBD_INIT
+#undef UE_CHAOS_XPBD_INIT_PARTICLES
+#undef UE_CHAOS_XPBD_INIT_VOID
+
 	if (CollisionConstraint)
 	{
 		PerIterationCollisionConstraintRules[CollisionConstraintRulesIndex++] =
@@ -1441,11 +1398,17 @@ void FClothConstraints::CreateForceBasedRules()
 		{
 			CollisionConstraint->Apply(Particles, Dt, CollisionParticles);
 		};
+
+		UpdateLinearSystemCollisionsRules[UpdateLinearSystemCollisionsRulesIndex++] =
+			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const TArray<Softs::FSolverCollisionParticlesRange>& CollisionParticles, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			CollisionConstraint->UpdateLinearSystem(Particles, Dt, CollisionParticles, LinearSystem);
+		};
 	}
 	if (SelfCollisionInit && SelfCollisionConstraints)
 	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+		PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] =
+			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			// Thickness * 2 to account for collision radius for both particles
 			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
@@ -1457,11 +1420,17 @@ void FClothConstraints::CreateForceBasedRules()
 		{
 			SelfCollisionConstraints->Apply(Particles, Dt);
 		};
+
+		UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =
+			[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			SelfCollisionConstraints->UpdateLinearSystem(Particles, Dt, LinearSystem);
+		};
 	}
 	if (SelfCollisionSphereConstraints)
 	{
-		ConstraintParallelInits[ConstraintInitsIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal /*Dt*/)
+		PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] =
+			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			SelfCollisionSphereConstraints->Init(Particles);
 		};
@@ -1476,13 +1445,13 @@ void FClothConstraints::CreateForceBasedRules()
 	if (SelfCollisionInit && SelfIntersectionConstraints)
 	{
 		PreSubstepConstraintRules[PreSubstepConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetContourMinimizationIntersections(), Dt);
 		};
 
 		PostSubstepConstraintRules[PostprocessingConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			const int32 NumContourIterations = SelfCollisionInit->GetNumContourMinimizationPostSteps();
 			for (int32 Iter = 0; Iter < NumContourIterations; ++Iter)
@@ -1495,22 +1464,27 @@ void FClothConstraints::CreateForceBasedRules()
 	if (LongRangeConstraints)
 	{
 		PreSubstepConstraintRules[PreSubstepConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
-			// Only doing one iteration.
-			constexpr int32 NumLRAIterations = 1;
-			LongRangeConstraints->ApplyProperties(Dt, NumLRAIterations);
-			LongRangeConstraints->Apply(Particles, Dt);  // Run the LRA constraint only once per timestep
+			if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)
+			{
+				// Only doing one iteration.
+				constexpr int32 NumLRAIterations = 1;
+				LongRangeConstraints->ApplyProperties(Dt, NumLRAIterations);
+				LongRangeConstraints->Apply(Particles, Dt);  // Run the LRA constraint only once per timestep
+			}
 		};
 	}
 
 	check(PreSubstepInitsIndex == NumPreSubstepInits);
 	check(ExternalForceRulesIndex == NumExternalForceRules);
-	check(ConstraintInitsIndex == NumConstraintInits);
+	check(PostInitialGuessInitsIndex == NumConstraintInits)
 	check(PreSubstepConstraintRulesIndex == NumPreSubstepConstraintRules);
 	check(ConstraintRuleIndex == NumConstraintRules);
 	check(CollisionConstraintRulesIndex == NumCollisionConstraintRules);
 	check(PostCollisionConstraintRulesIndex == NumPostCollisionConstraintRules);
+	check(UpdateLinearSystemRulesIndex == NumUpdateLinearSystemRules);
+	check(UpdateLinearSystemCollisionsRulesIndex == NumUpdateLinearSystemCollisionsRules);
 	check(PostprocessingConstraintRulesIndex == NumPostprocessingConstraintRules);
 }
 

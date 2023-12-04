@@ -21,6 +21,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
 	float FrictionCoefficient = 0.8f;
 
+	/** Stiffness for proximity repulsion forces (Force-based solver only). Units = kg cm/ s^2 (same as XPBD springs)*/
+	UPROPERTY(EditAnywhere, Category = "Proximity Force Properties", Meta = (UIMin = "0", UIMax = "10000", ClampMin = "0", ClampMax = "10000000"))
+	float ProximityStiffness = 100.f;
+
 	/**
 	 * Use continuous collision detection (CCD) to prevent any missed collisions between fast moving particles and colliders.
 	 * This has a negative effect on performance compared to when resolving collision without using CCD.

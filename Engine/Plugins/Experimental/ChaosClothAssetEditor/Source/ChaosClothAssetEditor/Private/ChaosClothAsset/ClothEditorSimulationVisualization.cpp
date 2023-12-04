@@ -46,6 +46,22 @@ static FText GetSimulationStatisticsString(const FClothSimulationProxy* SimProxy
 		{
 			TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("NumIterations", "Iterations: {0}"), NumIterations));
 		}
+		if (const int32 NumLinearSolveIterations = SimProxy->GetNumLinearSolveIterations())
+		{
+			TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("NumCGIterations", "CGIterations: {0}"), NumLinearSolveIterations));
+		}
+		if (const float LinearSolveError = SimProxy->GetLinearSolveError())
+		{
+			FNumberFormattingOptions NumberFormatOptions;
+			NumberFormatOptions.AlwaysSign = false;
+			NumberFormatOptions.UseGrouping = false;
+			NumberFormatOptions.RoundingMode = ERoundingMode::HalfFromZero;
+			NumberFormatOptions.MinimumIntegralDigits = 1;
+			NumberFormatOptions.MaximumIntegralDigits = 6;
+			NumberFormatOptions.MinimumFractionalDigits = 2;
+			NumberFormatOptions.MaximumFractionalDigits = 6;
+			TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("CGError", "CGError: {0}"), FText::AsNumber(LinearSolveError, &NumberFormatOptions)));
+		}
 		if (const float SimulationTime = SimProxy->GetSimulationTime())
 		{
 			FNumberFormattingOptions NumberFormatOptions;

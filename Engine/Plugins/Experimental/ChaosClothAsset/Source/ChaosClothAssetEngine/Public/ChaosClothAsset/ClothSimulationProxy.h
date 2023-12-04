@@ -66,6 +66,8 @@ namespace UE::Chaos::ClothAsset
 		int32 GetNumDynamicParticles() const { return NumDynamicParticles; }
 		int32 GetNumIterations() const { return NumIterations; }
 		int32 GetNumSubsteps() const { return NumSubsteps; }
+		int32 GetNumLinearSolveIterations() const { return LastLinearSolveIterations; }
+		float GetLinearSolveError() const { return LastLinearSolveError; }
 		float GetSimulationTime() const { return SimulationTime; }
 		bool IsTeleported() const { return bIsTeleported; }
 
@@ -127,6 +129,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		std::atomic<int32> NumSubsteps;
 		std::atomic<float> SimulationTime;
 		std::atomic<bool> bIsTeleported;
+		std::atomic<int32> LastLinearSolveIterations; // For single cloth only.
+		std::atomic<float> LastLinearSolveError; // For single cloth only.
 
 		mutable bool bHasInvalidReferenceBoneTransforms = false;
 

@@ -81,5 +81,8 @@ namespace Chaos
 		class FVelocityAndPressureField;
 		using FVelocityField UE_DEPRECATED(5.1, "Chaos::Softs::FVelocityField has been renamed FVelocityAndPressureField to match its new behavior.") = FVelocityAndPressureField;
 		class FExternalForces;
+
+		// Linear system solver
+		class FEvolutionLinearSystem;
 	}  // End namespace Softs
 }  // End namespace Chaos

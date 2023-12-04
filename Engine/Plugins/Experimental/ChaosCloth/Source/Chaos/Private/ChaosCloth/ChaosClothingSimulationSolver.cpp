@@ -2051,6 +2051,16 @@ int32 FClothingSimulationSolver::GetNumUsedIterations() const
 	return Evolution ? Evolution->GetIterations() : PBDEvolution->GetIterations();
 }
 
+int32 FClothingSimulationSolver::GetNumLinearSolverIterations(int32 ParticleRangeId) const
+{
+	return Evolution ? Evolution->GetLastLinearSolveIterations(ParticleRangeId) : 0;
+}
+
+FRealSingle FClothingSimulationSolver::GetLinearSolverError(int32 ParticleRangeId) const
+{
+	return Evolution ? Evolution->GetLastLinearSolveError(ParticleRangeId) : 0.f;
+}
+
 FBoxSphereBounds FClothingSimulationSolver::CalculateBounds() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_CalculateBounds);

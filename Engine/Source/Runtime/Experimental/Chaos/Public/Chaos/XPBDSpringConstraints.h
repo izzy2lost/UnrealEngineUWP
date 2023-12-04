@@ -5,23 +5,24 @@
 #include "ChaosStats.h"
 #include "PBDWeightMap.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "Chaos/SoftsSpring.h"
 
 namespace Chaos::Softs
 {
 
 // Stiffness is in kg cm /s^2
 UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MinStiffness instead.")
-static const FSolverReal XPBDSpringMinStiffness = (FSolverReal)1e-4; // Stiffness below this will be considered 0 since all of our calculations are actually based on 1 / stiffness.
+static const FSolverReal XPBDSpringMinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
 UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MaxStiffness instead.")
-static const FSolverReal XPBDSpringMaxStiffness = (FSolverReal)1e7;
+static const FSolverReal XPBDSpringMaxStiffness = (FSolverReal)1e9;
 
 class FXPBDSpringConstraints : public FPBDSpringConstraintsBase
 {
 	typedef FPBDSpringConstraintsBase Base;
 
 public:
-	static constexpr FSolverReal MinStiffness = (FSolverReal)1e-4; // Stiffness below this will be considered 0 since all of our calculations are actually based on 1 / stiffness.
-	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e7;
+	static constexpr FSolverReal MinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
+	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
 
@@ -104,13 +105,18 @@ public:
 			ParticleOffset,
 			ParticleCount)
 	{
-		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		Lambdas.Reset();
+		Lambdas.SetNumZeroed(Constraints.Num());
 		InitColor(Particles);
 	}
 
 	virtual ~FXPBDSpringConstraints() override {}
 
-	void Init() const { for (FSolverReal& Lambda : Lambdas) { Lambda = (FSolverReal)0.; } }
+	void Init() const 
+	{
+		Lambdas.Reset();
+		Lambdas.SetNumZeroed(Constraints.Num());
+	}
 
 	// Update stiffness values
 	void SetProperties(const FSolverVec2& InStiffness, const FSolverVec2& InDampingRatio = FSolverVec2::ZeroVector)
@@ -129,55 +135,20 @@ public:
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt) const;
 
+	CHAOS_API void UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, FEvolutionLinearSystem& LinearSystem) const;
+
 	const TArray<int32>& GetConstraintsPerColorStartIndex() const { return ConstraintsPerColorStartIndex; }
 
 private:
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void InitColor(const SolverParticlesOrRange& InParticles);
 	template<typename SolverParticlesOrRange>
-	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const;
+	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const; 
 
 	template<typename SolverParticlesOrRange>
 	FSolverVec3 GetDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const
 	{
-		const TVec2<int32>& Constraint = Constraints[ConstraintIndex];
-
-		const int32 i1 = Constraint[0];
-		const int32 i2 = Constraint[1];
-
-		if (StiffnessValue < MinStiffness || (Particles.InvM(i2) == (FSolverReal)0. && Particles.InvM(i1) == (FSolverReal)0.))
-		{
-			return FSolverVec3((FSolverReal)0.);
-		}
-
-		const FSolverReal CombinedInvMass = Particles.InvM(i2) + Particles.InvM(i1);
-
-		// This scale factor makes things more resolution independent.
-		const FSolverReal FinalStiffnessValue = Dists[ConstraintIndex] < UE_SMALL_NUMBER ? StiffnessValue : StiffnessValue / Dists[ConstraintIndex];
-
-		const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(FinalStiffnessValue / CombinedInvMass);
-
-		const FSolverVec3& P1 = Particles.P(i1);
-		const FSolverVec3& P2 = Particles.P(i2);
-		FSolverVec3 Direction = P1 - P2;
-		const FSolverReal Distance = Direction.SafeNormalize();
-		const FSolverReal Offset = Distance - Dists[ConstraintIndex];
-
-		const FSolverVec3& X1 = Particles.X(i1);
-		const FSolverVec3& X2 = Particles.X(i2);
-
-		const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
-
-
-		FSolverReal& Lambda = Lambdas[ConstraintIndex];
-		const FSolverReal Alpha = (FSolverReal)1.f / (FinalStiffnessValue * Dt * Dt);
-		const FSolverReal Gamma = Alpha * Damping * Dt;
-
-		const FSolverReal DLambda = (Offset - Alpha * Lambda + Gamma * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt)) / (((FSolverReal)1.f + Gamma) * CombinedInvMass + Alpha);
-		const FSolverVec3 Delta = DLambda * Direction;
-		Lambda += DLambda;
-
-		return Delta;
+		return Spring::GetXPBDSpringDelta(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], Lambdas[ConstraintIndex], StiffnessValue, MinStiffness, DampingRatioValue);
 	}
 
 protected:

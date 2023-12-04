@@ -108,6 +108,10 @@ namespace Chaos
 
 		// Return the actual of number of iterations used by the Evolution solver after the update (different from the number of iterations, depends on frame rate)
 		CHAOSCLOTH_API int32 GetNumUsedIterations() const;
+		// Return the actual number of linear solver iterations used by the Evolution solver after the update (force-based solver only)
+		CHAOSCLOTH_API int32 GetNumLinearSolverIterations(int32 ParticleRangeId) const;
+		// Return the final error of the linear solver after the update (force-based solver only)
+		CHAOSCLOTH_API FRealSingle GetLinearSolverError(int32 ParticleRangeId) const;
 
 		CHAOSCLOTH_API FBoxSphereBounds CalculateBounds() const;
 		// ---- End of the object management functions ----

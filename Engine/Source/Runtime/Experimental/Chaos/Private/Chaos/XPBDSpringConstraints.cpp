@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/XPBDSpringConstraints.h"
-#include "Chaos/PBDSoftsSolverParticles.h"
-#include "Chaos/GraphColoring.h"
 #include "Chaos/Framework/Parallel.h"
+#include "Chaos/GraphColoring.h"
+#include "Chaos/PBDSoftsSolverParticles.h"
+#include "Chaos/SoftsEvolutionLinearSystem.h"
 #include "ChaosStats.h"
 #include "ChaosLog.h"
 #include "HAL/IConsoleManager.h"
@@ -79,16 +80,16 @@ template<typename SolverParticlesOrRange>
 void FXPBDSpringConstraints::ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal DampingRatioValue) const
 {
 	const TVec2<int32>& Constraint = Constraints[ConstraintIndex];
-	const int32 i1 = Constraint[0];
-	const int32 i2 = Constraint[1];
+	const int32 Index1 = Constraint[0];
+	const int32 Index2 = Constraint[1];
 	const FSolverVec3 Delta =  GetDelta(Particles, Dt, ConstraintIndex, ExpStiffnessValue, DampingRatioValue);
-	if (Particles.InvM(i1) > (FSolverReal)0.)
+	if (Particles.InvM(Index1) > (FSolverReal)0.)
 	{
-		Particles.P(i1) -= Particles.InvM(i1) * Delta;
+		Particles.P(Index1) -= Particles.InvM(Index1) * Delta;
 	}
-	if (Particles.InvM(i2) > (FSolverReal)0.)
+	if (Particles.InvM(Index2) > (FSolverReal)0.)
 	{
-		Particles.P(i2) += Particles.InvM(i2) * Delta;
+		Particles.P(Index2) += Particles.InvM(Index2) * Delta;
 	}
 }
 
@@ -158,7 +159,7 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 				{
 					const int32 ColorStart = ConstraintsPerColorStartIndex[ConstraintColorIndex];
 					const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
-					PhysicsParallelFor(ColorSize, [&](const int32 Index)
+					PhysicsParallelFor(ColorSize, [this, &Particles, Dt, ColorStart, ExpStiffnessValue, DampingRatioValue](const int32 Index)
 					{
 						const int32 ConstraintIndex = ColorStart + Index;
 						ApplyHelper(Particles, Dt, ConstraintIndex, ExpStiffnessValue, DampingRatioValue);
@@ -222,7 +223,7 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 				{
 					const int32 ColorStart = ConstraintsPerColorStartIndex[ConstraintColorIndex];
 					const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
-					PhysicsParallelFor(ColorSize, [&](const int32 Index)
+					PhysicsParallelFor(ColorSize, [this, &Particles, Dt, ColorStart, StiffnessHasWeightMap, StiffnessNoMap, DampingHasWeightMap, DampingNoMap](const int32 Index)
 					{
 						const int32 ConstraintIndex = ColorStart + Index;
 						const FSolverReal ExpStiffnessValue = StiffnessHasWeightMap ? Stiffness[ConstraintIndex] : StiffnessNoMap;
@@ -263,6 +264,82 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 }
 template CHAOS_API void FXPBDSpringConstraints::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
 template CHAOS_API void FXPBDSpringConstraints::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
+
+void FXPBDSpringConstraints::UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, FEvolutionLinearSystem& LinearSystem) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FXPBDSpringConstraints_UpdateLinearSystem);
+	LinearSystem.ReserveForParallelAdd(Constraints.Num() * 2, Constraints.Num());
+
+	const bool StiffnessHasWeightMap = Stiffness.HasWeightMap();
+	const bool DampingHasWeightMap = DampingRatio.HasWeightMap();
+	if ((ConstraintsPerColorStartIndex.Num() > 1) && (Constraints.Num() > Chaos_XPBDSpring_ParallelConstraintCount))
+	{
+		const int32 ConstraintColorNum = ConstraintsPerColorStartIndex.Num() - 1;
+		if (!StiffnessHasWeightMap && !DampingHasWeightMap)
+		{
+			const FSolverReal ExpStiffnessValue = (FSolverReal)Stiffness;
+			const FSolverReal DampingRatioValue = (FSolverReal)DampingRatio;
+			if (ExpStiffnessValue < MinStiffness)
+			{
+				return;
+			}
+			for (int32 ConstraintColorIndex = 0; ConstraintColorIndex < ConstraintColorNum; ++ConstraintColorIndex)
+			{
+				const int32 ColorStart = ConstraintsPerColorStartIndex[ConstraintColorIndex];
+				const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
+				PhysicsParallelFor(ColorSize, [this, &Particles, Dt, &LinearSystem, ColorStart, ExpStiffnessValue, DampingRatioValue](const int32 Index)
+				{
+					const int32 ConstraintIndex = ColorStart + Index;
+					Spring::UpdateSpringLinearSystem(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], ExpStiffnessValue, MinStiffness, DampingRatioValue, LinearSystem);
+				});
+			}
+		}
+		else // Has weight maps
+		{
+			const FSolverReal StiffnessNoMap = (FSolverReal)Stiffness;
+			const FSolverReal DampingNoMap = (FSolverReal)DampingRatio;
+			for (int32 ConstraintColorIndex = 0; ConstraintColorIndex < ConstraintColorNum; ++ConstraintColorIndex)
+			{
+				const int32 ColorStart = ConstraintsPerColorStartIndex[ConstraintColorIndex];
+				const int32 ColorSize = ConstraintsPerColorStartIndex[ConstraintColorIndex + 1] - ColorStart;
+				PhysicsParallelFor(ColorSize, [this, &Particles, Dt, &LinearSystem, ColorStart, StiffnessHasWeightMap, StiffnessNoMap, DampingHasWeightMap, DampingNoMap](const int32 Index)
+				{
+					const int32 ConstraintIndex = ColorStart + Index;
+					const FSolverReal ExpStiffnessValue = StiffnessHasWeightMap ? Stiffness[ConstraintIndex] : StiffnessNoMap;
+					const FSolverReal DampingRatioValue = DampingHasWeightMap ? DampingRatio[ConstraintIndex] : DampingNoMap;
+					Spring::UpdateSpringLinearSystem(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], ExpStiffnessValue, MinStiffness, DampingRatioValue, LinearSystem);
+				});
+			}
+		}		
+	}
+	else
+	{
+		if (!StiffnessHasWeightMap && !DampingHasWeightMap)
+		{
+			const FSolverReal ExpStiffnessValue = (FSolverReal)Stiffness;
+			const FSolverReal DampingRatioValue = (FSolverReal)DampingRatio;
+			if (ExpStiffnessValue < MinStiffness)
+			{
+				return;
+			}
+			for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+			{
+				Spring::UpdateSpringLinearSystem(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], ExpStiffnessValue, MinStiffness, DampingRatioValue, LinearSystem);
+			}
+		}
+		else
+		{
+			const FSolverReal StiffnessNoMap = (FSolverReal)Stiffness;
+			const FSolverReal DampingNoMap = (FSolverReal)DampingRatio;
+			for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+			{
+				const FSolverReal ExpStiffnessValue = StiffnessHasWeightMap ? Stiffness[ConstraintIndex] : StiffnessNoMap;
+				const FSolverReal DampingRatioValue = DampingHasWeightMap ? DampingRatio[ConstraintIndex] : DampingNoMap;
+				Spring::UpdateSpringLinearSystem(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], ExpStiffnessValue, MinStiffness, DampingRatioValue, LinearSystem);
+			}
+		}
+	}
+}
 
 void FXPBDEdgeSpringConstraints::SetProperties(
 	const FCollectionPropertyConstFacade& PropertyCollection,

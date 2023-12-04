@@ -256,6 +256,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 NumExternalForceRules;
 		int32 NumPreSubstepConstraintRules;
 		int32 NumCollisionConstraintRules;
+		int32 NumUpdateLinearSystemRules;
+		int32 NumUpdateLinearSystemCollisionsRules;
 		//~ End Force-based solver only fields
 
 		//~ Begin PBD solver only fields

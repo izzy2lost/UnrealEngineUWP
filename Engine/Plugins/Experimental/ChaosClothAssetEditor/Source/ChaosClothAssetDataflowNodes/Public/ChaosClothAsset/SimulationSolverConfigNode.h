@@ -43,7 +43,7 @@ public:
 	bool bEnableForceBasedSolver = false;
 	
 	/**
-	 * Number of Newton iterations for force-based solver
+	 * Number of Newton iterations for force-based solver. Prototype only--very few constraints support this.
 	 */
 	UPROPERTY(EditAnywhere, Category = Experimental, meta = (UIMin = "1", UIMax = "10", ClampMin = "0", ClampMax = "100", EditCondition = "bEnableForceBasedSolver"))
 	int32 NumNewtonIterations = 1;
@@ -51,7 +51,7 @@ public:
 	/**
 	 * Max number of CG Iterations per linear solve
 	 */
-	UPROPERTY(EditAnywhere, Category = Experimental, meta = (UIMin = "1", UIMax = "100", ClampMin = "1", ClampMax = "1000", EditCondition = "bEnableForceBasedSolver"))
+	UPROPERTY(EditAnywhere, Category = Experimental, meta = (UIMin = "1", UIMax = "100", ClampMin = "1", EditCondition = "bEnableForceBasedSolver"))
 	int32 MaxNumCGIterations = 50;
 
 	/**

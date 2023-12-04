@@ -24,6 +24,7 @@ public:
 	static constexpr FSolverReal BackCompatThickness = (FSolverReal)1.f;
 	static constexpr FSolverReal BackCompatStiffness = (FSolverReal)0.5f;
 	static constexpr FSolverReal BackCompatFrictionCoefficient = (FSolverReal)0.f;
+	static constexpr FSolverReal DefaultProximityStiffness = (FSolverReal)1.;
 
 	CHAOS_API FPBDCollisionSpringConstraintsBase(
 		const int32 InOffset,
@@ -33,7 +34,8 @@ public:
 		TSet<TVec2<int32>>&& InDisabledCollisionElements,
 		const FSolverReal InThickness = BackCompatThickness,
 		const FSolverReal InStiffness = BackCompatStiffness,
-		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient);
+		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
+		const FSolverReal InProximityStiffness = DefaultProximityStiffness);
 
 	virtual ~FPBDCollisionSpringConstraintsBase() {}
 
@@ -55,13 +57,60 @@ public:
 	void SetThickness(FSolverReal InThickness) { Thickness = FMath::Max(InThickness, (FSolverReal)0.);  }
 	void SetFrictionCoefficient(FSolverReal InFrictionCoefficient) { FrictionCoefficient = InFrictionCoefficient; }
 
+	template<typename SolverParticlesOrRange>
+	void Apply(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex) const
+	{
+		const TVector<int32, 4>& Constraint = Constraints[ConstraintIndex];
+		const int32 Index1 = Constraint[0];
+		const int32 Index2 = Constraint[1];
+		const int32 Index3 = Constraint[2];
+		const int32 Index4 = Constraint[3];
+		const FSolverVec3 Delta = GetDelta(Particles, ConstraintIndex);
+		if (Particles.InvM(Index1) > 0)
+		{
+			Particles.P(Index1) += Particles.InvM(Index1) * Delta;
+		}
+		if (Particles.InvM(Index2) > (FSolverReal)0.)
+		{
+			Particles.P(Index2) -= Particles.InvM(Index2) * Barys[ConstraintIndex][0] * Delta;
+		}
+		if (Particles.InvM(Index3) > (FSolverReal)0.)
+		{
+			Particles.P(Index3) -= Particles.InvM(Index3) * Barys[ConstraintIndex][1] * Delta;
+		}
+		if (Particles.InvM(Index4) > (FSolverReal)0.)
+		{
+			Particles.P(Index4) -= Particles.InvM(Index4) * Barys[ConstraintIndex][2] * Delta;
+		}
+	}
+
+	template<typename SolverParticlesOrRange>
+	void Apply(SolverParticlesOrRange& InParticles, const FSolverReal Dt) const
+	{
+		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+		{
+			Apply(InParticles, Dt, ConstraintIndex);
+		}
+	}
+
+	void Apply(FSolverParticles& InParticles, const FSolverReal Dt, const TArray<int32>& InConstraintIndices) const
+	{
+		for (int32 ConstraintIndex : InConstraintIndices)
+		{
+			Apply(InParticles, Dt, ConstraintIndex);
+		}
+	}
+
+	CHAOS_API void UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, FEvolutionLinearSystem& LinearSystem) const;
+
 protected:
 	TArray<TVec4<int32>> Constraints;
 	TArray<FSolverVec3> Barys;
 	TArray<bool> FlipNormal;
 	FSolverReal Thickness;
-	FSolverReal Stiffness;
+	FSolverReal Stiffness; // (0-1 compliance for PBD)
 	FSolverReal FrictionCoefficient;
+	FSolverReal ProximityStiffness; // (actual spring stiffness for force-based solver)
 
 private:
 	const FTriangleMesh& TriangleMesh;
