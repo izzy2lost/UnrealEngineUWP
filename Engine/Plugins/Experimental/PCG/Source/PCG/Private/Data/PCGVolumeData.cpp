@@ -10,7 +10,29 @@
 #include "Engine/CollisionProfile.h"
 #include "GameFramework/Volume.h"
 
+#include "Chaos/ChaosEngineInterface.h"
+#include "Physics/PhysicsInterfaceDeclares.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGVolumeData)
+
+UPCGVolumeData::~UPCGVolumeData()
+{
+	ReleaseInternalBodyInstance();
+}
+
+void UPCGVolumeData::ReleaseInternalBodyInstance()
+{
+	if (VolumeBodyInstance)
+	{
+		if (VolumeBodyInstance->IsValidBodyInstance())
+		{
+			VolumeBodyInstance->TermBody();
+		}
+
+		delete VolumeBodyInstance;
+		VolumeBodyInstance = nullptr;
+	}
+}
 
 void UPCGVolumeData::Initialize(AVolume* InVolume)
 {
@@ -27,10 +49,26 @@ void UPCGVolumeData::Initialize(AVolume* InVolume)
 	}
 
 	FBoxSphereBounds BoxSphereBounds = Volume->GetBounds();
-	Bounds = FBox::BuildAABB(BoxSphereBounds.Origin, BoxSphereBounds.BoxExtent);
-
 	// TODO: Compute the strict bounds, we must find a FBox inscribed into the oriented box.
 	// Currently, we'll leave the strict bounds empty and fall back to checking against the local box
+	Bounds = FBox::BuildAABB(BoxSphereBounds.Origin, BoxSphereBounds.BoxExtent);
+	
+	// Keep a "sceneless" equivalent body so we can do queries against it without locking constraints
+	if (UBrushComponent* BrushComponent = Volume->GetBrushComponent())
+	{
+		FBodyInstance* BodyInstance = BrushComponent->GetBodyInstance();
+		UBodySetup* BodySetup = BrushComponent->GetBodySetup();
+
+		if (BodyInstance && BodySetup && !BodyInstance->IsDynamic())
+		{
+			ReleaseInternalBodyInstance();
+
+			VolumeBodyInstance = new FBodyInstance();
+			VolumeBodyInstance->bAutoWeld = false;
+			VolumeBodyInstance->bSimulatePhysics = false;
+			VolumeBodyInstance->InitBody(BodySetup, BrushComponent->GetComponentTransform(), nullptr, nullptr);
+		}
+	}
 }
 
 void UPCGVolumeData::Initialize(const FBox& InBounds)
@@ -91,6 +129,14 @@ bool UPCGVolumeData::SamplePoint(const FTransform& InTransform, const FBox& InBo
 		if (!Volume.IsValid() || PCGHelpers::IsInsideBounds(GetStrictBounds(), InPosition))
 		{
 			PointDensity = 1.0f;
+		}
+		else if (VolumeBodyInstance)
+		{
+			float OutDistanceSquared = -1.0f;
+			if (FPhysicsInterface::GetSquaredDistanceToBody(VolumeBodyInstance, InPosition, OutDistanceSquared))
+			{
+				PointDensity = (OutDistanceSquared == 0.0f ? 1.0f : 0.0f);
+			}
 		}
 		else
 		{

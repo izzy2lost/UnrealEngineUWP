@@ -7,6 +7,7 @@
 #include "PCGVolumeData.generated.h"
 
 class AVolume;
+struct FBodyInstance;
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))
 class PCG_API UPCGVolumeData : public UPCGSpatialDataWithPointCache
@@ -14,6 +15,7 @@ class PCG_API UPCGVolumeData : public UPCGSpatialDataWithPointCache
 	GENERATED_BODY()
 
 public:
+	~UPCGVolumeData();
 	void Initialize(AVolume* InVolume);
 	void Initialize(const FBox& InBounds);
 
@@ -43,6 +45,7 @@ public:
 
 protected:
 	void CopyBaseVolumeData(UPCGVolumeData* NewVolumeData) const;
+	void ReleaseInternalBodyInstance();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = SourceData)
 	TWeakObjectPtr<AVolume> Volume = nullptr;
@@ -52,6 +55,9 @@ protected:
 
 	UPROPERTY()
 	FBox StrictBounds = FBox(EForceInit::ForceInit);
+
+	// Internal body instance to perform queries faster, used in static cases only
+	FBodyInstance* VolumeBodyInstance = nullptr;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
