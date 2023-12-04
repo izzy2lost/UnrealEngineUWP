@@ -16,7 +16,7 @@ class FPacketHandleData;
 typedef TBlobHandle<FPacketHandleData> FPacketHandle;
 
 // Data for FPacketHandle
-class FPacketHandleData final : public FBlobHandleData, public TSharedFromThis<FPacketHandleData, ESPMode::ThreadSafe>
+class HORDE_API FPacketHandleData final : public FBlobHandleData, public TSharedFromThis<FPacketHandleData, ESPMode::ThreadSafe>
 {
 public:
 	static const char Type[];

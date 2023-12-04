@@ -13,7 +13,7 @@ struct FIoHash;
 /**
  * Reads data from a blob object
  */
-class FBlobReader
+class HORDE_API FBlobReader
 {
 public:
 	FBlobReader(const FBlob& InBlob);
@@ -39,11 +39,11 @@ private:
 
 // ------------------------------------------------------------------------
 
-FBlobHandle ReadBlobHandle(FBlobReader& Reader);
-FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader);
-int ReadInt32(FBlobReader& Reader);
-FIoHash ReadIoHash(FBlobReader& Reader);
-FMemoryView ReadFixedLengthBytes(FBlobReader& Reader, size_t Length);
-size_t ReadUnsignedVarInt(FBlobReader& Reader);
-FUtf8String ReadString(FBlobReader& Reader);
-FMemoryView ReadStringSpan(FBlobReader& Reader);
+HORDE_API FBlobHandle ReadBlobHandle(FBlobReader& Reader);
+HORDE_API FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader);
+HORDE_API int ReadInt32(FBlobReader& Reader);
+HORDE_API FIoHash ReadIoHash(FBlobReader& Reader);
+HORDE_API FMemoryView ReadFixedLengthBytes(FBlobReader& Reader, size_t Length);
+HORDE_API size_t ReadUnsignedVarInt(FBlobReader& Reader);
+HORDE_API FUtf8String ReadString(FBlobReader& Reader);
+HORDE_API FMemoryView ReadStringSpan(FBlobReader& Reader);

@@ -10,7 +10,7 @@
 /**
  * Describes a blob of data in the storage system
  */
-struct FBlob
+struct HORDE_API FBlob
 {
 	/** Type of the blob. */
 	FBlobType Type;

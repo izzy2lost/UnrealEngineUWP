@@ -7,7 +7,7 @@
 /**
  * Identifies the type of a blob
  */
-struct FBlobType
+struct HORDE_API FBlobType
 {
 	static const FBlobType Leaf;
 

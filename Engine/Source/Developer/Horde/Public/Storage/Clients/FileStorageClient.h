@@ -9,7 +9,7 @@
 /**
  * Implementation of FStorageClient which writes data to files on disk.
  */
-class FFileStorageClient : public FKeyValueStorageClient
+class HORDE_API FFileStorageClient : public FKeyValueStorageClient
 {
 public:
 	FFileStorageClient(std::filesystem::path InRootDir);

@@ -40,7 +40,7 @@ ENUM_CLASS_FLAGS(EFileEntryFlags)
 /**
  * Entry for a file within a directory node
  */
-class FFileEntry
+class HORDE_API FFileEntry
 {
 public:
 	/** Handle to the root chunked data node. */

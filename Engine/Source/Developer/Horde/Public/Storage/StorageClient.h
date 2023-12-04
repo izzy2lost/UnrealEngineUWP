@@ -29,7 +29,7 @@ struct FRefCacheTime
 /**
  * Interface for the storage system.
  */
-class FStorageClient : public TSharedFromThis<FStorageClient, ESPMode::ThreadSafe>
+class HORDE_API FStorageClient : public TSharedFromThis<FStorageClient, ESPMode::ThreadSafe>
 {
 public:
 	virtual ~FStorageClient();

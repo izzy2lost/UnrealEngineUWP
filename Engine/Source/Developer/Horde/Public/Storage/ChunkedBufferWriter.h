@@ -8,11 +8,12 @@
 /**
  * Writes data to a series of memory blocks
  */
-class FChunkedBufferWriter
+class HORDE_API FChunkedBufferWriter
 {
 public:
 	FChunkedBufferWriter(size_t InitialSize = 1024);
 	FChunkedBufferWriter(const FChunkedBufferWriter&) = delete;
+	FChunkedBufferWriter& operator = (const FChunkedBufferWriter&) = delete;
 	virtual ~FChunkedBufferWriter();
 
 	/** Reset the contents of this writer. */

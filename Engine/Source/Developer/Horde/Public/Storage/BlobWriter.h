@@ -15,7 +15,7 @@ struct FRefOptions;
 /**
  * Interface for writing data to the storage system.
  */
-class FBlobWriter
+class HORDE_API FBlobWriter
 {
 public:
 	virtual ~FBlobWriter();
@@ -51,21 +51,21 @@ public:
 
 // ------------------------------------------------------------------------------------------
 
-void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle);
-void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target);
+HORDE_API void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle);
+HORDE_API void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target);
 
-void WriteIoHash(FBlobWriter& Writer, const struct FIoHash& Hash);
+HORDE_API void WriteIoHash(FBlobWriter& Writer, const struct FIoHash& Hash);
 
-void WriteFixedLengthBytes(FBlobWriter& Writer, const void* Data, size_t Length);
-void WriteFixedLengthBytes(FBlobWriter& Writer, const FMemoryView& View);
+HORDE_API void WriteFixedLengthBytes(FBlobWriter& Writer, const void* Data, size_t Length);
+HORDE_API void WriteFixedLengthBytes(FBlobWriter& Writer, const FMemoryView& View);
 
-size_t MeasureUnsignedVarInt(size_t Value);
-size_t WriteUnsignedVarInt(void* Buffer, size_t Value);
-void WriteUnsignedVarIntWithKnownLength(void* Buffer, size_t Value, size_t NumBytes);
-void WriteUnsignedVarInt(FBlobWriter& Writer, size_t Value);
+HORDE_API size_t MeasureUnsignedVarInt(size_t Value);
+HORDE_API size_t WriteUnsignedVarInt(void* Buffer, size_t Value);
+HORDE_API void WriteUnsignedVarIntWithKnownLength(void* Buffer, size_t Value, size_t NumBytes);
+HORDE_API void WriteUnsignedVarInt(FBlobWriter& Writer, size_t Value);
 
-size_t MeasureString(const char* Text);
-size_t MeasureString(const FUtf8StringView& Text);
-void WriteString(FBlobWriter& Writer, const char* Text);
-void WriteString(FBlobWriter& Writer, const FUtf8StringView& Text);
-void WriteString(FBlobWriter& Writer, const FUtf8String& Text);
+HORDE_API size_t MeasureString(const char* Text);
+HORDE_API size_t MeasureString(const FUtf8StringView& Text);
+HORDE_API void WriteString(FBlobWriter& Writer, const char* Text);
+HORDE_API void WriteString(FBlobWriter& Writer, const FUtf8StringView& Text);
+HORDE_API void WriteString(FBlobWriter& Writer, const FUtf8String& Text);

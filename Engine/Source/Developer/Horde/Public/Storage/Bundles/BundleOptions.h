@@ -8,7 +8,7 @@
 /*
  * Options for configuring a bundle serializer
  */
-struct FBundleOptions
+struct HORDE_API FBundleOptions
 {
 	/** Default options value. */
 	static const FBundleOptions Default;

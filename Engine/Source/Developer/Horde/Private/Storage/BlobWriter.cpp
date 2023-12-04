@@ -21,35 +21,35 @@ void* FBlobWriter::GetOutputBuffer(size_t Size)
 
 // ------------------------------------------------------------------------------------------
 
-void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle)
+HORDE_API void WriteBlobHandle(FBlobWriter& Writer, FBlobHandle Handle)
 {
 	Writer.AddImport(MoveTemp(Handle));
 }
 
-void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target)
+HORDE_API void WriteBlobHandleWithHash(FBlobWriter& Writer, FBlobHandleWithHash Target)
 {
 	Writer.AddImport(MoveTemp(Target.Handle));
 	WriteIoHash(Writer, Target.Hash);
 }
 
-void WriteIoHash(FBlobWriter& Writer, const FIoHash& Hash)
+HORDE_API void WriteIoHash(FBlobWriter& Writer, const FIoHash& Hash)
 {
 	WriteFixedLengthBytes(Writer, &Hash, sizeof(Hash));
 }
 
-void WriteFixedLengthBytes(FBlobWriter& Writer, const void* Data, size_t Length)
+HORDE_API void WriteFixedLengthBytes(FBlobWriter& Writer, const void* Data, size_t Length)
 {
 	void* Target = Writer.GetOutputBuffer(Length);
 	memcpy(Target, Data, Length);
 	Writer.Advance(Length);
 }
 
-void WriteFixedLengthBytes(FBlobWriter& Writer, const FMemoryView& View)
+HORDE_API void WriteFixedLengthBytes(FBlobWriter& Writer, const FMemoryView& View)
 {
 	WriteFixedLengthBytes(Writer, View.GetData(), View.GetSize());
 }
 
-size_t MeasureUnsignedVarInt(size_t Value)
+HORDE_API size_t MeasureUnsignedVarInt(size_t Value)
 {
 	check(Value == (unsigned int)Value);
 
@@ -63,21 +63,21 @@ size_t MeasureUnsignedVarInt(size_t Value)
 	}
 }
 
-size_t WriteUnsignedVarInt(void* Buffer, size_t Value)
+HORDE_API size_t WriteUnsignedVarInt(void* Buffer, size_t Value)
 {
 	size_t ByteCount = MeasureUnsignedVarInt(Value);
 	WriteUnsignedVarIntWithKnownLength(Buffer, Value, ByteCount);
 	return ByteCount;
 }
 
-void WriteUnsignedVarInt(FBlobWriter& Writer, size_t Value)
+HORDE_API void WriteUnsignedVarInt(FBlobWriter& Writer, size_t Value)
 {
 	size_t ByteCount = MeasureUnsignedVarInt(Value);
 	WriteUnsignedVarIntWithKnownLength(Writer.GetOutputBuffer(ByteCount), Value, ByteCount);
 	Writer.Advance(ByteCount);
 }
 
-void WriteUnsignedVarIntWithKnownLength(void* Buffer, size_t Value, size_t NumBytes)
+HORDE_API void WriteUnsignedVarIntWithKnownLength(void* Buffer, size_t Value, size_t NumBytes)
 {
 	uint8* ByteBuffer = (uint8*)Buffer;
 	for (size_t Idx = 1; Idx < NumBytes; Idx++)
@@ -88,28 +88,28 @@ void WriteUnsignedVarIntWithKnownLength(void* Buffer, size_t Value, size_t NumBy
 	ByteBuffer[0] = (unsigned char)((0xff << (9 - (int)NumBytes)) | (unsigned char)Value);
 }
 
-size_t MeasureString(const char* Text)
+HORDE_API size_t MeasureString(const char* Text)
 {
 	return MeasureString(FUtf8StringView((const UTF8CHAR*)Text));
 }
 
-size_t MeasureString(const FUtf8StringView& Text)
+HORDE_API size_t MeasureString(const FUtf8StringView& Text)
 {
 	return MeasureUnsignedVarInt(Text.Len()) + Text.Len();
 }
 
-void WriteString(FBlobWriter& Writer, const char* Text)
+HORDE_API void WriteString(FBlobWriter& Writer, const char* Text)
 {
 	WriteString(Writer, FUtf8StringView(Text));
 }
 
-void WriteString(FBlobWriter& Writer, const FUtf8StringView& Text)
+HORDE_API void WriteString(FBlobWriter& Writer, const FUtf8StringView& Text)
 {
 	WriteUnsignedVarInt(Writer, Text.Len());
 	WriteFixedLengthBytes(Writer, Text.GetData(), Text.Len());
 }
 
-void WriteString(FBlobWriter& Writer, const FUtf8String& Text)
+HORDE_API void WriteString(FBlobWriter& Writer, const FUtf8String& Text)
 {
 	WriteString(Writer, FUtf8StringView(Text));
 }

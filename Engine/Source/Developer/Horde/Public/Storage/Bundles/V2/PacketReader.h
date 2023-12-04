@@ -10,7 +10,7 @@
 /**
  * Utility class for constructing BlobData objects from a packet, caching any computed handles to other blobs.
  */
-class FPacketReader
+class HORDE_API FPacketReader
 {
 public:
 	FPacketReader(TSharedRef<FStorageClient> InStorageClient, FBlobHandle InBundleHandle, FPacketHandle InPacketHandle, FPacket InPacket);

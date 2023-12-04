@@ -14,7 +14,7 @@ class FBlobLocator;
 /**
  * Handle to a blob. Can be used to reference blobs that have not been flushed yet. Implemented as a shared pointer to a FBlobHandleData object.
  */
-class FBlobHandle : public TSharedPtr<FBlobHandleData>
+class HORDE_API FBlobHandle : public TSharedPtr<FBlobHandleData>
 {
 public:
 	using Super = TSharedPtr<FBlobHandleData>;
@@ -70,7 +70,7 @@ public:
 /**
  * Base interface for a blob.
  */
-class FBlobHandleData
+class HORDE_API FBlobHandleData
 {
 public:
 	virtual ~FBlobHandleData();
@@ -115,7 +115,7 @@ public:
 /**
  * Stores a blob handle along with a hash of the target node.
  */
-struct FBlobHandleWithHash
+struct HORDE_API FBlobHandleWithHash
 {
 	FBlobHandle Handle;
 	FIoHash Hash;

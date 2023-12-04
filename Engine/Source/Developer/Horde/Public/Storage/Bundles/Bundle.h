@@ -41,7 +41,7 @@ enum class EBundleVersion : unsigned char
 /**
  * General bundle properties
  */
-struct FBundle
+struct HORDE_API FBundle
 {
 	static const FBlobType BlobType;
 };
@@ -49,7 +49,7 @@ struct FBundle
 /**
  * Signature for a bundle
  */
-struct FBundleSignature
+struct HORDE_API FBundleSignature
 {
 	/** Number of bytes in a serialized signature. */
 	static const int NumBytes = 8;

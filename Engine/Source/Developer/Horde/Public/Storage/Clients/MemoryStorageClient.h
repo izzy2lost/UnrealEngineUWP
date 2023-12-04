@@ -8,7 +8,7 @@
 /**
  * Implementation of FStorageClient which stores data in memory.
  */
-class FMemoryStorageClient final : public FKeyValueStorageClient
+class HORDE_API FMemoryStorageClient final : public FKeyValueStorageClient
 {
 public:
 	FMemoryStorageClient();

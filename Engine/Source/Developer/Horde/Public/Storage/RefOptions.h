@@ -7,7 +7,7 @@
 /**
  * Options for adding a new ref
  */ 
-struct FRefOptions
+struct HORDE_API FRefOptions
 {
 	static const FRefOptions Default;
 

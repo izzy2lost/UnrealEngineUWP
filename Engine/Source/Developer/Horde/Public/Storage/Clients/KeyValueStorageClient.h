@@ -9,7 +9,7 @@
 /*
  * Base class for storage clients that wrap a diirect key/value type store without any merging/splitting.
  */
-class FKeyValueStorageClient : public FStorageClient
+class HORDE_API FKeyValueStorageClient : public FStorageClient
 {
 public:
 	/** Read a single blob from the underlying store. */

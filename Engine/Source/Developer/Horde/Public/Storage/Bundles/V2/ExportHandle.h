@@ -14,7 +14,7 @@ typedef TBlobHandle<FExportHandleData> FExportHandle;
 /** 
  * Implementation of export handle data.
  */
-class FExportHandleData final : public FBlobHandleData, public TSharedFromThis<FExportHandleData, ESPMode::ThreadSafe>
+class HORDE_API FExportHandleData final : public FBlobHandleData, public TSharedFromThis<FExportHandleData, ESPMode::ThreadSafe>
 {
 public:
 	static const char Type[];

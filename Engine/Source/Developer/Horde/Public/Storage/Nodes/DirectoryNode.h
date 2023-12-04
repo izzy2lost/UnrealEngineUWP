@@ -20,7 +20,7 @@ enum class EDirectoryFlags
 /**
  * Stores the contents of a directory in a blob
  */
-class FDirectoryNode
+class HORDE_API FDirectoryNode
 {
 public:
 	static const FBlobType BlobType;

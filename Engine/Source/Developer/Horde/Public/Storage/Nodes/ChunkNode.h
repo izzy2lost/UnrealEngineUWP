@@ -14,7 +14,7 @@
 /**
  * Options for chunking data
  */
-struct FChunkingOptions
+struct HORDE_API FChunkingOptions
 {
 	static const FChunkingOptions Default;
 
@@ -26,7 +26,7 @@ struct FChunkingOptions
 /**
  * Node containing a chunk of data
  */
-class FChunkNode
+class HORDE_API FChunkNode
 {
 public:
 	static const FBlobType LeafBlobType;
@@ -48,7 +48,7 @@ public:
 /**
  * Utility class for reading data a data stream from a tree of chunk nodes
  */
-class FChunkNodeReader
+class HORDE_API FChunkNodeReader
 {
 public:
 	FChunkNodeReader(FBlob Blob);
@@ -69,7 +69,7 @@ private:
 /**
  * Utility class for writing new data to a tree of chunk nodes
  */
-class FChunkNodeWriter
+class HORDE_API FChunkNodeWriter
 {
 public:
 	FChunkNodeWriter(FBlobWriter& InWriter, const FChunkingOptions& InOptions = FChunkingOptions::Default);

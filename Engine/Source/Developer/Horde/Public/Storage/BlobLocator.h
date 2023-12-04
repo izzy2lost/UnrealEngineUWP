@@ -8,7 +8,7 @@
 /**
  * Identifies the location of a blob. Meaning of this string is implementation defined.
  */
-class FBlobLocator
+class HORDE_API FBlobLocator
 {
 public:
 	FBlobLocator();

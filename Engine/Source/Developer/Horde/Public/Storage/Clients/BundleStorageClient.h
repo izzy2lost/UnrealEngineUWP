@@ -11,7 +11,7 @@
 /**
  * Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
  */
-class FBundleStorageClient final : public FKeyValueStorageClient
+class HORDE_API FBundleStorageClient final : public FKeyValueStorageClient
 {
 public:
 	FBundleStorageClient(TSharedRef<FKeyValueStorageClient> InInner);

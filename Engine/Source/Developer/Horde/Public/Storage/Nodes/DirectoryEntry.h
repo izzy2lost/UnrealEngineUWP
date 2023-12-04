@@ -13,7 +13,7 @@ class FBlobWriter;
 /**
  * Entry for a directory within a directory node
  */
-class FDirectoryEntry
+class HORDE_API FDirectoryEntry
 {
 public:
 	FBlobHandle Target;

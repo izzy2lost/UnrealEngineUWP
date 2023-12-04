@@ -15,7 +15,7 @@ struct FPacketExport;
 /**
  * Accessor for data structures stored into a serialized bundle packet.
  */
-class FPacket
+class HORDE_API FPacket
 {
 public:
 	static const FBlobType BlobType;
@@ -62,7 +62,7 @@ private:
 /**
  * Specifies the path to an imported node
  */
-struct FPacketImport
+struct HORDE_API FPacketImport
 {
 	static constexpr int32 Bias = 3;
 	static constexpr int32 InvalidBaseIdx = -1;
@@ -86,7 +86,7 @@ private:
 /*
  * Data for an exported node in a packet
  */
-struct FPacketExport
+struct HORDE_API FPacketExport
 {
 	FPacketExport(FSharedBufferView InBuffer);
 	~FPacketExport();

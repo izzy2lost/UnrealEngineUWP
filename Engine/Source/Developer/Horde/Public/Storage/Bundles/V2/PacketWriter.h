@@ -11,7 +11,7 @@
 /**
  * Writes exports into a new bundle packet
  */
-class FPacketWriter
+class HORDE_API FPacketWriter
 {
 public:
 	FPacketWriter(FBlobHandle InBundleHandle, FBlobHandle InPacketHandle);

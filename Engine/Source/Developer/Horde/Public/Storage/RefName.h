@@ -6,7 +6,7 @@
 #include "Containers/Utf8String.h"
 
 // Identifier for a ref in the storage system. Refs serve as GC roots, and are persistent entry points to expanding data structures within the store.
-struct FRefName
+struct HORDE_API FRefName
 {
 public:
 	FRefName(FUtf8String Text);

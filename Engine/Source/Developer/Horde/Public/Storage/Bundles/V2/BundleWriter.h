@@ -15,7 +15,7 @@ class FPacketWriter;
 /**
  * Writes blobs into bundles
  */
-class FBundleWriter final : public FBlobWriter
+class HORDE_API FBundleWriter final : public FBlobWriter
 {
 public:
 	FBundleWriter(TSharedRef<FKeyValueStorageClient> InStorageClient, FUtf8String InBasePath, const FBundleOptions& InOptions);

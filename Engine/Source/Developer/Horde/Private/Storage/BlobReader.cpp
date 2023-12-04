@@ -41,25 +41,25 @@ FBlobHandle FBlobReader::ReadImport()
 
 // ------------------------------------------------------------------------
 
-FBlobHandle ReadBlobHandle(FBlobReader& Reader)
+HORDE_API FBlobHandle ReadBlobHandle(FBlobReader& Reader)
 {
 	return Reader.ReadImport();
 }
 
-FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader)
+HORDE_API FBlobHandleWithHash ReadBlobHandleWithHash(FBlobReader& Reader)
 {
 	FBlobHandle Handle = Reader.ReadImport();
 	return FBlobHandleWithHash(MoveTemp(Handle), ReadIoHash(Reader));
 }
 
-int ReadInt32(FBlobReader& Reader)
+HORDE_API int ReadInt32(FBlobReader& Reader)
 {
 	int Value = *(const int*)Reader.GetBuffer();
 	Reader.Advance(sizeof(int));
 	return Value;
 }
 
-FIoHash ReadIoHash(FBlobReader& Reader)
+HORDE_API FIoHash ReadIoHash(FBlobReader& Reader)
 {
 	FIoHash Hash;
 	memcpy(&Hash, Reader.GetBuffer(), sizeof(FIoHash));
@@ -67,14 +67,14 @@ FIoHash ReadIoHash(FBlobReader& Reader)
 	return Hash;
 }
 
-FMemoryView ReadFixedLengthBytes(FBlobReader& Reader, size_t Length)
+HORDE_API FMemoryView ReadFixedLengthBytes(FBlobReader& Reader, size_t Length)
 {
 	FMemoryView View = Reader.GetView();
 	Reader.Advance(Length);
 	return View.Left(Length);
 }
 
-size_t ReadUnsignedVarInt(FBlobReader& Reader)
+HORDE_API size_t ReadUnsignedVarInt(FBlobReader& Reader)
 {
 	// Figure out the length of the buffer
 	const unsigned char* Data = Reader.GetBuffer();
@@ -92,13 +92,13 @@ size_t ReadUnsignedVarInt(FBlobReader& Reader)
 	return value;
 }
 
-FUtf8String ReadString(FBlobReader& Reader)
+HORDE_API FUtf8String ReadString(FBlobReader& Reader)
 {
 	FMemoryView String = ReadStringSpan(Reader);
 	return FUtf8String::ConstructFromPtrSize((const UTF8CHAR*)String.GetData(), String.GetSize());
 }
 
-FMemoryView ReadStringSpan(FBlobReader& Reader)
+HORDE_API FMemoryView ReadStringSpan(FBlobReader& Reader)
 {
 	size_t Length = ReadUnsignedVarInt(Reader);
 	return ReadFixedLengthBytes(Reader, Length);

@@ -7,7 +7,7 @@
 //
 // View into a buffer with shared ownership
 //
-class FSharedBufferView final
+class HORDE_API FSharedBufferView final
 {
 public:
 	FSharedBufferView();

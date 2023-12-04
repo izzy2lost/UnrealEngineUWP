@@ -27,7 +27,7 @@ enum EBundleCompressionFormat : unsigned char
 /*
  * Utility methods for compressing bundles
  */
-struct FBundleCompression
+struct HORDE_API FBundleCompression
 {
 	/** Gets the maximum size of the buffer required to compress the given data. */
 	static size_t GetMaxSize(EBundleCompressionFormat Format, const FMemoryView& Input);
