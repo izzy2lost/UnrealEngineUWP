@@ -1406,31 +1406,6 @@ namespace UsdSkelSkeletonTranslatorImpl
 				   Options
 			   );
 
-			   int32 NumRootBones = 0;
-			   for (const SkeletalMeshImportData::FBone& Bone : SkeletonBones)
-			   {
-				   if (Bone.ParentIndex == INDEX_NONE)
-				   {
-					   NumRootBones++;
-				   }
-
-				   if (NumRootBones > 1)
-				   {
-					   break;
-				   }
-			   }
-
-			   if (NumRootBones != 1)
-			   {
-				   UE_LOG(
-					   LogUsd,
-					   Warning,
-					   TEXT("Ignoring SkelRoot '%s' as the bound Skeleton prim must have exactly one root bone!"),
-					   *SkeletonPrimPath.GetString()
-				   );
-				   bContinueTaskChain = false;
-			   }
-
 			   // If we parsed LODs we could potentially have invalidated our references to our queries,
 			   // so let's refresh them before the downstream tasks try using them.
 			   if (bContinueTaskChain && bTryLODParsing)
