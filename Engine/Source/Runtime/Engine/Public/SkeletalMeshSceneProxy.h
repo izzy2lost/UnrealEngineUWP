@@ -41,6 +41,8 @@ public:
 		return bRenderStatic;
 	}
 
+	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
+
 	ENGINE_API virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) override;
 #endif // RHI_RAYTRACING
 

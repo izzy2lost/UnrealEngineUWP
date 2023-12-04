@@ -315,13 +315,7 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	bNeedsDynamicRayTracingGeometries = false;
 	
 	if (IsRayTracingAllowed() && bSupportRayTracing)
-	{
-		RayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
-		for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
-		{
-			RayTracingGeometries[LODIndex] = &RenderData->LODResources[LODIndex].RayTracingGeometry;
-		}
-		
+	{		
 		const bool bWantsRayTracingWPO = MaterialRelevance.bUsesWorldPositionOffset && InProxyDesc.bEvaluateWorldPositionOffsetInRayTracing;
 
 		// r.RayTracing.Geometry.StaticMeshes.WPO is handled in the following way:
@@ -1870,6 +1864,23 @@ const FCardRepresentationData* FStaticMeshSceneProxy::GetMeshCardRepresentation(
 bool FStaticMeshSceneProxy::HasRayTracingRepresentation() const
 {
 	return bSupportRayTracing;
+}
+
+TArray<FRayTracingGeometry*> FStaticMeshSceneProxy::GetStaticRayTracingGeometries() const
+{
+	if (IsRayTracingAllowed() && bSupportRayTracing)
+	{
+		TArray<FRayTracingGeometry*> RayTracingGeometries;
+		RayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
+		for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
+		{
+			RayTracingGeometries[LODIndex] = &RenderData->LODResources[LODIndex].RayTracingGeometry;
+		}
+
+		return MoveTemp(RayTracingGeometries);
+	}
+
+	return {};
 }
 
 void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances )

@@ -350,7 +350,8 @@ FPrimitiveSceneInfo::FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAda
 	FMemory::Memzero(CachedReflectionCaptureProxies);
 
 #if RHI_RAYTRACING
-	RayTracingGeometries = InAdapter.SceneProxy->MoveRayTracingGeometries();
+	// Cache static ray tracing geometries in SceneInfo to avoid having to access SceneProxy later
+	StaticRayTracingGeometries = InAdapter.SceneProxy->GetStaticRayTracingGeometries();
 	CachedRayTracingGeometry = nullptr;
 #endif
 
@@ -396,17 +397,17 @@ bool FPrimitiveSceneInfo::IsCachedRayTracingGeometryValid() const
 
 FRHIRayTracingGeometry* FPrimitiveSceneInfo::GetStaticRayTracingGeometryInstance(int LodLevel) const
 {
-	if (RayTracingGeometries.Num() > LodLevel)
+	if (StaticRayTracingGeometries.Num() > LodLevel)
 	{
 		// TODO: Select different LOD, when build is still pending for this LOD?
-		if (RayTracingGeometries[LodLevel]->HasPendingBuildRequest())
+		if (StaticRayTracingGeometries[LodLevel]->HasPendingBuildRequest())
 		{
-			RayTracingGeometries[LodLevel]->BoostBuildPriority();
+			StaticRayTracingGeometries[LodLevel]->BoostBuildPriority();
 			return nullptr;
 		}
-		else if (RayTracingGeometries[LodLevel]->IsValid())
+		else if (StaticRayTracingGeometries[LodLevel]->IsValid())
 		{
-			return RayTracingGeometries[LodLevel]->RayTracingGeometryRHI;
+			return StaticRayTracingGeometries[LodLevel]->RayTracingGeometryRHI;
 		}
 		else
 		{

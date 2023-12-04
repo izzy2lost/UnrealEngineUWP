@@ -5864,20 +5864,6 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 		EnableGPUSceneSupportFlags();
 
 	}
-#if RHI_RAYTRACING
-	if (IsRayTracingAllowed())
-	{
-		if (bRenderStatic)
-		{
-			RayTracingGeometries.AddDefaulted(SkeletalMeshRenderData->LODRenderData.Num());
-			for (int32 LODIndex = 0; LODIndex < SkeletalMeshRenderData->LODRenderData.Num(); LODIndex++)
-			{
-				ensure(SkeletalMeshRenderData->LODRenderData[LODIndex].NumReferencingStaticSkeletalMeshObjects > 0);
-				RayTracingGeometries[LODIndex] = &SkeletalMeshRenderData->LODRenderData[LODIndex].StaticRayTracingGeometry;
-			}
-		}
-	}
-#endif
 
 	if (IsAllowingApproximateOcclusionQueries())
 	{		
@@ -6490,6 +6476,24 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 bool FSkeletalMeshSceneProxy::HasRayTracingRepresentation() const
 {
 	return bRenderStatic;
+}
+
+TArray<FRayTracingGeometry*> FSkeletalMeshSceneProxy::GetStaticRayTracingGeometries() const
+{
+	if (IsRayTracingAllowed() && bRenderStatic)
+	{
+		TArray<FRayTracingGeometry*> RayTracingGeometries;
+		RayTracingGeometries.AddDefaulted(SkeletalMeshRenderData->LODRenderData.Num());
+		for (int32 LODIndex = 0; LODIndex < SkeletalMeshRenderData->LODRenderData.Num(); LODIndex++)
+		{
+			ensure(SkeletalMeshRenderData->LODRenderData[LODIndex].NumReferencingStaticSkeletalMeshObjects > 0);
+			RayTracingGeometries[LODIndex] = &SkeletalMeshRenderData->LODRenderData[LODIndex].StaticRayTracingGeometry;
+		}
+
+		return MoveTemp(RayTracingGeometries);
+	}
+
+	return {};
 }
 
 void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext & Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances)

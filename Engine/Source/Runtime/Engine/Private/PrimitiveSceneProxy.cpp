@@ -1791,7 +1791,7 @@ ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRay
 
 	if (IsRayTracingStaticRelevant())
 	{
-		if (PrimitiveSceneInfo->GetRayTracingGeometryNum() == 0
+		if (PrimitiveSceneInfo->GetStaticRayTracingGeometryNum() == 0
 			|| PrimitiveSceneInfo->StaticMeshes.IsEmpty())
 		{
 			return ERayTracingPrimitiveFlags::Excluded;

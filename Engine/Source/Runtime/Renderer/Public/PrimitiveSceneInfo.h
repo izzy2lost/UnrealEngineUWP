@@ -554,7 +554,7 @@ public:
 
 	RENDERER_API FRHIRayTracingGeometry* GetStaticRayTracingGeometryInstance(int LodLevel) const;
 
-	int GetRayTracingGeometryNum() const { return RayTracingGeometries.Num(); }
+	int GetStaticRayTracingGeometryNum() const { return StaticRayTracingGeometries.Num(); }
 #endif
 
 	/** Return primitive fullname (for debugging only). */
@@ -750,10 +750,10 @@ private:
 	void RemoveCachedNaniteMaterialBins();
 
 #if RHI_RAYTRACING
-	TArray<FRayTracingGeometry*> RayTracingGeometries;
+	TArray<FRayTracingGeometry*> StaticRayTracingGeometries;
 
 	// Cache pointer to FRayTracingGeometry used by cached ray tracing instance
-	// since primitives using ERayTracingPrimitiveFlags::CacheInstances don't fill the RayTracingGeometries array above
+	// since primitives using ERayTracingPrimitiveFlags::CacheInstances don't fill the StaticRayTracingGeometries array above
 	const FRayTracingGeometry* CachedRayTracingGeometry;
 
 	/** Creates cached ray tracing representations for all meshes. */
