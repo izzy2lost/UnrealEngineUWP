@@ -144,10 +144,10 @@ void ULiveLinkHubSubjectProxy::NotifyRename()
 		{
 			bPendingOutboundNameChange = true;
 
-			// We need to keep the last subject static data to send it.
-			Provider->SendClearSubjectToConnections(SubjectKey.SubjectName.Name);
+			Provider->SendClearSubjectToConnections(PreviousOutboundName);
 
-			TPair<UClass*, FLiveLinkStaticDataStruct*> StaticData = Provider->GetLastSubjectStaticDataStruct(SubjectKey.SubjectName.Name);
+			// Re-send the last static data with the new name.
+			TPair<UClass*, FLiveLinkStaticDataStruct*> StaticData = Provider->GetLastSubjectStaticDataStruct(PreviousOutboundName);
 			if (StaticData.Key && StaticData.Value)
 			{
 				FLiveLinkStaticDataStruct StaticDataCopy;
@@ -156,6 +156,7 @@ void ULiveLinkHubSubjectProxy::NotifyRename()
 				Provider->UpdateSubjectStaticData(*OutboundName, StaticData.Key, MoveTemp(StaticDataCopy));
 			}
 
+			// Then clear the old static data entry in the provider.
 			Provider->RemoveSubject(PreviousOutboundName);
 
 			bPendingOutboundNameChange = false;
