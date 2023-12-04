@@ -30,15 +30,6 @@ TAutoConsoleVariable<int32> GValidationCvar(
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> GStandardValidationCvar(
-	TEXT("r.Vulkan.StandardValidation"),
-	2,
-	TEXT("2 to use VK_LAYER_KHRONOS_validation (default) if available\n")
-	TEXT("1 to use VK_LAYER_LUNARG_standard_validation if available, or \n")
-	TEXT("0 to use individual validation layers (removed)"),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe
-);
-
 TAutoConsoleVariable<int32> GGPUValidationCvar(
 	TEXT("r.Vulkan.GPUValidation"),
 	0,
@@ -53,7 +44,6 @@ TAutoConsoleVariable<int32> GGPUValidationCvar(
 #endif
 
 #define KHRONOS_STANDARD_VALIDATION_LAYER_NAME	"VK_LAYER_KHRONOS_validation"
-#define STANDARD_VALIDATION_LAYER_NAME			"VK_LAYER_LUNARG_standard_validation"
 
 #endif // VULKAN_HAS_DEBUGGING_ENABLED
 
@@ -396,27 +386,14 @@ void FVulkanIntanceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions
 	const bool bUseVulkanValidation = GRHIGlobals.IsDebugLayerEnabled;
 	if (!bGfxReconstructOrVkTrace && bUseVulkanValidation)
 	{
-		if (GStandardValidationCvar.GetValueOnAnyThread() != 0)
+		if (!AddRequestedLayer(KHRONOS_STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers))
 		{
-			if (GStandardValidationCvar.GetValueOnAnyThread() == 2)
-			{
-				if (!AddRequestedLayer(KHRONOS_STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers))
-				{
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
-					//#todo-rco: We don't package DLLs so if this fails it means no DLL was found anywhere, so don't try to load standard validation layers
-					UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to find Vulkan instance validation layer %s;  Do you have the Vulkan SDK Installed?"), TEXT(STANDARD_VALIDATION_LAYER_NAME));
+			//#todo-rco: We don't package DLLs so if this fails it means no DLL was found anywhere, so don't try to load standard validation layers
+			UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to find Vulkan instance validation layer %s;  Do you have the Vulkan SDK Installed?"), TEXT(KHRONOS_STANDARD_VALIDATION_LAYER_NAME));
 #else
-					UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to find Vulkan instance validation layer %s"), TEXT(STANDARD_VALIDATION_LAYER_NAME));
+			UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to find Vulkan instance validation layer %s"), TEXT(KHRONOS_STANDARD_VALIDATION_LAYER_NAME));
 #endif
-				}
-			}
-			else
-			{
-				if (!AddRequestedLayer(STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers))
-				{
-					UE_LOG(LogVulkanRHI, Warning, TEXT("Unable to find Vulkan instance validation layer %s"), TEXT(STANDARD_VALIDATION_LAYER_NAME));
-				}
-			}
 		}
 	}
 
@@ -463,16 +440,9 @@ void FVulkanIntanceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions
 			return false;
 		};
 
-#if VULKAN_SUPPORTS_DEBUG_UTILS
 		if (ActivateDebuggingExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
 		{
 			ActiveDebugLayerExtension = FVulkanDynamicRHI::EActiveDebugLayerExtension::DebugUtilsExtension;
-		}
-		else
-#endif
-		if (ActivateDebuggingExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
-		{
-			ActiveDebugLayerExtension = FVulkanDynamicRHI::EActiveDebugLayerExtension::DebugReportExtension;
 		}
 
 		const bool bRequiresValidationFeatures = (GGPUValidationCvar.GetValueOnAnyThread() != 0) ||
@@ -486,37 +456,8 @@ void FVulkanIntanceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions
 #endif	// VULKAN_HAS_DEBUGGING_ENABLED
 }
 
-
-
 // Return a list of debug layers to activate
 void FVulkanDeviceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions>& LayerProperties, FVulkanDeviceExtensionArray& UEExtensions, TArray<const ANSICHAR*>& OutLayers)
 {
-#if VULKAN_HAS_DEBUGGING_ENABLED
-#if VULKAN_ENABLE_DRAW_MARKERS
-	GRenderDocFound = (FindLayerIndexInList(RENDERDOC_LAYER_NAME, LayerProperties) != INDEX_NONE);
-#else
-	GRenderDocFound = false;
-#endif
 
-	// Verify that all requested debugging device-layers are available. Skip validation layers under RenderDoc
-	if (!GRenderDocFound && GRHIGlobals.IsDebugLayerEnabled && (GStandardValidationCvar.GetValueOnAnyThread() != 0))
-	{
-		switch (GStandardValidationCvar.GetValueOnAnyThread())
-		{
-		case 1:
-			AddRequestedLayer(STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers);
-			break;
-		case 2:
-			AddRequestedLayer(KHRONOS_STANDARD_VALIDATION_LAYER_NAME, LayerProperties, UEExtensions, OutLayers);
-			break;
-		default:
-			break;
-		}
-		
-	}
-#endif	// VULKAN_HAS_DEBUGGING_ENABLED
 }
-
-
-
-

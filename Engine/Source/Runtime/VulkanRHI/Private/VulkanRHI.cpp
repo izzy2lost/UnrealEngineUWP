@@ -1208,7 +1208,6 @@ void FVulkanCommandListContext::RHIEndFrame()
 void FVulkanCommandListContext::RHIPushEvent(const TCHAR* Name, FColor Color)
 {
 #if VULKAN_ENABLE_DRAW_MARKERS
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 	if (auto CmdBeginLabel = Device->GetCmdBeginDebugLabel())
 	{
 		FTCHARToUTF8 Converter(Name);
@@ -1221,21 +1220,6 @@ void FVulkanCommandListContext::RHIPushEvent(const TCHAR* Name, FColor Color)
 		Label.color[2] = LColor.B;
 		Label.color[3] = LColor.A;
 		CmdBeginLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Label);
-	}
-	else
-#endif
-	if (auto CmdDbgMarkerBegin = Device->GetCmdDbgMarkerBegin())
-	{
-		FTCHARToUTF8 Converter(Name);
-		VkDebugMarkerMarkerInfoEXT Info;
-		ZeroVulkanStruct(Info, VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT);
-		Info.pMarkerName = Converter.Get();
-		FLinearColor LColor(Color);
-		Info.color[0] = LColor.R;
-		Info.color[1] = LColor.G;
-		Info.color[2] = LColor.B;
-		Info.color[3] = LColor.A;
-		CmdDbgMarkerBegin(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Info);
 	}
 #endif
 
@@ -1260,16 +1244,9 @@ void FVulkanCommandListContext::RHIPushEvent(const TCHAR* Name, FColor Color)
 void FVulkanCommandListContext::RHIPopEvent()
 {
 #if VULKAN_ENABLE_DRAW_MARKERS
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 	if (auto CmdEndLabel = Device->GetCmdEndDebugLabel())
 	{
 		CmdEndLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
-	}
-	else
-#endif
-	if (auto CmdDbgMarkerEnd = Device->GetCmdDbgMarkerEnd())
-	{
-		CmdDbgMarkerEnd(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
 	}
 #endif
 

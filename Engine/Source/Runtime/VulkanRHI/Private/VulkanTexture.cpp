@@ -2060,20 +2060,11 @@ void FVulkanDynamicRHI::RHIBindDebugLabelName(FRHICommandListBase& RHICmdList, F
 #endif
 
 #if VULKAN_ENABLE_DRAW_MARKERS
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 	if (auto* SetDebugName = Device->GetSetDebugName())
 	{
 		FVulkanTexture* VulkanTexture = ResourceCast(TextureRHI);
 		FTCHARToUTF8 Converter(Name);
 		VulkanRHI::SetDebugName(SetDebugName, Device->GetInstanceHandle(), VulkanTexture->Image, Converter.Get());
-	}
-	else
-#endif
-	if (auto* SetObjectName = Device->GetDebugMarkerSetObjectName())
-	{
-		FVulkanTexture* VulkanTexture = ResourceCast(TextureRHI);
-		FTCHARToUTF8 Converter(Name);
-		VulkanRHI::SetDebugMarkerName(SetObjectName, Device->GetInstanceHandle(), VulkanTexture->Image, Converter.Get());
 	}
 #endif
 	FName DebugName(Name);

@@ -449,22 +449,6 @@ public:
 	void NotifyDeletedImage(VkImage Image, bool bRenderTarget);
 
 #if VULKAN_ENABLE_DRAW_MARKERS
-	inline PFN_vkCmdDebugMarkerBeginEXT GetCmdDbgMarkerBegin() const
-	{
-		return DebugMarkers.CmdBegin;
-	}
-
-	inline PFN_vkCmdDebugMarkerEndEXT GetCmdDbgMarkerEnd() const
-	{
-		return DebugMarkers.CmdEnd;
-	}
-
-	inline PFN_vkDebugMarkerSetObjectNameEXT GetDebugMarkerSetObjectName() const
-	{
-		return DebugMarkers.CmdSetObjectName;
-	}
-
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 	inline PFN_vkCmdBeginDebugUtilsLabelEXT GetCmdBeginDebugLabel() const
 	{
 		return DebugMarkers.CmdBeginDebugLabel;
@@ -479,8 +463,6 @@ public:
 	{
 		return DebugMarkers.SetDebugName;
 	}
-#endif
-
 #endif
 
 	void PrepareForCPURead();
@@ -538,11 +520,6 @@ public:
 	FVulkanTransientHeapCache& GetOrCreateTransientHeapCache();
 
 	const TArray<const ANSICHAR*>& GetDeviceExtensions() { return DeviceExtensions; }
-
-	inline void SetDebugMarkersFound()
-	{
-		bDebugMarkersFound = true;
-	}
 
 	// Performs a GPU and CPU timestamp at nearly the same time.
 	// This allows aligning GPU and CPU events on the same timeline in profile visualization.
@@ -656,15 +633,9 @@ private:
 #if VULKAN_ENABLE_DRAW_MARKERS
 	struct
 	{
-		PFN_vkCmdDebugMarkerBeginEXT		CmdBegin = nullptr;
-		PFN_vkCmdDebugMarkerEndEXT			CmdEnd = nullptr;
-		PFN_vkDebugMarkerSetObjectNameEXT	CmdSetObjectName = nullptr;
 		PFN_vkSetDebugUtilsObjectNameEXT	SetDebugName = nullptr;
-
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 		PFN_vkCmdBeginDebugUtilsLabelEXT	CmdBeginDebugLabel = nullptr;
 		PFN_vkCmdEndDebugUtilsLabelEXT		CmdEndDebugLabel = nullptr;
-#endif
 	} DebugMarkers;
 	friend class FVulkanCommandListContext;
 #endif

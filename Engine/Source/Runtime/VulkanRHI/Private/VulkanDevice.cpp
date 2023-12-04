@@ -525,9 +525,7 @@ void FVulkanDevice::CreateDevice(TArray<const ANSICHAR*>& DeviceLayers, FVulkanD
 void FVulkanDevice::SetupDrawMarkers()
 {
 #if VULKAN_ENABLE_DRAW_MARKERS
-#if 0//VULKAN_SUPPORTS_DEBUG_UTILS
-	FVulkanDynamicRHI* RHI = GVulkanRHI;
-	if (RHI->SupportsDebugUtilsExt() && GRenderDocFound)
+	if (RHI->SupportsDebugUtilsExt())
 	{
 		DebugMarkers.CmdBeginDebugLabel = (PFN_vkCmdBeginDebugUtilsLabelEXT)(void*)VulkanRHI::vkGetInstanceProcAddr(RHI->GetInstance(), "vkCmdBeginDebugUtilsLabelEXT");
 		DebugMarkers.CmdEndDebugLabel = (PFN_vkCmdEndDebugUtilsLabelEXT)(void*)VulkanRHI::vkGetInstanceProcAddr(RHI->GetInstance(), "vkCmdEndDebugUtilsLabelEXT");
@@ -537,42 +535,8 @@ void FVulkanDevice::SetupDrawMarkers()
 			bDebugMarkersFound = true;
 		}
 	}
-	else
-#endif	// VULKAN_SUPPORTS_DEBUG_UTILS
-	if (bDebugMarkersFound)
-	{
-		DebugMarkers.CmdBegin = (PFN_vkCmdDebugMarkerBeginEXT)(void*)VulkanRHI::vkGetDeviceProcAddr(Device, "vkCmdDebugMarkerBeginEXT");
-		DebugMarkers.CmdEnd = (PFN_vkCmdDebugMarkerEndEXT)(void*)VulkanRHI::vkGetDeviceProcAddr(Device, "vkCmdDebugMarkerEndEXT");
-		DebugMarkers.CmdSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)(void*)VulkanRHI::vkGetDeviceProcAddr(Device, "vkDebugMarkerSetObjectNameEXT");
 
-		if (DebugMarkers.CmdBegin && DebugMarkers.CmdEnd && DebugMarkers.CmdSetObjectName)
-		{
-			bDebugMarkersFound = true;
-		}
-
-		if (!DebugMarkers.CmdBegin || !DebugMarkers.CmdEnd || !DebugMarkers.CmdSetObjectName)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Extension found, but entry points for vkCmdDebugMarker(Begin|End)EXT NOT found!"));
-			bDebugMarkersFound = false;
-			DebugMarkers.CmdBegin = nullptr;
-			DebugMarkers.CmdEnd = nullptr;
-			DebugMarkers.CmdSetObjectName = nullptr;
-		}
-	}
-	else
-	{
-		if (DebugMarkers.CmdBegin && DebugMarkers.CmdEnd && DebugMarkers.CmdSetObjectName)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Extension not found, but entry points for vkCmdDebugMarker(Begin|End)EXT found!"));
-			bDebugMarkersFound = true;
-		}
-	}
-	if(GVulkanRHI->SupportsDebugUtilsExt())
-	{
-		DebugMarkers.SetDebugName = (PFN_vkSetDebugUtilsObjectNameEXT)(void*)VulkanRHI::vkGetInstanceProcAddr(RHI->GetInstance(), "vkSetDebugUtilsObjectNameEXT");
-	}
-
-	if (bDebugMarkersFound)
+	if (bDebugMarkersFound && GRenderDocFound)
 	{
 		// We're running under RenderDoc or other trace tool, so enable capturing mode
 		EnableDrawMarkers();

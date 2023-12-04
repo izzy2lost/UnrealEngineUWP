@@ -25,9 +25,6 @@
 #define VULKAN_SUPPORTS_DRIVER_PROPERTIES			0
 #define VULKAN_SUPPORTS_DESCRIPTOR_INDEXING			(VULKAN_RHI_RAYTRACING)
 
-// crashing during callback setup on Android, code will fallback to VK_EXT_debug_report instead
-#define VULKAN_SUPPORTS_DEBUG_UTILS					0
-
 #define UE_VK_API_VERSION							VK_API_VERSION_1_1
 
 #define ENUM_VK_ENTRYPOINTS_PLATFORM_BASE(EnumMacro)

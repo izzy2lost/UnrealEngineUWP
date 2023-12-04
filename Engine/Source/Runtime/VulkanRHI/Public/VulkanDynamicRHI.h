@@ -352,8 +352,7 @@ public:
 		None,
 		GfxReconstructLayer,
 		VkTraceLayer,
-		DebugUtilsExtension,
-		DebugReportExtension
+		DebugUtilsExtension
 	};
 
 protected:
@@ -362,10 +361,7 @@ protected:
 	EActiveDebugLayerExtension ActiveDebugLayerExtension = EActiveDebugLayerExtension::None;
 
 #if VULKAN_HAS_DEBUGGING_ENABLED
-#if VULKAN_SUPPORTS_DEBUG_UTILS
 	VkDebugUtilsMessengerEXT Messenger = VK_NULL_HANDLE;
-#endif
-	VkDebugReportCallbackEXT MsgCallback = VK_NULL_HANDLE;
 
 	void SetupDebugLayerCallback();
 	void RemoveDebugLayerCallback();
