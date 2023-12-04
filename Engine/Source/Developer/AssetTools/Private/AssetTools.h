@@ -145,9 +145,11 @@ public:
 	virtual bool IsNameAllowed(const FString& Name, FText* OutErrorMessage = nullptr) const override;
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) override;
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) override;
-	
 	virtual void RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate) override;
 	virtual void UnregisterCanMigrateAsset(const FName OwnerName) override;
+	virtual bool CanAssetBePublic(FStringView AssetPath) const override;
+	virtual void RegisterCanAssetBePublic(const FName OwnerName, UE::AssetTools::FCanAssetBePublic Delegate) override;
+	virtual void UnregisterCanAssetBePublic(const FName OwnerName) override;
 
 	virtual void SyncBrowserToAssets(const TArray<UObject*>& AssetsToSync) override;
 	virtual void SyncBrowserToAssets(const TArray<FAssetData>& AssetsToSync) override;
@@ -267,6 +269,8 @@ private:
 	UE::AssetTools::FOnPackageMigration OnPackageMigration;
 
 	TMap<FName, UE::AssetTools::FCanMigrateAsset> CanMigrateAssetDelegates;
+	
+	TMap<FName, UE::AssetTools::FCanAssetBePublic> CanAssetBePublicDelegates;
 };
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

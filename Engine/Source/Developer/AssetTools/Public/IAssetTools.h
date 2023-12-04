@@ -35,6 +35,8 @@ namespace UE::AssetTools
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPackageMigration, FPackageMigrationContext&);
 
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanMigrateAsset, FName);
+
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FCanAssetBePublic, FStringView /*AssetPath*/);
 }
 
 UENUM()
@@ -617,6 +619,16 @@ public:
 	/** Allow to add some restrictions to the assets that can be migrated */
 	virtual void RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate) = 0;
 	virtual void UnregisterCanMigrateAsset(const FName OwnerName) = 0;
+
+	/** Returns whether the specified asset can be public (referenceable from another mount point / plugin) */
+	virtual bool CanAssetBePublic(FStringView AssetPath) const = 0;
+
+	/**
+	 * Register/unregister delegates to specify whether an asset can be made public (referenceable from another mount point / plugin)
+	 * By default any asset can be public and if any delegate return false, the asset must be private
+	 */
+	virtual void RegisterCanAssetBePublic(const FName OwnerName, UE::AssetTools::FCanAssetBePublic Delegate) = 0;
+	virtual void UnregisterCanAssetBePublic(const FName OwnerName) = 0;
 
 	/** Syncs the primary content browser to the specified assets, whether or not it is locked. Most syncs that come from AssetTools -feel- like they came from the content browser, so this is okay. */
 	virtual void SyncBrowserToAssets(const TArray<UObject*>& AssetsToSync) = 0;

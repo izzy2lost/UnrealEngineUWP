@@ -6198,5 +6198,30 @@ void UAssetToolsImpl::UnregisterCanMigrateAsset(const FName OwnerName)
 	CanMigrateAssetDelegates.Remove(OwnerName);
 }
 
+bool UAssetToolsImpl::CanAssetBePublic(FStringView AssetPath) const
+{
+	for (const TPair<FName, UE::AssetTools::FCanAssetBePublic>& Pair : CanAssetBePublicDelegates)
+	{
+		if (Pair.Value.IsBound())
+		{
+			if (!Pair.Value.Execute(AssetPath))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+void UAssetToolsImpl::RegisterCanAssetBePublic(const FName OwnerName, UE::AssetTools::FCanAssetBePublic Delegate)
+{
+	CanAssetBePublicDelegates.Add(OwnerName, MoveTemp(Delegate));
+}
+
+void UAssetToolsImpl::UnregisterCanAssetBePublic(const FName OwnerName)
+{
+	CanAssetBePublicDelegates.Remove(OwnerName);
+}
+
 #undef LOCTEXT_NAMESPACE
 

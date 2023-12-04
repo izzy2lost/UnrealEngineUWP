@@ -1309,8 +1309,17 @@ void FAssetContextMenu::CacheCanExecuteVars()
 		}
 		if (bCanChangeAssetPublicState)
 		{
-			FNameBuilder ItemInternalPath(SelectedItem.GetInternalPath());
-			bCanChangeAssetPublicState = FContentBrowserSingleton::Get().CanChangeAssetPublicState(ItemInternalPath);
+			const FNameBuilder ItemInternalPath(SelectedItem.GetInternalPath());
+			const FStringView AssetPath(ItemInternalPath);
+
+			if (!IAssetTools::Get().CanAssetBePublic(AssetPath))
+			{
+				const FAssetData AssetData = IAssetRegistry::GetChecked().GetAssetByObjectPath(FSoftObjectPath(ItemInternalPath));
+				if (!AssetData.IsValid() || AssetData.HasAnyPackageFlags(PKG_NotExternallyReferenceable))
+				{
+					bCanChangeAssetPublicState = false;
+				}
+			}
 		}
 
 		if (bCanChangeAssetPublicState)

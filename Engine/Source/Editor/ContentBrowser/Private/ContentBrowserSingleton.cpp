@@ -1176,15 +1176,6 @@ void FContentBrowserSingleton::RebuildPrivateContentStateCache()
 	}
 }
 
-bool FContentBrowserSingleton::CanChangeAssetPublicState(FStringView AssetPath)
-{
-	if (CanChangeAssetPublicStateDelegate.IsBound())
-	{
-		return CanChangeAssetPublicStateDelegate.Execute(AssetPath);
-	}
-	return true;
-}
-
 bool FContentBrowserSingleton::IsFolderShowPrivateContentToggleable(const FStringView VirtualFolderPath)
 {
 	if (IsFolderShowPrivateContentToggleableDelegate.IsBound())
@@ -1203,16 +1194,6 @@ const TSharedPtr<FPathPermissionList>& FContentBrowserSingleton::GetShowPrivateC
 void FContentBrowserSingleton::SetPrivateContentPermissionListDirty()
 {
 	ShowPrivateContentState.CachedVirtualPaths.Reset();
-}
-
-void FContentBrowserSingleton::RegisterCanChangeAssetPublicStateDelegate(FCanChangeAssetPublicStateDelegate InCanChangeAssetPublicStateDelegate)
-{
-	CanChangeAssetPublicStateDelegate = MoveTemp(InCanChangeAssetPublicStateDelegate);
-}
-
-void FContentBrowserSingleton::UnregisterCanChangeAssetPublicStateDelegate()
-{
-	CanChangeAssetPublicStateDelegate = FCanChangeAssetPublicStateDelegate();
 }
 
 void FContentBrowserSingleton::RegisterIsFolderShowPrivateContentToggleableDelegate(FIsFolderShowPrivateContentToggleableDelegate InIsFolderShowPrivateContentToggleableDelegate)
