@@ -886,8 +886,6 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 	// Aggregate the time we waited on user input to remove it from the total time
 	double DialogWaitingSeconds = 0;
 
-	FSlateApplication::Get().CancelDragDrop();
-
 	// Fire ULevel::LevelDirtiedEvent when falling out of scope.
 	FScopedLevelDirtied LevelDirtyCallback;
 

@@ -833,8 +833,12 @@ bool FActorMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const 
 		}
 		if (const auto& ActorOp = OutlinerOp.GetSubOp<FActorDragDropOp>())
 		{
-			for (const auto& Actor : ActorOp->Actors)
+			for (const TWeakObjectPtr<AActor>& Actor : ActorOp->Actors)
 			{
+				if (!Actor.IsValid())
+				{
+					continue;
+				}
 				OutPayload.DraggedItems.Add(SceneOutliner->GetTreeItem(Actor.Get()));
 			}
 		}
@@ -844,6 +848,10 @@ bool FActorMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const 
 	{
 		for (const TWeakObjectPtr<AActor>& Actor : static_cast<const FActorDragDropOp&>(Operation).Actors)
 		{
+			if (!Actor.IsValid())
+			{
+				continue;
+			}
 			OutPayload.DraggedItems.Add(SceneOutliner->GetTreeItem(Actor.Get()));
 		}
 		return true;

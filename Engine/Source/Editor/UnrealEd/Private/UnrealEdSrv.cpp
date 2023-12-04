@@ -1504,6 +1504,9 @@ bool UUnrealEdEngine::Exec_Edit( UWorld* InWorld, const TCHAR* Str, FOutputDevic
 				{
 					if (UTypedElementCommonActions* CommonActions = LevelEditor->GetCommonActions())
 					{
+						// End drags to avoid deleting something out from under one.
+						FSlateApplication::Get().CancelDragDrop();
+
 						const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "Cut", "Cut"));
 
 						UTypedElementSelectionSet* SelectionSet = LevelEditor->GetMutableElementSelectionSet();
@@ -2577,6 +2580,9 @@ bool UUnrealEdEngine::Exec_Actor( UWorld* InWorld, const TCHAR* Str, FOutputDevi
 				{
 					UTypedElementSelectionSet* SelectionSet = LevelEditor->GetMutableElementSelectionSet();
 				
+					// End drags to avoid deleting something out from under one.
+					FSlateApplication::Get().CancelDragDrop();
+
 					const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "DeleteElements", "Delete Elements"));
 					if (SelectionSet->GetNumSelectedElements() == 0)
 					{
