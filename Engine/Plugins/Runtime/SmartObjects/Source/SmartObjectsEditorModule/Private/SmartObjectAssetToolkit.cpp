@@ -33,8 +33,9 @@ const FName FSmartObjectAssetToolkit::DetailsTabID(TEXT("SmartObjectAssetToolkit
 enum class ESmartObjectSlotItemType : uint8
 {
 	Object,
+	ObjectDefinitionData,
 	Slot,
-	DefinitionData,
+	SlotDefinitionData,
 };
 
 /** Struct used to describe an item in the outliner. */
@@ -461,6 +462,18 @@ FText FSmartObjectAssetToolkit::GetOutlinerItemDescription(TSharedPtr<FSmartObje
 	{
 		return FText::FromString(Definition->GetName());
 	}
+	else if (Item->Type == ESmartObjectSlotItemType::ObjectDefinitionData)
+	{
+		const FSmartObjectDefinitionDataProxy* DataProxy = Definition->DefinitionData.FindByPredicate([&ID = Item->ID](const FSmartObjectDefinitionDataProxy& DataProxy)
+		{
+			return DataProxy.ID == ID;
+		});
+		if (DataProxy && DataProxy->Data.GetScriptStruct() != nullptr)
+		{
+			return DataProxy->Data.GetScriptStruct()->GetDisplayNameText();
+		}
+		return LOCTEXT("None", "None");
+	}
 	else if (Item->Type == ESmartObjectSlotItemType::Slot)
 	{
 		const int32 SlotIndex = Definition->FindSlotByID(Item->ID);
@@ -470,14 +483,14 @@ FText FSmartObjectAssetToolkit::GetOutlinerItemDescription(TSharedPtr<FSmartObje
 			return FText::FromName(SlotDefinition.Name);
 		}
 	}
-	else if (Item->Type == ESmartObjectSlotItemType::DefinitionData)
+	else if (Item->Type == ESmartObjectSlotItemType::SlotDefinitionData)
 	{
 		int32 SlotIndex = INDEX_NONE;
 		int32 DefinitionDataIndex = INDEX_NONE;
 		if (Definition->FindSlotAndDefinitionDataIndexByID(Item->ID, SlotIndex, DefinitionDataIndex))
 		{
 			const FSmartObjectSlotDefinition& SlotDefinition = Definition->GetSlot(SlotIndex);
-			const FSmartObjectSlotDefinitionDataProxy& DataProxy = SlotDefinition.DefinitionData[DefinitionDataIndex];
+			const FSmartObjectDefinitionDataProxy& DataProxy = SlotDefinition.DefinitionData[DefinitionDataIndex];
 			if (DataProxy.Data.GetScriptStruct() != nullptr)
 			{
 				return DataProxy.Data.GetScriptStruct()->GetDisplayNameText();
@@ -505,6 +518,10 @@ FSlateColor FSmartObjectAssetToolkit::GetOutlinerItemColor(TSharedPtr<FSmartObje
 	{
 		return FColor::Silver;
 	}
+	else if (Item->Type == ESmartObjectSlotItemType::ObjectDefinitionData)
+	{
+		return FColor::Silver;
+	}
 	else if (Item->Type == ESmartObjectSlotItemType::Slot)
 	{
 		const int32 SlotIndex = Definition->FindSlotByID(Item->ID);
@@ -515,7 +532,7 @@ FSlateColor FSmartObjectAssetToolkit::GetOutlinerItemColor(TSharedPtr<FSmartObje
 		}
 		return FColor::Silver;
 	}
-	else if (Item->Type == ESmartObjectSlotItemType::DefinitionData)
+	else if (Item->Type == ESmartObjectSlotItemType::SlotDefinitionData)
 	{
 		return FColor::Silver;
 	}
@@ -559,11 +576,15 @@ TSharedRef<ITableRow> FSmartObjectAssetToolkit::OnGenerateRow(TSharedPtr<FSmartO
 						{
 							return FAppStyle::Get().GetBrush("Icons.Settings");
 						}
+						if (InItem->Type == ESmartObjectSlotItemType::ObjectDefinitionData)
+						{
+							return FAppStyle::Get().GetBrush("SCS.Component");
+						}
 						if (InItem->Type == ESmartObjectSlotItemType::Slot)
 						{
 							return FAppStyle::Get().GetBrush("Icons.Transform");
 						}
-						if (InItem->Type == ESmartObjectSlotItemType::DefinitionData)
+						if (InItem->Type == ESmartObjectSlotItemType::SlotDefinitionData)
 						{
 							return FAppStyle::Get().GetBrush("SCS.Component");
 						}
@@ -769,7 +790,7 @@ TOptional<EItemDropZone> FSmartObjectAssetToolkit::OnOutlinerCanAcceptDrop(const
 
 	if (SourceItem->Type == ESmartObjectSlotItemType::Slot
 		&& (TargetItem->Type == ESmartObjectSlotItemType::Slot
-			|| TargetItem->Type == ESmartObjectSlotItemType::DefinitionData))
+			|| TargetItem->Type == ESmartObjectSlotItemType::SlotDefinitionData))
 	{
 		if (TargetSlotIndex < SourceSlotIndex)
 		{
@@ -956,6 +977,13 @@ void FSmartObjectAssetToolkit::UpdateItemList()
 	{
 		TSharedPtr<FSmartObjectOutlinerItem> Item = CreateItem(FGuid(), ESmartObjectSlotItemType::Object, /*Parent*/nullptr);
 		ItemList.Add(Item);
+		
+		// Definition data
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : Definition->DefinitionData)
+		{
+			TSharedPtr<FSmartObjectOutlinerItem> DataOutlinerItem = CreateItem(DataProxy.ID, ESmartObjectSlotItemType::ObjectDefinitionData, Item);
+			Item->ChildItems.Add(DataOutlinerItem);
+		}
 	}
 
 	// Slots
@@ -965,9 +993,9 @@ void FSmartObjectAssetToolkit::UpdateItemList()
 		ItemList.Add(SlotOutlinerItem);
 
 		// Definition data
-		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : Slot.DefinitionData)
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : Slot.DefinitionData)
 		{
-			TSharedPtr<FSmartObjectOutlinerItem> DataOutlinerItem = CreateItem(DataProxy.ID, ESmartObjectSlotItemType::DefinitionData, SlotOutlinerItem);
+			TSharedPtr<FSmartObjectOutlinerItem> DataOutlinerItem = CreateItem(DataProxy.ID, ESmartObjectSlotItemType::SlotDefinitionData, SlotOutlinerItem);
 			SlotOutlinerItem->ChildItems.Add(DataOutlinerItem);
 		}
 	}
@@ -996,7 +1024,8 @@ void FSmartObjectAssetToolkit::OnPropertyChanged(UObject* ObjectBeingModified, F
 		return;
 	}
 
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, Slots))
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, Slots)
+		|| PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, DefinitionData))
 	{
 		GEditor->GetTimerManager()->SetTimerForNextTick([this]()
 		{

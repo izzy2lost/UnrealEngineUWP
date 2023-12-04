@@ -12,10 +12,10 @@ class SWidget;
 class FSmartObjectViewModel;
 
 /**
- * Type customization for FSmartObjectSlotDefinitionDataProxy.
+ * Type customization for FSmartObjectDefinitionDataProxy.
  */
 
-class FSmartObjectSlotDefinitionDataProxyDetails : public IPropertyTypeCustomization
+class FSmartObjectDefinitionDataProxyDetails : public IPropertyTypeCustomization
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

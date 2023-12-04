@@ -498,19 +498,8 @@ public:
 	template<typename T>
 	const T& GetDefinitionData() const
 	{
-		static_assert(TIsDerivedFrom<T, FSmartObjectSlotDefinitionData>::IsDerived,
-					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectSlotDefinitionData or one of its child-types.");
-
 		const FSmartObjectSlotDefinition& SlotDefinition = GetDefinition();
-		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
-		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
-			{
-				return DataProxy.Data.Get<T>();
-			}
-		}
-
-		return nullptr;
+		return SlotDefinition.template GetDefinitionData<T>();
 	}
 
 	/**
@@ -520,19 +509,8 @@ public:
 	template<typename T>
 	const T* GetDefinitionDataPtr() const
 	{
-		static_assert(TIsDerivedFrom<T, FSmartObjectSlotDefinitionData>::IsDerived,
-					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectSlotDefinitionData or one of its child-types.");
-
 		const FSmartObjectSlotDefinition& SlotDefinition = GetDefinition();
-		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
-		{
-			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
-			{
-				return DataProxy.Data.GetPtr<T>();
-			}
-		}
-
-		return nullptr;
+		return SlotDefinition.template GetDefinitionDataPtr<T>();
 	}
 
 	/** @return the claim state of the slot. */

@@ -256,7 +256,7 @@ bool USmartObjectDefinition::FindSlotAndDefinitionDataIndexByID(const FGuid ID, 
 		}
 
 		// Next try to find slot index based on definition data.
-		const int32 DefinitionDataIndex = SlotDefinition->DefinitionData.IndexOfByPredicate([&ID](const FSmartObjectSlotDefinitionDataProxy& DataProxy)
+		const int32 DefinitionDataIndex = SlotDefinition->DefinitionData.IndexOfByPredicate([&ID](const FSmartObjectDefinitionDataProxy& DataProxy)
 		{
 			return DataProxy.ID == ID;
 		});
@@ -295,7 +295,7 @@ void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEv
 				SlotDefinition.SelectionPreconditions.SetSchemaClass(WorldConditionSchemaClass);
 				
 				// Set new IDs to all duplicated data too
-				for (FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+				for (FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 				{
 					DataProxy.ID = FGuid::NewGuid();
 				}
@@ -311,7 +311,7 @@ void USmartObjectDefinition::PostEditChangeChainProperty(FPropertyChangedChainEv
 				const int32 DataIndex = ChangePropertyPath.GetPropertyArrayIndex(SlotsDefinitionDataPath);
 				if (SlotDefinition.DefinitionData.IsValidIndex(DataIndex))
 				{
-					FSmartObjectSlotDefinitionDataProxy& DataProxy = SlotDefinition.DefinitionData[DataIndex];
+					FSmartObjectDefinitionDataProxy& DataProxy = SlotDefinition.DefinitionData[DataIndex];
 					DataProxy.ID = FGuid::NewGuid();
 				}
 			}
@@ -352,7 +352,7 @@ void USmartObjectDefinition::UpdateSlotReferences()
 {
 	for (FSmartObjectSlotDefinition& Slot : Slots)
 	{
-		for (FSmartObjectSlotDefinitionDataProxy& DataProxy : Slot.DefinitionData)
+		for (FSmartObjectDefinitionDataProxy& DataProxy : Slot.DefinitionData)
 		{
 			if (!DataProxy.Data.IsValid())
 			{
@@ -427,7 +427,7 @@ void USmartObjectDefinition::PostLoad()
 
 			for (const FInstancedStruct& Data : Slot.Data_DEPRECATED)
 			{
-				FSmartObjectSlotDefinitionDataProxy& DataProxy = Slot.DefinitionData.AddDefaulted_GetRef();
+				FSmartObjectDefinitionDataProxy& DataProxy = Slot.DefinitionData.AddDefaulted_GetRef();
 				DataProxy.Data.InitializeAsScriptStruct(Data.GetScriptStruct(), Data.GetMemory());
 				DataProxy.ID = FGuid::NewGuid();
 			}

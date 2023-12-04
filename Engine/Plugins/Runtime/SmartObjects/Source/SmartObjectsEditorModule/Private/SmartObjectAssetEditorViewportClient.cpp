@@ -150,7 +150,7 @@ FVector FSmartObjectAssetEditorViewportClient::GetWidgetLocation() const
 				NumSlots++;
 			}
 
-			for (TConstEnumerateRef<const FSmartObjectSlotDefinitionDataProxy> DataProxy : EnumerateRange(SlotDefinition.DefinitionData))
+			for (TConstEnumerateRef<const FSmartObjectDefinitionDataProxy> DataProxy : EnumerateRange(SlotDefinition.DefinitionData))
 			{
 				if (const FSmartObjectSlotAnnotation* Annotation = DataProxy->Data.GetPtr<FSmartObjectSlotAnnotation>())
 				{
@@ -211,7 +211,7 @@ UE::Widget::EWidgetMode FSmartObjectAssetEditorViewportClient::GetWidgetMode() c
 				break;
 			}
 
-			for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+			for (const FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 			{
 				if (const FSmartObjectSlotAnnotation* Annotation = DataProxy.Data.GetPtr<FSmartObjectSlotAnnotation>())
 				{
@@ -357,7 +357,7 @@ bool FSmartObjectAssetEditorViewportClient::InputWidgetDelta(FViewport* InViewpo
 			}
 			else
 			{
-				for (FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+				for (FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 				{
 					if (FSmartObjectSlotAnnotation* Annotation = DataProxy.Data.GetMutablePtr<FSmartObjectSlotAnnotation>())
 					{

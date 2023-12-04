@@ -1911,7 +1911,7 @@ void USmartObjectSubsystem::QueryValidatedSlotEntranceLocationsInternal(
 	const bool bIncludeEntries = Request.LocationType == ESmartObjectSlotNavigationLocationType::Entry;
 	const bool bIncludeExits = Request.LocationType == ESmartObjectSlotNavigationLocationType::Exit;
 
-	for (TConstEnumerateRef<const FSmartObjectSlotDefinitionDataProxy> DataProxy : EnumerateRange(SlotDefinition.DefinitionData))
+	for (TConstEnumerateRef<const FSmartObjectDefinitionDataProxy> DataProxy : EnumerateRange(SlotDefinition.DefinitionData))
 	{
 		if (const FSmartObjectSlotEntranceAnnotation* EntranceAnnotation = DataProxy->Data.GetPtr<FSmartObjectSlotEntranceAnnotation>())
 		{

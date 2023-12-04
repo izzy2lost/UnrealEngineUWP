@@ -45,7 +45,7 @@ bool FGameplayInteractionFindSlotTask::UpdateResult(const FStateTreeExecutionCon
 		const FSmartObjectSlotView SlotView = SmartObjectSubsystem.GetSlotView(InstanceData.ReferenceSlot);
 		const FSmartObjectSlotDefinition& SlotDefinition = SlotView.GetDefinition();
 
-		for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 		{
 			if (const FSmartObjectSlotLinkAnnotation* Link = DataProxy.Data.GetPtr<FSmartObjectSlotLinkAnnotation>())
 			{

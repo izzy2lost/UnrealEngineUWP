@@ -79,9 +79,9 @@ struct FSmartObjectTestBase : FAITestBase
 		FSmartObjectSlotTestDefinitionData DefinitionData;
 		DefinitionData.SomeSharedFloat = 123.456f;
 
-		FirstSlot.DefinitionData.Add(FSmartObjectSlotDefinitionDataProxy::Make(DefinitionData));
-		SecondSlot.DefinitionData.Add(FSmartObjectSlotDefinitionDataProxy::Make(DefinitionData));
-		ThirdSlot.DefinitionData.Add(FSmartObjectSlotDefinitionDataProxy::Make(DefinitionData));
+		FirstSlot.DefinitionData.Add(FSmartObjectDefinitionDataProxy::Make(DefinitionData));
+		SecondSlot.DefinitionData.Add(FSmartObjectDefinitionDataProxy::Make(DefinitionData));
+		ThirdSlot.DefinitionData.Add(FSmartObjectDefinitionDataProxy::Make(DefinitionData));
 
 		// Setup filter
 		TestFilter.BehaviorDefinitionClasses = { USmartObjectTestBehaviorDefinition::StaticClass() };

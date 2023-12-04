@@ -36,16 +36,16 @@ class SMARTOBJECTSMODULE_API USmartObjectBehaviorDefinition : public UObject
 
 /** Helper struct for definition data, which allows to identify items based on GUID in editor (even empty ones). */
 USTRUCT()
-struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinitionDataProxy
+struct SMARTOBJECTSMODULE_API FSmartObjectDefinitionDataProxy
 {
 	GENERATED_BODY()
 
-	FSmartObjectSlotDefinitionDataProxy() = default;
+	FSmartObjectDefinitionDataProxy() = default;
 
-	template<typename T, typename = std::enable_if_t<std::is_base_of_v<FSmartObjectSlotDefinitionData, std::decay_t<T>>>>
-	static FSmartObjectSlotDefinitionDataProxy Make(const T& Struct)
+	template<typename T, typename = std::enable_if_t<std::is_base_of_v<FSmartObjectDefinitionData, std::decay_t<T>>>>
+	static FSmartObjectDefinitionDataProxy Make(const T& Struct)
 	{
-		FSmartObjectSlotDefinitionDataProxy NewProxy;
+		FSmartObjectDefinitionDataProxy NewProxy;
 		NewProxy.Data.InitializeAsScriptStruct(TBaseStructure<T>::Get(), reinterpret_cast<const uint8*>(&Struct));
 #if WITH_EDITORONLY_DATA
 		NewProxy.ID = FGuid::NewGuid();
@@ -54,13 +54,15 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinitionDataProxy
 	}
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Slot", meta = (ExcludeBaseStruct))
-	TInstancedStruct<FSmartObjectSlotDefinitionData> Data;
+	TInstancedStruct<FSmartObjectDefinitionData> Data;
 	
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditDefaultsOnly, Category = "Slot", meta = (Hidden))
 	FGuid ID;
 #endif	
 };
+
+using FSmartObjectSlotDefinitionDataProxy UE_DEPRECATED(5.4, "Deprecated struct. Please use FSmartObjectDefinitionDataProxy instead.") = FSmartObjectDefinitionDataProxy;
 
 /**
  * Persistent and sharable definition of a smart object slot.
@@ -79,6 +81,48 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	FSmartObjectSlotDefinition& operator=(FSmartObjectSlotDefinition&&) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	/**
+	 * Returns a reference to the definition data of the specified type.
+	 * Method will fail a check if the slot definition doesn't contain the given type.
+	 */
+	template<typename T>
+	const T& GetDefinitionData() const
+	{
+		static_assert(TIsDerivedFrom<T, FSmartObjectDefinitionData>::IsDerived,
+					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectDefinitionData or one of its child-types.");
+
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
+		{
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			{
+				return DataProxy.Data.Get<T>();
+			}
+		}
+		checkf(false, TEXT("Failed to find slot definition data"));
+		return nullptr;
+	}
+
+	/**
+	 * Returns a pointer to the definition data of the specified type.
+	 * Method will return null if the slot doesn't contain the given type.
+	 */
+	template<typename T>
+	const T* GetDefinitionDataPtr() const
+	{
+		static_assert(TIsDerivedFrom<T, FSmartObjectDefinitionData>::IsDerived,
+					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectDefinitionData or one of its child-types.");
+
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
+		{
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			{
+				return DataProxy.Data.GetPtr<T>();
+			}
+		}
+
+		return nullptr;
+	}
+	
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditDefaultsOnly, Category = "Slot")
 	FName Name;
@@ -136,9 +180,9 @@ struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinition
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Slot", Instanced)
 	TArray<TObjectPtr<USmartObjectBehaviorDefinition>> BehaviorDefinitions;
 
-	/** Custom definition data items (struct inheriting from SmartObjectSlotDefinitionData) that can be added to the slot definition and accessed through a FSmartObjectSlotView */
+	/** Custom definition data items (struct inheriting from SmartObjecDefinitionData) that can be added to the slot definition and accessed through a FSmartObjectSlotView */
 	UPROPERTY(EditDefaultsOnly, Category = "Slot")
-	TArray<FSmartObjectSlotDefinitionDataProxy> DefinitionData;
+	TArray<FSmartObjectDefinitionDataProxy> DefinitionData;
 	
 #if WITH_EDITORONLY_DATA
 	UE_DEPRECATED(5.4, "Use DefinitionData instead.")
@@ -358,6 +402,49 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const USmartObjectWorldConditionSchema* GetWorldConditionSchema() const { return WorldConditionSchemaClass.GetDefaultObject(); }
 	const TSubclassOf<USmartObjectWorldConditionSchema>& GetWorldConditionSchemaClass() const { return WorldConditionSchemaClass; }
+
+	/**
+	 * Returns a reference to the definition data of the specified type.
+	 * Method will fail a check if the slot definition doesn't contain the given type.
+	 */
+	template<typename T>
+	const T& GetDefinitionData() const
+	{
+		static_assert(TIsDerivedFrom<T, FSmartObjectDefinitionData>::IsDerived,
+					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectDefinitionData or one of its child-types.");
+
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
+		{
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			{
+				return DataProxy.Data.Get<T>();
+			}
+		}
+		
+		checkf(false, TEXT("Failed to find definition data"));
+		return nullptr;
+	}
+
+	/**
+	 * Returns a pointer to the definition data of the specified type.
+	 * Method will return null if the slot doesn't contain the given type.
+	 */
+	template<typename T>
+	const T* GetDefinitionDataPtr() const
+	{
+		static_assert(TIsDerivedFrom<T, FSmartObjectDefinitionData>::IsDerived,
+					"Given struct doesn't represent a valid definition data type. Make sure to inherit from FSmartObjectDefinitionData or one of its child-types.");
+
+		for (const FSmartObjectDefinitionDataProxy& DataProxy : DefinitionData)
+		{
+			if (DataProxy.Data.GetScriptStruct()->IsChildOf(T::StaticStruct()))
+			{
+				return DataProxy.Data.GetPtr<T>();
+			}
+		}
+
+		return nullptr;
+	}
 	
 protected:
 
@@ -406,6 +493,10 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
 	FGameplayTagContainer ActivityTags;
 
+	/** Custom definition data items (struct inheriting from SmartObjectDefinitionData) for the whole Smart Object. */
+	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", meta=(DisallowedStructs="/Script/SmartObjectsModule.SmartObjectSlotAnnotation"))
+	TArray<FSmartObjectDefinitionDataProxy> DefinitionData;
+
 	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", AdvancedDisplay)
 	TSubclassOf<USmartObjectWorldConditionSchema> WorldConditionSchemaClass;
 	
@@ -422,6 +513,7 @@ private:
 	friend class FSmartObjectSlotReferenceDetails;
 	friend class FSmartObjectViewModel;
 	friend class FSmartObjectAssetToolkit;
+	friend class FSmartObjectDefinitionDetails;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

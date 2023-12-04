@@ -243,11 +243,13 @@ protected:
  * This is the base struct to inherit from to store custom definition data within the main slot definition
  */
 USTRUCT(meta=(Hidden))
-struct SMARTOBJECTSMODULE_API FSmartObjectSlotDefinitionData
+struct SMARTOBJECTSMODULE_API FSmartObjectDefinitionData
 {
 	GENERATED_BODY()
-	virtual ~FSmartObjectSlotDefinitionData() {}
+	virtual ~FSmartObjectDefinitionData() {}
 };
+
+using FSmartObjectSlotDefinitionData UE_DEPRECATED(5.4, "Deprecated struct. Please use FSmartObjectDefinitionData instead.") = FSmartObjectDefinitionData;
 
 /**
  * This is the base struct to inherit from to store custom state data associated to a slot

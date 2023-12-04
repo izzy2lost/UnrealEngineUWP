@@ -206,7 +206,7 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			DebugContext.ViewLocation = ViewLocation;
 			DebugContext.ViewDirection = ViewDirection;
 			
-			for (const FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+			for (const FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 			{
 				if (const FSmartObjectSlotAnnotation* Annotation = DataProxy.Data.GetPtr<FSmartObjectSlotAnnotation>())
 				{

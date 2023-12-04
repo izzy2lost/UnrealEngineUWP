@@ -10,7 +10,7 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Customizations/SmartObjectSlotDefinitionDetails.h"
-#include "Customizations/SmartObjectSlotDefinitionDataProxyDetails.h"
+#include "Customizations/SmartObjectDefinitionDataProxyDetails.h"
 #include "Customizations/SmartObjectSlotReferenceDetails.h"
 #include "Customizations/SmartObjectDefinitionDetails.h"
 #include "WorldPartitionSmartObjectCollectionBuilder.h"
@@ -41,7 +41,7 @@ void FSmartObjectsEditorModule::StartupModule()
 	// Register the details customizer
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomPropertyTypeLayout("SmartObjectSlotDefinition", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FSmartObjectSlotDefinitionDetails::MakeInstance));
-	PropertyModule.RegisterCustomPropertyTypeLayout("SmartObjectSlotDefinitionDataProxy", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FSmartObjectSlotDefinitionDataProxyDetails::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout("SmartObjectDefinitionDataProxy", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FSmartObjectDefinitionDataProxyDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("SmartObjectSlotReference", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FSmartObjectSlotReferenceDetails::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout("SmartObjectDefinition", FOnGetDetailCustomizationInstance::CreateStatic(&FSmartObjectDefinitionDetails::MakeInstance));
 
@@ -70,7 +70,7 @@ void FSmartObjectsEditorModule::ShutdownModule()
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("SmartObjectSlotDefinition");
-		PropertyModule.UnregisterCustomPropertyTypeLayout("SmartObjectSlotDefinitionDataItem");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("SmartObjectDefinitionDataItem");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("SmartObjectSlotReference");
 		PropertyModule.UnregisterCustomClassLayout("SmartObjectDefinition");
 	}

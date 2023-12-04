@@ -225,7 +225,7 @@ void FSmartObjectSlotDefinitionDetails::OnPaste() const
 				SlotDefinition->SelectionPreconditions.Initialize(OuterObjects[Index], Definition->GetWorldConditionSchemaClass(), {});
 				
 				// Set new IDs to all duplicated data too
-				for (FSmartObjectSlotDefinitionDataProxy& DataProxy : SlotDefinition->DefinitionData)
+				for (FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition->DefinitionData)
 				{
 					DataProxy.ID = FGuid::NewGuid();
 				}

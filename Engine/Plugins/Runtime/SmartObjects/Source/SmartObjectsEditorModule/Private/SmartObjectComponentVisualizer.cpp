@@ -86,7 +86,7 @@ void Draw(const USmartObjectDefinition& Definition, TConstArrayView<FGuid> Selec
 			
 		PDI.SetHitProxy(nullptr);
 
-		for (TConstEnumerateRef<const FSmartObjectSlotDefinitionDataProxy> DataProxy : EnumerateRange(Slot->DefinitionData))
+		for (TConstEnumerateRef<const FSmartObjectDefinitionDataProxy> DataProxy : EnumerateRange(Slot->DefinitionData))
 		{
 			if (const FSmartObjectSlotAnnotation* Annotation = DataProxy->Data.GetPtr<FSmartObjectSlotAnnotation>())
 			{
@@ -143,7 +143,7 @@ void DrawCanvas(const USmartObjectDefinition& Definition, TConstArrayView<FGuid>
 		VisContext.DrawString(SlotLocation, *Slot->Name.ToString(), Color);
 
 		// Slot data annotations
-		for (TConstEnumerateRef<const FSmartObjectSlotDefinitionDataProxy> DataProxy : EnumerateRange(Slot->DefinitionData))
+		for (TConstEnumerateRef<const FSmartObjectDefinitionDataProxy> DataProxy : EnumerateRange(Slot->DefinitionData))
 		{
 			if (const FSmartObjectSlotAnnotation* Annotation = DataProxy->Data.GetPtr<FSmartObjectSlotAnnotation>())
 			{

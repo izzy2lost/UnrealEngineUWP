@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SmartObjectSlotDefinitionDataProxyDetails.h"
+#include "SmartObjectDefinitionDataProxyDetails.h"
 #include "IDetailChildrenBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IPropertyUtilities.h"
@@ -8,7 +8,6 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "SmartObjectDefinition.h"
 #include "ScopedTransaction.h"
-#include "PropertyCustomizationHelpers.h"
 #include "Widgets/Text/STextBlock.h"
 #include "InstancedStructDetails.h"
 #include "SmartObjectViewModel.h"
@@ -27,18 +26,63 @@
 
 
 ////////////////////////////////////
-
-TSharedRef<IPropertyTypeCustomization> FSmartObjectSlotDefinitionDataProxyDetails::MakeInstance()
+class FSmartObjectDefinitionDataStructFilter : public IStructViewerFilter
 {
-	return MakeShareable(new FSmartObjectSlotDefinitionDataProxyDetails);
+public:
+	/** The base struct for the property that classes must be a child-of. */
+	const UScriptStruct* BaseStruct = nullptr;
+
+	// A flag controlling whether we allow to select the BaseStruct
+	bool bAllowBaseStruct = true;
+
+	// Disallowed structs
+	TArray<const UScriptStruct*> DisallowedStructs;
+	
+	virtual bool IsStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const UScriptStruct* InStruct, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
+	{
+		for (const UScriptStruct* DisallowedStruct : DisallowedStructs)
+		{
+			if (InStruct->IsChildOf(DisallowedStruct))
+			{
+				return false;
+			}
+		}
+		
+		if (InStruct == BaseStruct)
+		{
+			return bAllowBaseStruct;
+		}
+
+		if (InStruct->HasMetaData(TEXT("Hidden")))
+		{
+			return false;
+		}
+
+		// Query the native struct to see if it has the correct parent type (if any)
+		return !BaseStruct || InStruct->IsChildOf(BaseStruct);
+	}
+
+	virtual bool IsUnloadedStructAllowed(const FStructViewerInitializationOptions& InInitOptions, const FSoftObjectPath& InStructPath, TSharedRef<FStructViewerFilterFuncs> InFilterFuncs) override
+	{
+		// Not supporting User Defined Structs
+		return false;
+	}
+
+};
+
+////////////////////////////////////
+
+TSharedRef<IPropertyTypeCustomization> FSmartObjectDefinitionDataProxyDetails::MakeInstance()
+{
+	return MakeShareable(new FSmartObjectDefinitionDataProxyDetails);
 }
 
-void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<class IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+void FSmartObjectDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<class IPropertyHandle> StructPropertyHandle, class FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	StructProperty = StructPropertyHandle;
 	PropUtils = StructCustomizationUtils.GetPropertyUtilities();
 
-	DataPropertyHandle = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSmartObjectSlotDefinitionDataProxy, Data));
+	DataPropertyHandle = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FSmartObjectDefinitionDataProxy, Data));
 	check(DataPropertyHandle);
 
 	// Get ID and viewmodel from definition data.
@@ -106,7 +150,7 @@ void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<clas
 				[
 					SAssignNew(ComboButton, SComboButton)
 					.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
-					.OnGetMenuContent(this, &FSmartObjectSlotDefinitionDataProxyDetails::GenerateStructPicker)
+					.OnGetMenuContent(this, &FSmartObjectDefinitionDataProxyDetails::GenerateStructPicker)
 					.ContentPadding(0)
 					.ButtonContent()
 					[
@@ -115,7 +159,7 @@ void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<clas
 						.VAlign(VAlign_Center)
 						[
 							SNew(STextBlock)
-							.Text(this, &FSmartObjectSlotDefinitionDataProxyDetails::GetDefinitionDataName)
+							.Text(this, &FSmartObjectDefinitionDataProxyDetails::GetDefinitionDataName)
 							.ToolTipText(LOCTEXT("SelectDefinitionDataType", "Select Definition Data Type"))
 							.Font(IDetailLayoutBuilder::GetDetailFont())
 						]
@@ -130,11 +174,11 @@ void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeHeader(TSharedRef<clas
 				]
 			]
 		]
-		.CopyAction(FUIAction(FExecuteAction::CreateSP(this, &FSmartObjectSlotDefinitionDataProxyDetails::OnCopy)))
-		.PasteAction(FUIAction(FExecuteAction::CreateSP(this, &FSmartObjectSlotDefinitionDataProxyDetails::OnPaste)));
+		.CopyAction(FUIAction(FExecuteAction::CreateSP(this, &FSmartObjectDefinitionDataProxyDetails::OnCopy)))
+		.PasteAction(FUIAction(FExecuteAction::CreateSP(this, &FSmartObjectDefinitionDataProxyDetails::OnPaste)));
 }
 
-FText FSmartObjectSlotDefinitionDataProxyDetails::GetDefinitionDataName() const
+FText FSmartObjectDefinitionDataProxyDetails::GetDefinitionDataName() const
 {
 	check(StructProperty);
 	// Note: We pick the first struct, we assume that multi-selection is not used.
@@ -143,7 +187,7 @@ FText FSmartObjectSlotDefinitionDataProxyDetails::GetDefinitionDataName() const
 	{
 		if (RawData)
 		{
-			Struct = static_cast<const FSmartObjectSlotDefinitionDataProxy*>(RawData)->Data.GetScriptStruct();
+			Struct = static_cast<const FSmartObjectDefinitionDataProxy*>(RawData)->Data.GetScriptStruct();
 			return false; // stop
 		}
 		return true;
@@ -156,7 +200,7 @@ FText FSmartObjectSlotDefinitionDataProxyDetails::GetDefinitionDataName() const
 	return LOCTEXT("None", "None");
 }
 
-FGuid FSmartObjectSlotDefinitionDataProxyDetails::GetItemID() const
+FGuid FSmartObjectDefinitionDataProxyDetails::GetItemID() const
 {
 	// Note: We pick the first ID, we assume that multi-selection is not used.
 	FGuid ItemID;
@@ -164,7 +208,7 @@ FGuid FSmartObjectSlotDefinitionDataProxyDetails::GetItemID() const
 	{
 		if (RawData)
 		{
-			ItemID = static_cast<const FSmartObjectSlotDefinitionDataProxy*>(RawData)->ID;
+			ItemID = static_cast<const FSmartObjectDefinitionDataProxy*>(RawData)->ID;
 			return false; // stop
 		}
 		return true;
@@ -172,7 +216,7 @@ FGuid FSmartObjectSlotDefinitionDataProxyDetails::GetItemID() const
 	return ItemID;
 }
 
-TSharedPtr<FSmartObjectViewModel> FSmartObjectSlotDefinitionDataProxyDetails::GetViewModel() const
+TSharedPtr<FSmartObjectViewModel> FSmartObjectDefinitionDataProxyDetails::GetViewModel() const
 {
 	const USmartObjectDefinition* Definition = nullptr;
 	
@@ -195,7 +239,7 @@ TSharedPtr<FSmartObjectViewModel> FSmartObjectSlotDefinitionDataProxyDetails::Ge
 	return FSmartObjectViewModel::Get(Definition);
 }
 
-void FSmartObjectSlotDefinitionDataProxyDetails::OnCopy() const
+void FSmartObjectDefinitionDataProxyDetails::OnCopy() const
 {
 	FString Value;
 	if (StructProperty->GetValueAsFormattedString(Value, PPF_Copy) == FPropertyAccess::Success)
@@ -204,7 +248,7 @@ void FSmartObjectSlotDefinitionDataProxyDetails::OnCopy() const
 	}
 }
 
-void FSmartObjectSlotDefinitionDataProxyDetails::OnPaste() const
+void FSmartObjectDefinitionDataProxyDetails::OnPaste() const
 {
 	FString PastedText;
 	FPlatformApplicationMisc::ClipboardPaste(PastedText);
@@ -220,7 +264,7 @@ void FSmartObjectSlotDefinitionDataProxyDetails::OnPaste() const
 		{
 			if (RawData)
 			{
-				FSmartObjectSlotDefinitionDataProxy& DataItem = *static_cast<FSmartObjectSlotDefinitionDataProxy*>(RawData);
+				FSmartObjectDefinitionDataProxy& DataItem = *static_cast<FSmartObjectDefinitionDataProxy*>(RawData);
 				DataItem.ID = FGuid::NewGuid();
 			}
 			return true;
@@ -240,7 +284,7 @@ void FSmartObjectSlotDefinitionDataProxyDetails::OnPaste() const
 	}
 }
 
-void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+void FSmartObjectDefinitionDataProxyDetails::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
 {
 	check(DataPropertyHandle);
 	// Add instance directly as child.
@@ -248,21 +292,46 @@ void FSmartObjectSlotDefinitionDataProxyDetails::CustomizeChildren(TSharedRef<IP
 	StructBuilder.AddCustomBuilder(DataDetails);
 }
 
-TSharedRef<SWidget> FSmartObjectSlotDefinitionDataProxyDetails::GenerateStructPicker()
+TSharedRef<SWidget> FSmartObjectDefinitionDataProxyDetails::GenerateStructPicker()
 {
 	static const FName NAME_ExcludeBaseStruct = "ExcludeBaseStruct";
 	static const FName NAME_HideViewOptions = "HideViewOptions";
 	static const FName NAME_ShowTreeView = "ShowTreeView";
-
+	static const FName NAME_DisallowedStructs = "DisallowedStructs";
+	
 	const bool bExcludeBaseStruct = DataPropertyHandle->HasMetaData(NAME_ExcludeBaseStruct);
 	const bool bAllowNone = !(DataPropertyHandle->GetMetaDataProperty()->PropertyFlags & CPF_NoClear);
 	const bool bHideViewOptions = DataPropertyHandle->HasMetaData(NAME_HideViewOptions);
 	const bool bShowTreeView = DataPropertyHandle->HasMetaData(NAME_ShowTreeView);
 
-	TSharedRef<FInstancedStructFilter> StructFilter = MakeShared<FInstancedStructFilter>();
-	StructFilter->BaseStruct = TBaseStructure<FSmartObjectSlotDefinitionData>::Get();
-	StructFilter->bAllowUserDefinedStructs = false;
+	TSharedRef<FSmartObjectDefinitionDataStructFilter> StructFilter = MakeShared<FSmartObjectDefinitionDataStructFilter>();
+	StructFilter->BaseStruct = TBaseStructure<FSmartObjectDefinitionData>::Get();
 	StructFilter->bAllowBaseStruct = !bExcludeBaseStruct;
+
+	for (TSharedPtr<IPropertyHandle> Handle = DataPropertyHandle; Handle.IsValid(); Handle = Handle->GetParentHandle())
+	{
+		const FString& DisallowedStructs = Handle->GetMetaData(NAME_DisallowedStructs);
+		if (!DisallowedStructs.IsEmpty())
+		{
+			TArray<FString> DisallowedStructNames;
+			DisallowedStructs.ParseIntoArray(DisallowedStructNames, TEXT(","));
+
+			for (const FString& DisallowedStructName : DisallowedStructNames)
+			{
+				UScriptStruct* ScriptStruct = FindObject<UScriptStruct>(nullptr, *DisallowedStructName, /*ExactClass*/false);
+				if (ScriptStruct == nullptr)
+				{
+					ScriptStruct = LoadObject<UScriptStruct>(nullptr, *DisallowedStructName);
+				}
+				if (ScriptStruct)
+				{
+					StructFilter->DisallowedStructs.Add(ScriptStruct);
+				}
+			}
+			break;
+		}
+	}
+	
 
 	FStructViewerInitializationOptions Options;
 	Options.bShowNoneOption = bAllowNone;
@@ -271,7 +340,7 @@ TSharedRef<SWidget> FSmartObjectSlotDefinitionDataProxyDetails::GenerateStructPi
 	Options.DisplayMode = bShowTreeView ? EStructViewerDisplayMode::TreeView : EStructViewerDisplayMode::ListView;
 	Options.bAllowViewOptions = !bHideViewOptions;
 
-	FOnStructPicked OnPicked(FOnStructPicked::CreateSP(this, &FSmartObjectSlotDefinitionDataProxyDetails::OnStructPicked));
+	FOnStructPicked OnPicked(FOnStructPicked::CreateSP(this, &FSmartObjectDefinitionDataProxyDetails::OnStructPicked));
 
 	return SNew(SBox)
 		.WidthOverride(280)
@@ -286,7 +355,7 @@ TSharedRef<SWidget> FSmartObjectSlotDefinitionDataProxyDetails::GenerateStructPi
 		];
 }
 
-void FSmartObjectSlotDefinitionDataProxyDetails::OnStructPicked(const UScriptStruct* InStruct)
+void FSmartObjectDefinitionDataProxyDetails::OnStructPicked(const UScriptStruct* InStruct)
 {
 	if (DataPropertyHandle && DataPropertyHandle->IsValidHandle())
 	{
