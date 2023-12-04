@@ -35,7 +35,7 @@ public:
 		SLATE_ARGUMENT(TSharedPtr<SWindow>, ConstructUnderWindow)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, FName InStatusBarID);
+	void Construct(const FArguments& InArgs);
 	
 private:
 	/** Create all livelink hub tabs. */

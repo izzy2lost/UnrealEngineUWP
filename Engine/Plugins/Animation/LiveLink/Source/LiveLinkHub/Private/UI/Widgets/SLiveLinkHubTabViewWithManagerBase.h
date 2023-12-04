@@ -33,7 +33,6 @@ public:
 
 	/**
 	 * @param InArgs
-	 * @param InStatusBarId Unique ID needed for the status bar
 	 */
 	void Construct(const FArguments& InArgs);
 
@@ -49,6 +48,8 @@ private:
 	TSharedRef<SWidget> CreateTabs(const FArguments& InArgs);
 	/** Creates the top bar menu items. */
 	void FillInDefaultMenuItems(FMenuBarBuilder MenuBarBuilder);
-	/** Populates the tab spawner's menu. */
+	/** Populates the tab spawner's file menu. */
+	void FillFileMenu(FMenuBuilder& MenuBuilder);
+	/** Populates the tab spawner's window menu. */
 	void FillWindowMenu(FMenuBuilder& MenuBuilder);
 };

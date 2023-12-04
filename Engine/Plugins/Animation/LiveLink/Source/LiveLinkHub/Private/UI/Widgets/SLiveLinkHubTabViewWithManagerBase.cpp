@@ -6,6 +6,10 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "LiveLinkHub.h"
+#include "LiveLinkHubCommands.h"
+#include "LiveLinkHubModule.h"
+#include "Modules/ModuleManager.h"
 #include "UI/Widgets/SLiveLinkHubTabViewBase.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.SLiveLinkHubTabViewWithManagerBase"
@@ -44,7 +48,10 @@ TSharedRef<SWidget> SLiveLinkHubTabViewWithManagerBase::CreateTabs(const FArgume
 	);
 
 	TSharedRef<SWidget> Result = TabManager->RestoreFrom(Layout, InArgs._ConstructUnderWindow).ToSharedRef();
-	FMenuBarBuilder MenuBarBuilder = FMenuBarBuilder(TSharedPtr<FUICommandList>());
+	
+	const TSharedPtr<FLiveLinkHub> LiveLinkHub = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub();
+	check(LiveLinkHub.IsValid());
+	FMenuBarBuilder MenuBarBuilder = FMenuBarBuilder(LiveLinkHub->GetCommandList());
 	FillInDefaultMenuItems(MenuBarBuilder);
 	InArgs._CreateMenuBar.ExecuteIfBound(MenuBarBuilder);
 	
@@ -58,11 +65,31 @@ TSharedRef<SWidget> SLiveLinkHubTabViewWithManagerBase::CreateTabs(const FArgume
 void SLiveLinkHubTabViewWithManagerBase::FillInDefaultMenuItems(FMenuBarBuilder MenuBarBuilder)
 {
 	MenuBarBuilder.AddPullDownMenu(
+		LOCTEXT("FileMenuLabel", "File"),
+		FText::GetEmpty(),
+		FNewMenuDelegate::CreateSP(this, &SLiveLinkHubTabViewWithManagerBase::FillFileMenu),
+		"File"
+	);
+	
+	MenuBarBuilder.AddPullDownMenu(
 		LOCTEXT("WindowMenuLabel", "Window"),
 		FText::GetEmpty(),
 		FNewMenuDelegate::CreateSP(this, &SLiveLinkHubTabViewWithManagerBase::FillWindowMenu),
 		"Window"
 	);
+}
+
+void SLiveLinkHubTabViewWithManagerBase::FillFileMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.BeginSection("Open", LOCTEXT("OpenHeader", "Open"));
+	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().NewConfig);
+	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().OpenConfig);
+	MenuBuilder.EndSection();
+	
+	MenuBuilder.BeginSection("Save", LOCTEXT("SaveHeader", "Save"));
+	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().SaveConfig);
+	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().SaveConfigAs);
+	MenuBuilder.EndSection();
 }
 
 void SLiveLinkHubTabViewWithManagerBase::FillWindowMenu(FMenuBuilder& MenuBuilder)

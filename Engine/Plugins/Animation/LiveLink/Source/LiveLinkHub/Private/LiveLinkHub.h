@@ -63,6 +63,8 @@ public:
 	TSharedPtr<FLiveLinkHubPlaybackController> GetPlaybackController() const;
 	/** Get the controller that manages clients. */
 	TSharedPtr<FLiveLinkHubClientsController> GetClientsController() const;
+	/** Get the live link hub command list. */
+	TSharedPtr<FUICommandList> GetCommandList() const { return CommandList; }
 	
 private:
 	//~ LiveLink Client delegates
@@ -72,6 +74,27 @@ private:
 	void OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey);
 	//~ LiveLink Client delegates
 
+	/** Bind all available live link hub commands. */
+	void BindCommands();
+
+	/** Clear all client settings. */
+	void ClearClient();
+
+	/** Create a new config. */
+	void NewConfig();
+
+	/** Save an existing config to a new file. */
+	void SaveConfigAs();
+
+	/** Whether the Save command can be used. */
+	bool CanSaveConfig() const;
+	
+	/** Save the config to the current file. */
+	void SaveConfig();
+
+	/** Open an existing config. */
+	void OpenConfig();
+	
 private:
 	/** Implements the logic to manage the clients tabs. */
 	TSharedPtr<FLiveLinkHubClientsController> ClientsController;
@@ -87,8 +110,12 @@ private:
 	TSharedPtr<FLiveLinkHubClient> LiveLinkHubClient;
 	/** LiveLinkProvider used to transfer data to connected UE clients. */
 	TSharedPtr<FLiveLinkHubProvider> LiveLinkProvider;
-	/** Handles execution of commands */
+	/** Handles execution of commands. */
 	TUniquePtr<FConsoleCommandExecutor> CommandExecutor;
+	/** Available live link hub commands. */
+	TSharedPtr<FUICommandList> CommandList;
+	/** The last opened config path. */
+	FString LastConfigPath;
 
 	friend class FLiveLinkHubModule;
 };

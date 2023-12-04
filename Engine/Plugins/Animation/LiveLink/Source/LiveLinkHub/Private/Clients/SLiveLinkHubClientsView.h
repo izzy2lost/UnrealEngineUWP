@@ -11,6 +11,7 @@
 #include "Misc/Guid.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkHubClientsModel.h"
+#include "LiveLinkHubUEClientInfo.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -435,7 +436,14 @@ private:
 		{
 			TSharedPtr<FClientTreeViewSubjectItem> SubjectItem = MakeShared<FClientTreeViewSubjectItem>(Client->ClientAddress, SubjectKey, ClientsModel.ToSharedRef());
 			SubjectItem->LiveLinkSubjectKey = SubjectKey;
-			Client->Children.Add(SubjectItem);
+
+			if (!Client->Children.ContainsByPredicate([&](const TSharedPtr<FClientTreeViewItem>& Child)
+			{
+				return Child->GetSubjectKey() == SubjectKey;
+			}))
+			{
+				Client->Children.Add(SubjectItem);
+			}
 		}
 
 		TreeView->RequestTreeRefresh();

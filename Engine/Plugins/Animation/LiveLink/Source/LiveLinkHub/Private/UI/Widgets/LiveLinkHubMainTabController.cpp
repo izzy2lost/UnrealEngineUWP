@@ -32,7 +32,7 @@ TSharedRef<SDockTab> FLiveLinkHubMainTabController::SpawnMainTab(const FSpawnTab
 		.CanEverClose(false);
 
 	DockTab->SetContent(
-		SAssignNew(MainTabView, SLiveLinkHubMainTabView, LiveLinkHubTabID)
+		SAssignNew(MainTabView, SLiveLinkHubMainTabView)
 			.ConstructUnderMajorTab(DockTab)
 			.ConstructUnderWindow(RootWindow)
 	);

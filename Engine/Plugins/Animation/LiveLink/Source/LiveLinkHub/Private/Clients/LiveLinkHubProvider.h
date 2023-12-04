@@ -84,6 +84,23 @@ public:
 		return true;
 	}
 
+	/** Manually add a client to the client map. */
+	void AddClient(const FLiveLinkHubUEClientInfo& InClientInfo, const FMessageAddress& InMessageAddress)
+	{
+		ClientsMap.Add(InMessageAddress, InClientInfo);
+		OnClientEventDelegate.Broadcast(InMessageAddress, EClientEventType::Connected);
+	}
+
+	/** Manually remove a client from the client map. */
+	void RemoveClient(const FMessageAddress& InMessageAddress)
+	{
+		ClientsMap.Remove(InMessageAddress);
+		OnClientEventDelegate.Broadcast(InMessageAddress, EClientEventType::Disconnected);
+	}
+
+	/** Retrieve the existing client map. */
+	const TMap<FMessageAddress, FLiveLinkHubUEClientInfo>& GetClientsMap() const { return ClientsMap; }
+
 private:
 	/** Handle a connection message resulting from a livelink hub message bus source connecting to this provider. */
 	void HandleHubConnectMessage(const FLiveLinkHubConnectMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)

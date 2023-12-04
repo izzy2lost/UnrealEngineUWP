@@ -23,6 +23,8 @@ namespace UnrealBuildTool.Rules
 				"ContentBrowserData",
 				"Engine",
 				"InputCore",
+				"Json",
+				"JsonUtilities",
 				"LiveLink",
 				"LiveLinkEditor",
 				"LiveLinkHubMessaging",

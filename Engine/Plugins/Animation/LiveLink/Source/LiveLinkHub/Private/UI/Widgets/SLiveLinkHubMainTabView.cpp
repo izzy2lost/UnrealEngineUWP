@@ -38,7 +38,7 @@ const FText SLiveLinkHubMainTabView::PlaybackTabName = LOCTEXT("PlaybackTabLabel
 const FText SLiveLinkHubMainTabView::ClientsTabName = LOCTEXT("ClientsTabLabel", "Clients");
 const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetailsTabLabel", "Client Details");
 
-void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs, FName InStatusBarID)
+void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 {	
 	PanelController = MakeShared<FLiveLinkPanelController>();
 
