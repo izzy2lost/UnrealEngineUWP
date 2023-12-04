@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "EncryptionKeyManager.h"
+#include "Misc/EncryptionKeyManager.h"
+#include "Async/UniqueLock.h"
 #include "Misc/CoreDelegates.h"
 
-namespace UE::IO::IAS
+namespace UE
 {
 
 FEncryptionKeyManager::FEncryptionKeyManager()
@@ -36,7 +37,7 @@ void FEncryptionKeyManager::AddKey(const FGuid& Id, const FAES::FAESKey& Key)
 {
 	bool bAdded = false;
 	{
-		FScopeLock _(&CriticalSection);
+		TUniqueLock Lock(Mutex);
 
 		if (!Keys.Contains(Id))
 		{
@@ -49,12 +50,6 @@ void FEncryptionKeyManager::AddKey(const FGuid& Id, const FAES::FAESKey& Key)
 	{
 		KeyAdded.Broadcast(Id, Key);
 	}
-}
-
-FAES::FAESKey* FEncryptionKeyManager::GetKey(const FGuid& Id)
-{
-	FScopeLock _(&CriticalSection);
-	return Keys.Find(Id);
 }
 
 bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey)
@@ -70,8 +65,14 @@ bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey)
 
 TMap<FGuid, FAES::FAESKey> FEncryptionKeyManager::GetAllKeys()
 {
-	FScopeLock _(&CriticalSection);
+	TUniqueLock Lock(Mutex);
 	return Keys;
+}
+
+FAES::FAESKey* FEncryptionKeyManager::GetKey(const FGuid& Id)
+{
+	TUniqueLock Lock(Mutex);
+	return Keys.Find(Id);
 }
 
 FEncryptionKeyManager& FEncryptionKeyManager::Get()
@@ -80,4 +81,4 @@ FEncryptionKeyManager& FEncryptionKeyManager::Get()
 	return Mgr;
 }
 
-} // namespace UE::IO::IAS
+} // namespace UE

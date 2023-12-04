@@ -2,7 +2,6 @@
 
 #include "IO/IoStoreOnDemand.h"
 
-#include "EncryptionKeyManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/PlatformMisc.h"
@@ -15,6 +14,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/DateTime.h"
+#include "Misc/EncryptionKeyManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/PathViews.h"

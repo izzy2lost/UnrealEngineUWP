@@ -7,7 +7,6 @@
 #include "Containers/StringView.h"
 #include "CoreHttp/LatencyTesting.h"
 #include "DistributionEndpoints.h"
-#include "EncryptionKeyManager.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "HAL/Event.h"
 #include "HAL/FileManagerGeneric.h"
@@ -30,6 +29,7 @@
 #include "Math/NumericLimits.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/EncryptionKeyManager.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/PathViews.h"
 #include "Misc/Paths.h"
@@ -534,10 +534,9 @@ void FOnDemandIoStore::AddDeferredContainers()
 		{
 			FGuid KeyGuid;
 			ensure(FGuid::Parse(Container->EncryptionKeyGuid, KeyGuid));
-			if (const FAES::FAESKey* Key = FEncryptionKeyManager::Get().GetKey(KeyGuid))
+			if (FEncryptionKeyManager::Get().TryGetKey(KeyGuid, Container->EncryptionKey))
 			{
 				UE_LOG(LogIas, Log, TEXT("Mounting container '%s' (%d entries)"), *Container->Name, Container->TocEntries.Num());
-				Container->EncryptionKey = *Key;
 				RegisteredContainers.Add(Container);
 				It.RemoveCurrent();
 			}
