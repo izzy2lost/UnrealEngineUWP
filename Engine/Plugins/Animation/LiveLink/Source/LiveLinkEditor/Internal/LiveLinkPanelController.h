@@ -2,12 +2,15 @@
 
 #pragma once
 
+#include "Delegates/Delegate.h"
 #include "Delegates/IDelegateInstance.h"
+#include "Delegates/DelegateCombinations.h"
 #include "Templates/SharedPointer.h"
 
 class IDetailsView;
 class FLiveLinkClient;
 struct FLiveLinkSourceUIEntry;
+struct FLiveLinkSubjectKey;
 struct FLiveLinkSubjectUIEntry;
 class FLiveLinkSourcesView;
 class SLiveLinkSourceListView;
@@ -19,12 +22,20 @@ namespace ESelectInfo { enum Type : int; }
 typedef TSharedPtr<FLiveLinkSourceUIEntry> FLiveLinkSourceUIEntryPtr;
 typedef TSharedPtr<FLiveLinkSubjectUIEntry> FLiveLinkSubjectUIEntryPtr;
 
+
 /** Handles callback connections between the sources, subjects and details views. */
 class LIVELINKEDITOR_API FLiveLinkPanelController : public TSharedFromThis<FLiveLinkPanelController>
 {
 public:
 	FLiveLinkPanelController();
 	~FLiveLinkPanelController();
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubjectSelectionChanged, const FLiveLinkSubjectKey&);
+	/** Subject Selection changed callback. */
+	FOnSubjectSelectionChanged& OnSubjectSelectionChanged()
+	{
+		return SubjectSelectionChangedDelegate;
+	}
 
 private:
 	// Bind live link commands 
@@ -50,9 +61,9 @@ private:
 	// Recreates the subject list data behind the tree view.
 	void RebuildSubjectList();
 	// Handles source selection changing.
-	void OnSourceSelectionChanged(FLiveLinkSourceUIEntryPtr Entry, ESelectInfo::Type SelectionType) const;
+	void OnSourceSelectionChangedHandler(FLiveLinkSourceUIEntryPtr Entry, ESelectInfo::Type SelectionType) const;
 	// Hadnles subject selection changing.
-	void OnSubjectSelectionChanged(FLiveLinkSubjectUIEntryPtr SubjectEntry, ESelectInfo::Type SelectInfo);
+	void OnSubjectSelectionChangedHandler(FLiveLinkSubjectUIEntryPtr SubjectEntry, ESelectInfo::Type SelectInfo);
 
 public:
 	// Sources view
@@ -73,4 +84,6 @@ public:
 	mutable bool bSelectionChangedGuard = false;
 	// Command list
 	TSharedPtr<FUICommandList> CommandList;
+	// Delegate called when the subject selection changes
+	FOnSubjectSelectionChanged SubjectSelectionChangedDelegate;
 };

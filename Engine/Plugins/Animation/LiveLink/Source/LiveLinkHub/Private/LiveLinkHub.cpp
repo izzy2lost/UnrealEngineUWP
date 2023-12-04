@@ -12,33 +12,40 @@
 #include "Framework/Application/SlateApplication.h"
 #include "IDesktopPlatform.h"
 #include "LiveLinkHubClient.h"
-#include "LiveLinkHubCommands.h"
 #include "LiveLinkProvider.h"
 #include "LiveLinkSubject.h"
+#include "LiveLinkHubCommands.h"
+#include "LiveLinkSubject.h"
+#include "LiveLinkProviderImpl.h"
 #include "LiveLinkSubjectSettings.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkHubRecordingController.h"
 #include "Recording/LiveLinkHubRecordingListController.h"
+#include "Subjects/LiveLinkHubSubjectController.h"
 #include "UI/Window/LiveLinkHubWindowController.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub"
 
 void FLiveLinkHub::Initialize()
 {
-	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>();
+	// We must register the livelink client first since we might rely on the modular feature to initialize the controllers/managers.
 	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
+	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
+
+	SessionManager = MakeShared<FLiveLinkHubSessionManager>();
+	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>(SessionManager.ToSharedRef());
 
 	CommandExecutor = MakeUnique<FConsoleCommandExecutor>();
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), CommandExecutor.Get());
-	
-	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
 
 	RecordingController = MakeShared<FLiveLinkHubRecordingController>();
 	PlaybackController = MakeShared<FLiveLinkHubPlaybackController>();
 	RecordingListController = MakeShared<FLiveLinkHubRecordingListController>(AsShared());
 	ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider.ToSharedRef());
 	CommandList = MakeShared<FUICommandList>();
+	SubjectController = MakeShared<FLiveLinkHubSubjectController>();
+
 
 	FLiveLinkHubCommands::Register();
 	BindCommands();
@@ -95,6 +102,11 @@ TSharedPtr<FLiveLinkHubClientsController> FLiveLinkHub::GetClientsController() c
 	return ClientsController;
 }
 
+TSharedPtr<ILiveLinkHubSessionManager> FLiveLinkHub::GetSessionManager() const
+{
+	return SessionManager;
+}
+
 TSharedPtr<FLiveLinkHubRecordingController> FLiveLinkHub::GetRecordingController() const
 {
 	return RecordingController;
@@ -110,7 +122,7 @@ TSharedPtr<FLiveLinkHubPlaybackController> FLiveLinkHub::GetPlaybackController()
 	return PlaybackController;
 }
 
-void FLiveLinkHub::OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticDataStruct)
+void FLiveLinkHub::OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticDataStruct) const
 {
 	if (RecordingController->IsRecording())
 	{
@@ -119,10 +131,12 @@ void FLiveLinkHub::OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InS
 
 	FLiveLinkStaticDataStruct StaticDataCopy;
 	StaticDataCopy.InitializeWith(InStaticDataStruct);
-	LiveLinkProvider->UpdateSubjectStaticData(InSubjectKey.SubjectName, InRole, MoveTemp(StaticDataCopy));
+
+	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+	LiveLinkProvider->UpdateSubjectStaticData(OverridenName, InRole, MoveTemp(StaticDataCopy));
 }
 
-void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct)
+void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct) const
 {
 	if (RecordingController->IsRecording())
 	{
@@ -132,10 +146,12 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 	
 	FLiveLinkFrameDataStruct FrameDataCopy;
 	FrameDataCopy.InitializeWith(InFrameDataStruct);
-	LiveLinkProvider->UpdateSubjectFrameData(InSubjectKey.SubjectName, MoveTemp(FrameDataCopy));
+
+	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+	LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
 }
 
-void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey)
+void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const
 {
 	// Send an update to connected clients as well.
 	ULiveLinkSubjectSettings* SubjectSettings = Cast<ULiveLinkSubjectSettings>(LiveLinkHubClient->GetSubjectSettings(InSubjectKey));
@@ -144,14 +160,17 @@ void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey)
 	{
 		FLiveLinkStaticDataStruct StaticDataCopy;
 		StaticDataCopy.InitializeWith(*StaticData);
-		LiveLinkProvider->UpdateSubjectStaticData(InSubjectKey.SubjectName, SubjectSettings->Role, MoveTemp(StaticDataCopy));
+
+		const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+		LiveLinkProvider->UpdateSubjectStaticData(OverridenName, SubjectSettings->Role, MoveTemp(StaticDataCopy));
 	}
 }
 
-void FLiveLinkHub::OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey)
+void FLiveLinkHub::OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey) const
 {
 	// Send an update to connected clients as well.
-	LiveLinkProvider->RemoveSubject(InSubjectKey.SubjectName);
+	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
+	LiveLinkProvider->RemoveSubject(OverridenName);
 }
 
 void FLiveLinkHub::BindCommands()
@@ -307,6 +326,22 @@ void FLiveLinkHub::OpenConfig()
 			}
 		}
 	}
+}
+
+FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const
+{
+	if (const TSharedPtr<ILiveLinkHubSessionManager> Manager = SessionManager)
+	{
+		if (const TSharedPtr<ILiveLinkHubSession> CurrentSession = Manager->GetCurrentSession())
+		{
+			if (const ULiveLinkHubSubjectProxy* SubjectProxy = CurrentSession->GetSubjectConfig(InSubjectKey))
+			{
+				return SubjectProxy->GetOutboundName();
+			}
+		}
+	}
+
+	return InSubjectKey.SubjectName;
 }
 
 #undef LOCTEXT_NAMESPACE /*LiveLinkHub*/

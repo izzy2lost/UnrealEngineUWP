@@ -12,9 +12,11 @@ class FLiveLinkHubClientsController;
 class FLiveLinkHubPlaybackController;
 class FLiveLinkHubRecordingController;
 class FLiveLinkHubRecordingListController;
+class FLiveLinkHubSubjectController;
 class FLiveLinkHubWindowController;
 struct FLiveLinkSubjectKey;
 class FLiveLinkHubProvider;
+class ILiveLinkHubSessionManager;
 class SWindow;
 class ULiveLinkRole;
 
@@ -39,7 +41,7 @@ public:
 class FLiveLinkHub : public ILiveLinkHub, public TSharedFromThis<FLiveLinkHub>
 {
 public:
-	virtual ~FLiveLinkHub();
+	virtual ~FLiveLinkHub() override;
 
 	//~ Begin ILiveLinkHub interface
 	virtual bool IsInPlayback() const override;
@@ -65,13 +67,15 @@ public:
 	TSharedPtr<FLiveLinkHubClientsController> GetClientsController() const;
 	/** Get the live link hub command list. */
 	TSharedPtr<FUICommandList> GetCommandList() const { return CommandList; }
+	/** Get the session manager. */
+	TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
 	
 private:
 	//~ LiveLink Client delegates
-	void OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticDataStruct);
-	void OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct);
-	void OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey);
-	void OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey);
+	void OnStaticDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, TSubclassOf<ULiveLinkRole> InRole, const FLiveLinkStaticDataStruct& InStaticDataStruct) const;
+	void OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, const FLiveLinkFrameDataStruct& InFrameDataStruct) const;
+	void OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const;
+	void OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey) const;
 	//~ LiveLink Client delegates
 
 	/** Bind all available live link hub commands. */
@@ -79,6 +83,7 @@ private:
 
 	/** Clear all client settings. */
 	void ClearClient();
+	FName GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const;
 
 	/** Create a new config. */
 	void NewConfig();
@@ -104,8 +109,12 @@ private:
 	TSharedPtr<FLiveLinkHubRecordingListController> RecordingListController;
 	/** Implements the logic for triggering the playback of a livelink recording. */
 	TSharedPtr<FLiveLinkHubPlaybackController> PlaybackController;
+	/** Implements the controller responsible for displaying and managing subject data. */
+	TSharedPtr<FLiveLinkHubSubjectController> SubjectController;
 	/** Controller responsible for creating and managing the app's slate windows. */
 	TSharedPtr<FLiveLinkHubWindowController> WindowController;
+	/** Object responsible for managing sessions.  */
+	TSharedPtr<ILiveLinkHubSessionManager> SessionManager;
 	/** LiveLinkHub's livelink client. */
 	TSharedPtr<FLiveLinkHubClient> LiveLinkHubClient;
 	/** LiveLinkProvider used to transfer data to connected UE clients. */

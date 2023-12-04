@@ -11,11 +11,10 @@
 #include "LiveLinkHub.h"
 #include "LiveLinkHubModule.h"
 #include "LiveLinkPanelController.h"
+#include "LiveLinkTypes.h"
 #include "Modules/ModuleManager.h"
-#include "Recording/LiveLinkHubPlaybackController.h"
-#include "Recording/LiveLinkHubRecordingController.h"
 #include "Recording/LiveLinkHubRecordingListController.h"
-#include "SLiveLinkDataView.h"
+#include "Subjects/LiveLinkHubSubjectController.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -39,8 +38,9 @@ const FText SLiveLinkHubMainTabView::ClientsTabName = LOCTEXT("ClientsTabLabel",
 const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetailsTabLabel", "Client Details");
 
 void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
-{	
+{
 	PanelController = MakeShared<FLiveLinkPanelController>();
+	PanelController->OnSubjectSelectionChanged().AddSP(this, &SLiveLinkHubMainTabView::OnSubjectSelectionChanged);
 
 	SLiveLinkHubTabViewWithManagerBase::Construct(
 		SLiveLinkHubTabViewWithManagerBase::FArguments()
@@ -52,6 +52,14 @@ void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 		}))
 		.LayoutName("LiveLinkHubSourcesTabView_v1.0")
 	);
+}
+
+SLiveLinkHubMainTabView::~SLiveLinkHubMainTabView()
+{
+	if (PanelController)
+	{
+		PanelController->OnSubjectSelectionChanged().RemoveAll(this);
+	}
 }
 
 void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FTabManager::FLayout>& InLayout, const FArguments& InArgs)
@@ -187,11 +195,13 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsTab(const FSpawnTabAr
 
 TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab(const FSpawnTabArgs& InTabArgs)
 {
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+
 	return SNew(SDockTab)
 		.Label(SubjectsDetailsTabName)
 		.TabRole(PanelTab)
 		[
-			PanelController->SubjectsDetailsView.ToSharedRef()
+			LiveLinkHubModule.GetSubjectController()->MakeSubjectView()
 		];
 }
 
@@ -231,6 +241,12 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnClientDetailsTab(const FSpawn
 		[
 			ClientsController->MakeClientDetailsView()
 		];
+}
+
+void SLiveLinkHubMainTabView::OnSubjectSelectionChanged(const FLiveLinkSubjectKey& SubjectKey)
+{
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	LiveLinkHubModule.GetSubjectController()->SetSubject(SubjectKey);
 }
 
 #undef LOCTEXT_NAMESPACE

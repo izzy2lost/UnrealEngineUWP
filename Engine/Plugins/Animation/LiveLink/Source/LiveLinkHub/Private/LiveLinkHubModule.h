@@ -10,6 +10,8 @@ class FLiveLinkHubPlaybackController;
 class FLiveLinkHubProvider;
 class FLiveLinkHubRecordingController;
 class FLiveLinkHubRecordingListController;
+class FLiveLinkHubSubjectController;
+class ILiveLinkHubSessionManager;
 
 class FLiveLinkHubModule : public ILiveLinkHubModule
 {
@@ -28,6 +30,11 @@ public:
 	TSharedPtr<FLiveLinkHubRecordingListController> GetRecordingListController() const;
 	/** Get the playback controller. */
 	TSharedPtr<FLiveLinkHubPlaybackController> GetPlaybackController() const;
+	/** Get the subject controller. */
+	TSharedPtr<FLiveLinkHubSubjectController> GetSubjectController() const;
+	/** Get the subject controller. */
+    TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
+
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */
 	TSharedPtr<FLiveLinkHub> LiveLinkHub;

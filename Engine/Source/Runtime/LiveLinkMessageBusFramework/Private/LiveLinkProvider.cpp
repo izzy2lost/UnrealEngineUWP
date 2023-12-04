@@ -151,6 +151,23 @@ void FLiveLinkProvider::SendSubjectFrame(FName SubjectName, const FTrackedSubjec
 	MessageEndpoint->Send(SubjectFrame, FLiveLinkSubjectFrameMessage::StaticStruct(), EMessageFlags::None, GetAnnotations(), nullptr, Addresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
+TPair<UClass*, FLiveLinkStaticDataStruct*> FLiveLinkProvider::GetLastSubjectStaticDataStruct(FName SubjectName)
+{
+	FScopeLock Lock(&CriticalSection);
+	TPair<UClass*, FLiveLinkStaticDataStruct*> Pair = { nullptr, nullptr };
+
+	if (FTrackedStaticData* TrackedStaticData = GetLastSubjectStaticData(SubjectName))
+	{
+		if (TrackedStaticData->RoleClass.IsValid() && TrackedStaticData->StaticData.IsValid())
+		{
+			Pair.Key = TrackedStaticData->RoleClass.Get();
+			Pair.Value = &TrackedStaticData->StaticData;
+		}
+	}
+
+	return Pair;
+}
+
 // Get the cached data for the named subject
 FTrackedStaticData* FLiveLinkProvider::GetLastSubjectStaticData(const FName& SubjectName)
 {
@@ -205,14 +222,6 @@ void FLiveLinkProvider::ClearTrackedSubject(const FName& SubjectName)
 	}
 }
 
-void FLiveLinkProvider::SendClearSubjectToConnections(FName SubjectName)
-{
-	TArray<FMessageAddress> MessageAddresses;
-	GetFilteredAddresses(SubjectName, MessageAddresses);
-
-	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, GetAnnotations(), nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
-}
-
 FLiveLinkProvider::FLiveLinkProvider(const FString& InProviderName)
 	: ProviderName(InProviderName)
 	, MachineName(FPlatformProcess::ComputerName())
@@ -259,6 +268,14 @@ void FLiveLinkProvider::UpdateSubject(const FName& SubjectName, const TArray<FNa
 	Subject.Transforms.Empty();
 
 	SendSubject(SubjectName, Subject);
+}
+
+void FLiveLinkProvider::SendClearSubjectToConnections(FName SubjectName)
+{
+	TArray<FMessageAddress> MessageAddresses;
+	GetFilteredAddresses(SubjectName, MessageAddresses);
+
+	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FLiveLinkClearSubject>(SubjectName), EMessageFlags::Reliable, GetAnnotations(), nullptr, MessageAddresses, FTimespan::Zero(), FDateTime::MaxValue());
 }
 
 bool FLiveLinkProvider::UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData)

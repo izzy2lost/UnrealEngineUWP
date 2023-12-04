@@ -24,8 +24,8 @@ FLiveLinkPanelController::FLiveLinkPanelController()
 	CommandList = MakeShared<FUICommandList>();
 	BindCommands();
 
-	SourcesView = MakeShared<FLiveLinkSourcesView>(Client, CommandList, FLiveLinkSourcesView::FOnSourceSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSourceSelectionChanged));
-	SubjectsView = MakeShared<FLiveLinkSubjectsView>(FLiveLinkSubjectsView::FOnSubjectSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSubjectSelectionChanged), CommandList);
+	SourcesView = MakeShared<FLiveLinkSourcesView>(Client, CommandList, FLiveLinkSourcesView::FOnSourceSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSourceSelectionChangedHandler));
+	SubjectsView = MakeShared<FLiveLinkSubjectsView>(FLiveLinkSubjectsView::FOnSubjectSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSubjectSelectionChangedHandler), CommandList);
 	SourcesDetailsView = UE::LiveLink::CreateSourcesDetailsView(SourcesView);
 	SubjectsDetailsView = UE::LiveLink::CreateSubjectsDetailsView(Client);
 
@@ -45,7 +45,7 @@ FLiveLinkPanelController::~FLiveLinkPanelController()
 	}
 }
 
-void FLiveLinkPanelController::OnSourceSelectionChanged(FLiveLinkSourceUIEntryPtr Entry, ESelectInfo::Type SelectionType) const
+void FLiveLinkPanelController::OnSourceSelectionChangedHandler(FLiveLinkSourceUIEntryPtr Entry, ESelectInfo::Type SelectionType) const
 {
 	if (bSelectionChangedGuard)
 	{
@@ -80,7 +80,7 @@ void FLiveLinkPanelController::OnSourceSelectionChanged(FLiveLinkSourceUIEntryPt
 	}
 }
 
-void FLiveLinkPanelController::OnSubjectSelectionChanged(FLiveLinkSubjectUIEntryPtr SubjectEntry, ESelectInfo::Type SelectInfo)
+void FLiveLinkPanelController::OnSubjectSelectionChangedHandler(FLiveLinkSubjectUIEntryPtr SubjectEntry, ESelectInfo::Type SelectInfo)
 {
 	if (bSelectionChangedGuard)
 	{
@@ -111,6 +111,8 @@ void FLiveLinkPanelController::OnSubjectSelectionChanged(FLiveLinkSubjectUIEntry
 			SubjectsDetailsView->SetSubjectKey(SubjectEntry->SubjectKey);
 		}
 		bDetailViewSet = true;
+
+		SubjectSelectionChangedDelegate.Broadcast(SubjectEntry->SubjectKey);
 	}
 
 	if (!bDetailViewSet)
@@ -157,7 +159,7 @@ void FLiveLinkPanelController::BindCommands()
 
 void FLiveLinkPanelController::OnSourcesChangedHandler()
 {
-	// Since  this can be called from any thread, make sure we only update slate on the game thread.
+	// Since this can be called from any thread, make sure we only update slate on the game thread.
 	FFunctionGraphTask::CreateAndDispatchWhenReady([this]()
 	{
 		SourcesView->RefreshSourceData(true);
@@ -167,7 +169,7 @@ void FLiveLinkPanelController::OnSourcesChangedHandler()
 
 void FLiveLinkPanelController::OnSubjectsChangedHandler()
 {
-	// Since  this can be called from any thread, make sure we only update slate on the game thread.
+	// Since this can be called from any thread, make sure we only update slate on the game thread.
 	FFunctionGraphTask::CreateAndDispatchWhenReady([this]()
 	{
 		RebuildSubjectList();

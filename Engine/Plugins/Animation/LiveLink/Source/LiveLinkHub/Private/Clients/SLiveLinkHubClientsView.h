@@ -323,6 +323,13 @@ public:
 
 	virtual ~SLiveLinkHubClientsView() override
 	{
+		if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+		{
+			FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+			LiveLinkClient.OnLiveLinkSubjectRemoved().RemoveAll(this);
+			LiveLinkClient.OnLiveLinkSubjectAdded().RemoveAll(this);
+		}
+
 		if (ClientsModel)
 		{
 			ClientsModel->OnClientEvent().RemoveAll(this);

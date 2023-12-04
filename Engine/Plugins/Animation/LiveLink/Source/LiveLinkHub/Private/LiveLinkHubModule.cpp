@@ -45,5 +45,14 @@ TSharedPtr<FLiveLinkHubPlaybackController> FLiveLinkHubModule::GetPlaybackContro
 	return LiveLinkHub->PlaybackController;
 }
 
-IMPLEMENT_MODULE(FLiveLinkHubModule, LiveLinkHub);
+TSharedPtr<FLiveLinkHubSubjectController> FLiveLinkHubModule::GetSubjectController() const
+{
+	return LiveLinkHub->SubjectController;
+}
 
+TSharedPtr<ILiveLinkHubSessionManager> FLiveLinkHubModule::GetSessionManager() const
+{
+	return LiveLinkHub->SessionManager;
+}
+
+IMPLEMENT_MODULE(FLiveLinkHubModule, LiveLinkHub);

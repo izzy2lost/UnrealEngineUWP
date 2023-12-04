@@ -37,7 +37,7 @@ private:
 
 	TSharedPtr<class FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint;
 
-	/** Lock to stop multiple threads accessing the CurrentPreset at the same time */
+	// Lock to stop multiple threads accessing the CurrentPreset at the same time
 	mutable FCriticalSection CriticalSection;
 
 	// Array of our current connections
@@ -77,9 +77,6 @@ private:
 	// Clear a existing track subject
 	void ClearTrackedSubject(const FName& SubjectName);
 
-	// Send a clear subject message to indicate that the subject should be removed from the connected client.
-	void SendClearSubjectToConnections(FName SubjectName);
-
 	// Get the connected addresses that should receive livelink data.
 	void GetFilteredAddresses(FName SubjectName, TArray<FMessageAddress>& Addresses);
 
@@ -95,6 +92,9 @@ protected:
 
 	// Validate our current connections, removing those that have timed out.
 	void ValidateConnections();
+
+	// Get the cached data struct for a subject
+	TPair<UClass*, FLiveLinkStaticDataStruct*> GetLastSubjectStaticDataStruct(FName SubjectName);
 
 	template<typename MessageType>
 	void SendMessage(MessageType* Message)
@@ -157,6 +157,9 @@ protected:
 		return true;
 	}
 
+	// Send a clear subject message to indicate that the subject should be removed from the connected client.
+	void SendClearSubjectToConnections(FName SubjectName);
+
 	// Constructor for derived classes that allows specifying that no endpoint should be created.
 	FLiveLinkProvider(const FString& InProviderName, bool bInCreateEndpoint);
 
@@ -165,9 +168,9 @@ public:
 
 	FLiveLinkProvider(const FString& InProviderName, struct FMessageEndpointBuilder&& EndpointBuilder);
 
-	virtual ~FLiveLinkProvider();
+	virtual ~FLiveLinkProvider() override;
 
-	virtual void UpdateSubject(const FName& SubjectName, const TArray<FName>& BoneNames, const TArray<int32>& BoneParents) override;
+	virtual void UpdateSubject(const FName& SubjectName, const TArray<FName>& BoneNames, const TArray<int32>& BoneParents);
 
 	virtual bool UpdateSubjectStaticData(const FName SubjectName, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) override;
 
@@ -176,17 +179,17 @@ public:
 	virtual void RemoveSubject(const FName SubjectName) override;
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	virtual void UpdateSubjectFrame(const FName& SubjectName, const TArray<FTransform>& BoneTransforms, const TArray<FLiveLinkCurveElement>& CurveData, double Time) override;
+	virtual void UpdateSubjectFrame(const FName& SubjectName, const TArray<FTransform>& BoneTransforms, const TArray<FLiveLinkCurveElement>& CurveData, double Time);
 
 	virtual void UpdateSubjectFrame(const FName& SubjectName, const TArray<FTransform>& BoneTransforms, const TArray<FLiveLinkCurveElement>& CurveData,
-									const FLiveLinkMetaData& MetaData, double Time) override;
+									const FLiveLinkMetaData& MetaData, double Time);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData);
-
+	virtual bool UpdateSubjectFrameData(const FName SubjectName, FLiveLinkFrameDataStruct&& FrameData) override;
+	
 	virtual bool HasConnection() const override;
 
 	virtual FDelegateHandle RegisterConnStatusChangedHandle(const FLiveLinkProviderConnectionStatusChanged::FDelegate& ConnStatusChanged) override;
 
-	virtual void UnregisterConnStatusChangedHandle(FDelegateHandle Handle);
+	virtual void UnregisterConnStatusChangedHandle(FDelegateHandle Handle) override;
 };

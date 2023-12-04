@@ -5,6 +5,7 @@
 #include "SLiveLinkHubTabViewWithManagerBase.h"
 
 class FLiveLinkHubRecordingController;
+struct FLiveLinkSubjectKey;
 class ILiveLinkClient;
 
 /** Manages the UI logic of the Clients tab */
@@ -36,6 +37,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual ~SLiveLinkHubMainTabView() override;
 	
 private:
 	/** Create all livelink hub tabs. */
@@ -49,6 +51,9 @@ private:
 	TSharedRef<SDockTab> SpawnPlaybackTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnClientsTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnClientDetailsTab(const FSpawnTabArgs& InTabArgs);
+
+	/** Handles selection change in the subjects view. */
+	void OnSubjectSelectionChanged(const FLiveLinkSubjectKey& SubjectKey);
 
 private:
 	/** Holds the livelink panel controller responsible for creating sources and subjects tabs. */

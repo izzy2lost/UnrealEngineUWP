@@ -10,7 +10,7 @@
 #include "CoreMinimal.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Editor.h"
-#include "Engine/TimerHandle.h" 
+#include "Engine/TimerHandle.h"
 #include "GameThreadMessageHandler.h"
 #include "HAL/CriticalSection.h"
 #include "IMessageContext.h"
@@ -19,8 +19,9 @@
 #include "LiveLinkProviderImpl.h"
 #include "LiveLinkSettings.h"
 #include "MessageEndpointBuilder.h"
-#include "MessageHandlers.h"
 #include "Misc/ScopeLock.h"
+#include "Subjects/LiveLinkHubSubjectSessionConfig.h"
+#include "Session/LiveLinkHubSession.h"
 #include "TimerManager.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.LiveLinkHubProvider"
@@ -31,6 +32,9 @@
 class FLiveLinkHubProvider : public FLiveLinkProvider, public ILiveLinkHubClientsModel, public TSharedFromThis<FLiveLinkHubProvider>
 {
 public:
+	using FLiveLinkProvider::SendClearSubjectToConnections;
+	using FLiveLinkProvider::GetLastSubjectStaticDataStruct;
+
 	/**
 	 * Create a message bus handler that will dispatch messages on the game thread. 
 	 * This is useful to receive some messages on AnyThread and delegate others on the game thread (ie. for methods that will trigger UI updates which need to happen on game thread. )
@@ -41,8 +45,9 @@ public:
 		return MakeShared<TGameThreadMessageHandler<MessageType, FLiveLinkHubProvider>>(this, Func);
 	}
 
-	FLiveLinkHubProvider()
+	FLiveLinkHubProvider(const TSharedRef<ILiveLinkHubSessionManager>& InSessionManager)
 		: FLiveLinkProvider(TEXT("LiveLink Hub"), false)
+		, SessionManager(InSessionManager)
 	{
 		Annotations.Add(FLiveLinkHubMessageAnnotation::ProviderTypeAnnotation, UE::LiveLinkHub::Private::LiveLinkHubProviderType.ToString());
 
@@ -56,7 +61,7 @@ public:
 		GEditor->GetTimerManager()->SetTimer(ValidateConnectionsTimer, FTimerDelegate::CreateRaw(this, &FLiveLinkHubProvider::ValidateConnections), ValidateConnectionsRate, true);
 	}
 
-	virtual ~FLiveLinkHubProvider()
+	virtual ~FLiveLinkHubProvider() override
 	{
 		if (GEditor)
 		{
@@ -274,6 +279,8 @@ private:
 	FOnClientEvent OnClientEventDelegate;
 	/** Annotations sent with every message from this provider. In our case it's use to disambiguate a livelink hub provider from other livelink providers.*/
 	TMap<FName, FString> Annotations;
+	/** LiveLinkHub session manager. */
+	TWeakPtr<ILiveLinkHubSessionManager> SessionManager;
 	/** Lock used to access the clients map from different threads. */
 	mutable FRWLock ClientsMapLock;
 };
