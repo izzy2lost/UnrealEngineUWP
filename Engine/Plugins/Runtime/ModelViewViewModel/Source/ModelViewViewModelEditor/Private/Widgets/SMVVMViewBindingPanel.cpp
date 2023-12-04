@@ -488,7 +488,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 	BindingsList = nullptr;
 	if (MVVMExtension.Get())
 	{
-		BindingsList = SNew(SBindingsList, StaticCastSharedRef<SBindingsPanel>(AsShared()), MVVMExtension.Get());
+		BindingsList = SNew(SBindingsList, StaticCastSharedRef<SBindingsPanel>(AsShared()), WeakBlueprintEditor.Pin(), MVVMExtension.Get());
 	}
 
 	DetailContainer = SNew(SBorder)

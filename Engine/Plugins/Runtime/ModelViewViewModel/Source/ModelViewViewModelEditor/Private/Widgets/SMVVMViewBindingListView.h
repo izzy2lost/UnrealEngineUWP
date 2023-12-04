@@ -12,6 +12,7 @@ template <typename ItemType> class STreeView;
 class STableViewBase;
 class UMVVMWidgetBlueprintExtension_View;
 class UMVVMBlueprintViewEvent;
+class FWidgetBlueprintEditor;
 
 namespace UE::MVVM
 {
@@ -25,7 +26,7 @@ public:
 	SLATE_BEGIN_ARGS(SBindingsList) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, TSharedPtr<SBindingsPanel> Owner, UMVVMWidgetBlueprintExtension_View* MVVMExtension);
+	void Construct(const FArguments& InArgs, TSharedPtr<SBindingsPanel> Owner, TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor, UMVVMWidgetBlueprintExtension_View* MVVMExtension);
 	~SBindingsList();
 
 	void Refresh();
@@ -59,6 +60,7 @@ private:
 	TArray<TSharedPtr<FBindingEntry>> AllRootGroups;
 	TArray<TSharedPtr<FBindingEntry>> FilteredRootGroups;
 	TWeakObjectPtr<UMVVMWidgetBlueprintExtension_View> MVVMExtension;
+	TWeakPtr<FWidgetBlueprintEditor> WeakBlueprintEditor;
 	mutable bool bSelectionChangedGuard = false;
 	FText FilterText;
 };
