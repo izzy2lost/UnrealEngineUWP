@@ -313,4 +313,20 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintPure, Category="Utilities|Text")
 	static ENGINE_API FText PolyglotDataToText(const FPolyglotTextData& PolyglotData);
+
+	/**
+	 * Edit the source string of the given text property, akin to what happens when editing a text property in a details panel.
+	 * This will attempt to preserve the existing ID of the text property being edited, or failing that will attempt to build a deterministic ID based on the object and property info.
+	 * 
+	 * @note This is an ADVANCED function that is ONLY safe to be used in environments where the modified text property will be gathered for localization (eg, in the editor, or a game mode that collects text properties to be localized).
+	 * 
+	 * @param TextOwner		The object that owns the given Text to be edited.
+	 * @param Text			The text property to edit. This must be a property that exists on TextOwner.
+	 * @param SourceString	The source string that the edited text property should use.
+	 * 
+	 * @return True if edit was possible, or false if not.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category="Utilities|Text", meta=(DefaultToSelf="TextOwner"))
+	static ENGINE_API bool EditTextSourceString(UObject* TextOwner, UPARAM(ref) FText& Text, const FString& SourceString);
+	DECLARE_FUNCTION(execEditTextSourceString);
 };
