@@ -63,11 +63,4 @@ UE_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
 
 UE_API bool ListOnDemandTocs();
 
-/**
- * Attempts to connect to the endpoint in the provided ini file, download all
- * available tocs and then download all chunks in those tocs. This will
- * pre-warm the CDN and allow testing closer to the end users experience.
- */
-UE_API bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
-
 #undef UE_API

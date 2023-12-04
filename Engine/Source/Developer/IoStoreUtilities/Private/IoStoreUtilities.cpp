@@ -9456,18 +9456,3 @@ bool ListOnDemandTocs()
 
 	return Status.IsOk();
 }
-
-bool PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
-{
-	FIoStatus Status = UE::IO::IAS::PrimeEndPoint(IoStoreOnDemandIniPath);
-	if (Status.IsOk())
-	{
-		return true;
-	}
-	else
-	{
-		UE_LOG(LogIoStore, Error, TEXT("PrimeEndPoint command failed due to: %s"), *Status.ToString());
-		return false;
-	}
-}
-

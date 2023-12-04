@@ -268,8 +268,6 @@ struct FIoStoreListTocsParams
 
 UE_API FIoStatus ListTocs(const FIoStoreListTocsParams& Params);
 
-////////////////////////////////////////////////////////////////////////////////
-UE_API FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath);
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
 class IOnDemandIoDispatcherBackend;

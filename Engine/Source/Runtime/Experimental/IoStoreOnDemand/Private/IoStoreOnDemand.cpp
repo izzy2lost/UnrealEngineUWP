@@ -21,7 +21,6 @@
 #include "Modules/ModuleManager.h"
 #include "OnDemandHttpClient.h"
 #include "OnDemandIoDispatcherBackend.h"
-#include "PrimeEndpoint.h"
 #include "Serialization/Archive.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
@@ -2087,12 +2086,6 @@ FIoStatus ListTocs(const FIoStoreListTocsParams& Params)
 	}
 
 	return FIoStatus::Ok;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-FIoStatus PrimeEndPoint(FStringView IoStoreOnDemandIniPath)
-{
-	return UE::IO::IAS::PrimeEndpointInternal(FString(IoStoreOnDemandIniPath));
 }
 
 #endif // (PLATFORM_DESKTOP && (IS_PROGRAM || WITH_EDITOR))
