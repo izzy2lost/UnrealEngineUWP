@@ -1089,13 +1089,6 @@ bool FDeferredShadingSceneRenderer::GatherRayTracingWorldInstancesForView(FRDGBu
 	View.DynamicRayTracingMeshCommandStorage.Reserve(Scene->Primitives.Num());
 	View.VisibleRayTracingMeshCommands.Reserve(Scene->Primitives.Num());
 
-	extern TSet<IPersistentViewUniformBufferExtension*> PersistentViewUniformBufferExtensions;
-
-	for (IPersistentViewUniformBufferExtension* Extension : PersistentViewUniformBufferExtensions)
-	{
-		Extension->BeginRenderView(&View);
-	}
-
 	View.RayTracingMeshResourceCollector = MakeUnique<FRayTracingMeshResourceCollector>(Scene->GetFeatureLevel(), Allocator);
 
 	View.RayTracingCullingParameters.Init(View);

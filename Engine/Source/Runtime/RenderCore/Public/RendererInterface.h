@@ -845,6 +845,7 @@ public:
 	/**	Start prefetching streaming data for Nanite resource that will soon be used for rendering. TODO: Implement callback mechanism */
 	virtual void PrefetchNaniteResource(const Nanite::FResources* Resource, uint32 NumFramesUntilRender) = 0;
 
+	UE_DEPRECATED(5.4, "IPersistentViewUniformBufferExtension will be removed in a future version.")
 	virtual void RegisterPersistentViewUniformBufferExtension(IPersistentViewUniformBufferExtension* Extension) = 0;
 
 	/**
