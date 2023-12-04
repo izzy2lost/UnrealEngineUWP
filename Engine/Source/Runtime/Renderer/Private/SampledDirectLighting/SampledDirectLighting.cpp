@@ -1026,11 +1026,11 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 			(View.ViewRect.Max.X - 1.0f) * InvBufferSize.X,
 			(View.ViewRect.Max.Y - 1.0f) * InvBufferSize.Y);
 
-		if (DiffuseLighting && SpecularLighting && LuminanceMomentsHistory && SceneDepthCopy && NumFramesAccumulated && bTemporal)
+		if (DiffuseLighting && SpecularLighting && LuminanceMoments && SceneDepthCopy && NumFramesAccumulated && bTemporal)
 		{
 			GraphBuilder.QueueTextureExtraction(DiffuseLighting, &LightingViewState.DiffuseLightingHistory);
 			GraphBuilder.QueueTextureExtraction(SpecularLighting, &LightingViewState.SpecularLightingHistory);
-			GraphBuilder.QueueTextureExtraction(LuminanceMomentsHistory, &LightingViewState.LuminanceMomentsHistory);
+			GraphBuilder.QueueTextureExtraction(LuminanceMoments, &LightingViewState.LuminanceMomentsHistory);
 			GraphBuilder.QueueTextureExtraction(SceneDepthCopy, &LightingViewState.SceneDepthHistory);
 			GraphBuilder.QueueTextureExtraction(NumFramesAccumulated, &LightingViewState.NumFramesAccumulatedHistory);
 		}

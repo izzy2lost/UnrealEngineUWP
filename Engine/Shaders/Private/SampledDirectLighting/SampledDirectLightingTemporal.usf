@@ -215,9 +215,10 @@ void SampledDirectLightingTemporalAccumulationCS(
 				Print(Context, TEXT("Irradiance: "));
 				Print(Context, Irradiance);
 				Newline(Context);
-				Print(Context, TEXT("Variance: "));
-				Newline(Context);
+				Print(Context, TEXT("DiffuseVariance:  "));
 				Print(Context, DiffuseVariance);
+				Newline(Context);
+				Print(Context, TEXT("SpecularVariance: "));
 				Print(Context, SpecularVariance);
 			}
 			#endif
