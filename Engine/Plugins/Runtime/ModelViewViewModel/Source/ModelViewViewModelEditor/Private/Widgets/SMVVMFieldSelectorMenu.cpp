@@ -1153,6 +1153,8 @@ void SFieldSelectorMenu::HandleConversionFunctionCategorySelected(TSharedPtr<FCo
 			AddConversionFunctionChildrenRecursive(Item, ConversionFunctions);
 		}
 
+		Algo::SortBy(ConversionFunctions, &UFunction::GetDisplayNameText, FText::FSortPredicate());
+
 		FilterConversionFunctions();
 	}
 
