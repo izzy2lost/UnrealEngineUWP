@@ -1668,14 +1668,14 @@ public:
 	 * Sanitizes a name by removing invalid characters.
 	 * @param InOutName The name to sanitize in place.
 	 */
-	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces = false);
+	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces = true);
 
 	/**
 	 * Sanitizes a name by removing invalid characters.
 	 * @param InName The name to sanitize.
 	 * @return The sanitized name.
  	 */
-	static FRigName GetSanitizedName(const FRigName& InName);
+	static FRigName GetSanitizedName(const FRigName& InName, bool bAllowNameSpaces = true);
 
 	/**
 	 * Returns true if a given name is available.
