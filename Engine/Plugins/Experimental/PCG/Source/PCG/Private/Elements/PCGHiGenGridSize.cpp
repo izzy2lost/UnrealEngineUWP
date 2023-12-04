@@ -113,6 +113,8 @@ EPCGChangeType UPCGHiGenGridSizeSettings::GetChangeTypeForProperty(const FName& 
 
 bool FPCGHiGenGridSizeElement::ExecuteInternal(FPCGContext* Context) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGHiGenGridSizeElement::Execute);
+
 	// Validation
 	check(Context);
 	if (Context->Node && Context->Node->GetGraph() && !Context->Node->GetGraph()->IsHierarchicalGenerationEnabled())

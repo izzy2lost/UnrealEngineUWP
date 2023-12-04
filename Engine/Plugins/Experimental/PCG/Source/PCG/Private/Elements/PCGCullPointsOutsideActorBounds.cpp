@@ -40,6 +40,8 @@ FPCGElementPtr UPCGCullPointsOutsideActorBoundsSettings::CreateElement() const
 
 bool FPCGCullPointsOutsideActorBoundsElement::ExecuteInternal(FPCGContext* Context) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGCullPointsOutsideActorBoundsElement::Execute);
+
 	if (!Context->SourceComponent.IsValid())
 	{
 		return true;

@@ -45,6 +45,8 @@ FPCGElementPtr UPCGGetBoundsSettings::CreateElement() const
 
 bool FPCGGetBoundsElement::ExecuteInternal(FPCGContext* Context) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGetBoundsElement::Execute);
+
 	const TArray<FPCGTaggedData>& Inputs = Context->InputData.TaggedData;
 	bool bEmittedUnboundedDataWarning = false;
 

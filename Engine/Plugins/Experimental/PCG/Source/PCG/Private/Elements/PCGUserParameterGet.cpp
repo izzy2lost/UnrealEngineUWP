@@ -141,6 +141,8 @@ FPCGElementPtr UPCGUserParameterGetSettings::CreateElement() const
 
 bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGUserParameterGetElement::Execute);
+
 	check(Context);
 
 	const UPCGUserParameterGetSettings* Settings = Context->GetInputSettings<UPCGUserParameterGetSettings>();
