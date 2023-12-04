@@ -23,6 +23,8 @@
 #include "UObject/UnrealType.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Elements/Framework/TypedElementHandle.h"
 
 #include "ComponentVisualizer.generated.h"
 
@@ -47,6 +49,11 @@ struct HComponentVisProxy : public HHitProxy
 	virtual EMouseCursor::Type GetMouseCursor() override
 	{
 		return EMouseCursor::Crosshairs;
+	}
+
+	virtual FTypedElementHandle GetElementHandle() const override
+	{
+		return UEngineElementsLibrary::AcquireEditorComponentElementHandle(Component.Get());
 	}
 
 	TWeakObjectPtr<const UActorComponent> Component;

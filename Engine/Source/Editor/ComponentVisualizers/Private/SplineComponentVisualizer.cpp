@@ -1815,7 +1815,6 @@ void FSplineComponentVisualizer::TrackingStopped(FEditorViewportClient* InViewpo
 	{
 		// After dragging, notify that the spline curves property has changed one last time, this time as a EPropertyChangeType::ValueSet :
 		USplineComponent* SplineComp = GetEditedSplineComponent();
-		check(SplineComp != nullptr);
 		NotifyPropertyModified(SplineComp, SplineCurvesProperty, EPropertyChangeType::ValueSet);
 	}
 }

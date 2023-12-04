@@ -874,10 +874,6 @@ public:
 	UNREALED_API const TArray<FTemplateMapInfo>& GetProjectDefaultMapTemplates() const;
 
 protected:
-
-	/** Called when global editor selection is about to change */
-	void OnEditorSelectionPreChange(const UTypedElementSelectionSet* SelectionSet);
-
 	/** Called when the element selection set pointer set on the global editor selection changes */
 	UNREALED_API void OnEditorElementSelectionPtrChanged(USelection* Selection, UTypedElementSelectionSet* OldSelectionSet, UTypedElementSelectionSet* NewSelectionSet);
 

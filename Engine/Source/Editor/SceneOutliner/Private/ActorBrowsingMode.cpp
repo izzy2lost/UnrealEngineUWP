@@ -1083,6 +1083,7 @@ void FActorBrowsingMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr TreeIt
 				// Avoid senting out notification via typed element and call NoteSelectionChange to preserve previous behavior
 				FTypedElementList::FScopedClearNewPendingChange ClearNewPendingChange = SelectionSet->GetScopedClearNewPendingChange();
 				SelectionSet->SetSelection(ElementsToSelect, SelectionOptions);
+				SelectionSet->NotifyPendingChanges();
 			}
 
 			// Fire selection changed event

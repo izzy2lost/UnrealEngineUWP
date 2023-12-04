@@ -278,12 +278,6 @@ void UUnrealEdEngine::ResetPivot()
 /*-----------------------------------------------------------------------------
 	Selection.
 -----------------------------------------------------------------------------*/
-void UUnrealEdEngine::OnEditorSelectionPreChange(const UTypedElementSelectionSet* SelectionSet)
-{
-	// Clear active editing visualizer on selection change
-	ComponentVisManager.ClearActiveComponentVis();
-	VisualizersForSelection.Empty();
-}
 
 void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, UTypedElementSelectionSet* OldSelectionSet, UTypedElementSelectionSet* NewSelectionSet)
 {
@@ -292,13 +286,11 @@ void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, 
 		if (OldSelectionSet)
 		{
 			OldSelectionSet->OnChanged().RemoveAll(this);
-			OldSelectionSet->OnPreChange().RemoveAll(this);
 		}
 
 		if (NewSelectionSet)
 		{
 			NewSelectionSet->OnChanged().AddUObject(this, &UUnrealEdEngine::OnEditorElementSelectionChanged);
-			NewSelectionSet->OnPreChange().AddUObject(this, &UUnrealEdEngine::OnEditorSelectionPreChange);
 		}
 	}
 }
@@ -306,6 +298,8 @@ void UUnrealEdEngine::OnEditorElementSelectionPtrChanged(USelection* Selection, 
 
 void UUnrealEdEngine::OnEditorElementSelectionChanged(const UTypedElementSelectionSet* SelectionSet)
 {
+	VisualizersForSelection.Empty();
+
 	auto GetVisualizersForSelection = [this](AActor* Actor, const UActorComponent* SelectedComponent)
 	{
 		// Iterate over components of that actor (and recurse through child components)
@@ -369,6 +363,11 @@ void UUnrealEdEngine::OnEditorElementSelectionChanged(const UTypedElementSelecti
 				ComponentVisManager.SetActiveComponentVis(GCurrentLevelEditingViewportClient, VisualizerForSelection.ComponentVisualizer.Visualizer);
 				break;
 			}
+		}
+
+		if (!ComponentVisManager.IsActive())
+		{
+			ComponentVisManager.ClearActiveComponentVis();
 		}
 	}
 
