@@ -13,7 +13,7 @@ class UOptimusComponentSourceBinding;
 
 
 UINTERFACE()
-class UOptimusDataInterfaceProvider :
+class OPTIMUSCORE_API UOptimusDataInterfaceProvider :
 	public UInterface
 {
 	GENERATED_BODY()

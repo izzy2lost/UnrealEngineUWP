@@ -310,40 +310,6 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
 				}
 			}
 		}
-
-		if (Pin->GetDirection() == EOptimusNodePinDirection::Output)
-		{
-			if (DoesOutputPinSupportAtomic(Pin) || DoesOutputPinSupportRead(Pin))
-			{
-				TArray<FOptimusRoutedNodePin> ConnectedPins = Pin->GetConnectedPinsWithRouting();
-				if (ConnectedPins.Num() > 1)
-				{
-					int32 TransientBufferCount = 0;
-					int32 PersistentBufferCount = 0;
-					for (const FOptimusRoutedNodePin& ConnectedPin : ConnectedPins)
-					{
-						if (Cast<IOptimusComputeKernelProvider>(ConnectedPin.NodePin->GetOwningNode()))
-						{
-							// At most 1 transient buffer, shared among connected kernels
-							TransientBufferCount = 1;
-						}
-						else if (Cast<UOptimusNode_ResourceAccessorBase>(ConnectedPin.NodePin->GetOwningNode()))
-						{
-							PersistentBufferCount++;
-						}
-						else
-						{
-							return FText::Format(LOCTEXT("TooManyPinConnections", "Pin '{0}' supports Atomic Writes or Read Access and should be connected to either a single resource node or strictly kernel nodes"), FText::FromName(Pin->GetUniqueName()));
-						}
-					}
-
-					if (PersistentBufferCount + TransientBufferCount > 1)
-					{
-						return FText::Format(LOCTEXT("TooManyPinConnections", "Pin '{0}' supports Atomic Writes or Read Access and should be connected to either a single resource node or strictly kernel nodes"), FText::FromName(Pin->GetUniqueName()));
-					}
-				}
-			}
-		}
 	}
 
 	// We should have at least the primary group, which needs to have a unique component binding
@@ -356,64 +322,7 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
 }
 
 
-FString UOptimusNode_ComputeKernelBase::GetCookedKernelSource(
-	const FString& InObjectPathName,
-	const FString& InShaderSource,
-	const FString& InKernelName,
-	FIntVector InGroupSize
-	)
-{
-	// FIXME: Create source range mappings so that we can go from error location to
-	// our source.
-	FString Source = InShaderSource;
 
-#if PLATFORM_WINDOWS
-	// Remove old-school stuff.
-	Source.ReplaceInline(TEXT("\r"), TEXT(""));
-#endif
-
-	FString ShaderPathName = InObjectPathName;
-	Optimus::ConvertObjectPathToShaderFilePath(ShaderPathName);
-
-	const bool bHasKernelKeyword = Source.Contains(TEXT("KERNEL"), ESearchCase::CaseSensitive);
-
-	const FString ComputeShaderUtilsInclude = TEXT("#include \"/Engine/Private/ComputeShaderUtils.ush\"");
-	
-	const FString KernelFunc = FString::Printf(
-		TEXT("[numthreads(%d,%d,%d)]\nvoid %s(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)"), 
-		InGroupSize.X, InGroupSize.Y, InGroupSize.Z, *InKernelName);
-	
-	const FString UnWrappedDispatchThreadId = FString::Printf(
-	TEXT("GetUnWrappedDispatchThreadId(GroupId, GroupIndex, %d)"),
-		InGroupSize.X * InGroupSize.Y * InGroupSize.Z
-	);
-
-	if (bHasKernelKeyword)
-	{
-		Source.ReplaceInline(TEXT("KERNEL"), TEXT("void __kernel_func(uint Index)"), ESearchCase::CaseSensitive);
-
-		return FString::Printf(
-			TEXT(
-				"#line 1 \"%s\"\n"
-				"%s\n\n"
-				"%s\n\n"
-				"%s { __kernel_func(%s); }\n"
-				), *ShaderPathName, *Source, *ComputeShaderUtilsInclude,*KernelFunc, *UnWrappedDispatchThreadId);
-	}
-	else
-	{
-		return FString::Printf(
-		TEXT(
-			"%s\n"
-			"%s\n"
-			"{\n"
-			"uint Index = %s;\n"
-			"#line 1 \"%s\"\n"
-			"%s\n"
-			"}\n"
-			), *ComputeShaderUtilsInclude,*KernelFunc, *UnWrappedDispatchThreadId, *ShaderPathName, *Source);
-	}
-}
 
 
 
@@ -644,37 +553,18 @@ void UOptimusNode_ComputeKernelBase::ProcessOutputPinForComputeKernel(
 
 			if (!ConnectedNode)
 			{
-				if (const UOptimusTransientBufferDataInterface* TransientBufferDataInterface = Cast<const UOptimusTransientBufferDataInterface>(DataInterface);
-							ensure(TransientBufferDataInterface))
+				// No connected node indicates the kernel output is cached in a generated raw buffer
+				if (const UOptimusRawBufferDataInterface* RawBufferDataInterface = Cast<const UOptimusRawBufferDataInterface>(DataInterface);
+					ensure(RawBufferDataInterface))
 				{
 					const int32 OutputIndex = UOptimusRawBufferDataInterface::GetWriteValueOutputIndex(EOptimusBufferWriteType::Write);
-					WriteConnectionDefs.Add({TransientBufferDataInterface, WriteFunctions[OutputIndex].Name, TEXT("TransientBuffer")});	
+					WriteConnectionDefs.Add({RawBufferDataInterface, WriteFunctions[OutputIndex].Name, TEXT("RawBuffer")});
 				}
-				
-				check(KernelConnections->Num() == 1);
-				break;
 			}
 			else
 			{
-				if (Cast<const IOptimusComputeKernelProvider>(ConnectedNode))
-				{
-					if (!SharedRawBufferDI)
-					{
-						if (const UOptimusRawBufferDataInterface* RawBufferDataInterface = Cast<const UOptimusRawBufferDataInterface>(DataInterface);
-							ensure(RawBufferDataInterface))
-						{
-							const int32 OutputIndex = UOptimusRawBufferDataInterface::GetWriteValueOutputIndex(EOptimusBufferWriteType::Write);
-							WriteConnectionDefs.Add({RawBufferDataInterface, WriteFunctions[OutputIndex].Name, TEXT("RawBuffer")});
-							SharedRawBufferDI = DataInterface;
-						}	
-					}
-					else
-					{
-						// All connected kernels should share the same data interface
-						check(SharedRawBufferDI == DataInterface);
-					}
-				}
-				else if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(ConnectedNode))
+				if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(ConnectedNode);
+					ensure(InterfaceProvider))
 				{
 					int32 DataFunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(ConnectedPin);
 					TArray<FShaderFunctionDefinition> FunctionDefinitions;

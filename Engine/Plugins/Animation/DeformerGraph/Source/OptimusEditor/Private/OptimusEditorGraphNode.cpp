@@ -3,6 +3,7 @@
 #include "OptimusEditorGraphNode.h"
 
 #include "IOptimusComputeKernelProvider.h"
+#include "IOptimusDataInterfaceProvider.h"
 #include "OptimusEditorHelpers.h"
 #include "OptimusEditorGraph.h"
 #include "OptimusEditorGraphSchema.h"
@@ -14,6 +15,8 @@
 #include "OptimusNodePin.h"
 #include "IOptimusNodeAdderPinProvider.h"
 #include "IOptimusPinMutabilityDefiner.h"
+#include "OptimusComponentSource.h"
+#include "OptimusDataTypeRegistry.h"
 #include "OptimusNodeGraph.h"
 
 #include "Framework/Commands/GenericCommands.h"
@@ -320,6 +323,21 @@ FLinearColor UOptimusEditorGraphNode::GetNodeTitleColor() const
 
 		if (ModelNode->GetOwningGraph()->GetGraphType() == EOptimusNodeGraphType::Update)
 		{
+			if (Cast<IOptimusDataInterfaceProvider>(ModelNode))
+			{
+				const FOptimusDataTypeRegistry& TypeRegistry = FOptimusDataTypeRegistry::Get();
+				FOptimusDataTypeHandle ComponentSourceType = TypeRegistry.FindType(*UOptimusComponentSourceBinding::StaticClass());
+				
+				// Any writes to data interface provider need to take place every tick, thus they are considered mutable
+				for (const UOptimusNodePin* Pin : ModelNode->GetPinsByDirection(EOptimusNodePinDirection::Input, true))
+				{
+					if (Pin->GetDataType() != ComponentSourceType)
+					{
+						return Super::GetNodeTitleColor();
+					}
+				}
+			}
+			
 			if (ModelNode->GetOwningGraph()->DoesNodeHaveMutableInput(ModelNode))
 			{
 				return Super::GetNodeTitleColor();

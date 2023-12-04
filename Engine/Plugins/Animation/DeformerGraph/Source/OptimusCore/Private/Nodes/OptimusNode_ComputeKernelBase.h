@@ -92,14 +92,7 @@ protected:
 
 		return IndexNames;
 	}
-
-	static FString GetCookedKernelSource(
-		const FString& InObjectPathName,
-		const FString& InShaderSource,
-		const FString& InKernelName,
-		FIntVector InGroupSize
-		);
-
+	
 	static FString GetAtomicWriteFunctionName(EOptimusBufferWriteType InWriteType, const FString& InBindingName);
 	static FString GetReadFunctionName(const FString& InBindingName);
 	

@@ -100,4 +100,11 @@ namespace Optimus
 	void ConvertObjectPathToShaderFilePath(FString& InOutPath);
 	/** Helpers to convert a virtual shader path back to a UObject path. Returns false if the virtual shader path wasn't recognized as a UObject path. */
 	bool ConvertShaderFilePathToObjectPath(FString& InOutPath);
+
+	FString GetCookedKernelSource(
+		const FString& InObjectPathName,
+		const FString& InShaderSource,
+		const FString& InKernelName,
+		FIntVector InGroupSize
+	);
 }

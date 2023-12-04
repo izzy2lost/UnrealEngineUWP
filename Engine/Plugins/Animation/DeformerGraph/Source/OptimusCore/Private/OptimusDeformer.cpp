@@ -12,6 +12,7 @@
 #include "DataInterfaces/OptimusDataInterfaceGraph.h"
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "DataInterfaces/OptimusDataInterfaceLoopTerminal.h"
+#include "DataInterfaces/OptimusDataInterfaceCopyKernel.h"
 #include "IOptimusComputeKernelProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
 #include "IOptimusValueProvider.h"
@@ -2006,7 +2007,27 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	{
 		SourcePinToTargetPins.FindOrAdd(LinkedPins.Value).Add(LinkedPins.Key);
 	}
-	
+
+	TMap<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> LinksToInsertCopyKernel;
+	for (TPair<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> OutputLink : SourcePinToTargetPins)
+	{
+		const FOptimusInstancedPin& SourcePin = OutputLink.Key;
+		const UOptimusNode* SourceNode = SourcePin.InstancedNode.RoutedNode.Node;
+
+		for (const FOptimusInstancedPin& TargetPin : OutputLink.Value)
+		{
+			const UOptimusNode* TargetNode = TargetPin.InstancedNode.RoutedNode.Node;
+
+			if (Cast<const IOptimusDataInterfaceProvider>(TargetNode))
+			{
+				if (Cast<const IOptimusDataInterfaceProvider>(SourceNode))
+				{
+					LinksToInsertCopyKernel.FindOrAdd(SourcePin).Add(TargetPin);
+				}
+			}
+		}
+	}
+
 	// Create all the data interfaces: node, graph, kernel outputs, loop terminal data
 	
 	// The component binding for the graph data is the primary binding on the deformer.
@@ -2152,86 +2173,159 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				{
 					FOptimusInstancedPin InstancedPin = {InstancedNode, Pin};
 
+					bool bShouldCreateRawBuffer = false;
+					bool bShouldUseImplicitPersistentDI = false;
+					bool bShouldCopyToDataInterface = false;
+
+					if (KernelProvider->DoesOutputPinSupportAtomic(Pin) || KernelProvider->DoesOutputPinSupportRead(Pin))
+					{
+						bShouldCreateRawBuffer = true;
+						bShouldCopyToDataInterface = true;
+					}
+
+					TArray<FOptimusInstancedPin> TargetDataInterfacePins;
+
 					if (TArray<FOptimusInstancedPin>* TargetInstancedPins = SourcePinToTargetPins.Find(InstancedPin))
 					{
-						bool bShouldUseImplicitPersistentDI = false;
-						TArray<const UOptimusNodePin*> TargetKernelPins;
-						
 						for (const FOptimusInstancedPin& TargetInstancedPin : *TargetInstancedPins)
 						{
 							const FOptimusRoutedConstNode TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
 							const UOptimusNode* TargetNode = TargetRoutedNode.Node;
 							const UOptimusNodePin* TargetPin = TargetInstancedPin.Pin;
-							
-							if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(TargetNode))
+
+							if (Cast<const IOptimusDataInterfaceProvider>(TargetNode))
 							{
-								KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({*NodeDataInterface, TargetPin});
+								if (InNodeGraph->GetGraphType() == EOptimusNodeGraphType::Update && 
+									KernelToGraphType[RoutedNode] == EOptimusNodeGraphType::Setup)
+								{
+									bShouldCreateRawBuffer = true;
+									bShouldUseImplicitPersistentDI = true;
+									bShouldCopyToDataInterface = true;
+								}
+
+								TargetDataInterfacePins.Add(TargetInstancedPin);
 							}
 							else if (Cast<const IOptimusComputeKernelProvider>(TargetNode))
 							{
+								bShouldCreateRawBuffer = true;
 								if (KernelToGraphType[RoutedNode] != KernelToGraphType[TargetRoutedNode])
 								{
 									bShouldUseImplicitPersistentDI = true;
 								}
+							}
+						}
+					}
 
-								TargetKernelPins.Add(TargetPin);
+					if (bShouldCreateRawBuffer)
+					{
+						UOptimusRawBufferDataInterface* RawBufferDI = nullptr;
+						if (bShouldUseImplicitPersistentDI)
+						{
+							RawBufferDI = NewObject<UOptimusImplicitPersistentBufferDataInterface>(this);
+							if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+							{
+								CastChecked<UOptimusImplicitPersistentBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
+							}
+						}
+						else
+						{
+							RawBufferDI = NewObject<UOptimusTransientBufferDataInterface>(this);
+							if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
+							{
+								CastChecked<UOptimusTransientBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
 							}
 						}
 
-						if (TargetKernelPins.Num() > 0)
-						{
-							UOptimusRawBufferDataInterface* RawBufferDI = nullptr;
-							if (bShouldUseImplicitPersistentDI)
-							{
-								RawBufferDI = NewObject<UOptimusImplicitPersistentBufferDataInterface>(this);
-								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
-								{
-									CastChecked<UOptimusImplicitPersistentBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
-								}
-							}
-							else
-							{
-								RawBufferDI = NewObject<UOptimusTransientBufferDataInterface>(this);
-								if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
-								{
-									CastChecked<UOptimusTransientBufferDataInterface>(RawBufferDI)->bZeroInitForAtomicWrites = true;
-								}
-							}
-								
-							RawBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
-							RawBufferDI->DataDomain = Pin->GetDataDomain();
-							RawBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
-							DataInterfaceToBindingIndexMap.Add(RawBufferDI) = PrimaryBindingIndex;
-								
-							KernelOutputDataInterfaceMap.Add(InstancedPin) = RawBufferDI;
+						RawBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
+						RawBufferDI->DataDomain = Pin->GetDataDomain();
+						RawBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
 
-							// All connected kernels share the same raw buffer data interface
-							for (const UOptimusNodePin* TargetKernelPin : TargetKernelPins)
-							{
-								KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({RawBufferDI, TargetKernelPin});		
-							}
-						}	
+						KernelOutputDataInterfaceMap.Add(InstancedPin) = RawBufferDI;
+						DataInterfaceToBindingIndexMap.Add(RawBufferDI) = PrimaryBindingIndex;
+
+						// All connected kernels share the same raw buffer data interface
+						KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({RawBufferDI, nullptr});
 					}
-					else
-					{
-						if (KernelProvider->DoesOutputPinSupportAtomic(Pin) || KernelProvider->DoesOutputPinSupportRead(Pin))
-						{
-							UOptimusTransientBufferDataInterface* TransientBufferDI = NewObject<UOptimusTransientBufferDataInterface>(this);
-							if (KernelProvider->DoesOutputPinSupportAtomic(Pin))
-							{
-								CastChecked<UOptimusTransientBufferDataInterface>(TransientBufferDI)->bZeroInitForAtomicWrites = true;
-							}
-							TransientBufferDI->ValueType = Pin->GetDataType()->ShaderValueType;
-							TransientBufferDI->DataDomain = Pin->GetDataDomain();
-							TransientBufferDI->ComponentSourceBinding = KernelPrimaryBinding;
-							DataInterfaceToBindingIndexMap.Add(TransientBufferDI) = PrimaryBindingIndex;
-								
-							KernelOutputDataInterfaceMap.Add(InstancedPin) = TransientBufferDI;
 
-							KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({TransientBufferDI, nullptr});	
+					for (const FOptimusInstancedPin& TargetInstancedPin : TargetDataInterfacePins)
+					{
+						const FOptimusRoutedConstNode TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
+						const UOptimusNode* TargetNode = TargetRoutedNode.Node;
+						const UOptimusNodePin* TargetPin = TargetInstancedPin.Pin;
+
+						if (bShouldCopyToDataInterface)
+						{
+							check(bShouldCreateRawBuffer);
+							LinksToInsertCopyKernel.FindOrAdd(InstancedPin).Add(TargetInstancedPin);
+						}
+						else
+						{
+							if (UOptimusComputeDataInterface** NodeDataInterface = NodeDataInterfaceMap.Find(TargetNode))
+							{
+								KernelOutputMap[InstancedNode].FindOrAdd(Pin).Add({*NodeDataInterface, TargetPin});
+							}
 						}	
 					}
 				}
+			}
+		}
+	}
+
+	if (!LinksToInsertCopyKernel.IsEmpty())
+	{
+		GraphTypes.Add(InNodeGraph->GetGraphType());
+	}
+	
+	struct FDataInterfaceFunctionBinding
+	{
+		UOptimusComputeDataInterface* DataInterface;
+		int32 FunctionIndex;
+	};
+	
+	TMap<FOptimusInstancedPin, UComputeDataInterface*> CopyKernelDataInterfaceMap;
+	TMap<FOptimusInstancedPin, FDataInterfaceFunctionBinding> CopyFromDataInterfaceMap;
+	TMap<FOptimusInstancedPin, FDataInterfaceFunctionBinding> CopyToDataInterfaceMap;
+
+	for (TPair<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> OutputLink : LinksToInsertCopyKernel)
+	{
+		const FOptimusInstancedPin& SourceInstancedPin = OutputLink.Key;
+		const UOptimusNode* SourceNode = SourceInstancedPin.Pin->GetOwningNode();
+		if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(SourceNode))
+		{
+			FDataInterfaceFunctionBinding DataInterfaceBinding;
+			DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[SourceNode];
+			DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(SourceInstancedPin.Pin);
+			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;
+		}
+		else if (Cast<const IOptimusComputeKernelProvider>(SourceNode))
+		{
+			FDataInterfaceFunctionBinding DataInterfaceBinding;
+			DataInterfaceBinding.DataInterface = KernelOutputDataInterfaceMap[SourceInstancedPin];
+			DataInterfaceBinding.FunctionIndex = UOptimusRawBufferDataInterface::GetReadValueInputIndex(EOptimusBufferReadType::Default);
+
+			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;
+		}
+
+		UOptimusCopyKernelDataInterface* CopyKernelDataInterface = NewObject<UOptimusCopyKernelDataInterface>(this);
+
+		CopyKernelDataInterface->SetExecutionDomain(*SourceInstancedPin.Pin->GetDataDomain().AsExpression());
+		UOptimusComponentSourceBinding* Binding = *SourceInstancedPin.Pin->GetComponentSourceBindings().CreateConstIterator();
+		CopyKernelDataInterface->SetComponentBinding(Binding);
+
+		CopyKernelDataInterfaceMap.Add(SourceInstancedPin) = CopyKernelDataInterface;
+		DataInterfaceToBindingIndexMap.Add(CopyKernelDataInterface) = Binding->GetIndex();
+
+		for (const FOptimusInstancedPin& TargetInstancedPin : OutputLink.Value)
+		{
+			const UOptimusNode* TargetNode = TargetInstancedPin.Pin->GetOwningNode();
+
+			if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(TargetNode);
+				ensure(InterfaceProvider))
+			{
+				FDataInterfaceFunctionBinding DataInterfaceBinding;
+				DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[TargetNode];
+				DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(TargetInstancedPin.Pin);
+				CopyToDataInterfaceMap.Add(TargetInstancedPin) = DataInterfaceBinding;
 			}
 		}
 	}
@@ -2320,7 +2414,41 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[KernelDataInterface]);
 			}
 		}
-			
+
+		if (InNodeGraph->GetGraphType() == GraphInfo.GraphType)
+		{
+			for (TPair<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> OutputLink : LinksToInsertCopyKernel)
+			{
+				const FOptimusInstancedPin& SourceInstancedPin = OutputLink.Key;	
+				UComputeDataInterface* CopyKernelDataInterface = CopyKernelDataInterfaceMap[SourceInstancedPin];
+
+				if (!ComputeGraph->DataInterfaces.Contains(CopyKernelDataInterface))
+				{
+					ComputeGraph->DataInterfaces.Add(CopyKernelDataInterface);
+					ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[CopyKernelDataInterface]);
+				}	
+
+				const FDataInterfaceFunctionBinding& CopyFromBinding = CopyFromDataInterfaceMap[SourceInstancedPin];
+				if (!ComputeGraph->DataInterfaces.Contains(CopyFromBinding.DataInterface))
+				{
+					ComputeGraph->DataInterfaces.Add(CopyFromBinding.DataInterface);
+					ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[CopyFromBinding.DataInterface]);
+				}
+
+				for (int32 TargetIndex = 0 ; TargetIndex < OutputLink.Value.Num(); TargetIndex++)
+				{
+					const FOptimusInstancedPin& TargetInstancedPin = OutputLink.Value[TargetIndex];
+					const FDataInterfaceFunctionBinding& CopyToBinding = CopyToDataInterfaceMap[TargetInstancedPin];
+
+					if (!ComputeGraph->DataInterfaces.Contains(CopyToBinding.DataInterface))
+					{
+						ComputeGraph->DataInterfaces.Add(CopyToBinding.DataInterface);
+						ComputeGraph->DataInterfaceToBinding.Add(DataInterfaceToBindingIndexMap[CopyToBinding.DataInterface]);
+					}	
+				}
+			}
+		}
+
 		// Create bound kernels
 		struct FKernelWithDataBindings
 		{
@@ -2400,7 +2528,120 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				ComputeGraph->KernelToNode.Add(ConnectedNode.Node);
 			}
 		}
+
 		
+		if (InNodeGraph->GetGraphType() == GraphInfo.GraphType)
+		{
+			for (TPair<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> OutputLink : LinksToInsertCopyKernel)
+			{
+				// Create a copy kernel per source pin, that copies from 1 source pin to multiple target pins
+				const FOptimusInstancedPin& SourceInstancedPin = OutputLink.Key;
+				const FShaderValueTypeHandle ValueType = SourceInstancedPin.Pin->GetDataType()->ShaderValueType;
+				
+				FKernelWithDataBindings BoundKernel;
+
+				BoundKernel.Kernel = NewObject<UComputeKernel>(this);
+
+				FOptimus_InterfaceBindingMap& InputDataBindings = BoundKernel.InputDataBindings;
+				FOptimus_InterfaceBindingMap& OutputDataBindings = BoundKernel.OutputDataBindings;
+
+				UOptimusKernelSource* KernelSource = NewObject<UOptimusKernelSource>(BoundKernel.Kernel);
+				FString SourceText;
+				SourceText = TEXT("if (Index >= ReadNumThreads().x) return;\n");
+
+				{
+					UComputeDataInterface* CopyKernelDataInterface = CopyKernelDataInterfaceMap[SourceInstancedPin];
+					TArray<FShaderFunctionDefinition> Functions;
+					CopyKernelDataInterface->GetSupportedInputs(Functions);
+					// Simply grab everything the kernel data interface has to offer
+					for (int32 FuncIndex = 0; FuncIndex < Functions.Num(); FuncIndex++)
+					{
+						FShaderFunctionDefinition FuncDef = Functions[FuncIndex];
+						for (FShaderParamTypeDefinition& ParamType : FuncDef.ParamTypes)
+						{
+							// Making sure parameter has type declaration generated
+							ParamType.ResetTypeDeclaration();
+						}
+
+						FOptimus_InterfaceBinding InterfaceBinding;
+						InterfaceBinding.DataInterface = CopyKernelDataInterface;
+						InterfaceBinding.DataInterfaceBindingIndex = FuncIndex;
+						InterfaceBinding.BindingFunctionName = FuncDef.Name;
+						InterfaceBinding.BindingFunctionNamespace = FString();
+				
+						InputDataBindings.Add(KernelSource->ExternalInputs.Num(), InterfaceBinding);  
+				
+						KernelSource->ExternalInputs.Emplace(FuncDef);	
+					}	
+				}
+				
+
+				{
+					const FDataInterfaceFunctionBinding& CopyFromBinding = CopyFromDataInterfaceMap[SourceInstancedPin];
+				
+					TArray<FShaderFunctionDefinition> Functions;
+					CopyFromBinding.DataInterface->GetSupportedInputs(Functions);
+					FShaderFunctionDefinition FuncDef = Functions[CopyFromBinding.FunctionIndex];
+
+					for (FShaderParamTypeDefinition& ParamType : FuncDef.ParamTypes)
+					{
+						ParamType.ResetTypeDeclaration();
+					}
+				
+					FOptimus_InterfaceBinding InterfaceBinding;
+					InterfaceBinding.DataInterface = CopyFromBinding.DataInterface;
+					InterfaceBinding.DataInterfaceBindingIndex = CopyFromBinding.FunctionIndex;
+					InterfaceBinding.BindingFunctionName = FString::Printf(TEXT("Read%s"), *SourceInstancedPin.Pin->GetName());
+					InterfaceBinding.BindingFunctionNamespace = FString();
+		
+					InputDataBindings.Add(KernelSource->ExternalInputs.Num(), InterfaceBinding);  
+		
+					KernelSource->ExternalInputs.Emplace(FuncDef);
+
+					SourceText += FString::Printf(TEXT("%s Value = %s(Index);\n"), *ValueType->ToString(), *InterfaceBinding.BindingFunctionName);
+				}
+				
+				for (int32 TargetIndex = 0 ; TargetIndex < OutputLink.Value.Num(); TargetIndex++)
+				{
+					const FOptimusInstancedPin& TargetInstancedPin = OutputLink.Value[TargetIndex];
+					const FDataInterfaceFunctionBinding& CopyToBinding = CopyToDataInterfaceMap[TargetInstancedPin];
+					
+					TArray<FShaderFunctionDefinition> Functions;
+					CopyToBinding.DataInterface->GetSupportedOutputs(Functions);
+					FShaderFunctionDefinition FuncDef = Functions[CopyToBinding.FunctionIndex];
+
+					for (FShaderParamTypeDefinition& ParamType : FuncDef.ParamTypes)
+					{
+						ParamType.ResetTypeDeclaration();
+					}
+				
+					FOptimus_InterfaceBinding InterfaceBinding;
+					InterfaceBinding.DataInterface = CopyToBinding.DataInterface;
+					InterfaceBinding.DataInterfaceBindingIndex = CopyToBinding.FunctionIndex;
+					InterfaceBinding.BindingFunctionName = FString::Printf(TEXT("Write_%d_%s"), TargetIndex, *TargetInstancedPin.Pin->GetName());
+					InterfaceBinding.BindingFunctionNamespace = FString();
+		
+					OutputDataBindings.Add(KernelSource->ExternalOutputs.Num(), InterfaceBinding);  
+		
+					KernelSource->ExternalOutputs.Emplace(FuncDef);
+
+					SourceText += FString::Printf(TEXT("%s(Index, Value);\n"), *InterfaceBinding.BindingFunctionName);
+				}
+
+				static const FString CopyKernelName = TEXT("CopyKernel");
+				static const FIntVector GroupSize = FIntVector(64, 1, 1);
+				FString CookedSource = Optimus::GetCookedKernelSource(BoundKernel.Kernel->GetPathName(), SourceText, CopyKernelName, GroupSize);
+				KernelSource->SetSource(CookedSource);
+				KernelSource->EntryPoint = CopyKernelName;
+				KernelSource->GroupSize = GroupSize;
+				BoundKernel.Kernel->KernelSource = KernelSource;
+				
+				BoundKernels.Add(BoundKernel);
+				ComputeGraph->KernelInvocations.Add(BoundKernel.Kernel);
+				ComputeGraph->KernelToNode.Add(nullptr);
+			}
+		}
+
 		check(ComputeGraph->KernelInvocations.Num() == BoundKernels.Num());
 
 		// Create the graph edges.

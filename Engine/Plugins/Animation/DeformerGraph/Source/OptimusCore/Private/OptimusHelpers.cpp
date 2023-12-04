@@ -136,3 +136,62 @@ bool Optimus::ConvertShaderFilePathToObjectPath(FString& InOutPath)
 	InOutPath.RemoveFromEnd(TEXT(".ush"));
 	return true;
 }
+
+FString Optimus::GetCookedKernelSource(
+	const FString& InObjectPathName,
+	const FString& InShaderSource,
+	const FString& InKernelName,
+	FIntVector InGroupSize
+	)
+{
+	// FIXME: Create source range mappings so that we can go from error location to
+	// our source.
+	FString Source = InShaderSource;
+
+#if PLATFORM_WINDOWS
+	// Remove old-school stuff.
+	Source.ReplaceInline(TEXT("\r"), TEXT(""));
+#endif
+
+	FString ShaderPathName = InObjectPathName;
+	Optimus::ConvertObjectPathToShaderFilePath(ShaderPathName);
+
+	const bool bHasKernelKeyword = Source.Contains(TEXT("KERNEL"), ESearchCase::CaseSensitive);
+
+	const FString ComputeShaderUtilsInclude = TEXT("#include \"/Engine/Private/ComputeShaderUtils.ush\"");
+	
+	const FString KernelFunc = FString::Printf(
+		TEXT("[numthreads(%d,%d,%d)]\nvoid %s(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)"), 
+		InGroupSize.X, InGroupSize.Y, InGroupSize.Z, *InKernelName);
+	
+	const FString UnWrappedDispatchThreadId = FString::Printf(
+	TEXT("GetUnWrappedDispatchThreadId(GroupId, GroupIndex, %d)"),
+		InGroupSize.X * InGroupSize.Y * InGroupSize.Z
+	);
+
+	if (bHasKernelKeyword)
+	{
+		Source.ReplaceInline(TEXT("KERNEL"), TEXT("void __kernel_func(uint Index)"), ESearchCase::CaseSensitive);
+
+		return FString::Printf(
+			TEXT(
+				"#line 1 \"%s\"\n"
+				"%s\n\n"
+				"%s\n\n"
+				"%s { __kernel_func(%s); }\n"
+				), *ShaderPathName, *Source, *ComputeShaderUtilsInclude,*KernelFunc, *UnWrappedDispatchThreadId);
+	}
+	else
+	{
+		return FString::Printf(
+		TEXT(
+			"%s\n"
+			"%s\n"
+			"{\n"
+			"uint Index = %s;\n"
+			"#line 1 \"%s\"\n"
+			"%s\n"
+			"}\n"
+			), *ComputeShaderUtilsInclude,*KernelFunc, *UnWrappedDispatchThreadId, *ShaderPathName, *Source);
+	}
+}

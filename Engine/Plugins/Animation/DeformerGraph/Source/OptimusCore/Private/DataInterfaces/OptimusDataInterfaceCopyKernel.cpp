@@ -1,36 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "OptimusDataInterfaceCustomComputeKernel.h"
+#include "OptimusDataInterfaceCopyKernel.h"
 
 #include "OptimusComponentSource.h"
-#include "OptimusDeformerInstance.h"
 #include "OptimusExpressionEvaluator.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "ComputeFramework/ComputeMetadataBuilder.h"
 #include "ComputeFramework/ShaderParameterMetadataAllocation.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 
-#include "Nodes/OptimusNode_CustomComputeKernel.h"
+#include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceCopyKernel)
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusDataInterfaceCustomComputeKernel)
+const FString UOptimusCopyKernelDataInterface::NumThreadsReservedName = TEXT("NumThreads");
 
-const FString UOptimusCustomComputeKernelDataInterface::NumThreadsReservedName = TEXT("NumThreads");
-
-void UOptimusCustomComputeKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
+void UOptimusCopyKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(FString::Printf(TEXT("Read%s"), *NumThreadsReservedName))
 		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Int, 3));
 }
 
-void UOptimusCustomComputeKernelDataInterface::GetShaderParameters(TCHAR const* UID,
+void UOptimusCopyKernelDataInterface::GetShaderParameters(TCHAR const* UID,
 	FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
 {
 	FShaderParametersMetadataBuilder Builder;
 	TArray<FShaderParametersMetadata*> DummyNestedStructs;
 	ComputeFramework::AddParamForType(Builder, *NumThreadsReservedName, FShaderValueType::Get(EShaderFundamentalType::Int, 3),DummyNestedStructs);
 
-	FShaderParametersMetadata* ShaderParameterMetadata = Builder.Build(FShaderParametersMetadata::EUseCase::ShaderParameterStruct, TEXT("UCustomComputeKernelDataInterface"));
+	FShaderParametersMetadata* ShaderParameterMetadata = Builder.Build(FShaderParametersMetadata::EUseCase::ShaderParameterStruct, TEXT("UCopyKernelDataInterface"));
 
 	InOutAllocations.ShaderParameterMetadatas.Add(ShaderParameterMetadata);
 	InOutAllocations.ShaderParameterMetadatas.Append(DummyNestedStructs);
@@ -40,13 +37,13 @@ void UOptimusCustomComputeKernelDataInterface::GetShaderParameters(TCHAR const* 
 
 }
 
-void UOptimusCustomComputeKernelDataInterface::GetShaderHash(FString& InOutKey) const
+void UOptimusCopyKernelDataInterface::GetShaderHash(FString& InOutKey) const
 {
 	// UComputeGraph::BuildKernelSource hashes the result of GetHLSL()
 	// Only append additional hashes here if the HLSL contains any additional includes	
 }
 
-void UOptimusCustomComputeKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const
+void UOptimusCopyKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const
 {
 	const FString TypeName = FShaderValueType::Get(EShaderFundamentalType::Int, 3)->ToString();
 
@@ -68,33 +65,33 @@ void UOptimusCustomComputeKernelDataInterface::GetHLSL(FString& OutHLSL, FString
 	}
 }
 
-UComputeDataProvider* UOptimusCustomComputeKernelDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding,
+UComputeDataProvider* UOptimusCopyKernelDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding,
 	uint64 InInputMask, uint64 InOutputMask) const
 {
-	UOptimusCustomComputeKernelDataProvider* Provider = NewObject<UOptimusCustomComputeKernelDataProvider>();
+	UOptimusCopyKernelDataProvider* Provider = NewObject<UOptimusCopyKernelDataProvider>();
 
 	Provider->InitFromDataInterface(this, InBinding);
 
 	return Provider;
 }
 
-void UOptimusCustomComputeKernelDataInterface::SetExecutionDomain(const FString& InExecutionDomain)
+void UOptimusCopyKernelDataInterface::SetExecutionDomain(const FString& InExecutionDomain)
 {
 	NumThreadsExpression = InExecutionDomain;
 }
 
-void UOptimusCustomComputeKernelDataInterface::SetComponentBinding(const UOptimusComponentSourceBinding* InBinding)
+void UOptimusCopyKernelDataInterface::SetComponentBinding(const UOptimusComponentSourceBinding* InBinding)
 {
 	ComponentSourceBinding = InBinding;
 }
 
-void UOptimusCustomComputeKernelDataProvider::InitFromDataInterface(const UOptimusCustomComputeKernelDataInterface* InDataInterface, const UObject* InBinding)
+void UOptimusCopyKernelDataProvider::InitFromDataInterface(const UOptimusCopyKernelDataInterface* InDataInterface, const UObject* InBinding)
 {
 	WeakComponent = Cast<UActorComponent>(InBinding);
 	WeakDataInterface = InDataInterface;
 }
 
-FComputeDataProviderRenderProxy* UOptimusCustomComputeKernelDataProvider::GetRenderProxy()
+FComputeDataProviderRenderProxy* UOptimusCopyKernelDataProvider::GetRenderProxy()
 {
 	TArray<int32> InvocationCounts;
 	int32 TotalThreadCount = 0;
@@ -104,11 +101,11 @@ FComputeDataProviderRenderProxy* UOptimusCustomComputeKernelDataProvider::GetRen
 		InvocationCounts.Reset();
 	}
 	
-	FOptimusCustomComputeKernelDataProviderProxy* Proxy = new FOptimusCustomComputeKernelDataProviderProxy(MoveTemp(InvocationCounts), TotalThreadCount);
+	FOptimusCopyKernelDataProviderProxy* Proxy = new FOptimusCopyKernelDataProviderProxy(MoveTemp(InvocationCounts), TotalThreadCount);
 	return Proxy;
 }
 
-bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
+bool UOptimusCopyKernelDataProvider::GetInvocationThreadCounts(
 	TArray<int32>& OutInvocationThreadCount,
 	int32& OutTotalThreadCount
 	) const
@@ -259,7 +256,7 @@ bool UOptimusCustomComputeKernelDataProvider::GetInvocationThreadCounts(
 	return true;	
 }
 
-FOptimusCustomComputeKernelDataProviderProxy::FOptimusCustomComputeKernelDataProviderProxy(
+FOptimusCopyKernelDataProviderProxy::FOptimusCopyKernelDataProviderProxy(
 	TArray<int32>&& InInvocationThreadCounts,
 	int32 InTotalThreadCount
 	) :
@@ -268,7 +265,7 @@ FOptimusCustomComputeKernelDataProviderProxy::FOptimusCustomComputeKernelDataPro
 {
 }
 
-bool FOptimusCustomComputeKernelDataProviderProxy::IsValid(FValidationData const& InValidationData) const
+bool FOptimusCopyKernelDataProviderProxy::IsValid(FValidationData const& InValidationData) const
 {
 	if (InvocationThreadCounts.Num() == 0)
 	{
@@ -283,7 +280,7 @@ bool FOptimusCustomComputeKernelDataProviderProxy::IsValid(FValidationData const
 	return true;
 }
 
-int32 FOptimusCustomComputeKernelDataProviderProxy::GetDispatchThreadCount(TArray<FIntVector>& InOutThreadCounts) const
+int32 FOptimusCopyKernelDataProviderProxy::GetDispatchThreadCount(TArray<FIntVector>& InOutThreadCounts) const
 {
 	InOutThreadCounts.Reset(InvocationThreadCounts.Num());
 	for (const int32 Count : InvocationThreadCounts)
@@ -293,7 +290,7 @@ int32 FOptimusCustomComputeKernelDataProviderProxy::GetDispatchThreadCount(TArra
 	return InOutThreadCounts.Num();
 }
 
-void FOptimusCustomComputeKernelDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)
+void FOptimusCopyKernelDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)
 {
 	for (int32 InvocationIndex = 0; InvocationIndex < InDispatchData.NumInvocations; ++InvocationIndex)
 	{
