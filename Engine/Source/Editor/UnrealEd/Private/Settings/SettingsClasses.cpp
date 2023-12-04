@@ -501,10 +501,6 @@ ULevelEditorPlaySettings::ULevelEditorPlaySettings( const FObjectInitializer& Ob
 	bLaunchSeparateServer = false;
 	PlayNumberOfClients = 1;
 	ServerPort = 17777;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	PlayNetDedicated = false;
-	AutoConnectToServer = true;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	RunUnderOneProcess = true;
 	RouteGamepadToSecondWindow = false;
 	BuildGameBeforeLaunch = EPlayOnBuildMode::PlayOnBuild_Default;

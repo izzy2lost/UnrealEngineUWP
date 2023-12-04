@@ -624,22 +624,12 @@ public:
 	/**	Broadcasts that a blueprint just finished being reinstanced. THIS SHOULD NOT BE PUBLIC */
 	void BroadcastBlueprintReinstanced() { BlueprintReinstanced.Broadcast(); }
 
-	/** Called when UObjects have been replaced to allow others a chance to fix their references. */
-	using FObjectsReplacedEvent = FCoreUObjectDelegates::FOnObjectsReplaced;
-	UE_DEPRECATED(5.0, "Use FCoreUObjectDelegates::OnObjectsReplaced instead.")
-	FObjectsReplacedEvent& OnObjectsReplaced() { return FCoreUObjectDelegates::OnObjectsReplaced; }
-
 	/** Called when a package with data-driven classes becomes loaded or unloaded */
 	DECLARE_EVENT( UEditorEngine, FClassPackageLoadedOrUnloadedEvent );
 	FClassPackageLoadedOrUnloadedEvent& OnClassPackageLoadedOrUnloaded() { return ClassPackageLoadedOrUnloadedEvent; }
 
 	/**	Broadcasts that a class package was just loaded or unloaded. THIS SHOULD NOT BE PUBLIC */
 	void BroadcastClassPackageLoadedOrUnloaded() { ClassPackageLoadedOrUnloadedEvent.Broadcast(); }
-
-	/** Called when an object is reimported. */
-	DECLARE_EVENT_OneParam( UEditorEngine, FObjectReimported, UObject* );
-	UE_DEPRECATED(4.22, "Use the ImportSubsystem instead. GEditor->GetEditorSubsystem<UImportSubsystem>()")
-	FObjectReimported& OnObjectReimported() { return ObjectReimportedEvent; }
 
 	/** Editor-only event triggered before an actor or component is moved, rotated or scaled by an editor system */
 	DECLARE_EVENT_OneParam( UEditorEngine, FOnBeginTransformObject, UObject& );
@@ -681,15 +671,6 @@ public:
 
 	/** Called by internal engine systems after a HLOD Actor is added to a cluster */
 	void BroadcastHLODActorAdded(const AActor* InActor, const AActor* ParentActor) { HLODActorAddedEvent.Broadcast(InActor, ParentActor); }
-
-	/** Editor-only event triggered when a HLOD Actor is marked dirty */
-	DECLARE_EVENT_OneParam(UEngine, FHLODActorMarkedDirtyEvent, class ALODActor*);
-	UE_DEPRECATED(4.20, "This function is no longer used.")
-	FHLODActorMarkedDirtyEvent& OnHLODActorMarkedDirty() { return HLODActorMarkedDirtyEvent; }
-
-	/** Called by internal engine systems after a HLOD Actor is marked dirty */
-	UE_DEPRECATED(4.20, "This function is no longer used.")
-	void BroadcastHLODActorMarkedDirty(class ALODActor* InActor) { HLODActorMarkedDirtyEvent.Broadcast(InActor); }
 
 	/** Editor-only event triggered when a HLOD Actor is marked dirty */
 	DECLARE_EVENT(UEngine, FHLODTransitionScreenSizeChangedEvent);
@@ -1407,9 +1388,6 @@ public:
 	*/
 	static UNREALED_API bool polyFindBrush(UModel* InModel, int32 iSurf, FPoly &Poly);
 
-	UE_DEPRECATED(5.1, "polyFindMaster is deprecated; please use polyFindBrush instead")
-	UNREALED_API virtual bool polyFindMaster( UModel* InModel, int32 iSurf, FPoly& Poly );
-
 	/**
 	 * Update a the brush EdPoly corresponding to a newly-changed
 	 * poly to reflect its new properties.
@@ -1417,9 +1395,6 @@ public:
 	 * Doesn't do any transaction tracking.
 	 */
 	static UNREALED_API void polyUpdateBrush(UModel* Model, int32 iSurf, bool bUpdateTexCoords, bool bOnlyRefreshSurfaceMaterials);
-
-	UE_DEPRECATED(5.1, "polyUpdateMaster is deprecated; please use polyUpdateBrush instead")
-	UNREALED_API virtual void polyUpdateMaster( UModel* Model, int32 iSurf, bool bUpdateTexCoords, bool bOnlyRefreshSurfaceMaterials );
 
 	/**
 	 * Populates a list with all polys that are linked to the specified poly.  The
@@ -1795,24 +1770,6 @@ public:
 	 * Removes the current realtime override.  If there was another realtime override set it will restore that override
 	 */
 	UNREALED_API void RemoveViewportsRealtimeOverride(FText SystemDisplayName);
-
-	UE_DEPRECATED(4.26, "To remove realtime overrides, please now provide a system name to make sure you remove the correct override.")
-	UNREALED_API void RemoveViewportsRealtimeOverride();
-
-	/**
-	 * Disables any realtime viewports that are currently viewing the level.  This will not disable
-	 * things like preview viewports in Cascade, etc. Typically called before running the game.
-	 */
-	UE_DEPRECATED(4.25, "To save and restore realtime state non-permanently use SetViewportsRealtimeOverride and RemoveViewportsRealtimeOverride")
-	UNREALED_API void DisableRealtimeViewports();
-
-	/**
-	 * Restores any realtime viewports that have been disabled by DisableRealtimeViewports. This won't
-	 * disable viewporst that were realtime when DisableRealtimeViewports has been called and got
-	 * latter toggled to be realtime.
-	 */
-	UE_DEPRECATED(4.25, "To save and restore realtime state non-permanently use SetViewportsRealtimeOverride and RemoveViewportsRealtimeOverride")
-	UNREALED_API void RestoreRealtimeViewports();
 
 	/**
 	 * Checks to see if any viewport is set to update in realtime.
@@ -2372,15 +2329,6 @@ public:
 	 * turns all navigable static geometry of ULevel into polygon soup stored in passed Level (ULevel::StaticNavigableGeometry)
 	 */
 	UNREALED_API virtual void RebuildStaticNavigableGeometry(ULevel* Level);
-
-	/**
-	 * Gets all objects which can be synced to in content browser for current selection
-	 *
-	 * @param Objects	Array to be filled with objects which can be browsed to
-	 * @param bAllowOverrideMetadata If true, allows an asset to define "BrowseToAssetOverride" in its metadata to sync to an asset other than itself
-	 */
-	UE_DEPRECATED(5.1, "Use GetAssetsToSyncToContentBrowser instead")
-	UNREALED_API void GetObjectsToSyncToContentBrowser(TArray<UObject*>& Objects, bool bAllowBrowseToAssetOverride = true);
 	/**
 	 * Gets all assets which can be synced to in content browser for current selection
 	 *
@@ -2749,9 +2697,6 @@ private:
 	/** Delegate broadcast when a package has been loaded or unloaded */
 	FClassPackageLoadedOrUnloadedEvent ClassPackageLoadedOrUnloadedEvent;
 
-	/** Delegate broadcast when an object has been reimported */
-	FObjectReimported ObjectReimportedEvent;
-
 	/** Delegate broadcast when an actor or component is about to be moved, rotated, or scaled  */
 	FOnBeginTransformObject OnBeginObjectTransformEvent;
 
@@ -2775,9 +2720,6 @@ private:
 
 	/** Broadcasts after an HLOD actor has added to a cluster */
 	FHLODActorAddedEvent HLODActorAddedEvent;
-
-	/** Broadcasts after an HLOD actor has been marked dirty */
-	FHLODActorMarkedDirtyEvent HLODActorMarkedDirtyEvent;
 
 	/** Broadcasts after a Draw distance value (World settings) is changed */
 	FHLODTransitionScreenSizeChangedEvent HLODTransitionScreenSizeChangedEvent;
@@ -3191,87 +3133,10 @@ private:
 
 	// DEPRECATED VARIABLES ONLY
 public:
-	UE_DEPRECATED(4.25, "Use the Request Parameters to specify this instead. Can be read from the current session if it was set in the request.")
-	/** An optional location for the starting location for "Play From Here"																*/
-	UPROPERTY()
-	FVector PlayWorldLocation;
-
-	UE_DEPRECATED(4.25, "Use the Request Parameters to specify this instead. Can be read from the current session if it was set in the request.")
-	/** An optional rotation for the starting location for "Play From Here"																*/
-	UPROPERTY()
-	FRotator PlayWorldRotation;
-
-	UE_DEPRECATED(4.25, "Use IsPlaySessionQueued() or IsPlaySessionInProgress() instead.")
-	/** Has a request for "Play From Here" been made?													 								*/
-	UPROPERTY()
-	uint32 bIsPlayWorldQueued:1;
-	
-	UE_DEPRECATED(4.25, "Use IsSimulateInEditorQueued() or IsSimulateInEditorInProgress() instead.")
-	/** True if we are requesting to start a simulation-in-editor session */
-	UPROPERTY()
-	uint32 bIsSimulateInEditorQueued:1;
-	
-	/** Did the request include the optional location and rotation?										 								*/
-	UE_DEPRECATED(4.25, "Use FRequestPlaySessionParams::HasPlayWorldPlacement() on the queued/current session instead.")
-	UPROPERTY()
-	uint32 bHasPlayWorldPlacement:1;
-
-	/** True to enable mobile preview mode when launching the game from the editor on PC platform */
-	UE_DEPRECATED(4.25, "Use FRequestPlaySessionParams::SessionPreviewTypeOverride on the queued/current session instead.")
-	UPROPERTY()
-	uint32 bUseMobilePreviewForPlayWorld:1;
-
-	/** True to enable VR preview mode when launching the game from the editor on PC platform */
-	UE_DEPRECATED(4.25, "Use FRequestPlaySessionParams::SessionPreviewTypeOverride on the queued/current session instead.")
-	UPROPERTY()
-	uint32 bUseVRPreviewForPlayWorld:1;
-
 	/** True if we're Simulating In Editor, as opposed to Playing In Editor.  In this mode, simulation takes place right the level editing environment */
 	// UE_DEPRECATED(4.25, "Use IsSimulateInEditorInProgress instead.")
 	UPROPERTY()
 	uint32 bIsSimulatingInEditor:1;
-	
-	/** Viewport the next PlaySession was requested to happen on */
-	UE_DEPRECATED(4.25, "This is stored as part of the FRequestPlaySessionParams now.")
-	TWeakPtr<class IAssetViewport>		RequestedDestinationSlateViewport;
-
-	/** When set to anything other than -1, indicates a specific In-Editor viewport index that PIE should use */
-	UE_DEPRECATED(4.25, "This isn't read and was replaced by RequestedDestinationSlateViewport.")
-	UPROPERTY()
-	int32 PlayInEditorViewportIndex;
-	
-protected:
-
-	/** Count of how many PIE instances are waiting to log in */
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	int32 PIEInstancesToLogInCount;
-
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	bool bAtLeastOnePIELoginFailed;
-
-	/* These are parameters that we need to cache for late joining */
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	FString ServerPrefix;
-	
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	int32 PIEInstance;
-	
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	int32 SettingsIndex;
-	
-	UE_DEPRECATED(4.25, "This has moved to the current session instead (stored in FPlayInEditorSessionInfo)")
-	bool bStartLateJoinersInSpectatorMode;
-
-private:
-
-	/** Additional launch options requested for the next PlaySession */
-	UE_DEPRECATED(4.25, "Use FRequestPlaySessionParams::AdditionalStandaloneCommandLineParameters instead.")
-	FString RequestedAdditionalStandaloneLaunchOptions;
-
-protected:
-	UE_DEPRECATED(4.25, "Use FRequestPlaySessionParams::NumOustandingPIELogins instead.")
-	/** Number of currently running instances logged into an online platform */
-	int32 NumOnlinePIEInstances;
 };
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

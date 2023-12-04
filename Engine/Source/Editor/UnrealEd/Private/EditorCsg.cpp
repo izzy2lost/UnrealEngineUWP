@@ -326,21 +326,9 @@ void UEditorEngine::polySetAndClearPolyFlags(UModel *Model, uint32 SetBits, uint
 	FBSPUtils::polySetAndClearPolyFlags(Model, SetBits, ClearBits, SelectedOnly, UpdateBrush);
 }
 
-
-bool UEditorEngine::polyFindMaster(UModel* InModel, int32 iSurf, FPoly &Poly)
-{
-	return polyFindBrush(InModel, iSurf, Poly);
-}
-
-bool UEditorEngine::polyFindBrush(UModel* InModel, int32 iSurf, FPoly &Poly)
+bool UEditorEngine::polyFindBrush(UModel* InModel, int32 iSurf, FPoly& Poly)
 {
 	return FBSPUtils::polyFindBrush(InModel, iSurf, Poly);
-}
-
-
-void UEditorEngine::polyUpdateMaster(UModel* Model, int32 iSurf, bool bUpdateTexCoords, bool bOnlyRefreshSurfaceMaterials)
-{
-	polyUpdateBrush(Model, iSurf, bUpdateTexCoords, bOnlyRefreshSurfaceMaterials);
 }
 
 void UEditorEngine::polyUpdateBrush

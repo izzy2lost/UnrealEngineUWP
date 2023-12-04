@@ -860,8 +860,6 @@ public:
 
 	/** Return if we have write permission under the mount point this packages lives in. */
 	UNREALED_API bool HasMountWritePermissionForPackage(const FString& PackageName);
-	UE_DEPRECATED(5.0, "Use HasMountWritePermissionForPackage instead")
-	UNREALED_API bool HasMountWritePersmissionForPackage(const FString& PackageName);
 
 	/* Delegate to override TemplateMapInfos */
 	DECLARE_DELEGATE_RetVal(const TArray<FTemplateMapInfo>&, FGetTemplateMapInfos);

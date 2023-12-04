@@ -1242,7 +1242,6 @@ void UEditorEngine::RemoveLevelViewportClients(FLevelEditorViewportClient* Viewp
 
 void UEditorEngine::BroadcastObjectReimported(UObject* InObject)
 {
-	ObjectReimportedEvent.Broadcast(InObject);
 	GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetReimport(InObject);
 }
 
@@ -3070,17 +3069,6 @@ bool UEditorEngine::CanSyncToContentBrowser()
 	TArray<FAssetData> Assets;
 	GetAssetsToSyncToContentBrowser(Assets);
 	return Assets.Num() > 0;
-}
-
-
-void UEditorEngine::GetObjectsToSyncToContentBrowser(TArray<UObject*>& Objects, bool bAllowBrowseToAssetOverride)
-{
-	TArray<FAssetData> Assets;
-	GetAssetsToSyncToContentBrowser(Assets, bAllowBrowseToAssetOverride);
-	for (const FAssetData& Asset : Assets)
-	{
-		Objects.Add(Asset.GetAsset());
-	}
 }
 
 void UEditorEngine::GetAssetsToSyncToContentBrowser(TArray<FAssetData>& Assets, bool bAllowBrowseToAssetOverride)
@@ -6336,56 +6324,6 @@ void UEditorEngine::RemoveViewportsRealtimeOverride(FText SystemDisplayName)
 	RedrawAllViewports();
 
 	FEditorSupportDelegates::UpdateUI.Broadcast();
-}
-
-void UEditorEngine::RemoveViewportsRealtimeOverride()
-{
-	for (FEditorViewportClient* VC : AllViewportClients)
-	{
-		if (VC)
-		{
-			VC->PopRealtimeOverride();
-		}
-	}
-
-	RedrawAllViewports();
-
-	FEditorSupportDelegates::UpdateUI.Broadcast();
-}
-
-void UEditorEngine::DisableRealtimeViewports()
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for(FEditorViewportClient* VC : AllViewportClients)
-	{
-		if( VC )
-		{
-			VC->SetRealtime( false, true );
-		}
-	}
-
-	RedrawAllViewports();
-
-	FEditorSupportDelegates::UpdateUI.Broadcast();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-
-void UEditorEngine::RestoreRealtimeViewports()
-{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for(FEditorViewportClient* VC : AllViewportClients)
-	{
-		if( VC )
-		{
-			VC->RestoreRealtime(true);
-		}
-	}
-
-	RedrawAllViewports();
-
-	FEditorSupportDelegates::UpdateUI.Broadcast();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 
