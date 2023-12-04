@@ -141,6 +141,11 @@ public:
 			Set("ControlRig.TestData.Record", new IMAGE_BRUSH("Slate/RecordingIndicator", Icon32x32));
 		}
 
+		// Schematic
+		{
+			Set("ControlRig.Schematic.Circle", new IMAGE_BRUSH_SVG("Slate/Socket_Closed", Icon16x16));
+		}
+
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 

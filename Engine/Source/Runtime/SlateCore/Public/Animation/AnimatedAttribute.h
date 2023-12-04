@@ -42,7 +42,7 @@ public:
 	 */
 	template< typename InterpolatorSettings >
 	TAnimatedAttribute( FPrivateToken, const InterpolatorSettings& InSettings )
-		: Interpolator( MakeUnique<InterpolatorSettings::InterpolatorType>(InSettings) )
+		: Interpolator( MakeUnique<typename InterpolatorSettings::InterpolatorType>(InSettings) )
 		, Getter()
 		, DesiredValue() 
 	{

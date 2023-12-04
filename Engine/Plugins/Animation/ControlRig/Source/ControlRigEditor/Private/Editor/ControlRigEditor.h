@@ -24,6 +24,7 @@
 #include "ControlRigTestData.h"
 #include "ModularRigController.h"
 #include "RigVMHost.h"
+#include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "Units/RigUnit.h"
 
 class UControlRigBlueprint;
@@ -240,6 +241,12 @@ private:
 	TOptional<float> GetToolbarAxesScale() const;
 	void OnToolbarAxesScaleChanged(float InValue);
 
+	/** Handle schematic panel setup*/
+	void HandleSchematicViewportCreated(const TSharedRef<class SSchematicGraphPanel>& InViewport);
+	void HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode);
+	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode);
+	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos);
+
 		/** Handle switching skeletal meshes */
 	void HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh);
 
@@ -287,13 +294,16 @@ protected:
 	TSharedPtr<IPersonaToolkit> PersonaToolkit;
 
 	/** Preview instance inspector widget */
-	TSharedPtr<SWidget> PreviewEditor;
+	TSharedPtr<IPersonaViewport> PreviewViewport;
 
 	/** preview scene */
 	TSharedPtr<IPersonaPreviewScene> PreviewScene;
 
 	/** preview animation instance */
 	UAnimPreviewInstance* PreviewInstance;
+
+	/** Model for the schematic views */
+	FSchematicGraph SchematicGraph;
 
 	/** Delegate to deal with key down evens in the viewport / editor */
 	FPersonaViewportKeyDownDelegate OnKeyDownDelegate;
@@ -350,6 +360,7 @@ protected:
 	static const TArray<FName> BackwardsAndForwardsSolveEventQueue;
 
 	friend class FControlRigEditorMode;
+	friend class FModularRigEditorMode;
 	friend class SControlRigStackView;
 	friend class SRigHierarchy;
 	friend class SModularRigModel;

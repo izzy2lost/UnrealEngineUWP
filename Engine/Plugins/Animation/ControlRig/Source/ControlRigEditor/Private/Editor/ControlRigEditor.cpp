@@ -106,12 +106,14 @@
 #include "RigVMFunctions/RigVMFunction_ControlFlow.h"
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "AnimationEditorViewportClient.h"
+#include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigEditor"
 
 TAutoConsoleVariable<bool> CVarControlRigShowTestingToolbar(TEXT("ControlRig.Test.EnableTestingToolbar"), false, TEXT("When true we'll show the testing toolbar in Control Rig Editor."));
+TAutoConsoleVariable<bool> CVarShowSchematicPanelOverlay(TEXT("ControlRig.Preview.ShowSchematicPanelOverlay"), false, TEXT("When true we'll add an overlay to the persona viewport to show modular rig information."));
 
 const FName FControlRigEditorModes::ControlRigEditorMode = TEXT("Rigging");
 const TArray<FName> FControlRigEditor::ForwardsSolveEventQueue = {FRigUnit_BeginExecution::EventName};
@@ -1783,6 +1785,8 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
+	PreviewViewport = InViewport;
+
 	// TODO: this is duplicated code from FAnimBlueprintEditor, would be nice to consolidate. 
 	auto GetCompilationStateText = [this]()
 	{
@@ -2218,6 +2222,21 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
         .Padding(0.0f)
         .ShowEffectWhenDisabled(false)
 	);
+
+	if (CVarShowSchematicPanelOverlay->GetBool())
+	{
+		if (UControlRigBlueprint* Blueprint = GetControlRigBlueprint())
+		{
+			if (Blueprint->IsModularRig())
+			{
+				TSharedRef<SSchematicGraphPanel> SchematicPanel = SNew(SSchematicGraphPanel)
+																.GraphData(&SchematicGraph)
+																.IsOverlay(true);
+				InViewport->AddOverlayWidget(SchematicPanel);
+				HandleSchematicViewportCreated(SchematicPanel);
+			}
+		}
+	}
 	
 	InViewport->GetKeyDownDelegate().BindLambda([&](const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) -> FReply {
 		if (OnKeyDownDelegate.IsBound())
@@ -2503,6 +2522,105 @@ void FControlRigEditor::CacheNameLists()
 			}
 			RigGraph->CacheNameLists(Hierarchy, &ControlRigBP->DrawContainer, *ShapeLibraries);
 		}
+	}
+}
+
+void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
+{
+	InViewport->UpdateNodeWidgetDelegate.BindSP(this, &FControlRigEditor::HandleUpdateSchematicNodes);
+	InViewport->OnNodeClickedDelegate.BindSP(this, &FControlRigEditor::HandleSchematicNodeClicked);
+}
+
+FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos)
+{
+	if (PreviewViewport.IsValid())
+	{
+		FEditorViewportClient& Client = PreviewViewport->GetViewportClient();
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+							Client.Viewport,
+							Client.GetScene(),
+							Client.EngineShowFlags));
+		// SceneView is deleted with the ViewFamily
+		FSceneView* SceneView = Client.CalcSceneView(&ViewFamily);
+	
+		// Compute the MinP/MaxP in pixel coord, relative to View.ViewRect.Min
+		const FMatrix& WorldToView = SceneView->ViewMatrices.GetViewMatrix();
+		const FMatrix& ViewToProj = SceneView->ViewMatrices.GetProjectionMatrix();
+		const float NearClippingDistance = SceneView->NearClippingDistance + SMALL_NUMBER;
+		const FIntRect ViewRect = SceneView->UnconstrainedViewRect;
+
+		// Clamp position on the near plane to get valid rect even if bounds' points are behind the camera
+		FPlane P_View = WorldToView.TransformFVector4(FVector4(InWorldPos, 1.f));
+		if (P_View.Z <= NearClippingDistance)
+		{
+			P_View.Z = NearClippingDistance;
+		}
+
+		// Project from view to projective space
+		FVector2D MinP(FLT_MAX, FLT_MAX);
+		FVector2D MaxP(-FLT_MAX, -FLT_MAX);
+		FVector2D ScreenPos;
+		const bool bIsValid = FSceneView::ProjectWorldToScreen(P_View, ViewRect, ViewToProj, ScreenPos);
+
+		// Clamp to pixel border
+		ScreenPos = FIntPoint(FMath::FloorToInt(ScreenPos.X), FMath::FloorToInt(ScreenPos.Y));
+
+		// Clamp to screen rect
+		ScreenPos.X = FMath::Clamp(ScreenPos.X, ViewRect.Min.X, ViewRect.Max.X);
+		ScreenPos.Y = FMath::Clamp(ScreenPos.Y, ViewRect.Min.Y, ViewRect.Max.Y);
+
+		return FVector2D(ScreenPos.X, ScreenPos.Y);
+	}
+	return FVector2D::ZeroVector;
+}
+
+void FControlRigEditor::HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode)
+{
+	UControlRigBlueprint* Blueprint = GetControlRigBlueprint();
+	if (!Blueprint)
+	{
+		return;
+	}
+
+	FRigModuleReference* Module = Blueprint->ModularRigModel.FindModule(InNode->NodeData->Name);
+	if (!Module)
+	{
+		return;
+	}
+
+	FString Path = Module->GetPath();
+	int32 Level=0;
+	FRigModuleReference* CurModule = Module;
+	while (CurModule && !CurModule->ParentPath.IsEmpty())
+	{
+		Level++;
+		CurModule = Blueprint->ModularRigModel.FindModule(CurModule->ParentPath);
+	}
+
+	if (InPanel->bIsOverlay)
+	{
+		FTransform Transform;
+		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
+		{
+			Transform = DebuggedControlRig->GetHierarchy()->GetGlobalTransform(FRigElementKey("hand_l", ERigElementType::Bone));
+			FVector2D PixelPos = ComputePersonaProjectedScreenPos(Transform.GetLocation());
+			InNode->SetPosition(PixelPos, true);
+		}
+
+		InNode->Brush = *FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Circle");
+	}
+	else
+	{
+		InNode->SetPosition(FVector2D(100, 100*Level));
+		InNode->Brush = *FAppStyle::GetBrush("WhiteTexture");
+	}
+}
+
+void FControlRigEditor::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode)
+{
+	for (FSchematicGraphNode* Node : SchematicGraph.Nodes)
+	{
+		Node->bIsSelected = Node == InNode->NodeData;
 	}
 }
 
@@ -3279,6 +3397,10 @@ void FControlRigEditor::OnHierarchyModified(ERigHierarchyNotification InNotif, U
 						RigBlueprint->TurnIntoControlRigModule();
 					}
 				}
+				else if(InElement->GetType() == ERigElementType::Socket)
+				{
+					SchematicGraph.AddNode(InElement->GetName());
+				}
 			}
 			// no break - fall through
 		}
@@ -3638,6 +3760,8 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			{
 				ClearDetailObject();
 			}
+
+			// todo: update SchematicGraph
 			break;
 		}
 		case EModularRigNotification::ModuleReparented:
@@ -3654,6 +3778,13 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			}
 			ModulesSelected.Remove(OldPath);
 			ModulesSelected.Add(InModule->GetPath());
+
+			// todo: update SchematicGraph
+			break;
+		}
+		case EModularRigNotification::ConnectionChanged:
+		{
+			// todo: update SchematicGraph
 			break;
 		}
 	}

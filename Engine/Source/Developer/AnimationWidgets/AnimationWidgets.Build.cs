@@ -25,6 +25,10 @@ public class AnimationWidgets : ModuleRules
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"Engine",
+					"CoreUObject",
+					"UnrealEd",
+					"GraphEditor",
 					"PropertyEditor"
 				}
 			);
