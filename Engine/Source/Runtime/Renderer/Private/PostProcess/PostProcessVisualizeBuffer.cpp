@@ -267,7 +267,19 @@ void AddDumpToFilePass(FRDGBuilder& GraphBuilder, FScreenPassTexture Input, cons
 		else if(ImageTask->Format == EImageFormat::PNG)
 		{
 			// PNGs can't have 0 alpha or RGB data is destroyed.
-			ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FLinearColor>(1.0f));
+
+			if ( ImageTask->PixelData->GetType() == EImagePixelType::Float32 )
+			{
+				ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FLinearColor>(1.0f));
+			}
+			else if ( ImageTask->PixelData->GetType() == EImagePixelType::Float16 )
+			{
+				ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FFloat16Color>(1.0f));
+			}
+			else
+			{
+				check(false);
+			}
 		}
 
 		HighResScreenshotConfig.ImageWriteQueue->Enqueue(MoveTemp(ImageTask));

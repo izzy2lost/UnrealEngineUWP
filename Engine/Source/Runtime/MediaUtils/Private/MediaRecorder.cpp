@@ -274,11 +274,15 @@ void FMediaRecorder::TickRecording()
 				{
 					check(bUseFMediaImagePixelData);
 
-					if (Sample->GetFormat() == EMediaTextureSampleFormat::FloatRGBA)
+					if ( ImageTask->PixelData->GetType() == EImagePixelType::Float16 )
 					{
 						ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FFloat16Color>(1.f));
 					}
-					else if (Sample->GetFormat() == EMediaTextureSampleFormat::CharBGRA)
+					else if ( ImageTask->PixelData->GetType() == EImagePixelType::Float32 )
+					{
+						ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FLinearColor>(1.f));
+					}
+					else if ( ImageTask->PixelData->GetType() == EImagePixelType::Color )
 					{
 						ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
 					}
