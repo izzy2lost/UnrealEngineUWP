@@ -9,7 +9,6 @@
 
 #if PLATFORM_LINUX
 #include <netinet/tcp.h>
-#define strcpy_s(a, b, c) strcpy(a, c)
 #endif
 
 #if PLATFORM_WINDOWS
@@ -32,6 +31,7 @@
 #define GetAddrInfoW getaddrinfo
 #define FreeAddrInfoW freeaddrinfo
 #define WSAGetLastError() errno
+#define strcpy_s(a, b, c) strcpy(a, c)
 #endif
 
 namespace uba
