@@ -590,12 +590,10 @@ TArray<UDMXEntityFixturePatch*> UMovieSceneDMXLibrarySection::GetFixturePatches(
 	for (const FDMXFixturePatchChannel& PatchRef : FixturePatchChannels)
 	{
 		// Add only valid patches
-		if (UDMXEntityFixturePatch* Patch = PatchRef.Reference.GetFixturePatch())
+		UDMXEntityFixturePatch* Patch = PatchRef.Reference.GetFixturePatch();
+		if (IsValid(Patch))
 		{
-			if (!Patch->IsValidLowLevelFast())
-			{
-				Result.Add(Patch);
-			}
+			Result.Add(Patch);
 		}
 	}
 
