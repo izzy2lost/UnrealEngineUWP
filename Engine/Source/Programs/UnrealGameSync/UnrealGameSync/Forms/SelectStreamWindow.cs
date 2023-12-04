@@ -134,7 +134,7 @@ namespace UnrealGameSync
 			UpdateOkButton();
 		}
 
-		private void GetExpandedNodes(TreeNodeCollection nodes, List<TreeNode> expandedNodes)
+		private static void GetExpandedNodes(TreeNodeCollection nodes, List<TreeNode> expandedNodes)
 		{
 			foreach(TreeNode? node in nodes)
 			{
@@ -190,10 +190,10 @@ namespace UnrealGameSync
 
 		private static bool IncludeNodeInFilter(StreamNode node, string[] filter)
 		{
-			return filter.All(x => node.Record.Stream.IndexOf(x, StringComparison.InvariantCultureIgnoreCase) != -1 || node.Record.Name.IndexOf(x, StringComparison.InvariantCultureIgnoreCase) != -1);
+			return filter.All(x => node.Record.Stream.Contains(x, StringComparison.InvariantCultureIgnoreCase) || node.Record.Name.Contains(x, StringComparison.InvariantCultureIgnoreCase));
 		}
 
-		private bool TryFilterTree(StreamNode node, string[] filter, [NotNullWhen(true)] out StreamNode? newNode)
+		private static bool TryFilterTree(StreamNode node, string[] filter, [NotNullWhen(true)] out StreamNode? newNode)
 		{
 			StreamNode filteredNode = new StreamNode(node.Record);
 			foreach(StreamNode childNode in node.ChildNodes)

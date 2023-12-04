@@ -168,7 +168,7 @@ namespace UnrealGameSync
 			{
 				try
 				{
-					SyncVersion = File.ReadAllText(syncVersionFile).Trim();
+					SyncVersion = (await File.ReadAllTextAsync(syncVersionFile)).Trim();
 				}
 				catch(Exception)
 				{

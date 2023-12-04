@@ -331,7 +331,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		private void SetSelected(TreeNode parentNode, SelectionType type)
+		private static void SetSelected(TreeNode parentNode, SelectionType type)
 		{
 			TreeNodeData parentNodeData = (TreeNodeData)parentNode.Tag;
 
@@ -350,7 +350,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		private void SetSelectedOnChildren(TreeNode parentNode, SelectionType type)
+		private static void SetSelectedOnChildren(TreeNode parentNode, SelectionType type)
 		{
 			TreeNodeData parentNodeData = (TreeNodeData)parentNode.Tag;
 
@@ -421,7 +421,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		private void FindSelection(TreeNode node, List<FileInfo> filesToSync, List<FileInfo> filesToDelete, List<DirectoryInfo> directoriesToDelete)
+		private static void FindSelection(TreeNode node, List<FileInfo> filesToSync, List<FileInfo> filesToDelete, List<DirectoryInfo> directoriesToDelete)
 		{
 			TreeNodeData nodeData = (TreeNodeData)node.Tag;
 			if(nodeData._file != null)

@@ -177,7 +177,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		void FindDependencies(ToolItem toolItem, HashSet<ToolItem> dependsOnToolItems, Dictionary<Guid, ToolItem> idToToolItem)
+		static void FindDependencies(ToolItem toolItem, HashSet<ToolItem> dependsOnToolItems, Dictionary<Guid, ToolItem> idToToolItem)
 		{
 			foreach (Guid dependsOnToolId in toolItem.Definition.DependsOnToolIds)
 			{

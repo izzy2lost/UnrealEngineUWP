@@ -107,7 +107,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		void MergeTrees(FolderToClean localFolder, PerforceHaveFolder? perforceFolder, HashSet<string> openClientPaths, string? perforceConfigFile)
+		static void MergeTrees(FolderToClean localFolder, PerforceHaveFolder? perforceFolder, HashSet<string> openClientPaths, string? perforceConfigFile)
 		{
 			if(perforceFolder == null)
 			{
@@ -192,7 +192,7 @@ namespace UnrealGameSync
 			return false;
 		}
 
-		void RemoveEmptyFolders(FolderToClean folder)
+		static void RemoveEmptyFolders(FolderToClean folder)
 		{
 			foreach(FolderToClean subFolder in folder._nameToSubFolder.Values)
 			{
