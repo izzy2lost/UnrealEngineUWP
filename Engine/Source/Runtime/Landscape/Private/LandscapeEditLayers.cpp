@@ -37,6 +37,7 @@ LandscapeEditLayers.cpp: Landscape editing layers mode
 #include "ContentStreaming.h"
 
 #if WITH_EDITOR
+#include "AssetCompilingManager.h"
 #include "LandscapeEditorModule.h"
 #include "LandscapeToolInterface.h"
 #include "ComponentRecreateRenderStateContext.h"

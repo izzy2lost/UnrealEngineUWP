@@ -25,6 +25,10 @@
 #include "UObject/StrongObjectPtr.h"
 #include "ImageCoreUtils.h"
 
+#if WITH_EDITOR
+#include "AsyncCompilationHelpers.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Texture2DArray)
 
 #define LOCTEXT_NAMESPACE "UTexture2DArray"

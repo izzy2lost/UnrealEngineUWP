@@ -64,6 +64,7 @@ Level.cpp: Level-related functions
 #include "HAL/PlatformFileManager.h"
 #include "Misc/PathViews.h"
 #include "Selection.h"
+#include "Framework/Notifications/NotificationManager.h"
 #endif
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"

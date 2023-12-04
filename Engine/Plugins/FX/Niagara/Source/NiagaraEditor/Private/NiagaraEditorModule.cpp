@@ -133,6 +133,7 @@
 #include "NiagaraActor.h"
 #include "INiagaraEditorOnlyDataUtlities.h"
 
+#include "AssetCompilingManager.h"
 #include "Editor.h"
 #include "ILevelSequenceModule.h"
 #include "HAL/PlatformFileManager.h"

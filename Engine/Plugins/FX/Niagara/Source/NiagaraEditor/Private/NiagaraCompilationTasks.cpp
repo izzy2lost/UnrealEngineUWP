@@ -3,6 +3,7 @@
 #include "NiagaraCompilationTasks.h"
 
 #include "Algo/RemoveIf.h"
+#include "AssetCompilingManager.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/PathViews.h"

@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "EngineLogs.h"
 #include "EngineModule.h"
+#include "HAL/LowLevelMemStats.h"
 #include "Rendering/NaniteStreamingManager.h"
 #include "Rendering/RayTracingGeometryManager.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"

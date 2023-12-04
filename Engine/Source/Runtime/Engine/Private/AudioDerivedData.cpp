@@ -24,6 +24,11 @@
 #include "Sound/StreamedAudioChunkSeekTable.h"
 #include "AudioDecompress.h"
 #include "ISoundWaveCloudStreaming.h"
+#include "Serialization/MemoryReader.h"
+
+#if WITH_EDITORONLY_DATA
+#include "Serialization/MemoryWriter.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogAudioDerivedData, Log, All);
 

@@ -47,6 +47,7 @@
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
+#include "Framework/Notifications/NotificationManager.h"
 #include "RawMesh.h"
 #include "MeshBudgetProjectSettings.h"
 #include "NaniteBuilder.h"

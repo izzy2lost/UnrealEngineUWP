@@ -20,6 +20,7 @@
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshSimplify.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshApproximate.h"
 
+#include "AssetCompilingManager.h"
 #include "BodySetupEnums.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"

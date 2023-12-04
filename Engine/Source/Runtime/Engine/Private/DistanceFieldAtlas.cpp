@@ -5,6 +5,8 @@
 =============================================================================*/
 
 #include "DistanceFieldAtlas.h"
+#include "AsyncCompilationHelpers.h"
+#include "AssetCompilingManager.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Engine/Texture2D.h"
 #include "EngineLogs.h"
@@ -289,7 +291,7 @@ void FDistanceFieldAsyncQueue::OnAssetPostCompile(const TArray<FAssetCompileData
 }
 
 FDistanceFieldAsyncQueue::FDistanceFieldAsyncQueue() 
-	: Notification(GetAssetNameFormat())
+	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
 {
 	FAssetCompilingManager::Get().RegisterManager(this);
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddRaw(this, &FDistanceFieldAsyncQueue::OnAssetPostCompile);
@@ -855,7 +857,7 @@ void FDistanceFieldAsyncQueue::ProcessAsyncTasks(bool bLimitExecutionTime)
 
 	if (bMadeProgress)
 	{
-		Notification.Update(GetNumRemainingAssets());
+		Notification->Update(GetNumRemainingAssets());
 	}
 #endif
 }

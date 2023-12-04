@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AssetCompilingManager.h"
+#include "IAssetCompilingManager.h"
 
 #include "NiagaraCompilationPrivate.h"
 #include "NiagaraCompilationTypes.h"

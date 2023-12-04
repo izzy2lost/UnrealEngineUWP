@@ -16,6 +16,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LandscapeNaniteComponent)
 
 #if WITH_EDITOR
+#include "AssetCompilingManager.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshDescription.h"
 #include "StaticMeshOperations.h"

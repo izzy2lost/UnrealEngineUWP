@@ -5,6 +5,8 @@
 
 #if WITH_EDITOR
 
+#include "AsyncCompilationHelpers.h"
+#include "AssetCompilingManager.h"
 #include "Algo/NoneOf.h"
 #include "Misc/QueuedThreadPool.h"
 #include "ObjectCacheContext.h"
@@ -46,7 +48,7 @@ namespace NaniteDisplacedMeshCompilingManagerImpl
 }
 
 FNaniteDisplacedMeshCompilingManager::FNaniteDisplacedMeshCompilingManager()
-	: Notification(GetAssetNameFormat())
+	: Notification(MakeUnique<FAsyncCompilationNotification>(GetAssetNameFormat()))
 {
 	NaniteDisplacedMeshCompilingManagerImpl::EnsureInitializedCVars();
 
@@ -173,7 +175,7 @@ TRACE_DECLARE_INT_COUNTER(QueuedNaniteDisplacedMeshCompilation, TEXT("AsyncCompi
 void FNaniteDisplacedMeshCompilingManager::UpdateCompilationNotification()
 {
 	TRACE_COUNTER_SET(QueuedNaniteDisplacedMeshCompilation, GetNumRemainingAssets());
-	Notification.Update(GetNumRemainingAssets());
+	Notification->Update(GetNumRemainingAssets());
 }
 
 void FNaniteDisplacedMeshCompilingManager::PostCompilation(TArrayView<UNaniteDisplacedMesh* const> InNaniteDisplacedMeshes)
