@@ -148,7 +148,7 @@ public:
 	CONTROLFLOWS_API TSharedPtr<FTrackedActivity> GetTrackedActivity() const;
 
 public:
-	CONTROLFLOWS_API FControlFlow& QueueDelay(const float InDelay, const FString& NodeName = FString());
+	CONTROLFLOWS_API FControlFlow& QueueDelay(const float InSeconds, const FString& NodeName = FString());
 	CONTROLFLOWS_API FControlFlow& QueueSetCancelledNodeAsComplete(const bool bCancelledNodeIsComplete, const FString& NodeName = FString());
 
 	template<typename...ArgsT>
@@ -328,6 +328,7 @@ private:
 	friend class FControlFlowTask_Branch;
 	friend class FControlFlowTask_ConditionalLoop;
 	friend class FControlFlowStatics;
+	friend class FConcurrentControlFlows;
 	friend struct FConcurrencySubFlowContainer;
 
 public:
@@ -391,6 +392,10 @@ private:
 
 	TSharedPtr<FControlFlowNode> CurrentNode = nullptr;
 
+	TWeakPtr<FControlFlow> ParentFlow;
+
+	TPair<double /*Timestamp*/, float /*DeltaTime*/> LastZeroSecondDelay;
+
 	//TODO: Put behind some args, because this is expensive.
 	TArray<TSharedRef<FControlFlow>> SubFlowStack_ForDebugging;
 
@@ -399,7 +404,6 @@ private:
 	TSharedPtr<FTrackedActivity> Activity;
 
 	bool bProfilerEventStarted = false;
-
 };
 
 #if CPUPROFILERTRACE_ENABLED

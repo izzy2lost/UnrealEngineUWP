@@ -56,6 +56,7 @@ public:
 
 protected:
 	friend class FControlFlow;
+	friend class FControlFlowSubTaskBase;
 	
 	virtual void Execute() {}
 

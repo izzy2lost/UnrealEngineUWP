@@ -130,11 +130,10 @@ void FControlFlowNode_RequiresCallback::Execute()
 
 ///////////////////////////////////////////////////
 
-FControlFlowNode_Task::FControlFlowNode_Task(TSharedRef<FControlFlow> ControlFlowParent, TSharedRef<FControlFlowSubTaskBase> Module, const FString& FlowNodeDebugName)
+FControlFlowNode_Task::FControlFlowNode_Task(TSharedRef<FControlFlow> ControlFlowParent, TSharedRef<FControlFlowSubTaskBase> ControlFlowTask, const FString& FlowNodeDebugName)
 	: FControlFlowNode(ControlFlowParent, FlowNodeDebugName)
-	, FlowTask(Module)
+	, FlowTask(ControlFlowTask)
 {
-
 }
 
 void FControlFlowNode_Task::Execute()
