@@ -69,10 +69,19 @@ namespace Horde.Server.Compute
 				RequesterPublicIp = request.Connection?.ClientPublicIp,
 				UsePublicIp = request.Connection?.PreferPublicIp
 			};
-			ComputeResource? computeResource = await _computeService.TryAllocateResourceAsync(arp, cancellationToken);
-			if (computeResource == null)
+
+			ComputeResource? computeResource;
+			try
 			{
-				return StatusCode((int)HttpStatusCode.ServiceUnavailable);
+				computeResource = await _computeService.TryAllocateResourceAsync(arp, cancellationToken);
+				if (computeResource == null)
+				{
+					return StatusCode((int)HttpStatusCode.ServiceUnavailable, "No resources available");
+				}
+			}
+			catch (ComputeServiceException cse)
+			{
+				return cse.ShowToUser ? StatusCode((int)HttpStatusCode.InternalServerError, cse.Message) : StatusCode((int)HttpStatusCode.InternalServerError);
 			}
 
 			Dictionary<string, ConnectionMetadataPort> responsePorts = new ();

@@ -33,6 +33,22 @@ using StackExchange.Redis;
 namespace Horde.Server.Compute
 {
 	/// <summary>
+	/// Exceptions related to compute service
+	/// </summary>
+	public class ComputeServiceException : Exception
+	{
+		/// <summary>
+		/// Whether this exception message can be shown to user or client
+		/// </summary>
+		public bool ShowToUser { get; init; } = false;
+		
+		/// <inheritdoc/>
+		public ComputeServiceException(string? message, Exception? innerException) : base(message, innerException)
+		{
+		}
+	}
+	
+	/// <summary>
 	/// Outcome for a compute allocation request
 	/// </summary>
 	public enum AllocationOutcome
@@ -294,40 +310,47 @@ namespace Horde.Server.Compute
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
 			}
 
-			List<IAgent> agents = await _agentCollection.FindAsync();
-			foreach (IAgent agent in agents)
+			try
 			{
-				Dictionary<string, int> assignedResources = new Dictionary<string, int>();
-				if (agent.MeetsRequirements(arp.Requirements, assignedResources))
+				List<IAgent> agents = await _agentCollection.FindAsync();
+				foreach (IAgent agent in agents)
 				{
-					LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
-					ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
-
-					ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.ParentLeaseId);
-
-					byte[] payload = Any.Pack(computeTask).ToByteArray();
-					AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
-
-					ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
-					if (resource != null)
+					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
+					if (agent.MeetsRequirements(arp.Requirements, assignedResources))
 					{
-						IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
-						if (newAgent != null)
-						{
-							await _agentCollection.PublishUpdateEventAsync(agent.Id);
-							await _agentService.CreateLeaseAsync(newAgent, lease);
-							span.SetAttribute("allocatedLeaseId", leaseId.ToString());
-							span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
+						LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
+						ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
-							await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
-							return resource;
+						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.ParentLeaseId);
+
+						byte[] payload = Any.Pack(computeTask).ToByteArray();
+						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
+
+						ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
+						if (resource != null)
+						{
+							IAgent? newAgent = await _agentCollection.TryAddLeaseAsync(agent, lease);
+							if (newAgent != null)
+							{
+								await _agentCollection.PublishUpdateEventAsync(agent.Id);
+								await _agentService.CreateLeaseAsync(newAgent, lease);
+								span.SetAttribute("allocatedLeaseId", leaseId.ToString());
+								span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
+
+								await LogRequestAsync(AllocationOutcome.Accepted, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+								return resource;
+							}
 						}
 					}
 				}
-			}
 
-			await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
-			return null;
+				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span);
+				return null;
+			}
+			catch (AgentRelayException are)
+			{
+				throw new ComputeServiceException("Unable to allocate compute resource: " + are.Message, are) { ShowToUser = true };
+			}
 		}
 
 		private string? ResolvePoolId(string? poolId, IPAddress? ipAddress)
