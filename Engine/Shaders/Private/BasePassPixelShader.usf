@@ -1483,11 +1483,11 @@ void FPixelShaderInOut_MainPS(
 			Specular, SingleLayerWater.DistortionParams,
 			SunIlluminance, WaterDiffuseIndirectIlluminance, EnvBrdf,
 			CameraIsUnderWater, WaterVisibility, EyeIndex,
-			bSeparateWaterMainDirLightLuminance, SeparatedWaterMainDirLightLuminance).Luminance
-	#if USE_LIGHT_FUNCTION_ATLAS
-			* GetLocalLightFunctionCommon(SvPositionToResolvedTranslatedWorld(In.SvPosition), GetDirectionalLightData(EyeIndex).LightFunctionAtlasLightIndex)
-	#endif
-		;
+			bSeparateWaterMainDirLightLuminance, SeparatedWaterMainDirLightLuminance
+		#if USE_LIGHT_FUNCTION_ATLAS
+			, GetLocalLightFunctionCommon(SvPositionToResolvedTranslatedWorld(In.SvPosition), GetDirectionalLightData(EyeIndex).LightFunctionAtlasLightIndex)
+		#endif
+			).Luminance;
 #endif
 	}
 #endif // MATERIAL_SHADINGMODEL_SINGLELAYERWATER
