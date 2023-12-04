@@ -3,7 +3,6 @@
 #include "Replication/Settings/ConcertReplicationEditorSettings.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Settings/ConcertDefaultPropertySelection.h"
 #include "Replication/Settings/ConcertDefaultSubobjectSelection.h"
@@ -163,5 +162,6 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 
 void FConcertReplicationEditorSettings::AddAdditionalObjectsFromSettings(const UObject& AddedObject, TFunctionRef<void(UObject&)> FurtherObjectsCallback) const
 {
+	checkf(!AddedObject.IsA<UClass>(), TEXT("Pass in the UObject instanced directly, not its class!"));
 	UE::ConcertClientSharedSlate::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*AddedObject.GetClass(), *this, AddedObject, FurtherObjectsCallback);
 }

@@ -7,6 +7,8 @@
 
 namespace UE::ConcertClientSharedSlate
 {
+	class IStreamExtender;
+
 	/** Special case of FGenericPropertySelectionModel where the edited FObjectReplicationMap lives in an UObject that is RF_Transactional. */
 	class FTransactionalReplicationStreamModel
 		: public FGenericReplicationStreamModel
@@ -16,7 +18,8 @@ namespace UE::ConcertClientSharedSlate
 
 		FTransactionalReplicationStreamModel(
 			UObject& OwningObject,
-			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
+			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
+			TSharedPtr<IStreamExtender> Extender = nullptr
 			);
 		
 		//~ Begin IEditableReplicationStreamModel Interface

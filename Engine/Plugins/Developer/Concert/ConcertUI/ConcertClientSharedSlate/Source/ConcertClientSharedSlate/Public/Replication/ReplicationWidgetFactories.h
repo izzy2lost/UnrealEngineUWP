@@ -26,6 +26,7 @@ namespace UE::ConcertClientSharedSlate
 	class IReplicationStreamEditor;
 	class IReplicationStreamViewer;
 	class IReplicationSubobjectView;
+	class IStreamExtender;
 	class ISubobjectModel;
 	class IPropertySelectionSourceModel;
 	
@@ -35,14 +36,16 @@ namespace UE::ConcertClientSharedSlate
 	 * This model edits a FObjectReplicationMap that is assumed to be within the transactional OwnerObject.
 	 * The model will respond to undo & redo by triggering the model's update callbacks.
 	 * 
-	 * @param OwnerObject The object containing the FObjectReplicationMap.
+	 * @param OwnerObject The object containing the FObjectReplicationMap - used for transactions.
 	 * @param ReplicationMapAttribute Getter for extracting the FObjectReplicationMap to edit
+	 * @param Extender Optional callbacks for adding additional properties and objects when an object is added to the model
 	 * 
 	 * @return A model that will edit the FObjectReplicationMap.
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<IEditableReplicationStreamModel> CreatePropertySelectionModel(
 		UObject& OwnerObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
+		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
+		TSharedPtr<IStreamExtender> Extender = nullptr
 		);
 
 	/** Builds a similar tree hierarchy as SSubobjectEditor. Reports only components as subobjects. */
@@ -100,9 +103,6 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipText;
-
-		/** Optional settings for auto adding common properties and objects. */
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
 
 		/** Base params for customizing the viewing part of the editor */
 		FCreateViewerParams ViewerParams;
@@ -171,9 +171,6 @@ namespace UE::ConcertClientSharedSlate
 
 		/** These flags modify the behaviour */
 		EMultiStreamEditorFlags Flags = EMultiStreamEditorFlags::Transactional;
-		
-		/** Optional settings for auto adding common properties and objects. */
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
 		
 		/** Base params for customizing the viewing part of the editor */
 		FCreateViewerParams ViewerParams;

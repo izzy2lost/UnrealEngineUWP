@@ -41,7 +41,6 @@ namespace UE::ConcertClientSharedSlate
 
 		IsEditingEnabledAttribute = InArgs._IsEditingEnabled;
 		EditingDisabledToolTipTextAttribute = InArgs._EditingDisabledToolTipText;
-		ReplicationSettingsAttribute = InArgs._ReplicationSettings;
 		OnExtendObjectsContextMenuDelegate = InArgs._OnExtendObjectsContextMenu;
 		
 		ChildSlot
@@ -116,8 +115,6 @@ namespace UE::ConcertClientSharedSlate
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
 		{
-			AutoAddObjectsAndPropertiesFromSettings(AddedObjects);
-			
 			TArray<FSoftObjectPath> TopLevelObjects;
 			Algo::TransformIf(AddedObjects, TopLevelObjects, [this](const UObject* Object)
 			{
@@ -126,39 +123,6 @@ namespace UE::ConcertClientSharedSlate
 			ReplicationViewer->SelectTopLevelObjects(TopLevelObjects);
 			constexpr bool bRecursive = true;
 			ReplicationViewer->ExpandObjects(TopLevelObjects, bRecursive);
-		}
-	}
-
-	void SBaseReplicationStreamEditor::AutoAddObjectsAndPropertiesFromSettings(TConstArrayView<UObject*> AddedObjects)
-	{
-		if (!bIsAddingFromSelection)
-		{
-			return;
-		}
-		
-		const FConcertReplicationEditorSettings* AutoPopulateSettings = ReplicationSettingsAttribute.IsBound()
-		  ? ReplicationSettingsAttribute.Get()
-		  : nullptr;
-		if (!AutoPopulateSettings)
-		{
-			return;
-		}
-
-		for (const UObject* AddedObject : AddedObjects)
-		{
-			TArray<FConcertPropertyChain> AdditionalProperties;
-			AutoPopulateSettings->AddDefaultPropertiesFromSettings(*AddedObject->GetClass(), [&AdditionalProperties](FConcertPropertyChain&& Chain)
-			{
-				AdditionalProperties.Emplace(MoveTemp(Chain));
-			});
-			EditablePropertiesModel->AddProperties({ AddedObject }, AdditionalProperties);
-
-			TArray<UObject*> AdditionalObjectsToAdd;
-			AutoPopulateSettings->AddAdditionalObjectsFromSettings(*AddedObject, [&AdditionalObjectsToAdd](UObject& FurtherObject)
-			{
-				AdditionalObjectsToAdd.Add(&FurtherObject);
-			});
-			EditablePropertiesModel->AddObjects(AdditionalObjectsToAdd);
 		}
 	}
 

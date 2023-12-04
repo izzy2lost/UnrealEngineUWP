@@ -49,7 +49,7 @@ namespace UE::MultiUserClient
 		TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor> StreamEditor;
 
 		/** Creates this widget's editor content */
-		TSharedRef<SWidget> CreateEditorContent(TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager);
+		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager);
 
 		// SClientToolbar attributes
 		TSet<FGuid> GetDisplayClientIds() const;

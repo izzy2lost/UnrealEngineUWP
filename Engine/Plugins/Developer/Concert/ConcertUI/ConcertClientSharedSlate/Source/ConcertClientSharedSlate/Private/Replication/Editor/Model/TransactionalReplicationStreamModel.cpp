@@ -11,9 +11,10 @@ namespace UE::ConcertClientSharedSlate
 {
 	FTransactionalReplicationStreamModel::FTransactionalReplicationStreamModel(
 		UObject& OwningObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute
+		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
+		TSharedPtr<IStreamExtender> Extender
 		)
-		: FGenericReplicationStreamModel(MoveTemp(ReplicationMapAttribute))
+		: FGenericReplicationStreamModel(MoveTemp(ReplicationMapAttribute), MoveTemp(Extender))
 		, OwningObject(&OwningObject)
 	{}
 

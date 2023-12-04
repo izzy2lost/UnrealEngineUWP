@@ -49,7 +49,6 @@ namespace UE::ConcertClientSharedSlate
 				]
 				.IsEditingEnabled(InArgs._IsEditingEnabled)
 				.EditingDisabledToolTipText(InArgs._EditingDisabledToolTipText)
-				.ReplicationSettings(InArgs._ReplicationSettings)
 		];
 	}
 

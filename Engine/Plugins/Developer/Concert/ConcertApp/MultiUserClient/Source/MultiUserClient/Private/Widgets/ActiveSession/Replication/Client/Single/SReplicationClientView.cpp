@@ -67,8 +67,6 @@ namespace UE::MultiUserClient
 		
 		const TAttribute<const IReplicationStreamViewer*> GetReplicationViewerAttribute =
 			TAttribute<const IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView_TwoSectioned.Get(); });
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute =
-			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([](){ return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings; });
 
 		// Add checkboxes in front of top level and subobject rows for changing authority
 		const FCreateEditorParams ReplicationEditorCreationParams
@@ -78,7 +76,6 @@ namespace UE::MultiUserClient
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
-			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute),
 			.ViewerParams =
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view

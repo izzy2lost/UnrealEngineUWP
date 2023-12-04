@@ -58,9 +58,6 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ATTRIBUTE(bool, IsEditingEnabled)
 			/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 			SLATE_ATTRIBUTE(FText, EditingDisabledToolTipText)
-
-			/** Optional settings for auto adding common properties and objects. */
-			SLATE_ATTRIBUTE(const FConcertReplicationEditorSettings*, ReplicationSettings)
 		SLATE_END_ARGS()
 
 		void Construct(

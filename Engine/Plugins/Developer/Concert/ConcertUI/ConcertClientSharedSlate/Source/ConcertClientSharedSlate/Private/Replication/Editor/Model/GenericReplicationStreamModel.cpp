@@ -4,14 +4,19 @@
 
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Data/ObjectReplicationMap.h"
-#include "Replication/Settings/ConcertReplicationEditorSettings.h"
 
 #include "Algo/AllOf.h"
+#include "Containers/Queue.h"
+#include "Replication/Editor/Model/IStreamExtender.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	FGenericReplicationStreamModel::FGenericReplicationStreamModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute)
-		: ReplicationMapAttribute(MoveTemp(ReplicationMapAttribute))
+	FGenericReplicationStreamModel::FGenericReplicationStreamModel(
+		TAttribute<FObjectReplicationMap*> InReplicationMapAttribute,
+		TSharedPtr<IStreamExtender> InExtender
+		)
+		: ReplicationMapAttribute(MoveTemp(InReplicationMapAttribute))
+		, Extender(MoveTemp(InExtender))
 	{}
 
 	FSoftClassPath FGenericReplicationStreamModel::GetObjectClass(const FSoftObjectPath& Object) const
@@ -99,7 +104,7 @@ namespace UE::ConcertClientSharedSlate
 			return;
 		}
 		
-		TSet<UObject*> ObjectsNotAdded;
+		TArray<UObject*> AddedObjects;
 		for (UObject* Object : Objects)
 		{
 			const FSoftObjectPath ObjectPath = Object;
@@ -107,29 +112,15 @@ namespace UE::ConcertClientSharedSlate
 			{
 				FReplicatedObjectInfo& ObjectInfo = ReplicationMap->ReplicatedObjects.Add(ObjectPath);
 				ObjectInfo.ClassPath = Object->GetClass();
-			}
-			else
-			{
-				ObjectsNotAdded.Add(Object);
+				AddedObjects.AddUnique(Object);
+				
+				ExtendObjects(*ReplicationMap, *Object, AddedObjects);
 			}
 		}
 		
-		if (LIKELY(ObjectsNotAdded.IsEmpty()))
+		if (!AddedObjects.IsEmpty())
 		{
-			OnObjectsChangedDelegate.Broadcast(Objects, {}, EReplicatedObjectChangeReason::ChangedDirectly);
-		}
-		else if (ObjectsNotAdded.Num() < Objects.Num())
-		{
-			// Uncommon case so it is ok if it is suboptimal
-			TArray<UObject*> Added;
-			for (UObject* Object : Objects)
-			{
-				if (!ObjectsNotAdded.Contains(Object))
-				{
-					Added.Add(Object);
-				}
-			}
-			OnObjectsChangedDelegate.Broadcast(Added, {}, EReplicatedObjectChangeReason::ChangedDirectly);
+			OnObjectsChangedDelegate.Broadcast(AddedObjects, {}, EReplicatedObjectChangeReason::ChangedDirectly);
 		}
 	}
 
@@ -256,6 +247,38 @@ namespace UE::ConcertClientSharedSlate
 		if (NumRemoved > 0)
 		{
 			OnPropertiesChangedDelegate.Broadcast();
+		}
+	}
+
+	void FGenericReplicationStreamModel::ExtendObjects(FObjectReplicationMap& ReplicationMap, UObject& AddedObject, TArray<UObject*>& ObjectsAddedSoFar)
+	{
+		if (!Extender)
+		{
+			return;
+		}
+
+		TQueue<UObject*> ObjectsToProcess;
+		ObjectsToProcess.Enqueue(&AddedObject);
+
+		UObject* CurrentObject;
+		while (ObjectsToProcess.Dequeue(CurrentObject))
+		{
+			FReplicatedObjectInfo& ObjectInfo = ReplicationMap.ReplicatedObjects[CurrentObject];
+			Extender->ExtendObjectProperties(*CurrentObject, [&ObjectInfo](FConcertPropertyChain PropertyChain)
+			{
+				ObjectInfo.PropertySelection.ReplicatedProperties.AddUnique(MoveTemp(PropertyChain));
+			});
+
+			Extender->AppendAdditionalObjects(*CurrentObject, [&ReplicationMap, &ObjectsAddedSoFar, &ObjectsToProcess](UObject& AdditionalObject)
+			{
+				if (!ObjectsAddedSoFar.Contains(&AdditionalObject))
+				{
+					ObjectsAddedSoFar.AddUnique(&AdditionalObject);
+					ReplicationMap.ReplicatedObjects.FindOrAdd(&AdditionalObject)
+						.ClassPath = AdditionalObject.GetClass();
+					ObjectsToProcess.Enqueue(&AdditionalObject);
+				}
+			});
 		}
 	}
 }

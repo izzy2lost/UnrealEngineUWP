@@ -21,6 +21,12 @@ namespace UE::MultiUserClient
 {
 	void SMultiClientView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& ClientManager, IClientSelectionModel& InDisplayClientsModel)
 	{
+		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute =
+			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([]()
+			{
+				return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings;
+			});
+		// TODO DP:
 		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, ClientManager);
 
 		ChildSlot
@@ -47,21 +53,16 @@ namespace UE::MultiUserClient
 		];
 	}
 
-	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager)
+	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager)
 	{
 		using namespace UE::ConcertClientSharedSlate;
 
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute =
-			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([]()
-			{
-				return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings;
-			});
 		TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditorAttribute =
 		   TAttribute<TSharedPtr<IMultiReplicationStreamEditor>>::CreateLambda([this]()
 		   {
 			   return StreamEditor;
 		   });
-		TAttribute<IReplicationStreamModel*> ConsolidatedStreamModelAttribute =
+		const TAttribute<IReplicationStreamModel*> ConsolidatedStreamModelAttribute =
 		   TAttribute<IReplicationStreamModel*>::CreateLambda([this]()
 		   {
 			   return &StreamEditor->GetConsolidatedModel();
@@ -72,7 +73,6 @@ namespace UE::MultiUserClient
 			.MultiStreamModel = StreamModel.ToSharedRef(),
 			.ObjectSource = MakeShared<FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
-			.ReplicationSettingsAttribute = MoveTemp(ReplicationSettingsAttribute),
 			.ViewerParams =
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view

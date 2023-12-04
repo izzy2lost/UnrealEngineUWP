@@ -11,13 +11,18 @@ struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate
 {
+	class IStreamExtender;
+
 	/** Implements logic for editing a FObjectReplicationMap contained in an UObject. */
 	class FGenericReplicationStreamModel
 		: public IEditableReplicationStreamModel
 	{
 	public:
 		
-		FGenericReplicationStreamModel(TAttribute<FObjectReplicationMap*> ReplicationMapAttribute);
+		FGenericReplicationStreamModel(
+			TAttribute<FObjectReplicationMap*> InReplicationMapAttribute,
+			TSharedPtr<IStreamExtender> InExtender = nullptr
+			);
 		
 		//~ Begin IReplicationStreamModel Interface
 		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override;
@@ -41,8 +46,14 @@ namespace UE::ConcertClientSharedSlate
 		/** Returns the replication map that is supposed to be edited. */
 		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute;
 
+		/** Adds properties and objects when an object is added. Can be null. */
+		TSharedPtr<IStreamExtender> Extender;
+
 		FOnObjectsChanged OnObjectsChangedDelegate;
 		FOnPropertiesChanged OnPropertiesChangedDelegate;
+
+		/** Applies Extender to AddedObject whilst adding any additionally added UObjects to ObjectsAddedSoFar and avoiding adding objects already added to ObjectsAddedSoFar. */
+		void ExtendObjects(FObjectReplicationMap& ReplicationMap, UObject& AddedObject, TArray<UObject*>& ObjectsAddedSoFar);
 	};
 }
 

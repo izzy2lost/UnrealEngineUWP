@@ -74,9 +74,6 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ATTRIBUTE(bool, IsEditingEnabled)
 			/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 			SLATE_ATTRIBUTE(FText, EditingDisabledToolTipText)
-
-			/** Optional settings for auto adding common properties and objects. */
-			SLATE_ATTRIBUTE(const FConcertReplicationEditorSettings*, ReplicationSettings)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
@@ -116,8 +113,6 @@ namespace UE::ConcertClientSharedSlate
 		TAttribute<bool> IsEditingEnabledAttribute;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipTextAttribute;
-		/** Optional settings for auto adding common properties and objects. */
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
 		
 		/** Generates additional entries */
 		FExtendMenu OnExtendObjectsContextMenuDelegate;
@@ -133,7 +128,6 @@ namespace UE::ConcertClientSharedSlate
 		FText GetEditingDisabledText() const;
 		
 		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason);
-		void AutoAddObjectsAndPropertiesFromSettings(TConstArrayView<UObject*> AddedObjects);
 		void OnPropertiesChanged();
 
 		// Customizing left objects search bar
