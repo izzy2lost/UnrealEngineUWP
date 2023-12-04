@@ -5,16 +5,12 @@
 =============================================================================*/
 
 #include "D3D12RHIPrivate.h"
-#include "RenderCore.h"
+#include "Features/IModularFeatures.h"
 #include "HDRHelper.h"
+#include "HAL/ThreadHeartBeat.h"
+#include "Windows/IDXGISwapchainProvider.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows.h"
-
-#include "HAL/ThreadHeartBeat.h"
-
-#include "Windows/IDXGISwapchainProvider.h"
-#include "Features/IModularFeatures.h"
 
 static const uint32 WindowsDefaultNumBackBuffers = 3;
 
