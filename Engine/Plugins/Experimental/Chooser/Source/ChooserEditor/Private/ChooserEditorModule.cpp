@@ -4,6 +4,7 @@
 
 #include "AnimNode_ChooserPlayer.h"
 #include "BoolColumnEditor.h"
+#include "ChooserEditorStyle.h"
 #include "ChooserPropertyAccess.h"
 #include "ChooserTableEditor.h"
 #include "ChooserTableEditorCommands.h"
@@ -31,6 +32,8 @@ FChoosersTrackCreator GChoosersTrackCreator;
 
 void FModule::StartupModule()
 {
+	FChooserEditorStyle::Initialize();
+	
 	FChooserTableEditor::RegisterWidgets();
 	RegisterGameplayTagWidgets();
 	RegisterFloatRangeWidgets();
@@ -44,7 +47,6 @@ void FModule::StartupModule()
 	FChooserTableEditorCommands::Register();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	
 	
 	PropertyModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FFrameTimeCustomization>(); }), MakeShared<FFrameTimePropertyTypeIdentifier>());
 	PropertyModule.RegisterCustomPropertyTypeLayout(FAnimCurveOverride::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FCurveOverrideCustomization>(); }));
@@ -65,6 +67,8 @@ void FModule::ShutdownModule()
 	IModularFeatures::Get().UnregisterModularFeature(RewindDebugger::IRewindDebuggerTrackCreator::ModularFeatureName, &GChoosersTrackCreator);
 	IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &ChooserTraceModule);
 	FChooserTableEditorCommands::Unregister();
+	
+	FChooserEditorStyle::Shutdown();
 }
 
 }

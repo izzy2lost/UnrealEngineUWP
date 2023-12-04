@@ -19,7 +19,12 @@ namespace UE::ChooserEditor
 TSharedRef<SWidget> CreateRandomizeColumnWidget(UChooserTable* Chooser, FChooserColumnBase* Column, int Row)
 {
 	FRandomizeColumn* RandomizeColumn = static_cast<FRandomizeColumn*>(Column);
-	if (Row < 0)
+	
+	if (Row == ColumnWidget_SpecialIndex_Fallback)
+	{
+		return SNullWidget::NullWidget;
+	}
+	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		const FSlateBrush* ColumnIcon = FAppStyle::Get().GetBrush("Icons.Help");
 		

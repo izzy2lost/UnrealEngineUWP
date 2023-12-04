@@ -7,6 +7,7 @@
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/Blueprint.h"
 #include "ChooserIndexArray.h"
+#include "IChooserParameterGameplayTag.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Chooser)
 
@@ -136,12 +137,14 @@ void UChooserTable::AddCompileDependency(const UStruct* InStructType)
 
 void UChooserTable::Compile(bool bForce)
 {
+	IHasContextClass* ContextOwner = GetContextOwner();
+	
 	for (FInstancedStruct& ColumnData : ColumnsStructs)
 	{
 		if (ColumnData.IsValid())
 		{
 			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-			Column.Compile(this, bForce);
+			Column.Compile(ContextOwner, bForce);
 		}
 	}
 
@@ -150,7 +153,7 @@ void UChooserTable::Compile(bool bForce)
 		if (ResultData.IsValid())
 		{
 			FObjectChooserBase& Result = ResultData.GetMutable<FObjectChooserBase>();
-			Result.Compile(this, bForce);
+			Result.Compile(ContextOwner, bForce);
 		}
 	}
 }
@@ -212,6 +215,8 @@ void UChooserTable::IterateRecentContextObjects(TFunction<void(const UObject*)> 
 void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 {
 	FScopeLock Lock(&DebugLock);
+
+	const UChooserTable* ContextOwner = GetContextOwner();
 	
 	for (const FStructView& Param : Context.Params)
 	{
@@ -221,16 +226,16 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 			{
 				RecentContextObjects.Add(MakeWeakObjectPtr(ContextObject));
 				
-				if (DebugTarget == nullptr && !DebugTargetName.IsEmpty())
+				if (ContextOwner->DebugTarget == nullptr && !DebugTargetName.IsEmpty())
 				{
 					// if the DebugTargetName is set, but not the DebugTarget, it means that PIE has been restarted, so try matching by name
-					if (ContextObject->GetName() == DebugTargetName)
+					if (ContextObject->GetName() == ContextOwner->DebugTargetName)
 					{
-						DebugTarget = ContextObject;
+						ContextOwner->DebugTarget = ContextObject;
 					}
 				}
 				
-				if (ContextObject == DebugTarget) 
+				if (ContextObject == ContextOwner->DebugTarget) 
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;
@@ -385,4 +390,31 @@ void FEvaluateChooser::GetDebugName(FString& OutDebugName) const
 	{
 		OutDebugName = Chooser.GetName();
 	}
+}
+
+
+FNestedChooser::FNestedChooser()
+{
+}
+
+UObject* FNestedChooser::ChooseObject(FChooserEvaluationContext& Context) const
+{
+	UObject* Result = nullptr;
+	UChooserTable::EvaluateChooser(Context, Chooser, FObjectChooserIteratorCallback::CreateLambda([&Result](UObject* InResult)
+	{
+		Result = InResult;
+		return FObjectChooserBase::EIteratorStatus::Stop;
+	}));
+
+	return Result;
+}
+
+FObjectChooserBase::EIteratorStatus FNestedChooser::ChooseMulti(FChooserEvaluationContext& Context, FObjectChooserIteratorCallback Callback) const
+{
+	return UChooserTable::EvaluateChooser(Context, Chooser, Callback);
+}
+
+void FNestedChooser::GetDebugName(FString& OutDebugName) const
+{
+	OutDebugName  = GetNameSafe(Chooser);
 }

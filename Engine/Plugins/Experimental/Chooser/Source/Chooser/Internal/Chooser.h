@@ -96,6 +96,11 @@ public:
 	TArray<TScriptInterface<IChooserColumn>> Columns_DEPRECATED;
 #endif
 
+	UChooserTable* GetContextOwner() { return ParentTable ? ParentTable.Get() : this; }
+	const UChooserTable* GetContextOwner() const { return ParentTable ? ParentTable.Get() : this; }
+
+	UPROPERTY()
+	TObjectPtr<UChooserTable> ParentTable;
 	
 	// FallbackResult will be used as the Result if there are no rows in the chooser which pass all filters.  If FallbackResult is not assigned, then the Chooser will return null in that case.
 	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Fallback")
@@ -122,6 +127,22 @@ public:
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);
 };
 
+USTRUCT(BlueprintType, DisplayName = "Nested Chooser")
+struct CHOOSER_API FNestedChooser : public FObjectChooserBase
+{
+	GENERATED_BODY()
+
+	virtual UObject* ChooseObject(FChooserEvaluationContext& Context) const final override;
+	virtual EIteratorStatus ChooseMulti(FChooserEvaluationContext &Context, FObjectChooserIteratorCallback Callback) const final override;
+	virtual void GetDebugName(FString& OutDebugName) const override;
+	
+	public:
+
+	FNestedChooser();
+	
+	UPROPERTY()
+	TObjectPtr<UChooserTable> Chooser;
+};
 
 USTRUCT(BlueprintType, DisplayName = "Evaluate Chooser")
 struct CHOOSER_API FEvaluateChooser : public FObjectChooserBase

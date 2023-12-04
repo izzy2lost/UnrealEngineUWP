@@ -93,7 +93,11 @@ namespace UE::ChooserEditor
 
 		FObjectColumn* ObjectColumn = static_cast<FObjectColumn*>(Column);
 
-		if (Row < 0)
+		if (Row == ColumnWidget_SpecialIndex_Fallback)
+		{
+			return SNullWidget::NullWidget;
+		}
+		else if (Row == ColumnWidget_SpecialIndex_Header)
 		{
 			// create column header widget
 			TSharedPtr<SWidget> InputValueWidget = nullptr;

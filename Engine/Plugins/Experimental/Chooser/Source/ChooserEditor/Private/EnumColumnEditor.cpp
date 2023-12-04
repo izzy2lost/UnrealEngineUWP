@@ -16,19 +16,23 @@
 
 namespace UE::ChooserEditor
 {
+
 	
 // Wrapper widget for EnumComboBox which will reconstruct the combo box when the Enum has changed
 template <typename ColumnType>
 class SEnumCell : public SCompoundWidget
 {
 public:
+
+	DECLARE_DELEGATE_OneParam(FOnValueSet, int);
+	
 	SLATE_BEGIN_ARGS(SEnumCell)
-		: _RowIndex(-1)
 	{}
 
 	SLATE_ARGUMENT(UObject*, TransactionObject)
 	SLATE_ARGUMENT(ColumnType*, EnumColumn)
-	SLATE_ATTRIBUTE(int, RowIndex);
+	SLATE_ATTRIBUTE(int32, EnumValue);
+	SLATE_EVENT(FOnValueSet, OnValueSet)
             
 	SLATE_END_ARGS()
 
@@ -42,31 +46,12 @@ public:
 				{
 					return SNew(SEnumComboBox, Enum)
 						.IsEnabled_Lambda([this](){ return IsEnabled(); } )
-						.CurrentValue_Lambda([this]()
+						.CurrentValue(EnumValue)
+						.OnEnumSelectionChanged_Lambda([this](int32 InEnumValue, ESelectInfo::Type)
 						{
-							int Row = RowIndex.Get();
-							if (EnumColumn->RowValues.IsValidIndex(Row))
-							{
-								return EnumColumn->RowValues.IsValidIndex(Row) ? static_cast<int32>(EnumColumn->RowValues[Row].Value) : 0;
-							}
-							else
-							{
-								return static_cast<int32>(EnumColumn->TestValue);
-							}
-						})
-						.OnEnumSelectionChanged_Lambda([this](int32 EnumValue, ESelectInfo::Type)
-						{
-							int Row = RowIndex.Get();
-							if (EnumColumn->RowValues.IsValidIndex(Row))
-							{
-								const FScopedTransaction Transaction(LOCTEXT("Edit RHS", "Edit Enum Value"));
-								TransactionObject->Modify(true);
-								EnumColumn->RowValues[Row].Value = static_cast<uint8>(EnumValue);
-							}
-							else
-							{
-								EnumColumn->TestValue = EnumValue;
-							}
+							const FScopedTransaction Transaction(LOCTEXT("Edit RHS", "Edit Enum Value"));
+							TransactionObject->Modify(true);
+							OnValueSet.ExecuteIfBound(InEnumValue);
 						});
 				}
 			}
@@ -100,9 +85,10 @@ public:
 		SetEnabled(InArgs._IsEnabled);
 		
 		SetCanTick(true);
-		RowIndex = InArgs._RowIndex;
 		EnumColumn = InArgs._EnumColumn;
 		TransactionObject = InArgs._TransactionObject;
+		EnumValue = InArgs._EnumValue;
+		OnValueSet = InArgs._OnValueSet;
 
 		if (EnumColumn)
 		{
@@ -137,13 +123,20 @@ private:
 	TSharedPtr<SBorder> EnumComboBorder;
 	TAttribute<int> RowIndex;
 	FDelegateHandle EnumChangedHandle;
+	
+	FOnValueSet OnValueSet;
+	TAttribute<int32> EnumValue;
 };
 
 TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColumnBase* Column, int Row)
 {
 	FEnumColumn* EnumColumn = static_cast<FEnumColumn*>(Column);
 	
-	if (Row < 0)
+	if (Row == ColumnWidget_SpecialIndex_Fallback)
+	{
+		return SNullWidget::NullWidget;
+	}
+	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		// create column header widget
 		TSharedPtr<SWidget> InputValueWidget = nullptr;
@@ -178,7 +171,9 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 			]
 			+ SVerticalBox::Slot()
 			[
-				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).RowIndex(Row)
+				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
+					.OnValueSet_Lambda([EnumColumn](int Value) { EnumColumn->TestValue = Value; })
+					.EnumValue_Lambda([EnumColumn]() { return EnumColumn->TestValue; })
 					.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); })
 			];
 		}
@@ -227,7 +222,18 @@ TSharedRef<SWidget> CreateEnumColumnWidget(UChooserTable* Chooser, FChooserColum
 			]
 			+ SHorizontalBox::Slot().FillWidth(1)
 			[
-				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).RowIndex(Row)
+				SNew(SEnumCell<FEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
+					.OnValueSet_Lambda([EnumColumn, Row](int Value)
+					{
+						if (EnumColumn->RowValues.IsValidIndex(Row))
+						{
+							EnumColumn->RowValues[Row].Value = static_cast<uint8>(Value);
+						}
+					})
+					.EnumValue_Lambda([EnumColumn, Row]()
+					{
+						return EnumColumn->RowValues.IsValidIndex(Row) ? static_cast<int32>(EnumColumn->RowValues[Row].Value) : 0;
+					})
 				.Visibility_Lambda([EnumColumn,Column, Row]()
 					{
 						return (EnumColumn->RowValues.IsValidIndex(Row) &&
@@ -242,7 +248,7 @@ TSharedRef<SWidget> CreateOutputEnumColumnWidget(UChooserTable* Chooser, FChoose
 {
 	FOutputEnumColumn* EnumColumn = static_cast<FOutputEnumColumn*>(Column);
 	
-	if (Row < 0)
+	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		// create column header widget
 		TSharedPtr<SWidget> InputValueWidget = nullptr;
@@ -277,19 +283,34 @@ TSharedRef<SWidget> CreateOutputEnumColumnWidget(UChooserTable* Chooser, FChoose
 			]
 			+ SVerticalBox::Slot()
 			[
-				SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).RowIndex(Row).IsEnabled(false)
+				SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).IsEnabled(false)
+				.EnumValue_Lambda([EnumColumn]() { return static_cast<int32>(EnumColumn->TestValue); })
 			];
 		}
 
 		return ColumnHeaderWidget;
 	}
+	else if (Row == ColumnWidget_SpecialIndex_Fallback)
+	{
+		return 	SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
+        			.OnValueSet_Lambda([EnumColumn](int Value) { EnumColumn->FallbackValue.Value = Value; })
+        			.EnumValue_Lambda([EnumColumn]() { return EnumColumn->FallbackValue.Value; });
+	}
 
 	// create cell widget
 	
-	return
-
-
-	SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn).RowIndex(Row);
+	return SNew(SEnumCell<FOutputEnumColumn>).TransactionObject(Chooser).EnumColumn(EnumColumn)
+		.OnValueSet_Lambda([EnumColumn, Row](int Value)
+		{
+			if (EnumColumn->RowValues.IsValidIndex(Row))
+			{
+				EnumColumn->RowValues[Row].Value = static_cast<uint8>(Value);
+			}
+		})
+		.EnumValue_Lambda([EnumColumn, Row]()
+		{
+			return EnumColumn->RowValues.IsValidIndex(Row) ? static_cast<int32>(EnumColumn->RowValues[Row].Value) : 0;
+		});
 }
 
 TSharedRef<SWidget> CreateEnumPropertyWidget(bool bReadOnly, UObject* TransactionObject, void* Value, UClass* ResultBaseClass, FChooserWidgetValueChanged ValueChanged)

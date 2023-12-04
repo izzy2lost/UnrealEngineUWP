@@ -34,11 +34,12 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 				{
 					if (UChooserTable* Chooser = Cast<UChooserTable>(ChooserObject))
 					{
-						if (Chooser->HasDebugTarget())
+						UChooserTable* ContextOwner = Chooser->GetContextOwner();
+						if (ContextOwner->HasDebugTarget())
 						{
 							if (UObject* ContextObject = FObjectTrace::GetObjectFromId(OwnerId))
 							{
-								if (Chooser->GetDebugTarget() == ContextObject)
+								if (ContextOwner->GetDebugTarget() == ContextObject)
 								{
 									Chooser->SetDebugSelectedRow(ChooserEvaluationData.SelectedIndex);
 									Chooser->bDebugTestValuesValid = true;

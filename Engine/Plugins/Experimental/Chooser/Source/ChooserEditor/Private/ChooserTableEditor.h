@@ -3,14 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Toolkits/IToolkitHost.h"
-#include "Toolkits/AssetEditorToolkit.h"
-#include "PropertyEditorDelegates.h"
-#include "Widgets/Views/SListView.h"
-#include "Widgets/Views/STableViewBase.h"
 #include "Chooser.h"
 #include "EditorUndoClient.h"
+#include "PropertyEditorDelegates.h"
 #include "Misc/NotifyHook.h"
+#include "Toolkits/AssetEditorToolkit.h"
+#include "Toolkits/IToolkitHost.h"
+#include "Widgets/Navigation/SBreadcrumbTrail.h"
+#include "Widgets/Views/SListView.h"
+#include "Widgets/Views/STableViewBase.h"
 #include "ChooserTableEditor.generated.h"
 
 class SComboButton;
@@ -65,6 +66,8 @@ namespace UE::ChooserEditor
 		/** Destructor */
 		virtual ~FChooserTableEditor();
 
+		virtual FName GetEditorName() const override;
+
 		/** IToolkit interface */
 		virtual FName GetToolkitFName() const override;
 		virtual FText GetBaseToolkitName() const override;
@@ -75,7 +78,7 @@ namespace UE::ChooserEditor
 		virtual bool IsPrimaryEditor() const override { return true; }
 		virtual bool IsSimpleAssetEditor() const override { return false; }
 		virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
-		
+
 		/** FEditorUndoClient Interface */
 		virtual void PostUndo(bool bSuccess) override;
 		virtual void PostRedo(bool bSuccess) override;
@@ -84,8 +87,13 @@ namespace UE::ChooserEditor
 		virtual void NotifyPreChange( FProperty* PropertyAboutToChange ) override;
 		virtual void NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 
-		UChooserTable* GetChooser() { return Cast<UChooserTable>(EditingObjects[0]); }
-		const UChooserTable* GetChooser() const { return Cast<UChooserTable>(EditingObjects[0]); }
+		UChooserTable* GetRootChooser() { return Cast<UChooserTable>(EditingObjects[0]); }
+		UChooserTable* GetChooser() { return BreadcrumbTrail->PeekCrumb(); }
+		const UChooserTable* GetChooser() const { return BreadcrumbTrail->PeekCrumb(); }
+
+		void PushChooserTableToEdit(UChooserTable* Chooser);
+		void PopChooserTableToEdit();
+		void RefreshAll();
 	
 		/** Used to show or hide certain properties */
 		void SetPropertyVisibilityDelegate(FIsPropertyVisible InVisibilityDelegate);
@@ -99,7 +107,7 @@ namespace UE::ChooserEditor
 		};
 
 		void UpdateTableRows();
-		void SelectColumn(int Index);
+		void SelectColumn(UChooserTable* Chooser, int Index);
 		void ClearSelectedColumn();
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
@@ -142,14 +150,17 @@ namespace UE::ChooserEditor
 		UChooserColumnDetails* SelectedColumn = nullptr;
 		TArray<TObjectPtr<UChooserRowDetails>> SelectedRows;
 
+		TSharedPtr<SBreadcrumbTrail<UChooserTable*>> BreadcrumbTrail;
+		
 		void UpdateTableColumns();
 		TArray<TSharedPtr<FChooserTableRow>> TableRows;
 	
 		TSharedPtr<SComboButton> CreateColumnComboButton;
 		TSharedPtr<SComboButton> CreateRowComboButton;
-		
+
 		TSharedPtr<SHeaderRow> HeaderRow;
 		TSharedPtr<SListView<TSharedPtr<FChooserTableRow>>> TableView;
+
 	public:
 
 		TSharedPtr<SComboButton>& GetCreateRowComboButton() { return CreateRowComboButton; };
@@ -162,6 +173,8 @@ namespace UE::ChooserEditor
 		static TSharedRef<FChooserTableEditor> CreateEditor( const EToolkitMode::Type Mode, const TSharedPtr< IToolkitHost >& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FGetDetailsViewObjects GetDetailsViewObjects = FGetDetailsViewObjects() );
 
 		static void RegisterWidgets();
+		
+		static FName EditorName;
 	};
 }
 
