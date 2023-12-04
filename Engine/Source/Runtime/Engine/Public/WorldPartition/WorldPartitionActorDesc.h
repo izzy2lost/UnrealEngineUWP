@@ -159,6 +159,9 @@ ENGINE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	ENGINE_API virtual bool IsEditorRelevant() const;
 	ENGINE_API virtual void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const;
 
+	UE_DEPRECATED(5.2, "ShouldValidateRuntimeGrid is deprecated and should not be used.")
+	virtual bool ShouldValidateRuntimeGrid() const { return true; }
+
 	UE_DEPRECATED(5.3, "GetLevelPackage is deprecated use GetContainerPackage instead.")
 	virtual FName GetLevelPackage() const { return GetContainerPackage(); }
 

@@ -1565,7 +1565,20 @@ void UWorldPartitionRuntimeSpatialHash::FlushStreaming()
 
 bool UWorldPartitionRuntimeSpatialHash::IsValidGrid(FName GridName) const
 {
-	return true;
+	if (GridName.IsNone())
+	{
+		return true;
+	}
+
+	for (const FSpatialHashRuntimeGrid& Grid : Grids)
+	{
+		if (Grid.GridName == GridName)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #endif //WITH_EDITOR
