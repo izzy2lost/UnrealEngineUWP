@@ -114,14 +114,6 @@ public:
 	virtual const FSkinBatchVertexFactoryUserData* GetVertexFactoryUserData(const int32 LODIndex, int32 ChunkIdx, ESkinVertexFactoryMode VFMode) const { return nullptr; }
 
 	/**
-	 * Re-skin cached vertices for an LOD and update the vertex buffer. Note that this
-	 * function is called from the render thread!
-	 * @param	LODIndex - index to LODs
-	 * @param	bForce - force update even if LOD index hasn't changed
-	 */
-	virtual void CacheVertices(int32 LODIndex, bool bForce) const = 0;
-
-	/**
 	 * Returns true if this mesh performs skinning on the CPU.
 	 */
 	virtual bool IsCPUSkinned() const = 0;

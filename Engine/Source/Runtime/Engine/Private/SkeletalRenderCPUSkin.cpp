@@ -196,7 +196,7 @@ void FSkeletalMeshObjectCPUSkin::UpdateDynamicData_RenderThread(FRHICommandList&
 	check(DynamicData);
 
 	// update vertices using the new data
-	CacheVertices(DynamicData->LODIndex,true);
+	CacheVertices(DynamicData->LODIndex, true, RHICmdList);
 }
 
 #define SKIN_LOD_VERTICES(VertexType, NumUVs) \
@@ -222,9 +222,10 @@ void FSkeletalMeshObjectCPUSkin::UpdateDynamicData_RenderThread(FRHICommandList&
 }\
 	
 
-void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce) const
+void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce, FRHICommandList& RHICmdList) const
 {
 	SCOPE_CYCLE_COUNTER( STAT_CPUSkinUpdateRTTime);
+	check(IsInParallelRenderingThread());
 
 	// Source skel mesh and static lod model
 	FSkeletalMeshLODRenderData& LOD = SkeletalMeshRenderData->LODRenderData[LODIndex];
@@ -297,25 +298,18 @@ void FSkeletalMeshObjectCPUSkin::CacheVertices(int32 LODIndex, bool bForce) cons
 			}
 		}
 
-		BeginUpdateResourceRHI(&MeshLOD.PositionVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
-		BeginUpdateResourceRHI(&MeshLOD.StaticMeshVertexBuffer, &UE::RenderCommandPipe::SkeletalMesh);
+		MeshLOD.PositionVertexBuffer.UpdateRHI(RHICmdList);
+		MeshLOD.StaticMeshVertexBuffer.UpdateRHI(RHICmdList);
 
-		const FSkeletalMeshObjectCPUSkin::FSkeletalMeshObjectLOD* MeshLODptr = &MeshLOD;
-		FLocalVertexFactory* VertexFactoryPtr = &MeshLOD.VertexFactory;
-		ENQUEUE_RENDER_COMMAND(UpdateSkeletalMeshCPUSkinVertexFactory)(UE::RenderCommandPipe::SkeletalMesh,
-			[VertexFactoryPtr, MeshLODptr](FRHICommandList& RHICmdList)
-		{
-			FLocalVertexFactory::FDataType Data;
+		FLocalVertexFactory::FDataType Data;
+		MeshLOD.PositionVertexBuffer.BindPositionVertexBuffer(&MeshLOD.VertexFactory, Data);
+		MeshLOD.StaticMeshVertexBuffer.BindTangentVertexBuffer(&MeshLOD.VertexFactory, Data);
+		MeshLOD.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(&MeshLOD.VertexFactory, Data, MAX_TEXCOORDS);
+		MeshLOD.StaticMeshVertexBuffer.BindLightMapVertexBuffer(&MeshLOD.VertexFactory, Data, 0);
+		MeshLOD.MeshObjectColorBuffer->BindColorVertexBuffer(&MeshLOD.VertexFactory, Data);
 
-			MeshLODptr->PositionVertexBuffer.BindPositionVertexBuffer(VertexFactoryPtr, Data);
-			MeshLODptr->StaticMeshVertexBuffer.BindTangentVertexBuffer(VertexFactoryPtr, Data);
-			MeshLODptr->StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(VertexFactoryPtr, Data, MAX_TEXCOORDS);
-			MeshLODptr->StaticMeshVertexBuffer.BindLightMapVertexBuffer(VertexFactoryPtr, Data, 0);
-			MeshLODptr->MeshObjectColorBuffer->BindColorVertexBuffer(VertexFactoryPtr, Data);
-
-			VertexFactoryPtr->SetData(RHICmdList, Data);
-			VertexFactoryPtr->InitResource(RHICmdList);
-		});
+		MeshLOD.VertexFactory.SetData(RHICmdList, Data);
+		MeshLOD.VertexFactory.InitResource(RHICmdList);
 	}
 }
 
