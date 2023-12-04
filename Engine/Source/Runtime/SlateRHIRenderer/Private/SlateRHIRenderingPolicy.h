@@ -76,6 +76,8 @@ public:
 	void SetUseGammaCorrection( bool bInUseGammaCorrection ) { bGammaCorrect = bInUseGammaCorrection; }
 	void SetApplyColorDeficiencyCorrection(bool bInApplyColorCorrection) { bApplyColorDeficiencyCorrection = bInApplyColorCorrection; }
 
+	void TickPostProcessResources();
+	
 	bool GetApplyColorDeficiencyCorrection() const { return bApplyColorDeficiencyCorrection; }
 
 	virtual void AddSceneAt(FSceneInterface* Scene, int32 Index) override;

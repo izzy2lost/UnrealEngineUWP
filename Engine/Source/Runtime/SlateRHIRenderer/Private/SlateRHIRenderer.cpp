@@ -2416,6 +2416,9 @@ void FSlateRHIRenderer::ReleaseAccessedResources(bool bImmediatelyFlush)
 
 		//FlushCommands();
 	}
+
+	RenderingPolicy->TickPostProcessResources();
+
 }
 
 void FSlateRHIRenderer::RequestResize(const TSharedPtr<SWindow>& Window, uint32 NewWidth, uint32 NewHeight)
