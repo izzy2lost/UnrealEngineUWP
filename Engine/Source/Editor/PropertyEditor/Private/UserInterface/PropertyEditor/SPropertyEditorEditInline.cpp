@@ -41,18 +41,33 @@ public:
 
 	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs ) override
 	{
-		return IsClassAllowedHelper(InClass, InFilterFuncs);
+		auto IsClassChildOf = [InClass](const UClass* FilterClass)
+		{
+			return InClass->IsChildOf(FilterClass);
+		};
+		
+		return IsClassAllowedHelper(InClass, IsClassChildOf, InFilterFuncs);
 	}
 	
 	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InBlueprint, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
 	{
-		return IsClassAllowedHelper(InBlueprint, InFilterFuncs);
+		auto IsClassChildOf = [InBlueprint](const UClass* FilterClass)
+		{
+			if (FilterClass && InBlueprint->GetClassPathName() == FilterClass->GetClassPathName())
+			{
+				return true;
+			}
+			
+			return InBlueprint->IsChildOf(FilterClass);
+		};
+		
+		return IsClassAllowedHelper(InBlueprint, IsClassChildOf, InFilterFuncs);
 	}
 
 private:
 
-	template <typename TClass>
-	bool IsClassAllowedHelper(TClass InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs)
+	template <typename TClass, typename TIsChildOfFunction>
+	bool IsClassAllowedHelper(TClass InClass, TIsChildOfFunction IsClassChildOf, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs)
 	{
 		const bool bMatchesFlags = InClass->HasAnyClassFlags(CLASS_EditInlineNew) &&
 			!InClass->HasAnyClassFlags(CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated) &&
@@ -76,11 +91,6 @@ private:
 		{
 			return false;
 		}
-
-		auto IsClassChildOf = [InClass](const UClass* FilterClass)
-		{
-			return InClass->IsChildOf(FilterClass);
-		};
 
 		// If the the class is explicitly present in the disallowed class filter set, we can't allow it
 		if (Algo::AnyOf(DisallowedClassFilters, IsClassChildOf))
