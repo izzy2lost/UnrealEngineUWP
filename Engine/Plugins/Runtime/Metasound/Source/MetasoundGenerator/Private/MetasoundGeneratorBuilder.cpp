@@ -194,6 +194,12 @@ namespace Metasound
 				}
 			};
 
+			if (!InInitParams.Graph)
+			{
+				UE_LOG(LogMetaSound, Error, TEXT("Unable to build graph operator inputs for null graph in MetaSoundSource [%s]"), *InInitParams.MetaSoundName);
+				return FInputVertexInterfaceData();
+			}
+
 			const FInputVertexInterface& InputInterface = InInitParams.Graph->GetVertexInterface().GetInputInterface();
 			FInputVertexInterfaceData InputData(InputInterface);
 
@@ -254,6 +260,11 @@ namespace Metasound
 			FOperatorAndInputs OpAndInputs;
 			OpAndInputs.Inputs = BuildGraphOperatorInputs(InOperatorSettings, InInitParams);
 
+			if (!InInitParams.Graph)
+			{
+				UE_LOG(LogMetaSound, Error, TEXT("Unable to build graph operator for null graph in MetaSoundSource [%s]"), *InInitParams.MetaSoundName);
+				return OpAndInputs;
+			}
 			// Create an instance of the new graph operator
 			FBuildGraphOperatorParams BuildParams { *InInitParams.Graph, InOperatorSettings, OpAndInputs.Inputs, InInitParams.Environment };
 			FOperatorBuilder Builder(InInitParams.BuilderSettings);
