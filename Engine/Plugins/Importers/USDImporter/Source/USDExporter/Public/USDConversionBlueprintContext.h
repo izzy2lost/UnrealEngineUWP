@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UnrealUSDWrapper.h"
+#include "USDAssetUserData.h"
 #include "USDStageOptions.h"
 #include "USDUnrealAssetInfo.h"
 #include "UsdWrappers/SdfLayer.h"
@@ -27,6 +28,8 @@ class USceneComponent;
 class USkyLightComponent;
 class USpotLightComponent;
 class UUsdDrawModeComponent;
+struct FUsdPrimMetadata;
+struct FUsdCombinedPrimMetadata;
 
 /**
  * Wraps the UnrealToUsd component conversion functions from the USDUtilities module so that they can be used by
@@ -181,10 +184,22 @@ public:
 	int32 GetUsdStageNumFrames();
 
 	/** Adds to Prim the assetInfo metadata the values described in Info */
-	UFUNCTION( BlueprintCallable, Category = "Conversion utils" )
+	UFUNCTION( BlueprintCallable, Category = "Conversion utils|Metadata" )
 	void SetPrimAssetInfo( const FString& PrimPath, const FUsdUnrealAssetInfo& Info );
 
 	/** Retrieves from Prim the assetInfo metadata values that we use as export metadata, when exporting Unreal assets */
-	UFUNCTION( BlueprintCallable, Category = "Conversion utils" )
+	UFUNCTION( BlueprintCallable, Category = "Conversion utils|Metadata" )
 	FUsdUnrealAssetInfo GetPrimAssetInfo( const FString& PrimPath );
+
+	/** Applies Metadata to the prim specified at PrimPath, using the provided filters */
+	UFUNCTION(BlueprintCallable, Category = "Conversion utils|Metadata")
+	void SetPrimMetadata(const FString& PrimPath, const FUsdCombinedPrimMetadata& Metadata, const TArray<FString>& BlockedPrefixFilter, bool bInvertFilter);
+
+	/** Applies all the metadata contained in UserData to the prim specified at PrimPath, using the provided filters */
+	UFUNCTION(BlueprintCallable, Category = "Conversion utils|Metadata")
+	void SetPrimMetadataFromUserData(const FString& PrimPath, const UUsdAssetUserData* UserData, const TArray<FString>& BlockedPrefixFilter, bool bInvertFilter);
+
+	/** Extracts metadata from the prim at PrimPath using the provided filters and returns it */
+	UFUNCTION(BlueprintCallable, Category = "Conversion utils|Metadata")
+	FUsdCombinedPrimMetadata GetPrimMetadata(const FString& PrimPath, const TArray<FString>& BlockedPrefixFilter, bool bInvertFilter, bool bCollectFromEntireSubtrees);
 };

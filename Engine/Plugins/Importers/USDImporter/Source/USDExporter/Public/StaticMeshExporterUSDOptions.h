@@ -4,8 +4,7 @@
 
 #include "USDAssetOptions.h"
 #include "USDStageOptions.h"
-
-#include "Engine/EngineTypes.h"
+#include "USDMetadataExportOptions.h"
 
 #include "StaticMeshExporterUSDOptions.generated.h"
 
@@ -25,6 +24,9 @@ public:
 
 	UPROPERTY( EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options", meta = ( ShowOnlyInnerProperties ) )
 	FUsdMeshAssetOptions MeshAssetOptions;
+
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Metadata options", meta = (ShowOnlyInnerProperties))
+	FUsdMetadataExportOptions MetadataOptions;
 
 	/**
 	 * Whether to export any asset (StaticMesh, Material, etc.) even if the existing file already describes the same version of a compatible asset.

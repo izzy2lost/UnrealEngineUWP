@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UnrealUSDWrapper.h"
+#include "USDMetadataImportOptions.h"
 #include "USDStageOptions.h"
 
 #include "CoreMinimal.h"
@@ -108,6 +109,10 @@ public:
 	/** Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide" */
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options")
 	int32 SubdivisionLevel;
+
+	/* Describes if/how we should collect metadata from USD prims onto the assets and components we generate when importing */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "USD options")
+	FUsdMetadataImportOptions MetadataOptions;
 
 	/** Whether to use the specified StageOptions instead of the stage's own settings */
 	UPROPERTY( BlueprintReadWrite, config, EditAnywhere, Category = "USD options" )

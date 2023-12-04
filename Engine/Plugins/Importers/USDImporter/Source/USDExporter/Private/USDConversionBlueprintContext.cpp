@@ -7,12 +7,15 @@
 #include "USDGeomMeshConversion.h"
 #include "USDLightConversion.h"
 #include "USDLog.h"
+#include "USDMetadata.h"
 #include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
 #include "USDUnrealAssetInfo.h"
+#include "USDValueConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/VtValue.h"
 
 #include "InstancedFoliageActor.h"
 #include "LandscapeProxy.h"
@@ -555,3 +558,65 @@ FUsdUnrealAssetInfo UUsdConversionBlueprintContext::GetPrimAssetInfo( const FStr
 	return {};
 }
 
+void UUsdConversionBlueprintContext::SetPrimMetadata(
+	const FString& PrimPath,
+	const FUsdCombinedPrimMetadata& Metadata,
+	const TArray<FString>& BlockedPrefixFilter,
+	bool bInvertFilter
+)
+{
+#if USE_USD_SDK
+	if (Stage)
+	{
+		if (UE::FUsdPrim Prim = UnrealToUsdImpl::GetPrim(Stage, PrimPath))
+		{
+			UnrealToUsd::ConvertMetadata(Metadata, Prim, BlockedPrefixFilter, bInvertFilter);
+		}
+	}
+#endif	  // USE_USD_SDK
+}
+
+void UUsdConversionBlueprintContext::SetPrimMetadataFromUserData(
+	const FString& PrimPath,
+	const UUsdAssetUserData* UserData,
+	const TArray<FString>& BlockedPrefixFilter,
+	bool bInvertFilter
+)
+{
+#if USE_USD_SDK
+	if (Stage && UserData)
+	{
+		if (UE::FUsdPrim Prim = UnrealToUsdImpl::GetPrim(Stage, PrimPath))
+		{
+			UnrealToUsd::ConvertMetadata(UserData, Prim, BlockedPrefixFilter, bInvertFilter);
+		}
+	}
+#endif	  // USE_USD_SDK
+}
+
+FUsdCombinedPrimMetadata UUsdConversionBlueprintContext::GetPrimMetadata(
+	const FString& PrimPath,
+	const TArray<FString>& BlockedPrefixFilter,
+	bool bInvertFilter,
+	bool bCollectFromEntireSubtrees
+)
+{
+	FUsdCombinedPrimMetadata Result;
+
+#if USE_USD_SDK
+	if (Stage)
+	{
+		if (UE::FUsdPrim Prim = UnrealToUsdImpl::GetPrim(Stage, PrimPath))
+		{
+			bool bSuccess = UsdToUnreal::ConvertMetadata(Prim, Result, BlockedPrefixFilter, bInvertFilter, bCollectFromEntireSubtrees);
+			if (!bSuccess)
+			{
+				UE_LOG(LogUsd, Warning, TEXT("Failed to get metadata from prim '%s'"), *PrimPath);
+				Result = {};
+			}
+		}
+	}
+#endif	  // USE_USD_SDK
+
+	return Result;
+}

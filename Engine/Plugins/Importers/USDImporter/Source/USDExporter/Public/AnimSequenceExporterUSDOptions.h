@@ -3,6 +3,7 @@
 #pragma once
 
 #include "USDAssetOptions.h"
+#include "USDMetadataExportOptions.h"
 #include "USDStageOptions.h"
 
 #include "Engine/EngineTypes.h"
@@ -31,6 +32,10 @@ public:
 	/** Export options to use for the preview mesh, if enabled */
 	UPROPERTY( EditAnywhere, config, BlueprintReadWrite, Category = "Mesh options", meta = ( ShowOnlyInnerProperties, EditCondition = bExportPreviewMesh ) )
 	FUsdMeshAssetOptions PreviewMeshOptions;
+
+	/** Options to use when exporting UsdAssetUserData metadata to USD for all assets (including the preview mesh) */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Metadata options", meta = (ShowOnlyInnerProperties))
+	FUsdMetadataExportOptions MetadataOptions;
 
 	/**
 	 * Whether to export any asset (StaticMesh, Material, etc.) even if the existing file already describes the same version of a compatible asset.

@@ -296,7 +296,9 @@ namespace UsdGeomMeshTranslatorImpl
 		const UE::FUsdPrim& MeshPrim,
 		TArray<FMeshDescription>& OutLODIndexToMeshDescription,
 		TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& OutLODIndexToMaterialInfo,
-		const UsdToUnreal::FUsdMeshConversionOptions& Options
+		FUsdCombinedPrimMetadata& OutLODMetadata,
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		const FUsdMetadataImportOptions& MetadataOptions
 	)
 	{
 		if(!MeshPrim)
@@ -345,19 +347,18 @@ namespace UsdGeomMeshTranslatorImpl
 		{
 			return false;
 		}
-		TMap<FString, int32> PrimvarToUVIndex = UsdUtils::CombinePrimvarsIntoUVSets(
-			AllPrimvars,
-			PreferredPrimvars
-		);
+		TMap<FString, int32> PrimvarToUVIndex = UsdUtils::CombinePrimvarsIntoUVSets(AllPrimvars, PreferredPrimvars);
 
 		TFunction<bool(const pxr::UsdGeomMesh&, int32)> ConvertLOD =
-			[&OptionsCopy, &Options, &PrimvarToUVIndex, &LODIndexToMeshDescriptionMap, &LODIndexToMaterialInfoMap]
-			(const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)
+			[&OptionsCopy, &Options, &PrimvarToUVIndex, &LODIndexToMeshDescriptionMap, &LODIndexToMaterialInfoMap, &OutLODMetadata, &MetadataOptions](
+				const pxr::UsdGeomMesh& LODMesh,
+				int32 LODIndex
+			)
 		{
 			FMeshDescription TempMeshDescription;
 
 			UsdUtils::FUsdPrimMaterialAssignmentInfo TempMaterialInfo;
-				TempMaterialInfo.PrimvarToUVIndex = PrimvarToUVIndex;
+			TempMaterialInfo.PrimvarToUVIndex = PrimvarToUVIndex;
 
 			FStaticMeshAttributes StaticMeshAttributes(TempMeshDescription);
 			StaticMeshAttributes.Register();
@@ -401,6 +402,17 @@ namespace UsdGeomMeshTranslatorImpl
 			{
 				LODIndexToMeshDescriptionMap.Add(LODIndex, MoveTemp(TempMeshDescription));
 				LODIndexToMaterialInfoMap.Add(LODIndex, MoveTemp(TempMaterialInfo));
+
+				if (MetadataOptions.bCollectMetadata)
+				{
+					UsdToUnreal::ConvertMetadata(
+						LODMesh.GetPrim(),
+						OutLODMetadata,
+						MetadataOptions.BlockedPrefixFilters,
+						MetadataOptions.bInvertFilters,
+						MetadataOptions.bCollectFromEntireSubtrees
+					);
+				}
 			}
 
 			return true;
@@ -428,8 +440,10 @@ namespace UsdGeomMeshTranslatorImpl
 		UE::FUsdPrim MeshPrim,
 		TArray<FMeshDescription>& OutLODIndexToMeshDescription,
 		TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& OutLODIndexToMaterialInfo,
+		FUsdCombinedPrimMetadata& OutLODMetadata,
 		const UsdToUnreal::FUsdMeshConversionOptions& Options,
-		bool bInterpretLODs = false
+		const FUsdMetadataImportOptions& MetadataOptions,
+		bool bInterpretLODs
 	)
 	{
 		if (!MeshPrim)
@@ -443,7 +457,14 @@ namespace UsdGeomMeshTranslatorImpl
 		bool bInterpretedLODs = false;
 		if (bInterpretLODs)
 		{
-			bInterpretedLODs = TryLoadingMultipleLODs(MeshPrim, OutLODIndexToMeshDescription, OutLODIndexToMaterialInfo, Options);
+			bInterpretedLODs = TryLoadingMultipleLODs(
+				MeshPrim,
+				OutLODIndexToMeshDescription,
+				OutLODIndexToMaterialInfo,
+				OutLODMetadata,
+				Options,
+				MetadataOptions
+			);
 
 			// Have to be very careful here as flipping through LODs invalidates prim references, so we need to
 			// re-acquire them
@@ -491,6 +512,17 @@ namespace UsdGeomMeshTranslatorImpl
 			{
 				OutLODIndexToMeshDescription = {MoveTemp(TempMeshDescription)};
 				OutLODIndexToMaterialInfo = {MoveTemp(TempMaterialInfo)};
+
+				if (MetadataOptions.bCollectMetadata)
+				{
+					UsdToUnreal::ConvertMetadata(
+						MeshPrim,
+						OutLODMetadata,
+						MetadataOptions.BlockedPrefixFilters,
+						MetadataOptions.bInvertFilters,
+						MetadataOptions.bCollectFromEntireSubtrees
+					);
+				}
 			}
 		}
 	}
@@ -1392,12 +1424,14 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 
 			const FString PrimPathString = PrimPath.GetString();
 
+			const bool bParsedLODs = Context->bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(GetPrim());
+
 			// It's useful to have the LOD Mesh prims be named "LOD0", "LOD1", etc. within the LOD variants so that we
 			// can easily tell which Mesh is actually meant to be the LOD mesh (in case there are more Meshes in each
 			// variant or other Meshes outside of the variant), but it's not ideal to have all the generated assets end
 			// up imported as "SM_LOD0_22", "SM_LOD0_23", etc. So here we fetch the parent prim name in case we're a LOD
 			FString MeshName;
-			if (Context->bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(GetPrim()))
+			if (bParsedLODs)
 			{
 				MeshName = PrimPath.GetParentPath().GetString();
 			}
@@ -1424,16 +1458,34 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 				StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
 #endif // WITH_EDITOR
 
-				UUsdMeshAssetUserData* UserData = StaticMesh->GetAssetUserData<UUsdMeshAssetUserData>();
-				if (!UserData)
+				if (UUsdMeshAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
 				{
-					UserData = NewObject<UUsdMeshAssetUserData>(StaticMesh, TEXT("UUSDAssetUserData"));
 					UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	// We use the same primvar mapping for all LODs
-					StaticMesh->AddAssetUserData(UserData);
-				}
-				UserData->PrimPaths.AddUnique(PrimPath.GetString());
+					UserData->PrimPaths.AddUnique(PrimPathString);
 
-				MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
+					if (Context->MetadataOptions.bCollectMetadata)
+					{
+						// If we already have collected metadata just stash it into our UserData directly (the GeomMeshTranslator task
+						// chain itself does this as it parses lods, but the regular FBuildStaticMeshTaskChain won't do this on
+						// its own, and is reused for other task chains)
+						if (bCollectedMetadata)
+						{
+							UserData->StageIdentifierToMetadata.Add(GetPrim().GetStage().GetRootLayer().GetIdentifier(), LODMetadata);
+						}
+						else
+						{
+							UsdToUnreal::ConvertMetadata(
+								bParsedLODs ? GetPrim().GetParent() : GetPrim(),
+								UserData,
+								Context->MetadataOptions.BlockedPrefixFilters,
+								Context->MetadataOptions.bInvertFilters,
+								Context->MetadataOptions.bCollectFromEntireSubtrees
+							);
+						}
+					}
+
+					MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
+				}
 
 				// Only the original creator of the prim at creation time gets to set the material assignments
 				// directly on the mesh, all others prims ensure their materials via material overrides on the
@@ -1560,15 +1612,16 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 
 	// To parse all LODs we need to actively switch variant sets to other variants (triggering prim loading/unloading and notices),
 	// which could cause race conditions if other async translation tasks are trying to access those prims
+	bool bParseLODs = Context->bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(GetPrim());
 	ESchemaTranslationLaunchPolicy LaunchPolicy = ESchemaTranslationLaunchPolicy::Async;
-	if (Context->bAllowInterpretingLODs && UsdUtils::IsGeomMeshALOD(GetPrim()))
+	if (bParseLODs)
 	{
 		LaunchPolicy = ESchemaTranslationLaunchPolicy::ExclusiveSync;
 	}
 
 	// Create mesh descriptions (Async or ExclusiveSync)
 	Do(LaunchPolicy,
-		[this, LaunchPolicy]() -> bool
+		[this, bParseLODs]() -> bool
 		{
 			pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
 			if (!Context->RenderContext.IsNone())
@@ -1595,9 +1648,27 @@ void FGeomMeshCreateAssetsTaskChain::SetupTasks()
 				GetPrim(),
 				LODIndexToMeshDescription,
 				LODIndexToMaterialInfo,
+				LODMetadata,
 				Options,
-				Context->bAllowInterpretingLODs && LaunchPolicy == ESchemaTranslationLaunchPolicy::ExclusiveSync
+				Context->MetadataOptions,
+				Context->bAllowInterpretingLODs && bParseLODs
 			);
+
+			// If we're parsing LODs, LoadMeshDescriptions will have already collected metadata from the Mesh
+			// prims directly, but we still have to collect stuff from the actual LOD root prim, which is kind
+			// of absorbed into the asset
+			if (bParseLODs && Context->MetadataOptions.bCollectMetadata)
+			{
+				const bool bCollectMetadataFromSubtree = false;
+				UsdToUnreal::ConvertMetadata(
+					GetPrim().GetParent(),
+					LODMetadata,
+					Context->MetadataOptions.BlockedPrefixFilters,
+					Context->MetadataOptions.bInvertFilters,
+					bCollectMetadataFromSubtree
+				);
+			}
+			bCollectedMetadata = true;
 
 			// If we have at least one valid LOD, we should keep going
 			for (const FMeshDescription& MeshDescription : LODIndexToMeshDescription)

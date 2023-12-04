@@ -16,6 +16,7 @@
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
 
@@ -429,12 +430,14 @@ namespace UsdSkelSkeletonTranslatorImpl
 		const pxr::UsdSkelCache& InSkelCache,
 		TArray<FSkeletalMeshImportData>& OutLODIndexToSkeletalMeshImportData,
 		TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& OutLODIndexToMaterialInfo,
+		FUsdCombinedPrimMetadata& LODMetadata,
 		TArray<SkeletalMeshImportData::FBone>& OutSkeletonBones,
 		FName& OutSkeletonName,
 		UsdUtils::FBlendShapeMap* OutBlendShapes,
 		TSet<FString>& InOutUsedMorphTargetNames,
 		bool bInInterpretLODs,
-		const UsdToUnreal::FUsdMeshConversionOptions& Options
+		const UsdToUnreal::FUsdMeshConversionOptions& Options,
+		const FUsdMetadataImportOptions& MetadataOptions
 	)
 	{
 		FScopedUsdAllocs UsdAllocs;
@@ -453,6 +456,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 		pxr::UsdPrim SkeletonPrim = Skeleton.GetPrim();
 		pxr::SdfPath SkeletonPrimPath = SkeletonPrim.GetPrimPath();
+		pxr::UsdPrim ClosestParentSkelRoot = UsdUtils::GetClosestParentSkelRoot(SkeletonPrim);
+		pxr::SdfPath SkelRootPrimPath = ClosestParentSkelRoot.GetPrimPath();
 
 		pxr::UsdStageRefPtr Stage = SkeletonPrim.GetStage();
 		const FUsdStageInfo StageInfo(Stage);
@@ -467,6 +472,24 @@ namespace UsdSkelSkeletonTranslatorImpl
 			}
 			OutSkeletonBones = MoveTemp(DummyImportData.RefBonesBinary);
 			OutSkeletonName = *UsdToUnreal::ConvertString(SkeletonPrim.GetName());
+		}
+
+		// Note that the approach is to store skelroot + skinned mesh metadata onto the USkeletalMesh, and
+		// purely skeleton metadata onto the USkeleton.
+		// Here we collect metadata from the skelroot itself, as the process inside ConvertLOD will only collect
+		// metadata from the skinned meshes
+		if (MetadataOptions.bCollectMetadata)
+		{
+			// Here we're always setting this to false otherwise we'll also end up collecting metadata on the skeleton for
+			// skel animation and other prims that weren't handled
+			const bool bCollectMetadataFromSubtree = false;
+			UsdToUnreal::ConvertMetadata(
+				ClosestParentSkelRoot,
+				LODMetadata,
+				MetadataOptions.BlockedPrefixFilters,
+				MetadataOptions.bInvertFilters,
+				bCollectMetadataFromSubtree
+			);
 		}
 
 		TMap<int32, FSkeletalMeshImportData> LODIndexToSkeletalMeshImportDataMap;
@@ -501,15 +524,20 @@ namespace UsdSkelSkeletonTranslatorImpl
 		}
 
 		TFunction<bool(const pxr::UsdGeomMesh&, int32)> ConvertLOD =
-			[&LODIndexToSkeletalMeshImportDataMap,
-			 &LODIndexToMaterialInfoMap,
-			 &InSkelCache,
-			 &Stage,
-			 &SkeletonPrimPath,
-			 &InOutUsedMorphTargetNames,
-			 OutBlendShapes,
-			 &StageInfo,
-			 Options](const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)
+		[
+			&LODIndexToSkeletalMeshImportDataMap,
+			&LODIndexToMaterialInfoMap,
+			&LODMetadata,
+			&InSkelCache,
+			&Stage,
+			&SkeletonPrimPath,
+			&InOutUsedMorphTargetNames,
+			OutBlendShapes,
+			&StageInfo,
+			Options,
+			&MetadataOptions
+		]
+		(const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)
 		{
 			// Construct this and SkinningQuery every time so as to survive the prim reference invalidation caused by flipping LODs
 			pxr::UsdSkelSkeletonQuery SkeletonQuery = InSkelCache.GetSkelQuery(pxr::UsdSkelSkeleton{Stage->GetPrimAtPath(SkeletonPrimPath)});
@@ -554,6 +582,18 @@ namespace UsdSkelSkeletonTranslatorImpl
 			if (!bSuccess)
 			{
 				return true;
+			}
+
+			if (MetadataOptions.bCollectMetadata && MetadataOptions.bCollectFromEntireSubtrees)
+			{
+				// Collect metadata from this particular LOD mesh prim
+				UsdToUnreal::ConvertMetadata(
+					LODMesh.GetPrim(),
+					LODMetadata,
+					MetadataOptions.BlockedPrefixFilters,
+					MetadataOptions.bInvertFilters,
+					MetadataOptions.bCollectFromEntireSubtrees
+				);
 			}
 
 			if (OutBlendShapes)
@@ -610,6 +650,9 @@ namespace UsdSkelSkeletonTranslatorImpl
 				ConvertLOD(pxr::UsdGeomMesh{Stage->GetPrimAtPath(SkinnedPrimPath)}, 0);
 			}
 		}
+
+		// Repopulate the skeleton cache because flipping through LODs can invalidate some stuff like skeleton references
+		InSkelCache.Populate(pxr::UsdSkelRoot{Stage->GetPrimAtPath(SkelRootPrimPath)}, pxr::UsdTraverseInstanceProxies());
 
 		// Place the LODs in order as we can't have e.g. LOD0 and LOD2 without LOD1, and there's no reason downstream code needs to care about
 		// what LOD number these data originally wanted to be
@@ -1294,6 +1337,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 		// Outputs
 		TArray<FSkeletalMeshImportData> LODIndexToSkeletalMeshImportData;
 		TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo> LODIndexToMaterialInfo;
+		FUsdCombinedPrimMetadata LODMetadata;
 		TArray<SkeletalMeshImportData::FBone> SkeletonBones;
 		FName SkeletonName;
 		UsdUtils::FBlendShapeMap NewBlendShapes;
@@ -1398,12 +1442,14 @@ namespace UsdSkelSkeletonTranslatorImpl
 				   SkelCache.Get(),
 				   LODIndexToSkeletalMeshImportData,
 				   LODIndexToMaterialInfo,
+				   LODMetadata,
 				   SkeletonBones,
 				   SkeletonName,
 				   OutBlendShapes,
 				   UsedMorphTargetNames,
 				   bTryLODParsing,
-				   Options
+				   Options,
+				   Context->MetadataOptions
 			   );
 
 			   // If we parsed LODs we could potentially have invalidated our references to our queries,
@@ -1475,16 +1521,43 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 				if (SkeletalMesh)
 				{
-					UUsdMeshAssetUserData* UserData = SkeletalMesh->GetAssetUserData<UUsdMeshAssetUserData>();
-					if (!UserData)
+					// Handle the SkeletalMesh AssetUserData
+					if (UUsdMeshAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(SkeletalMesh))
 					{
-						UserData = NewObject<UUsdMeshAssetUserData>(SkeletalMesh, TEXT("USDAssetUserData"));
 						UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	// We use the same primvar mapping for all LODs
-						SkeletalMesh->AddAssetUserData(UserData);
-					}
-					UserData->PrimPaths.AddUnique(SkeletonPrimPath.GetString());
+						UserData->PrimPaths.AddUnique(SkeletonPrimPath.GetString());
 
-					MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
+						// For the skel task chain we always collect skeletal mesh metadata when first parsing the prims directly, as it
+						// allows us to do it while we're flipping through LOD variants, if any
+						UserData->StageIdentifierToMetadata.Add(GetSkeletonPrim().GetStage().GetRootLayer().GetIdentifier(), LODMetadata);
+
+						MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
+					}
+
+					// Handle the Skeleton AssetUserData
+					if (USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
+					{
+						if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(Skeleton))
+						{
+							UserData->PrimPaths.AddUnique(SkeletonPrimPath.GetString());
+
+							if (Context->MetadataOptions.bCollectMetadata)
+							{
+								// Since we never collapse, we'll spawn assets components for any child prim that happens to be inside
+								// the skeleton itself, and the skeleton type doesn't have any relevant "child prim" type (like for
+								// Mesh prims and UsdGeomSubsets), so we're probably safe in never collecting metadata from the skeleton
+								// prim subtree
+								const bool bCollectFromEntireSubtrees = false;
+								UsdToUnreal::ConvertMetadata(
+									GetSkeletonPrim(),
+									UserData,
+									Context->MetadataOptions.BlockedPrefixFilters,
+									Context->MetadataOptions.bInvertFilters,
+									bCollectFromEntireSubtrees
+								);
+							}
+						}
+					}
 
 					if (bIsNew)
 					{
@@ -1717,17 +1790,29 @@ namespace UsdSkelSkeletonTranslatorImpl
 						&LayerStartOffsetSeconds
 					);
 
-					if (bSuccess
-						&& (AnimSequence->GetDataModel()->GetNumBoneTracks() != 0 || AnimSequence->GetDataModel()->GetNumberOfFloatCurves() != 0))
+					if (bSuccess && (AnimSequence->GetDataModel()->GetNumBoneTracks() != 0 || AnimSequence->GetDataModel()->GetNumberOfFloatCurves() != 0))
 					{
-						UUsdAnimSequenceAssetUserData* UserData = NewObject<UUsdAnimSequenceAssetUserData>(
-							AnimSequence,
-							TEXT("USDAssetUserData")
-						);
-						UserData->PrimPaths = {SkelAnimationPrimPath};
-						UserData->LayerStartOffsetSeconds = LayerStartOffsetSeconds;
+						if (UUsdAnimSequenceAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdAnimSequenceAssetUserData>(AnimSequence))
+						{
+							UserData->PrimPaths.AddUnique(SkelAnimationPrimPath);
+							UserData->LayerStartOffsetSeconds = LayerStartOffsetSeconds;
 
-						AnimSequence->AddAssetUserData(UserData);
+							if (Context->MetadataOptions.bCollectMetadata)
+							{
+								// Since we never collapse, we'll spawn assets components for any child prim that happens to be inside
+								// the skeleton itself, and the SkelAnimation type doesn't have any relevant "child prim" type (like for
+								// Mesh prims and UsdGeomSubsets), so we're probably safe in never collecting metadata from the SkelAnimation
+								// prim subtree
+								const bool bCollectFromEntireSubtrees = false;
+								UsdToUnreal::ConvertMetadata(
+									SkelAnimationPrim,
+									UserData,
+									Context->MetadataOptions.BlockedPrefixFilters,
+									Context->MetadataOptions.bInvertFilters,
+									bCollectFromEntireSubtrees
+								);
+							}
+						}
 
 						Context->AssetCache->CacheAsset(HashString, AnimSequence);
 					}

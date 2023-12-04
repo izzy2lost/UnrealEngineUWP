@@ -854,6 +854,33 @@ namespace UsdStageImporterImpl
 		return MovedAsset;
 	}
 
+	// Our asset could have come from an asset cache, where it could have been reused across different stages. After import, we only
+	// want to keep the metadata fields that came from the actually imported stage though, so here we prune the others
+	void PrunePrimMetadata(UObject* Asset, const UE::FUsdStage& Stage)
+	{
+		IInterface_AssetUserData* UserDataInterface = Cast<IInterface_AssetUserData>(Asset);
+		if (!UserDataInterface)
+		{
+			return;
+		}
+
+		UUsdAssetUserData* UserData = UserDataInterface->GetAssetUserData<UUsdAssetUserData>();
+		if (!UserData)
+		{
+			return;
+		}
+
+		FString ImportedStageIdentifier = Stage.GetRootLayer().GetIdentifier();
+
+		for (TMap<FString, FUsdCombinedPrimMetadata>::TIterator Iter = UserData->StageIdentifierToMetadata.CreateIterator(); Iter; ++Iter)
+		{
+			if (Iter->Key != ImportedStageIdentifier)
+			{
+				Iter.RemoveCurrent();
+			}
+		}
+	}
+
 	// Move imported assets from transient folder to their final package, updating AssetCache to point to the moved assets
 	void PublishAssets(
 		FUsdStageImportContext& ImportContext,
@@ -1008,7 +1035,7 @@ namespace UsdStageImporterImpl
 				{
 					FString TargetAssetName = GetUserFriendlyName(Asset, UniqueAssetNames);
 					FString DestPackagePath = FPaths::Combine(ImportContext.PackagePath, *AssetTypeFolder, TargetAssetName);
-					PublishAsset(
+					UObject* PublishedAsset = PublishAsset(
 						ImportContext,
 						Asset,
 						DestPackagePath,
@@ -1016,6 +1043,11 @@ namespace UsdStageImporterImpl
 						SoftObjectsToRemap,
 						OutAssetsToFinalize
 					);
+
+					if (PublishedAsset)
+					{
+						PrunePrimMetadata(PublishedAsset, ImportContext.Stage);
+					}
 				}
 			}
 		};
@@ -1929,6 +1961,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	TranslationContext->MaterialPurpose = ImportContext.ImportOptions->MaterialPurpose;
 	TranslationContext->RootMotionHandling = ImportContext.ImportOptions->RootMotionHandling;
 	TranslationContext->SubdivisionLevel = ImportContext.ImportOptions->SubdivisionLevel;
+	TranslationContext->MetadataOptions = ImportContext.ImportOptions->MetadataOptions;
 	TranslationContext->ParentComponent = ImportContext.SceneActor ? ImportContext.SceneActor->GetRootComponent() : nullptr;
 	TranslationContext->KindsToCollapse = ( EUsdDefaultKind ) ImportContext.ImportOptions->KindsToCollapse;
 	TranslationContext->bMergeIdenticalMaterialSlots = ImportContext.ImportOptions->bMergeIdenticalMaterialSlots;
@@ -2085,6 +2118,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	TranslationContext->MaterialPurpose = ImportContext.ImportOptions->MaterialPurpose;
 	TranslationContext->RootMotionHandling = ImportContext.ImportOptions->RootMotionHandling;
 	TranslationContext->SubdivisionLevel = ImportContext.ImportOptions->SubdivisionLevel;
+	TranslationContext->MetadataOptions = ImportContext.ImportOptions->MetadataOptions;
 	TranslationContext->KindsToCollapse = ( EUsdDefaultKind ) ImportContext.ImportOptions->KindsToCollapse;
 	TranslationContext->bMergeIdenticalMaterialSlots = ImportContext.ImportOptions->bMergeIdenticalMaterialSlots;
 	TranslationContext->bAllowInterpretingLODs = ImportContext.ImportOptions->bInterpretLODs;

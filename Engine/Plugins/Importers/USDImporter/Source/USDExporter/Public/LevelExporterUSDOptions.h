@@ -2,13 +2,11 @@
 
 #pragma once
 
-#include "UnrealUSDWrapper.h"
 #include "USDAssetOptions.h"
+#include "USDMetadataExportOptions.h"
 #include "USDStageOptions.h"
 
 #include "AssetExportTask.h"
-#include "Engine/EngineTypes.h"
-#include "RHIDefinitions.h"
 
 #include "LevelExporterUSDOptions.generated.h"
 
@@ -46,6 +44,10 @@ struct USDEXPORTER_API FLevelExporterUSDOptionsInner
 	/** Options to use for all exported assets when appropriate (e.g. static and skeletal meshes, materials, etc.) */
 	UPROPERTY( EditAnywhere, config, BlueprintReadWrite, Category = "Asset options", meta = ( ShowOnlyInnerProperties ) )
 	FUsdMeshAssetOptions AssetOptions;
+
+	/** Options to use when exporting UsdAssetUserData metadata to USD for all assets (including the level itself) */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Metadata options", meta = (ShowOnlyInnerProperties))
+	FUsdMetadataExportOptions MetadataOptions;
 
 	/** Lowest of the LOD indices to export landscapes with (use 0 for full resolution) */
 	UPROPERTY( EditAnywhere, config, BlueprintReadWrite, Category = "Landscape options", meta = ( ClampMin = "0" ) )

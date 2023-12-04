@@ -1740,7 +1740,7 @@ namespace UE
 								case EMaterialProperty::MP_Tangent:
 								{
 									FVector ConvertedNormal{ ( *Samples )[ 0 ].ReinterpretAsLinear() };
-									ConstantLinearValue = UnrealToUsd::ConvertVector( StageInfo, ConvertedNormal );
+									ConstantLinearValue = UnrealToUsd::ConvertVectorFloat( StageInfo, ConvertedNormal );
 									break;
 								}
 								default:

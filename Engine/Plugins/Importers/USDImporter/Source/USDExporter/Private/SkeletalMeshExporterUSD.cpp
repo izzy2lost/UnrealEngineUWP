@@ -2,19 +2,14 @@
 
 #include "SkeletalMeshExporterUSD.h"
 
-#include "Engine/SkinnedAssetCommon.h"
-#include "EngineAnalytics.h"
-#include "MaterialExporterUSD.h"
-#include "Misc/EngineVersion.h"
-#include "Misc/PackageName.h"
-#include "Rendering/SkeletalMeshRenderData.h"
 #include "SkeletalMeshExporterUSDOptions.h"
+#include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDLog.h"
-#include "USDMemory.h"
 #include "USDOptionsWindow.h"
+#include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDTypesConversion.h"
 #include "USDUnrealAssetInfo.h"
@@ -26,6 +21,11 @@
 
 #include "AssetExportTask.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "EngineAnalytics.h"
+#include "MaterialExporterUSD.h"
+#include "Misc/EngineVersion.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 
 namespace UE::SkeletalMeshExporterUSD::Private
 {
@@ -220,6 +220,7 @@ bool USkeletalMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type,
 					UMaterialExporterUsd::ExportMaterialsForStage(
 						MaterialsToBake.Array(),
 						Options->MeshAssetOptions.MaterialBakingOptions,
+						Options->MetadataOptions,
 						UExporter::CurrentFilename,
 						bIsAssetLayer,
 						Options->MeshAssetOptions.bUsePayload,
@@ -287,19 +288,53 @@ bool USkeletalMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type,
 
 	UnrealToUsd::ConvertSkeletalMesh( SkeletalMesh, RootPrim, UsdUtils::GetDefaultTimeCode(), &AssetStage, Options->MeshAssetOptions.LowestMeshLOD, Options->MeshAssetOptions.HighestMeshLOD );
 
-	// Write asset info now that we finished exporting
-	if ( UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim() )
+	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
 	{
-		FUsdUnrealAssetInfo Info;
-		Info.Name = SkeletalMesh->GetName();
-		Info.Identifier = UExporter::CurrentFilename;
-		Info.Version = DDCKeyHash;
-		Info.UnrealContentPath = SkeletalMesh->GetPathName();
-		Info.UnrealAssetType = SkeletalMesh->GetClass()->GetName();
-		Info.UnrealExportTime = FDateTime::Now().ToString();
-		Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
+		if (Options->MetadataOptions.bExportAssetInfo)
+		{
+			FUsdUnrealAssetInfo Info;
+			Info.Name = SkeletalMesh->GetName();
+			Info.Identifier = UExporter::CurrentFilename;
+			Info.Version = DDCKeyHash;
+			Info.UnrealContentPath = SkeletalMesh->GetPathName();
+			Info.UnrealAssetType = SkeletalMesh->GetClass()->GetName();
+			Info.UnrealExportTime = FDateTime::Now().ToString();
+			Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
-		UsdUtils::SetPrimAssetInfo( AssetDefaultPrim, Info );
+			UsdUtils::SetPrimAssetInfo(AssetDefaultPrim, Info);
+		}
+
+		if (Options->MetadataOptions.bExportAssetMetadata)
+		{
+			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(SkeletalMesh))
+			{
+				UnrealToUsd::ConvertMetadata(
+					UserData,
+					AssetDefaultPrim,
+					Options->MetadataOptions.BlockedPrefixFilters,
+					Options->MetadataOptions.bInvertFilters
+				);
+			}
+
+			if (USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
+			{
+				if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Skeleton))
+				{
+					if (UserData->StageIdentifierToMetadata.Num() > 0)
+					{
+						UE::FUsdPrim SkelPrim = AssetStage.OverridePrim(
+							UE::FSdfPath(*RootPrimPath).AppendChild(UnrealIdentifiers::ExportedSkeletonPrimName)
+						);
+						UnrealToUsd::ConvertMetadata(
+							UserData,
+							SkelPrim,
+							Options->MetadataOptions.BlockedPrefixFilters,
+							Options->MetadataOptions.bInvertFilters
+						);
+					}
+				}
+			}
+		}
 	}
 
 	// Bake materials and replace unrealMaterials with references to the baked files.
@@ -315,6 +350,7 @@ bool USkeletalMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type,
 		UMaterialExporterUsd::ExportMaterialsForStage(
 			MaterialsToBake.Array(),
 			Options->MeshAssetOptions.MaterialBakingOptions,
+			Options->MetadataOptions,
 			AssetStage.GetRootLayer().GetRealPath(),
 			bIsAssetLayer,
 			Options->MeshAssetOptions.bUsePayload,

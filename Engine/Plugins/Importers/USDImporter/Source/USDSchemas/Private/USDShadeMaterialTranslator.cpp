@@ -6,8 +6,8 @@
 #include "USDAssetCache.h"
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
-#include "USDClassesModule.h"
 #include "USDLog.h"
+#include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
@@ -464,13 +464,21 @@ void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& MaterialHash
 		return;
 	}
 
-	UUsdMaterialAssetUserData* UserData = ImportedMaterial->GetAssetUserData<UUsdMaterialAssetUserData>();
-	if (!UserData)
+	if (UUsdMaterialAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMaterialAssetUserData>(ImportedMaterial))
 	{
-		UserData = NewObject<UUsdMaterialAssetUserData>(ImportedMaterial, TEXT("USDAssetUserData"));
-		ImportedMaterial->AddAssetUserData(UserData);
+		UserData->PrimPaths.AddUnique(PrimPath.GetString());
+
+		if (Context->MetadataOptions.bCollectMetadata)
+		{
+			UsdToUnreal::ConvertMetadata(
+				GetPrim(),
+				UserData,
+				Context->MetadataOptions.BlockedPrefixFilters,
+				Context->MetadataOptions.bInvertFilters,
+				Context->MetadataOptions.bCollectFromEntireSubtrees
+			);
+		}
 	}
-	UserData->PrimPaths.AddUnique(PrimPath.GetString());
 
 	// Note that this needs to run even if we found this material in the asset cache already, otherwise we won't
 	// re-register the prim asset links when we reload a stage

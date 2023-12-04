@@ -12,8 +12,8 @@
 #include "USDExporterModule.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
-#include "USDMemory.h"
 #include "USDOptionsWindow.h"
+#include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
 #include "USDUnrealAssetInfo.h"
 
@@ -23,7 +23,6 @@
 #include "UsdWrappers/UsdStage.h"
 
 #include "AssetExportTask.h"
-#include "CoreMinimal.h"
 #include "Engine/StaticMesh.h"
 
 namespace UE::StaticMeshExporterUSD::Private
@@ -233,6 +232,7 @@ bool UStaticMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type, F
 					UMaterialExporterUsd::ExportMaterialsForStage(
 						MaterialsToBake.Array(),
 						Options->MeshAssetOptions.MaterialBakingOptions,
+						Options->MetadataOptions,
 						UExporter::CurrentFilename,
 						bIsAssetLayer,
 						Options->MeshAssetOptions.bUsePayload,
@@ -298,19 +298,34 @@ bool UStaticMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type, F
 
 	UnrealToUsd::ConvertStaticMesh( StaticMesh, RootPrim, UsdUtils::GetDefaultTimeCode(), &AssetStage, Options->MeshAssetOptions.LowestMeshLOD, Options->MeshAssetOptions.HighestMeshLOD );
 
-	// Write asset info now that we finished exporting
-	if( UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim() )
+	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
 	{
-		FUsdUnrealAssetInfo Info;
-		Info.Name = StaticMesh->GetName();
-		Info.Identifier = UExporter::CurrentFilename;
-		Info.Version = DDCKeyHash;
-		Info.UnrealContentPath = StaticMesh->GetPathName();
-		Info.UnrealAssetType = StaticMesh->GetClass()->GetName();
-		Info.UnrealExportTime = FDateTime::Now().ToString();
-		Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
+		if (Options->MetadataOptions.bExportAssetInfo)
+		{
+			FUsdUnrealAssetInfo Info;
+			Info.Name = StaticMesh->GetName();
+			Info.Identifier = UExporter::CurrentFilename;
+			Info.Version = DDCKeyHash;
+			Info.UnrealContentPath = StaticMesh->GetPathName();
+			Info.UnrealAssetType = StaticMesh->GetClass()->GetName();
+			Info.UnrealExportTime = FDateTime::Now().ToString();
+			Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
-		UsdUtils::SetPrimAssetInfo( AssetDefaultPrim, Info );
+			UsdUtils::SetPrimAssetInfo(AssetDefaultPrim, Info);
+		}
+
+		if (Options->MetadataOptions.bExportAssetMetadata)
+		{
+			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(StaticMesh))
+			{
+				UnrealToUsd::ConvertMetadata(
+					UserData,
+					AssetDefaultPrim,
+					Options->MetadataOptions.BlockedPrefixFilters,
+					Options->MetadataOptions.bInvertFilters
+				);
+			}
+		}
 	}
 
 	// Bake materials and replace unrealMaterials with references to the baked files.
@@ -326,6 +341,7 @@ bool UStaticMeshExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type, F
 		UMaterialExporterUsd::ExportMaterialsForStage(
 			MaterialsToBake.Array(),
 			Options->MeshAssetOptions.MaterialBakingOptions,
+			Options->MetadataOptions,
 			AssetStage.GetRootLayer().GetRealPath(),
 			bIsAssetLayer,
 			Options->MeshAssetOptions.bUsePayload,

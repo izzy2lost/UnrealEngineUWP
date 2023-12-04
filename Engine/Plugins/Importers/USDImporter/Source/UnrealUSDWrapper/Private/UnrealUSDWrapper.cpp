@@ -41,19 +41,20 @@
 #include "pxr/usd/ar/defineResolver.h"
 #include "pxr/usd/kind/registry.h"
 #include "pxr/usd/sdf/fileFormat.h"
+#include "pxr/usd/sdf/path.h"
 #include "pxr/usd/sdf/schema.h"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/common.h"
 #include "pxr/usd/usd/debugCodes.h"
 #include "pxr/usd/usd/modelAPI.h"
 #include "pxr/usd/usd/references.h"
-#include "pxr/usd/usd/schemaBase.h"
 #include "pxr/usd/usd/relationship.h"
+#include "pxr/usd/usd/schemaBase.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usd/stageCacheContext.h"
-#include "pxr/usd/usd/usdFileFormat.h"
 #include "pxr/usd/usd/usdaFileFormat.h"
 #include "pxr/usd/usd/usdcFileFormat.h"
+#include "pxr/usd/usd/usdFileFormat.h"
 #include "pxr/usd/usd/usdzFileFormat.h"
 #include "pxr/usd/usd/variantSets.h"
 #include "pxr/usd/usdGeom/mesh.h"
@@ -448,6 +449,7 @@ FString UnrealIdentifiers::PrimvarsDisplayOpacity = ANSI_TO_TCHAR(pxr::UsdGeomTo
 FString UnrealIdentifiers::DoubleSided = ANSI_TO_TCHAR(pxr::UsdGeomTokens->doubleSided.GetString().c_str());
 FString UnrealIdentifiers::ModelDrawMode = ANSI_TO_TCHAR(pxr::UsdGeomTokens->modelDrawMode.GetString().c_str());
 FString UnrealIdentifiers::ModelApplyDrawMode = ANSI_TO_TCHAR(pxr::UsdGeomTokens->modelApplyDrawMode.GetString().c_str());
+FString UnrealIdentifiers::UsdNamespaceDelimiter = ANSI_TO_TCHAR(pxr::SdfPathTokens->namespaceDelimiter.GetString().c_str());
 #else
 FString UnrealIdentifiers::MaterialAllPurpose = TEXT( "" );
 FString UnrealIdentifiers::MaterialPreviewPurpose = TEXT( "preview" );
@@ -457,6 +459,7 @@ FString UnrealIdentifiers::PrimvarsDisplayOpacity = TEXT("primvars:displayOpacit
 FString UnrealIdentifiers::DoubleSided = TEXT("doubleSided");
 FString UnrealIdentifiers::ModelDrawMode = TEXT("model:drawMode");
 FString UnrealIdentifiers::ModelApplyDrawMode = TEXT("model:applyDrawMode");
+FString UnrealIdentifiers::UsdNamespaceDelimiter = TEXT(":");
 #endif // USE_USD_SDK
 
 FUsdDelegates::FUsdImportDelegate FUsdDelegates::OnPreUsdImport;

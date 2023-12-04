@@ -568,6 +568,25 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 		}
 	}
 
+	if (Context->MetadataOptions.bCollectMetadata && Context->MetadataOptions.bCollectOnComponents)
+	{
+		UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(SceneComponent);
+
+		// It makes sense for asset metadata to "include all prims in the subtree", as when we generate an
+		// asset we don't generate additional separate assets for child prims. This is not the same behavior
+		// for components though, so it doesn't feel like "collecting from the entire subtree" should be
+		// allowed for them. In other words, if we allowed this the root scene component for the stage will
+		// contain metadata from the entire stage every time...
+		const bool bCollectMetadataFromSubtree = false;
+		UsdToUnreal::ConvertMetadata(
+			Prim,
+			UserData,
+			Context->MetadataOptions.BlockedPrefixFilters,
+			Context->MetadataOptions.bInvertFilters,
+			bCollectMetadataFromSubtree
+		);
+	}
+
 	if ( SceneComponent )
 	{
 		if ( !GEnableCollision )

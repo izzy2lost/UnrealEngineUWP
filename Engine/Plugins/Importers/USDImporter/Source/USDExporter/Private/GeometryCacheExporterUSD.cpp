@@ -2,24 +2,26 @@
 
 #include "GeometryCacheExporterUSD.h"
 
-#include "AssetExportTask.h"
-#include "EngineAnalytics.h"
-#include "GeometryCache.h"
 #include "GeometryCacheExporterUSDOptions.h"
 #include "MaterialExporterUSD.h"
-#include "Misc/EngineVersion.h"
 #include "UnrealUSDWrapper.h"
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
 #include "USDOptionsWindow.h"
+#include "USDPrimConversion.h"
 #include "USDUnrealAssetInfo.h"
 
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
+
+#include "AssetExportTask.h"
+#include "EngineAnalytics.h"
+#include "GeometryCache.h"
+#include "Misc/EngineVersion.h"
 
 namespace UE::GeometryCacheExporterUSD::Private
 {
@@ -217,6 +219,7 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 					UMaterialExporterUsd::ExportMaterialsForStage(
 						MaterialsToBake.Array(),
 						Options->MeshAssetOptions.MaterialBakingOptions,
+						Options->MetadataOptions,
 						UExporter::CurrentFilename,
 						bIsAssetLayer,
 						Options->MeshAssetOptions.bUsePayload,
@@ -282,19 +285,34 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 
 	UnrealToUsd::ConvertGeometryCache(GeometryCache, RootPrim, &AssetStage);
 
-	// Write asset info now that we finished exporting
-	if( UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim() )
+	if (UE::FUsdPrim AssetDefaultPrim = AssetStage.GetDefaultPrim())
 	{
-		FUsdUnrealAssetInfo Info;
-		Info.Name = GeometryCache->GetName();
-		Info.Identifier = UExporter::CurrentFilename;
-		Info.Version = DDCKeyHash;
-		Info.UnrealContentPath = GeometryCache->GetPathName();
-		Info.UnrealAssetType = GeometryCache->GetClass()->GetName();
-		Info.UnrealExportTime = FDateTime::Now().ToString();
-		Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
+		if (Options->MetadataOptions.bExportAssetInfo)
+		{
+			FUsdUnrealAssetInfo Info;
+			Info.Name = GeometryCache->GetName();
+			Info.Identifier = UExporter::CurrentFilename;
+			Info.Version = DDCKeyHash;
+			Info.UnrealContentPath = GeometryCache->GetPathName();
+			Info.UnrealAssetType = GeometryCache->GetClass()->GetName();
+			Info.UnrealExportTime = FDateTime::Now().ToString();
+			Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
-		UsdUtils::SetPrimAssetInfo(AssetDefaultPrim, Info);
+			UsdUtils::SetPrimAssetInfo(AssetDefaultPrim, Info);
+		}
+
+		if (Options->MetadataOptions.bExportAssetMetadata)
+		{
+			if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(GeometryCache))
+			{
+				UnrealToUsd::ConvertMetadata(
+					UserData,
+					AssetDefaultPrim,
+					Options->MetadataOptions.BlockedPrefixFilters,
+					Options->MetadataOptions.bInvertFilters
+				);
+			}
+		}
 	}
 
 	// Bake materials and replace unrealMaterials with references to the baked files.
@@ -310,6 +328,7 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 		UMaterialExporterUsd::ExportMaterialsForStage(
 			MaterialsToBake.Array(),
 			Options->MeshAssetOptions.MaterialBakingOptions,
+			Options->MetadataOptions,
 			AssetStage.GetRootLayer().GetRealPath(),
 			bIsAssetLayer,
 			Options->MeshAssetOptions.bUsePayload,

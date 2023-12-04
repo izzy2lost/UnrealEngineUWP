@@ -27,6 +27,13 @@ UUsdStageImportOptions::UUsdStageImportOptions(const FObjectInitializer& ObjectI
 	RenderContextToImport = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
 	MaterialPurpose = *UnrealIdentifiers::MaterialPreviewPurpose;
 	SubdivisionLevel = 0;
+	MetadataOptions = FUsdMetadataImportOptions{
+		true, 	/* bCollectMetadata */
+		true, 	/* bCollectFromEntireSubtrees */
+		false, 	/* bCollectOnComponents */
+		{},		/* BlockedPrefixFilters */
+		false	/* bInvertFilters */
+	};
 	bOverrideStageOptions = false;
 	StageOptions.MetersPerUnit = 0.01f;
 	StageOptions.UpAxis = EUsdUpAxis::ZAxis;
@@ -97,6 +104,9 @@ void UsdUtils::AddAnalyticsAttributes(
 	InOutAttributes.Emplace( TEXT( "MaterialPurpose" ), Options.MaterialPurpose.ToString() );
 	InOutAttributes.Emplace( TEXT( "RootMotionHandling" ), LexToString( ( uint8 ) Options.RootMotionHandling ) );
 	InOutAttributes.Emplace(TEXT("SubdivisionLevel"), LexToString(Options.SubdivisionLevel));
+
+	UsdUtils::AddAnalyticsAttributes(Options.MetadataOptions, InOutAttributes);
+
 	InOutAttributes.Emplace( TEXT( "OverrideStageOptions" ), Options.bOverrideStageOptions );
 	if ( Options.bOverrideStageOptions )
 	{

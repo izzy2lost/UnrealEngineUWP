@@ -48,6 +48,8 @@ class UUsdAssetCache2;
 class UUsdDrawModeComponent;
 struct FFrameRate;
 struct FMovieSceneSequenceTransform;
+struct FUsdCombinedPrimMetadata;
+struct FUsdPrimMetadata;
 struct FUsdStageInfo;
 namespace UE
 {
@@ -142,6 +144,30 @@ namespace UsdToUnreal
 		UUsdDrawModeComponent* BoundsComponent,
 		double EvalTime = UsdUtils::GetDefaultTimeCode(),
 		pxr::UsdGeomBBoxCache* BBoxCache = nullptr
+	);
+
+	/**
+	 * Collects all metadata from Prim (and its subtree in case bCollectFromEntireSubtrees is true), using the provided filters,
+	 * and places them into PrimMetadata
+	 */
+	USDUTILITIES_API bool ConvertMetadata(
+		const pxr::UsdPrim& Prim,
+		FUsdCombinedPrimMetadata& PrimMetadata,
+		const TArray<FString>& BlockedPrefixFilters = {},
+		bool bInvertFilters = false,
+		bool bCollectFromEntireSubtrees = false
+	);
+
+	/**
+	 * Collects all metadata from Prim (and its subtree in case bCollectFromEntireSubtrees is true), using the provided filters,
+	 * and places them into AssetUserData
+	 */
+	USDUTILITIES_API bool ConvertMetadata(
+		const pxr::UsdPrim& Prim,
+		UUsdAssetUserData* AssetUserData,
+		const TArray<FString>& BlockedPrefixFilters = {},
+		bool bInvertFilters = false,
+		bool bCollectFromEntireSubtrees = false
 	);
 }
 
@@ -297,6 +323,45 @@ namespace UnrealToUsd
 		pxr::UsdPrim& UsdPrim,
 		bool bWriteExtents = false,
 		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()
+	);
+
+	/**
+	 * Writes out all metadata from CombinedPrimMetadata onto Prim, as actual USD metadata fields. Only fields that pass the filters
+	 * will be allowed.
+	 * If CombinedPrimMetadata contains metadata from multiple prim paths, this overload has some heuristics in order to try and
+	 * get all of the provided metadata written out to that single prim. This means some of these metadata entries may not end up on
+	 * prim at the "top level", but may instead be placed within nested metadata maps that mirror the prim path hierarchy.
+	 * If this behavior is not desired, feel free to use another overload of this function for more precise control.
+	 */
+	USDUTILITIES_API bool ConvertMetadata(
+		const FUsdCombinedPrimMetadata& CombinedPrimMetadata,
+		const pxr::UsdPrim& Prim,
+		const TArray<FString>& BlockedPrefixFilters = {},
+		bool bInvertFilter = false
+	);
+
+	/**
+	 * Writes out all metadata from PrimMetadata onto Prim, as actual USD metadata fields. Only fields that pass the filters
+	 * will be allowed.
+	 */
+	USDUTILITIES_API bool ConvertMetadata(
+		const FUsdPrimMetadata& PrimMetadata,
+		const pxr::UsdPrim& Prim,
+		const TArray<FString>& BlockedPrefixFilters = {},
+		bool bInvertFilter = false
+	);
+
+	/**
+	 * Writes out all of the collected metadata from AssetUserData onto Prim, as actual USD metadata fields. Only fields that
+	 * pass the filters will be allowed.
+	 * This overload will essentially just loop over all entries of AssetUserData's StageIdentifierToMetadata property and write
+	 * them all out using the overload of ConvertMetadata that receives FUsdCombinedPrimMetadata.
+	 */
+	USDUTILITIES_API bool ConvertMetadata(
+		const UUsdAssetUserData* AssetUserData,
+		const pxr::UsdPrim& Prim,
+		const TArray<FString>& BlockedPrefixFilters = {},
+		bool bInvertFilter = false
 	);
 }
 

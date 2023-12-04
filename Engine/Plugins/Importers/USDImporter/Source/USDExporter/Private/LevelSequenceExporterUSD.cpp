@@ -1415,19 +1415,34 @@ namespace UE
 					UsdUtils::InsertSubLayer( UsdStage.GetRootLayer(), *Context.LevelFilePath );
 				}
 
-				// Write asset info now that we finished exporting
-				if ( UE::FUsdPrim AssetDefaultPrim = UsdStage.GetDefaultPrim() )
+				if (UE::FUsdPrim AssetDefaultPrim = UsdStage.GetDefaultPrim())
 				{
-					FUsdUnrealAssetInfo Info;
-					Info.Name = MovieSceneSequence.GetName();
-					Info.Identifier = UniqueFilePath;
-					Info.Version = LevelSequenceVersion;
-					Info.UnrealContentPath = MovieSceneSequence.GetPathName();
-					Info.UnrealAssetType = MovieSceneSequence.GetClass()->GetName();
-					Info.UnrealExportTime = FDateTime::Now().ToString();
-					Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
+					if (Context.ExportOptions->LevelExportOptions.MetadataOptions.bExportAssetInfo)
+					{
+						FUsdUnrealAssetInfo Info;
+						Info.Name = MovieSceneSequence.GetName();
+						Info.Identifier = UniqueFilePath;
+						Info.Version = LevelSequenceVersion;
+						Info.UnrealContentPath = MovieSceneSequence.GetPathName();
+						Info.UnrealAssetType = MovieSceneSequence.GetClass()->GetName();
+						Info.UnrealExportTime = FDateTime::Now().ToString();
+						Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
-					UsdUtils::SetPrimAssetInfo( AssetDefaultPrim, Info );
+						UsdUtils::SetPrimAssetInfo(AssetDefaultPrim, Info);
+					}
+
+					if (Context.ExportOptions->LevelExportOptions.MetadataOptions.bExportAssetMetadata)
+					{
+						if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(Cast<ULevelSequence>(&MovieSceneSequence)))
+						{
+							UnrealToUsd::ConvertMetadata(
+								UserData,
+								AssetDefaultPrim,
+								Context.ExportOptions->LevelExportOptions.MetadataOptions.BlockedPrefixFilters,
+								Context.ExportOptions->LevelExportOptions.MetadataOptions.bInvertFilters
+							);
+						}
+					}
 				}
 
 				Context.ExportedMovieScenes.Add( &MovieSceneSequence, UniqueFilePath );

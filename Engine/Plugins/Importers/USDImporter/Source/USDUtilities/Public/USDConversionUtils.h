@@ -28,10 +28,11 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class TfToken;
 	class TfType;
 	class UsdAttribute;
+	class UsdGeomMesh;
+	class UsdGeomPrimvar;
 	class UsdPrim;
 	class UsdTimeCode;
-	class UsdGeomPrimvar;
-	class UsdGeomMesh;
+	class VtValue;
 
 	class UsdStage;
 	template< typename T > class TfRefPtr;
@@ -44,9 +45,10 @@ PXR_NAMESPACE_CLOSE_SCOPE
 
 #endif // #if USE_USD_SDK
 
-class USceneComponent;
 class UAssetImportData;
+class USceneComponent;
 class UUsdAssetImportData;
+class UUsdAssetUserData;
 enum class EUsdDrawMode : int32;
 enum class EUsdDuplicateType : uint8;
 enum class EUsdUpAxis : uint8;
@@ -312,6 +314,31 @@ namespace UsdUtils
 	USDUTILITIES_API UUsdAssetImportData* GetAssetImportData(UObject* Asset);
 	USDUTILITIES_API void SetAssetImportData(UObject* Asset, UAssetImportData* ImportData);
 
+	/**
+	 * Returns the object's UsdAssetUserData of a particular subclass if it has one
+	 */
+	USDUTILITIES_API UUsdAssetUserData* GetAssetUserData(const UObject* Object, TSubclassOf<UUsdAssetUserData> Class = {});
+	template<typename T>
+	inline T* GetAssetUserData(UObject* Object)
+	{
+		return Cast<T>(GetAssetUserData(Object, T::StaticClass()));
+	}
+
+	/**
+	 * Makes sure Object has an instance of UUsdAssetUserData of the provided subclass (defaulting to just UUsdAssetUserData itself) and returns it
+	 */
+	USDUTILITIES_API UUsdAssetUserData* GetOrCreateAssetUserData(UObject* Object, TSubclassOf<UUsdAssetUserData> Class = {});
+	template<typename T>
+	inline T* GetOrCreateAssetUserData(UObject* Object)
+	{
+		return Cast<T>(GetOrCreateAssetUserData(Object, T::StaticClass()));
+	}
+
+	/**
+	 * Removes all other UUsdAssetUserData instances from Object if they exist, then sets AssetUserData as Object's single UUsdAssetUserData
+	 */
+	USDUTILITIES_API bool SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData);
+
 	/** Adds a reference on Prim to the layer at AbsoluteFilePath */
 	USDUTILITIES_API void AddReference( UE::FUsdPrim& Prim, const TCHAR* AbsoluteFilePath, const UE::FSdfPath& TargetPrimPath = {}, double TimeCodeOffset = 0.0, double TimeCodeScale = 1.0 );
 
@@ -481,6 +508,11 @@ namespace UsdUtils
 
 	/** Retrieves from Prim the assetInfo metadata values that we use as export metadata, when exporting Unreal assets */
 	USDUTILITIES_API FUsdUnrealAssetInfo GetPrimAssetInfo( const UE::FUsdPrim& Prim );
+
+#if USE_USD_SDK
+	/* Removes all metadata from Prim, except the typeName and specifier entries */
+	USDUTILITIES_API bool ClearNonEssentialPrimMetadata(const pxr::UsdPrim& Prim);
+#endif // USE_USD_SDK
 
 	/** Collects how many times each schema shows up on the provided stage and send it as an analytics event */
 	USDUTILITIES_API void CollectSchemaAnalytics(const UE::FUsdStage& Stage, const FString& EventName);

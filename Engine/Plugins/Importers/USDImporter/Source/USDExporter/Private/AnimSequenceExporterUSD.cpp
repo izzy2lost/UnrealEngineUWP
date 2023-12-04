@@ -2,19 +2,14 @@
 
 #include "AnimSequenceExporterUSD.h"
 
-#include "AnimSequenceExporterUSDOptions.h"
-#include "Engine/SkeletalMesh.h"
-#include "EngineAnalytics.h"
-#include "MaterialExporterUSD.h"
-#include "Misc/EngineVersion.h"
 #include "SkeletalMeshExporterUSDOptions.h"
 #include "UnrealUSDWrapper.h"
-#include "USDClassesModule.h"
 #include "USDErrorUtils.h"
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDOptionsWindow.h"
+#include "USDPrimConversion.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDUnrealAssetInfo.h"
 
@@ -24,7 +19,12 @@
 #include "UsdWrappers/UsdStage.h"
 
 #include "Animation/AnimSequence.h"
+#include "AnimSequenceExporterUSDOptions.h"
 #include "AssetExportTask.h"
+#include "Engine/SkeletalMesh.h"
+#include "EngineAnalytics.h"
+#include "MaterialExporterUSD.h"
+#include "Misc/EngineVersion.h"
 #include "UObject/GCObjectScopeGuard.h"
 
 namespace UE::AnimSequenceExporterUSD::Private
@@ -162,6 +162,7 @@ bool UAnimSequenceExporterUSD::ExportBinary( UObject* Object, const TCHAR* Type,
 			USkeletalMeshExporterUSDOptions* SkeletalMeshOptions = GetMutableDefault<USkeletalMeshExporterUSDOptions>();
 			SkeletalMeshOptions->StageOptions = Options->StageOptions;
 			SkeletalMeshOptions->MeshAssetOptions = Options->PreviewMeshOptions;
+			SkeletalMeshOptions->MetadataOptions = Options->MetadataOptions;
 			SkeletalMeshOptions->bReExportIdenticalAssets = Options->bReExportIdenticalAssets;
 
 			UAssetExportTask* LevelExportTask = NewObject<UAssetExportTask>();
@@ -343,7 +344,7 @@ bool UAnimSequenceExporterUSD::ExportBinary( UObject* Object, const TCHAR* Type,
 
 	UnrealToUsd::ConvertAnimSequence( AnimSequence, SkelAnimPrim );
 
-	// Write asset info now that we finished exporting
+	if (Options->MetadataOptions.bExportAssetInfo)
 	{
 		FUsdUnrealAssetInfo Info;
 		Info.Name = AnimSequence->GetName();
@@ -355,6 +356,19 @@ bool UAnimSequenceExporterUSD::ExportBinary( UObject* Object, const TCHAR* Type,
 		Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
 		UsdUtils::SetPrimAssetInfo( SkelAnimPrim, Info );
+	}
+
+	if (Options->MetadataOptions.bExportAssetMetadata)
+	{
+		if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(AnimSequence))
+		{
+			UnrealToUsd::ConvertMetadata(
+				UserData,
+				SkelAnimPrim,
+				Options->MetadataOptions.BlockedPrefixFilters,
+				Options->MetadataOptions.bInvertFilters
+			);
+		}
 	}
 
 	AnimationStage.GetRootLayer().Save();

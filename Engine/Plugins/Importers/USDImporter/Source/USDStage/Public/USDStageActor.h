@@ -4,6 +4,7 @@
 
 #include "USDLevelSequenceHelper.h"
 #include "USDListener.h"
+#include "USDMetadataImportOptions.h"
 #include "USDSkeletalDataConversion.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdStage.h"
@@ -114,6 +115,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	int32 SubdivisionLevel;
 
+	/* Describes if/how we should collect metadata from USD prims onto the assets and components we generate when opening stages */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
+	FUsdMetadataImportOptions MetadataOptions;
+
 public:
 	DECLARE_EVENT_OneParam(AUsdStageActor, FOnActorLoaded, AUsdStageActor*);
 	USDSTAGE_API static FOnActorLoaded OnActorLoaded;
@@ -177,6 +182,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetSubdivisionLevel(int32 NewLevel);
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Metadata", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetCollectMetadata(bool bNewCollectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Metadata", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetCollectFromEntireSubtrees(bool bNewCollectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Metadata", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetCollectOnComponents(bool bNewCollectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Metadata", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetBlockedPrefixFilters(const TArray<FString>& NewFilters);
+
+	UFUNCTION(BlueprintCallable, Category = "USD|Metadata", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetInvertFilters(bool bNewInvertValue);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API float GetTime() const;

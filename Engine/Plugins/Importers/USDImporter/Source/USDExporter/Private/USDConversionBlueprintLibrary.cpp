@@ -5,16 +5,20 @@
 #include "LevelExporterUSD.h"
 #include "LevelExporterUSDOptions.h"
 #include "UnrealUSDWrapper.h"
+#include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
+#include "USDTypesConversion.h"
+#include "USDValueConversion.h"
 
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
+#include "UsdWrappers/VtValue.h"
 
 #include "AnalyticsBlueprintLibrary.h"
 #include "AnalyticsEventAttribute.h"
@@ -748,4 +752,974 @@ TArray<FString> UUsdConversionBlueprintLibrary::DuplicatePrims( const FString& S
 #endif // USE_USD_SDK
 
 	return Result;
+}
+
+UUsdAssetUserData* UUsdConversionBlueprintLibrary::GetUsdAssetUserData(UObject* Object)
+{
+	return UsdUtils::GetAssetUserData(Object);
+}
+
+bool UUsdConversionBlueprintLibrary::SetUsdAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData)
+{
+	return UsdUtils::SetAssetUserData(Object, AssetUserData);
+}
+
+namespace UE::UsdConversionBlueprintLibraryImpl::Private
+{
+	FEditPropertyChain& GetMetadataPropertyChain()
+	{
+		static TOptional<FEditPropertyChain> Chain;
+
+		if (!Chain.IsSet())
+		{
+			FProperty* StageIdentifierProp = UUsdAssetUserData::StaticClass()->FindPropertyByName(
+				GET_MEMBER_NAME_CHECKED(UUsdAssetUserData, StageIdentifierToMetadata)
+			);
+			FProperty* StringifiedValueProp = FUsdMetadataValue::StaticStruct()->FindPropertyByName(
+				GET_MEMBER_NAME_CHECKED(FUsdMetadataValue, StringifiedValue)
+			);
+
+			Chain.Emplace();
+			Chain->AddHead(StageIdentifierProp);
+			Chain->AddTail(FUsdCombinedPrimMetadata::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdCombinedPrimMetadata, PrimPathToMetadata)));
+			Chain->AddTail(FUsdPrimMetadata::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdPrimMetadata, Metadata)));
+			Chain->AddTail(StringifiedValueProp);
+			Chain->SetActivePropertyNode(StringifiedValueProp);
+			Chain->SetActiveMemberPropertyNode(StageIdentifierProp);
+		}
+
+		return Chain.GetValue();
+	}
+
+	FPropertyChangedChainEvent GetPostChangeChainEvent(UObject* TopLevelObject, EPropertyChangeType::Type ChangeType)
+	{
+		FPropertyChangedEvent PostChangeEvent{
+			FUsdMetadataValue::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdMetadataValue, StringifiedValue)),
+			ChangeType,
+			{TopLevelObject}
+		};
+		PostChangeEvent.MemberProperty = UUsdAssetUserData::StaticClass()->FindPropertyByName(
+			GET_MEMBER_NAME_CHECKED(UUsdAssetUserData, StageIdentifierToMetadata)
+		);
+
+		FPropertyChangedChainEvent ChainEvent{
+			GetMetadataPropertyChain(),
+			PostChangeEvent
+		};
+
+		return ChainEvent;
+	}
+}
+
+bool UUsdConversionBlueprintLibrary::SetMetadataField(
+	UUsdAssetUserData* AssetUserData,
+	const FString& Key,
+	const FString& Value,
+	const FString& ValueTypeName,
+	const FString& StageIdentifier,
+	const FString& PrimPath,
+	bool bTriggerPropertyChangeEvents
+)
+{
+	using namespace UE::UsdConversionBlueprintLibraryImpl::Private;
+
+	if (!AssetUserData)
+	{
+		return false;
+	}
+
+	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	FUsdCombinedPrimMetadata& CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.FindOrAdd(StageIdentifierToUse);
+
+	if (PrimPath.IsEmpty() && CombinedPrimMetadata.PrimPathToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& PrimPathToUse = !PrimPath.IsEmpty() ? PrimPath : CombinedPrimMetadata.PrimPathToMetadata.CreateConstIterator()->Key;
+	FUsdPrimMetadata& PrimMetadata = CombinedPrimMetadata.PrimPathToMetadata.FindOrAdd(PrimPathToUse);
+
+	if (bTriggerPropertyChangeEvents)
+	{
+		AssetUserData->PreEditChange(GetMetadataPropertyChain());
+	}
+
+	FUsdMetadataValue& MetadataValue = PrimMetadata.Metadata.FindOrAdd(Key);
+	MetadataValue.StringifiedValue = Value;
+	MetadataValue.TypeName = ValueTypeName;
+
+	if (bTriggerPropertyChangeEvents)
+	{
+		FPropertyChangedChainEvent Event = GetPostChangeChainEvent(AssetUserData, EPropertyChangeType::ValueSet);
+		AssetUserData->PostEditChangeChainProperty(Event);
+	}
+
+	return true;
+}
+
+bool UUsdConversionBlueprintLibrary::ClearMetadataField(
+	UUsdAssetUserData* AssetUserData,
+	const FString& Key,
+	const FString& StageIdentifier,
+	const FString& PrimPath,
+	bool bTriggerPropertyChangeEvents
+)
+{
+	using namespace UE::UsdConversionBlueprintLibraryImpl::Private;
+
+	if (!AssetUserData)
+	{
+		return false;
+	}
+
+	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	FUsdCombinedPrimMetadata& CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.FindOrAdd(StageIdentifierToUse);
+
+	if (PrimPath.IsEmpty() && CombinedPrimMetadata.PrimPathToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& PrimPathToUse = !PrimPath.IsEmpty() ? PrimPath : CombinedPrimMetadata.PrimPathToMetadata.CreateConstIterator()->Key;
+	FUsdPrimMetadata& PrimMetadata = CombinedPrimMetadata.PrimPathToMetadata.FindOrAdd(PrimPathToUse);
+
+	if (bTriggerPropertyChangeEvents)
+	{
+		AssetUserData->PreEditChange(GetMetadataPropertyChain());
+	}
+
+	PrimMetadata.Metadata.Remove(Key);
+
+	if (bTriggerPropertyChangeEvents)
+	{
+		FPropertyChangedChainEvent Event = GetPostChangeChainEvent(AssetUserData, EPropertyChangeType::ArrayRemove);
+		AssetUserData->PostEditChangeChainProperty(Event);
+	}
+
+	return true;
+}
+
+bool UUsdConversionBlueprintLibrary::HasMetadataField(
+	UUsdAssetUserData* AssetUserData,
+	const FString& Key,
+	const FString& StageIdentifier,
+	const FString& PrimPath
+)
+{
+	if (!AssetUserData)
+	{
+		return false;
+	}
+
+	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to check for metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FUsdCombinedPrimMetadata* CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.Find(StageIdentifierToUse);
+	if (!CombinedPrimMetadata)
+	{
+		return false;
+	}
+
+	if (PrimPath.IsEmpty() && CombinedPrimMetadata->PrimPathToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return false;
+	}
+
+	const FString& PrimPathToUse = !PrimPath.IsEmpty() ? PrimPath : CombinedPrimMetadata->PrimPathToMetadata.CreateConstIterator()->Key;
+	const FUsdPrimMetadata* PrimMetadata = CombinedPrimMetadata->PrimPathToMetadata.Find(PrimPathToUse);
+	if (!PrimMetadata)
+	{
+		return false;
+	}
+
+	return PrimMetadata->Metadata.Contains(Key);
+}
+
+FUsdMetadataValue UUsdConversionBlueprintLibrary::GetMetadataField(
+	UUsdAssetUserData* AssetUserData,
+	const FString& Key,
+	const FString& StageIdentifier,
+	const FString& PrimPath
+)
+{
+	if (!AssetUserData)
+	{
+		return {};
+	}
+
+	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return {};
+	}
+
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FUsdCombinedPrimMetadata* CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.Find(StageIdentifierToUse);
+	if (!CombinedPrimMetadata)
+	{
+		return {};
+	}
+
+	if (PrimPath.IsEmpty() && CombinedPrimMetadata->PrimPathToMetadata.Num() != 1)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+			*AssetUserData->GetPathName(),
+			*Key
+		);
+		return {};
+	}
+
+	const FString& PrimPathToUse = !PrimPath.IsEmpty() ? PrimPath : CombinedPrimMetadata->PrimPathToMetadata.CreateConstIterator()->Key;
+	const FUsdPrimMetadata* PrimMetadata = CombinedPrimMetadata->PrimPathToMetadata.Find(PrimPathToUse);
+	if (!PrimMetadata)
+	{
+		return {};
+	}
+
+	if (const FUsdMetadataValue* FoundValue = PrimMetadata->Metadata.Find(Key))
+	{
+		return *FoundValue;
+	}
+
+	UE_LOG(LogUsd, Warning, TEXT("Failed to find a metadata entry in '%s' with stage identifier '%s', prim path '%s' and key '%s'"),
+		*AssetUserData->GetPathName(),
+		*StageIdentifier,
+		*PrimPath,
+		*Key
+	);
+	return {};
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsBool(bool Value)
+{
+	return UsdUtils::StringifyAsBool(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUChar(uint8 Value)
+{
+	return UsdUtils::StringifyAsUChar(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt(int32 Value)
+{
+	return UsdUtils::StringifyAsInt(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUInt(int32 Value)
+{
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	return UsdUtils::StringifyAsUInt(static_cast<uint32>(Value));
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt64(int64 Value)
+{
+	return UsdUtils::StringifyAsInt64(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUInt64(int64 Value)
+{
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	return UsdUtils::StringifyAsUInt64(static_cast<uint64>(Value));
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf(float Value)
+{
+	return UsdUtils::StringifyAsHalf(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat(float Value)
+{
+	return UsdUtils::StringifyAsFloat(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble(double Value)
+{
+	return UsdUtils::StringifyAsDouble(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsTimeCode(double Value)
+{
+	return UsdUtils::StringifyAsTimeCode(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsString(const FString& Value)
+{
+	return UsdUtils::StringifyAsString(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsToken(const FString& Value)
+{
+	return UsdUtils::StringifyAsToken(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsAssetPath(const FString& Value)
+{
+	return UsdUtils::StringifyAsAssetPath(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix2d(const FMatrix2D& Value)
+{
+	return UsdUtils::StringifyAsMatrix2d(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix3d(const FMatrix3D& Value)
+{
+	return UsdUtils::StringifyAsMatrix3d(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix4d(const FMatrix& Value)
+{
+	return UsdUtils::StringifyAsMatrix4d(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuatd(const FQuat& Value)
+{
+	return UsdUtils::StringifyAsQuatd(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuatf(const FQuat& Value)
+{
+	return UsdUtils::StringifyAsQuatf(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuath(const FQuat& Value)
+{
+	return UsdUtils::StringifyAsQuath(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble2(const FVector2D& Value)
+{
+	return UsdUtils::StringifyAsDouble2(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat2(const FVector2D& Value)
+{
+	return UsdUtils::StringifyAsFloat2(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf2(const FVector2D& Value)
+{
+	return UsdUtils::StringifyAsHalf2(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt2(const FIntPoint& Value)
+{
+	return UsdUtils::StringifyAsInt2(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble3(const FVector& Value)
+{
+	return UsdUtils::StringifyAsDouble3(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat3(const FVector& Value)
+{
+	return UsdUtils::StringifyAsFloat3(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf3(const FVector& Value)
+{
+	return UsdUtils::StringifyAsHalf3(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt3(const FIntVector& Value)
+{
+	return UsdUtils::StringifyAsInt3(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble4(const FVector4& Value)
+{
+	return UsdUtils::StringifyAsDouble4(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat4(const FVector4& Value)
+{
+	return UsdUtils::StringifyAsFloat4(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf4(const FVector4& Value)
+{
+	return UsdUtils::StringifyAsHalf4(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt4(const FIntVector4& Value)
+{
+	return UsdUtils::StringifyAsInt4(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsBoolArray(const TArray<bool>& Value)
+{
+	return UsdUtils::StringifyAsBoolArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUCharArray(const TArray<uint8>& Value)
+{
+	return UsdUtils::StringifyAsUCharArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsIntArray(const TArray<int32>& Value)
+{
+	return UsdUtils::StringifyAsIntArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUIntArray(const TArray<int32>& Value)
+{
+	static_assert(sizeof(int32) == sizeof(uint32));
+
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	TArray<uint32> CastValue;
+	CastValue.SetNumUninitialized(Value.Num());
+	FMemory::Memcpy(CastValue.GetData(), Value.GetData(), Value.Num() * Value.GetTypeSize());
+
+	return UsdUtils::StringifyAsUIntArray(CastValue);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt64Array(const TArray<int64>& Value)
+{
+	return UsdUtils::StringifyAsInt64Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsUInt64Array(const TArray<int64>& Value)
+{
+	static_assert(sizeof(int64) == sizeof(uint64));
+
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	TArray<uint64> CastValue;
+	CastValue.SetNumUninitialized(Value.Num());
+	FMemory::Memcpy(CastValue.GetData(), Value.GetData(), Value.Num() * Value.GetTypeSize());
+
+	return UsdUtils::StringifyAsUInt64Array(CastValue);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalfArray(const TArray<float>& Value)
+{
+	return UsdUtils::StringifyAsHalfArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloatArray(const TArray<float>& Value)
+{
+	return UsdUtils::StringifyAsFloatArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDoubleArray(const TArray<double>& Value)
+{
+	return UsdUtils::StringifyAsDoubleArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsTimeCodeArray(const TArray<double>& Value)
+{
+	return UsdUtils::StringifyAsTimeCodeArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsStringArray(const TArray<FString>& Value)
+{
+	return UsdUtils::StringifyAsStringArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsTokenArray(const TArray<FString>& Value)
+{
+	return UsdUtils::StringifyAsTokenArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsAssetPathArray(const TArray<FString>& Value)
+{
+	return UsdUtils::StringifyAsAssetPathArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsListOpTokens(const TArray<FString>& Value)
+{
+	return UsdUtils::StringifyAsListOpTokens(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix2dArray(const TArray<FMatrix2D>& Value)
+{
+	return UsdUtils::StringifyAsMatrix2dArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix3dArray(const TArray<FMatrix3D>& Value)
+{
+	return UsdUtils::StringifyAsMatrix3dArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsMatrix4dArray(const TArray<FMatrix>& Value)
+{
+	return UsdUtils::StringifyAsMatrix4dArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuatdArray(const TArray<FQuat>& Value)
+{
+	return UsdUtils::StringifyAsQuatdArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuatfArray(const TArray<FQuat>& Value)
+{
+	return UsdUtils::StringifyAsQuatfArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsQuathArray(const TArray<FQuat>& Value)
+{
+	return UsdUtils::StringifyAsQuathArray(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble2Array(const TArray<FVector2D>& Value)
+{
+	return UsdUtils::StringifyAsDouble2Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat2Array(const TArray<FVector2D>& Value)
+{
+	return UsdUtils::StringifyAsFloat2Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf2Array(const TArray<FVector2D>& Value)
+{
+	return UsdUtils::StringifyAsHalf2Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt2Array(const TArray<FIntPoint>& Value)
+{
+	return UsdUtils::StringifyAsInt2Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble3Array(const TArray<FVector>& Value)
+{
+	return UsdUtils::StringifyAsDouble3Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat3Array(const TArray<FVector>& Value)
+{
+	return UsdUtils::StringifyAsFloat3Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf3Array(const TArray<FVector>& Value)
+{
+	return UsdUtils::StringifyAsHalf3Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt3Array(const TArray<FIntVector>& Value)
+{
+	return UsdUtils::StringifyAsInt3Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsDouble4Array(const TArray<FVector4>& Value)
+{
+	return UsdUtils::StringifyAsDouble4Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsFloat4Array(const TArray<FVector4>& Value)
+{
+	return UsdUtils::StringifyAsFloat4Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsHalf4Array(const TArray<FVector4>& Value)
+{
+	return UsdUtils::StringifyAsHalf4Array(Value);
+}
+
+FString UUsdConversionBlueprintLibrary::StringifyAsInt4Array(const TArray<FIntVector4>& Value)
+{
+	return UsdUtils::StringifyAsInt4Array(Value);
+}
+
+namespace UE::UsdConversionLibrary::Private
+{
+	// It seems the most idiomatic behavior for stuff exposed to scripting is to always return a default value on failure
+	// but to emit warnings in case anything went wrong, as dealing with error outputs in Blueprint can be tedious, and having
+	// output parameters in Python feels weird. Here we use this adapter to convert the UsdUtils converters into signatures like that
+	template<typename T, bool (*Unstringifier)(const FString&, T&)>
+	T UnstringifyOrDefault(const FString& String, const FString& TypeName)
+	{
+		T Output{};
+
+		bool bSuccess = Unstringifier(String, Output);
+		if (!bSuccess)
+		{
+			UE_LOG(LogUsd, Warning, TEXT("Failed to unstringify '%s' with the type '%s'!"), *String, *TypeName);
+		}
+
+		return Output;
+	}
+}
+
+bool UUsdConversionBlueprintLibrary::UnstringifyAsBool(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<bool, UsdUtils::UnstringifyAsBool>(String, TEXT("bool"));
+}
+
+uint8 UUsdConversionBlueprintLibrary::UnstringifyAsUChar(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint8, UsdUtils::UnstringifyAsUChar>(String, TEXT("uchar"));
+}
+
+int32 UUsdConversionBlueprintLibrary::UnstringifyAsInt(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<int32, UsdUtils::UnstringifyAsInt>(String, TEXT("int"));
+}
+
+int32 UUsdConversionBlueprintLibrary::UnstringifyAsUInt(const FString& String)
+{
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	return static_cast<int32>(
+		UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint32, UsdUtils::UnstringifyAsUInt>(String, TEXT("uint"))
+	);
+}
+
+int64 UUsdConversionBlueprintLibrary::UnstringifyAsInt64(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<int64, UsdUtils::UnstringifyAsInt64>(String, TEXT("int64"));
+}
+
+int64 UUsdConversionBlueprintLibrary::UnstringifyAsUInt64(const FString& String)
+{
+	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
+	return static_cast<int64>(
+		UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint64, UsdUtils::UnstringifyAsUInt64>(String, TEXT("uint64"))
+	);
+}
+
+float UUsdConversionBlueprintLibrary::UnstringifyAsHalf(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<float, UsdUtils::UnstringifyAsHalf>(String, TEXT("half"));
+}
+
+float UUsdConversionBlueprintLibrary::UnstringifyAsFloat(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<float, UsdUtils::UnstringifyAsFloat>(String, TEXT("float"));
+}
+
+double UUsdConversionBlueprintLibrary::UnstringifyAsDouble(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<double, UsdUtils::UnstringifyAsDouble>(String, TEXT("double"));
+}
+
+double UUsdConversionBlueprintLibrary::UnstringifyAsTimeCode(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<double, UsdUtils::UnstringifyAsTimeCode>(String, TEXT("timecode"));
+}
+
+FString UUsdConversionBlueprintLibrary::UnstringifyAsString(const FString& String)
+{
+	return String;
+}
+
+FString UUsdConversionBlueprintLibrary::UnstringifyAsToken(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FString, UsdUtils::UnstringifyAsToken>(String, TEXT("token"));
+}
+
+FString UUsdConversionBlueprintLibrary::UnstringifyAsAssetPath(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FString, UsdUtils::UnstringifyAsAssetPath>(String, TEXT("asset"));
+}
+
+FMatrix2D UUsdConversionBlueprintLibrary::UnstringifyAsMatrix2d(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FMatrix2D, UsdUtils::UnstringifyAsMatrix2d>(String, TEXT("matrix2d"));
+}
+
+FMatrix3D UUsdConversionBlueprintLibrary::UnstringifyAsMatrix3d(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FMatrix3D, UsdUtils::UnstringifyAsMatrix3d>(String, TEXT("matrix3d"));
+}
+
+FMatrix UUsdConversionBlueprintLibrary::UnstringifyAsMatrix4d(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FMatrix, UsdUtils::UnstringifyAsMatrix4d>(String, TEXT("matrix4d"));
+}
+
+FQuat UUsdConversionBlueprintLibrary::UnstringifyAsQuatd(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FQuat, UsdUtils::UnstringifyAsQuatd>(String, TEXT("quatd"));
+}
+
+FQuat UUsdConversionBlueprintLibrary::UnstringifyAsQuatf(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FQuat, UsdUtils::UnstringifyAsQuatf>(String, TEXT("quatf"));
+}
+
+FQuat UUsdConversionBlueprintLibrary::UnstringifyAsQuath(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FQuat, UsdUtils::UnstringifyAsQuath>(String, TEXT("quath"));
+}
+
+FVector2D UUsdConversionBlueprintLibrary::UnstringifyAsDouble2(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector2D, UsdUtils::UnstringifyAsDouble2>(String, TEXT("double2"));
+}
+
+FVector2D UUsdConversionBlueprintLibrary::UnstringifyAsFloat2(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector2D, UsdUtils::UnstringifyAsFloat2>(String, TEXT("float2"));
+}
+
+FVector2D UUsdConversionBlueprintLibrary::UnstringifyAsHalf2(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector2D, UsdUtils::UnstringifyAsHalf2>(String, TEXT("half2"));
+}
+
+FIntPoint UUsdConversionBlueprintLibrary::UnstringifyAsInt2(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FIntPoint, UsdUtils::UnstringifyAsInt2>(String, TEXT("int2"));
+}
+
+FVector UUsdConversionBlueprintLibrary::UnstringifyAsDouble3(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector, UsdUtils::UnstringifyAsDouble3>(String, TEXT("double3"));
+}
+
+FVector UUsdConversionBlueprintLibrary::UnstringifyAsFloat3(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector, UsdUtils::UnstringifyAsFloat3>(String, TEXT("float3"));
+}
+
+FVector UUsdConversionBlueprintLibrary::UnstringifyAsHalf3(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector, UsdUtils::UnstringifyAsHalf3>(String, TEXT("half3"));
+}
+
+FIntVector UUsdConversionBlueprintLibrary::UnstringifyAsInt3(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FIntVector, UsdUtils::UnstringifyAsInt3>(String, TEXT("int3"));
+}
+
+FVector4 UUsdConversionBlueprintLibrary::UnstringifyAsDouble4(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector4, UsdUtils::UnstringifyAsDouble4>(String, TEXT("double4"));
+}
+
+FVector4 UUsdConversionBlueprintLibrary::UnstringifyAsFloat4(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector4, UsdUtils::UnstringifyAsFloat4>(String, TEXT("float4"));
+}
+
+FVector4 UUsdConversionBlueprintLibrary::UnstringifyAsHalf4(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FVector4, UsdUtils::UnstringifyAsHalf4>(String, TEXT("half4"));
+}
+
+FIntVector4 UUsdConversionBlueprintLibrary::UnstringifyAsInt4(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<FIntVector4, UsdUtils::UnstringifyAsInt4>(String, TEXT("int4"));
+}
+
+TArray<bool> UUsdConversionBlueprintLibrary::UnstringifyAsBoolArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<bool>, UsdUtils::UnstringifyAsBoolArray>(String, TEXT("bool[]"));
+}
+
+TArray<uint8> UUsdConversionBlueprintLibrary::UnstringifyAsUCharArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<uint8>, UsdUtils::UnstringifyAsUCharArray>(String, TEXT("uchar[]"));
+}
+
+TArray<int32> UUsdConversionBlueprintLibrary::UnstringifyAsIntArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<int32>, UsdUtils::UnstringifyAsIntArray>(String, TEXT("int[]"));
+}
+
+TArray<int32> UUsdConversionBlueprintLibrary::UnstringifyAsUIntArray(const FString& String)
+{
+	static_assert(sizeof(uint32) == sizeof(int32));
+
+	TArray<uint32> Converted = UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<uint32>, UsdUtils::UnstringifyAsUIntArray>(
+		String,
+		TEXT("uint[]")
+	);
+
+	TArray<int32> Result;
+	Result.SetNumUninitialized(Converted.Num());
+	FMemory::Memcpy(Result.GetData(), Converted.GetData(), Converted.Num() * Converted.GetTypeSize());
+
+	return Result;
+}
+
+TArray<int64> UUsdConversionBlueprintLibrary::UnstringifyAsInt64Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<int64>, UsdUtils::UnstringifyAsInt64Array>(String, TEXT("int64[]"));
+}
+
+TArray<int64> UUsdConversionBlueprintLibrary::UnstringifyAsUInt64Array(const FString& String)
+{
+	static_assert(sizeof(uint64) == sizeof(int64));
+
+	TArray<uint64> Converted = UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<uint64>, UsdUtils::UnstringifyAsUInt64Array>(
+		String,
+		TEXT("uint64[]")
+	);
+
+	TArray<int64> Result;
+	Result.SetNumUninitialized(Converted.Num());
+	FMemory::Memcpy(Result.GetData(), Converted.GetData(), Converted.Num() * Converted.GetTypeSize());
+
+	return Result;
+}
+
+TArray<float> UUsdConversionBlueprintLibrary::UnstringifyAsHalfArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<float>, UsdUtils::UnstringifyAsHalfArray>(String, TEXT("half[]"));
+}
+
+TArray<float> UUsdConversionBlueprintLibrary::UnstringifyAsFloatArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<float>, UsdUtils::UnstringifyAsFloatArray>(String, TEXT("float[]"));
+}
+
+TArray<double> UUsdConversionBlueprintLibrary::UnstringifyAsDoubleArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<double>, UsdUtils::UnstringifyAsDoubleArray>(String, TEXT("double[]"));
+}
+
+TArray<double> UUsdConversionBlueprintLibrary::UnstringifyAsTimeCodeArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<double>, UsdUtils::UnstringifyAsTimeCodeArray>(String, TEXT("timecode[]"));
+}
+
+TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsStringArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsStringArray>(String, TEXT("string[]"));
+}
+
+TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsTokenArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsTokenArray>(String, TEXT("token[]"));
+}
+
+TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsAssetPathArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsAssetPathArray>(String, TEXT("asset[]"));
+}
+
+TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsListOpTokens(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsListOpTokens>(String, TEXT("SdfListOp<Token>"));
+}
+
+TArray<FMatrix2D> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix2dArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix2D>, UsdUtils::UnstringifyAsMatrix2dArray>(String, TEXT("matrix2d[]"));
+}
+
+TArray<FMatrix3D> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix3dArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix3D>, UsdUtils::UnstringifyAsMatrix3dArray>(String, TEXT("matrix3d[]"));
+}
+
+TArray<FMatrix> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix4dArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix>, UsdUtils::UnstringifyAsMatrix4dArray>(String, TEXT("matrix4d[]"));
+}
+
+TArray<FQuat> UUsdConversionBlueprintLibrary::UnstringifyAsQuatdArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FQuat>, UsdUtils::UnstringifyAsQuatdArray>(String, TEXT("quatd[]"));
+}
+
+TArray<FQuat> UUsdConversionBlueprintLibrary::UnstringifyAsQuatfArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FQuat>, UsdUtils::UnstringifyAsQuatfArray>(String, TEXT("quatf[]"));
+}
+
+TArray<FQuat> UUsdConversionBlueprintLibrary::UnstringifyAsQuathArray(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FQuat>, UsdUtils::UnstringifyAsQuathArray>(String, TEXT("quath[]"));
+}
+
+TArray<FVector2D> UUsdConversionBlueprintLibrary::UnstringifyAsDouble2Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector2D>, UsdUtils::UnstringifyAsDouble2Array>(String, TEXT("double2"));
+}
+
+TArray<FVector2D> UUsdConversionBlueprintLibrary::UnstringifyAsFloat2Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector2D>, UsdUtils::UnstringifyAsFloat2Array>(String, TEXT("float2"));
+}
+
+TArray<FVector2D> UUsdConversionBlueprintLibrary::UnstringifyAsHalf2Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector2D>, UsdUtils::UnstringifyAsHalf2Array>(String, TEXT("half2"));
+}
+
+TArray<FIntPoint> UUsdConversionBlueprintLibrary::UnstringifyAsInt2Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FIntPoint>, UsdUtils::UnstringifyAsInt2Array>(String, TEXT("int2"));
+}
+
+TArray<FVector> UUsdConversionBlueprintLibrary::UnstringifyAsDouble3Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector>, UsdUtils::UnstringifyAsDouble3Array>(String, TEXT("double3"));
+}
+
+TArray<FVector> UUsdConversionBlueprintLibrary::UnstringifyAsFloat3Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector>, UsdUtils::UnstringifyAsFloat3Array>(String, TEXT("float3"));
+}
+
+TArray<FVector> UUsdConversionBlueprintLibrary::UnstringifyAsHalf3Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector>, UsdUtils::UnstringifyAsHalf3Array>(String, TEXT("half3"));
+}
+
+TArray<FIntVector> UUsdConversionBlueprintLibrary::UnstringifyAsInt3Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FIntVector>, UsdUtils::UnstringifyAsInt3Array>(String, TEXT("int3"));
+}
+
+TArray<FVector4> UUsdConversionBlueprintLibrary::UnstringifyAsDouble4Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector4>, UsdUtils::UnstringifyAsDouble4Array>(String, TEXT("double4"));
+}
+
+TArray<FVector4> UUsdConversionBlueprintLibrary::UnstringifyAsFloat4Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector4>, UsdUtils::UnstringifyAsFloat4Array>(String, TEXT("float4"));
+}
+
+TArray<FVector4> UUsdConversionBlueprintLibrary::UnstringifyAsHalf4Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FVector4>, UsdUtils::UnstringifyAsHalf4Array>(String, TEXT("half4"));
+}
+
+TArray<FIntVector4> UUsdConversionBlueprintLibrary::UnstringifyAsInt4Array(const FString& String)
+{
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FIntVector4>, UsdUtils::UnstringifyAsInt4Array>(String, TEXT("int4"));
 }

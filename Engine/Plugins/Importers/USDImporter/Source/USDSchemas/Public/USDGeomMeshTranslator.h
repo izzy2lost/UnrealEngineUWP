@@ -3,6 +3,8 @@
 #pragma once
 
 #include "USDGeomXformableTranslator.h"
+#include "USDMetadata.h"
+
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
@@ -43,6 +45,9 @@ protected:
 	TSharedRef< FUsdSchemaTranslationContext > Context;
 	TArray<FMeshDescription> LODIndexToMeshDescription;
 	TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo> LODIndexToMaterialInfo;
+	// We collect metadata early (during LOD parsing) so that we don't have to flip through
+	// LODs multiple times
+	FUsdCombinedPrimMetadata LODMetadata;
 
 	// Outputs
 	TOptional<UE::FSdfPath> AlternativePrimToLinkAssetsTo;
@@ -50,6 +55,7 @@ protected:
 
 	// Required to prevent StaticMesh from being used for drawing while it is being rebuilt
 	TSharedPtr<FStaticMeshComponentRecreateRenderStateContext> RecreateRenderStateContextPtr;
+	bool bCollectedMetadata = false;
 
 protected:
 	UE::FUsdPrim GetPrim() const { return Context->Stage.GetPrimAtPath( PrimPath ); }

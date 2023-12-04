@@ -168,6 +168,41 @@ enum class EUsdListPosition : uint8
 	BackOfAppendList
 };
 
+/**
+ * Corresponds to pxr::GfMatrix2d. We don't expose any methods though, this is just to facilitate reading/writing
+ * these types from USD.
+ */
+USTRUCT(BlueprintType)
+struct FMatrix2D
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	FVector2D Row0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	FVector2D Row1;
+};
+
+/**
+ * Corresponds to pxr::GfMatrix3d. We don't expose any methods though, this is just to facilitate reading/writing
+ * these types from USD.
+ */
+USTRUCT(BlueprintType)
+struct FMatrix3D
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	FVector Row0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	FVector Row1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	FVector Row2;
+};
+
 class IUnrealUSDWrapperModule : public IModuleInterface
 {
 };
@@ -410,6 +445,7 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API const TCHAR* Inherited;
 	extern UNREALUSDWRAPPER_API const TCHAR* IdentifierPrefix;
 
+	// The prim name we always use when exporting Skeletons inside SkelRoots to USD
 	extern UNREALUSDWRAPPER_API const TCHAR* ExportedSkeletonPrimName;
 
 	// USceneComponent properties
@@ -459,6 +495,9 @@ namespace UnrealIdentifiers
 	// Tokens from UsdGeomModelAPI that we need to reference from the UsdStageActor
 	extern UNREALUSDWRAPPER_API FString ModelDrawMode;
 	extern UNREALUSDWRAPPER_API FString ModelApplyDrawMode;
+
+	// The character used to separate property namespaces (usually just ':')
+	extern UNREALUSDWRAPPER_API FString UsdNamespaceDelimiter;
 }
 
 struct UNREALUSDWRAPPER_API FUsdDelegates

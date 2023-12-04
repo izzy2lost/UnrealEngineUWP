@@ -239,6 +239,7 @@ void FLevelExporterUSDOptionsCustomization::CustomizeDetails(IDetailLayoutBuilde
 	DetailLayoutBuilder.EditCategory( TEXT( "Stage options" ) );
 	DetailLayoutBuilder.EditCategory( TEXT( "Export settings" ) );
 	IDetailCategoryBuilder& AssetOptionsCategory = DetailLayoutBuilder.EditCategory( TEXT( "Asset options" ) );
+	IDetailCategoryBuilder& MetadataOptionsCategory = DetailLayoutBuilder.EditCategory( TEXT( "Metadata options" ) );
 
 	// Promote all AssetOptions up a level on LevelExportUsdOptions or else we'll end up with a property named AssetOptions inside the AssetOptions category
 	// This is the same effect as ShowOnlyInnerProperties, but in this case we need to do it manually as it doesn't work recursively
@@ -253,6 +254,21 @@ void FLevelExporterUSDOptionsCustomization::CustomizeDetails(IDetailLayoutBuilde
 			{
 				TSharedPtr<IPropertyHandle> ChildProperty = AssetOptionsProperty->GetChildHandle( Index );
 				AssetOptionsCategory.AddProperty( ChildProperty );
+			}
+		}
+	}
+	// Do the same for MetadataOptions...
+	if (TSharedPtr<IPropertyHandle> MetadataOptions = DetailLayoutBuilder.GetProperty(TEXT("Inner.MetadataOptions")))
+	{
+		DetailLayoutBuilder.HideProperty(MetadataOptions);
+
+		uint32 NumChildren = 0;
+		if (MetadataOptions->GetNumChildren(NumChildren) == FPropertyAccess::Result::Success)
+		{
+			for (uint32 Index = 0; Index < NumChildren; ++Index)
+			{
+				TSharedPtr<IPropertyHandle> ChildProperty = MetadataOptions->GetChildHandle(Index);
+				MetadataOptionsCategory.AddProperty(ChildProperty);
 			}
 		}
 	}

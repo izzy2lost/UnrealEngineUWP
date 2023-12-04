@@ -31,7 +31,9 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ISceneOutliner.h"
 #include "ISceneOutlinerColumn.h"
+#include "ISinglePropertyView.h"
 #include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
 #include "SceneOutlinerModule.h"
 #include "ScopedTransaction.h"
 #include "Selection.h"
@@ -1043,6 +1045,11 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillSubdivisionLevelSubMenu));
 
 		MenuBuilder.AddSubMenu(
+			LOCTEXT("Metadata", "Metadata"),
+			LOCTEXT("Metadata_ToolTip", "How to collect and handle metadata from USD prims"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillMetadataSubMenu));
+
+		MenuBuilder.AddSubMenu(
 			LOCTEXT( "Collapsing", "Collapsing" ),
 			LOCTEXT( "Collapsing_ToolTip", "Whether to try to combine individual assets and components of the same type on a Kind-per-Kind basis, like multiple Mesh prims into a single Static Mesh" ),
 			FNewMenuDelegate::CreateSP( this, &SUsdStage::FillCollapsingSubMenu ) );
@@ -1600,6 +1607,82 @@ void SUsdStage::FillSubdivisionLevelSubMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.AddWidget(Slider, FText::FromString(TEXT("Subdivision level: ")), bNoIndent);
 }
 
+void SUsdStage::FillMetadataSubMenu(FMenuBuilder& MenuBuilder)
+{
+	AUsdStageActor* StageActor = GetStageActorOrCDO();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.bAllowSearch = false;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.ColumnWidth = 0.5;
+	TSharedRef<IDetailsView> DetailView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	DetailView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda(
+		[](const FPropertyAndParent& PropertyAndParent) -> bool
+		{
+			static const FName MetadataOptionsName = GET_MEMBER_NAME_CHECKED(AUsdStageActor, MetadataOptions);
+
+			const FName PropertyName = PropertyAndParent.Property.GetFName();
+			if (PropertyName == MetadataOptionsName)
+			{
+				return true;
+			}
+
+			for(const FProperty* ParentProp : PropertyAndParent.ParentProperties)
+			{
+				const FName ParentPropertyName = ParentProp->GetFName();
+				if(ParentPropertyName == MetadataOptionsName)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+	));
+	DetailView->SetIsCustomRowVisibleDelegate(FIsCustomRowVisible::CreateLambda(
+		[](FName RowName, FName ParentName) -> bool
+		{
+			static const FName FilterPropertyName = GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, BlockedPrefixFilters);
+			return RowName == FilterPropertyName;
+		}
+	));
+	DetailView->SetObject(StageActor);
+
+	DetailView->OnFinishedChangingProperties().AddLambda(
+		[this](const FPropertyChangedEvent& PropertyChangedEvent)
+		{
+			if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+			{
+				if (StageActor->IsTemplate())
+				{
+					StageActor->SaveConfig();
+				}
+			}
+		}
+	);
+
+	// Override the widget with some extra width because the prefix filters need some space to be used
+	// comfortably
+	TSharedRef<SBox> Box = SNew(SBox)
+	.Padding(FMargin(0.0f, 0.0f))
+	.VAlign(VAlign_Fill)
+	.HAlign(HAlign_Fill)
+	.WidthOverride(500)
+	[
+		DetailView
+	];
+
+	const bool bNoIndent = true;
+	MenuBuilder.AddWidget(Box, FText::GetEmpty(), bNoIndent);
+}
+
 void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
 {
 	MenuBuilder.AddMenuEntry(
@@ -1612,7 +1695,7 @@ void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
 				if ( AUsdStageActor* StageActor = GetStageActorOrCDO() )
 				{
 					FScopedTransaction Transaction( FText::Format(
-						LOCTEXT( "MergeIdenticalMaterialSlotsTransaction", "Toggle bMergeIdenticalMaterialSlots on USD stage actor '{1}'" ),
+						LOCTEXT( "MergeIdenticalMaterialSlotsTransaction", "Toggle bMergeIdenticalMaterialSlots on USD stage actor '{0}'" ),
 						FText::FromString( StageActor->GetActorLabel() )
 					) );
 

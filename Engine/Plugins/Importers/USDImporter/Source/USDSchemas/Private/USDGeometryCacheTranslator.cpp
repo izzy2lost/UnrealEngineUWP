@@ -779,20 +779,25 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 
 			if (GeometryCache)
 			{
-				UUsdMeshAssetUserData* UserData = GeometryCache->GetAssetUserData<UUsdMeshAssetUserData>();
-				if (!UserData)
+				if (UUsdGeometryCacheAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdGeometryCacheAssetUserData>(GeometryCache.Get()))
 				{
-					UserData = NewObject<UUsdMeshAssetUserData>(GeometryCache.Get(), TEXT("UUSDAssetUserData"));
 					UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	// We use the same primvar mapping for all LODs
-					GeometryCache->AddAssetUserData(UserData);
+					UserData->LayerStartOffsetSeconds = StartTimeOffset;
+					UserData->PrimPaths.AddUnique(PrimPathString);
 
-					UUsdAnimSequenceAssetUserData* AnimUserData = NewObject<UUsdAnimSequenceAssetUserData>(GeometryCache.Get(), TEXT("UsdAnimUserData"));
-					AnimUserData->LayerStartOffsetSeconds = StartTimeOffset;
-					GeometryCache->AddAssetUserData(AnimUserData);
+					if (Context->MetadataOptions.bCollectMetadata)
+					{
+						UsdToUnreal::ConvertMetadata(
+							GetPrim(),
+							UserData,
+							Context->MetadataOptions.BlockedPrefixFilters,
+							Context->MetadataOptions.bInvertFilters,
+							Context->MetadataOptions.bCollectFromEntireSubtrees
+						);
+					}
+
+					MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
 				}
-				UserData->PrimPaths.AddUnique(PrimPath.GetString());
-
-				MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
 
 				if (bIsNew)
 				{
@@ -1021,7 +1026,7 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 			float LayerStartOffsetSeconds = 0.0f;
 			if (GeometryCache)
 			{
-				if (UUsdAnimSequenceAssetUserData* UserData = GeometryCache->GetAssetUserData<UUsdAnimSequenceAssetUserData>())
+				if (UUsdGeometryCacheAssetUserData* UserData = GeometryCache->GetAssetUserData<UUsdGeometryCacheAssetUserData>())
 				{
 					LayerStartOffsetSeconds = UserData->LayerStartOffsetSeconds;
 				}

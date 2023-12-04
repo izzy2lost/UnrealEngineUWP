@@ -792,7 +792,7 @@ namespace UnrealToUsdImpl
 
 					for ( int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex )
 					{
-						PointsArray.push_back( UnrealToUsd::ConvertVector( StageInfo, (FVector)Vertices[ VertexIndex ].Position ) );
+						PointsArray.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, (FVector)Vertices[ VertexIndex ].Position ) );
 					}
 
 					Points.Set( PointsArray, TimeCode );
@@ -818,7 +818,7 @@ namespace UnrealToUsdImpl
 
 					for ( int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex )
 					{
-						Normals.push_back( UnrealToUsd::ConvertVector( StageInfo, FVector4(Vertices[ VertexIndex ].TangentZ) ) );
+						Normals.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, FVector4(Vertices[ VertexIndex ].TangentZ) ) );
 					}
 
 					NormalsAttribute.Set( Normals, TimeCode );
@@ -842,7 +842,7 @@ namespace UnrealToUsdImpl
 							FVector2D TexCoord = FVector2D(Vertices[ VertexIndex ].UVs[ TexCoordSourceIndex ]);
 							TexCoord[ 1 ] = 1.f - TexCoord[ 1 ];
 
-							UVs.push_back( UnrealToUsd::ConvertVector( TexCoord ) );
+							UVs.push_back( UnrealToUsd::ConvertVectorFloat( TexCoord ) );
 						}
 
 						PrimvarST.Set( UVs, TimeCode );
@@ -1130,9 +1130,9 @@ namespace UnrealToUsdImpl
 		{
 			const FMorphTargetDelta& Delta = DeltaArray[ DeltaIndex ];
 
-			Offsets.push_back( UnrealToUsd::ConvertVector( StageInfo, (FVector)Delta.PositionDelta ) );
+			Offsets.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, (FVector)Delta.PositionDelta ) );
 			PointIndices.push_back( Delta.SourceIdx );
-			Normals.push_back( UnrealToUsd::ConvertVector( StageInfo, (FVector)Delta.TangentZDelta ) );
+			Normals.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, (FVector)Delta.TangentZDelta ) );
 		}
 
 		BlendShape.CreateOffsetsAttr().Set(Offsets, TimeCode);
@@ -3410,9 +3410,9 @@ bool UnrealToUsd::ConvertAnimSequence( UAnimSequence* AnimSequence, pxr::UsdPrim
 				FTransform BoneTransform = LocalBoneTransforms[ BoneIndex ];
 				BoneTransform = UsdUtils::ConvertAxes( StageInfo.UpAxis == EUsdUpAxis::ZAxis, BoneTransform );
 
-				Translations.push_back( UnrealToUsd::ConvertVector( BoneTransform.GetTranslation() ) );
-				Rotations.push_back( UnrealToUsd::ConvertQuat( BoneTransform.GetRotation() ).GetNormalized() );
-				Scales.push_back( pxr::GfVec3h( UnrealToUsd::ConvertVector( BoneTransform.GetScale3D() ) ) );
+				Translations.push_back( UnrealToUsd::ConvertVectorFloat( BoneTransform.GetTranslation() ) );
+				Rotations.push_back( UnrealToUsd::ConvertQuatFloat( BoneTransform.GetRotation() ).GetNormalized() );
+				Scales.push_back( UnrealToUsd::ConvertVectorHalf( BoneTransform.GetScale3D() ) );
 			}
 
 			TranslationsAttr.Set( Translations, pxr::UsdTimeCode( TimeCode ) );
@@ -3822,9 +3822,9 @@ bool UnrealToUsd::ConvertControlRigSection(
 				UsdTransform = UsdUtils::ConvertTransformToUsdSpace( StageInfo, ChildGlobal.GetRelativeTransform( ParentGlobal ) );
 			}
 
-			Translations[ RefSkeletonBoneIndex ] = UnrealToUsd::ConvertVector( UsdTransform.GetTranslation() );
-			Rotations[ RefSkeletonBoneIndex ] = UnrealToUsd::ConvertQuat( UsdTransform.GetRotation() ).GetNormalized();
-			Scales[ RefSkeletonBoneIndex ] = pxr::GfVec3h( UnrealToUsd::ConvertVector( UsdTransform.GetScale3D() ) );
+			Translations[ RefSkeletonBoneIndex ] = UnrealToUsd::ConvertVectorFloat( UsdTransform.GetTranslation() );
+			Rotations[ RefSkeletonBoneIndex ] = UnrealToUsd::ConvertQuatFloat( UsdTransform.GetRotation() ).GetNormalized();
+			Scales[ RefSkeletonBoneIndex ] = UnrealToUsd::ConvertVectorHalf( UsdTransform.GetScale3D() );
 		}
 
 		TranslationsAttr.Set( Translations, pxr::UsdTimeCode( UsdTimeCode ) );

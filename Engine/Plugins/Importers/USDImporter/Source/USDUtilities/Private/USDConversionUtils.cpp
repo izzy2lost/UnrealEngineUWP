@@ -3,8 +3,9 @@
 #include "USDConversionUtils.h"
 
 #include "USDAssetImportData.h"
-#include "USDDrawModeComponent.h"
+#include "USDAssetUserData.h"
 #include "USDClassesModule.h"
+#include "USDDrawModeComponent.h"
 #include "USDDuplicateType.h"
 #include "USDErrorUtils.h"
 #include "USDGeomMeshConversion.h"
@@ -1677,6 +1678,101 @@ void UsdUtils::SetAssetImportData(UObject* Asset, UAssetImportData* ImportData)
 #endif // WITH_EDITOR
 }
 
+UUsdAssetUserData* UsdUtils::GetAssetUserData(const UObject* Object, TSubclassOf<UUsdAssetUserData> Class)
+{
+	if (!Object)
+	{
+		return nullptr;
+	}
+
+	if (!Class)
+	{
+		Class = UUsdAssetUserData::StaticClass();
+	}
+
+	const IInterface_AssetUserData* AssetUserDataInterface = Cast<const IInterface_AssetUserData>(Object);
+	if (!AssetUserDataInterface)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Tried getting AssetUserData from object '%s', but the class '%s' doesn't implement the AssetUserData interface!"),
+			*Object->GetPathName(),
+			*Object->GetClass()->GetName()
+		);
+		return nullptr;
+	}
+
+	// Const cast because there is no const access of asset user data on the interface
+	return Cast<UUsdAssetUserData>(const_cast<IInterface_AssetUserData*>(AssetUserDataInterface)->GetAssetUserDataOfClass(Class));
+}
+
+UUsdAssetUserData* UsdUtils::GetOrCreateAssetUserData(UObject* Object, TSubclassOf<UUsdAssetUserData> Class)
+{
+	if (!Object)
+	{
+		return nullptr;
+	}
+
+	if (!Class)
+	{
+		Class = UUsdAssetUserData::StaticClass();
+	}
+
+	IInterface_AssetUserData* AssetUserDataInterface = Cast<IInterface_AssetUserData>(Object);
+	if (!AssetUserDataInterface)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Tried adding AssetUserData to object '%s', but it doesn't implement the AssetUserData interface!"),
+			*Object->GetPathName()
+		);
+		return nullptr;
+	}
+
+	UUsdAssetUserData* AssetUserData = Cast<UUsdAssetUserData>(AssetUserDataInterface->GetAssetUserDataOfClass(Class));
+	if (!AssetUserData)
+	{
+		// For now we're expecting objects to only have one instance of UUsdAssetUserData
+		ensure(!AssetUserDataInterface->HasAssetUserDataOfClass(UUsdAssetUserData::StaticClass()));
+
+		AssetUserData = NewObject<UUsdAssetUserData>(Object, Class, TEXT("UsdAssetUserData"));
+		AssetUserDataInterface->AddAssetUserData(AssetUserData);
+	}
+
+	return AssetUserData;
+}
+
+bool UsdUtils::SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserData)
+{
+	if (!Object)
+	{
+		return false;
+	}
+
+	IInterface_AssetUserData* AssetUserDataInterface = Cast<IInterface_AssetUserData>(Object);
+	if (!AssetUserDataInterface)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Tried adding AssetUserData to object '%s', but it doesn't implement the AssetUserData interface!"),
+			*Object->GetPathName()
+		);
+		return false;
+	}
+
+	while (AssetUserDataInterface->HasAssetUserDataOfClass(UUsdAssetUserData::StaticClass()))
+	{
+		UE_LOG(LogUsd, Log, TEXT("Removing old AssetUserData from object '%s' before adding a new one"), *Object->GetPathName());
+		AssetUserDataInterface->RemoveUserDataOfClass(UUsdAssetUserData::StaticClass());
+	}
+
+	AssetUserDataInterface->AddAssetUserData(AssetUserData);
+	return true;
+}
+
 namespace UE::UsdConversionUtils::Private
 {
 #if USE_USD_SDK
@@ -3143,6 +3239,52 @@ FUsdUnrealAssetInfo UsdUtils::GetPrimAssetInfo( const UE::FUsdPrim& Prim )
 
 	return Result;
 }
+
+#if USE_USD_SDK
+bool UsdUtils::ClearNonEssentialPrimMetadata(const pxr::UsdPrim& Prim)
+{
+	FScopedUsdAllocs Allocs;
+
+	pxr::SdfChangeBlock ChangeBlock;
+
+	// Note: This only returns top-level fields, and won't have a separate entry for values inside VtDictionaries
+	// or anything like that. This means this likely won't be that expensive, and we don't have to care about order
+	std::map<pxr::TfToken, pxr::VtValue, pxr::TfDictionaryLessThan> MetadataMap = Prim.GetAllAuthoredMetadata();
+
+	for (std::map<pxr::TfToken, pxr::VtValue, pxr::TfDictionaryLessThan>::const_iterator MetadataIter = MetadataMap.begin();
+		 MetadataIter != MetadataMap.end();
+		 ++MetadataIter)
+	{
+		const pxr::TfToken& FieldName = MetadataIter->first;
+
+		// We consider those "essential metadata", as removing them will mess with the prim definition
+		const static std::unordered_set<pxr::TfToken, pxr::TfHash> FieldsToSkip = {
+			pxr::SdfFieldKeys->Specifier,
+			pxr::SdfFieldKeys->TypeName
+		};
+		if (FieldsToSkip.count(FieldName) > 0)
+		{
+			continue;
+		}
+
+		const bool bSuccess = Prim.ClearMetadata(FieldName);
+
+		if (!bSuccess)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to clear metadata field '%s' from prim '%s'"),
+				*UsdToUnreal::ConvertToken(FieldName),
+				*UsdToUnreal::ConvertPath(Prim.GetPrimPath())
+			);
+			return false;
+		}
+	}
+
+	return true;
+}
+#endif // USE_USD_SDK
 
 void UsdUtils::CollectSchemaAnalytics(const UE::FUsdStage& Stage, const FString& EventName)
 {

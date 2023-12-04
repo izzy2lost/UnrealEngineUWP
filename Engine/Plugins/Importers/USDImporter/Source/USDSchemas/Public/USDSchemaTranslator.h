@@ -8,6 +8,7 @@
 #include "USDAssetCache2.h"
 #include "USDInfoCache.h"
 #include "USDMemory.h"
+#include "USDMetadataImportOptions.h"
 #include "USDSkeletalDataConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -179,6 +180,8 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis< FUs
 
 	/** Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide" */
 	int32 SubdivisionLevel = 0;
+
+	FUsdMetadataImportOptions MetadataOptions;
 
 	/** If a generated UStaticMesh has at least this many triangles we will attempt to enable Nanite */
 	int32 NaniteTriangleThreshold;

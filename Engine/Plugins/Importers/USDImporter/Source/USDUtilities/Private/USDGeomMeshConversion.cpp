@@ -399,7 +399,7 @@ namespace UE::UsdGeomMeshConversion::Private
 					for ( int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex )
 					{
 						FVector VertexPosition = (FVector)LODRenderMesh.VertexBuffers.PositionVertexBuffer.VertexPosition( VertexIndex );
-						PointsArray.push_back( UnrealToUsd::ConvertVector( StageInfo, VertexPosition ) );
+						PointsArray.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, VertexPosition ) );
 					}
 
 					Points.Set( PointsArray, TimeCode );
@@ -426,7 +426,7 @@ namespace UE::UsdGeomMeshConversion::Private
 					for ( int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex )
 					{
 						FVector VertexNormal = (FVector4)LODRenderMesh.VertexBuffers.StaticMeshVertexBuffer.VertexTangentZ( VertexIndex );
-						Normals.push_back( UnrealToUsd::ConvertVector( StageInfo, VertexNormal ) );
+						Normals.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, VertexNormal ) );
 					}
 
 					NormalsAttribute.Set( Normals, TimeCode );
@@ -452,7 +452,7 @@ namespace UE::UsdGeomMeshConversion::Private
 							FVector2D TexCoord = FVector2D(LODRenderMesh.VertexBuffers.StaticMeshVertexBuffer.GetVertexUV( VertexIndex, TexCoordSourceIndex ));
 							TexCoord[ 1 ] = 1.f - TexCoord[ 1 ];
 
-							UVs.push_back( UnrealToUsd::ConvertVector( TexCoord ) );
+							UVs.push_back( UnrealToUsd::ConvertVectorFloat( TexCoord ) );
 						}
 
 						PrimvarST.Set( UVs, TimeCode );
@@ -658,7 +658,7 @@ namespace UE::UsdGeomMeshConversion::Private
 				for ( const FVertexID VertexID : MeshDescription.Vertices().GetElementIDs() )
 				{
 					FVector UEPosition = AdditionalTransform.TransformPosition( (FVector)VertexPositions[ VertexID ] );
-					PointsArray.push_back( UnrealToUsd::ConvertVector( StageInfo, UEPosition ) );
+					PointsArray.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, UEPosition ) );
 				}
 
 				Points.Set( PointsArray, TimeCode );
@@ -675,7 +675,7 @@ namespace UE::UsdGeomMeshConversion::Private
 				for ( const FVertexInstanceID InstanceID : MeshDescription.VertexInstances().GetElementIDs() )
 				{
 					FVector UENormal = (FVector)VertexInstanceNormals[ InstanceID ].GetSafeNormal();
-					Normals.push_back( UnrealToUsd::ConvertVector( StageInfo, UENormal ) );
+					Normals.push_back( UnrealToUsd::ConvertVectorFloat( StageInfo, UENormal ) );
 				}
 
 				NormalsAttribute.Set( Normals, TimeCode );
@@ -700,7 +700,7 @@ namespace UE::UsdGeomMeshConversion::Private
 					{
 						FVector2D UV = FVector2D(VertexInstanceUVs.Get( InstanceID, UVIndex ));
 						UV[ 1 ] = 1.f - UV[ 1 ];
-						UVs.push_back( UnrealToUsd::ConvertVector( UV ) );
+						UVs.push_back( UnrealToUsd::ConvertVectorFloat( UV ) );
 					}
 
 					PrimvarST.Set( UVs, TimeCode );
@@ -3917,7 +3917,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
-						PointsArray.push_back(UnrealToUsd::ConvertVector(StageInfo, (FVector)MeshData.Positions[VertexIndex]));
+						PointsArray.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector)MeshData.Positions[VertexIndex]));
 					}
 
 					Points.Set(PointsArray, TimeCode);
@@ -3945,7 +3945,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
 						FVector VertexNormal = MeshData.TangentsZ[VertexIndex].ToFVector();
-						Normals.push_back(UnrealToUsd::ConvertVector(StageInfo, VertexNormal));
+						Normals.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, VertexNormal));
 					}
 
 					NormalsAttribute.Set(Normals, TimeCode);
@@ -3970,7 +3970,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 						FVector2D TexCoord = FVector2D(MeshData.TextureCoordinates[VertexIndex]);
 						TexCoord[1] = 1.f - TexCoord[1];
 
-						UVs.push_back(UnrealToUsd::ConvertVector(TexCoord));
+						UVs.push_back(UnrealToUsd::ConvertVectorFloat(TexCoord));
 					}
 
 					PrimvarST.Set(UVs, TimeCode);
@@ -4018,7 +4018,7 @@ namespace UE::UsdGeometryCacheConversion::Private
 					for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 					{
 						// The motion vectors in the MeshData are stored as unit per frame so convert it back to unit per second
-						Velocities.push_back(UnrealToUsd::ConvertVector(StageInfo, (FVector) -MeshData.MotionVectors[VertexIndex] * ExportContext.FrameRate));
+						Velocities.push_back(UnrealToUsd::ConvertVectorFloat(StageInfo, (FVector) -MeshData.MotionVectors[VertexIndex] * ExportContext.FrameRate));
 					}
 
 					VelocitiesAttribute.Set(Velocities, TimeCode);

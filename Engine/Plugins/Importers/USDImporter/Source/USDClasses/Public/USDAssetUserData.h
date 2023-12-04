@@ -4,6 +4,8 @@
 
 #include "Engine/AssetUserData.h"
 
+#include "USDMetadata.h"
+
 #include "USDAssetUserData.generated.h"
 
 UCLASS()
@@ -12,8 +14,16 @@ class USDCLASSES_API UUsdAssetUserData : public UAssetUserData
 	GENERATED_BODY()
 
 public:
-	UPROPERTY()
+	// Paths to prims that generated the asset that owns this AssetUserData
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
 	TArray<FString> PrimPaths;
+
+	// Holds metadata collected for this asset, from all relevant Source prims.
+	// The asset that owns this user data may be shared via the asset cache, and reused for
+	// even entirely different stages. This map lets us keep track of which stage owns which
+	// bits of metadata
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
+	TMap<FString, FUsdCombinedPrimMetadata> StageIdentifierToMetadata;
 };
 
 UCLASS()
@@ -89,6 +99,18 @@ public:
 	/** Describes which primvars should be assigned to each UV index. */
 	UPROPERTY()
 	TMap<FString, int32> PrimvarToUVIndex;
+};
+
+/** We assign these to UGeometryCaches generated from USD */
+UCLASS()
+class USDCLASSES_API UUsdGeometryCacheAssetUserData : public UUsdMeshAssetUserData
+{
+	GENERATED_BODY()
+
+public:
+	// Check analogous comment on UUsdAnimSequenceAssetUserData
+	UPROPERTY()
+	float LayerStartOffsetSeconds = 0.0f;
 };
 
 /**

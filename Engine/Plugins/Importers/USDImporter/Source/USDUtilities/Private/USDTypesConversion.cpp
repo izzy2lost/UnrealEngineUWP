@@ -83,13 +83,6 @@ namespace UsdToUnreal
 		return FString( ANSI_TO_TCHAR( InString.c_str() ) );
 	}
 
-	FString ConvertString( std::string&& InString )
-	{
-		TUsdStore< std::string > UsdString( MoveTemp( InString ) ); // Store the temporary so that it gets destroyed with the USD allocator
-
-		return FString( ANSI_TO_TCHAR( UsdString.Get().c_str() ) );
-	}
-
 	FString ConvertString( const char* InString )
 	{
 		return FString( ANSI_TO_TCHAR( InString ) );
@@ -110,13 +103,6 @@ namespace UsdToUnreal
 		return FName( InString.c_str() );
 	}
 
-	FName ConvertName( std::string&& InString )
-	{
-		TUsdStore< std::string > UsdString( MoveTemp( InString ) ); // Store the temporary so that it gets destroyed with the USD allocator
-
-		return FName( UsdString.Get().c_str() );
-	}
-
 	FString ConvertToken( const pxr::TfToken& Token )
 	{
 		return UsdToUnreal::ConvertString( Token.GetString() );
@@ -132,14 +118,34 @@ namespace UsdToUnreal
 		return FLinearColor( InValue[0], InValue[1], InValue[2], InValue[3] );
 	}
 
-	FVector2D ConvertVector( const pxr::GfVec2f& InValue )
+	FVector2D ConvertVector(const pxr::GfVec2h& InValue)
 	{
-		return FVector2D( InValue[0], InValue[1] );
+		return FVector2D(InValue[0], InValue[1]);
 	}
 
-	FVector ConvertVector( const pxr::GfVec3f& InValue )
+	FVector2D ConvertVector(const pxr::GfVec2f& InValue)
 	{
-		return FVector( InValue[0], InValue[1], InValue[2] );
+		return FVector2D(InValue[0], InValue[1]);
+	}
+
+	FVector2D ConvertVector(const pxr::GfVec2d& InValue)
+	{
+		return FVector2D(InValue[0], InValue[1]);
+	}
+
+	FIntPoint ConvertVector(const pxr::GfVec2i& InValue)
+	{
+		return FIntPoint(InValue[0], InValue[1]);
+	}
+
+	FVector ConvertVector(const pxr::GfVec3h& InValue)
+	{
+		return FVector(InValue[0], InValue[1], InValue[2]);
+	}
+
+	FVector ConvertVector(const pxr::GfVec3f& InValue)
+	{
+		return FVector(InValue[0], InValue[1], InValue[2]);
 	}
 
 	FVector ConvertVector(const pxr::GfVec3d& InValue)
@@ -147,35 +153,17 @@ namespace UsdToUnreal
 		return FVector(InValue[0], InValue[1], InValue[2]);
 	}
 
-	FVector ConvertVector( const FUsdStageInfo& StageInfo, const pxr::GfVec3f& InValue )
+	FIntVector ConvertVector(const pxr::GfVec3i& InValue)
 	{
-		FVector Value = ConvertVector( InValue );
-
-		const float UEMetersPerUnit = 0.01f;
-		if ( !FMath::IsNearlyEqual( StageInfo.MetersPerUnit, UEMetersPerUnit ) )
-		{
-			Value *= StageInfo.MetersPerUnit / UEMetersPerUnit;
-		}
-
-		const bool bIsZUp = ( StageInfo.UpAxis == EUsdUpAxis::ZAxis );
-
-		if ( bIsZUp )
-		{
-			Value.Y = -Value.Y;
-		}
-		else
-		{
-			Swap( Value.Y, Value.Z );
-		}
-
-		return Value;
+		return FIntVector(InValue[0], InValue[1], InValue[2]);
 	}
 
-	FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3d& InValue)
+	template<typename VecType>
+	FVector ConvertVectorInner(const FUsdStageInfo& StageInfo, const VecType& InValue)
 	{
 		FVector Value = ConvertVector(InValue);
 
-		const float UEMetersPerUnit = 0.01f;
+		const double UEMetersPerUnit = 0.01f;
 		if (!FMath::IsNearlyEqual(StageInfo.MetersPerUnit, UEMetersPerUnit))
 		{
 			Value *= StageInfo.MetersPerUnit / UEMetersPerUnit;
@@ -193,6 +181,58 @@ namespace UsdToUnreal
 		}
 
 		return Value;
+	}
+
+	FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3h& InValue)
+	{
+		return ConvertVectorInner(StageInfo, InValue);
+	}
+
+	FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3f& InValue)
+	{
+		return ConvertVectorInner(StageInfo, InValue);
+	}
+
+	FVector ConvertVector(const FUsdStageInfo& StageInfo, const pxr::GfVec3d& InValue)
+	{
+		return ConvertVectorInner(StageInfo, InValue);
+	}
+
+	FVector4 ConvertVector(const pxr::GfVec4h& InValue)
+	{
+		return FVector4(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	FVector4 ConvertVector(const pxr::GfVec4f& InValue)
+	{
+		return FVector4(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	FVector4 ConvertVector(const pxr::GfVec4d& InValue)
+	{
+		return FVector4(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	FIntVector4 ConvertVector(const pxr::GfVec4i& InValue)
+	{
+		return FIntVector4(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	FMatrix2D ConvertMatrix(const pxr::GfMatrix2d& Matrix)
+	{
+		FMatrix2D Result;
+		Result.Row0 = ConvertVector(Matrix.GetRow(0));
+		Result.Row1 = ConvertVector(Matrix.GetRow(1));
+		return Result;
+	}
+
+	FMatrix3D ConvertMatrix(const pxr::GfMatrix3d& Matrix)
+	{
+		FMatrix3D Result;
+		Result.Row0 = ConvertVector(Matrix.GetRow(0));
+		Result.Row1 = ConvertVector(Matrix.GetRow(1));
+		Result.Row2 = ConvertVector(Matrix.GetRow(2));
+		return Result;
 	}
 
 	FMatrix ConvertMatrix( const pxr::GfMatrix4d& Matrix )
@@ -221,6 +261,24 @@ namespace UsdToUnreal
 		}
 
 		return Transform;
+	}
+
+	FQuat ConvertQuat(const pxr::GfQuath& InValue)
+	{
+		const pxr::GfVec3h& Imaginary = InValue.GetImaginary();
+		return FQuat{Imaginary[0], Imaginary[1], Imaginary[2], InValue.GetReal()};
+	}
+
+	FQuat ConvertQuat(const pxr::GfQuatf& InValue)
+	{
+		const pxr::GfVec3f& Imaginary = InValue.GetImaginary();
+		return FQuat{Imaginary[0], Imaginary[1], Imaginary[2], InValue.GetReal()};
+	}
+
+	FQuat ConvertQuat(const pxr::GfQuatd& InValue)
+	{
+		const pxr::GfVec3d& Imaginary = InValue.GetImaginary();
+		return FQuat{Imaginary[0], Imaginary[1], Imaginary[2], InValue.GetReal()};
 	}
 
 	float ConvertDistance( const FUsdStageInfo& StageInfo, float Value )
@@ -267,41 +325,140 @@ namespace UnrealToUsd
 		return ConvertColor( FLinearColor( InValue ) );
 	}
 
-	pxr::GfVec2f ConvertVector( const FVector2D& InValue )
+	// Deprecated
+	pxr::GfVec2f ConvertVector(const FVector2D& InValue)
 	{
-		return pxr::GfVec2f( InValue[0], InValue[1] );
+		return ConvertVectorFloat(InValue);
 	}
 
-	pxr::GfVec3f ConvertVector( const FVector& InValue )
+	// Deprecated
+	pxr::GfVec3f ConvertVector(const FVector& InValue)
 	{
-		return pxr::GfVec3f( InValue[0], InValue[1], InValue[2] );
+		return ConvertVectorFloat(InValue);
 	}
 
-	pxr::GfVec3f ConvertVector( const FUsdStageInfo& StageInfo, const FVector& InValue )
+	// Deprecated
+	pxr::GfVec3f ConvertVector(const FUsdStageInfo& StageInfo, const FVector& InValue)
 	{
-		pxr::GfVec3f Value = ConvertVector( InValue );
+		return ConvertVectorFloat(StageInfo, InValue);
+	}
 
-		const float UEMetersPerUnit = 0.01f;
-		if ( !FMath::IsNearlyEqual( StageInfo.MetersPerUnit, UEMetersPerUnit ) && !FMath::IsNearlyZero( StageInfo.MetersPerUnit ) )
+	pxr::GfVec2h ConvertVectorHalf(const FVector2D& InValue)
+	{
+		return pxr::GfVec2h(InValue[0], InValue[1]);
+	}
+
+	pxr::GfVec2f ConvertVectorFloat(const FVector2D& InValue)
+	{
+		return pxr::GfVec2f(InValue[0], InValue[1]);
+	}
+
+	pxr::GfVec2d ConvertVectorDouble(const FVector2D& InValue)
+	{
+		return pxr::GfVec2d(InValue[0], InValue[1]);
+	}
+
+	pxr::GfVec2i ConvertVectorInt(const FIntPoint& InValue)
+	{
+		return pxr::GfVec2i(InValue[0], InValue[1]);
+	}
+
+	pxr::GfVec3h ConvertVectorHalf(const FVector& InValue)
+	{
+		return pxr::GfVec3h(InValue[0], InValue[1], InValue[2]);
+	}
+
+	pxr::GfVec3f ConvertVectorFloat(const FVector& InValue)
+	{
+		return pxr::GfVec3f(InValue[0], InValue[1], InValue[2]);
+	}
+
+	pxr::GfVec3d ConvertVectorDouble(const FVector& InValue)
+	{
+		return pxr::GfVec3d(InValue[0], InValue[1], InValue[2]);
+	}
+
+	pxr::GfVec3i ConvertVectorInt(const FIntVector& InValue)
+	{
+		return pxr::GfVec3i(InValue[0], InValue[1], InValue[2]);
+	}
+
+	template<typename T>
+	T ConvertVectorInner(const FUsdStageInfo& StageInfo, T Value)
+	{
+		const double UEMetersPerUnit = 0.01f;
+		if (!FMath::IsNearlyEqual(StageInfo.MetersPerUnit, UEMetersPerUnit) && !FMath::IsNearlyZero(StageInfo.MetersPerUnit))
 		{
 			Value *= UEMetersPerUnit / StageInfo.MetersPerUnit;
 		}
 
-		const bool bIsZUp = ( StageInfo.UpAxis == EUsdUpAxis::ZAxis );
+		const bool bIsZUp = (StageInfo.UpAxis == EUsdUpAxis::ZAxis);
 
-		if ( bIsZUp )
+		if (bIsZUp)
 		{
 			Value[1] = -Value[1];
 		}
 		else
 		{
-			Swap( Value[1], Value[2] );
+			Swap(Value[1], Value[2]);
 		}
 
 		return Value;
 	}
 
-	pxr::GfMatrix4d ConvertMatrix( const FMatrix& Matrix )
+	pxr::GfVec3h ConvertVectorHalf(const FUsdStageInfo& StageInfo, const FVector& InValue)
+	{
+		return ConvertVectorInner(StageInfo, ConvertVectorHalf(InValue));
+	}
+
+	pxr::GfVec3f ConvertVectorFloat(const FUsdStageInfo& StageInfo, const FVector& InValue)
+	{
+		return ConvertVectorInner(StageInfo, ConvertVectorFloat(InValue));
+	}
+
+	pxr::GfVec3d ConvertVectorDouble(const FUsdStageInfo& StageInfo, const FVector& InValue)
+	{
+		return ConvertVectorInner(StageInfo, ConvertVectorDouble(InValue));
+	}
+
+	pxr::GfVec4h ConvertVectorHalf(const FVector4& InValue)
+	{
+		return pxr::GfVec4h(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	pxr::GfVec4f ConvertVectorFloat(const FVector4& InValue)
+	{
+		return pxr::GfVec4f(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	pxr::GfVec4d ConvertVectorDouble(const FVector4& InValue)
+	{
+		return pxr::GfVec4d(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	pxr::GfVec4i ConvertVectorInt(const FIntVector4& InValue)
+	{
+		return pxr::GfVec4i(InValue[0], InValue[1], InValue[2], InValue[3]);
+	}
+
+	pxr::GfMatrix2d ConvertMatrix(const FMatrix2D& Matrix)
+	{
+		pxr::GfMatrix2d UsdMatrix;
+		UsdMatrix.SetRow(0, ConvertVectorDouble(Matrix.Row0));
+		UsdMatrix.SetRow(1, ConvertVectorDouble(Matrix.Row1));
+		return UsdMatrix;
+	}
+
+	pxr::GfMatrix3d ConvertMatrix(const FMatrix3D& Matrix)
+	{
+		pxr::GfMatrix3d UsdMatrix;
+		UsdMatrix.SetRow(0, ConvertVectorDouble(Matrix.Row0));
+		UsdMatrix.SetRow(1, ConvertVectorDouble(Matrix.Row1));
+		UsdMatrix.SetRow(2, ConvertVectorDouble(Matrix.Row2));
+		return UsdMatrix;
+	}
+
+	pxr::GfMatrix4d ConvertMatrix(const FMatrix& Matrix)
 	{
 		pxr::GfMatrix4d UsdMatrix(
 			Matrix.M[0][0], Matrix.M[0][1], Matrix.M[0][2], Matrix.M[0][3],
@@ -313,11 +470,33 @@ namespace UnrealToUsd
 		return UsdMatrix;
 	}
 
-	pxr::GfQuatf ConvertQuat( const FQuat& InValue )
+	// Deprecated
+	pxr::GfQuatf ConvertQuat(const FQuat& InValue)
 	{
-		pxr::GfQuatf UsdQuat( InValue.W, InValue.X, InValue.Y, InValue.Z );
+		return ConvertQuatFloat(InValue);
+	}
 
-		return UsdQuat;
+	pxr::GfQuath ConvertQuatHalf(const FQuat& InValue)
+	{
+		return pxr::GfQuath{
+			static_cast<pxr::GfHalf>(InValue.W),
+			static_cast<pxr::GfHalf>(InValue.X),
+			static_cast<pxr::GfHalf>(InValue.Y),
+			static_cast<pxr::GfHalf>(InValue.Z)};
+	}
+
+	pxr::GfQuatf ConvertQuatFloat(const FQuat& InValue)
+	{
+		return pxr::GfQuatf{
+			static_cast<float>(InValue.W),
+			static_cast<float>(InValue.X),
+			static_cast<float>(InValue.Y),
+			static_cast<float>(InValue.Z)};
+	}
+
+	pxr::GfQuatd ConvertQuatDouble(const FQuat& InValue)
+	{
+		return pxr::GfQuatd{InValue.W, InValue.X, InValue.Y, InValue.Z};
 	}
 
 	pxr::GfMatrix4d ConvertTransform( const FUsdStageInfo& StageInfo, const FTransform& Transform )

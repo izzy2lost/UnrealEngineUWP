@@ -3,17 +3,15 @@
 #include "MaterialExporterUSD.h"
 
 #include "MaterialExporterUSDOptions.h"
-#include "Materials/Material.h"
-#include "MaterialShared.h"
-#include "Misc/EngineVersion.h"
 #include "UnrealUSDWrapper.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDExporterModule.h"
 #include "USDGeomMeshConversion.h"
 #include "USDLog.h"
-#include "USDMemory.h"
+#include "USDMetadataExportOptions.h"
 #include "USDOptionsWindow.h"
+#include "USDPrimConversion.h"
 #include "USDShadeConversion.h"
 #include "USDUnrealAssetInfo.h"
 
@@ -26,14 +24,14 @@
 #include "Engine/Font.h"
 #include "Engine/Texture.h"
 #include "EngineAnalytics.h"
-#include "HAL/FileManager.h"
-#include "IMaterialBakingModule.h"
 #include "MaterialOptions.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInterface.h"
+#include "MaterialShared.h"
+#include "Misc/EngineVersion.h"
 #include "Misc/Paths.h"
-#include "Modules/ModuleManager.h"
 #include "UObject/UObjectGlobals.h"
 #include "VT/RuntimeVirtualTexture.h"
 
@@ -265,6 +263,7 @@ bool UMaterialExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type, FAr
 	return UMaterialExporterUsd::ExportMaterial(
 		*Material,
 		Options->MaterialBakingOptions,
+		Options->MetadataOptions,
 		FFilePath{ UExporter::CurrentFilename },
 		ExportTask->bReplaceIdentical,
 		Options->bReExportIdenticalAssets,
@@ -278,6 +277,7 @@ bool UMaterialExporterUsd::ExportBinary( UObject* Object, const TCHAR* Type, FAr
 bool UMaterialExporterUsd::ExportMaterial(
 	const UMaterialInterface& Material,
 	const FUsdMaterialBakingOptions& Options,
+	const FUsdMetadataExportOptions& MetadataOptions,
 	const FFilePath& FilePath,
 	bool bReplaceIdentical,
 	bool bReExportIdenticalAssets,
@@ -372,7 +372,7 @@ bool UMaterialExporterUsd::ExportMaterial(
 		Options.bConstantColorAsSingleValue
 	);
 
-	// Write asset info now that we finished exporting
+	if (MetadataOptions.bExportAssetInfo)
 	{
 		FUsdUnrealAssetInfo Info;
 		Info.Name = Material.GetName();
@@ -383,7 +383,20 @@ bool UMaterialExporterUsd::ExportMaterial(
 		Info.UnrealExportTime = FDateTime::Now().ToString();
 		Info.UnrealEngineVersion = FEngineVersion::Current().ToString();
 
-		UsdUtils::SetPrimAssetInfo( RootPrim, Info );
+		UsdUtils::SetPrimAssetInfo(RootPrim, Info);
+	}
+
+	if (MetadataOptions.bExportAssetMetadata)
+	{
+		if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(&Material))
+		{
+			UnrealToUsd::ConvertMetadata(
+				UserData,
+				RootPrim,
+				MetadataOptions.BlockedPrefixFilters,
+				MetadataOptions.bInvertFilters
+			);
+		}
 	}
 
 	UsdStage.GetRootLayer().Save();
@@ -410,9 +423,33 @@ bool UMaterialExporterUsd::ExportMaterial(
 #endif // USE_USD_SDK
 }
 
+// Deprecated signature
+bool UMaterialExporterUsd::ExportMaterial(
+	const UMaterialInterface& Material,
+	const FUsdMaterialBakingOptions& Options,
+	const FFilePath& FilePath,
+	bool bReplaceIdentical,
+	bool bReExportIdenticalAssets,
+	bool bIsAutomated
+)
+{
+	static FUsdMetadataExportOptions DefaultOptions;
+	return UMaterialExporterUsd::ExportMaterial(
+		Material,
+		Options,
+		DefaultOptions,
+		FilePath,
+		bReplaceIdentical,
+		bReExportIdenticalAssets,
+		bIsAutomated
+	);
+}
+
+
 bool UMaterialExporterUsd::ExportMaterialsForStage(
 	const TArray<UMaterialInterface*>& Materials,
 	const FUsdMaterialBakingOptions& Options,
+	const FUsdMetadataExportOptions& MetadataOptions,
 	const FString& StageRootLayerPath,
 	bool bIsAssetLayer,
 	bool bUsePayload,
@@ -470,17 +507,18 @@ bool UMaterialExporterUsd::ExportMaterialsForStage(
 		// "C:/MyFolder/Export/Blue_4.usda"
 		FString FinalPath = FString::Printf( TEXT( "%s.%s" ), *FinalPathNoExt, *ExtensionNoDot );
 
-		if ( UMaterialExporterUsd::ExportMaterial(
+		if (UMaterialExporterUsd::ExportMaterial(
 			*Material,
 			Options,
-			FFilePath{ FinalPath },
+			MetadataOptions,
+			FFilePath{FinalPath},
 			bReplaceIdentical,
 			bReExportIdenticalAssets,
 			bIsAutomated
 		))
 		{
-			UsedFilePathsWithoutExt.Add( FinalPathNoExt );
-			MaterialPathNameToFilePath.Add( MaterialPathName, FinalPath );
+			UsedFilePathsWithoutExt.Add(FinalPathNoExt);
+			MaterialPathNameToFilePath.Add(MaterialPathName, FinalPath);
 		}
 	}
 
@@ -515,4 +553,30 @@ bool UMaterialExporterUsd::ExportMaterialsForStage(
 #else
 	return false;
 #endif // USE_USD_SDK
+}
+
+// Deprecated signature
+bool UMaterialExporterUsd::ExportMaterialsForStage(
+	const TArray<UMaterialInterface*>& Materials,
+	const FUsdMaterialBakingOptions& Options,
+	const FString& StageRootLayerPath,
+	bool bIsAssetLayer,
+	bool bUsePayload,
+	bool bReplaceIdentical,
+	bool bReExportIdenticalAssets,
+	bool bIsAutomated
+)
+{
+	static FUsdMetadataExportOptions DefaultOptions;
+	return UMaterialExporterUsd::ExportMaterialsForStage(
+		Materials,
+		Options,
+		DefaultOptions,
+		StageRootLayerPath,
+		bIsAssetLayer,
+		bUsePayload,
+		bReplaceIdentical,
+		bReExportIdenticalAssets,
+		bIsAutomated
+	);
 }

@@ -6,9 +6,11 @@
 #include "USDAssetOptions.h"
 #include "USDLog.h"
 #include "USDMemory.h"
+#include "USDMetadataExportOptions.h"
 
 #include "UsdWrappers/SdfLayer.h"
 
+#include "DetailLayoutBuilder.h"
 #include "Editor.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Modules/ModuleManager.h"
@@ -19,6 +21,25 @@
 
 #define LOCTEXT_NAMESPACE "USDExporterModule"
 
+// Small customization to hide the "bExportComponentMetadata" property of shown FUsdMetadataExportOptions
+// for the asset exporters, since the inverse of having it hidden by default and only shown for level/sequence exporters
+// does not seem possible
+class FHideExportComponentMetadataCustomization : public IDetailCustomization
+{
+public:
+	static TSharedRef<IDetailCustomization> MakeInstance()
+	{
+		return MakeShared<FHideExportComponentMetadataCustomization>();
+	}
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayoutBuilder) override
+	{
+		if (TSharedPtr<IPropertyHandle> Property = DetailLayoutBuilder.GetProperty(TEXT("MetadataOptions.bExportComponentMetadata")))
+		{
+			DetailLayoutBuilder.HideProperty(Property);
+		}
+	}
+};
+
 class FUsdExporterModule : public IUsdExporterModule
 {
 public:
@@ -27,6 +48,13 @@ public:
 		LLM_SCOPE_BYTAG(Usd);
 
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked< FPropertyEditorModule >( TEXT( "PropertyEditor" ) );
+
+		// Hide the "bExportComponentMetadata" property if we're just exporting assets
+		PropertyModule.RegisterCustomClassLayout(TEXT("AnimSequenceExporterUSDOptions"), FOnGetDetailCustomizationInstance::CreateStatic(&FHideExportComponentMetadataCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout(TEXT("MaterialExporterUSDOptions"), FOnGetDetailCustomizationInstance::CreateStatic(&FHideExportComponentMetadataCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout(TEXT("SkeletalMeshExporterUSDOptions"), FOnGetDetailCustomizationInstance::CreateStatic(&FHideExportComponentMetadataCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout(TEXT("StaticMeshExporterUSDOptions"), FOnGetDetailCustomizationInstance::CreateStatic(&FHideExportComponentMetadataCustomization::MakeInstance));
+		PropertyModule.RegisterCustomClassLayout(TEXT("GeometryCacheExporterUSDOptions"), FOnGetDetailCustomizationInstance::CreateStatic(&FHideExportComponentMetadataCustomization::MakeInstance));
 
 		// We intentionally use the same customization for both of these
 		PropertyModule.RegisterCustomClassLayout( TEXT( "LevelExporterUSDOptions" ), FOnGetDetailCustomizationInstance::CreateStatic( &FLevelExporterUSDOptionsCustomization::MakeInstance ) );
@@ -52,6 +80,12 @@ public:
 	{
 		if ( FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr< FPropertyEditorModule >( TEXT( "PropertyEditor" ) ) )
 		{
+			PropertyModule->UnregisterCustomClassLayout(TEXT("AnimSequenceExporterUSDOptions"));
+			PropertyModule->UnregisterCustomClassLayout(TEXT("MaterialExporterUSDOptions"));
+			PropertyModule->UnregisterCustomClassLayout(TEXT("SkeletalMeshExporterUSDOptions"));
+			PropertyModule->UnregisterCustomClassLayout(TEXT("StaticMeshExporterUSDOptions"));
+			PropertyModule->UnregisterCustomClassLayout(TEXT("GeometryCacheExporterUSDOptions"));
+
 			PropertyModule->UnregisterCustomClassLayout( TEXT( "LevelExporterUSDOptions" ) );
 			PropertyModule->UnregisterCustomClassLayout( TEXT( "LevelSequenceExporterUSDOptions" ) );
 		}

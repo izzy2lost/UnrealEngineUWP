@@ -19,12 +19,13 @@
 
 #include "UnrealUSDWrapper.h"
 #include "USDAssetUserData.h"
-#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
+#include "USDDrawModeComponent.h"
 #include "USDGroomConversion.h"
 #include "USDGroomTranslatorUtils.h"
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
+#include "USDPrimConversion.h"
 #include "USDTypesConversion.h"
 
 #include "USDIncludesStart.h"
@@ -197,10 +198,21 @@ protected:
 					{
 						Context->AssetCache->CacheAsset(SHAHash.ToString(), GroomAsset);
 
-						UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(GroomAsset, TEXT("UUSDAssetUserData"));
-						UserData->PrimPaths = {PrimPathString};
+						if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(GroomAsset))
+						{
+							UserData->PrimPaths.AddUnique(PrimPathString);
 
-						GroomAsset->AddAssetUserData(UserData);
+							if (Context->MetadataOptions.bCollectMetadata)
+							{
+								UsdToUnreal::ConvertMetadata(
+									GetPrim(),
+									UserData,
+									Context->MetadataOptions.BlockedPrefixFilters,
+									Context->MetadataOptions.bInvertFilters,
+									Context->MetadataOptions.bCollectFromEntireSubtrees
+								);
+							}
+						}
 					}
 				}
 
@@ -340,10 +352,21 @@ protected:
 				UGroomCache* GroomCache = FGroomCacheImporter::ProcessToGroomCache(*GroomCacheProcessor, AnimInfo, HairImportContext, UniqueName.ToString());
 				if (GroomCache)
 				{
-					UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(GroomCache, TEXT("UUSDAssetUserData"));
-					UserData->PrimPaths = {PrimPath.GetString()};
+					if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(GroomCache))
+					{
+						UserData->PrimPaths.AddUnique(PrimPath.GetString());
 
-					GroomCache->AddAssetUserData(UserData);
+						if (Context->MetadataOptions.bCollectMetadata)
+						{
+							UsdToUnreal::ConvertMetadata(
+								GetPrim(),
+								UserData,
+								Context->MetadataOptions.BlockedPrefixFilters,
+								Context->MetadataOptions.bInvertFilters,
+								Context->MetadataOptions.bCollectFromEntireSubtrees
+							);
+						}
+					}
 
 					Context->AssetCache->CacheAsset(GroomCacheHash.ToString(), GroomCache);
 					Context->InfoCache->LinkAssetToPrim(PrimPath, GroomCache);

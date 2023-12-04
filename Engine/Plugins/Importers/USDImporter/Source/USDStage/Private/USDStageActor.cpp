@@ -143,6 +143,7 @@ struct FUsdStageActorImpl
 		TranslationContext->MaterialPurpose = StageActor->MaterialPurpose;
 		TranslationContext->RootMotionHandling = StageActor->RootMotionHandling;
 		TranslationContext->SubdivisionLevel = StageActor->SubdivisionLevel;
+		TranslationContext->MetadataOptions = StageActor->MetadataOptions;
 		TranslationContext->BlendShapesByPath = &StageActor->BlendShapesByPath;
 		TranslationContext->InfoCache = StageActor->InfoCache;
 		TranslationContext->BBoxCache = StageActor->BBoxCache;
@@ -577,6 +578,8 @@ struct FUsdStageActorImpl
 			EventAttributes.Emplace(TEXT("RootMotionHandling"), LexToString((uint8)StageActor->RootMotionHandling));
 			EventAttributes.Emplace(TEXT("SubdivisionLevel"), LexToString(StageActor->SubdivisionLevel));
 
+			UsdUtils::AddAnalyticsAttributes(StageActor->MetadataOptions, EventAttributes);
+
 			const bool bAutomated = false;
 			IUsdClassesModule::SendAnalytics(MoveTemp(EventAttributes), TEXT("Open"), bAutomated, ElapsedSeconds, NumberOfFrames, Extension);
 		}
@@ -891,6 +894,93 @@ struct FUsdStageActorImpl
 			}
 		}
 	}
+
+	// This function is in charge of writing out to USD the analogous metadata change that
+	// we just received for ChangedUserData via the PropertyChangedEvent
+	static void WriteOutAssetMetadataChange(
+		const AUsdStageActor* StageActor,
+		const UUsdAssetUserData* ChangedUserData,
+		const FPropertyChangedEvent& PropertyChangedEvent
+	)
+	{
+#if USE_USD_SDK
+		if (!StageActor || !ChangedUserData)
+		{
+			return;
+		}
+
+		UE::FUsdStage Stage = StageActor->GetUsdStage();
+		if (!Stage)
+		{
+			return;
+		}
+
+		const bool bChangeWasRemoval = PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayRemove
+									   || PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear;
+
+		const bool bHasMetadataFilters = StageActor->MetadataOptions.BlockedPrefixFilters.Num() > 0;
+
+		// For this call, we'll only care about metadata on prims that are from the stage opened by this stage actor.
+		// If we need to modify other stages for this PropertyChangedEvent somehow, the other stage actors' call to this
+		// function will handle them
+		FString StageIdentifier = Stage.GetRootLayer().GetIdentifier();
+		const FUsdCombinedPrimMetadata* StageMetadata = ChangedUserData->StageIdentifierToMetadata.Find(StageIdentifier);
+
+		// This asset user data doesn't have any metadata for this particular stage, nothing to do
+		if (!StageMetadata)
+		{
+			return;
+		}
+
+		for (const TPair<FString, FUsdPrimMetadata>& PrimPathToMetadata : StageMetadata->PrimPathToMetadata)
+		{
+			const FString& PrimPath = PrimPathToMetadata.Key;
+			const FUsdPrimMetadata& PrimMetadata = PrimPathToMetadata.Value;
+
+			const UE::FUsdPrim& Prim = Stage.GetPrimAtPath(UE::FSdfPath{*PrimPath});
+
+			// If the change we need to write out is a removal, since we can't tell *what* was removed from the PropertyChangedEvent,
+			// the only thing we can do is wipe all metadata on the prim and replace that with what we have on our AssetUserData
+			if (bChangeWasRemoval)
+			{
+				// If the metadata we have was obtained with metadata filters, we're in trouble: We can't just clear everything
+				// and write what we have, because we just have the stuff that passed the filter. What we'll do here then is
+				// invert the filters and collect metadata again (which gives us the stuff that are *not* already in our
+				// AssetUserData), then clear all metadata on the prim, write out that "inverted" dataset, and (later) also
+				// write out our current AssetUserData
+				if (bHasMetadataFilters)
+				{
+					// We are clearing/writing to a particular prim here, "collecting from subtrees" is an UE-concept
+					const bool bCollectFromEntireSubtrees = false;
+					FUsdCombinedPrimMetadata TempInvertedMetadata;
+
+					const bool bSuccess = UsdToUnreal::ConvertMetadata(
+						Prim,
+						TempInvertedMetadata,
+						StageActor->MetadataOptions.BlockedPrefixFilters,
+						!StageActor->MetadataOptions.bInvertFilters,
+						bCollectFromEntireSubtrees
+					);
+
+					// Don't clear anything if we failed to collect the inverted dataset
+					if (bSuccess)
+					{
+						UsdUtils::ClearNonEssentialPrimMetadata(Prim);
+						UnrealToUsd::ConvertMetadata(TempInvertedMetadata, Prim);
+					}
+				}
+				// If what we have currently was obtained without any filters, we can be sure that what we have is a good
+				// representation of all metadata on this prim, so we can just clear everything and write what we have
+				else
+				{
+					UsdUtils::ClearNonEssentialPrimMetadata(Prim);
+				}
+			}
+
+			UnrealToUsd::ConvertMetadata(PrimMetadata, Prim);
+		}
+#endif	  // USE_USD_SDK
+	}
 };
 
 /**
@@ -973,6 +1063,13 @@ AUsdStageActor::AUsdStageActor()
 	, MaterialPurpose(*UnrealIdentifiers::MaterialPreviewPurpose)
 	, RootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion)
 	, SubdivisionLevel(0)
+	, MetadataOptions(FUsdMetadataImportOptions{
+		false, 	/* bCollectMetadata */
+		false, 	/* bCollectFromEntireSubtrees */
+		false, 	/* bCollectOnComponents */
+		{},		/* BlockedPrefixFilters */
+		false	/* bInvertFilters */
+	})
 	, Time(0.0f)
 	, bIsTransitioningIntoPIE(false)
 	, bIsModifyingAProperty(false)
@@ -2487,10 +2584,85 @@ void AUsdStageActor::SetRootMotionHandling(EUsdRootMotionHandling NewHandlingStr
 
 void AUsdStageActor::SetSubdivisionLevel(int32 NewSubdivisionLevel)
 {
+	if (NewSubdivisionLevel == SubdivisionLevel)
+	{
+		return;
+	}
+
 	const bool bMarkDirty = false;
 	Modify(bMarkDirty);
 
 	SubdivisionLevel = NewSubdivisionLevel;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetCollectMetadata(bool bNewCollectValue)
+{
+	if (bNewCollectValue == MetadataOptions.bCollectMetadata)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	MetadataOptions.bCollectMetadata = bNewCollectValue;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetCollectFromEntireSubtrees(bool bNewCollectValue)
+{
+	if (bNewCollectValue == MetadataOptions.bCollectFromEntireSubtrees)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	MetadataOptions.bCollectFromEntireSubtrees = bNewCollectValue;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetCollectOnComponents(bool bNewCollectValue)
+{
+	if (bNewCollectValue == MetadataOptions.bCollectOnComponents)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	MetadataOptions.bCollectOnComponents = bNewCollectValue;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetBlockedPrefixFilters(const TArray<FString>& NewFilters)
+{
+	if (NewFilters == MetadataOptions.BlockedPrefixFilters)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	MetadataOptions.BlockedPrefixFilters = NewFilters;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetInvertFilters(bool bNewInvertValue)
+{
+	if (bNewInvertValue == MetadataOptions.bInvertFilters)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	MetadataOptions.bInvertFilters = bNewInvertValue;
 	LoadUsdStage();
 }
 
@@ -4042,6 +4214,18 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 		FUsdStageActorImpl::AllowListComponentHierarchy(GetRootComponent(), VisitedObjects);
 	}
 
+	// If the user is just setting metadata on one of our transient UAssets, then try to author the metadata back
+	// out to the relevant prims
+	if (UUsdAssetUserData* UserData = Cast<UUsdAssetUserData>(ObjectBeingModified))
+	{
+		if (UsdAssetCache->IsAssetOwnedByCache(ObjectBeingModified->GetOuter()->GetPathName()))
+		{
+			FScopedBlockNoticeListening BlockNoticeListening(this);
+			FUsdStageActorImpl::WriteOutAssetMetadataChange(this, UserData, PropertyChangedEvent);
+			return;
+		}
+	}
+
 	// We have to accept actor and component events here, because actor transform changes do not trigger root component
 	// transform property events, and component property changes don't trigger actor property change events
 	bool bIsActorEvent = false;
@@ -4350,7 +4534,9 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 	const bool bAlwaysMarkAsDirty = false;
 	Modify(bAlwaysMarkAsDirty);
 
-	FProperty* PropertyThatChanged = PropertyChangedEvent.MemberProperty;
+	// If we're changing a property inside a struct, like "bCollectMetadata" inside our MetadataOptions, then
+	// "MemberProperty" will point to "MetadataOptions", and "Property" is the thing that will point to "bCollectMetadata"
+	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 	const FName PropertyName = PropertyThatChanged ? PropertyThatChanged->GetFName() : NAME_None;
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, RootLayer))
@@ -4445,7 +4631,39 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, SubdivisionLevel))
 	{
-		SetSubdivisionLevel(SubdivisionLevel);
+		int32 CorrectSubdivisionLevel = SubdivisionLevel;
+		SubdivisionLevel = !SubdivisionLevel;
+		SetSubdivisionLevel(CorrectSubdivisionLevel);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, bCollectMetadata))
+	{
+		bool bCorrectCollectValue = MetadataOptions.bCollectMetadata;
+		MetadataOptions.bCollectMetadata = !bCorrectCollectValue;
+		SetCollectMetadata(bCorrectCollectValue);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, bCollectFromEntireSubtrees))
+	{
+		bool bCorrectCollectValue = MetadataOptions.bCollectFromEntireSubtrees;
+		MetadataOptions.bCollectFromEntireSubtrees = !bCorrectCollectValue;
+		SetCollectFromEntireSubtrees(bCorrectCollectValue);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, bCollectOnComponents))
+	{
+		bool bCorrectCollectValue = MetadataOptions.bCollectOnComponents;
+		MetadataOptions.bCollectOnComponents = !bCorrectCollectValue;
+		SetCollectOnComponents(bCorrectCollectValue);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, BlockedPrefixFilters))
+	{
+		TArray<FString> CorrectFilters = MetadataOptions.BlockedPrefixFilters;
+		MetadataOptions.BlockedPrefixFilters.Add(TEXT("dummy"));
+		SetBlockedPrefixFilters(CorrectFilters);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(FUsdMetadataImportOptions, bInvertFilters))
+	{
+		bool bCorrectInvertValue = MetadataOptions.bInvertFilters;
+		MetadataOptions.bInvertFilters = !bCorrectInvertValue;
+		SetInvertFilters(bCorrectInvertValue);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, UsdAssetCache))
 	{
