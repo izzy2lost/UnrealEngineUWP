@@ -483,14 +483,11 @@ TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::G
 
 FLightFunctionAtlasGlobalParameters* FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder)
 {
-	if (DefaultLightFunctionAtlasGlobalParameters == nullptr) // Only create the default buffer once per frame
-	{
-		DefaultLightFunctionAtlasGlobalParameters = GraphBuilder.AllocParameters<FLightFunctionAtlasGlobalParameters>();
-		DefaultLightFunctionAtlasGlobalParameters->LightFunctionAtlasTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
-		DefaultLightFunctionAtlasGlobalParameters->LightFunctionAtlasSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
-		DefaultLightFunctionAtlasGlobalParameters->Slot_UVSize = 1.0f;
-	}
-	return DefaultLightFunctionAtlasGlobalParameters;
+	static FLightFunctionAtlasGlobalParameters DefaultLightFunctionAtlasGlobalParameters;
+	DefaultLightFunctionAtlasGlobalParameters.LightFunctionAtlasTexture = GSystemTextures.GetWhiteDummy(GraphBuilder);
+	DefaultLightFunctionAtlasGlobalParameters.LightFunctionAtlasSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+	DefaultLightFunctionAtlasGlobalParameters.Slot_UVSize = 1.0f;
+	return &DefaultLightFunctionAtlasGlobalParameters;
 }
 
 TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder)

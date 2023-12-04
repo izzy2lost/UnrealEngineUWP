@@ -133,7 +133,8 @@ struct FLightFunctionAtlas
 
 	FLightFunctionAtlasGlobalParameters*						GetLightFunctionAtlasGlobalParametersStruct(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
-	FLightFunctionAtlasGlobalParameters*						GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
+	
+	static FLightFunctionAtlasGlobalParameters*					GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
 
 private:
