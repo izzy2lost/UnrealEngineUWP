@@ -339,6 +339,10 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 
 	ERawImageFormat::Type ReadFormat = UTextureRenderTarget::GetReadPixelsFormat(RTFormat,false);
 		
+	// RCM_MinMax means don't renormalize, just read the pixels as they are
+	//	default RCM_UNorm does funny scalings
+	FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
+
 	if ( ReadFormat == ERawImageFormat::RGBA16F )
 	{
 		// ReadFloat16Pixels does no conversions
@@ -347,7 +351,7 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
 		
 		TArray<FFloat16Color> Colors;
-		if ( ! RenderTarget->ReadFloat16Pixels(Colors) )
+		if ( ! RenderTarget->ReadFloat16Pixels(Colors,InFlags) )
 		{
 			return false;
 		}
@@ -363,8 +367,9 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		
 		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::BGRA8,GammaSpace);
 		
-		FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
-
+		// "LinearToGamma" is basically moot; that would only be used if we were reading float pixels to FColor
+		//	but in that case the ReadFormat should have been float, so we won't be here
+		//	gamma conversion will be handled by FImage after the pixel read, not inside RHI
 		InFlags.SetLinearToGamma( GammaSpace == EGammaSpace::sRGB );
 
 		TArray<FColor> Colors;
@@ -380,10 +385,6 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 	{
 		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
 		
-		FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
-
-		InFlags.SetLinearToGamma( false );
-
 		TArray<FLinearColor> Colors;
 		if ( ! RenderTarget->ReadLinearColorPixels(Colors,InFlags) )
 		{
