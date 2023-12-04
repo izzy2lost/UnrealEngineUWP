@@ -821,7 +821,6 @@ bool FSwitchboardListener::RunScheduledTask(const FSwitchboardTask& InTask)
 			return false;
 		}
 	}
-	return false;
 }
 
 static uint32 FindPidInFocus()
