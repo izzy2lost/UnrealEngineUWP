@@ -5772,7 +5772,7 @@ bool UClass::IsFunctionImplementedInScript(FName InFunctionName) const
 	return false;
 }
 
-bool UClass::HasProperty(FProperty* InProperty) const
+bool UClass::HasProperty(const FProperty* InProperty) const
 {
 	if (InProperty->GetOwner<UObject>())
 	{

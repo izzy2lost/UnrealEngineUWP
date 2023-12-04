@@ -3445,7 +3445,7 @@ public:
 	 * @param InProperty	The property to check if it is contained in this or a parent class.
 	 * @return				True if the property exists on this or a parent class.
 	 */
-	COREUOBJECT_API virtual bool HasProperty(FProperty* InProperty) const;
+	COREUOBJECT_API virtual bool HasProperty(const FProperty* InProperty) const;
 
 	/** Finds the object that is used as the parent object when serializing properties, overridden for blueprints */
 	virtual UObject* FindArchetype(const UClass* ArchetypeClass, const FName ArchetypeName) const { return nullptr; }
