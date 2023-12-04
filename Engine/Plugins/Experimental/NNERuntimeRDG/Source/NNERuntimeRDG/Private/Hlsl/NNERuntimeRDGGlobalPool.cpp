@@ -14,17 +14,17 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	/**
 	 * GlobalPool operator implementation
 	 */
-	template< UE::NNEHlslShaders::Internal::EReduceOperatorType ReduceOperatorType >
 	class FGlobalPool : public FOperatorHlsl
 	{
 
 	public:
 
-		FGlobalPool() = default;
+		FGlobalPool(UE::NNEHlslShaders::Internal::EReduceOperatorType InReduceOperatorType):ReduceOperatorType(InReduceOperatorType) {};
 		virtual ~FGlobalPool() = default;
 
 	private:
 
+		const UE::NNEHlslShaders::Internal::EReduceOperatorType ReduceOperatorType;
 		constexpr static int32 FirstReducedDimension = 2;
 
 	public:
@@ -87,8 +87,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.GlobalPool");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorGlobalPool);
 
-			FRDGBufferRef CurrInput = Input.GetBuffer();
-
 			TReduceCS::FParameters* Parameters = GraphBuilder.AllocParameters<TReduceCS::FParameters>();
 			TReduceCS::FillInParameters(Input.GetShape().GetData(), FirstReducedDimension, Parameters);
 			Parameters->AxisSize *= Parameters->NumElemAfterAxis;// GlobalPool reduce all trailing dimensions thus we can flatten them.
@@ -118,7 +116,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	template< UE::NNEHlslShaders::Internal::EReduceOperatorType ReduceOperatorType >
 	FOperatorHlsl* CreateGlobalPoolOperator()
 	{
-		return new FGlobalPool<ReduceOperatorType>();
+		return new FGlobalPool(ReduceOperatorType);
 	}
 
 	bool RegisterGlobalPoolOperators(FOperatorRegistryHlsl& Registry)

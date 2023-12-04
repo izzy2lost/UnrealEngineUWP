@@ -104,7 +104,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			if (AutoPad == EConvAutoPad::NOTSET)
 			{
 				TArray<int32> PadsDefault;
-				PadsDefault.Init(1, 2 * NumDimensions);
+				PadsDefault.Init(0, 2 * NumDimensions);
 
 				Pads = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("pads"), PadsDefault);
 			}
