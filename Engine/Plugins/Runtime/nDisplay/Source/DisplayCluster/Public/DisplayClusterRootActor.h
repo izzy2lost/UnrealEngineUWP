@@ -40,6 +40,7 @@ class UDisplayClusterConfigurationData;
 class UDisplayClusterCameraComponent;
 class UDisplayClusterOriginComponent;
 class UDisplayClusterStageGeometryComponent;
+class UDisplayClusterStageIsosphereComponent;
 class UDisplayClusterSyncTickComponent;
 class UProceduralMeshComponent;
 
@@ -162,6 +163,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "NDisplay")
 	bool MakeStageActorFlushToWall(const TScriptInterface<IDisplayClusterStageActor>& StageActor, double DesiredOffsetFromFlush = 0.0f);
+
+	/**
+	 * Gets the distance from a world position to the stage's geometry along the specified direction, if there is an intersection
+	 * @param WorldPosition - The world position to measure the distance from
+	 * @param WorldDirection - The direction to find the distance to the geometry along
+	 * @param OutDistance - The distance to the stage geometry from the specified point
+	 * @return True if an intersection point from WorldPosition along WorldDirection was found, false if not
+	 */
+	UFUNCTION(BlueprintCallable, Category = "NDisplay")
+	bool GetDistanceToStageGeometry(const FVector& WorldPosition, const FVector& WorldDirection, float& OutDistance) const;
 
 	UFUNCTION(BlueprintGetter)
 	UDisplayClusterStageGeometryComponent* GetStageGeometryComponent() const { return StageGeometryComponent; }
@@ -364,7 +375,11 @@ private:
 	/** Component that stores the stage's geometry map, which is used to make objects flush with the stage's walls and ceilings */
 	UPROPERTY()
 	TObjectPtr<UDisplayClusterStageGeometryComponent> StageGeometryComponent;
-	
+
+	/** Component that stores a 3D representation of the stage's geometry map, which can be used to perform ray traces against the processed stage geometry */
+	UPROPERTY()
+	TObjectPtr<UDisplayClusterStageIsosphereComponent> StageIsosphereComponent;
+
 private:
 	// Current operation mode
 	EDisplayClusterOperationMode OperationMode;
@@ -496,6 +511,13 @@ public:
 	/** Select the default display device class to use when a viewport doesn't have one assigned */
 	UPROPERTY(EditDefaultsOnly, Category = "Editor Preview", DisplayName = "Default Display Device")
 	FName DefaultDisplayDeviceName;
+
+
+#if WITH_EDITORONLY_DATA
+	/** Toggles the visibility of the stage's geometry mesh, a smooth, continuous mesh generated and processed from the stage's geometry */
+	UPROPERTY(EditInstanceOnly, Category = "Editor Preview", AdvancedDisplay)
+	bool bPreviewStageGeometryMesh = false;
+#endif
 
 protected:
 	/** The default display device to use for preview rendering */

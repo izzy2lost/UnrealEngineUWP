@@ -9,6 +9,7 @@
 #include "ProceduralMeshComponent.h"
 #include "TextureResource.h"
 #include "Components/DisplayClusterScreenComponent.h"
+#include "Components/DisplayClusterStageIsosphereComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
 
 const uint32 UDisplayClusterStageGeometryComponent::GeometryMapSize = 512;
@@ -29,6 +30,7 @@ void UDisplayClusterStageGeometryComponent::TickComponent(float DeltaTime, ELeve
 	if (bUpdateGeometryMap)
 	{
 		RedrawGeometryMap();
+		UpdateStageIsosphere();
 	}
 }
 
@@ -37,6 +39,7 @@ void UDisplayClusterStageGeometryComponent::Invalidate(bool bForceImmediateRedra
 	if (bForceImmediateRedraw)
 	{
 		RedrawGeometryMap();
+		UpdateStageIsosphere();
 	}
 	else
 	{
@@ -102,34 +105,56 @@ bool UDisplayClusterStageGeometryComponent::GetStageDistanceAndNormal(const FVec
 	return false;
 }
 
-bool UDisplayClusterStageGeometryComponent::MorphProceduralMesh(UProceduralMeshComponent* InProceduralMeshComponent)
+bool UDisplayClusterStageGeometryComponent::MorphProceduralMesh(UProceduralMeshComponent* InProceduralMeshComponent, bool bSyncMeshLocation)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UDisplayClusterStageGeometryComponent::MorphProceduralMesh);
+
 	if (bGeometryMapLoaded)
 	{
-		FProcMeshSection& Section = *InProceduralMeshComponent->GetProcMeshSection(0);
-
-		for (int32 Index = 0; Index < Section.ProcVertexBuffer.Num(); ++Index)
+		if (USceneComponent* CommonViewPoint = GetCommonViewPoint())
 		{
-			FProcMeshVertex& Vertex = Section.ProcVertexBuffer[Index];
+			if (bSyncMeshLocation)
+			{
+				InProceduralMeshComponent->SetWorldLocation(CommonViewPoint->GetComponentLocation());
+			}
 
-			const FVector VertexDirection = Vertex.Position.GetSafeNormal();
-			float Distance;
-			FVector Normal;
-			GetStageDistanceAndNormal(VertexDirection, Distance, Normal);
+			if (FProcMeshSection* Section = InProceduralMeshComponent->GetProcMeshSection(0))
+			{
+				for (int32 Index = 0; Index < Section->ProcVertexBuffer.Num(); ++Index)
+				{
+					FProcMeshVertex& Vertex = Section->ProcVertexBuffer[Index];
 
-			const FVector NewPosition = VertexDirection * Distance;
-			Vertex.Position = NewPosition;
+					const FVector VertexDirection = Vertex.Position.GetSafeNormal();
+					float Distance;
+					FVector Normal;
+					GetStageDistanceAndNormal(VertexDirection, Distance, Normal);
 
-			const FMatrix RadialBasis = FRotationMatrix::MakeFromX(VertexDirection);
+					Vertex.Position = VertexDirection * Distance;
 
-			const FVector WorldNormal = RadialBasis.TransformVector(Normal);
-			Vertex.Normal = WorldNormal;
+					const FMatrix RadialBasis = FRotationMatrix::MakeFromX(VertexDirection);
+
+					const FVector WorldNormal = RadialBasis.TransformVector(Normal);
+					Vertex.Normal = WorldNormal;
+				}
+
+				InProceduralMeshComponent->SetProcMeshSection(0, *Section);
+
+				return true;
+			}
 		}
-
-		InProceduralMeshComponent->SetProcMeshSection(0, Section);
 	}
 
 	return false;
+}
+
+USceneComponent* UDisplayClusterStageGeometryComponent::GetCommonViewPoint() const
+{
+	if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
+	{
+		return RootActor->GetCommonViewPoint();
+	}
+
+	return nullptr;
 }
 
 UTextureRenderTarget2D* UDisplayClusterStageGeometryComponent::CreateRenderTarget()
@@ -198,6 +223,18 @@ void UDisplayClusterStageGeometryComponent::UpdateStageGeometry()
 
 		StageBoundingBox = StageBoundingBox.ShiftBy(-RootActor->GetActorLocation());
 		StageBoundingRadius = FMath::Max(StageBoundingBox.Min.Length(), StageBoundingBox.Max.Length());
+	}
+}
+
+void UDisplayClusterStageGeometryComponent::UpdateStageIsosphere()
+{
+	if (AActor* RootActor = GetOwner())
+	{
+		if (UDisplayClusterStageIsosphereComponent* IsosphereComponent = RootActor->FindComponentByClass<UDisplayClusterStageIsosphereComponent>())
+		{
+			IsosphereComponent->ResetIsosphere();
+			MorphProceduralMesh(IsosphereComponent, true);
+		}
 	}
 }
 

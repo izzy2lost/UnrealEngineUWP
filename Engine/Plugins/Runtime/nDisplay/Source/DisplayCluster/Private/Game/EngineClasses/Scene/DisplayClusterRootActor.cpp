@@ -49,6 +49,7 @@
 #include "Components/DisplayClusterChromakeyCardStageActorComponent.h"
 #include "Components/DisplayClusterStageActorComponent.h"
 #include "Components/DisplayClusterStageGeometryComponent.h"
+#include "Components/DisplayClusterStageIsosphereComponent.h"
 #include "Components/LineBatchComponent.h"
 #include "UObject/Package.h"
 
@@ -113,6 +114,9 @@ ADisplayClusterRootActor::ADisplayClusterRootActor(const FObjectInitializer& Obj
 	SyncTickComponent = CreateDefaultSubobject<UDisplayClusterSyncTickComponent>(TEXT("DisplayClusterSyncTick"));
 
 	StageGeometryComponent = CreateDefaultSubobject<UDisplayClusterStageGeometryComponent>(TEXT("DisplayClusterStageGeometry"));
+
+	StageIsosphereComponent = CreateDefaultSubobject<UDisplayClusterStageIsosphereComponent>(TEXT("DisplayClusterStageIsosphere"));
+	StageIsosphereComponent->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 
 	// Default nDisplay camera
 	DefaultViewPoint = CreateDefaultSubobject<UDisplayClusterCameraComponent>(TEXT("DefaultViewPoint"));
@@ -941,6 +945,32 @@ bool ADisplayClusterRootActor::MakeStageActorFlushToWall(const TScriptInterface<
 			StageActor->UpdateStageActorTransform();
 			return true;
 		}
+	}
+
+	return false;
+}
+
+bool ADisplayClusterRootActor::GetDistanceToStageGeometry(const FVector& WorldPosition, const FVector& WorldDirection, float& OutDistance) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ADisplayClusterRootActor::GetDistanceToStageGeometry);
+
+	if (StageGeometryComponent->IsGeometryMapValid())
+	{
+		FHitResult HitResult;
+
+		// Trace far enough to ensure the line trace will actually intersect any side of the stage isosphere from any world position
+		const float TraceDistance = FVector::Distance(WorldPosition, GetActorLocation()) + StageGeometryComponent->GetStageBoundingRadius();
+		const FVector TraceEnd = WorldPosition + WorldDirection.GetSafeNormal() * TraceDistance;
+
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DisplayClusterStageTrace), true);
+		if (StageIsosphereComponent->LineTraceComponent(HitResult, WorldPosition, TraceEnd, Params))
+		{
+			OutDistance = HitResult.Distance;
+			return true;
+		}
+
+		OutDistance = 0;
+		return false;
 	}
 
 	return false;

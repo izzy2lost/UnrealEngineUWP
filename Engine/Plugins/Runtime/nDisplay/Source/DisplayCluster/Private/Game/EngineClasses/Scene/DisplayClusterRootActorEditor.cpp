@@ -44,6 +44,7 @@
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
 #include "TextureResource.h"
+#include "Components/DisplayClusterStageIsosphereComponent.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // IN-EDITOR STUFF
@@ -343,8 +344,6 @@ void ADisplayClusterRootActor::RerunConstructionScripts_Editor()
 	InitializeRootActor();
 
 	UpdateInnerFrustumPriority();
-
-	StageGeometryComponent->Invalidate();
 }
 
 void ADisplayClusterRootActor::UpdateInnerFrustumPriority()
@@ -549,6 +548,10 @@ void ADisplayClusterRootActor::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		ResetEntireClusterPreviewRendering();
 		bReinitializeActor = false;
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ADisplayClusterRootActor, bPreviewStageGeometryMesh))
+	{
+		StageIsosphereComponent->SetVisibility(bPreviewStageGeometryMesh);
+	}
 
 	if (bReinitializeActor)
 	{
@@ -581,9 +584,26 @@ void ADisplayClusterRootActor::HandleAssetReload(const EPackageReloadPhase InPac
 void ADisplayClusterRootActor::OnEndObjectMovement(UObject& InObject)
 {
 	// If any of this stage actor's components have been moved, invalidate the stage geometry map
-	if (InObject.IsA<USceneComponent>() && Cast<USceneComponent>(&InObject)->GetOwner() == this)
+	if (USceneComponent* SceneComponent = Cast<USceneComponent>(&InObject))
 	{
-		StageGeometryComponent->Invalidate();
+		if (SceneComponent->GetOwner() == this)
+		{
+			// Check to see if the object being moved is a part of the stage's geometry or a view origin
+			TArray<FString> ProjectionMeshNames;
+			if (UDisplayClusterConfigurationData* Config = GetConfigData())
+			{
+				Config->GetReferencedMeshNames(ProjectionMeshNames);
+			}
+
+			const bool bIsProjectionMesh = SceneComponent->IsA<UStaticMeshComponent>() && ProjectionMeshNames.Contains(SceneComponent->GetName());
+			const bool bIsScreen = SceneComponent->IsA<UDisplayClusterScreenComponent>();
+			const bool bIsViewOrigin = SceneComponent->IsA<UDisplayClusterCameraComponent>();
+
+			if (bIsProjectionMesh || bIsScreen || bIsViewOrigin)
+			{
+				StageGeometryComponent->Invalidate();
+			}
+		}
 	}
 }
 
