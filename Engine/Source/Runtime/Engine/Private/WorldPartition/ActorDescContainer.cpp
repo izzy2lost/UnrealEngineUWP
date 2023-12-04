@@ -199,7 +199,10 @@ bool UActorDescContainer::IsActorDescHandled(const AActor* Actor) const
 	if (Actor->GetContentBundleGuid() == GetContentBundleGuid())
 	{
 		const FString ActorPackageName = Actor->GetPackage()->GetName();
-		const FString ExternalActorPath = GetExternalActorPath() / TEXT("");
+		// Resolve ExternalActorPath using the actual package name instead of ContainerPackageName to properly handle 
+		// unsaved levels created with an existing template partitioned map.
+		// However, always rely on ContainerPackageName for content bundles to resolve the external actor path (no content bundles for template maps).
+		const FString ExternalActorPath = (GetContentBundleGuid().IsValid() ? GetExternalActorPath() : ULevel::GetExternalActorsPath(GetPackage()->GetName())) / TEXT("");
 		return ActorPackageName.StartsWith(ExternalActorPath);
 	}
 	return false;
