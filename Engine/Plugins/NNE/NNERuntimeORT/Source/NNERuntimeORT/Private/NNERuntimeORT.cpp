@@ -12,6 +12,10 @@
 #include "NNERuntimeORTUtils.h"
 #include "NNEUtilitiesModelOptimizer.h"
 
+#if PLATFORM_WINDOWS
+#include "ID3D12DynamicRHI.h"
+#endif //PLATFORM_WINDOWS
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NNERuntimeORT)
 
 FGuid UNNERuntimeORTDml::GUID = FGuid((int32)'O', (int32)'G', (int32)'P', (int32)'U');
@@ -100,6 +104,16 @@ void UNNERuntimeORTDml::Init()
 {
 	check(!ORTEnvironment.IsValid());
 	ORTEnvironment = MakeShared<Ort::Env>();
+}
+
+bool UNNERuntimeORTDml::IsAvailable()
+{
+#if PLATFORM_WINDOWS
+	// In order to use DirectML we need D3D12
+	return IsRHID3D12();
+#else
+	return false;
+#endif
 }
 
 void UNNERuntimeORTCpu::Init()
