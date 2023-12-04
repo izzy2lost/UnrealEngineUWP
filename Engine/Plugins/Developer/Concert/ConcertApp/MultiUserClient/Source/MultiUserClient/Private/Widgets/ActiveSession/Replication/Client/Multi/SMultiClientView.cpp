@@ -26,7 +26,6 @@ namespace UE::MultiUserClient
 			{
 				return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings;
 			});
-		// TODO DP:
 		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, ClientManager);
 
 		ChildSlot
