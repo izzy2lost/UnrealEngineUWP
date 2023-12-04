@@ -281,7 +281,7 @@ namespace UnrealGameSync
 				string text;
 				if (FileReference.Exists(settings.LocalProjectPath))
 				{
-					text = FileReference.ReadAllText(settings.LocalProjectPath);
+					text = await FileReference.ReadAllTextAsync(settings.LocalProjectPath, cancellationToken);
 				}
 				else
 				{
@@ -1880,7 +1880,7 @@ namespace UnrealGameSync
 		static async Task<bool> HasModifiedSourceFiles(IPerforceConnection perforce, ProjectInfo project, CancellationToken cancellationToken)
 		{
 			List<OpenedRecord> openFiles = await perforce.OpenedAsync(OpenedOptions.None, project.ClientRootPath + "/...", cancellationToken).ToListAsync(cancellationToken);
-			if (openFiles.Any(x => x.DepotFile.IndexOf("/Source/", StringComparison.OrdinalIgnoreCase) != -1))
+			if (openFiles.Any(x => x.DepotFile.Contains("/Source/", StringComparison.OrdinalIgnoreCase)))
 			{
 				return true;
 			}
@@ -2025,7 +2025,7 @@ namespace UnrealGameSync
 		{
 			try
 			{
-				if (File.Exists(localPath) && File.ReadAllText(localPath) == newText)
+				if (File.Exists(localPath) && await File.ReadAllTextAsync(localPath, cancellationToken) == newText)
 				{
 					logger.LogInformation("Ignored {FileName}; contents haven't changed", localPath);
 				}
@@ -2037,7 +2037,7 @@ namespace UnrealGameSync
 					{
 						await perforce.SyncAsync(depotPath + "#0", cancellationToken).ToListAsync(cancellationToken);
 					}
-					File.WriteAllText(localPath, newText);
+					await File.WriteAllTextAsync(localPath, newText, cancellationToken);
 					logger.LogInformation("Written {FileName}", localPath);
 				}
 				return true;

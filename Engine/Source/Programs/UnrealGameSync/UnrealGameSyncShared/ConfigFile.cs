@@ -115,7 +115,7 @@ namespace UnrealGameSync
 				}
 				return token.ToString();
 			}
-			else if (ConfigSeparatorCharacters.IndexOf(text[idx], StringComparison.Ordinal) != -1)
+			else if (ConfigSeparatorCharacters.Contains(text[idx], StringComparison.Ordinal))
 			{
 				return text[idx++].ToString();
 			}

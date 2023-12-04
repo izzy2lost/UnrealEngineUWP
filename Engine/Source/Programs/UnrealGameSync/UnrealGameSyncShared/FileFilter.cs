@@ -349,7 +349,7 @@ namespace UnrealGameSync
 		/// <param name="tokenIdx"></param>
 		/// <param name="currentBestNode"></param>
 		/// <returns></returns>
-		FileFilterNode FindMatchingNode(FileFilterNode currentNode, string[] tokens, int tokenIdx, FileFilterNode currentBestNode)
+		static FileFilterNode FindMatchingNode(FileFilterNode currentNode, string[] tokens, int tokenIdx, FileFilterNode currentBestNode)
 		{
 			// If we've matched all the input tokens, check if this rule is better than any other we've seen
 			if (tokenIdx == tokens.Length)
@@ -393,7 +393,7 @@ namespace UnrealGameSync
 		/// <param name="tokenIdx">Current token index</param>
 		/// <param name="currentBestRuleNumber">The highest rule number seen so far. Used to optimize tree traversals.</param>
 		/// <returns>New highest rule number</returns>
-		int HighestPossibleIncludeMatch(FileFilterNode currentNode, string[] tokens, int tokenIdx, int currentBestRuleNumber)
+		static int HighestPossibleIncludeMatch(FileFilterNode currentNode, string[] tokens, int tokenIdx, int currentBestRuleNumber)
 		{
 			// If we've matched all the input tokens, check if this rule is better than any other we've seen
 			if (tokenIdx == tokens.Length)

@@ -497,7 +497,7 @@ namespace UnrealGameSync
 					string? line = await newProcess.ReadLineAsync(cancellationToken);
 					if (line == null)
 					{
-						newProcess.WaitForExit();
+						await newProcess.WaitForExitAsync(cancellationToken);
 						return newProcess.ExitCode;
 					}
 					outputLine(line);
