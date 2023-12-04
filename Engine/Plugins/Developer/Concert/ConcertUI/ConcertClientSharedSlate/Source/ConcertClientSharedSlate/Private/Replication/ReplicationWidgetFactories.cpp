@@ -58,7 +58,8 @@ namespace UE::ConcertClientSharedSlate
 
 	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams Params)
 	{
-		return SNew(SMultiReplicationStreamEditor, MoveTemp(Params));
+		return SNew(SMultiReplicationStreamEditor, MoveTemp(Params))
+			.GetAutoAssignStream(MoveTemp(Params.GetAutoAssignToStreamDelegate));
 	}
 }
 

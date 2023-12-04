@@ -40,11 +40,13 @@ namespace UE::ConcertClientSharedSlate
 	
 	FConsolidatedMultiStreamModel::FConsolidatedMultiStreamModel(
 		TSharedRef<IEditableMultiReplicationStreamModel> InMultiStreamModel,
-		bool bShouldSupportTransactions
+		bool bShouldSupportTransactions,
+		FGetAutoAssignTarget InGetAutoAssignTargetDelegate
 		)
 		: StreamForAddingObject(Private::MakeObject(bShouldSupportTransactions))
 		, StreamForAdding(Private::MakeModel(StreamForAddingObject, bShouldSupportTransactions))
 		, MultiStreamModel(MoveTemp(InMultiStreamModel))
+		, GetAutoAssignTargetDelegate(MoveTemp(InGetAutoAssignTargetDelegate))
 	{
 		MultiStreamModel->OnStreamExternallyChanged().AddRaw(this, &FConsolidatedMultiStreamModel::OnStreamExternallyChanged);
 		MultiStreamModel->OnStreamSetChanged().AddRaw(this, &FConsolidatedMultiStreamModel::RebuildStreamSubscriptions);
@@ -125,7 +127,17 @@ namespace UE::ConcertClientSharedSlate
 
 	void FConsolidatedMultiStreamModel::AddObjects(TConstArrayView<UObject*> Objects)
 	{
-		StreamForAdding->AddObjects(Objects);
+		const TSharedPtr<IEditableReplicationStreamModel> TargetStream = GetAutoAssignTargetDelegate.IsBound()
+			? GetAutoAssignTargetDelegate.Execute(Objects)
+			: nullptr;
+		if (TargetStream && ensure(MultiStreamModel->GetEditableStreams().Contains(TargetStream.ToSharedRef())))
+		{
+			TargetStream->AddObjects(Objects);
+		}
+		else
+		{
+			StreamForAdding->AddObjects(Objects);
+		}
 	}
 
 	void FConsolidatedMultiStreamModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)

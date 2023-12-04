@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "UObject/GCObject.h"
 
@@ -35,7 +36,8 @@ namespace UE::ConcertClientSharedSlate
 
 		FConsolidatedMultiStreamModel(
 			TSharedRef<IEditableMultiReplicationStreamModel> InMultiStreamModel,
-			bool bShouldSupportTransactions
+			bool bShouldSupportTransactions,
+			FGetAutoAssignTarget InGetAutoAssignTargetDelegate
 			);
 		virtual ~FConsolidatedMultiStreamModel();
 		
@@ -82,6 +84,8 @@ namespace UE::ConcertClientSharedSlate
 		FOnObjectsChanged OnObjectsChangedDelegate;
 		/** Never actually called, just to implement OnPropertiesChanged. */
 		FOnPropertiesChanged OnPropertiesChangedDelegate;
+		/** If set, also adds newly added objects to the target stream. */
+		FGetAutoAssignTarget GetAutoAssignTargetDelegate;
 		
 		/** All streams we've subscribed to for changes. Used so we can unsubscribe when MultiStreamModel->OnStreamsChanged triggers. */
 		TArray<TWeakPtr<IEditableReplicationStreamModel>> SubscribedToViewers;

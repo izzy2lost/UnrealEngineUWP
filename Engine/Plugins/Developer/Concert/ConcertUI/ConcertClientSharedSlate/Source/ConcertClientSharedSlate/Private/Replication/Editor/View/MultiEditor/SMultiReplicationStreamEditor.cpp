@@ -14,7 +14,7 @@ namespace UE::ConcertClientSharedSlate
 		MultiStreamModel = MoveTemp(Params.MultiStreamModel);
 
 		const bool bConsolidatedModelShouldTransact = EnumHasAnyFlags(Params.Flags, EMultiStreamEditorFlags::Transactional);
-		ConsolidatedModel = MakeShared<FConsolidatedMultiStreamModel>(MoveTemp(Params.MultiStreamModel), bConsolidatedModelShouldTransact);
+		ConsolidatedModel = MakeShared<FConsolidatedMultiStreamModel>(MoveTemp(Params.MultiStreamModel), bConsolidatedModelShouldTransact, InArgs._GetAutoAssignStream);
 		
 		const FCreateEditorParams BaseEditorParams
 		{
@@ -24,7 +24,7 @@ namespace UE::ConcertClientSharedSlate
 			.ViewerParams = MoveTemp(Params.ViewerParams)
 		};
 		EditorView = CreateBaseStreamEditor(BaseEditorParams);
-		
+
 		ChildSlot
 		[
 			EditorView.ToSharedRef()

@@ -147,7 +147,8 @@ namespace UE::ConcertClientSharedSlate
 		Transactional = 1 << 0
 	};
 	ENUM_CLASS_FLAGS(EMultiStreamEditorFlags)
-	
+
+	DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IEditableReplicationStreamModel>, FGetAutoAssignTarget, TConstArrayView<UObject*>);
 	/** Params for creating an IMultiReplicationStreamEditor */
 	struct FCreateMultiStreamEditorParams
 	{
@@ -171,6 +172,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** These flags modify the behaviour */
 		EMultiStreamEditorFlags Flags = EMultiStreamEditorFlags::Transactional;
+
+		/** Optional. If set, the Add Actor button should automatically assign the added object to stream returned */
+		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;
 		
 		/** Base params for customizing the viewing part of the editor */
 		FCreateViewerParams ViewerParams;
