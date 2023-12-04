@@ -91,6 +91,11 @@ bool FSourceControlWindows::ChoosePackagesToCheckIn(const FSourceControlWindowsO
 		return false;
 	}
 
+	if (ISourceControlModule::Get().GetProvider().UsesSnapshots())
+	{
+		SaveDirtyPackages(/*bUseDialog=*/false);
+	}
+
 	// Start selection process...
 
 	// make sure we update the SCC status of all packages (this could take a long time, so we will run it as a background task)
