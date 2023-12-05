@@ -181,21 +181,21 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FHairUpdateMeshTriangleCS, "/Engine/Private/HairStrands/HairStrandsMesh.usf", "MainCS", SF_Compute);
 
-bool AddHairStrandUpdateMeshTrianglesPass(
+static bool AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const uint32 UniqueTriangleCount, 
 	const uint32 TotalSectionCount, // Total section count of the underlying mesh
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const FCachedGeometry& MeshLODData,
 	FRDGBufferSRVRef UniqueTriangleIndexSRV,
 	FRDGBufferUAVRef OutputCurrUAV,
 	FRDGBufferUAVRef OutputPrevUAV)
 {
-	const uint32 EffectiveSectionCount 	= MeshData.Sections.Num(); // Section count which are valid & used by groom data
+	const uint32 EffectiveSectionCount 	= MeshLODData.Sections.Num(); // Section count which are valid & used by groom data
 
 	// If a skel. mesh is not streaming yet, its SRV will be null
 	const bool bValid = EffectiveSectionCount > 0 && TotalSectionCount < GetHairStrandsMaxSectionCount();
-	const bool bReady = MeshData.Sections[0].IndexBuffer != nullptr && MeshData.Sections[0].UVsBuffer != nullptr && (MeshData.Sections[0].RDGPositionBuffer != nullptr || MeshData.Sections[0].PositionBuffer != nullptr);
+	const bool bReady = MeshLODData.Sections[0].IndexBuffer != nullptr && MeshLODData.Sections[0].UVsBuffer != nullptr && (MeshLODData.Sections[0].RDGPositionBuffer != nullptr || MeshLODData.Sections[0].PositionBuffer != nullptr);
 	if (!bReady || !bValid)
 	{
 		return false;
@@ -204,12 +204,12 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 	FHairUpdateMeshTriangleCS::FParameters CommonParameters;
 	CommonParameters.MaxUniqueTriangleCount 		= UniqueTriangleCount;
 	CommonParameters.MaxSectionCount 				= TotalSectionCount;
-	CommonParameters.RDGMeshPositionBuffer			= MeshData.Sections[0].RDGPositionBuffer;
-	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshData.Sections[0].RDGPreviousPositionBuffer;
-	CommonParameters.MeshPositionBuffer				= MeshData.Sections[0].PositionBuffer;
-	CommonParameters.MeshPreviousPositionBuffer		= MeshData.Sections[0].PreviousPositionBuffer;
-	CommonParameters.MeshIndexBuffer				= MeshData.Sections[0].IndexBuffer;
-	CommonParameters.MeshUVsBuffer					= MeshData.Sections[0].UVsBuffer;
+	CommonParameters.RDGMeshPositionBuffer			= MeshLODData.Sections[0].RDGPositionBuffer;
+	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshLODData.Sections[0].RDGPreviousPositionBuffer;
+	CommonParameters.MeshPositionBuffer				= MeshLODData.Sections[0].PositionBuffer;
+	CommonParameters.MeshPreviousPositionBuffer		= MeshLODData.Sections[0].PreviousPositionBuffer;
+	CommonParameters.MeshIndexBuffer				= MeshLODData.Sections[0].IndexBuffer;
+	CommonParameters.MeshUVsBuffer					= MeshLODData.Sections[0].UVsBuffer;
 	CommonParameters.UniqueTriangleIndices 			= UniqueTriangleIndexSRV;
 	CommonParameters.OutUniqueTriangleCurrPosition	= OutputCurrUAV;
 	CommonParameters.OutUniqueTrianglePrevPosition	= OutputPrevUAV;
@@ -239,7 +239,7 @@ bool AddHairStrandUpdateMeshTrianglesPass(
 	// Allocate data for *all* sections, but only fill in the used/valid sections
 	TArray<FSectionData> SectionDatas;
 	SectionDatas.Init(Default, TotalSectionCount); 
-	for (const FHairStrandsProjectionMeshData::FSection& MeshSectionData : MeshData.Sections)
+	for (const FCachedGeometry::Section& MeshSectionData : MeshLODData.Sections)
 	{
 		const uint32 SectionIndex = MeshSectionData.SectionIndex;
 		SectionDatas[SectionIndex].TotalIndexCount	= MeshSectionData.TotalIndexCount;
@@ -301,7 +301,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 MeshLODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const FCachedGeometry& MeshLODData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {	
@@ -333,7 +333,7 @@ void AddHairStrandUpdateMeshTrianglesPass(
 			ShaderMap,
 			UniqueTriangleCount,
 			TotalMeshSectionCount,
-			MeshData,
+			MeshLODData,
 			RegisterAsSRV(GraphBuilder, RestLODData.UniqueTriangleIndexBuffer),
 			OutputCurrBuffer.UAV,
 			OutputPrevBuffer.UAV))
@@ -515,7 +515,7 @@ void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const FCachedGeometry& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {
@@ -556,7 +556,7 @@ void AddHairStrandInitMeshSamplesPass(
 	};
 	TArray<FSectionData> SectionDatas;
 	SectionDatas.Init(FSectionData(), TotalSectionCount);
-	for (const FHairStrandsProjectionMeshData::FSection& Section : MeshData.Sections)
+	for (const FCachedGeometry::Section& Section : MeshData.Sections)
 	{
 		const uint32 SectionIndex = Section.SectionIndex;
 		SectionDatas[SectionIndex].bIsSwapped = 
@@ -631,7 +631,7 @@ void AddHairStrandUpdateMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
 	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const FCachedGeometry& MeshData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources)
 {

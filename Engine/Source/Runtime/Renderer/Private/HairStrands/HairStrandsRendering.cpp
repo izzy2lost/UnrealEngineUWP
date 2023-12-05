@@ -85,7 +85,7 @@ void AddMeshDrawTransitionPass(
 	const FViewInfo& ViewInfo,
 	const FHairStrandsMacroGroupDatas& MacroGroupDatas);
 
-FHairTransientResources* AllocateHairTransientResourcse(FRDGBuilder& GraphBuilder, FScene* Scene)
+FHairTransientResources* AllocateHairTransientResources(FRDGBuilder& GraphBuilder, FScene* Scene)
 {
 	if (Scene->HairStrandsSceneData.TransientResources == nullptr)
 	{

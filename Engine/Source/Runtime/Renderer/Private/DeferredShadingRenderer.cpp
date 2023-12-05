@@ -2077,7 +2077,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && RendererOutput == ERendererOutput::FinalSceneColor)
 	{
 		CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, HairStrandsBookmarkParameters);
-		HairStrandsBookmarkParameters.TransientResources = AllocateHairTransientResourcse(GraphBuilder, Scene);
+		check(Scene->HairStrandsSceneData.TransientResources);
+		HairStrandsBookmarkParameters.TransientResources = Scene->HairStrandsSceneData.TransientResources;
 		RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessTasks, HairStrandsBookmarkParameters);
 
 		// Interpolation needs to happen after the skin cache run as there is a dependency 

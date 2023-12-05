@@ -21,7 +21,7 @@
 #include "HairStrandsInterface.h"
 #include "HairStrandsData.h"
 
-FHairTransientResources* AllocateHairTransientResourcse(FRDGBuilder& GraphBuilder, FScene* Scene);
+FHairTransientResources* AllocateHairTransientResources(FRDGBuilder& GraphBuilder, FScene* Scene);
 
 void RenderHairPrePass(
 	FRDGBuilder& GraphBuilder,

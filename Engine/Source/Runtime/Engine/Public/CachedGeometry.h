@@ -40,9 +40,5 @@ struct FCachedGeometry
 
 	int32 LODIndex = -1;
 	TArray<Section> Sections;
-
-	FRDGBufferRef DeformedPositionBuffer = nullptr;
-	FRDGBufferRef DeformedPreviousPositionBuffer = nullptr;
-
 	FTransform LocalToWorld = FTransform::Identity;
 };

@@ -4,7 +4,7 @@
 #include "../HairShadingCommon.ush"
 #include "../ColorMap.ush"
 
-#if SHADER_PRINT_INSTANCE || SHADER_PRINT || SHADER_PRINT_MEMORY || SHADER_CLUSTERAABB || SHADER_DOMINFO
+#if SHADER_PRINT_INSTANCE || SHADER_PRINT || SHADER_PRINT_MEMORY || SHADER_CLUSTERAABB || SHADER_DOMINFO || SHADER_PRINT_HAIR_SKIN_CACHE
 /////////////////////////////////////////////////////////////////////////////////////////
 // Utils function
 
@@ -88,7 +88,7 @@ void PrintPercentage(inout FShaderPrintContext Context, float Value, FFontColor 
 	Print(Context, TEXT("% "), InColor);
 }
 
-#endif // SHADER_PRINT_INSTANCE || SHADER_PRINT || SHADER_PRINT_MEMORY || SHADER_CLUSTERAABB || SHADER_DOMINFO
+#endif // SHADER_PRINT_INSTANCE || SHADER_PRINT || SHADER_PRINT_MEMORY || SHADER_CLUSTERAABB || SHADER_DOMINFO || SHADER_PRINT_HAIR_SKIN_CACHE
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Visualize hair strands data as full screen view mode (BaseColor, Tangent, Roughness, ...)
@@ -505,7 +505,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 #if PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME  
 	const uint RootIndex = DispatchThreadId.x;
-	if (RootIndex >= MaxRootCount) return;
+	if (RootIndex < MaxRootCount)
 	{
 		const uint TriangleIndex = RootToUniqueTriangleIndexBuffer[RootIndex];
 		const FHairMeshTriangleWithUVs RestTriangle		= GetTriangleWithUVsTransformation(TriangleIndex, RestPositionBuffer);
@@ -610,100 +610,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #endif // INPUT_ROOT_SAMPLES
 }
 #endif // SHADER_MESH_PROJECTION_HAIR
-
-
-/////////////////////////////////////////////////////////////////////////////////////////
-// Visualize skin cache data, extracted & processed for hair strands deformation (Rest & Deformed)
-
-#if SHADER_MESH_PROJECTION_SKIN_CACHE
-
-#include "HairStrandsBindingCommon.ush"
-#include "../ShaderPrint.ush"
-
-float4x4 LocalToWorld;
-uint VertexOffset;
-uint IndexOffset;
-uint MaxIndexCount;
-uint MaxVertexCount;
-uint MeshUVsChannelOffset;
-uint MeshUVsChannelCount;
-uint bOutputInUVsSpace;
-uint MeshType;
-uint SectionIndex;
-float2 OutputResolution;
-
-Buffer<float> InputVertexPositionBuffer;
-Buffer<float2> InputVertexUVsBuffer;
-#if PERMUTATION_INPUT_TYPE == 1
-Buffer<uint> InputIndexBuffer;
-#endif
-
-#define REST_MESH 0
-#define DEFORMED_MESH 1
-#define SOURCE_MESH 2
-#define TARGET_MESH 3
-
-[numthreads(256, 1, 1)]
-void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
-{
-	ResolvedView = ResolveView();
-
-	float4 Color = 0;
-	if (MeshType == REST_MESH)		Color = float4(1, 0, 0, 1);
-	if (MeshType == DEFORMED_MESH)	Color = float4(0, 1, 0, 1);
-	if (MeshType == SOURCE_MESH)	Color = float4(0, 0, 1, 1);
-	if (MeshType == TARGET_MESH)	Color = float4(1, 1, 0, 1);
-
-#if PERMUTATION_INPUT_TYPE == 0
-	const uint VertexId = DispatchThreadId.x * 3;
-	const uint VertexIndex0 = min(VertexOffset + VertexId, MaxVertexCount-1);
-
-	FHairMeshTriangleWithUVs Tri = (FHairMeshTriangleWithUVs)0;
-	Tri.P0 = InputVertexPositionBuffer[VertexIndex0 + 0];
-	Tri.P1 = InputVertexPositionBuffer[VertexIndex0 + 1];
-	Tri.P2 = InputVertexPositionBuffer[VertexIndex0 + 2];
-
-	Tri.UV0 = InputVertexUVsBuffer[VertexIndex0 + 0];
-	Tri.UV1 = InputVertexUVsBuffer[VertexIndex0 + 1];
-	Tri.UV2 = InputVertexUVsBuffer[VertexIndex0 + 2];
-
-	Tri.N = cross(Tri.P1 - Tri.P0, Tri.P2 - Tri.P0);
-#endif
-
-#if PERMUTATION_INPUT_TYPE == 1
-	const uint TriangleIndex = DispatchThreadId.x;
-	const FHairMeshTriangleWithUVs Tri = GetTriangleData(TriangleIndex, InputVertexPositionBuffer, InputVertexUVsBuffer, InputIndexBuffer, IndexOffset, MaxIndexCount, MaxVertexCount, MeshUVsChannelOffset, MeshUVsChannelCount);
-#endif
-
-	// Quick filter
-#if 0
-	//if (MeshType != REST_MESH)
-	//if (MeshType != DEFORMED_MESH)
-	//if (MeshType != SOURCE_MESH)
-	//if (MeshType != TARGET_MESH)
-	if (MeshType != SOURCE_MESH && MeshType != TARGET_MESH || SectionIndex != 0)
-	{
-		return;
-	}
-#endif
-
-	Color.xyz *= Tri.N * 0.5f + 0.5f;
-
-	if (bOutputInUVsSpace)
-	{
-		AddFilledTriangleWS(float3(Tri.UV0, 0), float3(Tri.UV1, 0), float3(Tri.UV2, 0), Color);
-	}
-	else
-	{
-		AddFilledTriangleWS(
-			mul(float4(Tri.P0, 1), LocalToWorld).xyz, 
-			mul(float4(Tri.P1, 1), LocalToWorld).xyz, 
-			mul(float4(Tri.P2, 1), LocalToWorld).xyz,
-			Color);
-	}
-}
-
-#endif // SHADER_MESH_PROJECTION_SKIN_CACHE
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Visualized stats for PPLL primary visibility
@@ -3101,3 +3007,143 @@ void MainDrawDebugAABBCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 }
 
 #endif // SHADER_CLUSTERAABB
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// Print skin cache stats
+#if SHADER_PRINT_HAIR_SKIN_CACHE
+
+uint			HairSkinCacheEnable;
+uint			GPUSkinCacheEnable;
+uint			InstanceCount;
+uint			UniqueMeshCount;
+Buffer<uint>	Infos;
+
+FSTRINGS(UniqueMeshNames)
+
+struct FInstanceInfo
+{
+	uint InstanceIndex;
+	uint GeometryType;
+	uint CacheType;
+	uint InstanceCount;
+	uint ActiveSectionCount;
+	uint TotalSectionCount;
+	uint LOD;
+	uint Pad;
+};
+
+FInstanceInfo ReadInstanceInfo(uint Index)
+{
+	const uint Index8 = Index * 8u;
+
+	uint4 Data0 = 0;
+	Data0.x = Infos[Index8 + 0];
+	Data0.y = Infos[Index8 + 1];
+	Data0.z = Infos[Index8 + 2];
+	Data0.w = Infos[Index8 + 3];
+
+	uint4 Data1 = 0;
+	Data1.x = Infos[Index8 + 4];
+	Data1.y = Infos[Index8 + 5];
+	Data1.z = Infos[Index8 + 6];
+	Data1.w = Infos[Index8 + 7];
+
+	FInstanceInfo Out = (FInstanceInfo)0;
+	Out.InstanceIndex		= Data0.x;
+	Out.GeometryType		= Data0.y;
+	Out.CacheType			= Data0.z;
+	Out.InstanceCount		= Data0.w;
+	Out.ActiveSectionCount	= Data1.x;
+	Out.TotalSectionCount	= Data1.y;
+	Out.LOD					= Data1.z;
+	Out.Pad					= Data1.w;
+	return Out;
+}
+
+[numthreads(1, 1, 1)]
+void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	// Draw AABB of the instance groups
+	if (any(DispatchThreadId != 0))
+	{
+		return;
+	}
+
+	FShaderPrintContext Ctx = InitShaderPrintContext(true, uint2(50, 100));
+
+	// Common
+	bool bAdvanced = false;
+	{
+		Print(Ctx, TEXT("Instance count    : "), FontWhite);
+		Print(Ctx, InstanceCount, FontYellow, 8);
+		Newline(Ctx);
+	
+		Print(Ctx, TEXT("Unique mesh count : "), FontWhite);
+		Print(Ctx, UniqueMeshCount, FontYellow, 8);
+		Newline(Ctx);
+	
+		Print(Ctx, TEXT("GPU  skin cache   : "), FontWhite);
+		PrintBool(Ctx, GPUSkinCacheEnable);
+		Newline(Ctx);
+
+		Print(Ctx, TEXT("Hair skin cache   : "), FontWhite);
+		PrintBool(Ctx, HairSkinCacheEnable);
+		Newline(Ctx);
+
+		bAdvanced = AddCheckbox(Ctx, TEXT("Advanced"), false, FontWhite); 
+		Newline(Ctx);
+	}
+	Newline(Ctx);
+
+	// Draw instance details
+	Print(Ctx, TEXT("  Inst. Guide Strands Cards CacheType Sections LOD Name"));
+	Newline(Ctx);
+
+	LOOP
+	for (uint UniqueMeshIndex = 0; UniqueMeshIndex < UniqueMeshCount; ++UniqueMeshIndex)
+	{
+		const FInstanceInfo Info = ReadInstanceInfo(UniqueMeshIndex);
+		if (!bAdvanced && Info.ActiveSectionCount == 0)
+		{
+			continue;
+		}
+
+		// Index
+		Print(Ctx,UniqueMeshIndex, FontSilver, 2);
+		Print(Ctx, TEXT("  "));
+
+		// Instance count
+		Print(Ctx,Info.InstanceCount, FontYellow, 3, 0);
+		Print(Ctx, TEXT(" "));
+
+		// Geometry type
+		if (Info.GeometryType & 1) { Print(Ctx, TEXT("x     "), FontGreen); } else { Print(Ctx, TEXT(".     "), FontRed); }
+		if (Info.GeometryType & 2) { Print(Ctx, TEXT("x       "), FontGreen); } else { Print(Ctx, TEXT(".       "), FontRed); }
+		if (Info.GeometryType & 4) { Print(Ctx, TEXT("x     "), FontGreen); } else { Print(Ctx, TEXT(".     "), FontRed); }
+
+		// Cache type
+		     if (Info.CacheType == 1){ Print(Ctx, TEXT("Skin"), FontEmerald); }
+		else if (Info.CacheType == 2){ Print(Ctx, TEXT("Hair"), FontEmerald); }
+		else if (Info.CacheType == 4){ Print(Ctx, TEXT("Geom"), FontEmerald); }
+		else                         { Print(Ctx, TEXT("Unkw"), FontRed); }
+		Print(Ctx, TEXT("      "));
+
+
+		// Section
+		Print(Ctx,Info.ActiveSectionCount, FontYellow, 3, 0);
+		Print(Ctx, TEXT("/"));
+		Print(Ctx,Info.TotalSectionCount, FontYellow, 3, 0);
+		Print(Ctx, TEXT("    "));
+
+		// LOD
+		Print(Ctx,Info.LOD, FontYellow, 2, 0);
+
+		// Name
+		PrintUniqueMeshNames(Ctx, UniqueMeshIndex, FontWhite);
+
+		Newline(Ctx);
+	}
+	Newline(Ctx);
+}
+
+#endif // SHADER_PRINT_HAIR_SKIN_CACHE

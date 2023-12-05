@@ -17,6 +17,7 @@
 #include "ShaderPrintParameters.h"
 #include "GroomVisualizationData.h"
 #include "HairStrandsDefinitions.h"
+#include "CachedGeometry.h"
 
 class UTexture2D;
 class FSceneInterface;
@@ -439,6 +440,11 @@ struct FHairTransientResources
 	// Indirect dispatch args
 	FRDGBufferRef    IndirectDispatchArgsBuffer = nullptr;
 	FRDGBufferSRVRef IndirectDispatchArgsSRV = nullptr;
+
+	// Mesh data
+	TArray<FCachedGeometry> SimMeshDatas;
+	TArray<FCachedGeometry> RenMeshDatas;
+	const FCachedGeometry& GetMeshLODData(uint32 InRegisteredIndex, bool bSim) const { if (bSim) { check(SimMeshDatas.IsValidIndex(InRegisteredIndex)); return SimMeshDatas[InRegisteredIndex]; } else {check(RenMeshDatas.IsValidIndex(InRegisteredIndex)); return RenMeshDatas[InRegisteredIndex];} }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

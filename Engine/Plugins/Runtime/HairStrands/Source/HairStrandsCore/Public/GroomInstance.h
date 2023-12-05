@@ -250,11 +250,6 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 
 		TSharedPtr<class IGroomCacheBuffers, ESPMode::ThreadSafe> GroomCacheBuffers;
 
-		// Transfer
-		TArray<FRWBuffer> TransferredPositions;
-		FHairStrandsProjectionMeshData SourceMeshData;
-		FHairStrandsProjectionMeshData TargetMeshData;
-
 		// Resources
 		FHairStrandsDebugDatas::FResources* HairDebugResource = nullptr;
 	} Debug;

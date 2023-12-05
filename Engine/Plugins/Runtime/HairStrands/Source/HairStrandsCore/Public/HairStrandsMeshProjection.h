@@ -19,36 +19,6 @@ struct FHairCardsRestResource;
 struct FHairCardsDeformedResource;
 struct FHairStrandsDeformedResource;
 
-struct FHairStrandsProjectionMeshData
-{
-	struct FSection
-	{
-		FTransform LocalToWorld;
-		FRDGBufferSRVRef RDGPositionBuffer = nullptr;
-		FRDGBufferSRVRef RDGPreviousPositionBuffer = nullptr;
-		FRHIShaderResourceView* PositionBuffer = nullptr;
-		FRHIShaderResourceView* PreviousPositionBuffer = nullptr;
-		FRHIShaderResourceView* UVsBuffer = nullptr;
-		FRHIShaderResourceView* IndexBuffer = nullptr;
-		uint32 UVsChannelCount = 0;
-		uint32 UVsChannelOffset = 0;
-		uint32 NumPrimitives = 0;
-		uint32 NumVertices = 0;
-		uint32 VertexBaseIndex = 0;
-		uint32 IndexBaseIndex = 0;
-		uint32 TotalVertexCount = 0;
-		uint32 TotalIndexCount = 0;
-		uint32 SectionIndex = 0;
-		int32 LODIndex = 0;
-	};
-
-	struct FLOD
-	{
-		TArray<FSection> Sections;
-	};
-	TArray<FLOD> LODs;
-};
-
 // Return the max number of section/triangle a skeletal mesh can have. After this count, binding will be disabled
 uint32 GetHairStrandsMaxSectionCount();
 uint32 GetHairStrandsMaxTriangleCount();
@@ -57,8 +27,8 @@ uint32 GetHairStrandsMaxTriangleCount();
 void AddHairStrandUpdateMeshTrianglesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const int32 MeshLODIndex,
+	const FCachedGeometry& MeshLODData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
@@ -66,8 +36,8 @@ void AddHairStrandUpdateMeshTrianglesPass(
 void AddHairStrandInitMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& MeshData,
+	const int32 MeshLODIndex,
+	const FCachedGeometry& MeshLODData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
@@ -75,8 +45,8 @@ void AddHairStrandInitMeshSamplesPass(
 void AddHairStrandUpdateMeshSamplesPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
-	const int32 LODIndex,
-	const FHairStrandsProjectionMeshData::FLOD& ProjectionMeshData,
+	const int32 MeshLODIndex,
+	const FCachedGeometry& MeshLODData,
 	FHairStrandsRestRootResource* RestResources,
 	FHairStrandsDeformedRootResource* DeformedResources);
 
