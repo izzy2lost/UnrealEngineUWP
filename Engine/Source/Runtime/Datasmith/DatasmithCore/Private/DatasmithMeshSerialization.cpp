@@ -314,6 +314,7 @@ TArray<FDatasmithMeshModels> GetDatasmithMeshFromMeshPath_Legacy(FArchive* Archi
 		MemoryReader.ArIgnoreClassRef = false;
 		MemoryReader.ArIgnoreArchetypeRef = false;
 		MemoryReader.SetWantBinaryPropertySerialization(true);
+		MemoryReader.SetUEVer(FPackageFileVersion::CreateUE4Version(EUnrealEngineObjectUE4Version::VER_UE4_AUTOMATIC_VERSION));
 		DatasmithMesh->Serialize( MemoryReader );
 
 		FDatasmithMeshModels& MeshInternal = Result.AddDefaulted_GetRef();
