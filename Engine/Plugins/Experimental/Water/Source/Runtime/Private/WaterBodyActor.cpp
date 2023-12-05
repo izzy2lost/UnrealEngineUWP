@@ -149,6 +149,8 @@ void AWaterBody::PostEditMove(bool bFinished)
 		return;
 	}
 
+	WaterBodyComponent->FixupEditorTransform();
+
 	if (bFinished)
 	{
 		WaterBodyComponent->UpdateWaterHeight();

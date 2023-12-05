@@ -505,6 +505,9 @@ protected:
 	virtual FVector GetWaterSpriteLocation() const { return GetComponentLocation(); }
 
 	virtual void OnWaterBodyRenderDataUpdated();
+
+	/** Fixup any invalid transformations made to the water body in the editor that may have been made through the transform gizmo or property changes. */
+	void FixupEditorTransform();
 #endif // WITH_EDITOR
 
 	EWaterBodyQueryFlags CheckAndAjustQueryFlags(EWaterBodyQueryFlags InQueryFlags) const;
@@ -525,7 +528,6 @@ protected:
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
-	virtual bool MoveComponentImpl(const FVector& Delta, const FQuat& NewRotation, bool bSweep, FHitResult* Hit = NULL, EMoveComponentFlags MoveFlags = MOVECOMP_NoFlags, ETeleportType Teleport = ETeleportType::None) override;
 	virtual void OnComponentCollisionSettingsChanged(bool bUpdateOverlaps) override;
 	virtual void OnGenerateOverlapEventsChanged() override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
