@@ -1564,13 +1564,13 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			// If we have or had any object references we need to track them and update the unresolved mask
 			if (bHadUnresolvedReferences || Collector.GetUnresolvedReferences().Num() > 0 || Collector.GetResolvedReferences().Num() > 0)
 			{
+				FChangeMaskStorageOrPointer ChangeMaskForPrevUnresolvedAllocation;
 				FNetBitArrayView PrevUnresolvedChangeMask;
 
 				// If we're avoiding dispatching state we didn't receive and we didn't resolve anything for we need to figure out what got resolves and combine that with the received changemask.
 				const bool bMergeResolvedReferencesWithChangeMask = bHadUnresolvedReferences && !bDispatchUnresolvedPreviouslyReceivedChanges;
 				if (bMergeResolvedReferencesWithChangeMask)
 				{
-					FChangeMaskStorageOrPointer ChangeMaskForPrevUnresolvedAllocation;
 					ChangeMaskForPrevUnresolvedAllocation.Alloc(ChangeMaskForPrevUnresolvedAllocation, ChangeMaskBitCount, TempChangeMaskAllocator);
 					PrevUnresolvedChangeMask = MakeNetBitArrayView(ChangeMaskForPrevUnresolvedAllocation.GetPointer(ChangeMaskBitCount), ChangeMaskBitCount, FNetBitArrayView::NoResetNoValidate);
 					PrevUnresolvedChangeMask.Copy(UnresolvedChangeMask);
