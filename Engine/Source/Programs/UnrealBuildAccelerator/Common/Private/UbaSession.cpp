@@ -1981,7 +1981,6 @@ namespace uba
 		if (IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold)
 		{
 			CloseFileMapping(file.mappingHandle);
-			file.mappingHandle = {};
 		}
 		else
 		{
@@ -2007,6 +2006,7 @@ namespace uba
 			u32 newSize = (u32)writer.GetPosition();
 			m_fileMappingTableSize = (u32)newSize;
 		}
+		file.mappingHandle = {};
 		return true;
 	}
 
