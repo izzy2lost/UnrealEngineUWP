@@ -1261,7 +1261,7 @@ void ScreenProbeIntegrateCS(
 
 					#if GBUFFER_HAS_DIFFUSE_SAMPLE_OCCLUSION
 						// GetDiffuseIndirectSampleOcclusion in BasePassPixelShader encodes visibility bit using the same ComputeIndirectLightingSampleE
-						bool bIsBentNormalOccluded = ApplyMaterialAO > 0 ? ((Material.DiffuseIndirectSampleOcclusion & (1 << PixelRayIndex)) != 0) : false;
+						bool bIsBentNormalOccluded = ApplyMaterialAO > 0 ? ((Material.DiffuseIndirectSampleOcclusion & (1u << PixelRayIndex)) != 0) : false;
 						float DirectionVisibility = bIsBentNormalOccluded ? 0 : 1;
 					#else
 						float DirectionVisibility = 1.0f;

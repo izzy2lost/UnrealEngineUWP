@@ -87,7 +87,7 @@ float GetRefractionIor(FPixelMaterialInputs PixelMaterialInputs)
 #endif // SUBSTRATE_ENABLED
 
 
-float3 FakeCausticsPathFactor(float Roughness, float PathRoughness)
+float FakeCausticsPathFactor(float Roughness, float PathRoughness)
 {
 	// The heuristic used here is inspired by the following presentations:
 	//   - Kulla & Conty: Revisiting Physically Based Shading at Imageworks

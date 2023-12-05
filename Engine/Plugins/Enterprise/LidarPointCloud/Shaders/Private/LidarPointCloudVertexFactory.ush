@@ -238,7 +238,7 @@ float CalcSpriteSize(float3 Position)
 			float3 CenterRelativeLocation = Position - NodeCenter;
 			uint ChildNodeIndex = (CenterRelativeLocation.x > 0 ? 4 : 0) + (CenterRelativeLocation.y > 0 ? 2 : 0) + (CenterRelativeLocation.z > 0);
 
-			if ((ChildrenBitmask & (1 << ChildNodeIndex)) == 0)
+			if ((ChildrenBitmask & (1u << ChildNodeIndex)) == 0)
 			{
 				break;
 			}
@@ -251,7 +251,7 @@ float CalcSpriteSize(float3 Position)
 					break;
 				}
 
-				if ((ChildrenBitmask & (1 << i)) != 0)
+				if ((ChildrenBitmask & (1u << i)) != 0)
 				{
 					Idx++;
 				}
