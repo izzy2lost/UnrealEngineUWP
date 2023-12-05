@@ -21,8 +21,15 @@ namespace Chaos
 		// TODO: Engine braking effect
 		DriveTorque = GetEngineTorque(Inputs.ControlInputs.Throttle, GetRPM());
 
-		float BrakeTorque = 0.f;
-		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
+		if (DriveTorque < SMALL_NUMBER)
+		{
+			BrakingTorque = Setup().EngineBrakeEffect;
+		}
+		else
+		{
+			BrakingTorque = 0.0f;
+		}
+		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakingTorque);
 		IntegrateAngularVelocity(DeltaTime, Setup().EngineInertia);
 
 		// clamp RPM
@@ -56,8 +63,6 @@ namespace Chaos
 
 	float FEngineSimModule::GetTorqueFromRPM(float RPM, bool LimitToIdle)
 	{
-		//return Setup().MaxTorque; // TODO: Fix this - engine RPM running rampant
-
 		if (!EngineStarted || (FMath::Abs(RPM - Setup().MaxRPM) < 1.0f) || Setup().MaxRPM == 0)
 		{
 			return 0.0f;

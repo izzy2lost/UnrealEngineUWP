@@ -35,10 +35,13 @@ namespace Chaos
 		SteerAngleDegrees = Setup().SteeringEnabled ? Inputs.ControlInputs.Steering * Setup().MaxSteeringAngle : 0.0f;
 		BrakeTorque = Inputs.ControlInputs.Brake * Setup().MaxBrakeTorque + HandbrakeTorque;
 		LoadTorque = 0.0f;
+		ForceFromFriction = FVector::ZeroVector;
+		float TorqueFromGroundInteraction = 0.0f;
+		float AvailableGrip = 0.0f;
 
 		// TODO: think about doing this properly, stops vehicles rolling around on their own too much
 		// i.e. an auto handbrake feature
-		if (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER && LocalLinearVelocity.X < 10.0f)
+		if (Setup().AutoHandbrakeEnabled && LocalLinearVelocity.X < Setup().AutoHandbrakeVelocityThreshold && (Inputs.ControlInputs.Brake < SMALL_NUMBER && Inputs.ControlInputs.Throttle < SMALL_NUMBER))
 		{
 			BrakeTorque = Setup().HandbrakeTorque;
 		}
@@ -54,7 +57,7 @@ namespace Chaos
 
 			float GroundAngularVelocity = LocalWheelVelocity.X / Re;
 			float Delta = GroundAngularVelocity - AngularVelocity;
-			float TorqueFromGroundInteraction = Delta * Setup().WheelInertia / DeltaTime; // torque from wheels moving over terrain
+			TorqueFromGroundInteraction = Delta * Setup().WheelInertia / DeltaTime; // torque from wheels moving over terrain
 
 			// X is longitudinal direction, Y is lateral
 			SlipAngle = FVehicleUtility::CalculateSlipAngle(LocalWheelVelocity.Y, LocalWheelVelocity.X);
@@ -63,7 +66,7 @@ namespace Chaos
 			float AppliedLinearBrakeForce = FMath::Abs(BrakeTorque) / Re;
 
 			// Longitudinal multiplier now affecting both brake and steering equally
-			float AvailableGrip = ForceIntoSurface * SurfaceFriction * Setup().FrictionMultiplier;
+			AvailableGrip = ForceIntoSurface * SurfaceFriction * Setup().FrictionMultiplier;
 
 			float FinalLongitudinalForce = 0.f;
 			float FinalLateralForce = 0.f;
@@ -155,12 +158,16 @@ namespace Chaos
 						bClipping = true;
 						FinalLongitudinalForce *= Clip;
 						FinalLateralForce *= Clip;
+
+						// make the resulting forces less than ideal since there is slippage
+						FinalLongitudinalForce *= Setup().SlipModifier;
+						FinalLateralForce *= Setup().SlipModifier;
+
 					}
 				}
 
 			}
 
-			ForceFromFriction = FVector::ZeroVector;
 			// Potential Axis Swap
 			if (Setup().Axis == EWheelAxis::X)
 			{
@@ -180,40 +187,44 @@ namespace Chaos
 			}
 
 			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
-			TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
-
-			DriveTorque -= AvailableGrip;
-			if (DriveTorque < 0.0f)
-			{
-				DriveTorque = 0.0f;
-			}
-
-			DriveTorque *= TorqueScaling;
-
-			BrakingTorque -= AvailableGrip;
-			if (BrakingTorque < 0.0f)
-			{
-				BrakingTorque = 0.0f;
-			}
-
-			BrakingTorque *= TorqueScaling;
-
-			LoadTorque = TorqueFromGroundInteraction;
 		}
+
+		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);
+
+		DriveTorque -= AvailableGrip;
+		if (DriveTorque < 0.0f)
+		{
+			DriveTorque = 0.0f;
+		}
+
+		DriveTorque *= TorqueScaling;
+
+		BrakingTorque -= AvailableGrip;
+		if (BrakingTorque < 0.0f)
+		{
+			BrakingTorque = 0.0f;
+		}
+
+		BrakingTorque *= TorqueScaling;
+
+		LoadTorque = TorqueFromGroundInteraction;
 
 		IntegrateAngularVelocity(DeltaTime, Setup().WheelInertia, Setup().MaxRotationVel);
 	}
 
 	void FWheelSimModule::Animate(Chaos::FClusterUnionPhysicsProxy* Proxy)
 	{
-		if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
+		if (Proxy)
 		{
-			float Direction = Setup().ReverseDirection ? -1.0f : 1.0f;
-			FQuat Rot = (Setup().Axis == Chaos::EWheelAxis::Y) ? FQuat(FVector(1, 0, 0), -GetAngularPosition() * Direction) : FQuat(FVector(1, 0, 0), GetAngularPosition() * Direction);
-			FQuat Steer = FQuat(FVector(0, 0, 1), FMath::DegreesToRadians(GetSteerAngleDegrees()));
+			if (FPBDRigidClusteredParticleHandle* ClusterChild = GetClusterParticle(Proxy))
+			{
+				float Direction = Setup().ReverseDirection ? -1.0f : 1.0f;
+				FQuat Rot = (Setup().Axis == Chaos::EWheelAxis::Y) ? FQuat(FVector(1, 0, 0), -GetAngularPosition() * Direction) : FQuat(FVector(1, 0, 0), GetAngularPosition() * Direction);
+				FQuat Steer = FQuat(FVector(0, 0, 1), FMath::DegreesToRadians(GetSteerAngleDegrees()));
 
-			FTransform InitialTransform = GetInitialParticleTransform();
-			ClusterChild->ChildToParent().SetRotation(InitialTransform.GetRotation() * Steer * Rot);
+				FTransform InitialTransform = GetInitialParticleTransform();
+				ClusterChild->ChildToParent().SetRotation(InitialTransform.GetRotation() * Steer * Rot);
+			}
 		}
 	}
 

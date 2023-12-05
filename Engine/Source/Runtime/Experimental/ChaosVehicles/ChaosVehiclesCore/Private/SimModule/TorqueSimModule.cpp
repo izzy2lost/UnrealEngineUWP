@@ -22,6 +22,8 @@ void FTorqueSimModule::TransmitTorque(const FSimModuleTree& ModuleTree, float Pu
 
 		LoadTorque = 0; // clear torques prior to summation from child nodes
 		BrakingTorque = BrakeTorque;
+		float AverageChildVelocity = 0.0f;
+		int NumVelocities = 0;
 		for (int ChildIndex : Children)
 		{
 			// currently doesn't make sense to transmit from one wheel to next in hierarchy - only because hierarchy is 1 deep at present, this may change in future
@@ -41,9 +43,16 @@ void FTorqueSimModule::TransmitTorque(const FSimModuleTree& ModuleTree, float Pu
 				BrakingTorque += Interface->GetBrakingTorque() * ClutchSlip;
 
 				// diff velocity 
-				float DiffVelocity = (Interface->AngularVelocity * GearingRatio) - AngularVelocity;
-				AngularVelocity += DiffVelocity * ClutchSlip / Children.Num();
+				AverageChildVelocity += (Interface->AngularVelocity * GearingRatio);
+
+				NumVelocities++;
 			}
+		}
+
+		if (NumVelocities > 0)
+		{
+			float DiffVelocity = (AverageChildVelocity / NumVelocities) - AngularVelocity;
+			AngularVelocity += DiffVelocity * ClutchSlip;
 		}
 
 		BrakingTorque /= FMath::Abs(GearingRatio);
@@ -60,7 +69,7 @@ void FTorqueSimModule::IntegrateAngularVelocity(float DeltaTime, float Inertia, 
 	ensure(BrakingTorque >= 0.0f);
 
 	// drive torque taken into account
-	AngularVelocity += (DriveTorque + LoadTorque * DeltaTime) / Inertia;
+	AngularVelocity += ((DriveTorque + LoadTorque) * DeltaTime) / Inertia;
 
 	// braking resists velocity no matter what way we are spinning
 	// also has check that we are not overshooting and starting to accelerating in the opposite direction
@@ -89,8 +98,6 @@ void FTorqueSimModule::IntegrateAngularVelocity(float DeltaTime, float Inertia, 
 
 	int ExcessRotations = (int)(AngularPosition / TWO_PI);
 	AngularPosition -= ExcessRotations * TWO_PI;
-
-	AngularVelocity *= 0.98f; // TEMP
 
 	UE_LOG(LogSimulationModule, Log, TEXT("%s: DriveTorque %4.2f, BrakingTorque %4.2f, LoadTorque %4.2f, Speed %4.2f rad/sec, RPM %4.2f, AngularPosition %4.2f, Inertia %4.2f")
 		, *GetDebugName(), DriveTorque, BrakingTorque, LoadTorque, AngularVelocity, GetRPM(), AngularPosition, Inertia);

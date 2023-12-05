@@ -139,7 +139,7 @@ namespace Chaos
 
 		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
 
-	private:
+	protected:
 
 		/** set the target gear number to change to, can change gear immediately if specified
 		 *  i.e. rather than waiting for the gear change time to elapse
@@ -172,6 +172,10 @@ namespace Chaos
 			GearIndexInOut = FMath::Clamp(GearIndexInOut, -Setup().ReverseRatios.Num(), Setup().ForwardRatios.Num());
 		}
 
+		int32 GetCurrentGear() { return CurrentGear; }
+		int32 GetTargetGear() { return TargetGear; }
+
+	private:
 		int32 CurrentGear; // <0 reverse gear(s), 0 neutral, >0 forward gears
 		int32 TargetGear;  // <0 reverse gear(s), 0 neutral, >0 forward gears
 		float CurrentGearChangeTime; // Time to change gear, no power transmitted to the wheels during change

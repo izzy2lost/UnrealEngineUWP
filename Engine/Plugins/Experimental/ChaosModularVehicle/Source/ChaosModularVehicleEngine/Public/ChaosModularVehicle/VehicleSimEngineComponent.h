@@ -34,7 +34,7 @@ public:
 	float EngineBrakeEffect;	// [0..1] How much the engine slows the vehicle when the throttle is released
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Attributes)
-	float MomentOfInertia;		// [Kg.m-2] How hard it is to turn the engine
+	float EngineInertia;		// [Kg.m-2] How hard it is to turn the engine
 
 	virtual ESimModuleType GetModuleType() const override { return ESimModuleType::Engine; }
 

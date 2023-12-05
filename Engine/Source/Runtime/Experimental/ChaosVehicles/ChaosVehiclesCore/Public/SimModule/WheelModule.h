@@ -67,17 +67,20 @@ namespace Chaos
 		FWheelSettings()
 			: Radius(30.0f)
 			, Width(20.0f)
-			, WheelInertia(100000.0f) // TODO: ?? defaults and proper value ??
+			, WheelInertia(100.0f)
 
 			, FrictionMultiplier(3.0f)
 			, LateralSlipGraphMultiplier(1.0f)
 			, CorneringStiffness(1000.0f)
 			, SlipAngleLimit(8.0f)
+			, SlipModifier(0.9f)
 
 			, ABSEnabled(true)
 			, TractionControlEnabled(true)
 			, SteeringEnabled(false)
 			, HandbrakeEnabled(false)
+			, AutoHandbrakeEnabled(false)
+			, AutoHandbrakeVelocityThreshold(10.0f)
 			, MaxSteeringAngle(45)
 			, MaxBrakeTorque(4000)
 			, HandbrakeTorque(3000)
@@ -97,11 +100,14 @@ namespace Chaos
 		float CorneringStiffness;
 		FGraph LateralSlipGraph;
 		float SlipAngleLimit;
+		float SlipModifier;
 
 		bool ABSEnabled;			// Advanced braking system operational
 		bool TractionControlEnabled;// Straight Line Traction Control
 		bool SteeringEnabled;
 		bool HandbrakeEnabled;
+		bool AutoHandbrakeEnabled;
+		float AutoHandbrakeVelocityThreshold; 
 
 		float MaxSteeringAngle;
 		float MaxBrakeTorque;
@@ -154,8 +160,26 @@ namespace Chaos
 
 		void SetForceIntoSurface(float ForceIntoSurfaceIn) { ForceIntoSurface = ForceIntoSurfaceIn; }
 		float GetForceIntoSurface() const { return ForceIntoSurface; }
-
+		FVector GetForceFromFriction() const { return ForceFromFriction; }
 		void SetSurfaceFriction(float FrictionIn) { SurfaceFriction = FrictionIn; }
+		
+		/** set wheel rotational speed to match the specified linear forwards speed */
+		void SetLinearSpeed(float LinearMetersPerSecondIn)
+		{
+			SetAngularVelocity(LinearMetersPerSecondIn / Setup().Radius);
+		}
+
+		/** get linear forwards speed from angluar velocity and wheel radius */
+		float GetLinearSpeed()
+		{
+			return AngularVelocity * Setup().Radius;
+		}
+
+		/** Get the radius of the wheel [cm] */
+		float GetEffectiveRadius() const
+		{
+			return Setup().Radius;
+		}
 
 	private:
 

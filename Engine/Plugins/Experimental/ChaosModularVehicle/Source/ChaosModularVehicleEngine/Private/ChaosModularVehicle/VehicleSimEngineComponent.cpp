@@ -15,8 +15,8 @@ UVehicleSimEngineComponent::UVehicleSimEngineComponent()
 	MaxTorque = 200;
 	MaxRPM = 5000;
 	EngineIdleRPM = 1200;
-	EngineBrakeEffect = 0.5f;
-	MomentOfInertia = 10.0f; //??		// [Kg.m-2] How hard it is to turn the engine
+	EngineBrakeEffect = 150.0f;
+	EngineInertia = 1000.0f; 	// [Kg.m-2] How hard it is to turn the engine
 }
 
 Chaos::ISimulationModuleBase* UVehicleSimEngineComponent::CreateNewCoreModule() const
@@ -38,7 +38,7 @@ Chaos::ISimulationModuleBase* UVehicleSimEngineComponent::CreateNewCoreModule() 
 	Settings.MaxRPM = MaxRPM;
 	Settings.IdleRPM = EngineIdleRPM;
 	Settings.EngineBrakeEffect = EngineBrakeEffect;
-	Settings.EngineInertia = MomentOfInertia;
+	Settings.EngineInertia = EngineInertia;
 
 	Chaos::ISimulationModuleBase* Engine = new Chaos::FEngineSimModule(Settings);
 	return Engine;

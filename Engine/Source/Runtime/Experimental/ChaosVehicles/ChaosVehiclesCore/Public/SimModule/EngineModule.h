@@ -56,8 +56,8 @@ namespace Chaos
 			: MaxTorque(300.f)
 			, MaxRPM(6000)
 			, IdleRPM(1200)
-			, EngineBrakeEffect(0.2f)
-			, EngineInertia(100000.0f)
+			, EngineBrakeEffect(50.0f)
+			, EngineInertia(100.0f)
 		{
 			TorqueCurve.AddNormalized(0.5f);
 			TorqueCurve.AddNormalized(0.5f);
@@ -76,8 +76,8 @@ namespace Chaos
 		FNormalisedGraph TorqueCurve;
 		float MaxTorque;			// [N.m] The peak torque Y value in the normalized torque graph
 		uint16 MaxRPM;				// [RPM] The absolute maximum RPM the engine can theoretically reach (last X value in the normalized torque graph)
-		uint16 IdleRPM; 		// [RPM] The RPM at which the throttle sits when the car is not moving			
-		float EngineBrakeEffect;	// [0..1] How much the engine slows the vehicle when the throttle is released
+		uint16 IdleRPM; 			// [RPM] The RPM at which the throttle sits when the car is not moving			
+		float EngineBrakeEffect;	// [N.m] How much the engine slows the vehicle when the throttle is released
 
 		float EngineInertia;
 	};

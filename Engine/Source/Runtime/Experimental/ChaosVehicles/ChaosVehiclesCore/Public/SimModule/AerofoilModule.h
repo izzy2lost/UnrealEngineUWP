@@ -83,7 +83,6 @@ namespace Chaos
 			CurrentAirDensity = InDensity;
 		}
 
-	protected:
 		void SetControlSurface(float CtrlSurfaceInput)
 		{
 			ControlSurfaceAngle = CtrlSurfaceInput * Setup().MaxControlAngle;
