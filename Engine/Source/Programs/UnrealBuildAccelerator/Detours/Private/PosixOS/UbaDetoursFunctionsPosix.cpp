@@ -43,6 +43,7 @@ using namespace uba;
 	DETOURED_FUNCTION(readlinkat) \
 	DETOURED_FUNCTION(open) \
 	DETOURED_FUNCTION(write) \
+	DETOURED_FUNCTION(dup) \
 	DETOURED_FUNCTION(dup2) \
 	DETOURED_FUNCTION(close) \
 	DETOURED_FUNCTION(fopen) \
@@ -51,6 +52,7 @@ using namespace uba;
 	DETOURED_FUNCTION(fchmodat) \
 	DETOURED_FUNCTION(fwrite) \
 	DETOURED_FUNCTION(fstat) \
+	DETOURED_FUNCTION(futimens) \
 	DETOURED_FUNCTION(fclose) \
 	DETOURED_FUNCTION(opendir) \
 	DETOURED_FUNCTION(fdopendir) \
@@ -67,6 +69,7 @@ using namespace uba;
 	DETOURED_FUNCTION(chmod) \
 	DETOURED_FUNCTION(rename) \
 	DETOURED_FUNCTION(renameat) \
+	DETOURED_FUNCTION(utimensat) \
 	DETOURED_FUNCTION(remove) \
 	DETOURED_FUNCTION(symlink) \
 	DETOURED_FUNCTION(access) \
@@ -514,12 +517,14 @@ void Shared_close(int fd, const TrueClose& trueClose)
 
 	DetouredHandle& h = findIt->second;
 	FileObject* fo = h.fileObject;
-	UBA_ASSERT(fo->refCount == 1);
-
+	UBA_ASSERT(fo->refCount >= 1);
 	g_fileHandles.erase(findIt);
 	lock.Leave();
 
 	trueClose();
+
+	if (--fo->refCount)
+		return;
 
 	u64 mappingHandle = 0;
 	u64 mappingWritten = 0;
@@ -527,8 +532,11 @@ void Shared_close(int fd, const TrueClose& trueClose)
 	const tchar* path = fi.name;
 
 	if (fo->closeId)
+	{
+		//for (auto& kv : g_fileHandles)
+		//	UBA_ASSERT(&fi != kv.second.fileObject->fileInfo);
 		Rpc_UpdateCloseHandle(path, fo->closeId, fo->deleteOnClose, fo->newName.c_str(), mappingHandle, mappingWritten, true);
-
+	}
 	delete fo;
 }
 
@@ -576,16 +584,28 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 	errno = fileAttr.lastError;
 	memcpy(attr, &fileAttr.data, sizeof(struct stat));
 
-#if 0
-	struct stat attr2;
-	int res2 = TRUE_WRAPPER(__fxstat)(ver, fd, &attr2);
-	UBA_ASSERT(res == res2);
-	UBA_ASSERT(attr->st_mtime == attr2.st_mtime);
-	//UBA_ASSERT(attr->st_mode == attr2.st_mode);
-	//UBA_ASSERT(attr->st_dev == attr2.st_dev)
-	UBA_ASSERT(attr->st_ino == attr2.st_ino);
-	UBA_ASSERT(attr->st_size == attr2.st_size);
-#endif
+	#if UBA_DEBUG_VALIDATE
+	if (!g_runningRemote)
+	{
+		struct stat attr2;
+		int res2 = trueFstat(fd, &attr2);
+		UBA_ASSERTF(res == res2, "fstat: return value differs for %s (%i vs %i)", fi.originalName, res, res2);
+		if (res != -1)
+		{
+			bool isDir = S_ISDIR(attr->st_mode);
+			UBA_ASSERT(isDir == S_ISDIR(attr2.st_mode));
+			//UBA_ASSERT(attr->st_mode == attr2.st_mode);
+			//UBA_ASSERT(attr->st_dev == attr2.st_dev)
+			UBA_ASSERTF(attr->st_ino == attr2.st_ino, "fstat: st_ino mismatch for %s (%llu vs %llu)", fi.originalName, attr->st_ino, attr2.st_ino);
+			UBA_ASSERT(isDir || attr->st_size == attr2.st_size);
+			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtim) == FromTimeSpec(attr2.st_mtim), "fstat: st_mtim mismatch for %s (%llu vs %llu)", fi.originalName, FromTimeSpec(attr->st_mtim), FromTimeSpec(attr2.st_mtim));
+		}
+		else
+		{
+			UBA_ASSERT(fileAttr.lastError == errno);
+		}
+	}
+	#endif
 
 	return res;
 }
@@ -624,27 +644,25 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 	errno = fileAttr.lastError;
 	memcpy(attr, &fileAttr.data, sizeof(fileAttr.data));
 
-	#if 0
+	#if UBA_DEBUG_VALIDATE
 	if (!g_runningRemote)
 	{
 		struct stat attr2;
-		int res2 = trueStat(realName, &attr2);
-		if (res != res2)
-			printf("%s: Exists %i vs %i  (%s)\n", realName, res, res2, KeyToString(ToStringKey(fixedFile)).data);
-		if (res == 0)
+		int res2 = trueStat(file, &attr2);
+		UBA_ASSERTF(res == res2, "stat: return value differs for %s (%i vs %i)", file, res, res2);
+		if (res != -1)
 		{
-			//UBA_ASSERT(attr->st_mtime == attr2.st_mtime);
+			bool isDir = S_ISDIR(attr->st_mode);
+			UBA_ASSERT(isDir == S_ISDIR(attr2.st_mode));
 			//UBA_ASSERT(attr->st_mode == attr2.st_mode);
-			//UBA_ASSERTF(attr->st_dev == attr2.st_dev, "%s: %u vs %u", realName, attr->st_dev, attr2.st_dev);
-			//UBA_ASSERTF(attr->st_ino == attr2.st_ino, "%s: %llu vs %llu", realName, attr->st_ino, attr2.st_ino);
-			//UBA_ASSERTF(attr->st_size == attr2.st_size, "%s: %llu vs %llu", realName, attr->st_size, attr2.st_size);
-
-			if (attr->st_dev != attr2.st_dev)
-				printf("%s: Dev %lu vs %lu\n", realName, attr->st_dev, attr2.st_dev);
-			if (attr->st_ino != attr2.st_ino)
-				printf("%s: Ino %lu vs %lu\n", realName, attr->st_ino, attr2.st_ino);
-			if (attr->st_size != attr2.st_size)
-				printf("%s: Size %lu vs %lu\n", realName, attr->st_size, attr2.st_size);
+			//UBA_ASSERT(attr->st_dev == attr2.st_dev)
+			UBA_ASSERTF(attr->st_ino == attr2.st_ino, "stat: st_ino mismatch for %s (%llu vs %llu)", file, attr->st_ino, attr2.st_ino);
+			UBA_ASSERT(isDir || attr->st_size == attr2.st_size);
+			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtim) == FromTimeSpec(attr2.st_mtim), "stat: st_mtim mismatch for %s (%llu vs %llu)", file, FromTimeSpec(attr->st_mtim), FromTimeSpec(attr2.st_mtim));
+		}
+		else
+		{
+			UBA_ASSERT(fileAttr.lastError == errno);
 		}
 	}
 	#endif
@@ -821,7 +839,7 @@ UBA_EXPORT int UBA_WRAPPER(open)(const char* file, int flags, ...)
 UBA_EXPORT ssize_t UBA_WRAPPER(write)(int fd, const void* buf, size_t count)
 {
 	UBA_INIT_DETOUR(write, fd, buf, count);
-	if ((fd == 1 || fd == 2) && isatty(fd)) // stdout and stderr
+	if (isatty(fd)) // stdout and stderr
 	{
 		Shared_WriteConsole((const char*)buf, count);
 		return count;
@@ -836,10 +854,32 @@ UBA_EXPORT ssize_t UBA_WRAPPER(write)(int fd, const void* buf, size_t count)
 //	return -1;
 //}
 
+UBA_EXPORT int UBA_WRAPPER(dup)(int oldfd)
+{
+	UBA_INIT_DETOUR(dup, oldfd);
+	auto res = TRUE_WRAPPER(dup)(oldfd);
+	DEBUG_LOG_TRUE("dup", "(%i) -> %i", oldfd, res);
+	return res;
+}
+
 UBA_EXPORT int UBA_WRAPPER(dup2)(int oldfd, int newfd)
 {
 	UBA_INIT_DETOUR(dup2, oldfd, newfd);
 	auto res = TRUE_WRAPPER(dup2)(oldfd, newfd);
+
+	if (res != -1)
+	{
+		ScopedWriteLock lock(g_fileHandlesLock);
+		auto findIt = g_fileHandles.find(oldfd);
+		if (findIt != g_fileHandles.end())
+		{
+			DetouredHandle& h = findIt->second;
+			FileObject* fo = h.fileObject;
+			++fo->refCount;
+			g_fileHandles[newfd].fileObject = fo;
+		}
+	}
+
 	DEBUG_LOG_TRUE("dup2", "(%i, %i) -> %i", oldfd, newfd, res);
 	return res;
 }
@@ -904,6 +944,13 @@ UBA_EXPORT int UBA_WRAPPER(fstat)(int fd, struct stat* buf)
 {
 	UBA_INIT_DETOUR(fstat, fd, buf);
 	return Shared_fstat("fstat", fd, buf, [](int fd, struct stat* buf) { return TRUE_WRAPPER(fstat)(fd, buf); });
+}
+
+UBA_EXPORT int UBA_WRAPPER(futimens)(int fd, const struct timespec* times)
+{
+	UBA_INIT_DETOUR(futimens, fd, times);
+	DEBUG_LOG_TRUE("futimens", "(%i)", fd);
+	return TRUE_WRAPPER(futimens)(fd, times);
 }
 
 UBA_EXPORT int UBA_WRAPPER(fclose)(FILE* stream)
@@ -1229,6 +1276,13 @@ UBA_EXPORT int UBA_WRAPPER(renameat)(int olddirfd, const char* oldpath, int newd
 	return TRUE_WRAPPER(renameat)(olddirfd, oldpath, newdirfd, newpath);
 }
 
+UBA_EXPORT int UBA_WRAPPER(utimensat)(int dirfd, const char* pathname, const struct timespec* times, int flags)
+{
+	UBA_INIT_DETOUR(utimensat, dirfd, pathname, times, flags);
+	DEBUG_LOG_TRUE("utimensat", "(%s)", pathname);
+	return TRUE_WRAPPER(utimensat)(dirfd, pathname, times, flags);
+}
+
 UBA_EXPORT int UBA_WRAPPER(symlink)(const char* path1, const char* path2)
 {
 	UBA_INIT_DETOUR(symlink, path1, path2);
@@ -1372,7 +1426,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 	}
 
 	#if UBA_DEBUG_LOG_ENABLED
-	DEBUG_LOG_TRUE("posix_spawn", "%s (%s)", path, ldpreload.data);
+	DEBUG_LOG_TRUE("posix_spawn", "%s", path);
 	for (u32 i = 0; argv[i]; ++i)
 		DEBUG_LOG("            %s", argv[i]);
 	#endif
@@ -1703,7 +1757,7 @@ namespace uba
 		}
 		#endif
 
-		g_exeDir.count = GetProcessExecutablePath(g_exeDir.data, g_exeDir.capacity); //TRUE_WRAPPER(readlink)("/proc/self/exe", g_exeDir.data, g_exeDir.capacity);
+		g_exeDir.count = GetProcessExecutablePath(g_exeDir.data, g_exeDir.capacity);
 		if (g_exeDir.count == -1)
 		{
 			UBA_ASSERT(false);
@@ -1748,7 +1802,9 @@ namespace uba
 
 		UBA_ASSERT(g_virtualApplicationDir.capacity > 0);
 
-		g_virtualApplicationDir.Append(g_virtualApplication.data, strrchr(g_virtualApplication.data, '/') - g_virtualApplication.data + 1);
+		const char* lastSlash = strrchr(g_virtualApplication.data, '/');
+		UBA_ASSERTF(lastSlash, "Need fullpath for application (%s)", g_virtualApplication.data);
+		g_virtualApplicationDir.Append(g_virtualApplication.data, lastSlash - g_virtualApplication.data + 1);
 
 		setenv("PWD", g_virtualWorkingDir.data, 1);
 		g_virtualWorkingDir.EnsureEndsWithSlash();
@@ -1792,6 +1848,7 @@ namespace uba
 			ScopedWriteLock lock(g_fileHandlesLock);
 			for (auto& kv : g_fileHandles)
 			{
+				TRUE_WRAPPER(close)(kv.first);
 				DetouredHandle& h = kv.second;
 				FileObject* fo = h.fileObject;
 				if (!fo->closeId)
@@ -1835,4 +1892,22 @@ namespace uba
 		errno = t;
 	}
 	#endif
+
+	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
+	{
+		SuppressDetourScope s;
+		StringBuffer<4096> b;
+		WriteAssertInfo(b, text, file, line, expr, 1);
+		Rpc_WriteLog(b.data, b.count, true);
+
+		BinaryWriter writer;
+		writer.WriteByte(MessageType_Exit);
+		writer.WriteU32(terminateCode); // Exit code
+		writer.WriteString(""); // Log name
+		g_stats.Write(writer);
+		writer.Flush(false);
+
+		CloseCom();
+		TRUE_WRAPPER(_exit)(int(terminateCode));
+	}
 }

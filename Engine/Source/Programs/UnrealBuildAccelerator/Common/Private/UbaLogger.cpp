@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaLogger.h"
+#include "UbaBinaryReaderWriter.h"
+#include "UbaFileAccessor.h"
 #include "UbaPlatform.h"
 #include "UbaStringBuffer.h"
 
@@ -163,9 +165,9 @@ namespace uba
 		HANDLE m_stdout = 0;
 		u32 m_defaultAttributes = 0;
 #endif
-		u32 m_scopeCount = 0;
 	} g_consoleLogWriterImpl;
 	LogWriter& g_consoleLogWriter = g_consoleLogWriterImpl;
+	thread_local u32 t_consoleLogScopeCount = 0;
 
 	class NullLogWriter : public LogWriter
 	{
@@ -192,13 +194,13 @@ namespace uba
 
 	void ConsoleLogWriter::BeginScope()
 	{
-		if (!m_scopeCount++)
+		if (!t_consoleLogScopeCount++)
 			m_lock.EnterWrite();
 	}
 
 	void ConsoleLogWriter::EndScope()
 	{
-		if (--m_scopeCount)
+		if (--t_consoleLogScopeCount)
 			return;
 #if PLATFORM_WINDOWS
 		if (!m_stdout)
@@ -209,7 +211,7 @@ namespace uba
 
 	void ConsoleLogWriter::Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix, u32 prefixLen)
 	{
-		if (m_scopeCount)
+		if (t_consoleLogScopeCount)
 			return LogNoLock(type, str, strLen, prefix, prefixLen);
 		ScopedWriteLock lock(m_lock);
 		LogNoLock(type, str, strLen, prefix, prefixLen);
@@ -294,4 +296,90 @@ namespace uba
 		else
 			TSprintf_s(str, 32, TC("%.1fgb"), double(bytes) / (1000ull * 1000 * 1000));
 	}
+
+#if UBA_DEBUG_LOGGER
+	thread_local u32 t_debugLogScopeCount = 0;
+
+	class DebugLogWriter : public LogWriter
+	{
+	public:
+		virtual void BeginScope() override
+		{
+			if (!m_file)
+				return;
+			if (!t_debugLogScopeCount++)
+				m_logLock.EnterWrite();
+		}
+
+		virtual void EndScope() override
+		{
+			if (!m_file)
+				return;
+			if (--t_debugLogScopeCount)
+				return;
+			//
+
+			m_logLock.LeaveWrite();
+		}
+
+		virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) override
+		{
+			if (!m_file)
+				return;
+			if (t_debugLogScopeCount)
+				return LogNoLock(type, str, strLen, prefix, prefixLen);
+			ScopedWriteLock lock(m_logLock);
+			LogNoLock(type, str, strLen, prefix, prefixLen);
+		}
+
+		void LogNoLock(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix, u32 prefixLen)
+		{
+			#if PLATFORM_WINDOWS
+			u8 buffer[2048];
+			BinaryWriter writer(buffer);
+			writer.WriteString(str, strLen);
+			BinaryReader reader(buffer);
+			u64 charLen = reader.Read7BitEncoded();
+			m_file->Write(reader.GetPositionData(), charLen);
+			#else
+			m_file->Write(str, strLen);
+			#endif
+		}
+
+		TString m_fileName;
+		FileAccessor* m_file = nullptr;
+		ReaderWriterLock m_logLock;
+
+	} g_debugLogWriter;
+
+	bool StartDebugLogger(Logger& outerLogger, const tchar* fileName)
+	{
+		g_debugLogWriter.m_fileName = fileName;
+		auto fa = new FileAccessor(outerLogger, g_debugLogWriter.m_fileName.c_str());
+		if (!fa->CreateWrite())
+		{
+			delete fa;
+			return false;
+		}
+
+		#if PLATFORM_WINDOWS
+		unsigned char utf8BOM[] = { 0xef,0xbb,0xbf }; 
+		fa->Write(utf8BOM, sizeof(utf8BOM));
+		#endif
+
+		g_debugLogWriter.m_file = fa;
+		return true;
+	}
+
+	void StopDebugLogger()
+	{
+		if (!g_debugLogWriter.m_file)
+			return;
+		g_debugLogWriter.m_file->Close();
+		delete g_debugLogWriter.m_file;
+		g_debugLogWriter.m_file = nullptr;
+	}
+
+	LoggerWithWriter g_debugLogger(g_debugLogWriter);
+#endif
 }

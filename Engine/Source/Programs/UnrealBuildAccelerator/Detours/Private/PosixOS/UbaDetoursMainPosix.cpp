@@ -196,16 +196,4 @@ namespace uba
 		m_pos = m_begin;
 		m_end = m_begin + CommunicationMemSize/2;
 	}
-
-	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
-	{
-		SuppressDetourScope s;
-		StringBuffer<4096> b;
-		WriteAssertInfo(b, text, file, line, expr, 1);
-		Rpc_WriteLog(b.data, b.count, true);
-		fputs(b.data, stdout);
-		fputs("\n", stdout);
-		fflush(stdout);
-		_exit(int(terminateCode));
-	}
 }

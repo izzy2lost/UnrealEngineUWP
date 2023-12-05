@@ -21,6 +21,7 @@ namespace uba
 		UBA_TEST(TestStorage) \
 		UBA_TEST(TestDetouredTestApp) \
 		UBA_TEST(TestDetouredClang) \
+		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCustomService) \
 
@@ -53,8 +54,8 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		UBA_TEST(TestDetouredTestApp)
-		//UBA_TESTS
+		//UBA_TEST(TestDetouredTestApp)
+		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));
 		Sleep(3000);

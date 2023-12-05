@@ -203,6 +203,9 @@ namespace uba
 
 		if (u32(len) >= capacity - count)
 		{
+			// 16 chars needed to fit buffer overflow string
+			if (count > capacity - 16)
+				count = capacity - 16;
 			Append(TC("BUFFEROVERFLOW!"));
 			return *this;
 		}

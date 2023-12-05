@@ -136,5 +136,9 @@ int main()
 	if (stat("FileWF", &attrWF) == -1)
 		return LogError("stat for FileW failed");
 
+	struct stat attrRoot;
+	if (stat("/", &attrRoot) != -1)
+		return LogError("stat for '/' failed");
+
 	return 0;
 }

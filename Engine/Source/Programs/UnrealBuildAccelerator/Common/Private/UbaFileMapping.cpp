@@ -82,7 +82,7 @@ namespace uba
 						StringBuffer<64> uidName;
 						GetMappingHandleName(uidName, uid);
 						if (shm_unlink(uidName.data) == 0)
-							logger.Info("Removed old shared memory %s", uidName.data);
+							;// logger.Info("Removed old shared memory %s", uidName.data);
 						remove(lockFile.data);
 					}
 					else

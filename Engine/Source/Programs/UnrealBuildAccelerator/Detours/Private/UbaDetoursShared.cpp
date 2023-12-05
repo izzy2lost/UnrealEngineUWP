@@ -162,9 +162,7 @@ namespace uba
 
 	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession)
 	{
-		#if PLATFORM_WINDOWS
-		DEBUG_LOG(TC("LOG  %.*ls"), u32(textCharLength), text); // TODO: Investigate, deadlocks on non-windows
-		#endif	
+		DEBUG_LOG(TC("LOG  %.*s"), u32(textCharLength), text); // TODO: Investigate, deadlocks on non-windows
 		TimerScope ts(g_stats.log);
 		ScopedWriteLock pcs(g_communicationLock);
 		BinaryWriter writer;
@@ -352,7 +350,7 @@ namespace uba
 						(u64&)outAttr.data.ftLastAccessTime = info.lastWrite;
 						(u64&)outAttr.data.ftLastWriteTime = info.lastWrite;
 #else
-						outAttr.data.st_mtime = info.lastWrite;
+						outAttr.data.st_mtim = ToTimeSpec(info.lastWrite);
 						outAttr.data.st_mode = (mode_t)info.attributes;
 						outAttr.data.st_dev = info.volumeSerial;
 						outAttr.data.st_ino = info.fileIndex;

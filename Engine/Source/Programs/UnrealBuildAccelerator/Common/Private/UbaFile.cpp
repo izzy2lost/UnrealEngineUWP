@@ -61,7 +61,7 @@ namespace uba
 			if (!QueryFullProcessImageNameW(hProcess, 0, sz, &cch))
 				continue;
 			if (cch <= MaxPath)
-				out.Append(TC(" - ")).Append(sz);
+				out.Appendf(TC(" - %s"), sz); // Using Appendf to have capacity check
 		}
 	}
 
@@ -133,7 +133,7 @@ namespace uba
 				if (IsDirectory(attr))
 					return false;
 		}
-		StringBuffer<256> additionalInfo;
+		StringBuffer<4096> additionalInfo;
 		#if PLATFORM_WINDOWS
 		if (lastError == ERROR_SHARING_VIOLATION)
 			GetProcessHoldingFile(additionalInfo, fileName);
@@ -161,7 +161,7 @@ namespace uba
 			UBA_ASSERTF(false, TC("GetFileInformationByHandle (fstat) error handling not implemented"));
 			return false;
 		}
-		out.lastWriteTime = attr.st_mtime;
+		out.lastWriteTime = FromTimeSpec(attr.st_mtim);
 		out.attributes = attr.st_mode;
 		out.volumeSerialNumber = attr.st_dev;
 		out.index = attr.st_ino;
@@ -185,7 +185,7 @@ namespace uba
 		int res = stat(fileName, &attr);
 		if (res != 0)
 			return false;// logger.Error(TC("GetFileInformation: CreateFile failed for file %s (%s)"), fileName, strerror(errno));
-		out.lastWriteTime = attr.st_mtime;
+		out.lastWriteTime = FromTimeSpec(attr.st_mtim);
 		out.attributes = attr.st_mode;
 		out.volumeSerialNumber = attr.st_dev;
 		out.index = attr.st_ino;
@@ -546,7 +546,7 @@ namespace uba
 			UBA_ASSERTF(false, TC("GetFileLastWriteTime (fstat) error handling not implemented: %s"), strerror(errno));
 			return false;
 		}
-		outTime = attr.st_mtime;
+		outTime = FromTimeSpec(attr.st_mtim);
 		return true;
 #endif
 	}
@@ -707,7 +707,7 @@ namespace uba
 #else
 		timeval tv;
 		gettimeofday(&tv, NULL);
-		return u64(tv.tv_sec);// +(tv.tv_usec / 1000ull);
+		return u64(tv.tv_sec) * 10'000'000ull + u64(tv.tv_usec)*10ull;
 #endif
 	}
 
@@ -716,7 +716,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 		return TimeToMs(fileTime)/1000;
 #else
-		return fileTime;
+		return fileTime / 10'000'000ull;
 #endif
 	}
 

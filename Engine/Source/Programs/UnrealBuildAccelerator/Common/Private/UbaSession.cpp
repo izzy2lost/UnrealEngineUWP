@@ -209,6 +209,13 @@ namespace uba
 			hasher.Update(forHash.data, forHash.count);
 		}
 
+		#if UBA_DEBUG_LOGGER
+		g_debugLogger.BeginScope();
+		auto dg = MakeGuard([]() { g_debugLogger.EndScope(); });
+		g_debugLogger.Info(TC("TRACKDIR %s\n"), dirPath);
+		#endif
+
+
 		BinaryWriter memoryWriter(memoryBlock.data(), 0, memoryBlock.size());
 
 		bool res = TraverseDir(m_logger, dirPathLen ? dirPath : TC("/"),
@@ -225,6 +232,10 @@ namespace uba
 					return;
 				UBA_ASSERT(e.attributes);
 				memoryWriter.WriteString(e.name, e.nameLen);
+
+				#if UBA_DEBUG_LOGGER
+				g_debugLogger.Info(TC("    %s (Size: %llu, Key: %s, Id: %llu)\n"), e.name, e.size, KeyToString(fileKey).data, e.id);
+				#endif
 
 				res.first->second = u32(memoryWriter.GetPosition()); // Temporary offset that will be used further down to calculate the real offset
 				memoryWriter.WriteU64(e.lastWritten);
@@ -728,8 +739,16 @@ namespace uba
 		{
 			BinaryReader reader(dirTable.m_memory + insres.first->second);
 			u64 oldLastWriteTime = reader.ReadU64();
+
 			if (lastWriteTime == oldLastWriteTime)
+			{
+				#if !PLATFORM_WINDOWS
+				reader.Skip(sizeof(u32) * 2);
+				u64 oldFileIndex = reader.ReadU64();
+				UBA_ASSERT(oldFileIndex == fileIndex); // Checking so it is really the same file
+				#endif
 				return true;
+			}
 		}
 
 		FileEntryAdded(fileNameKey, lastWriteTime, fileSize);
@@ -751,6 +770,12 @@ namespace uba
 			writer.WriteU64(fileSize);
 			written = writer.GetPosition();
 		}
+
+		#if UBA_DEBUG_LOGGER
+		g_debugLogger.Info(TC("TRACKADD    %s (Size: %llu, Key: %s, Id: %llu)\n"), fileName, fileSize, KeyToString(fileNameKey).data, fileIndex);
+		#endif
+
+
 		ScopedWriteLock memoryLock(dirTable.m_memoryLock);
 		u8* startPos = dirTable.m_memory + dirTable.m_memorySize;
 		BinaryWriter writer(startPos);
@@ -822,6 +847,11 @@ namespace uba
 			writer.WriteU64(0);
 			written = writer.GetPosition();
 		}
+
+		#if UBA_DEBUG_LOGGER
+		g_debugLogger.Info(TC("TRACKDEL    %s (Key: %s)\n"), fileName, KeyToString(fileNameKey).data);
+		#endif
+
 		ScopedWriteLock memoryLock(dirTable.m_memoryLock);
 		u8* startPos = dirTable.m_memory + dirTable.m_memorySize;
 		BinaryWriter writer(startPos);
@@ -997,10 +1027,10 @@ namespace uba
 				});
 		}
 
-		m_sessionDir.Append(m_rootDir).Append(TC("sessions")).Append(PathSeparator).Append(m_id);// + TC("\\");
-		m_sessionBinDir.Append(m_sessionDir).Append(PathSeparator).Append(TC("bin"));
-		m_sessionOutputDir.Append(m_sessionDir).Append(PathSeparator).Append(TC("output"));
-		m_sessionLogDir.Append(m_sessionDir).Append(PathSeparator).Append(TC("log"));
+		m_sessionDir.Append(m_rootDir).Append(TC("sessions")).Append(PathSeparator).Append(m_id).Append(PathSeparator);
+		m_sessionBinDir.Append(m_sessionDir).Append(TC("bin"));
+		m_sessionOutputDir.Append(m_sessionDir).Append(TC("output"));
+		m_sessionLogDir.Append(m_sessionDir).Append(TC("log"));
 
 		if (m_runningRemote)
 		{
@@ -1008,16 +1038,20 @@ namespace uba
 			m_storage.CreateDirectory(m_sessionOutputDir.data);
 		}
 
-		m_tempPath.Append(m_sessionDir).Append(PathSeparator).Append(TC("temp"));
+		m_tempPath.Append(m_sessionDir).Append(TC("temp"));
 		m_storage.CreateDirectory(m_tempPath.data);
 		m_tempPath.EnsureEndsWithSlash();
 
-		m_sessionDir.EnsureEndsWithSlash();
 		m_sessionBinDir.EnsureEndsWithSlash();
 		m_sessionOutputDir.EnsureEndsWithSlash();
 
 		m_storage.CreateDirectory(m_sessionLogDir.data);
 		m_sessionLogDir.EnsureEndsWithSlash();
+
+
+		#if UBA_DEBUG_LOGGER
+		StartDebugLogger(m_logger, StringBuffer<512>().Append(m_sessionDir).Append(TC("SessionDebug.log")).data);
+		#endif
 
 		#if PLATFORM_WINDOWS
 		m_systemPath.count = GetEnvironmentVariableW(TC("SystemRoot"), m_systemPath.data, m_systemPath.capacity);
@@ -1130,6 +1164,10 @@ namespace uba
 		//u32 count;
 		//DeleteAllFiles(m_logger, m_sessionDir.data, count);
 		//#endif
+
+		#if UBA_DEBUG_LOGGER
+		StopDebugLogger();
+		#endif
 	}
 
 	void Session::CancelAllProcessesAndWait(bool terminate)
@@ -1854,7 +1892,10 @@ namespace uba
 		#else
 		out.errorCode = 0;
 		if (chmod(msg.fileName.data, (mode_t)msg.fileMode) == 0)
+		{
+			RegisterCreateFileForWrite(msg.fileNameKey, msg.fileName.data, msg.fileName.count, true);
 			return true;
+		}
 		out.errorCode = errno;
 		#endif
 		return true;

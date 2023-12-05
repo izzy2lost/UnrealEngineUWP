@@ -100,8 +100,10 @@ namespace uba
 			return logger.Error(TC("Failed to get last written time"));
 
 		u64 systemTime = GetSystemTimeAsFileTime();
-		if (GetFileTimeAsSeconds(systemTime)+1 - GetFileTimeAsSeconds(writeTime) > 3)
-			return logger.Error(TC("system time or last written time is wrong (system: %llu, write: %llu)"), systemTime, writeTime);
+		if (systemTime < writeTime)
+			return logger.Error(TC("System time is lower than last written time"));
+		if (GetFileTimeAsSeconds(systemTime) - GetFileTimeAsSeconds(writeTime) > 3)
+			return logger.Error(TC("System time or last written time is wrong (system: %llu, write: %llu, diffInSec: %llu)"), systemTime, writeTime, GetFileTimeAsSeconds(systemTime) - GetFileTimeAsSeconds(writeTime));
 
 
 		u8 byte2 = 0;

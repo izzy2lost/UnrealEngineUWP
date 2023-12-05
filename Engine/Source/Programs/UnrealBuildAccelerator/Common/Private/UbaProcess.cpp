@@ -1167,12 +1167,7 @@ namespace uba
 		if (*m_startInfo.logFile)
 		{
 			#if !UBA_DEBUG_LOG_ENABLED
-			static bool runOnce = true;
-			if (runOnce)
-			{
-				runOnce = false;
-				logger.Warning(TC("Build has log files disabled so no logs will be produced"));
-			}
+			static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
 			#endif
 			payload.logFile.Append(m_startInfo.logFile);
 		}
@@ -1232,12 +1227,7 @@ namespace uba
 			if (*m_startInfo.logFile)
 			{
 				#if !UBA_DEBUG_LOG_ENABLED
-				static bool runOnce = true;
-				if (runOnce)
-				{
-					runOnce = false;
-					logger.Warning(TC("Build has log files disabled so no logs will be produced"));
-				}
+				static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
 				#endif
 				logFile.Append("UBA_LOGFILE=").Append(m_startInfo.logFile);
 			}

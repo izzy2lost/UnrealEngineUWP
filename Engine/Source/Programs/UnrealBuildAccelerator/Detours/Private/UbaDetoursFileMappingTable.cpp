@@ -171,6 +171,9 @@ namespace uba
 		entryNameForKey.Append(entryName, entryNameLen);
 		if (CaseInsensitiveFs)
 			entryNameForKey.MakeLower();
+		else if (entryNameForKey.count == 1 && entryNameForKey[0] == '/')
+			checkIfDir = true;
+
 		CHECK_PATH(entryNameForKey.data);
 		DirectoryTable::Exists exists = g_directoryTable.EntryExists(entryNameKey, entryNameForKey.data, entryNameLen, checkIfDir, &dirTableOffset);
 		if (exists != DirectoryTable::Exists_Maybe)
@@ -184,12 +187,6 @@ namespace uba
 		#endif
 
 		u64 dirNameLen = lastPathSeparator - entryName;
-		// There's a potential issue with the way paths with a single leading slash are handled
-		// e.g.: /usr ends up with a lastPathSeparator == 0 which throws off the logic
-		// However if we do the right thing tests start failing, so there's some ghost in the machine
-		// that needs to be worked out still. 
-		//dirNameLen = dirNameLen == 0 ? entryNameLen : dirNameLen;
-		//printf("RPC_GetEntryOffset: %s len: %llu entry: %s lastPath:%s\n", entryNameLower.data, dirNameLen, entryName, lastPathSeparator);
 		DirHash hash(entryNameForKey.data, dirNameLen);
 
 		if (Rpc_UpdateDirectory(hash.key, entryName, dirNameLen) == ~u32(0))

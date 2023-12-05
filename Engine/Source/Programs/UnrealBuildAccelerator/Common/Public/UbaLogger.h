@@ -5,6 +5,9 @@
 #include "UbaBase.h"
 #include <stdarg.h>
 
+
+#define UBA_DEBUG_LOGGER 0
+
 namespace uba
 {
 	enum LogEntryType : u8
@@ -92,4 +95,11 @@ namespace uba
 		operator const tchar* () const { return str; };
 		tchar str[32];
 	};
+
+
+	#if UBA_DEBUG_LOGGER
+	bool StartDebugLogger(Logger& outerLogger, const tchar* fileName);
+	void StopDebugLogger();
+	extern LoggerWithWriter g_debugLogger;
+	#endif
 }

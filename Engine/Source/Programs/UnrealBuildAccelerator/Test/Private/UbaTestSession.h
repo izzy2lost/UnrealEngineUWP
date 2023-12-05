@@ -256,4 +256,47 @@ namespace uba
 			return true;
 		return RunRemote(logger, testRootDir, RunClang);
 	}
+
+	bool TestDetouredTouch(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		if (IsWindows)
+			return true;
+		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
+			{
+				StringBuffer<> file;
+				file.Append(workingDir).Append(TC("TouchFile.h"));
+				FileAccessor fr(logger, file.data);
+
+				if (!fr.CreateWrite())
+					return false;
+				if (!fr.Write("Foo", 4))
+					return false;
+				if (!fr.Close())
+					return false;
+				FileInformation oldInfo;
+				if (!GetFileInformation(oldInfo, logger, file.data))
+					return false;
+
+				Sleep(100);
+
+				ProcessStartInfo processInfo;
+				processInfo.application = TC("/usr/bin/touch");
+				processInfo.workingDir = workingDir;
+				processInfo.arguments = file.data;
+				processInfo.logFile = TC("/home/honk/Touch.log");
+				ProcessHandle process = runProcess(processInfo);
+				if (!process.WaitForExit(10000))
+					return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
+				u32 exitCode = process.GetExitCode();
+				if (exitCode != 0)
+					return false;
+
+				FileInformation newInfo;
+				if (!GetFileInformation(newInfo, logger, file.data))
+					return false;
+				if (newInfo.lastWriteTime == oldInfo.lastWriteTime)
+					return logger.Error(TC("File time not changed after touch"));
+				return true;
+			});
+	}
 }
