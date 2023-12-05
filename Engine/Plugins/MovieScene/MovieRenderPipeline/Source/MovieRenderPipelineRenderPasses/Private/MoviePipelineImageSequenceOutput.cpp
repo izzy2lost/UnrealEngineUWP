@@ -258,18 +258,7 @@ void UMoviePipelineImageSequenceOutputBase::OnReceiveImageDataImpl(FMoviePipelin
 		// no good without alpha, and we already did logic above to ensure it got turned into a filetype that could write alpha.
 		if (!IsAlphaAllowed() && !Payload->bRequireTransparentOutput)
 		{
-			switch (QuantizedPixelType)
-			{
-			case EImagePixelType::Color:
-				TileImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
-				break;
-			case EImagePixelType::Float16:
-				TileImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FFloat16Color>(1.0f));
-				break;
-			case EImagePixelType::Float32:
-				TileImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FLinearColor>(1.0f));
-				break;
-			}
+			TileImageTask->AddPreProcessorToSetAlphaOpaque();
 		}
 
 

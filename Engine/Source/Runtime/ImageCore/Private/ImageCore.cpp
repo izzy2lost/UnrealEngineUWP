@@ -1595,6 +1595,8 @@ bool FImageCore::DetectAlphaChannel(const FImageView & InImage)
 
 void FImageCore::SetAlphaOpaque(const FImageView & InImage)
 {
+	// this is not currently parallel but easily could be
+
 	int64 NumPixels = (int64)InImage.SizeX * InImage.SizeY * InImage.NumSlices;
 
 	if (InImage.Format == ERawImageFormat::BGRA8)

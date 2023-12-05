@@ -5841,7 +5841,7 @@ void FEditorViewportClient::TakeScreenshot(FViewport* InViewport, bool bInValida
 		ImageTask->PixelData = MoveTemp(PixelData);
 
 		// Ensure the alpha channel is full alpha (this happens on the background thread)
-		ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
+		ImageTask->AddPreProcessorToSetAlphaOpaque();
 	}
 	else
 	{
@@ -5862,7 +5862,7 @@ void FEditorViewportClient::TakeScreenshot(FViewport* InViewport, bool bInValida
 		ImageTask->PixelData = MoveTemp(PixelData);
 
 		// Ensure the alpha channel is full alpha (this happens on the background thread)
-		ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FLinearColor>(1.0f));
+		ImageTask->AddPreProcessorToSetAlphaOpaque();
 	}
 
 	// Create screenshot folder if not already present.
@@ -6041,7 +6041,7 @@ bool RequestSaveScreenshot(bool bWriteAlpha, TArray<FColorType>& Bitmap, FIntPoi
 		// Set full alpha on the bitmap
 		if (!bWriteAlpha)
 		{
-			ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColorType>(OpaqueAlphaValue));
+			ImageTask->AddPreProcessorToSetAlphaOpaque();
 		}
 
 		HighResScreenshotConfig.PopulateImageTaskParams(*ImageTask);
