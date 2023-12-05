@@ -972,13 +972,7 @@ namespace uba
 		char* bodyStart = strstr(secondSpace + 1, "\r\n\r\n");
 		if (!bodyStart)
 			return logger.Error(TC("HttpRequest: no body found"));
-
-		#if PLATFORM_WINDOWS
-		outResponse.Appendf(L"%S", bodyStart + 4);
-		#else
 		outResponse.Append(bodyStart + 4);
-		#endif
-
 		return true;
 	}
 }

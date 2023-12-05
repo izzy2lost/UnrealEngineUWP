@@ -34,6 +34,10 @@ namespace uba
 		StringBufferBase& Resize(u64 newSize);
 		StringBufferBase& Clear();
 
+		#if PLATFORM_WINDOWS
+		StringBufferBase& Append(const char* str);
+		#endif
+
 		tchar operator[](u64 i) const { return data[i]; }
 		tchar& operator[](u64 i) { return data[i]; }
 

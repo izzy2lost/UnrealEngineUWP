@@ -219,6 +219,18 @@ namespace uba
 		return *this;
 	}
 
+	#if PLATFORM_WINDOWS
+	StringBufferBase& StringBufferBase::Append(const char* str)
+	{
+		u32 capacityEnd = capacity - 1;
+		for (const char* i = str; *i; ++i)
+			if (count < capacityEnd)
+				data[count++] = *i;
+		data[count] = 0;
+		return *this;
+	}
+	#endif
+
 	StringBufferBase& StringBufferBase::Resize(u64 newSize)
 	{
 		UBA_ASSERT(newSize < capacity);
