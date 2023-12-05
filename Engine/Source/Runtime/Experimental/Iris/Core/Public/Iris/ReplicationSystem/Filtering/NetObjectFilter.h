@@ -56,10 +56,7 @@ struct FNetObjectFilteringParams
 	/** FilteringInfos for all objects. Index using the set bit indices in FilteredObjects. */
 	const FNetObjectFilteringInfo* FilteringInfos = nullptr;
 
-	/** 
-	* State buffers for all objects. Index using the set bit indices in FilteredObjects. 
-	*/
-	
+	/** State buffers for all objects. Index using the set bit indices in FilteredObjects. */
 	uint8 *const* StateBuffers = nullptr;
 
 	/** ID of the connection that the filtering applies to. */
@@ -74,8 +71,16 @@ struct FNetObjectFilteringParams
  */
 struct FNetObjectPreFilteringParams
 {
+	FNetObjectPreFilteringParams(const UE::Net::FNetBitArrayView InFilteredObjects);
+
 	// The IDs of all valid connections.
 	UE::Net::FNetBitArrayView ValidConnections;
+
+	/** The indices of the objects that have this filter set. The indices of set bits correspond to the object indices. */
+	const UE::Net::FNetBitArrayView FilteredObjects;
+
+	/** FilteringInfos for all objects. Index using the set bit indices in FilteredObjects. */
+	TArrayView<const FNetObjectFilteringInfo> FilteringInfos;
 };
 
 /**
@@ -112,6 +117,13 @@ enum class ENetFilterType : uint8
 	 */
 	PostPoll_FragmentBased,
 };
+
+enum class ENetFilterTraits : uint8
+{
+	None = 0,
+	Spatial = 1,
+};
+ENUM_CLASS_FLAGS(ENetFilterTraits);
 
 /**
  * Base class for filter specific configuration.
@@ -232,6 +244,9 @@ public:
 	/** Returns what type of filter it is. Default is to cull and be executed before dirty state copying. */
 	ENetFilterType GetFilterType() const { return FilterType; }
 
+	/** Returns the filter's traits. */
+	ENetFilterTraits GetFilterTraits() const { return FilterTraits; }
+
 protected:
 	IRISCORE_API UNetObjectFilter();
 
@@ -246,6 +261,12 @@ protected:
 
 	/** Directly set when you want your dynamic filter to be executed. */
 	void SetupFilterType(ENetFilterType NewFilterType) { FilterType = NewFilterType; }
+
+	/** Adds traits. */
+	void AddFilterTraits(ENetFilterTraits Traits);
+
+	/** Sets the traits specified by TraitsMask to Traits. */
+	void SetFilterTraits(ENetFilterTraits Traits, ENetFilterTraits TraitsMask);
 
 private:
 	class FFilterInfo
@@ -266,6 +287,7 @@ private:
 	};
 
 	ENetFilterType FilterType = ENetFilterType::PrePoll_Raw;
+	ENetFilterTraits FilterTraits = ENetFilterTraits::None;
 	FFilterInfo FilterInfo;
 };
 
@@ -284,3 +306,13 @@ inline bool UNetObjectFilter::FFilterInfo::IsAddedToFilter(uint32 ObjectIndex) c
 	return ObjectIndex < FilteredObjects.GetNumBits() && FilteredObjects.IsBitSet(ObjectIndex);
 }
 
+inline void UNetObjectFilter::AddFilterTraits(ENetFilterTraits Traits)
+{
+	FilterTraits |= Traits;
+}
+
+inline void UNetObjectFilter::SetFilterTraits(ENetFilterTraits Traits, ENetFilterTraits TraitsMask)
+{
+	const ENetFilterTraits NewFilterTraits = (FilterTraits & ~TraitsMask) | (Traits & TraitsMask);
+	FilterTraits = NewFilterTraits;
+}

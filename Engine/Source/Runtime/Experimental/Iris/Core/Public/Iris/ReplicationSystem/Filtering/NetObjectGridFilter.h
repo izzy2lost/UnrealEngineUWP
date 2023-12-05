@@ -49,7 +49,7 @@ public:
 	FVector MaxPos = {+0.5f*2097152.0f, +0.5f*2097152.0f, +0.5f*2097152.0f};
 };
 
-UCLASS()
+UCLASS(abstract)
 class UNetObjectGridFilter : public UNetObjectFilter
 {
 	GENERATED_BODY()
@@ -61,7 +61,6 @@ protected:
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
 	IRISCORE_API virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectFilteringInfo&) override;
-	IRISCORE_API virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
 	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	IRISCORE_API virtual void Filter(FNetObjectFilteringParams&) override;
 
@@ -200,6 +199,8 @@ class UNetObjectGridWorldLocFilter : public UNetObjectGridFilter
 protected:
 
 	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
+	virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
 	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
 
@@ -221,6 +222,7 @@ class UNetObjectGridFragmentLocFilter : public UNetObjectGridFilter
 protected:
 
 	virtual void OnInit(FNetObjectFilterInitParams&) override;
+	virtual void UpdateObjects(FNetObjectFilterUpdateParams&) override;
 	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
 	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
 	virtual void OnObjectRemoved(uint32 ObjectIndex) override;

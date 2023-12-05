@@ -111,7 +111,7 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocGridFilter)
 	UReplicatedTestObject* ServerObjectCulled = Server->CreateObject(Params);
 	UReplicatedTestObject* ServerObjectVeryFar = Server->CreateObject(Params);
 
-	const UNetObjectGridFilterConfig* DefaultGridConfig = Cast<UNetObjectGridFilterConfig>(UNetObjectGridFilterConfig::StaticClass()->GetDefaultObject());
+	const UNetObjectGridFilterConfig* DefaultGridConfig = GetDefault<UNetObjectGridFilterConfig>();
 
 	struct FObjectLoc 
 	{
@@ -164,6 +164,70 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocGridFilter)
 	Server->DestroyObject(ServerObjectVeryFar);
 }
 
+// Test world loc filter
+UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocationIsFrequentlyUpdatedForNonDormantObject)
+{
+	struct FObjectLoc
+	{
+		FVector Loc;
+		float CullDistance;
+	};
+	
+	TMap<const UObject*, FObjectLoc> ObjectLocs;
+
+	Server->GetReplicationBridge()->SetExternalWorldLocationUpdateFunctor([&](FNetRefHandle NetHandle, const UObject* ReplicatedObject, FVector& OutLocation, float& OutCullDistance)
+		{
+			const FObjectLoc& ObjectLoc = ObjectLocs[ReplicatedObject];
+			OutLocation = ObjectLoc.Loc;
+			OutCullDistance = ObjectLoc.CullDistance;
+		});
+
+	// Add client (view location at 0,0,0)
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with WorldLocation's on server
+	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+	Params.bNeedsWorldLocationUpdate = true;
+	Params.bIsDormant = false;
+	Params.bUseClassConfigDynamicFilter = false;
+	Params.bUseExplicitDynamicFilter = true;
+	Params.ExplicitDynamicFilterName = FName("NetObjectGridWorldLocFilter");
+
+	UReplicatedTestObject* ServerObject = Server->CreateObject(Params);
+
+	// Visible objects
+	ObjectLocs.Add(ServerObject, FObjectLoc{ FVector::ZeroVector, 1500.f });
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Verify objects has been created
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	const UNetObjectGridFilterConfig* DefaultGridConfig = GetDefault<UNetObjectGridFilterConfig>();
+
+	// Update the world location to a cell the object shouldn't previously have been touching, without marking the object dirty
+	ObjectLocs.Emplace(ServerObject, FObjectLoc{ FVector(DefaultGridConfig->CellSizeX + 1600.0f,DefaultGridConfig->CellSizeY + 1600.0f, 0), 1500.f });
+
+	// Send and deliver packet
+	for (uint32 LoopIt = 0, LoopEndIt = DefaultGridConfig->ViewPosRelevancyFrameCount; LoopIt <= LoopEndIt; ++LoopIt)
+	{
+		Server->UpdateAndSend({ Client });
+	}
+
+	// Object should now have been destroyed.
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
+	// Return object to origin.
+	ObjectLocs.Emplace(ServerObject, FObjectLoc{ FVector::ZeroVector, 1500.f });
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Object should have been re-created
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+}
+
 // Test fragment data filter
 UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestFragmentFilter)
 {
@@ -173,8 +237,7 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestFragmentFilter)
 	UTestLocationFragmentFilteringObject* ServerObjectCulled = Server->CreateObject<UTestLocationFragmentFilteringObject>();
 	UTestLocationFragmentFilteringObject* ServerObjectVeryFar = Server->CreateObject<UTestLocationFragmentFilteringObject>();
 
-	const UNetObjectGridFilterConfig* DefaultGridConfig = Cast<UNetObjectGridFilterConfig>(UNetObjectGridFilterConfig::StaticClass()->GetDefaultObject());
-
+	const UNetObjectGridFilterConfig* DefaultGridConfig = GetDefault<UNetObjectGridFilterConfig>();
 
 	ServerObjectZero->WorldLocation = FVector::ZeroVector;
 	ServerObjectZero->NetCullDistanceSquared = 1500.f * 1500.f;

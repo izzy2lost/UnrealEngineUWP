@@ -11,6 +11,8 @@
 
 void UNetObjectGridFilter::OnInit(FNetObjectFilterInitParams& Params)
 {
+	AddFilterTraits(ENetFilterTraits::Spatial);
+
 	Config = TStrongObjectPtr<UNetObjectGridFilterConfig>(CastChecked<UNetObjectGridFilterConfig>(Params.Config));
 	checkf(Config.IsValid(), TEXT("Need config to operate."));
 
@@ -71,18 +73,6 @@ void UNetObjectGridFilter::RemoveObject(uint32 ObjectIndex, const FNetObjectFilt
 
 	const uint32 InfoIndex = ObjectLocationInfo.GetInfoIndex();
 	FreeObjectInfo(InfoIndex);
-}
-
-void UNetObjectGridFilter::UpdateObjects(FNetObjectFilterUpdateParams& Params)
-{
-	for (SIZE_T ObjectIt = 0, ObjectEndIt = Params.ObjectCount; ObjectIt != ObjectEndIt; ++ObjectIt)
-	{
-		const uint32 ObjectIndex = Params.ObjectIndices[ObjectIt];
-
-		const FObjectLocationInfo& ObjectLocationInfo = static_cast<const FObjectLocationInfo&>(Params.FilteringInfos[ObjectIndex]);
-		const UE::Net::FReplicationInstanceProtocol* InstanceProtocol = Params.InstanceProtocols ? Params.InstanceProtocols[ObjectIt] : nullptr;
-		UpdateCellInfoForObject(ObjectLocationInfo, InstanceProtocol);
-	}
 }
 
 void UNetObjectGridFilter::PreFilter(FNetObjectPreFilteringParams&)
@@ -417,6 +407,26 @@ void UNetObjectGridWorldLocFilter::OnInit(FNetObjectFilterInitParams& Params)
 	WorldLocations = &Params.ReplicationSystem->GetWorldLocations();
 }
 
+void UNetObjectGridWorldLocFilter::UpdateObjects(FNetObjectFilterUpdateParams&)
+{
+}
+
+void UNetObjectGridWorldLocFilter::PreFilter(FNetObjectPreFilteringParams& Params)
+{
+	Super::PreFilter(Params);
+
+	// Update logic performed here in order to not rely on any object being dirtied.
+	auto UpdateCells = [this, &Params](uint32 ObjectIndex)
+		{
+			const FObjectLocationInfo& ObjectLocationInfo = static_cast<const FObjectLocationInfo&>(Params.FilteringInfos[ObjectIndex]);
+			this->UpdateCellInfoForObject(ObjectLocationInfo, static_cast<const UE::Net::FReplicationInstanceProtocol*>(nullptr));
+		};
+
+	// Update cell info for all objects that have moved.
+	UE::Net::FNetBitArrayView ObjectsWithDirtyWorldLocations = WorldLocations->GetObjectsWithDirtyInfo();
+	UE::Net::FNetBitArrayView::ForAllSetBits(Params.FilteredObjects, ObjectsWithDirtyWorldLocations, UE::Net::FNetBitArrayBase::AndOp, UpdateCells);
+}
+
 void UNetObjectGridWorldLocFilter::UpdateObjectInfo(UNetObjectGridFilter::FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol)
 {
 	check(ObjectLocationInfo.IsUsingWorldLocations());
@@ -448,6 +458,17 @@ void UNetObjectGridFragmentLocFilter::OnInit(FNetObjectFilterInitParams& InitPar
 	Super::OnInit(InitParams);
 
 	SetupFilterType(ENetFilterType::PostPoll_FragmentBased);
+}
+
+void UNetObjectGridFragmentLocFilter::UpdateObjects(FNetObjectFilterUpdateParams& Params)
+{
+	for (SIZE_T ObjectIt = 0, ObjectEndIt = Params.ObjectCount; ObjectIt != ObjectEndIt; ++ObjectIt)
+	{
+		const uint32 ObjectIndex = Params.ObjectIndices[ObjectIt];
+		const FObjectLocationInfo& ObjectLocationInfo = static_cast<const FObjectLocationInfo&>(Params.FilteringInfos[ObjectIndex]);
+		const UE::Net::FReplicationInstanceProtocol* InstanceProtocol = Params.InstanceProtocols ? Params.InstanceProtocols[ObjectIt] : nullptr;
+		UpdateCellInfoForObject(ObjectLocationInfo, InstanceProtocol);
+	}
 }
 
 bool UNetObjectGridFragmentLocFilter::BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params)

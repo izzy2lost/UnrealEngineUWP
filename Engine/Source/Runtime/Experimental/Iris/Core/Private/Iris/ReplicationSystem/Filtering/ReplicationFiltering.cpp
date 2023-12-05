@@ -523,6 +523,19 @@ bool FReplicationFiltering::SetFilter(FInternalNetRefIndex ObjectIndex, FNetObje
 	return false;
 }
 
+bool FReplicationFiltering::IsUsingSpatialFilter(FInternalNetRefIndex ObjectIndex) const
+{
+	const uint8 DynamicFilterIndex = ObjectIndexToDynamicFilterIndex[ObjectIndex];
+	if (DynamicFilterIndex == InvalidDynamicFilterIndex)
+	{
+		return false;
+	}
+
+	const FFilterInfo& FilterInfo = DynamicFilterInfos[DynamicFilterIndex];
+	const bool bIsUsingSpatialFilter = EnumHasAnyFlags(FilterInfo.Filter->GetFilterTraits(), ENetFilterTraits::Spatial);
+	return bIsUsingSpatialFilter;
+}
+
 bool FReplicationFiltering::SetConnectionFilter(FInternalNetRefIndex ObjectIndex, const FNetBitArrayView& ConnectionIndices, ENetFilterStatus ReplicationStatus)
 {
 	// If we have some sort of other filtering set then remove that. From now on we want to use connection filtering.
@@ -1242,20 +1255,17 @@ void FReplicationFiltering::PreUpdateDynamicFiltering(ENetFilterType FilterType)
 
 	// Give filters a chance to prepare for filtering. It's only called if any object has the filter set.
 	{
-		FNetObjectPreFilteringParams PreFilteringParams;
-		PreFilteringParams.ValidConnections = MakeNetBitArrayView(ValidConnections);
-
 		for (FFilterInfo& Info : DynamicFilterInfos)
 		{
-			if (Info.ObjectCount == 0U)
+			if (Info.ObjectCount == 0U || Info.Type != FilterType)
 			{
 				continue;
 			}
 
-			if (Info.Type == FilterType)
-			{
-				Info.Filter->PreFilter(PreFilteringParams);
-			}
+			FNetObjectPreFilteringParams PreFilteringParams(MakeNetBitArrayView(Info.FilteredObjects));
+			PreFilteringParams.FilteringInfos = MakeArrayView(NetObjectFilteringInfos);
+			PreFilteringParams.ValidConnections = MakeNetBitArrayView(ValidConnections);
+			Info.Filter->PreFilter(PreFilteringParams);
 		}
 	}
 }

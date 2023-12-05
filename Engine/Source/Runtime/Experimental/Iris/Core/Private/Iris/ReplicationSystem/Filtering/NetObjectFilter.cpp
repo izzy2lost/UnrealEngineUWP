@@ -11,6 +11,11 @@ FNetObjectFilteringParams::FNetObjectFilteringParams(const UE::Net::FNetBitArray
 {
 }
 
+FNetObjectPreFilteringParams::FNetObjectPreFilteringParams(const UE::Net::FNetBitArrayView InFilteredObjects)
+: FilteredObjects(InFilteredObjects)
+{
+}
+
 UNetObjectFilter::UNetObjectFilter()
 {
 }

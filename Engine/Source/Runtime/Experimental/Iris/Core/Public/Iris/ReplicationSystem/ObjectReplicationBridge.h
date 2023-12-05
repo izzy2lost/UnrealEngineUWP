@@ -52,6 +52,9 @@ public:
 		bool bNeedsPreUpdate = false;
 		bool bNeedsWorldLocationUpdate = false;
 
+		/** Whether the object is dormant or not */
+		bool bIsDormant = false;
+
 		/** When true we ask the class config if a dynamic filter was assigned to this class or one of it's parent inherited class. */
 		bool bUseClassConfigDynamicFilter = false;
 
@@ -342,6 +345,9 @@ private:
 
 	/** Returns true if instances of this class should be delta compressed */
 	bool ShouldClassBeDeltaCompressed(const UClass* Class);
+
+	/** Marks a spatially filtered object as requiring or not requiring frequent world location updates independent of it having dirty replicated properties */
+	void OptionallySetObjectRequiresFrequentWorldLocationUpdate(FNetRefHandle RefHandle, bool bDesiresFrequentWorldLocationUpdate);
 
 	/** Returns the TypeStatsIndex this class should use */
 	int32 GetTypeStatsIndex(const UClass* Class);

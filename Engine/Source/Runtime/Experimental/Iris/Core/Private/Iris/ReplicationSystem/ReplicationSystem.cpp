@@ -309,6 +309,10 @@ public:
 	{
 		IRIS_PROFILER_SCOPE(FReplicationSystem_UpdateWorldLocations);
 
+		// Reset dirty object info before updating.
+		FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
+		WorldLocations.ResetObjectsWithDirtyInfo();
+
 		ReplicationSystemInternal.GetReplicationBridge()->CallUpdateInstancesWorldLocation();
 	}
 

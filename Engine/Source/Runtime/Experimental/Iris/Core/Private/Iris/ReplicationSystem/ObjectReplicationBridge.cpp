@@ -91,8 +91,10 @@ UObjectReplicationBridge::FCreateNetRefHandleParams UObjectReplicationBridge::De
 {
 	.bCanReceive=false, 
 	.bNeedsPreUpdate=false,
-	.bNeedsWorldLocationUpdate=false, 
+	.bNeedsWorldLocationUpdate=false,
+	.bIsDormant=false,
 	.bUseClassConfigDynamicFilter=true,
+	.bUseExplicitDynamicFilter=false,
 	.StaticPriority=0.0f, 
 	.PollFrequency=0.0f,
 };
@@ -378,7 +380,13 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 				ReplicationSystem->SetDeltaCompressionStatus(RefHandle, ENetObjectDeltaCompressionStatus::Allow);
 			}
 
-			// Release instance protocol from the uniquePtr as it is now successfully bound to the handle
+			// Spatially filtered non-dormant objects requires frequent world location updates. Expecting a better solution that instead of us polling will inform us when locations change, UE-193004.
+			if (Params.bNeedsWorldLocationUpdate && !Params.bIsDormant)
+			{
+				OptionallySetObjectRequiresFrequentWorldLocationUpdate(RefHandle, true);
+			}
+
+			// Release instance protocol from the UniquePtr as it is now successfully bound to the handle
 			(void)InstanceProtocol.Release();
 
 			return RefHandle;
@@ -1127,11 +1135,11 @@ void UObjectReplicationBridge::UpdateInstancesWorldLocation()
 		}
 	};
 
-	// $IRIS TODO: This code assumes users are calling MarkDirty whenever an actor changes location. Need to add a location tracker to ensure if that is not the case.
+	// Objects marked as dirty or that have requested frequent world location updates will be updated. Failing to do either when the location has changed will result in replication issues when using spatial filters such as the NetObjectGridFilter.
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 	const FNetBitArrayView DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
-	DirtyObjectsThisFrame.ForAllSetBits(UpdateInstanceWorldLocation);
-
+	const FNetBitArrayView ObjectsRequiringFrequentUpdates = WorldLocations.GetObjectsRequiringFrequentWorldLocationUpdate();
+	FNetBitArrayView::ForAllSetBits(DirtyObjectsThisFrame, ObjectsRequiringFrequentUpdates, FNetBitArrayBase::OrOp, UpdateInstanceWorldLocation);
 }
 
 void UObjectReplicationBridge::SetPollWithObject(FNetRefHandle ObjectToPollWithHandle, FNetRefHandle ObjectHandle)
@@ -1158,6 +1166,7 @@ bool UObjectReplicationBridge::GetObjectWantsToBeDormant(FNetRefHandle Handle) c
 
 void UObjectReplicationBridge::SetObjectWantsToBeDormant(FNetRefHandle Handle, bool bWantsToBeDormant)
 {
+	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
 	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
@@ -1165,7 +1174,7 @@ void UObjectReplicationBridge::SetObjectWantsToBeDormant(FNetRefHandle Handle, b
 
 	if (const FInternalNetRefIndex InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
 	{
-		UE::Net::FNetBitArray& WantToBeDormantObjects = LocalNetRefHandleManager.GetWantToBeDormantInternalIndices();
+		FNetBitArray& WantToBeDormantObjects = LocalNetRefHandleManager.GetWantToBeDormantInternalIndices();
 
 		// Update pending dormancy status
 		WantToBeDormantObjects.SetBitValue(InternalObjectIndex, bWantsToBeDormant);
@@ -1184,6 +1193,9 @@ void UObjectReplicationBridge::SetObjectWantsToBeDormant(FNetRefHandle Handle, b
 		{
 			WantToBeDormantObjects.SetBitValue(SubObjectInternalIndex, bWantsToBeDormant);
 		}
+
+		// Request frequent world location updates for non-dormant spatially filtered objects.
+		OptionallySetObjectRequiresFrequentWorldLocationUpdate(Handle, !bWantsToBeDormant);
 	}
 }
 
@@ -1420,6 +1432,24 @@ bool UObjectReplicationBridge::IsClassCritical(const UClass* Class)
 	}
 
 	return false;
+}
+
+void UObjectReplicationBridge::OptionallySetObjectRequiresFrequentWorldLocationUpdate(FNetRefHandle RefHandle, bool bDesiresFrequentWorldLocationUpdate)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
+	const FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
+	const FInternalNetRefIndex InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(RefHandle);
+	FWorldLocations& WorldLocations = ReplicationSystemInternal->GetWorldLocations();
+	// When this function is called due to dormancy changes we don't know that the object requires world location updates at all. Checking if it has world location info is how we find that out.
+	if (WorldLocations.HasInfoForObject(InternalObjectIndex))
+	{
+		const FReplicationFiltering& Filtering = ReplicationSystemInternal->GetFiltering();
+		const bool bRequireFrequentWorldLocationUpdates = bDesiresFrequentWorldLocationUpdate && Filtering.IsUsingSpatialFilter(InternalObjectIndex);
+		WorldLocations.SetObjectRequiresFrequentWorldLocationUpdate(InternalObjectIndex, bRequireFrequentWorldLocationUpdates);
+	}
 }
 
 int32 UObjectReplicationBridge::GetTypeStatsIndex(const UClass* Class)
