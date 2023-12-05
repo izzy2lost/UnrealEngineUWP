@@ -89,7 +89,7 @@ class UnrealTransactionManager {
   dynamic createEndTransactionMessage() {
     if (_activeTransaction == null) {
       _log.warning('Tried to end transaction, but no transaction was in progress');
-      return false;
+      return null;
     }
 
     final message = createUnrealWebSocketMessage('transaction.end', {
@@ -134,9 +134,12 @@ class UnrealTransactionManager {
       return;
     }
 
-    if (_activeTransaction?.id == id) {
-      _activeTransaction?.prematureEndCallback?.call();
+    if (_activeTransaction?.id != id) {
+      return;
     }
+
+    _activeTransaction?.prematureEndCallback?.call();
+    _activeTransaction = null;
   }
 }
 

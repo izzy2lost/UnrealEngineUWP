@@ -650,7 +650,10 @@ class UnrealPropertyManager {
           final beginMessage = _transactionManager.createBeginTransactionMessage(
             transaction.description,
             // If the transaction ends prematurely, flag it to be re-created
-            prematureEndCallback: () => transaction.bWasCreatedInEngine = false,
+            prematureEndCallback: () {
+              _activeTransactionId = UnrealTransactionManager.invalidId;
+              transaction.bWasCreatedInEngine = false;
+            },
           );
           assert(beginMessage != null);
           messages.add(beginMessage);
