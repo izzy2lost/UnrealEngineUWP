@@ -3,6 +3,19 @@
 #include "Horde.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Modules/ModuleManager.h"
+#include "Modules/ModuleInterface.h"
+
+struct FHordeModule : IModuleInterface
+{
+	virtual void StartupModule() override
+	{
+	}
+};
+
+IMPLEMENT_MODULE(FHordeModule, Horde)
+
+// --------------------------------------------------------------------------------
 
 FString FHorde::GetTemplateName()
 {
