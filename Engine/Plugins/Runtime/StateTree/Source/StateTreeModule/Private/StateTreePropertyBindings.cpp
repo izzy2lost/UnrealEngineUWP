@@ -3,6 +3,7 @@
 #include "UObject/EnumProperty.h"
 #include "Misc/EnumerateRange.h"
 #include "PropertyPathHelpers.h"
+#include "PropertyBag.h"
 
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"
@@ -1425,6 +1426,17 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 							Property = FoundProperty;
 						}
 					}
+					else if (const UPropertyBag* PropertyBag = Cast<UPropertyBag>(CurrentStruct))
+					{
+						if (const FPropertyBagPropertyDesc* Desc = PropertyBag->FindPropertyDescByID(Segment->GetPropertyGuid()))
+						{
+							if (Desc->CachedProperty)
+							{
+								RedirectedName = Desc->CachedProperty->GetFName();
+								Property = Desc->CachedProperty;
+							}
+						}
+					}
 				}
 				else
 				{
@@ -1456,6 +1468,13 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 				{
 					// Parse Guid from UDS property name.
 					PropertyGuid = FStructureEditorUtils::GetGuidFromPropertyName(PropertyName);
+				}
+				else if (const UPropertyBag* PropertyBag = Cast<UPropertyBag>(CurrentStruct))
+				{
+					if (const FPropertyBagPropertyDesc* Desc = PropertyBag->FindPropertyDescByPropertyName(PropertyName))
+					{
+						PropertyGuid = Desc->ID;
+					}
 				}
 			}
 		}

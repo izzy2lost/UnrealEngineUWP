@@ -73,11 +73,6 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		LinkedAssetProperty->MarkHiddenByCustomization();
 	}
 	
-	if (!(StateType == EStateTreeStateType::Subtree || StateType == EStateTreeStateType::Linked || StateType == EStateTreeStateType::LinkedAsset))
-	{
-		ParametersProperty->MarkHiddenByCustomization();
-	}
-
 	if (StateType == EStateTreeStateType::Linked || StateType == EStateTreeStateType::LinkedAsset)
 	{
 		SelectionBehaviorProperty->MarkHiddenByCustomization();

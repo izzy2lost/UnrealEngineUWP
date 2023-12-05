@@ -606,74 +606,68 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 		FStateTreeCompilerLogStateScope LogStateScope(State, Log);
 
 		// Create parameters
-		if (State->Type == EStateTreeStateType::Linked
-			|| State->Type == EStateTreeStateType::LinkedAsset
-			|| State->Type == EStateTreeStateType::Subtree)
+		
+		// Each state has their parameters as instance data.
+		FInstancedStruct& Instance = InstanceStructs.AddDefaulted_GetRef();
+		Instance.InitializeAs<FCompactStateTreeParameters>(State->Parameters.Parameters);
+		FCompactStateTreeParameters& CompactStateTreeParameters = Instance.GetMutable<FCompactStateTreeParameters>(); 
+			
+		const int32 InstanceIndex = InstanceStructs.Num() - 1;
+		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
 		{
-			// Each state has their parameters as instance data.
-			FInstancedStruct& Instance = InstanceStructs.AddDefaulted_GetRef();
-			Instance.InitializeAs<FCompactStateTreeParameters>(State->Parameters.Parameters);
-			FCompactStateTreeParameters& CompactStateTreeParameters = Instance.GetMutable<FCompactStateTreeParameters>(); 
-			
-			const int32 InstanceIndex = InstanceStructs.Num() - 1;
-			if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(InstanceIndex); Validation.DidFail())
-			{
-				Validation.Log(Log, TEXT("InstanceIndex"));
-				return false;
-			}
-			CompactState.ParameterTemplateIndex = FStateTreeIndex16(InstanceIndex);
-
-			if (State->Type == EStateTreeStateType::Linked || State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				CompactState.ParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::LinkedStateParameterData, InstanceDataIndex++, CompactStateHandle);
-			}
-			else if (State->Type == EStateTreeStateType::Subtree)
-			{
-				// Subtrees have special indirection, which is used to access the parameters passed to the state.
-				// If subtree is called via linked state, the linked state's parameters are used, otherwise the instance data.
-				CompactState.ParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::SubtreeParameterData, InstanceDataIndex++, CompactStateHandle);
-			}
-
-			// @todo: We should be able to skip empty parameter data.
-
-			// Binding target
-			FStateTreeBindableStructDesc LinkedParamsDesc = {
-				State->Name,
-				State->Parameters.Parameters.GetPropertyBagStruct(),
-				CompactState.ParameterDataHandle,
-				EStateTreeBindableStructSource::State,
-				State->Parameters.ID
-			};
-
-			if (!UE::StateTree::Compiler::ValidateNoLevelActorReferences(Log, LinkedParamsDesc, FStateTreeDataView(), FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue())))
-			{
-				return false;
-			}
-
-			// Add as binding source.
-			BindingsCompiler.AddSourceStruct(LinkedParamsDesc);
-
-			// Check that the bindings for this struct are still all valid.
-			TArray<FStateTreePropertyPathBinding> Bindings;
-			if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), Bindings))
-			{
-				return false;
-			}
-
-			int32 BatchIndex = INDEX_NONE;
-			if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, Bindings, BatchIndex))
-			{
-				return false;
-			}
-			
-			if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(BatchIndex); Validation.DidFail())
-			{
-				Validation.Log(Log, TEXT("BatchIndex"), LinkedParamsDesc);
-				return false;
-			}
-
-			CompactState.ParameterBindingsBatch = FStateTreeIndex16(BatchIndex);
+			Validation.Log(Log, TEXT("InstanceIndex"));
+			return false;
 		}
+		CompactState.ParameterTemplateIndex = FStateTreeIndex16(InstanceIndex);
+
+		if (State->Type == EStateTreeStateType::Subtree)
+		{
+			CompactState.ParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::SubtreeParameterData, InstanceDataIndex++, CompactStateHandle);
+		}
+		else
+		{
+			CompactState.ParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::StateParameterData, InstanceDataIndex++, CompactStateHandle);
+		}
+
+		// @todo: We should be able to skip empty parameter data.
+
+		// Binding target
+		FStateTreeBindableStructDesc LinkedParamsDesc = {
+			State->Name,
+			State->Parameters.Parameters.GetPropertyBagStruct(),
+			CompactState.ParameterDataHandle,
+			EStateTreeBindableStructSource::State,
+			State->Parameters.ID
+		};
+
+		if (!UE::StateTree::Compiler::ValidateNoLevelActorReferences(Log, LinkedParamsDesc, FStateTreeDataView(), FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue())))
+		{
+			return false;
+		}
+
+		// Add as binding source.
+		BindingsCompiler.AddSourceStruct(LinkedParamsDesc);
+
+		// Check that the bindings for this struct are still all valid.
+		TArray<FStateTreePropertyPathBinding> Bindings;
+		if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), Bindings))
+		{
+			return false;
+		}
+
+		int32 BatchIndex = INDEX_NONE;
+		if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, Bindings, BatchIndex))
+		{
+			return false;
+		}
+			
+		if (const auto Validation = UE::StateTree::Compiler::IsValidIndex16(BatchIndex); Validation.DidFail())
+		{
+			Validation.Log(Log, TEXT("BatchIndex"), LinkedParamsDesc);
+			return false;
+		}
+
+		CompactState.ParameterBindingsBatch = FStateTreeIndex16(BatchIndex);
 
 		// Create tasks
 		const int32 TasksBegin = Nodes.Num();

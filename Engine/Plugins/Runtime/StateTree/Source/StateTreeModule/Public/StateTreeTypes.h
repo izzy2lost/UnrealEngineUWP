@@ -243,11 +243,11 @@ enum class EStateTreeDataSourceType : uint8
 	/** Global parameters */
 	GlobalParameterData,
 
-	/** Subtree parameters */
+	/** Parameters for subtree (may resolve to a linked state's parameters or default params) */
 	SubtreeParameterData,
 
-	/** Linked state parameters */
-	LinkedStateParameterData,
+	/** Parameters for regular and linked states */
+	StateParameterData,
 };
 
 /** Handle to a StateTree data */
@@ -380,7 +380,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 			return FString::Printf(TEXT("GlobalParam[%d]"), Index);
 		case EStateTreeDataSourceType::SubtreeParameterData:
 			return FString::Printf(TEXT("SubtreeParam[%d]"), Index);
-		case EStateTreeDataSourceType::LinkedStateParameterData:
+		case EStateTreeDataSourceType::StateParameterData:
 			return FString::Printf(TEXT("LinkedParam[%d]"), Index);
 		default:
 			return TEXT("---");

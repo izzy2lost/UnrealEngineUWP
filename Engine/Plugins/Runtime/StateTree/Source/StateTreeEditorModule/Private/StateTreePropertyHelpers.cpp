@@ -170,6 +170,20 @@ FStateTreeEditPropertyPath::FStateTreeEditPropertyPath(const FPropertyChangedCha
 	}
 }
 
+FStateTreeEditPropertyPath::FStateTreeEditPropertyPath(const FEditPropertyChain& PropertyChain)
+{
+	FEditPropertyChain::TDoubleLinkedListNode* PropertyNode = PropertyChain.GetActiveMemberNode();
+	while (PropertyNode != nullptr)
+	{
+		if (FProperty* Property = PropertyNode->GetValue())
+		{
+			const FName PropertyName = Property->GetFName(); 
+			Path.Emplace(Property, PropertyName, INDEX_NONE);
+		}
+		PropertyNode = PropertyNode->GetNextNode();
+	}
+}
+
 bool FStateTreeEditPropertyPath::ContainsPath(const FStateTreeEditPropertyPath& InPath) const
 {
 	if (InPath.Path.Num() > Path.Num())

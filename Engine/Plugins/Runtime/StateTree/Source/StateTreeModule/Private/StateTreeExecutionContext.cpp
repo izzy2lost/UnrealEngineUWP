@@ -776,25 +776,10 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 			InstanceStructs.AddDefaulted(State.InstanceDataNum);
 			TempInstanceStructs.AddZeroed(State.InstanceDataNum);
 
-			if (State.Type == EStateTreeStateType::Linked
-				|| State.Type == EStateTreeStateType::LinkedAsset)
-			{
-				// Linked state's instance data is the parameters.
-				check(State.ParameterDataHandle.IsValid());
-				const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
-				InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
-
-				// Store the index of the parameter data, so that we can point the linked state to it.
-				check(State.ParameterDataHandle.GetSource() == EStateTreeDataSourceType::LinkedStateParameterData);
-				checkf(!NextStateParameterDataHandle.IsValid(), TEXT("NextStateParameterDataIndex not should be set yet when we encounter a linked state."));
-				NextStateParameterDataHandle = State.ParameterDataHandle;
-				
-				const FCompactStateTreeParameters* Params = ParamsInstanceData.GetPtr<const FCompactStateTreeParameters>();
-				NextStateParameterDataStruct = Params ? Params->Parameters.GetPropertyBagStruct() : nullptr;
-			}
-			else if (State.Type == EStateTreeStateType::Subtree)
+			if (State.Type == EStateTreeStateType::Subtree)
 			{
 				check(State.ParameterDataHandle.IsValid());
+				check(State.ParameterTemplateIndex.IsValid());
 				const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
 				if (!NextStateParameterDataHandle.IsValid())
 				{
@@ -813,6 +798,29 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 					NextStateParameterDataHandle = FStateTreeDataHandle::Invalid; // Mark as used.
 				}
 			}
+			else
+			{
+				if (State.ParameterTemplateIndex.IsValid())
+				{
+					// Linked state's instance data is the parameters.
+					check(State.ParameterDataHandle.IsValid());
+					const FConstStructView ParamsInstanceData = NextFrame.StateTree->DefaultInstanceData.GetStruct(State.ParameterTemplateIndex.Get());
+					InstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = ParamsInstanceData;
+
+					if (State.Type == EStateTreeStateType::Linked
+						|| State.Type == EStateTreeStateType::LinkedAsset)
+					{
+						// Store the index of the parameter data, so that we can point the linked state to it.
+						check(State.ParameterDataHandle.GetSource() == EStateTreeDataSourceType::StateParameterData);
+						checkf(!NextStateParameterDataHandle.IsValid(), TEXT("NextStateParameterDataIndex not should be set yet when we encounter a linked state."));
+						NextStateParameterDataHandle = State.ParameterDataHandle;
+					
+						const FCompactStateTreeParameters* Params = ParamsInstanceData.GetPtr<const FCompactStateTreeParameters>();
+						NextStateParameterDataStruct = Params ? Params->Parameters.GetPropertyBagStruct() : nullptr;
+					}
+				}
+			}
+			
 			if (!bAreCommon && State.ParameterDataHandle.IsValid())
 			{
 				TempInstanceStructs[BaseIndex + State.ParameterDataHandle.GetIndex()] = FindInstanceTempData(NextFrame, State.ParameterDataHandle);
@@ -913,7 +921,8 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 			check(ParentFrame);
 			return GetDataView(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
 		}
-	case EStateTreeDataSourceType::LinkedStateParameterData:
+
+	case EStateTreeDataSourceType::StateParameterData:
 		{
 			FCompactStateTreeParameters& Params = InstanceDataStorage->GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FCompactStateTreeParameters>();
 			return Params.Parameters.GetMutableValue();
@@ -969,7 +978,7 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 		return ParentFrame
 			&& IsHandleSourceValid(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
 
-	case EStateTreeDataSourceType::LinkedStateParameterData:
+	case EStateTreeDataSourceType::StateParameterData:
 		return CurrentFrame.ActiveInstanceIndexBase.IsValid()
 			&& CurrentFrame.ActiveStates.Contains(Handle.GetState())
 			&& InstanceDataStorage->IsValidIndex(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
@@ -994,7 +1003,6 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewOrTemporary(const FSta
 	{
 	case EStateTreeDataSourceType::GlobalInstanceData:
 	case EStateTreeDataSourceType::ActiveInstanceData:
-	case EStateTreeDataSourceType::LinkedStateParameterData:
 		return InstanceDataStorage->GetMutableTemporaryStruct(CurrentFrame, Handle);
 		
 	case EStateTreeDataSourceType::GlobalInstanceDataObject:
@@ -1015,6 +1023,15 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataViewOrTemporary(const FSta
 		if (ParentFrame)
 		{
 			if (FCompactStateTreeParameters* Params = InstanceDataStorage->GetMutableTemporaryStruct(*ParentFrame, CurrentFrame.StateParameterDataHandle).GetPtr<FCompactStateTreeParameters>())
+			{
+				return Params->Parameters.GetMutableValue();
+			}
+		}
+		break;
+
+	case EStateTreeDataSourceType::StateParameterData:
+		{
+			if (FCompactStateTreeParameters* Params = InstanceDataStorage->GetMutableTemporaryStruct(CurrentFrame, Handle).GetPtr<FCompactStateTreeParameters>())
 			{
 				return Params->Parameters.GetMutableValue();
 			}

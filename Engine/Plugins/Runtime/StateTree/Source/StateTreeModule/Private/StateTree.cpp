@@ -528,6 +528,7 @@ bool UStateTree::PatchBindings()
 	// Refresh state parameter descs and bindings batches.
 	for (const FCompactStateTreeState& State : States)
 	{
+		// For subtrees and linked states, the parameters must exists.
 		if (State.Type == EStateTreeStateType::Subtree
 			|| State.Type == EStateTreeStateType::Linked
 			|| State.Type == EStateTreeStateType::LinkedAsset)
@@ -537,7 +538,10 @@ bool UStateTree::PatchBindings()
 				UE_LOG(LogStateTree, Error, TEXT("%s: Data for state '%s' is malformed. Please recompile the StateTree asset."), *GetFullName(), *State.Name.ToString());
 				return false;
 			}
+		}
 
+		if (State.ParameterTemplateIndex.IsValid())
+		{
 			// Subtree is a bind source, update bag struct.
 			const FCompactStateTreeParameters& Params = DefaultInstanceData.GetMutableStruct(State.ParameterTemplateIndex.Get()).Get<FCompactStateTreeParameters>();
 			FStateTreeBindableStructDesc* Desc = GetSourceStructByHandle(State.ParameterDataHandle);
@@ -611,18 +615,13 @@ bool UStateTree::PatchBindings()
 	// Setup data views for state parameters.
 	for (FCompactStateTreeState& State : States)
 	{
-		if (State.Type == EStateTreeStateType::Subtree
-			|| State.Type == EStateTreeStateType::Linked
-			|| State.Type == EStateTreeStateType::LinkedAsset)
+		if (State.ParameterDataHandle.IsValid())
 		{
-			if (State.ParameterDataHandle.IsValid())
+			FCompactStateTreeParameters& Params = DefaultInstanceData.GetMutableStruct(State.ParameterTemplateIndex.Get()).Get<FCompactStateTreeParameters>();
+			DataViews.Add(State.ParameterDataHandle, Params.Parameters.GetMutableValue());
+			if (State.ParameterBindingsBatch.IsValid())
 			{
-				FCompactStateTreeParameters& Params = DefaultInstanceData.GetMutableStruct(State.ParameterTemplateIndex.Get()).Get<FCompactStateTreeParameters>();
-				DataViews.Add(State.ParameterDataHandle, Params.Parameters.GetMutableValue());
-				if (State.ParameterBindingsBatch.IsValid())
-				{
-					BindingBatchDataView.Add(State.ParameterBindingsBatch, Params.Parameters.GetMutableValue());
-				}
+				BindingBatchDataView.Add(State.ParameterBindingsBatch, Params.Parameters.GetMutableValue());
 			}
 		}
 	}
@@ -790,9 +789,7 @@ TArray<FStateTreeMemoryUsage> UStateTree::CalculateEstimatedMemoryUsage() const
 			StateLinks.Emplace(ParentUsageIndex, LinkedUsageIndex);
 		}
 		
-		if (CompactState.Type == EStateTreeStateType::Linked
-			|| CompactState.Type == EStateTreeStateType::LinkedAsset
-			|| CompactState.Type == EStateTreeStateType::Subtree)
+		if (CompactState.ParameterTemplateIndex.IsValid())
 		{
 			MemUsage.NodeCount++;
 			MemUsage.AddUsage(DefaultInstanceData.GetStruct(CompactState.ParameterTemplateIndex.Get()));

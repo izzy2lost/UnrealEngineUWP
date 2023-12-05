@@ -113,6 +113,7 @@ public:
 	virtual ~UStateTreeState() override;
 
 	virtual void PostInitProperties() override;
+	virtual void PreEditChange(FEditPropertyChain& PropertyAboutToChange) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PostLoad() override;;
 	void UpdateParametersFromLinkedSubtree();
@@ -195,29 +196,36 @@ public:
 
 	// ~StateTree Builder API
 
+	/** Display name of the State */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FName Name;
 
+	/** Display color of the State */
+	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "Color")
+	FStateTreeEditorColorRef ColorRef;
+
+	/** Type the State, allows e.g. states to be linked to other States. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	EStateTreeStateType Type = EStateTreeStateType::State;
 
+	/** How to treat child states when this State is selected.  */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	EStateTreeStateSelectionBehavior SelectionBehavior = EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder;
-	
+
+	/** Subtree to run as extension of this State. */
 	UPROPERTY(EditDefaultsOnly, Category = "State", Meta=(DirectStatesOnly, SubtreesOnly))
 	FStateTreeStateLink LinkedSubtree;
 
+	/** Another State Tree asset to run as extension of this State. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	TObjectPtr<UStateTree> LinkedAsset = nullptr;
-	
+
+	/** Parameters of this state. If the state is linked to another state or asset, the parameters are for the linked state. */
 	UPROPERTY(EditDefaultsOnly, Category = "State")
 	FStateTreeStateParameters Parameters;
 
 	UPROPERTY(EditDefaultsOnly, Category = "State", meta = (IgnoreForMemberInitializationTest))
 	FGuid ID;
-
-	UPROPERTY(EditDefaultsOnly, Category = "State", DisplayName = "Color")
-	FStateTreeEditorColorRef ColorRef;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))
 	TArray<FStateTreeEditorNode> EnterConditions;

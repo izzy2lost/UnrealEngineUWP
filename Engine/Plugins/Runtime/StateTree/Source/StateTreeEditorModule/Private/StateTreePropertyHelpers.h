@@ -156,6 +156,9 @@ public:
 	/** Makes property path from property change event. */
 	explicit FStateTreeEditPropertyPath(const FPropertyChangedChainEvent& PropertyChangedEvent);
 
+	/** Makes property path from property chain. */
+	explicit FStateTreeEditPropertyPath(const FEditPropertyChain& PropertyChain);
+
 	/** @return true if the property path contains specified path. */
 	bool ContainsPath(const FStateTreeEditPropertyPath& InPath) const;
 

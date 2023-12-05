@@ -874,6 +874,9 @@ public:
 	/** @return property description based on name. */
 	const FPropertyBagPropertyDesc* FindPropertyDescByName(const FName Name) const;
 
+	/** @return property description based on the created property name. The name can be different from the descriptor name due to name sanitization. */
+	const FPropertyBagPropertyDesc* FindPropertyDescByPropertyName(const FName PropertyName) const;
+
 #if WITH_ENGINE && WITH_EDITOR
 	/** @return true if any of the properties on the bag has type of the specified user defined struct. */
 	bool ContainsUserDefinedStruct(const UUserDefinedStruct* UserDefinedStruct) const;

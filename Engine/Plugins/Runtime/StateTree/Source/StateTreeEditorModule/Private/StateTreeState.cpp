@@ -56,6 +56,25 @@ void UStateTreeState::OnTreeCompiled(const UStateTree& StateTree)
 	}
 }
 
+void UStateTreeState::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
+{
+	Super::PreEditChange(PropertyAboutToChange);
+
+	const FStateTreeEditPropertyPath PropertyChainPath(PropertyAboutToChange);
+
+	static const FStateTreeEditPropertyPath StateTypePath(UStateTreeState::StaticClass(), TEXT("Type"));
+
+	if (PropertyChainPath.IsPathExact(StateTypePath))
+	{
+		// If transitioning from linked state, reset the parameters
+		if (Type == EStateTreeStateType::Linked
+			|| Type == EStateTreeStateType::LinkedAsset)
+		{
+			Parameters.Reset();
+		}
+	}
+}
+
 void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
@@ -101,7 +120,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	}
 
 	// Broadcast selection type changes so that the UI can update.
-	if (SelectionBehaviorPath.IsPathExact(StateTypePath))
+	if (ChangePropertyPath.IsPathExact(SelectionBehaviorPath))
 	{
 		const UStateTree* StateTree = GetTypedOuter<UStateTree>();
 		if (ensure(StateTree))
@@ -136,15 +155,10 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			UpdateParametersFromLinkedSubtree();
 			SelectionBehavior = EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder;
 		}
-		else if (Type == EStateTreeStateType::Subtree)
-		{
-			// Subtree parameter layout can be edited
-			Parameters.bFixedLayout = false;
-		}
 		else
 		{
-			// Other state types do not have parameters, so reset them.
-			Parameters.Reset();
+			// Other layouts can be edited
+			Parameters.bFixedLayout = false;
 		}
 	}
 
@@ -168,7 +182,8 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	// Broadcast subtree parameter layout edits so that the linked states can adapt.
 	if (ChangePropertyPath.IsPathExact(StateParametersPath))
 	{
-		if (Type == EStateTreeStateType::Subtree)
+		if (!(Type == EStateTreeStateType::Linked
+				|| Type == EStateTreeStateType::LinkedAsset))
 		{
 			const UStateTree* StateTree = GetTypedOuter<UStateTree>();
 			if (ensure(StateTree))

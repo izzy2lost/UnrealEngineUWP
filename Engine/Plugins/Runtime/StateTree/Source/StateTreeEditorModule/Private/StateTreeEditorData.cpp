@@ -36,6 +36,7 @@ void UStateTreeEditorData::PostInitProperties()
 #if WITH_EDITOR
 	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UStateTreeEditorData::OnObjectsReinstanced);
 	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTreeEditorData::OnUserDefinedStructReinstanced);
+	OnParametersChangedHandle = UE::StateTree::Delegates::OnParametersChanged.AddUObject(this, &UStateTreeEditorData::OnParametersChanged);
 #endif
 }
 
@@ -52,6 +53,11 @@ void UStateTreeEditorData::BeginDestroy()
 	{
 		UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
 		OnUserDefinedStructReinstancedHandle.Reset();
+	}
+	if (OnParametersChangedHandle.IsValid())
+	{
+		UE::StateTree::Delegates::OnParametersChanged.Remove(OnParametersChangedHandle);
+		OnParametersChangedHandle.Reset();
 	}
 	
 	Super::BeginDestroy();
@@ -119,6 +125,17 @@ void UStateTreeEditorData::OnUserDefinedStructReinstanced(const UUserDefinedStru
 	if (bShouldUpdate)
 	{
 		UpdateBindingsInstanceStructs();
+	}
+}
+
+void UStateTreeEditorData::OnParametersChanged(const UStateTree& StateTree)
+{
+	if (const UStateTree* OwnerStateTree = GetTypedOuter<UStateTree>())
+	{
+		if (OwnerStateTree == &StateTree)
+		{
+			UpdateBindingsInstanceStructs();
+		}
 	}
 }
 
@@ -753,8 +770,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	if (bContinue)
 	{
 		// Bindable state parameters
-		if ((State.Type == EStateTreeStateType::Linked
-				|| State.Type == EStateTreeStateType::LinkedAsset)
+		if (State.Type != EStateTreeStateType::Subtree
 			&& State.Parameters.Parameters.IsValid())
 		{
 			if (InFunc(&State, State.Parameters.ID, State.Name, EStateTreeNodeType::StateParameters, nullptr, State.Parameters.Parameters.GetPropertyBagStruct()) == EStateTreeVisitor::Break)
@@ -774,11 +790,8 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 
 	if (bContinue)
 	{
-		// Bindable state parameters for subtree or linked tree.
-		if ((State.Type == EStateTreeStateType::Subtree
-				|| State.Type == EStateTreeStateType::Linked
-				|| State.Type == EStateTreeStateType::LinkedAsset)
-			&& State.Parameters.Parameters.IsValid())
+		// Bindable state parameters
+		if (State.Parameters.Parameters.IsValid())
 		{
 			FStateTreeBindableStructDesc Desc;
 			Desc.Struct = State.Parameters.Parameters.GetPropertyBagStruct();
