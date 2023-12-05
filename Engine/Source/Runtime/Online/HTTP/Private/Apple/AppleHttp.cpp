@@ -11,17 +11,6 @@
 #include "HttpModule.h"
 
 /**
- * State of a request's response
- */
-enum class EAppleHttpRequestResponseState: uint8
-{
-	NotReady,
-	Success,
-	Error,
-	ConnectionError
-};
-
-/**
  * Class to hold data from delegate implementation notifications.
  */
 
@@ -51,8 +40,10 @@ enum class EAppleHttpRequestResponseState: uint8
 @property uint64 BytesWritten;
 /** The total number of bytes received out during the request/response */
 @property uint64 BytesReceived;
-/** Response state */
-@property EAppleHttpRequestResponseState ResponseState;
+/** Request status */
+@property EHttpRequestStatus::Type RequestStatus;
+/** Reason of failure */
+@property EHttpFailureReason FailureReason;
 
 /** NSURLSessionDataDelegate delegate methods. Those are called from a thread controlled by the NSURLSession */
 
@@ -70,7 +61,8 @@ enum class EAppleHttpRequestResponseState: uint8
 
 @implementation FAppleHttpResponseDelegate
 @synthesize Response;
-@synthesize ResponseState;
+@synthesize RequestStatus;
+@synthesize FailureReason;
 @synthesize BytesWritten;
 @synthesize BytesReceived;
 
@@ -80,7 +72,8 @@ enum class EAppleHttpRequestResponseState: uint8
 	
 	BytesWritten = 0;
 	BytesReceived = 0;
-	ResponseState = EAppleHttpRequestResponseState::NotReady;
+	RequestStatus = EHttpRequestStatus::NotStarted;
+	FailureReason = EHttpFailureReason::None;
 	ResponseBodyReceiveStream = ResponseStream;
 	bInitializedWithValidStream = (ResponseStream != nullptr);
 	
@@ -163,7 +156,7 @@ enum class EAppleHttpRequestResponseState: uint8
 	if (error == nil)
 	{
 		UE_LOG(LogHttp, Verbose, TEXT("URLSession:task:didCompleteWithError. Http request succeeded: %p"), self);
-		self.ResponseState = EAppleHttpRequestResponseState::Success;
+		self.RequestStatus = EHttpRequestStatus::Succeeded;
 	}
 	else
 	{
@@ -172,6 +165,7 @@ enum class EAppleHttpRequestResponseState: uint8
 			   *FString([[error userInfo] objectForKey:NSURLErrorFailingURLStringErrorKey]),
 			   self);
 		
+		self.RequestStatus = EHttpRequestStatus::Failed;
 		// Determine if the specific error was failing to connect to the host.
 		switch ([error code])
 		{
@@ -179,10 +173,14 @@ enum class EAppleHttpRequestResponseState: uint8
 			case NSURLErrorCannotFindHost:
 			case NSURLErrorCannotConnectToHost:
 			case NSURLErrorDNSLookupFailed:
-				self.ResponseState = EAppleHttpRequestResponseState::ConnectionError;
+				self.FailureReason = EHttpFailureReason::ConnectionError;
+				break;
+			case NSURLErrorCancelled:
+				self.FailureReason = EHttpFailureReason::Cancelled;
 				break;
 			default:
-				self.ResponseState = EAppleHttpRequestResponseState::Error;
+				self.FailureReason = EHttpFailureReason::Other;
+				break;
 		}
 		// Log more details if verbose logging is enabled and this is an SSL error
 		if (UE_LOG_ACTIVE(LogHttp, Verbose))
@@ -696,6 +694,7 @@ bool FAppleHttpRequest::StartRequest()
 		bStarted = true;
 
 		SetStatus(EHttpRequestStatus::Processing);
+		SetFailureReason(EHttpFailureReason::None);
 
 		Response = MakeShared<FAppleHttpResponse>(*this);
 
@@ -711,7 +710,8 @@ bool FAppleHttpRequest::StartRequest()
 	else
 	{
 		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. Could not initialize Internet connection."));
-		SetStatus(EHttpRequestStatus::Failed_ConnectionError);
+		SetStatus(EHttpRequestStatus::Failed);
+		SetFailureReason(EHttpFailureReason::ConnectionError);
 	}
 
 	return bStarted;
@@ -724,29 +724,26 @@ void FAppleHttpRequest::FinishRequest()
 	// Clean up session/request handles that may have been created
 	CleanupRequest();
 
-	bool bSuccess = false;
-	if (Response.IsValid() && Response->IsReady() && !Response->HadError())
-	{
-		bSuccess = true;
-		UE_LOG(LogHttp, Verbose, TEXT("Request succeeded"));
-		SetStatus(EHttpRequestStatus::Succeeded);
+	bool bSucceeded = (Response && Response->GetStatusFromDelegate() == EHttpRequestStatus::Succeeded);
+	UE_LOG(LogHttp, Verbose, TEXT("Request %s"), bSucceeded ? TEXT("succeeded") : TEXT("failed"));
+	SetStatus(bSucceeded ? EHttpRequestStatus::Succeeded : EHttpRequestStatus::Failed);
 
-		// TODO: Try to broadcast OnHeaderReceived when we receive headers instead of here at the end
-		BroadcastResponseHeadersReceived();
-	}
-	else
+	if (!bSucceeded)
 	{
-		UE_LOG(LogHttp, Verbose, TEXT("Request failed"));
-		FString URL([[Request URL] absoluteString]);
-		SetStatus(EHttpRequestStatus::Failed);
-		if (Response.IsValid() && Response->HadConnectionError())
+		SetFailureReason(Response ? Response->GetFailureReasonFromDelegate() : EHttpFailureReason::Other);
+
+		if (GetFailureReason() == EHttpFailureReason::ConnectionError)
 		{
-			SetStatus(EHttpRequestStatus::Failed_ConnectionError);
 			Response = nullptr;
 		}
 	}
+	else
+	{
+		// TODO: Try to broadcast OnHeaderReceived when we receive headers instead of here at the end
+		BroadcastResponseHeadersReceived();
+	}
 
-	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, bSuccess);
+	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, bSucceeded);
 }
 
 void FAppleHttpRequest::CleanupRequest()
@@ -794,7 +791,7 @@ void FAppleHttpRequest::Tick(float DeltaSeconds)
 
 void FAppleHttpRequest::CheckProgressDelegate()
 {
-	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->HadError()))
+	if (Response.IsValid() && (CompletionStatus == EHttpRequestStatus::Processing || Response->GetStatusFromDelegate() == EHttpRequestStatus::Failed))
 	{
 		const uint64 BytesWritten = Response->GetNumBytesWritten();
 		const uint64 BytesRead = Response->GetNumBytesReceived();
@@ -939,24 +936,17 @@ int32 FAppleHttpResponse::GetResponseCode() const
 
 bool FAppleHttpResponse::IsReady() const
 {
-	return (ResponseDelegate.ResponseState != EAppleHttpRequestResponseState::NotReady);
+	return EHttpRequestStatus::IsFinished(ResponseDelegate.RequestStatus);
 }
 
-bool FAppleHttpResponse::HadError() const
+EHttpRequestStatus::Type FAppleHttpResponse::GetStatusFromDelegate() const
 {
-	switch(ResponseDelegate.ResponseState)
-	{
-		case EAppleHttpRequestResponseState::Error:
-		case EAppleHttpRequestResponseState::ConnectionError:
-			return true;
-		default:
-			return false;
-	}
+	return ResponseDelegate.RequestStatus;
 }
 
-bool FAppleHttpResponse::HadConnectionError() const
+EHttpFailureReason FAppleHttpResponse::GetFailureReasonFromDelegate() const
 {
-	return (ResponseDelegate.ResponseState == EAppleHttpRequestResponseState::ConnectionError);
+	return ResponseDelegate.FailureReason;
 }
 
 const uint64 FAppleHttpResponse::GetNumBytesReceived() const

@@ -7,6 +7,7 @@
 FHttpResponseCommon::FHttpResponseCommon(const FHttpRequestCommon& HttpRequest)
 	: URL(HttpRequest.GetURL())
 	, CompletionStatus(HttpRequest.GetStatus())
+	, FailureReason(HttpRequest.GetFailureReason())
 {
 }
 
@@ -34,3 +35,14 @@ EHttpRequestStatus::Type FHttpResponseCommon::GetStatus() const
 {
 	return CompletionStatus;
 }
+
+void FHttpResponseCommon::SetRequestFailureReason(EHttpFailureReason InFailureReason)
+{
+	FailureReason = InFailureReason;
+}
+
+EHttpFailureReason FHttpResponseCommon::GetFailureReason() const
+{
+	return FailureReason;
+}
+

@@ -74,7 +74,6 @@ public:
 	 */
 	virtual ~FAppleHttpRequest();
 
-
 private:
 	/**
 	 * Trigger the request progress delegate if progress has changed
@@ -135,15 +134,7 @@ private:
  */
 class FAppleHttpResponse : public FHttpResponseCommon
 {
-private:
-	// Delegate implementation. Keeps the response state and data
-	FAppleHttpResponseDelegate* ResponseDelegate;
-
 public:
-	// implementation friends
-	friend class FAppleHttpRequest;
-
-
 	//~ Begin IHttpBase Interface
 	virtual FString GetHeader(const FString& HeaderName) const override;
 	virtual TArray<FString> GetAllHeaders() const override;	
@@ -158,24 +149,9 @@ public:
 	//~ End IHttpResponse Interface
 
 	/**
-	 * Check whether headers are available.
-	 */
-	bool AreHeadersAvailable() const;
-
-	/**
 	 * Check whether a response is ready or not.
 	 */
 	bool IsReady() const;
-	
-	/**
-	 * Check whether a response had an error.
-	 */
-	bool HadError() const;
-
-	/**
-	 * Check whether a response had a connection error.
-	 */
-	bool HadConnectionError() const;
 
 	/**
 	 * Get the number of bytes received so far
@@ -209,4 +185,21 @@ public:
 	 * Destructor
 	 */
 	virtual ~FAppleHttpResponse();
+
+private:
+	// implementation friends
+	friend class FAppleHttpRequest;
+
+	/**
+	 * Get status from the internal delegate
+	 */
+	EHttpRequestStatus::Type GetStatusFromDelegate() const;
+
+	/**
+	 * Get reason of failure from the internal delegate
+	 */
+	EHttpReasonOfFailure GetReasonOfFailureFromDelegate() const;
+
+	// Delegate implementation. Keeps the response state and data
+	FAppleHttpResponseDelegate* ResponseDelegate;
 };

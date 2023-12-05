@@ -20,6 +20,11 @@ EHttpRequestStatus::Type FHttpRequestCommon::GetStatus() const
 	return CompletionStatus;
 }
 
+EHttpFailureReason FHttpRequestCommon::GetFailureReason() const
+{
+	return FailureReason;
+}
+
 bool FHttpRequestCommon::PreCheck() const
 {
 	// Prevent overlapped requests using the same instance
@@ -72,3 +77,13 @@ void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
 	}
 }
 
+void FHttpRequestCommon::SetFailureReason(EHttpFailureReason InFailureReason)
+{
+	FailureReason = InFailureReason;
+
+	if (FHttpResponsePtr Response = GetResponse())
+	{
+		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
+		ResponseCommon->SetRequestFailureReason(InFailureReason);
+	}
+}

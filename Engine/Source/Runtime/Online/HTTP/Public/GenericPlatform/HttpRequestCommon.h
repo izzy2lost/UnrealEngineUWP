@@ -15,6 +15,7 @@ public:
 
 	// IHttpRequest
 	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
+	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
 	HTTP_API virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override;
 	HTTP_API virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
 
@@ -24,10 +25,14 @@ protected:
 	 */
 	HTTP_API bool PreCheck() const;
 	HTTP_API void SetStatus(EHttpRequestStatus::Type InCompletionStatus);
+	HTTP_API void SetFailureReason(EHttpFailureReason InFailureReason);
 
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
+
+	/** Reason of failure of the HTTP request */
+	EHttpFailureReason FailureReason = EHttpFailureReason::None;
 
 	/** Thread policy about which thread to complete this request */
 	EHttpRequestDelegateThreadPolicy DelegateThreadPolicy = EHttpRequestDelegateThreadPolicy::CompleteOnGameThread;

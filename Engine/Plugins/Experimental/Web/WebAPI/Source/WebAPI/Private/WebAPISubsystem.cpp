@@ -157,34 +157,37 @@ void UWebAPISubsystem::Tick(float DeltaTime)
 		{
 			Request->ProcessRequest();
 		}
-		else if(RequestStatus == EHttpRequestStatus::Failed_ConnectionError)
-		{			
-			Request->ProcessRequest();
-		}
 		else if(RequestStatus == EHttpRequestStatus::Failed)
 		{
-			// If there's a response that was denied, keep for retry after auth
-			if(Request->GetResponse().IsValid())
+			if (Request->GetFailureReason() == EHttpFailureReason::ConnectionError)
 			{
-				if(Request->GetResponse()->GetResponseCode() == EHttpResponseCodes::Denied)
-				{
-					FString Host = UWebAPIUtilities::GetHostFromUrl(Request->GetURL());
-
-					TArray<TSharedRef<IHttpRequest>>& HostRequests = HostRequestBuffer.FindOrAdd(Host);
-					// Prevent filling this buffer due to never being authorized, etc. - discards requests if buffer full
-					if(HostRequests.Num() <= CVarMaxDeniedHttpRetryCount->GetInt())
-					{
-						HostRequests.Add(Request);
-						HostRequestBuffer.Add(Host);
-					}
-
-					RequestBuffer.Remove(Request);
-
-					continue;
-				}
+				Request->ProcessRequest();
 			}
-			
-			RequestBuffer.Remove(Request);			
+			else
+			{
+				// If there's a response that was denied, keep for retry after auth
+				if(Request->GetResponse().IsValid())
+				{
+					if(Request->GetResponse()->GetResponseCode() == EHttpResponseCodes::Denied)
+					{
+						FString Host = UWebAPIUtilities::GetHostFromUrl(Request->GetURL());
+
+						TArray<TSharedRef<IHttpRequest>>& HostRequests = HostRequestBuffer.FindOrAdd(Host);
+						// Prevent filling this buffer due to never being authorized, etc. - discards requests if buffer full
+						if(HostRequests.Num() <= CVarMaxDeniedHttpRetryCount->GetInt())
+						{
+							HostRequests.Add(Request);
+							HostRequestBuffer.Add(Host);
+						}
+
+						RequestBuffer.Remove(Request);
+
+						continue;
+					}
+				}
+				
+				RequestBuffer.Remove(Request);			
+			}
 		}
 	}
 }

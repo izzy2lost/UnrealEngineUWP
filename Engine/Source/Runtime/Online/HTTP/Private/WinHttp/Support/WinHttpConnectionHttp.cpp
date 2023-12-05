@@ -312,7 +312,7 @@ void FWinHttpConnectionHttp::PumpStates()
 			{
 				if (!SendRequest())
 				{
-					FinishRequest(EHttpRequestStatus::Failed_ConnectionError);
+					FinishRequest(EHttpRequestStatus::Failed);
 					return;
 				}
 				continue;
@@ -1149,7 +1149,7 @@ void FWinHttpConnectionHttp::HandleRequestError(const uint32 ErrorApiId, const u
 	{
 		if (!bConnectedToServer && IsErrorCodeAConnectionError(ErrorCode))
 		{
-			FinishRequest(EHttpRequestStatus::Failed_ConnectionError);
+			FinishRequest(EHttpRequestStatus::Failed);
 		}
 		else
 		{

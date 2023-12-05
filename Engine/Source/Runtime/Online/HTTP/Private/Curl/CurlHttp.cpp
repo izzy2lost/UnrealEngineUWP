@@ -999,6 +999,7 @@ bool FCurlHttpRequest::ProcessRequest()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CurlHttpAddThreadedRequest);
 	// Mark as in-flight to prevent overlapped requests using the same object
 	SetStatus(EHttpRequestStatus::Processing);
+	SetFailureReason(EHttpFailureReason::None);
 	// Add to global list while being processed so that the ref counted request does not get deleted
 	FHttpModule::Get().GetHttpManager().AddThreadedRequest(SharedThis(this));
 
@@ -1290,10 +1291,12 @@ void FCurlHttpRequest::FinishRequest()
 			}
 		}
 
+		SetStatus(EHttpRequestStatus::Failed);
+
 		// Mark last request attempt as completed but failed
 		if (bCanceled)
 		{
-			SetStatus(EHttpRequestStatus::Failed);
+			SetFailureReason(EHttpFailureReason::Cancelled);
 		}
 		else if (bCurlRequestCompleted)
 		{
@@ -1304,21 +1307,21 @@ void FCurlHttpRequest::FinishRequest()
 			case CURLE_COULDNT_RESOLVE_HOST:
 			case CURLE_SSL_CONNECT_ERROR:
 				// report these as connection errors (safe to retry)
-				SetStatus(EHttpRequestStatus::Failed_ConnectionError);
+				SetFailureReason(EHttpFailureReason::ConnectionError);
 				break;
 			default:
-				SetStatus(EHttpRequestStatus::Failed);
+				SetFailureReason(EHttpFailureReason::Other);
 			}
 		}
 		else
 		{
 			if (bAnyHttpActivity)
 			{
-				SetStatus(EHttpRequestStatus::Failed);
+				SetFailureReason(EHttpFailureReason::Other);
 			}
 			else
 			{
-				SetStatus(EHttpRequestStatus::Failed_ConnectionError);
+				SetFailureReason(EHttpFailureReason::ConnectionError);
 			}
 		}
 		// Call delegate with failure

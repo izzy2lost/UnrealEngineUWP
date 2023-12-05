@@ -204,9 +204,9 @@ void FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete(FHttpRequestPtr In
 		{
 			// Do nothing here
 		}
-		if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError || GetStatus() == EHttpRequestStatus::Failed)
+		else if (GetStatus() == EHttpRequestStatus::Failed)
 		{
-			if (GetStatus() == EHttpRequestStatus::Failed_ConnectionError && RetryDomains.IsValid())
+			if (GetFailureReason() == EHttpFailureReason::ConnectionError && RetryDomains.IsValid())
 			{
 				MoveToNextRetryDomain();
 			}
@@ -227,7 +227,14 @@ void FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete(FHttpRequestPtr In
 				return;
 			}
 
-			RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
+			if (GetFailureReason() == EHttpFailureReason::TimedOut)
+			{
+				RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedTimeout;
+			}
+			else
+			{
+				RetryStatus = FHttpRetrySystem::FRequest::EStatus::FailedRetry;
+			}
 		}
 		else
 		{
@@ -242,6 +249,7 @@ void FHttpRetrySystem::FRequest::HttpOnProcessRequestComplete(FHttpRequestPtr In
 		RetryManagerPtr->RequestList.RemoveAtSwap(EntryIndex);
 	}
 
+	LLM_SCOPE_BYTAG(HTTP);
 	OnProcessRequestComplete().ExecuteIfBound(SelfPtr, HttpResponse, bSucceeded);
 }
 
@@ -305,27 +313,29 @@ bool FHttpRetrySystem::FManager::ShouldRetry(const FHttpRetryRequestEntry& HttpR
 	if (!Response.IsValid())
 	{
 		// ONLY retry bad responses if they are connection errors (NOT protocol errors or unknown) otherwise request may be sent (and processed!) twice
-		EHttpRequestStatus::Type Status = HttpRetryRequestEntry.Request->GetStatus();
-		if (Status == EHttpRequestStatus::Failed_ConnectionError)
+		if (HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed)
 		{
-			bResult = true;
-		}
-		else if (Status == EHttpRequestStatus::Failed)
-		{
-			const FName Verb = FName(*HttpRetryRequestEntry.Request->GetVerb());
-
-			// Be default, we will also allow retry for GET and HEAD requests even if they may duplicate on the server
-			static const TSet<FName> DefaultRetryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")) }));
-
-			const bool bIsRetryVerbsEmpty = HttpRetryRequestEntry.Request->RetryVerbs.Num() == 0;
-			if (bIsRetryVerbsEmpty && DefaultRetryVerbs.Contains(Verb))
+			if (HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError)
 			{
 				bResult = true;
 			}
-			// If retry verbs are specified, only allow retrying the specified list of verbs
-			else if (HttpRetryRequestEntry.Request->RetryVerbs.Contains(Verb))
+			else
 			{
-				bResult = true;
+				const FName Verb = FName(*HttpRetryRequestEntry.Request->GetVerb());
+
+				// Be default, we will also allow retry for GET and HEAD requests even if they may duplicate on the server
+				static const TSet<FName> DefaultRetryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")) }));
+
+				const bool bIsRetryVerbsEmpty = HttpRetryRequestEntry.Request->RetryVerbs.Num() == 0;
+				if (bIsRetryVerbsEmpty && DefaultRetryVerbs.Contains(Verb))
+				{
+					bResult = true;
+				}
+				// If retry verbs are specified, only allow retrying the specified list of verbs
+				else if (HttpRetryRequestEntry.Request->RetryVerbs.Contains(Verb))
+				{
+					bResult = true;
+				}
 			}
 		}
 	}
@@ -444,7 +454,7 @@ float FHttpRetrySystem::FManager::GetLockoutPeriodSeconds(const FHttpRetryReques
 	{
 		if (LockoutPeriod <= 0.0f)
 		{
-			const bool bFailedToConnect = HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed_ConnectionError;
+			const bool bFailedToConnect = (HttpRetryRequestEntry.Request->GetStatus() == EHttpRequestStatus::Failed && HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError);
 			const bool bHasRetryDomains = HttpRetryRequestEntry.Request->RetryDomains.IsValid();
 			// Skip the lockout period if we failed to connect to a domain and we have other domains to try
 			const bool bSkipLockoutPeriod = (bFailedToConnect && bHasRetryDomains);
@@ -570,7 +580,7 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 					}
 
 					// If we failed to connect, try the next domain in the list
-					if (RequestStatus == EHttpRequestStatus::Failed_ConnectionError)
+					if (HttpRetryRequest->GetStatus() == EHttpRequestStatus::Failed && HttpRetryRequest->GetFailureReason() == EHttpFailureReason::ConnectionError)
 					{
 						if (HttpRetryRequest->RetryDomains.IsValid())
 						{
@@ -580,13 +590,13 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 					// Save these for failure case retry checks if we hit a completion state
 					bool bShouldRetry = false;
 					bool bCanRetry = false;
-					if (RequestStatus == EHttpRequestStatus::Failed || RequestStatus == EHttpRequestStatus::Failed_ConnectionError || RequestStatus == EHttpRequestStatus::Succeeded)
+					if (EHttpRequestStatus::IsFinished(RequestStatus))
 					{
 						bShouldRetry = ShouldRetry(*HttpRetryRequestEntry);
 						bCanRetry = CanRetry(*HttpRetryRequestEntry);
 					}
 
-					if (RequestStatus == EHttpRequestStatus::Failed || RequestStatus == EHttpRequestStatus::Failed_ConnectionError || forceFail || (bShouldRetry && bCanRetry))
+					if (RequestStatus == EHttpRequestStatus::Failed || forceFail || (bShouldRetry && bCanRetry))
 					{
 						bIsGreen = false;
 

@@ -36,6 +36,7 @@ public:
 	virtual bool ProcessRequest() override;
 	virtual void CancelRequest() override;
 	virtual EHttpRequestStatus::Type GetStatus() const override;
+	virtual EHttpFailureReason GetFailureReason() const override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float GetElapsedTime() const override;
@@ -44,6 +45,7 @@ public:
 
 	FNullHttpRequest()
 		: CompletionStatus(EHttpRequestStatus::NotStarted)
+		, FailureReason(EHttpFailureReason::None)
 		, ElapsedTime(0)
 	{}
 	virtual ~FNullHttpRequest() {}
@@ -55,6 +57,7 @@ private:
 	FString Verb;
 	TArray<uint8> Payload;
 	EHttpRequestStatus::Type CompletionStatus;
+	EHttpFailureReason FailureReason;
 	TMap<FString, FString> Headers;
 	float ElapsedTime;
 };

@@ -118,6 +118,7 @@ public:
 	virtual bool ProcessRequest() override { return false; }
 	virtual void CancelRequest() override {}
 	virtual EHttpRequestStatus::Type GetStatus() const override { return EHttpRequestStatus::NotStarted; }
+	virtual EHttpFailureReason GetFailureReason() const override { return EHttpFailureReason::None; }
 	virtual const FHttpResponsePtr GetResponse() const override { return nullptr; }
 	virtual void Tick(float DeltaSeconds) override {}
 	virtual float GetElapsedTime() const override { return 0.0f; }

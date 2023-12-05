@@ -348,7 +348,7 @@ private:
 	void OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionNames);
 
 	/** Keeps track of Http requests while they are being processed */
-	FHttpManager* HttpManager;
+	FHttpManager* HttpManager = nullptr;
 	/** timeout in seconds for the entire http request to complete. 0 is no timeout */
 	float HttpTimeout;
 	/** timeout in seconds to establish the connection. -1 for system defaults, 0 is no timeout */

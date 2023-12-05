@@ -177,6 +177,12 @@ namespace BuildPatchServices
 			return EHttpRequestStatus::Type();
 		}
 
+		virtual EHttpFailureReason GetFailureReason() const override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetFailureReason");
+			return EHttpFailureReason::None;
+		}
+
 		virtual const FHttpResponsePtr GetResponse() const override
 		{
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetResponse");

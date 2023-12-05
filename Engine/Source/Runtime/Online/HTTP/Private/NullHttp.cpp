@@ -155,6 +155,11 @@ EHttpRequestStatus::Type FNullHttpRequest::GetStatus() const
 	return CompletionStatus;
 }
 
+EHttpFailureReason FNullHttpRequest::GetFailureReason() const
+{
+	return FailureReason;
+}
+
 const FHttpResponsePtr FNullHttpRequest::GetResponse() const
 {
 	return FHttpResponsePtr(nullptr);
@@ -184,6 +189,7 @@ float FNullHttpRequest::GetElapsedTime() const
 void FNullHttpRequest::FinishedRequest()
 {
 	CompletionStatus = EHttpRequestStatus::Failed;
+	FailureReason = EHttpFailureReason::Other;
 
 	UE_LOG(LogHttp, Log, TEXT("Finished request %p. no response %s url=%s elapsed=%.3f"),
 		this, *GetVerb(), *GetURL(), ElapsedTime);
