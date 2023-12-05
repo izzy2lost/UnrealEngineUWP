@@ -159,6 +159,27 @@ public:
 };
 IMPLEMENT_GLOBAL_SHADER(FWaterQuadTreeInitializeIndirectArgsCS, "/Plugin/Water/Private/WaterQuadTreeDraws.usf", "MainCS", SF_Compute);
 
+class FWaterQuadTreeClearPerViewBuffersCS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FWaterQuadTreeClearPerViewBuffersCS);
+	SHADER_USE_PARAMETER_STRUCT(FWaterQuadTreeClearPerViewBuffersCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, BucketCounts)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, PackedNodes)
+		SHADER_PARAMETER(uint32, NumDrawBuckets)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("CLEAR_PER_VIEW_BUFFERS"), 1);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(FWaterQuadTreeClearPerViewBuffersCS, "/Plugin/Water/Private/WaterQuadTreeDraws.usf", "MainCS", SF_Compute);
+
+
 class FWaterQuadTreeTraverseCS : public FGlobalShader
 {
 public:
@@ -591,7 +612,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		GraphBuilder.RegisterExternalBuffer(Params.OutInstanceData2Buffer) : 
 		GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(float) * 4, 1), TEXT("WaterQuadTree.InstanceData2Dummy"));
 	
-	FRDGBufferUAV* IndirectArgsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IndirectArgsBuffer));
+	FRDGBufferUAV* IndirectArgsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IndirectArgsBuffer, PF_R32_UINT));
 	FRDGBufferUAV* InstanceDataOffsetsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(InstanceDataOffsetsBuffer, PF_R32_UINT));
 	FRDGBufferSRV* InstanceDataOffsetsBufferSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(InstanceDataOffsetsBuffer, PF_R32_UINT));
 	FRDGBufferSRV* WaterBodyRenderDataBufferSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(WaterBodyRenderDataBufferRDG));
@@ -605,7 +626,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 	if (bPixelPreciseOcclusionQueries)
 	{
 		OcclusionQueryIndirectArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(Params.NumViews), TEXT("WaterQuadTree.OcclusionQueryIndirectArgs"));
-		OcclusionQueryIndirectArgsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OcclusionQueryIndirectArgsBuffer));
+		OcclusionQueryIndirectArgsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OcclusionQueryIndirectArgsBuffer, PF_R32_UINT));
 	}
 
 	const uint32 NumBucketsPerView = Params.NumDensities * Params.NumMaterials;
@@ -665,10 +686,17 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			OcclusionQueryResultsSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(OcclusionQueryResults, PF_R32_UINT));
 		}
 
-		// Clear counts and packed nodes counter
-		// TODO: only clear the counter at index 0, not the entire buffer
-		AddClearUAVPass(GraphBuilder, BucketCountsUAV, 0);
-		AddClearUAVPass(GraphBuilder, PackedNodesUAV, 0);
+		// Clear bucket counts buffer and packed nodes counter
+		{
+			TShaderMapRef<FWaterQuadTreeClearPerViewBuffersCS> ComputeShader(ShaderMap);
+
+			FWaterQuadTreeClearPerViewBuffersCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeClearPerViewBuffersCS::FParameters>();
+			PassParameters->BucketCounts = BucketCountsUAV;
+			PassParameters->PackedNodes = PackedNodesUAV;
+			PassParameters->NumDrawBuckets = NumBucketsPerView;
+
+			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("WaterQuadTreeClearPerViewBuffers"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumBucketsPerView, 64));
+		}
 
 		// Traverse quadtree
 		{
