@@ -23,13 +23,13 @@ public:
 	~FEncryptionKeyManager();
 
 	/** Returns whether the specified encrypton key exist or not. */
-	bool ContainsKey(const FGuid& Id);
+	bool ContainsKey(const FGuid& Id) const;
 	/** Add a new encryption key, ignored if the key already exist. */
 	void AddKey(const FGuid& Id, const FAES::FAESKey& Key);
 	/** Try retrieve the encryption key for the specified key ID. */
-	bool TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey);
+	bool TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey) const;
 	/** Returns a map of all available keys */
-	TMap<FGuid, FAES::FAESKey> GetAllKeys();
+	TMap<FGuid, FAES::FAESKey> GetAllKeys() const;
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FEncryptionKeyAddedDelegate, const FGuid&, const FAES::FAESKey&);
 	/** Event triggered when a new key as been added. */
@@ -39,9 +39,8 @@ public:
 
 private:
 	FEncryptionKeyManager();
-	FAES::FAESKey* GetKey(const FGuid& Id);
 
-	FMutex Mutex;
+	mutable FMutex Mutex;
 	TMap<FGuid, FAES::FAESKey> Keys;
 	FEncryptionKeyAddedDelegate KeyAdded;
 };

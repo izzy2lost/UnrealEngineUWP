@@ -28,9 +28,10 @@ FEncryptionKeyManager::~FEncryptionKeyManager()
 	FCoreDelegates::GetRegisterEncryptionKeyMulticastDelegate().RemoveAll(this);
 }
 
-bool FEncryptionKeyManager::ContainsKey(const FGuid& Id)
+bool FEncryptionKeyManager::ContainsKey(const FGuid& Id) const
 {
-	return nullptr != GetKey(Id);
+	TUniqueLock Lock(Mutex);
+	return Keys.Contains(Id);
 }
 
 void FEncryptionKeyManager::AddKey(const FGuid& Id, const FAES::FAESKey& Key)
@@ -52,9 +53,10 @@ void FEncryptionKeyManager::AddKey(const FGuid& Id, const FAES::FAESKey& Key)
 	}
 }
 
-bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey)
+bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey) const
 {
-	if (FAES::FAESKey* Key = GetKey(Id))
+	TUniqueLock Lock(Mutex);
+	if (const FAES::FAESKey* Key = Keys.Find(Id))
 	{
 		OutKey = *Key;
 		return true;
@@ -63,16 +65,10 @@ bool FEncryptionKeyManager::TryGetKey(const FGuid& Id, FAES::FAESKey& OutKey)
 	return false;
 }
 
-TMap<FGuid, FAES::FAESKey> FEncryptionKeyManager::GetAllKeys()
+TMap<FGuid, FAES::FAESKey> FEncryptionKeyManager::GetAllKeys() const
 {
 	TUniqueLock Lock(Mutex);
 	return Keys;
-}
-
-FAES::FAESKey* FEncryptionKeyManager::GetKey(const FGuid& Id)
-{
-	TUniqueLock Lock(Mutex);
-	return Keys.Find(Id);
 }
 
 FEncryptionKeyManager& FEncryptionKeyManager::Get()
