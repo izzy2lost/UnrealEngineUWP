@@ -9661,7 +9661,6 @@ bool UEngine::HandleObjCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 		// OBJ command but not supported here
 		return false;
 	}
-	return false;
 }
 
 bool UEngine::HandleDirCommand( const TCHAR* Cmd, FOutputDevice& Ar )
@@ -10615,6 +10614,8 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		ENQUEUE_RENDER_COMMAND(CauseGpuCrash)(&FRender::GpuCrash);
 		return true;
 	}
+#pragma warning(push)
+#pragma warning(disable:4702)
 	else if (FParse::Command(&Cmd, TEXT("TERMINATE")))
 	{
 		UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
@@ -10631,6 +10632,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		std::abort();
 		return true;
 	}
+#pragma warning(pop)
 	else if (FParse::Command(&Cmd, TEXT("CHECK")))
 	{
 		UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
@@ -10963,6 +10965,8 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		);
 		return true;
 	}
+#pragma warning(push)
+#pragma warning(disable:4702)
 	else if (FParse::Command(&Cmd, TEXT("SOFTLOCK")))
 	{
 		Ar.Log(TEXT("Hanging the current thread"));
@@ -10982,6 +10986,7 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 		}
 		return true;
 	}
+#pragma warning(pop)
 	else if (FParse::Command(&Cmd, TEXT("SLEEP")))
 	{
 		Ar.Log(TEXT("Sleep for 1 hour. This should crash after a few seconds in cooked builds."));

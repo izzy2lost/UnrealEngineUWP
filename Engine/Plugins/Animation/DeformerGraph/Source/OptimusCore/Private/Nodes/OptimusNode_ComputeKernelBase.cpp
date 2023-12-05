@@ -31,7 +31,7 @@ static FString GetShaderParamPinValueString(
 	)
 {
 	return InPin->GetDataType()->ShaderValueType->GetZeroValueAsString();
-	
+#if 0
 	// FIXME: Need property storage.
 	const FShaderValueType& ValueType = *InPin->GetDataType()->ShaderValueType;
 	TArrayView<UOptimusNodePin* const> SubPins = InPin->GetSubPins();
@@ -43,6 +43,7 @@ static FString GetShaderParamPinValueString(
 	
 	// FIXME: Support all types properly. Should probably be moved to a better place.
 	return FString::Printf(TEXT("%s(%s)"), *ValueType.ToString(), *InPin->GetValueAsString());
+#endif
 }
 
 

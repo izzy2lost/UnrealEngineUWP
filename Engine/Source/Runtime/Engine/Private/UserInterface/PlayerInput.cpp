@@ -381,8 +381,6 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 
 		return true;
 	}
-	
-	return false;
 }
 
 bool UPlayerInput::InputAxis(FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad)

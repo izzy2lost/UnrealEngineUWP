@@ -489,7 +489,6 @@ public:
 		}
 
 		return Categories.GetCategories()[File.Category].RemoveFile(File.FullFilename);
-		File.Clear();
 	}
 
 	int64 GetTotalUsedSize() const
