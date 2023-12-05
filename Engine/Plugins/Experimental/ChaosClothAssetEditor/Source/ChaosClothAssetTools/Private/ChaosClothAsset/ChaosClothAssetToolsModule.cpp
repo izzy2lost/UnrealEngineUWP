@@ -1,18 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "CoreMinimal.h"
+#include "ChaosClothAsset/ClothAssetBuilderEditor.h"
 #include "Features/IModularFeatures.h"
-#include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
-#include "AssetToolsModule.h"
 #include "ClothAssetEditorStyle.h"
 #include "ClothComponentEditorStyle.h"
 #include "ClothingAssetToClothAssetExporter.h"
-#include "ChaosClothAsset/ClothAssetBuilderEditor.h"
 
 namespace UE::Chaos::ClothAsset
 {
-	class FClothAssetEditorModule : public IModuleInterface, public IClothingAssetExporterClassProvider, public IClothAssetBuilderClassProvider
+	class FChaosClothAssetToolsModule : public IModuleInterface, public IClothingAssetExporterClassProvider, public IClothAssetBuilderClassProvider
 	{
 	public:
 		// IModuleInterface implementation
@@ -51,4 +48,4 @@ namespace UE::Chaos::ClothAsset
 	};
 }
 
-IMPLEMENT_MODULE(UE::Chaos::ClothAsset::FClothAssetEditorModule, ChaosClothAssetEditor);
+IMPLEMENT_MODULE(UE::Chaos::ClothAsset::FChaosClothAssetToolsModule, ChaosClothAssetToolsModule);
