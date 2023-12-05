@@ -19,7 +19,10 @@ private:
 	using Super = SCompoundWidget;
 
 public:
-	SLATE_BEGIN_ARGS(SLiveLinkDataView){}
+	SLATE_BEGIN_ARGS(SLiveLinkDataView)
+		: _ReadOnly(false)
+		{}
+	SLATE_ATTRIBUTE(bool, ReadOnly)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& Args, FLiveLinkClient* InClient);

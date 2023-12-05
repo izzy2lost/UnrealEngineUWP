@@ -14,7 +14,7 @@
 #define WITH_LIVELINK_HUB 0
 #endif
 
-FLiveLinkPanelController::FLiveLinkPanelController()
+FLiveLinkPanelController::FLiveLinkPanelController(TAttribute<bool> bInReadOnly)
 {
 	Client = (FLiveLinkClient*)&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 
@@ -24,10 +24,10 @@ FLiveLinkPanelController::FLiveLinkPanelController()
 	CommandList = MakeShared<FUICommandList>();
 	BindCommands();
 
-	SourcesView = MakeShared<FLiveLinkSourcesView>(Client, CommandList, FLiveLinkSourcesView::FOnSourceSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSourceSelectionChangedHandler));
-	SubjectsView = MakeShared<FLiveLinkSubjectsView>(FLiveLinkSubjectsView::FOnSubjectSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSubjectSelectionChangedHandler), CommandList);
-	SourcesDetailsView = UE::LiveLink::CreateSourcesDetailsView(SourcesView);
-	SubjectsDetailsView = UE::LiveLink::CreateSubjectsDetailsView(Client);
+	SourcesView = MakeShared<FLiveLinkSourcesView>(Client, CommandList, bInReadOnly, FLiveLinkSourcesView::FOnSourceSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSourceSelectionChangedHandler));
+	SubjectsView = MakeShared<FLiveLinkSubjectsView>(FLiveLinkSubjectsView::FOnSubjectSelectionChanged::CreateRaw(this, &FLiveLinkPanelController::OnSubjectSelectionChangedHandler), CommandList, bInReadOnly);
+	SourcesDetailsView = UE::LiveLink::CreateSourcesDetailsView(SourcesView, bInReadOnly);
+	SubjectsDetailsView = UE::LiveLink::CreateSubjectsDetailsView(Client, bInReadOnly);
 
 	RebuildSourceList();
 	RebuildSubjectList();

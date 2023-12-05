@@ -32,8 +32,8 @@ typedef TSharedPtr<FLiveLinkSubjectUIEntry> FLiveLinkSubjectUIEntryPtr;
 
 namespace UE::LiveLink
 {
-	TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView);
-	TSharedPtr<SLiveLinkDataView> CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient);
+	TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView, const TAttribute<bool>& bInReadOnly);
+	TSharedPtr<SLiveLinkDataView> CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient, const TAttribute<bool>& bInReadOnly);
 }
 
 // Structure that defines a single entry in the subject UI
@@ -117,25 +117,45 @@ namespace UE::LiveLink
 		{
 			if (InKeyEvent.GetKey() == EKeys::Delete || InKeyEvent.GetKey() == EKeys::BackSpace)
 			{
-				TArray<ListElementType> SelectedItem = ListType::GetSelectedItems();
-				for (ListElementType Item : SelectedItem)
+				if (!bReadOnly.Get())
 				{
-					Item->RemoveFromClient();
+					TArray<ListElementType> SelectedItem = ListType::GetSelectedItems();
+					for (ListElementType Item : SelectedItem)
+					{
+						Item->RemoveFromClient();
+					}
 				}
 				return FReply::Handled();
 			}
 
 			return FReply::Unhandled();
 		}
+
+		// Whether the panel is in read-only mode or not.
+		TAttribute<bool> bReadOnly;
 	};
 }
 
 class SLiveLinkSourceListView : public UE::LiveLink::SLiveLinkListView<SListView<FLiveLinkSourceUIEntryPtr>, FLiveLinkSourceUIEntryPtr>
 {
+public:
+	void Construct(const FArguments& InArgs, TAttribute<bool> bInReadOnly)
+	{
+		bReadOnly = bInReadOnly;
+
+		UE::LiveLink::SLiveLinkListView<SListView<FLiveLinkSourceUIEntryPtr>, FLiveLinkSourceUIEntryPtr>::Construct(InArgs);
+	}
 };
 
 class SLiveLinkSubjectsTreeView : public UE::LiveLink::SLiveLinkListView<STreeView<FLiveLinkSubjectUIEntryPtr>, FLiveLinkSubjectUIEntryPtr>
 {
+public:
+	void Construct(const FArguments& InArgs, TAttribute<bool> bInReadOnly)
+	{
+		bReadOnly = bInReadOnly;
+
+		UE::LiveLink::SLiveLinkListView<STreeView<FLiveLinkSubjectUIEntryPtr>, FLiveLinkSubjectUIEntryPtr>::Construct(InArgs);
+	}
 };
 
 class FLiveLinkSubjectsView : public TSharedFromThis<FLiveLinkSubjectsView>
@@ -143,7 +163,7 @@ class FLiveLinkSubjectsView : public TSharedFromThis<FLiveLinkSubjectsView>
 public:
 	DECLARE_DELEGATE_TwoParams(FOnSubjectSelectionChanged, FLiveLinkSubjectUIEntryPtr, ESelectInfo::Type);
 
-	FLiveLinkSubjectsView(FOnSubjectSelectionChanged InOnSubjectSelectionChanged, const TSharedPtr<FUICommandList>& InCommandList);
+	FLiveLinkSubjectsView(FOnSubjectSelectionChanged InOnSubjectSelectionChanged, const TSharedPtr<FUICommandList>& InCommandList, TAttribute<bool> bInReadOnly);
 
 	// Helper functions for building the subject tree UI
 	TSharedRef<ITableRow> MakeTreeRowWidget(FLiveLinkSubjectUIEntryPtr InInfo, const TSharedRef<STableViewBase>& OwnerTable);
@@ -167,6 +187,8 @@ public:
 	TArray<FLiveLinkSubjectUIEntryPtr> SubjectData;
 	// Subject Selection Changed delegate
 	FOnSubjectSelectionChanged SubjectSelectionChangedDelegate;
+	// Returns whether the panel is in read-only mode.
+	TAttribute<bool> bReadOnly;
 };
 
 class FLiveLinkSourcesView : public TSharedFromThis<FLiveLinkSourcesView>
@@ -174,7 +196,7 @@ class FLiveLinkSourcesView : public TSharedFromThis<FLiveLinkSourcesView>
 public:
 	DECLARE_DELEGATE_TwoParams(FOnSourceSelectionChanged, FLiveLinkSourceUIEntryPtr, ESelectInfo::Type);
 
-	FLiveLinkSourcesView(FLiveLinkClient* InLiveLinkClient, TSharedPtr<FUICommandList> InCommandList, FOnSourceSelectionChanged InOnSourceSelectionChanged);
+	FLiveLinkSourcesView(FLiveLinkClient* InLiveLinkClient, TSharedPtr<FUICommandList> InCommandList, TAttribute<bool> bInReadOnly, FOnSourceSelectionChanged InOnSourceSelectionChanged);
 
 	// Gather information about all sources and update the list view 
 	void RefreshSourceData(bool bRefreshUI);
@@ -202,4 +224,6 @@ public:
 	FLiveLinkClient* Client;
 	// Source selection changed delegate
 	FOnSourceSelectionChanged OnSourceSelectionChangedDelegate;
+	// Returns whether the panel is in read-only mode.
+	TAttribute<bool> bReadOnly;
 };

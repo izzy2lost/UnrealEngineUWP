@@ -9,6 +9,7 @@
 #include "LiveLinkClient.h"
 #include "LiveLinkClientPanelToolbar.h"
 #include "LiveLinkClientPanelViews.h"
+#include "LiveLinkEditorSettings.h"
 #include "LiveLinkLog.h"
 #include "LiveLinkRole.h"
 #include "LiveLinkSourceFactory.h"
@@ -37,7 +38,7 @@ void SLiveLinkClientPanel::Construct(const FArguments& Args, FLiveLinkClient* In
 
 	DetailWidgetIndex = 0;
 	
-	PanelController = MakeShared<FLiveLinkPanelController>();
+	PanelController = MakeShared<FLiveLinkPanelController>(TAttribute<bool>::CreateSP(this, &SLiveLinkClientPanel::IsInReadOnlyMode));
 
 	const FName LogName = "Live Link";
 	TSharedPtr<class IMessageLogListing> MessageLogListing;
@@ -67,6 +68,7 @@ void SLiveLinkClientPanel::Construct(const FArguments& Args, FLiveLinkClient* In
 			.AutoHeight()
 			[
 				SNew(SLiveLinkClientPanelToolbar, Client)
+				.Visibility(this, &SLiveLinkClientPanel::GetVisibilityBasedOnReadOnly)
 			]
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)
@@ -179,6 +181,16 @@ void SLiveLinkClientPanel::AddReferencedObjects(FReferenceCollector& Collector)
 int32 SLiveLinkClientPanel::GetDetailWidgetIndex() const
 {
 	return PanelController->SubjectsDetailsView->GetSubjectKey().Source.IsValid() && !PanelController->SubjectsDetailsView->GetSubjectKey().SubjectName.IsNone() ? 1 : 0;
+}
+
+bool SLiveLinkClientPanel::IsInReadOnlyMode() const
+{
+	return GetDefault<ULiveLinkEditorSettings>()->bReadOnly;
+}
+
+EVisibility SLiveLinkClientPanel::GetVisibilityBasedOnReadOnly() const
+{
+	return IsInReadOnlyMode() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 void SLiveLinkClientPanel::PostUndo(bool bSuccess)

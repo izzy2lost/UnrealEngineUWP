@@ -5,6 +5,7 @@
 #include "Delegates/Delegate.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Delegates/DelegateCombinations.h"
+#include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
 
 class IDetailsView;
@@ -27,7 +28,7 @@ typedef TSharedPtr<FLiveLinkSubjectUIEntry> FLiveLinkSubjectUIEntryPtr;
 class LIVELINKEDITOR_API FLiveLinkPanelController : public TSharedFromThis<FLiveLinkPanelController>
 {
 public:
-	FLiveLinkPanelController();
+	FLiveLinkPanelController(TAttribute<bool> bInReadOnly = false);
 	~FLiveLinkPanelController();
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubjectSelectionChanged, const FLiveLinkSubjectKey&);

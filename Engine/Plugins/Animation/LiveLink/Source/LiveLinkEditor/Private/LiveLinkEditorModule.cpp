@@ -27,6 +27,7 @@
 #include "LiveLinkClientPanel.h"
 #include "LiveLinkClientCommands.h"
 #include "LiveLinkEditorPrivate.h"
+#include "LiveLinkEditorSettings.h"
 #include "LiveLinkGraphPanelPinFactory.h"
 #include "LiveLinkSettings.h"
 #include "LiveLinkSourceSettingsDetailCustomization.h"
@@ -219,9 +220,14 @@ private:
 
 	void RegisterSettings()
 	{
-		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		if (SettingsModule != nullptr)
+		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 		{
+			SettingsModule->RegisterSettings("Editor", "Plugins", "LiveLink",
+				LOCTEXT("EditorSettingsName", "Live Link"),
+				LOCTEXT("EditorSettingsDescription", "Configure Live Link."),
+				GetMutableDefault<ULiveLinkEditorSettings>()
+			);
+
 			SettingsModule->RegisterSettings("Project", "Plugins", "LiveLink",
 				LOCTEXT("LiveLinkSettingsName", "Live Link"),
 				LOCTEXT("LiveLinkDescription", "Configure the Live Link plugin."),
@@ -244,6 +250,7 @@ private:
 		{
 			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLinkComponent");
 			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLink");
+			SettingsModule->UnregisterSettings("Editor", "Plugins", "LiveLink");
 		}
 	}
 

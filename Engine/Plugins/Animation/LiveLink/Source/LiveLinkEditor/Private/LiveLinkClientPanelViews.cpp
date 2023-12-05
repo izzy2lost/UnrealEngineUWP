@@ -41,7 +41,7 @@ namespace SubjectTreeUI
 
 namespace UE::LiveLink
 {
-TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView)
+TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSourcesView>& InSourcesView, const TAttribute<bool>& bInReadOnly)
 {
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
@@ -54,13 +54,18 @@ TSharedPtr<IDetailsView> CreateSourcesDetailsView(const TSharedPtr<FLiveLinkSour
 	TSharedPtr<IDetailsView> SettingsDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	// todo: use controller here instead of view widget
 	SettingsDetailsView->OnFinishedChangingProperties().AddRaw(InSourcesView.Get(), &FLiveLinkSourcesView::OnPropertyChanged);
+	SettingsDetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda(
+		[bInReadOnly](){
+		return !bInReadOnly.Get();
+	}));
 
 	return SettingsDetailsView;
 }
 
-TSharedPtr<SLiveLinkDataView> CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient)
+TSharedPtr<SLiveLinkDataView> CreateSubjectsDetailsView(FLiveLinkClient* InLiveLinkClient, const TAttribute<bool>& bInReadOnly)
 {
-	return SNew(SLiveLinkDataView, InLiveLinkClient);
+	return SNew(SLiveLinkDataView, InLiveLinkClient)
+		.ReadOnly(bInReadOnly);
 }
 } // namespace UE::LiveLink
 
@@ -177,12 +182,14 @@ public:
 	SLATE_BEGIN_ARGS(SLiveLinkClientPanelSubjectRow) {}
 	/** The list item for this row */
 	SLATE_ARGUMENT(FLiveLinkSubjectUIEntryPtr, Entry)
+	SLATE_ATTRIBUTE(bool, ReadOnly)
 	SLATE_END_ARGS()
 
 
 	void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView)
 	{
 		EntryPtr = Args._Entry;
+		bReadOnly = Args._ReadOnly;
 
 		SMultiColumnTableRow<FLiveLinkSubjectUIEntryPtr>::Construct(
 			FSuperRowType::FArguments()
@@ -199,6 +206,7 @@ public:
 			if (EntryPtr->IsSubject())
 			{
 				return SNew(SCheckBox)
+					.Visibility(this, &SLiveLinkClientPanelSubjectRow::GetVisibilityFromReadOnly)
 					.IsChecked(MakeAttributeSP(this, &SLiveLinkClientPanelSubjectRow::GetSubjectEnabled))
 					.OnCheckStateChanged(this, &SLiveLinkClientPanelSubjectRow::OnEnabledChanged);
 			}
@@ -238,6 +246,7 @@ public:
 					.ContentPadding(0.f)
 					.ForegroundColor(FSlateColor::UseForeground())
 					.IsFocusable(false)
+					.Visibility(this, &SLiveLinkClientPanelSubjectRow::GetVisibilityFromReadOnly)
 					[
 						SNew(SImage)
 						.Image(FAppStyle::GetBrush("Icons.Delete"))
@@ -249,6 +258,7 @@ public:
 				return SNew(SBox)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
+					.Visibility(this, &SLiveLinkClientPanelSubjectRow::GetVisibilityFromReadOnly)
 					[
 						SNew(STextBlock)
 						.Font(FAppStyle::Get().GetFontStyle("FontAwesome.8"))
@@ -290,7 +300,16 @@ private:
 		return FLinearColor(0.f, 0.f, 0.f, 0.f);
 	}
 
+	/** Get widget visibility according to whether or not the panel is in read-only mode. */
+	EVisibility GetVisibilityFromReadOnly() const
+	{
+		return bReadOnly.Get() ? EVisibility::Collapsed : EVisibility::Visible;
+	}
+
 	FLiveLinkSubjectUIEntryPtr EntryPtr;
+
+	/** Returns whether the panel is in read-only mode. */
+	TAttribute<bool> bReadOnly;
 };
 
 class SLiveLinkClientPanelSourcesRow : public SMultiColumnTableRow<FLiveLinkSourceUIEntryPtr>
@@ -299,11 +318,13 @@ public:
 	SLATE_BEGIN_ARGS(SLiveLinkClientPanelSourcesRow) {}
 	/** The list item for this row */
 		SLATE_ARGUMENT(FLiveLinkSourceUIEntryPtr, Entry)
+		SLATE_ATTRIBUTE(bool, ReadOnly)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& Args, const TSharedRef<STableViewBase>& OwnerTableView)
 	{
 		EntryPtr = Args._Entry;
+		bReadOnly = Args._ReadOnly;
 
 		SMultiColumnTableRow<FLiveLinkSourceUIEntryPtr>::Construct(
 			FSuperRowType::FArguments()
@@ -336,6 +357,7 @@ public:
 				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
+				.Visibility(this, &SLiveLinkClientPanelSourcesRow::GetVisibilityFromReadOnly)
 				.OnClicked(this, &SLiveLinkClientPanelSourcesRow::OnRemoveClicked)
 				.ToolTipText(LOCTEXT("RemoveSource", "Remove selected live link source"))
 				.ContentPadding(0.f)
@@ -368,12 +390,23 @@ private:
 		return FReply::Handled();
 	}
 
+	/** Get widget visibility according to whether or not the panel is in read-only mode. */
+	EVisibility GetVisibilityFromReadOnly() const
+	{
+		return bReadOnly.Get() ? EVisibility::Collapsed : EVisibility::Visible;
+	}
+
+private:
 	FLiveLinkSourceUIEntryPtr EntryPtr;
+
+	/** Attribute used to query whether the panel is in read only mode or not. */
+	TAttribute<bool> bReadOnly;
 };
 
-FLiveLinkSourcesView::FLiveLinkSourcesView(FLiveLinkClient* InLiveLinkClient, TSharedPtr<FUICommandList> InCommandList, FOnSourceSelectionChanged InOnSourceSelectionChanged)
+FLiveLinkSourcesView::FLiveLinkSourcesView(FLiveLinkClient* InLiveLinkClient, TSharedPtr<FUICommandList> InCommandList, TAttribute<bool> bInReadOnly, FOnSourceSelectionChanged InOnSourceSelectionChanged)
 	: Client(InLiveLinkClient)
 	, OnSourceSelectionChangedDelegate(MoveTemp(InOnSourceSelectionChanged))
+	, bReadOnly(MoveTemp(bInReadOnly))
 {
 	CreateSourcesListView(InCommandList);
 }
@@ -381,7 +414,8 @@ FLiveLinkSourcesView::FLiveLinkSourcesView(FLiveLinkClient* InLiveLinkClient, TS
 TSharedRef<ITableRow> FLiveLinkSourcesView::MakeSourceListViewWidget(FLiveLinkSourceUIEntryPtr Entry, const TSharedRef<STableViewBase>& OwnerTable) const
 {
 	return SNew(SLiveLinkClientPanelSourcesRow, OwnerTable)
-		.Entry(Entry);
+		.Entry(Entry)
+		.ReadOnly(bReadOnly);
 }
 
 void FLiveLinkSourcesView::OnSourceListSelectionChanged(FLiveLinkSourceUIEntryPtr Entry, ESelectInfo::Type SelectionType) const
@@ -391,7 +425,7 @@ void FLiveLinkSourcesView::OnSourceListSelectionChanged(FLiveLinkSourceUIEntryPt
 
 void FLiveLinkSourcesView::CreateSourcesListView(const TSharedPtr<FUICommandList>& InCommandList)
 {
-	SAssignNew(SourcesListView, SLiveLinkSourceListView)
+	SAssignNew(SourcesListView, SLiveLinkSourceListView, bReadOnly)
 		.ListItemsSource(&SourceData)
 		.SelectionMode(ESelectionMode::Single)
 		.OnGenerateRow_Raw(this, &FLiveLinkSourcesView::MakeSourceListViewWidget)
@@ -417,6 +451,11 @@ void FLiveLinkSourcesView::CreateSourcesListView(const TSharedPtr<FUICommandList
 
 TSharedPtr<SWidget> FLiveLinkSourcesView::OnSourceConstructContextMenu(TSharedPtr<FUICommandList> InCommandList)
 {
+	if (bReadOnly.Get())
+	{
+		return nullptr;
+	}
+
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, InCommandList);
 
@@ -464,8 +503,9 @@ bool FLiveLinkSourcesView::CanRemoveSource()
 	return SourcesListView->GetNumItemsSelected() > 0;
 }
 
-FLiveLinkSubjectsView::FLiveLinkSubjectsView(FOnSubjectSelectionChanged InOnSubjectSelectionChanged, const TSharedPtr<FUICommandList>& InCommandList)
+FLiveLinkSubjectsView::FLiveLinkSubjectsView(FOnSubjectSelectionChanged InOnSubjectSelectionChanged, const TSharedPtr<FUICommandList>& InCommandList, TAttribute<bool> bInReadOnly)
 	: SubjectSelectionChangedDelegate(InOnSubjectSelectionChanged)
+	, bReadOnly(MoveTemp(bInReadOnly))
 {
 	CreateSubjectsTreeView(InCommandList);
 }
@@ -488,7 +528,8 @@ void FLiveLinkSourcesView::OnPropertyChanged(const FPropertyChangedEvent& InEven
 TSharedRef<ITableRow> FLiveLinkSubjectsView::MakeTreeRowWidget(FLiveLinkSubjectUIEntryPtr InInfo, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	return SNew(SLiveLinkClientPanelSubjectRow, OwnerTable)
-		.Entry(InInfo);
+		.Entry(InInfo)
+		.ReadOnly(bReadOnly);
 }
 
 void FLiveLinkSubjectsView::GetChildrenForInfo(FLiveLinkSubjectUIEntryPtr InInfo, TArray< FLiveLinkSubjectUIEntryPtr >& OutChildren)
@@ -498,6 +539,11 @@ void FLiveLinkSubjectsView::GetChildrenForInfo(FLiveLinkSubjectUIEntryPtr InInfo
 
 TSharedPtr<SWidget> FLiveLinkSubjectsView::OnOpenVirtualSubjectContextMenu(TSharedPtr<FUICommandList> InCommandList)
 {
+	if (bReadOnly.Get())
+	{
+		return nullptr;
+	}
+
 	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, InCommandList);
 
@@ -522,7 +568,7 @@ bool FLiveLinkSubjectsView::CanRemoveSubject() const
 
 void FLiveLinkSubjectsView::CreateSubjectsTreeView(const TSharedPtr<FUICommandList>& InCommandList)
 {
-	SAssignNew(SubjectsTreeView, SLiveLinkSubjectsTreeView)
+	SAssignNew(SubjectsTreeView, SLiveLinkSubjectsTreeView, bReadOnly)
 		.TreeItemsSource(&SubjectData)
 		.OnGenerateRow_Raw(this, &FLiveLinkSubjectsView::MakeTreeRowWidget)
 		.OnGetChildren_Raw(this, &FLiveLinkSubjectsView::GetChildrenForInfo)

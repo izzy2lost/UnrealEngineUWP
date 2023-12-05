@@ -26,7 +26,7 @@ class STableViewBase;
 
 class LIVELINKEDITOR_API SLiveLinkClientPanel : public SCompoundWidget, public FGCObject, public FEditorUndoClient
 {
-	SLATE_BEGIN_ARGS(SLiveLinkClientPanel){}
+	SLATE_BEGIN_ARGS(SLiveLinkClientPanel) {}
 	SLATE_END_ARGS()
 
 	virtual ~SLiveLinkClientPanel() override;
@@ -58,12 +58,19 @@ private:
 
 	// Return the occurrence count and last time occurred text
 	FText GetSelectedMessageOccurrenceText() const;
-private:
+
 	int32 GetDetailWidgetIndex() const;
 	
 	// Handler for the subject tree context menu opening
 	TSharedPtr<SWidget> OnOpenVirtualSubjectContextMenu();
 
+	// Returns whether the panel is in read only mode or not.
+	bool IsInReadOnlyMode() const;
+
+	/** Get widget visibility according to whether the panel is in read-only mode. */
+	EVisibility GetVisibilityBasedOnReadOnly() const;
+
+private:
 	// Handles callback connections between the sources, subjects and details views
 	TSharedPtr<FLiveLinkPanelController> PanelController;
 
