@@ -60,8 +60,6 @@ static TAutoConsoleVariable<int32> CVarGTAOCombined(
 
 bool IsAmbientCubemapPassRequired(const FSceneView& View)
 {
-	FScene* Scene = (FScene*)View.Family->Scene;
-
 	return View.FinalPostProcessSettings.ContributingCubemaps.Num() != 0 && IsUsingGBuffers(View.GetShaderPlatform());
 }
 
