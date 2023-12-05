@@ -95,6 +95,13 @@ public:
 	* @return True if the read succeeded.
 	*
 	* This will convert whatever the pixel format is to FColor
+	* Prefer using FImageUtils::GetRenderTargetImage rather than calling this directly.
+	*
+	* The default value for InFlags specifies RCM_UNorm which will cause values to be scaled into [0,1] ; use RCM_MinMax to retrieve values without change.
+	*
+	* If the RenderTarget surface is float linear, it will converted to SRGB FColor, if InFlags.bLinearToGamma is set (which is on by default).
+	* If the RenderTarget surface is U8, then the SRGB/not state is unchanged, the U8 values are retrieved unchanged in either Linear or SRGB.
+	* Gamma is handled correctly automatically by FImageUtils::GetRenderTargetImage
 	*/
 	ENGINE_API virtual bool ReadPixels(TArray<FColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -105,7 +112,8 @@ public:
 	* @param InSrcRect - InSrcRect not specified means the whole rect
 	* @return True if the read succeeded.
 	*
-	* Ptr variant of this API just does an extra memcpy; prefer the TArray variant
+	* Ptr variant of this API just does an extra memcpy; prefer the TArray variant.
+	* Prefer using FImageUtils::GetRenderTargetImage rather than calling this directly.
 	*/
 	ENGINE_API bool ReadPixelsPtr(FColor* OutImageBytes, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -117,6 +125,7 @@ public:
 	 */
 	UE_DEPRECATED(5.4, "Use the other ReadFloat16Pixels variant (ECubeFace can be set in FReadSurfaceDataFlags)")
 	ENGINE_API bool ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, ECubeFace CubeFace);
+
 	/**
 	 * Reads the render target's displayed pixels into the given color buffer.
 	 * @param OutImageData - RGBA16F values will be stored in this buffer
@@ -124,7 +133,10 @@ public:
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
 	 *
-	 * this only works if surface is PF_FloatRGBA exactly ; it does not convert
+	 * The default value for InFlags specifies RCM_UNorm which will cause values to be scaled into [0,1] ; use RCM_MinMax to retrieve values without change.
+	 *
+	 * Unlike other RenderTarget Read functions, this only works if surface is PF_FloatRGBA exactly ; it does not convert.
+	 * Prefer using FImageUtils::GetRenderTargetImage rather than calling this directly.
 	 */
 	ENGINE_API virtual bool ReadFloat16Pixels(TArray<FFloat16Color>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -135,7 +147,10 @@ public:
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
 	 *
-	 * This will convert whatever the pixel format is to FLinearColor
+	 * The default value for InFlags specifies RCM_UNorm which will cause values to be scaled into [0,1] ; use RCM_MinMax to retrieve values without change.
+	 *
+	 * This will convert whatever the pixel format is to FLinearColor (if supported).
+	 * Prefer using FImageUtils::GetRenderTargetImage rather than calling this directly.
 	 */
 	ENGINE_API virtual bool ReadLinearColorPixels(TArray<FLinearColor>& OutImageData, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_MinMax, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 
@@ -146,7 +161,8 @@ public:
 	 * @param InSrcRect - InSrcRect not specified means the whole rect
 	 * @return True if the read succeeded.
 	 *
-	 * Ptr variant of this API just does an extra memcpy; prefer the TArray variant
+	 * Ptr variant of this API just does an extra memcpy; prefer the TArray variant.
+	 * Prefer using FImageUtils::GetRenderTargetImage rather than calling this directly.
 	 */
 	ENGINE_API bool ReadLinearColorPixelsPtr(FLinearColor* OutImageBytes, FReadSurfaceDataFlags InFlags = FReadSurfaceDataFlags(RCM_MinMax, CubeFace_MAX), FIntRect InSrcRect = FIntRect(0, 0, 0, 0));
 

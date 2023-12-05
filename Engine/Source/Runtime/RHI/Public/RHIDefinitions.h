@@ -642,16 +642,19 @@ enum EResourceLockMode
 };
 
 /** limited to 8 types in FReadSurfaceDataFlags */
+// RCM_UNorm is the default
+// RCM_MinMax means "leave the values alone" and is recommended as what you should use
+// RCM_SNorm and RCM_MinMaxNorm seem to be unsupported
 enum ERangeCompressionMode
 {
 	// 0 .. 1
-	RCM_UNorm,
+	RCM_UNorm, // if you read values that go outside [0,1], they are scaled to fit inside [0,1]
 	// -1 .. 1
 	RCM_SNorm,
 	// 0 .. 1 unless there are smaller values than 0 or bigger values than 1, then the range is extended to the minimum or the maximum of the values
 	RCM_MinMaxNorm,
 	// minimum .. maximum (each channel independent)
-	RCM_MinMax,
+	RCM_MinMax, // read values without changing them
 };
 
 enum class EPrimitiveTopologyType : uint8
