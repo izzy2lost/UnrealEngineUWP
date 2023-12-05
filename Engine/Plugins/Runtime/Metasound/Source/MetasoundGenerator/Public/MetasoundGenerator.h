@@ -257,6 +257,8 @@ namespace Metasound
 		void ClearGraph();
 		bool UpdateGraphIfPending();
 
+		std::atomic<bool> bVertexInterfaceHasChanged{ false };
+
 	private:
 
 		friend class FAsyncMetaSoundBuilderBase;
