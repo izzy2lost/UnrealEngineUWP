@@ -586,9 +586,21 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigConnector
 		{
 			if(Connector->Settings.Type == EConnectorType::Primary)
 			{
-				static constexpr TCHAR Format[] = TEXT("Cannot add connector '%s' - there already is a primary connector.");
-				ReportAndNotifyErrorf(Format, *InName.ToString());
-				return FRigElementKey();
+				if(Hierarchy->HasExecuteContext())
+				{
+					const FControlRigExecuteContext& CRContext = Hierarchy->ExecuteContext->GetPublicData<FControlRigExecuteContext>();
+					const FString NameSpace = CRContext.GetRigModuleNameSpace();
+					if(!NameSpace.IsEmpty())
+					{
+						const FName& ConnectorNameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+						if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.ToString().Equals(NameSpace, ESearchCase::CaseSensitive))
+						{
+							static constexpr TCHAR Format[] = TEXT("Cannot add connector '%s' - there already is a primary connector.");
+							ReportAndNotifyErrorf(Format, *InName.ToString());
+							return FRigElementKey();
+						}
+					}
+				}
 			}
 		}
 
