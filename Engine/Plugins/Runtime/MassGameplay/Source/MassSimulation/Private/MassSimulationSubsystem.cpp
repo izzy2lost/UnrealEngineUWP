@@ -155,6 +155,11 @@ void UMassSimulationSubsystem::UnregisterDynamicProcessor(UMassProcessor& Proces
 
 void UMassSimulationSubsystem::HandleSimulationTickingEnabledCVarChange(IConsoleVariable*)
 {
+	if (GEngine == nullptr)
+	{
+		return;
+	}
+
 	for (const FWorldContext& Context : GEngine->GetWorldContexts())
 	{
 		if (Context.WorldType != EWorldType::Inactive)
@@ -162,7 +167,7 @@ void UMassSimulationSubsystem::HandleSimulationTickingEnabledCVarChange(IConsole
 			UWorld* World = Context.World();
 			
 			// we only want to affect game worlds
-			if (World->IsGameWorld() == false)
+			if (World == nullptr || World->IsGameWorld() == false)
 			{
 				continue;
 			}
