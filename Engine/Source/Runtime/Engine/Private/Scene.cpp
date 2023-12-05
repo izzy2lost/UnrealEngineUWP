@@ -630,12 +630,12 @@ FPostProcessSettings::FPostProcessSettings()
 	PathTracingMaxBounces = 32;
 	PathTracingSamplesPerPixel = 2048;
 	PathTracingMaxPathExposure = 30.0f;
+	PathTracingEnableEmissiveMaterials = 1;
 	PathTracingEnableReferenceDOF = 0;
 	PathTracingEnableReferenceAtmosphere = 0;
 	PathTracingEnableDenoiser = 1;
 
 	PathTracingIncludeEmissive = 1;
-	PathTracingIncludeIndirectEmissive = 1;
 	PathTracingIncludeDiffuse = 1;
 	PathTracingIncludeIndirectDiffuse = 1;
 	PathTracingIncludeSpecular = 1;

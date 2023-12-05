@@ -1675,11 +1675,11 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(PathTracingMaxBounces);
 		SET_PP(PathTracingSamplesPerPixel);
 		LERP_PP(PathTracingMaxPathExposure);
+		SET_PP(PathTracingEnableEmissiveMaterials);
 		SET_PP(PathTracingEnableReferenceDOF);
 		SET_PP(PathTracingEnableReferenceAtmosphere);
 		SET_PP(PathTracingEnableDenoiser);
 		SET_PP(PathTracingIncludeEmissive);
-		SET_PP(PathTracingIncludeIndirectEmissive);
 		SET_PP(PathTracingIncludeDiffuse);
 		SET_PP(PathTracingIncludeIndirectDiffuse);
 		SET_PP(PathTracingIncludeSpecular);
