@@ -2,10 +2,19 @@
 #if WITH_EDITOR
 
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
-#include "SGraphPanel.h"
+#include "Framework/Application/SlateApplication.h"
+#include "DragAndDrop/AssetDragDropOp.h"
 
 #define LOCTEXT_NAMESPACE "SSchematicGraphPanel"
 
+
+void FSchematicGraph::Reset()
+{
+	Nodes.Reset();
+	Links.Reset();
+
+	OnGraphReset().Broadcast();
+}
 
 bool FSchematicGraph::AddNode(const FString& InName)
 {
@@ -25,10 +34,43 @@ bool FSchematicGraph::AddNode(const FString& InName)
 	return true;
 }
 
+bool FSchematicGraph::RenameNode(const FString& InOldName, const FString& InNewName)
+{
+	FSchematicGraphNode** FoundNode = Nodes.FindByPredicate([InOldName](const FSchematicGraphNode* Node)
+	{
+		return Node->Name == InOldName;
+	});
+
+	if (FoundNode)
+	{
+		(*FoundNode)->Name = InNewName;
+		return true;
+	}
+	
+	return false;
+}
+
+bool FSchematicGraph::RemoveNode(const FString& InName)
+{
+	FSchematicGraphNode** FoundNode = Nodes.FindByPredicate([InName](const FSchematicGraphNode* Node)
+	{
+		return Node->Name == InName;
+	});
+	if (FoundNode)
+	{
+		OnNodeRemovedDelegate.Broadcast(*FoundNode);
+		Nodes.Remove(*FoundNode);
+		FMemory::Free(*FoundNode);
+		return true;
+	}
+	return false;
+}
+
 void SSchematicGraphNode::Construct(const FArguments& InArgs)
 {
 	NodeData = InArgs._NodeData;
 	OnClickedDelegate = InArgs._OnClicked;
+	OnDropDelegate = InArgs._OnDrop;
 	TEasingAttributeInterpolator<FVector2d>::FSettings Vector2DInterpSettings(EEasingInterpolatorType::BounceEaseInOut, 0.2f);
 	Position = TAnimatedAttribute<FVector2d>::Create(Vector2DInterpSettings, FVector2d::ZeroVector);
 	Size = TAnimatedAttribute<FVector2d>::Create(Vector2DInterpSettings, OriginalSize);
@@ -54,17 +96,13 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 	//FVector2d TotalOffset = CenterOffset + SizeOffset;
 	FVector2d TotalOffset = SizeOffset;
 
-	FLinearColor Color = NodeData->bIsSelected ?
-		FSlateColor(EStyleColor::AccentRed).GetSpecifiedColor()
-	: FLinearColor::White;
-
 	FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				NewLayerId,
 				AllottedGeometry.ToPaintGeometry(CurSize, FSlateLayoutTransform(TotalOffset)),
 				&Brush,
 				ESlateDrawEffect::None,
-				Color
+				Brush.TintColor.GetSpecifiedColor()
 				);
 	
 	return NewLayerId;
@@ -95,6 +133,13 @@ void SSchematicGraphNode::OnDragLeave(const FDragDropEvent& DragDropEvent)
 	Scale->Set(1.f);
 }
 
+FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	SNode::OnDrop(MyGeometry, DragDropEvent);
+	OnDropDelegate.ExecuteIfBound(this, DragDropEvent);
+	return FReply::Unhandled();
+}
+
 FReply SSchematicGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	SNode::OnMouseButtonDown(MyGeometry, MouseEvent);
@@ -115,12 +160,16 @@ void SSchematicGraphPanel::SetSchematicGraph(FSchematicGraph* InGraphData)
 	if (GraphData)
 	{
 		GraphData->OnNodeAdded().RemoveAll(this);
+		GraphData->OnNodeRemoved().RemoveAll(this);
+		GraphData->OnGraphReset().RemoveAll(this);
 	}
 	
 	GraphData = InGraphData;
 	if (GraphData)
 	{
 		GraphData->OnNodeAdded().AddSP(this, &SSchematicGraphPanel::AddNode);
+		GraphData->OnNodeRemoved().AddSP(this, &SSchematicGraphPanel::RemoveNode);
+		GraphData->OnGraphReset().AddSP(this, &SSchematicGraphPanel::RebuildPanel);
 	}
 }
 
@@ -130,6 +179,10 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	bIsOverlay = InArgs._IsOverlay;
 	UpdateNodeWidgetDelegate = InArgs._OnUpdateNodeWidget;
 	OnNodeClickedDelegate = InArgs._OnNodeClicked;
+	OnDropDelegate = InArgs._OnDrop;
+
+	TEasingAttributeInterpolator<float>::FSettings FloatInterpSettings(EEasingInterpolatorType::BounceEaseInOut, 0.2f);
+	FadeBackgroundAlpha = TAnimatedAttribute<float>::Create(FloatInterpSettings, 0.f);
 	
 	SNodePanel::Construct();
 
@@ -137,6 +190,8 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	if (GraphData)
 	{
 		GraphData->OnNodeAdded().AddSP(this, &SSchematicGraphPanel::AddNode);
+		GraphData->OnNodeRemoved().AddSP(this, &SSchematicGraphPanel::RemoveNode);
+		GraphData->OnGraphReset().AddSP(this, &SSchematicGraphPanel::RebuildPanel);
 	}
 }
 
@@ -157,19 +212,61 @@ void SSchematicGraphPanel::AddNode(FSchematicGraphNode* NodeToAdd)
 {
 	TSharedRef<SSchematicGraphNode> NewNode = SNew(SSchematicGraphNode)
 														.OnClicked_Raw(this, &SSchematicGraphPanel::OnNodeClicked)
+														.OnDrop_Raw(this, &SSchematicGraphPanel::OnDropEvent)
 														.NodeData(NodeToAdd);
 	SNodePanel::AddGraphNode(NewNode);
 }
 
+void SSchematicGraphPanel::RemoveNode(FSchematicGraphNode* InNodeToRemove)
+{
+	for (int32 Iter = 0; Iter != Children.Num(); ++Iter)
+	{
+		TSharedRef<SSchematicGraphNode> Child = GetChild(Iter);
+		if (Child->NodeData == InNodeToRemove)
+		{
+			Children.RemoveAt(Iter);
+			break;
+		}
+	}
+	for (int32 Iter = 0; Iter != VisibleChildren.Num(); ++Iter)
+	{
+		TSharedRef<SSchematicGraphNode> Child = StaticCastSharedRef<SSchematicGraphNode>(VisibleChildren[Iter]);
+		if (Child->NodeData == InNodeToRemove)
+		{
+			VisibleChildren.RemoveAt(Iter);
+			break;
+		}
+	}
+}
+
 int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
+	const int32 NodeLayerId = LayerId + 1;
+    int32 MaxLayerId = NodeLayerId;
+    	
 	if (!bIsOverlay)
 	{
 		const FSlateBrush* DefaultBackground = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
 		PaintBackgroundAsLines(DefaultBackground, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
+		MaxLayerId++;
 	}
-	const int32 NodeLayerId = LayerId + 1;
-	int32 MaxLayerId = NodeLayerId;
+
+	if (FadeBackgroundAlpha->Get() > 0.f)
+	{
+		const FSlateBrush* Brush = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
+		FLinearColor TransparentGrey = FLinearColor(0.5, 0.5, 0.5, FadeBackgroundAlpha->Get());
+		FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				MaxLayerId,
+				AllottedGeometry.ToPaintGeometry(),
+				Brush,
+				ESlateDrawEffect::None,
+				TransparentGrey
+				);
+		MaxLayerId++;
+	}
+	
+	
 
 	if (!GraphData)
 	{
@@ -223,6 +320,18 @@ TStatId SSchematicGraphPanel::GetStatId() const
 
 void SSchematicGraphPanel::Tick(float DeltaTime)
 {
+	bool bFadeBackgroundBlanket = false;
+	FSlateApplication& Application = FSlateApplication::Get();
+	if (Application.IsDragDropping())
+	{
+		TSharedPtr<FDragDropOperation> DragDropOp = Application.GetDragDroppingContent();
+		if (DragDropOp.IsValid())
+		{
+			bFadeBackgroundBlanket = true;
+		}
+	}
+	SetFadeBackground(bFadeBackgroundBlanket);
+	
 	for (int32 i=0; i<Children.Num(); ++i)
 	{
 		TSharedRef<SSchematicGraphNode> SNode = GetChild(i);
@@ -232,12 +341,18 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 
 void SSchematicGraphPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+	SNodePanel::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	Tick(InDeltaTime);
 }
 
 void SSchematicGraphPanel::OnNodeClicked(SSchematicGraphNode* Node)
 {
 	OnNodeClickedDelegate.ExecuteIfBound(this, Node);
+}
+
+void SSchematicGraphPanel::OnDropEvent(SSchematicGraphNode* Node, const FDragDropEvent& InDragDropEvent)
+{
+	OnDropDelegate.ExecuteIfBound(this, Node, InDragDropEvent);
 }
 
 

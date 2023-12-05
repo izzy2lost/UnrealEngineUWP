@@ -26,6 +26,7 @@
 #include "RigVMHost.h"
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "Units/RigUnit.h"
+#include "ControlRigSchematicModel.h"
 
 class UControlRigBlueprint;
 class IPersonaToolkit;
@@ -246,6 +247,7 @@ private:
 	void HandleSchematicViewportCreated(const TSharedRef<class SSchematicGraphPanel>& InViewport);
 	void HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode);
 	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode);
+	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
 	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos);
 
 		/** Handle switching skeletal meshes */
@@ -304,7 +306,7 @@ protected:
 	UAnimPreviewInstance* PreviewInstance;
 
 	/** Model for the schematic views */
-	FSchematicGraph SchematicGraph;
+	FControlRigSchematicModel SchematicModel;
 
 	/** Delegate to deal with key down evens in the viewport / editor */
 	FPersonaViewportKeyDownDelegate OnKeyDownDelegate;

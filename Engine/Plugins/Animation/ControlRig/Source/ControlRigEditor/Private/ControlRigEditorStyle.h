@@ -143,7 +143,8 @@ public:
 
 		// Schematic
 		{
-			Set("ControlRig.Schematic.Circle", new IMAGE_BRUSH_SVG("Slate/Socket_Closed", Icon16x16));
+			Set("ControlRig.Schematic.SocketUnresolved", new IMAGE_BRUSH_SVG("Slate/Socket_Open", CoreStyleConstants::Icon128x128));
+			Set("ControlRig.Schematic.SocketResolved", new IMAGE_BRUSH_SVG("Slate/Socket_Closed", CoreStyleConstants::Icon128x128));
 		}
 
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
