@@ -115,6 +115,7 @@ namespace uba
 		ProcessHandle InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent);
 		void ProcessAdded(Process& process, u32 sessionId);
 		void ProcessExited(ProcessImpl& process, u64 executionTime);
+		void FlushDeadProcesses();
 		void PrintProcessStats(ProcessStats& stats, const tchar* logName);
 		void StopTraceThread();
 		u32 GetDirectoryTableSize();

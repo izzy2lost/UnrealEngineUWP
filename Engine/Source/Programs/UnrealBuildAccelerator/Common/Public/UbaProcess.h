@@ -71,6 +71,7 @@ namespace uba
 		const tchar* InternalGetChildLogFile(StringBufferBase& temp);
 		u32 InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset);
 		u32	InternalExitProcess(bool cancel);
+		void ClearTempFiles();
 
 		ProcessStartInfo m_startInfo;
 		Session& m_session;

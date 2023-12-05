@@ -1149,7 +1149,7 @@ namespace uba
 		m_trace.StopWrite(m_traceOutputFile.data);
 
 		CancelAllProcessesAndWait();
-		m_deadProcesses.clear();
+		FlushDeadProcesses();
 
 		//for (auto& i : m_fileMappingTableLookup)
 		//	CloseHandle(i.second.mapping);
@@ -1215,6 +1215,7 @@ namespace uba
 
 	ProcessHandle Session::RunProcess(const ProcessStartInfo& startInfo, bool async)
 	{
+		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
 		return InternalRunProcess(startInfo, async, nullptr);
 	}
@@ -1374,6 +1375,12 @@ namespace uba
 		stats.count++;
 		stats.time += executionTime;
 		m_processes.erase(id);
+	}
+
+	void Session::FlushDeadProcesses()
+	{
+		ScopedWriteLock lock(m_processesLock);
+		m_deadProcesses.clear();
 	}
 
 	bool Session::GetInitResponse(InitResponse& out, const InitMessage& msg)

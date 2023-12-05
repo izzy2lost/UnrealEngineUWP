@@ -102,9 +102,7 @@ namespace uba
 			delete &m_writtenFiles;
 			delete &m_writtenFilesLock;
 
-			for (auto& pair : m_tempFiles)
-				if (pair.second.mappingHandle.IsValid())
-					CloseFileMapping(pair.second.mappingHandle);
+			ClearTempFiles();
 			delete& m_tempFiles;
 			delete& m_tempFilesLock;
 		}
@@ -382,7 +380,7 @@ namespace uba
 
 			UBA_ASSERT(!m_parentProcess);
 			m_writtenFiles.clear();
-			m_tempFiles.clear();
+			ClearTempFiles();
 		}
 
 		m_processStats.wallTime = GetTime() - m_startTime;
@@ -422,6 +420,9 @@ namespace uba
 
 		m_session.m_processCommunicationAllocator.Free(m_comMemory);
 		m_comMemory = {};
+
+		if (!m_parentProcess)
+			ClearTempFiles();
 
 		if (m_startInfo.exitedFunc)
 		{
@@ -1453,5 +1454,13 @@ namespace uba
 
 		return m_nativeProcessExitCode;
 #endif
+	}
+
+	void ProcessImpl::ClearTempFiles()
+	{
+		for (auto& pair : m_tempFiles)
+			if (pair.second.mappingHandle.IsValid())
+				CloseFileMapping(pair.second.mappingHandle);
+		m_tempFiles.clear();
 	}
 }

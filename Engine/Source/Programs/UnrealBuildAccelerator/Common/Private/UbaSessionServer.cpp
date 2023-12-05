@@ -254,6 +254,7 @@ namespace uba
 
 	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight)
 	{
+		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
 		u32 processId = ++m_processIdCounter;
 		RemoteProcess* remoteProcess = new RemoteProcess(this, startInfo, processId, weight);

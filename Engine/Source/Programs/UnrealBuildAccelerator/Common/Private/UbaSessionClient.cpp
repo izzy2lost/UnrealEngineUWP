@@ -1239,6 +1239,8 @@ namespace uba
 		{
 			u32 waitTimeoutMs = 3000;
 
+			FlushDeadProcesses();
+
 			GetMemoryInfo(memAvail, memTotal);
 			if (memAvail < memRequiredFree)
 			{
