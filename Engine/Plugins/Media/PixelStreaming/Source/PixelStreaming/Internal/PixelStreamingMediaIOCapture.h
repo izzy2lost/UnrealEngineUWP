@@ -56,11 +56,18 @@ public:
 	FOnCaptureViewportInitialized OnCaptureViewportInitialized;
 
 private:
+	void HandleCapturedFrame(FTextureRHIRef InTexture);
+	void UpdateCaptureResolution(int32 Width, int32 Height);
+
+private:
 	TWeakPtr<FSceneViewport> SceneViewport;
 	TWeakPtr<FPixelStreamingVideoInput> VideoInput;
 
 	/* We track whether the viewport has been resized since we created this capturer as resize means restart capturer. */
 	bool bViewportResized = false;
+
+	/* Tracks the captured resolution, we use this to determine if resize events contain a different resolution than what we previously captured. */
+	TUniquePtr<FIntPoint> CaptureResolution;
 
 	/* Whether we want the UMediaCapture to read back to frame into cpu memory or not. */
 	bool bDoGPUCopy = true;

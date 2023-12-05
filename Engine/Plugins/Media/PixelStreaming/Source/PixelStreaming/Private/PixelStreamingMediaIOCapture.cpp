@@ -14,11 +14,7 @@ void UPixelStreamingMediaIOCapture::OnRHIResourceCaptured_RenderingThread(
 	TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData,
 	FTextureRHIRef InTexture)
 {
-	TSharedPtr<FPixelStreamingVideoInput> VideoInputPtr = VideoInput.Pin();
-	if (VideoInputPtr)
-	{
-		VideoInputPtr->OnFrame(FPixelCaptureInputFrameRHI(InTexture));
-	}
+	HandleCapturedFrame(InTexture);
 }
 
 void UPixelStreamingMediaIOCapture::OnRHIResourceCaptured_AnyThread(
@@ -26,11 +22,7 @@ void UPixelStreamingMediaIOCapture::OnRHIResourceCaptured_AnyThread(
 	TSharedPtr<FMediaCaptureUserData,ESPMode::ThreadSafe> InUserData,
 	FTextureRHIRef InTexture)
 {
-	TSharedPtr<FPixelStreamingVideoInput> VideoInputPtr = VideoInput.Pin();
-	if (VideoInputPtr)
-	{
-		VideoInputPtr->OnFrame(FPixelCaptureInputFrameRHI(InTexture));
-	}
+	HandleCapturedFrame(InTexture);
 }
 
 void UPixelStreamingMediaIOCapture::OnFrameCaptured_RenderingThread(
@@ -41,6 +33,7 @@ void UPixelStreamingMediaIOCapture::OnFrameCaptured_RenderingThread(
 		int32 Height,
 		int32 BytesPerRow)
 {
+	UpdateCaptureResolution(Width, Height);
 	// Todo: implement this if we want to support cpu readback captures
 }
 
@@ -84,10 +77,42 @@ bool UPixelStreamingMediaIOCapture::PostInitializeCaptureViewport(TSharedPtr<FSc
 
 void UPixelStreamingMediaIOCapture::ViewportResized(FViewport* Viewport, uint32 ResizeCode)
 {
+	// If we have not captured a frame yet, we don't care about stopping the capture due to capture size mismatch
+	if(!CaptureResolution)
+	{
+		return;
+	}
+
+	// If resolution of viewport is actually the same as the capture resolution no need to stop/restart capturing.
+	if(Viewport->GetSizeXY() == *CaptureResolution)
+	{
+		return;
+	}
+
 	bViewportResized = true;
 	if(GetState() == EMediaCaptureState::Capturing)
 	{
 		UE_LOG(LogPixelStreaming, Warning, TEXT("Stopping PixelStreaming MediaIO capture because viewport was resized."));
 		StopCapture(false);
 	}
+}
+
+void UPixelStreamingMediaIOCapture::HandleCapturedFrame(FTextureRHIRef InTexture)
+{
+	TSharedPtr<FPixelStreamingVideoInput> VideoInputPtr = VideoInput.Pin();
+	if (VideoInputPtr)
+	{
+		UpdateCaptureResolution(InTexture->GetDesc().Extent.X, InTexture->GetDesc().Extent.Y);
+		VideoInputPtr->OnFrame(FPixelCaptureInputFrameRHI(InTexture));
+	}
+}
+
+void UPixelStreamingMediaIOCapture::UpdateCaptureResolution(int32 Width, int32 Height)
+{
+	if(!CaptureResolution)
+	{
+		CaptureResolution = MakeUnique<FIntPoint>();
+	}
+	CaptureResolution->X = Width;
+	CaptureResolution->Y = Height;
 }

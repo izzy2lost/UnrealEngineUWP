@@ -464,6 +464,12 @@ namespace UE::PixelStreamingVCam::Private
 			return;
 		}
 
+		// No need to apply override resolution if resolutions are the same (i.e. there was no actual resolution change).
+		if(WeakThisUObjectPtr->OverrideResolution == RemoteResolution)
+		{
+			return;
+		}
+
 		// Ensure override resolution is being used
 		if (!WeakThisUObjectPtr->bUseOverrideResolution)
 		{
