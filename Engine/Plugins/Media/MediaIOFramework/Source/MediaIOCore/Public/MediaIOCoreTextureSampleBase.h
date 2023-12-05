@@ -386,6 +386,7 @@ protected:
 		ExternalBuffer = nullptr;
 		CachedOCIOResources.Reset();
 		Texture.SafeRelease();
+		OriginalSample.Reset();
 	}
 
 	/**
