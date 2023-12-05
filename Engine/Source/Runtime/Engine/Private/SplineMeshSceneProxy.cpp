@@ -369,6 +369,16 @@ ERayTracingPrimitiveFlags FNaniteSplineMeshSceneProxy::GetCachedRayTracingInstan
 	return FPrimitiveSceneProxy::GetCachedRayTracingInstance(OutRayTracingInstance);
 }
 
+void FNaniteSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances)
+{
+	if (CVarRayTracingSplineMeshes.GetValueOnRenderThread() == 0)
+	{
+		return;
+	}
+
+	return Nanite::FSceneProxy::GetDynamicRayTracingInstances(Context, OutRayTracingInstances);
+}
+
 void FNaniteSplineMeshSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const
 {
 	Nanite::FSceneProxy::SetupRayTracingMaterials(LODIndex, Materials, bUseNaniteVertexFactory);
