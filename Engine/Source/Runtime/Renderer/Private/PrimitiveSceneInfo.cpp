@@ -1040,8 +1040,16 @@ void CacheRayTracingPrimitive(
 	// Cache the coarse mesh streaming handle
 	SceneInfo->CoarseMeshStreamingHandle = SceneInfo->Proxy->GetCoarseMeshStreamingHandle();
 
-	if (EnumHasAnyFlags(OutFlags, ERayTracingPrimitiveFlags::CacheMeshCommands))
+	// the following flags cause ray tracing mesh command caching to be disabled
+	static const ERayTracingPrimitiveFlags DisableCacheMeshCommandsFlags = ERayTracingPrimitiveFlags::Dynamic
+		| ERayTracingPrimitiveFlags::Exclude
+		| ERayTracingPrimitiveFlags::Skip
+		| ERayTracingPrimitiveFlags::UnsupportedProxyType;
+
+	if (!EnumHasAnyFlags(OutFlags, DisableCacheMeshCommandsFlags))
 	{
+		// Cache ray tracing mesh commands in FPrimitiveSceneInfo
+
 		int32 MaxLOD = -1;
 
 		if (OutCachedRayTracingInstance.Materials.Num() > 0)

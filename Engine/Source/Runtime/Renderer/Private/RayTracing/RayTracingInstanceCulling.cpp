@@ -102,7 +102,7 @@ bool CullPrimitiveByFlags(const FRayTracingCullingParameters& CullingParameters,
 		return true;
 	}
 
-	if (EnumHasAnyFlags(Scene->PrimitiveRayTracingFlags[PrimitiveIndex], ERayTracingPrimitiveFlags::Excluded))
+	if (EnumHasAnyFlags(Scene->PrimitiveRayTracingFlags[PrimitiveIndex], ERayTracingPrimitiveFlags::Exclude))
 	{
 		return true;
 	}

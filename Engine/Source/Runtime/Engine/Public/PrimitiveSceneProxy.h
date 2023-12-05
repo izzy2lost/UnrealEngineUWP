@@ -149,38 +149,43 @@ extern bool CacheShadowDepthsFromPrimitivesUsingWPO();
 
 enum class ERayTracingPrimitiveFlags : uint8
 {
+	None = 0,
+
 	// Visibility flags:
 
 	// This type of geometry is not supported in ray tracing and all proxies will be excluded
 	// If a proxy decides to return UnsupportedProxyType it must be consistent across all proxies of this type
 	// This value is used for primitives that return false from FPrimitiveSceneProxy::IsRayTracingRelevant().
-	UnsupportedProxyType = 0 << 0,
+	UnsupportedProxyType = 1 << 0,
 
 	// This scene proxy will be excluded, because it decides to be invisible in ray tracing (probably due to other flags)
-	Excluded = 1 << 0,
+	// Excluded proxies will skip visibility checks
+	Exclude = 1 << 1,
+
+	// Similar to Exclude however scene proxy will still go through culling and run relevant logic when it is deemed visible
+	Skip = 1 << 2,
 
 	// Caching flags:
 
 	// Fully dynamic (the ray tracing representation of this scene proxy will be polled every frame)
-	Dynamic = 1 << 1,
-	// Ray tracing mesh commmands generated from this proxy's materials can be cached
-	CacheMeshCommands = 1 << 2,
+	// Ray tracing mesh commands generated from this proxy's materials can be cached
+	// (not compatible with CacheInstances or ComputeLOD)
+	Dynamic = 1 << 3,
 	// Instances from this proxy can be cached
-	CacheInstances = 1 << 3,
+	// (not compatible with Dynamic or ComputeLOD)
+	CacheInstances = 1 << 4,
 
 	// Misc flags:
 
 	// Static meshes with multiple LODs will want to select a LOD index based on screen size
-	ComputeLOD = 1 << 4, 
+	// (not compatible with Dynamic or CacheInstances)
+	ComputeLOD = 1 << 5, 
 
 	// Primitive is masked as a far field object
-	FarField = 1 << 5,
+	FarField = 1 << 6,
 
-	// Raytracing data is streamable
-	Streaming = 1 << 6,
-
-	// Mesh is static
-	StaticMesh = 1 << 7,
+	// Raytracing data is streamable (TODO: support in dynamic path)
+	Streaming = 1 << 7,
 };
 ENUM_CLASS_FLAGS(ERayTracingPrimitiveFlags);
 

@@ -213,7 +213,7 @@ namespace RayTracing
 					continue;
 				}
 
-				check(!EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::Excluded));
+				check(!EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::Exclude));
 
 				const FPrimitiveSceneInfo* SceneInfo = Scene.Primitives[PrimitiveIndex];
 
@@ -257,25 +257,29 @@ namespace RayTracing
 					Result.DirtyCachedRayTracingPrimitives.Add(Scene.Primitives[PrimitiveIndex]);
 				}
 
+				if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::Skip))
+				{
+					continue;
+				}
+
 				FRelevantPrimitive Item;
 				Item.PrimitiveIndex = PrimitiveIndex;
 				Item.PersistentPrimitiveIndex = SceneInfo->GetPersistentIndex();
 
-				if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::StaticMesh))
+				if (EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::Dynamic))
 				{
-					if (View.Family->EngineShowFlags.StaticMeshes)
+					checkf(!EnumHasAllFlags(Flags, ERayTracingPrimitiveFlags::CacheInstances), TEXT("Only static primitives are expected to use CacheInstances flag."));
+
+					if (View.Family->EngineShowFlags.SkeletalMeshes) // TODO: Fix this check
 					{
-						Item.bStatic = true;
-						Result.StaticPrimitives.AddElement(Item);
+						Item.bStatic = false;
+						Result.DynamicPrimitives.AddElement(Item);
 					}
 				}
-				else if (View.Family->EngineShowFlags.SkeletalMeshes)
+				else if (View.Family->EngineShowFlags.StaticMeshes)
 				{
-					checkf(!EnumHasAllFlags(Flags, ERayTracingPrimitiveFlags::CacheInstances),
-						TEXT("Only static primitives are expected to use CacheInstances flag."));
-
-					Item.bStatic = false;
-					Result.DynamicPrimitives.AddElement(Item);
+					Item.bStatic = true;
+					Result.StaticPrimitives.AddElement(Item);
 				}
 			}
 		}
@@ -355,7 +359,6 @@ namespace RayTracing
 
 							// Sometimes LODIndex is out of range because it is clamped by ClampToFirstLOD, like the requested LOD is being streamed in and hasn't been available
 							// According to InitViews, we should hide the static mesh instance
-							check(EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::CacheMeshCommands));
 							if (SceneInfo->CachedRayTracingMeshCommandIndicesPerLOD.IsValidIndex(LODIndex))
 							{
 								RelevantPrimitive.LODIndex = LODIndex;
@@ -974,9 +977,6 @@ namespace RayTracing
 								DecalInstanceIndex = RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, false);
 							}
 						}
-
-						// At the moment we only support SM & ISMs on this path
-						check(EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::CacheMeshCommands));
 
 						const bool bHasDecalInstanceIndex = DecalInstanceIndex != INDEX_NONE;
 

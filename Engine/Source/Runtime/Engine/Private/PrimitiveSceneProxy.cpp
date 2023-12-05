@@ -1763,43 +1763,47 @@ ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRay
 
 	if (!(IsVisibleInRayTracing() && ShouldRenderInMainPass() && (IsDrawnInGame() || AffectsIndirectLightingWhileHidden() || CastsHiddenShadow())) && !IsRayTracingFarField())
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	static const auto RayTracingStaticMeshesCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.StaticMeshes"));
 
 	if (IsRayTracingStaticRelevant() && RayTracingStaticMeshesCVar && RayTracingStaticMeshesCVar->GetValueOnRenderThread() <= 0)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	static const auto RayTracingHISMCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.HierarchicalInstancedStaticMesh"));
 
 	if (bIsHierarchicalInstancedStaticMesh && RayTracingHISMCVar && RayTracingHISMCVar->GetValueOnRenderThread() <= 0)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	static const auto RayTracingLandscapeGrassCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.LandscapeGrass"));
 
 	if (bIsLandscapeGrass && RayTracingLandscapeGrassCVar && RayTracingLandscapeGrassCVar->GetValueOnRenderThread() <= 0)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
-	// Visible in ray tracing. Default to fully dynamic (no caching)
-	ERayTracingPrimitiveFlags ResultFlags = ERayTracingPrimitiveFlags::Dynamic;
+	// Visible in ray tracing. 
+	ERayTracingPrimitiveFlags ResultFlags = ERayTracingPrimitiveFlags::None;
 
 	if (IsRayTracingStaticRelevant())
 	{
 		if (PrimitiveSceneInfo->GetStaticRayTracingGeometryNum() == 0
 			|| PrimitiveSceneInfo->StaticMeshes.IsEmpty())
 		{
-			return ERayTracingPrimitiveFlags::Excluded;
+			return ERayTracingPrimitiveFlags::Exclude;
 		}
 
-		// overwrite flag if static
-		ResultFlags = ERayTracingPrimitiveFlags::StaticMesh | ERayTracingPrimitiveFlags::ComputeLOD | ERayTracingPrimitiveFlags::CacheMeshCommands;
+		ResultFlags |= ERayTracingPrimitiveFlags::ComputeLOD;
+	}
+	else
+	{
+		// Fully dynamic (no caching)
+		ResultFlags |= ERayTracingPrimitiveFlags::Dynamic;
 	}
 
 	if (IsRayTracingFarField())

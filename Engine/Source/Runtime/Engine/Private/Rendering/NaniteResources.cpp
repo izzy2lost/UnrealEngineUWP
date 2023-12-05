@@ -1900,26 +1900,26 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 {
 	if (!(IsVisibleInRayTracing() && ShouldRenderInMainPass() && (IsDrawnInGame() || AffectsIndirectLightingWhileHidden()|| CastsHiddenShadow())) && !IsRayTracingFarField())
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	if (CVarRayTracingNaniteProxyMeshes.GetValueOnRenderThread() == 0 || !bHasRayTracingInstances)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	static const auto RayTracingHISMCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.HierarchicalInstancedStaticMesh"));
 
 	if (bIsHierarchicalInstancedStaticMesh && RayTracingHISMCVar && RayTracingHISMCVar->GetValueOnRenderThread() <= 0)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	static const auto RayTracingLandscapeGrassCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.LandscapeGrass"));
 
 	if (bIsLandscapeGrass && RayTracingLandscapeGrassCVar && RayTracingLandscapeGrassCVar->GetValueOnRenderThread() <= 0)
 	{
-		return ERayTracingPrimitiveFlags::Excluded;
+		return ERayTracingPrimitiveFlags::Exclude;
 	}
 
 	const bool bUsingNaniteRayTracing = GetRayTracingMode() != ERayTracingMode::Fallback;
@@ -1928,9 +1928,18 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	int32 ValidLODIndex = GetFirstValidRaytracingGeometryLODIndex();
 	if (ValidLODIndex == INDEX_NONE)
 	{
-		// If there is a streaming handle (but no valid LOD available), then give the streaming flag to make sure it's not excluded
-		// It's still needs to be processed during TLAS build because this will drive the streaming of these resources.
-		return (CoarseMeshStreamingHandle != INDEX_NONE) ? ERayTracingPrimitiveFlags::Streaming : ERayTracingPrimitiveFlags::Excluded;
+		// Use Skip flag here since Excluded primitives don't get cached ray tracing state updated even if it's marked dirty.
+		// ERayTracingPrimitiveFlags::Exclude should only be used for conditions that will cause proxy to be recreated when they change.
+		ERayTracingPrimitiveFlags ResultFlags = ERayTracingPrimitiveFlags::Skip;
+
+		if (CoarseMeshStreamingHandle != INDEX_NONE)
+		{
+			// If there is a streaming handle (but no valid LOD available), then give the streaming flag to make sure it's not excluded
+			// It's still needs to be processed during TLAS build because this will drive the streaming of these resources.
+			ResultFlags |= ERayTracingPrimitiveFlags::Streaming;
+		}
+
+		return ResultFlags;
 	}
 
 	if (bUsingNaniteRayTracing)
@@ -1959,7 +1968,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	RayTracingInstance.InstanceLayer = bIsRayTracingFarField ? ERayTracingInstanceLayer::FarField : ERayTracingInstanceLayer::NearField;
 
 	// setup the flags
-	ERayTracingPrimitiveFlags ResultFlags = ERayTracingPrimitiveFlags::StaticMesh | ERayTracingPrimitiveFlags::CacheMeshCommands | ERayTracingPrimitiveFlags::CacheInstances;
+	ERayTracingPrimitiveFlags ResultFlags = ERayTracingPrimitiveFlags::CacheInstances;
 
 	if (CoarseMeshStreamingHandle != INDEX_NONE)
 	{
