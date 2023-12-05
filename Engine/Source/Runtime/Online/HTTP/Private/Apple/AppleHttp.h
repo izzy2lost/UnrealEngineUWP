@@ -198,7 +198,7 @@ private:
 	/**
 	 * Get reason of failure from the internal delegate
 	 */
-	EHttpReasonOfFailure GetReasonOfFailureFromDelegate() const;
+	EHttpFailureReason GetFailureReasonFromDelegate() const;
 
 	// Delegate implementation. Keeps the response state and data
 	FAppleHttpResponseDelegate* ResponseDelegate;
