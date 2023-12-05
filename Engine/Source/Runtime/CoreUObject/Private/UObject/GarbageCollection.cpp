@@ -4887,6 +4887,14 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		{
 			ReleaseGCLock();
 		}
+
+#if VERIFY_DISREGARD_GC_ASSUMPTIONS
+		if (GVerifyNoUnreachableObjects != 0 && GUnreachableObjects.Num() > 0)
+		{
+			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyNoUnreachableObjects"), STAT_CollectGarbageInternal_VerifyNoUnreachableObjects, STATGROUP_GC);
+			VerifyNoUnreachableObjects();
+		}
+#endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 	}
 
 	// !bCompleted = bTimeLimitReached (to make this function return value behave like UnhashUnreachableObjects)
@@ -5366,14 +5374,6 @@ void PostCollectGarbageImpl(EObjectFlags KeepFlags)
 
 	if (!GIsIncrementalReachabilityPending)
 	{
-#if VERIFY_DISREGARD_GC_ASSUMPTIONS
-		if (GVerifyNoUnreachableObjects != 0 && GUnreachableObjects.Num() > 0)
-		{
-			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyNoUnreachableObjects"), STAT_CollectGarbageInternal_VerifyNoUnreachableObjects, STATGROUP_GC);
-			VerifyNoUnreachableObjects();
-		}
-#endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
-
 		// Fire post-reachability analysis hooks
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(BroadcastPostReachabilityAnalysis);
