@@ -534,15 +534,16 @@ void UPCGLandscapeCache::Serialize(FArchive& Archive)
 
 void UPCGLandscapeCache::Initialize()
 {
-#if WITH_EDITOR
 	if (!bInitialized && GetWorld())
 	{
+#if WITH_EDITOR
 		SetupLandscapeCallbacks();
 		CacheLayerNames();
+#endif
 		UpdateCacheWorldKeys();
 		bInitialized = true;
 	}
-#endif
+
 }
 
 void UPCGLandscapeCache::UpdateCacheWorldKeys()
