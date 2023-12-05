@@ -174,7 +174,7 @@ struct FCsvCategory;
 
 struct FCsvDeclaredStat
 {
-	FCsvDeclaredStat(TCHAR* InNameString, uint32 InCategoryIndex) 
+	FCsvDeclaredStat(const TCHAR* InNameString, uint32 InCategoryIndex) 
 		: Name(InNameString)
 		, CategoryIndex(InCategoryIndex) 
 	{
