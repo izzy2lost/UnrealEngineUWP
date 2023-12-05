@@ -46,8 +46,8 @@ namespace uba
 #endif
 
 	FileMappingHandle CreateMemoryMappingW(Logger& logger, u32 flProtect, u64 maxSize, const tchar* name = nullptr);
-	FileMappingHandle CreateFileMappingW(FileHandle hFile, u32 flProtect, u64 maxSize = 0);
-	u8* MapViewOfFile(FileMappingHandle hFileMappingObject, u32 dwDesiredAccess, u64 offset, u64 dwNumberOfBytesToMap);
+	FileMappingHandle CreateFileMappingW(FileHandle file, u32 flProtect, u64 maxSize = 0);
+	u8* MapViewOfFile(FileMappingHandle fileMappingObject, u32 dwDesiredAccess, u64 offset, u64 dwNumberOfBytesToMap);
 	bool MapViewCommit(void* address, u64 size);
 	bool UnmapViewOfFile(const void* lpBaseAddress, u64 bytesToUnmap);
 	bool CloseFileMapping(FileMappingHandle h);
