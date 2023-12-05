@@ -620,7 +620,6 @@ FImplicitObjectPtr TWeightedLatticeImplicitObject<TConcrete>::CopyGeometry() con
 	{
 		FImplicitObjectPtr CopiedShape = Object->CopyGeometry();
 		return new TWeightedLatticeImplicitObject<TConcrete>(reinterpret_cast<ObjectType&&>(CopiedShape), *this);
-		return FImplicitObjectPtr(CopyHelper(this));
 	}
 	else
 	{
