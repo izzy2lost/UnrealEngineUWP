@@ -332,6 +332,11 @@ bool FImageUtils::GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& Raw
 
 bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image)
 {
+	return GetRenderTargetImage(TexRT,Image,FIntRect(0,0,0,0));
+}
+
+bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image, const FIntRect & InRectOrZero)
+{
 	Image = FImage();
 	
 	FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
@@ -341,17 +346,36 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		
 	// RCM_MinMax means don't renormalize, just read the pixels as they are
 	//	default RCM_UNorm does funny scalings
-	FReadSurfaceDataFlags InFlags(RCM_MinMax, CubeFace_MAX);
+	FReadSurfaceDataFlags ReadFlags(RCM_MinMax, CubeFace_MAX);
+	
+	FIntRect Rect = InRectOrZero;
+	if (InRectOrZero == FIntRect(0, 0, 0, 0))
+	{
+		Rect = FIntRect(0, 0, TexRT->SizeX, TexRT->SizeY);
+	}
+
+	int64 RectSizeX = Rect.Width();
+	int64 RectSizeY = Rect.Height();
+	if ( ! ensure( Rect.Min.X >= 0 && Rect.Min.Y >= 0 && 
+		Rect.Max.X <= TexRT->SizeX && Rect.Max.Y <= TexRT->SizeY &&
+		RectSizeX >= 0 && RectSizeY >= 0 ) )
+	{
+		return false;
+	}
+	if ( RectSizeX == 0 || RectSizeY == 0 )
+	{
+		return false; // or is that a success to grab zero pixels?
+	}
 
 	if ( ReadFormat == ERawImageFormat::RGBA16F )
 	{
 		// ReadFloat16Pixels does no conversions
 		//	must be used only exactly with FloatRGBA type
 
-		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
+		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
 		
 		TArray<FFloat16Color> Colors;
-		if ( ! RenderTarget->ReadFloat16Pixels(Colors,InFlags) )
+		if ( ! RenderTarget->ReadFloat16Pixels(Colors,ReadFlags,Rect) )
 		{
 			return false;
 		}
@@ -365,15 +389,15 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		//	mainly we are trying to catch the check for whether the _SRGB or non _SRGB BGRA8 format as chosen
 		EGammaSpace GammaSpace = TexRT->IsSRGB() ? EGammaSpace::sRGB : EGammaSpace::Linear;
 		
-		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::BGRA8,GammaSpace);
+		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::BGRA8,GammaSpace);
 		
 		// "LinearToGamma" is basically moot; that would only be used if we were reading float pixels to FColor
 		//	but in that case the ReadFormat should have been float, so we won't be here
 		//	gamma conversion will be handled by FImage after the pixel read, not inside RHI
-		InFlags.SetLinearToGamma( GammaSpace == EGammaSpace::sRGB );
+		ReadFlags.SetLinearToGamma( GammaSpace == EGammaSpace::sRGB );
 
 		TArray<FColor> Colors;
-		if ( ! RenderTarget->ReadPixels(Colors,InFlags) )
+		if ( ! RenderTarget->ReadPixels(Colors,ReadFlags,Rect) )
 		{
 			return false;
 		}
@@ -383,10 +407,10 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 	}
 	else if ( ReadFormat == ERawImageFormat::RGBA32F )
 	{
-		Image.Init(TexRT->SizeX,TexRT->SizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
 		
 		TArray<FLinearColor> Colors;
-		if ( ! RenderTarget->ReadLinearColorPixels(Colors,InFlags) )
+		if ( ! RenderTarget->ReadLinearColorPixels(Colors,ReadFlags,Rect) )
 		{
 			return false;
 		}

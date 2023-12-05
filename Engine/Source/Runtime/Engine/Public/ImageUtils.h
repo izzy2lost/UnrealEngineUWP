@@ -439,5 +439,6 @@ public:
 	* @param OutImage	Filled with the image, allocated as needed
 	*/
 	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & OutImage);
+	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & OutImage, const FIntRect & Rect);
 
 };

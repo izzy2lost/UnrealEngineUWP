@@ -46,6 +46,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "Serialization/MemoryWriter.h"
 #include "MaterialCachedData.h"
 #include "Math/UnrealMathUtility.h"
+#include "ImageUtils.h"
 
 #if WITH_EDITOR
 #include "Engine/World.h"
@@ -7718,7 +7719,6 @@ void ALandscapeProxy::RemoveOverlappingComponent(ULandscapeComponent* Component)
 
 TArray<FLinearColor> ALandscapeProxy::SampleRTData(UTextureRenderTarget2D* InRenderTarget, FLinearColor InRect)
 {
-
 	if (!InRenderTarget)
 	{
 		FMessageLog("Blueprint").Warning(LOCTEXT("SampleRTData_InvalidRenderTarget", "SampleRTData: Render Target must be non-null."));
@@ -7731,48 +7731,25 @@ TArray<FLinearColor> ALandscapeProxy::SampleRTData(UTextureRenderTarget2D* InRen
 	}
 	else
 	{
-		ETextureRenderTargetFormat format = (InRenderTarget->RenderTargetFormat);
+		InRect.R = static_cast<float>(FMath::Clamp(int(InRect.R), 0, InRenderTarget->SizeX - 1));
+		InRect.G = static_cast<float>(FMath::Clamp(int(InRect.G), 0, InRenderTarget->SizeY - 1));
+		InRect.B = static_cast<float>(FMath::Clamp(int(InRect.B), int(InRect.R + 1), InRenderTarget->SizeX));
+		InRect.A = static_cast<float>(FMath::Clamp(int(InRect.A), int(InRect.G + 1), InRenderTarget->SizeY));
+		FIntRect Rect = FIntRect(static_cast<int32>(InRect.R), static_cast<int32>(InRect.G), static_cast<int32>(InRect.B), static_cast<int32>(InRect.A));
 
-		if ((format == (RTF_RGBA16f)) || (format == (RTF_RGBA32f)) || (format == (RTF_RGBA8)))
+		FImage Image;
+		if ( ! FImageUtils::GetRenderTargetImage(InRenderTarget,Image,Rect) )
 		{
-
-			FTextureRenderTargetResource* RTResource = InRenderTarget->GameThread_GetRenderTargetResource();
-
-			InRect.R = static_cast<float>(FMath::Clamp(int(InRect.R), 0, InRenderTarget->SizeX - 1));
-			InRect.G = static_cast<float>(FMath::Clamp(int(InRect.G), 0, InRenderTarget->SizeY - 1));
-			InRect.B = static_cast<float>(FMath::Clamp(int(InRect.B), int(InRect.R + 1), InRenderTarget->SizeX));
-			InRect.A = static_cast<float>(FMath::Clamp(int(InRect.A), int(InRect.G + 1), InRenderTarget->SizeY));
-			FIntRect Rect = FIntRect(static_cast<int32>(InRect.R), static_cast<int32>(InRect.G), static_cast<int32>(InRect.B), static_cast<int32>(InRect.A));
-
-			FReadSurfaceDataFlags ReadPixelFlags(RCM_MinMax);
-
-			TArray<FColor> OutLDR;
-			TArray<FLinearColor> OutHDR;
-
-			TArray<FLinearColor> OutVals;
-
-			bool ishdr = ((format == (RTF_R16f)) || (format == (RTF_RG16f)) || (format == (RTF_RGBA16f)) || (format == (RTF_R32f)) || (format == (RTF_RG32f)) || (format == (RTF_RGBA32f)));
-
-			if (!ishdr)
-			{
-				RTResource->ReadPixels(OutLDR, ReadPixelFlags, Rect);
-				for (auto i : OutLDR)
-				{
-					OutVals.Add(FLinearColor(float(i.R), float(i.G), float(i.B), float(i.A)) / 255.0f);
-				}
-			}
-			else
-			{
-				RTResource->ReadLinearColorPixels(OutHDR, ReadPixelFlags, Rect);
-				return OutHDR;
-			}
-
-			return OutVals;
+			FMessageLog("Blueprint").Warning(LOCTEXT("SampleRTData_FailedGetRenderTarget", "SampleRTData: GetRenderTargetImage failed."));
+			return { FLinearColor(0,0,0,0) };
 		}
-	}
-	FMessageLog("Blueprint").Warning(LOCTEXT("SampleRTData_InvalidTexture", "SampleRTData: Currently only 4 channel formats are supported: RTF_RGBA8, RTF_RGBA16f, and RTF_RGBA32f."));
 
-	return { FLinearColor(0,0,0,0) };
+		Image.ChangeFormat(ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+		
+		TArrayView64<FLinearColor> Colors = Image.AsRGBA32F();
+
+		return TArray<FLinearColor>( Colors );
+	}
 }
 
 bool ALandscapeProxy::LandscapeImportHeightmapFromRenderTarget(UTextureRenderTarget2D* InRenderTarget, bool InImportHeightFromRGChannel)
@@ -8074,10 +8051,11 @@ bool ALandscapeProxy::LandscapeImportWeightmapFromRenderTarget(UTextureRenderTar
 				RTData = SampleRTData(InRenderTarget, SampleRect);
 
 				TArray<uint8> LayerData;
+				LayerData.Reserve( RTData.Num() );
 
-				for (auto i : RTData)
+				for (const FLinearColor & RTColor : RTData)
 				{
-					LayerData.Add((uint8)(FMath::Clamp((float)i.R, 0.0f, 1.0f) * 255));
+					LayerData.Add( FColor::QuantizeUNormFloatTo8(RTColor.R) );
 				}
 
 				FLandscapeInfoLayerSettings CurWeightmapInfo;
