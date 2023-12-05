@@ -9,7 +9,6 @@ using System.Runtime.Serialization;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
-using System.Diagnostics.CodeAnalysis;
 
 namespace UnrealBuildTool
 {
@@ -85,11 +84,6 @@ namespace UnrealBuildTool
 		/// Engine binaries and intermediates are specific to this target
 		/// </summary>
 		Unique,
-
-		/// <summary>
-		/// Will switch to Unique if needed - per-project SDK is enabled, or a property that requires unique is set away from default
-		/// </summary>
-		UniqueIfNeeded,
 	}
 
 	/// <summary>
@@ -2467,10 +2461,6 @@ namespace UnrealBuildTool
 			{
 				if (BuildEnvironmentOverride.HasValue)
 				{
-					if (BuildEnvironmentOverride.Value == TargetBuildEnvironment.UniqueIfNeeded)
-					{
-						throw new BuildException($"Target {Name} had BuildEnv set to UniqueIfNeeded when querying, which means UpdateBuildEnvironmentIfNeeded wasn't called in time");
-					}
 					return BuildEnvironmentOverride.Value;
 				}
 				if (Type == TargetType.Program && ProjectFile != null && File!.IsUnderDirectory(ProjectFile.Directory))
@@ -2654,160 +2644,6 @@ namespace UnrealBuildTool
 		{
 			// modular target with TargetBuildEnvironment.Shared build type cannot allow per-project SDKs
 			return LinkType == TargetLinkType.Monolithic || BuildEnvironment == TargetBuildEnvironment.Unique;
-		}
-
-		/// <summary>
-		/// Checks if a property has been set with the RequiresUniqueBuildEnvironmentAttribute, and is different from it's base
-		/// </summary>
-		/// <param name="RulesAssembly">Assembly containing the target</param>
-		/// <param name="Arguments">Commandline options that may affect the target creation</param>
-		/// <param name="PropNamesThatRequireUnique">If the target requires a unique build environment, this will contain the names of the field/property that require unique</param>
-		/// <param name="BaseTargetName">If the target requires a unique build environment, this will contain the name of the target this was based on (UnrealGame, UnrealEditor, etc)/property</param>
-		/// <returns>true if a property was set such that it requires a unique build environment</returns>
-		/// <exception cref="BuildException"></exception>
-		public bool RequiresUniqueEnvironment(RulesAssembly RulesAssembly, CommandLineArguments? Arguments, List<string> PropNamesThatRequireUnique, [NotNullWhen(true)] out string? BaseTargetName)
-		{
-			BaseTargetName = null;
-
-			TargetRules ThisRules = this;
-			// Allow disabling these checks
-			if (ThisRules.bOverrideBuildEnvironment)
-			{
-				return false;
-			}
-
-			// Get the name of the target with default settings
-			switch (ThisRules.Type)
-			{
-				case TargetType.Game:
-					BaseTargetName = "UnrealGame";
-					break;
-				case TargetType.Editor:
-					BaseTargetName = "UnrealEditor";
-					break;
-				case TargetType.Client:
-					BaseTargetName = "UnrealClient";
-					break;
-				case TargetType.Server:
-					BaseTargetName = "UnrealServer";
-					break;
-				default:
-					return false;
-			}
-
-			// Create the target rules for it
-			TargetRules BaseRules = RulesAssembly.CreateTargetRules(BaseTargetName, ThisRules.Platform, ThisRules.Configuration, ThisRules.Architectures, null, Arguments, Logger, IntermediateEnvironment: ThisRules.IntermediateEnvironment);
-
-			// Get all the configurable objects
-			object[] BaseObjects = BaseRules.GetConfigurableObjects().ToArray();
-			object[] ThisObjects = GetConfigurableObjects().ToArray();
-			if (BaseObjects.Length != ThisObjects.Length)
-			{
-				throw new BuildException("Expected same number of configurable objects from base rules object.");
-			}
-
-			// Iterate through all fields with the [SharedBuildEnvironment] attribute
-			for (int Idx = 0; Idx < BaseObjects.Length; Idx++)
-			{
-				Type ObjectType = BaseObjects[Idx].GetType();
-				foreach (FieldInfo Field in ObjectType.GetFields())
-				{
-					if (Field.GetCustomAttribute<RequiresUniqueBuildEnvironmentAttribute>() != null)
-					{
-						object? ThisValue = Field.GetValue(ThisObjects[Idx]);
-						object? BaseValue = Field.GetValue(BaseObjects[Idx]);
-						if (!CheckValuesMatch(Field.FieldType, ThisValue, BaseValue))
-						{
-							PropNamesThatRequireUnique.Add(Field.Name);
-						}
-					}
-				}
-				foreach (PropertyInfo Property in ObjectType.GetProperties())
-				{
-					if (Property.GetCustomAttribute<RequiresUniqueBuildEnvironmentAttribute>() != null)
-					{
-						object? ThisValue = Property.GetValue(ThisObjects[Idx]);
-						object? BaseValue = Property.GetValue(BaseObjects[Idx]);
-						if (!CheckValuesMatch(Property.PropertyType, ThisValue, BaseValue))
-						{
-							PropNamesThatRequireUnique.Add(Property.Name);
-						}
-					}
-				}
-			}
-
-			// if any properties require a unique build environment, return true
-			return PropNamesThatRequireUnique.Count > 0;
-		}
-
-		/// <summary>
-		/// For any target that has set BuildEnvironment = TargetBuildEnvironment.Unique, this will change the Environment to either Shared or Unique accordingly
-		/// </summary>
-		/// <param name="RulesAssembly">Assembly containing the target</param>
-		/// <param name="Arguments">Commandline options that may affect the target creation</param>
-		/// <param name="Logger">Logger</param>
-		public void UpdateBuildEnvironmentIfNeeded(RulesAssembly RulesAssembly, CommandLineArguments? Arguments, ILogger Logger)
-		{
-			// only do anything here when using UniqueIfNeeded
-			if (!BuildEnvironmentOverride.HasValue || BuildEnvironmentOverride.Value != TargetBuildEnvironment.UniqueIfNeeded)
-			{
-				return;
-			}
-
-			if (UEBuildPlatformSDK.bHasAnySDKOverride)
-			{
-				// check if any platform needs a unique environment for the SDK check
-				foreach (UnrealTargetPlatform Platform in UnrealTargetPlatform.GetValidPlatforms())
-				{
-					if (IsSDKVersionRelevant(Platform))
-					{
-						UEBuildPlatformSDK? SDK = UEBuildPlatformSDK.GetSDKForPlatform(Platform.ToString());
-						if (SDK != null && SDK.bHasSDKOverride)
-						{
-							Logger.LogInformation("Setting {Target}'s BuildEnvironment to Unique, because a project overrode the {Platform} SDK version", Name, Platform);
-							BuildEnvironment = TargetBuildEnvironment.Unique;
-							break;
-						}
-					}
-				}
-			}
-
-			// if we didn't set it above, check the properties
-			if (BuildEnvironmentOverride.Value == TargetBuildEnvironment.UniqueIfNeeded)
-			{
-				List<string> PropNames = new();
-				string? BaseTargetName;
-				if (RequiresUniqueEnvironment(RulesAssembly, Arguments, PropNames, out BaseTargetName))
-				{
-					Logger.LogInformation("Setting {Target}'s BuildEnvironment to Unique, because it had changed the values of the propertues [ {Props} ] away from the values specified in {BaseTarget}", 
-						Name, string.Join(", ", PropNames), BaseTargetName);
-					BuildEnvironment = TargetBuildEnvironment.Unique;
-				}
-				else
-				{
-					BuildEnvironment = TargetBuildEnvironment.Shared;
-				}
-			}
-		}
-
-		static bool CheckValuesMatch(Type ValueType, object? ThisValue, object? BaseValue)
-		{
-			// Check if the fields match, treating lists of strings (eg. definitions) differently to value types.
-			bool bFieldsMatch;
-			if (ThisValue == null || BaseValue == null)
-			{
-				bFieldsMatch = (ThisValue == BaseValue);
-			}
-			else if (typeof(IEnumerable<string>).IsAssignableFrom(ValueType))
-			{
-				bFieldsMatch = Enumerable.SequenceEqual((IEnumerable<string>)ThisValue, (IEnumerable<string>)BaseValue);
-			}
-			else
-			{
-				bFieldsMatch = ThisValue.Equals(BaseValue);
-			}
-
-			return bFieldsMatch;
 		}
 
 		/// <summary>

@@ -642,16 +642,10 @@ namespace UnrealBuildTool
 				throw new CompilationResultException(CompilationResult.RulesError, "TargetRules.LinkType should be inferred from TargetType");
 			}
 
-			if (!bSkipValidation)
+			// Set the default value for whether to use the shared build environment
+			if (Rules.BuildEnvironment == TargetBuildEnvironment.Unique && Unreal.IsEngineInstalled())
 			{
-				// Delayed-fixup of TargetBuildEnvironment.UniqueIfNeeded
-				Rules.UpdateBuildEnvironmentIfNeeded(this, Arguments: null, Logger);
-
-				// Set the default value for whether to use the shared build environment
-				if (Rules.BuildEnvironment == TargetBuildEnvironment.Unique && Unreal.IsEngineInstalled())
-				{
-					throw new CompilationResultException(CompilationResult.RulesError, "Targets with a unique build environment cannot be built with an installed engine.");
-				}
+				throw new CompilationResultException(CompilationResult.RulesError, "Targets with a unique build environment cannot be built with an installed engine.");
 			}
 
 			// Automatically include CoreUObject
