@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Tools;
 using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Storage;

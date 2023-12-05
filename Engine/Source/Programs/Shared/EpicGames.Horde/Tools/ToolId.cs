@@ -2,10 +2,9 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Tools
+namespace EpicGames.Horde.Tools
 {
 	/// <summary>
 	/// Identifier for a tool

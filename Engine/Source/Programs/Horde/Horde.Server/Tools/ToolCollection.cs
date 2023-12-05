@@ -4,6 +4,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Tools;
 using EpicGames.Serialization;
 using Horde.Server.Server;
 using Horde.Server.Storage;
@@ -252,7 +253,7 @@ namespace Horde.Server.Tools
 		/// <returns>Updated tool document, or null if it does not exist</returns>
 		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, Stream stream, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
-			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
+			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
 			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
@@ -282,7 +283,7 @@ namespace Horde.Server.Tools
 		/// <returns>Updated tool document, or null if it does not exist</returns>
 		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobLocator target, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
-			ToolDeploymentId deploymentId = ToolDeploymentId.GenerateNewId();
+			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
 			NamespaceId namespaceId = tool.Config.NamespaceId;
 			RefName refName = new RefName($"{tool.Id}/{deploymentId}");

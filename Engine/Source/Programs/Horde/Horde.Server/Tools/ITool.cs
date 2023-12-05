@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Tools;
 using System;
 using System.Collections.Generic;
 
@@ -26,32 +27,6 @@ namespace Horde.Server.Tools
 		/// Config object for this tool
 		/// </summary>
 		ToolConfig Config { get; }
-	}
-
-	/// <summary>
-	/// Current state of a tool's deployment
-	/// </summary>
-	public enum ToolDeploymentState
-	{
-		/// <summary>
-		/// The deployment is ongoing
-		/// </summary>
-		Active,
-
-		/// <summary>
-		/// The deployment should be paused at its current state
-		/// </summary>
-		Paused,
-
-		/// <summary>
-		/// Deployment of this version is complete
-		/// </summary>
-		Complete,
-
-		/// <summary>
-		/// The deployment has been cancelled.
-		/// </summary>
-		Cancelled,
 	}
 
 	/// <summary>

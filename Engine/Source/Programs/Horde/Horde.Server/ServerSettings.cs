@@ -28,6 +28,7 @@ using Horde.Server.Streams;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
 using Horde.Server.Telemetry.Sinks;
+using EpicGames.Horde.Tools;
 
 namespace Horde.Server
 {

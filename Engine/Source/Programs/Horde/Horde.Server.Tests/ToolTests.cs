@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Tools;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Tools;

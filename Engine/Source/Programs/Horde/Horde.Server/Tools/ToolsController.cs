@@ -3,6 +3,7 @@
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Tools;
 using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
@@ -22,185 +23,6 @@ using System.Threading.Tasks;
 
 namespace Horde.Server.Tools
 {
-	/// <summary>
-	/// Describes a standalone, external tool hosted and deployed by Horde. Provides basic functionality for performing
-	/// gradual roll-out, versioning, etc...
-	/// </summary>
-	public class GetToolResponse
-	{
-		readonly ITool _tool;
-
-		/// <inheritdoc cref="VersionedDocument{TId, TLatest}.Id"/>
-		public ToolId Id => _tool.Id;
-
-		/// <inheritdoc cref="ToolConfig.Name"/>
-		public string Name => _tool.Config.Name;
-
-		/// <inheritdoc cref="ToolConfig.Description"/>
-		public string Description => _tool.Config.Description;
-
-		/// <inheritdoc cref="ITool.Deployments"/>
-		public List<GetToolDeploymentResponse> Deployments { get; }
-
-		/// <inheritdoc cref="ToolConfig.Public"/>
-		public bool Public => _tool.Config.Public;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public GetToolResponse(ITool tool, List<GetToolDeploymentResponse> deployments)
-		{
-			_tool = tool;
-			Deployments = deployments;
-		}
-	}
-
-	/// <summary>
-	/// Summary for a particular tool.
-	/// </summary>
-	public class GetToolSummaryResponse
-	{
-		readonly ITool _tool;
-
-		/// <inheritdoc cref="VersionedDocument{TId, TLatest}.Id"/>
-		public ToolId Id => _tool.Id;
-
-		/// <inheritdoc cref="ToolConfig.Name"/>
-		public string Name => _tool.Config.Name;
-
-		/// <inheritdoc cref="ToolConfig.Description"/>
-		public string Description => _tool.Config.Description;
-
-		/// <inheritdoc cref="IToolDeployment.Version"/>
-		public string? Version => (_tool.Deployments.Count > 0) ? _tool.Deployments[^1].Version : null;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		internal GetToolSummaryResponse(ITool tool) => _tool = tool;
-	}
-
-	/// <summary>
-	/// Response when querying all tools
-	/// </summary>
-	public class GetToolsSummaryResponse
-	{
-		/// <summary>
-		/// List of tools.
-		/// </summary>
-		public List<GetToolSummaryResponse> Tools { get; } = new List<GetToolSummaryResponse>();
-	}
-
-	/// <summary>
-	/// Response object describing the deployment of a tool
-	/// </summary>
-	public class GetToolDeploymentResponse
-	{
-		readonly IToolDeployment _deployment;
-
-		/// <inheritdoc cref="IToolDeployment.Id"/>
-		public ToolDeploymentId Id => _deployment.Id;
-
-		/// <inheritdoc cref="IToolDeployment.Version"/>
-		public string Version => _deployment.Version;
-
-		/// <inheritdoc cref="IToolDeployment.State"/>
-		public ToolDeploymentState State => _deployment.State;
-
-		/// <inheritdoc cref="IToolDeployment.Progress"/>
-		public double Progress => _deployment.Progress;
-
-		/// <inheritdoc cref="IToolDeployment.StartedAt"/>
-		public DateTime? StartedAt => _deployment.StartedAt;
-
-		/// <inheritdoc cref="IToolDeployment.Duration"/>
-		public TimeSpan Duration => _deployment.Duration;
-
-		/// <inheritdoc cref="IToolDeployment.RefName"/>
-		public RefName RefName => _deployment.RefName;
-
-		/// <summary>
-		/// Node for downloading this deployment
-		/// </summary>
-		public BlobLocator Locator { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public GetToolDeploymentResponse(IToolDeployment deployment, IBlobHandle handle)
-		{
-			_deployment = deployment;
-			Locator = handle.GetLocator();
-		}
-	}
-
-	/// <summary>
-	/// Request for creating a new deployment
-	/// </summary>
-	public class CreateDeploymentRequest
-	{
-		/// <inheritdoc cref="IToolDeployment.Version"/>
-		public string Version { get; set; } = "Unknown";
-
-		/// <summary>
-		/// Number of minutes over which to do the deployment
-		/// </summary>
-		public double? Duration { get; set; }
-
-		/// <summary>
-		/// Whether to create the deployment in a paused state
-		/// </summary>
-		public bool? CreatePaused { get; set; }
-
-		/// <summary>
-		/// Handle to the root node
-		/// </summary>
-		public BlobLocator Node { get; set; }
-	}
-
-	/// <summary>
-	/// Response from creating a deployment
-	/// </summary>
-	public class CreateDeploymentResponse
-	{
-		/// <summary>
-		/// Identifier for the created deployment
-		/// </summary>
-		public ToolDeploymentId Id { get; set; }
-	}
-
-	/// <summary>
-	/// Update an existing deployment
-	/// </summary>
-	public class UpdateDeploymentRequest
-	{
-		/// <summary>
-		/// New state for the deployment
-		/// </summary>
-		public ToolDeploymentState? State { get; set; }
-	}
-
-	/// <summary>
-	/// Action for a deployment
-	/// </summary>
-	public enum GetToolAction
-	{
-		/// <summary>
-		/// Query for information about the deployment 
-		/// </summary>
-		Info,
-
-		/// <summary>
-		/// Download the deployment data
-		/// </summary>
-		Download,
-
-		/// <summary>
-		/// Download the deployment data as a zip file
-		/// </summary>
-		Zip,
-	}
-
 	/// <summary>
 	/// Controller for the /api/v1/agents endpoint
 	/// </summary>
@@ -273,7 +95,7 @@ namespace Horde.Server.Tools
 				}
 			}
 
-			return new CreateDeploymentResponse { Id = tool.Deployments[^1].Id };
+			return new CreateDeploymentResponse(tool.Deployments[^1].Id);
 		}
 
 		/// <summary>
@@ -302,7 +124,7 @@ namespace Horde.Server.Tools
 				return NotFound(id);
 			}
 
-			return new CreateDeploymentResponse { Id = tool.Deployments[^1].Id };
+			return new CreateDeploymentResponse(tool.Deployments[^1].Id);
 		}
 
 		/// <summary>
@@ -374,7 +196,7 @@ namespace Horde.Server.Tools
 				tools[toolConfig.Id] = toolConfig;
 			}
 
-			GetToolsSummaryResponse response = new GetToolsSummaryResponse();
+			List<GetToolSummaryResponse> toolSummaryList = new List<GetToolSummaryResponse>();
 			foreach (ToolConfig toolConfig in tools.Values.OrderBy(x => x.Name, StringComparer.Ordinal))
 			{
 				if(AuthorizeDownload(toolConfig))
@@ -382,12 +204,18 @@ namespace Horde.Server.Tools
 					ITool? tool = await _toolCollection.GetAsync(toolConfig.Id, _globalConfig.Value);
 					if (tool != null)
 					{
-						response.Tools.Add(new GetToolSummaryResponse(tool));
+						toolSummaryList.Add(CreateGetToolSummaryResponse(tool));
 					}
 				}
 			}
 
-			return response;
+			return new GetToolsSummaryResponse(toolSummaryList);
+		}
+
+		static GetToolSummaryResponse CreateGetToolSummaryResponse(ITool tool)
+		{
+			string? latestVersion = (tool.Deployments.Count > 0) ? tool.Deployments[^1].Version : null;
+			return new GetToolSummaryResponse(tool.Id, tool.Config.Name, tool.Config.Description, latestVersion);
 		}
 
 		/// <summary>
@@ -416,7 +244,7 @@ namespace Horde.Server.Tools
 					GetToolDeploymentResponse deploymentResponse = await GetDeploymentInfoResponseAsync(tool, deployment, cancellationToken);
 					deploymentResponses.Add(deploymentResponse);
 				}
-				return Ok(new GetToolResponse(tool, deploymentResponses));
+				return Ok(CreateGetToolResponse(tool, deploymentResponses));
 			}
 			else
 			{
@@ -427,6 +255,11 @@ namespace Horde.Server.Tools
 
 				return await GetDeploymentResponseAsync(tool, tool.Deployments[^1], action, cancellationToken);
 			}
+		}
+
+		static GetToolResponse CreateGetToolResponse(ITool tool, List<GetToolDeploymentResponse> deployments)
+		{
+			return new GetToolResponse(tool.Id, tool.Config.Name, tool.Config.Description, deployments, tool.Config.Public);
 		}
 
 		/// <summary>
@@ -528,7 +361,7 @@ namespace Horde.Server.Tools
 			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
 			IBlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
 
-			return new GetToolDeploymentResponse(deployment, rootHandle);
+			return new GetToolDeploymentResponse(deployment.Id, deployment.Version, deployment.State, deployment.Progress, deployment.StartedAt, deployment.Duration, deployment.RefName, rootHandle.GetLocator());
 		}
 
 		/// <summary>
