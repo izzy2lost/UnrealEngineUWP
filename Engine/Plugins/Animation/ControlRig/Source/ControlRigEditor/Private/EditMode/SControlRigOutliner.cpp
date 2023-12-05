@@ -1132,6 +1132,21 @@ void SControlRigOutliner::SetEditMode(FControlRigEditMode& InEditMode)
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
 		TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
+		for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+		{
+			if (ControlRig.IsValid())
+			{
+				if (!ControlRig.Get()->ControlRigBound().IsBoundToObject(this))
+				{
+					ControlRig.Get()->ControlRigBound().AddRaw(this, &SControlRigOutliner::HandleOnControlRigBound);
+				}
+				const TSharedPtr<IControlRigObjectBinding> Binding = ControlRig.Get()->GetObjectBinding();
+				if (Binding && !Binding->OnControlRigBind().IsBoundToObject(this))
+				{
+					Binding->OnControlRigBind().AddRaw(this, &SControlRigOutliner::HandleOnObjectBoundToControlRig);
+				}
+			}
+		}
 		HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
 	}
 }
@@ -1139,6 +1154,30 @@ void SControlRigOutliner::SetEditMode(FControlRigEditMode& InEditMode)
 void SControlRigOutliner::HandleControlAdded(UControlRig* ControlRig, bool bIsAdded)
 {
 	FControlRigBaseDockableView::HandleControlAdded(ControlRig, bIsAdded);
+	if (ControlRig)
+	{
+		if (bIsAdded == true )
+		{
+			if (!ControlRig->ControlRigBound().IsBoundToObject(this))
+			{
+				ControlRig->ControlRigBound().AddRaw(this, &SControlRigOutliner::HandleOnControlRigBound);
+			}
+			const TSharedPtr<IControlRigObjectBinding> Binding = ControlRig->GetObjectBinding();
+			if (Binding && !Binding->OnControlRigBind().IsBoundToObject(this))
+			{
+				Binding->OnControlRigBind().AddRaw(this, &SControlRigOutliner::HandleOnObjectBoundToControlRig);
+			}
+		}
+		else
+		{
+			ControlRig->ControlRigBound().RemoveAll(this);
+			const TSharedPtr<IControlRigObjectBinding> Binding = ControlRig->GetObjectBinding();
+			if (Binding)
+			{
+				Binding->OnControlRigBind().RemoveAll(this);
+			}
+		}
+	}
 	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
 		TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
@@ -1146,5 +1185,36 @@ void SControlRigOutliner::HandleControlAdded(UControlRig* ControlRig, bool bIsAd
 	}
 }
 
+void SControlRigOutliner::HandleOnControlRigBound(UControlRig* InControlRig)
+{
+	if (!InControlRig)
+	{
+		return;
+	}
+
+	const TSharedPtr<IControlRigObjectBinding> Binding = InControlRig->GetObjectBinding();
+
+	if (Binding && !Binding->OnControlRigBind().IsBoundToObject(this))
+	{
+		Binding->OnControlRigBind().AddRaw(this, &SControlRigOutliner::HandleOnObjectBoundToControlRig);
+	}
+}
+
+
+void SControlRigOutliner::HandleOnObjectBoundToControlRig(UObject* InObject)
+{
+	//just refresh the views, but do so on nex tick sine with FK control rig's the controls aren't set up
+	//until AFTER we are bound.
+	GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+	{
+		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+		{
+			TArrayView<TWeakObjectPtr<UControlRig>> ControlRigs = EditMode->GetControlRigs();
+			HierarchyTreeView->GetTreeView()->SetControlRigs(ControlRigs); //will refresh tree
+		}
+	});
+
+
+}
 
 #undef LOCTEXT_NAMESPACE

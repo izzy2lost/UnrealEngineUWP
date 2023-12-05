@@ -200,7 +200,7 @@ static TSharedPtr<ISequencer> GetSequencerFromAsset()
 	return Sequencer;
 }
 
-static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelSequence,const UClass* InClass, UObject* BoundActor, FGuid ObjectBinding, UControlRig* InExistingControlRig, bool bIsAdditiveControlRig)
+static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelSequence,const UClass* InClass, FGuid ObjectBinding, UControlRig* InExistingControlRig, bool bIsAdditiveControlRig)
 {
 	FSlateApplication::Get().DismissAllMenus();
 	if (!InClass || !InClass->IsChildOf(UControlRig::StaticClass()) ||
@@ -254,8 +254,6 @@ static UMovieSceneControlRigParameterTrack* AddControlRig(ULevelSequence* LevelS
 			ControlRig->SetIsAdditive(bIsAdditiveControlRig);
 		}
 		ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-		ControlRig->GetObjectBinding()->BindToObject(BoundActor);
-		ControlRig->GetDataSourceRegistry()->RegisterDataSource(UControlRig::OwnerComponent, ControlRig->GetObjectBinding()->GetBoundObject());
 		// Do not re-initialize existing control rig
 		if (!InExistingControlRig)
 		{
@@ -330,35 +328,11 @@ UMovieSceneTrack* UControlRigSequencerEditorLibrary::FindOrCreateControlRigTrack
 				}
 			}
 
-			TArray<UObject*, TInlineAllocator<1>> Result;
-			UObject* Context = nullptr;
-			ALevelSequenceActor* OutActor = nullptr;
-			ULevelSequencePlayer* OutPlayer = nullptr;
-			Result = GetBoundObjects(World, LevelSequence, InBinding, &OutPlayer, &OutActor);
-			if (Result.Num() > 0 && Result[0])
+			UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass,  InBinding.BindingID, nullptr, bIsLayeredControlRig);
+
+			if (Track)
 			{
-				UObject* BoundObject = Result[0];
-				USkeleton* Skeleton = nullptr;
-				USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
-				AcquireSkeletonAndSkelMeshCompFromObject(BoundObject, &Skeleton, &SkeletalMeshComponent);
-
-				UControlRig* ControlRig = nullptr;
-				if (SkeletalMeshComponent && SkeletalMeshComponent->GetSkeletalMeshAsset() && SkeletalMeshComponent->GetSkeletalMeshAsset()->GetSkeleton())
-				{
-					UMovieSceneControlRigParameterTrack* Track = AddControlRig(LevelSequence, ControlRigClass, SkeletalMeshComponent, InBinding.BindingID, nullptr, bIsLayeredControlRig);
-
-					if (Track)
-					{
-						BaseTrack = Track;
-					}
-				}
-			}
-
-			//no need to stop player was never running, and stop will cause things to get unbound, messing 
-			//with how priorities are set
-			if (OutActor)
-			{
-				World->DestroyActor(OutActor);
+				BaseTrack = Track;
 			}
 		}
 	}
@@ -408,7 +382,7 @@ TArray<UMovieSceneTrack*> UControlRigSequencerEditorLibrary::FindOrCreateControl
 
 					if (GoodTrack == nullptr)
 					{
-						GoodTrack = AddControlRig(LevelSequence, CR->GetClass(), BoundActor, InBinding.BindingID, CR, false);
+						GoodTrack = AddControlRig(LevelSequence, CR->GetClass(), InBinding.BindingID, CR, false);
 					}
 					Tracks.Add(GoodTrack);
 				}
