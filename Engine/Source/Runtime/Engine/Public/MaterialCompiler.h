@@ -87,6 +87,9 @@ class FMaterialCompiler
 public:
 	virtual ~FMaterialCompiler() { }
 
+	/** Whether material translation should abort */
+	virtual bool ShouldStopTranslating() const = 0;
+
 	// sets internal state CurrentShaderFrequency 
 	// @param OverrideShaderFrequency SF_NumFrequencies to not override
 	virtual void SetMaterialProperty(EMaterialProperty InProperty, EShaderFrequency OverrideShaderFrequency = SF_NumFrequencies, bool bUsePreviousFrameTime = false) = 0;
@@ -752,7 +755,8 @@ public:
 	{}
 
 	// Simple pass through all other material operations unmodified.
-
+	
+	virtual bool ShouldStopTranslating() const override { return false; }
 	virtual FMaterialShadingModelField GetMaterialShadingModels() const { return Compiler->GetMaterialShadingModels(); }
 	virtual FMaterialShadingModelField GetCompiledShadingModels() const { return Compiler->GetCompiledShadingModels(); }
 	virtual EMaterialValueType GetParameterType(int32 Index) const { return Compiler->GetParameterType(Index); }

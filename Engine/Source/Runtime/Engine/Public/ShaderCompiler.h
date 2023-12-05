@@ -365,9 +365,8 @@ public:
 	};
 
 	void IncrementMaterialCook();
-	void IncrementMaterialTranslated(double InTime);
-	void IncrementMaterialCacheHit(double InTime);
-	void IncrementMaterialTranslationSkippedDDC();
+	void IncrementMaterialTranslated(double InTotalTime, double InTranslationOnlyTime);
+	void IncrementMaterialCacheHit();
 
 	ENGINE_API void RegisterCookedShaders(uint32 NumCooked, float CompileTime, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString = FString(""));
 	ENGINE_API void RegisterCompiledShaders(uint32 NumPermutations, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString = FString(""));
@@ -565,24 +564,21 @@ private:
 		int32 MaterialTranslateCalls = 0;
 
 		/** The total time in seconds to translate all materials.  */
-		double MaterialTranslateTimeSec = 0.0;
+		double MaterialTranslateTotalTimeSec = 0.0;
+
+		/** The total time spent actually translating materials (rather than for instance accessing the DDC cache). */
+		double MaterialTranslateTranslationOnlyTimeSec = 0.0;
 
 		/** The total number times a material translation was skipped because the the results were in the DDC. */
 		int32 MaterialCacheHits = 0;
 		
-		/** The total time spent querying the DDC cache. */
-		double MaterialCacheTimeSec = 0.0;
-
-		int32 MaterialTranslationSkippedDDCCount = 0;
-
 		FMaterialCounters& operator+=(const FMaterialCounters& Other)
 		{
 			NumMaterialsCooked += Other.NumMaterialsCooked;
 			MaterialTranslateCalls += Other.MaterialTranslateCalls;
-			MaterialTranslateTimeSec += Other.MaterialTranslateTimeSec;
+			MaterialTranslateTotalTimeSec += Other.MaterialTranslateTotalTimeSec;
+			MaterialTranslateTranslationOnlyTimeSec += Other.MaterialTranslateTranslationOnlyTimeSec;
 			MaterialCacheHits += Other.MaterialCacheHits;
-			MaterialCacheTimeSec += Other.MaterialCacheTimeSec;
-			MaterialTranslationSkippedDDCCount += Other.MaterialTranslationSkippedDDCCount;
 
 			return *this;
 		}

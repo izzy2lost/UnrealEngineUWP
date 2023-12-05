@@ -283,6 +283,12 @@ bool FMatExpressionPreview::ShouldCache(EShaderPlatform Platform, const FShaderT
 
 int32 FMatExpressionPreview::CompilePropertyAndSetMaterialProperty(EMaterialProperty Property, FMaterialCompiler* Compiler, EShaderFrequency OverrideShaderFrequency, bool bUsePreviousFrameTime) const
 {
+	// Early out if the compiler wishes to terminate translation.
+	if (Compiler->ShouldStopTranslating())
+	{
+		return INDEX_NONE;
+	}
+
 	// needs to be called in this function!!
 	Compiler->SetMaterialProperty(Property, OverrideShaderFrequency, bUsePreviousFrameTime);
 

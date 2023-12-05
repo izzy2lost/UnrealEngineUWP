@@ -57,6 +57,11 @@
 class Error;
 class FAddUniformExpressionScope;
 
+namespace UE::DerivedData
+{
+	class FRequestOwner;
+}
+
 /**
  * Returns whether the specified class of material expression is permitted.
  * For instance, custom expressions are not permitted in certain UE editor configurations for client generated materials.
@@ -265,8 +270,7 @@ protected:
 
 	/** Material being compiled.  Only transient compilation output like error information can be stored on the FMaterial. */
 	FMaterial* Material;
-	/** Compilation output which will be stored in the DDC. */
-	FMaterialCompilationOutput& MaterialCompilationOutput;
+
 	FStaticParameterSet StaticParameters;
 	FMaterialLayersFunctions CachedMaterialLayers;
 	EShaderPlatform Platform;
@@ -586,6 +590,8 @@ public:
 		FString MaterialTranslationDDCKeyString = {});
 
 	~FHLSLMaterialTranslator();
+
+	bool ShouldStopTranslating() const override;
 
 	int32 GetNumUserTexCoords() const;
 	int32 GetNumUserVertexTexCoords() const;
@@ -1383,12 +1389,12 @@ protected:
 	 * Queries the DDC cache for a cached translation.
 	 * @return Whether the speecified key is in the DDC.
 	 */
-	bool QueryDDCCachedTranslationResults();
+	void AsyncQueryDDC(UE::DerivedData::FRequestOwner& DDCRequestOwner);
 
 	/**
 	 * Pushes the final results to the DDC cache.
 	 */
-	void PushResultsToDDCCache();
+	void PushResultsToDDC();
 
 	/**
 	 * Prepares the material source generation parameters.
@@ -1400,11 +1406,20 @@ protected:
 	 */
 	void PrepareEnvironmentDefines();
 
+	/** The final compilation output. */
+	FMaterialCompilationOutput& MaterialCompilationOutput;
+
+	/** Compilation output fetched from the DDC */
+	FMaterialCompilationOutput DDCMaterialCompilationOutput;
+
 	/** The material shader source template parameters */
 	TMap<FString, FString> MaterialSourceTemplateParams;
 
 	/** The output material shader defines */
 	TUniquePtr<FEnvironmentDefines> EnvironmentDefines;
+
+	/** Signals when the async DDC query task has completed AND there was a hit */
+	TAtomic<bool> DDCQueryHit;
 
 	friend class FAddUniformExpressionScope;
 };
