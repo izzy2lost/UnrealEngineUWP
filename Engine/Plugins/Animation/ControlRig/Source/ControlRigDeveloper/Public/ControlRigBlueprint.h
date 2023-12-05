@@ -300,6 +300,8 @@ public:
 	void UpdateModularDependencyDelegates();
 	void OnModularDependencyVMCompiled(UObject* InBlueprint, URigVM* InVM, FRigVMExtendedExecuteContext& InExecuteContext);
 	void OnModularDependencyChanged(URigVMBlueprint* InBlueprint);
+	void RefreshModuleConnectors();
+	void RefreshModuleConnectors(const FRigModuleReference* InModule);
 
 	/**
 	* Returns the modified event, which can be used to 
