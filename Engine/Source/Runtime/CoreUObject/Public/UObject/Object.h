@@ -1756,10 +1756,8 @@ struct FInternalUObjectBaseUtilityIsValidFlagsChecker
 	FORCEINLINE static bool CheckObjectValidBasedOnItsFlags(const UObject* Test)
 	{
 		// Here we don't really check if the flags match but if the end result is the same
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		checkSlow(GUObjectArray.IndexToObject(Test->InternalIndex)->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage) == Test->HasAnyFlags(RF_InternalPendingKill | RF_InternalGarbage));
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		return !Test->HasAnyFlags(RF_InternalPendingKill | RF_InternalGarbage);
+		checkSlow(GUObjectArray.IndexToObject(Test->InternalIndex)->HasAnyFlags(EInternalObjectFlags::Garbage) == Test->HasAnyFlags(RF_MirroredGarbage));
+		return !Test->HasAnyFlags(RF_MirroredGarbage);
 	}
 };
 

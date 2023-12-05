@@ -415,7 +415,7 @@ bool UWorldPartitionLevelStreamingDynamic::IssueLoadRequests()
 		FObjectDuplicationParameters Parameters(UnsavedActorsContainer, RuntimeLevel);
 		Parameters.DestClass = UnsavedActorsContainer->GetClass();
 		Parameters.FlagMask = RF_AllFlags & ~(RF_MarkAsRootSet | RF_MarkAsNative | RF_HasExternalPackage);
-		Parameters.InternalFlagMask = EInternalObjectFlags::AllFlags;
+		Parameters.InternalFlagMask = EInternalObjectFlags_AllFlags;
 		Parameters.DuplicateMode = EDuplicateMode::PIE;
 		Parameters.PortFlags = PPF_DuplicateForPIE;
 		Parameters.DuplicationSeed.Add(World->PersistentLevel, RuntimeLevel);

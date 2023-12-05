@@ -511,7 +511,7 @@ void UEditorEngine::EndPlayMap()
 		Arguments.Add(TEXT("Object"), FText::FromString(Object->GetFullName()));
 
 		// We cannot safely recover from this.
-		if (UObjectBaseUtility::IsPendingKillEnabled())
+		if (UObjectBaseUtility::IsGarbageEliminationEnabled())
 		{
 			checkf(false, TEXT("%s"), *FText::Format(
 				LOCTEXT("PIEObjectStillReferenced", "Object '{Object}' from PIE level still referenced. Shortest path from root: {Path}"), Arguments).ToString());
@@ -528,7 +528,7 @@ void UEditorEngine::EndPlayMap()
 	}
 
 	// Try and recover by renaming leaked packages 
-	if (!UObjectBaseUtility::IsPendingKillEnabled())
+	if (!UObjectBaseUtility::IsGarbageEliminationEnabled())
 	{
 		for (UPackage* ObjectPackage : LeakedPackages)
 		{

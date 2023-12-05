@@ -42,13 +42,17 @@ enum class EGCOptions : uint32
 	None = 0,
 	Parallel = 1 << 0,					// Use all task workers to collect references, must be started on main thread
 	AutogenerateSchemas = 1 << 1,		// Assemble schemas for new UClasses
-	WithPendingKill = 1 << 2,			// Internal flag used by reachability analysis
+	WithPendingKill UE_DEPRECATED(5.4, "WithPendingKill should no longer be used. Use EliminateGarbage.")  = 1 << 2,			// Internal flag used by reachability analysis
+	EliminateGarbage  = 1 << 2,			// Internal flag used by reachability analysis
 	IncrementalReachability = 1 << 3	// Run Reachability Analysis incrementally
 };
 ENUM_CLASS_FLAGS(EGCOptions);
 
 inline constexpr bool IsParallel(EGCOptions Options) { return !!(Options & EGCOptions::Parallel); }
-inline constexpr bool IsPendingKill(EGCOptions Options) { return !!(Options & EGCOptions::WithPendingKill); }
+
+inline constexpr bool IsEliminatingGarbage(EGCOptions Options) { return !!(Options & EGCOptions::EliminateGarbage); }
+UE_DEPRECATED(5.4, "IsPendingKill should no longer be used. Use IsEliminatingGarbage.")
+inline constexpr bool IsPendingKill(EGCOptions Options) { return !!(Options & EGCOptions::EliminateGarbage); }
 
 /** Helper to give GC internals friend access to certain core classes */
 struct FGCInternals

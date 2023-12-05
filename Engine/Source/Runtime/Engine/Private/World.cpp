@@ -7798,7 +7798,7 @@ UWorld* FSeamlessTravelHandler::Tick()
 
 			CurrentWorld = nullptr;
 
-			if (!UObjectBaseUtility::IsPendingKillEnabled())
+			if (!UObjectBaseUtility::IsGarbageEliminationEnabled())
 			{
 				// If pending kill is disabled, run an explicit serializer to clear references to garbage objects on the transferred actors
 				TMap<UObject*, UObject*> ReplacementMap;

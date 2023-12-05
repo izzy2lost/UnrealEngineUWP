@@ -183,8 +183,8 @@ namespace UE::CoreUObject::Private::Tests
 		CHECK(PluginManager.UnmountExplicitlyLoadedPlugin(TEXT("MyTestPlugin"), &Reason));
 		CHECK(!FPackageName::MountPointExists(TEXT("/MyTestPlugin")));
 		CHECK(PluginPackageName != PluginPackage->GetFName()); //package should have been renamed.
-		CHECK(PluginPackage->HasAnyInternalFlags(EInternalObjectFlags::MirroredFlags));
-		CHECK(Obj->HasAnyInternalFlags(EInternalObjectFlags::MirroredFlags));
+		CHECK(PluginPackage->HasAnyInternalFlags(EInternalObjectFlags::Garbage));
+		CHECK(Obj->HasAnyInternalFlags(EInternalObjectFlags::Garbage));
 
 		UPackage* PluginPackage2 = NewObject<UPackage>(nullptr, TEXT("/MyTestPlugin/MyPackage"), RF_Public);
 		CHECK(PluginPackage != PluginPackage2);

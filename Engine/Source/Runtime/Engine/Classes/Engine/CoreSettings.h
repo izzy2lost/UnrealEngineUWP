@@ -223,9 +223,9 @@ protected:
 	uint32 VerifyUObjectsAreNotFGCObjects : 1;
 
 	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
-		ConsoleVariable = "gc.PendingKillEnabled", DisplayName = "Pending Kill Enabled",
-		ToolTip = "If true, objects marked as PendingKill will be automatically nulled and destroyed by Garbage Collector."))
-	uint32 PendingKillEnabled : 1;
+		ConsoleVariable = "gc.GarbageEliminationEnabled", DisplayName = "Garbage Elimination Enabled",
+		ToolTip = "If true, objects marked as Garbage will be automatically nulled and destroyed by Garbage Collector."))
+	uint32 GarbageEliminationEnabled : 1;
 
 	UPROPERTY(EditAnywhere, config, Category = Optimization, meta = (
 		ConsoleVariable = "gc.DumpObjectCountsToLogWhenMaxObjectLimitExceeded", DisplayName = "Log UObject counts when UObject limit has been exceeded",

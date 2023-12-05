@@ -994,7 +994,7 @@ bool UGameInstance::RemoveLocalPlayer(ULocalPlayer* ExistingPlayer)
 	OnLocalPlayerRemovedEvent.Broadcast(ExistingPlayer);
 
 	// Marked as garbage here to detect outstanding references
-	if (!UObjectBaseUtility::IsPendingKillEnabled())
+	if (!UObjectBaseUtility::IsGarbageEliminationEnabled())
 	{
 		ExistingPlayer->MarkAsGarbage();
 	}

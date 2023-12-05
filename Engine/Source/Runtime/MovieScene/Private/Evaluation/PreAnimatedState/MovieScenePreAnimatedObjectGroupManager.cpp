@@ -21,7 +21,7 @@ void FPreAnimatedObjectGroupManager::OnObjectsReplaced(const TMap<UObject*, UObj
 	{
 		FPreAnimatedStorageGroupHandle GroupHandle = It.Value();
 
-		UObject* Object = It.Key().ResolveObjectPtrEvenIfPendingKill();
+		UObject* Object = It.Key().ResolveObjectPtrEvenIfGarbage();
 		if (UObject* ReplacedObject = ReplacementMap.FindRef(Object))
 		{
 			FObjectKey NewKey(ReplacedObject);
@@ -43,7 +43,7 @@ void FPreAnimatedObjectGroupManager::GetGroupsByClass(UClass* GeneratedClass, TA
 {
 	for (auto It = StorageGroupsByKey.CreateConstIterator(); It; ++It)
 	{
-		UObject* Object = It.Key().ResolveObjectPtrEvenIfPendingKill();
+		UObject* Object = It.Key().ResolveObjectPtrEvenIfGarbage();
 		if (Object && Object->IsA(GeneratedClass))
 		{
 			OutGroupHandles.Add(It.Value());

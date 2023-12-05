@@ -4957,12 +4957,12 @@ static void ConstructSoftGCPackageToObjectList(TArray<UObject*>& PackageToObject
 				{
 					continue;
 				}
-				UObject* Object = static_cast<UObject*>(ObjectItem.Object);
-				if (!Object->HasAnyFlags(RF_Public))
+				if (ObjectItem.IsGarbage())
 				{
 					continue;
 				}
-				if (Object->HasAnyFlags(RF_InternalPendingKill | RF_InternalGarbage))
+				UObject* Object = static_cast<UObject*>(ObjectItem.Object);
+				if (!Object->HasAnyFlags(RF_Public))
 				{
 					continue;
 				}

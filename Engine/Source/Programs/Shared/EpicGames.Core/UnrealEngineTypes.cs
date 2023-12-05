@@ -657,6 +657,16 @@ namespace EpicGames.Core
 		//~ All the other bits are reserved, DO NOT ADD NEW FLAGS HERE!
 
 		/// <summary>
+		/// One of the flags used by Garbage Collector to determine UObject's reachability state
+		/// </summary>
+		ReachabilityFlag0 = 1 << 0,
+
+		/// <summary>
+		/// One of the flags used by Garbage Collector to determine UObject's reachability state
+		/// </summary>
+		ReachabilityFlag1 = 1 << 1,
+
+		/// <summary>
 		/// Flag set on all non-root objects at the beginning of Reachability Analysis
 		/// </summary>
 		MaybeUnreachable = 1 << 19,
@@ -702,11 +712,6 @@ namespace EpicGames.Core
 		Unreachable = 1 << 28,
 
 		/// <summary>
-		/// Objects that are pending destruction (invalid for gameplay but valid objects)
-		/// </summary>
-		PendingKill = 1 << 29,
-
-		/// <summary>
 		/// Object will not be garbage collected, even if unreferenced.
 		/// </summary>
 		RootSet = 1 << 30,
@@ -719,7 +724,7 @@ namespace EpicGames.Core
 		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport,
 
 		//~ Make sure this is up to date!
-		AllFlags = MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | PendingKill | RootSet | PendingConstruction
+		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction
 	};
 
 	/// <summary>

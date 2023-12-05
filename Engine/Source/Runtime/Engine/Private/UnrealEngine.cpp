@@ -16255,7 +16255,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 	{
 		for (FObjectKey Key : WorldContext->GarbageObjectsToVerify)
 		{
-			if (UObject* Obj = Key.ResolveObjectPtrEvenIfPendingKill())
+			if (UObject* Obj = Key.ResolveObjectPtrEvenIfGarbage())
 			{
 				LeakedObjects.Add(Obj);
 			}
@@ -16285,7 +16285,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 				break;
 			}	
 			// Force fatal error if reference elimination is enabled as legacy behavior
-			if (UObjectBaseUtility::IsPendingKillEnabled())
+			if (UObjectBaseUtility::IsGarbageEliminationEnabled())
 			{
 				Options = EPrintStaleReferencesOptions::Fatal;
 			}
@@ -16321,7 +16321,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 			FReferenceChainSearch::FindAndPrintStaleReferencesToObjects(LeakedObjects, Options);
 		}
 
-		if (!UObjectBaseUtility::IsPendingKillEnabled())
+		if (!UObjectBaseUtility::IsGarbageEliminationEnabled())
 		{
 			UE_LOG(LogLoad, Warning, TEXT("Renaming leaked objects in case they need to be reloaded."));
 			for (UPackage* Pkg : LeakedPackages)

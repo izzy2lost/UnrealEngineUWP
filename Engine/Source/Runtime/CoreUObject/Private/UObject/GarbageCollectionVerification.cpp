@@ -404,22 +404,8 @@ void VerifyObjectFlagMirroring()
 			if (ObjectItem.Object)
 			{
 				UObjectBaseUtility* Object = (UObjectBaseUtility*)ObjectItem.Object;
-				bool bHasObjectFlag = Object->HasAnyFlags(RF_InternalPendingKill);
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				bool bHasInternalFlag = ObjectItem.HasAnyFlags(EInternalObjectFlags::PendingKill);
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-				if (bHasObjectFlag != bHasInternalFlag)
-				{
-					UE_LOG(LogGarbage, Warning, TEXT("RF_PendingKill (%d) and EInternalObjectFlags::PendingKill (%d) flag mismatch on %s"),
-						(int32)bHasObjectFlag,
-						(int32)bHasInternalFlag,
-						*Object->GetFullName());
-
-					++NumErrors;
-				}
-
-				bHasObjectFlag = Object->HasAnyFlags(RF_InternalGarbage);
-				bHasInternalFlag = ObjectItem.HasAnyFlags(EInternalObjectFlags::Garbage);
+				bool bHasObjectFlag = Object->HasAnyFlags(RF_MirroredGarbage);
+				bool bHasInternalFlag = ObjectItem.HasAnyFlags(EInternalObjectFlags::Garbage);
 				if (bHasObjectFlag != bHasInternalFlag)
 				{
 					UE_LOG(LogGarbage, Warning, TEXT("RF_Garbage (%d) and EInternalObjectFlags::Garbage (%d) flag mismatch on %s"),

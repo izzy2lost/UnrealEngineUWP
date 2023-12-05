@@ -656,7 +656,7 @@ static const TCHAR* ImportProperties(
 					// Make sure desired flags are set - existing object could be pending kill
 					ComponentTemplate->ClearGarbage();
 					ComponentTemplate->ClearFlags(RF_AllFlags);
-					ComponentTemplate->ClearInternalFlags(EInternalObjectFlags::AllFlags);
+					ComponentTemplate->ClearInternalFlags(EInternalObjectFlags_AllFlags);
 					ComponentTemplate->SetFlags(NewFlags);
 				}
 
@@ -1232,7 +1232,7 @@ static const TCHAR* ImportCreateSubObjectsStep(
 					// Make sure desired flags are set - existing object could be pending kill
 					ComponentTemplate->ClearGarbage();
 					ComponentTemplate->ClearFlags(RF_AllFlags);
-					ComponentTemplate->ClearInternalFlags(EInternalObjectFlags::AllFlags);
+					ComponentTemplate->ClearInternalFlags(EInternalObjectFlags_AllFlags);
 					ComponentTemplate->SetFlags(NewFlags);
 				}
 

@@ -2133,7 +2133,7 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 			UObject* PlaceholderObj = ExportPlaceholder;
 
 			FReferencerInformationList UnresolvedReferences;
-			bool bIsReferenced = IsReferenced(PlaceholderObj, GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags::GarbageCollectionKeepFlags, /*bCheckSubObjects =*/false, &UnresolvedReferences);
+			bool bIsReferenced = IsReferenced(PlaceholderObj, GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags_GarbageCollectionKeepFlags, /*bCheckSubObjects =*/false, &UnresolvedReferences);
 
 			if (bIsReferenced && IsAsyncLoading())
 			{

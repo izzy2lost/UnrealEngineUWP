@@ -229,7 +229,7 @@ namespace UE::CoreUObject::Private
 
 			Package->MarkAsGarbage();
 
-			if ((!GIsEditor && !UObject::IsPendingKillEnabled())
+			if ((!GIsEditor && !UObject::IsGarbageEliminationEnabled())
 #if WITH_LOW_LEVEL_TESTS
 				|| GRenameLeakedPackages
 #endif

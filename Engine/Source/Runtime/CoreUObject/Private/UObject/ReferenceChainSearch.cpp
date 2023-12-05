@@ -77,7 +77,7 @@ namespace UE::ReferenceChainSearch
 		bool IsRoot(FVertex Vertex, EReferenceChainSearchMode SearchMode) const
 		{
 			const UObject* Object = VertexToObject(Vertex);
-			return Object->HasAnyInternalFlags(EInternalObjectFlags::GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
+			return Object->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
 				|| (GARBAGE_COLLECTION_KEEPFLAGS != RF_NoFlags && Object->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS)
 					&& !(SearchMode & EReferenceChainSearchMode::FullChain));
 		}
@@ -187,7 +187,7 @@ namespace UE::ReferenceChainSearch
 		bool IsRoot(FVertex Vertex, EReferenceChainSearchMode SearchMode) const
 		{
 			ObjectType Object = VertexToObject(Vertex);
-			return Object->HasAnyInternalFlags(EInternalObjectFlags::GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
+			return Object->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
 				|| (GARBAGE_COLLECTION_KEEPFLAGS != RF_NoFlags && Object->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS)
 					&& !(SearchMode & EReferenceChainSearchMode::FullChain));
 		}
@@ -1277,13 +1277,6 @@ FString FReferenceChainSearch::GetObjectFlags(FGCObjectInfo* InObject)
 		Flags += TEXT("(native) ");
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::PendingKill))
-	{
-		Flags += TEXT("(PendingKill) ");
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::Garbage))
 	{
 		Flags += TEXT("(Garbage) ");
@@ -1693,9 +1686,9 @@ int32 FReferenceChainSearch::PrintResults(TFunctionRef<bool(FCallbackParams& Par
 	if (NumPrintedChains == 0)
 	{
 		auto LogUnreachableObject = [this](FGCObjectInfo* ObjInfo) {
-			if (ObjInfo->HasAnyInternalFlags(EInternalObjectFlags::GarbageCollectionKeepFlags))
+			if (ObjInfo->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags))
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags::GarbageCollectionKeepFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo->GetFullName());
+				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags_GarbageCollectionKeepFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo->GetFullName());
 			}
 			else if (ObjInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS))
 			{
@@ -1791,7 +1784,7 @@ void FReferenceChainSearch::Cleanup()
 
 static FORCEINLINE bool HasGarbageCollectionKeepFlags(FGCObjectInfo* ObjectInfo)
 {
-	return ObjectInfo && (ObjectInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS) || ObjectInfo->HasAnyInternalFlags(EInternalObjectFlags::GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet));
+	return ObjectInfo && (ObjectInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS) || ObjectInfo->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet));
 }
 
 static bool PrintStaleReferenceChainsAndFindReferencingObjects(UObject* ObjectToFindReferencesTo, FReferenceChainSearch& RefChainSearch, FGCObjectInfo*& OutGarbageObject, FGCObjectInfo*& OutReferencingObject, ELogVerbosity::Type Verbosity)

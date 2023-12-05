@@ -531,7 +531,7 @@ void FVisualLogger::FlushThreadsEntries()
 		{
 			if (ThreadCurrentEntry.Value.bIsInitialized)
 			{
-				const UObject* OwnerObject = ThreadCurrentEntry.Key.ResolveObjectPtrEvenIfPendingKill();
+				const UObject* OwnerObject = ThreadCurrentEntry.Key.ResolveObjectPtrEvenIfGarbage();
 				if (FVisualLogEntry* GlobalCurrentEntry = GetEntryToWriteInternal(OwnerObject, ThreadCurrentEntry.Value.TimeStamp, ECreateIfNeeded::Create))
 				{
 					ThreadCurrentEntry.Value.MoveTo(*GlobalCurrentEntry);
@@ -560,7 +560,7 @@ void FVisualLogger::FlushEntry(FVisualLogEntry& Entry, const FObjectKey& ObjectK
 {
 	ensureMsgf(Entry.bIsInitialized, TEXT("FlushEntry should only be called with an initialized entry."));
 
-	const UObject* OwnerObject = ObjectKey.ResolveObjectPtrEvenIfPendingKill();
+	const UObject* OwnerObject = ObjectKey.ResolveObjectPtrEvenIfGarbage();
 	for (FVisualLogDevice* Device : OutputDevices)
 	{
 		Device->Serialize(OwnerObject, ObjectToNameMap[ObjectKey], ObjectToClassNameMap[ObjectKey], Entry);
@@ -767,7 +767,7 @@ void FVisualLogger::Cleanup(UWorld* OldWorld, const bool bReleaseMemory)
 
                 for (FChildToOwnerRedirectionMap::TIterator It = ChildToOwnerMap.CreateIterator(); It; ++It)
                 {
-					UObject* Object = It->Key.ResolveObjectPtrEvenIfPendingKill();
+					UObject* Object = It->Key.ResolveObjectPtrEvenIfGarbage();
 					if (Object == nullptr || Object->GetWorld() == OldWorld)
                     {
                         It.RemoveCurrent();

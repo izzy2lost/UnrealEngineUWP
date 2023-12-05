@@ -1327,7 +1327,7 @@ AActor* AActor::FindActorInPackage(UPackage* InPackage, bool bEvenIfPendingKill)
 			}
 		}
 		return !Actor;
-	}, false, bEvenIfPendingKill ? RF_NoFlags : (RF_InternalPendingKill | RF_InternalGarbage));
+	}, false, bEvenIfPendingKill ? RF_NoFlags : RF_MirroredGarbage);
 	return Actor;
 }
 

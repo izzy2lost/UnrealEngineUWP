@@ -126,7 +126,7 @@ public:
 			if (UObject* LoadedObject = PackageObjectPtr.Get())
 			{
 				//FReferencerInformationList ReferencesIncludingUndo;
-				//bool bReferencedInMemoryOrUndoStack = IsReferenced(LoadedObject, GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags::GarbageCollectionKeepFlags, true, &ReferencesIncludingUndo);
+				//bool bReferencedInMemoryOrUndoStack = IsReferenced(LoadedObject, GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags_GarbageCollectionKeepFlags, true, &ReferencesIncludingUndo);
 
 				LoadedObject->SetFlags(RF_Standalone);
 			}

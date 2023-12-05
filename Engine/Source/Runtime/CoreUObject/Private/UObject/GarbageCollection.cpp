@@ -547,27 +547,24 @@ namespace UE::GC
 
 	EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge);
 	EGatherOptions GetObjectGatherOptions(bool bPerformFullPurge);
-}
 
-namespace UE::GC
-{
 	/** EInternalObjectFlag value representing an unreachable object */
 	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
 
 	/** EInternalObjectFlag value representing a maybe unreachable object */
 	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
+} // namespace UE::GC
 
-	namespace Private
-	{
-		/** List of objects marked as reachable by GC barrier (see UObject::MarkAsReachable()) */
-		static TExpandingChunkedList<UObject*> GReachableObjects;
-		/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
-		static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
-		bool GIsIncrementalReachabilityPending = false;
+namespace UE::GC::Private
+{
+	/** List of objects marked as reachable by GC barrier (see UObject::MarkAsReachable()) */
+	static TExpandingChunkedList<UObject*> GReachableObjects;
+	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
+	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
+	bool GIsIncrementalReachabilityPending = false;
 
-		typedef TThreadedGather<FUObjectItem*> FGatherUnreachableObjectsState;
-		static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
-	}
+	typedef TThreadedGather<FUObjectItem*> FGatherUnreachableObjectsState;
+	static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
 }
 
 static bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit = 0.0);
@@ -989,17 +986,15 @@ FORCEINLINE static void MarkReferencedClustersAsReachableThunk(int32 ClusterInde
 template<EGCOptions Options, class ContainerType>
 static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, ContainerType& ObjectsToSerialize)
 {
-	// This is going to be the return value and basically means that we ran across some pending kill objects
+	// This is going to be the return value and basically means that we ran across some Garbage objects
 	bool bAddClusterObjectsToSerialize = false;
 	for (int32& ReferencedMutableObjectIndex : Cluster.MutableObjects)
 	{
-		if (ReferencedMutableObjectIndex >= 0) // Pending kill support
+		if (ReferencedMutableObjectIndex >= 0) // Garbage Elimination support
 		{
 			FUObjectItem* ReferencedMutableObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectIndex);
 			UE::GC::GStats.IncClusterToObjectRefs(ReferencedMutableObjectItem);
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (!ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage))
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (!ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::Garbage))
 			{
 				if (ReferencedMutableObjectItem->IsMaybeUnreachable())
 				{
@@ -1035,7 +1030,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 			}
 			else
 			{
-				// Pending kill support for clusters
+				// Garbage Elimination support for clusters
 				ReferencedMutableObjectIndex = -1;
 				bAddClusterObjectsToSerialize = true;
 			}
@@ -1069,7 +1064,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 {
 	UE::GC::GStats.IncNumClustersTraversed();
 
-	// If we run across some PendingKill objects we need to add all objects from this cluster
+	// If we run across some Garbage objects we need to add all objects from this cluster
 	// to ObjectsToSerialize so that we can properly null out all the references.
 	// It also means this cluster will have to be dissolved because we may no longer guarantee all cross-cluster references are correct.
 
@@ -1079,12 +1074,10 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 	// Also mark all referenced objects from outside of the cluster as reachable
 	for (int32& ReferncedClusterIndex : Cluster.ReferencedClusters)
 	{
-		if (ReferncedClusterIndex >= 0) // Pending Kill support
+		if (ReferncedClusterIndex >= 0) // Garbag Elimination support
 		{
 			FUObjectItem* ReferencedClusterRootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferncedClusterIndex);
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (!ReferencedClusterRootObjectItem->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage))
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			if (!ReferencedClusterRootObjectItem->HasAnyFlags(EInternalObjectFlags::Garbage))
 			{
 				if (ReferencedClusterRootObjectItem->IsMaybeUnreachable())
 				{
@@ -1093,7 +1086,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 			}
 			else
 			{
-				// Pending kill support for clusters
+				// Garbage Elimination support for clusters
 				ReferncedClusterIndex = -1;
 				bAddClusterObjectsToSerialize = true;
 			}
@@ -1106,7 +1099,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 	MarkClusterMutableCellsAsReachable(Cluster);
 	if (bAddClusterObjectsToSerialize)
 	{
-		// We need to process all cluster objects to handle PendingKill objects we nulled out (-1) from the cluster.
+		// We need to process all cluster objects to handle Garbage objects we nulled out (-1) from the cluster.
 		for (int32 ClusterObjectIndex : Cluster.Objects)
 		{
 			FUObjectItem* ClusterObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ClusterObjectIndex);
@@ -2823,7 +2816,7 @@ template <EGCOptions Options>
 constexpr FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill)
 {
 	// To avoid content changes, allow reference elimination inside of Blueprints
-	return (bAllowKill & (IsPendingKill(Options) || Origin == EOrigin::Blueprint)) ? EKillable::Yes : EKillable::No;
+	return (bAllowKill & (IsEliminatingGarbage(Options) || Origin == EOrigin::Blueprint)) ? EKillable::Yes : EKillable::No;
 }
 
 // Return whether flag was cleared. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase.
@@ -2867,11 +2860,9 @@ public:
 
 	static constexpr EGCOptions Options = InOptions;
 
-	static constexpr FORCEINLINE bool IsWithPendingKill() {	return !!(Options & EGCOptions::WithPendingKill);}
+	static constexpr FORCEINLINE bool IsEliminatingGarbage() {	return !!(Options & EGCOptions::EliminateGarbage);}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	static constexpr EInternalObjectFlags KillFlag = IsWithPendingKill() ? EInternalObjectFlags::PendingKill : EInternalObjectFlags::Garbage;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	static constexpr EInternalObjectFlags KillFlag = EInternalObjectFlags::Garbage;
 
 	constexpr static FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill) { return UE::GC::MayKill<Options>(Origin, bAllowKill); }	
 
@@ -2885,7 +2876,7 @@ public:
 
 	static FORCEINLINE void DetectGarbageReference(FWorkerContext& Context, FReferenceMetadata Metadata)
 	{
-		Context.Stats.TrackPotentialGarbageReference(!IsWithPendingKill() && Metadata.Has(KillFlag));
+		Context.Stats.TrackPotentialGarbageReference(!IsEliminatingGarbage() && Metadata.Has(KillFlag));
 	}
 
 	/**
@@ -2907,7 +2898,7 @@ public:
 			bool bKillable = Killable == EKillable::Yes;
 			if (Metadata.Has(KillFlag) & bKillable) //-V792
 			{
-				check(ReferencingObject || IsWithPendingKill());
+				check(ReferencingObject || IsEliminatingGarbage());
 				checkSlow(Metadata.ObjectItem->GetOwnerIndex() <= 0);
 				KillReference(Object);
 				return;
@@ -3414,12 +3405,12 @@ public:
 			{
 				if (MayKill<Options>(Origin, bAllowReferenceElimination) == EKillable::Yes)
 				{
-					check(IsPendingKill(Options) || ReferencingObject);
+					check(IsEliminatingGarbage(Options) || ReferencingObject);
 					checkSlow(Metadata.ObjectItem->GetOwnerIndex() <= 0);
 					KillReference(Object);
 					return;
 				}
-				else if (!IsPendingKill(Options) && bTrackGarbage)
+				else if (!IsEliminatingGarbage(Options) && bTrackGarbage)
 				{
 					check(Origin == EOrigin::Other);
 					HandleGarbageReference(Context, ReferencingObject, Object, MemberId);
@@ -3760,7 +3751,7 @@ namespace UE::GC
 
 class FRealtimeGC : public FGarbageCollectionTracer
 {
-	typedef void(FRealtimeGC::*MarkObjectsFn)(EObjectFlags);
+	typedef void(FRealtimeGC::*MarkObjectsFn)(EGCOptions, EObjectFlags);
 	typedef void(FRealtimeGC::*ReachabilityAnalysisFn)(FWorkerContext&);
 
 	/** Pointers to functions used for Marking objects as unreachable */
@@ -3836,38 +3827,45 @@ class FRealtimeGC : public FGarbageCollectionTracer
 	static FORCEINLINE int32 GetGCFunctionIndex(EGCOptions InOptions)
 	{
 		return (!!(InOptions & EGCOptions::Parallel)) |
-			(!!(InOptions & EGCOptions::WithPendingKill) << 1) |
+			(!!(InOptions & EGCOptions::EliminateGarbage) << 1) |
 			(!!(InOptions & EGCOptions::IncrementalReachability) << 2);
+	}
+
+	static FORCEINLINE int32 GetMarkFunctionIndex(EGCOptions InOptions)
+	{
+		int32 Index = !!(InOptions & EGCOptions::EliminateGarbage);
+		checkf(Index >= 0 && Index <= 1, TEXT("Invalid MarkObjectsAsUnreachable function index (%d)"), Index);
+		return Index;
 	}
 
 public:
 	/** Default constructor, initializing all members. */
 	FRealtimeGC()
 	{
-		MarkObjectsFunctions[GetGCFunctionIndex(EGCOptions::None)] = &FRealtimeGC::MarkObjectsAsUnreachable<false>;
-		MarkObjectsFunctions[GetGCFunctionIndex(EGCOptions::Parallel)] = &FRealtimeGC::MarkObjectsAsUnreachable<true>;
+		MarkObjectsFunctions[GetMarkFunctionIndex(EGCOptions::None)] = &FRealtimeGC::MarkObjectsAsUnreachable<false>;
+		MarkObjectsFunctions[GetMarkFunctionIndex(EGCOptions::EliminateGarbage)] = &FRealtimeGC::MarkObjectsAsUnreachable<true>;
 
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::None>;
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::None>;
 
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None | EGCOptions::WithPendingKill)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::WithPendingKill>;
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::WithPendingKill)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::WithPendingKill>;
+		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None | EGCOptions::EliminateGarbage)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::EliminateGarbage>;
+		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::EliminateGarbage)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::EliminateGarbage>;
 
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::IncrementalReachability>;
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::IncrementalReachability>;
 
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability>;
-		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability>;
+		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::EliminateGarbage | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::EliminateGarbage | EGCOptions::IncrementalReachability>;
+		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::EliminateGarbage | EGCOptions::IncrementalReachability)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::EliminateGarbage | EGCOptions::IncrementalReachability>;
 
 		FGCObject::StaticInit();
 	}
 
 	/** 
-	 * Marks all objects that don't have KeepFlags and EInternalObjectFlags::GarbageCollectionKeepFlags as unreachable
+	 * Marks all objects that don't have KeepFlags and EInternalObjectFlags_GarbageCollectionKeepFlags as unreachable
 	 * This function is a template to speed up the case where we don't need to assemble the token stream (saves about 6ms on PS4)
 	 */
-	template <bool bParallel>
-	void MarkObjectsAsUnreachable(const EObjectFlags KeepFlags)
+	template <bool bWithGarbageElimination>
+	void MarkObjectsAsUnreachable(const EGCOptions Options, const EObjectFlags KeepFlags)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(MarkObjectsAsUnreachable);
 		const int32 MaxNumberOfObjects = GUObjectArray.GetObjectArrayNum() - GUObjectArray.GetFirstGCIndex();
@@ -3887,7 +3885,7 @@ public:
 			 KeepFlags, NumberOfObjectsPerThread, NumThreads, MaxNumberOfObjects, bIsRerun = Stats.bFoundGarbageRef] (int32 ThreadIndex)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(MarkObjectsAsUnreachableTask);
-			constexpr EInternalObjectFlags FastKeepFlags = EInternalObjectFlags::GarbageCollectionKeepFlags;
+			constexpr EInternalObjectFlags FastKeepFlags = EInternalObjectFlags_GarbageCollectionKeepFlags;
 			int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread + GUObjectArray.GetFirstGCIndex();
 			int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfObjects - (NumThreads - 1) * NumberOfObjectsPerThread);
 			int32 LastObjectIndex = FMath::Min(GUObjectArray.GetObjectArrayNum() - 1, FirstObjectIndex + NumObjects - 1);
@@ -3932,7 +3930,7 @@ public:
 						checkSlow(Object->IsValidLowLevel());
 						// We cannot use RF_PendingKill on objects that are part of the root set.
 #if DO_GUARD_SLOW
-						checkCode(if (ObjectItem->IsPendingKill()) { UE_LOG(LogGarbage, Fatal, TEXT("Object %s is part of root set though has been marked RF_PendingKill!"), *Object->GetFullName()); });
+						checkCode(if (ObjectItem->IsGarbage()) { UE_LOG(LogGarbage, Fatal, TEXT("Object %s is part of root set though has been marked as Garbage!"), *Object->GetFullName()); });
 #endif
 						if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot) || ObjectItem->GetOwnerIndex() > 0)
 						{
@@ -3955,19 +3953,17 @@ public:
 					else
 					{
 						bool bMarkAsUnreachable = true;
-						// Internal flags are super fast to check and is used by async loading and must have higher precedence than PendingKill
+						// Internal flags are super fast to check and is used by async loading and must have higher precedence than Garbage
 						if (ObjectItem->HasAnyFlags(FastKeepFlags))
 						{
 							bMarkAsUnreachable = false;
 						}
 						// If KeepFlags is non zero this is going to be very slow due to cache misses
-						else if (!ObjectItem->IsPendingKill() && KeepFlags != RF_NoFlags && Object->HasAnyFlags(KeepFlags))
+						else if (!(bWithGarbageElimination && ObjectItem->IsGarbage()) && KeepFlags != RF_NoFlags && Object->HasAnyFlags(KeepFlags))
 						{
 							bMarkAsUnreachable = false;
 						}
-						PRAGMA_DISABLE_DEPRECATION_WARNINGS
-						else if (ObjectItem->HasAnyFlags(EInternalObjectFlags::PendingKill | EInternalObjectFlags::Garbage) && ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
-						PRAGMA_ENABLE_DEPRECATION_WARNINGS
+						else if (ObjectItem->HasAllFlags(EInternalObjectFlags::Garbage | EInternalObjectFlags::ClusterRoot))
 						{
 							ClustersToDissolveList.Push(ObjectItem);
 						}
@@ -3993,7 +3989,7 @@ public:
 			}
 
 			GObjectCountDuringLastMarkPhase.Add(ObjectCountDuringMarkPhase);
-		}, !bParallel ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+		}, !(Options & EGCOptions::Parallel) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
 		
 		// Collect all objects to serialize from all threads and put them into a single array
 		{
@@ -4095,9 +4091,7 @@ private:
 
 		{
 			const double StartTime = FPlatformTime::Seconds();
-			// Mark phase doesn't care about PendingKill being enabled or not so there's just fewer compiled in functions
-			const EGCOptions OptionsForMarkPhase = Options & ~(EGCOptions::WithPendingKill | EGCOptions::IncrementalReachability);
-			(this->*MarkObjectsFunctions[GetGCFunctionIndex(OptionsForMarkPhase)])(KeepFlags);
+			(this->*MarkObjectsFunctions[GetMarkFunctionIndex(Options)])(Options, KeepFlags);
 			UE_LOG(LogGarbage, Verbose, TEXT("%f ms for MarkObjectsAsUnreachable Phase (%d Objects To Serialize)"), (FPlatformTime::Seconds() - StartTime) * 1000, InitialObjects.Num());
 		}
 	}
@@ -5093,8 +5087,8 @@ EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge)
 		// Fall back to single threaded GC if processor count is 1 or parallel GC is disabled
 		// or detailed per class gc stats are enabled (not thread safe)
 		(ShouldForceSingleThreadedGC() ? EGCOptions::None : EGCOptions::Parallel) |
-		// Toggle between PendingKill enabled or disabled
-		(UObjectBaseUtility::IsPendingKillEnabled() ? EGCOptions::WithPendingKill : EGCOptions::None) |
+		// Toggle between Garbage Eliination enabled or disabled
+		(UObjectBaseUtility::IsGarbageEliminationEnabled() ? EGCOptions::EliminateGarbage : EGCOptions::None) |
 		// Toggle between Incremental Reachability enabled or disabled
 		((GAllowIncrementalReachability && !bPerformFullPurge) ? EGCOptions::IncrementalReachability : EGCOptions::None);
 }

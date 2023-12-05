@@ -3,6 +3,7 @@
 #include "Engine/CoreSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "UObject/UnrealType.h"
+#include "Misc/ConfigCacheIni.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CoreSettings)
 
@@ -211,7 +212,7 @@ UGarbageCollectionSettings::UGarbageCollectionSettings()
 	ActorClusteringEnabled = true;
 	UseDisregardForGCOnDedicatedServers = false;
 	VerifyUObjectsAreNotFGCObjects = true;
-	PendingKillEnabled = false;
+	GarbageEliminationEnabled = false;
 	DumpObjectCountsToLogWhenMaxObjectLimitExceeded = false;
 }
 
@@ -223,6 +224,14 @@ void UGarbageCollectionSettings::PostInitProperties()
 	if (IsTemplate())
 	{
 		ImportConsoleVariableValues();
+
+		// Upgrade path for gc.PendingKillEnabled -> gc.GarbageEliminationEnabled
+		bool bGarbageEliminationEnabledIni = false;
+		if (GConfig->GetBool(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.PendingKillEnabled"), bGarbageEliminationEnabledIni, GEngineIni))
+		{
+			// No need to warn to upgrade to "gc.GarbageEliminationEnabled" as we've already done this in ObjectBaseUtility.cpp InitGarbageElimination()
+			GarbageEliminationEnabled = bGarbageEliminationEnabledIni;
+		}
 	}
 #endif // #if WITH_EDITOR
 }

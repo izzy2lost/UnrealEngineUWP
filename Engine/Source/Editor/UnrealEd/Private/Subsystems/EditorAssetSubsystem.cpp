@@ -580,7 +580,7 @@ TArray<FString> UEditorAssetSubsystem::FindPackageReferencersForAsset(const FStr
 			{
 				GEditor->Trans->DisableObjectSerialization();
 			}
-			IsReferenced(LoadedAssetResult.GetValue(), GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags::GarbageCollectionKeepFlags, true, &MemoryReferences);
+			IsReferenced(LoadedAssetResult.GetValue(), GARBAGE_COLLECTION_KEEPFLAGS, EInternalObjectFlags_GarbageCollectionKeepFlags, true, &MemoryReferences);
 			if (GEditor && GEditor->Trans)
 			{
 				GEditor->Trans->EnableObjectSerialization();

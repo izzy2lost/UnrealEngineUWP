@@ -164,7 +164,7 @@ UOnlineHotfixManager::UOnlineHotfixManager() :
 #endif
 	GameContentPath = FString() / FApp::GetProjectName() / TEXT("Content");
 
-	if (!UObject::IsPendingKillEnabled())
+	if (!UObject::IsGarbageEliminationEnabled())
 	{
 		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
 	}
@@ -177,7 +177,7 @@ UOnlineHotfixManager::UOnlineHotfixManager(FVTableHelper& Helper)
 
 UOnlineHotfixManager::~UOnlineHotfixManager()
 {
-	if (!UObject::IsPendingKillEnabled())
+	if (!UObject::IsGarbageEliminationEnabled())
 	{
 		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().RemoveAll(this);
 	}

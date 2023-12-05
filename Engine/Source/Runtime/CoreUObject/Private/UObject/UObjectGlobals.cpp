@@ -2909,7 +2909,7 @@ FObjectDuplicationParameters::FObjectDuplicationParameters(UObject* InSourceObje
 , DestOuter(InDestOuter)
 , DestName(NAME_None)
 , FlagMask(RF_AllFlags & ~(RF_MarkAsRootSet|RF_MarkAsNative|RF_HasExternalPackage))
-, InternalFlagMask(EInternalObjectFlags::AllFlags)
+, InternalFlagMask(EInternalObjectFlags_AllFlags)
 , ApplyFlags(RF_NoFlags)
 , ApplyInternalFlags(EInternalObjectFlags::None)
 , PortFlags(PPF_None)
@@ -4519,16 +4519,14 @@ void FScopedObjectFlagMarker::RestoreObjectFlags()
 		// clear all flags, first clear the mirrored flags as we don't allow clearing them through ClearFlags
 		Object->ClearGarbage(); // The currently mirrored flags are mutually exclusive and this will take care of both
 		Object->ClearFlags(RF_AllFlags);
-		Object->ClearInternalFlags(EInternalObjectFlags::AllFlags);
+		Object->ClearInternalFlags(EInternalObjectFlags_AllFlags);
 
 		// then reset the ones that were originally set
-		if (!!(PreviousObjectFlags.InternalFlags & EInternalObjectFlags::MirroredFlags) || !!(PreviousObjectFlags.Flags & RF_InternalMirroredFlags))
+		if (!!(PreviousObjectFlags.InternalFlags & EInternalObjectFlags::Garbage) || !!(PreviousObjectFlags.Flags & RF_MirroredGarbage))
 		{
 			// Note that once an object is marked as Garbage (both in object and internal flags) it can't be marked as PendingKill and vice versa
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			checkf(!!(PreviousObjectFlags.Flags & RF_InternalMirroredFlags), TEXT("%s had internal mirrored flag set but it was not matched in object flags"), *Object->GetFullName());
-			checkf(!!(PreviousObjectFlags.InternalFlags & EInternalObjectFlags::MirroredFlags), TEXT("%s had object mirrored flag set but it was not matched in internal flags"), *Object->GetFullName());
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			checkf(!!(PreviousObjectFlags.Flags & RF_MirroredGarbage), TEXT("%s had internal mirrored flag set but it was not matched in object flags"), *Object->GetFullName());
+			checkf(!!(PreviousObjectFlags.InternalFlags & EInternalObjectFlags::Garbage), TEXT("%s had object mirrored flag set but it was not matched in internal flags"), *Object->GetFullName());
 			Object->MarkAsGarbage();
 		}
 		Object->SetFlags(PreviousObjectFlags.Flags);

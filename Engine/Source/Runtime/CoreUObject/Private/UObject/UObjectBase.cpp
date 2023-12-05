@@ -1034,8 +1034,8 @@ void UObjectBaseInit()
 	UE::CoreUObject::Private::InitObjectHandles(GUObjectArray.GetObjectArrayCapacity());
 #endif
 
-	void InitNoPendingKill();
-	InitNoPendingKill();
+	void InitGarbageElimination();
+	InitGarbageElimination();
 
 	void InitAsyncThread();
 	InitAsyncThread();

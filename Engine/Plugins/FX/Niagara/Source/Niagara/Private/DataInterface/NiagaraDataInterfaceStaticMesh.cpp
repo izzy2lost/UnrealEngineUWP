@@ -3629,7 +3629,7 @@ void UNiagaraDataInterfaceStaticMesh::BindSourceDelegates()
 	}
 	else if (SourceComponent)
 	{
-		UE_CLOG(!UObjectBaseUtility::IsPendingKillEnabled(),
+		UE_CLOG(!UObjectBaseUtility::IsGarbageEliminationEnabled(),
 			LogNiagara, Warning, TEXT("%s: Unable to bind OnEndPlay for actor-less source component %s, this may extend the lifetime of the component"),
 			*GetFullName(), *SourceComponent->GetPathName());
 	}
