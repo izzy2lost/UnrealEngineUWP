@@ -26,7 +26,7 @@ enum class ETargetingTraceType : uint8
 {
 	Line,
 	Sphere,
-	/* With zero rotation, the capsule length is along the cross product of the trace direction and Up. */
+	/* With zero rotation, the capsule length runs along the trace's up vector (the cross product of the trace's forward vector and the trace's forward vector flattened onto the XY plane and rotated 90 degrees around the Z vector). */
 	Capsule,
 	Box,
 };
@@ -175,6 +175,9 @@ protected:
 #if ENABLE_DRAW_DEBUG
 private:
 	virtual void DrawDebug(UTargetingSubsystem* TargetingSubsystem, FTargetingDebugInfo& Info, const FTargetingRequestHandle& TargetingHandle, float XOffset, float YOffset, int32 MinTextRowsToAdvance) const override;
+	
+	/** Draw debug info showing the results of the shape trace used for targeting. */
+	virtual void DrawDebugTrace(const FTargetingRequestHandle TargetingHandle, const FVector& StartLocation, const FVector& EndLocation, const FQuat& OrientationQuat, const bool bHit, const TArray<FHitResult>& Hits) const;
 	void BuildTraceResultsDebugString(const FTargetingRequestHandle& TargetingHandle, const TArray<FTargetingDefaultResultData>& TargetResults) const;
 	void ResetTraceResultsDebugString(const FTargetingRequestHandle& TargetingHandle) const;
 #endif // ENABLE_DRAW_DEBUG
