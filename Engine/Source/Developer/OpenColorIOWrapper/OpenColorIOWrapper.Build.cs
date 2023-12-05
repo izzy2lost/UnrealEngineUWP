@@ -29,7 +29,7 @@ namespace UnrealBuildTool.Rules
 			if (Target.Type != TargetType.Server)
 			{
 				// Mirror OpenColorIOLib platform coverage
-				if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ||
+				if (Target.Platform == UnrealTargetPlatform.Win64 ||
 					Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
 					Target.Platform == UnrealTargetPlatform.Mac)
 				{

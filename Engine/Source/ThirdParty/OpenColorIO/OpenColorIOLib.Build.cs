@@ -17,7 +17,7 @@ public class OpenColorIOLib : ModuleRules
 
 		PublicSystemIncludePaths.Add(Path.Combine(DeployDir, "include"));
 
-		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
+		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			string Arch = Target.Architecture.WindowsLibDir;
 			string DLLName = "OpenColorIO_2_3.dll";
