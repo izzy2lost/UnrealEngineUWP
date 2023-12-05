@@ -370,6 +370,8 @@ namespace Jupiter.Controllers
 								}
 								catch (Exception ex)
 								{
+									Tracer.CurrentSpan.SetStatus(Status.Error);
+									Tracer.CurrentSpan.RecordException(ex);
 									_logger.LogError(ex, "Unknown exception encountered while writing body for jupiter inlined payload.");
 									throw;
 								}
@@ -882,6 +884,8 @@ namespace Jupiter.Controllers
 				}
 				catch (Exception e)
 				{
+					Tracer.CurrentSpan.SetStatus(Status.Error);
+					Tracer.CurrentSpan.RecordException(e);
 					return ToErrorResult(e);
 				}
 			}

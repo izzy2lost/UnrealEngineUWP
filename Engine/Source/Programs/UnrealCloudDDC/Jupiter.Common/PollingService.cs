@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace Jupiter
 {
@@ -134,6 +135,8 @@ namespace Jupiter
 			catch (Exception e)
 			{
 				logger.LogError(e, "{Service} Exception in polling service", serviceName);
+				Tracer.CurrentSpan.SetStatus(Status.Error);
+				Tracer.CurrentSpan.RecordException(e);
 			}
 			finally
 			{

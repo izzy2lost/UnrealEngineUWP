@@ -68,6 +68,8 @@ namespace Jupiter.Implementation
 			catch (Exception e)
 			{
 				_logger.LogError(e, "Exception thrown while processing last access records");
+				Tracer.CurrentSpan.SetStatus(Status.Error);
+				Tracer.CurrentSpan.RecordException(e);
 			}
 		}
 
