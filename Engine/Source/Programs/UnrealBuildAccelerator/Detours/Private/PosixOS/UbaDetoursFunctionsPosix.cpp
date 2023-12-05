@@ -598,7 +598,7 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 			//UBA_ASSERT(attr->st_dev == attr2.st_dev)
 			UBA_ASSERTF(attr->st_ino == attr2.st_ino, "fstat: st_ino mismatch for %s (%llu vs %llu)", fi.originalName, attr->st_ino, attr2.st_ino);
 			UBA_ASSERT(isDir || attr->st_size == attr2.st_size);
-			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtim) == FromTimeSpec(attr2.st_mtim), "fstat: st_mtim mismatch for %s (%llu vs %llu)", fi.originalName, FromTimeSpec(attr->st_mtim), FromTimeSpec(attr2.st_mtim));
+			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtimespec) == FromTimeSpec(attr2.st_mtimespec), "fstat: st_mtim mismatch for %s (%llu vs %llu)", fi.originalName, FromTimeSpec(attr->st_mtimespec), FromTimeSpec(attr2.st_mtim));
 		}
 		else
 		{
@@ -658,7 +658,7 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 			//UBA_ASSERT(attr->st_dev == attr2.st_dev)
 			UBA_ASSERTF(attr->st_ino == attr2.st_ino, "stat: st_ino mismatch for %s (%llu vs %llu)", file, attr->st_ino, attr2.st_ino);
 			UBA_ASSERT(isDir || attr->st_size == attr2.st_size);
-			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtim) == FromTimeSpec(attr2.st_mtim), "stat: st_mtim mismatch for %s (%llu vs %llu)", file, FromTimeSpec(attr->st_mtim), FromTimeSpec(attr2.st_mtim));
+			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtimespec) == FromTimeSpec(attr2.st_mtimespec), "stat: st_mtim mismatch for %s (%llu vs %llu)", file, FromTimeSpec(attr->st_mtimespec), FromTimeSpec(attr2.st_mtimespec));
 		}
 		else
 		{

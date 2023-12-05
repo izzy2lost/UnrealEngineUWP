@@ -161,7 +161,7 @@ namespace uba
 			UBA_ASSERTF(false, TC("GetFileInformationByHandle (fstat) error handling not implemented"));
 			return false;
 		}
-		out.lastWriteTime = FromTimeSpec(attr.st_mtim);
+		out.lastWriteTime = FromTimeSpec(attr.st_mtimespec);
 		out.attributes = attr.st_mode;
 		out.volumeSerialNumber = attr.st_dev;
 		out.index = attr.st_ino;
@@ -185,7 +185,7 @@ namespace uba
 		int res = stat(fileName, &attr);
 		if (res != 0)
 			return false;// logger.Error(TC("GetFileInformation: CreateFile failed for file %s (%s)"), fileName, strerror(errno));
-		out.lastWriteTime = FromTimeSpec(attr.st_mtim);
+		out.lastWriteTime = FromTimeSpec(attr.st_mtimespec);
 		out.attributes = attr.st_mode;
 		out.volumeSerialNumber = attr.st_dev;
 		out.index = attr.st_ino;
@@ -546,7 +546,7 @@ namespace uba
 			UBA_ASSERTF(false, TC("GetFileLastWriteTime (fstat) error handling not implemented: %s"), strerror(errno));
 			return false;
 		}
-		outTime = FromTimeSpec(attr.st_mtim);
+		outTime = FromTimeSpec(attr.st_mtimespec);
 		return true;
 #endif
 	}

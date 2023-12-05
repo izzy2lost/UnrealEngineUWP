@@ -350,7 +350,7 @@ namespace uba
 						(u64&)outAttr.data.ftLastAccessTime = info.lastWrite;
 						(u64&)outAttr.data.ftLastWriteTime = info.lastWrite;
 #else
-						outAttr.data.st_mtim = ToTimeSpec(info.lastWrite);
+						outAttr.data.st_mtimespec = ToTimeSpec(info.lastWrite);
 						outAttr.data.st_mode = (mode_t)info.attributes;
 						outAttr.data.st_dev = info.volumeSerial;
 						outAttr.data.st_ino = info.fileIndex;

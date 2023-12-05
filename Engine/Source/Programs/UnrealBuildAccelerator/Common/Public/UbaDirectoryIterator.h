@@ -230,7 +230,7 @@ namespace uba
 			DirectoryEntry entry;
 			entry.name = fileName;
 			entry.nameLen = strlen(fileName);
-			entry.lastWritten = FromTimeSpec(attr.st_mtim);
+			entry.lastWritten = FromTimeSpec(attr.st_mtimespec);
 			entry.attributes = attr.st_mode;
 			entry.volumeSerial = attr.st_dev;
 			entry.id = attr.st_ino;

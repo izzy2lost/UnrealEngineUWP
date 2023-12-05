@@ -131,5 +131,8 @@ namespace uba
 	void GetMappingHandleName(StringBufferBase& out, u64 uid);
 	inline u64 FromTimeSpec(const timespec& ts) { return u64(ts.tv_sec) * 10'000'000ull + u64(ts.tv_nsec/100); }
 	inline timespec ToTimeSpec(u64 time) { timespec ts; ts.tv_sec = time / 10'000'000ull; ts.tv_nsec = (time - (u64(ts.tv_sec) * 10'000'000ull)) * 100; return ts; }
+	#if PLATFORM_LINUX
+	#define st_mtimespec st_mtim
+	#endif
 #endif // PLATFORM_WINDOWS
 }
