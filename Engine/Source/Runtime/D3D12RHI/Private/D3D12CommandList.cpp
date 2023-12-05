@@ -24,8 +24,7 @@ void FD3D12CommandList::UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> 
 #if ENABLE_RESIDENCY_MANAGEMENT
 	for (FD3D12ResidencyHandle* Handle : Handles)
 	{
-		check(Handle);
-		if (D3DX12Residency::IsInitialized(*Handle))
+		if (D3DX12Residency::IsInitialized(Handle))
 		{
 			check(Device->GetGPUMask() == Handle->GPUObject->GetGPUMask());
 			D3DX12Residency::Insert(*ResidencySet, *Handle);

@@ -3596,14 +3596,16 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			auto AddResidencyHandleForResource = [&UniqueResidencyHandles, &GeometryResidencyHandlesForThisGPU] (FD3D12Resource* Resource)
 			{
 			#if ENABLE_RESIDENCY_MANAGEMENT
-				FD3D12ResidencyHandle& ResidencyHandle = Resource->GetResidencyHandle();
-				if (D3DX12Residency::IsInitialized(ResidencyHandle))
+				for (FD3D12ResidencyHandle* ResidencyHandle : Resource->GetResidencyHandles())
 				{
-					bool bIsAlreadyInSet = false;
-					UniqueResidencyHandles.Add(&ResidencyHandle, &bIsAlreadyInSet);
-					if (!bIsAlreadyInSet)
+					if (D3DX12Residency::IsInitialized(*ResidencyHandle))
 					{
-						GeometryResidencyHandlesForThisGPU.Add(&ResidencyHandle);
+						bool bIsAlreadyInSet = false;
+						UniqueResidencyHandles.Add(ResidencyHandle, &bIsAlreadyInSet);
+						if (!bIsAlreadyInSet)
+						{
+							GeometryResidencyHandlesForThisGPU.Add(ResidencyHandle);
+						}
 					}
 				}
 			#endif // ENABLE_RESIDENCY_MANAGEMENT

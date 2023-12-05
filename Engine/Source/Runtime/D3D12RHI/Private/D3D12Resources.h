@@ -84,7 +84,7 @@ public:
 
 	inline FName GetName() const { return HeapName; }
 	inline D3D12_HEAP_DESC GetHeapDesc() const { return HeapDesc; }
-	inline FD3D12ResidencyHandle& GetResidencyHandle() { return ResidencyHandle; }
+	inline TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles() { return MakeArrayView(&ResidencyHandle, 1); }
 	inline D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const { return GPUVirtualAddress; }
 	inline void SetIsTransient(bool bInIsTransient) { bIsTransient = bInIsTransient; }
 	inline bool GetIsTransient() const { return bIsTransient; }
@@ -96,7 +96,7 @@ private:
 	bool bTrack = true;
 	D3D12_HEAP_DESC HeapDesc;
 	D3D12_GPU_VIRTUAL_ADDRESS GPUVirtualAddress = 0;
-	FD3D12ResidencyHandle ResidencyHandle;
+	FD3D12ResidencyHandle* ResidencyHandle = nullptr; // Residency handle owned by this object
 	HeapId TraceHeapId;
 	HeapId TraceParentHeapId;
 	bool bIsTransient = false; // Whether this is a transient heap
@@ -149,7 +149,7 @@ private:
 	TRefCountPtr<ID3D12Resource> UAVAccessResource;
 	TRefCountPtr<FD3D12Heap> Heap;
 
-	TUniquePtr<FD3D12ResidencyHandle> ResidencyHandle;
+	FD3D12ResidencyHandle* ResidencyHandle = nullptr; // Residency handle owned by this object
 
 	D3D12_GPU_VIRTUAL_ADDRESS GPUVirtualAddress{};
 	void* ResourceBaseAddress{};
@@ -185,7 +185,8 @@ private:
 
 	struct FD3D12ReservedResourceData
 	{
-		TArray<TRefCountPtr<ID3D12Heap>> BackingHeaps;
+		TArray<TRefCountPtr<FD3D12Heap>> BackingHeaps;
+		TArray<FD3D12ResidencyHandle*> ResidencyHandles; // Flattened array of residency handles owned by backing heaps, used to support batched GetResidencyHandles()
 		uint64 CommittedSizeInBytes = 0;
 	};
 	TUniquePtr<FD3D12ReservedResourceData> ReservedResourceData;
@@ -302,15 +303,49 @@ public:
 	inline bool ShouldDeferDelete() const { return bDeferDelete; }
 	void DeferDelete();
 
+	inline bool IsReservedResource() const { return ReservedResourceData.IsValid(); }
 	inline bool IsPlacedResource() const { return Heap.GetReference() != nullptr; }
 	inline FD3D12Heap* GetHeap() const { return Heap; };
 	inline bool IsDepthStencilResource() const { return bDepthStencil; }
 
 	void StartTrackingForResidency();
 
-	FD3D12ResidencyHandle& GetResidencyHandle()
+	bool IsResident() const
 	{
-		return IsPlacedResource() ? Heap->GetResidencyHandle() : *ResidencyHandle;
+#if ENABLE_RESIDENCY_MANAGEMENT
+		// Treat resource as resident if at least one backing heap is resident.
+		// Technically we should return a partial residency status.
+		for (FD3D12ResidencyHandle* Handle : GetResidencyHandles())
+		{
+			if (Handle->ResidencyStatus == FD3D12ResidencyHandle::RESIDENCY_STATUS::RESIDENT)
+			{
+				return true;
+			}
+		}
+		return false;
+#else // ENABLE_RESIDENCY_MANAGEMENT
+		return true;
+#endif // ENABLE_RESIDENCY_MANAGEMENT
+	}
+
+	TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles() const
+	{
+#if ENABLE_RESIDENCY_MANAGEMENT
+		if (IsPlacedResource())
+		{
+			return Heap->GetResidencyHandles();
+		}
+		else if (IsReservedResource())
+		{
+			return ReservedResourceData->ResidencyHandles;
+		}
+		else
+		{
+			return MakeArrayView(&ResidencyHandle, 1);
+		}
+#else // ENABLE_RESIDENCY_MANAGEMENT
+		return {};
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 	}
 
 	struct FD3D12ResourceTypeHelper
@@ -591,7 +626,6 @@ public:
 	D3D12_GPU_VIRTUAL_ADDRESS          GetGPUVirtualAddress          () const { return GPUVirtualAddress;                                    }
 	uint64                             GetOffsetFromBaseOfResource   () const { return OffsetFromBaseOfResource;                             }
 	uint64                             GetSize                       () const { return Size;                                                 }
-	FD3D12ResidencyHandle&             GetResidencyHandle            ()       { check(ResidencyHandle); return *ResidencyHandle;             }
 	FD3D12BuddyAllocatorPrivateData&   GetBuddyAllocatorPrivateData  ()       { return AllocatorData.BuddyAllocatorPrivateData;              }
 	FD3D12BlockAllocatorPrivateData&   GetBlockAllocatorPrivateData  ()       { return AllocatorData.BlockAllocatorPrivateData;              }
 	FD3D12SegListAllocatorPrivateData& GetSegListAllocatorPrivateData()       { return AllocatorData.SegListAllocatorPrivateData;            }
@@ -681,7 +715,6 @@ private:
 
 	FD3D12BaseShaderResource* Owner{};
 	FD3D12Resource* UnderlyingResource{};
-	FD3D12ResidencyHandle* ResidencyHandle{};
 
 	// Which allocator this belongs to
 	union
@@ -871,10 +904,8 @@ public:
 		OutResourceInfo.Type = GetType();
 		OutResourceInfo.VRamAllocation.AllocationSize = ResourceLocation.GetSize();
 		OutResourceInfo.IsTransient = ResourceLocation.IsTransient();
-#if ENABLE_RESIDENCY_MANAGEMENT
-		OutResourceInfo.bResident = GetResource() && GetResource()->GetResidencyHandle().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT;
-#endif
-		
+		OutResourceInfo.bResident = GetResource() && GetResource()->IsResident();
+
 		return true;
 	}
 #endif

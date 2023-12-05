@@ -1278,7 +1278,7 @@ void FD3D12StateCache::SetUAV(EShaderFrequency ShaderStage, uint32 SlotIndex, FD
 
 	if (UAV)
 	{
-		Cache.ResidencyHandles[ShaderStage][SlotIndex] = &UAV->GetResidencyHandle();
+		Cache.Resources[ShaderStage][SlotIndex] = UAV->GetResource();
 
 		FD3D12Resource* CounterResource = UAV->GetCounterResource();
 		if (CounterResource)
@@ -1316,7 +1316,7 @@ void FD3D12StateCache::SetUAV(EShaderFrequency ShaderStage, uint32 SlotIndex, FD
 	}
 	else
 	{
-		Cache.ResidencyHandles[ShaderStage][SlotIndex] = nullptr;
+		Cache.Resources[ShaderStage][SlotIndex] = nullptr;
 	}
 }
 
@@ -1480,7 +1480,7 @@ void FD3D12StateCache::InternalSetStreamSource(FD3D12ResourceLocation* VertexBuf
 
 		if (VertexBufferLocation != nullptr)
 		{
-			PipelineState.Graphics.VBCache.ResidencyHandles[StreamIndex] = &VertexBufferLocation->GetResource()->GetResidencyHandle();
+			PipelineState.Graphics.VBCache.Resources[StreamIndex] = VertexBufferLocation->GetResource();
 			FMemory::Memcpy(CurrentView, NewView);
 			PipelineState.Graphics.VBCache.BoundVBMask |= ((VBSlotMask)1 << StreamIndex);
 		}
@@ -1488,7 +1488,7 @@ void FD3D12StateCache::InternalSetStreamSource(FD3D12ResourceLocation* VertexBuf
 		{
 			FMemory::Memzero(&CurrentView, sizeof(CurrentView));
 			PipelineState.Graphics.VBCache.CurrentVertexBufferResources[StreamIndex] = nullptr;
-			PipelineState.Graphics.VBCache.ResidencyHandles[StreamIndex] = nullptr;
+			PipelineState.Graphics.VBCache.Resources[StreamIndex] = nullptr;
 
 			PipelineState.Graphics.VBCache.BoundVBMask &= ~((VBSlotMask)1 << StreamIndex);
 		}
@@ -1520,12 +1520,12 @@ void FD3D12StateCache::SetShaderResourceView(EShaderFrequency ShaderFrequency, F
 			bSRVSCleared = false;
 
 			Cache.BoundMask[ShaderFrequency] |= ((SRVSlotMask)1 << ResourceIndex);
-			Cache.ResidencyHandles[ShaderFrequency][ResourceIndex] = &SRV->GetResidencyHandle();
+			Cache.Resources[ShaderFrequency][ResourceIndex] = SRV->GetResource();
 		}
 		else
 		{
 			Cache.BoundMask[ShaderFrequency] &= ~((SRVSlotMask)1 << ResourceIndex);
-			Cache.ResidencyHandles[ShaderFrequency][ResourceIndex] = nullptr;
+			Cache.Resources[ShaderFrequency][ResourceIndex] = nullptr;
 		}
 
 		// Find the highest set SRV

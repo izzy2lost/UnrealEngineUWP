@@ -1959,22 +1959,16 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 		if (ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
 		{
 			BufferAllocations.Add(AllocationData);
-			TotalAllocatedBufferSize += AllocationData.AllocationSize;			
-#if ENABLE_RESIDENCY_MANAGEMENT
-			TotalResidentBufferSize += (AllocationData.ResourceAllocation->GetResidencyHandle().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT) ? AllocationData.AllocationSize : 0;
-#else
-			TotalResidentBufferSize += AllocationData.AllocationSize;
-#endif 
+			TotalAllocatedBufferSize += AllocationData.AllocationSize;
+			// TODO: accurately account for partially-resident resources
+			TotalResidentBufferSize += (AllocationData.ResourceAllocation->GetResource()->IsResident()) ? AllocationData.AllocationSize : 0;
 		}
 		else
 		{
 			TextureAllocations.Add(AllocationData);
 			TotalAllocatedTextureSize += AllocationData.AllocationSize;
-#if ENABLE_RESIDENCY_MANAGEMENT
-			TotalResidentTextureSize += (AllocationData.ResourceAllocation->GetResidencyHandle().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT) ? AllocationData.AllocationSize : 0;
-#else
-			TotalResidentTextureSize += AllocationData.AllocationSize;
-#endif 
+			// TODO: accurately account for partially-resident resources
+			TotalResidentTextureSize += (AllocationData.ResourceAllocation->GetResource()->IsResident()) ? AllocationData.AllocationSize : 0;
 		}
 	}
 
@@ -1989,7 +1983,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 
 		bool bResident = true;
 #if ENABLE_RESIDENCY_MANAGEMENT
-		bResident = AllocationData.ResourceAllocation->GetResidencyHandle().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT;
+		bResident = AllocationData.ResourceAllocation->GetResource()->IsResident();
 #endif 
 		if (!bResident && bResidentOnly)
 		{
@@ -2036,7 +2030,7 @@ void FD3D12Adapter::DumpTrackedAllocationData(FOutputDevice& OutputDevice, bool 
 
 		bool bResident = true;
 #if ENABLE_RESIDENCY_MANAGEMENT
-		bResident = AllocationData.ResourceAllocation->GetResidencyHandle().ResidencyStatus == D3DX12Residency::ManagedObject::RESIDENCY_STATUS::RESIDENT;
+		bResident = AllocationData.ResourceAllocation->GetResource()->IsResident();
 #endif 
 		if (!bResident && bResidentOnly)
 		{

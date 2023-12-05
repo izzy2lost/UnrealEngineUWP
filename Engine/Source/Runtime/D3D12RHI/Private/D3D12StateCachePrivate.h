@@ -68,14 +68,14 @@ struct FD3D12VertexBufferCache
 	{
 		FMemory::Memzero(CurrentVertexBufferViews, sizeof(CurrentVertexBufferViews));
 		FMemory::Memzero(CurrentVertexBufferResources, sizeof(CurrentVertexBufferResources));
-		FMemory::Memzero(ResidencyHandles, sizeof(ResidencyHandles));
+		FMemory::Memzero(Resources, sizeof(Resources));
 		MaxBoundVertexBufferIndex = INDEX_NONE;
 		BoundVBMask = 0;
 	}
 
 	D3D12_VERTEX_BUFFER_VIEW CurrentVertexBufferViews[MAX_VBS];
 	FD3D12ResourceLocation* CurrentVertexBufferResources[MAX_VBS];
-	FD3D12ResidencyHandle* ResidencyHandles[MAX_VBS];
+	FD3D12Resource* Resources[MAX_VBS];
 	int32 MaxBoundVertexBufferIndex;
 	VBSlotMask BoundVBMask;
 };
@@ -163,7 +163,7 @@ struct FD3D12ConstantBufferCache : public FD3D12ResourceCache<CBVSlotMask>
 		DirtyAll();
 
 		FMemory::Memzero(CurrentGPUVirtualAddress, sizeof(CurrentGPUVirtualAddress));
-		FMemory::Memzero(ResidencyHandles, sizeof(ResidencyHandles));
+		FMemory::Memzero(Resources, sizeof(Resources));
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 		FMemory::Memzero(CBHandles, sizeof(CBHandles));
 #endif
@@ -173,7 +173,7 @@ struct FD3D12ConstantBufferCache : public FD3D12ResourceCache<CBVSlotMask>
 	D3D12_CPU_DESCRIPTOR_HANDLE CBHandles[SF_NumStandardFrequencies][MAX_CBS];
 #endif
 	D3D12_GPU_VIRTUAL_ADDRESS CurrentGPUVirtualAddress[SF_NumStandardFrequencies][MAX_CBS];
-	FD3D12ResidencyHandle* ResidencyHandles[SF_NumStandardFrequencies][MAX_CBS];
+	FD3D12Resource* Resources[SF_NumStandardFrequencies][MAX_CBS];
 };
 
 struct FD3D12ShaderResourceViewCache : public FD3D12ResourceCache<SRVSlotMask>
@@ -187,7 +187,7 @@ struct FD3D12ShaderResourceViewCache : public FD3D12ResourceCache<SRVSlotMask>
 	{
 		DirtyAll();
 
-		FMemory::Memzero(ResidencyHandles);
+		FMemory::Memzero(Resources);
 		FMemory::Memzero(BoundMask);
 		
 		for (int32& Index : MaxBoundIndex)
@@ -205,7 +205,7 @@ struct FD3D12ShaderResourceViewCache : public FD3D12ResourceCache<SRVSlotMask>
 	}
 
 	FD3D12ShaderResourceView* Views[SF_NumStandardFrequencies][MAX_SRVS];
-	FD3D12ResidencyHandle* ResidencyHandles[SF_NumStandardFrequencies][MAX_SRVS];
+	FD3D12Resource* Resources[SF_NumStandardFrequencies][MAX_SRVS];
 
 	SRVSlotMask BoundMask[SF_NumStandardFrequencies];
 	int32 MaxBoundIndex[SF_NumStandardFrequencies];
@@ -223,7 +223,7 @@ struct FD3D12UnorderedAccessViewCache : public FD3D12ResourceCache<UAVSlotMask>
 		DirtyAll();
 
 		FMemory::Memzero(Views);
-		FMemory::Memzero(ResidencyHandles);
+		FMemory::Memzero(Resources);
 
 		for (uint32& Index : StartSlot)
 		{
@@ -232,7 +232,7 @@ struct FD3D12UnorderedAccessViewCache : public FD3D12ResourceCache<UAVSlotMask>
 	}
 
 	FD3D12UnorderedAccessView* Views[SF_NumStandardFrequencies][MAX_UAVS];
-	FD3D12ResidencyHandle* ResidencyHandles[SF_NumStandardFrequencies][MAX_UAVS];
+	FD3D12Resource* Resources[SF_NumStandardFrequencies][MAX_UAVS];
 	uint32 StartSlot[SF_NumStandardFrequencies];
 };
 
@@ -524,7 +524,7 @@ public:
 			if (ResourceLocation.GetGPUVirtualAddress() != CurrentGPUVirtualAddress)
 			{
 				CurrentGPUVirtualAddress = ResourceLocation.GetGPUVirtualAddress();
-				CBVCache.ResidencyHandles[ShaderFrequency][SlotIndex] = &ResourceLocation.GetResource()->GetResidencyHandle();
+				CBVCache.Resources[ShaderFrequency][SlotIndex] = ResourceLocation.GetResource();
 				FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
 			}
 
@@ -535,7 +535,7 @@ public:
 		else if (CurrentGPUVirtualAddress != 0)
 		{
 			CurrentGPUVirtualAddress = 0;
-			CBVCache.ResidencyHandles[ShaderFrequency][SlotIndex] = nullptr;
+			CBVCache.Resources[ShaderFrequency][SlotIndex] = {};
 			FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 			CBVCache.CBHandles[ShaderFrequency][SlotIndex].ptr = 0;
@@ -562,7 +562,7 @@ public:
 			D3D12_GPU_VIRTUAL_ADDRESS& CurrentGPUVirtualAddress = CBVCache.CurrentGPUVirtualAddress[ShaderFrequency][SlotIndex];
 			check(Location.GetGPUVirtualAddress() != CurrentGPUVirtualAddress);
 			CurrentGPUVirtualAddress = Location.GetGPUVirtualAddress();
-			CBVCache.ResidencyHandles[ShaderFrequency][SlotIndex] = &Location.GetResource()->GetResidencyHandle();
+			CBVCache.Resources[ShaderFrequency][SlotIndex] = Location.GetResource();
 			FD3D12ConstantBufferCache::DirtySlot(CBVCache.DirtySlotMask[ShaderFrequency], SlotIndex);
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS

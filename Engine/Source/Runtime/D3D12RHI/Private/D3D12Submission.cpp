@@ -541,19 +541,10 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 								check(Range.End > Range.Start);
 
 	#if ENABLE_RESIDENCY_MANAGEMENT
-								FD3D12ResidencyHandle* ResidencyHandles[] =
-								{
-									&Range.Heap->GetHeapResidencyHandle(),
-									&Range.Heap->GetResultBuffer()->GetResidencyHandle()
-								};
-
-								for (FD3D12ResidencyHandle* Handle : ResidencyHandles)
-								{
-									if (Handle->IsInitialized())
-									{
-										GetResolveCommandList()->UpdateResidency({ Handle });
-									}
-								}
+								TArray<FD3D12ResidencyHandle*, TInlineAllocator<2>> ResidencyHandles;
+								ResidencyHandles.Add(&Range.Heap->GetHeapResidencyHandle());
+								ResidencyHandles.Append(Range.Heap->GetResultBuffer()->GetResidencyHandles());
+								GetResolveCommandList()->UpdateResidency(ResidencyHandles);
 	#endif // ENABLE_RESIDENCY_MANAGEMENT
 
 								if (Range.Heap->GetD3DQueryHeap())
@@ -705,7 +696,10 @@ FD3D12CommandList* FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD
 		}
 
 #if ENABLE_RESIDENCY_MANAGEMENT
-		ResidencyHandles.Add(&PRB.Resource->GetResidencyHandle());
+		for (FD3D12ResidencyHandle* Handle : PRB.Resource->GetResidencyHandles())
+		{
+			ResidencyHandles.Add(Handle);
+		}
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 	}
 

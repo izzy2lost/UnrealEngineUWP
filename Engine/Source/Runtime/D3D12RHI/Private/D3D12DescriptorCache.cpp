@@ -207,7 +207,7 @@ void FD3D12DescriptorCache::SetVertexBuffers(FD3D12VertexBufferCache& Cache)
 	{
 		if (Cache.CurrentVertexBufferResources[i])
 		{
-			Context.UpdateResidency(Cache.ResidencyHandles[i]);
+			Context.UpdateResidency(Cache.Resources[i]);
 
 			FD3D12Resource* Resource = Cache.CurrentVertexBufferResources[i]->GetResource();
 			if (Resource && Resource->RequiresResourceStateTracking())
@@ -255,7 +255,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildUAVTable(EShaderFrequenc
 			SrcDescriptors[SlotIndex] = UAVs[SlotIndex]->GetOfflineCpuHandle();
 
 			Context.TransitionResource(UAVs[SlotIndex], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			Context.UpdateResidency(Cache.ResidencyHandles[ShaderStage][SlotIndex]);
+			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
 		}
 	}
 	FD3D12UnorderedAccessViewCache::CleanSlots(CurrentDirtySlotMask, SlotsNeeded);
@@ -491,7 +491,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildSRVTable(EShaderFrequenc
 			const D3D12_RESOURCE_STATES State = GetBindingResourceState(Context, ShaderStage, SRV);
 
 			Context.TransitionResource(SRV, State & ValidResourceStates);
-			Context.UpdateResidency(Cache.ResidencyHandles[ShaderStage][SlotIndex]);
+			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
 		}
 		else
 		{
@@ -545,7 +545,7 @@ void FD3D12DescriptorCache::PrepareBindlessViews(EShaderFrequency ShaderStage, T
 		{
 			const D3D12_RESOURCE_STATES State = GetBindingResourceState(Context, ShaderStage, SRV);
 			Context.TransitionResource(SRV, State & ValidResourceStates);
-			Context.UpdateResidency(&SRV->GetResidencyHandle());
+			Context.UpdateResidency(SRV->GetResource());
 		}
 	}
 
@@ -554,7 +554,7 @@ void FD3D12DescriptorCache::PrepareBindlessViews(EShaderFrequency ShaderStage, T
 		if (ensure(UAV))
 		{
 			Context.TransitionResource(UAV, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			Context.UpdateResidency(&UAV->GetResidencyHandle());
+			Context.UpdateResidency(UAV->GetResource());
 		}
 	}
 }
@@ -591,7 +591,7 @@ void FD3D12DescriptorCache::SetConstantBufferViews(EShaderFrequency ShaderStage,
 			Device->CopyDescriptorsSimple(1, DestDescriptor, CBVHandles[SlotIndex], D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 			// Update residency.
-			Context.UpdateResidency(Cache.ResidencyHandles[ShaderStage][SlotIndex]);
+			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
 		}
 		else
 		{
@@ -667,7 +667,7 @@ void FD3D12DescriptorCache::SetRootConstantBuffers(EShaderFrequency ShaderStage,
 			}
 
 			// Update residency.
-			Context.UpdateResidency(Cache.ResidencyHandles[ShaderStage][SlotIndex]);
+			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
 
 			// Clear the dirty bit.
 			FD3D12ConstantBufferCache::CleanSlot(CurrentDirtySlotMask, SlotIndex);

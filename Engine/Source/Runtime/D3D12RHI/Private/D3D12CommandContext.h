@@ -346,7 +346,7 @@ public:
 	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { GetCommandList().UpdateResidency(Handles); }
 	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { GetCommandList().UpdateResidency({ &Handle }); }
 	void UpdateResidency(FD3D12ResidencyHandle* Handle                  ) { check(Handle  ); GetCommandList().UpdateResidency({ Handle }); }
-	void UpdateResidency(FD3D12Resource* Resource                       ) { check(Resource); GetCommandList().UpdateResidency({ &Resource->GetResidencyHandle() }); }
+	void UpdateResidency(FD3D12Resource* Resource                       ) { check(Resource); GetCommandList().UpdateResidency(Resource->GetResidencyHandles()); }
 #else
 	void UpdateResidency(TConstArrayView<FD3D12ResidencyHandle*> Handles) { }
 	void UpdateResidency(FD3D12ResidencyHandle& Handle                  ) { }

@@ -388,7 +388,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 
 				Context.FlushResourceBarriers();
 				Context.GraphicsCommandList()->ClearUnorderedAccessViewUint(GPUHandle, UAV.GetOfflineCpuHandle(), UAV.GetResource()->GetResource(), *reinterpret_cast<const UINT(*)[4]>(ClearValues), 0, nullptr);
-				Context.UpdateResidency(UnorderedAccessView->GetResidencyHandle());
+				Context.UpdateResidency(UnorderedAccessView->GetResidencyHandles());
 				Context.ConditionalSplitCommandList();
 
 				if (Context.IsDefaultContext())

@@ -10,6 +10,7 @@
 
 class FD3D12Buffer;
 class FD3D12Texture;
+struct FD3D12ResidencyHandle;
 
 struct FD3D12DefaultViews
 {
@@ -181,10 +182,9 @@ public:
 
 	struct FResourceInfo
 	{
-		FD3D12BaseShaderResource* BaseResource     = nullptr;
-		FD3D12ResourceLocation*   ResourceLocation = nullptr;
-		FD3D12Resource*           Resource         = nullptr;
-		FD3D12ResidencyHandle*    ResidencyHandle  = nullptr;
+		FD3D12BaseShaderResource*               BaseResource     = nullptr;
+		FD3D12ResourceLocation*                 ResourceLocation = nullptr;
+		FD3D12Resource*                         Resource         = nullptr;
 
 		FResourceInfo() = default;
 
@@ -193,7 +193,6 @@ public:
 			: BaseResource    (InBaseResource)
 			, ResourceLocation(InBaseResource ? &InBaseResource->ResourceLocation : nullptr)
 			, Resource        (InBaseResource ? InBaseResource->GetResource()     : nullptr)
-			, ResidencyHandle (Resource       ? &Resource->GetResidencyHandle()   : nullptr)
 		{}
 
 		// Constructor for manual views (does not automatically register for resource renames)
@@ -201,15 +200,14 @@ public:
 			: BaseResource    (nullptr)
 			, ResourceLocation(InResourceLocation)
 			, Resource        (InResourceLocation ? InResourceLocation->GetResource() : nullptr)
-			, ResidencyHandle (Resource           ? &Resource->GetResidencyHandle()   : nullptr)
 		{}
 	};
 
-	FD3D12Resource*             GetResource        () const { check(IsInitialized()); return ResourceInfo.Resource;         }
-	FD3D12ResourceLocation*     GetResourceLocation() const { check(IsInitialized()); return ResourceInfo.ResourceLocation; }
-	FD3D12ResidencyHandle&      GetResidencyHandle () const { check(IsInitialized()); return *ResourceInfo.ResidencyHandle; }
-	FD3D12ViewSubset const&     GetViewSubset      () const { check(IsInitialized()); return ViewSubset;                    }
-	FD3D12OfflineDescriptor     GetOfflineCpuHandle() const { check(IsInitialized()); return OfflineCpuHandle;              }
+	FD3D12Resource*                         GetResource        () const { check(IsInitialized()); return ResourceInfo.Resource;         }
+	FD3D12ResourceLocation*                 GetResourceLocation() const { check(IsInitialized()); return ResourceInfo.ResourceLocation; }
+	TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles() const { check(IsInitialized()); return ResourceInfo.Resource ? ResourceInfo.Resource->GetResidencyHandles() : TConstArrayView<FD3D12ResidencyHandle*>(); }
+	FD3D12ViewSubset const&                 GetViewSubset      () const { check(IsInitialized()); return ViewSubset;                    }
+	FD3D12OfflineDescriptor                 GetOfflineCpuHandle() const { check(IsInitialized()); return OfflineCpuHandle;              }
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	FRHIDescriptorHandle        GetBindlessHandle() const { return BindlessHandle;           }
