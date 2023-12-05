@@ -1375,8 +1375,7 @@ static void UpdateEarlyZPassModeCVarSinkFunction()
 			UWorld* World = *It;
 			if (World && World->Scene)
 			{
-				FScene* Scene = (FScene*)(World->Scene);
-				Scene->UpdateEarlyZPassMode();
+				World->Scene->UpdateEarlyZPassMode();
 			}
 		}
 
