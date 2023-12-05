@@ -7,9 +7,9 @@
 #include "USDAssetCache.h"
 #include "USDAssetImportData.h"
 #include "USDAssetUserData.h"
-#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDDynamicBindingResolverLibrary.h"
 #include "USDErrorUtils.h"
 #include "USDGeomMeshConversion.h"
@@ -1427,6 +1427,21 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	SetupAssetCacheIfNeeded();
 	if (!UsdAssetCache)
 	{
+		// If the user canceled out of providing an asset cache and we should be loading assets, we have no choice but to either change the stage
+		// state or close the stage, otherwise we'd be left in an invalid state. Closing the stage should be more visible though, so let's do that
+		if (StageState == EUsdStageState::OpenedAndLoaded)
+		{
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Closing the stage '%s' as no asset cache was provided, but the AUsdStageActor '%s' was set to open the stage and load assets. "
+					 "Either provide an asset cache or switch the stage actor to the 'Opened' state"),
+				*RootLayer.FilePath,
+				*GetPathName()
+			);
+			CloseUsdStage();
+		}
+
 		return;
 	}
 	FUsdScopedAssetCacheReferencer ScopedReferencer{UsdAssetCache, this};
@@ -2354,8 +2369,11 @@ void AUsdStageActor::SetRootLayer(const FString& RootFilePath)
 	UnloadUsdStage();
 	CloseUsdStage();
 	RootLayer.FilePath = RelativeFilePath;
-	OpenUsdStage();
-	LoadUsdStage();
+
+	// Don't call OpenUsdStage directly so that we can abort opening the stage in case the user cancels
+	// out of the missing asset cache dialog
+	const bool bOpenIfNeeded = true;
+	LoadUsdStage(bOpenIfNeeded);
 
 	// Do this here instead of on OpenUsdStage/LoadUsdStage as those also get called when changing any of
 	// our properties, like render context, material purpose, etc.
@@ -2385,8 +2403,10 @@ void AUsdStageActor::SetStageState(EUsdStageState NewState)
 	}
 	else if (StageState == EUsdStageState::OpenedAndLoaded)
 	{
-		OpenUsdStage();
-		LoadUsdStage();
+		// Don't call OpenUsdStage directly so that we can abort opening the stage in case the user cancels
+		// out of the missing asset cache dialog
+		const bool bOpenIfNeeded = true;
+		LoadUsdStage(bOpenIfNeeded);
 	}
 }
 
@@ -3026,21 +3046,10 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::LoadUsdStage);
 
-	if (StageState != EUsdStageState::OpenedAndLoaded)
-	{
-		return;
-	}
-
-	if (!UsdStage && bOpenIfNeeded)
-	{
-		OpenUsdStage();
-		if (!UsdStage)
-		{
-			return;
-		}
-	}
-
-	// Ensure an asset cache if we're going to load something
+	// Ensure we have an asset cache before we open/load anything.
+	// In theory we don't need an asset cache for just opening the stage (especially if we have StageState that is not OpenAndLoaded),
+	// but that may not be immediately obvious to the user anyway, and it seems that the expected behavior is to abort loading the stage
+	// in case the user cancels out of the "missing asset cache" dialog
 	if (!RootLayer.FilePath.IsEmpty())
 	{
 		SetupAssetCacheIfNeeded();
@@ -3060,6 +3069,20 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 			RootLayer.FilePath.Empty();
 			return;
 		}
+	}
+
+	if (!UsdStage && bOpenIfNeeded)
+	{
+		OpenUsdStage();
+		if (!UsdStage)
+		{
+			return;
+		}
+	}
+
+	if (StageState != EUsdStageState::OpenedAndLoaded)
+	{
+		return;
 	}
 
 	double StartTime = FPlatformTime::Cycles64();
@@ -3274,6 +3297,7 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 			}
 		}
 	}
+
 #if WITH_EDITOR
 	// Show a dialog to let the user create a new default asset cache somewhere
 	if (!UsdAssetCache && GIsEditor && !IsRunningCommandlet() && !IsTemplate())
@@ -3282,11 +3306,18 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 		{
 			if (ProjectSettings->bShowCreateDefaultAssetCacheDialog)
 			{
-				bool bOutUserAccepted = false;
 				UUsdAssetCache2* NewCache = nullptr;
-				IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(NewCache, bOutUserAccepted);
 
-				if (bOutUserAccepted)
+				// Keep showing a dialog so that if the user clicks pick existing/create new and cancels, he can return to the dialog to pick
+				// something else
+				EDefaultAssetCacheDialogOption Outcome = EDefaultAssetCacheDialogOption::PickExisting;
+				while ((Outcome == EDefaultAssetCacheDialogOption::PickExisting || Outcome == EDefaultAssetCacheDialogOption::CreateNew) && !NewCache)
+				{
+					Outcome = IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(NewCache);
+				}
+
+				// We have an asset cache in some way: All good
+				if (NewCache)
 				{
 					ProjectSettings->DefaultAssetCache = NewCache;
 					ProjectSettings->SaveConfig();
@@ -3298,7 +3329,9 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 						*UsdAssetCache->GetPathName()
 					);
 				}
-				else
+				// Return right now if the user canceled, so we don't fall back to the case below of creating
+				// a temp/transient asset cache
+				else if (Outcome == EDefaultAssetCacheDialogOption::Cancel)
 				{
 					return;
 				}
@@ -3306,6 +3339,7 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 		}
 	}
 #endif
+
 	if (!UsdAssetCache)
 	{
 		UE_LOG(LogUsd, Warning, TEXT("USD Stage Actor '%s' had no previous USD Asset Cache and no default cache is specified on the project settings, so a temporary cache will be generated. For better performance, create a persistent USD Asset Cache asset and point to it with this actor's UsdAssetCache property."),

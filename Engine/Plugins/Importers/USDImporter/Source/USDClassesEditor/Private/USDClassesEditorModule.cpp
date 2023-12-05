@@ -16,12 +16,17 @@
 UUsdAssetCache2* IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog()
 {
 	UUsdAssetCache2* Result = nullptr;
-	bool bOutUserAccepted = false;
-	ShowMissingDefaultAssetCacheDialog(Result, bOutUserAccepted);
+	EDefaultAssetCacheDialogOption Unused = ShowMissingDefaultAssetCacheDialog(Result);
 	return Result;
 }
 
 void IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache, bool& bOutUserAccepted)
+{
+	EDefaultAssetCacheDialogOption Result = ShowMissingDefaultAssetCacheDialog(OutCreatedCache);
+	bOutUserAccepted = Result != EDefaultAssetCacheDialogOption::Cancel;
+}
+
+EDefaultAssetCacheDialogOption IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2*& OutCreatedCache)
 {
 	TSharedPtr<SWindow> ParentWindow;
 
@@ -48,16 +53,8 @@ void IUsdClassesEditorModule::ShowMissingDefaultAssetCacheDialog(UUsdAssetCache2
 	const bool bSlowTaskWindow = false;
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, bSlowTaskWindow);
 
-	if (OptionsWindow->UserAccepted())
-	{
-		bOutUserAccepted = true;
-		OutCreatedCache = OptionsWindow->GetCreatedCache();
-	}
-	else
-	{
-		bOutUserAccepted = false;
-		OutCreatedCache = nullptr;
-	}
+	OutCreatedCache = OptionsWindow->GetCreatedCache();
+	return OptionsWindow->GetDialogOutcome();
 }
 
 class FUsdClassesEditorModule : public IUsdClassesEditorModule

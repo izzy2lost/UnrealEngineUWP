@@ -105,7 +105,7 @@ void SUsdDefaultAssetCacheDialog::Construct( const FArguments& InArgs )
 {
 	ChosenCache = nullptr;
 	Window = InArgs._WidgetWindow;
-	bAccepted = false;
+	DialogOutcome = EDefaultAssetCacheDialogOption::Cancel;
 
 	FSlateFontInfo MessageFont(FAppStyle::GetFontStyle("StandardDialog.LargeFont"));
 
@@ -138,9 +138,9 @@ void SUsdDefaultAssetCacheDialog::Construct( const FArguments& InArgs )
 				.Padding(16.f, 0.f, 0.f, 0.f)
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("DefaultAssetCacheDialogText", "This project has no default USD Asset Cache set.\n\nThe cache stores the assets generated when opening USD Stages, and shares them across all USD Stage Actors.\n\nDo you wish to set the default asset cache?"))
+					.Text(LOCTEXT("DefaultAssetCacheDialogText", "Opening a USD Stage with a Stage Actor requires a default USD Asset Cache.\n\nThe cache will be used to store and share the generated assets across all USD Stage Actors.\n\nHover on the buttons for more info about each of the proposed options."))
 					.Font(MessageFont)
-					.WrapTextAt(512.0f)
+					.WrapTextAt(650.0f)
 				]
 			]
 
@@ -242,7 +242,7 @@ FReply SUsdDefaultAssetCacheDialog::OnUseExisting()
 		ChosenCache = Cast<UUsdAssetCache2>(PickedAssets[0].GetAsset());
 	}
 
-	bAccepted = true;
+	DialogOutcome = EDefaultAssetCacheDialogOption::PickExisting;
 	if (Window.IsValid())
 	{
 		Window.Pin()->RequestDestroyWindow();
@@ -254,7 +254,7 @@ FReply SUsdDefaultAssetCacheDialog::OnCreateNew()
 {
 	ChosenCache = UE::DefaultCacheDialog::Private::CreateNewAssetCacheWithDialog();
 
-	bAccepted = true;
+	DialogOutcome = EDefaultAssetCacheDialogOption::CreateNew;
 	if (Window.IsValid())
 	{
 		Window.Pin()->RequestDestroyWindow();
@@ -264,7 +264,7 @@ FReply SUsdDefaultAssetCacheDialog::OnCreateNew()
 
 FReply SUsdDefaultAssetCacheDialog::OnDontCreate()
 {
-	bAccepted = true;
+	DialogOutcome = EDefaultAssetCacheDialogOption::DontUseDefault;
 	if (Window.IsValid())
 	{
 		Window.Pin()->RequestDestroyWindow();
@@ -281,9 +281,9 @@ FReply SUsdDefaultAssetCacheDialog::OnKeyDown( const FGeometry& MyGeometry, cons
 	return FReply::Unhandled();
 }
 
-bool SUsdDefaultAssetCacheDialog::UserAccepted() const
+EDefaultAssetCacheDialogOption SUsdDefaultAssetCacheDialog::GetDialogOutcome() const
 {
-	return bAccepted;
+	return DialogOutcome;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "USDClassesEditorModule.h"
+
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SWindow.h"
 
@@ -21,7 +23,7 @@ public:
 	UUsdAssetCache2* GetCreatedCache();
 	void Construct( const FArguments& InArgs );
 
-	bool UserAccepted() const;
+	EDefaultAssetCacheDialogOption GetDialogOutcome() const;
 
 private:
 	virtual bool SupportsKeyboardFocus() const override;
@@ -38,5 +40,5 @@ private:
 	TWeakPtr< SWindow > Window;
 
 	FText AcceptText;
-	bool bAccepted;
+	EDefaultAssetCacheDialogOption DialogOutcome = EDefaultAssetCacheDialogOption::Cancel;
 };
