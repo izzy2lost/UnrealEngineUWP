@@ -1,34 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Diagnostics;
 using System.IO;
 using UnrealBuildTool;
-using System.Text.RegularExpressions;
-using EpicGames.Core;
-using UnrealBuildBase;
-using Microsoft.Extensions.Logging;
 
 namespace AutomationTool
 {
 	class MacHostPlatform : HostPlatform
 	{
-		static string CachedFrameworkMsbuildExe = "";
+		static string CachedFrameworkMsbuildExe = string.Empty;
 
 		public override string GetFrameworkMsbuildExe()
 		{
 			// Look for dotnet, we only support dotnet.
 			if (string.IsNullOrEmpty(CachedFrameworkMsbuildExe))
 			{
-				bool CanUseMsBuild = string.IsNullOrEmpty(CommandUtils.WhichApp("dotnet")) == false;
-
-				if (CanUseMsBuild)
+				FileReference dotnet = FileReference.FromString(CommandUtils.WhichApp("dotnet"));
+				if (dotnet != null && FileReference.Exists(dotnet))
 				{
-					Logger.LogInformation("using {DotNet}!", CommandUtils.WhichApp("dotnet"));
-
+					Logger.LogInformation("Using {DotNet}", dotnet.FullName);
 					CachedFrameworkMsbuildExe = "dotnet msbuild";
 				}
 				else

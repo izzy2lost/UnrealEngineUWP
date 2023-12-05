@@ -8,6 +8,7 @@ using System.Text;
 using System.Diagnostics;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace AutomationTool
 {
