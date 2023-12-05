@@ -128,6 +128,7 @@ public:
 	void SetDetailViewForRigElements(const TArray<FRigElementKey>& InKeys);
 	bool DetailViewShowsAnyRigElement() const;
 	bool DetailViewShowsRigElement(FRigElementKey InKey) const;
+	TArray<FRigElementKey> GetSelectedRigElementsFromDetailView() const;
 
 	void SetDetailViewForRigModules();
 	void SetDetailViewForRigModules(const TArray<FString> InKeys);

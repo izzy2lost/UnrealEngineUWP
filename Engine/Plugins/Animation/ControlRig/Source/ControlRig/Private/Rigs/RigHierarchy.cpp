@@ -714,6 +714,10 @@ uint32 URigHierarchy::GetTopologyHash(bool bIncludeTopologyVersion, bool bInclud
 		{
 			Hash = HashCombine(Hash, GetTypeHash(ControlElement->Settings));
 		}
+		if(const FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Element))
+		{
+			Hash = HashCombine(Hash, GetTypeHash(ConnectorElement->Settings));
+		}
 	}
 
 	return Hash;

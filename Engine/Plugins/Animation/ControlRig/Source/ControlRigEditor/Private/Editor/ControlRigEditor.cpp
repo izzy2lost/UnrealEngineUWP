@@ -1171,6 +1171,31 @@ bool FControlRigEditor::DetailViewShowsRigElement(FRigElementKey InKey) const
 	return false;
 }
 
+TArray<FRigElementKey> FControlRigEditor::GetSelectedRigElementsFromDetailView() const
+{
+	TArray<FRigElementKey> Elements;
+	
+	TArray< TWeakObjectPtr<UObject> > SelectedObjects = Inspector->GetSelectedObjects();
+	for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+	{
+		if (SelectedObject.IsValid())
+		{
+			if(URigVMDetailsViewWrapperObject* WrapperObject = Cast<URigVMDetailsViewWrapperObject>(SelectedObject.Get()))
+			{
+				if (const UScriptStruct* WrappedStruct = WrapperObject->GetWrappedStruct())
+				{
+					if (WrappedStruct->IsChildOf(FRigBaseElement::StaticStruct()))
+					{
+						Elements.Add(WrapperObject->GetContent<FRigBaseElement>().GetKey());
+					}
+				}
+			}
+		}
+	}
+
+	return Elements;
+}
+
 void FControlRigEditor::SetDetailViewForRigModules()
 {
 	SetDetailViewForRigModules(ModulesSelected);
@@ -5071,7 +5096,8 @@ void FControlRigEditor::OnPostConstruction_AnyThread(UControlRig* InRig, const F
 			RebindToSkeletalMeshComponent();
 			if(DetailViewShowsAnyRigElement())
 			{
-				SetDetailViewForRigElements();
+				const TArray<FRigElementKey> Keys = GetSelectedRigElementsFromDetailView();
+				SetDetailViewForRigElements(Keys);
 			}
 			
 			if (FControlRigEditorEditMode* EditMode = GetEditMode())
