@@ -20,10 +20,7 @@ public:
 	TSharedPtr< FUICommandInfo > ResetCompileOptions;
 	TSharedPtr< FUICommandInfo > CompileOptions_EnableTextureCompression;
 	TSharedPtr< FUICommandInfo > CompileOptions_UseDiskCompilation;
-
 	TSharedPtr< FUICommandInfo > Debug;
-	TSharedPtr< FUICommandInfo > DebugOptions_OnlySelected;
-	TSharedPtr< FUICommandInfo > DebugOptions_EnableTextureCompression;
 
 	TSharedPtr< FUICommandInfo > PerformanceReport;
 	TSharedPtr< FUICommandInfo > ResetPerformanceReportOptions;

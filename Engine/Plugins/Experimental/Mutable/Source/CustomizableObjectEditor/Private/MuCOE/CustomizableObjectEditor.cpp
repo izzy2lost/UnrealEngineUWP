@@ -1270,12 +1270,6 @@ void FCustomizableObjectEditor::ExtendToolbar()
 				true);
 
 			ToolbarBuilder.EndSection();
-
-			
-			ToolbarBuilder.BeginSection("Debug");
-			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().Debug);
-			ToolbarBuilder.EndSection();
-
 			
 			ToolbarBuilder.BeginSection("Information");
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().TextureAnalyzer);
@@ -1381,6 +1375,13 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 
 		MenuBuilder.AddMenuEntry(FCustomizableObjectEditorCommands::Get().CompileOptions_UseDiskCompilation);
 		MenuBuilder.AddMenuEntry(FCustomizableObjectEditorCommands::Get().CompileOptions_EnableTextureCompression);
+	}
+	MenuBuilder.EndSection();
+
+	// Debugging options
+	MenuBuilder.BeginSection("Debugger");
+	{
+		MenuBuilder.AddMenuEntry(FCustomizableObjectEditorCommands::Get().Debug);
 	}
 	MenuBuilder.EndSection();
 
