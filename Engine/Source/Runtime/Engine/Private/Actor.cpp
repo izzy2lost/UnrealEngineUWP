@@ -3166,9 +3166,9 @@ void AActor::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	GetActorEyesViewPoint(OutResult.Location, OutResult.Rotation);
 }
 
-bool AActor::HasActiveCameraComponent() const
+bool AActor::HasActiveCameraComponent(bool bForceFindCamera) const
 {
-	if (bFindCameraComponentWhenViewTarget)
+	if (bFindCameraComponentWhenViewTarget || bForceFindCamera)
 	{
 		// Look for the first active camera component and use that for the view
 		for (const UActorComponent* Component : OwnedComponents)

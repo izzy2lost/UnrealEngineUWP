@@ -237,7 +237,7 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bUseFieldOfViewForLOD(true)
 		, FOV(90.f)
 		, DesiredFOV(90.f)
-		, bUseFauxOrthoViewPos(true)
+		, bUseFauxOrthoViewPos(false)
 		, bIsSceneCapture(false)
 		, bIsSceneCaptureCube(false)
 		, bSceneCaptureUsesRayTracing(false)

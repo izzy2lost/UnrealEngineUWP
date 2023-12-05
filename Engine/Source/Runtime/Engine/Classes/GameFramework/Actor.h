@@ -3429,7 +3429,7 @@ public:
 	ENGINE_API virtual void CalcCamera(float DeltaTime, struct FMinimalViewInfo& OutResult);
 
 	/** Returns true if the actor contains an active camera component */
-	ENGINE_API virtual bool HasActiveCameraComponent() const;
+	ENGINE_API virtual bool HasActiveCameraComponent(bool bForceFindCamera = false) const;
 
 	/** Returns true if the actor contains an active locked to HMD camera component */
 	ENGINE_API virtual bool HasActivePawnControlCameraComponent() const;

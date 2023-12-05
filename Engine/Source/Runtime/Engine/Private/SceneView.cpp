@@ -23,6 +23,7 @@
 #include "RenderUtils.h"
 #include "StereoRenderUtils.h"
 #include "SceneRelativeViewMatrices.h"
+#include "Camera/CameraComponent.h"
 #include "UObject/Interface.h"
 
 DEFINE_LOG_CATEGORY(LogBufferVisualization);
@@ -672,7 +673,17 @@ FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMa
 	Initializer.ViewOrigin           = InitOptions.ViewOrigin;
 	Initializer.ConstrainedViewRect  = InitOptions.GetConstrainedViewRect();
 	Initializer.StereoPass           = InitOptions.StereoPass;
-	Initializer.bUseFauxOrthoViewPos = InitOptions.bUseFauxOrthoViewPos;
+
+	//This is a bit of a hack to ensure orthographic camera views are resolving correctly, without affecting non-camera views 
+	//it will be removed once we have a more robust solution + can hopefully deprecate bUseFauxOrthoViewPos entirely
+	if (InitOptions.ProjectionMatrix.M[3][3] >= 1.0f && InitOptions.ViewActor && InitOptions.ViewActor->HasActiveCameraComponent(true))
+	{
+		Initializer.bUseFauxOrthoViewPos = true;
+	}
+	else
+	{
+		Initializer.bUseFauxOrthoViewPos = InitOptions.bUseFauxOrthoViewPos;
+	}
 
 	Init(Initializer);
 }
