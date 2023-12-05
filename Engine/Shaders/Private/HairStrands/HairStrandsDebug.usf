@@ -316,11 +316,26 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #define INPUT_ROOT_TRIANGLE 1
 #define INPUT_ROOT_SAMPLES 2
 
+uint bSimPass;
+uint bRestPass;
+uint DrawIndex;
 uint MaxUniqueSection;
 uint MaxUniqueTriangleCount;
 uint MaxRootCount;
 float4x4 RootLocalToWorld;
 uint DeformedFrameEnable;
+
+uint bOverride;
+uint Render_HairRestTriangles;
+uint Render_HairRestFrames;
+uint Render_HairDeformedTriangles;
+uint Render_HairDeformedFrames;
+uint Sim_HairRestTriangles;
+uint Sim_HairRestFrames;
+uint Sim_HairRestSamples;
+uint Sim_HairDeformedTriangles;
+uint Sim_HairDeformedFrames;
+uint Sim_HairDeformedSamples;
 
 #if PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME
 Buffer<uint>   RootBarycentricBuffer;
@@ -334,10 +349,159 @@ Buffer<float4>  DeformedPositionBuffer;
 StructuredBuffer<float4> RestSamplePositionsBuffer;
 StructuredBuffer<float4> DeformedSamplePositionsBuffer;
 
+
+void Move(inout FShaderPrintContext Ctx, uint2 InPos)
+{
+	if (Ctx.bIsActive)
+	{
+		float2 fPos = float2(InPos) / float2(Ctx.Config.Resolution);
+		Ctx.StartPos = fPos;
+		Ctx.Pos 	 = fPos;
+	}
+}
+
 [numthreads(256, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	ResolvedView = ResolveView();
+
+	// Widgets for draw configuration
+	{	
+		uint2 StartPos  = uint2(500, 50);
+		uint2 OffsetPos = uint2(180, 0);
+		FShaderPrintContext Ctx = InitShaderPrintContext(DispatchThreadId.x == 0 && DrawIndex == 0, StartPos);
+		bool bValid = false;
+
+		// Guides
+		{
+			bool bRest    = false;
+			bool bDeform  = false;
+			bool bTriangle= false;
+			bool bRoot    = false; 
+
+			Print(Ctx, TEXT("Guides "), FontYellow); Newline(Ctx);
+			if (bOverride>0)
+			{
+				bRest    = Sim_HairRestTriangles     || Sim_HairRestFrames;
+				bDeform  = Sim_HairDeformedTriangles || Sim_HairDeformedFrames;
+				bTriangle= Sim_HairRestTriangles     || Sim_HairDeformedTriangles;
+				bRoot    = Sim_HairRestFrames        || Sim_HairDeformedFrames;
+
+				Print(Ctx, TEXT("Sim Rest      "), FontWhite);	PrintBool(Ctx, bRest); 		Newline(Ctx);
+				Print(Ctx, TEXT("Sim Deformed  "), FontWhite);	PrintBool(Ctx, bDeform);	Newline(Ctx);
+				Newline(Ctx);
+	
+				Print(Ctx, TEXT("Sim Triangles "), FontWhite);	PrintBool(Ctx, bTriangle); 	Newline(Ctx);
+				Print(Ctx, TEXT("Sim Roots     "), FontWhite); 	PrintBool(Ctx, bRoot);		Newline(Ctx);
+				Newline(Ctx);
+	
+			}
+			else
+			{
+				bRest     = AddCheckbox(Ctx, TEXT("Sim Rest"), false, FontWhite); Newline(Ctx);
+				bDeform   = AddCheckbox(Ctx, TEXT("Sim Deformed"), false, FontWhite); Newline(Ctx);
+				Newline(Ctx);
+		
+				bTriangle = AddCheckbox(Ctx, TEXT("Sim Triangles"), false, FontWhite); Newline(Ctx);
+				bRoot     = AddCheckbox(Ctx, TEXT("Sim Roots"), false, FontWhite); Newline(Ctx);
+				Newline(Ctx);
+			}
+
+			if (bSimPass == 1)
+			{
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_TRIANGLE)
+				{
+					bValid = bTriangle  && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+				}
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME)
+				{
+					bValid = bRoot && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+				}
+			}
+		}
+
+		// Strands/Cards
+		{
+			bool bRest    = false;
+			bool bDeform  = false;
+			bool bTriangle= false;
+			bool bRoot    = false;
+
+			Move(Ctx, StartPos + OffsetPos);
+			Print(Ctx, TEXT("Strands / Cards"), FontYellow); Newline(Ctx);
+			if (bOverride>0)
+			{
+				bRest    = Render_HairRestTriangles     || Render_HairRestFrames;
+				bDeform  = Render_HairDeformedTriangles || Render_HairDeformedFrames;
+				bTriangle= Render_HairRestTriangles     || Render_HairDeformedTriangles;
+				bRoot    = Render_HairRestFrames        || Render_HairDeformedFrames;
+	
+				Print(Ctx, TEXT("Ren Rest      "), FontWhite);	PrintBool(Ctx, bRest); 		Newline(Ctx);
+				Print(Ctx, TEXT("Ren Deformed  "), FontWhite);	PrintBool(Ctx, bDeform);	Newline(Ctx);
+				Newline(Ctx);
+			
+				Print(Ctx, TEXT("Ren Triangles "), FontWhite);	PrintBool(Ctx, bTriangle); 	Newline(Ctx);
+				Print(Ctx, TEXT("Ren Roots     "), FontWhite); 	PrintBool(Ctx, bRoot);		Newline(Ctx);
+				Newline(Ctx);
+			}
+			else
+			{
+				bRest     = AddCheckbox(Ctx, TEXT("Ren Rest"), false, FontWhite); Newline(Ctx);
+				bDeform   = AddCheckbox(Ctx, TEXT("Ren Deformed"), true, FontWhite) ; Newline(Ctx);
+				Newline(Ctx);
+				
+				bTriangle = AddCheckbox(Ctx, TEXT("Ren Triangles"), false, FontWhite); Newline(Ctx);
+				bRoot     = AddCheckbox(Ctx, TEXT("Ren Roots"), true, FontWhite); Newline(Ctx);
+				Newline(Ctx);
+			}
+
+			if (bSimPass == 0)
+			{
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_TRIANGLE)
+				{
+					bValid = bTriangle && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+				}
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME)
+				{
+					bValid = bRoot && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+				}
+			}
+		}
+
+		// RBF
+		{
+			bool bRest   = false;
+			bool bDeform = false;
+
+			Move(Ctx, StartPos + OffsetPos*2);
+			Print(Ctx, TEXT("RBF Samples"), FontYellow); Newline(Ctx);
+			if (bOverride>0)
+			{
+				bRest	= Sim_HairRestSamples;
+				bDeform = Sim_HairDeformedSamples;
+
+				Print(Ctx, TEXT("RBF Rest     "), FontWhite); Print(Ctx, TEXT("|| "), FontPurple); PrintBool(Ctx, bRest) Newline(Ctx);
+				Print(Ctx, TEXT("RBF Deformed "), FontWhite); Print(Ctx, TEXT("|| "), FontYellow); PrintBool(Ctx, bDeform) Newline(Ctx);
+				Newline(Ctx);
+			}
+			else
+			{
+				bRest     = AddCheckbox(Ctx, TEXT("RBF Rest    "), false, FontWhite); Print(Ctx, TEXT("||"), FontPurple); Newline(Ctx);
+				bDeform   = AddCheckbox(Ctx, TEXT("RBF Deformed"), false, FontWhite); Print(Ctx, TEXT("||"), FontYellow); Newline(Ctx);
+				Newline(Ctx);	
+			}
+
+			if (bSimPass == 1 && (PERMUTATION_INPUT_TYPE == INPUT_ROOT_SAMPLES))
+			{
+				bValid = (bRestPass==1 && bRest) || (bRestPass==0 && bDeform);
+			}
+		}
+
+		if (!bValid)
+		{
+			return;
+		}
+	}
 
 #if PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME  
 	const uint RootIndex = DispatchThreadId.x;
@@ -439,8 +603,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		float3 P = (DeformedFrameEnable > 0) ? DeformedSamplePositionsBuffer[PointIndex].xyz : RestSamplePositionsBuffer[PointIndex].xyz;
 		P = mul(float4(P, 1), RootLocalToWorld).xyz;
-
-		AddCrossWS(P, 1.f, ColorYellow);
+		
+		const float4 RBFColor = bRestPass==1 ? ColorPurple : ColorYellow;
+		AddCrossWS(P, 1.f, RBFColor);
 	}
 #endif // INPUT_ROOT_SAMPLES
 }

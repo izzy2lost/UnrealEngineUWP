@@ -27,6 +27,7 @@
 static int32 GHairDebugMeshProjection_SkinCacheMesh = 0;
 static int32 GHairDebugMeshProjection_SkinCacheMeshInUVsSpace = 0;
 
+static int32 GHairDebugMeshProjection_Override = 0;
 static int32 GHairDebugMeshProjection_Sim_HairRestTriangles = 0;
 static int32 GHairDebugMeshProjection_Sim_HairRestFrames = 0;
 static int32 GHairDebugMeshProjection_Sim_HairRestSamples = 0;
@@ -44,12 +45,11 @@ static int32 GHairDebugMeshProjection_Render_HairDeformedSamples = 0;
 
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_SkinCacheMeshInUVsSpace(TEXT("r.HairStrands.MeshProjection.DebugInUVsSpace"), GHairDebugMeshProjection_SkinCacheMeshInUVsSpace, TEXT("Render debug mes projection in UVs space"));
 
+static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Override(TEXT("r.HairStrands.MeshProjection"), GHairDebugMeshProjection_Override, TEXT("Override in shader settings for displaying root debug data"));
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairRestTriangles(TEXT("r.HairStrands.MeshProjection.Render.Rest.Triangles"), GHairDebugMeshProjection_Render_HairRestTriangles, TEXT("Render strands rest triangles"));
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairRestFrames(TEXT("r.HairStrands.MeshProjection.Render.Rest.Frames"), GHairDebugMeshProjection_Render_HairRestFrames, TEXT("Render strands rest frames"));
-static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairRestSamples(TEXT("r.HairStrands.MeshProjection.Render.Rest.Samples"), GHairDebugMeshProjection_Render_HairRestSamples, TEXT("Render strands rest samples"));
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairDeformedTriangles(TEXT("r.HairStrands.MeshProjection.Render.Deformed.Triangles"), GHairDebugMeshProjection_Render_HairDeformedTriangles, TEXT("Render strands deformed triangles"));
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairDeformedFrames(TEXT("r.HairStrands.MeshProjection.Render.Deformed.Frames"), GHairDebugMeshProjection_Render_HairDeformedFrames, TEXT("Render strands deformed frames"));
-static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Render_HairDeformedSamples(TEXT("r.HairStrands.MeshProjection.Render.Deformed.Samples"), GHairDebugMeshProjection_Render_HairDeformedSamples, TEXT("Render strands deformed samples"));
 
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Sim_HairRestTriangles(TEXT("r.HairStrands.MeshProjection.Sim.Rest.Triangles"), GHairDebugMeshProjection_Sim_HairRestTriangles, TEXT("Render guides rest triangles"));
 static FAutoConsoleVariableRef CVarHairDebugMeshProjection_Sim_HairRestFrames(TEXT("r.HairStrands.MeshProjection.Sim.Rest.Frames"), GHairDebugMeshProjection_Sim_HairRestFrames, TEXT("Render guides rest frames"));
@@ -277,6 +277,21 @@ class FHairProjectionHairDebugCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, MaxRootCount)
 		SHADER_PARAMETER(uint32, DeformedFrameEnable)
 		SHADER_PARAMETER(FMatrix44f, RootLocalToWorld)
+		SHADER_PARAMETER(uint32, DrawIndex)
+		SHADER_PARAMETER(uint32, bSimPass)
+		SHADER_PARAMETER(uint32, bRestPass)
+
+		SHADER_PARAMETER(uint32, bOverride)
+		SHADER_PARAMETER(uint32, Render_HairRestTriangles)
+		SHADER_PARAMETER(uint32, Render_HairRestFrames)
+		SHADER_PARAMETER(uint32, Render_HairDeformedTriangles)
+		SHADER_PARAMETER(uint32, Render_HairDeformedFrames)
+		SHADER_PARAMETER(uint32, Sim_HairRestTriangles)
+		SHADER_PARAMETER(uint32, Sim_HairRestFrames)
+		SHADER_PARAMETER(uint32, Sim_HairRestSamples)
+		SHADER_PARAMETER(uint32, Sim_HairDeformedTriangles)
+		SHADER_PARAMETER(uint32, Sim_HairDeformedFrames)
+		SHADER_PARAMETER(uint32, Sim_HairDeformedSamples)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RestPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, DeformedPositionBuffer)
@@ -323,6 +338,8 @@ static void AddDebugProjectionHairPass(
 	const FHairStrandsRestRootResource* RestRootResources,
 	const FHairStrandsDeformedRootResource* DeformedRootResources,
 	const FTransform& LocalToWorld,
+	const uint32 DrawIndex,
+	const bool bSim,
 	const EDebugProjectionHairType GeometryType,
 	const HairStrandsTriangleType PoseType)
 {
@@ -385,10 +402,24 @@ static void AddDebugProjectionHairPass(
 	const FIntPoint Resolution(Viewport.Width(), Viewport.Height());
 
 	FHairProjectionHairDebugCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairProjectionHairDebugCS::FParameters>();
-	Parameters->OutputResolution = Resolution;
-	Parameters->MaxRootCount = RootCount;
-	Parameters->RootLocalToWorld = FMatrix44f(LocalToWorld.ToMatrixWithScale());	// LWC_TODO: Precision loss
-	Parameters->DeformedFrameEnable = PoseType == HairStrandsTriangleType::DeformedPose;
+	Parameters->OutputResolution 			= Resolution;
+	Parameters->MaxRootCount 				= RootCount;
+	Parameters->RootLocalToWorld 			= FMatrix44f(LocalToWorld.ToMatrixWithScale());	// LWC_TODO: Precision loss
+	Parameters->DeformedFrameEnable 		= PoseType == HairStrandsTriangleType::DeformedPose;
+	Parameters->DrawIndex					= DrawIndex;
+	Parameters->bSimPass 					= bSim ? 1u : 0u;
+	Parameters->bRestPass 					= PoseType == HairStrandsTriangleType::RestPose ? 1u : 0u;
+	Parameters->bOverride 					= GHairDebugMeshProjection_Override > 0 ? 1u : 0u;
+	Parameters->Render_HairRestTriangles	= GHairDebugMeshProjection_Render_HairRestTriangles > 0 ? 1u : 0u;
+	Parameters->Render_HairRestFrames 		= GHairDebugMeshProjection_Render_HairRestFrames > 0 ? 1u : 0u;
+	Parameters->Render_HairDeformedTriangles= GHairDebugMeshProjection_Render_HairDeformedTriangles > 0 ? 1u : 0u;
+	Parameters->Render_HairDeformedFrames	= GHairDebugMeshProjection_Render_HairDeformedFrames > 0 ? 1u : 0u;
+	Parameters->Sim_HairRestTriangles		= GHairDebugMeshProjection_Sim_HairRestTriangles > 0 ? 1u : 0u;
+	Parameters->Sim_HairRestFrames			= GHairDebugMeshProjection_Sim_HairRestFrames > 0 ? 1u : 0u;
+	Parameters->Sim_HairRestSamples			= GHairDebugMeshProjection_Sim_HairRestSamples > 0 ? 1u : 0u;
+	Parameters->Sim_HairDeformedTriangles	= GHairDebugMeshProjection_Sim_HairDeformedTriangles > 0 ? 1u : 0u;
+	Parameters->Sim_HairDeformedFrames		= GHairDebugMeshProjection_Sim_HairDeformedFrames > 0 ? 1u : 0u;
+	Parameters->Sim_HairDeformedSamples		= GHairDebugMeshProjection_Sim_HairDeformedSamples > 0 ? 1u : 0u;
 
 	if (EDebugProjectionHairType::HairFrame == GeometryType)
 	{
@@ -1440,7 +1471,8 @@ void RunHairStrandsDebug(
 				RenderMeshProjection(GraphBuilder, EHairStrandsProjectionMeshType::TargetMesh);
 			}
 
-			auto RenderProjectionData = [&GraphBuilder, LocalView, ShaderMap, Viewport, &ViewUniformBuffer, Instances, ShaderPrintData](bool bGuide, bool bRestTriangle, bool bRestFrame, bool bRestSamples, bool bDeformedTriangle, bool bDeformedFrame, bool bDeformedSamples)
+			uint32 DrawIndex = 0;
+			auto RenderProjectionData = [&GraphBuilder, LocalView, ShaderMap, Viewport, &ViewUniformBuffer, Instances, ShaderPrintData, &DrawIndex](bool bSim)
 			{
 				TArray<int32> HairLODIndices;
 				for (FHairStrandsInstance* AbstractInstance : Instances)
@@ -1451,7 +1483,7 @@ void RunHairStrandsDebug(
 
 					FHairStrandsRestRootResource* RestRootResource = nullptr;
 					FHairStrandsDeformedRootResource* DeformedRootResource = nullptr;
-					if (bGuide)
+					if (bSim)
 					{
 						RestRootResource 	 = Instance->Guides.RestRootResource;
 						DeformedRootResource = Instance->Guides.DeformedRootResource;
@@ -1475,48 +1507,17 @@ void RunHairStrandsDebug(
 
 					const int32 MeshLODIndex = Instance->Debug.MeshLODIndex;
 
-					if (bRestTriangle)		{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::RestPose); }
-					if (bRestFrame)			{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::RestPose); }
-					if (bRestSamples)		{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::RestPose); }
-					if (bDeformedTriangle)	{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::DeformedPose); }
-					if (bDeformedFrame)		{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::DeformedPose); }
-					if (bDeformedSamples)	{ AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::DeformedPose); }
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::RestPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::RestPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::RestPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairTriangle, HairStrandsTriangleType::DeformedPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairFrame,    HairStrandsTriangleType::DeformedPose);
+					AddDebugProjectionHairPass(GraphBuilder, LocalView, ShaderMap, ShaderPrintData, Viewport, ViewUniformBuffer, MeshLODIndex, RestRootResource, DeformedRootResource, Instance->HairGroupPublicData->VFInput.LocalToWorldTransform, DrawIndex++, bSim, EDebugProjectionHairType::HairSamples,  HairStrandsTriangleType::DeformedPose);
 				}
 			};
 
-			if (GHairDebugMeshProjection_Render_HairRestTriangles > 0 ||
-				GHairDebugMeshProjection_Render_HairRestFrames > 0 ||
-				GHairDebugMeshProjection_Render_HairDeformedTriangles > 0 ||
-				GHairDebugMeshProjection_Render_HairDeformedFrames > 0 ||
-				GHairDebugMeshProjection_Render_HairDeformedSamples > 0 ||
-				GHairDebugMeshProjection_Render_HairRestSamples > 0)
-			{
-				RenderProjectionData(
-					false,
-					GHairDebugMeshProjection_Render_HairRestTriangles > 0,
-					GHairDebugMeshProjection_Render_HairRestFrames > 0,
-					GHairDebugMeshProjection_Render_HairRestSamples > 0,
-					GHairDebugMeshProjection_Render_HairDeformedTriangles > 0,
-					GHairDebugMeshProjection_Render_HairDeformedFrames > 0,
-					GHairDebugMeshProjection_Render_HairDeformedSamples > 0);
-			}
-
-			if (GHairDebugMeshProjection_Sim_HairRestTriangles > 0 ||
-				GHairDebugMeshProjection_Sim_HairRestFrames > 0 ||
-				GHairDebugMeshProjection_Sim_HairDeformedTriangles > 0 ||
-				GHairDebugMeshProjection_Sim_HairDeformedFrames > 0 ||
-				GHairDebugMeshProjection_Sim_HairDeformedSamples > 0 ||
-				GHairDebugMeshProjection_Sim_HairRestSamples > 0)
-			{
-				RenderProjectionData(
-					true,
-					GHairDebugMeshProjection_Sim_HairRestTriangles > 0,
-					GHairDebugMeshProjection_Sim_HairRestFrames > 0,
-					GHairDebugMeshProjection_Sim_HairRestSamples > 0,
-					GHairDebugMeshProjection_Sim_HairDeformedTriangles > 0,
-					GHairDebugMeshProjection_Sim_HairDeformedFrames > 0,
-					GHairDebugMeshProjection_Sim_HairDeformedSamples > 0);
-			}
+			RenderProjectionData(false /*bSim*/);
+			RenderProjectionData(true  /*bSim*/);
 		}
 	}
 
