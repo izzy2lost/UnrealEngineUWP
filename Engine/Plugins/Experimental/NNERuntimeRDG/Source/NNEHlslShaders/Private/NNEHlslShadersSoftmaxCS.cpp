@@ -5,11 +5,6 @@
 
 namespace UE::NNEHlslShaders::Internal
 {
-	FIntVector TSoftmaxCS::GetGroupCount(const TSoftmaxCS::FParameters& Parameters)
-	{
-		return { 1, (int32)Parameters.N, 1 };
-	}
-
 	void TSoftmaxCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);

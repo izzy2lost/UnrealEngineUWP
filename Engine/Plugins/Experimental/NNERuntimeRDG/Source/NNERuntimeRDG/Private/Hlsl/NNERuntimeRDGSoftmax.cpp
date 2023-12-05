@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNERuntimeRDGSoftmax.h"
+#include "NNEHlslShadersReduceCS.h"
 #include "NNEHlslShadersSoftmaxCS.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
@@ -87,40 +88,39 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(Input.GetVolume() == Output.GetVolume());
 
 			const NNE::FTensorShape& InputShape = Input.GetShape();
-			TConstArrayView<uint32> InputShapeData = InputShape.GetData();
-			const int32 InputDimensions = InputShape.Rank();
-
-			int32 N = 1;
-			for (int32 i = 0; i < Axis; i++)
-			{
-				N *= InputShapeData[i];
-			}
-
-			int32 D = 1;
-			for (int32 i = Axis; i < InputDimensions; i++)
-			{
-				D *= InputShapeData[i];
-			}
-
-			// Set parameters
-			TSoftmaxCS::FParameters* Parameters = GraphBuilder.AllocParameters<TSoftmaxCS::FParameters>();
-			Parameters->N = N;
-			Parameters->D = D;
-			Parameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
-			Parameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
-
-			TShaderMapRef<TSoftmaxCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-			FIntVector ThreadGroupCount = TSoftmaxCS::GetGroupCount(*Parameters);
 
 			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Softmax");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorSoftmax);
+
+			// First apply Reduction(exp(x)) to temp buffer
+			TReduceCS::FParameters* ReduceParameters = GraphBuilder.AllocParameters<TReduceCS::FParameters>();
+			TReduceCS::FillInParameters(InputShape.GetData(), Axis, ReduceParameters);
+			ReduceParameters->AxisSize *= ReduceParameters->NumElemAfterAxis;// Softmax flatten the input tensor to a 2D one
+			ReduceParameters->NumElemAfterAxis = 1;
+			const FRDGBufferDesc SumExpBufferDesc = FRDGBufferDesc::CreateBufferDesc(Output.GetElementByteSize(), ReduceParameters->NumElemBeforeAxis);
+
+			FRDGBufferRef SumExpBuffer = GraphBuilder.CreateBuffer(SumExpBufferDesc, TEXT("NNE.Operator.Hlsl.Softmax.TempBuffer"), ERDGBufferFlags::None);
+
+			TReduceCS::EnqueueRDG(GraphBuilder, ReduceParameters, Input.GetBuffer(), SumExpBuffer, EReduceOperatorType::SumExp);
+
+			//Then Softmax
+			const int32 NumElements = Input.GetVolume();
+			const FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(NumElements, FSoftmaxConstants::NUM_GROUP_THREADS);
+			TSoftmaxCS::FParameters* SoftmaxParameters = GraphBuilder.AllocParameters<TSoftmaxCS::FParameters>();
+			SoftmaxParameters->AxisSize = ReduceParameters->AxisSize;
+			SoftmaxParameters->Num = NumElements;
+			SoftmaxParameters->ThreadCountX = ThreadGroupCount.X * FSoftmaxConstants::NUM_GROUP_THREADS;
+			SoftmaxParameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
+			SoftmaxParameters->InputSumExp = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SumExpBuffer, PF_R32_FLOAT));
+			SoftmaxParameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			TShaderMapRef<TSoftmaxCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("NNE.Operator.Hlsl.Softmax.Dispatch"),
 				ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
 				ComputeShader,
-				Parameters,
+				SoftmaxParameters,
 				ThreadGroupCount);
 		}
 	};
