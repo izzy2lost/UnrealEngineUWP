@@ -567,11 +567,6 @@ bool UOpenColorIOColorTransform::IsTransform(const FString& InSourceColorSpace, 
 
 bool UOpenColorIOColorTransform::GetTransformProcessor(FOpenColorIOWrapperProcessor& OutProcessor) const
 {
-	return GetTransformProcessor(GetContextKeyValues(), OutProcessor);
-}
-
-bool UOpenColorIOColorTransform::GetTransformProcessor(const TMap<FString, FString>& InLocalContext, FOpenColorIOWrapperProcessor& OutProcessor) const
-{
 #if WITH_OCIO
 	UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
 	const FOpenColorIOWrapperConfig* ConfigWrapper = GetTransformConfigWrapper(ConfigurationOwner);
@@ -586,11 +581,11 @@ bool UOpenColorIOColorTransform::GetTransformProcessor(const TMap<FString, FStri
 	EOpenColorIOViewTransformDirection CurrentDisplayViewDirection;
 	if (GetDisplayViewDirection(CurrentDisplayViewDirection))
 	{
-		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, Display, View, CurrentDisplayViewDirection == EOpenColorIOViewTransformDirection::Inverse, InLocalContext);
+		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, Display, View, CurrentDisplayViewDirection == EOpenColorIOViewTransformDirection::Inverse, GetContextKeyValues());
 	}
 	else
 	{
-		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, DestinationColorSpace, InLocalContext);
+		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, DestinationColorSpace, GetContextKeyValues());
 	}
 
 	return OutProcessor.IsValid();

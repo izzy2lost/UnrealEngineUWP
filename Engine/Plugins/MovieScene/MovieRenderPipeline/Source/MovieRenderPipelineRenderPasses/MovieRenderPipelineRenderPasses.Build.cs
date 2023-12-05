@@ -24,6 +24,8 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 				"MovieRenderPipelineSettings", // For settings
 				"ColorManagement",
 				"SlateCore",
+				"ImageCore",
+				"OpenColorIOWrapper",
 			}
 		);
 
@@ -40,15 +42,5 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 
 		// Required for UEOpenExr
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "zlib");
-
-		if (Target.bBuildEditor == true)
-		{
-			PrivateDependencyModuleNames.AddRange(
-				new string[] {
-					"ImageCore",
-					"OpenColorIOWrapper"
-				}
-			);
-		}
 	}
 }

@@ -17,7 +17,7 @@
 #include "Misc/Paths.h"
 #include "Async/TaskGraphInterfaces.h"
 
-#if WITH_EDITOR
+#if WITH_OCIO
 #include "ImageCore.h" // For GetImageView()
 #include "OpenColorIOConfiguration.h"
 #include "OpenColorIOColorTransform.h"
@@ -70,7 +70,7 @@ namespace UE::MovieGraph::Private
 		return Params;
 	}
 	
-#if WITH_EDITOR
+#if WITH_OCIO
 	struct FOpenColorIOPixelPreProcessor
 	{
 		FOpenColorIOPixelPreProcessor(FOpenColorIOWrapperProcessor&& InProcessor)
@@ -123,7 +123,8 @@ namespace UE::MovieGraph::Private
 	}
 
 	/**
-	 * Convenience function to create an OpenColorIO CPU processor based on the specified conversion settings. Editor-only.
+	 * Convenience function to create an OpenColorIO CPU processor based on the specified conversion settings.
+	 * We use the OpenColorIO processor wrapper directly to avoid concurrency issues with the uobjects lifetime.
 	 *
 	 * @return The pixel preprocessor if successful, nullptr otherwise.
 	*/
@@ -132,25 +133,42 @@ namespace UE::MovieGraph::Private
 		const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationSource = InConversionSettings.ConfigurationSource;
 		if (IsValid(ConfigurationSource))
 		{
+			const FOpenColorIOWrapperConfig* ConfigWrapper = ConfigurationSource->GetOrCreateConfigWrapper();
 			TObjectPtr<const UOpenColorIOColorTransform> ColorTransform = ConfigurationSource->FindTransform(InConversionSettings);
 			if (IsValid(ColorTransform))
 			{
-				//TODO: We need further processing of the context values to support dynamic tokens such as {shot_name}.
 				FOpenColorIOWrapperProcessor Processor;
-				if (ColorTransform->GetTransformProcessor(InContext, Processor))
+				EOpenColorIOViewTransformDirection CurrentDisplayViewDirection;
+
+				if (ColorTransform->GetDisplayViewDirection(CurrentDisplayViewDirection))
+				{
+					Processor = FOpenColorIOWrapperProcessor(
+							ConfigWrapper,
+							ColorTransform->SourceColorSpace,
+							ColorTransform->Display,
+							ColorTransform->View,
+							static_cast<bool>(CurrentDisplayViewDirection),
+							InContext
+						);
+				}
+				else
+				{
+					Processor = FOpenColorIOWrapperProcessor(
+							ConfigWrapper,
+							ColorTransform->SourceColorSpace,
+							ColorTransform->DestinationColorSpace,
+							InContext
+						);
+				}
+
+				if (Processor.IsValid())
 				{
 					return FOpenColorIOPixelPreProcessor(MoveTemp(Processor));
 				}
 			}
-			else
-			{
-				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid conversion settings, bypassing OpenColorIO transform."));
-			}
 		}
-		else
-		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid configuration source, bypassing OpenColorIO transform."));
-		}
+
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Invalid configuration source or conversion settings, bypassing OpenColorIO transform."));
 
 		return {};
 	}
@@ -328,7 +346,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 		
 		bool bQuantizationEncodeSRGB = true;
-#if WITH_EDITOR
+#if WITH_OCIO
 		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 		{
 			TMap<FString, FString> ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
@@ -443,7 +461,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 	const UE::MovieGraph::FMovieGraphSampleState* Payload = InImageData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 
 	bool bEnabledOCIO = false;
-#if WITH_EDITOR
+#if WITH_OCIO
 	if (InParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 	{
 		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
@@ -470,7 +488,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 		InOutImageTask.Height = Resolution.Y;
 
 		InOutImageTask.OverscanPercentage = Payload->OverscanFraction;
-#if WITH_EDITOR
+#if WITH_OCIO
 		if (bEnabledOCIO)
 		{
 			UE::MoviePipeline::UpdateColorSpaceMetadata(InParentNode->OCIOConfiguration.ColorConfiguration, InOutImageTask);
@@ -545,7 +563,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 		}
 
 		TMap<FString, FString> ResolvedOCIOContext = {};
-#if WITH_EDITOR
+#if WITH_OCIO
 		ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
 			ParentNode->OCIOContext,
 			RenderData.Key,
@@ -644,7 +662,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 			}
 
 			TMap<FString, FString> ResolvedOCIOContext = {};
-#if WITH_EDITOR
+#if WITH_OCIO
 			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
 				ParentNode->OCIOContext,
 				RenderID,
