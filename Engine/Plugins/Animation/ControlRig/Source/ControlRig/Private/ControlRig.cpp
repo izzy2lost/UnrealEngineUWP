@@ -36,6 +36,7 @@
 #include "RigVMCore/RigVMNativized.h"
 #include "UObject/UObjectIterator.h"
 #include "RigVMCore/RigVMAssetUserData.h"
+#include "ModularRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRig)
 
@@ -1789,6 +1790,29 @@ bool UControlRig::IsRigModuleInstance() const
 	if(IsRigModule())
 	{
 		return GetParentRig() != nullptr;
+	}
+	return false;
+}
+
+bool UControlRig::IsModularRig() const
+{
+	if(const UClass* Class = GetClass())
+	{
+		return Class->IsChildOf(UModularRig::StaticClass());
+	}
+	return false;
+}
+
+bool UControlRig::IsStandaloneRig() const
+{
+	return !IsModularRig();
+}
+
+bool UControlRig::IsNativeRig() const
+{
+	if(const UClass* Class = GetClass())
+	{
+		return Class->IsNative();
 	}
 	return false;
 }

@@ -5015,18 +5015,21 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 						const TArray<FRigElementKey> Bones = Controller->ImportBones(RigBlueprint->PreviewSkeletalMesh->GetSkeleton());
 						for(const FRigElementKey& Bone : Bones)
 						{
-							if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Bone))
+							if(FRigBaseElement* Element = Hierarchy->Find(Bone))
 							{
 								Element->CreatedAtInstructionIndex = InstructionIndex;
 							}
 						}
+
+						// create a default socket under the root bone
+						Controller->AddDefaultRootSocket();
 
 						// create a null to store controls under
 						static const FRigElementKey ControlParentKey(TEXT("Controls"), ERigElementType::Null);
 						if(!Hierarchy->Contains(ControlParentKey))
 						{
 							const FRigElementKey Null = Controller->AddNull(ControlParentKey.Name, FRigElementKey(), FTransform::Identity, true, false, false);
-							if(FRigBaseElement* Element = InRig->GetHierarchy()->Find(Null))
+							if(FRigBaseElement* Element = Hierarchy->Find(Null))
 							{
 								Element->CreatedAtInstructionIndex = InstructionIndex;
 							}

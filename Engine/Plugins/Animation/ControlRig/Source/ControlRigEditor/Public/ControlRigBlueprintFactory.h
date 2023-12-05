@@ -31,16 +31,18 @@ public:
 	/**
 	 * Create a new control rig asset within the contents space of the project.
 	 * @param InDesiredPackagePath The package path to use for the control rig asset
+	 * @param bModularRig If true the rig will be created as a modular rig
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Control Rig")
-	static UControlRigBlueprint* CreateNewControlRigAsset(const FString& InDesiredPackagePath);
+	static UControlRigBlueprint* CreateNewControlRigAsset(const FString& InDesiredPackagePath, const bool bModularRig = false);
 
 	/**
 	 * Create a new control rig asset within the contents space of the project
 	 * based on a skeletal mesh or skeleton object.
 	 * @param InSelectedObject The SkeletalMesh / Skeleton object to base the control rig asset on
+	 * @param bModularRig If true the rig will be created as a modular rig
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Control Rig")
-	static UControlRigBlueprint* CreateControlRigFromSkeletalMeshOrSkeleton(UObject* InSelectedObject);
+	static UControlRigBlueprint* CreateControlRigFromSkeletalMeshOrSkeleton(UObject* InSelectedObject, const bool bModularRig = false);
 };
 

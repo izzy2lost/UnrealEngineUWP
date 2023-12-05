@@ -95,6 +95,15 @@ public:
 	// when being interacted with the asset editor
 	bool IsRigModuleInstance() const;
 
+	// Returns true if this rig is a modular rig (of class UModularRig)
+	bool IsModularRig() const;
+
+	// Returns true if this is a standalone rig (of class UControlRig and not modular)
+	bool IsStandaloneRig() const;
+
+	// Returns true if this is a native rig (implemented in C++)
+	bool IsNativeRig() const;
+
 	// Returns the parent rig hosting this module instance
 	UControlRig* GetParentRig() const;
 

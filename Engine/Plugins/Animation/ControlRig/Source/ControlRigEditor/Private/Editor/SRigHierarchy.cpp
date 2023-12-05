@@ -1706,9 +1706,11 @@ void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
 		// we do this to avoid the editmode / viewport shapes to refresh recursively,
 		// which can add an extreme slowdown depending on the number of bones (n^(n-1))
 		bool bSelectBones = true;
+		bool bIsModularRig = false;
 		if (const UControlRig* CurrentRig = EditorSharedPtr->GetControlRig())
 		{
 			bSelectBones = !CurrentRig->IsConstructionModeEnabled();
+			bIsModularRig = CurrentRig->IsModularRig();
 		}
 
 		URigHierarchyController* Controller = Hierarchy->GetController(true);
@@ -1716,6 +1718,10 @@ void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
 
 		const TArray<FRigElementKey> ImportedBones = Controller->ImportBones(Mesh->GetSkeleton(), NAME_None, false, false, bSelectBones, true, true);
 		Controller->ImportCurves(Mesh->GetSkeleton(), NAME_None, false, true);
+		if(bIsModularRig && Hierarchy->GetSockets().Num() == 0)
+		{
+			(void)Controller->AddDefaultRootSocket();
+		}
 
 		ControlRigBlueprint->SourceHierarchyImport = Mesh->GetSkeleton();
 		ControlRigBlueprint->SourceCurveImport = Mesh->GetSkeleton();

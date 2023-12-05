@@ -720,6 +720,30 @@ FRigElementKey URigHierarchyController::AddSocket(FName InName, FRigElementKey I
 	return NewElement->Key;
 }
 
+FRigElementKey URigHierarchyController::AddDefaultRootSocket()
+{
+	FRigElementKey SocketKey;
+	if(const URigHierarchy* CurrentHierarchy = GetHierarchy())
+	{
+		CurrentHierarchy->ForEach<FRigBoneElement>([this, CurrentHierarchy, &SocketKey](const FRigBoneElement* Bone) -> bool
+		{
+			// find first root bone
+			if(CurrentHierarchy->GetNumberOfParents(Bone) == 0)
+			{
+				static const FRigElementKey RootSocketKey(TEXT("Root"), ERigElementType::Socket);
+				SocketKey = AddSocket(RootSocketKey.Name, Bone->GetKey(), FTransform::Identity);
+
+				// stop
+				return false;
+			}
+
+			// continue with the search
+			return true;
+		});
+	}
+	return SocketKey; 
+}
+
 FRigControlSettings URigHierarchyController::GetControlSettings(FRigElementKey InKey) const
 {
 	if(!IsValid())

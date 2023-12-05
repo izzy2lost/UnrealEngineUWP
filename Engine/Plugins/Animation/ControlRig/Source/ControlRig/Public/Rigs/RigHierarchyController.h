@@ -264,6 +264,11 @@ public:
 	FRigElementKey AddSocket(FName InName, FRigElementKey InParent, FTransform InTransform, bool bTransformInGlobal = true, const FLinearColor& InColor = FLinearColor::White, const FString& InDescription = TEXT(""), bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
+	 * Adds a socket to the first determined root bone the hierarchy
+	 * @return The key for the newly created bone (or an invalid key).
+	 */
+	FRigElementKey AddDefaultRootSocket();
+	/**
 	 * Returns the control settings of a given control
 	 * @param InKey The key of the control to receive the settings for
 	 * @return The settings of the given control

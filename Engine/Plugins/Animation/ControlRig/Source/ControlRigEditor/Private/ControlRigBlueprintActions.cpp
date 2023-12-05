@@ -34,6 +34,7 @@
 #include "LevelSequenceEditorBlueprintLibrary.h"
 #include "Sequencer/ControlRigParameterTrackEditor.h"
 #include "Rigs/RigHierarchyController.h"
+#include "ModularRig.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigBlueprintActions"
 
@@ -157,6 +158,7 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 				TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
 				if (SelectedObjects.Num() > 0)
 				{
+					static constexpr bool bModularRig = true;
 					InSection.AddMenuEntry(
 						"CreateControlRig",
 						LOCTEXT("CreateControlRig", "Control Rig"),
@@ -166,7 +168,20 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 						{
 							for (UObject* SelectedObject : SelectedObjects)
 							{
-								FControlRigBlueprintActions::CreateControlRigFromSkeletalMeshOrSkeleton(SelectedObject);
+								CreateControlRigFromSkeletalMeshOrSkeleton(SelectedObject, !bModularRig);
+							}
+						})
+					);
+					InSection.AddMenuEntry(
+						"CreateModularRig",
+						LOCTEXT("CreateModularRig", "Modular Rig"),
+						LOCTEXT("CreateModularRig_ToolTip", "Creates a modular rig and preconfigures it for this asset"),
+						FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"),
+						FExecuteAction::CreateLambda([SelectedObjects]()
+						{
+							for (UObject* SelectedObject : SelectedObjects)
+							{
+								CreateControlRigFromSkeletalMeshOrSkeleton(SelectedObject, bModularRig);
 							}
 						})
 					);
@@ -176,12 +191,12 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 	}
 }
 
-UControlRigBlueprint* FControlRigBlueprintActions::CreateNewControlRigAsset(const FString& InDesiredPackagePath)
+UControlRigBlueprint* FControlRigBlueprintActions::CreateNewControlRigAsset(const FString& InDesiredPackagePath, const bool bModularRig)
 {
 	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 
 	UControlRigBlueprintFactory* Factory = NewObject<UControlRigBlueprintFactory>();
-	Factory->ParentClass = UControlRig::StaticClass();
+	Factory->ParentClass = bModularRig ? UModularRig::StaticClass() : UControlRig::StaticClass();
 
 	FString UniquePackageName;
 	FString UniqueAssetName;
@@ -196,7 +211,7 @@ UControlRigBlueprint* FControlRigBlueprintActions::CreateNewControlRigAsset(cons
 	return Cast<UControlRigBlueprint>(NewAsset);
 }
 
-UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalMeshOrSkeleton(UObject* InSelectedObject)
+UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalMeshOrSkeleton(UObject* InSelectedObject, const bool bModularRig)
 {
 	USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(InSelectedObject);
 	USkeleton* Skeleton = Cast<USkeleton>(InSelectedObject);
@@ -228,14 +243,18 @@ UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalM
 		PackagePath = PackagePath.Left(LastSlashPos);
 	}
 
-	UControlRigBlueprint* NewControlRigBlueprint = CreateNewControlRigAsset(PackagePath / ControlRigName);
+	UControlRigBlueprint* NewControlRigBlueprint = CreateNewControlRigAsset(PackagePath / ControlRigName, bModularRig);
 	if (NewControlRigBlueprint == nullptr)
 	{
 		return nullptr;
 	}
 
-	NewControlRigBlueprint->GetHierarchyController()->ImportBones(*RefSkeleton, NAME_None, false, false, false, false);
-	NewControlRigBlueprint->GetHierarchyController()->ImportCurves(Skeleton, NAME_None, false, false);
+	if(URigHierarchyController* Controller = NewControlRigBlueprint->GetHierarchyController())
+	{
+		Controller->ImportBones(*RefSkeleton, NAME_None, false, false, false, false);
+		Controller->ImportCurves(Skeleton, NAME_None, false, false);
+		Controller->AddDefaultRootSocket();
+	}
 	NewControlRigBlueprint->SourceHierarchyImport = Skeleton;
 	NewControlRigBlueprint->SourceCurveImport = Skeleton;
 	NewControlRigBlueprint->PropagateHierarchyFromBPToInstances();
@@ -245,7 +264,10 @@ UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalM
 		NewControlRigBlueprint->SetPreviewMesh(SkeletalMesh);
 	}
 
-	NewControlRigBlueprint->RecompileVM();
+	if(!bModularRig)
+	{
+		NewControlRigBlueprint->RecompileVM();
+	}
 
 	return NewControlRigBlueprint;
 }
