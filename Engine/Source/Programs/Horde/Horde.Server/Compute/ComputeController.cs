@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -12,6 +13,7 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
+using HordeCommon.Rpc.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -67,7 +69,8 @@ namespace Horde.Server.Compute
 				Ports = request.Connection?.Ports ?? new Dictionary<string, int>(),
 				ConnectionMode = request.Connection?.ModePreference,
 				RequesterPublicIp = request.Connection?.ClientPublicIp,
-				UsePublicIp = request.Connection?.PreferPublicIp
+				UsePublicIp = request.Connection?.PreferPublicIp,
+				Encryption = ConvertEncryptionToProto(request.Connection?.Encryption)
 			};
 
 			ComputeResource? computeResource;
@@ -96,8 +99,10 @@ namespace Horde.Server.Compute
 			response.ConnectionMode = computeResource.ConnectionMode;
 			response.ConnectionAddress = computeResource.ConnectionAddress;
 			response.Ports = responsePorts;
+			response.Encryption = ConvertEncryptionFromProto(computeResource.Task.Encryption);
 			response.Nonce = StringUtils.FormatHexString(computeResource.Task.Nonce.Span);
 			response.Key = StringUtils.FormatHexString(computeResource.Task.Key.Span);
+			response.Certificate = StringUtils.FormatHexString(computeResource.Task.Certificate.Span);
 			response.AgentId = computeResource.AgentId;
 			response.LeaseId = computeResource.LeaseId;
 			response.Properties = computeResource.Properties;
@@ -108,6 +113,29 @@ namespace Horde.Server.Compute
 			}
 
 			return response;
+		}
+
+		private static Encryption ConvertEncryptionFromProto(ComputeEncryption proto)
+		{
+			return proto switch
+			{
+				ComputeEncryption.Aes => Encryption.Aes,
+				ComputeEncryption.Ssl => Encryption.Ssl,
+				ComputeEncryption.None => Encryption.None,
+				ComputeEncryption.Unspecified => Encryption.None,
+				_ => throw new ArgumentOutOfRangeException(nameof(proto), proto, null)
+			};
+		}
+		
+		private static ComputeEncryption ConvertEncryptionToProto(Encryption? json)
+		{
+			return json switch
+			{
+				Encryption.Aes => ComputeEncryption.Aes,
+				Encryption.Ssl => ComputeEncryption.Ssl,
+				Encryption.None => ComputeEncryption.None,
+				_ => ComputeEncryption.None
+			};
 		}
 		
 		/// <summary>

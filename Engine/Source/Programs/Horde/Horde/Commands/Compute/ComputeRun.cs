@@ -48,6 +48,10 @@ namespace Horde.Commands.Compute
 		[CommandLine("-InProc")]
 		[Description("If true, attempts to load and execute the compute process in the host process. The process to remote must be a .NET assembly invoked through the dotnet command.")]
 		public bool InProc { get; set; }
+		
+		[CommandLine("-Encryption")]
+		[Description("Encryption for communicating with compute task (Aes, Ssl, None).")]
+		public string? Encryption { get; set; }
 
 		[CommandLine("-Sandbox=")]
 		[Description("Specifies the path to use for the remote sandbox.")]
@@ -78,7 +82,15 @@ namespace Horde.Commands.Compute
 				requirements = new Requirements(Condition.Parse(Requirements));
 			}
 
-			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId(ClusterId), requirements, null, null, logger, CancellationToken.None);
+			ConnectionMetadataRequest cmr = new();
+			switch (Encryption?.ToUpperInvariant())
+			{
+				case "SSL": cmr.Encryption = EpicGames.Horde.Compute.Encryption.Ssl; break;
+				case "AES": cmr.Encryption = EpicGames.Horde.Compute.Encryption.Aes; break;
+				case "NONE": cmr.Encryption = EpicGames.Horde.Compute.Encryption.None; break;
+			}
+
+			await using IComputeLease? lease = await client.TryAssignWorkerAsync(new ClusterId(ClusterId), requirements, null, cmr, logger, CancellationToken.None);
 			if (lease == null)
 			{
 				throw new Exception("Unable to create lease");

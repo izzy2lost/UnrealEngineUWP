@@ -95,6 +95,11 @@ namespace EpicGames.Horde.Compute
 		/// This is useful to avoid sending traffic over VPN tunnels.
 		/// </summary>
 		public bool? PreferPublicIp { get; set; }
+		
+		/// <summary>
+		/// Encryption mode to request. Server can still override.
+		/// </summary>
+		public Encryption? Encryption { get; set; }
 	}
 
 	/// <summary>
@@ -134,6 +139,11 @@ namespace EpicGames.Horde.Compute
 		public IReadOnlyDictionary<string, ConnectionMetadataPort> Ports { get; set; } = new Dictionary<string, ConnectionMetadataPort>();
 
 		/// <summary>
+		/// Encryption used
+		/// </summary>
+		public Encryption Encryption { get; set; } = Encryption.None;
+		
+		/// <summary>
 		/// Cryptographic nonce to identify the request, as a hex string
 		/// </summary>
 		public string Nonce { get; set; } = String.Empty;
@@ -142,6 +152,11 @@ namespace EpicGames.Horde.Compute
 		/// AES key for the channel, as a hex string
 		/// </summary>
 		public string Key { get; set; } = String.Empty;
+		
+		/// <summary>
+		/// X.509 certificate used for SSL/TLS encryption
+		/// </summary>
+		public string Certificate { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Identifier for the remote machine
@@ -187,6 +202,28 @@ namespace EpicGames.Horde.Compute
 		/// Forwarding is transparent and behaves like a normal TCP/UDP connection.
 		/// </summary>
 		Relay
+	}
+	
+	/// <summary>
+	/// Describe encryption for the compute resource connection
+	/// </summary>
+	[JsonConverter(typeof(JsonStringEnumConverter))]
+	public enum Encryption
+	{
+		/// <summary>
+		/// No encryption enabled
+		/// </summary>
+		None,
+		
+		/// <summary>
+		/// Use custom AES-based encryption transport
+		/// </summary>
+		Aes,
+		
+		/// <summary>
+		/// Use SSL/TLS encryption
+		/// </summary>
+		Ssl
 	}
 	
 	/// <summary>

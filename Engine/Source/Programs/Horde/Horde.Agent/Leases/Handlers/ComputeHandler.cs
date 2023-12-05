@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Buffers;
-using System.Diagnostics;
 using System.Net.Sockets;
 using EpicGames.Core;
 using EpicGames.Horde.Compute;
@@ -19,46 +17,6 @@ namespace Horde.Agent.Leases.Handlers
 	/// </summary>
 	class ComputeHandler : LeaseHandler<ComputeTask>
 	{
-		class TcpTransportWithTimeout : ComputeTransport
-		{
-			readonly TcpTransport _inner;
-			long _lastPingTicks;
-
-			static readonly double s_ticksToSystemTicks = (double)TimeSpan.TicksPerSecond / Stopwatch.Frequency;
-
-			public TcpTransportWithTimeout(Socket socket)
-			{
-				_inner = new TcpTransport(socket);
-				_lastPingTicks = Stopwatch.GetTimestamp();
-			}
-
-			public TimeSpan TimeSinceActivity => TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - Interlocked.CompareExchange(ref _lastPingTicks, 0, 0)) * s_ticksToSystemTicks));
-
-			public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
-			
-			/// <inheritdoc/>
-			public override ValueTask DisposeAsync()
-			{
-				return _inner.DisposeAsync();
-			}
-
-			public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
-			{
-				int result = await _inner.RecvAsync(buffer, cancellationToken);
-				if (result > 0)
-				{
-					Interlocked.Exchange(ref _lastPingTicks, Stopwatch.GetTimestamp());
-				}
-				return result;
-			}
-
-			public override async ValueTask SendAsync(ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
-			{
-				await _inner.SendAsync(buffer, cancellationToken);
-				Interlocked.Exchange(ref _lastPingTicks, Stopwatch.GetTimestamp());
-			}
-		}
-
 		class CombinedLogger : ILogger
 		{
 			readonly ILogger[] _loggers;
@@ -77,8 +35,6 @@ namespace Horde.Agent.Leases.Handlers
 				}
 			}
 		}
-
-		static TimeSpan NoDataTimeout { get; } = TimeSpan.FromSeconds(20);
 
 		readonly ComputeListenerService _listenerService;
 		readonly IServerLoggerFactory _serverLoggerFactory;
@@ -123,19 +79,21 @@ namespace Horde.Agent.Leases.Handlers
 				tcpClient = await _listenerService.WaitForClientAsync(new ByteString(computeTask.Nonce.Memory), TimeSpan.FromSeconds(TimeoutSeconds), cancellationToken);
 				if (tcpClient == null)
 				{
-					logger.LogInformation("Timed out waiting for connection after {Time}s.", TimeoutSeconds); 
+					logger.LogInformation("Timed out waiting for connection after {Time}s", TimeoutSeconds); 
 					return LeaseResult.Success;
 				}
 
 				logger.LogInformation("Matched connection for {Nonce}", StringUtils.FormatHexString(computeTask.Nonce.Span));
 
-				await using TcpTransportWithTimeout transport = new TcpTransportWithTimeout(tcpClient.Client);
 				using (CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 				{
-					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => TickTimeoutAsync(transport, cts, logger, ctx));
+					await using ComputeTransport innerTransport = await CreateTransportAsync(computeTask, tcpClient.Client, cts.Token);
+					await using IdleTimeoutTransport idleTimeoutTransport = new (innerTransport);
+
+					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => idleTimeoutTransport.StartWatchdogTimerAsync(cts, logger, ctx));
 					try
 					{
-						await using (RemoteComputeSocket socket = new RemoteComputeSocket(transport, logger))
+						await using (RemoteComputeSocket socket = new RemoteComputeSocket(idleTimeoutTransport, logger))
 						{
 							DirectoryReference sandboxDir = DirectoryReference.Combine(session.WorkingDir, "Sandbox", leaseId);
 							try
@@ -160,9 +118,9 @@ namespace Horde.Agent.Leases.Handlers
 							}
 						}
 					}
-					catch (OperationCanceledException ex) when (cts.IsCancellationRequested && transport.TimeSinceActivity > NoDataTimeout)
+					catch (OperationCanceledException ex) when (cts.IsCancellationRequested && idleTimeoutTransport.TimeSinceActivity > idleTimeoutTransport.NoDataTimeout)
 					{
-						logger.LogError(ex, "Lease was terminated due to no data being received for {Time} seconds", (int)NoDataTimeout.TotalSeconds);
+						logger.LogError(ex, "Lease was terminated due to no data being received for {Time} seconds", (int)idleTimeoutTransport.NoDataTimeout.TotalSeconds);
 						return LeaseResult.Failed;
 					}
 				}
@@ -178,6 +136,27 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
+		private static async Task<ComputeTransport> CreateTransportAsync(ComputeTask computeTask, Socket socket, CancellationToken cancellationToken)
+		{
+			switch (computeTask.Encryption)
+			{
+				case ComputeEncryption.Ssl:
+					TcpSslTransport sslTransport = new(socket, computeTask.Certificate.ToByteArray(), true);
+					await sslTransport.AuthenticateAsync(cancellationToken);
+					return sslTransport;
+				
+				case ComputeEncryption.Aes:
+#pragma warning disable CA2000 // Dispose objects before losing scope
+					return new AesTransport(new TcpTransport(socket), computeTask.Key.ToByteArray(), computeTask.Nonce.ToByteArray());
+#pragma warning restore CA2000 // Restore CA2000
+				
+				case ComputeEncryption.Unspecified:
+				case ComputeEncryption.None:
+				default:
+					return new TcpTransport(socket);
+			}
+		}
+
 		private void ClearTerminationSignalFile()
 		{
 			string path = _settings.GetTerminationSignalFile().FullName;
@@ -190,21 +169,6 @@ namespace Horde.Agent.Leases.Handlers
 				// If this file is not removed and lingers on from previous executions,
 				// new compute tasks may pick it up and erroneously decide to terminate.
 				_logger.LogError(e, "Unable to delete termination signal file {Path}", path);
-			}
-		}
-
-		static async Task TickTimeoutAsync(TcpTransportWithTimeout transport, CancellationTokenSource cts, ILogger logger, CancellationToken cancellationToken)
-		{
-			while(!cancellationToken.IsCancellationRequested)
-			{
-				TimeSpan reaminingTime = NoDataTimeout - transport.TimeSinceActivity;
-				if (reaminingTime < TimeSpan.Zero)
-				{
-					logger.LogWarning("Terminating compute task due to timeout (last tick at {Time})", DateTime.UtcNow - transport.TimeSinceActivity);
-					cts.Cancel();
-					break;
-				}
-				await Task.Delay(reaminingTime + TimeSpan.FromSeconds(0.2), cancellationToken);
 			}
 		}
 	}
