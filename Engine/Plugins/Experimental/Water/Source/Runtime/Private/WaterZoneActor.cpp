@@ -124,6 +124,8 @@ void AWaterZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	FWorldDelegates::LevelAddedToWorld.RemoveAll(this);
 	FWorldDelegates::LevelRemovedFromWorld.RemoveAll(this);
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void AWaterZone::PostLoadSubobjects(FObjectInstancingGraph* OuterInstanceGraph)
