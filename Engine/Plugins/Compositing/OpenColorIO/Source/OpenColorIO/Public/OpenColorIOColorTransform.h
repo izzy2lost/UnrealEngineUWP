@@ -39,14 +39,12 @@ public:
 	UE_DEPRECATED(5.3, "This method is deprecated, please use Initialize without the owner argument.")
 	bool Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues = {});
 
-#if WITH_EDITOR
 	/**
 	 * Initialize resources for color space transform. */
 	bool Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues = {});
 	
 	/** Initialize resources for display-view transform. */
 	bool Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues = {});
-#endif
 
 	/**
 	 * Serialize LUT data. This will effectively serialize the LUT only when cooking
@@ -87,7 +85,6 @@ public:
 	 */
 	bool IsTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection) const;
 
-#if WITH_EDITOR
 	/**
 	 * Get the transform processor.
 	 *
@@ -113,7 +110,6 @@ public:
 	
 	/** Apply the color transform from the source image to the destination image. (The destination FImageView is const but what it points at is not.) */
 	bool TransformImage(const FImageView& SrcImage, const FImageView& DestImage) const;
-#endif
 
 	/**
 	 * Get the display view direction type, when applicable.
@@ -179,10 +175,10 @@ protected:
 private:
 #if WITH_EDITOR
 	/**
-	 * Create the transform processor(s) and generate its resources.
+	 * Create the transform processor(s) and generate its resources. Editor-only, in game mode GPU resources are already present.
 	 */
-	void ProcessTransform();
-#endif //WITH_EDITOR
+	void ProcessTransformForGPU();
+#endif
 
 	void FlushResourceShaderMaps();
 

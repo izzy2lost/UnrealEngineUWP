@@ -20,10 +20,13 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+#if WITH_OCIO
 		EngineBuiltInConfig.Reset();
+#endif //WITH_OCIO
 	}
 	//~ End IModuleInterface interface
 
+#if WITH_OCIO
 	//~ Begin IOpenColorIOWrapperModule interface
 	virtual FOpenColorIOWrapperEngineConfig& GetEngineBuiltInConfig() override
 	{
@@ -44,6 +47,7 @@ private:
 
 	// Global engine config using the built-in studio config, lazily allocated.
 	TUniquePtr<FOpenColorIOWrapperEngineConfig> EngineBuiltInConfig;
+#endif //WITH_OCIO
 };
 
 IMPLEMENT_MODULE(FOpenColorIOWrapperModule, OpenColorIOWrapper);

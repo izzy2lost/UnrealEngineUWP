@@ -45,7 +45,6 @@ public:
 	bool HasDesiredDisplayView(const FOpenColorIODisplayView& DisplayView) const;
 	bool Validate() const;
 
-#if WITH_EDITOR
 	/** Apply the color transform in-place to the specified image. */
 	bool TransformColor(const FOpenColorIOColorConversionSettings& InSettings, FLinearColor& InOutColor) const;
 
@@ -54,7 +53,6 @@ public:
 
 	/** Apply the color transform from the source image to the destination image. (The destination FImageView is const but what it points at is not.) */
 	bool TransformImage(const FOpenColorIOColorConversionSettings& InSettings, const FImageView& SrcImage, const FImageView& DestImage) const;
-#endif
 
 	/** This forces to reload colorspaces and corresponding shaders if those are not loaded already. */
 	UFUNCTION(BlueprintCallable, Category = "OpenColorIO")
@@ -66,18 +64,25 @@ public:
 	*/
 	void ConfigPathChangedEvent(const TArray<FFileChangeData>& InFileChanges, const FString InFileMountPath);
 
-	/** Internal only: Replacement for previous `GetNativeConfig_Internal()`, `GetLoadedConfiguration()` and `GetLoadedConfigurationFile()` functions, returning the private implementation of the native OCIO config. */
+	/**
+	 * Get the private wrapper implementation of the OCIO config.
+	 */
 	FOpenColorIOWrapperConfig* GetConfigWrapper() const;
+	
+	/**
+	 * Get or create the private wrapper implementation of the OCIO config.
+	 * Useful for non-editor modes where the config isn't automatically loaded.
+	 */
+	FOpenColorIOWrapperConfig* GetOrCreateConfigWrapper();
 	
 	/** Find the color transform object that corresponds to the specified settings, nullptr if not found. */
 	TObjectPtr<const UOpenColorIOColorTransform> FindTransform(const FOpenColorIOColorConversionSettings& InSettings) const;
 
 protected:
 
-#if WITH_EDITOR
 	void CreateColorTransform(const FString& InSourceColorSpace, const FString& InDestinationColorSpace);
 	void CreateColorTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection);
-#endif
+
 	void CleanupTransforms();
 
 	/** Same as above except user can specify the path manually. */
@@ -105,9 +110,11 @@ public:
 	//~ End UObject interface
 
 private:
-#if WITH_EDITOR
+
+	/** Load the config file to initialize the configuration wrapper object. Automatically called internally. */
 	void LoadConfiguration();
 
+#if WITH_EDITOR
 	/** This method resets the status of Notification dialog and reacts depending on user's choice. */
 	void OnToastCallback(bool bInReloadColorspaces);
 #endif
@@ -144,14 +151,12 @@ private:
 	/** Information about the currently watched directory. Helps us manage the directory change events. */
 	FOCIOConfigWatchedDirInfo WatchedDirectoryInfo;
 
-#if WITH_EDITORONLY_DATA
 	/** Private implementation of the OpenColorIO config object. */
 	TPimplPtr<FOpenColorIOWrapperConfig> Config = nullptr;
 
 	/** Hash of all of the config content, including relevant external file information. */
 	UPROPERTY()
 	FString ConfigHash;
-#endif
 };
 
 

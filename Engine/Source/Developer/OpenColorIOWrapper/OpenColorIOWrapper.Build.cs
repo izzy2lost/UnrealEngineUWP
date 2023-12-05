@@ -18,29 +18,33 @@ namespace UnrealBuildTool.Rules
 				"Engine", // for TextureDefines.h
 			});
 
-			PrivateDependencyModuleNames.AddRange(new string[]
-			{
-				"ColorManagement",
-				"ImageCore",
-				"OpenColorIOLib",
-			});
-
 			PublicDependencyModuleNames.AddRange(new string[]
 			{
 				"Core",
 			});
 
-			bool bIsPlatformSupported = false;
+			bool bIsSupported = false;
 
-			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ||
-				Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
-				Target.Platform == UnrealTargetPlatform.Mac)
+			// Because the servers run with NullRHI, we currently ignore OCIO color operations on this build type.
+			if (Target.Type != TargetType.Server)
 			{
-				// Mirror WITH_OCIO_LIB coverage, which suffices for editor use cases.
-				bIsPlatformSupported = true;
-			}
+				// Mirror OpenColorIOLib platform coverage
+				if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ||
+					Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
+					Target.Platform == UnrealTargetPlatform.Mac)
+				{
+					PrivateDependencyModuleNames.AddRange(new string[]
+					{
+						"ColorManagement",
+						"ImageCore",
+						"OpenColorIOLib",
+					});
 
-			PublicDefinitions.Add("WITH_OCIO=" + (bIsPlatformSupported ? "1" : "0"));
+					bIsSupported = true;
+				}
+			}
+			
+			PublicDefinitions.Add("WITH_OCIO=" + (bIsSupported ? "1" : "0"));
 		}
 	}
 }

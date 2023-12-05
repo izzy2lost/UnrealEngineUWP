@@ -38,10 +38,12 @@ public:
 		return FModuleManager::Get().IsModuleLoaded(ModuleName);
 	}
 
+#if WITH_OCIO
 	/**
 	 * Returns a minimal dynamically-created native config for engine (working color spaces) conversions.
 	 */
 	virtual FOpenColorIOWrapperEngineConfig& GetEngineBuiltInConfig() = 0;
+#endif //WITH_OCIO
 
 	/** Virtual destructor */
 	virtual ~IOpenColorIOWrapperModule() = default;

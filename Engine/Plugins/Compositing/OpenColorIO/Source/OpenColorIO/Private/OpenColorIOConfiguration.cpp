@@ -13,6 +13,7 @@
 #include "OpenColorIOColorTransform.h"
 #include "OpenColorIOModule.h"
 #include "OpenColorIOSettings.h"
+#include "OpenColorIOWrapper.h"
 #include "TextureResource.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -24,7 +25,6 @@
 
 
 #if WITH_EDITOR
-#include "OpenColorIOWrapper.h"
 #include "DerivedDataCacheInterface.h"
 #include "DirectoryWatcherModule.h"
 #include "IDirectoryWatcher.h"
@@ -123,7 +123,7 @@ bool UOpenColorIOConfiguration::HasDesiredDisplayView(const FOpenColorIODisplayV
 
 bool UOpenColorIOConfiguration::Validate() const
 {
-#if WITH_EDITOR
+#if WITH_OCIO
 	if (!ConfigurationFile.FilePath.IsEmpty() && Config.IsValid())
 	{
 		//When loading the configuration file, if any errors are detected, it will throw an exception. Thus, our pointer won't be valid.
@@ -133,10 +133,9 @@ bool UOpenColorIOConfiguration::Validate() const
 	return false;
 #else
 	return true;
-#endif // WITH_EDITOR
+#endif // WITH_OCIO
 }
 
-#if WITH_EDITOR
 bool UOpenColorIOConfiguration::TransformColor(const FOpenColorIOColorConversionSettings& InSettings, FLinearColor& InOutColor) const
 {
 	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
@@ -169,13 +168,12 @@ bool UOpenColorIOConfiguration::TransformImage(const FOpenColorIOColorConversion
 
 	return false;
 }
-#endif
 
 void UOpenColorIOConfiguration::ReloadExistingColorspaces(bool bForce)
 {
-#if WITH_EDITOR
 	LoadConfiguration();
 
+#if WITH_OCIO
 	if (Config && Config->IsValid())
 	{
 		FString LoadedConfigHash = Config->GetCacheID();
@@ -349,7 +347,20 @@ void UOpenColorIOConfiguration::ConfigPathChangedEvent(const TArray<FFileChangeD
 
 FOpenColorIOWrapperConfig* UOpenColorIOConfiguration::GetConfigWrapper() const
 {
-#if WITH_EDITOR
+#if WITH_OCIO
+	return Config.Get();
+#else
+	return nullptr;
+#endif
+}
+
+FOpenColorIOWrapperConfig* UOpenColorIOConfiguration::GetOrCreateConfigWrapper()
+{
+#if WITH_OCIO
+	if (!Config.IsValid())
+	{
+		LoadConfiguration();
+	}
 	return Config.Get();
 #else
 	return nullptr;
@@ -413,7 +424,6 @@ TObjectPtr<const UOpenColorIOColorTransform> UOpenColorIOConfiguration::FindTran
 	return (TransformPtr != nullptr) ? *TransformPtr : nullptr;
 }
 
-#if WITH_EDITOR
 void UOpenColorIOConfiguration::CreateColorTransform(const FString& InSourceColorSpace, const FString& InDestinationColorSpace)
 {
 	if (InSourceColorSpace.IsEmpty() || InDestinationColorSpace.IsEmpty())
@@ -465,7 +475,6 @@ void UOpenColorIOConfiguration::CreateColorTransform(const FString& InSourceColo
 		UE_LOG(LogOpenColorIO, Warning, TEXT("Could not create color space transform from %s to %s - %s. Verify your OCIO config file, it may have errors in it."), *InSourceColorSpace, *InDisplay, *InView);
 	}
 }
-#endif
 
 void UOpenColorIOConfiguration::CleanupTransforms()
 {
@@ -529,7 +538,12 @@ void UOpenColorIOConfiguration::PostInitProperties()
 void UOpenColorIOConfiguration::PostLoad()
 {
 	Super::PostLoad();
+
+#if WITH_EDITOR
+	// In non-editor modes, the shader & texture resources are already baked.
+	// For CPU transforms, the config is lazily-loaded.
 	ReloadExistingColorspaces();
+#endif
 
 	for (UOpenColorIOColorTransform* Transform : ColorTransforms)
 	{
@@ -589,6 +603,54 @@ void UOpenColorIOConfiguration::PreSave(FObjectPreSaveContext SaveContext)
 	OpenColorIOConfiguration::SendAnalytics(TEXT("Usage.OpenColorIO.ConfigAssetSaved"), DesiredColorSpaces);
 }
 
+void UOpenColorIOConfiguration::LoadConfiguration()
+{
+#if WITH_OCIO
+	Config.Reset();
+
+	if (ConfigurationFile.FilePath.IsEmpty())
+	{
+		return;
+	}
+
+	bool bIsBuiltIn = false;
+	FString FilePath = ConfigurationFile.FilePath;
+
+	if (ConfigurationFile.FilePath.StartsWith(TEXT("ocio://")))
+	{
+		bIsBuiltIn = true;
+	}
+	else if (ConfigurationFile.FilePath.Equals(TEXT("$OCIO")) || ConfigurationFile.FilePath.Equals(TEXT("%OCIO%")))
+	{
+		FilePath = FPlatformMisc::GetEnvironmentVariable(TEXT("OCIO"));
+	}
+	else if (ConfigurationFile.FilePath.Contains(TEXT("{Engine}")))
+	{
+		FilePath = FPaths::ConvertRelativePathToFull(ConfigurationFile.FilePath.Replace(TEXT("{Engine}"), *FPaths::EngineDir()));
+	}
+	else if (FPaths::IsRelative(ConfigurationFile.FilePath))
+	{
+		const FString AbsoluteGameDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		FilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(AbsoluteGameDir, ConfigurationFile.FilePath));
+	}
+
+	Config = MakePimpl<FOpenColorIOWrapperConfig>(FilePath, FOpenColorIOWrapperConfig::WCS_AsInterchangeSpace);
+
+	if (Config->IsValid())
+	{
+		if (!bIsBuiltIn)
+		{
+			StartDirectoryWatch(FilePath);
+		}
+
+		UE_LOG(LogOpenColorIO, Verbose, TEXT("Loaded OCIO configuration file %s"), *FilePath);
+	}
+	else
+	{
+		UE_LOG(LogOpenColorIO, Error, TEXT("Could not load OCIO configuration file %s. Verify that the path is good or that the file is valid."), *FilePath);
+	}
+#endif //WITH_OCIO
+}
 
 #if WITH_EDITOR
 
@@ -658,53 +720,6 @@ void UOpenColorIOConfiguration::PostEditChangeProperty(FPropertyChangedEvent& Pr
 		}
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-
-void UOpenColorIOConfiguration::LoadConfiguration()
-{
-	Config.Reset();
-
-	if (ConfigurationFile.FilePath.IsEmpty())
-	{
-		return;
-	}
-
-	bool bIsBuiltIn = false;
-	FString FilePath = ConfigurationFile.FilePath;
-
-	if (ConfigurationFile.FilePath.StartsWith(TEXT("ocio://")))
-	{
-		bIsBuiltIn = true;
-	}
-	else if (ConfigurationFile.FilePath.Equals(TEXT("$OCIO")) || ConfigurationFile.FilePath.Equals(TEXT("%OCIO%")))
-	{
-		FilePath = FPlatformMisc::GetEnvironmentVariable(TEXT("OCIO"));
-	}
-	else if(ConfigurationFile.FilePath.Contains(TEXT("{Engine}")))
-	{
-		FilePath = FPaths::ConvertRelativePathToFull(ConfigurationFile.FilePath.Replace(TEXT("{Engine}"), *FPaths::EngineDir()));
-	}
-	else if (FPaths::IsRelative(ConfigurationFile.FilePath))
-	{
-		const FString AbsoluteGameDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-		FilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(AbsoluteGameDir, ConfigurationFile.FilePath));
-	}
-
-	Config = MakePimpl<FOpenColorIOWrapperConfig>(FilePath, FOpenColorIOWrapperConfig::WCS_AsInterchangeSpace);
-
-	if (Config->IsValid())
-	{
-		if (!bIsBuiltIn)
-		{
-			StartDirectoryWatch(FilePath);
-		}
-
-		UE_LOG(LogOpenColorIO, Verbose, TEXT("Loaded OCIO configuration file %s"), *FilePath);
-	}
-	else
-	{
-		UE_LOG(LogOpenColorIO, Error, TEXT("Could not load OCIO configuration file %s. Verify that the path is good or that the file is valid."), *FilePath);
-	}
 }
 
 void UOpenColorIOConfiguration::OnToastCallback(bool bInReloadColorspaces)
