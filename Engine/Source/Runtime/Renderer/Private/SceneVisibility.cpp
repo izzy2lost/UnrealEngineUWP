@@ -4439,13 +4439,18 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 			Parameters.TransientResources = AllocateHairTransientResources(GraphBuilder, Scene);
 			if (Parameters.HasInstances())
 			{
-				// Prepare (skel.) data for guide/simulation update
-				// If we are rendering from scene capture we don't need to run another time the hair bookmarks.
-				if (Scene && IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && Views[0].AllowGPUParticleUpdate())
+				if (Scene && IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()))
 				{
+					// 1.Update binding surfaces
+					// Prepare surface data (MeshLODData)
 					Scene->WaitForGPUSkinCacheTask();
+					RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessBindingSurfaceUpdate, Parameters);
 
-					RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessGuideInterpolation, Parameters);
+					// 2. Prepare surface data for guides
+					if (Views[0].AllowGPUParticleUpdate())
+					{
+						RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessGuideInterpolation, Parameters);
+					}
 				}
 			}
 		}

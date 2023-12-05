@@ -493,6 +493,7 @@ enum class EHairStrandsBookmark : uint8
 {
 	ProcessTasks,
 	ProcessLODSelection,
+	ProcessBindingSurfaceUpdate,
 	ProcessGuideInterpolation,
 	ProcessCardsAndMeshesInterpolation_PrimaryView,
 	ProcessCardsAndMeshesInterpolation_ShadowView,

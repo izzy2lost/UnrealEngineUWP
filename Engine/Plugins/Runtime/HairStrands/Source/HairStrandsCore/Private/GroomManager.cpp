@@ -630,7 +630,7 @@ static FCachedGeometry GetCacheGeometryForHair(
 }
 
 // Binding surface parameters (skel.mesh/geom. cache)
-static void RunHairStrandsSkinCache(
+static void RunHairBindingSurfaceUpdate(
 	FRDGBuilder& GraphBuilder,
 	FSceneInterface* Scene,
 	const FSceneView* View,
@@ -1832,7 +1832,6 @@ static void RunHairStrandsInterpolation_Cards(
 				check(Instance->Meshes.IsValid(InstanceData.HairLODIndex));
 				InstanceData.bNeedDeformation 	= Instance->Meshes.LODs[InstanceData.HairLODIndex].DeformedResource != nullptr;
 				InstanceData.MeshInstance 		= &Instance->Meshes.LODs[InstanceData.HairLODIndex];
-				InstanceData.MeshLODIndex 		= Instance->Debug.MeshLODIndex; // Debug.MeshLODIndex is initialized during the guide pass (if guides are needed updated)
 				if (InstanceData.bNeedDeformation)
 				{
 					check(Instance->BindingType == EHairBindingType::Skinning);
@@ -2052,8 +2051,9 @@ static void RunHairStrandsInterpolation_Cards(
 	// Meshes only - Deform final mesh geometry (using RBF)
 	for (uint32 InstanceIndex : MeshInstances)
 	{
+		FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
+		if (InstanceData.bNeedDeformation)
 		{
-			FInstanceData& InstanceData = InstanceDatas[InstanceIndex];
 			AddHairMeshesRBFInterpolationPass(
 				GraphBuilder,
 				ShaderMap,
@@ -2841,11 +2841,11 @@ void ProcessHairStrandsBookmark(
 				Parameters.AllViews);
 		}
 	}
-	else if (Bookmark == EHairStrandsBookmark::ProcessGuideInterpolation)
+	else if (Bookmark == EHairStrandsBookmark::ProcessBindingSurfaceUpdate)
 	{
 		check(GraphBuilder);
 
-		RunHairStrandsSkinCache(
+		RunHairBindingSurfaceUpdate(
 			*GraphBuilder,
 			Parameters.Scene,
 			Parameters.View,
@@ -2854,6 +2854,9 @@ void ProcessHairStrandsBookmark(
 			Parameters.ShaderPrintData,
 			*Parameters.TransientResources,
 			Parameters.ShaderMap);
+	}
+	else if (Bookmark == EHairStrandsBookmark::ProcessGuideInterpolation)
+	{
 
 		RunHairStrandsInterpolation_Guide(
 			*GraphBuilder,
