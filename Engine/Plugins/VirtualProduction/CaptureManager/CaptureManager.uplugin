@@ -39,6 +39,12 @@
 			"Type": "EditorAndProgram",
 			"ProgramAllowList": [ "LiveLinkHub" ],
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "CaptureProtocolStack",
+			"Type": "EditorAndProgram",
+			"ProgramAllowList": [ "LiveLinkHub" ],
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": []

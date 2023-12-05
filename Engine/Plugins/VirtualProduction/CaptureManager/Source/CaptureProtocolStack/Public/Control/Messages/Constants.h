@@ -1,0 +1,130 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "Containers/UnrealString.h"
+
+namespace UE::CPS::AddressPaths
+{
+// Requests/Responses
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GKeepAlive;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GStartSession;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GStopSession;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSubscribe;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GUnsubscribe;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GGetServerInformation;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GGetState;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GStartRecordingTake;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GStopRecordingTake;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GAbortRecordingTake;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GGetTakeList;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GGetTakeMetadata;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GExportTakeData;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GExportTakeVideoFrame;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GExportCameraFeedFrame;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GPauseExport;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GCancelExport;
+
+// Updates
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSessionStopped;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRecordingStatus;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakeAdded;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakeRemoved;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakeUpdated;
+
+// Platform Specific: IOS
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GDiskCapacity;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GBattery;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GThermalState;
+}
+
+namespace UE::CPS::Properties
+{
+// Keys
+// Messages
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSessionId;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GAddressPath;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTransactionId;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTimestamp;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GType;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GBody;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GError;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GDescription;
+
+// Requests
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSlateName;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakeNumber;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSubject;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GScenario;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTags;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GNames;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakeName;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GFiles;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GName;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GOffset;
+
+
+// Responses
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GId;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GModel;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GPlatformName;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GPlatformVersion;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSoftwareName;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSoftwareVersion;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GExportPort;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GIsRecording;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GPlatformState;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTakes;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GDateTime;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GFrames;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GAppVersion;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GLength;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GVideo;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GFrameRate;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GHeight;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GWidth;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GAudio;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GChannels;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSampleRate;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GBitsPerChannel;
+
+// Platform Specific: iOS
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTotalCapacity;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRemainingCapacity;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GBatteryLevel;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GThermalState;
+
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GTotal;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRemaining;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GLevel;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GState;
+
+// Values
+// Messages
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRequest;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GResponse;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GUpdate;
+
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GIOS;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GAndroid;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GWindows;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GWindowsServer;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GLinux;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GMacOS;
+
+// Platform Specific: iOS
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GNominal;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GFair;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GSerious;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GCritical;
+}
+
+namespace UE::CPS::ErrorNames
+{
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GUnsupportedProtocolVersion;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRequestFailed;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GRequestParsingFailed;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GNotSupported;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GNoSession;
+extern CAPTUREPROTOCOLSTACK_API const TCHAR* GMissingBody;
+}
