@@ -75,6 +75,7 @@ public:
 		int32 ShiftMouseMovePixelPerDelta;
 		bool bSupportDynamicSliderMaxValue;
 		bool bSupportDynamicSliderMinValue;
+		bool bAllowSpinBox;
 	};
 
 	/** Utility function that will extract common Math related numeric metadata */	
@@ -172,6 +173,8 @@ private:
 
 	/** Called when the user toggles preserve ratio. */
 	void OnPreserveScaleRatioToggled(ECheckBoxState NewState, TWeakPtr<IPropertyHandle> PropertyHandle);
+
+	FReply OnNormalizeClicked(TWeakPtr<IPropertyHandle> PropertyHandle);
 
 private:
 
