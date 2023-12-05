@@ -1920,10 +1920,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	// anymore, as that's how it refreshes whenever we delete a prim
 	for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
 	{
-		if (HasAuthorityOverStage())
-		{
-			OnPrimChanged.Broadcast(PrimChangedInfo.Key.GetString(), PrimChangedInfo.Value);
-		}
+		OnPrimChanged.Broadcast(PrimChangedInfo.Key.GetString(), PrimChangedInfo.Value);
 	}
 
 	if (bNeedsAnimationReload)
