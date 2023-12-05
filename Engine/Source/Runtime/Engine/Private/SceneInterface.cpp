@@ -19,6 +19,7 @@ void FSceneInterface::UpdateAllPrimitiveSceneInfos(FRHICommandListImmediate& RHI
 
 void FSceneInterface::ProcessAndRenderIlluminanceMeter(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views, FRDGTextureRef SceneColorTexture)
 {
+	// Deprecated
 }
 
 EShaderPlatform FSceneInterface::GetShaderPlatform() const

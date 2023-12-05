@@ -70,6 +70,7 @@
 #include "RectLightTextureManager.h"
 #include "IESTextureManager.h"
 #include "UnrealEngine.h"
+#include "IlluminanceMeter.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -375,6 +376,7 @@ void AddPostProcessingPasses(
 		VisualizeSubstrate,
 		VisualizeLightGrid,
 		VisualizeSkyAtmosphere,
+		VisualizeSkyLightIlluminanceMeter,
 		VisualizeLightFunctionAtlas,
 		VisualizeLevelInstance,
 		SelectionOutline,
@@ -428,6 +430,7 @@ void AddPostProcessingPasses(
 		TEXT("VisualizeSubstrate"),
 		TEXT("VisualizeLightGrid"),
 		TEXT("VisualizeSkyAtmosphere"),
+		TEXT("VisualizeSkyLightIlluminanceMeter"),
 		TEXT("VisualizeLightFunctionAtlas"),
 		TEXT("VisualizeLevelInstance"),
 		TEXT("SelectionOutline"),
@@ -468,12 +471,14 @@ void AddPostProcessingPasses(
 
 #if WITH_EDITOR
 	PassSequence.SetEnabled(EPass::VisualizeSkyAtmosphere, Scene&& View.Family && View.Family->EngineShowFlags.VisualizeSkyAtmosphere && ShouldRenderSkyAtmosphereDebugPasses(Scene, View.Family->EngineShowFlags));
+	PassSequence.SetEnabled(EPass::VisualizeSkyLightIlluminanceMeter, Scene&& Scene->SkyLight && View.Family && View.Family->EngineShowFlags.VisualizeSkyLightIlluminance);
 	PassSequence.SetEnabled(EPass::VisualizeLightFunctionAtlas, Scene && Scene->LightFunctionAtlasSceneData.GetLightFunctionAtlasEnabled() && View.Family && View.Family->EngineShowFlags.VisualizeLightFunctionAtlas);
 	PassSequence.SetEnabled(EPass::VisualizeLevelInstance, GIsEditor && EngineShowFlags.EditingLevelInstance && EngineShowFlags.VisualizeLevelInstanceEditing && !bVisualizeHDR);
 	PassSequence.SetEnabled(EPass::SelectionOutline, GIsEditor && EngineShowFlags.Selection && EngineShowFlags.SelectionOutline && !EngineShowFlags.Wireframe && !bVisualizeHDR && !IStereoRendering::IsStereoEyeView(View));
 	PassSequence.SetEnabled(EPass::EditorPrimitive, FSceneRenderer::ShouldCompositeEditorPrimitives(View));
 #else
 	PassSequence.SetEnabled(EPass::VisualizeSkyAtmosphere, false);
+	PassSequence.SetEnabled(EPass::VisualizeSkyLightIlluminanceMeter, false);
 	PassSequence.SetEnabled(EPass::VisualizeLightFunctionAtlas, false);
 	PassSequence.SetEnabled(EPass::VisualizeLevelInstance, false);
 	PassSequence.SetEnabled(EPass::SelectionOutline, false);
@@ -1395,6 +1400,13 @@ void AddPostProcessingPasses(
 		FScreenPassRenderTarget OverrideOutput;
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeSkyAtmosphere, OverrideOutput);
 		SceneColor = AddSkyAtmosphereDebugPasses(GraphBuilder, Scene, *View.Family, View, SceneColor);
+	}
+
+	if (PassSequence.IsEnabled(EPass::VisualizeSkyLightIlluminanceMeter))
+	{
+		FScreenPassRenderTarget OverrideOutput;
+		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeSkyLightIlluminanceMeter, OverrideOutput);
+		SceneColor = ProcessAndRenderIlluminanceMeter(GraphBuilder, View, SceneColor);
 	}
 
 	if (PassSequence.IsEnabled(EPass::VisualizeLightFunctionAtlas))
