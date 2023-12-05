@@ -29,6 +29,8 @@ namespace UE
 				int32 MorphTargetIndex;
 				int32 ChannelIndex;
 				FString MorphTargetNodeUid;
+				TArray<FString> InbetweenCurveNames;
+				TArray<float> InbetweenFullWeights;
 
 				FMorphTargetAnimationBuildingData(double InStartTime
 						, double InStopTime
@@ -48,6 +50,32 @@ namespace UE
 					, MorphTargetIndex(InMorphTargetIndex)
 					, ChannelIndex(InChannelIndex)
 					, MorphTargetNodeUid(InMorphTargetNodeUid)
+				{
+
+				}
+
+				FMorphTargetAnimationBuildingData(double InStartTime
+						, double InStopTime
+						, UInterchangeMeshNode* InInterchangeMeshNode
+						, int32 InGeometryIndex
+						, int32 InAnimationIndex
+						, FbxAnimLayer* InAnimLayer
+						, int32 InMorphTargetIndex
+						, int32 InChannelIndex
+						, FString InMorphTargetNodeUid
+						, TArray<FString> InInbetweenCurveNames
+						, TArray<float> InInbetweenFullWeights)
+					: StartTime(InStartTime)
+					, StopTime(InStopTime)
+					, InterchangeMeshNode(InInterchangeMeshNode)
+					, GeometryIndex(InGeometryIndex)
+					, AnimationIndex(InAnimationIndex)
+					, AnimLayer(InAnimLayer)
+					, MorphTargetIndex(InMorphTargetIndex)
+					, ChannelIndex(InChannelIndex)
+					, MorphTargetNodeUid(InMorphTargetNodeUid)
+					, InbetweenCurveNames(InInbetweenCurveNames)
+					, InbetweenFullWeights(InInbetweenFullWeights)
 				{
 
 				}

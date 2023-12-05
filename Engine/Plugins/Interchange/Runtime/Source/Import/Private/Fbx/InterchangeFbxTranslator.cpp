@@ -401,10 +401,23 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeFbxTransl
 			switch (PayLoadKey.Type)
 			{
 			case EInterchangeAnimationPayLoadType::CURVE:
+				{
+					TArray<FInterchangeCurve> InterchangeCurves;
+					Ar << InterchangeCurves;
+					AnimationTransformPayload.Curves.AddDefaulted(InterchangeCurves.Num());
+					for (int32 CurveIndex = 0; CurveIndex < InterchangeCurves.Num(); ++CurveIndex)
+					{
+						const FInterchangeCurve& InterchangeCurve = InterchangeCurves[CurveIndex];
+						InterchangeCurve.ToRichCurve(AnimationTransformPayload.Curves[CurveIndex]);
+					}
+				}
+				break;
 			case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
 				{
 					TArray<FInterchangeCurve> InterchangeCurves;
 					Ar << InterchangeCurves;
+					Ar << AnimationTransformPayload.InbetweenCurveNames;
+					Ar << AnimationTransformPayload.InbetweenFullWeights;
 					AnimationTransformPayload.Curves.AddDefaulted(InterchangeCurves.Num());
 					for (int32 CurveIndex = 0; CurveIndex < InterchangeCurves.Num(); ++CurveIndex)
 					{

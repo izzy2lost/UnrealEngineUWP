@@ -1789,27 +1789,75 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 							PayloadContexts.Add(MorphTargetPayLoadKey, GeoPayload);
 						}
 						MorphTargetNode->SetPayLoadKey(MorphTargetPayLoadKey, EInterchangeMeshPayLoadType::MORPHTARGET);
+					}
+				}
 
-						for (int32 AnimationIndex = 0; AnimationIndex < NumAnimations; AnimationIndex++)
+				FbxShape* Shape = Channel->GetTargetShape(0);
+				FString MorphTargetUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
+				for (int32 AnimationIndex = 0; AnimationIndex < NumAnimations; AnimationIndex++)
+				{
+					FbxAnimStack* AnimStack = (FbxAnimStack*)SDKScene->GetSrcObject<FbxAnimStack>(AnimationIndex);
+					if (AnimStack)
+					{
+						FbxAnimLayer* AnimLayer = (FbxAnimLayer*)AnimStack->GetMember(0);
+
+						FbxAnimCurve* Curve = Mesh->GetShapeChannel(MorphTargetIndex, ChannelIndex, AnimLayer);
+						if (Curve && Curve->KeyGetCount() > 0)
 						{
-							FbxAnimStack* AnimStack = (FbxAnimStack*)SDKScene->GetSrcObject<FbxAnimStack>(AnimationIndex);
-							if (AnimStack)
+							FbxTimeSpan TimeInterval;
+							Curve->GetTimeInterval(TimeInterval);
+							if (CurrentChannelMorphTargetCount == 1)
 							{
-								FbxAnimLayer* AnimLayer = (FbxAnimLayer*)AnimStack->GetMember(0);
-								
-								FbxAnimCurve* Curve = Mesh->GetShapeChannel(MorphTargetIndex, ChannelIndex, AnimLayer);
-								if (Curve && Curve->KeyGetCount() > 0)
-								{
-									FbxTimeSpan TimeInterval;
-									Curve->GetTimeInterval(TimeInterval);
+								MorphTargetAnimationsBuildingData.Add(FMorphTargetAnimationBuildingData(TimeInterval.GetStart().GetSecondDouble()
+									, TimeInterval.GetStop().GetSecondDouble()
+									, MeshNode
+									, GeometryIndex
+									, AnimationIndex
+									, AnimLayer
+									, MorphTargetIndex
+									, ChannelIndex
+									, MorphTargetUniqueID));
+							}
+							else
+							{
+								TArray<FString> InbetweenCurveNames;
+								InbetweenCurveNames.Reserve(CurrentChannelMorphTargetCount);
 
-									//In order to appropriately identify the Skeleton Node Uids we have to process the MorphTarget animations once the hierarchy is processed
-									MorphTargetAnimationsBuildingData.Add(FMorphTargetAnimationBuildingData(TimeInterval.GetStart().GetSecondDouble(), TimeInterval.GetStop().GetSecondDouble(), MeshNode, GeometryIndex, AnimationIndex, AnimLayer, MorphTargetIndex, ChannelIndex, MorphTargetUniqueID));
+								// in fbx the primary shape is the last shape, however to make
+								// the code more similar to usd importer, we deal with the primary shape separately
+								InbetweenCurveNames.Add(ChannelName);
+
+								// ignoring the last shape because it is not a inbetween, i.e. it is the primary shape
+								int32 InbetweenCount = CurrentChannelMorphTargetCount - 1;
+
+								TArrayView<double> FbxInbetweenFullWeights = { Channel->GetTargetShapeFullWeights(), InbetweenCount };
+
+								TArray<float> InbetweenFullWeights;
+								InbetweenFullWeights.Reserve(InbetweenCount);
+								/** for some reason blend shape values are coming as 100 scaled, so a transform is needed to scale it to 0-1 **/
+								Algo::Transform(FbxInbetweenFullWeights, InbetweenFullWeights, [](double Input) { return Input * 0.01f; });
+
+								// collect inbetween shape names
+								for (int32 InbetweenIndex = 0; InbetweenIndex < InbetweenCount; ++InbetweenIndex)
+								{
+									FbxShape* InbetweenShape = Channel->GetTargetShape(InbetweenIndex);
+									InbetweenCurveNames.Add(Parser.GetFbxHelper()->GetFbxObjectName(InbetweenShape));
 								}
+								MorphTargetAnimationsBuildingData.Add(FMorphTargetAnimationBuildingData(TimeInterval.GetStart().GetSecondDouble()
+									, TimeInterval.GetStop().GetSecondDouble()
+									, MeshNode
+									, GeometryIndex
+									, AnimationIndex
+									, AnimLayer
+									, MorphTargetIndex
+									, ChannelIndex
+									, MorphTargetUniqueID
+									, InbetweenCurveNames
+									, InbetweenFullWeights));
 							}
 						}
 					}
-				} // for CurrentChannelMorphTargetCount
+				}
 			} // for MorphTargetChannelCount
 		} // for MorphTargetCount
 	} // for GeometryCount

@@ -49,7 +49,7 @@ namespace UE::Interchange::Private
 	struct FMorphTargetFetchPayloadData
 	{
 		//We cannot just store the FbxAnimCurve
-		// becase! it is refernced from FbxMesh which gets replaced when we are triangulating it upon PayloadData acquisition
+		// because! it is referenced from FbxMesh which gets replaced when we are triangulating it upon PayloadData acquisition
 		// for that reason we need to re-acquire it all the way from the Scene, based on GeometryIndex, MorphTargetIndex, ChannelIndex and AnimLayer.
 		// (This is happening because upon Triangulation we are passing bReplace = true, see @FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh)
 		//FbxAnimCurve* MorphTargetAnimCurve = nullptr;
@@ -60,6 +60,11 @@ namespace UE::Interchange::Private
 		int32 MorphTargetIndex;
 		int32 ChannelIndex;
 		FbxAnimLayer* AnimLayer;
+
+		//In between blend shape animation support
+		//The count of the curve names should match the in between full weights
+		TArray<FString> InbetweenCurveNames;
+		TArray<float> InbetweenFullWeights;
 	};
 
 	

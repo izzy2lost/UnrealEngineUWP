@@ -787,6 +787,8 @@ namespace UE::Interchange::Private
 		{
 			FLargeMemoryWriter Ar;
 			Ar << InterchangeCurves;
+			Ar << FetchPayloadData.InbetweenCurveNames;
+			Ar << FetchPayloadData.InbetweenFullWeights;
 			uint8* ArchiveData = Ar.GetData();
 			int64 ArchiveSize = Ar.TotalSize();
 			TArray64<uint8> Buffer(ArchiveData, ArchiveSize);
@@ -896,6 +898,8 @@ namespace UE::Interchange::Private
 			FetchPayloadData.MorphTargetIndex = MorphTargetAnimationBuildingData.MorphTargetIndex;
 			FetchPayloadData.ChannelIndex = MorphTargetAnimationBuildingData.ChannelIndex;
 			FetchPayloadData.AnimLayer = MorphTargetAnimationBuildingData.AnimLayer;
+			FetchPayloadData.InbetweenCurveNames = MorphTargetAnimationBuildingData.InbetweenCurveNames;
+			FetchPayloadData.InbetweenFullWeights = MorphTargetAnimationBuildingData.InbetweenFullWeights;
 
 			AnimPayload->MorphTargetFetchPayloadData = FetchPayloadData;
 

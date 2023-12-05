@@ -12,7 +12,7 @@ namespace UE
 	{
 		int32 DispatcherCommandVersion::GetMajor()
 		{
-			return 18;
+			return 19;
 		}
 
 		int32 DispatcherCommandVersion::GetMinor()

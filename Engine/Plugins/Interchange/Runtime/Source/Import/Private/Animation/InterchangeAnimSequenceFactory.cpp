@@ -149,7 +149,7 @@ namespace UE::Interchange::Private
 
 	bool InternalCreateCurve(UAnimSequence* TargetSequence
 		, TArray<FRichCurve>& Curves
-		, const FString& CurveName
+		, const TArray<FString>& CurveNames
 		, const int32 CurveFlags
 		, const bool bDoNotImportCurveWithZero
 		, const bool bAddCurveMetadataToSkeleton
@@ -157,16 +157,21 @@ namespace UE::Interchange::Private
 		, const bool bMaterialCurve
 		, const bool bShouldTransact)
 	{
-		if (!TargetSequence || Curves.Num() != 1 || CurveName.IsEmpty() || Curves[0].IsEmpty())
+		bool bResult = false;
+		if (!TargetSequence || CurveNames.Num() <= 0 || CurveNames.Num() != Curves.Num())
 		{
-			return false;
+			return bResult;
 		}
 
-		if (bDoNotImportCurveWithZero)
+
+		for (int32 CurveIndex = 0; CurveIndex < Curves.Num(); ++CurveIndex)
 		{
-			bool bAllCurveValueAreZero = true;
-			for (const FRichCurve& Curve : Curves)
+			FRichCurve& Curve = Curves[CurveIndex];
+			FName Name = *CurveNames[CurveIndex];
+
+			if (bDoNotImportCurveWithZero)
 			{
+				bool bAllCurveValueAreZero = true;
 				FKeyHandle KeyHandle = Curve.GetFirstKeyHandle();
 				while (KeyHandle != FKeyHandle::Invalid())
 				{
@@ -177,68 +182,204 @@ namespace UE::Interchange::Private
 					}
 					KeyHandle = Curve.GetNextKey(KeyHandle);
 				}
+				if (bAllCurveValueAreZero)
+				{
+					continue;
+				}
 			}
-			if (bAllCurveValueAreZero)
+			
+			FAnimationCurveIdentifier FloatCurveId(Name, ERawCurveTrackTypes::RCT_Float);
+
+			IAnimationDataModel* DataModel = TargetSequence->GetDataModel();
+			IAnimationDataController& Controller = TargetSequence->GetController();
+
+			const FFloatCurve* TargetCurve = DataModel->FindFloatCurve(FloatCurveId);
+			if (TargetCurve == nullptr)
 			{
-				//Avoid importing morph target curve with only zero value
-				return false;
+				// Need to add the curve first
+				Controller.AddCurve(FloatCurveId, AACF_DefaultCurve | CurveFlags, bShouldTransact);
+				TargetCurve = DataModel->FindFloatCurve(FloatCurveId);
 			}
-		}
-		
-		FName Name = *CurveName;
-		FAnimationCurveIdentifier FloatCurveId(Name, ERawCurveTrackTypes::RCT_Float);
-		
-		IAnimationDataModel* DataModel = TargetSequence->GetDataModel();
-		IAnimationDataController& Controller = TargetSequence->GetController();
-
-		const FFloatCurve* TargetCurve = DataModel->FindFloatCurve(FloatCurveId);
-		if (TargetCurve == nullptr)
-		{
-			// Need to add the curve first
-			Controller.AddCurve(FloatCurveId, AACF_DefaultCurve | CurveFlags, bShouldTransact);
-			TargetCurve = DataModel->FindFloatCurve(FloatCurveId);
-		}
-		else
-		{
-			// Need to update any of the flags
-			Controller.SetCurveFlags(FloatCurveId, CurveFlags | TargetCurve->GetCurveTypeFlags(), bShouldTransact);
-		}
-
-		// Should be valid at this point
-		ensure(TargetCurve);
-
-		//MorphTarget curves are shift to 0 second
-		const float CurveStartTime = Curves[0].GetFirstKey().Time;
-		if (CurveStartTime > UE_SMALL_NUMBER)
-		{
-			Curves[0].ShiftCurve(-CurveStartTime);
-		}
-		// Set actual keys on curve within the model
-		Controller.SetCurveKeys(FloatCurveId, Curves[0].GetConstRefOfKeys(), bShouldTransact);
-
-		if (bMaterialCurve || bMorphTargetCurve)
-		{
-			if(bAddCurveMetadataToSkeleton)
+			else
 			{
-				USkeleton* Skeleton = TargetSequence->GetSkeleton();
-				Skeleton->AccumulateCurveMetaData(Name, bMaterialCurve, bMorphTargetCurve);
+				// Need to update any of the flags
+				Controller.SetCurveFlags(FloatCurveId, CurveFlags | TargetCurve->GetCurveTypeFlags(), bShouldTransact);
 			}
+
+			// Should be valid at this point
+			ensure(TargetCurve);
+
+			//MorphTarget curves are shift to 0 second
+			const float CurveStartTime = Curve.GetFirstKey().Time;
+			if (CurveStartTime > UE_SMALL_NUMBER)
+			{
+				Curve.ShiftCurve(-CurveStartTime);
+			}
+			// Set actual keys on curve within the model
+			Controller.SetCurveKeys(FloatCurveId, Curve.GetConstRefOfKeys(), bShouldTransact);
+
+			if (bMaterialCurve || bMorphTargetCurve)
+			{
+				if (bAddCurveMetadataToSkeleton)
+				{
+					USkeleton* Skeleton = TargetSequence->GetSkeleton();
+					Skeleton->AccumulateCurveMetaData(Name, bMaterialCurve, bMorphTargetCurve);
+				}
+			}
+			bResult = true;
 		}
-		return true;
+		return bResult;
 	}
 
-	bool CreateMorphTargetCurve(UAnimSequence* TargetSequence, TArray<FRichCurve>& Curves, const FString& CurveName, int32 CurveFlags, bool bDoNotImportCurveWithZero, bool bAddCurveMetadataToSkeleton, bool bShouldTransact)
+	void ResolveWeightsForBlendShape(const TArray<float>& InbetweenFullWeights, float InWeight, float& OutMainWeight, TArray<float>& OutInbetweenWeights)
+	{
+		int32 NumInbetweens = InbetweenFullWeights.Num();
+		if (NumInbetweens == 0)
+		{
+			OutMainWeight = InWeight;
+			return;
+		}
+
+		OutInbetweenWeights.SetNumUninitialized(NumInbetweens);
+		for (float& OutInbetweenWeight : OutInbetweenWeights)
+		{
+			OutInbetweenWeight = 0.0f;
+		}
+
+		if (FMath::IsNearlyEqual(InWeight, 0.0f))
+		{
+			OutMainWeight = 0.0f;
+			return;
+		}
+		else if (FMath::IsNearlyEqual(InWeight, 1.0f))
+		{
+			OutMainWeight = 1.0f;
+			return;
+		}
+
+		// Note how we don't care if UpperIndex/LowerIndex are beyond the bounds of the array here,
+		// as that signals when we're above/below all inbetweens
+		int32 UpperIndex = Algo::UpperBoundBy(InbetweenFullWeights, InWeight, [](const double& InbetweenWeight)
+			{
+				return InbetweenWeight;
+			});
+		int32 LowerIndex = UpperIndex - 1;
+
+		float UpperWeight = 1.0f;
+		if (UpperIndex <= NumInbetweens - 1)
+		{
+			UpperWeight = InbetweenFullWeights[UpperIndex];
+		}
+
+		float LowerWeight = 0.0f;
+		if (LowerIndex >= 0)
+		{
+			LowerWeight = InbetweenFullWeights[LowerIndex];
+		}
+
+		UpperWeight = (InWeight - LowerWeight) / (UpperWeight - LowerWeight);
+		LowerWeight = (1.0f - UpperWeight);
+
+		// We're between upper inbetween and the 1.0 weight
+		if (UpperIndex > NumInbetweens - 1)
+		{
+			OutMainWeight = UpperWeight;
+			OutInbetweenWeights[NumInbetweens - 1] = LowerWeight;
+		}
+		// We're between 0.0 and the first inbetween weight
+		else if (LowerIndex < 0)
+		{
+			OutMainWeight = 0;
+			OutInbetweenWeights[0] = UpperWeight;
+		}
+		// We're between two inbetweens
+		else
+		{
+			OutInbetweenWeights[UpperIndex] = UpperWeight;
+			OutInbetweenWeights[LowerIndex] = LowerWeight;
+		}
+	}
+
+	TArray<FRichCurve> ResolveWeightsForBlendShapeCurve(FRichCurve& ChannelWeightCurve, const TArray<float>& InbetweenFullWeights)
+	{
+		int32 NumInbetweens = InbetweenFullWeights.Num();
+		if (NumInbetweens == 0)
+		{
+			return { ChannelWeightCurve };
+		}
+
+		TArray<FRichCurve> Result;
+		Result.SetNum(NumInbetweens + 1);
+
+		TArray<float> ResolvedInbetweenWeightsSample;
+		ResolvedInbetweenWeightsSample.SetNum(NumInbetweens);
+
+		for (const FRichCurveKey& SourceKey : ChannelWeightCurve.Keys)
+		{
+			const float SourceTime = SourceKey.Time;
+			const float SourceValue = SourceKey.Value;
+
+			float ResolvedPrimarySample = 0.0f;
+
+			ResolveWeightsForBlendShape(InbetweenFullWeights, SourceValue, ResolvedPrimarySample, ResolvedInbetweenWeightsSample);
+
+			FRichCurve& PrimaryCurve = Result[0];
+			FKeyHandle PrimaryHandle = PrimaryCurve.AddKey(SourceTime, ResolvedPrimarySample);
+			PrimaryCurve.SetKeyInterpMode(PrimaryHandle, SourceKey.InterpMode);
+
+			for (int32 InbetweenIndex = 0; InbetweenIndex < NumInbetweens; ++InbetweenIndex)
+			{
+				FRichCurve& InbetweenCurve = Result[InbetweenIndex + 1];
+				FKeyHandle InbetweenHandle = InbetweenCurve.AddKey(SourceTime, ResolvedInbetweenWeightsSample[InbetweenIndex]);
+				InbetweenCurve.SetKeyInterpMode(InbetweenHandle, SourceKey.InterpMode);
+			}
+		}
+
+		return Result;
+	}
+
+	bool CreateMorphTargetCurve(UAnimSequence* TargetSequence
+		, TArray<FRichCurve>& Curves
+		, const FString& CurveName
+		, TArray<FString>& InbetweenCurveNames
+		, TArray<float>& InbetweenFullWeights
+		, bool bRemoveCurveRedundantKeys
+		, int32 CurveFlags
+		, bool bDoNotImportCurveWithZero
+		, bool bAddCurveMetadataToSkeleton
+		, bool bShouldTransact)
 	{
 		constexpr bool bIsMorphTargetCurve = true;
 		constexpr bool bIsMaterialCurve = false;
-		return InternalCreateCurve(TargetSequence, Curves, CurveName, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
+		if (Curves.Num() == 1 && InbetweenCurveNames.Num() == InbetweenFullWeights.Num()+1)
+		{
+			//We must create inbetween shape curve to simulate the result
+			//First bake the channel weight curves
+			FRichCurve& ChannelWeightCurve = Curves[0];
+#if WITH_EDITORONLY_DATA
+			ChannelWeightCurve.BakeCurve(1.0f / TargetSequence->ImportResampleFramerate);
+#endif
+
+			// use the primary curve to generate inbetween shape curves + a modified primary curve
+			TArray<FRichCurve> Results = ResolveWeightsForBlendShapeCurve(ChannelWeightCurve, InbetweenFullWeights);
+
+			for (FRichCurve& Result : Results)
+			{
+				if (bRemoveCurveRedundantKeys)
+				{
+					Result.RemoveRedundantAutoTangentKeys(SMALL_NUMBER);
+				}
+			}
+			return InternalCreateCurve(TargetSequence, Results, InbetweenCurveNames, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
+		}
+		return InternalCreateCurve(TargetSequence, Curves, { CurveName }, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
 	}
 
 	bool CreateMaterialCurve(UAnimSequence* TargetSequence, TArray<FRichCurve>& Curves, const FString& CurveName, int32 CurveFlags, bool bDoNotImportCurveWithZero, bool bAddCurveMetadataToSkeleton, bool bShouldTransact)
 	{
 		constexpr bool bIsMorphTargetCurve = false;
 		constexpr bool bIsMaterialCurve = true;
-		return InternalCreateCurve(TargetSequence, Curves, CurveName, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
+		return InternalCreateCurve(TargetSequence, Curves, { CurveName }, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
 	}
 
 	bool CreateAttributeCurve(UAnimSequence* TargetSequence, TArray<FRichCurve>& Curves, const FString& CurveName, int32 CurveFlags, bool bDoNotImportCurveWithZero, bool bAddCurveMetadataToSkeleton, bool bShouldTransact)
@@ -246,7 +387,7 @@ namespace UE::Interchange::Private
 		//This curve don't animate morph target or material parameter.
 		constexpr bool bIsMorphTargetCurve = false;
 		constexpr bool bIsMaterialCurve = false;
-		return InternalCreateCurve(TargetSequence, Curves, CurveName, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
+		return InternalCreateCurve(TargetSequence, Curves, { CurveName }, CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bIsMorphTargetCurve, bIsMaterialCurve, bShouldTransact);
 	}
 
 	void RetrieveAnimationPayloads(UAnimSequence* AnimSequence
@@ -507,7 +648,16 @@ namespace UE::Interchange::Private
 						}
 					}
 					constexpr int32 CurveFlags = 0;
-					CreateMorphTargetCurve(AnimSequence, AnimationCurvePayload.Curves, MorphTargetData.CurveNodeNamePerPayloadKey.FindChecked(CurveNameAndPayload.Key), CurveFlags, bDoNotImportCurveWithZero, bAddCurveMetadataToSkeleton, bShouldTransact);
+					CreateMorphTargetCurve(AnimSequence
+						, AnimationCurvePayload.Curves
+						, MorphTargetData.CurveNodeNamePerPayloadKey.FindChecked(CurveNameAndPayload.Key)
+						, AnimationCurvePayload.InbetweenCurveNames
+						, AnimationCurvePayload.InbetweenFullWeights
+						, bRemoveCurveRedundantKeys
+						, CurveFlags
+						, bDoNotImportCurveWithZero
+						, bAddCurveMetadataToSkeleton
+						, bShouldTransact);
 				}
 			}
 

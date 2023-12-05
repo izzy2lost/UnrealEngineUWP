@@ -22,6 +22,10 @@ namespace UE::Interchange
 #if WITH_ENGINE
 		//CURVE
 		TArray<FRichCurve> Curves;
+
+		//In-between blend shape data
+		TArray<FString> InbetweenCurveNames;
+		TArray<float> InbetweenFullWeights;
 #endif
 		//STEP CURVE
 		TArray<FInterchangeStepCurve> StepCurves;
