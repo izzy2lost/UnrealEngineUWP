@@ -11,7 +11,7 @@ bool FGameplayAbilityRepAnimMontage::NetSerialize(FArchive& Ar, class UPackageMa
 	Ar.UsingCustomVersion(FEngineNetworkCustomVersion::Guid);
 
 	uint8 bIsMontage = 1;
-	if (Ar.EngineNetVer() > FEngineNetworkCustomVersion::DynamicMontageSerialization)
+	if (Ar.EngineNetVer() >= FEngineNetworkCustomVersion::DynamicMontageSerialization)
 	{
 		if (Ar.IsSaving())
 		{
@@ -86,7 +86,7 @@ bool FGameplayAbilityRepAnimMontage::NetSerialize(FArchive& Ar, class UPackageMa
 
 	if (!bIsMontage)
 	{
-		ensure(Ar.EngineNetVer() > FEngineNetworkCustomVersion::DynamicMontageSerialization);
+		ensure(Ar.EngineNetVer() >= FEngineNetworkCustomVersion::DynamicMontageSerialization);
 		Ar << BlendOutTime;
 		Ar << SlotName;
 	}
