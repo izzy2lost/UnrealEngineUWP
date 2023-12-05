@@ -698,6 +698,10 @@ void UCacheTrackRecorder::PreRecord()
 		}
 	}
 
+	// we set this global variable to prevent things like auto-save to trigger during a recording
+	GIsSlowTask = true;
+	OnStopCleanup.Add([]() { GIsSlowTask = false; });
+
 	if (Parameters.Project.bCacheTrackRecorderControlsClockTime)
 	{
 		ModifyEditorTickState();
