@@ -2,6 +2,8 @@
 
 #include "AutomationTestExcludelist.h"
 
+#include "Misc/ConfigCacheIni.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AutomationTestExcludelist)
 
 #if WITH_EDITOR
@@ -17,66 +19,119 @@ DEFINE_LOG_CATEGORY_STATIC(LogAutomationTestExcludelist, Log, All);
 
 static const FString FunctionalTestsPreFix = TEXT("Project.Functional Tests.");
 
-void UAutomationTestExcludelist::OverrideConfigSection(FString& SectionName)
+void SortExcludelist(TMap<FString, FAutomationTestExcludelistEntry>& List)
 {
-	SectionName = TEXT("AutomationTestExcludelist");
-}
-
-UAutomationTestExcludelist* UAutomationTestExcludelist::Get()
-{
-	return GetMutableDefault<UAutomationTestExcludelist>();
+	// Sort in alphabetical order, shortest to longest of key property.
+	// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
+	List.KeySort([](const FString& A, const FString& B)
+		{
+			return A < B;
+		});
 }
 
 void SortExcludelist(TArray<FAutomationTestExcludelistEntry>& List)
 {
 	// Sort in alphabetical order, shortest to longest of FullTestName property.
-	// That is to naturally gives priority to parent suite over invidual test exclusion when calling GetExcludeTestEntry(TestName).
+	// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
 	List.Sort([](const FAutomationTestExcludelistEntry& A, const FAutomationTestExcludelistEntry& B)
-	{
-		return A.FullTestName < B.FullTestName;
-	});
-}
-
-void UAutomationTestExcludelist::PostInitProperties()
-{
-	Super::PostInitProperties();
-
-	for (auto& Entry : ExcludeTest)
-	{
-		if (Entry.IsEmpty())
 		{
-			Entry.FullTestName = GetFullTestName(Entry);
-		}
-	}
-
-	SortExcludelist(ExcludeTest);
+			return A.FullTestName < B.FullTestName;
+		});
 }
 
-FString UAutomationTestExcludelist::GetFullTestName(const FAutomationTestExcludelistEntry& ExcludelistEntry)
+void FAutomationTestExcludelistEntry::Finalize()
 {
-	if (!ExcludelistEntry.IsEmpty())
+	if (!IsEmpty())
 	{
-		return ExcludelistEntry.FullTestName;
+		return;
 	}
 
-	FString ListName = ExcludelistEntry.Test.ToString().TrimStartAndEnd();
+	FString TestStr = Test.ToString().TrimStartAndEnd();
 
-	bool IsFunctionalTest = ListName.StartsWith(FunctionalTestsPreFix);
+	bool IsFunctionalTest = TestStr.StartsWith(FunctionalTestsPreFix);
 
-	// Backcomp - merge Map and Test properties of Functional Test
-	FString Map = ExcludelistEntry.Map.ToString().TrimStartAndEnd();
-	if (Map.StartsWith(TEXT("/")) && !IsFunctionalTest)
+	// Backward compatibility - merge Map and Test properties of Functional Test
+	FString MapStr = Map.ToString().TrimStartAndEnd();
+	if (MapStr.StartsWith(TEXT("/")) && !IsFunctionalTest)
 	{
-		ListName = FunctionalTestsPreFix + Map + TEXT(".") + ListName;
+		TestStr = FunctionalTestsPreFix + MapStr + TEXT(".") + TestStr;
 		IsFunctionalTest = true;
 	}
-	// Backcomp - Convert package path by using dot syntax instead of /
+	// Backward compatibility - Convert package path by using dot syntax instead of /
 	if (IsFunctionalTest)
 	{
-		ListName = ListName.Replace(TEXT("./Game/"), TEXT(".")).Replace(TEXT("/"), TEXT("."));
+		TestStr = TestStr.Replace(TEXT("./Game/"), TEXT(".")).Replace(TEXT("/"), TEXT("."));
 	}
 
-	return ListName.ToLower();
+	FullTestName = TestStr.ToLower();
+}
+
+FString FAutomationTestExcludelistEntry::GetStringForHash() const
+{
+	return FullTestName + Reason.ToString() + SetToString(RHIs) + (Warn? TEXT("1") : TEXT("0"));
+}
+
+UAutomationTestExcludelist* UAutomationTestExcludelist::Get()
+{
+	UAutomationTestExcludelist* Obj = GetMutableDefault<UAutomationTestExcludelist>();
+	if (!Obj->DefaultConfig)
+	{
+		Obj->Initialize();
+	}
+
+	return Obj;
+}
+
+void UAutomationTestExcludelist::Initialize()
+{
+	DefaultConfig = GetMutableDefault<UAutomationTestExcludelistConfig>();
+	if (PlatformConfigs.IsEmpty())
+	{
+		LoadPlatformConfigs();
+		PopulateEntries();
+	}
+}
+
+void UAutomationTestExcludelist::LoadPlatformConfigs()
+{
+	PlatformConfigs.Empty();
+
+	for (auto* PlatformSettings : AutomationTestPlatform::GetAllPlatformsSettings(UAutomationTestExcludelistConfig::StaticClass()))
+	{
+		PlatformConfigs.Emplace(PlatformSettings->GetPlatformName(), CastChecked<UAutomationTestExcludelistConfig>(PlatformSettings));
+	}
+}
+
+void UAutomationTestExcludelist::PopulateEntries()
+{
+	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Settings"));
+	Entries.Empty();
+
+	// Populate with default first
+	for (const FAutomationTestExcludelistEntry& Entry : DefaultConfig->GetEntries())
+	{
+		Entries.Emplace(Entry.FullTestName, Entry);
+	}
+	// Merge platforms with default config
+	for (auto& Config : PlatformConfigs)
+	{
+		for (const FAutomationTestExcludelistEntry& PlatformEntry : Config.Value->GetEntries())
+		{
+			if (FAutomationTestExcludelistEntry* Entry = Entries.Find(PlatformEntry.FullTestName))
+			{
+				Entry->Platforms.Add(Config.Key);
+				Entry->RHIs.Append(PlatformEntry.RHIs);
+			}
+			else
+			{
+				Entries.Emplace(
+					PlatformEntry.FullTestName,
+					PlatformEntry
+				).Platforms.Add(Config.Key);
+			}
+		}
+	}
+	SortExcludelist(Entries);
 }
 
 void UAutomationTestExcludelist::AddToExcludeTest(const FString& TestName, const FAutomationTestExcludelistEntry& ExcludelistEntry)
@@ -87,11 +142,9 @@ void UAutomationTestExcludelist::AddToExcludeTest(const FString& TestName, const
 	{
 		NewEntry.Map = TEXT("");
 	}
-
-	NewEntry.FullTestName = GetFullTestName(NewEntry);
-
-	ExcludeTest.Add(NewEntry);
-	SortExcludelist(ExcludeTest);
+	NewEntry.Finalize();
+	Entries.Emplace(NewEntry.FullTestName, NewEntry);
+	SortExcludelist(Entries);
 }
 
 void UAutomationTestExcludelist::RemoveFromExcludeTest(const FString& TestName)
@@ -99,21 +152,25 @@ void UAutomationTestExcludelist::RemoveFromExcludeTest(const FString& TestName)
 	if (TestName.IsEmpty())
 		return;
 
-	const FString NameToCompare = TestName.TrimStartAndEnd().ToLower();
-
-	for (int i = 0; i < ExcludeTest.Num(); ++i)
-	{
-		if (ExcludeTest[i].FullTestName == NameToCompare)
-		{
-			ExcludeTest.RemoveAt(i);
-			return;
-		}
-	}
+	Entries.Remove(TestName.TrimStartAndEnd().ToLower());
+	SortExcludelist(Entries);
 }
 
-bool UAutomationTestExcludelist::IsTestExcluded(const FString& TestName, const TSet<FName>& RHI, FName* OutReason, bool* OutWarn)
+bool UAutomationTestExcludelist::IsTestExcluded(const FString& TestName) const
 {
-	if (auto Entry = GetExcludeTestEntry(TestName, RHI))
+	static const FName None;
+	static const TSet<FName> EmptySet;
+	return IsTestExcluded(TestName, None, EmptySet, nullptr, nullptr);
+}
+
+bool UAutomationTestExcludelist::IsTestExcluded(const FString& TestName, const TSet<FName>& RHI, FName* OutReason, bool* OutWarn) const
+{
+	return IsTestExcluded(TestName, FPlatformProperties::IniPlatformName(), RHI, OutReason, OutWarn);
+}
+
+bool UAutomationTestExcludelist::IsTestExcluded(const FString & TestName, const FName& Platform, const TSet<FName>& RHI, FName * OutReason, bool* OutWarn) const
+{
+	if (const auto Entry = GetExcludeTestEntry(TestName, Platform, RHI))
 	{
 		if (OutReason != nullptr)
 		{
@@ -131,40 +188,188 @@ bool UAutomationTestExcludelist::IsTestExcluded(const FString& TestName, const T
 	return false;
 }
 
-FAutomationTestExcludelistEntry* UAutomationTestExcludelist::GetExcludeTestEntry(const FString& TestName, const TSet<FName>& RHI)
+FString UAutomationTestExcludelist::GetConfigFilename() const
+{
+	return DefaultConfig->GetConfigFilename();
+}
+
+FString UAutomationTestExcludelist::GetConfigFilenameForEntry(const FAutomationTestExcludelistEntry& Entry) const
+{
+	return GetConfigFilenameForEntry(Entry, FPlatformProperties::IniPlatformName());
+}
+
+FString UAutomationTestExcludelist::GetConfigFilenameForEntry(const FAutomationTestExcludelistEntry& Entry, const FName& PlatformName) const
+{
+	if (Entry.Platforms.IsEmpty())
+	{
+		return DefaultConfig->GetConfigFilename();
+	}
+
+	// Align with current platform
+	if (const TObjectPtr<UAutomationTestExcludelistConfig>* ConfigPtr = PlatformConfigs.Find(PlatformName))
+	{
+		return (*ConfigPtr)->GetConfigFilename();
+	}
+
+	// Otherwise take the first item from the entry platform list
+	FName FirstItem = Entry.Platforms[Entry.Platforms.begin().GetId()];
+	if (const TObjectPtr<UAutomationTestExcludelistConfig>* ConfigPtr = PlatformConfigs.Find(FirstItem))
+	{
+		return (*ConfigPtr)->GetConfigFilename();
+	}
+
+	return TEXT("");
+}
+
+void UAutomationTestExcludelist::SaveToConfigs()
+{
+	// Reset the cached configs
+	DefaultConfig->Reset();
+	for (auto& Config : PlatformConfigs)
+	{
+		Config.Value->Reset();
+	}
+
+	// Populate configs
+	for (auto& EntryPair : Entries)
+	{
+		if (EntryPair.Value.Platforms.IsEmpty())
+		{
+			DefaultConfig->AddEntry(EntryPair.Value);
+		}
+		else
+		{
+			FAutomationTestExcludelistEntry PlatformEntry = EntryPair.Value;
+			for (const FName& PlatformName : EntryPair.Value.Platforms)
+			{
+				if (!EntryPair.Value.RHIs.IsEmpty())
+				{
+					// Filter in only the RHIs that are relevant for the platform
+					PlatformEntry.RHIs = EntryPair.Value.RHIs.Intersect(FAutomationTestExcludeOptions::GetPlatformRHIOptionNamesFromSettings(PlatformName));
+				}
+				if (TObjectPtr<UAutomationTestExcludelistConfig>* ConfigPtr = PlatformConfigs.Find(PlatformName))
+				{
+					(*ConfigPtr)->AddEntry(PlatformEntry);
+				}
+				else
+				{
+					UAutomationTestExcludelistConfig* Config = CastChecked<UAutomationTestExcludelistConfig>(UAutomationTestPlatformSettings::Create(UAutomationTestExcludelistConfig::StaticClass(), PlatformName.ToString()));
+					Config->AddEntry(PlatformEntry);
+					PlatformConfigs.Emplace(PlatformName, Config);
+				}
+			}
+		}
+	}
+
+	// Save the configs
+	DefaultConfig->SaveConfig();
+	for (auto& Config : PlatformConfigs)
+	{
+		Config.Value->SaveConfig();
+	}
+}
+
+const FAutomationTestExcludelistEntry* UAutomationTestExcludelist::GetExcludeTestEntry(const FString& TestName) const
+{
+	static const FName None;
+	static const TSet<FName> EmptySet;
+	return GetExcludeTestEntry(TestName, None, EmptySet);
+}
+
+const FAutomationTestExcludelistEntry* UAutomationTestExcludelist::GetExcludeTestEntry(const FString& TestName, const TSet<FName>& RHI) const
+{
+	return GetExcludeTestEntry(TestName, FPlatformProperties::IniPlatformName(), RHI);
+}
+
+const FAutomationTestExcludelistEntry* UAutomationTestExcludelist::GetExcludeTestEntry(const FString& TestName, const FName& Platform, const TSet<FName>& RHI) const
 {
 	if (TestName.IsEmpty())
 		return nullptr;
 
 	const FString NameToCompare = TestName.TrimStartAndEnd().ToLower();
 
-	FAutomationTestExcludelistEntry* OutEntry = nullptr;
+	const FAutomationTestExcludelistEntry* OutEntry = nullptr;
 
-	for (auto& Entry : ExcludeTest)
+	for (auto& EntryPair : Entries)
 	{
-		if(NameToCompare.StartsWith(Entry.FullTestName))
+		if (NameToCompare.StartsWith(EntryPair.Key))
 		{
-			if (NameToCompare.Len() == Entry.FullTestName.Len() || NameToCompare.Mid(Entry.FullTestName.Len(), 1) == TEXT("."))
+			if (NameToCompare.Len() == EntryPair.Key.Len() || NameToCompare.Mid(EntryPair.Key.Len(), 1) == TEXT("."))
 			{
-				if (Entry.RHIs.Num() == 0)
+				if (!Platform.IsNone() && !EntryPair.Value.Platforms.IsEmpty() && !EntryPair.Value.Platforms.Contains(Platform))
 				{
-					return &Entry;
+					continue;
+				}
+
+				if (EntryPair.Value.RHIs.IsEmpty())
+				{
+					return &EntryPair.Value;
 				}
 				if (RHI.IsEmpty())
 				{
-					OutEntry = &Entry;
+					OutEntry = &EntryPair.Value;
 					continue;
 				}
-				const int8 IntersectNum = RHI.Intersect(Entry.RHIs).Num();
-				if (IntersectNum > 0 && IntersectNum == Entry.NumRHIType())
+				const int8 IntersectNum = RHI.Intersect(EntryPair.Value.RHIs).Num();
+				if (IntersectNum > 0 && IntersectNum == EntryPair.Value.NumRHIType())
 				{
-					return &Entry;
+					return &EntryPair.Value;
 				}
 			}
 		}
 	}
 
 	return OutEntry;
+}
+
+void UAutomationTestExcludelistConfig::InitializeSettingsDefault()
+{
+	Reset();
+}
+
+void UAutomationTestExcludelistConfig::Reset()
+{
+	ExcludeTest.Empty();
+	EntriesHash = FSHAHash();
+}
+
+void UAutomationTestExcludelistConfig::AddEntry(const FAutomationTestExcludelistEntry& Entry)
+{
+	ExcludeTest.Add(Entry);
+	UpdateHash(Entry);
+}
+
+void UAutomationTestExcludelistConfig::UpdateHash(const FAutomationTestExcludelistEntry& Entry)
+{
+	check(!Entry.IsEmpty());
+	FSHA1 SHA;
+	SHA.Update((const uint8*)&EntriesHash, sizeof(EntriesHash));
+	FString EntryString = Entry.GetStringForHash();
+	SHA.UpdateWithString(*EntryString, EntryString.Len());
+	EntriesHash = SHA.Finalize();
+}
+
+const TArray<FAutomationTestExcludelistEntry>& UAutomationTestExcludelistConfig::GetEntries() const
+{
+	return ExcludeTest;
+}
+
+void UAutomationTestExcludelistConfig::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	for (auto& Entry : ExcludeTest)
+	{
+		Entry.Finalize();
+	}
+	SortExcludelist(ExcludeTest);
+	// Hashing is order sensitive and depends on the Entry being finalized.
+	for (auto& Entry : ExcludeTest)
+	{
+		UpdateHash(Entry);
+	}
+	// Store the initial hash to detect dirty state.
+	SavedEntriesHash = EntriesHash;
 }
 
 #if WITH_EDITOR
@@ -202,6 +407,26 @@ bool CheckOutOrAddFile(const FString& InFileToCheckOut)
 					{
 						bSuccessfullyCheckedOutOrAddedFile = true;
 					}
+				}
+				else if (SourceControlState->CanAdd() || SourceControlState->IsUnknown())
+				{
+					ECommandResult::Type CommandResult = SourceControlProvider.Execute(ISourceControlOperation::Create<FMarkForAdd>(), FilesToBeCheckedOut);
+					if (CommandResult == ECommandResult::Failed)
+					{
+						UE_LOG(LogAutomationTestExcludelist, Error, TEXT("Failed to mark for add the configuration file."));
+					}
+					else if (CommandResult == ECommandResult::Cancelled)
+					{
+						UE_LOG(LogAutomationTestExcludelist, Warning, TEXT("Mark for add was cancelled."));
+					}
+					else
+					{
+						bSuccessfullyCheckedOutOrAddedFile = true;
+					}
+				}
+				else if (SourceControlState->IsAdded())
+				{
+					bSuccessfullyCheckedOutOrAddedFile = true;
 				}
 			}
 			else if (!SourceControlState->IsUnknown())
@@ -242,12 +467,19 @@ bool MakeWritable(const FString& InFileToMakeWritable)
 }
 #endif
 
-void UAutomationTestExcludelist::SaveConfig()
+void UAutomationTestExcludelistConfig::SaveConfig()
 {
+	// Exit early if entries has not changed.
+	if (SavedEntriesHash == EntriesHash)
+	{
+		return;
+	}
+
 #if WITH_EDITOR
 	FString ConfigFilename = GetConfigFilename();
-	bool bIsWritable = FPlatformFileManager::Get().GetPlatformFile().FileExists(*ConfigFilename) && !FPlatformFileManager::Get().GetPlatformFile().IsReadOnly(*ConfigFilename);
-	if (!bIsWritable)
+	bool bIsFileExists = FPlatformFileManager::Get().GetPlatformFile().FileExists(*ConfigFilename);
+	bool bIsWritable = bIsFileExists && !FPlatformFileManager::Get().GetPlatformFile().IsReadOnly(*ConfigFilename);
+	if (bIsFileExists && !bIsWritable)
 	{
 		bIsWritable = CheckOutOrAddFile(ConfigFilename);
 		if (!bIsWritable)
@@ -257,14 +489,23 @@ void UAutomationTestExcludelist::SaveConfig()
 		}
 	}
 
-	if (!bIsWritable)
+	if (bIsFileExists && !bIsWritable)
 	{
 		UE_LOG(LogAutomationTestExcludelist, Error, TEXT("Failed to make the configuration file '%s' writable."), *ConfigFilename);
 	}
 	else
 #endif
 	{
-		UObject::TryUpdateDefaultConfigFile();
+		if (UObject::TryUpdateDefaultConfigFile())
+		{
+			SavedEntriesHash = EntriesHash;
+#if WITH_EDITOR
+			if (!bIsFileExists)
+			{
+				CheckOutOrAddFile(ConfigFilename);
+			}
+#endif
+		}
 	}
 }
 

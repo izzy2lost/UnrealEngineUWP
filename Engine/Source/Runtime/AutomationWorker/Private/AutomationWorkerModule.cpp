@@ -557,29 +557,35 @@ bool FAutomationWorkerModule::IsTestExcluded(const FString& InTestToRun, FString
 	check(nullptr != Excludelist);
 	
 	static const TSet<FName> RHI = GetRHIForAutomation();
-	if (Excludelist->IsTestExcluded(InTestToRun, RHI, &SkipReason, OutWarn))
+	static const FName Platform = FPlatformProperties::IniPlatformName();
+	if (Excludelist->IsTestExcluded(InTestToRun, Platform, RHI, &SkipReason, OutWarn))
 	{
 		if (OutReason)
 		{
 			(*OutReason) = (SkipReason.IsNone() ? TEXT("unknown reason") : SkipReason.ToString());
 			(*OutReason) += TEXT(" [config]");
 
-			if (Excludelist->GetFName().ToString().StartsWith("Default_"))
+			if (const FAutomationTestExcludelistEntry* Entry = Excludelist->GetExcludeTestEntry(InTestToRun))
 			{
-				// We can handle only CDO to correctly detect the filename
-				FString Filename = Excludelist->GetConfigFilename();
-				
+				if (!Entry->Platforms.IsEmpty())
+				{
+					(*OutReason) += TEXT(" [");
+					(*OutReason) += Platform.ToString();
+					(*OutReason) += TEXT("]");
+				}
+
+				FString Filename = Excludelist->GetConfigFilenameForEntry(*Entry, Platform);
+
 				if (!Filename.IsEmpty())
 				{
 					Filename = FPaths::ConvertRelativePathToFull(Filename);
-						FPaths::MakePlatformFilename(Filename);
-						*OutReason += TEXT(" [");
-						*OutReason += Filename;
-						// Using of line number 1 as a default value to get it working as a hyperlink
-						*OutReason += TEXT("(1)]");
+					FPaths::MakePlatformFilename(Filename);
+					*OutReason += TEXT(" [");
+					*OutReason += Filename;
+					// Using of line number 1 as a default value to get it working as a hyperlink
+					*OutReason += TEXT("(1)]");
 				}
 			}
-
 		}
 
 		return true;

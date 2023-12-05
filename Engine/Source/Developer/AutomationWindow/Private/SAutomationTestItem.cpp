@@ -16,6 +16,7 @@
 #include "SSimpleComboButton.h"
 #include "AutomationWindowStyle.h"
 #include "AutomationTestExcludelist.h"
+#include "AutomationTestPlatform.h"
 #include "SAutomationWindow.h"
 
 #if WITH_EDITOR
@@ -72,8 +73,9 @@ TSharedRef<SWidget> SAutomationTestItem::GenerateWidgetForColumn( const FName& C
 			.AutoWidth()
 			[
 				SNew(SButton)
-				.ButtonStyle(FAutomationWindowStyle::Get(), "NoBorder")
+				.ButtonStyle(FAutomationWindowStyle::Get(), "SimpleButton")
 				.ToolTipText(this, &SAutomationTestItem::GetExcludeReason)
+				.IsEnabled(this, &SAutomationTestItem::CanSkipFlagBeChanged)
 				.OnClicked(FOnClicked::CreateSP(this, &SAutomationTestItem::SetSkipFlag))
 #if WITH_EDITOR
 				.Cursor_Lambda([this]() {return this->IsLocalSession ? EMouseCursor::Hand : EMouseCursor::Default;})
@@ -405,6 +407,11 @@ FSlateColor SAutomationTestItem::IsToBeSkipped_GetColorAndOpacity() const
 	{
 		return FLinearColor(1.0f, 1.0f, 1.0f, 0.4f);
 	}
+	// Identify visually if the test is to be skipped on certain condition.
+	if (TestStatus->IsToBeSkippedOnConditions())
+	{
+		return FLinearColor(1.0f, 1.0f, 0.2f, 0.6f);
+	}
 	return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
@@ -451,47 +458,72 @@ FReply SAutomationTestItem::SetSkipFlag()
 	return FReply::Handled();
 }
 
-template<typename EnumType>
-void GenerateRHIMenuContentFromExcludeOptions(TSharedPtr<FAutomationTestExcludeOptions> Options, FMenuBuilder* MenuBuilder)
+bool SAutomationTestItem::CanSkipFlagBeChanged() const
 {
-	static const TSet<FName> AllRHI_OptionNames = FAutomationTestExcludeOptions::GetAllRHIOptionNames<EnumType>();
-	for (auto& Item : AllRHI_OptionNames)
+	return WITH_EDITOR && IsLocalSession && !TestStatus->IsToBeSkippedByPropagation();
+}
+
+#if WITH_EDITOR
+void PopulateMenuContent(FMenuBuilder* MenuBuilder, TSet<FName>* OptionsDestination, const TSet<FName>& ItemNames)
+{
+	for (const FName& Item : ItemNames)
 	{
 		TSharedRef<SWidget> FlagWidget =
 			SNew(SCheckBox)
-			.IsChecked(Options->RHIs.Contains(Item))
-			.OnCheckStateChanged_Lambda([Options, Item](ECheckBoxState NewState)
+			.IsChecked(OptionsDestination->Contains(Item))
+			.OnCheckStateChanged_Lambda([OptionsDestination, Item](ECheckBoxState NewState)
 				{
 					if (NewState == ECheckBoxState::Checked)
 					{
-						Options->RHIs.Add(Item);
+						OptionsDestination->Add(Item);
 					}
 					else
 					{
-						Options->RHIs.Remove(Item);
+						OptionsDestination->Remove(Item);
 					}
 				})
 			.Padding(FMargin(4.0f, 0.0f))
-			.Content()
-			[
-				SNew(STextBlock)
-				.Text(FText::FromName(Item))
-			];
+					.Content()
+					[
+						SNew(STextBlock)
+						.Text(FText::FromName(Item))
+					];
 
 		MenuBuilder->AddWidget(FlagWidget, FText::GetEmpty());
 	}
+}
+
+TSharedRef<SWidget> GeneratePlatformMenuContentFromExcludeOptions(TSharedPtr<FAutomationTestExcludeOptions> Options)
+{
+	static const TSet<FName>& AllPlatform_OptionNames = AutomationTestPlatform::GetAllAvailablePlatformNames();
+	FMenuBuilder MenuBuilder(false, nullptr);
+	PopulateMenuContent(&MenuBuilder, &Options->Platforms, AllPlatform_OptionNames);
+
+	return MenuBuilder.MakeWidget();
+}
+
+FText GeneratePlatformTextFromExcludeOptions(TSharedPtr<FAutomationTestExcludeOptions> Options)
+{
+	if (Options->Platforms.Num() == 0)
+	{
+		return LOCTEXT("ExcludeOptions_Platform_All", "All Platforms");
+	}
+
+	return FText::FromString(SetToString(Options->Platforms));
 }
 
 TSharedRef<SWidget> GenerateRHIMenuContentFromExcludeOptions(TSharedPtr<FAutomationTestExcludeOptions> Options)
 {
 	FMenuBuilder MenuBuilder(false, nullptr);
 
+	static const TSet<FName>& AllRHI_OptionNames = FAutomationTestExcludeOptions::GetAllRHIOptionNamesFromSettings();
 	MenuBuilder.BeginSection("AutomationWindow_ExcludeOptions_RHI", LOCTEXT("ExcludeOptions_RHI_Section", "Interfaces"));
-	GenerateRHIMenuContentFromExcludeOptions<ETEST_RHI_Options>(Options, &MenuBuilder);
+	PopulateMenuContent(&MenuBuilder, &Options->RHIs, AllRHI_OptionNames);
 	MenuBuilder.EndSection();
 
+	static const TSet<FName>& AllRHI_FeatureLevel_OptionNames = FAutomationTestExcludeOptions::GetAllRHIOptionNames<ETEST_RHI_FeatureLevel_Options>();
 	MenuBuilder.BeginSection("AutomationWindow_ExcludeOptions_RHI_FeatureLevel", LOCTEXT("ExcludeOptions_RHI_FeatureLevel_Section", "Feature Levels"));
-	GenerateRHIMenuContentFromExcludeOptions<ETEST_RHI_FeatureLevel_Options>(Options, &MenuBuilder);
+	PopulateMenuContent(&MenuBuilder, &Options->RHIs, AllRHI_FeatureLevel_OptionNames);
 	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
@@ -504,14 +536,9 @@ FText GenerateRHITextFromExcludeOptions(TSharedPtr<FAutomationTestExcludeOptions
 		return LOCTEXT("ExcludeOptions_RHI_All", "All Interfaces");
 	}
 
-	TArray<FString> RHIs;
-	for (auto& Item : Options->RHIs)
-	{
-		RHIs.Add(Item.ToString());
-	}
-
-	return FText::FromString(FString::Join(RHIs, TEXT(", ")));
+	return FText::FromString(SetToString(Options->RHIs));
 }
+#endif
 
 FReply SAutomationTestItem::OnEditExcludeOptionsClicked()
 {
@@ -529,7 +556,7 @@ FReply SAutomationTestItem::OnEditExcludeOptionsClicked()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.MaxWidth(50)
+				.MaxWidth(55)
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
 				.Padding(5, 0)
@@ -553,7 +580,7 @@ FReply SAutomationTestItem::OnEditExcludeOptionsClicked()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.MaxWidth(50)
+				.MaxWidth(55)
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
 				.Padding(5, 0)
@@ -577,24 +604,29 @@ FReply SAutomationTestItem::OnEditExcludeOptionsClicked()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.MaxWidth(50)
+				.MaxWidth(55)
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
 				.Padding(5, 0)
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("ExcludeOptions_RHI", "RHIs"))
+					.Text(LOCTEXT("ExcludeOptions_Platform", "Platforms"))
 				]
 				+ SHorizontalBox::Slot()
-				.MaxWidth(120)
+				.MaxWidth(200)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				[
-					SNew(SSimpleComboButton)
-					.OnGetMenuContent_Lambda([Options]() { return GenerateRHIMenuContentFromExcludeOptions(Options); })
-					.Text_Lambda([Options]() { return GenerateRHITextFromExcludeOptions(Options); })
-					.ToolTipText_Lambda([Options]() { return GenerateRHITextFromExcludeOptions(Options); })
+					SNew(SComboButton)
+					.OnGetMenuContent_Lambda([Options]() { return GeneratePlatformMenuContentFromExcludeOptions(Options); })
 					.HasDownArrow(true)
+					.ButtonContent()
+					[
+						SNew(STextBlock)
+						.Text_Lambda([Options]() { return GeneratePlatformTextFromExcludeOptions(Options); })
+						.ToolTipText_Lambda([Options]() { return GeneratePlatformTextFromExcludeOptions(Options); })
+						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					]
 				]
 			]
 			+ SVerticalBox::Slot()
@@ -603,7 +635,38 @@ FReply SAutomationTestItem::OnEditExcludeOptionsClicked()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.MaxWidth(50)
+				.MaxWidth(55)
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.Padding(5, 0)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("ExcludeOptions_RHI", "RHIs"))
+				]
+				+ SHorizontalBox::Slot()
+				.MaxWidth(200)
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SComboButton)
+					.OnGetMenuContent_Lambda([Options]() { return GenerateRHIMenuContentFromExcludeOptions(Options); })
+					.HasDownArrow(true)
+					.ButtonContent()
+					[
+						SNew(STextBlock)
+						.Text_Lambda([Options]() { return GenerateRHITextFromExcludeOptions(Options); })
+						.ToolTipText_Lambda([Options]() { return GenerateRHITextFromExcludeOptions(Options); })
+						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					]
+				]
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(5.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.MaxWidth(55)
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
 				.Padding(5, 0)

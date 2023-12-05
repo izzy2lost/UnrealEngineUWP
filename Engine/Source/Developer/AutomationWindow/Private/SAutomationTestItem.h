@@ -79,7 +79,7 @@ protected:
 	*
 	* @return true if the test is enabled.
 	*/
-	ECheckBoxState IsTestEnabled( ) const;
+	ECheckBoxState IsTestEnabled() const;
 
 	/**
 	* Is the test inside exclude list. This info is taken from Config/DefaultEngine.ini, section [AutomationTestExcludelist].
@@ -120,6 +120,13 @@ protected:
 	* @return respond of dialog
 	*/
 	FReply SetSkipFlag();
+
+	/**
+	* Can the test skip flag be changed.
+	*
+	* @return true if the test skip flag can be changed.
+	*/
+	bool CanSkipFlagBeChanged() const;
 
 	/**
 	* Open Exclude test options editor
