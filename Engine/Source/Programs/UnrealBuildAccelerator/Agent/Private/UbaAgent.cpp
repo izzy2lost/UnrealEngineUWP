@@ -97,6 +97,7 @@ namespace uba
 		logger.Info(TC("  -memwait=<percent>      The amount of memory needed to spawn a process. Set this to 100 to disable. Defaults to 80%%"));
 		logger.Info(TC("  -memkill=<percent>      The amount of memory needed before processes starts to be killed. Set this to 100 to disable. Defaults to 90%%"));
 		logger.Info(TC("  -crypto=<key>           16 bytes crypto key used for secure network transfer"));
+		logger.Info(TC("  -populateCas=<dir>      Prepopulate cas database with files in dir. If files needed exists on machine this can be an optimization"));
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -414,6 +415,7 @@ namespace uba
 		u32 memKillLoadPercent = 90;
 		u8 crypto[16];
 		bool hasCrypto = false;
+		Vector<TString> populateCasDirs;
 
 		for (int i=1; i!=argc; ++i)
 		{
@@ -602,6 +604,12 @@ namespace uba
 				((u64*)crypto)[1] = StringToValue(value.data + 16, 16);
 				hasCrypto = true;
 			}
+			else if (name.Equals(TC("-populateCas")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-populateCas needs a dir"));
+				populateCasDirs.push_back(value.data);
+			}
 			else if (name.Equals(TC("-sentry")))
 			{
 				if (value.IsEmpty())
@@ -679,7 +687,12 @@ namespace uba
 		#if defined(UBA_USE_AWS)
 		AWS aws;
 		aws.Init(logger, extraInfo, TC("Agent"));
+		if (zone.IsEmpty())
+			zone.Append(aws.GetAvailabilityZone());
 		#endif
+
+		if (zone.count)
+			extraInfo.Append(TC(", ")).Append(zone);
 
 		if (IsRunningWine())
 			extraInfo.Append(TC(", Linux/WINE"));
@@ -920,16 +933,13 @@ namespace uba
 			storageInfo.zone = zone.data;
 			storageInfo.proxyPort = proxyPort;
 
-			#if defined(UBA_USE_AWS)
-			if (zone.IsEmpty())
-				storageInfo.zone = aws.GetAvailabilityZone();
-			#endif
-
-
 			auto storageClient = new StorageClient(storageInfo);
 			auto bscsg = MakeGuard([&]() { g_storageClient = nullptr; delete storageClient; });
 
 			if (!storageClient->LoadCasTable(true))
+				return -1;
+
+			if (!storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount))
 				return -1;
 
 			SessionClient* sessionClient = nullptr;

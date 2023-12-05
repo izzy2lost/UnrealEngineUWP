@@ -1951,7 +1951,7 @@ namespace uba
 
 			StringBuffer<> casFile;
 			#if !UBA_USE_SPARSEFILE
-			if (!StorageImpl::GetCasFileName(casFile, actualKey))
+			if (!GetCasFileName(casFile, actualKey))
 				return false;
 			#else
 			UBA_ASSERT(false);

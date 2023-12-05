@@ -33,20 +33,28 @@ namespace uba
 		bool IsUsingProxy();
 		void StopProxy();
 
-#if !UBA_USE_SPARSEFILE
+		using DirVector = Vector<TString>;
+		bool PopulateCasFromDirs(const DirVector& directories, u32 workerCount);
+
+		#if !UBA_USE_SPARSEFILE
 		virtual bool GetCasFileName(StringBufferBase& out, const CasKey& casKey) override;
-#endif
+		#endif
+
 		virtual MappedView MapView(const CasKey& casKey, const tchar* hint) override;
 
 		virtual bool GetZone(StringBufferBase& out) override;
 		virtual bool RetrieveCasFile(RetrieveResult& out, const CasKey& casKey, const tchar* hint, FileMappingBuffer* mappingBuffer = nullptr, u64 memoryMapAlignment = 1, bool allowProxy = true) override;
 		virtual bool StoreCasFile(CasKey& out, const tchar* fileName, const CasKey& casKeyOverride = CasKeyZero, bool deferCreation = false) override;
 		virtual bool StoreCasFile(CasKey& out, StringKey fileNameKey, const tchar* fileName, FileMappingHandle mappingFile, u64 mappingOffset, u64 fileSize, const tchar* hint, bool deferCreation = false, bool keepMappingInMemory = false) override;
+		virtual bool HasCasFile(const CasKey& casKey, CasEntry** out = nullptr) override;
 		virtual void Ping() override;
 
 		static bool SendBatchMessages(NetworkClient& client, u16 fetchId, u8* slot, u64 capacity, u64 left, u32 messageMaxSize, u32& readIndex, u32& responseSize);
 		static bool SendAllSegments(NetworkClient& client, u16 fetchId, u8* readBuffer, u64 left, u32 messageMaxSize);
+
+	private:
 		bool SendFile(const CasKey& casKey, const tchar* fileName, u8* sourceMem, u64 sourceSize, const tchar* hint);
+		bool PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager);
 
 		NetworkClient& m_client;
 		bool m_sendCompressed;
@@ -55,9 +63,9 @@ namespace uba
 
 		TString m_zone;
 
-		ReaderWriterLock m_temporaryStorageFilesLock;
-		struct MappedFile { FileMappingHandle handle; u64 size; TString fileName; };
-		UnorderedMap<CasKey, MappedFile> m_temporaryStorageFiles;
+		ReaderWriterLock m_localStorageFilesLock;
+		struct LocalFile { CasEntry casEntry; TString fileName; };
+		UnorderedMap<CasKey, LocalFile> m_localStorageFiles;
 
 		ReaderWriterLock m_sendOneAtTheTimeLock;
 		ReaderWriterLock m_retrieveOneBatchAtTheTimeLock;

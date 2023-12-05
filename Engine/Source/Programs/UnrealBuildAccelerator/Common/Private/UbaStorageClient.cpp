@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageClient.h"
+#include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
@@ -53,8 +54,8 @@ namespace uba
 	StorageClient::~StorageClient()
 	{
 		delete m_proxyClient;
-		for (auto& pair : m_temporaryStorageFiles)
-			CloseFileMapping(pair.second.handle);
+		for (auto& pair : m_localStorageFiles)
+			CloseFileMapping(pair.second.casEntry.mappingHandle);
 	}
 
 	bool StorageClient::IsUsingProxy()
@@ -69,15 +70,33 @@ namespace uba
 			m_proxyClient->client.Disconnect();
 	}
 
+	bool StorageClient::PopulateCasFromDirs(const DirVector& directories, u32 workerCount)
+	{
+		if (directories.empty())
+			return true;
+
+		WorkManagerImpl workManager(workerCount);
+		ReaderWriterLock lock;
+		bool success = true;
+		for (auto& dir : directories)
+			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager) && success;
+		workManager.Wait();
+
+		if (u32 fileCount = u32(m_localStorageFiles.size()))
+			m_logger.Info(TC("Prepopulated %u files to cas"), fileCount);
+
+		return success;
+	}
+
 #if !UBA_USE_SPARSEFILE
 	bool StorageClient::GetCasFileName(StringBufferBase& out, const CasKey& casKey)
 	{
-		ScopedReadLock tempLock(m_temporaryStorageFilesLock);
-		auto findIt = m_temporaryStorageFiles.find(casKey);
-		if (findIt != m_temporaryStorageFiles.end())
+		ScopedReadLock tempLock(m_localStorageFilesLock);
+		auto findIt = m_localStorageFiles.find(casKey);
+		if (findIt != m_localStorageFiles.end())
 		{
-			if (findIt->second.handle.IsValid())
-				GetMappingString(out, findIt->second.handle, 0);
+			if (findIt->second.casEntry.mappingHandle.IsValid())
+				GetMappingString(out, findIt->second.casEntry.mappingHandle, 0);
 			else
 				out.Append(findIt->second.fileName);
 			return true;
@@ -90,17 +109,17 @@ namespace uba
 
 	MappedView StorageClient::MapView(const CasKey& casKey, const tchar* hint)
 	{
-		ScopedReadLock tempLock(m_temporaryStorageFilesLock);
-		auto findIt = m_temporaryStorageFiles.find(AsCompressed(casKey, false));
-		bool isValid = findIt != m_temporaryStorageFiles.end();
+		ScopedReadLock tempLock(m_localStorageFilesLock);
+		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
+		bool isValid = findIt != m_localStorageFiles.end();
 		tempLock.Leave();
 		if (!isValid)
 			return StorageImpl::MapView(casKey, hint);
-		MappedFile& file = findIt->second;
+		LocalFile& file = findIt->second;
 
 		MappedView view;
-		view.handle = file.handle;
-		view.size = file.size;
+		view.handle = file.casEntry.mappingHandle;
+		view.size = file.casEntry.size;
 		view.offset = 0;
 		view.isCompressed = false;
 		return view;
@@ -133,15 +152,15 @@ namespace uba
 
 		// Cas file might have been created by this client and in that case we can just reuse the file we just wrote. No need to fetch from server
 		// This needs to be first so it doesnt end up in the cas table even though it is not in there. (otherwise it might be garbage collected)
-		ScopedReadLock tempLock(m_temporaryStorageFilesLock);
-		auto findIt = m_temporaryStorageFiles.find(AsCompressed(casKey, false));
-		if (findIt != m_temporaryStorageFiles.end())
+		ScopedReadLock tempLock(m_localStorageFilesLock);
+		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
+		if (findIt != m_localStorageFiles.end())
 		{
 			out.casKey = findIt->first;
-			MappedFile& mf = findIt->second;
-			out.size = mf.size;
-			out.view.handle = mf.handle;
-			out.view.size = mf.size;
+			LocalFile& mf = findIt->second;
+			out.size = mf.casEntry.size;
+			out.view.handle = mf.casEntry.mappingHandle;
+			out.view.size = mf.casEntry.size;
 			out.view.isCompressed = false;
 			return true;
 		}
@@ -615,6 +634,20 @@ namespace uba
 		return true;
 	}
 
+	bool StorageClient::HasCasFile(const CasKey& casKey, CasEntry** out)
+	{
+		CasKey localKey = AsCompressed(casKey, false);
+		ScopedReadLock tempLock(m_localStorageFilesLock);
+		auto findIt = m_localStorageFiles.find(localKey);
+		if (findIt != m_localStorageFiles.end())
+		{
+			if (out)
+				*out = &findIt->second.casEntry;
+			return true;
+		}
+		return StorageImpl::HasCasFile(casKey, out);
+	}
+
 	bool StorageClient::StoreCasFile(CasKey& out, StringKey fileNameKey, const tchar* fileName, FileMappingHandle mappingHandle, u64 mappingOffset, u64 fileSize, const tchar* hint, bool deferCreation, bool keepMappingInMemory)
 	{
 		NetworkClient& client = m_client; // Don't use proxy
@@ -655,24 +688,30 @@ namespace uba
 
 			if (keepMappingInMemory)
 			{
+				ScopedWriteLock lock(m_localStorageFilesLock);
+				auto insres = m_localStorageFiles.try_emplace(AsCompressed(casKey, false));
+				LocalFile& localFile = insres.first->second;
+				if (!insres.second && localFile.casEntry.mappingHandle.IsValid())
+					return true;
+
 				if (isPersistentMapping)
 				{
 					FileMappingHandle mappingHandle2;
 					if (DuplicateFileMapping(GetCurrentProcessHandle(), mappingHandle, GetCurrentProcessHandle(), &mappingHandle2, FILE_MAP_READ, false, 0))
 					{
-						ScopedWriteLock lock(m_temporaryStorageFilesLock);
-						m_temporaryStorageFiles.try_emplace(AsCompressed(casKey, false), MappedFile{ mappingHandle2, fileSize });
+						localFile.casEntry.mappingHandle = mappingHandle2;
+						localFile.casEntry.size = fileSize;
 					}
 					else
 						m_logger.Warning(TC("Failed to duplicate handle for file mapping %s (%s)"), fileName, LastErrorToText().data);
 				}
 				else
 				{
-					ScopedWriteLock lock(m_temporaryStorageFilesLock);
+					localFile.casEntry.size = fileSize;
 #if !UBA_USE_SPARSEFILE
-					m_temporaryStorageFiles.try_emplace(AsCompressed(casKey, false), MappedFile{ {0}, fileSize, fileName });
+					localFile.fileName = fileName;
 #else
-					m_temporaryStorageFiles.try_emplace(AsCompressed(casKey, false), MappedFile{ mappingHandle, fileSize });
+					localFile.casEntry.mappingHandle = mappingHandle2;
 					lock.Leave();
 					mappingClose.Cancel();
 #endif
@@ -994,4 +1033,51 @@ namespace uba
 
 		return true;
 	}
+
+	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager)
+	{
+		StringBuffer<> fullPath;
+		fullPath.Append(dir).EnsureEndsWithSlash();
+		u32 dirLen = fullPath.count;
+		TraverseDir(m_logger, dir, [&](const DirectoryEntry& e)
+			{
+				fullPath.Resize(dirLen).Append(e.name);
+				if (IsDirectory(e.attributes))
+				{
+					PopulateCasFromDirsRecursive(fullPath.data, workManager);
+					return;
+				}
+
+				workManager.AddWork([&, filePath = TString(fullPath.data), name = TString(e.name)]()
+					{
+						FileInformation info;
+						if (!GetFileInformation(info, m_logger, filePath.c_str()))
+						{
+							m_logger.Error(TC("Failed to get information for file %s"), filePath.c_str());
+							return;
+						}
+
+						CasKey casKey;
+						if (!CalculateCasKey(casKey, filePath.c_str()))
+						{
+							m_logger.Error(TC("Failed to calculate cas key for %s"), filePath.c_str());
+							return;
+						}
+
+						ScopedWriteLock lookupLock(m_localStorageFilesLock);
+						auto insres = m_localStorageFiles.try_emplace(AsCompressed(casKey, false));
+						if (!insres.second)
+							return;
+						LocalFile& localFile = insres.first->second;
+						lookupLock.Leave();
+
+						localFile.casEntry.size = info.size;
+						localFile.fileName = filePath;
+
+					}, 1, TC(""));
+			});
+		return true;
+	}
+
+
 }

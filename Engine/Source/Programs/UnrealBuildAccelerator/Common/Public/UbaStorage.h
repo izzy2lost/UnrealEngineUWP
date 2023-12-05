@@ -117,7 +117,7 @@ namespace uba
 
 		struct CasEntry;
 
-		bool HasCasFile(const CasKey& casKey, CasEntry** out = nullptr);
+		virtual bool HasCasFile(const CasKey& casKey, CasEntry** out = nullptr);
 		bool EnsureCasFile(const CasKey& casKey, const tchar* fileName);
 		CasKey CalculateCasKey(const tchar* fileName, FileHandle fileHandle, u64 fileSize, bool storeCompressed);
 		CasKey CalculateCasKey(u8* fileMem, u64 fileSize, bool storeCompressed);
