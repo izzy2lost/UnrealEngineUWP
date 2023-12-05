@@ -2643,10 +2643,10 @@ static void UpdateSingleShaderFilehash(FSHA1& InOutHashState, const TCHAR* Virtu
 #if WITH_EDITOR &&  !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (UE_LOG_ACTIVE(LogShaders, Verbose))
 		{
-			uint8 HashBytes[20];
-			FSHA1::HashBuffer(&InOutHashState, sizeof(FSHA1), HashBytes);
+			FSHA1 HashStateCopy = InOutHashState;
+			FSHAHash IncrementalHash = HashStateCopy.Finalize();
 			
-			UE_LOG(LogShaders, Verbose, TEXT("Processing include file for %s, %s, %s"), VirtualFilePath, *IncludeVirtualFilePaths[IncludeIndex], *BytesToHex(HashBytes, 20));
+			UE_LOG(LogShaders, Verbose, TEXT("Processing include file for %s, %s, %s"), VirtualFilePath, *IncludeVirtualFilePaths[IncludeIndex], *BytesToHex(IncrementalHash.Hash, 20));
 		}
 #endif
 	}
