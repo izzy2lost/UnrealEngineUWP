@@ -77,11 +77,12 @@ public:
 class TransportPlugin
 {
 public:
-	virtual uint32_t AddRef() const											   = 0;
-	virtual uint32_t Release() const										   = 0;
-	virtual void	 Configure(const char* OptionTag, const char* OptionValue) = 0;
-	virtual void	 Initialize(TransportServer* ServerInterface)			   = 0;
-	virtual void	 Shutdown()												   = 0;
+	virtual uint32_t	AddRef() const											  = 0;
+	virtual uint32_t	Release() const											  = 0;
+	virtual void		Configure(const char* OptionTag, const char* OptionValue) = 0;
+	virtual void		Initialize(TransportServer* ServerInterface)			  = 0;
+	virtual void		Shutdown()												  = 0;
+	virtual const char* GetDebugName()											  = 0;
 
 	/** Check whether this transport is usable.
 	 */
@@ -99,9 +100,10 @@ public:
 class TransportConnection
 {
 public:
-	virtual int64_t WriteBytes(const void* Buffer, size_t DataSize) = 0;
-	virtual void	Shutdown(bool Receive, bool Transmit)			= 0;
-	virtual void	CloseConnection()								= 0;
+	virtual int64_t		WriteBytes(const void* Buffer, size_t DataSize) = 0;
+	virtual void		Shutdown(bool Receive, bool Transmit)			= 0;
+	virtual void		CloseConnection()								= 0;
+	virtual const char* GetDebugName()									= 0;
 };
 
 }  // namespace zen

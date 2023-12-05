@@ -9,8 +9,8 @@
 #include <optional>
 #include <thread>
 
-#include <zencore/refcount.h>
-#include <zencore/zencore.h>
+#include <zenbase/concepts.h>
+#include <zenbase/refcount.h>
 
 #ifndef _WIN32_WINNT
 #	define _WIN32_WINNT 0x0A00
@@ -51,12 +51,13 @@ public:
 
 	// TransportPlugin implementation
 
-	virtual uint32_t AddRef() const override;
-	virtual uint32_t Release() const override;
-	virtual void	 Configure(const char* OptionTag, const char* OptionValue) override;
-	virtual void	 Initialize(TransportServer* ServerInterface) override;
-	virtual void	 Shutdown() override;
-	virtual bool	 IsAvailable() override;
+	virtual uint32_t	AddRef() const override;
+	virtual uint32_t	Release() const override;
+	virtual void		Configure(const char* OptionTag, const char* OptionValue) override;
+	virtual void		Initialize(TransportServer* ServerInterface) override;
+	virtual void		Shutdown() override;
+	virtual const char* GetDebugName() override;
+	virtual bool		IsAvailable() override;
 
 private:
 	TransportServer* m_ServerInterface = nullptr;
@@ -80,9 +81,10 @@ public:
 
 	// TransportConnection implementation
 
-	virtual int64_t WriteBytes(const void* Buffer, size_t DataSize) override;
-	virtual void	Shutdown(bool Receive, bool Transmit) override;
-	virtual void	CloseConnection() override;
+	virtual int64_t		WriteBytes(const void* Buffer, size_t DataSize) override;
+	virtual void		Shutdown(bool Receive, bool Transmit) override;
+	virtual void		CloseConnection() override;
+	virtual const char* GetDebugName() override;
 
 private:
 	zen::Ref<TransportServerConnection> m_ConnectionHandler;
@@ -151,6 +153,12 @@ WinsockTransportConnection::CloseConnection()
 
 	closesocket(m_ClientSocket);
 	m_ClientSocket = 0;
+}
+
+const char*
+WinsockTransportConnection::GetDebugName()
+{
+	return nullptr;
 }
 
 int64_t
@@ -340,6 +348,12 @@ WinsockTransportPlugin::Shutdown()
 	{
 		m_AcceptThread.join();
 	}
+}
+
+const char*
+WinsockTransportPlugin::GetDebugName()
+{
+	return nullptr;
 }
 
 bool
