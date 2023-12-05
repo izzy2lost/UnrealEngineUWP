@@ -2096,6 +2096,27 @@ void FNiagaraWorldManager::PrimePool(UNiagaraSystem* System)
 	}
 }
 
+void FNiagaraWorldManager::FlushComputeAndDeferredQueues(bool bWaitForGPU)
+{
+	check(IsInGameThread());
+
+	// Flush the compute dispatch queue
+	if ( FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(World) )
+	{
+		if (bWaitForGPU)
+		{
+			ComputeDispatchInterface->FlushAndWait_GameThread();
+		}
+		else
+		{
+			ComputeDispatchInterface->FlushPendingTicks_GameThread();
+		}
+	}
+
+	// Flush any deferred callbacks
+	NiagaraWorldManagerInternal::ExecuteGlobalDeferredCallbacks();
+}
+
 void FNiagaraWorldManager::EnqueueGlobalDeferredCallback(TFunction<void()>&& Callback)
 {
 	using namespace NiagaraWorldManagerInternal;

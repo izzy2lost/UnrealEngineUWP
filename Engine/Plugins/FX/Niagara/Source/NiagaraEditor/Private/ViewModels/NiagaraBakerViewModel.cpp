@@ -4,11 +4,11 @@
 #include "ViewModels/NiagaraSystemViewModel.h"
 #include "Widgets/SNiagaraBakerWidget.h"
 #include "NiagaraBakerRenderer.h"
-#include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraPlatformSet.h"
 #include "NiagaraSettings.h"
 #include "NiagaraSystem.h"
+#include "NiagaraWorldManager.h"
 
 #include "NiagaraDataInterfaceRenderTarget2D.h"
 
@@ -688,9 +688,9 @@ FNiagaraBakerFeedbackContext FNiagaraBakerViewModel::RenderBaker()
 	// Ensure we flush everything from the render thread
 	if ( UWorld* World = BakerRenderer->GetWorld() )
 	{
-		if ( FNiagaraGpuComputeDispatchInterface* DispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(World) )
+		if (FNiagaraWorldManager* WorldManager = FNiagaraWorldManager::Get(World))
 		{
-			DispatchInterface->FlushAndWait_GameThread();
+			WorldManager->FlushComputeAndDeferredQueues(true);
 		}
 	}
 

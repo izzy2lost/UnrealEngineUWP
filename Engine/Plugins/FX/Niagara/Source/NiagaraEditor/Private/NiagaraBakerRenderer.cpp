@@ -326,11 +326,9 @@ void FNiagaraBakerRenderer::SetAbsoluteTime(float AbsoluteTime, bool bShouldTick
 			// Send EOF updates before we flush our pending ticks to ensure everything is ready for Niagara
 			World->SendAllEndOfFrameUpdates();
 
-			// Since captures, etc, don't flush GPU updates so we need to force flush them
-			FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(World);
-			if ( ensureMsgf(ComputeDispatchInterface, TEXT("The batcher was not valid on the world this may result in incorrect baking")) )
+			if (FNiagaraWorldManager* WorldManager = FNiagaraWorldManager::Get(World))
 			{
-				ComputeDispatchInterface->FlushPendingTicks_GameThread();
+				WorldManager->FlushComputeAndDeferredQueues(false);
 			}
 		}
 	}

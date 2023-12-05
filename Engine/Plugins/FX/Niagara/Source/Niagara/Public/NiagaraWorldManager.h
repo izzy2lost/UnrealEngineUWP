@@ -233,6 +233,11 @@ public:
 	class FNiagaraDeferredMethodQueue& GetDeferredMethodQueue() { return DeferredMethods; }
 
 	/**
+	Flush the compute simulation queue and any deferred actions.
+	*/
+	NIAGARA_API void FlushComputeAndDeferredQueues(bool bWaitForGPU);
+
+	/**
 	This is a threadsafe queue which will execute on the game thread.
 	The queue is flushed at the start of each tick group & pre / post actor tick.
 	*/
