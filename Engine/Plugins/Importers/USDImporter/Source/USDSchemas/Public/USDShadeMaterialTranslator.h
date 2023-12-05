@@ -23,7 +23,7 @@ public:
 	virtual TSet<UE::FSdfPath> CollectAuxiliaryPrims() const override;
 
 protected:
-	virtual void PostImportMaterial(const FString& MaterialHash, UMaterialInterface* ImportedMaterial);
+	virtual void PostImportMaterial(const FString& PrefixedMaterialHash, UMaterialInterface* ImportedMaterial);
 };
 
 #endif // #if USE_USD_SDK

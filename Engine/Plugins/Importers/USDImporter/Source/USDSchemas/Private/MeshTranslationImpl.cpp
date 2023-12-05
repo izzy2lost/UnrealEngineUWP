@@ -156,7 +156,9 @@ namespace UE::MeshTranslationImplInternal::Private
 		UMaterialInterface& Material,
 		const TMap<FString, int32>& MeshPrimvarToUVIndex,
 		UUsdAssetCache2* AssetCache,
-		FUsdInfoCache* InfoCache
+		FUsdInfoCache* InfoCache,
+		const FString& MaterialHashPrefix,
+		bool bReuseIdenticalAssets
 	)
 	{
 		UUsdMaterialAssetUserData* MaterialAssetUserData = Material.GetAssetUserData<UUsdMaterialAssetUserData>();
@@ -260,45 +262,53 @@ namespace UE::MeshTranslationImplInternal::Private
 			}
 		}
 
-		// Try finding a compatible material in the asset cache, if our original Material belongs to it
-		FString MaterialHash = AssetCache ? AssetCache->GetHashForAsset(&Material) : FString{};
-		const bool bMaterialBelongsToAssetCache = !MaterialHash.IsEmpty();
-		if (bMaterialBelongsToAssetCache)
+		FString ExistingHash = AssetCache->GetHashForAsset(&Material);
+		const bool bMaterialBelongsToAssetCache = !ExistingHash.IsEmpty();
+		if (!bMaterialBelongsToAssetCache)
 		{
-			// Generate a deterministic hash based on the original material hash and this primvar UVIndex assignment
-			CompatiblePrimvarAndUVIndexPairs.Sort(
-				[](const TPair<FString, int32>& LHS, const TPair<FString, int32>& RHS)
-				{
-					if (LHS.Key == RHS.Key)
-					{
-						return LHS.Value < RHS.Value;
-					}
-					else
-					{
-						return LHS.Key < RHS.Key;
-					}
-				}
-			);
-			FSHAHash Hash;
-			FSHA1 SHA1;
-			SHA1.UpdateWithString(*MaterialHash, MaterialHash.Len());
-			for (const TPair<FString, int32>& Pair : CompatiblePrimvarAndUVIndexPairs)
-			{
-				SHA1.UpdateWithString(*Pair.Key, Pair.Key.Len());
-				SHA1.Update((const uint8*)&Pair.Value, sizeof(Pair.Value));
-			}
-			SHA1.Final();
-			SHA1.GetHash(&Hash.Hash[0]);
-			MaterialHash = Hash.ToString();
+			return nullptr;
+		}
 
-			if (UMaterialInterface* ExistingCompatibleMaterial = Cast<UMaterialInterface>(AssetCache->GetCachedAsset(MaterialHash)))
+		// Generate a deterministic hash based on the original material hash and this primvar UVIndex assignment
+		CompatiblePrimvarAndUVIndexPairs.Sort(
+			[](const TPair<FString, int32>& LHS, const TPair<FString, int32>& RHS)
 			{
-				UE_LOG(LogUsd, Verbose, TEXT("Found existing compatible Material '%s' on the asset cache with hash '%s'"),
-					*ExistingCompatibleMaterial->GetPathName(),
-					*MaterialHash
-				);
-				CompatibleMaterial = ExistingCompatibleMaterial;
+				if (LHS.Key == RHS.Key)
+				{
+					return LHS.Value < RHS.Value;
+				}
+				else
+				{
+					return LHS.Key < RHS.Key;
+				}
 			}
+		);
+		FSHAHash Hash;
+		FSHA1 SHA1;
+		SHA1.UpdateWithString(*ExistingHash, ExistingHash.Len());
+		for (const TPair<FString, int32>& Pair : CompatiblePrimvarAndUVIndexPairs)
+		{
+			SHA1.UpdateWithString(*Pair.Key, Pair.Key.Len());
+			SHA1.Update((const uint8*)&Pair.Value, sizeof(Pair.Value));
+		}
+		SHA1.Final();
+		SHA1.GetHash(&Hash.Hash[0]);
+
+		// In theory we don't even need to add the prefix here because our ExistingHash will already have the same prefix...
+		// However for consistency it's probably for the best to have both assets have the same prefix, so you can tell
+		// from the hash that they originated from the same prim
+		FString PrefixedMaterialHash = MaterialHashPrefix + Hash.ToString();
+
+		if (UMaterialInterface* ExistingCompatibleMaterial = Cast<UMaterialInterface>(AssetCache->GetCachedAsset(PrefixedMaterialHash)))
+		{
+			UE_LOG(
+				LogUsd,
+				Verbose,
+				TEXT("Found existing compatible Material '%s' on the asset cache with hash '%s'"),
+				*ExistingCompatibleMaterial->GetPathName(),
+				*PrefixedMaterialHash
+			);
+			CompatibleMaterial = ExistingCompatibleMaterial;
 		}
 
 		// We have to create a brand new compatible material instance
@@ -321,7 +331,7 @@ namespace UE::MeshTranslationImplInternal::Private
 				*Material.GetPathName(),
 				*UsdUtils::StringifyMap(MaterialAssetUserData->ParameterToPrimvar),
 				*UsdUtils::StringifyMap(CompatiblePrimvarToUVIndex),
-				*MaterialHash
+				*PrefixedMaterialHash
 			);
 
 #if WITH_EDITOR
@@ -398,7 +408,7 @@ namespace UE::MeshTranslationImplInternal::Private
 		{
 			if (bMaterialBelongsToAssetCache)
 			{
-				AssetCache->CacheAsset(MaterialHash, CompatibleMaterial);
+				AssetCache->CacheAsset(PrefixedMaterialHash, CompatibleMaterial);
 			}
 
 			if (InfoCache)
@@ -419,7 +429,8 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 	const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& AssignmentInfo,
 	UUsdAssetCache2& AssetCache,
 	FUsdInfoCache& InfoCache,
-	EObjectFlags Flags
+	EObjectFlags Flags,
+	bool bReuseIdenticalAssets
 )
 {
 	FScopedUnrealAllocs Allocs;
@@ -450,8 +461,10 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 			{
 			case UsdUtils::EPrimAssignmentType::DisplayColor:
 			{
+				const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + Slot.MaterialSource;
+
 				// Try reusing an already created DisplayColor material
-				if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(Slot.MaterialSource)))
+				if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
 				{
 					Material = ExistingMaterial;
 				}
@@ -484,7 +497,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						// We can only cache transient assets
 						MaterialInstance->SetFlags(RF_Transient);
 
-						AssetCache.CacheAsset(Slot.MaterialSource, MaterialInstance);
+						AssetCache.CacheAsset(PrefixedHash, MaterialInstance);
 						Material = MaterialInstance;
 					}
 				}
@@ -532,7 +545,8 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 					}
 				}
 
-				FString MaterialHash = Material ? AssetCache.GetHashForAsset(Material) : FString{};
+				FString PrefixedMaterialHash = Material ? AssetCache.GetHashForAsset(Material) : FString{};
+				FString HashPrefix = UsdUtils::GetAssetHashPrefix(UsdPrim.GetStage()->GetPrimAtPath(MaterialPrimPath), bReuseIdenticalAssets);
 
 				// Need to create a two-sided material on-demand, *before* we make it compatible:
 				// This because at runtime we can't just set the base property overrides, and just instead create a new
@@ -552,12 +566,12 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						continue;
 					}
 
-					const FString OneSidedHash = AssetCache.GetHashForAsset(OneSidedMat);
-					const FString TwoSidedHash = OneSidedHash + UnrealIdentifiers::TwoSidedMaterialSuffix;
+					const FString PrefixedOneSidedHash = AssetCache.GetHashForAsset(OneSidedMat);
+					const FString PrefixedTwoSidedHash = PrefixedOneSidedHash + UnrealIdentifiers::TwoSidedMaterialSuffix;
 
 					// Check if for some reason we already have a two-sided material ready due to a complex scenario
 					// related to the global cache
-					UMaterialInterface* TwoSidedMat = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(TwoSidedHash));
+					UMaterialInterface* TwoSidedMat = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedTwoSidedHash));
 					if (!TwoSidedMat)
 					{
 						TwoSidedMat =
@@ -568,7 +582,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 					{
 						TwoSidedMat->SetFlags(RF_Transient);
 						Material = TwoSidedMat;
-						MaterialHash = TwoSidedHash;
+						PrefixedMaterialHash = PrefixedTwoSidedHash;
 					}
 					else
 					{
@@ -581,7 +595,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 							*OneSidedMat->GetPathName()
 						);
 						Material = OneSidedMat;
-						MaterialHash = OneSidedHash;
+						PrefixedMaterialHash = PrefixedOneSidedHash;
 					}
 				}
 
@@ -589,7 +603,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 				{
 					// Cache the material to "ping it" as active, but also register two sided materials for the
 					// first time
-					AssetCache.CacheAsset(MaterialHash, Material);
+					AssetCache.CacheAsset(PrefixedMaterialHash, Material);
 					InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
 
 					// Finally, try to make our generated material primvar-compatible. We do this last because this will
@@ -610,7 +624,9 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 								*Material,
 								MeshPrimvarToUVIndex,
 								&AssetCache,
-								&InfoCache
+								&InfoCache,
+								HashPrefix,
+								bReuseIdenticalAssets
 							);
 
 						if (CompatibleMaterial)
@@ -676,7 +692,8 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	EObjectFlags Flags,
 	bool bInterpretLODs,
 	const FName& RenderContext,
-	const FName& MaterialPurpose
+	const FName& MaterialPurpose,
+	bool bReuseIdenticalAssets
 )
 {
 	FScopedUsdAllocs Allocs;
@@ -813,7 +830,8 @@ void MeshTranslationImpl::SetMaterialOverrides(
 			LODIndexToAssignments,
 			AssetCache,
 			InfoCache,
-			Flags
+			Flags,
+			bReuseIdenticalAssets
 		);
 	}
 

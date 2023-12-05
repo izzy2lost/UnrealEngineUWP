@@ -220,7 +220,7 @@ bool UsdToUnreal::ConvertSphereLight( const pxr::UsdPrim& Prim, UPointLightCompo
 	return true;
 }
 
-bool UsdToUnreal::ConvertDomeLight( const pxr::UsdPrim& Prim, USkyLightComponent& LightComponent, UUsdAssetCache2* TexturesCache )
+bool UsdToUnreal::ConvertDomeLight( const pxr::UsdPrim& Prim, USkyLightComponent& LightComponent, UUsdAssetCache2* TexturesCache, bool bReuseIdenticalAssets )
 {
 	FScopedUsdAllocs UsdAllocs;
 
@@ -249,8 +249,9 @@ bool UsdToUnreal::ConvertDomeLight( const pxr::UsdPrim& Prim, USkyLightComponent
 		return true;
 	}
 
-	const FString DomeTextureHash = LexToString( FMD5Hash::HashFile( *ResolvedDomeTexturePath ) );
-	UTextureCube* Cubemap = Cast< UTextureCube >( TexturesCache ? TexturesCache->GetCachedAsset( DomeTextureHash ) : nullptr );
+	const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(Prim, bReuseIdenticalAssets)
+									+ LexToString(FMD5Hash::HashFile(*ResolvedDomeTexturePath));
+	UTextureCube* Cubemap = Cast<UTextureCube>(TexturesCache ? TexturesCache->GetCachedAsset(PrefixedTextureHash) : nullptr);
 
 	if ( !Cubemap )
 	{
@@ -258,7 +259,7 @@ bool UsdToUnreal::ConvertDomeLight( const pxr::UsdPrim& Prim, USkyLightComponent
 
 		if ( TexturesCache )
 		{
-			TexturesCache->CacheAsset( DomeTextureHash, Cubemap );
+			TexturesCache->CacheAsset( PrefixedTextureHash, Cubemap );
 		}
 	}
 

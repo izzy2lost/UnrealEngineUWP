@@ -342,7 +342,8 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 					Context->ObjectFlags,
 					Context->bAllowInterpretingLODs,
 					Context->RenderContext,
-					Context->MaterialPurpose
+					Context->MaterialPurpose,
+					Context->bReuseIdenticalAssets
 				);
 			}
 		}
@@ -958,8 +959,9 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 			}
 			else
 			{
-				const FString TextureHash = LexToString(FMD5Hash::HashFile(*ResolvedPath));
-				UTexture2D* Texture = Cast<UTexture2D>(Context->AssetCache->GetCachedAsset(TextureHash));
+				const FString HashPrefix = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets);
+				const FString PrefixedTextureHash = HashPrefix + LexToString(FMD5Hash::HashFile(*ResolvedPath));
+				UTexture2D* Texture = Cast<UTexture2D>(Context->AssetCache->GetCachedAsset(PrefixedTextureHash));
 
 				if (!Texture)
 				{
@@ -970,7 +972,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 						Context->AssetCache.Get()
 					));
 
-					Context->AssetCache->CacheAsset(TextureHash, Texture);
+					Context->AssetCache->CacheAsset(PrefixedTextureHash, Texture);
 				}
 
 				// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially

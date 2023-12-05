@@ -195,7 +195,8 @@ namespace UsdGroomTranslatorUtils
 		const pxr::UsdPrim& Prim,
 		UUsdAssetCache2& AssetCache,
 		FUsdInfoCache& InfoCache,
-		EObjectFlags ObjectFlags
+		EObjectFlags ObjectFlags,
+		bool bReuseIdenticalAssets
 	)
 	{
 		// At this point, the prim (SkelRoot/Skeleton or GeomMesh) has already been checked to have the GroomBindingAPI,
@@ -237,9 +238,10 @@ namespace UsdGroomTranslatorUtils
 		Settings.TargetMesh = TargetMesh;
 		Settings.SourceMesh = GetGroomBindingSourceMesh(Prim, InfoCache, GroomBindingType);
 
+		const FString PrefixedBindingHash = UsdUtils::GetAssetHashPrefix(Prim, bReuseIdenticalAssets) + ComputeGroomBindingHash(Settings).ToString();
+
 		// Try to get the GroomBindingAsset from the cache
-		const FSHAHash SHAHash = ComputeGroomBindingHash(Settings);
-		UGroomBindingAsset* GroomBinding = Cast<UGroomBindingAsset>(AssetCache.GetCachedAsset(SHAHash.ToString()));
+		UGroomBindingAsset* GroomBinding = Cast<UGroomBindingAsset>(AssetCache.GetCachedAsset(PrefixedBindingHash));
 
 		const FString GroomBindingPath = FString::Printf(TEXT("%s_groombinding"), *PrimPath);
 		if (!GroomBinding)
@@ -248,7 +250,7 @@ namespace UsdGroomTranslatorUtils
 			GroomBinding = CreateGroomBindingAsset(GroomBindingPath, Settings, ObjectFlags);
 			if (GroomBinding)
 			{
-				AssetCache.CacheAsset(SHAHash.ToString(), GroomBinding);
+				AssetCache.CacheAsset(PrefixedBindingHash, GroomBinding);
 			}
 		}
 

@@ -35,7 +35,8 @@ namespace MeshTranslationImpl
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& AssignmentInfo,
 		UUsdAssetCache2& AssetCache,
 		FUsdInfoCache& InfoCache,
-		EObjectFlags Flags
+		EObjectFlags Flags,
+		bool bReuseIdenticalAssets
 	);
 
 	/**
@@ -52,7 +53,8 @@ namespace MeshTranslationImpl
 		EObjectFlags Flags,
 		bool bInterpretLODs,
 		const FName& RenderContext,
-		const FName& MaterialPurpose
+		const FName& MaterialPurpose,
+		bool bReuseIdenticalAssets
 	);
 
 	void RecordSourcePrimsForMaterialSlots(

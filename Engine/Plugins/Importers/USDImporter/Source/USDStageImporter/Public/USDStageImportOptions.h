@@ -147,6 +147,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
 	EReplaceAssetPolicy ExistingAssetPolicy;
 
+	/**
+	 * If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of
+	 * that asset is generated, and the asset is shared by the components generated for both prims.
+	 * If false, we will always generate a dedicated asset for each prim.
+	 */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Collision")
+	bool bReuseIdenticalAssets;
 
 
 	/**

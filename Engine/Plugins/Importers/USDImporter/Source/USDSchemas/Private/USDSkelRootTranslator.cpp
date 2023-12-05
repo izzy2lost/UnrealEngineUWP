@@ -80,8 +80,10 @@ namespace UsdSkelRootTranslatorImpl
 		USkeletalMesh* SkeletalMesh,
 		UUsdAssetCache2& AssetCache,
 		FUsdInfoCache& InfoCache,
-		float Time, EObjectFlags Flags,
-		bool bSkeletalMeshHasMorphTargets
+		float Time,
+		EObjectFlags Flags,
+		bool bSkeletalMeshHasMorphTargets,
+		bool bReuseIdenticalAssets
 	)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE( UsdSkelRootTranslatorImpl::ProcessMaterials );
@@ -108,7 +110,8 @@ namespace UsdSkelRootTranslatorImpl
 			LODIndexToMaterialInfo,
 			AssetCache,
 			InfoCache,
-			Flags
+			Flags,
+			bReuseIdenticalAssets
 		);
 
 		bool bMaterialsHaveChanged = false;
@@ -653,7 +656,8 @@ namespace UsdSkelRootTranslatorImpl
 		EObjectFlags Flags,
 		bool bInterpretLODs,
 		const FName& RenderContext,
-		const FName& MaterialPurpose
+		const FName& MaterialPurpose,
+		bool bReuseIdenticalAssets
 	)
 	{
 		FScopedUsdAllocs Allocs;
@@ -802,7 +806,8 @@ namespace UsdSkelRootTranslatorImpl
 			LODIndexToAssignments,
 			AssetCache,
 			InfoCache,
-			Flags
+			Flags,
+			bReuseIdenticalAssets
 		);
 
 		// Compare resolved materials with existing assignments, and create overrides if we need to
@@ -973,11 +978,11 @@ namespace UsdSkelRootTranslatorImpl
 			SHA1.UpdateWithString(*PrimPath, PrimPath.Len());
 			SHA1.Final();
 			SHA1.GetHash(&Hash.Hash[0]);
-			const FString CacheKey = Hash.ToString();
+			const FString PrefixedAnimBPHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + Hash.ToString();
 
 			// Check if we can find an AnimBP for this prim in the asset cache (useful when doing Action->Import)
 			bool bReusedAnimBP = false;
-			if ( UAnimBlueprint* CachedAnimBP = Cast< UAnimBlueprint >( Context.AssetCache->GetCachedAsset( CacheKey ) ) )
+			if (UAnimBlueprint* CachedAnimBP = Cast<UAnimBlueprint>(Context.AssetCache->GetCachedAsset(PrefixedAnimBPHash)))
 			{
 				if ( CachedAnimBP->TargetSkeleton == Skeleton )
 				{
@@ -1012,7 +1017,7 @@ namespace UsdSkelRootTranslatorImpl
 
 				bNeedRecompile = true;
 
-				Context.AssetCache->CacheAsset( CacheKey, AnimBP );
+				Context.AssetCache->CacheAsset( PrefixedAnimBPHash, AnimBP );
 			}
 		}
 		// Path is pointing to an existing, persistent AnimBP
@@ -1250,7 +1255,7 @@ namespace UsdSkelRootTranslatorImpl
 		// Note that we want this to be case insensitive so that our UMorphTarget FNames are unique not only due to case differences
 		TSet<FString> UsedMorphTargetNames;
 		TUsdStore< pxr::UsdSkelCache > SkeletonCache;
-		FString SkeletalMeshHashString;
+		FString PrefixedSkelMeshHash;
 
 		// Don't keep a live reference to the prim because other translators may mutate the stage in an ExclusiveSync translation step, invalidating the reference
 		UE::FUsdPrim GetPrim() const { return Context->Stage.GetPrimAtPath( PrimPath ); }
@@ -1336,9 +1341,9 @@ namespace UsdSkelRootTranslatorImpl
 
 				FString SkelRootPath = PrimPath.GetString();
 				FSHAHash SkeletalMeshHash = UsdSkelRootTranslatorImpl::ComputeSHAHash( LODIndexToSkeletalMeshImportData, SkeletonBones, BlendShapes );
-				SkeletalMeshHashString = SkeletalMeshHash.ToString();
+				PrefixedSkelMeshHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + SkeletalMeshHash.ToString();
 
-				USkeletalMesh* SkeletalMesh = Cast< USkeletalMesh >( Context->AssetCache->GetCachedAsset( SkeletalMeshHashString ) );
+				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Context->AssetCache->GetCachedAsset(PrefixedSkelMeshHash));
 
 				bool bIsNew = false;
 				if ( !SkeletalMesh )
@@ -1377,7 +1382,8 @@ namespace UsdSkelRootTranslatorImpl
 							*Context->InfoCache.Get(),
 							Context->Time,
 							Context->ObjectFlags,
-							NewBlendShapes.Num() > 0
+							NewBlendShapes.Num() > 0,
+							Context->bReuseIdenticalAssets
 						);
 
 						if (bMaterialsHaveChanged)
@@ -1386,8 +1392,8 @@ namespace UsdSkelRootTranslatorImpl
 							SkeletalMesh->UpdateUVChannelData(bRebuildAll);
 						}
 
-						Context->AssetCache->CacheAsset( SkeletalMeshHashString, SkeletalMesh );
-						Context->AssetCache->CacheAsset( SkeletalMeshHashString + TEXT( "_Skeleton" ), SkeletalMesh->GetSkeleton() );
+						Context->AssetCache->CacheAsset( PrefixedSkelMeshHash, SkeletalMesh );
+						Context->AssetCache->CacheAsset( PrefixedSkelMeshHash + TEXT( "_Skeleton" ), SkeletalMesh->GetSkeleton() );
 
 						// The PreviewSkeletalMesh property on the Skeleton is a soft object path, that is set within
 						// UsdToUnreal::GetSkeletalMeshFromImportData before the SkeletalMesh is part of the cache. When we cache the
@@ -1403,21 +1409,23 @@ namespace UsdSkelRootTranslatorImpl
 
 					if ( bGeneratePhysicsAssets )
 					{
-						if ( !SkeletalMesh->GetPhysicsAsset() )
+						UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
+						if (!PhysicsAsset)
 						{
-							UPhysicsAsset* PhysicsAsset = UsdSkelRootTranslatorImpl::GenerateAndAssignPhysicsAsset(
+							PhysicsAsset = UsdSkelRootTranslatorImpl::GenerateAndAssignPhysicsAsset(
 								SkeletalMesh,
 								Context->ObjectFlags
 							);
 
-							if ( PhysicsAsset )
+							if (PhysicsAsset)
 							{
-								Context->AssetCache->CacheAsset(
-									SkeletalMeshHashString + TEXT( "_PhysicsAsset" ),
-									PhysicsAsset
-								);
-								Context->InfoCache->LinkAssetToPrim(PrimPath, PhysicsAsset);
+								Context->AssetCache->CacheAsset(PrefixedSkelMeshHash + TEXT("_PhysicsAsset"), PhysicsAsset);
 							}
+						}
+
+						if (PhysicsAsset)
+						{
+							Context->InfoCache->LinkAssetToPrim(PrimPath, PhysicsAsset);
 						}
 					}
 					else
@@ -1560,10 +1568,10 @@ namespace UsdSkelRootTranslatorImpl
 						FSHAHash Hash = UsdSkelRootTranslatorImpl::ComputeSHAHash(
 							SkelQuery,
 							RootMotionPrim,
-							SkeletalMeshHashString
+							PrefixedSkelMeshHash
 						);
-						FString HashString = Hash.ToString();
-						UAnimSequence* AnimSequence = Cast< UAnimSequence >( Context->AssetCache->GetCachedAsset( HashString ) );
+						FString PrefixedSkelAnimHash = UsdUtils::GetAssetHashPrefix(SkelAnimationPrim, Context->bReuseIdenticalAssets) + Hash.ToString();
+						UAnimSequence* AnimSequence = Cast<UAnimSequence>(Context->AssetCache->GetCachedAsset(PrefixedSkelAnimHash));
 
 						if ( !AnimSequence || AnimSequence->GetSkeleton() != SkeletalMesh->GetSkeleton() )
 						{
@@ -1609,7 +1617,7 @@ namespace UsdSkelRootTranslatorImpl
 
 								AnimSequence->AddAssetUserData(UserData);
 
-								Context->AssetCache->CacheAsset( HashString, AnimSequence );
+								Context->AssetCache->CacheAsset( PrefixedSkelAnimHash, AnimSequence );
 							}
 							else
 							{
@@ -1680,7 +1688,8 @@ USceneComponent* FUsdSkelRootTranslator::CreateComponents()
 			GetPrim(),
 			*Context->AssetCache,
 			*Context->InfoCache,
-			Context->ObjectFlags
+			Context->ObjectFlags,
+			Context->bReuseIdenticalAssets
 		);
 
 		// For the groom binding to work, the GroomComponent must be a child of the SceneComponent
@@ -1786,7 +1795,8 @@ void FUsdSkelRootTranslator::UpdateComponents( USceneComponent* SceneComponent )
 				Context->ObjectFlags,
 				Context->bAllowInterpretingLODs,
 				Context->RenderContext,
-				Context->MaterialPurpose
+				Context->MaterialPurpose,
+				Context->bReuseIdenticalAssets
 			);
 		}
 	}

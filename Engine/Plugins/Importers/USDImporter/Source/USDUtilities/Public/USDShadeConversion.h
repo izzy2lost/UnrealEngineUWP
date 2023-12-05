@@ -53,10 +53,23 @@ namespace UsdToUnreal
 	 * @param Material - Output parameter that will be filled with the converted data. Only the versions that receive a dynamic material instance will work at runtime
 	 * @param TexturesCache - Cache to prevent importing a texture more than once
 	 * @param RenderContext - Which render context output to read from the UsdShadeMaterial
+	 * @param ReuseIdenticalAssets - Whether to reuse identical textures found in the TextureCache or to create dedicated textures for each material
 	 * @return Whether the conversion was successful or not.
 	 */
-	USDUTILITIES_API bool ConvertMaterial(const pxr::UsdShadeMaterial& UsdShadeMaterial, UMaterialInstance& Material, UUsdAssetCache2* TexturesCache = nullptr, const TCHAR* RenderContext = nullptr);
-	USDUTILITIES_API bool ConvertMaterial(const pxr::UsdShadeMaterial& UsdShadeMaterial, UMaterial& Material, UUsdAssetCache2* TexturesCache = nullptr, const TCHAR* RenderContext = nullptr);
+	USDUTILITIES_API bool ConvertMaterial(
+		const pxr::UsdShadeMaterial& UsdShadeMaterial,
+		UMaterialInstance& Material,
+		UUsdAssetCache2* TexturesCache = nullptr,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
+	);
+	USDUTILITIES_API bool ConvertMaterial(
+		const pxr::UsdShadeMaterial& UsdShadeMaterial,
+		UMaterial& Material,
+		UUsdAssetCache2* TexturesCache = nullptr,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
+	);
 
 	/**
 	 * Attemps to assign the values of the surface shader inputs to the MaterialInstance parameters by matching the inputs display names to the parameters names.
@@ -64,10 +77,17 @@ namespace UsdToUnreal
 	 * @param MaterialInstance - Material instance on which we will set the parameter values
 	 * @param TexturesCache - Cache to prevent importing a texture more than once
 	 * @param RenderContext - The USD render context to use when fetching the surface shader
+	 * @param ReuseIdenticalAssets - Whether to reuse identical textures found in the TextureCache or to create dedicated textures for each material
 	 * @return Whether the conversion was successful or not.
 	 *
 	 */
-	USDUTILITIES_API bool ConvertShadeInputsToParameters( const pxr::UsdShadeMaterial& UsdShadeMaterial, UMaterialInstance& MaterialInstance, UUsdAssetCache2* TexturesCache, const TCHAR* RenderContext = nullptr );
+	USDUTILITIES_API bool ConvertShadeInputsToParameters(
+		const pxr::UsdShadeMaterial& UsdShadeMaterial,
+		UMaterialInstance& MaterialInstance,
+		UUsdAssetCache2* TexturesCache,
+		const TCHAR* RenderContext = nullptr,
+		bool bReuseIdenticalAssets = true
+	);
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "Please use the overload that doesn't use PrimvarToUVIndex anymore")

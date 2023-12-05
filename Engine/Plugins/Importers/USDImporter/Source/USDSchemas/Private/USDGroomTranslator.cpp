@@ -133,7 +133,7 @@ protected:
 	TStrongObjectPtr<UGroomImportOptions> ImportOptions;
 	TUniquePtr<FGroomCacheProcessor> GroomCacheProcessor;
 	FGroomAnimationInfo AnimInfo;
-	FSHAHash GroomCacheHash;
+	FString PrefixedGroomCacheHash;
 
 protected:
 	UE::FUsdPrim GetPrim() const { return Context->Stage.GetPrimAtPath(PrimPath); }
@@ -175,8 +175,10 @@ protected:
 
 				FSHAHash SHAHash = UE::UsdGroomTranslator::Private::ComputeHairDescriptionHash(HairDescription, ImportOptions->InterpolationSettings);
 
+				FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + SHAHash.ToString();
+
 				const FString PrimPathString = PrimPath.GetString();
-				UGroomAsset* GroomAsset = Cast<UGroomAsset>(Context->AssetCache->GetCachedAsset(SHAHash.ToString()));
+				UGroomAsset* GroomAsset = Cast<UGroomAsset>(Context->AssetCache->GetCachedAsset(PrefixedAssetHash));
 				if (!GroomAsset)
 				{
 					FName AssetName = MakeUniqueObjectName(
@@ -196,7 +198,7 @@ protected:
 					GroomAsset = FHairStrandsImporter::ImportHair(HairImportContext, HairDescription, ExistingAsset);
 					if (GroomAsset)
 					{
-						Context->AssetCache->CacheAsset(SHAHash.ToString(), GroomAsset);
+						Context->AssetCache->CacheAsset(PrefixedAssetHash, GroomAsset);
 
 						if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(GroomAsset))
 						{
@@ -251,10 +253,13 @@ protected:
 				SHA1.Update((const uint8*)&AnimInfo.Attributes, sizeof(AnimInfo.Attributes));
 				SHA1.Final();
 
-				SHA1.GetHash(GroomCacheHash.Hash);
+				FSHAHash Hash;
+				SHA1.GetHash(Hash.Hash);
+
+				PrefixedGroomCacheHash = UsdUtils::GetAssetHashPrefix(GetPrim(), Context->bReuseIdenticalAssets) + Hash.ToString();
 
 				bool bSuccess = true;
-				UGroomCache* GroomCache = Cast<UGroomCache>(Context->AssetCache->GetCachedAsset(GroomCacheHash.ToString()));
+				UGroomCache* GroomCache = Cast<UGroomCache>(Context->AssetCache->GetCachedAsset(PrefixedGroomCacheHash));
 				if (!GroomCache)
 				{
 					GroomCacheProcessor = MakeUnique<FGroomCacheProcessor>(EGroomCacheType::Strands, AnimInfo.Attributes);
@@ -323,7 +328,8 @@ protected:
 						GroomCacheProcessor->AddGroomSample(MoveTemp(HairGroupsData));
 					}
 				}
-				else if (Context->InfoCache)
+
+				if (Context->InfoCache && GroomCache)
 				{
 					Context->InfoCache->LinkAssetToPrim(PrimPath, GroomCache);
 				}
@@ -340,6 +346,17 @@ protected:
 		Then(ESchemaTranslationLaunchPolicy::Sync,
 			[this]() -> bool
 			{
+				// TEMP: This is a small trick to prevent two concurrent task chains from running into a hash collision in the asset cache.
+				// This is enough of a workaround because this is a Sync task, so we can guarantee only one of the competing task chains will be
+				// run at a time. Whichever wins gets to create the GroomCache, and the other will exit through this branch.
+				// It will likely be properly fixed before 5.4 is out, but check UE-201011 for more details.
+				UGroomCache* ExistingGroomCache = Cast<UGroomCache>(Context->AssetCache->GetCachedAsset(PrefixedGroomCacheHash));
+				if (ExistingGroomCache)
+				{
+					Context->InfoCache->LinkAssetToPrim(PrimPath, ExistingGroomCache);
+					return false;
+				}
+
 				const FString StrandsGroomCachePrimPath = UsdGroomTranslatorUtils::GetStrandsGroomCachePrimPath(PrimPath);
 				FHairImportContext HairImportContext(nullptr, GetTransientPackage(), nullptr, FName(), Context->ObjectFlags | RF_Public | RF_Transient);
 				FName UniqueName = MakeUniqueObjectName(
@@ -368,7 +385,7 @@ protected:
 						}
 					}
 
-					Context->AssetCache->CacheAsset(GroomCacheHash.ToString(), GroomCache);
+					Context->AssetCache->CacheAsset(PrefixedGroomCacheHash, GroomCache);
 					Context->InfoCache->LinkAssetToPrim(PrimPath, GroomCache);
 				}
 

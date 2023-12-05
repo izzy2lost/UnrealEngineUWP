@@ -541,7 +541,8 @@ void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointIn
 					Context->ObjectFlags,
 					Context->bAllowInterpretingLODs,
 					Context->RenderContext,
-					Context->MaterialPurpose
+					Context->MaterialPurpose,
+					Context->bReuseIdenticalAssets
 				);
 			}
 		}

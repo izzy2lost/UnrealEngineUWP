@@ -80,7 +80,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 		FUsdInfoCache& InfoCache,
 		float Time,
 		EObjectFlags Flags,
-		bool bSkeletalMeshHasMorphTargets
+		bool bSkeletalMeshHasMorphTargets,
+		bool bReuseIdenticalAssets
 	)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UsdSkelSkeletonTranslatorImpl::ProcessMaterials);
@@ -104,8 +105,14 @@ namespace UsdSkelSkeletonTranslatorImpl
 			*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
 		);
 
-		TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*>
-			ResolvedMaterials = MeshTranslationImpl::ResolveMaterialAssignmentInfo(UsdPrim, LODIndexToMaterialInfo, AssetCache, InfoCache, Flags);
+		TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> ResolvedMaterials = MeshTranslationImpl::ResolveMaterialAssignmentInfo(
+			UsdPrim,
+			LODIndexToMaterialInfo,
+			AssetCache,
+			InfoCache,
+			Flags,
+			bReuseIdenticalAssets
+		);
 
 		bool bMaterialsHaveChanged = false;
 
@@ -715,7 +722,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 		bool bInterpretLODs,
 		const FName& RenderContext,
 		const FName& MaterialPurpose,
-		const EUsdPurpose PurposesToLoad
+		const EUsdPurpose PurposesToLoad,
+		bool bReuseIdenticalAssets
 	)
 	{
 		FScopedUsdAllocs Allocs;
@@ -865,7 +873,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 			LODIndexToAssignments,
 			AssetCache,
 			InfoCache,
-			Flags
+			Flags,
+			bReuseIdenticalAssets
 		);
 
 		// Compare resolved materials with existing assignments, and create overrides if we need to
@@ -1045,11 +1054,11 @@ namespace UsdSkelSkeletonTranslatorImpl
 			SHA1.UpdateWithString(*PrimPath, PrimPath.Len());
 			SHA1.Final();
 			SHA1.GetHash(&Hash.Hash[0]);
-			const FString CacheKey = Hash.ToString();
+			const FString PrefixedAnimBPHash = UsdUtils::GetAssetHashPrefix(SkeletonPrim, Context.bReuseIdenticalAssets) + Hash.ToString();
 
 			// Check if we can find an AnimBP for this prim in the asset cache (useful when doing Action->Import)
 			bool bReusedAnimBP = false;
-			if (UAnimBlueprint* CachedAnimBP = Cast<UAnimBlueprint>(Context.AssetCache->GetCachedAsset(CacheKey)))
+			if (UAnimBlueprint* CachedAnimBP = Cast<UAnimBlueprint>(Context.AssetCache->GetCachedAsset(PrefixedAnimBPHash)))
 			{
 				if (CachedAnimBP->TargetSkeleton == Skeleton)
 				{
@@ -1082,7 +1091,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 				bNeedRecompile = true;
 
-				Context.AssetCache->CacheAsset(CacheKey, AnimBP);
+				Context.AssetCache->CacheAsset(PrefixedAnimBPHash, AnimBP);
 			}
 		}
 		// Path is pointing to an existing, persistent AnimBP
@@ -1348,7 +1357,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 		TUsdStore<pxr::UsdSkelCache> SkelCache;
 		TUsdStore<pxr::UsdSkelRoot> ClosestParentSkelRoot;
 		TUsdStore<pxr::UsdSkelSkeletonQuery> SkeletonQuery;
-		FString SkeletalMeshHashString;
+		FString PrefixedSkelMeshHash;
 
 		// Don't keep a live reference to the prim because other translators may mutate the stage in an ExclusiveSync translation step, invalidating
 		// the reference
@@ -1402,6 +1411,33 @@ namespace UsdSkelSkeletonTranslatorImpl
 		SetupTasks();
 	}
 
+	// Right now parsing LODs involves flipping through variants, which invalidates some prims and references.
+	// The SkelSkeletonTranslator is especially vulnerable to this because the SkeletonBinding contains
+	// skinning queries that are all invalidated when we flip through variants, and the task chain holds on
+	// to the same SkeletonBinding throughout the entire chain...
+	// Here we'll refresh those references if needed.
+	// TODO: Find better way of handling LODs that doesn't require this mechanism.
+	void RefreshSkelReferencesIfNeeded(
+		const pxr::UsdSkelRoot& InSkelRootPrim,
+		const pxr::UsdSkelSkeleton& InSkeletonPrim,
+		pxr::UsdSkelCache& InOutSkelCache,
+		pxr::UsdSkelBinding& InOutSkelBinding,
+		pxr::UsdSkelSkeletonQuery& InOutSkeletonQuery
+	)
+	{
+		// If we still have valid skinning queries we know we still have valid references, as those are the first to break
+		for (const pxr::UsdSkelSkinningQuery& SkinningQuery : InOutSkelBinding.GetSkinningTargets())
+		{
+			if (pxr::UsdGeomMesh SkinningMesh = pxr::UsdGeomMesh(SkinningQuery.GetPrim()))
+			{
+				return;
+			}
+		}
+
+		InOutSkelCache.Populate(InSkelRootPrim, pxr::UsdTraverseInstanceProxies());
+		ensure(UsdUtils::GetSkelQueries(InSkelRootPrim, InSkeletonPrim, InOutSkelBinding, InOutSkeletonQuery, &InOutSkelCache));
+	}
+
 	void FSkelSkeletonCreateAssetsTaskChain::SetupTasks()
 	{
 		// To parse all LODs we need to actively switch variant sets to other variants (triggering prim loading/unloading and notices),
@@ -1411,69 +1447,59 @@ namespace UsdSkelSkeletonTranslatorImpl
 																	 : ESchemaTranslationLaunchPolicy::Async;
 
 		// Create SkeletalMeshImportData (Async or ExclusiveSync)
-		Do(LaunchPolicy,
-		   [this, bTryLODParsing]()
-		   {
-			   // No point in importing blend shapes if the import context doesn't want them
-			   UsdUtils::FBlendShapeMap* OutBlendShapes = Context->BlendShapesByPath ? &NewBlendShapes : nullptr;
+		Do(
+			LaunchPolicy,
+			[this, bTryLODParsing]()
+			{
+				RefreshSkelReferencesIfNeeded(
+					ClosestParentSkelRoot.Get(),
+					pxr::UsdSkelSkeleton{GetSkeletonPrim()},
+					SkelCache.Get(),
+					SkeletonBinding.Get(),
+					SkeletonQuery.Get()
+				);
 
-			   pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
-			   if (!Context->RenderContext.IsNone())
-			   {
-				   RenderContextToken = UnrealToUsd::ConvertToken(*Context->RenderContext.ToString()).Get();
-			   }
+				// No point in importing blend shapes if the import context doesn't want them
+				UsdUtils::FBlendShapeMap* OutBlendShapes = Context->BlendShapesByPath ? &NewBlendShapes : nullptr;
 
-			   pxr::TfToken MaterialPurposeToken = pxr::UsdShadeTokens->allPurpose;
-			   if (!Context->MaterialPurpose.IsNone())
-			   {
-				   MaterialPurposeToken = UnrealToUsd::ConvertToken(*Context->MaterialPurpose.ToString()).Get();
-			   }
+				pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
+				if (!Context->RenderContext.IsNone())
+				{
+					RenderContextToken = UnrealToUsd::ConvertToken(*Context->RenderContext.ToString()).Get();
+				}
 
-			   UsdToUnreal::FUsdMeshConversionOptions Options;
-			   Options.TimeCode = Context->Time;
-			   Options.RenderContext = RenderContextToken;
-			   Options.MaterialPurpose = MaterialPurposeToken;
-			   Options.SubdivisionLevel = Context->SubdivisionLevel;
-			   Options.PurposesToLoad = Context->PurposesToLoad;
-			   Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
+				pxr::TfToken MaterialPurposeToken = pxr::UsdShadeTokens->allPurpose;
+				if (!Context->MaterialPurpose.IsNone())
+				{
+					MaterialPurposeToken = UnrealToUsd::ConvertToken(*Context->MaterialPurpose.ToString()).Get();
+				}
 
-			   bool bContinueTaskChain = UsdSkelSkeletonTranslatorImpl::LoadAllSkeletalData(
-				   SkeletonBinding.Get(),
-				   SkelCache.Get(),
-				   LODIndexToSkeletalMeshImportData,
-				   LODIndexToMaterialInfo,
-				   LODMetadata,
-				   SkeletonBones,
-				   SkeletonName,
-				   OutBlendShapes,
-				   UsedMorphTargetNames,
-				   bTryLODParsing,
-				   Options,
-				   Context->MetadataOptions
-			   );
+				UsdToUnreal::FUsdMeshConversionOptions Options;
+				Options.TimeCode = Context->Time;
+				Options.RenderContext = RenderContextToken;
+				Options.MaterialPurpose = MaterialPurposeToken;
+				Options.SubdivisionLevel = Context->SubdivisionLevel;
+				Options.PurposesToLoad = Context->PurposesToLoad;
+				Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
 
-			   // If we parsed LODs we could potentially have invalidated our references to our queries,
-			   // so let's refresh them before the downstream tasks try using them.
-			   if (bContinueTaskChain && bTryLODParsing)
-			   {
-				   // We are forced to repopulate here unfortunately, or else the queries/SkelCache will actually happily hold on to and return their
-				   // internal, invalid prim references...
-				   // We can't just keep prim paths of things instead (paths to skinned prims, paths to SkelAnimation prim, etc.) because parsing
-				   // these prims involves using those query objects to compute joint transforms and etc., and we can't create them ourselves.
-				   // This should only be temporary, as I believe we'll eventually have a cleverer way of handling LODs that doesn't invalidate
-				   // everything (e.g. open a separate stage with a population mask to only parse the LOD mesh, etc.)
-				   SkelCache.Get().Populate(ClosestParentSkelRoot.Get(), pxr::UsdTraverseInstanceProxies());
-				   ensure(UsdUtils::GetSkelQueries(
-					   ClosestParentSkelRoot.Get(),
-					   pxr::UsdSkelSkeleton{GetSkeletonPrim()},
-					   SkeletonBinding.Get(),
-					   SkeletonQuery.Get(),
-					   &SkelCache.Get()
-				   ));
-			   }
+				const bool bContinueTaskChain = UsdSkelSkeletonTranslatorImpl::LoadAllSkeletalData(
+					SkeletonBinding.Get(),
+					SkelCache.Get(),
+					LODIndexToSkeletalMeshImportData,
+					LODIndexToMaterialInfo,
+					LODMetadata,
+					SkeletonBones,
+					SkeletonName,
+					OutBlendShapes,
+					UsedMorphTargetNames,
+					bTryLODParsing,
+					Options,
+					Context->MetadataOptions
+				);
 
-			   return bContinueTaskChain;
-		   });
+				return bContinueTaskChain;
+			}
+		);
 
 		// Create USkeletalMesh (Main thread)
 		Then(
@@ -1485,6 +1511,17 @@ namespace UsdSkelSkeletonTranslatorImpl
 					return false;
 				}
 
+				// We may have invalidated references with the previous task if it parsed LODs, so refresh them if needed.
+				// We'll assume that it's unlikely that those would be invalidated past this point though, as only the previous
+				// task is capable of invalidating them, and it is an ExclusiveSync task
+				RefreshSkelReferencesIfNeeded(
+					ClosestParentSkelRoot.Get(),
+					pxr::UsdSkelSkeleton{GetSkeletonPrim()},
+					SkelCache.Get(),
+					SkeletonBinding.Get(),
+					SkeletonQuery.Get()
+				);
+
 				UsdUtils::FBlendShapeMap* BlendShapes = Context->BlendShapesByPath ? &NewBlendShapes : nullptr;
 
 				FSHAHash SkeletalMeshHash = UsdSkelSkeletonTranslatorImpl::ComputeSHAHash(
@@ -1492,9 +1529,9 @@ namespace UsdSkelSkeletonTranslatorImpl
 					SkeletonBones,
 					BlendShapes
 				);
-				SkeletalMeshHashString = SkeletalMeshHash.ToString();
+				PrefixedSkelMeshHash = UsdUtils::GetAssetHashPrefix(GetSkeletonPrim(), Context->bReuseIdenticalAssets) + SkeletalMeshHash.ToString();
 
-				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Context->AssetCache->GetCachedAsset(SkeletalMeshHashString));
+				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Context->AssetCache->GetCachedAsset(PrefixedSkelMeshHash));
 
 				bool bIsNew = false;
 				if (!SkeletalMesh)
@@ -1569,7 +1606,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 							*Context->InfoCache.Get(),
 							Context->Time,
 							Context->ObjectFlags,
-							NewBlendShapes.Num() > 0
+							NewBlendShapes.Num() > 0,
+							Context->bReuseIdenticalAssets
 						);
 
 						if (bMaterialsHaveChanged)
@@ -1578,8 +1616,8 @@ namespace UsdSkelSkeletonTranslatorImpl
 							SkeletalMesh->UpdateUVChannelData(bRebuildAll);
 						}
 
-						Context->AssetCache->CacheAsset(SkeletalMeshHashString, SkeletalMesh);
-						Context->AssetCache->CacheAsset(SkeletalMeshHashString + TEXT("_Skeleton"), SkeletalMesh->GetSkeleton());
+						Context->AssetCache->CacheAsset(PrefixedSkelMeshHash, SkeletalMesh);
+						Context->AssetCache->CacheAsset(PrefixedSkelMeshHash + TEXT("_Skeleton"), SkeletalMesh->GetSkeleton());
 
 						// The PreviewSkeletalMesh property on the Skeleton is a soft object path, that is set within
 						// UsdToUnreal::GetSkeletalMeshFromImportData before the SkeletalMesh is part of the cache. When we cache the
@@ -1592,18 +1630,23 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 					if (bGeneratePhysicsAssets)
 					{
-						if (!SkeletalMesh->GetPhysicsAsset())
+						UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset();
+						if (!PhysicsAsset)
 						{
-							UPhysicsAsset* PhysicsAsset = UsdSkelSkeletonTranslatorImpl::GenerateAndAssignPhysicsAsset(
+							PhysicsAsset = UsdSkelSkeletonTranslatorImpl::GenerateAndAssignPhysicsAsset(
 								SkeletalMesh,
 								Context->ObjectFlags
 							);
 
 							if (PhysicsAsset)
 							{
-								Context->AssetCache->CacheAsset(SkeletalMeshHashString + TEXT("_PhysicsAsset"), PhysicsAsset);
-								Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, PhysicsAsset);
+								Context->AssetCache->CacheAsset(PrefixedSkelMeshHash + TEXT("_PhysicsAsset"), PhysicsAsset);
 							}
+						}
+
+						if (PhysicsAsset)
+						{
+							Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, PhysicsAsset);
 						}
 					}
 					else
@@ -1749,9 +1792,13 @@ namespace UsdSkelSkeletonTranslatorImpl
 					}
 				}
 
-				FSHAHash Hash = UsdSkelSkeletonTranslatorImpl::ComputeSHAHash(SkeletonQuery.Get(), RootMotionPrim, SkeletalMeshHashString);
-				FString HashString = Hash.ToString();
-				UAnimSequence* AnimSequence = Cast<UAnimSequence>(Context->AssetCache->GetCachedAsset(HashString));
+				FSHAHash Hash = UsdSkelSkeletonTranslatorImpl::ComputeSHAHash(
+					SkeletonQuery.Get(),
+					RootMotionPrim,
+					PrefixedSkelMeshHash
+				);
+				FString PrefixedSkelAnimHash = UsdUtils::GetAssetHashPrefix(SkelAnimationPrim, Context->bReuseIdenticalAssets) + Hash.ToString();
+				UAnimSequence* AnimSequence = Cast<UAnimSequence>(Context->AssetCache->GetCachedAsset(PrefixedSkelAnimHash));
 
 				if (!AnimSequence || AnimSequence->GetSkeleton() != SkeletalMesh->GetSkeleton())
 				{
@@ -1814,7 +1861,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 							}
 						}
 
-						Context->AssetCache->CacheAsset(HashString, AnimSequence);
+						Context->AssetCache->CacheAsset(PrefixedSkelAnimHash, AnimSequence);
 					}
 					else
 					{
@@ -1893,7 +1940,13 @@ USceneComponent* FUsdSkelSkeletonTranslator::CreateComponents()
 
 		if (PrimWithSchema)
 		{
-			UsdGroomTranslatorUtils::CreateGroomBindingAsset(PrimWithSchema, *Context->AssetCache, *Context->InfoCache, Context->ObjectFlags);
+			UsdGroomTranslatorUtils::CreateGroomBindingAsset(
+				PrimWithSchema,
+				*Context->AssetCache,
+				*Context->InfoCache,
+				Context->ObjectFlags,
+				Context->bReuseIdenticalAssets
+			);
 
 			// For the groom binding to work, the GroomComponent must be a child of the SceneComponent
 			// so the Context ParentComponent is set to the SceneComponent temporarily
@@ -2040,7 +2093,8 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 				Context->bAllowInterpretingLODs,
 				Context->RenderContext,
 				Context->MaterialPurpose,
-				Context->PurposesToLoad
+				Context->PurposesToLoad,
+				Context->bReuseIdenticalAssets
 			);
 		}
 	}

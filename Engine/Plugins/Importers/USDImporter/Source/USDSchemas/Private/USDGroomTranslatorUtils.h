@@ -27,7 +27,7 @@ namespace UE
 namespace UsdGroomTranslatorUtils
 {
 	// Create the groom binding asset for the given Prim with GroomBindingAPI and cache it in the AssetCache
-	void CreateGroomBindingAsset(const pxr::UsdPrim& Prim, UUsdAssetCache2& AssetCache, FUsdInfoCache& InfoCache, EObjectFlags ObjectFlags);
+	void CreateGroomBindingAsset(const pxr::UsdPrim& Prim, UUsdAssetCache2& AssetCache, FUsdInfoCache& InfoCache, EObjectFlags ObjectFlags, bool bReuseIdenticalAssets);
 
 	// Set the groom asset targeted by the given prim with GroomBindingAPI on the SceneComponent (with a GroomComponent as a direct child)
 	void SetGroomFromPrim(const pxr::UsdPrim& Prim, const FUsdInfoCache& InfoCache, USceneComponent* SceneComponent);

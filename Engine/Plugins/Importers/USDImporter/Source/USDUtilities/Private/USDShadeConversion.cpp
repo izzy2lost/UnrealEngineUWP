@@ -555,8 +555,9 @@ namespace UE
 				pxr::UsdShadeInput& ShadeInput,
 				TextureGroup LODGroup,
 				FParameterValue& OutValue,
-				UMaterialInterface* Material = nullptr,
-				UUsdAssetCache2* TexturesCache = nullptr
+				const UMaterialInterface* Material,
+				UUsdAssetCache2* TexturesCache,
+				bool bReuseIdenticalAssets
 			)
 			{
 				FScopedUsdAllocs UsdAllocs;
@@ -692,19 +693,20 @@ namespace UE
 							}
 						}
 
-						const FString TextureHash = UsdUtils::GetTextureHash( TexturePath, bSRGB, CompressionSettings, AddressX, AddressY );
+						const FString PrefixedTextureHash = UsdUtils::GetAssetHashPrefix(ShadeInput.GetPrim(), bReuseIdenticalAssets)
+													+ UsdUtils::GetTextureHash(TexturePath, bSRGB, CompressionSettings, AddressX, AddressY);
 
 						// We only actually want to retrieve the textures if we have a cache to put them in
 						if ( TexturesCache )
 						{
-							UTexture* Texture = Cast< UTexture >( TexturesCache->GetCachedAsset( TextureHash ) );
+							UTexture* Texture = Cast<UTexture>(TexturesCache->GetCachedAsset(PrefixedTextureHash));
 							if ( !Texture )
 							{
 								// Give the same prim path to the texture, so that it ends up imported right next to the material
 								FString MaterialPrimPath;
 								if ( Material )
 								{
-									if (UUsdAssetUserData* UserData = Material->GetAssetUserData<UUsdAssetUserData>())
+									if (UUsdAssetUserData* UserData = const_cast<UMaterialInterface*>(Material)->GetAssetUserData<UUsdAssetUserData>())
 									{
 										if (!UserData->PrimPaths.IsEmpty())
 										{
@@ -726,7 +728,7 @@ namespace UE
 									}
 									Texture->UpdateResource();
 
-									TexturesCache->CacheAsset( TextureHash, Texture );
+									TexturesCache->CacheAsset( PrefixedTextureHash, Texture );
 								}
 							}
 
@@ -792,8 +794,9 @@ namespace UE
 				const pxr::TfToken& InputName,
 				float DefaultValue,
 				FParameterValue& OutValue,
-				UMaterialInterface* Material = nullptr,
-				UUsdAssetCache2* TexturesCache = nullptr
+				const UMaterialInterface* Material,
+				UUsdAssetCache2* TexturesCache,
+				bool bReuseIdenticalAssets
 			)
 			{
 				FScopedUsdAllocs Allocs;
@@ -810,7 +813,7 @@ namespace UE
 				pxr::UsdShadeAttributeType AttributeType;
 				if ( pxr::UsdShadeConnectableAPI::GetConnectedSource( Input.GetAttr(), &Source, &SourceName, &AttributeType ) )
 				{
-					if (!GetTextureParameterValue(Input, TEXTUREGROUP_WorldSpecular, OutValue, Material, TexturesCache))
+					if (!GetTextureParameterValue(Input, TEXTUREGROUP_WorldSpecular, OutValue, Material, TexturesCache, bReuseIdenticalAssets))
 					{
 						// Check if we have a fallback input that we can use instead, since we don't have a valid texture value
 						if ( const pxr::UsdShadeInput FallbackInput = Source.GetInput( UnrealIdentifiers::Fallback ) )
@@ -825,7 +828,7 @@ namespace UE
 
 						// Recurse because the attribute may just be pointing at some other attribute that has the data
 						// (e.g. when shader input is just "hoisted" and connected to the parent material input)
-						return GetFloatParameterValue(Source, SourceName, DefaultValue, OutValue, Material, TexturesCache);
+						return GetFloatParameterValue(Source, SourceName, DefaultValue, OutValue, Material, TexturesCache, bReuseIdenticalAssets);
 					}
 				}
 				// No other node connected, so we must have some value
@@ -917,9 +920,10 @@ namespace UE
 				const pxr::TfToken& InputName,
 				const FLinearColor& DefaultValue,
 				FParameterValue& OutValue,
-				bool bIsNormalMap = false,
-				UMaterialInterface* Material = nullptr,
-				UUsdAssetCache2* TexturesCache = nullptr
+				bool bIsNormalMap,
+				const UMaterialInterface* Material,
+				UUsdAssetCache2* TexturesCache,
+				bool bReuseIdenticalAssets
 			)
 			{
 				FScopedUsdAllocs Allocs;
@@ -936,7 +940,14 @@ namespace UE
 				pxr::UsdShadeAttributeType AttributeType;
 				if ( pxr::UsdShadeConnectableAPI::GetConnectedSource( Input.GetAttr(), &Source, &SourceName, &AttributeType ) )
 				{
-					if (!GetTextureParameterValue(Input, bIsNormalMap ? TEXTUREGROUP_WorldNormalMap : TEXTUREGROUP_World, OutValue, Material, TexturesCache))
+					if (!GetTextureParameterValue(
+							Input,
+							bIsNormalMap ? TEXTUREGROUP_WorldNormalMap : TEXTUREGROUP_World,
+							OutValue,
+							Material,
+							TexturesCache,
+							bReuseIdenticalAssets
+						))
 					{
 						// Check whether this input receives its value through a connection to a
 						// primvar reader shader.
@@ -971,7 +982,16 @@ namespace UE
 						}
 
 						// This shader doesn't have anything: Traverse into the input connectable itself
-						return GetVec3ParameterValue(Source, SourceName, DefaultValue, OutValue, bIsNormalMap, Material, TexturesCache);
+						return GetVec3ParameterValue(
+							Source,
+							SourceName,
+							DefaultValue,
+							OutValue,
+							bIsNormalMap,
+							Material,
+							TexturesCache,
+							bReuseIdenticalAssets
+						);
 					}
 				}
 				// No other node connected, so we must have some value
@@ -2067,7 +2087,8 @@ bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterialInstance& Material,
 	UUsdAssetCache2* TexturesCache,
-	const TCHAR* RenderContext
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
 )
 {
 	FScopedUsdAllocs UsdAllocs;
@@ -2101,49 +2122,116 @@ bool UsdToUnreal::ConvertMaterial(
 	const bool bIsNormalMap = true;
 
 	// Base color
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::DiffuseColor, FLinearColor(0, 0, 0), ParameterValue, !bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::DiffuseColor,
+			FLinearColor(0, 0, 0),
+			ParameterValue,
+			!bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("BaseColor"), ParameterValue);
 	}
 
 	// Emissive color
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::EmissiveColor, FLinearColor(0, 0, 0), ParameterValue, !bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::EmissiveColor,
+			FLinearColor(0, 0, 0),
+			ParameterValue,
+			!bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("EmissiveColor"), ParameterValue);
 	}
 
 	// Metallic
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Metallic, 0.f, ParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Metallic,
+			0.f,
+			ParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("Metallic"), ParameterValue);
 	}
 
 	// Roughness
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Roughness, 1.f, ParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Roughness,
+			1.f,
+			ParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("Roughness"), ParameterValue);
 	}
 
 	// Opacity
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Opacity, 1.f, ParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Opacity,
+			1.f,
+			ParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("Opacity"), ParameterValue);
 	}
 
 	// Normal
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::Normal, FLinearColor(0, 0, 1), ParameterValue, bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::Normal,
+			FLinearColor(0, 0, 1),
+			ParameterValue,
+			bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("Normal"), ParameterValue);
 	}
 
 	// Refraction
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Refraction, 1.5f, ParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Refraction,
+			1.5f,
+			ParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("Refraction"), ParameterValue);
 	}
 
 	// Occlusion
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Occlusion, 1.0f, ParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Occlusion,
+			1.0f,
+			ParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MaterialParameters.Add(TEXT("AmbientOcclusion"), ParameterValue);
 	}
@@ -2213,7 +2301,8 @@ bool UsdToUnreal::ConvertMaterial(
 	const pxr::UsdShadeMaterial& UsdShadeMaterial,
 	UMaterial& Material,
 	UUsdAssetCache2* TexturesCache,
-	const TCHAR* RenderContext
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
 )
 {
 #if WITH_EDITOR
@@ -2251,50 +2340,110 @@ bool UsdToUnreal::ConvertMaterial(
 	const bool bIsNormalMap = true;
 
 	// Base color
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::DiffuseColor, FLinearColor(0, 0, 0), TempParameterValue, !bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::DiffuseColor,
+			FLinearColor(0, 0, 0),
+			TempParameterValue,
+			!bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		BaseColorParameter = TempParameterValue;
 	}
 
 	// Emissive color
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::EmissiveColor, FLinearColor(0, 0, 0), TempParameterValue, !bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::EmissiveColor,
+			FLinearColor(0, 0, 0),
+			TempParameterValue,
+			!bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		EmissiveParameter = TempParameterValue;
 	}
 
 	// Metallic
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Metallic, 0.f, TempParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Metallic,
+			0.f,
+			TempParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		MetallicParameter = TempParameterValue;
 	}
 
 	// Roughness
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Roughness, 1.f, TempParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Roughness,
+			1.f,
+			TempParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		RoughnessParameter = TempParameterValue;
 	}
 
 	// Opacity
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Opacity, 1.f, TempParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(
+			Connectable,
+			UnrealIdentifiers::Opacity,
+			1.f,
+			TempParameterValue,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		OpacityParameter = TempParameterValue;
 	}
 
 	// Normal
-	if (UsdShadeConversionImpl::GetVec3ParameterValue(Connectable, UnrealIdentifiers::Normal, FLinearColor(0, 0, 1), TempParameterValue, bIsNormalMap, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetVec3ParameterValue(
+			Connectable,
+			UnrealIdentifiers::Normal,
+			FLinearColor(0, 0, 1),
+			TempParameterValue,
+			bIsNormalMap,
+			&Material,
+			TexturesCache,
+			bReuseIdenticalAssets
+		))
 	{
 		NormalParameter = TempParameterValue;
 	}
 
 	// Refraction
-	const bool bHasRefractionValue = UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Refraction, 1.5f, TempParameterValue, &Material, TexturesCache);
-	if (bHasRefractionValue || Material.BlendMode == BLEND_Translucent) // Force a 1.5 IOR if USD didn't specify a value, as it's USD's fallback value
+	const bool bHasRefractionValue = UsdShadeConversionImpl::GetFloatParameterValue(
+		Connectable,
+		UnrealIdentifiers::Refraction,
+		1.5f,
+		TempParameterValue,
+		&Material,
+		TexturesCache,
+		bReuseIdenticalAssets
+	);
+	if (bHasRefractionValue || Material.BlendMode == BLEND_Translucent)	   // Force a 1.5 IOR if USD didn't specify a value, as it's USD's fallback
+																		   // value
 	{
 		RefractionParameter = TempParameterValue;
 	}
 
 	// Ambient occlusion
-	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Occlusion, 1.f, TempParameterValue, &Material, TexturesCache))
+	if (UsdShadeConversionImpl::GetFloatParameterValue(Connectable, UnrealIdentifiers::Occlusion, 1.f, TempParameterValue, &Material, TexturesCache, bReuseIdenticalAssets))
 	{
 		AmbientOcclusionParameter = TempParameterValue;
 	}
@@ -2512,7 +2661,13 @@ bool UsdToUnreal::ConvertMaterial(
 	return ConvertMaterial(UsdShadeMaterial, Material, TexturesCache, RenderContext);
 }
 
-bool UsdToUnreal::ConvertShadeInputsToParameters( const pxr::UsdShadeMaterial& UsdShadeMaterial, UMaterialInstance& MaterialInstance, UUsdAssetCache2* TexturesCache, const TCHAR* RenderContext )
+bool UsdToUnreal::ConvertShadeInputsToParameters(
+	const pxr::UsdShadeMaterial& UsdShadeMaterial,
+	UMaterialInstance& MaterialInstance,
+	UUsdAssetCache2* TexturesCache,
+	const TCHAR* RenderContext,
+	bool bReuseIdenticalAssets
+)
 {
 	FScopedUsdAllocs UsdAllocs;
 
@@ -2574,13 +2729,30 @@ bool UsdToUnreal::ConvertShadeInputsToParameters( const pxr::UsdShadeMaterial& U
 			ShadeInput.GetTypeName() == pxr::SdfValueTypeNames->Double ||
 			ShadeInput.GetTypeName() == pxr::SdfValueTypeNames->Half )
 		{
-			if ( UsdShadeConversionImpl::GetFloatParameterValue( Connectable, ShadeInput.GetBaseName(), 1.f, ParameterValue, &MaterialInstance, TexturesCache ) )
+			if (UsdShadeConversionImpl::GetFloatParameterValue(
+					Connectable,
+					ShadeInput.GetBaseName(),
+					1.f,
+					ParameterValue,
+					&MaterialInstance,
+					TexturesCache,
+					bReuseIdenticalAssets
+				))
 			{
 				UsdShadeConversionImpl::SetParameterValue(MaterialInstance, *DisplayName, ParameterValue, bForUsdPreviewSurface, Unused);
 				bHasMaterialInfo = true;
 			}
 		}
-		else if ( UsdShadeConversionImpl::GetVec3ParameterValue( Connectable, ShadeInput.GetBaseName(), FLinearColor( 0.f, 0.f, 0.f ), ParameterValue, bIsNormalMap, &MaterialInstance, TexturesCache ) )
+		else if (UsdShadeConversionImpl::GetVec3ParameterValue(
+					 Connectable,
+					 ShadeInput.GetBaseName(),
+					 FLinearColor(0.f, 0.f, 0.f),
+					 ParameterValue,
+					 bIsNormalMap,
+					 &MaterialInstance,
+					 TexturesCache,
+					 bReuseIdenticalAssets
+				 ))
 		{
 			UsdShadeConversionImpl::SetParameterValue(MaterialInstance, *DisplayName, ParameterValue, bForUsdPreviewSurface, Unused);
 			bHasMaterialInfo = true;
@@ -3135,8 +3307,19 @@ bool UsdUtils::IsMaterialTranslucent( const pxr::UsdShadeMaterial& UsdShadeMater
 	}
 	pxr::UsdShadeConnectableAPI Connectable{ SurfaceShader };
 
+	const UMaterialInterface* Material = nullptr;
+	UUsdAssetCache2* TexturesCache = nullptr;
+	const bool bReuseIdenticalAssets = true;
 	UsdShadeConversionImpl::FParameterValue ParameterValue;
-	bool bHasOpacityConnection = UsdShadeConversionImpl::GetFloatParameterValue( Connectable, UnrealIdentifiers::Opacity, 1.f, ParameterValue );
+	bool bHasOpacityConnection = UsdShadeConversionImpl::GetFloatParameterValue(
+		Connectable,
+		UnrealIdentifiers::Opacity,
+		1.f,
+		ParameterValue,
+		Material,
+		TexturesCache,
+		bReuseIdenticalAssets
+	);
 
 	// Don't check if the texture is nullptr here as we won't actually parse it yet. If the variant has this type we know it's meant to be bound to a texture
 	const bool bHasBoundTexture = ParameterValue.IsType<UsdShadeConversionImpl::FTextureParameterValue>();

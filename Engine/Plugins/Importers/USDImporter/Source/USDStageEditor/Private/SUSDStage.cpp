@@ -1055,6 +1055,11 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 			FNewMenuDelegate::CreateSP( this, &SUsdStage::FillCollapsingSubMenu ) );
 
 		MenuBuilder.AddSubMenu(
+			LOCTEXT("AssetReuse", "Asset reuse"),
+			LOCTEXT("AssetReuse_ToolTip", "How to behave when generating identical assets from different prims"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillAssetReuseSubMenu));
+
+		MenuBuilder.AddSubMenu(
 			LOCTEXT( "InterpolationType", "Interpolation type" ),
 			LOCTEXT( "InterpolationType_ToolTip", "Whether to interpolate between time samples linearly or with 'held' (i.e. constant) interpolation" ),
 			FNewMenuDelegate::CreateSP( this, &SUsdStage::FillInterpolationTypeSubMenu ) );
@@ -1837,6 +1842,56 @@ void SUsdStage::FillCollapsingSubMenu( FMenuBuilder& MenuBuilder )
 	);
 
 	MenuBuilder.EndSection();
+}
+
+void SUsdStage::FillAssetReuseSubMenu( FMenuBuilder& MenuBuilder )
+{
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ReuseIdenticalAssets", "Reuse identical assets"),
+		LOCTEXT(
+			"ReuseIdenticalAssets_ToolTip",
+			"If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of "
+			"that asset is generated, and the asset is shared by the components generated for both prims. If false, we will generate a dedicated "
+			"asset for each prim."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("ReuseIdenticalAssetsTransaction", "Toggle bReuseIdenticalAssets on USD stage actor '{0}'"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment within AddKindToCollapseEntry just below
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetReuseIdenticalAssets(!StageActor->bReuseIdenticalAssets);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->bReuseIdenticalAssets;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton
+	);
 }
 
 void SUsdStage::FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder)

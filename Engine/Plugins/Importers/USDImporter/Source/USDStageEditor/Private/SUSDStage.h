@@ -92,6 +92,7 @@ protected:
 	void FillSubdivisionLevelSubMenu(FMenuBuilder& MenuBuilder);
 	void FillMetadataSubMenu(FMenuBuilder& MenuBuilder);
 	void FillCollapsingSubMenu( FMenuBuilder& MenuBuilder );
+	void FillAssetReuseSubMenu(FMenuBuilder& MenuBuilder);
 	void FillInterpolationTypeSubMenu( FMenuBuilder& MenuBuilder );
 	void FillSelectionSubMenu( FMenuBuilder& MenuBuilder );
 	void FillNaniteThresholdSubMenu( FMenuBuilder& MenuBuilder );

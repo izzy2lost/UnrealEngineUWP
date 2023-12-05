@@ -65,11 +65,25 @@ static FAutoConsoleVariableRef CVarEnableSubdiv(
 
 namespace UsdGeometryCacheTranslatorImpl
 {
-	bool ProcessGeometryCacheMaterials(const pxr::UsdPrim& UsdPrim, const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
-									   UGeometryCache& GeometryCache, UUsdAssetCache2& AssetCache, FUsdInfoCache* InfoCache, float Time, EObjectFlags Flags)
+	bool ProcessGeometryCacheMaterials(
+		const pxr::UsdPrim& UsdPrim,
+		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
+		UGeometryCache& GeometryCache,
+		UUsdAssetCache2& AssetCache,
+		FUsdInfoCache* InfoCache,
+		float Time,
+		EObjectFlags Flags,
+		bool bReuseIdenticalAssets
+	)
 	{
 		TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> ResolvedMaterials = MeshTranslationImpl::ResolveMaterialAssignmentInfo(
-			UsdPrim, LODIndexToMaterialInfo, AssetCache, *InfoCache, Flags);
+			UsdPrim,
+			LODIndexToMaterialInfo,
+			AssetCache,
+			*InfoCache,
+			Flags,
+			bReuseIdenticalAssets
+		);
 
 		uint32 SlotIndex = 0;
 		bool bMaterialAssignementsHaveChanged = false;
@@ -347,9 +361,11 @@ namespace UsdGeometryCacheTranslatorImpl
 		return StreamableTrack;
 	}
 
-	UGeometryCache* CreateGeometryCache(const FString& RootPrimPath, const FMeshDescription& MeshDescription, const TArray<UE::FSdfPath>& MeshPaths, const TArray<int32>& MaterialOffsets,
+	UGeometryCache* CreateGeometryCache(const UE::FUsdPrim& RootPrim, const FMeshDescription& MeshDescription, const TArray<UE::FSdfPath>& MeshPaths, const TArray<int32>& MaterialOffsets,
 										TSharedRef<FUsdSchemaTranslationContext> Context, bool& bOutIsNew, float& StartOffsetTime)
 	{
+		FString RootPrimPath = RootPrim.GetPrimPath().GetString();
+
 		// Compute the asset hash from the merged mesh description
 		FSHA1 SHA1;
 		FSHAHash MeshHash = FStaticMeshOperations::ComputeSHAHash(MeshDescription);
@@ -372,7 +388,9 @@ namespace UsdGeometryCacheTranslatorImpl
 
 		FSHAHash GeoCacheHash;
 		SHA1.GetHash(&GeoCacheHash.Hash[0]);
-		UGeometryCache* GeometryCache = Cast<UGeometryCache>(Context->AssetCache->GetCachedAsset(GeoCacheHash.ToString()));
+		const FString PrefixedGeoCacheHash = UsdUtils::GetAssetHashPrefix(RootPrim, Context->bReuseIdenticalAssets) + GeoCacheHash.ToString();
+
+		UGeometryCache* GeometryCache = Cast<UGeometryCache>(Context->AssetCache->GetCachedAsset(PrefixedGeoCacheHash));
 
 		if (!GeometryCache)
 		{
@@ -414,7 +432,7 @@ namespace UsdGeometryCacheTranslatorImpl
 				Track->SetMatrixSamples(Mats, MatTimes);
 			}
 
-			Context->AssetCache->CacheAsset(GeoCacheHash.ToString(), GeometryCache);
+			Context->AssetCache->CacheAsset(PrefixedGeoCacheHash, GeometryCache);
 		}
 		else
 		{
@@ -774,8 +792,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 
 			bool bIsNew = true;
 			float StartTimeOffset = 0.0f;
-			const FString PrimPathString = PrimPath.GetString();
-			GeometryCache.Reset(UsdGeometryCacheTranslatorImpl::CreateGeometryCache(PrimPathString, LODIndexToMeshDescription[0], MeshPrimPaths, MaterialOffsets, Context, bIsNew, StartTimeOffset));
+			GeometryCache.Reset(UsdGeometryCacheTranslatorImpl::CreateGeometryCache(GetPrim(), LODIndexToMeshDescription[0], MeshPrimPaths, MaterialOffsets, Context, bIsNew, StartTimeOffset));
 
 			if (GeometryCache)
 			{
@@ -783,7 +800,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 				{
 					UserData->PrimvarToUVIndex = LODIndexToMaterialInfo[0].PrimvarToUVIndex;	// We use the same primvar mapping for all LODs
 					UserData->LayerStartOffsetSeconds = StartTimeOffset;
-					UserData->PrimPaths.AddUnique(PrimPathString);
+					UserData->PrimPaths.AddUnique(PrimPath.GetString());
 
 					if (Context->MetadataOptions.bCollectMetadata)
 					{
@@ -811,7 +828,8 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 						*Context->AssetCache.Get(),
 						Context->InfoCache.Get(),
 						Context->Time,
-						Context->ObjectFlags
+						Context->ObjectFlags,
+						Context->bReuseIdenticalAssets
 					);
 				}
 
@@ -923,7 +941,8 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 					Context->ObjectFlags,
 					bAllowInterpretingLODs,
 					Context->RenderContext,
-					Context->MaterialPurpose
+					Context->MaterialPurpose,
+					Context->bReuseIdenticalAssets
 				);
 
 				// Check if the prim has the GroomBinding schema and setup the component and assets necessary to bind the groom to the GeometryCache
@@ -933,7 +952,8 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 						GetPrim(),
 						*Context->AssetCache,
 						*Context->InfoCache,
-						Context->ObjectFlags
+						Context->ObjectFlags,
+						Context->bReuseIdenticalAssets
 					);
 
 					// For the groom binding to work, the GroomComponent must be a child of the SceneComponent

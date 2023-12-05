@@ -1773,6 +1773,28 @@ bool UsdUtils::SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserDat
 	return true;
 }
 
+#if USE_USD_SDK
+FString UsdUtils::GetAssetHashPrefix(const pxr::UsdPrim& PrimForAsset, bool bReuseIdenticalAssets)
+{
+	if (!PrimForAsset || bReuseIdenticalAssets)
+	{
+		return FString{};
+	}
+
+	FString PrimPath = *UsdToUnreal::ConvertPath(PrimForAsset.GetPrimPath());
+	FString StageIdentifier = *UsdToUnreal::ConvertString(PrimForAsset.GetStage()->GetRootLayer()->GetIdentifier());
+
+	FSHA1 SHA1;
+	SHA1.UpdateWithString(*PrimPath, PrimPath.Len());
+	SHA1.UpdateWithString(*StageIdentifier, StageIdentifier.Len());
+
+	FSHAHash Hash;
+	SHA1.Final();
+	SHA1.GetHash(&Hash.Hash[0]);
+	return Hash.ToString() + TEXT("_");
+}
+#endif // WITH_EDITOR
+
 namespace UE::UsdConversionUtils::Private
 {
 #if USE_USD_SDK

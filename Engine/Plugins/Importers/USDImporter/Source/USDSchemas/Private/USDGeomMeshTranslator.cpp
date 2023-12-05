@@ -196,7 +196,8 @@ namespace UsdGeomMeshTranslatorImpl
 		UUsdAssetCache2& AssetCache,
 		FUsdInfoCache* InfoCache,
 		float Time,
-		EObjectFlags Flags
+		EObjectFlags Flags,
+		bool bReuseIdenticalAssets
 	)
 	{
 		if (!InfoCache)
@@ -217,7 +218,8 @@ namespace UsdGeomMeshTranslatorImpl
 			LODIndexToMaterialInfo,
 			AssetCache,
 			*InfoCache,
-			Flags
+			Flags,
+			bReuseIdenticalAssets
 		);
 
 		uint32 StaticMeshSlotIndex = 0;
@@ -581,7 +583,14 @@ namespace UsdGeomMeshTranslatorImpl
 		FStaticMeshOperations::ComputeTangentsAndNormals(MeshDescription, Options);
 	}
 
-	UStaticMesh* CreateStaticMesh(TArray<FMeshDescription>& LODIndexToMeshDescription, FUsdSchemaTranslationContext& Context, const FString& MeshName, const bool bShouldEnableNanite, bool& bOutIsNew)
+	UStaticMesh* CreateStaticMesh(
+		const UE::FUsdPrim& Prim,
+		TArray<FMeshDescription>& LODIndexToMeshDescription,
+		FUsdSchemaTranslationContext& Context,
+		const FString& MeshName,
+		const bool bShouldEnableNanite,
+		bool& bOutIsNew
+	)
 	{
 		UStaticMesh* StaticMesh = nullptr;
 
@@ -626,9 +635,11 @@ namespace UsdGeomMeshTranslatorImpl
 			SHA1.GetHash(&AllLODHash.Hash[0]);
 		}
 
+		FString PrefixedAssetHash = UsdUtils::GetAssetHashPrefix(Prim, Context.bReuseIdenticalAssets) + AllLODHash.ToString();
+
 		if (Context.AssetCache)
 		{
-			StaticMesh = Cast< UStaticMesh >(Context.AssetCache->GetCachedAsset(AllLODHash.ToString()));
+			StaticMesh = Cast< UStaticMesh >(Context.AssetCache->GetCachedAsset(PrefixedAssetHash));
 		}
 
 		if (!StaticMesh && bHasValidMeshDescription)
@@ -668,7 +679,7 @@ namespace UsdGeomMeshTranslatorImpl
 
 			if (Context.AssetCache)
 			{
-				Context.AssetCache->CacheAsset(AllLODHash.ToString(), StaticMesh);
+				Context.AssetCache->CacheAsset(PrefixedAssetHash, StaticMesh);
 			}
 		}
 		else
@@ -1442,7 +1453,14 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 
 			bool bIsNew = true;
 			const bool bShouldEnableNanite = UsdGeomMeshTranslatorImpl::ShouldEnableNanite(LODIndexToMeshDescription, LODIndexToMaterialInfo, *Context, GetPrim());
-			StaticMesh = UsdGeomMeshTranslatorImpl::CreateStaticMesh(LODIndexToMeshDescription, *Context, MeshName, bShouldEnableNanite, bIsNew);
+			StaticMesh = UsdGeomMeshTranslatorImpl::CreateStaticMesh(
+				GetPrim(),
+				LODIndexToMeshDescription,
+				*Context,
+				MeshName,
+				bShouldEnableNanite,
+				bIsNew
+			);
 
 			if (StaticMesh)
 			{
@@ -1499,7 +1517,8 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 						*Context->AssetCache.Get(),
 						Context->InfoCache.Get(),
 						Context->Time,
-						Context->ObjectFlags
+						Context->ObjectFlags,
+						Context->bReuseIdenticalAssets
 					);
 
 #if WITH_EDITOR

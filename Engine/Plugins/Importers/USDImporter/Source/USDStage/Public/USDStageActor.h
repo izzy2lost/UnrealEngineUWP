@@ -80,6 +80,14 @@ public:
 	bool bMergeIdenticalMaterialSlots;
 
 	/**
+	 * If true, whenever two prims would have generated identical UAssets (like identical StaticMeshes or materials) then only one instance of
+	 * that asset is generated, and the asset is shared by the components generated for both prims.
+	 * If false, we will always generate a dedicated asset for each prim.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	bool bReuseIdenticalAssets;
+
+	/**
 	 * If true, will cause us to collapse any point instancer prim into a single static mesh and static mesh component.
 	 * If false, will cause us to use HierarchicalInstancedStaticMeshComponents to replicate the instancing behavior.
 	 * Point instancers inside other point instancer prototypes are *always* collapsed into the prototype's static mesh.
@@ -160,6 +168,9 @@ public:
 
 	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
 	USDSTAGE_API void SetMergeIdenticalMaterialSlots( bool bMerge );
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetReuseIdenticalAssets(bool bReuse);
 
 	UE_DEPRECATED( 5.2, "This option is now controlled via the cvar 'USD.CollapseTopLevelPointInstancers'" )
 	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
