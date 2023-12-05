@@ -34,22 +34,23 @@ void FPCGMetadataAttributeBase::Serialize(UPCGMetadata* InMetadata, FArchive& In
 	InArchive << AttributeId;
 }
 
-void FPCGMetadataAttributeBase::SetValueFromValueKey(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey)
+void FPCGMetadataAttributeBase::SetValueFromValueKey(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey)
 {
-	check(EntryKey != PCGInvalidEntryKey);
 	FWriteScopeLock ScopeLock(EntryMapLock);
-	EntryToValueKeyMap.FindOrAdd(EntryKey) = ValueKey;
+	SetValueFromValueKey_Unsafe(EntryKey, ValueKey, bResetValueOnDefaultValueKey);
 }
 
-void FPCGMetadataAttributeBase::SetValueFromValueKey_Unsafe(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey)
+void FPCGMetadataAttributeBase::SetValueFromValueKey_Unsafe(PCGMetadataEntryKey EntryKey, PCGMetadataValueKey ValueKey, bool bResetValueOnDefaultValueKey, bool bAllowInvalidEntries)
 {
-	check(EntryKey != PCGInvalidEntryKey);
-	if (EntryKey == PCGDefaultValueKey)
+	if (EntryKey == PCGInvalidEntryKey)
 	{
-		if (bResetValueOnDefaultValueKey)
-		{
-			EntryToValueKeyMap.Remove(EntryKey);
-		}
+		check(bAllowInvalidEntries);
+		return;
+	}
+
+	if (ValueKey == PCGDefaultValueKey && bResetValueOnDefaultValueKey)
+	{
+		EntryToValueKeyMap.Remove(EntryKey);
 	}
 	else
 	{
@@ -57,7 +58,7 @@ void FPCGMetadataAttributeBase::SetValueFromValueKey_Unsafe(PCGMetadataEntryKey 
 	}
 }
 
-void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey)
+void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArrayView<const TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>>& EntryValuePairs, bool bResetValueOnDefaultValueKey)
 {
 	if (EntryValuePairs.IsEmpty())
 	{
@@ -67,11 +68,11 @@ void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<TTuple<PCGMe
 	FWriteScopeLock ScopeLock(EntryMapLock);
 	for (const TTuple<PCGMetadataEntryKey, PCGMetadataValueKey>& EntryValuePair : EntryValuePairs)
 	{
-		SetValueFromValueKey_Unsafe(EntryValuePair.Key, EntryValuePair.Value, bResetValueOnDefaultValueKey);
+		SetValueFromValueKey_Unsafe(EntryValuePair.Key, EntryValuePair.Value, bResetValueOnDefaultValueKey, /*bAllowInvalidEntries=*/true);
 	}
 }
 
-void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& ValueKeys, bool bResetValueOnDefaultValueKey)
+void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, const TArrayView<const PCGMetadataValueKey>& ValueKeys, bool bResetValueOnDefaultValueKey)
 {
 	if (EntryKeys.IsEmpty() || EntryKeys.Num() != ValueKeys.Num())
 	{
@@ -81,7 +82,21 @@ void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArray<PCGMetadataE
 	FWriteScopeLock ScopeLock(EntryMapLock);
 	for (int32 i = 0; i < EntryKeys.Num(); ++i)
 	{
-		SetValueFromValueKey_Unsafe(EntryKeys[i], ValueKeys[i], bResetValueOnDefaultValueKey);
+		SetValueFromValueKey_Unsafe(EntryKeys[i], ValueKeys[i], bResetValueOnDefaultValueKey, /*bAllowInvalidEntries=*/true);
+	}
+}
+
+void FPCGMetadataAttributeBase::SetValuesFromValueKeys(const TArrayView<const PCGMetadataEntryKey * const>& EntryKeys, const TArrayView<const PCGMetadataValueKey>& ValueKeys, bool bResetValueOnDefaultValueKey)
+{
+	if (EntryKeys.IsEmpty() || EntryKeys.Num() != ValueKeys.Num())
+	{
+		return;
+	}
+
+	FWriteScopeLock ScopeLock(EntryMapLock);
+	for (int32 i = 0; i < EntryKeys.Num(); ++i)
+	{
+		SetValueFromValueKey_Unsafe(*EntryKeys[i], ValueKeys[i], bResetValueOnDefaultValueKey, /*bAllowInvalidEntries=*/true);
 	}
 }
 
@@ -113,7 +128,7 @@ PCGMetadataValueKey FPCGMetadataAttributeBase::GetValueKey(PCGMetadataEntryKey E
 	}
 }
 
-void FPCGMetadataAttributeBase::GetValueKeys(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const
+void FPCGMetadataAttributeBase::GetValueKeys(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys) const
 {
 	if (EntryKeys.IsEmpty())
 	{
@@ -127,7 +142,7 @@ void FPCGMetadataAttributeBase::GetValueKeys(const TArray<PCGMetadataEntryKey>& 
 	GetValueKeys_Internal(EntryKeys, OutValueKeys, UnsetValues);
 }
 
-void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArray<PCGMetadataEntryKey>& EntryKeys, TArray<PCGMetadataValueKey>& OutValueKeys, TBitArray<>& UnsetValues) const
+void FPCGMetadataAttributeBase::GetValueKeys_Internal(const TArrayView<const PCGMetadataEntryKey>& EntryKeys, TArrayView<PCGMetadataValueKey> OutValueKeys, TBitArray<>& UnsetValues) const
 {
 	check(EntryKeys.Num() == OutValueKeys.Num() && OutValueKeys.Num() == UnsetValues.Num());
 

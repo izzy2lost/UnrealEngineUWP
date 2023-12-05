@@ -39,6 +39,37 @@ namespace PCGAttributeAccessorHelpers
 		}
 	}
 
+	template <
+		typename AccessorType,
+		typename = typename std::enable_if_t<
+		std::is_same_v<IPCGAttributeAccessor, std::remove_const_t<AccessorType>>
+		>
+	>
+	TUniquePtr<AccessorType> CreateAttributeAccessorImpl(FPCGMetadataAttributeBase* Attribute, UPCGMetadata* Metadata, bool bForceReadOnly = false)
+	{
+		auto CreateTypedAccessor = [Attribute, Metadata, bForceReadOnly](auto Dummy) -> TUniquePtr<IPCGAttributeAccessor>
+		{
+			using AttributeType = decltype(Dummy);
+			if constexpr (std::is_const_v<AccessorType>)
+			{
+				return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata, bForceReadOnly);
+			}
+			else
+			{
+				return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata, bForceReadOnly);
+			}
+		};
+
+		if (Attribute && Metadata)
+		{
+			return PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), CreateTypedAccessor);
+		}
+		else
+		{
+			return TUniquePtr<AccessorType>();
+		}
+	}
+
 	// Don't be afraid of this enormous template!
 	// We want to be able to create a TUniquePtr<const IPCGAttributeAccessor> for const accessors and TUniquePtr<IPCGAttributeAccessor> for mutable accessors.
 	// This template just says that:
@@ -101,27 +132,8 @@ namespace PCGAttributeAccessorHelpers
 			// It is OK to const_cast here, since we will create a const accessor if the input is const.
 			ExtractMetadataAtribute(const_cast<UPCGData*>(InData), Name, Metadata, Attribute);
 
-			auto CreateTypedAccessor = [Attribute, Metadata](auto Dummy) -> TUniquePtr<IPCGAttributeAccessor>
-			{
-				using AttributeType = decltype(Dummy);
-				if constexpr (std::is_const_v<AccessorType>)
-				{
-					return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata);
-				}
-				else
-				{
-					return MakeUnique<FPCGAttributeAccessor<AttributeType>>(static_cast<FPCGMetadataAttribute<AttributeType>*>(Attribute), Metadata);
-				}
-			};
-
-			if (Attribute && Metadata)
-			{
-				Accessor = PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), CreateTypedAccessor);
-			}
-			else
-			{
-				return TUniquePtr<AccessorType>();
-			}
+			// To simplify the code here & below we'll get a non-const accessor but force readonly if it should be
+			Accessor = CreateAttributeAccessorImpl<std::remove_const_t<AccessorType>>(Attribute, Metadata, /*bForceReadOnly=*/std::is_const_v<AccessorType>);
 		}
 
 		if (!Accessor.IsValid())
@@ -588,9 +600,19 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 	return CreateAccessorImpl<const IPCGAttributeAccessor, const UPCGData>(InData, InSelector);
 }
 
+TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const FPCGMetadataAttributeBase* InAttribute, const UPCGMetadata* InMetadata)
+{
+	return CreateAttributeAccessorImpl<const IPCGAttributeAccessor>(const_cast<FPCGMetadataAttributeBase*>(InAttribute), const_cast<UPCGMetadata*>(InMetadata));
+}
+
 TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UPCGData* InData, const FPCGAttributePropertySelector& InSelector)
 {
 	return CreateAccessorImpl<IPCGAttributeAccessor, UPCGData>(InData, InSelector);
+}
+
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata)
+{
+	return CreateAttributeAccessorImpl<IPCGAttributeAccessor>(InAttribute, InMetadata);
 }
 
 TUniquePtr<const IPCGAttributeAccessorKeys> PCGAttributeAccessorHelpers::CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector)

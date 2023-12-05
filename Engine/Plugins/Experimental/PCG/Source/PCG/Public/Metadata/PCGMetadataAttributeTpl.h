@@ -16,6 +16,9 @@ class UPCGMetadata;
 template<typename T>
 class FPCGMetadataAttribute : public FPCGMetadataAttributeBase
 {
+	template<typename U>
+	friend class FPCGMetadataAttribute;
+
 public:
 	FPCGMetadataAttribute(UPCGMetadata* InMetadata, FName InName, const FPCGMetadataAttributeBase* InParent, const T& InDefaultValue, bool bInAllowsInterpolation)
 		: FPCGMetadataAttributeBase(InMetadata, InName, InParent, bInAllowsInterpolation)
@@ -191,6 +194,15 @@ public:
 
 	virtual FPCGMetadataAttributeBase* Copy(FName NewName, UPCGMetadata* InMetadata, bool bKeepParent, bool bCopyEntries = true, bool bCopyValues = true) const override
 	{
+		return CopyInternal<T>(NewName, InMetadata, bKeepParent, bCopyEntries, bCopyValues);
+	}
+
+	virtual FPCGMetadataAttributeBase* CopyToAnotherType(int16 TargetType) const override;
+
+	// TODO: add enable if only on compatible types, but this has some repercussion on using metadata on types that aren't normally supported.
+	template<typename U>
+	FPCGMetadataAttributeBase* CopyInternal(FName NewName, UPCGMetadata* InMetadata, bool bKeepParent, bool bCopyEntries, bool bCopyValues) const
+	{
 		// If we copy an attribute where we don't want to keep the parent, while copying entries and/or values, we'll lose data.
 		// In that case, we will copy all the data from this attribute and all its ancestors.
 
@@ -203,9 +215,12 @@ public:
 			UE_LOG(LogPCG, Error, TEXT("Try to create a new attribute with an invalid name: %s"), *NewName.ToString());
 			return nullptr;
 		}
+
+		U NewDefaultValue{};
+		PCG::Private::GetValueWithBroadcastAndConstructible(DefaultValue, NewDefaultValue);
 		
 		// This copies to a new attribute.
-		FPCGMetadataAttribute<T>* AttributeCopy = new FPCGMetadataAttribute<T>(InMetadata, NewName, bKeepParent ? this : nullptr, DefaultValue, bAllowsInterpolation);
+		FPCGMetadataAttribute<U>* AttributeCopy = new FPCGMetadataAttribute<U>(InMetadata, NewName, bKeepParent ? this : nullptr, NewDefaultValue, bAllowsInterpolation);
 
 		// Gather the chain of parents if we don't keep the parent and we want to copy entries/values.
 		// We always have at least one item, "this".
@@ -249,7 +264,22 @@ public:
 				const FPCGMetadataAttribute<T>* Current = Parents[i];
 				
 				Current->ValueLock.ReadLock();
-				AttributeCopy->Values.Append(Current->Values);
+
+				if constexpr (std::is_same_v<T, U>)
+				{
+					AttributeCopy->Values.Append(Current->Values);
+				}
+				else
+				{
+					U NewValue{};
+
+					for (const T& Value : Current->Values)
+					{
+						PCG::Private::GetValueWithBroadcastAndConstructible(Value, NewValue);
+						AttributeCopy->Values.Add(NewValue);
+					}
+				}
+
 				// The expected value key offset is the one for this attribute (i == 0), and only if we
 				// keep the parent. Otherwise we don't have any parent, so offset should be kept at 0.
 				if (i == 0 && bKeepParent)
@@ -258,8 +288,6 @@ public:
 				}
 				Current->ValueLock.ReadUnlock();
 			}
-			
-			
 		}
 
 		return AttributeCopy;
@@ -290,7 +318,7 @@ public:
 		Accumulate(ItemKey, InAttribute, InEntryKey, Weight);
 	}
 
-	virtual void SetWeightedValue(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<TPair<PCGMetadataEntryKey, float>> InWeightedKeys) override
+	virtual void SetWeightedValue(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<const TPair<PCGMetadataEntryKey, float>>& InWeightedKeys) override
 	{
 		check(ItemKey != PCGInvalidEntryKey);
 		Accumulate(ItemKey, InAttribute, InWeightedKeys);
@@ -456,10 +484,89 @@ public:
 		}
 	}
 
+	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
+	TArray<PCGMetadataValueKey> AddValues(const TArrayView<const T>& InValues)
+	{
+		// Since we're getting raw values here, we might have duplicates
+		// so we should aim to remove duplicates here so we preserve our 'compress data' idea, otherwise it will break other foundational blocks (e.g. partition)
+		TArray<T, TInlineAllocator<256>> UniqueValues;
+
+		// Initially, fill with mapping to unique values so we can remap them at the end if needed
+		TArray<PCGMetadataValueKey> FoundValueKeys;
+		FoundValueKeys.Reserve(InValues.Num());
+
+		for (int ValueIndex = 0; ValueIndex < InValues.Num(); ++ValueIndex)
+		{
+			FoundValueKeys.Emplace(UniqueValues.AddUnique(InValues[ValueIndex]));
+		}
+
+		const bool bHasDuplicateValues = (UniqueValues.Num() != InValues.Num());
+
+		TArray<PCGMetadataValueKey> FoundUniqueValueKeys;
+		TArray<PCGMetadataValueKey>& FoundKeys = (bHasDuplicateValues ? FoundUniqueValueKeys : FoundValueKeys);
+
+		// Implementation note: when we don't have any duplicate values, the previously-set values in FoundValueKeys will be wiped out - this is intended
+		const bool bAtLeastOneValueNotFound = !FindValues(UniqueValues, FoundKeys);
+
+		if (bAtLeastOneValueNotFound)
+		{
+			FWriteScopeLock ScopeLock(ValueLock);
+			for (int ValueIndex = 0; ValueIndex < UniqueValues.Num(); ++ValueIndex)
+			{
+				if (FoundKeys[ValueIndex] == PCGNotFoundValueKey)
+				{
+					FoundKeys[ValueIndex] = Values.Add(UniqueValues[ValueIndex]) + ValueKeyOffset;
+				}
+			}
+		}
+
+		// Remap to full array if needed
+		if (bHasDuplicateValues)
+		{
+			for (PCGMetadataValueKey& ValueToRemap : FoundValueKeys)
+			{
+				ValueToRemap = FoundUniqueValueKeys[ValueToRemap];
+			}
+		}
+
+		return FoundValueKeys;
+	}
+
+	template<typename IT = T, typename TEnableIf<!PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
+	TArray<PCGMetadataValueKey> AddValues(const TArrayView<const T>& InValues)
+	{
+		TArray<PCGMetadataValueKey> ValueKeys;
+
+		int FirstValueIndex = 0;
+
+		ValueLock.WriteLock();
+		FirstValueIndex = Values.Num() + ValueKeyOffset;
+		Values.Append(InValues);
+		ValueLock.WriteUnlock();
+
+		ValueKeys.SetNum(InValues.Num());
+		for (int ValueIndex = 0; ValueIndex < InValues.Num(); ++ValueIndex)
+		{
+			ValueKeys[ValueIndex] = FirstValueIndex + ValueIndex;
+		}
+
+		return ValueKeys;
+	}
+
 	void SetValue(PCGMetadataEntryKey ItemKey, const T& InValue)
 	{
 		check(ItemKey != PCGInvalidEntryKey);
 		SetValueFromValueKey(ItemKey, AddValue(InValue));
+	}
+
+	void SetValues(const TArrayView<const PCGMetadataEntryKey>& ItemKeys, const TArrayView<const T>& InValues)
+	{
+		SetValuesFromValueKeys(ItemKeys, AddValues(InValues));
+	}
+
+	void SetValues(const TArrayView<const PCGMetadataEntryKey * const>& ItemKeys, const TArrayView<const T>& InValues)
+	{
+		SetValuesFromValueKeys(ItemKeys, AddValues(InValues));
 	}
 
 	template<typename U>
@@ -532,10 +639,71 @@ public:
 		}
 	}
 
+	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
+	bool FindValues(const TArrayView<const T>& InValues, TArray<PCGMetadataValueKey>& OutValueKeys) const
+	{
+		OutValueKeys.Init(PCGNotFoundValueKey, InValues.Num());
+
+		int ValueKeysSet = 0;
+		FindValuesInternal(InValues, OutValueKeys, ValueKeysSet, /*bIsRoot=*/true);
+
+		return (ValueKeysSet == InValues.Num());
+	}
+
+	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
+	void FindValuesInternal(const TArrayView<const T>& InValues, TArray<PCGMetadataValueKey>& ValueKeys, int& ValueKeysSet, bool bIsRoot) const
+	{
+		check(InValues.Num() == ValueKeys.Num());
+
+		if (bIsRoot)
+		{
+			for (int ValueIndex = 0; ValueIndex < InValues.Num(); ++ValueIndex)
+			{
+				if (InValues[ValueIndex] == DefaultValue)
+				{
+					ValueKeys[ValueIndex] = PCGDefaultValueKey;
+					++ValueKeysSet;
+				}
+			}
+		}
+
+		if (ValueKeysSet != InValues.Num() && GetParent())
+		{
+			GetParent()->FindValuesInternal(InValues, ValueKeys, ValueKeysSet, /*bRoot=*/false);
+		}
+
+		if (ValueKeysSet != InValues.Num())
+		{
+			ValueLock.ReadLock();
+			for (int ValueIndex = 0; ValueIndex < InValues.Num(); ++ValueIndex)
+			{
+				if (ValueKeys[ValueIndex] != PCGNotFoundValueKey)
+				{
+					continue;
+				}
+
+				const int32 FoundValueIndex = Values.FindLast(InValues[ValueIndex]);
+				if (FoundValueIndex != INDEX_NONE)
+				{
+					ValueKeys[ValueIndex] = FoundValueIndex + ValueKeyOffset;
+					++ValueKeysSet;
+				}
+			}
+			ValueLock.ReadUnlock();
+		}
+	}
+
 	template<typename IT = T, typename TEnableIf<!PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
 	PCGMetadataValueKey FindValue(const T& InValue) const
 	{
 		return PCGNotFoundValueKey;
+	}
+
+	template<typename IT = T, typename TEnableIf<!PCG::Private::MetadataTraits<IT>::CompressData>::Type* = nullptr>
+	bool FindValues(const TArrayView<const T>& InValues, TArray<PCGMetadataValueKey>& OutValueKeys) const
+	{
+		OutValueKeys.Init(PCGNotFoundValueKey, InValues.Num());
+		return false;
 	}
 
 	void SetDefaultValue(const T& Value)
@@ -677,7 +845,7 @@ protected:
 	}
 
 	template<typename IT = T, typename TEnableIf<PCG::Private::MetadataTraits<IT>::CanInterpolate>::Type* = nullptr>
-	void Accumulate(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<TPair<PCGMetadataEntryKey, float>>& InWeightedKeys)
+	void Accumulate(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<const TPair<PCGMetadataEntryKey, float>>& InWeightedKeys)
 	{
 		IT Value = PCG::Private::MetadataTraits<IT>::ZeroValue();
 		for (const TPair<PCGMetadataEntryKey, float>& WeightedEntry : InWeightedKeys)
@@ -692,7 +860,7 @@ protected:
 	}
 
 	template<typename IT = T, typename TEnableIf<!PCG::Private::MetadataTraits<IT>::CanInterpolate>::Type* = nullptr>
-	void Accumulate(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<TPair<PCGMetadataEntryKey, float>>& InWeightedKeys)
+	void Accumulate(PCGMetadataEntryKey ItemKey, const FPCGMetadataAttributeBase* InAttribute, const TArrayView<const TPair<PCGMetadataEntryKey, float>>& InWeightedKeys)
 	{
 		// Empty on purpose
 	}
@@ -749,6 +917,25 @@ namespace PCGMetadataAttribute
 		}
 		}
 	}
+}
+
+template<typename T>
+FPCGMetadataAttributeBase* FPCGMetadataAttribute<T>::CopyToAnotherType(int16 TargetType) const
+{
+	return PCGMetadataAttribute::CallbackWithRightType(TargetType, [this](auto Dummy) -> FPCGMetadataAttributeBase*
+	{
+		using U = decltype(Dummy);
+
+		if constexpr (PCG::Private::IsBroadcastableOrConstructible(PCG::Private::MetadataTypes<T>::Id, PCG::Private::MetadataTypes<U>::Id))
+		{
+			return CopyInternal<U>(Name, Metadata, /*bKeepParent=*/false, /*bCopyEntries=*/true, /*bCopyValues=*/true);
+		}
+		else
+		{
+			UE_LOG(LogPCG, Error, TEXT("Metadata attribute '%s' cannot change its type - delete and create instead"), *Name.ToString());
+			return nullptr;
+		}
+	});
 }
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

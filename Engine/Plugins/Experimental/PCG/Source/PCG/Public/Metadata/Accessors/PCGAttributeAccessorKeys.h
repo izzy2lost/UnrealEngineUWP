@@ -140,6 +140,8 @@ class PCG_API FPCGAttributeAccessorKeysEntries : public IPCGAttributeAccessorKey
 public:
 	explicit FPCGAttributeAccessorKeysEntries(const FPCGMetadataAttributeBase* Attribute);
 	explicit FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey EntryKey);
+	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<PCGMetadataEntryKey>& InEntries);
+	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<const PCGMetadataEntryKey>& InEntries);
 
 	// Read-only case where we will just iterate on all the entries in the metadata.
 	explicit FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata);
@@ -152,7 +154,8 @@ protected:
 
 	void InitializeFromMetadata(const UPCGMetadata* Metadata);
 
-	TArray<PCGMetadataEntryKey> Entries;
+	TArrayView<PCGMetadataEntryKey> Entries;
+	TArray<PCGMetadataEntryKey> ExtractedEntries;
 };
 
 ///////////////////////////////////////////////////////////////////////

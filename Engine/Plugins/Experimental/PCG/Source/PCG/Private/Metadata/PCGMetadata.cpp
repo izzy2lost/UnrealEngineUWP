@@ -4,8 +4,11 @@
 
 #include "PCGData.h"
 #include "PCGPoint.h"
+#include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
+
+#include "Algo/Transform.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadata)
 
@@ -181,16 +184,28 @@ void UPCGMetadata::AddAttributesFiltered(const UPCGMetadata* InOther, const TSet
 		const bool bSkipAttributesInFilterList = InFilterMode == EPCGMetadataFilterMode::ExcludeAttributes;
 		const bool bSkipThisAttribute = bSkipAttributesInFilterList == bAttributeInFilterList;
 
-		if (bSkipThisAttribute || HasAttribute(OtherAttribute.Key))
+		if(bSkipThisAttribute || !OtherAttribute.Value)
 		{
 			continue;
 		}
-		else
+		else if (HasAttribute(OtherAttribute.Key))
 		{
-			if (CopyAttribute(OtherAttribute.Value, OtherAttribute.Key, /*bKeepParent=*/InOther == Parent, /*bCopyEntries=*/false, /*bCopyValues=*/false))
+			// If both the current attribute and the other attribute have the same type - nothing to do
+			// If the current attribute can be broadcasted to the other but not the other way around - change the type
+			// If none of this is true - do nothing
+			const FPCGMetadataAttributeBase* Attribute = GetConstAttribute(OtherAttribute.Key);
+			check(Attribute);
+
+			if(Attribute->GetTypeId() != OtherAttribute.Value->GetTypeId() && 
+				!PCG::Private::IsBroadcastable(OtherAttribute.Value->GetTypeId(), Attribute->GetTypeId()) &&
+				PCG::Private::IsBroadcastable(Attribute->GetTypeId(), OtherAttribute.Value->GetTypeId()))
 			{
-				bAttributeAdded = true;
+				ChangeAttributeType(OtherAttribute.Key, OtherAttribute.Value->GetTypeId());
 			}
+		}
+		else if (CopyAttribute(OtherAttribute.Value, OtherAttribute.Key, /*bKeepParent=*/InOther == Parent, /*bCopyEntries=*/false, /*bCopyValues=*/false))
+		{
+			bAttributeAdded = true;
 		}
 	}
 
@@ -834,6 +849,38 @@ void UPCGMetadata::DeleteAttribute(FName AttributeToDelete)
 	}
 }
 
+bool UPCGMetadata::ChangeAttributeType(FName AttributeName, int16 AttributeNewType)
+{
+	FPCGMetadataAttributeBase* Attribute = GetMutableAttribute(AttributeName);
+
+	if (!Attribute)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Attribute '%s' does not exist and therefore cannot change its type"), *AttributeName.ToString());
+		return false;
+	}
+
+	if (Attribute->GetTypeId() == AttributeNewType)
+	{
+		// Nothing to do, attribute is already the type we want
+		return true;
+	}
+
+	if (FPCGMetadataAttributeBase* NewAttribute = Attribute->CopyToAnotherType(AttributeNewType))
+	{
+		NewAttribute->AttributeId = Attribute->AttributeId;
+
+		AttributeLock.WriteLock();
+		RemoveAttributeInternal(AttributeName);
+		AddAttributeInternal(AttributeName, NewAttribute);
+		AttributeLock.WriteUnlock();
+
+		delete Attribute;
+		Attribute = nullptr;
+	}
+
+	return true;
+}
+
 int64 UPCGMetadata::GetItemCountForChild() const
 {
 	FReadScopeLock ScopeLock(ItemLock);
@@ -1133,49 +1180,32 @@ void UPCGMetadata::SetAttributes(PCGMetadataEntryKey InKey, const UPCGMetadata* 
 
 void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoints, const UPCGMetadata* InMetadata, const TArrayView<FPCGPoint>& OutPoints)
 {
-	if (!InMetadata || InMetadata->GetAttributeCount() == 0)
+	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
 		return;
 	}
 
 	check(InPoints.Num() == OutPoints.Num());
 
-	for (int32 PointIndex = 0; PointIndex < InPoints.Num(); ++PointIndex)
+	// Extract the metadata entry keys from the in & out points
+	TArray<PCGMetadataEntryKey> InKeys;
+	TArray<PCGMetadataEntryKey> OutKeys;
+
+	Algo::Transform(InPoints, InKeys, [](const FPCGPoint& Point) { return Point.MetadataEntry; });
+	Algo::Transform(OutPoints, OutKeys, [](const FPCGPoint& Point) { return Point.MetadataEntry; });
+
+	SetAttributes(InKeys, InMetadata, OutKeys);
+
+	// Write back the keys on the points
+	for (int KeyIndex = 0; KeyIndex < OutKeys.Num(); ++KeyIndex)
 	{
-		const FPCGPoint& InPoint = InPoints[PointIndex];
-		FPCGPoint& OutPoint = OutPoints[PointIndex];
-		InitializeOnSet(OutPoint.MetadataEntry, InPoint.MetadataEntry, InMetadata);
+		OutPoints[KeyIndex].MetadataEntry = OutKeys[KeyIndex];
 	}
-
-	AttributeLock.ReadLock();
-	for(const TPair<FName, FPCGMetadataAttributeBase*>& AttributePair : Attributes)
-	{
-		const FName& AttributeName = AttributePair.Key;
-		FPCGMetadataAttributeBase* Attribute = AttributePair.Value;
-
-		if (const FPCGMetadataAttributeBase* OtherAttribute = InMetadata->GetConstAttribute(AttributeName))
-		{
-			if (OtherAttribute->GetTypeId() != Attribute->GetTypeId())
-			{
-				UE_LOG(LogPCG, Error, TEXT("Metadata type mismatch with attribute %s"), *AttributeName.ToString());
-				continue;
-			}
-
-			for (int32 PointIndex = 0; PointIndex < InPoints.Num(); ++PointIndex)
-			{
-				const FPCGPoint& InPoint = InPoints[PointIndex];
-				FPCGPoint& OutPoint = OutPoints[PointIndex];
-
-				Attribute->SetValue(OutPoint.MetadataEntry, OtherAttribute, InPoint.MetadataEntry);
-			}
-		}
-	}
-	AttributeLock.ReadUnlock();
 }
 
 void UPCGMetadata::SetAttributes(const TArrayView<PCGMetadataEntryKey>& InKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutKeys)
 {
-	if (!InMetadata)
+	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
 		return;
 	}
@@ -1187,6 +1217,9 @@ void UPCGMetadata::SetAttributes(const TArrayView<PCGMetadataEntryKey>& InKeys, 
 		InitializeOnSet(OutKeys[KeyIndex], InKeys[KeyIndex], InMetadata);
 	}
 
+	// Rarely-used convenience array that might be used multiple times, will be kept out of the loop to limit the number of allocations if needed
+	TArray<PCGMetadataValueKey> ValueKeys;
+
 	AttributeLock.ReadLock();
 	for(const TPair<FName, FPCGMetadataAttributeBase*>& AttributePair : Attributes)
 	{
@@ -1195,15 +1228,43 @@ void UPCGMetadata::SetAttributes(const TArrayView<PCGMetadataEntryKey>& InKeys, 
 
 		if (const FPCGMetadataAttributeBase* OtherAttribute = InMetadata->GetConstAttribute(AttributeName))
 		{
-			if (OtherAttribute->GetTypeId() != Attribute->GetTypeId())
+			if (!PCG::Private::IsBroadcastableOrConstructible(OtherAttribute->GetTypeId(), Attribute->GetTypeId()))
 			{
-				UE_LOG(LogPCG, Error, TEXT("Metadata type mismatch with attribute %s"), *AttributeName.ToString());
+				UE_LOG(LogPCG, Error, TEXT("Metadata type mismatch with attribute '%s'"), *AttributeName.ToString());
 				continue;
 			}
 
-			for (int32 KeyIndex = 0; KeyIndex < InKeys.Num(); ++KeyIndex)
+			if (Attribute == OtherAttribute)
 			{
-				Attribute->SetValue(OutKeys[KeyIndex], OtherAttribute, InKeys[KeyIndex]);
+				ValueKeys.Reset();
+				Attribute->GetValueKeys(InKeys, ValueKeys);
+				Attribute->SetValuesFromValueKeys(OutKeys, ValueKeys);
+			}
+			else
+			{
+				// Create accessor for the other attribute
+				TUniquePtr<const IPCGAttributeAccessor> OtherAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OtherAttribute, InMetadata);
+				FPCGAttributeAccessorKeysEntries OtherAttributeKeys(InKeys);
+
+				if (!OtherAttributeAccessor)
+				{
+					continue;
+				}
+
+				auto GetAndSetValues = [Attribute, &OutKeys, &OtherAttributeAccessor, &OtherAttributeKeys](auto Dummy) -> bool
+				{
+					using Type = decltype(Dummy);
+
+					auto SetValues = [Attribute, &OutKeys](const TArrayView<Type>& View, const int32 Start, const int32 Range)
+					{
+						TArrayView<PCGMetadataEntryKey> Keys(OutKeys.GetData() + Start, Range);
+						static_cast<FPCGMetadataAttribute<Type>*>(Attribute)->SetValues(Keys, View);
+					};
+
+					return PCGMetadataElementCommon::ApplyOnAccessorRange<Type>(OtherAttributeKeys, *OtherAttributeAccessor, SetValues, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
+				};
+
+				PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), GetAndSetValues);
 			}
 		}
 	}

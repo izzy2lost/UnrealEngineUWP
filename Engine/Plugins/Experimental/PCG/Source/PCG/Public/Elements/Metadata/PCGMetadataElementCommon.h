@@ -62,7 +62,14 @@ namespace PCGMetadataElementCommon
 		}
 
 		TArray<T, TInlineAllocator<DefaultChunkSize>> TempValues;
-		TempValues.SetNum(ChunkSize);
+		if constexpr (std::is_trivially_copyable_v<T>)
+		{
+			TempValues.SetNumUninitialized(ChunkSize);
+		}
+		else
+		{
+			TempValues.SetNum(ChunkSize);
+		}
 
 		const int32 NumberOfIterations = (NumberOfEntries + ChunkSize - 1) / ChunkSize;
 

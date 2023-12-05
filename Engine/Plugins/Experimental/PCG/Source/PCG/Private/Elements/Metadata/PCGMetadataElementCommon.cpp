@@ -64,7 +64,6 @@ namespace PCGMetadataElementCommon
 		auto Operation = [&Params, Count](auto Dummy)
 		{
 			using OutputType = decltype(Dummy);
-			OutputType Value{};
 
 			auto SetToAccessor = [&Params](const TArrayView<OutputType>& View, const int32 Start, const int32 Range)
 			{

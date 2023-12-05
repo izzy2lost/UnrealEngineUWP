@@ -1053,5 +1053,34 @@ namespace PCG
 				}
 			}
 		}
+
+		template<typename InType, typename OutType>
+		inline bool GetValueWithBroadcastAndConstructible(const InType& InValue, OutType& OutValue)
+		{
+			if constexpr (std::is_same_v<OutType, InType>)
+			{
+				OutValue = InValue;
+				return true;
+			}
+			else
+			{
+				// Special case'd because FSoftObjectPath currently has a deprecated constructor from FName which generates compile warnings.
+				constexpr bool bNameToSoftObjectPath = std::is_same_v<OutType, FSoftObjectPath>&& std::is_same_v<InType, FName>;
+
+				if constexpr (PCG::Private::IsBroadcastable<InType, OutType>())
+				{
+					return GetValueWithBroadcast<InType, OutType>(InValue, OutValue);
+				}
+				else if constexpr (std::is_constructible_v<OutType, InType> && !bNameToSoftObjectPath)
+				{
+					OutValue = OutType(InValue);
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+		}
 	}
 }

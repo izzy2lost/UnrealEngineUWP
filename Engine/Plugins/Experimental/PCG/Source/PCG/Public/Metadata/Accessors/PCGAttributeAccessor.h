@@ -21,15 +21,15 @@ public:
 	using Super = IPCGAttributeAccessorT<FPCGAttributeAccessor<T>>;
 
 	// Can't write if metadata is null
-	FPCGAttributeAccessor(FPCGMetadataAttribute<T>* InAttribute, UPCGMetadata* InMetadata)
-		: Super(/*bInReadOnly=*/ InMetadata == nullptr)
+	FPCGAttributeAccessor(FPCGMetadataAttribute<T>* InAttribute, UPCGMetadata* InMetadata, bool bForceReadOnly = false)
+		: Super(/*bInReadOnly=*/ InMetadata == nullptr || bForceReadOnly)
 		, Attribute(InAttribute)
 		, Metadata(InMetadata)
 	{
 		check(InAttribute);
 	}
 
-	FPCGAttributeAccessor(const FPCGMetadataAttribute<T>* InAttribute, const UPCGMetadata* InMetadata)
+	FPCGAttributeAccessor(const FPCGMetadataAttribute<T>* InAttribute, const UPCGMetadata* InMetadata, bool bForceReadOnly = false)
 		: Super(/*bInReadOnly=*/ true)
 		, Attribute(const_cast<FPCGMetadataAttribute<T>*>(InAttribute))
 		, Metadata(const_cast<UPCGMetadata*>(InMetadata))
@@ -39,8 +39,9 @@ public:
 
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
-		TArray<const PCGMetadataEntryKey*> EntryKeys;
-		EntryKeys.SetNum(OutValues.Num());
+		TArray<const PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeys;
+		EntryKeys.SetNumUninitialized(OutValues.Num());
+
 		TArrayView<const PCGMetadataEntryKey*> EntryKeysView(EntryKeys);
 		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
 		{
@@ -58,33 +59,37 @@ public:
 
 	bool SetRangeImpl(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
 	{
-		TArray<PCGMetadataEntryKey*> EntryKeys;
-		EntryKeys.SetNum(InValues.Num());
+		TArray<PCGMetadataEntryKey*, TInlineAllocator<256>> EntryKeys;
+		EntryKeys.SetNumUninitialized(InValues.Num());
 		TArrayView<PCGMetadataEntryKey*> EntryKeysView(EntryKeys);
 		if (!Keys.GetKeys<PCGMetadataEntryKey>(Index, EntryKeysView))
 		{
 			return false;
 		}
 
-		// TODO: Same than above (avoid locking too many times), but perhaps will be a bit more complex, because of
-		// the added logic with PCGInvalidEntryKey, AddEntry and SetDefaultValue.
-		for (int32 i = 0; i < InValues.Num(); ++i)
-		{
-			PCGMetadataEntryKey& EntryKey = *EntryKeys[i];
-			if (EntryKey != PCGInvalidEntryKey || !(Flags & EPCGAttributeAccessorFlags::AllowSetDefaultValue))
-			{
-				// TODO: This part seems costly for a lot of entries. Maybe there are some optimizations to do.
-				if (EntryKey == PCGInvalidEntryKey)
-				{
-					EntryKey = Metadata->AddEntry();
-				}
+		int LastDefaultKeyIndex = INDEX_NONE;
 
-				Attribute->SetValue(EntryKey, InValues[i]);
-			}
-			else
+		for(int EntryIndex = 0; EntryIndex < EntryKeys.Num(); ++EntryIndex)
+		{
+			PCGMetadataEntryKey& EntryKey = *EntryKeys[EntryIndex];
+			if (EntryKey == PCGInvalidEntryKey)
 			{
-				Attribute->SetDefaultValue(InValues[i]);
+				if (!(Flags & EPCGAttributeAccessorFlags::AllowSetDefaultValue))
+				{
+					EntryKey = Metadata->AddEntry(); // TODO - replace by AddEntryPlaceholder ?
+				}
+				else
+				{
+					LastDefaultKeyIndex = EntryIndex;
+				}
 			}
+		}
+
+		Attribute->SetValues(EntryKeys, InValues);
+
+		if (LastDefaultKeyIndex != INDEX_NONE)
+		{
+			Attribute->SetDefaultValue(InValues[LastDefaultKeyIndex]);
 		}
 
 		return true;

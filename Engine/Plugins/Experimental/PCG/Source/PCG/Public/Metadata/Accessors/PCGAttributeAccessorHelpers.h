@@ -64,6 +64,11 @@ namespace PCGAttributeAccessorHelpers
 	*/
 	PCG_API TUniquePtr<const IPCGAttributeAccessor> CreateConstAccessor(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector);
 
+	/** 
+	* Creates a const accessor to an attribute without requiring a selector.
+	*/
+	PCG_API TUniquePtr<const IPCGAttributeAccessor> CreateConstAccessor(const FPCGMetadataAttributeBase* InAttribute, const UPCGMetadata* InMetadata);
+
 	/**
 	* Creates a accessor to the property or attribute pointed at by the InSelector.
 	* Note that InData must not be null if the selector points to an attribute,
@@ -71,6 +76,11 @@ namespace PCGAttributeAccessorHelpers
 	* Make sure to update your selector before-hand if you want to support "@Source". Otherwise the creation will fail.
 	*/
 	PCG_API TUniquePtr<IPCGAttributeAccessor> CreateAccessor(UPCGData* InData, const FPCGAttributePropertySelector& InSelector);
+
+	/**
+	* Creates an accessor to an attribute without requiring a selector.
+	*/
+	PCG_API TUniquePtr<IPCGAttributeAccessor> CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata);
 
 	PCG_API TUniquePtr<const IPCGAttributeAccessorKeys> CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector);
 	PCG_API TUniquePtr<IPCGAttributeAccessorKeys> CreateKeys(UPCGData* InData, const FPCGAttributePropertySelector& InSelector);

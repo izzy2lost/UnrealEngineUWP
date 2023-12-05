@@ -16,33 +16,51 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const FPCGMet
 	{
 		TArray<PCGMetadataEntryKey> Temp;
 		Current->GetEntryToValueKeyMap_NotThreadSafe().GenerateKeyArray(Temp);
-		Entries.Append(Temp);
+		ExtractedEntries.Append(Temp);
 		Current = Current->GetParent();
 	}
 
 	// If the attribute doesn't have any entry, re-try with metadata entries.
-	if (Attribute && Entries.IsEmpty())
+	if (Attribute && ExtractedEntries.IsEmpty())
 	{
 		InitializeFromMetadata(Attribute->GetMetadata());
 	}
 
 	// If the attribute still doesn't have any entry, we will always take the default value.
-	if (Entries.IsEmpty())
+	if (ExtractedEntries.IsEmpty())
 	{
-		Entries.Add(PCGInvalidEntryKey);
+		ExtractedEntries.Add(PCGInvalidEntryKey);
 	}
+
+	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
 
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey EntryKey)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
 {
-	Entries.Add(EntryKey);
+	ExtractedEntries.Add(EntryKey);
+	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
 
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
 {
 	InitializeFromMetadata(Metadata);
+	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
+}
+
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const TArrayView<PCGMetadataEntryKey>& InEntries)
+	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/false)
+	, Entries(InEntries)
+{
+
+}
+
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const TArrayView<const PCGMetadataEntryKey>& InEntries)
+	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/true)
+	, Entries(const_cast<PCGMetadataEntryKey*>(InEntries.GetData()), InEntries.Num())
+{
+
 }
 
 void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata* Metadata)
@@ -52,7 +70,7 @@ void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata
 		return;
 	}
 
-	check(Entries.IsEmpty());
+	check(ExtractedEntries.IsEmpty());
 
 	const PCGMetadataEntryKey ItemKeyLowerBound = Metadata->GetItemKeyCountForParent();
 	const PCGMetadataEntryKey ItemKeyUpperBound = Metadata->GetItemCountForChild();
@@ -60,11 +78,11 @@ void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata
 
 	if (Count > 0)
 	{
-		Entries.Reserve(Count);
+		ExtractedEntries.Reserve(Count);
 
 		for (PCGMetadataEntryKey Entry = ItemKeyLowerBound; Entry < ItemKeyUpperBound; ++Entry)
 		{
-			Entries.Add(Entry);
+			ExtractedEntries.Add(Entry);
 		}
 	}
 }

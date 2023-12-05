@@ -220,6 +220,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	void ClearAttribute(FName AttributeToClear);
 
+	/** Change type of an attribute */
+	bool ChangeAttributeType(FName AttributeName, int16 AttributeNewType);
+
 	/** Adds a unique entry key to the metadata */
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	int64 AddEntry(int64 ParentEntryKey = -1);
