@@ -13,6 +13,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Serialization;
 using EpicGames.UHT.Utils;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -1396,102 +1397,25 @@ namespace UnrealBuildTool
 		/// </summary>
 		static void ValidateSharedEnvironment(RulesAssembly RulesAssembly, string ThisTargetName, CommandLineArguments Arguments, TargetRules ThisRules, ILogger Logger)
 		{
-			// Allow disabling these checks
-			if (ThisRules.bOverrideBuildEnvironment)
+			List<string> PropNamesThatRequiredUnique = new();
+			string? BaseTargetName;
+			if (ThisRules.RequiresUniqueEnvironment(RulesAssembly, Arguments, PropNamesThatRequiredUnique, out BaseTargetName))
 			{
-				return;
-			}
-
-			// Get the name of the target with default settings
-			string BaseTargetName;
-			switch (ThisRules.Type)
-			{
-				case TargetType.Game:
-					BaseTargetName = "UnrealGame";
-					break;
-				case TargetType.Editor:
-					BaseTargetName = "UnrealEditor";
-					break;
-				case TargetType.Client:
-					BaseTargetName = "UnrealClient";
-					break;
-				case TargetType.Server:
-					BaseTargetName = "UnrealServer";
-					break;
-				default:
-					return;
-			}
-
-			// Create the target rules for it
-			TargetRules BaseRules = RulesAssembly.CreateTargetRules(BaseTargetName, ThisRules.Platform, ThisRules.Configuration, ThisRules.Architectures, null, Arguments, Logger, IntermediateEnvironment: ThisRules.IntermediateEnvironment);
-
-			// Get all the configurable objects
-			object[] BaseObjects = BaseRules.GetConfigurableObjects().ToArray();
-			object[] ThisObjects = ThisRules.GetConfigurableObjects().ToArray();
-			if (BaseObjects.Length != ThisObjects.Length)
-			{
-				throw new BuildException("Expected same number of configurable objects from base rules object.");
-			}
-
-			// Iterate through all fields with the [SharedBuildEnvironment] attribute
-			for (int Idx = 0; Idx < BaseObjects.Length; Idx++)
-			{
-				Type ObjectType = BaseObjects[Idx].GetType();
-				foreach (FieldInfo Field in ObjectType.GetFields())
-				{
-					if (Field.GetCustomAttribute<RequiresUniqueBuildEnvironmentAttribute>() != null)
-					{
-						object? ThisValue = Field.GetValue(ThisObjects[Idx]);
-						object? BaseValue = Field.GetValue(BaseObjects[Idx]);
-						CheckValuesMatch(ThisRules.GetType(), ThisTargetName, BaseTargetName, Field.Name, Field.FieldType, ThisValue, BaseValue);
-					}
-				}
-				foreach (PropertyInfo Property in ObjectType.GetProperties())
-				{
-					if (Property.GetCustomAttribute<RequiresUniqueBuildEnvironmentAttribute>() != null)
-					{
-						object? ThisValue = Property.GetValue(ThisObjects[Idx]);
-						object? BaseValue = Property.GetValue(BaseObjects[Idx]);
-						CheckValuesMatch(ThisRules.GetType(), ThisTargetName, BaseTargetName, Property.Name, Property.PropertyType, ThisValue, BaseValue);
-					}
-				}
+				throw new BuildException("{0} modifies the values of properties: [ {1} ]. This is not allowed, as {0} has build products in common with {2}.\nRemove the modified setting, change {0} to use a unique build environment by setting 'BuildEnvironment = TargetBuildEnvironment.Unique;' in the {3} constructor, or set bOverrideBuildEnvironment = true to force this setting on.", 
+					ThisTargetName, string.Join(", ", PropNamesThatRequiredUnique), BaseTargetName, ThisRules.GetType().Name);
 			}
 
 			// Make sure that we don't explicitly enable or disable any plugins through the target rules. We can't do this with the shared build environment because it requires recompiling the "Projects" engine module.
 			bool bUsesTargetReceiptToEnablePlugins = (ThisRules.Type == TargetType.Editor && ThisRules.LinkType != TargetLinkType.Monolithic);
-			if (!bUsesTargetReceiptToEnablePlugins && (ThisRules.EnablePlugins.Count > 0 || ThisRules.DisablePlugins.Count > 0))
+			// programs can enable/disable plugins even when modular
+			bool bIsProgramTarget = ThisRules.Type == TargetType.Program;
+
+			if (!bUsesTargetReceiptToEnablePlugins && !bIsProgramTarget && (ThisRules.EnablePlugins.Count > 0 || ThisRules.DisablePlugins.Count > 0))
 			{
 				throw new BuildException(String.Format("Explicitly enabling and disabling plugins for a target is only supported when using a unique build environment (eg. for monolithic game targets). EnabledPlugins={0}, DisabledPlugins={1}",
 					String.Join(", ", ThisRules.EnablePlugins),
 					String.Join(", ", ThisRules.DisablePlugins)
 				));
-			}
-		}
-
-		/// <summary>
-		/// Check that two values match between a base and derived rules type
-		/// </summary>
-		static void CheckValuesMatch(Type RulesType, string ThisTargetName, string BaseTargetName, string FieldName, Type ValueType, object? ThisValue, object? BaseValue)
-		{
-			// Check if the fields match, treating lists of strings (eg. definitions) differently to value types.
-			bool bFieldsMatch;
-			if (ThisValue == null || BaseValue == null)
-			{
-				bFieldsMatch = (ThisValue == BaseValue);
-			}
-			else if (typeof(IEnumerable<string>).IsAssignableFrom(ValueType))
-			{
-				bFieldsMatch = Enumerable.SequenceEqual((IEnumerable<string>)ThisValue, (IEnumerable<string>)BaseValue);
-			}
-			else
-			{
-				bFieldsMatch = ThisValue.Equals(BaseValue);
-			}
-
-			// Throw an exception if they don't match
-			if (!bFieldsMatch)
-			{
-				throw new BuildException("{0} modifies the value of {1}. This is not allowed, as {0} has build products in common with {2}.\nRemove the modified setting, change {0} to use a unique build environment by setting 'BuildEnvironment = TargetBuildEnvironment.Unique;' in the {3} constructor, or set bOverrideBuildEnvironment = true to force this setting on.", ThisTargetName, FieldName, BaseTargetName, RulesType.Name);
 			}
 		}
 
