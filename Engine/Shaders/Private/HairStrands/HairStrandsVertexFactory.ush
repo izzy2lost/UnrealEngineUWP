@@ -116,17 +116,17 @@ FVertexInfo GetVertexInfo(FVertexFactoryInput Input)
 
 	FVertexInfo VertexInfo;
 #if RAYHITGROUPSHADER
-	uint BaseIndex    = VertexId / 4;
+	uint BaseIndex			= VertexId / 4;
 	// TODO: is there any easy way we could handle end-caps?
-	VertexInfo.IsTip        = (Input.TriangleId % 2) == 0 ? Input.TriangleVertexId != 2 : Input.TriangleVertexId == 0;
+	VertexInfo.IsTip		= (Input.TriangleId % 2) == 0 ? Input.TriangleVertexId != 2 : Input.TriangleVertexId == 0;
 #elif USE_HAIR_TRIANGLE_STRIP
-	uint QuadIndex = VertexId % 2;
-	uint BaseIndex	= VertexId / 2;
+	uint QuadIndex 			= VertexId % 2;
+	uint BaseIndex			= VertexId / 2;
 	VertexInfo.IsTip		= 0;
 	VertexInfo.IsLeft		= QuadIndex == 0 ? 1 : 0;
 #else
-	uint QuadIndex	= VertexId % 6;
-	uint BaseIndex	= VertexId / 6;
+	uint QuadIndex			= VertexId % 6;
+	uint BaseIndex			= VertexId / 6;
 	VertexInfo.IsTip		= QuadIndex == 0 || QuadIndex == 2 || QuadIndex == 4 ? 0 : 1;
 	VertexInfo.IsLeft		= QuadIndex == 0 || QuadIndex == 1 || QuadIndex == 5 ? 1 : 0;
 #endif
