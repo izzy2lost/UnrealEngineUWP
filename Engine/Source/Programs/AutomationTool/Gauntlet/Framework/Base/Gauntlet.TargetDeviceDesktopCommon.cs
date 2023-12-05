@@ -61,14 +61,27 @@ namespace Gauntlet
 
 		public string UserDir { get; protected set; }
 
+		/// <summary>
+		/// Optional directory staged builds are installed to if the requested build is not already on the same volume
+		/// </summary>
+		[AutoParam]
+		public string InstallRoot { get; protected set; }
+
 		// TODO - move this be part of ITargetDevice
 		protected Dictionary<EIntendedBaseCopyDirectory, string> LocalDirectoryMappings { get; set; }
 
 		public TargetDeviceDesktopCommon(string InName, string InCacheDir)
 		{
+			AutoParam.ApplyParamsAndDefaults(this, Globals.Params.AllArguments);
+
 			Name = InName;
 			LocalCachePath = InCacheDir;
-			UserDir = Path.Combine(LocalCachePath, "UserDir");
+			UserDir = Path.Combine(InCacheDir, "UserDir");
+
+			if(string.IsNullOrEmpty(InstallRoot))
+			{
+				InstallRoot = InCacheDir;
+			}
 
 			LocalDirectoryMappings = new Dictionary<EIntendedBaseCopyDirectory, string>();
 		}

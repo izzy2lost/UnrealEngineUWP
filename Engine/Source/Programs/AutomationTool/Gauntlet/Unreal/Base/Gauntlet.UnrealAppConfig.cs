@@ -99,12 +99,6 @@ namespace Gauntlet
 		/// </summary>
 		public string Sandbox { get; set; }
 
-		/// <summary>
-		/// Optional directory for builds that need to be run locally. This can be used to persist a locally-install build between build graph nodes.
-		/// </summary>
-		public string DestLocalInstallDir { get; set; }
-
-		// new system
 		public IBuild Build { get; set; }
 
 		// Prevents installing a build on device

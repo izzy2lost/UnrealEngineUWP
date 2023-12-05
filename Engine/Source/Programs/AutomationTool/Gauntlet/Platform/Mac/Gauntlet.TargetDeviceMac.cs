@@ -149,10 +149,7 @@ namespace Gauntlet
 			MacApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
 			MacApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
 
-			if (LocalDirectoryMappings.Count == 0)
-			{
-				PopulateDirectoryMappings(BuildPath);
-			}
+			PopulateDirectoryMappings(BuildPath);
 
 			// clear artifact path
 			MacApp.CleanDeviceArtifacts();
@@ -232,36 +229,31 @@ namespace Gauntlet
 		/// <returns></returns>
 		protected string CopyBuildIfNecessary(UnrealAppConfig AppConfig, string InBuildPath)
 		{
-			bool SkipDeploy = Globals.Params.ParseParam("SkipDeploy");
+			string BuildDir = InBuildPath;
 
-			string OutBuildPath = InBuildPath;
-
-			string BuildVolume = GetVolumeName(OutBuildPath);
+			string BuildVolume = GetVolumeName(BuildDir);
 			string LocalRoot = GetVolumeName(Environment.CurrentDirectory);
 
 			// Must be on our volume to run
 			if (BuildVolume.Equals(LocalRoot, StringComparison.OrdinalIgnoreCase) == false)
 			{
 				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
-				string BasePath = string.IsNullOrEmpty(AppConfig.DestLocalInstallDir) ? this.LocalCachePath : AppConfig.DestLocalInstallDir;
-				string DestPath = Path.Combine(BasePath, SubDir, AppConfig.ProcessType.ToString());
+				string InstallDir = Path.Combine(InstallRoot, SubDir, AppConfig.ProcessType.ToString());
 
-				if (!SkipDeploy)
+				if (!AppConfig.SkipInstall)
 				{
-					Utils.SystemHelpers.CopyDirectory(InBuildPath, DestPath, Utils.SystemHelpers.CopyOptions.Mirror);
+					Utils.SystemHelpers.CopyDirectory(BuildDir, InstallDir, Utils.SystemHelpers.CopyOptions.Mirror);
 				}
-
 				else
 				{
-					Log.Info("Skipping install of {0} (-skipdeploy)", InBuildPath);
+					Log.Info("Skipping install of {0} (-SkipInstall)", BuildDir);
 				}
 
-				Utils.SystemHelpers.MarkDirectoryForCleanup(DestPath);
-
-				OutBuildPath = DestPath;
+				BuildDir = InstallDir;
+				Utils.SystemHelpers.MarkDirectoryForCleanup(InstallDir);
 			}
 
-			return OutBuildPath;
+			return BuildDir;
 		}
 	}
 

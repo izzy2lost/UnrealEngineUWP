@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using System.Data;
+using Gauntlet.Utils;
 
 namespace Gauntlet
 {
@@ -745,66 +746,81 @@ namespace Gauntlet
 		}
 
 		/// <summary>
-		/// Force clean the cache path by setting all of the files in the cache path
-		/// to have "normal" attributes (i.e. not read-only) before attempting to delete.
-		/// </summary>
-		public bool ForceCleanCachePath(string ClientTempDir)
-		{
-			DirectoryInfo ClientTempDirInfo = new DirectoryInfo(ClientTempDir) { Attributes = FileAttributes.Normal };
-
-			Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Setting files in {0} to have normal attributes (no longer read-only).", ClientTempDir);
-			foreach (FileSystemInfo info in ClientTempDirInfo.GetFileSystemInfos("*", SearchOption.AllDirectories))
-			{
-				info.Attributes = FileAttributes.Normal;
-			}
-
-			try
-			{
-				Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Clearing artifact path {0} (force)", ClientTempDir);
-				Directory.Delete(ClientTempDir, true);
-			}
-			catch (Exception Ex)
-			{
-				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to force delete {File}. {Exception}", ClientTempDir, Ex.Message);
-				return false;
-			}
-
-			return true;
-		}
-
-		/// <summary>
-		/// Construct a path to hold cache files and make sure it is empty
+		/// Construct a path to hold cache files and make sure it's properly cleaned
 		/// </summary>
 		private string GetCleanCachePath(DeviceDefinition InDeviceDefiniton)
 		{
-			// Give the desktop platform a temp folder with its name under the device cache 
-			string PlatformCache = Path.Combine(LocalTempDir, "DeviceCache", InDeviceDefiniton.Platform.ToString());
-			string ClientTempDir = Path.Combine(PlatformCache, InDeviceDefiniton.Name);
+			// Give the desktop platform a temp folder with its name under the device cache
+			string DeviceCache = Path.Combine(LocalTempDir, "DeviceCache");
+			string PlatformCache = Path.Combine(DeviceCache, InDeviceDefiniton.Platform.ToString());
+			string ClientCache = Path.Combine(PlatformCache, InDeviceDefiniton.Name);
 
-			int CleanAttempts = 1;
+			// On Desktops, builds are installed in the device cache.
+			// When using device reservation blocks, we don't want to fully clean the cache and lose previously installed builds.
+			// If bRetainBuilds evaluates to true, it means we are in the second step or beyond in a device reservation block.
+			// In this case we'll just delete the left over UserDir which should already have been emptied by UnrealSession.
+			bool? bForceClean = UnrealAppConfig.ForceFullClean;
+			bool? bSkipInstall = UnrealAppConfig.ForceSkipInstall;
+			bool bUsingReservationBlock = bForceClean.HasValue && bSkipInstall.HasValue;
+			bool bRetainBuilds = bUsingReservationBlock && !bForceClean.Value && bSkipInstall.Value;
 
-			// Make sure this is a fresh directory 
-			while (Directory.Exists(ClientTempDir))
+			if(bRetainBuilds)
 			{
-				try
+				Log.Info("Retaining build cache for device reservation block");
+
+				DirectoryInfo UserDirectory = new(Path.Combine(ClientCache, "UserDir"));
+				if(UserDirectory.Exists)
 				{
-					Directory.Delete(ClientTempDir, true);
-				}
-				catch (Exception Ex)
-				{
-					Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Clearing artifact path {0} failed - attempting to force clean", ClientTempDir);
-					if (!ForceCleanCachePath(ClientTempDir))
+					try
 					{
-						// warn and use a different directory
-						Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Failed to delete {Folder}. {Message}", ClientTempDir, Ex.Message);
-						ClientTempDir = Path.Combine(PlatformCache, string.Format("{0}_{1}", InDeviceDefiniton.Name, CleanAttempts++));
+						Log.Info("Cleaning stale user directory...");
+						SystemHelpers.Delete(UserDirectory, true, true);
+					}
+					catch(Exception Ex)
+					{
+						throw new AutomationException("Failed to clean user directory {0}. This could result in improper artifact reporting. {1}", UserDirectory, Ex);
 					}
 				}
 			}
-			// create this path
-			Directory.CreateDirectory(ClientTempDir);
+			else
+			{
+				int CleanAttempts = 0;
 
-			return ClientTempDir;
+				while (Directory.Exists(ClientCache))
+				{
+					DirectoryInfo ClientCacheDirectory = new(ClientCache);
+
+					try
+					{
+						Log.Info("Cleaning stale client device cache...");
+						SystemHelpers.Delete(ClientCacheDirectory, true, true);
+					}
+					catch (Exception Ex)
+					{
+						// If we fail to acquire the default client cache while using device reservation blocks,
+						// we can't ensure future tests will have their cache directories mapped to the correct build location
+						if(bUsingReservationBlock)
+						{
+							throw new AutomationException("Failed to clean default client device cache {0}. {1}", ClientCache, Ex);
+						}
+
+						// When not using device reservation blocks, we can just create a newly indexed directory for the client cache
+						else
+						{
+							string Warning = "Failed to clean client device cache {Folder}. A newly indexed directory will be created instead. {Message}";
+							Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, Warning, ClientCache, Ex.Message);
+
+							ClientCache = Path.Combine(PlatformCache, $"{InDeviceDefiniton.Name}_{++CleanAttempts}");
+						}
+					}
+				}
+
+				// create this path
+				Log.Info("Client device cache set to {Directory}", ClientCache);
+				Directory.CreateDirectory(ClientCache);
+			}
+
+			return ClientCache;
 		}
 
 		/// <summary>

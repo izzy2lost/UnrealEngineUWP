@@ -682,12 +682,7 @@ namespace Gauntlet
 				}
 			}
 
-			UnrealApp = new UnrealSession(Context.BuildInfo, SessionRoles) 
-			{ 
-				Sandbox = Context.Options.Sandbox, 
-				DestLocalInstallDir = Context.Options.DestLocalInstallDir 
-			};
-
+			UnrealApp = new UnrealSession(Context.BuildInfo, SessionRoles) { Sandbox = Context.Options.Sandbox };
 			return true;
 		}
 

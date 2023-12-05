@@ -118,45 +118,43 @@ namespace Gauntlet
 
 		protected override IAppInstall InstallStagedBuild(UnrealAppConfig AppConfig, StagedBuild InBuild)
 		{
-			string BuildPath = InBuild.BuildPath;
+			string BuildDir = InBuild.BuildPath;
 
-			if (Utils.SystemHelpers.IsNetworkPath(BuildPath))
+			if (Utils.SystemHelpers.IsNetworkPath(BuildDir))
 			{
 				string SubDir = string.IsNullOrEmpty(AppConfig.Sandbox) ? AppConfig.ProjectName : AppConfig.Sandbox;
-				string BasePath = string.IsNullOrEmpty(AppConfig.DestLocalInstallDir) ? this.LocalCachePath : AppConfig.DestLocalInstallDir;
-				string DestPath = Path.Combine(BasePath, SubDir, AppConfig.ProcessType.ToString());
+				string InstallDir = Path.Combine(InstallRoot, SubDir, AppConfig.ProcessType.ToString());
 
 				if (!AppConfig.SkipInstall)
 				{
-					DestPath = StagedBuild.InstallBuildParallel(AppConfig, InBuild, BuildPath, DestPath, ToString());
+					InstallDir = StagedBuild.InstallBuildParallel(AppConfig, InBuild, BuildDir, InstallDir, ToString());
 				}
 				else
 				{
-					Log.Info("Skipping install of {0} (-skipdeploy)", BuildPath);
+					Log.Info("Skipping install of {0} (-SkipInstall)", BuildDir);
 				}
 
-				Utils.SystemHelpers.MarkDirectoryForCleanup(DestPath);
-
-				BuildPath = DestPath;
+				BuildDir = InstallDir;
+				Utils.SystemHelpers.MarkDirectoryForCleanup(InstallDir);
 			}
 
 			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 			LinuxApp.RunOptions = RunOptions;
 
 			// Set commandline replace any InstallPath arguments with the path we use
-			LinuxApp.CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildPath, RegexOptions.IgnoreCase);
+			LinuxApp.CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildDir, RegexOptions.IgnoreCase);
 
 			if (string.IsNullOrEmpty(UserDir) == false)
 			{
 				LinuxApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-				LinuxApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
+				LinuxApp.ArtifactPath = Path.Combine(UserDir, "Saved");
 
 				Utils.SystemHelpers.MarkDirectoryForCleanup(UserDir);
 			}
 			else
 			{
 				// e.g d:\Unreal\GameName\Saved
-				LinuxApp.ArtifactPath = Path.Combine(BuildPath, AppConfig.ProjectName, @"Saved");
+				LinuxApp.ArtifactPath = Path.Combine(BuildDir, AppConfig.ProjectName, "Saved");
 
 			}
 
@@ -165,7 +163,7 @@ namespace Gauntlet
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
-				PopulateDirectoryMappings(Path.Combine(BuildPath, AppConfig.ProjectName));
+				PopulateDirectoryMappings(Path.Combine(BuildDir, AppConfig.ProjectName));
 			}
 
 			CopyAdditionalFiles(AppConfig);
@@ -177,7 +175,7 @@ namespace Gauntlet
 			else
 			{
 				// TODO - this check should be at a higher level....
-				string BinaryPath = Path.Combine(BuildPath, InBuild.ExecutablePath);
+				string BinaryPath = Path.Combine(BuildDir, InBuild.ExecutablePath);
 
 				// check for a local newer executable
 				if (Globals.Params.ParseParam("dev") && AppConfig.ProcessType.UsesEditor() == false)

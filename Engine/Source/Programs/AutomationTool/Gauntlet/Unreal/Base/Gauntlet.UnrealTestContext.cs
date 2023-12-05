@@ -130,7 +130,6 @@ namespace Gauntlet
 		/// </summary>
 		[AutoParam("")]
 		public string Namespaces;
-		
 
 		public IEnumerable<string> SearchPaths;
 
@@ -139,12 +138,6 @@ namespace Gauntlet
 		/// </summary>
 		[AutoParam("")]
 		public string Sandbox { get; set; }
-
-		/// <summary>
-		/// Optional directory where local builds will be installed
-		/// </summary>
-		[AutoParam("")]
-		public string DestLocalInstallDir;
 
 		/// <summary>
 		/// Skip any check or copying of builds. Mostly useful when debugging
