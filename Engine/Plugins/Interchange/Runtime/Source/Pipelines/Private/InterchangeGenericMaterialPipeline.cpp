@@ -2,8 +2,9 @@
 
 #include "InterchangeGenericMaterialPipeline.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "CoreMinimal.h"
-
 #include "InterchangeGenericTexturePipeline.h"
 #include "InterchangeMaterialDefinitions.h"
 #include "InterchangeMaterialFactoryNode.h"
@@ -21,7 +22,6 @@
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeUserDefinedAttribute.h"
 #include "InterchangeMaterialInstanceNode.h"
-
 #include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionDivide.h"
@@ -201,6 +201,125 @@ namespace UE::Interchange::InterchangeGenericMaterialPipeline::Private
 		UpdateFunctionCallExpression(*Expression, MaterialFunctionPath);
 		
 		return Expression;
+	}
+
+	UMaterialInterface* FindExistingMaterial(const FString& BasePath, const FString& MaterialFullName, const bool bRecursivePaths)
+	{
+		UMaterialInterface* Material = nullptr;
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+		// Finish/update any scans
+		TArray<FString> ScanPaths;
+		if (BasePath.IsEmpty() || BasePath == TEXT("/"))
+		{
+			FPackageName::QueryRootContentPaths(ScanPaths);
+		}
+		else
+		{
+			ScanPaths.Add(BasePath);
+		}
+		const bool bForceRescan = false;
+		AssetRegistry.ScanPathsSynchronous(ScanPaths, bForceRescan);
+
+
+		FARFilter Filter;
+		Filter.bRecursiveClasses = true;
+		Filter.bRecursivePaths = bRecursivePaths;
+		Filter.ClassPaths.Add(UMaterialInterface::StaticClass()->GetClassPathName());
+		Filter.PackagePaths.Add(FName(*BasePath));
+
+		TArray<FAssetData> AssetData;
+		AssetRegistry.GetAssets(Filter, AssetData);
+
+		TArray<UMaterialInterface*> FoundMaterials;
+		for (const FAssetData& Data : AssetData)
+		{
+			if (Data.AssetName == FName(*MaterialFullName))
+			{
+				Material = Cast<UMaterialInterface>(Data.GetAsset());
+				if (Material != nullptr)
+				{
+					FoundMaterials.Add(Material);
+				}
+			}
+		}
+
+		return FoundMaterials.Num() > 0 ? FoundMaterials[0] : Material;
+	}
+
+	UMaterialInterface* FindExistingMaterialFromSearchLocation(const FString& MaterialFullName, const FString& ContentPath, EInterchangeMaterialSearchLocation SearchLocation)
+	{
+		if (SearchLocation == EInterchangeMaterialSearchLocation::DoNotSearch)
+		{
+			return nullptr;
+		}
+
+		//Search in memory
+		constexpr bool bExactClass = false;
+		UMaterialInterface* FoundMaterial = nullptr;
+		//We search only in memory for search in local folder.
+		if (SearchLocation == EInterchangeMaterialSearchLocation::Local)
+		{
+			FoundMaterial = FindObject<UMaterialInterface>(nullptr, *MaterialFullName, bExactClass);
+			if(FoundMaterial)
+			{
+				//Make sure the path of the material in memory is local
+				FString PackagePath = FoundMaterial->GetPackage()->GetPathName();
+				if (!PackagePath.Equals(ContentPath))
+				{
+					FoundMaterial = nullptr;
+				}
+			}
+		}
+
+		if (FoundMaterial == nullptr)
+		{
+			FString SearchPath = ContentPath;
+
+			// Search in asset's local folder
+			FoundMaterial = FindExistingMaterial(SearchPath, MaterialFullName, false);
+
+			// Search recursively in asset's folder
+			if (FoundMaterial == nullptr &&
+				(SearchLocation != EInterchangeMaterialSearchLocation::Local))
+			{
+				FoundMaterial = FindExistingMaterial(SearchPath, MaterialFullName, true);
+			}
+
+			if (FoundMaterial == nullptr &&
+				(SearchLocation == EInterchangeMaterialSearchLocation::UnderParent ||
+					SearchLocation == EInterchangeMaterialSearchLocation::UnderRoot ||
+					SearchLocation == EInterchangeMaterialSearchLocation::AllAssets))
+			{
+				// Search recursively in parent's folder
+				SearchPath = FPaths::GetPath(SearchPath);
+				if (!SearchPath.IsEmpty())
+				{
+					FoundMaterial = FindExistingMaterial(SearchPath, MaterialFullName, true);
+				}
+			}
+			if (FoundMaterial == nullptr &&
+				(SearchLocation == EInterchangeMaterialSearchLocation::UnderRoot ||
+					SearchLocation == EInterchangeMaterialSearchLocation::AllAssets))
+			{
+				// Search recursively in root folder of asset
+				FString OutPackageRoot, OutPackagePath, OutPackageName;
+				FPackageName::SplitLongPackageName(SearchPath, OutPackageRoot, OutPackagePath, OutPackageName);
+				if (!SearchPath.IsEmpty())
+				{
+					FoundMaterial = FindExistingMaterial(OutPackageRoot, MaterialFullName, true);
+				}
+			}
+			if (FoundMaterial == nullptr &&
+				SearchLocation == EInterchangeMaterialSearchLocation::AllAssets)
+			{
+				// Search everywhere
+				FoundMaterial = FindExistingMaterial(TEXT("/"), MaterialFullName, true);
+			}
+		}
+
+		return FoundMaterial;
 	}
 }
 
@@ -494,8 +613,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 #if WITH_EDITOR
 	TArray<FString> HideCategories;
 	bool bIsObjectAMaterial = !ReimportAsset ? false : ReimportAsset->IsA(UMaterialInterface::StaticClass());
-	if ((!bIsObjectAMaterial && ImportType == EInterchangePipelineContext::AssetReimport)
-		|| ImportType == EInterchangePipelineContext::AssetCustomLODImport
+	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
 		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
@@ -510,7 +628,18 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 		{
 			HidePropertiesOfCategory(OuterMostPipeline, this, HideCategoryName);
 		}
+		if (!bIsObjectAMaterial && ImportType == EInterchangePipelineContext::AssetReimport)
+		{
+			//When we re-import we hide all setting but search location, so we can find existing materials.
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bImportMaterials));
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, MaterialImport));
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bIdentifyDuplicateMaterials));
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, bCreateMaterialInstanceForParent));
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, ParentMaterial));
+			HideProperty(OuterMostPipeline, this, GET_MEMBER_NAME_CHECKED(UInterchangeGenericMaterialPipeline, AssetName));
+		}
 	}
+	
 #endif //WITH_EDITOR
 	using namespace UE::Interchange;
 
@@ -599,15 +728,9 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 		TexturePipeline->ScriptedExecutePipeline(InBaseNodeContainer, InSourceDatas, ContentBasePath);
 	}
 
-	//Skip Material import if the toggle is off
-	if (!bImportMaterials)
-	{
-		return;
-	}
 	
 	MaterialNodes.Empty();
 	MaterialFactoryNodes.Empty();
-
 	//Find all translated node we need for this pipeline
 	BaseNodeContainer->IterateNodes([this](const FString& NodeUid, UInterchangeBaseNode* Node)
 	{
@@ -669,11 +792,6 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 				/* Clearing the AttributeStorageNode as it might affect how the MaterialFunctionsFactories are created. */
 				AttributeStorageNode = nullptr;
 			}
-
-			if (MaterialBaseFactoryNode)
-			{
-				MaterialBaseFactoryNode->SetEnabled(bImportUnusedMaterial);
-			}
 		}
 	}
 	else if (MaterialImport == EInterchangeMaterialImportOption::ImportAsMaterialInstances)
@@ -686,6 +804,35 @@ void UInterchangeGenericMaterialPipeline::ExecutePipeline(UInterchangeBaseNodeCo
 			}
 		}
 	}
+
+	
+	BaseNodeContainer->IterateNodesOfType<UInterchangeBaseMaterialFactoryNode>([&ContentBasePath, bClosureImportMaterials = bImportMaterials || bImportUnusedMaterial, ClosureSearchLocation = SearchLocation](const FString& NodeUid, UInterchangeBaseMaterialFactoryNode* MaterialBaseFactoryNode)
+		{
+			if (MaterialBaseFactoryNode)
+			{
+				MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(bClosureImportMaterials);
+				//Disable all materials if the toggle is off
+				if (!bClosureImportMaterials)
+				{
+					MaterialBaseFactoryNode->SetEnabled(false);
+				}
+				
+				//See if we can assign an existing material from the search location
+				FString MaterialName = MaterialBaseFactoryNode->GetDisplayLabel();
+				if (UMaterialInterface* ExistingMaterial = UE::Interchange::InterchangeGenericMaterialPipeline::Private::FindExistingMaterialFromSearchLocation(MaterialName, ContentBasePath, ClosureSearchLocation))
+				{
+					//Make sure we have the correct type of material (can be material instance) before setting the custom object reference.
+					if ((MaterialBaseFactoryNode->IsA<UInterchangeMaterialInstanceFactoryNode>() && ExistingMaterial->IsA<UMaterialInstance>())
+						|| (MaterialBaseFactoryNode->IsA<UInterchangeMaterialFactoryNode>() && ExistingMaterial->IsA<UMaterial>()))
+					{
+						MaterialBaseFactoryNode->SetCustomReferenceObject(ExistingMaterial);
+						//No need to import an existing material
+						MaterialBaseFactoryNode->SetCustomIsMaterialImportEnabled(false);
+						MaterialBaseFactoryNode->SetEnabled(false);
+					}
+				}
+			}
+		});
 
 	TArray<UInterchangeMaterialInstanceNode*> MaterialInstanceNodes;
 	BaseNodeContainer->IterateNodesOfType<UInterchangeMaterialInstanceNode>([&MaterialInstanceNodes](const FString& NodeUid, UInterchangeMaterialInstanceNode* MaterialNode)

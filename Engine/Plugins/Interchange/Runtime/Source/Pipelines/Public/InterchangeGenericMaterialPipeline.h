@@ -36,6 +36,21 @@ enum class EInterchangeMaterialImportOption : uint8
 	ImportAsMaterialInstances,
 };
 
+UENUM(BlueprintType)
+enum class EInterchangeMaterialSearchLocation : uint8
+{
+	/** Search for existing material in local import folder only. */
+	Local,
+	/** Search for existing material recursively from parent folder. */
+	UnderParent,
+	/** Search for existing material recursively from root folder. */
+	UnderRoot,
+	/** Search for existing material in all assets folders. */
+	AllAssets,
+	/** Do not search for existing existing materials */
+	DoNotSearch,
+};
+
 UCLASS(BlueprintType, editinlinenew)
 class INTERCHANGEPIPELINES_API UInterchangeGenericMaterialPipeline : public UInterchangePipelineBase
 {
@@ -48,6 +63,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	bool bImportMaterials = true;
 
+	/** Specify where we should search for existing materials when importing.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
+	EInterchangeMaterialSearchLocation SearchLocation = EInterchangeMaterialSearchLocation::Local;
+
 	/** If not empty, and there is only one asset and one source data, we will name the asset with this string. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", meta = (StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
 	FString AssetName;
@@ -56,7 +75,7 @@ public:
 	EInterchangeMaterialImportOption MaterialImport = EInterchangeMaterialImportOption::ImportAsMaterials;
 	
 	/** If set, reference materials along with respective material instances would be created*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", Meta = (EditCondition = "bImportMaterials"))
 	bool bIdentifyDuplicateMaterials = false;
 
 	/** If set, additional material instance would be created for reference/parent material*/

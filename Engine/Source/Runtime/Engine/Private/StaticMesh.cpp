@@ -4249,7 +4249,6 @@ FStaticMeshSourceModel& UStaticMesh::GetSourceModel(int32 Index)
 
 bool UStaticMesh::SetCustomLOD(const UStaticMesh* SourceStaticMesh, int32 DestinationLodIndex, const FString& SourceDataFilename)
 {
-
 #if WITH_EDITORONLY_DATA
 	if (!ensure(SourceStaticMesh) || SourceStaticMesh->GetNumSourceModels() <= 0)
 	{
@@ -4393,10 +4392,61 @@ bool UStaticMesh::SetCustomLOD(const UStaticMesh* SourceStaticMesh, int32 Destin
 		SourceModel.SourceImportFilename = UAssetImportData::SanitizeImportFilename(SourceDataFilename, nullptr);
 		SourceModel.bImportWithBaseMesh = false;
 	}
+
+	RemoveUnusedMaterialSlots(this);
+
 	return true;
 #else
 	return false;
 #endif //!WITH_EDITORONLY_DATA
+}
+
+//Static function
+void UStaticMesh::RemoveUnusedMaterialSlots(UStaticMesh* StaticMesh)
+{
+#if WITH_EDITOR
+	if (!StaticMesh)
+	{
+		return;
+	}
+
+	TArray<FStaticMaterial>& Materials = StaticMesh->GetStaticMaterials();
+	if (Materials.Num() < 2)
+	{
+		return;
+	}
+
+	FMeshSectionInfoMap& SectionInfoMap = StaticMesh->GetSectionInfoMap();
+	const int32 LodCount = StaticMesh->GetNumSourceModels();
+
+	//Clean up the material list by removing unused materials
+	for (int32 MaterialIndex = Materials.Num() - 1; MaterialIndex >= 0; MaterialIndex--)
+	{
+		bool bMaterialIsUse = false;
+		for (int32 LodIndex = 0; LodIndex < LodCount && !bMaterialIsUse; ++LodIndex)
+		{
+			const int32 SectionCount = SectionInfoMap.GetSectionNumber(LodIndex);
+			for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
+			{
+				FMeshSectionInfo SectionInfo = SectionInfoMap.Get(LodIndex, SectionIndex);
+				if (SectionInfo.MaterialIndex == MaterialIndex)
+				{
+					bMaterialIsUse = true;
+					break;
+				}
+			}
+		}
+		if (!bMaterialIsUse)
+		{
+			Materials.RemoveAt(MaterialIndex);
+		}
+		else
+		{
+			//Stop removing unused material when we find a valid one, to avoid patching any data related to material index.
+			break;
+		}
+	}
+#endif // WITH_EDITOR
 }
 
 FStaticMeshSourceModel& UStaticMesh::AddSourceModel()

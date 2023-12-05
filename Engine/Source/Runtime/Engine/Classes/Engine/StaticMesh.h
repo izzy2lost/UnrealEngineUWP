@@ -1602,6 +1602,13 @@ public:
 	 */
 	ENGINE_API bool SetCustomLOD(const UStaticMesh* SourceStaticMesh, int32 LodIndex, const FString& SourceDataFilename);
 
+	/*
+	 * Static function that remove any trailing unused material.
+	 *
+	 * @Param StaticMesh - The static mesh we want to remove the trailing materials.
+	 */
+	ENGINE_API static void RemoveUnusedMaterialSlots(UStaticMesh* StaticMesh);
+
 	//SourceModels API
 	ENGINE_API FStaticMeshSourceModel& AddSourceModel();
 

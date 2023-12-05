@@ -20,6 +20,16 @@ FString UInterchangeBaseMaterialFactoryNode::GetMaterialFactoryNodeUidFromMateri
 	return NewUid;
 }
 
+bool UInterchangeBaseMaterialFactoryNode::GetCustomIsMaterialImportEnabled(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(IsMaterialImportEnabled, bool);
+}
+
+bool UInterchangeBaseMaterialFactoryNode::SetCustomIsMaterialImportEnabled(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(IsMaterialImportEnabled, bool);
+}
+
 FString UInterchangeMaterialFactoryNode::GetTypeName() const
 {
 	const FString TypeName = TEXT("MaterialFactoryNode");

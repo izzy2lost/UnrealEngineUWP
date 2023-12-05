@@ -45,13 +45,6 @@
 #include "EditorFramework/AssetImportData.h"
 #endif //WITH_EDITORONLY_DATA
 
-static bool GInterchangeStaticMeshReorderMaterialSlots = true;
-static FAutoConsoleVariableRef CCvarInterchangeStaticMeshReorderMaterialSlots(
-	TEXT("Interchange.FeatureFlags.Import.StaticMesh.ReorderMaterialSlots"),
-	GInterchangeStaticMeshReorderMaterialSlots,
-	TEXT("Whether Re-importing a static mesh should reorder the material slots."),
-	ECVF_Default);
-
 UClass* UInterchangeStaticMeshFactory::GetFactoryClass() const
 {
 	return UStaticMesh::StaticClass();
@@ -80,7 +73,7 @@ namespace UE::Interchange::Private::StaticMesh
 		}
 		
 		FStaticMeshConstAttributes StaticMeshAttributes(BaseMeshDescription);
-		TPolygonGroupAttributesRef<const FName> SlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
+		TPolygonGroupAttributesConstRef<FName> SlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
 
 		TArray<int32> RemapMaterialIndexes;
 		RemapMaterialIndexes.Reserve(Materials.Num());
@@ -276,8 +269,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 		FStaticMaterial* StaticMaterial = StaticMesh->GetStaticMaterials().FindByPredicate([&MaterialSlotName](const FStaticMaterial& Material) { return Material.MaterialSlotName == MaterialSlotName; });
 		if (StaticMaterial)
 		{
-			//When we do a re-import we update the material interface only if the specified MaterialInterface is not null
-			if (!bReimport || MaterialInterface || !StaticMaterial->MaterialInterface)
+			//When we are not re-importing, we always force update the material, we should see this case when importing LODs is on since its an import.
+			//When we do a re-import we update the material interface only if the current asset matching material is null and is not the default material. (this avoid touching a slot that was change by the user)
+			if (!bReimport || (MaterialInterface && (!StaticMaterial->MaterialInterface || StaticMaterial->MaterialInterface == UMaterial::GetDefaultMaterial(MD_Surface))))
 			{
 				StaticMaterial->MaterialInterface = NewMaterial;
 			}
@@ -299,7 +293,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 		FName MaterialSlotName = *SlotMaterialDependency.Key;
 
 		const UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(Arguments.NodeContainer->GetNode(SlotMaterialDependency.Value));
-		if (!MaterialFactoryNode || !MaterialFactoryNode->IsEnabled())
+		if (!MaterialFactoryNode)
 		{
 			UpdateOrAddStaticMaterial(MaterialSlotName, nullptr);
 			continue;
@@ -531,6 +525,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 			//Match the existing section info map data
 
 			//First find the old mesh description polygon groups name that match with the imported mesh description polygon groups name.
+			//Copy the data
 			const int32 PreviousSectionCount = StaticMesh->GetSectionInfoMap().GetSectionNumber(LodIndex);
 			TMap<FPolygonGroupID, FPolygonGroupID> ImportedToOldPolygonGroupMatch;
 			ImportedToOldPolygonGroupMatch.Reserve(LodMeshDescription.PolygonGroups().Num());
@@ -573,10 +568,15 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 					NewSectionInfoMapData.Add(FMeshSectionInfo(MaterialSlotIndex));
 				}
 			}
-			//Recreate the section info map
+
+			//Clear all section for this LOD
+			for (int32 PreviousSectionIndex = 0; PreviousSectionIndex < PreviousSectionCount; ++PreviousSectionIndex)
+			{
+				StaticMesh->GetSectionInfoMap().Remove(LodIndex, PreviousSectionIndex);
+			}
+			//Recreate the new section info map
 			for (int32 NewSectionIndex = 0; NewSectionIndex < NewSectionInfoMapData.Num(); ++NewSectionIndex)
 			{
-				StaticMesh->GetSectionInfoMap().Remove(LodIndex, NewSectionIndex);
 				StaticMesh->GetSectionInfoMap().Set(LodIndex, NewSectionIndex, NewSectionInfoMapData[NewSectionIndex]);
 			}
 		}
@@ -678,9 +678,12 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 	FMeshBudgetProjectSettingsUtils::SetLodGroupForStaticMesh(StaticMesh);
 #endif
 
-	if (bReimport && GInterchangeStaticMeshReorderMaterialSlots)
+	if (bReimport)
 	{
 		UE::Interchange::Private::StaticMesh::ReorderMaterialSlotToBaseLod(StaticMesh);
+#if WITH_EDITOR
+		UStaticMesh::RemoveUnusedMaterialSlots(StaticMesh);
+#endif
 	}
 
 	ImportAssetResult.ImportedObject = StaticMesh;

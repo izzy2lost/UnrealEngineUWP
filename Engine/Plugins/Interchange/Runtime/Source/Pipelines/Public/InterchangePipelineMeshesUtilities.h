@@ -345,7 +345,9 @@ namespace UE::Interchange::MeshesUtilities
 			FactoryNode.SetSlotMaterialDependencyUid(SlotMaterialDependency.Key, MaterialFactoryNodeUid);
 			if (UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(NodeContainer.GetFactoryNode(MaterialFactoryNodeUid)))
 			{
-				MaterialFactoryNode->SetEnabled(true);
+				bool IsMaterialImportEnabled = true;
+				MaterialFactoryNode->GetCustomIsMaterialImportEnabled(IsMaterialImportEnabled);
+				MaterialFactoryNode->SetEnabled(IsMaterialImportEnabled);
 
 				// Create a factory dependency so Material asset are imported before the static mesh asset
 				TArray<FString> FactoryDependencies;

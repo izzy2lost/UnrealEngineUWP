@@ -824,8 +824,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 		}
 	}
 
+	bool bCanImportMaterial = true;
+	MaterialFactoryNode->GetCustomIsMaterialImportEnabled(bCanImportMaterial);
 	// create a new material or overwrite existing asset, if possible
-	if (!ExistingAsset)
+	if (!ExistingAsset && bCanImportMaterial)
 	{
 		if (MaterialClass->IsChildOf<UMaterialInstanceDynamic>())
 		{
@@ -859,7 +861,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeMaterialFactory::BeginIm
 
 	if (!Material)
 	{
-		CouldNotCreateMaterialLog(LOCTEXT("MatFactory_CouldNotCreateMat_MaterialCreationFail", "Material creation fail."));
+		if (bCanImportMaterial)
+		{
+			CouldNotCreateMaterialLog(LOCTEXT("MatFactory_CouldNotCreateMat_MaterialCreationFail", "Material creation fail."));
+		}
 		return ImportAssetResult;
 	}
 

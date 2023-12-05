@@ -52,13 +52,6 @@ IMPLEMENT_MODULE(FDefaultModuleImpl, SkeletalMeshUtilitiesCommon)
 
 DEFINE_LOG_CATEGORY_STATIC(LogLODUtilities, Log, All);
 
-static bool GInterchangeSkeletalMeshReorderMaterialSlots = true;
-static FAutoConsoleVariableRef CCvarInterchangeSkeletalMeshReorderMaterialSlots(
-	TEXT("Interchange.FeatureFlags.Import.SkeletalMesh.ReorderMaterialSlots"),
-	GInterchangeSkeletalMeshReorderMaterialSlots,
-	TEXT("Whether Re-importing a skeletalmesh should reorder the material slots."),
-	ECVF_Default);
-
 /**
 * Process and update the vertex Influences using the predefined wedges
 *
@@ -3850,6 +3843,7 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 	TArray<FSkeletalMaterial>& Materials = Parameters.SkeletalMesh->GetMaterials();
 
 	TMap<FName, int32> LODMaterialMapRedirection;
+	TMap<FName, FSkelMeshSourceSectionUserData> NewUserSectionsDataMap;
 	//If we reimport we have to keep the existing user section info data. We use the material name to match the existing
 	if (Parameters.bIsReImport)
 	{
@@ -3859,46 +3853,45 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 			, int32 SectionIndex
 			, int32& OutMaterialIndex
 			, const TArray<FName>& PerSectionMaterialImportName)->FName
-		{
-			const TArray<FSkeletalMaterial>& MeshMaterials = Parameters.SkeletalMesh->GetMaterials();
-			if (!ensure(MeshMaterials.Num() > 0))
 			{
-				OutMaterialIndex = -1;
-				return NAME_None;
-			}
-			if (PerSectionMaterialImportName.IsValidIndex(SectionIndex))
-			{
-				for (int32 MaterialIndex = 0; MaterialIndex < MeshMaterials.Num(); ++MaterialIndex)
+				const TArray<FSkeletalMaterial>& MeshMaterials = Parameters.SkeletalMesh->GetMaterials();
+				if (!ensure(MeshMaterials.Num() > 0))
 				{
-					const FSkeletalMaterial& Material = MeshMaterials[MaterialIndex];
-					if (PerSectionMaterialImportName[SectionIndex] == Material.ImportedMaterialSlotName)
-					{
-						OutMaterialIndex = MaterialIndex;
-						break;
-					}
+					OutMaterialIndex = -1;
+					return NAME_None;
 				}
-				return PerSectionMaterialImportName[SectionIndex];
-			}
+				if (PerSectionMaterialImportName.IsValidIndex(SectionIndex))
+				{
+					for (int32 MaterialIndex = 0; MaterialIndex < MeshMaterials.Num(); ++MaterialIndex)
+					{
+						const FSkeletalMaterial& Material = MeshMaterials[MaterialIndex];
+						if (PerSectionMaterialImportName[SectionIndex] == Material.ImportedMaterialSlotName)
+						{
+							OutMaterialIndex = MaterialIndex;
+							break;
+						}
+					}
+					return PerSectionMaterialImportName[SectionIndex];
+				}
 
-			OutMaterialIndex = Section.MaterialIndex;
-			if (LodInfo->LODMaterialMap.IsValidIndex(SectionIndex) && LodInfo->LODMaterialMap[SectionIndex] != INDEX_NONE)
-			{
-				OutMaterialIndex = LodInfo->LODMaterialMap[SectionIndex];
-			}
-			FName ImportedMaterialSlotName = NAME_None;
-			if (MeshMaterials.IsValidIndex(OutMaterialIndex))
-			{
-				ImportedMaterialSlotName = MeshMaterials[OutMaterialIndex].ImportedMaterialSlotName;
-			}
-			else
-			{
-				ImportedMaterialSlotName = MeshMaterials[0].ImportedMaterialSlotName;
-				OutMaterialIndex = 0;
-			}
-			return ImportedMaterialSlotName;
-		};
+				OutMaterialIndex = Section.MaterialIndex;
+				if (LodInfo->LODMaterialMap.IsValidIndex(SectionIndex) && LodInfo->LODMaterialMap[SectionIndex] != INDEX_NONE)
+				{
+					OutMaterialIndex = LodInfo->LODMaterialMap[SectionIndex];
+				}
+				FName ImportedMaterialSlotName = NAME_None;
+				if (MeshMaterials.IsValidIndex(OutMaterialIndex))
+				{
+					ImportedMaterialSlotName = MeshMaterials[OutMaterialIndex].ImportedMaterialSlotName;
+				}
+				else
+				{
+					ImportedMaterialSlotName = MeshMaterials[0].ImportedMaterialSlotName;
+					OutMaterialIndex = 0;
+				}
+				return ImportedMaterialSlotName;
+			};
 
-		TMap<FName, FSkelMeshSourceSectionUserData> NewUserSectionsDataMap;
 		FSkeletalMeshLODModel& ExistLODModel = Parameters.SkeletalMesh->GetImportedModel()->LODModels[Parameters.LodIndex];
 		for (int32 NewSectionIndex = 0; NewSectionIndex < ImportedMaterials.Num(); NewSectionIndex++)
 		{
@@ -3930,13 +3923,13 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 					, EmptyArray);
 
 				auto CopySectionData = [&ExistingSection, &SourceSectionUserData]()
-				{
-					//Set the user section data to reflect the existing settings
-					SourceSectionUserData.bCastShadow = ExistingSection.bCastShadow;
-					SourceSectionUserData.bVisibleInRayTracing = ExistingSection.bVisibleInRayTracing;
-					SourceSectionUserData.bRecomputeTangent = ExistingSection.bRecomputeTangent;
-					SourceSectionUserData.RecomputeTangentsVertexMaskChannel = ExistingSection.RecomputeTangentsVertexMaskChannel;
-				};
+					{
+						//Set the user section data to reflect the existing settings
+						SourceSectionUserData.bCastShadow = ExistingSection.bCastShadow;
+						SourceSectionUserData.bVisibleInRayTracing = ExistingSection.bVisibleInRayTracing;
+						SourceSectionUserData.bRecomputeTangent = ExistingSection.bRecomputeTangent;
+						SourceSectionUserData.RecomputeTangentsVertexMaskChannel = ExistingSection.RecomputeTangentsVertexMaskChannel;
+					};
 
 				if (ExistingImportedMaterialSlotName != NAME_None)
 				{
@@ -3952,78 +3945,13 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 					}
 				}
 				else if (Parameters.SkeletalMesh->GetMaterials().IsValidIndex(ExistingCurrentMaterialIndex) &&
-						 ImportedMaterials[NewSectionIndex].Material.Get() == Parameters.SkeletalMesh->GetMaterials()[ExistingCurrentMaterialIndex].MaterialInterface.Get()) //Use material slot compare to match in case the name is none
+					ImportedMaterials[NewSectionIndex].Material.Get() == Parameters.SkeletalMesh->GetMaterials()[ExistingCurrentMaterialIndex].MaterialInterface.Get()) //Use material slot compare to match in case the name is none
 				{
 					CopySectionData();
 					break;
 				}
 			}
 		}
-
-		for (int32 NewSectionIndex = 0; NewSectionIndex < ImportedMaterials.Num(); NewSectionIndex++)
-		{
-			FName ImportedMaterialName = *(ImportedMaterials[NewSectionIndex].MaterialImportName);
-			if (!NewUserSectionsDataMap.Contains(ImportedMaterialName))
-			{
-				NewUserSectionsDataMap.Add(ImportedMaterialName, FSkelMeshSourceSectionUserData());
-			}
-		}
-
-		if (Parameters.LodIndex == 0)
-		{
-			//Since LOD 0 data will be re-arrange to follow the Material list order, sort the map accordingly.
-			NewUserSectionsDataMap.KeySort([Materials](const FName& A, const FName& B)
-				{
-					int32 MatAIndex = INDEX_NONE;
-					int32 MatBIndex = INDEX_NONE;
-					for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
-					{
-						if (Materials[MaterialIndex].ImportedMaterialSlotName == A)
-						{
-							MatAIndex = MaterialIndex;
-						}
-						if (Materials[MaterialIndex].ImportedMaterialSlotName == B)
-						{
-							MatBIndex = MaterialIndex;
-						}
-					}
-					if (MatBIndex == INDEX_NONE)
-					{
-						return true;
-					}
-					if (MatAIndex == INDEX_NONE)
-					{
-						return false;
-					}
-					return MatAIndex < MatBIndex;
-				});
-		}
-		auto ApplyUserSectionLODModel = [&NewUserSectionsDataMap](FSkeletalMeshLODModel& ToApplyUserSectionLODModel, bool bSynchronizeUserSectionData)
-		{
-			ToApplyUserSectionLODModel.UserSectionsData.Reset();
-			int32 RemapSectionIndex = 0;
-			for (TPair<FName, FSkelMeshSourceSectionUserData> UserSectionsData : NewUserSectionsDataMap)
-			{
-				ToApplyUserSectionLODModel.UserSectionsData.Add(RemapSectionIndex++, UserSectionsData.Value);
-			}
-			if (bSynchronizeUserSectionData)
-			{
-				ToApplyUserSectionLODModel.SyncronizeUserSectionsDataArray(true);
-			}
-		};
-
-		//If the caller provide a CustomImportedLODModel we must apply the user section data to the provided lod model.
-		if (Parameters.CustomImportedLODModel)
-		{
-			constexpr bool bSynchronizeUserSectionData = true;
-			ApplyUserSectionLODModel(*Parameters.CustomImportedLODModel, bSynchronizeUserSectionData);
-		}
-		else
-		{
-			constexpr bool bSynchronizeUserSectionData = false;
-			ApplyUserSectionLODModel(ExistLODModel, bSynchronizeUserSectionData);
-		}
-		
 	}
 
 	LodInfo->LODMaterialMap.Empty();
@@ -4077,9 +4005,89 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 		}
 	}
 
-	if (Parameters.bIsReImport && Parameters.LodIndex == 0 && GInterchangeSkeletalMeshReorderMaterialSlots)
+	if (Parameters.bIsReImport)
 	{
-		ReorderMaterialSlotToBaseLod(Parameters.SkeletalMesh);
+		FSkeletalMeshLODModel& ExistLODModel = Parameters.SkeletalMesh->GetImportedModel()->LODModels[Parameters.LodIndex];
+		for (int32 NewSectionIndex = 0; NewSectionIndex < ImportedMaterials.Num(); NewSectionIndex++)
+		{
+			FName ImportedMaterialName = *(ImportedMaterials[NewSectionIndex].MaterialImportName);
+			if (!NewUserSectionsDataMap.Contains(ImportedMaterialName))
+			{
+				NewUserSectionsDataMap.Add(ImportedMaterialName, FSkelMeshSourceSectionUserData());
+			}
+		}
+
+		if (Parameters.LodIndex == 0)
+		{
+			//Since LOD 0 data will be re-arrange to follow the Material list order, sort the map accordingly.
+			NewUserSectionsDataMap.KeySort([&Materials](const FName& A, const FName& B)
+				{
+					int32 MatAIndex = INDEX_NONE;
+					int32 MatBIndex = INDEX_NONE;
+					for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
+					{
+						if (Materials[MaterialIndex].ImportedMaterialSlotName == A)
+						{
+							MatAIndex = MaterialIndex;
+						}
+						if (Materials[MaterialIndex].ImportedMaterialSlotName == B)
+						{
+							MatBIndex = MaterialIndex;
+						}
+					}
+					if (MatBIndex == INDEX_NONE)
+					{
+						return true;
+					}
+					if (MatAIndex == INDEX_NONE)
+					{
+						return false;
+					}
+					return MatAIndex < MatBIndex;
+				});
+		}
+
+		//If the caller provide a CustomImportedLODModel we must apply the user section data to the provided lod model.
+		if (Parameters.CustomImportedLODModel)
+		{
+			Parameters.CustomImportedLODModel->UserSectionsData.Reset();
+			int32 RemapSectionIndex = 0;
+			for (TPair<FName, FSkelMeshSourceSectionUserData> UserSectionsData : NewUserSectionsDataMap)
+			{
+				Parameters.CustomImportedLODModel->UserSectionsData.Add(RemapSectionIndex++, UserSectionsData.Value);
+			}
+			Parameters.CustomImportedLODModel->SyncronizeUserSectionsDataArray(true);
+		}
+		else
+		{
+			ExistLODModel.UserSectionsData.Reset();
+			for (TPair<FName, FSkelMeshSourceSectionUserData> UserSectionsData : NewUserSectionsDataMap)
+			{
+				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
+				{
+					if (Materials[MaterialIndex].ImportedMaterialSlotName == UserSectionsData.Key)
+					{
+						ExistLODModel.UserSectionsData.Add(MaterialIndex, UserSectionsData.Value);
+						break;
+					}
+				}
+			}
+			//Reorder the user section from the keys
+			ExistLODModel.UserSectionsData.KeySort([](const int32& A, const int32& B)
+				{
+					return A < B;
+				});
+		}
+		
+	}
+
+	if (Parameters.bIsReImport)
+	{
+		if(Parameters.LodIndex == 0)
+		{
+			ReorderMaterialSlotToBaseLod(Parameters.SkeletalMesh);
+		}
+		RemoveUnusedMaterialSlot(Parameters);
 	}
 }
 
@@ -4181,11 +4189,18 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 					RemapSectionsDataMap.Add(MaterialSlotRemap[UserSectionDataPair.Key], UserSectionDataPair.Value);
 				}
 				//Sort the remap section so its in the proper order. Optional but easier to debug ordered data
-				RemapSectionsDataMap.KeySort([Materials](const int32& A, const int32& B)
+				RemapSectionsDataMap.KeySort([](const int32& A, const int32& B)
 					{
 						return A < B;
 					});
-				LODModel.UserSectionsData = RemapSectionsDataMap;
+
+				//Rebuild a remap with the new order starting from 0
+				LODModel.UserSectionsData.Empty(RemapSectionsDataMap.Num());
+				int32 KeyIndex = 0;
+				for (TPair<int32, FSkelMeshSourceSectionUserData>& UserSectionDataPair : RemapSectionsDataMap)
+				{
+					LODModel.UserSectionsData.Add(KeyIndex++, UserSectionDataPair.Value);
+				}
 			}
 
 			//Remap the built sections material index, note that the sections should be rebuild after changing the material slot order. so not a critical step.
@@ -4218,6 +4233,64 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 		{
 			UE_ASSET_LOG(LogLODUtilities, Warning, SkeletalMesh, TEXT("FLODUtilities::ReorderMaterialSlotToBaseLod: Skeletal mesh invalid LODInfo %d"), LodIndex);
 		}
+	}
+}
+
+void FLODUtilities::RemoveUnusedMaterialSlot(FSkeletalMeshMatchImportedMaterialsParameters& Parameters)
+{
+	USkeletalMesh* SkeletalMesh = Parameters.SkeletalMesh;
+	if (!SkeletalMesh || !SkeletalMesh->IsLODImportedDataBuildAvailable(0))
+	{
+		return;
+	}
+
+	TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
+	if (Materials.Num() < 2)
+	{
+		return;
+	}
+	FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
+	const TArray<FSkeletalMeshLODInfo>& LODInfoArray = SkeletalMesh->GetLODInfoArray();
+
+	TArray<int32> UsedIndexes;
+	for (int32 LodIndex = 0; LodIndex < LODInfoArray.Num(); ++LodIndex)
+	{
+		const TArray<int32>& LODMaterialMap = LODInfoArray[LodIndex].LODMaterialMap;
+		if (!LODMaterialMap.IsEmpty())
+		{
+			for (int32 MaterialIndex : LODMaterialMap)
+			{
+				if (MaterialIndex != INDEX_NONE)
+				{
+					UsedIndexes.AddUnique(MaterialIndex);
+				}
+			}
+		}
+
+		if (LodIndex == 0 && ImportedResource && ImportedResource->LODModels.IsValidIndex(LodIndex))
+		{
+			//Since LOD 0 is always reordering the material slot array, we expect section index to match UserSectionsData order
+			//We cannot use the section since section are built by the DDC cache.
+			FSkeletalMeshLODModel& Model = ImportedResource->LODModels[LodIndex];
+			for (TPair<int32, FSkelMeshSourceSectionUserData> UserSectionsData : Model.UserSectionsData)
+			{
+				if (LODMaterialMap.IsEmpty() || !LODMaterialMap.IsValidIndex(UserSectionsData.Key) || LODMaterialMap[UserSectionsData.Key] == INDEX_NONE)
+				{
+					UsedIndexes.AddUnique(UserSectionsData.Key);
+				}
+			}
+		}
+	}
+
+	//Clean up the trailing unused material
+	for (int32 MaterialIndex = Materials.Num() - 1; MaterialIndex >= 0; MaterialIndex--)
+	{
+		if (UsedIndexes.Contains(MaterialIndex))
+		{
+			//Only delete extra material at the end of the material slot list, because MaterialMap and UserSectionData will need to be patch otherwise
+			break;
+		}
+		Materials.RemoveAt(MaterialIndex);
 	}
 }
 

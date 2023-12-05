@@ -1214,8 +1214,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		FSkeletalMaterial* SkeletalMaterial = Materials.FindByPredicate([&MaterialSlotName](const FSkeletalMaterial& Material) { return Material.MaterialSlotName == MaterialSlotName; });
 		if (SkeletalMaterial)
 		{
-			//When we do a reimport we update the material interface only if the specified MaterialInterface is not null
-			if (!bIsReImport || MaterialInterface || !SkeletalMaterial->MaterialInterface)
+			//When we are not re-importing, we always force update the material, we should see this case when importing LODs is on since its an import.
+			//When we do a re-import we update the material interface only if the current asset matching material is null and is not the default material.
+			if (!bIsReImport || (MaterialInterface && (!SkeletalMaterial->MaterialInterface || SkeletalMaterial->MaterialInterface == UMaterial::GetDefaultMaterial(MD_Surface))))
 			{
 				SkeletalMaterial->MaterialInterface = NewMaterial;
 			}
@@ -1237,7 +1238,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		FName MaterialSlotName = *SlotMaterialDependency.Key;
 
 		const UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(Arguments.NodeContainer->GetNode(SlotMaterialDependency.Value));
-		if (!MaterialFactoryNode || !MaterialFactoryNode->IsEnabled())
+		if (!MaterialFactoryNode)
 		{
 			UpdateOrAddSkeletalMaterial(MaterialSlotName, nullptr);
 			continue;
@@ -1633,6 +1634,17 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 					Parameters.ImportedMaterials = &ImportAssetObjectLODData.ImportedMaterials;
 					Parameters.ExistingOriginalPerSectionMaterialImportName = &ImportAssetObjectLODData.ExistingOriginalPerSectionMaterialImportName;
 					FLODUtilities::MatchImportedMaterials(Parameters);
+					//Flush the old LOD 0 sections after we rematch the materials
+					if (Parameters.LodIndex == 0 && Parameters.bIsReImport)
+					{
+						if (FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel())
+						{
+							if (ImportedModel->LODModels.IsValidIndex(0))
+							{
+								SkeletalMesh->GetImportedModel()->LODModels[0].Sections.Empty();
+							}
+						}
+					}
 				}
 			}
 		}
