@@ -18,7 +18,6 @@
 #include "SubstrateDefinitions.h"
 #include "Animation/MeshDeformerProvider.h"
 #include "Interfaces/ITargetPlatform.h"
-#include "ReadOnlyCVARCache.h"
 
 #if WITH_EDITOR
 #include "Interfaces/ITargetPlatformManagerModule.h"
@@ -474,24 +473,9 @@ RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector2()
 	return GVector2VertexDeclaration.VertexDeclarationRHI;
 }
 
-RENDERCORE_API bool IsMobileHDR()
-{
-	return FReadOnlyCVARCache::MobileHDR();
-}
-
-RENDERCORE_API bool MobileSupportsGPUScene()
-{
-	return FReadOnlyCVARCache::MobileSupportsGPUScene();
-}
-
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform)
 {
 	return IsMobilePlatform(Platform) && FDataDrivenShaderPlatformInfo::GetSupportsUniformBufferObjects(Platform);
-}
-
-RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform)
-{
-	return FReadOnlyCVARCache::MobileDeferredShading(Platform) && IsMobileHDR();
 }
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform)
@@ -582,11 +566,6 @@ RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Pla
 RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPlatform Platform)
 {
 	return FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(Platform);
-}
-
-RENDERCORE_API bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform)
-{
-	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) > 0;
 }
 
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform)
@@ -1642,11 +1621,6 @@ bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 ERayTracingMode GetRayTracingMode()
 {
 	return IsRayTracingAllowed() ? GRayTracingMode : ERayTracingMode::Disabled;
-}
-
-bool IsStaticLightingAllowed()
-{
-	return FReadOnlyCVARCache::AllowStaticLighting();
 }
 
 bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)

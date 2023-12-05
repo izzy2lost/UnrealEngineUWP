@@ -66,7 +66,6 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/TextureCube.h"
 #include "GPUSkinCacheVisualizationData.h"
-#include "ReadOnlyCVARCache.h"
 #if WITH_EDITOR
 #include "Rendering/StaticLightingSystemInterface.h"
 #endif

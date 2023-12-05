@@ -81,7 +81,6 @@
 #include "SceneCulling/SceneCulling.h"
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "ComputeWorkerInterface.h"
-#include "ReadOnlyCVARCache.h"
 
 #if RHI_RAYTRACING
 #include "Nanite/NaniteRayTracing.h"

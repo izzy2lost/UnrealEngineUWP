@@ -21,7 +21,6 @@ ShadowSetupMobile.cpp: Shadow setup implementation for mobile specific features.
 #include "RenderCore.h"
 #include "ShadowRendering.h"
 #include "StaticMeshBatch.h"
-#include "ReadOnlyCVARCache.h"
 
 static TAutoConsoleVariable<int32> CVarCsmShaderCullingDebugGfx(
 	TEXT("r.Mobile.Shadow.CSMShaderCullingDebugGfx"),

@@ -6,6 +6,7 @@
 #include "RHIFwd.h"
 #include "RHIShaderPlatform.h"
 #include "RHIFeatureLevel.h"
+#include "ReadOnlyCVARCache.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "RHI.h"
@@ -270,13 +271,27 @@ RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector3();
 RENDERCORE_API FVertexDeclarationRHIRef& GetVertexDeclarationFVector2();
 
 /** True if HDR is enabled for the mobile renderer. */
-RENDERCORE_API bool IsMobileHDR();
+inline bool IsMobileHDR()
+{
+	return FReadOnlyCVARCache::MobileHDR();
+}
 
-RENDERCORE_API bool MobileSupportsGPUScene();
+inline bool MobileSupportsGPUScene()
+{
+	return FReadOnlyCVARCache::MobileSupportsGPUScene();
+}
+
+inline bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform)
+{
+	return FReadOnlyCVARCache::MobileDeferredShading(Platform) && IsMobileHDR();
+}
+
+inline bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform)
+{
+	return FReadOnlyCVARCache::MobileForwardLocalLights(Platform) > 0;
+}
 
 RENDERCORE_API bool PlatformGPUSceneUsesUniformBufferView(const FStaticShaderPlatform Platform);
-
-RENDERCORE_API bool IsMobileDeferredShadingEnabled(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileRequiresSceneDepthAux(const FStaticShaderPlatform Platform);
 
@@ -295,8 +310,6 @@ RENDERCORE_API bool IsMobileAmbientOcclusionEnabled(const FStaticShaderPlatform 
 RENDERCORE_API bool IsMobileDistanceFieldEnabled(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPlatform Platform);
-
-RENDERCORE_API bool MobileForwardEnableLocalLights(const FStaticShaderPlatform Platform);
 
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform);
 
@@ -510,7 +523,10 @@ extern RENDERCORE_API bool IsRayTracingAllowed();
 extern RENDERCORE_API ERayTracingMode GetRayTracingMode();
 
 // Returns 'true' when static lighting is enabled for the project
-extern RENDERCORE_API bool IsStaticLightingAllowed();
+inline bool IsStaticLightingAllowed()
+{
+	return FReadOnlyCVARCache::AllowStaticLighting();
+}
 
 extern RENDERCORE_API bool DoesPlatformSupportLumenGI(EShaderPlatform Platform, bool bSkipProjectCheck = false);
 

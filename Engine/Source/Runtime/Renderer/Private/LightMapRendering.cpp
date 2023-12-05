@@ -10,7 +10,6 @@ LightMapRendering.cpp: Light map rendering implementations.
 #include "PrecomputedVolumetricLightmap.h"
 #include "RenderCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "ReadOnlyCVARCache.h"
 
 IMPLEMENT_TYPE_LAYOUT(FUniformLightMapPolicyShaderParametersType);
 

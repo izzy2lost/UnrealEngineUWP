@@ -28,7 +28,6 @@
 #include "LocalFogVolumeRendering.h"
 #include "DBufferTextures.h"
 #include "CompositionLighting/PostProcessDeferredDecals.h"
-#include "ReadOnlyCVARCache.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform);
 bool MobileMergeLocalLightsInPrepassEnabled(const FStaticShaderPlatform Platform);

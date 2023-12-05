@@ -14,7 +14,6 @@
 #include "MeshPassProcessor.inl"
 #include "Engine/TextureCube.h"
 #include "ShaderPlatformCachedIniValue.h"
-#include "ReadOnlyCVARCache.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 {

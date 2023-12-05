@@ -9,33 +9,6 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #endif
 
-static int32 MobileEarlyZPassIniValue(EShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.EarlyZPass"));
-	return CVar.Get(Platform);
-}
-
-static int32 MobileForwardLocalLightsIniValue(EShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.Forward.EnableLocalLights"));
-	return CVar.Get(Platform);
-}
-
-static bool MobileDeferredShadingIniValue(EShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
-	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
-	// a separate cvar so we can exclude deferred from OpenGL specificaly
-	const bool bSupportedPlatform = !IsOpenGLPlatform(Platform) || (MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0);
-	return MobileShadingPathIniValue.Get(Platform) && bSupportedPlatform;
-}
-
-static bool MobileEnableMovableSpotlightsShadowIniValue(EShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<bool> CVar(TEXT("r.Mobile.EnableMovableSpotlightsShadow"));
-	return CVar.Get(Platform);
-}
-
 bool FReadOnlyCVARCache::bInitialized = false;
 
 bool FReadOnlyCVARCache::bEnablePointLightShadows = true;
@@ -57,6 +30,33 @@ int32 FReadOnlyCVARCache::MobileForwardLocalLightsValue = 1;
 bool FReadOnlyCVARCache::bMobileEnableNoPrecomputedLightingCSMShader = false;
 bool FReadOnlyCVARCache::bMobileDeferredShadingValue = false;
 bool FReadOnlyCVARCache::bMobileEnableMovableSpotlightsShadowValue = false;
+
+int32 FReadOnlyCVARCache::MobileEarlyZPassIniValue(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.EarlyZPass"));
+	return CVar.Get(Platform);
+}
+
+int32 FReadOnlyCVARCache::MobileForwardLocalLightsIniValue(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Mobile.Forward.EnableLocalLights"));
+	return CVar.Get(Platform);
+}
+
+bool FReadOnlyCVARCache::MobileDeferredShadingIniValue(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> MobileShadingPathIniValue(TEXT("r.Mobile.ShadingPath"));
+	static TConsoleVariableData<int32>* MobileAllowDeferredShadingOpenGL = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDeferredShadingOpenGL"));
+	// a separate cvar so we can exclude deferred from OpenGL specificaly
+	const bool bSupportedPlatform = !IsOpenGLPlatform(Platform) || (MobileAllowDeferredShadingOpenGL && MobileAllowDeferredShadingOpenGL->GetValueOnAnyThread() != 0);
+	return MobileShadingPathIniValue.Get(Platform) && bSupportedPlatform;
+}
+
+bool FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadowIniValue(EShaderPlatform Platform)
+{
+	static FShaderPlatformCachedIniValue<bool> CVar(TEXT("r.Mobile.EnableMovableSpotlightsShadow"));
+	return CVar.Get(Platform);
+}
 
 void FReadOnlyCVARCache::Initialize()
 {
@@ -100,110 +100,26 @@ void FReadOnlyCVARCache::Initialize()
 	bMobileDeferredShadingValue = MobileDeferredShadingIniValue(GMaxRHIShaderPlatform);
 	bMobileEnableMovableSpotlightsShadowValue = MobileEnableMovableSpotlightsShadowIniValue(GMaxRHIShaderPlatform);
 	bMobileSupportsGPUScene = CVarMobileSupportGPUScene->GetValueOnAnyThread() != 0;
+
+#ifdef PROJECT_CVAR_ALLOW_STATIC_LIGHTING
+	check(!!PROJECT_CVAR_ALLOW_STATIC_LIGHTING == bAllowStaticLighting);
+#endif
+
+#ifdef PROJECT_CVAR_MOBILE_HDR
+	check(!!PROJECT_CVAR_MOBILE_HDR == bMobileHDR);
+#endif
+
+#ifdef PROJECT_CVAR_MOBILE_SUPPORTS_GPUSCENE
+	check(!!PROJECT_CVAR_MOBILE_SUPPORTS_GPUSCENE == bMobileSupportsGPUScene);
+#endif
+
+#ifdef PROJECT_CVAR_MOBILE_FORWARD_LOCALLIGHTS
+	check(PROJECT_CVAR_MOBILE_FORWARD_LOCALLIGHTS == MobileForwardLocalLightsValue);
+#endif
+
+#ifdef PROJECT_CVAR_MOBILE_DEFERRED_SHADING
+	check(!!PROJECT_CVAR_MOBILE_DEFERRED_SHADING == bMobileDeferredShadingValue);
+#endif
 	
 	bInitialized = true;
-}
-
-bool FReadOnlyCVARCache::AllowStaticLighting()
-{
-	checkSlow(bInitialized);
-	return bAllowStaticLighting;
-}
-
-bool FReadOnlyCVARCache::EnableLowQualityLightmaps()
-{
-	return bEnableLowQualityLightmaps;
-}
-
-bool FReadOnlyCVARCache::SupportSkyAtmosphere()
-{
-	return bSupportSkyAtmosphere;
-}
-
-bool FReadOnlyCVARCache::EnablePointLightShadows()
-{
-	return bEnablePointLightShadows;
-}
-
-bool FReadOnlyCVARCache::EnableStationarySkylight()
-{
-	return bEnableStationarySkylight;
-}
-
-bool FReadOnlyCVARCache::MobileHDR()
-{
-	checkSlow(bInitialized);
-	return bMobileHDR;
-}
-
-int32 FReadOnlyCVARCache::MobileSkyLightPermutation()
-{
-	return MobileSkyLightPermutationValue;
-}
-
-bool FReadOnlyCVARCache::MobileEnableNoPrecomputedLightingCSMShader()
-{
-	return bMobileEnableNoPrecomputedLightingCSMShader;
-}
-
-bool FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers()
-{
-	return bMobileEnableStaticAndCSMShadowReceivers;
-}
-
-bool FReadOnlyCVARCache::MobileEnableMovableLightCSMShaderCulling()
-{
-	return bMobileEnableMovableLightCSMShaderCulling;
-}
-
-bool FReadOnlyCVARCache::MobileSupportsGPUScene()
-{
-	checkSlow(bInitialized);
-	return bMobileSupportsGPUScene;
-}
-
-bool FReadOnlyCVARCache::MobileAllowMovableDirectionalLights()
-{
-	return bMobileAllowMovableDirectionalLights;
-}
-
-bool FReadOnlyCVARCache::MobileAllowDistanceFieldShadows()
-{
-	return bMobileAllowDistanceFieldShadows;
-}
-
-int32 FReadOnlyCVARCache::MobileEarlyZPass(EShaderPlatform Platform)
-{
-#if WITH_EDITOR
-	return MobileEarlyZPassIniValue(Platform);
-#else
-	return MobileEarlyZPassValue;
-#endif
-}
-
-int32 FReadOnlyCVARCache::MobileForwardLocalLights(EShaderPlatform Platform)
-{
-#if WITH_EDITOR
-	return MobileForwardLocalLightsIniValue(Platform);
-#else
-	return MobileForwardLocalLightsValue;
-#endif
-}
-
-bool FReadOnlyCVARCache::MobileDeferredShading(EShaderPlatform Platform)
-{
-#if WITH_EDITOR
-	return MobileDeferredShadingIniValue(Platform);
-#else
-	return bMobileDeferredShadingValue;
-#endif
-}
-
-bool FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(EShaderPlatform Platform)
-{
-#if WITH_EDITOR
-	return MobileEnableMovableSpotlightsShadowIniValue(Platform);
-#else
-	return bMobileEnableMovableSpotlightsShadowValue;
-#endif
 }

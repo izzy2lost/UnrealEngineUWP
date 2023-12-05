@@ -41,7 +41,6 @@
 #include "Shadows/ShadowScene.h"
 #include "LineTypes.h"
 #include "SceneCulling/SceneCulling.h"
-#include "ReadOnlyCVARCache.h"
 
 using namespace UE::Geometry;
 
