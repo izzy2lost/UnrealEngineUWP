@@ -133,7 +133,7 @@ struct FReadOnlyCVARCache
 	}
 
 private:
-	static bool bInitialized;
+	RENDERCORE_API static bool bInitialized;
 
 	RENDERCORE_API static bool bAllowStaticLighting;
 	RENDERCORE_API static bool bEnablePointLightShadows;
