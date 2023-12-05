@@ -47,7 +47,7 @@ class UStaticMesh;
 class USkeletalMesh;
 class UStreamableRenderAsset;
 class FSoundSource;
-class FAudioStreamingMemoryCountedFeature;
+class FAudioStreamCacheMemoryHandle;
 struct FWaveInstance;
 struct FRenderAssetStreamingManager;
 
@@ -527,10 +527,6 @@ struct IAudioStreamingManager : public IStreamingManager
 	/** Removes the memory usage of the force inline sound from the streaming cache budget */
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) { };
 
-	virtual void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) { };
-
-	virtual void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) { };
-
 	/** Adds the decoder to the streaming manager to prevent stream chunks from getting reaped from underneath it */
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) = 0;
 
@@ -600,6 +596,7 @@ struct IAudioStreamingManager : public IStreamingManager
 
 protected:
 	friend FAudioChunkHandle;
+	friend FAudioStreamCacheMemoryHandle;
 
 	/** This can be called by implementers of IAudioStreamingManager to construct an FAudioChunkHandle using an otherwise inaccessible constructor. */
 	static FAudioChunkHandle BuildChunkHandle(const uint8* InData, uint32 NumBytes, const FSoundWaveProxyPtr& InSoundWave, const FName& SoundWaveName, uint32 InChunkIndex, uint64 CacheLookupID);
@@ -613,6 +610,17 @@ protected:
 	 * This can be used to decrement reference counted handles to audio chunks. Called by the destructor of FAudioChunkHandle.
 	 */
 	virtual void RemoveReferenceToChunk(const FAudioChunkHandle& InHandle) = 0;
+
+	/**
+     * This can be used to increase the memory count for external features. Called by FAudioStreamCacheMemoryHandle.
+     * The pattern for _changing_ the amount of memory of an already added feature is to first remove and then add again with the new number
+     */
+	virtual void AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) { };
+
+	/**
+	* This can be used to decrease the memory count for external features. Called by FAudioStreamCacheMemoryHandle.
+	*/
+	virtual void RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) { };
 };
 
 /**
@@ -856,47 +864,4 @@ protected:
 	// Locks out any audio streaming manager call when we are re-initializing the audio streaming manager.
 	mutable FCriticalSection AudioStreamingManagerCriticalSection;
 #endif
-};
-
-class ENGINE_API FAudioStreamingMemoryCountedFeature : public TSharedFromThis<FAudioStreamingMemoryCountedFeature>
-{
-public:
-	FAudioStreamingMemoryCountedFeature(FName InFeatureName, uint64 InMemoryUseInBytes)
-	: FeatureName(InFeatureName)
-	, MemoryUseInBytes(InMemoryUseInBytes)
-	{
-		if (MemoryUseInBytes != 0)
-		{
-			IStreamingManager::Get().GetAudioStreamingManager().AddMemoryCountedFeature(*this);
-		}
-	}
-	
-	~FAudioStreamingMemoryCountedFeature()
-	{
-		if (MemoryUseInBytes != 0)
-		{
-			IStreamingManager::Get().GetAudioStreamingManager().RemoveMemoryCountedFeature(*this);
-		}
-	}
-	
-	uint64 GetMemoryUseInBytes() const { return MemoryUseInBytes; } 
-	FName GetFeatureName() const { return FeatureName; }
-
-	void ResetMemoryUseInBytes(uint64 InMemoryUseInBytes)
-	{
-		if (MemoryUseInBytes != 0)
-		{
-			IStreamingManager::Get().GetAudioStreamingManager().RemoveMemoryCountedFeature(*this);
-		}
-		
-		MemoryUseInBytes = InMemoryUseInBytes;
-
-		if (MemoryUseInBytes != 0)
-		{
-			IStreamingManager::Get().GetAudioStreamingManager().AddMemoryCountedFeature(*this);
-		}
-	}
-private:
-	const FName FeatureName;
-	uint64 MemoryUseInBytes;
 };

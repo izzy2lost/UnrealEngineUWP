@@ -5,6 +5,7 @@ AudioStreaming.cpp: Implementation of audio streaming classes.
 =============================================================================*/
 
 #include "AudioStreamingCache.h"
+#include "AudioStreamCacheMemoryHandle.h"
 #include "Async/Async.h"
 #include "Audio.h"
 #include "AudioCompressionSettingsUtils.h"
@@ -443,7 +444,7 @@ void FCachedAudioStreamingManager::RemoveForceInlineSoundWave(const FSoundWavePr
 	}
 }
 
-void FCachedAudioStreamingManager::AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature)
+void FCachedAudioStreamingManager::AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature)
 {
 	// add memory count to the first cache
 	if (ensure(CacheArray.Num() > 0))
@@ -452,7 +453,7 @@ void FCachedAudioStreamingManager::AddMemoryCountedFeature(const FAudioStreaming
 	}
 }
 
-void FCachedAudioStreamingManager::RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature)
+void FCachedAudioStreamingManager::RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature)
 {
 	// remove memory count from the first cache
 	if (ensure(CacheArray.Num() > 0))
@@ -1063,7 +1064,7 @@ void FAudioChunkCache::RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& Soun
 	ForceInlineMemoryCounterBytes -= Data ? Data->GetBulkDataSize() : 0;
 }
 
-void FAudioChunkCache::AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature)
+void FAudioChunkCache::AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature)
 {
 	UE_LOG(LogAudioStreamCaching, Log, TEXT("Adding Memory Counted Feature (%s) Memory Usage: %d bytes"), *Feature.GetFeatureName().ToString(), (int32)Feature.GetMemoryUseInBytes());
 	const uint64 OldMemoryCount = FeatureMemoryCounterBytes.AddExchange(Feature.GetMemoryUseInBytes());
@@ -1085,7 +1086,7 @@ void FAudioChunkCache::AddMemoryCountedFeature(const FAudioStreamingMemoryCounte
 	}
 }
 
-void FAudioChunkCache::RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature)
+void FAudioChunkCache::RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature)
 {
 	UE_LOG(LogAudioStreamCaching, Log, TEXT("Removing Memory Counted Feature (%s) Memory Usage: %d"), *Feature.GetFeatureName().ToString(), (int32)Feature.GetMemoryUseInBytes());
 	checkf(FeatureMemoryCounterBytes.Load() >= Feature.GetMemoryUseInBytes(), TEXT("Count (%lu) < Remove (%lu)"), FeatureMemoryCounterBytes.Load(), Feature.GetMemoryUseInBytes());

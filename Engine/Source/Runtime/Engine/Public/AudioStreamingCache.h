@@ -25,7 +25,7 @@ AudioStreaming.h: Definitions of classes used for audio streaming.
 
 ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogAudioStreamCaching, Display, All);
 
-class FAudioStreamingMemoryCountedFeature;
+class FAudioStreamCacheMemoryHandle;
 
 // Basic fixed-size LRU cache for retaining chunks of compressed audio data.
 class FAudioChunkCache
@@ -131,9 +131,9 @@ public:
 
 	void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr&);
 
-	void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature);
+	void AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature);
 
-	void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature);
+	void RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature);
 
 	// This function will reclaim memory by freeing as many chunks as needed to free BytesToFree.
 	// returns the amount of bytes we were actually able to free.
@@ -528,8 +528,6 @@ public:
 	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
-	virtual void AddMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) override;
-	virtual void RemoveMemoryCountedFeature(const FAudioStreamingMemoryCountedFeature& Feature) override;
 	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
 	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const override;
@@ -555,6 +553,10 @@ protected:
 	// These are used to reference count consumers of audio chunks.
 	virtual void AddReferenceToChunk(const FAudioChunkHandle& InHandle) override;
 	virtual void RemoveReferenceToChunk(const FAudioChunkHandle& InHandle) override;
+
+	// These are used to update the memory count of Memory Counted Features
+	virtual void AddMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) override;
+	virtual void RemoveMemoryCountedFeature(const FAudioStreamCacheMemoryHandle& Feature) override;
 
 	/**
 	 * Returns which cache this sound wave should be in,
