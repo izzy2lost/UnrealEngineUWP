@@ -668,6 +668,7 @@ private:
 	{
 		return (Type)(Value & StencilMask);
 	}
+	friend uint32 GetTypeHash(const FExclusiveDepthStencil& Ds);
 };
 
 //
