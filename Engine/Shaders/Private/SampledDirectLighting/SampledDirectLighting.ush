@@ -9,7 +9,6 @@
 #include "../LightGridCommon.ush"
 
 #define SUPPORT_CONTACT_SHADOWS 0
-#define USE_IES_PROFILE 0
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0
 #include "../DeferredLightingCommon.ush"
 #include "../SceneData.ush"

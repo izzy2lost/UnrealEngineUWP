@@ -68,6 +68,11 @@ float GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorl
 				SurfaceShadow);
 
 			SampleWeight = Luminance(LightRadiance.xyz * View.PreExposure);
+
+			if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
+			{
+				SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+			}
 		}
 		#endif
 	}

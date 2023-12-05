@@ -111,6 +111,12 @@ void ShadeLightSamplesCS(
 						SampleWeight = ShadingTileAtlas[ShadingTileAtlasCoord];
 					}
 
+					if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
+					{
+						// #sdl_todo: evaluate moving this to CompositeLightSamplesCS
+						SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+					}
+
 					#if DEBUG_MODE
 					if (bDebug)
 					{
