@@ -461,8 +461,6 @@ struct FUploadDataSourceAdapterScenePrimitives
 	#if WITH_EDITOR
 		PackedFlags |= Flags.bHasPerInstanceEditorData  ? INSTANCE_SCENE_DATA_FLAG_HAS_EDITOR_DATA         : 0u;
 	#endif
-		// TODO: what is this one for/from?
-		// Flags |= IsRayTracingFarField()          ? INSTANCE_SCENE_DATA_FLAG_IS_RAYTRACING_FAR_FIELD : 0u;
 
 		return PackedFlags;
 	}

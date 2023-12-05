@@ -846,7 +846,8 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.PrimitiveComponentId(GetPrimitiveComponentId().PrimIDValue)
 			.EditorColors(GetWireframeColor(), GetLevelColor())
 			.SplineMesh(IsSplineMesh())
-			.HasPixelAnimation(AnyMaterialHasPixelAnimation());
+			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
+			.RayTracingFarField(IsRayTracingFarField());
 
 		if (PrimitiveSceneInfo != nullptr)
 		{
