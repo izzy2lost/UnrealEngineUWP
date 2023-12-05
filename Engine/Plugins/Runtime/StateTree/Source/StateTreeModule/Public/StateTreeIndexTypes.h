@@ -44,7 +44,7 @@ struct STATETREEMODULE_API FStateTreeIndex16
 		Value = InIndex == INDEX_NONE ? InvalidValue : (uint16)InIndex;
 	}
 
-	/** @retrun value of the index or FStateTreeIndex16::InvalidValue (i.e. MAX_uint16) if invalid. */
+	/** @return value of the index or FStateTreeIndex16::InvalidValue (i.e. MAX_uint16) if invalid. */
 	uint16 Get() const { return Value; }
 	
 	/** @return the index value as int32, mapping invalid value to INDEX_NONE. */
@@ -95,7 +95,7 @@ struct STATETREEMODULE_API FStateTreeIndex8
 		Value = InIndex == INDEX_NONE ? InvalidValue : (uint8)InIndex;
 	}
 
-	/** @retrun value of the index. */
+	/** @return value of the index. */
 	uint8 Get() const { return Value; }
 
 	/** @return the index value as int32, mapping invalid value to INDEX_NONE. */

@@ -959,7 +959,7 @@ struct ZONEGRAPH_API FZoneGraphBuildSettings
 	/** @return tessellation tolerance for specific case, or common tolerance if no match. */
 	float GetLaneTessellationTolerance(const FZoneGraphTagMask LaneTags) const;
 
-	/** @retrun Connection restrictions for specified lane based on PolygonRoutingRules */
+	/** @return Connection restrictions for specified lane based on PolygonRoutingRules */
 	EZoneShapeLaneConnectionRestrictions GetConnectionRestrictions(const FZoneGraphTagMask ZoneTags,
 																   const FZoneLaneProfileRef& SourceLaneProfile, const int32 SourceConnectionCount,
 																   const FZoneLaneProfileRef& DestinationLaneProfile, const int32 DestinationConnectionCount) const;
