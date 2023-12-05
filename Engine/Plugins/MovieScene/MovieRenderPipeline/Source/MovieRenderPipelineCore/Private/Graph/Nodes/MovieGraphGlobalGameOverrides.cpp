@@ -190,7 +190,8 @@ TSubclassOf<AGameModeBase> UMovieGraphGlobalGameOverridesNode::GetGameModeOverri
 		FMovieGraphTraversalContext TraversalContext;
 		TraversalContext.Job = const_cast<UMoviePipelineExecutorJob*>(InJob);
 		
-		if (const UMovieGraphEvaluatedConfig* EvaluatedGraph = GraphConfig->CreateFlattenedGraph(TraversalContext))
+		FString OutTraversalError;
+		if (const UMovieGraphEvaluatedConfig* EvaluatedGraph = GraphConfig->CreateFlattenedGraph(TraversalContext, OutTraversalError))
 		{
 			constexpr bool bIncludeCDOs = true;
 			constexpr bool bExactMatch = true;

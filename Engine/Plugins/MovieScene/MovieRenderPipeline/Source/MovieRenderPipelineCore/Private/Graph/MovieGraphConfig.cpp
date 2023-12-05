@@ -1035,7 +1035,7 @@ void UMovieGraphConfig::GetAllContainedSubgraphs(TSet<UMovieGraphConfig*>& OutSu
 	}
 }
 
-void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory) const
+void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory, TArray<const UMovieGraphConfig*>& VisitedGraphStack) const
 {
 	// If there's no Node, no upstream pin or no downstream pin for whatever reason,
 	// there is no way to continue so we early out
@@ -1051,10 +1051,19 @@ void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovie
 
 	UMovieGraphNode* ConnectedNode = UpstreamGlobalsPin->Node;
 
+	VisitedGraphStack.Push(this);
+
 	// Overrides can be set within Subgraphs
 	if (const UMovieGraphSubgraphNode* SubgraphNode = Cast<UMovieGraphSubgraphNode>(ConnectedNode))
 	{
 		const UMovieGraphConfig* SubgraphConfig = SubgraphNode->GetSubgraphAsset();
+
+		// Stop recursing if circular references are found
+		if (VisitedGraphStack.Contains(SubgraphConfig))
+		{
+			return;
+		}
+		
 		if (SubgraphConfig && OutOutputDirectory.IsEmpty())
 		{
 			const UMovieGraphPin* SubgraphGlobalsPin =
@@ -1062,9 +1071,11 @@ void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovie
 
 			if (SubgraphGlobalsPin && SubgraphGlobalsPin->IsConnected())
 			{
-				SubgraphConfig->RecurseUpGlobalsBranchToFindOutputDirectory(SubgraphGlobalsPin->Node, OutOutputDirectory);
+				SubgraphConfig->RecurseUpGlobalsBranchToFindOutputDirectory(SubgraphGlobalsPin->Node, OutOutputDirectory, VisitedGraphStack);
 			}
 		}
+
+		VisitedGraphStack.Pop();
 	}
 	else if (const UMovieGraphGlobalOutputSettingNode* SettingsNode = Cast<UMovieGraphGlobalOutputSettingNode>(InNode))
 	{
@@ -1077,7 +1088,7 @@ void UMovieGraphConfig::RecurseUpGlobalsBranchToFindOutputDirectory(const UMovie
 	// Keep looking upstream if we haven't found any overrides
 	if (OutOutputDirectory.IsEmpty())
 	{
-		RecurseUpGlobalsBranchToFindOutputDirectory(UpstreamGlobalsPin->Node, OutOutputDirectory);
+		RecurseUpGlobalsBranchToFindOutputDirectory(UpstreamGlobalsPin->Node, OutOutputDirectory, VisitedGraphStack);
 	}
 };
 
@@ -1093,7 +1104,8 @@ void UMovieGraphConfig::GetOutputDirectory(FString& OutOutputDirectory) const
 
 	if (GlobalsPin && GlobalsPin->IsConnected())
 	{
-		RecurseUpGlobalsBranchToFindOutputDirectory(OutputNode, OutOutputDirectory);
+		TArray<const UMovieGraphConfig*> VisitedGraphStack;
+		RecurseUpGlobalsBranchToFindOutputDirectory(OutputNode, OutOutputDirectory, VisitedGraphStack);
 
 		if (OutOutputDirectory.IsEmpty())
 		{
@@ -1271,30 +1283,37 @@ void UMovieGraphConfig::CopyOverriddenProperties(UMovieGraphNode* FromNode, UMov
 	}
 }
 
-void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig,
+bool UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig,
 	FMovieGraphEvaluationContext& InEvaluationContext, UMovieGraphPin* InPinToFollow)
 {
 	if (!InPinToFollow)
 	{
-		return;
+		InEvaluationContext.TraversalError = LOCTEXT("TraversalError_InvalidPin", "Found an invalid pin during graph traversal.");
+		return false;
 	}
 
 	UMovieGraphNode* Node = InPinToFollow->Node;
 	if (!Node)
 	{
-		return;
+		InEvaluationContext.TraversalError = LOCTEXT("TraversalError_InvalidNode", "Found an invalid node during graph traversal.");
+		return false;
 	}
 
 	// We only follow execution pins during traversal.
 	if (!ensureMsgf(InPinToFollow->Properties.bIsBranch, TEXT("Only Branch pins should be contained by InPinToFollow!")))
 	{
-		return;
+		InEvaluationContext.TraversalError = LOCTEXT("TraversalError_NonBranchPin", "Attempting to follow a non-branch pin during graph traversal.");
+		return false;
 	}
 
 	InEvaluationContext.PinBeingFollowed = InPinToFollow;
 
-	// Check to see if our flattened evaluation graph already has a copy of this node.
-	InEvaluationContext.VisitedNodes.Add(Node);
+	// Add this node to the set of visited nodes so it can be checked for cycles later. Get the graph from GetTypedOuter() rather than "this" because
+	// this method will be called recursively, potentially on pins within subgraphs.
+	const UMovieGraphConfig* OwningGraph = InPinToFollow->GetTypedOuter<UMovieGraphConfig>();
+	ensure(OwningGraph);
+	TSet<TObjectPtr<UMovieGraphNode>>& VisitedNodeSet = InEvaluationContext.VisitedNodesByOwningGraph.FindOrAdd(OwningGraph).VisitedNodes;
+	VisitedNodeSet.Add(Node);
 	
 	const bool bShouldIncludeNode =
 		Node->IsA<UMovieGraphSettingNode>() &&
@@ -1337,26 +1356,60 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 	// Now that we've potentially resolved the values on this node, continue to travel up-stream along any execution pins,
 	// potentially following re-route nodes, sub-graph nodes, through branches, etc.
 	TArray<UMovieGraphPin*> NewPinsToFollow = Node->EvaluatePinsToFollow(InEvaluationContext);
+
+	// Immediately stop traversal if a circular subgraph reference was found. This is done after EvaluatePinsToFollow() because
+	// subgraph nodes will set bCircularGraphReferenceFound in EvaluatePinsToFollow().
+	if (InEvaluationContext.bCircularGraphReferenceFound)
+	{
+		// Generate a string illustrating the problematic subgraph stack
+		FString GraphCycleTraversalPath;
+		for (const TObjectPtr<const UMovieGraphSubgraphNode>& SubgraphNode : InEvaluationContext.SubgraphStack)
+		{
+			if (const UMovieGraphConfig* SubgraphAsset = SubgraphNode->GetSubgraphAsset())
+			{
+				GraphCycleTraversalPath += FString::Printf(TEXT("\n%s -> "), *SubgraphAsset->GetName());
+			}
+		}
+
+		InEvaluationContext.TraversalError = FText::Format(
+			LOCTEXT("TraversalError_CircularGraphReference", "Circular subgraph reference found during traversal.{0}"), FText::FromString(GraphCycleTraversalPath));
+		
+		return false;
+	}
 	
 	for (UMovieGraphPin* Pin : NewPinsToFollow)
 	{
 		for (UMovieGraphEdge* Edge : Pin->Edges)
 		{
-			if (UMovieGraphPin* OtherPin = Edge->GetOtherPin(Pin))
+			UMovieGraphPin* OtherPin = Edge->GetOtherPin(Pin);
+			if (!OtherPin)
 			{
-				UMovieGraphNode* OtherNode = OtherPin->Node;
+				continue;
+			}
+			
+			UMovieGraphNode* OtherNode = OtherPin->Node;
 
-				if (InEvaluationContext.VisitedNodes.Contains(OtherNode))
+			// Detect cycles within node connections
+			if (VisitedNodeSet.Contains(OtherNode))
+			{
+				// Generate a string illustrating the problematic node connections
+				FString NodeCycleTraversalPath;
+				for (const TObjectPtr<UMovieGraphNode>& VisitedNode : VisitedNodeSet)
 				{
-					// ToDo: This won't work long term if you have two different branches visiting the same node
-					// also we need to reset this every time we go start from the root.
-					FFrame::KismetExecutionMessage(
-						*FString::Printf(TEXT("%hs: Circular graph?"), __FUNCTION__),
-						ELogVerbosity::Warning);
-					continue;
+					NodeCycleTraversalPath += FString::Printf(TEXT("\n%s -> "), *VisitedNode->GetName());
 				}
+				
+				InEvaluationContext.TraversalError = FText::Format(
+					LOCTEXT("TraversalError_CircularNodeReference", "Node connection cycle found during traversal.{0}"), FText::FromString(NodeCycleTraversalPath));
+				
+				return false;
+			}
 
-				CreateFlattenedGraph_Recursive(InOwningConfig, OutBranchConfig, InEvaluationContext, OtherPin);
+			// If no cycle detected, continue following the pin
+			const bool bSuccess = CreateFlattenedGraph_Recursive(InOwningConfig, OutBranchConfig, InEvaluationContext, OtherPin);
+			if (!bSuccess)
+			{
+				return false;
 			}
 		}
 	}
@@ -1366,6 +1419,8 @@ void UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 	{
 		InEvaluationContext.NodeTypesToRemoveStack.Pop();
 	}
+
+	return true;
 }
 
 void UMovieGraphConfig::VisitUpstreamNodes_Recursive(UMovieGraphNode* FromNode,	const FVisitNodesCallback& VisitCallback, TSet<UMovieGraphNode*>& VisitedNodes) const
@@ -1440,10 +1495,12 @@ void UMovieGraphConfig::VisitDownstreamNodes_Recursive(UMovieGraphNode* FromNode
 	}
 }
 
-UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext)
+UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext, FString& OutError)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(MRQ_CreateFlattenedGraph);
 	LLM_SCOPE_BYNAME(TEXT("MovieGraph/CreateFlattenedGraph"));
+
+	OutError.Empty();
 
 	UMovieGraphEvaluatedConfig* NewContext = NewObject<UMovieGraphEvaluatedConfig>(this);
 
@@ -1475,7 +1532,13 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 				UMovieGraphPin* OtherPin = Edge->GetOtherPin(InputPin);
 				if (OtherPin)
 				{
-					CreateFlattenedGraph_Recursive(NewContext, /*InOut*/ BranchConfig, StackContext, OtherPin);
+					const bool bTraversalSuccessful = CreateFlattenedGraph_Recursive(NewContext, /*InOut*/ BranchConfig, StackContext, OtherPin);
+					if (!bTraversalSuccessful)
+					{
+						UE_LOG(LogMovieRenderPipeline, Error, TEXT("%s"), *StackContext.TraversalError.ToString());
+						OutError = StackContext.TraversalError.ToString();
+						return nullptr;
+					}
 				}
 			}
 
@@ -1493,7 +1556,13 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 					UMovieGraphPin* OtherPin = Edge->GetOtherPin(GlobalsPin);
 					if (OtherPin)
 					{
-						CreateFlattenedGraph_Recursive(NewContext, /*InOut*/ BranchConfig, GlobalStackContext, OtherPin);
+						const bool bTraversalSuccessful = CreateFlattenedGraph_Recursive(NewContext, /*InOut*/ BranchConfig, GlobalStackContext, OtherPin);
+						if (!bTraversalSuccessful)
+						{
+							UE_LOG(LogMovieRenderPipeline, Error, TEXT("%s"), *StackContext.TraversalError.ToString());
+							OutError = StackContext.TraversalError.ToString();
+                            return nullptr;
+						}
 					}
 				}
 			}

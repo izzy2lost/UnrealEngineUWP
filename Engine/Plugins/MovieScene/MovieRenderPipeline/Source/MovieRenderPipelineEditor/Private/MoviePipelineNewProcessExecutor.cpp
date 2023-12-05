@@ -106,7 +106,12 @@ void UMoviePipelineNewProcessExecutor::Execute_Implementation(UMoviePipelineQueu
 			FMovieGraphTraversalContext TraversalContext;
 			TraversalContext.Job = Job;
 
-			UMovieGraphEvaluatedConfig* EvaluatedGraph = GraphConfig->CreateFlattenedGraph(TraversalContext);
+			FString OutTraversalError;
+			UMovieGraphEvaluatedConfig* EvaluatedGraph = GraphConfig->CreateFlattenedGraph(TraversalContext, OutTraversalError);
+			if (!OutTraversalError.IsEmpty())
+			{
+				return;
+			}
 
 			// Only nodes on the Globals branch can apply command line args. Get CDOs here as well, so all nodes which define command line args
 			// will be found, even if they were not instantiated in the graph.

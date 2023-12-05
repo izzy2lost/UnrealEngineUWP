@@ -2,8 +2,14 @@
 
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 
+#include "MovieRenderPipelineCoreModule.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
+
+#if WITH_EDITOR
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "MovieGraphNode"
 
@@ -91,6 +97,18 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 		return PinsToFollow;
 	}
 
+	// If this subgraph has already been visited, throw a circular graph reference error
+	if (InContext.SubgraphStack.Contains(this))
+	{
+		InContext.bCircularGraphReferenceFound = true;
+
+		// Normally there shouldn't be two identical graphs in the stack (cycle!), but for the purposes of error reporting, include this graph
+		// as the last in the stack so the cycle is clear
+		InContext.SubgraphStack.Add(this);
+		
+		return PinsToFollow;
+	}
+
 	// Find the input pin on the subgraph asset's outputs node that corresponds to the pin being followed
 	//
 	// Subgraph
@@ -125,6 +143,27 @@ TArray<UMovieGraphPin*> UMovieGraphSubgraphNode::EvaluatePinsToFollow(FMovieGrap
 void UMovieGraphSubgraphNode::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	// Prevent circular subgraph references. This won't catch everything, but it will at least catch the common case interactively. Other cases will
+	// be caught when the graph is fully evaluated.
+	if (GetTypedOuter<UMovieGraphConfig>() == SubgraphAsset)
+	{
+		SubgraphAsset = nullptr;
+
+#if WITH_EDITOR
+		FNotificationInfo Info(LOCTEXT("CircularGraphAssignmentWarning", "Assigning the subgraph to the provided asset would cause a circular reference."));
+		Info.ExpireDuration = 3.0f;
+		Info.bUseLargeFont = false;
+		Info.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
+		const TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info);
+		if (Notification.IsValid())
+		{
+			Notification->SetCompletionState(SNotificationItem::CS_None);
+		}
+#endif
+
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Found a circular reference when assigning the asset to the subgraph. Reverting."));
+	}
 
 	// Update pins when the subgraph asset is changed
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UMovieGraphSubgraphNode, SubgraphAsset))

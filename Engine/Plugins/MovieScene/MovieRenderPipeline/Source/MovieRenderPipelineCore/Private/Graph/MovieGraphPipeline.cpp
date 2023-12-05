@@ -303,7 +303,16 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		FMovieGraphTimeStepData TimeContext;
 		CurrentContext.Time = TimeContext;
 
-		TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CurrentContext.RootGraph->CreateFlattenedGraph(CurrentContext);
+		FString OutError;
+		TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CurrentContext.RootGraph->CreateFlattenedGraph(CurrentContext, OutError);
+
+		// Shut down if there was an error when generating the evaluated graph
+		if (!OutError.IsEmpty())
+		{
+			constexpr bool bIsError = true;
+			Shutdown(bIsError);
+			return;
+		}
 		
 		// Create the time step instance for this shot. The time step method cannot vary per branch or per frame, so it
 		// is fetched from the Globals branch. This is the earliest point in the pipeline where the evaluated graph is

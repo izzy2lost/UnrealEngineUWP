@@ -354,6 +354,18 @@ private:
 	TMap<FString, FMovieGraphEvaluatedSettingsStack> NamedNodes;
 };
 
+// Note: This struct exists purely as a workaround for UHT throwing an error when putting a TSet in a TArray.
+/** Information on visited nodes found during traversal. */
+USTRUCT()
+struct FMovieGraphEvaluationContext_VisitedNodeInfo
+{
+	GENERATED_BODY()
+	
+	/** The nodes that were visited during traversal. */
+	UPROPERTY()
+	TSet<TObjectPtr<UMovieGraphNode>> VisitedNodes;
+};
+
 /**
 * This stores short-term information needed during traversal of the graph
 * such as disabled nodes, already visited nodes, etc. This information is
@@ -373,10 +385,10 @@ public:
 	FMovieGraphTraversalContext UserContext;
 
 	/**
-	* A list of nodes that have been visited. Used for cycle detection right now.
+	* A list of nodes that have been visited, where the key is the graph where the node was found. Used for cycle detection right now.
 	*/
 	UPROPERTY()
-	TSet<TObjectPtr<UMovieGraphNode>> VisitedNodes;
+	TMap<const UMovieGraphConfig*, FMovieGraphEvaluationContext_VisitedNodeInfo> VisitedNodesByOwningGraph;
 
 	/**
 	* The pin that is currently being followed in the traversal process.
@@ -390,6 +402,18 @@ public:
 	*/
 	UPROPERTY()
 	TArray<TObjectPtr<const UMovieGraphSubgraphNode>> SubgraphStack;
+
+	/**
+	 * Whether a circular graph reference was found during traversal.
+	 */
+	UPROPERTY()
+	bool bCircularGraphReferenceFound = false;
+
+	/*
+	 * The error that was generated during traversal. A non-empty string implies that the traversal did not complete successfully.
+	 */
+	UPROPERTY()
+	FText TraversalError;
 
 	/**
 	 * The stack of node types (exact match) that should be removed from the graph while it is being traversed. Each node
@@ -603,9 +627,12 @@ public:
 	void SetEditorOnlyNodes(const TArray<TObjectPtr<const UObject>>& InNodes);
 #endif
 
-	/** Given a user-defined evaluation context, evaluate the graph and build a "flattened" list of settings for each branch discovered. */
+	/**
+	 * Given a user-defined evaluation context, evaluate the graph and build a "flattened" list of settings for each branch discovered.
+	 * If there was an error while evaluating the graph, nullptr will be returned and OutError will be populated with a description of the problem.
+	 */
 	UFUNCTION(BlueprintCallable, Category="Experimental")
-	UMovieGraphEvaluatedConfig* CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext);
+	UMovieGraphEvaluatedConfig* CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext, FString& OutError);
 
 	/** Given a class and FProperty that belongs to that class, search for a FBoolProperty that matches the name "bOverride_<name of InRealProperty>. */
 	static FBoolProperty* FindOverridePropertyForRealProperty(UClass* InClass, const FProperty* InRealProperty);
@@ -644,9 +671,8 @@ public:
 	void GetOutputDirectory(FString& OutOutputDirectory) const;
 
 protected:
-
 	/** Look for the output directory in the UMovieGraphOutputSettings nodes found upstream of InNode. */
-	void RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory) const;
+	void RecurseUpGlobalsBranchToFindOutputDirectory(const UMovieGraphNode* InNode, FString& OutOutputDirectory, TArray<const UMovieGraphConfig*>& VisitedGraphStack) const;
 	
 	/** Copies properties in FromNode that are marked for override into ToNode, but only if ToNode doesn't already override that value. */
 	void CopyOverriddenProperties(UMovieGraphNode* FromNode, UMovieGraphNode* ToNode, const FMovieGraphTraversalContext* InContext);
@@ -654,8 +680,11 @@ protected:
 	/** Find all "Overrideable" marked properties, then find their edit condition properties, then set those to false. */
 	void InitializeFlattenedNode(UMovieGraphNode* InNode);
 
-	/** Traverse the graph, generating a combined "flatten" graph as it goes. */
-	void CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig,
+	/**
+	 * Traverse the graph, generating a combined "flatten" graph as it goes. Returns false if there was an issue (and the evaluation context will be
+	 * updated with more details regarding the failure).
+	 */
+	bool CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfig* InOwningConfig, FMovieGraphEvaluatedBranchConfig& OutBranchConfig,
 		FMovieGraphEvaluationContext& InEvaluationContext, UMovieGraphPin* InPinToFollow);
 
 	/** Recursive helper for VisitUpstreamNodes(). */

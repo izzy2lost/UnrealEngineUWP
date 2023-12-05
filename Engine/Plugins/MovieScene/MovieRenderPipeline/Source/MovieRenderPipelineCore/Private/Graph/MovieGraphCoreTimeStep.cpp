@@ -67,7 +67,8 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		// Update global variables before evaluating the graph
 		Context.RootGraph->UpdateGlobalVariableValues(GetOwningGraph());
 
-		CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Context.RootGraph->CreateFlattenedGraph(Context));
+		FString OutError;
+		CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Context.RootGraph->CreateFlattenedGraph(Context, OutError));
 		CurrentFrameData.TemporalSampleCount = GetTemporalSampleCount();
 		UpdateFrameMetrics();
 
@@ -182,8 +183,9 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		FMovieGraphTraversalContext Context = GetOwningGraph()->GetCurrentTraversalContext();
 
 		// Update global variables before evaluating the graph
+		FString OutError;
 		Context.RootGraph->UpdateGlobalVariableValues(GetOwningGraph());
-		CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Context.RootGraph->CreateFlattenedGraph(Context));
+		CurrentFrameData.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(Context.RootGraph->CreateFlattenedGraph(Context, OutError));
 
 		// The temporal sample count can change every frame due to graph evaluations, so when we're on our first temporal
 		// sub-sample of the new frame, we need to re-fetch the value. 
