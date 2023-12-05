@@ -904,6 +904,11 @@ public:
 	struct FEditorAudioBulkData
 	{
 		UE::Serialization::FEditorBulkData RawData;
+
+		// The container soundwave for this raw data. This must be non-null for any non-metadata instances.
+		// We need this in order to parse the multichannel layout of the raw data - and we also use this 
+		// in place of the BulkData Owner parameter in many places because many call sites pass null incorrectly,
+		// resulting in the bulk data not being correlated with our asset.
 		USoundWave* SoundWave;
 
 		FEditorAudioBulkData()
@@ -927,6 +932,7 @@ public:
 		// Deprecated unused API forwarding for potential backwards compatability issues.
 		// As the raw data needs to be converted before use or storage, always access it via the above functions.
 		//
+#pragma region Deprecated Pass Thru
 		UE_DEPRECATED(5.4, "CreateLegacyUniqueIdentifier is provided just for API backwards compatibility.")
 		void CreateLegacyUniqueIdentifier(UObject* Owner)
 		{
@@ -1042,6 +1048,7 @@ public:
 		{
 			RawData.UpdateRegistrationOwner(Owner);
 		}
+#pragma endregion
 	} RawData;
 
 	/** Waveform edits to be applied to this SoundWave on cook (editing transformations will trigger a cook) */
