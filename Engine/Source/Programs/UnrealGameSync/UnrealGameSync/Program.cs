@@ -115,11 +115,8 @@ namespace UnrealGameSync
 
 		static async Task InnerMainAsync(Mutex instanceMutex, EventWaitHandle activateEvent, string[] args)
 		{
-			string? serverAndPort = null;
-			string? userName = null;
-			string? baseUpdatePath = null;
-			bool previewSetting = false;
-			GlobalPerforceSettings.ReadGlobalPerforceSettings(ref serverAndPort, ref userName, ref baseUpdatePath, ref previewSetting);
+			LauncherSettings launcherSettings = new LauncherSettings();
+			launcherSettings.Read();
 
 			List<string> remainingArgs = new List<string>(args);
 
@@ -198,18 +195,18 @@ namespace UnrealGameSync
 					string sessionId = Guid.NewGuid().ToString();
 					logger.LogInformation("SessionId: {SessionId}", sessionId);
 
-					if (serverAndPort == null || userName == null)
+					if (launcherSettings.PerforceServerAndPort == null || launcherSettings.PerforceUserName == null)
 					{
 						logger.LogInformation("Missing server settings; finding defaults.");
-						serverAndPort ??= PerforceSettings.Default.ServerAndPort;
-						userName ??= PerforceSettings.Default.UserName;
-						GlobalPerforceSettings.SaveGlobalPerforceSettings(serverAndPort, userName, baseUpdatePath, previewSetting);
+						launcherSettings.PerforceServerAndPort ??= PerforceSettings.Default.ServerAndPort;
+						launcherSettings.PerforceUserName ??= PerforceSettings.Default.UserName;
+						launcherSettings.Save();
 					}
 
 					ILogger telemetryLogger = loggerProvider.CreateLogger("Telemetry");
 					telemetryLogger.LogInformation("Creating telemetry sink for session {SessionId}", sessionId);
 
-					using (ITelemetrySink telemetrySink = CreateTelemetrySink(userName, sessionId, telemetryLogger))
+					using (ITelemetrySink telemetrySink = CreateTelemetrySink(launcherSettings.PerforceUserName, sessionId, telemetryLogger))
 					{
 						ITelemetrySink? prevTelemetrySink = Telemetry.ActiveSink;
 						try
@@ -220,7 +217,7 @@ namespace UnrealGameSync
 
 							AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-							IPerforceSettings defaultSettings = new PerforceSettings(serverAndPort, userName) { PreferNativeClient = true };
+							IPerforceSettings defaultSettings = new PerforceSettings(launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName) { PreferNativeClient = true };
 
 							ProtocolHandlerUtils.InstallQuiet(logger);
 

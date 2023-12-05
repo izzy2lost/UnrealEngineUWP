@@ -60,36 +60,37 @@ namespace UnrealGameSyncLauncher
 		private void ConnectBtn_Click(object sender, EventArgs e)
 		{
 			// Update the settings
-			string? serverAndPort = ServerTextBox.Text.Trim();
-			if(serverAndPort.Length == 0)
+			LauncherSettings launcherSettings = new LauncherSettings();
+
+			launcherSettings.PerforceServerAndPort = ServerTextBox.Text.Trim();
+			if(launcherSettings.PerforceServerAndPort.Length == 0)
 			{
-				serverAndPort = null;
+				launcherSettings.PerforceServerAndPort = null;
 			}
 
-			string? userName = UserNameTextBox.Text.Trim();
-			if(userName.Length == 0)
+			launcherSettings.PerforceUserName = UserNameTextBox.Text.Trim();
+			if(launcherSettings.PerforceUserName.Length == 0)
 			{
-				userName = null;
+				launcherSettings.PerforceUserName = null;
 			}
 
-			string? depotPath = DepotPathTextBox.Text.Trim();
-			if(depotPath.Length == 0)
+			launcherSettings.PerforceDepotPath = DepotPathTextBox.Text.Trim();
+			if(launcherSettings.PerforceDepotPath.Length == 0)
 			{
-				depotPath = null;
+				launcherSettings.PerforceDepotPath = null;
 			}
 
-			bool preview = UsePreviewBuildCheckBox.Checked;
-
-			GlobalPerforceSettings.SaveGlobalPerforceSettings(serverAndPort, userName, depotPath, preview);
+			launcherSettings.PreviewBuild = UsePreviewBuildCheckBox.Checked;
+			launcherSettings.Save();
 
 			PerforceSettings perforceSettings = new PerforceSettings(PerforceSettings.Default);
-			if (!String.IsNullOrEmpty(serverAndPort))
+			if (!String.IsNullOrEmpty(launcherSettings.PerforceServerAndPort))
 			{
-				perforceSettings.ServerAndPort = serverAndPort;
+				perforceSettings.ServerAndPort = launcherSettings.PerforceServerAndPort;
 			}
-			if (!String.IsNullOrEmpty(userName))
+			if (!String.IsNullOrEmpty(launcherSettings.PerforceUserName))
 			{
-				perforceSettings.UserName = userName;
+				perforceSettings.UserName = launcherSettings.PerforceUserName;
 			}
 			perforceSettings.PreferNativeClient = true;
 
@@ -97,12 +98,12 @@ namespace UnrealGameSyncLauncher
 			CaptureLogger logger = new CaptureLogger();
 
 			// Create the task for connecting to this server
-			ModalTask? task = PerforceModalTask.Execute(this, "Updating", "Checking for updates, please wait...", perforceSettings, (p, c) => _syncAndRun(p, depotPath, preview, logger, c), logger);
+			ModalTask? task = PerforceModalTask.Execute(this, "Updating", "Checking for updates, please wait...", perforceSettings, (p, c) => _syncAndRun(p, launcherSettings.PerforceDepotPath, launcherSettings.PreviewBuild, logger, c), logger);
 			if (task != null)
 			{
 				if(task.Succeeded)
 				{
-					GlobalPerforceSettings.SaveGlobalPerforceSettings(serverAndPort, userName, depotPath, preview);
+					launcherSettings.Save();
 					DialogResult = DialogResult.OK;
 					Close();
 				}

@@ -44,17 +44,16 @@ namespace UnrealGameSyncLauncher
 				bool preview = args.Contains("-unstable", StringComparer.InvariantCultureIgnoreCase) || args.Contains("-preview", StringComparer.InvariantCultureIgnoreCase);
 
 				// Read the settings
-				string? serverAndPort = null;
-				string? userName = null;
-				string? depotPath = DeploymentSettings.Instance.DefaultDepotPath;
-				GlobalPerforceSettings.ReadGlobalPerforceSettings(ref serverAndPort, ref userName, ref depotPath, ref preview);
+				LauncherSettings launcherSettings = new LauncherSettings();
+				launcherSettings.PerforceDepotPath = DeploymentSettings.Instance.DefaultDepotPath;
+				launcherSettings.Read();
 
 				// If the shift key is held down, immediately show the settings window
 				Task SyncAndRunWrapper(IPerforceConnection perforce, string? depotPath, bool preview, ILogger logWriter, CancellationToken cancellationToken) => SyncAndRun(perforce, depotPath, preview, args, instanceMutex, logWriter, cancellationToken);
 				if ((Control.ModifierKeys & Keys.Shift) != 0)
 				{
 					// Show the settings window immediately
-					using SettingsWindow updateError = new SettingsWindow(null, null, serverAndPort, userName, depotPath, preview, SyncAndRunWrapper);
+					using SettingsWindow updateError = new SettingsWindow(null, null, launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName, launcherSettings.PerforceDepotPath, preview, SyncAndRunWrapper);
 					if(updateError.ShowDialog() == DialogResult.OK)
 					{
 						return 0;
@@ -65,9 +64,9 @@ namespace UnrealGameSyncLauncher
 					// Try to do a sync with the current settings first
 					CaptureLogger logger = new CaptureLogger();
 
-					IPerforceSettings settings = new PerforceSettings(PerforceSettings.Default) { PreferNativeClient = true }.MergeWith(newServerAndPort: serverAndPort, newUserName: userName);
+					IPerforceSettings settings = new PerforceSettings(PerforceSettings.Default) { PreferNativeClient = true }.MergeWith(newServerAndPort: launcherSettings.PerforceServerAndPort, newUserName: launcherSettings.PerforceUserName);
 
-					ModalTask? task = PerforceModalTask.Execute(null, "Updating", "Checking for updates, please wait...", settings, (p, c) => SyncAndRun(p, depotPath, preview, args, instanceMutex, logger, c), logger);
+					ModalTask? task = PerforceModalTask.Execute(null, "Updating", "Checking for updates, please wait...", settings, (p, c) => SyncAndRun(p, launcherSettings.PerforceDepotPath, preview, args, instanceMutex, logger, c), logger);
 					if (task == null)
 					{
 						logger.LogInformation("Canceled by user");
@@ -77,7 +76,7 @@ namespace UnrealGameSyncLauncher
 						return 0;
 					}
 
-					using SettingsWindow updateError = new SettingsWindow("Unable to update UnrealGameSync from Perforce. Verify that your connection settings are correct.", logger.Render(Environment.NewLine), serverAndPort, userName, depotPath, preview, SyncAndRunWrapper);
+					using SettingsWindow updateError = new SettingsWindow("Unable to update UnrealGameSync from Perforce. Verify that your connection settings are correct.", logger.Render(Environment.NewLine), launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName, launcherSettings.PerforceDepotPath, preview, SyncAndRunWrapper);
 					if(updateError.ShowDialog() == DialogResult.OK)
 					{
 						return 0;
@@ -144,7 +143,7 @@ namespace UnrealGameSyncLauncher
 						{
 							throw new UserErrorException($"Couldn't delete contents of {applicationFolder} (retried {numRetries} times).");
 						}
-						Thread.Sleep(500);
+						await Task.Delay(500, cancellationToken);
 					}
 
 					// Find all the files in the sync path at this changelist
@@ -251,7 +250,7 @@ namespace UnrealGameSyncLauncher
 
 		static string QuoteArgument(string arg)
 		{
-			if(arg.IndexOf(' ', StringComparison.Ordinal) != -1 && !arg.StartsWith("\"", StringComparison.Ordinal))
+			if(arg.Contains(' ', StringComparison.Ordinal) && !arg.StartsWith("\"", StringComparison.Ordinal))
 			{
 				return String.Format("\"{0}\"", arg);
 			}

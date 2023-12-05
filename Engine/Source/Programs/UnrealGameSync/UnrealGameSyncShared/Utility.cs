@@ -5,6 +5,7 @@ using EpicGames.Perforce;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,6 +14,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -892,6 +894,34 @@ namespace UnrealGameSync
 			startInfo.FileName = url;
 			startInfo.UseShellExecute = true;
 			using Process? _ = Process.Start(startInfo);
+		}
+
+		[SupportedOSPlatform("windows")]
+		public static void DeleteRegistryKey(RegistryKey rootKey, string keyName, string valueName)
+		{
+			using (RegistryKey? key = rootKey.OpenSubKey(keyName, true))
+			{
+				if (key != null)
+				{
+					DeleteRegistryKey(key, valueName);
+				}
+			}
+		}
+
+		[SupportedOSPlatform("windows")]
+		public static void DeleteRegistryKey(RegistryKey key, string name)
+		{
+			string[] valueNames = key.GetValueNames();
+			if (valueNames.Any(x => String.Equals(x, name, StringComparison.OrdinalIgnoreCase)))
+			{
+				try
+				{
+					key.DeleteValue(name);
+				}
+				catch
+				{
+				}
+			}
 		}
 	}
 }

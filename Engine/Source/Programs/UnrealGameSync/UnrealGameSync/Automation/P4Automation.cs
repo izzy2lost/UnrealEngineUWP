@@ -14,14 +14,10 @@ namespace UnrealGameSync
 		public static IPerforceSettings GetConnectionSettings()
 		{
 			// Read the settings
-			string? serverAndPort = null;
-			string? userName = null;
-			string? depotPathSettings = null;
-			bool preview = false;
+			LauncherSettings launcherSettings = new LauncherSettings();
+			launcherSettings.Read();
 
-			GlobalPerforceSettings.ReadGlobalPerforceSettings(ref serverAndPort, ref userName, ref depotPathSettings, ref preview);
-
-			return Utility.OverridePerforceSettings(PerforceSettings.Default, serverAndPort, userName);
+			return Utility.OverridePerforceSettings(PerforceSettings.Default, launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName);
 		}
 
 		public static Task<string> PrintToTempFile(IPerforceConnection? connection, string depotPath, ILogger logger)

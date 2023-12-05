@@ -38,9 +38,6 @@
     <Compile Include="..\UnrealGameSync\PerforceModalTask.cs">
       <Link>UnrealGameSync\PerforceModalTask.cs</Link>
     </Compile>
-    <Compile Include="..\UnrealGameSync\GlobalSettings.cs">
-      <Link>UnrealGameSync\GlobalSettings.cs</Link>
-    </Compile>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />

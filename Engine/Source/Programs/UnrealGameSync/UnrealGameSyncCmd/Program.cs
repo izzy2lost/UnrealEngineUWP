@@ -1076,7 +1076,7 @@ namespace UnrealGameSyncCmd
 
 		class ConfigCommand : Command
 		{
-			public override Task ExecuteAsync(CommandContext context)
+			public override async Task ExecuteAsync(CommandContext context)
 			{
 				ILogger logger = context.Logger;
 
@@ -1090,7 +1090,7 @@ namespace UnrealGameSyncCmd
 					{
 						if (editor != null)
 						{
-							editor.WaitForExit();
+							await editor.WaitForExitAsync();
 						}
 					}
 				}
@@ -1105,8 +1105,6 @@ namespace UnrealGameSyncCmd
 
 					logger.LogInformation("Updated {ConfigFile}", settings.ConfigFile);
 				}
-				
-				return Task.CompletedTask;
 			}
 		}
 

@@ -95,8 +95,13 @@ namespace UnrealGameSync
 			_toolUpdateMonitor = toolUpdateMonitor;
 			_logger = logger;
 
-			GlobalPerforceSettings.ReadGlobalPerforceSettings(ref _initialServerAndPort, ref _initialUserName, ref _initialDepotPath, ref preview);
-			_initialPreview = preview;
+			LauncherSettings launcherSettings = new LauncherSettings();
+			launcherSettings.Read();
+
+			_initialServerAndPort = launcherSettings.PerforceServerAndPort;
+			_initialUserName = launcherSettings.PerforceUserName;
+			_initialDepotPath = launcherSettings.PerforceDepotPath;
+			_initialPreview = launcherSettings.PreviewBuild;
 
 			_initialAutomationPortNumber = AutomationServer.GetPortNumber();
 			_initialProtocolHandlerState = ProtocolHandlerUtils.GetState();
@@ -211,25 +216,27 @@ namespace UnrealGameSync
 		private void OkBtn_Click(object sender, EventArgs e)
 		{
 			// Update the settings
-			string? serverAndPort = ServerTextBox.Text.Trim();
-			if (serverAndPort.Length == 0)
+			LauncherSettings launcherSettings = new LauncherSettings();
+
+			launcherSettings.PerforceServerAndPort = ServerTextBox.Text.Trim();
+			if (launcherSettings.PerforceServerAndPort.Length == 0)
 			{
-				serverAndPort = null;
+				launcherSettings.PerforceServerAndPort = null;
 			}
 
-			string? userName = UserNameTextBox.Text.Trim();
-			if (userName.Length == 0)
+			launcherSettings.PerforceUserName = UserNameTextBox.Text.Trim();
+			if (launcherSettings.PerforceUserName.Length == 0)
 			{
-				userName = null;
+				launcherSettings.PerforceUserName = null;
 			}
 
-			string? depotPath = DepotPathTextBox.Text.Trim();
-			if (depotPath.Length == 0 || depotPath == DeploymentSettings.Instance.DefaultDepotPath)
+			launcherSettings.PerforceDepotPath = DepotPathTextBox.Text.Trim();
+			if (launcherSettings.PerforceDepotPath.Length == 0 || launcherSettings.PerforceDepotPath == DeploymentSettings.Instance.DefaultDepotPath)
 			{
-				depotPath = null;
+				launcherSettings.PerforceDepotPath = null;
 			}
 
-			bool preview = UsePreviewBuildCheckBox.Checked;
+			launcherSettings.PreviewBuild = UsePreviewBuildCheckBox.Checked;
 
 			int automationPortNumber;
 			if (!EnableAutomationCheckBox.Checked || !Int32.TryParse(AutomationPortTextBox.Text, out automationPortNumber))
@@ -237,14 +244,14 @@ namespace UnrealGameSync
 				automationPortNumber = -1;
 			}
 
-			if (serverAndPort != _initialServerAndPort || userName != _initialUserName || depotPath != _initialDepotPath || preview != _initialPreview || automationPortNumber != _initialAutomationPortNumber)
+			if (launcherSettings.PerforceServerAndPort != _initialServerAndPort || launcherSettings.PerforceUserName != _initialUserName || launcherSettings.PerforceDepotPath != _initialDepotPath || launcherSettings.PreviewBuild != _initialPreview || automationPortNumber != _initialAutomationPortNumber)
 			{
 				// Try to log in to the new server, and check the application is there
-				if (serverAndPort != _initialServerAndPort || userName != _initialUserName || depotPath != _initialDepotPath)
+				if (launcherSettings.PerforceServerAndPort != _initialServerAndPort || launcherSettings.PerforceUserName != _initialUserName || launcherSettings.PerforceDepotPath != _initialDepotPath)
 				{
-					PerforceSettings settings = Utility.OverridePerforceSettings(_defaultPerforceSettings, serverAndPort, userName);
+					PerforceSettings settings = Utility.OverridePerforceSettings(_defaultPerforceSettings, launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName);
 
-					string? testDepotPath = depotPath ?? DeploymentSettings.Instance.DefaultDepotPath;
+					string? testDepotPath = launcherSettings.PerforceDepotPath ?? DeploymentSettings.Instance.DefaultDepotPath;
 					if (testDepotPath != null)
 					{
 						ModalTask? task = PerforceModalTask.Execute(this, "Checking connection", "Checking connection, please wait...", settings, (p, c) => PerforceTestConnectionTask.RunAsync(p, testDepotPath, c), _logger);
@@ -261,7 +268,7 @@ namespace UnrealGameSync
 				}
 
 				_restartPreview = UsePreviewBuildCheckBox.Checked;
-				GlobalPerforceSettings.SaveGlobalPerforceSettings(serverAndPort, userName, depotPath, preview);
+				launcherSettings.Save();
 				AutomationServer.SetPortNumber(automationPortNumber);
 			}
 
