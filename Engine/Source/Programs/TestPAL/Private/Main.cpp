@@ -1439,8 +1439,7 @@ namespace
 		}
 	}
 
-#pragma warning(push)
-#pragma warning(disable:4702)
+	PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
 	void FORCENOINLINE LabelGoto()
 	{
 		goto end;
@@ -1453,7 +1452,7 @@ namespace
 end:
 		ensure(false);
 	}
-#pragma warning(pop)
+	PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
 
 	void FORCEINLINE inline_three_ensures()
 	{

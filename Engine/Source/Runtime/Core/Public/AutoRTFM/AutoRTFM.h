@@ -240,8 +240,7 @@ UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg)
 #if UE_AUTORTFM
 [[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*work)(void* arg), void* arg);
 #else
-#pragma warning(push)
-#pragma warning(disable:4702)
+PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
 [[nodiscard]] UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*work)(void* arg), void* arg)
 {
 	UE_AUTORTFM_UNUSED(work);
@@ -249,7 +248,7 @@ UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg)
     abort();
 	return autortfm_status_aborted_by_language;
 }
-#pragma warning(pop)
+PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
 #endif
 
 // Records the pointer and size from the open into the current transaction

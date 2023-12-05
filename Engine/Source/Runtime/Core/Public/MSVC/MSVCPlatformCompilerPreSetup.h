@@ -66,6 +66,17 @@
 			__pragma(warning(pop))
 	#endif // PRAGMA_ENABLE_SHADOW_VARIABLE_WARNINGS
 
+	#ifndef PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
+		#define PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS \
+			__pragma (warning(push)) \
+			__pragma (warning(disable: 4702)) /* unreachable code */
+	#endif // PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
+	
+	#ifndef PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
+		#define PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS \
+			__pragma (warning(pop))
+	#endif // PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS
+
 	#ifndef PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 		#define PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS \
 			__pragma (warning(push)) \
@@ -195,7 +206,6 @@
 			__pragma(warning(disable: 4125))  /* decimal digit terminates octal escape sequence. */ \
 			__pragma(warning(disable: 4510))  /* '<class>': default constructor could not be generated. */ \
 			__pragma(warning(disable: 4610))  /* object '<class>' can never be instantiated - user-defined constructor required. */ \
-			__pragma(warning(disable: 4702))  /* unreachable code. */ \
 			__pragma(warning(disable: 4800))  /* Implicit conversion from '<type>' to bool. Possible information loss. */ \
 			__pragma(warning(disable: 4946))  /* reinterpret_cast used between related classes: '<class1>' and '<class2>' */ \
 			__pragma(warning(disable: 4996))  /* '<obj>' was declared deprecated. */ \
@@ -218,11 +228,13 @@
 			PRAGMA_DISABLE_SHADOW_VARIABLE_WARNINGS \
 			PRAGMA_DISABLE_MISSING_VIRTUAL_DESTRUCTOR_WARNINGS \
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-			PRAGMA_DISABLE_UNINITIALIZED_CONST_REFERENCE_WARNINGS
+			PRAGMA_DISABLE_UNINITIALIZED_CONST_REFERENCE_WARNINGS \
+			PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
 	#endif // THIRD_PARTY_INCLUDES_START
 
 	#ifndef UE_COMPILER_THIRD_PARTY_INCLUDES_END
 		#define UE_COMPILER_THIRD_PARTY_INCLUDES_END \
+			PRAGMA_RESTORE_UNREACHABLE_CODE_WARNINGS \
 			PRAGMA_ENABLE_UNINITIALIZED_CONST_REFERENCE_WARNINGS \
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 			PRAGMA_ENABLE_MISSING_VIRTUAL_DESTRUCTOR_WARNINGS \

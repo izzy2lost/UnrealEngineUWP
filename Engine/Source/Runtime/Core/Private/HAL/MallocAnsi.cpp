@@ -243,8 +243,6 @@ bool FMallocAnsi::ValidateHeap()
 	check(Result != _HEAPBADPTR);
 	check(Result != _HEAPEMPTY);
 	check(Result == _HEAPOK);
-#else
-	return true;
 #endif
 	return true;
 }
