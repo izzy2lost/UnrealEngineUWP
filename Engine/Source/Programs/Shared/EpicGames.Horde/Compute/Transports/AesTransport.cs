@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Compute.Transports
 	/// Transport layer that adds AES encryption on top of an underlying transport implementation. Key must be exchanged separately
 	/// (eg. via the HTTPS request to negotiate a lease with the server).
 	/// </summary>
-	public sealed class AesTransport : ComputeTransport, IAsyncDisposable
+	public sealed class AesTransport : ComputeTransport
 	{
 		/// <summary>
 		/// Length of the required encrption key. 
@@ -31,6 +31,7 @@ namespace EpicGames.Horde.Compute.Transports
 		const int FooterLength = 16; // 16-byte auth tag for encryption
 
 		readonly ComputeTransport _inner;
+		readonly bool _leaveInnerOpen;
 		readonly Pipe _readPipe;
 		readonly AesGcm _aesGcm;
 
@@ -55,7 +56,8 @@ namespace EpicGames.Horde.Compute.Transports
 		/// <param name="inner">The underlying transport implementation</param>
 		/// <param name="key">AES encryption key (256 bits / 32 bytes)</param>
 		/// <param name="nonce">Cryptographic nonce to identify the connection. Must be longer than <see cref="NonceLength"/>.</param>
-		public AesTransport(ComputeTransport inner, ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce)
+		/// <param name="leaveInnerOpen">Whether inner compute transport should be disposed</param>
+		public AesTransport(ComputeTransport inner, ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, bool leaveInnerOpen = false)
 		{
 			if (key.Length != KeyLength)
 			{
@@ -71,19 +73,23 @@ namespace EpicGames.Horde.Compute.Transports
 			_aesGcm = new AesGcm(key);
 			_readNonce = nonce.Slice(0, NonceLength).ToArray();
 			_writeNonce = nonce.Slice(0, NonceLength).ToArray();
-
+			_leaveInnerOpen = leaveInnerOpen;
 			_backgroundReadTask = BackgroundTask.StartNew(BackgroundReadAsync);
 
 			_writeBufferOwner = MemoryPool<byte>.Shared.Rent(WritePacketSize * 2);
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
+		public override async ValueTask DisposeAsync()
 		{
 			await _lastWriteTask;
 			await _backgroundReadTask.DisposeAsync();
 			_writeBufferOwner.Dispose();
 			_aesGcm.Dispose();
+			if (!_leaveInnerOpen)
+			{
+				await _inner.DisposeAsync();
+			}
 		}
 
 		/// <summary>

@@ -11,7 +11,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Low-level interface for transferring data
 	/// </summary>
-	public abstract class ComputeTransport
+	public abstract class ComputeTransport : IAsyncDisposable
 	{
 		/// <summary>
 		/// Writes data to the underlying transport
@@ -32,6 +32,9 @@ namespace EpicGames.Horde.Compute
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public abstract ValueTask MarkCompleteAsync(CancellationToken cancellationToken);
+		
+		/// <inheritdoc/>
+		public abstract ValueTask DisposeAsync();
 
 		/// <summary>
 		/// Fill the given buffer with data

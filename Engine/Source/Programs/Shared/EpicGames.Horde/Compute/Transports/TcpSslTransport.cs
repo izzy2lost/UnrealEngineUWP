@@ -14,7 +14,7 @@ namespace EpicGames.Horde.Compute.Transports;
 /// <summary>
 /// Implementation of <see cref="ComputeTransport"/> for communicating over a socket using SSL/TLS
 /// </summary>
-public sealed class TcpSslTransport : ComputeTransport, IDisposable
+public sealed class TcpSslTransport : ComputeTransport
 {
 	private readonly Socket _socket;
 	private readonly X509Certificate2 _cert;
@@ -48,10 +48,11 @@ public sealed class TcpSslTransport : ComputeTransport, IDisposable
 	}
 	
 	/// <inheritdoc/>
-	public void Dispose()
+	public override ValueTask DisposeAsync()
 	{
 		_networkStream.Dispose();
 		_sslStream.Dispose();
+		return ValueTask.CompletedTask;
 	}
 
 	/// <summary>

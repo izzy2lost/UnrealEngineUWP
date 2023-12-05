@@ -33,6 +33,13 @@ namespace EpicGames.Horde.Compute.Transports
 			_reader = reader;
 			_writer = writer;
 		}
+		
+		/// <inheritdoc/>
+		public override ValueTask DisposeAsync()
+		{
+			GC.SuppressFinalize(this);
+			return ValueTask.CompletedTask;
+		}
 
 		/// <inheritdoc/>
 		public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)

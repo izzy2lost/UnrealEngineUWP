@@ -73,8 +73,10 @@ namespace EpicGames.Horde.Tests
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), new TestLogger());
-			await using RemoteComputeSocket agentSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), new TestLogger());
+			await using PipeTransport localTransport = new (sendPipe.Reader, recvPipe.Writer);
+			await using PipeTransport agentTransport = new (recvPipe.Reader, sendPipe.Writer);
+			await using RemoteComputeSocket localSocket = new (localTransport, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (agentTransport, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket);
 		}
@@ -85,8 +87,10 @@ namespace EpicGames.Horde.Tests
 			using CancellationTokenSource cts = new (5000);
 			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
 
-			await using RemoteComputeSocket localSocket = new (new TcpTransport(clientSocket), new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (new TcpTransport(serverSocket), new TestLogger());
+			await using TcpTransport clientTransport = new (clientSocket);
+			await using TcpTransport serverTransport = new (serverSocket);
+			await using RemoteComputeSocket localSocket = new (clientTransport, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (serverTransport, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
@@ -98,8 +102,8 @@ namespace EpicGames.Horde.Tests
 			(Socket clientSocket, Socket serverSocket) = await CreateSocketsAsync(cts.Token);
 			
 			byte[] certData = TcpSslTransport.GenerateCert();
-			using TcpSslTransport clientTransport = new (clientSocket, certData, false);
-			using TcpSslTransport serverTransport = new (serverSocket, certData, true);
+			await using TcpSslTransport clientTransport = new (clientSocket, certData, false);
+			await using TcpSslTransport serverTransport = new (serverSocket, certData, true);
 			
 			Task t1 = clientTransport.AuthenticateAsync(cts.Token);
 			Task t2 = serverTransport.AuthenticateAsync(cts.Token);

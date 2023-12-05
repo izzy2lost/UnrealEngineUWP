@@ -106,7 +106,8 @@ namespace EpicGames.Horde.Compute.Clients
 			await using BackgroundTask agentTask = BackgroundTask.StartNew(ctx => RunAgentAsync(_hordeAgentAssembly, _port, logger, ctx));
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 
-			await using RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), _logger);
+			await using TcpTransport tcpTransport = new (tcpSocket);
+			await using RemoteComputeSocket socket = new (tcpTransport, _logger);
 			yield return socket;
 
 			await socket.CloseAsync(cancellationToken);

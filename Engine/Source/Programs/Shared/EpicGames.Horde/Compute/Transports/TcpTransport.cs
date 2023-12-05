@@ -24,6 +24,12 @@ namespace EpicGames.Horde.Compute.Transports
 		/// </summary>
 		/// <param name="socket">Socket to communicate over</param>
 		public TcpTransport(Socket socket) => _socket = socket;
+		
+		/// <inheritdoc/>
+		public override ValueTask DisposeAsync()
+		{
+			return ValueTask.CompletedTask;
+		}
 
 		/// <inheritdoc/>
 		public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)

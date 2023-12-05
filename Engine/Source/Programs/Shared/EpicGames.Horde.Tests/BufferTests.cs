@@ -104,8 +104,10 @@ namespace EpicGames.Horde.Tests
 			Pipe sourceToTargetPipe = new Pipe();
 			Pipe targetToSourcePipe = new Pipe();
 
-			await using RemoteComputeSocket producerSocket = new RemoteComputeSocket(new PipeTransport(targetToSourcePipe.Reader, sourceToTargetPipe.Writer), NullLogger.Instance);
-			await using RemoteComputeSocket consumerSocket = new RemoteComputeSocket(new PipeTransport(sourceToTargetPipe.Reader, targetToSourcePipe.Writer), NullLogger.Instance);
+			await using PipeTransport producerTransport = new (targetToSourcePipe.Reader, sourceToTargetPipe.Writer);
+			await using PipeTransport consumerTransport = new (sourceToTargetPipe.Reader, targetToSourcePipe.Writer);
+			await using RemoteComputeSocket producerSocket = new (producerTransport, NullLogger.Instance);
+			await using RemoteComputeSocket consumerSocket = new (consumerTransport, NullLogger.Instance);
 
 			using ComputeBuffer consumerBuffer = createBuffer(Length);
 			consumerSocket.AttachRecvBuffer(ChannelId, consumerBuffer);
@@ -165,8 +167,10 @@ namespace EpicGames.Horde.Tests
 		{
 			Pipe recvPipe = new Pipe();
 			Pipe sendPipe = new Pipe();
-			await using RemoteComputeSocket localSocket = new RemoteComputeSocket(new PipeTransport(sendPipe.Reader, recvPipe.Writer), NullLogger.Instance);
-			await using RemoteComputeSocket remoteSocket = new RemoteComputeSocket(new PipeTransport(recvPipe.Reader, sendPipe.Writer), NullLogger.Instance);
+			await using PipeTransport localTransport = new (sendPipe.Reader, recvPipe.Writer);
+			await using PipeTransport remoteTransport = new (recvPipe.Reader, sendPipe.Writer);
+			await using RemoteComputeSocket localSocket = new (localTransport, NullLogger.Instance);
+			await using RemoteComputeSocket remoteSocket = new (remoteTransport, NullLogger.Instance);
 
 			using (PooledBuffer remoteBuffer = new PooledBuffer(1024))
 			{

@@ -35,6 +35,12 @@ namespace Horde.Agent.Leases.Handlers
 			public TimeSpan TimeSinceActivity => TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - Interlocked.CompareExchange(ref _lastPingTicks, 0, 0)) * s_ticksToSystemTicks));
 
 			public override ValueTask MarkCompleteAsync(CancellationToken cancellationToken) => _inner.MarkCompleteAsync(cancellationToken);
+			
+			/// <inheritdoc/>
+			public override ValueTask DisposeAsync()
+			{
+				return _inner.DisposeAsync();
+			}
 
 			public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)
 			{
@@ -123,7 +129,7 @@ namespace Horde.Agent.Leases.Handlers
 
 				logger.LogInformation("Matched connection for {Nonce}", StringUtils.FormatHexString(computeTask.Nonce.Span));
 
-				TcpTransportWithTimeout transport = new TcpTransportWithTimeout(tcpClient.Client);
+				await using TcpTransportWithTimeout transport = new TcpTransportWithTimeout(tcpClient.Client);
 				using (CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 				{
 					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => TickTimeoutAsync(transport, cts, logger, ctx));

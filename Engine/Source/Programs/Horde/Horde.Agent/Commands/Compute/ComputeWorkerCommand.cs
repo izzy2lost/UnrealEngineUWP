@@ -27,7 +27,8 @@ namespace Horde.Agent.Commands.Compute
 			using Socket tcpSocket = new Socket(SocketType.Stream, ProtocolType.IP);
 			await tcpSocket.ConnectAsync(IPAddress.Loopback, Port);
 
-			await using (RemoteComputeSocket socket = new RemoteComputeSocket(new TcpTransport(tcpSocket), logger))
+			await using TcpTransport transport = new TcpTransport(tcpSocket);
+			await using (RemoteComputeSocket socket = new RemoteComputeSocket(transport, logger))
 			{
 				logger.LogInformation("Running worker...");
 				await RunWorkerAsync(socket, logger, CancellationToken.None);

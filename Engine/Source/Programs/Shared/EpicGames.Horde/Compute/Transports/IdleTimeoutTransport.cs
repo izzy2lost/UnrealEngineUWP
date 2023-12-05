@@ -35,6 +35,13 @@ public class IdleTimeoutTransport : ComputeTransport
 		NoDataTimeout = noDataTimeout ?? NoDataTimeout;
 		_lastPingTicks = Stopwatch.GetTimestamp();
 	}
+	
+	/// <inheritdoc/>
+	public override ValueTask DisposeAsync()
+	{
+		GC.SuppressFinalize(this);
+		return ValueTask.CompletedTask;
+	}
 
 	/// <summary>
 	/// Time since last send or receive completed

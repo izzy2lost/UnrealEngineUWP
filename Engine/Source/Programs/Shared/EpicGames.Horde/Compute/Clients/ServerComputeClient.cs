@@ -296,7 +296,8 @@ namespace EpicGames.Horde.Compute.Clients
 			// Pass the rest of the call over to the handler
 			byte[] key = StringUtils.ParseHexString(response.Key);
 
-			await using RemoteComputeSocket computeSocket = new RemoteComputeSocket(new TcpTransport(socket), workerLogger);
+			await using TcpTransport transport = new TcpTransport(socket);
+			await using RemoteComputeSocket computeSocket = new RemoteComputeSocket(transport, workerLogger);
 			yield return new LeaseInfo(response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
 		}
 

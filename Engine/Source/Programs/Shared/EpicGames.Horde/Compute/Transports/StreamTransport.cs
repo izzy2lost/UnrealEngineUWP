@@ -14,15 +14,29 @@ namespace EpicGames.Horde.Compute.Transports
 	class StreamTransport : ComputeTransport
 	{
 		readonly Stream _stream;
-
-		/// <inheritdoc/>
+		readonly bool _leaveOpen;
 		public long Position { get; private set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="stream">Stream to use for the transferring data</param>
-		public StreamTransport(Stream stream) => _stream = stream;
+		/// <param name="leaveOpen">Whether to leave the inner stream open when disposing</param>
+		public StreamTransport(Stream stream, bool leaveOpen = false)
+		{
+			_stream = stream;
+			_leaveOpen = leaveOpen;
+		}
+
+		/// <inheritdoc/>
+		public override async ValueTask DisposeAsync()
+		{
+			if (!_leaveOpen)
+			{
+				await _stream.DisposeAsync();
+			}
+			GC.SuppressFinalize(this);
+		}
 
 		/// <inheritdoc/>
 		public override async ValueTask<int> RecvAsync(Memory<byte> buffer, CancellationToken cancellationToken)

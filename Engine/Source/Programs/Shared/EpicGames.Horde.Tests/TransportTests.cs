@@ -24,7 +24,7 @@ namespace EpicGames.Horde.Tests
 			byte[] payload;
 			{
 				using MemoryStream memoryStream = new MemoryStream();
-				StreamTransport streamTransport = new StreamTransport(memoryStream);
+				await using StreamTransport streamTransport = new StreamTransport(memoryStream);
 				await streamTransport.SendAsync(input, CancellationToken.None);
 				payload = memoryStream.ToArray();
 			}
@@ -32,7 +32,7 @@ namespace EpicGames.Horde.Tests
 			byte[] output = new byte[input.Length];
 			{
 				using MemoryStream memoryStream = new MemoryStream(payload);
-				StreamTransport streamTransport = new StreamTransport(memoryStream);
+				await using StreamTransport streamTransport = new StreamTransport(memoryStream);
 				await CopyToAsync(streamTransport, output);
 			}
 
@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Tests
 
 			{
 				using MemoryStream memoryStream = new MemoryStream();
-				StreamTransport streamTransport = new StreamTransport(memoryStream);
+				await using StreamTransport streamTransport = new StreamTransport(memoryStream);
 				await using AesTransport aesTransport = new AesTransport(streamTransport, key, nonce);
 				await aesTransport.SendAsync(input, CancellationToken.None);
 				encrypted = memoryStream.ToArray();
@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Tests
 			byte[] output = new byte[input.Length];
 			{
 				using MemoryStream memoryStream = new MemoryStream(encrypted);
-				StreamTransport streamTransport = new StreamTransport(memoryStream);
+				await using StreamTransport streamTransport = new StreamTransport(memoryStream);
 				await using AesTransport aesTransport = new AesTransport(streamTransport, key, nonce);
 
 				for (int offset = 0; offset < output.Length;)
