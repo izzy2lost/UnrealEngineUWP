@@ -69,6 +69,11 @@ namespace uba
 
 		void SetRulesIndex(const ProcessStartInfo& si);
 		const tchar* InternalGetChildLogFile(StringBufferBase& temp);
+		
+		#if PLATFORM_MAC
+		int WaitForProcessGroup(pid_t pgid);
+		#endif
+
 		u32 InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset);
 		u32	InternalExitProcess(bool cancel);
 		void ClearTempFiles();

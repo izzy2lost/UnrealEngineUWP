@@ -15,10 +15,19 @@
 #include <wchar.h>
 #include <stdio.h>
 #include <spawn.h>
+#include <wordexp.h>
+
+// These headers are used for tracking child and beyond
+// processes and making sure they clean up properly
+// Linux uses PR_SET_CHILD_SUBREAPER
+// Mac has to roll it's own solution
 #if PLATFORM_LINUX
 #include <sys/prctl.h>
+#elif PLATFORM_MAC
+#include <sys/types.h>
+#include <sys/sysctl.h>
 #endif
-#include <wordexp.h>
+
 extern char **environ;
 #endif
 
@@ -405,10 +414,19 @@ namespace uba
 
 		m_session.ProcessExited(*this, m_processStats.wallTime);
 
+		#if PLATFORM_LINUX
 		// This should not really ever happen.. but just in case.. since children use memory from parent
 		for (auto& child : m_childProcesses)
+		{
 			while (!((ProcessImpl*)child.m_process)->m_hasExited)
+			{
 				Sleep(100);
+			}
+		}
+		#elif PLATFORM_MAC
+		int res = WaitForProcessGroup(getpgrp());
+		UBA_ASSERT(res == 0);
+		#endif
 
 		UBA_ASSERT(!m_parentProcess || !m_parentProcess->m_hasExited);
 
@@ -991,6 +1009,57 @@ namespace uba
 		temp.Appendf(TC("_CHILD%u.log"), u32(m_childProcesses.size()));
 		return temp.data;
 	}
+
+#if PLATFORM_MAC
+	int ProcessImpl::WaitForProcessGroup(pid_t pgid)
+	{
+		int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_PGRP, pgid};
+
+		for (;;) {
+			// Query the list of processes in the group by using sysctl(3).
+			// This is "hard" because we don't know how big that list is, so we
+			// have to first query the size of the output data and then account for
+			// the fact that the size might change by the time we actually issue
+			// the query.
+			struct kinfo_proc *procs = NULL;
+			size_t nprocs = 0;
+			do {
+				size_t len;
+				if (sysctl(name, 4, 0, &len, NULL, 0) == -1) {
+					printf("Something went wrong\n");
+					return -1;
+				}
+				procs = (struct kinfo_proc *)malloc(len);
+				if (sysctl(name, 4, procs, &len, NULL, 0) == -1) {
+					UBA_ASSERT(errno == ENOMEM);
+					free(procs);
+					procs = NULL;
+				} else {
+					nprocs = len / sizeof(struct kinfo_proc);
+				}
+			} while (procs == NULL);
+			UBA_ASSERT(nprocs >= 1);  // Must have found the group leader at least.
+
+			if (nprocs == 1) {
+				// Found only one process, which must be the leader because we have
+				// purposely expect it as a zombie.
+				UBA_ASSERT(procs->kp_proc.p_pid == pgid);
+				free(procs);
+				return 0;
+			}
+
+			// More than one process left in the process group.  Pause a little bit
+			// before retrying to avoid burning CPU.
+			struct timespec ts;
+			ts.tv_sec = 0;
+			ts.tv_nsec = 1000000;
+			if (nanosleep(&ts, NULL) == -1) {
+				UBA_ASSERT(FALSE);
+				return -1;
+			}
+		}
+	}
+#endif
 
 	u32 ProcessImpl::InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset)
 	{

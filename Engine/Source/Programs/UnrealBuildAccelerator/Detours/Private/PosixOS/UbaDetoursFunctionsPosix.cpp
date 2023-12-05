@@ -37,10 +37,13 @@ using namespace uba;
 	DETOURED_FUNCTION(fchdir) \
 	DETOURED_FUNCTION(chroot) \
 	DETOURED_FUNCTION(getcwd) \
+	DETOURED_FUNCTION(getenv) \
 	DETOURED_FUNCTION(setenv) \
 	DETOURED_FUNCTION(realpath) \
 	DETOURED_FUNCTION(readlink) \
 	DETOURED_FUNCTION(readlinkat) \
+	DETOURED_FUNCTION(read) \
+	DETOURED_FUNCTION(pread) \
 	DETOURED_FUNCTION(open) \
 	DETOURED_FUNCTION(write) \
 	DETOURED_FUNCTION(dup) \
@@ -65,6 +68,7 @@ using namespace uba;
 	DETOURED_FUNCTION(closedir) \
 	DETOURED_FUNCTION(stat) \
 	DETOURED_FUNCTION(truncate) \
+	DETOURED_FUNCTION(lstat) \
 	DETOURED_FUNCTION(glob) \
 	DETOURED_FUNCTION(chmod) \
 	DETOURED_FUNCTION(rename) \
@@ -598,7 +602,7 @@ int Shared_fstat(const char* funcName, int fd, struct stat* attr, const True_fst
 			//UBA_ASSERT(attr->st_dev == attr2.st_dev)
 			UBA_ASSERTF(attr->st_ino == attr2.st_ino, "fstat: st_ino mismatch for %s (%llu vs %llu)", fi.originalName, attr->st_ino, attr2.st_ino);
 			UBA_ASSERT(isDir || attr->st_size == attr2.st_size);
-			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtimespec) == FromTimeSpec(attr2.st_mtimespec), "fstat: st_mtim mismatch for %s (%llu vs %llu)", fi.originalName, FromTimeSpec(attr->st_mtimespec), FromTimeSpec(attr2.st_mtim));
+			UBA_ASSERTF(isDir || FromTimeSpec(attr->st_mtimespec) == FromTimeSpec(attr2.st_mtimespec), "fstat: st_mtim mismatch for %s (%llu vs %llu)", fi.originalName, FromTimeSpec(attr->st_mtimespec), FromTimeSpec(attr2.st_mtimespec));
 		}
 		else
 		{
@@ -617,7 +621,12 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 		return trueStat(file, attr);
 
 	StringBuffer<> fixedFile;
-	FixPath(fixedFile, file);
+	if ((!FixPath(fixedFile, file)) || (fixedFile.Equals("/")) || (access(file, F_OK) != 0))
+	{
+		int res =  trueStat(file, attr);
+		return res;
+	}
+
 	UBA_ASSERTF(fixedFile.count, "FixPath failed with %s", file);
 
 	StringBuffer<> temp;
@@ -673,6 +682,31 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 
 
 // Detoured functions
+// #if PLATFORM_MAC
+// extern "C" {
+// char* realpath$DARWIN_EXTSN(const char* path, char* resolved_path);
+// }
+// UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
+// {
+// 	int res = TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
+// 	return TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
+// }
+
+// UBA_EXPORT int UBA_WRAPPER(_NSGetEnviron)(char* buf, uint32_t* bufsize)
+// {
+// 	int res = TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
+// 	printf("%s for %s\n", __func__, buf);
+// 	return TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
+// }
+// extern "C" char* UBA_WRAPPER(realpath$DARWIN_EXTSN)(const char* path, char* resolved_path)
+// {
+// 	printf(">>>>>> uba_realpathDARWIN: %s\n", path);
+// 	char* res = TRUE_WRAPPER(realpath$DARWIN_EXTSN)(path, resolved_path);
+// 	printf("<<<<< uba_realpathDARWIN: %s\n", strlen(resolved_path) > 0 ? resolved_path : "(NULL)");
+
+// 	return res;
+// }
+// #endif
 
 
 UBA_EXPORT int UBA_WRAPPER(chdir)(const char* path)
@@ -705,13 +739,13 @@ UBA_EXPORT char* UBA_WRAPPER(getcwd)(char* buf, size_t size)
 	return buf;
 }
 
-//UBA_EXPORT char* UBA_WRAPPER(getenv)(const char* name)
-//{
-//	UBA_INIT_DETOUR(getenv, name);
-//	auto res = TRUE_WRAPPER(getenv)(name);
-//	DEBUG_LOG_TRUE("getenv", "(%s) -> %s", name, res ? res : "<null>");
-//	return res;
-//}
+UBA_EXPORT char* UBA_WRAPPER(getenv)(const char* name)
+{
+	UBA_INIT_DETOUR(getenv, name);
+	auto res = TRUE_WRAPPER(getenv)(name);
+	DEBUG_LOG_TRUE("getenv", "(%s) -> %s", name, res ? res : "<null>");
+	return res;
+}
 
 UBA_EXPORT int UBA_WRAPPER(setenv)(const char* name, const char* value, int replace)
 {
@@ -1062,6 +1096,11 @@ UBA_EXPORT int UBA_WRAPPER(fstatat64)(int dirfd, const char* pathname, struct st
 }
 #endif
 
+UBA_EXPORT int UBA_WRAPPER(lstat)(const char *path, struct stat *buf)
+{
+	return TRUE_WRAPPER(lstat)(path, buf);
+}
+
 UBA_EXPORT int UBA_WRAPPER(stat)(const char* file, struct stat* attr)
 {
 	UBA_INIT_DETOUR(stat, file, attr);
@@ -1077,10 +1116,14 @@ UBA_EXPORT int UBA_WRAPPER(truncate)(const char* path, off_t length)
 
 UBA_EXPORT int UBA_WRAPPER(access)(const char* pathname, int mode)
 {
+	if (strlen(pathname) == 0) UBA_ASSERT(false);
 	UBA_INIT_DETOUR(access, pathname, mode);
 
 	StringBuffer<> fixedPath;
-	FixPath(fixedPath, pathname);
+	if (!FixPath(fixedPath, pathname))
+	{
+		return TRUE_WRAPPER(access)(pathname, mode);
+	}
 
 	bool checkIfDir = false;
 	StringBuffer<> temp;
@@ -1290,6 +1333,29 @@ UBA_EXPORT int UBA_WRAPPER(symlink)(const char* path1, const char* path2)
 	return TRUE_WRAPPER(symlink)(path1, path2);
 }
 
+UBA_EXPORT ssize_t	 UBA_WRAPPER(pread)(int __fd, void * __buf, size_t __nbyte, off_t __offset)
+{
+	// char filePath[PATH_MAX];
+	// if (fcntl(__fd, F_GETPATH, filePath) != -1)
+	// {
+	// 	// printf("***** PREAD: %d %s bytes: 0x%lx\n",__fd, filePath, __nbyte);
+	// 	// do something with the file path
+	// }
+	return TRUE_WRAPPER(pread)(__fd, __buf, __nbyte, __offset);
+}
+
+UBA_EXPORT ssize_t UBA_WRAPPER(read)(int fd, void *buf, size_t nbyte)
+{
+	// char filePath[PATH_MAX];
+	// if (fcntl(fd, F_GETPATH, filePath) != -1)
+	// {
+	// 	// printf("***** READ: %d %s bytes: %lu\n",fd, filePath, nbyte);
+	// 	// do something with the file path
+	// }
+	return TRUE_WRAPPER(read)(fd, buf, nbyte);
+}
+
+
 UBA_EXPORT int UBA_WRAPPER(remove)(const char* pathname)
 {
 	UBA_INIT_DETOUR(remove, pathname);
@@ -1396,7 +1462,11 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		rulesStr.Append("UBA_RULES=").AppendValue(reader.ReadU32());
 
 		u32 dllNameSize = reader.ReadU32();
+	#if PLATFORM_LINUX
 		ldpreload.Append("LD_PRELOAD=");
+	#else
+		ldpreload.Append("DYLD_INSERT_LIBRARIES=");
+	#endif
 		reader.ReadBytes(ldpreload.data + ldpreload.count, dllNameSize);
 		ldpreload.Resize(ldpreload.count + dllNameSize);
 
@@ -1501,7 +1571,6 @@ UBA_EXPORT pid_t UBA_WRAPPER(wait4)(pid_t pid, int* status, int options, struct 
 	UBA_ASSERT(!t_inVfork);
 	pid_t res = TRUE_WRAPPER(wait4)(pid, status, options, rusage);
 	DEBUG_LOG_TRUE("wait4", "");
-	UBA_ASSERT(false);
 	return res;
 }
 
@@ -1581,7 +1650,9 @@ UBA_EXPORT pid_t UBA_WRAPPER(vfork)(void)
 	pid_t pid = fork();
 	if (pid == 0)
 	{
+	#if PLATFORM_LINUX
 		prctl(PR_SET_PDEATHSIG, SIGHUP, 0, 0, 0); // We want the process to die if the parent die
+	#endif
 		t_inVfork = 1;
 	}
 	return pid;

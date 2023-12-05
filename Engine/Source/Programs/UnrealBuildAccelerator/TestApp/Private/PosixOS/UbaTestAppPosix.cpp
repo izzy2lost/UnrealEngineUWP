@@ -136,8 +136,12 @@ int main()
 	if (stat("FileWF", &attrWF) == -1)
 		return LogError("stat for FileW failed");
 
+	char fullPath[PATH_MAX];
+	if (realpath("/usr/bin/clang", fullPath) == nullptr)
+		return LogError("realpath for 'clang' failed");
+
 	struct stat attrRoot;
-	if (stat("/", &attrRoot) != -1)
+	if (stat("/", &attrRoot) != 0)
 		return LogError("stat for '/' failed");
 
 	return 0;

@@ -33,8 +33,8 @@ namespace uba
 
 	struct FileMappingHandle
 	{
-		FileMappingHandle(int shmFd_ = -1, int lockFd_ = -1, u64 uid_ = ~u64(0)) : shmFd(shmFd_), lockFd(lockFd_), uid(uid_) { };
-		FileMappingHandle(const FileMappingHandle& o) { shmFd = o.shmFd; uid = o.uid; }
+		FileMappingHandle(int shmFd_ = -1, int lockFd_ = -1, u64 uid_ = ~u64(0)) : shmFd(shmFd_), lockFd(lockFd_), uid(uid_) {};
+		FileMappingHandle(const FileMappingHandle& o) { shmFd = o.shmFd; uid = o.uid; lockFd = o.lockFd; }
 		int shmFd;
 		int lockFd;
 		u64 uid;
