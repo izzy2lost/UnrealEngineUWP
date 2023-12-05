@@ -27,6 +27,7 @@
 #include "Internationalization/TextLocalizationResource.h"
 #include "Memory/SharedBuffer.h"
 #include "Misc/App.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonSerializerMacros.h"
@@ -217,24 +218,6 @@ namespace UE::NNERuntimeIREECpu::Private
 	}
 #endif // WITH_EDITOR
 
-	FString GetIntermediateModelDirPath(const FString& PlatformName, const FString& FileIdString)
-	{
-		FString IntermediateDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectIntermediateDir());
-		return FPaths::Combine(IntermediateDir, "Build", PlatformName, UE_PLUGIN_NAME, FileIdString);
-	}
-
-	FString GetCookedModelDirPath(const FString& PlatformDisplayName)
-	{
-		FString SavedDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectSavedDir());
-		return FPaths::Combine(SavedDir, "Cooked", PlatformDisplayName, "Engine", "Plugins", UE_PLUGIN_NAME, "Binaries");
-	}
-
-	FString GetPackagedModelDirPath(const FString& PlatformName)
-	{
-		FString ProjectDir = FPaths::ConvertRelativePathToFull(*FPaths::ProjectDir());
-		return FPaths::Combine(ProjectDir, "Binaries", PlatformName, UE_PLUGIN_NAME);
-	}
-
 	FString GetModelCpuDataIdentifier(const FString& FileIdString, const FString& PlatformDisplayName)
 	{
 		return FileIdString + "-" + UNNERuntimeIREECpu::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREECpu::Version) + "-" + FString::FromInt(UNNERuntimeIREECpu::MemoryAlignment) + "-" + PlatformDisplayName;
@@ -294,6 +277,14 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(FStrin
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
+	FConfigFile ConfigFile;
+	FString ConfigFilePath;
+	GetUpdatedPlatformConfig(TargetPlatformDisplayName, ConfigFile, ConfigFilePath);
+	if (ConfigFile.Dirty)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not find the required settings in config file %s. Please make the file writeable and re-start the editor or manually add the required staging settings or models will not work in packaged builds for platform %s!"), *ConfigFilePath, *TargetPlatformDisplayName);
+	}
+
 	FString BuildConfigFileName = FString("IREE_") + NNE_RUNTIME_IREE_PLATFORM_NAME + "_To_" + TargetPlatformDisplayName + ".json";
 	UE::NNERuntimeIREECpu::Private::FBuildConfig BuildConfig;
 	if (!UE::NNERuntimeIREECpu::Private::LoadBuildConfig(TargetPlatformDisplayName, BuildConfigFileName, BuildConfig))
@@ -304,7 +295,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(FStrin
 
 	FString FileIdString = FileId.ToString(EGuidFormats::Digits).ToLower();
 	FString PluginDir = FPaths::ConvertRelativePathToFull(*IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME)->GetBaseDir());
-	FString IntermediateModelDir = UE::NNERuntimeIREECpu::Private::GetIntermediateModelDirPath(BuildConfig.TargetPlatformName, FileIdString);
+	FString IntermediateModelDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetIntermediateModelDirPath(BuildConfig.TargetPlatformName, FileIdString)));
 	FString ObjectPath = FPaths::Combine(IntermediateModelDir, FileIdString + ".o");
 	FString AdditionalOutputPath = FPaths::Combine(IntermediateModelDir, FileIdString + ".vmfb");
 	FString InputPath = FPaths::Combine(IntermediateModelDir, FileIdString + "." + FileType);
@@ -354,7 +345,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(FStrin
 			return TSharedPtr<UE::NNE::FSharedModelData>();
 		}
 
-		FString CookedModelPath = FPaths::Combine(UE::NNERuntimeIREECpu::Private::GetCookedModelDirPath(TargetPlatformDisplayName), SharedLibName);
+		FString CookedModelPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetCookedModelDirPath(TargetPlatformDisplayName), SharedLibName));
 		IFileManager::Get().Copy(*CookedModelPath, *SharedLibPath);
 
 		TArray<uint8> SharedLibData;
@@ -495,10 +486,10 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 
 	FString FileIdString = FileId.ToString(EGuidFormats::Digits).ToLower();
 #if WITH_EDITOR
-	FString SharedLibDirPath = UE::NNERuntimeIREECpu::Private::GetIntermediateModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME, FileIdString);
+	FString SharedLibDirPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetIntermediateModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME, FileIdString)));
 	FString SharedLibName = FileIdString + "." + NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION;
 #else
-	FString SharedLibDirPath = UE::NNERuntimeIREECpu::Private::GetPackagedModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME);
+	FString SharedLibDirPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetPackagedModelDirPath(NNE_RUNTIME_IREE_PLATFORM_NAME)));
 	FString SharedLibName = FileIdString + "." + NNE_RUNTIME_IREE_PLATFORM_SHARED_LIB_EXTENSION;
 #endif // WITH_EDITOR
 
@@ -538,6 +529,37 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	return TSharedPtr<UE::NNE::IModelCPU>(static_cast<UE::NNE::IModelCPU*>(Model.Release()));
 }
 
+FString UNNERuntimeIREECpu::GetIntermediateModelDirPath(const FString& PlatformName, const FString& FileIdString)
+{
+	return FPaths::Combine("Intermediate", "Build", PlatformName, UE_PLUGIN_NAME, FileIdString);
+}
+
+FString UNNERuntimeIREECpu::GetCookedModelDirPath(const FString& PlatformName)
+{
+	return FPaths::Combine("Saved", "Cooked", PlatformName, "Engine", "Plugins", UE_PLUGIN_NAME, "Binaries");
+}
+
+FString UNNERuntimeIREECpu::GetPackagedModelDirPath(const FString& PlatformName)
+{
+	FString PlatformNameShort = PlatformName.Equals("Windows") ? "Win64" : PlatformName;
+	return FPaths::Combine("Binaries", PlatformNameShort, UE_PLUGIN_NAME);
+}
+
+void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath)
+{ 
+	FString ConfigFolderPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir());
+	ConfigFilePath = FPaths::Combine(ConfigFolderPath, PlatformName, PlatformName + "Game.ini");
+
+	ConfigFile.Read(ConfigFilePath);
+
+	FString CookingPath = FString("/") + GetCookedModelDirPath(PlatformName);
+	FString PackagingPath = FString("/") + GetPackagedModelDirPath(PlatformName);
+
+	ConfigFile.AddUniqueToSection(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), FString("(Path=\"..") + CookingPath + FString("\")"));
+	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+RemapDirectories"), FString("(From=\"") + FApp::GetProjectName() + CookingPath + FString("\", To=\"") + FApp::GetProjectName() + PackagingPath + FString("\")"));
+	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+AllowedDirectories"), FApp::GetProjectName() + PackagingPath);
+}
+
 #else // WITH_NNE_RUNTIME_IREE
 
 FString UNNERuntimeIREECpu::GetRuntimeName() const { return ""; };
@@ -548,5 +570,11 @@ FString UNNERuntimeIREECpu::GetModelDataIdentifier(FString FileType, TConstArray
 
 bool UNNERuntimeIREECpu::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const { return false; };
 TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) { return TSharedPtr<UE::NNE::IModelCPU>(); };
+
+FString UNNERuntimeIREECpu::GetIntermediateModelDirPath(const FString& PlatformName, const FString& FileIdString) { return ""; }
+FString UNNERuntimeIREECpu::GetCookedModelDirPath(const FString& PlatformName) { return ""; }
+FString UNNERuntimeIREECpu::GetPackagedModelDirPath(const FString& PlatformName) { return ""; }
+
+void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath) { }
 
 #endif // WITH_NNE_RUNTIME_IREE
