@@ -49,18 +49,18 @@
 #include "ShaderCompiler.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ScopeLock.h"
+
+#if WITH_EDITORONLY_DATA
+#include "Materials/MaterialExpressionSubstrate.h"
+#include "ShaderPlatformCachedIniValue.h"
 #include "Serialization/ObjectWriter.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
-#include "DerivedDataRequestOwner.h"
 #include "DerivedDataCache.h"
+#include "DerivedDataRequestOwner.h"
 #include "MaterialCachedData.h"
-
-#if WITH_EDITORONLY_DATA
-#include "Materials/MaterialExpressionSubstrate.h"
-#include "ShaderPlatformCachedIniValue.h"
 #endif
 
 #if ENABLE_COOK_STATS && STATS
@@ -203,23 +203,23 @@ static FAutoConsoleVariableRef CVarPreshaderGapInterval(
 	TEXT("Insert an empty element in the preshader buffer every specified number of elements in the buffer.  Workaround for a shader compiler bug."));
 
 /* Controls whether to use the new GetMaterialShaderCode() and GetMaterialEnvironment() implementations. */
-static const bool GUseMaterialTranslationResultsGrouping = true;
+static bool GUseMaterialTranslationResultsGrouping = true;
 
-/* Controls whether DDC caching of material translation results should be forcefully disabled. */
-static const bool GForceDisableMaterialTranslationDDC = false;
+/* Controls whether DDC caching of material translation results is enabled. */
+static bool GJobDisableMaterialTranslateDDC = true;
+static FAutoConsoleVariableRef CVarJobDisableMaterialTranslateDDC(
+	TEXT("r.Material.DisableTranslateDDC"),
+	GJobDisableMaterialTranslateDDC,
+	TEXT("Whether to disable material translation DDC caching.\n"));
 
 UE::DerivedData::FCacheBucket MaterialTranslationDDCBucket = UE::DerivedData::FCacheBucket(TEXT("MaterialTranslation"));
 UE::DerivedData::FValueId MaterialCompilationOutputId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_MaterialCompilationOutput");
 UE::DerivedData::FValueId MaterialResultsOutputId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_Results");
 UE::DerivedData::FValueId EnvironmentDefinesId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_EnvironmentDefines");
 
-/* Helper macro to check whether the DDC material translation data has arrived and
- * therefore quit material translation. */
-#define CHECK_DDC_QUERY_FINISHED_ELSE_RETURN() if (DDCQueryHit) { return; }
-
 /* This version number models the layout of the data stored on the DDC after a material translation (e.g. FEnvironmentDefines)
  * It must be bumped whenever a change is made requires re-translation of all materials. */
-static constexpr int MaterialTranslationDDCVersion = 5;
+static constexpr int MaterialTranslationDDCVersion = 4;
 
 /** Data structure used to cache a part of material translation results. It contains all the generated
  *  defines that will be declared during the compilation of the generated material shader.
@@ -616,6 +616,7 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	CurrentScopeID(0u)
 ,	NextTempScopeID(SF_NumFrequencies)
 ,	Material(InMaterial)
+,	MaterialCompilationOutput(InMaterialCompilationOutput)
 ,	StaticParameters(InStaticParameters)
 ,	Platform(InPlatform)
 ,	QualityLevel(InQualityLevel)
@@ -674,7 +675,6 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	NumVtSamples(0)
 ,	TargetPlatform(InTargetPlatform)
 ,	SubstrateCompilationConfig()
-,   MaterialCompilationOutput(InMaterialCompilationOutput)
 {
 	check((sizeof(SubstrateCompilationContext)/sizeof(FSubstrateCompilationContext)) == ESubstrateCompilationContext::SCC_MAX);
 
@@ -746,11 +746,6 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 FHLSLMaterialTranslator::~FHLSLMaterialTranslator()
 {
 	ClearAllFunctionStacks();
-}
-
-bool FHLSLMaterialTranslator::ShouldStopTranslating() const
-{
-	return DDCQueryHit;
 }
 
 int32 FHLSLMaterialTranslator::GetNumUserTexCoords() const
@@ -1126,17 +1121,14 @@ UE_TRACE_EVENT_END()
 
 bool FHLSLMaterialTranslator::Translate()
 {
-	STAT(FDateTime TranslationDateTime = FDateTime::Now());
-	STAT(double TotalTime = FPlatformTime::Seconds());
-	STAT(double TranslationOnlyTime = 0);
-
 #if CPUPROFILERTRACE_ENABLED
 	FString TraceMaterialName;
 	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel))
 	{
 		TraceMaterialName = Material->GetMaterialInterface()->GetFullName();
 	}
-	UE_TRACE_LOG_SCOPED_T(Cpu, FHLSLMaterialTranslatorTranslate, CpuChannel) << FHLSLMaterialTranslatorTranslate.MaterialName(*TraceMaterialName);
+	UE_TRACE_LOG_SCOPED_T(Cpu, FHLSLMaterialTranslatorTranslate, CpuChannel)
+		<< FHLSLMaterialTranslatorTranslate.MaterialName(*TraceMaterialName);
 #endif
 
 	static const bool bVerbose = FParse::Param(FCommandLine::Get(), TEXT("verbosematerialtranslation"));
@@ -1145,66 +1137,52 @@ bool FHLSLMaterialTranslator::Translate()
 		UE_LOG(LogMaterial, Display, TEXT("Translating '%s'"), *Material->GetMaterialInterface()->GetFullName());
 	}
 
-	// We call FindObject to serialize the array of Parameter Collections used by this material in EnvironmentDefines,
-	// but this can happen during save. FindObject is illegal during save because if the discovered objects
-	// are serialized into the package it will cause a crash on package load. But we are not storing the results
-	// of FindObject into the package so it is okay to remove the restriction.
-	TOptional<TGuardValue<bool>> IsSavingPackageGuard;
-	if (IsInGameThread())
+	STAT(FDateTime TranslationDateTime = FDateTime::Now());
+	STAT(double HLSLTranslateTime = 0);
+	STAT(double DDCQueryTime = 0);
+
+	bSuccess = true;
+	bool bInCache = false;
+
 	{
-		IsSavingPackageGuard.Emplace(GIsSavingPackage, false);
-	}
+		SCOPE_SECONDS_COUNTER(HLSLTranslateTime);
 
-	static const bool bNoMaterialTranslationDDC = FParse::Param(FCommandLine::Get(), TEXT("nomaterialtranslationddc"));
-	bool bDisableTranslationDDC = GForceDisableMaterialTranslationDDC || bNoMaterialTranslationDDC || Material->IsPreview();
-
-	UE::DerivedData::FRequestOwner DDCRequestOwner{ UE::DerivedData::EPriority::Blocking };
-
-	// Asynchronously query the DDC for results
-	if (!bDisableTranslationDDC)
-	{
-		AsyncQueryDDC(DDCRequestOwner);
-	}
-
-	// Synchronously begin translating the material
-	{
-		SCOPE_SECONDS_COUNTER(TranslationOnlyTime);
-		DoTranslate();
-	}
-
-	// One of the two has terminated. This will be a NOOP if DDC query task has completed.
-	DDCRequestOwner.Cancel();
-
-	if (DDCQueryHit)
-	{
-		// Material is in cache, copy over the compilation output retrieved from the DDC.
-		STAT(GShaderCompilerStats->IncrementMaterialCacheHit());
-		MaterialCompilationOutput = DDCMaterialCompilationOutput;
-		bSuccess = true;
-	}
-	else if (bSuccess)
-	{
-		// Material not in cache. If translation was succesful, finalize the results and push them to the DDC
-		PrepareEnvironmentDefines();
-		PrepareMaterialSourceStringParameters();
-		if (!bDisableTranslationDDC)
+		if (!Material->IsPreview())
 		{
-			PushResultsToDDC();
+			SCOPE_SECONDS_COUNTER(DDCQueryTime);
+			bInCache = QueryDDCCachedTranslationResults();
 		}
-		ClearAllFunctionStacks();
+
+		// If material not in cache, we need to translate the material now.
+		if (!bInCache)
+		{
+			DoTranslate();
+
+			// If translation was succesful, finalize the results and push them to the DDC
+			if (bSuccess)
+			{
+				PrepareEnvironmentDefines();
+				PrepareMaterialSourceStringParameters();
+				PushResultsToDDCCache(); 
+				ClearAllFunctionStacks();
+			}
+		}
 	}
 
 	// Report timings to Material Cook Stats
 #if STATS
-	TotalTime = FPlatformTime::Seconds() - TotalTime;
-	GShaderCompilerStats->IncrementMaterialTranslated(TotalTime, TranslationOnlyTime);
+	GShaderCompilerStats->IncrementMaterialTranslated(HLSLTranslateTime);
+	if (bInCache)
+	{
+		STAT(GShaderCompilerStats->IncrementMaterialCacheHit(DDCQueryTime));
+	}
 #endif
 
-	INC_FLOAT_STAT_BY(STAT_ShaderCompiling_HLSLTranslation, (float)TotalTime);
+	INC_FLOAT_STAT_BY(STAT_ShaderCompiling_HLSLTranslation, (float)HLSLTranslateTime);
 
 #if ENABLE_COOK_STATS && STATS
 	// Write out a CSV file MaterialTranslationLog.txt containing info about all material translations.
-	FCsvLogFile::Get().AddEntry(Material->GetMaterialInterface()->GetFullName(), TranslationDateTime, TotalTime);
+	FCsvLogFile::Get().AddEntry(Material->GetMaterialInterface()->GetFullName(), TranslationDateTime, HLSLTranslateTime);
 #endif
 
 	return bSuccess;
@@ -1212,8 +1190,6 @@ bool FHLSLMaterialTranslator::Translate()
 
 void FHLSLMaterialTranslator::DoTranslate()
 {
-	bSuccess = true;
-	
 	// No cache hit, continue translating the material
 	check(ScopeStack.Num() == 0);
 
@@ -1249,7 +1225,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		TSet<UMaterialExpression*> VisitedExpressions;
 		for (UMaterialExpression* Expression : UMaterial->GetExpressions())
 		{
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			if (Expression->ContainsInputLoop(VisitedExpressions))
 			{
 				AppendExpressionError(Expression, TEXT("Expression is part of a cycle. Please make sure the material graph is acyclic."));
@@ -1269,7 +1244,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 	bSubstrateWritesEmissive = false;
 	bSubstrateWritesAmbientOcclusion = false;
 
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 	UMaterialExpression* ExpressionToPreview = Material->GetMaterialGraphNodePreviewExpression();
 	if (ExpressionToPreview)
 	{
@@ -1292,7 +1266,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		FrontMaterialExpr = FrontMaterialInput ? FrontMaterialInput->GetTracedInput().Expression : nullptr;
 		FrontMaterialOutputIndex = FrontMaterialInput ? FrontMaterialInput->OutputIndex : INDEX_NONE;
 	}
-
 	if (bSubstrateEnabled && FrontMaterialExpr)
 	{
 		// Temp code chunk scope (e.g.needed for the creation of static booleans from static switch parameter node, see UMaterialExpressionStaticSwitch::GetEffectiveInput).
@@ -1385,7 +1358,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		int32 NumMaterialLayersAttributes = 0;
 		for (UMaterialExpression* Expression : Expressions)
 		{
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			if (UMaterialExpressionMaterialAttributeLayers* Layers = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression))
 			{
 				++NumMaterialLayersAttributes;
@@ -1462,8 +1434,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		Chunk[MP_SurfaceThickness] = Material->CompilePropertyAndSetMaterialProperty(MP_SurfaceThickness		,this);
 		Chunk[MP_FrontMaterial] = Material->CompilePropertyAndSetMaterialProperty(MP_FrontMaterial			,this);
 
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
-
 		// Now generate the code for the fully simplified MP_FrontMaterial right after MP_FrontMaterial
 		FullySimplifiedSubstrateFrontMaterialCodeChunk = SubstrateCreateAndRegisterNullMaterial();
 		{																							// This causes issues, material look different
@@ -1474,9 +1444,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 			CurrentSubstrateCompilationContext = ESubstrateCompilationContext::SCC_Default;
 			FullySimplifiedFrontMaterialCodeChunkEnd = SharedPropertyCodeChunks[FrontMaterialShaderFrequency].Num();
 		}
-	}
-
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
+		}
 
 	// Get shading models from compilation (or material).
 	FMaterialShadingModelField MaterialShadingModels = GetCompiledShadingModels();
@@ -1485,8 +1453,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 
 	if (!bEnableExecutionFlow)
 	{
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
-
 		if (Domain == MD_Volume || (Domain == MD_Surface && IsSubsurfaceShadingModel(MaterialShadingModels)))
 		{
 			// Note we don't test for the blend mode as you can have a translucent material using the subsurface shading model
@@ -1501,8 +1467,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 			int32 CodeSubsurfaceProfile = ForceCast(ScalarParameter(NameSubsurfaceProfile, 1.0f), MCT_Float1);
 
 			Chunk[MP_SubsurfaceColor] = AppendVector(SubsurfaceColor, CodeSubsurfaceProfile);
-			
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		}
 
 		Chunk[MP_CustomData0] = Material->CompilePropertyAndSetMaterialProperty(MP_CustomData0, this);
@@ -1513,8 +1477,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		{
 			// Cast to exact match is needed for float parameter to be correctly cast to float2.
 			int32 UserRefraction = ForceCast(Material->CompilePropertyAndSetMaterialProperty(MP_Refraction, this), MCT_Float2, MFCF_ExactMatch);
-			
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			int32 RefractionDepthBias = ForceCast(ScalarParameter(FName(TEXT("RefractionDepthBias")), Material->GetRefractionDepthBiasValue()), MCT_Float1);
 
 			Chunk[MP_Refraction] = AppendVector(UserRefraction, RefractionDepthBias);
@@ -1536,7 +1498,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		Chunk[MP_Displacement] = Material->CompilePropertyAndSetMaterialProperty(MP_Displacement, this);
 	}
 
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 	ResourcesString = TEXT("");
 
 #if HANDLE_CUSTOM_OUTPUTS_AS_MATERIAL_ATTRIBUTES
@@ -1555,7 +1516,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 
 			for (int32 OutputIndex = 0; OutputIndex < NumOutputs; ++OutputIndex)
 			{
-				CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 				MaterialProperty = Attribute.Property;
 				ShaderFrequency = Attribute.ShaderFrequency;
 				FunctionStacks[ShaderFrequency].Empty();
@@ -1616,7 +1576,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 	{
 		for (uint32 CustomUVIndex = MP_CustomizedUVs0; CustomUVIndex <= MP_CustomizedUVs7; CustomUVIndex++)
 		{
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			// Only compile custom UV inputs for UV channels requested by the pixel shader inputs
 			// Any unconnected inputs will have a texcoord generated for them in Material->CompileProperty, which will pass through the vertex (uncustomized) texture coordinates
 			// Note: this is using NumUserTexCoords, which is set by translating all the pixel properties above
@@ -1630,7 +1589,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 	// Output the implementation for any custom expressions we will call below.
 	for (int32 ExpressionIndex = 0; ExpressionIndex < CustomExpressions.Num(); ExpressionIndex++)
 	{
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		ResourcesString += CustomExpressions[ExpressionIndex].Implementation + "\n\n";
 	}
 
@@ -1680,8 +1638,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 	bUsesCurvature = FeatureLevel == ERHIFeatureLevel::ES3_1 &&
 					((MaterialShadingModels.HasShadingModel(MSM_SubsurfaceProfile) && IsMaterialPropertyUsed(MP_CustomData0, Chunk[MP_CustomData0], FLinearColor(1, 0, 0, 0), 1))
 					|| (MaterialShadingModels.HasShadingModel(MSM_Eye) && bOpacityPropertyIsUsed));
-
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 
 	// If Substrate is enabled or if this is a Substrate material cooked/used in non-Substrate mode, 
 	// we disable this warning as Substrate supports 'colored transmittance only' mode (i.e, modulate).
@@ -1852,8 +1808,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 		Errorf(TEXT("Blend Mode \"Modulate\" materials are not currently supported in the \"After Motion Blur\" translucency pass."));
 	}
 
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
-
 	// Catch any modifications to NumUserTexCoords that will not seen by customized UVs
 	check(SavedNumUserTexCoords == GetNumUserTexCoords());
 
@@ -1878,7 +1832,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 
 	if (bEnableExecutionFlow)
 	{
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		if (VertexAttributesChunk != INDEX_NONE)
 		{
 			LinkParentScopes(SharedPropertyCodeChunks[SF_Vertex]);
@@ -1887,7 +1840,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 			GetScopeCode(1, VertexAttributesChunk, SharedPropertyCodeChunks[SF_Vertex], EmittedChunks, TranslatedAttributesCodeChunks[SF_Vertex]);
 		}
 
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		if (PixelAttributesChunk != INDEX_NONE)
 		{
 			LinkParentScopes(SharedPropertyCodeChunks[SF_Pixel]);
@@ -1900,7 +1852,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 	{
 		for (int32 VariationIter = 0; VariationIter < CompiledPDV_MAX; VariationIter++)
 		{
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			ECompiledPartialDerivativeVariation Variation = (ECompiledPartialDerivativeVariation)VariationIter;
 
 			// Do Normal Chunk first
@@ -1924,7 +1875,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 			// Now the rest, skipping Normal
 			for (uint32 PropertyId = 0; PropertyId < MP_MAX; ++PropertyId)
 			{
-				CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 				if (PropertyId == MP_MaterialAttributes || PropertyId == MP_Normal || PropertyId == MP_CustomOutput)
 				{
 					continue;
@@ -2051,8 +2001,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 
 			for (uint32 PropertyId = MP_MAX; PropertyId < CompiledMP_MAX; ++PropertyId)
 			{
-				CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
-				switch (PropertyId)
+						switch (PropertyId)
 				{
 				case CompiledMP_EmissiveColorCS:
 					if (bCompileForComputeShader)
@@ -2071,13 +2020,12 @@ void FHLSLMaterialTranslator::DoTranslate()
 			}
 
 			// Output the implementation for any custom output expressions
-			for (int32 ExpressionIndex = 0; ExpressionIndex < DerivativeVariations[Variation].CustomOutputImplementations.Num(); ExpressionIndex++)
+					for (int32 ExpressionIndex = 0; ExpressionIndex < DerivativeVariations[Variation].CustomOutputImplementations.Num(); ExpressionIndex++)
 			{
-				CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
-				ResourcesString += DerivativeVariations[Variation].CustomOutputImplementations[ExpressionIndex] + "\n\n";
+						ResourcesString += DerivativeVariations[Variation].CustomOutputImplementations[ExpressionIndex] + "\n\n";
+					}
+				}
 			}
-		}
-	}
 
 	// Store the number of float4s
 	MaterialCompilationOutput.UniformExpressionSet.UniformPreshaderBufferSize = (UniformPreshaderOffset + 3u) / 4u;
@@ -2087,20 +2035,17 @@ void FHLSLMaterialTranslator::DoTranslate()
 		MaterialCompilationOutput.UniformExpressionSet.UniformTextureParameters[TypeIndex].Empty(UniformTextureExpressions[TypeIndex].Num());
 		for (FMaterialUniformExpressionTexture* TextureExpression : UniformTextureExpressions[TypeIndex])
 		{
-			CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 			TextureExpression->GetTextureParameterInfo(MaterialCompilationOutput.UniformExpressionSet.UniformTextureParameters[TypeIndex].AddDefaulted_GetRef());
 		}
 	}
 	MaterialCompilationOutput.UniformExpressionSet.UniformExternalTextureParameters.Empty(UniformExternalTextureExpressions.Num());
 	for (FMaterialUniformExpressionExternalTexture* TextureExpression : UniformExternalTextureExpressions)
 	{
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		TextureExpression->GetExternalTextureParameterInfo(MaterialCompilationOutput.UniformExpressionSet.UniformExternalTextureParameters.AddDefaulted_GetRef());
 	}
 
 	for (uint32 SubstrateCompilationContextIndex = 0; SubstrateCompilationContextIndex < ESubstrateCompilationContext::SCC_MAX; ++SubstrateCompilationContextIndex)
 	{
-		CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();
 		FSubstrateCompilationContext& SubstrateCtx = SubstrateCompilationContext[SubstrateCompilationContextIndex];
 
 		FString TreeFunctionPostFix = TEXT("ERROR");
@@ -3837,8 +3782,6 @@ FString FHLSLMaterialTranslator::GetDefinitions(const TArray<FShaderCodeChunk>& 
 // GetFixedParameterCode
 void FHLSLMaterialTranslator::GetFixedParameterCode(int32 StartChunk, int32 EndChunk, int32 ResultIndex, TArray<FShaderCodeChunk>& CodeChunks, FString& OutDefinitions, FString& OutValue, ECompiledPartialDerivativeVariation OriginalVariation, bool bReduceAfterReturnValue)
 {
-	CHECK_DDC_QUERY_FINISHED_ELSE_RETURN();;
-
 	// Only allow the analytic variation for pixel shaders.
 	ECompiledPartialDerivativeVariation Variation = OriginalVariation;
 
@@ -15370,56 +15313,95 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 	EnvironmentDefines->ParameterCollections = ParameterCollections;
 }
 
-void FHLSLMaterialTranslator::AsyncQueryDDC(UE::DerivedData::FRequestOwner& DDCRequestOwner)
+bool FHLSLMaterialTranslator::QueryDDCCachedTranslationResults()
 {
+	if (GJobDisableMaterialTranslateDDC)
+	{
+		return false;
+	}
+
+	// We call FindObject to serialize the array of Parameter Collections used by this material in EnvironmentDefines,
+	// but this can happen during save. FindObject is illegal during save because if the discovered objects
+	// are serialized into the package it will cause a crash on package load. But we are not storing the results
+	// of FindObject into the package so it is okay to remove the restriction.
+	TOptional<TGuardValue<bool>> IsSavingPackageGuard;
+	if (IsInGameThread())
+	{
+		IsSavingPackageGuard.Emplace(GIsSavingPackage, false);
+	}
+
+	// Try fetching the translation results from the DDC using the generated key hash
+	FSharedBuffer MaterialCompilationOutputBuffer;
+	FSharedBuffer TranslationResultsBuffer;
+	FSharedBuffer EnvironmentDefinesBuffer;
+
+	UE::DerivedData::FRequestOwner RequestOwner(UE::DerivedData::EPriority::Blocking);
 	UE::DerivedData::FCacheKey CacheKey{ MaterialTranslationDDCBucket, DDCKeyHash };
-	UE::DerivedData::FCacheGetRequest Request;
-	Request.Name = Material->GetMaterialInterface()->GetName();
-	Request.Key = CacheKey;
-	Request.Policy = UE::DerivedData::ECachePolicy::Default;
 
-	UE::DerivedData::GetCache().Get(
-		{ Request },
-		DDCRequestOwner,
-		[&](UE::DerivedData::FCacheGetResponse&& Response)
-		{
-			if (Response.Status == UE::DerivedData::EStatus::Ok)
+	{
+		UE::DerivedData::FCacheGetRequest Request;
+		Request.Name = Material->GetMaterialInterface()->GetName();
+		Request.Key = CacheKey;
+		Request.Policy = UE::DerivedData::ECachePolicy::Default;
+
+		UE::DerivedData::GetCache().Get(
+			{ Request },
+			RequestOwner,
+			[&](UE::DerivedData::FCacheGetResponse&& Response)
 			{
-				// Try fetching the translation results from the DDC using the generated key hash
-				FSharedBuffer MaterialCompilationOutputBuffer = Response.Record.GetValue(MaterialCompilationOutputId).GetData().Decompress();
-				FSharedBuffer TranslationResultsBuffer = Response.Record.GetValue(MaterialResultsOutputId).GetData().Decompress();
-				FSharedBuffer EnvironmentDefinesBuffer = Response.Record.GetValue(EnvironmentDefinesId).GetData().Decompress();
-
-				// Load the results if we hit the cache.
-				if (!MaterialCompilationOutputBuffer.IsNull() && !TranslationResultsBuffer.IsNull() && !EnvironmentDefinesBuffer.IsNull())
+				if (Response.Status == UE::DerivedData::EStatus::Ok)
 				{
-					// Read the environment defines
-					FMemoryReaderView EnvironmentDefinesBufferReader{ TArrayView<uint8>{ (uint8*)EnvironmentDefinesBuffer.GetData(), (int)EnvironmentDefinesBuffer.GetSize() } };
-					FObjectAndNameAsStringProxyArchive EnvironmentDefinesBufferReaderProxy{ EnvironmentDefinesBufferReader, true };
-					EnvironmentDefines->Serialize(EnvironmentDefinesBufferReaderProxy);
-
-					// Read the material compilation output
-					FShaderMapPointerTable PointerTable;
-					FPlatformTypeLayoutParameters LayoutParams;
-					LayoutParams.InitializeForPlatform(GetTargetPlatform());
-					FMemoryReaderView MaterialCompilationOutputReader{ TArrayView<uint8>{ (uint8*)MaterialCompilationOutputBuffer.GetData(), (int)MaterialCompilationOutputBuffer.GetSize() } };
-					FMemoryImageObject LoadedContent = FMemoryImageResult::LoadFromArchive(MaterialCompilationOutputReader, StaticGetTypeLayoutDesc<FMaterialCompilationOutput>(), &PointerTable, LayoutParams);
-					DDCMaterialCompilationOutput = *(FMaterialCompilationOutput*)LoadedContent.Object;
-
-					// Read the array of material string parameters
-					FMemoryReaderView ResultsMemoryReader{ TArrayView<uint8>{ (uint8*)TranslationResultsBuffer.GetData(), (int)TranslationResultsBuffer.GetSize() } };
-					ResultsMemoryReader << MaterialSourceTemplateParams;
-
-					DDCQueryHit = true;
+					MaterialCompilationOutputBuffer = Response.Record.GetValue(MaterialCompilationOutputId).GetData().Decompress();
+					TranslationResultsBuffer = Response.Record.GetValue(MaterialResultsOutputId).GetData().Decompress();
+					EnvironmentDefinesBuffer = Response.Record.GetValue(EnvironmentDefinesId).GetData().Decompress();
 				}
 			}
-		}
-	);
-	
+		);
+	}
+
+	RequestOwner.Wait();
+
+	// Load the results if we hit the cache.
+	if (!MaterialCompilationOutputBuffer.IsNull() && !TranslationResultsBuffer.IsNull() && !EnvironmentDefinesBuffer.IsNull())
+	{
+		// Read the environment defines
+		FMemoryReaderView EnvironmentDefinesBufferReader{ TArrayView<uint8>{ (uint8*)EnvironmentDefinesBuffer.GetData(), (int)EnvironmentDefinesBuffer.GetSize() } };
+		FObjectAndNameAsStringProxyArchive EnvironmentDefinesBufferReaderProxy{ EnvironmentDefinesBufferReader, true };
+		EnvironmentDefines->Serialize(EnvironmentDefinesBufferReaderProxy);
+
+		// Read the material compilation output
+		FShaderMapPointerTable PointerTable;
+		FPlatformTypeLayoutParameters LayoutParams;
+		LayoutParams.InitializeForPlatform(GetTargetPlatform());
+		FMemoryReaderView MaterialCompilationOutputReader{ TArrayView<uint8>{ (uint8*)MaterialCompilationOutputBuffer.GetData(), (int)MaterialCompilationOutputBuffer.GetSize() } };
+		FMemoryImageObject LoadedContent = FMemoryImageResult::LoadFromArchive(MaterialCompilationOutputReader, StaticGetTypeLayoutDesc<FMaterialCompilationOutput>(), &PointerTable, LayoutParams);
+		MaterialCompilationOutput = *(FMaterialCompilationOutput*)LoadedContent.Object;
+
+		// Read the array of material string parameters
+		FMemoryReaderView ResultsMemoryReader{ TArrayView<uint8>{ (uint8*)TranslationResultsBuffer.GetData(), (int)TranslationResultsBuffer.GetSize() } };
+		ResultsMemoryReader << MaterialSourceTemplateParams;
+
+		return true;
+	}
+
+	return false;
 }
 
-void FHLSLMaterialTranslator::PushResultsToDDC()
+void FHLSLMaterialTranslator::PushResultsToDDCCache()
 {
+	if (GJobDisableMaterialTranslateDDC)
+	{
+		GShaderCompilerStats->IncrementMaterialTranslationSkippedDDC();
+		return;
+	}
+
+	// See FHLSLMaterialTranslator::QueryDDCCachedTranslationResults()
+	TOptional<TGuardValue<bool>> IsSavingPackageGuard;
+	if (IsInGameThread())
+	{
+		IsSavingPackageGuard.Emplace(GIsSavingPackage, false);
+	}
+
 	UE::DerivedData::FCacheKey CacheKey{ MaterialTranslationDDCBucket, DDCKeyHash };
 	UE::DerivedData::FCacheRecordBuilder RecordBuilder{ CacheKey };
 
