@@ -311,7 +311,7 @@ public:
 	/** Recreate all LandscapeInfo objects in given world
 	 *  @param  bMapCheck	Whether to warn about landscape errors
 	 */
-	LANDSCAPE_API static void RecreateLandscapeInfo(UWorld* InWorld, bool bMapCheck);
+	LANDSCAPE_API static void RecreateLandscapeInfo(UWorld* InWorld, bool bMapCheck, bool bKeepRegistrationStatus = false);
 
 	/** 
 	 *  Fixes up proxies relative position to landscape actor

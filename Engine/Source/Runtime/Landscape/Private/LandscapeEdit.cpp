@@ -4765,7 +4765,7 @@ void ALandscapeProxy::PostEditMove(bool bFinished)
 
 	if (bFinished)
 	{
-		ULandscapeInfo::RecreateLandscapeInfo(GetWorld(), true);
+		ULandscapeInfo::RecreateLandscapeInfo(GetWorld(), /* bMapCheck = */ true, /* bKeepRegistrationStatus = */ true);
 		RecreateComponentsState();
 
 		if (SplineComponent)
