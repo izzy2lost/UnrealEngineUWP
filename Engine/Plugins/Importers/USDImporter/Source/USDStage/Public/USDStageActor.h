@@ -353,6 +353,7 @@ protected:
 	void UnloadUsdStage();
 
 	void SetupAssetCacheIfNeeded();
+	void SetupBBoxCacheIfNeeded();
 
 	bool HasAuthorityOverStage() const;
 
