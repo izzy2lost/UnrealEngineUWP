@@ -115,7 +115,7 @@ public:
 	EMetaSoundOutputAudioFormat OutputFormat;
 
 	// The Quality this Metasound will use. These are defined in the MetaSounds project settings.
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, meta = (GetOptions="MetasoundEngine.MetaSoundQuality.GetQualityList"), Category = "Metasound")
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, meta = (GetOptions="MetasoundEngine.MetaSoundQualityHelper.GetQualityList"), Category = "Metasound")
 	FName QualitySetting;
 
 #if WITH_EDITORONLY_DATA
