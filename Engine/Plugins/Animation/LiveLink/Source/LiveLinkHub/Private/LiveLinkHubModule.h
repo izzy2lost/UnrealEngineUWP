@@ -11,20 +11,13 @@ class FLiveLinkHubProvider;
 class FLiveLinkHubRecordingController;
 class FLiveLinkHubRecordingListController;
 class FLiveLinkHubSubjectController;
-class FUICommandList;
 class ILiveLinkHubSessionManager;
-
-#ifndef WITH_LIVELINK_HUB
-#define WITH_LIVELINK_HUB 0
-#endif
 
 class FLiveLinkHubModule : public ILiveLinkHubModule
 {
 public:
 	//~ Begin ILiveLinkHubModule interface
 	virtual void StartLiveLinkHub() override;
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
 	//~ End ILiveLinkHubModule interface
 
 	/** Get the livelink hub object. */
@@ -42,10 +35,6 @@ public:
 	/** Get the subject controller. */
     TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
 
-#if !WITH_LIVELINK_HUB
-	/** Launch livelink hub. */
-	void OpenLiveLinkHub() const;
-#endif
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */
 	TSharedPtr<FLiveLinkHub> LiveLinkHub;

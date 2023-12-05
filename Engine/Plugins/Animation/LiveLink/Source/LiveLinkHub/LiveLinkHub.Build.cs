@@ -35,7 +35,6 @@ namespace UnrealBuildTool.Rules
 				"StandaloneRenderer",
 				"StructUtils",
 				"TimeManagement",
-				"ToolMenus",
 				"ToolWidgets",
 				"UnrealEd",
 				"OutputLog",
