@@ -495,6 +495,11 @@ public:
 	double TaskGetImagesTime = 0.0;
 	double TaskConvertResourcesTime = 0.0f;
 	double TaskCallbacksTime = 0.0;
+
+	// Update Memory stats
+	int64 UpdateStartBytes = 0;
+	int64 UpdateEndPeakBytes = 0;
+	int64 UpdateEndRealPeakBytes = 0;
 	
 #if WITH_EDITOR
 	/** Used for profiling in the editor. */

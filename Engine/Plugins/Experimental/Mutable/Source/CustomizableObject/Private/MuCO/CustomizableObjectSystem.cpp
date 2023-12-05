@@ -2190,6 +2190,9 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_Update_GetMesh)
 		FMutableScopeTimer Timer(OperationData->TaskGetMeshTime);
+		
+		OperationData->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
+		mu::FGlobalMemoryCounter::Zero();
 
 #if WITH_EDITOR
 		const uint32 StartCycles = FPlatformTime::Cycles();
@@ -2265,6 +2268,11 @@ namespace impl
 		{
 			MutableSystem->ClearWorkingMemory();
 		}
+
+		// Memory used in the context of this the update of mesh
+		OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
+		// Memory used in the context of the mesh update + the baseline memory already in use by mutable
+		OperationData->UpdateEndRealPeakBytes = OperationData->UpdateEndPeakBytes + OperationData->UpdateStartBytes;
 
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(true, true);
 	}

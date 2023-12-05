@@ -96,6 +96,9 @@ struct FMutableImageOperationData
 
 	/** Access to the Counter must be protected with this because it may be accessed from another thread to null it. */
 	FCriticalSection CounterTaskLock;
+
+	// Image Update Memory stats
+	int64 ImageUpdateStartBytes = 0;
 };
 
 

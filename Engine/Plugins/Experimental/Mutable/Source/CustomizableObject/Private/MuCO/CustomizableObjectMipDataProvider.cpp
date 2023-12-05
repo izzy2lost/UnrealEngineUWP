@@ -131,6 +131,10 @@ namespace impl
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
 		const double StartTime = FPlatformTime::Seconds();
 		
+		// Cache memory used when starting the update of the image
+		OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
+		mu::FGlobalMemoryCounter::Zero();
+		
 		// Any external texture that may be needed for this update will be requested from Mutable Core's GetImage
 		// which will safely access the GlobalExternalImages map, and then just get the cached image or issue a disk read
 
@@ -233,12 +237,16 @@ namespace impl
 		if (CVarEnableBenchmark.GetValueOnAnyThread())
 		{
 			double Time = FPlatformTime::Seconds() - StartTime;
+			// Report the peak memory used by the operation
+			const int64 PeakMemory = mu::FGlobalMemoryCounter::GetPeak();
+			// Report the peak memory used during the operation (operation + baseline)
+			const int64 RealMemoryPeak = PeakMemory + OperationData->ImageUpdateStartBytes;
 
 			const FString& CustomizableObjectPathName = OperationData->UpdateContext->GetCustomizableObjectPathName();
 			const FString& InstancePathName = OperationData->UpdateContext->GetInstancePathName();
 			
 			FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[CustomizableObjectPathName, InstancePathName, Time]()
+			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
 			{
 				UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 				if (!System)
@@ -246,7 +254,7 @@ namespace impl
 					return;
 				}
 
-				System->GetPrivateChecked()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time);
+				System->GetPrivateChecked()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
 			},
 			TStatId{},
 			nullptr,
