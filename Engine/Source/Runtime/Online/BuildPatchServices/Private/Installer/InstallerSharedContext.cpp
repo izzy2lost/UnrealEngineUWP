@@ -60,8 +60,6 @@ namespace BuildPatchServices
 			// Wait for some work to do
 			DoWorkEvent->Wait();
 
-			check(!MsgQueue.IsEmpty()); // Where is the job or termination request if the thread is awake?
-
 			FMsg Msg;
 			while (MsgQueue.Dequeue(Msg))
 			{
@@ -92,6 +90,8 @@ namespace BuildPatchServices
 	{
 		TStringBuilder<512> ThreadNameBuilder;
 		ThreadNameBuilder.Appendf(TEXT("%s #%d"), DebugName, ThreadCount);
+
+		UE_LOG(LogBuildPatchServices, Display, TEXT("Creating thread %s #%d"), DebugName, ThreadCount);
 
 		FBuildInstallerThread* Thread = new FBuildInstallerThread();
 		if (Thread->StartThread(ThreadNameBuilder.ToString()))
@@ -151,7 +151,13 @@ namespace BuildPatchServices
 		FScopeLock Lock(&ThreadFreeListCS);
 
 		// All threads should have been freed before deleting the context
-		check(ThreadFreeList.Num() == ThreadCount);
+		if (ThreadFreeList.Num() != ThreadCount)
+		{
+			UE_LOG(LogBuildPatchServices, Error, TEXT("Threads still allocated: Expected %d, Actual %u"), ThreadFreeList.Num(), ThreadCount);
+
+			checkf(false, TEXT("Threads still allocated: Expected %d, Actual %u"), ThreadFreeList.Num(), ThreadCount);
+		}
+
 		for (IBuildInstallerThread* Thread : ThreadFreeList)
 		{
 			FBuildInstallerThread* ThreadActual = static_cast<FBuildInstallerThread*>(Thread);
@@ -178,6 +184,7 @@ namespace BuildPatchServices
 		if (!Thread)
 		{
 			UE_CLOG(bWarnOnCreateThread, LogBuildPatchServices, Warning, TEXT("Allocating installer thread, free list exhausted, check PreallocateResources()"));
+			FScopeLock Lock(&ThreadFreeListCS);
 			Thread = CreateThreadInternal();
 		}
 
