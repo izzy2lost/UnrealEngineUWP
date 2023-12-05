@@ -65,6 +65,8 @@ static int32 GD3D12EnableDRED = 0;
 static int32 GD3D12EnableLightweightDRED = 1;
 #endif // UE_BUILD_SHIPPING || UE_BUILD_TEST
 
+#endif // PLATFORM_WINDOWS
+
 TAutoConsoleVariable<int32> GD3D12DebugCvar (
 	TEXT("r.D3D12.EnableD3DDebug"),
 	0,
@@ -90,6 +92,7 @@ bool D3D12_ShouldBreakOnD3DDebugWarnings()
 	return GD3D12DebugCvar.GetValueOnAnyThread() > 3;
 }
 
+#if PLATFORM_WINDOWS
 static FAutoConsoleVariableRef CVarD3D12EnableGPUBreadCrumbs(
 	TEXT("r.D3D12.BreadCrumbs"),
 	GD3D12EnableGPUBreadCrumbs,

@@ -579,6 +579,8 @@ protected:
 	// This should only be called by Dynamic RHI member functions
 	FD3D12Device* GetRHIDevice(uint32 GPUIndex) const;
 
+	void SetupD3D12Debug();
+
 	HANDLE FlipEvent;
 
 	const bool bAllowVendorDevice;
