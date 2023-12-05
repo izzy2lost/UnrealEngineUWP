@@ -243,6 +243,7 @@ void UBTTask_FindAndUseGameplayBehaviorSmartObject::UseClaimedSmartObject(UBehav
 	checkSlow(ClaimHandle.IsValid());
 	UAITask_UseGameplayBehaviorSmartObject* UseSOTask = NewBTAITask<UAITask_UseGameplayBehaviorSmartObject>(OwnerComp);
 	UseSOTask->SetClaimHandle(ClaimHandle);
+	UseSOTask->SetShouldReachSlotLocation(true);
 	UseSOTask->ReadyForActivation();
 
 	MyMemory.TaskInstance = UseSOTask;
