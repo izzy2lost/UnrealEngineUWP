@@ -94,6 +94,11 @@ FText UKismetTextLibrary::Conv_NameToText(FName InName)
 	return FText::AsCultureInvariant(InName.ToString());
 }
 
+FText UKismetTextLibrary::MakeInvariantText(const FString& InString)
+{
+	return FText::AsCultureInvariant(InString);
+}
+
 bool UKismetTextLibrary::TextIsEmpty(const FText& InText)
 {
 	return InText.IsEmpty();

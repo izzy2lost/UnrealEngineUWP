@@ -117,13 +117,17 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "To String (Text)", CompactNodeTitle = "->", BlueprintAutocast), Category = "Utilities|String")
 	static ENGINE_API FString Conv_TextToString(const FText& InText);
 
-	/** Converts string to culture invariant text. Use Format or Make Literal Text to create localizable text */
+	/** Converts string to culture invariant text. Use 'Make Literal Text' to create localizable text, or 'Format' if concatenating localized text */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "To Text (String)", BlueprintAutocast), Category="Utilities|Text")
 	static ENGINE_API FText Conv_StringToText(const FString& InString);
 
 	/** Converts Name to culture invariant text */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "To Text (Name)", BlueprintAutocast), Category="Utilities|Text")
 	static ENGINE_API FText Conv_NameToText(FName InName);
+
+	/** Converts string to culture invariant text. Use 'Make Literal Text' to create localizable text, or 'Format' if concatenating localized text */
+	UFUNCTION(BlueprintPure, Category="Utilities|Text")
+	static ENGINE_API FText MakeInvariantText(const FString& InString);
 
 	/** Returns true if text is empty. */
 	UFUNCTION(BlueprintPure, Category="Utilities|Text")
