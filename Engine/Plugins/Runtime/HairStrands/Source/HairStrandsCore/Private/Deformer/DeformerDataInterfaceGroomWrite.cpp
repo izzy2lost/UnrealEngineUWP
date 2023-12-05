@@ -166,6 +166,7 @@ FComputeDataProviderRenderProxy* UOptimusGroomWriteDataProvider::GetRenderProxy(
 
 FOptimusGroomWriteDataProviderProxy::FOptimusGroomWriteDataProviderProxy(UGroomComponent* InGroomComponent, uint64 InOutputMask)
 {
+	OutputMask = InOutputMask;
 	const uint32 InstanceCount = InGroomComponent ? InGroomComponent->GetGroupCount() : 0;
 	for (uint32 Index = 0; Index < InstanceCount; ++Index)
 	{

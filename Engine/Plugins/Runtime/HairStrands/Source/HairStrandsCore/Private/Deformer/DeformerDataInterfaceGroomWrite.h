@@ -52,7 +52,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
 	TObjectPtr<UGroomComponent> GroomComponent = nullptr;
 
-	uint64 OutputMask;
+	uint64 OutputMask = 0;
 
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
@@ -74,7 +74,7 @@ private:
 	using FParameters = FGroomWriteDataInterfaceParameters;
 
 	TArray<FHairGroupInstance*> Instances;
-	uint64 OutputMask;
+	uint64 OutputMask = 0;
 
 	struct FResources
 	{
