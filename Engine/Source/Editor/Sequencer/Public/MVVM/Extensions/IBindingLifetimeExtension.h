@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MVVM/ViewModelTypeID.h"
+#include "Math/Range.h"
 
 struct FGuid;
 

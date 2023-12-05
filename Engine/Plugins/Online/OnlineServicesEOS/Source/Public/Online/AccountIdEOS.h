@@ -5,6 +5,7 @@
 #include "Online/CoreOnline.h"
 
 typedef struct EOS_EpicAccountIdDetails* EOS_EpicAccountId;
+typedef struct EOS_ProductUserIdDetails* EOS_ProductUserId;
 
 namespace UE::Online
 {

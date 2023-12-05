@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/Input/SNumericEntryBox.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SCompoundWidget.h"
 #include "NumericPropertyParams.h"

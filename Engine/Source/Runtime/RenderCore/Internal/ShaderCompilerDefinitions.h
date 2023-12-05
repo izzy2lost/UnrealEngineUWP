@@ -6,6 +6,11 @@
 // as part of hiding FShaderCompilerDefinitions from public view, and will need to add this include back in.
 // #include "ShaderCore.h"
 
+#include "HAL/Platform.h"
+#include "Misc/CoreMiscDefines.h"
+#include "UObject/NameTypes.h"
+#include "ShaderParameterMetadata.h"
+
 #define SHADER_COMPILER_FLOAT32_FORMAT_STRING TEXT("%#.9gf")
 
 enum class EShaderCompilerDefineVariant : uint8

@@ -12,6 +12,7 @@ class UStaticMeshComponent;
 
 class IPrimitiveComponent;
 class IStaticMeshComponent;
+class UTexture;
 
 struct  FObjectCacheEventSink
 {

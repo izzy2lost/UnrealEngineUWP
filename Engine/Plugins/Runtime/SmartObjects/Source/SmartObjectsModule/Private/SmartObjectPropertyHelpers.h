@@ -1,9 +1,10 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "EngineDefines.h"
 #include "Engine/EngineTypes.h"
+#include "Misc/EnumerateRange.h"
 
 /**
  * Helper class to deal with relative property paths in PostEditChangeChainProperty().

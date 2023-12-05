@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Features/IModularFeature.h"
+#include "UObject/NameTypes.h"
 
 class IStereoLayersFlagsSupplier : public IModularFeature
 {

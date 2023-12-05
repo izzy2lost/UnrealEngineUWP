@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "Math/UnrealMathUtility.h"
 #include "UniversalObjectLocatorFwd.h"
 #include "UniversalObjectLocatorParameterTypeHandle.h"
 

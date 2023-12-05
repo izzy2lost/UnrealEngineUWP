@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Chaos/Evolution/SolverBody.h"
+#include "Chaos/Particles.h"
+#include "Containers/ArrayView.h"
+
 namespace Chaos::Softs
 {
 template<typename ParticlesType, typename = typename TEnableIf<TIsDerivedFrom<ParticlesType, TParticles<FSolverReal, 3>>::IsDerived>::Type>

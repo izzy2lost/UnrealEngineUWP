@@ -10,6 +10,7 @@
 #include "Misc/NetworkGuid.h"
 #include "Serialization/BitReader.h"
 #include "Templates/Tuple.h"
+#include "UObject/CoreNet.h"
 #include "UObject/WeakObjectPtr.h"
 
 class FArchive;

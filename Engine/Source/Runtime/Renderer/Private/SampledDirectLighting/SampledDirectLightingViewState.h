@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "Math/Vector4.h"
+#include "RendererInterface.h"
+
 class FSampledDirectLightingViewState
 {
 public:

@@ -14,7 +14,9 @@ Controller class running on game clients that handles the passing of messages to
 #include "Particles/ParticlePerfStatsManager.h"
 #include "UObject/StrongObjectPtr.h"
 
-class UNiagaraSimCache;
+#if WITH_NIAGARA_DEBUGGER
+#include "NiagaraSimCache.h"
+#endif
 
 class FMessageEndpoint;
 
