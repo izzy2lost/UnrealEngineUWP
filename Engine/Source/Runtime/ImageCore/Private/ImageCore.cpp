@@ -6,6 +6,7 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "TransferFunctions.h"
 #include "ColorSpace.h"
+#include "ImageParallelFor.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogImageCore, Log, All);
 
@@ -921,7 +922,7 @@ static void Bad_ResizeImage_Bilinear(const FImageView & SrcImage, const FImageVi
 	const float DestToSrcScaleX = (float)SrcImage.SizeX / (float)DestImage.SizeX;
 	const float DestToSrcScaleY = (float)SrcImage.SizeY / (float)DestImage.SizeY;
 
-	// @todo OodleImageResize : not a correct bilinear Resize?  missing 0.5 pixel center shift
+	// not a correct bilinear Resize?  missing 0.5 pixel center shift
 	//		deprecate this and redirect to new resizer
 	for (int64 DestY = 0; DestY < DestImage.SizeY; ++DestY)
 	{
@@ -1487,35 +1488,32 @@ IMAGECORE_API const FLinearColor ERawImageFormat::GetOnePixelLinear(const void *
 }
 
 
-void FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H(const FImageView & InOutImage)
+void FImageCore::SanitizeFloat16AndSetAlphaOpaqueForBC6H(const FImageView & InOutImageWhole)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.SanitizeFloat16AndSetAlphaOpaqueForBC6H);
-	check(InOutImage.Format == ERawImageFormat::RGBA16F);
+	check(InOutImageWhole.Format == ERawImageFormat::RGBA16F);
 
-	const int64 TexelNum = InOutImage.GetNumPixels();
-	FFloat16Color* Data = reinterpret_cast<FFloat16Color*>(InOutImage.RawData);
-
-	// @todo Oodle : parallel for ?
-	for (int64 TexelIndex = 0; TexelIndex < TexelNum; ++TexelIndex)
+	ImageParallelFor(TEXT("PF.SanitizeFloat16AndSetAlphaOpaqueForBC6H"),InOutImageWhole,[](const FImageView & InOutImagePart,int64 RowY)
 	{
-		FFloat16Color& F16Color = Data[TexelIndex];
+		const int64 TexelNum = InOutImagePart.GetNumPixels();
+		FFloat16Color* Data = reinterpret_cast<FFloat16Color*>(InOutImagePart.RawData);
 
-		F16Color.R = F16Color.R.GetClampedNonNegativeAndFinite();
-		F16Color.G = F16Color.G.GetClampedNonNegativeAndFinite();
-		F16Color.B = F16Color.B.GetClampedNonNegativeAndFinite();
-		F16Color.A.SetOne();
-	}
+		for (int64 TexelIndex = 0; TexelIndex < TexelNum; ++TexelIndex)
+		{
+			FFloat16Color& F16Color = Data[TexelIndex];
+
+			F16Color.R = F16Color.R.GetClampedNonNegativeAndFinite();
+			F16Color.G = F16Color.G.GetClampedNonNegativeAndFinite();
+			F16Color.B = F16Color.B.GetClampedNonNegativeAndFinite();
+			F16Color.A.SetOne();
+		}
+	} );
 }
 
 bool FImageCore::DetectAlphaChannel(const FImageView & InImage)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Texture.DetectAlphaChannel);
 
-	// previous :
-	// "SMALL_NUMBER" is quite small, this provides almost no tolerance
-	// #define SMALL_NUMBER		(1.e-8f)
-	//const float FloatNonOpaqueAlpha = 1.0f - SMALL_NUMBER;
-	// 
 	// opaque alpha threshold where we'd quantize to < 255 in U8
 	//  images with only alpha larger than this are treated as opaque
 	const float FloatNonOpaqueAlpha = 254.5f / 255.f; // the U8 alpha threshold
@@ -1593,10 +1591,8 @@ bool FImageCore::DetectAlphaChannel(const FImageView & InImage)
 	return false;
 }
 
-void FImageCore::SetAlphaOpaque(const FImageView & InImage)
+static void SetAlphaOpaque_SingleThreaded(const FImageView & InImage)
 {
-	// this is not currently parallel but easily could be
-
 	int64 NumPixels = (int64)InImage.SizeX * InImage.SizeY * InImage.NumSlices;
 
 	if (InImage.Format == ERawImageFormat::BGRA8)
@@ -1668,37 +1664,11 @@ void FImageCore::SetAlphaOpaque(const FImageView & InImage)
 	}
 }
 
-
-void FImageCore::ComputeChannelLinearMinMax(const FImageView & InImage, FLinearColor & OutMin, FLinearColor & OutMax)
+void FImageCore::SetAlphaOpaque(const FImageView & InImage)
 {
-	// @todo Oodle : for speed, we should ideally scan the image for min/max in its native pixel format
-	//	then only convert the min/max colors to float linear after the scan
-	//	don't convert the whole image
-
-	FImage ImageLinear;
-	InImage.CopyTo(ImageLinear,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
-	
-	TArrayView64<FLinearColor> Colors = ImageLinear.AsRGBA32F();
-	if ( Colors.Num() == 0 )
-	{
-		OutMin = FLinearColor(ForceInit);
-		OutMax = FLinearColor(ForceInit);
-		return;
-	}
-	
-	VectorRegister4Float VMin = VectorLoad(&Colors[0].Component(0));
-	VectorRegister4Float VMax = VMin;
-	
-	for ( const FLinearColor & Color : Colors )
-	{
-		VectorRegister4Float VCur = VectorLoad(&Color.Component(0));
-
-		VMin = VectorMin(VMin,VCur);
-		VMax = VectorMax(VMax,VCur);
-	}
-
-	VectorStore(VMin,&OutMin.Component(0));
-	VectorStore(VMax,&OutMax.Component(0));
+	ImageParallelFor(TEXT("PF.SetAlphaOpaque"),InImage,[](const FImageView & Part,int64 Row) {
+		SetAlphaOpaque_SingleThreaded(Part);
+	} );
 }
 
 void FImageCore::TransformToWorkingColorSpace(const FImageView& InLinearImage, const FVector2d& SourceRedChromaticity, const FVector2d& SourceGreenChromaticity, const FVector2d& SourceBlueChromaticity, const FVector2d& SourceWhiteChromaticity, UE::Color::EChromaticAdaptationMethod Method, double EqualityTolerance)

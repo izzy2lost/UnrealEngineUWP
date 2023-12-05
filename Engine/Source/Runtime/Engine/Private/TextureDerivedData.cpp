@@ -186,7 +186,8 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 		TempVector4f = Settings.AlphaCoverageThresholds; Ar << TempVector4f;
 	}
 	
-	TempByte = Settings.bComputeBokehAlpha ? 2 : 0; Ar << TempByte;
+	// Bokeh output version number bumped when processing changes
+	TempByte = Settings.bComputeBokehAlpha ? 3 : 0; Ar << TempByte;
 	TempByte = Settings.bReplicateRed; Ar << TempByte;
 	TempByte = Settings.bReplicateAlpha; Ar << TempByte;
 	TempByte = Settings.bDownsampleWithAverage; Ar << TempByte;
@@ -196,6 +197,7 @@ static void SerializeForKey(FArchive& Ar, const FTextureBuildSettings& Settings)
 
 		if(Settings.bSharpenWithoutColorShift && Settings.MipSharpening != 0.0f)
 		{
+			// @todo SerializeForKey these can go away whenever we bump the overall ddc key
 			// bSharpenWithoutColorShift prevented alpha sharpening. This got fixed
 			// Here we update the key to get those cases recooked.
 			TempByte = 2;

@@ -2922,7 +2922,7 @@ void ITextureCompressorModule::AdjustImageColors(FImage& Image, const FTextureBu
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(Texture.AdjustImageColors);
 
-		FImageCore::ImageParallelFor( TEXT("Texture.AdjustImageColorsFunc.PF"),Image, [&](FImageView & ImagePart)
+		FImageCore::ImageParallelFor( TEXT("Texture.AdjustImageColorsFunc.PF"),Image, [&](FImageView & ImagePart,int64 RowY)
 		{
 			TArrayView64<FLinearColor> ImageColors = ImagePart.AsRGBA32F();
 
@@ -2969,7 +2969,7 @@ static void ComputeBokehAlpha(FImage& Image)
 		Scale *= LumGoal / FMath::Max(RGBLum, 0.001f);
 	}
 
-	FImageCore::ImageParallelProcessLinearPixels(TEXT("PF.ComputeBokehAlpha"),Image,[&](TArrayView64<FLinearColor> & Colors) {
+	FImageCore::ImageParallelProcessLinearPixels(TEXT("PF.ComputeBokehAlpha"),Image,[&](TArrayView64<FLinearColor> & Colors,int64 RowY) {
 		for( FLinearColor & Color : Colors )
 		{
 			// Convert to a linear color

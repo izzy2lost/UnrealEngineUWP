@@ -812,6 +812,29 @@ IMAGECORE_API void ResizeTo(const FImageView & SourceImage,FImage& DestImage, in
 IMAGECORE_API void ComputeChannelLinearMinMax(const FImageView & InImage, FLinearColor & OutMin, FLinearColor & OutMax);
 
 /**
+* If the image has any values outside the [0,1] range, rescale that edge of the domain so that it is in [0,1]
+* does not affect images that were previously in [0,1]
+*
+* also does not change the side of the domain that is not out of bounds
+* eg. values in [0.25,200.0] will be rescaled to [0.25,1.0]
+*
+* returns bool if any change was made
+*
+* If the input format is U8 or U16, no change will ever be made and this will return false.
+*
+* This can be useful if you want to save an HDR/float image to a U8 image format for visualization.
+* This is equivalent to what's called the "UNorm" transformation by the RenderTarget ReadPixels functions.
+*/
+IMAGECORE_API bool ScaleChannelsSoMinMaxIsInZeroToOne(const FImageView & ImageToModify);
+
+/** ComputeImageLinearAverage
+ * compute the average linear color of the image
+ *	image can be any pixel format
+ *	parallel processing is used, but the result is not machine-dependent
+ */
+IMAGECORE_API FLinearColor ComputeImageLinearAverage(const FImageView & Image);
+
+/**
  * Apply a color space transformation from the source chromaticities to the engine's working color space.
  *
  * @param InLinearImage - The image to convert, which must be linear.
