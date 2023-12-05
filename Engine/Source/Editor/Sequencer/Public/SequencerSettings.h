@@ -322,10 +322,10 @@ public:
 	/** Set whether to show channel colors for the key bars */
 	void SetShowChannelColors(bool bInShowChannelColors);
 
-	/** @return true if showing status bar */
-	bool GetShowStatusBar() const;
-	/** Set whether to show status bar */
-	void SetShowStatusBar(bool bInShowStatusBar);
+	/** @return true if showing the info button in the playback controls */
+	bool GetShowInfoButton() const;
+	/** Set whether to show the info button in the playback controls */
+	void SetShowInfoButton(bool bInShowInfoButton);
 
 	/** @return true if showing tick lines */
 	bool GetShowTickLines() const;
@@ -628,9 +628,9 @@ protected:
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
 	bool bShowChannelColors;
 
-	/** Enable or disable displaying the status bar for number of items. */
+	/** Enable or disable displaying the info button in the playback controls. */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)
-	bool bShowStatusBar;
+	bool bShowInfoButton;
 
 	/** Enable or disable displaying the tick lines. */
 	UPROPERTY(config, EditAnywhere, Category = Timeline)

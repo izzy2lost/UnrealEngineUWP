@@ -55,6 +55,7 @@ FSequencerNodeTree::~FSequencerNodeTree()
 
 FSequencerNodeTree::FSequencerNodeTree(FSequencer& InSequencer)
 	: Sequencer(InSequencer)
+	, DisplayNodeCount(0)
 	, bFilterUpdateRequested(false)
 {
 	TrackFilters = MakeShared<FSequencerTrackFilterCollection>();

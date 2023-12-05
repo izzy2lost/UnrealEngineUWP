@@ -4215,6 +4215,71 @@ TSharedRef<SWidget> FSequencer::MakeTransportControls(bool bExtended)
 	return EditorWidgetsModule.CreateTransportControl( TransportControlArgs );
 }
 
+TSharedRef<SWidget> FSequencer::MakePlayTimeDisplay(const TSharedRef<INumericTypeInterface<double>>& InNumericTypeInterface)
+{
+	return SNew(STemporarilyFocusedSpinBox<double>)
+		.Style(&FAppStyle::GetWidgetStyle<FSpinBoxStyle>("Sequencer.PlayTimeSpinBox"))
+		.Value_Lambda([this]() -> double {
+			return GetLocalTime().Time.GetFrame().Value;
+		})
+		.OnValueChanged_Lambda([this](double InFrame) {
+			SequencerWidget->SetPlayTimeClampedByWorkingRange(InFrame);
+		})
+		.OnValueCommitted_Lambda([this](double InFrame, ETextCommit::Type) {
+			SequencerWidget->SetPlayTime(InFrame);
+		})
+		.MinValue(TOptional<double>())
+		.MaxValue(TOptional<double>())
+		.ToolTipText_Lambda([this] {
+			FFrameRate TickResolution = GetFocusedTickResolution();
+			FFrameRate DisplayRate = GetFocusedDisplayRate();
+
+			FFrameNumber CurrentFrame = GetLocalTime().Time.GetFrame();
+			TRange<FFrameNumber> CurrentRange = GetSubSequenceRange().IsSet() ? GetSubSequenceRange().GetValue() : GetPlaybackRange();
+
+			FFrameNumber FrameCount = FFrameRate::TransformTime((CurrentFrame - CurrentRange.GetLowerBoundValue() + 1).Value, TickResolution, DisplayRate).CeilToFrame();
+			FFrameNumber FrameDuration = FFrameRate::TransformTime(CurrentRange.Size<FFrameNumber>().Value, TickResolution, DisplayRate).CeilToFrame();
+
+			return FText::FromString(FString::Printf(TEXT("%d of %d"), FrameCount.Value, FrameDuration.Value));
+		})
+		.TypeInterface(InNumericTypeInterface)
+		.Delta(this, &FSequencer::GetDisplayRateDeltaFrameCount)
+		.LinearDeltaSensitivity(25)
+		.MinDesiredWidth_Lambda([this] {
+			TRange<double> ViewRange = GetViewRange();
+
+			FString LowerBoundStr = GetNumericTypeInterface()->ToString(ViewRange.GetLowerBoundValue());
+			FString UpperBoundStr = GetNumericTypeInterface()->ToString(ViewRange.GetUpperBoundValue());
+
+			// Always measure with the negative and subframe indicator so that the size doesn't change when there is and isn't a subframe
+			if (!LowerBoundStr.Contains(TEXT("*")))
+			{
+				LowerBoundStr += TEXT("*");
+			}
+			if (!LowerBoundStr.Contains(TEXT("-")))
+			{
+				LowerBoundStr += TEXT("-");
+			}
+			if (!UpperBoundStr.Contains(TEXT("*")))
+			{
+				UpperBoundStr += TEXT("*");
+			}
+			if (!UpperBoundStr.Contains(TEXT("-")))
+			{
+				UpperBoundStr += TEXT("-");
+			}
+
+			const FSlateFontInfo NormalFont = FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));
+
+			const TSharedRef< FSlateFontMeasure > FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+
+			FVector2D LowerTextSize = FontMeasureService->Measure(LowerBoundStr, NormalFont);
+			FVector2D UpperTextSize = FontMeasureService->Measure(UpperBoundStr, NormalFont);
+
+			return FMath::Max(LowerTextSize.X, UpperTextSize.X);
+		});
+}
+
 TSharedRef<SWidget> FSequencer::OnCreateTransportSetPlaybackStart()
 {
 	FText SetPlaybackStartToolTip = FText::Format(LOCTEXT("SetPlayStart_Tooltip", "Set playback start to the current position ({0})"), FSequencerCommands::Get().SetStartPlaybackRange->GetInputText());
@@ -4222,9 +4287,14 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportSetPlaybackStart()
 	return SNew(SButton)
 		.OnClicked(this, &FSequencer::SetPlaybackStart)
 		.ToolTipText(SetPlaybackStartToolTip)
-		.ButtonStyle(FAppStyle::Get(), "Sequencer.Transport.SetPlayStart")
-		.ContentPadding(2.0f)
-		.IsFocusable(false);
+		.ButtonStyle(FAppStyle::Get(), "Animation.PlayControlsButton")
+		.ContentPadding(0.0f)
+		.IsFocusable(false)
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FLinearColor::Green)
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Transport.SetPlayStart"))
+		];
 }
 
 TSharedRef<SWidget> FSequencer::OnCreateTransportJumpToPreviousKey()
@@ -4234,9 +4304,14 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportJumpToPreviousKey()
 	return SNew(SButton)
 		.OnClicked(this, &FSequencer::JumpToPreviousKey)
 		.ToolTipText(JumpToPreviousKeyToolTip)
-		.ButtonStyle(FAppStyle::Get(), "Sequencer.Transport.JumpToPreviousKey")
-		.ContentPadding(2.0f)
-		.IsFocusable(false);
+		.ButtonStyle(FAppStyle::Get(), "Animation.PlayControlsButton")
+		.ContentPadding(0.0f)
+		.IsFocusable(false)
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Transport.JumpToPreviousKey"))
+		];
 }
 
 TSharedRef<SWidget> FSequencer::OnCreateTransportJumpToNextKey()
@@ -4246,9 +4321,14 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportJumpToNextKey()
 	return SNew(SButton)
 		.OnClicked(this, &FSequencer::JumpToNextKey)
 		.ToolTipText(JumpToNextKeyToolTip)
-		.ButtonStyle(FAppStyle::Get(), "Sequencer.Transport.JumpToNextKey")
-		.ContentPadding(2.0f)
-		.IsFocusable(false);
+		.ButtonStyle(FAppStyle::Get(), "Animation.PlayControlsButton")
+		.ContentPadding(0.0f)
+		.IsFocusable(false)
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Transport.JumpToNextKey"))
+		];
 }
 
 TSharedRef<SWidget> FSequencer::OnCreateTransportSetPlaybackEnd()
@@ -4258,16 +4338,21 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportSetPlaybackEnd()
 	return SNew(SButton)
 		.OnClicked(this, &FSequencer::SetPlaybackEnd)
 		.ToolTipText(SetPlaybackEndToolTip)
-		.ButtonStyle(FAppStyle::Get(), "Sequencer.Transport.SetPlayEnd")
-		.ContentPadding(2.0f)
-		.IsFocusable(false);
+		.ButtonStyle(FAppStyle::Get(), "Animation.PlayControlsButton")
+		.ContentPadding(0.0f)
+		.IsFocusable(false)
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FLinearColor::Red)
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Transport.SetPlayEnd"))
+		];
 }
 
 TSharedRef<SWidget> FSequencer::OnCreateTransportLoopMode()
 {
 	TSharedRef<SButton> LoopButton = SNew(SButton)
 		.OnClicked(this, &FSequencer::OnCycleLoopMode)
-		.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+		.ButtonStyle( FAppStyle::Get(), "Animation.PlayControlsButton" )
 		.IsFocusable(false)
 		.ToolTipText_Lambda([&]()
 		{ 
@@ -4284,30 +4369,25 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportLoopMode()
 				return LOCTEXT("LoopModeLoopSelectionRange_Tooltip", "Loop selection range");
 			}
 		})
-		.ContentPadding(2.0f);
+		.ContentPadding(0.0f);
 
 	TWeakPtr<SButton> WeakButton = LoopButton;
 
 	LoopButton->SetContent(SNew(SImage)
+		.ColorAndOpacity(FSlateColor::UseSubduedForeground())
 		.Image_Lambda([&, WeakButton]()
 		{
 			if (GetLoopMode() == ESequencerLoopMode::SLM_NoLoop)
 			{
-				return WeakButton.IsValid() && WeakButton.Pin()->IsPressed() ? 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.Disabled").Pressed : 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.Disabled").Normal;
+				return FAppStyle::Get().GetBrush("Animation.Loop.Disabled");
 			}
 			else if (GetLoopMode() == ESequencerLoopMode::SLM_Loop)
 			{
-				return WeakButton.IsValid() && WeakButton.Pin()->IsPressed() ? 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.Enabled").Pressed : 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.Enabled").Normal;
+				return FAppStyle::Get().GetBrush("Animation.Loop.Enabled");
 			}
 			else
 			{
-				return WeakButton.IsValid() && WeakButton.Pin()->IsPressed() ? 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.SelectionRange").Pressed : 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Loop.SelectionRange").Normal;
+				return FAppStyle::Get().GetBrush("Animation.Loop.SelectionRange");
 			}
 		})
 	);
@@ -4319,7 +4399,7 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportRecord()
 {
 	TSharedRef<SButton> RecordButton = SNew(SButton)
 		.OnClicked(this, &FSequencer::OnRecord)
-		.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+		.ButtonStyle( FAppStyle::Get(), "Animation.PlayControlsButton" )
 		.IsFocusable(false)
 		.ToolTipText_Lambda([&]()
 		{
@@ -4340,24 +4420,12 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportRecord()
 		})
 		.Visibility_Lambda([&] { return HostCapabilities.bSupportsRecording && OnGetCanRecord().IsBound() ? EVisibility::Visible : EVisibility::Collapsed; })
 		.IsEnabled_Lambda([&] { FText OutErrorText; return OnGetCanRecord().IsBound() && OnGetCanRecord().Execute(OutErrorText); })
-		.ContentPadding(2.0f);
+		.ContentPadding(0.0f);
 
 	TWeakPtr<SButton> WeakButton = RecordButton;
 
 	RecordButton->SetContent(SNew(SImage)
-		.Image_Lambda([this, WeakButton]()
-		{
-			if (OnGetIsRecording().IsBound() && OnGetIsRecording().Execute())
-			{
-				return WeakButton.IsValid() && WeakButton.Pin()->IsPressed() ? 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Recording").Pressed : 
-					&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Recording").Normal;
-			}
-
-			return WeakButton.IsValid() && WeakButton.Pin()->IsPressed() ? 
-				&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Record").Pressed : 
-				&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Animation.Record").Normal;
-		})
+		.Image(FAppStyle::Get().GetBrush("Animation.Record"))
 		.ColorAndOpacity_Lambda([this]()
 		{
 			if (OnGetIsRecording().IsBound() && OnGetIsRecording().Execute())
@@ -4367,11 +4435,13 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportRecord()
 					RecordingAnimation.Play(SequencerWidget.ToSharedRef(), true);
 				}
 
-				return FLinearColor(1.f, 1.f, 1.f, 0.2f + 0.8f * RecordingAnimation.GetLerp());
+				FLinearColor Color = FSlateColor::UseSubduedForeground().GetSpecifiedColor();
+				Color.A = 0.2f + 0.8f * RecordingAnimation.GetLerp();
+				return FSlateColor(Color);
 			}
 
 			RecordingAnimation.Pause();
-			return FLinearColor::White;		
+			return FSlateColor::UseSubduedForeground();
 		})
 	);
 
@@ -10615,12 +10685,12 @@ void FSequencer::BindCommands()
 		FIsActionChecked::CreateLambda( [this]{ return Settings->GetShowChannelColors(); } ) );
 
 	SequencerCommandBindings->MapAction(
-		Commands.ToggleShowStatusBar,
+		Commands.ToggleShowInfoButton,
 		FExecuteAction::CreateLambda([this] {
-			Settings->SetShowStatusBar(!Settings->GetShowStatusBar());
+			Settings->SetShowInfoButton(!Settings->GetShowInfoButton());
 		}),
 		FCanExecuteAction::CreateLambda([] { return true; }),
-		FIsActionChecked::CreateLambda([this] { return Settings->GetShowStatusBar(); }));
+		FIsActionChecked::CreateLambda([this] { return Settings->GetShowInfoButton(); }));
 
 	SequencerCommandBindings->MapAction(
 		Commands.ToggleShowSelectedNodesOnly,

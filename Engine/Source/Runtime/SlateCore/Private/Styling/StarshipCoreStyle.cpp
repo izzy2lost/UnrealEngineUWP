@@ -315,6 +315,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.WarningWithColor.Thumbnail", new IMAGE_BRUSH_SVG("Starship/Common/alert-triangle-64", Icon64x64));
 
 		Style->Set("Icons.Info", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon16x16));
+		Style->Set("Icons.Info.Small", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon14x14));
 		Style->Set("Icons.Info.Large", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon32x32));
 		Style->Set("Icons.InfoWithColor", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon16x16, FStyleColors::Foreground));
 		Style->Set("Icons.InfoWithColor.Large", new IMAGE_BRUSH_SVG("Starship/Common/Info", Icon32x32, FStyleColors::Foreground));

@@ -97,7 +97,6 @@
 #include "Tree/SCurveEditorTree.h"
 #include "Tree/CurveEditorTreeFilter.h"
 #include "Tree/SCurveEditorTreeTextFilter.h"
-#include "Tree/SCurveEditorTreeFilterStatusBar.h"
 #include "SequencerSelectionCurveFilter.h"
 #include "SCurveKeyDetailPanel.h"
 #include "MovieSceneTimeHelpers.h"
@@ -319,14 +318,9 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	SequencerViewModel->GetTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*TrackArea);
 	SequencerViewModel->GetPinnedTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*PinnedTrackArea);
 
+	PlayTimeDisplay = StaticCastSharedRef<STemporarilyFocusedSpinBox<double>>(SequencerPtr.Pin()->MakePlayTimeDisplay(GetNumericTypeInterface()));
+
 	TAttribute<FAnimatedRange> ViewRangeAttribute = InArgs._ViewRange;
-
-	if (InSequencer->GetHostCapabilities().bSupportsCurveEditor)
-	{
-		FCurveEditorExtension* CurveEditorExtension = SequencerViewModel->CastDynamicChecked<FCurveEditorExtension>();
-		CurveEditorExtension->CreateCurveEditor(TimeSliderArgs);
-	}
-
 
 	const int32 Column0 = 0, Column1 = 1;
 	const int32 Row0 = 0, Row1 = 1, Row2 = 2, Row3 = 3, Row4 = 4;
@@ -559,82 +553,6 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 							[
 								MakeFilterButton()
 							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Right)
-							.Padding(FMargin(CommonPadding + 2.0, 0.f, 0.f, 0.f))
-							[
-								SNew(SBorder)
-								.BorderImage(nullptr)
-								[
-									// Current Play Time 
-									SAssignNew(PlayTimeDisplay, STemporarilyFocusedSpinBox<double>)
-									.Style(&FAppStyle::GetWidgetStyle<FSpinBoxStyle>("Sequencer.PlayTimeSpinBox"))
-									.Value_Lambda([this]() -> double {
-										return SequencerPtr.Pin()->GetLocalTime().Time.GetFrame().Value;
-									})
-									.OnValueChanged(this, &SSequencer::SetPlayTimeClampedByWorkingRange)
-									.OnValueCommitted_Lambda([this](double InFrame, ETextCommit::Type) {
-										SetPlayTime(InFrame);
-
-										// Refocus on the previously focused widget so that user can continue on after setting a time
-										PlayTimeDisplay->Refocus();
-									})
-									.MinValue(TOptional<double>())
-									.MaxValue(TOptional<double>())
-									.TypeInterface(NumericTypeInterface)
-									.Delta(this, &SSequencer::GetSpinboxDelta)
-									.LinearDeltaSensitivity(25)
-									.MinDesiredWidth(this, &SSequencer::GetPlayTimeMinDesiredWidth)
-								]
-							]
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Right)
-							.Padding(FMargin(CommonPadding + 2.0, 0.f, 0.f, 0.f))
-							[
-								SNew(SBorder)
-								.BorderImage(nullptr)
-								[
-									// Current loop index, if any
-									SAssignNew(LoopIndexDisplay, STextBlock)
-									.Text_Lambda([this]() -> FText {
-										uint32 LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
-										return (LoopIndex != FMovieSceneTimeWarping::InvalidWarpCount) ? FText::AsNumber(LoopIndex + 1) : FText();
-									})
-								]
-							]
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Right)
-							.Padding(FMargin(CommonPadding + 2.0, 0.f, 0.f, 0.f))
-							[
-								SNew(SBorder)
-								.BorderImage(nullptr)
-								[
-									// Frame count and duration
-									SNew(STextBlock)
-									.ColorAndOpacity(FAppStyle::GetSlateColor("SelectionColor_Pressed"))
-									.Text_Lambda([this]() -> FText {
-										FFrameRate TickResolution = SequencerPtr.Pin()->GetFocusedTickResolution();
-										FFrameRate DisplayRate = SequencerPtr.Pin()->GetFocusedDisplayRate();
-
-										TOptional<TRange<FFrameNumber>> SubSequenceRange = SequencerPtr.Pin()->GetSubSequenceRange();
-
-										FFrameNumber CurrentFrame = SequencerPtr.Pin()->GetLocalTime().Time.GetFrame();
-										TRange<FFrameNumber> CurrentRange = SubSequenceRange.IsSet() ? SubSequenceRange.GetValue() : SequencerPtr.Pin()->GetPlaybackRange();
-
-										FFrameNumber FrameCount = FFrameRate::TransformTime((CurrentFrame - CurrentRange.GetLowerBoundValue() + 1).Value, TickResolution, DisplayRate).CeilToFrame();
-										FFrameNumber FrameDuration = FFrameRate::TransformTime(CurrentRange.Size<FFrameNumber>().Value, TickResolution, DisplayRate).CeilToFrame();
-
-										return FText::FromString(FString::Printf(TEXT("%d of %d"), FrameCount.Value, FrameDuration.Value));
-									})
-								]
-							]
 						]
 					]
 
@@ -745,22 +663,99 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 								+ SOverlay::Slot()
 								.VAlign(VAlign_Bottom)
 								[
-									SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, InSequencer)	
-									.Visibility(this, &SSequencer::GetStatusBarVisibility)
+									SNew(SHorizontalBox)
+
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									[
+										SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, InSequencer)
+										.Visibility(EVisibility::Hidden) // Initially hidden, visible on hover of the info button
+									]
 								]
 							]
 						]
 					]
 
-					// playback buttons
+					// Info Button, Transport Controls and Current Frame
 					+ SGridPanel::Slot( Column0, Row4, SGridPanel::Layer(10) )
 					[
-						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-						//.BorderBackgroundColor(FLinearColor(.50f, .50f, .50f, 1.0f))
-						.HAlign(HAlign_Center)
+						SNew(SHorizontalBox)
+						
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Left)
 						[
-							SequencerPtr.Pin()->MakeTransportControls(true)
+							SNew(SButton)
+							.VAlign(EVerticalAlignment::VAlign_Center)
+							.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+							.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+							.ContentPadding(FMargin(1, 0))
+							.Visibility(this, &SSequencer::GetInfoButtonVisibility)
+							.OnHovered_Lambda([this] { SequencerTreeFilterStatusBar->ShowStatusBar(); })
+							.OnUnhovered_Lambda([this] { SequencerTreeFilterStatusBar->FadeOutStatusBar(); })
+							.OnClicked_Lambda([this] { SequencerTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
+							[
+								SNew(SImage)
+								.ColorAndOpacity(FSlateColor::UseForeground())
+								.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
+							]
+						]
+
+						+ SHorizontalBox::Slot()
+						[
+							SNew(SBorder)
+							.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+							.HAlign(HAlign_Center)
+							[
+								SequencerPtr.Pin()->MakeTransportControls(true)
+							]
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Right)
+						[
+							SNew(SButton)
+							.VAlign(EVerticalAlignment::VAlign_Center)
+							.ButtonStyle(FAppStyle::Get(), "NoBorder")
+							.ContentPadding(FMargin(1, 0))
+							[
+								SNew(SHorizontalBox)
+
+								+ SHorizontalBox::Slot()
+								.AutoWidth()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Right)
+								.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+								[
+									SNew(SBorder)
+									.BorderImage(nullptr)
+									[
+										PlayTimeDisplay.ToSharedRef()
+									]
+								]
+
+								+ SHorizontalBox::Slot()
+								.AutoWidth()
+								.VAlign(VAlign_Center)
+								.HAlign(HAlign_Right)
+								.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+								[
+									SNew(SBorder)
+									.BorderImage(nullptr)
+									[
+										// Current loop index, if any
+										SAssignNew(LoopIndexDisplay, STextBlock)
+										.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+										.Text_Lambda([this]() -> FText {
+											uint32 LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
+											return (LoopIndex != FMovieSceneTimeWarping::InvalidWarpCount) ? FText::AsNumber(LoopIndex + 1) : FText();
+										})
+									]
+								]
+							]
 						]
 					]
 
@@ -895,6 +890,12 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 		]
 	];
 
+	if (InSequencer->GetHostCapabilities().bSupportsCurveEditor)
+	{
+		FCurveEditorExtension* CurveEditorExtension = SequencerViewModel->CastDynamicChecked<FCurveEditorExtension>();
+		CurveEditorExtension->CreateCurveEditor(TimeSliderArgs);
+	}
+
 	ApplySequencerCustomization(RootCustomization);
 
 	InSequencer->GetViewModel()->GetSelection()->KeySelection.OnChanged.AddSP(this, &SSequencer::HandleKeySelectionChanged);
@@ -938,7 +939,7 @@ void SSequencer::BindCommands(TSharedRef<FUICommandList> SequencerCommandBinding
 
 	SequencerCommandBindings->MapAction(
 		FSequencerCommands::Get().ToggleShowGotoBox,
-		FExecuteAction::CreateLambda([this] { PlayTimeDisplay->Setup();  FSlateApplication::Get().SetKeyboardFocus(PlayTimeDisplay, EFocusCause::SetDirectly); })
+		FExecuteAction::CreateLambda([this] { PlayTimeDisplay->Setup(); FSlateApplication::Get().SetKeyboardFocus(PlayTimeDisplay, EFocusCause::SetDirectly); })
 	);
 
 	SequencerCommandBindings->MapAction(
@@ -1223,7 +1224,7 @@ TSharedRef<SWidget> SSequencer::MakeAddButton()
 	return SNew(SPositiveActionButton)
 	.OnGetMenuContent(this, &SSequencer::MakeAddMenu)
 	.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-	.Text(LOCTEXT("Track", "Track"))
+	.Text(LOCTEXT("Add", "Add"))
 	.IsEnabled_Lambda([this]() { return !SequencerPtr.Pin()->IsReadOnly(); });
 }
 
@@ -2170,7 +2171,7 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleLayerBars );
 	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleKeyBars );
 	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleChannelColors );
-	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowStatusBar );
+	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowInfoButton );
 	MenuBuilder.AddMenuEntry( FSequencerCommands::Get().ToggleShowPreAndPostRoll );
 
 	// Menu entry for zero padding
@@ -3726,9 +3727,9 @@ EVisibility SSequencer::GetTimeRangeVisibility() const
 	return GetSequencerSettings()->GetShowRangeSlider() ? EVisibility::Visible : EVisibility::Hidden;
 }
 
-EVisibility SSequencer::GetStatusBarVisibility() const
+EVisibility SSequencer::GetInfoButtonVisibility() const
 {
-	return GetSequencerSettings()->GetShowStatusBar() ? EVisibility::SelfHitTestInvisible : EVisibility::Hidden;
+	return GetSequencerSettings()->GetShowInfoButton() ? EVisibility::SelfHitTestInvisible : EVisibility::Hidden;
 }
 
 EVisibility SSequencer::GetShowTickLines() const
@@ -4045,24 +4046,6 @@ double SSequencer::GetSpinboxDelta() const
 	return Sequencer->GetDisplayRateDeltaFrameCount();
 }
 
-float SSequencer::GetPlayTimeMinDesiredWidth() const
-{
-	TRange<double> ViewRange = SequencerPtr.Pin()->GetViewRange();
-
-	FString LowerBoundStr = NumericTypeInterface->ToString(ViewRange.GetLowerBoundValue());
-	FString UpperBoundStr = NumericTypeInterface->ToString(ViewRange.GetUpperBoundValue());
-
-	const FSlateFontInfo NormalFont = FCoreStyle::Get().GetFontStyle(TEXT("NormalFont"));
-	
-	const TSharedRef< FSlateFontMeasure > FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-
-	FVector2D LowerTextSize = FontMeasureService->Measure(LowerBoundStr, NormalFont);
-	FVector2D UpperTextSize = FontMeasureService->Measure(UpperBoundStr, NormalFont);
-
-	return FMath::Max(LowerTextSize.X, UpperTextSize.X);
-}
-
-
 bool SSequencer::GetIsSequenceReadOnly() const
 {
 	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
@@ -4156,6 +4139,12 @@ void SSequencer::SetPlayTime(double Frame)
 		Sequencer->SetViewRange(NewViewRange);
 		
 		Sequencer->SetLocalTime(NewFrame);
+
+		// Refocus on the previously focused widget so that user can continue on after setting a time
+		if (PlayTimeDisplay)
+		{
+			PlayTimeDisplay->Refocus();
+		}
 	}
 }
 

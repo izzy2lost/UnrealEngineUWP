@@ -49,7 +49,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bShowKeyBars = true;
 	bInfiniteKeyAreas = false;
 	bShowChannelColors = false;
-	bShowStatusBar = true;
+	bShowInfoButton = true;
 	ReduceKeysTolerance = KINDA_SMALL_NUMBER;
 	KeyAreaHeightWithCurves = SequencerLayoutConstants::KeyAreaHeight;
 	bDeleteKeysWhenTrimming = true;
@@ -624,16 +624,16 @@ void USequencerSettings::SetShowChannelColors(bool InbShowChannelColors)
 	}
 }
 
-bool USequencerSettings::GetShowStatusBar() const
+bool USequencerSettings::GetShowInfoButton() const
 {
-	return bShowStatusBar;
+	return bShowInfoButton;
 }
 
-void USequencerSettings::SetShowStatusBar(bool InbShowStatusBar)
+void USequencerSettings::SetShowInfoButton(bool InbShowInfoButton)
 {
-	if (bShowStatusBar != InbShowStatusBar)
+	if (bShowInfoButton != InbShowInfoButton)
 	{
-		bShowStatusBar = InbShowStatusBar;
+		bShowInfoButton = InbShowInfoButton;
 		SaveConfig();
 	}
 }

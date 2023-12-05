@@ -620,8 +620,8 @@ private:
 	/** Gets whether or not the time range should be visible. */
 	EVisibility GetTimeRangeVisibility() const;
 
-	/** Gets whether the status bar should be visible. */
-	EVisibility GetStatusBarVisibility() const;
+	/** Gets whether the info button in the playback controls should be visible. */
+	EVisibility GetInfoButtonVisibility() const;
 
 	/** Gets whether the tick lines should be drawn. */
 	EVisibility GetShowTickLines() const;
@@ -647,9 +647,6 @@ private:
 
 	/** Controls how fast Spinboxes change values. */
 	double GetSpinboxDelta() const;
-
-	/** Get minimum desired width of the current time spin box */
-	float GetPlayTimeMinDesiredWidth() const;
 
 	bool GetIsSequenceReadOnly() const;
 	void OnSetSequenceReadOnly(ECheckBoxState CheckBoxState);

@@ -866,81 +866,24 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 	
 	// Scrub control buttons
 	{
-		Set( "Animation.Pause", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Pause_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Pause_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Pause_24x", Icon24x24 ))
-		);
+		Set("Animation.PlayControlsButton", FButtonStyle(Button)
+			.SetNormal(FSlateNoResource())
+			.SetDisabled(FSlateNoResource())
+			.SetNormalPadding(FMargin(2.f, 2.f, 2.f, 2.f))
+			.SetPressedPadding(FMargin(2.f, 2.f, 2.f, 2.f)));
 
-		Set( "Animation.Forward", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Play_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Play_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Play_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Forward_Step", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Forward_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Forward_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Forward_24x", Icon24x24 ))
-			.SetDisabled(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Forward_24x_OFF", Icon24x24, FLinearColor(0.4f, 0.4f, 0.4f, 0.4f) ))
-		);
-
-		Set( "Animation.Forward_End", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_End_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_End_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_End_24x", Icon24x24 ))
-			.SetDisabled(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_End_24x_OFF", Icon24x24, FLinearColor(0.4f, 0.4f, 0.4f, 0.4f) ))
-		);
-
-		Set( "Animation.Backward", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Backwards_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Backwards_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Backwards_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Backward_Step", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Backwards_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Backwards_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Backwards_24x", Icon24x24 ))
-			.SetDisabled(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Backwards_24x_OFF", Icon24x24, FLinearColor(0.4f, 0.4f, 0.4f, 0.4f) ))
-		);
-
-		Set( "Animation.Backward_End", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_Front_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_Front_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Go_To_Front_24x", Icon24x24 ))
-			.SetDisabled(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Step_Backwards_24x_OFF", Icon24x24, FLinearColor(0.4f, 0.4f, 0.4f, 0.4f) ))
-		);
-
-		Set( "Animation.Loop.Enabled", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Loop.Disabled", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_Toggle_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_Toggle_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_Toggle_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Loop.SelectionRange", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_SelectionRange_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_SelectionRange_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Loop_SelectionRange_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Record", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Record_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Record_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Record_24x", Icon24x24 ))
-		);
-
-		Set( "Animation.Recording", FButtonStyle( Button )
-			.SetNormal(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Recording_24x_OFF", Icon24x24 ))
-			.SetHovered(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Recording_24x_OFF", Icon24x24 ))
-			.SetPressed(IMAGE_BRUSH( "/Sequencer/Transport_Bar/Recording_24x", Icon24x24 ))
-		);
+		Set("Animation.Pause", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsPause", Icon20x20));
+		Set("Animation.Forward", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsPlayForward", Icon20x20));
+		Set("Animation.Forward_Step", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsToNext", Icon20x20));
+		Set("Animation.Forward_End", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsToEnd", Icon20x20));
+		Set("Animation.Backward", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsPlayReverse", Icon20x20));
+		Set("Animation.Stop", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsStop", Icon20x20));
+		Set("Animation.Backward_Step", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsToPrevious", Icon20x20));
+		Set("Animation.Backward_End", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsToFront", Icon20x20));
+		Set("Animation.Loop.Enabled", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsLooping", Icon20x20));
+		Set("Animation.Loop.Disabled", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsNoLooping", Icon20x20));
+		Set("Animation.Loop.SelectionRange", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsLoopingSelectionRange", Icon20x20));
+		Set("Animation.Record", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsRecord", Icon20x20));
 	}
 
 	// Message Log
@@ -2122,22 +2065,10 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		Set("Sequencer.Timeline.EaseInOut", new IMAGE_BRUSH("Sequencer/EaseInOut", FVector2D(128, 128)));
 		Set("Sequencer.InterpLine", new BOX_BRUSH("Sequencer/InterpLine", FMargin(5.f / 7.f, 0.f, 0.f, 0.f)));
 
-		Set("Sequencer.Transport.JumpToPreviousKey", FButtonStyle()
-			.SetNormal(IMAGE_BRUSH("/Sequencer/Transport_Bar/Previous_Frame_OFF", Icon24x24))
-			.SetPressed(IMAGE_BRUSH("/Sequencer/Transport_Bar/Previous_Frame", Icon24x24))
-			.SetHovered(IMAGE_BRUSH("/Sequencer/Transport_Bar/Previous_Frame_OFF", Icon24x24)));
-		Set("Sequencer.Transport.JumpToNextKey", FButtonStyle()
-			.SetNormal(IMAGE_BRUSH("/Sequencer/Transport_Bar/Next_Frame_24x_OFF", Icon24x24))
-			.SetPressed(IMAGE_BRUSH("/Sequencer/Transport_Bar/Next_Frame_24x", Icon24x24))
-			.SetHovered(IMAGE_BRUSH("/Sequencer/Transport_Bar/Next_Frame_24x_OFF", Icon24x24)));
-		Set("Sequencer.Transport.SetPlayStart", FButtonStyle()
-			.SetNormal(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_In_16x24_OFF", FVector2D(16, 24)))
-			.SetPressed(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_In_16x24", FVector2D(16, 24)))
-			.SetHovered(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_In_16x24_OFF", FVector2D(16, 24))));
-		Set("Sequencer.Transport.SetPlayEnd", FButtonStyle()
-			.SetNormal(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_Out_16x24_OFF", FVector2D(16, 24)))
-			.SetPressed(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_Out_16x24", FVector2D(16, 24)))
-			.SetHovered(IMAGE_BRUSH("/Sequencer/Transport_Bar/Bracket_Out_16x24_OFF", FVector2D(16, 24))));
+		Set("Sequencer.Transport.JumpToPreviousKey", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsJumpToPreviousKey", Icon20x20));
+		Set("Sequencer.Transport.JumpToNextKey", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsJumpToNextKey", Icon20x20));
+		Set("Sequencer.Transport.SetPlayStart", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsSetPlaybackStart", Icon20x20));
+		Set("Sequencer.Transport.SetPlayEnd", new IMAGE_BRUSH_SVG("Sequencer/PlaybackControls/PlayControlsSetPlaybackEnd", Icon20x20));
 
 		Set("Sequencer.Transport.CloseButton", FButtonStyle()
 			.SetNormal(IMAGE_BRUSH("/Docking/CloseApp_Normal", Icon16x16))
@@ -2301,7 +2232,7 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 			.SetHoveredBackgroundBrush(FSlateNoResource())
 			.SetInactiveFillBrush(FSlateNoResource())
 			.SetActiveFillBrush(FSlateNoResource())
-			.SetForegroundColor(SelectionColor_Pressed)
+			.SetForegroundColor(FSlateColor::UseForeground())
 			.SetArrowsImage(FSlateNoResource())
 		);
 

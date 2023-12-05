@@ -22,6 +22,7 @@
 #include "Widgets/CurveEditor/SSequencerCurveEditor.h"
 #include "Widgets/CurveEditor/SequencerCurveEditorTimeSliderController.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBorder.h"
 
 #define LOCTEXT_NAMESPACE "SequencerCurveEditorExtension"
@@ -223,23 +224,91 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 
 			+ SVerticalBox::Slot()
 			[
-				SNew(SScrollBorder, CurveEditorTreeView.ToSharedRef())
+				SNew(SOverlay)
+
+				+ SOverlay::Slot()
 				[
-					CurveEditorTreeView.ToSharedRef()
+					SNew(SScrollBorder, CurveEditorTreeView.ToSharedRef())
+					[
+						CurveEditorTreeView.ToSharedRef()
+					]
+				]
+
+				+ SOverlay::Slot()
+				.VAlign(VAlign_Bottom)
+				[
+					SNew(SHorizontalBox)
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SAssignNew(CurveEditorTreeFilterStatusBar, SCurveEditorTreeFilterStatusBar, CurveEditorModel)
+						.Visibility(EVisibility::Hidden) // Initially hidden, visible on hover of the info button
+					]
 				]
 			]
 
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SNew(SCurveEditorTreeFilterStatusBar, CurveEditorModel)
-			]
+				SNew(SHorizontalBox)
 
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			[
-				Sequencer->MakeTransportControls(true)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				[
+					SNew(SButton)
+					.VAlign(EVerticalAlignment::VAlign_Center)
+					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+					.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+					.ContentPadding(FMargin(1, 0))
+					.OnHovered_Lambda([this] { CurveEditorTreeFilterStatusBar->ShowStatusBar(); })
+					.OnUnhovered_Lambda([this] { CurveEditorTreeFilterStatusBar->FadeOutStatusBar(); })
+					.OnClicked_Lambda([this] { CurveEditorTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FSlateColor::UseForeground())
+						.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
+					]
+				]
+
+				+ SHorizontalBox::Slot()
+				[
+					SNew(SBorder)
+					.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+					.HAlign(HAlign_Center)
+					[
+						Sequencer->MakeTransportControls(true)
+					]
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				[
+					SNew(SButton)
+					.VAlign(EVerticalAlignment::VAlign_Center)
+					.ButtonStyle(FAppStyle::Get(), "NoBorder")
+					.ContentPadding(FMargin(1, 0))
+					[
+						SNew(SHorizontalBox)
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Right)
+						.Padding(FMargin(3.f, 0.f, 0.f, 0.f))
+						[
+							SNew(SBorder)
+							.BorderImage(nullptr)
+							[
+								Sequencer->MakePlayTimeDisplay(TimeSliderArgs.NumericTypeInterface.ToSharedRef())
+							]
+						]
+					]
+				]
 			]
 		];
 

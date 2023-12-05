@@ -14,6 +14,7 @@ class ISequencer;
 class IPropertyTypeCustomization;
 class SCurveEditorPanel;
 class SCurveEditorTree;
+class SCurveEditorTreeFilterStatusBar;
 struct FTimeSliderArgs;
 
 namespace UE
@@ -81,6 +82,8 @@ private:
 	TSharedPtr<SWidget> CurveEditorWidget;
 	/** The curve editor panel. This is created and updated even if it is not currently visible. */
 	TSharedPtr<SCurveEditorPanel> CurveEditorPanel;
+	/** Filter Status Bar */
+	TSharedPtr<SCurveEditorTreeFilterStatusBar> CurveEditorTreeFilterStatusBar;
 
 	friend class FCurveEditorIntegrationExtension;
 };

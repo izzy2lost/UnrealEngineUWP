@@ -1169,6 +1169,8 @@ public:
 	/** Get the name of the movie renderer to use, defaults to the first available if the setting is empty */
 	FString GetMovieRendererName() const;
 
+	TSharedRef<SWidget> MakePlayTimeDisplay(const TSharedRef<INumericTypeInterface<double>>& InNumericTypeInterface);
+
 private:
 
 	/** Update the time bases for the current movie scene */
