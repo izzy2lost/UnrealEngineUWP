@@ -240,6 +240,7 @@ struct FInstallBundleSourceUpdateBundleInfo
 	FString BundleNameString;
 	EInstallBundlePriority Priority = EInstallBundlePriority::Low;
 	uint64 FullInstallSize = 0; // Total disk footprint when this bundle is fully installed
+	uint64 InstallOverheadSize = 0; // Any additional space required to complete installation
 	FDateTime LastAccessTime = FDateTime::MinValue(); // If cached, used to decide eviction order
 	EInstallBundleInstallState BundleContentState = EInstallBundleInstallState::NotInstalled; // Whether this bundle is up to date
 	bool bIsCached = false; // Whether this bundle should be cached if this source has a bundle cache

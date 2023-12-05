@@ -1037,6 +1037,7 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 
 		// Update current size in cache size if eviction succeeded
 		CacheInfo->CurrentInstallSize = 0;
+		CacheInfo->InstallOverheadSize = 0; // Current contract is that overhead only exists for content that may be patched
 		CacheInfo->TimeStamp = FDateTime::MinValue();
 		BundleCache->AddOrUpdateBundle(Source->GetSourceType(), *CacheInfo);
 	}
@@ -1186,13 +1187,12 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 
 			if (TOptional<FInstallBundleCacheBundleInfo> CacheBundleInfo = BundleCache->GetBundleInfo(Pair.Key, Request->BundleName))
 			{
-				// Cache Analytics
 				if (ResultInfo.Result == EInstallBundleResult::OK)
 				{
+					// Cache Analytics
 					// Only, send on success - if the request were canceled or something, there is no way to tell if the source got far enough
 					// to tell us if we had a cache hit.  We could just go by sizes in the cache, but that will
 					// be wrong in the case that we need to patch but the size stayed the same.
-
 					const bool bCacheHit = !InResultInfo.bContentWasInstalled;
 					if (bCacheHit)
 					{
@@ -1209,6 +1209,9 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 						InstallBundleManagerAnalytics::FireEvent_BundleCacheMiss(AnalyticsProvider.Get(),
 							BundleInfo.BundleNameString, LexToString(Pair.Key), bWasPatchRequired);
 					}
+
+					// Since the update succeeded, we know that there is no longer any install overhead
+					CacheBundleInfo->InstallOverheadSize = 0;
 				}
 
 				CacheBundleInfo->CurrentInstallSize = ResultInfo.CurrentInstallSize;
@@ -2736,6 +2739,7 @@ EInstallBundleSourceUpdateBundleInfoResult FDefaultInstallBundleManager::OnUpdat
 
 				CacheBundleInfo->BundleName = UpdateInfoPair.Key;
 				CacheBundleInfo->FullInstallSize = SourceBundleInfo.FullInstallSize;
+				CacheBundleInfo->InstallOverheadSize = SourceBundleInfo.InstallOverheadSize;
 				CacheBundleInfo->TimeStamp = SourceBundleInfo.LastAccessTime;
 				CacheBundleInfo->AgeScalar = Source->GetSourceCacheAgeScalar();
 				BundleCache->AddOrUpdateBundle(SourceType, *CacheBundleInfo);
@@ -4572,6 +4576,7 @@ void FDefaultInstallBundleManager::AsyncInit_OnQueryBundleInfoComplete(TSharedRe
 				FInstallBundleCacheBundleInfo CacheBundleInfo;
 				CacheBundleInfo.BundleName = BundleName;
 				CacheBundleInfo.FullInstallSize = SourceBundleInfo.FullInstallSize;
+				CacheBundleInfo.InstallOverheadSize = SourceBundleInfo.InstallOverheadSize;
 				CacheBundleInfo.CurrentInstallSize = SourceBundleInfo.CurrentInstallSize;
 				CacheBundleInfo.TimeStamp = SourceBundleInfo.LastAccessTime;
 				CacheBundleInfo.AgeScalar = BundleSource->GetSourceCacheAgeScalar();

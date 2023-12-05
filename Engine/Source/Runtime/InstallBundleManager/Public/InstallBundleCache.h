@@ -25,6 +25,7 @@ struct FInstallBundleCacheBundleInfo
 {
 	FName BundleName;
 	uint64 FullInstallSize = 0; // Total disk footprint when this bundle is fully installed
+	uint64 InstallOverheadSize = 0; // Any extra space required to update the bundle
 	uint64 CurrentInstallSize = 0; // Disk footprint of the bundle in it's current state
 	FDateTime TimeStamp = FDateTime::MinValue(); // Last access time for the bundle.  Used for eviction order
 	double AgeScalar = 1.0; // Allow some bundles to "age" slower than others
@@ -108,6 +109,7 @@ private:
 	struct FPerSourceBundleCacheInfo
 	{
 		uint64 FullInstallSize = 0;
+		uint64 InstallOverheadSize = 0;
 		uint64 CurrentInstallSize = 0;
 		FDateTime TimeStamp = FDateTime::MinValue();
 		double AgeScalar = 1.0;
@@ -123,6 +125,7 @@ private:
 	struct FBundleCacheInfo 
 	{
 		uint64 FullInstallSize = 0;
+		uint64 InstallOverheadSize = 0;
 		uint64 CurrentInstallSize = 0;
 		FDateTime TimeStamp = FDateTime::MinValue();
 		double AgeScalar = 1.0;
@@ -142,9 +145,9 @@ private:
 				return 0;
 
 			if (CurrentInstallSize > FullInstallSize)
-				return CurrentInstallSize;
+				return CurrentInstallSize + InstallOverheadSize;
 
-			return FullInstallSize;
+			return FullInstallSize + InstallOverheadSize;
 		}
 	};
 
