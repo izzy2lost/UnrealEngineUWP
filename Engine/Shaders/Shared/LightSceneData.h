@@ -65,10 +65,15 @@ struct FLightSceneData
 
 	float InverseExposureBlend;
 
+	// could pack IESAtlasIndex with other data in the future since it doesn't require 32 bits
+	// FLocalLightData packs it in 16 bits (see UnpackLigthIESAtlasIndex(...))
+	// could probably go down to 8 bits (with some logic in GIESTextureManager to warn about overflow)
+	float IESAtlasIndex;
+
 	// Extra fields
 	uint LightTypeAndShadowMapChannelMaskPacked;
 
-	float3 Padding;
+	float2 Padding;
 };
 
 #ifdef __cplusplus

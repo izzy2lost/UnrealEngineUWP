@@ -745,6 +745,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	DataOut.RectLightAtlasUVScale = LightParams.RectLightAtlasUVScale;
 	DataOut.RectLightAtlasMaxLevel = LightParams.RectLightAtlasMaxLevel;
 	DataOut.InverseExposureBlend = LightParams.InverseExposureBlend;
+	DataOut.IESAtlasIndex = LightParams.IESAtlasIndex;
 	DataOut.LightTypeAndShadowMapChannelMaskPacked = LightInfo.PackLightTypeAndShadowMapChannelMask(bAllowStaticLighting);
 }
 

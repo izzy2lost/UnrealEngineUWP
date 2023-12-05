@@ -481,8 +481,8 @@ FDeferredLightData ConvertToDeferredLight(FLightSceneData In)
 	Out.RectLightData.AtlasData.AtlasUVOffset = In.RectLightAtlasUVOffset;
 	Out.RectLightData.AtlasData.AtlasUVScale = In.RectLightAtlasUVScale;
 
-	Out.IESAtlasIndex = 0;
-	Out.LightFunctionAtlasLightIndex = 0;
+	Out.IESAtlasIndex					= In.IESAtlasIndex;
+	Out.LightFunctionAtlasLightIndex	= 0;
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 
