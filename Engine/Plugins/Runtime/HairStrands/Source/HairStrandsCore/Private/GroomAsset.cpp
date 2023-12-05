@@ -579,13 +579,18 @@ uint8 UGroomAsset::GenerateClassStripFlags(FArchive& Ar)
 	bool bIsMeshesStripped = false;
 	if (bIsCook)
 	{
-		// Determine if strands are supported on the target cook platform
+		// Determine if strands are supported on any shader formats used by the target cook platform
 		TArray<FName> ShaderFormats;
 		CookTarget->GetAllTargetedShaderFormats(ShaderFormats);
+		bIsStrandsSupportedOnTargetPlatform = false;
 		for (int32 FormatIndex = 0; FormatIndex < ShaderFormats.Num(); ++FormatIndex)
 		{
 			const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(ShaderFormats[FormatIndex]);
-			bIsStrandsSupportedOnTargetPlatform &= IsHairStrandsSupported(EHairStrandsShaderType::Strands, ShaderPlatform);
+			if (IsHairStrandsSupported(EHairStrandsShaderType::Strands, ShaderPlatform))
+			{
+				bIsStrandsSupportedOnTargetPlatform = true;
+				break;
+			}
 		}
 
 		// Determine the platform min LOD if the stripping hasn't been disabled
