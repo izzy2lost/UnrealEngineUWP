@@ -225,6 +225,7 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 	else
 	{
 #if WITH_EDITOR
+		FbxParser.SetResultContainer(Results);
 		FbxParser.LoadFbxFile(Filename, BaseNodeContainer);
 #endif
 	}

@@ -454,6 +454,9 @@ namespace UE
 					//Only import texture that exist on disk
 					if (!FPaths::FileExists(TextureFilename))
 					{
+						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+						Message->TextureName = TextureFilename;
+						Message->MaterialName.Empty();
 						continue;
 					}
 					//Create a texture node and make it child of the material node
