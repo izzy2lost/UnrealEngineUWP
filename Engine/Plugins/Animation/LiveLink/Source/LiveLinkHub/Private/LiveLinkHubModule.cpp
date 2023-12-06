@@ -18,6 +18,7 @@
 
 void FLiveLinkHubModule::StartLiveLinkHub()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(StartLiveLinkHub);
 	// Nothing will get executed after this, so put everything before.
 	LiveLinkHub = MakeShared<FLiveLinkHub>();
 	LiveLinkHub->Initialize();

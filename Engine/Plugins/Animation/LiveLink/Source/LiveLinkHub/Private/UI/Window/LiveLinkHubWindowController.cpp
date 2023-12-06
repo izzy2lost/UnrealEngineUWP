@@ -62,6 +62,8 @@ TSharedRef<SWindow> FLiveLinkHubWindowController::CreateWindow()
 }
 void FLiveLinkHubWindowController::RestoreLayout()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::RestoreLayout);
+
 	const TSharedRef<FTabManager::FLayout> DefaultLayout = FTabManager::NewLayout("LiveLinkHub_v1.0");
 	const TSharedRef<FTabManager::FArea> MainWindowArea = FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal);
 	const TSharedRef<FTabManager::FStack> MainStack = FTabManager::NewStack();
@@ -70,12 +72,20 @@ void FLiveLinkHubWindowController::RestoreLayout()
 
 	MainWindowArea->Split(MainStack);
 	DefaultLayout->AddArea(MainWindowArea);
+	PersistentLayout = DefaultLayout;
 
-	PersistentLayout = FLayoutSaveRestore::LoadFromConfig(LiveLinkHubLayoutIni, DefaultLayout);
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::LoadFromConfig);
+		PersistentLayout = FLayoutSaveRestore::LoadFromConfig(LiveLinkHubLayoutIni, DefaultLayout);
+	}
 
-	constexpr bool bEmbedTitleAreaContent = true;
-	const TSharedPtr<SWidget> Content = FGlobalTabmanager::Get()->RestoreFrom(PersistentLayout.ToSharedRef(), RootWindow, bEmbedTitleAreaContent, EOutputCanBeNullptr::Never);
-	RootWindow->SetContent(Content.ToSharedRef());
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::RestoreFrom);
+		constexpr bool bEmbedTitleAreaContent = true;
+		const TSharedPtr<SWidget> Content = FGlobalTabmanager::Get()->RestoreFrom(PersistentLayout.ToSharedRef(), RootWindow, bEmbedTitleAreaContent, EOutputCanBeNullptr::Never);
+		RootWindow->SetContent(Content.ToSharedRef());
+	}
 
 	RootWindow->ShowWindow();
 	constexpr bool bForceWindowToFront = true;
@@ -86,6 +96,7 @@ void FLiveLinkHubWindowController::RestoreLayout()
 
 TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApplication()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeAsStandaloneApplication);
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
 
 	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");

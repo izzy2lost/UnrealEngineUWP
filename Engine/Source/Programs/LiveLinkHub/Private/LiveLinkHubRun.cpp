@@ -11,7 +11,7 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	FTaskTagScope Scope(ETaskTag::EGameThread);
 	
 	// Start up the main loop, adding some extra command line arguments:
-	const int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("LiveLinkHubCommandlet -Messaging")));
+	const int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 
 	if (Result != 0)
 	{

@@ -2,14 +2,17 @@
 
 using UnrealBuildTool;
 using System.Collections.Generic;
+using EpicGames.Core;
 
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
 public class LiveLinkHubTarget : TargetRules
 {
+	[CommandLine("-Monolithic")]
+	public bool bMonolithic = false;
 	public LiveLinkHubTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Program;
-		LinkType = TargetLinkType.Modular;
+		LinkType = bMonolithic ? TargetLinkType.Monolithic : TargetLinkType.Modular;
 		LaunchModuleName = "LiveLinkHubLauncher";
 
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
@@ -46,8 +49,10 @@ public class LiveLinkHubTarget : TargetRules
 		bIsBuildingConsoleApplication = false;
 
 		GlobalDefinitions.Add("WITH_LIVELINK_HUB=1");
+		GlobalDefinitions.Add("AUTOSDKS_ENABLED=0");
+		GlobalDefinitions.Add("NO_LOGGING=0");
 
-		bEnableTrace = false;
+		bEnableTrace = true;
 
 		OptedInModulePlatforms = new UnrealTargetPlatform[] { UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac,
 															  UnrealTargetPlatform.Linux, UnrealTargetPlatform.LinuxArm64 };

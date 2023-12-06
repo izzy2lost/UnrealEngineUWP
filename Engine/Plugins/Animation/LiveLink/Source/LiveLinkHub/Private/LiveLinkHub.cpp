@@ -29,6 +29,8 @@
 
 void FLiveLinkHub::Initialize()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHub::Initialize);
+
 	// We must register the livelink client first since we might rely on the modular feature to initialize the controllers/managers.
 	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
@@ -39,12 +41,15 @@ void FLiveLinkHub::Initialize()
 	CommandExecutor = MakeUnique<FConsoleCommandExecutor>();
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), CommandExecutor.Get());
 
-	RecordingController = MakeShared<FLiveLinkHubRecordingController>();
-	PlaybackController = MakeShared<FLiveLinkHubPlaybackController>();
-	RecordingListController = MakeShared<FLiveLinkHubRecordingListController>(AsShared());
-	ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider.ToSharedRef());
-	CommandList = MakeShared<FUICommandList>();
-	SubjectController = MakeShared<FLiveLinkHubSubjectController>();
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHub::InitializeControllers);
+		RecordingController = MakeShared<FLiveLinkHubRecordingController>();
+		PlaybackController = MakeShared<FLiveLinkHubPlaybackController>();
+		RecordingListController = MakeShared<FLiveLinkHubRecordingListController>(AsShared());
+		ClientsController = MakeShared<FLiveLinkHubClientsController>(LiveLinkProvider.ToSharedRef());
+		CommandList = MakeShared<FUICommandList>();
+		SubjectController = MakeShared<FLiveLinkHubSubjectController>();
+	}
 
 
 	FLiveLinkHubCommands::Register();
