@@ -1163,6 +1163,14 @@ FD3D12PayloadBase::~FD3D12PayloadBase()
 	}
 }
 
+void FD3D12PayloadBase::PreExecute()
+{
+	if (PreExecuteCallback)
+	{
+		PreExecuteCallback(Queue.D3DCommandQueue);
+	}
+}
+
 void FBreadcrumbStack::Initialize(TUniquePtr<FD3D12DiagnosticBuffer>& DiagnosticBuffer)
 {
 	{

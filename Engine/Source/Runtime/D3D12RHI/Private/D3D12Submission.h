@@ -246,7 +246,7 @@ struct FD3D12PayloadBase
 
 	} SyncPointsToWait;
 
-	virtual void PreExecute() {}
+	virtual void PreExecute();
 
 	// Wait
 	TArray<FManualFence> FencesToWait;
@@ -279,6 +279,9 @@ struct FD3D12PayloadBase
 	TArray<TSharedPtr<FBreadcrumbStack>> BreadcrumbStacks;
 
 	virtual ~FD3D12PayloadBase();
+
+	// Used by RHIRunOnQueue
+	TFunction<void(ID3D12CommandQueue*)> PreExecuteCallback;
 
 protected:
 	FD3D12PayloadBase(FD3D12Device* Device, ED3D12QueueType QueueType);

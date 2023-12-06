@@ -879,6 +879,27 @@ void FD3D12DynamicRHI::SetupD3D12Debug()
 
 }
 
+void FD3D12DynamicRHI::RHIRunOnQueue(ED3D12RHIRunOnQueueType QueueType, TFunction<void(ID3D12CommandQueue*)>&& CodeToRun, bool bWaitForSubmission)
+{
+	FGraphEventRef SubmissionEvent;
+
+	FD3D12Payload* Payload = new FD3D12Payload(GetRHIDevice(0), (QueueType == ED3D12RHIRunOnQueueType::Graphics) ?  ED3D12QueueType::Direct : ED3D12QueueType::Copy);
+	Payload->PreExecuteCallback = MoveTemp(CodeToRun);
+
+	if (bWaitForSubmission)
+	{
+		SubmissionEvent = FGraphEvent::CreateGraphEvent();
+		Payload->SubmissionEvent = SubmissionEvent;
+	}
+
+	SubmitPayloads(MakeArrayView(&Payload, 1));
+
+	if (SubmissionEvent && !SubmissionEvent->IsComplete())
+	{
+		SubmissionEvent->Wait();
+	}
+}
+
 const TCHAR* LexToString(DXGI_FORMAT Format)
 {
 	switch (Format)
