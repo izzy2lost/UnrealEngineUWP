@@ -12,6 +12,9 @@
 #include "InterchangeMeshNode.h"
 #include "InterchangeResultsContainer.h"
 #include "MeshDescription.h"
+#if WITH_ENGINE
+#include "Mesh/InterchangeMeshPayload.h"
+#endif
 #include "Misc/FileHelper.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Serialization/LargeMemoryWriter.h"
@@ -23,7 +26,8 @@
 #endif
 #define LOCTEXT_NAMESPACE "InterchangeFbxMesh"
 
-namespace UE::Interchange::Private {
+namespace UE::Interchange::Private
+{
 
 	//Import vertex Attribute from other vertex color layer
 	void GetVertexAttributeFromMeshVertexColor(FMeshDescription& MeshDescription, FbxMesh* Mesh)
@@ -485,16 +489,14 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxShape(FbxShape* Shape, 
 		auto GetFinalPosition = [&TotalMatrix](FbxVector4& FbxPosition)
 		{
 			FbxPosition = TotalMatrix.MultT(FbxPosition);
-			return FFbxConvert::ConvertPos(FbxPosition);
+			return FFbxConvert::ConvertPos<FVector3f>(FbxPosition);
 		};
 
 		MeshDescription->ReserveNewVertices(VertexCount);
 		for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 		{
 			int32 RealVertexIndex = VertexOffset + VertexIndex;
-			const FVector VertexPosition = GetFinalPosition(GeoBase->GetControlPoints()[VertexIndex]);
-			//Maybe we want to do some work here like computing the deltas
-			//const FVector MeshVertexPosition = GetFinalPosition(Mesh->GetControlPoints()[VertexIndex]);
+			const FVector3f VertexPosition = GetFinalPosition(GeoBase->GetControlPoints()[VertexIndex]);
 			FVertexID AddedVertexId = MeshDescription->CreateVertex();
 			if (AddedVertexId.GetValue() != RealVertexIndex)
 			{
@@ -504,7 +506,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxShape(FbxShape* Shape, 
 				return false;
 			}
 			//Add the delta position, so we do not have to recompute it later
-			VertexPositions[AddedVertexId] = (FVector3f)VertexPosition;// -MeshVertexPosition;
+			VertexPositions[AddedVertexId] = VertexPosition;// -MeshVertexPosition;
 		}
 		MeshDescription->ResumeVertexIndexing();
 	}
@@ -725,7 +727,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		MeshDescription->SuspendPolygonGroupIndexing();
 		MeshDescription->SuspendUVIndexing();
 
-		TRACE_CPUPROFILER_EVENT_SCOPE(BuildTriangles);
+		TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportMeshDescription);
 
 		// Construct the matrices for the conversion from right handed to left handed system
 		FbxAMatrix TotalMatrix = FFbxConvert::ConvertMatrix(MeshGlobalTransform.ToMatrixWithScale());
@@ -811,52 +813,58 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		}
 
 		//Fill the vertex array
-		MeshDescription->ReserveNewVertices(VertexCount);
-		for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 		{
-			int32 RealVertexIndex = VertexOffset + VertexIndex;
-			FbxVector4 FbxPosition = Mesh->GetControlPoints()[VertexIndex];
-			FbxPosition = TotalMatrix.MultT(FbxPosition);
-			const FVector VertexPosition = FFbxConvert::ConvertPos(FbxPosition);
-
-			FVertexID AddedVertexId = MeshDescription->CreateVertex();
-			VertexPositions[AddedVertexId] = (FVector3f)VertexPosition;
-			if (AddedVertexId.GetValue() != RealVertexIndex)
+			TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportVertices);
+			MeshDescription->ReserveNewVertices(VertexCount);
+			for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 			{
-				UInterchangeResultMeshError_Generic* Message = AddMessage<UInterchangeResultMeshError_Generic>(Mesh);
-				Message->Text = LOCTEXT("CannotCreateVertex", "Cannot create valid vertex for mesh '{MeshName}'.");
+				int32 RealVertexIndex = VertexOffset + VertexIndex;
+				FbxVector4 FbxPosition = Mesh->GetControlPoints()[VertexIndex];
+				FbxPosition = TotalMatrix.MultT(FbxPosition);
+				const FVector3f VertexPosition = FFbxConvert::ConvertPos<FVector3f>(FbxPosition);
 
-				return false;
+				FVertexID AddedVertexId = MeshDescription->CreateVertex();
+				VertexPositions[AddedVertexId] = VertexPosition;
+				if (AddedVertexId.GetValue() != RealVertexIndex)
+				{
+					UInterchangeResultMeshError_Generic* Message = AddMessage<UInterchangeResultMeshError_Generic>(Mesh);
+					Message->Text = LOCTEXT("CannotCreateVertex", "Cannot create valid vertex for mesh '{MeshName}'.");
+
+					return false;
+				}
 			}
 		}
 
-		// Fill the UV arrays
-		for (int32 UVLayerIndex = 0; UVLayerIndex < FBXUVs.UniqueUVCount; UVLayerIndex++)
 		{
-			check(FBXUVs.LayerElementUV[UVLayerIndex]);
-			if (FBXUVs.LayerElementUV[UVLayerIndex] != nullptr)
+			TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportUVs);
+			// Fill the UV arrays
+			for (int32 UVLayerIndex = 0; UVLayerIndex < FBXUVs.UniqueUVCount; UVLayerIndex++)
 			{
-				int32 UVCount = FBXUVs.LayerElementUV[UVLayerIndex]->GetDirectArray().GetCount();
-				if (UVCount == 0)
+				check(FBXUVs.LayerElementUV[UVLayerIndex]);
+				if (FBXUVs.LayerElementUV[UVLayerIndex] != nullptr)
 				{
-					UInterchangeResultMeshWarning_Generic* Message = AddMessage<UInterchangeResultMeshWarning_Generic>(Mesh);
-					Message->Text = LOCTEXT("CreateUVs_UVCorrupted", "Found invalid UVs value when importing mesh '{MeshName}'.");
-				}
+					int32 UVCount = FBXUVs.LayerElementUV[UVLayerIndex]->GetDirectArray().GetCount();
+					if (UVCount == 0)
+					{
+						UInterchangeResultMeshWarning_Generic* Message = AddMessage<UInterchangeResultMeshWarning_Generic>(Mesh);
+						Message->Text = LOCTEXT("CreateUVs_UVCorrupted", "Found invalid UVs value when importing mesh '{MeshName}'.");
+					}
 
-				TUVAttributesRef<FVector2f> UVCoordinates = MeshDescription->UVAttributes(UVLayerIndex).GetAttributesRef<FVector2f>(MeshAttribute::UV::UVCoordinate);
-				MeshDescription->ReserveNewUVs(UVCount, UVLayerIndex);
-				for (int32 UVIndex = 0; UVIndex < UVCount; UVIndex++)
-				{
-					FUVID UVID = MeshDescription->CreateUV(UVLayerIndex);
-					FbxVector2 UVVector = FBXUVs.LayerElementUV[UVLayerIndex]->GetDirectArray().GetAt(UVIndex);
-					UVCoordinates[UVID] = FVector2f(static_cast<float>(UVVector[0]), 1.0f - static_cast<float>(UVVector[1]));	// flip the Y of UVs for DirectX
+					TUVAttributesRef<FVector2f> UVCoordinates = MeshDescription->UVAttributes(UVLayerIndex).GetAttributesRef<FVector2f>(MeshAttribute::UV::UVCoordinate);
+					MeshDescription->ReserveNewUVs(UVCount, UVLayerIndex);
+					for (int32 UVIndex = 0; UVIndex < UVCount; UVIndex++)
+					{
+						FUVID UVID = MeshDescription->CreateUV(UVLayerIndex);
+						FbxVector2 UVVector = FBXUVs.LayerElementUV[UVLayerIndex]->GetDirectArray().GetAt(UVIndex);
+						UVCoordinates[UVID] = FVector2f(static_cast<float>(UVVector[0]), 1.0f - static_cast<float>(UVVector[1]));	// flip the Y of UVs for DirectX
+					}
 				}
 			}
 		}
 
 		TMap<uint64, int32> RemapEdgeID;
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(BuildMeshEdgeVertices);
+			TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportEdgeVertices);
 			Mesh->BeginGetMeshEdgeVertices();
 
 			//Fill the edge array
@@ -889,7 +897,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 		}
 
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(BuildMeshEdgeIndexForPolygon);
+			TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportPolygons);
 
 			// Compute and reserve memory to be used for vertex instances
 			{
@@ -912,7 +920,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 			// keep those for all iterations to avoid heap allocations
 			TArray<FVertexInstanceID> CornerInstanceIDs;
 			TArray<FVertexID> CornerVerticesIDs;
-			TArray<FVector, TInlineAllocator<3>> P;
+			TArray<FVector3f, TInlineAllocator<3>> P;
 
 			bool bCorruptedMsgDone = false;
 			//Polygons
@@ -934,7 +942,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 							bAllCornerValid = false;
 							break;
 						}
-						P[CornerIndex] = (FVector)VertexPositions[VertexID];
+						P[CornerIndex] = VertexPositions[VertexID];
 					}
 					if (!bAllCornerValid)
 					{
@@ -949,7 +957,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 						continue;
 					}
 					check(P.Num() > 2); //triangle is the smallest polygon we can have
-					const FVector Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(ComparisonThreshold);
+					const FVector3f Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(ComparisonThreshold);
 					//Check for degenerated polygons, avoid NAN
 					if (Normal.IsNearlyZero(ComparisonThreshold) || Normal.ContainsNaN())
 					{
@@ -971,7 +979,6 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 					CornerInstanceIDs[CornerIndex] = VertexInstanceID;
 					const int32 ControlPointIndex = Mesh->GetPolygonVertex(PolygonIndex, CornerIndex);
 					const FVertexID VertexID(VertexOffset + ControlPointIndex);
-					const FVector VertexPosition = (FVector)VertexPositions[VertexID];
 					CornerVerticesIDs[CornerIndex] = VertexID;
 
 					FVertexInstanceID AddedVertexInstanceId = MeshDescription->CreateVertexInstance(VertexID);
@@ -1034,8 +1041,8 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 
 						FbxVector4 TempValue = LayerElementNormal->GetDirectArray().GetAt(NormalValueIndex);
 						TempValue = TotalMatrixForNormal.MultT(TempValue);
-						FVector TangentZ = FFbxConvert::ConvertDir(TempValue);
-						VertexInstanceNormals[AddedVertexInstanceId] = (FVector3f)TangentZ.GetSafeNormal();
+						FVector3f TangentZ = FFbxConvert::ConvertDir<FVector3f>(TempValue);
+						VertexInstanceNormals[AddedVertexInstanceId] = TangentZ.GetSafeNormal();
 						//tangents and binormals share the same reference, mapping mode and index array
 						if (bHasNTBInformation)
 						{
@@ -1046,8 +1053,8 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 
 							TempValue = LayerElementTangent->GetDirectArray().GetAt(TangentValueIndex);
 							TempValue = TotalMatrixForNormal.MultT(TempValue);
-							FVector TangentX = FFbxConvert::ConvertDir(TempValue);
-							VertexInstanceTangents[AddedVertexInstanceId] = (FVector3f)TangentX.GetSafeNormal();
+							FVector3f TangentX = FFbxConvert::ConvertDir<FVector3f>(TempValue);
+							VertexInstanceTangents[AddedVertexInstanceId] = TangentX.GetSafeNormal();
 
 							int BinormalMapIndex = (BinormalMappingMode == FbxLayerElement::eByControlPoint) ?
 								ControlPointIndex : RealFbxVertexIndex;
@@ -1056,7 +1063,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 
 							TempValue = LayerElementBinormal->GetDirectArray().GetAt(BinormalValueIndex);
 							TempValue = TotalMatrixForNormal.MultT(TempValue);
-							FVector TangentY = -FFbxConvert::ConvertDir(TempValue);
+							FVector3f TangentY = -FFbxConvert::ConvertDir<FVector3f>(TempValue);
 							VertexInstanceBinormalSigns[AddedVertexInstanceId] = FbxGetBasisDeterminantSign(TangentX.GetSafeNormal(), TangentY.GetSafeNormal(), TangentZ.GetSafeNormal());
 						}
 					}
@@ -1067,10 +1074,10 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 				if (!bHasNonDegeneratePolygons)
 				{
 					float TriangleComparisonThreshold = THRESH_POINTS_ARE_SAME;
-					FVector VertexPosition[3];
-					VertexPosition[0] = (FVector)VertexPositions[CornerVerticesIDs[0]];
-					VertexPosition[1] = (FVector)VertexPositions[CornerVerticesIDs[1]];
-					VertexPosition[2] = (FVector)VertexPositions[CornerVerticesIDs[2]];
+					FVector3f VertexPosition[3];
+					VertexPosition[0] = VertexPositions[CornerVerticesIDs[0]];
+					VertexPosition[1] = VertexPositions[CornerVerticesIDs[1]];
+					VertexPosition[2] = VertexPositions[CornerVerticesIDs[2]];
 					if (!(VertexPosition[0].Equals(VertexPosition[1], TriangleComparisonThreshold)
 						|| VertexPosition[0].Equals(VertexPosition[2], TriangleComparisonThreshold)
 						|| VertexPosition[1].Equals(VertexPosition[2], TriangleComparisonThreshold)))
@@ -1269,12 +1276,6 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 				Mesh->EndGetMeshEdgeIndexForPolygon();
 			}
 
-			MeshDescription->ResumeVertexInstanceIndexing();
-			MeshDescription->ResumeEdgeIndexing();
-			MeshDescription->ResumePolygonIndexing();
-			MeshDescription->ResumePolygonGroupIndexing();
-			MeshDescription->ResumeUVIndexing();
-
 			if (SkippedVertexInstance > 0)
 			{
 				check(MeshDescription->Triangles().Num() == MeshDescription->Triangles().GetArraySize());
@@ -1283,6 +1284,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 
 		if (MeshType == EMeshType::Skinned)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(Interchange_ImportSkin);
 			FSkeletalMeshAttributes SkeletalMeshAttributes(*MeshDescription);
 			SkeletalMeshAttributes.Register(true);
 
@@ -1379,6 +1381,12 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 				VertexSkinWeights.Set(Item.Key, Item.Value);
 			}
 		}
+
+		MeshDescription->ResumeVertexInstanceIndexing();
+		MeshDescription->ResumeEdgeIndexing();
+		MeshDescription->ResumePolygonIndexing();
+		MeshDescription->ResumePolygonGroupIndexing();
+		MeshDescription->ResumeUVIndexing();
 	}
 
 	TArray<FPolygonGroupID> EmptyPolygonGroups;
@@ -1427,7 +1435,10 @@ bool FMeshDescriptionImporter::IsOddNegativeScale(FbxAMatrix& TotalMatrix)
 //////////////////////////////////////////////////////////////////////////
 /// FMeshPayloadContext implementation
 
-bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath)
+bool FMeshPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
+	, const FTransform& MeshGlobalTransform
+	, FMeshDescription& OutMeshDescription
+	, TArray<FString>& OutJointNames)
 {
 	if (!ensure(SDKScene != nullptr))
 	{
@@ -1453,14 +1464,12 @@ bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTran
 		return false;
 	}
 
-	TArray<FString> JointUniqueNames;
-	FMeshDescription MeshDescription;
 	if (bIsSkinnedMesh)
 	{
-		FSkeletalMeshAttributes SkeletalMeshAttribute(MeshDescription);
+		FSkeletalMeshAttributes SkeletalMeshAttribute(OutMeshDescription);
 		SkeletalMeshAttribute.Register();
-		FMeshDescriptionImporter MeshDescriptionImporter(Parser, &MeshDescription, SDKScene, SDKGeometryConverter);
-		if (!MeshDescriptionImporter.FillSkinnedMeshDescriptionFromFbxMesh(Mesh, MeshGlobalTransform, JointUniqueNames))
+		FMeshDescriptionImporter MeshDescriptionImporter(Parser, &OutMeshDescription, SDKScene, SDKGeometryConverter);
+		if (!MeshDescriptionImporter.FillSkinnedMeshDescriptionFromFbxMesh(Mesh, MeshGlobalTransform, OutJointNames))
 		{
 			UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 			Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Mesh);
@@ -1470,9 +1479,9 @@ bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTran
 	}
 	else
 	{
-		FStaticMeshAttributes StaticMeshAttribute(MeshDescription);
+		FStaticMeshAttributes StaticMeshAttribute(OutMeshDescription);
 		StaticMeshAttribute.Register();
-		FMeshDescriptionImporter MeshDescriptionImporter(Parser, &MeshDescription, SDKScene, SDKGeometryConverter);
+		FMeshDescriptionImporter MeshDescriptionImporter(Parser, &OutMeshDescription, SDKScene, SDKGeometryConverter);
 		if (!MeshDescriptionImporter.FillStaticMeshDescriptionFromFbxMesh(Mesh, MeshGlobalTransform))
 		{
 			UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
@@ -1481,6 +1490,18 @@ bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTran
 			return false;
 		}
 	}
+	return true;
+}
+
+bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath)
+{
+	FMeshDescription MeshDescription;
+	TArray<FString> JointNames;
+	if (!FetchMeshPayloadInternal(Parser, MeshGlobalTransform, MeshDescription, JointNames))
+	{
+		return false;
+	}
+
 	//Dump the MeshDescription to a file
 	{
 		FLargeMemoryWriter Ar;
@@ -1490,7 +1511,7 @@ bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTran
 		if (bIsSkinnedMesh)
 		{
 			//When passing a skinned MeshDescription, We want to pass the joint Node ID so we can know what the influence bone index refer to
-			Ar << JointUniqueNames;
+			Ar << JointNames;
 		}
 		uint8* ArchiveData = Ar.GetData();
 		int64 ArchiveSize = Ar.TotalSize();
@@ -1500,22 +1521,52 @@ bool FMeshPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTran
 
 	return true;
 }
-
+#if WITH_ENGINE
+bool FMeshPayloadContext::FetchMeshPayload(FFbxParser& Parser, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData)
+{
+	if (FetchMeshPayloadInternal(Parser, MeshGlobalTransform, OutMeshPayloadData.MeshDescription, OutMeshPayloadData.JointNames))
+	{
+		OutMeshPayloadData.GlobalTransform = MeshGlobalTransform;
+		return true;
+	}
+	return false;
+}
+#endif
 //////////////////////////////////////////////////////////////////////////
 /// FMorphTargetPayloadContext implementation
 
-bool FMorphTargetPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath)
+bool FMorphTargetPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
+	, const FTransform& MeshGlobalTransform
+	, FMeshDescription& OutMorphTargetMeshDescription)
 {
-	if (!ensure(Shape))
+	if (!ensure(SDKScene != nullptr))
 	{
-		//Todo log an error
+		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
+		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
+		Message->Text = LOCTEXT("FBXSceneNull_Mesh", "Cannot fetch FBX mesh morph shape payload because the FBX scene is null.");
 		return false;
 	}
+
+	if (!ensure(SDKGeometryConverter != nullptr))
+	{
+		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
+		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
+		Message->Text = LOCTEXT("FBXConverterNull", "Cannot fetch FBX mesh morph shape payload because the FBX geometry converter is null.");
+		return false;
+	}
+
+	if (!ensure(Shape))
+	{
+		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
+		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
+		Message->Text = LOCTEXT("FBXMeshNull", "Cannot fetch FBX mesh morph shape payload because the FBX shape is null.");
+		return false;
+	}
+
 	//Import the MorphTarget
-	FMeshDescription MorphTargetMeshDescription;
-	FStaticMeshAttributes StaticMeshAttribute(MorphTargetMeshDescription);
+	FStaticMeshAttributes StaticMeshAttribute(OutMorphTargetMeshDescription);
 	StaticMeshAttribute.Register();
-	FMeshDescriptionImporter MeshDescriptionImporter(Parser, &MorphTargetMeshDescription, SDKScene, SDKGeometryConverter);
+	FMeshDescriptionImporter MeshDescriptionImporter(Parser, &OutMorphTargetMeshDescription, SDKScene, SDKGeometryConverter);
 	if (!MeshDescriptionImporter.FillMeshDescriptionFromFbxShape(Shape, MeshGlobalTransform))
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
@@ -1524,7 +1575,16 @@ bool FMorphTargetPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, cons
 
 		return false;
 	}
+	return true;
+}
 
+bool FMorphTargetPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath)
+{
+	FMeshDescription MorphTargetMeshDescription;
+	if(!FetchMeshPayloadInternal(Parser, MeshGlobalTransform, MorphTargetMeshDescription))
+	{
+		return false;
+	}
 	//Dump the MeshDescription to a file
 	{
 		FLargeMemoryWriter Ar;
@@ -1537,6 +1597,12 @@ bool FMorphTargetPayloadContext::FetchMeshPayloadToFile(FFbxParser& Parser, cons
 	return true;
 }
 
+#if WITH_ENGINE
+bool FMorphTargetPayloadContext::FetchMeshPayload(FFbxParser& Parser, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData)
+{
+	return FetchMeshPayloadInternal(Parser, MeshGlobalTransform, OutMeshPayloadData.MeshDescription);
+}
+#endif
 //////////////////////////////////////////////////////////////////////////
 /// FFbxMesh implementation
 
@@ -1639,7 +1705,7 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 		MeshNode->SetCustomVertexCount(MeshVertexCount);
 		const int32 MeshPolygonCount = Mesh->GetPolygonCount();
 		MeshNode->SetCustomPolygonCount(MeshPolygonCount);
-		const FBox MeshBoundingBox = FBox(FFbxConvert::ConvertPos(Mesh->BBoxMin.Get()), FFbxConvert::ConvertPos(Mesh->BBoxMax.Get()));
+		const FBox MeshBoundingBox = FBox(FFbxConvert::ConvertPos<FVector>(Mesh->BBoxMin.Get()), FFbxConvert::ConvertPos<FVector>(Mesh->BBoxMax.Get()));
 		MeshNode->SetCustomBoundingBox(MeshBoundingBox);
 		const bool bMeshHasVertexNormal = Mesh->GetElementNormalCount() > 0;
 		MeshNode->SetCustomHasVertexNormal(bMeshHasVertexNormal);

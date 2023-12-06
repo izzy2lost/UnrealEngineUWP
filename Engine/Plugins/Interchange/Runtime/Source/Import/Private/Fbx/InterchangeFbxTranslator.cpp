@@ -60,10 +60,16 @@ namespace UE::Interchange::Private
 	}
 } //ns UE::Interchange::Private
 
+#define INTERCHANGE_FBX_PATH TEXT("Interchange/Fbx")
 UInterchangeFbxTranslator::UInterchangeFbxTranslator()
 {
 	Dispatcher = nullptr;
 	bUseWorkerImport = false;
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		//Class default object should not use any resources
+		return;
+	}
 	
 	FGuid RandomGuid;
 	FPlatformMisc::CreateGuid(RandomGuid);
@@ -74,7 +80,7 @@ UInterchangeFbxTranslator::UInterchangeFbxTranslator()
 	{
 		PlatformFile.CreateDirectory(*ProjectSavedDir);
 	}
-	const FString InterchangeDir = FPaths::Combine(ProjectSavedDir, TEXT("Interchange"));
+	const FString InterchangeDir = FPaths::Combine(ProjectSavedDir, INTERCHANGE_FBX_PATH);
 	if (!PlatformFile.DirectoryExists(*InterchangeDir))
 	{
 		PlatformFile.CreateDirectory(*InterchangeDir);
@@ -103,6 +109,24 @@ UInterchangeFbxTranslator::UInterchangeFbxTranslator()
 		else
 		{
 			Dispatcher.Reset();
+		}
+	}
+}
+
+void UInterchangeFbxTranslator::CleanUpTemporaryFolder()
+{
+	//Clean up the interchange fbx temporary folder.
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	const FString ProjectSavedDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+	if (PlatformFile.DirectoryExists(*ProjectSavedDir))
+	{
+		const FString InterchangeDir = FPaths::Combine(ProjectSavedDir, INTERCHANGE_FBX_PATH);
+		if (PlatformFile.DirectoryExists(*InterchangeDir))
+		{
+			constexpr bool RequireExists = false;
+			//Delete recursively folder's content
+			constexpr bool Tree = true;
+			IFileManager::Get().DeleteDirectory(*InterchangeDir, RequireExists, Tree);
 		}
 	}
 }
@@ -138,6 +162,16 @@ TArray<FString> UInterchangeFbxTranslator::GetSupportedFormats() const
 bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNodeContainer) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeFbxTranslator::Translate);
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		//Class default should never be use has an active translator
+		ensure(!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject));
+		UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+		ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+		ErrorResult->Text = NSLOCTEXT("UInterchangeFbxTranslator", "Translate_DoNotUseClassDefault", "Class default should not be use has an active translator.");
+		return false;
+	}
+
 	//Make sure the hash is compute here in asynchronous mode
 	GetSourceData()->GetFileContentHash();
 	FString Filename = GetSourceData()->GetFilename();
@@ -316,9 +350,16 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeFbxTranslator:
 	if (!bUseWorkerImport)
 	{
 #if WITH_EDITOR
-		FString ResultMeshPayloadsUniqueId = FbxParser.FetchMeshPayload(PayLoadKey.UniqueId, MeshGlobalTransform, ResultFolder);
-		FString MeshPayloadFilename = FbxParser.GetResultPayloadFilepath(ResultMeshPayloadsUniqueId);
-		OnPayloadReady(MeshPayloadFilename);
+		UE::Interchange::FMeshPayloadData MeshPayloadData;
+		MeshPayloadData.MeshDescription.Empty();
+		FbxParser.FetchMeshPayload(PayLoadKey.UniqueId, MeshGlobalTransform, MeshPayloadData);
+		if (!FStaticMeshOperations::ValidateAndFixData(MeshPayloadData.MeshDescription, PayLoadKey.UniqueId))
+		{
+			UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
+			ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
+			ErrorResult->Text = NSLOCTEXT("UInterchangeFbxTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and fix to zero. Mesh render can be bad.");
+		}
+		Promise->SetValue(MoveTemp(MeshPayloadData));
 #endif
 	}
 	else

@@ -16,6 +16,10 @@ namespace UE
 {
 	namespace Interchange
 	{
+#if WITH_ENGINE
+		struct FMeshPayloadData;
+#endif
+
 		namespace Private
 		{
 			struct FMorphTargetAnimationBuildingData
@@ -128,13 +132,13 @@ namespace UE
 				bool IsOddNegativeScale(FbxAMatrix& TotalMatrix);
 				
 				//TODO move the real function from RenderCore to FVector, so we do not have to add render core to compute such a simple thing
-				float FbxGetBasisDeterminantSign(const FVector& XAxis, const FVector& YAxis, const FVector& ZAxis)
+				float FbxGetBasisDeterminantSign(const FVector3f& XAxis, const FVector3f& YAxis, const FVector3f& ZAxis)
 				{
-					FMatrix Basis(
-						FPlane(XAxis, 0),
-						FPlane(YAxis, 0),
-						FPlane(ZAxis, 0),
-						FPlane(0, 0, 0, 1)
+					FMatrix44f Basis(
+						FPlane4f(XAxis, 0),
+						FPlane4f(YAxis, 0),
+						FPlane4f(ZAxis, 0),
+						FPlane4f(0, 0, 0, 1)
 					);
 					return (Basis.Determinant() < 0) ? -1.0f : +1.0f;
 				}
@@ -152,10 +156,18 @@ namespace UE
 				virtual ~FMeshPayloadContext() {}
 				virtual FString GetPayloadType() const override { return TEXT("Mesh-PayloadContext"); }
 				virtual bool FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath) override;
+#if WITH_ENGINE
+				virtual bool FetchMeshPayload(FFbxParser& Parser, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData) override;
+#endif
 				bool bIsSkinnedMesh = false;
 				FbxMesh* Mesh = nullptr;
 				FbxScene* SDKScene = nullptr;
 				FbxGeometryConverter* SDKGeometryConverter = nullptr;
+			private:
+				bool FetchMeshPayloadInternal(FFbxParser& Parser
+					, const FTransform& MeshGlobalTransform
+					, FMeshDescription& OutMeshDescription
+					, TArray<FString>& OutJointNames);
 			};
 
 			class FMorphTargetPayloadContext : public FPayloadContextBase
@@ -164,9 +176,16 @@ namespace UE
 				virtual ~FMorphTargetPayloadContext() {}
 				virtual FString GetPayloadType() const override { return TEXT("MorphTarget-PayloadContext"); }
 				virtual bool FetchMeshPayloadToFile(FFbxParser& Parser, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath) override;
+#if WITH_ENGINE
+				virtual bool FetchMeshPayload(FFbxParser& Parser, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData) override;
+#endif
 				FbxShape* Shape = nullptr;
 				FbxScene* SDKScene = nullptr;
 				FbxGeometryConverter* SDKGeometryConverter = nullptr;
+			private:
+				bool FetchMeshPayloadInternal(FFbxParser& Parser
+					, const FTransform& MeshGlobalTransform
+					, FMeshDescription& OutMeshDescription);
 			};
 
 			class FFbxMesh

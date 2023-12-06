@@ -198,6 +198,20 @@ namespace UE::Interchange
 		return ResultPayloadUniqueId;
 	}
 
+#if WITH_ENGINE
+	void FInterchangeFbxParser::FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData)
+	{
+		if (!FbxParserPrivate->FetchMeshPayloadData(PayloadKey, MeshGlobalTransform, OutMeshPayloadData))
+		{
+			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
+			{
+				Error->SourceAssetName = SourceFilename;
+				Error->Text = LOCTEXT("CantFetchPayload", "Cannot fetch FBX payload data.");
+			}
+		}
+	}
+#endif
+
 	FString FInterchangeFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& ResultFolder)
 	{
 		ResultsContainer->Empty();
