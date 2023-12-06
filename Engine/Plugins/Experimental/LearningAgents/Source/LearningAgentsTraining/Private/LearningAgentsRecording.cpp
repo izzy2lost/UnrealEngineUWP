@@ -7,6 +7,16 @@
 #include "UObject/Package.h"
 #include "Misc/FileHelper.h"
 
+bool FLearningAgentsRecord::Serialize(FArchive& Ar)
+{
+	Ar << StepNum;
+	Ar << ObservationDimNum;
+	Ar << ActionDimNum;
+	UE::Learning::Array::Serialize(Ar, Observations);
+	UE::Learning::Array::Serialize(Ar, Actions);
+	return true;
+}
+
 ULearningAgentsRecording::ULearningAgentsRecording() = default;
 ULearningAgentsRecording::ULearningAgentsRecording(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsRecording::~ULearningAgentsRecording() = default;
@@ -59,10 +69,8 @@ void ULearningAgentsRecording::LoadRecordingFromFile(const FFilePath& File)
 			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].StepNum);
 			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ObservationDimNum);
 			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ActionDimNum);
-			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ObservationCompatibilityHash);
-			UE::Learning::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].ActionCompatibilityHash);
-			UE::Learning::Array::DeserializeFromBytes<2, float>(Offset, RecordingData, Records[RecordIdx].ObservationData);
-			UE::Learning::Array::DeserializeFromBytes<2, float>(Offset, RecordingData, Records[RecordIdx].ActionData);
+			UE::Learning::Array::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].Observations);
+			UE::Learning::Array::DeserializeFromBytes(Offset, RecordingData, Records[RecordIdx].Actions);
 		}
 
 		UE_LEARNING_CHECK(Offset == RecordingData.Num());
@@ -87,13 +95,11 @@ void ULearningAgentsRecording::SaveRecordingToFile(const FFilePath& File) const
 	for (int32 RecordIdx = 0; RecordIdx < Records.Num(); RecordIdx++)
 	{
 		TotalByteNum +=
-			sizeof(int32) + // StepNum
+			sizeof(int32) + // SampleNum
 			sizeof(int32) + // ObservationDimNum
 			sizeof(int32) + // ActionDimNum
-			sizeof(int32) + // ObservationCompatibilityHash
-			sizeof(int32) + // ActionCompatibilityHash
-			UE::Learning::Array::SerializationByteNum<2, float>({ Records[RecordIdx].StepNum, Records[RecordIdx].ObservationDimNum }) + // Observations
-			UE::Learning::Array::SerializationByteNum<2, float>({ Records[RecordIdx].StepNum, Records[RecordIdx].ActionDimNum });	   // Actions
+			UE::Learning::Array::SerializationByteNum<2, float>(Records[RecordIdx].Observations.Shape()) + // Observations
+			UE::Learning::Array::SerializationByteNum<2, float>(Records[RecordIdx].Actions.Shape());	   // Actions
 	}
 
 	RecordingData.SetNumUninitialized(TotalByteNum);
@@ -108,10 +114,8 @@ void ULearningAgentsRecording::SaveRecordingToFile(const FFilePath& File) const
 		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].StepNum);
 		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ObservationDimNum);
 		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ActionDimNum);
-		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ObservationCompatibilityHash);
-		UE::Learning::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].ActionCompatibilityHash);
-		UE::Learning::Array::SerializeToBytes<2, float>(Offset, RecordingData, { Records[RecordIdx].StepNum, Records[RecordIdx].ObservationDimNum }, Records[RecordIdx].ObservationData);
-		UE::Learning::Array::SerializeToBytes<2, float>(Offset, RecordingData, { Records[RecordIdx].StepNum, Records[RecordIdx].ActionDimNum }, Records[RecordIdx].ActionData);
+		UE::Learning::Array::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].Observations);
+		UE::Learning::Array::SerializeToBytes(Offset, RecordingData, Records[RecordIdx].Actions);
 	}
 
 	UE_LEARNING_CHECK(Offset == RecordingData.Num());
@@ -183,67 +187,6 @@ void ULearningAgentsRecording::AppendRecordingToAsset(ULearningAgentsRecording* 
 
 	RecordingAsset->Records.Append(Records);
 	RecordingAsset->ForceMarkDirty();
-}
-
-int32 ULearningAgentsRecording::GetRecordNum() const
-{
-	return Records.Num();
-}
-
-int32 ULearningAgentsRecording::GetRecordStepNum(const int32 Record) const
-{
-	if (Record < 0 || Record >= Records.Num())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Record out of range. Asked for record %i but recording only has %i records."), *GetName(), Record, Records.Num());
-		return 0;
-	}
-
-	return Records[Record].StepNum;
-}
-
-
-void ULearningAgentsRecording::GetObservationVector(TArray<float>& OutObservationVector, int32& OutObservationCompatibilityHash, const int32 Record, const int32 Step)
-{
-	if (Record < 0 || Record >= Records.Num())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Record out of range. Asked for record %i but recording only has %i records."), *GetName(), Record, Records.Num());
-		OutObservationVector.Empty();
-		OutObservationCompatibilityHash = 0;
-		return;
-	}
-
-	if (Step < 0 || Step >= Records[Record].StepNum)
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Step out of range. Asked for step %i but recording only has %i steps."), *GetName(), Step, Records[Record].StepNum);
-		OutObservationVector.Empty();
-		OutObservationCompatibilityHash = 0;
-		return;
-	}
-
-	OutObservationVector = MakeArrayView(Records[Record].ObservationData).Slice(Records[Record].ObservationDimNum * Step, Records[Record].ObservationDimNum);
-	OutObservationCompatibilityHash = Records[Record].ObservationCompatibilityHash;
-}
-
-void ULearningAgentsRecording::GetActionVector(TArray<float>& OutActionVector, int32& OutActionCompatibilityHash, const int32 Record, const int32 Step)
-{
-	if (Record < 0 || Record >= Records.Num())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Record out of range. Asked for record %i but recording only has %i records."), *GetName(), Record, Records.Num());
-		OutActionVector.Empty();
-		OutActionCompatibilityHash = 0;
-		return;
-	}
-
-	if (Step < 0 || Step >= Records[Record].StepNum)
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Step out of range. Asked for step %i but recording only has %i steps."), *GetName(), Step, Records[Record].StepNum);
-		OutActionVector.Empty();
-		OutActionCompatibilityHash = 0;
-		return;
-	}
-
-	OutActionVector = MakeArrayView(Records[Record].ActionData).Slice(Records[Record].ActionDimNum * Step, Records[Record].ActionDimNum);
-	OutActionCompatibilityHash = Records[Record].ActionCompatibilityHash;
 }
 
 void ULearningAgentsRecording::ForceMarkDirty()

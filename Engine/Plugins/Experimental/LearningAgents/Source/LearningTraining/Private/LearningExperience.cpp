@@ -257,6 +257,116 @@ namespace UE::Learning
 
 	namespace Experience
 	{
+		void GatherExperienceReset(
+			FReplayBuffer& ReplayBuffer,
+			FEpisodeBuffer& EpisodeBuffer,
+			FResetInstanceBuffer& ResetBuffer,
+			const FIndexSet Instances)
+		{
+			ReplayBuffer.Reset();
+			EpisodeBuffer.Reset(Instances);
+			ResetBuffer.SetResetInstances(Instances);
+		}
+
+		bool GatherExperienceIteration(
+			FReplayBuffer& ReplayBuffer,
+			FEpisodeBuffer& EpisodeBuffer,
+			FResetInstanceBuffer& ResetBuffer,
+			TLearningArrayView<2, float> ObservationVectorBuffer,
+			TLearningArrayView<2, float> ActionVectorBuffer,
+			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
+			TLearningArrayView<2, float> MemoryStateVectorBuffer,
+			TLearningArrayView<1, float> RewardBuffer,
+			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
+			const ECompletionMode EpisodeEndCompletionMode,
+			const TFunctionRef<void(const FIndexSet Instances)> ResetFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> ObservationFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> PolicyFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> ActionFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> UpdateFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> RewardFunction,
+			const TFunctionRef<void(const FIndexSet Instances)> CompletionFunction,
+			const FIndexSet Instances)
+		{
+			UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::Experience::GatherExperienceIteration);
+
+			if (ResetBuffer.GetResetInstanceNum() > 0)
+			{
+				// Reset Environment
+
+				ResetFunction(ResetBuffer.GetResetInstances());
+			}
+
+			// Encode Observations
+
+			ObservationFunction(Instances);
+			Array::Check(ObservationVectorBuffer, Instances);
+
+			// Evaluate Policy
+
+			PolicyFunction(Instances);
+
+			// Decode Actions
+
+			Array::Check(ActionVectorBuffer, Instances);
+			ActionFunction(Instances);
+
+			// Update Environment
+
+			UpdateFunction(Instances);
+
+			// Compute Rewards
+
+			RewardFunction(Instances);
+			Array::Check(RewardBuffer, Instances);
+
+			// Push to Experience Buffer
+
+			EpisodeBuffer.Push(
+				ObservationVectorBuffer,
+				ActionVectorBuffer,
+				PreEvaluationMemoryStateVectorBuffer,
+				RewardBuffer,
+				Instances);
+
+			// Evaluate Completions
+
+			CompletionFunction(Instances);
+
+			Completion::EvaluateEndOfEpisodeCompletions(
+				CompletionBuffer,
+				EpisodeBuffer.GetEpisodeStepNums(),
+				EpisodeBuffer.GetMaxStepNum(),
+				EpisodeEndCompletionMode,
+				Instances);
+
+			ResetBuffer.SetResetInstancesFromCompletions(CompletionBuffer, Instances);
+
+			// Evaluate Observations again for instances that are completed
+
+			if (ResetBuffer.GetResetInstanceNum() > 0)
+			{
+				ObservationFunction(ResetBuffer.GetResetInstances());
+
+				// Push to Replay Buffer
+
+				const bool bReplayBufferFull = ReplayBuffer.AddEpisodes(
+					CompletionBuffer,
+					ObservationVectorBuffer,
+					MemoryStateVectorBuffer,
+					EpisodeBuffer,
+					ResetBuffer.GetResetInstances());
+
+				EpisodeBuffer.Reset(ResetBuffer.GetResetInstances());
+
+				return bReplayBufferFull;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
 		void GatherExperienceUntilReplayBufferFull(
 			FReplayBuffer& ReplayBuffer,
 			FEpisodeBuffer& EpisodeBuffer,
@@ -267,8 +377,7 @@ namespace UE::Learning
 			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
-			TLearningArrayView<1, ECompletionMode> EpisodeCompletionBuffer,
-			TLearningArrayView<1, ECompletionMode> AllCompletionBuffer,
+			const ECompletionMode EpisodeEndCompletionMode,
 			const TFunctionRef<void(const FIndexSet Instances)> ResetFunction,
 			const TFunctionRef<void(const FIndexSet Instances)> ObservationFunction,
 			const TFunctionRef<void(const FIndexSet Instances)> PolicyFunction,
@@ -280,88 +389,36 @@ namespace UE::Learning
 		{
 			UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::Experience::GatherExperienceUntilReplayBufferFull);
 
-			// Reset Everything
+			bool bReplayBufferFull = false;
 
-			ReplayBuffer.Reset();
-			EpisodeBuffer.Reset(Instances);
-			ResetFunction(Instances);
+			GatherExperienceReset(ReplayBuffer, EpisodeBuffer, ResetBuffer, Instances);
 
 			while (true)
 			{
-				// Encode Observations
-
-				ObservationFunction(Instances);
-
-				// Evaluate Policy
-
-				PolicyFunction(Instances);
-
-				// Decode Actions
-
-				ActionFunction(Instances);
-
-				// Update Environment
-
-				UpdateFunction(Instances);
-
-				// Compute Rewards
-
-				RewardFunction(Instances);
-
-				// Push to Experience Buffer
-
-				EpisodeBuffer.Push(
+				bReplayBufferFull = GatherExperienceIteration(
+					ReplayBuffer,
+					EpisodeBuffer,
+					ResetBuffer,
 					ObservationVectorBuffer,
 					ActionVectorBuffer,
 					PreEvaluationMemoryStateVectorBuffer,
-					RewardBuffer,
-					Instances);
-
-				// Evaluate Completions
-
-				CompletionFunction(Instances);
-
-				Completion::EvaluateEndOfEpisodeCompletions(
-					EpisodeCompletionBuffer,
-					EpisodeBuffer.GetEpisodeStepNums(),
-					EpisodeBuffer.GetMaxStepNum(),
-					Instances);
-
-				for (const int32 Instance : Instances)
-				{
-					AllCompletionBuffer[Instance] = Completion::Or(CompletionBuffer[Instance], EpisodeCompletionBuffer[Instance]);
-				}
-
-				ResetBuffer.SetResetInstancesFromCompletions(AllCompletionBuffer, Instances);
-
-				if (ResetBuffer.GetResetInstanceNum() == 0)
-				{
-					continue;
-				}
-
-				// Evaluate Observations again for instances that are completed
-
-				ObservationFunction(ResetBuffer.GetResetInstances());
-
-				// Push completed instances to Replay Buffer and return if full
-
-				if (ReplayBuffer.AddEpisodes(
-					AllCompletionBuffer,
-					ObservationVectorBuffer,
 					MemoryStateVectorBuffer,
-					EpisodeBuffer,
-					ResetBuffer.GetResetInstances()))
+					RewardBuffer,
+					CompletionBuffer,
+					EpisodeEndCompletionMode,
+					ResetFunction,
+					ObservationFunction,
+					PolicyFunction,
+					ActionFunction,
+					UpdateFunction,
+					RewardFunction,
+					CompletionFunction,
+					Instances);
+
+				if (bReplayBufferFull)
 				{
-					return;
+					break;
 				}
-
-				// Just reset Episode Buffer for instances who reached the maximum episode length
-				ResetBuffer.SetResetInstancesFromCompletions(EpisodeCompletionBuffer, Instances);
-				EpisodeBuffer.Reset(ResetBuffer.GetResetInstances());
-
-				// Call Reset Function for instances which signaled a completion
-				ResetBuffer.SetResetInstancesFromCompletions(CompletionBuffer, Instances);
-				ResetFunction(ResetBuffer.GetResetInstances());
 			}
 		}
 

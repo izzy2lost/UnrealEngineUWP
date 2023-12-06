@@ -5,8 +5,11 @@
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
 #include "LearningAgentsPolicy.h"
+#include "LearningAgentsHelpers.h"
+#include "LearningAgentsNeuralNetworkData.h"
+#include "LearningFeatureObject.h"
 #include "LearningNeuralNetwork.h"
-#include "LearningCritic.h"
+#include "LearningNeuralNetworkObject.h"
 #include "LearningLog.h"
 
 #include "UObject/Package.h"
@@ -14,76 +17,15 @@
 #include "Misc/Paths.h"
 #include "GameFramework/Actor.h"
 
-#include "NNERuntimeBasicCpuBuilder.h"
-
-namespace UE::Learning::Agents::Critic::Private
-{
-	static inline UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction GetBuilderActivationFunction(const ELearningAgentsActivationFunction ActivationFunction)
-	{
-		switch (ActivationFunction)
-		{
-		case ELearningAgentsActivationFunction::ReLU: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
-		case ELearningAgentsActivationFunction::ELU: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ELU;
-		case ELearningAgentsActivationFunction::TanH: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::TanH;
-		default:
-			UE_LOG(LogLearning, Error, TEXT("Unknown Activation Function"));
-			return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
-		}
-	}
-}
-
 ULearningAgentsCritic::ULearningAgentsCritic() : Super(FObjectInitializer::Get()) {}
 ULearningAgentsCritic::ULearningAgentsCritic(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsCritic::~ULearningAgentsCritic() = default;
 
-ULearningAgentsCritic* ULearningAgentsCritic::MakeCritic(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy,
-	TSubclassOf<ULearningAgentsCritic> Class,
-	const FName Name,
-	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
-	const bool bReinitializeCriticNetwork,
-	const FLearningAgentsCriticSettings& CriticSettings,
-	const int32 Seed)
-{
-	if (!InManager)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakeCritic: InManager is nullptr."));
-		return nullptr;
-	}
-
-	if (!Class)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakeCritic: Class is nullptr."));
-		return nullptr;
-	}
-
-	const FName UniqueName = MakeUniqueObjectName(InManager, Class, Name, EUniqueObjectNameOptions::GloballyUnique);
-
-	ULearningAgentsCritic* Critic = NewObject<ULearningAgentsCritic>(InManager, Class, UniqueName);
-	if (!Critic) { return nullptr; }
-
-	Critic->SetupCritic(
-		InManager, 
-		InInteractor,
-		InPolicy,
-		CriticNeuralNetworkAsset,
-		bReinitializeCriticNetwork,
-		CriticSettings,
-		Seed);
-
-	return Critic->IsSetup() ? Critic : nullptr;
-}
-
 void ULearningAgentsCritic::SetupCritic(
-	ULearningAgentsManager* InManager,
 	ULearningAgentsInteractor* InInteractor, 
 	ULearningAgentsPolicy* InPolicy,
-	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
-	const bool bReinitializeCriticNetwork,
 	const FLearningAgentsCriticSettings& CriticSettings,
-	const int32 Seed)
+	ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
 {
 	if (IsSetup())
 	{
@@ -91,9 +33,9 @@ void ULearningAgentsCritic::SetupCritic(
 		return;
 	}
 
-	if (!InManager)
+	if (!Manager)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: InManager is nullptr."), *GetName());
+		UE_LOG(LogLearning, Error, TEXT("%s: Must be attached to a LearningAgentsManager Actor."), *GetName());
 		return;
 	}
 
@@ -109,6 +51,8 @@ void ULearningAgentsCritic::SetupCritic(
 		return;
 	}
 
+	Interactor = InInteractor;
+
 	if (!InPolicy)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: InPolicy is nullptr."), *GetName());
@@ -121,146 +65,204 @@ void ULearningAgentsCritic::SetupCritic(
 		return;
 	}
 
-	Manager = InManager;
-	Interactor = InInteractor;
 	Policy = InPolicy;
 
-	const int32 ObservationEncodedVectorSize = Interactor->GetObservationEncodedVectorSize();
-	const int32 MemoryStateSize = Policy->GetMemoryStateSize();
+	const int32 NetworkInputNum = Interactor->GetObservationFeature().DimNum() + Policy->GetMemoryStateSize();
+	const int32 NetworkOutputNum = 1;
 
-	const int32 CriticHashData[2] = { MemoryStateSize, ObservationEncodedVectorSize };
-	const int32 CriticCompatibilityHash = CityHash32((const char*)CriticHashData, 2 * sizeof(int32));
-
-	// Try to use existing Neural Network Asset
-
-	if (CriticNeuralNetworkAsset)
+	if (NeuralNetworkAsset)
 	{
-		CriticNetwork = CriticNeuralNetworkAsset;
+		// Use Existing Neural Network Asset
 
-		if (CriticNeuralNetworkAsset->NeuralNetworkData && !bReinitializeCriticNetwork)
+		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (CriticNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash() != CriticCompatibilityHash)
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != NetworkInputNum ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NetworkOutputNum)
 			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Critic Network Asset provided during Setup is incompatible with Schema. Network hash is %i vs Schema hash %i."), *GetName(),
-					CriticNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash(),
-					CriticCompatibilityHash);
+				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match."), *GetName());
 				return;
 			}
 
-			if (CriticNeuralNetworkAsset->NeuralNetworkData->GetInputSize() != ObservationEncodedVectorSize + MemoryStateSize ||
-				CriticNeuralNetworkAsset->NeuralNetworkData->GetOutputSize() != 1)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Critic Network Asset provided during Setup is incorrect size: Got inputs of size %i, expected %i. Got outputs of size %i, expected %i."), *GetName(),
-					CriticNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ObservationEncodedVectorSize + MemoryStateSize,
-					CriticNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), 1);
-				return;
-			}
+			Network = NeuralNetworkAsset;
+		}
+		else
+		{
+			Network = NeuralNetworkAsset;
+			Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+			Network->NeuralNetworkData->CreateMLP(
+				NetworkInputNum,
+				NetworkOutputNum,
+				CriticSettings.HiddenLayerSize,
+				CriticSettings.LayerNum,
+				CriticSettings.ActivationFunction);
 		}
 	}
-
-	if (!CriticNetwork)
-	{
-		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("CriticNetwork"), EUniqueObjectNameOptions::GloballyUnique);
-		CriticNetwork = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-	}
-
-	if (!CriticNetwork->NeuralNetworkData || bReinitializeCriticNetwork)
+	else
 	{
 		// Create New Neural Network Asset
 
-		if (!CriticNetwork->NeuralNetworkData)
-		{
-			CriticNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(CriticNetwork);
-		}
+		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("CriticNetwork"), EUniqueObjectNameOptions::GloballyUnique);
 
-		UE::NNE::RuntimeBasic::FModelBuilder Builder;
-
-		TArray<uint8> FileData;
-		uint32 CriticInputSize, CriticOutputSize;
-		Builder.WriteFileDataAndReset(FileData, CriticInputSize, CriticOutputSize,
-			Builder.MakeMLPWithRandomKaimingWeights(
-				ObservationEncodedVectorSize + MemoryStateSize,
-				1,
-				CriticSettings.HiddenLayerSize,
-				FMath::Max(CriticSettings.LayerNum, 2),
-				UE::Learning::Agents::Critic::Private::GetBuilderActivationFunction(CriticSettings.ActivationFunction)));
-
-		UE_LEARNING_CHECK(CriticInputSize == ObservationEncodedVectorSize + MemoryStateSize);
-		UE_LEARNING_CHECK(CriticOutputSize == 1);
-
-		CriticNetwork->NeuralNetworkData->Init(CriticInputSize, CriticOutputSize, CriticCompatibilityHash, FileData);
-		CriticNetwork->ForceMarkDirty();
+		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
+		Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+		Network->NeuralNetworkData->CreateMLP(
+			NetworkInputNum,
+			NetworkOutputNum,
+			CriticSettings.HiddenLayerSize,
+			CriticSettings.LayerNum,
+			CriticSettings.ActivationFunction);
 	}
 
 	// Create Critic Object
-
-	CriticObject = MakeShared<UE::Learning::FNeuralNetworkCritic>(
+	CriticObject = MakeShared<UE::Learning::FNeuralNetworkCriticFunction>(
+		TEXT("CriticObject"),
+		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
-		ObservationEncodedVectorSize,
-		MemoryStateSize,
-		CriticNetwork->NeuralNetworkData->GetNetwork());
+		Interactor->GetObservationFeature().DimNum(),
+		Policy->GetMemoryStateSize(),
+		Network->NeuralNetworkData->GetNetworkInterface());
 
-	Returns.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	UE::Learning::Array::Set<1, float>(Returns, FLT_MAX);
-
-	ReturnsIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	UE::Learning::Array::Set<1, uint64>(ReturnsIteration, INDEX_NONE);
+	CriticAgentIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
+	UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, INDEX_NONE);
 
 	bIsSetup = true;
 
-	Manager->AddListener(this);
+	OnAgentsAdded(Manager->GetAllAgentIds());
 }
 
-void ULearningAgentsCritic::OnAgentsAdded_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsCritic::OnAgentsAdded(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, 0, AgentIds);
 
-	UE::Learning::Array::Set<1, uint64>(ReturnsIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, float>(Returns, 0.0f, AgentIds);
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsAdded(AgentIds);
+		}
+
+		AgentsAdded(AgentIds);
+	}
 }
 
-void ULearningAgentsCritic::OnAgentsRemoved_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsCritic::OnAgentsRemoved(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, INDEX_NONE, AgentIds);
 
-	UE::Learning::Array::Set<1, uint64>(ReturnsIteration, INDEX_NONE, AgentIds);
-	UE::Learning::Array::Set<1, float> (Returns, FLT_MAX, AgentIds);
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsRemoved(AgentIds);
+		}
+
+		AgentsRemoved(AgentIds);
+	}
 }
 
-void ULearningAgentsCritic::OnAgentsReset_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsCritic::OnAgentsReset(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
+		UE::Learning::Array::Set<1, uint64>(CriticAgentIteration, 0, AgentIds);
 
-	UE::Learning::Array::Set<1, uint64>(ReturnsIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, float>(Returns, 0.0f, AgentIds);
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsReset(AgentIds);
+		}
+
+		AgentsReset(AgentIds);
+	}
 }
 
-UE::Learning::FNeuralNetworkCritic& ULearningAgentsCritic::GetCriticObject()
+ULearningAgentsNeuralNetwork* ULearningAgentsCritic::GetNetworkAsset()
+{
+	return Network;
+}
+
+UE::Learning::INeuralNetwork& ULearningAgentsCritic::GetCriticNetwork()
+{
+	return *Network->NeuralNetworkData->GetNetworkInterface();
+}
+
+UE::Learning::FNeuralNetworkCriticFunction& ULearningAgentsCritic::GetCriticObject()
 {
 	return *CriticObject;
 }
 
-ULearningAgentsNeuralNetwork* ULearningAgentsCritic::GetCriticNetworkAsset()
+void ULearningAgentsCritic::LoadCriticFromSnapshot(const FFilePath& File)
 {
 	if (!IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return nullptr;
+		return;
 	}
 
-	return CriticNetwork;
+	Network->LoadNetworkFromSnapshot(File);
+}
+
+void ULearningAgentsCritic::SaveCriticToSnapshot(const FFilePath& File) const
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	Network->SaveNetworkToSnapshot(File);
+}
+
+void ULearningAgentsCritic::UseCriticFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetworkData)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Asset is invalid."), *GetName());
+		return;
+	}
+
+	if (NeuralNetworkAsset == Network)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Asset is same as the current network."), *GetName());
+		return;
+	}
+
+	if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
+		NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Failed to use asset as network settings don't match."), *GetName());
+		return;
+	}
+
+	Network = NeuralNetworkAsset;
+	CriticObject->UpdateNeuralNetwork(Network->NeuralNetworkData->GetNetworkInterface());
+}
+
+void ULearningAgentsCritic::LoadCriticFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	Network->LoadNetworkFromAsset(NeuralNetworkAsset);
+}
+
+void ULearningAgentsCritic::SaveCriticToAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	Network->SaveNetworkToAsset(NeuralNetworkAsset);
 }
 
 void ULearningAgentsCritic::EvaluateCritic()
@@ -273,21 +275,16 @@ void ULearningAgentsCritic::EvaluateCritic()
 		return;
 	}
 
-	if (Manager->GetAgentNum() == 0)
-	{
-		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
-	}
-
 	// Check Agents actually have encoded observations.
 	// All added agents should already have some memory state even if it is zero.
 
-	ValidAgentIds.Empty(Manager->GetMaxAgentNum());
+	ValidAgentIds.Empty(Manager->GetAgentNum());
 
 	for (const int32 AgentId : Manager->GetAllAgentSet())
 	{
-		if (Policy->ObservationVectorEncodedIteration[AgentId] == 0)
+		if (Interactor->GetObservationEncodingAgentIteration()[AgentId] == 0)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not made observations so critic will not be evaluated for it. Was EncodeObservations run without error?"), *GetName(), AgentId);
+			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not made observations so critic will not be evaluated for it."), *GetName(), AgentId);
 			continue;
 		}
 
@@ -297,20 +294,32 @@ void ULearningAgentsCritic::EvaluateCritic()
 	ValidAgentSet = ValidAgentIds;
 	ValidAgentSet.TryMakeSlice();
 
+	// Get views of Observations and Memory State and copy into network input buffers
+
+	TLearningArrayView<2, const float> MemoryStateView = Policy->GetMemoryStateView();
+	TLearningArrayView<2, const float> ObservationsView = Manager->GetInstanceData()->ConstView(Interactor->GetObservationFeature().FeatureHandle);
+	TLearningArrayView<2, float> InputObservationView = Manager->GetInstanceData()->View(CriticObject->InputObservationHandle);
+	TLearningArrayView<2, float> InputMemoryStateView = Manager->GetInstanceData()->View(CriticObject->InputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(InputObservationView, ObservationsView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(InputMemoryStateView, MemoryStateView, ValidAgentSet);
+
 	// Evaluate Critic
 
-	CriticObject->Evaluate(
-		Returns,
-		Policy->ObservationVectorsEncoded,
-		Policy->MemoryState,
-		ValidAgentSet);
+	CriticObject->Evaluate(ValidAgentSet);
 
 	// Increment Discounted Return Iteration
 
 	for (const int32 AgentId : ValidAgentSet)
 	{
-		ReturnsIteration[AgentId]++;
+		CriticAgentIteration[AgentId]++;
 	}
+		
+	// Visual Logger
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	VisualLog(ValidAgentSet);
+#endif
 }
 
 float ULearningAgentsCritic::GetEstimatedDiscountedReturn(const int32 AgentId) const
@@ -327,12 +336,39 @@ float ULearningAgentsCritic::GetEstimatedDiscountedReturn(const int32 AgentId) c
 		return 0.0f;
 	}
 
-	if (ReturnsIteration[AgentId] == 0)
+	if (CriticAgentIteration[AgentId] == 0)
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Agent with id %d has not yet computed the estimated discounted return. Did you run EvaluateCritic?"), *GetName(), AgentId);
 		return 0.0f;
 	}
 
-	return Returns[AgentId];
+	return CriticObject->InstanceData->ConstView(CriticObject->OutputHandle)[AgentId];
 }
 
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+void ULearningAgentsCritic::VisualLog(const UE::Learning::FIndexSet AgentSet) const
+{
+	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsCritic::VisualLog);
+
+	const TLearningArrayView<2, const float> InputObservationView = CriticObject->InstanceData->ConstView(CriticObject->InputObservationHandle);
+	const TLearningArrayView<2, const float> InputMemoryStateView = CriticObject->InstanceData->ConstView(CriticObject->InputMemoryStateHandle);
+	const TLearningArrayView<1, const float> OutputView = CriticObject->InstanceData->ConstView(CriticObject->OutputHandle);
+
+	for (const int32 AgentId : AgentSet)
+	{
+		if (const AActor* Actor = Cast<AActor>(GetAgent(AgentId)))
+		{
+			UE_LEARNING_AGENTS_VLOG_STRING(this, LogLearning, Display,
+				Actor->GetActorLocation(),
+				VisualLogColor.ToFColor(true),
+				TEXT("Agent %i\nObservation Input: %s\nObservation Input Stats (Min/Max/Mean/Std): %s\nMemory State Input: %s\nMemory State Input Stats (Min/Max/Mean/Std): %s\nOutput: [% 6.3f]"),
+				AgentId,
+				*UE::Learning::Array::FormatFloat(InputObservationView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputObservationView[AgentId]),
+				*UE::Learning::Array::FormatFloat(InputMemoryStateView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputMemoryStateView[AgentId]),
+				OutputView[AgentId]);
+		}
+	}
+}
+#endif

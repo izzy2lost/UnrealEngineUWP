@@ -4,95 +4,26 @@
 
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
+#include "LearningAgentsHelpers.h"
+#include "LearningAgentsNeuralNetworkData.h"
+#include "LearningFeatureObject.h"
 #include "LearningNeuralNetwork.h"
-#include "LearningPolicy.h"
+#include "LearningNeuralNetworkObject.h"
 #include "LearningLog.h"
-#include "LearningRandom.h"
 
 #include "UObject/Package.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "GameFramework/Actor.h"
 
-#include "NNERuntimeBasicCpuBuilder.h"
-
-namespace UE::Learning::Agents::Policy::Private
-{
-	static inline UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction GetBuilderActivationFunction(const ELearningAgentsActivationFunction ActivationFunction)
-	{
-		switch (ActivationFunction)
-		{
-		case ELearningAgentsActivationFunction::ReLU: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
-		case ELearningAgentsActivationFunction::ELU: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ELU;
-		case ELearningAgentsActivationFunction::TanH: return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::TanH;
-		default:
-			UE_LOG(LogLearning, Error, TEXT("Unknown Activation Function"));
-			return UE::NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
-		}
-	}
-}
-
 ULearningAgentsPolicy::ULearningAgentsPolicy() : Super(FObjectInitializer::Get()) {}
 ULearningAgentsPolicy::ULearningAgentsPolicy(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsPolicy::~ULearningAgentsPolicy() = default;
 
-ULearningAgentsPolicy* ULearningAgentsPolicy::MakePolicy(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	TSubclassOf<ULearningAgentsPolicy> Class,
-	const FName Name,
-	ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset,
-	ULearningAgentsNeuralNetwork* PolicyNeuralNetworkAsset,
-	ULearningAgentsNeuralNetwork* DecoderNeuralNetworkAsset,
-	const bool bReinitializeEncoderNetwork,
-	const bool bReinitializePolicyNetwork,
-	const bool bReinitializeDecoderNetwork,
-	const FLearningAgentsPolicySettings& PolicySettings,
-	const int32 Seed)
-{
-	if (!InManager)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakePolicy: InManager is nullptr."));
-		return nullptr;
-	}
-
-	if (!Class)
-	{
-		UE_LOG(LogLearning, Error, TEXT("MakePolicy: Class is nullptr."));
-		return nullptr;
-	}
-
-	const FName UniqueName = MakeUniqueObjectName(InManager, Class, Name, EUniqueObjectNameOptions::GloballyUnique);
-
-	ULearningAgentsPolicy* Policy = NewObject<ULearningAgentsPolicy>(InManager, Class, UniqueName);
-	if (!Policy) { return nullptr; }
-
-	Policy->SetupPolicy(
-		InManager,
-		InInteractor,
-		EncoderNeuralNetworkAsset,
-		PolicyNeuralNetworkAsset,
-		DecoderNeuralNetworkAsset,
-		bReinitializeEncoderNetwork,
-		bReinitializePolicyNetwork,
-		bReinitializeDecoderNetwork,
-		PolicySettings,
-		Seed);
-
-	return Policy->IsSetup() ? Policy : nullptr;
-}
-
 void ULearningAgentsPolicy::SetupPolicy(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset,
-	ULearningAgentsNeuralNetwork* PolicyNeuralNetworkAsset,
-	ULearningAgentsNeuralNetwork* DecoderNeuralNetworkAsset,
-	const bool bReinitializeEncoderNetwork,
-	const bool bReinitializePolicyNetwork,
-	const bool bReinitializeDecoderNetwork,
+	ULearningAgentsInteractor* InInteractor, 
 	const FLearningAgentsPolicySettings& PolicySettings,
-	const int32 Seed)
+	ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
 {
 	if (IsSetup())
 	{
@@ -100,9 +31,9 @@ void ULearningAgentsPolicy::SetupPolicy(
 		return;
 	}
 
-	if (!InManager)
+	if (!Manager)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: InManager is nullptr."), *GetName());
+		UE_LOG(LogLearning, Error, TEXT("%s: Must be attached to a LearningAgentsManager Actor."), *GetName());
 		return;
 	}
 
@@ -118,417 +49,233 @@ void ULearningAgentsPolicy::SetupPolicy(
 		return;
 	}
 
-	Manager = InManager;
 	Interactor = InInteractor;
 
-	// Compatibility Hashes and Sizes
+	// Setup Neural Network
 
-	const int32 MemoryStateSize = PolicySettings.bUseMemory ? PolicySettings.MemoryStateSize : 0;
-	const int32 ObservationVectorSize = Interactor->GetObservationVectorSize();
-	const int32 ObservationEncodedVectorSize = Interactor->GetObservationEncodedVectorSize();
-	const int32 ActionEncodedVectorSize = Interactor->GetActionEncodedVectorSize();
-	const int32 ActionDistributionVectorSize = Interactor->GetActionDistributionVectorSize();
+	const int32 NetworkInputNum = Interactor->GetObservationFeature().DimNum() + PolicySettings.MemoryStateSize;
+	const int32 NetworkOutputNum = 2 * Interactor->GetActionFeature().DimNum() + PolicySettings.MemoryStateSize;
 
-	const int32 ObservationCompatibilityHash = UE::Learning::Observation::GetSchemaObjectsCompatibilityHash(Interactor->GetObservationSchema(), Interactor->GetObservationSchemaElement());
-	const int32 ActionCompatibilityHash = UE::Learning::Action::GetSchemaObjectsCompatibilityHash(Interactor->GetActionSchema(), Interactor->GetActionSchemaElement());
-	
-	const int32 PolicyHashData[3] = { MemoryStateSize, ObservationEncodedVectorSize, ActionEncodedVectorSize };
-	const int32 PolicyCompatibilityHash = CityHash32((const char*)PolicyHashData, 3 * sizeof(int32));
-
-	// Encoder
-
-	if (EncoderNeuralNetworkAsset)
+	if (NeuralNetworkAsset)
 	{
-		EncoderNetwork = EncoderNeuralNetworkAsset;
+		// Use Existing Neural Network Asset
 
-		if (EncoderNeuralNetworkAsset->NeuralNetworkData && !bReinitializeEncoderNetwork)
+		if (NeuralNetworkAsset->NeuralNetworkData)
 		{
-			if (EncoderNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash() != ObservationCompatibilityHash)
+			if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != NetworkInputNum ||
+				NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NetworkOutputNum)
 			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Asset provided during Setup is incompatible with Schema. Network hash is %i vs Schema hash %i."), *GetName(),
-					EncoderNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash(),
-					ObservationCompatibilityHash);
+				UE_LOG(LogLearning, Error, TEXT("%s: Neural Network Asset provided during Setup is incorrect size: Inputs and outputs don't match what is required."), *GetName());
 				return;
 			}
 
-			if (EncoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize() != ObservationVectorSize ||
-				EncoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize() != ObservationEncodedVectorSize)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Asset provided during Setup is incorrect size: Got inputs of size %i, expected %i. Got outputs of size %i, expected %i."), *GetName(),
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ObservationVectorSize,
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), ObservationEncodedVectorSize);
-				return;
-			}
+			Network = NeuralNetworkAsset;
+		}
+		else
+		{
+			Network = NeuralNetworkAsset;
+			Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+			
+			Network->NeuralNetworkData->CreateMemoryBackbone(
+				Interactor->GetObservationFeature().DimNum(),
+				2 * Interactor->GetActionFeature().DimNum(),
+				PolicySettings.MemoryStateSize,
+				PolicySettings.HiddenLayerSize,
+				FMath::Max(PolicySettings.LayerNum / 2, 1),
+				FMath::Max(PolicySettings.LayerNum / 2, 1));
+
 		}
 	}
-
-	if (!EncoderNetwork)
+	else
 	{
-		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("EncoderNetwork"), EUniqueObjectNameOptions::GloballyUnique);
-		EncoderNetwork = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-	}
+		// Create New Neural Network Asset
 
-	if (!EncoderNetwork->NeuralNetworkData || bReinitializeEncoderNetwork)
-	{
-		if (!EncoderNetwork->NeuralNetworkData)
-		{
-			EncoderNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(EncoderNetwork);
-		}
-
-		TArray<uint8> FileData;
-		uint32 EncoderInputSize, EncoderOutputSize;
-		UE::Learning::Observation::GenerateEncoderNetworkFileDataFromSchema(
-			FileData,
-			EncoderInputSize,
-			EncoderOutputSize,
-			Interactor->GetObservationSchema(),
-			Interactor->GetObservationSchemaElement(),
-			Seed);
-
-		UE_LEARNING_CHECK(EncoderInputSize == ObservationVectorSize);
-		UE_LEARNING_CHECK(EncoderOutputSize == ObservationEncodedVectorSize);
-
-		EncoderNetwork->NeuralNetworkData->Init(EncoderInputSize, EncoderOutputSize, ObservationCompatibilityHash, FileData);
-		EncoderNetwork->ForceMarkDirty();
-	}
-
-	// Policy
-
-	if (PolicyNeuralNetworkAsset)
-	{
-		PolicyNetwork = PolicyNeuralNetworkAsset;
-
-		if (PolicyNeuralNetworkAsset->NeuralNetworkData && !bReinitializePolicyNetwork)
-		{
-			if (PolicyNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash() != PolicyCompatibilityHash)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Policy Network Asset provided during Setup is incompatible with Schema. Network hash is %i vs Schema hash %i."), *GetName(),
-					PolicyNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash(),
-					PolicyCompatibilityHash);
-				return;
-			}
-
-			if (PolicyNeuralNetworkAsset->NeuralNetworkData->GetInputSize() != ObservationEncodedVectorSize + MemoryStateSize ||
-				PolicyNeuralNetworkAsset->NeuralNetworkData->GetOutputSize() != ActionEncodedVectorSize + MemoryStateSize)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Policy Network Asset provided during Setup is incorrect size: Got inputs of size %i, expected %i. Got outputs of size %i, expected %i."), *GetName(),
-					PolicyNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ObservationEncodedVectorSize + MemoryStateSize,
-					PolicyNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), ActionEncodedVectorSize + MemoryStateSize);
-				return;
-			}
-		}
-	}
-
-	if (!PolicyNetwork)
-	{
 		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("PolicyNetwork"), EUniqueObjectNameOptions::GloballyUnique);
-		PolicyNetwork = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
+
+		Network = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
+		Network->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(Network);
+		
+		Network->NeuralNetworkData->CreateMemoryBackbone(
+			Interactor->GetObservationFeature().DimNum(),
+			2 * Interactor->GetActionFeature().DimNum(),
+			PolicySettings.MemoryStateSize,
+			PolicySettings.HiddenLayerSize,
+			FMath::Max(PolicySettings.LayerNum / 2, 1),
+			FMath::Max(PolicySettings.LayerNum / 2, 1));
+
 	}
 
-	if (!PolicyNetwork->NeuralNetworkData || bReinitializePolicyNetwork)
-	{
-		if (!PolicyNetwork->NeuralNetworkData)
-		{
-			PolicyNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(PolicyNetwork);
-		}
+	// Create Policy Object
+	UE::Learning::FNeuralNetworkPolicyFunctionSettings PolicyFunctionSettings;
+	PolicyFunctionSettings.ActionNoiseMin = PolicySettings.ActionNoiseMin;
+	PolicyFunctionSettings.ActionNoiseMax = PolicySettings.ActionNoiseMax;
+	PolicyFunctionSettings.ActionNoiseScale = PolicySettings.ActionNoiseScale;
 
-		UE::NNE::RuntimeBasic::FModelBuilder Builder;
-
-		const int32 PolicyHiddenLayerSize = PolicySettings.HiddenLayerSize;
-		const int32 PolicyLayerNum = PolicySettings.LayerNum;
-		const ELearningAgentsActivationFunction PolicyActivationFunction = PolicySettings.ActivationFunction;
-		const float PolicyInitialEncodedActionScale = PolicySettings.InitialEncodedActionScale;
-
-		TArray<uint8> FileData;
-		uint32 PolicyInputSize, PolicyOutputSize;
-		Builder.WriteFileDataAndReset(FileData, PolicyInputSize, PolicyOutputSize,
-			Builder.MakeMemoryBackbone(
-				MemoryStateSize,
-				Builder.MakeMLPWithRandomKaimingWeights(
-					ObservationEncodedVectorSize,
-					PolicyHiddenLayerSize,
-					PolicyHiddenLayerSize,
-					FMath::Max(PolicyLayerNum / 2 + 1, 2),
-					UE::Learning::Agents::Policy::Private::GetBuilderActivationFunction(PolicyActivationFunction),
-					true),
-				Builder.MakeMemoryCellWithLinearRandomKaimingWeights(
-					PolicyHiddenLayerSize,
-					PolicyHiddenLayerSize,
-					MemoryStateSize,
-					0.1f),
-				Builder.MakeSequence({
-					Builder.MakeMLPWithRandomKaimingWeights(
-						PolicyHiddenLayerSize,
-						ActionEncodedVectorSize,
-						PolicyHiddenLayerSize,
-						FMath::Max(PolicyLayerNum / 2 + 1, 2),
-						UE::Learning::Agents::Policy::Private::GetBuilderActivationFunction(PolicyActivationFunction)),
-					Builder.MakeDenormalize(
-						ActionEncodedVectorSize,
-						Builder.MakeWeightsZero(ActionEncodedVectorSize),
-						Builder.MakeWeightsConstant(ActionEncodedVectorSize, PolicyInitialEncodedActionScale))
-					})
-			));
-
-		UE_LEARNING_CHECK(PolicyInputSize == ObservationEncodedVectorSize + MemoryStateSize);
-		UE_LEARNING_CHECK(PolicyOutputSize == ActionEncodedVectorSize + MemoryStateSize);
-
-		PolicyNetwork->NeuralNetworkData->Init(PolicyInputSize, PolicyOutputSize, PolicyCompatibilityHash, FileData);
-		PolicyNetwork->ForceMarkDirty();
-	}
-
-	// Decoder
-
-	if (DecoderNeuralNetworkAsset)
-	{
-		DecoderNetwork = DecoderNeuralNetworkAsset;
-
-		if (DecoderNeuralNetworkAsset->NeuralNetworkData && !bReinitializeDecoderNetwork)
-		{
-			if (DecoderNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash() != ActionCompatibilityHash)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Decoder Network Asset provided during Setup is incompatible with Schema. Network hash is %i vs Schema hash %i."), *GetName(),
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetCompatibilityHash(),
-					ActionCompatibilityHash);
-				return;
-			}
-
-			if (DecoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize() != ActionEncodedVectorSize ||
-				DecoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize() != ActionDistributionVectorSize)
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Decoder Network Asset provided during Setup is incorrect size: Got inputs of size %i, expected %i. Got outputs of size %i, expected %i."), *GetName(),
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ActionEncodedVectorSize,
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), ActionDistributionVectorSize);
-				return;
-			}
-		}
-	}
-
-	if (!DecoderNetwork)
-	{
-		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsNeuralNetwork::StaticClass(), TEXT("DecoderNetwork"), EUniqueObjectNameOptions::GloballyUnique);
-		DecoderNetwork = NewObject<ULearningAgentsNeuralNetwork>(this, UniqueName);
-	}
-
-	if (!DecoderNetwork->NeuralNetworkData || bReinitializeDecoderNetwork)
-	{
-		if (!DecoderNetwork->NeuralNetworkData)
-		{
-			DecoderNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(DecoderNetwork);
-		}
-
-		TArray<uint8> FileData;
-		uint32 DecoderInputSize, DecoderOutputSize;
-		UE::Learning::Action::GenerateDecoderNetworkFileDataFromSchema(
-			FileData,
-			DecoderInputSize,
-			DecoderOutputSize,
-			Interactor->GetActionSchema(),
-			Interactor->GetActionSchemaElement(),
-			Seed);
-
-		UE_LEARNING_CHECK(DecoderInputSize == ActionEncodedVectorSize);
-		UE_LEARNING_CHECK(DecoderOutputSize == ActionDistributionVectorSize);
-
-		DecoderNetwork->NeuralNetworkData->Init(DecoderInputSize, DecoderOutputSize, ActionCompatibilityHash, FileData);
-		DecoderNetwork->ForceMarkDirty();
-	}
-
-	// Create Encoder / Policy / Decoder Objects
-
-	EncoderObject = MakeShared<UE::Learning::FNeuralNetworkFunction>(
+	PolicyObject = MakeShared<UE::Learning::FNeuralNetworkPolicyFunction>(
+		TEXT("PolicyObject"),
+		Manager->GetInstanceData().ToSharedRef(),
 		Manager->GetMaxAgentNum(),
-		EncoderNetwork->NeuralNetworkData->GetNetwork(),
-		UE::Learning::FNeuralNetworkInferenceSettings());
+		Interactor->GetObservationFeature().DimNum(),
+		Interactor->GetActionFeature().DimNum(),
+		PolicySettings.MemoryStateSize,
+		Network->NeuralNetworkData->GetNetworkInterface(),
+		PolicySettings.ActionNoiseSeed,
+		UE::Learning::FNeuralNetworkInferenceSettings(),
+		PolicyFunctionSettings);
 
-	PolicyObject = MakeShared<UE::Learning::FNeuralNetworkPolicy>(
-		Manager->GetMaxAgentNum(),
-		ObservationEncodedVectorSize,
-		ActionEncodedVectorSize,
-		MemoryStateSize,
-		PolicyNetwork->NeuralNetworkData->GetNetwork(),
-		UE::Learning::FNeuralNetworkInferenceSettings());
+	PolicyAgentIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
+	UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, INDEX_NONE);
 
-	DecoderObject = MakeShared<UE::Learning::FNeuralNetworkFunction>(
-		Manager->GetMaxAgentNum(),
-		DecoderNetwork->NeuralNetworkData->GetNetwork(),
-		UE::Learning::FNeuralNetworkInferenceSettings());
+	PreEvaluationMemoryStateHandle = Manager->GetInstanceData()->Add<2, float>({ GetFName(), TEXT("PreEvaluationMemoryState") }, { Manager->GetMaxAgentNum(), PolicySettings.MemoryStateSize });
+	UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), FLT_MAX);
 
-	// State Variables
-
-	GlobalSeed = Seed;
-	Seeds.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	UE::Learning::Array::Set<1, uint32>(Seeds, INDEX_NONE);
-
-	ObservationVectorsEncoded.SetNumUninitialized({ Manager->GetMaxAgentNum(), ObservationEncodedVectorSize });
-	ActionVectorsEncoded.SetNumUninitialized({ Manager->GetMaxAgentNum(), ActionEncodedVectorSize });
-	ActionDistributionVectors.SetNumUninitialized({ Manager->GetMaxAgentNum(), ActionDistributionVectorSize });
-	UE::Learning::Array::Set(ObservationVectorsEncoded, FLT_MAX);
-	UE::Learning::Array::Set(ActionVectorsEncoded, FLT_MAX);
-	UE::Learning::Array::Set(ActionDistributionVectors, FLT_MAX);
-
-	PreEvaluationMemoryState.SetNumUninitialized({ Manager->GetMaxAgentNum(), MemoryStateSize });
-	MemoryState.SetNumUninitialized({ Manager->GetMaxAgentNum(), MemoryStateSize });
-	UE::Learning::Array::Set(PreEvaluationMemoryState, FLT_MAX);
-	UE::Learning::Array::Set(MemoryState, FLT_MAX);
-
-	ObservationVectorEncodedIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	ActionVectorEncodedIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	MemoryStateIteration.SetNumUninitialized({ Manager->GetMaxAgentNum() });
-	UE::Learning::Array::Set<1, uint64>(ObservationVectorEncodedIteration, INDEX_NONE);
-	UE::Learning::Array::Set<1, uint64>(ActionVectorEncodedIteration, INDEX_NONE);
-	UE::Learning::Array::Set<1, uint64>(MemoryStateIteration, INDEX_NONE);
+	MemoryStateHandle = Manager->GetInstanceData()->Add<2, float>({ GetFName(), TEXT("MemoryState") }, { Manager->GetMaxAgentNum(), PolicySettings.MemoryStateSize });
+	UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), FLT_MAX);
 
 	bIsSetup = true;
 
-	Manager->AddListener(this);
+	OnAgentsAdded(Manager->GetAllAgentIds());
 }
 
-void ULearningAgentsPolicy::OnAgentsAdded_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsPolicy::OnAgentsAdded(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), 0.0f, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), 0.0f, AgentIds);
 
-	UE::Learning::Random::SampleIntArray(Seeds, GlobalSeed, AgentIds);
-	UE::Learning::Array::Set<2, float>(ObservationVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionDistributionVectors, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(PreEvaluationMemoryState, 0.0f, AgentIds);
-	UE::Learning::Array::Set<2, float>(MemoryState, 0.0f, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ObservationVectorEncodedIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ActionVectorEncodedIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(MemoryStateIteration, 0, AgentIds);
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsAdded(AgentIds);
+		}
+
+		AgentsAdded(AgentIds);
+	}
 }
 
-void ULearningAgentsPolicy::OnAgentsRemoved_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsPolicy::OnAgentsRemoved(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, INDEX_NONE, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), FLT_MAX, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), FLT_MAX, AgentIds);
 
-	UE::Learning::Random::SampleIntArray(Seeds, GlobalSeed, AgentIds);
-	UE::Learning::Array::Set<2, float>(ObservationVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionDistributionVectors, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(PreEvaluationMemoryState, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(MemoryState, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ObservationVectorEncodedIteration, INDEX_NONE, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ActionVectorEncodedIteration, INDEX_NONE, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(MemoryStateIteration, INDEX_NONE, AgentIds);
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsRemoved(AgentIds);
+		}
+
+		AgentsRemoved(AgentIds);
+	}
 }
 
-void ULearningAgentsPolicy::OnAgentsReset_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsPolicy::OnAgentsReset(const TArray<int32>& AgentIds)
 {
-	if (!IsSetup())
+	if (IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
+		UE::Learning::Array::Set<1, uint64>(PolicyAgentIteration, 0, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle), 0.0f, AgentIds);
+		UE::Learning::Array::Set<2, float>(Manager->GetInstanceData()->View(MemoryStateHandle), 0.0f, AgentIds);
+
+		for (ULearningAgentsHelper* Helper : HelperObjects)
+		{
+			Helper->OnAgentsReset(AgentIds);
+		}
+
+		AgentsReset(AgentIds);
 	}
-
-	UE::Learning::Random::SampleIntArray(Seeds, GlobalSeed, AgentIds);
-	UE::Learning::Array::Set<2, float>(ObservationVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionVectorsEncoded, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(ActionDistributionVectors, FLT_MAX, AgentIds);
-	UE::Learning::Array::Set<2, float>(PreEvaluationMemoryState, 0.0f, AgentIds);
-	UE::Learning::Array::Set<2, float>(MemoryState, 0.0f, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(MemoryStateIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ObservationVectorEncodedIteration, 0, AgentIds);
-	UE::Learning::Array::Set<1, uint64>(ActionVectorEncodedIteration, 0, AgentIds);
 }
 
-UE::Learning::FNeuralNetworkFunction& ULearningAgentsPolicy::GetEncoderObject()
+ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetNetworkAsset()
 {
-	return *EncoderObject;
+	return Network;
 }
 
-UE::Learning::FNeuralNetworkPolicy& ULearningAgentsPolicy::GetPolicyObject()
+UE::Learning::INeuralNetwork& ULearningAgentsPolicy::GetPolicyNetwork()
+{
+	return *Network->NeuralNetworkData->GetNetworkInterface();
+}
+
+UE::Learning::FNeuralNetworkPolicyFunction& ULearningAgentsPolicy::GetPolicyObject()
 {
 	return *PolicyObject;
 }
 
-UE::Learning::FNeuralNetworkFunction& ULearningAgentsPolicy::GetDecoderObject()
+void ULearningAgentsPolicy::LoadPolicyFromSnapshot(const FFilePath& File)
 {
-	return *DecoderObject;
-}
-
-ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetEncoderNetworkAsset()
-{
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return nullptr;
-	}
-
-	return EncoderNetwork;
-}
-
-ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetPolicyNetworkAsset()
-{
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return nullptr;
-	}
-
-	return PolicyNetwork;
-}
-
-ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetDecoderNetworkAsset()
-{
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return nullptr;
-	}
-
-	return DecoderNetwork;
-}
-
-void ULearningAgentsPolicy::EncodeObservations()
-{
-	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsPolicy::EncodeObservations);
-
 	if (!IsSetup())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
 		return;
 	}
 
-	if (Manager->GetAgentNum() == 0)
+	Network->LoadNetworkFromSnapshot(File);
+}
+
+void ULearningAgentsPolicy::SavePolicyToSnapshot(const FFilePath& File) const
+{
+	if (!IsSetup())
 	{
-		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
 	}
 
-	// Check which agents have had their observation vector set
+	Network->SaveNetworkToSnapshot(File);
+}
 
-	ValidAgentIds.Empty(Manager->GetMaxAgentNum());
-	for (const int32 AgentId : Manager->GetAllAgentSet())
+void ULearningAgentsPolicy::UsePolicyFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
 	{
-		if (Interactor->ObservationVectorIteration[AgentId] == 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i does not have an observation vector ready be encoded. Was GatherObservations run without error?"), *GetName(), AgentId);
-			continue;
-		}
-
-		ValidAgentIds.Add(AgentId);
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
 	}
 
-	ValidAgentSet = ValidAgentIds;
-	ValidAgentSet.TryMakeSlice();
-
-	// Encode Observations
-
-	EncoderObject->Evaluate(ObservationVectorsEncoded, Interactor->ObservationVectors, ValidAgentSet);
-
-	for (const int32 AgentId : ValidAgentSet)
+	if (!NeuralNetworkAsset || !NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface())
 	{
-		ObservationVectorEncodedIteration[AgentId]++;
+		UE_LOG(LogLearning, Error, TEXT("%s: Asset is invalid."), *GetName());
+		return;
 	}
+
+	if (NeuralNetworkAsset == Network)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Asset is same as the current network."), *GetName());
+		return;
+	}
+
+	if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
+		NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != Network->NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Failed to use asset as network settings don't match."), *GetName());
+		return;
+	}
+
+	Network = NeuralNetworkAsset;
+	PolicyObject->UpdateNeuralNetwork(Network->NeuralNetworkData->GetNetworkInterface());
+}
+
+void ULearningAgentsPolicy::LoadPolicyFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	Network->LoadNetworkFromAsset(NeuralNetworkAsset);
+}
+
+void ULearningAgentsPolicy::SavePolicyToAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	Network->SaveNetworkToAsset(NeuralNetworkAsset);
 }
 
 void ULearningAgentsPolicy::EvaluatePolicy()
@@ -541,20 +288,15 @@ void ULearningAgentsPolicy::EvaluatePolicy()
 		return;
 	}
 
-	if (Manager->GetAgentNum() == 0)
-	{
-		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
-	}
+	// Check Agents actually have encoded observations.
 
-	// Check agents actually have encoded observations
-
-	ValidAgentIds.Empty(Manager->GetMaxAgentNum());
+	ValidAgentIds.Empty(Manager->GetAgentNum());
 
 	for (const int32 AgentId : Manager->GetAllAgentSet())
 	{
-		if (ObservationVectorEncodedIteration[AgentId] == 0)
+		if (Interactor->GetObservationEncodingAgentIteration()[AgentId] == 0)
 		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not encoded observations so policy will not be evaluated for it. Was EncodeObservations run without error?"), *GetName(), AgentId);
+			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i has not made observations so policy will not be evaluated for it."), *GetName(), AgentId);
 			continue;
 		}
 
@@ -564,85 +306,57 @@ void ULearningAgentsPolicy::EvaluatePolicy()
 	ValidAgentSet = ValidAgentIds;
 	ValidAgentSet.TryMakeSlice();
 
-	// Copy pre-evaluation memory state
+	// Record pre-evaluation state
 
-	UE::Learning::Array::Copy<2, float>(PreEvaluationMemoryState, MemoryState, ValidAgentSet);
+	TLearningArrayView<2, float> PreEvaluationMemoryStateView = Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle);
+	TLearningArrayView<2, float> MemoryStateView = Manager->GetInstanceData()->View(MemoryStateHandle);
 
-	// Evaluate policy
+	UE::Learning::Array::Copy<2, float>(PreEvaluationMemoryStateView, MemoryStateView, ValidAgentSet);
 
-	PolicyObject->Evaluate(
-		ActionVectorsEncoded,
-		MemoryState,
-		ObservationVectorsEncoded,
-		PreEvaluationMemoryState,
-		ValidAgentSet);
+	// Copy Observations and Memory State into input buffer
 
-	// Increment policy evaluation and action generation iteration
+	TLearningArrayView<2, const float> ObservationsView = Manager->GetInstanceData()->ConstView(Interactor->GetObservationFeature().FeatureHandle);
+	TLearningArrayView<2, float> InputObservationView = Manager->GetInstanceData()->View(PolicyObject->InputObservationHandle);
+	TLearningArrayView<2, float> InputMemoryStateView = Manager->GetInstanceData()->View(PolicyObject->InputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(InputObservationView, ObservationsView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(InputMemoryStateView, MemoryStateView, ValidAgentSet);
+
+	// Evaluate Policy
+
+	PolicyObject->Evaluate(ValidAgentSet);
+
+	// Increment Policy Evaluation Iteration
 
 	for (const int32 AgentId : ValidAgentSet)
 	{
-		MemoryStateIteration[AgentId]++;
-		ActionVectorEncodedIteration[AgentId]++;
+		PolicyAgentIteration[AgentId]++;
 	}
+
+	// Copy Actions and Memory State out of output buffer
+
+	TLearningArrayView<2, float> ActionsView = Manager->GetInstanceData()->View(Interactor->GetActionFeature().FeatureHandle);
+	TLearningArrayView<2, const float> OutputActionView = Manager->GetInstanceData()->ConstView(PolicyObject->OutputActionHandle);
+	TLearningArrayView<2, const float> OutputMemoryStateView = Manager->GetInstanceData()->ConstView(PolicyObject->OutputMemoryStateHandle);
+
+	UE::Learning::Array::Copy<2, float>(ActionsView, OutputActionView, ValidAgentSet);
+	UE::Learning::Array::Copy<2, float>(MemoryStateView, OutputMemoryStateView, ValidAgentSet);
+
+	// Increment Action Encoding Iteration
+
+	for (const int32 AgentId : ValidAgentSet)
+	{
+		Interactor->GetActionEncodingAgentIteration()[AgentId]++;
+	}
+
+	// Visual Logger
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	VisualLog(ValidAgentSet);
+#endif
 }
 
-void ULearningAgentsPolicy::DecodeAndSampleActions(const float ActionNoiseScale)
-{
-	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsPolicy::DecodeAndSampleActions);
-
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
-
-	if (Manager->GetAgentNum() == 0)
-	{
-		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
-	}
-
-	// Check which agents have had their encoded action vector set
-
-	ValidAgentIds.Empty(Manager->GetMaxAgentNum());
-
-	for (const int32 AgentId : Manager->GetAllAgentSet())
-	{
-		if (ActionVectorEncodedIteration[AgentId] == 0)
-		{
-			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i does not have an encoded action so actions will not be decoded for it. Was EvaluatePolicy run without error?"), *GetName(), AgentId);
-			continue;
-		}
-
-		ValidAgentIds.Add(AgentId);
-	}
-
-	ValidAgentSet = ValidAgentIds;
-	ValidAgentSet.TryMakeSlice();
-
-	// Decode to produce action distribution vectors
-
-	DecoderObject->Evaluate(ActionDistributionVectors, ActionVectorsEncoded, ValidAgentSet);
-
-	// Sample actions from action distribution vectors
-
-	for (const int32 AgentId : ValidAgentSet)
-	{
-		UE::Learning::Action::SampleVectorFromDistributionVector(
-			Seeds[AgentId],
-			Interactor->ActionVectors[AgentId],
-			ActionDistributionVectors[AgentId],
-			Interactor->ActionSchema->GetActionSchema(),
-			Interactor->ActionSchemaElement.SchemaElement,
-			ActionNoiseScale);
-	}
-
-	for (const int32 AgentId : ValidAgentSet)
-	{
-		Interactor->ActionVectorIteration[AgentId]++;
-	}
-}
-
-void ULearningAgentsPolicy::RunInference(const float ActionNoiseScale)
+void ULearningAgentsPolicy::RunInference()
 {
 	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsPolicy::RunInference);
 
@@ -652,11 +366,30 @@ void ULearningAgentsPolicy::RunInference(const float ActionNoiseScale)
 		return;
 	}
 
-	Interactor->GatherObservations();
-	EncodeObservations();
+	Interactor->EncodeObservations();
 	EvaluatePolicy();
-	DecodeAndSampleActions(ActionNoiseScale);
-	Interactor->ScatterActions();
+	Interactor->DecodeActions();
+}
+float ULearningAgentsPolicy::GetActionNoiseScale() const
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return 0.0f;
+	}
+
+	return PolicyObject->InstanceData->ConstView(PolicyObject->ActionNoiseScaleHandle)[0];
+}
+
+void ULearningAgentsPolicy::SetActionNoiseScale(const float ActionNoiseScale)
+{
+	if (!IsSetup())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
+		return;
+	}
+
+	UE::Learning::Array::Set(PolicyObject->InstanceData->View(PolicyObject->ActionNoiseScaleHandle), ActionNoiseScale);
 }
 
 void ULearningAgentsPolicy::GetMemoryState(TArray<float>& OutMemoryState, const int32 AgentId) const
@@ -675,8 +408,10 @@ void ULearningAgentsPolicy::GetMemoryState(TArray<float>& OutMemoryState, const 
 		return;
 	}
 
-	OutMemoryState.SetNumUninitialized(MemoryState.Num<1>());
-	UE::Learning::Array::Copy<1, float>(OutMemoryState, MemoryState[AgentId]);
+	TLearningArrayView<2, const float> MemoryStateView = Manager->GetInstanceData()->ConstView(MemoryStateHandle);
+
+	OutMemoryState.SetNumUninitialized(MemoryStateView.Num<1>());
+	UE::Learning::Array::Copy<1, float>(OutMemoryState, MemoryStateView[AgentId]);
 }
 
 void ULearningAgentsPolicy::SetMemoryState(const int32 AgentId, const TArray<float>& InMemoryState)
@@ -693,22 +428,74 @@ void ULearningAgentsPolicy::SetMemoryState(const int32 AgentId, const TArray<flo
 		return;
 	}
 
-	if (InMemoryState.Num() != MemoryState.Num<1>())
+	TLearningArrayView<2, float> MemoryStateView = Manager->GetInstanceData()->View(MemoryStateHandle);
+
+	if (InMemoryState.Num() != MemoryStateView.Num<1>())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Memory State is incorrect size. Expected %i, got %i."), *GetName(), MemoryState.Num<1>(), InMemoryState.Num());
+		UE_LOG(LogLearning, Error, TEXT("%s: Memory State is incorrect size. Expected %i, got %i."), *GetName(), MemoryStateView.Num<1>(), InMemoryState.Num());
 		return;
 	}
 
-	UE::Learning::Array::Copy<1, float>(MemoryState[AgentId], InMemoryState);
+	UE::Learning::Array::Copy<1, float>(MemoryStateView[AgentId], InMemoryState);
+}
+
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetPreEvaluationMemoryStateView() const
+{
+	return Manager->GetInstanceData()->ConstView(PreEvaluationMemoryStateHandle);
+}
+
+TLearningArrayView<2, float> ULearningAgentsPolicy::GetPreEvaluationMemoryStateView()
+{
+	return Manager->GetInstanceData()->View(PreEvaluationMemoryStateHandle);
+}
+
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetMemoryStateView() const
+{
+	return Manager->GetInstanceData()->ConstView(MemoryStateHandle);
+}
+
+TLearningArrayView<2, float> ULearningAgentsPolicy::GetMemoryStateView()
+{
+	return Manager->GetInstanceData()->View(MemoryStateHandle);
 }
 
 int32 ULearningAgentsPolicy::GetMemoryStateSize() const
 {
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return 0;
-	}
-
-	return MemoryState.Num<1>();
+	return Manager->GetInstanceData()->ConstView(MemoryStateHandle).Num<1>();
 }
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+void ULearningAgentsPolicy::VisualLog(const UE::Learning::FIndexSet AgentSet) const
+{
+	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsPolicy::VisualLog);
+
+	const TLearningArrayView<2, const float> InputObservationView = PolicyObject->InstanceData->ConstView(PolicyObject->InputObservationHandle);
+	const TLearningArrayView<2, const float> InputMemoryStateView = PolicyObject->InstanceData->ConstView(PolicyObject->InputMemoryStateHandle);
+	const TLearningArrayView<2, const float> OutputActionView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionHandle);
+	const TLearningArrayView<2, const float> OutputActionMeanView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionMeanHandle);
+	const TLearningArrayView<2, const float> OutputActionStdView = PolicyObject->InstanceData->ConstView(PolicyObject->OutputActionStdHandle);
+	const TLearningArrayView<1, const float> ActionNoiseScaleView = PolicyObject->InstanceData->ConstView(PolicyObject->ActionNoiseScaleHandle);
+
+	for (const int32 AgentId : AgentSet)
+	{
+		if (const AActor* Actor = Cast<AActor>(GetAgent(AgentId)))
+		{
+			UE_LEARNING_AGENTS_VLOG_STRING(this, LogLearning, Display,
+				Actor->GetActorLocation(),
+				VisualLogColor.ToFColor(true),
+				TEXT("Agent %i\nAction Noise Scale: [% 6.3f]\nObservation Input: %s\nObservation Input Stats (Min/Max/Mean/Std): %s\nMemory State Input: %s\nMemory State Input Stats (Min/Max/Mean/Std): %s\nOutput Mean: %s\nOutput Std: %s\nOutput Sample: %s\nOutput Stats (Min/Max/Mean/Std): %s"),
+				AgentId,
+				ActionNoiseScaleView[AgentId],
+				*UE::Learning::Array::FormatFloat(InputObservationView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputObservationView[AgentId]),
+				*UE::Learning::Array::FormatFloat(InputMemoryStateView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(InputMemoryStateView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionMeanView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionStdView[AgentId]),
+				*UE::Learning::Array::FormatFloat(OutputActionView[AgentId]),
+				*UE::Learning::Agents::Debug::FloatArrayToStatsString(OutputActionView[AgentId]));
+
+		}
+	}
+}
+#endif

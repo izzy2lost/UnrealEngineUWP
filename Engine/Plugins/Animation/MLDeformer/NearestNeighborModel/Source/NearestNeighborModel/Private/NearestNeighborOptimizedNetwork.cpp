@@ -9,7 +9,7 @@
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
 #include "NNEModelData.h"
-#include "NNERuntimeBasicCpuBuilder.h"
+#include "NNERuntimeBasicCpu.h"
 
 //--------------------------------------------------------------------------
 // UNearestNeighborOptimizedNetwork
@@ -22,30 +22,33 @@ namespace UE::NearestNeighborModel::Private
 	/** Creates the FileData from the legacy network format and clears it. */
 	static inline void CreateFileDataAndClearLayers(TArray<uint8>& OutFileData, TArray<TObjectPtr<UNearestNeighborNetworkLayer>>& Layers)
 	{
-		UE::NNE::RuntimeBasic::FModelBuilder Builder;
+		UE::NNE::RuntimeBasic::FSequentialModelBuilder Builder;
 
-		TArray<UE::NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<32>> LayerElements;
-		LayerElements.Reserve(2 * Layers.Num());
+		// Allocate data for the PReLuAlpha values as these need to be kept around until we run "Builder.WriteAndReset"
+		TArray<TArray<float>> PreluAlphaData;
 
 		for (UNearestNeighborNetworkLayer* Layer : Layers)
 		{
 			if (UNearestNeighborNetworkLayer_Gemm_Prelu* GemmPreluLayer = Cast<UNearestNeighborNetworkLayer_Gemm_Prelu>(Layer))
 			{
-				LayerElements.Add(Builder.MakeLinear(
+				Builder.AddLinear(
 					GemmPreluLayer->NumInputs,
 					GemmPreluLayer->NumOutputs,
 					GemmPreluLayer->Parameters[0].Values,
-					GemmPreluLayer->Parameters[1].Values));
+					GemmPreluLayer->Parameters[1].Values);
 
-				LayerElements.Add(Builder.MakePReLU(GemmPreluLayer->NumOutputs, Builder.MakeWeightsConstant(GemmPreluLayer->NumOutputs, GemmPreluLayer->Parameters[2].Values[0])));
+				PreluAlphaData.AddDefaulted();
+				PreluAlphaData.Last().Init(GemmPreluLayer->Parameters[2].Values[0], GemmPreluLayer->NumOutputs);
+
+				Builder.AddPReLU(PreluAlphaData.Last());
 			}
 			else if (UNearestNeighborNetworkLayer_Gemm* GemmLayer = Cast<UNearestNeighborNetworkLayer_Gemm>(Layer))
 			{
-				LayerElements.Add(Builder.MakeLinear(
+				Builder.AddLinear(
 					GemmLayer->NumInputs,
 					GemmLayer->NumOutputs,
 					GemmLayer->Parameters[0].Values,
-					GemmLayer->Parameters[1].Values));
+					GemmLayer->Parameters[1].Values);
 			}
 			else
 			{
@@ -53,10 +56,10 @@ namespace UE::NearestNeighborModel::Private
 			}
 		}
 
-		uint32 InputSize, OutputSize;
-		Builder.WriteFileDataAndReset(OutFileData, InputSize, OutputSize, Builder.MakeSequence(LayerElements));
-
 		Layers.Empty();
+
+		OutFileData.SetNumUninitialized(Builder.GetWriteByteNum());
+		Builder.WriteAndReset(OutFileData);
 	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS

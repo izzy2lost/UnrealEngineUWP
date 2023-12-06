@@ -6,114 +6,10 @@
 
 #include "Templates/SharedPointer.h"
 
-#include "LearningNeuralNetwork.generated.h"
-
-class UNNEModelData;
-
-namespace UE::NNE
-{
-	class IModelCPU;
-	class IModelInstanceCPU;
-}
-
 namespace UE::Learning
 {
-	struct FNeuralNetwork;
-	struct FNeuralNetworkInference;
-}
-
-/**
- * Neural Network Data Object
- * 
- * This is the UObject which contains the actual data used by a Neural Network. It stores the raw FileData used to construct the network using NNE,
- * as well as the input and output sizes and a compatibility hash that can be used to quickly check if two networks may be compatible in terms of 
- * inputs and outputs.
- * 
- * Internally this also stores the various things required to map between NNE style inference and the style of inference used in Learning via 
- * FNeuralNetwork and FNeuralNetworkInference.
- */
-UCLASS(BlueprintType)
-class LEARNING_API ULearningNeuralNetworkData : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	// Get the FNeuralNetwork object that can be used to do inference.
-	TSharedPtr<UE::Learning::FNeuralNetwork>& GetNetwork();
-
-	/**
-	 * Initialize the ULearningNeuralNetworkData object given some input and output sizes as well as a compatibility hash and FileData.
-	 * 
-	 * @param InInputSize			Network Input Size
-	 * @param InOutputSize			Network Output Size
-	 * @param InCompatibilityHash	Compatibility Hash
-	 * @param InFileData			Network FileData
-	 */
-	void Init(
-		const int32 InInputSize, 
-		const int32 InOutputSize, 
-		const int32 InCompatibilityHash, 
-		const TArrayView<const uint8> InFileData);
-
-	// Initialize this network from another ULearningNeuralNetworkData object
-	void InitFrom(const ULearningNeuralNetworkData* OtherNetworkData);
-
-	// Load a snapshot of this network from the given array of bytes
-	bool LoadFromSnapshot(const TArrayView<const uint8> InBytes);
-
-	// Save a snapshot of this network to the given array of bytes
-	void SaveToSnapshot(TArrayView<uint8> OutBytes) const;
-
-	// Number of bytes required to save or load a snapshot of this network
-	int32 GetSnapshotByteNum() const;
-
-	// If this network is empty or not
-	bool IsEmpty() const;
-
-	// Gets the network input size
-	int32 GetInputSize() const;
+	struct INeuralNetworkInference;
 	
-	// Gets the network output size
-	int32 GetOutputSize() const;
-	
-	// Gets the compatibility hash
-	int32 GetCompatibilityHash() const;
-
-private:
-
-	// Calls UpdateNetwork to update the internal representation.
-	virtual void PostLoad() override final;
-
-	// Uploads the FileData to NNE and updates the internal in-memory representation of the network used for inference.
-	void UpdateNetwork();
-
-	// Size of the inputs expected by this network
-	UPROPERTY(VisibleAnywhere, Category = "Network Properties")
-	int32 InputSize = 0;
-
-	// Size of the output produced by this network
-	UPROPERTY(VisibleAnywhere, Category = "Network Properties")
-	int32 OutputSize = 0;
-
-	// Compatibility hash used for testing if inputs to one network are compatible with another
-	UPROPERTY(VisibleAnywhere, Category = "Network Properties")
-	int32 CompatibilityHash = 0;
-
-	// File data used by NNE
-	UPROPERTY()
-	TArray<uint8> FileData;
-
-	// Model Data used by NNE
-	UPROPERTY()
-	TObjectPtr<UNNEModelData> ModelData;
-
-	// Internal in-memory network representation
-	TSharedPtr<UE::Learning::FNeuralNetwork> Network;
-};
-
-namespace UE::Learning
-{
 	/**
 	* Settings object for a neural network instance
 	*/
@@ -127,116 +23,117 @@ namespace UE::Learning
 	};
 
 	/**
-	* Neural Network Object
+	* Interface for a Neural Network
 	*/
-	struct LEARNING_API FNeuralNetwork
+	struct INeuralNetwork
 	{
+		virtual ~INeuralNetwork() {}
+
+		/** Deserialize the network from the raw bytes starting at the given offset. Returns true if successful. */
+		virtual bool DeserializeFromBytes(int32& InOutOffset, const TLearningArrayView<1, const uint8> RawBytes) = 0;
+
+		/** Serialize the network to the raw bytes starting at the given offset. */
+		virtual void SerializeToBytes(int32& InOutOffset, TLearningArrayView<1, uint8> OutRawBytes) const = 0;
+
+		/** Get the number of bytes required to serialize this network. */
+		virtual int32 GetSerializationByteNum() const = 0;
+
 		/** Create a new inference object for this network with the given maximum batch size and inference settings. */
-		TSharedRef<FNeuralNetworkInference> CreateInferenceObject(
+		virtual TSharedRef<INeuralNetworkInference> CreateInferenceObject(
 			const int32 MaxBatchSize,
-			const FNeuralNetworkInferenceSettings& Settings = FNeuralNetworkInferenceSettings());
+			const FNeuralNetworkInferenceSettings& Settings = FNeuralNetworkInferenceSettings()) = 0;
 
-		bool IsEmpty() const;
-		int32 GetInputSize() const;
-		int32 GetOutputSize() const;
+		/** Get the number of inputs expected by this network */
+		virtual int32 GetInputNum() const = 0;
 
-		void UpdateModel(const TSharedPtr<NNE::IModelCPU>& InModel, const int32 InInputSize, const int32 InOutputSize);
+		/** Get the number of outputs expected by this network */
+		virtual int32 GetOutputNum() const = 0;
 
-	private:
-
-		int32 InputSize = 0;
-		int32 OutputSize = 0;
-		TSharedPtr<NNE::IModelCPU> Model;
-		TArray<TWeakPtr<FNeuralNetworkInference>, TInlineAllocator<64>> InferenceObjects;
+		/** Get the name of the python class used to represent this type of network during training. */
+		virtual const TCHAR* GetPythonClassName() const = 0;
 	};
 
 	/**
-	* Neural Network Inference Object
+	* Interface for a Neural Network Inference
 	*/
-	struct LEARNING_API FNeuralNetworkInference
+	struct INeuralNetworkInference
 	{
-		/**
-		 * Constructs a new network inference object.
-		 * 
-		 * @param InModel			NNE Model
-		 * @param MaxBatchSize		Maximum batch size
-		 * @param InInputSize		Network input size
-		 * @param InOutputSize		Network output size
-		 * @param InSettings		Inference settings
-		 */
-		FNeuralNetworkInference(
-			UE::NNE::IModelCPU& InModel,
-			const int32 MaxBatchSize,
-			const int32 InInputSize,
-			const int32 InOutputSize,
-			const FNeuralNetworkInferenceSettings& InSettings = FNeuralNetworkInferenceSettings());
+		virtual ~INeuralNetworkInference() {}
 
-		/**
-		 * Evaluate this network for the given instances.
-		 * 
-		 * Note: this function takes a lock, so although it can be called from multiple threads it will not benefit from multi-threading. This is 
-		 * because to use the NNE interface all the instances that need to be evaluated must be gathered and scattered into internal buffers. To
-		 * compensate for this, this call will do multi-threading internally based on the inference settings used.
-		 * 
-		 * @param Output		The Output Buffer of shape (MaxBatchSize, InOutputSize)
-		 * @param Input			The Input Buffer of shape (MaxBatchSize, InInputSize)
-		 * @param Instances		The batch instances to evaluate
-		 */
-		void Evaluate(
+		virtual void Evaluate(
 			TLearningArrayView<2, float> Output,
 			const TLearningArrayView<2, const float> Input,
-			const FIndexSet Instances);
+			const FIndexSet Instances) = 0;
+	};
 
-		// This function will re-build the internal Model Instances used for multi-threading. It should be called whenever the given Model is updated. 
-		void ReloadModelInstances(NNE::IModelCPU& Model);
+	/**
+	* Activation Function for use in basic MLP Neural Network
+	*/
+	enum class EActivationFunction : uint8
+	{
+		// ReLU Activation - Fast to train and evaluate but occasionally causes gradient collapse and untrainable networks.
+		ReLU = 0,
 
-	private:
+		// ELU Activation - Generally performs better than ReLU and is not prone to gradient collapse but slower to evaluate.
+		ELU = 1,
 
+		// TanH Activation - Smooth activation function that is slower to train and evaluate but sometimes more stable for certain tasks.
+		TanH = 2,
+	};
+
+	/**
+	* Basic Implementation for a MLP Neural Network
+	*/
+	struct LEARNING_API FNeuralNetworkMLP : public INeuralNetwork
+	{
+		friend struct FNeuralNetworkInstanceMLP;
+
+		//~ Begin INeuralNetwork Interface
+		virtual bool DeserializeFromBytes(int32& InOutOffset, const TLearningArrayView<1, const uint8> RawBytes) override final;
+		virtual void SerializeToBytes(int32& InOutOffset, TLearningArrayView<1, uint8> OutRawBytes) const override final;
+		virtual int32 GetSerializationByteNum() const override final;
+		virtual TSharedRef<INeuralNetworkInference> CreateInferenceObject(
+			const int32 MaxBatchSize,
+			const FNeuralNetworkInferenceSettings& Settings = FNeuralNetworkInferenceSettings()) override final;
+		virtual int32 GetInputNum() const override final;
+		virtual int32 GetOutputNum() const override final;
+		virtual const TCHAR* GetPythonClassName() const override final { return TEXT("NeuralNetworkMLP"); };
+		//~ End INeuralNetwork Interface
+
+		int32 GetHiddenNum() const;
+		int32 GetLayerNum() const;
+
+		void Resize(
+			const int32 InputNum,
+			const int32 OutputNum,
+			const int32 HiddenNum,
+			const int32 LayerNum);
+
+		EActivationFunction ActivationFunction = EActivationFunction::ELU;
+		TArray<TLearningArray<2, float>, TInlineAllocator<16>> Weights;
+		TArray<TLearningArray<1, float>, TInlineAllocator<16>> Biases;
+	};
+
+	/**
+	* Basic Implementation for a MLP Neural Network Inference
+	*/
+	struct LEARNING_API FNeuralNetworkInferenceMLP : public INeuralNetworkInference
+	{
+		FNeuralNetworkInferenceMLP(
+			const FNeuralNetworkMLP& InNetwork,
+			const int32 MaxBatchSize,
+			const FNeuralNetworkInferenceSettings& InSettings);
+
+		//~ Begin INeuralNetworkInference Interface
+		virtual void Evaluate(
+			TLearningArrayView<2, float> Output,
+			const TLearningArrayView<2, const float> Input,
+			const FIndexSet Instances) override final;
+		//~ End INeuralNetworkInference Interface
+
+		const FNeuralNetworkMLP& Network;
 		FNeuralNetworkInferenceSettings Settings;
-		FRWLock EvaluationLock;
-		TLearningArray<2, float> InputBuffer;
-		TLearningArray<2, float> OutputBuffer;
-		TArray<TSharedPtr<NNE::IModelInstanceCPU>, TInlineAllocator<64>> ModelInstances;
+		TLearningArray<2, float> FrontBuffer;
+		TLearningArray<2, float> BackBuffer;
 	};
-
-	/**
-	* Neural-network based function object.
-	*/
-	struct LEARNING_API FNeuralNetworkFunction
-	{
-		/**
-		 * Constructs a Neural Network Function from the given Neural Network
-		 *
-		 * @param InMaxInstanceNum		Maximum number of instances to evaluate for
-		 * @param InNeuralNetwork		Neural network to use
-		 * @param InInferenceSettings	Inference settings
-		 */
-		FNeuralNetworkFunction(
-			const int32 InMaxInstanceNum,
-			const TSharedPtr<FNeuralNetwork>& InNeuralNetwork,
-			const FNeuralNetworkInferenceSettings& InInferenceSettings = FNeuralNetworkInferenceSettings());
-
-		/**
-		 * Evaluate this network for the given instances.
-		 *
-		 * @param Output		The Output Buffer of shape (MaxInstanceNum, InOutputSize)
-		 * @param Input			The Input Buffer of shape (MaxInstanceNum, InInputSize)
-		 * @param Instances		The instances to evaluate
-		 */
-		void Evaluate(
-			TLearningArrayView<2, float> Output,
-			const TLearningArrayView<2, const float> Input,
-			const FIndexSet Instances);
-
-		/** Sets the NeuralNetwork and re-creates the NeuralNetworkInference object. */
-		void UpdateNeuralNetwork(const TSharedPtr<FNeuralNetwork>& NewNeuralNetwork);
-
-	private:
-
-		int32 MaxInstanceNum = 0;
-		TSharedPtr<FNeuralNetwork> NeuralNetwork;
-		TSharedPtr<FNeuralNetworkInference> NeuralNetworkInference;
-		FNeuralNetworkInferenceSettings InferenceSettings;
-	};
-
 }

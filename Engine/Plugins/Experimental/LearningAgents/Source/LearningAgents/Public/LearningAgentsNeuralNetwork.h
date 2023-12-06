@@ -20,7 +20,7 @@ enum class ELearningAgentsActivationFunction : uint8
 	TanH	UMETA(DisplayName = "TanH"),
 };
 
-class ULearningNeuralNetworkData;
+class ULearningAgentsNeuralNetworkData;
 
 /** A neural network data asset. */
 UCLASS(BlueprintType)
@@ -34,13 +34,14 @@ public:
 	ULearningAgentsNeuralNetwork(FVTableHelper& Helper);
 	virtual ~ULearningAgentsNeuralNetwork();
 
-	/** Resets this network asset to be empty. */
+	/**
+	 * Resets this network asset to be empty.
+	 */
 	UFUNCTION(CallInEditor, Category = "LearningAgents")
 	void ResetNetwork();
 
 	/**
 	 * Load this network from a snapshot.
-	 * 
 	 * @param File The snapshot file.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (RelativePath))
@@ -48,26 +49,23 @@ public:
 
 	/**
 	 * Save this network into a snapshot.
-	 * 
 	 * @param File The snapshot file.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (RelativePath))
 	void SaveNetworkToSnapshot(const FFilePath& File);
 
 	/**
-	 * Copy another asset into this network.
-	 * 
+	 * Copy another asset's network weights into this network. Network sizes must match.
 	 * @param NeuralNetworkAsset The asset to load from.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void LoadNetworkFromAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset);
 
 	/**
-	 * Copy this network into another asset.
-	 * 
+	 * Copy this network's weights to another asset. Network sizes must match.
 	 * @param NeuralNetworkAsset The asset to save to.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", Meta = (DevelopmentOnly))
 	void SaveNetworkToAsset(ULearningAgentsNeuralNetwork* NeuralNetworkAsset);
 
 public:
@@ -78,6 +76,6 @@ public:
 public:
 
 	/** The internal Neural Network Data */
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "LearningAgents");
-	TObjectPtr<ULearningNeuralNetworkData> NeuralNetworkData;
+	UPROPERTY();
+	TObjectPtr<ULearningAgentsNeuralNetworkData> NeuralNetworkData;
 };

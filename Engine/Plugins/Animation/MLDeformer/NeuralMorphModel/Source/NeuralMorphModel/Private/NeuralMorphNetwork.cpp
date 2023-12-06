@@ -11,7 +11,7 @@
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
 #include "NNEModelData.h"
-#include "NNERuntimeBasicCpuBuilder.h"
+#include "NNERuntimeBasicCpu.h"
 
 //--------------------------------------------------------------------------
 // UNeuralMorphMLP
@@ -275,12 +275,9 @@ namespace UE::NeuralMorphModel::Private
 
 	static inline void ConvertMLPToFileData(TArray<uint8>& OutBytes, TObjectPtr<UNeuralMorphMLP>& MLP)
 	{
-		UE::NNE::RuntimeBasic::FModelBuilder Builder;
+		UE::NNE::RuntimeBasic::FSequentialModelBuilder Builder;
 
 		const uint32 LayerNum = MLP->GetNumLayers();
-
-		TArray<UE::NNE::RuntimeBasic::FModelBuilderElement, TInlineAllocator<32>> LayerElements;
-		LayerElements.Reserve(2 * LayerNum);
 
 		for (uint32 LayerIdx = 0; LayerIdx < LayerNum; LayerIdx++)
 		{
@@ -292,20 +289,20 @@ namespace UE::NeuralMorphModel::Private
 
 			if (BlockNum == 1)
 			{
-				LayerElements.Add(Builder.MakeLinear(InputSize, OutputSize, Weights, Biases));
+				Builder.AddLinear(InputSize, OutputSize, Weights, Biases);
 			}
 			else
 			{
-				LayerElements.Add(Builder.MakeMultiLinear(InputSize, OutputSize, BlockNum, Weights, Biases));
+				Builder.AddMultiLinear(InputSize, OutputSize, BlockNum, Weights, Biases);
 			}
 
-			LayerElements.Add(Builder.MakeELU(OutputSize * BlockNum));
+			Builder.AddELU();
 		}
 
-		uint32 InputSize, OutputSize;
-		Builder.WriteFileDataAndReset(OutBytes, InputSize, OutputSize, Builder.MakeSequence(LayerElements));
-
 		MLP = nullptr;
+
+		OutBytes.SetNumUninitialized(Builder.GetWriteByteNum());
+		Builder.WriteAndReset(OutBytes);
 	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS

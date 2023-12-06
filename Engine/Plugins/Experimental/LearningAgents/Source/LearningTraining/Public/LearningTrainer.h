@@ -5,24 +5,8 @@
 #include "LearningArray.h"
 #include "LearningLog.h"
 
-#include "Templates/SharedPointer.h"
-
-class FJsonObject;
-
 namespace UE::Learning
 {
-	namespace Observation
-	{
-		struct FSchema;
-		struct FSchemaElement;
-	}
-
-	namespace Action
-	{
-		struct FSchema;
-		struct FSchemaElement;
-	}
-
 	/**
 	* Training Device
 	*/
@@ -136,20 +120,6 @@ namespace UE::Learning
 		* Gets the LearningAgents Intermediate path from the intermediate directory.
 		*/
 		LEARNINGTRAINING_API FString GetIntermediatePath(const FString& IntermediateDir);
-
-		/**
-		* Converts an observation schema element into a JSON representation.
-		*/
-		LEARNINGTRAINING_API TSharedPtr<FJsonObject> ConvertObservationSchemaToJSON(
-			const Observation::FSchema& ObservationSchema,
-			const Observation::FSchemaElement& ObservationSchemaElement);
-
-		/**
-		* Converts an action schema element into a JSON representation.
-		*/
-		LEARNINGTRAINING_API TSharedPtr<FJsonObject> ConvertActionSchemaToJSON(
-			const Action::FSchema& ActionSchema,
-			const Action::FSchemaElement& ActionSchemaElement);
 	}
 
 }

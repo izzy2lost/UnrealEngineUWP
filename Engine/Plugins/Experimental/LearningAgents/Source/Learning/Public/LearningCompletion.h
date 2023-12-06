@@ -27,18 +27,19 @@ namespace UE::Learning
 	*/
 	struct LEARNING_API FResetInstanceBuffer
 	{
-		void Reserve(const int32 InMaxInstanceNum);
+		void Resize(const int32 InMaxInstanceNum);
 
 		void SetResetInstances(const FIndexSet Instances);
 		void SetResetInstancesFromCompletions(const TLearningArrayView<1, const ECompletionMode> Completions, const FIndexSet Instances);
 		const int32 GetResetInstanceNum() const;
 		const FIndexSet GetResetInstances() const;
-		const TArray<int32>& GetResetInstancesArray() const;
 
 	private:
 
+		int32 MaxInstanceNum = 0;
+		int32 ResetInstanceNum = 0;
 		FIndexSet ResetInstancesSet;
-		TArray<int32> ResetInstances;
+		TLearningArray<1, int32, TInlineAllocator<1>> ResetInstances;
 	};
 
 	namespace Completion
@@ -58,16 +59,18 @@ namespace UE::Learning
 		/**
 		* Set completions for all instances whose episode has reached the max number of steps.
 		*
-		* @param OutCompletions					Output buffer to write completions to
+		* @param InOutCompletions				Output buffer to write completions to
 		* @param EpisodeStepNums				Number of steps taken by each instance
 		* @param EpisodeMaxStepNum				Maximum number of allowed steps
+		* @param EpisodeEndCompletionMode		Completion mode to use for instances who reach the end of the episode
 		* @param Instances						Instances to process
 		*
 		*/
 		LEARNING_API void EvaluateEndOfEpisodeCompletions(
-			TLearningArrayView<1, ECompletionMode> OutCompletions,
+			TLearningArrayView<1, ECompletionMode> InOutCompletions,
 			const TLearningArrayView<1, const int32> EpisodeStepNums,
 			const int32 EpisodeMaxStepNum,
+			const ECompletionMode EpisodeEndCompletionMode,
 			const FIndexSet Instances);
 
 	}

@@ -4,37 +4,28 @@
 
 #include "LearningTrainer.h"
 
-class ULearningNeuralNetworkData;
-
 namespace UE::Learning
 {
 	enum class ECompletionMode : uint8;
+	struct INeuralNetwork;
 	struct FReplayBuffer;
 
 	namespace SharedMemoryTraining
 	{
-		enum class EControls : uint8
-		{
-			ExperienceEpisodeNum	= 0,
-			ExperienceStepNum		= 1,
-			ExperienceSignal		= 2,
-			PolicySignal			= 3,
-			CriticSignal			= 4,
-			EncoderSignal			= 5,
-			DecoderSignal			= 6,
-			CompleteSignal			= 7,
-			StopSignal				= 8,
-
-			ControlNum				= 9,
-		};
-
 		LEARNINGTRAINING_API uint8 GetControlNum();
 
-		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
+		LEARNINGTRAINING_API ETrainerResponse RecvPolicy(
 			TLearningArrayView<1, volatile int32> Controls,
-			ULearningNeuralNetworkData& OutNetwork,
-			const EControls Signal,
-			const TLearningArrayView<1, const uint8> NetworkData,
+			INeuralNetwork& OutNetwork,
+			const TLearningArrayView<1, const uint8> Policy,
+			const float Timeout = Trainer::DefaultTimeout,
+			FRWLock* NetworkLock = nullptr,
+			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
+
+		LEARNINGTRAINING_API ETrainerResponse RecvCritic(
+			TLearningArrayView<1, volatile int32> Controls,
+			INeuralNetwork& OutNetwork,
+			const TLearningArrayView<1, const uint8> Critic,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
@@ -44,11 +35,18 @@ namespace UE::Learning
 
 		LEARNINGTRAINING_API bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls);
 
-		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
+		LEARNINGTRAINING_API ETrainerResponse SendPolicy(
 			TLearningArrayView<1, volatile int32> Controls,
-			TLearningArrayView<1, uint8> NetworkData,
-			const EControls Signal,
-			const ULearningNeuralNetworkData& Network,
+			TLearningArrayView<1, uint8> Policy,
+			const INeuralNetwork& Network,
+			const float Timeout = Trainer::DefaultTimeout,
+			FRWLock* NetworkLock = nullptr,
+			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
+
+		LEARNINGTRAINING_API ETrainerResponse SendCritic(
+			TLearningArrayView<1, volatile int32> Controls,
+			TLearningArrayView<1, uint8> Critic,
+			const INeuralNetwork& Network,
 			const float Timeout = Trainer::DefaultTimeout,
 			FRWLock* NetworkLock = nullptr,
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);

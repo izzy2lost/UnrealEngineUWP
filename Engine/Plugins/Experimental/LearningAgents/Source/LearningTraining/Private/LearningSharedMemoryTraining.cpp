@@ -11,6 +11,19 @@
 
 namespace UE::Learning::SharedMemoryTraining
 {
+	enum class EControls : uint8
+	{
+		ExperienceEpisodeNum = 0,
+		ExperienceStepNum = 1,
+		ExperienceSignal = 2,
+		PolicySignal = 3,
+		CriticSignal = 4,
+		CompleteSignal = 5,
+		StopSignal = 6,
+
+		ControlNum = 8,
+	};
+
 	uint8 GetControlNum()
 	{
 		return (uint8)EControls::ControlNum;
@@ -27,11 +40,10 @@ namespace UE::Learning::SharedMemoryTraining
 		return Controls[(uint8)EControls::PolicySignal] || Controls[(uint8)EControls::CompleteSignal];
 	}
 
-	ETrainerResponse RecvNetwork(
+	ETrainerResponse RecvPolicy(
 		TLearningArrayView<1, volatile int32> Controls,
-		ULearningNeuralNetworkData& OutNetwork,
-		const EControls Signal,
-		const TLearningArrayView<1, const uint8> NetworkData,
+		INeuralNetwork& OutNetwork,
+		const TLearningArrayView<1, const uint8> Policy,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -39,8 +51,8 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the network is done being written by the sub-process
-		while (!Controls[(uint8)Signal])
+		// Wait until the policy is done being written by the sub-process
+		while (!Controls[(uint8)EControls::PolicySignal])
 		{
 			// Check if Completed Signal has been raised
 			if (Controls[(uint8)EControls::CompleteSignal])
@@ -61,44 +73,32 @@ namespace UE::Learning::SharedMemoryTraining
 
 		if (LogSettings != ELogSetting::Silent)
 		{
-			UE_LOG(LogLearning, Display, TEXT("Pulling network..."));
+			UE_LOG(LogLearning, Display, TEXT("Pulling Policy..."));
 		}
 
-		// Read the network
+		// Read the policy
 		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, Policy);
 
-			if (NetworkData.Num() != OutNetwork.GetSnapshotByteNum())
+			if (!bSuccess)
 			{
-				UE_LOG(LogLearning, Error, TEXT("Error receiving network. Incorrect buffer size. Buffer is %i bytes, expected %i."), NetworkData.Num(), OutNetwork.GetSnapshotByteNum());
-				bSuccess = false;
-			}
-			else
-			{
-				if (!OutNetwork.LoadFromSnapshot(MakeArrayView(NetworkData.GetData(), NetworkData.Num())))
-				{
-					UE_LOG(LogLearning, Error, TEXT("Error receiving network. Invalid Format."));
-					bSuccess = false;
-				}
-				else
-				{
-					bSuccess = true;
-				}
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Policy network. Format invalid."));
 			}
 		}
 
-		// Confirm we have read the network
-		Controls[(uint8)Signal] = false;
+		// Confirm we have read the policy
+		Controls[(uint8)EControls::PolicySignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
 	}
 
-	ETrainerResponse SendNetwork(
+	ETrainerResponse RecvCritic(
 		TLearningArrayView<1, volatile int32> Controls,
-		TLearningArrayView<1, uint8> NetworkData,
-		const EControls Signal,
-		const ULearningNeuralNetworkData& Network,
+		INeuralNetwork& OutNetwork,
+		const TLearningArrayView<1, const uint8> Critic,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
@@ -106,8 +106,8 @@ namespace UE::Learning::SharedMemoryTraining
 		const float SleepTime = 0.001f;
 		float WaitTime = 0.0f;
 
-		// Wait until the policy is requested by the sub-process
-		while (!Controls[(uint8)Signal])
+		// Wait until the critic is done being written by the sub-process
+		while (!Controls[(uint8)EControls::CriticSignal])
 		{
 			FPlatformProcess::Sleep(SleepTime);
 			WaitTime += SleepTime;
@@ -120,29 +120,108 @@ namespace UE::Learning::SharedMemoryTraining
 
 		if (LogSettings != ELogSetting::Silent)
 		{
-			UE_LOG(LogLearning, Display, TEXT("Pushing network..."));
+			UE_LOG(LogLearning, Display, TEXT("Pulling Critic..."));
 		}
 
-		// Write the network
+		// Read the critic
 		bool bSuccess = false;
 		{
-			FScopeNullableReadLock ScopeLock(NetworkLock);
-			if (NetworkData.Num() != Network.GetSnapshotByteNum())
+			FScopeNullableWriteLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, Critic);
+
+			if (!bSuccess)
 			{
-				UE_LOG(LogLearning, Error, TEXT("Error sending network. Incorrect buffer size. Buffer is %i bytes, expected %i."), NetworkData.Num(), Network.GetSnapshotByteNum());
-				bSuccess = false;
-			}
-			else
-			{
-				Network.SaveToSnapshot(MakeArrayView(NetworkData.GetData(), NetworkData.Num()));
-				bSuccess = true;
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Critic network. Format invalid."));
 			}
 		}
 
-		// Confirm we have written the network
-		Controls[(uint8)Signal] = false;
+		// Confirm we have read the critic
+		Controls[(uint8)EControls::CriticSignal] = false;
 
 		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
+	}
+
+	ETrainerResponse SendPolicy(
+		TLearningArrayView<1, volatile int32> Controls,
+		TLearningArrayView<1, uint8> Policy,
+		const INeuralNetwork& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		const float SleepTime = 0.001f;
+		float WaitTime = 0.0f;
+
+		// Wait until the policy is requested by the sub-process
+		while (!Controls[(uint8)EControls::PolicySignal])
+		{
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
+
+			if (WaitTime > Timeout)
+			{
+				return ETrainerResponse::Timeout;
+			}
+		}
+
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Pushing Policy..."));
+		}
+
+		// Write the policy
+		{
+			FScopeNullableReadLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			Network.SerializeToBytes(Offset, Policy);
+		}
+
+		// Confirm we have written the policy
+		Controls[(uint8)EControls::PolicySignal] = false;
+
+		return ETrainerResponse::Success;
+	}
+
+	ETrainerResponse SendCritic(
+		TLearningArrayView<1, volatile int32> Controls,
+		TLearningArrayView<1, uint8> Critic,
+		const INeuralNetwork& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		const float SleepTime = 0.001f;
+		float WaitTime = 0.0f;
+
+		// Wait until the critic is requested by the sub-process
+		while (!Controls[(uint8)EControls::CriticSignal])
+		{
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
+
+			if (WaitTime > Timeout)
+			{
+				return ETrainerResponse::Timeout;
+			}
+		}
+
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Pushing Critic..."));
+		}
+
+		// Write the critic
+		{
+			FScopeNullableReadLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			Network.SerializeToBytes(Offset, Critic);
+		}
+
+		// Confirm we have written the critic
+		Controls[(uint8)EControls::CriticSignal] = false;
+
+		return ETrainerResponse::Success;
 	}
 
 	ETrainerResponse SendExperience(

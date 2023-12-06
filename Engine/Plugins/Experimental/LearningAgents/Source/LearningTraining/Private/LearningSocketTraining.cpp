@@ -11,6 +11,19 @@
 
 namespace UE::Learning::SocketTraining
 {
+	enum class ESignal : uint8
+	{
+		Invalid = 0,
+		SendConfig = 1,
+		SendExperience = 2,
+		RecvPolicy = 3,
+		SendPolicy = 4,
+		RecvCritic = 5,
+		SendCritic = 6,
+		RecvComplete = 7,
+		SendStop = 8,
+	};
+
 	ETrainerResponse WaitForConnection(FSocket& Socket, const float Timeout)
 	{
 		float WaitTime = 0.0f;
@@ -73,18 +86,17 @@ namespace UE::Learning::SocketTraining
 		}
 	}
 
-	ETrainerResponse RecvNetwork(
+	ETrainerResponse RecvPolicy(
 		FSocket& Socket,
-		ULearningNeuralNetworkData& OutNetwork,
+		INeuralNetwork& OutNetwork,
 		TLearningArrayView<1, uint8> OutNetworkBuffer,
-		const ESignal NetworkSignal,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		if (LogSettings != ELogSetting::Silent)
 		{
-			UE_LOG(LogLearning, Display, TEXT("Pulling Network..."));
+			UE_LOG(LogLearning, Display, TEXT("Pulling Policy..."));
 		}
 
 		uint8 Signal = (uint8)ESignal::Invalid;
@@ -96,7 +108,7 @@ namespace UE::Learning::SocketTraining
 			return ETrainerResponse::Completed;
 		}
 
-		if (Signal != (uint8)NetworkSignal)
+		if (Signal != (uint8)ESignal::RecvPolicy)
 		{
 			return ETrainerResponse::Unexpected;
 		}
@@ -107,23 +119,52 @@ namespace UE::Learning::SocketTraining
 		bool bSuccess = false;
 		{
 			FScopeNullableWriteLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
 
-			if (OutNetworkBuffer.Num() != OutNetwork.GetSnapshotByteNum())
+			if (!bSuccess)
 			{
-				UE_LOG(LogLearning, Error, TEXT("Error receiving network. Incorrect buffer size. Buffer is %i bytes, expected %i."), OutNetworkBuffer.Num(), OutNetwork.GetSnapshotByteNum());
-				bSuccess = false;
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Policy network. Format invalid."));
 			}
-			else
+		}
+
+		return bSuccess ? ETrainerResponse::Success : ETrainerResponse::Unexpected;
+	}
+
+	ETrainerResponse RecvCritic(
+		FSocket& Socket,
+		INeuralNetwork& OutNetwork,
+		TLearningArrayView<1, uint8> OutNetworkBuffer,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Pulling Critic..."));
+		}
+
+		uint8 Signal = (uint8)ESignal::Invalid;
+		ETrainerResponse Response = RecvWithTimeout(Socket, &Signal, 1, Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		if (Signal != (uint8)ESignal::RecvCritic)
+		{
+			return ETrainerResponse::Unexpected;
+		}
+
+		Response = RecvWithTimeout(Socket, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		bool bSuccess = false;
+		{
+			FScopeNullableWriteLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			bSuccess = OutNetwork.DeserializeFromBytes(Offset, OutNetworkBuffer);
+
+			if (!bSuccess)
 			{
-				if (!OutNetwork.LoadFromSnapshot(MakeArrayView(OutNetworkBuffer.GetData(), OutNetworkBuffer.Num())))
-				{
-					UE_LOG(LogLearning, Error, TEXT("Error receiving network. Invalid Format."));
-					bSuccess = false;
-				}
-				else
-				{
-					bSuccess = true;
-				}
+				UE_LOG(LogLearning, Error, TEXT("Error receiving Critic network. Format invalid."));
 			}
 		}
 
@@ -190,43 +231,62 @@ namespace UE::Learning::SocketTraining
 		return Socket.HasPendingData(PendingDataSize);
 	}
 
-	ETrainerResponse SendNetwork(
+	ETrainerResponse SendPolicy(
 		FSocket& Socket,
 		TLearningArrayView<1, uint8> NetworkBuffer,
-		const ESignal NetworkSignal,
-		const ULearningNeuralNetworkData& Network,
+		const INeuralNetwork& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
 		if (LogSettings != ELogSetting::Silent)
 		{
-			UE_LOG(LogLearning, Display, TEXT("Pushing Network..."));
+			UE_LOG(LogLearning, Display, TEXT("Pushing Policy..."));
 		}
 
-		bool bSuccess = false;
 		{
 			FScopeNullableReadLock ScopeLock(NetworkLock);
-			if (NetworkBuffer.Num() != Network.GetSnapshotByteNum())
-			{
-				UE_LOG(LogLearning, Error, TEXT("Error sending network. Incorrect buffer size. Buffer is %i bytes, expected %i."), NetworkBuffer.Num(), Network.GetSnapshotByteNum());
-				bSuccess = false;
-			}
-			else
-			{
-				Network.SaveToSnapshot(MakeArrayView(NetworkBuffer.GetData(), NetworkBuffer.Num()));
-				bSuccess = true;
-			}
+			int32 Offset = 0;
+			Network.SerializeToBytes(Offset, NetworkBuffer);
 		}
 
-		const uint8 Signal = (uint8)NetworkSignal;
+		const uint8 Signal = (uint8)ESignal::SendPolicy;
 		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
 		Response = SendWithTimeout(Socket, NetworkBuffer.GetData(), NetworkBuffer.Num(), Timeout);
 		if (Response != ETrainerResponse::Success) { return Response; }
 
-		return bSuccess ? Response : ETrainerResponse::Unexpected;
+		return ETrainerResponse::Success;
+	}
+
+	ETrainerResponse SendCritic(
+		FSocket& Socket,
+		TLearningArrayView<1, uint8> NetworkBuffer,
+		const INeuralNetwork& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		if (LogSettings != ELogSetting::Silent)
+		{
+			UE_LOG(LogLearning, Display, TEXT("Pushing Critic..."));
+		}
+
+		{
+			FScopeNullableReadLock ScopeLock(NetworkLock);
+			int32 Offset = 0;
+			Network.SerializeToBytes(Offset, NetworkBuffer);
+		}
+
+		const uint8 Signal = (uint8)ESignal::SendCritic;
+		ETrainerResponse Response = SendWithTimeout(Socket, &Signal, 1, Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		Response = SendWithTimeout(Socket, NetworkBuffer.GetData(), NetworkBuffer.Num(), Timeout);
+		if (Response != ETrainerResponse::Success) { return Response; }
+
+		return ETrainerResponse::Success;
 	}
 
 	ETrainerResponse SendExperience(

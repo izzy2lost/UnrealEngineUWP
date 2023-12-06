@@ -38,10 +38,7 @@ public class Learning : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
 				"Engine",
-				"NNE",
-				"NNERuntimeBasicCpu",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

@@ -1,17 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-inline float NNERuntimeBasicCPUTanH(const float X, const float Min = -10.0f, const float Max = 10.0f)
-{
-	const float Exp2X = exp(2.0f * clamp(X, Min, Max));
-	return (Exp2X - 1) / (Exp2X + 1);
-}
-
-inline float NNERuntimeBasicCPUSigmoid(const float X)
-{
-	return 1.0f / (1.0f + exp(-X));
-}
-
-export void NNERuntimeBasicCPUOperatorNormalize(
+export void NNERuntimeBasicCPUNormalizeLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const float Mean[],
@@ -27,7 +16,7 @@ export void NNERuntimeBasicCPUOperatorNormalize(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorDenormalize(
+export void NNERuntimeBasicCPUDenormalizeLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const float Mean[],
@@ -43,14 +32,14 @@ export void NNERuntimeBasicCPUOperatorDenormalize(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorLinear(
+export void NNERuntimeBasicCPULinearLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const float Weights[],
 	uniform const float Biases[],
 	uniform const int BatchNum,
-	uniform const int ColNum,
 	uniform const int RowNum,
+	uniform const int ColNum,
 	uniform const int OutputStride,
 	uniform const int InputStride)
 {
@@ -76,7 +65,7 @@ export void NNERuntimeBasicCPUOperatorLinear(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorCompressedLinear(
+export void NNERuntimeBasicCPUCompressedLinearLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const uint16 Weights[],
@@ -84,8 +73,8 @@ export void NNERuntimeBasicCPUOperatorCompressedLinear(
 	uniform const float WeightScales[],
 	uniform const float Biases[],
 	uniform const int BatchNum,
-	uniform const int ColNum,
 	uniform const int RowNum,
+	uniform const int ColNum,
 	uniform const int OutputStride,
 	uniform const int InputStride)
 {
@@ -114,15 +103,15 @@ export void NNERuntimeBasicCPUOperatorCompressedLinear(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorMultiLinear(
+export void NNERuntimeBasicCPUMultiLinearLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const float Weights[],
 	uniform const float Biases[],
 	uniform const int BatchNum,
 	uniform const int BlockNum,
-	uniform const int ColNum,
 	uniform const int RowNum,
+	uniform const int ColNum,
 	uniform const int OutputStride,
 	uniform const int InputStride)
 {
@@ -151,7 +140,7 @@ export void NNERuntimeBasicCPUOperatorMultiLinear(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorCopy(
+export void NNERuntimeBasicCPUIdentityLayer(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const int BatchNum,
@@ -165,7 +154,7 @@ export void NNERuntimeBasicCPUOperatorCopy(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorReLU(
+export void NNERuntimeBasicCPUActivationReLU(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const int BatchNum,
@@ -179,7 +168,7 @@ export void NNERuntimeBasicCPUOperatorReLU(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorELU(
+export void NNERuntimeBasicCPUActivationELU(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const int BatchNum,
@@ -194,7 +183,13 @@ export void NNERuntimeBasicCPUOperatorELU(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorTanH(
+inline float NNERuntimeBasicCPUTanH(const float X, const float Min = -10.0f, const float Max = 10.0f)
+{
+	const float Exp2X = exp(2.0f * clamp(X, Min, Max));
+	return (Exp2X - 1) / (Exp2X + 1);
+}
+
+export void NNERuntimeBasicCPUActivationTanH(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const int BatchNum,
@@ -208,7 +203,7 @@ export void NNERuntimeBasicCPUOperatorTanH(
 	}
 }
 
-export void NNERuntimeBasicCPUOperatorPReLU(
+export void NNERuntimeBasicCPUActivationPReLU(
 	uniform float Output[],
 	uniform const float Input[],
 	uniform const float Alpha[],
@@ -221,303 +216,5 @@ export void NNERuntimeBasicCPUOperatorPReLU(
 	{
 		const float Value = Input[BatchIdx * InputStride + Idx];
 		Output[BatchIdx * OutputStride + Idx] = select(Value > 0.0f, Value, Alpha[Idx] * Value);
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorMemoryCellUpdateMemory(
-	uniform float Output[],
-	uniform const float RememberGate[],
-	uniform const float Memory[],
-	uniform const float Update[],
-	uniform const int BatchSize,
-	uniform const int MemorySize,
-	uniform const int OutputStride,
-	uniform const int RememberGateStride,
-	uniform const int MemoryStride,
-	uniform const int UpdateStride)
-{
-	foreach(BatchIdx = 0 ... BatchSize, Idx = 0 ... MemorySize)
-	{
-		const float Gate = NNERuntimeBasicCPUSigmoid(RememberGate[BatchIdx * RememberGateStride + Idx]);
-		const float Prev = Memory[BatchIdx * MemoryStride + Idx];
-		const float Targ = NNERuntimeBasicCPUTanH(Update[BatchIdx * UpdateStride + Idx]);
-
-		Output[BatchIdx * OutputStride + Idx] = (1.0f - Gate) * Prev + Gate * Targ;
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorMemoryCellUpdateOutput(
-	uniform float Output[],
-	uniform const float PassthroughGate[],
-	uniform const float MemoryUpdate[],
-	uniform const float InputUpdate[],
-	uniform const int BatchSize,
-	uniform const int OutputSize,
-	uniform const int OutputStride,
-	uniform const int PassthroughGateStride,
-	uniform const int MemoryUpdateStride,
-	uniform const int InputUpdateStride)
-{
-	foreach(BatchIdx = 0 ... BatchSize, Idx = 0 ... OutputSize)
-	{
-		const float Gate = NNERuntimeBasicCPUSigmoid(PassthroughGate[BatchIdx * PassthroughGateStride + Idx]);
-		const float MemTarg = NNERuntimeBasicCPUTanH(MemoryUpdate[BatchIdx * MemoryUpdateStride + Idx]);
-		const float InTarg = NNERuntimeBasicCPUTanH(InputUpdate[BatchIdx * InputUpdateStride + Idx]);
-
-		Output[BatchIdx * OutputStride + Idx] = (1.0f - Gate) * MemTarg + Gate * InTarg;
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateGatherElements(
-	uniform float OutputBuffer[],
-	uniform const float InputBuffer[],
-	uniform const uint32 ElementNums[],
-	uniform const uint32 ElementOffsets[],
-	uniform const int BatchSize,
-	uniform const int ElementSize,
-	uniform const int InputStride)
-{
-	for (uniform int BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
-	{
-		uniform const uint32 ElementNum = ElementNums[BatchIdx];
-		uniform const uint32 ElementOffset = ElementOffsets[BatchIdx];
-
-		foreach (ElementIdx = 0 ... ElementNum, Idx = 0 ... ElementSize)
-		{
-			OutputBuffer[(ElementOffset + ElementIdx) * ElementSize + Idx] = InputBuffer[BatchIdx * InputStride + ElementIdx * ElementSize + Idx];
-		}
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateInsertOneHot(
-	uniform float QueryBuffer[],
-	uniform const int Index,
-	uniform const int BatchSize,
-	uniform const int MaskSize,
-	uniform const int QueryBufferStride)
-{
-	for (uniform int BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
-	{
-		foreach (MaskIdx = 0 ... MaskSize)
-		{
-			QueryBuffer[BatchIdx * QueryBufferStride + MaskIdx] = 0.0f;
-		}
-
-		QueryBuffer[BatchIdx * QueryBufferStride + Index] = 1.0f;
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateCountElementNum(
-	uniform uint32& TotalElementNum,
-	uniform uint32 ElementNums[],
-	uniform uint32 ElementOffsets[],
-	uniform const float MaskBuffer[],
-	uniform const int BatchSize,
-	uniform const int MaskSize,
-	uniform const int MaskBufferStride)
-{
-	TotalElementNum = 0;
-
-	for (uniform int BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
-	{
-		uint32 ElementSumAccum = 0;
-
-		foreach (MaskIdx = 0 ... MaskSize)
-		{
-			if (MaskBuffer[BatchIdx * MaskBufferStride + MaskIdx]) { ElementSumAccum++; }
-		}
-
-		uniform uint32 ElementSum = reduce_add(ElementSumAccum);
-
-		ElementOffsets[BatchIdx] = TotalElementNum;
-		ElementNums[BatchIdx] = ElementSum;
-		TotalElementNum += ElementSum;
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateDotProductAttention(
-	uniform float Attention[],
-	uniform const float Queries[],
-	uniform const float Keys[],
-	uniform const int ElementNum,
-	uniform const int AttentionEncodingSize,
-	uniform const int AttentionHeadNum)
-{
-	for (uniform int ElementIdx = 0; ElementIdx < ElementNum; ElementIdx++)
-	{
-		for (uniform int HeadIdx = 0; HeadIdx < AttentionHeadNum; HeadIdx++)
-		{
-			float AttentionAccum = 0.0f;
-
-			foreach (Idx = 0 ... AttentionEncodingSize)
-			{
-				AttentionAccum += (
-					Keys[ElementIdx * AttentionHeadNum * AttentionEncodingSize + HeadIdx * AttentionEncodingSize + Idx] *
-					Queries[ElementIdx * AttentionHeadNum * AttentionEncodingSize + HeadIdx * AttentionEncodingSize + Idx]);
-			}
-
-			Attention[ElementIdx * AttentionHeadNum + HeadIdx] = reduce_add(AttentionAccum) / sqrt((uniform float)AttentionEncodingSize);
-		}
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateSoftmaxPlusOneInplace(
-	uniform float AttentionMaxs[],
-	uniform float AttentionDenoms[],
-	uniform float Attention[],
-	uniform const uint32 ElementNums[],
-	uniform const uint32 ElementOffsets[],
-	uniform const int BatchSize,
-	uniform const int AttentionHeadNum)
-{
-	for (uniform int BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
-	{
-		uniform const uint32 ElementNum = ElementNums[BatchIdx];
-		uniform const uint32 ElementOffset = ElementOffsets[BatchIdx];
-
-		foreach (HeadIdx = 0 ... AttentionHeadNum)
-		{
-			AttentionMaxs[HeadIdx] = 0.0f;
-			AttentionDenoms[HeadIdx] = 0.0f;
-		}
-
-		for (uniform uint32 ElementIdx = ElementOffset; ElementIdx < ElementOffset + ElementNum; ElementIdx++)
-		{
-			foreach (HeadIdx = 0 ... AttentionHeadNum)
-			{
-				AttentionMaxs[HeadIdx] = max(AttentionMaxs[HeadIdx], Attention[ElementIdx * AttentionHeadNum + HeadIdx]);
-			}
-		}
-
-		for (uniform uint32 ElementIdx = ElementOffset; ElementIdx < ElementOffset + ElementNum; ElementIdx++)
-		{
-			foreach (HeadIdx = 0 ... AttentionHeadNum)
-			{
-				AttentionDenoms[HeadIdx] += exp(Attention[ElementIdx * AttentionHeadNum + HeadIdx] - AttentionMaxs[HeadIdx]);
-			}
-		}
-
-		foreach (ElementIdx = ElementOffset ... ElementOffset + ElementNum, HeadIdx = 0 ... AttentionHeadNum)
-		{
-			Attention[ElementIdx * AttentionHeadNum + HeadIdx] = exp(Attention[ElementIdx * AttentionHeadNum + HeadIdx] - AttentionMaxs[HeadIdx]) / (AttentionDenoms[HeadIdx] + 1.0f);
-		}
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateAttentionSum(
-	uniform float Output[],
-	uniform const float Attention[],
-	uniform const float Values[],
-	uniform const uint32 ElementNums[],
-	uniform const uint32 ElementOffsets[],
-	uniform const int BatchSize,
-	uniform const int EncodingSize,
-	uniform const int AttentionHeadNum,
-	uniform const int OutputStride)
-{
-	for (uniform int BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
-	{
-		foreach (HeadIdx = 0 ... AttentionHeadNum, Idx = 0 ... EncodingSize)
-		{
-			Output[BatchIdx * OutputStride + HeadIdx * EncodingSize + Idx] = 0.0f;
-		}
-
-		uniform const uint32 ElementNum = ElementNums[BatchIdx];
-		uniform const uint32 ElementOffset = ElementOffsets[BatchIdx];
-
-		for (uniform uint32 ElementIdx = ElementOffset; ElementIdx < ElementOffset + ElementNum; ElementIdx++)
-		{
-			for (uniform int HeadIdx = 0; HeadIdx < AttentionHeadNum; HeadIdx++)
-			{
-				uniform const float Scale = Attention[ElementIdx * AttentionHeadNum + HeadIdx];
-
-				if (Scale != 0.0f)
-				{
-					foreach(Idx = 0 ... EncodingSize)
-					{
-						Output[BatchIdx * OutputStride + HeadIdx * EncodingSize + Idx] += Scale * Values[ElementIdx * AttentionHeadNum * EncodingSize + HeadIdx * EncodingSize + Idx];
-					}
-				}
-			}
-		}
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorAggregateGatherQueryValueFromSubLayers(
-	uniform float QueryBuffer[],
-	uniform float KeyBuffer[],
-	uniform float ValueBuffer[],
-	uniform uint32 ElementAccum[],
-	uniform const uint32 ElementOffsets[],
-	uniform const float SubLayerQueryBuffer[],
-	uniform const float SubLayerKeyBuffer[],
-	uniform const float SubLayerValueBuffer[],
-	uniform const uint32 SubLayerBatchIndicesBuffer[],
-	uniform const int SubLayerBatchIndexNum,
-	uniform const int QuerySize,
-	uniform const int KeySize,
-	uniform const int ValueSize)
-{
-	for (uniform int ElementIdx = 0; ElementIdx < SubLayerBatchIndexNum; ElementIdx++)
-	{
-		uniform const uint32 BatchIdx = SubLayerBatchIndicesBuffer[ElementIdx];
-		uniform const uint32 ElementOffset = ElementOffsets[BatchIdx] + ElementAccum[BatchIdx];
-
-		foreach (QueryIdx = 0 ... QuerySize)
-		{
-			QueryBuffer[ElementOffset * QuerySize + QueryIdx] = SubLayerQueryBuffer[ElementIdx * QuerySize + QueryIdx];
-		}
-
-		foreach(KeyIdx = 0 ... KeySize)
-		{
-			KeyBuffer[ElementOffset * KeySize + KeyIdx] = SubLayerKeyBuffer[ElementIdx * KeySize + KeyIdx];
-		}
-
-		foreach(ValueIdx = 0 ... ValueSize)
-		{
-			ValueBuffer[ElementOffset * ValueSize + ValueIdx] = SubLayerValueBuffer[ElementIdx * ValueSize + ValueIdx];
-		}
-
-		ElementAccum[BatchIdx]++;
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorGather(
-	uniform float OutputBuffer[],
-	uniform const float InputBuffer[],
-	uniform const uint32 BatchIndices[],
-	uniform const int BatchIndexNum,
-	uniform const int InputOutputSize,
-	uniform const int OutputStride,
-	uniform const int InputStride)
-{
-	for (uniform int BatchIndexIdx = 0; BatchIndexIdx < BatchIndexNum; BatchIndexIdx++)
-	{
-		uniform const uint32 SrcBatchIdx = BatchIndices[BatchIndexIdx];
-
-		foreach (Idx = 0 ... InputOutputSize)
-		{
-			OutputBuffer[BatchIndexIdx * OutputStride + Idx] = InputBuffer[SrcBatchIdx * InputStride + Idx];
-		}
-	}
-}
-
-export void NNERuntimeBasicCPUOperatorScatter(
-	uniform float OutputBuffer[],
-	uniform const float InputBuffer[],
-	uniform const uint32 BatchIndices[],
-	uniform const int BatchIndexNum,
-	uniform const int InputOutputSize,
-	uniform const int OutputStride,
-	uniform const int InputStride)
-{
-	for (uniform int BatchIndexIdx = 0; BatchIndexIdx < BatchIndexNum; BatchIndexIdx++)
-	{
-		uniform const uint32 DstBatchIdx = BatchIndices[BatchIndexIdx];
-
-		foreach (Idx = 0 ... InputOutputSize)
-		{
-			OutputBuffer[DstBatchIdx * OutputStride + Idx] = InputBuffer[BatchIndexIdx * InputStride + Idx];
-		}
 	}
 }
