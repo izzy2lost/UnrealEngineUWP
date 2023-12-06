@@ -97,7 +97,8 @@ namespace UnrealBuildTool.Rules
                 "PixelStreamingHMD",
                 "TraceLog",
                 "HTTP",
-                "NVML"
+                "NVML",
+                "AudioPlatformConfiguration"
             });
 
             PrivateDefinitions.Add("PIXELSTREAMING_DUMP_ENCODING=0");
