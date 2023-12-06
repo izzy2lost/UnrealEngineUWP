@@ -32,17 +32,26 @@ private:
 
 	/** CookTagList is only valid for cook by the book; it is not publically accessible otherwise. */
 	FCookTagList CookTagList;
+	const ITargetPlatform* TargetPlatform = nullptr;
 	bool bCookTagListEnabled = false;
 	UE::Cook::ECookType CookType = UE::Cook::ECookType::Unknown;
 	UE::Cook::ECookingDLC CookingDLC = UE::Cook::ECookingDLC::Unknown;
 
 public:
 
-	FArchiveCookContext(UPackage* InPackage, UE::Cook::ECookType InCookType, UE::Cook::ECookingDLC CookingDLC)
+	UE_DEPRECATED(5.4, "Call version that takes the TargetPlatform")
+	FArchiveCookContext(UPackage* InPackage, UE::Cook::ECookType InCookType, UE::Cook::ECookingDLC InCookingDLC)
+		: FArchiveCookContext(InPackage, InCookType, InCookingDLC, nullptr)
+	{
+	}
+
+	FArchiveCookContext(UPackage* InPackage, UE::Cook::ECookType InCookType, UE::Cook::ECookingDLC InCookingDLC,
+		const ITargetPlatform* InTargetPlatform)
 		: CookTagList(InPackage)
+		, TargetPlatform(InTargetPlatform)
 		, bCookTagListEnabled(InPackage && InCookType == UE::Cook::ECookType::ByTheBook)
 		, CookType(InCookType)
-		, CookingDLC(CookingDLC)
+		, CookingDLC(InCookingDLC)
 	{
 	}
 
@@ -52,6 +61,7 @@ public:
 	}
 
 	FCookTagList* GetCookTagList() { return bCookTagListEnabled ? &CookTagList : nullptr; }
+	const ITargetPlatform* GetTargetPlatform() const { return TargetPlatform; }
 
 	bool IsCookByTheBook() const { return CookType == UE::Cook::ECookType::ByTheBook; }
 	bool IsCookOnTheFly() const { return CookType == UE::Cook::ECookType::OnTheFly; }

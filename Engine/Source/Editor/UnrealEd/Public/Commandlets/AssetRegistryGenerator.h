@@ -24,7 +24,6 @@ class IChunkDataGenerator;
 class UChunkDependencyInfo;
 class UCookOnTheFlyServer;
 struct FChunkDependencyTreeNode;
-struct FCookTagList;
 struct FSoftObjectPath;
 namespace UE::Cook { class FAssetRegistryMPCollector; }
 namespace UE::Cook { class FAssetRegistryPackageMessage; }
@@ -253,7 +252,7 @@ public:
 	 */
 	void UpdateAssetRegistryData(FName PackageName, const UPackage* Package,
 		UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
-		FCookTagList&& InArchiveCookTagList, bool bIncludeOnlyDiskAssets,
+		TOptional<TArray<FAssetData>>&& AssetDatasFromSave,
 		TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies);
 	void UpdateAssetRegistryData(UE::Cook::FMPCollectorServerMessageContext& Context,
@@ -266,14 +265,6 @@ public:
 	static void UpdateAssetManagerDatabase();
 
 private:
-	/**
-	 * Ensures all assets in the input package are present in the registry
-	 * @param Package - Package to process
-	 * @return - Array of FAssetData entries for all assets in the input package
-	 */
-	typedef TArray<const FAssetData*, TInlineAllocator<1>> FCreateOrFindArray;
-	FCreateOrFindArray CreateOrFindAssetDatas(const UPackage& Package);
-
 	/**
 	 * Updates all asset package flags in the specified package
 	 *
@@ -297,12 +288,6 @@ private:
 	/** State of the asset registry that is being built for this platform */
 	FAssetRegistryState State;
 	
-	/** 
-	 * The list of tags to add for each asset. This is populated during cook by the books,
-	 * and is only added to development registries.
-	 */
-	TMap<FSoftObjectPath, TArray<TPair<FName, FString>>> CookTagsToAdd;
-
 	struct FIterativelySkippedPackageUpdateData
 	{
 		TArray<FAssetData> AssetDatas;
@@ -478,11 +463,6 @@ private:
 	/** Initialize ChunkIdPakchunkIndexMapping and PakchunkIndexChunkIdMapping. */
 	void InitializeChunkIdPakchunkIndexMapping();
 
-	/**
-	 * Helper function to find or create asset data for the input object. If the asset is not in the registry it will be added.
-	 */
-	const FAssetData* CreateOrFindAssetData(UObject& Object);
-
 	/** If InState records PackageName is generated, return the name of the Generator, otherwise return NAME_None. */
 	static FName GetGeneratorPackage(FName PackageName, const FAssetRegistryState& InState);
 };
@@ -496,8 +476,8 @@ public:
 	virtual ~IAssetRegistryReporter() {}
 
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
-		FSavePackageResultStruct* SavePackageResult, FCookTagList&& InArchiveCookTagList,
-		bool bIncludeOnlyDiskAssets, TOptional<FAssetPackageData>&& OverrideAssetPackageData, 
+		FSavePackageResultStruct* SavePackageResult,
+		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) = 0;
 
 };
@@ -511,13 +491,12 @@ public:
 	}
 
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
-		FSavePackageResultStruct* SavePackageResult, FCookTagList&& InArchiveCookTagList,
-		bool bIncludeOnlyDiskAssets, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
+		FSavePackageResultStruct* SavePackageResult,
+		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) override
 	{
 		Generator.UpdateAssetRegistryData(PackageName, Package, CookResult, SavePackageResult,
-			MoveTemp(InArchiveCookTagList), bIncludeOnlyDiskAssets, MoveTemp(OverrideAssetPackageData),
-			MoveTemp(OverridePackageDependencies));
+			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies));
 	}
 
 private:
@@ -530,8 +509,8 @@ public:
 	FAssetRegistryReporterRemote(FCookWorkerClient& InClient, const ITargetPlatform* InTargetPlatform);
 
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
-		FSavePackageResultStruct* SavePackageResult, FCookTagList&& InArchiveCookTagList,
-		bool bIncludeOnlyDiskAssets, TOptional<FAssetPackageData>&& OverrideAssetPackageData, 
+		FSavePackageResultStruct* SavePackageResult,
+		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) override;
 
 private:
@@ -555,7 +534,6 @@ public:
 	TArray<FAssetData> AssetDatas;
 	TOptional<FAssetPackageData> OverrideAssetPackageData;
 	TOptional<TArray<FAssetDependency>> OverridePackageDependencies;
-	TMap<FSoftObjectPath, TArray<TPair<FName, FString>>> CookTags;
 	uint32 PackageFlags = 0;
 	int64 DiskSize = -1;
 

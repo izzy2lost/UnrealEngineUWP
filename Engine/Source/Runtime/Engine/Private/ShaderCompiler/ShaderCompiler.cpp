@@ -9394,7 +9394,7 @@ FString SaveGlobalShaderFile(EShaderPlatform Platform, FString SavePath, class I
 		if (TargetPlatform != nullptr)
 		{
 			CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-				UE::Cook::ECookingDLC::Unknown);
+				UE::Cook::ECookingDLC::Unknown, TargetPlatform);
 			CookData.Emplace(*TargetPlatform, *CookContext);
 			MemoryWriter.SetCookData(CookData.GetPtrOrNull());
 		}
@@ -10020,7 +10020,7 @@ void CompileGlobalShaderMapForRemote(
 	if (TargetPlatform != nullptr)
 	{
 		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-			UE::Cook::ECookingDLC::Unknown);
+			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
 		CookData.Emplace(*TargetPlatform, *CookContext);
 		Ar.SetCookData(CookData.GetPtrOrNull());
 	}
@@ -10040,7 +10040,7 @@ void SaveShaderMapsForRemote(ITargetPlatform* TargetPlatform, const TMap<FString
 	if (TargetPlatform != nullptr)
 	{
 		CookContext.Emplace(nullptr /*InPackage*/, UE::Cook::ECookType::Unknown,
-			UE::Cook::ECookingDLC::Unknown);
+			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
 		CookData.Emplace(*TargetPlatform, *CookContext);
 		Ar.SetCookData(CookData.GetPtrOrNull());
 	}

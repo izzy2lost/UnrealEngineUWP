@@ -61,6 +61,7 @@ struct FAssetBundleData;
 struct FCustomVersion;
 class FCbWriter;
 class FCbFieldView;
+enum class EAssetRegistryTagsCaller : uint8;
 
 COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogAssetData, Log, All);
 COREUOBJECT_API extern const FName GAssetBundleDataName;
@@ -261,6 +262,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Constructor taking a UObject. By default trying to create one for a blueprint class will create one for the UBlueprint instead, but this can be overridden */
 	COREUOBJECT_API FAssetData(const UObject* InAsset, FAssetData::ECreationFlags InCreationFlags = ECreationFlags::None);
+	COREUOBJECT_API FAssetData(const UObject* InAsset, FAssetData::ECreationFlags InCreationFlags, EAssetRegistryTagsCaller Caller);
 
 	/** Constructor taking a UObject. By default trying to create one for a blueprint class will create one for the UBlueprint instead, but this can be overridden */
 	inline FAssetData(const UObject* InAsset, bool bAllowBlueprintClass)

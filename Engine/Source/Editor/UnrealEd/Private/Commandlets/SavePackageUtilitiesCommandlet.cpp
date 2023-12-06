@@ -41,7 +41,7 @@ int32 USavePackageUtilitiesCommandlet::Main(const FString& Params)
 		if (TargetPlatform != nullptr)
 		{
 			CookContext.Emplace(Package, UE::Cook::ECookType::Unknown,
-				UE::Cook::ECookingDLC::Unknown);
+				UE::Cook::ECookingDLC::Unknown, TargetPlatform);
 			CookData.Emplace(*TargetPlatform, *CookContext);
 		}
 

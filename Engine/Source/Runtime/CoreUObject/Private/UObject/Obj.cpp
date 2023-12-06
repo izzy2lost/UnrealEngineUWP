@@ -31,6 +31,7 @@
 #include "UObject/Package.h"
 #include "UObject/MetaData.h"
 #include "Templates/Casts.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/LazyObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/PropertyPortFlags.h"
@@ -132,6 +133,7 @@ static UPackage*			GObjTransientPkg								= NULL;
 	};
 	static FUObjectAnnotationSparse<FPropagatedEditChangeAnnotation, true> PropagatedEditChangeAnnotation;
 	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTags UObject::FAssetRegistryTag::OnGetExtraObjectTags;
+	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTagsWithContext UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext;
 	UObject::FAssetRegistryTag::FOnGetExtendedAssetRegistryTagsForSave UObject::FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave;
 	UObject::FOnGetPreviewPlatform UObject::OnGetPreviewPlatform;
 #endif // WITH_EDITOR
@@ -2081,26 +2083,23 @@ FString GetConfigFilename( UObject* SourceObject )
 namespace UE::Object::Private
 {
 
-// Thread local state to avoid UObject::GetAssetRegistryTags() API change
-thread_local FAssetBundleData const** TGetAssetRegistryTags_OutBundles = nullptr;
-
-static void GetAssetRegistryTagFromProperty(const void* BaseMemoryLocation, const UObject* OwnerObject, FProperty* Prop, TArray<UObject::FAssetRegistryTag>& OutTags)
+static void GetAssetRegistryTagFromProperty(const void* BaseMemoryLocation, const UObject* OwnerObject, FProperty* Prop, FAssetRegistryTagsContext Context)
 {
 	FStructProperty* StructProp = CastField<FStructProperty>(Prop);
 	if (StructProp && StructProp->Struct && StructProp->Struct->GetFName() == GAssetBundleDataName)
 	{
 		const FAssetBundleData* Bundles = reinterpret_cast<const FAssetBundleData*>(Prop->ContainerPtrToValuePtr<uint8>(BaseMemoryLocation));
 
-		if (FAssetBundleData const** OutBundles = TGetAssetRegistryTags_OutBundles)
+		if (Context.WantsBundleResult())
 		{
-			checkf(*OutBundles == nullptr, TEXT("Object %s has more than one FAssetBundleData!"), *OwnerObject->GetPathName());
-			*OutBundles = Bundles;
+			checkf(Context.GetBundleResult() == nullptr, TEXT("Object %s has more than one FAssetBundleData!"), *OwnerObject->GetPathName());
+			Context.SetBundleResult(Bundles);
 		}
 		else
 		{
 			FString PropertyStr;
 			Prop->ExportTextItem_Direct(PropertyStr, Bundles, Bundles, nullptr, PPF_None);
-			OutTags.Add(UObject::FAssetRegistryTag(GAssetBundleDataName, MoveTemp(PropertyStr), UObject::FAssetRegistryTag::ETagType::TT_Alphabetical));
+			Context.AddTag(UObject::FAssetRegistryTag(GAssetBundleDataName, MoveTemp(PropertyStr), UObject::FAssetRegistryTag::ETagType::TT_Alphabetical));
 		}
 	}
 	else if (Prop->HasAnyPropertyFlags(CPF_AssetRegistrySearchable))
@@ -2143,17 +2142,17 @@ static void GetAssetRegistryTagFromProperty(const void* BaseMemoryLocation, cons
 		const uint8* PropertyAddr = Prop->ContainerPtrToValuePtr<uint8>(BaseMemoryLocation);
 		Prop->ExportTextItem_Direct(PropertyStr, PropertyAddr, PropertyAddr, nullptr, PPF_None);
 
-		OutTags.Add(UObject::FAssetRegistryTag(Prop->GetFName(), MoveTemp(PropertyStr), TagType));
+		Context.AddTag(UObject::FAssetRegistryTag(Prop->GetFName(), MoveTemp(PropertyStr), TagType));
 	}
 }
 
-static void GetAssetRegistryTagsFromSearchableProperties(const UObject* Object, TArray<UObject::FAssetRegistryTag>& OutTags)
+static void GetAssetRegistryTagsFromSearchableProperties(const UObject* Object, FAssetRegistryTagsContext Context)
 {
 	check(nullptr != Object);
 
 	for (TFieldIterator<FProperty> FieldIt( Object->GetClass() ); FieldIt; ++FieldIt)
 	{
-		GetAssetRegistryTagFromProperty(Object, Object, CastField<FProperty>(*FieldIt), OutTags);
+		GetAssetRegistryTagFromProperty(Object, Object, CastField<FProperty>(*FieldIt), Context);
 	}
 
 	UScriptStruct* SparseClassDataStruct = Object->GetClass()->GetSparseClassDataStruct();
@@ -2162,7 +2161,7 @@ static void GetAssetRegistryTagsFromSearchableProperties(const UObject* Object, 
 		const void* SparseClassData = Object->GetClass()->GetSparseClassData(EGetSparseClassDataMethod::ArchetypeIfNull);
 		for (TFieldIterator<FProperty> FieldIt(SparseClassDataStruct); FieldIt; ++FieldIt)
 		{
-			GetAssetRegistryTagFromProperty(SparseClassData, Object, CastField<FProperty>(*FieldIt), OutTags);
+			GetAssetRegistryTagFromProperty(SparseClassData, Object, CastField<FProperty>(*FieldIt), Context);
 		}
 	}
 }
@@ -2173,24 +2172,89 @@ const FName FPrimaryAssetId::PrimaryAssetTypeTag(TEXT("PrimaryAssetType"));
 const FName FPrimaryAssetId::PrimaryAssetNameTag(TEXT("PrimaryAssetName"));
 const FName FPrimaryAssetId::PrimaryAssetDisplayNameTag(TEXT("PrimaryAssetDisplayName"));
 
+// This list of the objects that are forwarding from one GetAssetRegistry tags to the other has to be a list rather
+// than merely a bool because some GetAssetRegistryTags calls call GetAssetRegistryTags on other objects, e.g. UWorld
+// calls it on its LevelBlueprint.
+// UE_DEPRECATED(5.4, "Used to provide backwards compatibility for the deprecated GetAssetRegistryTags function") // UE_DEPRECATED seems not to work with thread_local
+thread_local TArray<const UObject*, TInlineAllocator<2>> GAssetRegistryTagsObjectsBeingForwarded;
+// UE_DEPRECATED(5.4, "Used to provide backwards compatibility for the deprecated GetAssetRegistryTags function") // UE_DEPRECATED seems not to work with thread_local
+thread_local bool bGLegacyTagsWantsBundleResult = false;
+
 void UObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	if (!GAssetRegistryTagsObjectsBeingForwarded.Contains(this))
+	{
+		FAssetRegistryTagsContextData Context(this, EAssetRegistryTagsCaller::Uncategorized);
+		Context.bWantsBundleResult = bGLegacyTagsWantsBundleResult;
+
+		GAssetRegistryTagsObjectsBeingForwarded.Add(this);
+		GetAssetRegistryTags(Context);
+		check(!GAssetRegistryTagsObjectsBeingForwarded.IsEmpty() && GAssetRegistryTagsObjectsBeingForwarded.Last() == this);
+		GAssetRegistryTagsObjectsBeingForwarded.Pop(false /* bAllowShrinking */);
+
+		OutTags.Reserve(OutTags.Num() + Context.Tags.Num());
+		for (TPair<FName, FAssetRegistryTag>& Pair : Context.Tags)
+		{
+			OutTags.Add(MoveTemp(Pair.Value));
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	using namespace UE::Object::Private;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	auto AddLegacyTags = [&Context](auto&& Callback)
+	{
+		TArray<FAssetRegistryTag> LegacyTags;
+		Callback(LegacyTags);
+		for (FAssetRegistryTag& Tag : LegacyTags)
+		{
+			Context.AddTag(MoveTemp(Tag));
+		}
+	};
+
+	// Forward this call to the legacy version for classes that have not converted yet.
+	if (!GAssetRegistryTagsObjectsBeingForwarded.Contains(this))
+	{
+		TGuardValue<bool> WantsBundleScope(bGLegacyTagsWantsBundleResult, Context.WantsBundleResult());
+		GAssetRegistryTagsObjectsBeingForwarded.Add(this);
+		AddLegacyTags([this](TArray<FAssetRegistryTag>& Tags) { GetAssetRegistryTags(Tags); });
+		check(!GAssetRegistryTagsObjectsBeingForwarded.IsEmpty() && GAssetRegistryTagsObjectsBeingForwarded.Last() == this);
+		GAssetRegistryTagsObjectsBeingForwarded.Pop(false /* bAllowShrinking */);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+
 	UE::Core::Private::FPlayInEditorLoadingScope Scope(INDEX_NONE);
 
 	// Add primary asset info if valid
 	FPrimaryAssetId PrimaryAssetId = GetPrimaryAssetId();
 	if (PrimaryAssetId.IsValid())
 	{
-		OutTags.Add(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetId.PrimaryAssetType.ToString(), UObject::FAssetRegistryTag::TT_Alphabetical));
-		OutTags.Add(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetNameTag, PrimaryAssetId.PrimaryAssetName.ToString(), UObject::FAssetRegistryTag::TT_Alphabetical));
+		Context.AddTag(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetId.PrimaryAssetType.ToString(),
+			UObject::FAssetRegistryTag::TT_Alphabetical));
+		Context.AddTag(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetNameTag, PrimaryAssetId.PrimaryAssetName.ToString(),
+			UObject::FAssetRegistryTag::TT_Alphabetical));
 	}
 
-	GetAssetRegistryTagsFromSearchableProperties(this, OutTags);
+	GetAssetRegistryTagsFromSearchableProperties(this, Context);
 
 #if WITH_EDITOR
 	// Notify external sources that we need tags.
-	FAssetRegistryTag::OnGetExtraObjectTags.Broadcast(this, OutTags);
+	FAssetRegistryTag::OnGetExtraObjectTagsWithContext.Broadcast(Context);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	AddLegacyTags([this](TArray<FAssetRegistryTag>& Tags)
+		{ FAssetRegistryTag::OnGetExtraObjectTags.Broadcast(this, Tags); });
+	if (Context.IsFullUpdate())
+	{
+		AddLegacyTags([this, &Context](TArray<FAssetRegistryTag>& Tags)
+			{ GetExtendedAssetRegistryTagsForSave(Context.GetTargetPlatform(), Tags); });
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	// Check if there's a UMetaData for this object that has tags that are requested in the settings to be transferred to the Asset Registry
 	const TSet<FName>& MetaDataTagsForAR = GetMetaDataTagsForAssetRegistry();
@@ -2204,7 +2268,7 @@ void UObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 				FName Tag = It->Key;
 				if (!Tag.IsNone() && MetaDataTagsForAR.Contains(Tag))
 				{
-					OutTags.Add(FAssetRegistryTag(Tag, It->Value, UObject::FAssetRegistryTag::TT_Alphabetical));
+					Context.AddTag(FAssetRegistryTag(Tag, It->Value, UObject::FAssetRegistryTag::TT_Alphabetical));
 				}
 			}
 		}
@@ -2213,19 +2277,30 @@ void UObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 }
 
 #if WITH_EDITOR
+void UObject::GetAdditionalAssetDataObjectsForCook(FArchiveCookContext& CookContext,
+	TArray<UObject*>& OutObjects) const
+{
+}
+
 void UObject::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const
 {
-	// Notify external sources that we need tags for save.
+	// DEPRECATION Note: This function will not return the data from classes that have been converted to use the new
+	// FAssetRegistryTagsContext API. We could make it do so, but it would require extra effort because this function is
+	// supposed to return only the expensive tags, and not the common tags that are also returned when called with
+	// EAssetRegistryTagsCaller::AssetRegistryLoad. Because this function was designed only to be called from SavePackage,
+	// and we have removed SavePackage's dependence on it, we decided not to make that extra effort. Any licensee calling
+	// this function should instead call GetAssetRegistryTags with EAssetRegistryTagsCaller::SavePackage.
 	FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave.Broadcast(this, TargetPlatform, OutTags);
 }
 #endif // WITH_EDITOR
 
-static FAssetDataTagMapSharedView MakeSharedTagMap(TArray<UObject::FAssetRegistryTag>&& Tags)
+static FAssetDataTagMapSharedView MakeSharedTagMap(TMap<FName, UObject::FAssetRegistryTag>&& Tags)
 {
 	FAssetDataTagMap Out;
 	Out.Reserve(Tags.Num());
-	for (UObject::FAssetRegistryTag& Tag : Tags)
+	for (TPair<FName,UObject::FAssetRegistryTag>& Pair : Tags)
 	{
+		UObject::FAssetRegistryTag& Tag = Pair.Value;
 		// Don't add empty tags
 		if (!Tag.Name.IsNone() && !Tag.Value.IsEmpty())
 		{
@@ -2248,17 +2323,20 @@ static TSharedPtr<FAssetBundleData, ESPMode::ThreadSafe> MakeSharedBundles(const
 
 void UObject::GetAssetRegistryTags(FAssetData& Out) const
 {
+	FAssetRegistryTagsContextData Context(this, EAssetRegistryTagsCaller::Uncategorized);
+	GetAssetRegistryTags(Context, Out);
+}
+
+void UObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context, FAssetData& Out) const
+{
 	using namespace UE::Object::Private;
 
 	const FAssetBundleData* Bundles = nullptr;
-
-	TArray<FAssetRegistryTag> Tags;
-	TGetAssetRegistryTags_OutBundles = &Bundles;
-	GetAssetRegistryTags(Tags);
-	TGetAssetRegistryTags_OutBundles = nullptr;
-
-	Out.TagsAndValues = MakeSharedTagMap(MoveTemp(Tags));
-	Out.TaggedAssetBundles = MakeSharedBundles(Bundles);
+	FAssetRegistryTagsContextData& ContextData = Context.Data;
+	ContextData.bWantsBundleResult = true;
+	GetAssetRegistryTags(Context);
+	Out.TagsAndValues = MakeSharedTagMap(MoveTemp(ContextData.Tags));
+	Out.TaggedAssetBundles = MakeSharedBundles(ContextData.BundleResult);
 }
 
 const FName& UObject::SourceFileTagName()

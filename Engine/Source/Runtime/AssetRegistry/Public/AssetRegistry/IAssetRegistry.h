@@ -27,6 +27,7 @@ class FAssetRegistryState;
 class FCbFieldView;
 class FCbWriter;
 class FDependsNode;
+enum class EAssetRegistryTagsCaller : uint8;
 struct FARFilter;
 struct FARCompiledFilter;
 struct FAssetData;
@@ -165,7 +166,8 @@ class UAssetRegistry : public UInterface
  *     up-to-date. The InMemory data will sometimes vary from the DiskGatheredData.
  * 
  *     When InMemoryData is returned some categories of data that are always missing from the object in memory (e.g.
- *     GetAssetRegistryTagsExtended) are read from the DiskGatheredData and added to the InMemoryData.
+ *     GetAssetRegistryTags(EAssetRegistryTagsCaller::SavePackage)) are read from the DiskGatheredData and added to
+ *     the InMemoryData.
  * 
  *     Setting this value to true will always be faster than setting it to false, because the same registry
  *     lookups are performed in either case, but the InMemoryData lookup is skipped in the true case.
@@ -679,12 +681,17 @@ public:
 
 	/**
 	 * Called on demand from systems that need to fully update an AssetData's tags. When an Asset is loaded its tags
-	 * are updated by calling UObject::GetAssetRegistryTags, but GetAssetRegistryTagsExtended is not called, and tags
-	 * that exist in the Old AssetData but not in the results from GetAssetRegistryTags are kept because they might be
-	 * extended tags. When an asset is saved, GetAssetRegistryTagsExtended is called and all old tags are deleted in
-	 * favor of the new list. AssetFullyUpdated allows a manual trigger of the on-SavePackage behavior:
-	 * GetAssetRegistryTagsExtended is called and all old tags are deleted in favor of the new list.
+	 * are updated by calling GetAssetRegistryTags(EAssetRegistryTagsCaller::AssetRegistryLoad), but that version of
+	 * the function is allowed to skip writing expensive tags, so tags that exist in the old AssetData but not in the
+	 * results from GetAssetRegistryTags(EAssetRegistryTagsCaller::AssetRegistryLoad) are kept because they might be
+	 * skipped expensive tags. When an asset is saved, all old tags are deleted and 
+	 * GetAssetRegistryTags(EAssetRegistryTagsCaller::SavePackage) is called. AssetUpdateTags allows a manual trigger
+	 * of the on-SavePackage behavior: all old tags are deleted and
+	 * GetAssetRegistryTags(Caller) is called. Pass in EAssetRegistryTagsCaller::FullUpdate to behave the same as
+	 * SavePackage.
 	 */
+	virtual void AssetUpdateTags(UObject* Object, EAssetRegistryTagsCaller Caller) = 0;
+	UE_DEPRECATED(5.4, "Call AssetUpdateTags with EAssetRegistryTagsCaller::Fast")
 	virtual void AssetFullyUpdateTags(UObject* Object) = 0;
 
 	/** Informs the asset registry that a Verse file has been created on disk */
@@ -778,7 +785,7 @@ public:
 	virtual bool IsLoadingAssets() const = 0;
 
 	/** If true, the AssetRegistry updates its on-disk information for an Asset whenever that Asset loads. */
-	virtual bool IsUpdateDiskCacheAfterLoad() const = 0;
+	virtual bool ShouldUpdateDiskCacheAfterLoad() const = 0;
 
 	/** Tick the asset registry */
 	virtual void Tick (float DeltaTime) = 0;

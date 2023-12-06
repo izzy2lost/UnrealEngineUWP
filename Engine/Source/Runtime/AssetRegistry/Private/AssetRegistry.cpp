@@ -38,6 +38,7 @@
 #include "String/RemoveFrom.h"
 #include "Templates/UnrealTemplate.h"
 #include "TelemetryRouter.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/MetaData.h"
@@ -856,10 +857,17 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 #if !WITH_EDITOR
 	Context.bUpdateDiskCacheAfterLoad = false;
 #else
-	Context.bUpdateDiskCacheAfterLoad = true;
-	if (GConfig)
+	if (IsRunningCookCommandlet())
 	{
-		GConfig->GetBool(TEXT("AssetRegistry"), TEXT("bUpdateDiskCacheAfterLoad"), Context.bUpdateDiskCacheAfterLoad, GEngineIni);
+		Context.bUpdateDiskCacheAfterLoad = false;
+	}
+	else
+	{
+		Context.bUpdateDiskCacheAfterLoad = true;
+		if (GConfig)
+		{
+			GConfig->GetBool(TEXT("AssetRegistry"), TEXT("bUpdateDiskCacheAfterLoad"), Context.bUpdateDiskCacheAfterLoad, GEngineIni);
+		}
 	}
 #endif
 
@@ -1022,7 +1030,7 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 
 	if (bAddMetaDataTagsToOnGetExtraObjectTags)
 	{
-		UObject::FAssetRegistryTag::OnGetExtraObjectTags.AddUObject(this, &UAssetRegistryImpl::OnGetExtraObjectTags);
+		UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddUObject(this, &UAssetRegistryImpl::OnGetExtraObjectTags);
 	}
 	if (Context.bNeedsSearchAllAssetsAtStartSynchronous)
 	{
@@ -1564,7 +1572,7 @@ void UAssetRegistryImpl::FinishDestroy()
 
 		if (bAddMetaDataTagsToOnGetExtraObjectTags)
 		{
-			UObject::FAssetRegistryTag::OnGetExtraObjectTags.RemoveAll(this);
+			UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.RemoveAll(this);
 		}
 		FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
 
@@ -2351,9 +2359,11 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 	EnumerateMemoryAssetsHelper(InFilter, OutPackageNamesWithAssets, bOutStopIteration,
 		[&InFilter, &Callback, &InterfaceLock, &GuardedDataState](const UObject* Object, FAssetData&& PartialAssetData)
 		{
-			Object->GetAssetRegistryTags(PartialAssetData);
+			FAssetRegistryTagsContextData Context(Object, EAssetRegistryTagsCaller::AssetRegistryQuery);
+			Object->GetAssetRegistryTags(Context, PartialAssetData);
 			{
-				// GetAssetRegistryTags call does not add extended tags that may exist in the on-disk Asset.
+				// GetAssetRegistryTags with EAssetRegistryTagsCaller::AssetRegistryQuery does not add some tags that
+				// are too expensive to regularly compute but that exist in the on-disk Asset from SavePackage.
 				// Our contract for on-disk versus in-memory tags is that in-memory tags override on-disk tags, but we
 				// keep any on-disk tags that do not exist in the in-memory tags because they may be extended tags.
 				FReadScopeLock InterfaceScopeLock(InterfaceLock);
@@ -2427,7 +2437,8 @@ FAssetData UAssetRegistryImpl::GetAssetByObjectPath(const FSoftObjectPath& Objec
 		{
 			if (!bSkipARFilteredAssets || !UE::AssetRegistry::FFiltering::ShouldSkipAsset(Asset))
 			{
-				return FAssetData(Asset, FAssetData::ECreationFlags::None /** Do not allow blueprint classes */);
+				return FAssetData(Asset, FAssetData::ECreationFlags::None /** Do not allow blueprint classes */,
+					EAssetRegistryTagsCaller::AssetRegistryQuery);
 			}
 			else
 			{
@@ -3850,7 +3861,8 @@ void UAssetRegistryImpl::AssetCreated(UObject* NewAsset)
 		{
 			checkf(IsInGameThread(), TEXT("AssetCreated is not yet implemented as callable from other threads"));
 			// Let subscribers know that the new asset was added to the registry
-			FAssetData AssetData = FAssetData(NewAsset, FAssetData::ECreationFlags::AllowBlueprintClass);
+			FAssetData AssetData = FAssetData(NewAsset, FAssetData::ECreationFlags::AllowBlueprintClass,
+				EAssetRegistryTagsCaller::AssetRegistryQuery);
 			AssetAddedEvent.Broadcast(AssetData);
 			OnAssetsAdded().Broadcast({ AssetData });
 
@@ -3903,7 +3915,8 @@ void UAssetRegistryImpl::AssetDeleted(UObject* DeletedAsset)
 
 		if (!bShouldSkipAsset)
 		{
-			FAssetData AssetDataDeleted = FAssetData(DeletedAsset, FAssetData::ECreationFlags::AllowBlueprintClass);
+			FAssetData AssetDataDeleted = FAssetData(DeletedAsset, FAssetData::ECreationFlags::AllowBlueprintClass,
+				EAssetRegistryTagsCaller::AssetRegistryQuery);
 
 			checkf(IsInGameThread(), TEXT("AssetDeleted is not yet implemented as callable from other threads"));
 			// Let subscribers know that the asset was removed from the registry
@@ -3962,7 +3975,8 @@ void UAssetRegistryImpl::AssetRenamed(const UObject* RenamedAsset, const FString
 		{
 			checkf(IsInGameThread(), TEXT("AssetRenamed is not yet implemented as callable from other threads"));
 			AssetRenamedEvent.Broadcast(
-				FAssetData(RenamedAsset, FAssetData::ECreationFlags::AllowBlueprintClass),
+				FAssetData(RenamedAsset, FAssetData::ECreationFlags::AllowBlueprintClass,
+					EAssetRegistryTagsCaller::AssetRegistryQuery),
 				OldObjectPath
 			);
 		}
@@ -3971,7 +3985,7 @@ void UAssetRegistryImpl::AssetRenamed(const UObject* RenamedAsset, const FString
 
 void UAssetRegistryImpl::AssetSaved(const UObject& SavedAsset)
 {
-	AssetFullyUpdateTags(const_cast<UObject*>(&SavedAsset));
+	AssetUpdateTags(const_cast<UObject*>(&SavedAsset), EAssetRegistryTagsCaller::Fast);
 }
 
 void UAssetRegistryImpl::AssetsSaved(TArray<FAssetData>&& Assets)
@@ -3988,8 +4002,13 @@ void UAssetRegistryImpl::AssetsSaved(TArray<FAssetData>&& Assets)
 
 void UAssetRegistryImpl::AssetFullyUpdateTags(UObject* Object)
 {
+	AssetUpdateTags(Object, EAssetRegistryTagsCaller::Fast);
+}
+
+void UAssetRegistryImpl::AssetUpdateTags(UObject* Object, EAssetRegistryTagsCaller Caller)
+{
 #if WITH_EDITOR
-	FAssetData AssetData(Object, FAssetData::ECreationFlags::None);
+	FAssetData AssetData(Object, FAssetData::ECreationFlags::None, Caller);
 	TArray<FAssetData> Assets;
 	Assets.Add(MoveTemp(AssetData));
 
@@ -6354,7 +6373,8 @@ void UAssetRegistryImpl::ProcessLoadedAssetsToUpdateCache(UE::AssetRegistry::Imp
 				// If the object has changed and is no longer an asset, ignore it. This can happen when an Actor is modified during cooking to no longer have an external package
 				continue;
 			}
-			BatchAssetDatas.Add(FAssetData(LoadedObject, FAssetData::ECreationFlags::AllowBlueprintClass));
+			BatchAssetDatas.Add(FAssetData(LoadedObject, FAssetData::ECreationFlags::AllowBlueprintClass,
+				EAssetRegistryTagsCaller::AssetRegistryLoad));
 
 			// Check to see if we have run out of time in this tick
 			if (!bFlushFullBuffer &&
@@ -6442,12 +6462,13 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 		else
 		{
 			// When updating disk-based AssetData with the AssetData from a loaded UObject, we keep
-			// existing tags from disk even if they are no longer returned from the GetAssetRegistryTags
-			// function on the loaded UObject. We do this because they might come from GetAssetRegistryTagsExtended,
-			// which is only called during Save.
+			// existing tags from disk even if they are not returned from the
+			// GetAssetRegistryTags(EAssetRegistryTagsCaller::AssetRegistryLoad) function on the loaded UObject.
+			// We do this because the tags might be tags that are only calculated during
+			// GetAssetRegistryTags(EAssetRegistryTagsCaller::SavePackage).
 			// Modified tag values on the other hand do overwrite the old values from disk.
 			// This means that the only way to delete no-longer present tags from an AssetData
-			// is to resave the package, or to manually call AssetFullyUpdateTags from c++.
+			// is to resave the package, or to manually call AssetUpdateTags(EAssetRegistryTagsCaller::FullUpdate) from c++.
 			UpdateAssetData(EventContext, *DataFromGather, MoveTemp(NewAssetData), true /* bKeepDeletedTags */);
 		}
 	}
@@ -7010,12 +7031,12 @@ void UAssetRegistryImpl::GetInheritanceContextAfterVerifyingLock(uint64 CurrentG
 }
 
 #if WITH_EDITOR
-void UAssetRegistryImpl::OnGetExtraObjectTags(const UObject* Object, TArray<UObject::FAssetRegistryTag>& OutTags)
+void UAssetRegistryImpl::OnGetExtraObjectTags(FAssetRegistryTagsContext& Context)
 {
 	if (bAddMetaDataTagsToOnGetExtraObjectTags)
 	{
 		// It is critical that bIncludeOnlyOnDiskAssets=true otherwise this will cause an infinite loop
-		const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath(Object), /*bIncludeOnlyOnDiskAssets=*/true);
+		const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath(Context.GetObject()), /*bIncludeOnlyOnDiskAssets=*/true);
 		// Adding metadata tags from disk is only necessary for cooked assets; uncooked assets still have the metadata and add them elsewhere
 		// in UObject::GetAssetRegistryTags. Adding the tags from disk into uncooked assets would make the tags impossible to remove when
 		// the uncooked assets are resaved.
@@ -7025,12 +7046,12 @@ void UAssetRegistryImpl::OnGetExtraObjectTags(const UObject* Object, TArray<UObj
 			for (const FName MetaDataTag : MetaDataTags)
 			{
 				auto OutTagsContainsTagPredicate = [MetaDataTag](const UObject::FAssetRegistryTag& Tag) { return Tag.Name == MetaDataTag; };
-				if (!OutTags.ContainsByPredicate(OutTagsContainsTagPredicate))
+				if (!Context.ContainsTag(MetaDataTag))
 				{
 					FAssetTagValueRef TagValue = AssetData.TagsAndValues.FindTag(MetaDataTag);
 					if (TagValue.IsSet())
 					{
-						OutTags.Add(UObject::FAssetRegistryTag(MetaDataTag, TagValue.AsString(), UObject::FAssetRegistryTag::TT_Alphabetical));
+						Context.AddTag(UObject::FAssetRegistryTag(MetaDataTag, TagValue.AsString(), UObject::FAssetRegistryTag::TT_Alphabetical));
 					}
 				}
 			}

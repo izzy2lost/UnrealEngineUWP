@@ -30,7 +30,7 @@ bool UPackage::SavePackage(UPackage* InOuter, UObject* Base, EObjectFlags TopLev
 	if (TargetPlatform != nullptr)
 	{
 		CookContext.Emplace(InOuter, UE::Cook::ECookType::Unknown,
-			UE::Cook::ECookingDLC::Unknown);
+			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
 		CookData.Emplace(*TargetPlatform, *CookContext);
 	}
 	FSavePackageArgs SaveArgs = { nullptr /* deprecated target platform */, CookData.GetPtrOrNull(), TopLevelFlags, SaveFlags, bForceByteSwapping,

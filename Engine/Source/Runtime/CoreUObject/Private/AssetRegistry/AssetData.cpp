@@ -16,6 +16,7 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/CustomVersion.h"
 #include "String/Find.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/PropertyPortFlags.h"
 
@@ -331,6 +332,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FAssetData::FAssetData(const UObject* InAsset, FAssetData::ECreationFlags InCreationFlags)
+	: FAssetData(InAsset, InCreationFlags, EAssetRegistryTagsCaller::Uncategorized)
+{
+}
+
+FAssetData::FAssetData(const UObject* InAsset, FAssetData::ECreationFlags InCreationFlags, EAssetRegistryTagsCaller Caller)
 {
 	if (InAsset != nullptr)
 	{
@@ -362,7 +368,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (!EnumHasAnyFlags(InCreationFlags, FAssetData::ECreationFlags::SkipAssetRegistryTagsGathering))
 		{
-			InAsset->GetAssetRegistryTags(*this);
+			FAssetRegistryTagsContextData Context(InAsset, Caller);
+			InAsset->GetAssetRegistryTags(Context, *this);
 		}
 
 		PackageFlags = Package->GetPackageFlags();

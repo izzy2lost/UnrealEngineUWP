@@ -141,8 +141,11 @@ public:
 	virtual void AssetCreated(UObject* NewAsset) override;
 	virtual void AssetDeleted(UObject* DeletedAsset) override;
 	virtual void AssetRenamed(const UObject* RenamedAsset, const FString& OldObjectPath) override;
+	UE_DEPRECATED(5.2, "Use the new AssetsSaved function that takes FAssetData.")
 	virtual void AssetSaved(const UObject& SavedAsset) override;
 	virtual void AssetsSaved(TArray<FAssetData>&& SavedAssets) override;
+	virtual void AssetUpdateTags(UObject* Object, EAssetRegistryTagsCaller Caller) override;
+	UE_DEPRECATED(5.4, "Call AssetUpdateTags with EAssetRegistryTagsCaller::Fast")
 	virtual void AssetFullyUpdateTags(UObject* Object) override;
 	virtual void AssetTagsFinalized(const UObject& FinalizedAsset) override;
 
@@ -190,7 +193,7 @@ public:
 	virtual FFileLoadProgressUpdatedEvent& OnFileLoadProgressUpdated() override;
 
 	virtual bool IsLoadingAssets() const override;
-	virtual bool IsUpdateDiskCacheAfterLoad() const override
+	virtual bool ShouldUpdateDiskCacheAfterLoad() const override
 	{
 #if WITH_EDITORONLY_DATA
 		return bUpdateDiskCacheAfterLoad;
@@ -289,7 +292,7 @@ private:
 	 * Callback for FObject::FAssetRegistryTag::OnGetExtraObjectTags
 	 * If bAddMetaDataTagsToOnGetExtraObjectTags is true, this function will add missing UMetaData tags to cooked assets
 	 */
-	void OnGetExtraObjectTags(const UObject* Object, TArray<UObject::FAssetRegistryTag>& OutTags);
+	void OnGetExtraObjectTags(FAssetRegistryTagsContext& Context);
 #endif
 
 private:

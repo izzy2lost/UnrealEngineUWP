@@ -5,6 +5,7 @@
 #include "Algo/Sort.h"
 #include "Algo/Unique.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/CookTagList.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "CoreMinimal.h"
 #include "HAL/FileManager.h"
@@ -25,6 +26,8 @@
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/PackageWriter.h"
 #include "Tasks/Task.h"
+#include "UObject/ArchiveCookContext.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
 #include "UObject/GCScopeLock.h"
 #include "UObject/Linker.h"
@@ -2150,13 +2153,46 @@ bool UPackage::IsEmptyPackage(UPackage* Package, const UObject* LastReferencer)
 namespace UE::AssetRegistry
 {
 
-// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
 void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, const UPackage* Package,
-		FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
+	FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
 	const ITargetPlatform* TargetPlatform, TArray<FAssetData>* OutAssetDatas)
 {
+	if (TargetPlatform)
+	{
+		FArchiveCookContext CookContext(const_cast<UPackage*>(Package), UE::Cook::ECookType::Unknown,
+			UE::Cook::ECookingDLC::Unknown, TargetPlatform);
+		WritePackageData(ParentRecord, &CookContext, Package, Linker, ImportsUsedInGame, SoftPackagesUsedInGame,
+			OutAssetDatas, true /* bProceduralSave */);
+	}
+	else
+	{
+		WritePackageData(ParentRecord, nullptr, Package, Linker, ImportsUsedInGame, SoftPackagesUsedInGame,
+			OutAssetDatas, false/* bProceduralSave */);
+	}
+}
+
+// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
+void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContext* CookContext, const UPackage* Package,
+	FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
+	TArray<FAssetData>* OutAssetDatas, bool bProceduralSave)
+{
+	bProceduralSave = bProceduralSave | (CookContext != nullptr);
+	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
+
 	// To avoid large patch sizes, we have frozen cooked package format at the format before VER_UE4_ASSETREGISTRY_DEPENDENCYFLAGS
-	bool bPreDependencyFormat = bIsCooking;
+	// Non-cooked saves do a full update. Orthogonally, they also store the assets in the package in addition to the output variable.
+	// Cooked saves do an additive update and do not store the assets in the package.
+	bool bPreDependencyFormat = false;
+	bool bWriteAssetsToPackage = true;
+	// Editor saves do a full update, but procedural saves (including cook) do not
+	bool bFullUpdate = !bProceduralSave;
+	FCookTagList* CookTagList = nullptr;
+	if (CookContext)
+	{
+		bPreDependencyFormat = true;
+		bWriteAssetsToPackage = false;
+		CookTagList = CookContext->GetCookTagList();
+	}	
 
 	// WritePackageData is currently only called if not bTextFormat; we rely on that to save offsets
 	FArchive& BinaryArchive = ParentRecord.GetUnderlyingArchive();
@@ -2177,26 +2213,32 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, c
 		check(BinaryArchive.Tell() == OffsetToAssetRegistryDependencyDataOffset + sizeof(AssetRegistryDependencyDataOffset));
 	}
 
-	// Collect the tag map
 	TArray<UObject*> AssetObjects;
-	if (!(Linker->Summary.GetPackageFlags() & PKG_FilterEditorOnly))
+	for (int32 i = 0; i < Linker->ExportMap.Num(); i++)
 	{
-		// Find any exports which are not in the tag map
-		for (int32 i = 0; i < Linker->ExportMap.Num(); i++)
+		FObjectExport& Export = Linker->ExportMap[i];
+		if (Export.Object && Export.Object->IsAsset())
 		{
-			FObjectExport& Export = Linker->ExportMap[i];
-			if (Export.Object && Export.Object->IsAsset())
+#if WITH_EDITOR
+			if (CookContext)
 			{
-				AssetObjects.Add(Export.Object);
+				TArray<UObject*> AdditionalObjects;
+				Export.Object->GetAdditionalAssetDataObjectsForCook(*CookContext, AdditionalObjects);
+				for (UObject* Object : AdditionalObjects)
+				{
+					if (Object->IsAsset())
+					{
+						AssetObjects.Add(Object);
+					}
+				}
 			}
+#endif
+			AssetObjects.Add(Export.Object);
 		}
 	}
-	int32 ObjectCount = AssetObjects.Num();
-	FStructuredArchive::FArray AssetArray = AssetRegistryRecord.EnterArray(TEXT("TagMap"), ObjectCount);
-	if (OutAssetDatas)
-	{
-		OutAssetDatas->Reset();
-	}
+
+	int32 ObjectCountInPackage = bWriteAssetsToPackage ? AssetObjects.Num() : 0;
+	FStructuredArchive::FArray AssetArray = AssetRegistryRecord.EnterArray(TEXT("TagMap"), ObjectCountInPackage);
 	FString PackageName = Package->GetName();
 
 	for (int32 ObjectIdx = 0; ObjectIdx < AssetObjects.Num(); ++ObjectIdx)
@@ -2207,46 +2249,75 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, c
 		FString ObjectPath = Object->GetPathName(Package);
 		FString ObjectClassName = Object->GetClass()->GetPathName();
 
-		TArray<UObject::FAssetRegistryTag> SourceTags;
-		Object->GetAssetRegistryTags(SourceTags);
-#if WITH_EDITOR
-		Object->GetExtendedAssetRegistryTagsForSave(TargetPlatform, SourceTags);
-#endif // WITH_EDITOR
-
-		TArray<UObject::FAssetRegistryTag> Tags;
-		for (UObject::FAssetRegistryTag& SourceTag : SourceTags)
+		FAssetRegistryTagsContextData TagsContextData(Object, EAssetRegistryTagsCaller::SavePackage);
+		TagsContextData.bProceduralSave = bProceduralSave;
+		TagsContextData.TargetPlatform = nullptr;
+		if (CookContext)
 		{
-			UObject::FAssetRegistryTag* Existing = Tags.FindByPredicate([SourceTag](const UObject::FAssetRegistryTag& InTag) { return InTag.Name == SourceTag.Name; });
-			if (Existing)
+			TagsContextData.TargetPlatform = CookContext->GetTargetPlatform();
+			TagsContextData.CookType = CookContext->GetCookType();
+			TagsContextData.CookingDLC = CookContext->GetCookingDLC();
+			TagsContextData.bWantsCookTags = TagsContextData.CookType == UE::Cook::ECookType::ByTheBook;
+		}
+		TagsContextData.bFullUpdateRequested = bFullUpdate;
+		FAssetRegistryTagsContext TagsContext(TagsContextData);
+
+		if (AssetRegistry && !TagsContextData.bFullUpdateRequested)
+		{
+			FAssetData ExistingAssetData;
+			if (AssetRegistry->TryGetAssetByObjectPath(FSoftObjectPath(Object), ExistingAssetData)
+				== UE::AssetRegistry::EExists::Exists)
 			{
-				Existing->Value = SourceTag.Value;
-			}
-			else
-			{
-				Tags.Add(SourceTag);
+				TagsContextData.Tags.Reserve(ExistingAssetData.TagsAndValues.Num());
+				ExistingAssetData.TagsAndValues.ForEach(
+					[&TagsContextData](const TPair<FName, FAssetTagValueRef>& Pair)
+					{
+						TagsContextData.Tags.Add(Pair.Key, UObject::FAssetRegistryTag(Pair.Key, Pair.Value.GetStorageString(),
+							UObject::FAssetRegistryTag::TT_Alphabetical));
+					});
 			}
 		}
-
-		int32 TagCount = Tags.Num();
-
-		FStructuredArchive::FRecord AssetRecord = AssetArray.EnterElement().EnterRecord();
-		AssetRecord << SA_VALUE(TEXT("Path"), ObjectPath) << SA_VALUE(TEXT("Class"), ObjectClassName);
-
-		FStructuredArchive::FMap TagMap = AssetRecord.EnterField(TEXT("Tags")).EnterMap(TagCount);
-
-		for (TArray<UObject::FAssetRegistryTag>::TConstIterator TagIter(Tags); TagIter; ++TagIter)
+		if (CookTagList)
 		{
-			FString Key = TagIter->Name.ToString();
-			FString Value = TagIter->Value;
+			TArray<FCookTagList::FTagNameValuePair>* CookTags = CookTagList->ObjectToTags.Find(Object);
+			if (CookTags)
+			{
+				for (FCookTagList::FTagNameValuePair& Pair : *CookTags)
+				{
+					TagsContext.AddCookTag(UObject::FAssetRegistryTag(Pair.Key, Pair.Value,
+						UObject::FAssetRegistryTag::TT_Alphabetical));
+				}
+			}
+		}
+		
+		Object->GetAssetRegistryTags(TagsContext);
 
-			TagMap.EnterElement(Key) << Value;
+		int32 TagCount = TagsContextData.Tags.Num();
+		TagsContextData.Tags.KeySort(FNameLexicalLess());
+
+		if (bWriteAssetsToPackage)
+		{
+			FStructuredArchive::FRecord AssetRecord = AssetArray.EnterElement().EnterRecord();
+			AssetRecord << SA_VALUE(TEXT("Path"), ObjectPath) << SA_VALUE(TEXT("Class"), ObjectClassName);
+
+			FStructuredArchive::FMap TagMap = AssetRecord.EnterField(TEXT("Tags")).EnterMap(TagCount);
+
+			for (const TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContextData.Tags)
+			{
+				const UObject::FAssetRegistryTag& Tag = TagPair.Value;
+				FString Key = Tag.Name.ToString();
+				FString Value = Tag.Value;
+
+				TagMap.EnterElement(Key) << Value;
+			}
 		}
 
 		if (OutAssetDatas)
 		{
 			FAssetDataTagMap TagsAndValues;
-			for (UObject::FAssetRegistryTag& Tag : Tags)
+			for (TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContextData.Tags)
 			{
+				UObject::FAssetRegistryTag& Tag = TagPair.Value;
 				if (!Tag.Name.IsNone() && !Tag.Value.IsEmpty())
 				{
 					TagsAndValues.Add(Tag.Name, MoveTemp(Tag.Value));

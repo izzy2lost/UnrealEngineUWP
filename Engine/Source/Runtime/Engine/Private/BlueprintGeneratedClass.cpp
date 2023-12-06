@@ -602,6 +602,17 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 }
 
 #if WITH_EDITOR
+void UBlueprintGeneratedClass::GetAdditionalAssetDataObjectsForCook(FArchiveCookContext& CookContext,
+	TArray<UObject*>& OutObjects) const
+{
+	Super::GetAdditionalAssetDataObjectsForCook(CookContext, OutObjects);
+	UBlueprint* Blueprint = Cast<UBlueprint>(ClassGeneratedBy);
+	if (Blueprint && Blueprint->GetPackage() == GetPackage())
+	{
+		OutObjects.Add(Blueprint);
+	}
+}
+
 void UBlueprintGeneratedClass::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
 {
 	Super::PostLoadAssetRegistryTags(InAssetData, OutTagsAndValuesToUpdate);

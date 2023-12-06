@@ -10,6 +10,7 @@
 #include "Misc/HierarchicalLogArchive.h"
 #include "Misc/Paths.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeLevelStreamingCell)
 
@@ -330,7 +331,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratorPackageForCook(T
 
 		// Make sure Asset Registry tags are updated here synchronously now that Package contains all its actors
 		// ex: AFunctionalTest actors need to be part of the Worlds asset tags once they are not longer external so they can be discovered at runtime
-		IAssetRegistry::Get()->AssetFullyUpdateTags(OuterWorld);
+		IAssetRegistry::Get()->AssetUpdateTags(OuterWorld, EAssetRegistryTagsCaller::Fast);
 
 		// Empty cell's package list (this ensures that no one can rely on cell's content).
 		Packages.Empty();

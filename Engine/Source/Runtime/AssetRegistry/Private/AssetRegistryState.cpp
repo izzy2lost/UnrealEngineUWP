@@ -23,6 +23,7 @@
 #include "Serialization/ArrayReader.h"
 #include "Serialization/LargeMemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/MetaData.h"
 #include "UObject/NameBatchSerialization.h"
 #include "UObject/PrimaryAssetId.h"
@@ -159,22 +160,35 @@ void FAssetRegistryState::FilterTags(const FAssetDataTagMapSharedView& InTagsAnd
 {
 	const TSet<FName>* AllClassesFilterList = Options.CookFilterlistTagsByClass.Find(UE::AssetRegistry::WildcardPathName);
 
+	TStringBuilder<64> TagNameStr;
+
 	// Exclude denied tags or include only allowed tags, based on how we were configured in ini
 	for (const auto& TagPair : InTagsAndValues)
 	{
 		bool bKeep = false;
 
-		const bool bInAllClassesList = AllClassesFilterList && (AllClassesFilterList->Contains(TagPair.Key) || AllClassesFilterList->Contains(UE::AssetRegistry::WildcardFName));
-		const bool bInClassSpecificList = ClassSpecificFilterList && (ClassSpecificFilterList->Contains(TagPair.Key) || ClassSpecificFilterList->Contains(UE::AssetRegistry::WildcardFName));
-		if (Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList)
+		// Cook_ tags, aka DevelopmentAssetRegistryTags are special; they are kept depending on whether the Options
+		// are development or runtime and they do not use the options' filter list.
+		TagNameStr.Reset();
+		TagNameStr << TagPair.Key;
+		if (FStringView(TagNameStr).StartsWith(UE::AssetRegistry::CookTagPrefix, ESearchCase::IgnoreCase))
 		{
-			// It's an allow list, only include it if it is in the all classes list or in the class specific list
-			bKeep = bInAllClassesList || bInClassSpecificList;
+			bKeep = Options.bKeepDevelopmentAssetRegistryTags;
 		}
 		else
 		{
-			// It's a deny list, include it unless it is in the all classes list or in the class specific list
-			bKeep = !bInAllClassesList && !bInClassSpecificList;
+			const bool bInAllClassesList = AllClassesFilterList && (AllClassesFilterList->Contains(TagPair.Key) || AllClassesFilterList->Contains(UE::AssetRegistry::WildcardFName));
+			const bool bInClassSpecificList = ClassSpecificFilterList && (ClassSpecificFilterList->Contains(TagPair.Key) || ClassSpecificFilterList->Contains(UE::AssetRegistry::WildcardFName));
+			if (Options.bUseAssetRegistryTagsAllowListInsteadOfDenyList)
+			{
+			// It's an allow list, only include it if it is in the all classes list or in the class specific list
+				bKeep = bInAllClassesList || bInClassSpecificList;
+			}
+			else
+			{
+				// It's a deny list, include it unless it is in the all classes list or in the class specific list
+				bKeep = !bInAllClassesList && !bInClassSpecificList;
+			}
 		}
 		if (bKeep)
 		{
@@ -2571,6 +2585,30 @@ namespace AssetRegistry
 }
 }
 
+bool PrintAssetDataMapKeyIsLess(FName A, FName B)
+{
+	return A.Compare(B) < 0;
+}
+
+bool PrintAssetDataMapKeyIsLess(const FString& A, const FString& B)
+{
+	return A.Compare(B, ESearchCase::IgnoreCase) < 0;
+}
+
+bool PrintAssetDataMapKeyIsLess(const FTopLevelAssetPath& A, const FTopLevelAssetPath& B)
+{
+	return A.Compare(B) < 0;
+}
+
+template <typename KeyType>
+struct FPrintAssetDataMapKeyIsLess
+{
+	bool operator()(const KeyType& A, const KeyType& B) const
+	{
+		return PrintAssetDataMapKeyIsLess(A, B);
+	}
+};
+
 template <typename MapType>
 static void PrintAssetDataMap(FString Name, const MapType& AssetMap, TStringBuilder<16>& PageBuffer, const TFunctionRef<void()>& AddLine,
 	TUniqueFunction<void(const typename MapType::KeyType& Key, const FAssetData& Data)>&& PrintValue = {})
@@ -2581,14 +2619,7 @@ static void PrintAssetDataMap(FString Name, const MapType& AssetMap, TStringBuil
 	TArray<typename MapType::KeyType> Keys;
 	AssetMap.GenerateKeyArray(Keys);
 
-	struct FKeyTypeCompare
-	{
-		FORCEINLINE bool operator()(const typename MapType::KeyType& A, const typename MapType::KeyType& B) const
-		{
-			return A.Compare(B) < 0;
-		}
-	};
-	Keys.Sort(FKeyTypeCompare());
+	Keys.Sort(FPrintAssetDataMapKeyIsLess<typename MapType::KeyType>());
 
 	TArray<FAssetData*> Items;
 	Items.Reserve(1024);
@@ -2754,7 +2785,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 			Keys.Emplace(FCachedAssetKey(*AssetData));
 		}
 		Keys.Sort([](const FCachedAssetKey& A, const FCachedAssetKey& B) {
-			return WriteToString<1024>(A).ToView().Compare(WriteToString<1024>(B).ToView()) < 0;
+			return WriteToString<1024>(A).ToView().Compare(WriteToString<1024>(B).ToView(), ESearchCase::IgnoreCase) < 0;
 		});
 
 		for (const FCachedAssetKey& Key : Keys)

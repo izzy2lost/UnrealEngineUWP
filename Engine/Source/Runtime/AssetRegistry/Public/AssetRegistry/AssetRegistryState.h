@@ -76,6 +76,12 @@ struct FAssetRegistrySerializationOptions
 	/** Filter out searchable names from dependency data */
 	bool bFilterSearchableNames = false;
 
+	/**
+	 * Keep tags intended for the cooker's output DevelopmentAssetRegistry. this flag defaults to false and is set to
+	 * true only by the cooker.
+	 */
+	bool bKeepDevelopmentAssetRegistryTags = false;
+
 	/** The map of class pathname to tag set of tags that are allowed in cooked builds. This is either an allow list or deny list depending on bUseAssetRegistryTagsAllowListInsteadOfDenyList */
 	TMap<FTopLevelAssetPath, TSet<FName>> CookFilterlistTagsByClass;
 

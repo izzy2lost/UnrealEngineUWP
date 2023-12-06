@@ -1895,9 +1895,11 @@ ESavePackageResult WritePackageHeader(FStructuredArchive::FRecord& StructuredArc
 	{
 		// Save asset registry data so the editor can search for information about assets in this package
 		SCOPED_SAVETIMER(UPackage_Save_SaveAssetRegistryData);
-		UE::AssetRegistry::WritePackageData(StructuredArchiveRoot, SaveContext.IsCooking(), SaveContext.GetPackage(),
+		FArchiveCookData* CookData = SaveContext.GetCookData();
+		FArchiveCookContext* CookContext = CookData ? &CookData->CookContext : nullptr;
+		UE::AssetRegistry::WritePackageData(StructuredArchiveRoot, CookContext, SaveContext.GetPackage(),
 			Linker, SaveContext.GetImportsUsedInGame(), SaveContext.GetSoftPackagesUsedInGame(),
-			SaveContext.GetTargetPlatform(), &SaveContext.GetSavedAssets());
+			&SaveContext.GetSavedAssets(), SaveContext.IsProceduralSave());
 	}
 	// Save level information used by World browser
 	{

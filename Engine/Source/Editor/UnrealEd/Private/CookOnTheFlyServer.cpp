@@ -6035,7 +6035,8 @@ void FSaveCookedPackageContext::SetupPlatform(const ITargetPlatform* InTargetPla
 
 	ArchiveCookContext.Emplace(Package,
 		COTFS.IsDirectorCookByTheBook() ? UE::Cook::ECookType::ByTheBook : UE::Cook::ECookType::OnTheFly,
-		COTFS.IsCookingDLC() ? UE::Cook::ECookingDLC::Yes : UE::Cook::ECookingDLC::No);
+		COTFS.IsCookingDLC() ? UE::Cook::ECookingDLC::Yes : UE::Cook::ECookingDLC::No,
+		TargetPlatform);
 
 	// don't save Editor resources from the Engine if the target doesn't have editoronly data
 	if (COTFS.IsCookFlagSet(ECookInitializationFlags::SkipEditorContent) &&
@@ -6195,23 +6196,16 @@ void FSaveCookedPackageContext::FinishPlatform()
 	// Update asset registry
 	if (COTFS.IsDirectorCookByTheBook())
 	{
-		// Flush the AssetRegisty so any AssetData changes from the save are present
-		COTFS.AssetRegistry->WaitForCompletion();
 		IAssetRegistryReporter& Reporter = *(COTFS.PlatformManager->GetPlatformData(TargetPlatform)->RegistryReporter);
 
-		// UpdateAssetRegistryData will pull data from the global asset registry
-		// For most types, our contract is that we use the data in the asset registry that was updated on load and is in
-		// the disk asset storage of the global asset registry. Most types do not take significant action during cooking
-		// so we do not need to allow them to update their tags after they finish loading.
-		bool bIncludeOnlyDiskAssets = true;
+		// Calculate up-to-date dependencies for Generator and Generated packages
+		// For generated packages, additionally calculate FAssetPackageData; that struct is calculated
+		// during user saves for non-generated packages.
 		TOptional<TArray<FAssetDependency>> OverridePackageDependencies;
 		TOptional<FAssetPackageData> OverrideAssetPackageData;
 		FGeneratorPackage* GeneratorPackage;
 		if (GeneratorPackage = PackageData.GetGeneratorPackage(); GeneratorPackage)
 		{
-			// Generator packages do a lot of work during generation and may need to update their tags, so read the
-			// latest tags off of their asset by setting bIncludeOnlyDiskAssets=true.
-			bIncludeOnlyDiskAssets = false;
 			OverridePackageDependencies.Emplace();
 
 			// Set override dependencies equal to the global AssetRegistry dependencies plus a dependency on
@@ -6242,8 +6236,6 @@ void FSaveCookedPackageContext::FinishPlatform()
 			}
 			else
 			{
-				// Generated packages do not exist on disk, so read their assetdata from the in-memory package
-				bIncludeOnlyDiskAssets = false;
 				// There should be no package dependencies present for the package from the global assetregistry
 				// because it is newly created. Add on the dependencies declared for it from the CookPackageSplitter.
 				OverridePackageDependencies.Emplace(GeneratedInfo->PackageDependencies);
@@ -6276,9 +6268,13 @@ void FSaveCookedPackageContext::FinishPlatform()
 				OverrideAssetPackageData->ImportedClasses = ImportedClasses;
 			}
 		}
+		TOptional<TArray<FAssetData>> AssetDatasFromSave;
+		if (SavePackageResult.IsSuccessful())
+		{
+			AssetDatasFromSave.Emplace(MoveTemp(SavePackageResult.SavedAssets));
+		}
 		Reporter.UpdateAssetRegistryData(Package->GetFName(), Package, CookResult, &SavePackageResult,
-			MoveTemp(*ArchiveCookContext->GetCookTagList()), bIncludeOnlyDiskAssets,
-			MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies));
+			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies));
 	}
 
 	if (bSuccessful && COTFS.bSkipOnlyEditorOnly)
@@ -6473,9 +6469,8 @@ void UCookOnTheFlyServer::RecordExternalActorDependencies(TConstArrayView<FName>
 
 				DependencyData->SetPlatformCooked(TargetPlatform, ECookResult::NeverCookPlaceholder);
 				Reporter.UpdateAssetRegistryData(DependencyName, nullptr /* Package */,
-					ECookResult::NeverCookPlaceholder, nullptr /* SavePackageResult */, FCookTagList(nullptr),
-					true /* bIncludeOnlyDiskAssets */, TOptional<FAssetPackageData>(),
-					TOptional<TArray<FAssetDependency>>());
+					ECookResult::NeverCookPlaceholder, nullptr /* SavePackageResult */,
+					TOptional<TArray<FAssetData>>(), TOptional<FAssetPackageData>(), TOptional<TArray<FAssetDependency>>());
 			}
 		}
 	}

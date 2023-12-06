@@ -22,6 +22,7 @@
 #include "Sound/SoundCue.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Editor.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "FileHelpers.h"
 #include "Misc/MessageDialog.h"
@@ -202,7 +203,7 @@ FAssetSearchManager::~FAssetSearchManager()
 
 	UPackage::PackageSavedWithContextEvent.RemoveAll(this);
 	FCoreUObjectDelegates::OnAssetLoaded.RemoveAll(this);
-	UObject::FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave.RemoveAll(this);
+	UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.RemoveAll(this);
 
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 }
@@ -241,7 +242,7 @@ void FAssetSearchManager::Start()
 
 	if (IntermediateStorage == ESearchIntermediateStorage::AssetTagData)
 	{
-		UObject::FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave.AddRaw(this, &FAssetSearchManager::HandleGetExtendedAssetRegistryTagsForSave);
+		UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddRaw(this, &FAssetSearchManager::HandleOnGetExtraObjectTags);
 	}
 }
 
@@ -485,8 +486,15 @@ uint64 FAssetSearchManager::GetTextHash(FStringView PackageRelativeExportPath) c
 	return CityHash64(reinterpret_cast<const char*>(PackageRelativeExportPath.GetData() + 1), (PackageRelativeExportPath.Len() - 1) * sizeof(TCHAR));
 }
 
-void FAssetSearchManager::HandleGetExtendedAssetRegistryTagsForSave(const UObject* Object, const ITargetPlatform* TargetPlatform, TArray<UObject::FAssetRegistryTag>& OutTags)
+void FAssetSearchManager::HandleOnGetExtraObjectTags(FAssetRegistryTagsContext& Context)
 {
+	if (!Context.IsFullUpdate())
+	{
+		return;
+	}
+
+	const UObject* Object = Context.GetObject();
+	const ITargetPlatform* TargetPlatform = Context.GetTargetPlatform();
 	if (GIsEditor && !Object->GetOutermost()->HasAnyPackageFlags(PKG_ForDiffing) && !IsRunningCookCommandlet())
 	{
 		if (!GEditor->IsAutosaving())
@@ -502,9 +510,9 @@ void FAssetSearchManager::HandleGetExtendedAssetRegistryTagsForSave(const UObjec
 					const FString IndexVersion = GetBaseIndexKey(Object->GetClass());
 					const FString IndexHash = LexToString(GetTextHash(IndexedJson));
 
-					OutTags.Add(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexVersionTag, IndexVersion, UObject::FAssetRegistryTag::TT_Hidden));
-					OutTags.Add(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexHashTag, IndexHash, UObject::FAssetRegistryTag::TT_Hidden));
-					OutTags.Add(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexDataTag, IndexedJson, UObject::FAssetRegistryTag::TT_Hidden));
+					Context.AddTag(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexVersionTag, IndexVersion, UObject::FAssetRegistryTag::TT_Hidden));
+					Context.AddTag(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexHashTag, IndexHash, UObject::FAssetRegistryTag::TT_Hidden));
+					Context.AddTag(UObject::FAssetRegistryTag(FAssetSearchManager::AssetSearchIndexDataTag, IndexedJson, UObject::FAssetRegistryTag::TT_Hidden));
 
 					if (!IndexedJson.IsEmpty())
 					{

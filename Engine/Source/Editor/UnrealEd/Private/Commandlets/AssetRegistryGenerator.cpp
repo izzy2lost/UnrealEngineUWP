@@ -6,7 +6,6 @@
 #include "Algo/StableSort.h"
 #include "Algo/Unique.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetRegistry/CookTagList.h"
 #include "CollectionManagerModule.h"
 #include "CollectionManagerTypes.h"
 #include "Cooker/CookPackageData.h"
@@ -259,9 +258,10 @@ int64 FAssetRegistryGenerator::GetMaxChunkSizePerPlatform(const ITargetPlatform*
 TArray<int32> FAssetRegistryGenerator::GetExistingPackageChunkAssignments(FName PackageFName)
 {
 	TArray<int32> ExistingChunkIDs;
+	int32 PackageFNameHash = GetTypeHash(PackageFName);
 	for (uint32 ChunkIndex = 0, MaxChunk = ChunkManifests.Num(); ChunkIndex < MaxChunk; ++ChunkIndex)
 	{
-		if (ChunkManifests[ChunkIndex] && ChunkManifests[ChunkIndex]->Contains(PackageFName))
+		if (ChunkManifests[ChunkIndex] && ChunkManifests[ChunkIndex]->ContainsByHash(PackageFNameHash, PackageFName))
 		{
 			ExistingChunkIDs.AddUnique(ChunkIndex);
 		}
@@ -1045,45 +1045,6 @@ void FAssetRegistryGenerator::UpdateKeptPackages()
 	PreviousPackagesToUpdate.Empty();
 }
 
-static void AppendCookTagsToTagMap(TArray<TPair<FName, FString>>&& InTags, FAssetDataTagMap& OutTags)
-{
-	for (TPair<FName, FString>& Tag : InTags)
-	{
-		// Don't add empty tags
-		if (!Tag.Key.IsNone() && !Tag.Value.IsEmpty())
-		{
-			// Prepend Cook_
-			// Do the accumulation in a stack buffer to avoid a bit of work, but we still
-			// eat the FName generation.
-			FName TagName(WriteToString<256>(TEXTVIEW("Cook_"), Tag.Key));
-			OutTags.Add(TagName, MoveTemp(Tag.Value));
-		}
-	}
-}
-
-static void AddCookTagsToState(TMap<FSoftObjectPath, TArray<TPair<FName, FString>>>&& InCookTags, FAssetRegistryState& InState)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(AddCookTagToState)
-
-	uint32 ObjectCount = 0;
-	uint32 TagCount = 0;
-
-	for (TPair<FSoftObjectPath, TArray<TPair<FName, FString>>>& ObjectToTags : InCookTags)
-	{
-		ObjectCount++;
-		const FAssetData* AssetData = InState.GetAssetByObjectPath(FSoftObjectPath(WriteToString<256>(ObjectToTags.Key)));
-
-		// Migrate to FAssetDataTagMap
-		FAssetDataTagMap NewTags;
-		AppendCookTagsToTagMap(MoveTemp(ObjectToTags.Value), NewTags);
-		TagCount += NewTags.Num();
-		InState.AddTagsToAssetData(ObjectToTags.Key, MoveTemp(NewTags));
-	} // end for each object
-
-	UE_LOG(LogAssetRegistryGenerator, Verbose, TEXT("Added %d cook tags to %d objects"), TagCount, ObjectCount);
-	InCookTags.Reset();
-}
-
 void FAssetRegistryGenerator::UpdateCollectionAssetData()
 {
 	// Read out the per-platform settings use to build the list of collections to tag
@@ -1704,6 +1665,7 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 	// Write development first, this will always write
 	FAssetRegistrySerializationOptions DevelopmentSaveOptions;
 	AssetRegistry.InitializeSerializationOptions(DevelopmentSaveOptions, TargetPlatform->IniPlatformName(), UE::AssetRegistry::ESerializationTarget::ForDevelopment);
+	DevelopmentSaveOptions.bKeepDevelopmentAssetRegistryTags = true;
 
 	// Write runtime registry, this can be excluded per game/platform
 	FAssetRegistrySerializationOptions SaveOptions;
@@ -1725,13 +1687,10 @@ bool FAssetRegistryGenerator::SaveAssetRegistry(const FString& SandboxPath, bool
 
 		if (bSerializeDevelopmentAssetRegistry)
 		{
-			// Make a copy of the state so we can add tags to only the development registry.
+			// Make a copy of the state so it can be filtered independently
 			FAssetRegistryState DevelopmentState;
 			DevelopmentState.InitializeFromExisting(State, DevelopmentSaveOptions);
-
-			DevelopmentState.FilterTags(DevelopmentSaveOptions);
-
-			AddCookTagsToState(MoveTemp(CookTagsToAdd), DevelopmentState);
+			// No need to call FilterTags; it is called by InitializeFromExisting
 
 			// Create development registry data, used for DLC cooks, iterative cooks, and editor viewing
 			FArrayWriter SerializedAssetRegistry;
@@ -2589,36 +2548,9 @@ void FAssetRegistryGenerator::GetChunkAssignments(TArray<TSet<FName>>& OutAssign
 	}
 }
 
-FAssetRegistryGenerator::FCreateOrFindArray FAssetRegistryGenerator::CreateOrFindAssetDatas(const UPackage& Package)
-{
-	FCreateOrFindArray OutputAssets;
-
-	ForEachObjectWithOuter(&Package, [&OutputAssets, this](UObject* const Object)
-	{
-		if (Object->IsAsset())
-		{
-			OutputAssets.Add(CreateOrFindAssetData(*Object));
-		}
-	}, /*bIncludeNestedObjects*/ false);
-
-	return OutputAssets;
-}
-
-const FAssetData* FAssetRegistryGenerator::CreateOrFindAssetData(UObject& Object)
-{
-	const FAssetData* const AssetData = State.GetAssetByObjectPath(FSoftObjectPath(&Object));
-	if (!AssetData)
-	{
-		FAssetData* const NewAssetData = new FAssetData(&Object, true /* bAllowBlueprintClass */);
-		State.AddAssetData(NewAssetData);
-		return NewAssetData;
-	}
-	return AssetData;
-}
-
 void FAssetRegistryGenerator::UpdateAssetRegistryData(FName PackageName, const UPackage* Package,
-	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult, FCookTagList&& InArchiveCookTagList,
-	bool bIncludeOnlyDiskAssets, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
+	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
+	TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies)
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
@@ -2628,18 +2560,17 @@ void FAssetRegistryGenerator::UpdateAssetRegistryData(FName PackageName, const U
 	bool bSaveSucceeded = CookResult == UE::Cook::ECookResult::Succeeded;
 
 	// Copy latest data for all Assets in the package into the cooked registry. This should be done even
-	// if not successful so that editor-only packages are recorded as well
-	TArray<FAssetData> AssetDatas;
-	AssetRegistry.GetAssetsByPackageName(PackageName, AssetDatas, bIncludeOnlyDiskAssets,
-		false /* SkipARFilteredAssets */);
-	for (FAssetData& AssetData : AssetDatas)
+	// if not successful so that editor-only packages are recorded as well. When the AssetDatas were not
+	// calculated by SavePackage, copy them instead from the on-disk AssetRegistry.
+	if (!AssetDatasFromSave)
+	{
+		AssetDatasFromSave.Emplace();
+		AssetRegistry.GetAssetsByPackageName(PackageName, *AssetDatasFromSave, true /* bIncludeOnlyDiskAssets */,
+			false /* SkipARFilteredAssets */);
+	}
+	for (FAssetData& AssetData : *AssetDatasFromSave)
 	{
 		State.UpdateAssetData(MoveTemp(AssetData), true /* bCreateIfNotExists */);
-	}
-	// Create a record for assets that were created during PostLoad or cooking and are not in the global assetregistry
-	if (Package)
-	{
-		CreateOrFindAssetDatas(*Package);
 	}
 
 	FAssetPackageData* AssetPackageData = GetAssetPackageData(PackageName);
@@ -2669,9 +2600,6 @@ void FAssetRegistryGenerator::UpdateAssetRegistryData(FName PackageName, const U
 	if (bSaveSucceeded)
 	{
 		check(SavePackageResult);
-		// Migrate cook tags over
-		CookTagsToAdd.Append(MoveTemp(InArchiveCookTagList.ObjectToTags));
-		InArchiveCookTagList.Reset();
 
 		// Set the PackageFlags to the recorded value from SavePackage
 		NewPackageFlags = SavePackageResult->SerializedPackageFlags;
@@ -2730,8 +2658,6 @@ void FAssetRegistryGenerator::UpdateAssetRegistryData(UE::Cook::FMPCollectorServ
 	{
 		SetOverridePackageDependencies(PackageName, *Message.OverridePackageDependencies);
 	}
-
-	CookTagsToAdd.Append(MoveTemp(Message.CookTags));
 }
 
 namespace UE::Cook
@@ -2744,8 +2670,8 @@ FAssetRegistryReporterRemote::FAssetRegistryReporterRemote(FCookWorkerClient& In
 }
 
 void FAssetRegistryReporterRemote::UpdateAssetRegistryData(FName PackageName, const UPackage* Package,
-	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult, FCookTagList&& InArchiveCookTagList,
-	bool bIncludeOnlyDiskAssets, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
+	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
+	TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
 	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies)
 {
 	uint32 NewPackageFlags = 0;
@@ -2774,33 +2700,14 @@ void FAssetRegistryReporterRemote::UpdateAssetRegistryData(FName PackageName, co
 	Message.OverrideAssetPackageData = MoveTemp(OverrideAssetPackageData);
 	Message.OverridePackageDependencies = MoveTemp(OverridePackageDependencies);
 
-	// Add to the message all the AssetDatas in the package from the global AssetRegistry
-	IAssetRegistry::Get()->GetAssetsByPackageName(PackageName, Message.AssetDatas,
-		bIncludeOnlyDiskAssets, false /* SkipARFilteredAssets */);
-
-	// Also add AssetDatas for any assets that were created during PostLoad or cooking and are not in the global assetregistry
-	TSet<FName> ExistingAssets;
-	for (const FAssetData& AssetData : Message.AssetDatas)
+	// Add to the message all the AssetDatas in the package
+	if (!AssetDatasFromSave)
 	{
-		ExistingAssets.Add(AssetData.AssetName);
+		AssetDatasFromSave.Emplace();
+		IAssetRegistry::Get()->GetAssetsByPackageName(PackageName, *AssetDatasFromSave,
+			true /* bIncludeOnlyDiskAssets */, false /* SkipARFilteredAssets */);
 	}
-	if (Package)
-	{
-		ForEachObjectWithOuter(Package, [&Message, &ExistingAssets](UObject* const Object)
-			{
-				if (Object->IsAsset())
-				{
-					FName AssetName = Object->GetFName();
-					if (!ExistingAssets.Contains(AssetName))
-					{
-						Message.AssetDatas.Emplace(Object, true /* bAllowBlueprintClass */);
-					}
-				}
-			}, /*bIncludeNestedObjects*/ false);
-	}
-
-	// Add the cooktags that were recorded during serialization
-	Message.CookTags = MoveTemp(InArchiveCookTagList.ObjectToTags);
+	Message.AssetDatas = MoveTemp(*AssetDatasFromSave);
 
 	// Send the message to the director
 	FCbWriter Writer;
@@ -2839,11 +2746,6 @@ void FAssetRegistryPackageMessage::Write(FCbWriter& Writer) const
 	{
 		Writer << "D" << *OverridePackageDependencies;
 	}
-	// We cast TMap<FSoftObjectPath,                     ValueType>
-	//      to TMap<FSoftObjectPathSerializationWrapper, ValueType>
-	// to workaround FSoftObjectPath's implicit constructor. See comment in CompactBinaryTCP.h
-	static_assert(std::is_same_v<decltype(CookTags)::KeyType, FSoftObjectPath>, "Expected KeyType of CookTags to be FSoftObjectPath");
-	Writer << "T" << reinterpret_cast<const TMap<FSoftObjectPathSerializationWrapper, decltype(CookTags)::ValueType>&>(CookTags);
 	Writer << "F" << PackageFlags;
 	Writer << "S" << DiskSize;
 }
@@ -2897,11 +2799,6 @@ bool FAssetRegistryPackageMessage::TryRead(FCbObjectView Object)
 		}
 	}
 
-	static_assert(std::is_same_v<decltype(CookTags)::KeyType, FSoftObjectPath>, "Expected KeyType of CookTags to be FSoftObjectPath");
-	if (!LoadFromCompactBinary(Object["T"], reinterpret_cast<TMap<FSoftObjectPathSerializationWrapper, decltype(CookTags)::ValueType>&>(CookTags)))
-	{
-		return false;
-	}
 	if (!LoadFromCompactBinary(Object["F"], PackageFlags))
 	{
 		return false;

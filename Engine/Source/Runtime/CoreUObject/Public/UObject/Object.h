@@ -15,6 +15,7 @@
 #include "Containers/VersePathFwd.h"
 
 struct FAssetData;
+class FAssetRegistryTagsContext;
 class FConfigCacheIni;
 class FCustomPropertyConditionState;
 class FEditPropertyChain;
@@ -25,6 +26,7 @@ class FObjectPreSaveRootContext;
 class ITargetPlatform;
 class ITransactionObjectAnnotation;
 class FTransactionObjectEvent;
+struct FArchiveCookContext;
 struct FAppendToClassSchemaContext;
 struct FFrame;
 struct FObjectInstancingGraph;
@@ -859,11 +861,12 @@ public:
 			: Name(InName), Value(MoveTemp(InValue)), Type(InType), DisplayFlags(InDisplayFlags) {}
 
 #if WITH_EDITOR
-		/** Callback  */
+		/** Event for listeners who want to add tags to some UObjects' GetAssetRegistryTags. */
+		DECLARE_MULTICAST_DELEGATE_OneParam(FOnGetObjectAssetRegistryTagsWithContext, FAssetRegistryTagsContext&);
+		COREUOBJECT_API static FOnGetObjectAssetRegistryTagsWithContext OnGetExtraObjectTagsWithContext;
+
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnGetObjectAssetRegistryTags, const UObject* /*Object*/, TArray<FAssetRegistryTag>& /*InOutTags*/);
 		COREUOBJECT_API static FOnGetObjectAssetRegistryTags OnGetExtraObjectTags;
-
-		/** Callback for GetExtendedAssetRegistryTagsForSave */
 		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnGetExtendedAssetRegistryTagsForSave, const UObject* /*Object*/, const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& /*InOutTags*/);
 		COREUOBJECT_API static FOnGetExtendedAssetRegistryTagsForSave OnGetExtendedAssetRegistryTagsForSave;
 #endif // WITH_EDITOR
@@ -876,8 +879,15 @@ public:
 	 * @param	OutTags		A list of key-value pairs associated with this object and their types
 	 */
 	COREUOBJECT_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const;
+	COREUOBJECT_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const;
 
 #if WITH_EDITOR
+	/**
+	 * Get an additional object that should be added to the AssetDatas stored for a cooked package, to handle
+	 * objects stripped from cooked packages. e.g. UBlueprintGeneratedClass returns its UBlueprint.
+	 */
+	COREUOBJECT_API virtual void GetAdditionalAssetDataObjectsForCook(FArchiveCookContext& CookContext,
+		TArray<UObject*>& OutObjects) const;
 	/**
 	 * Temporary interim solution to gather asset registry data at save time only.  Can depend on the target platform being saved for.
 	 *
@@ -887,8 +897,12 @@ public:
 	COREUOBJECT_API virtual void GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const;
 #endif // WITH_EDITOR
 
-	/** Gathers a list of asset registry tags for an FAssetData  */
 	COREUOBJECT_API void GetAssetRegistryTags(FAssetData& Out) const;
+	/**
+	 * Gathers a list of asset registry tags for an FAssetData. Output data will be removed from the Context and
+	 * moved onto the Out FAssetData.
+	 */
+	COREUOBJECT_API void GetAssetRegistryTags(FAssetRegistryTagsContext Context, FAssetData& Out) const;
 
 	/** Get the common tag name used for all asset source file import paths */
 	static COREUOBJECT_API const FName& SourceFileTagName();
