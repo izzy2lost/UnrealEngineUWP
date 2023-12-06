@@ -95,6 +95,7 @@ enum class EOutlinerColumnMode : uint8
 	Removal = 2				UMETA(DisplayName = "Removal"),
 	Collision = 3			UMETA(DisplayName = "Collision"),
 	Size = 4				UMETA(DisplayName = "Size"),
+	Geometry = 5			UMETA(DisplayName = "Geometry")
 };
 
 class FRACTUREEDITOR_API FFractureEditorModeToolkit : public FModeToolkit, public FGCObject

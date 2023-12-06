@@ -111,6 +111,8 @@ public:
 	bool HasSourceCollision(int32 Index) const;
 	bool IsSourceCollisionUsed(int32 Index) const;
 	int32 GetConvexCount(int32 Index) const;
+	int32 GetTriangleCount(int32 Index) const;
+	int32 GetVertexCount(int32 Index) const;
 
 private:
 	FManagedArrayCollection&			DataCollection;
@@ -130,6 +132,8 @@ private:
 	TManagedArrayAccessor<bool>			HasSourceCollisionAttribute;
 	TManagedArrayAccessor<bool>			SourceCollisionUsedAttribute;
 	TManagedArrayAccessor<int32>		ConvexCountAttribute;
+	TManagedArrayAccessor<int32>		TriangleCountAttribute;
+	TManagedArrayAccessor<int32>		VertexCountAttribute;
 };
 
 class FGeometryCollectionTreeItemComponent : public FGeometryCollectionTreeItem
@@ -209,6 +213,8 @@ public:
 	TSharedRef<SWidget> MakeRemovalTimeColumnWidget() const;
 	TSharedRef<SWidget> MakeImportedCollisionsColumnWidget() const;
 	TSharedRef<SWidget> MakeConvexCountColumnWidget() const;
+	TSharedRef<SWidget> MakeTriangleCountColumnWidget() const;
+	TSharedRef<SWidget> MakeVertexCountColumnWidget() const;
 	TSharedRef<SWidget> MakeEmptyColumnWidget() const;
 	virtual void GetChildren(FGeometryCollectionTreeItemList& OutChildren) override;
 	bool IsValidBone() const;
@@ -253,6 +259,9 @@ namespace SGeometryCollectionOutlinerColumnID
 	// Collision Column Mode
 	const FName ConvexCount("Convex Count");
 	const FName ImportedCollisions("ImportedCollisions");
+	// Geometry Column Mode
+	const FName VertexCount("Vertex Count");
+	const FName TriangleCount("Triangle Count");
 }
 
 class SGeometryCollectionOutlinerRow : public SMultiColumnTableRow<FGeometryCollectionTreeItemBonePtr>
