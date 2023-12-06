@@ -213,6 +213,7 @@ class LocalState {
    @observable shutdownAgentDialogIsOpen = false;
    @observable disableAgentDialogIsOpen = false;
    @observable cancelLeasesDialogIsOpen = false;
+   @observable editCommentDialogIsOpen = false;
 
    // column state for the table
    @observable columnsState: ColumnItem[];
@@ -316,6 +317,26 @@ class LocalState {
       });
    }
 
+   // enable or disable builders.
+   async changeCommment(commentText?: string) {
+      let that = this;      
+      const comment = commentText ?? "";
+      const allUpdates: any[] = [];
+      const selectedAgents = this.currentSelection;
+      selectedAgents.forEach(agent => {
+         // add to update queue if the agent isnt set to the value
+         if (agent.comment !== comment) {
+            allUpdates.push(backend.updateAgent(agent.id, { comment: comment }));
+         }
+      });
+      await Promise.all(allUpdates).then(function () {         
+            that.setEditCommentDialogOpen(false);         
+      }).catch(function (errors) {
+      }).finally(function () {
+         agentStore.update();
+      });
+   }
+
    async requestBuilderUpdate(conform: boolean, restart: boolean, fullConform?: boolean, shutdown?: boolean, forceRestart?: boolean) {
       let that = this;
       const allUpdates: any[] = [];
@@ -376,6 +397,10 @@ class LocalState {
 
    @action setDisableBuilderDialogOpen(isOpen: boolean) {
       this.disableAgentDialogIsOpen = isOpen;
+   }
+
+   @action setEditCommentDialogOpen(isOpen: boolean) {
+      this.editCommentDialogIsOpen = isOpen;
    }
 
    @action setRestartBuilderDialogOpen(isOpen: boolean) {
@@ -1201,6 +1226,10 @@ const agentSelectedProps: IContextualMenuProps = {
          else if (item.key === "delete") {
             localState.setDeleteBuilderDialogOpen(true);
          }
+         else if (item.key === "editcomment") {
+            localState.setEditCommentDialogOpen(true);
+         }
+
       }
    },
    items: [
@@ -1215,7 +1244,11 @@ const agentSelectedProps: IContextualMenuProps = {
       {
          key: 'audit',
          text: 'Audit',
-      },
+      },      
+      {
+         key: 'editcomment',
+         text: 'Edit Comment',
+      },      
       {
          key: 'remotedesktop',
          text: 'Remote Desktop',
@@ -1276,6 +1309,11 @@ const agentContextMenuProps: IContextualMenuItem[] = [
             window.open(`ugs://rdp?host=${ip}`, "_self")
          }
       }
+   },
+   {
+      key: 'editcomment',
+      text: 'Edit Comment',
+      onClick: () => localState.setEditCommentDialogOpen(true)
    },
    {
       key: 'audit',
@@ -2371,6 +2409,17 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
          onConfirm={(textFieldText: string) => { localState.changeBuilderEnabled("disable", textFieldText) }}
          onCancel={() => { localState.setDisableBuilderDialogOpen(false) }}
       />
+      <ConfirmationDialog
+         title={`Edit Agent Comment${localState.selection.getSelectedCount() > 1 ? "s" : ""}`}
+         isOpen={localState.editCommentDialogIsOpen}
+         confirmText={"Edit Comment"}
+         cancelText={"Cancel"}
+         textBoxLabel={"New Comment"}
+         isTextBoxSpawned={true}
+         onConfirm={(textFieldText: string) => { localState.changeCommment(textFieldText) }}
+         onCancel={() => { localState.setEditCommentDialogOpen(false) }}
+      />
+
       <HistoryModal agentId={activeAgent?.id} onDismiss={onHistoryModalDismiss}></HistoryModal>
    </Stack>
    );

@@ -7,12 +7,12 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import backend from "../backend";
 import { agentStore } from "../backend/AgentStore";
-import { AgentData, GetAgentLeaseResponse, GetAgentSessionResponse, JobStepBatchError, JobStepOutcome, JobStepState, LeaseData, SessionData, UpdateAgentRequest } from "../backend/Api";
+import { AgentData, GetAgentLeaseResponse, GetAgentSessionResponse, JobStepBatchError, JobStepOutcome, LeaseData, SessionData, UpdateAgentRequest } from "../backend/Api";
 import dashboard from "../backend/Dashboard";
 import { getShortNiceTime } from "../base/utilities/timeUtils";
-import { BatchStatusIcon, LeaseStatusIcon, StepStatusIcon } from "./StatusIcon";
-import { getHordeTheme } from "../styles/theme";
 import { getHordeStyling } from "../styles/Styles";
+import { getHordeTheme } from "../styles/theme";
+import { BatchStatusIcon, LeaseStatusIcon, StepStatusIcon } from "./StatusIcon";
 
 
 type InfoPanelItem = {
@@ -366,9 +366,10 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
          update: (request) => { request.requestRestart = !forceRestartCheckboxRef.current?.checked; request.requestForceRestart = !!forceRestartCheckboxRef.current?.checked; }
       },
       {
-         name: 'Request Shutdown',
-         confirmText: "Are you sure you would like to request an agent shutdown?",
-         update: (request) => { request.requestShutdown = true }
+         name: 'Edit Comment',
+         confirmText: "Please enter new comment",
+         textInput: true,
+         update: (request, comment) => { request.comment = comment }
       }
    ];
 
@@ -786,7 +787,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                <Stack style={{ paddingBottom: 18, paddingLeft: 4 }}>
                   <Text>{currentAction.confirmText}</Text>
                </Stack>
-               {!!currentAction.textInput && <TextField componentRef={actionTextInputRef} label={"Disable Reason"} />}
+               {!!currentAction.textInput && <TextField componentRef={actionTextInputRef} label={currentAction.name === "Edit Comment" ? "New Comment" : "Disable Reason"} />}
                {currentAction.name === "Request Restart" && <Checkbox componentRef={forceRestartCheckboxRef} label={"Force Restart"} />}
                <DialogFooter>
                   <PrimaryButton disabled={actionState.confirmed} onClick={() => { setActionState({ ...actionState, confirmed: true, comment: actionTextInputRef.current?.value }) }} text={currentAction.name} />
