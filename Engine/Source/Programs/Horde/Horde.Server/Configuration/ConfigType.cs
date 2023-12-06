@@ -671,7 +671,7 @@ namespace Horde.Server.Configuration
 		static Property CreateProperty(string name, PropertyInfo propertyInfo)
 		{
 			Type propertyType = propertyInfo.PropertyType;
-			if (!propertyType.IsClass || propertyType == typeof(string))
+			if (!propertyType.IsClass || propertyType == typeof(string) || propertyInfo.GetCustomAttribute<JsonSchemaStringAttribute>() != null)
 			{
 				return new ScalarProperty(name, propertyInfo);
 			}
