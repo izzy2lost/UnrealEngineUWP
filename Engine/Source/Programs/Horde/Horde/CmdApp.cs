@@ -18,6 +18,8 @@ namespace Horde
 {
 	class CmdApp
 	{
+		const string ToolDescription = "Horde Command-Line Tool";
+
 		static DirectoryReference DataDir { get; } = GetDataDir();
 
 		static async Task<int> Main(string[] args)
@@ -44,7 +46,7 @@ namespace Horde
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
-			return await CommandHost.RunAsync(arguments, serviceProvider, null);
+			return await CommandHost.RunAsync(arguments, serviceProvider, null, ToolDescription);
 		}
 
 		static BundleCache CreateStorageClientCache(IServiceProvider serviceProvider)

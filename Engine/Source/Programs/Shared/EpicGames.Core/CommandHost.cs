@@ -187,8 +187,9 @@ namespace EpicGames.Core
 		/// <param name="args">Command line arguments</param>
 		/// <param name="serviceProvider">The service provider for the application</param>
 		/// <param name="defaultCommandType">The default command type</param>
+		/// <param name="toolDescription">Description of the tool, to print at the top of help text.</param>
 		/// <returns>Return code from the command</returns>
-		public static async Task<int> RunAsync(CommandLineArguments args, IServiceProvider serviceProvider, Type? defaultCommandType)
+		public static async Task<int> RunAsync(CommandLineArguments args, IServiceProvider serviceProvider, Type? defaultCommandType, string? toolDescription = null)
 		{
 			// Find all the command types
 			List<ICommandFactory> commandFactories = serviceProvider.GetServices<ICommandFactory>().ToList();
@@ -203,6 +204,15 @@ namespace EpicGames.Core
 			{
 				if (defaultCommandType == null || args.HasOption("-Help"))
 				{
+					if (toolDescription != null)
+					{
+						foreach (string line in toolDescription.Split('\n'))
+						{
+							Console.WriteLine(line);
+						}
+						Console.WriteLine("");
+					}
+
 					Console.WriteLine("Usage:");
 					Console.WriteLine("    [Command] [-Option1] [-Option2]...");
 					Console.WriteLine("");
