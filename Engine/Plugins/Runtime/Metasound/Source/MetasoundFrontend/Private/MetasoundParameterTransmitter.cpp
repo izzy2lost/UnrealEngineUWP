@@ -272,23 +272,21 @@ namespace Metasound
 	{
 		bool bSuccess = true;
 
-		TArray<FAudioParameter> NewParams;
-		for (FAudioParameter& Param : InParameters)
+		const bool bAllowShrinking = false;
+		for (int32 ParamIndex = InParameters.Num() - 1; ParamIndex >= 0; --ParamIndex)
 		{
+			FAudioParameter& Param = InParameters[ParamIndex];
 			const FName ParamName = Param.ParamName;
-			if (SetParameterWithLiteral(ParamName, Frontend::ConvertParameterToLiteral(Param)))
+			if (!SetParameterWithLiteral(ParamName, Frontend::ConvertParameterToLiteral(Param)))
 			{
-				NewParams.Add(MoveTemp(Param));
-			}
-			else
-			{
+				InParameters.RemoveAtSwap(ParamIndex, 1, bAllowShrinking);
 				bSuccess = false;
 			}
 		}
 
-		if (!NewParams.IsEmpty())
+		if (!InParameters.IsEmpty())
 		{
-			bSuccess &= FParameterTransmitterBase::SetParameters(MoveTemp(NewParams));
+			bSuccess &= FParameterTransmitterBase::SetParameters(MoveTemp(InParameters));
 		}
 
 		InParameters.Reset();

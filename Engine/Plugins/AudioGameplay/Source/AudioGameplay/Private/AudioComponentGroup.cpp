@@ -583,8 +583,7 @@ void UAudioComponentGroup::UpdateComponentParameters()
     	});
 	}
 	
-	TArray<FAudioParameter> Values = ParamsToSet;
-	FAudioParameter::Merge(MoveTemp(Values), PersistentParams);
+	FAudioParameter::Merge(MoveTemp(ParamsToSet), PersistentParams);
 	ParamsToSet.Reset();
 }
 
