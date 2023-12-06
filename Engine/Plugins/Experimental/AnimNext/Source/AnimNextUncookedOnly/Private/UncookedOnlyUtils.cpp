@@ -537,7 +537,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	// Now that the graph has been re-compiled, re-allocate the previous live instances
 	InGraph->ThawGraphInstances();
 
-	// Gather and store the required parameters
+	// Gather and store the required external parameters
 	InGraph->RequiredParameters.Empty();
 
 	FAssetData AssetData(InGraph);
@@ -546,7 +546,11 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 
 	for(FAnimNextParameterAssetRegistryExportEntry& Entry : Exports.Parameters)
 	{
-		InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type);
+		FName ParameterSourceName = FExternalParameterRegistry::FindSourceForParameter(Entry.Name);
+		if(ParameterSourceName != NAME_None)
+		{
+			InGraph->RequiredParameters.Emplace(Entry.Name, Entry.Type);
+		}
 	}
 
 	InGraph->RequiredParametersHash = SortAndHashParameters(InGraph->RequiredParameters);

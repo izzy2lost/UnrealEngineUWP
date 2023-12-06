@@ -57,7 +57,7 @@ void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGrap
 
 			if(!bWarningOutput && (!bFound || !bFoundCorrectType))
 			{
-				UE_LOGFMT(LogAnimation, Warning, "AnimNext: Graph {GraphToRun} has different required parameters, it may not run correctly.", InGraphToRun->GetName());
+				UE_LOGFMT(LogAnimation, Warning, "AnimNext: Graph {GraphToRun} has different required parameters, it may not run correctly.", InGraphToRun->GetFName());
 				bWarningOutput = true;
 			}
 			
