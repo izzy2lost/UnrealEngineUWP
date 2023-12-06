@@ -1122,10 +1122,6 @@ void FShaderJobCache::CullOutputsToMemoryBudget(uint64 TargetBudgetBytes)
 
 
 #if WITH_EDITOR
-static FDelayedAutoRegisterHelper GKickOffShaderAutoGen(EDelayedRegisterRunPhase::ShaderTypesReady, []
-{
-	FShaderCompileUtilities::GenerateBrdfHeaders(GMaxRHIShaderPlatform);
-});
 
 static FDelayedAutoRegisterHelper GKickOffShaderAutoGenForPlatforms(EDelayedRegisterRunPhase::DeviceProfileManagerReady, []
 {

@@ -3326,6 +3326,13 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		{
 			UE_SCOPED_ENGINE_ACTIVITY(TEXT("Initializing Shader Types"));
 			SCOPED_BOOT_TIMING("InitializeShaderTypes");
+
+#if WITH_EDITOR
+			// Explicitly generate AutogenShaderHeaders.ush prior to shader type initialization
+			// (since that process will load and cache this header as a sideeffect)
+			FShaderCompileUtilities::GenerateBrdfHeaders(GMaxRHIShaderPlatform);
+#endif
+
 			// Initialize shader types before loading any shaders
 			InitializeShaderTypes();
 		}
