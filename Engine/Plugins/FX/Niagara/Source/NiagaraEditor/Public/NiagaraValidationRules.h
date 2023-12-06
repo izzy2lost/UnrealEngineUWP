@@ -125,6 +125,33 @@ public:
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
 };
 
+/**
+This validation rule is for ribbon renderers to ensure they are not used in situations that can cause compatability or performance issues.
+i.e. Don't use a ribbon renderer with a GPU emitter / enable GPU ribbon init on lower end devices.
+*/
+UCLASS(Category = "Validation", DisplayName = "Gpu Ribbons")
+class UNiagaraValidationRule_RibbonRenderer : public UNiagaraValidationRule
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	/** When enable validation will fail if used by a GPU emitter. */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bFailIfUsedByGPUSimulation = true;
+
+	/** When enable validation will fail if used by a CPU emitter and GPU init is enabled on the renderer. */
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bFailIfUsedByGPUInit = true;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	FNiagaraPlatformSet Platforms;
+
+	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
+};
+
 /** This validation rule always fails and can be used to mark a default/test effect type as stand-in that must be changed. Effectively forces the user to choose a correct effect type for a system. */
 UCLASS(Category = "Validation", DisplayName = "Invalid Effect Type")
 class UNiagaraValidationRule_InvalidEffectType : public UNiagaraValidationRule

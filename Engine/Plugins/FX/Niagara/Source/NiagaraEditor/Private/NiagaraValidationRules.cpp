@@ -10,6 +10,7 @@
 #include "NiagaraEditorSettings.h"
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraMeshRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraSettings.h"
 #include "NiagaraSimulationStageBase.h"
@@ -105,7 +106,6 @@ namespace NiagaraValidation
 
 	// --------------------------------------------------------------------------------------------------------------------------------------------
 	// Common fixes and links
-
 	void AddGoToFXTypeLink(FNiagaraValidationResult& Result, UNiagaraEffectType* FXType)
 	{
 		if (FXType == nullptr)
@@ -133,6 +133,33 @@ namespace NiagaraValidation
 				}
 			});
 	}
+
+	FNiagaraValidationFix MakeDisableGPUSimulationFix(FVersionedNiagaraEmitterWeakPtr WeakEmitterPtr)
+	{
+		return FNiagaraValidationFix(
+			LOCTEXT("GpuUsageInfoFix_SwitchToCput", "Set emitter to CPU"),
+			FNiagaraValidationFixDelegate::CreateLambda(
+				[WeakEmitterPtr]()
+				{
+					FVersionedNiagaraEmitter VersionedEmitter = WeakEmitterPtr.ResolveWeakPtr();
+					if (FVersionedNiagaraEmitterData* VersionedEmitterData = VersionedEmitter.GetEmitterData())
+					{
+						const FScopedTransaction Transaction(LOCTEXT("SetCPUSim", "Set CPU Simulation"));
+
+						VersionedEmitter.Emitter->Modify();
+						VersionedEmitterData->SimTarget = ENiagaraSimTarget::CPUSim;
+
+						FProperty* SimTargetProperty = FindFProperty<FProperty>(FVersionedNiagaraEmitterData::StaticStruct(), GET_MEMBER_NAME_CHECKED(FVersionedNiagaraEmitterData, SimTarget));
+						FPropertyChangedEvent PropertyChangedEvent(SimTargetProperty);
+						VersionedEmitter.Emitter->PostEditChangeVersionedProperty(PropertyChangedEvent, VersionedEmitter.Version);
+
+						UNiagaraSystem::RequestCompileForEmitter(VersionedEmitter);
+					}
+				}
+			)
+		);
+	}
+
 
 	FString GetPlatformConflictsString(const FNiagaraPlatformSet& PlatformSetA, const FNiagaraPlatformSet& PlatformSetB, int MaxPlatformsToShow = 4)
 	{
@@ -720,21 +747,83 @@ void UNiagaraValidationRule_GpuUsage::CheckValidity(const FNiagaraValidationCont
 		);
 			
 		ValidationResult.Fixes.Emplace(
-			LOCTEXT("GpuUsageInfoFix_SwitchToCput", "Set emitter to CPU"),
-			FNiagaraValidationFixDelegate::CreateLambda(
-				[WeakEmitterPtr=EmitterHandle->GetInstance().ToWeakPtr()]()
-				{
-					FVersionedNiagaraEmitter VersionedEmitter = WeakEmitterPtr.ResolveWeakPtr();
-					if (FVersionedNiagaraEmitterData* VersionedEmitterData = VersionedEmitter.GetEmitterData())
-					{
-						VersionedEmitterData->SimTarget = ENiagaraSimTarget::CPUSim;
+			NiagaraValidation::MakeDisableGPUSimulationFix(EmitterHandle->GetInstance().ToWeakPtr())
+		);
+	}
+}
 
-						FProperty* SimTargetProperty = FindFProperty<FProperty>(FVersionedNiagaraEmitterData::StaticStruct(), GET_MEMBER_NAME_CHECKED(FVersionedNiagaraEmitterData, SimTarget));
-						FPropertyChangedEvent PropertyChangedEvent(SimTargetProperty);
-						VersionedEmitter.Emitter->PostEditChangeVersionedProperty(PropertyChangedEvent, VersionedEmitter.Version);
-					}
+void UNiagaraValidationRule_RibbonRenderer::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& Results)  const
+{
+	UNiagaraSystem& System = Context.ViewModel->GetSystem();
+	for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleModel : Context.ViewModel->GetEmitterHandleViewModels())
+	{
+		FNiagaraEmitterHandle* EmitterHandle = EmitterHandleModel.Get().GetEmitterHandle();
+		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle->GetEmitterData();
+
+		if (NiagaraValidation::GetPlatformConflictsString(Platforms, EmitterData->Platforms).IsEmpty())
+		{
+			continue;
+		}
+
+		EmitterData->ForEachRenderer(
+			[this, &Context, &Results, &EmitterData, &EmitterHandleModel, EmitterHandle](UNiagaraRendererProperties* RendererProperties)
+			{
+				UNiagaraRibbonRendererProperties* RibbonRenderer = Cast<UNiagaraRibbonRendererProperties>(RendererProperties);
+				UNiagaraStackRendererItem* StackItem = NiagaraValidation::GetRendererStackItem(EmitterHandleModel.Get().GetEmitterStackViewModel(), RendererProperties);
+				if (!RibbonRenderer || !StackItem)
+				{
+					return;
 				}
-			)
+
+				const FString PlatformConflictsString = NiagaraValidation::GetPlatformConflictsString(Platforms, RendererProperties->Platforms);
+				if (PlatformConflictsString.IsEmpty())
+				{
+					return;
+				}
+
+				if (bFailIfUsedByGPUSimulation && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
+				{
+					FNiagaraValidationResult& ValidationResult = Results.Emplace_GetRef(
+						Severity,
+						LOCTEXT("RibbonRenderer_GpuSimulationError", "Ribbon Renderer is used with GPU simulation"),
+						FText::Format(LOCTEXT("RibbonRenderer_GpuSimulationErrorDetails", "Ribbon Renderer is used with GPU simulation and may not function as expected on '{0}'."), FText::FromString(PlatformConflictsString)),
+						StackItem
+					);
+
+					ValidationResult.Fixes.Emplace(
+						NiagaraValidation::MakeDisableGPUSimulationFix(EmitterHandle->GetInstance().ToWeakPtr())
+					);
+				}
+
+				if (bFailIfUsedByGPUInit && EmitterData->SimTarget != ENiagaraSimTarget::GPUComputeSim && RibbonRenderer->bUseGPUInit)
+				{
+					FNiagaraValidationResult& ValidationResult = Results.Emplace_GetRef(
+						Severity,
+						LOCTEXT("RibbonRenderer_GpuInitError", "Ribbon Renderer is used with GPU init"),
+						FText::Format(LOCTEXT("RibbonRenderer_GpuInitErrorDetails", "Ribbon Renderer is used with GPU init and may not function as expected on '{0}'."), FText::FromString(PlatformConflictsString)),
+						StackItem
+					);
+
+					ValidationResult.Fixes.Emplace(
+						LOCTEXT("RibbonRenderer_GpuInitErrorFix", "Disable GPU init"),
+						FNiagaraValidationFixDelegate::CreateLambda(
+							[WeakRibbonRenderer=MakeWeakObjectPtr(RibbonRenderer)]()
+							{
+								if (WeakRibbonRenderer.IsValid())
+								{
+									const FScopedTransaction Transaction(LOCTEXT("RibbonRenderer_GpuInitErrorApplyFix", "Disable GPU Init"));
+									WeakRibbonRenderer.Get()->Modify();
+									WeakRibbonRenderer.Get()->bUseGPUInit = false;
+									
+									FProperty* Property = FindFProperty<FProperty>(UNiagaraRibbonRendererProperties::StaticClass(), GET_MEMBER_NAME_CHECKED(UNiagaraRibbonRendererProperties, bUseGPUInit));
+									FPropertyChangedEvent PropertyChangedEvent(Property);
+									WeakRibbonRenderer.Get()->PostEditChangeProperty(PropertyChangedEvent);
+								}
+							}
+						)
+					);
+				}
+			}
 		);
 	}
 }
