@@ -1905,9 +1905,9 @@ namespace UE::ShaderCompilerCommon
 		}
 	}
 
-	static const TCHAR* Base64EnvBegin = TEXT("#if 0 /* BASE64_ENV */\n");
+	static const TCHAR* Base64EnvBegin = TEXT("/* BASE64_ENV\n");
 	static const int32 Base64EnvBeginLen = FCString::Strlen(Base64EnvBegin);
-	static const TCHAR* Base64EnvEnd = TEXT("\n#endif /* BASE64_ENV */\n");
+	static const TCHAR* Base64EnvEnd = TEXT("\nBASE64_ENV */\n");
 	
 	FString SerializeEnvironmentToBase64(const FShaderCompilerEnvironment& Env)
 	{
@@ -1940,12 +1940,6 @@ namespace UE::ShaderCompilerCommon
 
 	FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options)
 	{
-		FString Contents = Options.AppendPreSource ? Options.AppendPreSource() : FString();
-		Contents += PreprocessedSource;
-		if (Options.AppendPostSource)
-		{
-			Contents += Options.AppendPostSource();
-		}
 		// If preprocessed cache is enabled, debug dump occurs in the cook process rather than the workers, and
 		// in that case the env in Input.Environment has not been merged with the shared env. Do so here.
 		FShaderCompilerEnvironment MergedEnvironment(Input.Environment);
@@ -1953,11 +1947,26 @@ namespace UE::ShaderCompilerCommon
 		{
 			MergedEnvironment.Merge(*Input.SharedEnvironment);
 		}
+
+		FString Contents = MergedEnvironment.GetDefinitionsAsCommentedCode();
+
+		if (Options.AppendPreSource)
+		{
+			Contents += Options.AppendPreSource();
+		}
+
+		Contents += PreprocessedSource;
+
+		if (Options.AppendPostSource)
+		{
+			Contents += Options.AppendPostSource();
+		}
+
 		Contents += TEXT("\n");
 		Contents += SerializeEnvironmentToBase64(MergedEnvironment);
-		Contents += TEXT("#if 0 /*DIRECT COMPILE*/\n");
+		Contents += TEXT("/* DIRECT COMPILE\n");
 		Contents += CreateShaderCompilerWorkerDirectCommandLine(Input);
-		Contents += TEXT("\n#endif /*DIRECT COMPILE*/\n");
+		Contents += TEXT("\nDIRECT COMPILE */\n");
 		if (!Input.DebugDescription.IsEmpty())
 		{
 			Contents += TEXT("//");

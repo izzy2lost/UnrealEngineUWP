@@ -874,12 +874,33 @@ void FShaderCompilerEnvironment::Merge(const FShaderCompilerEnvironment& Other)
 	CompilerFlags.Append(Other.CompilerFlags);
 	ResourceTableMap.Append(Other.ResourceTableMap);
 	UniformBufferMap.Append(Other.UniformBufferMap);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS	// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	Definitions->Merge(*Other.Definitions);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	CompileArgs.Append(Other.CompileArgs);
 	RenderTargetOutputFormatsMap.Append(Other.RenderTargetOutputFormatsMap);
 	FullPrecisionInPS |= Other.FullPrecisionInPS;
+}
+
+FString FShaderCompilerEnvironment::GetDefinitionsAsCommentedCode() const
+{
+	TArray<FString> DefinesLines;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS // FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+	DefinesLines.Reserve(Definitions->Num());
+	for (FShaderCompilerDefinitions::FConstIterator DefineIt(*Definitions); DefineIt; ++DefineIt)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+		DefinesLines.Add(FString::Printf(TEXT("// #define %s %s\n"), DefineIt.Key(), DefineIt.Value()));
+	}
+	DefinesLines.Sort();
+
+	FString Defines;
+	for (const FString& DefineLine : DefinesLines)
+	{
+		Defines += DefineLine;
+	}
+
+	return MakeInjectedShaderCodeBlock(TEXT("DumpShaderDefinesAsCommentedCode"), Defines);
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then

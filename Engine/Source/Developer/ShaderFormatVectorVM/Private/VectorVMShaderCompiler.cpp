@@ -29,12 +29,7 @@ DECLARE_CYCLE_STAT(TEXT("VectorVM - Compiler - CrossCompilerContextRun"), STAT_V
 bool PreprocessVectorVMShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& Output)
 {
 	SCOPE_CYCLE_COUNTER(STAT_VectorVM_Compiler_CompileShader_VectorVMPreprocessShader);
-	// disable deprecation warnings due to default-constructed FShaderCompilerDefinitions in function args.
-	// can be removed once FShaderCompilerDefinitions moves to Internal
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS 	
-	// Don't include shader definitions since it creates shader compilation errors.
-	return PreprocessShader(Output, Input, Environment, {}, EDumpShaderDefines::DontIncludeDefines);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return PreprocessShader(Output, Input, Environment);
 }
 
 bool CompileVectorVMShader(

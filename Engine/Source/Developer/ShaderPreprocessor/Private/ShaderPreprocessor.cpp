@@ -846,13 +846,14 @@ bool PreprocessShader(
 	const FShaderCompilerInput& ShaderInput,
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 	const FShaderCompilerDefinitions& AdditionalDefines,
+	EDumpShaderDefines DefinesPolicy
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	EDumpShaderDefines DefinesPolicy)
+)
 {
 	FShaderPreprocessOutput Output;
 	// when called via this overload, environment is assumed to be already merged in input struct
 	const FShaderCompilerEnvironment& Environment = ShaderInput.Environment;
-	bool bSucceeded = PreprocessShader(Output, ShaderInput, Environment, AdditionalDefines, DefinesPolicy);
+	bool bSucceeded = PreprocessShader(Output, ShaderInput, Environment, AdditionalDefines);
 
 	OutPreprocessedShader = MoveTemp(Output.EditSource());
 
@@ -878,9 +879,8 @@ bool PreprocessShader(
 	const FShaderCompilerInput& Input,
 	const FShaderCompilerEnvironment& Environment,
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-	const FShaderCompilerDefinitions& AdditionalDefines,
+	const FShaderCompilerDefinitions& AdditionalDefines
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	EDumpShaderDefines DefinesPolicy
 )
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(PreprocessShader);
@@ -896,18 +896,18 @@ bool PreprocessShader(
 		{
 			// const_cast for compile environment; need to populate a subset of environment parameters from parsing comments in the preprocessed code
 			UE::ShaderCompilerCommon::SerializeEnvironmentFromBase64(const_cast<FShaderCompilerEnvironment&>(Input.Environment), Output.GetSource());
+
+			// strip comments from source when loading from a debug USF. some backends don't handle the comments that the debug dump inserts properly.
+			// this (currently) incurs an extra conversion (TCHAR -> ANSI -> TCHAR), but since this is only used in the debug path the perf hit is irrelevant
+			TArray<ANSICHAR> Stripped;
+			ShaderConvertAndStripComments(Output.GetSource(), Stripped);
+			Output.EditSource() = Stripped.GetData();
 		}
 
 		return bSuccess;
 	}
 
 	check(CheckVirtualShaderFilePath(Input.VirtualSourceFilePath));
-
-	// List the defines used for compilation in the preprocessed shaders, especially to know which permutation vector this shader is.
-	if (DefinesPolicy == EDumpShaderDefines::AlwaysIncludeDefines || (DefinesPolicy == EDumpShaderDefines::DontCare && Input.DumpDebugInfoPath.Len() > 0))
-	{
-		FShaderPreprocessorUtilities::DumpShaderDefinesAsCommentedCode(Environment, &Output.EditSource());
-	}
 
 	bool bSuccess = InnerPreprocessShaderStb(Output, Input, Environment, AdditionalDefines);
 

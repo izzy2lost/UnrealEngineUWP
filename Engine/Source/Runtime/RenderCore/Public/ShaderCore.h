@@ -650,6 +650,8 @@ struct FShaderCompilerEnvironment
 	
 	RENDERCORE_API void Merge(const FShaderCompilerEnvironment& Other);
 
+	RENDERCORE_API FString GetDefinitionsAsCommentedCode() const;
+
 private:
 
 	friend class FShaderCompileUtilities;
