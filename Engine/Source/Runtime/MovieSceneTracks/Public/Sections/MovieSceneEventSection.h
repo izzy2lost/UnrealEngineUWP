@@ -23,11 +23,14 @@ struct FMovieSceneEventParameters
 {
 	GENERATED_BODY()
 
-	FMovieSceneEventParameters() {}
+	FMovieSceneEventParameters()
+		: PackageFileVersion(GPackageFileUEVersion)
+	{}
 
 	/** Construction from a struct type */
 	FMovieSceneEventParameters(UScriptStruct& InStruct)
 		: StructType(&InStruct)
+		, PackageFileVersion(GPackageFileUEVersion)
 	{
 	}
 
@@ -86,6 +89,9 @@ private:
 
 	/** Soft object path to the type of this parameter payload */
 	FSoftObjectPath StructType;
+
+	/** Used while loading to pass along to the FEventParameterReader */
+	FPackageFileVersion PackageFileVersion;
 
 	/** Serialized bytes that represent the payload. Serialized internally with FEventParameterArchive */
 	TArray<uint8> StructBytes;

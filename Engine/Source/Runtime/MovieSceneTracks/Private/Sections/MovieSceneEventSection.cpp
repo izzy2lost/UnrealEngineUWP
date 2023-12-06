@@ -285,7 +285,9 @@ void FMovieSceneEventParameters::GetInstance(FStructOnScope& OutStruct) const
 	if (StructPtr && StructPtr->GetStructureSize() > 0 && StructBytes.Num())
 	{
 		// Deserialize the struct bytes into the struct memory
-		FEventParameterReader(StructBytes).Read(StructPtr, Memory);
+		FEventParameterReader ParamReader(StructBytes);
+		ParamReader.SetUEVer(PackageFileVersion);
+		ParamReader.Read(StructPtr, Memory);
 	}
 }
 
@@ -305,6 +307,11 @@ bool FMovieSceneEventParameters::Serialize(FArchive& Ar)
 	}
 	
 	Ar << StructBytes;
+
+	if (Ar.IsLoading())
+	{
+		PackageFileVersion = Ar.UEVer();
+	}
 
 	return true;
 }
