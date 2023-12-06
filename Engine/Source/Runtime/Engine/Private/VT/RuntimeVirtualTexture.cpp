@@ -670,14 +670,15 @@ namespace RuntimeVirtualTexture
 					// Note that streaming data may have mips added/removed during cook.
 					const uint32 BlockWidthInTiles = VTData->GetWidthInTiles();
 					const uint32 BlockHeightInTiles = VTData->GetHeightInTiles();
-					const uint32 MaxLevel = FMath::CeilLogTwo(FMath::Max(BlockWidthInTiles, BlockHeightInTiles));
+					const uint32 NumLevels = FMath::CeilLogTwo(FMath::Max(BlockWidthInTiles, BlockHeightInTiles));
+					const uint32 NumOwnerLevels = FMath::CeilLogTwo(FMath::Max(InOwnerProducerDesc.BlockWidthInTiles, InOwnerProducerDesc.BlockHeightInTiles));
 
 					// Clamp the streaming texture size to the runtime virtual texture.
-					const uint32 FirstMipToUse = MaxLevel > InOwnerProducerDesc.MaxLevel ? MaxLevel - InOwnerProducerDesc.MaxLevel : 0;
+					const uint32 FirstMipToUse = NumLevels > NumOwnerLevels ? NumLevels - NumOwnerLevels : 0;
 
 					OutStreamingProducerDesc.BlockWidthInTiles = BlockWidthInTiles >> FirstMipToUse;
 					OutStreamingProducerDesc.BlockHeightInTiles = BlockHeightInTiles >> FirstMipToUse;
-					OutStreamingProducerDesc.MaxLevel = MaxLevel - FirstMipToUse;
+					OutStreamingProducerDesc.MaxLevel = NumLevels - FirstMipToUse;
 
 					return new FUploadingVirtualTexture(InStreamingTexture->GetFName(), VTData, FirstMipToUse);
 				}
