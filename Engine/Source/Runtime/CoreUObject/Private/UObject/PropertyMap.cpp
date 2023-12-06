@@ -517,7 +517,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			TSet<int32> ModifiedIndices;
 
 			bool bReplaceMap = false;
-			if (!Defaults)
+			if (!Defaults || !UnderlyingArchive.DoDelta() || UnderlyingArchive.IsTransacting())
 			{
 				bReplaceMap = true;
 			}

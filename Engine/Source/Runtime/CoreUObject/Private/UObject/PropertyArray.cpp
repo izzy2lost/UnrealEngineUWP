@@ -393,7 +393,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			TArray<int32> AddedIndices;
 
 			bool bReplaceArray = false;
-			if (!Defaults)
+			if (!Defaults || !UnderlyingArchive.DoDelta() || UnderlyingArchive.IsTransacting())
 			{
 				bReplaceArray = true;
 			}
