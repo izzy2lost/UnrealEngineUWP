@@ -1,6 +1,8 @@
 FROM node:18.13.0 as build-env
 ARG VersionInfo
+ARG DashboardConfig
 ENV REACT_APP_VERSION_INFO=${VersionInfo}
+ENV REACT_APP_DASHBOARD_CONFIG=${DashboardConfig}
 WORKDIR /app
 RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 COPY Source/Programs/Horde/HordeDashboard ./Dashboard

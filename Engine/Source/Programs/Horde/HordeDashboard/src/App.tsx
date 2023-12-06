@@ -50,6 +50,8 @@ const Main: React.FC = () => {
 
    if (!init) {
 
+      console.log("Initializing " + config.environment + " dashboard");
+
       backend.init().then(() => {
 
          backend.getCurrentUser().then(user => {
