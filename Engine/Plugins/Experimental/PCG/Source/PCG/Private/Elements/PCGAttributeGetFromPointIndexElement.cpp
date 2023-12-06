@@ -56,7 +56,7 @@ void UPCGAttributeGetFromPointIndexSettings::PostLoad()
 TArray<FPCGPinProperties> UPCGAttributeGetFromPointIndexSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point, /*bInAllowMultipleConnections=*/ false);
+	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
 
 	return PinProperties;
 }
@@ -86,92 +86,92 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 
-	if (Inputs.Num() != 1)
+	for (int32 InputIndex = 0; InputIndex < Inputs.Num(); ++InputIndex)
 	{
-		PCGE_LOG(Warning, LogOnly, FText::Format(LOCTEXT("WrongNumberOfInputs", "Input pin expected to have one input data element, encountered {0}"), Inputs.Num()));
-		return true;
-	}
+		const FPCGTaggedData& Input = Inputs[InputIndex];
+		const UPCGPointData* PointData = Cast<UPCGPointData>(Input.Data);
 
-	const UPCGPointData* PointData = Cast<UPCGPointData>(Inputs[0].Data);
-
-	if (!PointData)
-	{
-		PCGE_LOG(Error, GraphAndLog, LOCTEXT("InputNotPointData", "Input is not a point data"));
-		return true;
-	}
-
-	const int32 Index = Settings->Index;
-
-	if (Index < 0 || Index >= PointData->GetPoints().Num())
-	{
-		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("IndexOutOfBounds", "Index is out of bounds. Index: {0}; Number of Points: {1}"), Index, PointData->GetPoints().Num()));
-		return true;
-	}
-
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	const FPCGPoint& Point = PointData->GetPoints()[Index];
-
-#if !WITH_EDITOR
-	// Eschew output creation only in non-editor builds
-	if(Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeGetFromPointIndexConstants::OutputPointLabel))
-#endif
-	{
-		UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
-		OutputPointData->InitializeFromData(PointData);
-		OutputPointData->GetMutablePoints().Add(Point);
-
-		FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[0]);
-		Output.Data = OutputPointData;
-		Output.Pin = PCGAttributeGetFromPointIndexConstants::OutputPointLabel;
-	}
-
-	FPCGAttributePropertyInputSelector InputSource = Settings->InputSource.CopyAndFixLast(PointData);
-
-	const FName OutputAttributeName = (Settings->OutputAttributeName == PCGMetadataAttributeConstants::SourceNameAttributeName) ? InputSource.GetName() : Settings->OutputAttributeName;
-
-	TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputSource);
-	FPCGAttributeAccessorKeysPoints PointKey(Point);
-
-	if (Accessor.IsValid())
-	{
-		UPCGParamData* OutputParamData = NewObject<UPCGParamData>();
-
-		auto ExtractAttribute = [this, Context, OutputAttributeName, &OutputParamData, &Accessor, &PointKey](auto DummyValue) -> bool
+		if (!PointData)
 		{
-			using AttributeType = decltype(DummyValue);
-
-			AttributeType Value{};
-
-			// Should never fail, as OutputType == Accessor->UnderlyingType
-			if (!ensure(Accessor->Get<AttributeType>(Value, PointKey)))
-			{
-				return false;
-			}
-
-			FPCGMetadataAttribute<AttributeType>* NewAttribute = static_cast<FPCGMetadataAttribute<AttributeType>*>(
-				OutputParamData->Metadata->CreateAttribute<AttributeType>(OutputAttributeName, Value, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false));
-
-			if (!NewAttribute)
-			{
-				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ErrorCreatingTargetAttribute", "Error while creating target attribute '{0}'"), FText::FromName(OutputAttributeName)));
-				return false;
-			}
-
-			NewAttribute->SetValue(OutputParamData->Metadata->AddEntry(), Value);
-
-			return true;
-		};
-
-		if (PCGMetadataAttribute::CallbackWithRightType(Accessor->GetUnderlyingType(), ExtractAttribute))
-		{
-			FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[0]);
-			Output.Data = OutputParamData;
-			Output.Pin = PCGAttributeGetFromPointIndexConstants::OutputAttributeLabel;
+			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("InputNotPointData", "Input {0} is not a point data"), InputIndex));
+			continue;
 		}
-	}
-	else
-	{
-		PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("AttributeNotFound", "Cannot find attribute/property '{0}' in input"), FText::FromName(InputSource.GetName())));
+
+		const int32 Index = Settings->Index;
+
+		if (Index < 0 || Index >= PointData->GetPoints().Num())
+		{
+			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("IndexOutOfBounds", "Index for input {0} is out of bounds. Index: {1}; Number of Points: {2}"), InputIndex, Index, PointData->GetPoints().Num()));
+			continue;
+		}
+
+		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+		const FPCGPoint& Point = PointData->GetPoints()[Index];
+
+		FPCGAttributePropertyInputSelector InputSource = Settings->InputSource.CopyAndFixLast(PointData);
+
+		const FName OutputAttributeName = (Settings->OutputAttributeName == PCGMetadataAttributeConstants::SourceNameAttributeName) ? InputSource.GetName() : Settings->OutputAttributeName;
+
+		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputSource);
+		FPCGAttributeAccessorKeysPoints PointKey(Point);
+
+		if (Accessor.IsValid())
+		{
+			UPCGParamData* OutputParamData = NewObject<UPCGParamData>();
+
+			auto ExtractAttribute = [this, Context, OutputAttributeName, &OutputParamData, &Accessor, &PointKey, InputIndex](auto DummyValue) -> bool
+			{
+				using AttributeType = decltype(DummyValue);
+
+				AttributeType Value{};
+
+				// Should never fail, as OutputType == Accessor->UnderlyingType
+				if (!ensure(Accessor->Get<AttributeType>(Value, PointKey)))
+				{
+					return false;
+				}
+
+				FPCGMetadataAttribute<AttributeType>* NewAttribute = static_cast<FPCGMetadataAttribute<AttributeType>*>(
+					OutputParamData->Metadata->CreateAttribute<AttributeType>(OutputAttributeName, Value, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false));
+
+				if (!NewAttribute)
+				{
+					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("ErrorCreatingTargetAttribute", "Error while creating target attribute '{0}' for output {1}"), FText::FromName(OutputAttributeName), InputIndex));
+					return false;
+				}
+
+				NewAttribute->SetValue(OutputParamData->Metadata->AddEntry(), Value);
+
+				return true;
+			};
+
+			if (PCGMetadataAttribute::CallbackWithRightType(Accessor->GetUnderlyingType(), ExtractAttribute))
+			{
+#if !WITH_EDITOR
+				// Add the point
+				// Eschew output creation only in non-editor builds
+				if (Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeGetFromPointIndexConstants::OutputPointLabel))
+#endif
+				{
+					UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+					OutputPointData->InitializeFromData(PointData);
+					OutputPointData->GetMutablePoints().Add(Point);
+
+					FPCGTaggedData& OutputPoint = Outputs.Add_GetRef(Input);
+					OutputPoint.Data = OutputPointData;
+					OutputPoint.Pin = PCGAttributeGetFromPointIndexConstants::OutputPointLabel;
+				}
+
+				// And the attribute
+				FPCGTaggedData& OutputAttribute = Outputs.Add_GetRef(Input);
+				OutputAttribute.Data = OutputParamData;
+				OutputAttribute.Pin = PCGAttributeGetFromPointIndexConstants::OutputAttributeLabel;
+			}
+		}
+		else
+		{
+			PCGE_LOG(Warning, GraphAndLog, FText::Format(LOCTEXT("AttributeNotFound", "Cannot find attribute/property '{0}' in input {1}"), FText::FromName(InputSource.GetName()), InputIndex));
+		}
 	}
 
 	return true;
