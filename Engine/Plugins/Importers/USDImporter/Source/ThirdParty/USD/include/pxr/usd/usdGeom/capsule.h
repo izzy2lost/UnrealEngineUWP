@@ -55,9 +55,6 @@ class SdfAssetPath;
 /// Defines a primitive capsule, i.e. a cylinder capped by two half
 /// spheres, centered at the origin, whose spine is along the specified
 /// \em axis.
-/// The spherical cap heights (sagitta) of the two endcaps are a function of 
-/// the relative radii of the endcaps, such that cylinder tangent and sphere 
-/// tangent are coincident and maintain C1 continuity.
 ///
 /// For any described attribute \em Fallback \em Value or \em Allowed \em Values below
 /// that are text/tokens, the actual token is published and defined in \ref UsdGeomTokens.
@@ -162,9 +159,9 @@ public:
     // --------------------------------------------------------------------- //
     // HEIGHT 
     // --------------------------------------------------------------------- //
-    /// The length of the capsule's spine along the specified
+    /// The size of the capsule's spine along the specified
     /// \em axis excluding the size of the two half spheres, i.e.
-    /// the length of the cylinder portion of the capsule.
+    /// the size of the cylinder portion of the capsule.
     /// If you author \em height you must also author \em extent.
     /// \sa GetExtentAttr()
     ///

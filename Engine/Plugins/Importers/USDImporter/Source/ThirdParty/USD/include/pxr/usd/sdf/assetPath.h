@@ -53,12 +53,6 @@ public:
     /// Construct an empty asset path.
     SDF_API SdfAssetPath();
 
-    // XXX(Epic Games):
-    // We explicitly declare, define, and export a destructor for SdfAssetPaths
-    // so that allocations of its member strings can be tracked and deallocated
-    // using the correct deallocator.
-    SDF_API ~SdfAssetPath();
-
     /// Construct an asset path with \p path and no associated resolved path.
     ///
     /// If the passed \p path is not valid UTF-8 or contains C0 or C1 control

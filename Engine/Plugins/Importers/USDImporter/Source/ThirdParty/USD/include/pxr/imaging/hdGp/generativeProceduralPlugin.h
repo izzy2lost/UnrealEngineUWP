@@ -27,7 +27,7 @@
 #include "pxr/imaging/hdGp/generativeProcedural.h"
 
 #include "pxr/pxr.h"
-#include "pxr/imaging/hdGp/api.h"
+#include "pxr/imaging/hd/api.h"
 #include "pxr/imaging/hf/pluginBase.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -43,16 +43,15 @@ public:
 
     /// Subclasses implement this to instantiate an HdGpGenerativeProcedural
     /// at a given prim path.
-    HDGP_API
+    HD_API
     virtual HdGpGenerativeProcedural *Construct(
         const SdfPath &proceduralPrimPath);
 
 protected:
 
-    HDGP_API
     HdGpGenerativeProceduralPlugin();
 
-    HDGP_API
+    HD_API
     ~HdGpGenerativeProceduralPlugin() override;
 };
 

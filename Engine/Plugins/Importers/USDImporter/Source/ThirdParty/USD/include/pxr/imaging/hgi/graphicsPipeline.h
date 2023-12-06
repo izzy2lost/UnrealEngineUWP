@@ -405,11 +405,14 @@ struct HgiTessellationState
 ///   The actual VBOs are bound via GraphicsCmds.</li>
 /// <li>colorAttachmentDescs:
 ///   Describes each of the color attachments.</li>
+/// <li>colorResolveAttachmentDescs:
+///   Describes each of the color resolve attachments (optional).</li>
 /// <li>depthAttachmentDesc:
 ///   Describes the depth attachment (optional)
 ///   Use HgiFormatInvalid to indicate no depth attachment.</li>
-/// <li>resolveAttachments:
-///   Indicates whether or not to resolve the color and depth attachments.</li>
+/// <li>depthResolveAttachmentDesc:
+///   Describes the depth resolve attachment (optional).
+///   Use HgiFormatInvalid to indicate no depth resolve attachment.</li>
 /// <li>shaderConstantsDesc:
 ///   Describes the shader uniforms.</li>
 /// <li>tessellationState:
@@ -429,8 +432,9 @@ struct HgiGraphicsPipelineDesc
     HgiRasterizationState rasterizationState;
     HgiVertexBufferDescVector vertexBuffers;
     HgiAttachmentDescVector colorAttachmentDescs;
+    HgiAttachmentDescVector colorResolveAttachmentDescs;
     HgiAttachmentDesc depthAttachmentDesc;
-    bool resolveAttachments;
+    HgiAttachmentDesc depthResolveAttachmentDesc;
     HgiGraphicsShaderConstantsDesc shaderConstantsDesc;
     HgiTessellationState tessellationState;
 };

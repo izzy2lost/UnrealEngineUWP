@@ -39,6 +39,7 @@
 #include <type_traits>
 #include <vector>
 #include <boost/intrusive_ptr.hpp>
+#include <boost/operators.hpp>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -59,7 +60,7 @@ typedef boost::intrusive_ptr<Sdf_Identity> Sdf_IdentityRefPtr;
 /// be expired.
 ///
 template <class T>
-class SdfHandle {
+class SdfHandle : private boost::totally_ordered<SdfHandle<T> > {
 public:
     typedef SdfHandle<T> This;
     typedef T SpecType;
@@ -134,36 +135,12 @@ public:
         return _spec == other._spec;
     }
 
-    /// \sa SdfHandle::operator==
-    friend bool operator!=(const SdfHandle& lhs, const SdfHandle& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
     /// Arranges handles in an arbitrary strict weak ordering.  Note that
     /// this ordering is stable across path changes.
     template <class U>
     bool operator<(const SdfHandle<U>& other) const
     {
         return _spec < other._spec;
-    }
-
-    /// \sa SdfHandle::operator<
-    friend bool operator>(const SdfHandle& lhs, const SdfHandle& rhs)
-    {
-        return rhs < lhs;
-    }
-
-    /// \sa SdfHandle::operator<
-    friend bool operator<=(const SdfHandle& lhs, const SdfHandle& rhs)
-    {
-        return !(rhs < lhs);
-    }
-
-    /// \sa SdfHandle::operator<
-    friend bool operator>=(const SdfHandle& lhs, const SdfHandle& rhs)
-    {
-        return !(lhs < rhs);
     }
 
     /// Hash.

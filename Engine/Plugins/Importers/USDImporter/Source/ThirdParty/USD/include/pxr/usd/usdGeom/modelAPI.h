@@ -95,15 +95,10 @@ class SdfAssetPath;
 /// \em model:applyDrawMode set at a lower level so each particle
 /// group draws individually.
 /// 
-/// Models of kind component are automatically treated as if 
-/// \em model:applyDrawMode were true if \em model:applyDrawMode is not 
-/// authored on the component prim. A component prim will be drawn drawn with a 
-/// simplified representation when the prim has kind component, 
-/// \em model:applyDrawMode is not authored (or authored to be true), and the 
-/// resolved (i.e. inherited down namespace) value for \em model:drawMode is 
-/// not _default_. If you don't want component prims to use the resolved 
-/// non-default drawMode, you must apply the UsdGeomModelAPI schema on the prim 
-/// and explicitly set \em model:applyDrawMode to false.
+/// Models of kind component are treated as if \em model:applyDrawMode
+/// were true.  This means a prim is drawn with proxy geometry when: the
+/// prim has kind component, and/or \em model:applyDrawMode is set; and
+/// the prim's resolved value for \em model:drawMode is not _default_.
 /// 
 /// \section UsdGeomModelAPI_cardGeometry Cards Geometry
 /// 
@@ -264,8 +259,7 @@ public:
     // --------------------------------------------------------------------- //
     /// Alternate imaging mode; applied to this prim or child prims
     /// where \em model:applyDrawMode is true, or where the prim
-    /// has kind \em component and \em model:applyDrawMode is not
-    /// authored. See \ref UsdGeomModelAPI_drawMode
+    /// has kind \em component. See \ref UsdGeomModelAPI_drawMode
     /// for mode descriptions.
     ///
     /// | ||

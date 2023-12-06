@@ -58,7 +58,6 @@ struct HdMeshReprDesc
                    TfToken shadingTerminal = HdMeshReprDescTokens->surfaceShader,
                    bool flatShadingEnabled = true,
                    bool blendWireframeColor = true,
-                   bool forceOpaqueEdges = true,
                    bool doubleSided = false,
                    float lineWidth = 0,
                    bool useCustomDisplacement = true,
@@ -68,7 +67,6 @@ struct HdMeshReprDesc
         , shadingTerminal(shadingTerminal)
         , flatShadingEnabled(flatShadingEnabled)
         , blendWireframeColor(blendWireframeColor)
-        , forceOpaqueEdges(forceOpaqueEdges)
         , doubleSided(doubleSided)
         , lineWidth(lineWidth)
         , useCustomDisplacement(useCustomDisplacement)
@@ -90,10 +88,6 @@ struct HdMeshReprDesc
     bool            flatShadingEnabled;
     /// Should the wireframe color be blended into the color primvar?
     bool            blendWireframeColor;
-    /// If the geom style includes edges, should those edges be forced
-    /// to be fully opaque, ignoring any applicable opacity inputs.
-    /// Does not apply to patch edges.
-    bool            forceOpaqueEdges;
     /// Should this mesh be treated as double-sided? The resolved value is
     /// (prim.doubleSided || repr.doubleSided).
     bool            doubleSided;

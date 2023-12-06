@@ -46,21 +46,15 @@ public:
 
     HdDataSourceMaterialNetworkInterface(
         const SdfPath &materialPrimPath,
-        const HdContainerDataSourceHandle &networkContainer,
-        const HdContainerDataSourceHandle &primContainer)
+        const HdContainerDataSourceHandle &networkContainer)
     : _materialPrimPath(materialPrimPath)
     , _networkContainer(networkContainer)
-    , _networkEditor(networkContainer)
-    , _primContainer(primContainer)
+    , _containerEditor(networkContainer)
     {}
 
-    HD_API
     SdfPath GetMaterialPrimPath() const override {
         return _materialPrimPath;
     }
-
-    HD_API
-    std::string GetModelAssetName() const override;
 
     HD_API
     TfTokenVector GetNodeNames() const override;
@@ -157,8 +151,7 @@ private:
 
     SdfPath _materialPrimPath;
     HdContainerDataSourceHandle _networkContainer;
-    HdContainerDataSourceEditor _networkEditor;
-    HdContainerDataSourceHandle _primContainer;
+    HdContainerDataSourceEditor _containerEditor;
     _OverrideMap _existingOverrides;
     _TokenSet _overriddenNodes;
     _TokenSet _deletedNodes;

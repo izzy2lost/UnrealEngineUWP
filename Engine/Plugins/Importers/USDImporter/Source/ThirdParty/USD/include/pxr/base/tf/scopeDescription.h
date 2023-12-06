@@ -27,6 +27,7 @@
 #include "pxr/pxr.h"
 
 #include "pxr/base/tf/callContext.h"
+#include "pxr/base/tf/preprocessorUtils.h"
 #include "pxr/base/tf/stringUtils.h"
 #include "pxr/base/tf/api.h"
 

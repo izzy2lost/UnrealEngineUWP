@@ -716,10 +716,6 @@ private:
         const std::string &renderInstanceId,
         const HdSceneIndexBaseRefPtr &inputScene,
         const HdContainerDataSourceHandle &inputArgs);
-
-    HdSceneIndexBaseRefPtr
-    _AppendOverridesSceneIndices(
-        const HdSceneIndexBaseRefPtr &inputScene);
     
     UsdImagingGLEngine_Impl::_AppSceneIndicesSharedPtr _appSceneIndices;
 

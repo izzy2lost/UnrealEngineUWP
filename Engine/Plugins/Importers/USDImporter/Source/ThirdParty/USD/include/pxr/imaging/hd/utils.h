@@ -27,7 +27,6 @@
 
 #include "pxr/pxr.h"
 #include "pxr/imaging/hd/api.h"
-#include "pxr/imaging/cameraUtil/conformWindow.h"
 
 #include "pxr/base/tf/declarePtrs.h"
 
@@ -40,7 +39,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 TF_DECLARE_REF_PTRS(HdSceneIndexBase);
 
 class SdfPath;
-class TfToken;
 
 namespace HdUtils {
 
@@ -135,12 +133,6 @@ bool
 HasActiveRenderSettingsPrim(
     const HdSceneIndexBaseRefPtr &si,
     SdfPath *primPath = nullptr);
-
-/// Translate the given aspect ratio conform policy \p token into an equivalent 
-/// CameraUtilConformWindowPolicy enum. 
-HD_API
-CameraUtilConformWindowPolicy
-ToConformWindowPolicy(const TfToken &token);
 
 }
 

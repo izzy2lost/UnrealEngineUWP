@@ -162,7 +162,7 @@ public:
     // --------------------------------------------------------------------- //
     // HEIGHT 
     // --------------------------------------------------------------------- //
-    /// The length of the cone's spine along the specified
+    /// The size of the cone's spine along the specified
     /// \em axis.  If you author \em height you must also author \em extent.
     /// 
     /// \sa GetExtentAttr()

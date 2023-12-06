@@ -40,11 +40,6 @@ class UsdImagingFlattenedModelDataSourceProvider
     USDIMAGING_API
     void ComputeDirtyLocatorsForDescendants(
         HdDataSourceLocatorSet * locators) const override;
-
-public:
-
-    USDIMAGING_API
-    virtual ~UsdImagingFlattenedModelDataSourceProvider();
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

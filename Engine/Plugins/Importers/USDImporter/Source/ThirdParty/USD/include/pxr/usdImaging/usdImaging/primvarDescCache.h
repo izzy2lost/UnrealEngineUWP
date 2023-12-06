@@ -32,7 +32,6 @@
 
 #include "pxr/usd/sdf/path.h"
 
-#include "pxr/base/tf/hash.h"
 #include "pxr/base/tf/token.h"
 
 #include <tbb/concurrent_unordered_map.h>
@@ -72,8 +71,9 @@ public:
 
         struct Hash {
             inline size_t operator()(Key const& key) const {
-                return TfHash::Combine(key._path.GetHash(),
-                                       key._attribute.Hash());
+                size_t hash = key._path.GetHash();
+                boost::hash_combine(hash, key._attribute.Hash());
+                return hash;
             }
         };
 

@@ -21,13 +21,13 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef PXR_USD_IMAGING_USD_RI_PXR_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H
-#define PXR_USD_IMAGING_USD_RI_PXR_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H
+#ifndef PXR_USD_IMAGING_USD_RI_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H
+#define PXR_USD_IMAGING_USD_RI_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H
 
-/// \file usdRiPxrImaging/pxrBarnLightFilterAdapter.h
+/// \file usdRiImaging/pxrBarnLightFilterAdapter.h
 
 #include "pxr/pxr.h"
-#include "pxr/usdImaging/usdRiPxrImaging/api.h"
+#include "pxr/usdImaging/usdRiImaging/api.h"
 #include "pxr/usdImaging/usdImaging/lightFilterAdapter.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -35,27 +35,27 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 class UsdPrim;
 
-/// \class UsdRiPxrImagingBarnLightFilterAdapter
+/// \class UsdRiImagingPxrBarnLightFilterAdapter
 ///
 /// Adapter class for lights of type PxrBarnLightFilter
 ///
-class UsdRiPxrImagingBarnLightFilterAdapter : public UsdImagingLightFilterAdapter {
+class UsdRiImagingPxrBarnLightFilterAdapter : public UsdImagingLightFilterAdapter {
 public:
     typedef UsdImagingLightFilterAdapter BaseAdapter;
 
-    UsdRiPxrImagingBarnLightFilterAdapter()
+    UsdRiImagingPxrBarnLightFilterAdapter()
         : UsdImagingLightFilterAdapter()
     {}
 
-    USDRIPXRIMAGING_API
-    virtual ~UsdRiPxrImagingBarnLightFilterAdapter();
+    USDRIIMAGING_API
+    virtual ~UsdRiImagingPxrBarnLightFilterAdapter();
 
-    USDRIPXRIMAGING_API
+    USDRIIMAGING_API
     virtual SdfPath Populate(UsdPrim const& prim,
                      UsdImagingIndexProxy* index,
                      UsdImagingInstancerContext const* instancerContext = NULL);
 
-    USDRIPXRIMAGING_API
+    USDRIIMAGING_API
     virtual bool IsSupported(UsdImagingIndexProxy const* index) const;
 
 protected:
@@ -67,4 +67,4 @@ protected:
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // PXR_USD_IMAGING_USD_RI_PXR_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H
+#endif // PXR_USD_IMAGING_USD_RI_IMAGING_PXR_BARN_LIGHT_FILTER_ADAPTER_H

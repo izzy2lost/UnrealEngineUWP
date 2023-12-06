@@ -162,6 +162,10 @@ struct UsdSkelTokensType {
     /// 
     /// Schema identifer and family for UsdSkelBlendShape
     const TfToken BlendShape;
+    /// \brief "PackedJointAnimation"
+    /// 
+    /// Schema identifer and family for UsdSkelPackedJointAnimation
+    const TfToken PackedJointAnimation;
     /// \brief "SkelAnimation"
     /// 
     /// Schema identifer and family for UsdSkelAnimation

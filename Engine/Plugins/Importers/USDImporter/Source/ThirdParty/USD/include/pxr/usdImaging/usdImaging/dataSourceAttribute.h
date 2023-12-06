@@ -166,36 +166,21 @@ UsdImagingDataSourceAttributeNew(
 
 // ----------------------------------------------------------------------------
 
-
-template<typename T>
-inline void
-UsdImagingDataSourceAttribute_RecordObjectInStageGlobals(
-    const UsdImagingDataSourceStageGlobals *stageGlobals,
-    const SdfPath &objPath)
-{
-    // By default nothing to record.
-}
-
-template<>
-inline void
-UsdImagingDataSourceAttribute_RecordObjectInStageGlobals<SdfAssetPath>(
-    const UsdImagingDataSourceStageGlobals *stageGlobals,
-    const SdfPath &objPath)
-{
-    // Record asset path-valued attributes.
-    stageGlobals->FlagAsAssetPathDependent(objPath);
-}
-
 template<typename T>
 UsdImagingDataSourceAttribute<T>::UsdImagingDataSourceAttribute(
     const UsdAttribute &usdAttr,
     const UsdImagingDataSourceStageGlobals &stageGlobals,
     const SdfPath &sceneIndexPath,
     const HdDataSourceLocator &timeVaryingFlagLocator)
-    : UsdImagingDataSourceAttribute(
-        UsdAttributeQuery(usdAttr), stageGlobals,
-        sceneIndexPath, timeVaryingFlagLocator)
+    : _usdAttrQuery(usdAttr)
+    , _stageGlobals(stageGlobals) 
 {
+    if (!timeVaryingFlagLocator.IsEmpty()) {
+        if (_usdAttrQuery.ValueMightBeTimeVarying()) {
+            _stageGlobals.FlagAsTimeVarying(
+                    sceneIndexPath, timeVaryingFlagLocator);
+        }
+    }
 }
 
 template<typename T>
@@ -213,9 +198,6 @@ UsdImagingDataSourceAttribute<T>::UsdImagingDataSourceAttribute(
                     sceneIndexPath, timeVaryingFlagLocator);
         }
     }
-
-    UsdImagingDataSourceAttribute_RecordObjectInStageGlobals<T>(
-        &_stageGlobals, usdAttrQuery.GetAttribute().GetPath());
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

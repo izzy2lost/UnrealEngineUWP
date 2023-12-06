@@ -33,6 +33,8 @@
 #include "pxr/usd/sdf/path.h"
 #include "pxr/base/tf/hash.h"
 
+#include <boost/operators.hpp>
+
 #include <iosfwd>
 #include <string>
 #include <vector>
@@ -55,7 +57,7 @@ typedef std::vector<SdfPayload> SdfPayloadVector;
 /// system behaviors will not traverse across, providing a user-visible
 /// way to manage the working set of the scene.
 ///
-class SdfPayload {
+class SdfPayload : boost::totally_ordered<SdfPayload> {
 public:
     /// Create a payload. See SdfAssetPath for what characters are valid in \p
     /// assetPath.  If \p assetPath contains invalid characters, issue an error
@@ -105,29 +107,9 @@ public:
     /// Returns whether this payload equals \a rhs.
     SDF_API bool operator==(const SdfPayload &rhs) const;
 
-    /// \sa SdfPayload::operator==
-    bool operator!=(const SdfPayload& rhs) const {
-        return !(*this == rhs);
-    }
-
     /// Returns whether this payload is less than \a rhs.
     /// The meaning of less than is arbitrary but stable.
     SDF_API bool operator<(const SdfPayload &rhs) const;
-
-    /// \sa SdfPayload::operator<
-    bool operator>(const SdfPayload& rhs) const {
-        return rhs < *this;
-    }
-
-    /// \sa SdfPayload::operator<
-    bool operator<=(const SdfPayload& rhs) const {
-        return !(rhs < *this);
-    }
-
-    /// \sa SdfPayload::operator<
-    bool operator>=(const SdfPayload& rhs) const {
-        return !(*this < rhs);
-    }
 
 private:
     friend inline size_t hash_value(const SdfPayload &p) {

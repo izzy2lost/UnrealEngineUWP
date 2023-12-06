@@ -34,6 +34,7 @@
 #include "pxr/base/vt/traits.h"
 
 #include <boost/intrusive_ptr.hpp>
+#include <boost/operators.hpp>
 
 #include <algorithm>
 #include <iterator>
@@ -640,7 +641,7 @@ public:
     /// grandparent path ('../..').  Use caution writing loops that walk to
     /// parent paths since relative paths have infinitely many ancestors.  To
     /// more safely traverse ancestor paths, consider iterating over an
-    /// SdfPathAncestorsRange instead, as returned by GetAncestorsRange().
+    /// SdfPathAncestorsRange instead, as returend by GetAncestorsRange().
     SDF_API SdfPath GetParentPath() const;
 
     /// Creates a path by stripping all relational attributes, targets,

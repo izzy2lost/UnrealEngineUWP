@@ -28,10 +28,10 @@
 /* ** defs.py or the (*)Schema.template.h files to make changes.           ** */
 /* ************************************************************************** */
 
-#ifndef PXR_USD_IMAGING_USD_IMAGING_MODEL_SCHEMA_H
-#define PXR_USD_IMAGING_USD_IMAGING_MODEL_SCHEMA_H
+#ifndef PXR_IMAGING_HD_MODEL_SCHEMA_H
+#define PXR_IMAGING_HD_MODEL_SCHEMA_H
 
-#include "pxr/usdImaging/usdImaging/api.h"
+#include "pxr/imaging/hd/api.h"
 
 #include "pxr/imaging/hd/schema.h" 
 
@@ -39,13 +39,8 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 //-----------------------------------------------------------------------------
 
-#define USDIMAGINGMODEL_SCHEMA_TOKENS \
+#define HDMODEL_SCHEMA_TOKENS \
     (model) \
-    (modelPath) \
-    (kind) \
-    (assetIdentifier) \
-    (assetName) \
-    (assetVersion) \
     (drawMode) \
     (applyDrawMode) \
     (drawModeColor) \
@@ -65,48 +60,38 @@ PXR_NAMESPACE_OPEN_SCOPE
     (box) \
     (fromTexture) \
 
-TF_DECLARE_PUBLIC_TOKENS(UsdImagingModelSchemaTokens, USDIMAGING_API,
-    USDIMAGINGMODEL_SCHEMA_TOKENS);
+TF_DECLARE_PUBLIC_TOKENS(HdModelSchemaTokens, HD_API,
+    HDMODEL_SCHEMA_TOKENS);
 
 //-----------------------------------------------------------------------------
 
-class UsdImagingModelSchema : public HdSchema
+class HdModelSchema : public HdSchema
 {
 public:
-    UsdImagingModelSchema(HdContainerDataSourceHandle container)
+    HdModelSchema(HdContainerDataSourceHandle container)
     : HdSchema(container) {}
 
     //ACCESSORS
 
-    USDIMAGING_API
-    HdPathDataSourceHandle GetModelPath();
-    USDIMAGING_API
-    HdTokenDataSourceHandle GetKind();
-    USDIMAGING_API
-    HdAssetPathDataSourceHandle GetAssetIdentifier();
-    USDIMAGING_API
-    HdStringDataSourceHandle GetAssetName();
-    USDIMAGING_API
-    HdStringDataSourceHandle GetAssetVersion();
-    USDIMAGING_API
+    HD_API
     HdTokenDataSourceHandle GetDrawMode();
-    USDIMAGING_API
+    HD_API
     HdBoolDataSourceHandle GetApplyDrawMode();
-    USDIMAGING_API
+    HD_API
     HdVec3fDataSourceHandle GetDrawModeColor();
-    USDIMAGING_API
+    HD_API
     HdTokenDataSourceHandle GetCardGeometry();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureXPos();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureYPos();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureZPos();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureXNeg();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureYNeg();
-    USDIMAGING_API
+    HD_API
     HdAssetPathDataSourceHandle GetCardTextureZNeg();
 
     // RETRIEVING AND CONSTRUCTING
@@ -116,14 +101,9 @@ public:
     /// low-level interface. For cases in which it's desired to define
     /// the container with a sparse set of child fields, the Builder class
     /// is often more convenient and readable.
-    USDIMAGING_API
+    HD_API
     static HdContainerDataSourceHandle
     BuildRetained(
-        const HdPathDataSourceHandle &modelPath,
-        const HdTokenDataSourceHandle &kind,
-        const HdAssetPathDataSourceHandle &assetIdentifier,
-        const HdStringDataSourceHandle &assetName,
-        const HdStringDataSourceHandle &assetVersion,
         const HdTokenDataSourceHandle &drawMode,
         const HdBoolDataSourceHandle &applyDrawMode,
         const HdVec3fDataSourceHandle &drawModeColor,
@@ -136,7 +116,7 @@ public:
         const HdAssetPathDataSourceHandle &cardTextureZNeg
     );
 
-    /// \class UsdImagingModelSchema::Builder
+    /// \class HdModelSchema::Builder
     /// 
     /// Utility class for setting sparse sets of child data source fields to be
     /// filled as arguments into BuildRetained. Because all setter methods
@@ -145,62 +125,42 @@ public:
     class Builder
     {
     public:
-        USDIMAGING_API
-        Builder &SetModelPath(
-            const HdPathDataSourceHandle &modelPath);
-        USDIMAGING_API
-        Builder &SetKind(
-            const HdTokenDataSourceHandle &kind);
-        USDIMAGING_API
-        Builder &SetAssetIdentifier(
-            const HdAssetPathDataSourceHandle &assetIdentifier);
-        USDIMAGING_API
-        Builder &SetAssetName(
-            const HdStringDataSourceHandle &assetName);
-        USDIMAGING_API
-        Builder &SetAssetVersion(
-            const HdStringDataSourceHandle &assetVersion);
-        USDIMAGING_API
+        HD_API
         Builder &SetDrawMode(
             const HdTokenDataSourceHandle &drawMode);
-        USDIMAGING_API
+        HD_API
         Builder &SetApplyDrawMode(
             const HdBoolDataSourceHandle &applyDrawMode);
-        USDIMAGING_API
+        HD_API
         Builder &SetDrawModeColor(
             const HdVec3fDataSourceHandle &drawModeColor);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardGeometry(
             const HdTokenDataSourceHandle &cardGeometry);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureXPos(
             const HdAssetPathDataSourceHandle &cardTextureXPos);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureYPos(
             const HdAssetPathDataSourceHandle &cardTextureYPos);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureZPos(
             const HdAssetPathDataSourceHandle &cardTextureZPos);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureXNeg(
             const HdAssetPathDataSourceHandle &cardTextureXNeg);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureYNeg(
             const HdAssetPathDataSourceHandle &cardTextureYNeg);
-        USDIMAGING_API
+        HD_API
         Builder &SetCardTextureZNeg(
             const HdAssetPathDataSourceHandle &cardTextureZNeg);
 
         /// Returns a container data source containing the members set thus far.
-        USDIMAGING_API
+        HD_API
         HdContainerDataSourceHandle Build();
 
     private:
-        HdPathDataSourceHandle _modelPath;
-        HdTokenDataSourceHandle _kind;
-        HdAssetPathDataSourceHandle _assetIdentifier;
-        HdStringDataSourceHandle _assetName;
-        HdStringDataSourceHandle _assetVersion;
         HdTokenDataSourceHandle _drawMode;
         HdBoolDataSourceHandle _applyDrawMode;
         HdVec3fDataSourceHandle _drawModeColor;
@@ -215,21 +175,21 @@ public:
 
     /// Retrieves a container data source with the schema's default name token
     /// "model" from the parent container and constructs a
-    /// UsdImagingModelSchema instance.
+    /// HdModelSchema instance.
     /// Because the requested container data source may not exist, the result
     /// should be checked with IsDefined() or a bool comparison before use.
-    USDIMAGING_API
-    static UsdImagingModelSchema GetFromParent(
+    HD_API
+    static HdModelSchema GetFromParent(
         const HdContainerDataSourceHandle &fromParentContainer);
 
     /// Returns a token where the container representing this schema is found in
     /// a container by default.
-    USDIMAGING_API
+    HD_API
     static const TfToken &GetSchemaToken();
 
     /// Returns an HdDataSourceLocator (relative to the prim-level data source)
     /// where the container representing this schema is found by default.
-    USDIMAGING_API
+    HD_API
     static const HdDataSourceLocator &GetDefaultLocator();
 
 
@@ -237,7 +197,7 @@ public:
     /// where the drawmode data source can be found.
     /// This is often useful for checking intersection against the
     /// HdDataSourceLocatorSet sent with HdDataSourceObserver::PrimsDirtied.
-    USDIMAGING_API
+    HD_API
     static const HdDataSourceLocator &GetDrawModeLocator();
 
 };

@@ -74,11 +74,7 @@
 // 52 -> 53: Changing dirty bits of HdCoordSys.
 // 53 -> 54: Introducing HdFlattenedDataSourceProvider to make
 //           HdFlatteningSceneIndex modular.
-// 54 -> 55: Introduce API in HdRenderDelegate to aid in transitioning
-//           render delegates to a Hydra 2.0 world.
-// 55 -> 56: Adds hydra-namespaced internal instancer primvars
-
-#define HD_API_VERSION 56
+#define HD_API_VERSION 54
 
 // 1  ->  2: SimpleLighting -> FallbackLighting
 #define HD_SHADER_API 2

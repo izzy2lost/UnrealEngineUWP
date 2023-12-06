@@ -102,7 +102,10 @@ public:
         GeneratePoints(iter, numRadial, numCapAxial,
                        /* bottomRadius =    */ radius,
                        /* topRadius    =    */ radius,
-                       height, sweep, framePtr);
+                       height,
+                       /* bottomCapHeight = */ radius,
+                       /* topCapHeight =    */ radius,
+                        sweep, framePtr);
     }
 
     template<typename PointIterType,
@@ -116,6 +119,8 @@ public:
         const ScalarType bottomRadius,
         const ScalarType topRadius,
         const ScalarType height,
+        const ScalarType bottomCapHeight,
+        const ScalarType topCapHeight,
         const ScalarType sweepDegrees,
         const GfMatrix4d* framePtr = nullptr)
     {
@@ -123,7 +128,7 @@ public:
             typename std::iterator_traits<PointIterType>::value_type;
 
         _GeneratePointsImpl(numRadial, numCapAxial, bottomRadius, topRadius,
-            height, sweepDegrees,
+            height, bottomCapHeight, topCapHeight, sweepDegrees,
             framePtr ? _PointWriter<PointType>(iter, framePtr)
                      : _PointWriter<PointType>(iter));
     }
@@ -138,6 +143,8 @@ private:
         const typename PointType::ScalarType bottomRadius,
         const typename PointType::ScalarType topRadius,
         const typename PointType::ScalarType height,
+        const typename PointType::ScalarType bottomCapHeight,
+        const typename PointType::ScalarType topCapHeight,
         const typename PointType::ScalarType sweep,
         const _PointWriter<PointType>& ptWriter);
 };

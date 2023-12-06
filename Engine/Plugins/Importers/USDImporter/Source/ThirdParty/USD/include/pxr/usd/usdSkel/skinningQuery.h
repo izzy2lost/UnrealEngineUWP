@@ -37,7 +37,6 @@
 
 #include "pxr/usd/usdSkel/animMapper.h"
 
-#include <optional>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -284,8 +283,8 @@ private:
     UsdRelationship _blendShapeTargets;
     UsdSkelAnimMapperRefPtr _jointMapper;
     UsdSkelAnimMapperRefPtr _blendShapeMapper;
-    std::optional<VtTokenArray> _jointOrder;
-    std::optional<VtTokenArray> _blendShapeOrder;
+    boost::optional<VtTokenArray> _jointOrder;
+    boost::optional<VtTokenArray> _blendShapeOrder;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

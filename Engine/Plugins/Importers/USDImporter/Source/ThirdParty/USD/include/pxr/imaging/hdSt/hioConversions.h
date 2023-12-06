@@ -36,10 +36,7 @@ class HdStHioConversions
 {
 public:
     HDST_API
-    static HioFormat GetHioFormat(HdFormat hdFormat);
-
-    HDST_API
-    static HdFormat GetHdFormat(HioFormat hioFormat);
+    static HioFormat GetHioFormat(HdFormat inFormat);
 };
 
 

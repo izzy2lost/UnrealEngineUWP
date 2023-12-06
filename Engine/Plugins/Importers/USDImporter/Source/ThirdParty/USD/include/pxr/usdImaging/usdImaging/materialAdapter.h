@@ -87,7 +87,7 @@ public:
             UsdPrim const& descendentPrim,
             TfToken const& subprim,
             TfTokenVector const& properties,
-            UsdImagingPropertyInvalidationType invalidationType) override;
+            UsdImagingPropertyInvalidationType invalidationType);
 
     // ---------------------------------------------------------------------- //
     /// \name Initialization

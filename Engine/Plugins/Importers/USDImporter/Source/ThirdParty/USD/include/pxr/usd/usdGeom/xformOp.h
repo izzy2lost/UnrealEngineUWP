@@ -33,9 +33,10 @@
 #include "pxr/usd/usdGeom/tokens.h"
 
 #include <string>
-#include <variant>
 #include <vector>
 #include <typeinfo>
+
+#include <boost/variant.hpp>
 
 #include "pxr/base/tf/staticTokens.h"
 
@@ -314,7 +315,7 @@ public:
     /// The determination is based on a snapshot of the authored state of the
     /// op, and may become invalid in the face of further authoring.
     bool MightBeTimeVarying() const {
-        return std::visit(_GetMightBeTimeVarying(), _attr);
+        return boost::apply_visitor(_GetMightBeTimeVarying(), _attr);
     }
 
     // ---------------------------------------------------------------
@@ -328,7 +329,7 @@ public:
 
     /// Explicit UsdAttribute extractor
     UsdAttribute const &GetAttr() const { 
-        return std::visit(_GetAttr(), _attr);
+        return boost::apply_visitor(_GetAttr(), _attr); 
     }
     
     /// Return true if the wrapped UsdAttribute::IsDefined(), and in
@@ -380,7 +381,7 @@ public:
     ///
     template <typename T>
     bool Get(T* value, UsdTimeCode time = UsdTimeCode::Default()) const {
-        return std::visit(_Get<T>(value, time), _attr);
+        return boost::apply_visitor(_Get<T>(value, time), _attr);
     }
 
     /// Set the attribute value of the XformOp at \p time 
@@ -406,20 +407,20 @@ public:
     /// Populates the list of time samples at which the associated attribute 
     /// is authored.
     bool GetTimeSamples(std::vector<double> *times) const {
-        return std::visit(_GetTimeSamples(times), _attr);
+        return boost::apply_visitor(_GetTimeSamples(times), _attr);
     }
 
     /// Populates the list of time samples within the given \p interval, 
     /// at which the associated attribute is authored.
     bool GetTimeSamplesInInterval(const GfInterval &interval, 
                                   std::vector<double> *times) const {
-        return std::visit(
+        return boost::apply_visitor(
                 _GetTimeSamplesInInterval(interval, times), _attr);
     }
 
     /// Returns the number of time samples authored for this xformOp.
     size_t GetNumTimeSamples() const {
-        return std::visit(_GetNumTimeSamples(), _attr);
+        return boost::apply_visitor(_GetNumTimeSamples(), _attr);
     }
 
 private:
@@ -487,14 +488,14 @@ private:
     // Hence, access to the creation of an attribute query is restricted inside 
     // a private member function named _CreateAttributeQuery().
     // 
-    mutable std::variant<UsdAttribute, UsdAttributeQuery> _attr;
+    mutable boost::variant<UsdAttribute, UsdAttributeQuery> _attr;
 
     Type _opType;
     bool _isInverseOp;
 
     // Visitor for getting xformOp value.
     template <class T>
-    struct _Get
+    struct _Get : public boost::static_visitor<bool> 
     {
         _Get(T *value_, 
              UsdTimeCode time_ = UsdTimeCode::Default()) : value (value_), time(time_)
@@ -515,7 +516,7 @@ private:
     };
 
     // Visitor for getting a const-reference to the UsdAttribute.
-    struct _GetAttr {
+    struct _GetAttr : public boost::static_visitor<const UsdAttribute &> {
 
         _GetAttr() {}
 
@@ -531,7 +532,7 @@ private:
     };
 
     // Visitor for getting all the time samples.
-    struct _GetTimeSamples {
+    struct _GetTimeSamples : public boost::static_visitor<bool> {
 
         _GetTimeSamples(std::vector<double> *times_) : times(times_) {}
 
@@ -549,7 +550,7 @@ private:
     };
 
     // Visitor for getting all the time samples within a given interval.
-    struct _GetTimeSamplesInInterval {
+    struct _GetTimeSamplesInInterval : public boost::static_visitor<bool> {
 
         _GetTimeSamplesInInterval(const GfInterval &interval_,
                                   std::vector<double> *times_) 
@@ -571,7 +572,7 @@ private:
     };
 
     // Visitor for getting the number of time samples.
-    struct _GetNumTimeSamples {
+    struct _GetNumTimeSamples : public boost::static_visitor<size_t> {
 
         _GetNumTimeSamples() {}
 
@@ -587,7 +588,7 @@ private:
     };
 
     // Visitor for determining whether the op might vary over time.
-    struct _GetMightBeTimeVarying {
+    struct _GetMightBeTimeVarying : public boost::static_visitor<bool> {
 
         _GetMightBeTimeVarying() {}
 

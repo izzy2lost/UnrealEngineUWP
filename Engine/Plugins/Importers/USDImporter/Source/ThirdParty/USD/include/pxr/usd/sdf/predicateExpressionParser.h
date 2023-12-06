@@ -210,12 +210,10 @@ struct QuotedString : sor<
     if_must<one<'\''>, until<one<'\''>, StringChar<one<'\''>>>>
     > {};
 
-struct UnquotedStringChar
-    : sor<identifier_other,
-          one<'~', '!', '@', '#', '$', '%', '^', '&', '*', '-', '+', '=',
-              '|', '\\', '.', '?', '/'>> {};
-
-struct UnquotedString : star<UnquotedStringChar> {};
+struct UnquotedStringDelimiter : sor<blank, one<',', ')', '"', '\''>> {};
+struct UnquotedString
+    : until<at<sor<UnquotedStringDelimiter, eolf>>,
+            StringChar<UnquotedStringDelimiter>> {};
 
 struct PredArgString : sor<QuotedString, UnquotedString> {};
 

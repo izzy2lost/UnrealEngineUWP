@@ -40,17 +40,12 @@ public:
     };
 
     /// Create an empty regex.
-    ArchRegex() = default;
-
-    ArchRegex(ArchRegex &&) noexcept = default;
-    ArchRegex(ArchRegex const &) = default;
-    ArchRegex &operator=(ArchRegex &&) noexcept = default;
-    ArchRegex &operator=(ArchRegex const &) = default;
-
-    /// Create with pattern and optional flags.
+    ARCH_API ArchRegex();
     ARCH_API ArchRegex(const std::string& pattern, unsigned int flags = 0);
-
-    /// Destructor.
+    ArchRegex(const ArchRegex&) = delete;
+    ARCH_API ArchRegex(ArchRegex&&) noexcept;
+    ArchRegex& operator=(const ArchRegex&) = delete;
+    ARCH_API ArchRegex& operator=(ArchRegex&&) noexcept;
     ARCH_API ~ArchRegex();
 
     /// Returns \c true if the regex is valid.
@@ -71,7 +66,7 @@ private:
     class _Impl;
     unsigned int _flags = 0;
     std::string _error;
-    std::shared_ptr<const _Impl> _impl;
+    std::unique_ptr<_Impl> _impl;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

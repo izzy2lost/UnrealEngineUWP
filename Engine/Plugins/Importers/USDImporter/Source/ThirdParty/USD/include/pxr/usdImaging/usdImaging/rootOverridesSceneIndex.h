@@ -60,13 +60,7 @@ public:
     void SetRootTransform(const GfMatrix4d &);
 
     USDIMAGING_API
-    const GfMatrix4d& GetRootTransform() const;
-
-    USDIMAGING_API
     void SetRootVisibility(bool);
-
-    USDIMAGING_API
-    const bool GetRootVisibility() const;
 
 protected:
     void _PrimsAdded(

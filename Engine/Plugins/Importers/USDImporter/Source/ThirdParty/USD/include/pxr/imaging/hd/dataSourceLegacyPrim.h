@@ -112,6 +112,7 @@ private:
     HdDataSourceBaseHandle _GetExtentDataSource();
     HdDataSourceBaseHandle _GetCategoriesDataSource();
     HdDataSourceBaseHandle _GetInstanceCategoriesDataSource();
+    HdDataSourceBaseHandle _GetPrmanParamsDataSource();
 
     bool _IsLight();
     bool _IsInstanceable();

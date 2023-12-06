@@ -55,9 +55,8 @@ PXR_NAMESPACE_OPEN_SCOPE
 //              materialId.
 // Version 19 - UsdImagingPrimAdapter::InvalidateImagingSubprim takes
 //              invalidationType as argument.
-// Version 20 - Adding UsdImagingCreateSceneIndices.
 
-#define USD_IMAGING_API_VERSION 20
+#define USD_IMAGING_API_VERSION 19
 
 
 PXR_NAMESPACE_CLOSE_SCOPE

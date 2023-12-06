@@ -417,8 +417,6 @@ private:
         /// Compute animated  bone mesh points.
         VtVec3fArray ComputePoints(UsdTimeCode time) const;
 
-        /// Returns the purpose opinion authored on the skeleton prim or its
-        /// ancestors. If none exists, returns an empty token.
         TfToken ComputePurpose() const;
 
     private:
