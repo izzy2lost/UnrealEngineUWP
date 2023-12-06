@@ -243,8 +243,9 @@ static TAutoConsoleVariable<int32> CVarLargePageRectThreshold(
 
 static TAutoConsoleVariable<int32> CVarNanitePersistentThreadsCulling(
 	TEXT("r.Nanite.PersistentThreadsCulling"),
-	1,
-	TEXT("Perform node and cluster culling in one combined kernel using persistent threads."),
+	0,
+	TEXT("Perform node and cluster culling in one combined kernel using persistent threads.")
+	TEXT("It doesn't scale threads with GPU size and relies on scheduler behavior, so it is not recommended for non-fixed hardware platforms."),
 	ECVF_RenderThreadSafe
 );
 
