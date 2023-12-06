@@ -107,34 +107,33 @@ FPCGElementPtr UPCGCreateAttributeBaseSettings::CreateElement() const
 	return MakeShared<FPCGCreateAttributeElement>();
 }
 
-FName UPCGCreateAttributeBaseSettings::AdditionalTaskNameInternal(FName NodeName) const
+FString UPCGCreateAttributeBaseSettings::GetAdditionalTitleInformationInternal(FName NodeName) const
 {
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		return NodeName;
+		return NodeName.ToString();
 	}
 
 	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
-	const bool AttributesPinIsConnected = Node ? Node->IsInputPinConnected(PCGCreateAttributeConstants::AttributesLabel) : false;
+	const bool bAttributesPinIsConnected = Node ? Node->IsInputPinConnected(PCGCreateAttributeConstants::AttributesLabel) : false;
 
-	const FName OutputAttributeName = GetOutputAttributeName(AttributesPinIsConnected ? &InputSource : nullptr, nullptr);
+	const FName OutputAttributeName = GetOutputAttributeName(bAttributesPinIsConnected ? &InputSource : nullptr, nullptr);
 	const FName SourceParamAttributeName = InputSource.GetName();
 
-	if (ShouldAddAttributesPin() && AttributesPinIsConnected)
+	if (ShouldAddAttributesPin() && bAttributesPinIsConnected)
 	{
 		if ((OutputAttributeName == NAME_None) && (SourceParamAttributeName == NAME_None))
 		{
-			return NodeName;
+			return NodeName.ToString();
 		}
 		else
 		{
-			const FString AttributeName = ((OutputAttributeName == NAME_None) ? SourceParamAttributeName : OutputAttributeName).ToString();
-			return FName(FString::Printf(TEXT("%s %s"), *NodeName.ToString(), *AttributeName));
+			return OutputAttributeName == NAME_None ? SourceParamAttributeName.ToString() : OutputAttributeName.ToString();
 		}
 	}
 	else
 	{
-		return FName(FString::Printf(TEXT("%s: %s"), *OutputAttributeName.ToString(), *AttributeTypes.ToString()));
+		return FString::Printf(TEXT("%s: %s"), *OutputAttributeName.ToString(), *AttributeTypes.ToString());
 	}
 }
 
@@ -143,9 +142,9 @@ UPCGAddAttributeSettings::UPCGAddAttributeSettings()
 	OutputTarget.SetAttributeName(NAME_None);
 }
 
-FName UPCGAddAttributeSettings::AdditionalTaskName() const
+FString UPCGAddAttributeSettings::GetAdditionalTitleInformation() const
 {
-	return AdditionalTaskNameInternal(PCGCreateAttributeConstants::NodeNameAddAttribute);
+	return GetAdditionalTitleInformationInternal(PCGCreateAttributeConstants::NodeNameAddAttribute);
 }
 
 void UPCGAddAttributeSettings::PostLoad()
@@ -252,9 +251,9 @@ TArray<FPCGPinProperties> UPCGCreateAttributeSetSettings::OutputPinProperties() 
 	return PinProperties;
 }
 
-FName UPCGCreateAttributeSetSettings::AdditionalTaskName() const
+FString UPCGCreateAttributeSetSettings::GetAdditionalTitleInformation() const
 {
-	return AdditionalTaskNameInternal(PCGCreateAttributeConstants::NodeNameCreateAttribute);
+	return GetAdditionalTitleInformationInternal(PCGCreateAttributeConstants::NodeNameCreateAttribute);
 }
 
 bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const

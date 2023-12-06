@@ -29,8 +29,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
-	virtual FName AdditionalTaskName() const override;
 #endif // WITH_EDITOR
+	virtual FString GetAdditionalTitleInformation() const override;
+	virtual bool HasFlippedTitleLines() const override { return true; }
 
 protected:
 #if WITH_EDITOR

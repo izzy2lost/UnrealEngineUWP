@@ -21,7 +21,7 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
 #endif
 
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

@@ -381,7 +381,7 @@ namespace PCGEditorGraphProfilingView
 			FString Fullname = FolderName;
 			if (Info.Node)
 			{
-				Fullname += Info.Node->GetNodeTitle().ToString();
+				Fullname += Info.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString();
 			}
 
 			// don't show inclusive times when bExpandSubgraph is on or the total sum of everything will mismatch reality

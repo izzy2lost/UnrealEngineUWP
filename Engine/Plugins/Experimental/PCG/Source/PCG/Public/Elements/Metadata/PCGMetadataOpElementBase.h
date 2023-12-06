@@ -92,6 +92,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
+	virtual bool HasFlippedTitleLines() const override { return true; }
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
 protected:

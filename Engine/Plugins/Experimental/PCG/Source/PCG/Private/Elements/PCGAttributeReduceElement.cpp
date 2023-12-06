@@ -163,7 +163,7 @@ void UPCGAttributeReduceSettings::PostLoad()
 #endif
 }
 
-FName UPCGAttributeReduceSettings::AdditionalTaskName() const
+FString UPCGAttributeReduceSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGAttributeReduceOperation>())
 	{
@@ -177,16 +177,16 @@ FName UPCGAttributeReduceSettings::AdditionalTaskName() const
 
 		if (InputAttributeName != OutputAttributeName && OutputAttributeName != NAME_None)
 		{
-			return FName(FString::Printf(TEXT("Reduce %s to %s: %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName));
+			return FString::Printf(TEXT("Reduce %s to %s: %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName);
 		}
 		else
 		{
-			return FName(FString::Printf(TEXT("Reduce %s: %s"), *InputAttributeName.ToString(), *OperationName));
+			return FString::Printf(TEXT("Reduce %s: %s"), *InputAttributeName.ToString(), *OperationName);
 		}
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

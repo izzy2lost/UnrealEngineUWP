@@ -553,23 +553,31 @@ void UPCGBlueprintSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSe
 	}
 }
 
-FName UPCGBlueprintSettings::AdditionalTaskName() const
+FString UPCGBlueprintSettings::GetAdditionalTitleInformation() const
 {
 	if (BlueprintElementInstance && BlueprintElementInstance->NodeTitleOverride() != NAME_None)
 	{
-		return BlueprintElementInstance->NodeTitleOverride();
+		return BlueprintElementInstance->NodeTitleOverride().ToString();
 	}
 	else
 	{
-		FName ElementName = NAME_None;
+		FString ElementName;
 
 #if WITH_EDITOR
-		ElementName = (BlueprintElementType && BlueprintElementType->ClassGeneratedBy) ? BlueprintElementType->ClassGeneratedBy->GetFName() : Super::AdditionalTaskName();
+		ElementName = (BlueprintElementType && BlueprintElementType->ClassGeneratedBy) ? BlueprintElementType->ClassGeneratedBy->GetName() : Super::GetAdditionalTitleInformation();
 #else
-		ElementName = BlueprintElementType ? BlueprintElementType->GetFName() : Super::AdditionalTaskName();
+		ElementName = BlueprintElementType ? BlueprintElementType->GetName() : Super::GetAdditionalTitleInformation();
 #endif
+
 		// Normalize node name only if not explicitly set in the NodeTitleOverride call
-		return FName(FName::NameToDisplayString(ElementName.ToString(), false));
+		if (ElementName.IsEmpty())
+		{
+			return LOCTEXT("MissingBlueprint", "Missing Blueprint").ToString();
+		}
+		else
+		{
+			return FName::NameToDisplayString(ElementName, false);
+		}
 	}
 }
 

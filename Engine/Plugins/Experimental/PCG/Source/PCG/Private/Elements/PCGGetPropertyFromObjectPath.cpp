@@ -51,6 +51,36 @@ bool UPCGGetPropertyFromObjectPathSettings::CanEditChange(const FProperty* InPro
 }
 #endif // WITH_EDITOR
 
+FString UPCGGetPropertyFromObjectPathSettings::GetAdditionalTitleInformation() const
+{
+	FString Path;
+
+	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+	const bool bInPinIsConnected = Node ? Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel) : false;
+
+	// If the input pin is connected, don't display anything from the path.
+	if (!bInPinIsConnected)
+	{
+		if (ObjectPathsToExtract.IsEmpty())
+		{
+			Path = LOCTEXT("MissingPath", "Missing Path").ToString();
+		}
+		else if (ObjectPathsToExtract.Num() == 1)
+		{
+			Path = ObjectPathsToExtract[0].ToString();
+			Path = !Path.IsEmpty() ? Path : TEXT("None");
+		}
+		else
+		{
+			Path = LOCTEXT("MultiplePaths", "Multiple Paths").ToString();
+		}
+
+		Path += TEXT(", ");
+	}
+
+	return FString::Printf(TEXT("%s%s"), *Path, *PropertyName.ToString());
+}
+
 FPCGElementPtr UPCGGetPropertyFromObjectPathSettings::CreateElement() const
 {
 	return MakeShared<FPCGGetPropertyFromObjectPathElement>();

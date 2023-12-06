@@ -2,34 +2,18 @@
 
 #include "PCGEditorGraphNode.h"
 
-#include "PCGEditorModule.h"
 #include "PCGNode.h"
+#include "PCGPin.h"
 #include "PCGSettings.h"
 #include "PCGSubsystem.h"
 
-#include "Framework/Commands/GenericCommands.h"
-#include "PCGPin.h"
+#include "PCGEditorModule.h"
+
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
+#include "Framework/Commands/GenericCommands.h"
 
 #define LOCTEXT_NAMESPACE "PCGEditorGraphNode"
-
-namespace UPCGEditorGraphNodeHelpers
-{
-	// Info to aid element cache analysis / debugging
-	void GetGraphCacheDebugInfo(const UPCGNode* InNode, bool& bOutDebuggingEnabled, uint32& OutNumCacheEntries)
-	{
-		UWorld* World = GEditor ? (GEditor->PlayWorld ? GEditor->PlayWorld.Get() : GEditor->GetEditorWorldContext().World()) : nullptr;
-		UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World);
-		bOutDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
-
-		if (bOutDebuggingEnabled)
-		{
-			IPCGElement* Element = (InNode && InNode->GetSettings()) ? InNode->GetSettings()->GetElement().Get() : nullptr;
-			OutNumCacheEntries = Element ? Subsystem->GetGraphCacheEntryCount(Element) : 0;
-		}
-	}
-}
 
 UPCGEditorGraphNode::UPCGEditorGraphNode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -39,29 +23,19 @@ UPCGEditorGraphNode::UPCGEditorGraphNode(const FObjectInitializer& ObjectInitial
 
 FText UPCGEditorGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	constexpr int32 NodeTitleMaxSize = 70;
-
-	FString Result;
-	if (PCGNode)
+	if (!PCGNode)
 	{
-		Result = PCGNode->GetNodeTitle().ToString();
-		Result = (Result.Len() > NodeTitleMaxSize) ? Result.Left(NodeTitleMaxSize) : Result;
+		return NSLOCTEXT("PCGEditorGraphNode", "UnnamedNodeTitle", "Unnamed Node");
+	}
+
+	if (TitleType == ENodeTitleType::FullTitle)
+	{
+		return PCGNode->GetNodeTitle(EPCGNodeTitleType::FullTitle);
 	}
 	else
 	{
-		Result = FString(TEXT("Unnamed node"));
+		return PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView);
 	}
-
-	// Debug info - append how many copies of this element are currently in the cache to the node title
-	bool bDebuggingEnabled;
-	uint32 NumCacheEntries;
-	UPCGEditorGraphNodeHelpers::GetGraphCacheDebugInfo(PCGNode.Get(), bDebuggingEnabled, NumCacheEntries);
-	if (bDebuggingEnabled)
-	{
-		Result = FString::Format(TEXT("{0} [{1}]"), { Result, NumCacheEntries });
-	}
-
-	return FText::FromString(Result);
 }
 
 void UPCGEditorGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const
@@ -106,7 +80,7 @@ void UPCGEditorGraphNode::OnRenameNode(const FString& NewName)
 		return;
 	}
 
-	if(PCGNode->GetNodeTitle().ToString() != NewName)
+	if (PCGNode->GetAuthoredTitleLine().ToString() != NewName)
 	{
 		Modify();
 		PCGNode->Modify();

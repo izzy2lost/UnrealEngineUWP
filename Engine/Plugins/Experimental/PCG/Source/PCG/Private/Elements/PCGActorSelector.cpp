@@ -301,11 +301,11 @@ FText FPCGActorSelectorSettings::GetTaskNameSuffix() const
 	{
 		if (ActorSelection == EPCGActorSelection::ByClass)
 		{
-			return (ActorSelectionClass.Get() ? ActorSelectionClass->GetDisplayNameText() : FText::FromName(NAME_None));
+			return FText::Format(FText::FromString(TEXT("Class: {0}")), (ActorSelectionClass.Get() ? ActorSelectionClass->GetDisplayNameText() : FText::FromName(NAME_None)));
 		}
 		else if (ActorSelection == EPCGActorSelection::ByTag)
 		{
-			return FText::FromName(ActorSelectionTag);
+			return FText::Format(FText::FromString(TEXT("Tag: {0}")), FText::FromName(ActorSelectionTag));
 		}
 	}
 	else if(const UEnum* EnumPtr = StaticEnum<EPCGActorFilter>())

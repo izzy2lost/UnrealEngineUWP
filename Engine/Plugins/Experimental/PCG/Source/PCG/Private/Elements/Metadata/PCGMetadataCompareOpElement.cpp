@@ -117,15 +117,15 @@ uint16 UPCGMetadataCompareSettings::GetOutputType(uint16 InputTypeId) const
 	return (uint16)EPCGMetadataTypes::Boolean;
 }
 
-FName UPCGMetadataCompareSettings::AdditionalTaskName() const
+FString UPCGMetadataCompareSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataCompareOperation>())
 	{
-		return FName(FString("Compare: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Compare: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

@@ -298,10 +298,16 @@ public:
 	virtual void PostPaste();
 #endif // WITH_EDITOR
 
+	/** Derived classes can implement this to expose additional information or context, such as an asset in use by the node. */
+	virtual FString GetAdditionalTitleInformation() const { return FString(); }
+
+	/** Display generated title line as primary title (example: BP nodes display the blueprint name as the primary title). */
+	virtual bool HasFlippedTitleLines() const { return false; }
+
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) {}
 
-	/** Derived classes can implement this to expose additional name information in the logs */
-	virtual FName AdditionalTaskName() const { return NAME_None; }
+	UE_DEPRECATED(5.4, "AdditionalTaskName is deprecated and is replaced with GetAdditionalTitleInformation.")
+	virtual FName AdditionalTaskName() const { return FName(GetAdditionalTitleInformation()); }
 
 	/** Returns true if InPin is in use by node (assuming node enabled). Can be used to communicate when a pin is not in use to user. */
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const { return true; }

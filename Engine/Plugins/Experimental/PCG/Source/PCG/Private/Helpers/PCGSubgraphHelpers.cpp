@@ -26,7 +26,7 @@ namespace PCGSubgraphHelpersExtra
 	{
 		UPCGNode* NewInputOutputNode = bIsInput ? InGraph->GetInputNode() : InGraph->GetOutputNode();
 		UPCGGraphInputOutputSettings* NewInputOutputSettings = CastChecked<UPCGGraphInputOutputSettings>(NewInputOutputNode->GetSettings());
-		FString NewName = InPinToClone->Node->GetNodeTitle().ToString() + " " + InPinToClone->Properties.Label.ToString();
+		FString NewName = InPinToClone->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + InPinToClone->Properties.Label.ToString();
 		if (InOutNameCollisionMapping.Contains(NewName))
 		{
 			if (!bIsInput)
@@ -257,7 +257,7 @@ UPCGGraph* FPCGSubgraphHelpers::CollapseIntoSubgraph(UPCGGraph* InOriginalGraph,
 				{
 					// It is only problematic if the pin was connected
 					UE_LOG(LogPCG, Error, TEXT("[CollapseInSubgraph - %s] %s pin %s does not exist anymore. Edges will be broken."),
-						*PCGNode->GetNodeTitle().ToString(), (OriginalPin->IsOutputPin() ? TEXT("Output") : TEXT("Input")), *PinLabel.ToString());
+						*PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), (OriginalPin->IsOutputPin() ? TEXT("Output") : TEXT("Input")), *PinLabel.ToString());
 				}
 			}
 		};

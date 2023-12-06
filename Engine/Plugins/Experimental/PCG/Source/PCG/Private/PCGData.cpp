@@ -266,7 +266,7 @@ UPCGParamData* FPCGDataCollection::GetParamsWithDeprecation(const UPCGNode* Node
 			{
 				if (const UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[%s] Found an Attribute Set data on an input pin that should not accept attributes. Make sure to re-wire it to the Overrides pin if it is used for overrides."), *Node->GetNodeTitle().ToString());
+					UE_LOG(LogPCG, Warning, TEXT("[%s] Found an Attribute Set data on an input pin that should not accept attributes. Make sure to re-wire it to the Overrides pin if it is used for overrides."), *Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 					return const_cast<UPCGParamData*>(Params);
 				}
 			}

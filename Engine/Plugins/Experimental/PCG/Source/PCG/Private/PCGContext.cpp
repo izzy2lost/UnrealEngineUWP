@@ -29,15 +29,15 @@ FString FPCGContext::GetTaskName() const
 		const FName NodeName = ((Node->NodeTitle != NAME_None) ? Node->NodeTitle : Node->GetFName());
 
 		const UPCGSettings* Settings = GetInputSettings<UPCGSettings>();
-		const FName NodeAdditionalName = Settings ? Settings->AdditionalTaskName() : NAME_None;
+		const FString NodeAdditionalInformation = Settings ? Settings->GetAdditionalTitleInformation() : FString();
 
-		if (NodeAdditionalName == NAME_None || NodeAdditionalName == NodeName)
+		if (NodeAdditionalInformation.IsEmpty() || NodeAdditionalInformation == NodeName)
 		{
 			return NodeName.ToString();
 		}
 		else
 		{
-			return FString::Printf(TEXT("%s (%s)"), *NodeName.ToString(), *NodeAdditionalName.ToString());
+			return FString::Printf(TEXT("%s (%s)"), *NodeName.ToString(), *NodeAdditionalInformation);
 		}
 	}
 	else

@@ -7,11 +7,35 @@
 #include "PCGGraph.h"
 #include "PCGModule.h"
 #include "PCGPin.h"
+#include "PCGSubsystem.h"
 
 #include "Algo/Find.h"
 #include "UObject/Package.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGNode)
+
+namespace PCGNodeHelpers
+{
+#if WITH_EDITOR
+	// Info to aid element cache analysis / debugging
+	void GetGraphCacheDebugInfo(const UPCGNode* InNode, bool& bOutDebuggingEnabled, uint32& OutNumCacheEntries)
+	{
+		UWorld* World = GEditor ? (GEditor->PlayWorld ? GEditor->PlayWorld.Get() : GEditor->GetEditorWorldContext().World()) : nullptr;
+		UPCGSubsystem* Subsystem = UPCGSubsystem::GetInstance(World);
+		bOutDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
+
+		if (bOutDebuggingEnabled)
+		{
+			IPCGElement* Element = (InNode && InNode->GetSettings()) ? InNode->GetSettings()->GetElement().Get() : nullptr;
+			OutNumCacheEntries = Element ? Subsystem->GetGraphCacheEntryCount(Element) : 0;
+		}
+	}
+#endif
+}
 
 UPCGNode::UPCGNode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -245,27 +269,147 @@ bool UPCGNode::RemoveEdgeTo(FName FromPinLabel, UPCGNode* To, FName ToPinLabel)
 	}
 }
 
-FText UPCGNode::GetNodeTitle() const
+FText UPCGNode::GetNodeTitle(EPCGNodeTitleType TitleType) const
+{
+	// Title length that looks reasonable.
+	constexpr int NodeTitleMaxLen = 45;
+
+	// Clip string at right hand side (standard overflow).
+	auto ClipRightSide = [NodeTitleMaxLen](FString& InOutTitle, int MaxLen)
+	{
+		if (InOutTitle.Len() > MaxLen)
+		{
+			InOutTitle = InOutTitle.Left(MaxLen - 3) + TEXT("...");
+		}
+	};
+
+	// Clip left hand side to maximize displayed information at end of string.
+	auto ClipLeftSide = [NodeTitleMaxLen](FString& InOutTitle, int MaxLen)
+	{
+		if (InOutTitle.Len() > MaxLen)
+		{
+			InOutTitle = TEXT("...") + InOutTitle.Right(MaxLen - 3);
+		}
+	};
+
+	const bool bFlipTitleLines = HasFlippedTitleLines();
+	const bool bIsTitleAuthored = HasAuthoredTitle();
+
+	FString GeneratedTitle = GetGeneratedTitleLine().ToString();
+	const bool bHasMultipleTitleLines = !GeneratedTitle.IsEmpty();
+
+	FString PrimaryTitleLine;
+
+	// The normal title line is used if there is no generated title, or if the node has not requested flipped
+	// title lines. But if the user has edited the title, always use the users title as primary. 
+	if (!bHasMultipleTitleLines || !bFlipTitleLines || bIsTitleAuthored)
+	{
+		PrimaryTitleLine = GetAuthoredTitleLine().ToString();
+		ClipRightSide(PrimaryTitleLine, NodeTitleMaxLen);
+	}
+	else
+	{
+		PrimaryTitleLine = GeneratedTitle;
+
+		// Generated title clipped on left side because the end of the string often has the interesting part.
+		ClipLeftSide(PrimaryTitleLine, NodeTitleMaxLen);
+	}
+
+	// Only add a second title line if the full title is being requested (and if the has multiple title lines).
+	if (TitleType == EPCGNodeTitleType::FullTitle)
+	{
+		FString SecondaryTitleLine;
+
+		if (bHasMultipleTitleLines)
+		{
+			// Secondary title is the node-generated title line if titles aren't flipped.
+			if (!bFlipTitleLines)
+			{
+				SecondaryTitleLine = GeneratedTitle;
+
+				// Generated title clipped on left side because the end of the string often has the interesting part.
+				ClipLeftSide(SecondaryTitleLine, NodeTitleMaxLen);
+			}
+			// If titles are flipped and user has not authored something, then just show the standard node name.
+			else if (!bIsTitleAuthored)
+			{
+				SecondaryTitleLine = GetDefaultTitle().ToString();
+				ClipRightSide(SecondaryTitleLine, NodeTitleMaxLen);
+			}
+			// If title has been authored and title lines are flipped, display "<DefaultTitle> - <GeneratedTitle>"
+			else
+			{
+				const FString DefaultTitle = GetDefaultTitle().ToString();
+
+				// Generated title clipped on left side because the end of the string often has the interesting part.
+				ClipLeftSide(GeneratedTitle, NodeTitleMaxLen - (DefaultTitle.Len() + 3));
+				SecondaryTitleLine = DefaultTitle + TEXT(" - ") + GeneratedTitle;
+			}
+		}
+
+		// Debug info - append how many copies of this element are currently in the cache to the node title.
+#if WITH_EDITOR
+		bool bDebuggingEnabled = false;
+		uint32 NumCacheEntries = 0;
+		PCGNodeHelpers::GetGraphCacheDebugInfo(this, bDebuggingEnabled, NumCacheEntries);
+
+		if (bDebuggingEnabled)
+		{
+			SecondaryTitleLine += FString::Format(TEXT(" [{1}]"), { NumCacheEntries });
+		}
+#endif
+
+		if (!SecondaryTitleLine.IsEmpty())
+		{
+			return FText::Format(FText::FromString("{0}\r\n{1}"), FText::FromString(PrimaryTitleLine), FText::FromString(SecondaryTitleLine));
+		}
+	}
+
+	return FText::FromString(PrimaryTitleLine);
+}
+
+FText UPCGNode::GetDefaultTitle() const
+{
+#if WITH_EDITOR
+	if (UPCGSettings* Settings = GetSettings())
+	{
+		return Settings->GetDefaultNodeTitle();
+	}
+#endif
+
+	return NSLOCTEXT("PCGNode", "NodeTitle", "Unnamed Node");
+}
+
+FText UPCGNode::GetAuthoredTitleLine() const
 {
 	if (NodeTitle != NAME_None)
 	{
 		return FText::FromString(FName::NameToDisplayString(NodeTitle.ToString(), false));
 	}
-	else if (UPCGSettings* Settings = GetSettings())
+	else
 	{
-		if (Settings->AdditionalTaskName() != NAME_None)
+		return GetDefaultTitle();
+	}
+}
+
+bool UPCGNode::HasFlippedTitleLines() const
+{
+	const UPCGSettings* Settings = GetSettings();
+	return Settings && Settings->HasFlippedTitleLines();
+}
+
+FText UPCGNode::GetGeneratedTitleLine() const
+{
+	if (UPCGSettings* Settings = GetSettings())
+	{
+		const FString AdditionalInformation = Settings->GetAdditionalTitleInformation();
+		if (!AdditionalInformation.IsEmpty())
 		{
-			return FText::FromName(Settings->AdditionalTaskName());
+			return FText::FromString(AdditionalInformation);
 		}
-#if WITH_EDITOR
-		else
-		{
-			return Settings->GetDefaultNodeTitle();
-		}
-#endif
 	}
 
-	return NSLOCTEXT("PCGNode", "NodeTitle", "Unnamed node");
+	return FText::GetEmpty();
 }
 
 #if WITH_EDITOR

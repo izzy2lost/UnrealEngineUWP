@@ -13,9 +13,6 @@
 
 namespace PCGFilterByIndexConstants
 {
-	const FName NodeName = FName(TEXT("FilterDataByIndex"));
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Data By Index");
-
 	// After so many characters on the node, it will truncate with an ellipsis ...
 	static constexpr int32 IndexExpressionTruncation = 12;
 }
@@ -23,12 +20,12 @@ namespace PCGFilterByIndexConstants
 #if WITH_EDITOR
 FName UPCGFilterByIndexSettings::GetDefaultNodeName() const
 {
-	return PCGFilterByIndexConstants::NodeName;
+	return FName(TEXT("FilterDataByIndex"));
 }
 
 FText UPCGFilterByIndexSettings::GetDefaultNodeTitle() const
 {
-	return PCGFilterByIndexConstants::NodeTitle;
+	return LOCTEXT("NodeTitle", "Filter Data By Index");
 }
 
 FText UPCGFilterByIndexSettings::GetNodeTooltipText() const
@@ -37,12 +34,15 @@ FText UPCGFilterByIndexSettings::GetNodeTooltipText() const
 }
 #endif
 
-FName UPCGFilterByIndexSettings::AdditionalTaskName() const
+FString UPCGFilterByIndexSettings::GetAdditionalTitleInformation() const
 {
-	FString NodeName = PCGFilterByIndexConstants::NodeTitle.ToString();
-	NodeName += TEXT(" : ");
-	NodeName += SelectedIndices.Len() <= PCGFilterByIndexConstants::IndexExpressionTruncation ? SelectedIndices : SelectedIndices.Left(PCGFilterByIndexConstants::IndexExpressionTruncation - 3) + TEXT("...");
-	return FName(NodeName);
+	FString NodeName = TEXT("Index: ");
+
+	NodeName += SelectedIndices.Len() <= PCGFilterByIndexConstants::IndexExpressionTruncation
+		? SelectedIndices
+		: SelectedIndices.Left(PCGFilterByIndexConstants::IndexExpressionTruncation - 3) + TEXT("...");
+
+	return NodeName;
 }
 
 FPCGElementPtr UPCGFilterByIndexSettings::CreateElement() const

@@ -43,6 +43,21 @@ void UPCGMetadataPartitionSettings::PostLoad()
 #endif // WITH_EDITOR
 }
 
+FString UPCGMetadataPartitionSettings::GetAdditionalTitleInformation() const
+{
+#if WITH_EDITOR
+	FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataPartitionSettings, PartitionAttributeSource)) : nullptr;
+	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	{
+		return FString();
+	}
+	else
+#endif
+	{
+		return PartitionAttributeSource.GetDisplayText().ToString();
+	}
+}
+
 bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGMetadataPartitionElement::Execute);

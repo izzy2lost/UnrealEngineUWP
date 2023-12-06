@@ -8,30 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "PCGFilterByAttributeElement"
 
-namespace PCGFilterByAttributeConstants
-{
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Data By Attribute");
-}
-
 #if WITH_EDITOR
 FText UPCGFilterByAttributeSettings::GetDefaultNodeTitle() const
 {
-	return PCGFilterByAttributeConstants::NodeTitle;
+	return LOCTEXT("NodeTitle", "Filter Data By Attribute");
 }
 #endif // WITH_EDITOR
 
-FName UPCGFilterByAttributeSettings::AdditionalTaskName() const
+FString UPCGFilterByAttributeSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGFilterByAttributeSettings, Attribute)) : nullptr;
+	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGFilterByAttributeSettings, Attribute)) : nullptr;
 	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
 	{
-		return NAME_None;
+		return FString();
 	}
 	else
 #endif
 	{
-		return FName(FString::Printf(TEXT("%s (%s)"), *PCGFilterByAttributeConstants::NodeTitle.ToString(), *Attribute.ToString()));
+		return Attribute.ToString();
 	}
 }
 

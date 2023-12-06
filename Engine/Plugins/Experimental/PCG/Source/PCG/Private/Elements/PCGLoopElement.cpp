@@ -163,18 +163,6 @@ FPCGElementPtr UPCGLoopSettings::CreateElement() const
 	return MakeShared<FPCGLoopElement>();
 }
 
-FName UPCGLoopSettings::AdditionalTaskName() const
-{
-	if (UPCGGraph* TargetSubgraph = GetSubgraph())
-	{
-		return FName(FText::Format(LOCTEXT("NodeTitleExtended", "Loop Subgraph - {0}"), FText::FromName(TargetSubgraph->GetFName())).ToString());
-	}
-	else
-	{
-		return FName(LOCTEXT("NodeTitleExtendedInvalidSubgraph", "Loop Subgraph - Empty Subgraph").ToString());
-	}
-}
-
 bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGLoopElement::Execute);

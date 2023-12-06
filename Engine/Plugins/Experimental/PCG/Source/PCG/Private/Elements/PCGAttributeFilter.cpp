@@ -301,6 +301,21 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::OutputPinProperties() 
 	return PinProperties;
 }
 
+FString UPCGAttributeFilteringSettings::GetAdditionalTitleInformation() const
+{
+#if WITH_EDITOR
+	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringSettings, TargetAttribute)) : nullptr;
+	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	{
+		return FString();
+	}
+	else
+#endif
+	{
+		return TargetAttribute.GetDisplayText().ToString();
+	}
+}
+
 FPCGElementPtr UPCGAttributeFilteringSettings::CreateElement() const
 {
 	return MakeShared<FPCGAttributeFilterElement>();
@@ -333,6 +348,21 @@ void UPCGAttributeFilteringRangeSettings::PostLoad()
 	MaxThreshold.OnPostLoad();
 }
 #endif
+
+FString UPCGAttributeFilteringRangeSettings::GetAdditionalTitleInformation() const
+{
+#if WITH_EDITOR
+	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringRangeSettings, TargetAttribute)) : nullptr;
+	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	{
+		return FString();
+	}
+	else
+#endif
+	{
+		return TargetAttribute.GetDisplayText().ToString();
+	}
+}
 
 FPCGElementPtr UPCGAttributeFilteringRangeSettings::CreateElement() const
 {

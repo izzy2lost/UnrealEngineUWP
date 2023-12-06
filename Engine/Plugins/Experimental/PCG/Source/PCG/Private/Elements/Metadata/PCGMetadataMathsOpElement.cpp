@@ -273,15 +273,15 @@ FPCGAttributePropertyInputSelector UPCGMetadataMathsSettings::GetInputSource(uin
 	}
 }
 
-FName UPCGMetadataMathsSettings::AdditionalTaskName() const
+FString UPCGMetadataMathsSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataMathsOperation>())
 	{
-		return FName(FString("Maths: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

@@ -304,29 +304,27 @@ void SPCGEditorGraphFind::MatchTokensInternal(const TArray<FString>& InTokens, U
 	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
 	{
 		check(Node);
-		const FString NodeName = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-		const FString NodeType = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
-		FString NodeSearchString = NodeName + NodeType + Node->NodeComment;
+		const FString NodeString = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
+		// Search string has full title (both lines).
+		FString NodeSearchString = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString() + Node->NodeComment;
+
+		// Add internal object name which will still display here and there.
 		const UPCGEditorGraphNodeBase* PCGEditorGraphNodeBase = Cast<UPCGEditorGraphNodeBase>(Node);
-
-		if (PCGEditorGraphNodeBase)
+		if (const UPCGNode* PCGNode = PCGEditorGraphNodeBase ? PCGEditorGraphNodeBase->GetPCGNode() : nullptr)
 		{
-			if (const UPCGNode* PCGNode = PCGEditorGraphNodeBase->GetPCGNode())
-			{
-				NodeSearchString.Append(PCGNode->GetName());
-			}
+			NodeSearchString.Append(PCGNode->GetName());
 		}
 
 		NodeSearchString = NodeSearchString.Replace(TEXT(" "), TEXT(""));
 
 		FPCGEditorGraphFindResultPtr NodeResult;
-		auto GetOrCreateNodeResult = [this, &NodeResult, &NodeName, &NodeType, Node, PCGEditorGraph, &GetParentFunc]() -> FPCGEditorGraphFindResultPtr&
+		auto GetOrCreateNodeResult = [this, &NodeResult, &NodeString, Node, PCGEditorGraph, &GetParentFunc]() -> FPCGEditorGraphFindResultPtr&
 		{
 			if (!NodeResult.IsValid())
 			{
-				NodeResult = MakeShared<FPCGEditorGraphFindResult>((NodeName == NodeType) ? NodeName : NodeName + " - " + NodeType, RootFindResult, Node);
+				NodeResult = MakeShared<FPCGEditorGraphFindResult>(NodeString, RootFindResult, Node);
 
 				FPCGEditorGraphFindResultPtr Parent = GetParentFunc();
 				if(Parent)

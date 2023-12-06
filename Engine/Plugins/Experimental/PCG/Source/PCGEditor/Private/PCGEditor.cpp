@@ -764,7 +764,7 @@ void FPCGEditor::OnDeterminismNodeTest()
 				check(PCGNode && PCGNode->GetSettings());
 
 				TSharedPtr<FDeterminismTestResult> NodeResult = MakeShared<FDeterminismTestResult>();
-				NodeResult->TestResultTitle = FName(*PCGNode->GetNodeTitle().ToString());
+				NodeResult->TestResultTitle = FName(*PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 				NodeResult->TestResultName = PCGNode->GetName();
 				NodeResult->Seed = PCGNode->GetSettings()->GetSeed();
 

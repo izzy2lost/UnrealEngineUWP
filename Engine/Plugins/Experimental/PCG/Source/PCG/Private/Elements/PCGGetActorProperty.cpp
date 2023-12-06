@@ -69,15 +69,14 @@ void UPCGGetActorPropertySettings::PostLoad()
 	}
 }
 
-FName UPCGGetActorPropertySettings::AdditionalTaskName() const
+FString UPCGGetActorPropertySettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	return ActorSelector.GetTaskName(GetDefaultNodeTitle());
+	return FString::Printf(TEXT("%s, %s"), *ActorSelector.GetTaskNameSuffix().ToString(), *PropertyName.ToString());
 #else
-	return Super::AdditionalTaskName();
+	return Super::GetAdditionalTitleInformation();
 #endif
 }
-
 
 TArray<FPCGPinProperties> UPCGGetActorPropertySettings::OutputPinProperties() const
 {

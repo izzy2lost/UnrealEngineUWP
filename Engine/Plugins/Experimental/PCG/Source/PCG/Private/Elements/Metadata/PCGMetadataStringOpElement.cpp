@@ -37,15 +37,15 @@ FPCGAttributePropertyInputSelector UPCGMetadataStringOpSettings::GetInputSource(
 	}
 }
 
-FName UPCGMetadataStringOpSettings::AdditionalTaskName() const
+FString UPCGMetadataStringOpSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataStringOperation>())
 	{
-		return FName(FString("String: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("String: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
  

@@ -277,15 +277,22 @@ UPCGNode* UPCGSubgraphSettings::CreateNode() const
 	return NewObject<UPCGSubgraphNode>();
 }
 
-FName UPCGSubgraphSettings::AdditionalTaskName() const
+FString UPCGSubgraphSettings::GetAdditionalTitleInformation() const
 {
+	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+	if (Node && Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel))
+	{
+		// If subgraph is dynamic, don't emit any extra info here.
+		return FString();
+	}
+
 	if (UPCGGraph* TargetSubgraph = GetSubgraph())
 	{
-		return TargetSubgraph->GetFName();
+		return TargetSubgraph->GetName();
 	}
 	else
 	{
-		return TEXT("Empty subgraph");
+		return LOCTEXT("NodeTitleExtendedInvalidSubgraph", "Missing Subgraph").ToString();
 	}
 }
 

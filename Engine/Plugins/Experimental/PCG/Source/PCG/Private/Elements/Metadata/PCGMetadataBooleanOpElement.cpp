@@ -91,15 +91,15 @@ uint16 UPCGMetadataBooleanSettings::GetOutputType(uint16 InputTypeId) const
 	return (uint16)EPCGMetadataTypes::Boolean;
 }
 
-FName UPCGMetadataBooleanSettings::AdditionalTaskName() const
+FString UPCGMetadataBooleanSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBooleanOperation>())
 	{
-		return FName(FString("Boolean: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Boolean: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

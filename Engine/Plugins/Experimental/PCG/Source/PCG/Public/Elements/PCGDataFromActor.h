@@ -36,7 +36,7 @@ public:
 #endif
 	virtual EPCGDataType GetCurrentPinTypes(const UPCGPin* InPin) const override;
 
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
 #if WITH_EDITOR

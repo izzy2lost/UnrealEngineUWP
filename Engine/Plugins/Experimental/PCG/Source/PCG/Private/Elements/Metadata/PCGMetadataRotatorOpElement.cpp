@@ -194,15 +194,15 @@ FPCGAttributePropertyInputSelector UPCGMetadataRotatorSettings::GetInputSource(u
 	}
 }
 
-FName UPCGMetadataRotatorSettings::AdditionalTaskName() const
+FString UPCGMetadataRotatorSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataRotatorOperation>())
 	{
-		return FName(FString("Rotator: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Rotator: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

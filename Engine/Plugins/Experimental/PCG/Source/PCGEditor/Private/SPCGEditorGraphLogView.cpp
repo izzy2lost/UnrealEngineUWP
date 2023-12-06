@@ -308,7 +308,7 @@ FReply SPCGEditorGraphLogView::Refresh()
 		const UPCGNode* PCGNode = PCGEditorNode ? PCGEditorNode->GetPCGNode() : nullptr;
 		if (PCGNode)
 		{
-			CreateAndAddItem(PCGEditorNode, PCGNode, *PCGNode->GetNodeTitle().ToString());
+			CreateAndAddItem(PCGEditorNode, PCGNode, *PCGNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 		}
 	}
 
@@ -382,7 +382,7 @@ void SPCGEditorGraphLogView::CreateAndAddItem(const UPCGEditorGraphNode* InPCGEd
 	{
 		if (const UPCGGraph* Graph = CastChecked<const UPCGBaseSubgraphSettings>(Settings)->GetSubgraph())
 		{
-			FString Prefix = InName.ToString() + "/";
+			const FString Prefix = InName.ToString() + "/";
 			for (const UPCGNode* ChildNode : Graph->GetNodes())
 			{
 				if (!ChildNode)
@@ -390,8 +390,9 @@ void SPCGEditorGraphLogView::CreateAndAddItem(const UPCGEditorGraphNode* InPCGEd
 					continue;
 				}
 
-				FName ChildName = FName(Prefix + ChildNode->GetNodeTitle().ToString());
-				CreateAndAddItem(InPCGEditorNode, ChildNode, ChildName);
+				const FText ChildTitle = ChildNode->GetNodeTitle(EPCGNodeTitleType::ListView);
+
+				CreateAndAddItem(InPCGEditorNode, ChildNode, FName(Prefix + ChildTitle.ToString()));
 			}
 		}
 	}

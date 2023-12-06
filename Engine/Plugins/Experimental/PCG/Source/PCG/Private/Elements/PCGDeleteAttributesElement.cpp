@@ -67,25 +67,35 @@ TArray<FText> UPCGDeleteAttributesSettings::GetNodeTitleAliases() const
 }
 #endif
 
-FName UPCGDeleteAttributesSettings::AdditionalTaskName() const
+FString UPCGDeleteAttributesSettings::GetAdditionalTitleInformation() const
 {
-	if (const UEnum* SelectionEnum = StaticEnum<EPCGAttributeFilterOperation>())
+	// The display name for the operation is way too long when put in a node title, so abbreviate it here.
+	FString OperationString;
+	if (Operation == EPCGAttributeFilterOperation::KeepSelectedAttributes)
 	{
-		FText OperationText = SelectionEnum->GetDisplayNameTextByValue(static_cast<int64>(Operation));
-		TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
-
-		if (AttributesToKeep.Num() == 1)
-		{
-			return FName(FString::Printf(TEXT("%s (%s)"), *OperationText.ToString(), *AttributesToKeep[0]));
-		}
-		else
-		{
-			return FName(OperationText.ToString());
-		}
+		OperationString = LOCTEXT("OperationKeep", "Keep").ToString();
+	}
+	else if (Operation == EPCGAttributeFilterOperation::DeleteSelectedAttributes)
+	{
+		OperationString = LOCTEXT("OperationKeep", "Delete").ToString();
 	}
 	else
 	{
-		return NAME_None;
+		ensureMsgf(false, TEXT("Unrecognized operation"));
+	}
+
+	TArray<FString> AttributesToKeep = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedAttributes);
+	if (AttributesToKeep.Num() == 1)
+	{
+		return FString::Printf(TEXT("%s (%s)"), *OperationString, *AttributesToKeep[0]);
+	}
+	else if (AttributesToKeep.IsEmpty())
+	{
+		return FString::Printf(TEXT("%s (%s)"), *OperationString, *LOCTEXT("NoAttributes", "none").ToString());
+	}
+	else
+	{
+		return FString::Printf(TEXT("%s (%s)"), *OperationString, *LOCTEXT("KeepMultipleAttributes", "multiple").ToString());
 	}
 }
 

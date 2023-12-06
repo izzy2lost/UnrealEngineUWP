@@ -319,15 +319,15 @@ FPCGAttributePropertyInputSelector UPCGMetadataVectorSettings::GetInputSource(ui
 	}
 }
 
-FName UPCGMetadataVectorSettings::AdditionalTaskName() const
+FString UPCGMetadataVectorSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataVectorOperation>())
 	{
-		return FName(FString("Vector: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Vector: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

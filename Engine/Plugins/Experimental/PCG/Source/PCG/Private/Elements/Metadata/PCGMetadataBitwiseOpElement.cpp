@@ -86,15 +86,15 @@ FPCGAttributePropertyInputSelector UPCGMetadataBitwiseSettings::GetInputSource(u
 	}
 }
 
-FName UPCGMetadataBitwiseSettings::AdditionalTaskName() const
+FString UPCGMetadataBitwiseSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataBitwiseOperation>())
 	{
-		return FName(FString("Bitwise: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Bitwise: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

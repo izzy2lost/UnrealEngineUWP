@@ -34,7 +34,7 @@ public:
 	virtual void GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
 #endif
 
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return TArray<FPCGPinProperties>(); }
 

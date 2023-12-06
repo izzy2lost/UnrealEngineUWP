@@ -29,16 +29,23 @@ UPCGMetadataOperationSettings::UPCGMetadataOperationSettings()
 	OutputTarget.SetAttributeName(NAME_None);
 }
 
-FName UPCGMetadataOperationSettings::AdditionalTaskName() const
+FString UPCGMetadataOperationSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
 	if (bCopyAllAttributes)
 	{
-		return FName(LOCTEXT("NoteTitleAllAttributes", "Copy All Attributes").ToString());
+		return LOCTEXT("NoteTitleAllAttributes", "All Attributes").ToString();
+	}
+
+	const FProperty* FromAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, InputSource)) : nullptr;
+	const FProperty* ToAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, OutputTarget)) : nullptr;
+	if ((FromAttributeProperty && IsPropertyOverriddenByPin(FromAttributeProperty)) || (ToAttributeProperty && IsPropertyOverriddenByPin(ToAttributeProperty)))
+	{
+		return FString();
 	}
 #endif
 
-	return NAME_None;
+	return FString::Printf(TEXT("%s -> %s"), *InputSource.GetDisplayText().ToString(), *OutputTarget.GetDisplayText().ToString());
 }
 
 #if WITH_EDITOR

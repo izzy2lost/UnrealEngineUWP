@@ -207,7 +207,7 @@ void UPCGAttributeSelectSettings::ApplyDeprecation(UPCGNode* InOutNode)
 }
 #endif
 
-FName UPCGAttributeSelectSettings::AdditionalTaskName() const
+FString UPCGAttributeSelectSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumOpPtr = StaticEnum<EPCGAttributeSelectOperation>())
 	{
@@ -232,16 +232,16 @@ FName UPCGAttributeSelectSettings::AdditionalTaskName() const
 
 			if (InputAttributeName != OutputAttributeName && OutputAttributeName != NAME_None)
 			{
-				return FName(FString::Printf(TEXT("Select %s to %s: %s on %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName, *AxisName));
+				return FString::Printf(TEXT("Select %s to %s: %s on %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName, *AxisName);
 			}
 			else
 			{
-				return FName(FString::Printf(TEXT("Select %s: %s on %s"), *InputAttributeName.ToString(), *OperationName, *AxisName));
+				return FString::Printf(TEXT("Select %s: %s on %s"), *InputAttributeName.ToString(), *OperationName, *AxisName);
 			}
 		}
 	}
 
-	return NAME_None;
+	return FString();
 }
 
 TArray<FPCGPinProperties> UPCGAttributeSelectSettings::InputPinProperties() const

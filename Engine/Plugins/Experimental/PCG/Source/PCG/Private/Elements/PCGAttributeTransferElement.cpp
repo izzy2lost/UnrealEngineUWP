@@ -84,18 +84,18 @@ EPCGDataType UPCGAttributeTransferSettings::GetCurrentPinTypes(const UPCGPin* In
 	return bAnyArePoint ? EPCGDataType::Point : EPCGDataType::Spatial;
 }
 
-FName UPCGAttributeTransferSettings::AdditionalTaskName() const
+FString UPCGAttributeTransferSettings::GetAdditionalTitleInformation() const
 {
 	const FName SourceAttributeName = SourceAttributeProperty.GetName();
 	const FName TargetAttributeName = TargetAttributeProperty.GetName();
 
 	if (SourceAttributeName != TargetAttributeName && TargetAttributeName != NAME_None)
 	{
-		return FName(FString::Printf(TEXT("%s %s to %s"), *PCGAttributeTransferConstants::NodeName.ToString(), *SourceAttributeName.ToString(), *TargetAttributeName.ToString()));
+		return FString::Printf(TEXT("%s %s to %s"), *PCGAttributeTransferConstants::NodeName.ToString(), *SourceAttributeName.ToString(), *TargetAttributeName.ToString());
 	}
 	else
 	{
-		return FName(FString::Printf(TEXT("%s %s"), *PCGAttributeTransferConstants::NodeName.ToString(), *SourceAttributeName.ToString()));
+		return FString::Printf(TEXT("%s %s"), *PCGAttributeTransferConstants::NodeName.ToString(), *SourceAttributeName.ToString());
 	}
 }
 

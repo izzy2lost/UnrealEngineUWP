@@ -84,6 +84,15 @@ public:
 
 	bool CanUserAddRemoveDynamicInputPins() const { return bCanUserAddRemoveSourcePins; }
 
+	/** Whether to flip the order of the title lines - display generated title first and authored second. */
+	bool HasFlippedTitleLines() const;
+
+	/** Authored part of node title (like "Create Attribute X"). */
+	FText GetAuthoredTitleLine() const;
+
+	/** Generated part of node title, not user editable (like "X = 5.0"). */
+	FText GetGeneratedTitleLine() const;
+
 	/** Marks the node as re-nameable and provokes the node to update, placing the user in rename mode. */
 	void EnterRenamingMode();
 

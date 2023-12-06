@@ -32,9 +32,9 @@ TArray<FPCGPinProperties> UPCGDataTableRowToParamDataSettings::OutputPinProperti
 	return PinProperties;
 }
 
-FName UPCGDataTableRowToParamDataSettings::AdditionalTaskName() const
+FString UPCGDataTableRowToParamDataSettings::GetAdditionalTitleInformation() const
 {
-	return FName(FString::Printf(TEXT("%s[ %s ]"), DataTable ? *DataTable->GetFName().ToString() : TEXT("None"), *RowName.ToString()));
+	return FString::Printf(TEXT("%s[ %s ]"), DataTable ? *DataTable->GetFName().ToString() : TEXT("None"), *RowName.ToString());
 }
 
 bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const

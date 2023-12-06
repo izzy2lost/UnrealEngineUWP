@@ -12,6 +12,21 @@
 
 #define LOCTEXT_NAMESPACE "PCGMetadataRenameElement"
 
+FString UPCGMetadataRenameSettings::GetAdditionalTitleInformation() const
+{
+#if WITH_EDITOR
+	const FProperty* FromAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, AttributeToRename)) : nullptr;
+	const FProperty* ToAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, NewAttributeName)) : nullptr;
+	if ((FromAttributeProperty && IsPropertyOverriddenByPin(FromAttributeProperty)) || (ToAttributeProperty && IsPropertyOverriddenByPin(ToAttributeProperty)))
+	{
+		return FString();
+	}
+	else
+#endif
+	{
+		return FString::Printf(TEXT("%s -> %s"), *AttributeToRename.ToString(), *NewAttributeName.ToString());
+	}
+}
 
 TArray<FPCGPinProperties> UPCGMetadataRenameSettings::InputPinProperties() const
 {

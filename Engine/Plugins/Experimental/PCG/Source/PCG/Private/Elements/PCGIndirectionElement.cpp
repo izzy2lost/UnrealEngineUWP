@@ -11,6 +11,11 @@
 
 #define LOCTEXT_NAMESPACE "PCGIndirectionElement"
 
+namespace PCGIndirectionSettings
+{
+	const FText DefaultNodeTitle = LOCTEXT("NodeTitle", "Proxy");
+}
+
 #if WITH_EDITOR
 
 FName UPCGIndirectionSettings::GetDefaultNodeName() const
@@ -25,40 +30,48 @@ FText UPCGIndirectionSettings::GetDefaultNodeTitle() const
 
 FText UPCGIndirectionSettings::GetNodeTooltipText() const
 {
-	return LOCTEXT("NodeTooltip", "Executes another settings object, which can be overriden.");
+	return LOCTEXT("NodeTooltip", "Executes another settings object, which can be overridden.");
 }
+#endif // WITH_EDITOR
 
-FName UPCGIndirectionSettings::AdditionalTaskName() const
+FString UPCGIndirectionSettings::GetAdditionalTitleInformation() const
 {
 	switch (ProxyInterfaceMode)
 	{
-		case EPCGProxyInterfaceMode::ByNativeElement:
-			if (IsValid(SettingsClass))
-			{
-				const UPCGSettings* SettingsDefaultObject = CastChecked<UPCGSettings>(SettingsClass->GetDefaultObject());
-				return FName(FText::Format(LOCTEXT("NodeTitleNative", "Proxy ({0})"), SettingsDefaultObject->GetDefaultNodeTitle()).ToString());
-			}
-			break;
-		case EPCGProxyInterfaceMode::ByBlueprintElement:
-			if (IsValid(BlueprintElementClass))
-			{
-				return FName(FText::Format(LOCTEXT("NodeTitleBlueprint", "Proxy ({0})"), BlueprintElementClass->GetDisplayNameText()).ToString());
-			}
-			break;
-		case EPCGProxyInterfaceMode::BySettings:
-			if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
-			{
-				return FName(FText::Format(LOCTEXT("NodeTitleNative", "Proxy ({0})"), FText::FromString(SettingsPtr->GetName())).ToString());
-			}
-			break;
+	case EPCGProxyInterfaceMode::ByNativeElement:
+		if (IsValid(SettingsClass))
+		{
+#if WITH_EDITOR
+			const UPCGSettings* SettingsDefaultObject = CastChecked<UPCGSettings>(SettingsClass->GetDefaultObject());
+			return SettingsDefaultObject->GetDefaultNodeTitle().ToString();
+#else
+			return SettingsClass->GetName();
+#endif
+		}
+		break;
+	case EPCGProxyInterfaceMode::ByBlueprintElement:
+		if (IsValid(BlueprintElementClass))
+		{
+#if WITH_EDITOR
+			return BlueprintElementClass->GetDisplayNameText().ToString();
+#else
+			return BlueprintElementClass->GetName();
+#endif
+		}
+		break;
+	case EPCGProxyInterfaceMode::BySettings:
+		if (const UPCGSettings* SettingsPtr = Settings.LoadSynchronous())
+		{
+			return SettingsPtr->GetName();
+		}
+		break;
 
-		default:
-			checkNoEntry();
+	default:
+		checkNoEntry();
 	}
 
-	return GetDefaultNodeName();
+	return LOCTEXT("MissingAsset", "Missing Asset").ToString();
 }
-#endif // WITH_EDITOR
 
 TArray<FPCGPinProperties> UPCGIndirectionSettings::InputPinProperties() const
 {

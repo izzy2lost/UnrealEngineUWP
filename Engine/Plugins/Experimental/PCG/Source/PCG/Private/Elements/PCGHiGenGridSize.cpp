@@ -76,22 +76,21 @@ FPCGElementPtr UPCGHiGenGridSizeSettings::CreateElement() const
 	return MakeShared<FPCGHiGenGridSizeElement>();
 }
 
-FName UPCGHiGenGridSizeSettings::AdditionalTaskName() const
+FString UPCGHiGenGridSizeSettings::GetAdditionalTitleInformation() const
 {
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
-		return PCGHiGenGridSizeConstants::NodeName;
+		return FString();
 	}
 
 	const UEnum* EnumPtr = StaticEnum<EPCGHiGenGrid>();
 	if (ensure(EnumPtr))
 	{
-		FText GridSizeDisplayName = EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(HiGenGridSize));
-		return FName(FString::Printf(TEXT("%s: %s"), *PCGHiGenGridSizeConstants::NodeTitle.ToString(), *GridSizeDisplayName.ToString()));
+		return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(HiGenGridSize)).ToString();
 	}
 	else
 	{
-		return FName(FString::Printf(TEXT("%s: %d"), *PCGHiGenGridSizeConstants::NodeTitle.ToString(), static_cast<int32>(HiGenGridSize)));
+		return FString::Printf(TEXT("%d"), static_cast<int32>(HiGenGridSize));
 	}
 }
 

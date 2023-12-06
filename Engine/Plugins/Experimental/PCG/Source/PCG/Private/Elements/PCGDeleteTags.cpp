@@ -20,25 +20,25 @@ FText UPCGDeleteTagsSettings::GetDefaultNodeTitle() const
 }
 #endif // WITH_EDITOR
 
-FName UPCGDeleteTagsSettings::AdditionalTaskName() const
+FString UPCGDeleteTagsSettings::GetAdditionalTitleInformation() const
 {
-	if (const UEnum* SelectionEnum = StaticEnum< EPCGTagFilterOperation>())
+	if (const UEnum* SelectionEnum = StaticEnum<EPCGTagFilterOperation>())
 	{
 		FText OperationText = SelectionEnum->GetDisplayNameTextByValue(static_cast<int64>(Operation));
 		TArray<FString> TagsToProcess = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
 
 		if (TagsToProcess.Num() == 1)
 		{
-			return FName(FString::Printf(TEXT("%s (%s)"), *OperationText.ToString(), *TagsToProcess[0]));
+			return FString::Printf(TEXT("%s (%s)"), *OperationText.ToString(), *TagsToProcess[0]);
 		}
 		else
 		{
-			return FName(OperationText.ToString());
+			return OperationText.ToString();
 		}
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

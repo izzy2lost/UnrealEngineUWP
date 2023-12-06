@@ -66,10 +66,10 @@ TArray<FPCGPinProperties> UPCGGetLandscapeSettings::OutputPinProperties() const
 	return PinProperties;
 }
 
-FName UPCGGetLandscapeSettings::AdditionalTaskName() const
+FString UPCGGetLandscapeSettings::GetAdditionalTitleInformation() const
 {
 	// Do not use the version from data from actor otherwise we'll show the selected actor class, which serves no purpose
-	return UPCGSettings::AdditionalTaskName();
+	return UPCGSettings::GetAdditionalTitleInformation();
 }
 
 #if WITH_EDITOR

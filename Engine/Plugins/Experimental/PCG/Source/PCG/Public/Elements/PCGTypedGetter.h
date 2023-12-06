@@ -27,7 +27,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 #endif
 
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;

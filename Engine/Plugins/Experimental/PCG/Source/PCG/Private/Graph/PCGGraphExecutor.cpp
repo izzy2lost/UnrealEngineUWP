@@ -653,7 +653,7 @@ void FPCGGraphExecutor::Execute()
 
 				if (bGraphCacheDebuggingEnabled && !bCacheable && Task.SourceComponent.Get() && Task.Node)
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[%s] %s\t\tCACHING DISABLED"), *Task.SourceComponent->GetOwner()->GetName(), *Task.Node->GetNodeTitle().ToString());
+					UE_LOG(LogPCG, Warning, TEXT("[%s] %s\t\tCACHING DISABLED"), *Task.SourceComponent->GetOwner()->GetName(), *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 				}
 
 				FPCGDataCollection CachedOutput;
@@ -797,7 +797,7 @@ void FPCGGraphExecutor::Execute()
 			{
 				if (bGraphCacheDebuggingEnabled && ActiveTask.Context->SourceComponent.Get() && ActiveTask.Context->Node)
 				{
-					UE_LOG(LogPCG, Log, TEXT("         [%s] %s\t\tOUTPUT CRC %u"), *ActiveTask.Context->SourceComponent->GetOwner()->GetName(), *ActiveTask.Context->Node->GetNodeTitle().ToString(), ActiveTask.Context->OutputData.Crc.GetValue());
+					UE_LOG(LogPCG, Log, TEXT("         [%s] %s\t\tOUTPUT CRC %u"), *ActiveTask.Context->SourceComponent->GetOwner()->GetName(), *ActiveTask.Context->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), ActiveTask.Context->OutputData.Crc.GetValue());
 				}
 
 				// Store result in cache as needed - done here because it needs to be done on the main thread
@@ -841,7 +841,7 @@ void FPCGGraphExecutor::Execute()
 				const int32 NumRemoved = ActiveTask.Context->OutputData.StripEmptyPointData();
 				if (NumRemoved > 0)
 				{
-					UE_LOG(LogPCG, Log, TEXT("%d empty point data stripped from node: %s"), NumRemoved, *ActiveTask.Context->Node->GetNodeTitle().ToString());
+					UE_LOG(LogPCG, Log, TEXT("%d empty point data stripped from node: %s"), NumRemoved, *ActiveTask.Context->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
 				}
 			}
 
@@ -1096,7 +1096,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 		// Log only - currently context has not yet been allocated when this is called
 		UE_LOG(LogPCG, Warning, TEXT("[%s] %s - BuildTaskInput - too many data items arriving on single data pin '%s', only first data item will be used"),
 			(Task.SourceComponent.Get() && Task.SourceComponent->GetOwner()) ? *Task.SourceComponent->GetOwner()->GetName() : TEXT("MissingComponent"),
-			Task.Node ? *Task.Node->GetNodeTitle().ToString() : TEXT("MissingNode"),
+			Task.Node ? *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MissingNode"),
 			InPin ? *InPin->Properties.Label.ToString() : TEXT("MissingPin"));
 	};
 

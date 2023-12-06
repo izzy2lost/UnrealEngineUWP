@@ -7,6 +7,7 @@
 class UPCGNode;
 class UPCGPin;
 enum class EPCGChangeType : uint8;
+enum class EPCGNodeTitleType : uint8;
 struct FPCGPinProperties;
 
 class UPCGSettings;
@@ -63,8 +64,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Node)
 	bool RemoveEdgeTo(FName FromPinLable, UPCGNode* To, FName ToPinLabel);
 
-	/** Returns the node title, based either on the current node label, or defaulted to its settings */
-	FText GetNodeTitle() const;
+	/** Get title for node of specified type. */
+	FText GetNodeTitle(EPCGNodeTitleType TitleType) const;
+
+	/** Whether user has renamed the node. */
+	bool HasAuthoredTitle() const { return NodeTitle != NAME_None; }
+
+	/** Title to use if no title is authored. */
+	FText GetDefaultTitle() const;
+
+	/** Authored part of node title (like "Create Attribute 1"). */
+	FText GetAuthoredTitleLine() const;
+
+	/** Whether to flip the order of the title lines - display generated title first and authored second. */
+	bool HasFlippedTitleLines() const;
+
+	/** Generated part of node title, not user editable (like "MyValue = 5.0"). */
+	FText GetGeneratedTitleLine() const;
 
 #if WITH_EDITOR
 	/** Tooltip that describes node functionality and other information. */

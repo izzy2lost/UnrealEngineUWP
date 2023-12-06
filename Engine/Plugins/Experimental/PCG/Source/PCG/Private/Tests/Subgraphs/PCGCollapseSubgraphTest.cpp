@@ -59,8 +59,18 @@ namespace PCGCollapseSubgraphTests
 		UPCGPin* InPin = InNode->GetOutputPin(InLabel);
 		UPCGPin* OutPin = OutNode->GetInputPin(OutLabel);
 
-		if (!InTestClass->TestTrue(*FString::Printf(TEXT("InLabel (%s) exists on node %s"), *InLabel.ToString(), *InNode->GetNodeTitle().ToString()), (InLabel == NAME_None) || InPin)) { return false; }
-		if (!InTestClass->TestTrue(*FString::Printf(TEXT("OutLabel (%s) exists on node %s"), *OutLabel.ToString(), *OutNode->GetNodeTitle().ToString()), (OutLabel == NAME_None) || OutPin)) { return false; }
+		if (!InTestClass->TestTrue(
+			*FString::Printf(TEXT("InLabel (%s) exists on node %s"), *InLabel.ToString(), *InNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString()),
+			(InLabel == NAME_None) || InPin))
+		{
+			return false;
+		}
+		if (!InTestClass->TestTrue(
+			*FString::Printf(TEXT("OutLabel (%s) exists on node %s"), *OutLabel.ToString(), *OutNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString()),
+			(OutLabel == NAME_None) || OutPin))
+		{
+			return false;
+		}
 
 		check(InPin || OutPin);
 
@@ -82,7 +92,13 @@ namespace PCGCollapseSubgraphTests
 			}
 		};
 
-		return InTestClass->TestTrue(*FString::Printf(TEXT("Edge between %s(%s) and %s(%s) exists"), *InNode->GetNodeTitle().ToString(), *InLabel.ToString(), *OutNode->GetNodeTitle().ToString(), *OutLabel.ToString()), Edges.ContainsByPredicate(Predicate));
+		return InTestClass->TestTrue(
+			*FString::Printf(TEXT("Edge between %s(%s) and %s(%s) exists"),
+				*InNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(),
+				*InLabel.ToString(),
+				*OutNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(),
+				*OutLabel.ToString()),
+			Edges.ContainsByPredicate(Predicate));
 	}
 
 	UPCGNode* AddGetGraphParameterNode(UPCGGraph* InGraph, const FName InParamName)

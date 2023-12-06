@@ -103,15 +103,15 @@ uint16 UPCGMetadataTrigSettings::GetOutputType(uint16 InputTypeId) const
 	return (uint16)EPCGMetadataTypes::Double;
 }
 
-FName UPCGMetadataTrigSettings::AdditionalTaskName() const
+FString UPCGMetadataTrigSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataTrigOperation>())
 	{
-		return FName(FString("Trig: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation)));
+		return FString("Trig: ") + EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
 	}
 	else
 	{
-		return NAME_None;
+		return FString();
 	}
 }
 

@@ -3,22 +3,23 @@
 #include "PCGEditorGraphNodeBase.h"
 
 #include "PCGComponent.h"
-#include "PCGEditor.h"
-#include "PCGEditorCommands.h"
-#include "PCGEditorCommon.h"
-#include "PCGEditorGraph.h"
-#include "PCGEditorGraphSchema.h"
-#include "PCGEditorSettings.h"
 #include "PCGGraph.h"
 #include "PCGPin.h"
 #include "PCGSettingsWithDynamicInputs.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
 
+#include "PCGEditor.h"
+#include "PCGEditorCommands.h"
+#include "PCGEditorCommon.h"
+#include "PCGEditorGraph.h"
+#include "PCGEditorGraphSchema.h"
+#include "PCGEditorSettings.h"
+
 #include "GraphEditorActions.h"
+#include "ScopedTransaction.h"
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
-#include "ScopedTransaction.h"
 #include "Logging/TokenizedMessage.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Widgets/Colors/SColorPicker.h"
@@ -465,6 +466,21 @@ bool UPCGEditorGraphNodeBase::GetCompactNodeIcon(FName& OutCompactNodeIcon) cons
 {
 	UPCGSettings* Settings = PCGNode ? PCGNode->GetSettings() : nullptr;
 	return Settings && Settings->GetCompactNodeIcon(OutCompactNodeIcon);
+}
+
+bool UPCGEditorGraphNodeBase::HasFlippedTitleLines() const
+{
+	return PCGNode ? PCGNode->HasFlippedTitleLines() : false;
+}
+
+FText UPCGEditorGraphNodeBase::GetAuthoredTitleLine() const
+{
+	return PCGNode ? PCGNode->GetAuthoredTitleLine() : FText();
+}
+
+FText UPCGEditorGraphNodeBase::GetGeneratedTitleLine() const
+{
+	return PCGNode ? PCGNode->GetGeneratedTitleLine() : FText();
 }
 
 void UPCGEditorGraphNodeBase::EnterRenamingMode()

@@ -9,21 +9,15 @@
 
 #define LOCTEXT_NAMESPACE "PCGFilterByTag"
 
-namespace PCGFilterByTagConstants
-{
-	const FName NodeName = FName(TEXT("FilterDataByTag"));
-	const FText NodeTitle = LOCTEXT("NodeTitle", "Filter Data By Tag");
-}
-
 #if WITH_EDITOR
 FName UPCGFilterByTagSettings::GetDefaultNodeName() const
 {
-	return PCGFilterByTagConstants::NodeName;
+	return FName(TEXT("FilterDataByTag"));
 }
 
 FText UPCGFilterByTagSettings::GetDefaultNodeTitle() const
 {
-	return PCGFilterByTagConstants::NodeTitle;
+	return LOCTEXT("NodeTitle", "Filter Data By Tag");
 }
 
 FText UPCGFilterByTagSettings::GetNodeTooltipText() const
@@ -32,20 +26,23 @@ FText UPCGFilterByTagSettings::GetNodeTooltipText() const
 }
 #endif
 
-FName UPCGFilterByTagSettings::AdditionalTaskName() const
+FString UPCGFilterByTagSettings::GetAdditionalTitleInformation() const
 {
 	const TArray<FString> Tags = PCGHelpers::GetStringArrayFromCommaSeparatedString(SelectedTags);
 
-	FString NodeName = PCGFilterByTagConstants::NodeTitle.ToString();
-	NodeName += (Operation == EPCGFilterByTagOperation::KeepTagged ? TEXT(" (Keep)") : TEXT(" (Remove)"));
+	const FString Prefix = (Operation == EPCGFilterByTagOperation::KeepTagged ? TEXT("Tag (Keep):") : TEXT("Tag (Remove):"));
 
-	if (Tags.Num() == 1)
+	if (Tags.IsEmpty())
 	{
-		return FName(FString::Printf(TEXT("%s: %s"), *NodeName, *Tags[0]));
+		return Prefix;
+	}
+	else if (Tags.Num() == 1)
+	{
+		return FString::Printf(TEXT("%s %s"), *Prefix, *Tags[0]);
 	}
 	else
 	{
-		return FName(NodeName);
+		return FString::Printf(TEXT("%s (multiple)"), *Prefix);
 	}
 }
 

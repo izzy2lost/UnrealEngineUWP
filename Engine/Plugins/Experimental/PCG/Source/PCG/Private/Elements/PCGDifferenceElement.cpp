@@ -84,6 +84,28 @@ void UPCGDifferenceSettings::ApplyStructuralDeprecation(UPCGNode* InOutNode)
 }
 #endif // WITH_EDITOR
 
+FString UPCGDifferenceSettings::GetAdditionalTitleInformation() const
+{
+#if WITH_EDITOR
+	const FProperty* DensityFunctionProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGDifferenceSettings, DensityFunction)) : nullptr;
+	if (DensityFunctionProperty && IsPropertyOverriddenByPin(DensityFunctionProperty))
+	{
+		return FString();
+	}
+	else
+#endif
+	{
+		if (const UEnum* EnumPtr = StaticEnum<EPCGDifferenceDensityFunction>())
+		{
+			return EnumPtr->GetNameStringByValue(static_cast<int>(DensityFunction));
+		}
+		else
+		{
+			return FString();
+		}
+	}
+}
+
 TArray<FPCGPinProperties> UPCGDifferenceSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

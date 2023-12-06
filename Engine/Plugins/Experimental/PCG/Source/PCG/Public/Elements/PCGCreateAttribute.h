@@ -105,7 +105,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 protected:
-	FName AdditionalTaskNameInternal(FName NodeName) const;
+	FString GetAdditionalTitleInformationInternal(FName NodeName) const;
 
 	virtual FPCGElementPtr CreateElement() const override;
 	virtual bool ShouldAddAttributesPin() const { return true; }
@@ -131,7 +131,7 @@ public:
 	virtual bool HasDynamicPins() const override { return true; }
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif // WITH_EDITOR
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
 #if WITH_EDITOR
@@ -176,7 +176,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual bool HasDynamicPins() const override { return false; }
 #endif
-	virtual FName AdditionalTaskName() const override;
+	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
 #if WITH_EDITOR

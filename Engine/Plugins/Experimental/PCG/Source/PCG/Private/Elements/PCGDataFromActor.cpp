@@ -75,12 +75,12 @@ void UPCGDataFromActorSettings::PostLoad()
 	}
 }
 
-FName UPCGDataFromActorSettings::AdditionalTaskName() const
+FString UPCGDataFromActorSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	return ActorSelector.GetTaskName(GetDefaultNodeTitle());
+	return ActorSelector.GetTaskNameSuffix().ToString();
 #else
-	return Super::AdditionalTaskName();
+	return Super::GetAdditionalTitleInformation();
 #endif
 }
 

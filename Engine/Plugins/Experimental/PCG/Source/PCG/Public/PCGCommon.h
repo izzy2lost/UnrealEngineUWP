@@ -288,3 +288,11 @@ namespace PCGDelegates
 #endif
 }
 
+UENUM()
+enum class EPCGNodeTitleType : uint8
+{
+	/** The full title, may be multiple lines. */
+	FullTitle,
+	/** More concise, single line title. */
+	ListView,
+};
