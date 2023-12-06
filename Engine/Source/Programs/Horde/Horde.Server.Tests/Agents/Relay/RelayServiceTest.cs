@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Horde.Agent.Relay;
 using Horde.Common.Rpc;
+using Horde.Server.Tests;
+using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -14,7 +16,8 @@ namespace Horde.Agent.Tests.Relay;
 
 public class TestRelayRpcClient : RelayRpc.RelayRpcClient
 {
-	public TestAsyncStreamReader<GetPortMappingsResponse> GetPortMappingsResponses { get; } = new ();
+	private static readonly ServerCallContext s_adminContext = new ServerCallContextStub(HordeClaims.AdminClaim.ToClaim());
+	public TestAsyncStreamReader<GetPortMappingsResponse> GetPortMappingsResponses { get; } = new (s_adminContext);
 
 	public override AsyncServerStreamingCall<GetPortMappingsResponse> GetPortMappings(
 		GetPortMappingsRequest request, Metadata headers = null!,
