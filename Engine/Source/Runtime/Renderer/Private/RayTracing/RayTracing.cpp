@@ -939,7 +939,7 @@ namespace RayTracing
 							const Experimental::FHashElementId GroupId = Scene.PrimitiveRayTracingGroupIds[PrimitiveIndex];
 							const bool bUseGroupBounds = CullingParameters.bCullUsingGroupIds && GroupId.IsValid();
 
-							if (CullingParameters.CullingMode != RayTracing::ECullingMode::Disabled && GetRayTracingCullingPerInstance() && RelevantPrimitive.CachedRayTracingInstance->NumTransforms > 1 && !bUseGroupBounds)
+							if (CullingParameters.CullingMode != RayTracing::ECullingMode::Disabled && GetRayTracingCullingPerInstance() && RelevantPrimitive.CachedRayTracingInstance->NumTransforms > 1 && !bUseGroupBounds && !CullingParameters.bUseGPUInstanceCulling)
 							{
 								const bool bIsFarFieldPrimitive = EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::FarField);
 
@@ -1131,17 +1131,20 @@ namespace RayTracing
 					}
 				}
 
-				CullingTasks.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([CullInstancesClosures = MoveTemp(CullInstancesClosures)]()
-					{
-						for (auto& Closure : CullInstancesClosures)
-						{
-							Closure();
-						}
-					}, TStatId(), nullptr, ENamedThreads::AnyThread));
-
-				for (FGraphEventRef& CullingTask : CullingTasks)
+				if (!CullingParameters.bUseGPUInstanceCulling)
 				{
-					MyCompletionGraphEvent->DontCompleteUntil(CullingTask);
+					CullingTasks.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([CullInstancesClosures = MoveTemp(CullInstancesClosures)]()
+						{
+							for (auto& Closure : CullInstancesClosures)
+							{
+								Closure();
+							}
+						}, TStatId(), nullptr, ENamedThreads::AnyThread));
+
+					for (FGraphEventRef& CullingTask : CullingTasks)
+					{
+						MyCompletionGraphEvent->DontCompleteUntil(CullingTask);
+					}
 				}
 			}
 		};

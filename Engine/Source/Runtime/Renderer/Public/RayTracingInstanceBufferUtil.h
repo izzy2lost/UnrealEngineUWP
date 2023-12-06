@@ -8,6 +8,7 @@
 #if RHI_RAYTRACING
 
 class FGPUScene;
+struct FRayTracingCullingParameters;
 
 /*
 * 
@@ -95,6 +96,7 @@ RENDERER_API void BuildRayTracingInstanceBuffer(
 	uint32 NumNativeGPUSceneInstances,
 	uint32 NumNativeCPUInstances,
 	TConstArrayView<FRayTracingGPUInstance> GPUInstances,
+	const FRayTracingCullingParameters* CullingParameters,
 	FUnorderedAccessViewRHIRef DebugInstanceGPUSceneIndexUAV);
 
 #endif // RHI_RAYTRACING

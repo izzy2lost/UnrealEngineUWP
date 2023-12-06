@@ -47,6 +47,12 @@ static TAutoConsoleVariable<int32> CVarRayTracingCullingGroupIds(
 	TEXT("Cull using aggregate ray tracing group id bounds when defined instead of primitive or instance bounds."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarRayTracingCullingUseGPU(
+	TEXT("r.RayTracing.Culling.UseGPU"),
+	0,
+	TEXT("Cull instances using GPU. Requires per instance culling enabled. Experimental (default=0)"),
+	ECVF_RenderThreadSafe);
+
 RayTracing::ECullingMode RayTracing::GetCullingMode(const FEngineShowFlags& ShowFlags)
 {
 	// Disable culling if path tracer is used, so that path tracer matches raster view
@@ -77,12 +83,14 @@ void FRayTracingCullingParameters::Init(FViewInfo& View)
 	AngleThresholdRatio = FMath::Tan(FMath::Min(89.99f, CullAngleThreshold) * PI / 180.0f);
 	AngleThresholdRatioSq = FMath::Square(AngleThresholdRatio);
 	ViewOrigin = View.ViewMatrices.GetViewOrigin();
+	TranslatedViewOrigin = FVector3f(ViewOrigin + View.ViewMatrices.GetPreViewTranslation());
 	ViewDirection = View.GetViewDirection();
 	bCullAllObjects = CullingMode == RayTracing::ECullingMode::DistanceAndSolidAngle || CullingMode == RayTracing::ECullingMode::DistanceOrSolidAngle;
 	bCullByRadiusOrDistance = CullingMode == RayTracing::ECullingMode::DistanceOrSolidAngle;
 	bIsRayTracingFarField = Lumen::UseFarField(*View.Family);
 	bCullUsingGroupIds = CVarRayTracingCullingGroupIds.GetValueOnRenderThread() != 0;
 	bCullMinDrawDistance = CVarRayTracingCullingUseMinDrawDistance.GetValueOnRenderThread() != 0;
+	bUseGPUInstanceCulling = CVarRayTracingCullingUseGPU.GetValueOnRenderThread() != 0 && GetRayTracingCullingPerInstance() && bCullAllObjects;
 }
 
 namespace RayTracing
@@ -122,7 +130,7 @@ template<bool bCullByRadiusOrDistance>
 bool CullBounds(const FRayTracingCullingParameters& CullingParameters, const FBoxSphereBounds& RESTRICT ObjectBounds, float MinDrawDistance, bool bIsFarFieldPrimitive)
 {
 	const float ObjectRadius = ObjectBounds.SphereRadius;
-	const FVector ObjectCenter = ObjectBounds.Origin + 0.5 * ObjectBounds.BoxExtent;
+	const FVector ObjectCenter = ObjectBounds.Origin;
 	float CameraToObjectCenterLengthSq = FVector::DistSquared(ObjectCenter, CullingParameters.ViewOrigin);
 
 	if (bIsFarFieldPrimitive)

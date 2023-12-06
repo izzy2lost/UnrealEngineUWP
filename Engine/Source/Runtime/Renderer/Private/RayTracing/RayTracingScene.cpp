@@ -13,6 +13,7 @@
 #include "PrimitiveSceneProxy.h"
 #include "SceneUniformBuffer.h"
 #include "SceneRendering.h"
+#include "RayTracingInstanceCulling.h"
 
 BEGIN_SHADER_PARAMETER_STRUCT(FBuildInstanceBufferPassParams, )
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer, InstanceBuffer)
@@ -164,6 +165,20 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		}
 	}
 
+	FRDGBufferUAVRef DebugInstanceGPUSceneIndexBufferUAV = nullptr;
+	if (bNeedsDebugInstanceGPUSceneIndexBuffer)
+	{
+		FRDGBufferDesc DebugInstanceGPUSceneIndexBufferDesc;
+		DebugInstanceGPUSceneIndexBufferDesc.Usage = EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer;
+		DebugInstanceGPUSceneIndexBufferDesc.BytesPerElement = sizeof(uint32);
+		DebugInstanceGPUSceneIndexBufferDesc.NumElements = FMath::Max(NumNativeInstances, 1u);
+
+		DebugInstanceGPUSceneIndexBuffer = GraphBuilder.CreateBuffer(DebugInstanceGPUSceneIndexBufferDesc, TEXT("FRayTracingScene::DebugInstanceGPUSceneIndexBuffer"));
+		DebugInstanceGPUSceneIndexBufferUAV = GraphBuilder.CreateUAV(DebugInstanceGPUSceneIndexBuffer);
+
+		AddClearUAVPass(GraphBuilder, DebugInstanceGPUSceneIndexBufferUAV, 0xFFFFFFFF);
+	}
+
 	if (NumNativeInstances > 0)
 	{
 		const uint32 InstanceUploadBytes = NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
@@ -205,21 +220,8 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 
 		FBuildInstanceBufferPassParams* PassParams = GraphBuilder.AllocParameters<FBuildInstanceBufferPassParams>();
 		PassParams->InstanceBuffer = GraphBuilder.CreateUAV(InstanceBuffer);
-		PassParams->DebugInstanceGPUSceneIndexBuffer = nullptr;
+		PassParams->DebugInstanceGPUSceneIndexBuffer = DebugInstanceGPUSceneIndexBufferUAV;
 		PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-
-		if (bNeedsDebugInstanceGPUSceneIndexBuffer)
-		{
-			FRDGBufferDesc DebugInstanceGPUSceneIndexBufferDesc;
-			DebugInstanceGPUSceneIndexBufferDesc.Usage = EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::StructuredBuffer;
-			DebugInstanceGPUSceneIndexBufferDesc.BytesPerElement = sizeof(uint32);
-			DebugInstanceGPUSceneIndexBufferDesc.NumElements = NumNativeInstances;
-
-			DebugInstanceGPUSceneIndexBuffer = GraphBuilder.CreateBuffer(DebugInstanceGPUSceneIndexBufferDesc, TEXT("FRayTracingScene::DebugInstanceGPUSceneIndexBuffer"));
-			PassParams->DebugInstanceGPUSceneIndexBuffer = GraphBuilder.CreateUAV(DebugInstanceGPUSceneIndexBuffer);
-
-			AddClearUAVPass(GraphBuilder, PassParams->DebugInstanceGPUSceneIndexBuffer, 0xFFFFFFFF);
-		}
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("BuildTLASInstanceBuffer"),
@@ -233,7 +235,8 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			&SceneInitializer,
 			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
 			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
-			GPUInstances = MoveTemp(SceneWithGeometryInstances.GPUInstances)
+			GPUInstances = MoveTemp(SceneWithGeometryInstances.GPUInstances),
+			CullingParameters = View.RayTracingCullingParameters
 			](FRHICommandListImmediate& RHICmdList)
 			{
 				WaitForTasks();
@@ -281,6 +284,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					NumNativeGPUSceneInstances,
 					NumNativeCPUInstances,
 					GPUInstances,
+					CullingParameters.bUseGPUInstanceCulling ? &CullingParameters : nullptr,
 					PassParams->DebugInstanceGPUSceneIndexBuffer ? PassParams->DebugInstanceGPUSceneIndexBuffer->GetRHI() : nullptr);
 			});
 	}

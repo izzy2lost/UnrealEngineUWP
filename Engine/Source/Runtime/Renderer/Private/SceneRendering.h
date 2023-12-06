@@ -1168,11 +1168,13 @@ struct FRayTracingCullingParameters
 	float AngleThresholdRatioSq;
 	FVector ViewOrigin;
 	FVector ViewDirection;
+	FVector3f TranslatedViewOrigin;
 	bool bCullAllObjects;
 	bool bCullByRadiusOrDistance;
 	bool bIsRayTracingFarField;
 	bool bCullUsingGroupIds;
 	bool bCullMinDrawDistance;
+	bool bUseGPUInstanceCulling;
 
 	void Init(FViewInfo& View);
 };

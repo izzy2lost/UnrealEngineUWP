@@ -271,6 +271,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		RayTracingScene.NumNativeGPUSceneInstances,
 		RayTracingScene.NumNativeCPUInstances,
 		{},
+		nullptr,
 		nullptr);
 
 	RHICmdList.BindAccelerationStructureMemory(RayTracingScene.Scene, SceneBuffer, 0);

@@ -53,6 +53,7 @@
 #define PRIMITIVE_SCENE_DATA_FLAG_INSTANCE_CULLING_OCCLUSION_QUERIES	0x1000000 // Whether per-instance occlusion queries are allowed when performing GPUScene instance culling
 #define PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION					0x2000000
 #define PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_FAR_FIELD					0x4000000
+#define PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_HAS_GROUPID				0x8000000
 
 
 // Primitive visibility flags
