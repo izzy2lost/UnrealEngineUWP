@@ -40,6 +40,7 @@ namespace AudioWidgets
 {
 	class FAudioOscilloscope;
 	class FAudioVectorscope;
+	class FAudioSpectrumAnalyzer;
 }
 
 class FTabManager;
@@ -431,6 +432,9 @@ namespace Metasound
 
 			/** Vectorscope used in the analyzer tab for visualizing preview output. */
 			TSharedPtr<AudioWidgets::FAudioVectorscope> OutputVectorscope;
+
+			/** Spectrum analyzer used in the analyzer tab for auditioning preview output. */
+			TSharedPtr<AudioWidgets::FAudioSpectrumAnalyzer> OutputSpectrumAnalyzer;
 
 			/** Palette of Node types */
 			TSharedPtr<SMetasoundPalette> Palette;

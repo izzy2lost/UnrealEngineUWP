@@ -6,6 +6,7 @@
 #include "AudioDevice.h"
 #include "AudioMeterStyle.h"
 #include "AudioOscilloscope.h"
+#include "AudioSpectrumAnalyzer.h"
 #include "AudioVectorscope.h"
 #include "AudioWidgetsEnums.h"
 #include "Components/AudioComponent.h"
@@ -682,7 +683,7 @@ namespace Metasound
 
 		TSharedPtr<SWidget> FEditor::BuildAnalyzerWidget() const
 		{
-			if (!OutputMeter.IsValid() || !OutputOscilloscope.IsValid() || !OutputVectorscope.IsValid())
+			if (!OutputMeter.IsValid() || !OutputOscilloscope.IsValid() || !OutputVectorscope.IsValid() || !OutputSpectrumAnalyzer.IsValid())
 			{
 				return SNullWidget::NullWidget->AsShared();
 			}
@@ -724,6 +725,11 @@ namespace Metasound
 				.Value(0.2f)
 				[
 					OutputVectorscope->GetPanelWidget()
+				]
+				+ SSplitter::Slot()
+				.Value(0.2f)
+				[
+					OutputSpectrumAnalyzer->GetWidget()
 				]
 			];
 		}
@@ -1218,6 +1224,11 @@ namespace Metasound
 							OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
 						}
 
+						if (!OutputSpectrumAnalyzer.IsValid())
+						{
+							OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(MetaSoundSource->NumChannels, *EditorWorld);
+						}
+
 						return;
 					}
 				}
@@ -1231,6 +1242,7 @@ namespace Metasound
 			OutputMeter.Reset();
 			OutputOscilloscope.Reset();
 			OutputVectorscope.Reset();
+			OutputSpectrumAnalyzer.Reset();
 		}
 
 		void FEditor::ExtendToolbar()
@@ -1618,6 +1630,11 @@ namespace Metasound
 					}
 
 					if (UAudioBus* AudioBus = OutputVectorscope->GetAudioBus())
+					{
+						PreviewComp->SetAudioBusSendPostEffect(AudioBus, 1.0f);
+					}
+
+					if (UAudioBus* AudioBus = OutputSpectrumAnalyzer->GetAudioBus())
 					{
 						PreviewComp->SetAudioBusSendPostEffect(AudioBus, 1.0f);
 					}
