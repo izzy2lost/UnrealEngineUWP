@@ -24,6 +24,7 @@ public:
 	UObject* ReimportObject = nullptr;
 	UInterchangeBaseNodeContainer* Container = nullptr;
 	UInterchangeSourceData* SourceData = nullptr;
+	TArray<FInterchangeConflictInfo> ConflictInfos;
 };
 
 class SInterchangePipelineItem : public STableRow<TSharedPtr<FInterchangePipelineItemType>>
@@ -35,9 +36,9 @@ public:
 		TSharedPtr<FInterchangePipelineItemType> InPipelineElement);
 private:
 	const FSlateBrush* GetImageItemIcon() const;
+	FSlateColor GetTextColor() const;
 
 	TSharedPtr<FInterchangePipelineItemType> PipelineElement = nullptr;
-	TArray<FInterchangeConflictInfo> ConflictInfos;
 	TArray<TSharedPtr<FString>> ConflictNameList;
 	TSharedPtr<FString> ConflictsComboEntry = nullptr;
 	TSharedPtr<STextComboBox> ConflictComboBox = nullptr;
@@ -144,6 +145,8 @@ private:
 	}
 
 	void OnFilterOptionsChanged(ECheckBoxState CheckState);
+
+	const FSlateBrush* GetImportButtonIcon() const;
 
 	FReply OnPreviewImport() const;
 
