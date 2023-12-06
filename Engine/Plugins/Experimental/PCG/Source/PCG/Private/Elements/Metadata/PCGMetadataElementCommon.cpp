@@ -61,6 +61,12 @@ namespace PCGMetadataElementCommon
 			return false;
 		}
 
+		// Early out - contrary to ApplyOnAccessorRange, having a zero count here is not an error
+		if (Count == 0)
+		{
+			return true;
+		}
+
 		auto Operation = [&Params, Count](auto Dummy)
 		{
 			using OutputType = decltype(Dummy);
