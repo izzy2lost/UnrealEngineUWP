@@ -16,7 +16,7 @@ public:
 		GEngineLoop.PreInit(0, nullptr);
 		FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-		AutoRTFM::SetAutoRTFMRuntime(true);
+		AutoRTFM::SetAutoRTFMRuntime(AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled);
 	}
 
 	void testRunEnded(const Catch::TestRunStats&) override
