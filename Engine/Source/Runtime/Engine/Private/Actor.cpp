@@ -5070,7 +5070,6 @@ void AActor::DispatchPhysicsCollisionHit(const FRigidBodyCollisionInfo& MyInfo, 
 	Result.Normal = Result.ImpactNormal = ContactInfo.ContactNormal;
 	Result.PenetrationDepth = ContactInfo.ContactPenetration;
 	Result.PhysMaterial = ContactInfo.PhysMaterial[1];
-	Result.HitObjectHandle = FActorInstanceHandle(OtherInfo.Actor.Get());
 	Result.Component = OtherInfo.Component;
 	Result.MyItem = MyInfo.BodyIndex;
 	Result.Item = OtherInfo.BodyIndex;
@@ -5078,7 +5077,11 @@ void AActor::DispatchPhysicsCollisionHit(const FRigidBodyCollisionInfo& MyInfo, 
 	Result.MyBoneName = MyInfo.BoneName;
 	Result.bBlockingHit = true;
 
-	NotifyHit(MyInfo.Component.Get(), OtherInfo.Actor.Get(), OtherInfo.Component.Get(), true, Result.Location, Result.Normal, RigidCollisionData.TotalNormalImpulse, Result);
+	AActor* Actor = OtherInfo.Actor.Get();
+	UPrimitiveComponent* Component = OtherInfo.Component.Get();
+	Result.HitObjectHandle = FActorInstanceHandle(Actor, Component, OtherInfo.BodyIndex);
+
+	NotifyHit(MyInfo.Component.Get(), Actor, Component, true, Result.Location, Result.Normal, RigidCollisionData.TotalNormalImpulse, Result);
 
 	// Execute delegates if bound
 

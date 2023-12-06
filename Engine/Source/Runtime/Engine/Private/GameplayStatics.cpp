@@ -1424,7 +1424,7 @@ FHitResult UGameplayStatics::MakeHitResult(bool bBlockingHit, bool bInitialOverl
 	Hit.Normal = Normal;
 	Hit.ImpactNormal = ImpactNormal;
 	Hit.PhysMaterial = PhysMat;
-	Hit.HitObjectHandle = FActorInstanceHandle(HitActor);
+	Hit.HitObjectHandle = FActorInstanceHandle(HitActor, HitComponent, HitItem);
 	Hit.Component = HitComponent;
 	Hit.BoneName = HitBoneName;
 	Hit.MyBoneName = BoneName;

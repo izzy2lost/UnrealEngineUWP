@@ -19,10 +19,11 @@ struct FActorInstanceHandle
 {
 	GENERATED_BODY()
 
-	ENGINE_API FActorInstanceHandle();
+	ENGINE_API FActorInstanceHandle() = default;
 
 	ENGINE_API explicit FActorInstanceHandle(AActor* InActor);
-	ENGINE_API FActorInstanceHandle(UObject* InManager, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
+	ENGINE_API FActorInstanceHandle(const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
+	ENGINE_API FActorInstanceHandle(AActor* InActor, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
 	ENGINE_API FActorInstanceHandle(FActorInstanceManagerInterface InManagerInterface, int32 InstanceIndex);
 	ENGINE_API FActorInstanceHandle(const FActorInstanceHandle& Other);
 
@@ -89,7 +90,7 @@ struct FActorInstanceHandle
 	}
 
 private:
-	void SetInternal(IActorInstanceManagerInterface& InManagerInterface, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex);
+	friend struct FActorInstanceHandleInternalHelper;
 
 	/**
 	 * helper functions that let us treat the actor pointer as a UObject in templated functions
@@ -109,7 +110,7 @@ private:
 	FActorInstanceManagerInterface ManagerInterface;
 
 	/** Identifies the instance within the manager */
-	int32 InstanceIndex;
+	int32 InstanceIndex = INDEX_NONE;
 };
 
 template<typename T>

@@ -1,49 +1,80 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Engine/ActorInstanceHandle.h"
+#include "PhysicsPublic.h"
 #include "Engine/World.h"
 #include "Engine/ActorInstanceManagerInterface.h"
 #include "GameFramework/Actor.h"
+#include "Components/PrimitiveComponent.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ActorInstanceHandle)
 
+struct FActorInstanceHandleInternalHelper
+{
+	inline static void SetUpAsInterface(FActorInstanceHandle& InstanceHandle, IActorInstanceManagerInterface& InManagerInterface, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
+	{
+		InstanceHandle.InstanceIndex = InManagerInterface.ConvertCollisionIndexToInstanceIndex(CollisionInstanceIndex, RelevantComponent);
+		InstanceHandle.Actor = InManagerInterface.FindActor(InstanceHandle);
+	}
+
+	inline static void SetUpWithActor(FActorInstanceHandle& InstanceHandle, AActor* InActor, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
+	{
+		InstanceHandle.ManagerInterface = FActorInstanceManagerInterface(InActor);
+		if (IActorInstanceManagerInterface* ManagerInterfacePtr = InstanceHandle.ManagerInterface.Get())
+		{
+			SetUpAsInterface(InstanceHandle, *ManagerInterfacePtr, RelevantComponent, CollisionInstanceIndex);
+		}
+		else
+		{
+			InstanceHandle.Actor = InActor;
+		}
+	}
+};
 
 //-----------------------------------------------------------------------------
 // FActorInstanceHandle
 //-----------------------------------------------------------------------------
-FActorInstanceHandle::FActorInstanceHandle()
-	: Actor(nullptr)
-	, InstanceIndex(INDEX_NONE)
-{
-	// do nothing
-}
-
 FActorInstanceHandle::FActorInstanceHandle(AActor* InActor)
 	: Actor(InActor)
-	, InstanceIndex(INDEX_NONE)
 {
 }
 
-FActorInstanceHandle::FActorInstanceHandle(UObject* InManager, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
-	: Actor(nullptr)
-	, ManagerInterface(InManager)
-	, InstanceIndex(CollisionInstanceIndex)
+FActorInstanceHandle::FActorInstanceHandle(const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
 {
-	if (IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get())
+	if (UNLIKELY(!ensureMsgf(RelevantComponent, TEXT("Calling FActorInstanceHandle(UPrimitiveComponent, int32) constructor is pointless with RelevantComponent == nullptr"))))
 	{
-		SetInternal(*ManagerInterfacePtr, RelevantComponent, CollisionInstanceIndex);
+		return;
+	}
+
+	if (AActor* OwnerActor = RelevantComponent->GetOwner())
+	{
+		FActorInstanceHandleInternalHelper::SetUpWithActor(*this, OwnerActor, RelevantComponent, CollisionInstanceIndex);
+	}
+}
+
+FActorInstanceHandle::FActorInstanceHandle(AActor* InActor, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
+{
+	if (LIKELY(InActor))
+	{
+		FActorInstanceHandleInternalHelper::SetUpWithActor(*this, InActor, RelevantComponent, CollisionInstanceIndex);
+	}
+	else if (RelevantComponent)
+	{
+		FActorInstanceHandle(RelevantComponent, CollisionInstanceIndex);
+	}
+	else
+	{
+		Actor = InActor;
 	}
 }
 
 FActorInstanceHandle::FActorInstanceHandle(FActorInstanceManagerInterface InManagerInterface, int32 CollisionInstanceIndex)
-	: Actor(nullptr)
-	, ManagerInterface(InManagerInterface)
-	, InstanceIndex(CollisionInstanceIndex)
+	: ManagerInterface(InManagerInterface)
 {
 	if (IActorInstanceManagerInterface* ManagerInterfacePtr = ManagerInterface.Get())
 	{
-		SetInternal(*ManagerInterfacePtr, /*RelevantComponent=*/nullptr, CollisionInstanceIndex);
+		FActorInstanceHandleInternalHelper::SetUpAsInterface(*this, *ManagerInterfacePtr, /*RelevantComponent=*/nullptr, CollisionInstanceIndex);
 	}
 }
 
@@ -62,14 +93,6 @@ FActorInstanceHandle FActorInstanceHandle::MakeDehydratedActorHandle(UObject& Ma
 	ReturnHandle.InstanceIndex = InInstanceIndex;
 
 	return ReturnHandle;
-}
-
-void FActorInstanceHandle::SetInternal(IActorInstanceManagerInterface& InManagerInterface, const UPrimitiveComponent* RelevantComponent, int32 CollisionInstanceIndex)
-{
-	check(ManagerInterface.Get() == &InManagerInterface);
-
-	InstanceIndex = InManagerInterface.ConvertCollisionIndexToInstanceIndex(CollisionInstanceIndex, RelevantComponent);
-	Actor = InManagerInterface.FindActor(*this);
 }
 
 bool FActorInstanceHandle::IsValid() const
