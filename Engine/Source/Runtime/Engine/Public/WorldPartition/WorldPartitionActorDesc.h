@@ -28,6 +28,14 @@ struct FWorldPartitionActorDescInitData
 	FWorldPartitionActorDescInitData& SetActorPath(const FSoftObjectPath& InActorPath) { ActorPath = InActorPath; return *this; }
 };
 
+struct FWorldPartitionAssetDataPatcher
+{
+	virtual bool DoPatch(FString& InOutString) = 0;
+	virtual bool DoPatch(FName& InOutName) = 0;
+	virtual bool DoPatch(FSoftObjectPath& InOutSoft) = 0;
+	virtual bool DoPatch(FTopLevelAssetPath& InOutPath) = 0;
+};
+
 class AActor;
 class UActorDescContainer;
 class IStreamingGenerationErrorHandler;
@@ -255,7 +263,9 @@ public:
 	ENGINE_API virtual void Init(const AActor* InActor);
 	ENGINE_API virtual void Init(const FWorldPartitionActorDescInitData& DescData);
 
-	ENGINE_API virtual bool Equals(const FWorldPartitionActorDesc* Other) const;
+	static ENGINE_API void Patch(const FWorldPartitionActorDescInitData& DescData, TArray<uint8>& OutData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher);
+
+	ENGINE_API virtual bool Equals(const FWorldPartitionActorDesc* Other) const;	
 
 	/**
 	 * Returns true if resaving this actor will have an impact on streaming generation. Before class descriptors, properties changed on a Blueprint 

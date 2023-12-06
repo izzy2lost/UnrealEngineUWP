@@ -239,6 +239,8 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 	
 	// Serialize metadata payload
 	FActorDescArchive ActorDescAr(MetadataAr, this);
+	ActorDescAr.Init();
+
 	Serialize(ActorDescAr);
 
 	// Call registered deprecator
@@ -254,6 +256,37 @@ void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& Desc
 	}
 
 	Container = nullptr;
+}
+
+void FWorldPartitionActorDesc::Patch(const FWorldPartitionActorDescInitData& DescData, TArray<uint8>& OutData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher)
+{
+	// Serialize actor metadata
+	FMemoryReader MetadataAr(DescData.SerializedData, true);
+
+	// Serialize metadata custom versions
+	FCustomVersionContainer CustomVersions;
+	CustomVersions.Serialize(MetadataAr);
+	MetadataAr.SetCustomVersions(CustomVersions);
+	
+	// Patch metadata payload
+	TArray<uint8> PatchedPayloadData;
+	FMemoryWriter PatchedPayloadAr(PatchedPayloadData, true);
+
+	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(AActor::StaticCreateClassActorDesc(DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass()));
+	FActorDescArchivePatcher ActorDescAr(MetadataAr, ActorDesc.Get(), PatchedPayloadAr, InAssetDataPatcher);	
+	FTopLevelAssetPath ActorClassPath(TEXT("/Script/Engine.Actor"));
+	ActorDescAr.Init(ActorClassPath);
+
+	ActorDesc->Serialize(ActorDescAr);
+
+	// Serialize custom versions
+	TArray<uint8> HeaderData;
+	FMemoryWriter HeaderAr(HeaderData);
+	CustomVersions.Serialize(HeaderAr); 
+
+	// Append data
+	OutData = MoveTemp(HeaderData);
+	OutData.Append(PatchedPayloadData);
 }
 
 bool FWorldPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) const
@@ -337,6 +370,8 @@ void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData)
 	TArray<uint8> PayloadData;
 	FMemoryWriter PayloadAr(PayloadData, true);
 	FActorDescArchive ActorDescAr(PayloadAr, this);
+	ActorDescAr.Init();
+
 	Serialize(ActorDescAr);
 
 	// Serialize custom versions

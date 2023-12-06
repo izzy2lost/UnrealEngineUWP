@@ -18,11 +18,6 @@
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "AssetRegistry/AssetData.h"
 
-#include "Algo/AllOf.h"
-#include "Misc/Char.h"
-#include "Misc/Base64.h"
-#include "Serialization/MemoryWriter.h"
-
 DEFINE_LOG_CATEGORY_STATIC(LogAssetHeaderPatcher, Log, All);
 
 namespace
@@ -268,6 +263,7 @@ public:
 
 	bool DoPatch(FString& InOutString);
 	bool DoPatch(FName& InOutName);
+	bool DoPatch(FSoftObjectPath& InOutSoft);
 	bool DoPatch(FTopLevelAssetPath& InOutPath);
 
 	FAssetHeaderPatcher::EResult PatchHeader();
@@ -319,13 +315,13 @@ public:
 		TArray<UE::AssetRegistry::FDeserializeTagData> TagData;
 	};
 
-	struct FAsetRegistryData
+	struct FAssetRegistryData
 	{
 		int64 SectionSize = -1;
 		UE::AssetRegistry::FDeserializePackageData PkgData;
 		TArray<FAssetRegistryObjectData> ObjectData;
 	};
-	FAsetRegistryData AsetRegistryData;
+	FAssetRegistryData AssetRegistryData;
 };
 
 
@@ -560,16 +556,16 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_Deserialize()
 		MemAr.Seek(Summary.AssetRegistryDataOffset);
 
 		UE::AssetRegistry::EReadPackageDataMainErrorCode ErrorCode;
-		if (!AsetRegistryData.PkgData.DoSerialize(MemAr, Summary, ErrorCode))
+		if (!AssetRegistryData.PkgData.DoSerialize(MemAr, Summary, ErrorCode))
 		{
 			UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to deserialize asset registry data for %s"), *SrcAsset);
 			return EResult::ErrorFailedToDeserializeSourceAsset;
 		}
 
-		AsetRegistryData.ObjectData.Reserve(AsetRegistryData.PkgData.ObjectCount);
-		for (int32 i = 0; i < AsetRegistryData.PkgData.ObjectCount; ++i)
+		AssetRegistryData.ObjectData.Reserve(AssetRegistryData.PkgData.ObjectCount);
+		for (int32 i = 0; i < AssetRegistryData.PkgData.ObjectCount; ++i)
 		{
-			FAssetRegistryObjectData& ObjData = AsetRegistryData.ObjectData.Emplace_GetRef();
+			FAssetRegistryObjectData& ObjData = AssetRegistryData.ObjectData.Emplace_GetRef();
 			if (!ObjData.ObjectData.DoSerialize(MemAr, ErrorCode))
 			{
 				UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to deserialize asset registry data for %s"), *SrcAsset);
@@ -587,7 +583,7 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_Deserialize()
 			}
 		}
 
-		AsetRegistryData.SectionSize = MemAr.Tell() - Summary.AssetRegistryDataOffset;
+		AssetRegistryData.SectionSize = MemAr.Tell() - Summary.AssetRegistryDataOffset;
 	}
 
 	return EResult::Success;
@@ -646,14 +642,25 @@ bool FAssetHeaderPatcherInner::DoPatch(FString& InOutString)
 bool FAssetHeaderPatcherInner::DoPatch(FName& InOutName)
 {
 	FString Value = InOutName.GetPlainNameString();
-	bool bPatching = DoPatch(Value);
-	if (bPatching)
+	if (DoPatch(Value))
 	{
 		// Use the same Number as the original Name for consistency.
 		// Otherwise different files with the same name, generate different numbers, and this breaks linking.
 		InOutName = FName(Value, InOutName.GetNumber());
+		return true;
 	}
-	return bPatching;
+	return false;
+}
+
+bool FAssetHeaderPatcherInner::DoPatch(FSoftObjectPath& InOutSoft)
+{
+	FTopLevelAssetPath TmpPath = InOutSoft.GetAssetPath();
+	if (DoPatch(TmpPath))
+	{
+		InOutSoft.SetPath(TmpPath, InOutSoft.GetSubPathString());
+		return true;
+	}
+	return false;
 }
 
 bool FAssetHeaderPatcherInner::DoPatch(FTopLevelAssetPath& InOutPath)
@@ -713,11 +720,7 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 	// Soft paths
 	for (FSoftObjectPath& PathRef : SoftObjectPathTable)
 	{
-		FTopLevelAssetPath TmpPath = PathRef.GetAssetPath();
-		if (DoPatch(TmpPath))
-		{
-			PathRef.SetPath(TmpPath, PathRef.GetSubPathString());
-		}
+		DoPatch(PathRef);
 	}
 
 	// Import table
@@ -751,7 +754,7 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 	}
 
 	// Asset Register Data
-	for (FAssetRegistryObjectData& ObjData : AsetRegistryData.ObjectData)
+	for (FAssetRegistryObjectData& ObjData : AssetRegistryData.ObjectData)
 	{
 		DoPatch(ObjData.ObjectData.ObjectPath);
 
@@ -768,64 +771,27 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 		{
 			if (TagData.Key == FWorldPartitionActorDescUtils::ActorMetaDataTagName())
 			{
-				// This code is to be revisited (UE-201639)
-				// 
-				// Actor meta data is a binary blob from a advanced Archive, then bin64 encoded.
-				// The Archive is advanced as it does delta encoded from a base instance of a class.
-				// When we are copying at this point, we dont have that loaded.
-				// So instead, We search through the decoded information, looking for strings (FNames, SoftPaths)
-				// which in this for are a 4byte int length, and then the bytes. 
-				// Assumptions: 
-				//   1. The strings I'm looking for will be ascii.
-				//   2. The int is stored in native byte order.
-				TArray<uint8> ActorMetaSrc;
-				verify(FBase64::Decode(TagData.Value, ActorMetaSrc));
-				int32 SrcLen = ActorMetaSrc.Num();
-				const uint8* Src = ActorMetaSrc.GetData();
-				static_assert(sizeof(uint8) == sizeof(ANSICHAR));
+				const FString LongPackageName(SrcAsset);
+				const FString ObjectPath(ObjData.ObjectData.ObjectPath);
+				const FTopLevelAssetPath AssetClassPathName(ObjData.ObjectData.ObjectClassName);
+				const FAssetDataTagMap Tags(MakeTagMap(ObjData.TagData));
+				const FAssetData AssetData(LongPackageName, ObjectPath, AssetClassPathName, Tags);
 
-				TArray<uint8> ActorMetaDst;
-				ActorMetaDst.Reserve(SrcLen);
-				FMemoryWriter DstAr(ActorMetaDst, /* bIsPersistent*/ true);
-
-				bool bPatched = false;
-
-				for (int32 I = 0; I < SrcLen; )
+				struct FWorldPartitionAssetDataPatcherInner : FWorldPartitionAssetDataPatcher
 				{
-					// 5 bytes is the min size for a string that could be interesting.
-					// 4 for the int32 size, and 1 character.
-					if ((I + 5) < SrcLen)
-					{
-						int32 PossibleLen;
-						memcpy(&PossibleLen, Src + I, sizeof(PossibleLen));
-						if (PossibleLen > 0 && ((I + (int32)sizeof(PossibleLen) + (int64)PossibleLen) < (int64)SrcLen)) // using 64bit math to guard against overflow
-						{
-							// Length looks okay.. Test to ensure it has no control characters.
-							FString PossibleStr((const ANSICHAR*)(Src + I + sizeof(PossibleLen)), PossibleLen);
-							bool bIsPrintable = Algo::AllOf(PossibleStr, [](TCHAR C) { return FChar::IsPrint(C); });
-
-							if (bIsPrintable)
-							{
-								if (DoPatch(PossibleStr))
-								{
-									bPatched = true;
-
-									DstAr << PossibleStr;
-									I += (int32)sizeof(PossibleLen) + PossibleLen;
-									continue;
-								}
-							}
-						}
-					}
-
-					// Copy 1 byte
-					DstAr.Serialize((void*)(Src + I), 1);
-					++I;
-				}
-
-				if (bPatched)
+					FWorldPartitionAssetDataPatcherInner(FAssetHeaderPatcherInner* InInner) : Inner(InInner) {}
+					virtual bool DoPatch(FString& InOutString) override { return Inner->DoPatch(InOutString); }
+					virtual bool DoPatch(FName& InOutName) override { return Inner->DoPatch(InOutName); }
+					virtual bool DoPatch(FSoftObjectPath& InOutSoft) override { return Inner->DoPatch(InOutSoft); }
+					virtual bool DoPatch(FTopLevelAssetPath& InOutPath) override { return Inner->DoPatch(InOutPath); }
+					FAssetHeaderPatcherInner* Inner;
+				};
+				
+				FString PatchedAssetData;
+				FWorldPartitionAssetDataPatcherInner Patcher(this);
+				if (FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(AssetData, PatchedAssetData, &Patcher))
 				{
-					TagData.Value = FBase64::Encode(ActorMetaDst);
+					TagData.Value = PatchedAssetData;
 				}
 			}
 			else 
@@ -849,7 +815,7 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 		{ EPatchedSection::ExportTable,					Summary.ExportOffset,					HeaderInformation.ExportTableSize,		true },
 		{ EPatchedSection::SoftPackageReferencesTable,	Summary.SoftPackageReferencesOffset,	HeaderInformation.SoftPackageReferencesListSize, false },
 		{ EPatchedSection::ThumbnailTable,				Summary.ThumbnailTableOffset,			HeaderInformation.ThumbnailTableSize,	false },
-		{ EPatchedSection::AssetRegistryData,			Summary.AssetRegistryDataOffset,		AsetRegistryData.SectionSize,			true },
+		{ EPatchedSection::AssetRegistryData,			Summary.AssetRegistryDataOffset,		AssetRegistryData.SectionSize,			true },
 	};
 
 	const int32 SourceTotalHeaderSize = Summary.TotalHeaderSize;
@@ -1054,18 +1020,18 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 
 		case EPatchedSection::AssetRegistryData:
 		{
-			const int64 AsetRegistryDataStartOffset = Writer.Tell();
-			checkf(AsetRegistryDataStartOffset == Summary.AssetRegistryDataOffset, TEXT("%zd == %zd"), AsetRegistryDataStartOffset, Summary.AssetRegistryDataOffset);
+			const int64 AssetRegistryDataStartOffset = Writer.Tell();
+			checkf(AssetRegistryDataStartOffset == Summary.AssetRegistryDataOffset, TEXT("%zd == %zd"), AssetRegistryDataStartOffset, Summary.AssetRegistryDataOffset);
 
 			// Manually write this back out, there isn't a nicely factored function to call for this
-			if (AsetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
+			if (AssetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
 			{
-				Writer << AsetRegistryData.PkgData.DependencyDataOffset;
+				Writer << AssetRegistryData.PkgData.DependencyDataOffset;
 			}
-			Writer << AsetRegistryData.PkgData.ObjectCount;
+			Writer << AssetRegistryData.PkgData.ObjectCount;
 
-			check(AsetRegistryData.PkgData.ObjectCount == AsetRegistryData.ObjectData.Num());
-			for (FAssetRegistryObjectData& ObjData : AsetRegistryData.ObjectData)
+			check(AssetRegistryData.PkgData.ObjectCount == AssetRegistryData.ObjectData.Num());
+			for (FAssetRegistryObjectData& ObjData : AssetRegistryData.ObjectData)
 			{
 				Writer << ObjData.ObjectData.ObjectPath;
 				Writer << ObjData.ObjectData.ObjectClassName;
@@ -1079,17 +1045,17 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 				}
 			}
 
-			const int64 AsetRegistryDataSize = Writer.Tell() - AsetRegistryDataStartOffset;
-			const int64 Delta = AsetRegistryDataSize - SourceSection.Size;
-			PatchSummaryOffsets(Summary, AsetRegistryDataStartOffset, Delta);
+			const int64 AssetRegistryDataSize = Writer.Tell() - AssetRegistryDataStartOffset;
+			const int64 Delta = AssetRegistryDataSize - SourceSection.Size;
+			PatchSummaryOffsets(Summary, AssetRegistryDataStartOffset, Delta);
 			Summary.TotalHeaderSize += (int32)Delta;
 
-			if (AsetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
+			if (AssetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
 			{
 				// DependencyDataOffset is not relative but points to just after the rest of the AR data
 				// We will seek back and write this later
-				const int64 DependencyDataDelta = AsetRegistryDataStartOffset - SourceSection.Offset + Delta;
-				AsetRegistryData.PkgData.DependencyDataOffset += DependencyDataDelta;
+				const int64 DependencyDataDelta = AssetRegistryDataStartOffset - SourceSection.Offset + Delta;
+				AssetRegistryData.PkgData.DependencyDataOffset += DependencyDataDelta;
 			}
 
 			break;
@@ -1141,11 +1107,11 @@ FAssetHeaderPatcher::EResult FAssetHeaderPatcherInner::PatchHeader_WriteDestinat
 		return EResult::ErrorFailedToWriteToDestinationFile;
 	}
 
-	if (AsetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
+	if (AssetRegistryData.PkgData.DependencyDataOffset != INDEX_NONE)
 	{
 		// Re-write asset registry dependency data offset
 		Writer.Seek(Summary.AssetRegistryDataOffset);
-		Writer << AsetRegistryData.PkgData.DependencyDataOffset;
+		Writer << AssetRegistryData.PkgData.DependencyDataOffset;
 
 		if (Writer.IsError())
 		{

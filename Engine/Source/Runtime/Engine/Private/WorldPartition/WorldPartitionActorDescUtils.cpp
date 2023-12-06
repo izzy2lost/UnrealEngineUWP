@@ -145,6 +145,29 @@ FString FWorldPartitionActorDescUtils::GetAssetDataFromActorDescriptor(TUniquePt
 	return FBase64::Encode(SerializedData);
 }
 
+bool FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(const FAssetData& InAssetData, FString& OutAssetData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher)
+{
+	if (IsValidActorDescriptorFromAssetData(InAssetData))
+	{
+		FWorldPartitionActorDescInitData ActorDescInitData = FWorldPartitionActorDescInitData()
+			.SetNativeClass(GetActorNativeClassFromAssetData(InAssetData))
+			.SetPackageName(InAssetData.PackageName)
+			.SetActorPath(InAssetData.GetSoftObjectPath());
+
+		FString ActorMetaDataStr;
+		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
+		verify(FBase64::Decode(ActorMetaDataStr, ActorDescInitData.SerializedData));
+
+		TArray<uint8> PatchedData;
+		FWorldPartitionActorDesc::Patch(ActorDescInitData, PatchedData, InAssetDataPatcher);
+		OutAssetData = FBase64::Encode(PatchedData);
+
+		return OutAssetData != ActorMetaDataStr;
+	}
+
+	return false;
+}
+
 void FWorldPartitionActorDescUtils::UpdateActorDescriptorFromActor(const AActor* InActor, TUniquePtr<FWorldPartitionActorDesc>& OutActorDesc)
 {
 	TUniquePtr<FWorldPartitionActorDesc> NewActorDesc(InActor->CreateActorDesc());

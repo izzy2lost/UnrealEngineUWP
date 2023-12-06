@@ -52,6 +52,15 @@ struct FWorldPartitionActorDescUtils
 	static ENGINE_API FString GetAssetDataFromActorDescriptor(TUniquePtr<FWorldPartitionActorDesc>& InActorDesc);
 
 	/** 
+	 * Patches an actor descriptor's asset data
+	 * @param InAssetData			The asset data to be patched.
+	 * @param OutAssetData			The patched asset data.
+	 * @param InAssetDataPatcher	The patcher object.
+	 * @return						The actor descriptor patched data.
+	 */
+	static ENGINE_API bool GetPatchedAssetDataFromAssetData(const FAssetData& InAssetData, FString& OutAssetData, FWorldPartitionAssetDataPatcher* InAssetDataPatcher);
+
+	/** 
 	 * Update an actor descriptor with new values coming from the provided actor.
 	 * @param InActor		The actor to update from.
 	 * @param OutActorDesc	Actor descriptor unique pointer that will get updated with the new actor descriptor.
