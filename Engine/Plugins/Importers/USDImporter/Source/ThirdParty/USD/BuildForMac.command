@@ -2,20 +2,20 @@
 
 set -e
 
-USD_VERSION=23.08
+OPENUSD_VERSION=23.08
 
-# This path may be adjusted to point to wherever the USD source is located.
+# This path may be adjusted to point to wherever the OpenUSD source is located.
 # It is typically obtained by either downloading a zip/tarball of the source
 # code, or more commonly by cloning the GitHub repository, e.g. for the
-# current engine USD version:
+# current engine OpenUSD version:
 #     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 # We apply a patch for the usdMtlx plugin to ensure that we do not
 # bake a hard-coded path to the MaterialX standard data libraries into the
 # built plugin:
-#     git apply USD_v2308_usdMtlx_undef_stdlib_dir.patch
-# Note also that this path may be emitted as part of USD error messages, so
+#     git apply OpenUSD_v2308_usdMtlx_undef_stdlib_dir.patch
+# Note also that this path may be emitted as part of OpenUSD error messages, so
 # it is suggested that it not reveal any sensitive information.
-SOURCE_LOCATION="/tmp/OpenUSD_src"
+OPENUSD_SOURCE_LOCATION="/tmp/OpenUSD_src"
 
 SCRIPT_DIR=`cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd`
 
@@ -51,9 +51,9 @@ UE_MODULE_USD_LOCATION=$SCRIPT_DIR
 
 BUILD_LOCATION="$UE_MODULE_USD_LOCATION/Intermediate"
 
-# USD build products are written into a deployment directory and must then
+# OpenUSD build products are written into a deployment directory and must then
 # be manually copied from there into place.
-INSTALL_LOCATION="$BUILD_LOCATION/Deploy/USD-$USD_VERSION"
+INSTALL_LOCATION="$BUILD_LOCATION/Deploy/OpenUSD-$OPENUSD_VERSION"
 
 rm -rf $BUILD_LOCATION
 
@@ -92,13 +92,13 @@ CMAKE_ARGS=(
     -DPXR_BUILD_USDVIEW=OFF
 )
 
-echo Configuring build for USD version $USD_VERSION...
-cmake -G "Xcode" $SOURCE_LOCATION "${CMAKE_ARGS[@]}"
+echo Configuring build for OpenUSD version $OPENUSD_VERSION...
+cmake -G "Xcode" $OPENUSD_SOURCE_LOCATION "${CMAKE_ARGS[@]}"
 
-echo Building USD for Release...
+echo Building OpenUSD for Release...
 cmake --build . --config Release -j8
 
-echo Installing USD for Release...
+echo Installing OpenUSD for Release...
 cmake --install . --config Release
 
 popd > /dev/null
@@ -109,21 +109,21 @@ INSTALL_LIB_LOCATION="$INSTALL_LOCATION/lib"
 echo Removing command-line tools...
 rm -rf "$INSTALL_BIN_LOCATION"
 
-echo Moving built-in USD plugins to UsdResources plugins directory...
+echo Moving built-in OpenUSD plugins to UsdResources plugins directory...
 INSTALL_RESOURCES_LOCATION="$INSTALL_LOCATION/Resources/UsdResources/Mac"
 INSTALL_RESOURCES_PLUGINS_LOCATION="$INSTALL_RESOURCES_LOCATION/plugins"
 mkdir -p $INSTALL_RESOURCES_LOCATION
 mv "$INSTALL_LIB_LOCATION/usd" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 
-echo Moving USD plugin shared libraries to lib directory...
+echo Moving OpenUSD plugin shared libraries to lib directory...
 INSTALL_PLUGIN_LOCATION="$INSTALL_LOCATION/plugin"
 INSTALL_PLUGIN_USD_LOCATION="$INSTALL_PLUGIN_LOCATION/usd"
 mv $INSTALL_PLUGIN_USD_LOCATION/*.dylib "$INSTALL_LIB_LOCATION"
 
-echo Removing top-level USD plugins plugInfo.json file...
+echo Removing top-level OpenUSD plugins plugInfo.json file...
 rm -f "$INSTALL_PLUGIN_USD_LOCATION/plugInfo.json"
 
-echo Moving USD plugin resource directories to UsdResources plugins directory
+echo Moving OpenUSD plugin resource directories to UsdResources plugins directory
 mv "$INSTALL_PLUGIN_USD_LOCATION/hdStorm" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 mv "$INSTALL_PLUGIN_USD_LOCATION/sdrGlslfx" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
 mv "$INSTALL_PLUGIN_USD_LOCATION/usdAbc" "$INSTALL_RESOURCES_PLUGINS_LOCATION"
@@ -154,8 +154,8 @@ rm -rf "$INSTALL_LOCATION/share"
 # The locations of the shared libraries where they will live when ultimately
 # deployed are used to generate relative paths for use as LibraryPaths in
 # plugInfo.json files.
-# The USD plugins all exist at the same directory level, so any of them can be
-# used to generate a relative path.
+# The OpenUSD plugins all exist at the same directory level, so any of them can
+# be used to generate a relative path.
 USD_PLUGIN_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Resources/UsdResources/Mac/plugins/usd"
 USD_LIBS_LOCATION="$UE_ENGINE_LOCATION/Plugins/Importers/USDImporter/Source/ThirdParty/Mac/bin"
 
