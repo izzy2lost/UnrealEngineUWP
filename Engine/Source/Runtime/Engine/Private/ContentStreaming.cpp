@@ -782,14 +782,22 @@ FStreamingManagerCollection::FStreamingManagerCollection()
 
 	AddOrRemoveTextureStreamingManagerIfNeeded(true);
 
-	if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
+	if (FApp::CanEverRenderAudio())
 	{
-		FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
-		AudioStreamingManager = new FCachedAudioStreamingManager(Params);
+		if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
+		{
+			FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
+			AudioStreamingManager = new FCachedAudioStreamingManager(Params);
+		}
+		else
+		{
+			AudioStreamingManager = new FLegacyAudioStreamingManager();
+		}
 	}
 	else
 	{
-		AudioStreamingManager = new FLegacyAudioStreamingManager();
+		// cannot render any audio, but code still expects this class to exist.
+		AudioStreamingManager = new FDummyAudioStreamingManager();
 	}
 	
 	AddStreamingManager( AudioStreamingManager );
