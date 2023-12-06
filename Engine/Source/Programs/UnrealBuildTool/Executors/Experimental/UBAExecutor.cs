@@ -399,8 +399,8 @@ namespace UnrealBuildTool
 				using EpicGames.UBA.ILogger ubaLogger = EpicGames.UBA.ILogger.CreateLogger(logger);
 				using (Server = IServer.CreateServer(UBAConfig.MaxWorkers, UBAConfig.SendSize, ubaLogger, UBAConfig.bUseQuic))
 				{
-					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(_rootDirRef, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
-					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef, ubaTraceFile, UBAConfig.bDisableCustomAlloc, UBAConfig.bLaunchVisualizer, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem));
+					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(_rootDirRef.FullName, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
+					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName, UBAConfig.bDisableCustomAlloc, UBAConfig.bLaunchVisualizer, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem));
 					using (_session = ISessionServer.CreateSessionServer(serverCreateInfo))
 					{
 
@@ -463,7 +463,7 @@ namespace UnrealBuildTool
 				{
 					if (refreshedDirectories.Add(output.Directory))
 					{
-						session.RefreshDirectories(output.Directory.Location);
+						session.RefreshDirectories(output.Directory.FullName);
 					}
 				}
 			};
@@ -604,8 +604,8 @@ namespace UnrealBuildTool
 		{
 			ProcessStartInfo startInfo = new()
 			{
-				Application = action.CommandPath,
-				WorkingDirectory = action.WorkingDirectory,
+				Application = action.CommandPath.FullName,
+				WorkingDirectory = action.WorkingDirectory.FullName,
 				Arguments = action.CommandArguments,
 				Priority = ProcessPriority,
 				OutputStatsThresholdMs = (uint)UBAConfig.OutputStatsThresholdMs,
@@ -649,7 +649,7 @@ namespace UnrealBuildTool
 
 					if (result.ExitCode == 0)
 					{
-						_session!.RegisterNewFiles(action.ProducedItems.Select(x => x.Location).ToArray());
+						_session!.RegisterNewFiles(action.ProducedItems.Select(x => x.FullName).ToArray());
 					}
 					_session!.EndExternalProcess(processId, (uint)result.ExitCode);
 
@@ -731,7 +731,7 @@ namespace UnrealBuildTool
 			bool success = results.ExitCode == 0;
 			if (pchItem != null && process != null && success)
 			{
-				_session!.SetCustomCasKeyFromTrackedInputs(pchItem.Location, action.WorkingDirectory, process);
+				_session!.SetCustomCasKeyFromTrackedInputs(pchItem.FullName, action.WorkingDirectory.FullName, process);
 			}
 
 			queue.OnActionCompleted(action, success, results);

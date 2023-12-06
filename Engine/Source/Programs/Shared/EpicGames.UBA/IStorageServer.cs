@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-
 namespace EpicGames.UBA
 {
 	/// <summary>
@@ -12,7 +10,7 @@ namespace EpicGames.UBA
 		/// <summary>
 		/// The root directory for the storage
 		/// </summary>
-		public DirectoryReference RootDirectory { get; init; }
+		public string RootDirectory { get; init; }
 
 		/// <summary>
 		/// The capacity of the storage in bytes
@@ -36,7 +34,7 @@ namespace EpicGames.UBA
 		/// <param name="capacityBytes">The capacity of the storage in bytes</param>
 		/// <param name="storeCompressed">If the storage should be stored as compressed</param>
 		/// <param name="zone">The geographical zone this machine belongs to. Can be empty</param>
-		public StorageServerCreateInfo(DirectoryReference rootDirectory, ulong capacityBytes, bool storeCompressed, string zone)
+		public StorageServerCreateInfo(string rootDirectory, ulong capacityBytes, bool storeCompressed, string zone)
 		{
 			RootDirectory = rootDirectory;
 			CapacityBytes = capacityBytes;

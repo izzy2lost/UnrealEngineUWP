@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using EpicGames.Core;
 
 namespace EpicGames.UBA
 {
@@ -31,12 +30,12 @@ namespace EpicGames.UBA
 		/// <summary>
 		/// The path to the application binary
 		/// </summary>
-		public FileReference Application { get; set; }
+		public string Application { get; set; }
 
 		/// <summary>
 		/// The working directory
 		/// </summary>
-		public DirectoryReference WorkingDirectory { get; set; }
+		public string WorkingDirectory { get; set; }
 
 		/// <summary>
 		/// The command line arguments

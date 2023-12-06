@@ -29,7 +29,7 @@ namespace EpicGames.UBA
 		{
 			_server = server;
 			_logger = logger;
-			_handle = CreateStorageServer(_server.GetHandle(), info.RootDirectory.FullName, info.CapacityBytes, info.StoreCompressed, _logger.GetHandle(), info.Zone);
+			_handle = CreateStorageServer(_server.GetHandle(), info.RootDirectory, info.CapacityBytes, info.StoreCompressed, _logger.GetHandle(), info.Zone);
 		}
 
 		#region IDisposable

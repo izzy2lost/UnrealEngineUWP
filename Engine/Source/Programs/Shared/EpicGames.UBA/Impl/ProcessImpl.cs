@@ -29,7 +29,7 @@ namespace EpicGames.UBA
 				ExitCallbackDelegate = RaiseExited;
 			}
 
-			_handle = CreateProcessStartInfo(info.Application.FullName, info.Arguments, info.WorkingDirectory.FullName, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile?? String.Empty, ExitCallbackDelegate);
+			_handle = CreateProcessStartInfo(info.Application, info.Arguments, info.WorkingDirectory, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile?? String.Empty, ExitCallbackDelegate);
 		}
 
 		void RaiseExited(IntPtr userData, IntPtr handle)

@@ -4,7 +4,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using EpicGames.Core;
 
 namespace EpicGames.UBA
 {
@@ -29,7 +28,7 @@ namespace EpicGames.UBA
 			_storage = storage;
 			_client = client;
 			_logger = logger;
-			_handle = CreateSessionServerCreateInfo(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory.FullName, info.TraceOutputFile.FullName, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem);
+			_handle = CreateSessionServerCreateInfo(_storage.GetHandle(), _client.GetHandle(), _logger.GetHandle(), info.RootDirectory, info.TraceOutputFile, info.DisableCustomAllocator, info.LaunchVisualizer, info.ResetCas, info.WriteToDisk, info.DetailedTrace, info.AllowWaitOnMem, info.AllowKillOnMem);
 		}
 
 		#region IDisposable
@@ -179,14 +178,14 @@ namespace EpicGames.UBA
 
 		public void SetMaxRemoteProcessCount(uint count) => SessionServer_SetMaxRemoteProcessCount(_handle, count);
 
-		public void RefreshDirectories(params DirectoryReference[] directories) => Array.ForEach(directories, (directory) => SessionServer_RefreshDirectory(_handle, directory.FullName));
+		public void RefreshDirectories(params string[] directories) => Array.ForEach(directories, (directory) => SessionServer_RefreshDirectory(_handle, directory));
 
-		public void RegisterNewFiles(params FileReference[] files) => Array.ForEach(files, (file) => SessionServer_RegisterNewFile(_handle, file.FullName));
+		public void RegisterNewFiles(params string[] files) => Array.ForEach(files, (file) => SessionServer_RegisterNewFile(_handle, file));
 
 		public uint BeginExternalProcess(string description) => SessionServer_BeginExternalProcess(_handle, description);
 		public void EndExternalProcess(uint id, uint exitCode) => SessionServer_EndExternalProcess(_handle, id, exitCode);
 
-		public void SetCustomCasKeyFromTrackedInputs(FileReference file, DirectoryReference workingDirectory, IProcess process) => SessionServer_SetCustomCasKeyFromTrackedInputs(_handle, process.GetHandle(), file.FullName, workingDirectory.FullName);
+		public void SetCustomCasKeyFromTrackedInputs(string file, string workingDirectory, IProcess process) => SessionServer_SetCustomCasKeyFromTrackedInputs(_handle, process.GetHandle(), file, workingDirectory);
 
 		public void PrintSummary() => SessionServer_PrintSummary(_handle);
 		

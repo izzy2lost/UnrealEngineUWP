@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using EpicGames.Core;
 
 namespace EpicGames.UBA
 {
@@ -13,12 +12,12 @@ namespace EpicGames.UBA
 		/// <summary>
 		/// Root directory to store content addressable data
 		/// </summary>
-		public DirectoryReference RootDirectory { get; init; }
+		public string RootDirectory { get; init; }
 
 		/// <summary>
 		/// Path to a trace file that records the build
 		/// </summary>
-		public FileReference TraceOutputFile { get; init; }
+		public string TraceOutputFile { get; init; }
 
 		/// <summary>
 		/// If the custom allocator should be disabled
@@ -67,7 +66,7 @@ namespace EpicGames.UBA
 		/// <param name="detailedTrace">More detailed trace information</param>
 		/// <param name="allowWaitOnMem">Wait for memory before starting new processes</param>
 		/// <param name="allowKillOnMem">Kill processes when close to run out of memory</param>
-		public SessionServerCreateInfo(DirectoryReference rootDirectory, FileReference traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
+		public SessionServerCreateInfo(string rootDirectory, string traceOutputFile, bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem, bool allowKillOnMem)
 		{
 			RootDirectory = rootDirectory;
 			TraceOutputFile = traceOutputFile;
@@ -190,13 +189,13 @@ namespace EpicGames.UBA
 		/// Refresh cached information about directories
 		/// </summary>
 		/// <param name="directories">The directories to refresh</param>
-		public abstract void RefreshDirectories(params DirectoryReference[] directories);
+		public abstract void RefreshDirectories(params string[] directories);
 
 		/// <summary>
 		/// Registers external files write to session caches
 		/// </summary>
 		/// <param name="files">The files to register</param>
-		public abstract void RegisterNewFiles(params FileReference[] files);
+		public abstract void RegisterNewFiles(params string[] files);
 
 		/// <summary>
 		/// Registers the start of an external process
@@ -218,7 +217,7 @@ namespace EpicGames.UBA
 		/// <param name="file">The file to track</param>
 		/// <param name="workingDirectory">The working directory</param>
 		/// <param name="process">The process to get tracked inputs from</param>
-		public abstract void SetCustomCasKeyFromTrackedInputs(FileReference file, DirectoryReference workingDirectory, IProcess process);
+		public abstract void SetCustomCasKeyFromTrackedInputs(string file, string workingDirectory, IProcess process);
 
 		/// <summary>
 		/// Cancel all processes
