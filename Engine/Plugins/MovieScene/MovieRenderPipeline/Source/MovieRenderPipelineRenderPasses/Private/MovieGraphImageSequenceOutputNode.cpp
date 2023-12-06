@@ -9,10 +9,12 @@
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/MovieGraphFilenameResolveParams.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
-#include "Modules/ModuleManager.h"
 #include "MoviePipelineUtils.h"
 #include "MoviePipelineImageSequenceOutput.h" // for FAsyncImageQuantization
 #include "MovieRenderPipelineCoreModule.h"
+
+#include "Algo/Find.h"
+#include "Modules/ModuleManager.h"
 #include "ImageWriteQueue.h"
 #include "Misc/Paths.h"
 #include "Async/TaskGraphInterfaces.h"
@@ -251,8 +253,22 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 		return FString();
 	}
 
+	constexpr bool bIncludeCDOs = false;
+	constexpr bool bExactMatch = false;
+	const TArray<UMovieGraphImageSequenceOutputNode*> ImageSequenceOutputNodes = InRawFrameData->EvaluatedConfig->GetSettingsForBranch<UMovieGraphImageSequenceOutputNode>(
+			InRenderData.Key.RootBranchName, bIncludeCDOs, bExactMatch);
+
+	// Find the instance of this node from the evaluated graph which matches our class
+	UMovieGraphImageSequenceOutputNode* const* InstanceNode = Algo::FindByPredicate(ImageSequenceOutputNodes,
+		[this](const UMovieGraphImageSequenceOutputNode* Node)
+	{
+		return Node->GetClass() == GetClass();
+	});
+
+	ensureAlwaysMsgf(InstanceNode, TEXT("Failed to find ImageSequenceOutputNode instance for class: %s; using the CDO value of FileNameFormat instead."), *GetClass()->GetName());
+	
 	// Generate one string that puts the directory combined with the filename format.
-	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / FileNameFormat;
+	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / (InstanceNode ? (*InstanceNode)->FileNameFormat : FileNameFormat);
 
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;

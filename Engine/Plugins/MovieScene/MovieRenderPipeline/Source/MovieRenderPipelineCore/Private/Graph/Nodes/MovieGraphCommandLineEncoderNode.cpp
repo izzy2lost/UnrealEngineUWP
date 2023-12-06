@@ -22,6 +22,8 @@ UMovieGraphCommandLineEncoderNode::UMovieGraphCommandLineEncoderNode()
 	, bSkipEncodeOnRenderCanceled(true)
 	, bRetainInputTextFiles(false)
 {
+	FileNameFormat = TEXT("{sequence_name}.{render_layer}");
+		
 	// Sensible defaults for cmdline arguments
 	CommandLineFormat = TEXT("-hide_banner -y -loglevel error {VideoInputs} {AudioInputs} -acodec {AudioCodec} -vcodec {VideoCodec} {Quality} \"{OutputPath}\"");
 	VideoInputStringFormat = TEXT("-f concat -safe 0 -i \"{InputFile}\" -r {FrameRate}");

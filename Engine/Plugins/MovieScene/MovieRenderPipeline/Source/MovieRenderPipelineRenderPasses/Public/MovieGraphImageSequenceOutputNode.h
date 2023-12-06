@@ -95,7 +95,6 @@ public:
 	{
 		OutputFormat = EImageFormat::EXR;
 		bQuantizeTo8Bit = false;
-		FileNameFormat = TEXT("{sequence_name}.{frame_number}");
 		Compression = EEXRCompressionFormat::PIZ;
 	}
 

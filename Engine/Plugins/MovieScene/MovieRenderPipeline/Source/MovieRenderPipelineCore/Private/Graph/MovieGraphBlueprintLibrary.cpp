@@ -229,8 +229,8 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 		return -1;
 	}
 
-	constexpr bool bIncludeCDOs = true;
-	constexpr bool bExactMatch = true;
+	bool bIncludeCDOs = true;
+	bool bExactMatch = true;
 	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode =
 		InParams.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
 	if (!OutputSettingNode->VersioningSettings.bAutoVersioning)
@@ -242,6 +242,8 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 	InParams.FileNameFormatOverrides.Add(TEXT("version"), TEXT("{version}"));
 
 	// Get output nodes from the evaluated graph
+	bIncludeCDOs = false;
+	bExactMatch = false;
 	TArray<UMovieGraphSettingNode*> ResultNodes = InParams.EvaluatedConfig->GetSettingsForBranch(
 		UMovieGraphCommandLineEncoderNode::StaticClass(), InParams.RenderDataIdentifier.RootBranchName, bIncludeCDOs, bExactMatch);
 	ResultNodes.Append(InParams.EvaluatedConfig->GetSettingsForBranch(
