@@ -777,6 +777,7 @@ namespace UnrealBuildTool
 		{
 			UBAConfig.bDisableRemote = true;
 			UBAConfig.bForceBuildAllRemote = false;
+			UBAConfig.Zone = "local";
 		}
 	}
 }
