@@ -13,6 +13,7 @@
 #include "SystemTextures.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
+#include "SampledDirectLighting/SampledDirectLighting.h"
 #include "ShadowRendering.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
@@ -104,7 +105,13 @@ FAutoConsoleVariableRef CVarDeferredLightsUsesLightFunctionAtlas(
 	ECVF_RenderThreadSafe
 );
 
-
+int GSampledDirectLightingUsesLightFunctionAtlas = 1;
+FAutoConsoleVariableRef CVarSampledDirectLightingUsesLightFunctionAtlas(
+	TEXT("r.SampledDirectLighting.UsesLightFunctionAtlas"),
+	GSampledDirectLightingUsesLightFunctionAtlas,
+	TEXT("Whether the light function atlas is sampled when rendering sampled direct lighting."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -232,6 +239,7 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, FLightFunctionAt
 			this,
 			bLightFunctionAtlasEnabled,
 			bLightFunctionAtlasEnabled,
+			bLightFunctionAtlasEnabled,
 			bLightFunctionAtlasEnabled);
 	}
 
@@ -249,16 +257,19 @@ void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FV
 	bLightFunctionAtlasEnabled = CVarLightFunctionAtlas.GetValueOnRenderThread() > 0 && ViewFamily.EngineShowFlags.LightFunctions > 0;
 
 	// But only really enable the atlas generation if a system asks for it
-	bool VolumetricFogRequestsLightFunctionAtlas = false;
-	bool DeferredlightingRequestsLightFunctionAtlas = false;
+	bool bVolumetricFogRequestsLightFunctionAtlas = false;
+	bool bDeferredlightingRequestsLightFunctionAtlas = false;
+	bool bSampledDirectLightingRequestsLightFunctionAtlas = false;
 	if (bLightFunctionAtlasEnabled)
 	{
-		VolumetricFogRequestsLightFunctionAtlas = bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
+		bVolumetricFogRequestsLightFunctionAtlas = bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
 
-		DeferredlightingRequestsLightFunctionAtlas = GDeferredUsesLightFunctionAtlas > 0;
+		bDeferredlightingRequestsLightFunctionAtlas = GDeferredUsesLightFunctionAtlas > 0;
+
+		bSampledDirectLightingRequestsLightFunctionAtlas = SampledDirectLighting::IsEnabled() && GSampledDirectLightingUsesLightFunctionAtlas > 0;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
-			(VolumetricFogRequestsLightFunctionAtlas || DeferredlightingRequestsLightFunctionAtlas ||
+			(bVolumetricFogRequestsLightFunctionAtlas || bDeferredlightingRequestsLightFunctionAtlas || bSampledDirectLightingRequestsLightFunctionAtlas ||
 			 GetSingleLayerWaterUsesLightFunctionAtlas() || GetTranslucentUsesLightFunctionAtlas()); 
 	}
 
@@ -266,8 +277,9 @@ void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FV
 	LightFunctionAtlasSceneData.SetData(
 		this,
 		bLightFunctionAtlasEnabled,
-		bLightFunctionAtlasEnabled && VolumetricFogRequestsLightFunctionAtlas,
-		bLightFunctionAtlasEnabled && DeferredlightingRequestsLightFunctionAtlas);
+		bLightFunctionAtlasEnabled && bVolumetricFogRequestsLightFunctionAtlas,
+		bLightFunctionAtlasEnabled && bDeferredlightingRequestsLightFunctionAtlas,
+		bLightFunctionAtlasEnabled && bSampledDirectLightingRequestsLightFunctionAtlas);
 
 	for (auto& View : Views)
 	{

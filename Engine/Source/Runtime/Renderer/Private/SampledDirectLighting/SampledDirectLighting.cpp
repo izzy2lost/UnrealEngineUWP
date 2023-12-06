@@ -331,11 +331,12 @@ class FGenerateSamplesCS : public FGlobalShader
 
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)SampledDirectLighting::ETileType::MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
+	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
 	class FCandidateLightMask : SHADER_PERMUTATION_BOOL("CANDIDATE_LIGHT_MASK");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FTexturedRectLights, FNumSamplesPerPixel1d, FCandidateLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FCandidateLightMask, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -454,9 +455,10 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)SampledDirectLighting::ETileType::MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
+	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FTexturedRectLights, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -536,7 +538,8 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 
 	RDG_EVENT_SCOPE(GraphBuilder, "SampledDirectLighting");
 
-	const FViewInfo& View = Views[0];
+	const uint32 ViewIndex = 0;
+	const FViewInfo& View = Views[ViewIndex];
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
@@ -630,6 +633,10 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		}
 	}
 
+	// Setup the light function atlas
+	const bool bUseLightFunctionAtlas = View.LightFunctionAtlasViewData.GetSampledDirectLightingUsesLightFunctionAtlas();
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters = LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder);
+
 	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), SampledDirectLighting::TileSize);
 	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
 
@@ -648,6 +655,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		SampledDirectLightingParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
 		SampledDirectLightingParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		SampledDirectLightingParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+		SampledDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlasGlobalParameters;
 		SampledDirectLightingParameters.BlueNoise = BlueNoiseUniformBuffer;
 		SampledDirectLightingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 		SampledDirectLightingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
@@ -804,6 +812,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 			FGenerateSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FGenerateSamplesCS::FTileType>(TileType);
 			PermutationVector.Set<FGenerateSamplesCS::FIESProfile>(CVarSampledDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 			PermutationVector.Set<FGenerateSamplesCS::FTexturedRectLights>(CVarSampledDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 			PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
@@ -951,6 +960,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 			FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
 			PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarSampledDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 			PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarSampledDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);

@@ -24,24 +24,31 @@ struct FLightFunctionAtlas;
 
 struct FLightFunctionAtlasSceneData
 {
-	void SetData(FLightFunctionAtlas* InLightFunctionAtlas, bool bInLightFunctionAtlasEnabled, bool bInVolumetricFogUsesLightFunctionAtlas, bool bInDeferredlightingUsesLightFunctionAtlas)
+	void SetData(FLightFunctionAtlas* InLightFunctionAtlas,
+		bool bInLightFunctionAtlasEnabled,
+		bool bInVolumetricFogUsesLightFunctionAtlas,
+		bool bInDeferredlightingUsesLightFunctionAtlas,
+		bool bInSampledDirectLightingUsesLightFunctionAtlas)
 	{
 		LightFunctionAtlas = InLightFunctionAtlas;
 		bLightFunctionAtlasEnabled = bInLightFunctionAtlasEnabled;
 		bVolumetricFogUsesLightFunctionAtlas = bInVolumetricFogUsesLightFunctionAtlas;
 		bDeferredlightingUsesLightFunctionAtlas = bInDeferredlightingUsesLightFunctionAtlas;
+		bSampledDirectLightingUsesLightFunctionAtlas = bInSampledDirectLightingUsesLightFunctionAtlas;
 	}
 
-	FLightFunctionAtlas* GetLightFunctionAtlas()		const { return LightFunctionAtlas; }
-	bool GetLightFunctionAtlasEnabled()					const { return bLightFunctionAtlasEnabled; }
-	bool GetVolumetricFogUsesLightFunctionAtlas()		const { return bVolumetricFogUsesLightFunctionAtlas; }
-	bool GetDeferredlightingUsesLightFunctionAtlas()	const { return bDeferredlightingUsesLightFunctionAtlas; }
+	FLightFunctionAtlas* GetLightFunctionAtlas()			const { return LightFunctionAtlas; }
+	bool GetLightFunctionAtlasEnabled()						const { return bLightFunctionAtlasEnabled; }
+	bool GetVolumetricFogUsesLightFunctionAtlas()			const { return bVolumetricFogUsesLightFunctionAtlas; }
+	bool GetDeferredlightingUsesLightFunctionAtlas()		const { return bDeferredlightingUsesLightFunctionAtlas; }
+	bool GetSampledDirectLightingUsesLightFunctionAtlas()	const { return bSampledDirectLightingUsesLightFunctionAtlas; }
 
 private:
 	FLightFunctionAtlas* LightFunctionAtlas = nullptr;
 	bool bLightFunctionAtlasEnabled = false;
 	bool bVolumetricFogUsesLightFunctionAtlas = false;
 	bool bDeferredlightingUsesLightFunctionAtlas = false;
+	bool bSampledDirectLightingUsesLightFunctionAtlas = false;
 };
 
 struct FLightFunctionAtlasViewData
@@ -49,10 +56,11 @@ struct FLightFunctionAtlasViewData
 	FLightFunctionAtlasViewData() : SceneData(nullptr) {}
 	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData) : SceneData(InSceneData) {}
 
-	FLightFunctionAtlas* GetLightFunctionAtlas()		const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
-	bool GetLightFunctionAtlasEnabled()					const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
-	bool GetVolumetricFogUsesLightFunctionAtlas()		const { return SceneData ? SceneData->GetVolumetricFogUsesLightFunctionAtlas()		: false; }
-	bool GetDeferredlightingUsesLightFunctionAtlas()	const { return SceneData ? SceneData->GetDeferredlightingUsesLightFunctionAtlas()	: false; }
+	FLightFunctionAtlas* GetLightFunctionAtlas()			const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
+	bool GetLightFunctionAtlasEnabled()						const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
+	bool GetVolumetricFogUsesLightFunctionAtlas()			const { return SceneData ? SceneData->GetVolumetricFogUsesLightFunctionAtlas() : false; }
+	bool GetDeferredlightingUsesLightFunctionAtlas()		const { return SceneData ? SceneData->GetDeferredlightingUsesLightFunctionAtlas() : false; }
+	bool GetSampledDirectLightingUsesLightFunctionAtlas()	const { return SceneData ? SceneData->GetSampledDirectLightingUsesLightFunctionAtlas() : false; }
 
 private:
 	FLightFunctionAtlasSceneData* SceneData;
