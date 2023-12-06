@@ -5,7 +5,6 @@
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
 #include "ContentStreaming.h"
-#include "DecoderInputFactory.h"
 #include "DSP/ParamInterpolator.h"
 #include "IAudioCodec.h"
 #include "IAudioCodecRegistry.h"
