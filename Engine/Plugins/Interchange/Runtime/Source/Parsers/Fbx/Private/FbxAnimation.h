@@ -8,7 +8,6 @@
 #include "FbxInclude.h"
 
 /** Forward declarations */
-struct FInterchangeCurve;
 struct FMeshDescription;
 class UInterchangeMeshNode;
 class UInterchangeSceneNode;
@@ -70,10 +69,10 @@ namespace UE::Interchange::Private
 
 	
 
-	class FAnimationPayloadContext : public FPayloadContextBase
+	class FAnimationPayloadContextTransform : public FPayloadContextBase
 	{
 	public:
-		virtual ~FAnimationPayloadContext() {}
+		virtual ~FAnimationPayloadContextTransform() {}
 		virtual FString GetPayloadType() const override { return TEXT("TransformAnimation-PayloadContext"); }
 		virtual bool FetchPayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath) override;
 		virtual bool FetchAnimationBakeTransformPayloadToFile(FFbxParser& Parser, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath) override;
@@ -85,7 +84,6 @@ namespace UE::Interchange::Private
 	private:
 		bool InternalFetchCurveNodePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath);
 		bool InternalFetchMorphTargetCurvePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath);
-		bool InternalFetchMorphTargetCurvePayload(FFbxParser& Parser, TArray<FInterchangeCurve>& InterchangeCurves);
 	};
 
 	class FFbxAnimation

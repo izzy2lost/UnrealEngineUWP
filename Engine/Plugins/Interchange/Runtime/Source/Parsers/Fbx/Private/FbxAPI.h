@@ -20,9 +20,6 @@ namespace UE
 			class FPayloadContextBase;
 			struct FFbxHelper;
 		}
-#if WITH_ENGINE
-		struct FMeshPayloadData;
-#endif
 	}
 }
 class UInterchangeBaseNodeContainer;
@@ -61,9 +58,6 @@ namespace UE
 
 				/* Extract the fbx mesh data from the sdk into our node container */
 				bool FetchMeshPayloadData(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& PayloadFilepath);
-#if WITH_ENGINE
-				bool FetchMeshPayloadData(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData);
-#endif
 
 				/* Extract the fbx data from the sdk into our node container */
 				bool FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath);

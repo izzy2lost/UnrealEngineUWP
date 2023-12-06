@@ -30,8 +30,6 @@ class INTERCHANGEIMPORT_API UInterchangeFbxTranslator : public UInterchangeTrans
 public:
 	UInterchangeFbxTranslator();
 
-	static void CleanUpTemporaryFolder();
-
 	/** Begin UInterchangeTranslatorBase API*/
 	virtual bool IsThreadSafe() const override;
 	virtual EInterchangeTranslatorType GetTranslatorType() const override;

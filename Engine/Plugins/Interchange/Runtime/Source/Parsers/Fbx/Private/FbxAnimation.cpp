@@ -423,7 +423,7 @@ namespace UE::Interchange::Private
 				NodeTransform = ParentTransform.Inverse() * NodeTransform;
 			}
 
-			AnimationBakeTransformPayloadData.Transforms.Add(UE::Interchange::Private::FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(NodeTransform));
+			AnimationBakeTransformPayloadData.Transforms.Add(UE::Interchange::Private::FFbxConvert::ConvertTransform(NodeTransform));
 		}
 
 		return true;
@@ -508,7 +508,7 @@ namespace UE::Interchange::Private
 		}
 	}
 
-	bool FAnimationPayloadContext::FetchPayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
+	bool FAnimationPayloadContextTransform::FetchPayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
 	{
 		if (AttributeFetchPayloadData.IsSet() || AttributeNodeTransformFetchPayloadData.IsSet())
 		{
@@ -521,7 +521,7 @@ namespace UE::Interchange::Private
 		return false;
 	}
 
-	bool FAnimationPayloadContext::FetchAnimationBakeTransformPayloadToFile(FFbxParser& Parser, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
+	bool FAnimationPayloadContextTransform::FetchAnimationBakeTransformPayloadToFile(FFbxParser& Parser, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
 	{
 		if (!ensure(NodeTransformFetchPayloadData.IsSet()))
 		{
@@ -563,7 +563,7 @@ namespace UE::Interchange::Private
 		return true;
 	}
 
-	bool FAnimationPayloadContext::InternalFetchCurveNodePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
+	bool FAnimationPayloadContextTransform::InternalFetchCurveNodePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
 	{
 		if (AttributeFetchPayloadData.IsSet())
 		{
@@ -757,28 +757,7 @@ namespace UE::Interchange::Private
 		return false;
 	}
 
-	bool FAnimationPayloadContext::InternalFetchMorphTargetCurvePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
-	{
-		check(MorphTargetFetchPayloadData.IsSet());
-		FMorphTargetFetchPayloadData& FetchPayloadData = MorphTargetFetchPayloadData.GetValue();
-		
-		TArray<FInterchangeCurve> InterchangeCurves;
-		if (InternalFetchMorphTargetCurvePayload(Parser, InterchangeCurves))
-		{
-			FLargeMemoryWriter Ar;
-			Ar << InterchangeCurves;
-			Ar << FetchPayloadData.InbetweenCurveNames;
-			Ar << FetchPayloadData.InbetweenFullWeights;
-			uint8* ArchiveData = Ar.GetData();
-			int64 ArchiveSize = Ar.TotalSize();
-			TArray64<uint8> Buffer(ArchiveData, ArchiveSize);
-			FFileHelper::SaveArrayToFile(Buffer, *PayloadFilepath);
-			return true;
-		}
-		return false;
-	}
-
-	bool FAnimationPayloadContext::InternalFetchMorphTargetCurvePayload(FFbxParser& Parser, TArray<FInterchangeCurve>& InterchangeCurves)
+	bool FAnimationPayloadContextTransform::InternalFetchMorphTargetCurvePayloadToFile(FFbxParser& Parser, const FString& PayloadFilepath)
 	{
 		check(MorphTargetFetchPayloadData.IsSet());
 		FMorphTargetFetchPayloadData& FetchPayloadData = MorphTargetFetchPayloadData.GetValue();
@@ -800,10 +779,22 @@ namespace UE::Interchange::Private
 		}
 		FbxAnimCurve* AnimCurve = Geometry->GetShapeChannel(FetchPayloadData.MorphTargetIndex, FetchPayloadData.ChannelIndex, FetchPayloadData.AnimLayer);
 
+		TArray<FInterchangeCurve> InterchangeCurves;
 		//Morph target curve in fbx are between 0 and 100, in Unreal we are between 0 and 1, so we must scale
 		//The curve with 0.01
 		constexpr float ScaleCurve = 0.01f;
-		return ImportCurve(AnimCurve, ScaleCurve, InterchangeCurves.AddDefaulted_GetRef().Keys);
+		ImportCurve(AnimCurve, ScaleCurve, InterchangeCurves.AddDefaulted_GetRef().Keys);
+		{
+			FLargeMemoryWriter Ar;
+			Ar << InterchangeCurves;
+			Ar << FetchPayloadData.InbetweenCurveNames;
+			Ar << FetchPayloadData.InbetweenFullWeights;
+			uint8* ArchiveData = Ar.GetData();
+			int64 ArchiveSize = Ar.TotalSize();
+			TArray64<uint8> Buffer(ArchiveData, ArchiveSize);
+			FFileHelper::SaveArrayToFile(Buffer, *PayloadFilepath);
+		}
+		return true;
 	}
 
 	bool FFbxAnimation::AddSkeletalTransformAnimation(FbxScene* SDKScene
@@ -822,7 +813,7 @@ namespace UE::Interchange::Private
 			FString PayLoadKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(Node) + TEXT("_") + FString::FromInt(AnimationIndex) + TEXT("_SkeletalAnimationPayloadKey");
 			if (ensure(!PayloadContexts.Contains(PayLoadKey)))
 			{
-				TSharedPtr<FAnimationPayloadContext> AnimPayload = MakeShared<FAnimationPayloadContext>();
+				TSharedPtr<FAnimationPayloadContextTransform> AnimPayload = MakeShared<FAnimationPayloadContextTransform>();
 				FNodeTransformFetchPayloadData FetchPayloadData;
 				FetchPayloadData.Node = Node;
 				FetchPayloadData.CurrentAnimStack = Parameters.CurrentAnimStack;
@@ -849,7 +840,7 @@ namespace UE::Interchange::Private
 		const FString PayLoadKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(Node) + PropertyName + TEXT("_AnimationPayloadKey");
 		if (ensure(!PayloadContexts.Contains(PayLoadKey)))
 		{
-			TSharedPtr<FAnimationPayloadContext> AnimPayload = MakeShared<FAnimationPayloadContext>();
+			TSharedPtr<FAnimationPayloadContextTransform> AnimPayload = MakeShared<FAnimationPayloadContextTransform>();
 			FAttributeFetchPayloadData FetchPayloadData;
 			FetchPayloadData.Node = Node;
 			FetchPayloadData.AnimCurves = AnimCurveNode;
@@ -875,7 +866,7 @@ namespace UE::Interchange::Private
 		const FString PayLoadKey = Parser.GetFbxHelper()->GetFbxNodeHierarchyName(Node) + TEXT("_RigidAnimationPayloadKey");
 		if (ensure(!PayloadContexts.Contains(PayLoadKey)))
 		{
-			TSharedPtr<FAnimationPayloadContext> AnimPayload = MakeShared<FAnimationPayloadContext>();
+			TSharedPtr<FAnimationPayloadContextTransform> AnimPayload = MakeShared<FAnimationPayloadContextTransform>();
 			FAttributeNodeTransformFetchPayloadData FetchPayloadData;
 			FetchPayloadData.FrameRate = Parser.GetFrameRate();
 			FetchPayloadData.Node = Node;
@@ -900,7 +891,7 @@ namespace UE::Interchange::Private
 
 		if (ensure(!PayloadContexts.Contains(PayLoadKey)))
 		{
-			TSharedPtr<FAnimationPayloadContext> AnimPayload = MakeShared<FAnimationPayloadContext>();
+			TSharedPtr<FAnimationPayloadContextTransform> AnimPayload = MakeShared<FAnimationPayloadContextTransform>();
 			FMorphTargetFetchPayloadData FetchPayloadData;
 			FetchPayloadData.SDKScene = SDKScene;
 			FetchPayloadData.GeometryIndex = MorphTargetAnimationBuildingData.GeometryIndex;

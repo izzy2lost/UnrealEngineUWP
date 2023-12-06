@@ -169,7 +169,7 @@ namespace UE
 				
 				auto GetConvertedTransform = [Node](FbxAMatrix& NewFbxMatrix)
 				{
-					FTransform Transform = FFbxConvert::ConvertTransform<FTransform, FVector, FQuat>(NewFbxMatrix);
+					FTransform Transform = FTransform(FFbxConvert::ConvertMatrix(NewFbxMatrix));
 					
 					if (FbxNodeAttribute* NodeAttribute = Node->GetNodeAttribute())
 					{
