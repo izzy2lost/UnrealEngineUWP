@@ -371,6 +371,7 @@ void SCinematicLevelViewport::Construct(const FArguments& InArgs)
 								.ColorAndOpacity(Gray)
 								.Text_Lambda([this] { return UIData.LocalPlaybackTime; })
 								.ToolTipText(LOCTEXT("LocalPlaybackTime", "The current playback time relative to the currently evaluated sequence."))
+								.MinDesiredWidth(this, &SCinematicLevelViewport::GetPlayTimeMinDesiredWidth)
 							]
 						]
 					]
