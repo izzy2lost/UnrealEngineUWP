@@ -4404,16 +4404,7 @@ void UClass::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 	// Add sparse class data
 	if (This->SparseClassDataStruct && This->SparseClassData)
 	{
-		if (This->SparseClassDataStruct->StructFlags & STRUCT_AddStructReferencedObjects)
-		{
-			This->SparseClassDataStruct->GetCppStructOps()->AddStructReferencedObjects()(This->SparseClassData, Collector);
-		}
-		else
-		{
-			// Skip FFieldPathProperty and FInterfaceProperty references since original code iterated over
-			// FObjectProperty only. Unsure if sparse class author intended this.
-			Collector.AddPropertyReferencesLimitedToObjectProperties(This->SparseClassDataStruct, This->SparseClassData, This);
-		}
+		Collector.AddPropertyReferencesWithStructARO(This->SparseClassDataStruct, This->SparseClassData, This);
 	}
 	
 	Super::AddReferencedObjects( This, Collector );
