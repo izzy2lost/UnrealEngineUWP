@@ -45,6 +45,7 @@ namespace UnrealBuildTool.Rules
 				    "RHI",
 				    "SceneOutliner",
 					"ToolMenus",
+					"ToolWidgets",
 					"Slate",
 					"XmlParser"
 				}

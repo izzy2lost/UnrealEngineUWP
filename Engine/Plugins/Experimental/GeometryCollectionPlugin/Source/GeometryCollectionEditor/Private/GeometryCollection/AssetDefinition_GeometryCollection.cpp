@@ -60,7 +60,7 @@ EAssetCommandResult UAssetDefinition_GeometryCollection::OpenAssets(const FAsset
 		// Validate the asset
 		if (UGeometryCollection* const GeometryCollection = Cast<UGeometryCollection>(GeometryCollectionObjects[0]))
 		{
-			if (FDataflowEditorToolkit::CanOpenDataflowEditor(GeometryCollection))
+			if (FDataflowEditorToolkit::HasDataflowAsset(GeometryCollection))
 			{
 				UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
 				UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);

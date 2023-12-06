@@ -170,6 +170,18 @@ bool FDataflowEditorToolkit::CanOpenDataflowEditor(UObject* ObjectToEdit)
 	return Dataflow != nullptr;
 }
 
+bool FDataflowEditorToolkit::HasDataflowAsset(UObject* ObjectToEdit)
+{
+	if (const UClass* Class = ObjectToEdit->GetClass())
+	{
+		if (FProperty* Property = Class->FindPropertyByName(FName("DataflowAsset")))
+		{
+			return *Property->ContainerPtrToValuePtr<UDataflow*>(ObjectToEdit) != nullptr;
+		}
+	}
+	return false;
+}
+
 //~ Begin FBaseCharacterFXEditorToolkit overrides
 
 FEditorModeID FDataflowEditorToolkit::GetEditorModeId() const

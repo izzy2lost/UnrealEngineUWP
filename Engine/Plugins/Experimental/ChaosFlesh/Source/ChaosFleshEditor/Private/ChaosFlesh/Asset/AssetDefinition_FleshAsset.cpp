@@ -2,6 +2,7 @@
 
 #include "ChaosFlesh/Asset/AssetDefinition_FleshAsset.h"
 #include "ChaosFlesh/FleshAsset.h"
+#include "Dataflow/AssetDefinition_DataflowAsset.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEditorModule.h"
 #include "Dataflow/DataflowEditorToolkit.h"
@@ -60,7 +61,15 @@ EAssetCommandResult UAssetDefinition_FleshAsset::OpenAssets(const FAssetOpenArgs
 		// Validate the asset
 		if (UFleshAsset* const FleshAsset = Cast<UFleshAsset>(FleshObjects[0]))
 		{
-			if (FDataflowEditorToolkit::CanOpenDataflowEditor(FleshAsset))
+			if (!FDataflowEditorToolkit::HasDataflowAsset(FleshAsset))
+			{
+				if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(DataflowAssetDefinitionHelpers::NewOrOpenDataflowAsset(FleshAsset)))
+				{
+					FleshAsset->DataflowAsset = NewDataflowAsset;
+				}
+			}
+
+			if (FDataflowEditorToolkit::HasDataflowAsset(FleshAsset))
 			{
 				UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
 				UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);

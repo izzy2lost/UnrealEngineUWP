@@ -47,6 +47,7 @@ public:
 	~FDataflowEditorToolkit();
 
 	static bool CanOpenDataflowEditor(UObject* ObjectToEdit);
+	static bool HasDataflowAsset(UObject* ObjectToEdit);
 
 	// IToolkit Interface
 	virtual FName GetToolkitFName() const override;
