@@ -68,11 +68,6 @@ static void __attribute__((constructor (65535))) InitCtor()
 	using namespace uba;
 
 	SuppressDetourScope s;
-	#if PLATFORM_LINUX
-		unsetenv("LD_PRELOAD");
-	#else
-		unsetenv("DYLD_INSERT_LIBRARIES=");
-	#endif
 
 	const char* comId = getenv("UBA_COMID");
 	//printf("Starting up %s... (comid: %s) %u\n", __progname, (comId && *comId) ? comId : "NOTSET", getpid());

@@ -1011,6 +1011,7 @@ namespace uba
 		AddEnvironmentVariableNoLock(TC("TMP"), m_tempPath.data);
 		#else
 		AddEnvironmentVariableNoLock(TC("TMPDIR"), m_tempPath.data);
+		AddDetoursEnvironmentVariable();
 		#endif
 
 		StringBuffer<> v;

@@ -667,15 +667,6 @@ namespace uba
 					const char* detoursLib = m_session.m_detoursLibrary.c_str();
 					u32 detoursLibLen = u32(m_session.m_detoursLibrary.size());
 
-					#if !PLATFORM_WINDOWS
-					if (!*detoursLib)
-					{
-						detoursLib = "/mnt/e/dev/fn/Engine/Binaries/Linux/UnrealBuildAccelerator/" UBA_DETOURS_LIBRARY;
-						detoursLibLen = u32(strlen(detoursLib));
-					}
-					#endif
-
-
 					writer.WriteU32(childProcessId);
 					writer.WriteU32(process.m_rulesIndex);
 					writer.WriteU32(detoursLibLen);
@@ -1261,22 +1252,6 @@ namespace uba
 
 		if (!m_parentProcess)
 		{
-
-			StringBuffer<> ldPreload;
-			#if PLATFORM_LINUX
-				ldPreload.Append("LD_PRELOAD=");
-			#else
-				ldPreload.Append("DYLD_INSERT_LIBRARIES=");
-			#endif
-			
-			//if (m_session.m_detoursLibrary[0] != '/')
-			//	ldPreload.Append("./");
-			const char* detoursLib = m_session.m_detoursLibrary.c_str();
-			if (*detoursLib)
-				ldPreload.Append(detoursLib);
-			else
-				ldPreload.Append("./" UBA_DETOURS_LIBRARY);
-
 			StringBuffer<128> comIdVar;
 			comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
 
@@ -1306,7 +1281,6 @@ namespace uba
 				it += TStrlen(s) + 1;
 			}
 
-			envvars.push_back(ldPreload.data);
 			envvars.push_back(comIdVar.data);
 			envvars.push_back(workingDir.data);
 			envvars.push_back(rulesStr.data);

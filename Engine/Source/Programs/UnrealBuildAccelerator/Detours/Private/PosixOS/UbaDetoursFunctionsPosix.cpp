@@ -1391,7 +1391,6 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 	u32 processId = 0;
 	StringBuffer<512> currentDir;
 	StringBuffer<256> comIdVar;
-	StringBuffer<256> ldpreload;
 	StringBuffer<32> rulesStr;
 	StringBuffer<256> logFile;
 
@@ -1424,13 +1423,7 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		rulesStr.Append("UBA_RULES=").AppendValue(reader.ReadU32());
 
 		u32 dllNameSize = reader.ReadU32();
-	#if PLATFORM_LINUX
-		ldpreload.Append("LD_PRELOAD=");
-	#else
-		ldpreload.Append("DYLD_INSERT_LIBRARIES=");
-	#endif
-		reader.ReadBytes(ldpreload.data + ldpreload.count, dllNameSize);
-		ldpreload.Resize(ldpreload.count + dllNameSize);
+		reader.Skip(dllNameSize);
 
 		commandLine = reader.ReadString();
 
@@ -1447,7 +1440,6 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 	{
 		for (u32 i = 0; envp[i]; ++i)
 			envvars.push_back(envp[i]);
-		envvars.push_back(ldpreload.data);
 		envvars.push_back(comIdVar.data);
 		envvars.push_back(currentDir.data);
 		envvars.push_back(rulesStr.data);

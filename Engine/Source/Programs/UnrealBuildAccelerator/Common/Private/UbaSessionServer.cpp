@@ -175,6 +175,9 @@ namespace uba
 		m_localEnvironmentVariables.insert(TC("TEMP"));
 		#else
 		m_localEnvironmentVariables.insert(TC("TMPDIR"));
+		m_localEnvironmentVariables.insert(TC("LD_PRELOAD"));
+		m_localEnvironmentVariables.insert(TC("LD_LIBRARY_PATH"));
+		m_localEnvironmentVariables.insert(TC("DYLD_INSERT_LIBRARIES"));
 		#endif
 
 		StringBuffer<> detoursFile;

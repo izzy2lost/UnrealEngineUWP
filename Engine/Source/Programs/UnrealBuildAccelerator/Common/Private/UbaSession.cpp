@@ -179,6 +179,35 @@ namespace uba
 		m_environmentVariables.push_back(0);
 	}
 
+	void Session::AddDetoursEnvironmentVariable()
+	{
+#if !PLATFORM_WINDOWS
+
+		const char* detoursLib = m_detoursLibrary.c_str();
+		if (*detoursLib)
+		{
+			#if PLATFORM_LINUX
+			//if (strchr(detoursLib, ' '))
+			{
+				const char* lastSlash = strrchr(detoursLib, '/');
+				UBA_ASSERT(lastSlash);
+				StringBuffer<> ldLibPath;
+				ldLibPath.Append(detoursLib, lastSlash - detoursLib);
+				AddEnvironmentVariableNoLock("LD_LIBRARY_PATH", ldLibPath.data);
+				detoursLib = lastSlash + 1;
+			}
+			#endif
+		}
+		else
+			detoursLib = "./" UBA_DETOURS_LIBRARY;
+
+		#if PLATFORM_LINUX
+		AddEnvironmentVariableNoLock("LD_PRELOAD", detoursLib);
+		#else
+		AddEnvironmentVariableNoLock("DYLD_INSERT_LIBRARIES", detoursLib);
+		#endif
+#endif
+	}
 
 	bool Session::WriteDirectoryEntriesInternal(DirectoryTable::Directory& dir, const StringKey& dirKey, const tchar* dirPath, bool isRefresh, u32& outTableOffset)
 	{
@@ -1609,6 +1638,7 @@ namespace uba
 			AddEnvironmentVariableNoLock("PATH", paths.c_str());
 		}
 		AddEnvironmentVariableNoLock("TMPDIR", m_tempPath.data);
+		AddDetoursEnvironmentVariable();
 #endif
 		m_environmentVariables.push_back(0);
 		return m_environmentVariables.data();
