@@ -6,6 +6,21 @@
 #include "UObject/Package.h"
 #include "LookupProxy.h"
 
+FName UProxyAsset::TypeTagName = "ProxyType";
+
+void UProxyAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	FString ResultTypeName;
+	if (Type)
+	{
+		ResultTypeName = Type.GetName();
+	}
+	OutTags.Add({TypeTagName, ResultTypeName, FAssetRegistryTag::TT_Alphabetical});
+	
+	
+	UObject::GetAssetRegistryTags(OutTags);
+}
+
 #if WITH_EDITOR
 void UProxyAsset::PostEditUndo()
 {

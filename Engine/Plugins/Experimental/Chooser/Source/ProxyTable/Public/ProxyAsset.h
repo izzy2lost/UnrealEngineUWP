@@ -19,6 +19,10 @@ class UProxyAsset : public UObject, public IHasContextClass
 public:
 	UProxyAsset() {}
 
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+
+	static PROXYTABLE_API FName TypeTagName;
+
 #if WITH_EDITOR
 	FProxyTypeChanged OnTypeChanged;
 	virtual void PostEditUndo() override;
@@ -38,7 +42,6 @@ public:
 	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ContextObjectTypeBase"), Category = "Input")
 	TArray<FInstancedStruct> ContextData;
 
-	
 	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct ="/Script/ProxyTable.ChooserParameterProxyTableBase"), Category = "Proxy Table Reference")
 	FInstancedStruct ProxyTable;
 
