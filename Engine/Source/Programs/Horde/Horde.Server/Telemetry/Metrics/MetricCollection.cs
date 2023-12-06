@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -147,24 +148,30 @@ namespace Horde.Server.Telemetry.Metrics
 
 				if (values.Count > 0)
 				{
-					string group = String.Empty;
-					if (metric.GroupBy != null)
+					List<string> groupKeys = new List<string>();
+					foreach (JsonPath groupPath in metric.GroupBy)
 					{
-						PathResult groupResult = metric.GroupBy.Evaluate(node);
-						if (groupResult.Error != null || groupResult.Matches == null)
+						PathResult groupResult = groupPath.Evaluate(node);
+
+						string groupKey;
+						if (groupResult.Error != null || groupResult.Matches == null || groupResult.Matches.Count == 0)
 						{
-							group = "(Invalid)";
+							groupKey = "";
 						}
 						else
 						{
-							group = String.Join(",", groupResult.Matches.Select(x => x.Value?.ToString()));
+							groupKey = EscapeCsv(groupResult.Matches.Select(x => x.Value?.ToString() ?? String.Empty));
 						}
+
+						groupKeys.Add(groupKey);
 					}
+
+					string group = EscapeCsv(groupKeys);
 
 					DateTime utcNow = _clock.UtcNow;
 					DateTime sampleTime = new DateTime(utcNow.Ticks - (utcNow.Ticks % metric.Interval.Ticks), DateTimeKind.Utc);
 
-					SampleKey key = new SampleKey(metric.Id, group, sampleTime);
+					SampleKey key = new SampleKey(metric.Id, group.ToString(), sampleTime);
 					lock (_lockObject)
 					{
 						QueueSampleValues(key, values);
@@ -173,6 +180,24 @@ namespace Horde.Server.Telemetry.Metrics
 					_newDataEvent.Set();
 				}
 			}
+		}
+
+		[return: NotNullIfNotNull("text")]
+		static string EscapeCsv(IEnumerable<string> items)
+		{
+			return String.Join(",", items.Select(x => EscapeCsv(x)));
+		}
+
+		static readonly char[] s_csvEscapeChars = { ',', '\n', '\"' };
+
+		static string? EscapeCsv(string text)
+		{
+			if (text.IndexOfAny(s_csvEscapeChars) != -1)
+			{
+				text = text.Replace("\"", "\"\"", StringComparison.Ordinal);
+				text = $"\"{text}\"";
+			}
+			return text;
 		}
 
 		void QueueSampleValues(SampleKey key, List<double> values)

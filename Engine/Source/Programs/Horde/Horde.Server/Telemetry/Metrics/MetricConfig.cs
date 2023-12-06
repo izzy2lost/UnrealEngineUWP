@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using Horde.Server.Utilities;
@@ -70,7 +73,8 @@ namespace Horde.Server.Telemetry.Metrics
 		/// Property to group by
 		/// </summary>
 		[JsonSchemaString]
-		public JsonPath? GroupBy { get; set; }
+		[JsonConverter(typeof(MetricGroupJsonConverter))]
+		public List<JsonPath> GroupBy { get; set; } = new List<JsonPath>();
 
 		/// <summary>
 		/// How to aggregate samples for this metric
@@ -87,5 +91,35 @@ namespace Horde.Server.Telemetry.Metrics
 		/// </summary>
 		[JsonConverter(typeof(IntervalJsonConverter))]
 		public TimeSpan Interval { get; set; } = TimeSpan.FromHours(1.0);
+	}
+
+	/// <summary>
+	/// Converter for a list of json path expressions, separated by commas
+	/// </summary>
+	class MetricGroupJsonConverter : JsonConverter<List<JsonPath>>
+	{
+		/// <inheritdoc/>
+		public override List<JsonPath>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			string? str = reader.GetString();
+			if (String.IsNullOrWhiteSpace(str))
+			{
+				return null;
+			}
+
+			List<string> fields = str.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+			if (fields.Count == 0)
+			{
+				return null;
+			}
+
+			return fields.ConvertAll(x => JsonPath.Parse(x));
+		}
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, List<JsonPath> value, JsonSerializerOptions options)
+		{
+			writer.WriteStringValue(string.Join(",", value.Select(x => x.ToString())));
+		}
 	}
 }
