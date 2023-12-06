@@ -30,7 +30,6 @@ public:
 	UNNERuntimeORTDml() {};
 	virtual ~UNNERuntimeORTDml() {}
 
-	bool IsAvailable();
 	void Init();
 
 	virtual FString GetRuntimeName() const override;

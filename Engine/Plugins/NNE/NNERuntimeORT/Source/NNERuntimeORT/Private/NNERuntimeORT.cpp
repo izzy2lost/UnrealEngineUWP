@@ -106,16 +106,6 @@ void UNNERuntimeORTDml::Init()
 	ORTEnvironment = MakeShared<Ort::Env>();
 }
 
-bool UNNERuntimeORTDml::IsAvailable()
-{
-#if PLATFORM_WINDOWS
-	// In order to use DirectML we need D3D12
-	return IsRHID3D12();
-#else
-	return false;
-#endif
-}
-
 void UNNERuntimeORTCpu::Init()
 {
 	check(!ORTEnvironment.IsValid());
@@ -190,6 +180,12 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(TObjectPtr<UNNE
 bool UNNERuntimeORTDml::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
+
+	// In order to use DirectML we need D3D12
+	if (!IsRHID3D12())
+	{
+		return false;
+	}
 
 	constexpr int32 GuidSize = sizeof(UNNERuntimeORTDml::GUID);
 	constexpr int32 VersionSize = sizeof(UNNERuntimeORTDml::Version);

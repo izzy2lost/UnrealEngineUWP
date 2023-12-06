@@ -65,7 +65,7 @@ void FNNERuntimeORTModule::StartupModule()
 	{
 		// NNE runtime ORT Dml startup
 		NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
-		if (NNERuntimeORTDml.IsValid() && NNERuntimeORTDml->IsAvailable())
+		if (NNERuntimeORTDml.IsValid())
 		{
 			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
 
