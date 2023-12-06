@@ -108,6 +108,11 @@ namespace uba
 		{
 			return false;
 		}
+
+		virtual bool IsExitCodeSuccess(u32 exitCode)
+		{
+			return true;
+		}
 	};
 
 

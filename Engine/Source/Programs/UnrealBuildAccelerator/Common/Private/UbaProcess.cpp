@@ -831,6 +831,7 @@ namespace uba
 						m_processStats.Print(m_session.m_logger);
 					}
 
+					if (g_applicationRules[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
 					{
 						ScopedWriteLock lock(m_writtenFilesLock);
 						for (auto& kv : m_writtenFiles)
@@ -843,12 +844,6 @@ namespace uba
 									m_messageSuccess = false;
 						}
 					}
-					//PROCESS_MEMORY_COUNTERS mem;
-					//mem.cb = sizeof(mem);
-					//GetProcessMemoryInfo(m_nativeProcessHandle, &mem, sizeof(mem));
-					//mem.PeakPagefileUsage;
-					//m_session.m_logger.Debug(TC("PROCESS MEM: WorkingSet: %s Page: %s"), BytesToText(mem.PeakWorkingSetSize), BytesToText(mem.PeakPagefileUsage));
-					
 					return false;
 				}
 			case MessageType_Custom:

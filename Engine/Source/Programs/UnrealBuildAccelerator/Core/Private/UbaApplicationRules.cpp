@@ -41,6 +41,11 @@ namespace uba
 				return true;
 			return Super::KeepInMemory(fileName, fileNameLen, systemTemp);
 		}
+
+		virtual bool IsExitCodeSuccess(u32 exitCode) override
+		{
+			return exitCode == 0;
+		}
 	};
 
 	class ApplicationRulesClExe : public ApplicationRulesVC
@@ -130,6 +135,11 @@ namespace uba
 		virtual bool EnableVectoredExceptionHandler() override
 		{
 			return true;
+		}
+
+		virtual bool IsExitCodeSuccess(u32 exitCode) override
+		{
+			return exitCode == 0;
 		}
 	};
 
