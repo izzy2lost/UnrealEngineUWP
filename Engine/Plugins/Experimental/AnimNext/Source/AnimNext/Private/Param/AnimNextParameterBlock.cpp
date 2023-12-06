@@ -20,7 +20,7 @@ UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& Objec
 	SetRigVMExtendedExecuteContext(&BaseRigVMContext);
 }
 
-void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const
+void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_ParamBlock_UpdateLayer);
 	
@@ -33,7 +33,13 @@ void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& 
 			check(Context.VMHash == VM->GetVMHash());
 
 			FAnimNextParameterExecuteContext& AnimNextParameterContext = Context.GetPublicDataSafe<FAnimNextParameterExecuteContext>();
+
+			// Param block setup
 			AnimNextParameterContext.SetParamContextData(InHandle);
+
+			// RigVM setup
+			AnimNextParameterContext.SetDeltaTime(InDeltaTime);
+
 			VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
 		}
 	}

@@ -20,7 +20,7 @@ public:
 	virtual ~IParameterSource() = default;
 	
 	/** Update this parameter source */
-	virtual void Update() = 0;
+	virtual void Update(float DeltaTime) = 0;
 
 	/** Get a layer handle to allow this source to be used in the parameter stack */
 	virtual const FParamStackLayerHandle& GetLayerHandle() const = 0; 

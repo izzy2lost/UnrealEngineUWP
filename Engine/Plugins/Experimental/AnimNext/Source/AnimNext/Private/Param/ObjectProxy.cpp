@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ObjectProxy.h"
 
@@ -19,7 +19,7 @@ FObjectProxy::FObjectProxy(UObject* InObject, const TSharedRef<FObjectAccessor>&
 	ParameterCache.SetValueObject(RootParameterName, InObject);
 }
 
-void FObjectProxy::Update()
+void FObjectProxy::Update(float DeltaTime)
 {
 	const UPropertyBag* PropertyBag = ParameterCache.GetPropertyBagStruct();
 	TConstArrayView<FPropertyBagPropertyDesc> PropertyDescs = PropertyBag->GetPropertyDescs();

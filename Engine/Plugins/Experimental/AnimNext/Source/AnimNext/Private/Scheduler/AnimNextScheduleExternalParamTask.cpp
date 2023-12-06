@@ -16,9 +16,10 @@ void FAnimNextScheduleExternalParamTask::UpdateExternalParams(const UE::AnimNext
 	
 	FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 	FScheduleInstanceData::FExternalParamCache& ExternalParamCache = InstanceData.ExternalParamCaches[TaskIndex];
+	const float DeltaTime = InScheduleContext.GetDeltaTime();
 	
 	for (TUniquePtr<IParameterSource>& ParameterSource : ExternalParamCache.ParameterSources)
 	{
-		ParameterSource->Update();
+		ParameterSource->Update(DeltaTime);
 	}
 }

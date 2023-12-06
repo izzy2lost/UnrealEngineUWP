@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/ParameterBlockProxy.h"
 #include "Param/AnimNextParameterBlock.h"
@@ -15,7 +15,7 @@ FParameterBlockProxy::FParameterBlockProxy(UAnimNextParameterBlock* InParameterB
 	check(ParameterBlock);
 }
 
-void FParameterBlockProxy::Update()
+void FParameterBlockProxy::Update(float DeltaTime)
 {
 #if WITH_EDITOR	// Layout should only be changing in editor
 	const FInstancedPropertyBag* HandlePropertyBag = LayerHandle.As<FInstancedPropertyBag>();
@@ -26,7 +26,7 @@ void FParameterBlockProxy::Update()
 	}
 #endif
 
-	ParameterBlock->UpdateLayer(LayerHandle);
+	ParameterBlock->UpdateLayer(LayerHandle, DeltaTime);
 }
 
 void FParameterBlockProxy::AddReferencedObjects(FReferenceCollector& Collector)

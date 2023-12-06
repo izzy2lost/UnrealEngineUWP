@@ -75,6 +75,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	FExternalParameterContext ExternalParameterContext;
 	ExternalParameterContext.Object = Entry->WeakObject.Get();
 
+	const float DeltaTime = InScheduleContext.GetDeltaTime();
 	for(int32 ExternalParamSourceIndex = 0; ExternalParamSourceIndex < ExternalParamCaches.Num(); ++ExternalParamSourceIndex)
 	{
 		FExternalParamCache& ExternalParamCache = ExternalParamCaches[ExternalParamSourceIndex];
@@ -85,7 +86,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 			{
 				// Initial update is required to populate the cache
 				// TODO: This needs to move outside this function once we run initialization off the game thread, depending on thread-safety
-				NewParameterSource->Update();
+				NewParameterSource->Update(DeltaTime);
 
 				// External parameter layer is always pushed
 				RootParamStack->PushLayer(NewParameterSource->GetLayerHandle());

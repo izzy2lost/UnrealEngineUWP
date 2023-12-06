@@ -54,7 +54,7 @@ class UAnimNextParameterBlock : public URigVMHost
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 	friend struct UE::AnimNext::FParameterBlockProxy;
 
-	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle) const;
+	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const;
 
 	// UObject interface
 	virtual void BeginDestroy() override;

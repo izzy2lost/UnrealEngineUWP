@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -66,7 +66,7 @@ struct FObjectProxy : public IParameterSource
 	FObjectProxy(UObject* InObject, const TSharedRef<FObjectAccessor>& InObjectAccessor);
 
 	// IParameterSource interface
-	virtual void Update() override;
+	virtual void Update(float DeltaTime) override;
 	virtual const FParamStackLayerHandle& GetLayerHandle() const override { return LayerHandle; }
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 

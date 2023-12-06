@@ -79,7 +79,7 @@ void FAnimNode_AnimNextParameters::Update_AnyThread(const FAnimationUpdateContex
 		FParamStack::FPushedLayerHandle PushedLayerHandle;
 		if (CurrentParameters && ParametersProxy.IsValid())
 		{
-			ParametersProxy->Update();
+			ParametersProxy->Update(Context.GetDeltaTime());
 			PushedLayerHandle = ParamStack.PushLayer(ParametersProxy->GetLayerHandle());
 		}
 
