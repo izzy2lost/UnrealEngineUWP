@@ -17,6 +17,22 @@ public class GLTFExporter : ModuleRules
 			}
 		);
 
+		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			PublicDefinitions.Add("GLTF_EXPORT_ENABLE=1");
+
+			PrivateIncludePathModuleNames.AddRange(
+				new string[]
+				{
+					"InterchangeImport",
+				}
+			);
+		}
+		else
+		{
+			PublicDefinitions.Add("GLTF_EXPORT_ENABLE=0");
+		}
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{

@@ -64,7 +64,9 @@ private:
 		return ParameterInfo.Get(Material, Value, true);
 	}
 
-	void ConvertShadingModel(EGLTFJsonShadingModel& OutShadingModel) const;
+	void ConvertShadingModel(EMaterialShadingModel& UEShadingModel, EGLTFJsonShadingModel& OutGLTFShadingModel) const;
+	void ApplyExportOptionsToShadingModel(EGLTFJsonShadingModel& ShadingModel, const EMaterialShadingModel& UEMaterialShadingModel) const;
+
 	void ConvertAlphaMode(EGLTFJsonAlphaMode& OutAlphaMode) const;
 
 #if WITH_EDITOR
@@ -108,6 +110,7 @@ private:
 
 	template <typename CallbackType>
 	static void CombinePixels(const TArray<FColor>& FirstPixels, const TArray<FColor>& SecondPixels, TArray<FColor>& OutPixels, CallbackType Callback);
-
 #endif
+
+	bool HandleGLTFImported(const EMaterialShadingModel& UEMaterialShadingModel);
 };
