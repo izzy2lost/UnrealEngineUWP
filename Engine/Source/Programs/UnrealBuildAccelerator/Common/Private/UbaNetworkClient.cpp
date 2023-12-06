@@ -376,8 +376,8 @@ namespace uba
 		{
 			if (m && m->m_connection == &connection)
 			{
-				m->m_responseSize = 0;
 				m->m_error = true;
+				//m->m_responseSize = 0; // There is a race here where a message could just have fully arrived when disconnected. Can't set this to zero because we might be passed the m_error check but before setting reader size
 				m->m_event.Set();
 			}
 			++messageId;
