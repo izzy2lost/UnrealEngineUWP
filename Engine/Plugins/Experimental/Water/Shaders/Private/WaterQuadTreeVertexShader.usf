@@ -2,12 +2,29 @@
 
 #include "/Engine/Private/Common.ush"
 
+#ifndef APPLY_JITTER
+#define APPLY_JITTER 0
+#endif
+
 float4x4 Transform;
+
+#if APPLY_JITTER
+float2 JitterScale;
+#endif
 
 void Main(
 	in float3 InPosition : ATTRIBUTE0,
+#if APPLY_JITTER
+	in float2 InJitter : ATTRIBUTE1,
+#endif
 	out float4 OutPosition : SV_Position
 )
 {
+#if APPLY_JITTER
+	float4x4 JitteredTransform = Transform;
+	JitteredTransform[3].xy += InJitter * JitterScale;
+	OutPosition = mul(float4(InPosition, 1.0f), JitteredTransform);
+#else
 	OutPosition = mul(float4(InPosition, 1.0f), Transform);
+#endif
 }

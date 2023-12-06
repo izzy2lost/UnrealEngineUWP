@@ -49,8 +49,11 @@ public:
 		TArrayView<FWaterBodyRenderDataGPU> WaterBodyRenderData;
 		FIntPoint RequestedQuadTreeResolution = FIntPoint::ZeroValue;
 		int32 SuperSamplingFactor = 1;
-		int32 NumMSAASamples = 4;
+		int32 NumMSAASamples = 1;
+		int32 NumJitterSamples = 1;
+		float JitterSampleFootprint = 1.0f;
 		float CaptureDepthRange = 1.0f;
+		bool bUseMSAAJitterPattern = false;
 	};
 
 	struct FTraverseParams

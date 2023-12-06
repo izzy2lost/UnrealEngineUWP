@@ -39,8 +39,23 @@ static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTreeSuperSampling(
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTreeMultiSampling(
-	TEXT("r.Water.WaterMesh.GPUQuadTree.MultiSampling"), 4,
-	TEXT("Rasterizes water meshes into the GPU water quadtree with a multisampled rendertarget, reducing missing water tile artifacts near the edges of water bodies. Default: 4, Min: 1, Max : 8"),
+	TEXT("r.Water.WaterMesh.GPUQuadTree.MultiSampling"), 1,
+	TEXT("Rasterizes water meshes into the GPU water quadtree with a multisampled rendertarget, reducing missing water tile artifacts near the edges of water bodies. Default: 1, Min: 1, Max : 8"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTreeNumJitterSamples(
+	TEXT("r.Water.WaterMesh.GPUQuadTree.NumJitterSamples"), 4,
+	TEXT("Rasterizes water meshes into the GPU water quadtree with multiple jittered draw calls, reducing missing water tile artifacts near the edges of water bodies. Default: 4, Min: 1, Max : 16. 1 disables this feature."),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTreeJitterPattern(
+	TEXT("r.Water.WaterMesh.GPUQuadTree.JitterPattern"), 1,
+	TEXT("Jitter pattern when using multiple jittered draw calls to rasterize water meshes into the GPU water quadtree. 0: Halton, 1: MSAA. Default 1"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<float> CVarWaterMeshGPUQuadTreeJitterSampleFootprint(
+	TEXT("r.Water.WaterMesh.GPUQuadTree.JitterSampleFootprint"), 1.5f,
+	TEXT("Pixel footprint of the jitter sample pattern. Values greater than 1.0 can cause the water mesh to raster into neighboring pixels not normally covered by the mesh. Default: 1.5, Min 0.0"),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCullingMaxQueries(
@@ -1163,7 +1178,10 @@ void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 	Params.RequestedQuadTreeResolution = Resolution;
 	Params.SuperSamplingFactor = FMath::Clamp(CVarWaterMeshGPUQuadTreeSuperSampling.GetValueOnRenderThread(), 1, 8);
 	Params.NumMSAASamples = FMath::Clamp(CVarWaterMeshGPUQuadTreeMultiSampling.GetValueOnRenderThread(), 1, 8);
+	Params.NumJitterSamples = FMath::Clamp(CVarWaterMeshGPUQuadTreeNumJitterSamples.GetValueOnRenderThread(), 1, 16);
+	Params.JitterSampleFootprint = FMath::Max(CVarWaterMeshGPUQuadTreeJitterSampleFootprint.GetValueOnRenderThread(), 0.0f);
 	Params.CaptureDepthRange = WaterQuadTreeDepthRange;
+	Params.bUseMSAAJitterPattern = CVarWaterMeshGPUQuadTreeJitterPattern.GetValueOnRenderThread() == 1;
 
 	QuadTreeGPU.Init(GraphBuilder, Params, Draws);
 }
