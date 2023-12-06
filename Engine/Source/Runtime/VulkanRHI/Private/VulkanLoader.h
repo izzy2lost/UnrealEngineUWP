@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "CoreTypes.h"
-
-#define VK_NO_PROTOTYPES
-#include "vulkan.h"
+#include "VulkanThirdParty.h"
 
 // List all instance Vulkan entry points used by Unreal that need to be loaded manually
 #define ENUM_VK_ENTRYPOINTS_INSTANCE(EnumMacro) \

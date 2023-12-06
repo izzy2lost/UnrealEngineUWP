@@ -3,17 +3,7 @@
 #pragma once
 
 #include "RHI.h"
-
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-	#include "Microsoft/AllowMicrosoftPlatformTypes.h"
-	#include <windows.h>
-	#include "Microsoft/HideMicrosoftPlatformTypes.h"
-#endif
-
-THIRD_PARTY_INCLUDES_START
-	#define VK_NO_PROTOTYPES
-	#include <vulkan.h>
-THIRD_PARTY_INCLUDES_END
+#include "VulkanThirdParty.h"
 
 struct FVulkanRHIAllocationInfo
 {

@@ -8,6 +8,8 @@
 
 #include "BoundShaderStateCache.h"
 #include "CrossCompilerCommon.h"
+#include "VulkanCommon.h"
+#include "VulkanThirdParty.h"
 
 static inline VkDescriptorType BindingToDescriptorType(EVulkanBindingType::EType Type)
 {
