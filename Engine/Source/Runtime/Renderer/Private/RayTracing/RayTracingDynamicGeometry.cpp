@@ -132,7 +132,10 @@ void FRayTracingDynamicGeometryCollection::Clear()
 
 int64 FRayTracingDynamicGeometryCollection::BeginUpdate()
 {
-	Clear();
+	check(DispatchCommands.IsEmpty());
+	check(BuildParams.IsEmpty());
+	check(Segments.IsEmpty());
+	check(ReferencedUniformBuffers.IsEmpty());
 
 	// Vertex buffer data can be immediatly reused the next frame, because it's already 'consumed' for building the AccelerationStructure data
 	// Garbage collect unused buffers for n generations
@@ -581,6 +584,8 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 void FRayTracingDynamicGeometryCollection::EndUpdate(FRHICommandListImmediate& RHICmdList)
 {
 	ReferencedUniformBuffers.Empty(ReferencedUniformBuffers.Max());
+
+	Clear();
 }
 
 uint32 FRayTracingDynamicGeometryCollection::ComputeScratchBufferSize()

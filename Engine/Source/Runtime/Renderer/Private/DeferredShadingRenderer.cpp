@@ -1615,11 +1615,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		GRayTracingGeometryManager->Tick(GraphBuilder.RHICmdList, bHasRayTracingEnableChanged);
 
-		if ((GetRayTracingMode() == ERayTracingMode::Dynamic) && bHasRayTracingEnableChanged)
-		{
-			Scene->GetRayTracingDynamicGeometryCollection()->Clear();
-		}
-
 		// Now that we have updated all the PrimitiveSceneInfos, update the RayTracing mesh commands cache if needed
 		{
 			const ERayTracingMeshCommandsMode CurrentMode = ViewFamily.EngineShowFlags.PathTracing ? ERayTracingMeshCommandsMode::PATH_TRACING : ERayTracingMeshCommandsMode::RAY_TRACING;
