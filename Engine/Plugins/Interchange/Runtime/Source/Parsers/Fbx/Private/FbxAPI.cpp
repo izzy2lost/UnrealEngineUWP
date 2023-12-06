@@ -12,6 +12,9 @@
 #include "FbxMesh.h"
 #include "FbxScene.h"
 #include "InterchangeTextureNode.h"
+#if WITH_ENGINE
+#include "Mesh/InterchangeMeshPayload.h"
+#endif
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Misc/SecureHash.h"
 
@@ -181,6 +184,25 @@ namespace UE
 					return PayloadContext->FetchMeshPayloadToFile(*this, MeshGlobalTransform, PayloadFilepath);
 				}
 			}
+
+#if WITH_ENGINE
+			bool FFbxParser::FetchMeshPayloadData(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData)
+			{
+				if (!PayloadContexts.Contains(PayloadKey))
+				{
+					UInterchangeResultError_Generic* Message = AddMessage<UInterchangeResultError_Generic>();
+					Message->Text = LOCTEXT("CannotRetrievePayload", "Cannot retrieve payload; payload key doesn't have any context.");
+					return false;
+				}
+
+				{
+					//Critical section to force payload to be fetch one by one with no concurrency.
+					FScopeLock Lock(&PayloadCriticalSection);
+					TSharedPtr<FPayloadContextBase>& PayloadContext = PayloadContexts.FindChecked(PayloadKey);
+					return PayloadContext->FetchMeshPayload(*this, MeshGlobalTransform, OutMeshPayloadData);
+				}
+			}
+#endif
 
 			bool FFbxParser::FetchAnimationBakeTransformPayload(const FString& PayloadKey, const double BakeFrequency, const double RangeStartTime, const double RangeEndTime, const FString& PayloadFilepath)
 			{

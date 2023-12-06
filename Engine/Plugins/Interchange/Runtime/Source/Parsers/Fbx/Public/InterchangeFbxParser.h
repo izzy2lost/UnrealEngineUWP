@@ -4,6 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
+#if WITH_ENGINE
+#include "Mesh/InterchangeMeshPayload.h"
+#endif
 #include "Misc/ScopeLock.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "InterchangeResultsContainer.h"
@@ -57,6 +60,16 @@ namespace UE
 			 */
 			FString FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, const FString& ResultFolder);
 
+#if WITH_ENGINE
+			/**
+			 * Extract mesh payload data from the fbx, the key tell the translator what payload the client ask
+			 * @param - PayloadKey is the key that describe the payload data to extract from the fbx file
+			 * @param - MeshGlobalTransform is the transform we want to apply to the mesh vertex
+			 * @param - OutMeshPayloadData structure receiving the data
+			 */
+			void FetchMeshPayload(const FString& PayloadKey, const FTransform& MeshGlobalTransform, FMeshPayloadData& OutMeshPayloadData);
+#endif
+			
 			/**
 			 * Extract bake transform animation payload data from the fbx, the key tell the translator what payload the client ask
 			 * @param - PayloadKey is the key that describe the payload data to extract from the fbx file

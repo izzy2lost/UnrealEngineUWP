@@ -78,6 +78,7 @@ void FInterchangeImportModule::StartupModule()
 		//Register the translators
 		//Scenes
 #if WITH_EDITOR
+		UInterchangeFbxTranslator::CleanUpTemporaryFolder();
 		InterchangeManager.RegisterTranslator(UInterchangeFbxTranslator::StaticClass());
 #endif
 		InterchangeManager.RegisterTranslator(UInterchangeGLTFTranslator::StaticClass());
@@ -132,6 +133,7 @@ void FInterchangeImportModule::StartupModule()
 void FInterchangeImportModule::ShutdownModule()
 {
 	UInterchangeManager::SetInterchangeImportEnabled(false);
+	UInterchangeFbxTranslator::CleanUpTemporaryFolder();
 }
 
 
