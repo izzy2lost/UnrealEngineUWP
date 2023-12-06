@@ -122,7 +122,7 @@ void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 
 	for (FGraphCache& GraphCache : GraphCaches)
 	{
-		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstance::StaticStruct(), &GraphCache.GraphInstanceData);
+		Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstancePtr::StaticStruct(), &GraphCache.GraphInstanceData);
 	}
 }
 

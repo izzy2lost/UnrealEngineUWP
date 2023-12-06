@@ -9,7 +9,9 @@
 #include "DecoratorBase/DecoratorInterfaceUID.h"
 #include "DecoratorBase/LatentPropertyHandle.h"
 #include "DecoratorBase/NodeHandle.h"
-#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphInstancePtr.h"
+
+struct FAnimNextGraphInstance;
 
 namespace UE::AnimNext
 {
@@ -33,7 +35,13 @@ namespace UE::AnimNext
 		FExecutionContext();
 
 		// Creates an execution context and binds it to the specified graph instance
+		explicit FExecutionContext(FAnimNextGraphInstancePtr& InGraphInstance);
+
+		// Creates an execution context and binds it to the specified graph instance
 		explicit FExecutionContext(FAnimNextGraphInstance& InGraphInstance);
+
+		// Binds the execution context to the specified graph instance if it differs from the currently bound instance
+		void BindTo(FAnimNextGraphInstancePtr& InGraphInstance);
 
 		// Binds the execution context to the specified graph instance if it differs from the currently bound instance
 		void BindTo(FAnimNextGraphInstance& InGraphInstance);
@@ -43,6 +51,9 @@ namespace UE::AnimNext
 
 		// Returns whether or not this execution context is bound to a graph instance
 		bool IsBound() const;
+
+		// Returns whether or not this execution context is bound to the specified graph instance
+		bool IsBoundTo(const FAnimNextGraphInstancePtr& InGraphInstance) const;
 
 		// Returns whether or not this execution context is bound to the specified graph instance
 		bool IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const;
@@ -92,7 +103,7 @@ namespace UE::AnimNext
 		ComponentType* TryGetComponent() const;
 
 		// Returns const iterators to the graph instance component container
-		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const { return GraphInstance->GetComponentIterator(); }
+		GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
 
 		// Returns the bound graph instance
 		FAnimNextGraphInstance& GetGraphInstance() const { return *GraphInstance; }
@@ -105,6 +116,8 @@ namespace UE::AnimNext
 		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
 		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const;
 		void EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle, void* DestinationPtr) const;
+		FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
+		FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<FGraphInstanceComponent>&& Component) const;
 
 		const FNodeDescription& GetNodeDescription(FNodeHandle NodeHandle) const;
 		const FNodeTemplate* GetNodeTemplate(const FNodeDescription& NodeDesc) const;
@@ -170,12 +183,23 @@ namespace UE::AnimNext
 	template<class ComponentType>
 	ComponentType& FExecutionContext::GetComponent() const
 	{
-		return GraphInstance->GetComponent<ComponentType>();
+		const FName ComponentName = ComponentType::StaticComponentName();
+		const int32 ComponentNameHash = GetTypeHash(ComponentName);
+
+		if (FGraphInstanceComponent* Component = TryGetComponent(ComponentNameHash, ComponentName))
+		{
+			return *static_cast<ComponentType*>(Component);
+		}
+
+		return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>()));
 	}
 
 	template<class ComponentType>
 	ComponentType* FExecutionContext::TryGetComponent() const
 	{
-		return GraphInstance->TryGetComponent<ComponentType>();
+		const FName ComponentName = ComponentType::StaticComponentName();
+		const int32 ComponentNameHash = GetTypeHash(ComponentName);
+
+		return static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
 	}
 }

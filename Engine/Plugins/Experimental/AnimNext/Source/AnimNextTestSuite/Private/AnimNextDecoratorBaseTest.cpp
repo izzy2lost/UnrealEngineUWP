@@ -18,6 +18,7 @@
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/NodeTemplateBuilder.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "Graph/AnimNextGraph.h"
 #include "Graph/GraphFactory.h"
 
 //****************************************************************************
@@ -564,7 +565,7 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FExecutionContext Context(GraphInstance);
@@ -763,7 +764,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FExecutionContext Context(GraphInstance);
@@ -1032,7 +1033,7 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FExecutionContext Context(GraphInstance);
@@ -1387,7 +1388,7 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 		// Read our graph
 		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-		FAnimNextGraphInstance GraphInstance;
+		FAnimNextGraphInstancePtr GraphInstance;
 		AnimNextGraph->AllocateInstance(GraphInstance);
 
 		FExecutionContext Context(GraphInstance);

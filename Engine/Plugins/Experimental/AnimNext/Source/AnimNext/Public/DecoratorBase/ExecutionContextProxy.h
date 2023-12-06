@@ -32,6 +32,12 @@ namespace UE::AnimNext
 		}
 
 		// Returns whether or not this execution context is bound to the specified graph instance
+		bool IsBoundTo(const FAnimNextGraphInstancePtr& InGraphInstance) const
+		{
+			return ExecutionContext.IsBoundTo(InGraphInstance);
+		}
+
+		// Returns whether or not this execution context is bound to the specified graph instance
 		bool IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const
 		{
 			return ExecutionContext.IsBoundTo(InGraphInstance);

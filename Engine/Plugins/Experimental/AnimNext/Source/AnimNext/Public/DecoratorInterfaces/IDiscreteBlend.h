@@ -33,6 +33,10 @@ namespace UE::AnimNext
 		virtual int32 GetBlendDestinationChildIndex(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding) const;
 
 		// Called when a blend transition between children occurs
+		// OldChildIndex can be INDEX_NONE if there was no previously active child
+		// NewChildIndex can be larger than the current number of known children to support a dynamic number of children at runtime
+		// When this occurs, the number of children increments by one
+		// The number of children never shrinks
 		virtual void OnBlendTransition(const FExecutionContext& Context, const TDecoratorBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const;
 
 		// Called when the blend for specified child is initiated

@@ -7,6 +7,7 @@
 #include "AlphaBlend.h"
 #include "DecoratorBase/Decorator.h"
 #include "DecoratorInterfaces/IDiscreteBlend.h"
+#include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/ISmoothBlend.h"
 #include "DecoratorInterfaces/IUpdate.h"
 
@@ -39,7 +40,7 @@ namespace UE::AnimNext
 	 * 
 	 * A decorator that smoothly blends between discrete states over time.
 	 */
-	struct FBlendSmootherDecorator : FAdditiveDecorator, IUpdate, IDiscreteBlend, ISmoothBlend
+	struct FBlendSmootherDecorator : FAdditiveDecorator, IEvaluate, IUpdate, IDiscreteBlend, ISmoothBlend
 	{
 		DECLARE_ANIM_DECORATOR(FBlendSmootherDecorator, 0x7b6c3d2e, FAdditiveDecorator)
 
@@ -63,6 +64,9 @@ namespace UE::AnimNext
 			// Blend state per child
 			TArray<FBlendData> PerChildBlendData;
 		};
+
+		// IEvaluate impl
+		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;

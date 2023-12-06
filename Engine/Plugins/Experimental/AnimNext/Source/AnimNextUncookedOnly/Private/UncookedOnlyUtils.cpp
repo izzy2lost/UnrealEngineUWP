@@ -406,7 +406,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 
 	// Before we re-compile a graph, we need to release and live instances since we need the metadata we are about to replace
 	// to call decorator destructors etc
-	const TArray<FAnimNextGraphInstance*> PreviousLiveGraphInstances = InGraph->ReleaseAllInstances();
+	InGraph->FreezeGraphInstances();
 
 	EditorData->bErrorsDuringCompilation = false;
 
@@ -535,10 +535,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	VMClient->RemoveController(VMTempGraph);
 
 	// Now that the graph has been re-compiled, re-allocate the previous live instances
-	for (FAnimNextGraphInstance* GraphInstance : PreviousLiveGraphInstances)
-	{
-		InGraph->AllocateInstance(*GraphInstance);
-	}
+	InGraph->ThawGraphInstances();
 
 	// Gather and store the required parameters
 	InGraph->RequiredParameters.Empty();

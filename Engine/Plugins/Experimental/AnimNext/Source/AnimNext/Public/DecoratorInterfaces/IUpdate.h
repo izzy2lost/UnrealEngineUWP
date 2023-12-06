@@ -6,7 +6,7 @@
 #include "DecoratorBase/ExecutionContextProxy.h"
 #include "DecoratorBase/IDecoratorInterface.h"
 
-struct FAnimNextGraphInstance;
+struct FAnimNextGraphInstancePtr;
 class FMemStack;
 
 namespace UE::AnimNext
@@ -127,7 +127,7 @@ namespace UE::AnimNext
 		// be warmer in the CPU cache
 		FUpdateEntry* FreeEntryStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
+		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalQueue;
 	};
 
@@ -155,7 +155,7 @@ namespace UE::AnimNext
 		// emptied and pushed onto the update stack
 		FUpdateEntry* QueuedUpdateStackHead = nullptr;
 
-		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
+		friend ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 		friend FUpdateTraversalContext;
 	};
 
@@ -226,5 +226,5 @@ namespace UE::AnimNext
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime);
+	ANIMNEXT_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
 }

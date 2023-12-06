@@ -20,6 +20,8 @@ class UAnimNextGraph;
 class UAnimGraphNode_AnimNextGraph;
 struct FAnimNode_AnimNextGraph;
 struct FRigUnit_AnimNextGraphEvaluator;
+struct FAnimNextGraphInstancePtr;
+struct FAnimNextGraphInstance;
 class UAnimNextSchedule;
 struct FAnimNextScheduleGraphTask;
 struct FAnimNextParam;
@@ -47,106 +49,6 @@ namespace UE::AnimNext::Graph
 	extern ANIMNEXT_API const FName ResultName;
 }
 
-using GraphInstanceComponentMapType = TMap<FName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>>;
-
-// Represents an instance of an AnimNext graph
-// This struct uses UE reflection because we wish for the GC to keep the graph
-// alive while we own a reference to it. It is not intended to be serialized on disk with a live instance.
-USTRUCT()
-struct ANIMNEXT_API FAnimNextGraphInstance
-{
-	GENERATED_BODY()
-
-	// Creates an empty graph instance that doesn't reference anything
-	FAnimNextGraphInstance() = default;
-
-#if WITH_EDITORONLY_DATA
-	// In editor, we need custom copy/move semantics to update the live instance tracking
-	FAnimNextGraphInstance(const FAnimNextGraphInstance& Other);
-	FAnimNextGraphInstance(FAnimNextGraphInstance&& Other);
-	FAnimNextGraphInstance& operator=(const FAnimNextGraphInstance& Other);
-	FAnimNextGraphInstance& operator=(FAnimNextGraphInstance&& Other);
-#else
-	FAnimNextGraphInstance(const FAnimNextGraphInstance&) = default;
-	FAnimNextGraphInstance& operator=(const FAnimNextGraphInstance&) = default;
-	FAnimNextGraphInstance(FAnimNextGraphInstance&&) = default;
-	FAnimNextGraphInstance& operator=(FAnimNextGraphInstance&&) = default;
-#endif
-
-	// If the graph instance is allocated, we release it during destruction
-	~FAnimNextGraphInstance();
-
-	// Releases the graph instance and frees all corresponding memory
-	void Release();
-
-	// Returns true if we have a live graph instance, false otherwise
-	bool IsValid() const;
-
-	// Returns the graph used by this instance or nullptr if the instance is invalid
-	const UAnimNextGraph* GetGraph() const;
-
-	// Returns a weak handle to the root decorator instance
-	UE::AnimNext::FWeakDecoratorPtr GetGraphRootPtr() const;
-
-	// Check to see if this instance data matches the provided graph
-	bool UsesGraph(const UAnimNextGraph* InGraph) const;
-
-	// Adds strong/hard object references during GC
-	void AddStructReferencedObjects(class FReferenceCollector& Collector);
-
-	// Returns a typed graph instance component, creating it lazily the first time it is queried
-	template<class ComponentType>
-	ComponentType& GetComponent();
-
-	// Returns a typed graph instance component pointer if found or nullptr otherwise
-	template<class ComponentType>
-	ComponentType* TryGetComponent();
-
-	// Returns a typed graph instance component pointer if found or nullptr otherwise
-	template<class ComponentType>
-	const ComponentType* TryGetComponent() const;
-
-	// Returns const iterators to the graph instance component container
-	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
-
-private:
-	// Returns a pointer to the specified component, or nullptr if not found
-	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
-
-	// Adds the specified component and returns a reference to it
-	UE::AnimNext::FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component);
-
-	// Executes a latent RigVM pin and writes the result into the destination pointer
-	void ExecuteLatentPin(int32 LatentPinIndex, void* DestinationPtr);
-
-	// Hard reference to the graph used to create this instance to ensure we can release it safely
-	UPROPERTY()
-	TObjectPtr<const UAnimNextGraph> Graph;
-
-	// Hard reference to the graph instance data, we own it
-	UE::AnimNext::FDecoratorPtr GraphInstancePtr;
-
-	// Extended execute context instance for this graph instance, we own it
-	UPROPERTY()
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
-
-	// Graph instance components that persist from update to update
-	GraphInstanceComponentMapType Components;
-
-	friend UAnimNextGraph;					// The graph is the one that allocates instances
-	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
-	friend UE::AnimNext::FExecutionContext;
-};
-
-template<>
-struct TStructOpsTypeTraits<FAnimNextGraphInstance> : public TStructOpsTypeTraitsBase2<FAnimNextGraphInstance>
-{
-	enum
-	{
-		WithAddStructReferencedObjects = true,
-	};
-};
-
 // A user-created graph of logic used to supply data
 UCLASS(BlueprintType)
 class ANIMNEXT_API UAnimNextGraph :  public URigVMHost, public IAnimNextScheduleTermInterface
@@ -167,7 +69,10 @@ public:
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
 
 	// Allocates an instance of the graph
-	void AllocateInstance(FAnimNextGraphInstance& Instance) const;
+	void AllocateInstance(FAnimNextGraphInstancePtr& Instance) const;
+
+	// Allocates an instance of the graph with the specified parent graph instance
+	void AllocateInstance(FAnimNextGraphInstance& ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const;
 
 	// Get the parameter to use to access the reference pose
 	UE::AnimNext::FParamId GetReferencePoseParam() const { return ReferencePoseId; }
@@ -185,9 +90,16 @@ protected:
 	// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
 	bool LoadFromArchiveBuffer(const TArray<uint8>& SharedDataArchiveBuffer);
 
+	// Allocates an instance of the graph with an optional parent graph instance
+	void AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const;
+
 #if WITH_EDITORONLY_DATA
-	// Releases all live graph instances and returns a list of the instances that were released
-	TArray<FAnimNextGraphInstance*> ReleaseAllInstances();
+	// During graph compilation, if we have existing graph instances, we freeze them by releasing their memory before thawing them
+	// Freezing is a partial release of resources that retains the necessary information to re-create things safely
+	void FreezeGraphInstances();
+
+	// During graph compilation, once compilation is done we thaw existing graph instances to reallocate their memory
+	void ThawGraphInstances();
 #endif
 
 	friend class UAnimNextGraphFactory;
@@ -195,7 +107,8 @@ protected:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend class UE::AnimNext::Editor::FGraphEditor;
 	friend struct UE::AnimNext::FTestUtils;
-	friend struct FAnimNextGraphInstance;
+	friend FAnimNextGraphInstancePtr;
+	friend FAnimNextGraphInstance;
 	friend class UAnimGraphNode_AnimNextGraph;
 	friend UE::AnimNext::FExecutionContext;
 	friend class UAnimNextSchedule;
@@ -269,37 +182,3 @@ protected:
 	TArray<uint8> SharedDataArchiveBuffer;
 #endif
 };
-
-//////////////////////////////////////////////////////////////////////////
-
-template<class ComponentType>
-ComponentType& FAnimNextGraphInstance::GetComponent()
-{
-	const FName ComponentName = ComponentType::StaticComponentName();
-	const int32 ComponentNameHash = GetTypeHash(ComponentName);
-
-	if (UE::AnimNext::FGraphInstanceComponent* Component = TryGetComponent(ComponentNameHash, ComponentName))
-	{
-		return *static_cast<ComponentType*>(Component);
-	}
-
-	return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>()));
-}
-
-template<class ComponentType>
-ComponentType* FAnimNextGraphInstance::TryGetComponent()
-{
-	const FName ComponentName = ComponentType::StaticComponentName();
-	const int32 ComponentNameHash = GetTypeHash(ComponentName);
-
-	return static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
-}
-
-template<class ComponentType>
-const ComponentType* FAnimNextGraphInstance::TryGetComponent() const
-{
-	const FName ComponentName = ComponentType::StaticComponentName();
-	const int32 ComponentNameHash = GetTypeHash(ComponentName);
-
-	return static_cast<ComponentType*>(TryGetComponent(ComponentNameHash, ComponentName));
-}

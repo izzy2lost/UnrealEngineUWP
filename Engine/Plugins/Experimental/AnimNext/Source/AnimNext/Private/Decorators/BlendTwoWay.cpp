@@ -116,14 +116,15 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 
 		const float BlendWeight = SharedData->GetBlendWeight(Context, Binding);
+		const float ClampedWeight = FMath::Clamp(BlendWeight, 0.0f, 1.0f);
 
 		if (ChildIndex == 0)
 		{
-			return 1.0f - BlendWeight;
+			return 1.0f - ClampedWeight;
 		}
 		else if (ChildIndex == 1)
 		{
-			return BlendWeight;
+			return ClampedWeight;
 		}
 		else
 		{

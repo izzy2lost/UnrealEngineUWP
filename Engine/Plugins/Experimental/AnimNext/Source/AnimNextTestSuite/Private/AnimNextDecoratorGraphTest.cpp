@@ -249,7 +249,7 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 	TSharedRef<FParamStack> ParamStack = MakeShared<FParamStack>();
 	FParamStack::AttachToCurrentThread(ParamStack);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(
@@ -391,7 +391,7 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 	TSharedRef<FParamStack> ParamStack = MakeShared<FParamStack>();
 	FParamStack::AttachToCurrentThread(ParamStack);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FParamStack::FPushedLayerHandle LayerHandle = ParamStack->PushValues(

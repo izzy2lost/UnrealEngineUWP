@@ -3,6 +3,7 @@
 #include "DecoratorInterfaces/IUpdate.h"
 
 #include "DecoratorInterfaces/IHierarchy.h"
+#include "Graph/GraphInstanceComponent.h"
 #include "AnimNextStats.h"
 
 DEFINE_STAT(STAT_AnimNext_UpdateGraph);
@@ -207,13 +208,18 @@ namespace UE::AnimNext
 	// perform as much useful work as possible while waiting for memory, hiding its slow latency by fully
 	// leveraging out-of-order CPU execution.
 
-	void UpdateGraph(FAnimNextGraphInstance& GraphInstance, float DeltaTime)
+	void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_UpdateGraph);
 		
 		if (!GraphInstance.IsValid())
 		{
 			return;	// Nothing to update
+		}
+
+		if (!ensure(GraphInstance.IsRoot()))
+		{
+			return;	// We can only update starting at the root
 		}
 
 		FMemStack& MemStack = FMemStack::Get();

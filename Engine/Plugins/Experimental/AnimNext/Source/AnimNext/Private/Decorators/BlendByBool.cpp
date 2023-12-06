@@ -2,6 +2,7 @@
 
 #include "Decorators/BlendByBool.h"
 
+#include "Animation/AnimTypes.h"
 #include "DecoratorBase/ExecutionContext.h"
 #include "EvaluationVM/Tasks/BlendKeyframes.h"
 
@@ -11,33 +12,12 @@ namespace UE::AnimNext
 
 	DEFINE_ANIM_DECORATOR_BEGIN(FBlendByBoolDecorator)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 	DEFINE_ANIM_DECORATOR_END(FBlendByBoolDecorator)
 
 	static constexpr int32 TRUE_CHILD_INDEX = 0;
 	static constexpr int32 FALSE_CHILD_INDEX = 1;
-
-	void FBlendByBoolDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
-	{
-		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
-		if (InstanceData->TrueChild.IsValid() && InstanceData->FalseChild.IsValid())
-		{
-			// We have two children, interpolate them
-
-			TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
-			Context.GetInterface(Binding, DiscreteBlendDecorator);
-
-			const float BlendWeight = DiscreteBlendDecorator.GetBlendWeight(Context, FALSE_CHILD_INDEX);
-			Context.AppendTask(FAnimNextBlendTwoKeyframesTask::Make(BlendWeight));
-		}
-		else
-		{
-			// We have only one child that is active, do nothing
-		}
-	}
 
 	void FBlendByBoolDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{

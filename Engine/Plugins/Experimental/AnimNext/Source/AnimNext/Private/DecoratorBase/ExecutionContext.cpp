@@ -9,6 +9,8 @@
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/NodeTemplate.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphInstance.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 
 namespace UE::AnimNext
@@ -20,10 +22,24 @@ namespace UE::AnimNext
 	{
 	}
 
+	FExecutionContext::FExecutionContext(FAnimNextGraphInstancePtr& InGraphInstance)
+		: FExecutionContext()
+	{
+		BindTo(InGraphInstance);
+	}
+
 	FExecutionContext::FExecutionContext(FAnimNextGraphInstance& InGraphInstance)
 		: FExecutionContext()
 	{
 		BindTo(InGraphInstance);
+	}
+
+	void FExecutionContext::BindTo(FAnimNextGraphInstancePtr& InGraphInstance)
+	{
+		if (FAnimNextGraphInstance* Impl = InGraphInstance.GetImpl())
+		{
+			BindTo(*Impl);
+		}
 	}
 
 	void FExecutionContext::BindTo(FAnimNextGraphInstance& InGraphInstance)
@@ -33,8 +49,11 @@ namespace UE::AnimNext
 			return;	// Already bound to this graph instance, nothing to do
 		}
 
-		GraphInstance = &InGraphInstance;
-		GraphSharedData = InGraphInstance.GetGraph()->SharedDataBuffer;
+		if (const UAnimNextGraph* Graph = InGraphInstance.GetGraph())
+		{
+			GraphInstance = &InGraphInstance;
+			GraphSharedData = Graph->SharedDataBuffer;
+		}
 	}
 
 	void FExecutionContext::BindTo(const FWeakDecoratorPtr& DecoratorPtr)
@@ -48,6 +67,11 @@ namespace UE::AnimNext
 	bool FExecutionContext::IsBound() const
 	{
 		return GraphInstance != nullptr;
+	}
+
+	bool FExecutionContext::IsBoundTo(const FAnimNextGraphInstancePtr& InGraphInstance) const
+	{
+		return GraphInstance == InGraphInstance.GetImpl();
 	}
 
 	bool FExecutionContext::IsBoundTo(const FAnimNextGraphInstance& InGraphInstance) const
@@ -363,6 +387,21 @@ namespace UE::AnimNext
 	{
 		check(LatentPropertyHandle.IsValid());
 		GraphInstance->ExecuteLatentPin(LatentPropertyHandle.GetLatentPropertyIndex(), DestinationPtr);
+	}
+
+	FGraphInstanceComponent* FExecutionContext::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
+	{
+		return GraphInstance->TryGetComponent(ComponentNameHash, ComponentName);
+	}
+
+	FGraphInstanceComponent& FExecutionContext::AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<FGraphInstanceComponent>&& Component) const
+	{
+		return GraphInstance->AddComponent(ComponentNameHash, ComponentName, MoveTemp(Component));
+	}
+
+	GraphInstanceComponentMapType::TConstIterator FExecutionContext::GetComponentIterator() const
+	{
+		return GraphInstance->GetComponentIterator();
 	}
 
 	const FNodeDescription& FExecutionContext::GetNodeDescription(FNodeHandle NodeHandle) const

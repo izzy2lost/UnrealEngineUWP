@@ -6,16 +6,75 @@
 #include "DecoratorBase/ExecutionContext.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "EvaluationVM/Tasks/BlendKeyframes.h"
+#include "EvaluationVM/Tasks/NormalizeRotations.h"
 
 namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FBlendSmootherDecorator)
 
 	DEFINE_ANIM_DECORATOR_BEGIN(FBlendSmootherDecorator)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
+		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(ISmoothBlend)
+		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
 	DEFINE_ANIM_DECORATOR_END(FBlendSmootherDecorator)
+
+	void FBlendSmootherDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		// We override the default behavior since we need to blend over time
+
+		int32 NumBlending = 0;
+		for (const FBlendData& ChildBlendData : InstanceData->PerChildBlendData)
+		{
+			NumBlending += ChildBlendData.bIsBlending ? 1 : 0;
+		}
+
+		if (NumBlending < 2)
+		{
+			return;	// If we don't have at least 2 children blending, there is nothing to do
+		}
+
+		// Children are visited depth first, in the order returned
+		// As such, when we evaluate the task program, the keyframe of the last child will be
+		// on top of the keyframe stack
+		// We thus process children in reverse order
+
+		// The last child override the top keyframe and scales it
+		int32 ChildIndex = InstanceData->PerChildBlendData.Num() - 1;
+		for (; ChildIndex >= 0; --ChildIndex)
+		{
+			const FBlendData& ChildBlendData = InstanceData->PerChildBlendData[ChildIndex];
+			if (!ChildBlendData.bIsBlending)
+			{
+				continue;	// Skip this inactive child
+			}
+
+			// This decorator controls the blend weight and owns it
+			Context.AppendTask(FAnimNextBlendOverwriteKeyframeWithScaleTask::Make(ChildBlendData.Weight));
+
+			// We found the last child to blend
+			break;
+		}
+
+		// Other children accumulate with scale
+		ChildIndex--;
+		for (; ChildIndex >= 0; --ChildIndex)
+		{
+			const FBlendData& ChildBlendData = InstanceData->PerChildBlendData[ChildIndex];
+			if (!ChildBlendData.bIsBlending)
+			{
+				continue;	// Skip this inactive child
+			}
+
+			// This decorator controls the blend weight and owns it
+			Context.AppendTask(FAnimNextBlendAddKeyframeWithScaleTask::Make(ChildBlendData.Weight));
+		}
+
+		// Once we are done, we normalize rotations
+		Context.AppendTask(FAnimNextNormalizeKeyframeRotationsTask());
+	}
 
 	void FBlendSmootherDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{
@@ -113,6 +172,18 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
+		const int32 NumChildren = InstanceData->PerChildBlendData.Num();
+		if (NewChildIndex >= NumChildren)
+		{
+			// We have a new child
+			check(NewChildIndex == NumChildren);
+
+			FBlendData& ChildBlendData = InstanceData->PerChildBlendData.AddDefaulted_GetRef();
+
+			ChildBlendData.Blend.SetBlendOption(SharedData->BlendType);
+			ChildBlendData.Blend.SetCustomCurve(SharedData->CustomBlendCurve);
+		}
+
 		// scale by the weight difference since we want consistency:
 		// - if you're moving from 0 to full weight 1, it will use the normal blend time
 		// - if you're moving from 0.5 to full weight 1, it will get there in half the time
@@ -160,25 +231,34 @@ namespace UE::AnimNext
 	float FBlendSmootherDecorator::GetBlendTime(const FExecutionContext& Context, const TDecoratorBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
-		return SharedData->BlendTimes.IsValidIndex(ChildIndex) ? SharedData->BlendTimes[ChildIndex] : 0.0f;
+
+		if (SharedData->BlendTimes.IsValidIndex(ChildIndex))
+		{
+			return SharedData->BlendTimes[ChildIndex];
+		}
+		else if (!SharedData->BlendTimes.IsEmpty())
+		{
+			// If we index outside the array of values we have, use the last value
+			// Allows a user to specify a single blend time to be used with all children
+			return SharedData->BlendTimes.Last();
+		}
+		else
+		{
+			// No blend time has been specified, we snap
+			return 0.0f;
+		}
 	}
 
 	void FBlendSmootherDecorator::InitializeInstanceData(const FExecutionContext& Context, const FDecoratorBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
 	{
 		check(InstanceData->PerChildBlendData.IsEmpty());
 
-		uint32 NumExpectedChildren = SharedData->BlendTimes.Num();
-
-#if DO_CHECK
 		TDecoratorBinding<IHierarchy> HierarchyDecorator;
 		Context.GetInterface(Binding, HierarchyDecorator);
 
-		const uint32 NumActualChildren = HierarchyDecorator.GetNumChildren(Context);
-		ensureMsgf(NumActualChildren != 0, TEXT("BlendSmootherDecorator has %u blend times for %u children"), NumExpectedChildren, NumActualChildren);
-		NumExpectedChildren = NumActualChildren;
-#endif
+		const uint32 NumChildren = HierarchyDecorator.GetNumChildren(Context);
 
-		InstanceData->PerChildBlendData.SetNum(NumExpectedChildren);
+		InstanceData->PerChildBlendData.SetNum(NumChildren);
 
 		for (FBlendData& ChildBlendData : InstanceData->PerChildBlendData)
 		{

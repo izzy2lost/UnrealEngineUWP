@@ -4,6 +4,7 @@
 
 #include "Animation/AnimNode_CustomProperty.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphInstancePtr.h"
 #include "DecoratorBase/DecoratorPtr.h"
 #include "Context.h"
 #include "AnimNode_AnimNextGraph.generated.h"
@@ -45,7 +46,7 @@ private:
 
 	// Our graph instance, we own it
 	UPROPERTY()
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 
 	/*
 	 * Max LOD that this node is allowed to run
@@ -71,6 +72,7 @@ struct TStructOpsTypeTraits<FAnimNode_AnimNextGraph> : public TStructOpsTypeTrai
 {
 	enum
 	{
+		WithCopy = false,
 		WithPostSerialize = true,
 	};
 };

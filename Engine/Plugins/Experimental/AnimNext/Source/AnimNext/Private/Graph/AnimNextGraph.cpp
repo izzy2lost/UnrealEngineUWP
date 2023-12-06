@@ -11,214 +11,16 @@
 #include "DecoratorBase/ExecutionContext.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "Graph/GC_GraphInstanceComponent.h"
+#include "Graph/AnimNextGraphInstance.h"
 #include "Serialization/MemoryReader.h"
 #include "AnimNextStats.h"
 
-DEFINE_STAT(STAT_AnimNext_Graph_RigVM);
 DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNextGraph)
 
 const UE::AnimNext::FParamId UAnimNextGraph::DefaultReferencePoseId = UE::AnimNext::FParamId("UE_AnimNextMeshComponent_ReferencePose");
 const UE::AnimNext::FParamId UAnimNextGraph::DefaultCurrentLODId = UE::AnimNext::FParamId("UE_AnimNextMeshComponent_PredictedLODLevel");
-
-#if WITH_EDITORONLY_DATA
-FAnimNextGraphInstance::FAnimNextGraphInstance(const FAnimNextGraphInstance& Other)
-{
-	*this = Other;
-}
-
-FAnimNextGraphInstance::FAnimNextGraphInstance(FAnimNextGraphInstance&& Other)
-{
-	*this = MoveTemp(Other);
-}
-
-FAnimNextGraphInstance& FAnimNextGraphInstance::operator=(const FAnimNextGraphInstance& Other)
-{
-	if (GraphInstancePtr.IsValid())
-	{
-		if (!Other.GraphInstancePtr.IsValid())
-		{
-			// We were valid but we won't be anymore, unregister ourself
-
-			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-
-			check(Graph->GraphInstances.Contains(this));
-			Graph->GraphInstances.Remove(this);
-		}
-		else
-		{
-			// Both instances remain valid, nothing to do
-		}
-	}
-	else
-	{
-		if (Other.GraphInstancePtr.IsValid())
-		{
-			// We were invalid but we will become valid, register ourself
-
-			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-
-			check(!Graph->GraphInstances.Contains(this));
-			Graph->GraphInstances.Add(this);
-		}
-		else
-		{
-			// Both instances were invalid, nothing to do
-		}
-	}
-
-	Graph = Other.Graph;
-	GraphInstancePtr =  Other.GraphInstancePtr;
-	ExtendedExecuteContext = Other.ExtendedExecuteContext;
-
-	return *this;
-}
-
-FAnimNextGraphInstance& FAnimNextGraphInstance::operator=(FAnimNextGraphInstance&& Other)
-{
-	if (GraphInstancePtr.IsValid())
-	{
-		if (!Other.GraphInstancePtr.IsValid())
-		{
-			// We were valid but we won't be anymore, unregister ourself
-			// Other will become valid, register it
-
-			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-
-			check(Graph->GraphInstances.Contains(this));
-			Graph->GraphInstances.Remove(this);
-
-			check(!Graph->GraphInstances.Contains(&Other));
-			Graph->GraphInstances.Add(&Other);
-		}
-		else
-		{
-			// Both instances remain valid, nothing to do
-		}
-	}
-	else
-	{
-		if (Other.GraphInstancePtr.IsValid())
-		{
-			// We were invalid but we will become valid, register ourself
-			// Other will become invalid, unregister it
-
-			FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-
-			check(!Graph->GraphInstances.Contains(this));
-			Graph->GraphInstances.Add(this);
-
-			check(Graph->GraphInstances.Contains(&Other));
-			Graph->GraphInstances.Remove(&Other);
-		}
-		else
-		{
-			// Both instances were invalid, nothing to do
-		}
-	}
-
-	Swap(Graph, Other.Graph);
-	Swap(GraphInstancePtr, Other.GraphInstancePtr);
-	Swap(ExtendedExecuteContext, Other.ExtendedExecuteContext);
-
-	return *this;
-}
-#endif
-
-FAnimNextGraphInstance::~FAnimNextGraphInstance()
-{
-	Release();
-}
-
-void FAnimNextGraphInstance::Release()
-{
-	if (!GraphInstancePtr.IsValid())
-	{
-		return;
-	}
-
-	GraphInstancePtr.Reset();
-	ExtendedExecuteContext.Reset();
-	Components.Empty();
-
-#if WITH_EDITORONLY_DATA
-	FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-	check(Graph->GraphInstances.Contains(this));
-	Graph->GraphInstances.Remove(this);
-#endif
-
-	Graph = nullptr;
-}
-
-bool FAnimNextGraphInstance::IsValid() const
-{
-	return GraphInstancePtr.IsValid();
-}
-
-const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
-{
-	return Graph;
-}
-
-UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstance::GetGraphRootPtr() const
-{
-	return GraphInstancePtr;
-}
-
-bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
-{
-	return Graph == InGraph;
-}
-
-void FAnimNextGraphInstance::AddStructReferencedObjects(FReferenceCollector& Collector)
-{
-	if (const UE::AnimNext::FGCGraphInstanceComponent* Component = TryGetComponent<UE::AnimNext::FGCGraphInstanceComponent>())
-	{
-		Component->AddReferencedObjects(Collector);
-	}
-}
-
-UE::AnimNext::FGraphInstanceComponent* FAnimNextGraphInstance::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
-{
-	if (const TSharedPtr<UE::AnimNext::FGraphInstanceComponent>* Component = Components.FindByHash(ComponentNameHash, ComponentName))
-	{
-		return Component->Get();
-	}
-
-	return nullptr;
-}
-
-UE::AnimNext::FGraphInstanceComponent& FAnimNextGraphInstance::AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<UE::AnimNext::FGraphInstanceComponent>&& Component)
-{
-	return *Components.AddByHash(ComponentNameHash, ComponentName, MoveTemp(Component)).Get();
-}
-
-GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstance::GetComponentIterator() const
-{
-	return Components.CreateConstIterator();
-}
-
-void FAnimNextGraphInstance::ExecuteLatentPin(int32 LatentPinIndex, void* DestinationPtr)
-{
-	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_RigVM);
-
-	if (!IsValid())
-	{
-		return;
-	}
-
-	if (URigVM* VM = Graph->VM)
-	{
-		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
-		AnimNextContext.SetupForExecution(LatentPinIndex, DestinationPtr);
-
-		VM->ExecuteVM(ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
-
-		// Reset the context to avoid issues if we forget to reset it the next time we use it
-		AnimNextContext.DebugReset();
-	}
-}
 
 UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -227,7 +29,17 @@ UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	SetRigVMExtendedExecuteContext(&ExtendedExecuteContext);
 }
 
-void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
+void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstancePtr& Instance) const
+{
+	AllocateInstanceImpl(nullptr, Instance);
+}
+
+void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const
+{
+	AllocateInstanceImpl(&ParentGraphInstance, Instance);
+}
+
+void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_AllocateInstance);
 
@@ -238,30 +50,39 @@ void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& Instance) const
 		return;
 	}
 
-	Instance.Graph = this;
+	{
+		TUniquePtr<FAnimNextGraphInstance> InstanceImpl = MakeUnique<FAnimNextGraphInstance>();
 
-	Instance.ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
-	VM->InitializeInstance(Instance.ExtendedExecuteContext);
+		InstanceImpl->Graph = this;
+		InstanceImpl->ParentGraphInstance = ParentGraphInstance;
+
+		// If we have a parent graph, use its root since we share the same root, otherwise if we have no parent, we are the root
+		InstanceImpl->RootGraphInstance = ParentGraphInstance != nullptr ? ParentGraphInstance->GetRootGraphInstance() : InstanceImpl.Get();
+
+		InstanceImpl->ExtendedExecuteContext.CopyMemoryStorage(ExtendedExecuteContext);
+		VM->InitializeInstance(InstanceImpl->ExtendedExecuteContext);
+
+		// Move our implementation so that we can use the instance to allocate our root node
+		Instance.Impl = MoveTemp(InstanceImpl);
+	}
 
 	{
 		UE::AnimNext::FExecutionContext Context(Instance);
-		Instance.GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
+		Instance.Impl->GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
 	}
 
-	if (!Instance.GraphInstancePtr.IsValid())
+	if (!Instance.IsValid())
 	{
 		// We failed to allocate our instance, clear everything
-		Instance.Graph = nullptr;
-		Instance.ExtendedExecuteContext.Reset();
-		Instance.Components.Empty();
+		Instance.Release();
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (Instance.GraphInstancePtr.IsValid())
+	if (Instance.IsValid())
 	{
 		FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
-		check(!GraphInstances.Contains(&Instance));
-		GraphInstances.Add(&Instance);
+		check(!GraphInstances.Contains(Instance.Impl.Get()));
+		GraphInstances.Add(Instance.Impl.Get());
 	}
 #endif
 }
@@ -395,23 +216,23 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 }
 
 #if WITH_EDITORONLY_DATA
-TArray<FAnimNextGraphInstance*> UAnimNextGraph::ReleaseAllInstances()
+void UAnimNextGraph::FreezeGraphInstances()
 {
-	// Make a copy of our live instances since we'll release them all
-	TArray<FAnimNextGraphInstance*> TempGraphInstances;
-	{
-		// Lock shouldn't be necessary here since this should be called before graph compilation
-		// If a graph is executing and we attempt to release it, things are likely to crash
-		// Compilation must happen at a point in the frame where animation isn't executing
-		FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
-		TempGraphInstances = GraphInstances.Array();
-	}
+	FRWScopeLock Lock(GraphInstancesLock, SLT_ReadOnly);
 
-	for (FAnimNextGraphInstance* GraphInstance : TempGraphInstances)
+	for (FAnimNextGraphInstance* GraphInstance : GraphInstances)
 	{
-		GraphInstance->Release();
+		GraphInstance->Freeze();
 	}
+}
 
-	return TempGraphInstances;
+void UAnimNextGraph::ThawGraphInstances()
+{
+	FRWScopeLock Lock(GraphInstancesLock, SLT_ReadOnly);
+
+	for (FAnimNextGraphInstance* GraphInstance : GraphInstances)
+	{
+		GraphInstance->Thaw();
+	}
 }
 #endif

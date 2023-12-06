@@ -21,6 +21,7 @@
 #include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "DecoratorInterfaces/IUpdate.h"
+#include "Graph/AnimNextGraph.h"
 #include "Graph/GraphFactory.h"
 
 //****************************************************************************
@@ -341,7 +342,7 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FExecutionContext Context(GraphInstance);
@@ -502,7 +503,7 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	FExecutionContext Context(GraphInstance);
@@ -639,7 +640,7 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 	// Read our graph
 	FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
 
-	FAnimNextGraphInstance GraphInstance;
+	FAnimNextGraphInstancePtr GraphInstance;
 	AnimNextGraph->AllocateInstance(GraphInstance);
 
 	{

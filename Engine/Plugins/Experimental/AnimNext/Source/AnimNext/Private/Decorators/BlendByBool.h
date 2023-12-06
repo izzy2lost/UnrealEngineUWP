@@ -6,7 +6,6 @@
 
 #include "DecoratorBase/Decorator.h"
 #include "DecoratorInterfaces/IDiscreteBlend.h"
-#include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "DecoratorInterfaces/IUpdate.h"
 
@@ -44,7 +43,7 @@ namespace UE::AnimNext
 	 * 
 	 * A decorator that can blend two discrete inputs through a boolean.
 	 */
-	struct FBlendByBoolDecorator : FBaseDecorator, IEvaluate, IUpdate, IHierarchy, IDiscreteBlend
+	struct FBlendByBoolDecorator : FBaseDecorator, IUpdate, IHierarchy, IDiscreteBlend
 	{
 		DECLARE_ANIM_DECORATOR(FBlendByBoolDecorator, 0xc6d8c9ea, FBaseDecorator)
 
@@ -57,9 +56,6 @@ namespace UE::AnimNext
 
 			int32 PreviousChildIndex = INDEX_NONE;
 		};
-
-		// IEvaluate impl
-		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;

@@ -10,6 +10,7 @@
 #include "DataRegistry.h"
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/NodeTemplateRegistry.h"
+#include "Graph/AnimNextGraph.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "RigVMRuntimeDataRegistry.h"
 #include "Animation/AnimSequence.h"
@@ -33,6 +34,7 @@ public:
 			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UBlendProfile::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UCurveFloat::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UAnimNextGraph::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
 		FRigVMRegistry::Get().RegisterObjectTypes(AllowedObjectTypes);

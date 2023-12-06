@@ -5,9 +5,9 @@
 #include "CoreMinimal.h"
 #include "Scheduler/ScheduleHandle.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphInstancePtr.h"
 #include "Param/ParamStack.h"
 
-struct FAnimNextGraphInstance;
 class UAnimNextSchedule;
 struct FAnimNextSchedulerEntry;
 
@@ -92,7 +92,7 @@ struct FScheduleInstanceData : public FGCObject
 	struct FGraphCache
 	{
 		// Graph instance data
-		FAnimNextGraphInstance GraphInstanceData;
+		FAnimNextGraphInstancePtr GraphInstanceData;
 
 		// Remapped data layers for input terms (from schedule)
 		FParamStackLayerHandle GraphTermLayer;

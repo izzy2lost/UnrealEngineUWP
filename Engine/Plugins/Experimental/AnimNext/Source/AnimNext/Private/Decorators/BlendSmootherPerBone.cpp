@@ -120,10 +120,23 @@ namespace UE::AnimNext
 			return;	// No blend profile set, nothing to do
 		}
 
+		const int32 NumChildren = InstanceData->PerChildBlendData.Num();
+		if (NewChildIndex >= NumChildren)
+		{
+			// We have a new child
+			check(NewChildIndex == NumChildren + 1);
+
+			InstanceData->PerChildBlendData.AddDefaulted();
+			FBlendSampleData& SampleData = InstanceData->PerBoneSampleData.AddDefaulted_GetRef();
+
+			const uint32 NumBlendEntries = SharedData->BlendProfile->GetNumBlendEntries();
+			SampleData.SampleDataIndex = NewChildIndex;
+			SampleData.PerBoneBlendData.AddZeroed(NumBlendEntries);
+		}
+
 		TDecoratorBinding<IDiscreteBlend> DiscreteBlendDecorator;
 		Context.GetInterface(Binding, DiscreteBlendDecorator);
 
-		const int32 NumChildren = InstanceData->PerChildBlendData.Num();
 		for (int32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 		{
 			FBlendData& ChildBlendData = InstanceData->PerChildBlendData[ChildIndex];
@@ -148,15 +161,13 @@ namespace UE::AnimNext
 		const uint32 NumChildren = HierarchyDecorator.GetNumChildren(Context);
 
 		InstanceData->PerChildBlendData.SetNum(NumChildren);
-
-		// Initialise per-bone data
 		InstanceData->PerBoneSampleData.SetNum(NumChildren);
 
 		const uint32 NumBlendEntries = SharedData->BlendProfile->GetNumBlendEntries();
-		for (uint32 Idx = 0; Idx < NumChildren; ++Idx)
+		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 		{
-			FBlendSampleData& SampleData = InstanceData->PerBoneSampleData[Idx];
-			SampleData.SampleDataIndex = Idx;
+			FBlendSampleData& SampleData = InstanceData->PerBoneSampleData[ChildIndex];
+			SampleData.SampleDataIndex = ChildIndex;
 			SampleData.PerBoneBlendData.AddZeroed(NumBlendEntries);
 		}
 	}

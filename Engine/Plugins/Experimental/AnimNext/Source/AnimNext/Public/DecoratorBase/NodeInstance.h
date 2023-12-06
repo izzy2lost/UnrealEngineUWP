@@ -53,10 +53,10 @@ namespace UE::AnimNext
 		// Decrements the reference count and returns true if any references remain
 		bool RemoveReference() { check(ReferenceCount > 0); return ReferenceCount-- != 1; }
 
-		FAnimNextGraphInstance& Owner;	// The graph instance that owns this node instance
+		FAnimNextGraphInstance& Owner;		// The graph instance that owns this node instance
 
-		uint32		ReferenceCount;		// how many non-weak FDecoratorPtr handles point to us, not thread safe
-		FNodeHandle	NodeHandle;			// relative to root of sub-graph, should this be a pointer?
+		uint32		ReferenceCount;			// how many non-weak FDecoratorPtr handles point to us, not thread safe
+		FNodeHandle	NodeHandle;				// relative to root of sub-graph, should this be a pointer?
 
 		// Followed by a list of [FDecoratorInstanceData] instances and optional padding
 
