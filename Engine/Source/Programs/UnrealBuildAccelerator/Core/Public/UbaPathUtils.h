@@ -201,19 +201,13 @@ namespace uba
 			*bufferCharLen = u32(charLen - 1); // Remove terminator
 		return true;
 #else
-		char tmp[MaxPath] = {0};
+		StringBuffer<MaxPath> tmp;
 		if (fileName[0] == '~')
 		{
-			if (realpath(fileName, tmp) == 0)
-			{
-				// If we can't  get a real path to whatever
-				// fileName we're looking for, then we need to
-				// assume it's not a real file, errno should be set
-				// so just return false
-				return false; 
-			}
+			const char* homeDir = getenv("HOME");
+			tmp.Append(homeDir).EnsureEndsWithSlash().Append(fileName + 1);
+			fileName = tmp.data;
 		}
-		UBA_ASSERT(fileName[0] != '~');
 
 		u64 memPos = 0;
 		if (fileName[0] != '/')

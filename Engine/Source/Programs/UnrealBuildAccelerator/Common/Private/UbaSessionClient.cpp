@@ -1009,6 +1009,8 @@ namespace uba
 		AddEnvironmentVariableNoLock(TC("Path"), TC("c:\\noenvironment"));
 		AddEnvironmentVariableNoLock(TC("TEMP"), m_tempPath.data);
 		AddEnvironmentVariableNoLock(TC("TMP"), m_tempPath.data);
+		#else
+		AddEnvironmentVariableNoLock(TC("TMPDIR"), m_tempPath.data);
 		#endif
 
 		StringBuffer<> v;

@@ -173,6 +173,8 @@ namespace uba
 		m_localEnvironmentVariables.insert(TC("Path"));
 		m_localEnvironmentVariables.insert(TC("TMP"));
 		m_localEnvironmentVariables.insert(TC("TEMP"));
+		#else
+		m_localEnvironmentVariables.insert(TC("TMPDIR"));
 		#endif
 
 		StringBuffer<> detoursFile;
