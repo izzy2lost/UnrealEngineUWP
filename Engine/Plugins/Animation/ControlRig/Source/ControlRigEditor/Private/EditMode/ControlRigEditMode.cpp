@@ -3031,7 +3031,7 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			{
 				if (FRigControlElement* Element = ControlRig->FindControl(Key.Name))
 				{
-					return Element->Settings.ControlType != ERigControlType::Bool;
+					return Element->CanTreatAsAdditive();
 				}
 				return true;
 			});
@@ -3046,10 +3046,10 @@ void FControlRigEditMode::ZeroTransforms(bool bSelectionOnly)
 			TransformElementsToReset.Reserve(Elements.Num());
 			for (const FRigBaseElement* Element : Elements)
 			{
-				// For additive rigs, ignore boolean controls
+				// For additive rigs, ignore non-additive controls
 				if (const FRigControlElement* Control = Cast<FRigControlElement>(Element))
 				{
-					if (ControlRig->IsAdditive() && Control->Settings.ControlType == ERigControlType::Bool)
+					if (ControlRig->IsAdditive() && !Control->CanTreatAsAdditive())
 					{
 						continue;
 					}

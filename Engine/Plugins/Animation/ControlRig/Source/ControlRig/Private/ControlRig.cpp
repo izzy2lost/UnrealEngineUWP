@@ -403,7 +403,7 @@ void UControlRig::Evaluate_AnyThread()
 		{
 			if (FRigControlElement* Control = Cast<FRigControlElement>(Element))
 			{
-				if (Control->Settings.ControlType != ERigControlType::Bool)
+				if (Control->CanTreatAsAdditive())
 				{
 					if (Hierarchy->GetActiveParent(Control->GetKey()) != URigHierarchy::GetDefaultParentKey())
 					{
@@ -467,8 +467,8 @@ void UControlRig::Evaluate_AnyThread()
 				{
 					FRigSetControlValueInfo& Info = Value.Value;
 
-					// A bool value is not an additive property. We just overwrite the value.
-					if (Control->Settings.ControlType == ERigControlType::Bool)
+					// A bool/enum value is not an additive property. We just overwrite the value.
+					if (!Control->CanTreatAsAdditive())
 					{
 						const bool bSetupUndo = false; // Rely on the sequencer track to handle undo/redo
 						Hierarchy->SetControlValue(Control, Info.Value, ERigControlValueType::Current, bSetupUndo, false, Info.bPrintPythonCommnds, false);
@@ -548,7 +548,7 @@ TArray<FRigControlElement*> UControlRig::InvertInputPose(const TArray<FRigElemen
 	{
 		if (FRigControlElement* ControlElement = Cast<FRigControlElement>(DynamicHierarchy->Get(PoseElement.Index)))
 		{
-			if (IsAdditive() && ControlElement->Settings.ControlType == ERigControlType::Bool)
+			if (IsAdditive() && !ControlElement->CanTreatAsAdditive())
 			{
 				continue;
 			}
@@ -1983,8 +1983,8 @@ FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, con
 		const int32 ControlIndex = ControlsAfterBackwardsSolve.GetIndex(InControl->GetKey());
 		if (ControlIndex != INDEX_NONE)
 		{
-			// Booleans are not additive properties, just return the current value
-			if (InControl->Settings.ControlType == ERigControlType::Bool)
+			// Booleans/Enums are not additive properties, just return the current value
+			if (!InControl->CanTreatAsAdditive())
 			{
 				return GetHierarchy()->GetControlValue(InControl, InValueType);
 			}

@@ -1443,6 +1443,19 @@ struct CONTROLRIG_API FRigControlElement final : public FRigMultiParentElement
 
 	bool CanDriveControls() const { return Settings.AnimationType == ERigControlAnimationType::ProxyControl || Settings.AnimationType == ERigControlAnimationType::AnimationControl; }
 
+	bool CanTreatAsAdditive() const
+	{
+		if (Settings.ControlType == ERigControlType::Bool)
+		{
+			return false;
+		}
+		if (Settings.ControlType == ERigControlType::Integer && Settings.ControlEnum != nullptr)
+		{
+			return false;
+		}
+		return true;
+	}
+
 	virtual void Save(FArchive& A, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
