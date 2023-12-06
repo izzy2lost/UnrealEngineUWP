@@ -1147,14 +1147,7 @@ void FWinHttpConnectionHttp::HandleRequestError(const uint32 ErrorApiId, const u
 
 	if (!FinalState.IsSet())
 	{
-		if (!bConnectedToServer && IsErrorCodeAConnectionError(ErrorCode))
-		{
-			FinishRequest(EHttpRequestStatus::Failed);
-		}
-		else
-		{
-			FinishRequest(EHttpRequestStatus::Failed);
-		}
+		FinishRequest(EHttpRequestStatus::Failed);
 	}
 
 	// If the request was cancelled, we can release the payload memory
