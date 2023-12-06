@@ -4,6 +4,7 @@
 
 #include "Containers/Queue.h"
 
+#include "HAL/Event.h"
 #include "HAL/RunnableThread.h"
 #include "HAL/Runnable.h"
 #include "Delegates/Delegate.h"

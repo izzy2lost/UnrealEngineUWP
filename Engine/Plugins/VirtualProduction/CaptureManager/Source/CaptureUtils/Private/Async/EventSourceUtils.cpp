@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "Async/EventSourceUtils.h"
 #include "Misc/ScopeRWLock.h"
 
