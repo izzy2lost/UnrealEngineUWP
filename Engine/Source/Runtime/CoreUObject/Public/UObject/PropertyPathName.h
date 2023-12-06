@@ -12,10 +12,16 @@
 namespace UE
 {
 
+/**
+ * Represents one segment of a property path including type names and container index.
+ */
 struct FPropertyPathNameSegment
 {
+	/** Name of the property. */
 	FName Name;
+	/** Type name(s) of the property, separated with spaces, like "ArrayProperty StructProperty TypeOfStruct" */
 	FName Type;
+	/** Index within a container, or INDEX_NONE if not in a container. Uses ElementId for associative containers. */
 	int32 Index = INDEX_NONE;
 
 	[[nodiscard]] inline FName PackNameWithIndex() const
@@ -35,7 +41,7 @@ struct FPropertyPathNameSegment
 };
 
 /**
- * Represents the path to a property, by name, including struct type names and the index in each container.
+ * Represents the path to a property, by name, including type names and the index in each container.
  *
  * Sequenced containers use the index directly and associative containers use their ElementId.
  */
@@ -94,6 +100,26 @@ public:
 		Segments.Pop(/*bAllowShrinking*/ false);
 	}
 
+	/** Pushes the type name on the end of the type of the last segment of the path. Ignored if the path is empty. */
+	inline void PushType(FName Type)
+	{
+		if (!Segments.IsEmpty())
+		{
+			FNameEntryId& LastType = Segments.Last().Type;
+			if (LastType.IsNone())
+			{
+				LastType = Type.GetDisplayIndex();
+			}
+			else
+			{
+				PushTypeInternal(Type);
+			}
+		}
+	}
+
+	/** Pops a type name off the end of the type of the last segment of the path. Returns None if the path is empty. */
+	UE_API FName PopType();
+
 	/** Sets the index of the last segment of the path. Ignored if the path is empty. */
 	inline void SetIndex(int32 Index)
 	{
@@ -126,6 +152,8 @@ public:
 	UE_API friend uint32 GetTypeHash(const FPropertyPathName& Path);
 
 private:
+	UE_API void PushTypeInternal(FName Type);
+
 	TArray<FSegment> Segments;
 };
 

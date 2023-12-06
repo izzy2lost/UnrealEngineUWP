@@ -1088,6 +1088,16 @@ void UStruct::DestroyStruct(void* Dest, int32 ArrayDim) const
 //
 void UStruct::SerializeBin( FStructuredArchive::FSlot Slot, void* Data ) const
 {
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
+	UE::FPropertyPathName PrevSerializedPropertyPath;
+
+	if (bSaveSerializedPropertyPath)
+	{
+		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
+		SerializeContext->SerializedPropertyPath.Reset();
+	}
+
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
 	FStructuredArchive::FStream PropertyStream = Slot.EnterStream();
@@ -1132,6 +1142,11 @@ void UStruct::SerializeBin( FStructuredArchive::FSlot Slot, void* Data ) const
 			Property->SerializeBinProperty(PropertyStream.EnterElement(), Data);
 		}
 	}
+
+	if (bSaveSerializedPropertyPath)
+	{
+		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
+	}
 }
 
 void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void const* DefaultData, UStruct* DefaultStruct ) const
@@ -1142,9 +1157,24 @@ void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void c
 		return;
 	}
 
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
+	UE::FPropertyPathName PrevSerializedPropertyPath;
+
+	if (bSaveSerializedPropertyPath)
+	{
+		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
+		SerializeContext->SerializedPropertyPath.Reset();
+	}
+
 	for( TFieldIterator<FProperty> It(this); It; ++It )
 	{
 		It->SerializeNonMatchingBinProperty(Slot, Data, DefaultData, DefaultStruct);
+	}
+
+	if (bSaveSerializedPropertyPath)
+	{
+		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 	}
 }
 
@@ -1290,6 +1320,16 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 
 void UStruct::SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
+	UE::FPropertyPathName PrevSerializedPropertyPath;
+
+	if (bSaveSerializedPropertyPath)
+	{
+		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
+		SerializeContext->SerializedPropertyPath.Reset();
+	}
+
 	if (Slot.GetArchiveState().UseUnversionedPropertySerialization())
 	{
 		SerializeUnversionedProperties(this, Slot, Data, DefaultsStruct, Defaults);
@@ -1297,6 +1337,11 @@ void UStruct::SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* D
 	else
 	{
 		SerializeVersionedTaggedProperties(Slot, Data, DefaultsStruct, Defaults, BreakRecursionIfFullyLoad);
+	}
+
+	if (bSaveSerializedPropertyPath)
+	{
+		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 	}
 }
 
@@ -1357,7 +1402,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 	checkf(Data, TEXT("Expecting a non null data ptr"));
 
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
-	FUObjectSerializeContext* LoadContext = UnderlyingArchive.GetSerializeContext();
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	//SCOPED_LOADTIMER(SerializeTaggedPropertiesTime);
 
 	// Setup serialization control data extensions, this is serialized only on root i.e. UObject and not structs!
@@ -1405,16 +1450,16 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 		else
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 		{
-			auto TryFindPropertyBag = [PropertyBag = (FPropertyBag*)nullptr, bSearched = false, LoadContext]() mutable -> FPropertyBag*
+			auto TryFindPropertyBag = [PropertyBag = (FPropertyBag*)nullptr, bSearched = false, SerializeContext]() mutable -> FPropertyBag*
 			{
 				if (bSearched)
 				{
 					return PropertyBag;
 				}
 				bSearched = true;
-				if (LoadContext && LoadContext->bSerializeUnknownProperty)
+				if (SerializeContext && SerializeContext->bSerializeUnknownProperty)
 				{
-					if (UObject* Object = LoadContext->SerializedObject)
+					if (UObject* Object = SerializeContext->SerializedObject)
 					{
 						PropertyBag = FPropertyBagRepository::Get().CreateOuterBag(Object);
 					}
@@ -1522,30 +1567,28 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
-				if (LoadContext)
+				if (SerializeContext)
 				{
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
+					SerializeContext->SerializedPropertyPath.Push({Name, Tag.Type, Index});
 
-					FName Type;
-					if (!Tag.InnerType.IsNone() && Tag.ValueType.IsNone())
+					if (!Tag.StructName.IsNone())
 					{
-						Type = Tag.InnerType;
-					}
-					else if (!Tag.StructName.IsNone())
-					{
-						Type = Tag.StructName;
+						SerializeContext->SerializedPropertyPath.PushType(Tag.StructName);
 					}
 					else if (!Tag.EnumName.IsNone())
 					{
-						Type = Tag.EnumName;
+						SerializeContext->SerializedPropertyPath.PushType(Tag.EnumName);
 					}
-					else
+					else if (!Tag.InnerType.IsNone())
 					{
-						Type = Tag.Type;
+						SerializeContext->SerializedPropertyPath.PushType(Tag.InnerType);
+						if (!Tag.ValueType.IsNone())
+						{
+							SerializeContext->SerializedPropertyPath.PushType(Tag.ValueType);
+						}
 					}
-
-					LoadContext->SerializedPropertyPath.Push({Name, Type, Index});
 				}
 
 				if (Property)
@@ -1617,7 +1660,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 									UnderlyingArchive.Seek(StartOfProperty);
 									FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
 									Tag.Prop = nullptr;
-									PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
 								}
 								break;
 
@@ -1628,7 +1671,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 									if (FPropertyBag* PropertyBag = TryFindPropertyBag())
 									{
 										Tag.Prop = nullptr;
-										PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+										PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+										bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
 									}
 								}
 								else
@@ -1646,7 +1690,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
 								{
 									Tag.Prop = nullptr;
-									PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+									bAdvanceProperty = !UnderlyingArchive.IsCriticalError();
 								}
 								break;
 
@@ -1655,16 +1700,16 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						}
 					}
 				}
-				else if (FPropertyBag* PropertyBag = TryFindPropertyBag(); PropertyBag && LoadContext)
+				else if (FPropertyBag* PropertyBag = TryFindPropertyBag(); PropertyBag && SerializeContext)
 				{
 					// TODO: Might we find defaults in a property bag for Defaults?
 					FStructuredArchive::FSlot ValueSlot = PropertyRecord.EnterField(TEXT("Value"));
-					PropertyBag->LoadPropertyByTag(LoadContext->SerializedPropertyPath, Tag, ValueSlot);
+					PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot);
 				}
 
-				if (LoadContext)
+				if (SerializeContext)
 				{
-					LoadContext->SerializedPropertyPath.Pop();
+					SerializeContext->SerializedPropertyPath.Pop();
 				}
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;
