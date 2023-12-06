@@ -573,7 +573,7 @@ uint32 FReplicationReader::ReadObjectsInBatch(FNetSerializationContext& Context,
 		++ReadObjectCount;
 	}
 
-	ensureAlways(Reader.GetPosBits() <= BatchEndBitPosition);
+	ensure(Reader.GetPosBits() <= BatchEndBitPosition);
 
 	// ReadSubObjects 
 	while (Reader.GetPosBits() < BatchEndBitPosition)
@@ -726,6 +726,9 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		{
 			if (Context.GetError() == GNetError_BrokenNetHandle)
 			{
+				const uint32 ErrorType = 1; //TBD
+				ReplicationBridge->ReportErrorWithNetRefHandle(ErrorType, IncompleteHandle, Parameters.ConnectionId);
+ 
 				// $TODO: Report this to the server so it knows that the state of data in the batch is unknown
 
 				// Log error and try to recover, if get more incoming data for an object in the broken state we will skip it.
@@ -756,12 +759,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 {
 	FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
 
-	// If we are reading 
-	FNetRefHandle IncompleteHandle = BatchHandle;
-	if (bIsSubObject)
-	{
-		IncompleteHandle = ReadNetRefHandleId(Context, Reader);
-	}
+	const FNetRefHandle IncompleteHandle = !bIsSubObject ? BatchHandle : ReadNetRefHandleId(Context, Reader);
 	
 	// Read replicated destroy header if necessary. We don't know the internal index yet so can't do the more appropriate check IsObjectIndexForOOBAttachment.
 	const bool bReadReplicatedDestroyHeader = IncompleteHandle.IsValid();
@@ -1017,6 +1015,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 ErrorHandling:
 	if (bHasErrors)
 	{
+		Context.SetErrorHandleContext(IncompleteHandle);
 		UE_LOG_REPLICATIONREADER_ERROR(TEXT("FReplicationReader::ReadObject Failed to read replicated object with %s. Error '%s'."), *IncompleteHandle.ToString(), (Context.HasError() ? ToCStr(Context.GetError().ToString()) : TEXT("BitStream Overflow")));
 	}
 }
@@ -1769,7 +1768,8 @@ void FReplicationReader::ReadObjects(FNetSerializationContext& Context, uint32 O
 		--ObjectBatchCountToRead;
 	}
 
-	ensureAlwaysMsgf(!Context.HasErrorOrOverflow(), TEXT("Overflow: %c Error: %s Bit stream bits left: %u position: %u"), TEXT("YN")[Context.HasError()], ToCStr(Context.GetError().ToString()), Reader.GetBitsLeft(), Reader.GetPosBits());
+	UE_CLOG(Context.HasErrorOrOverflow(), LogIris, Error, TEXT("Overflow: %c Error: %s Bit stream bits left: %u position: %u"), TEXT("YN")[Context.HasError()], ToCStr(Context.GetError().ToString()), Reader.GetBitsLeft(), Reader.GetPosBits())
+	ensure(!Context.HasErrorOrOverflow());
 }
 
 void FReplicationReader::ProcessHugeObjectAttachment(FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& Attachment)
@@ -1860,7 +1860,9 @@ bool FReplicationReader::EnqueueEndReplication(FPendingBatchData* PendingBatchDa
 
 	if (Writer.IsOverflown())
 	{
-		ensureAlwaysMsgf(false, TEXT("Failed to EnqueueEndReplication for %s, Should never occur unless size of NetRefHandle has been increased."), *NetRefHandleToEndReplication.ToString());
+		UE_LOG(LogIris, Error, TEXT("Failed to EnqueueEndReplication for %s, Should never occur unless size of NetRefHandle has been increased."), *NetRefHandleToEndReplication.ToString());
+		ensure(false);
+
 		return false;
 	}
 

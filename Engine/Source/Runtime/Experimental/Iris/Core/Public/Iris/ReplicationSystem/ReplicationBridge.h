@@ -259,6 +259,12 @@ protected:
 	/** Called when a remote connection detected a protocol mismatch when trying to instantiate the NetRefHandle replicated object. */
 	IRISCORE_API virtual void OnProtocolMismatchReported(FNetRefHandle RefHandle, uint32 ConnectionId) {}
 
+	/** Called when a remote connection has a critical error caused by a specific NetRefHandle */
+	IRISCORE_API virtual void OnErrorWithNetRefHandleReported(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+
+	/** Tell the remote connection that we detected a reading error with a specific replicated object */
+	IRISCORE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) {}
+
 private:
 
 	// Internal operations invoked by ReplicationSystem/ReplicationWriter

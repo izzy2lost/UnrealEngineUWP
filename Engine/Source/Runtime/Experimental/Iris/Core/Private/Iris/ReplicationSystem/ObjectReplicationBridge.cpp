@@ -1919,8 +1919,6 @@ void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 
 	UE_LOG(LogIris, Error, TEXT("OnProtocolMismatchReported from client:%u when instancing %s. CDO:%s ReplicatedObject:%s"), ConnectionId, *RefHandle.ToString(), *GetNameSafe(ObjArchetype), *GetNameSafe(ObjInstance));
 
-	//$IRIS TODO: Tell ActorBridge so he can choose to disconnect the client if the actor was critical.
-
 	if (UE_LOG_ACTIVE(LogIris, Error))
 	{
 		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectInternalIndex);
@@ -1952,5 +1950,46 @@ void UObjectReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandl
 		}
 
 		UE::Net::Private::ObjectBridgeDebugging::RemoteProtocolMismatchDetected(ReplicationSystem, 0 /*TODO: Local ConnectionId*/, Fragments, ObjArchetype, ObjInstance);
+	}
+}
+
+void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	// Ensure at the end so the log contains all the relevant information
+	ON_SCOPE_EXIT
+	{
+		ensureMsgf(false, TEXT("NetRefHandle error(%u) reported. Look at the log for important information on the object tied to the handle."), ErrorType);
+	};
+
+	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
+	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported(%u) from Connection:%u for %s but object has no InternalIndex."), ErrorType, ConnectionId, *RefHandle.ToString());
+		return;
+	}
+
+	UObject* ObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjectInternalIndex);
+	const FNetRefHandleManager::FReplicatedObjectData& ObjData = NetRefHandleManager->GetReplicatedObjectData(ObjectInternalIndex);
+
+	if (ObjData.IsSubObject())
+	{
+		UObject* RootObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjData.SubObjectRootIndex);
+		const FNetRefHandle RootObjNetHandle = NetRefHandleManager->GetNetRefHandleFromInternalIndex(ObjData.SubObjectRootIndex);
+		
+		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported(%u) from client:%u. %s maps to SubObject: %s owned by RootObject: %s using %s"), 
+			ErrorType, ConnectionId, 
+			*RefHandle.ToString(), *GetNameSafe(ObjInstance),
+			*GetNameSafe(RootObjInstance), *RootObjNetHandle.ToString()
+		);
+	}
+	else
+	{
+		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported(%u) from client:%u. %s maps to RootObject: %s"), 
+			ErrorType, ConnectionId, 
+			*RefHandle.ToString(), *GetNameSafe(ObjInstance)
+		);
 	}
 }

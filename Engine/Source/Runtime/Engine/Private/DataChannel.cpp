@@ -1646,6 +1646,7 @@ IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconJoin);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconAssignGUID);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(BeaconNetGUIDAck);
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(IrisProtocolMismatch);
+IMPLEMENT_CONTROL_CHANNEL_MESSAGE(IrisNetRefHandleError);
 
 void UControlChannel::Init( UNetConnection* InConnection, int32 InChannelIndex, EChannelCreateFlags CreateFlags )
 {
@@ -1866,6 +1867,20 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 #endif
 			}
 		}
+		else if (MessageType == NMT_IrisNetRefHandleError)
+		{
+			uint32 ErrorType = 0; //TBD
+			uint64 NetRefHandleId = 0;
+			if (FNetControlMessage<NMT_IrisNetRefHandleError>::Receive(Bunch, ErrorType, NetRefHandleId))
+			{
+#if UE_WITH_IRIS
+				if (UReplicationSystem* IrisRepSystem = Connection->Driver->GetReplicationSystem())
+				{
+					IrisRepSystem->ReportErrorWithNetRefHandle(ErrorType, NetRefHandleId, Connection->GetConnectionId());
+				}
+#endif
+			}
+		}
 		else if (Connection->Driver->Notify != nullptr)
 		{
 			// Process control message on client/server connection
@@ -1945,6 +1960,9 @@ void UControlChannel::ReceivedBunch( FInBunch& Bunch )
 					break;
 				case NMT_IrisProtocolMismatch:
 					FNetControlMessage<NMT_IrisProtocolMismatch>::Discard(Bunch);
+					break;
+				case NMT_IrisNetRefHandleError:
+					FNetControlMessage<NMT_IrisNetRefHandleError>::Discard(Bunch);
 					break;
 				default:
 					// if this fails, a case is missing above for an implemented message type

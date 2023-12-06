@@ -377,6 +377,8 @@ enum class ENetCloseResult : uint32
 	/** Protocol mismatch in Iris preventing a critical object instantiation */
 	IrisProtocolMismatch,
 
+	/** When a specific handle caused a reading error */
+	IrisNetRefHandleError,
 
 	/** Fault Handler Error result types */
 

@@ -1201,6 +1201,21 @@ void UActorReplicationBridge::OnProtocolMismatchReported(FNetRefHandle RefHandle
 	}
 }
 
+void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId)
+{
+	if (NetDriver)
+	{
+		if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+		{
+			uint64 RawHandleId = RefHandle.GetId();
+			FNetControlMessage<NMT_IrisNetRefHandleError>::Send(ClientConnection, ErrorType, RawHandleId);
+		}
+		else
+		{
+			UE_LOG(LogIrisBridge, Error, TEXT("UActorReplicationBridge::ReportErrorWithNetRefHandle could not find Connection for id:%u"), ConnectionId);
+		}
+	}
+}
 #else //!UE_WITH_IRIS
 
 UActorReplicationBridge::UActorReplicationBridge() = default;

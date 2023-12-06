@@ -77,9 +77,12 @@ public:
 
 	/** Stop replicating an ActorComponent and its associated SubObjects. */
 	ENGINE_API void EndReplicationForActorComponent(UActorComponent* ActorComponent, EEndReplicationFlags EndReplicationFlags = EEndReplicationFlags::None);
-	
+
 	/** Get object reference packagemap. Used in special cases where serialization hasn't been converted to use NetSerializers.  */
 	UIrisObjectReferencePackageMap* GetObjectReferencePackageMap() const { return ObjectReferencePackageMap; }
+
+	/** Tell the remote connection that we detected a reading error with a specific replicated object */
+	ENGINE_API virtual void ReportErrorWithNetRefHandle(uint32 ErrorType, FNetRefHandle RefHandle, uint32 ConnectionId) override;
 	
 	using UObjectReplicationBridge::EndReplication;
 

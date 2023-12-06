@@ -3725,7 +3725,7 @@ void UNetConnection::DispatchPacket( FBitReader& Reader, int32 PacketId, bool& b
 					// If Iris reports errors they are unrecoverable.
 					if (Driver->GetReplicationSystem() != nullptr)
 					{
-						ensureAlwaysMsgf(false, TEXT("Received corrupted packet data with SequenceId: %d from server."), InPacketId);
+						ensureMsgf(false, TEXT("Received corrupted packet data. Iris cannot recover from this."));
 						Close(AddToAndConsumeChainResultPtr(Bunch.ExtendedError, ENetCloseResult::CorruptData));
 						return;
 					}

@@ -951,6 +951,8 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 		ensureAlwaysMsgf(false, TEXT("ENetObjectAttachmentSendPolicyFlags::SendImmediate is not allowed to use on Reliable RPC: %s"), *GetNameSafe(Function));
 		return false;
 	}
+
+	UE_LOG(LogIris, Verbose, TEXT("SetRPCSendPolicyFlags %s::%s => %s "), *GetNameSafe(Function->GetOuterUClass()), *GetNameSafe(Function), LexToString(SendFlags));
 		
 	Impl->AttachmentSendPolicyFlags.Add(FObjectKey(Function), SendFlags);
 	return true;
@@ -1627,9 +1629,17 @@ float UReplicationSystem::GetCullDistanceSqrOverride(FNetRefHandle Handle, float
 void UReplicationSystem::ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId)
 {
 	using namespace UE::Net::Private;
-	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId()/*DON'T SUBMIT REVIEW NOTE: This ok or should it be incomplete?*/ );
+	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId());
 
 	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnProtocolMismatchReported(NetRefHandle, ConnectionId);
+}
+
+void UReplicationSystem::ReportErrorWithNetRefHandle(uint32 ErrorType, uint64 NetRefHandleId, uint32 ConnectionId)
+{
+	using namespace UE::Net::Private;
+	const FNetRefHandle NetRefHandle = FNetRefHandleManager::MakeNetRefHandle(NetRefHandleId, GetId());
+
+	Impl->ReplicationSystemInternal.GetReplicationBridge()->OnErrorWithNetRefHandleReported(ErrorType, NetRefHandle, ConnectionId);
 }
 
 

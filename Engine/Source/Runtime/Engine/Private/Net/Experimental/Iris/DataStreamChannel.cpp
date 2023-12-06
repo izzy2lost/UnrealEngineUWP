@@ -19,7 +19,11 @@
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/Core/IrisLog.h"
+
 #include "Net/Core/Trace/NetTrace.h"
+#include "Net/Core/Connection/NetResult.h"
+#include "Net/DataChannel.h"
+
 #include "PacketHandler.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 // IWYU pragma: end_keep
@@ -127,6 +131,15 @@ void UDataStreamChannel::ReceivedBunch(FInBunch& Bunch)
 	// If receiving was unsuccessful set bunch in error
 	if (SerializationContext.HasErrorOrOverflow())
 	{
+		if (SerializationContext.GetErrorHandleContext().IsValid())
+		{
+			TNetResult<ENetCloseResult> NetResult(ENetCloseResult::IrisNetRefHandleError, FString::Printf(TEXT("IrisNetRefHandleError=%s"), *SerializationContext.GetErrorHandleContext().ToString()));
+			AddToChainResultPtr(Bunch.ExtendedError, MoveTemp(NetResult));
+
+			uint32 ErrorType = 0; //TBD
+			uint64 RawHandleId = SerializationContext.GetErrorHandleContext().GetId();
+			FNetControlMessage<NMT_IrisNetRefHandleError>::Send(Connection, ErrorType, RawHandleId);
+		}
 		Bunch.SetError();
 	}
 

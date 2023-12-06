@@ -4,6 +4,8 @@
 
 #include "UObject/NameTypes.h"
 
+#include "Iris/ReplicationSystem/NetRefHandle.h"
+
 namespace UE::Net
 {
 
@@ -19,12 +21,21 @@ IRISCORE_API extern const FName GNetError_InternalError;
 class FNetErrorContext
 {
 public:
+
 	bool HasError() const;
+	
 	/** If an error has already been set calling this function again will be a no-op. */
 	IRISCORE_API void SetError(const FName Error);
+
 	FName GetError() const { return Error; }
 
+	void SetObjectHandle(const FNetRefHandle& InObjectHandle) { ObjectHandle = InObjectHandle; }
+
+	const FNetRefHandle& GetObjectHandle() const { return ObjectHandle; }
+
 private:
+
+	FNetRefHandle ObjectHandle;
 	FName Error;
 };
 

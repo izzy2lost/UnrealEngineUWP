@@ -587,6 +587,9 @@ public:
 	/** Called when a connection finds a protocol divergence when instantiating a replicated object. */
 	IRISCORE_API void ReportProtocolMismatch(uint64 NetRefHandleId, uint32 ConnectionId);
 
+	/** Called when a connection reports a critical error with a netrefhandle object */
+	IRISCORE_API void ReportErrorWithNetRefHandle(uint32 ErrorType, uint64 NetRefHandleId, uint32 ConnectionId);
+
 public:
 	// For internal use and not exported.
 	UE::Net::Private::FReplicationSystemInternal* GetReplicationSystemInternal();

@@ -58,4 +58,16 @@ enum class ENetObjectAttachmentSendPolicyFlags : uint32
 
 ENUM_CLASS_FLAGS(ENetObjectAttachmentSendPolicyFlags);
 
+inline const TCHAR* LexToString(ENetObjectAttachmentSendPolicyFlags SendFlags)
+{
+	switch (SendFlags)
+	{
+	case ENetObjectAttachmentSendPolicyFlags::None: return TEXT("None");
+	case ENetObjectAttachmentSendPolicyFlags::ScheduleAsOOB: return TEXT("ScheduleAsOOB");
+	case ENetObjectAttachmentSendPolicyFlags::SendInPostTickDispatch: return TEXT("SendInPostTickDispatch");
+	case ENetObjectAttachmentSendPolicyFlags::SendImmediate: return TEXT("SendImmediate");
+	default: ensure(false); return TEXT("Missing");
+	}
+}
+
 }
