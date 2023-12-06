@@ -612,7 +612,11 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		}
 	}
 
-	FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	if (Context && MaybeInnerTag)
+	{
+		Context->SerializedPropertyPath.PushType(MaybeInnerTag->StructName);
+	}
 
 	// need to know how much data this call to SerializeItem consumes, so mark where we are
 	int64 DataOffset = UnderlyingArchive.Tell();
@@ -1230,6 +1234,25 @@ bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
+	FField* Field = FField::Construct(Tag.InnerType, {}, Tag.Name, RF_NoFlags);
+	if (FProperty* Property = CastField<FProperty>(Field))
+	{
+		FPropertyTag InnerTag = Tag;
+		InnerTag.Type = Tag.InnerType;
+		InnerTag.InnerType = {};
+		// Skip property types that are missing the name of the inner type.
+		// Structs have their name in a tag in the serialized data, but we cannot
+		// proceed safely unless we know if the struct used native serialization.
+		if (!Property->IsA<FStructProperty>() &&
+			!Property->IsA<FByteProperty>() &&
+			!Property->IsA<FEnumProperty>() &&
+			Property->LoadFromTag(InnerTag))
+		{
+			Inner = Property;
+			return true;
+		}
+	}
+	delete Field;
 	return false;
 }
 

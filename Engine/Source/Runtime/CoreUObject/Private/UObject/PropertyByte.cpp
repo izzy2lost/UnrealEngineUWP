@@ -534,8 +534,20 @@ bool FByteProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
+	if (Tag.EnumName.IsNone())
+	{
+		return true;
+	}
+
 	// Update FEnumProperty when making changes here.
-	return Tag.EnumName.IsNone();
+	TStringBuilder<256> EnumName(InPlace, Tag.EnumName);
+	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*EnumName, EFindFirstObjectOptions::NativeFirst))
+	{
+		Enum = LocalEnum;
+		return true;
+	}
+
+	return false;
 }
 
 void FByteProperty::SaveToTag(FPropertyTag& Tag)

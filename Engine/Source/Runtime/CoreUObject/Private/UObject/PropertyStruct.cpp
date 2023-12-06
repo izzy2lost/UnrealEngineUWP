@@ -11,6 +11,7 @@
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 #include "Hash/Blake3.h"
 #include "IO/IoHash.h"
+#include "Misc/StringBuilder.h"
 
 static inline void PreloadInnerStructMembers(FStructProperty* StructProperty)
 {
@@ -471,6 +472,16 @@ bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 	if (!Super::LoadFromTag(Tag))
 	{
 		return false;
+	}
+
+	if (!Tag.StructName.IsNone())
+	{
+		TStringBuilder<256> StructName(InPlace, Tag.StructName);
+		if (UScriptStruct* LocalStruct = FindFirstObject<UScriptStruct>(*StructName, EFindFirstObjectOptions::NativeFirst))
+		{
+			Struct = LocalStruct;
+			return true;
+		}
 	}
 
 	return false;

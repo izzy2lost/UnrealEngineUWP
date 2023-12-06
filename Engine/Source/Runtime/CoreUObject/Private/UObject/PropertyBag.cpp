@@ -112,6 +112,7 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 	FField* Field = FField::Construct(Tag.Type, {}, Tag.Name, RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadFromTag(Value.Tag))
 	{
+		Property->Link(UnderlyingArchive);
 		Value.bOwnsProperty = true;
 		Value.Tag.Prop = Property;
 		Value.AllocateAndInitializeValue();

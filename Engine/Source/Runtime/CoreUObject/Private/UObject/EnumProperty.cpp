@@ -557,6 +557,16 @@ bool FEnumProperty::LoadFromTag(const FPropertyTag& Tag)
 	}
 
 	// Update FByteProperty when making changes here.
+	TStringBuilder<256> EnumName(InPlace, Tag.EnumName);
+	if (UEnum* LocalEnum = FindFirstObject<UEnum>(*EnumName, EFindFirstObjectOptions::NativeFirst))
+	{
+		Enum = LocalEnum;
+		UE_CLOG(Enum->GetMaxEnumValue() >= 256, LogClass, Warning,
+			TEXT("Enum '%s' does not fit in a byte property loading property '%s'."), *Enum->GetName(), *GetName());
+		AddCppProperty(new FByteProperty(this, GetFName(), RF_NoFlags));
+		return true;
+	}
+
 	return false;
 }
 
@@ -564,17 +574,17 @@ void FEnumProperty::SaveToTag(FPropertyTag& Tag)
 {
 	Super::SaveToTag(Tag);
 
-	if (const UEnum* LocalEnum = Enum)
+	const UEnum* LocalEnum = Enum;
+	check(LocalEnum);
+
+	// RobM: Ugly hack so that we can avoid content changes in most of the packages
+	// Update FByteProperty when making changes here.
+	if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
+	{				
+		Tag.EnumName = LocalEnum->GetFName();
+	}
+	else
 	{
-		// RobM: Ugly hack so that we can avoid content changes in most of the packages
-		// Update FByteProperty when making changes here.
-		if (LocalEnum->GetPackage()->HasAnyPackageFlags(PKG_CompiledIn))
-		{				
-			Tag.EnumName = LocalEnum->GetFName();
-		}
-		else
-		{
-			Tag.EnumName = FName(*LocalEnum->GetPathName());
-		}
+		Tag.EnumName = FName(*LocalEnum->GetPathName());
 	}
 }
