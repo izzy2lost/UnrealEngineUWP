@@ -697,7 +697,7 @@ namespace uba
 					{
 						lookupCasKey = casKey;
 						BinaryWriter w(m_nameToHashTableMem.memory, m_nameToHashTableMem.writtenSize, NameToHashMemSize);
-						m_nameToHashTableMem.AllocateNoLock(sizeof(StringKey) + sizeof(CasKey), TC("NameToHashTable"));
+						m_nameToHashTableMem.AllocateNoLock(sizeof(StringKey) + sizeof(CasKey), 1, TC("NameToHashTable"));
 						w.WriteStringKey(fileNameKey);
 						w.WriteCasKey(casKey);
 					}
@@ -1445,7 +1445,7 @@ namespace uba
 			return;
 		lookupCasKey = cachedInfo.casKey;
 		BinaryWriter w(m_nameToHashTableMem.memory, m_nameToHashTableMem.writtenSize, NameToHashMemSize);
-		m_nameToHashTableMem.AllocateNoLock(sizeof(StringKey) + sizeof(CasKey), TC("NameToHashTable"));
+		m_nameToHashTableMem.AllocateNoLock(sizeof(StringKey) + sizeof(CasKey), 1, TC("NameToHashTable"));
 		w.WriteStringKey(fileNameKey);
 		w.WriteCasKey(lookupCasKey);
 	}

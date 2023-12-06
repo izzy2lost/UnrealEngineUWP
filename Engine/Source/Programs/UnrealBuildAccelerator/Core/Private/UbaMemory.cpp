@@ -55,18 +55,19 @@ namespace uba
 		memory = nullptr;
 	}
 
-	void* MemoryBlock::Allocate(u64 bytes, const tchar* hint)
+	void* MemoryBlock::Allocate(u64 bytes, u64 alignment, const tchar* hint)
 	{
 		if (!memory)
-			return malloc(bytes);
+			return malloc(bytes); // TODO: alignment?
 
 		ScopedWriteLock l(lock);
-		return AllocateNoLock(bytes, hint);
+		return AllocateNoLock(bytes, alignment, hint);
 	}
 
-	void* MemoryBlock::AllocateNoLock(u64 bytes, const tchar* hint)
+	void* MemoryBlock::AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint)
 	{
-		u64 newPos = writtenSize + bytes;
+		u64 startPos = AlignUp(writtenSize, alignment);
+		u64 newPos = startPos + bytes;
 		
 		#if PLATFORM_WINDOWS
 		if (newPos > mappedSize)
@@ -82,8 +83,8 @@ namespace uba
 		}
 		#endif
 
-		void* ret = memory + writtenSize;
-		writtenSize += bytes;
+		void* ret = memory + startPos;
+		writtenSize = newPos;
 		return ret;
 	}
 
@@ -97,7 +98,7 @@ namespace uba
 	{
 		u64 len = TStrlen(str);
 		u64 memSize = (len + 1) * sizeof(tchar);
-		void* mem = Allocate(memSize, TC("Strdup"));
+		void* mem = Allocate(memSize, sizeof(tchar), TC("Strdup"));
 		const void* src = str;
 		memcpy(mem, src, memSize);
 		return (tchar*)mem;

@@ -815,7 +815,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	}
 
 	if (payload.trackInputs)
-		g_trackInputsMem = (u8*)g_memoryBlock.Allocate(TrackInputsMemCapacity, L"TrackInputs");
+		g_trackInputsMem = (u8*)g_memoryBlock.Allocate(TrackInputsMemCapacity, 1, L"TrackInputs");
 	
 	g_systemRoot.count = GetEnvironmentVariableW(L"SystemRoot", g_systemRoot.data, g_systemRoot.capacity);
 	g_systemRoot.MakeLower();

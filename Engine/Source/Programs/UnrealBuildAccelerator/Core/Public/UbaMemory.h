@@ -72,8 +72,8 @@ namespace uba
 		~MemoryBlock();
 		void Init(u64 reserveSize_, void* baseAddress_ = nullptr);
 		void Deinit();
-		void* Allocate(u64 bytes, const tchar* hint);
-		void* AllocateNoLock(u64 bytes, const tchar* hint);
+		void* Allocate(u64 bytes, u64 alignment, const tchar* hint);
+		void* AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint);
 		void Free(void* p);
 		tchar* Strdup(const tchar* str);
 		
@@ -100,7 +100,7 @@ namespace uba
 
 		value_type* allocate(u64 n)
 		{
-			return (value_type*)m_block->Allocate(sizeof(value_type)*n, TC("GrowingAllocator"));
+			return (value_type*)m_block->Allocate(sizeof(value_type)*n, alignof(value_type), TC("GrowingAllocator"));
 		}
 
 		/// @warning Naive implementation, assumes `p` is valid.
@@ -141,7 +141,7 @@ namespace uba
 				m_nextFree = *(u64*)m_nextFree;
 				return ptr;
 			}
-			void* mem = m_memory.Allocate(sizeof(Type), TC("BlockAllocator"));
+			void* mem = m_memory.Allocate(sizeof(Type), alignof(Type), TC("BlockAllocator"));
 			return mem;
 		}
 

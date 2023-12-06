@@ -900,7 +900,7 @@ namespace uba
 
 			compressBuffer += 8;
 			totalWritten += 8;
-			memoryBlock.Allocate(totalWritten, hint);
+			memoryBlock.Allocate(totalWritten, 1, hint);
 
 			u64 diff = u64(OodleLZ_GetCompressedBufferSizeNeeded(m_sendCasCompressor, BufferSlotHalfSize)) - BufferSlotHalfSize;
 			u64 maxUncompressedBlock = BufferSlotHalfSize - diff - totalWritten - 8; // 8 bytes block header
@@ -914,7 +914,7 @@ namespace uba
 				if (reserveSize > memoryBlock.mappedSize)
 				{
 					u64 toAllocate = reserveSize - memoryBlock.writtenSize;
-					memoryBlock.Allocate(toAllocate, hint);
+					memoryBlock.Allocate(toAllocate, 1, hint);
 				}
 
 				u8* destBuf = compressBuffer;

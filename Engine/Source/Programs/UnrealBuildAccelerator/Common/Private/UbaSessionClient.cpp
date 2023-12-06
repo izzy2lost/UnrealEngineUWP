@@ -885,7 +885,7 @@ namespace uba
 			if (needMore)
 				toRead = left;
 
-			m_nameToHashTableMem.AllocateNoLock(toRead, TC("NameToHashTable"));
+			m_nameToHashTableMem.AllocateNoLock(toRead, 1, TC("NameToHashTable"));
 			reader.ReadBytes(pos, toRead);
 			localTableSize += toRead;
 
