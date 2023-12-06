@@ -158,12 +158,19 @@ class FMediaIOAudioCapture : public ISubmixBufferListener
 public:
 	DECLARE_DELEGATE_TwoParams(FOnAudioCaptured, float* /* data */, int32 /* NumSamples */);
 
+	FMediaIOAudioCapture() = default;
+
+	UE_DEPRECATED(5.4, "This constructor is deprecated. Use Initialize(InAudioDeviceHandle) instead after constructing it.")
 	FMediaIOAudioCapture(const FAudioDeviceHandle& InAudioDeviceHandle);
+
 	virtual ~FMediaIOAudioCapture();
 
 	//~ ISubmixBufferListener interface
 	virtual void OnNewSubmixBuffer(const USoundSubmix* InOwningSubmix, float* InAudioData, int32 InNumSamples, int32 InNumChannels, const int32 InSampleRate, double InAudioClock) override;
 	virtual const FString& GetListenerName() const override;
+
+	/** Initializes audio capture for the given audio device */
+	void Initialize(const FAudioDeviceHandle& InAudioDeviceHandle);
 
 	/** Create an audio output that will receive audio samples. */
 	TSharedPtr<FMediaIOAudioOutput> CreateAudioOutput(int32 InNumOutputChannels, FFrameRate InTargetFrameRate, uint32 InMaxSampleLatency, uint32 InOutputSampleRate);
@@ -216,6 +223,9 @@ class FMainMediaIOAudioCapture : public FMediaIOAudioCapture
 public:
 	FMainMediaIOAudioCapture();
 	virtual ~FMainMediaIOAudioCapture() override;
+
+	/** Initializes audio capture for the main audio device */
+	void Initialize();
 
 private:
 #if WITH_EDITOR

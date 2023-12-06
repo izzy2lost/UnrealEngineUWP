@@ -85,14 +85,20 @@ Audio::FAlignedFloatBuffer FMediaIOAudioOutput::GetFloatBuffer(uint32 NumSamples
 	return FloatBuffer;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FMediaIOAudioCapture::FMediaIOAudioCapture(const FAudioDeviceHandle& InAudioDeviceHandle)
 {
-	RegisterAudioDevice(InAudioDeviceHandle);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FMediaIOAudioCapture::~FMediaIOAudioCapture()
 {
 	UnregisterAudioDevice();
+}
+
+void FMediaIOAudioCapture::Initialize(const FAudioDeviceHandle& InAudioDeviceHandle)
+{
+	RegisterAudioDevice(InAudioDeviceHandle);
 }
 
 void FMediaIOAudioCapture::OnNewSubmixBuffer(const USoundSubmix* InOwningSubmix, float* InAudioData, int32 InNumSamples, int32 InNumChannels, const int32 InSampleRate, double InAudioClock)
@@ -206,11 +212,7 @@ void FMediaIOAudioCapture::UnregisterAudioDevice()
 }
 
 FMainMediaIOAudioCapture::FMainMediaIOAudioCapture()
-	: FMediaIOAudioCapture(FAudioDeviceHandle())
-{
-	// Register the current device (PIE or main).
-	RegisterCurrentAudioDevice();
-	
+{	
 #if WITH_EDITOR
 	FEditorDelegates::PostPIEStarted.AddRaw(this, &FMainMediaIOAudioCapture::OnPIEStarted);
 	FEditorDelegates::PrePIEEnded.AddRaw(this, &FMainMediaIOAudioCapture::OnPIEEnded);
@@ -223,6 +225,12 @@ FMainMediaIOAudioCapture::~FMainMediaIOAudioCapture()
 	FEditorDelegates::PrePIEEnded.RemoveAll(this);
 	FEditorDelegates::PostPIEStarted.RemoveAll(this);
 #endif
+}
+
+void FMainMediaIOAudioCapture::Initialize()
+{
+	// Register the current device (PIE or main).
+	RegisterCurrentAudioDevice();
 }
 
 #if WITH_EDITOR

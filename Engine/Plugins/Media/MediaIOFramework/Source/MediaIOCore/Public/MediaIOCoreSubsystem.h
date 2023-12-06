@@ -56,7 +56,7 @@ private:
 	void OnBufferReceivedByCapture(float* Data, int32 NumSamples, Audio::FDeviceId AudioDeviceID) const;
 
 private:
-	TUniquePtr<FMediaIOAudioCapture> MainMediaIOAudioCapture;
+	TSharedPtr<FMainMediaIOAudioCapture> MainMediaIOAudioCapture;
 	
 	TMap<Audio::FDeviceId, TSharedPtr<FMediaIOAudioCapture, ESPMode::ThreadSafe>> MediaIOAudioCaptures;
 
